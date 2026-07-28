@@ -1,5 +1,7 @@
 use super::*;
-use crate::test_metrics::{histogram_points_f64, sum_points_u64, MetricsHarness};
+use crate::test_metrics::{
+    gauge_points_f64, gauge_points_u64, histogram_points_f64, sum_points_u64, MetricsHarness,
+};
 use std::collections::BTreeMap;
 use std::net::TcpListener as StdTcpListener;
 
@@ -8,6 +10,30 @@ fn attrs(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
         .iter()
         .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
         .collect()
+}
+
+#[test]
+fn test_peer_health_observable_gauges_emit_expected_labels() {
+    let harness = MetricsHarness::new();
+    let health = Arc::new(PeerHealthTracker::default());
+    let _metrics = health.register_metrics(&harness.meter("imagefsd.health.test"));
+    let peer: SocketAddr = "127.0.0.1:4317".parse().unwrap();
+
+    health.record_success(peer, 10.0);
+
+    let collected = harness.collect();
+    assert_eq!(
+        gauge_points_f64(&collected, "imagefsd.health.peer_rtt_ms"),
+        vec![(attrs(&[("peer", "127.0.0.1:4317")]), 38.0)]
+    );
+    assert_eq!(
+        gauge_points_u64(&collected, "imagefsd.health.peer_status"),
+        vec![(attrs(&[("peer", "127.0.0.1:4317")]), 1)]
+    );
+    assert!(gauge_points_u64(&collected, "imagefsd.health.peers_total")
+        .contains(&(attrs(&[("status", "healthy")]), 1)));
+    assert!(gauge_points_u64(&collected, "imagefsd.health.peers_total")
+        .contains(&(attrs(&[("status", "unhealthy")]), 0)));
 }
 
 #[test]

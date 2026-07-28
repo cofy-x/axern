@@ -15,21 +15,21 @@ impl ChunkServerMetrics {
             requests_total: meter
                 .u64_counter("imagefsd.server.requests_total")
                 .with_description("Total requests received")
-                .init(),
+                .build(),
             request_duration: meter
                 .f64_histogram("imagefsd.server.request_duration_ms")
                 .with_description("Request processing duration in ms")
                 .with_unit("ms")
-                .init(),
+                .build(),
             response_bytes: meter
                 .u64_counter("imagefsd.server.response_bytes")
                 .with_description("Total bytes sent in GET_CHUNK responses")
                 .with_unit("By")
-                .init(),
+                .build(),
             active_connections: meter
                 .i64_up_down_counter("imagefsd.server.active_connections")
                 .with_description("Current active connections")
-                .init(),
+                .build(),
         }
     }
 
@@ -74,25 +74,25 @@ impl PeerClientMetrics {
             fetch_total: meter
                 .u64_counter("imagefsd.peer.fetch_total")
                 .with_description("Total chunk fetch attempts by source")
-                .init(),
+                .build(),
             fetch_duration: meter
                 .f64_histogram("imagefsd.peer.fetch_duration_ms")
                 .with_description("End-to-end fetch duration including retries")
                 .with_unit("ms")
-                .init(),
+                .build(),
             query_total: meter
                 .u64_counter("imagefsd.peer.query_total")
                 .with_description("Total individual peer queries")
-                .init(),
+                .build(),
             query_duration: meter
                 .f64_histogram("imagefsd.peer.query_duration_ms")
                 .with_description("Single peer TCP query duration")
                 .with_unit("ms")
-                .init(),
+                .build(),
             retry_total: meter
                 .u64_counter("imagefsd.peer.retry_total")
                 .with_description("Total retries in index mode")
-                .init(),
+                .build(),
         }
     }
 
@@ -135,40 +135,40 @@ impl ChunkIndexMetrics {
             lookup_total: meter
                 .u64_counter("imagefsd.index.lookup_total")
                 .with_description("Total index lookups")
-                .init(),
+                .build(),
             lookup_duration: meter
                 .f64_histogram("imagefsd.index.lookup_duration_ms")
                 .with_description("Index lookup duration (Redis RTT)")
                 .with_unit("ms")
-                .init(),
+                .build(),
             register_total: meter
                 .u64_counter("imagefsd.index.register_total")
                 .with_description("Total attempted index registrations")
-                .init(),
+                .build(),
             register_success_total: meter
                 .u64_counter("imagefsd.index.register_success_total")
                 .with_description("Total successful index registrations")
-                .init(),
+                .build(),
             unregister_total: meter
                 .u64_counter("imagefsd.index.unregister_total")
                 .with_description("Total successful index unregisters")
-                .init(),
+                .build(),
             refresh_total: meter
                 .u64_counter("imagefsd.index.refresh_total")
                 .with_description("Total chunks refreshed in the index")
-                .init(),
+                .build(),
             repair_total: meter
                 .u64_counter("imagefsd.index.repair_total")
                 .with_description("Total chunks repaired in the index")
-                .init(),
+                .build(),
             error_total: meter
                 .u64_counter("imagefsd.index.error_total")
                 .with_description("Total index operation errors")
-                .init(),
+                .build(),
             candidates_count: meter
                 .f64_histogram("imagefsd.index.candidates_count")
                 .with_description("Number of candidate nodes per lookup")
-                .init(),
+                .build(),
         }
     }
 
@@ -229,12 +229,12 @@ impl LocalClientMetrics {
             requests_total: meter
                 .u64_counter("imagefsd.local.request_total")
                 .with_description("Total local control requests")
-                .init(),
+                .build(),
             request_duration: meter
                 .f64_histogram("imagefsd.local.request_duration_ms")
                 .with_description("Local control request duration")
                 .with_unit("ms")
-                .init(),
+                .build(),
         }
     }
 

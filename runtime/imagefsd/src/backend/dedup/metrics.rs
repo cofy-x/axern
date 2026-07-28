@@ -17,29 +17,29 @@ impl DedupMetrics {
             read_total: meter
                 .u64_counter("imagefsd.dedup.read_total")
                 .with_description("Total dedup read attempts")
-                .init(),
+                .build(),
             read_duration: meter
                 .f64_histogram("imagefsd.dedup.read_duration_ms")
                 .with_description("Dedup read duration")
                 .with_unit("ms")
-                .init(),
+                .build(),
             chunk_hit_total: meter
                 .u64_counter("imagefsd.dedup.chunk_hit_total")
                 .with_description("Total dedup chunk hits")
-                .init(),
+                .build(),
             backend_fallback_total: meter
                 .u64_counter("imagefsd.dedup.backend_fallback_total")
                 .with_description("Total dedup backend fallbacks")
-                .init(),
+                .build(),
             store_total: meter
                 .u64_counter("imagefsd.dedup.store_total")
                 .with_description("Total dedup stores into ChunkDB")
-                .init(),
+                .build(),
             store_bytes: meter
                 .u64_counter("imagefsd.dedup.store_bytes")
                 .with_description("Bytes stored into ChunkDB by dedup")
                 .with_unit("By")
-                .init(),
+                .build(),
         }
     }
 

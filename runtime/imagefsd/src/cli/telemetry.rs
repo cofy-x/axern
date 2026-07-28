@@ -48,15 +48,14 @@ pub(super) fn init_metrics(
         .build()?;
     let provider = {
         let _guard = runtime.enter();
-        opentelemetry_otlp::new_pipeline()
-            .metrics(opentelemetry_sdk::runtime::Tokio)
-            .with_exporter(
-                opentelemetry_otlp::new_exporter()
-                    .tonic()
-                    .with_endpoint(otel_endpoint),
-            )
+        let exporter = opentelemetry_otlp::MetricExporter::builder()
+            .with_tonic()
+            .with_endpoint(otel_endpoint)
+            .build()?;
+        SdkMeterProvider::builder()
+            .with_periodic_exporter(exporter)
             .with_resource(build_metrics_resource(service_name, node_id, extra_attrs))
-            .build()?
+            .build()
     };
 
     global::set_meter_provider(provider.clone());

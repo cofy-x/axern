@@ -65,26 +65,26 @@ impl DecodedChunkMetrics {
             access_total: meter
                 .u64_counter("imagefsd.nydus.decoded_chunk_access_total")
                 .with_description("Decoded Nydus chunk cache accesses")
-                .init(),
+                .build(),
             load_duration: meter
                 .f64_histogram("imagefsd.nydus.decoded_chunk_load_duration_ms")
                 .with_description("Nydus chunk backend read and decode duration")
                 .with_unit("ms")
-                .init(),
+                .build(),
             load_bytes: meter
                 .u64_counter("imagefsd.nydus.decoded_chunk_load_bytes")
                 .with_description("Bytes produced by Nydus chunk decoding")
                 .with_unit("By")
-                .init(),
+                .build(),
             eviction_total: meter
                 .u64_counter("imagefsd.nydus.decoded_chunk_eviction_total")
                 .with_description("Decoded Nydus chunks evicted from the bounded cache")
-                .init(),
+                .build(),
             current_bytes: meter
                 .i64_up_down_counter("imagefsd.nydus.decoded_chunk_current_bytes")
                 .with_description("Bytes currently retained by the decoded Nydus chunk cache")
                 .with_unit("By")
-                .init(),
+                .build(),
         }
     }
 

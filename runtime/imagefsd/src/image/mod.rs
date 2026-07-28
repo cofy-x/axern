@@ -29,17 +29,17 @@ impl FsReadMetrics {
             read_total: meter
                 .u64_counter("imagefsd.fs.read_total")
                 .with_description("Total filesystem read attempts")
-                .init(),
+                .build(),
             read_duration: meter
                 .f64_histogram("imagefsd.fs.read_duration_ms")
                 .with_description("Filesystem read duration")
                 .with_unit("ms")
-                .init(),
+                .build(),
             read_bytes: meter
                 .u64_counter("imagefsd.fs.read_bytes")
                 .with_description("Bytes returned by filesystem reads")
                 .with_unit("By")
-                .init(),
+                .build(),
         }
     }
 

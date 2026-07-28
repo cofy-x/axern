@@ -37,7 +37,7 @@ impl StartupPhaseMetrics {
                 .f64_histogram("imagefsd.mount.startup_phase_duration_seconds")
                 .with_description("Startup-critical Nydus mount phase duration")
                 .with_unit("s")
-                .init(),
+                .build(),
         }
     }
 
