@@ -28,7 +28,7 @@ nydus-rafs = { git = "https://github.com/dragonflyoss/nydus.git", rev = "4141576
 nydus-storage = { git = "https://github.com/dragonflyoss/nydus.git", rev = "41415762b478f1f1a28e05ca6f4450c0fafb825c", features = ["backend-oss", "backend-registry", "backend-http-proxy", "backend-s3"] }
 nydus-utils = { git = "https://github.com/dragonflyoss/nydus.git", rev = "41415762b478f1f1a28e05ca6f4450c0fafb825c" }
 opentelemetry = { version = "0.24", features = ["metrics"] }
-opentelemetry_sdk = { version = "0.24", features = ["metrics", "rt-tokio"] }
+opentelemetry_sdk = { version = "0.32", features = ["metrics", "rt-tokio"] }
 opentelemetry-otlp = { version = "0.17", features = ["metrics", "grpc-tonic"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
