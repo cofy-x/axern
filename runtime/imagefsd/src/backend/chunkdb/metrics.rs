@@ -19,39 +19,39 @@ impl ChunkDbMetrics {
             get_total: meter
                 .u64_counter("imagefsd.chunkdb.get_total")
                 .with_description("Total ChunkDB read attempts")
-                .init(),
+                .build(),
             get_duration: meter
                 .f64_histogram("imagefsd.chunkdb.get_duration_ms")
                 .with_description("ChunkDB read duration")
                 .with_unit("ms")
-                .init(),
+                .build(),
             get_bytes: meter
                 .u64_counter("imagefsd.chunkdb.get_bytes")
                 .with_description("Bytes read from ChunkDB")
                 .with_unit("By")
-                .init(),
+                .build(),
             add_total: meter
                 .u64_counter("imagefsd.chunkdb.add_total")
                 .with_description("Total ChunkDB add attempts")
-                .init(),
+                .build(),
             add_bytes: meter
                 .u64_counter("imagefsd.chunkdb.add_bytes")
                 .with_description("Bytes added to ChunkDB")
                 .with_unit("By")
-                .init(),
+                .build(),
             touch_total: meter
                 .u64_counter("imagefsd.chunkdb.touch_total")
                 .with_description("Total ChunkDB touch attempts")
-                .init(),
+                .build(),
             gc_removed_total: meter
                 .u64_counter("imagefsd.chunkdb.gc_removed_total")
                 .with_description("Chunks removed by ChunkDB GC")
-                .init(),
+                .build(),
             gc_duration: meter
                 .f64_histogram("imagefsd.chunkdb.gc_duration_ms")
                 .with_description("ChunkDB GC duration")
                 .with_unit("ms")
-                .init(),
+                .build(),
         }
     }
 

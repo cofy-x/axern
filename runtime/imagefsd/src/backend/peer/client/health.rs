@@ -1,11 +1,16 @@
 use crate::utils::now_epoch_secs;
-use opentelemetry::metrics::{CallbackRegistration, Meter};
+use opentelemetry::metrics::{Meter, ObservableGauge};
 use opentelemetry::KeyValue;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tracing::debug;
+
+pub(in crate::backend::peer) struct PeerHealthMetrics {
+    _peer_rtt: ObservableGauge<f64>,
+    _peer_status: ObservableGauge<u64>,
+    _peers_total: ObservableGauge<u64>,
+}
 
 #[derive(Debug, Default)]
 pub struct PeerHealthTracker {
@@ -118,55 +123,57 @@ impl PeerHealthTracker {
     pub(in crate::backend::peer) fn register_metrics(
         self: &Arc<Self>,
         meter: &Meter,
-    ) -> Vec<Box<dyn CallbackRegistration>> {
+    ) -> PeerHealthMetrics {
+        let health = self.clone();
         let peer_rtt = meter
             .f64_observable_gauge("imagefsd.health.peer_rtt_ms")
             .with_description("Current EMA RTT per peer")
             .with_unit("ms")
-            .init();
+            .with_callback(move |observer| {
+                for entry in health.snapshot().entries {
+                    observer.observe(
+                        entry.avg_rtt_ms,
+                        &[KeyValue::new("peer", entry.addr.to_string())],
+                    );
+                }
+            })
+            .build();
+
+        let health = self.clone();
         let peer_status = meter
             .u64_observable_gauge("imagefsd.health.peer_status")
             .with_description("Peer status: 1 healthy, 0 unhealthy")
-            .init();
+            .with_callback(move |observer| {
+                for entry in health.snapshot().entries {
+                    observer.observe(
+                        if entry.healthy { 1 } else { 0 },
+                        &[KeyValue::new("peer", entry.addr.to_string())],
+                    );
+                }
+            })
+            .build();
+
+        let health = self.clone();
         let peers_total = meter
             .u64_observable_gauge("imagefsd.health.peers_total")
             .with_description("Current total peers by health status")
-            .init();
+            .with_callback(move |observer| {
+                let snapshot = health.snapshot();
+                observer.observe(
+                    snapshot.healthy_count,
+                    &[KeyValue::new("status", "healthy")],
+                );
+                observer.observe(
+                    snapshot.unhealthy_count,
+                    &[KeyValue::new("status", "unhealthy")],
+                );
+            })
+            .build();
 
-        let health_rtt = self.clone();
-        let reg1 = meter
-            .register_callback(
-                &[
-                    peer_rtt.as_any(),
-                    peer_status.as_any(),
-                    peers_total.as_any(),
-                ],
-                move |observer| {
-                    let snapshot = health_rtt.snapshot();
-                    for entry in &snapshot.entries {
-                        let peer_attr = [KeyValue::new("peer", entry.addr.to_string())];
-                        observer.observe_f64(&peer_rtt, entry.avg_rtt_ms, &peer_attr);
-                        observer.observe_u64(
-                            &peer_status,
-                            if entry.healthy { 1 } else { 0 },
-                            &peer_attr,
-                        );
-                    }
-                    observer.observe_u64(
-                        &peers_total,
-                        snapshot.healthy_count,
-                        &[KeyValue::new("status", "healthy")],
-                    );
-                    observer.observe_u64(
-                        &peers_total,
-                        snapshot.unhealthy_count,
-                        &[KeyValue::new("status", "unhealthy")],
-                    );
-                },
-            )
-            .map_err(|err| debug!(err = debug(err), "failed to register peer health metrics"))
-            .ok();
-
-        reg1.into_iter().collect()
+        PeerHealthMetrics {
+            _peer_rtt: peer_rtt,
+            _peer_status: peer_status,
+            _peers_total: peers_total,
+        }
     }
 }

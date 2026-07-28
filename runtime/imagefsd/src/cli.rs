@@ -181,7 +181,7 @@ mod tests {
     use opentelemetry::{Key, Value};
 
     fn resource_value(resource: &Resource, key: &str) -> Option<Value> {
-        resource.get(Key::new(key.to_string()))
+        resource.get(&Key::new(key.to_string()))
     }
 
     #[test]
@@ -280,7 +280,7 @@ fn build_metrics_resource(
         KeyValue::new("node.id", node_id.to_string()),
     ];
     attrs.extend(extra_attrs);
-    Resource::new(attrs)
+    Resource::builder_empty().with_attributes(attrs).build()
 }
 
 #[derive(Parser)]

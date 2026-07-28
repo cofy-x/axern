@@ -24,50 +24,50 @@ impl CacheMetrics {
             read_total: meter
                 .u64_counter("imagefsd.cache.read_total")
                 .with_description("Total cache read attempts")
-                .init(),
+                .build(),
             read_duration: meter
                 .f64_histogram("imagefsd.cache.read_duration_ms")
                 .with_description("Cache read duration")
                 .with_unit("ms")
-                .init(),
+                .build(),
             read_bytes: meter
                 .u64_counter("imagefsd.cache.read_bytes")
                 .with_description("Bytes returned by cache reads")
                 .with_unit("By")
-                .init(),
+                .build(),
             backend_fetch_total: meter
                 .u64_counter("imagefsd.cache.backend_fetch_total")
                 .with_description("Total backend fetches issued by the cache")
-                .init(),
+                .build(),
             backend_fetch_bytes: meter
                 .u64_counter("imagefsd.cache.backend_fetch_bytes")
                 .with_description("Bytes fetched from the backend into cache")
                 .with_unit("By")
-                .init(),
+                .build(),
             backend_fetch_duration: meter
                 .f64_histogram("imagefsd.cache.backend_fetch_duration_ms")
                 .with_description("Duration of backend fetches issued by the cache")
                 .with_unit("ms")
-                .init(),
+                .build(),
             inflight_wait_duration: meter
                 .f64_histogram("imagefsd.cache.inflight_wait_duration_ms")
                 .with_description("Duration spent waiting for an in-flight cache chunk fetch")
                 .with_unit("ms")
-                .init(),
+                .build(),
             readahead_duration: meter
                 .f64_histogram("imagefsd.cache.readahead_duration_seconds")
                 .with_description("Duration of a bounded cache readahead task")
                 .with_unit("s")
-                .init(),
+                .build(),
             readahead_bytes: meter
                 .u64_counter("imagefsd.cache.readahead_bytes")
                 .with_description("Bytes fetched by bounded cache readahead")
                 .with_unit("By")
-                .init(),
+                .build(),
             readahead_chunks: meter
                 .u64_counter("imagefsd.cache.readahead_chunks")
                 .with_description("Cache chunks processed by bounded readahead")
-                .init(),
+                .build(),
         }
     }
 

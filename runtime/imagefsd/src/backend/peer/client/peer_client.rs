@@ -1,4 +1,4 @@
-use super::health::PeerHealthTracker;
+use super::health::{PeerHealthMetrics, PeerHealthTracker};
 use super::hints::PeerHitHints;
 use crate::backend::chunkdb::CheckSum;
 use crate::backend::peer::discovery::PeerDiscovery;
@@ -10,7 +10,6 @@ use crate::backend::peer::{
     timeout_error, PeerRuntime, DEFAULT_MAX_QUERY_PEERS, DEFAULT_TIMEOUT_MS, HINT_GC_INTERVAL_SECS,
 };
 use opentelemetry::global;
-use opentelemetry::metrics::CallbackRegistration;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 use std::io::{self, ErrorKind};
@@ -34,7 +33,7 @@ pub struct PeerClient {
     pub(in crate::backend::peer) health: Arc<PeerHealthTracker>,
     pub(in crate::backend::peer) pools: PeerPoolMap,
     pub(in crate::backend::peer) metrics: PeerClientMetrics,
-    _metric_regs: Vec<Box<dyn CallbackRegistration>>,
+    _health_metrics: PeerHealthMetrics,
 }
 
 impl std::fmt::Debug for PeerClient {
@@ -50,7 +49,7 @@ impl PeerClient {
     pub fn new(runtime: PeerRuntime, discovery: Arc<dyn PeerDiscovery>) -> Self {
         let meter = global::meter("imagefsd.peer");
         let health = Arc::new(PeerHealthTracker::default());
-        let metric_regs = health.register_metrics(&meter);
+        let health_metrics = health.register_metrics(&meter);
         Self {
             runtime,
             discovery,
@@ -62,7 +61,7 @@ impl PeerClient {
             health,
             pools: Arc::new(Mutex::new(HashMap::new())),
             metrics: PeerClientMetrics::new(&meter),
-            _metric_regs: metric_regs,
+            _health_metrics: health_metrics,
         }
     }
 
