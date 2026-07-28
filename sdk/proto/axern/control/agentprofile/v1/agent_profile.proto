@@ -1,0 +1,169 @@
+syntax = "proto3";
+
+package axern.control.agentprofile.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/agentprofile/v1;agentprofilev1";
+
+import "google/protobuf/timestamp.proto";
+
+enum AgentProvider {
+  AGENT_PROVIDER_UNSPECIFIED = 0;
+  AGENT_PROVIDER_OPENAI = 1;
+  AGENT_PROVIDER_ANTHROPIC = 2;
+}
+
+enum AgentWireApi {
+  AGENT_WIRE_API_UNSPECIFIED = 0;
+  AGENT_WIRE_API_OPENAI_RESPONSES = 1;
+  AGENT_WIRE_API_ANTHROPIC_MESSAGES = 2;
+}
+
+message AgentProfileSpec {
+  string agent = 1;
+  AgentProvider provider = 2;
+  AgentWireApi wire_api = 3;
+  string base_url = 4;
+  int32 max_concurrency = 5;
+}
+
+message AgentProfile {
+  string id = 1;
+  string namespace = 2;
+  string name = 3;
+  AgentProfileSpec spec = 4;
+  map<string, string> labels = 5;
+  int64 version = 6;
+  int64 credential_version = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message AgentProfileListFilter {
+  string namespace = 1;
+  string agent = 2;
+  AgentProvider provider = 3;
+  map<string, string> labels = 4;
+  string cursor = 5;
+  int32 page_size = 6;
+}
+
+message CreateAgentProfileRequest {
+  string namespace = 1;
+  string name = 2;
+  AgentProfileSpec spec = 3;
+  map<string, string> labels = 4;
+  bytes credential = 5;
+  string idempotency_key = 6;
+}
+
+message CreateAgentProfileResponse {
+  AgentProfile profile = 1;
+}
+
+message GetAgentProfileRequest {
+  string namespace = 1;
+  string name = 2;
+}
+
+message GetAgentProfileResponse {
+  AgentProfile profile = 1;
+}
+
+message ListAgentProfilesRequest {
+  AgentProfileListFilter filter = 1;
+}
+
+message ListAgentProfilesResponse {
+  repeated AgentProfile profiles = 1;
+  string next_cursor = 2;
+}
+
+message AgentProfilePatch {
+  optional string base_url = 1;
+  optional int32 max_concurrency = 2;
+  map<string, string> labels = 3;
+  bool replace_labels = 4;
+}
+
+message UpdateAgentProfileRequest {
+  string namespace = 1;
+  string name = 2;
+  AgentProfilePatch patch = 3;
+  int64 expected_version = 4;
+  string idempotency_key = 5;
+}
+
+message UpdateAgentProfileResponse {
+  AgentProfile profile = 1;
+}
+
+message RotateAgentProfileCredentialRequest {
+  string namespace = 1;
+  string name = 2;
+  bytes credential = 3;
+  int64 expected_version = 4;
+  string idempotency_key = 5;
+}
+
+message RotateAgentProfileCredentialResponse {
+  AgentProfile profile = 1;
+}
+
+enum ProfileCheckKind {
+  PROFILE_CHECK_KIND_UNSPECIFIED = 0;
+  PROFILE_CHECK_KIND_CONFIGURATION = 1;
+  PROFILE_CHECK_KIND_CREDENTIAL = 2;
+  PROFILE_CHECK_KIND_WORKER_CAPABILITY = 3;
+  PROFILE_CHECK_KIND_PROVIDER_AUTHENTICATION = 4;
+  PROFILE_CHECK_KIND_WIRE_API = 5;
+  PROFILE_CHECK_KIND_MODEL = 6;
+  PROFILE_CHECK_KIND_LATENCY = 7;
+}
+
+enum ProfileCheckStatus {
+  PROFILE_CHECK_STATUS_UNSPECIFIED = 0;
+  PROFILE_CHECK_STATUS_PASS = 1;
+  PROFILE_CHECK_STATUS_WARN = 2;
+  PROFILE_CHECK_STATUS_FAIL = 3;
+}
+
+message ProfileCheck {
+  ProfileCheckKind kind = 1;
+  ProfileCheckStatus status = 2;
+  string code = 3;
+  string message = 4;
+  bool retryable = 5;
+  int64 latency_ms = 6;
+}
+
+message DoctorAgentProfileRequest {
+  string namespace = 1;
+  string name = 2;
+  string model = 3;
+}
+
+message DoctorAgentProfileResponse {
+  AgentProfile profile = 1;
+  repeated ProfileCheck checks = 2;
+  bool healthy = 3;
+}
+
+message DeleteAgentProfileRequest {
+  string namespace = 1;
+  string name = 2;
+  int64 expected_version = 3;
+}
+
+message DeleteAgentProfileResponse {
+  AgentProfile profile = 1;
+}
+
+service AgentProfileControl {
+  rpc CreateAgentProfile(CreateAgentProfileRequest) returns (CreateAgentProfileResponse) {}
+  rpc GetAgentProfile(GetAgentProfileRequest) returns (GetAgentProfileResponse) {}
+  rpc ListAgentProfiles(ListAgentProfilesRequest) returns (ListAgentProfilesResponse) {}
+  rpc UpdateAgentProfile(UpdateAgentProfileRequest) returns (UpdateAgentProfileResponse) {}
+  rpc RotateAgentProfileCredential(RotateAgentProfileCredentialRequest) returns (RotateAgentProfileCredentialResponse) {}
+  rpc DoctorAgentProfile(DoctorAgentProfileRequest) returns (DoctorAgentProfileResponse) {}
+  rpc DeleteAgentProfile(DeleteAgentProfileRequest) returns (DeleteAgentProfileResponse) {}
+}

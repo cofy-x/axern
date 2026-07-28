@@ -1,0 +1,68 @@
+{
+  "valid": [
+    {
+      "name": "direct",
+      "context": {
+        "endpoint": "gateway.example.com:443",
+        "service_url": "https://services.example.com",
+        "ssh_endpoint": "ssh.example.com:22",
+        "ssh_identity_file": "/credentials/id_ed25519",
+        "tls": {
+          "ca_cert": "/credentials/ca.crt",
+          "cert": "/credentials/client.crt",
+          "key": "/credentials/client.key",
+          "server_name": "gateway.example.com"
+        },
+        "proxy_mode": "direct"
+      }
+    },
+    {
+      "name": "environment-proxy",
+      "context": {
+        "endpoint": "gateway.internal:443",
+        "tls": {
+          "ca_cert": "/credentials/ca.crt",
+          "cert": "/credentials/client.crt",
+          "key": "/credentials/client.key"
+        },
+        "proxy_mode": "env"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "missing-endpoint",
+      "context": {
+        "tls": {
+          "ca_cert": "/credentials/ca.crt",
+          "cert": "/credentials/client.crt",
+          "key": "/credentials/client.key"
+        },
+        "proxy_mode": "direct"
+      }
+    },
+    {
+      "name": "partial-mtls",
+      "context": {
+        "endpoint": "gateway.example.com:443",
+        "tls": {
+          "ca_cert": "/credentials/ca.crt",
+          "cert": "/credentials/client.crt"
+        },
+        "proxy_mode": "direct"
+      }
+    },
+    {
+      "name": "invalid-proxy",
+      "context": {
+        "endpoint": "gateway.example.com:443",
+        "tls": {
+          "ca_cert": "/credentials/ca.crt",
+          "cert": "/credentials/client.crt",
+          "key": "/credentials/client.key"
+        },
+        "proxy_mode": "disabled"
+      }
+    }
+  ]
+}

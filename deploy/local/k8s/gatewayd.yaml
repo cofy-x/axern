@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gatewayd
+  namespace: axern-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gatewayd
+  template:
+    metadata:
+      labels:
+        app: gatewayd
+    spec:
+      containers:
+        - name: gatewayd
+          image: axern/local-gatewayd:dev
+          imagePullPolicy: IfNotPresent
+          args:
+            - -control-target
+            - controld.axern-local.svc.cluster.local:24000
+            - -control-edge-address
+            - 0.0.0.0:25000
+            - -control-edge-tls-ca-cert
+            - /certs/ca.crt
+            - -control-edge-tls-cert
+            - /certs/gatewayd.crt
+            - -control-edge-tls-key
+            - /certs/gatewayd.key
+            - -tunnel-relay-target
+            - tunneld.axern-local.svc.cluster.local:24100
+            - -tunnel-relay-tls-ca-cert
+            - /certs/ca.crt
+            - -http-address
+            - 0.0.0.0:25080
+            - -ssh-enabled
+            - -ssh-address
+            - 0.0.0.0:25022
+            - -ssh-host-key
+            - /ssh/gateway_host_ed25519
+            - -ssh-authorized-keys
+            - /ssh/authorized_keys
+            - -dashboard-enabled
+            - -tls-ca-cert
+            - /certs/ca.crt
+            - -tls-cert
+            - /certs/gatewayd.crt
+            - -tls-key
+            - /certs/gatewayd.key
+            - -dev-token
+            - axern-local-dev
+          env:
+            - name: AXERN_GATEWAY_DEV_TOKEN
+              value: axern-local-dev
+            - name: GATEWAYD_DASHBOARD_ENABLED
+              value: "true"
+          ports:
+            - containerPort: 25000
+            - containerPort: 25080
+            - containerPort: 25022
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 25080
+            initialDelaySeconds: 2
+            periodSeconds: 2
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+            - name: ssh
+              mountPath: /ssh
+              readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: controld-pki
+        - name: ssh
+          secret:
+            secretName: gatewayd-ssh
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gatewayd
+  namespace: axern-local
+spec:
+  type: NodePort
+  selector:
+    app: gatewayd
+  ports:
+    - name: control
+      port: 25000
+      targetPort: 25000
+      nodePort: 30250
+    - name: http
+      port: 25080
+      targetPort: 25080
+      nodePort: 30282
+    - name: ssh
+      port: 25022
+      targetPort: 25022
+      nodePort: 30223

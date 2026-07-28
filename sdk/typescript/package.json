@@ -1,0 +1,55 @@
+{
+  "name": "@cofy-x/axern-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript SDK for the Axern programmable execution platform",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cofy-x/axern.git",
+    "directory": "sdk/typescript"
+  },
+  "homepage": "https://github.com/cofy-x/axern/tree/main/sdk/typescript#readme",
+  "bugs": {
+    "url": "https://github.com/cofy-x/axern/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/*.d.ts",
+    "dist/*.js",
+    "dist/client",
+    "dist/config",
+    "dist/errors",
+    "dist/generated",
+    "dist/node",
+    "dist/proto",
+    "dist/sandbox",
+    "dist/tunnel",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-proto.mjs",
+    "test": "tsx --test tests/*.test.ts",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "pack:dry-run": "node scripts/clean-dist.mjs && pnpm run build && npm pack --dry-run --json",
+    "smoke:local": "pnpm run build && node dist/smoke/local.js",
+    "smoke:tunnel": "pnpm run build && node dist/smoke/tunnel.js"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.3",
+    "@grpc/proto-loader": "^0.8.0",
+    "tar-stream": "^3.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/tar-stream": "^3.1.4"
+  }
+}

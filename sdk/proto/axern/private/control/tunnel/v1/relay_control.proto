@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package axern.private.control.tunnel.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/tunnel/v1;tunnelrelaycontrolv1";
+
+import "axern/control/tunnel/v1/tunnel.proto";
+
+message ReportTunnelPeerEventRequest {
+  string session_id = 1;
+  string relay_id = 2;
+  axern.control.tunnel.v1.TunnelPeerKind peer_kind = 3;
+  axern.control.tunnel.v1.TunnelSessionEventType event_type = 4;
+  axern.control.tunnel.v1.TunnelSessionEventReasonCode reason_code = 5;
+  string reason = 6;
+  int64 bytes_in = 7;
+  int64 bytes_out = 8;
+  string peer_token = 9;
+}
+
+message ReportTunnelPeerEventResponse {
+  axern.control.tunnel.v1.TunnelSession session = 1;
+}
+
+service TunnelRelayControl {
+  rpc ReportTunnelPeerEvent(ReportTunnelPeerEventRequest) returns (ReportTunnelPeerEventResponse) {}
+}

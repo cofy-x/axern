@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package axnoded.internal.apipb.v1;
+
+option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;apipb";
+
+import "internal/apipb/v1/axnoded_internal.proto";
+import "internal/apipb/v1/process.proto";
+
+message CreateContainerRequest {
+  string runtime = 1;
+  repeated string command = 2;
+  repeated Mount mounts = 3;
+  Rootfs rootfs = 4;
+  LinuxContainerResources resource = 5;
+  repeated KeyValue envs = 6;
+  string stdout = 7;
+  string stderr = 8;
+  string network = 9;
+  map<string, string> labels = 10;
+  string ckptDir = 11;
+  string cwd = 12;
+  string ID = 13;
+}
+
+message CreateContainerResponse {
+  string ID = 1;
+}
+
+message DeleteContainerRequest {
+  string ID = 1;
+  int64 timeout = 2;
+}
+
+message DeleteContainerResponse {}
+
+message SignalContainerRequest {
+  string ID = 1;
+  string signal = 2;
+}
+
+message SignalContainerResponse {}
+
+message ExecContainerRequest {
+  string ID = 1;
+  repeated string command = 2;
+  bool tty = 3;
+  repeated KeyValue envs = 4;
+  string cwd = 5;
+  string user = 6;
+  ManagedProxySpec managed_proxy = 7;
+}
+
+message ExecContainerResponse {
+  int32 exit_code = 1;
+  bytes stdout = 2;
+  bytes stderr = 3;
+  bool stdout_truncated = 4;
+  bool stderr_truncated = 5;
+  ManagedProxyReport managed_proxy_report = 6;
+}
+
+message ExecSessionOpen {
+  string ID = 1;
+  repeated string command = 2;
+  bool tty = 3;
+  repeated KeyValue envs = 4;
+  string cwd = 5;
+  string user = 6;
+  TerminalResize initial_size = 7;
+  ManagedProxySpec managed_proxy = 8;
+}
+
+message StartContainerRequest {
+  string ID = 1;
+}
+
+message StartContainerResponse {}

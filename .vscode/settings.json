@@ -1,0 +1,18 @@
+{
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "go.testEnvVars": {
+    "GOTOOLCHAIN": "local"
+  },
+  "go.toolsEnvVars": {
+    "GOTOOLCHAIN": "local"
+  },
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/sdk/python/src"
+  ],
+  "terminal.integrated.defaultProfile.linux": "bash"
+}

@@ -1,0 +1,177 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  open-source:
+    name: Open Source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.12"
+          cache: false
+
+      - name: Install source-audit tools
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@v8.30.1
+          audit_bin="${RUNNER_TEMP}/source-audit-bin"
+          syft_archive="${RUNNER_TEMP}/syft_1.49.0_linux_amd64.tar.gz"
+          mkdir -p "${audit_bin}"
+          curl --fail --location --retry 3 \
+            --output "${syft_archive}" \
+            https://github.com/anchore/syft/releases/download/v1.49.0/syft_1.49.0_linux_amd64.tar.gz
+          printf '%s  %s\n' \
+            7aa2f03ee92739cf643279ba3990548b9925d4e22cae13f46831ee62821147fe \
+            "${syft_archive}" | sha256sum --check --strict
+          tar -xzf "${syft_archive}" -C "${audit_bin}" syft
+          printf '%s\n' "$(go env GOPATH)/bin" "${audit_bin}" >> "${GITHUB_PATH}"
+
+      - name: Check public source baseline
+        run: make open-source-check
+
+  repo-assets:
+    name: Repo Assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Check Grafana asset copies
+        run: make grafana-assets-check
+
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.12"
+          cache-dependency-path: |
+            apps/cli/go.sum
+            control/controld/go.sum
+            gateway/gatewayd/go.sum
+            runtime/axnoded/go.sum
+            runtime/imagemgr/go.sum
+            runtime/tunneld/go.sum
+            sdk/go/go.sum
+
+      - name: Bootstrap Go dependencies
+        run: make bootstrap-go
+
+      - name: Build Go workspaces
+        run: make build-go
+
+      - name: Test Go workspaces
+        run: make test-go
+
+      - name: Lint Go workspaces
+        run: make lint-go
+
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@451ce45ce31d200b52705aadd15ce75018b006de # 1.89.0
+        with:
+          components: rustfmt
+
+      - name: Cache Cargo
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Bootstrap Rust dependencies
+        run: make bootstrap-rust
+
+      - name: Build Rust workspace
+        run: make build-rust
+
+      - name: Test Rust workspace
+        run: make test-rust
+
+      - name: Lint Rust workspace
+        run: make lint-rust
+
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "20"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
+        with:
+          version: "10.24.0"
+
+      - name: Bootstrap TypeScript dependencies
+        run: make bootstrap-ts
+
+      - name: Build TypeScript workspace
+        run: make build-ts
+
+      - name: Test TypeScript workspace
+        run: make test-ts
+
+      - name: Lint TypeScript workspace
+        run: make lint-ts
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
+      - name: Bootstrap Python dependencies
+        run: make bootstrap-py
+
+      - name: Build Python workspace
+        run: make build-py
+
+      - name: Test Python workspace
+        run: make test-py
+
+      - name: Lint Python workspace
+        run: make lint-py

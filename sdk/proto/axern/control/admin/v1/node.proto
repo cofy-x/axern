@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package axern.control.admin.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1";
+
+import "google/protobuf/timestamp.proto";
+
+enum AdminNodeLifecycleStatus {
+  ADMIN_NODE_LIFECYCLE_STATUS_UNSPECIFIED = 0;
+  ADMIN_NODE_LIFECYCLE_STATUS_ACTIVE = 1;
+  ADMIN_NODE_LIFECYCLE_STATUS_RETIRED = 2;
+}
+
+message AdminNode {
+  string node_id = 1;
+  AdminNodeLifecycleStatus lifecycle_status = 2;
+  bool heartbeat_fresh = 3;
+  bool summary_fresh = 4;
+  bool axnoded_ready = 5;
+  int64 heartbeat_age_seconds = 6;
+  int64 summary_age_seconds = 7;
+  google.protobuf.Timestamp registered_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  google.protobuf.Timestamp retired_at = 10;
+  string retired_reason = 11;
+}
+
+message ListAdminNodesRequest {
+  AdminNodeLifecycleStatus lifecycle_status = 1;
+}
+
+message ListAdminNodesResponse {
+  repeated AdminNode nodes = 1;
+}
+
+message RetireAdminNodeRequest {
+  string node_id = 1;
+  string operator_reason = 2;
+}
+
+message RetireAdminNodeResponse {
+  AdminNode node = 1;
+}
+
+service NodeAdmin {
+  rpc ListAdminNodes(ListAdminNodesRequest) returns (ListAdminNodesResponse) {}
+  rpc RetireAdminNode(RetireAdminNodeRequest) returns (RetireAdminNodeResponse) {}
+}

@@ -1,0 +1,14 @@
+{
+  "registry.example.com": {
+    "Auth": "base64-encoded-username:password"
+  },
+  "registry.example.com/namespace/repo": {
+    "Auth": "base64-encoded-username:password-for-specific-repo"
+  },
+  "docker.io": {
+    "Auth": "base64-encoded-dockerhub-credentials"
+  },
+  "ghcr.io": {
+    "Auth": "base64-encoded-github-token"
+  }
+}

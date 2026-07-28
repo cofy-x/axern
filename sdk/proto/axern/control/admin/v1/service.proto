@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package axern.control.admin.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1";
+
+message PurgeServiceRequest {
+  string service_id = 1;
+  string operator_reason = 2;
+}
+
+message PurgeServiceResponse {
+  string service_id = 1;
+}
+
+service ServiceAdmin {
+  rpc PurgeService(PurgeServiceRequest) returns (PurgeServiceResponse) {}
+}

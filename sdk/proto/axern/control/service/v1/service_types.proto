@@ -1,0 +1,155 @@
+syntax = "proto3";
+
+package axern.control.service.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1;servicev1";
+
+import "axern/control/common/v1/common.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+enum ServiceStatus {
+  SERVICE_STATUS_UNSPECIFIED = 0;
+  SERVICE_STATUS_RECONCILING = 1;
+  SERVICE_STATUS_READY = 2;
+  SERVICE_STATUS_DEGRADED = 3;
+  SERVICE_STATUS_FAILED = 4;
+  SERVICE_STATUS_DELETING = 5;
+  SERVICE_STATUS_DELETED = 6;
+}
+
+enum ServiceVolumeDisposition {
+  SERVICE_VOLUME_DISPOSITION_UNSPECIFIED = 0;
+  SERVICE_VOLUME_DISPOSITION_RETAIN = 1;
+  SERVICE_VOLUME_DISPOSITION_DELETE = 2;
+}
+
+enum ServiceDeletionPhase {
+  SERVICE_DELETION_PHASE_UNSPECIFIED = 0;
+  SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS = 1;
+  SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES = 2;
+  SERVICE_DELETION_PHASE_COMPLETE = 3;
+}
+
+message ServiceDeletionStatus {
+  ServiceDeletionPhase phase = 1;
+  ServiceVolumeDisposition volume_disposition = 2;
+  repeated string claim_ids = 3;
+  string message = 4;
+  google.protobuf.Timestamp completed_at = 5;
+}
+
+enum ServiceRolloutPhase {
+  SERVICE_ROLLOUT_PHASE_UNSPECIFIED = 0;
+  SERVICE_ROLLOUT_PHASE_ADMITTING_REPLACEMENT = 1;
+  SERVICE_ROLLOUT_PHASE_WAITING_FOR_UPDATED_READY = 2;
+  SERVICE_ROLLOUT_PHASE_DRAINING_OUTDATED = 3;
+  SERVICE_ROLLOUT_PHASE_BLOCKED = 4;
+}
+
+enum ServiceAutoscalingAction {
+  SERVICE_AUTOSCALING_ACTION_UNSPECIFIED = 0;
+  SERVICE_AUTOSCALING_ACTION_SCALED_UP = 1;
+  SERVICE_AUTOSCALING_ACTION_SCALED_DOWN = 2;
+  SERVICE_AUTOSCALING_ACTION_NO_CHANGE = 3;
+}
+
+enum HttpProbeScheme {
+  HTTP_PROBE_SCHEME_UNSPECIFIED = 0;
+  HTTP_PROBE_SCHEME_HTTP = 1;
+  HTTP_PROBE_SCHEME_HTTPS = 2;
+}
+
+message ServiceProbe {
+  oneof action {
+    HttpProbe http = 1;
+    TcpProbe tcp = 2;
+  }
+
+  google.protobuf.Duration initial_delay = 3;
+  google.protobuf.Duration period = 4;
+  google.protobuf.Duration timeout = 5;
+  int32 success_threshold = 6;
+  int32 failure_threshold = 7;
+}
+
+message HttpProbe {
+  int32 port = 1;
+  string path = 2;
+  HttpProbeScheme scheme = 3;
+}
+
+message TcpProbe {
+  int32 port = 1;
+}
+
+message ServiceAutoscalingSchedule {
+  string name = 1;
+  string cron_utc = 2;
+  int32 replicas = 3;
+}
+
+message ServiceAutoscalingPolicy {
+  int32 min_replicas = 1;
+  int32 max_replicas = 2;
+  repeated ServiceAutoscalingSchedule schedules = 3;
+}
+
+message ServiceAutoscalingStatus {
+  int32 current_desired_replicas = 1;
+  int32 effective_min_replicas = 2;
+  int32 effective_max_replicas = 3;
+  string active_schedule_name = 4;
+  int32 active_schedule_replicas = 5;
+  google.protobuf.Timestamp last_evaluated_at = 6;
+  ServiceAutoscalingAction last_action = 7;
+  string message = 8;
+}
+
+message Service {
+  string id = 1;
+  string namespace = 2;
+  string environment_id = 3;
+  int32 replicas = 4;
+  int32 ready_replicas = 13;
+  int32 unhealthy_replicas = 14;
+  ServiceRolloutPolicy rollout_policy = 15;
+  ServiceRolloutStatus rollout_status = 16;
+  ServiceStatus status = 5;
+  axern.control.common.v1.ExecutionConfig config = 6;
+  repeated string allocation_ids = 7;
+  map<string, string> labels = 8;
+  int64 version = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  string message = 12;
+  ServiceProbe readiness_probe = 17;
+  ServiceProbe liveness_probe = 18;
+  ServiceAutoscalingPolicy autoscaling_policy = 19;
+  ServiceAutoscalingStatus autoscaling_status = 20;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 21;
+  ServiceDeletionStatus deletion_status = 22;
+}
+
+message ServiceListFilter {
+  string namespace = 1;
+  repeated ServiceStatus statuses = 2;
+  map<string, string> labels = 3;
+  string cursor = 4;
+  int32 page_size = 5;
+}
+
+message ServiceRolloutPolicy {
+  int32 max_surge = 1;
+  int32 max_unavailable = 2;
+}
+
+message ServiceRolloutStatus {
+  bool in_progress = 1;
+  int32 current_replicas = 2;
+  int32 updated_ready_replicas = 3;
+  int32 outdated_replicas = 4;
+  ServiceRolloutPhase phase = 5;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 6;
+  string diagnostic_message = 7;
+}

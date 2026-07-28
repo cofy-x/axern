@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+set -eu
+
+launcher="$0"
+case "${launcher}" in
+  /*) ;;
+  *) launcher="$(command -v "${launcher}")" ;;
+esac
+
+launcher_dir="$(CDPATH= cd -- "$(dirname -- "${launcher}")" && pwd)"
+exec "${launcher_dir}/node" "${launcher_dir}/../lib/node_modules/@openai/codex/bin/codex.js" "$@"

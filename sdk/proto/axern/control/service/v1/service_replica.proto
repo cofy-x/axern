@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package axern.control.service.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1;servicev1";
+
+import "axern/control/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+enum ServiceReplicaView {
+  SERVICE_REPLICA_VIEW_UNSPECIFIED = 0;
+  SERVICE_REPLICA_VIEW_ALL = 1;
+  SERVICE_REPLICA_VIEW_CURRENT = 2;
+  SERVICE_REPLICA_VIEW_ENDED = 3;
+  SERVICE_REPLICA_VIEW_UNHEALTHY = 4;
+  SERVICE_REPLICA_VIEW_OUTDATED = 5;
+  SERVICE_REPLICA_VIEW_UPDATED = 6;
+}
+
+message ServiceReplica {
+  string id = 1;
+  string service_id = 2;
+  string node_id = 3;
+  int64 attempt = 4;
+  axern.control.common.v1.AllocationStatus status = 5;
+  string message = 6;
+  int32 exit_code = 7;
+  bool exit_code_known = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  bool ended = 11;
+  bool outdated = 12;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 13;
+  bool ready = 14;
+  string readiness_message = 15;
+  ServiceReplicaLifecycleRetry lifecycle_retry = 16;
+  axern.control.common.v1.WorkspacePreparationFacts workspace_preparation = 17;
+}
+
+enum ServiceReplicaLifecycleRetryReason {
+  SERVICE_REPLICA_LIFECYCLE_RETRY_REASON_UNSPECIFIED = 0;
+  SERVICE_REPLICA_LIFECYCLE_RETRY_REASON_CREATE = 1;
+  SERVICE_REPLICA_LIFECYCLE_RETRY_REASON_DELETE = 2;
+}
+
+message ServiceReplicaLifecycleRetry {
+  ServiceReplicaLifecycleRetryReason reason = 1;
+  int32 attempts = 2;
+  string last_error = 3;
+  google.protobuf.Timestamp next_run_at = 4;
+}
+
+message ServiceReplicaListFilter {
+  repeated axern.control.common.v1.AllocationStatus statuses = 1;
+  ServiceReplicaView view = 2;
+}
+
+message GetServiceReplicaRequest {
+  string service_id = 1;
+  string replica_id = 2;
+}
+
+message GetServiceReplicaResponse {
+  ServiceReplica replica = 1;
+}
+
+message ListServiceReplicasRequest {
+  string service_id = 1;
+  ServiceReplicaListFilter filter = 2;
+}
+
+message ListServiceReplicasResponse {
+  repeated ServiceReplica replicas = 1;
+}

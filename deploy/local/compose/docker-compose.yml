@@ -1,0 +1,301 @@
+volumes:
+  node-imagemgr-state:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: axern
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
+    volumes:
+      - "${COMPOSE_STATE_DIR}/postgres:/var/lib/postgresql/data"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d axern"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  controld-migrate:
+    image: ${CONTROLD_IMAGE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/usr/local/bin/controld-migrate"]
+    command:
+      - -postgres-dsn
+      - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
+      - up
+
+  minio:
+    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "127.0.0.1:${MINIO_API_PORT}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - "${COMPOSE_STATE_DIR}/minio:/data"
+
+  storaged:
+    image: ${CONTROLD_IMAGE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    entrypoint: ["/usr/local/bin/storaged"]
+    command:
+      - -grpc-address
+      - 0.0.0.0:24020
+      - -http-address
+      - 0.0.0.0:24021
+      - -postgres-dsn
+      - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
+
+  controld:
+    image: ${CONTROLD_IMAGE}
+    depends_on:
+      controld-migrate:
+        condition: service_completed_successfully
+      storaged:
+        condition: service_started
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE: ${PYTHON311_RUNTIME_IMAGE}
+      AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE: ${SERVER_BASE_RUNTIME_IMAGE}
+      AXERN_RUNTIME_CATALOG_CODING_BASE_IMAGE: ${CODING_BASE_RUNTIME_IMAGE}
+      AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE: ${DESKTOP_BASE_RUNTIME_IMAGE}
+      AXERN_AGENT_BUNDLE_CLAUDE_CODE_IMAGE: ${CLAUDE_CODE_BUNDLE_IMAGE}
+      AXERN_AGENT_BUNDLE_CODEX_IMAGE: ${CODEX_BUNDLE_IMAGE}
+      CONTROLD_POSTGRES_DSN: postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
+      AXERN_SECRETS_MASTER_KEY: ${AXERN_SECRETS_MASTER_KEY}
+      CONTROLD_TLS_CA_CERT: /certs/ca.crt
+      CONTROLD_TLS_CERT: /certs/controld.crt
+      CONTROLD_TLS_KEY: /certs/controld.key
+      CONTROLD_STORAGED_TARGET: storaged:24020
+      CONTROLD_FUNCTION_GATEWAY_URL: http://gatewayd:25080
+      CONTROLD_FUNCTION_GATEWAY_TOKEN: axern-local-dev
+      CONTROLD_FUNCTION_BUNDLE_BASE_URL: http://host.docker.internal:${CONTROLD_HTTP_PORT}
+      CONTROLD_FUNCTION_BUNDLE_TOKEN: axern-local-dev
+      HTTP_PROXY: ${CONTAINER_HTTP_PROXY}
+      HTTPS_PROXY: ${CONTAINER_HTTPS_PROXY}
+      NO_PROXY: ${CONTAINER_NO_PROXY}
+      http_proxy: ${CONTAINER_HTTP_PROXY}
+      https_proxy: ${CONTAINER_HTTPS_PROXY}
+      no_proxy: ${CONTAINER_NO_PROXY}
+      CONTROLD_INSECURE_REGISTRIES: ${CONTROLD_INSECURE_REGISTRIES}
+      AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES}
+    command:
+      - -grpc-address
+      - 0.0.0.0:24000
+      - -http-address
+      - 0.0.0.0:24001
+      - -heartbeat-freshness-window
+      - 15s
+      - -summary-freshness-window
+      - 15s
+      - -postgres-dsn
+      - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
+      - -tls-ca-cert
+      - /certs/ca.crt
+      - -tls-cert
+      - /certs/controld.crt
+      - -tls-key
+      - /certs/controld.key
+      - -tunnel-relays
+      - default,127.0.0.1:${GATEWAY_CONTROL_PORT},tunneld:24100,1,false
+      - -storaged-target
+      - storaged:24020
+    ports:
+      - "127.0.0.1:${CONTROLD_HTTP_PORT}:24001"
+    volumes:
+      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+
+  tunneld:
+    image: ${TUNNELD_IMAGE}
+    user: "${TUNNELD_RUNTIME_UID:-65532}:${TUNNELD_RUNTIME_GID:-65534}"
+    depends_on:
+      - controld
+    restart: unless-stopped
+    command:
+      - -listen
+      - 0.0.0.0:24100
+      - -control-target
+      - controld:24000
+      - -tls-ca-cert
+      - /certs/ca.crt
+      - -tls-cert
+      - /certs/client.crt
+      - -tls-key
+      - /certs/client.key
+      - -relay-id
+      - default
+      - -relay-tls-cert
+      - /certs/tunneld.crt
+      - -relay-tls-key
+      - /certs/tunneld.key
+    volumes:
+      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+
+  controld-retention:
+    image: ${CONTROLD_IMAGE}
+    depends_on:
+      controld-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    entrypoint: ["/usr/local/bin/controld-retention"]
+    environment:
+      CONTROLD_POSTGRES_DSN: postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
+      CONTROLD_RETENTION_ENABLED: "true"
+      AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES}
+    command:
+      - -postgres-dsn
+      - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
+
+  node:
+    image: ${NODE_ALL_IN_ONE_IMAGE}
+    privileged: true
+    restart: unless-stopped
+    depends_on:
+      - controld
+      - minio
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      AXNODED_SOCKET: /shared/run/axnoded.sock
+      IMAGEMGR_SOCKET: /run/imagemgr/imagemgr.sock
+      VOLUMED_SOCKET: /run/volumed/volumed.sock
+      AXERN_SANDBOXD_BINARY: /usr/local/libexec/axnoded/axern-sandboxd
+      AXNODED_GRPC_ADDRESS: 0.0.0.0:24010
+      AXNODED_HTTP_ADDRESS: 0.0.0.0:23001
+      AXNODED_CONTROL_PLANE_TARGET: controld:24000
+      AXNODED_CONTROL_PLANE_NODE_ID: node-compose-local
+      AXNODED_CONTROL_PLANE_NODE_TARGET: node:24010
+      AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN: node-compose-local-dev-token
+      AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL: 1s
+      AXNODED_CONTROL_PLANE_TLS_CA_CERT: /certs/ca.crt
+      AXNODED_CONTROL_PLANE_TLS_CERT: /certs/node.crt
+      AXNODED_CONTROL_PLANE_TLS_KEY: /certs/node.key
+      AXNODED_DNS_NAMESERVERS: ${AXNODED_DNS_NAMESERVERS:-}
+      REGISTRY_PROXY_URL: ${REGISTRY_PROXY_URL}
+      REGISTRY_NO_PROXY: ${CONTAINER_NO_PROXY}
+      IMAGEMGR_INSECURE_REGISTRIES: ${IMAGEMGR_INSECURE_REGISTRIES}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: axern-local
+      AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES},axern.node_id=node-compose-local
+    volumes:
+      - "${COMPOSE_STATE_DIR}/run:/shared/run"
+      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+      - "${COMPOSE_STATE_DIR}/axnoded:/var/lib/axnoded"
+      - "node-imagemgr-state:/var/lib/imagemgr"
+      - "${COMPOSE_STATE_DIR}/volumed:/var/lib/volumed"
+
+  gatewayd:
+    image: ${GATEWAYD_IMAGE}
+    depends_on:
+      - controld
+      - node
+    restart: unless-stopped
+    environment:
+      GATEWAYD_CONTROL_TARGET: controld:24000
+      GATEWAYD_CONTROL_EDGE_ADDRESS: 0.0.0.0:25000
+      GATEWAYD_CONTROL_EDGE_TLS_CA_CERT: /certs/ca.crt
+      GATEWAYD_CONTROL_EDGE_TLS_CERT: /certs/gatewayd.crt
+      GATEWAYD_CONTROL_EDGE_TLS_KEY: /certs/gatewayd.key
+      GATEWAYD_TUNNEL_RELAY_TARGET: tunneld:24100
+      GATEWAYD_TUNNEL_RELAY_TLS_CA_CERT: /certs/ca.crt
+      GATEWAYD_HTTP_ADDRESS: 0.0.0.0:25080
+      GATEWAYD_SSH_ENABLED: "true"
+      GATEWAYD_SSH_ADDRESS: 0.0.0.0:25022
+      GATEWAYD_SSH_HOST_KEY: /ssh/gateway_host_ed25519
+      GATEWAYD_SSH_AUTHORIZED_KEYS: /ssh/authorized_keys
+      GATEWAYD_DASHBOARD_ENABLED: "true"
+      GATEWAYD_TLS_CA_CERT: /certs/ca.crt
+      GATEWAYD_TLS_CERT: /certs/gatewayd.crt
+      GATEWAYD_TLS_KEY: /certs/gatewayd.key
+      AXERN_GATEWAY_DEV_TOKEN: axern-local-dev
+      AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES}
+    command:
+      - -control-target
+      - controld:24000
+      - -control-edge-address
+      - 0.0.0.0:25000
+      - -control-edge-tls-ca-cert
+      - /certs/ca.crt
+      - -control-edge-tls-cert
+      - /certs/gatewayd.crt
+      - -control-edge-tls-key
+      - /certs/gatewayd.key
+      - -tunnel-relay-target
+      - tunneld:24100
+      - -tunnel-relay-tls-ca-cert
+      - /certs/ca.crt
+      - -http-address
+      - 0.0.0.0:25080
+      - -ssh-enabled
+      - -ssh-address
+      - 0.0.0.0:25022
+      - -ssh-host-key
+      - /ssh/gateway_host_ed25519
+      - -ssh-authorized-keys
+      - /ssh/authorized_keys
+      - -dashboard-enabled
+      - -tls-ca-cert
+      - /certs/ca.crt
+      - -tls-cert
+      - /certs/gatewayd.crt
+      - -tls-key
+      - /certs/gatewayd.key
+      - -dev-token
+      - axern-local-dev
+    ports:
+      - "127.0.0.1:${GATEWAY_CONTROL_PORT}:25000"
+      - "127.0.0.1:${GATEWAY_HTTP_PORT}:25080"
+      - "127.0.0.1:${GATEWAY_SSH_PORT}:25022"
+    volumes:
+      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+      - "${COMPOSE_STATE_DIR}/ssh:/ssh:ro"
+
+  otel-collector:
+    image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector:0.150.1}
+    profiles: ["otel"]
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - "${AXERN_ROOT}/deploy/local/otel/collector.yaml:/etc/otel-collector-config.yaml:ro"
+    ports:
+      - "127.0.0.1:${OTEL_GRPC_PORT}:4317"
+      - "127.0.0.1:${OTEL_HTTP_PORT}:4318"
+    restart: unless-stopped
+    depends_on:
+      - otel-lgtm
+
+  otel-lgtm:
+    image: ${OTEL_LGTM_IMAGE:-grafana/otel-lgtm:0.11.16}
+    profiles: ["otel"]
+    volumes:
+      - "${AXERN_ROOT}/deploy/local/grafana/provisioning/dashboards/axern.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/axern.yaml:ro"
+      - "${AXERN_ROOT}/deploy/local/grafana/dashboards:/var/lib/grafana/dashboards/axern:ro"
+    ports:
+      - "127.0.0.1:${LGTM_UI_PORT}:3000"
+    restart: unless-stopped

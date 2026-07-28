@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package axern.control.environment.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1;environmentv1";
+
+import "axern/control/catalog/v1/catalog.proto";
+import "google/protobuf/timestamp.proto";
+
+message EnvironmentImageSource {
+  string ref = 1;
+  string digest = 2;
+  bool rootfs_readonly = 3;
+  string registry_credential_id = 4;
+}
+
+message EnvironmentSpec {
+  string namespace = 1;
+  string template_id = 2;
+  string template_version = 3;
+  EnvironmentImageSource image = 4;
+}
+
+enum EnvironmentStatus {
+  ENVIRONMENT_STATUS_UNSPECIFIED = 0;
+  ENVIRONMENT_STATUS_PENDING = 1;
+  ENVIRONMENT_STATUS_READY = 2;
+  ENVIRONMENT_STATUS_FAILED = 3;
+  ENVIRONMENT_STATUS_DELETING = 4;
+  ENVIRONMENT_STATUS_DELETED = 5;
+}
+
+message Environment {
+  string id = 1;
+  string namespace = 2;
+  EnvironmentStatus status = 3;
+  EnvironmentSpec spec = 4;
+  string spec_hash = 5;
+  axern.control.catalog.v1.RuntimeTemplate resolved_template = 6;
+  map<string, string> labels = 7;
+  int64 version = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  string message = 11;
+}
+
+message ListFilter {
+  string namespace = 1;
+  repeated EnvironmentStatus statuses = 2;
+  map<string, string> labels = 3;
+  string cursor = 4;
+  int32 page_size = 5;
+}
+
+message CreateEnvironmentRequest {
+  EnvironmentSpec spec = 1;
+  map<string, string> labels = 2;
+}
+
+message CreateEnvironmentResponse {
+  Environment environment = 1;
+}
+
+message GetEnvironmentRequest {
+  string environment_id = 1;
+}
+
+message GetEnvironmentResponse {
+  Environment environment = 1;
+}
+
+message ListEnvironmentsRequest {
+  ListFilter filter = 1;
+}
+
+message ListEnvironmentsResponse {
+  repeated Environment environments = 1;
+  string next_cursor = 2;
+}
+
+message DeleteEnvironmentRequest {
+  string environment_id = 1;
+}
+
+message DeleteEnvironmentResponse {
+  Environment environment = 1;
+}
+
+service EnvironmentControl {
+  rpc CreateEnvironment(CreateEnvironmentRequest) returns (CreateEnvironmentResponse) {}
+  rpc GetEnvironment(GetEnvironmentRequest) returns (GetEnvironmentResponse) {}
+  rpc ListEnvironments(ListEnvironmentsRequest) returns (ListEnvironmentsResponse) {}
+  rpc DeleteEnvironment(DeleteEnvironmentRequest) returns (DeleteEnvironmentResponse) {}
+}

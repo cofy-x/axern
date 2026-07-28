@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package axnoded.internal.apipb.v1;
+
+option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;apipb";
+
+message BrowserStatusRequest {
+  string ID = 1;
+}
+
+message BrowserStatusResponse {
+  bool available = 1;
+  string command = 2;
+  bool running = 3;
+  int32 pid = 4;
+  string url = 5;
+  string reason = 6;
+}
+
+message BrowserOpenRequest {
+  string ID = 1;
+  string url = 2;
+}
+
+message BrowserCloseRequest {
+  string ID = 1;
+}
+
+message BrowserNavigateRequest {
+  string ID = 1;
+  string url = 2;
+}
+
+message BrowserResizeRequest {
+  string ID = 1;
+  int32 width = 2;
+  int32 height = 3;
+}
+
+message BrowserClickRequest {
+  string ID = 1;
+  int32 x = 2;
+  int32 y = 3;
+  string button = 4;
+}
+
+message BrowserTypeRequest {
+  string ID = 1;
+  string text = 2;
+  int32 delay_ms = 3;
+}
+
+message BrowserWaitRequest {
+  string ID = 1;
+  int32 timeout_ms = 2;
+}

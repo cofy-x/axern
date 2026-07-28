@@ -1,0 +1,133 @@
+syntax = "proto3";
+
+package axnoded.internal.apipb.v1;
+
+option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;apipb";
+
+import "internal/apipb/v1/axnoded_internal.proto";
+import "axern/control/common/v1/common.proto";
+import "axern/private/storage/v1/storage.proto";
+
+message StartRequest {
+  RuntimeTemplate runtime_template = 1;
+  repeated Mount mounts = 2;
+  axern.control.common.v1.ResourceSpec resources = 3;
+  map<string, string> userEnvs = 4;
+  string stdout = 5;
+  string stderr = 6;
+  string extra_config = 7;
+  string network = 8;
+  string ckptDir = 9;
+  string trace_id = 10;
+  repeated string ports = 11;
+  string containerID = 12;
+  repeated axern.private.storage.v1.ResolvedNodeVolume node_volumes = 13;
+  repeated ImageMount image_mounts = 14;
+  WorkspaceImageSource workspace_image = 15;
+}
+
+message StartResponse {
+  int32 code = 1;
+  string message = 2;
+  string ID = 3;
+  repeated axern.private.storage.v1.PublishedNodeVolume published_volumes = 4;
+}
+
+message DeleteRequest {
+  string ID = 1;
+  int64 timeout = 2;
+}
+
+message DeleteResponse {
+  repeated axern.private.storage.v1.VolumeReleaseObservation volume_release_observations = 1;
+}
+
+message KillRequest {
+  string ID = 1;
+  string signal = 2;
+}
+
+message KillResponse {}
+
+message WaitRequest {
+  string ID = 1;
+}
+
+message WaitResponse {
+  int32 status = 1;
+  int32 exit_code = 2;
+  string message = 3;
+}
+
+message CheckpointRequest {
+  string ID = 1;
+  string ckptDir = 2;
+  int64 timeout = 3;
+  bool compress = 4;
+  string trace_id = 5;
+}
+
+message CheckpointResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ListContainersRequest {
+  string ID = 1;
+  map<string, string> selector = 10;
+}
+
+message ListContainersResponse {
+  repeated ContainerStatus containers = 1;
+}
+
+enum ContainerState {
+  CONTAINER_RUNNING = 0;
+  CONTAINER_EXITED = 1;
+  CONTAINER_UNKNOWN = 2;
+}
+
+message ContainerStatus {
+  string ID = 1;
+  repeated string command = 2;
+  string runtime = 3;
+  ContainerState state = 4;
+  int64 started_at = 5;
+  int64 finished_at = 6;
+  int32 exit_code = 7;
+  string message = 8;
+  map<string, string> labels = 9;
+  repeated Mount mounts = 10;
+  repeated KeyValue envs = 11;
+  string stdout = 12;
+  string stderr = 13;
+  LinuxContainerResources linux_resources = 14;
+  int32 pid = 15;
+}
+
+message VersionRequest {
+  string version = 1;
+}
+
+message VersionResponse {
+  string version = 1;
+  repeated RuntimeVersion runtimes = 2;
+}
+
+message RuntimeVersion {
+  string runtime_name = 1;
+  string runtime_version = 2;
+}
+
+message StatsRequest {
+  string ID = 1;
+}
+
+message StatsResponse {
+  uint64 cpu_usage_ns = 1;
+  uint64 memory_usage_bytes = 2;
+  uint64 memory_limit_bytes = 3;
+  uint64 memory_max_usage_bytes = 4;
+  uint64 cpu_kernel_ns = 5;
+  uint64 cpu_user_ns = 6;
+}

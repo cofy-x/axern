@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package axern.common.file.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/common/file/v1;filev1";
+
+enum SandboxFileKind {
+  SANDBOX_FILE_KIND_UNSPECIFIED = 0;
+  SANDBOX_FILE_KIND_FILE = 1;
+  SANDBOX_FILE_KIND_DIRECTORY = 2;
+  SANDBOX_FILE_KIND_SYMLINK = 3;
+  SANDBOX_FILE_KIND_OTHER = 4;
+}
+
+enum SandboxArchiveFormat {
+  SANDBOX_ARCHIVE_FORMAT_UNSPECIFIED = 0;
+  SANDBOX_ARCHIVE_FORMAT_TAR = 1;
+}
+
+enum SandboxArchiveSymlinkPolicy {
+  SANDBOX_ARCHIVE_SYMLINK_POLICY_UNSPECIFIED = 0;
+  SANDBOX_ARCHIVE_SYMLINK_POLICY_REJECT = 1;
+}
+
+message SandboxFileInfo {
+  string path = 1;
+  SandboxFileKind kind = 2;
+  int64 size = 3;
+  uint32 mode = 4;
+  int64 mtime_ns = 5;
+}

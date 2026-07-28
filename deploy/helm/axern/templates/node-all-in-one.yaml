@@ -1,0 +1,217 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-all-in-one
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "node") | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "axern.componentSelectorLabels" (dict "root" . "component" "node") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axern.componentSelectorLabels" (dict "root" . "component" "node") | nindent 8 }}
+    spec:
+      {{- $nodeResourceSource := include "axern.nodeResourceSource" . }}
+      {{- if or (eq $nodeResourceSource "kubernetes") .Values.node.serviceAccount.create .Values.node.serviceAccount.name }}
+      serviceAccountName: {{ include "axern.nodeServiceAccountName" . | quote }}
+      {{- end }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "axern.scheduling" (dict "root" . "profile" "runtime" "component" "node" "spread" false) | nindent 6 }}
+      containers:
+        - name: node
+          image: {{ include "axern.image" (dict "root" . "image" .Values.node.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.node.image) }}
+          securityContext:
+            privileged: {{ .Values.node.privileged }}
+          envFrom:
+            - configMapRef:
+                name: local-proxy-env
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            {{- if .Values.node.imageDistribution.dragonfly.enabled }}
+            - name: REGISTRY_MIRROR_URL
+              value: {{ required "node.imageDistribution.dragonfly.proxyURL is required when Dragonfly is enabled" .Values.node.imageDistribution.dragonfly.proxyURL | quote }}
+            - name: REGISTRY_PROXY_URL
+              value: {{ required "node.imageDistribution.dragonfly.proxyURL is required when Dragonfly is enabled" .Values.node.imageDistribution.dragonfly.proxyURL | quote }}
+            - name: REGISTRY_PROXY_HEALTH_URL
+              value: {{ required "node.imageDistribution.dragonfly.healthURL is required when Dragonfly is enabled" .Values.node.imageDistribution.dragonfly.healthURL | quote }}
+            - name: REGISTRY_BLOB_URL_SCHEME
+              value: {{ required "node.imageDistribution.dragonfly.blobURLScheme is required when Dragonfly is enabled" .Values.node.imageDistribution.dragonfly.blobURLScheme | quote }}
+            - name: REGISTRY_PROXY_FALLBACK
+              value: {{ .Values.node.imageDistribution.dragonfly.proxyFallback | quote }}
+            - name: REGISTRY_PROXY_CA_CERT
+              value: {{ printf "/registry-proxy-ca/%s" (required "node.imageDistribution.dragonfly.proxyCACertKey is required when Dragonfly is enabled" .Values.node.imageDistribution.dragonfly.proxyCACertKey) | quote }}
+            - name: NYDUS_READAHEAD_WORKERS
+              value: {{ .Values.node.imageDistribution.dragonfly.readaheadWorkers | quote }}
+            - name: NYDUS_READAHEAD_WINDOW_BYTES
+              value: {{ .Values.node.imageDistribution.dragonfly.readaheadWindowBytes | quote }}
+            {{- end }}
+            - name: NYDUS_DECODED_CACHE_BYTES
+              value: {{ .Values.node.imageDistribution.nydus.decodedCacheBytes | quote }}
+            - name: AXNODED_SOCKET
+              value: /shared/run/axnoded.sock
+            - name: IMAGEMGR_SOCKET
+              value: /run/imagemgr/imagemgr.sock
+            - name: VOLUMED_SOCKET
+              value: /run/volumed/volumed.sock
+            - name: AXNODED_GRPC_ADDRESS
+              value: 0.0.0.0:24010
+            - name: AXNODED_HTTP_ADDRESS
+              value: 0.0.0.0:23001
+            - name: AXNODED_CONTROL_PLANE_TARGET
+              value: {{ include "axern.controldTarget" . | quote }}
+            - name: AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL
+              value: {{ .Values.node.heartbeatInterval | quote }}
+            - name: AXNODED_IDLE_RUNTIME_RETENTION_TTL
+              value: {{ .Values.node.runtime.idleRetentionTTL | quote }}
+            - name: AXNODED_IDLE_RUNTIME_RETENTION_MAX
+              value: {{ .Values.node.runtime.idleRetentionMax | quote }}
+            - name: AXNODED_CONTROL_PLANE_NODE_RESOURCE_SOURCE
+              value: {{ $nodeResourceSource | quote }}
+            - name: AXNODED_CONTROL_PLANE_KUBERNETES_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: AXNODED_NETWORK_IP_RANGE
+              value: {{ .Values.node.network.ipRange | quote }}
+            - name: NAT_BACKEND
+              value: {{ .Values.node.network.natBackend | quote }}
+            - name: BPFNET_PIN_PATH
+              value: {{ .Values.node.network.ebpf.pinPath | quote }}
+            - name: BPFNET_MAP_SIZE
+              value: {{ .Values.node.network.ebpf.mapSize | quote }}
+            - name: BPFNET_SNAT_MAP_SIZE
+              value: {{ .Values.node.network.ebpf.snatMapSize | quote }}
+            - name: BPFNET_SNAT_GC_INTERVAL
+              value: {{ .Values.node.network.ebpf.snatGcInterval | quote }}
+            - name: BPFNET_SNAT_TCP_IDLE_TIMEOUT
+              value: {{ .Values.node.network.ebpf.snatTcpIdleTimeout | quote }}
+            - name: BPFNET_SNAT_TCP_CLOSING_TIMEOUT
+              value: {{ .Values.node.network.ebpf.snatTcpClosingTimeout | quote }}
+            - name: BPFNET_SNAT_DATAGRAM_IDLE_TIMEOUT
+              value: {{ .Values.node.network.ebpf.snatDatagramIdleTimeout | quote }}
+            - name: BPFNET_UPLINK_DEVICES
+              value: {{ join "," .Values.node.network.ebpf.uplinkDevices | quote }}
+            - name: BPFNET_LOCAL_OUT_COMPAT
+              value: {{ .Values.node.network.ebpf.localOutCompat | quote }}
+            - name: BPFNET_IPTABLES_FALLBACK
+              value: {{ .Values.node.network.ebpf.iptablesFallback | quote }}
+            - name: AXNODED_CONTROL_PLANE_TLS_CA_CERT
+              value: /certs/ca.crt
+            - name: AXNODED_CONTROL_PLANE_TLS_CERT
+              value: /certs/node.crt
+            - name: AXNODED_CONTROL_PLANE_TLS_KEY
+              value: /certs/node.key
+            - name: OBJECT_STORE_ENABLED
+              value: {{ .Values.objectStore.enabled | quote }}
+            - name: OBJECT_STORE_SCHEME
+              value: {{ .Values.objectStore.scheme | quote }}
+            - name: OBJECT_STORE_ENDPOINT
+              value: {{ .Values.objectStore.endpoint | quote }}
+            - name: OBJECT_STORE_REGION
+              value: {{ .Values.objectStore.region | quote }}
+            - name: OBJECT_STORE_BUCKET
+              value: {{ .Values.objectStore.bucket | quote }}
+            - name: OBJECT_STORE_ACCESS_KEY
+              value: {{ .Values.objectStore.accessKey | quote }}
+            - name: OBJECT_STORE_SECRET_KEY
+              value: {{ .Values.objectStore.secretKey | quote }}
+            - name: OBJECT_STORE_SKIP_VERIFY
+              value: {{ .Values.objectStore.skipVerify | quote }}
+            {{- if .Values.node.registryAuth.existingSecret }}
+            - name: REGISTRY_AUTHS_SOURCE
+              value: /registry-auth/{{ .Values.node.registryAuth.dockerConfigKey }}
+            {{- end }}
+            {{- include "axern.otelEnv" . | nindent 12 }}
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              {{- if .Values.node.sysctls.userMaxUserNamespaces }}
+              echo {{ .Values.node.sysctls.userMaxUserNamespaces | quote }} > /proc/sys/user/max_user_namespaces
+              {{- end }}
+              export AXNODED_CONTROL_PLANE_NODE_ID="node-${NODE_NAME}"
+              export AXNODED_CONTROL_PLANE_NODE_TARGET="${POD_IP}:24010"
+              export AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN="node-${NODE_NAME}-local-token"
+              exec /usr/local/bin/node-all-in-one-entrypoint
+          ports:
+            - containerPort: 24010
+            - containerPort: 23001
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 23001
+            initialDelaySeconds: 4
+            periodSeconds: 3
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+            - name: shared-run
+              mountPath: /shared/run
+            - name: axnoded-state
+              mountPath: /var/lib/axnoded
+            - name: imagemgr-state
+              mountPath: /var/lib/imagemgr
+            - name: volumed-state
+              mountPath: /var/lib/volumed
+            {{- if .Values.node.registryAuth.existingSecret }}
+            - name: registry-auth
+              mountPath: /registry-auth
+              readOnly: true
+            {{- end }}
+            {{- if .Values.node.imageDistribution.dragonfly.enabled }}
+            - name: registry-proxy-ca
+              mountPath: /registry-proxy-ca
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: certs
+          secret:
+            secretName: {{ include "axern.pkiSecretName" . }}
+        - name: shared-run
+          emptyDir: {}
+        - name: axnoded-state
+          hostPath:
+            path: {{ printf "%s/axnoded" .Values.node.state.hostPathRoot | quote }}
+            type: DirectoryOrCreate
+        - name: imagemgr-state
+          hostPath:
+            path: {{ printf "%s/imagemgr" .Values.node.state.hostPathRoot | quote }}
+            type: DirectoryOrCreate
+        - name: volumed-state
+          hostPath:
+            path: {{ printf "%s/volumed" .Values.node.state.hostPathRoot | quote }}
+            type: DirectoryOrCreate
+        {{- if .Values.node.registryAuth.existingSecret }}
+        - name: registry-auth
+          secret:
+            secretName: {{ .Values.node.registryAuth.existingSecret }}
+            items:
+              - key: {{ .Values.node.registryAuth.dockerConfigKey | quote }}
+                path: {{ .Values.node.registryAuth.dockerConfigKey | quote }}
+        {{- end }}
+        {{- if .Values.node.imageDistribution.dragonfly.enabled }}
+        - name: registry-proxy-ca
+          configMap:
+            name: {{ required "node.imageDistribution.dragonfly.proxyCAConfigMap is required when Dragonfly is enabled" .Values.node.imageDistribution.dragonfly.proxyCAConfigMap | quote }}
+            items:
+              - key: {{ .Values.node.imageDistribution.dragonfly.proxyCACertKey | quote }}
+                path: {{ .Values.node.imageDistribution.dragonfly.proxyCACertKey | quote }}
+        {{- end }}

@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package axern.control.service.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1;servicev1";
+
+import "axern/control/common/v1/common.proto";
+import "axern/control/service/v1/service_event.proto";
+import "axern/control/service/v1/service_replica.proto";
+import "axern/control/service/v1/service_types.proto";
+import "google/protobuf/field_mask.proto";
+
+message CreateServiceRequest {
+  string namespace = 1;
+  string environment_id = 2;
+  int32 replicas = 3;
+  axern.control.common.v1.ExecutionConfig config = 4;
+  map<string, string> labels = 5;
+  ServiceRolloutPolicy rollout_policy = 6;
+  ServiceProbe readiness_probe = 7;
+  ServiceProbe liveness_probe = 8;
+  ServiceAutoscalingPolicy autoscaling_policy = 9;
+}
+
+message CreateServiceResponse {
+  Service service = 1;
+}
+
+message GetServiceRequest {
+  string service_id = 1;
+}
+
+message GetServiceResponse {
+  Service service = 1;
+}
+
+message WatchServiceRequest {
+  string service_id = 1;
+  // Last observed service version. Zero starts with the current snapshot.
+  int64 after_version = 2;
+}
+
+message WatchServiceResponse {
+  Service service = 1;
+}
+
+message ListServicesRequest {
+  ServiceListFilter filter = 1;
+}
+
+message ListServicesResponse {
+  repeated Service services = 1;
+  string next_cursor = 2;
+}
+
+message UpdateServiceRequest {
+  string service_id = 1;
+  int64 expected_version = 2;
+  optional int32 replicas = 3;
+  axern.control.common.v1.ExecutionConfig config = 4;
+  map<string, string> labels = 5;
+  google.protobuf.FieldMask update_mask = 6;
+  ServiceRolloutPolicy rollout_policy = 7;
+  optional string environment_id = 8;
+  ServiceProbe readiness_probe = 9;
+  ServiceProbe liveness_probe = 10;
+  ServiceAutoscalingPolicy autoscaling_policy = 11;
+}
+
+message UpdateServiceResponse {
+  Service service = 1;
+}
+
+message DeleteServiceRequest {
+  string service_id = 1;
+  int64 expected_version = 2;
+  bool require_suspended = 3;
+  ServiceVolumeDisposition volume_disposition = 4;
+}
+
+message DeleteServiceResponse {
+  Service service = 1;
+}
+
+service ServiceControl {
+  rpc CreateService(CreateServiceRequest) returns (CreateServiceResponse) {}
+  rpc GetService(GetServiceRequest) returns (GetServiceResponse) {}
+  // Streams monotonically newer authoritative snapshots. Intermediate versions may be coalesced.
+  rpc WatchService(WatchServiceRequest) returns (stream WatchServiceResponse) {}
+  rpc GetServiceReplica(GetServiceReplicaRequest) returns (GetServiceReplicaResponse) {}
+  rpc ListServices(ListServicesRequest) returns (ListServicesResponse) {}
+  rpc ListServiceReplicas(ListServiceReplicasRequest) returns (ListServiceReplicasResponse) {}
+  rpc ListServiceEvents(ListServiceEventsRequest) returns (ListServiceEventsResponse) {}
+  rpc UpdateService(UpdateServiceRequest) returns (UpdateServiceResponse) {}
+  rpc DeleteService(DeleteServiceRequest) returns (DeleteServiceResponse) {}
+}

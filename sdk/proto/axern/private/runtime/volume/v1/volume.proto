@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package axern.private.runtime.volume.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/volume/v1;runtimevolumev1";
+
+import "axern/control/storage/v1/storage_types.proto";
+import "axern/private/storage/v1/storage.proto";
+import "google/protobuf/timestamp.proto";
+
+message PublishedVolume {
+  string claim_id = 1;
+  string binding_id = 2;
+  axern.control.storage.v1.VolumeBackend backend = 3;
+  string host_path = 4;
+  string target = 5;
+  bool readonly = 6;
+  repeated string options = 7;
+}
+
+message PublishVolumeRequest {
+  string allocation_id = 1;
+  string runtime_class = 2;
+  axern.private.storage.v1.ResolvedNodeVolume volume = 3;
+}
+
+message PublishVolumeResponse {
+  PublishedVolume volume = 1;
+}
+
+message UnpublishVolumeRequest {
+  string allocation_id = 1;
+  string binding_id = 2;
+}
+
+message UnpublishVolumeResponse {
+  repeated PublishedVolume volumes = 1;
+}
+
+message DeleteVolumeRequest {
+  string claim_id = 1;
+  axern.control.storage.v1.VolumeBackend backend = 2;
+  string backend_handle = 3;
+}
+
+message DeleteVolumeResponse {}
+
+message GetPublishedVolumeRequest {
+  string allocation_id = 1;
+  string binding_id = 2;
+}
+
+message GetPublishedVolumeResponse {
+  PublishedVolume volume = 1;
+}
+
+message ListPublishedVolumesRequest {
+  string allocation_id = 1;
+}
+
+message ListPublishedVolumesResponse {
+  repeated PublishedVolume volumes = 1;
+}
+
+message ReconcileVolumesRequest {
+  repeated string active_allocation_ids = 1;
+}
+
+message ReconcileVolumesResponse {
+  int32 retained_count = 1;
+  int32 unpublished_count = 2;
+  int32 active_allocation_count = 3;
+  int32 stale_allocation_count = 4;
+  int32 invalid_volume_count = 5;
+}
+
+message VolumeManagerHealthRequest {}
+
+enum VolumeManagerStatus {
+  VOLUME_MANAGER_STATUS_UNSPECIFIED = 0;
+  VOLUME_MANAGER_STATUS_OK = 1;
+  VOLUME_MANAGER_STATUS_ERROR = 2;
+  VOLUME_MANAGER_STATUS_DISABLED = 3;
+}
+
+message VolumeManagerHealth {
+  VolumeManagerStatus status = 1;
+  int32 published_volume_count = 2;
+  google.protobuf.Timestamp last_reconcile_at = 3;
+  string last_reconcile_error = 4;
+  int32 last_reconcile_retained_count = 5;
+  int32 last_reconcile_unpublished_count = 6;
+  int32 last_reconcile_active_allocation_count = 7;
+  int32 last_reconcile_stale_allocation_count = 8;
+  int32 last_reconcile_invalid_volume_count = 9;
+}
+
+message VolumeManagerHealthResponse {
+  VolumeManagerHealth health = 1;
+}
+
+service RuntimeVolumeService {
+  rpc PublishVolume(PublishVolumeRequest) returns (PublishVolumeResponse) {}
+  rpc UnpublishVolume(UnpublishVolumeRequest) returns (UnpublishVolumeResponse) {}
+  rpc GetPublishedVolume(GetPublishedVolumeRequest) returns (GetPublishedVolumeResponse) {}
+  rpc ListPublishedVolumes(ListPublishedVolumesRequest) returns (ListPublishedVolumesResponse) {}
+  rpc ReconcileVolumes(ReconcileVolumesRequest) returns (ReconcileVolumesResponse) {}
+  rpc GetVolumeManagerHealth(VolumeManagerHealthRequest) returns (VolumeManagerHealthResponse) {}
+  rpc DeleteVolume(DeleteVolumeRequest) returns (DeleteVolumeResponse) {}
+}

@@ -1,0 +1,159 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gatewayd
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "gatewayd") | nindent 4 }}
+spec:
+  replicas: {{ .Values.gatewayd.replicas }}
+  selector:
+    matchLabels:
+      {{- include "axern.componentSelectorLabels" (dict "root" . "component" "gatewayd") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axern.componentSelectorLabels" (dict "root" . "component" "gatewayd") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "axern.scheduling" (dict "root" . "profile" "platform" "component" "gatewayd" "spread" true) | nindent 6 }}
+      initContainers:
+        - name: wait-controld
+          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              until curl -fsS http://controld.{{ .Release.Namespace }}.svc.cluster.local:24001/healthz >/dev/null; do
+                echo "waiting for controld"
+                sleep 2
+              done
+      containers:
+        - name: gatewayd
+          image: {{ include "axern.image" (dict "root" . "image" .Values.gatewayd.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.gatewayd.image) }}
+          args:
+            - -control-target
+            - {{ include "axern.controldTarget" . | quote }}
+            - -http-address
+            - 0.0.0.0:25080
+            - -control-edge-address
+            - 0.0.0.0:25000
+            - -control-edge-tls-ca-cert
+            - /certs/ca.crt
+            - -control-edge-tls-cert
+            - /certs/gatewayd.crt
+            - -control-edge-tls-key
+            - /certs/gatewayd.key
+            {{- if .Values.gatewayd.ssh.enabled }}
+            - -ssh-enabled
+            - -ssh-address
+            - 0.0.0.0:25022
+            - -ssh-host-key
+            - /ssh/gateway_host_ed25519
+            - -ssh-authorized-keys
+            - /ssh/authorized_keys
+            {{- end }}
+            {{- if .Values.gatewayd.dashboardEnabled }}
+            - -dashboard-enabled
+            {{- end }}
+            - -tls-ca-cert
+            - /certs/ca.crt
+            - -tls-cert
+            - /certs/gatewayd.crt
+            - -tls-key
+            - /certs/gatewayd.key
+            - -tunnel-relay-target
+            - {{ include "axern.tunneldTarget" . | quote }}
+            - -tunnel-relay-tls-ca-cert
+            - /certs/ca.crt
+            - -dev-token
+            - {{ .Values.gatewayd.devToken | quote }}
+            - -route-cache-ttl
+            - {{ .Values.gatewayd.routeCacheTTL | quote }}
+            - -route-cache-max-entries
+            - {{ .Values.gatewayd.routeCacheMaxEntries | quote }}
+            - -service-endpoint-retry-attempts
+            - {{ .Values.gatewayd.serviceEndpointRetryAttempts | quote }}
+            - -service-endpoint-quarantine-ttl
+            - {{ .Values.gatewayd.serviceEndpointQuarantineTTL | quote }}
+            - -artifact-max-concurrent
+            - {{ .Values.gatewayd.artifact.maxConcurrent | quote }}
+            - -artifact-chunk-bytes
+            - {{ .Values.gatewayd.artifact.chunkBytes | quote }}
+            - -artifact-upstream-timeout
+            - {{ .Values.gatewayd.artifact.upstreamTimeout | quote }}
+            - -artifact-max-bytes
+            - {{ .Values.gatewayd.artifact.maxBytes | int64 | quote }}
+          env:
+            - name: AXERN_GATEWAY_DEV_TOKEN
+              value: {{ .Values.gatewayd.devToken | quote }}
+            - name: GATEWAYD_DASHBOARD_ENABLED
+              value: {{ ternary "true" "false" .Values.gatewayd.dashboardEnabled | quote }}
+            {{- include "axern.otelEnv" . | nindent 12 }}
+          ports:
+            - containerPort: 25000
+            - containerPort: 25080
+            {{- if .Values.gatewayd.ssh.enabled }}
+            - containerPort: 25022
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 25080
+            initialDelaySeconds: 2
+            periodSeconds: 2
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+            {{- if .Values.gatewayd.ssh.enabled }}
+            - name: ssh
+              mountPath: /ssh
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: certs
+          secret:
+            secretName: {{ include "axern.pkiSecretName" . }}
+        {{- if .Values.gatewayd.ssh.enabled }}
+        - name: ssh
+          secret:
+            secretName: {{ include "axern.gatewaySSHSecretName" . }}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gatewayd
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "gatewayd") | nindent 4 }}
+spec:
+  type: {{ .Values.gatewayd.service.type }}
+  selector:
+    {{- include "axern.componentSelectorLabels" (dict "root" . "component" "gatewayd") | nindent 4 }}
+  ports:
+    - name: control
+      port: 25000
+      targetPort: 25000
+      {{- if and (eq .Values.gatewayd.service.type "NodePort") .Values.gatewayd.service.controlNodePort }}
+      nodePort: {{ .Values.gatewayd.service.controlNodePort }}
+      {{- end }}
+    - name: http
+      port: 25080
+      targetPort: 25080
+      {{- if and (eq .Values.gatewayd.service.type "NodePort") .Values.gatewayd.service.httpNodePort }}
+      nodePort: {{ .Values.gatewayd.service.httpNodePort }}
+      {{- end }}
+    {{- if .Values.gatewayd.ssh.enabled }}
+    - name: ssh
+      port: 25022
+      targetPort: 25022
+      {{- if and (eq .Values.gatewayd.service.type "NodePort") .Values.gatewayd.service.sshNodePort }}
+      nodePort: {{ .Values.gatewayd.service.sshNodePort }}
+      {{- end }}
+    {{- end }}

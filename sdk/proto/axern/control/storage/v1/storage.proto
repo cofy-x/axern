@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package axern.control.storage.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1;storagev1";
+
+import "axern/control/storage/v1/storage_types.proto";
+import "google/protobuf/field_mask.proto";
+
+message CreateVolumeClassRequest {
+  string name = 1;
+  VolumeBackend backend = 2;
+  repeated VolumeAccessMode access_modes = 3;
+  VolumeReclaimPolicy default_reclaim_policy = 4;
+  VolumeConsistencyProfile consistency_profile = 5;
+  VolumeRuntimeCompatibility runtime_compatibility = 6;
+  map<string, string> parameters = 7;
+}
+
+message CreateVolumeClassResponse {
+  VolumeClass volume_class = 1;
+}
+
+message GetVolumeClassRequest {
+  string name = 1;
+}
+
+message GetVolumeClassResponse {
+  VolumeClass volume_class = 1;
+}
+
+message ListVolumeClassesRequest {
+  string cursor = 1;
+  int32 page_size = 2;
+}
+
+message ListVolumeClassesResponse {
+  repeated VolumeClass volume_classes = 1;
+  string next_cursor = 2;
+}
+
+message CreateVolumeClaimRequest {
+  string namespace = 1;
+  string name = 2;
+  string class_name = 3;
+  VolumeCapacity requested_capacity = 4;
+  VolumeAccessMode access_mode = 5;
+  VolumeReclaimPolicy reclaim_policy = 6;
+  VolumeBindingScope binding_scope = 7;
+  map<string, string> parameters = 8;
+  map<string, string> labels = 9;
+}
+
+message CreateVolumeClaimResponse {
+  VolumeClaim volume_claim = 1;
+}
+
+message GetVolumeClaimRequest {
+  string namespace = 1;
+  string name = 2;
+}
+
+message GetVolumeClaimResponse {
+  VolumeClaim volume_claim = 1;
+}
+
+message ListVolumeClaimsRequest {
+  VolumeClaimListFilter filter = 1;
+}
+
+message ListVolumeClaimsResponse {
+  repeated VolumeClaim volume_claims = 1;
+  string next_cursor = 2;
+}
+
+message UpdateVolumeClaimRequest {
+  string namespace = 1;
+  string name = 2;
+  int64 expected_version = 3;
+  VolumeCapacity requested_capacity = 4;
+  map<string, string> labels = 5;
+  google.protobuf.FieldMask update_mask = 6;
+}
+
+message UpdateVolumeClaimResponse {
+  VolumeClaim volume_claim = 1;
+}
+
+message DeleteVolumeClaimRequest {
+  string namespace = 1;
+  string name = 2;
+}
+
+message DeleteVolumeClaimResponse {
+  VolumeClaim volume_claim = 1;
+}
+
+service StorageControl {
+  rpc CreateVolumeClass(CreateVolumeClassRequest) returns (CreateVolumeClassResponse) {}
+  rpc GetVolumeClass(GetVolumeClassRequest) returns (GetVolumeClassResponse) {}
+  rpc ListVolumeClasses(ListVolumeClassesRequest) returns (ListVolumeClassesResponse) {}
+  rpc CreateVolumeClaim(CreateVolumeClaimRequest) returns (CreateVolumeClaimResponse) {}
+  rpc GetVolumeClaim(GetVolumeClaimRequest) returns (GetVolumeClaimResponse) {}
+  rpc ListVolumeClaims(ListVolumeClaimsRequest) returns (ListVolumeClaimsResponse) {}
+  rpc UpdateVolumeClaim(UpdateVolumeClaimRequest) returns (UpdateVolumeClaimResponse) {}
+  rpc DeleteVolumeClaim(DeleteVolumeClaimRequest) returns (DeleteVolumeClaimResponse) {}
+}

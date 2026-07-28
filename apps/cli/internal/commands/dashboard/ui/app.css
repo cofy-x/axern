@@ -1,0 +1,192 @@
+:root {
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --text: #17202a;
+  --muted: #65707d;
+  --line: #d9dee5;
+  --accent: #176b87;
+  --accent-2: #3f7d58;
+  --warn: #a15c16;
+  --bad: #aa2e25;
+  --good-bg: #e9f6ef;
+  --warn-bg: #fff3df;
+  --bad-bg: #fdebea;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 248px 1fr;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  background: #111820;
+  color: #f3f7fb;
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: #2d8aa4;
+  font-weight: 800;
+}
+
+.brand strong,
+.brand small {
+  display: block;
+}
+
+.brand small {
+  color: #aab6c2;
+  margin-top: 2px;
+}
+
+nav {
+  display: grid;
+  gap: 6px;
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  display: grid;
+  gap: 12px;
+}
+
+.shell {
+  min-width: 0;
+  padding: 22px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 24px;
+}
+
+h2 {
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+
+h3 {
+  font-size: 14px;
+  margin: 16px 0 8px;
+}
+
+#status-line {
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.search-row,
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filters {
+  margin-bottom: 14px;
+}
+
+.view {
+  display: none;
+}
+
+.view.active {
+  display: block;
+}
+
+#overview.view.active {
+  display: grid;
+  gap: 16px;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+#overview .metrics {
+  margin-bottom: 0;
+}
+
+.metrics article {
+  padding: 14px;
+}
+
+.metrics span {
+  display: block;
+  color: var(--muted);
+}
+
+.metrics strong {
+  display: block;
+  font-size: 28px;
+  margin-top: 4px;
+}
+
+.two-col,
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.two-col > section,
+.split > div:first-child,
+.detail,
+.timeline,
+.links {
+  padding: 14px;
+  min-width: 0;
+}
+
+.band {
+  margin-top: 14px;
+}
+
+#overview .band {
+  margin-top: 0;
+}

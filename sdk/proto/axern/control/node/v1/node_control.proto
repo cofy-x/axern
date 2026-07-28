@@ -1,0 +1,302 @@
+syntax = "proto3";
+
+package axern.control.node.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1;nodev1";
+
+import "axern/control/common/v1/common.proto";
+import "axern/control/tunnel/v1/tunnel.proto";
+import "google/protobuf/timestamp.proto";
+
+enum RootfsType {
+  ROOTFS_TYPE_UNSPECIFIED = 0;
+  ROOTFS_TYPE_LOCAL = 1;
+  ROOTFS_TYPE_IMAGE = 2;
+  ROOTFS_TYPE_S3 = 3;
+}
+
+enum MountType {
+  MOUNT_TYPE_UNSPECIFIED = 0;
+  MOUNT_TYPE_LOCAL = 1;
+  MOUNT_TYPE_OCI = 2;
+  MOUNT_TYPE_NYDUS = 3;
+  MOUNT_TYPE_OSS = 4;
+}
+
+enum ComponentState {
+  COMPONENT_STATE_UNSPECIFIED = 0;
+  COMPONENT_STATE_READY = 1;
+  COMPONENT_STATE_WARMING = 2;
+  COMPONENT_STATE_DEGRADED = 3;
+  COMPONENT_STATE_ERROR = 4;
+  COMPONENT_STATE_DISABLED = 5;
+}
+
+enum NodeState {
+  NODE_STATE_UNSPECIFIED = 0;
+  NODE_STATE_READY = 1;
+  NODE_STATE_DRAINING = 2;
+  NODE_STATE_DISABLED = 3;
+  NODE_STATE_UNREACHABLE = 4;
+}
+
+message PoolState {
+  int32 using = 1;
+  int32 idle = 2;
+  int32 capacity = 3;
+  int32 unavailable = 4;
+}
+
+message ResourcesSummary {
+  int64 axnoded_committed_milli = 1;
+  int64 axnoded_used_milli = 2;
+  int64 axnoded_cpu_unbounded_count = 3;
+  int64 axnoded_committed_bytes = 4;
+  int64 axnoded_used_bytes = 5;
+  int64 axnoded_memory_unbounded_count = 6;
+}
+
+message PoolsSummary {
+  PoolState cgroup = 1;
+  PoolState interface = 2;
+  // Required aggregate runtime capacity contract owned by axnoded.
+  PoolState runtime_slots = 3;
+}
+
+message AxnodedSummary {
+  ComponentState state = 1;
+  bool ready = 2;
+  int32 running_containers = 3;
+  repeated string running_allocation_ids = 4;
+  repeated string active_allocation_ids = 5;
+}
+
+message ImagemgrSummary {
+  ComponentState state = 1;
+  bool reachable = 2;
+  int32 daemon_count = 3;
+  int32 mounted_image_count = 4;
+  int32 imported_image_count = 5;
+}
+
+message ImagefsdSummary {
+  ComponentState state = 1;
+  bool reachable = 2;
+  bool chunkdb_present = 3;
+  int64 chunk_count = 4;
+  int64 chunkdb_used_bytes = 5;
+  double chunkdb_usage_percent = 6;
+}
+
+message BpfNetSummary {
+  ComponentState state = 1;
+  bool enabled = 2;
+  bool ready = 3;
+  string mode = 4;
+  bool needs_snat_fallback = 5;
+  bool needs_full_dnat_fallback = 6;
+  bool needs_localhost_compat = 7;
+}
+
+message VolumedSummary {
+  ComponentState state = 1;
+  bool reachable = 2;
+  int32 published_volume_count = 3;
+  google.protobuf.Timestamp last_reconcile_at = 4;
+  string last_reconcile_error = 5;
+  int32 last_reconcile_retained_count = 6;
+  int32 last_reconcile_unpublished_count = 7;
+  int32 last_reconcile_active_allocation_count = 8;
+  int32 last_reconcile_stale_allocation_count = 9;
+  int32 last_reconcile_invalid_volume_count = 10;
+}
+
+message NodeStorageSummary {
+  string target = 1;
+  int64 capacity_bytes = 2;
+  int64 used_bytes = 3;
+  int64 available_bytes = 4;
+  int64 inodes_total = 5;
+  int64 inodes_used = 6;
+  int64 inodes_available = 7;
+  bool collected = 8;
+  string error = 9;
+}
+
+message ComponentsSummary {
+  AxnodedSummary axnoded = 1;
+  ImagemgrSummary imagemgr = 2;
+  ImagefsdSummary imagefsd = 3;
+  BpfNetSummary bpfnet = 4;
+  VolumedSummary volumed = 5;
+}
+
+message LocalitySummary {
+  string key = 1;
+  RootfsType rootfs_type = 2;
+  MountType mount_type = 3;
+  bool mounted = 4;
+  int32 retained_runtime_count = 5;
+  int32 retained_rootfs_count = 6;
+  int32 running_container_count = 7;
+  bool nydus_daemon_alive = 8;
+  int64 chunkdb_total_chunks = 9;
+  int64 chunkdb_used_bytes = 10;
+  int64 chunkdb_recent_access_age_secs = 11;
+  int64 peer_healthy_count = 12;
+  int64 peer_unhealthy_count = 13;
+  int64 peer_hinted_count = 14;
+  string environment_id = 15;
+}
+
+message NodeSummary {
+  google.protobuf.Timestamp collected_at = 1;
+  ResourcesSummary resources = 2;
+  PoolsSummary pools = 3;
+  ComponentsSummary components = 4;
+  repeated LocalitySummary locality = 5;
+  NodeState node_state = 6;
+  map<string, string> labels = 7;
+  repeated string capabilities = 8;
+  axern.control.common.v1.ResourceQuantity capacity = 9;
+  axern.control.common.v1.ResourceQuantity allocatable = 10;
+  repeated NodeStorageSummary storage = 11;
+}
+
+message RegisterNodeRequest {
+  string node_id = 1;
+  repeated string runtimes = 2;
+  string node_target = 3;
+  string node_auth_token = 4;
+}
+
+message RegisterNodeResponse {}
+
+message ReportNodeRequest {
+  string node_id = 1;
+  repeated string runtimes = 2;
+  NodeSummary summary = 3;
+  string node_target = 4;
+  string node_auth_token = 5;
+}
+
+message ReportNodeResponse {}
+
+message AllocationStatusObservation {
+  string allocation_id = 1;
+  int64 attempt = 2;
+  axern.control.common.v1.AllocationStatus status = 3;
+  int32 exit_code = 4;
+  bool exit_code_known = 5;
+  string message = 6;
+  google.protobuf.Timestamp observed_at = 7;
+  bool ready = 8;
+  string readiness_message = 9;
+}
+
+message BatchReportAllocationStatusRequest {
+  string node_id = 1;
+  string node_auth_token = 2;
+  repeated AllocationStatusObservation observations = 3;
+}
+
+message BatchReportAllocationStatusResponse {}
+
+message WatchExecutionLeasesRequest {
+  string node_id = 1;
+  int64 after_revision = 2;
+  string node_auth_token = 3;
+}
+
+message WatchExecutionLeasesResponse {
+  repeated axern.control.common.v1.ExecutionLease leases = 1;
+  int64 current_revision = 2;
+}
+
+message WatchTunnelSessionsRequest {
+  string node_id = 1;
+  int64 after_revision = 2;
+  string node_auth_token = 3;
+}
+
+message NodeTunnelSession {
+  axern.control.tunnel.v1.TunnelSession session = 1;
+  string node_token = 2;
+}
+
+message WatchTunnelSessionsResponse {
+  repeated NodeTunnelSession sessions = 1;
+  int64 current_revision = 2;
+}
+
+message ReportTunnelSessionStatusRequest {
+  string session_id = 1;
+  axern.control.tunnel.v1.TunnelSessionStatus status = 2;
+  string reason = 3;
+  string bound_addr = 4;
+  string node_id = 5;
+  string node_auth_token = 6;
+}
+
+message ReportTunnelSessionStatusResponse {}
+
+enum PlacementCandidateState {
+  PLACEMENT_CANDIDATE_STATE_UNSPECIFIED = 0;
+  PLACEMENT_CANDIDATE_STATE_ELIGIBLE = 1;
+  PLACEMENT_CANDIDATE_STATE_REJECTED = 2;
+}
+
+enum PlacementRejectionReason {
+  PLACEMENT_REJECTION_REASON_UNSPECIFIED = 0;
+  PLACEMENT_REJECTION_REASON_STALE_HEARTBEAT = 1;
+  PLACEMENT_REJECTION_REASON_STALE_SUMMARY = 2;
+  PLACEMENT_REJECTION_REASON_RUNTIME_UNSUPPORTED = 3;
+  PLACEMENT_REJECTION_REASON_AXNODED_NOT_READY = 4;
+  PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE = 5;
+  PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE = 6;
+  PLACEMENT_REJECTION_REASON_NODE_DRAINING = 7;
+  PLACEMENT_REJECTION_REASON_NODE_DISABLED = 8;
+  PLACEMENT_REJECTION_REASON_NODE_SELECTOR_MISMATCH = 9;
+  PLACEMENT_REJECTION_REASON_INSUFFICIENT_CPU = 10;
+  PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY = 11;
+  PLACEMENT_REJECTION_REASON_PORTS_UNSUPPORTED = 12;
+  PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED = 13;
+  PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED = 14;
+  PLACEMENT_REJECTION_REASON_NODE_RETIRED = 15;
+}
+
+message PlacementRank {
+  bool mounted_match = 1;
+  int32 retained_rootfs_count = 2;
+  int32 retained_runtime_count = 3;
+  bool nydus_daemon_alive = 4;
+  int64 chunkdb_recent_access_age_secs = 5;
+  int64 peer_healthy_count = 6;
+  int64 peer_hinted_count = 7;
+  bool bpfnet_preferred = 8;
+  bool idle_pool_ready = 9;
+  int64 axnoded_used_milli = 10;
+  int64 axnoded_used_bytes = 11;
+  int64 axnoded_active_instances = 12;
+}
+
+message PlacementCandidate {
+  string node_id = 1;
+  PlacementCandidateState state = 2;
+  repeated PlacementRejectionReason rejection_reasons = 3;
+  int64 heartbeat_age_secs = 4;
+  int64 summary_age_secs = 5;
+  PoolsSummary pools = 6;
+  ResourcesSummary resources = 7;
+  LocalitySummary locality = 8;
+  PlacementRank rank = 9;
+}
+
+service NodeControl {
+  rpc RegisterNode(RegisterNodeRequest) returns (RegisterNodeResponse) {}
+  rpc ReportNode(ReportNodeRequest) returns (ReportNodeResponse) {}
+  rpc BatchReportAllocationStatus(BatchReportAllocationStatusRequest) returns (BatchReportAllocationStatusResponse) {}
+  rpc WatchExecutionLeases(WatchExecutionLeasesRequest) returns (stream WatchExecutionLeasesResponse) {}
+  rpc WatchTunnelSessions(WatchTunnelSessionsRequest) returns (stream WatchTunnelSessionsResponse) {}
+  rpc ReportTunnelSessionStatus(ReportTunnelSessionStatusRequest) returns (ReportTunnelSessionStatusResponse) {}
+}

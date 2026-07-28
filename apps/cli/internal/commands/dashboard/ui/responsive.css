@@ -1,0 +1,37 @@
+@media (max-width: 900px) {
+  body {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    overflow: visible;
+  }
+
+  nav {
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  }
+
+  .topbar,
+  .section-head,
+  .quota-controls,
+  .two-col,
+  .quota-layout,
+  .split {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-retry-row {
+    grid-template-columns: 1fr;
+  }
+
+  #quota-detail {
+    position: static;
+  }
+}

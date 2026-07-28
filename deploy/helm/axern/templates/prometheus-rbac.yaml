@@ -1,0 +1,34 @@
+{{- if and .Values.observability.enabled .Values.observability.prometheus.kubernetesDiscovery.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ printf "%s-prometheus" (include "axern.fullname" .) }}
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "prometheus") | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ printf "%s-prometheus-discovery" (include "axern.fullname" .) }}
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "prometheus") | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ printf "%s-prometheus-discovery" (include "axern.fullname" .) }}
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "prometheus") | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ printf "%s-prometheus-discovery" (include "axern.fullname" .) }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ printf "%s-prometheus" (include "axern.fullname" .) }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

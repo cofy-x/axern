@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package axern.control.gateway.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1;gatewayv1";
+
+import "axern/control/common/v1/common.proto";
+import "axern/control/service/v1/service_types.proto";
+
+message ResolveServiceRouteRequest {
+  string namespace = 1;
+  string service_id = 2;
+  string port_ref = 3;
+  int64 ttl_seconds = 4;
+}
+
+message ServiceRoutePort {
+  string name = 1;
+  axern.control.common.v1.PortProtocol protocol = 2;
+  int32 container_port = 3;
+}
+
+message ServiceRouteEndpoint {
+  string allocation_id = 1;
+  string node_id = 2;
+  string node_target = 3;
+  int64 attempt = 4;
+  int32 container_port = 5;
+  axern.control.common.v1.PortProtocol protocol = 6;
+  bool ready = 7;
+  axern.control.common.v1.ExecutionLease lease = 8;
+}
+
+message ResolveServiceRouteResponse {
+  string service_id = 1;
+  string namespace = 2;
+  axern.control.service.v1.ServiceStatus service_status = 3;
+  ServiceRoutePort port = 4;
+  repeated ServiceRouteEndpoint endpoints = 5;
+}
+
+message ResolveAllocationTerminalRequest {
+  string allocation_id = 1;
+  int64 ttl_seconds = 2;
+}
+
+message ResolveAllocationTerminalResponse {
+  string allocation_id = 1;
+  string owner_type = 2;
+  string owner_id = 3;
+  string node_id = 4;
+  string node_target = 5;
+  int64 attempt = 6;
+  axern.control.common.v1.ExecutionLease lease = 7;
+}
+
+service GatewayControl {
+  rpc ResolveServiceRoute(ResolveServiceRouteRequest) returns (ResolveServiceRouteResponse) {}
+  rpc ResolveAllocationTerminal(ResolveAllocationTerminalRequest) returns (ResolveAllocationTerminalResponse) {}
+}

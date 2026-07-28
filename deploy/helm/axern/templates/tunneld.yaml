@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tunneld
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "tunneld") | nindent 4 }}
+spec:
+  replicas: {{ .Values.tunneld.replicas }}
+  selector:
+    matchLabels:
+      {{- include "axern.componentSelectorLabels" (dict "root" . "component" "tunneld") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axern.componentSelectorLabels" (dict "root" . "component" "tunneld") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "axern.scheduling" (dict "root" . "profile" "platform" "component" "tunneld" "spread" true) | nindent 6 }}
+      initContainers:
+        - name: wait-controld
+          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              until curl -fsS http://controld.{{ .Release.Namespace }}.svc.cluster.local:24001/healthz >/dev/null; do
+                echo "waiting for controld"
+                sleep 2
+              done
+      containers:
+        - name: tunneld
+          image: {{ include "axern.image" (dict "root" . "image" .Values.tunneld.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.tunneld.image) }}
+          args:
+            - -listen
+            - 0.0.0.0:24100
+            - -control-target
+            - {{ include "axern.controldTarget" . | quote }}
+            - -tls-ca-cert
+            - /certs/ca.crt
+            - -tls-cert
+            - /certs/client.crt
+            - -tls-key
+            - /certs/client.key
+            - -relay-id
+            - {{ .Values.tunneld.relayID | quote }}
+            - -relay-tls-cert
+            - /certs/tunneld.crt
+            - -relay-tls-key
+            - /certs/tunneld.key
+          env:
+            {{- include "axern.otelEnv" . | nindent 12 }}
+          ports:
+            - containerPort: 24100
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: {{ include "axern.pkiSecretName" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tunneld
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "tunneld") | nindent 4 }}
+spec:
+  selector:
+    {{- include "axern.componentSelectorLabels" (dict "root" . "component" "tunneld") | nindent 4 }}
+  ports:
+    - name: grpc
+      port: 24100
+      targetPort: 24100

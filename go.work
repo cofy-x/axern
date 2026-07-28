@@ -1,0 +1,22 @@
+go 1.25.12
+
+use (
+	./apps/axrun
+	./apps/cli
+	./control/controld
+	./control/storaged
+	./gateway/gatewayd
+	./lib/go/agentbundle
+	./lib/go/agentprofile
+	./lib/go/clientconfig
+	./lib/go/grpcclient
+	./lib/go/imageref
+	./lib/go/llmproxy
+	./lib/go/observability
+	./network/bpfnet
+	./runtime/axnoded
+	./runtime/imagemgr
+	./runtime/tunneld
+	./runtime/volumed
+	./sdk/go
+)

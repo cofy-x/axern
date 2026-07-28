@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "arrival_rate": 12,
+  "reject_failure_events": true,
+  "max_failed": 0,
+  "min_success_ratio": 1.0,
+  "expected_node_count": 6,
+  "max_node_share_deviation": 0.02,
+  "max_p95_seconds": {
+    "schedule_lag_seconds": 0.25,
+    "create_ack_seconds": 0.25,
+    "ready_seconds": 2.0,
+    "first_http_seconds": 2.0
+  }
+}

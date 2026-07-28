@@ -1,0 +1,130 @@
+syntax = "proto3";
+
+package axern.control.function.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/function/v1;functionv1";
+
+import "axern/control/function/v1/function_types.proto";
+import "google/protobuf/duration.proto";
+
+message UploadFunctionBundleOpen {
+  string namespace = 1;
+  string name = 2;
+  string digest = 3;
+  string media_type = 4;
+  int64 size_bytes = 5;
+}
+
+message UploadFunctionBundleRequest {
+  oneof request {
+    UploadFunctionBundleOpen open = 1;
+    bytes chunk = 2;
+  }
+}
+
+message UploadFunctionBundleResponse {
+  FunctionBundleSource bundle = 1;
+}
+
+message DeployFunctionRequest {
+  string namespace = 1;
+  string name = 2;
+  FunctionSpec spec = 3;
+  FunctionSource source = 4;
+  map<string, string> labels = 5;
+  bool wait_ready = 6;
+  google.protobuf.Duration ready_timeout = 7;
+}
+
+message DeployFunctionResponse {
+  Function function = 1;
+  FunctionRevision revision = 2;
+  FunctionDeployment deployment = 3;
+}
+
+message GetFunctionRequest {
+  string function_id = 1;
+  string namespace = 2;
+  string name = 3;
+}
+
+message GetFunctionResponse {
+  Function function = 1;
+  FunctionRevision active_revision = 2;
+  FunctionDeployment deployment = 3;
+}
+
+message ListFunctionsRequest {
+  FunctionListFilter filter = 1;
+}
+
+message ListFunctionsResponse {
+  repeated Function functions = 1;
+  string next_cursor = 2;
+}
+
+message DeleteFunctionRequest {
+  string function_id = 1;
+  string namespace = 2;
+  string name = 3;
+}
+
+message DeleteFunctionResponse {
+  Function function = 1;
+}
+
+message InvokeFunctionRequest {
+  string namespace = 1;
+  string name = 2;
+  string function_id = 3;
+  string revision_id = 4;
+  FunctionInvocationMode mode = 5;
+  FunctionPayload payload = 6;
+  google.protobuf.Duration timeout = 7;
+  string request_id = 8;
+  map<string, string> labels = 9;
+}
+
+message InvokeFunctionResponse {
+  FunctionInvocation invocation = 1;
+}
+
+message GetFunctionInvocationRequest {
+  string invocation_id = 1;
+}
+
+message GetFunctionInvocationResponse {
+  FunctionInvocation invocation = 1;
+}
+
+message ListFunctionInvocationsRequest {
+  FunctionInvocationListFilter filter = 1;
+}
+
+message ListFunctionInvocationsResponse {
+  repeated FunctionInvocation invocations = 1;
+  string next_cursor = 2;
+}
+
+message ListFunctionEventsRequest {
+  string function_id = 1;
+  string invocation_id = 2;
+  string revision_id = 3;
+  int32 limit = 4;
+}
+
+message ListFunctionEventsResponse {
+  repeated FunctionEvent events = 1;
+}
+
+service FunctionControl {
+  rpc UploadFunctionBundle(stream UploadFunctionBundleRequest) returns (UploadFunctionBundleResponse) {}
+  rpc DeployFunction(DeployFunctionRequest) returns (DeployFunctionResponse) {}
+  rpc GetFunction(GetFunctionRequest) returns (GetFunctionResponse) {}
+  rpc ListFunctions(ListFunctionsRequest) returns (ListFunctionsResponse) {}
+  rpc DeleteFunction(DeleteFunctionRequest) returns (DeleteFunctionResponse) {}
+  rpc InvokeFunction(InvokeFunctionRequest) returns (InvokeFunctionResponse) {}
+  rpc GetFunctionInvocation(GetFunctionInvocationRequest) returns (GetFunctionInvocationResponse) {}
+  rpc ListFunctionInvocations(ListFunctionInvocationsRequest) returns (ListFunctionInvocationsResponse) {}
+  rpc ListFunctionEvents(ListFunctionEventsRequest) returns (ListFunctionEventsResponse) {}
+}

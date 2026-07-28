@@ -1,0 +1,23 @@
+{{- if .Values.observability.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "prometheus") | nindent 4 }}
+data:
+  prometheus.yaml: |
+    global:
+      scrape_interval: {{ .Values.observability.prometheus.scrapeInterval }}
+      evaluation_interval: {{ .Values.observability.prometheus.scrapeInterval }}
+    scrape_configs:
+      - job_name: axern-telemetry
+        static_configs:
+          - targets: [otel-collector:9464]
+      - job_name: otel-collector
+        static_configs:
+          - targets: [otel-collector:8888]
+      {{- with .Values.observability.prometheus.additionalScrapeConfigs }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+{{- end }}

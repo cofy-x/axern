@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>gatewayd dashboard</title>
+    <link rel="stylesheet" href="/dashboard/vendor/xterm.css{{TOKEN_QUERY}}">
+    <link rel="stylesheet" href="/dashboard/assets/style.css{{TOKEN_QUERY}}">
+    <script>
+      window.__GATEWAYD_VENDOR_READY__ = {{VENDOR_READY}};
+    </script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="toolbar" aria-label="terminal controls">
+        <div class="title">gatewayd</div>
+        <form id="connect-form" class="connect">
+          <input id="terminal-target" name="target" autocomplete="off" spellcheck="false" placeholder="allocation or service id" required>
+          <select id="terminal-shell" name="shell" aria-label="shell">
+            <option value="/bin/sh">sh</option>
+            <option value="/bin/bash">bash</option>
+            <option value="/bin/ash">ash</option>
+            <option value="/bin/dash">dash</option>
+            <option value="/bin/zsh">zsh</option>
+          </select>
+          <button id="connect-button" type="submit">Connect</button>
+        </form>
+        <div id="status" class="status" data-state="disconnected">
+          <span class="status-dot"></span>
+          <span id="status-label">disconnected</span>
+        </div>
+      </section>
+      <section id="vendor-warning" class="warning" hidden>
+        xterm assets are missing. Run <code>make gateway-dashboard-assets</code>.
+      </section>
+      <section id="replica-picker" class="replica-picker" hidden></section>
+      <section id="terminal" class="terminal" aria-label="terminal"></section>
+    </main>
+    <script src="/dashboard/vendor/xterm.js{{TOKEN_QUERY}}"></script>
+    <script src="/dashboard/vendor/addon-fit.js{{TOKEN_QUERY}}"></script>
+    <script src="/dashboard/assets/app.js{{TOKEN_QUERY}}"></script>
+  </body>
+</html>

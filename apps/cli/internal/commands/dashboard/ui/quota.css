@@ -1,0 +1,153 @@
+.quota-head {
+  align-items: flex-start;
+}
+
+.quota-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.quota-controls input {
+  width: 220px;
+}
+
+.quota-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.quota-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.quota-layout.empty {
+  grid-template-columns: 1fr;
+}
+
+.quota-layout.empty .quota-grid.empty {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+#quota-detail {
+  position: sticky;
+  top: 22px;
+}
+
+.quota-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  min-height: auto;
+  background: var(--panel);
+  text-align: left;
+}
+
+.quota-card.warning {
+  border-color: #e1a35f;
+}
+
+.quota-card.critical {
+  border-color: #d8736f;
+}
+
+.quota-card.active,
+.quota-card:hover {
+  border-color: var(--accent);
+}
+
+.quota-card.compact {
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.quota-card.compact header {
+  margin-bottom: 0;
+}
+
+.quota-card header,
+.quota-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.quota-card header strong,
+.quota-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quota-card header span,
+.quota-row span {
+  color: var(--muted);
+}
+
+.quota-resource {
+  display: grid;
+  gap: 5px;
+}
+
+.quota-bar {
+  height: 7px;
+  border-radius: 999px;
+  background: #edf1f5;
+  overflow: hidden;
+}
+
+.quota-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.quota-bar.warning span {
+  background: var(--warn);
+}
+
+.quota-bar.critical span {
+  background: var(--bad);
+}
+
+.quota-bar.unlimited span {
+  width: 100% !important;
+  background: #b8c4cf;
+}
+
+.blocker-list {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.blocker {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid #f0d6a9;
+  border-radius: 6px;
+  background: var(--warn-bg);
+}
+
+.blocker span {
+  color: var(--muted);
+}

@@ -1,0 +1,50 @@
+# Environment
+.env
+.env.*
+!.env.example
+/work/
+
+# Common build outputs
+/bin/
+/.axrun/
+dist/
+target/
+build/
+out/
+coverage/
+!runtime/axnoded/build/
+!runtime/axnoded/build/executable/
+!runtime/axnoded/build/executable/**
+runtime/axnoded/executable
+
+# Node / TypeScript
+node_modules/
+.pnpm-debug.log*
+pnpm-debug.log*
+*.tsbuildinfo
+
+# Go
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.prof
+__debug_bin*
+gateway/gatewayd/internal/api/http/dashboard/vendor/*
+!gateway/gatewayd/internal/api/http/dashboard/vendor/.gitkeep
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.dev/

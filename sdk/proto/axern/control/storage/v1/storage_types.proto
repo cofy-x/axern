@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+package axern.control.storage.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1;storagev1";
+
+import "google/protobuf/timestamp.proto";
+
+enum VolumeBackend {
+  VOLUME_BACKEND_UNSPECIFIED = 0;
+  VOLUME_BACKEND_LOCAL = 1;
+  VOLUME_BACKEND_KUBERNETES_PVC = 2;
+  VOLUME_BACKEND_NFS = 3;
+  VOLUME_BACKEND_OBJECT_STORE_DATASET = 4;
+}
+
+enum VolumeAccessMode {
+  VOLUME_ACCESS_MODE_UNSPECIFIED = 0;
+  VOLUME_ACCESS_MODE_READ_WRITE_ONCE = 1;
+  VOLUME_ACCESS_MODE_READ_ONLY_MANY = 2;
+  VOLUME_ACCESS_MODE_READ_WRITE_MANY = 3;
+}
+
+enum VolumeReclaimPolicy {
+  VOLUME_RECLAIM_POLICY_UNSPECIFIED = 0;
+  VOLUME_RECLAIM_POLICY_RETAIN = 1;
+  VOLUME_RECLAIM_POLICY_DELETE = 2;
+}
+
+enum VolumeBindingScope {
+  VOLUME_BINDING_SCOPE_UNSPECIFIED = 0;
+  VOLUME_BINDING_SCOPE_SERVICE = 1;
+  VOLUME_BINDING_SCOPE_ALLOCATION = 2;
+  VOLUME_BINDING_SCOPE_EXTERNAL = 3;
+}
+
+enum VolumeConsistencyProfile {
+  VOLUME_CONSISTENCY_PROFILE_UNSPECIFIED = 0;
+  VOLUME_CONSISTENCY_PROFILE_POSIX = 1;
+  VOLUME_CONSISTENCY_PROFILE_SHARED_FILESYSTEM = 2;
+  VOLUME_CONSISTENCY_PROFILE_OBJECT_STORE = 3;
+  VOLUME_CONSISTENCY_PROFILE_CACHE = 4;
+}
+
+enum VolumeStatus {
+  VOLUME_STATUS_UNSPECIFIED = 0;
+  VOLUME_STATUS_PENDING = 1;
+  VOLUME_STATUS_BOUND = 2;
+  VOLUME_STATUS_AVAILABLE = 3;
+  VOLUME_STATUS_DELETING = 4;
+  VOLUME_STATUS_DELETED = 5;
+  VOLUME_STATUS_FAILED = 6;
+  VOLUME_STATUS_PUBLISHING = 7;
+  VOLUME_STATUS_PUBLISHED = 8;
+  VOLUME_STATUS_RELEASING = 9;
+}
+
+message VolumeCapacity {
+  int64 size_bytes = 1;
+}
+
+message VolumeTopology {
+  string cluster = 1;
+  string zone = 2;
+  string node_id = 3;
+}
+
+message VolumeRuntimeCompatibility {
+  bool supports_runc = 1;
+  bool supports_runsc = 2;
+  bool requires_privileged_node_mount = 3;
+}
+
+message VolumeClass {
+  string name = 1;
+  VolumeBackend backend = 2;
+  repeated VolumeAccessMode access_modes = 3;
+  VolumeReclaimPolicy default_reclaim_policy = 4;
+  VolumeConsistencyProfile consistency_profile = 5;
+  VolumeRuntimeCompatibility runtime_compatibility = 6;
+  map<string, string> parameters = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message VolumeClaim {
+  string id = 1;
+  string namespace = 2;
+  string name = 3;
+  string class_name = 4;
+  VolumeCapacity requested_capacity = 5;
+  VolumeAccessMode access_mode = 6;
+  VolumeReclaimPolicy reclaim_policy = 7;
+  VolumeBindingScope binding_scope = 8;
+  VolumeStatus status = 9;
+  VolumeTopology topology = 10;
+  map<string, string> parameters = 11;
+  map<string, string> labels = 12;
+  int64 version = 13;
+  google.protobuf.Timestamp created_at = 14;
+  google.protobuf.Timestamp updated_at = 15;
+  string message = 16;
+  string owner_type = 17;
+  string owner_id = 18;
+  string backend_handle = 19;
+  int64 reclaim_attempt = 20;
+  google.protobuf.Timestamp next_reclaim_at = 21;
+  string reclaim_lease_token = 22;
+  google.protobuf.Timestamp reclaim_lease_until = 23;
+}
+
+message VolumeMount {
+  string claim_name = 1;
+  string target = 2;
+  bool readonly = 3;
+  repeated string options = 4;
+}
+
+message VolumeClaimListFilter {
+  string namespace = 1;
+  repeated VolumeStatus statuses = 2;
+  map<string, string> labels = 3;
+  string cursor = 4;
+  int32 page_size = 5;
+}

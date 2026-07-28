@@ -1,0 +1,87 @@
+{{- if .Values.observability.enabled }}
+{{- if and .Values.observability.prometheus.persistence.enabled (ne (int .Values.observability.prometheus.replicas) 1) }}
+{{- fail "observability.prometheus.replicas must be 1 when Prometheus persistence is enabled" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "prometheus") | nindent 4 }}
+spec:
+  replicas: {{ .Values.observability.prometheus.replicas }}
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      {{- include "axern.componentSelectorLabels" (dict "root" . "component" "prometheus") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axern.componentSelectorLabels" (dict "root" . "component" "prometheus") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/prometheus-config.yaml") . | sha256sum }}
+    spec:
+      {{- if .Values.observability.prometheus.kubernetesDiscovery.enabled }}
+      serviceAccountName: {{ printf "%s-prometheus" (include "axern.fullname" .) }}
+      {{- end }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "axern.scheduling" (dict "root" . "profile" "observability" "component" "prometheus" "spread" true) | nindent 6 }}
+      securityContext: {fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch}
+      containers:
+        - name: prometheus
+          image: {{ include "axern.image" (dict "root" . "image" .Values.observability.prometheus.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.observability.prometheus.image) }}
+          args:
+            - --config.file=/etc/prometheus/prometheus.yaml
+            - --storage.tsdb.path=/var/lib/prometheus
+            - --storage.tsdb.retention.time={{ .Values.observability.prometheus.retention }}
+            - --web.enable-lifecycle
+          ports: [{name: http, containerPort: 9090}]
+          readinessProbe: {httpGet: {path: /-/ready, port: http}}
+          livenessProbe: {httpGet: {path: /-/healthy, port: http}}
+          resources:
+            {{- toYaml .Values.observability.prometheus.resources | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/prometheus}
+            - {name: config, mountPath: /etc/prometheus, readOnly: true}
+      volumes:
+        - name: data
+          {{- if .Values.observability.prometheus.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default "prometheus" .Values.observability.prometheus.persistence.existingClaim | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: config
+          configMap: {name: prometheus-config}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "prometheus") | nindent 4 }}
+spec:
+  selector:
+    {{- include "axern.componentSelectorLabels" (dict "root" . "component" "prometheus") | nindent 4 }}
+  ports: [{name: http, port: 9090, targetPort: http}]
+{{- if and .Values.observability.prometheus.persistence.enabled (not .Values.observability.prometheus.persistence.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "prometheus") | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.observability.prometheus.persistence.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests: {storage: {{ .Values.observability.prometheus.persistence.size }}}
+{{- end }}
+{{- end }}

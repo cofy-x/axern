@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package axnoded.internal.apipb.v1;
+
+option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;apipb";
+
+import "axern/common/file/v1/file.proto";
+
+message StatFileRequest {
+  string ID = 1;
+  string path = 2;
+}
+
+message StatFileResponse {
+  axern.common.file.v1.SandboxFileInfo info = 1;
+}
+
+message ListDirRequest {
+  string ID = 1;
+  string path = 2;
+}
+
+message ListDirResponse {
+  repeated axern.common.file.v1.SandboxFileInfo entries = 1;
+}
+
+message ReadFileRequest {
+  string ID = 1;
+  string path = 2;
+}
+
+message ReadFileResponse {
+  bytes data = 1;
+}
+
+message WriteFileRequest {
+  string ID = 1;
+  string path = 2;
+  bytes data = 3;
+  bool create_parents = 4;
+}
+
+message WriteFileResponse {}
+
+message MkdirRequest {
+  string ID = 1;
+  string path = 2;
+  bool parents = 3;
+}
+
+message MkdirResponse {}
+
+message RemoveRequest {
+  string ID = 1;
+  string path = 2;
+  bool recursive = 3;
+  bool force = 4;
+}
+
+message RemoveResponse {}
+
+message ExistsRequest {
+  string ID = 1;
+  string path = 2;
+}
+
+message ExistsResponse {
+  bool exists = 1;
+}
+
+message CopyRequest {
+  string ID = 1;
+  string src_path = 2;
+  string dst_path = 3;
+  bool recursive = 4;
+  bool overwrite = 5;
+}
+
+message CopyResponse {}
+
+message MoveRequest {
+  string ID = 1;
+  string src_path = 2;
+  string dst_path = 3;
+  bool overwrite = 4;
+}
+
+message MoveResponse {}
+
+message ChmodRequest {
+  string ID = 1;
+  string path = 2;
+  uint32 mode = 3;
+  bool recursive = 4;
+}
+
+message ChmodResponse {}
+
+message TouchRequest {
+  string ID = 1;
+  string path = 2;
+  bool create = 3;
+  int64 mtime_ns = 4;
+}
+
+message TouchResponse {}
+
+message UploadArchiveRequest {
+  string ID = 1;
+  string path = 2;
+  axern.common.file.v1.SandboxArchiveFormat format = 3;
+  bool create_parents = 4;
+  bool overwrite = 5;
+  axern.common.file.v1.SandboxArchiveSymlinkPolicy symlink_policy = 6;
+}
+
+message UploadArchiveResponse {}
+
+message DownloadArchiveRequest {
+  string ID = 1;
+  string path = 2;
+  axern.common.file.v1.SandboxArchiveFormat format = 3;
+  axern.common.file.v1.SandboxArchiveSymlinkPolicy symlink_policy = 4;
+}
+
+message DownloadArchiveResponse {}

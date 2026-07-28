@@ -1,0 +1,28 @@
+[
+  {
+    "id": "claude-code",
+    "version": "2.1.205",
+    "imageDescriptor": {
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000210205",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "annotations": {
+        "org.opencontainers.image.ref.name": "ghcr.io/cofy-x/axern/claude-code-bundle:2.1.205"
+      }
+    },
+    "binaryPath": "/bin/claude",
+    "description": "Relocatable Claude Code CLI bundle for read-only Axern image mounts."
+  },
+  {
+    "id": "codex",
+    "version": "0.144.6",
+    "imageDescriptor": {
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000144006",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "annotations": {
+        "org.opencontainers.image.ref.name": "ghcr.io/cofy-x/axern/codex-bundle:0.144.6"
+      }
+    },
+    "binaryPath": "/bin/codex",
+    "description": "Relocatable Codex CLI bundle for read-only Axern image mounts."
+  }
+]

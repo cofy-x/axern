@@ -1,0 +1,313 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Axern: Node Dev Prepare",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "node-dev-prepare"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Ensure Delve",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "node-dev-ensure-dlv"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Dev Stack Up",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "dev-stack-up"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Dev Stack Status",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "dev-stack-status"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Start Postgres",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "postgres-dev-up"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Prepare Controld Data",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "controld-dev-prepare"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Restart Gatewayd",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "dev-stack-restart",
+        "SERVICE=gatewayd"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Restart Axnoded",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "dev-stack-restart",
+        "SERVICE=axnoded"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Restart Imagemgr",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "dev-stack-restart",
+        "SERVICE=imagemgr"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Restart Volumed",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "dev-stack-restart",
+        "SERVICE=volumed"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Restart Storaged",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "dev-stack-restart",
+        "SERVICE=storaged"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Restart Imagefsd",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "dev-stack-restart",
+        "SERVICE=imagefsd"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Build Imagefsd",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "imagefsd-build"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Clean Axnoded Socket",
+      "type": "shell",
+      "command": "rm",
+      "args": [
+        "-f",
+        "${workspaceFolder}/.dev/run/axnoded.sock"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Clean Imagemgr Socket",
+      "type": "shell",
+      "command": "rm",
+      "args": [
+        "-f",
+        "${workspaceFolder}/.dev/run/imagemgr.sock"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Clean Volumed Socket",
+      "type": "shell",
+      "command": "rm",
+      "args": [
+        "-f",
+        "${workspaceFolder}/.dev/run/volumed.sock"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Clean Imagefsd Socket",
+      "type": "shell",
+      "command": "rm",
+      "args": [
+        "-f",
+        "${workspaceFolder}/.dev/run/imagefsd-chunk.sock"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Prepare Controld Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Axern: Ensure Delve",
+        "Axern: Prepare Controld Data"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Prepare Gatewayd Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Axern: Ensure Delve",
+        "Axern: Node Dev Prepare",
+        "Axern: Prepare Gateway Dashboard Assets"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Prepare Storaged Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Axern: Ensure Delve",
+        "Axern: Start Postgres",
+        "Axern: Node Dev Prepare"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Prepare Gateway Dashboard Assets",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "gateway-dashboard-assets"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Start Axnoded Delve DAP",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "axnoded-debug-server"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Start Imagemgr Delve DAP",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "imagemgr-debug-server"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Prepare Axnoded Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Axern: Ensure Delve",
+        "Axern: Node Dev Prepare",
+        "Axern: Clean Axnoded Socket"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Prepare Volumed Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Axern: Ensure Delve",
+        "Axern: Node Dev Prepare",
+        "Axern: Clean Volumed Socket"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Prepare Imagemgr Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Axern: Ensure Delve",
+        "Axern: Node Dev Prepare",
+        "Axern: Build Imagefsd",
+        "Axern: Clean Imagemgr Socket"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Axern: Prepare Imagefsd Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Axern: Node Dev Prepare",
+        "Axern: Build Imagefsd",
+        "Axern: Clean Imagefsd Socket"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

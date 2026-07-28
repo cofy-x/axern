@@ -1,0 +1,21 @@
+{
+  "client": [
+    "environment_create",
+    "environment_delete",
+    "service_create",
+    "service_delete",
+    "service_replicas"
+  ],
+  "sandbox": [
+    "lifecycle_start",
+    "lifecycle_close",
+    "exec",
+    "process",
+    "file_stat",
+    "file_read",
+    "file_write",
+    "archive_upload",
+    "archive_download",
+    "tunnel"
+  ]
+}

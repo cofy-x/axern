@@ -1,0 +1,23 @@
+{
+  "type": "registry",
+  "registry": {
+    "scheme": "https",
+    "host": "registry.example.com",
+    "repo": "library/nginx",
+    "auth": "",
+    "skip_verify": false,
+    "timeout": 30,
+    "connect_timeout": 5,
+    "retry_limit": 3,
+    "registry_token": "",
+    "blob_url_scheme": "",
+    "blob_redirected_host": "",
+    "proxy": {
+      "url": "",
+      "ping_url": "",
+      "fallback": true,
+      "check_interval": 5,
+      "check_pause_elapsed": 300
+    }
+  }
+}

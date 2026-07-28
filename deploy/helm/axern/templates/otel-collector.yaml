@@ -1,0 +1,92 @@
+{{- if .Values.observability.enabled }}
+{{- if and .Values.observability.collector.persistence.enabled (ne (int .Values.observability.collector.replicas) 1) }}
+{{- fail "observability.collector.replicas must be 1 when collector persistence is enabled" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "otel-collector") | nindent 4 }}
+spec:
+  replicas: {{ .Values.observability.collector.replicas }}
+  strategy:
+    type: Recreate
+    rollingUpdate: null
+  selector:
+    matchLabels:
+      {{- include "axern.componentSelectorLabels" (dict "root" . "component" "otel-collector") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axern.componentSelectorLabels" (dict "root" . "component" "otel-collector") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/otel-collector-config.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "axern.scheduling" (dict "root" . "profile" "observability" "component" "otel-collector" "spread" true) | nindent 6 }}
+      securityContext: {fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch}
+      containers:
+        - name: otel-collector
+          image: {{ include "axern.image" (dict "root" . "image" .Values.observability.collector.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.observability.collector.image) }}
+          args: [--config=/etc/otel/collector.yaml]
+          ports:
+            - {name: otlp-grpc, containerPort: 4317}
+            - {name: otlp-http, containerPort: 4318}
+            - {name: metrics, containerPort: 9464}
+            - {name: telemetry, containerPort: 8888}
+            - {name: health, containerPort: 13133}
+          readinessProbe: {httpGet: {path: /, port: health}}
+          livenessProbe: {httpGet: {path: /, port: health}}
+          resources:
+            {{- toYaml .Values.observability.collector.resources | nindent 12 }}
+          volumeMounts:
+            - {name: config, mountPath: /etc/otel, readOnly: true}
+            - {name: data, mountPath: /var/lib/otelcol}
+      volumes:
+        - name: config
+          configMap: {name: otel-collector-config}
+        - name: data
+          {{- if .Values.observability.collector.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default "otel-collector" .Values.observability.collector.persistence.existingClaim | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "otel-collector") | nindent 4 }}
+spec:
+  type: {{ .Values.observability.collector.service.type }}
+  selector:
+    {{- include "axern.componentSelectorLabels" (dict "root" . "component" "otel-collector") | nindent 4 }}
+  ports:
+    - {name: otlp-grpc, port: 4317, targetPort: otlp-grpc}
+    - {name: otlp-http, port: 4318, targetPort: otlp-http}
+    - {name: metrics, port: 9464, targetPort: metrics}
+    - {name: telemetry, port: 8888, targetPort: telemetry}
+{{- if and .Values.observability.collector.persistence.enabled (not .Values.observability.collector.persistence.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: otel-collector
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "otel-collector") | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.observability.collector.persistence.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests: {storage: {{ .Values.observability.collector.persistence.size }}}
+{{- end }}
+{{- end }}

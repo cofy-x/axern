@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>axnoded nginx demo</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; line-height: 1.5; }
+    code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; max-width: 1080px; }
+    th, td { text-align: left; border-bottom: 1px solid #ddd; padding: 0.5rem; vertical-align: top; }
+    .ok { color: #0a7d22; }
+    .warn { color: #a06200; }
+    .error { color: #b00020; }
+    form { display: inline; }
+    button { padding: 0.3rem 0.7rem; }
+  </style>
+</head>
+<body>
+  <h1>Nginx Demo</h1>
+  <p>daemon ready:
+    {{if .Ready}}
+    <strong class="ok">true</strong>
+    {{else}}
+    <strong class="warn">false</strong>
+    {{end}}
+  </p>
+  <p>nat backend: <code>{{.NATBackend}}</code></p>
+  {{if .Message}}<p class="ok">{{.Message}}</p>{{end}}
+  {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+  <p>This is the demo runner page for the managed local nginx examples. The root dashboard at <code>/</code> remains read-only.</p>
+  <p>Use the buttons below to start or stop the managed <code>runsc</code> and <code>runc</code> demos on this node.</p>
+  <p><a href="/">back to /</a></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Runtime</th>
+        <th>Managed Sandbox</th>
+        <th>Container</th>
+        <th>State</th>
+        <th>Ports</th>
+        <th>Logs</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Instances}}
+      <tr>
+        <td><code>{{.RuntimeName}}</code></td>
+        <td><code>{{.ManagedSandboxID}}</code></td>
+        <td>{{if .ContainerID}}<code>{{.ContainerID}}</code>{{else}}-{{end}}</td>
+        <td>{{.State}}</td>
+        <td>
+          {{if .BrowserURL}}
+          <a href="{{.BrowserURL}}">{{.BrowserURL}}</a>
+          {{else}}
+          -
+          {{end}}
+        </td>
+        <td>
+          stdout: <code>{{.StdoutPath}}</code><br>
+          stderr: <code>{{.StderrPath}}</code>
+        </td>
+        <td>
+          <form method="post" action="/demo/nginx">
+            <input type="hidden" name="runtime" value="{{.RuntimeName}}">
+            <input type="hidden" name="action" value="start">
+            <button type="submit">Start</button>
+          </form>
+          <form method="post" action="/demo/nginx">
+            <input type="hidden" name="runtime" value="{{.RuntimeName}}">
+            <input type="hidden" name="action" value="stop">
+            <button type="submit">Stop</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</body>
+</html>

@@ -1,0 +1,195 @@
+syntax = "proto3";
+
+package axern.control.tunnel.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1;tunnelcontrolv1";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+enum TunnelSessionStatus {
+  TUNNEL_SESSION_STATUS_UNSPECIFIED = 0;
+  TUNNEL_SESSION_STATUS_PENDING = 1;
+  TUNNEL_SESSION_STATUS_RUNNING = 2;
+  TUNNEL_SESSION_STATUS_DEGRADED = 3;
+  TUNNEL_SESSION_STATUS_REVOKED = 4;
+  TUNNEL_SESSION_STATUS_EXPIRED = 5;
+  TUNNEL_SESSION_STATUS_FAILED = 6;
+}
+
+enum TunnelPeerKind {
+  TUNNEL_PEER_KIND_UNSPECIFIED = 0;
+  TUNNEL_PEER_KIND_CLIENT = 1;
+  TUNNEL_PEER_KIND_NODE = 2;
+}
+
+enum TunnelSessionEventType {
+  TUNNEL_SESSION_EVENT_TYPE_UNSPECIFIED = 0;
+  TUNNEL_SESSION_EVENT_TYPE_CREATED = 1;
+  TUNNEL_SESSION_EVENT_TYPE_RENEWED = 2;
+  TUNNEL_SESSION_EVENT_TYPE_NODE_STATUS = 3;
+  TUNNEL_SESSION_EVENT_TYPE_REVOKED = 4;
+  TUNNEL_SESSION_EVENT_TYPE_EXPIRED = 5;
+  TUNNEL_SESSION_EVENT_TYPE_CLIENT_CONNECTED = 6;
+  TUNNEL_SESSION_EVENT_TYPE_CLIENT_DISCONNECTED = 7;
+  TUNNEL_SESSION_EVENT_TYPE_NODE_CONNECTED = 8;
+  TUNNEL_SESSION_EVENT_TYPE_NODE_DISCONNECTED = 9;
+  TUNNEL_SESSION_EVENT_TYPE_PAIRED = 10;
+  TUNNEL_SESSION_EVENT_TYPE_DRAIN_REJECTED = 11;
+  TUNNEL_SESSION_EVENT_TYPE_RESOURCE_LIMITED = 12;
+}
+
+enum TunnelSessionEventReasonCode {
+  TUNNEL_SESSION_EVENT_REASON_CODE_UNSPECIFIED = 0;
+  TUNNEL_SESSION_EVENT_REASON_CODE_SESSION_CREATED = 1;
+  TUNNEL_SESSION_EVENT_REASON_CODE_SESSION_RENEWED = 2;
+  TUNNEL_SESSION_EVENT_REASON_CODE_NODE_RUNNING = 3;
+  TUNNEL_SESSION_EVENT_REASON_CODE_NODE_DEGRADED = 4;
+  TUNNEL_SESSION_EVENT_REASON_CODE_NODE_FAILED = 5;
+  TUNNEL_SESSION_EVENT_REASON_CODE_MANUAL_REVOKE = 6;
+  TUNNEL_SESSION_EVENT_REASON_CODE_ALLOCATION_ENDED = 7;
+  TUNNEL_SESSION_EVENT_REASON_CODE_ALLOCATION_DELETED = 8;
+  TUNNEL_SESSION_EVENT_REASON_CODE_SESSION_EXPIRED = 9;
+  TUNNEL_SESSION_EVENT_REASON_CODE_CLIENT_CONNECTED = 10;
+  TUNNEL_SESSION_EVENT_REASON_CODE_CLIENT_DISCONNECTED = 11;
+  TUNNEL_SESSION_EVENT_REASON_CODE_NODE_CONNECTED = 12;
+  TUNNEL_SESSION_EVENT_REASON_CODE_NODE_DISCONNECTED = 13;
+  TUNNEL_SESSION_EVENT_REASON_CODE_PAIRED = 14;
+  TUNNEL_SESSION_EVENT_REASON_CODE_DRAIN_REJECTED = 15;
+  TUNNEL_SESSION_EVENT_REASON_CODE_RESOURCE_LIMITED = 16;
+  TUNNEL_SESSION_EVENT_REASON_CODE_RELAY_PONG_TIMEOUT = 17;
+  TUNNEL_SESSION_EVENT_REASON_CODE_RELAY_QUEUE_FULL = 18;
+  TUNNEL_SESSION_EVENT_REASON_CODE_RELAY_FRAME_TOO_LARGE = 19;
+  TUNNEL_SESSION_EVENT_REASON_CODE_RELAY_OPPOSITE_MISSING = 20;
+}
+
+message TunnelSession {
+  string session_id = 1;
+  string allocation_id = 2;
+  string node_id = 3;
+  string node_target = 4;
+  int64 attempt = 5;
+  int32 remote_port = 6;
+  string local_target = 7;
+  string edge_target = 8;
+  TunnelSessionStatus status = 9;
+  string reason = 10;
+  string bound_addr = 11;
+  bool revoked = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+  google.protobuf.Timestamp expires_at = 15;
+  string node_edge_target = 16;
+  string relay_id = 17;
+  string client_edge_target = 18;
+  google.protobuf.Timestamp ready_at = 19;
+  google.protobuf.Timestamp last_peer_event_at = 20;
+  int64 bytes_in = 21;
+  int64 bytes_out = 22;
+}
+
+message TunnelSessionEvent {
+  int64 event_id = 1;
+  string session_id = 2;
+  TunnelSessionEventType event_type = 3;
+  TunnelSessionStatus status = 4;
+  string reason = 5;
+  string bound_addr = 6;
+  google.protobuf.Timestamp created_at = 7;
+  TunnelSessionEventReasonCode reason_code = 8;
+  string relay_id = 9;
+  TunnelPeerKind peer_kind = 10;
+  int64 bytes_in = 11;
+  int64 bytes_out = 12;
+}
+
+message CreateTunnelSessionRequest {
+  string allocation_id = 1;
+  optional int32 remote_port = 2;
+  string local_target = 3;
+  google.protobuf.Duration ttl = 4;
+  bool wait_ready = 5;
+  google.protobuf.Duration ready_timeout = 6;
+}
+
+message CreateTunnelSessionResponse {
+  TunnelSession session = 1;
+  string client_token = 2;
+}
+
+message GetTunnelSessionRequest {
+  string session_id = 1;
+}
+
+message GetTunnelSessionResponse {
+  TunnelSession session = 1;
+}
+
+message ListTunnelSessionsRequest {
+  string allocation_id = 1;
+  string node_id = 2;
+  bool include_terminal = 3;
+}
+
+message ListTunnelSessionsResponse {
+  repeated TunnelSession sessions = 1;
+}
+
+message ListTunnelSessionEventsRequest {
+  string session_id = 1;
+  int32 limit = 2;
+}
+
+message ListTunnelSessionEventsResponse {
+  repeated TunnelSessionEvent events = 1;
+}
+
+message InspectTunnelSessionRequest {
+  string session_id = 1;
+  int32 event_limit = 2;
+}
+
+message InspectTunnelSessionResponse {
+  TunnelSession session = 1;
+  repeated TunnelSessionEvent events = 2;
+}
+
+message RevokeTunnelSessionRequest {
+  string session_id = 1;
+  string reason = 2;
+}
+
+message RevokeTunnelSessionResponse {
+  TunnelSession session = 1;
+}
+
+message RenewTunnelSessionRequest {
+  string session_id = 1;
+  google.protobuf.Duration ttl = 2;
+  string client_token = 3;
+}
+
+message RenewTunnelSessionResponse {
+  TunnelSession session = 1;
+}
+
+message ValidateTunnelPeerRequest {
+  string session_id = 1;
+  TunnelPeerKind peer_kind = 2;
+  string token = 3;
+}
+
+message ValidateTunnelPeerResponse {
+  TunnelSession session = 1;
+}
+
+service TunnelControl {
+  rpc CreateTunnelSession(CreateTunnelSessionRequest) returns (CreateTunnelSessionResponse) {}
+  rpc GetTunnelSession(GetTunnelSessionRequest) returns (GetTunnelSessionResponse) {}
+  rpc ListTunnelSessions(ListTunnelSessionsRequest) returns (ListTunnelSessionsResponse) {}
+  rpc ListTunnelSessionEvents(ListTunnelSessionEventsRequest) returns (ListTunnelSessionEventsResponse) {}
+  rpc InspectTunnelSession(InspectTunnelSessionRequest) returns (InspectTunnelSessionResponse) {}
+  rpc RevokeTunnelSession(RevokeTunnelSessionRequest) returns (RevokeTunnelSessionResponse) {}
+  rpc RenewTunnelSession(RenewTunnelSessionRequest) returns (RenewTunnelSessionResponse) {}
+  rpc ValidateTunnelPeer(ValidateTunnelPeerRequest) returns (ValidateTunnelPeerResponse) {}
+}

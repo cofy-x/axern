@@ -1,0 +1,236 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controld
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "controld") | nindent 4 }}
+spec:
+  replicas: {{ .Values.controld.replicas }}
+  selector:
+    matchLabels:
+      {{- include "axern.componentSelectorLabels" (dict "root" . "component" "controld") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axern.componentSelectorLabels" (dict "root" . "component" "controld") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "axern.scheduling" (dict "root" . "profile" "platform" "component" "controld" "spread" true) | nindent 6 }}
+      initContainers:
+        - name: controld-migrate
+          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              until /usr/local/bin/controld-migrate -postgres-dsn {{ include "axern.postgresDSN" . | quote }} up; do
+                echo "waiting for postgres migration dependencies"
+                sleep 2
+              done
+        - name: wait-storaged
+          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              until curl -fsS http://storaged.{{ .Release.Namespace }}.svc.cluster.local:24021/healthz >/dev/null; do
+                echo "waiting for storaged"
+                sleep 2
+              done
+      containers:
+        - name: controld
+          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          envFrom:
+            - configMapRef:
+                name: local-proxy-env
+          args:
+            - -grpc-address
+            - 0.0.0.0:24000
+            - -http-address
+            - 0.0.0.0:24001
+            - -heartbeat-freshness-window
+            - {{ .Values.controld.heartbeatFreshnessWindow | quote }}
+            - -summary-freshness-window
+            - {{ .Values.controld.summaryFreshnessWindow | quote }}
+            - -service-reconcile-workers
+            - {{ .Values.controld.serviceReconcileWorkers | quote }}
+            - -service-allocation-global-workers
+            - {{ .Values.controld.serviceAllocationGlobalWorkers | quote }}
+            - -service-allocation-workers-per-node
+            - {{ .Values.controld.serviceAllocationWorkersPerNode | quote }}
+            - -volume-reclaim-workers
+            - {{ .Values.controld.volumeReclaimWorkers | quote }}
+            - -volume-reclaim-workers-per-node
+            - {{ .Values.controld.volumeReclaimWorkersPerNode | quote }}
+            - -postgres-dsn
+            - {{ include "axern.postgresDSN" . | quote }}
+            - -postgres-max-connections
+            - {{ .Values.controld.postgresMaxConnections | quote }}
+            - -reconcile-timeout
+            - {{ .Values.controld.reconcileTimeout | quote }}
+            - -tls-ca-cert
+            - /certs/ca.crt
+            - -tls-cert
+            - /certs/controld.crt
+            - -tls-key
+            - /certs/controld.key
+            - -storaged-target
+            - storaged.{{ .Release.Namespace }}.svc.cluster.local:24020
+            - -function-gateway-url
+            - http://gatewayd.{{ .Release.Namespace }}.svc.cluster.local:25080
+            - -function-gateway-token
+            - {{ .Values.gatewayd.devToken | quote }}
+            - -function-gateway-timeout
+            - {{ .Values.controld.function.gatewayTimeout | quote }}
+            - -function-bundle-base-url
+            - http://controld.{{ .Release.Namespace }}.svc.cluster.local:24001
+            - -function-bundle-token
+            - {{ .Values.gatewayd.devToken | quote }}
+          env:
+            - name: AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE
+              value: {{ .Values.runtimeCatalog.python311Image | quote }}
+            - name: AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE
+              value: {{ .Values.runtimeCatalog.serverBaseImage | quote }}
+            - name: AXERN_RUNTIME_CATALOG_CODING_BASE_IMAGE
+              value: {{ .Values.runtimeCatalog.codingBaseImage | quote }}
+            - name: AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE
+              value: {{ .Values.runtimeCatalog.desktopBaseImage | quote }}
+            - name: AXERN_AGENT_BUNDLE_CLAUDE_CODE_IMAGE
+              value: {{ .Values.runtimeCatalog.claudeCodeBundleImage | quote }}
+            - name: AXERN_AGENT_BUNDLE_CODEX_IMAGE
+              value: {{ .Values.runtimeCatalog.codexBundleImage | quote }}
+            - name: CONTROLD_TUNNEL_RELAYS
+              value: {{ include "axern.tunnelRelays" . | quote }}
+            - name: AXERN_SECRETS_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.secretsSecretName" . }}
+                  key: AXERN_SECRETS_MASTER_KEY
+            - name: CONTROLD_ROLLOUT_WORKER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.secretsSecretName" . }}
+                  key: CONTROLD_ROLLOUT_WORKER_TOKEN
+            - name: CONTROLD_ARTIFACT_TICKET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.secretsSecretName" . }}
+                  key: CONTROLD_ARTIFACT_TICKET_KEY
+            {{- if .Values.minio.enabled }}
+            - name: CONTROLD_ARTIFACT_S3_ENDPOINT
+              value: {{ printf "http://minio.%s.svc.cluster.local:9000" .Release.Namespace | quote }}
+            - name: CONTROLD_ARTIFACT_S3_REGION
+              value: "us-east-1"
+            - name: CONTROLD_ARTIFACT_S3_BUCKET
+              value: {{ .Values.minio.bucket | quote }}
+            - name: CONTROLD_ARTIFACT_S3_ACCESS_KEY
+              value: {{ .Values.minio.rootUser | quote }}
+            - name: CONTROLD_ARTIFACT_S3_SECRET_KEY
+              value: {{ .Values.minio.rootPassword | quote }}
+            - name: CONTROLD_ARTIFACT_S3_USE_PATH_STYLE
+              value: "true"
+            {{- else if .Values.objectStore.enabled }}
+            - name: CONTROLD_ARTIFACT_S3_ENDPOINT
+              value: {{ printf "%s://%s" .Values.objectStore.scheme .Values.objectStore.endpoint | quote }}
+            - name: CONTROLD_ARTIFACT_S3_REGION
+              value: {{ .Values.objectStore.region | quote }}
+            - name: CONTROLD_ARTIFACT_S3_BUCKET
+              value: {{ .Values.objectStore.bucket | quote }}
+            - name: CONTROLD_ARTIFACT_S3_ACCESS_KEY
+              value: {{ .Values.objectStore.accessKey | quote }}
+            - name: CONTROLD_ARTIFACT_S3_SECRET_KEY
+              value: {{ .Values.objectStore.secretKey | quote }}
+            {{- end }}
+            {{- include "axern.otelEnv" . | nindent 12 }}
+          ports:
+            - containerPort: 24000
+            - containerPort: 24001
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 24001
+            initialDelaySeconds: 2
+            periodSeconds: 2
+      volumes:
+        - name: certs
+          secret:
+            secretName: {{ include "axern.pkiSecretName" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: controld
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "controld") | nindent 4 }}
+spec:
+  selector:
+    {{- include "axern.componentSelectorLabels" (dict "root" . "component" "controld") | nindent 4 }}
+  ports:
+    - name: grpc
+      port: 24000
+      targetPort: 24000
+    - name: http
+      port: 24001
+      targetPort: 24001
+{{- if .Values.controld.retention.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controld-retention
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "controld-retention") | nindent 4 }}
+spec:
+  replicas: {{ .Values.controld.retention.replicas }}
+  selector:
+    matchLabels:
+      {{- include "axern.componentSelectorLabels" (dict "root" . "component" "controld-retention") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axern.componentSelectorLabels" (dict "root" . "component" "controld-retention") | nindent 8 }}
+    spec:
+      {{- include "axern.scheduling" (dict "root" . "profile" "platform" "component" "controld-retention" "spread" true) | nindent 6 }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-controld
+          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              until curl -fsS http://controld.{{ .Release.Namespace }}.svc.cluster.local:24001/healthz >/dev/null; do
+                echo "waiting for controld"
+                sleep 2
+              done
+      containers:
+        - name: controld-retention
+          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          command:
+            - /usr/local/bin/controld-retention
+          args:
+            - -postgres-dsn
+            - {{ include "axern.postgresDSN" . | quote }}
+          env:
+            - name: CONTROLD_RETENTION_ENABLED
+              value: "true"
+            {{- include "axern.otelEnv" . | nindent 12 }}
+{{- end }}

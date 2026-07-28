@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "reject_failure_events": true,
+  "require_metrics_complete": true,
+  "requirements": [
+    {"topology": "service-fanout", "scenario": "tiny-go-http-oci", "stage": 36, "phase": "service_replica_ready", "min_ok": 36, "max_failed": 0, "max_p95_seconds": 2.0, "max_aggregate_node_share_deviation": 0.02},
+    {"topology": "service-fanout", "scenario": "tiny-go-http-oci", "stage": 36, "phase": "service_first_http", "min_ok": 36, "max_failed": 0, "max_p95_seconds": 2.0},
+    {"topology": "service-fanout", "scenario": "tiny-go-http-nydus", "stage": 36, "phase": "service_replica_ready", "min_ok": 36, "max_failed": 0, "max_p95_seconds": 2.0, "max_aggregate_node_share_deviation": 0.02},
+    {"topology": "service-fanout", "scenario": "tiny-go-http-nydus", "stage": 36, "phase": "service_first_http", "min_ok": 36, "max_failed": 0, "max_p95_seconds": 2.0}
+  ]
+}

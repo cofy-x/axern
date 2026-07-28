@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-proxy-env
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "config") | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.proxyEnv }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

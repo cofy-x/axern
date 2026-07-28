@@ -1,0 +1,127 @@
+syntax = "proto3";
+
+package axern.control.catalog.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1;catalogv1";
+
+message RuntimeMount {
+  string type = 1;
+  string source = 2;
+  string target = 3;
+  repeated string options = 4;
+}
+
+message RuntimeTemplateCapabilities {
+  bool supports_exec = 1;
+  bool supports_exec_stream = 2;
+  bool supports_long_lived_process = 3;
+  bool supports_ports = 4;
+  bool supports_computer_use = 5;
+}
+
+message OciImageDescriptor {
+  string digest = 1;
+  string media_type = 2;
+  int64 size_bytes = 3;
+  map<string, string> annotations = 4;
+}
+
+message RuntimeBaselinePolicy {
+  repeated string capabilities = 1;
+  uint64 no_file_limit = 2;
+}
+
+message RuntimeCapabilityPolicy {
+  string annotation_key = 1;
+  optional bool include_ambient = 2;
+}
+
+message RuntimeNetworkNamespacePolicy {
+  string annotation_key = 1;
+}
+
+message RuntimeResourcePolicy {
+  repeated string ignore_annotation_keys = 1;
+}
+
+message RuntimeExecutionProfile {
+  RuntimeBaselinePolicy runtime_baseline = 1;
+  RuntimeCapabilityPolicy capabilities = 2;
+  RuntimeNetworkNamespacePolicy network_namespace = 3;
+  RuntimeResourcePolicy resources = 4;
+}
+
+message RuntimeTemplate {
+  string id = 1;
+  bool rootfs_readonly = 2;
+  // Informational image default command, usually OCI Entrypoint + Cmd for
+  // built-in templates. Workloads with no explicit argv preserve the image
+  // default at node runtime instead of using this field as a control-plane
+  // bootstrap override.
+  repeated string image_default_argv = 3;
+  string default_cwd = 4;
+  map<string, string> default_env = 5;
+  repeated RuntimeMount mounts = 6;
+  RuntimeTemplateCapabilities capabilities = 7;
+  string language = 8;
+  string language_version = 9;
+  string description = 10;
+  string version = 11;
+  OciImageDescriptor image_descriptor = 12;
+  string warm_policy = 13;
+  string cache_policy = 14;
+  RuntimeExecutionProfile execution_profile = 15;
+}
+
+message ListRuntimeTemplatesRequest {
+  string namespace = 1;
+  string version = 2;
+  string language = 3;
+}
+
+message ListRuntimeTemplatesResponse {
+  repeated RuntimeTemplate runtime_templates = 1;
+}
+
+message GetRuntimeTemplateRequest {
+  string id = 1;
+  string version = 2;
+}
+
+message GetRuntimeTemplateResponse {
+  RuntimeTemplate runtime_template = 1;
+}
+
+// AgentBundle describes a relocatable, read-only agent tool image. The image
+// is mounted into a workload rootfs; it is not itself a runtime template.
+message AgentBundle {
+  string id = 1;
+  string version = 2;
+  OciImageDescriptor image_descriptor = 3;
+  string binary_path = 4;
+  string description = 5;
+}
+
+message ListAgentBundlesRequest {
+  string version = 1;
+}
+
+message ListAgentBundlesResponse {
+  repeated AgentBundle agent_bundles = 1;
+}
+
+message GetAgentBundleRequest {
+  string id = 1;
+  string version = 2;
+}
+
+message GetAgentBundleResponse {
+  AgentBundle agent_bundle = 1;
+}
+
+service RuntimeCatalog {
+  rpc ListRuntimeTemplates(ListRuntimeTemplatesRequest) returns (ListRuntimeTemplatesResponse) {}
+  rpc GetRuntimeTemplate(GetRuntimeTemplateRequest) returns (GetRuntimeTemplateResponse) {}
+  rpc ListAgentBundles(ListAgentBundlesRequest) returns (ListAgentBundlesResponse) {}
+  rpc GetAgentBundle(GetAgentBundleRequest) returns (GetAgentBundleResponse) {}
+}

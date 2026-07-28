@@ -1,0 +1,190 @@
+syntax = "proto3";
+
+package axern.private.node.operator.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1;nodeoperatorv1";
+
+import "axern/node/sandbox/v1/node.proto";
+import "google/protobuf/timestamp.proto";
+
+enum LocalSandboxState {
+  LOCAL_SANDBOX_STATE_UNSPECIFIED = 0;
+  LOCAL_SANDBOX_STATE_RUNNING = 1;
+  LOCAL_SANDBOX_STATE_EXITED = 2;
+  LOCAL_SANDBOX_STATE_UNKNOWN = 3;
+}
+
+message LocalSandbox {
+  string sandbox_id = 1;
+  string runtime_class = 2;
+  LocalSandboxState state = 3;
+  int32 exit_code = 4;
+  bool exit_code_known = 5;
+  string message = 6;
+  int32 pid = 7;
+  google.protobuf.Timestamp started_at = 8;
+  google.protobuf.Timestamp finished_at = 9;
+}
+
+message ListSandboxesRequest {}
+
+message ListSandboxesResponse {
+  repeated LocalSandbox sandboxes = 1;
+}
+
+message GetSandboxRequest {
+  string sandbox_id = 1;
+}
+
+message GetSandboxResponse {
+  LocalSandbox sandbox = 1;
+}
+
+message SandboxdProviderDependency {
+  string name = 1;
+  bool available = 2;
+  string reason = 3;
+}
+
+message SandboxdProvider {
+  string name = 1;
+  string state = 2;
+  bool available = 3;
+  repeated string capabilities = 4;
+  string backend = 5;
+  string command = 6;
+  string reason = 7;
+  string last_error = 8;
+  repeated SandboxdProviderDependency dependencies = 9;
+}
+
+message SandboxdProviderSummary {
+  int32 total = 1;
+  int32 available = 2;
+  int32 degraded = 3;
+  int32 unavailable = 4;
+}
+
+message SandboxdProcessSummary {
+  int32 total = 1;
+  int32 starting = 2;
+  int32 running = 3;
+  int32 exited = 4;
+  int32 failed = 5;
+}
+
+message GetSandboxDiagnosticsRequest {
+  string sandbox_id = 1;
+  bool full = 2;
+}
+
+message GetSandboxDiagnosticsResponse {
+  string sandbox_id = 1;
+  bool ready = 2;
+  string detail = 3;
+  google.protobuf.Timestamp generated_at = 4;
+  int32 daemon_pid = 5;
+  double uptime_seconds = 6;
+  string socket_path = 7;
+  string user_state = 8;
+  repeated string capabilities = 9;
+  repeated SandboxdProvider providers = 10;
+  SandboxdProviderSummary provider_summary = 11;
+  SandboxdProcessSummary process_summary = 12;
+  string raw_json = 13;
+}
+
+message DeleteSandboxRequest {
+  string sandbox_id = 1;
+  int64 timeout_seconds = 2;
+}
+
+message DeleteSandboxResponse {}
+
+message KillSandboxRequest {
+  string sandbox_id = 1;
+  string signal = 2;
+}
+
+message KillSandboxResponse {}
+
+message ExecRequest {
+  string sandbox_id = 1;
+  axern.node.sandbox.v1.ExecSpec spec = 2;
+}
+
+message ExecResponse {
+  int32 exit_code = 1;
+  bytes stdout = 2;
+  bytes stderr = 3;
+  bool stdout_truncated = 4;
+  bool stderr_truncated = 5;
+}
+
+message ExecStreamOpen {
+  string sandbox_id = 1;
+  axern.node.sandbox.v1.ExecSpec spec = 2;
+  TerminalResize initial_size = 3;
+}
+
+message TerminalResize {
+  uint32 cols = 1;
+  uint32 rows = 2;
+}
+
+message ExecStreamRequest {
+  oneof payload {
+    ExecStreamOpen open = 1;
+    bytes stdin = 2;
+    TerminalResize resize = 3;
+    bool close_stdin = 4;
+  }
+}
+
+message ExecExit {
+  int32 exit_code = 1;
+  string message = 2;
+}
+
+message ExecStreamResponse {
+  oneof payload {
+    bytes stdout = 1;
+    bytes stderr = 2;
+    ExecExit exit = 3;
+  }
+}
+
+message WaitSandboxRequest {
+  string sandbox_id = 1;
+}
+
+message WaitSandboxResponse {
+  LocalSandboxState state = 1;
+  int32 exit_code = 2;
+  bool exit_code_known = 3;
+  string message = 4;
+}
+
+message ResolveSandboxNetworkRequest {
+  string sandbox_id = 1;
+}
+
+message ResolveSandboxNetworkResponse {
+  string sandbox_id = 1;
+  string ip = 2;
+  string netns_path = 3;
+  LocalSandboxState state = 4;
+  string runtime_class = 5;
+}
+
+service NodeOperator {
+  rpc ListSandboxes(ListSandboxesRequest) returns (ListSandboxesResponse) {}
+  rpc GetSandbox(GetSandboxRequest) returns (GetSandboxResponse) {}
+  rpc GetSandboxDiagnostics(GetSandboxDiagnosticsRequest) returns (GetSandboxDiagnosticsResponse) {}
+  rpc DeleteSandbox(DeleteSandboxRequest) returns (DeleteSandboxResponse) {}
+  rpc KillSandbox(KillSandboxRequest) returns (KillSandboxResponse) {}
+  rpc Exec(ExecRequest) returns (ExecResponse) {}
+  rpc ExecStream(stream ExecStreamRequest) returns (stream ExecStreamResponse) {}
+  rpc WaitSandbox(WaitSandboxRequest) returns (WaitSandboxResponse) {}
+  rpc ResolveSandboxNetwork(ResolveSandboxNetworkRequest) returns (ResolveSandboxNetworkResponse) {}
+}

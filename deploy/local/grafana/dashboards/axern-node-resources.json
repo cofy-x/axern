@@ -1,0 +1,1763 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "sum(axern_controld_nodes_current{axern_state=\"ready\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
+          "refId": "A",
+          "legendFormat": "ready"
+        }
+      ],
+      "title": "Ready Nodes",
+      "type": "stat"
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_STATUS_RUNNING\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
+          "refId": "A",
+          "legendFormat": "running"
+        }
+      ],
+      "title": "Cluster Running Instances",
+      "type": "stat"
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "id": 3,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"reserved\"}) / clamp_min(sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"effective_allocatable\"}), 1)",
+          "refId": "A",
+          "legendFormat": "cpu allocation"
+        }
+      ],
+      "title": "Cluster CPU Allocation",
+      "type": "gauge",
+      "description": "Capacity uses Axern effective_allocatable, so allocation ratios match scheduler admission capacity."
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "id": 4,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"reserved\"}) / clamp_min(sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"effective_allocatable\"}), 1)",
+          "refId": "A",
+          "legendFormat": "memory allocation"
+        }
+      ],
+      "title": "Cluster Memory Allocation",
+      "type": "gauge",
+      "description": "Capacity uses Axern effective_allocatable, so allocation ratios match scheduler admission capacity."
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": 60000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "min": 0,
+          "unit": "suffix: cores"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"effective_allocatable\"}) / 1000",
+          "refId": "A",
+          "legendFormat": "cluster capacity"
+        },
+        {
+          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"reserved\"}) / 1000",
+          "refId": "B",
+          "legendFormat": "cluster allocated"
+        }
+      ],
+      "title": "Cluster CPU Resources (Capacity vs Allocated)",
+      "type": "timeseries",
+      "description": "Capacity uses Axern effective_allocatable, so allocation ratios match scheduler admission capacity."
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": 60000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "min": 0,
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"effective_allocatable\"})",
+          "refId": "A",
+          "legendFormat": "cluster capacity"
+        },
+        {
+          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"reserved\"})",
+          "refId": "B",
+          "legendFormat": "cluster allocated"
+        }
+      ],
+      "title": "Cluster Memory Resources (Capacity vs Allocated)",
+      "type": "timeseries",
+      "description": "Capacity uses Axern effective_allocatable, so allocation ratios match scheduler admission capacity."
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "decimals": 2,
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU Allocation"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory Allocation"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 9
+      },
+      "id": 7,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"reserved\"}) / 1000, \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "A",
+          "legendFormat": "CPU Allocated",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"effective_allocatable\"}) / 1000, \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "B",
+          "legendFormat": "CPU Capacity",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"reserved\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"effective_allocatable\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "C",
+          "legendFormat": "CPU Allocation",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"reserved\"}) / 1024 / 1024 / 1024, \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "D",
+          "legendFormat": "Memory Allocated",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"effective_allocatable\"}) / 1024 / 1024 / 1024, \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "E",
+          "legendFormat": "Memory Capacity",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"reserved\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"effective_allocatable\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "F",
+          "legendFormat": "Memory Allocation",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "title": "Node CPU / Memory Resources",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "axern_node_display",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "axern_node_id": true,
+              "Time 1": true,
+              "axern_node_id 1": true,
+              "axern_node_display 1": true,
+              "Time 2": true,
+              "axern_node_id 2": true,
+              "axern_node_display 2": true,
+              "Time 3": true,
+              "axern_node_id 3": true,
+              "axern_node_display 3": true,
+              "Time 4": true,
+              "axern_node_id 4": true,
+              "axern_node_display 4": true,
+              "Time 5": true,
+              "axern_node_id 5": true,
+              "axern_node_display 5": true
+            },
+            "indexByName": {
+              "axern_node_display": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5,
+              "Value #F": 6
+            },
+            "renameByName": {
+              "axern_node_display": "Node",
+              "Value #A": "CPU Allocated",
+              "Value #B": "CPU Capacity",
+              "Value #C": "CPU Allocation",
+              "Value #D": "Memory Allocated",
+              "Value #E": "Memory Capacity",
+              "Value #F": "Memory Allocation"
+            }
+          }
+        }
+      ],
+      "type": "table",
+      "description": "Capacity uses Axern effective_allocatable, so allocation ratios match scheduler admission capacity."
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": 60000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "min": 0,
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 7
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "sum by (axern_storage) (axern_controld_node_storage_current{axern_storage=~\".+\", axern_state=\"capacity\"})",
+          "refId": "A",
+          "legendFormat": "{{axern_storage}} capacity"
+        },
+        {
+          "expr": "sum by (axern_storage) (axern_controld_node_storage_current{axern_storage=~\".+\", axern_state=\"used\"})",
+          "refId": "B",
+          "legendFormat": "{{axern_storage}} used"
+        }
+      ],
+      "title": "Cluster Disk Resources (Capacity vs Used)",
+      "type": "timeseries",
+      "description": "Axern fixed storage targets reported independently. Targets can share the same filesystem, so compare capacity and used per target instead of summing targets together."
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "decimals": 2,
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* Usage$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* Capacity GiB$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: GiB"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 24,
+        "h": 9
+      },
+      "id": 9,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"rootfs\", axern_state=\"used\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"rootfs\", axern_state=\"capacity\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "A",
+          "legendFormat": "/ Usage",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"rootfs\", axern_state=\"capacity\"}) / 1024 / 1024 / 1024, \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "B",
+          "legendFormat": "/ Capacity",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"axnoded_state\", axern_state=\"used\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"axnoded_state\", axern_state=\"capacity\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "C",
+          "legendFormat": "State Usage",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"axnoded_state\", axern_state=\"capacity\"}) / 1024 / 1024 / 1024, \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "D",
+          "legendFormat": "State Capacity",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"image_cache\", axern_state=\"used\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"image_cache\", axern_state=\"capacity\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "E",
+          "legendFormat": "Image Cache Usage",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"image_cache\", axern_state=\"capacity\"}) / 1024 / 1024 / 1024, \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "F",
+          "legendFormat": "Image Cache Capacity",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"volume_data\", axern_state=\"used\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"volume_data\", axern_state=\"capacity\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "G",
+          "legendFormat": "Volume Data Usage",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"volume_data\", axern_state=\"capacity\"}) / 1024 / 1024 / 1024, \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "H",
+          "legendFormat": "Volume Data Capacity",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "title": "Node Disk Resources",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "axern_node_display",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "axern_node_id": true,
+              "Time 1": true,
+              "axern_node_id 1": true,
+              "axern_node_display 1": true,
+              "Time 2": true,
+              "axern_node_id 2": true,
+              "axern_node_display 2": true,
+              "Time 3": true,
+              "axern_node_id 3": true,
+              "axern_node_display 3": true,
+              "Time 4": true,
+              "axern_node_id 4": true,
+              "axern_node_display 4": true,
+              "Time 5": true,
+              "axern_node_id 5": true,
+              "axern_node_display 5": true,
+              "Time 6": true,
+              "axern_node_id 6": true,
+              "axern_node_display 6": true,
+              "Time 7": true,
+              "axern_node_id 7": true,
+              "axern_node_display 7": true
+            },
+            "indexByName": {
+              "axern_node_display": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5,
+              "Value #F": 6,
+              "Value #G": 7,
+              "Value #H": 8
+            },
+            "renameByName": {
+              "axern_node_display": "Node",
+              "Value #A": "/ Usage",
+              "Value #B": "/ Capacity",
+              "Value #C": "State Usage",
+              "Value #D": "State Capacity",
+              "Value #E": "Image Cache Usage",
+              "Value #F": "Image Cache Capacity",
+              "Value #G": "Volume Data Usage",
+              "Value #H": "Volume Data Capacity"
+            }
+          }
+        }
+      ],
+      "type": "table",
+      "description": "One row per node. Node names are shortened to IP addresses when they use the node-<region>.<ip> form. Each fixed Axern storage target shows usage ratio and filesystem capacity for the backing path."
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "decimals": 2,
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* Inodes$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 38,
+        "w": 24,
+        "h": 7
+      },
+      "id": 10,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"rootfs\", axern_state=\"inodes_used\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"rootfs\", axern_state=\"inodes_total\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "A",
+          "legendFormat": "/ Inodes",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"axnoded_state\", axern_state=\"inodes_used\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"axnoded_state\", axern_state=\"inodes_total\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "B",
+          "legendFormat": "State Inodes",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"image_cache\", axern_state=\"inodes_used\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"image_cache\", axern_state=\"inodes_total\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "C",
+          "legendFormat": "Image Cache Inodes",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"volume_data\", axern_state=\"inodes_used\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_storage_current{axern_storage=\"volume_data\", axern_state=\"inodes_total\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "D",
+          "legendFormat": "Volume Data Inodes",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "title": "Node Disk Inodes",
+      "type": "table",
+      "description": "Inode usage ratio for each fixed Axern storage target. This catches small-file exhaustion separately from byte capacity.",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "axern_node_display",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "axern_node_id": true,
+              "Time 1": true,
+              "axern_node_id 1": true,
+              "axern_node_display 1": true,
+              "Time 2": true,
+              "axern_node_id 2": true,
+              "axern_node_display 2": true,
+              "Time 3": true,
+              "axern_node_id 3": true,
+              "axern_node_display 3": true
+            },
+            "indexByName": {
+              "axern_node_display": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4
+            },
+            "renameByName": {
+              "axern_node_display": "Node",
+              "Value #A": "/ Inodes",
+              "Value #B": "State Inodes",
+              "Value #C": "Image Cache Inodes",
+              "Value #D": "Volume Data Inodes"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": 60000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 45,
+        "w": 6,
+        "h": 7
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_allocations_current{axern_node_id=~\".+\", axern_status=\"ALLOCATION_STATUS_RUNNING\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "A",
+          "legendFormat": "{{axern_node_display}}"
+        }
+      ],
+      "title": "Running Instances By Node",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": 60000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 45,
+        "w": 6,
+        "h": 7
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "label_replace(sum by (axern_node_id, axern_state) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"runtime_slots\", axern_state=~\"capacity|reserved\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "A",
+          "legendFormat": "{{axern_node_display}} {{axern_state}}"
+        }
+      ],
+      "title": "Runtime Slots By Node",
+      "type": "timeseries",
+      "description": "Transactional runtime-slot capacity and active reservations. Capacity is min(cgroup, interface); reserved includes in-flight allocations not yet visible in node pool usage."
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": 60000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 45,
+        "w": 6,
+        "h": 7
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "label_replace(max by (axern_node_id, axern_state) (axern_controld_node_pool_current{axern_node_id=~\".+\", axern_resource=\"cgroup\", axern_state=~\"idle|using|unavailable\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "A",
+          "legendFormat": "{{axern_node_display}} {{axern_state}}"
+        }
+      ],
+      "title": "Cgroup Pool By Node",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": 60000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 45,
+        "w": 6,
+        "h": 7
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "label_replace(max by (axern_node_id, axern_state) (axern_controld_node_pool_current{axern_node_id=~\".+\", axern_resource=\"interface\", axern_state=~\"idle|using|unavailable\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "A",
+          "legendFormat": "{{axern_node_display}} {{axern_state}}"
+        }
+      ],
+      "title": "Network Interface Pool By Node",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": 60000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 52,
+        "w": 12,
+        "h": 7
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "sum by (axern_state) (axern_controld_nodes_current)",
+          "refId": "A",
+          "legendFormat": "{{axern_state}}"
+        }
+      ],
+      "title": "Node Health Trend",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "decimals": 0,
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Enabled"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "No",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "Yes",
+                        "color": "green",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ready"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "No",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "Yes",
+                        "color": "green",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Localhost Compat"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Off",
+                        "color": "yellow",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "On",
+                        "color": "green",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "SNAT Fallback"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Off",
+                        "color": "green",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "On",
+                        "color": "red",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Full DNAT Fallback"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Off",
+                        "color": "green",
+                        "index": 0
+                      },
+                      "1": {
+                        "text": "On",
+                        "color": "red",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 52,
+        "w": 12,
+        "h": 7
+      },
+      "id": 15,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "expr": "label_replace(max by (axern_node_id) (axern_controld_node_bpfnet_current{axern_state=\"enabled\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "A",
+          "legendFormat": "Enabled",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(max by (axern_node_id) (axern_controld_node_bpfnet_current{axern_state=\"ready\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "B",
+          "legendFormat": "Ready",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(max by (axern_node_id) (axern_controld_node_bpfnet_current{axern_state=\"localhost_compat\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "C",
+          "legendFormat": "Localhost Compat",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(max by (axern_node_id) (axern_controld_node_bpfnet_current{axern_state=\"snat_fallback\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "D",
+          "legendFormat": "SNAT Fallback",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "label_replace(max by (axern_node_id) (axern_controld_node_bpfnet_current{axern_state=\"full_dnat_fallback\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "refId": "E",
+          "legendFormat": "Full DNAT Fallback",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "title": "Node BPFNet State",
+      "type": "table",
+      "description": "Current BPFNet readiness and compatibility state by node. Fallback columns should remain Off during normal operation.",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "axern_node_display",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "axern_node_id": true,
+              "Time 1": true,
+              "axern_node_id 1": true,
+              "axern_node_display 1": true,
+              "Time 2": true,
+              "axern_node_id 2": true,
+              "axern_node_display 2": true,
+              "Time 3": true,
+              "axern_node_id 3": true,
+              "axern_node_display 3": true,
+              "Time 4": true,
+              "axern_node_id 4": true,
+              "axern_node_display 4": true
+            },
+            "indexByName": {
+              "axern_node_display": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5
+            },
+            "renameByName": {
+              "axern_node_display": "Node",
+              "Value #A": "Enabled",
+              "Value #B": "Ready",
+              "Value #C": "Localhost Compat",
+              "Value #D": "SNAT Fallback",
+              "Value #E": "Full DNAT Fallback"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "tags": [
+    "axern",
+    "nodes"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "Prometheus",
+          "value": "Prometheus"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Prometheus",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "15s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h"
+    ]
+  },
+  "timezone": "browser",
+  "title": "Axern Node Resources",
+  "uid": "axern-node-resources",
+  "version": 1,
+  "weekStart": ""
+}

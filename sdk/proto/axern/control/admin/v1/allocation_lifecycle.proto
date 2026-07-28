@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package axern.control.admin.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1";
+
+import "google/protobuf/timestamp.proto";
+
+enum AllocationLifecycleRetryOwnerType {
+  ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED = 0;
+  ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN = 1;
+  ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_SERVICE = 2;
+}
+
+enum AllocationLifecycleRetryReason {
+  ALLOCATION_LIFECYCLE_RETRY_REASON_UNSPECIFIED = 0;
+  ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE = 1;
+  ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE = 2;
+}
+
+message AllocationLifecycleRetry {
+  string allocation_id = 1;
+  string owner_id = 2;
+  AllocationLifecycleRetryOwnerType owner_type = 3;
+  string environment_id = 4;
+  AllocationLifecycleRetryReason reason = 5;
+  string node_id = 6;
+  string node_target = 7;
+  int64 attempt = 8;
+  int32 reconcile_attempts = 9;
+  string last_error = 10;
+  google.protobuf.Timestamp next_run_at = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+  int64 age_seconds = 14;
+  bool due = 15;
+  bool clearable = 16;
+  string clear_blocked_reason = 17;
+}
+
+message AllocationLifecycleRetryFilter {
+  AllocationLifecycleRetryOwnerType owner_type = 1;
+  AllocationLifecycleRetryReason reason = 2;
+  bool due_only = 3;
+}
+
+message ListAllocationLifecycleRetriesRequest {
+  AllocationLifecycleRetryFilter filter = 1;
+  int32 limit = 2;
+}
+
+message ListAllocationLifecycleRetriesResponse {
+  repeated AllocationLifecycleRetry retries = 1;
+}
+
+message ForceAllocationLifecycleRetryRequest {
+  string allocation_id = 1;
+  AllocationLifecycleRetryReason reason = 2;
+  string operator_reason = 3;
+}
+
+message ForceAllocationLifecycleRetryResponse {
+  AllocationLifecycleRetry retry = 1;
+}
+
+message FailAllocationLifecycleRetryRequest {
+  string allocation_id = 1;
+  AllocationLifecycleRetryReason reason = 2;
+  string operator_reason = 3;
+}
+
+message FailAllocationLifecycleRetryResponse {
+  AllocationLifecycleRetry failed_retry = 1;
+}
+
+message ClearAllocationLifecycleRetryRequest {
+  string allocation_id = 1;
+  AllocationLifecycleRetryReason reason = 2;
+  string operator_reason = 3;
+}
+
+message ClearAllocationLifecycleRetryResponse {
+  AllocationLifecycleRetry cleared_retry = 1;
+}
+
+service AllocationLifecycleAdmin {
+  rpc ListAllocationLifecycleRetries(ListAllocationLifecycleRetriesRequest) returns (ListAllocationLifecycleRetriesResponse) {}
+  rpc ForceAllocationLifecycleRetry(ForceAllocationLifecycleRetryRequest) returns (ForceAllocationLifecycleRetryResponse) {}
+  rpc FailAllocationLifecycleRetry(FailAllocationLifecycleRetryRequest) returns (FailAllocationLifecycleRetryResponse) {}
+  rpc ClearAllocationLifecycleRetry(ClearAllocationLifecycleRetryRequest) returns (ClearAllocationLifecycleRetryResponse) {}
+}

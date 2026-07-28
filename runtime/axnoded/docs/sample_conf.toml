@@ -1,0 +1,83 @@
+rootDir = "/var/lib/axnoded/root"
+storeDir = "/var/lib/axnoded/store"
+
+[plugin]
+control_plane_target = ""
+control_plane_node_id = ""
+control_plane_node_target = ""
+control_plane_node_auth_token = ""
+control_plane_heartbeat_interval = "5s"
+control_plane_node_resource_source = "host"
+control_plane_kubernetes_node_name = ""
+control_plane_tls_ca_cert = ""
+control_plane_tls_cert = ""
+control_plane_tls_key = ""
+control_plane_node_state = "ready"
+control_plane_node_capabilities = [
+  "feature:ports",
+  "network:iptables",
+]
+
+[plugin.control_plane_node_labels]
+# zone = "cn-sha-a"
+# arch = "arm64"
+
+[plugin.network]
+ip_range = "172.17.0.1/16"
+# iptables: legacy full DNAT/SNAT
+# ebpf: TCP/UDP ingress hostPort + TCP/UDP/ICMP egress SNAT in bpfnet,
+# plus Linux localhost TCP hostPort via cgroup sock_addr eBPF,
+# with automatic iptables fallback
+nat_backend = "iptables"
+
+[plugin.network.ebpf]
+pin_path = "/sys/fs/bpf/axern/bpfnet"
+map_size = 16384
+snat_map_size = 262144
+snat_gc_interval = "1s"
+snat_tcp_idle_timeout = "5m"
+snat_tcp_closing_timeout = "2s"
+snat_datagram_idle_timeout = "10s"
+# enable host-local TCP hostPort access; prefer eBPF localhost path and
+# fall back to iptables compat only when the cgroup attach path is unavailable
+local_out_compat = true
+iptables_fallback = true
+
+[plugin.resource]
+cgroup_cache_size = 800
+interface_cache_size = 800
+cgroup_root_name = "/sandbox"
+max_instance_num = 1000
+resource_pool_reconcile_interval = "1s"
+
+[plugin.runtime]
+image_manager_enabled = true
+image_lib_dir = "/var/lib/axnoded/rootfs"
+image_manager_socket = "/var/run/imagemgr.sock"
+volume_manager_socket = "/run/volumed/volumed.sock"
+runtime_runner_binary = "/usr/local/libexec/axnoded/axnoded-runtime-runner"
+idle_runtime_retention_ttl = "5m"
+idle_runtime_retention_max = 8
+# Set to false for local-rootfs-only setups that do not run imagemgr.
+# image_manager_enabled = false
+ignore_cgroups = true
+
+# Workload resolver files are materialized per OCI bundle. Leave nameservers
+# empty to derive usable resolvers from the node; set explicit values for
+# production nodes that require VPC, cluster, or corporate DNS.
+# [plugin.runtime.dns]
+# nameservers = ["10.0.0.2"]
+# search_domains = ["svc.cluster.local", "cluster.local"]
+# options = ["ndots:5"]
+
+[plugin.runtime.runtimes.runsc]
+binary = "/usr/local/bin/runsc"
+base_spec = "/etc/axnoded/runsc-config.json"
+
+[plugin.runtime.runtimes.runsc.options]
+ignore_cgroups = true
+allow_suid = true
+
+[plugin.runtime.runtimes.runc]
+binary = "/usr/bin/runc"
+base_spec = "/etc/axnoded/runc-config.json"

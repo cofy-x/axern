@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>axnoded</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; line-height: 1.5; }
+    code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 4px; }
+    table { border-collapse: collapse; width: 100%; max-width: 960px; }
+    th, td { text-align: left; border-bottom: 1px solid #ddd; padding: 0.5rem; vertical-align: top; }
+    .ok { color: #0a7d22; }
+    .warn { color: #a06200; }
+  </style>
+</head>
+<body>
+  <h1>axnoded</h1>
+  <p>ready:
+    {{if .Ready}}
+    <strong class="ok">true</strong>
+    {{else}}
+    <strong class="warn">false</strong>
+    {{end}}
+  </p>
+  <p>version: <code>{{.Version}}</code></p>
+  <p>revision: <code>{{.Revision}}</code></p>
+  {{if .Message}}<p>{{.Message}}</p>{{end}}
+  <p>
+    <a href="/readyz">/readyz</a> |
+    <a href="/inventoryz">/inventoryz</a> |
+    <a href="/control-planez">/control-planez</a> |
+    <a href="/debug/metricsz">/debug/metricsz</a> |
+    <a href="/debug/pprof/">/debug/pprof/</a> |
+    <a href="/demo/nginx">/demo/nginx</a>
+  </p>
+  <h2>Configured Runtimes</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Binary</th>
+        <th>Loaded</th>
+        <th>Capabilities</th>
+        <th>Requirements</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Runtimes}}
+      <tr>
+        <td><code>{{.Name}}</code></td>
+        <td><code>{{.Binary}}</code></td>
+        <td>{{.Loaded}}</td>
+        <td><code>{{printf "%+v" .Capabilities}}</code></td>
+        <td><code>{{printf "%+v" .Requirements}}</code></td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5">no runtimes configured</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</body>
+</html>

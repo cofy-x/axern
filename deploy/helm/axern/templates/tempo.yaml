@@ -1,0 +1,86 @@
+{{- if .Values.observability.enabled }}
+{{- if and .Values.observability.tempo.persistence.enabled (ne (int .Values.observability.tempo.replicas) 1) }}
+{{- fail "observability.tempo.replicas must be 1 when Tempo persistence is enabled" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempo
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "tempo") | nindent 4 }}
+spec:
+  replicas: {{ .Values.observability.tempo.replicas }}
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      {{- include "axern.componentSelectorLabels" (dict "root" . "component" "tempo") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axern.componentSelectorLabels" (dict "root" . "component" "tempo") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/tempo-config.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "axern.scheduling" (dict "root" . "profile" "observability" "component" "tempo" "spread" true) | nindent 6 }}
+      securityContext: {fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch}
+      containers:
+        - name: tempo
+          image: {{ include "axern.image" (dict "root" . "image" .Values.observability.tempo.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.observability.tempo.image) }}
+          args: [-config.file=/etc/tempo/tempo.yaml]
+          ports:
+            - {name: http, containerPort: 3200}
+            - {name: otlp-grpc, containerPort: 4317}
+            - {name: otlp-http, containerPort: 4318}
+          readinessProbe: {httpGet: {path: /ready, port: http}}
+          livenessProbe: {httpGet: {path: /ready, port: http}}
+          resources:
+            {{- toYaml .Values.observability.tempo.resources | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/tempo}
+            - {name: config, mountPath: /etc/tempo, readOnly: true}
+      volumes:
+        - name: data
+          {{- if .Values.observability.tempo.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default "tempo" .Values.observability.tempo.persistence.existingClaim | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: config
+          configMap: {name: tempo-config}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "tempo") | nindent 4 }}
+spec:
+  selector:
+    {{- include "axern.componentSelectorLabels" (dict "root" . "component" "tempo") | nindent 4 }}
+  ports:
+    - {name: http, port: 3200, targetPort: http}
+    - {name: otlp-grpc, port: 4317, targetPort: otlp-grpc}
+    - {name: otlp-http, port: 4318, targetPort: otlp-http}
+{{- if and .Values.observability.tempo.persistence.enabled (not .Values.observability.tempo.persistence.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tempo
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "tempo") | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.observability.tempo.persistence.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests: {storage: {{ .Values.observability.tempo.persistence.size }}}
+{{- end }}
+{{- end }}

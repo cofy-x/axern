@@ -1,0 +1,168 @@
+syntax = "proto3";
+
+package axnoded.internal.apipb.v1;
+
+option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;apipb";
+
+import "internal/apipb/v1/axnoded_internal.proto";
+
+message ExecRequest {
+  string ID = 1;
+  repeated string command = 2;
+  int64 timeout = 3;
+  map<string, string> env = 4;
+  string cwd = 5;
+  string user = 6;
+  ManagedProxySpec managed_proxy = 7;
+}
+
+message ManagedProxySpec {
+  string provider = 1;
+  string upstream_base_url = 2;
+  string upstream_bearer_token = 3;
+}
+
+message ManagedProxyReport {
+  string provider = 1;
+  int32 request_count = 2;
+  int32 response_count = 3;
+  int32 error_count = 4;
+  bytes report_json = 5;
+}
+
+message ExecResponse {
+  int32 exit_code = 1;
+  bytes stdout = 2;
+  bytes stderr = 3;
+  bool stdout_truncated = 4;
+  bool stderr_truncated = 5;
+  ManagedProxyReport managed_proxy_report = 6;
+}
+
+message ExecStreamOpen {
+  string ID = 1;
+  repeated string command = 2;
+  bool tty = 3;
+  int64 timeout = 4;
+  map<string, string> env = 5;
+  string cwd = 6;
+  string user = 7;
+  TerminalResize initial_size = 8;
+  ManagedProxySpec managed_proxy = 9;
+}
+
+message ExecStreamRequest {
+  oneof payload {
+    ExecStreamOpen open = 1;
+    bytes stdin = 2;
+    TerminalResize resize = 3;
+    bool close_stdin = 4;
+  }
+}
+
+message ExecExit {
+  int32 exit_code = 1;
+  string message = 2;
+  ManagedProxyReport managed_proxy_report = 3;
+}
+
+message ExecStreamResponse {
+  oneof payload {
+    bytes stdout = 1;
+    bytes stderr = 2;
+    ExecExit exit = 3;
+  }
+}
+
+message ProcessOpen {
+  string ID = 1;
+  repeated string command = 2;
+  bool tty = 3;
+  int64 timeout = 4;
+  map<string, string> env = 5;
+  string cwd = 6;
+  string user = 7;
+  ManagedProxySpec managed_proxy = 8;
+}
+
+message ProcessSignal {
+  string signal = 1;
+}
+
+message ProcessReady {}
+
+message ProcessRequest {
+  oneof payload {
+    ProcessOpen open = 1;
+    bytes stdin = 2;
+    TerminalResize resize = 3;
+    bool close_stdin = 4;
+    ProcessSignal signal = 5;
+  }
+}
+
+message ProcessResponse {
+  oneof payload {
+    bytes stdout = 1;
+    bytes stderr = 2;
+    ExecExit exit = 3;
+    ProcessReady ready = 4;
+  }
+}
+
+message ImageProcessMount {
+  string sandbox_path = 1;
+  string target_path = 2;
+  bool readonly = 3;
+  repeated string options = 4;
+}
+
+message ImageProcessSpec {
+  string image = 1;
+  repeated string command = 2;
+  bool tty = 3;
+  int64 timeout = 4;
+  map<string, string> env = 5;
+  string cwd = 6;
+  string user = 7;
+  repeated ImageProcessMount mounts = 8;
+  ManagedProxySpec managed_proxy = 9;
+}
+
+message ExecImageRequest {
+  string ID = 1;
+  ImageProcessSpec spec = 2;
+}
+
+message ExecImageResponse {
+  int32 exit_code = 1;
+  bytes stdout = 2;
+  bytes stderr = 3;
+  bool stdout_truncated = 4;
+  bool stderr_truncated = 5;
+  ManagedProxyReport managed_proxy_report = 6;
+}
+
+message ProcessImageOpen {
+  string ID = 1;
+  ImageProcessSpec spec = 2;
+}
+
+message ProcessImageRequest {
+  oneof payload {
+    ProcessImageOpen open = 1;
+    bytes stdin = 2;
+    TerminalResize resize = 3;
+    bool close_stdin = 4;
+    ProcessSignal signal = 5;
+  }
+}
+
+message ProcessImageResponse {
+  oneof payload {
+    bytes stdout = 1;
+    bytes stderr = 2;
+    ExecExit exit = 3;
+    ProcessReady ready = 4;
+  }
+}

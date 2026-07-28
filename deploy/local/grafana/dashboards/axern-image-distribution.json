@@ -1,0 +1,210 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": null,
+  "panels": [
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "mappings": [],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 99}, {"color": "green", "value": 100}]},
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [{"expr": "100 * sum(up{job=\"dragonfly-seed-client\"}) / clamp_min(count(up{job=\"dragonfly-seed-client\"}), 1)", "legendFormat": "ready coverage", "refId": "A"}],
+      "title": "Dragonfly Seed Client Coverage",
+      "type": "stat",
+      "description": "Percentage of centralized Seed Client HTTP proxy replicas currently scraped successfully."
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": 30000,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 18, "x": 6, "y": 0},
+      "id": 2,
+      "options": {
+        "legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "right", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [{
+        "expr": "100 * dragonfly_client_disk_usage_space_total{job=\"dragonfly-seed-client\"} / clamp_min(dragonfly_client_disk_space_total{job=\"dragonfly-seed-client\"}, 1)",
+        "legendFormat": "{{pod}}",
+        "refId": "A"
+      }],
+      "title": "Seed Client Cache Usage",
+      "type": "timeseries",
+      "description": "Cache filesystem usage for each centralized Seed Client replica."
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": 30000,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "min": 0,
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "options": {
+        "legend": {"calcs": ["lastNotNull", "max", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [{
+        "expr": "sum by (pod) (rate(dragonfly_client_download_traffic{job=\"dragonfly-seed-client\"}[$__rate_interval])) or (0 * max by (pod) (up{job=\"dragonfly-seed-client\"}))",
+        "legendFormat": "{{pod}}",
+        "refId": "A"
+      }],
+      "title": "Distribution Download Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "${datasource}",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "never",
+            "spanNulls": 30000,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "min": 0,
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "options": {
+        "legend": {"calcs": ["lastNotNull", "max", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(dragonfly_client_proxy_request_total{job=\"dragonfly-seed-client\"}[$__rate_interval])) or (0 * sum(up{job=\"dragonfly-seed-client\"}))",
+          "legendFormat": "proxy requests",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(dragonfly_client_proxy_request_via_dfdaemon_total{job=\"dragonfly-seed-client\"}[$__rate_interval])) or (0 * sum(up{job=\"dragonfly-seed-client\"}))",
+          "legendFormat": "served via dfdaemon",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(dragonfly_client_backend_request_total{job=\"dragonfly-seed-client\"}[$__rate_interval])) or (0 * sum(up{job=\"dragonfly-seed-client\"}))",
+          "legendFormat": "registry backend",
+          "refId": "C"
+        }
+      ],
+      "title": "Proxy and Registry Request Rate",
+      "type": "timeseries",
+      "description": "Compares total proxy traffic, requests served through Dragonfly, and upstream registry requests."
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "tags": ["axern", "distribution", "dragonfly"],
+  "templating": {
+    "list": [{
+      "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"},
+      "hide": 0,
+      "includeAll": false,
+      "label": "Prometheus",
+      "multi": false,
+      "name": "datasource",
+      "options": [],
+      "query": "prometheus",
+      "refresh": 1,
+      "regex": "",
+      "type": "datasource"
+    }]
+  },
+  "time": {"from": "now-30m", "to": "now"},
+  "timepicker": {"refresh_intervals": ["5s", "15s", "30s", "1m", "5m", "15m", "30m", "1h"]},
+  "timezone": "browser",
+  "title": "Axern Image Distribution",
+  "uid": "axern-image-distribution",
+  "version": 2,
+  "weekStart": ""
+}

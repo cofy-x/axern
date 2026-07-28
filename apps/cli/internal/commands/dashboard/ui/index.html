@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Axern Dashboard</title>
+    <link rel="stylesheet" href="/app.css" />
+    <link rel="stylesheet" href="/components.css" />
+    <link rel="stylesheet" href="/quota.css" />
+    <link rel="stylesheet" href="/admin.css" />
+    <link rel="stylesheet" href="/responsive.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">A</span>
+        <div>
+          <strong>Axern</strong>
+          <small>local diagnostics</small>
+        </div>
+      </div>
+      <nav>
+        <button class="nav active" data-view="overview">Overview</button>
+        <button class="nav" data-view="services">Services</button>
+        <button class="nav" data-view="quotas">Quotas</button>
+        <button class="nav" data-view="tunnels">Tunnels</button>
+        <button class="nav" data-view="admin">Admin</button>
+        <button class="nav" data-view="events">Events</button>
+        <button class="nav" data-view="links">Links</button>
+      </nav>
+      <div class="sidebar-foot">
+        <label class="toggle">
+          <input id="auto-refresh" type="checkbox" checked />
+          <span>Auto refresh</span>
+        </label>
+        <button id="refresh-now" class="secondary">Refresh</button>
+      </div>
+    </aside>
+
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1 id="view-title">Overview</h1>
+          <p id="status-line">Loading dashboard data...</p>
+        </div>
+        <div class="search-row">
+          <input id="service-search" placeholder="service id" />
+          <button id="open-service">Service</button>
+          <input id="session-search" placeholder="tunnel session id" />
+          <button id="open-session">Tunnel</button>
+        </div>
+      </header>
+
+      <section id="overview" class="view active">
+        <div class="metrics">
+          <article><span>Services</span><strong id="metric-services">-</strong></article>
+          <article><span>Ready</span><strong id="metric-ready">-</strong></article>
+          <article><span>Admission Blocked</span><strong id="metric-admission">-</strong></article>
+          <article><span>CPU Pressure</span><strong id="metric-cpu-pressure">-</strong></article>
+          <article><span>Memory Pressure</span><strong id="metric-memory-pressure">-</strong></article>
+          <article><span>Reliability</span><strong id="metric-reliability">-</strong></article>
+          <article><span>Lifecycle Retries</span><strong id="metric-admin-retries">-</strong></article>
+          <article><span>Reconcile Failures</span><strong id="metric-reconcile-failures">-</strong></article>
+          <article><span>Tunnels</span><strong id="metric-tunnels">-</strong></article>
+        </div>
+        <section id="overview-reliability-band" class="band attention-band">
+          <h2>Reliability Signals</h2>
+          <div id="overview-reliability" class="list"></div>
+        </section>
+        <section id="overview-reconcile-health-band" class="band attention-band">
+          <h2>Control Plane Health</h2>
+          <div id="overview-reconcile-health" class="list"></div>
+        </section>
+        <section id="overview-admission-band" class="band attention-band">
+          <h2>Admission Blocked Services</h2>
+          <div id="overview-admission" class="list"></div>
+        </section>
+        <section id="overview-quota-pressure-band" class="band attention-band">
+          <h2>Quota Pressure</h2>
+          <div id="overview-quota-pressure" class="list"></div>
+        </section>
+        <div class="two-col">
+          <section>
+            <h2>Services</h2>
+            <div id="overview-services" class="list"></div>
+          </section>
+          <section>
+            <h2>Tunnels</h2>
+            <div id="overview-tunnels" class="list"></div>
+          </section>
+        </div>
+        <section class="band">
+          <h2>Namespace Quotas</h2>
+          <div id="overview-quotas" class="quota-grid"></div>
+        </section>
+      </section>
+
+      <section id="services" class="view">
+        <div class="split">
+          <div>
+            <h2>Services</h2>
+            <div id="services-list" class="list"></div>
+          </div>
+          <div id="service-detail" class="detail empty">Select a service.</div>
+        </div>
+      </section>
+
+      <section id="quotas" class="view">
+        <div id="quota-layout" class="quota-layout">
+          <section>
+            <div class="section-head quota-head">
+              <h2>Namespace Quotas</h2>
+              <div class="quota-controls">
+                <input id="quota-search" placeholder="namespace" />
+                <div class="segmented" aria-label="Quota filters">
+                  <button class="quota-filter active" data-quota-filter="all" data-quota-label="All">All</button>
+                  <button class="quota-filter" data-quota-filter="constrained" data-quota-label="Constrained">Constrained</button>
+                  <button class="quota-filter" data-quota-filter="pressure" data-quota-label="Pressure">Pressure</button>
+                </div>
+              </div>
+            </div>
+            <div id="quotas-grid" class="quota-grid"></div>
+          </section>
+          <div id="quota-detail" class="detail empty">
+            Select a namespace quota.
+          </div>
+        </div>
+      </section>
+
+      <section id="tunnels" class="view">
+        <div class="filters">
+          <input id="filter-allocation" placeholder="allocation id" />
+          <input id="filter-node" placeholder="node id" />
+          <label class="toggle"><input id="filter-terminal" type="checkbox" /> include terminal</label>
+          <button id="apply-tunnel-filter">Apply</button>
+        </div>
+        <div class="split">
+          <div>
+            <h2>Tunnels</h2>
+            <div id="tunnels-list" class="list"></div>
+          </div>
+          <div id="tunnel-detail" class="detail empty">Select a tunnel.</div>
+        </div>
+      </section>
+
+      <section id="admin" class="view">
+        <div class="two-col admin-layout">
+          <section>
+            <div class="section-head">
+              <h2>Allocation Lifecycle Retries</h2>
+              <span id="admin-retry-count" class="meta"></span>
+            </div>
+            <div id="admin-retries" class="list"></div>
+          </section>
+          <section>
+            <div class="section-head">
+              <h2>Admin Audit</h2>
+              <span id="admin-audit-count" class="meta"></span>
+            </div>
+            <div id="admin-audit" class="timeline"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="events" class="view">
+        <div class="two-col">
+          <section>
+            <h2>Service Events</h2>
+            <div id="service-events" class="timeline empty">Select a service.</div>
+          </section>
+          <section>
+            <h2>Tunnel Events</h2>
+            <div id="tunnel-events" class="timeline empty">Select a tunnel.</div>
+          </section>
+        </div>
+      </section>
+
+      <section id="links" class="view">
+        <h2>Diagnostics Links</h2>
+        <div id="links-list" class="links"></div>
+      </section>
+
+      <div id="admin-action-modal" class="modal-backdrop" hidden>
+        <section class="modal admin-action-dialog" role="dialog" aria-modal="true" aria-labelledby="admin-action-title">
+          <div class="section-head">
+            <h2 id="admin-action-title">Admin action</h2>
+            <button id="admin-action-close" class="secondary">Close</button>
+          </div>
+          <div id="admin-action-impact" class="admin-action-impact"></div>
+          <div id="admin-action-object" class="admin-action-object"></div>
+          <label class="field">
+            <span>Operator reason</span>
+            <textarea id="admin-action-reason" rows="4"></textarea>
+          </label>
+          <div id="admin-action-error" class="admin-action-error"></div>
+          <div class="modal-actions">
+            <button id="admin-action-submit">Submit</button>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script>
+      window.__AXERN_DASHBOARD__ = { refreshMs: 5000 };
+    </script>
+    <script src="/common.js"></script>
+    <script src="/overview.js"></script>
+    <script src="/quota.js"></script>
+    <script src="/service.js"></script>
+    <script src="/tunnel.js"></script>
+    <script src="/admin.js"></script>
+    <script src="/links.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

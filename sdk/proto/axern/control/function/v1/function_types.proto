@@ -1,0 +1,233 @@
+syntax = "proto3";
+
+package axern.control.function.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/function/v1;functionv1";
+
+import "axern/control/common/v1/common.proto";
+import "axern/control/environment/v1/environment.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+enum FunctionStatus {
+  FUNCTION_STATUS_UNSPECIFIED = 0;
+  FUNCTION_STATUS_DEPLOYING = 1;
+  FUNCTION_STATUS_READY = 2;
+  FUNCTION_STATUS_DEGRADED = 3;
+  FUNCTION_STATUS_FAILED = 4;
+  FUNCTION_STATUS_DELETING = 5;
+  FUNCTION_STATUS_DELETED = 6;
+}
+
+enum FunctionDeploymentStatus {
+  FUNCTION_DEPLOYMENT_STATUS_UNSPECIFIED = 0;
+  FUNCTION_DEPLOYMENT_STATUS_PENDING = 1;
+  FUNCTION_DEPLOYMENT_STATUS_WARMING = 2;
+  FUNCTION_DEPLOYMENT_STATUS_READY = 3;
+  FUNCTION_DEPLOYMENT_STATUS_SCALED_TO_ZERO = 4;
+  FUNCTION_DEPLOYMENT_STATUS_DEGRADED = 5;
+  FUNCTION_DEPLOYMENT_STATUS_FAILED = 6;
+}
+
+enum FunctionInvocationStatus {
+  FUNCTION_INVOCATION_STATUS_UNSPECIFIED = 0;
+  FUNCTION_INVOCATION_STATUS_ACCEPTED = 1;
+  FUNCTION_INVOCATION_STATUS_QUEUED = 2;
+  FUNCTION_INVOCATION_STATUS_RUNNING = 3;
+  FUNCTION_INVOCATION_STATUS_SUCCEEDED = 4;
+  FUNCTION_INVOCATION_STATUS_FAILED = 5;
+  FUNCTION_INVOCATION_STATUS_CANCELLED = 6;
+  FUNCTION_INVOCATION_STATUS_TIMED_OUT = 7;
+}
+
+enum FunctionInvocationMode {
+  FUNCTION_INVOCATION_MODE_UNSPECIFIED = 0;
+  FUNCTION_INVOCATION_MODE_SYNC = 1;
+  FUNCTION_INVOCATION_MODE_ASYNC = 2;
+}
+
+enum FunctionEventType {
+  FUNCTION_EVENT_TYPE_UNSPECIFIED = 0;
+  FUNCTION_EVENT_TYPE_DEPLOY_STARTED = 1;
+  FUNCTION_EVENT_TYPE_REVISION_CREATED = 2;
+  FUNCTION_EVENT_TYPE_REVISION_ACTIVATED = 3;
+  FUNCTION_EVENT_TYPE_WARM_POOL_READY = 4;
+  FUNCTION_EVENT_TYPE_INVOCATION_STARTED = 5;
+  FUNCTION_EVENT_TYPE_INVOCATION_SUCCEEDED = 6;
+  FUNCTION_EVENT_TYPE_INVOCATION_FAILED = 7;
+  FUNCTION_EVENT_TYPE_SCALING_DECISION = 8;
+  FUNCTION_EVENT_TYPE_CLEANUP = 9;
+}
+
+message Function {
+  string id = 1;
+  string namespace = 2;
+  string name = 3;
+  string active_revision_id = 4;
+  FunctionSpec spec = 5;
+  FunctionStatus status = 6;
+  FunctionDeploymentStatus deployment_status = 7;
+  map<string, string> labels = 8;
+  int64 version = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  string message = 12;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 13;
+}
+
+message FunctionRevision {
+  string id = 1;
+  string function_id = 2;
+  string namespace = 3;
+  string name = 4;
+  int64 revision_number = 5;
+  FunctionSpec spec = 6;
+  FunctionSource source = 7;
+  string source_digest = 8;
+  string manifest_digest = 9;
+  map<string, string> labels = 10;
+  google.protobuf.Timestamp created_at = 11;
+  string created_by = 12;
+}
+
+message FunctionDeployment {
+  string function_id = 1;
+  string active_revision_id = 2;
+  FunctionDeploymentStatus status = 3;
+  FunctionScalingSpec scaling = 4;
+  int32 desired_replicas = 5;
+  int32 ready_replicas = 6;
+  int32 active_invocations = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  string message = 9;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 10;
+  string worker_service_id = 11;
+}
+
+message FunctionInvocation {
+  string id = 1;
+  string function_id = 2;
+  string function_name = 3;
+  string namespace = 4;
+  string revision_id = 5;
+  FunctionInvocationStatus status = 6;
+  FunctionInvocationMode mode = 7;
+  FunctionPayload payload = 8;
+  FunctionResult result = 9;
+  FunctionError error = 10;
+  google.protobuf.Duration timeout = 11;
+  google.protobuf.Duration duration = 12;
+  string request_id = 13;
+  map<string, string> labels = 14;
+  google.protobuf.Timestamp created_at = 15;
+  google.protobuf.Timestamp started_at = 16;
+  google.protobuf.Timestamp completed_at = 17;
+  string message = 18;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 19;
+}
+
+message FunctionEvent {
+  string id = 1;
+  string function_id = 2;
+  string invocation_id = 3;
+  string revision_id = 4;
+  FunctionEventType type = 5;
+  string message = 6;
+  map<string, string> details = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message FunctionSpec {
+  string runtime = 1;
+  string handler = 2;
+  string initializer = 3;
+  FunctionSourceSpec source = 4;
+  google.protobuf.Duration timeout = 5;
+  axern.control.common.v1.ExecutionConfig config = 6;
+  FunctionScalingSpec scaling = 7;
+  FunctionRetentionPolicy retention = 8;
+  FunctionWorkerSource worker_source = 9;
+}
+
+message FunctionWorkerSource {
+  oneof source {
+    string environment_id = 1;
+    axern.control.environment.v1.EnvironmentSpec environment = 2;
+  }
+}
+
+message FunctionSourceSpec {
+  oneof source {
+    FunctionBundleSource bundle = 1;
+    FunctionImageSource image = 2;
+  }
+}
+
+message FunctionSource {
+  oneof source {
+    FunctionBundleSource bundle = 1;
+    FunctionImageSource image = 2;
+  }
+}
+
+message FunctionBundleSource {
+  string digest = 1;
+  string media_type = 2;
+  int64 size_bytes = 3;
+  string storage_uri = 4;
+}
+
+message FunctionImageSource {
+  string ref = 1;
+  string digest = 2;
+  string registry_credential_id = 3;
+}
+
+message FunctionScalingSpec {
+  int32 min_replicas = 1;
+  int32 max_replicas = 2;
+  int32 concurrency = 3;
+  google.protobuf.Duration idle_timeout = 4;
+}
+
+message FunctionRetentionPolicy {
+  google.protobuf.Duration invocation_retention = 1;
+  int32 max_invocations = 2;
+}
+
+message FunctionPayload {
+  string content_type = 1;
+  bytes data = 2;
+}
+
+message FunctionResult {
+  string content_type = 1;
+  bytes data = 2;
+}
+
+message FunctionError {
+  string code = 1;
+  string message = 2;
+  string type = 3;
+  string stack_trace = 4;
+  map<string, string> details = 5;
+}
+
+message FunctionListFilter {
+  string namespace = 1;
+  repeated FunctionStatus statuses = 2;
+  map<string, string> labels = 3;
+  string cursor = 4;
+  int32 page_size = 5;
+}
+
+message FunctionInvocationListFilter {
+  string namespace = 1;
+  string function_id = 2;
+  string function_name = 3;
+  string revision_id = 4;
+  repeated FunctionInvocationStatus statuses = 5;
+  map<string, string> labels = 6;
+  string cursor = 7;
+  int32 page_size = 8;
+}

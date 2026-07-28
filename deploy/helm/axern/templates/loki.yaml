@@ -1,0 +1,80 @@
+{{- if .Values.observability.enabled }}
+{{- if and .Values.observability.loki.persistence.enabled (ne (int .Values.observability.loki.replicas) 1) }}
+{{- fail "observability.loki.replicas must be 1 when Loki persistence is enabled" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "loki") | nindent 4 }}
+spec:
+  replicas: {{ .Values.observability.loki.replicas }}
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      {{- include "axern.componentSelectorLabels" (dict "root" . "component" "loki") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axern.componentSelectorLabels" (dict "root" . "component" "loki") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/loki-config.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "axern.scheduling" (dict "root" . "profile" "observability" "component" "loki" "spread" true) | nindent 6 }}
+      securityContext: {fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch}
+      containers:
+        - name: loki
+          image: {{ include "axern.image" (dict "root" . "image" .Values.observability.loki.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.observability.loki.image) }}
+          args: [-config.file=/etc/loki/loki.yaml]
+          ports: [{name: http, containerPort: 3100}]
+          readinessProbe: {httpGet: {path: /ready, port: http}}
+          livenessProbe: {httpGet: {path: /ready, port: http}}
+          resources:
+            {{- toYaml .Values.observability.loki.resources | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/loki}
+            - {name: config, mountPath: /etc/loki, readOnly: true}
+      volumes:
+        - name: data
+          {{- if .Values.observability.loki.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default "loki" .Values.observability.loki.persistence.existingClaim | quote }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: config
+          configMap: {name: loki-config}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "loki") | nindent 4 }}
+spec:
+  selector:
+    {{- include "axern.componentSelectorLabels" (dict "root" . "component" "loki") | nindent 4 }}
+  ports: [{name: http, port: 3100, targetPort: http}]
+{{- if and .Values.observability.loki.persistence.enabled (not .Values.observability.loki.persistence.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "loki") | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.observability.loki.persistence.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests: {storage: {{ .Values.observability.loki.persistence.size }}}
+{{- end }}
+{{- end }}

@@ -1,0 +1,10 @@
+{
+  "oss-cn-hangzhou.aliyuncs.com/my-bucket": {
+    "access_key_id": "your-access-key-id",
+    "access_key_secret": "your-access-key-secret"
+  },
+  "oss-cn-beijing.aliyuncs.com/another-bucket": {
+    "access_key_id": "another-key-id",
+    "access_key_secret": "another-key-secret"
+  }
+}

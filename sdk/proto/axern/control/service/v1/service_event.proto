@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package axern.control.service.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1;servicev1";
+
+import "axern/control/service/v1/service_types.proto";
+import "axern/control/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+enum ServiceEventType {
+  SERVICE_EVENT_TYPE_UNSPECIFIED = 0;
+  SERVICE_EVENT_TYPE_ROLLOUT_STARTED = 1;
+  SERVICE_EVENT_TYPE_REPLACEMENT_ADMITTED = 2;
+  SERVICE_EVENT_TYPE_REPLACEMENT_BLOCKED = 3;
+  SERVICE_EVENT_TYPE_REPLACEMENT_RUNNING = 4;
+  SERVICE_EVENT_TYPE_OUTDATED_DRAINED = 5;
+  SERVICE_EVENT_TYPE_SERVICE_DEGRADED = 6;
+  SERVICE_EVENT_TYPE_SERVICE_RECOVERED = 7;
+  SERVICE_EVENT_TYPE_REPLACEMENT_READY = 8;
+  SERVICE_EVENT_TYPE_LIVENESS_FAILED = 9;
+  SERVICE_EVENT_TYPE_AUTOSCALE_TARGET_CHANGED = 10;
+  SERVICE_EVENT_TYPE_DELETION_REQUESTED = 11;
+  SERVICE_EVENT_TYPE_VOLUME_RECLAIM_RETRY = 12;
+  SERVICE_EVENT_TYPE_VOLUME_RECLAIMED = 13;
+  SERVICE_EVENT_TYPE_DELETION_COMPLETED = 14;
+}
+
+message ServiceEvent {
+  string id = 1;
+  string service_id = 2;
+  string replica_id = 3;
+  ServiceEventType type = 4;
+  ServiceRolloutPhase phase = 5;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 6;
+  string message = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message ListServiceEventsRequest {
+  string service_id = 1;
+  int32 limit = 2;
+}
+
+message ListServiceEventsResponse {
+  repeated ServiceEvent events = 1;
+}

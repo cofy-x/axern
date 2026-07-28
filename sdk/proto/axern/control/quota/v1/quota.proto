@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package axern.control.quota.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1;quotav1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+message NamespaceQuota {
+  string namespace = 1;
+  google.protobuf.Int64Value cpu_milli_limit = 2;
+  google.protobuf.Int64Value memory_bytes_limit = 3;
+  int64 reserved_cpu_milli = 4;
+  int64 reserved_memory_bytes = 5;
+  google.protobuf.Int64Value available_cpu_milli = 6;
+  google.protobuf.Int64Value available_memory_bytes = 7;
+  int64 version = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+enum NamespaceQuotaEventType {
+  NAMESPACE_QUOTA_EVENT_TYPE_UNSPECIFIED = 0;
+  NAMESPACE_QUOTA_EVENT_TYPE_ADMISSION_REJECTED = 1;
+}
+
+enum NamespaceQuotaEventWorkloadType {
+  NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_UNSPECIFIED = 0;
+  NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN = 1;
+  NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_SERVICE = 2;
+}
+
+enum NamespaceQuotaEventReason {
+  NAMESPACE_QUOTA_EVENT_REASON_UNSPECIFIED = 0;
+  NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU = 1;
+  NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_MEMORY = 2;
+  NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU_MEMORY = 3;
+}
+
+message NamespaceQuotaEvent {
+  string id = 1;
+  string namespace = 2;
+  NamespaceQuotaEventType type = 3;
+  NamespaceQuotaEventWorkloadType workload_type = 4;
+  string workload_id = 5;
+  string environment_id = 6;
+  NamespaceQuotaEventReason reason = 7;
+  int64 requested_cpu_milli = 8;
+  int64 reserved_cpu_milli = 9;
+  google.protobuf.Int64Value cpu_milli_limit = 10;
+  google.protobuf.Int64Value available_cpu_milli = 11;
+  int64 requested_memory_bytes = 12;
+  int64 reserved_memory_bytes = 13;
+  google.protobuf.Int64Value memory_bytes_limit = 14;
+  google.protobuf.Int64Value available_memory_bytes = 15;
+  string message = 16;
+  google.protobuf.Timestamp created_at = 17;
+}
+
+message GetNamespaceQuotaRequest {
+  string namespace = 1;
+}
+
+message GetNamespaceQuotaResponse {
+  NamespaceQuota quota = 1;
+}
+
+message ListNamespaceQuotasRequest {
+}
+
+message ListNamespaceQuotasResponse {
+  repeated NamespaceQuota quotas = 1;
+}
+
+message NamespaceQuotaLimits {
+  google.protobuf.Int64Value cpu_milli = 1;
+  google.protobuf.Int64Value memory_bytes = 2;
+}
+
+message SetNamespaceQuotaRequest {
+  string namespace = 1;
+  NamespaceQuotaLimits limits = 2;
+}
+
+message SetNamespaceQuotaResponse {
+  NamespaceQuota quota = 1;
+}
+
+message UnsetNamespaceQuotaRequest {
+  string namespace = 1;
+}
+
+message UnsetNamespaceQuotaResponse {
+  NamespaceQuota quota = 1;
+}
+
+message ListNamespaceQuotaEventsRequest {
+  string namespace = 1;
+  int32 limit = 2;
+}
+
+message ListNamespaceQuotaEventsResponse {
+  repeated NamespaceQuotaEvent events = 1;
+}
+
+service QuotaControl {
+  rpc GetNamespaceQuota(GetNamespaceQuotaRequest) returns (GetNamespaceQuotaResponse) {}
+  rpc ListNamespaceQuotas(ListNamespaceQuotasRequest) returns (ListNamespaceQuotasResponse) {}
+  rpc SetNamespaceQuota(SetNamespaceQuotaRequest) returns (SetNamespaceQuotaResponse) {}
+  rpc UnsetNamespaceQuota(UnsetNamespaceQuotaRequest) returns (UnsetNamespaceQuotaResponse) {}
+  rpc ListNamespaceQuotaEvents(ListNamespaceQuotaEventsRequest) returns (ListNamespaceQuotaEventsResponse) {}
+}

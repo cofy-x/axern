@@ -1,0 +1,110 @@
+.admin-layout .timeline {
+  min-height: 120px;
+}
+
+.admin-retry-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.admin-retry-main {
+  min-width: 0;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.admin-action-button {
+  min-height: 30px;
+  padding: 0 10px;
+  text-transform: capitalize;
+}
+
+.admin-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.pill.due {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.pill.queued {
+  background: #eef1f4;
+  color: var(--muted);
+}
+
+.admin-audit-event {
+  border-left-color: var(--accent-2);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(17 24 32 / 45%);
+}
+
+.modal-backdrop[hidden] {
+  display: none;
+}
+
+.modal {
+  width: min(620px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 20px 60px rgb(17 24 32 / 22%);
+}
+
+.admin-action-impact {
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.admin-action-object {
+  margin-bottom: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.field textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  font: inherit;
+  color: var(--text);
+}
+
+.admin-action-error {
+  min-height: 20px;
+  margin-top: 10px;
+  color: var(--bad);
+  overflow-wrap: anywhere;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}

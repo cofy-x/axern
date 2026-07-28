@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: controld-migrate
+  namespace: axern-local
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: controld-migrate
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: controld-migrate
+          image: axern/local-controld:dev
+          imagePullPolicy: IfNotPresent
+          command:
+            - /usr/local/bin/controld-migrate
+          args:
+            - -postgres-dsn
+            - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
+            - up

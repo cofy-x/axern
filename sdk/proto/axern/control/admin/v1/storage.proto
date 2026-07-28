@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package axern.control.admin.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1";
+
+import "axern/control/storage/v1/storage_types.proto";
+import "google/protobuf/timestamp.proto";
+
+message StorageBinding {
+  string binding_id = 1;
+  string claim_id = 2;
+  string namespace = 3;
+  string claim_name = 4;
+  string workload_id = 5;
+  string workload_type = 6;
+  string allocation_id = 7;
+  string node_id = 8;
+  axern.control.storage.v1.VolumeStatus status = 9;
+  string message = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+  google.protobuf.Timestamp published_at = 13;
+  google.protobuf.Timestamp released_at = 14;
+}
+
+message StorageBindingFilter {
+  repeated axern.control.storage.v1.VolumeStatus statuses = 1;
+  string namespace = 2;
+  string claim_name = 3;
+  string workload_id = 4;
+  string allocation_id = 5;
+  string node_id = 6;
+}
+
+message ListStorageBindingsRequest {
+  StorageBindingFilter filter = 1;
+  int32 limit = 2;
+}
+
+message ListStorageBindingsResponse {
+  repeated StorageBinding bindings = 1;
+}
+
+message RetryStorageBindingRequest {
+  string binding_id = 1;
+  string operator_reason = 2;
+}
+
+message RetryStorageBindingResponse {
+  StorageBinding binding = 1;
+}
+
+message StorageReclaim {
+  string claim_id = 1;
+  string namespace = 2;
+  string claim_name = 3;
+  string service_id = 4;
+  string node_id = 5;
+  int64 attempt = 6;
+  google.protobuf.Timestamp next_retry_at = 7;
+  string last_error = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message ListStorageReclaimsRequest {
+  string namespace = 1;
+  string service_id = 2;
+  string node_id = 3;
+  int32 limit = 4;
+}
+
+message ListStorageReclaimsResponse {
+  repeated StorageReclaim reclaims = 1;
+}
+
+service StorageAdmin {
+  rpc ListStorageBindings(ListStorageBindingsRequest) returns (ListStorageBindingsResponse) {}
+  rpc RetryStorageBinding(RetryStorageBindingRequest) returns (RetryStorageBindingResponse) {}
+  rpc ListStorageReclaims(ListStorageReclaimsRequest) returns (ListStorageReclaimsResponse) {}
+}

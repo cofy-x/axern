@@ -1,0 +1,29 @@
+{
+  "name": "@cofy-x/axern",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Programmable execution platform for AI agents and isolated sandbox workloads",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cofy-x/axern.git"
+  },
+  "homepage": "https://github.com/cofy-x/axern#readme",
+  "bugs": {
+    "url": "https://github.com/cofy-x/axern/issues"
+  },
+  "scripts": {
+    "build": "pnpm --filter @cofy-x/axern-sdk run build",
+    "test": "pnpm --filter @cofy-x/axern-sdk run test",
+    "lint": "pnpm --filter @cofy-x/axern-sdk run lint"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "pnpm@10.24.0"
+}

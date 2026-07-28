@@ -1,0 +1,356 @@
+global:
+  imageRegistry: ""
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+scheduling:
+  platform:
+    nodeSelector: {}
+    tolerations: []
+    topologySpread:
+      enabled: false
+      whenUnsatisfiable: ScheduleAnyway
+  observability:
+    nodeSelector: {}
+    tolerations: []
+    topologySpread:
+      enabled: false
+      whenUnsatisfiable: ScheduleAnyway
+  runtime:
+    nodeSelector: {}
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+    topologySpread:
+      enabled: false
+      whenUnsatisfiable: ScheduleAnyway
+
+proxyEnv:
+  NO_PROXY: ""
+
+observability:
+  enabled: false
+  resourceAttributes: deployment.environment=kubernetes
+  metricExportIntervalMilliseconds: 15000
+  otlp:
+    endpoint: ""
+    insecure: true
+  collector:
+    replicas: 1
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: 0.150.1
+      pullPolicy: ""
+    service:
+      type: ClusterIP
+      grpcNodePort: 30317
+      httpNodePort: 30318
+    persistence:
+      enabled: true
+      existingClaim: ""
+      size: 20Gi
+      storageClassName: ""
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "2"
+        memory: 1Gi
+  prometheus:
+    replicas: 1
+    image:
+      repository: prom/prometheus
+      tag: v3.12.0
+      pullPolicy: ""
+    retention: 15d
+    scrapeInterval: 10s
+    kubernetesDiscovery:
+      enabled: false
+    additionalScrapeConfigs: []
+    persistence:
+      enabled: true
+      existingClaim: ""
+      size: 50Gi
+      storageClassName: ""
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: "4"
+        memory: 8Gi
+  tempo:
+    replicas: 1
+    image:
+      repository: grafana/tempo
+      tag: 2.10.5
+      pullPolicy: ""
+    retention: 168h
+    persistence:
+      enabled: true
+      existingClaim: ""
+      size: 50Gi
+      storageClassName: ""
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "4"
+        memory: 8Gi
+  loki:
+    replicas: 1
+    image:
+      repository: grafana/loki
+      tag: 3.7.2
+      pullPolicy: ""
+    retention: 168h
+    persistence:
+      enabled: true
+      existingClaim: ""
+      size: 50Gi
+      storageClassName: ""
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "4"
+        memory: 8Gi
+  grafana:
+    replicas: 1
+    image:
+      repository: grafana/grafana
+      tag: 13.0.2
+      pullPolicy: ""
+    admin:
+      existingSecret: ""
+      userKey: username
+      passwordKey: password
+      user: admin
+      password: ""
+    service:
+      type: ClusterIP
+      uiNodePort: 30301
+    persistence:
+      enabled: true
+      existingClaim: ""
+      size: 20Gi
+      storageClassName: ""
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+
+pki:
+  enabled: true
+  existingSecret: ""
+  secretName: controld-pki
+  durationDays: 3650
+  control:
+    extraDNSNames: []
+    extraIPAddresses: []
+  gateway:
+    extraDNSNames: []
+    extraIPAddresses: []
+  tunnel:
+    extraDNSNames: []
+    extraIPAddresses: []
+
+secrets:
+  existingSecret: ""
+  secretName: controld-secrets
+  secretsMasterKey: ""
+  rolloutWorkerToken: ""
+  artifactTicketKey: ""
+
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: 16-alpine
+    pullPolicy: ""
+  database: axern
+  username: postgres
+  password: postgres
+  dsn: ""
+  persistence:
+    enabled: false
+    existingClaim: ""
+    size: 20Gi
+    storageClassName: ""
+
+minio:
+  enabled: false
+  image:
+    repository: minio/minio
+    tag: RELEASE.2025-02-28T09-55-16Z
+    pullPolicy: ""
+  clientImage:
+    repository: minio/mc
+    tag: RELEASE.2025-02-21T16-00-46Z
+    pullPolicy: ""
+  rootUser: minioadmin
+  rootPassword: minioadmin
+  bucket: axern-system
+  endpoint: ""
+  persistence:
+    enabled: true
+    existingClaim: ""
+    size: 40Gi
+    storageClassName: ""
+
+objectStore:
+  enabled: false
+  scheme: https
+  endpoint: ""
+  region: ""
+  bucket: ""
+  accessKey: ""
+  secretKey: ""
+  skipVerify: false
+
+runtimeCatalog:
+  python311Image: axern/python311-runtime:dev
+  serverBaseImage: axern/server-base-runtime:dev
+  codingBaseImage: axern/coding-base-runtime:dev
+  desktopBaseImage: axern/desktop-base-runtime:dev
+  claudeCodeBundleImage: axern/claude-code-bundle:dev
+  codexBundleImage: axern/codex-bundle:dev
+
+controld:
+  replicas: 1
+  image:
+    repository: axern/local-controld
+    tag: dev
+    pullPolicy: ""
+  heartbeatFreshnessWindow: 15s
+  summaryFreshnessWindow: 15s
+  postgresMaxConnections: 48
+  reconcileTimeout: 30s
+  serviceReconcileWorkers: 32
+  serviceAllocationGlobalWorkers: 256
+  serviceAllocationWorkersPerNode: 12
+  volumeReclaimWorkers: 8
+  volumeReclaimWorkersPerNode: 2
+  function:
+    gatewayTimeout: 30s
+  retention:
+    enabled: true
+    replicas: 1
+
+rolloutWorker:
+  enabled: false
+  replicas: 1
+  concurrency: 4
+  outputSizeLimit: 20Gi
+  registryAuth:
+    existingSecret: ""
+    dockerConfigKey: .dockerconfigjson
+
+storaged:
+  replicas: 1
+
+tunneld:
+  replicas: 1
+  relayID: default
+  drain: false
+  image:
+    repository: axern/local-tunneld
+    tag: dev
+    pullPolicy: ""
+
+node:
+  image:
+    repository: axern/local-node-all-in-one
+    tag: dev
+    pullPolicy: ""
+  privileged: true
+  heartbeatInterval: 1s
+  runtime:
+    idleRetentionTTL: 5m
+    idleRetentionMax: 8
+  resourceSource: kubernetes
+  network:
+    # Dedicated per-node sandbox CIDR. Deployments must validate it against
+    # VPC, node, Pod, and Service networks before installation.
+    ipRange: 198.18.0.1/16
+    natBackend: ebpf
+    ebpf:
+      pinPath: /sys/fs/bpf/axern/bpfnet
+      mapSize: 16384
+      snatMapSize: 262144
+      snatGcInterval: 1s
+      snatTcpIdleTimeout: 5m
+      snatTcpClosingTimeout: 2s
+      snatDatagramIdleTimeout: 10s
+      uplinkDevices: []
+      localOutCompat: true
+      iptablesFallback: true
+  serviceAccount:
+    create: true
+    name: ""
+  rbac:
+    create: true
+  state:
+    hostPathRoot: /var/lib/axern/node
+  sysctls:
+    userMaxUserNamespaces: 15000
+  registryAuth:
+    existingSecret: ""
+    dockerConfigKey: .dockerconfigjson
+  imageDistribution:
+    nydus:
+      decodedCacheBytes: "8388608"
+    dragonfly:
+      enabled: false
+      proxyURL: ""
+      healthURL: ""
+      blobURLScheme: https
+      proxyFallback: true
+      proxyCAConfigMap: ""
+      proxyCACertKey: ca.crt
+      readaheadWorkers: 0
+      readaheadWindowBytes: "33554432"
+
+gatewayd:
+  replicas: 1
+  image:
+    repository: axern/local-gatewayd
+    tag: dev
+    pullPolicy: ""
+  devToken: axern-local-dev
+  dashboardEnabled: true
+  routeCacheTTL: 3s
+  routeCacheMaxEntries: 8192
+  serviceEndpointRetryAttempts: 4
+  serviceEndpointQuarantineTTL: 30s
+  artifact:
+    maxConcurrent: 16
+    chunkBytes: 262144
+    upstreamTimeout: 30s
+    maxBytes: 8589934592
+  controlEdge:
+    publicAddress: localhost:25100
+  ssh:
+    enabled: false
+    existingSecret: ""
+    secretName: gatewayd-ssh
+    hostKey: ""
+    authorizedKeys: ""
+  service:
+    type: NodePort
+    controlNodePort: 30250
+    httpNodePort: 30282
+    sshNodePort: 30223

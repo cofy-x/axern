@@ -1,0 +1,98 @@
+services:
+  registry:
+    image: registry:2.8.3
+    restart: unless-stopped
+    environment:
+      REGISTRY_HTTP_ADDR: 0.0.0.0:5000
+      REGISTRY_HTTP_TLS_CERTIFICATE: /certs/controld.crt
+      REGISTRY_HTTP_TLS_KEY: /certs/controld.key
+    volumes:
+      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+
+  controld:
+    environment:
+      CONTROLD_ROLLOUT_WORKER_TOKEN: axern-managed-rollout-local
+      CONTROLD_ARTIFACT_S3_ENDPOINT: http://minio:9000
+      CONTROLD_ARTIFACT_S3_REGION: us-east-1
+      CONTROLD_ARTIFACT_S3_BUCKET: axern-rollout-evidence
+      CONTROLD_ARTIFACT_S3_ACCESS_KEY: minioadmin
+      CONTROLD_ARTIFACT_S3_SECRET_KEY: minioadmin
+      CONTROLD_ARTIFACT_S3_USE_PATH_STYLE: "true"
+      CONTROLD_ARTIFACT_TICKET_KEY: local-only-artifact-ticket-signing-key
+
+  minio-rollout-bootstrap:
+    image: minio/mc:RELEASE.2025-02-21T16-00-46Z
+    depends_on:
+      - minio
+    restart: "no"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - mc alias set local http://minio:9000 minioadmin minioadmin && mc mb --ignore-existing local/axern-rollout-evidence
+
+  mock-provider:
+    image: python:3.12-alpine
+    restart: unless-stopped
+    ports:
+      - "${MANAGED_ROLLOUT_MOCK_PROVIDER_BIND_ADDRESS:-127.0.0.1}:${MANAGED_ROLLOUT_MOCK_PROVIDER_PORT:-25443}:24443"
+    command:
+      - python
+      - /mock/mock_provider.py
+      - --listen
+      - 0.0.0.0:24443
+      - --cert
+      - /mock-certs/server.crt
+      - --key
+      - /mock-certs/server.key
+    volumes:
+      - "${AXERN_ROOT}/deploy/local/compose/mock_provider.py:/mock/mock_provider.py:ro"
+      - "${AXERN_ROOT}/deploy/local/compose/mock_provider_contract.py:/mock/mock_provider_contract.py:ro"
+      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+      - "${COMPOSE_STATE_DIR}/mock-provider-certs:/mock-certs:ro"
+
+  node:
+    environment:
+      SSL_CERT_FILE: /certs/ca.crt
+      # Keep the nested sandbox network disjoint from Docker's Linux host bridge.
+      AXNODED_NETWORK_IP_RANGE: ${MANAGED_ROLLOUT_SANDBOX_IP_RANGE:-10.250.0.1/16}
+      # This nested Compose runtime ignores runtime-owned cgroups; cgroup
+      # enforcement is covered by the dedicated Linux runtime gates.
+      AXNODED_CGROUP_CACHE_SIZE: "0"
+    volumes:
+      - type: bind
+        source: "${COMPOSE_STATE_DIR}/registry-certs"
+        target: /etc/docker/certs.d
+        read_only: true
+
+  rollout-worker:
+    image: ${CONTROLD_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      controld:
+        condition: service_started
+      gatewayd:
+        condition: service_started
+      mock-provider:
+        condition: service_started
+      registry:
+        condition: service_started
+      minio-rollout-bootstrap:
+        condition: service_completed_successfully
+    entrypoint: ["/usr/local/bin/axrun"]
+    command:
+      - --config
+      - /etc/axrun/config.json
+      - worker
+      - --execution-context
+      - cluster-execution
+      - --concurrency
+      - "4"
+      - --output-dir
+      - /var/lib/axrun
+    environment:
+      AXRUN_WORKER_TOKEN: axern-managed-rollout-local
+      AXRUN_TEST_MODEL_PRICING_JSON: '{"mock-scripted-agent":{"input_per_million":1,"output_per_million":2}}'
+      SSL_CERT_FILE: /certs/ca.crt
+    volumes:
+      - "${AXERN_ROOT}/deploy/local/compose/managed-rollout-worker-config.json:/etc/axrun/config.json:ro"
+      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+      - "${COMPOSE_STATE_DIR}/managed-rollout-fixture:/fixtures"

@@ -1,0 +1,17 @@
+{
+  "include": [
+    "src/axern_sdk"
+  ],
+  "exclude": [
+    "src/axern",
+    "tests"
+  ],
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": [
+        "src"
+      ]
+    }
+  ]
+}

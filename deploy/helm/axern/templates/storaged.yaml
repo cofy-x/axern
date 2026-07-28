@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storaged
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "storaged") | nindent 4 }}
+spec:
+  replicas: {{ .Values.storaged.replicas }}
+  selector:
+    matchLabels:
+      {{- include "axern.componentSelectorLabels" (dict "root" . "component" "storaged") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axern.componentSelectorLabels" (dict "root" . "component" "storaged") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "axern.scheduling" (dict "root" . "profile" "platform" "component" "storaged" "spread" true) | nindent 6 }}
+      initContainers:
+        - name: controld-migrate
+          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              until /usr/local/bin/controld-migrate -postgres-dsn {{ include "axern.postgresDSN" . | quote }} up; do
+                echo "waiting for postgres migration dependencies"
+                sleep 2
+              done
+      containers:
+        - name: storaged
+          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          command:
+            - /usr/local/bin/storaged
+          args:
+            - -grpc-address
+            - 0.0.0.0:24020
+            - -http-address
+            - 0.0.0.0:24021
+            - -postgres-dsn
+            - {{ include "axern.postgresDSN" . | quote }}
+          ports:
+            - containerPort: 24020
+            - containerPort: 24021
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 24021
+            initialDelaySeconds: 2
+            periodSeconds: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: storaged
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "storaged") | nindent 4 }}
+spec:
+  selector:
+    {{- include "axern.componentSelectorLabels" (dict "root" . "component" "storaged") | nindent 4 }}
+  ports:
+    - name: grpc
+      port: 24020
+      targetPort: 24020
+    - name: http
+      port: 24021
+      targetPort: 24021

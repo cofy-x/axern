@@ -1,0 +1,243 @@
+[
+  {
+    "id": "python311",
+    "version": "3.11.0",
+    "imageDescriptor": {
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000311",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "annotations": {
+        "org.opencontainers.image.ref.name": "ghcr.io/cofy-x/axern/python311-runtime:3.11"
+      }
+    },
+    "rootfsReadonly": false,
+    "imageDefaultArgv": [
+      "python3"
+    ],
+    "defaultCwd": "/workspace",
+    "defaultEnv": {
+      "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+      "PYTHONUNBUFFERED": "1"
+    },
+    "capabilities": {
+      "supportsExec": true,
+      "supportsExecStream": true,
+      "supportsLongLivedProcess": true,
+      "supportsPorts": true
+    },
+    "executionProfile": {
+      "runtimeBaseline": {
+        "capabilities": [
+          "CAP_CHOWN",
+          "CAP_DAC_OVERRIDE",
+          "CAP_FOWNER",
+          "CAP_FSETID",
+          "CAP_KILL",
+          "CAP_SETGID",
+          "CAP_SETUID",
+          "CAP_SETPCAP",
+          "CAP_NET_BIND_SERVICE",
+          "CAP_NET_RAW",
+          "CAP_SYS_CHROOT",
+          "CAP_MKNOD",
+          "CAP_AUDIT_WRITE",
+          "CAP_SETFCAP"
+        ],
+        "noFileLimit": 1048576
+      },
+      "capabilities": {
+        "annotationKey": "linux-capabilities",
+        "includeAmbient": true
+      },
+      "networkNamespace": {
+        "annotationKey": "io.axnoded.resource/interface"
+      },
+      "resources": {
+        "ignoreAnnotationKeys": [
+          "io.axnoded/ignore-resource-field"
+        ]
+      }
+    },
+    "language": "python",
+    "languageVersion": "3.11",
+    "description": "Official Python 3.11 programmable sandbox runtime."
+  },
+  {
+    "id": "server-base",
+    "version": "24.04.0",
+    "imageDescriptor": {
+      "digest": "sha256:0000000000000000000000000000000000000000000000000000000000002404",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "annotations": {
+        "org.opencontainers.image.ref.name": "ghcr.io/cofy-x/axern/server-base-runtime:24.04"
+      }
+    },
+    "rootfsReadonly": false,
+    "imageDefaultArgv": [
+      "/usr/bin/supervisord",
+      "-c",
+      "/etc/supervisor/conf.d/supervisord.conf"
+    ],
+    "defaultCwd": "/home/axern",
+    "capabilities": {
+      "supportsExec": true,
+      "supportsExecStream": true,
+      "supportsLongLivedProcess": true,
+      "supportsPorts": true
+    },
+    "executionProfile": {
+      "runtimeBaseline": {
+        "capabilities": [
+          "CAP_CHOWN",
+          "CAP_DAC_OVERRIDE",
+          "CAP_FOWNER",
+          "CAP_FSETID",
+          "CAP_KILL",
+          "CAP_SETGID",
+          "CAP_SETUID",
+          "CAP_SETPCAP",
+          "CAP_NET_BIND_SERVICE",
+          "CAP_NET_RAW",
+          "CAP_SYS_CHROOT",
+          "CAP_MKNOD",
+          "CAP_AUDIT_WRITE",
+          "CAP_SETFCAP"
+        ],
+        "noFileLimit": 1048576
+      },
+      "capabilities": {
+        "annotationKey": "linux-capabilities",
+        "includeAmbient": true
+      },
+      "networkNamespace": {
+        "annotationKey": "io.axnoded.resource/interface"
+      },
+      "resources": {
+        "ignoreAnnotationKeys": [
+          "io.axnoded/ignore-resource-field"
+        ]
+      }
+    },
+    "description": "Official headless Ubuntu 24.04 server runtime."
+  },
+  {
+    "id": "desktop-base",
+    "version": "24.04.0",
+    "imageDescriptor": {
+      "digest": "sha256:00000000000000000000000000000000000000000000000000000000d35c2404",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "annotations": {
+        "org.opencontainers.image.ref.name": "ghcr.io/cofy-x/axern/desktop-base-runtime:24.04"
+      }
+    },
+    "rootfsReadonly": false,
+    "imageDefaultArgv": [
+      "/usr/bin/supervisord",
+      "-c",
+      "/etc/supervisor/conf.d/supervisord.conf"
+    ],
+    "defaultCwd": "/home/axern",
+    "defaultEnv": {
+      "AXERN_SANDBOXD_COMPUTER_USE": "1",
+      "DISPLAY": ":99"
+    },
+    "capabilities": {
+      "supportsExec": true,
+      "supportsExecStream": true,
+      "supportsLongLivedProcess": true,
+      "supportsPorts": true,
+      "supportsComputerUse": true
+    },
+    "executionProfile": {
+      "runtimeBaseline": {
+        "capabilities": [
+          "CAP_CHOWN",
+          "CAP_DAC_OVERRIDE",
+          "CAP_FOWNER",
+          "CAP_FSETID",
+          "CAP_KILL",
+          "CAP_SETGID",
+          "CAP_SETUID",
+          "CAP_SETPCAP",
+          "CAP_NET_BIND_SERVICE",
+          "CAP_NET_RAW",
+          "CAP_SYS_CHROOT",
+          "CAP_MKNOD",
+          "CAP_AUDIT_WRITE",
+          "CAP_SETFCAP"
+        ],
+        "noFileLimit": 1048576
+      },
+      "capabilities": {
+        "annotationKey": "linux-capabilities",
+        "includeAmbient": true
+      },
+      "networkNamespace": {
+        "annotationKey": "io.axnoded.resource/interface"
+      },
+      "resources": {
+        "ignoreAnnotationKeys": [
+          "io.axnoded/ignore-resource-field"
+        ]
+      }
+    },
+    "description": "Official Ubuntu 24.04 desktop runtime with sandboxd computer-use support."
+  },
+  {
+    "id": "coding-base",
+    "version": "24.04.0",
+    "imageDescriptor": {
+      "digest": "sha256:00000000000000000000000000000000000000000000000000000000c0d12404",
+      "mediaType": "application/vnd.oci.image.manifest.v1+json",
+      "annotations": {
+        "org.opencontainers.image.ref.name": "ghcr.io/cofy-x/axern/coding-base-runtime:24.04"
+      }
+    },
+    "rootfsReadonly": false,
+    "imageDefaultArgv": [
+      "/usr/bin/supervisord",
+      "-c",
+      "/etc/supervisor/conf.d/supervisord.conf"
+    ],
+    "defaultCwd": "/home/axern",
+    "capabilities": {
+      "supportsExec": true,
+      "supportsExecStream": true,
+      "supportsLongLivedProcess": true,
+      "supportsPorts": true
+    },
+    "executionProfile": {
+      "runtimeBaseline": {
+        "capabilities": [
+          "CAP_CHOWN",
+          "CAP_DAC_OVERRIDE",
+          "CAP_FOWNER",
+          "CAP_FSETID",
+          "CAP_KILL",
+          "CAP_SETGID",
+          "CAP_SETUID",
+          "CAP_SETPCAP",
+          "CAP_NET_BIND_SERVICE",
+          "CAP_NET_RAW",
+          "CAP_SYS_CHROOT",
+          "CAP_MKNOD",
+          "CAP_AUDIT_WRITE",
+          "CAP_SETFCAP"
+        ],
+        "noFileLimit": 1048576
+      },
+      "capabilities": {
+        "annotationKey": "linux-capabilities",
+        "includeAmbient": true
+      },
+      "networkNamespace": {
+        "annotationKey": "io.axnoded.resource/interface"
+      },
+      "resources": {
+        "ignoreAnnotationKeys": [
+          "io.axnoded/ignore-resource-field"
+        ]
+      }
+    },
+    "description": "Official Ubuntu 24.04 multi-language coding workspace runtime."
+  }
+]

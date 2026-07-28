@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package axnoded.internal.apipb.v1;
+
+option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;apipb";
+
+message ComputerUseStatusRequest {
+  string ID = 1;
+}
+
+message ComputerUseStatusResponse {
+  bool available = 1;
+  string display = 2;
+  string backend = 3;
+  string reason = 4;
+  repeated ComputerUseDependencyStatus dependencies = 5;
+}
+
+message ComputerUseDependencyStatus {
+  string name = 1;
+  bool available = 2;
+  string reason = 3;
+}
+
+message ComputerUseRegion {
+  int32 x = 1;
+  int32 y = 2;
+  int32 width = 3;
+  int32 height = 4;
+}
+
+message ComputerUseScreenshotRequest {
+  string ID = 1;
+  bool show_cursor = 2;
+  ComputerUseRegion region = 3;
+  string format = 4;
+  int32 quality = 5;
+  double scale = 6;
+}
+
+message ComputerUseScreenshotResponse {
+  bytes data = 1;
+  string content_type = 2;
+}
+
+message ComputerUseDisplayRequest {
+  string ID = 1;
+}
+
+message ComputerUseDisplayResponse {
+  string display = 1;
+  string backend = 2;
+  int32 width = 3;
+  int32 height = 4;
+}
+
+message ComputerUseMouseRequest {
+  string ID = 1;
+  string action = 2;
+  int32 x = 3;
+  int32 y = 4;
+  int32 to_x = 5;
+  int32 to_y = 6;
+  string button = 7;
+  string direction = 8;
+  int32 amount = 9;
+}
+
+message ComputerUseMouseResponse {}
+
+message ComputerUseKeyboardRequest {
+  string ID = 1;
+  string text = 2;
+  string key = 3;
+  repeated string keys = 4;
+  int32 delay_ms = 5;
+}
+
+message ComputerUseKeyboardResponse {}

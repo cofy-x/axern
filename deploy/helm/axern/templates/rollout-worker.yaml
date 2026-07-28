@@ -1,0 +1,117 @@
+{{- if .Values.rolloutWorker.enabled }}
+{{- if not (or .Values.minio.enabled .Values.objectStore.enabled) }}
+{{- fail "rolloutWorker requires minio.enabled or objectStore.enabled for durable evidence" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: axrun-worker-config
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "rollout-worker") | nindent 4 }}
+data:
+  config.json: |
+    {
+      "current_context": "cluster",
+      "contexts": {
+        "cluster": {
+          "endpoint": "controld.{{ .Release.Namespace }}.svc.cluster.local:24000",
+          "proxy_mode": "direct",
+          "tls": {
+            "ca_cert": "/certs/ca.crt",
+            "cert": "/certs/client.crt",
+            "key": "/certs/client.key",
+            "server_name": "controld.{{ .Release.Namespace }}.svc.cluster.local"
+          }
+        },
+        "cluster-execution": {
+          "endpoint": "gatewayd.{{ .Release.Namespace }}.svc.cluster.local:25000",
+          "proxy_mode": "direct",
+          "tls": {
+            "ca_cert": "/certs/ca.crt",
+            "cert": "/certs/client.crt",
+            "key": "/certs/client.key",
+            "server_name": "gatewayd.{{ .Release.Namespace }}.svc.cluster.local"
+          }
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: axrun-worker
+  labels:
+    {{- include "axern.componentLabels" (dict "root" . "component" "rollout-worker") | nindent 4 }}
+spec:
+  replicas: {{ .Values.rolloutWorker.replicas }}
+  selector:
+    matchLabels:
+      {{- include "axern.componentSelectorLabels" (dict "root" . "component" "rollout-worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axern.componentSelectorLabels" (dict "root" . "component" "rollout-worker") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "axern.scheduling" (dict "root" . "profile" "platform" "component" "rollout-worker" "spread" true) | nindent 6 }}
+      containers:
+        - name: axrun-worker
+          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          command: ["/usr/local/bin/axrun"]
+          args:
+            - --config
+            - /etc/axrun/config.json
+            - worker
+            - --execution-context
+            - cluster-execution
+            - --concurrency
+            - {{ .Values.rolloutWorker.concurrency | quote }}
+            - --output-dir
+            - /var/lib/axrun
+          env:
+            - name: AXRUN_WORKER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.secretsSecretName" . }}
+                  key: CONTROLD_ROLLOUT_WORKER_TOKEN
+            {{- if .Values.rolloutWorker.registryAuth.existingSecret }}
+            - name: DOCKER_CONFIG
+              value: /registry-auth
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/axrun
+              readOnly: true
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+            - name: output
+              mountPath: /var/lib/axrun
+            {{- if .Values.rolloutWorker.registryAuth.existingSecret }}
+            - name: registry-auth
+              mountPath: /registry-auth
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: axrun-worker-config
+        - name: certs
+          secret:
+            secretName: {{ include "axern.pkiSecretName" . }}
+        - name: output
+          emptyDir:
+            sizeLimit: {{ .Values.rolloutWorker.outputSizeLimit | quote }}
+        {{- if .Values.rolloutWorker.registryAuth.existingSecret }}
+        - name: registry-auth
+          secret:
+            secretName: {{ .Values.rolloutWorker.registryAuth.existingSecret }}
+            items:
+              - key: {{ .Values.rolloutWorker.registryAuth.dockerConfigKey | quote }}
+                path: config.json
+        {{- end }}
+{{- end }}

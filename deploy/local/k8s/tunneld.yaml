@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tunneld
+  namespace: axern-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tunneld
+  template:
+    metadata:
+      labels:
+        app: tunneld
+    spec:
+      containers:
+        - name: tunneld
+          image: axern/local-tunneld:dev
+          imagePullPolicy: IfNotPresent
+          args:
+            - -listen
+            - 0.0.0.0:24100
+            - -control-target
+            - controld.axern-local.svc.cluster.local:24000
+            - -tls-ca-cert
+            - /certs/ca.crt
+            - -tls-cert
+            - /certs/client.crt
+            - -tls-key
+            - /certs/client.key
+            - -relay-id
+            - default
+            - -relay-tls-cert
+            - /certs/tunneld.crt
+            - -relay-tls-key
+            - /certs/tunneld.key
+          ports:
+            - containerPort: 24100
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: controld-pki
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tunneld
+  namespace: axern-local
+spec:
+  selector:
+    app: tunneld
+  ports:
+    - name: grpc
+      port: 24100
+      targetPort: 24100

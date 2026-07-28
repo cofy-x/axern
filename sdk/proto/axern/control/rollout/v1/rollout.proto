@@ -1,0 +1,344 @@
+syntax = "proto3";
+
+package axern.control.rollout.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/rollout/v1;rolloutv1";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+enum RolloutStatus {
+  ROLLOUT_STATUS_UNSPECIFIED = 0;
+  ROLLOUT_STATUS_ACCEPTED = 1;
+  ROLLOUT_STATUS_PLANNING = 2;
+  ROLLOUT_STATUS_QUEUED = 3;
+  ROLLOUT_STATUS_RUNNING = 4;
+  ROLLOUT_STATUS_CANCELLING = 5;
+  ROLLOUT_STATUS_COMPLETED = 6;
+  ROLLOUT_STATUS_FAILED = 7;
+  ROLLOUT_STATUS_CANCELLED = 8;
+  ROLLOUT_STATUS_DELETING = 9;
+  ROLLOUT_STATUS_READY = 10;
+}
+
+enum RolloutStartPolicy {
+  ROLLOUT_START_POLICY_UNSPECIFIED = 0;
+  ROLLOUT_START_POLICY_MANUAL = 1;
+  ROLLOUT_START_POLICY_AUTO = 2;
+}
+
+enum EpisodeStatus {
+  EPISODE_STATUS_UNSPECIFIED = 0;
+  EPISODE_STATUS_PENDING = 1;
+  EPISODE_STATUS_LEASED = 2;
+  EPISODE_STATUS_STARTING = 3;
+  EPISODE_STATUS_AGENT_RUNNING = 4;
+  EPISODE_STATUS_VERIFYING = 5;
+  EPISODE_STATUS_COLLECTING = 6;
+  EPISODE_STATUS_COMPLETED = 7;
+  EPISODE_STATUS_FAILED = 8;
+  EPISODE_STATUS_CANCELLED = 9;
+}
+
+enum FailureClass {
+  FAILURE_CLASS_UNSPECIFIED = 0;
+  FAILURE_CLASS_AGENT = 1;
+  FAILURE_CLASS_VERIFIER = 2;
+  FAILURE_CLASS_INFRASTRUCTURE = 3;
+  FAILURE_CLASS_BUDGET = 4;
+  FAILURE_CLASS_METERING = 5;
+}
+
+enum ArtifactStatus {
+  ARTIFACT_STATUS_UNSPECIFIED = 0;
+  ARTIFACT_STATUS_PENDING = 1;
+  ARTIFACT_STATUS_PRESENT = 2;
+  ARTIFACT_STATUS_MISSING = 3;
+  ARTIFACT_STATUS_FAILED = 4;
+  ARTIFACT_STATUS_DELETED = 5;
+}
+
+message TaskSetSelection {
+  repeated string task_ids = 1;
+  int32 limit = 2;
+  int32 shard_index = 3;
+  int32 shard_count = 4;
+}
+
+message RolloutAgent {
+  string name = 1;
+  string image = 2;
+  string profile = 3;
+  string approval_policy = 4;
+  string command = 5;
+}
+
+enum PreflightCheckKind {
+  PREFLIGHT_CHECK_KIND_UNSPECIFIED = 0;
+  PREFLIGHT_CHECK_KIND_TASK_SET = 1;
+  PREFLIGHT_CHECK_KIND_SELECTION = 2;
+  PREFLIGHT_CHECK_KIND_PROFILE = 3;
+  PREFLIGHT_CHECK_KIND_PROVIDER = 4;
+  PREFLIGHT_CHECK_KIND_AGENT_BUNDLE = 5;
+  PREFLIGHT_CHECK_KIND_RUNTIME = 6;
+  PREFLIGHT_CHECK_KIND_WORKER_CAPABILITY = 7;
+  PREFLIGHT_CHECK_KIND_BUDGET = 8;
+}
+
+enum PreflightCheckStatus {
+  PREFLIGHT_CHECK_STATUS_UNSPECIFIED = 0;
+  PREFLIGHT_CHECK_STATUS_PASS = 1;
+  PREFLIGHT_CHECK_STATUS_WARN = 2;
+  PREFLIGHT_CHECK_STATUS_FAIL = 3;
+}
+
+message PreflightCheck {
+  PreflightCheckKind kind = 1;
+  PreflightCheckStatus status = 2;
+  string code = 3;
+  string message = 4;
+  bool retryable = 5;
+  int64 latency_ms = 6;
+}
+
+message PayloadVariant {
+  string format = 1;
+  string digest = 2;
+  string media_type = 3;
+}
+
+message PreflightUsage {
+  int64 input_tokens = 1;
+  int64 output_tokens = 2;
+  int64 cost_microusd = 3;
+  bool estimated = 4;
+}
+
+message PreflightReport {
+  string source_digest = 1;
+  string descriptor_digest = 2;
+  int32 task_count = 3;
+  int32 episode_count = 4;
+  string profile_id = 5;
+  string profile_name = 6;
+  int64 profile_version = 7;
+  int64 credential_version = 8;
+  string agent_bundle_digest = 9;
+  repeated PayloadVariant payload_variants = 10;
+  repeated PreflightCheck checks = 11;
+  repeated string warnings = 12;
+  PreflightUsage usage = 13;
+}
+
+message RolloutExecution {
+  string runtime_class = 1;
+  int32 concurrency = 2;
+  int32 attempts = 3;
+}
+
+message RolloutBudget {
+  google.protobuf.Duration max_wall_time = 1;
+  int32 max_episodes = 2;
+  int64 max_tokens = 3;
+  int64 max_cost_microusd = 4;
+}
+
+message RolloutSpec {
+  string task_set_ref = 1;
+  RolloutAgent agent = 2;
+  string model = 3;
+  RolloutExecution execution = 4;
+  TaskSetSelection selection = 5;
+  RolloutBudget budget = 6;
+}
+
+message RolloutSummary {
+  int32 task_count = 1;
+  int32 episode_count = 2;
+  int32 completed_episodes = 3;
+  int32 failed_episodes = 4;
+  int32 cancelled_episodes = 5;
+  int32 passed_episodes = 6;
+  int64 input_tokens = 7;
+  int64 cached_input_tokens = 8;
+  int64 output_tokens = 9;
+  int64 cost_microusd = 10;
+  int64 total_duration_ms = 11;
+}
+
+message Rollout {
+  string id = 1;
+  string namespace = 2;
+  RolloutSpec spec = 3;
+  RolloutStatus status = 4;
+  string source_digest = 5;
+  string descriptor_digest = 6;
+  string plan_artifact_id = 7;
+  RolloutSummary summary = 8;
+  string message = 9;
+  map<string, string> labels = 10;
+  int64 version = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp started_at = 13;
+  google.protobuf.Timestamp completed_at = 14;
+  google.protobuf.Timestamp deadline = 15;
+  RolloutStartPolicy start_policy = 16;
+  PreflightReport preflight = 17;
+  FailureClass failure_class = 18;
+}
+
+message ExecutionFacts {
+  string payload_format = 1;
+  string payload_digest = 2;
+  bool cache_hit = 3;
+  int64 image_resolve_ms = 4;
+  int64 image_pull_ms = 5;
+  int64 cow_prepare_ms = 6;
+  int64 verifier_materialize_ms = 7;
+  string allocation_id = 8;
+  string node_id = 9;
+  string runtime_class = 10;
+  string agent_bundle_digest = 11;
+}
+
+message Episode {
+  string id = 1;
+  string rollout_id = 2;
+  string task_id = 3;
+  string task_digest = 4;
+  int32 attempt_index = 5;
+  int64 execution_generation = 6;
+  EpisodeStatus status = 7;
+  FailureClass failure_class = 8;
+  bool passed = 9;
+  double reward = 10;
+  int64 input_tokens = 11;
+  int64 cached_input_tokens = 12;
+  int64 output_tokens = 13;
+  int64 cost_microusd = 14;
+  int64 duration_ms = 15;
+  ExecutionFacts execution_facts = 16;
+  string artifact_manifest_id = 17;
+  string message = 18;
+  google.protobuf.Timestamp created_at = 19;
+  google.protobuf.Timestamp started_at = 20;
+  google.protobuf.Timestamp completed_at = 21;
+}
+
+message RolloutEvent {
+  string rollout_id = 1;
+  int64 sequence = 2;
+  string episode_id = 3;
+  string type = 4;
+  string phase = 5;
+  string message = 6;
+  map<string, string> details = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message Artifact {
+  string id = 1;
+  string rollout_id = 2;
+  string episode_id = 3;
+  int64 execution_generation = 4;
+  string kind = 5;
+  string name = 6;
+  string media_type = 7;
+  int64 size_bytes = 8;
+  string digest = 9;
+  ArtifactStatus status = 10;
+  string message = 11;
+  google.protobuf.Timestamp created_at = 12;
+}
+
+message RolloutListFilter {
+  string namespace = 1;
+  repeated RolloutStatus statuses = 2;
+  string task_set_digest = 3;
+  string agent = 4;
+  string model = 5;
+  map<string, string> labels = 6;
+  string cursor = 7;
+  int32 page_size = 8;
+}
+
+message CreateRolloutRequest {
+  string namespace = 1;
+  RolloutSpec spec = 2;
+  map<string, string> labels = 3;
+  string idempotency_key = 4;
+  RolloutStartPolicy start_policy = 5;
+}
+
+message CreateRolloutResponse { Rollout rollout = 1; }
+message GetRolloutRequest { string rollout_id = 1; }
+message GetRolloutResponse { Rollout rollout = 1; repeated Episode episodes = 2; }
+message ListRolloutsRequest { RolloutListFilter filter = 1; }
+message ListRolloutsResponse { repeated Rollout rollouts = 1; string next_cursor = 2; }
+message WatchRolloutEventsRequest { string rollout_id = 1; int64 after_sequence = 2; }
+message WatchRolloutEventsResponse { repeated RolloutEvent events = 1; int64 current_sequence = 2; bool terminal = 3; }
+message CancelRolloutRequest { string rollout_id = 1; }
+message CancelRolloutResponse { Rollout rollout = 1; }
+message RetryRolloutRequest { string rollout_id = 1; }
+message RetryRolloutResponse { Rollout rollout = 1; }
+message StartRolloutRequest { string rollout_id = 1; string idempotency_key = 2; }
+message StartRolloutResponse { Rollout rollout = 1; }
+
+enum DiagnosisClass {
+  DIAGNOSIS_CLASS_UNSPECIFIED = 0;
+  DIAGNOSIS_CLASS_HEALTHY = 1;
+  DIAGNOSIS_CLASS_PLANNING_REJECTED = 2;
+  DIAGNOSIS_CLASS_QUEUE_WAITING = 3;
+  DIAGNOSIS_CLASS_WORKER_UNAVAILABLE = 4;
+  DIAGNOSIS_CLASS_PROFILE_PROVIDER_FAILURE = 5;
+  DIAGNOSIS_CLASS_CAPACITY_WAIT = 6;
+  DIAGNOSIS_CLASS_TASK_VERIFIER_FAILURE = 7;
+  DIAGNOSIS_CLASS_INFRASTRUCTURE_FAILURE = 8;
+  DIAGNOSIS_CLASS_BUDGET_EXHAUSTION = 9;
+  DIAGNOSIS_CLASS_CANCEL_PENDING = 10;
+  DIAGNOSIS_CLASS_INCOMPLETE_EVIDENCE = 11;
+}
+
+message DiagnoseRolloutRequest { string rollout_id = 1; }
+message DiagnoseRolloutResponse {
+  Rollout rollout = 1;
+  DiagnosisClass diagnosis = 2;
+  string code = 3;
+  string summary = 4;
+  string recommended_action = 5;
+  repeated Artifact artifacts = 6;
+}
+
+message TaskComparison {
+  string task_id = 1;
+  string task_digest = 2;
+  map<string, double> rewards = 3;
+  map<string, bool> passed = 4;
+  map<string, int64> cost_microusd = 5;
+  bool comparable = 6;
+  string reason = 7;
+}
+
+message CompareRolloutsRequest { repeated string rollout_ids = 1; }
+message CompareRolloutsResponse { repeated Rollout rollouts = 1; repeated TaskComparison tasks = 2; }
+message ListArtifactsRequest { string rollout_id = 1; string episode_id = 2; }
+message ListArtifactsResponse { repeated Artifact artifacts = 1; }
+message PrepareArtifactDownloadRequest { string artifact_id = 1; }
+message PrepareArtifactDownloadResponse { Artifact artifact = 1; string ticket = 2; google.protobuf.Timestamp expires_at = 3; }
+message DeleteRolloutRequest { string rollout_id = 1; }
+message DeleteRolloutResponse { Rollout rollout = 1; }
+
+service RolloutControl {
+  rpc CreateRollout(CreateRolloutRequest) returns (CreateRolloutResponse) {}
+  rpc GetRollout(GetRolloutRequest) returns (GetRolloutResponse) {}
+  rpc ListRollouts(ListRolloutsRequest) returns (ListRolloutsResponse) {}
+  rpc WatchRolloutEvents(WatchRolloutEventsRequest) returns (stream WatchRolloutEventsResponse) {}
+  rpc StartRollout(StartRolloutRequest) returns (StartRolloutResponse) {}
+  rpc CancelRollout(CancelRolloutRequest) returns (CancelRolloutResponse) {}
+  rpc RetryRollout(RetryRolloutRequest) returns (RetryRolloutResponse) {}
+  rpc CompareRollouts(CompareRolloutsRequest) returns (CompareRolloutsResponse) {}
+  rpc DiagnoseRollout(DiagnoseRolloutRequest) returns (DiagnoseRolloutResponse) {}
+  rpc ListArtifacts(ListArtifactsRequest) returns (ListArtifactsResponse) {}
+  rpc PrepareArtifactDownload(PrepareArtifactDownloadRequest) returns (PrepareArtifactDownloadResponse) {}
+  rpc DeleteRollout(DeleteRolloutRequest) returns (DeleteRolloutResponse) {}
+}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: axern
+description: Axern control plane, gateway, tunnel relay, node runtime, and local dependencies.
+type: application
+version: 0.0.1-alpha.1
+appVersion: "0.0.1-alpha.1"

@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package axern.control.run.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1;runv1";
+
+import "axern/control/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+enum RunStatus {
+  RUN_STATUS_UNSPECIFIED = 0;
+  RUN_STATUS_QUEUED = 1;
+  RUN_STATUS_PLACED = 2;
+  RUN_STATUS_STARTING = 3;
+  RUN_STATUS_RUNNING = 4;
+  RUN_STATUS_SUCCEEDED = 5;
+  RUN_STATUS_FAILED = 6;
+  RUN_STATUS_CANCELLED = 7;
+}
+
+message Run {
+  string id = 1;
+  string namespace = 2;
+  string environment_id = 3;
+  string allocation_id = 4;
+  int64 attempt = 5;
+  RunStatus status = 6;
+  axern.control.common.v1.ExecutionConfig config = 7;
+  map<string, string> labels = 8;
+  int64 version = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  int32 exit_code = 12;
+  bool exit_code_known = 13;
+  string message = 14;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 15;
+}
+
+message RunListFilter {
+  string namespace = 1;
+  repeated RunStatus statuses = 2;
+  map<string, string> labels = 3;
+  string cursor = 4;
+  int32 page_size = 5;
+}
+
+message CreateRunRequest {
+  string namespace = 1;
+  string environment_id = 2;
+  axern.control.common.v1.ExecutionConfig config = 3;
+  map<string, string> labels = 4;
+}
+
+message CreateRunResponse {
+  Run run = 1;
+}
+
+message GetRunRequest {
+  string run_id = 1;
+}
+
+message GetRunResponse {
+  Run run = 1;
+}
+
+message ListRunsRequest {
+  RunListFilter filter = 1;
+}
+
+message ListRunsResponse {
+  repeated Run runs = 1;
+  string next_cursor = 2;
+}
+
+message CancelRunRequest {
+  string run_id = 1;
+}
+
+message CancelRunResponse {
+  Run run = 1;
+}
+
+service RunControl {
+  rpc CreateRun(CreateRunRequest) returns (CreateRunResponse) {}
+  rpc GetRun(GetRunRequest) returns (GetRunResponse) {}
+  rpc ListRuns(ListRunsRequest) returns (ListRunsResponse) {}
+  rpc CancelRun(CancelRunRequest) returns (CancelRunResponse) {}
+}

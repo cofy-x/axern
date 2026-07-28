@@ -1,0 +1,523 @@
+//go:build !windows
+
+package config
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+)
+
+// Config contains all configurations for sandbox server.
+type Config struct {
+	// PluginConfig is the config for sandbox plugin.
+	PluginConfig `toml:"plugin" json:"plugin"`
+	// RootDir is the root directory path for managing sandbox service files
+	// (metadata checkpoint etc.)
+	RootDir string `json:"rootDir" toml:"rootDir"`
+	// StoreDir is the root directory path for storing all necessary metadata.
+	StoreDir string `json:"stateDir" toml:"storeDir"`
+}
+
+type PluginConfig struct {
+	NetworkConfig `toml:"network" json:"network"`
+
+	RuntimeConfig `toml:"runtime" json:"runtime"`
+
+	ResourceConfig `toml:"resource" json:"resource"`
+
+	ControlPlaneTarget             string            `toml:"control_plane_target" json:"controlPlaneTarget"`
+	ControlPlaneNodeID             string            `toml:"control_plane_node_id" json:"controlPlaneNodeId"`
+	ControlPlaneNodeTarget         string            `toml:"control_plane_node_target" json:"controlPlaneNodeTarget"`
+	ControlPlaneNodeAuthToken      string            `toml:"control_plane_node_auth_token" json:"controlPlaneNodeAuthToken"`
+	ControlPlaneHeartbeatInterval  string            `toml:"control_plane_heartbeat_interval" json:"controlPlaneHeartbeatInterval"`
+	ControlPlaneNodeState          string            `toml:"control_plane_node_state" json:"controlPlaneNodeState"`
+	ControlPlaneNodeCapabilities   []string          `toml:"control_plane_node_capabilities" json:"controlPlaneNodeCapabilities"`
+	ControlPlaneNodeLabels         map[string]string `toml:"control_plane_node_labels" json:"controlPlaneNodeLabels"`
+	ControlPlaneNodeResourceSource string            `toml:"control_plane_node_resource_source" json:"controlPlaneNodeResourceSource"`
+	ControlPlaneKubernetesNodeName string            `toml:"control_plane_kubernetes_node_name" json:"controlPlaneKubernetesNodeName"`
+	ControlPlaneTLSCACert          string            `toml:"control_plane_tls_ca_cert" json:"controlPlaneTlsCaCert"`
+	ControlPlaneTLSCert            string            `toml:"control_plane_tls_cert" json:"controlPlaneTlsCert"`
+	ControlPlaneTLSKey             string            `toml:"control_plane_tls_key" json:"controlPlaneTlsKey"`
+}
+
+// RuntimeConfig binary path of the runtime
+type RuntimeConfig struct {
+	Runtimes map[string]RuntimeInstanceConfig `toml:"runtimes" json:"runtimes"`
+
+	RuntimeBinary map[string]string `toml:"runtime_binary" json:"runtimeBinary"`
+
+	// IgnoreCgroups tells runsc not to configure OCI cgroups itself.
+	// Generic axnoded manages cgroups through the internal cgroup driver,
+	// which is more portable across Linux container hosts like OrbStack.
+	IgnoreCgroups bool `toml:"ignore_cgroups" json:"ignoreCgroups"`
+
+	// BasicSpec is the basic spec file for different runtime type.
+	BasicSpec map[string]string `toml:"basic_spec" json:"basicSpec"`
+
+	// RuntimeRunnerBinary is the axnoded-owned helper that runs one OCI runtime
+	// invocation and persists its exit state.
+	RuntimeRunnerBinary string `toml:"runtime_runner_binary" json:"runtimeRunnerBinary"`
+
+	// ImageLibDir is the file to store image lib. Read image line by line.
+	ImageLibDir string `toml:"image_lib_dir" json:"imageLibDir"`
+
+	// ImageManagerEnabled controls whether axnoded should use imagemgr for
+	// image-backed rootfs and inventory collection. Defaults to true. When false,
+	// ImageManagerSocket is ignored.
+	ImageManagerEnabled *bool `toml:"image_manager_enabled" json:"imageManagerEnabled"`
+
+	// ImageManagerSocket points to the local imagemgr Unix socket.
+	ImageManagerSocket string `toml:"image_manager_socket" json:"imageManagerSocket"`
+
+	// FilestoreDir specifies a directory for overlay backing files.
+	// The directory must reside on an XFS filesystem with reflink support for
+	// ficlone to work when forking sandboxes. If the directory is not yet
+	// mounted, axnoded will create an XFS image file at
+	// <parent-of-FilestoreDir>/xfs.img and mount it automatically.
+	FilestoreDir string `toml:"filestore_dir" json:"filestoreDir"`
+
+	// FilestoreDirSize specifies the size of the XFS image file created for
+	// FilestoreDir (e.g. "100G", "50G"). Required when FilestoreDir is set
+	// and the mount point does not already exist as an XFS filesystem.
+	FilestoreDirSize string `toml:"filestore_dir_size" json:"filestoreDirSize"`
+
+	// OverlayTmpfsSize specifies the size limit for the overlay tmpfs upper
+	// layer (e.g. "256M", "1G"). When empty, no size limit is applied.
+	OverlayTmpfsSize string `toml:"overlay_tmpfs_size" json:"overlayTmpfsSize"`
+
+	// DNS controls the resolver files axnoded materializes into OCI bundles.
+	// When nameservers is empty, axnoded derives usable resolvers from the
+	// node's resolver configuration.
+	DNS RuntimeDNSConfig `toml:"dns" json:"dns"`
+
+	// VolumeManagerSocket points to the local volumed Unix socket.
+	VolumeManagerSocket string `toml:"volume_manager_socket" json:"volumeManagerSocket"`
+
+	// IdleRuntimeRetentionTTL controls how long temporary idle runtimes and
+	// their rootfs should remain retained after the last container exits.
+	IdleRuntimeRetentionTTL string `toml:"idle_runtime_retention_ttl" json:"idleRuntimeRetentionTtl"`
+
+	// IdleRuntimeRetentionMax limits the number of retained idle runtimes kept
+	// warm at once. When <= 0, idle retention is disabled.
+	IdleRuntimeRetentionMax *int `toml:"idle_runtime_retention_max" json:"idleRuntimeRetentionMax"`
+}
+
+type RuntimeInstanceConfig struct {
+	Binary   string         `toml:"binary" json:"binary"`
+	BaseSpec string         `toml:"base_spec" json:"baseSpec"`
+	Options  RuntimeOptions `toml:"options" json:"options"`
+}
+
+type RuntimeOptions struct {
+	IgnoreCgroups *bool `toml:"ignore_cgroups" json:"ignoreCgroups"`
+	AllowSUID     *bool `toml:"allow_suid" json:"allowSuid"`
+}
+
+type RuntimeDNSConfig struct {
+	Nameservers   []string `toml:"nameservers" json:"nameservers"`
+	SearchDomains []string `toml:"search_domains" json:"searchDomains"`
+	Options       []string `toml:"options" json:"options"`
+}
+
+func (o RuntimeOptions) IgnoreCgroupsEnabled(defaultValue bool) bool {
+	if o.IgnoreCgroups == nil {
+		return defaultValue
+	}
+	return *o.IgnoreCgroups
+}
+
+func (o RuntimeOptions) AllowSUIDEnabled(defaultValue bool) bool {
+	if o.AllowSUID == nil {
+		return defaultValue
+	}
+	return *o.AllowSUID
+}
+
+func (c RuntimeConfig) NormalizedRuntimeConfigs() map[string]RuntimeInstanceConfig {
+	out := make(map[string]RuntimeInstanceConfig)
+
+	for name, runtimeCfg := range c.Runtimes {
+		out[name] = runtimeCfg
+	}
+
+	for name, binary := range c.RuntimeBinary {
+		runtimeCfg := out[name]
+		if runtimeCfg.Binary == "" {
+			runtimeCfg.Binary = binary
+		}
+		out[name] = runtimeCfg
+	}
+
+	for name, baseSpec := range c.BasicSpec {
+		runtimeCfg := out[name]
+		if runtimeCfg.BaseSpec == "" {
+			runtimeCfg.BaseSpec = baseSpec
+		}
+		out[name] = runtimeCfg
+	}
+
+	for name, runtimeCfg := range out {
+		// Legacy ignore_cgroups only existed as a runsc-focused global knob.
+		if name == RuntimeNameRunsc && runtimeCfg.Options.IgnoreCgroups == nil {
+			ignoreCgroups := c.IgnoreCgroups
+			runtimeCfg.Options.IgnoreCgroups = &ignoreCgroups
+		}
+		out[name] = runtimeCfg
+	}
+
+	return out
+}
+
+func (c RuntimeConfig) NormalizedRuntimeConfig(name string) (RuntimeInstanceConfig, bool) {
+	runtimes := c.NormalizedRuntimeConfigs()
+	runtimeCfg, ok := runtimes[name]
+	return runtimeCfg, ok
+}
+
+func (c RuntimeConfig) ImageManagerEnabledValue() bool {
+	return c.ImageManagerEnabled == nil || *c.ImageManagerEnabled
+}
+
+func (c RuntimeConfig) ImageManagerSocketPath() string {
+	if !c.ImageManagerEnabledValue() {
+		return ""
+	}
+	sockPath := strings.TrimSpace(c.ImageManagerSocket)
+	if sockPath == "" {
+		return DefaultImageManagerSocket
+	}
+	return sockPath
+}
+
+func (c RuntimeConfig) RuntimeRunnerBinaryPath() string {
+	value := strings.TrimSpace(c.RuntimeRunnerBinary)
+	if value == "" {
+		return DefaultRuntimeRunnerBinary
+	}
+	return value
+}
+
+func (c RuntimeConfig) IdleRuntimeRetentionTTLDuration() (time.Duration, error) {
+	value := strings.TrimSpace(c.IdleRuntimeRetentionTTL)
+	if value == "" {
+		value = DefaultIdleRuntimeRetentionTTL
+	}
+	return time.ParseDuration(value)
+}
+
+func (c RuntimeConfig) VolumeManagerSocketPath() string {
+	value := strings.TrimSpace(c.VolumeManagerSocket)
+	if value == "" {
+		return DefaultVolumeManagerSocket
+	}
+	return value
+}
+
+func (c RuntimeConfig) IdleRuntimeRetentionMaxValue() int {
+	if c.IdleRuntimeRetentionMax == nil {
+		return DefaultIdleRuntimeRetentionMax
+	}
+	return *c.IdleRuntimeRetentionMax
+}
+
+func (c PluginConfig) ControlPlaneTargetValue() string {
+	return strings.TrimSpace(c.ControlPlaneTarget)
+}
+
+func (c PluginConfig) ControlPlaneNodeIDValue(defaultValue string) string {
+	value := strings.TrimSpace(c.ControlPlaneNodeID)
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+func (c PluginConfig) ControlPlaneNodeTargetValue() string {
+	return strings.TrimSpace(c.ControlPlaneNodeTarget)
+}
+
+func (c PluginConfig) ControlPlaneNodeAuthTokenValue() string {
+	return strings.TrimSpace(c.ControlPlaneNodeAuthToken)
+}
+
+func (c PluginConfig) ControlPlaneTLSCACertValue() string {
+	return strings.TrimSpace(c.ControlPlaneTLSCACert)
+}
+
+func (c PluginConfig) ControlPlaneTLSCertValue() string {
+	return strings.TrimSpace(c.ControlPlaneTLSCert)
+}
+
+func (c PluginConfig) ControlPlaneTLSKeyValue() string {
+	return strings.TrimSpace(c.ControlPlaneTLSKey)
+}
+
+func (c PluginConfig) ControlPlaneHeartbeatIntervalDuration() (time.Duration, error) {
+	value := strings.TrimSpace(c.ControlPlaneHeartbeatInterval)
+	if value == "" {
+		value = DefaultControlPlaneHeartbeatInterval
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, err
+	}
+	if d <= 0 {
+		return time.ParseDuration(DefaultControlPlaneHeartbeatInterval)
+	}
+	return d, nil
+}
+
+func (c PluginConfig) ControlPlaneNodeStateValue() string {
+	switch strings.ToLower(strings.TrimSpace(c.ControlPlaneNodeState)) {
+	case "", DefaultControlPlaneNodeState:
+		return DefaultControlPlaneNodeState
+	case "draining":
+		return "draining"
+	case "disabled":
+		return "disabled"
+	default:
+		return DefaultControlPlaneNodeState
+	}
+}
+
+func (c PluginConfig) ControlPlaneNodeCapabilitiesValue() []string {
+	if len(c.ControlPlaneNodeCapabilities) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(c.ControlPlaneNodeCapabilities))
+	out := make([]string, 0, len(c.ControlPlaneNodeCapabilities))
+	for _, capability := range c.ControlPlaneNodeCapabilities {
+		capability = strings.TrimSpace(capability)
+		if capability == "" {
+			continue
+		}
+		if _, ok := seen[capability]; ok {
+			continue
+		}
+		seen[capability] = struct{}{}
+		out = append(out, capability)
+	}
+	sort.Strings(out)
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func (c PluginConfig) ControlPlaneNodeLabelsValue() map[string]string {
+	if len(c.ControlPlaneNodeLabels) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(c.ControlPlaneNodeLabels))
+	for key, value := range c.ControlPlaneNodeLabels {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		out[key] = strings.TrimSpace(value)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func (c PluginConfig) ControlPlaneNodeResourceSourceValue() (string, error) {
+	value := strings.ToLower(strings.TrimSpace(c.ControlPlaneNodeResourceSource))
+	switch value {
+	case "", ControlPlaneNodeResourceSourceHost:
+		return ControlPlaneNodeResourceSourceHost, nil
+	case ControlPlaneNodeResourceSourceKubernetes:
+		return ControlPlaneNodeResourceSourceKubernetes, nil
+	default:
+		return "", fmt.Errorf("control_plane_node_resource_source must be either %q or %q, got %q",
+			ControlPlaneNodeResourceSourceHost,
+			ControlPlaneNodeResourceSourceKubernetes,
+			c.ControlPlaneNodeResourceSource,
+		)
+	}
+}
+
+func (c PluginConfig) ControlPlaneKubernetesNodeNameValue(defaultValue string) string {
+	value := strings.TrimSpace(c.ControlPlaneKubernetesNodeName)
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+func (c ResourceConfig) ResourcePoolReconcileIntervalDuration() (time.Duration, error) {
+	value := strings.TrimSpace(c.ResourcePoolReconcileInterval)
+	if value == "" {
+		value = DefaultResourcePoolReconcileInterval
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, err
+	}
+	if d <= 0 {
+		return time.ParseDuration(DefaultResourcePoolReconcileInterval)
+	}
+	return d, nil
+}
+
+func (c BPFNetConfig) SNATGCIntervalDuration() (time.Duration, error) {
+	return parsePositiveDurationWithDefault(c.SNATGCInterval, DefaultBPFNetSNATGCInterval)
+}
+
+func (c BPFNetConfig) SNATTCPIdleTimeoutDuration() (time.Duration, error) {
+	return parsePositiveDurationWithDefault(c.SNATTCPIdleTimeout, DefaultBPFNetSNATTCPIdleTimeout)
+}
+
+func (c BPFNetConfig) SNATTCPClosingTimeoutDuration() (time.Duration, error) {
+	return parsePositiveDurationWithDefault(c.SNATTCPClosingTimeout, DefaultBPFNetSNATTCPClosingTimeout)
+}
+
+func (c BPFNetConfig) SNATDatagramIdleTimeoutDuration() (time.Duration, error) {
+	return parsePositiveDurationWithDefault(c.SNATDatagramIdleTimeout, DefaultBPFNetSNATDatagramIdleTimeout)
+}
+
+func parsePositiveDurationWithDefault(value, defaultValue string) (time.Duration, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		value = defaultValue
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, err
+	}
+	if d <= 0 {
+		return time.ParseDuration(defaultValue)
+	}
+	return d, nil
+}
+
+type ResourceConfig struct {
+	MaxInstanceNum int `toml:"max_instance_num" json:"maxInstanceNum"`
+
+	// CgroupRootName is the path of cgroup. Default is sandbox.
+	CgroupRootName string `toml:"cgroup_root_name" json:"cgroupRootName"`
+	// CgroupCacheSize is the size of cgroup cache. Default is same as max_instance_num.
+	CgroupCacheSize int `toml:"cgroup_cache_size" json:"cgroupCacheSize"`
+	// InterfaceCacheSize is the size of interface cache. Default is same as max_instance_num.
+	InterfaceCacheSize int `toml:"interface_cache_size" json:"interfaceCacheSize"`
+	// ResourcePoolReconcileInterval controls how frequently axnoded
+	// reconciles the cgroup/interface warm pools toward their idle target.
+	ResourcePoolReconcileInterval string `toml:"resource_pool_reconcile_interval" json:"resourcePoolReconcileInterval"`
+	ResourceAdvanceConfig
+}
+
+// ResourceAdvanceConfig will override the resource config
+type ResourceAdvanceConfig struct {
+	// RecyclePolicy is the policy of recycle cgroup. Default is reuse.
+	RecyclePolicy string `toml:"recycle_policy" json:"recyclePolicy"`
+}
+
+const (
+	RecyclePolicyReuse   = "reuse"
+	RecyclePolicyDestroy = "destroy"
+)
+
+// NetworkConfig contains network-related configuration for axnoded.
+type NetworkConfig struct {
+	IPRange string `toml:"ip_range" json:"ipRange"`
+
+	// NatBackend selects the NAT implementation used for SNAT/DNAT rules.
+	// The generic build supports "iptables" and "ebpf".
+	NatBackend string `toml:"nat_backend" json:"natBackend"`
+
+	BPFNet BPFNetConfig `toml:"ebpf" json:"ebpf"`
+}
+
+type BPFNetConfig struct {
+	UplinkDevices []string `toml:"uplink_devices" json:"uplinkDevices"`
+
+	PinPath string `toml:"pin_path" json:"pinPath"`
+
+	MapSize int `toml:"map_size" json:"mapSize"`
+
+	SNATMapSize int `toml:"snat_map_size" json:"snatMapSize"`
+
+	SNATGCInterval string `toml:"snat_gc_interval" json:"snatGcInterval"`
+
+	SNATTCPIdleTimeout string `toml:"snat_tcp_idle_timeout" json:"snatTcpIdleTimeout"`
+
+	SNATTCPClosingTimeout string `toml:"snat_tcp_closing_timeout" json:"snatTcpClosingTimeout"`
+
+	SNATDatagramIdleTimeout string `toml:"snat_datagram_idle_timeout" json:"snatDatagramIdleTimeout"`
+
+	LocalOutCompat bool `toml:"local_out_compat" json:"localOutCompat"`
+
+	NativeRoutingCIDRs []string `toml:"native_routing_cidrs" json:"nativeRoutingCidrs"`
+
+	// IptablesFallback allows axnoded to fall back to the legacy full
+	// iptables DNAT path when tc attach or feature probing fails.
+	IptablesFallback bool `toml:"iptables_fallback" json:"iptablesFallback"`
+}
+
+// DefaultConfig returns default configurations of cri plugin.
+func DefaultConfig() Config {
+	defaultIdleRuntimeRetentionMax := DefaultIdleRuntimeRetentionMax
+	return Config{
+		PluginConfig: PluginConfig{
+			NetworkConfig: NetworkConfig{
+				NatBackend: "iptables",
+				IPRange:    DefaultIPRange,
+				BPFNet: BPFNetConfig{
+					PinPath:                 DefaultBPFNetPinPath,
+					MapSize:                 DefaultBPFNetMapSize,
+					SNATMapSize:             DefaultBPFNetSNATMapSize,
+					SNATGCInterval:          DefaultBPFNetSNATGCInterval,
+					SNATTCPIdleTimeout:      DefaultBPFNetSNATTCPIdleTimeout,
+					SNATTCPClosingTimeout:   DefaultBPFNetSNATTCPClosingTimeout,
+					SNATDatagramIdleTimeout: DefaultBPFNetSNATDatagramIdleTimeout,
+					LocalOutCompat:          true,
+					IptablesFallback:        true,
+				},
+			},
+			RuntimeConfig: RuntimeConfig{
+				Runtimes: map[string]RuntimeInstanceConfig{
+					RuntimeNameRunsc: {
+						Binary:   DefaultRunscBinary,
+						BaseSpec: "/etc/axnoded/runsc-config.json",
+						Options: RuntimeOptions{
+							IgnoreCgroups: boolPtr(true),
+							AllowSUID:     boolPtr(true),
+						},
+					},
+				},
+				RuntimeBinary: map[string]string{
+					RuntimeNameRunsc: DefaultRunscBinary,
+				},
+				IgnoreCgroups: true,
+				BasicSpec: map[string]string{
+					RuntimeNameRunsc: "/etc/axnoded/runsc-config.json",
+				},
+				ImageLibDir:             DefaultImageLibDir,
+				RuntimeRunnerBinary:     DefaultRuntimeRunnerBinary,
+				ImageManagerEnabled:     boolPtr(true),
+				ImageManagerSocket:      DefaultImageManagerSocket,
+				VolumeManagerSocket:     DefaultVolumeManagerSocket,
+				IdleRuntimeRetentionTTL: DefaultIdleRuntimeRetentionTTL,
+				IdleRuntimeRetentionMax: &defaultIdleRuntimeRetentionMax,
+			},
+			ResourceConfig: ResourceConfig{
+				MaxInstanceNum:                DefaultMaxContainerNum,
+				CgroupRootName:                DefaultCgroupRoot,
+				CgroupCacheSize:               DefaultMaxContainerNum,
+				InterfaceCacheSize:            DefaultMaxContainerNum,
+				ResourcePoolReconcileInterval: DefaultResourcePoolReconcileInterval,
+			},
+			ControlPlaneHeartbeatInterval: DefaultControlPlaneHeartbeatInterval,
+			ControlPlaneNodeState:         DefaultControlPlaneNodeState,
+		},
+		RootDir:  DefaultContainerRootDir,
+		StoreDir: DefaultStoreDir,
+	}
+}
+
+func boolPtr(v bool) *bool {
+	return &v
+}

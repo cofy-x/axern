@@ -1,0 +1,162 @@
+# Resource Model
+
+Axern separates workload resource intent into three layers:
+
+- request: scheduler and admission reservation
+- limit: runtime hard enforcement
+- quota: namespace-level admission ceiling
+
+This mirrors the common container platform model while keeping Axern's runtime
+boundary explicit: the control plane admits and reserves requests; `axnoded`
+enforces limits through the selected `runsc` or `runc` runtime; namespace quota
+caps admitted requests.
+
+## Requests and Limits
+
+`request` is the amount of CPU or memory a workload asks Axern to reserve for
+placement and admission. If a request is omitted, the control plane applies the
+default request before placement:
+
+- CPU request: `500m`
+- memory request: `4GiB`
+
+`limit` is the runtime hard cap. Limits are converted into node-local Linux
+cgroup settings by `axnoded`. A workload may set requests without limits. In
+that case Axern still reserves capacity in the control plane, but the runtime
+does not receive a hard cap for the omitted limit.
+
+The invariant is:
+
+```text
+0 < request <= limit when a matching limit is set
+```
+
+CPU values accept cores or milli CPU:
+
+```bash
+--request-cpu 1
+--request-cpu 500m
+```
+
+Memory values accept byte units:
+
+```bash
+--request-memory 512MiB
+--request-memory 1GiB
+--limit-memory 2GiB
+```
+
+Example:
+
+```bash
+axern run create \
+  --template-id python311 \
+  --request-cpu 500m \
+  --request-memory 512MiB \
+  --limit-memory 1GiB \
+  --argv python --argv -c --argv 'print("hello")'
+```
+
+Runs and services use the same resource flags. Mutable service resource
+settings can be changed with `axern svc update`; omitted resource flags are
+unchanged.
+
+## Node Admission
+
+Node admission uses workload requests, not runtime limits. The control plane
+checks candidate nodes twice:
+
+1. placement prefilter selects nodes whose observed resources appear to fit
+2. the Postgres reservation transaction locks the selected node and rechecks
+   active reservations before committing
+
+Both checks use the same resource admission policy.
+
+CPU can be overcommitted globally by `controld` with
+`-resource-cpu-overcommit-ratio`. The effective CPU allocatable value is:
+
+```text
+floor(node_allocatable_cpu_milli * resource_cpu_overcommit_ratio)
+```
+
+Memory is not overcommitted. Effective memory allocatable is always the node's
+reported memory allocatable value.
+
+Overcommit changes control-plane admission capacity only. It does not change
+container cgroup limits or runtime behavior.
+
+## Namespace Quota
+
+Namespace quota is a control-plane admission ceiling over active workload
+requests in a namespace. It limits how much CPU and memory a namespace can
+reserve, independent of which node eventually runs each workload.
+
+Omitted quota fields are unlimited. `quota unset` returns the namespace policy
+to unlimited CPU and memory. Existing admitted workloads keep running if quota
+is lowered below current usage; future admissions are blocked until usage falls
+back under the new limit.
+
+Typical namespace quota flow:
+
+```bash
+axern namespace create team-a
+axern quota set --namespace team-a --cpu 4 --memory 32GiB
+axern quota get --namespace team-a
+axern quota unset --namespace team-a
+axern namespace delete team-a
+```
+
+Quota usage is based on active workload reservations. A completed, cancelled, or
+released workload no longer counts against namespace quota.
+
+Quota and node admission are separate gates:
+
+- quota answers whether the namespace may reserve more requested resources
+- node admission answers whether an eligible node has remaining effective
+  request capacity
+- CPU overcommit changes node admission capacity only; it does not increase
+  namespace quota
+- memory is strict for both namespace quota and node admission
+
+Namespace deletion is lifecycle cleanup, not quota reset. It rejects live
+operational state such as active reservations, non-terminal runs, live
+environments, live services, or secrets. Historical terminal workload and
+Function invocation metadata can keep their namespace string for auditability
+without blocking deletion.
+
+## Diagnostics
+
+Resource admission failures are surfaced in CLI output, JSON output, and the
+local dashboard with stable diagnostic labels.
+
+Plain `no eligible node` failures that do not contain capacity rejection details
+are node-selection failures, not resource admission failures. Examples include
+unsupported runtime classes, stale node state, or missing node capabilities.
+
+For machine-readable troubleshooting, use JSON output:
+
+```bash
+axern svc get <service_id> -o json
+axern run get <run_id> -o json
+```
+
+Resource-related service failures expose `diagnostic_code` as the stable machine
+field and `admission_summary` as the compact operator-facing label:
+
+| Summary | Meaning |
+| --- | --- |
+| `namespace quota exceeded` | Namespace quota blocked the requested reservation. |
+| `node CPU capacity exhausted` | Otherwise eligible nodes lack effective CPU request capacity. |
+| `node memory capacity exhausted` | Otherwise eligible nodes lack memory request capacity. |
+| `node CPU and memory capacity exhausted` | Otherwise eligible nodes lack both CPU and memory request capacity. |
+| `node reservation capacity exhausted` | Placement found candidates, but transaction-time reservation recheck found no remaining capacity. |
+
+Run creation returns admission failures directly. Service creation and update
+accept desired state first; later replica admission failures surface through
+service status, events, dashboard DTOs, and JSON output.
+
+## Related Implementation Docs
+
+- [Control-plane resource admission](../../control/controld/docs/resource-admission.md)
+- [Control-plane namespace quota](../../control/controld/docs/resource-quota.md)
+- [Node runtime resource handling](../../runtime/axnoded/docs/resource.md)

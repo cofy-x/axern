@@ -1,0 +1,283 @@
+ARG GO_IMAGE=golang:1.25.12
+ARG RUST_IMAGE=rust:1.89.0
+ARG BASE_IMAGE=ubuntu:24.04
+FROM ${GO_IMAGE} AS golang-dist
+FROM ${RUST_IMAGE} AS rust-dist
+
+FROM ${BASE_IMAGE} AS node-runtime-base-build
+
+ARG APT_MIRROR_SOURCE=archive
+ARG CARGO_REGISTRY_SOURCE=crates-io
+ARG GOPROXY=https://proxy.golang.org,direct
+ARG GOSUMDB=sum.golang.org
+ARG RUNSC_SOURCE=remote
+ARG RUNSC_CACHE_ARCH=aarch64
+ARG MC_SOURCE=remote
+ARG MC_CACHE_ARCH=arm64
+ENV DEBIAN_FRONTEND=noninteractive
+ENV CARGO_HOME=/usr/local/cargo
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV PATH=/usr/local/go/bin:/usr/local/cargo/bin:${PATH}
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
+ENV CARGO_NET_RETRY=10
+ENV GOPROXY=${GOPROXY}
+ENV GOSUMDB=${GOSUMDB}
+ENV GOMODCACHE=/go/pkg/mod
+ENV GOCACHE=/root/.cache/go-build
+
+RUN APT_SOURCE="${APT_MIRROR_SOURCE}"; \
+    if [ -f /etc/apt/sources.list ]; then cp /etc/apt/sources.list /etc/apt/sources.list.backup; fi && \
+    if [ "${APT_SOURCE}" = "aliyun" ]; then ARCHIVE_MIRROR="mirrors.aliyun.com"; PORTS_MIRROR="mirrors.aliyun.com"; SECURITY_MIRROR="mirrors.aliyun.com"; \
+    elif [ "${APT_SOURCE}" = "ustc" ]; then ARCHIVE_MIRROR="mirrors.ustc.edu.cn"; PORTS_MIRROR="mirrors.ustc.edu.cn"; SECURITY_MIRROR="mirrors.ustc.edu.cn"; \
+    elif [ "${APT_SOURCE}" = "tuna" ]; then ARCHIVE_MIRROR="mirrors.tuna.tsinghua.edu.cn"; PORTS_MIRROR="mirrors.tuna.tsinghua.edu.cn"; SECURITY_MIRROR="mirrors.tuna.tsinghua.edu.cn"; \
+    elif [ "${APT_SOURCE}" = "archive" ]; then ARCHIVE_MIRROR="archive.ubuntu.com"; PORTS_MIRROR="ports.ubuntu.com"; SECURITY_MIRROR="security.ubuntu.com"; \
+    else echo "unsupported APT mirror source: ${APT_SOURCE}" >&2; exit 1; fi && \
+    if [ -f /etc/apt/sources.list ]; then \
+      sed -i "s|archive.ubuntu.com|$ARCHIVE_MIRROR|g" /etc/apt/sources.list && \
+      sed -i "s|security.ubuntu.com|$SECURITY_MIRROR|g" /etc/apt/sources.list && \
+      sed -i "s|ports.ubuntu.com|$PORTS_MIRROR|g" /etc/apt/sources.list; \
+    fi && \
+    if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+      sed -i "s|http://archive.ubuntu.com/ubuntu/|http://$ARCHIVE_MIRROR/ubuntu/|g" /etc/apt/sources.list.d/ubuntu.sources && \
+      sed -i "s|http://security.ubuntu.com/ubuntu/|http://$SECURITY_MIRROR/ubuntu/|g" /etc/apt/sources.list.d/ubuntu.sources && \
+      sed -i "s|http://ports.ubuntu.com/ubuntu-ports/|http://$PORTS_MIRROR/ubuntu-ports/|g" /etc/apt/sources.list.d/ubuntu.sources; \
+    fi
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y \
+    bash \
+    busybox-static \
+    ca-certificates \
+    curl \
+    e2fsprogs \
+    fuse3 \
+    git \
+    iproute2 \
+    iptables \
+    jq \
+    kmod \
+    linux-tools-common \
+    linux-tools-generic \
+    procps \
+    runc \
+    util-linux \
+    xfsprogs \
+    && rm -rf /var/lib/apt/lists/partial
+
+RUN mkdir -p /usr/local/cargo && \
+    printf '[net]\nretry = %s\ngit-fetch-with-cli = true\n' "${CARGO_NET_RETRY}" > /usr/local/cargo/config.toml && \
+    git config --global http.lowSpeedLimit 1024 && \
+    git config --global http.lowSpeedTime 60
+
+COPY --from=golang-dist /usr/local/go /usr/local/go
+COPY --from=rust-dist /usr/local/cargo /usr/local/cargo
+COPY --from=rust-dist /usr/local/rustup /usr/local/rustup
+
+RUN go version
+RUN cargo --version
+
+COPY runtime/axnoded/.cache/gvisor/ /opt/gvisor-cache/
+COPY runtime/axnoded/.cache/minio/ /opt/minio-cache/
+
+RUN set -eux; \
+    ARCH="$(dpkg --print-architecture)"; \
+    case "$ARCH" in \
+      amd64) GV_ARCH="x86_64" ;; \
+      arm64) GV_ARCH="aarch64" ;; \
+      *) echo "unsupported arch: $ARCH" >&2; exit 1 ;; \
+    esac; \
+    if [ "${RUNSC_SOURCE}" = "local" ]; then \
+      cp "/opt/gvisor-cache/${RUNSC_CACHE_ARCH}/runsc" /tmp/runsc; \
+      cp "/opt/gvisor-cache/${RUNSC_CACHE_ARCH}/runsc.sha512" /tmp/runsc.sha512; \
+    else \
+      URL="https://storage.googleapis.com/gvisor/releases/release/latest/${GV_ARCH}"; \
+      curl --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 300 -fsSLo /tmp/runsc "${URL}/runsc"; \
+      curl --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 300 -fsSLo /tmp/runsc.sha512 "${URL}/runsc.sha512"; \
+    fi; \
+    (cd /tmp && sha512sum -c runsc.sha512); \
+    install -m 0755 /tmp/runsc /usr/local/bin/runsc; \
+    rm -f /tmp/runsc /tmp/runsc.sha512
+
+RUN set -eux; \
+    ARCH="$(dpkg --print-architecture)"; \
+    case "$ARCH" in \
+      amd64) MC_ARCH="amd64" ;; \
+      arm64) MC_ARCH="arm64" ;; \
+      *) echo "unsupported arch: $ARCH" >&2; exit 1 ;; \
+    esac; \
+    if [ "${MC_SOURCE}" = "local" ]; then \
+      cp "/opt/minio-cache/${MC_CACHE_ARCH}/mc" /tmp/mc; \
+    else \
+      curl --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 300 -fsSLo /tmp/mc "https://dl.min.io/client/mc/release/linux-${MC_ARCH}/mc"; \
+    fi; \
+    install -m 0755 /tmp/mc /usr/local/bin/mc; \
+    rm -f /tmp/mc
+
+FROM node-runtime-base-build AS axnoded-builder
+WORKDIR /workspace
+
+COPY runtime/axnoded/go.mod runtime/axnoded/go.sum /workspace/runtime/axnoded/
+COPY runtime/tunneld/go.mod runtime/tunneld/go.sum /workspace/runtime/tunneld/
+COPY runtime/volumed/go.mod runtime/volumed/go.sum /workspace/runtime/volumed/
+COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
+COPY lib/go/clientconfig/go.mod /workspace/lib/go/clientconfig/go.mod
+COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
+COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
+COPY lib/go/llmproxy/go.mod /workspace/lib/go/llmproxy/go.mod
+COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
+COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
+RUN cat > /workspace/go.work <<'EOF'
+go 1.25.12
+
+use (
+	./lib/go/clientconfig
+	./lib/go/grpcclient
+	./lib/go/imageref
+	./lib/go/llmproxy
+	./lib/go/observability
+	./network/bpfnet
+	./runtime/axnoded
+	./runtime/tunneld
+	./runtime/volumed
+	./sdk/go
+)
+EOF
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    cd /workspace/runtime/axnoded && \
+    GOTOOLCHAIN=local GOFLAGS= go mod download
+
+COPY runtime/axnoded/ /workspace/runtime/axnoded/
+COPY runtime/tunneld/ /workspace/runtime/tunneld/
+COPY runtime/volumed/ /workspace/runtime/volumed/
+COPY network/bpfnet/ /workspace/network/bpfnet/
+COPY lib/go/ /workspace/lib/go/
+COPY sdk/go/ /workspace/sdk/go/
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    mkdir -p /out && \
+    cd /workspace/runtime/axnoded && \
+    GOTOOLCHAIN=local GOFLAGS= go build -o /out/axnoded ./cmd/axnoded && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axern-sandboxd ./cmd/axern-sandboxd && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axnoded-runtime-runner ./cmd/axnoded-runtime-runner && \
+    GOTOOLCHAIN=local GOFLAGS= go build -o /out/axctl ./axctl && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egress-probe ./cmd/egress-probe && \
+    cd /workspace/runtime/tunneld && \
+    GOTOOLCHAIN=local GOFLAGS= go build -o /out/node-tunneld ./cmd/node-tunneld && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/tunnel-agent ./cmd/tunnel-agent && \
+    cd /workspace/runtime/volumed && \
+    GOTOOLCHAIN=local GOFLAGS= go build -o /out/volumed ./cmd/volumed && \
+    cd /workspace/network/bpfnet && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/bpfnetctl ./cmd/bpfnetctl
+
+FROM node-runtime-base-build AS imagemgr-builder
+WORKDIR /workspace/runtime/imagemgr
+
+COPY runtime/imagemgr/go.mod runtime/imagemgr/go.sum ./
+COPY lib/go/clientconfig/go.mod /workspace/lib/go/clientconfig/go.mod
+COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
+COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
+COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    GOTOOLCHAIN=local GOFLAGS= go mod download
+
+COPY runtime/imagemgr/ /workspace/runtime/imagemgr/
+COPY lib/go/ /workspace/lib/go/
+COPY sdk/go/ /workspace/sdk/go/
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    mkdir -p /out && \
+    GOTOOLCHAIN=local GOFLAGS= go build -o /out/imagemgr ./cmd/imagemgr
+
+FROM node-runtime-base-build AS imagefsd-build-base
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    libssl-dev \
+    pkg-config \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/partial
+
+FROM imagefsd-build-base AS imagefsd-builder
+WORKDIR /workspace
+
+COPY Cargo.toml Cargo.lock /workspace/
+COPY runtime/imagefsd/ /workspace/runtime/imagefsd/
+RUN mkdir -p /workspace/runtime/imagefsd/.cargo && \
+    case "${CARGO_REGISTRY_SOURCE}" in \
+      aliyun) \
+        printf '%s\n' \
+          '[net]' \
+          'git-fetch-with-cli = true' \
+          '' \
+          '[source.crates-io]' \
+          'registry = "https://github.com/rust-lang/crates.io-index"' \
+          "replace-with = 'aliyun'" \
+          '' \
+          '[source.aliyun]' \
+          'registry = "sparse+https://mirrors.aliyun.com/crates.io-index/"' \
+          > /workspace/runtime/imagefsd/.cargo/config.toml \
+        ;; \
+      ustc) \
+        printf '%s\n' \
+          '[net]' \
+          'git-fetch-with-cli = true' \
+          '' \
+          '[source.crates-io]' \
+          'registry = "https://github.com/rust-lang/crates.io-index"' \
+          "replace-with = 'ustc'" \
+          '' \
+          '[source.ustc]' \
+          'registry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"' \
+          > /workspace/runtime/imagefsd/.cargo/config.toml \
+        ;; \
+      crates-io) \
+        printf '%s\n' \
+          '[net]' \
+          'git-fetch-with-cli = true' \
+          '' \
+          '[source.crates-io]' \
+          'registry = "sparse+https://index.crates.io/"' \
+          > /workspace/runtime/imagefsd/.cargo/config.toml \
+        ;; \
+      *) \
+        echo "unsupported CARGO_REGISTRY_SOURCE: ${CARGO_REGISTRY_SOURCE}" >&2; \
+        exit 1 \
+        ;; \
+    esac
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    cargo fetch --locked --manifest-path /workspace/runtime/imagefsd/Cargo.toml
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,target=/workspace/target,sharing=locked \
+    mkdir -p /out && \
+    cargo build --release --locked --manifest-path /workspace/runtime/imagefsd/Cargo.toml && \
+    install -m 0755 /workspace/target/release/imagefsd /out/imagefsd
+
+FROM node-runtime-base-build AS node-runtime-base-final
+WORKDIR /workspace
+
+COPY runtime/axnoded/scripts/ /workspace/scripts/
+COPY deploy/images/lib/node-all-in-one-entrypoint.sh /usr/local/bin/node-all-in-one-entrypoint
+RUN find /workspace/scripts -type f -name '*.sh' -exec chmod +x {} +
+RUN chmod +x /usr/local/bin/node-all-in-one-entrypoint
+
+COPY --from=axnoded-builder /out/axnoded /usr/local/bin/axnoded
+COPY --from=axnoded-builder /out/axctl /usr/local/bin/axctl
+COPY --from=axnoded-builder /out/bpfnetctl /usr/local/bin/bpfnetctl
+COPY --from=axnoded-builder /out/axern-sandboxd /usr/local/libexec/axnoded/axern-sandboxd
+COPY --from=axnoded-builder /out/axnoded-runtime-runner /usr/local/libexec/axnoded/axnoded-runtime-runner
+COPY --from=axnoded-builder /out/egress-probe /usr/local/libexec/axnoded/egress-probe
+COPY --from=axnoded-builder /out/node-tunneld /usr/local/bin/node-tunneld
+COPY --from=axnoded-builder /out/tunnel-agent /usr/local/bin/tunnel-agent
+COPY --from=axnoded-builder /out/volumed /usr/local/bin/volumed
+COPY --from=imagemgr-builder /out/imagemgr /usr/local/bin/imagemgr
+COPY --from=imagefsd-builder /out/imagefsd /usr/local/bin/imagefsd
+
+CMD ["/bin/bash"]

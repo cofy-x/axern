@@ -1,0 +1,49 @@
+[package]
+name = "imagefsd"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Read-only Nydus image data plane for Axern"
+repository = "https://github.com/cofy-x/axern"
+homepage = "https://github.com/cofy-x/axern/tree/main/runtime/imagefsd"
+
+[dependencies]
+async-trait = "0.1.89"
+anyhow = "1.0.100"
+blake3 = "1.8.2"
+bytemuck = { version = "1.24", features = ["derive"] }
+clap = { version = "4.5.48", features = ["derive"] }
+daemonize = "0.5.0"
+fuse-backend-rs = "0.14.0"
+heed = "0.22"
+heed-types = "0.21"
+hex = "0.4"
+lazy_static = "1.5.0"
+libc = "0.2"
+num-traits = "0.2.19"
+rand = "0.8.5"
+redis = { version = "0.27", features = ["tokio-comp"] }
+nydus-api = { git = "https://github.com/dragonflyoss/nydus.git", rev = "41415762b478f1f1a28e05ca6f4450c0fafb825c" }
+nydus-rafs = { git = "https://github.com/dragonflyoss/nydus.git", rev = "41415762b478f1f1a28e05ca6f4450c0fafb825c" }
+nydus-storage = { git = "https://github.com/dragonflyoss/nydus.git", rev = "41415762b478f1f1a28e05ca6f4450c0fafb825c", features = ["backend-oss", "backend-registry", "backend-http-proxy", "backend-s3"] }
+nydus-utils = { git = "https://github.com/dragonflyoss/nydus.git", rev = "41415762b478f1f1a28e05ca6f4450c0fafb825c" }
+opentelemetry = { version = "0.24", features = ["metrics"] }
+opentelemetry_sdk = { version = "0.24", features = ["metrics", "rt-tokio"] }
+opentelemetry-otlp = { version = "0.17", features = ["metrics", "grpc-tonic"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+sha2 = "0.10"
+signal = "0.7.0"
+tempfile = "3.23.0"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+tracing-appender = "0.2"
+tokio = { version = "1.47", features = ["rt-multi-thread", "net", "time", "sync", "io-util"] }
+
+
+[features]
+default = []
+redis-integration-tests = []
+
+[dev-dependencies]
+tempfile = "3.23.0"

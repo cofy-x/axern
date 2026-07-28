@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package axern.control.admin.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1";
+
+import "google/protobuf/timestamp.proto";
+
+enum AdminAuditOperation {
+  ADMIN_AUDIT_OPERATION_UNSPECIFIED = 0;
+  ADMIN_AUDIT_OPERATION_FORCE_ALLOCATION_LIFECYCLE_RETRY = 1;
+  ADMIN_AUDIT_OPERATION_FAIL_ALLOCATION_LIFECYCLE_RETRY = 2;
+  ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY = 3;
+  ADMIN_AUDIT_OPERATION_RETRY_STORAGE_BINDING = 4;
+  ADMIN_AUDIT_OPERATION_PURGE_SERVICE = 5;
+  ADMIN_AUDIT_OPERATION_RETIRE_NODE = 6;
+}
+
+enum AdminAuditTargetType {
+  ADMIN_AUDIT_TARGET_TYPE_UNSPECIFIED = 0;
+  ADMIN_AUDIT_TARGET_TYPE_ALLOCATION = 1;
+  ADMIN_AUDIT_TARGET_TYPE_STORAGE_BINDING = 2;
+  ADMIN_AUDIT_TARGET_TYPE_SERVICE = 3;
+  ADMIN_AUDIT_TARGET_TYPE_NODE = 4;
+}
+
+message AdminAuditEvent {
+  string event_id = 1;
+  AdminAuditOperation operation = 2;
+  AdminAuditTargetType target_type = 3;
+  string target_id = 4;
+  string operator_reason = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message AdminAuditEventFilter {
+  AdminAuditOperation operation = 1;
+  AdminAuditTargetType target_type = 2;
+  string target_id = 3;
+}
+
+message ListAdminAuditEventsRequest {
+  AdminAuditEventFilter filter = 1;
+  int32 limit = 2;
+}
+
+message ListAdminAuditEventsResponse {
+  repeated AdminAuditEvent events = 1;
+}
+
+service AdminAudit {
+  rpc ListAdminAuditEvents(ListAdminAuditEventsRequest) returns (ListAdminAuditEventsResponse) {}
+}

@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-all-in-one
+  namespace: axern-local
+spec:
+  selector:
+    matchLabels:
+      app: node-all-in-one
+  template:
+    metadata:
+      labels:
+        app: node-all-in-one
+    spec:
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: node
+          image: axern/local-node-all-in-one:dev
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          envFrom:
+            - configMapRef:
+                name: local-proxy-env
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: AXNODED_SOCKET
+              value: /shared/run/axnoded.sock
+            - name: IMAGEMGR_SOCKET
+              value: /run/imagemgr/imagemgr.sock
+            - name: VOLUMED_SOCKET
+              value: /run/volumed/volumed.sock
+            - name: AXERN_SANDBOXD_BINARY
+              value: /usr/local/libexec/axnoded/axern-sandboxd
+            - name: AXNODED_GRPC_ADDRESS
+              value: 0.0.0.0:24010
+            - name: AXNODED_HTTP_ADDRESS
+              value: 0.0.0.0:23001
+            - name: AXNODED_CONTROL_PLANE_TARGET
+              value: controld.axern-local.svc.cluster.local:24000
+            - name: AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL
+              value: 1s
+            - name: AXNODED_CONTROL_PLANE_TLS_CA_CERT
+              value: /certs/ca.crt
+            - name: AXNODED_CONTROL_PLANE_TLS_CERT
+              value: /certs/node.crt
+            - name: AXNODED_CONTROL_PLANE_TLS_KEY
+              value: /certs/node.key
+            - name: MINIO_ENDPOINT
+              value: minio.axern-local.svc.cluster.local:9000
+            - name: MINIO_ACCESS_KEY
+              value: minioadmin
+            - name: MINIO_SECRET_KEY
+              value: minioadmin
+            - name: MINIO_BUCKET
+              value: axern-local
+          command:
+            - /bin/bash
+            - -lc
+            - |
+              export AXNODED_CONTROL_PLANE_NODE_ID="node-${NODE_NAME}"
+              export AXNODED_CONTROL_PLANE_NODE_TARGET="${POD_IP}:24010"
+              export AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN="node-${NODE_NAME}-local-token"
+              exec /usr/local/bin/node-all-in-one-entrypoint
+          ports:
+            - containerPort: 24010
+            - containerPort: 23001
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 23001
+            initialDelaySeconds: 4
+            periodSeconds: 3
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+            - name: shared-run
+              mountPath: /shared/run
+            - name: axnoded-state
+              mountPath: /var/lib/axnoded
+            - name: imagemgr-state
+              mountPath: /var/lib/imagemgr
+            - name: volumed-state
+              mountPath: /var/lib/volumed
+      volumes:
+        - name: certs
+          secret:
+            secretName: controld-pki
+        - name: shared-run
+          emptyDir: {}
+        - name: axnoded-state
+          hostPath:
+            path: /var/lib/axern/node/axnoded
+            type: DirectoryOrCreate
+        - name: imagemgr-state
+          hostPath:
+            path: /var/lib/axern/node/imagemgr
+            type: DirectoryOrCreate
+        - name: volumed-state
+          hostPath:
+            path: /var/lib/axern/node/volumed
+            type: DirectoryOrCreate

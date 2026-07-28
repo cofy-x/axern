@@ -1,0 +1,13 @@
+{
+  "valid": [
+    {"template": "python311"},
+    {"image": "registry.example.com/team/runtime:v1"},
+    {"environment": "env-1"}
+  ],
+  "invalid": [
+    {},
+    {"template": "python311", "image": "registry.example.com/team/runtime:v1"},
+    {"template": "python311", "environment": "env-1"},
+    {"image": "registry.example.com/team/runtime:v1", "environment": "env-1"}
+  ]
+}

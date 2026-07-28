@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package axern.tunnel.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/tunnel/v1;tunnelv1";
+
+import "axern/control/tunnel/v1/tunnel.proto";
+
+message PeerOpen {
+  string session_id = 1;
+  axern.control.tunnel.v1.TunnelPeerKind peer_kind = 2;
+  string token = 3;
+}
+
+message StreamOpen {
+  uint64 stream_id = 1;
+}
+
+message StreamData {
+  uint64 stream_id = 1;
+  bytes data = 2;
+}
+
+message StreamClose {
+  uint64 stream_id = 1;
+  string error = 2;
+}
+
+message Ping {
+  string id = 1;
+}
+
+message Pong {
+  string id = 1;
+}
+
+message TunnelFrame {
+  oneof payload {
+    PeerOpen peer_open = 1;
+    StreamOpen stream_open = 2;
+    StreamData stream_data = 3;
+    StreamClose stream_close = 4;
+    Ping ping = 5;
+    Pong pong = 6;
+  }
+}
+
+service TunnelRelay {
+  rpc ConnectPeer(stream TunnelFrame) returns (stream TunnelFrame) {}
+}

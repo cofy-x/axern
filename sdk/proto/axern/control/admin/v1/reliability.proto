@@ -1,0 +1,184 @@
+syntax = "proto3";
+
+package axern.control.admin.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1";
+
+import "google/protobuf/timestamp.proto";
+
+enum AdminReliabilityStatus {
+  ADMIN_RELIABILITY_STATUS_UNSPECIFIED = 0;
+  ADMIN_RELIABILITY_STATUS_OK = 1;
+  ADMIN_RELIABILITY_STATUS_DEGRADED = 2;
+}
+
+enum ConsistencyStatus {
+  CONSISTENCY_STATUS_UNSPECIFIED = 0;
+  CONSISTENCY_STATUS_OK = 1;
+  CONSISTENCY_STATUS_INCONSISTENT = 2;
+}
+
+enum ConsistencyIssueSeverity {
+  CONSISTENCY_ISSUE_SEVERITY_UNSPECIFIED = 0;
+  CONSISTENCY_ISSUE_SEVERITY_WARNING = 1;
+  CONSISTENCY_ISSUE_SEVERITY_ERROR = 2;
+}
+
+enum ConsistencyIssueCode {
+  CONSISTENCY_ISSUE_CODE_UNSPECIFIED = 0;
+  CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_MISSING_ALLOCATION = 1;
+  CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_ENDED_ALLOCATION = 2;
+  CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ALLOCATION_MISMATCH = 3;
+  CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_MISSING_ALLOCATION = 4;
+  CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ON_ENDED_ALLOCATION = 5;
+  CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ALLOCATION_NODE_MISMATCH = 6;
+  CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_MISSING_ALLOCATION = 7;
+  CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION = 8;
+  CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ALLOCATION_NODE_MISMATCH = 9;
+  CONSISTENCY_ISSUE_CODE_SERVICE_REFERENCE_MISSING_ALLOCATION = 10;
+  CONSISTENCY_ISSUE_CODE_SERVICE_REFERENCE_ENDED_ALLOCATION = 11;
+  CONSISTENCY_ISSUE_CODE_SERVICE_REFERENCE_OWNER_MISMATCH = 12;
+}
+
+enum ConsistencyRepairOwner {
+  CONSISTENCY_REPAIR_OWNER_UNSPECIFIED = 0;
+  CONSISTENCY_REPAIR_OWNER_WORKLOAD_CONTROLLER = 1;
+  CONSISTENCY_REPAIR_OWNER_NODE_LIFECYCLE = 2;
+  CONSISTENCY_REPAIR_OWNER_TUNNEL_CONTROLLER = 3;
+  CONSISTENCY_REPAIR_OWNER_SERVICE_CONTROLLER = 4;
+  CONSISTENCY_REPAIR_OWNER_ADMIN_OPERATOR_TRIAGE = 5;
+}
+
+enum ConsistencyRepairAction {
+  CONSISTENCY_REPAIR_ACTION_UNSPECIFIED = 0;
+  CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP = 1;
+  CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP_AND_READMIT = 2;
+  CONSISTENCY_REPAIR_ACTION_NODE_LIFECYCLE_RECONCILE = 3;
+  CONSISTENCY_REPAIR_ACTION_TUNNEL_LIFECYCLE_RECONCILE = 4;
+  CONSISTENCY_REPAIR_ACTION_SERVICE_RECONCILE = 5;
+  CONSISTENCY_REPAIR_ACTION_ADMIN_TRIAGE = 6;
+}
+
+enum ConsistencyRepairTargetType {
+  CONSISTENCY_REPAIR_TARGET_TYPE_UNSPECIFIED = 0;
+  CONSISTENCY_REPAIR_TARGET_TYPE_ALLOCATION = 1;
+  CONSISTENCY_REPAIR_TARGET_TYPE_RUN = 2;
+  CONSISTENCY_REPAIR_TARGET_TYPE_SERVICE = 3;
+  CONSISTENCY_REPAIR_TARGET_TYPE_TUNNEL_SESSION = 4;
+}
+
+enum AdminReliabilitySignalCode {
+  ADMIN_RELIABILITY_SIGNAL_CODE_UNSPECIFIED = 0;
+  ADMIN_RELIABILITY_SIGNAL_CODE_CONSISTENCY_ISSUES = 1;
+  ADMIN_RELIABILITY_SIGNAL_CODE_ALLOCATION_LIFECYCLE_RETRIES = 2;
+  ADMIN_RELIABILITY_SIGNAL_CODE_RECONCILE_FAILURES = 3;
+  ADMIN_RELIABILITY_SIGNAL_CODE_STORAGE_BINDINGS = 4;
+  ADMIN_RELIABILITY_SIGNAL_CODE_NODE_VOLUME_MANAGERS = 5;
+  ADMIN_RELIABILITY_SIGNAL_CODE_NODE_FLEET = 6;
+}
+
+message ConsistencyCounts {
+  int64 active_reservations = 1;
+  int64 active_leases = 2;
+  int64 active_tunnels = 3;
+  int64 allocation_lifecycle_retries = 4;
+  int64 issues = 5;
+}
+
+message ConsistencyIssue {
+  ConsistencyIssueCode code = 1;
+  ConsistencyIssueSeverity severity = 2;
+  string allocation_id = 3;
+  string owner_type = 4;
+  string owner_id = 5;
+  string node_id = 6;
+  string status = 7;
+  string detail = 8;
+  ConsistencyRepairOwner repair_owner = 9;
+  ConsistencyRepairAction repair_action = 10;
+  bool automatic_repair = 11;
+  ConsistencyRepairTargetType repair_target_type = 12;
+  string repair_target_id = 13;
+}
+
+message ConsistencySnapshot {
+  ConsistencyStatus status = 1;
+  ConsistencyCounts counts = 2;
+  repeated ConsistencyIssue issues = 3;
+  bool truncated = 4;
+}
+
+message AdminReliabilitySignal {
+  AdminReliabilitySignalCode code = 1;
+  string message = 2;
+}
+
+message AdminReliabilityHealth {
+  AdminReliabilityStatus status = 1;
+  ConsistencySnapshot consistency = 2;
+  int64 allocation_lifecycle_retries = 3;
+  int64 due_allocation_lifecycle_retries = 4;
+  int64 reconcile_unhealthy_components = 5;
+  repeated AdminReliabilitySignal signals = 6;
+  AdminNodeVolumeHealth node_volume_health = 7;
+  AdminStorageBindingHealth storage_binding_health = 8;
+  repeated ReconcileComponentHealth reconcile_components = 9;
+  AdminNodeFleetHealth node_fleet_health = 10;
+}
+
+message ReconcileComponentHealth {
+  string component = 1;
+  bool running = 2;
+  google.protobuf.Timestamp last_started_at = 3;
+  google.protobuf.Timestamp last_success_at = 4;
+  google.protobuf.Timestamp last_error_at = 5;
+  string last_error = 6;
+  int64 consecutive_failures = 7;
+}
+
+message CheckConsistencyRequest {}
+
+message CheckConsistencyResponse {
+  ConsistencySnapshot snapshot = 1;
+}
+
+message GetAdminReliabilityHealthRequest {}
+
+message GetAdminReliabilityHealthResponse {
+  AdminReliabilityHealth health = 1;
+}
+
+message AdminNodeVolumeHealth {
+  int64 unhealthy_nodes = 1;
+  int64 published_volumes = 2;
+  int64 last_reconcile_stale_allocations = 3;
+  int64 last_reconcile_invalid_volumes = 4;
+  string error = 5;
+}
+
+message AdminNodeFleetHealth {
+  int64 active_nodes = 1;
+  int64 ready_nodes = 2;
+  int64 stale_heartbeat_nodes = 3;
+  int64 stale_summary_nodes = 4;
+  int64 not_ready_nodes = 5;
+  bool unavailable = 6;
+  string error = 7;
+}
+
+message AdminStorageBindingHealth {
+  bool unavailable = 1;
+  string error = 2;
+  int64 failed_bindings = 3;
+  int64 releasing_bindings = 4;
+  int64 stuck_releasing_bindings = 5;
+  int64 inconsistent_claims = 6;
+  int64 invalid_bindings = 7;
+  int64 deleting_claims = 8;
+  int64 stuck_deleting_claims = 9;
+}
+
+service AdminReliability {
+  rpc CheckConsistency(CheckConsistencyRequest) returns (CheckConsistencyResponse) {}
+  rpc GetAdminReliabilityHealth(GetAdminReliabilityHealthRequest) returns (GetAdminReliabilityHealthResponse) {}
+}

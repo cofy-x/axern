@@ -1,0 +1,22 @@
+{
+  "type": "oss",
+  "oss": {
+    "scheme": "https",
+    "endpoint": "oss-cn-hangzhou.aliyuncs.com",
+    "bucket_name": "your-bucket-name",
+    "object_prefix": "",
+    "access_key_id": "YOUR_ACCESS_KEY_ID",
+    "access_key_secret": "YOUR_ACCESS_KEY_SECRET",
+    "skip_verify": false,
+    "timeout": 30,
+    "connect_timeout": 5,
+    "retry_limit": 3,
+    "proxy": {
+      "url": "",
+      "ping_url": "",
+      "fallback": true,
+      "check_interval": 5,
+      "check_pause_elapsed": 300
+    }
+  }
+}

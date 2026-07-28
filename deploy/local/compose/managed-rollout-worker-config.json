@@ -1,0 +1,25 @@
+{
+  "current_context": "cluster",
+  "contexts": {
+    "cluster": {
+      "endpoint": "controld:24000",
+      "proxy_mode": "direct",
+      "tls": {
+        "ca_cert": "/certs/ca.crt",
+        "cert": "/certs/client.crt",
+        "key": "/certs/client.key",
+        "server_name": "controld"
+      }
+    },
+    "cluster-execution": {
+      "endpoint": "gatewayd:25000",
+      "proxy_mode": "direct",
+      "tls": {
+        "ca_cert": "/certs/ca.crt",
+        "cert": "/certs/client.crt",
+        "key": "/certs/client.key",
+        "server_name": "gatewayd"
+      }
+    }
+  }
+}

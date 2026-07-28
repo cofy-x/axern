@@ -1,0 +1,10 @@
+{
+  "rpc": [
+    {"code": "NOT_FOUND", "number": 5, "class": "not_found", "retryable": false},
+    {"code": "PERMISSION_DENIED", "number": 7, "class": "permission_denied", "retryable": false},
+    {"code": "UNAUTHENTICATED", "number": 16, "class": "permission_denied", "retryable": false},
+    {"code": "DEADLINE_EXCEEDED", "number": 4, "class": "timeout", "retryable": true},
+    {"code": "CANCELLED", "number": 1, "class": "cancelled", "retryable": false},
+    {"code": "UNAVAILABLE", "number": 14, "class": "unavailable", "retryable": true}
+  ]
+}

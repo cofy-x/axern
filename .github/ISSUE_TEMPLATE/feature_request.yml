@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose a durable Axern capability or simplification
+title: "proposal: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Which user or operator problem should Axern solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: Describe the intended capability, not only an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Ownership and boundaries
+      description: Which component should own state, lifecycle, security, and cleanup?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What simpler designs or existing capabilities did you evaluate?

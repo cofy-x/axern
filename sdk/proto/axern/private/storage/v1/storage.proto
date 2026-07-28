@@ -1,0 +1,280 @@
+syntax = "proto3";
+
+package axern.private.storage.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/storage/v1;privatestoragev1";
+
+import "axern/control/storage/v1/storage_types.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+message WorkloadVolumeMount {
+  string claim_name = 1;
+  string target = 2;
+  bool readonly = 3;
+  repeated string options = 4;
+  axern.control.storage.v1.VolumeReclaimPolicy reclaim_policy = 5;
+}
+
+message VolumeRequirement {
+  string claim_id = 1;
+  string claim_name = 2;
+  axern.control.storage.v1.VolumeAccessMode access_mode = 3;
+  axern.control.storage.v1.VolumeBindingScope binding_scope = 4;
+  axern.control.storage.v1.VolumeConsistencyProfile consistency_profile = 5;
+  axern.control.storage.v1.VolumeTopology topology = 6;
+  axern.control.storage.v1.VolumeRuntimeCompatibility runtime_compatibility = 7;
+  axern.control.storage.v1.VolumeReclaimPolicy reclaim_policy = 8;
+}
+
+message ResolvedNodeVolume {
+  string claim_id = 1;
+  string binding_id = 2;
+  string volume_id = 3;
+  string backend_handle = 4;
+  axern.control.storage.v1.VolumeBackend backend = 5;
+  axern.control.storage.v1.VolumeAccessMode access_mode = 6;
+  axern.control.storage.v1.VolumeTopology topology = 7;
+  string target = 8;
+  bool readonly = 9;
+  repeated string options = 10;
+  map<string, string> parameters = 11;
+  axern.control.storage.v1.VolumeConsistencyProfile consistency_profile = 12;
+  axern.control.storage.v1.VolumeRuntimeCompatibility runtime_compatibility = 13;
+}
+
+message PublishedNodeVolume {
+  string claim_id = 1;
+  string binding_id = 2;
+  axern.control.storage.v1.VolumeBackend backend = 3;
+  string host_path = 4;
+  string target = 5;
+  bool readonly = 6;
+  repeated string options = 7;
+}
+
+message VolumeBinding {
+  string binding_id = 1;
+  string claim_id = 2;
+  string namespace = 3;
+  string claim_name = 4;
+  string workload_id = 5;
+  string workload_type = 6;
+  string allocation_id = 7;
+  string node_id = 8;
+  axern.control.storage.v1.VolumeStatus status = 9;
+  ResolvedNodeVolume resolved_volume = 10;
+  PublishedNodeVolume published_volume = 11;
+  string message = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+  google.protobuf.Timestamp published_at = 15;
+  google.protobuf.Timestamp released_at = 16;
+}
+
+message ResolveVolumeRequirementsRequest {
+  string namespace = 1;
+  string workload_id = 2;
+  string workload_type = 3;
+  repeated WorkloadVolumeMount mounts = 4;
+}
+
+message ResolveVolumeRequirementsResponse {
+  repeated VolumeRequirement requirements = 1;
+}
+
+message ReserveVolumeBindingRequest {
+  string namespace = 1;
+  string workload_id = 2;
+  string workload_type = 3;
+  string allocation_id = 4;
+  string node_id = 5;
+  repeated WorkloadVolumeMount mounts = 6;
+}
+
+message ReserveVolumeBindingResponse {
+  repeated ResolvedNodeVolume volumes = 1;
+}
+
+message ReleaseVolumeBindingRequest {
+  string allocation_id = 1;
+  string node_id = 2;
+}
+
+message ReleaseVolumeBindingResponse {}
+
+message RetryFailedVolumeBindingRequest {
+  string binding_id = 1;
+  string operator_reason = 2;
+}
+
+message RetryFailedVolumeBindingResponse {
+  VolumeBinding binding = 1;
+}
+
+message VolumeBindingListFilter {
+  repeated axern.control.storage.v1.VolumeStatus statuses = 1;
+  string namespace = 2;
+  string claim_name = 3;
+  string workload_id = 4;
+  string allocation_id = 5;
+  string node_id = 6;
+}
+
+message ListVolumeBindingsRequest {
+  VolumeBindingListFilter filter = 1;
+  int32 limit = 2;
+}
+
+message ListVolumeBindingsResponse {
+  repeated VolumeBinding bindings = 1;
+}
+
+message VolumePublishObservation {
+  string binding_id = 1;
+  axern.control.storage.v1.VolumeStatus status = 2;
+  PublishedNodeVolume published_volume = 3;
+  string message = 4;
+}
+
+message ReportVolumePublishRequest {
+  string allocation_id = 1;
+  string node_id = 2;
+  repeated VolumePublishObservation observations = 3;
+}
+
+message ReportVolumePublishResponse {}
+
+message VolumeReleaseObservation {
+  string binding_id = 1;
+  axern.control.storage.v1.VolumeStatus status = 2;
+  string message = 3;
+}
+
+message ReportVolumeReleaseRequest {
+  string allocation_id = 1;
+  string node_id = 2;
+  repeated VolumeReleaseObservation observations = 3;
+}
+
+message ReportVolumeReleaseResponse {}
+
+message VolumeBindingHealthRequest {
+  google.protobuf.Duration releasing_stuck_after = 1;
+}
+
+message VolumeStatusCount {
+  axern.control.storage.v1.VolumeStatus status = 1;
+  int64 count = 2;
+}
+
+message VolumeBindingHealth {
+  int64 total_bindings = 1;
+  int64 active_bindings = 2;
+  int64 published_bindings = 3;
+  int64 failed_bindings = 4;
+  int64 releasing_bindings = 5;
+  int64 deleted_bindings = 6;
+  repeated VolumeStatusCount binding_status_counts = 7;
+  repeated VolumeStatusCount claim_status_counts = 8;
+  int64 stuck_releasing_bindings = 9;
+  int64 inconsistent_claims = 10;
+  int64 invalid_bindings = 11;
+  int64 deleting_claims = 12;
+  int64 stuck_deleting_claims = 13;
+}
+
+message VolumeReclaim {
+  string claim_id = 1;
+  string namespace = 2;
+  string claim_name = 3;
+  string workload_id = 4;
+  string node_id = 5;
+  axern.control.storage.v1.VolumeBackend backend = 6;
+  string backend_handle = 7;
+  int64 attempt = 8;
+  string last_error = 9;
+  google.protobuf.Timestamp next_retry_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  string lease_token = 12;
+  string lease_owner = 13;
+  int64 lease_generation = 14;
+}
+
+message DeleteWorkloadVolumeClaimsRequest {
+  string namespace = 1;
+  string workload_id = 2;
+}
+
+message DeleteWorkloadVolumeClaimsResponse {
+  repeated VolumeReclaim reclaims = 1;
+  bool complete = 2;
+  repeated string claim_ids = 3;
+}
+
+message ReportVolumeReclaimRequest {
+  string claim_id = 1;
+  string node_id = 2;
+  bool succeeded = 3;
+  string message = 4;
+  string lease_token = 5;
+  string lease_owner = 6;
+  int64 lease_generation = 7;
+}
+
+message ReportVolumeReclaimResponse {}
+
+message ListVolumeReclaimsRequest {
+  string namespace = 1;
+  string workload_id = 2;
+  string node_id = 3;
+  int32 limit = 4;
+}
+
+message ListVolumeReclaimsResponse {
+  repeated VolumeReclaim reclaims = 1;
+}
+
+message ClaimVolumeReclaimsRequest {
+  int32 limit = 1;
+  string lease_owner = 2;
+  repeated string excluded_node_ids = 3;
+}
+
+message ClaimVolumeReclaimsResponse {
+  repeated VolumeReclaim reclaims = 1;
+}
+
+message VolumeReclaimQueueHealthRequest {}
+
+message VolumeReclaimQueueHealth {
+  int64 due = 1;
+  int64 scheduled = 2;
+  int64 leased_active = 3;
+  int64 leased_expired = 4;
+  double oldest_due_age_seconds = 5;
+}
+
+message VolumeReclaimQueueHealthResponse {
+  VolumeReclaimQueueHealth health = 1;
+}
+
+message VolumeBindingHealthResponse {
+  VolumeBindingHealth health = 1;
+}
+
+service StorageCoordinator {
+  rpc ResolveVolumeRequirements(ResolveVolumeRequirementsRequest) returns (ResolveVolumeRequirementsResponse) {}
+  rpc ReserveVolumeBinding(ReserveVolumeBindingRequest) returns (ReserveVolumeBindingResponse) {}
+  rpc ReleaseVolumeBinding(ReleaseVolumeBindingRequest) returns (ReleaseVolumeBindingResponse) {}
+  rpc RetryFailedVolumeBinding(RetryFailedVolumeBindingRequest) returns (RetryFailedVolumeBindingResponse) {}
+  rpc ListVolumeBindings(ListVolumeBindingsRequest) returns (ListVolumeBindingsResponse) {}
+  rpc ReportVolumePublish(ReportVolumePublishRequest) returns (ReportVolumePublishResponse) {}
+  rpc ReportVolumeRelease(ReportVolumeReleaseRequest) returns (ReportVolumeReleaseResponse) {}
+  rpc GetVolumeBindingHealth(VolumeBindingHealthRequest) returns (VolumeBindingHealthResponse) {}
+  rpc DeleteWorkloadVolumeClaims(DeleteWorkloadVolumeClaimsRequest) returns (DeleteWorkloadVolumeClaimsResponse) {}
+  rpc ReportVolumeReclaim(ReportVolumeReclaimRequest) returns (ReportVolumeReclaimResponse) {}
+  rpc ListVolumeReclaims(ListVolumeReclaimsRequest) returns (ListVolumeReclaimsResponse) {}
+  rpc ClaimVolumeReclaims(ClaimVolumeReclaimsRequest) returns (ClaimVolumeReclaimsResponse) {}
+  rpc GetVolumeReclaimQueueHealth(VolumeReclaimQueueHealthRequest) returns (VolumeReclaimQueueHealthResponse) {}
+}

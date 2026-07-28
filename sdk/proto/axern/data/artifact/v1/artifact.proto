@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package axern.data.artifact.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/data/artifact/v1;artifactv1";
+
+message DownloadArtifactRequest {
+  string ticket = 1;
+  int64 offset = 2;
+}
+
+message DownloadArtifactResponse {
+  int64 offset = 1;
+  bytes data = 2;
+}
+
+service ArtifactData {
+  rpc DownloadArtifact(DownloadArtifactRequest) returns (stream DownloadArtifactResponse) {}
+}

@@ -1,0 +1,194 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Controld: Debug daemon",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/control/controld/cmd/controld",
+      "cwd": "${workspaceFolder}/control/controld",
+      "preLaunchTask": "Axern: Prepare Controld Debug",
+      "args": [
+        "-grpc-address",
+        "127.0.0.1:24000",
+        "-http-address",
+        "127.0.0.1:24001",
+        "-heartbeat-freshness-window",
+        "15s",
+        "-summary-freshness-window",
+        "15s",
+        "-tls-ca-cert",
+        "${workspaceFolder}/.dev/certs/ca.crt",
+        "-tls-cert",
+        "${workspaceFolder}/.dev/certs/controld.crt",
+        "-tls-key",
+        "${workspaceFolder}/.dev/certs/controld.key",
+        "-secrets-master-key",
+        "local-only-master-key-32-bytes!!",
+        "-storaged-target",
+        "127.0.0.1:24020",
+        "-postgres-dsn",
+        "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable"
+      ],
+      "env": {
+        "GOTOOLCHAIN": "local"
+      }
+    },
+    {
+      "name": "Storaged: Debug daemon",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/control/storaged/cmd/storaged",
+      "cwd": "${workspaceFolder}/control/storaged",
+      "preLaunchTask": "Axern: Prepare Storaged Debug",
+      "args": [
+        "-grpc-address",
+        "127.0.0.1:24020",
+        "-http-address",
+        "127.0.0.1:24021",
+        "-postgres-dsn",
+        "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable"
+      ],
+      "env": {
+        "GOTOOLCHAIN": "local"
+      }
+    },
+    {
+      "name": "Gatewayd: Debug daemon",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/gateway/gatewayd",
+      "cwd": "${workspaceFolder}/gateway/gatewayd",
+      "preLaunchTask": "Axern: Prepare Gatewayd Debug",
+      "args": [
+        "-http-address",
+        "127.0.0.1:25080",
+        "-dashboard-enabled",
+        "-dashboard-vendor-dir",
+        "${workspaceFolder}/gateway/gatewayd/internal/api/http/dashboard/vendor",
+        "-control-target",
+        "127.0.0.1:24000",
+        "-tls-ca-cert",
+        "${workspaceFolder}/.dev/certs/ca.crt",
+        "-tls-cert",
+        "${workspaceFolder}/.dev/certs/client.crt",
+        "-tls-key",
+        "${workspaceFolder}/.dev/certs/client.key",
+        "-dev-token",
+        "axern-local-dev"
+      ],
+      "env": {
+        "GOTOOLCHAIN": "local"
+      }
+    },
+    {
+      "name": "Axnoded: Debug daemon",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "asRoot": true,
+      "console": "integratedTerminal",
+      "program": "${workspaceFolder}/runtime/axnoded/cmd/axnoded",
+      "cwd": "${workspaceFolder}/runtime/axnoded",
+      "preLaunchTask": "Axern: Prepare Axnoded Debug",
+      "args": [
+        "-root",
+        "${workspaceFolder}/.dev/axnoded",
+        "-config",
+        "${workspaceFolder}/.dev/axnoded/config.toml",
+        "-socket",
+        "${workspaceFolder}/.dev/run/axnoded.sock",
+        "-grpc-address",
+        "127.0.0.1:23000",
+        "-http-address",
+        "127.0.0.1:23001",
+        "-log-level",
+        "debug",
+        "-log-file",
+        "${workspaceFolder}/.dev/axnoded/logs/axnoded.log"
+      ],
+      "env": {
+        "GOTOOLCHAIN": "local"
+      }
+    },
+    {
+      "name": "Imagemgr: Debug daemon",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "asRoot": true,
+      "console": "integratedTerminal",
+      "program": "${workspaceFolder}/runtime/imagemgr/cmd/imagemgr",
+      "cwd": "${workspaceFolder}/runtime/imagemgr",
+      "preLaunchTask": "Axern: Prepare Imagemgr Debug",
+      "args": [
+        "-debug",
+        "-root",
+        "${workspaceFolder}/.dev/imagemgr",
+        "-imagefsd_bin",
+        "${workspaceFolder}/target/debug/imagefsd",
+        "-oss_template",
+        "${workspaceFolder}/runtime/imagemgr/configs/oss_backend.json.example",
+        "-nydus_template",
+        "${workspaceFolder}/runtime/imagemgr/configs/nydus_registry.json.example",
+        "-oss_auths_path",
+        "${workspaceFolder}/runtime/imagemgr/oss_auths.json.example",
+        "-registry_auths_path",
+        "${workspaceFolder}/runtime/imagemgr/registry_auths.json.example",
+        "-http_sock",
+        "${workspaceFolder}/.dev/run/imagemgr.sock"
+      ],
+      "env": {
+        "GOTOOLCHAIN": "local"
+      }
+    },
+    {
+      "name": "Volumed: Debug daemon",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "asRoot": true,
+      "console": "integratedTerminal",
+      "program": "${workspaceFolder}/runtime/volumed/cmd/volumed",
+      "cwd": "${workspaceFolder}/runtime/volumed",
+      "preLaunchTask": "Axern: Prepare Volumed Debug",
+      "args": [
+        "-root",
+        "${workspaceFolder}/.dev/volumed",
+        "-socket",
+        "${workspaceFolder}/.dev/run/volumed.sock",
+        "-local-root",
+        "${workspaceFolder}/.dev/volumed/local"
+      ],
+      "env": {
+        "GOTOOLCHAIN": "local"
+      }
+    },
+    {
+      "name": "Imagefsd: Debug chunk server",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/imagefsd",
+      "cwd": "${workspaceFolder}/runtime/imagefsd",
+      "args": [
+        "--verbose",
+        "serve-chunk",
+        "--chunk-db-dir",
+        "${workspaceFolder}/.dev/imagefsd/chunkdb",
+        "--listen-port",
+        "9876",
+        "--chunk-server-sock",
+        "${workspaceFolder}/.dev/run/imagefsd-chunk.sock",
+        "--log-file",
+        "${workspaceFolder}/.dev/imagefsd/imagefsd.log"
+      ],
+      "preLaunchTask": "Axern: Prepare Imagefsd Debug",
+      "MIMode": "gdb",
+      "miDebuggerPath": "/usr/bin/gdb",
+      "externalConsole": false
+    }
+  ]
+}

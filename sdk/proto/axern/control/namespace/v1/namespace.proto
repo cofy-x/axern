@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package axern.control.namespace.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1;namespacev1";
+
+import "google/protobuf/timestamp.proto";
+
+message Namespace {
+  string namespace = 1;
+  int64 version = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message CreateNamespaceRequest {
+  string namespace = 1;
+}
+
+message CreateNamespaceResponse {
+  Namespace namespace = 1;
+}
+
+message GetNamespaceRequest {
+  string namespace = 1;
+}
+
+message GetNamespaceResponse {
+  Namespace namespace = 1;
+}
+
+message ListNamespacesRequest {
+}
+
+message ListNamespacesResponse {
+  repeated Namespace namespaces = 1;
+}
+
+message DeleteNamespaceRequest {
+  string namespace = 1;
+}
+
+message DeleteNamespaceResponse {
+  Namespace namespace = 1;
+}
+
+service NamespaceControl {
+  rpc CreateNamespace(CreateNamespaceRequest) returns (CreateNamespaceResponse) {}
+  rpc GetNamespace(GetNamespaceRequest) returns (GetNamespaceResponse) {}
+  rpc ListNamespaces(ListNamespacesRequest) returns (ListNamespacesResponse) {}
+  rpc DeleteNamespace(DeleteNamespaceRequest) returns (DeleteNamespaceResponse) {}
+}

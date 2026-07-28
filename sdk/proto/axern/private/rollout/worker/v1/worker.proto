@@ -1,0 +1,187 @@
+syntax = "proto3";
+
+package axern.private.rollout.worker.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/rollout/worker/v1;workerrolloutv1";
+
+import "axern/control/agentprofile/v1/agent_profile.proto";
+import "axern/control/rollout/v1/rollout.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+enum WorkKind {
+  WORK_KIND_UNSPECIFIED = 0;
+  WORK_KIND_PLAN = 1;
+  WORK_KIND_EPISODE = 2;
+  WORK_KIND_PROFILE_DOCTOR = 3;
+}
+
+message WorkerCapabilities {
+  bool planner = 1;
+  repeated string agents = 2;
+  repeated axern.control.agentprofile.v1.AgentWireApi wire_apis = 3;
+  int32 max_concurrency = 4;
+}
+
+message RegisterWorkerRequest {
+  string worker_id = 1;
+  string auth_token = 2;
+  WorkerCapabilities capabilities = 3;
+}
+
+message RegisterWorkerResponse {
+  string session_id = 1;
+  string session_token = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message WorkItem {
+  string id = 1;
+  WorkKind kind = 2;
+  string rollout_id = 3;
+  string episode_id = 4;
+  int64 execution_generation = 5;
+  axern.control.rollout.v1.Rollout rollout = 6;
+  axern.control.rollout.v1.Episode episode = 7;
+  bytes payload_json = 8;
+  google.protobuf.Timestamp lease_expires_at = 9;
+  ProfileDoctorWork profile_doctor = 10;
+}
+
+message ProfileDoctorWork {
+  string job_id = 1;
+  string model = 2;
+}
+
+message ClaimWorkRequest {
+  string session_id = 1;
+  string session_token = 2;
+  google.protobuf.Duration long_poll = 3;
+}
+
+message ClaimWorkResponse {
+  WorkItem work = 1;
+  string lease_token = 2;
+}
+
+message RenewWorkLeaseRequest { string work_id = 1; string lease_token = 2; }
+message RenewWorkLeaseResponse { google.protobuf.Timestamp expires_at = 1; bool cancel_requested = 2; }
+
+message ReportWorkProgressRequest {
+  string work_id = 1;
+  string lease_token = 2;
+  string phase = 3;
+  string message = 4;
+  map<string, string> details = 5;
+  string allocation_id = 6;
+}
+message ReportWorkProgressResponse { bool cancel_requested = 1; }
+
+message PlannedTask {
+  string task_id = 1;
+  string task_digest = 2;
+  bytes task_json = 3;
+}
+
+message CompletePlanRequest {
+  string work_id = 1;
+  string lease_token = 2;
+  string result_digest = 3;
+  string source_digest = 4;
+  string descriptor_digest = 5;
+  bytes plan_json = 6;
+  repeated PlannedTask tasks = 7;
+  axern.control.rollout.v1.PreflightReport preflight = 8;
+  string usage_reservation_id = 9;
+}
+message CompletePlanResponse { axern.control.rollout.v1.Rollout rollout = 1; }
+
+message CompleteEpisodeRequest {
+  string work_id = 1;
+  string lease_token = 2;
+  string result_digest = 3;
+  axern.control.rollout.v1.Episode episode = 4;
+  string usage_reservation_id = 5;
+}
+message CompleteEpisodeResponse { axern.control.rollout.v1.Rollout rollout = 1; }
+
+message CompleteProfileDoctorRequest {
+  string work_id = 1;
+  string lease_token = 2;
+  repeated axern.control.agentprofile.v1.ProfileCheck checks = 3;
+  bool healthy = 4;
+}
+message CompleteProfileDoctorResponse {}
+
+message FailWorkRequest {
+  string work_id = 1;
+  string lease_token = 2;
+  string code = 3;
+  string message = 4;
+  bool retriable = 5;
+  axern.control.rollout.v1.PreflightReport preflight = 6;
+}
+message FailWorkResponse { axern.control.rollout.v1.Rollout rollout = 1; }
+
+message ResolveAgentProfileRequest { string work_id = 1; string lease_token = 2; }
+message ResolvedAgentProfile {
+  axern.control.agentprofile.v1.AgentProfile profile = 1;
+  string token = 2;
+}
+message ResolveAgentProfileResponse { ResolvedAgentProfile profile = 1; }
+
+message ReserveUsageRequest {
+  string work_id = 1;
+  string lease_token = 2;
+  string reservation_id = 3;
+  int64 max_tokens = 4;
+  int64 max_cost_microusd = 5;
+}
+message ReserveUsageResponse { int64 remaining_tokens = 1; int64 remaining_cost_microusd = 2; }
+message CommitUsageRequest {
+  string work_id = 1;
+  string lease_token = 2;
+  string reservation_id = 3;
+  int64 input_tokens = 4;
+  int64 cached_input_tokens = 5;
+  int64 output_tokens = 6;
+  int64 cost_microusd = 7;
+}
+message CommitUsageResponse { int64 remaining_tokens = 1; int64 remaining_cost_microusd = 2; }
+message ReleaseUsageRequest { string work_id = 1; string lease_token = 2; string reservation_id = 3; }
+message ReleaseUsageResponse {}
+
+message CreateArtifactUploadRequest {
+  string work_id = 1;
+  string lease_token = 2;
+  string kind = 3;
+  string name = 4;
+  string media_type = 5;
+  int64 size_bytes = 6;
+  string digest = 7;
+}
+message CreateArtifactUploadResponse {
+  axern.control.rollout.v1.Artifact artifact = 1;
+  string upload_url = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  map<string, string> headers = 4;
+}
+message CommitArtifactRequest { string work_id = 1; string lease_token = 2; string artifact_id = 3; }
+message CommitArtifactResponse { axern.control.rollout.v1.Artifact artifact = 1; }
+
+service RolloutWorkerControl {
+  rpc RegisterWorker(RegisterWorkerRequest) returns (RegisterWorkerResponse) {}
+  rpc ClaimWork(ClaimWorkRequest) returns (ClaimWorkResponse) {}
+  rpc RenewWorkLease(RenewWorkLeaseRequest) returns (RenewWorkLeaseResponse) {}
+  rpc ReportWorkProgress(ReportWorkProgressRequest) returns (ReportWorkProgressResponse) {}
+  rpc CompletePlan(CompletePlanRequest) returns (CompletePlanResponse) {}
+  rpc CompleteEpisode(CompleteEpisodeRequest) returns (CompleteEpisodeResponse) {}
+  rpc CompleteProfileDoctor(CompleteProfileDoctorRequest) returns (CompleteProfileDoctorResponse) {}
+  rpc FailWork(FailWorkRequest) returns (FailWorkResponse) {}
+  rpc ResolveAgentProfile(ResolveAgentProfileRequest) returns (ResolveAgentProfileResponse) {}
+  rpc ReserveUsage(ReserveUsageRequest) returns (ReserveUsageResponse) {}
+  rpc CommitUsage(CommitUsageRequest) returns (CommitUsageResponse) {}
+  rpc ReleaseUsage(ReleaseUsageRequest) returns (ReleaseUsageResponse) {}
+  rpc CreateArtifactUpload(CreateArtifactUploadRequest) returns (CreateArtifactUploadResponse) {}
+  rpc CommitArtifact(CommitArtifactRequest) returns (CommitArtifactResponse) {}
+}
