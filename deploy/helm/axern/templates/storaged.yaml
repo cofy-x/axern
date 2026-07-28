@@ -23,12 +23,18 @@ spec:
         - name: controld-migrate
           image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
           imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          env:
+            - name: CONTROLD_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.postgresSecretName" . }}
+                  key: {{ .Values.postgres.dsnKey }}
           command:
             - /bin/sh
             - -ec
           args:
             - |
-              until /usr/local/bin/controld-migrate -postgres-dsn {{ include "axern.postgresDSN" . | quote }} up; do
+              until /usr/local/bin/controld-migrate up; do
                 echo "waiting for postgres migration dependencies"
                 sleep 2
               done
@@ -43,8 +49,12 @@ spec:
             - 0.0.0.0:24020
             - -http-address
             - 0.0.0.0:24021
-            - -postgres-dsn
-            - {{ include "axern.postgresDSN" . | quote }}
+          env:
+            - name: STORAGED_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.postgresSecretName" . }}
+                  key: {{ .Values.postgres.dsnKey }}
           ports:
             - containerPort: 24020
             - containerPort: 24021

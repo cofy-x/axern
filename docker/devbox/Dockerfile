@@ -40,6 +40,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true; \
     apt-get update && apt-get install -y --no-install-recommends \
     bash \
+    bzip2 \
     build-essential \
     busybox-static \
     ca-certificates \
@@ -209,22 +210,28 @@ RUN --mount=type=cache,target=/var/cache/axern-downloads,sharing=locked \
     install -m 0755 "${compose_bin}" /usr/libexec/docker/cli-plugins/docker-compose; \
     docker compose version
 
+COPY runtime/axnoded/runtime-tools.sh /usr/local/share/axern/runtime-tools.sh
+
 RUN --mount=type=cache,target=/var/cache/axern-downloads,sharing=locked \
     set -eux; \
+    . /usr/local/share/axern/runtime-tools.sh; \
     arch="$(dpkg --print-architecture)"; \
     case "${arch}" in \
-      amd64) gv_arch="x86_64" ;; \
-      arm64) gv_arch="aarch64" ;; \
+      amd64) gv_arch="x86_64"; gvisor_sha512="${AXERN_GVISOR_SHA512_AMD64}" ;; \
+      arm64) gv_arch="aarch64"; gvisor_sha512="${AXERN_GVISOR_SHA512_ARM64}" ;; \
       *) echo "unsupported arch: ${arch}" >&2; exit 1 ;; \
     esac; \
-    runsc_dir="/var/cache/axern-downloads/runsc-latest-${gv_arch}"; \
-    install -d -m 0755 "${runsc_dir}"; \
-    runsc_bin="${runsc_dir}/runsc"; \
-    runsc_sha512="${runsc_dir}/runsc.sha512"; \
-    curl --retry 5 --retry-delay 2 --retry-all-errors -C - -fsSLo "${runsc_bin}" "https://storage.googleapis.com/gvisor/releases/release/latest/${gv_arch}/runsc"; \
-    curl --retry 5 --retry-delay 2 --retry-all-errors -fsSLo "${runsc_sha512}" "https://storage.googleapis.com/gvisor/releases/release/latest/${gv_arch}/runsc.sha512"; \
-    (cd "${runsc_dir}" && sha512sum -c runsc.sha512); \
-    install -m 0755 "${runsc_bin}" /usr/local/bin/runsc; \
+    gvisor_dir="/var/cache/axern-downloads/gvisor-${AXERN_GVISOR_RELEASE}-${gv_arch}"; \
+    archive="${gvisor_dir}/gvisor.tar.bz2"; \
+    install -d -m 0755 "${gvisor_dir}/extracted"; \
+    curl --retry 5 --retry-delay 2 --retry-all-errors -C - -fsSLo "${archive}" \
+      "https://storage.googleapis.com/gvisor/releases/release/${AXERN_GVISOR_RELEASE}/${gv_arch}/gvisor.tar.bz2"; \
+    printf '%s  %s\n' "${gvisor_sha512}" "${archive}" | sha512sum -c -; \
+    tar -xjf "${archive}" -C "${gvisor_dir}/extracted"; \
+    install -m 0755 "${gvisor_dir}/extracted/runsc" /usr/local/bin/runsc; \
+    install -m 0755 "${gvisor_dir}/extracted/containerd-shim-runsc-v1" /usr/local/bin/containerd-shim-runsc-v1; \
+    install -d -m 0755 /usr/local/bin/gvisor-bin; \
+    cp -a "${gvisor_dir}/extracted/gvisor-bin/." /usr/local/bin/gvisor-bin/; \
     runsc --version
 
 RUN mkdir -p /opt/sample-rootfs/bin /opt/sample-rootfs/dev /opt/sample-rootfs/proc /opt/sample-rootfs/sys /opt/sample-rootfs/tmp && \

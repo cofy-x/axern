@@ -1,6 +1,9 @@
 apiVersion: v2
 name: axern
-description: Axern control plane, gateway, tunnel relay, node runtime, and local dependencies.
+description: Open-source agentic infrastructure and high-performance sandbox platform.
 type: application
-version: 0.0.1-alpha.1
-appVersion: "0.0.1-alpha.1"
+version: 0.2.0
+appVersion: "0.2.0"
+home: https://github.com/cofy-x/axern
+sources:
+  - https://github.com/cofy-x/axern

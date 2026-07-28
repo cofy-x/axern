@@ -63,6 +63,8 @@ material here only when multiple modules need the same model.
 
 - [Devbox Workflow](operations/devbox.md): Linux source-development stack,
   service restart, and debugging.
+- [Release Operations](operations/releases.md): immutable versioning, GHCR and
+  Helm publication, and fresh-cluster acceptance.
 - [Runtime Logs](operations/runtime-logs.md): critical logs, node-local paths,
   and symptom routing.
 - [Startup And Readiness Contract](operations/startup-readiness-performance-contract.md):

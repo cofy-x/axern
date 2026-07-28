@@ -1,8 +1,11 @@
 package contextcmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/cofy-x/axern/apps/cli/internal/command"
@@ -14,7 +17,62 @@ import (
 
 func Command(runtime command.Runtime) *cobra.Command {
 	cmd := &cobra.Command{Use: "context", Aliases: []string{"ctx"}, Short: "Manage Axern contexts"}
-	cmd.AddCommand(currentCommand(runtime), listCommand(runtime), useCommand(runtime), setCommand(runtime))
+	cmd.AddCommand(currentCommand(runtime), listCommand(runtime), useCommand(runtime), setCommand(runtime), importKubernetesCommand(runtime))
+	return cmd
+}
+
+func importKubernetesCommand(runtime command.Runtime) *cobra.Command {
+	var namespace, secretName, kubeconfig, kubeContext string
+	var params cliconfig.KubernetesImportParams
+	cmd := &cobra.Command{
+		Use:   "import-kubernetes <name>",
+		Short: "Import a context from an Axern Kubernetes release",
+		Args:  command.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			params.Name = args[0]
+			params.ConfigPath = runtime.Options.ConfigPath
+			if params.CertDir == "" {
+				params.CertDir = filepath.Join(filepath.Dir(params.ConfigPath), "contexts", params.Name)
+			}
+			kubectlArgs := make([]string, 0, 12)
+			if kubeconfig != "" {
+				kubectlArgs = append(kubectlArgs, "--kubeconfig", kubeconfig)
+			}
+			if kubeContext != "" {
+				kubectlArgs = append(kubectlArgs, "--context", kubeContext)
+			}
+			kubectlArgs = append(kubectlArgs, "--namespace", namespace, "get", "secret", secretName, "--output", "json")
+			process := exec.CommandContext(cmd.Context(), "kubectl", kubectlArgs...)
+			var stdout, stderr bytes.Buffer
+			process.Stdout = &stdout
+			process.Stderr = &stderr
+			if err := process.Run(); err != nil {
+				message := strings.TrimSpace(stderr.String())
+				if message == "" {
+					message = err.Error()
+				}
+				return fmt.Errorf("read Kubernetes Secret %s/%s: %s", namespace, secretName, message)
+			}
+			if err := cliconfig.ImportKubernetesSecret(stdout.Bytes(), params); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Imported context %s\n", params.Name)
+			return nil
+		},
+	}
+	flags := cmd.Flags()
+	flags.StringVar(&namespace, "namespace", "axern-system", "Kubernetes namespace")
+	flags.StringVar(&secretName, "secret", "controld-pki", "Axern PKI Secret name")
+	flags.StringVar(&kubeconfig, "kubeconfig", "", "path to kubeconfig")
+	flags.StringVar(&kubeContext, "kube-context", "", "Kubernetes context name")
+	flags.StringVar(&params.CertDir, "cert-dir", "", "directory for imported certificates")
+	flags.StringVar(&params.Endpoint, "endpoint", "127.0.0.1:25100", "gateway gRPC endpoint")
+	flags.StringVar(&params.ServiceURL, "service-url", "http://127.0.0.1:25101", "gateway HTTP service URL")
+	flags.StringVar(&params.SSHEndpoint, "ssh-endpoint", "127.0.0.1:25122", "gateway SSH endpoint")
+	flags.StringVar(&params.SSHIdentityFile, "ssh-identity-file", "", "gateway SSH identity file")
+	flags.StringVar(&params.TLSServerName, "tls-server-name", "", "gateway TLS server name")
+	flags.StringVar(&params.ProxyMode, "proxy-mode", clientconfig.ProxyModeDirect, "proxy mode: env or direct")
+	flags.BoolVar(&params.Current, "current", true, "select this context")
 	return cmd
 }
 

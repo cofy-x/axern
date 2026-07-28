@@ -1,4 +1,4 @@
-.PHONY: quickstart axern-config-init \
+.PHONY: quickstart quickstart-source axern-config-init \
 		local-images-build nydus-builder-image registry-nydus-image-build \
 		local-compose-up local-compose-down local-compose-status local-compose-purge local-compose-reset local-compose-refresh local-compose-refresh-verify local-compose-image-import local-compose-image-service-smoke local-compose-registry-image-smoke local-compose-image-mount-smoke local-compose-claude-code-image-mount-smoke local-compose-codex-image-mount-smoke local-compose-nydus-smoke \
 		local-compose-smoke local-compose-gateway-smoke local-compose-gateway-ssh-e2e local-compose-service-volume-smoke local-compose-run-smoke local-compose-function-smoke local-compose-server-base-smoke local-compose-quota-smoke local-compose-tunnel-e2e local-compose-python-sdk-e2e local-compose-computer-use-e2e local-compose-go-sdk-e2e local-compose-managed-rollout-e2e tunnel-benchmark-compose \
@@ -6,9 +6,12 @@
 		local-refresh-verify local-truth-verify local-storage-verify \
 		sdk-go-examples-smoke
 
-quickstart: ## Build, start, and verify the local Compose environment
-	$(MAKE) local-compose-up
-	$(MAKE) local-compose-smoke
+quickstart: ## Start and verify Compose with the published Axern release
+	bash $(ROOTDIR)/scripts/dev-env/quickstart-release.sh
+
+quickstart-source: ## Build source images, then start and verify local Compose
+	AXERN_IMAGE_MODE=source $(MAKE) local-compose-up
+	AXERN_IMAGE_MODE=source $(MAKE) local-compose-smoke
 
 axern-config-init: ## Refresh local axern contexts from repo-managed compose and kind state
 	bash $(ROOTDIR)/scripts/dev-env/init-axern-config.sh

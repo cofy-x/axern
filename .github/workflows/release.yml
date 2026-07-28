@@ -1,0 +1,205 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Helm
+        run: |
+          bash scripts/release/install-helm.sh "${RUNNER_TEMP}/bin/helm"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.12"
+          cache: false
+      - name: Validate release contract
+        run: make release-check
+
+  artifacts:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Helm
+        run: |
+          bash scripts/release/install-helm.sh "${RUNNER_TEMP}/bin/helm"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.12"
+          cache: false
+      - name: Install Syft
+        run: |
+          archive="${RUNNER_TEMP}/syft.tar.gz"
+          curl --fail --location --retry 3 --output "${archive}" \
+            https://github.com/anchore/syft/releases/download/v1.49.0/syft_1.49.0_linux_amd64.tar.gz
+          printf '%s  %s\n' \
+            7aa2f03ee92739cf643279ba3990548b9925d4e22cae13f46831ee62821147fe \
+            "${archive}" | sha256sum --check --strict
+          tar -xzf "${archive}" -C "${RUNNER_TEMP}" syft
+          printf '%s\n' "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+      - name: Build CLI and Helm artifacts
+        run: make release-build
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-artifacts
+          path: dist/release/*
+          if-no-files-found: error
+
+  images:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.12"
+          cache: false
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push architecture images
+        run: bash scripts/release/build-and-push-images.sh "${{ matrix.arch }}"
+
+  candidate-acceptance:
+    needs: [artifacts, images]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Helm
+        run: |
+          bash scripts/release/install-helm.sh "${RUNNER_TEMP}/bin/helm"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.12"
+          cache: false
+      - name: Install kind
+        run: go install sigs.k8s.io/kind@v0.30.0
+      - name: Download release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-artifacts
+          path: dist/release
+      - name: Install candidate CLI
+        env:
+          AXERN_RELEASE_DOWNLOAD_BASE: file://${{ github.workspace }}/dist/release
+        run: bash scripts/release/install-cli.sh "${RUNNER_TEMP}/bin/axern"
+      - name: Verify candidate chart, images, and CLI
+        env:
+          AXERN_CLI_BINARY: ${{ runner.temp }}/bin/axern
+          AXERN_RELEASE_IMAGE_TAG_SUFFIX: amd64
+          AXERN_REGISTRY_USERNAME: ${{ github.actor }}
+          AXERN_REGISTRY_PASSWORD: ${{ github.token }}
+        run: |
+          chart="dist/release/axern-$(cat VERSION).tgz"
+          AXERN_HELM_CHART="${GITHUB_WORKSPACE}/${chart}" \
+            bash scripts/release/kind-acceptance.sh
+
+  publish:
+    needs: [artifacts, images, candidate-acceptance]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Helm
+        run: |
+          bash scripts/release/install-helm.sh "${RUNNER_TEMP}/bin/helm"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+      - name: Download release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-artifacts
+          path: dist/release
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log Helm in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+      - name: Verify immutable release names are unused
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/release/preflight.sh
+      - name: Publish multi-architecture image manifests
+        run: bash scripts/release/publish-image-manifests.sh
+      - name: Publish Helm OCI chart
+        run: helm push "dist/release/axern-$(cat VERSION).tgz" oci://ghcr.io/cofy-x/charts
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: dist/release/*
+      - name: Publish GitHub source release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/release/* \
+            --verify-tag --generate-notes --title "Axern ${GITHUB_REF_NAME}"
+
+  acceptance:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Helm
+        run: |
+          bash scripts/release/install-helm.sh "${RUNNER_TEMP}/bin/helm"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.12"
+          cache: false
+      - name: Install kind
+        run: go install sigs.k8s.io/kind@v0.30.0
+      - name: Install released CLI
+        run: bash scripts/release/install-cli.sh "${RUNNER_TEMP}/bin/axern"
+      - name: Verify released chart, images, and CLI
+        env:
+          AXERN_CLI_BINARY: ${{ runner.temp }}/bin/axern
+        run: bash scripts/release/kind-acceptance.sh

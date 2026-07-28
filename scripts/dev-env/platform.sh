@@ -188,6 +188,23 @@ EOF
 
 ensure_local_images() {
   require_cmd docker
+  case "${AXERN_IMAGE_MODE:-source}" in
+    source) ;;
+    release)
+      source "${AXERN_ROOT}/scripts/release/images.sh"
+      axern_export_release_images
+      axern_release_images | xargs -n 1 -P 4 sh -c '
+        echo "Pulling $1"
+        docker pull "$1" >/dev/null
+      ' sh
+      echo "release_images_ready=true"
+      return 0
+      ;;
+    *)
+      echo "AXERN_IMAGE_MODE must be source or release" >&2
+      return 2
+      ;;
+  esac
   if [ "${AXERN_SKIP_LOCAL_IMAGES_BUILD:-0}" = "1" ] || [ "${AXERN_SKIP_LOCAL_IMAGES_BUILD:-0}" = "true" ]; then
     echo "local_images_build_skipped=true"
     return 0

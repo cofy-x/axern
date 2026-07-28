@@ -71,8 +71,6 @@ spec:
             - {{ include "axern.tunneldTarget" . | quote }}
             - -tunnel-relay-tls-ca-cert
             - /certs/ca.crt
-            - -dev-token
-            - {{ .Values.gatewayd.devToken | quote }}
             - -route-cache-ttl
             - {{ .Values.gatewayd.routeCacheTTL | quote }}
             - -route-cache-max-entries
@@ -91,7 +89,10 @@ spec:
             - {{ .Values.gatewayd.artifact.maxBytes | int64 | quote }}
           env:
             - name: AXERN_GATEWAY_DEV_TOKEN
-              value: {{ .Values.gatewayd.devToken | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.secretsSecretName" . }}
+                  key: GATEWAYD_DEV_TOKEN
             - name: GATEWAYD_DASHBOARD_ENABLED
               value: {{ ternary "true" "false" .Values.gatewayd.dashboardEnabled | quote }}
             {{- include "axern.otelEnv" . | nindent 12 }}

@@ -1,5 +1,13 @@
 local_smoke_axern_bin() {
-  local axern_bin="${AXERN_ROOT}/bin/axern"
+  local axern_bin="${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}"
+  if [ "${AXERN_IMAGE_MODE:-source}" = "release" ]; then
+    if [ ! -x "${axern_bin}" ]; then
+      echo "release CLI is not executable: ${axern_bin}" >&2
+      return 1
+    fi
+    printf '%s\n' "${axern_bin}"
+    return 0
+  fi
   local go_bin
   go_bin="$(axern_go_bin)"
   if [ ! -x "${axern_bin}" ] || find "${AXERN_ROOT}/apps/cli" "${AXERN_ROOT}/sdk/go" -type f -newer "${axern_bin}" -print -quit | grep -q .; then

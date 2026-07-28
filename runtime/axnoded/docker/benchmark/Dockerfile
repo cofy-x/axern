@@ -92,6 +92,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && \
     apt-get install -y \
     bash \
+    bzip2 \
     busybox-static \
     ca-certificates \
     curl \
@@ -127,25 +128,29 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -rf /var/lib/apt/lists/partial
 
 COPY runtime/axnoded/.cache/gvisor/ /opt/gvisor-cache/
+COPY runtime/axnoded/runtime-tools.sh /usr/local/share/axern/runtime-tools.sh
 
 RUN set -eux; \
+    . /usr/local/share/axern/runtime-tools.sh; \
     ARCH="$(dpkg --print-architecture)"; \
     case "$ARCH" in \
-      amd64) GV_ARCH="x86_64" ;; \
-      arm64) GV_ARCH="aarch64" ;; \
+      amd64) GV_ARCH="x86_64"; GVISOR_SHA512="${AXERN_GVISOR_SHA512_AMD64}" ;; \
+      arm64) GV_ARCH="aarch64"; GVISOR_SHA512="${AXERN_GVISOR_SHA512_ARM64}" ;; \
       *) echo "unsupported arch: $ARCH" >&2; exit 1 ;; \
     esac; \
+    mkdir -p /tmp/gvisor; \
     if [ "${RUNSC_SOURCE}" = "local" ]; then \
-      cp "/opt/gvisor-cache/${RUNSC_CACHE_ARCH}/runsc" /tmp/runsc; \
-      cp "/opt/gvisor-cache/${RUNSC_CACHE_ARCH}/runsc.sha512" /tmp/runsc.sha512; \
+      cp -a "/opt/gvisor-cache/${RUNSC_CACHE_ARCH}/." /tmp/gvisor/; \
     else \
-      URL="https://storage.googleapis.com/gvisor/releases/release/latest/${GV_ARCH}"; \
-      curl --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 300 -fsSLo /tmp/runsc "${URL}/runsc"; \
-      curl --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 300 -fsSLo /tmp/runsc.sha512 "${URL}/runsc.sha512"; \
+      URL="https://storage.googleapis.com/gvisor/releases/release/${AXERN_GVISOR_RELEASE}/${GV_ARCH}/gvisor.tar.bz2"; \
+      curl --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 900 -fsSLo /tmp/gvisor.tar.bz2 "${URL}"; \
+      printf '%s  %s\n' "${GVISOR_SHA512}" /tmp/gvisor.tar.bz2 | sha512sum -c -; \
+      tar -xjf /tmp/gvisor.tar.bz2 -C /tmp/gvisor; \
     fi; \
-    (cd /tmp && sha512sum -c runsc.sha512); \
-    install -m 0755 /tmp/runsc /usr/local/bin/runsc; \
-    rm -f /tmp/runsc /tmp/runsc.sha512
+    install -m 0755 /tmp/gvisor/runsc /usr/local/bin/runsc; \
+    if [ -f /tmp/gvisor/containerd-shim-runsc-v1 ]; then install -m 0755 /tmp/gvisor/containerd-shim-runsc-v1 /usr/local/bin/containerd-shim-runsc-v1; fi; \
+    if [ -d /tmp/gvisor/gvisor-bin ]; then mkdir -p /usr/local/bin/gvisor-bin && cp -a /tmp/gvisor/gvisor-bin/. /usr/local/bin/gvisor-bin/; fi; \
+    rm -rf /tmp/gvisor /tmp/gvisor.tar.bz2
 
 RUN mkdir -p /opt/sample-rootfs/bin /opt/sample-rootfs/dev /opt/sample-rootfs/proc /opt/sample-rootfs/sys /opt/sample-rootfs/tmp /opt/sample-rootfs/mnt && \
     cp /bin/busybox /opt/sample-rootfs/bin/busybox && \

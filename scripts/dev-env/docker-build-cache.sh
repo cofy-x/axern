@@ -16,7 +16,7 @@ axern_docker_cache_scope() {
   fi
   image_ref="${image_ref#*/}"
   image_ref="${image_ref//[^A-Za-z0-9_.-]/-}"
-  printf '%s\n' "${image_ref}"
+  printf '%s%s\n' "${image_ref}" "${AXERN_TARGET_GOARCH:+-${AXERN_TARGET_GOARCH}}"
 }
 
 axern_docker_build() {
@@ -39,6 +39,10 @@ axern_docker_build() {
         ;;
     esac
   done
+
+  if [ -n "${AXERN_OCI_SOURCE_LABEL:-}" ]; then
+    args+=(--label "org.opencontainers.image.source=${AXERN_OCI_SOURCE_LABEL}")
+  fi
 
   # GitHub Actions release jobs use the gha backend because some registries do not
   # accept BuildKit cache manifests.

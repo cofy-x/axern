@@ -6,6 +6,19 @@ production clusters can isolate control-plane services from sandbox capacity.
 
 ## Render And Install
 
+Released charts are published to GHCR as OCI artifacts:
+
+```bash
+helm install axern oci://ghcr.io/cofy-x/charts/axern \
+  --version 0.2.0 \
+  --namespace axern-system \
+  --create-namespace
+```
+
+The default Axern images are immutable version tags from the same release.
+Source development uses `values-local-development.yaml` after
+`make local-images-build`; it does not change the public chart defaults.
+
 Keep environment-specific values outside this repository and pass them through
 `AXERN_HELM_VALUES`:
 
@@ -38,6 +51,12 @@ make helm-registry-secret \
 
 Set the chart's `global.imagePullSecrets` value to the corresponding
 `AXERN_REGISTRY_PULL_SECRET` name when private images require it.
+
+When `secrets.existingSecret` is configured, it must contain
+`AXERN_SECRETS_MASTER_KEY`, `CONTROLD_ROLLOUT_WORKER_TOKEN`,
+`CONTROLD_ARTIFACT_TICKET_KEY`, and `GATEWAYD_DEV_TOKEN`. When
+`postgres.existingSecret` is configured, it must contain the keys selected by
+`postgres.passwordKey` and `postgres.dsnKey`.
 
 Durable rollout workers resolve TaskSet descriptors from inside the running
 container, so kubelet image-pull credentials alone are insufficient. Set

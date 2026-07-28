@@ -65,6 +65,7 @@ limited to `ctx`, `ns`, `svc`, and `fn`.
 ```bash
 axern context list
 axern context use hk
+axern context import-kubernetes local --namespace axern-system --current
 
 axern run create --file run.yaml --wait
 axern service create --file service.yaml --wait

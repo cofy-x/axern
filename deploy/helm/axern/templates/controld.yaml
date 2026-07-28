@@ -23,12 +23,18 @@ spec:
         - name: controld-migrate
           image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
           imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          env:
+            - name: CONTROLD_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.postgresSecretName" . }}
+                  key: {{ .Values.postgres.dsnKey }}
           command:
             - /bin/sh
             - -ec
           args:
             - |
-              until /usr/local/bin/controld-migrate -postgres-dsn {{ include "axern.postgresDSN" . | quote }} up; do
+              until /usr/local/bin/controld-migrate up; do
                 echo "waiting for postgres migration dependencies"
                 sleep 2
               done
@@ -70,8 +76,6 @@ spec:
             - {{ .Values.controld.volumeReclaimWorkers | quote }}
             - -volume-reclaim-workers-per-node
             - {{ .Values.controld.volumeReclaimWorkersPerNode | quote }}
-            - -postgres-dsn
-            - {{ include "axern.postgresDSN" . | quote }}
             - -postgres-max-connections
             - {{ .Values.controld.postgresMaxConnections | quote }}
             - -reconcile-timeout
@@ -86,15 +90,26 @@ spec:
             - storaged.{{ .Release.Namespace }}.svc.cluster.local:24020
             - -function-gateway-url
             - http://gatewayd.{{ .Release.Namespace }}.svc.cluster.local:25080
-            - -function-gateway-token
-            - {{ .Values.gatewayd.devToken | quote }}
             - -function-gateway-timeout
             - {{ .Values.controld.function.gatewayTimeout | quote }}
             - -function-bundle-base-url
             - http://controld.{{ .Release.Namespace }}.svc.cluster.local:24001
-            - -function-bundle-token
-            - {{ .Values.gatewayd.devToken | quote }}
           env:
+            - name: CONTROLD_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.postgresSecretName" . }}
+                  key: {{ .Values.postgres.dsnKey }}
+            - name: CONTROLD_FUNCTION_GATEWAY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.secretsSecretName" . }}
+                  key: GATEWAYD_DEV_TOKEN
+            - name: CONTROLD_FUNCTION_BUNDLE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.secretsSecretName" . }}
+                  key: GATEWAYD_DEV_TOKEN
             - name: AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE
               value: {{ .Values.runtimeCatalog.python311Image | quote }}
             - name: AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE
@@ -226,10 +241,12 @@ spec:
           imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
           command:
             - /usr/local/bin/controld-retention
-          args:
-            - -postgres-dsn
-            - {{ include "axern.postgresDSN" . | quote }}
           env:
+            - name: CONTROLD_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.postgresSecretName" . }}
+                  key: {{ .Values.postgres.dsnKey }}
             - name: CONTROLD_RETENTION_ENABLED
               value: "true"
             {{- include "axern.otelEnv" . | nindent 12 }}

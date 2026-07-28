@@ -3,6 +3,7 @@
 set -euo pipefail
 
 ROOTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION="$(tr -d '[:space:]' < "${ROOTDIR}/VERSION")"
 GITLEAKS_BIN="${GITLEAKS:-gitleaks}"
 SYFT_BIN="${SYFT:-syft}"
 
@@ -52,7 +53,7 @@ echo "open_source_secret_scan=passed"
 
 "${SYFT_BIN}" scan "dir:${candidate}" \
   --source-name axern \
-  --source-version 0.1.0 \
+  --source-version "${VERSION}" \
   -o "spdx-json=${audit_root}/sbom.spdx.json" >/dev/null
 python3 "${ROOTDIR}/scripts/open-source-license-policy.py" "${audit_root}/sbom.spdx.json"
 

@@ -125,7 +125,7 @@ def main() -> None:
         if not package.get("repository") or not package.get("homepage"):
             fail(f"{name} must declare repository and homepage")
     if ts_package.get("private") is not True:
-        fail("the TypeScript SDK must remain private for the source-only v0.1.0 release")
+        fail("the TypeScript SDK must remain private until npm publishing is explicitly enabled")
 
     for relative in ("pyproject.toml", "sdk/python/pyproject.toml"):
         require_toml_string(root, relative, "project", "description")

@@ -6,10 +6,11 @@ design moves the platform toward the intended product.
 
 ## North Star
 
-Axern is a programmable execution platform for AI agents, AI coding, and
-sandbox workloads. A user should be able to create an isolated environment,
-run or serve code, connect to it securely, observe its lifecycle, retain the
-right artifacts, and clean it up through consistent APIs and SDKs.
+Axern is open-source agentic infrastructure for running AI agents and code in
+isolated, stateful sandboxes. Its north star is a high-performance sandbox
+platform where a user can create an environment, run or serve code, connect to
+it securely, observe its lifecycle, retain the right artifacts, and clean it up
+through consistent APIs and SDKs.
 
 The platform remains general enough for non-agent sandbox workloads, while
 product decisions prioritize long-running and task-oriented agent execution.
@@ -25,8 +26,9 @@ product decisions prioritize long-running and task-oriented agent execution.
   tunnels use explicit, revocable, task-scoped authorization.
 - **Observable by default:** lifecycle state, logs, metrics, traces, inventory,
   usage, trajectories, and artifacts have clear owners and stable identities.
-- **Runtime choice behind one model:** runc, runsc, image formats, and node
-  implementations may vary without fragmenting the user-facing resource model.
+- **Runtime choice behind one model:** runc, runsc, image formats, node
+  implementations, and future microVM backends such as Firecracker may vary
+  without fragmenting the user-facing resource model.
 - **Local-to-production continuity:** daily development environments exercise
   the same contracts used by deployed systems, with deeper Linux or cluster
   validation reserved for behavior that needs it.

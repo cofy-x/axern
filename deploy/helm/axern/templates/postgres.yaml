@@ -32,7 +32,10 @@ spec:
             - name: POSTGRES_USER
               value: {{ .Values.postgres.username | quote }}
             - name: POSTGRES_PASSWORD
-              value: {{ .Values.postgres.password | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.postgresSecretName" . }}
+                  key: {{ .Values.postgres.passwordKey }}
           ports:
             - containerPort: 5432
           volumeMounts:

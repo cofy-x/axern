@@ -4,11 +4,11 @@
 [![Axrun CI](https://github.com/cofy-x/axern/actions/workflows/axrun-ci.yml/badge.svg)](https://github.com/cofy-x/axern/actions/workflows/axrun-ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 
-Axern is an open-source programmable execution platform for AI agents, coding
-workloads, and isolated remote sandboxes. It provides one resource model for
-creating environments, executing processes, exposing services, attaching
-storage, opening reverse tunnels, observing lifecycle state, and retaining
-task evidence.
+Axern is open-source agentic infrastructure for running AI agents and code in
+isolated, stateful sandboxes. It is designed as a high-performance sandbox
+platform with one resource model for creating environments, executing
+processes, exposing services, attaching storage, opening reverse tunnels,
+observing lifecycle state, and retaining task evidence.
 
 Axern is designed for teams that need more than a code-execution RPC: the
 control plane, node runtime, gateway, image path, SDKs, and agent harness share
@@ -26,7 +26,8 @@ the same identity, lease, cleanup, and observability contracts.
   retries, health, cleanup, and storage state remain authoritative across
   process or node restarts.
 - **Runtime choice behind one model:** runc and runsc workloads use the same
-  public APIs; OCI and Nydus image paths converge at the node runtime.
+  public APIs; OCI and Nydus image paths converge at the node runtime. The
+  resource model remains independent of a single sandbox backend.
 - **Real data-plane access:** process streams, files, archives, HTTP services,
   SSH-compatible terminals, and reverse TCP tunnels are explicit capabilities.
 - **Agent execution with evidence:** Axrun runs external agent bundles, verifies
@@ -60,9 +61,8 @@ contracts.
 ## Local Quickstart
 
 The supported local path runs the complete stack with Docker Compose. It needs
-Docker with Compose v2, GNU Make, curl, OpenSSL, SSH tooling, and Go 1.25.12.
-Linux is the primary runtime platform; Docker Desktop provides the supported
-macOS development path.
+Docker with Compose v2, GNU Make, curl, OpenSSL, and SSH tooling. Linux is the
+primary runtime platform; Docker Desktop provides the supported macOS path.
 
 ```bash
 git clone https://github.com/cofy-x/axern.git
@@ -70,18 +70,18 @@ cd axern
 make quickstart
 ```
 
-The command builds the local images, starts PostgreSQL, MinIO, the control and
-node services, waits for readiness, and runs a service smoke through the public
-gateway. Cold image builds can take longer than ten minutes; subsequent runs
-reuse the local cache.
+The command downloads the versioned CLI and multi-architecture images, starts
+PostgreSQL, MinIO, the control and node services, waits for readiness, and runs
+a smoke through the public gateway. It does not require a local Go, Rust,
+Python, or Node.js toolchain.
 
 Use the generated local CLI context:
 
 ```bash
-make axern-cli-build
-bin/axern context current
-bin/axern catalog list
-bin/axern run create \
+AXERN_CLI=deploy/local/state/releases/v$(cat VERSION)/axern
+"${AXERN_CLI}" context current
+"${AXERN_CLI}" catalog list
+"${AXERN_CLI}" run create \
   --template-id python311 \
   --runtime-class runsc \
   --argv python \
@@ -98,6 +98,50 @@ make local-compose-purge
 
 The local environment uses generated development credentials and loopback
 listeners. Do not reuse them in a shared or production deployment.
+
+Source development remains a first-class, separate path. It builds the current
+checkout into local `:dev` images and exercises the same Compose contract:
+
+```bash
+make quickstart-source
+```
+
+For local Helm development, build the images with `make local-images-build`
+and pass
+[`values-local-development.yaml`](./deploy/helm/axern/values-local-development.yaml)
+to the chart. Provider and regional values stay outside this repository.
+
+## Kubernetes Install
+
+Axern publishes its cloud-neutral chart as an OCI artifact and the CLI as
+checksummed release archives. Install the chart into the current Kubernetes
+context:
+
+```bash
+helm install axern oci://ghcr.io/cofy-x/charts/axern \
+  --version "$(cat VERSION)" \
+  --namespace axern-system \
+  --create-namespace \
+  --wait \
+  --timeout 15m
+```
+
+After installing the CLI archive for your operating system, keep the gateway
+port-forward open and import the chart-generated mTLS identity:
+
+```bash
+kubectl --namespace axern-system port-forward svc/gatewayd \
+  25100:25000 25101:25080 25122:25022
+
+axern context import-kubernetes local \
+  --namespace axern-system \
+  --current
+axern catalog list
+```
+
+The bundled PostgreSQL and single-node defaults are intended for evaluation.
+Durable or shared deployments must provide persistent storage, externalized
+secrets, ingress, and scheduling values described by the Helm chart.
 
 ## Components
 

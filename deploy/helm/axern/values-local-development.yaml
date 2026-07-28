@@ -1,0 +1,29 @@
+# Source-development overrides. Build the images with `make local-images-build`
+# before installing the chart with this file.
+runtimeCatalog:
+  python311Image: axern/python311-runtime:dev
+  serverBaseImage: axern/server-base-runtime:dev
+  codingBaseImage: axern/coding-base-runtime:dev
+  desktopBaseImage: axern/desktop-base-runtime:dev
+  claudeCodeBundleImage: axern/claude-code-bundle:dev
+  codexBundleImage: axern/codex-bundle:dev
+
+controld:
+  image:
+    repository: axern/local-controld
+    tag: dev
+
+tunneld:
+  image:
+    repository: axern/local-tunneld
+    tag: dev
+
+node:
+  image:
+    repository: axern/local-node-all-in-one
+    tag: dev
+
+gatewayd:
+  image:
+    repository: axern/local-gatewayd
+    tag: dev

@@ -42,9 +42,8 @@ push_image_after_build() {
 
 if [ "${build_runtime_core}" = "true" ]; then
   build_node_runtime_base_image "${APT_MIRROR_SOURCE}" "${CARGO_REGISTRY_SOURCE}"
-  push_image_after_build "${NODE_RUNTIME_BASE_IMAGE_TAG}"
-
   IMAGE_REF="${PYTHON311_RUNTIME_IMAGE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-python311-runtime-image.sh" >/dev/null
+  push_image_after_build "${PYTHON311_RUNTIME_IMAGE}"
   IMAGE_REF="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-server-base-runtime-image.sh" >/dev/null
   push_image_after_build "${SERVER_BASE_RUNTIME_IMAGE}"
   IMAGE_REF="${CODING_BASE_RUNTIME_IMAGE}" SERVER_BASE_RUNTIME_IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-coding-base-runtime-image.sh" >/dev/null
@@ -72,7 +71,7 @@ rm -rf "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build/dashboard-vendor"
     GOTOOLCHAIN=local GOFLAGS= "${go_bin}" run ./gateway/gatewayd/cmd/dashassets \
       -vendor-dir "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build/dashboard-vendor"
 )
-case "$(uname -m)" in
+case "${AXERN_TARGET_GOARCH:-$(uname -m)}" in
   arm64|aarch64)
     CONTROLD_GOARCH="arm64"
     ;;
@@ -113,18 +112,21 @@ axern_docker_build \
   --build-arg "APT_MIRROR_BASE_URL=${APT_MIRROR_BASE_URL:-}" \
   -t "${CONTROLD_IMAGE}" \
   "${AXERN_DEV_ENV_ROOT}"
+push_image_after_build "${CONTROLD_IMAGE}"
 
 axern_docker_build \
   -f "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/Dockerfile" \
   --build-arg "APT_MIRROR_BASE_URL=${APT_MIRROR_BASE_URL:-}" \
   -t "${GATEWAYD_IMAGE}" \
   "${AXERN_DEV_ENV_ROOT}"
+push_image_after_build "${GATEWAYD_IMAGE}"
 
 if [ "${build_node_stack}" = "true" ]; then
   axern_docker_build \
     -f "${AXERN_DEV_ENV_ROOT}/deploy/images/tunneld/Dockerfile" \
     -t "${TUNNELD_IMAGE}" \
     "${AXERN_DEV_ENV_ROOT}"
+  push_image_after_build "${TUNNELD_IMAGE}"
 
   axern_docker_build \
     -f "${AXERN_DEV_ENV_ROOT}/deploy/images/node-all-in-one/Dockerfile" \
@@ -132,6 +134,7 @@ if [ "${build_node_stack}" = "true" ]; then
     --build-arg "NODE_RUNTIME_BASE_IMAGE_ID=$(docker image inspect "${NODE_RUNTIME_BASE_IMAGE_TAG}" --format '{{.Id}}')" \
     -t "${NODE_ALL_IN_ONE_IMAGE}" \
     "${AXERN_DEV_ENV_ROOT}"
+  push_image_after_build "${NODE_ALL_IN_ONE_IMAGE}"
 fi
 
 if [ "${build_runtime_core}" = "true" ]; then

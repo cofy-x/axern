@@ -35,6 +35,7 @@ AXERN_REGISTRY_USERNAME ?=
 AXERN_REGISTRY_PASSWORD ?=
 
 AXERN_CLI_CONFIG ?= $(HOME)/.config/axern/config.json
+AXERN_CLI ?= $(ROOTDIR)/bin/axern
 AXERN_CLI_CONTEXT ?= $(AXERN_HELM_RELEASE)
 AXERN_CLI_STATE_DIR ?= $(AXERN_HELM_RENDER_DIR)/axern-cli
 AXERN_CLI_CERT_DIR ?= $(AXERN_CLI_STATE_DIR)/certs
@@ -272,18 +273,15 @@ helm-observability-port-forward: ## Keep the local Grafana port-forward open
 	@echo "Forwarding Grafana http://127.0.0.1:$(AXERN_GRAFANA_PORT) -> svc/grafana:3000"
 	$(KUBECTL) $(call kubectl_args) -n '$(AXERN_HELM_NAMESPACE)' port-forward svc/grafana '$(AXERN_GRAFANA_PORT):3000'
 
-helm-axern-context: ## Install or update a local axern CLI context from the Helm PKI secret
+helm-axern-context: axern-cli-build ## Install or update a local axern CLI context from the Helm PKI secret
 	$(call require_kube_context)
-	mkdir -p '$(AXERN_CLI_CERT_DIR)'
-	$(KUBECTL) $(call kubectl_args) -n '$(AXERN_HELM_NAMESPACE)' get secret '$(AXERN_CLI_PKI_SECRET)' -o json | \
-		python3 '$(ROOTDIR)/scripts/deploy/export-k8s-secret-files.py' '$(AXERN_CLI_CERT_DIR)' ca.crt client.crt client.key
-	python3 '$(ROOTDIR)/scripts/deploy/install-axern-context.py' \
-		--config '$(AXERN_CLI_CONFIG)' \
-		--context '$(AXERN_CLI_CONTEXT)' \
+	$(AXERN_CLI) --config '$(AXERN_CLI_CONFIG)' context import-kubernetes '$(AXERN_CLI_CONTEXT)' \
+		--namespace '$(AXERN_HELM_NAMESPACE)' \
+		--secret '$(AXERN_CLI_PKI_SECRET)' \
+		$(if $(strip $(AXERN_KUBECONFIG)),--kubeconfig '$(strip $(AXERN_KUBECONFIG))') \
+		$(if $(strip $(AXERN_KUBE_CONTEXT)),--kube-context '$(strip $(AXERN_KUBE_CONTEXT))') \
+		--cert-dir '$(AXERN_CLI_CERT_DIR)' \
 		--endpoint '$(AXERN_CLI_ENDPOINT)' \
-		--tls-ca-cert '$(AXERN_CLI_CERT_DIR)/ca.crt' \
-		--tls-cert '$(AXERN_CLI_CERT_DIR)/client.crt' \
-		--tls-key '$(AXERN_CLI_CERT_DIR)/client.key' \
 		--tls-server-name '$(AXERN_CLI_TLS_SERVER_NAME)' \
 		--proxy-mode '$(AXERN_CLI_PROXY_MODE)' \
 		--service-url '$(AXERN_CLI_SERVICE_URL)' \

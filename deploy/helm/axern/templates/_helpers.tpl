@@ -69,10 +69,14 @@ topologySpreadConstraints:
 {{- $root := .root -}}
 {{- $image := .image -}}
 {{- $repo := required "image.repository is required" $image.repository -}}
+{{- $resolvedRepo := $repo -}}
 {{- if and $root.Values.global.imageRegistry (not (contains "/" $repo | and (contains "." (first (splitList "/" $repo))))) -}}
-{{- printf "%s/%s:%s" ($root.Values.global.imageRegistry | trimSuffix "/") $repo (required "image.tag is required" $image.tag) -}}
+{{- $resolvedRepo = printf "%s/%s" ($root.Values.global.imageRegistry | trimSuffix "/") $repo -}}
+{{- end -}}
+{{- if $image.digest -}}
+{{- printf "%s@%s" $resolvedRepo $image.digest -}}
 {{- else -}}
-{{- printf "%s:%s" $repo (required "image.tag is required" $image.tag) -}}
+{{- printf "%s:%s" $resolvedRepo (required "image.tag is required when image.digest is empty" $image.tag) -}}
 {{- end -}}
 {{- end -}}
 
@@ -113,12 +117,8 @@ topologySpreadConstraints:
 {{- end -}}
 {{- end -}}
 
-{{- define "axern.postgresDSN" -}}
-{{- if .Values.postgres.dsn -}}
-{{- .Values.postgres.dsn -}}
-{{- else -}}
-{{- printf "postgres://%s:%s@postgres:5432/%s?sslmode=disable" .Values.postgres.username .Values.postgres.password .Values.postgres.database -}}
-{{- end -}}
+{{- define "axern.postgresSecretName" -}}
+{{- default .Values.postgres.secretName .Values.postgres.existingSecret -}}
 {{- end -}}
 
 {{- define "axern.controldTarget" -}}

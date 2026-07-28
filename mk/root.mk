@@ -1,6 +1,6 @@
 .PHONY: bootstrap bootstrap-tools \
 		bootstrap-go bootstrap-rust bootstrap-ts bootstrap-py \
-		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture axern-cli-dashboard-smoke gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
+		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture axern-cli-dashboard-smoke gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
 		gateway-dashboard-assets grafana-assets-check \
 		build-go test-go lint-go fmt-go \
 		build-rust test-rust lint-rust fmt-rust \
@@ -67,6 +67,16 @@ agent-doc-check: ## Verify repository Markdown links and module contract indexin
 
 open-source-check: ## Audit the public source tree, credentials, metadata, and dependency licenses
 	bash $(ROOTDIR)/scripts/open-source-check.sh
+
+release-check: ## Verify release versions and package contracts
+	bash $(ROOTDIR)/scripts/release/version-check.sh
+	$(MAKE) helm-lint
+
+release-build: release-check ## Build CLI archives and the Helm package
+	bash $(ROOTDIR)/scripts/release/build-cli.sh
+	bash $(ROOTDIR)/scripts/release/package-helm.sh
+	bash $(ROOTDIR)/scripts/release/build-sbom.sh
+	bash $(ROOTDIR)/scripts/release/finalize-artifacts.sh
 
 build-go: ## Build the root Go binaries
 	mkdir -p bin

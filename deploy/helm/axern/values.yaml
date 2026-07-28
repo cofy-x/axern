@@ -177,13 +177,17 @@ secrets:
 
 postgres:
   enabled: true
+  existingSecret: ""
+  secretName: axern-postgres
+  passwordKey: password
+  dsnKey: dsn
   image:
     repository: postgres
     tag: 16-alpine
     pullPolicy: ""
   database: axern
   username: postgres
-  password: postgres
+  password: ""
   dsn: ""
   persistence:
     enabled: false
@@ -222,18 +226,19 @@ objectStore:
   skipVerify: false
 
 runtimeCatalog:
-  python311Image: axern/python311-runtime:dev
-  serverBaseImage: axern/server-base-runtime:dev
-  codingBaseImage: axern/coding-base-runtime:dev
-  desktopBaseImage: axern/desktop-base-runtime:dev
-  claudeCodeBundleImage: axern/claude-code-bundle:dev
-  codexBundleImage: axern/codex-bundle:dev
+  python311Image: ghcr.io/cofy-x/axern/python311-runtime:v0.2.0
+  serverBaseImage: ghcr.io/cofy-x/axern/server-base-runtime:v0.2.0
+  codingBaseImage: ghcr.io/cofy-x/axern/coding-base-runtime:v0.2.0
+  desktopBaseImage: ghcr.io/cofy-x/axern/desktop-base-runtime:v0.2.0
+  claudeCodeBundleImage: ghcr.io/cofy-x/axern/claude-code-bundle:v0.2.0
+  codexBundleImage: ghcr.io/cofy-x/axern/codex-bundle:v0.2.0
 
 controld:
   replicas: 1
   image:
-    repository: axern/local-controld
-    tag: dev
+    repository: ghcr.io/cofy-x/axern/controld
+    tag: v0.2.0
+    digest: ""
     pullPolicy: ""
   heartbeatFreshnessWindow: 15s
   summaryFreshnessWindow: 15s
@@ -267,14 +272,16 @@ tunneld:
   relayID: default
   drain: false
   image:
-    repository: axern/local-tunneld
-    tag: dev
+    repository: ghcr.io/cofy-x/axern/tunneld
+    tag: v0.2.0
+    digest: ""
     pullPolicy: ""
 
 node:
   image:
-    repository: axern/local-node-all-in-one
-    tag: dev
+    repository: ghcr.io/cofy-x/axern/node-all-in-one
+    tag: v0.2.0
+    digest: ""
     pullPolicy: ""
   privileged: true
   heartbeatInterval: 1s
@@ -327,10 +334,11 @@ node:
 gatewayd:
   replicas: 1
   image:
-    repository: axern/local-gatewayd
-    tag: dev
+    repository: ghcr.io/cofy-x/axern/gatewayd
+    tag: v0.2.0
+    digest: ""
     pullPolicy: ""
-  devToken: axern-local-dev
+  devToken: ""
   dashboardEnabled: true
   routeCacheTTL: 3s
   routeCacheMaxEntries: 8192
