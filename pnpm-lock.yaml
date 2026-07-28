@@ -18,8 +18,8 @@ importers:
   sdk/typescript:
     dependencies:
       '@grpc/grpc-js':
-        specifier: ^1.14.3
-        version: 1.14.3
+        specifier: ^1.14.4
+        version: 1.14.4
       '@grpc/proto-loader':
         specifier: ^0.8.0
         version: 0.8.0
@@ -192,8 +192,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@grpc/grpc-js@1.14.3':
-    resolution: {integrity: sha512-Iq8QQQ/7X3Sac15oB6p0FmUg/klxQvXLeileoqrTRGJYLV+/9tubbr9ipz0GKHjmXVsgFPo/+W+2cA8eNcR+XA==}
+  '@grpc/grpc-js@1.14.4':
+    resolution: {integrity: sha512-k9Dj3DV/itK9D06Y8f190Qgop7/Ui+D0njFV3LHMPwPT75DpXLQohE9Wmz0QElrJnzsjB7KPWiKJbOl7IPDArQ==}
     engines: {node: '>=12.10.0'}
 
   '@grpc/proto-loader@0.8.0':
@@ -488,7 +488,7 @@ snapshots:
   '@esbuild/win32-x64@0.27.7':
     optional: true
 
-  '@grpc/grpc-js@1.14.3':
+  '@grpc/grpc-js@1.14.4':
     dependencies:
       '@grpc/proto-loader': 0.8.0
       '@js-sdsl/ordered-map': 4.4.2
