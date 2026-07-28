@@ -124,6 +124,10 @@ production-validation cluster when `postgres.persistence.enabled=true` and a
 topology-aware `ReadWriteOnce` StorageClass is selected. Do not run a durable
 environment with the PostgreSQL `emptyDir` fallback.
 
+Chart-managed PostgreSQL and MinIO use a zero-surge deployment strategy. Their
+single-writer volumes must never be mounted by overlapping old and new Pods
+during an upgrade.
+
 MinIO is not an Axern control-plane dependency. `minio.enabled` only deploys an
 in-cluster S3-compatible service, while `objectStore.enabled` controls whether
 node runtime images receive a default S3 backend. OCI and Nydus registry

@@ -133,6 +133,17 @@ helm-contract-check: ## Verify Helm values preserve runtime argument contracts
 			echo "artifact max bytes rendered as invalid integer: $$value" >&2; \
 			exit 1; \
 		}
+	@for component in postgres minio; do \
+		rendered="$$($(HELM) template axern-contract-check '$(AXERN_HELM_CHART)' \
+			--set "$${component}.enabled=true" \
+			--show-only "templates/$${component}.yaml")"; \
+		printf '%s\n' "$$rendered" | grep -q '^    type: RollingUpdate$$' && \
+		printf '%s\n' "$$rendered" | grep -q '^      maxSurge: 0$$' && \
+		printf '%s\n' "$$rendered" | grep -q '^      maxUnavailable: 1$$' || { \
+			echo "$${component} must use zero-surge single-writer rollout" >&2; \
+			exit 1; \
+		}; \
+	done
 
 helm-template: ## Render the Axern Helm chart for the configured namespace and values
 	$(call require_helm_values)
