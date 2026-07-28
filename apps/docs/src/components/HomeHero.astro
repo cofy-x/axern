@@ -1,0 +1,87 @@
+---
+interface Props {
+  locale?: 'en' | 'zh-cn';
+}
+
+const { locale = 'en' } = Astro.props;
+const zh = locale === 'zh-cn';
+const base = zh ? '/zh-cn' : '';
+---
+
+<section class="ax-hero">
+  <div class="ax-hero__copy">
+    <p class="ax-kicker">INFRASTRUCTURE FOR AI AGENTS</p>
+    <p class="ax-display" aria-hidden="true">
+      {zh ? (
+        <>
+          <span>为智能体而生的</span>
+          <span class="ax-display__accent">可编程沙箱平台</span>
+        </>
+      ) : (
+        <>
+          <span>The</span>
+          <span>programmable</span>
+          <span class="ax-display__accent">sandbox for</span>
+          <span class="ax-display__accent">agents</span>
+        </>
+      )}
+    </p>
+    <p class="ax-lede">
+      {zh
+        ? '用统一的资源与生命周期模型运行隔离、持久、可观测的 AI 智能体和代码工作负载。'
+        : 'Run isolated, stateful, observable AI agents and code workloads with one resource and lifecycle model.'}
+    </p>
+    <div class="ax-actions">
+      <a class="ax-button ax-button--primary" href={`${base}/getting-started/compose/`}>
+        {zh ? '十分钟开始' : 'Start in ten minutes'}
+      </a>
+      <a class="ax-button" href={`${base}/architecture/`}>
+        {zh ? '了解架构' : 'Explore the architecture'}
+      </a>
+    </div>
+    <div class="ax-signals" aria-label={zh ? '平台能力' : 'Platform capabilities'}>
+      <span>runc + runsc</span>
+      <span>OCI + Nydus</span>
+      <span>Python · Go · TypeScript</span>
+    </div>
+  </div>
+  <a
+    class="ax-hero__terminal"
+    href={`${base}/guides/python-service/`}
+    aria-label={zh ? '查看完整 Python Service 教程' : 'View the complete Python Service guide'}
+  >
+    <div class="ax-terminal__bar">
+      <span class="ax-terminal__controls" aria-hidden="true">
+        <span class="ax-terminal__dot"></span>
+        <span class="ax-terminal__dot"></span>
+        <span class="ax-terminal__dot"></span>
+      </span>
+      <span class="ax-terminal__title">python service · /svc</span>
+    </div>
+    <img
+      src="/terminal/python-service.gif"
+      alt={zh ? '通过 Axern Python SDK 发布并访问 HTTP Service' : 'Publishing and reaching an HTTP Service with the Axern Python SDK'}
+      width="960"
+      height="380"
+      loading="eager"
+    />
+  </a>
+</section>
+
+<section class="ax-value-grid" aria-label={zh ? 'Axern 核心能力' : 'Why Axern'}>
+  <article>
+    <p class="ax-number">01</p>
+    <h2>{zh ? '沙箱是基础原语' : 'Sandbox as the primitive'}</h2>
+    <p>{zh ? '运行、服务、持久工作区与智能体任务共享同一套隔离和清理契约。' : 'Runs, services, persistent workspaces, and agent tasks share one isolation and cleanup contract.'}</p>
+  </article>
+  <article>
+    <p class="ax-number">02</p>
+    <h2>{zh ? '持久控制面' : 'Durable control plane'}</h2>
+    <p>{zh ? '调度、租约、健康、重试和存储意图在进程与节点重启后依然可靠。' : 'Placement, leases, health, retries, and storage intent survive process and node restarts.'}</p>
+  </article>
+  <article>
+    <p class="ax-number">03</p>
+    <h2>{zh ? '智能体证据闭环' : 'Agent evidence loop'}</h2>
+    <p>{zh ? 'Axrun 将任务、执行、验证、用量与轨迹固化为可复现的 Rollout。' : 'Axrun makes tasks, execution, verification, usage, and trajectories reproducible rollouts.'}</p>
+  </article>
+</section>

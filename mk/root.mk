@@ -4,7 +4,7 @@
 		gateway-dashboard-assets grafana-assets-check \
 		build-go test-go lint-go fmt-go \
 		build-rust test-rust lint-rust fmt-rust \
-		build-ts test-ts lint-ts pack-ts sdk-typescript-verify \
+		build-ts test-ts lint-ts pack-ts sdk-typescript-verify docs-dev docs-build docs-check docs-verify docs-assets docs-social-card docs-service-demo docs-service-asset \
 		build-py test-py lint-py sdk-python-verify sdk-go-verify sdk-release-verify sdk-contract-verify \
 		imagemgr-build imagemgr-test imagemgr-check-architecture \
 		imagefsd-build imagefsd-test
@@ -60,7 +60,7 @@ proto-generated-check: ## Verify committed protobuf outputs match source contrac
 	bash $(ROOTDIR)/scripts/proto-generated-check.sh
 
 clean: ## Remove root build artifacts
-	rm -rf bin dist target sdk/typescript/dist sdk/python/dist
+	rm -rf bin dist target apps/docs/dist sdk/typescript/dist sdk/python/dist
 
 agent-doc-check: ## Verify repository Markdown links and module contract indexing
 	bash $(ROOTDIR)/scripts/agent-doc-check.sh
@@ -180,23 +180,51 @@ lint-rust: ## Check Rust formatting
 fmt-rust: ## Format the root Rust workspace
 	$(CARGO) fmt --all
 
-build-ts: ## Build the TypeScript SDK workspace
+build-ts: ## Build the TypeScript SDK and documentation workspaces
 	$(PNPM) run build
 
-test-ts: ## Run the TypeScript SDK tests
+test-ts: ## Run TypeScript workspace tests
 	$(PNPM) run test
 
-lint-ts: ## Run TypeScript static checks
+lint-ts: ## Run TypeScript and documentation static checks
 	$(PNPM) run lint
 
 pack-ts: ## Dry-run pack the TypeScript SDK package
 	$(PNPM) --filter @cofy-x/axern-sdk run pack:dry-run
 
 sdk-typescript-verify: ## Run TypeScript SDK tests, lint, and package build
-	$(MAKE) test-ts
-	$(MAKE) lint-ts
-	$(MAKE) build-ts
+	$(PNPM) --filter @cofy-x/axern-sdk run test
+	$(PNPM) --filter @cofy-x/axern-sdk run lint
+	$(PNPM) --filter @cofy-x/axern-sdk run build
 	$(MAKE) pack-ts
+
+docs-dev: ## Run the Axern documentation development server
+	$(PNPM) --filter @cofy-x/axern-docs run dev
+
+docs-build: ## Build the static Axern documentation site and Pagefind index
+	$(PNPM) --filter @cofy-x/axern-docs run build
+
+docs-check: ## Check Axern documentation types, Markdown, Mermaid, and static assets
+	$(PNPM) --filter @cofy-x/axern-docs run check:content
+
+docs-verify: ## Build and fully verify the publishable Axern documentation site
+	$(PNPM) --filter @cofy-x/axern-docs run verify
+
+docs-assets: axern-cli-build axrun-build ## Regenerate Axern documentation terminal recordings
+	bash $(ROOTDIR)/apps/docs/scripts/generate-terminal-assets.sh
+
+docs-social-card: ## Regenerate the public social preview from its SVG source
+	$(PNPM) --filter @cofy-x/axern-docs run generate:social-card
+
+docs-service-demo: ## Run and inspect the Python Service example against local Compose
+	@test -x "$(ROOTDIR)/bin/axern" || { echo "missing $(ROOTDIR)/bin/axern; run make axern-cli-build" >&2; exit 1; }
+	@AXERN_CONTEXT="$${AXERN_DOCS_CONTEXT:-compose}" \
+		AXERN_SERVICE_URL="$${AXERN_SERVICE_URL:-http://127.0.0.1:25080}" \
+		AXERN_CLI_BINARY="$(ROOTDIR)/bin/axern" \
+		$(UV) run --package axern-sdk python apps/docs/scripts/record-service-demo.py
+
+docs-service-asset: axern-cli-build ## Regenerate the real local data-plane Service recording
+	bash $(ROOTDIR)/apps/docs/scripts/generate-service-asset.sh
 
 build-py: ## Build the Python SDK package
 	$(UV) build sdk/python
@@ -205,9 +233,9 @@ test-py: ## Run the Python SDK test suite
 	$(UV) run --package axern-sdk python -m unittest discover -s sdk/python/tests
 
 lint-py: ## Run Python SDK lint checks
-	$(UV) run --package axern-sdk python -m compileall sdk/python/src sdk/python/examples
-	$(UV) run --package axern-sdk ruff check sdk/python/src/axern_sdk sdk/python/tests sdk/python/examples
-	cd sdk/python && $(UV) run --package axern-sdk pyright
+	$(UV) run --package axern-sdk python -m compileall sdk/python/src sdk/python/examples apps/docs/scripts/record-service-demo.py
+	$(UV) run --package axern-sdk ruff check sdk/python/src/axern_sdk sdk/python/tests sdk/python/examples apps/docs/scripts/record-service-demo.py
+	cd sdk/python && $(UV) run --package axern-sdk pyright . ../../apps/docs/scripts/record-service-demo.py
 
 sdk-python-verify: ## Run Python SDK tests, lint, and package build
 	$(MAKE) test-py

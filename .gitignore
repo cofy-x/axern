@@ -19,6 +19,7 @@ runtime/axnoded/executable
 
 # Node / TypeScript
 node_modules/
+/apps/docs/.astro/
 .pnpm-debug.log*
 pnpm-debug.log*
 *.tsbuildinfo

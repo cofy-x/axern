@@ -10,6 +10,7 @@ membership.
 | :--- | :--- | :--- |
 | `apps/axrun` | Agent harness, task execution, verification, and trajectory capture | [Contract](../apps/axrun/AGENTS.md), [README](../apps/axrun/README.md) |
 | `apps/cli` | Product CLI for Axern control and data-plane workflows | [Contract](../apps/cli/AGENTS.md), [README](../apps/cli/README.md) |
+| `apps/docs` | Public documentation website, localized user guides, and publishable documentation assets | [Contract](../apps/docs/AGENTS.md), [README](../apps/docs/README.md) |
 | `sdk/proto` | Shared public and internal protobuf contracts and generation entrypoints | [README](../sdk/proto/README.md) |
 | `sdk/go` | Go SDK | [README](../sdk/go/README.md) |
 | `sdk/python` | Python SDK | [Contract](../sdk/python/AGENTS.md), [README](../sdk/python/README.md) |

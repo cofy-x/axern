@@ -1,0 +1,29 @@
+---
+title: Axern documentation
+description: Open-source agentic infrastructure for isolated, stateful sandboxes and reproducible agent rollouts.
+template: splash
+head:
+  - tag: title
+    content: Axern — Programmable sandboxes for AI agents
+---
+
+import HomeHero from '../../components/HomeHero.astro';
+
+<HomeHero />
+
+## One platform, two entry points
+
+Use **Axern** when an application needs programmable sandbox lifecycle,
+processes, files, services, storage, or tunnels. Use **Axrun** when an agent
+workflow needs immutable tasks, controlled concurrency, verification,
+trajectories, usage, and portable evidence.
+
+- [Install the local stack](/getting-started/compose/) and run a sandbox through
+  the public gateway.
+- [Choose an SDK](/sdk/) for Python, Go, or Node.js applications.
+- [Run a managed rollout](/axrun/) when execution needs a reproducible agent
+  evidence loop.
+
+Axern is pre-1.0 and under active development. Evaluate authentication, TLS,
+runtime isolation, image trust, network policy, quotas, and persistent storage
+before using it for untrusted multi-tenant workloads.

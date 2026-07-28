@@ -118,12 +118,21 @@ def main() -> None:
                 fail(f"{workflow.relative_to(root)} uses an unpinned action ref {reference!r}")
 
     root_package = json.loads(read_text(root / "package.json"))
+    docs_package = json.loads(read_text(root / "apps/docs/package.json"))
     ts_package = json.loads(read_text(root / "sdk/typescript/package.json"))
-    for name, package in (("package.json", root_package), ("sdk/typescript/package.json", ts_package)):
+    for name, package in (
+        ("package.json", root_package),
+        ("apps/docs/package.json", docs_package),
+        ("sdk/typescript/package.json", ts_package),
+    ):
         if package.get("license") != "Apache-2.0":
             fail(f"{name} must declare Apache-2.0")
+        if not package.get("description"):
+            fail(f"{name} must declare description")
         if not package.get("repository") or not package.get("homepage"):
             fail(f"{name} must declare repository and homepage")
+    if docs_package.get("private") is not True:
+        fail("the documentation package must remain private")
     if ts_package.get("private") is not True:
         fail("the TypeScript SDK must remain private until npm publishing is explicitly enabled")
 

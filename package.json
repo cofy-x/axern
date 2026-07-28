@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.12.0"
   },
   "repository": {
     "type": "git",
@@ -17,9 +17,9 @@
     "url": "https://github.com/cofy-x/axern/issues"
   },
   "scripts": {
-    "build": "pnpm --filter @cofy-x/axern-sdk run build",
-    "test": "pnpm --filter @cofy-x/axern-sdk run test",
-    "lint": "pnpm --filter @cofy-x/axern-sdk run lint"
+    "build": "pnpm --filter @cofy-x/axern-sdk run build && pnpm --filter @cofy-x/axern-docs run build",
+    "test": "pnpm --filter @cofy-x/axern-sdk run test && pnpm --filter @cofy-x/axern-docs run test",
+    "lint": "pnpm --filter @cofy-x/axern-sdk run lint && pnpm --filter @cofy-x/axern-docs run lint"
   },
   "devDependencies": {
     "tsx": "^4.23.1",

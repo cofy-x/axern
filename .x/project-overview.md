@@ -21,6 +21,10 @@ networking, SDKs, and deployment tooling.
 | `docs/` | Product direction, current architecture, durable decisions, verification, and runbooks |
 | `examples/` | Maintained user-facing examples |
 
+`apps/docs` is the publishable public documentation application. The root
+`docs/` tree remains the source of truth for engineering architecture,
+maintainer operations, verification contracts, and durable product design.
+
 The [Module Guide](module-guide.md) maps active modules to their local
 contracts. Do not maintain a second module inventory here.
 

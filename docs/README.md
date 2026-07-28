@@ -4,6 +4,13 @@ Use this directory for durable product, architecture, verification, and
 operational context. Agent rules belong in `AGENTS.md` and `.x/`; module package
 maps and commands belong beside the code.
 
+The public documentation website lives in [`apps/docs`](../apps/docs/README.md).
+It owns user journeys, installation guidance, SDK entry pages, localized
+content, and the deployed site at `axern.cofy-x.space`. Do not duplicate
+maintainer runbooks or detailed internal architecture here and in the public
+site: public pages summarize stable user-facing concepts and link to the
+authoritative repository document when deeper engineering detail is useful.
+
 ## Document Types
 
 | Type | Purpose | Maintenance rule |
