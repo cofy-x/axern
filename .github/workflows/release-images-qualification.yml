@@ -31,6 +31,8 @@ jobs:
           go-version: "1.25.12"
           cache: false
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - name: Expose GitHub Actions cache runtime
+        uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
       - name: Build architecture images without publishing
         run: bash scripts/release/build-and-push-images.sh "${{ matrix.arch }}" build

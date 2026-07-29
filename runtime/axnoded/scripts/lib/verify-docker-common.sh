@@ -748,7 +748,8 @@ build_node_runtime_base_image() {
     return 1
   fi
 
-  DOCKER_BUILDKIT="${buildkit}" axern_docker_build \
+  AXERN_DOCKER_CACHE_BACKEND="${AXERN_NODE_RUNTIME_BASE_CACHE_BACKEND:-none}" \
+    DOCKER_BUILDKIT="${buildkit}" axern_docker_build \
     "${build_args[@]}" \
     "${REPO_ROOT}"
 }

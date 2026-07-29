@@ -53,6 +53,18 @@ cache_helper = (root / "scripts/dev-env/docker-build-cache.sh").read_text()
 source_label = '--label "org.opencontainers.image.source=${AXERN_OCI_SOURCE_LABEL}"'
 if source_label not in cache_helper:
     raise SystemExit("shared Docker builds must carry the public source repository label")
+for contract in (
+    "AXERN_DOCKER_CACHE_BACKEND:-none",
+    "ACTIONS_RUNTIME_TOKEN is required",
+    "ACTIONS_RESULTS_URL or ACTIONS_CACHE_URL is required",
+    "docker_build_cache_backend=gha scope=%s",
+    "type=gha,scope=${cache_scope},mode=max,timeout=20m",
+):
+    if contract not in cache_helper:
+        raise SystemExit(f"shared Docker GHA cache contract is missing: {contract}")
+for obsolete in ("AXERN_DOCKER_GHA_CACHE", "AXERN_DOCKER_REGISTRY_CACHE"):
+    if obsolete in cache_helper:
+        raise SystemExit(f"shared Docker cache helper retains obsolete backend selection: {obsolete}")
 
 release_builder = (root / "scripts/release/build-and-push-images.sh").read_text()
 for contract in (
@@ -60,6 +72,7 @@ for contract in (
     "docker info --format '{{.Architecture}}'",
     'mode="${2:-push}"',
     'AXERN_DOCKER_PUSH_AFTER_BUILD=0',
+    'AXERN_NODE_RUNTIME_BASE_CACHE_BACKEND=gha',
 ):
     if contract not in release_builder:
         raise SystemExit(f"release architecture build contract is missing: {contract}")
@@ -74,6 +87,8 @@ for workflow_name, workflow in (
         "runs-on: ${{ matrix.runner }}",
         "runner: ubuntu-24.04",
         "runner: ubuntu-24.04-arm",
+        "docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0",
+        "crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0",
     ):
         if contract not in workflow:
             raise SystemExit(f"{workflow_name} workflow native runner contract is missing: {contract}")

@@ -42,7 +42,7 @@ if [ "${mode}" = "push" ]; then
 else
   export AXERN_DOCKER_PUSH_AFTER_BUILD=0
 fi
-export AXERN_DOCKER_GHA_CACHE="${AXERN_DOCKER_GHA_CACHE:-1}"
+export AXERN_NODE_RUNTIME_BASE_CACHE_BACKEND=gha
 export AXERN_OCI_SOURCE_LABEL="https://github.com/cofy-x/axern"
 
 started_at="$(date +%s)"
