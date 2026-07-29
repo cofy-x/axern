@@ -23,7 +23,7 @@ shell fallbacks.
 Add the published module to a Go project:
 
 ```bash
-go get github.com/cofy-x/axern/sdk/go@v0.2.0
+go get github.com/cofy-x/axern/sdk/go@v0.2.1
 ```
 
 The public `sdk/go/clientconfig` package loads the same explicit context schema

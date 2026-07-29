@@ -27,7 +27,7 @@ long-lived publish tokens. Configure the npm trusted publisher for repository
 `cofy-x/axern`, workflow `release.yml`, environment `sdk-release`, and allow
 `npm publish`. The npm organization and initial public package must exist before
 its trusted publisher can be registered. Bootstrap a validated prerelease
-(for example `0.2.0-bootstrap.0` under the `next` dist-tag) interactively with
+(for example `X.Y.Z-bootstrap.0` under the `next` dist-tag) interactively with
 2FA from a temporary clean export; do not consume the final version. Then
 configure trust and remove the bootstrap credential before creating the release
 tags. npm generates provenance automatically for subsequent public OIDC
@@ -71,7 +71,9 @@ Registry publication is safely repeatable but remains immutable. On a rerun,
 the workflow skips an SDK version only when every PyPI filename and SHA-256, or
 the npm tarball SHA-1, exactly matches the candidate built by the workflow. An
 existing version with different bytes fails the release instead of being
-overwritten.
+overwritten. A tag that starts a release is consumed even when publication
+fails: fix the root cause, advance the coherent version, and create new tags.
+Never move or reuse the failed tags.
 
 Container images carry the public source-repository label and the chart carries
 matching source metadata so GHCR associates packages with this public

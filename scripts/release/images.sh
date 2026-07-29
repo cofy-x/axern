@@ -16,6 +16,7 @@ axern_release_version() {
 axern_export_release_images() {
   local tag
   tag="$(axern_release_version)"
+  export NODE_RUNTIME_BASE_IMAGE_TAG="${AXERN_RELEASE_REGISTRY}/node-runtime-base:${tag}"
   export CONTROLD_IMAGE="${AXERN_RELEASE_REGISTRY}/controld:${tag}"
   export TUNNELD_IMAGE="${AXERN_RELEASE_REGISTRY}/tunneld:${tag}"
   export GATEWAYD_IMAGE="${AXERN_RELEASE_REGISTRY}/gatewayd:${tag}"

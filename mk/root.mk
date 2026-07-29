@@ -70,6 +70,7 @@ open-source-check: ## Audit the public source tree, credentials, metadata, and d
 
 release-check: ## Verify release versions and package contracts
 	bash $(ROOTDIR)/scripts/release/version-check.sh
+	bash $(ROOTDIR)/scripts/release/image-build-contract-check.sh
 	$(MAKE) helm-lint
 
 release-build: release-check ## Build CLI archives and the Helm package

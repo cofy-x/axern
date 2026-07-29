@@ -226,18 +226,18 @@ objectStore:
   skipVerify: false
 
 runtimeCatalog:
-  python311Image: ghcr.io/cofy-x/axern/python311-runtime:v0.2.0
-  serverBaseImage: ghcr.io/cofy-x/axern/server-base-runtime:v0.2.0
-  codingBaseImage: ghcr.io/cofy-x/axern/coding-base-runtime:v0.2.0
-  desktopBaseImage: ghcr.io/cofy-x/axern/desktop-base-runtime:v0.2.0
-  claudeCodeBundleImage: ghcr.io/cofy-x/axern/claude-code-bundle:v0.2.0
-  codexBundleImage: ghcr.io/cofy-x/axern/codex-bundle:v0.2.0
+  python311Image: ghcr.io/cofy-x/axern/python311-runtime:v0.2.1
+  serverBaseImage: ghcr.io/cofy-x/axern/server-base-runtime:v0.2.1
+  codingBaseImage: ghcr.io/cofy-x/axern/coding-base-runtime:v0.2.1
+  desktopBaseImage: ghcr.io/cofy-x/axern/desktop-base-runtime:v0.2.1
+  claudeCodeBundleImage: ghcr.io/cofy-x/axern/claude-code-bundle:v0.2.1
+  codexBundleImage: ghcr.io/cofy-x/axern/codex-bundle:v0.2.1
 
 controld:
   replicas: 1
   image:
     repository: ghcr.io/cofy-x/axern/controld
-    tag: v0.2.0
+    tag: v0.2.1
     digest: ""
     pullPolicy: ""
   heartbeatFreshnessWindow: 15s
@@ -273,14 +273,14 @@ tunneld:
   drain: false
   image:
     repository: ghcr.io/cofy-x/axern/tunneld
-    tag: v0.2.0
+    tag: v0.2.1
     digest: ""
     pullPolicy: ""
 
 node:
   image:
     repository: ghcr.io/cofy-x/axern/node-all-in-one
-    tag: v0.2.0
+    tag: v0.2.1
     digest: ""
     pullPolicy: ""
   privileged: true
@@ -335,7 +335,7 @@ gatewayd:
   replicas: 1
   image:
     repository: ghcr.io/cofy-x/axern/gatewayd
-    tag: v0.2.0
+    tag: v0.2.1
     digest: ""
     pullPolicy: ""
   devToken: ""

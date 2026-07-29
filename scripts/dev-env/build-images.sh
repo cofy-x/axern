@@ -42,6 +42,7 @@ push_image_after_build() {
 
 if [ "${build_runtime_core}" = "true" ]; then
   build_node_runtime_base_image "${APT_MIRROR_SOURCE}" "${CARGO_REGISTRY_SOURCE}"
+  push_image_after_build "${NODE_RUNTIME_BASE_IMAGE_TAG}"
   IMAGE_REF="${PYTHON311_RUNTIME_IMAGE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-python311-runtime-image.sh" >/dev/null
   push_image_after_build "${PYTHON311_RUNTIME_IMAGE}"
   IMAGE_REF="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-server-base-runtime-image.sh" >/dev/null

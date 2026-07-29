@@ -43,6 +43,7 @@ def toml_version(path):
 
 metadata = {
     "package.json": json.loads((root / "package.json").read_text())["version"],
+    "apps/docs/package.json": json.loads((root / "apps/docs/package.json").read_text())["version"],
     "pyproject.toml": toml_version(root / "pyproject.toml"),
     "sdk/python/pyproject.toml": toml_version(root / "sdk/python/pyproject.toml"),
     "sdk/typescript/package.json": json.loads((root / "sdk/typescript/package.json").read_text())["version"],

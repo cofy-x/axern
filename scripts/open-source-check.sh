@@ -15,7 +15,6 @@ require_command() {
 }
 
 require_command git
-require_command tar
 require_command python3
 require_command "${GITLEAKS_BIN}"
 require_command "${SYFT_BIN}"
@@ -25,14 +24,7 @@ trap 'rm -rf -- "${audit_root}"' EXIT
 candidate="${audit_root}/tree"
 mkdir -p "${candidate}"
 
-cd "${ROOTDIR}"
-while IFS= read -r -d '' path; do
-  if [[ -f "${path}" || -L "${path}" ]]; then
-    printf '%s\0' "${path}"
-  fi
-done < <(git ls-files -z --cached --others --exclude-standard) |
-  tar --null -T - -cf - |
-  tar -xf - -C "${candidate}"
+python3 "${ROOTDIR}/scripts/export-source-tree.py" "${candidate}"
 
 surface_args=("${candidate}")
 if [[ -n "${AXERN_OPEN_SOURCE_DENYLIST:-}" ]]; then

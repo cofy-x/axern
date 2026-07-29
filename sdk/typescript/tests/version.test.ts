@@ -11,5 +11,5 @@ import { AXERN_VERSION, platformName } from "../src/index.js";
 
 test("exports the Axern platform name", () => {
   assert.equal(platformName(), "axern");
-  assert.equal(AXERN_VERSION, "0.2.0");
+  assert.equal(AXERN_VERSION, "0.2.1");
 });
