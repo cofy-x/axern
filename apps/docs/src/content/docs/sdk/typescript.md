@@ -9,6 +9,9 @@ The TypeScript SDK is Node.js-first and uses Promise APIs.
 pnpm add @cofy-x/axern-sdk
 ```
 
+The official package is published as
+[`@cofy-x/axern-sdk` on npm](https://www.npmjs.com/package/@cofy-x/axern-sdk).
+
 ```typescript
 import { AxernClient, Sandbox } from "@cofy-x/axern-sdk";
 

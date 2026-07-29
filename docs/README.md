@@ -63,8 +63,8 @@ material here only when multiple modules need the same model.
 
 - [Local Full Verification](verification/local-full-verification.md): concise
   repository, Compose, kind, and Nydus verification checklist.
-- [Dependency License Policy](legal/dependency-licenses.md): source-release
-  dependency inventory and incompatible-license gate.
+- [Dependency License Policy](legal/dependency-licenses.md): release dependency
+  inventory and incompatible-license gate.
 
 ## Development And Operations
 

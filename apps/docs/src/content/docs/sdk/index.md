@@ -13,10 +13,20 @@ metadata, and typed errors. Mutating RPCs are never retried implicitly.
 | Go | Services and infrastructure controllers | `context.Context` | [Go SDK](/sdk/go/) |
 | TypeScript | Node.js applications and tools | Promise APIs | [TypeScript SDK](/sdk/typescript/) |
 
+Install the official packages from their public registries:
+
+- Python: `uv add axern-sdk` from [PyPI](https://pypi.org/project/axern-sdk/)
+- Go: `go get github.com/cofy-x/axern/sdk/go@latest` from the
+  [Go module index](https://pkg.go.dev/github.com/cofy-x/axern/sdk/go)
+- TypeScript: `pnpm add @cofy-x/axern-sdk` from
+  [npm](https://www.npmjs.com/package/@cofy-x/axern-sdk)
+
 Each sandbox selects exactly one source: a template, image, or existing
 environment. Lifecycle and data-plane operations flow through Axern public
 APIs; SDKs do not add SSH or shell fallbacks for platform behavior.
 
-The current source release contains all SDKs in the monorepo. Package registry
-publication is a separate release capability; use the repository examples
-while evaluating the pre-1.0 API.
+Axern publishes the CLI, Helm chart, runtime images, and all three SDKs under
+one repository version. Python and TypeScript use public package registries;
+Go uses the versioned `sdk/go` module. Treat a pre-1.0 Axern release as one
+coherent unit, and commit your package-manager lockfile or resolved `go.mod`
+version for repeatable builds.

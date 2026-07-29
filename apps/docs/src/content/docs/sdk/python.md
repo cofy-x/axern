@@ -10,6 +10,9 @@ surfaces.
 uv add axern-sdk
 ```
 
+The official package is published as
+[`axern-sdk` on PyPI](https://pypi.org/project/axern-sdk/).
+
 ```python
 import os
 

@@ -6,8 +6,11 @@ description: Create and program an Axern sandbox from Go.
 Go APIs take `context.Context`, return typed errors, and make cleanup explicit.
 
 ```bash
-go get github.com/cofy-x/axern/sdk/go@v0.2.1
+go get github.com/cofy-x/axern/sdk/go@latest
 ```
+
+The official module is indexed on
+[`pkg.go.dev`](https://pkg.go.dev/github.com/cofy-x/axern/sdk/go).
 
 ```go
 ctx := context.Background()

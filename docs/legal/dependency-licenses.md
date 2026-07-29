@@ -12,9 +12,12 @@ or distributed by the project.
 Syft cannot infer every ecosystem license from lockfiles alone. SPDX
 `NOASSERTION` entries are scanner limitations, not an approval or evidence that
 a package is unlicensed. Reviewers must resolve new direct dependencies against
-their upstream license, and published binary, container, npm, or PyPI artifacts
-must add artifact-specific SBOM, notice, and license verification before that
-release channel is enabled.
+their upstream license.
 
-The v0.1.0 release is source-only. It does not publish project-built containers,
-SDK packages, or binaries.
+Every release channel is subject to the same source-tree license gate, and SDK
+package metadata declares Apache-2.0. The release build publishes SPDX and
+CycloneDX inventories for the exported source tree and build-provenance
+attestations for release files. If a binary, container, or SDK package
+introduces vendored dependencies or required notices that are not represented
+by that inventory, its release pipeline must extend the audit before
+distribution.
