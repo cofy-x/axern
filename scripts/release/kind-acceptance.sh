@@ -97,4 +97,12 @@ spec:
   resources: {}
 YAML
 "${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}" --config "${config}" --timeout 10m run create --file "${state_dir}/run.yaml" --wait
+
+if [ "$#" -gt 0 ]; then
+  AXERN_SDK_ACCEPTANCE_CONFIG="${config}" \
+    AXERN_SDK_ACCEPTANCE_CONTEXT=release \
+    AXERN_SDK_ACCEPTANCE_CLI="${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}" \
+    "$@"
+fi
+
 echo "release_kind_acceptance_ok=${tag}${image_tag_suffix:+-${image_tag_suffix}}"

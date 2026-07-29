@@ -58,14 +58,16 @@ mismatched Go SDK tag. The workflow then:
 4. generates SPDX and CycloneDX source SBOMs plus unified checksums;
 5. installs the candidate CLI, chart, and amd64 images into a fresh kind
    cluster and executes a real sandbox Run before any final version is used;
-6. installs the Python wheel and sdist, npm tarball, and standalone Go module
-   in clean consumers;
+6. installs the candidate Python wheel, npm tarball, and standalone Go module
+   in clean consumers, then uses every SDK to create a `runsc` Sandbox, execute
+   Python, and prove through `axern service get` that the CLI observes the same
+   live resource;
 7. publishes `axern-sdk` to PyPI and `@cofy-x/axern-sdk` to npm with trusted
    publishing;
 8. publishes multi-architecture GHCR manifests and the OCI Helm chart;
 9. attests and attaches the release files to a GitHub Release; and
-10. repeats the fresh-kind Run and SDK installation checks against anonymously
-    readable published artifacts.
+10. repeats the fresh-kind Run and the complete SDK data-plane acceptance from
+    anonymously readable PyPI, npm, and Go module artifacts.
 
 Registry publication is safely repeatable but remains immutable. On a rerun,
 the workflow skips an SDK version only when every PyPI filename and SHA-256, or
@@ -83,8 +85,9 @@ package remains private.
 
 ## Verify
 
-Wait for the `Release` workflow, including `acceptance`, to pass. Then verify
-anonymous access from a clean environment:
+Wait for the `Release` workflow, including both candidate and published SDK
+data-plane acceptance, to pass. Then verify anonymous access from a clean
+environment:
 
 ```bash
 docker buildx imagetools inspect ghcr.io/cofy-x/axern/controld:v$(cat VERSION)

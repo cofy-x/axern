@@ -136,7 +136,7 @@ jobs:
         run: bash scripts/release/build-and-push-images.sh "${{ matrix.arch }}"
 
   candidate-acceptance:
-    needs: [artifacts, images]
+    needs: [artifacts, images, sdk-artifacts]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -153,6 +153,16 @@ jobs:
         with:
           go-version: "1.25.12"
           cache: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.16.0"
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
       - name: Install kind
         run: go install sigs.k8s.io/kind@v0.30.0
       - name: Download release artifacts
@@ -160,6 +170,11 @@ jobs:
         with:
           name: release-artifacts
           path: dist/release
+      - name: Download SDK artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: sdk-artifacts
+          path: dist/sdk
       - name: Install candidate CLI
         env:
           AXERN_RELEASE_DOWNLOAD_BASE: file://${{ github.workspace }}/dist/release
@@ -173,7 +188,8 @@ jobs:
         run: |
           chart="dist/release/axern-$(cat VERSION).tgz"
           AXERN_HELM_CHART="${GITHUB_WORKSPACE}/${chart}" \
-            bash scripts/release/kind-acceptance.sh
+            bash scripts/release/kind-acceptance.sh \
+              bash scripts/release/sdk-data-plane-acceptance.sh candidate
 
   sdk-publish:
     needs: [sdk-artifacts, candidate-acceptance]
@@ -276,6 +292,10 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24.16.0"
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
       - name: Set up uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
       - name: Install kind
@@ -285,6 +305,6 @@ jobs:
       - name: Verify released chart, images, and CLI
         env:
           AXERN_CLI_BINARY: ${{ runner.temp }}/bin/axern
-        run: bash scripts/release/kind-acceptance.sh
-      - name: Verify released SDKs from public registries
-        run: bash scripts/release/verify-published-sdks.sh
+        run: |
+          bash scripts/release/kind-acceptance.sh \
+            bash scripts/release/sdk-data-plane-acceptance.sh published

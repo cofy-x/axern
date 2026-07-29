@@ -72,6 +72,7 @@ release-check: ## Verify release versions and package contracts
 	bash $(ROOTDIR)/scripts/release/version-check.sh
 	bash $(ROOTDIR)/scripts/dev-env/docker-build-cache-test.sh
 	bash $(ROOTDIR)/scripts/release/image-build-contract-check.sh
+	bash $(ROOTDIR)/scripts/release/sdk-data-plane-contract-check.sh
 	$(MAKE) helm-lint
 
 release-build: release-check ## Build CLI archives and the Helm package
@@ -255,6 +256,7 @@ sdk-release-verify: ## Run all SDK release gates and SDK documentation checks
 	$(MAKE) sdk-go-verify
 	$(MAKE) sdk-typescript-verify
 	$(MAKE) sdk-artifact-verify
+	bash $(ROOTDIR)/scripts/release/sdk-data-plane-contract-check.sh
 	$(MAKE) agent-doc-check
 
 sdk-contract-verify: ## Run the shared cross-language SDK contract and release gates
