@@ -11,7 +11,7 @@ import (
 
 	approllout "github.com/cofy-x/axern/apps/axrun/internal/application/rollout"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
-	"github.com/cofy-x/axern/lib/go/clientconfig"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	rolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/rollout/v1"
 	workerrolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/rollout/worker/v1"
 	"google.golang.org/grpc/codes"

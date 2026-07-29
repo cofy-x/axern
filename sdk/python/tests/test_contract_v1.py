@@ -120,6 +120,19 @@ class ContractV1Test(unittest.TestCase):
         }
         assert_methods(self, contract["client"], AxernClient, client_methods)
         assert_methods(self, [item for item in contract["sandbox"] if item != "tunnel"], Sandbox, sandbox_methods)
+        assert_methods(
+            self,
+            contract["agent_sandbox"],
+            Sandbox,
+            {
+                "capability_status": "capability_status",
+                "computer_use_status": "computer_use_status",
+                "computer_use_screenshot": "computer_use_screenshot",
+                "computer_use_display": "computer_use_display",
+                "computer_use_mouse": "computer_use_mouse",
+                "computer_use_keyboard": "computer_use_keyboard",
+            },
+        )
         parameters = inspect.signature(Sandbox).parameters
         self.assertIn("upstream", parameters)
         self.assertIn("remote_port", parameters)

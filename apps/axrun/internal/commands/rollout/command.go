@@ -7,7 +7,7 @@ import (
 	approllout "github.com/cofy-x/axern/apps/axrun/internal/application/rollout"
 	"github.com/cofy-x/axern/apps/axrun/internal/command"
 	"github.com/cofy-x/axern/apps/axrun/internal/rolloutspec"
-	"github.com/cofy-x/axern/lib/go/clientconfig"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	"github.com/spf13/cobra"
 )
 

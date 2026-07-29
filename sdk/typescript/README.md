@@ -7,13 +7,21 @@ This first SDK surface is intentionally focused on the programmable sandbox path
 - create or attach a `Sandbox`
 - run `exec`
 - start attached `process` streams
+- discover optional providers with `capabilityStatus`
+- use Computer Use status, display, screenshot, mouse, and keyboard APIs
 - use platform file RPCs such as `readFile`, `writeFile`, `stat`, and `listDir`
 - transfer directories with archive-backed `uploadDir` and `downloadDir`
 - expose local services to the sandbox with `tunnel`
 
 ## Install
 
-From this repository workspace:
+Install the published package in a Node.js project:
+
+```bash
+pnpm add @cofy-x/axern-sdk
+```
+
+For repository development:
 
 ```bash
 pnpm install
@@ -116,6 +124,9 @@ sandbox, for example `http://127.0.0.1:8786`.
 
 - Lifecycle: `start()`, `close()`, `state`, `metadata`
 - Execution: `exec(command, options)`, `process(command, options)`
+- Agent sandbox: `capabilityStatus`, `computerUseStatus`,
+  `computerUseScreenshot`, `computerUseDisplay`, `computerUseMouse`,
+  `computerUseKeyboard`
 - Files: `readFile`, `readText`, `writeFile`, `writeText`, `stat`, `listDir`,
   `exists`, `mkdir`, `remove`, `copy`, `move`, `chmod`, `touch`
 - Directories: `uploadDir(localPath, remotePath)`,
@@ -153,5 +164,6 @@ the stable TypeScript DTOs and error types.
 
 ## Scope
 
-This SDK is Node.js-first. Browser support, generated TypeScript proto stubs, and
-full control-plane administration APIs are intentionally left for later versions.
+This SDK is Node.js-first. The higher-level Browser API, generated TypeScript
+proto stubs, and full control-plane administration APIs remain outside the
+v0.2 public contract.

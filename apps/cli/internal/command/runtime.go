@@ -10,7 +10,7 @@ import (
 	"github.com/cofy-x/axern/apps/cli/internal/controlv1"
 	"github.com/cofy-x/axern/apps/cli/internal/output"
 	"github.com/cofy-x/axern/apps/cli/internal/parse"
-	"github.com/cofy-x/axern/lib/go/clientconfig"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/spf13/cobra"
 )

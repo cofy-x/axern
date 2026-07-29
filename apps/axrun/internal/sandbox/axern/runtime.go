@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/apps/axrun/internal/sandbox"
-	"github.com/cofy-x/axern/lib/go/clientconfig"
 	axernsdk "github.com/cofy-x/axern/sdk/go"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	"google.golang.org/grpc"
 )
 

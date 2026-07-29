@@ -9,7 +9,7 @@ import (
 	approllout "github.com/cofy-x/axern/apps/axrun/internal/application/rollout"
 	validateapp "github.com/cofy-x/axern/apps/axrun/internal/application/validate"
 	axernbackend "github.com/cofy-x/axern/apps/axrun/internal/backend/axern"
-	"github.com/cofy-x/axern/lib/go/clientconfig"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"

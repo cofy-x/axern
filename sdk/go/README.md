@@ -20,9 +20,16 @@ shell fallbacks.
 
 ## Local Context
 
-The SDK is currently developed and verified from this repository checkout. Local
-examples read the active Axern CLI context, so `make axern-config-init` plus a
-running compose environment is enough for the examples and smoke target.
+Add the published module to a Go project:
+
+```bash
+go get github.com/cofy-x/axern/sdk/go@v0.2.0
+```
+
+The public `sdk/go/clientconfig` package loads the same explicit context schema
+as the Axern CLI. Repository examples read the active CLI context, so
+`make axern-config-init` plus a running compose environment is enough for the
+examples and smoke target.
 
 ## Quick Start
 

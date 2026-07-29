@@ -4,7 +4,6 @@ go 1.25.12
 
 require (
 	github.com/cofy-x/axern/lib/go/agentbundle v0.0.0
-	github.com/cofy-x/axern/lib/go/clientconfig v0.0.0
 	github.com/cofy-x/axern/sdk/go v0.0.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
@@ -37,7 +36,5 @@ replace github.com/cofy-x/axern/lib/go/grpcclient => ../../lib/go/grpcclient
 replace github.com/cofy-x/axern/lib/go/agentbundle => ../../lib/go/agentbundle
 
 replace github.com/cofy-x/axern/lib/go/agentprofile => ../../lib/go/agentprofile
-
-replace github.com/cofy-x/axern/lib/go/clientconfig => ../../lib/go/clientconfig
 
 replace github.com/cofy-x/axern/lib/go/llmproxy => ../../lib/go/llmproxy

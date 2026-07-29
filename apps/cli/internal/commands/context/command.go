@@ -11,7 +11,7 @@ import (
 	"github.com/cofy-x/axern/apps/cli/internal/command"
 	cliconfig "github.com/cofy-x/axern/apps/cli/internal/config"
 	"github.com/cofy-x/axern/apps/cli/internal/output"
-	"github.com/cofy-x/axern/lib/go/clientconfig"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	"github.com/spf13/cobra"
 )
 

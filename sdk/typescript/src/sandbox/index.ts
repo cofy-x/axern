@@ -13,7 +13,14 @@ import { startTunnelRuntime, tunnelMetadata } from "../tunnel/runtime.js";
 import type { TunnelRuntime } from "../tunnel/types.js";
 import type {
   ChmodOptions,
+  CapabilityStatus,
   Command,
+  ComputerUseDisplay,
+  ComputerUseKeyboardOptions,
+  ComputerUseMouseOptions,
+  ComputerUseScreenshot,
+  ComputerUseScreenshotOptions,
+  ComputerUseStatus,
   CopyOptions,
   DownloadDirOptions,
   ExecOptions,
@@ -22,6 +29,7 @@ import type {
   ImageProcessOptions,
   MkdirOptions,
   MoveOptions,
+  NodeCallOptions,
   ProcessOptions,
   RemoveOptions,
   SandboxFileInfo,
@@ -206,6 +214,30 @@ export class Sandbox {
 
   async processImage(image: string, command: Command, options: ImageProcessOptions = {}): Promise<SandboxProcess> {
     return this.nodeClient().processImage(image, command, options);
+  }
+
+  async capabilityStatus(options: NodeCallOptions = {}): Promise<CapabilityStatus> {
+    return this.nodeClient().capabilityStatus(options);
+  }
+
+  async computerUseStatus(options: NodeCallOptions = {}): Promise<ComputerUseStatus> {
+    return this.nodeClient().computerUseStatus(options);
+  }
+
+  async computerUseScreenshot(options: ComputerUseScreenshotOptions = {}): Promise<ComputerUseScreenshot> {
+    return this.nodeClient().computerUseScreenshot(options);
+  }
+
+  async computerUseDisplay(options: NodeCallOptions = {}): Promise<ComputerUseDisplay> {
+    return this.nodeClient().computerUseDisplay(options);
+  }
+
+  async computerUseMouse(options: ComputerUseMouseOptions = {}): Promise<void> {
+    return this.nodeClient().computerUseMouse(options);
+  }
+
+  async computerUseKeyboard(options: ComputerUseKeyboardOptions = {}): Promise<void> {
+    return this.nodeClient().computerUseKeyboard(options);
   }
 
   async stat(path: string): Promise<SandboxFileInfo> {

@@ -17,5 +17,13 @@
     "archive_upload",
     "archive_download",
     "tunnel"
+  ],
+  "agent_sandbox": [
+    "capability_status",
+    "computer_use_status",
+    "computer_use_screenshot",
+    "computer_use_display",
+    "computer_use_mouse",
+    "computer_use_keyboard"
   ]
 }

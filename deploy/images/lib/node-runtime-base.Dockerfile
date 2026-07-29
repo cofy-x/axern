@@ -129,7 +129,6 @@ COPY runtime/axnoded/go.mod runtime/axnoded/go.sum /workspace/runtime/axnoded/
 COPY runtime/tunneld/go.mod runtime/tunneld/go.sum /workspace/runtime/tunneld/
 COPY runtime/volumed/go.mod runtime/volumed/go.sum /workspace/runtime/volumed/
 COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
-COPY lib/go/clientconfig/go.mod /workspace/lib/go/clientconfig/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
 COPY lib/go/llmproxy/go.mod /workspace/lib/go/llmproxy/go.mod
@@ -139,7 +138,6 @@ RUN cat > /workspace/go.work <<'EOF'
 go 1.25.12
 
 use (
-	./lib/go/clientconfig
 	./lib/go/grpcclient
 	./lib/go/imageref
 	./lib/go/llmproxy
@@ -183,7 +181,6 @@ FROM node-runtime-base-build AS imagemgr-builder
 WORKDIR /workspace/runtime/imagemgr
 
 COPY runtime/imagemgr/go.mod runtime/imagemgr/go.sum ./
-COPY lib/go/clientconfig/go.mod /workspace/lib/go/clientconfig/go.mod
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/

@@ -12,6 +12,21 @@ if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ "$(git -C "${AXERN_ROOT}" cat-file -t
   echo "release tag ${tag} must be annotated" >&2
   exit 1
 fi
+if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+  go_tag="sdk/go/${tag}"
+  go_tag_refs="$(git -C "${AXERN_ROOT}" ls-remote origin "refs/tags/${go_tag}" "refs/tags/${go_tag}^{}")"
+  go_tag_object="$(printf '%s\n' "${go_tag_refs}" | awk '$2 == "refs/tags/'"${go_tag}"'" {print $1}')"
+  go_tag_commit="$(printf '%s\n' "${go_tag_refs}" | awk '$2 == "refs/tags/'"${go_tag}"'^{}" {print $1}')"
+  release_commit="$(git -C "${AXERN_ROOT}" rev-parse HEAD)"
+  if [ -z "${go_tag_object}" ] || [ -z "${go_tag_commit}" ]; then
+    echo "Go SDK release tag ${go_tag} must exist and be annotated" >&2
+    exit 1
+  fi
+  if [ "${go_tag_commit}" != "${release_commit}" ]; then
+    echo "Go SDK release tag ${go_tag} does not point to ${release_commit}" >&2
+    exit 1
+  fi
+fi
 
 python3 - "${AXERN_ROOT}" "${version}" <<'PY'
 import json
@@ -33,6 +48,11 @@ metadata = {
     "sdk/typescript/package.json": json.loads((root / "sdk/typescript/package.json").read_text())["version"],
     "runtime/imagefsd/Cargo.toml": toml_version(root / "runtime/imagefsd/Cargo.toml"),
 }
+typescript = json.loads((root / "sdk/typescript/package.json").read_text())
+if typescript.get("private") is not None:
+    raise SystemExit("sdk/typescript/package.json must not declare a private publish boundary")
+if typescript.get("publishConfig", {}).get("access") != "public":
+    raise SystemExit("sdk/typescript/package.json must publish as a public scoped package")
 chart = {}
 for line in (root / "deploy/helm/axern/Chart.yaml").read_text().splitlines():
     key, _, value = line.partition(":")
@@ -89,6 +109,11 @@ for relative in (
     if "release/latest" in (root / relative).read_text():
         raise SystemExit(f"{relative} must not download a rolling runtime tool release")
 PY
+
+if grep -Eq '^[[:space:]]*replace([[:space:]]|\()' "${AXERN_ROOT}/sdk/go/go.mod"; then
+  echo "sdk/go/go.mod must not contain replace directives" >&2
+  exit 1
+fi
 
 grep -Fq 'var version = "'"${version}"'"' "${AXERN_ROOT}/sdk/go/version.go" || {
   echo "sdk/go/version.go does not match VERSION ${version}" >&2

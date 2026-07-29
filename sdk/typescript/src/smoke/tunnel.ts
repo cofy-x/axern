@@ -30,7 +30,7 @@ if (address === null || typeof address === "string") {
 }
 
 const sandbox = await new Sandbox({
-	client,
+  client,
   ...source,
   namespace,
   requestMemory: memory,

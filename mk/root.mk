@@ -5,7 +5,7 @@
 		build-go test-go lint-go fmt-go \
 		build-rust test-rust lint-rust fmt-rust \
 		build-ts test-ts lint-ts pack-ts sdk-typescript-verify docs-dev docs-build docs-check docs-verify docs-assets docs-social-card docs-service-demo docs-service-asset \
-		build-py test-py lint-py sdk-python-verify sdk-go-verify sdk-release-verify sdk-contract-verify \
+		build-py test-py lint-py sdk-python-verify sdk-go-verify sdk-artifacts sdk-artifact-verify sdk-release-verify sdk-contract-verify \
 		imagemgr-build imagemgr-test imagemgr-check-architecture \
 		imagefsd-build imagefsd-test
 
@@ -135,7 +135,7 @@ grafana-assets-check: ## Verify Helm Grafana assets match local Grafana assets
 	bash $(ROOTDIR)/scripts/grafana-assets-check.sh
 
 test-go: ## Run root Go tests
-	$(GO) test ./apps/axrun/... ./apps/cli/... ./lib/go/grpcclient/... ./lib/go/observability/... ./sdk/go/...
+	$(GO) test -tags=axern_contract ./apps/axrun/... ./apps/cli/... ./lib/go/grpcclient/... ./lib/go/observability/... ./sdk/go/...
 	$(GO) -C control/controld test ./...
 	$(GO) -C control/storaged test ./...
 	$(GO) -C gateway/gatewayd test ./...
@@ -157,8 +157,8 @@ lint-go: ## Ensure root Go files are formatted
 	test -z "$$(find apps/axrun apps/cli control/controld control/storaged gateway/gatewayd lib/go runtime/imagemgr runtime/tunneld runtime/volumed sdk/go -name '*.go' -print | xargs gofmt -l)" || (echo "gofmt reported unformatted files" && exit 1)
 
 sdk-go-verify: ## Run Go SDK tests, race smoke, vet, and formatting checks
-	$(GO) test ./sdk/go/...
-	$(GO) test -race ./sdk/go
+	$(GO) test -tags=axern_contract ./sdk/go/...
+	$(GO) test -race -tags=axern_contract ./sdk/go
 	$(GO) vet ./sdk/go/...
 	test -z "$$(find sdk/go -name '*.go' -print | xargs gofmt -l)" || (echo "gofmt reported unformatted Go SDK files" && exit 1)
 
@@ -242,10 +242,17 @@ sdk-python-verify: ## Run Python SDK tests, lint, and package build
 	$(MAKE) lint-py
 	$(MAKE) build-py
 
+sdk-artifacts: ## Build publishable Python and TypeScript SDK artifacts
+	bash $(ROOTDIR)/scripts/release/build-sdk-artifacts.sh
+
+sdk-artifact-verify: sdk-artifacts ## Install SDK artifacts in clean Python, TypeScript, and Go consumers
+	bash $(ROOTDIR)/scripts/release/verify-sdk-artifacts.sh
+
 sdk-release-verify: ## Run all SDK release gates and SDK documentation checks
 	$(MAKE) sdk-python-verify
 	$(MAKE) sdk-go-verify
 	$(MAKE) sdk-typescript-verify
+	$(MAKE) sdk-artifact-verify
 	$(MAKE) agent-doc-check
 
 sdk-contract-verify: ## Run the shared cross-language SDK contract and release gates

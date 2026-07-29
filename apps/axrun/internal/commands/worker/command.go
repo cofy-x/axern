@@ -10,7 +10,7 @@ import (
 	"github.com/cofy-x/axern/apps/axrun/internal/application/managedworker"
 	"github.com/cofy-x/axern/apps/axrun/internal/command"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
-	"github.com/cofy-x/axern/lib/go/clientconfig"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	"github.com/spf13/cobra"
 )
 

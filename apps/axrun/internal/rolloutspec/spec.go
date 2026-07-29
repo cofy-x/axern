@@ -14,7 +14,7 @@ import (
 	approllout "github.com/cofy-x/axern/apps/axrun/internal/application/rollout"
 	"github.com/cofy-x/axern/apps/axrun/internal/backend"
 	axernbackend "github.com/cofy-x/axern/apps/axrun/internal/backend/axern"
-	"github.com/cofy-x/axern/lib/go/clientconfig"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	rolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/rollout/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"gopkg.in/yaml.v3"

@@ -1,3 +1,4 @@
+// Package clientconfig loads the explicit context file shared by the Axern CLI and SDKs.
 package clientconfig
 
 import (

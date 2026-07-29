@@ -6,6 +6,10 @@ description: Create and program an Axern sandbox from Python.
 The Python SDK offers synchronous `Sandbox` and asynchronous `AsyncSandbox`
 surfaces.
 
+```bash
+uv add axern-sdk
+```
+
 ```python
 import os
 

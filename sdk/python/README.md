@@ -7,15 +7,17 @@ operations, directory transfer, tunnels, capability discovery, and diagnostics.
 
 ## Install
 
-From this repository:
+Install the published package:
 
 ```bash
-uv build sdk/python
+uv add axern-sdk
 ```
 
-For local development, run examples and tests through the root `uv` workspace:
+For repository development, build and run examples through the root `uv`
+workspace:
 
 ```bash
+uv build --no-sources sdk/python
 uv run --package axern-sdk python sdk/python/examples/sandbox_programming.py
 ```
 

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cofy-x/axern/lib/go/clientconfig"
 	axern "github.com/cofy-x/axern/sdk/go"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 )
 
 type Config struct {

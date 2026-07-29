@@ -12,7 +12,7 @@ import (
 
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 	"github.com/cofy-x/axern/apps/axrun/internal/proxy"
-	"github.com/cofy-x/axern/lib/go/clientconfig"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	agentprofilev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/agentprofile/v1"
 	workerrolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/rollout/worker/v1"
 	"google.golang.org/grpc"

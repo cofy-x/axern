@@ -1,7 +1,6 @@
 {
   "name": "@cofy-x/axern-sdk",
   "version": "0.2.0",
-  "private": true,
   "description": "TypeScript SDK for Axern agentic infrastructure and isolated sandboxes",
   "license": "Apache-2.0",
   "repository": {
@@ -9,9 +8,12 @@
     "url": "git+https://github.com/cofy-x/axern.git",
     "directory": "sdk/typescript"
   },
-  "homepage": "https://github.com/cofy-x/axern/tree/main/sdk/typescript#readme",
+  "homepage": "https://axern.cofy-x.space/sdk/typescript/",
   "bugs": {
     "url": "https://github.com/cofy-x/axern/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "type": "module",
   "main": "./dist/index.js",

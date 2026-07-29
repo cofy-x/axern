@@ -19,7 +19,7 @@ const memory = `${process.env.AXERN_TS_SMOKE_MEMORY_MB ?? "512"}MiB`;
 const client = AxernClient.fromEnv();
 
 const sandbox = await new Sandbox({
-	client,
+  client,
   ...source,
   namespace,
   requestMemory: memory,
@@ -27,6 +27,11 @@ const sandbox = await new Sandbox({
 }).start();
 
 try {
+  const capabilities = await sandbox.capabilityStatus();
+  if (!capabilities.ready) {
+    throw new Error("sandbox capability status is not ready");
+  }
+
   const exec = await sandbox.exec("python -c \"print('ts-sdk-ok')\"", { check: true });
   const execOutput = exec.stdoutText().trim();
   if (execOutput !== "ts-sdk-ok") {

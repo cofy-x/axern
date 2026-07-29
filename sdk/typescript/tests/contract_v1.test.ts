@@ -107,7 +107,7 @@ test("shared context contract", () => {
 });
 
 test("shared common core surface", () => {
-  const contract = load<{ client: string[]; sandbox: string[] }>("common_core.json");
+  const contract = load<{ client: string[]; sandbox: string[]; agent_sandbox: string[] }>("common_core.json");
   assertMethods(contract.client, AxernClient.prototype, {
     environment_create: "createEnvironment",
     environment_delete: "deleteEnvironment",
@@ -127,6 +127,14 @@ test("shared common core surface", () => {
     archive_download: "downloadDir",
   });
   assert.equal(tunnelContract, true);
+  assertMethods(contract.agent_sandbox, Sandbox.prototype, {
+    capability_status: "capabilityStatus",
+    computer_use_status: "computerUseStatus",
+    computer_use_screenshot: "computerUseScreenshot",
+    computer_use_display: "computerUseDisplay",
+    computer_use_mouse: "computerUseMouse",
+    computer_use_keyboard: "computerUseKeyboard",
+  });
 });
 
 function load<T>(name: string): T {

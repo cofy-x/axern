@@ -60,6 +60,45 @@ jobs:
           path: dist/release/*
           if-no-files-found: error
 
+  sdk-artifacts:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.12"
+          cache: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.16.0"
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
+        with:
+          version: "10.24.0"
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build and verify SDK artifacts
+        run: make sdk-artifact-verify
+      - name: Upload SDK artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sdk-artifacts
+          path: |
+            dist/sdk/python/*
+            dist/sdk/typescript/*
+            dist/sdk/checksums.txt
+          if-no-files-found: error
+
   images:
     needs: validate
     runs-on: ubuntu-latest
@@ -131,8 +170,41 @@ jobs:
           AXERN_HELM_CHART="${GITHUB_WORKSPACE}/${chart}" \
             bash scripts/release/kind-acceptance.sh
 
+  sdk-publish:
+    needs: [sdk-artifacts, candidate-acceptance]
+    runs-on: ubuntu-latest
+    environment: sdk-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.16.0"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - name: Download SDK artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: sdk-artifacts
+          path: dist/sdk
+      - name: Reconcile immutable SDK versions
+        id: preflight
+        run: bash scripts/release/sdk-preflight.sh
+      - name: Publish Python SDK to PyPI
+        if: steps.preflight.outputs.publish_python == 'true'
+        run: uv publish --trusted-publishing always dist/sdk/python/*
+      - name: Publish TypeScript SDK to npm
+        if: steps.preflight.outputs.publish_typescript == 'true'
+        run: npm publish dist/sdk/typescript/*.tgz --access public
+
   publish:
-    needs: [artifacts, images, candidate-acceptance]
+    needs: [artifacts, images, candidate-acceptance, sdk-publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -181,7 +253,7 @@ jobs:
             --verify-tag --generate-notes --title "Axern ${GITHUB_REF_NAME}"
 
   acceptance:
-    needs: publish
+    needs: [publish, sdk-publish]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -195,6 +267,12 @@ jobs:
         with:
           go-version: "1.25.12"
           cache: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.16.0"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
       - name: Install kind
         run: go install sigs.k8s.io/kind@v0.30.0
       - name: Install released CLI
@@ -203,3 +281,5 @@ jobs:
         env:
           AXERN_CLI_BINARY: ${{ runner.temp }}/bin/axern
         run: bash scripts/release/kind-acceptance.sh
+      - name: Verify released SDKs from public registries
+        run: bash scripts/release/verify-published-sdks.sh

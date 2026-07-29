@@ -8,7 +8,6 @@ use (
 	./gateway/gatewayd
 	./lib/go/agentbundle
 	./lib/go/agentprofile
-	./lib/go/clientconfig
 	./lib/go/grpcclient
 	./lib/go/imageref
 	./lib/go/llmproxy

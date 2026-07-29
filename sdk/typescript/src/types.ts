@@ -155,3 +155,99 @@ export interface TunnelMetadata {
   upstream: string;
   proxyPort: number;
 }
+
+export interface CapabilityDependencyStatus {
+  name: string;
+  available: boolean;
+  reason: string;
+}
+
+export interface CapabilityProviderStatus {
+  name: string;
+  state: string;
+  available: boolean;
+  capabilities: string[];
+  backend: string;
+  reason: string;
+  dependencies: CapabilityDependencyStatus[];
+}
+
+export interface CapabilityProviderSummary {
+  total: number;
+  available: number;
+  degraded: number;
+  unavailable: number;
+}
+
+export interface CapabilityStatus {
+  ready: boolean;
+  capabilities: string[];
+  providers: CapabilityProviderStatus[];
+  providerSummary: CapabilityProviderSummary;
+}
+
+export interface NodeCallOptions {
+  rpcTimeoutMs?: number;
+}
+
+export interface ComputerUseDependencyStatus {
+  name: string;
+  available: boolean;
+  reason: string;
+}
+
+export interface ComputerUseStatus {
+  available: boolean;
+  display: string;
+  backend: string;
+  reason: string;
+  dependencies: ComputerUseDependencyStatus[];
+}
+
+export interface ComputerUseRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ComputerUseScreenshot {
+  data: Buffer;
+  contentType: string;
+}
+
+export interface ComputerUseScreenshotOptions {
+  showCursor?: boolean;
+  region?: ComputerUseRegion;
+  format?: string;
+  quality?: number;
+  scale?: number;
+  rpcTimeoutMs?: number;
+}
+
+export interface ComputerUseDisplay {
+  display: string;
+  backend: string;
+  width: number;
+  height: number;
+}
+
+export interface ComputerUseMouseOptions {
+  action?: string;
+  x?: number;
+  y?: number;
+  toX?: number;
+  toY?: number;
+  button?: string;
+  direction?: string;
+  amount?: number;
+  rpcTimeoutMs?: number;
+}
+
+export interface ComputerUseKeyboardOptions {
+  text?: string;
+  key?: string;
+  keys?: readonly string[];
+  delayMs?: number;
+  rpcTimeoutMs?: number;
+}

@@ -12,7 +12,7 @@ import (
 
 	appagent "github.com/cofy-x/axern/apps/cli/internal/application/agent"
 	"github.com/cofy-x/axern/lib/go/agentprofile"
-	"github.com/cofy-x/axern/lib/go/clientconfig"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 )
 
 func resolveRemoteTarget(profile *clientconfig.Context, user, target, key string, strict bool) (appagent.RemoteTarget, error) {

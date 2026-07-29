@@ -8,7 +8,14 @@ import type * as grpc from "@grpc/grpc-js";
 
 import type {
   ChmodOptions,
+  CapabilityStatus,
   Command,
+  ComputerUseDisplay,
+  ComputerUseKeyboardOptions,
+  ComputerUseMouseOptions,
+  ComputerUseScreenshot,
+  ComputerUseScreenshotOptions,
+  ComputerUseStatus,
   CopyOptions,
   DownloadArchiveOptions,
   ExecOptions,
@@ -17,6 +24,7 @@ import type {
   ImageProcessOptions,
   MkdirOptions,
   MoveOptions,
+  NodeCallOptions,
   ProcessOptions,
   RemoveOptions,
   SandboxFileInfo,
@@ -25,6 +33,8 @@ import type {
   WriteFileOptions,
 } from "../types.js";
 import { uploadArchive, downloadArchive } from "./archive.js";
+import { capabilityStatus } from "./capabilities.js";
+import * as computerUse from "./computer_use.js";
 import { process as startProcess } from "./attached_process.js";
 import { processImage as startImageProcess } from "./attached_process.js";
 import { NodeClientContext } from "./context.js";
@@ -63,6 +73,30 @@ export class NodeSandboxClient {
 
   async processImage(image: string, command: Command, options: ImageProcessOptions = {}): Promise<SandboxProcess> {
     return startImageProcess(this.ctx, image, command, options);
+  }
+
+  async capabilityStatus(options: NodeCallOptions = {}): Promise<CapabilityStatus> {
+    return capabilityStatus(this.ctx, options);
+  }
+
+  async computerUseStatus(options: NodeCallOptions = {}): Promise<ComputerUseStatus> {
+    return computerUse.computerUseStatus(this.ctx, options);
+  }
+
+  async computerUseScreenshot(options: ComputerUseScreenshotOptions = {}): Promise<ComputerUseScreenshot> {
+    return computerUse.computerUseScreenshot(this.ctx, options);
+  }
+
+  async computerUseDisplay(options: NodeCallOptions = {}): Promise<ComputerUseDisplay> {
+    return computerUse.computerUseDisplay(this.ctx, options);
+  }
+
+  async computerUseMouse(options: ComputerUseMouseOptions = {}): Promise<void> {
+    return computerUse.computerUseMouse(this.ctx, options);
+  }
+
+  async computerUseKeyboard(options: ComputerUseKeyboardOptions = {}): Promise<void> {
+    return computerUse.computerUseKeyboard(this.ctx, options);
   }
 
   async stat(path: string): Promise<SandboxFileInfo> {

@@ -3,12 +3,9 @@ module github.com/cofy-x/axern/sdk/go
 go 1.25.12
 
 require (
-	github.com/cofy-x/axern/lib/go/clientconfig v0.0.0
 	google.golang.org/grpc v1.82.1
 	google.golang.org/protobuf v1.36.11
 )
-
-replace github.com/cofy-x/axern/lib/go/clientconfig => ../../lib/go/clientconfig
 
 require (
 	golang.org/x/net v0.55.0 // indirect

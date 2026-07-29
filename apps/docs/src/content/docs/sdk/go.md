@@ -5,6 +5,10 @@ description: Create and program an Axern sandbox from Go.
 
 Go APIs take `context.Context`, return typed errors, and make cleanup explicit.
 
+```bash
+go get github.com/cofy-x/axern/sdk/go@v0.2.0
+```
+
 ```go
 ctx := context.Background()
 client, err := axern.NewClient(ctx, "127.0.0.1:25000")

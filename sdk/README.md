@@ -28,6 +28,8 @@ retried implicitly.
 | File metadata/ops | `stat`, `list_dir`, `exists`, `mkdir`, `remove`, `copy`, `move`, `chmod`, `touch` | `Stat`, `ListDir`, `Exists`, `Mkdir`, `Remove`, `Copy`, `Move`, `Chmod`, `Touch` | `stat`, `listDir`, `exists`, `mkdir`, `remove`, `copy`, `move`, `chmod`, `touch` |
 | Directory transfer | `upload_dir`, `download_dir` | `UploadDir`, `DownloadDir` | `uploadDir`, `downloadDir` |
 | Tunnel | `upstream`, `remote_port` | `OpenTunnel(ctx, TunnelOptions)` | `tunnel: { upstream, proxyPort }` |
+| Capability discovery | `capability_status()` | `CapabilityStatus(ctx)` | `capabilityStatus()` |
+| Computer Use | status, screenshot, display, mouse, keyboard | status, screenshot, display, mouse, keyboard | status, screenshot, display, mouse, keyboard |
 | Metadata | `state`, `metadata`, `bound_addr` | `State()` | `state`, `metadata`, `metadata.tunnel` |
 | Errors | `SandboxRpcError`, `SandboxExecError`, typed subclasses | `ExecError`, `IsNotFound`, `IsTimeout`, `IsValidation` | `AxernRpcError`, `SandboxExecError`, `SandboxValidationError`, helpers |
 | Examples | `sdk/python/examples` | `sdk/go/examples` | `sdk/typescript/examples` |
@@ -40,13 +42,19 @@ Intentional language differences:
 - TypeScript APIs are Node.js-first Promise APIs.
 - Naming follows each language's conventions while preserving the same domain
   model.
+- Python owns the first-class Function packaging and invocation experience.
+- Go exposes lower-level Rollout, service-watch, and task-asset helpers used by
+  infrastructure integrations.
+- The higher-level Browser API is currently Python-first and is not part of the
+  shared v0.2 contract.
 
 ## Release Gate
 
-Run the repository-level SDK gate before preparing an SDK release:
+Run the repository-level SDK gates before preparing an SDK release:
 
 ```bash
 make sdk-contract-verify
+make sdk-artifact-verify
 ```
 
 This target runs:
@@ -56,6 +64,8 @@ This target runs:
 - `make sdk-go-verify`
 - `make sdk-typescript-verify`
 - `make agent-doc-check`
+- clean installation of the Python wheel and sdist, npm tarball, and standalone
+  Go module from their publishable boundaries
 
 ## Compose Validation
 

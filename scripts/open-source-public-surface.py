@@ -133,8 +133,10 @@ def main() -> None:
             fail(f"{name} must declare repository and homepage")
     if docs_package.get("private") is not True:
         fail("the documentation package must remain private")
-    if ts_package.get("private") is not True:
-        fail("the TypeScript SDK must remain private until npm publishing is explicitly enabled")
+    if "private" in ts_package:
+        fail("the TypeScript SDK must not declare a private publish boundary")
+    if ts_package.get("publishConfig", {}).get("access") != "public":
+        fail("the TypeScript SDK must publish as a public scoped package")
 
     for relative in ("pyproject.toml", "sdk/python/pyproject.toml"):
         require_toml_string(root, relative, "project", "description")

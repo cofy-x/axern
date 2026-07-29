@@ -1,3 +1,5 @@
+//go:build axern_contract
+
 package axernsdk
 
 import (
@@ -7,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/cofy-x/axern/lib/go/clientconfig"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -57,8 +59,9 @@ type contextCase struct {
 }
 
 type commonCoreContract struct {
-	Client  []string `json:"client"`
-	Sandbox []string `json:"sandbox"`
+	Client       []string `json:"client"`
+	Sandbox      []string `json:"sandbox"`
+	AgentSandbox []string `json:"agent_sandbox"`
 }
 
 func TestSharedResourceContract(t *testing.T) {
@@ -206,6 +209,14 @@ func TestSharedCommonCoreContract(t *testing.T) {
 		"archive_upload":   "UploadDir",
 		"archive_download": "DownloadDir",
 		"tunnel":           "OpenTunnel",
+	})
+	assertContractMethods(t, contract.AgentSandbox, sandboxMethods, map[string]string{
+		"capability_status":       "CapabilityStatus",
+		"computer_use_status":     "ComputerUseStatus",
+		"computer_use_screenshot": "ComputerUseScreenshot",
+		"computer_use_display":    "ComputerUseDisplay",
+		"computer_use_mouse":      "ComputerUseMouse",
+		"computer_use_keyboard":   "ComputerUseKeyboard",
 	})
 }
 

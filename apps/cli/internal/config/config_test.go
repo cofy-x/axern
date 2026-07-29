@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/cofy-x/axern/lib/go/agentprofile"
-	"github.com/cofy-x/axern/lib/go/clientconfig"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 )
 
 func TestLoadMissingReturnsEmptyConfig(t *testing.T) {

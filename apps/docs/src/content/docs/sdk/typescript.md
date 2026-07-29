@@ -5,6 +5,10 @@ description: Create and program an Axern sandbox from Node.js.
 
 The TypeScript SDK is Node.js-first and uses Promise APIs.
 
+```bash
+pnpm add @cofy-x/axern-sdk
+```
+
 ```typescript
 import { AxernClient, Sandbox } from "@cofy-x/axern-sdk";
 
@@ -32,6 +36,9 @@ try {
 `AxernClient.fromContext()` is appropriate for interactive tools;
 `AxernClient.fromEnv()` is the explicit environment-driven path for
 automation. Constructors do not silently read the user's home directory.
+Capabilities and Computer Use are available directly on `Sandbox` through
+`capabilityStatus()`, `computerUseStatus()`, and the display, screenshot,
+mouse, and keyboard methods.
 
 - [TypeScript SDK source and full guide](https://github.com/cofy-x/axern/tree/main/sdk/typescript)
 - [Programmable example](https://github.com/cofy-x/axern/blob/main/sdk/typescript/examples/programmable.ts)

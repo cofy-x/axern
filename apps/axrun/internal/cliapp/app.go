@@ -12,7 +12,7 @@ import (
 	taskcmd "github.com/cofy-x/axern/apps/axrun/internal/commands/task"
 	validatecmd "github.com/cofy-x/axern/apps/axrun/internal/commands/validate"
 	workercmd "github.com/cofy-x/axern/apps/axrun/internal/commands/worker"
-	"github.com/cofy-x/axern/lib/go/clientconfig"
+	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	"github.com/spf13/cobra"
 )
 

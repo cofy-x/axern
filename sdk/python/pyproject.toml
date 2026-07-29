@@ -12,7 +12,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/cofy-x/axern/tree/main/sdk/python"
+Homepage = "https://axern.cofy-x.space/sdk/python/"
+Documentation = "https://axern.cofy-x.space/sdk/python/"
 Repository = "https://github.com/cofy-x/axern"
 Issues = "https://github.com/cofy-x/axern/issues"
 
