@@ -6,59 +6,27 @@
 
 [Documentation](https://axern.cofy-x.space) · [Quickstart](https://axern.cofy-x.space/getting-started/compose/) · [SDKs](https://axern.cofy-x.space/sdk/)
 
-Axern is open-source agentic infrastructure for running AI agents and code in
-isolated, stateful sandboxes. It is designed as a high-performance sandbox
-platform with one resource model for creating environments, executing
-processes, exposing services, attaching storage, opening reverse tunnels,
-observing lifecycle state, and retaining task evidence.
+Axern is an open-source sandbox platform for AI agents. It isolates untrusted
+agent-generated code with runsc and runs trusted long-lived services with runc
+through one resource and lifecycle model.
 
-Axern is designed for teams that need more than a code-execution RPC: the
-control plane, node runtime, gateway, image path, SDKs, and agent harness share
-the same identity, lease, cleanup, and observability contracts.
+The CLI and Go, Python, and TypeScript SDKs expose the same public APIs for
+environments, processes, files, services, storage, tunnels, lifecycle state,
+and task evidence. The control plane, gateway, node runtime, and agent harness
+share identity, lease, cleanup, and observability contracts.
 
 > **Project status:** Axern is pre-1.0 and under active development. It is
 > suitable for evaluation and contribution, but operators should review the
 > security and production boundaries before deploying multi-tenant workloads.
 
-## Why Axern
+## What You Can Build
 
-- **Sandbox as the primitive:** runs, services, functions, coding workspaces,
-  and agent tasks compose the same execution and lifecycle APIs.
-- **Durable control plane:** PostgreSQL-backed intent, placement, leases,
-  retries, health, cleanup, and storage state remain authoritative across
-  process or node restarts.
-- **Runtime choice behind one model:** runc and runsc workloads use the same
-  public APIs; OCI and Nydus image paths converge at the node runtime. The
-  resource model remains independent of a single sandbox backend.
-- **Real data-plane access:** process streams, files, archives, HTTP services,
-  SSH-compatible terminals, and reverse TCP tunnels are explicit capabilities.
-- **Agent execution with evidence:** Axrun runs external agent bundles, verifies
-  results, records trajectories and usage, and preserves typed artifacts.
-- **Local-to-cluster continuity:** Docker Compose, kind, and the cloud-neutral
-  Helm chart exercise the same service boundaries.
-
-## Architecture
-
-```mermaid
-flowchart LR
-    Client["CLI and SDK clients"] --> Gateway["gatewayd\npublic control and data edge"]
-    Gateway --> Control["controld\ndurable intent and placement"]
-    Gateway --> Tunnel["tunneld\nreverse TCP relay"]
-    Gateway --> Node["axnoded\nsandbox execution"]
-    Control --> Storage["storaged\nstorage control plane"]
-    Control --> Node
-    Storage --> Volume["volumed\nnode volume publish"]
-    Node --> Image["imagemgr + imagefsd\nOCI and Nydus rootfs"]
-    Node --> Runtime["runc / runsc sandboxes"]
-    Axrun["axrun\nagent tasks and evidence"] --> Gateway
-```
-
-`controld` is the authority for product state. `gatewayd` resolves and forwards
-public traffic without owning placement. Node services own host-local runtime,
-image, network, and volume operations. See the
-[runtime architecture](./docs/architecture/runtime-architecture.md) and
-[resource model](./docs/architecture/resource-model.md) for the detailed
-contracts.
+- **Agent Sandbox:** execute agent-generated code behind a runsc isolation
+  boundary while retaining process, file, terminal, and output APIs.
+- **Durable Service:** run trusted, performance-sensitive processes with runc
+  while the control plane owns replicas, health, storage, and rollouts.
+- **Reproducible agent execution:** use Axrun to coordinate immutable tasks,
+  verification, trajectories, usage, and typed artifacts.
 
 ## Local Quickstart
 
@@ -112,6 +80,46 @@ For local Helm development, build the images with `make local-images-build`
 and pass
 [`values-local-development.yaml`](./deploy/helm/axern/values-local-development.yaml)
 to the chart. Provider and regional values stay outside this repository.
+
+## Why Axern
+
+- **Sandbox as the primitive:** runs, services, functions, coding workspaces,
+  and agent tasks compose the same execution and lifecycle APIs.
+- **Durable control plane:** PostgreSQL-backed intent, placement, leases,
+  retries, health, cleanup, and storage state remain authoritative across
+  process or node restarts.
+- **Runtime choice behind one model:** runc and runsc workloads use the same
+  public APIs; OCI and Nydus image paths converge at the node runtime. The
+  resource model remains independent of a single sandbox backend.
+- **Real data-plane access:** process streams, files, archives, HTTP services,
+  SSH-compatible terminals, and reverse TCP tunnels are explicit capabilities.
+- **Agent execution with evidence:** Axrun runs external agent bundles, verifies
+  results, records trajectories and usage, and preserves typed artifacts.
+- **Local-to-cluster continuity:** Docker Compose, kind, and the cloud-neutral
+  Helm chart exercise the same service boundaries.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Client["CLI and SDK clients"] --> Gateway["gatewayd\npublic control and data edge"]
+    Gateway --> Control["controld\ndurable intent and placement"]
+    Gateway --> Tunnel["tunneld\nreverse TCP relay"]
+    Gateway --> Node["axnoded\nsandbox execution"]
+    Control --> Storage["storaged\nstorage control plane"]
+    Control --> Node
+    Storage --> Volume["volumed\nnode volume publish"]
+    Node --> Image["imagemgr + imagefsd\nOCI and Nydus rootfs"]
+    Node --> Runtime["runc / runsc sandboxes"]
+    Axrun["axrun\nagent tasks and evidence"] --> Gateway
+```
+
+`controld` is the authority for product state. `gatewayd` resolves and forwards
+public traffic without owning placement. Node services own host-local runtime,
+image, network, and volume operations. See the
+[runtime architecture](./docs/architecture/runtime-architecture.md) and
+[resource model](./docs/architecture/resource-model.md) for the detailed
+contracts.
 
 ## Kubernetes Install
 
