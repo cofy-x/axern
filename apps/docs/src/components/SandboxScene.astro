@@ -1,0 +1,630 @@
+<div id="axern-runtime-scene" class="ax-scene" data-sandbox-scene data-mode="AGENT" data-phase="READY" aria-hidden="true">
+  <canvas class="ax-scene__canvas"></canvas>
+  <div class="ax-scene__glow"></div>
+
+  <div class="ax-scene__status">
+    <span data-scene-context>AXERN / AGENT SANDBOX</span>
+    <strong><i></i><span data-scene-phase>READY</span></strong>
+  </div>
+
+  <div class="ax-scene__telemetry">
+    <span data-scene-id>SBX_7F2A</span>
+    <span data-scene-runtime>RUNSC</span>
+    <strong data-scene-latency>143 MS</strong>
+  </div>
+
+  <div class="ax-scene__events">
+    <p><span>$</span> <span data-scene-command>agent.submit(code)</span></p>
+    <ol>
+      <li data-event-phase="PROVISION">
+        <b>01</b>
+        <span data-event-title>ENVIRONMENT REQUESTED</span>
+        <strong data-event-detail>IMAGE PYTHON:3.12-SLIM</strong>
+      </li>
+      <li data-event-phase="READY">
+        <b>02</b>
+        <span data-event-title>SANDBOX READY</span>
+        <strong data-event-detail>RUNTIME RUNSC</strong>
+      </li>
+      <li data-event-phase="EXECUTE">
+        <b>03</b>
+        <span data-event-title data-execute-event>PROCESS STARTED</span>
+        <strong data-event-detail data-execute-detail>CODE RECEIVED</strong>
+      </li>
+      <li data-event-phase="CLEAN">
+        <b>04</b>
+        <span data-event-title>RESOURCES RELEASED</span>
+        <strong data-event-detail>CLEANUP COMPLETE</strong>
+      </li>
+    </ol>
+  </div>
+
+  <div class="ax-scene__core-label">
+    <span data-core-label>ISOLATION BOUNDARY</span>
+    <strong data-core-runtime>RUNSC</strong>
+  </div>
+
+  <div class="ax-scene__code-flow">
+    <span class="ax-flow-token--function" data-flow-function>print</span><span>(</span><span class="ax-flow-token--string" data-flow-value>"Hello Axern"</span><span>)</span>
+  </div>
+
+  <div class="ax-scene__threat-flow">
+    <span class="ax-flow-token--function">open</span><span>(</span><span class="ax-flow-token--danger">"/host/secret"</span><span>)</span>
+  </div>
+
+  <div class="ax-scene__stdout-flow">
+    <span data-output-label>STDOUT</span>
+    <strong data-output-value>Hello Axern</strong>
+  </div>
+
+  <div class="ax-scene__result">
+    <span data-result-label>RESULT</span>
+    <strong data-result-value>EXIT 0 / STDOUT 12 B</strong>
+  </div>
+
+  <div class="ax-scene__denied">
+    <span>RUNSC BOUNDARY</span>
+    <strong>ESCAPE ATTEMPT CONTAINED</strong>
+  </div>
+
+  <div class="ax-scene__resources">
+    <span data-resource-process>PROC 01</span>
+    <span>FS RW</span>
+    <span>NET ON</span>
+  </div>
+
+  <div class="ax-scene__cycle">
+    <span data-cycle-phase="PROVISION" data-cycle-label>01 PROVISION</span>
+    <span data-cycle-phase="READY" data-cycle-label>02 READY</span>
+    <span data-cycle-phase="EXECUTE" data-cycle-label>03 EXECUTE</span>
+    <span data-cycle-phase="CLEAN" data-cycle-label>04 CLEAN</span>
+  </div>
+</div>
+
+<script>
+  const boxEdges = [
+    0, 1, 1, 3, 3, 2, 2, 0,
+    4, 5, 5, 7, 7, 6, 6, 4,
+    0, 4, 1, 5, 2, 6, 3, 7,
+  ];
+
+  const boxCorners = (width: number, height: number, depth: number) => [
+    [-width, -height, -depth], [width, -height, -depth],
+    [-width, height, -depth], [width, height, -depth],
+    [-width, -height, depth], [width, -height, depth],
+    [-width, height, depth], [width, height, depth],
+  ];
+
+  const boxLines = (sizes: Array<[number, number, number]>) => {
+    const values: number[] = [];
+    sizes.forEach(([width, height, depth]) => {
+      const corners = boxCorners(width, height, depth);
+      boxEdges.forEach((index) => values.push(...corners[index]));
+    });
+    return new Float32Array(values);
+  };
+
+  const boxFaces = (width: number, height: number, depth: number) => {
+    const corners = boxCorners(width, height, depth);
+    const faces = [
+      0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5,
+      0, 4, 5, 0, 5, 1, 2, 3, 7, 2, 7, 6,
+      0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3,
+    ];
+    return new Float32Array(faces.flatMap((index) => corners[index]));
+  };
+
+  const offsetGeometry = (values: Float32Array, x: number, y: number, z: number) => {
+    const shifted = new Float32Array(values.length);
+    for (let index = 0; index < values.length; index += 3) {
+      shifted[index] = values[index] + x;
+      shifted[index + 1] = values[index + 1] + y;
+      shifted[index + 2] = values[index + 2] + z;
+    }
+    return shifted;
+  };
+
+  const chamberRings = () => {
+    const values: number[] = [];
+    const segments = 88;
+    for (let ring = 0; ring < 2; ring += 1) {
+      for (let index = 0; index <= segments; index += 1) {
+        const angle = (index / segments) * Math.PI * 2;
+        if (ring === 0) values.push(Math.cos(angle) * 1.08, Math.sin(angle) * 0.24, Math.sin(angle) * 0.58);
+        if (ring === 1) values.push(Math.cos(angle) * 0.76, Math.sin(angle) * 0.66, Math.cos(angle) * 0.5);
+      }
+    }
+    return { values: new Float32Array(values), count: segments + 1 };
+  };
+
+  const seededRandom = () => {
+    let seed = 9137;
+    return () => {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647;
+    };
+  };
+
+  const flowPoints = (side: 'input' | 'output') => {
+    const random = seededRandom();
+    const values: number[] = [];
+    for (let index = 0; index < 64; index += 1) {
+      const progress = random();
+      const x = side === 'input' ? -3.15 + progress * 1.9 : 1.25 + progress * 1.9;
+      const lane = (index % 3) - 1;
+      values.push(x, lane * 0.38 + (random() - 0.5) * 0.09, (random() - 0.5) * 0.7);
+    }
+    return new Float32Array(values);
+  };
+
+  const processPoints = () => {
+    const random = seededRandom();
+    const values: number[] = [];
+    for (let index = 0; index < 42; index += 1) {
+      values.push(
+        (random() - 0.5) * 1.28,
+        (random() - 0.5) * 0.7,
+        (random() - 0.5) * 0.88,
+      );
+    }
+    return new Float32Array(values);
+  };
+
+  const servicePoints = (centerY: number) => {
+    const random = seededRandom();
+    const values: number[] = [];
+    for (let index = 0; index < 24; index += 1) {
+      values.push(
+        (random() - 0.5) * 0.88,
+        centerY + (random() - 0.5) * 0.34,
+        (random() - 0.5) * 0.65,
+      );
+    }
+    return new Float32Array(values);
+  };
+
+  const vertexSource = `
+    attribute vec3 aPosition;
+    uniform float uTime;
+    uniform float uAspect;
+    uniform float uPointSize;
+    uniform float uMode;
+    uniform vec2 uPointer;
+    varying float vDepth;
+    varying float vPulse;
+
+    void main() {
+      vec3 source = aPosition;
+      if (uMode > 0.5 && uMode < 1.5) {
+        source.x = -3.15 + mod((aPosition.x + 3.15) + uTime * 0.7 + aPosition.z * 0.18, 1.9);
+      } else if (uMode > 1.5 && uMode < 2.5) {
+        source.x = 1.25 + mod((aPosition.x - 1.25) + uTime * 0.76 + aPosition.z * 0.18, 1.9);
+      } else if (uMode > 2.5) {
+        source *= 0.92 + sin(uTime * 2.0 + aPosition.x * 3.0) * 0.06;
+      }
+
+      float ay = -0.18 + sin(uTime * 0.12) * 0.08 + uPointer.x * 0.18;
+      float ax = -0.2 + sin(uTime * 0.16) * 0.035 + uPointer.y * 0.1;
+      mat3 rotateY = mat3(
+        cos(ay), 0.0, -sin(ay),
+        0.0, 1.0, 0.0,
+        sin(ay), 0.0, cos(ay)
+      );
+      mat3 rotateX = mat3(
+        1.0, 0.0, 0.0,
+        0.0, cos(ax), sin(ax),
+        0.0, -sin(ax), cos(ax)
+      );
+      vec3 position = rotateX * rotateY * source;
+      float depth = 4.3 - position.z;
+      gl_Position = vec4(
+        position.x * 2.55 / uAspect / depth,
+        position.y * 2.55 / depth,
+        0.0,
+        1.0
+      );
+      gl_PointSize = uPointSize * (0.8 + (position.z + 2.5) * 0.1);
+      vDepth = clamp((position.z + 2.5) / 5.0, 0.0, 1.0);
+      vPulse = 0.68 + sin(uTime * 2.4 + aPosition.x * 3.0 + aPosition.y * 4.0) * 0.32;
+    }
+  `;
+
+  const fragmentSource = `
+    precision mediump float;
+    uniform vec4 uColor;
+    uniform float uPoints;
+    varying float vDepth;
+    varying float vPulse;
+
+    void main() {
+      if (uPoints > 0.5) {
+        vec2 point = gl_PointCoord - vec2(0.5);
+        if (dot(point, point) > 0.25) discard;
+      }
+      float pulse = uPoints > 0.5 ? vPulse : 1.0;
+      gl_FragColor = vec4(uColor.rgb, uColor.a * (0.58 + vDepth * 0.42) * pulse);
+    }
+  `;
+
+  document.querySelectorAll<HTMLElement>('[data-sandbox-scene]').forEach((root) => {
+    const canvas = root.querySelector<HTMLCanvasElement>('canvas');
+    const phaseLabel = root.querySelector<HTMLElement>('[data-scene-phase]');
+    const latencyLabel = root.querySelector<HTMLElement>('[data-scene-latency]');
+    const hero = root.closest<HTMLElement>('.ax-hero');
+    const modeButtons = Array.from(hero?.querySelectorAll<HTMLButtonElement>('[data-scene-mode]') ?? []);
+    if (!canvas) return;
+
+    const gl = canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: true });
+    if (!gl) {
+      root.classList.add('ax-scene--fallback');
+      return;
+    }
+
+    const compile = (type: number, source: string) => {
+      const shader = gl.createShader(type);
+      if (!shader) return null;
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null;
+    };
+
+    const vertex = compile(gl.VERTEX_SHADER, vertexSource);
+    const fragment = compile(gl.FRAGMENT_SHADER, fragmentSource);
+    const program = gl.createProgram();
+    if (!vertex || !fragment || !program) {
+      root.classList.add('ax-scene--fallback');
+      return;
+    }
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      root.classList.add('ax-scene--fallback');
+      return;
+    }
+    gl.useProgram(program);
+
+    const positionLocation = gl.getAttribLocation(program, 'aPosition');
+    const timeLocation = gl.getUniformLocation(program, 'uTime');
+    const aspectLocation = gl.getUniformLocation(program, 'uAspect');
+    const pointSizeLocation = gl.getUniformLocation(program, 'uPointSize');
+    const modeLocation = gl.getUniformLocation(program, 'uMode');
+    const pointerLocation = gl.getUniformLocation(program, 'uPointer');
+    const colorLocation = gl.getUniformLocation(program, 'uColor');
+    const pointsLocation = gl.getUniformLocation(program, 'uPoints');
+
+    const makeBuffer = (values: Float32Array) => {
+      const buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, values, gl.STATIC_DRAW);
+      return { buffer, count: values.length / 3 };
+    };
+
+    const agentFaces = makeBuffer(boxFaces(0.66, 0.38, 0.45));
+    const agentInnerLines = makeBuffer(boxLines([[0.66, 0.38, 0.45]]));
+    const agentOuterLines = makeBuffer(boxLines([[0.92, 0.58, 0.66]]));
+    const replicaFaces = boxFaces(0.56, 0.24, 0.42);
+    const replicaLines = boxLines([[0.56, 0.24, 0.42]]);
+    const servicePrimaryFaces = makeBuffer(offsetGeometry(replicaFaces, 0, -0.36, 0));
+    const serviceSecondaryFaces = makeBuffer(offsetGeometry(replicaFaces, 0, 0.38, 0));
+    const servicePrimaryLines = makeBuffer(offsetGeometry(replicaLines, 0, -0.36, 0));
+    const serviceSecondaryLines = makeBuffer(offsetGeometry(replicaLines, 0, 0.38, 0));
+    const servicePrimaryRoute = makeBuffer(new Float32Array([
+      -1.28, 0, 0, -0.78, 0, 0,
+      -0.78, 0, 0, -0.56, -0.36, 0,
+      0.56, -0.36, 0, 0.78, 0, 0,
+      0.78, 0, 0, 1.28, 0, 0,
+    ]));
+    const serviceScaleRoute = makeBuffer(new Float32Array([
+      -0.78, 0, 0, -0.56, 0.38, 0,
+      0.56, 0.38, 0, 0.78, 0, 0,
+    ]));
+    const rings = chamberRings();
+    const ringBuffer = makeBuffer(rings.values);
+    const input = makeBuffer(flowPoints('input'));
+    const output = makeBuffer(flowPoints('output'));
+    const agentProcesses = makeBuffer(processPoints());
+    const servicePrimaryProcesses = makeBuffer(servicePoints(-0.36));
+    const serviceSecondaryProcesses = makeBuffer(servicePoints(0.38));
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const timeline = [
+      { phase: 'PROVISION', duration: 1.8 },
+      { phase: 'READY', duration: 1.6 },
+      { phase: 'EXECUTE', duration: 6.6 },
+      { phase: 'CLEAN', duration: 1.8 },
+    ];
+    const cycleDuration = timeline.reduce((total, entry) => total + entry.duration, 0);
+    const phaseLatency: Record<string, string> = {
+      PROVISION: '18 MS',
+      READY: '143 MS',
+      EXECUTE: '23 MS',
+      CLEAN: '11 MS',
+    };
+    const pointer = { x: 0, y: 0, targetX: 0, targetY: 0 };
+    const executeEvent = root.querySelector<HTMLElement>('[data-execute-event]');
+    const executeDetail = root.querySelector<HTMLElement>('[data-execute-detail]');
+    const resourceProcess = root.querySelector<HTMLElement>('[data-resource-process]');
+    const eventTitles = Array.from(root.querySelectorAll<HTMLElement>('[data-event-title]'));
+    const eventDetails = Array.from(root.querySelectorAll<HTMLElement>('[data-event-detail]'));
+    const cycleLabels = Array.from(root.querySelectorAll<HTMLElement>('[data-cycle-label]'));
+    const textTargets = {
+      context: root.querySelector<HTMLElement>('[data-scene-context]'),
+      id: root.querySelector<HTMLElement>('[data-scene-id]'),
+      runtime: root.querySelector<HTMLElement>('[data-scene-runtime]'),
+      command: root.querySelector<HTMLElement>('[data-scene-command]'),
+      coreLabel: root.querySelector<HTMLElement>('[data-core-label]'),
+      coreRuntime: root.querySelector<HTMLElement>('[data-core-runtime]'),
+      flowFunction: root.querySelector<HTMLElement>('[data-flow-function]'),
+      flowValue: root.querySelector<HTMLElement>('[data-flow-value]'),
+      outputLabel: root.querySelector<HTMLElement>('[data-output-label]'),
+      outputValue: root.querySelector<HTMLElement>('[data-output-value]'),
+      resultLabel: root.querySelector<HTMLElement>('[data-result-label]'),
+      resultValue: root.querySelector<HTMLElement>('[data-result-value]'),
+    };
+    const modeCopy = {
+      AGENT: {
+        context: 'AXERN / AGENT SANDBOX', id: 'SBX_7F2A', runtime: 'RUNSC',
+        command: 'agent.submit(code)', coreLabel: 'ISOLATION BOUNDARY', coreRuntime: 'RUNSC',
+        flowFunction: 'print', flowValue: '"Hello Axern"', outputLabel: 'STDOUT', outputValue: 'Hello Axern',
+        resultLabel: 'RESULT', resultValue: 'EXIT 0 / STDOUT 12 B',
+        events: [
+          ['ENVIRONMENT REQUESTED', 'IMAGE PYTHON:3.12-SLIM'],
+          ['SANDBOX READY', 'RUNTIME RUNSC'],
+          ['PROCESS STARTED', 'CODE RECEIVED'],
+          ['RESOURCES RELEASED', 'CLEANUP COMPLETE'],
+        ],
+        cycle: ['01 PROVISION', '02 READY', '03 EXECUTE', '04 CLEAN'],
+      },
+      SERVICE: {
+        context: 'AXERN / DURABLE SERVICE', id: 'SVC_41C2', runtime: 'RUNC',
+        command: 'axern service deploy', coreLabel: 'REPLICA SET', coreRuntime: '01 HEALTHY',
+        flowFunction: 'request', flowValue: '"/health"', outputLabel: 'HTTP', outputValue: '200 OK',
+        resultLabel: 'SERVICE', resultValue: 'READY / 1 REPLICA',
+        events: [
+          ['SERVICE DECLARED', 'RUNTIME RUNC'],
+          ['REPLICA READY', 'HEALTHCHECK PASS'],
+          ['REQUEST RECEIVED', 'ROUTE /HEALTH'],
+          ['ROLLOUT STABLE', 'READY 2 / DESIRED 2'],
+        ],
+        cycle: ['01 DEPLOY', '02 READY', '03 SERVE', '04 SCALE'],
+      },
+    } as const;
+    let currentPhase = '';
+    let currentExecuteStep = '';
+    let currentMode: keyof typeof modeCopy = 'AGENT';
+    let visible = true;
+    let frame = 0;
+    let startedAt = performance.now() * 0.001;
+
+    const bind = (entry: { buffer: WebGLBuffer | null }) => {
+      gl.bindBuffer(gl.ARRAY_BUFFER, entry.buffer);
+      gl.enableVertexAttribArray(positionLocation);
+      gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
+    };
+
+    const primary = (alpha: number) => [0.47, 0.66, 1.0, alpha];
+    const healthy = (alpha: number) => [0.25, 0.82, 0.58, alpha];
+
+    const setMode = (mode: keyof typeof modeCopy) => {
+      if (mode === currentMode && root.dataset.mode === mode) return;
+      currentMode = mode;
+      root.dataset.mode = mode;
+      const copy = modeCopy[mode];
+      Object.entries(textTargets).forEach(([key, target]) => {
+        if (target) target.textContent = copy[key as keyof typeof textTargets] as string;
+      });
+      copy.events.forEach(([title, detail], index) => {
+        if (eventTitles[index]) eventTitles[index].textContent = title;
+        if (eventDetails[index]) eventDetails[index].textContent = detail;
+      });
+      copy.cycle.forEach((label, index) => {
+        if (cycleLabels[index]) cycleLabels[index].textContent = label;
+      });
+      if (resourceProcess) resourceProcess.textContent = 'PROC 01';
+    };
+
+    const resize = () => {
+      const bounds = canvas.getBoundingClientRect();
+      const ratio = Math.min(devicePixelRatio || 1, 1.5);
+      const width = Math.max(1, Math.round(bounds.width * ratio));
+      const height = Math.max(1, Math.round(bounds.height * ratio));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      gl.viewport(0, 0, width, height);
+      gl.uniform1f(aspectLocation, width / height);
+      gl.uniform1f(pointSizeLocation, ratio * 3.2);
+    };
+
+    const draw = (
+      entry: { buffer: WebGLBuffer | null; count: number },
+      mode: number,
+      rgba: number[],
+      shaderMode = 0,
+      points = false,
+      offset = 0,
+      count = entry.count,
+    ) => {
+      bind(entry);
+      gl.uniform4fv(colorLocation, rgba);
+      gl.uniform1f(modeLocation, shaderMode);
+      gl.uniform1f(pointsLocation, points ? 1 : 0);
+      gl.drawArrays(mode, offset, count);
+    };
+
+    const setPhase = (phase: string) => {
+      if (phase === currentPhase) return;
+      currentPhase = phase;
+      root.dataset.phase = phase;
+      if (latencyLabel) latencyLabel.textContent = phaseLatency[phase] ?? '—';
+      if (currentMode === 'SERVICE' && textTargets.coreRuntime) {
+        textTargets.coreRuntime.textContent = phase === 'CLEAN' ? '02 HEALTHY' : '01 HEALTHY';
+      }
+      if (currentMode === 'SERVICE' && textTargets.resultValue) {
+        textTargets.resultValue.textContent = phase === 'CLEAN' ? 'READY / 2 REPLICAS' : 'READY / 1 REPLICA';
+      }
+      if (resourceProcess) resourceProcess.textContent = currentMode === 'SERVICE' && phase === 'CLEAN' ? 'PROC 02' : 'PROC 01';
+    };
+
+    const setExecuteStep = (step: string) => {
+      if (step === currentExecuteStep) return;
+      currentExecuteStep = step;
+      if (step) root.dataset.executeStep = step;
+      else delete root.dataset.executeStep;
+
+      const copy: Record<string, [string, string]> = currentMode === 'AGENT' ? {
+        INPUT: ['PROCESS STARTED', 'SAFE CODE RECEIVED'],
+        RUN: ['PROCESS RUNNING', 'RUNTIME RUNSC'],
+        OUTPUT: ['PROCESS RUNNING', 'STDOUT STREAMING'],
+        RESULT: ['PROCESS EXITED · 0', 'STDOUT "HELLO AXERN"'],
+        ATTACK: ['PROCESS STARTED', 'ESCAPE ATTEMPT RECEIVED'],
+        BLOCK: ['BOUNDARY ENFORCED', 'HOST ACCESS BLOCKED'],
+        DENIED: ['ATTEMPT CONTAINED', 'HOST BOUNDARY INTACT'],
+      } : {
+        INPUT: ['REQUEST RECEIVED', 'ROUTE /HEALTH'],
+        RUN: ['HANDLER RUNNING', 'RUNTIME RUNC'],
+        OUTPUT: ['RESPONSE STREAMING', 'HTTP 200'],
+        RESULT: ['SERVICE HEALTHY', 'READY 2 / DESIRED 2'],
+      };
+      const values = copy[step] ?? copy.INPUT;
+      if (executeEvent) executeEvent.textContent = values[0];
+      if (executeDetail) executeDetail.textContent = values[1];
+      const displayStep = currentMode === 'SERVICE'
+        ? ({ INPUT: 'REQUEST', RUN: 'SERVE', OUTPUT: 'RESPONSE', RESULT: 'HEALTHY' }[step] ?? step)
+        : ({ ATTACK: 'UNTRUSTED', BLOCK: 'CONTAIN', DENIED: 'DENIED', RESULT: 'OUTPUT' }[step] ?? step);
+      if (phaseLabel) phaseLabel.textContent = step ? `${currentMode === 'SERVICE' ? 'SERVE' : 'EXECUTE'} / ${displayStep}` : currentPhase;
+      if (latencyLabel && step) {
+        latencyLabel.textContent = step === 'INPUT' ? '7 MS' : step === 'RUN' ? '23 MS' : step === 'OUTPUT' ? '29 MS' : '31 MS';
+      }
+    };
+
+    const render = (now: number) => {
+      resize();
+      pointer.x += (pointer.targetX - pointer.x) * 0.035;
+      pointer.y += (pointer.targetY - pointer.y) * 0.035;
+      const time = reducedMotion ? 3.2 : now * 0.001 - startedAt;
+      const cycleTime = time % cycleDuration;
+      let elapsed = cycleTime;
+      let phase = timeline[0].phase;
+      let phaseProgress = 0;
+      for (const entry of timeline) {
+        if (elapsed < entry.duration) {
+          phase = entry.phase;
+          phaseProgress = elapsed / entry.duration;
+          break;
+        }
+        elapsed -= entry.duration;
+      }
+      if (reducedMotion) {
+        phase = 'READY';
+        phaseProgress = 0;
+      }
+      setPhase(phase);
+      const executeStep = phase !== 'EXECUTE' ? '' : currentMode === 'AGENT'
+        ? phaseProgress < 0.14 ? 'INPUT'
+          : phaseProgress < 0.28 ? 'RUN'
+            : phaseProgress < 0.4 ? 'OUTPUT'
+              : phaseProgress < 0.5 ? 'RESULT'
+                : phaseProgress < 0.64 ? 'ATTACK'
+                  : phaseProgress < 0.79 ? 'BLOCK'
+                    : 'DENIED'
+        : phaseProgress < 0.2 ? 'INPUT' : phaseProgress < 0.45 ? 'RUN' : phaseProgress < 0.65 ? 'OUTPUT' : 'RESULT';
+      setExecuteStep(executeStep);
+      if (!executeStep && phaseLabel) {
+        phaseLabel.textContent = currentMode === 'SERVICE'
+          ? ({ PROVISION: 'DEPLOY', READY: 'READY', CLEAN: 'SCALE' }[phase] ?? phase)
+          : phase;
+      }
+
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.uniform1f(timeLocation, time);
+      gl.uniform2f(pointerLocation, pointer.x, pointer.y);
+
+      const contained = executeStep === 'BLOCK' || executeStep === 'DENIED';
+      const modeFade = reducedMotion ? 1 : Math.min(1, cycleTime / 0.7);
+      if (currentMode === 'AGENT') {
+        draw(agentFaces, gl.TRIANGLES, contained ? [0.95, 0.34, 0.28, 0.08 * modeFade] : primary((executeStep === 'RUN' ? 0.12 : phase === 'EXECUTE' ? 0.075 : 0.045) * modeFade));
+        for (let ring = 0; ring < 2; ring += 1) {
+          draw(ringBuffer, gl.LINE_STRIP, primary(0.1 * modeFade), 0, false, ring * rings.count, rings.count);
+        }
+        draw(agentOuterLines, gl.LINES, contained ? [0.95, 0.34, 0.28, 0.68 * modeFade] : primary(0.23 * modeFade));
+        draw(agentInnerLines, gl.LINES, primary((executeStep === 'RUN' ? 1 : phase === 'EXECUTE' ? 0.9 : 0.76) * modeFade));
+      } else {
+        const serving = phase === 'READY' || phase === 'EXECUTE' || phase === 'CLEAN';
+        const scaling = phase === 'CLEAN';
+        draw(servicePrimaryFaces, gl.TRIANGLES, healthy((serving ? 0.11 : 0.045) * modeFade));
+        draw(serviceSecondaryFaces, gl.TRIANGLES, healthy((scaling ? 0.11 : 0.018) * modeFade));
+        draw(servicePrimaryLines, gl.LINES, healthy((serving ? 0.9 : 0.42) * modeFade));
+        draw(serviceSecondaryLines, gl.LINES, healthy((scaling ? 0.9 : 0.18) * modeFade));
+        draw(servicePrimaryRoute, gl.LINES, healthy((phase === 'EXECUTE' ? 0.78 : 0.34) * modeFade));
+        draw(serviceScaleRoute, gl.LINES, healthy((scaling ? 0.78 : 0.12) * modeFade));
+      }
+
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      const inputAlpha = phase === 'PROVISION' ? 0.9 : executeStep === 'INPUT' ? 0.82 : phase === 'EXECUTE' ? 0.28 : 0.2;
+      const outputAlpha = executeStep === 'OUTPUT' ? 0.92 : executeStep === 'RESULT' ? 0.55 : phase === 'CLEAN' ? 0.3 : 0.12;
+      const processAlpha = executeStep === 'RUN' || executeStep === 'BLOCK' ? 1 : phase === 'EXECUTE' ? 0.62 : phase === 'READY' ? 0.5 : phase === 'PROVISION' ? 0.24 : 0.12;
+      draw(input, gl.POINTS, currentMode === 'SERVICE' ? healthy(inputAlpha) : primary(inputAlpha), 1, true);
+      draw(output, gl.POINTS, healthy(outputAlpha), 2, true);
+      if (currentMode === 'AGENT') {
+        draw(agentProcesses, gl.POINTS, healthy(processAlpha), 3, true);
+      } else {
+        draw(servicePrimaryProcesses, gl.POINTS, healthy(processAlpha), 3, true);
+        draw(serviceSecondaryProcesses, gl.POINTS, healthy(phase === 'CLEAN' ? 0.88 : 0.08), 3, true);
+      }
+
+      if (!reducedMotion && visible && !document.hidden) frame = requestAnimationFrame(render);
+    };
+
+    root.addEventListener('pointermove', (event) => {
+      const bounds = root.getBoundingClientRect();
+      pointer.targetX = ((event.clientX - bounds.left) / bounds.width - 0.5) * 2;
+      pointer.targetY = ((event.clientY - bounds.top) / bounds.height - 0.5) * -2;
+    });
+    root.addEventListener('pointerleave', () => {
+      pointer.targetX = 0;
+      pointer.targetY = 0;
+    });
+
+    const start = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(render);
+    };
+    const selectMode = (mode: keyof typeof modeCopy) => {
+      startedAt = performance.now() * 0.001;
+      currentPhase = '';
+      currentExecuteStep = '';
+      delete root.dataset.executeStep;
+      setMode(mode);
+      modeButtons.forEach((button) => {
+        const active = button.dataset.sceneMode === mode;
+        button.setAttribute('aria-pressed', String(active));
+      });
+      start();
+    };
+    modeButtons.forEach((button, index) => {
+      button.addEventListener('click', () => selectMode(button.dataset.sceneMode === 'SERVICE' ? 'SERVICE' : 'AGENT'));
+      button.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        const offset = event.key === 'ArrowRight' ? 1 : -1;
+        const next = modeButtons[(index + offset + modeButtons.length) % modeButtons.length];
+        next.focus();
+        selectMode(next.dataset.sceneMode === 'SERVICE' ? 'SERVICE' : 'AGENT');
+      });
+    });
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      if (visible) start();
+      else cancelAnimationFrame(frame);
+    }, { rootMargin: '120px' });
+    observer.observe(root);
+    new ResizeObserver(start).observe(root);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && visible) start(); });
+    start();
+  });
+</script>

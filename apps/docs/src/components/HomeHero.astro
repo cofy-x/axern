@@ -6,82 +6,310 @@ interface Props {
 const { locale = 'en' } = Astro.props;
 const zh = locale === 'zh-cn';
 const base = zh ? '/zh-cn' : '';
+
+import SandboxScene from './SandboxScene.astro';
+
+const escapeHtml = (value: string) => value
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;');
+
+const keywords = new Set([
+  'as', 'await', 'const', 'defer', 'from', 'import', 'new', 'print', 'true', 'with',
+]);
+
+const highlightLine = (line: string, language: string) => {
+  const pattern = language === 'cli'
+    ? /(--[\w-]+|'(?:\\.|[^'])*'|\b\d+\b)/g
+    : /(\/\/.*$|#.*$|"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|\b(?:as|await|const|defer|from|import|new|print|true|with)\b|\b\d+\b)/g;
+  let cursor = 0;
+  let result = '';
+  for (const match of line.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    const token = match[0];
+    result += escapeHtml(line.slice(cursor, index));
+    let type = 'number';
+    if (token.startsWith('//') || token.startsWith('#')) type = 'comment';
+    else if (token.startsWith('--')) type = 'option';
+    else if (token.startsWith('"') || token.startsWith("'")) type = 'string';
+    else if (keywords.has(token)) type = 'keyword';
+    result += `<span class="ax-token ax-token--${type}">${escapeHtml(token)}</span>`;
+    cursor = index + token.length;
+  }
+  return result + escapeHtml(line.slice(cursor));
+};
+
+const highlightCode = (code: string, language: string) => code
+  .split('\n')
+  .map((line, index) => `<span class="ax-code-line" data-line="${index + 1}">${highlightLine(line, language) || ' '}</span>`)
+  .join('');
+
+const codeExamples = [
+  {
+    id: 'python',
+    label: 'Python',
+    language: 'python',
+    code: `import os
+
+from axern_sdk import AxernClient, Sandbox
+
+client = AxernClient.from_context(
+    os.path.expanduser("~/.config/axern/config.json")
+)
+
+with Sandbox(client=client, image="docker.io/library/python:3.12-slim") as sandbox:
+    result = sandbox.exec("python -c 'print(42)'", check=True)
+    print(result.stdout)`,
+  },
+  {
+    id: 'go',
+    label: 'Go',
+    language: 'go',
+    code: `ctx := context.Background()
+client, _ := axern.NewClient(ctx, "127.0.0.1:25000")
+defer client.Close()
+
+sandbox, _ := axern.NewSandbox(axern.SandboxOptions{
+    Client: client,
+    Image: "docker.io/library/python:3.12-slim",
+})
+defer sandbox.Close(ctx)
+
+_ = sandbox.Start(ctx)
+result, _ := sandbox.Exec(ctx, "python -c 'print(42)'", axern.ExecOptions{Check: true})
+fmt.Print(result.StdoutString())`,
+  },
+  {
+    id: 'typescript',
+    label: 'TypeScript',
+    language: 'typescript',
+    code: `import { AxernClient, Sandbox } from "@cofy-x/axern-sdk";
+
+const config = process.env.AXERN_CONFIG
+  ?? process.env.HOME + "/.config/axern/config.json";
+const client = AxernClient.fromContext(config);
+const sandbox = await new Sandbox({
+  client,
+  image: "docker.io/library/python:3.12-slim",
+}).start();
+
+const result = await sandbox.exec("python -c 'print(42)'", { check: true });
+console.log(result.stdoutText());
+await sandbox.close();`,
+  },
+  {
+    id: 'cli',
+    label: 'CLI',
+    language: 'cli',
+    code: `axern run create \\
+  --image-ref docker.io/library/python:3.12-slim \\
+  --runtime-class runsc \\
+  --argv python \\
+  --argv -c \\
+  --argv 'print(42)' \\
+  --wait`,
+  },
+].map((example) => ({ ...example, highlighted: highlightCode(example.code, example.language) }));
 ---
 
 <section class="ax-hero">
   <div class="ax-hero__copy">
-    <p class="ax-kicker">INFRASTRUCTURE FOR AI AGENTS</p>
-    <p class="ax-display" aria-hidden="true">
+    <p class="ax-kicker">{zh ? '面向智能体的执行基础设施' : 'AGENTIC EXECUTION INFRASTRUCTURE'}</p>
+    <h1
+      class="ax-display"
+      aria-label={zh ? '为 AI 智能体打造的开源沙箱' : 'Open-source sandboxes for AI agents'}
+    >
       {zh ? (
         <>
-          <span>为智能体而生的</span>
-          <span class="ax-display__accent">可编程沙箱平台</span>
+          <span aria-hidden="true">为 AI 智能体打造的</span>
+          <span class="ax-display__accent" aria-hidden="true">开源沙箱</span>
         </>
       ) : (
         <>
-          <span>The</span>
-          <span>programmable</span>
-          <span class="ax-display__accent">sandbox for</span>
-          <span class="ax-display__accent">agents</span>
+          <span aria-hidden="true">Open-source sandboxes</span>
+          <span class="ax-display__accent" aria-hidden="true">for AI agents</span>
         </>
       )}
-    </p>
+    </h1>
     <p class="ax-lede">
       {zh
-        ? '用统一的资源与生命周期模型运行隔离、持久、可观测的 AI 智能体和代码工作负载。'
-        : 'Run isolated, stateful, observable AI agents and code workloads with one resource and lifecycle model.'}
+        ? '使用 runsc 隔离智能体生成的不可信代码，并通过 runc 运行可信的长期服务——共享一套资源与生命周期模型。'
+        : 'Isolate untrusted agent-generated code with runsc, and run trusted long-lived services with runc—through one resource and lifecycle model.'}
     </p>
     <div class="ax-actions">
       <a class="ax-button ax-button--primary" href={`${base}/getting-started/compose/`}>
-        {zh ? '十分钟开始' : 'Start in ten minutes'}
+        {zh ? '在本地运行 Axern' : 'Run Axern locally'}
       </a>
-      <a class="ax-button" href={`${base}/architecture/`}>
-        {zh ? '了解架构' : 'Explore the architecture'}
+      <a class="ax-button" href={`${base}/getting-started/`}>
+        {zh ? '阅读快速开始' : 'Read the quickstart'}
+      </a>
+      <a class="ax-text-link" href="https://github.com/cofy-x/axern">
+        {zh ? '在 GitHub 查看源码 ↗' : 'View source on GitHub ↗'}
       </a>
     </div>
-    <div class="ax-signals" aria-label={zh ? '平台能力' : 'Platform capabilities'}>
-      <span>runc + runsc</span>
-      <span>OCI + Nydus</span>
-      <span>Python · Go · TypeScript</span>
+    <div class="ax-signals not-content" aria-label={zh ? '项目信息' : 'Project signals'}>
+      <div class="ax-signal"><span>LICENSE</span><strong>Apache-2.0</strong></div>
+      <div class="ax-signal"><span>HOSTING</span><strong>{zh ? '可自托管' : 'Self-hosted'}</strong></div>
+      <div class="ax-signal"><span>RUNTIME</span><strong>runc + runsc</strong></div>
+      <div class="ax-signal"><span>SDK</span><strong>Python · Go · TypeScript</strong></div>
     </div>
   </div>
-  <a
-    class="ax-hero__terminal"
-    href={`${base}/guides/python-service/`}
-    aria-label={zh ? '查看完整 Python Service 教程' : 'View the complete Python Service guide'}
-  >
-    <div class="ax-terminal__bar">
-      <span class="ax-terminal__controls" aria-hidden="true">
-        <span class="ax-terminal__dot"></span>
-        <span class="ax-terminal__dot"></span>
-        <span class="ax-terminal__dot"></span>
-      </span>
-      <span class="ax-terminal__title">python service · /svc</span>
+  <div class="ax-hero__visual">
+    <div class="ax-scene-switch not-content" role="group" aria-label={zh ? '执行模式' : 'Execution mode'}>
+      <button
+        type="button"
+        aria-pressed="true"
+        data-scene-mode="AGENT"
+      >
+        <span>{zh ? '智能体沙箱' : 'Agent Sandbox'}</span>
+        <strong>runsc</strong>
+      </button>
+      <button
+        type="button"
+        aria-pressed="false"
+        data-scene-mode="SERVICE"
+      >
+        <span>{zh ? '长期服务' : 'Durable Service'}</span>
+        <strong>runc</strong>
+      </button>
     </div>
-    <img
-      src="/terminal/python-service.gif"
-      alt={zh ? '通过 Axern Python SDK 发布并访问 HTTP Service' : 'Publishing and reaching an HTTP Service with the Axern Python SDK'}
-      width="960"
-      height="380"
-      loading="eager"
-    />
-  </a>
+    <SandboxScene />
+  </div>
 </section>
 
-<section class="ax-value-grid" aria-label={zh ? 'Axern 核心能力' : 'Why Axern'}>
-  <article>
-    <p class="ax-number">01</p>
-    <h2>{zh ? '沙箱是基础原语' : 'Sandbox as the primitive'}</h2>
-    <p>{zh ? '运行、服务、持久工作区与智能体任务共享同一套隔离和清理契约。' : 'Runs, services, persistent workspaces, and agent tasks share one isolation and cleanup contract.'}</p>
-  </article>
-  <article>
-    <p class="ax-number">02</p>
-    <h2>{zh ? '持久控制面' : 'Durable control plane'}</h2>
-    <p>{zh ? '调度、租约、健康、重试和存储意图在进程与节点重启后依然可靠。' : 'Placement, leases, health, retries, and storage intent survive process and node restarts.'}</p>
-  </article>
-  <article>
-    <p class="ax-number">03</p>
-    <h2>{zh ? '智能体证据闭环' : 'Agent evidence loop'}</h2>
-    <p>{zh ? 'Axrun 将任务、执行、验证、用量与轨迹固化为可复现的 Rollout。' : 'Axrun makes tasks, execution, verification, usage, and trajectories reproducible rollouts.'}</p>
-  </article>
+<section class="ax-section ax-section--intro" aria-labelledby="ax-build-heading">
+  <div class="ax-section__heading">
+    <p class="ax-eyebrow">{zh ? '一个平台，三种工作负载' : 'ONE PLATFORM, THREE WORKLOADS'}</p>
+    <h2 id="ax-build-heading">{zh ? '从一个沙箱，构建完整智能体系统' : 'Build the whole agent system from one sandbox primitive'}</h2>
+    <p>{zh ? '无需为一次性执行、常驻服务和评测任务维护三套运行时。' : 'Use the same lifecycle, identity, and data-plane contracts for one-shot execution, long-running services, and evaluated agent work.'}</p>
+  </div>
+  <div class="ax-workload-grid">
+    <article>
+      <div class="ax-workload-meta">
+        <span class="ax-workload-tag">[ AGENT SANDBOX ]</span>
+        <span class="ax-workload-index">01 / 03</span>
+      </div>
+      <h3>{zh ? '隔离不可信智能体代码' : 'Isolate untrusted agent code'}</h3>
+      <p>{zh ? '通过 runsc 隔离边界执行智能体生成的代码，并保留进程、文件、终端与输出能力。' : 'Execute agent-generated code behind a runsc isolation boundary while retaining process, file, terminal, and output APIs.'}</p>
+      <a href={`${base}/sdk/`}>{zh ? '选择 SDK' : 'Choose an SDK'}</a>
+    </article>
+    <article>
+      <div class="ax-workload-meta">
+        <span class="ax-workload-tag">[ SERVICE ]</span>
+        <span class="ax-workload-index">02 / 03</span>
+      </div>
+      <h3>{zh ? '运行可信长期服务' : 'Run trusted durable services'}</h3>
+      <p>{zh ? '用 runc 承载性能敏感的长期进程，并让副本、健康检查、存储与滚动更新持续可靠。' : 'Use runc for trusted, performance-sensitive processes with durable replicas, health, storage, and rollouts.'}</p>
+      <a href={`${base}/guides/python-service/`}>{zh ? '构建 Python Service' : 'Build a Python Service'}</a>
+    </article>
+    <article>
+      <div class="ax-workload-meta">
+        <span class="ax-workload-tag">[ AXRUN ]</span>
+        <span class="ax-workload-index">03 / 03</span>
+      </div>
+      <h3>{zh ? '保存智能体证据' : 'Preserve agent evidence'}</h3>
+      <p>{zh ? '将不可变任务、受控并发、验证、轨迹、用量和产物组织成可复现 Rollout。' : 'Turn immutable tasks, controlled concurrency, verification, trajectories, usage, and artifacts into reproducible rollouts.'}</p>
+      <a href={`${base}/axrun/`}>{zh ? '了解 Axrun' : 'Explore Axrun'}</a>
+    </article>
+  </div>
 </section>
+
+<section class="ax-section ax-code-section" aria-labelledby="ax-code-heading">
+  <div class="ax-section__heading ax-section__heading--compact">
+    <p class="ax-eyebrow">{zh ? '从公开 API 开始' : 'START WITH THE PUBLIC API'}</p>
+    <h2 id="ax-code-heading">{zh ? '用你已经在用的工具编程沙箱' : 'Program a sandbox with the tools you already use'}</h2>
+    <p>{zh ? 'CLI 与三种官方 SDK 共享同一套平台能力；客户端不会用 SSH 或 shell fallback 绕过公开 API。' : 'The CLI and three official SDKs share the same platform capabilities. Clients do not bypass the public API with SSH or shell fallbacks.'}</p>
+  </div>
+  <div class="ax-code" data-code-tabs>
+    <div class="ax-code__toolbar">
+      <div class="ax-code__tabs" role="tablist" aria-label={zh ? '代码语言' : 'Code language'}>
+        {codeExamples.map((example, index) => (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={index === 0 ? 'true' : 'false'}
+            tabindex={index === 0 ? '0' : '-1'}
+            aria-controls={`ax-code-${example.id}`}
+            id={`ax-tab-${example.id}`}
+            data-code-tab={example.id}
+          >
+            {example.label}
+          </button>
+        ))}
+      </div>
+      <button class="ax-code__copy" type="button" data-copy-code aria-label={zh ? '复制当前代码' : 'Copy current code'}>
+        <span data-copy-label>{zh ? '复制' : 'Copy'}</span>
+      </button>
+    </div>
+    {codeExamples.map((example, index) => (
+      <div
+        class="ax-code__panel"
+        id={`ax-code-${example.id}`}
+        role="tabpanel"
+        aria-labelledby={`ax-tab-${example.id}`}
+        data-code-panel={example.id}
+        hidden={index !== 0}
+      >
+        <pre><code set:html={example.highlighted}></code></pre>
+      </div>
+    ))}
+  </div>
+</section>
+
+<section class="ax-section ax-open-source" aria-labelledby="ax-open-heading">
+  <div>
+    <p class="ax-eyebrow">{zh ? '开放构建，明确边界' : 'BUILT IN THE OPEN'}</p>
+    <h2 id="ax-open-heading">{zh ? '拥有执行层，而不是依赖黑盒' : 'Own the execution layer, not a black box'}</h2>
+  </div>
+  <div class="ax-open-source__copy">
+    <p>{zh ? 'Axern 将控制面、Gateway、节点运行时、CLI、Helm Chart 与 SDK 放在同一 Apache-2.0 仓库中。你可以在本地完整运行它、检查每一层契约，并为需要的能力做贡献。' : 'Axern keeps the control plane, gateway, node runtime, CLI, Helm chart, and SDKs in one Apache-2.0 repository. Run the complete stack locally, inspect every contract, and contribute where your workload needs it.'}</p>
+    <div class="ax-actions">
+      <a class="ax-button ax-button--primary" href="https://github.com/cofy-x/axern">{zh ? '浏览 GitHub 仓库' : 'Explore the repository'}</a>
+      <a class="ax-button" href="https://github.com/cofy-x/axern/blob/main/CONTRIBUTING.md">{zh ? '参与贡献' : 'Contribute'}</a>
+    </div>
+  </div>
+</section>
+
+<aside class="ax-maturity" aria-label={zh ? '项目成熟度说明' : 'Project maturity note'}>
+  <div>
+    <span class="ax-maturity__badge">PRE-1.0</span>
+    <strong>{zh ? '当前适合评估与贡献' : 'Ready for evaluation and contribution'}</strong>
+  </div>
+  <p>{zh ? '用于不可信多租户工作负载前，请评估认证、TLS、运行时隔离、镜像信任、网络策略、配额和持久化存储。' : 'Before running untrusted multi-tenant workloads, evaluate authentication, TLS, runtime isolation, image trust, network policy, quotas, and persistent storage.'}</p>
+</aside>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-code-tabs]').forEach((root) => {
+    const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-code-tab]'));
+    const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-code-panel]'));
+    const copy = root.querySelector<HTMLButtonElement>('[data-copy-code]');
+    const copyLabel = root.querySelector<HTMLElement>('[data-copy-label]');
+    const defaultCopyLabel = copyLabel?.textContent ?? 'Copy';
+
+    const select = (id: string) => {
+      tabs.forEach((tab) => {
+        const active = tab.dataset.codeTab === id;
+        tab.setAttribute('aria-selected', String(active));
+        tab.tabIndex = active ? 0 : -1;
+      });
+      panels.forEach((panel) => { panel.hidden = panel.dataset.codePanel !== id; });
+    };
+
+    tabs.forEach((tab) => tab.addEventListener('click', () => select(tab.dataset.codeTab ?? 'python')));
+    tabs.forEach((tab, index) => tab.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const offset = event.key === 'ArrowRight' ? 1 : -1;
+      const next = tabs[(index + offset + tabs.length) % tabs.length];
+      select(next.dataset.codeTab ?? 'python');
+      next.focus();
+    }));
+    copy?.addEventListener('click', async () => {
+      const active = root.querySelector<HTMLElement>('[data-code-panel]:not([hidden]) code');
+      if (!active || !copyLabel) return;
+      await navigator.clipboard.writeText(active.textContent ?? '');
+      copyLabel.textContent = document.documentElement.lang.startsWith('zh') ? '已复制' : 'Copied';
+      window.setTimeout(() => { copyLabel.textContent = defaultCopyLabel; }, 1600);
+    });
+  });
+</script>

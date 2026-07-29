@@ -17,6 +17,19 @@ architecture, maintainer operations, verification contracts, and product
 design. Public pages link to those documents when readers need implementation
 detail instead of duplicating them.
 
+Homepage and shared visual work follows the repository's
+[documentation site visual direction](../../docs/decisions/docs-site-visual-direction.md).
+
+Shared styles use one stable entrypoint at `src/styles/custom.css`:
+
+- `tokens.css` defines theme and Axern design tokens.
+- `shell.css` adapts the Starlight shell and shared documentation elements.
+- `home.css` owns the homepage visual system and responsive behavior.
+
+Keep responsive and reduced-motion rules with the surface they affect. Add a
+new stylesheet only when a new page-level surface has an independent visual
+contract.
+
 ## Local Development
 
 ```bash

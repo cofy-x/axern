@@ -1,24 +1,12 @@
 ---
 title: Axern 文档
-description: 面向隔离、持久沙箱与可复现智能体 Rollout 的开源 Agentic Infrastructure。
+description: 面向不可信代码、长期服务与可复现智能体 Rollout 的开源 AI 沙箱。
 template: splash
 head:
   - tag: title
-    content: Axern — 面向 AI 智能体的可编程沙箱平台
+    content: Axern — 为 AI 智能体打造的开源沙箱
 ---
 
 import HomeHero from '../../../components/HomeHero.astro';
 
 <HomeHero locale="zh-cn" />
-
-## 一个平台，两个入口
-
-当应用需要可编程的沙箱生命周期、进程、文件、服务、存储或隧道时，使用
-**Axern**。当智能体工作流需要不可变任务、受控并发、验证、轨迹、用量与可移植证据时，使用
-**Axrun**。
-
-- [安装本地完整服务](/zh-cn/getting-started/compose/)，通过公开 Gateway 运行沙箱。
-- [选择 SDK](/zh-cn/sdk/)，从 Python、Go 或 Node.js 构建应用。
-- [运行托管 Rollout](/zh-cn/axrun/)，形成可复现的智能体证据闭环。
-
-Axern 目前处于 pre-1.0 活跃开发阶段。将其用于不可信多租户工作负载前，请评估认证、TLS、运行时隔离、镜像信任、网络策略、配额和持久化存储。

@@ -8,13 +8,14 @@ const sidebar = [
     label: 'Start',
     translations: { 'zh-cn': '开始' },
     items: [
+      { label: 'Overview', translations: { 'zh-cn': '产品概览' }, link: '/' },
       { label: 'Getting Started', translations: { 'zh-cn': '入门' }, link: '/getting-started/' },
       { label: 'Compose Quickstart', translations: { 'zh-cn': 'Compose 快速开始' }, link: '/getting-started/compose/' },
     ],
   },
   {
-    label: 'Use Axern',
-    translations: { 'zh-cn': '使用 Axern' },
+    label: 'Build',
+    translations: { 'zh-cn': '构建' },
     items: [
       { label: 'Axern CLI', translations: { 'zh-cn': 'Axern CLI' }, link: '/guides/cli/' },
       { label: 'Python Service', translations: { 'zh-cn': 'Python Service' }, link: '/guides/python-service/' },
@@ -56,7 +57,7 @@ export default defineConfig({
     sitemap({ i18n: { defaultLocale: 'en', locales: { en: 'en-US', 'zh-cn': 'zh-CN' } } }),
     starlight({
       title: 'Axern',
-      description: 'Open-source infrastructure for programmable sandboxes, durable services, and reproducible agent rollouts.',
+      description: 'Open-source AI sandboxes for untrusted code, durable services, and reproducible agent rollouts.',
       favicon: '/favicon.svg',
       customCss: ['./src/styles/custom.css'],
       defaultLocale: 'root',

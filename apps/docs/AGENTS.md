@@ -6,7 +6,8 @@
 Starlight site, localized user journeys, generated terminal recordings, and
 Cloudflare Pages build contract.
 
-Read this file and `apps/docs/README.md` before changing the site.
+Read this file, `apps/docs/README.md`, and
+`docs/decisions/docs-site-visual-direction.md` before changing the site.
 
 ## Ownership Boundary
 

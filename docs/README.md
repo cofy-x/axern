@@ -30,6 +30,12 @@ when the first durable decision is needed. Mark a replaced decision as
 superseded and link its replacement; keep current behavior in architecture
 documents.
 
+## Decisions
+
+- [Documentation Site Visual Direction](decisions/docs-site-visual-direction.md):
+  durable visual, content, interaction, and ownership constraints for the
+  public documentation site.
+
 ## Product Direction And User Models
 
 - [Long-Term Direction](product/product-direction.md): product north star, durable
