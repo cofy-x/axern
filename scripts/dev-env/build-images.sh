@@ -40,9 +40,23 @@ push_image_after_build() {
   fi
 }
 
+report_image_build_phase() {
+  local phase="$1"
+  local started_at="$2"
+  local duration_seconds="$(( $(date +%s) - started_at ))"
+  printf 'image_build_phase=%s duration_seconds=%s\n' "${phase}" "${duration_seconds}"
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    printf '| %s | %s |\n' "${phase}" "${duration_seconds}" >> "${GITHUB_STEP_SUMMARY}"
+  fi
+}
+
 if [ "${build_runtime_core}" = "true" ]; then
+  phase_started_at="$(date +%s)"
   build_node_runtime_base_image "${APT_MIRROR_SOURCE}" "${CARGO_REGISTRY_SOURCE}"
   push_image_after_build "${NODE_RUNTIME_BASE_IMAGE_TAG}"
+  report_image_build_phase "node-runtime-base" "${phase_started_at}"
+
+  phase_started_at="$(date +%s)"
   IMAGE_REF="${PYTHON311_RUNTIME_IMAGE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-python311-runtime-image.sh" >/dev/null
   push_image_after_build "${PYTHON311_RUNTIME_IMAGE}"
   IMAGE_REF="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-server-base-runtime-image.sh" >/dev/null
@@ -51,15 +65,19 @@ if [ "${build_runtime_core}" = "true" ]; then
   push_image_after_build "${CODING_BASE_RUNTIME_IMAGE}"
   IMAGE_REF="${CODEX_BUNDLE_IMAGE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-codex-bundle-image.sh" >/dev/null
   push_image_after_build "${CODEX_BUNDLE_IMAGE}"
+  report_image_build_phase "runtime-core" "${phase_started_at}"
 fi
 
 if [ "${build_full_runtime_catalog}" = "true" ]; then
+  phase_started_at="$(date +%s)"
   IMAGE_REF="${DESKTOP_BASE_RUNTIME_IMAGE}" SERVER_BASE_RUNTIME_IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-desktop-base-runtime-image.sh" >/dev/null
   push_image_after_build "${DESKTOP_BASE_RUNTIME_IMAGE}"
   IMAGE_REF="${CLAUDE_CODE_BUNDLE_IMAGE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-claude-code-bundle-image.sh" >/dev/null
   push_image_after_build "${CLAUDE_CODE_BUNDLE_IMAGE}"
+  report_image_build_phase "runtime-catalog" "${phase_started_at}"
 fi
 
+phase_started_at="$(date +%s)"
 mkdir -p "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build"
 mkdir -p "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build"
 
@@ -107,7 +125,9 @@ if [ "${build_node_stack}" = "true" ]; then
         "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/tunneld/.build/tunneld" ./runtime/tunneld/cmd/tunneld
   )
 fi
+report_image_build_phase "application-binaries" "${phase_started_at}"
 
+phase_started_at="$(date +%s)"
 axern_docker_build \
   -f "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/Dockerfile" \
   --build-arg "APT_MIRROR_BASE_URL=${APT_MIRROR_BASE_URL:-}" \
@@ -121,8 +141,10 @@ axern_docker_build \
   -t "${GATEWAYD_IMAGE}" \
   "${AXERN_DEV_ENV_ROOT}"
 push_image_after_build "${GATEWAYD_IMAGE}"
+report_image_build_phase "control-images" "${phase_started_at}"
 
 if [ "${build_node_stack}" = "true" ]; then
+  phase_started_at="$(date +%s)"
   axern_docker_build \
     -f "${AXERN_DEV_ENV_ROOT}/deploy/images/tunneld/Dockerfile" \
     -t "${TUNNELD_IMAGE}" \
@@ -136,6 +158,7 @@ if [ "${build_node_stack}" = "true" ]; then
     -t "${NODE_ALL_IN_ONE_IMAGE}" \
     "${AXERN_DEV_ENV_ROOT}"
   push_image_after_build "${NODE_ALL_IN_ONE_IMAGE}"
+  report_image_build_phase "node-images" "${phase_started_at}"
 fi
 
 if [ "${build_runtime_core}" = "true" ]; then

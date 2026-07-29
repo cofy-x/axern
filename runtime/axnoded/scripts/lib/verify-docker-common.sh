@@ -714,9 +714,6 @@ build_node_runtime_base_image() {
     --build-arg MC_CACHE_ARCH="${MC_CACHE_ARCH}"
     -t "${NODE_RUNTIME_BASE_IMAGE_TAG}"
   )
-  if [ -n "${AXERN_OCI_SOURCE_LABEL:-}" ]; then
-    build_args+=(--label "org.opencontainers.image.source=${AXERN_OCI_SOURCE_LABEL}")
-  fi
   if [ -n "${build_http_proxy}" ]; then
     build_args+=(
       --build-arg HTTP_PROXY="${build_http_proxy}"
@@ -740,14 +737,6 @@ build_node_runtime_base_image() {
   fi
   if [ "${VERIFY_DOCKER_PULL:-false}" = "true" ]; then
     build_args=(--pull "${build_args[@]}")
-  fi
-
-  if [ -n "${VERIFY_DOCKER_PLATFORM}" ] && docker buildx version >/dev/null 2>&1; then
-    docker buildx build \
-      --load \
-      "${build_args[@]}" \
-      "${REPO_ROOT}"
-    return $?
   fi
 
   local buildkit="${VERIFY_DOCKER_BUILDKIT}"
