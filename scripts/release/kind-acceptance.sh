@@ -3,6 +3,8 @@ set -euo pipefail
 
 AXERN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "${AXERN_ROOT}/scripts/release/images.sh"
+# shellcheck source=../proxy-env.sh
+source "${AXERN_ROOT}/scripts/proxy-env.sh"
 tag="$(axern_release_version)"
 namespace="axern-release"
 cluster="axern-release"
@@ -15,6 +17,21 @@ cleanup() {
   rm -rf "${state_dir}"
 }
 trap cleanup EXIT
+
+release_http_proxy="$(container_proxy_url "${HTTP_PROXY:-${http_proxy:-}}")"
+release_https_proxy="$(container_proxy_url "${HTTPS_PROXY:-${https_proxy:-}}")"
+release_no_proxy="$(append_no_proxy_entries \
+  "${NO_PROXY:-${no_proxy:-}}" \
+  'localhost,127.0.0.1,::1,host.docker.internal,.svc,.svc.cluster.local,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16')"
+if [ -n "${release_http_proxy}" ] || [ -n "${release_https_proxy}" ]; then
+  export HTTP_PROXY="${release_http_proxy}"
+  export HTTPS_PROXY="${release_https_proxy}"
+  export NO_PROXY="${release_no_proxy}"
+  export http_proxy="${release_http_proxy}"
+  export https_proxy="${release_https_proxy}"
+  export no_proxy="${release_no_proxy}"
+  echo "release_kind_proxy_configured=true"
+fi
 
 kind create cluster --name "${cluster}" --wait 120s
 kubectl create namespace "${namespace}"
@@ -40,6 +57,20 @@ if [ -n "${image_tag_suffix}" ]; then
     --set-string "runtimeCatalog.desktopBaseImage=${AXERN_RELEASE_REGISTRY}/desktop-base-runtime:${candidate_tag}"
     --set-string "runtimeCatalog.claudeCodeBundleImage=${AXERN_RELEASE_REGISTRY}/claude-code-bundle:${candidate_tag}"
     --set-string "runtimeCatalog.codexBundleImage=${AXERN_RELEASE_REGISTRY}/codex-bundle:${candidate_tag}"
+  )
+fi
+if [ -n "${release_http_proxy}" ] || [ -n "${release_https_proxy}" ]; then
+  registry_proxy_url="${release_https_proxy:-${release_http_proxy}}"
+  helm_no_proxy="${release_no_proxy//,/\\,}"
+  helm_args+=(
+    --set-string "proxyEnv.HTTP_PROXY=${release_http_proxy}"
+    --set-string "proxyEnv.HTTPS_PROXY=${release_https_proxy}"
+    --set-string "proxyEnv.NO_PROXY=${helm_no_proxy}"
+    --set-string "proxyEnv.http_proxy=${release_http_proxy}"
+    --set-string "proxyEnv.https_proxy=${release_https_proxy}"
+    --set-string "proxyEnv.no_proxy=${helm_no_proxy}"
+    --set-string "proxyEnv.REGISTRY_PROXY_URL=${registry_proxy_url}"
+    --set-string "proxyEnv.REGISTRY_NO_PROXY=${helm_no_proxy}"
   )
 fi
 if [ -n "${AXERN_REGISTRY_USERNAME:-}" ] && [ -n "${AXERN_REGISTRY_PASSWORD:-}" ]; then
