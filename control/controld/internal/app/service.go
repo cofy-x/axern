@@ -10,10 +10,12 @@ import (
 	apiadminv1 "github.com/cofy-x/axern/control/controld/internal/api/adminv1"
 	artifactaccessv1 "github.com/cofy-x/axern/control/controld/internal/api/artifactaccessv1"
 	apigatewayv1 "github.com/cofy-x/axern/control/controld/internal/api/gatewayv1"
+	apiidentityv1 "github.com/cofy-x/axern/control/controld/internal/api/identityv1"
 	apinodev1 "github.com/cofy-x/axern/control/controld/internal/api/nodev1"
 	publicv1 "github.com/cofy-x/axern/control/controld/internal/api/publicv1"
 	apirelayv1 "github.com/cofy-x/axern/control/controld/internal/api/relayv1"
 	rolloutworkerv1 "github.com/cofy-x/axern/control/controld/internal/api/rolloutworkerv1"
+	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
 	appadmin "github.com/cofy-x/axern/control/controld/internal/application/admin"
 	appfunction "github.com/cofy-x/axern/control/controld/internal/application/function"
 	appnode "github.com/cofy-x/axern/control/controld/internal/application/node"
@@ -31,6 +33,7 @@ import (
 	"github.com/cofy-x/axern/control/controld/internal/ociimage"
 	"github.com/cofy-x/axern/control/controld/internal/placement"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
+	pgaccess "github.com/cofy-x/axern/control/controld/internal/postgres/access"
 	pgadmin "github.com/cofy-x/axern/control/controld/internal/postgres/admin"
 	pgagentprofile "github.com/cofy-x/axern/control/controld/internal/postgres/agentprofile"
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
@@ -131,6 +134,8 @@ type App struct {
 
 	db                      *postgres.DB
 	adminPG                 *pgadmin.Store
+	accessPG                *pgaccess.Store
+	accessControl           *appaccess.Service
 	agentProfilePG          *pgagentprofile.Store
 	allocationOwners        *pgallocation.OwnerReader
 	runStore                *pgrun.Store
@@ -161,6 +166,7 @@ type App struct {
 	functionController   *appfunction.Controller
 
 	adminAPI          *apiadminv1.Server
+	identityAPI       *apiidentityv1.Server
 	publicAPI         *publicv1.Server
 	gatewayAPI        *apigatewayv1.Server
 	nodeAPI           *apinodev1.Server
@@ -306,6 +312,8 @@ func (a *App) configureDependencies(cfg Config) error {
 	}
 	a.db = db
 	a.adminPG = pgadmin.NewStore(db)
+	a.accessPG = pgaccess.NewStore(db)
+	a.accessControl = appaccess.New(a.accessPG, a.now)
 	a.allocationOwners = pgallocation.NewOwnerReader(db.Pool())
 	a.nodeStore = pgnodes.NewPGStore(db)
 	a.namespacePG = pgnamespace.NewStore(db)

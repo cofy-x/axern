@@ -11,8 +11,6 @@ import (
 	artifactkernel "github.com/cofy-x/axern/gateway/gatewayd/internal/kernel/artifact"
 	"github.com/cofy-x/axern/lib/go/grpcclient"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
-	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	artifactaccessv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/rollout/artifact/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -21,8 +19,6 @@ import (
 type Client struct {
 	conn           *grpc.ClientConn
 	Gateway        gatewayv1.GatewayControlClient
-	Service        servicev1.ServiceControlClient
-	Tunnel         tunnelv1.TunnelControlClient
 	ArtifactAccess artifactaccessv1.ArtifactAccessClient
 }
 
@@ -68,8 +64,6 @@ func Dial(ctx context.Context, target, caPath, certPath, keyPath string, timeout
 	return &Client{
 		conn:           conn,
 		Gateway:        gatewayv1.NewGatewayControlClient(conn),
-		Service:        servicev1.NewServiceControlClient(conn),
-		Tunnel:         tunnelv1.NewTunnelControlClient(conn),
 		ArtifactAccess: artifactaccessv1.NewArtifactAccessClient(conn),
 	}, nil
 }
@@ -97,9 +91,9 @@ func (c *Client) ResolveAllocationTerminal(ctx context.Context, in *gatewayv1.Re
 }
 
 func (c *Client) ResolveTunnelRelayTarget(ctx context.Context, sessionID string) (string, error) {
-	resp, err := c.Tunnel.GetTunnelSession(ctx, &tunnelv1.GetTunnelSessionRequest{SessionID: sessionID})
+	resp, err := c.Gateway.ResolveTunnelRelayTarget(ctx, &gatewayv1.ResolveTunnelRelayTargetRequest{SessionID: sessionID})
 	if err != nil {
 		return "", err
 	}
-	return resp.GetSession().GetNodeEdgeTarget(), nil
+	return resp.GetNodeEdgeTarget(), nil
 }

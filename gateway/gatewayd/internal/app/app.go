@@ -84,7 +84,7 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 	controlServer.RegisterArtifactData(artifactapi.New(artifactService))
 	var dashboardHandler *dashboard.Handler
 	if cfg.DashboardEnabled {
-		dashboardHandler, err = dashboard.New(token, cfg.DashboardVendorDir, dashboard.NewServiceReplicaResolver(controlClient.Service))
+		dashboardHandler, err = dashboard.New(token, cfg.DashboardVendorDir, dashboard.NewServiceReplicaResolver(controlClient.Gateway))
 		if err != nil {
 			return nil, err
 		}

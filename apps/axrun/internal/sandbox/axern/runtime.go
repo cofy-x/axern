@@ -12,6 +12,7 @@ import (
 	axernsdk "github.com/cofy-x/axern/sdk/go"
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 type Runtime struct {
@@ -41,6 +42,12 @@ func (r Runtime) Create(ctx context.Context) (sandbox.Instance, error) {
 	if r.Config.ProxyMode == clientconfig.ProxyModeDirect {
 		options = append(options, axernsdk.WithDialOptions(grpc.WithNoProxy()))
 	}
+	if r.Config.RolloutExecutionLease != "" {
+		options = append(options, axernsdk.WithDialOptions(
+			grpc.WithChainUnaryInterceptor(rolloutExecutionUnary(r.Config.RolloutExecutionLease)),
+			grpc.WithChainStreamInterceptor(rolloutExecutionStream(r.Config.RolloutExecutionLease)),
+		))
+	}
 	client, err := axernsdk.NewClient(ctx, r.Config.Endpoint, options...)
 	if err != nil {
 		return nil, err
@@ -69,6 +76,20 @@ func (r Runtime) Create(ctx context.Context) (sandbox.Instance, error) {
 		return nil, err
 	}
 	return instance{client: client, sandbox: sb, runtimeClass: r.Config.RuntimeClass}, nil
+}
+
+const rolloutExecutionLeaseMetadata = "x-axern-rollout-work-lease"
+
+func rolloutExecutionUnary(token string) grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		return invoker(metadata.AppendToOutgoingContext(ctx, rolloutExecutionLeaseMetadata, token), method, req, reply, cc, opts...)
+	}
+}
+
+func rolloutExecutionStream(token string) grpc.StreamClientInterceptor {
+	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+		return streamer(metadata.AppendToOutgoingContext(ctx, rolloutExecutionLeaseMetadata, token), desc, cc, method, opts...)
+	}
 }
 
 func workspaceVolumes(config Config) []axernsdk.VolumeMount {

@@ -50,11 +50,18 @@ func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, shou
 	if allocationID == "" {
 		return grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
+	fingerprint, authErr := s.options.ClientFingerprint(ctx)
+	if authErr != nil {
+		return authErr
+	}
+	rolloutExecutionLease := singleMetadataValue(ctx, "x-axern-rollout-work-lease")
 	var err error
 	for attempt := 1; attempt <= s.options.LeaseRetryAttempts; attempt++ {
 		resolved, resolveErr := s.resolver.ResolveAllocationTerminal(ctx, &gatewayv1.ResolveAllocationTerminalRequest{
-			AllocationID: allocationID,
-			TtlSeconds:   300,
+			AllocationID:                 allocationID,
+			TtlSeconds:                   300,
+			ClientCertificateFingerprint: fingerprint,
+			RolloutExecutionLease:        rolloutExecutionLease,
 		})
 		if resolveErr != nil {
 			return resolveErr
@@ -78,6 +85,14 @@ func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, shou
 		}
 	}
 	return err
+}
+
+func singleMetadataValue(ctx context.Context, key string) string {
+	values := metadata.ValueFromIncomingContext(ctx, key)
+	if len(values) != 1 {
+		return ""
+	}
+	return strings.TrimSpace(values[0])
 }
 
 func allocationID(msg proto.Message) string {

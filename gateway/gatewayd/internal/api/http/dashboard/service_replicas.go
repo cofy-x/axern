@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
+	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"google.golang.org/grpc"
 )
 
@@ -14,29 +14,30 @@ type ServiceReplicaResolver interface {
 	CurrentReadyReplicas(context.Context, string) ([]serviceReplicaCandidate, error)
 }
 
-type ServiceControlClient interface {
-	ListServiceReplicas(context.Context, *servicev1.ListServiceReplicasRequest, ...grpc.CallOption) (*servicev1.ListServiceReplicasResponse, error)
+type GatewayControlClient interface {
+	ResolveServiceReplicaTargets(context.Context, *gatewayv1.ResolveServiceReplicaTargetsRequest, ...grpc.CallOption) (*gatewayv1.ResolveServiceReplicaTargetsResponse, error)
 }
 
 type controlServiceReplicaResolver struct {
-	client ServiceControlClient
+	client GatewayControlClient
 }
 
-func NewServiceReplicaResolver(client ServiceControlClient) ServiceReplicaResolver {
+func NewServiceReplicaResolver(client GatewayControlClient) ServiceReplicaResolver {
 	return controlServiceReplicaResolver{client: client}
 }
 
 func (r controlServiceReplicaResolver) CurrentReadyReplicas(ctx context.Context, serviceID string) ([]serviceReplicaCandidate, error) {
-	resp, err := r.client.ListServiceReplicas(ctx, &servicev1.ListServiceReplicasRequest{
-		ServiceID: serviceID,
-		Filter: &servicev1.ServiceReplicaListFilter{
-			View: servicev1.ServiceReplicaView_SERVICE_REPLICA_VIEW_CURRENT,
-		},
-	})
+	resp, err := r.client.ResolveServiceReplicaTargets(ctx, &gatewayv1.ResolveServiceReplicaTargetsRequest{ServiceID: serviceID})
 	if err != nil {
 		return nil, err
 	}
-	return currentReadyReplicas(resp.GetReplicas()), nil
+	replicas := make([]serviceReplicaCandidate, 0, len(resp.GetReplicas()))
+	for _, replica := range resp.GetReplicas() {
+		if replica != nil && replica.GetAllocationID() != "" {
+			replicas = append(replicas, serviceReplicaCandidate{AllocationID: replica.GetAllocationID(), NodeID: replica.GetNodeID()})
+		}
+	}
+	return replicas, nil
 }
 
 type serviceReplicaResponse struct {
@@ -73,23 +74,6 @@ func (h *Handler) serveServiceReplicas(w http.ResponseWriter, r *http.Request) {
 		ServiceID: serviceID,
 		Replicas:  replicas,
 	})
-}
-
-func currentReadyReplicas(replicas []*servicev1.ServiceReplica) []serviceReplicaCandidate {
-	out := make([]serviceReplicaCandidate, 0, len(replicas))
-	for _, replica := range replicas {
-		if replica == nil || replica.GetID() == "" {
-			continue
-		}
-		if !replica.GetReady() || replica.GetEnded() || replica.GetOutdated() {
-			continue
-		}
-		out = append(out, serviceReplicaCandidate{
-			AllocationID: replica.GetID(),
-			NodeID:       replica.GetNodeID(),
-		})
-	}
-	return out
 }
 
 func writeJSON(w http.ResponseWriter, value any) {

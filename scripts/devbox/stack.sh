@@ -345,6 +345,16 @@ run_migrations() {
   go -C "${ROOT_DIR}/control/controld" run ./cmd/migrate -postgres-dsn "${POSTGRES_DSN}" up
 }
 
+run_access_bootstrap() {
+  go -C "${ROOT_DIR}/control/controld" run ./cmd/access-bootstrap \
+    -postgres-dsn "${POSTGRES_DSN}" \
+    -principal-name local-admin \
+    -display-name "Local Administrator" \
+    -credential-label local-client \
+    -certificate "${DEV_DIR}/certs/client.crt" \
+    -rollout-worker-certificate "${DEV_DIR}/certs/rollout-worker.crt"
+}
+
 start_storaged() {
   start_service storaged "exec go -C '${ROOT_DIR}/control/storaged' run ./cmd/storaged \
     -grpc-address 127.0.0.1:24020 \
@@ -378,8 +388,8 @@ start_tunneld() {
     -listen 127.0.0.1:24100 \
     -control-target 127.0.0.1:24000 \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -tls-cert '${DEV_DIR}/certs/client.crt' \
-    -tls-key '${DEV_DIR}/certs/client.key' \
+    -tls-cert '${DEV_DIR}/certs/tunneld.crt' \
+    -tls-key '${DEV_DIR}/certs/tunneld.key' \
     -relay-tls-cert '${DEV_DIR}/certs/tunneld.crt' \
     -relay-tls-key '${DEV_DIR}/certs/tunneld.key'"
   wait_tcp 127.0.0.1 24100 tunneld
@@ -438,8 +448,8 @@ start_node_tunneld() {
     -control-target 127.0.0.1:24000 \
     -operator-socket '${RUN_DIR}/axnoded.sock' \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -tls-cert '${DEV_DIR}/certs/client.crt' \
-    -tls-key '${DEV_DIR}/certs/client.key' \
+    -tls-cert '${DEV_DIR}/certs/node.crt' \
+    -tls-key '${DEV_DIR}/certs/node.key' \
     -relay-tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
     -runsc-root '${DEV_DIR}/axnoded/root/runsc' \
     -agent-binary '${BIN_DIR}/tunnel-agent'"
@@ -484,6 +494,7 @@ start_all() {
   prepare_workspace
   start_postgres
   run_migrations
+  run_access_bootstrap
 
   start_storaged
   start_controld

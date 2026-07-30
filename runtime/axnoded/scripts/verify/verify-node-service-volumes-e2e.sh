@@ -8,7 +8,9 @@ source "${ROOT_DIR}/scripts/lib/verify-docker-common.sh"
 AXERN_BIN="${AXERN_BIN:-${REPO_ROOT}/bin/axern}"
 CONTROLD_BIN="${CONTROLD_BIN:-${REPO_ROOT}/bin/controld}"
 CONTROLD_MIGRATE_BIN="${CONTROLD_MIGRATE_BIN:-${REPO_ROOT}/bin/controld-migrate}"
+CONTROLD_ACCESS_BOOTSTRAP_BIN="${CONTROLD_ACCESS_BOOTSTRAP_BIN:-${REPO_ROOT}/bin/controld-access-bootstrap}"
 STORAGED_BIN="${STORAGED_BIN:-${REPO_ROOT}/bin/storaged}"
+GATEWAYD_BIN="${GATEWAYD_BIN:-${REPO_ROOT}/bin/gatewayd}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/shared/run/axnoded.sock}"
 NODE_GRPC_ADDRESS="${NODE_GRPC_ADDRESS:-127.0.0.1:24010}"
 NODE_HTTP_ADDRESS="${NODE_HTTP_ADDRESS:-0.0.0.0:23001}"
@@ -17,6 +19,8 @@ CONTROLD_GRPC_ADDRESS="${CONTROLD_GRPC_ADDRESS:-127.0.0.1:24100}"
 CONTROLD_HTTP_ADDRESS="${CONTROLD_HTTP_ADDRESS:-127.0.0.1:24101}"
 STORAGED_GRPC_ADDRESS="${STORAGED_GRPC_ADDRESS:-127.0.0.1:24020}"
 STORAGED_HTTP_ADDRESS="${STORAGED_HTTP_ADDRESS:-127.0.0.1:24021}"
+GATEWAY_CONTROL_ADDRESS="${GATEWAY_CONTROL_ADDRESS:-127.0.0.1:25000}"
+GATEWAY_HTTP_ADDRESS="${GATEWAY_HTTP_ADDRESS:-127.0.0.1:25080}"
 CONTROL_PLANE_NODE_ID="${CONTROL_PLANE_NODE_ID:-node-service-volumes-e2e}"
 CONTROL_PLANE_NODE_AUTH_TOKEN="${CONTROL_PLANE_NODE_AUTH_TOKEN:-node-service-volumes-e2e-token}"
 POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-axnoded-service-volumes-e2e-postgres}"
@@ -37,11 +41,13 @@ shared_run_dir="$(mktemp -d)"
 cert_dir="$(mktemp -d)"
 controld_log="$(mktemp)"
 storaged_log="$(mktemp)"
+gatewayd_log="$(mktemp)"
 cli_error_output="$(mktemp)"
 cli_config_dir="$(mktemp -d)"
 cli_config_file="${cli_config_dir}/config.json"
 CONTROLD_PID=""
 STORAGED_PID=""
+GATEWAYD_PID=""
 
 # Keep CLI calls isolated from the operator's selected Axern context.
 export AXERN_CONFIG="${cli_config_file}"
@@ -61,6 +67,8 @@ STORAGED_HTTP_HOST="${STORAGED_HTTP_ADDRESS%:*}"
 STORAGED_HTTP_PORT="${STORAGED_HTTP_ADDRESS##*:}"
 NODE_GRPC_HOST="${NODE_GRPC_ADDRESS%:*}"
 NODE_GRPC_PORT="${NODE_GRPC_ADDRESS##*:}"
+GATEWAY_CONTROL_HOST="${GATEWAY_CONTROL_ADDRESS%:*}"
+GATEWAY_HTTP_HOST="${GATEWAY_HTTP_ADDRESS%:*}"
 
 CONTROLD_GRPC_PORT="$(reserve_unique_host_port "${CONTROLD_GRPC_HOST}" 0)"
 CONTROLD_GRPC_ADDRESS="${CONTROLD_GRPC_HOST}:${CONTROLD_GRPC_PORT}"
@@ -72,10 +80,18 @@ STORAGED_HTTP_PORT="$(reserve_unique_host_port "${STORAGED_HTTP_HOST}" 0 "${CONT
 STORAGED_HTTP_ADDRESS="${STORAGED_HTTP_HOST}:${STORAGED_HTTP_PORT}"
 NODE_GRPC_PORT="$(reserve_unique_host_port "${NODE_GRPC_HOST}" 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}" "${STORAGED_GRPC_PORT}" "${STORAGED_HTTP_PORT}")"
 NODE_GRPC_ADDRESS="${NODE_GRPC_HOST}:${NODE_GRPC_PORT}"
-POSTGRES_HOST_PORT="$(reserve_unique_host_port "127.0.0.1" 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}" "${STORAGED_GRPC_PORT}" "${STORAGED_HTTP_PORT}" "${NODE_GRPC_PORT}")"
+GATEWAY_CONTROL_PORT="$(reserve_unique_host_port "${GATEWAY_CONTROL_HOST}" 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}" "${STORAGED_GRPC_PORT}" "${STORAGED_HTTP_PORT}" "${NODE_GRPC_PORT}")"
+GATEWAY_CONTROL_ADDRESS="${GATEWAY_CONTROL_HOST}:${GATEWAY_CONTROL_PORT}"
+GATEWAY_HTTP_PORT="$(reserve_unique_host_port "${GATEWAY_HTTP_HOST}" 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}" "${STORAGED_GRPC_PORT}" "${STORAGED_HTTP_PORT}" "${NODE_GRPC_PORT}" "${GATEWAY_CONTROL_PORT}")"
+GATEWAY_HTTP_ADDRESS="${GATEWAY_HTTP_HOST}:${GATEWAY_HTTP_PORT}"
+POSTGRES_HOST_PORT="$(reserve_unique_host_port "127.0.0.1" 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}" "${STORAGED_GRPC_PORT}" "${STORAGED_HTTP_PORT}" "${NODE_GRPC_PORT}" "${GATEWAY_CONTROL_PORT}" "${GATEWAY_HTTP_PORT}")"
 CONTROLD_POSTGRES_DSN="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_HOST_PORT}/${POSTGRES_DB}?sslmode=disable"
 
 cleanup() {
+  if [ -n "${GATEWAYD_PID}" ]; then
+    kill "${GATEWAYD_PID}" >/dev/null 2>&1 || true
+    wait "${GATEWAYD_PID}" >/dev/null 2>&1 || true
+  fi
   if [ -n "${CONTROLD_PID}" ]; then
     kill "${CONTROLD_PID}" >/dev/null 2>&1 || true
     wait "${CONTROLD_PID}" >/dev/null 2>&1 || true
@@ -87,7 +103,7 @@ cleanup() {
   docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${NODE_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker network rm "${POSTGRES_NETWORK_NAME}" >/dev/null 2>&1 || true
-  rm -rf "${shared_run_dir}" "${cert_dir}" "${controld_log}" "${storaged_log}" "${cli_error_output}" "${cli_config_dir}"
+  rm -rf "${shared_run_dir}" "${cert_dir}" "${controld_log}" "${storaged_log}" "${gatewayd_log}" "${cli_error_output}" "${cli_config_dir}"
 }
 trap cleanup EXIT
 
@@ -96,6 +112,8 @@ dump_logs() {
   cat "${controld_log}" >&2 || true
   echo "--- storaged log ---" >&2
   cat "${storaged_log}" >&2 || true
+  echo "--- gatewayd log ---" >&2
+  cat "${gatewayd_log}" >&2 || true
   echo "--- controld /nodesz ---" >&2
   curl -fsS "http://${CONTROLD_HTTP_ADDRESS}/nodesz" >&2 || true
   echo >&2
@@ -158,7 +176,9 @@ ensure_verify_image
 build_binary "${AXERN_BIN}" ./apps/cli
 build_binary "${CONTROLD_BIN}" ./control/controld/cmd/controld
 build_binary "${CONTROLD_MIGRATE_BIN}" ./control/controld/cmd/migrate
+build_binary "${CONTROLD_ACCESS_BOOTSTRAP_BIN}" ./control/controld/cmd/access-bootstrap
 build_binary "${STORAGED_BIN}" ./control/storaged/cmd/storaged
+build_binary "${GATEWAYD_BIN}" ./gateway/gatewayd
 IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF}" bash "${ROOT_DIR}/scripts/runtime/build-python311-runtime-image.sh" >/dev/null
 
 docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
@@ -192,6 +212,14 @@ export AXERN_TLS_KEY="${cert_dir}/client.key"
   -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
   up
 
+"${CONTROLD_ACCESS_BOOTSTRAP_BIN}" \
+  -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
+  -principal-name local-admin \
+  -display-name "Local Administrator" \
+  -credential-label local-client \
+  -certificate "${cert_dir}/client.crt" \
+  -rollout-worker-certificate "${cert_dir}/rollout-worker.crt"
+
 "${STORAGED_BIN}" \
   -grpc-address "${STORAGED_GRPC_ADDRESS}" \
   -http-address "${STORAGED_HTTP_ADDRESS}" \
@@ -219,6 +247,25 @@ CONTROLD_PID=$!
 
 if ! wait_for_http_ready "http://${CONTROLD_HTTP_ADDRESS}/healthz" 60; then
   echo "controld did not become ready in time" >&2
+  dump_logs
+  exit 1
+fi
+
+"${GATEWAYD_BIN}" \
+  -control-target "${CONTROLD_GRPC_ADDRESS}" \
+  -control-edge-address "${GATEWAY_CONTROL_ADDRESS}" \
+  -control-edge-tls-ca-cert "${cert_dir}/ca.crt" \
+  -control-edge-tls-cert "${cert_dir}/gatewayd.crt" \
+  -control-edge-tls-key "${cert_dir}/gatewayd.key" \
+  -http-address "${GATEWAY_HTTP_ADDRESS}" \
+  -tls-ca-cert "${cert_dir}/ca.crt" \
+  -tls-cert "${cert_dir}/gatewayd.crt" \
+  -tls-key "${cert_dir}/gatewayd.key" \
+  -log-level info >"${gatewayd_log}" 2>&1 &
+GATEWAYD_PID=$!
+
+if ! wait_for_http_ready "http://${GATEWAY_HTTP_ADDRESS}/healthz" 60; then
+  echo "gatewayd did not become ready in time" >&2
   dump_logs
   exit 1
 fi
@@ -306,7 +353,7 @@ exec sleep 120
 SH
 )"
 
-env_create_output="$("${AXERN_BIN}" --endpoint "${CONTROLD_GRPC_ADDRESS}" environment create --output json --template-id python311)"
+env_create_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" environment create --output json --template-id python311)"
 environment_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["environment"]["id"])' <<<"${env_create_output}")"
 [ -n "${environment_id}" ] || {
   echo "failed to create environment" >&2
@@ -314,7 +361,7 @@ environment_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["envir
   exit 1
 }
 
-service_create_output="$("${AXERN_BIN}" --endpoint "${CONTROLD_GRPC_ADDRESS}" service create --output json \
+service_create_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service create --output json \
   --environment-id "${environment_id}" \
   --runtime-class runc \
   --replicas 1 \
@@ -327,7 +374,7 @@ service_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["service"]
   exit 1
 }
 
-get_service_json="\"${AXERN_BIN}\" --endpoint \"${CONTROLD_GRPC_ADDRESS}\" service get --output json \"${service_id}\""
+get_service_json="\"${AXERN_BIN}\" --endpoint \"${GATEWAY_CONTROL_ADDRESS}\" service get --output json \"${service_id}\""
 
 service_json="$(wait_for_json_field "${get_service_json}" "data['service']['status'] == 'ready' and data['service']['ready_replicas'] == 1" 90)" || \
 service_json="$(wait_for_json_field "${get_service_json}" "data['service']['status'] == 'reconciling' and data['service']['ready_replicas'] == 0" 90)" || {
@@ -340,7 +387,7 @@ service_version="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["serv
 claim_id=""
 deadline=$((SECONDS + 30))
 while [ "${SECONDS}" -lt "${deadline}" ]; do
-  storage_json="$("${AXERN_BIN}" --endpoint "${CONTROLD_GRPC_ADDRESS}" admin storage list --output json --workload "${service_id}")"
+  storage_json="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" admin storage list --output json --workload "${service_id}")"
   claim_id="$(python3 -c 'import json,sys; items=json.load(sys.stdin).get("bindings", []); print(items[0].get("claim_id", "") if items else "")' <<<"${storage_json}")"
   [ -n "${claim_id}" ] && break
   sleep 1
@@ -366,9 +413,9 @@ docker exec "${NODE_CONTAINER_NAME}" /bin/bash -lc "grep -qx 'axnoded-service-vo
 service_update_output=""
 deadline=$((SECONDS + 30))
 while [ "${SECONDS}" -lt "${deadline}" ]; do
-  service_json="$("${AXERN_BIN}" --endpoint "${CONTROLD_GRPC_ADDRESS}" service get --output json "${service_id}")"
+  service_json="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service get --output json "${service_id}")"
   service_version="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["service"]["version"])' <<<"${service_json}")"
-  if service_update_output="$("${AXERN_BIN}" --endpoint "${CONTROLD_GRPC_ADDRESS}" service update --output json \
+  if service_update_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service update --output json \
     --expected-version "${service_version}" \
     --volume data:/tmp:rw,rbind \
     --argv /bin/sh --argv -lc --argv "${service_script_updated}" \
@@ -403,7 +450,7 @@ fi
 docker exec "${NODE_CONTAINER_NAME}" /bin/bash -lc "grep -qx 'axnoded-service-volume-sentinel' '${volume_dir}/sentinel.txt'" >/dev/null
 docker exec "${NODE_CONTAINER_NAME}" /bin/bash -lc "grep -qx 'replacement-observed' '${volume_dir}/updated.txt'" >/dev/null
 
-"${AXERN_BIN}" --endpoint "${CONTROLD_GRPC_ADDRESS}" service delete --output json "${service_id}" >/dev/null
+"${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service delete --output json "${service_id}" >/dev/null
 docker exec "${NODE_CONTAINER_NAME}" /bin/bash -lc "test -d '${volume_dir}' && test -f '${volume_dir}/sentinel.txt'" >/dev/null
 
 echo "verify_node_service_volumes_e2e_host_ok=true"

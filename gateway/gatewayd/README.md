@@ -13,13 +13,19 @@ External CLI and SDK control-plane gRPC traffic should terminate at
 `gatewayd`'s control edge listener, which is enabled by default. `controld`
 stays private inside the cluster; `gatewayd` verifies external client mTLS and
 forwards public control RPCs to the internal `controld` target with the
-dedicated `gatewayd` certificate. That identity is also the only certificate
+dedicated `gatewayd` certificate. Caller-supplied internal identity metadata is
+discarded; gatewayd injects only the fingerprint of the leaf certificate it
+verified. Controld resolves that fingerprint to a durable Principal and applies
+platform or namespace role bindings on every RPC. That identity is also the only certificate
 authorized to call private `ArtifactAccess`; the generic platform client
 certificate cannot resolve download tickets.
 
 Tunnel foreground clients use the same public control edge. `gatewayd`
 registers `axern.tunnel.v1.TunnelRelay`, resolves the session-bound internal
-relay target through `controld`, and forwards only client peers to `tunneld`.
+relay target through the private `GatewayControl` service, and forwards only
+client peers to `tunneld`. Peer authentication remains bound to the tunnel
+session token; gatewayd does not bypass it or treat the data stream as a public
+resource-management RPC.
 Node peers continue to connect directly to internal `tunneld` targets.
 
 Rollout artifact downloads also terminate at the control edge. The client

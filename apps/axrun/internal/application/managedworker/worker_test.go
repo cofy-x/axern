@@ -93,7 +93,7 @@ func TestParamsFromWorkUsesDedicatedExecutionContext(t *testing.T) {
 		},
 		Episode: &rolloutv1.Episode{TaskID: "task-1"},
 	}
-	params, err := paramsFromWork(context.Background(), work, Config{
+	params, err := paramsFromWork(context.Background(), work, "lease-test", Config{
 		ControlContext:   &clientconfig.Context{Endpoint: "controld:24000"},
 		ExecutionContext: &clientconfig.Context{Endpoint: "gatewayd:25000", TLS: clientconfig.TLS{ServerName: "gatewayd"}},
 		OutputDir:        t.TempDir(),
@@ -101,13 +101,13 @@ func TestParamsFromWorkUsesDedicatedExecutionContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if params.AxernConfig.Endpoint != "gatewayd:25000" || params.AxernConfig.TLSServerName != "gatewayd" {
+	if params.AxernConfig.Endpoint != "gatewayd:25000" || params.AxernConfig.TLSServerName != "gatewayd" || params.AxernConfig.RolloutExecutionLease != "lease-test" {
 		t.Fatalf("execution config = %+v", params.AxernConfig)
 	}
 }
 
 func TestParamsFromWorkRequiresExecutionContext(t *testing.T) {
-	_, err := paramsFromWork(context.Background(), &workerrolloutv1.WorkItem{}, Config{})
+	_, err := paramsFromWork(context.Background(), &workerrolloutv1.WorkItem{}, "", Config{})
 	if err == nil || !strings.Contains(err.Error(), "execution context is required") {
 		t.Fatalf("paramsFromWork() error = %v", err)
 	}

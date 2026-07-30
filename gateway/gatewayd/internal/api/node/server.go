@@ -6,6 +6,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/cofy-x/axern/gateway/gatewayd/internal/auth"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc/codes"
@@ -27,6 +28,7 @@ type LeaseRetryObserver interface {
 type Options struct {
 	LeaseRetryAttempts int
 	LeaseRetryDelay    time.Duration
+	ClientFingerprint  func(context.Context) (string, error)
 }
 
 type Server struct {
@@ -44,6 +46,9 @@ func New(resolver Resolver, dialer Dialer, options Options, metrics LeaseRetryOb
 	}
 	if options.LeaseRetryDelay <= 0 {
 		options.LeaseRetryDelay = 500 * time.Millisecond
+	}
+	if options.ClientFingerprint == nil {
+		options.ClientFingerprint = auth.CertificateFingerprint
 	}
 	return &Server{resolver: resolver, dialer: dialer, options: options, metrics: metrics}
 }

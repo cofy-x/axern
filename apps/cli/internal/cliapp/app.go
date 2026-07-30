@@ -12,6 +12,7 @@ import (
 	doctorcmd "github.com/cofy-x/axern/apps/cli/internal/commands/doctor"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/environment"
 	functioncmd "github.com/cofy-x/axern/apps/cli/internal/commands/function"
+	identitycmd "github.com/cofy-x/axern/apps/cli/internal/commands/identity"
 	namespacecmd "github.com/cofy-x/axern/apps/cli/internal/commands/namespace"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/quota"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/run"
@@ -58,6 +59,7 @@ func New(version string) *cobra.Command {
 		doctorcmd.Command(runtime),
 		contextcmd.Command(runtime),
 		admincmd.Command(runtime),
+		identitycmd.Command(runtime),
 		catalog.Command(runtime),
 		environment.Command(runtime),
 		functioncmd.Command(runtime),

@@ -69,11 +69,6 @@ class TunnelControlStub:
                 request_serializer=axern_dot_control_dot_tunnel_dot_v1_dot_tunnel__pb2.RenewTunnelSessionRequest.SerializeToString,
                 response_deserializer=axern_dot_control_dot_tunnel_dot_v1_dot_tunnel__pb2.RenewTunnelSessionResponse.FromString,
                 _registered_method=True)
-        self.ValidateTunnelPeer = channel.unary_unary(
-                '/axern.control.tunnel.v1.TunnelControl/ValidateTunnelPeer',
-                request_serializer=axern_dot_control_dot_tunnel_dot_v1_dot_tunnel__pb2.ValidateTunnelPeerRequest.SerializeToString,
-                response_deserializer=axern_dot_control_dot_tunnel_dot_v1_dot_tunnel__pb2.ValidateTunnelPeerResponse.FromString,
-                _registered_method=True)
 
 
 class TunnelControlServicer:
@@ -121,12 +116,6 @@ class TunnelControlServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ValidateTunnelPeer(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
 
 def add_TunnelControlServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -164,11 +153,6 @@ def add_TunnelControlServicer_to_server(servicer, server):
                     servicer.RenewTunnelSession,
                     request_deserializer=axern_dot_control_dot_tunnel_dot_v1_dot_tunnel__pb2.RenewTunnelSessionRequest.FromString,
                     response_serializer=axern_dot_control_dot_tunnel_dot_v1_dot_tunnel__pb2.RenewTunnelSessionResponse.SerializeToString,
-            ),
-            'ValidateTunnelPeer': grpc.unary_unary_rpc_method_handler(
-                    servicer.ValidateTunnelPeer,
-                    request_deserializer=axern_dot_control_dot_tunnel_dot_v1_dot_tunnel__pb2.ValidateTunnelPeerRequest.FromString,
-                    response_serializer=axern_dot_control_dot_tunnel_dot_v1_dot_tunnel__pb2.ValidateTunnelPeerResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -360,33 +344,6 @@ class TunnelControl:
             '/axern.control.tunnel.v1.TunnelControl/RenewTunnelSession',
             axern_dot_control_dot_tunnel_dot_v1_dot_tunnel__pb2.RenewTunnelSessionRequest.SerializeToString,
             axern_dot_control_dot_tunnel_dot_v1_dot_tunnel__pb2.RenewTunnelSessionResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ValidateTunnelPeer(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.control.tunnel.v1.TunnelControl/ValidateTunnelPeer',
-            axern_dot_control_dot_tunnel_dot_v1_dot_tunnel__pb2.ValidateTunnelPeerRequest.SerializeToString,
-            axern_dot_control_dot_tunnel_dot_v1_dot_tunnel__pb2.ValidateTunnelPeerResponse.FromString,
             options,
             channel_credentials,
             insecure,

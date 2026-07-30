@@ -56,7 +56,7 @@ func (w Worker) episode(ctx context.Context, work *workerrolloutv1.WorkItem, lea
 			})
 		}()
 	}
-	params, err := paramsFromWork(ctx, work, config)
+	params, err := paramsFromWork(ctx, work, leaseToken, config)
 	if err != nil {
 		return err
 	}

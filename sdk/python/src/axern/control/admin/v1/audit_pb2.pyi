@@ -19,6 +19,13 @@ class AdminAuditOperation(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     ADMIN_AUDIT_OPERATION_RETRY_STORAGE_BINDING: _ClassVar[AdminAuditOperation]
     ADMIN_AUDIT_OPERATION_PURGE_SERVICE: _ClassVar[AdminAuditOperation]
     ADMIN_AUDIT_OPERATION_RETIRE_NODE: _ClassVar[AdminAuditOperation]
+    ADMIN_AUDIT_OPERATION_CREATE_PRINCIPAL: _ClassVar[AdminAuditOperation]
+    ADMIN_AUDIT_OPERATION_DISABLE_PRINCIPAL: _ClassVar[AdminAuditOperation]
+    ADMIN_AUDIT_OPERATION_ADD_CREDENTIAL: _ClassVar[AdminAuditOperation]
+    ADMIN_AUDIT_OPERATION_REVOKE_CREDENTIAL: _ClassVar[AdminAuditOperation]
+    ADMIN_AUDIT_OPERATION_GRANT_ROLE_BINDING: _ClassVar[AdminAuditOperation]
+    ADMIN_AUDIT_OPERATION_REVOKE_ROLE_BINDING: _ClassVar[AdminAuditOperation]
+    ADMIN_AUDIT_OPERATION_BOOTSTRAP_ACCESS: _ClassVar[AdminAuditOperation]
 
 class AdminAuditTargetType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -27,6 +34,9 @@ class AdminAuditTargetType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     ADMIN_AUDIT_TARGET_TYPE_STORAGE_BINDING: _ClassVar[AdminAuditTargetType]
     ADMIN_AUDIT_TARGET_TYPE_SERVICE: _ClassVar[AdminAuditTargetType]
     ADMIN_AUDIT_TARGET_TYPE_NODE: _ClassVar[AdminAuditTargetType]
+    ADMIN_AUDIT_TARGET_TYPE_PRINCIPAL: _ClassVar[AdminAuditTargetType]
+    ADMIN_AUDIT_TARGET_TYPE_CREDENTIAL: _ClassVar[AdminAuditTargetType]
+    ADMIN_AUDIT_TARGET_TYPE_ROLE_BINDING: _ClassVar[AdminAuditTargetType]
 ADMIN_AUDIT_OPERATION_UNSPECIFIED: AdminAuditOperation
 ADMIN_AUDIT_OPERATION_FORCE_ALLOCATION_LIFECYCLE_RETRY: AdminAuditOperation
 ADMIN_AUDIT_OPERATION_FAIL_ALLOCATION_LIFECYCLE_RETRY: AdminAuditOperation
@@ -34,27 +44,39 @@ ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY: AdminAuditOperation
 ADMIN_AUDIT_OPERATION_RETRY_STORAGE_BINDING: AdminAuditOperation
 ADMIN_AUDIT_OPERATION_PURGE_SERVICE: AdminAuditOperation
 ADMIN_AUDIT_OPERATION_RETIRE_NODE: AdminAuditOperation
+ADMIN_AUDIT_OPERATION_CREATE_PRINCIPAL: AdminAuditOperation
+ADMIN_AUDIT_OPERATION_DISABLE_PRINCIPAL: AdminAuditOperation
+ADMIN_AUDIT_OPERATION_ADD_CREDENTIAL: AdminAuditOperation
+ADMIN_AUDIT_OPERATION_REVOKE_CREDENTIAL: AdminAuditOperation
+ADMIN_AUDIT_OPERATION_GRANT_ROLE_BINDING: AdminAuditOperation
+ADMIN_AUDIT_OPERATION_REVOKE_ROLE_BINDING: AdminAuditOperation
+ADMIN_AUDIT_OPERATION_BOOTSTRAP_ACCESS: AdminAuditOperation
 ADMIN_AUDIT_TARGET_TYPE_UNSPECIFIED: AdminAuditTargetType
 ADMIN_AUDIT_TARGET_TYPE_ALLOCATION: AdminAuditTargetType
 ADMIN_AUDIT_TARGET_TYPE_STORAGE_BINDING: AdminAuditTargetType
 ADMIN_AUDIT_TARGET_TYPE_SERVICE: AdminAuditTargetType
 ADMIN_AUDIT_TARGET_TYPE_NODE: AdminAuditTargetType
+ADMIN_AUDIT_TARGET_TYPE_PRINCIPAL: AdminAuditTargetType
+ADMIN_AUDIT_TARGET_TYPE_CREDENTIAL: AdminAuditTargetType
+ADMIN_AUDIT_TARGET_TYPE_ROLE_BINDING: AdminAuditTargetType
 
 class AdminAuditEvent(_message.Message):
-    __slots__ = ("event_id", "operation", "target_type", "target_id", "operator_reason", "created_at")
+    __slots__ = ("event_id", "operation", "target_type", "target_id", "operator_reason", "created_at", "actor_principal_id")
     EVENT_ID_FIELD_NUMBER: _ClassVar[int]
     OPERATION_FIELD_NUMBER: _ClassVar[int]
     TARGET_TYPE_FIELD_NUMBER: _ClassVar[int]
     TARGET_ID_FIELD_NUMBER: _ClassVar[int]
     OPERATOR_REASON_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
+    ACTOR_PRINCIPAL_ID_FIELD_NUMBER: _ClassVar[int]
     event_id: str
     operation: AdminAuditOperation
     target_type: AdminAuditTargetType
     target_id: str
     operator_reason: str
     created_at: _timestamp_pb2.Timestamp
-    def __init__(self, event_id: _Optional[str] = ..., operation: _Optional[_Union[AdminAuditOperation, str]] = ..., target_type: _Optional[_Union[AdminAuditTargetType, str]] = ..., target_id: _Optional[str] = ..., operator_reason: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    actor_principal_id: str
+    def __init__(self, event_id: _Optional[str] = ..., operation: _Optional[_Union[AdminAuditOperation, str]] = ..., target_type: _Optional[_Union[AdminAuditTargetType, str]] = ..., target_id: _Optional[str] = ..., operator_reason: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., actor_principal_id: _Optional[str] = ...) -> None: ...
 
 class AdminAuditEventFilter(_message.Message):
     __slots__ = ("operation", "target_type", "target_id")

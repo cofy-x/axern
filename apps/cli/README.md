@@ -91,6 +91,9 @@ axern admin consistency check
 axern admin node list --status active
 axern admin node retire <node-id> --operator-reason "host permanently removed"
 axern admin service purge <service-id> --operator-reason "expired test resource"
+axern identity whoami
+axern admin principal list
+axern admin role-binding list --namespace default
 ```
 
 `agent` requires an explicit `shell`, `run`, `connect`, `doctor`, `list`,
@@ -106,8 +109,9 @@ Generate completion with `axern completion bash|zsh|fish`.
 ## Platform Doctor
 
 `axern doctor` is read-only by default. It validates local connection settings,
-mTLS material and certificate lifetime, gateway connectivity, the selected
-namespace, and the runtime catalog. Messages and JSON output use stable codes
+mTLS material and certificate lifetime, gateway connectivity, the authenticated
+Principal, authorization for the selected namespace, and the runtime catalog.
+Messages and JSON output use stable codes
 and do not include certificate paths, private keys, raw endpoints, or server
 error text.
 

@@ -29,7 +29,7 @@ if namespace != "doctor-e2e":
 checks = {item.get("name"): item for item in report.get("checks", [])}
 expected = {
     "configuration", "tls_material", "tls_expiry", "tls_key_permissions",
-    "gateway", "namespace", "catalog", "data_plane",
+    "gateway", "identity", "authorization", "namespace", "catalog", "data_plane",
 }
 if set(checks) != expected:
     raise SystemExit(f"unexpected doctor checks: {sorted(checks)}")

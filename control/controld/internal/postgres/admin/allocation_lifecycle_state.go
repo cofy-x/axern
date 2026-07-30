@@ -106,12 +106,13 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 }
 
 type adminAuditEvent struct {
-	EventID        string
-	Operation      string
-	TargetType     string
-	TargetID       string
-	OperatorReason string
-	CreatedAt      time.Time
+	EventID          string
+	Operation        string
+	TargetType       string
+	TargetID         string
+	OperatorReason   string
+	ActorPrincipalID string
+	CreatedAt        time.Time
 }
 
 func loadLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, reason string, now time.Time) (*allocationkernel.LifecycleRetryItem, error) {

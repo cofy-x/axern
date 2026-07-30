@@ -14,13 +14,11 @@ test("loads Axern control and node proto services", () => {
   const axern = pkg.axern as Record<string, unknown>;
   const control = axern.control as Record<string, unknown>;
   const environment = control.environment as Record<string, unknown>;
-  const gateway = control.gateway as Record<string, unknown>;
   const service = control.service as Record<string, unknown>;
   const node = axern.node as Record<string, unknown>;
   const sandbox = node.sandbox as Record<string, unknown>;
 
   assert.equal(typeof ((environment.v1 as Record<string, unknown>).EnvironmentControl), "function");
-  assert.equal(typeof ((gateway.v1 as Record<string, unknown>).GatewayControl), "function");
   assert.equal(typeof ((service.v1 as Record<string, unknown>).ServiceControl), "function");
   assert.equal(typeof ((sandbox.v1 as Record<string, unknown>).NodeSandbox), "function");
 });

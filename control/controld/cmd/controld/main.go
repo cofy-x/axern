@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cofy-x/axern/control/controld/internal/api/authz"
 	"github.com/cofy-x/axern/control/controld/internal/api/rpcstatus"
 	"github.com/cofy-x/axern/control/controld/internal/app"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
@@ -29,6 +30,7 @@ import (
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	functionv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/function/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
+	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
@@ -160,14 +162,22 @@ func run() error {
 		return err
 	}
 	defer svc.Close()
+	hasAdmin, err := svc.HasActivePlatformAdmin(ctx)
+	if err != nil {
+		return fmt.Errorf("check access bootstrap: %w", err)
+	}
+	if !hasAdmin {
+		return errors.New("access bootstrap is incomplete: no active platform administrator")
+	}
 	tlsConfig, err := loadServerTLS(opts)
 	if err != nil {
 		return err
 	}
+	authorization := authz.New(svc.AccessControl())
 	grpcOptions := []grpc.ServerOption{
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
-		grpc.ChainUnaryInterceptor(rpcstatus.UnaryServerInterceptor(postgres.IsDependencyUnavailable)),
-		grpc.ChainStreamInterceptor(rpcstatus.StreamServerInterceptor(postgres.IsDependencyUnavailable)),
+		grpc.ChainUnaryInterceptor(authorization.Unary, rpcstatus.UnaryServerInterceptor(postgres.IsDependencyUnavailable)),
+		grpc.ChainStreamInterceptor(authorization.Stream, rpcstatus.StreamServerInterceptor(postgres.IsDependencyUnavailable)),
 	}
 	if handler := obs.GRPCServerStatsHandler(); handler != nil {
 		grpcOptions = append(grpcOptions, grpc.StatsHandler(handler))
@@ -179,6 +189,8 @@ func run() error {
 	adminv1.RegisterNodeAdminServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterStorageAdminServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterServiceAdminServer(grpcServer, svc.AdminV1Handler())
+	adminv1.RegisterAccessAdminServer(grpcServer, svc.AdminV1Handler())
+	identityv1.RegisterIdentityControlServer(grpcServer, svc.IdentityV1Handler())
 	catalogv1.RegisterRuntimeCatalogServer(grpcServer, svc.PublicV1Handler())
 	environmentv1.RegisterEnvironmentControlServer(grpcServer, svc.PublicV1Handler())
 	runv1.RegisterRunControlServer(grpcServer, svc.PublicV1Handler())

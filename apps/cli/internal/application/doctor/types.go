@@ -6,6 +6,7 @@ import (
 
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
+	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	"google.golang.org/grpc"
@@ -88,6 +89,10 @@ type CatalogClient interface {
 	ListRuntimeTemplates(context.Context, *catalogv1.ListRuntimeTemplatesRequest, ...grpc.CallOption) (*catalogv1.ListRuntimeTemplatesResponse, error)
 }
 
+type IdentityClient interface {
+	WhoAmI(context.Context, *identityv1.WhoAmIRequest, ...grpc.CallOption) (*identityv1.WhoAmIResponse, error)
+}
+
 type EnvironmentClient interface {
 	CreateEnvironment(context.Context, *environmentv1.CreateEnvironmentRequest, ...grpc.CallOption) (*environmentv1.CreateEnvironmentResponse, error)
 	DeleteEnvironment(context.Context, *environmentv1.DeleteEnvironmentRequest, ...grpc.CallOption) (*environmentv1.DeleteEnvironmentResponse, error)
@@ -102,6 +107,7 @@ type RunClient interface {
 
 type Session struct {
 	Context     context.Context
+	Identity    IdentityClient
 	Namespace   NamespaceClient
 	Catalog     CatalogClient
 	Environment EnvironmentClient

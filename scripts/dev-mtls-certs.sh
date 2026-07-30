@@ -20,6 +20,8 @@ client_key="${OUT_DIR}/client.key"
 client_crt="${OUT_DIR}/client.crt"
 node_key="${OUT_DIR}/node.key"
 node_crt="${OUT_DIR}/node.crt"
+rollout_worker_key="${OUT_DIR}/rollout-worker.key"
+rollout_worker_crt="${OUT_DIR}/rollout-worker.crt"
 
 cert_matches_requested_names() {
   local name
@@ -40,15 +42,18 @@ cert_matches_requested_names() {
   if ! openssl x509 -in "${gateway_crt}" -noout -purpose 2>/dev/null | grep -q '^SSL client : Yes'; then
     return 1
   fi
+  if ! openssl x509 -in "${node_crt}" -noout -subject -nameopt RFC2253 2>/dev/null | grep -Eq '^subject= ?CN=axern-node$'; then
+    return 1
+  fi
   return 0
 }
 
-if [ -s "${ca_crt}" ] && [ -s "${server_crt}" ] && [ -s "${gateway_crt}" ] && [ -s "${tunnel_crt}" ] && [ -s "${client_crt}" ] && [ -s "${node_crt}" ] && cert_matches_requested_names; then
+if [ -s "${ca_crt}" ] && [ -s "${server_crt}" ] && [ -s "${gateway_crt}" ] && [ -s "${tunnel_crt}" ] && [ -s "${client_crt}" ] && [ -s "${node_crt}" ] && [ -s "${rollout_worker_crt}" ] && cert_matches_requested_names; then
   echo "dev_mtls_certs_dir=${OUT_DIR}"
   exit 0
 fi
 
-rm -f "${ca_key}" "${ca_crt}" "${server_key}" "${server_crt}" "${gateway_key}" "${gateway_crt}" "${tunnel_key}" "${tunnel_crt}" "${client_key}" "${client_crt}" "${node_key}" "${node_crt}" "${OUT_DIR}/ca.srl"
+rm -f "${ca_key}" "${ca_crt}" "${server_key}" "${server_crt}" "${gateway_key}" "${gateway_crt}" "${tunnel_key}" "${tunnel_crt}" "${client_key}" "${client_crt}" "${node_key}" "${node_crt}" "${rollout_worker_key}" "${rollout_worker_crt}" "${OUT_DIR}/ca.srl"
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
@@ -149,9 +154,10 @@ EOF
 
 make_server_cert "controld" "${server_key}" "${server_crt}"
 make_server_cert "gatewayd" "${gateway_key}" "${gateway_crt}" "serverAuth,clientAuth"
-make_server_cert "tunneld" "${tunnel_key}" "${tunnel_crt}"
+make_server_cert "tunneld" "${tunnel_key}" "${tunnel_crt}" "serverAuth,clientAuth"
 make_client_cert "axern-dev-client" "${client_key}" "${client_crt}"
-make_client_cert "node-axern-dev" "${node_key}" "${node_crt}"
+make_client_cert "axern-node" "${node_key}" "${node_crt}"
+make_client_cert "rollout-worker" "${rollout_worker_key}" "${rollout_worker_crt}"
 
 chmod 0600 "${OUT_DIR}"/*.key
 echo "dev_mtls_certs_dir=${OUT_DIR}"

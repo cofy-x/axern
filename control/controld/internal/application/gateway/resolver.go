@@ -140,6 +140,28 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 	}, nil
 }
 
+func (r *Resolver) ResolveServiceReplicaTargets(ctx context.Context, serviceID string) (*gatewayv1.ResolveServiceReplicaTargetsResponse, error) {
+	if r == nil || r.routes == nil {
+		return nil, grpcstatus.Error(codes.Unavailable, "gateway route resolver is not configured")
+	}
+	serviceID = strings.TrimSpace(serviceID)
+	if serviceID == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "service_id is required")
+	}
+	if _, err := r.routes.LoadService(ctx, serviceID); err != nil {
+		return nil, err
+	}
+	targets, err := r.routes.ReadyServiceEndpoints(ctx, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	response := &gatewayv1.ResolveServiceReplicaTargetsResponse{Replicas: make([]*gatewayv1.ServiceReplicaTarget, 0, len(targets))}
+	for _, target := range targets {
+		response.Replicas = append(response.Replicas, &gatewayv1.ServiceReplicaTarget{AllocationID: target.AllocationID, NodeID: target.NodeID})
+	}
+	return response, nil
+}
+
 func ResolvePort(ports []*commonv1.PortSpec, ref string) (*gatewayv1.ServiceRoutePort, error) {
 	for _, port := range ports {
 		if port == nil {

@@ -15,7 +15,6 @@ import (
 	tunneldobs "github.com/cofy-x/axern/runtime/tunneld/internal/observability"
 	"github.com/cofy-x/axern/runtime/tunneld/internal/relay"
 	"github.com/cofy-x/axern/runtime/tunneld/internal/relaytls"
-	tunnelrelaycontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/tunnel/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/tunnel/v1"
 	"google.golang.org/grpc"
 )
@@ -108,9 +107,8 @@ func run() error {
 	}
 	server := grpc.NewServer(serverOpts...)
 	relayServer := relay.New(
-		relay.TunnelControlAdapter{
-			TunnelClient: control.NewTunnelClient(conn),
-			RelayClient:  tunnelrelaycontrolv1.NewTunnelRelayControlClient(conn),
+		relay.RelayControlAdapter{
+			Client: control.NewRelayControlClient(conn),
 		},
 		relay.WithRelayID(relayID),
 		relay.WithDrain(drain),

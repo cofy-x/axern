@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	ctrlobs "github.com/cofy-x/axern/control/controld/internal/observability"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	"google.golang.org/grpc/codes"
@@ -61,11 +62,23 @@ func (s *Server) ListNamespaces(ctx context.Context, req *namespacev1.ListNamesp
 		opErr = grpcstatus.Error(codes.FailedPrecondition, "namespace control is not configured")
 		return nil, opErr
 	}
+	actor, ok := accesskernel.ActorFromContext(ctx)
+	if !ok {
+		opErr = grpcstatus.Error(codes.Unauthenticated, "authenticated principal is required")
+		return nil, opErr
+	}
 	namespaces, err := s.deps.Namespaces.ListNamespaces(ctx)
 	if err != nil {
 		opErr = err
 		return nil, err
 	}
+	filtered := namespaces[:0]
+	for _, namespace := range namespaces {
+		if namespace != nil && accesskernel.CanReadNamespace(actor, namespace.GetNamespace()) {
+			filtered = append(filtered, namespace)
+		}
+	}
+	namespaces = filtered
 	return &namespacev1.ListNamespacesResponse{Namespaces: namespaces}, nil
 }
 

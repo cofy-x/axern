@@ -11,7 +11,7 @@ import (
 type Control interface {
 	Create(ctx context.Context, params CreateParams) (*CreateResult, error)
 	Get(ctx context.Context, sessionID string, now time.Time) (*tunnelv1.TunnelSession, error)
-	List(ctx context.Context, allocationID, nodeID string, includeTerminal bool, now time.Time) ([]*tunnelv1.TunnelSession, error)
+	List(ctx context.Context, namespace, allocationID, nodeID string, includeTerminal bool, now time.Time) ([]*tunnelv1.TunnelSession, error)
 	ListEvents(ctx context.Context, sessionID string, limit int32, now time.Time) ([]*tunnelv1.TunnelSessionEvent, error)
 	Revoke(ctx context.Context, sessionID, reason string, now time.Time) (*tunnelv1.TunnelSession, error)
 	Renew(ctx context.Context, sessionID, clientToken string, ttl time.Duration, now time.Time) (*tunnelv1.TunnelSession, error)
@@ -19,6 +19,7 @@ type Control interface {
 }
 
 type RelayControl interface {
+	ValidatePeer(ctx context.Context, sessionID string, kind tunnelv1.TunnelPeerKind, token string, now time.Time) (*tunnelv1.TunnelSession, error)
 	ReportPeerEvent(ctx context.Context, params PeerEventParams, now time.Time) (*tunnelv1.TunnelSession, error)
 }
 

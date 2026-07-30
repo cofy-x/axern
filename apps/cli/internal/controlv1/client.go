@@ -8,6 +8,7 @@ import (
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	functionv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/function/v1"
+	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
@@ -51,6 +52,8 @@ type Clients struct {
 	AdminStorage     adminv1.StorageAdminClient
 	AdminService     adminv1.ServiceAdminClient
 	AdminNode        adminv1.NodeAdminClient
+	AccessAdmin      adminv1.AccessAdminClient
+	Identity         identityv1.IdentityControlClient
 	Environment      environmentv1.EnvironmentControlClient
 	Function         functionv1.FunctionControlClient
 	Run              runv1.RunControlClient

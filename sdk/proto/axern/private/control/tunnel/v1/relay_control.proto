@@ -6,6 +6,16 @@ option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/tu
 
 import "axern/control/tunnel/v1/tunnel.proto";
 
+message ValidateTunnelPeerRequest {
+  string session_id = 1;
+  axern.control.tunnel.v1.TunnelPeerKind peer_kind = 2;
+  string token = 3;
+}
+
+message ValidateTunnelPeerResponse {
+  axern.control.tunnel.v1.TunnelSession session = 1;
+}
+
 message ReportTunnelPeerEventRequest {
   string session_id = 1;
   string relay_id = 2;
@@ -23,5 +33,6 @@ message ReportTunnelPeerEventResponse {
 }
 
 service TunnelRelayControl {
+  rpc ValidateTunnelPeer(ValidateTunnelPeerRequest) returns (ValidateTunnelPeerResponse) {}
   rpc ReportTunnelPeerEvent(ReportTunnelPeerEventRequest) returns (ReportTunnelPeerEventResponse) {}
 }

@@ -26,7 +26,6 @@ const (
 	TunnelControl_InspectTunnelSession_FullMethodName    = "/axern.control.tunnel.v1.TunnelControl/InspectTunnelSession"
 	TunnelControl_RevokeTunnelSession_FullMethodName     = "/axern.control.tunnel.v1.TunnelControl/RevokeTunnelSession"
 	TunnelControl_RenewTunnelSession_FullMethodName      = "/axern.control.tunnel.v1.TunnelControl/RenewTunnelSession"
-	TunnelControl_ValidateTunnelPeer_FullMethodName      = "/axern.control.tunnel.v1.TunnelControl/ValidateTunnelPeer"
 )
 
 // TunnelControlClient is the client API for TunnelControl service.
@@ -40,7 +39,6 @@ type TunnelControlClient interface {
 	InspectTunnelSession(ctx context.Context, in *InspectTunnelSessionRequest, opts ...grpc.CallOption) (*InspectTunnelSessionResponse, error)
 	RevokeTunnelSession(ctx context.Context, in *RevokeTunnelSessionRequest, opts ...grpc.CallOption) (*RevokeTunnelSessionResponse, error)
 	RenewTunnelSession(ctx context.Context, in *RenewTunnelSessionRequest, opts ...grpc.CallOption) (*RenewTunnelSessionResponse, error)
-	ValidateTunnelPeer(ctx context.Context, in *ValidateTunnelPeerRequest, opts ...grpc.CallOption) (*ValidateTunnelPeerResponse, error)
 }
 
 type tunnelControlClient struct {
@@ -114,15 +112,6 @@ func (c *tunnelControlClient) RenewTunnelSession(ctx context.Context, in *RenewT
 	return out, nil
 }
 
-func (c *tunnelControlClient) ValidateTunnelPeer(ctx context.Context, in *ValidateTunnelPeerRequest, opts ...grpc.CallOption) (*ValidateTunnelPeerResponse, error) {
-	out := new(ValidateTunnelPeerResponse)
-	err := c.cc.Invoke(ctx, TunnelControl_ValidateTunnelPeer_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // TunnelControlServer is the server API for TunnelControl service.
 // All implementations must embed UnimplementedTunnelControlServer
 // for forward compatibility
@@ -134,7 +123,6 @@ type TunnelControlServer interface {
 	InspectTunnelSession(context.Context, *InspectTunnelSessionRequest) (*InspectTunnelSessionResponse, error)
 	RevokeTunnelSession(context.Context, *RevokeTunnelSessionRequest) (*RevokeTunnelSessionResponse, error)
 	RenewTunnelSession(context.Context, *RenewTunnelSessionRequest) (*RenewTunnelSessionResponse, error)
-	ValidateTunnelPeer(context.Context, *ValidateTunnelPeerRequest) (*ValidateTunnelPeerResponse, error)
 	mustEmbedUnimplementedTunnelControlServer()
 }
 
@@ -162,9 +150,6 @@ func (UnimplementedTunnelControlServer) RevokeTunnelSession(context.Context, *Re
 }
 func (UnimplementedTunnelControlServer) RenewTunnelSession(context.Context, *RenewTunnelSessionRequest) (*RenewTunnelSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RenewTunnelSession not implemented")
-}
-func (UnimplementedTunnelControlServer) ValidateTunnelPeer(context.Context, *ValidateTunnelPeerRequest) (*ValidateTunnelPeerResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ValidateTunnelPeer not implemented")
 }
 func (UnimplementedTunnelControlServer) mustEmbedUnimplementedTunnelControlServer() {}
 
@@ -305,24 +290,6 @@ func _TunnelControl_RenewTunnelSession_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TunnelControl_ValidateTunnelPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ValidateTunnelPeerRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TunnelControlServer).ValidateTunnelPeer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: TunnelControl_ValidateTunnelPeer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TunnelControlServer).ValidateTunnelPeer(ctx, req.(*ValidateTunnelPeerRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // TunnelControl_ServiceDesc is the grpc.ServiceDesc for TunnelControl service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -357,10 +324,6 @@ var TunnelControl_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RenewTunnelSession",
 			Handler:    _TunnelControl_RenewTunnelSession_Handler,
-		},
-		{
-			MethodName: "ValidateTunnelPeer",
-			Handler:    _TunnelControl_ValidateTunnelPeer_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

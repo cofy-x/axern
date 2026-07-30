@@ -18,6 +18,7 @@ import (
 
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
+	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	"google.golang.org/grpc"
@@ -44,7 +45,7 @@ func TestDiagnoseReadOnlyIsHealthyWithoutMutatingResources(t *testing.T) {
 	if environments.createCalls != 0 || environments.deleteCalls != 0 || runs.createCalls != 0 {
 		t.Fatalf("read-only doctor mutated resources: environments=%+v runs=%+v", environments, runs)
 	}
-	for _, name := range []string{"configuration", "tls_material", "tls_expiry", "tls_key_permissions", "gateway", "namespace", "catalog"} {
+	for _, name := range []string{"configuration", "tls_material", "tls_expiry", "tls_key_permissions", "gateway", "identity", "authorization", "namespace", "catalog"} {
 		if checkByName(t, report, name).Status != CheckPass {
 			t.Fatalf("check %s did not pass: %#v", name, checkByName(t, report, name))
 		}
@@ -145,6 +146,7 @@ func successfulOpener(environments *fakeEnvironmentClient, runs *fakeRunClient) 
 	return func(ctx context.Context) (*Session, error) {
 		return &Session{
 			Context:     ctx,
+			Identity:    &fakeIdentityClient{},
 			Namespace:   &fakeNamespaceClient{},
 			Catalog:     &fakeCatalogClient{},
 			Environment: environments,
@@ -152,6 +154,16 @@ func successfulOpener(environments *fakeEnvironmentClient, runs *fakeRunClient) 
 			Close:       func() error { return nil },
 		}, nil
 	}
+}
+
+type fakeIdentityClient struct{}
+
+func (*fakeIdentityClient) WhoAmI(context.Context, *identityv1.WhoAmIRequest, ...grpc.CallOption) (*identityv1.WhoAmIResponse, error) {
+	return &identityv1.WhoAmIResponse{
+		Principal:  &identityv1.PrincipalIdentity{PrincipalID: "prn-test", Name: "test"},
+		Credential: &identityv1.CredentialIdentity{CredentialID: "cred-test"},
+		Roles:      []*identityv1.EffectiveRole{{Role: "namespace_editor", ScopeType: "namespace", Namespace: "default"}},
+	}, nil
 }
 
 func checkByName(t *testing.T, report Report, name string) Check {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	ctrlobs "github.com/cofy-x/axern/control/controld/internal/observability"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	"google.golang.org/grpc/codes"
@@ -40,11 +41,23 @@ func (s *Server) ListNamespaceQuotas(ctx context.Context, req *quotav1.ListNames
 		opErr = grpcstatus.Error(codes.FailedPrecondition, "namespace quota control is not configured")
 		return nil, opErr
 	}
+	actor, ok := accesskernel.ActorFromContext(ctx)
+	if !ok {
+		opErr = grpcstatus.Error(codes.Unauthenticated, "authenticated principal is required")
+		return nil, opErr
+	}
 	quotas, err := s.deps.Quotas.List(ctx)
 	if err != nil {
 		opErr = err
 		return nil, err
 	}
+	filtered := quotas[:0]
+	for _, quota := range quotas {
+		if quota != nil && accesskernel.CanReadNamespace(actor, quota.GetNamespace()) {
+			filtered = append(filtered, quota)
+		}
+	}
+	quotas = filtered
 	return &quotav1.ListNamespaceQuotasResponse{Quotas: quotas}, nil
 }
 

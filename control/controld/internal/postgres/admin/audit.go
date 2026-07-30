@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	adminkernel "github.com/cofy-x/axern/control/controld/internal/kernel/admin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -46,9 +47,9 @@ func (s *Store) RecordAdminAuditEvent(ctx context.Context, event adminkernel.Aud
 	}
 	_, err := s.db.Pool().Exec(ctx, `
 		INSERT INTO admin_audit_events (
-			event_id, operation, target_type, target_id, operator_reason, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6)
-	`, event.EventID, event.Operation, event.TargetType, event.TargetID, event.OperatorReason, event.CreatedAt.UTC())
+			event_id, operation, target_type, target_id, operator_reason, actor_principal_id, created_at
+		) VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), $7)
+	`, event.EventID, event.Operation, event.TargetType, event.TargetID, event.OperatorReason, auditActor(ctx, event.ActorPrincipalID), event.CreatedAt.UTC())
 	if err != nil {
 		return fmt.Errorf("insert admin audit event: %w", err)
 	}
@@ -58,9 +59,9 @@ func (s *Store) RecordAdminAuditEvent(ctx context.Context, event adminkernel.Aud
 func insertAdminAuditEvent(ctx context.Context, tx pgx.Tx, event adminAuditEvent) error {
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO admin_audit_events (
-			event_id, operation, target_type, target_id, operator_reason, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6)
-	`, event.EventID, event.Operation, event.TargetType, event.TargetID, event.OperatorReason, event.CreatedAt.UTC()); err != nil {
+			event_id, operation, target_type, target_id, operator_reason, actor_principal_id, created_at
+		) VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), $7)
+	`, event.EventID, event.Operation, event.TargetType, event.TargetID, event.OperatorReason, auditActor(ctx, event.ActorPrincipalID), event.CreatedAt.UTC()); err != nil {
 		return fmt.Errorf("insert admin audit event: %w", err)
 	}
 	return nil
@@ -72,7 +73,7 @@ func listAdminAuditEvents(ctx context.Context, queryer adminAuditQueryer, filter
 		return nil, err
 	}
 	query := `
-		SELECT event_id, operation, target_type, target_id, operator_reason, created_at
+		SELECT event_id, operation, target_type, target_id, operator_reason, COALESCE(actor_principal_id, ''), created_at
 		FROM admin_audit_events
 	`
 	where := make([]string, 0, 3)
@@ -111,6 +112,7 @@ func listAdminAuditEvents(ctx context.Context, queryer adminAuditQueryer, filter
 			&event.TargetType,
 			&event.TargetID,
 			&event.OperatorReason,
+			&event.ActorPrincipalID,
 			&event.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -118,4 +120,14 @@ func listAdminAuditEvents(ctx context.Context, queryer adminAuditQueryer, filter
 		out = append(out, event)
 	}
 	return out, rows.Err()
+}
+
+func auditActor(ctx context.Context, explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	if actor, ok := accesskernel.ActorFromContext(ctx); ok {
+		return actor.Principal.ID
+	}
+	return ""
 }

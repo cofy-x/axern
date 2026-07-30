@@ -50,6 +50,13 @@ private keys, raw endpoints, or server error text. Doctor exits with `0` for
 healthy, `1` for degraded, `2` for invalid usage or connection configuration,
 and `3` when a required platform health check fails.
 
+Use `axern identity whoami` to inspect the Principal, active certificate, and
+effective roles for the selected context. Platform administrators can manage
+durable Principals and namespace bindings with `axern admin principal`,
+`axern admin credential`, and `axern admin role-binding`. See
+[Identity and namespace access](/guides/authorization/) for the least-privilege
+workflow.
+
 ## Run isolated Python
 
 ```bash

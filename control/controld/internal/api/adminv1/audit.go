@@ -40,12 +40,13 @@ func auditEventFilterFromProto(req *adminv1.ListAdminAuditEventsRequest) adminke
 
 func auditEventToProto(event adminkernel.AuditEvent) *adminv1.AdminAuditEvent {
 	return &adminv1.AdminAuditEvent{
-		EventID:        event.EventID,
-		Operation:      auditOperationToProto(event.Operation),
-		TargetType:     auditTargetTypeToProto(event.TargetType),
-		TargetID:       event.TargetID,
-		OperatorReason: event.OperatorReason,
-		CreatedAt:      timestamppb.New(event.CreatedAt),
+		EventID:          event.EventID,
+		Operation:        auditOperationToProto(event.Operation),
+		TargetType:       auditTargetTypeToProto(event.TargetType),
+		TargetID:         event.TargetID,
+		OperatorReason:   event.OperatorReason,
+		ActorPrincipalID: event.ActorPrincipalID,
+		CreatedAt:        timestamppb.New(event.CreatedAt),
 	}
 }
 
@@ -63,6 +64,20 @@ func auditOperationFromProto(operation adminv1.AdminAuditOperation) string {
 		return adminkernel.AuditOperationPurgeService
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETIRE_NODE:
 		return adminkernel.AuditOperationRetireNode
+	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CREATE_PRINCIPAL:
+		return adminkernel.AuditOperationCreatePrincipal
+	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_DISABLE_PRINCIPAL:
+		return adminkernel.AuditOperationDisablePrincipal
+	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_ADD_CREDENTIAL:
+		return adminkernel.AuditOperationAddCredential
+	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_REVOKE_CREDENTIAL:
+		return adminkernel.AuditOperationRevokeCredential
+	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_GRANT_ROLE_BINDING:
+		return adminkernel.AuditOperationGrantRoleBinding
+	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_REVOKE_ROLE_BINDING:
+		return adminkernel.AuditOperationRevokeRoleBinding
+	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_BOOTSTRAP_ACCESS:
+		return adminkernel.AuditOperationBootstrapAccess
 	default:
 		return ""
 	}
@@ -82,6 +97,20 @@ func auditOperationToProto(operation string) adminv1.AdminAuditOperation {
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_PURGE_SERVICE
 	case adminkernel.AuditOperationRetireNode:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETIRE_NODE
+	case adminkernel.AuditOperationCreatePrincipal:
+		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CREATE_PRINCIPAL
+	case adminkernel.AuditOperationDisablePrincipal:
+		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_DISABLE_PRINCIPAL
+	case adminkernel.AuditOperationAddCredential:
+		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_ADD_CREDENTIAL
+	case adminkernel.AuditOperationRevokeCredential:
+		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_REVOKE_CREDENTIAL
+	case adminkernel.AuditOperationGrantRoleBinding:
+		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_GRANT_ROLE_BINDING
+	case adminkernel.AuditOperationRevokeRoleBinding:
+		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_REVOKE_ROLE_BINDING
+	case adminkernel.AuditOperationBootstrapAccess:
+		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_BOOTSTRAP_ACCESS
 	default:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_UNSPECIFIED
 	}
@@ -97,6 +126,12 @@ func auditTargetTypeFromProto(targetType adminv1.AdminAuditTargetType) string {
 		return adminkernel.AuditTargetService
 	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_NODE:
 		return adminkernel.AuditTargetNode
+	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_PRINCIPAL:
+		return adminkernel.AuditTargetPrincipal
+	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_CREDENTIAL:
+		return adminkernel.AuditTargetCredential
+	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_ROLE_BINDING:
+		return adminkernel.AuditTargetRoleBinding
 	default:
 		return ""
 	}
@@ -112,6 +147,12 @@ func auditTargetTypeToProto(targetType string) adminv1.AdminAuditTargetType {
 		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_SERVICE
 	case adminkernel.AuditTargetNode:
 		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_NODE
+	case adminkernel.AuditTargetPrincipal:
+		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_PRINCIPAL
+	case adminkernel.AuditTargetCredential:
+		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_CREDENTIAL
+	case adminkernel.AuditTargetRoleBinding:
+		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_ROLE_BINDING
 	default:
 		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_UNSPECIFIED
 	}

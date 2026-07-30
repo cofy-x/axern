@@ -53,7 +53,7 @@ func TestProxyUnknownServiceForwardsUnaryControlRPC(t *testing.T) {
 
 	proxyServer := grpc.NewServer(
 		grpc.ForceServerCodec(rawCodec{}),
-		grpc.UnknownServiceHandler(proxyUnknownServiceForServices(backendConn, map[string]struct{}{"test.Control": {}})),
+		grpc.UnknownServiceHandler(proxyUnknownServiceForServicesWithIdentity(backendConn, map[string]struct{}{"test.Control": {}}, testClientIdentity)),
 	)
 	proxyAddr := serveGRPC(t, proxyServer)
 	proxyConn, err := grpc.NewClient(
@@ -66,21 +66,26 @@ func TestProxyUnknownServiceForwardsUnaryControlRPC(t *testing.T) {
 	}
 	defer proxyConn.Close()
 
-	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("x-proxy-test", "present"))
+	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs(
+		"x-proxy-test", "present",
+		clientCertificateFingerprintMetadata, "spoofed",
+		rolloutExecutionLeaseMetadata, "work-lease",
+	))
 	var out rawMessage
 	var header metadata.MD
 	var trailer metadata.MD
 	if err := proxyConn.Invoke(ctx, "/test.Control/Echo", rawMessage("hello"), &out, grpc.Header(&header), grpc.Trailer(&trailer)); err != nil {
 		t.Fatalf("Invoke() error = %v", err)
 	}
-	if string(out) != "echo:hello:present" {
-		t.Fatalf("response = %q, want echo:hello:present", string(out))
+	want := "echo:hello::aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:work-lease"
+	if string(out) != want {
+		t.Fatalf("response = %q, want %q", string(out), want)
 	}
-	if got := header.Get("x-proxy-header"); len(got) != 1 || got[0] != "ok" {
-		t.Fatalf("header x-proxy-header = %v, want [ok]", got)
+	if got := header.Get("x-proxy-header"); len(got) != 0 {
+		t.Fatalf("internal header leaked through proxy: %v", got)
 	}
-	if got := trailer.Get("x-proxy-trailer"); len(got) != 1 || got[0] != "done" {
-		t.Fatalf("trailer x-proxy-trailer = %v, want [done]", got)
+	if got := trailer.Get("x-proxy-trailer"); len(got) != 0 {
+		t.Fatalf("internal trailer leaked through proxy: %v", got)
 	}
 }
 
@@ -108,7 +113,7 @@ func TestProxyUnknownServiceForwardsServerStreamingControlRPC(t *testing.T) {
 
 	proxyServer := grpc.NewServer(
 		grpc.ForceServerCodec(rawCodec{}),
-		grpc.UnknownServiceHandler(proxyUnknownServiceForServices(backendConn, map[string]struct{}{"test.Control": {}})),
+		grpc.UnknownServiceHandler(proxyUnknownServiceForServicesWithIdentity(backendConn, map[string]struct{}{"test.Control": {}}, testClientIdentity)),
 	)
 	proxyAddr := serveGRPC(t, proxyServer)
 	proxyConn, err := grpc.NewClient(
@@ -152,12 +157,16 @@ func TestProxyUnknownServiceForwardsServerStreamingControlRPC(t *testing.T) {
 	if err := stream.RecvMsg(&response); !errors.Is(err, io.EOF) {
 		t.Fatalf("RecvMsg() error = %v, want EOF", err)
 	}
-	if got := header.Get("x-proxy-stream-header"); len(got) != 1 || got[0] != "ok" {
-		t.Fatalf("header x-proxy-stream-header = %v, want [ok]", got)
+	if got := header.Get("x-proxy-stream-header"); len(got) != 0 {
+		t.Fatalf("internal stream header leaked through proxy: %v", got)
 	}
-	if got := trailer.Get("x-proxy-stream-trailer"); len(got) != 1 || got[0] != "done" {
-		t.Fatalf("trailer x-proxy-stream-trailer = %v, want [done]", got)
+	if got := trailer.Get("x-proxy-stream-trailer"); len(got) != 0 {
+		t.Fatalf("internal stream trailer leaked through proxy: %v", got)
 	}
+}
+
+func testClientIdentity(context.Context) (string, error) {
+	return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil
 }
 
 func TestProxyUnknownServiceRejectsNonPublicControlService(t *testing.T) {
@@ -242,7 +251,7 @@ func echoUnaryHandler(_ any, ctx context.Context, dec func(any) error, _ grpc.Un
 		return nil, err
 	}
 	grpc.SetTrailer(ctx, metadata.Pairs("x-proxy-trailer", "done"))
-	return rawMessage("echo:" + string(in) + ":" + first(md.Get("x-proxy-test"))), nil
+	return rawMessage("echo:" + string(in) + ":" + first(md.Get("x-proxy-test")) + ":" + first(md.Get(clientCertificateFingerprintMetadata)) + ":" + first(md.Get(rolloutExecutionLeaseMetadata))), nil
 }
 
 func echoServerStreamHandler(_ any, stream grpc.ServerStream) error {

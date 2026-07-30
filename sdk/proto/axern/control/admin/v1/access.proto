@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package axern.control.admin.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1";
+
+import "google/protobuf/timestamp.proto";
+
+enum PrincipalKind {
+  PRINCIPAL_KIND_UNSPECIFIED = 0;
+  PRINCIPAL_KIND_HUMAN = 1;
+  PRINCIPAL_KIND_SERVICE = 2;
+}
+
+enum PrincipalStatus {
+  PRINCIPAL_STATUS_UNSPECIFIED = 0;
+  PRINCIPAL_STATUS_ACTIVE = 1;
+  PRINCIPAL_STATUS_DISABLED = 2;
+}
+
+enum AccessScopeType {
+  ACCESS_SCOPE_TYPE_UNSPECIFIED = 0;
+  ACCESS_SCOPE_TYPE_PLATFORM = 1;
+  ACCESS_SCOPE_TYPE_NAMESPACE = 2;
+}
+
+enum AccessRole {
+  ACCESS_ROLE_UNSPECIFIED = 0;
+  ACCESS_ROLE_PLATFORM_ADMIN = 1;
+  ACCESS_ROLE_NAMESPACE_ADMIN = 2;
+  ACCESS_ROLE_NAMESPACE_EDITOR = 3;
+  ACCESS_ROLE_NAMESPACE_VIEWER = 4;
+  ACCESS_ROLE_ROLLOUT_EXECUTOR = 5;
+}
+
+message Principal {
+  string principal_id = 1;
+  string name = 2;
+  string display_name = 3;
+  PrincipalKind kind = 4;
+  PrincipalStatus status = 5;
+  int64 version = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message PrincipalCredential {
+  string credential_id = 1;
+  string principal_id = 2;
+  string fingerprint = 3;
+  google.protobuf.Timestamp certificate_not_after = 4;
+  string label = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp revoked_at = 7;
+}
+
+message RoleBinding {
+  string binding_id = 1;
+  string principal_id = 2;
+  AccessScopeType scope_type = 3;
+  string namespace = 4;
+  AccessRole role = 5;
+  string created_by_principal_id = 6;
+  google.protobuf.Timestamp created_at = 7;
+  string revoked_by_principal_id = 8;
+  google.protobuf.Timestamp revoked_at = 9;
+}
+
+message CreatePrincipalRequest {
+  string name = 1;
+  string display_name = 2;
+  PrincipalKind kind = 3;
+}
+message CreatePrincipalResponse { Principal principal = 1; }
+
+message ListPrincipalsRequest {}
+message ListPrincipalsResponse { repeated Principal principals = 1; }
+
+message DisablePrincipalRequest { string principal_id = 1; }
+message DisablePrincipalResponse { Principal principal = 1; }
+
+message AddPrincipalCredentialRequest {
+  string principal_id = 1;
+  bytes certificate_der = 2;
+  string label = 3;
+}
+message AddPrincipalCredentialResponse { PrincipalCredential credential = 1; }
+
+message ListPrincipalCredentialsRequest { string principal_id = 1; }
+message ListPrincipalCredentialsResponse { repeated PrincipalCredential credentials = 1; }
+
+message RevokePrincipalCredentialRequest { string credential_id = 1; }
+message RevokePrincipalCredentialResponse { PrincipalCredential credential = 1; }
+
+message GrantRoleBindingRequest {
+  string principal_id = 1;
+  AccessScopeType scope_type = 2;
+  string namespace = 3;
+  AccessRole role = 4;
+}
+message GrantRoleBindingResponse { RoleBinding binding = 1; }
+
+message ListRoleBindingsRequest {
+  string principal_id = 1;
+  string namespace = 2;
+  bool include_revoked = 3;
+}
+message ListRoleBindingsResponse { repeated RoleBinding bindings = 1; }
+
+message RevokeRoleBindingRequest { string binding_id = 1; }
+message RevokeRoleBindingResponse { RoleBinding binding = 1; }
+
+service AccessAdmin {
+  rpc CreatePrincipal(CreatePrincipalRequest) returns (CreatePrincipalResponse) {}
+  rpc ListPrincipals(ListPrincipalsRequest) returns (ListPrincipalsResponse) {}
+  rpc DisablePrincipal(DisablePrincipalRequest) returns (DisablePrincipalResponse) {}
+  rpc AddPrincipalCredential(AddPrincipalCredentialRequest) returns (AddPrincipalCredentialResponse) {}
+  rpc ListPrincipalCredentials(ListPrincipalCredentialsRequest) returns (ListPrincipalCredentialsResponse) {}
+  rpc RevokePrincipalCredential(RevokePrincipalCredentialRequest) returns (RevokePrincipalCredentialResponse) {}
+  rpc GrantRoleBinding(GrantRoleBindingRequest) returns (GrantRoleBindingResponse) {}
+  rpc ListRoleBindings(ListRoleBindingsRequest) returns (ListRoleBindingsResponse) {}
+  rpc RevokeRoleBinding(RevokeRoleBindingRequest) returns (RevokeRoleBindingResponse) {}
+}

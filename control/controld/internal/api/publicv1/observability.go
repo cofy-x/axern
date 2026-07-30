@@ -30,7 +30,6 @@ const (
 	publicActionInspect         publicOperationAction = "inspect"
 	publicActionListReplicas    publicOperationAction = "list_replicas"
 	publicActionListEvents      publicOperationAction = "list_events"
-	publicActionValidatePeer    publicOperationAction = "validate_peer"
 	publicActionDeploy          publicOperationAction = "deploy"
 	publicActionInvoke          publicOperationAction = "invoke"
 	publicActionUpload          publicOperationAction = "upload"

@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
+	TunnelRelayControl_ValidateTunnelPeer_FullMethodName    = "/axern.private.control.tunnel.v1.TunnelRelayControl/ValidateTunnelPeer"
 	TunnelRelayControl_ReportTunnelPeerEvent_FullMethodName = "/axern.private.control.tunnel.v1.TunnelRelayControl/ReportTunnelPeerEvent"
 )
 
@@ -26,6 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TunnelRelayControlClient interface {
+	ValidateTunnelPeer(ctx context.Context, in *ValidateTunnelPeerRequest, opts ...grpc.CallOption) (*ValidateTunnelPeerResponse, error)
 	ReportTunnelPeerEvent(ctx context.Context, in *ReportTunnelPeerEventRequest, opts ...grpc.CallOption) (*ReportTunnelPeerEventResponse, error)
 }
 
@@ -35,6 +37,15 @@ type tunnelRelayControlClient struct {
 
 func NewTunnelRelayControlClient(cc grpc.ClientConnInterface) TunnelRelayControlClient {
 	return &tunnelRelayControlClient{cc}
+}
+
+func (c *tunnelRelayControlClient) ValidateTunnelPeer(ctx context.Context, in *ValidateTunnelPeerRequest, opts ...grpc.CallOption) (*ValidateTunnelPeerResponse, error) {
+	out := new(ValidateTunnelPeerResponse)
+	err := c.cc.Invoke(ctx, TunnelRelayControl_ValidateTunnelPeer_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *tunnelRelayControlClient) ReportTunnelPeerEvent(ctx context.Context, in *ReportTunnelPeerEventRequest, opts ...grpc.CallOption) (*ReportTunnelPeerEventResponse, error) {
@@ -50,6 +61,7 @@ func (c *tunnelRelayControlClient) ReportTunnelPeerEvent(ctx context.Context, in
 // All implementations must embed UnimplementedTunnelRelayControlServer
 // for forward compatibility
 type TunnelRelayControlServer interface {
+	ValidateTunnelPeer(context.Context, *ValidateTunnelPeerRequest) (*ValidateTunnelPeerResponse, error)
 	ReportTunnelPeerEvent(context.Context, *ReportTunnelPeerEventRequest) (*ReportTunnelPeerEventResponse, error)
 	mustEmbedUnimplementedTunnelRelayControlServer()
 }
@@ -58,6 +70,9 @@ type TunnelRelayControlServer interface {
 type UnimplementedTunnelRelayControlServer struct {
 }
 
+func (UnimplementedTunnelRelayControlServer) ValidateTunnelPeer(context.Context, *ValidateTunnelPeerRequest) (*ValidateTunnelPeerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ValidateTunnelPeer not implemented")
+}
 func (UnimplementedTunnelRelayControlServer) ReportTunnelPeerEvent(context.Context, *ReportTunnelPeerEventRequest) (*ReportTunnelPeerEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReportTunnelPeerEvent not implemented")
 }
@@ -72,6 +87,24 @@ type UnsafeTunnelRelayControlServer interface {
 
 func RegisterTunnelRelayControlServer(s grpc.ServiceRegistrar, srv TunnelRelayControlServer) {
 	s.RegisterService(&TunnelRelayControl_ServiceDesc, srv)
+}
+
+func _TunnelRelayControl_ValidateTunnelPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateTunnelPeerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TunnelRelayControlServer).ValidateTunnelPeer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TunnelRelayControl_ValidateTunnelPeer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TunnelRelayControlServer).ValidateTunnelPeer(ctx, req.(*ValidateTunnelPeerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _TunnelRelayControl_ReportTunnelPeerEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -99,6 +132,10 @@ var TunnelRelayControl_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "axern.private.control.tunnel.v1.TunnelRelayControl",
 	HandlerType: (*TunnelRelayControlServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ValidateTunnelPeer",
+			Handler:    _TunnelRelayControl_ValidateTunnelPeer_Handler,
+		},
 		{
 			MethodName: "ReportTunnelPeerEvent",
 			Handler:    _TunnelRelayControl_ReportTunnelPeerEvent_Handler,

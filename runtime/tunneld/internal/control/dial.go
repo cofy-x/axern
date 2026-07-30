@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/lib/go/grpcclient"
-	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	tunnelrelaycontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/tunnel/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -37,8 +37,8 @@ func Dial(ctx context.Context, target string, tlsCfg TLSConfig, insecureTranspor
 	return grpcclient.NewReadyClient(dialCtx, target, opts...)
 }
 
-func NewTunnelClient(conn *grpc.ClientConn) tunnelcontrolv1.TunnelControlClient {
-	return tunnelcontrolv1.NewTunnelControlClient(conn)
+func NewRelayControlClient(conn *grpc.ClientConn) tunnelrelaycontrolv1.TunnelRelayControlClient {
+	return tunnelrelaycontrolv1.NewTunnelRelayControlClient(conn)
 }
 
 func loadTLS(cfg TLSConfig) (credentials.TransportCredentials, error) {

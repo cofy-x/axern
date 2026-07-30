@@ -15,11 +15,21 @@ const (
 	AuditOperationRetryStorageBinding           = "retry_storage_binding"
 	AuditOperationPurgeService                  = "purge_service"
 	AuditOperationRetireNode                    = "retire_node"
+	AuditOperationCreatePrincipal               = "principal.create"
+	AuditOperationDisablePrincipal              = "principal.disable"
+	AuditOperationAddCredential                 = "credential.add"
+	AuditOperationRevokeCredential              = "credential.revoke"
+	AuditOperationGrantRoleBinding              = "role_binding.grant"
+	AuditOperationRevokeRoleBinding             = "role_binding.revoke"
+	AuditOperationBootstrapAccess               = "access.bootstrap"
 
 	AuditTargetAllocation     = "allocation"
 	AuditTargetStorageBinding = "storage_binding"
 	AuditTargetService        = "service"
 	AuditTargetNode           = "node"
+	AuditTargetPrincipal      = "principal"
+	AuditTargetCredential     = "credential"
+	AuditTargetRoleBinding    = "role_binding"
 
 	MaxAuditEventListLimit     = 100
 	DefaultAuditEventListLimit = 50
@@ -33,12 +43,13 @@ type AuditEventFilter struct {
 }
 
 type AuditEvent struct {
-	EventID        string
-	Operation      string
-	TargetType     string
-	TargetID       string
-	OperatorReason string
-	CreatedAt      time.Time
+	EventID          string
+	Operation        string
+	TargetType       string
+	TargetID         string
+	OperatorReason   string
+	ActorPrincipalID string
+	CreatedAt        time.Time
 }
 
 func NormalizeAuditEventFilter(in AuditEventFilter) AuditEventFilter {
@@ -59,12 +70,12 @@ func NormalizeAuditEventFilter(in AuditEventFilter) AuditEventFilter {
 
 func ValidateAuditEventFilter(filter AuditEventFilter) error {
 	switch filter.Operation {
-	case "", AuditOperationForceAllocationLifecycleRetry, AuditOperationFailAllocationLifecycleRetry, AuditOperationClearAllocationLifecycleRetry, AuditOperationRetryStorageBinding, AuditOperationPurgeService, AuditOperationRetireNode:
+	case "", AuditOperationForceAllocationLifecycleRetry, AuditOperationFailAllocationLifecycleRetry, AuditOperationClearAllocationLifecycleRetry, AuditOperationRetryStorageBinding, AuditOperationPurgeService, AuditOperationRetireNode, AuditOperationCreatePrincipal, AuditOperationDisablePrincipal, AuditOperationAddCredential, AuditOperationRevokeCredential, AuditOperationGrantRoleBinding, AuditOperationRevokeRoleBinding, AuditOperationBootstrapAccess:
 	default:
 		return grpcstatus.Errorf(codes.InvalidArgument, "unsupported admin audit operation %q", filter.Operation)
 	}
 	switch filter.TargetType {
-	case "", AuditTargetAllocation, AuditTargetStorageBinding, AuditTargetService, AuditTargetNode:
+	case "", AuditTargetAllocation, AuditTargetStorageBinding, AuditTargetService, AuditTargetNode, AuditTargetPrincipal, AuditTargetCredential, AuditTargetRoleBinding:
 	default:
 		return grpcstatus.Errorf(codes.InvalidArgument, "unsupported admin audit target_type %q", filter.TargetType)
 	}

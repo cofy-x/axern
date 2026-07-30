@@ -65,12 +65,16 @@ class ResolveServiceRouteResponse(_message.Message):
     def __init__(self, service_id: _Optional[str] = ..., namespace: _Optional[str] = ..., service_status: _Optional[_Union[_service_types_pb2.ServiceStatus, str]] = ..., port: _Optional[_Union[ServiceRoutePort, _Mapping]] = ..., endpoints: _Optional[_Iterable[_Union[ServiceRouteEndpoint, _Mapping]]] = ...) -> None: ...
 
 class ResolveAllocationTerminalRequest(_message.Message):
-    __slots__ = ("allocation_id", "ttl_seconds")
+    __slots__ = ("allocation_id", "ttl_seconds", "client_certificate_fingerprint", "rollout_execution_lease")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     TTL_SECONDS_FIELD_NUMBER: _ClassVar[int]
+    CLIENT_CERTIFICATE_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
+    ROLLOUT_EXECUTION_LEASE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
     ttl_seconds: int
-    def __init__(self, allocation_id: _Optional[str] = ..., ttl_seconds: _Optional[int] = ...) -> None: ...
+    client_certificate_fingerprint: str
+    rollout_execution_lease: str
+    def __init__(self, allocation_id: _Optional[str] = ..., ttl_seconds: _Optional[int] = ..., client_certificate_fingerprint: _Optional[str] = ..., rollout_execution_lease: _Optional[str] = ...) -> None: ...
 
 class ResolveAllocationTerminalResponse(_message.Message):
     __slots__ = ("allocation_id", "owner_type", "owner_id", "node_id", "node_target", "attempt", "lease")
@@ -89,3 +93,35 @@ class ResolveAllocationTerminalResponse(_message.Message):
     attempt: int
     lease: _common_pb2.ExecutionLease
     def __init__(self, allocation_id: _Optional[str] = ..., owner_type: _Optional[str] = ..., owner_id: _Optional[str] = ..., node_id: _Optional[str] = ..., node_target: _Optional[str] = ..., attempt: _Optional[int] = ..., lease: _Optional[_Union[_common_pb2.ExecutionLease, _Mapping]] = ...) -> None: ...
+
+class ResolveTunnelRelayTargetRequest(_message.Message):
+    __slots__ = ("session_id",)
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    def __init__(self, session_id: _Optional[str] = ...) -> None: ...
+
+class ResolveTunnelRelayTargetResponse(_message.Message):
+    __slots__ = ("node_edge_target",)
+    NODE_EDGE_TARGET_FIELD_NUMBER: _ClassVar[int]
+    node_edge_target: str
+    def __init__(self, node_edge_target: _Optional[str] = ...) -> None: ...
+
+class ResolveServiceReplicaTargetsRequest(_message.Message):
+    __slots__ = ("service_id",)
+    SERVICE_ID_FIELD_NUMBER: _ClassVar[int]
+    service_id: str
+    def __init__(self, service_id: _Optional[str] = ...) -> None: ...
+
+class ServiceReplicaTarget(_message.Message):
+    __slots__ = ("allocation_id", "node_id")
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    node_id: str
+    def __init__(self, allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ...) -> None: ...
+
+class ResolveServiceReplicaTargetsResponse(_message.Message):
+    __slots__ = ("replicas",)
+    REPLICAS_FIELD_NUMBER: _ClassVar[int]
+    replicas: _containers.RepeatedCompositeFieldContainer[ServiceReplicaTarget]
+    def __init__(self, replicas: _Optional[_Iterable[_Union[ServiceReplicaTarget, _Mapping]]] = ...) -> None: ...

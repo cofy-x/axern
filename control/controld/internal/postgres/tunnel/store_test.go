@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	tunnelkernel "github.com/cofy-x/axern/control/controld/internal/kernel/tunnel"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
@@ -28,7 +29,7 @@ func TestCreateAllocatesRemotePort(t *testing.T) {
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-auto", now)
 
-	result, err := store.Create(context.Background(), tunnelkernel.CreateParams{
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-auto",
 		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
@@ -47,7 +48,7 @@ func TestCreateUsesExplicitRemotePort(t *testing.T) {
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-explicit", now)
 
-	result, err := store.Create(context.Background(), tunnelkernel.CreateParams{
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-explicit",
 		RemotePort:   int32Ptr(8786),
 		LocalTarget:  "127.0.0.1:8080",
@@ -67,7 +68,7 @@ func TestCreateRejectsExplicitZeroRemotePort(t *testing.T) {
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-zero", now)
 
-	_, err := store.Create(context.Background(), tunnelkernel.CreateParams{
+	_, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-zero",
 		RemotePort:   int32Ptr(0),
 		LocalTarget:  "127.0.0.1:8080",
@@ -84,7 +85,7 @@ func TestRenewExtendsActiveSession(t *testing.T) {
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-renew", now)
 
-	result, err := store.Create(context.Background(), tunnelkernel.CreateParams{
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-renew",
 		LocalTarget:  "127.0.0.1:8080",
 		TTL:          time.Minute,
@@ -109,7 +110,7 @@ func TestRenewRejectsExpiredSession(t *testing.T) {
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-renew-expired", now)
 
-	result, err := store.Create(context.Background(), tunnelkernel.CreateParams{
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-renew-expired",
 		LocalTarget:  "127.0.0.1:8080",
 		TTL:          time.Minute,
@@ -130,7 +131,7 @@ func TestRenewRejectsRevokedSession(t *testing.T) {
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-renew-revoked", now)
 
-	result, err := store.Create(context.Background(), tunnelkernel.CreateParams{
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-renew-revoked",
 		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
@@ -153,7 +154,7 @@ func TestRenewRequiresClientToken(t *testing.T) {
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-renew-token", now)
 
-	result, err := store.Create(context.Background(), tunnelkernel.CreateParams{
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-renew-token",
 		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
@@ -178,7 +179,7 @@ func TestListEventsTracksTunnelLifecycle(t *testing.T) {
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-events", now)
 
-	result, err := store.Create(context.Background(), tunnelkernel.CreateParams{
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-events",
 		LocalTarget:  "127.0.0.1:8080",
 		TTL:          time.Minute,
@@ -230,7 +231,7 @@ func TestListEventsRecordsExpiry(t *testing.T) {
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-events-expire", now)
 
-	result, err := store.Create(context.Background(), tunnelkernel.CreateParams{
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-events-expire",
 		LocalTarget:  "127.0.0.1:8080",
 		TTL:          time.Minute,
@@ -261,6 +262,12 @@ func int32Ptr(v int32) *int32 {
 	return &v
 }
 
+func tunnelTestContext() context.Context {
+	return accesskernel.WithActor(context.Background(), accesskernel.Actor{
+		Principal: accesskernel.Principal{ID: "prn-tunnel-test", Status: accesskernel.PrincipalStatusActive},
+	})
+}
+
 func newTunnelTestDB(t *testing.T) *postgres.DB {
 	t.Helper()
 	dsn := os.Getenv("AXERN_TEST_POSTGRES_DSN")
@@ -276,7 +283,7 @@ func newTunnelTestDB(t *testing.T) *postgres.DB {
 		t.Fatalf("apply postgres migrations: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		TRUNCATE TABLE tunnel_sessions, allocations, nodes CASCADE
+		TRUNCATE TABLE principals, namespaces, tunnel_sessions, allocations, nodes CASCADE
 	`); err != nil {
 		t.Fatalf("truncate tunnel test tables: %v", err)
 	}
@@ -285,6 +292,16 @@ func newTunnelTestDB(t *testing.T) *postgres.DB {
 
 func insertTunnelTestAllocation(t *testing.T, db *postgres.DB, allocationID string, now time.Time) {
 	t.Helper()
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO principals(principal_id,name,display_name,kind,status,version,created_at,updated_at)
+		VALUES ('prn-tunnel-test','tunnel-test','Tunnel Test','human','active',1,$1,$1)
+		ON CONFLICT (principal_id) DO NOTHING;
+		INSERT INTO namespaces(namespace,version,created_at,updated_at)
+		VALUES ('default',1,$1,$1)
+		ON CONFLICT (namespace) DO NOTHING
+	`, now.UTC()); err != nil {
+		t.Fatalf("insert tunnel access fixtures: %v", err)
+	}
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO nodes (
 			node_id, node_target, registered_at, updated_at, last_heartbeat_at, last_summary_at, node_auth_token_hash, lifecycle_status
@@ -300,5 +317,12 @@ func insertTunnelTestAllocation(t *testing.T, db *postgres.DB, allocationID stri
 			'{}'::jsonb, 1, $2, $2, 0, false, '')
 	`, allocationID, now.UTC()); err != nil {
 		t.Fatalf("insert allocation: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO workload_reservations(
+			reservation_id,allocation_id,namespace,owner_type,owner_id,node_id,created_at
+		) VALUES ('res-' || $1,$1,'default','run','run-test','node-test',$2)
+	`, allocationID, now.UTC()); err != nil {
+		t.Fatalf("insert workload reservation: %v", err)
 	}
 }

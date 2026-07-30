@@ -44,6 +44,16 @@ class GatewayControlStub:
                 request_serializer=axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveAllocationTerminalRequest.SerializeToString,
                 response_deserializer=axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveAllocationTerminalResponse.FromString,
                 _registered_method=True)
+        self.ResolveTunnelRelayTarget = channel.unary_unary(
+                '/axern.control.gateway.v1.GatewayControl/ResolveTunnelRelayTarget',
+                request_serializer=axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveTunnelRelayTargetRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveTunnelRelayTargetResponse.FromString,
+                _registered_method=True)
+        self.ResolveServiceReplicaTargets = channel.unary_unary(
+                '/axern.control.gateway.v1.GatewayControl/ResolveServiceReplicaTargets',
+                request_serializer=axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveServiceReplicaTargetsRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveServiceReplicaTargetsResponse.FromString,
+                _registered_method=True)
 
 
 class GatewayControlServicer:
@@ -61,6 +71,18 @@ class GatewayControlServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ResolveTunnelRelayTarget(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ResolveServiceReplicaTargets(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_GatewayControlServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -73,6 +95,16 @@ def add_GatewayControlServicer_to_server(servicer, server):
                     servicer.ResolveAllocationTerminal,
                     request_deserializer=axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveAllocationTerminalRequest.FromString,
                     response_serializer=axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveAllocationTerminalResponse.SerializeToString,
+            ),
+            'ResolveTunnelRelayTarget': grpc.unary_unary_rpc_method_handler(
+                    servicer.ResolveTunnelRelayTarget,
+                    request_deserializer=axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveTunnelRelayTargetRequest.FromString,
+                    response_serializer=axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveTunnelRelayTargetResponse.SerializeToString,
+            ),
+            'ResolveServiceReplicaTargets': grpc.unary_unary_rpc_method_handler(
+                    servicer.ResolveServiceReplicaTargets,
+                    request_deserializer=axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveServiceReplicaTargetsRequest.FromString,
+                    response_serializer=axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveServiceReplicaTargetsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -129,6 +161,60 @@ class GatewayControl:
             '/axern.control.gateway.v1.GatewayControl/ResolveAllocationTerminal',
             axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveAllocationTerminalRequest.SerializeToString,
             axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveAllocationTerminalResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ResolveTunnelRelayTarget(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.control.gateway.v1.GatewayControl/ResolveTunnelRelayTarget',
+            axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveTunnelRelayTargetRequest.SerializeToString,
+            axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveTunnelRelayTargetResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ResolveServiceReplicaTargets(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.control.gateway.v1.GatewayControl/ResolveServiceReplicaTargets',
+            axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveServiceReplicaTargetsRequest.SerializeToString,
+            axern_dot_control_dot_gateway_dot_v1_dot_gateway__pb2.ResolveServiceReplicaTargetsResponse.FromString,
             options,
             channel_credentials,
             insecure,

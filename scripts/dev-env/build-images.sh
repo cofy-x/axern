@@ -109,6 +109,8 @@ esac
     GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS= \
       "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/controld-migrate" ./control/controld/cmd/migrate
     GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS= \
+      "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/controld-access-bootstrap" ./control/controld/cmd/access-bootstrap
+    GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS= \
       "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/controld-retention" ./control/controld/cmd/retention
     GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS= \
       "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/storaged" ./control/storaged/cmd/storaged

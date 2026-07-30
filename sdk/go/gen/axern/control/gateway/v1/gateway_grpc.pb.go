@@ -19,8 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	GatewayControl_ResolveServiceRoute_FullMethodName       = "/axern.control.gateway.v1.GatewayControl/ResolveServiceRoute"
-	GatewayControl_ResolveAllocationTerminal_FullMethodName = "/axern.control.gateway.v1.GatewayControl/ResolveAllocationTerminal"
+	GatewayControl_ResolveServiceRoute_FullMethodName          = "/axern.control.gateway.v1.GatewayControl/ResolveServiceRoute"
+	GatewayControl_ResolveAllocationTerminal_FullMethodName    = "/axern.control.gateway.v1.GatewayControl/ResolveAllocationTerminal"
+	GatewayControl_ResolveTunnelRelayTarget_FullMethodName     = "/axern.control.gateway.v1.GatewayControl/ResolveTunnelRelayTarget"
+	GatewayControl_ResolveServiceReplicaTargets_FullMethodName = "/axern.control.gateway.v1.GatewayControl/ResolveServiceReplicaTargets"
 )
 
 // GatewayControlClient is the client API for GatewayControl service.
@@ -29,6 +31,8 @@ const (
 type GatewayControlClient interface {
 	ResolveServiceRoute(ctx context.Context, in *ResolveServiceRouteRequest, opts ...grpc.CallOption) (*ResolveServiceRouteResponse, error)
 	ResolveAllocationTerminal(ctx context.Context, in *ResolveAllocationTerminalRequest, opts ...grpc.CallOption) (*ResolveAllocationTerminalResponse, error)
+	ResolveTunnelRelayTarget(ctx context.Context, in *ResolveTunnelRelayTargetRequest, opts ...grpc.CallOption) (*ResolveTunnelRelayTargetResponse, error)
+	ResolveServiceReplicaTargets(ctx context.Context, in *ResolveServiceReplicaTargetsRequest, opts ...grpc.CallOption) (*ResolveServiceReplicaTargetsResponse, error)
 }
 
 type gatewayControlClient struct {
@@ -57,12 +61,32 @@ func (c *gatewayControlClient) ResolveAllocationTerminal(ctx context.Context, in
 	return out, nil
 }
 
+func (c *gatewayControlClient) ResolveTunnelRelayTarget(ctx context.Context, in *ResolveTunnelRelayTargetRequest, opts ...grpc.CallOption) (*ResolveTunnelRelayTargetResponse, error) {
+	out := new(ResolveTunnelRelayTargetResponse)
+	err := c.cc.Invoke(ctx, GatewayControl_ResolveTunnelRelayTarget_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayControlClient) ResolveServiceReplicaTargets(ctx context.Context, in *ResolveServiceReplicaTargetsRequest, opts ...grpc.CallOption) (*ResolveServiceReplicaTargetsResponse, error) {
+	out := new(ResolveServiceReplicaTargetsResponse)
+	err := c.cc.Invoke(ctx, GatewayControl_ResolveServiceReplicaTargets_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GatewayControlServer is the server API for GatewayControl service.
 // All implementations must embed UnimplementedGatewayControlServer
 // for forward compatibility
 type GatewayControlServer interface {
 	ResolveServiceRoute(context.Context, *ResolveServiceRouteRequest) (*ResolveServiceRouteResponse, error)
 	ResolveAllocationTerminal(context.Context, *ResolveAllocationTerminalRequest) (*ResolveAllocationTerminalResponse, error)
+	ResolveTunnelRelayTarget(context.Context, *ResolveTunnelRelayTargetRequest) (*ResolveTunnelRelayTargetResponse, error)
+	ResolveServiceReplicaTargets(context.Context, *ResolveServiceReplicaTargetsRequest) (*ResolveServiceReplicaTargetsResponse, error)
 	mustEmbedUnimplementedGatewayControlServer()
 }
 
@@ -75,6 +99,12 @@ func (UnimplementedGatewayControlServer) ResolveServiceRoute(context.Context, *R
 }
 func (UnimplementedGatewayControlServer) ResolveAllocationTerminal(context.Context, *ResolveAllocationTerminalRequest) (*ResolveAllocationTerminalResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveAllocationTerminal not implemented")
+}
+func (UnimplementedGatewayControlServer) ResolveTunnelRelayTarget(context.Context, *ResolveTunnelRelayTargetRequest) (*ResolveTunnelRelayTargetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveTunnelRelayTarget not implemented")
+}
+func (UnimplementedGatewayControlServer) ResolveServiceReplicaTargets(context.Context, *ResolveServiceReplicaTargetsRequest) (*ResolveServiceReplicaTargetsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveServiceReplicaTargets not implemented")
 }
 func (UnimplementedGatewayControlServer) mustEmbedUnimplementedGatewayControlServer() {}
 
@@ -125,6 +155,42 @@ func _GatewayControl_ResolveAllocationTerminal_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GatewayControl_ResolveTunnelRelayTarget_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveTunnelRelayTargetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayControlServer).ResolveTunnelRelayTarget(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayControl_ResolveTunnelRelayTarget_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayControlServer).ResolveTunnelRelayTarget(ctx, req.(*ResolveTunnelRelayTargetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GatewayControl_ResolveServiceReplicaTargets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveServiceReplicaTargetsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayControlServer).ResolveServiceReplicaTargets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GatewayControl_ResolveServiceReplicaTargets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayControlServer).ResolveServiceReplicaTargets(ctx, req.(*ResolveServiceReplicaTargetsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GatewayControl_ServiceDesc is the grpc.ServiceDesc for GatewayControl service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -139,6 +205,14 @@ var GatewayControl_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveAllocationTerminal",
 			Handler:    _GatewayControl_ResolveAllocationTerminal_Handler,
+		},
+		{
+			MethodName: "ResolveTunnelRelayTarget",
+			Handler:    _GatewayControl_ResolveTunnelRelayTarget_Handler,
+		},
+		{
+			MethodName: "ResolveServiceReplicaTargets",
+			Handler:    _GatewayControl_ResolveServiceReplicaTargets_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

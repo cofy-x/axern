@@ -42,6 +42,8 @@ message ResolveServiceRouteResponse {
 message ResolveAllocationTerminalRequest {
   string allocation_id = 1;
   int64 ttl_seconds = 2;
+  string client_certificate_fingerprint = 3;
+  string rollout_execution_lease = 4;
 }
 
 message ResolveAllocationTerminalResponse {
@@ -54,7 +56,30 @@ message ResolveAllocationTerminalResponse {
   axern.control.common.v1.ExecutionLease lease = 7;
 }
 
+message ResolveTunnelRelayTargetRequest {
+  string session_id = 1;
+}
+
+message ResolveTunnelRelayTargetResponse {
+  string node_edge_target = 1;
+}
+
+message ResolveServiceReplicaTargetsRequest {
+  string service_id = 1;
+}
+
+message ServiceReplicaTarget {
+  string allocation_id = 1;
+  string node_id = 2;
+}
+
+message ResolveServiceReplicaTargetsResponse {
+  repeated ServiceReplicaTarget replicas = 1;
+}
+
 service GatewayControl {
   rpc ResolveServiceRoute(ResolveServiceRouteRequest) returns (ResolveServiceRouteResponse) {}
   rpc ResolveAllocationTerminal(ResolveAllocationTerminalRequest) returns (ResolveAllocationTerminalResponse) {}
+  rpc ResolveTunnelRelayTarget(ResolveTunnelRelayTargetRequest) returns (ResolveTunnelRelayTargetResponse) {}
+  rpc ResolveServiceReplicaTargets(ResolveServiceReplicaTargetsRequest) returns (ResolveServiceReplicaTargetsResponse) {}
 }

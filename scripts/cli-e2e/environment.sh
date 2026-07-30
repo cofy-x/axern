@@ -50,6 +50,13 @@ setup_e2e_environment() {
   "${AXERN_ROOT}/bin/controld-migrate" \
     -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
     up
+  "${AXERN_ROOT}/bin/controld-access-bootstrap" \
+    -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
+    -principal-name cli-e2e-admin \
+    -display-name "CLI E2E Administrator" \
+    -credential-label cli-e2e-client \
+    -certificate "${cert_dir}/client.crt" \
+    -rollout-worker-certificate "${cert_dir}/rollout-worker.crt"
 
   "${AXERN_ROOT}/bin/storaged" \
     -grpc-address "${STORAGED_GRPC_ADDRESS}" \

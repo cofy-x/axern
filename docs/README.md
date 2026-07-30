@@ -57,6 +57,8 @@ documents.
   control and sandbox data-plane sequences.
 - [Resource Model](architecture/resource-model.md): requests, limits, quota,
   admission, and diagnostics.
+- [Principal And Namespace Authorization](architecture/authorization.md):
+  public mTLS identity mapping, scoped roles, gateway trust, and rotation.
 - [Storage Architecture](architecture/storage-architecture.md): storage
   control-plane and node-local volume ownership.
 - [Nydus Image Runtime](architecture/nydus-image-runtime.md): Nydus mount,

@@ -20,15 +20,15 @@ import (
 )
 
 type fakeControl struct {
-	validate func(context.Context, *tunnelcontrolv1.ValidateTunnelPeerRequest) (*tunnelcontrolv1.ValidateTunnelPeerResponse, error)
+	validate func(context.Context, *tunnelrelaycontrolv1.ValidateTunnelPeerRequest) (*tunnelrelaycontrolv1.ValidateTunnelPeerResponse, error)
 	report   func(context.Context, *tunnelrelaycontrolv1.ReportTunnelPeerEventRequest) (*tunnelrelaycontrolv1.ReportTunnelPeerEventResponse, error)
 }
 
-func (f fakeControl) ValidateTunnelPeer(ctx context.Context, in *tunnelcontrolv1.ValidateTunnelPeerRequest) (*tunnelcontrolv1.ValidateTunnelPeerResponse, error) {
+func (f fakeControl) ValidateTunnelPeer(ctx context.Context, in *tunnelrelaycontrolv1.ValidateTunnelPeerRequest) (*tunnelrelaycontrolv1.ValidateTunnelPeerResponse, error) {
 	if f.validate != nil {
 		return f.validate(ctx, in)
 	}
-	return &tunnelcontrolv1.ValidateTunnelPeerResponse{Session: &tunnelcontrolv1.TunnelSession{
+	return &tunnelrelaycontrolv1.ValidateTunnelPeerResponse{Session: &tunnelcontrolv1.TunnelSession{
 		SessionID: in.GetSessionID(),
 		Status:    tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
 	}}, nil
@@ -272,11 +272,11 @@ func TestRevalidationClosesTerminalSession(t *testing.T) {
 	t.Parallel()
 
 	var calls atomic.Int32
-	control := fakeControl{validate: func(_ context.Context, in *tunnelcontrolv1.ValidateTunnelPeerRequest) (*tunnelcontrolv1.ValidateTunnelPeerResponse, error) {
+	control := fakeControl{validate: func(_ context.Context, in *tunnelrelaycontrolv1.ValidateTunnelPeerRequest) (*tunnelrelaycontrolv1.ValidateTunnelPeerResponse, error) {
 		if calls.Add(1) > 1 {
 			return nil, grpcstatus.Error(codes.PermissionDenied, "tunnel session is not active")
 		}
-		return &tunnelcontrolv1.ValidateTunnelPeerResponse{Session: &tunnelcontrolv1.TunnelSession{
+		return &tunnelrelaycontrolv1.ValidateTunnelPeerResponse{Session: &tunnelcontrolv1.TunnelSession{
 			SessionID: in.GetSessionID(),
 			Status:    tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
 		}}, nil
@@ -299,11 +299,11 @@ func TestRevalidationKeepsPeerOnTransientFailure(t *testing.T) {
 	t.Parallel()
 
 	var calls atomic.Int32
-	control := fakeControl{validate: func(_ context.Context, in *tunnelcontrolv1.ValidateTunnelPeerRequest) (*tunnelcontrolv1.ValidateTunnelPeerResponse, error) {
+	control := fakeControl{validate: func(_ context.Context, in *tunnelrelaycontrolv1.ValidateTunnelPeerRequest) (*tunnelrelaycontrolv1.ValidateTunnelPeerResponse, error) {
 		if calls.Add(1) > 1 {
 			return nil, grpcstatus.Error(codes.Unavailable, "control unavailable")
 		}
-		return &tunnelcontrolv1.ValidateTunnelPeerResponse{Session: &tunnelcontrolv1.TunnelSession{
+		return &tunnelrelaycontrolv1.ValidateTunnelPeerResponse{Session: &tunnelcontrolv1.TunnelSession{
 			SessionID: in.GetSessionID(),
 			Status:    tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
 		}}, nil

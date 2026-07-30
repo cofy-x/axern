@@ -8,7 +8,7 @@ import (
 )
 
 func sessionSelectColumns() string {
-	return `session_id, allocation_id, node_id, node_target, attempt, remote_port, local_target, edge_target, node_edge_target, relay_id, client_edge_target, status, reason, bound_addr, revoked, client_token_hash, node_token_encrypted, node_token_hash, created_at, updated_at, expires_at, ready_at, last_peer_event_at, bytes_in, bytes_out`
+	return `session_id, allocation_id, namespace, creator_principal_id, node_id, node_target, attempt, remote_port, local_target, edge_target, node_edge_target, relay_id, client_edge_target, status, reason, bound_addr, revoked, client_token_hash, node_token_encrypted, node_token_hash, created_at, updated_at, expires_at, ready_at, last_peer_event_at, bytes_in, bytes_out`
 }
 
 type rowScanner interface {
@@ -26,7 +26,7 @@ func scanSession(row rowScanner) (*tunnelv1.TunnelSession, string, []byte, strin
 		expiresAt                time.Time
 		readyAt, lastPeerEventAt *time.Time
 	)
-	err := row.Scan(&session.SessionID, &session.AllocationID, &session.NodeID, &session.NodeTarget, &session.Attempt, &session.RemotePort, &session.LocalTarget, &session.EdgeTarget, &session.NodeEdgeTarget, &session.RelayID, &session.ClientEdgeTarget, &statusText, &session.Reason, &session.BoundAddr, &session.Revoked, &clientHash, &nodeTokenEncrypted, &nodeHash, &createdAt, &updatedAt, &expiresAt, &readyAt, &lastPeerEventAt, &session.BytesIn, &session.BytesOut)
+	err := row.Scan(&session.SessionID, &session.AllocationID, &session.Namespace, &session.CreatorPrincipalID, &session.NodeID, &session.NodeTarget, &session.Attempt, &session.RemotePort, &session.LocalTarget, &session.EdgeTarget, &session.NodeEdgeTarget, &session.RelayID, &session.ClientEdgeTarget, &statusText, &session.Reason, &session.BoundAddr, &session.Revoked, &clientHash, &nodeTokenEncrypted, &nodeHash, &createdAt, &updatedAt, &expiresAt, &readyAt, &lastPeerEventAt, &session.BytesIn, &session.BytesOut)
 	if err != nil {
 		return nil, "", nil, "", err
 	}

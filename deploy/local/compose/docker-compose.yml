@@ -30,6 +30,29 @@ services:
       - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
       - up
 
+  controld-access-bootstrap:
+    image: ${CONTROLD_IMAGE}
+    depends_on:
+      controld-migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    entrypoint: ["/usr/local/bin/controld-access-bootstrap"]
+    command:
+      - -postgres-dsn
+      - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
+      - -principal-name
+      - local-admin
+      - -display-name
+      - Local Administrator
+      - -credential-label
+      - local-client
+      - -certificate
+      - /certs/client.crt
+      - -rollout-worker-certificate
+      - /certs/rollout-worker.crt
+    volumes:
+      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+
   minio:
     image: minio/minio:RELEASE.2025-02-28T09-55-16Z
     command: server /data --console-address ":9001"
@@ -61,6 +84,8 @@ services:
     image: ${CONTROLD_IMAGE}
     depends_on:
       controld-migrate:
+        condition: service_completed_successfully
+      controld-access-bootstrap:
         condition: service_completed_successfully
       storaged:
         condition: service_started
@@ -135,9 +160,9 @@ services:
       - -tls-ca-cert
       - /certs/ca.crt
       - -tls-cert
-      - /certs/client.crt
+      - /certs/tunneld.crt
       - -tls-key
-      - /certs/client.key
+      - /certs/tunneld.key
       - -relay-id
       - default
       - -relay-tls-cert

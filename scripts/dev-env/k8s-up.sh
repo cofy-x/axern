@@ -24,6 +24,8 @@ kubectl -n "${K8S_NAMESPACE}" create secret generic controld-pki \
   --from-file=controld.key="${K8S_STATE_DIR}/certs/controld.key" \
   --from-file=client.crt="${K8S_STATE_DIR}/certs/client.crt" \
   --from-file=client.key="${K8S_STATE_DIR}/certs/client.key" \
+  --from-file=rollout-worker.crt="${K8S_STATE_DIR}/certs/rollout-worker.crt" \
+  --from-file=rollout-worker.key="${K8S_STATE_DIR}/certs/rollout-worker.key" \
   --from-file=gatewayd.crt="${K8S_STATE_DIR}/certs/gatewayd.crt" \
   --from-file=gatewayd.key="${K8S_STATE_DIR}/certs/gatewayd.key" \
   --from-file=node.crt="${K8S_STATE_DIR}/certs/node.crt" \

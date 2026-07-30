@@ -18,6 +18,7 @@ const sidebar = [
     translations: { 'zh-cn': '构建' },
     items: [
       { label: 'Axern CLI', translations: { 'zh-cn': 'Axern CLI' }, link: '/guides/cli/' },
+      { label: 'Identity and Access', translations: { 'zh-cn': '身份与权限' }, link: '/guides/authorization/' },
       { label: 'Python Service', translations: { 'zh-cn': 'Python Service' }, link: '/guides/python-service/' },
     ],
   },

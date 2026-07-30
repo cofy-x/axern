@@ -1,16 +1,19 @@
 package app
 
 import (
+	"context"
 	"strings"
 	"time"
 
 	apiadminv1 "github.com/cofy-x/axern/control/controld/internal/api/adminv1"
 	artifactaccessv1 "github.com/cofy-x/axern/control/controld/internal/api/artifactaccessv1"
 	apigatewayv1 "github.com/cofy-x/axern/control/controld/internal/api/gatewayv1"
+	apiidentityv1 "github.com/cofy-x/axern/control/controld/internal/api/identityv1"
 	apinodev1 "github.com/cofy-x/axern/control/controld/internal/api/nodev1"
 	publicv1 "github.com/cofy-x/axern/control/controld/internal/api/publicv1"
 	apirelayv1 "github.com/cofy-x/axern/control/controld/internal/api/relayv1"
 	rolloutworkerv1 "github.com/cofy-x/axern/control/controld/internal/api/rolloutworkerv1"
+	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
 	appadmin "github.com/cofy-x/axern/control/controld/internal/application/admin"
 	appenvironment "github.com/cofy-x/axern/control/controld/internal/application/environment"
 	appfunction "github.com/cofy-x/axern/control/controld/internal/application/function"
@@ -70,7 +73,9 @@ func (a *App) buildAPIs() {
 		Nodes:                      profile.adminNodes,
 		NodeHeartbeatWindow:        a.heartbeatFreshnessWindow,
 		NodeSummaryWindow:          a.summaryFreshnessWindow,
+		Access:                     a.accessControl,
 	})
+	a.identityAPI = apiidentityv1.New()
 	a.publicAPI = publicv1.New(publicv1.Dependencies{
 		Now:            func() time.Time { return a.now() },
 		Catalog:        a.catalog,
@@ -109,6 +114,8 @@ func (a *App) buildAPIs() {
 			Now:        func() time.Time { return a.now() },
 			Resolver:   appgateway.NewResolver(pggateway.NewReader(a.db), a.runStore),
 			DefaultTTL: defaultExecutionLeaseTTL,
+			Access:     a.accessControl,
+			Tunnels:    a.tunnelPG,
 		})
 	}
 	if a.rolloutPG != nil && strings.TrimSpace(a.rolloutWorkerToken) != "" {
@@ -223,6 +230,14 @@ func (a *App) authoritativeProfile(selector *placement.Selector) apiProfile {
 }
 
 func (a *App) AdminV1Handler() *apiadminv1.Server { return a.adminAPI }
+
+func (a *App) IdentityV1Handler() *apiidentityv1.Server { return a.identityAPI }
+
+func (a *App) AccessControl() *appaccess.Service { return a.accessControl }
+
+func (a *App) HasActivePlatformAdmin(ctx context.Context) (bool, error) {
+	return a.accessControl.HasActivePlatformAdmin(ctx)
+}
 
 func (a *App) PublicV1Handler() *publicv1.Server { return a.publicAPI }
 

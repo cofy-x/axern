@@ -11,8 +11,7 @@ import (
 	"testing"
 
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/auth"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
+	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"google.golang.org/grpc"
 )
 
@@ -120,15 +119,8 @@ func newTestHandler(t *testing.T, vendorDir string, resolver ServiceReplicaResol
 	return handler
 }
 
-func TestCurrentReadyReplicasFiltersUsableCandidates(t *testing.T) {
-	got := currentReadyReplicas(serviceReplicaFixture())
-	if len(got) != 1 || got[0].AllocationID != "alloc-ready" || got[0].NodeID != "node-a" {
-		t.Fatalf("replicas = %#v, want alloc-ready only", got)
-	}
-}
-
-func TestControlServiceReplicaResolverRequestsCurrentReplicas(t *testing.T) {
-	client := &fakeServiceControlClient{resp: &servicev1.ListServiceReplicasResponse{Replicas: serviceReplicaFixture()}}
+func TestGatewayServiceReplicaResolverRequestsTargets(t *testing.T) {
+	client := &fakeGatewayControlClient{resp: &gatewayv1.ResolveServiceReplicaTargetsResponse{Replicas: []*gatewayv1.ServiceReplicaTarget{{AllocationID: "alloc-ready", NodeID: "node-a"}}}}
 	resolver := NewServiceReplicaResolver(client)
 
 	got, err := resolver.CurrentReadyReplicas(context.Background(), "svc-123")
@@ -139,18 +131,8 @@ func TestControlServiceReplicaResolverRequestsCurrentReplicas(t *testing.T) {
 	if len(got) != 1 || got[0].AllocationID != "alloc-ready" {
 		t.Fatalf("replicas = %#v, want alloc-ready only", got)
 	}
-	if client.last.GetServiceID() != "svc-123" || client.last.GetFilter().GetView() != servicev1.ServiceReplicaView_SERVICE_REPLICA_VIEW_CURRENT {
-		t.Fatalf("request = %#v, want current replicas for svc-123", client.last)
-	}
-}
-
-func serviceReplicaFixture() []*servicev1.ServiceReplica {
-	return []*servicev1.ServiceReplica{
-		{ID: "alloc-ready", NodeID: "node-a", Ready: true, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
-		{ID: "alloc-not-ready", Ready: false, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
-		{ID: "alloc-ended", Ready: true, Ended: true, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED},
-		{ID: "alloc-outdated", Ready: true, Outdated: true, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
-		nil,
+	if client.last.GetServiceID() != "svc-123" {
+		t.Fatalf("request = %#v, want targets for svc-123", client.last)
 	}
 }
 
@@ -164,12 +146,12 @@ func (f *fakeReplicaResolver) CurrentReadyReplicas(_ context.Context, serviceID 
 	return f.replicas, nil
 }
 
-type fakeServiceControlClient struct {
-	last *servicev1.ListServiceReplicasRequest
-	resp *servicev1.ListServiceReplicasResponse
+type fakeGatewayControlClient struct {
+	last *gatewayv1.ResolveServiceReplicaTargetsRequest
+	resp *gatewayv1.ResolveServiceReplicaTargetsResponse
 }
 
-func (f *fakeServiceControlClient) ListServiceReplicas(_ context.Context, req *servicev1.ListServiceReplicasRequest, _ ...grpc.CallOption) (*servicev1.ListServiceReplicasResponse, error) {
+func (f *fakeGatewayControlClient) ResolveServiceReplicaTargets(_ context.Context, req *gatewayv1.ResolveServiceReplicaTargetsRequest, _ ...grpc.CallOption) (*gatewayv1.ResolveServiceReplicaTargetsResponse, error) {
 	f.last = req
 	return f.resp, nil
 }

@@ -31,7 +31,7 @@ func getCommand(runtime command.Runtime) *cobra.Command {
 }
 
 func listCommand(runtime command.Runtime) *cobra.Command {
-	var allocationID, nodeID string
+	var namespace, allocationID, nodeID string
 	var includeTerminal bool
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -39,7 +39,7 @@ func listCommand(runtime command.Runtime) *cobra.Command {
 		Args:  command.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return withControl(cmd, runtime, func(control apptunnel.Control, ctx context.Context) error {
-				response, err := control.List(ctx, apptunnel.ListParams{AllocationID: strings.TrimSpace(allocationID), NodeID: strings.TrimSpace(nodeID), IncludeTerminal: includeTerminal})
+				response, err := control.List(ctx, apptunnel.ListParams{Namespace: strings.TrimSpace(namespace), AllocationID: strings.TrimSpace(allocationID), NodeID: strings.TrimSpace(nodeID), IncludeTerminal: includeTerminal})
 				if err != nil {
 					return err
 				}
@@ -47,6 +47,7 @@ func listCommand(runtime command.Runtime) *cobra.Command {
 			})
 		},
 	}
+	cmd.Flags().StringVar(&namespace, "namespace", "default", "namespace scope")
 	cmd.Flags().StringVar(&allocationID, "allocation-id", "", "filter by allocation id")
 	cmd.Flags().StringVar(&nodeID, "node-id", "", "filter by node id")
 	cmd.Flags().BoolVar(&includeTerminal, "include-terminal", false, "include revoked, expired, and failed sessions")

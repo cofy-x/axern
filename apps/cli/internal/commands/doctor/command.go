@@ -69,7 +69,7 @@ func Command(runtime command.Runtime) *cobra.Command {
 						return nil, openErr
 					}
 					return &appdoctor.Session{
-						Context: session.Context, Namespace: session.Clients.Namespace,
+						Context: session.Context, Identity: session.Clients.Identity, Namespace: session.Clients.Namespace,
 						Catalog: session.Clients.Catalog, Environment: session.Clients.Environment,
 						Run: session.Clients.Run, Close: session.Close,
 					}, nil

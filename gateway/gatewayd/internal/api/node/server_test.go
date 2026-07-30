@@ -23,7 +23,8 @@ func TestExecResolvesInjectsLeaseAndForwards(t *testing.T) {
 	h := newHarness(t)
 	defer h.Close()
 
-	resp, err := h.edge.Exec(context.Background(), &nodesandboxv1.ExecRequest{
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-axern-rollout-work-lease", "work-lease"))
+	resp, err := h.edge.Exec(ctx, &nodesandboxv1.ExecRequest{
 		AllocationID: "alloc-public",
 		Spec:         &nodesandboxv1.ExecSpec{Argv: []string{"echo", "ok"}},
 	})
@@ -35,6 +36,9 @@ func TestExecResolvesInjectsLeaseAndForwards(t *testing.T) {
 	}
 	if got := h.resolver.requests[0].GetAllocationID(); got != "alloc-public" {
 		t.Fatalf("resolved allocation id = %q", got)
+	}
+	if got := h.resolver.requests[0].GetRolloutExecutionLease(); got != "work-lease" {
+		t.Fatalf("rollout execution lease = %q", got)
 	}
 	if got := h.dialer.targets[0]; got != "node.internal:24010" {
 		t.Fatalf("dial target = %q", got)
@@ -456,6 +460,9 @@ func newHarnessWithOptions(t *testing.T, options Options) *harness {
 	resolver := &fakeResolver{}
 	dialer := &fakeDialer{client: nodesandboxv1.NewNodeSandboxClient(backendConn)}
 	metrics := &fakeLeaseRetryObserver{}
+	options.ClientFingerprint = func(context.Context) (string, error) {
+		return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil
+	}
 	edge := New(resolver, dialer, options, metrics)
 	edgeServer, edgeConn := bufconnServer(t, func(s *grpc.Server) {
 		nodesandboxv1.RegisterNodeSandboxServer(s, edge)

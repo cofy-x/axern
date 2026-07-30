@@ -24,7 +24,7 @@ type preflightResult struct {
 }
 
 func (w Worker) plan(ctx context.Context, work *workerrolloutv1.WorkItem, leaseToken string, config Config) error {
-	params, err := paramsFromWork(ctx, work, config)
+	params, err := paramsFromWork(ctx, work, leaseToken, config)
 	if err != nil {
 		return err
 	}

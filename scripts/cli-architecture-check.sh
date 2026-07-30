@@ -72,6 +72,7 @@ apps/cli/internal/commands/dashboard
 apps/cli/internal/commands/doctor
 apps/cli/internal/commands/environment
 apps/cli/internal/commands/function
+apps/cli/internal/commands/identity
 apps/cli/internal/commands/namespace
 apps/cli/internal/commands/quota
 apps/cli/internal/commands/run

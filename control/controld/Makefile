@@ -6,13 +6,16 @@ ifneq ($(strip $(AXERN_TEST_POSTGRES_DSN)),)
 POSTGRES_TEST_FLAGS := -p 1
 endif
 
-.PHONY: build build-migrate build-retention test fmt vet check-architecture help
+.PHONY: build build-migrate build-access-bootstrap build-retention test fmt vet check-architecture help
 
 build: ## build the controld binary
 	$(GO) build -o ../../bin/controld ./cmd/controld
 
 build-migrate: ## build the controld migration binary
 	$(GO) build -o ../../bin/controld-migrate ./cmd/migrate
+
+build-access-bootstrap: ## build the controld access bootstrap binary
+	$(GO) build -o ../../bin/controld-access-bootstrap ./cmd/access-bootstrap
 
 build-retention: ## build the controld retention worker binary
 	$(GO) build -o ../../bin/controld-retention ./cmd/retention

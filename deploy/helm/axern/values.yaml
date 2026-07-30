@@ -168,6 +168,12 @@ pki:
     extraDNSNames: []
     extraIPAddresses: []
 
+auth:
+  bootstrap:
+    principalName: platform-admin
+    displayName: Platform Administrator
+    credentialLabel: bootstrap-admin
+
 secrets:
   existingSecret: ""
   secretName: controld-secrets

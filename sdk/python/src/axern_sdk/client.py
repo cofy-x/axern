@@ -13,7 +13,6 @@ from axern.control.admin.v1 import service_pb2 as admin_service_pb2, service_pb2
 from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2, environment_pb2_grpc
 from axern.control.function.v1 import function_pb2_grpc
-from axern.control.gateway.v1 import gateway_pb2_grpc
 from axern.control.run.v1 import run_pb2, run_pb2_grpc
 from axern.control.service.v1 import (
     service_event_pb2,
@@ -171,7 +170,6 @@ class AxernClient:
             proxy_mode=self._proxy_mode,
         )
         self.environments = environment_pb2_grpc.EnvironmentControlStub(self._channel)
-        self.gateways = gateway_pb2_grpc.GatewayControlStub(self._channel)
         self.runs = run_pb2_grpc.RunControlStub(self._channel)
         self.services = service_pb2_grpc.ServiceControlStub(self._channel)
         self.service_admin = admin_service_pb2_grpc.ServiceAdminStub(self._channel)

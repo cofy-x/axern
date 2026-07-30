@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package axern.control.identity.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1;identityv1";
+
+import "google/protobuf/timestamp.proto";
+
+message PrincipalIdentity {
+  string principal_id = 1;
+  string name = 2;
+  string display_name = 3;
+  string kind = 4;
+}
+
+message CredentialIdentity {
+  string credential_id = 1;
+  string label = 2;
+  string fingerprint = 3;
+  google.protobuf.Timestamp certificate_not_after = 4;
+}
+
+message EffectiveRole {
+  string role = 1;
+  string scope_type = 2;
+  string namespace = 3;
+}
+
+message WhoAmIRequest {}
+
+message WhoAmIResponse {
+  PrincipalIdentity principal = 1;
+  CredentialIdentity credential = 2;
+  repeated EffectiveRole roles = 3;
+}
+
+service IdentityControl {
+  rpc WhoAmI(WhoAmIRequest) returns (WhoAmIResponse) {}
+}

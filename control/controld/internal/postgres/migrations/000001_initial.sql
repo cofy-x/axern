@@ -1,3 +1,29 @@
+CREATE TABLE principals (
+	principal_id TEXT PRIMARY KEY,
+	name TEXT NOT NULL UNIQUE,
+	display_name TEXT NOT NULL,
+	kind TEXT NOT NULL CHECK (kind IN ('human', 'service')),
+	status TEXT NOT NULL CHECK (status IN ('active', 'disabled')),
+	version BIGINT NOT NULL DEFAULT 1,
+	created_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL,
+	CHECK (length(btrim(name)) > 0),
+	CHECK (length(btrim(display_name)) > 0)
+);
+
+CREATE TABLE principal_credentials (
+	credential_id TEXT PRIMARY KEY,
+	principal_id TEXT NOT NULL REFERENCES principals(principal_id),
+	kind TEXT NOT NULL CHECK (kind = 'x509_sha256'),
+	fingerprint BYTEA NOT NULL UNIQUE,
+	certificate_not_after TIMESTAMPTZ NOT NULL,
+	label TEXT NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL,
+	revoked_at TIMESTAMPTZ,
+	CHECK (octet_length(fingerprint) = 32),
+	CHECK (length(btrim(label)) > 0)
+);
+
 CREATE TABLE nodes (
 	node_id TEXT PRIMARY KEY,
 	node_target TEXT NOT NULL DEFAULT '',
@@ -49,6 +75,23 @@ CREATE TABLE namespace_resource_quotas (
 	updated_at TIMESTAMPTZ NOT NULL,
 	CHECK (cpu_milli_limit IS NULL OR cpu_milli_limit >= 0),
 	CHECK (memory_bytes_limit IS NULL OR memory_bytes_limit >= 0)
+);
+
+CREATE TABLE role_bindings (
+	binding_id TEXT PRIMARY KEY,
+	principal_id TEXT NOT NULL REFERENCES principals(principal_id),
+	scope_type TEXT NOT NULL CHECK (scope_type IN ('platform', 'namespace')),
+	namespace TEXT,
+	role TEXT NOT NULL CHECK (role IN ('platform_admin', 'namespace_admin', 'namespace_editor', 'namespace_viewer', 'rollout_executor')),
+	created_by_principal_id TEXT REFERENCES principals(principal_id),
+	created_at TIMESTAMPTZ NOT NULL,
+	revoked_by_principal_id TEXT REFERENCES principals(principal_id),
+	revoked_at TIMESTAMPTZ,
+	CHECK (
+		(scope_type = 'platform' AND namespace IS NULL AND role IN ('platform_admin', 'rollout_executor')) OR
+		(scope_type = 'namespace' AND namespace IS NOT NULL AND role IN ('namespace_admin', 'namespace_editor', 'namespace_viewer'))
+	),
+	CHECK ((revoked_at IS NULL AND revoked_by_principal_id IS NULL) OR (revoked_at IS NOT NULL AND revoked_by_principal_id IS NOT NULL))
 );
 
 CREATE TABLE environment_templates (
@@ -228,6 +271,7 @@ CREATE TABLE admin_audit_events (
 	target_type TEXT NOT NULL,
 	target_id TEXT NOT NULL,
 	operator_reason TEXT NOT NULL,
+	actor_principal_id TEXT REFERENCES principals(principal_id),
 	created_at TIMESTAMPTZ NOT NULL
 );
 
@@ -237,7 +281,15 @@ CREATE TABLE control_revisions (
 );
 
 INSERT INTO control_revisions(name, revision)
-VALUES ('execution_leases', 0);
+VALUES ('execution_leases', 0), ('access', 0);
+
+CREATE INDEX idx_principal_credentials_principal ON principal_credentials(principal_id, created_at DESC);
+CREATE INDEX idx_principal_credentials_active ON principal_credentials(fingerprint) WHERE revoked_at IS NULL;
+CREATE INDEX idx_role_bindings_principal ON role_bindings(principal_id, created_at DESC);
+CREATE INDEX idx_role_bindings_namespace ON role_bindings(namespace, principal_id) WHERE revoked_at IS NULL;
+CREATE UNIQUE INDEX idx_role_bindings_active_unique
+	ON role_bindings(principal_id, scope_type, COALESCE(namespace, ''), role)
+	WHERE revoked_at IS NULL;
 
 CREATE INDEX idx_environments_namespace_created ON environments(namespace, created_at DESC);
 CREATE INDEX idx_secrets_namespace_created ON secrets(namespace, created_at DESC);

@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/cofy-x/axern/gateway/gatewayd/internal/auth"
 	"github.com/cofy-x/axern/lib/go/observability"
 	artifactv1 "github.com/cofy-x/axern/sdk/go/gen/axern/data/artifact/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
@@ -35,6 +36,7 @@ type Options struct {
 }
 
 var publicControlServices = map[string]struct{}{
+	"axern.control.admin.v1.AccessAdmin":                {},
 	"axern.control.admin.v1.AdminAudit":                 {},
 	"axern.control.admin.v1.AdminReliability":           {},
 	"axern.control.admin.v1.NodeAdmin":                  {},
@@ -45,8 +47,8 @@ var publicControlServices = map[string]struct{}{
 	"axern.control.catalog.v1.RuntimeCatalog":           {},
 	"axern.control.environment.v1.EnvironmentControl":   {},
 	"axern.control.function.v1.FunctionControl":         {},
-	"axern.control.gateway.v1.GatewayControl":           {},
 	"axern.control.namespace.v1.NamespaceControl":       {},
+	"axern.control.identity.v1.IdentityControl":         {},
 	"axern.control.quota.v1.QuotaControl":               {},
 	"axern.control.rollout.v1.RolloutControl":           {},
 	"axern.control.run.v1.RunControl":                   {},
@@ -122,6 +124,21 @@ func proxyUnknownService(backend *grpc.ClientConn) grpc.StreamHandler {
 }
 
 func proxyUnknownServiceForServices(backend *grpc.ClientConn, allowedServices map[string]struct{}) grpc.StreamHandler {
+	return proxyUnknownServiceForServicesWithIdentity(backend, allowedServices, auth.CertificateFingerprint)
+}
+
+type clientIdentity func(context.Context) (string, error)
+
+const clientCertificateFingerprintMetadata = "x-axern-internal-client-cert-sha256"
+const rolloutExecutionLeaseMetadata = "x-axern-rollout-work-lease"
+
+var forwardedRequestMetadata = map[string]struct{}{
+	"traceparent":                 {},
+	"tracestate":                  {},
+	rolloutExecutionLeaseMetadata: {},
+}
+
+func proxyUnknownServiceForServicesWithIdentity(backend *grpc.ClientConn, allowedServices map[string]struct{}, identity clientIdentity) grpc.StreamHandler {
 	return func(_ any, serverStream grpc.ServerStream) error {
 		method, ok := grpc.MethodFromServerStream(serverStream)
 		if !ok {
@@ -134,7 +151,11 @@ func proxyUnknownServiceForServices(backend *grpc.ClientConn, allowedServices ma
 		if _, ok := allowedServices[service]; !ok {
 			return grpcstatus.Errorf(codes.PermissionDenied, "control service %q is not exposed by gatewayd", service)
 		}
-		outgoingCtx, cancel := context.WithCancel(outgoingContext(serverStream.Context()))
+		fingerprint, err := identity(serverStream.Context())
+		if err != nil {
+			return err
+		}
+		outgoingCtx, cancel := context.WithCancel(outgoingContext(serverStream.Context(), fingerprint))
 		defer cancel()
 		desc := &grpc.StreamDesc{ServerStreams: true, ClientStreams: true}
 		var header metadata.MD
@@ -176,12 +197,16 @@ func serviceNameFromMethod(method string) (string, bool) {
 	return service, ok && service != ""
 }
 
-func outgoingContext(ctx context.Context) context.Context {
-	incoming, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return ctx
+func outgoingContext(ctx context.Context, fingerprint string) context.Context {
+	outgoing := metadata.Pairs(clientCertificateFingerprintMetadata, fingerprint)
+	if incoming, ok := metadata.FromIncomingContext(ctx); ok {
+		for key := range forwardedRequestMetadata {
+			for _, value := range incoming.Get(key) {
+				outgoing.Append(key, value)
+			}
+		}
 	}
-	return metadata.NewOutgoingContext(ctx, incoming.Copy())
+	return metadata.NewOutgoingContext(ctx, outgoing)
 }
 
 func forwardRequests(serverStream grpc.ServerStream, clientStream grpc.ClientStream) error {
@@ -205,6 +230,7 @@ func forwardResponses(serverStream grpc.ServerStream, clientStream grpc.ClientSt
 	if err != nil {
 		return err
 	}
+	header = publicResponseMetadata(header)
 	if len(header) > 0 {
 		if err := serverStream.SendHeader(header); err != nil {
 			return err
@@ -214,14 +240,16 @@ func forwardResponses(serverStream grpc.ServerStream, clientStream grpc.ClientSt
 		var msg rawMessage
 		err := clientStream.RecvMsg(&msg)
 		if errors.Is(err, io.EOF) {
-			if len(*trailer) > 0 {
-				serverStream.SetTrailer(*trailer)
+			filteredTrailer := publicResponseMetadata(*trailer)
+			if len(filteredTrailer) > 0 {
+				serverStream.SetTrailer(filteredTrailer)
 			}
 			return nil
 		}
 		if err != nil {
-			if len(*trailer) > 0 {
-				serverStream.SetTrailer(*trailer)
+			filteredTrailer := publicResponseMetadata(*trailer)
+			if len(filteredTrailer) > 0 {
+				serverStream.SetTrailer(filteredTrailer)
 			}
 			return err
 		}
@@ -229,6 +257,16 @@ func forwardResponses(serverStream grpc.ServerStream, clientStream grpc.ClientSt
 			return err
 		}
 	}
+}
+
+func publicResponseMetadata(in metadata.MD) metadata.MD {
+	out := metadata.MD{}
+	for _, key := range []string{"traceparent", "tracestate"} {
+		if values := in.Get(key); len(values) > 0 {
+			out[key] = append([]string(nil), values...)
+		}
+	}
+	return out
 }
 
 func loadServerCredentials(caPath, certPath, keyPath string) (credentials.TransportCredentials, error) {

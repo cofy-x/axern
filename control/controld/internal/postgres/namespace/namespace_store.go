@@ -162,6 +162,13 @@ func ensureNamespaceDeletable(ctx context.Context, q queryer, namespace string) 
 			)`,
 		},
 		{
+			name: "active role bindings",
+			query: `SELECT EXISTS (
+				SELECT 1 FROM role_bindings
+				WHERE namespace = $1 AND revoked_at IS NULL
+			)`,
+		},
+		{
 			name: "active runs",
 			query: `SELECT EXISTS (
 				SELECT 1 FROM runs

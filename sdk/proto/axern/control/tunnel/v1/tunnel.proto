@@ -86,6 +86,8 @@ message TunnelSession {
   google.protobuf.Timestamp last_peer_event_at = 20;
   int64 bytes_in = 21;
   int64 bytes_out = 22;
+  string namespace = 23;
+  string creator_principal_id = 24;
 }
 
 message TunnelSessionEvent {
@@ -129,6 +131,7 @@ message ListTunnelSessionsRequest {
   string allocation_id = 1;
   string node_id = 2;
   bool include_terminal = 3;
+  string namespace = 4;
 }
 
 message ListTunnelSessionsResponse {
@@ -173,16 +176,6 @@ message RenewTunnelSessionResponse {
   TunnelSession session = 1;
 }
 
-message ValidateTunnelPeerRequest {
-  string session_id = 1;
-  TunnelPeerKind peer_kind = 2;
-  string token = 3;
-}
-
-message ValidateTunnelPeerResponse {
-  TunnelSession session = 1;
-}
-
 service TunnelControl {
   rpc CreateTunnelSession(CreateTunnelSessionRequest) returns (CreateTunnelSessionResponse) {}
   rpc GetTunnelSession(GetTunnelSessionRequest) returns (GetTunnelSessionResponse) {}
@@ -191,5 +184,4 @@ service TunnelControl {
   rpc InspectTunnelSession(InspectTunnelSessionRequest) returns (InspectTunnelSessionResponse) {}
   rpc RevokeTunnelSession(RevokeTunnelSessionRequest) returns (RevokeTunnelSessionResponse) {}
   rpc RenewTunnelSession(RenewTunnelSessionRequest) returns (RenewTunnelSessionResponse) {}
-  rpc ValidateTunnelPeer(ValidateTunnelPeerRequest) returns (ValidateTunnelPeerResponse) {}
 }

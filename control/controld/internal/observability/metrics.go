@@ -3,6 +3,10 @@ package observability
 import sdkobs "github.com/cofy-x/axern/lib/go/observability"
 
 var (
+	MetricAuthorizationDecisionTotal = sdkobs.Instrument{
+		Name:        "axern.controld_authorization_decision_total",
+		Description: "Control-plane authorization decisions by bounded action and result.",
+	}
 	MetricGatewayResolveTotal = sdkobs.Instrument{
 		Name:        "axern.controld_gateway_resolve_total",
 		Description: "Gateway route resolve requests.",

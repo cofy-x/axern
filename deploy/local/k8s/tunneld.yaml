@@ -25,9 +25,9 @@ spec:
             - -tls-ca-cert
             - /certs/ca.crt
             - -tls-cert
-            - /certs/client.crt
+            - /certs/tunneld.crt
             - -tls-key
-            - /certs/client.key
+            - /certs/tunneld.key
             - -relay-id
             - default
             - -relay-tls-cert

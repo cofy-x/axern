@@ -16,8 +16,23 @@ spec:
           image: axern/local-controld:dev
           imagePullPolicy: IfNotPresent
           command:
-            - /usr/local/bin/controld-migrate
+            - /bin/sh
+            - -ec
           args:
-            - -postgres-dsn
-            - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
-            - up
+            - |
+              /usr/local/bin/controld-migrate -postgres-dsn 'postgres://postgres:postgres@postgres:5432/axern?sslmode=disable' up
+              /usr/local/bin/controld-access-bootstrap \
+                -postgres-dsn 'postgres://postgres:postgres@postgres:5432/axern?sslmode=disable' \
+                -principal-name local-admin \
+                -display-name 'Local Administrator' \
+                -credential-label local-client \
+                -certificate /certs/client.crt \
+                -rollout-worker-certificate /certs/rollout-worker.crt
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: controld-pki

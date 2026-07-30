@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	tunnelrelaycontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/tunnel/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/tunnel/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -42,7 +42,7 @@ func (s *Server) revalidatePeer(ctx context.Context, p *peer) error {
 	if s.control == nil {
 		return grpcstatus.Error(codes.FailedPrecondition, "control validator is not configured")
 	}
-	_, err := s.control.ValidateTunnelPeer(ctx, &tunnelcontrolv1.ValidateTunnelPeerRequest{
+	_, err := s.control.ValidateTunnelPeer(ctx, &tunnelrelaycontrolv1.ValidateTunnelPeerRequest{
 		SessionID: p.sessionID,
 		PeerKind:  p.kind,
 		Token:     p.token,

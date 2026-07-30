@@ -88,6 +88,7 @@ build-go: ## Build the root Go binaries
 	$(GO) build -o bin/axern ./apps/cli
 	$(GO) -C control/controld build -o ../../bin/controld ./cmd/controld
 	$(GO) -C control/controld build -o ../../bin/controld-migrate ./cmd/migrate
+	$(GO) -C control/controld build -o ../../bin/controld-access-bootstrap ./cmd/access-bootstrap
 	$(GO) -C control/storaged build -o ../../bin/storaged ./cmd/storaged
 	$(GO) -C gateway/gatewayd build -o ../../bin/gatewayd ./
 	$(GO) -C runtime/imagemgr build -o ../../bin/imagemgr ./cmd/imagemgr

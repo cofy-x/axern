@@ -133,6 +133,7 @@ heartbeat, stale summary, and non-ready axnoded counts.
 ```bash
 make -C control/controld build
 make -C control/controld build-migrate
+make -C control/controld build-access-bootstrap
 make -C control/controld build-retention
 ```
 
@@ -183,11 +184,21 @@ go run ./control/controld/cmd/migrate \
   -postgres-dsn "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable" \
   up
 
+go run ./control/controld/cmd/access-bootstrap \
+  -postgres-dsn "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable" \
+  -certificate .dev/certs/client.crt \
+  -rollout-worker-certificate .dev/certs/rollout-worker.crt
+
 go run ./control/controld/cmd/retention \
   -postgres-dsn "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable"
 ```
 
-`controld` and `cmd/retention` assume the database has already been initialized.
+`controld` requires both migrations and access bootstrap to be complete. It
+refuses startup without an active platform administrator. Public product APIs
+accept only gatewayd-forwarded verified client fingerprints; direct public API
+calls to controld are rejected. See
+[Principal And Namespace Authorization](../../docs/architecture/authorization.md).
+`cmd/retention` assumes the database has already been initialized.
 Retention uses a Postgres advisory lock, so duplicate workers skip instead of
 racing. The cleanup policy covers service events, tunnel session events,
 terminal service allocation history, terminal runs, and expired or revoked

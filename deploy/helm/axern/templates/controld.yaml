@@ -38,6 +38,32 @@ spec:
                 echo "waiting for postgres migration dependencies"
                 sleep 2
               done
+        - name: controld-access-bootstrap
+          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
+          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
+          env:
+            - name: CONTROLD_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axern.postgresSecretName" . }}
+                  key: {{ .Values.postgres.dsnKey }}
+          command:
+            - /usr/local/bin/controld-access-bootstrap
+          args:
+            - -principal-name
+            - {{ .Values.auth.bootstrap.principalName | quote }}
+            - -display-name
+            - {{ .Values.auth.bootstrap.displayName | quote }}
+            - -credential-label
+            - {{ .Values.auth.bootstrap.credentialLabel | quote }}
+            - -certificate
+            - /certs/client.crt
+            - -rollout-worker-certificate
+            - /certs/rollout-worker.crt
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
         - name: wait-storaged
           image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
           imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}

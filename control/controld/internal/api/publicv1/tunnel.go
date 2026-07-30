@@ -125,7 +125,7 @@ func (s *Server) ListTunnelSessions(ctx context.Context, req *tunnelv1.ListTunne
 		opErr = grpcstatus.Error(codes.FailedPrecondition, "tunnel control is not configured")
 		return nil, opErr
 	}
-	sessions, err := s.deps.Tunnels.List(ctx, req.GetAllocationID(), req.GetNodeID(), req.GetIncludeTerminal(), s.deps.Now())
+	sessions, err := s.deps.Tunnels.List(ctx, req.GetNamespace(), req.GetAllocationID(), req.GetNodeID(), req.GetIncludeTerminal(), s.deps.Now())
 	if err != nil {
 		opErr = err
 		return nil, err
@@ -205,20 +205,4 @@ func (s *Server) RenewTunnelSession(ctx context.Context, req *tunnelv1.RenewTunn
 		return nil, err
 	}
 	return &tunnelv1.RenewTunnelSessionResponse{Session: session}, nil
-}
-
-func (s *Server) ValidateTunnelPeer(ctx context.Context, req *tunnelv1.ValidateTunnelPeerRequest) (*tunnelv1.ValidateTunnelPeerResponse, error) {
-	ctx, op := publicOps.Tunnel(ctx, ctrlobs.SpanTunnelValidatePeer, publicActionValidatePeer)
-	var opErr error
-	defer func() { op.End(opErr) }()
-	if s.deps.Tunnels == nil {
-		opErr = grpcstatus.Error(codes.FailedPrecondition, "tunnel control is not configured")
-		return nil, opErr
-	}
-	session, err := s.deps.Tunnels.ValidatePeer(ctx, req.GetSessionID(), req.GetPeerKind(), req.GetToken(), s.deps.Now())
-	if err != nil {
-		opErr = err
-		return nil, err
-	}
-	return &tunnelv1.ValidateTunnelPeerResponse{Session: session}, nil
 }

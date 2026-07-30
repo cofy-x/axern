@@ -9,6 +9,7 @@ type Server struct {
 	adminv1.UnimplementedNodeAdminServer
 	adminv1.UnimplementedStorageAdminServer
 	adminv1.UnimplementedServiceAdminServer
+	adminv1.UnimplementedAccessAdminServer
 
 	deps Dependencies
 }

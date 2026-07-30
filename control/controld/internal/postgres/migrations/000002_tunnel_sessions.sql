@@ -1,6 +1,8 @@
 CREATE TABLE tunnel_sessions (
 	session_id TEXT PRIMARY KEY,
 	allocation_id TEXT NOT NULL,
+	namespace TEXT NOT NULL REFERENCES namespaces(namespace) ON DELETE RESTRICT,
+	creator_principal_id TEXT NOT NULL REFERENCES principals(principal_id) ON DELETE RESTRICT,
 	node_id TEXT NOT NULL,
 	node_target TEXT NOT NULL DEFAULT '',
 	attempt BIGINT NOT NULL,
@@ -38,6 +40,9 @@ WHERE revoked = FALSE
 
 CREATE INDEX idx_tunnel_sessions_node_revision
 ON tunnel_sessions(node_id, revision);
+
+CREATE INDEX idx_tunnel_sessions_namespace_created
+ON tunnel_sessions(namespace, created_at DESC);
 
 CREATE INDEX idx_tunnel_sessions_expiry
 ON tunnel_sessions(expires_at, revoked);

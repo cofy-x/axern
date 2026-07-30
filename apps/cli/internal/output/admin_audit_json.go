@@ -11,12 +11,13 @@ type AdminAuditEventListJSON struct {
 }
 
 type AdminAuditEventJSON struct {
-	EventID        string `json:"event_id"`
-	Operation      string `json:"operation"`
-	TargetType     string `json:"target_type"`
-	TargetID       string `json:"target_id"`
-	OperatorReason string `json:"operator_reason"`
-	CreatedAt      string `json:"created_at"`
+	EventID          string `json:"event_id"`
+	Operation        string `json:"operation"`
+	TargetType       string `json:"target_type"`
+	TargetID         string `json:"target_id"`
+	OperatorReason   string `json:"operator_reason"`
+	ActorPrincipalID string `json:"actor_principal_id,omitempty"`
+	CreatedAt        string `json:"created_at"`
 }
 
 func PrintAdminAuditEventListJSON(w io.Writer, events []*adminv1.AdminAuditEvent) error {
@@ -32,11 +33,12 @@ func NewAdminAuditEventJSON(event *adminv1.AdminAuditEvent) *AdminAuditEventJSON
 		return nil
 	}
 	return &AdminAuditEventJSON{
-		EventID:        event.GetEventID(),
-		Operation:      adminAuditOperationLabel(event.GetOperation()),
-		TargetType:     adminAuditTargetTypeLabel(event.GetTargetType()),
-		TargetID:       event.GetTargetID(),
-		OperatorReason: event.GetOperatorReason(),
-		CreatedAt:      FormatProtoTimestamp(event.GetCreatedAt()),
+		EventID:          event.GetEventID(),
+		Operation:        adminAuditOperationLabel(event.GetOperation()),
+		TargetType:       adminAuditTargetTypeLabel(event.GetTargetType()),
+		TargetID:         event.GetTargetID(),
+		OperatorReason:   event.GetOperatorReason(),
+		ActorPrincipalID: event.GetActorPrincipalID(),
+		CreatedAt:        FormatProtoTimestamp(event.GetCreatedAt()),
 	}
 }

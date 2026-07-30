@@ -8,7 +8,7 @@ subsystem, read that subsystem's `AGENTS.md` and `README.md` instead.
 
 ```text
 clients / SDKs / apps
-  -> gatewayd          external control, tunnel, service HTTP, and terminal edge
+  -> gatewayd          external mTLS identity, control, tunnel, service HTTP, and terminal edge
      -> controld       product API semantics and durable control state
         -> storaged        storage planning and binding
         -> gatewayd        Function worker dispatch through the data-plane edge
@@ -38,6 +38,9 @@ the language SDK workspaces.
 - Gateway and tunnels:
   - `gateway/gatewayd` owns external control API, tunnel client entry, service
     HTTP, and browser terminal entry.
+  - Public control and sandbox requests are authenticated at gatewayd and
+    authorized by controld against durable Principal credentials and scoped
+    role bindings. Direct public controld access is not supported.
   - `control/controld` may call `gateway/gatewayd` for gateway-owned data-plane
     actions such as Function worker dispatch. This is an internal orchestration
     path, not the external product API entry path.
@@ -46,6 +49,8 @@ the language SDK workspaces.
   - Managed Axrun workers use distinct mTLS connections: private lease and
     rollout-worker control calls go directly to `controld`, while allocation
     and sandbox execution use the public API path through `gatewayd`.
+    The worker's `rollout_executor` identity requires the active durable work
+    lease as a namespace-scoped execution delegation.
   - `runtime/tunneld` owns internal reverse TCP tunnel pairing. Tunnels are
     platform networking, not Axrun LLM telemetry.
 - Node runtime:

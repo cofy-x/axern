@@ -244,8 +244,8 @@ compose_project_up() {
   fi
   docker compose "${compose_args[@]}" stop gatewayd node tunneld controld-retention controld storaged >/dev/null 2>&1 || true
   docker compose "${compose_args[@]}" up -d --remove-orphans "${infra_services[@]}"
-  docker compose "${compose_args[@]}" rm -sf controld-migrate >/dev/null 2>&1 || true
-  docker compose "${compose_args[@]}" up --force-recreate --exit-code-from controld-migrate controld-migrate
+  docker compose "${compose_args[@]}" rm -sf controld-migrate controld-access-bootstrap >/dev/null 2>&1 || true
+  docker compose "${compose_args[@]}" up --force-recreate --exit-code-from controld-access-bootstrap controld-access-bootstrap
   docker compose "${compose_args[@]}" up -d --force-recreate --no-deps --remove-orphans storaged controld controld-retention tunneld node gatewayd
 }
 
@@ -256,8 +256,8 @@ compose_project_reset_state() {
     compose_args+=(--profile otel)
   fi
   docker compose "${compose_args[@]}" stop \
-    gatewayd node tunneld controld-retention controld storaged controld-migrate postgres minio >/dev/null 2>&1 || true
-  docker compose "${compose_args[@]}" rm -sf controld-migrate postgres minio >/dev/null 2>&1 || true
+    gatewayd node tunneld controld-retention controld storaged controld-access-bootstrap controld-migrate postgres minio >/dev/null 2>&1 || true
+  docker compose "${compose_args[@]}" rm -sf controld-access-bootstrap controld-migrate postgres minio >/dev/null 2>&1 || true
   rm -rf "${COMPOSE_STATE_DIR}/postgres" "${COMPOSE_STATE_DIR}/minio" "${COMPOSE_STATE_DIR}/run"
   ensure_state_dirs
 }

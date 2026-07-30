@@ -82,6 +82,14 @@ authorized to resolve artifact tickets.
 When `pki.existingSecret` is used, its `gatewayd.crt` must have both
 `serverAuth` and `clientAuth` extended key usages and the verified subject
 identity `gatewayd`; the chart-generated certificate already has that shape.
+The Secret must also contain `rollout-worker.crt` and
+`rollout-worker.key`. The rollout worker certificate is registered as the
+internal `rollout_executor` Principal during the access bootstrap init
+container; it is intentionally distinct from the chart's operator
+`client.crt`. Configure the initial administrator metadata under
+`auth.bootstrap`. Changing those values after initialization does not rotate
+identity material: use AccessAdmin credential and role-binding operations
+through gatewayd instead.
 
 `secrets.artifactTicketKey` is independent from provider, registry,
 object-store, and worker bootstrap credentials. The chart preserves a generated

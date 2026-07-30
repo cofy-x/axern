@@ -34,6 +34,5 @@ const (
 	SpanTunnelInspect                    = "controld.tunnel.inspect"
 	SpanTunnelRevoke                     = "controld.tunnel.revoke"
 	SpanTunnelRenew                      = "controld.tunnel.renew"
-	SpanTunnelValidatePeer               = "controld.tunnel.validate_peer"
 	SpanRetentionCleanup                 = "controld.retention.cleanup"
 )

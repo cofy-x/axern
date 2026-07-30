@@ -12,7 +12,7 @@ import (
 
 func Command(runtime command.Runtime) *cobra.Command {
 	root := &cobra.Command{Use: "admin", Short: "Operate audited administrative workflows"}
-	root.AddCommand(serviceCommand(runtime), nodeCommand(runtime), reliabilityCommand(runtime), consistencyCommand(runtime), auditCommand(runtime), storageCommand(runtime), allocationRetryCommand(runtime))
+	root.AddCommand(principalCommand(runtime), credentialCommand(runtime), roleBindingCommand(runtime), serviceCommand(runtime), nodeCommand(runtime), reliabilityCommand(runtime), consistencyCommand(runtime), auditCommand(runtime), storageCommand(runtime), allocationRetryCommand(runtime))
 	return root
 }
 

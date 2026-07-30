@@ -36,7 +36,7 @@ func (f *fakeTunnelControl) Get(context.Context, string, time.Time) (*tunnelv1.T
 	}, nil
 }
 
-func (*fakeTunnelControl) List(context.Context, string, string, bool, time.Time) ([]*tunnelv1.TunnelSession, error) {
+func (*fakeTunnelControl) List(context.Context, string, string, string, bool, time.Time) ([]*tunnelv1.TunnelSession, error) {
 	return nil, nil
 }
 

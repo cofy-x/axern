@@ -10,7 +10,7 @@ import (
 	workerrolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/rollout/worker/v1"
 )
 
-func paramsFromWork(ctx context.Context, work *workerrolloutv1.WorkItem, config Config) (approllout.Params, error) {
+func paramsFromWork(ctx context.Context, work *workerrolloutv1.WorkItem, leaseToken string, config Config) (approllout.Params, error) {
 	if config.ExecutionContext == nil {
 		return approllout.Params{}, fmt.Errorf("Axern execution context is required")
 	}
@@ -52,14 +52,15 @@ func paramsFromWork(ctx context.Context, work *workerrolloutv1.WorkItem, config 
 		Attempts:            attempts,
 		Output:              config.OutputDir,
 		AxernConfig: &axernbackend.Config{
-			Endpoint:      execution.Endpoint,
-			Namespace:     work.GetRollout().GetNamespace(),
-			RuntimeClass:  spec.GetExecution().GetRuntimeClass(),
-			TLSCACert:     execution.TLS.CACert,
-			TLSCert:       execution.TLS.Cert,
-			TLSKey:        execution.TLS.Key,
-			TLSServerName: execution.TLS.ServerName,
-			ProxyMode:     execution.ProxyMode,
+			Endpoint:              execution.Endpoint,
+			Namespace:             work.GetRollout().GetNamespace(),
+			RuntimeClass:          spec.GetExecution().GetRuntimeClass(),
+			TLSCACert:             execution.TLS.CACert,
+			TLSCert:               execution.TLS.Cert,
+			TLSKey:                execution.TLS.Key,
+			TLSServerName:         execution.TLS.ServerName,
+			ProxyMode:             execution.ProxyMode,
+			RolloutExecutionLease: leaseToken,
 		},
 	}
 	if execute {

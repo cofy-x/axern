@@ -122,10 +122,7 @@ event with:
 - operation,
 - target type and id,
 - operator reason.
-
-Until an authenticated operator identity exists, the UI should not invent one.
-When identity lands, the dashboard can add `operator_id` beside
-`operator_reason` without changing the button flow.
+- authenticated actor Principal ID.
 
 ## Non-Goals
 

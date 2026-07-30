@@ -18,8 +18,8 @@ data:
           "proxy_mode": "direct",
           "tls": {
             "ca_cert": "/certs/ca.crt",
-            "cert": "/certs/client.crt",
-            "key": "/certs/client.key",
+            "cert": "/certs/rollout-worker.crt",
+            "key": "/certs/rollout-worker.key",
             "server_name": "controld.{{ .Release.Namespace }}.svc.cluster.local"
           }
         },
@@ -28,8 +28,8 @@ data:
           "proxy_mode": "direct",
           "tls": {
             "ca_cert": "/certs/ca.crt",
-            "cert": "/certs/client.crt",
-            "key": "/certs/client.key",
+            "cert": "/certs/rollout-worker.crt",
+            "key": "/certs/rollout-worker.key",
             "server_name": "gatewayd.{{ .Release.Namespace }}.svc.cluster.local"
           }
         }

@@ -19,13 +19,17 @@ func (s *Store) Get(ctx context.Context, sessionID string, now time.Time) (*tunn
 	return session, err
 }
 
-func (s *Store) List(ctx context.Context, allocationID, nodeID string, includeTerminal bool, now time.Time) ([]*tunnelv1.TunnelSession, error) {
+func (s *Store) List(ctx context.Context, namespace, allocationID, nodeID string, includeTerminal bool, now time.Time) ([]*tunnelv1.TunnelSession, error) {
 	if s == nil || s.db == nil || s.db.Pool() == nil {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "tunnel store is not configured")
 	}
 	_ = s.expireDue(ctx, now.UTC())
 	conds := []string{"TRUE"}
 	args := []any{}
+	if v := strings.TrimSpace(namespace); v != "" {
+		args = append(args, v)
+		conds = append(conds, fmt.Sprintf("namespace = $%d", len(args)))
+	}
 	if v := strings.TrimSpace(allocationID); v != "" {
 		args = append(args, v)
 		conds = append(conds, fmt.Sprintf("allocation_id = $%d", len(args)))

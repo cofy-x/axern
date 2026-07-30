@@ -108,6 +108,39 @@ func TestStoreDeleteNamespaceRejectsActiveReservation(t *testing.T) {
 	}
 }
 
+func TestStoreDeleteNamespaceRejectsActiveRoleBinding(t *testing.T) {
+	db := newNamespaceTestDB(t)
+	store := NewStore(db)
+	ctx := context.Background()
+	now := time.Date(2026, 5, 8, 10, 0, 0, 0, time.UTC)
+
+	if _, err := store.CreateNamespace(ctx, "team-a", now); err != nil {
+		t.Fatalf("CreateNamespace() error = %v", err)
+	}
+	if _, err := db.Pool().Exec(ctx, `INSERT INTO principals(principal_id,name,display_name,kind,status,version,created_at,updated_at) VALUES('prn-viewer','viewer','Viewer','human','active',1,$1,$1)`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool().Exec(ctx, `INSERT INTO role_bindings(binding_id,principal_id,scope_type,namespace,role,created_at) VALUES('rb-viewer','prn-viewer','namespace','team-a','namespace_viewer',$1)`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DeleteNamespace(ctx, "team-a", now); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("DeleteNamespace() code = %v, want FailedPrecondition err=%v", grpcstatus.Code(err), err)
+	}
+	if _, err := db.Pool().Exec(ctx, `UPDATE role_bindings SET revoked_by_principal_id='prn-viewer', revoked_at=$1 WHERE binding_id='rb-viewer'`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DeleteNamespace(ctx, "team-a", now); err != nil {
+		t.Fatalf("DeleteNamespace() after revoke error = %v", err)
+	}
+	var historyCount int
+	if err := db.Pool().QueryRow(ctx, `SELECT count(*) FROM role_bindings WHERE binding_id='rb-viewer'`).Scan(&historyCount); err != nil {
+		t.Fatal(err)
+	}
+	if historyCount != 1 {
+		t.Fatalf("revoked binding history count = %d, want 1", historyCount)
+	}
+}
+
 func TestStoreDeleteNamespaceRejectsLiveEnvironment(t *testing.T) {
 	db := newNamespaceTestDB(t)
 	store := NewStore(db)
@@ -317,6 +350,9 @@ func truncateNamespaceTestTables(t *testing.T, db *postgres.DB) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
 		TRUNCATE TABLE
+			role_bindings,
+			principal_credentials,
+			principals,
 			runs,
 			environments,
 			workload_reservations,

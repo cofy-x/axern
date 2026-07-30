@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
 	adminkernel "github.com/cofy-x/axern/control/controld/internal/kernel/admin"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	consistencykernel "github.com/cofy-x/axern/control/controld/internal/kernel/consistency"
@@ -51,4 +52,5 @@ type Dependencies struct {
 	Nodes                      Nodes
 	NodeHeartbeatWindow        time.Duration
 	NodeSummaryWindow          time.Duration
+	Access                     *appaccess.Service
 }

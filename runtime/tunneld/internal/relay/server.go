@@ -14,12 +14,8 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-type Validator interface {
-	ValidateTunnelPeer(ctx context.Context, in *tunnelcontrolv1.ValidateTunnelPeerRequest, opts ...interface{}) (*tunnelcontrolv1.ValidateTunnelPeerResponse, error)
-}
-
 type ControlClient interface {
-	ValidateTunnelPeer(ctx context.Context, in *tunnelcontrolv1.ValidateTunnelPeerRequest) (*tunnelcontrolv1.ValidateTunnelPeerResponse, error)
+	ValidateTunnelPeer(ctx context.Context, in *tunnelrelaycontrolv1.ValidateTunnelPeerRequest) (*tunnelrelaycontrolv1.ValidateTunnelPeerResponse, error)
 	ReportTunnelPeerEvent(ctx context.Context, in *tunnelrelaycontrolv1.ReportTunnelPeerEventRequest) (*tunnelrelaycontrolv1.ReportTunnelPeerEventResponse, error)
 }
 
@@ -60,7 +56,7 @@ func (s *Server) ConnectPeer(stream tunnelv1.TunnelRelay_ConnectPeerServer) erro
 		s.recordPeerConnect(stream.Context(), open.GetPeerKind(), sdkobs.ResultError)
 		return grpcstatus.Error(codes.Unavailable, "tunnel relay is draining")
 	}
-	if _, err := s.control.ValidateTunnelPeer(stream.Context(), &tunnelcontrolv1.ValidateTunnelPeerRequest{
+	if _, err := s.control.ValidateTunnelPeer(stream.Context(), &tunnelrelaycontrolv1.ValidateTunnelPeerRequest{
 		SessionID: open.GetSessionID(),
 		PeerKind:  open.GetPeerKind(),
 		Token:     open.GetToken(),

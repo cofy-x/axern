@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"axern/control/admin/v1/audit.proto\x12\x16\x61xern.control.admin.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x82\x02\n\x0f\x41\x64minAuditEvent\x12\x10\n\x08\x65vent_id\x18\x01 \x01(\t\x12>\n\toperation\x18\x02 \x01(\x0e\x32+.axern.control.admin.v1.AdminAuditOperation\x12\x41\n\x0btarget_type\x18\x03 \x01(\x0e\x32,.axern.control.admin.v1.AdminAuditTargetType\x12\x11\n\ttarget_id\x18\x04 \x01(\t\x12\x17\n\x0foperator_reason\x18\x05 \x01(\t\x12.\n\ncreated_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\xad\x01\n\x15\x41\x64minAuditEventFilter\x12>\n\toperation\x18\x01 \x01(\x0e\x32+.axern.control.admin.v1.AdminAuditOperation\x12\x41\n\x0btarget_type\x18\x02 \x01(\x0e\x32,.axern.control.admin.v1.AdminAuditTargetType\x12\x11\n\ttarget_id\x18\x03 \x01(\t\"k\n\x1bListAdminAuditEventsRequest\x12=\n\x06\x66ilter\x18\x01 \x01(\x0b\x32-.axern.control.admin.v1.AdminAuditEventFilter\x12\r\n\x05limit\x18\x02 \x01(\x05\"W\n\x1cListAdminAuditEventsResponse\x12\x37\n\x06\x65vents\x18\x01 \x03(\x0b\x32\'.axern.control.admin.v1.AdminAuditEvent*\xf0\x02\n\x13\x41\x64minAuditOperation\x12%\n!ADMIN_AUDIT_OPERATION_UNSPECIFIED\x10\x00\x12:\n6ADMIN_AUDIT_OPERATION_FORCE_ALLOCATION_LIFECYCLE_RETRY\x10\x01\x12\x39\n5ADMIN_AUDIT_OPERATION_FAIL_ALLOCATION_LIFECYCLE_RETRY\x10\x02\x12:\n6ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY\x10\x03\x12/\n+ADMIN_AUDIT_OPERATION_RETRY_STORAGE_BINDING\x10\x04\x12\'\n#ADMIN_AUDIT_OPERATION_PURGE_SERVICE\x10\x05\x12%\n!ADMIN_AUDIT_OPERATION_RETIRE_NODE\x10\x06*\xdb\x01\n\x14\x41\x64minAuditTargetType\x12\'\n#ADMIN_AUDIT_TARGET_TYPE_UNSPECIFIED\x10\x00\x12&\n\"ADMIN_AUDIT_TARGET_TYPE_ALLOCATION\x10\x01\x12+\n\'ADMIN_AUDIT_TARGET_TYPE_STORAGE_BINDING\x10\x02\x12#\n\x1f\x41\x44MIN_AUDIT_TARGET_TYPE_SERVICE\x10\x03\x12 \n\x1c\x41\x44MIN_AUDIT_TARGET_TYPE_NODE\x10\x04\x32\x92\x01\n\nAdminAudit\x12\x83\x01\n\x14ListAdminAuditEvents\x12\x33.axern.control.admin.v1.ListAdminAuditEventsRequest\x1a\x34.axern.control.admin.v1.ListAdminAuditEventsResponse\"\x00\x42\x43ZAgithub.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"axern/control/admin/v1/audit.proto\x12\x16\x61xern.control.admin.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9e\x02\n\x0f\x41\x64minAuditEvent\x12\x10\n\x08\x65vent_id\x18\x01 \x01(\t\x12>\n\toperation\x18\x02 \x01(\x0e\x32+.axern.control.admin.v1.AdminAuditOperation\x12\x41\n\x0btarget_type\x18\x03 \x01(\x0e\x32,.axern.control.admin.v1.AdminAuditTargetType\x12\x11\n\ttarget_id\x18\x04 \x01(\t\x12\x17\n\x0foperator_reason\x18\x05 \x01(\t\x12.\n\ncreated_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x1a\n\x12\x61\x63tor_principal_id\x18\x07 \x01(\t\"\xad\x01\n\x15\x41\x64minAuditEventFilter\x12>\n\toperation\x18\x01 \x01(\x0e\x32+.axern.control.admin.v1.AdminAuditOperation\x12\x41\n\x0btarget_type\x18\x02 \x01(\x0e\x32,.axern.control.admin.v1.AdminAuditTargetType\x12\x11\n\ttarget_id\x18\x03 \x01(\t\"k\n\x1bListAdminAuditEventsRequest\x12=\n\x06\x66ilter\x18\x01 \x01(\x0b\x32-.axern.control.admin.v1.AdminAuditEventFilter\x12\r\n\x05limit\x18\x02 \x01(\x05\"W\n\x1cListAdminAuditEventsResponse\x12\x37\n\x06\x65vents\x18\x01 \x03(\x0b\x32\'.axern.control.admin.v1.AdminAuditEvent*\xa9\x05\n\x13\x41\x64minAuditOperation\x12%\n!ADMIN_AUDIT_OPERATION_UNSPECIFIED\x10\x00\x12:\n6ADMIN_AUDIT_OPERATION_FORCE_ALLOCATION_LIFECYCLE_RETRY\x10\x01\x12\x39\n5ADMIN_AUDIT_OPERATION_FAIL_ALLOCATION_LIFECYCLE_RETRY\x10\x02\x12:\n6ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY\x10\x03\x12/\n+ADMIN_AUDIT_OPERATION_RETRY_STORAGE_BINDING\x10\x04\x12\'\n#ADMIN_AUDIT_OPERATION_PURGE_SERVICE\x10\x05\x12%\n!ADMIN_AUDIT_OPERATION_RETIRE_NODE\x10\x06\x12*\n&ADMIN_AUDIT_OPERATION_CREATE_PRINCIPAL\x10\x07\x12+\n\'ADMIN_AUDIT_OPERATION_DISABLE_PRINCIPAL\x10\x08\x12(\n$ADMIN_AUDIT_OPERATION_ADD_CREDENTIAL\x10\t\x12+\n\'ADMIN_AUDIT_OPERATION_REVOKE_CREDENTIAL\x10\n\x12,\n(ADMIN_AUDIT_OPERATION_GRANT_ROLE_BINDING\x10\x0b\x12-\n)ADMIN_AUDIT_OPERATION_REVOKE_ROLE_BINDING\x10\x0c\x12*\n&ADMIN_AUDIT_OPERATION_BOOTSTRAP_ACCESS\x10\r*\xd4\x02\n\x14\x41\x64minAuditTargetType\x12\'\n#ADMIN_AUDIT_TARGET_TYPE_UNSPECIFIED\x10\x00\x12&\n\"ADMIN_AUDIT_TARGET_TYPE_ALLOCATION\x10\x01\x12+\n\'ADMIN_AUDIT_TARGET_TYPE_STORAGE_BINDING\x10\x02\x12#\n\x1f\x41\x44MIN_AUDIT_TARGET_TYPE_SERVICE\x10\x03\x12 \n\x1c\x41\x44MIN_AUDIT_TARGET_TYPE_NODE\x10\x04\x12%\n!ADMIN_AUDIT_TARGET_TYPE_PRINCIPAL\x10\x05\x12&\n\"ADMIN_AUDIT_TARGET_TYPE_CREDENTIAL\x10\x06\x12(\n$ADMIN_AUDIT_TARGET_TYPE_ROLE_BINDING\x10\x07\x32\x92\x01\n\nAdminAudit\x12\x83\x01\n\x14ListAdminAuditEvents\x12\x33.axern.control.admin.v1.ListAdminAuditEventsRequest\x1a\x34.axern.control.admin.v1.ListAdminAuditEventsResponse\"\x00\x42\x43ZAgithub.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,18 +33,18 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'axern.control.admin.v1.audi
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZAgithub.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1'
-  _globals['_ADMINAUDITOPERATION']._serialized_start=731
-  _globals['_ADMINAUDITOPERATION']._serialized_end=1099
-  _globals['_ADMINAUDITTARGETTYPE']._serialized_start=1102
-  _globals['_ADMINAUDITTARGETTYPE']._serialized_end=1321
+  _globals['_ADMINAUDITOPERATION']._serialized_start=759
+  _globals['_ADMINAUDITOPERATION']._serialized_end=1440
+  _globals['_ADMINAUDITTARGETTYPE']._serialized_start=1443
+  _globals['_ADMINAUDITTARGETTYPE']._serialized_end=1783
   _globals['_ADMINAUDITEVENT']._serialized_start=96
-  _globals['_ADMINAUDITEVENT']._serialized_end=354
-  _globals['_ADMINAUDITEVENTFILTER']._serialized_start=357
-  _globals['_ADMINAUDITEVENTFILTER']._serialized_end=530
-  _globals['_LISTADMINAUDITEVENTSREQUEST']._serialized_start=532
-  _globals['_LISTADMINAUDITEVENTSREQUEST']._serialized_end=639
-  _globals['_LISTADMINAUDITEVENTSRESPONSE']._serialized_start=641
-  _globals['_LISTADMINAUDITEVENTSRESPONSE']._serialized_end=728
-  _globals['_ADMINAUDIT']._serialized_start=1324
-  _globals['_ADMINAUDIT']._serialized_end=1470
+  _globals['_ADMINAUDITEVENT']._serialized_end=382
+  _globals['_ADMINAUDITEVENTFILTER']._serialized_start=385
+  _globals['_ADMINAUDITEVENTFILTER']._serialized_end=558
+  _globals['_LISTADMINAUDITEVENTSREQUEST']._serialized_start=560
+  _globals['_LISTADMINAUDITEVENTSREQUEST']._serialized_end=667
+  _globals['_LISTADMINAUDITEVENTSRESPONSE']._serialized_start=669
+  _globals['_LISTADMINAUDITEVENTSRESPONSE']._serialized_end=756
+  _globals['_ADMINAUDIT']._serialized_start=1786
+  _globals['_ADMINAUDIT']._serialized_end=1932
 # @@protoc_insertion_point(module_scope)

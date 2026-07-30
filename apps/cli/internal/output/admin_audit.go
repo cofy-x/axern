@@ -17,10 +17,11 @@ func RenderAdminAuditEventTable(w io.Writer, events []*adminv1.AdminAuditEvent) 
 			adminAuditOperationLabel(event.GetOperation()),
 			adminAuditTargetTypeLabel(event.GetTargetType()),
 			event.GetTargetID(),
+			event.GetActorPrincipalID(),
 			ShortMessage(event.GetOperatorReason(), 72),
 		})
 	}
-	RenderTable(w, []string{"CREATED", "OPERATION", "TARGET", "TARGET_ID", "OPERATOR_REASON"}, rows)
+	RenderTable(w, []string{"CREATED", "OPERATION", "TARGET", "TARGET_ID", "ACTOR_PRINCIPAL_ID", "OPERATOR_REASON"}, rows)
 }
 
 func adminAuditOperationLabel(operation adminv1.AdminAuditOperation) string {
