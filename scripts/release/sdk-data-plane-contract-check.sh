@@ -21,6 +21,7 @@ ast.parse((root / "scripts/release/sdk-data-plane/python.py").read_text())
 
 workflow = (root / ".github/workflows/release.yml").read_text()
 required_workflow = (
+    "workflow_dispatch:",
     "needs: [artifacts, images, sdk-artifacts]",
     "sdk-data-plane-acceptance.sh candidate",
     "sdk-data-plane-acceptance.sh published",
@@ -28,16 +29,27 @@ required_workflow = (
 for value in required_workflow:
     if value not in workflow:
         raise SystemExit(f"release workflow is missing SDK data-plane contract: {value}")
+if workflow.count("if: github.ref_type == 'tag'") != 3:
+    raise SystemExit("release workflow must restrict all publication jobs to tag events")
+global_env = workflow.split("jobs:", 1)[0]
+if "AXERN_RELEASE_VERSION:" in global_env:
+    raise SystemExit("candidate image version must not override SDK or CLI artifact versions globally")
 
 harness = (root / "scripts/release/kind-acceptance.sh").read_text()
 for value in (
     "AXERN_SDK_ACCEPTANCE_CONFIG",
     "AXERN_SDK_ACCEPTANCE_CONTEXT=release",
     "AXERN_SDK_ACCEPTANCE_CLI",
+    "namespace create default --output json",
     "doctor --namespace default --output json",
 ):
     if value not in harness:
         raise SystemExit(f"kind acceptance is missing SDK hook contract: {value}")
+
+namespace_create = harness.index("namespace create default --output json")
+doctor = harness.index("doctor --namespace default --output json")
+if namespace_create > doctor:
+    raise SystemExit("kind acceptance must create its namespace before running doctor")
 
 fixtures = (
     root / "scripts/release/sdk-data-plane/python.py",

@@ -110,9 +110,11 @@ if [ "${gateway_ready}" != "true" ]; then
 fi
 
 config="${state_dir}/config.json"
-"${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}" --config "${config}" context import-kubernetes release \
+cli="${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}"
+"${cli}" --config "${config}" context import-kubernetes release \
   --namespace "${namespace}" --cert-dir "${state_dir}/certs" --current
-"${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}" --config "${config}" doctor --namespace default --output json >/dev/null
+"${cli}" --config "${config}" namespace create default --output json
+"${cli}" --config "${config}" doctor --namespace default --output json
 
 cat >"${state_dir}/run.yaml" <<'YAML'
 api_version: axern/v1
@@ -127,12 +129,12 @@ spec:
   runtime_class: runsc
   resources: {}
 YAML
-"${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}" --config "${config}" --timeout 10m run create --file "${state_dir}/run.yaml" --wait
+"${cli}" --config "${config}" --timeout 10m run create --file "${state_dir}/run.yaml" --wait
 
 if [ "$#" -gt 0 ]; then
   AXERN_SDK_ACCEPTANCE_CONFIG="${config}" \
     AXERN_SDK_ACCEPTANCE_CONTEXT=release \
-    AXERN_SDK_ACCEPTANCE_CLI="${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}" \
+    AXERN_SDK_ACCEPTANCE_CLI="${cli}" \
     "$@"
 fi
 

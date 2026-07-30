@@ -78,27 +78,25 @@ for contract in (
         raise SystemExit(f"release architecture build contract is missing: {contract}")
 
 release_workflow = (root / ".github/workflows/release.yml").read_text()
-qualification_workflow = (root / ".github/workflows/release-images-qualification.yml").read_text()
-for workflow_name, workflow in (
-    ("release", release_workflow),
-    ("qualification", qualification_workflow),
+for contract in (
+    "workflow_dispatch:",
+    "AXERN_RELEASE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('candidate-{0}', github.sha) }}",
+    "runs-on: ${{ matrix.runner }}",
+    "runner: ubuntu-24.04",
+    "runner: ubuntu-24.04-arm",
+    "docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0",
+    "crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0",
+    "packages: write",
+    "docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3",
+    'build-and-push-images.sh "${{ matrix.arch }}"',
 ):
-    for contract in (
-        "runs-on: ${{ matrix.runner }}",
-        "runner: ubuntu-24.04",
-        "runner: ubuntu-24.04-arm",
-        "docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0",
-        "crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0",
-    ):
-        if contract not in workflow:
-            raise SystemExit(f"{workflow_name} workflow native runner contract is missing: {contract}")
-    if "setup-qemu-action" in workflow:
-        raise SystemExit(f"{workflow_name} workflow must not enable cross-architecture emulation")
-if 'build-and-push-images.sh "${{ matrix.arch }}" build' not in qualification_workflow:
-    raise SystemExit("qualification workflow must build images without publishing them")
-for forbidden in ("packages: write", "docker/login-action"):
-    if forbidden in qualification_workflow:
-        raise SystemExit(f"qualification workflow must not gain publishing authority: {forbidden}")
+    if contract not in release_workflow:
+        raise SystemExit(f"release candidate image contract is missing: {contract}")
+if "setup-qemu-action" in release_workflow:
+    raise SystemExit("release workflow must not enable cross-architecture emulation")
+global_env = release_workflow.split("jobs:", 1)[0]
+if "AXERN_RELEASE_VERSION:" in global_env:
+    raise SystemExit("candidate image version must not override artifact versions globally")
 PY
 
 echo "release_image_build_contract_ok=true"

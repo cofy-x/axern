@@ -3,7 +3,15 @@ set -euo pipefail
 
 AXERN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 version="$(tr -d '[:space:]' < "${AXERN_ROOT}/VERSION")"
-tag="${GITHUB_REF_NAME:-v${version}}"
+if [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ] && \
+   { [ "${GITHUB_REF_TYPE:-}" != "branch" ] || [ "${GITHUB_REF_NAME:-}" != "main" ]; }; then
+  echo "manual release qualification must run from the main branch" >&2
+  exit 1
+fi
+tag="v${version}"
+if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+  tag="${GITHUB_REF_NAME:-}"
+fi
 if [ "${tag}" != "v${version}" ]; then
   echo "release tag ${tag} does not match VERSION ${version}" >&2
   exit 1

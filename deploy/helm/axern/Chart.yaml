@@ -2,8 +2,8 @@ apiVersion: v2
 name: axern
 description: Open-source agentic infrastructure and high-performance sandbox platform.
 type: application
-version: 0.3.0
-appVersion: "0.3.0"
+version: 0.3.1
+appVersion: "0.3.1"
 home: https://github.com/cofy-x/axern
 sources:
   - https://github.com/cofy-x/axern

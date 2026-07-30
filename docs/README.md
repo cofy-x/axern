@@ -76,7 +76,7 @@ material here only when multiple modules need the same model.
 
 ## Development And Operations
 
-- [v0.3.0 Release Notes](releases/v0.3.0.md): authorization, diagnostics, and
+- [v0.3.1 Release Notes](releases/v0.3.1.md): authorization, diagnostics, and
   the clean-install boundary for the v0.3 platform baseline.
 - [Devbox Workflow](operations/devbox.md): Linux source-development stack,
   service restart, and debugging.

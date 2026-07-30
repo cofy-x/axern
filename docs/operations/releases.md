@@ -43,6 +43,14 @@ one H1 and a blank line; the release workflow prepends the remaining body to
 GitHub's generated notes. Keep operational history out of architecture and
 product documents.
 
+Before creating tags, dispatch the `Release` workflow against the accepted
+`main` commit and verify that its recorded head SHA is the intended release
+commit. A manual run builds the same artifacts and architecture images and
+executes the full candidate kind and SDK data-plane acceptance, but all
+publication jobs are structurally restricted to tag events. Candidate images
+use commit-scoped tags so a later qualification cannot overwrite an earlier
+candidate. Do not create the release tags until this candidate run succeeds.
+
 ## Publish
 
 Create two annotated tags on the same accepted commit and push them atomically:

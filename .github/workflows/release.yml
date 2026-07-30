@@ -4,9 +4,14 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: release-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   validate:
@@ -103,6 +108,8 @@ jobs:
     needs: validate
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    env:
+      AXERN_RELEASE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('candidate-{0}', github.sha) }}
     permissions:
       contents: read
       packages: write
@@ -182,6 +189,7 @@ jobs:
       - name: Verify candidate chart, images, and CLI
         env:
           AXERN_CLI_BINARY: ${{ runner.temp }}/bin/axern
+          AXERN_RELEASE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('candidate-{0}', github.sha) }}
           AXERN_RELEASE_IMAGE_TAG_SUFFIX: amd64
           AXERN_REGISTRY_USERNAME: ${{ github.actor }}
           AXERN_REGISTRY_PASSWORD: ${{ github.token }}
@@ -192,6 +200,7 @@ jobs:
               bash scripts/release/sdk-data-plane-acceptance.sh candidate
 
   sdk-publish:
+    if: github.ref_type == 'tag'
     needs: [sdk-artifacts, candidate-acceptance]
     runs-on: ubuntu-latest
     environment: sdk-release
@@ -225,6 +234,7 @@ jobs:
         run: npm publish dist/sdk/typescript/*.tgz --access public
 
   publish:
+    if: github.ref_type == 'tag'
     needs: [artifacts, images, candidate-acceptance, sdk-publish]
     runs-on: ubuntu-latest
     permissions:
@@ -279,6 +289,7 @@ jobs:
             "${release_args[@]}"
 
   acceptance:
+    if: github.ref_type == 'tag'
     needs: [publish, sdk-publish]
     runs-on: ubuntu-latest
     steps:
