@@ -37,6 +37,12 @@ The release tag must point at a commit already accepted by the normal `main`
 branch checks. Releases are immutable: never move an existing tag or overwrite
 a GitHub Release, OCI chart version, or final image tag.
 
+Add `docs/releases/vX.Y.Z.md` when a release needs a curated upgrade boundary
+or highlights that generated commit notes cannot express. Start the file with
+one H1 and a blank line; the release workflow prepends the remaining body to
+GitHub's generated notes. Keep operational history out of architecture and
+product documents.
+
 ## Publish
 
 Create two annotated tags on the same accepted commit and push them atomically:

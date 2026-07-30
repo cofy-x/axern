@@ -1,6 +1,6 @@
 [project]
 name = "axern"
-version = "0.2.1"
+version = "0.3.0"
 description = "Open-source agentic infrastructure for running AI agents in isolated, stateful sandboxes"
 readme = "README.md"
 requires-python = ">=3.12"

@@ -270,8 +270,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          release_notes="docs/releases/${GITHUB_REF_NAME}.md"
+          release_args=(--verify-tag --fail-on-no-commits --generate-notes --title "Axern ${GITHUB_REF_NAME}")
+          if [[ -f "${release_notes}" ]]; then
+            release_args+=(--notes "$(tail -n +3 "${release_notes}")")
+          fi
           gh release create "${GITHUB_REF_NAME}" dist/release/* \
-            --verify-tag --generate-notes --title "Axern ${GITHUB_REF_NAME}"
+            "${release_args[@]}"
 
   acceptance:
     needs: [publish, sdk-publish]
