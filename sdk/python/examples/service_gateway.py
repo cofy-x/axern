@@ -11,8 +11,8 @@ from axern_sdk import AxernClient
 from _context import current_context
 
 NAMESPACE = os.environ.get("AXERN_NAMESPACE", "default")
-TEMPLATE_ID = os.environ.get("AXERN_TEMPLATE_ID", "python311")
-RUNTIME_CLASS = os.environ.get("AXERN_RUNTIME_CLASS", "runsc")
+IMAGE = os.environ.get("AXERN_IMAGE", "docker.io/library/python:3.12-slim")
+RUNTIME_CLASS = os.environ.get("AXERN_RUNTIME_CLASS", "runc")
 SERVER_PROGRAM = """\
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -46,11 +46,11 @@ def _run(on_ready: Callable[[str], None] | None = None) -> None:
     try:
         environment = client.create_environment(
             namespace=NAMESPACE,
-            template_id=TEMPLATE_ID,
+            image_ref=IMAGE,
             labels={"axern.example": "python-sdk-service-gateway"},
         )
         environment_id = environment.id
-        print(f"environment=ready template={TEMPLATE_ID}")
+        print(f"environment=ready image={IMAGE}")
 
         service = client.create_service(
             namespace=NAMESPACE,

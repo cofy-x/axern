@@ -27,8 +27,6 @@ PERF_KERNEL_RELEASE="${PERF_KERNEL_RELEASE:-}"
 VERIFY_DOCKER_HTTP_PROXY="${VERIFY_DOCKER_HTTP_PROXY:-}"
 VERIFY_DOCKER_HTTPS_PROXY="${VERIFY_DOCKER_HTTPS_PROXY:-}"
 VERIFY_DOCKER_NO_PROXY="${VERIFY_DOCKER_NO_PROXY:-}"
-AXERN_LOCAL_PROXY_URL="${AXERN_LOCAL_PROXY_URL:-http://host.docker.internal:7890}"
-AXERN_LOCAL_PROXY_AUTODETECT="${AXERN_LOCAL_PROXY_AUTODETECT:-1}"
 
 normalize_runsc_source() {
   case "$1" in
@@ -252,51 +250,22 @@ resolve_docker_daemon_proxy() {
   docker info --format '{{json .}}' 2>/dev/null | jq -r --arg field "${field}" '.[$field] // empty' 2>/dev/null || true
 }
 
-resolve_default_local_proxy() {
-  if [ "${AXERN_LOCAL_PROXY_AUTODETECT}" != "1" ] || [ -z "${AXERN_LOCAL_PROXY_URL}" ]; then
-    printf '%s\n' ""
-    return 0
-  fi
-  python3 - "${AXERN_LOCAL_PROXY_URL}" <<'PY'
-import socket
-import sys
-from urllib.parse import urlparse
-
-proxy = sys.argv[1]
-parsed = urlparse(proxy)
-host = parsed.hostname
-port = parsed.port
-if not host or not port:
-    raise SystemExit(0)
-probe_host = "127.0.0.1" if host in {"host.docker.internal", "localhost"} else host
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.settimeout(0.25)
-try:
-    sock.connect((probe_host, port))
-except OSError:
-    raise SystemExit(0)
-finally:
-    sock.close()
-print(proxy)
-PY
-}
-
 resolve_build_http_proxy() {
   if [ -n "${VERIFY_DOCKER_HTTP_PROXY:-}" ]; then
-    printf '%s\n' "${VERIFY_DOCKER_HTTP_PROXY}"
+    normalize_runtime_proxy_url "${VERIFY_DOCKER_HTTP_PROXY}"
     return 0
   fi
   local daemon_proxy
   daemon_proxy="$(resolve_docker_daemon_proxy "HttpProxy")"
   if [ -n "${daemon_proxy}" ] && [ "${daemon_proxy}" != "<no value>" ]; then
-    printf '%s\n' "${daemon_proxy}"
+    normalize_runtime_proxy_url "${daemon_proxy}"
     return 0
   fi
   if [ -n "${HTTP_PROXY:-${http_proxy:-}}" ]; then
-    printf '%s\n' "${HTTP_PROXY:-${http_proxy:-}}"
+    normalize_runtime_proxy_url "${HTTP_PROXY:-${http_proxy:-}}"
     return 0
   fi
-  resolve_default_local_proxy
+  printf '%s\n' ""
 }
 
 reserve_host_port() {
@@ -530,20 +499,20 @@ prepare_nydus_test_image_source() {
 
 resolve_build_https_proxy() {
   if [ -n "${VERIFY_DOCKER_HTTPS_PROXY:-}" ]; then
-    printf '%s\n' "${VERIFY_DOCKER_HTTPS_PROXY}"
+    normalize_runtime_proxy_url "${VERIFY_DOCKER_HTTPS_PROXY}"
     return 0
   fi
   local daemon_proxy
   daemon_proxy="$(resolve_docker_daemon_proxy "HttpsProxy")"
   if [ -n "${daemon_proxy}" ] && [ "${daemon_proxy}" != "<no value>" ]; then
-    printf '%s\n' "${daemon_proxy}"
+    normalize_runtime_proxy_url "${daemon_proxy}"
     return 0
   fi
   if [ -n "${HTTPS_PROXY:-${https_proxy:-}}" ]; then
-    printf '%s\n' "${HTTPS_PROXY:-${https_proxy:-}}"
+    normalize_runtime_proxy_url "${HTTPS_PROXY:-${https_proxy:-}}"
     return 0
   fi
-  resolve_default_local_proxy
+  printf '%s\n' ""
 }
 
 resolve_build_no_proxy() {

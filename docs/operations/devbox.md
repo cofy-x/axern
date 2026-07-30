@@ -340,14 +340,14 @@ Use an explicit regional mirror or proxy when the local network needs one:
 
 ```bash
 DEVBOX_APT_MIRROR_SOURCE=aliyun \
-DEVBOX_BUILD_PROXY=auto \
+DEVBOX_BUILD_PROXY=http://host.docker.internal:8080 \
 GOPROXY=https://goproxy.cn,direct \
 NPM_CONFIG_REGISTRY=https://registry.npmmirror.com \
 make devbox-image-build
 ```
 
-`DEVBOX_BUILD_PROXY=auto` uses `http://host.docker.internal:7890` only when
-`127.0.0.1:7890` is reachable. A proxy URL can also be passed directly.
+`DEVBOX_BUILD_PROXY` must be an explicit URL reachable from the Docker build
+container. The repository does not probe or select a host proxy.
 `GOPROXY` and `NPM_CONFIG_REGISTRY` apply to both the image build and the
 running devbox.
 
@@ -357,8 +357,8 @@ normal shell use independent of host proxy latency. If registry or package
 downloads inside the running devbox need a proxy, set it in that shell:
 
 ```bash
-export HTTP_PROXY=http://host.docker.internal:7890
-export HTTPS_PROXY=http://host.docker.internal:7890
+export HTTP_PROXY=http://host.docker.internal:8080
+export HTTPS_PROXY=http://host.docker.internal:8080
 export NO_PROXY=localhost,127.0.0.1,::1,host.docker.internal,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
 ```
 

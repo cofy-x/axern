@@ -21,9 +21,8 @@ make quickstart
 AXERN_CLI=deploy/local/state/releases/v$(cat VERSION)/axern
 
 "${AXERN_CLI}" context current
-"${AXERN_CLI}" catalog list
 "${AXERN_CLI}" run create \
-  --template-id python311 \
+  --image-ref docker.io/library/python:3.12-slim \
   --runtime-class runsc \
   --argv python \
   --argv -c \

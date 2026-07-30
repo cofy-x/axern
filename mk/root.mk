@@ -72,7 +72,7 @@ release-check: ## Verify release versions and package contracts
 	bash $(ROOTDIR)/scripts/release/version-check.sh
 	bash $(ROOTDIR)/scripts/dev-env/docker-build-cache-test.sh
 	bash $(ROOTDIR)/scripts/release/image-build-contract-check.sh
-	bash $(ROOTDIR)/scripts/release/kind-acceptance-contract-check.sh
+	bash $(ROOTDIR)/scripts/proxy-env-contract-check.sh
 	bash $(ROOTDIR)/scripts/release/sdk-data-plane-contract-check.sh
 	$(MAKE) helm-lint
 

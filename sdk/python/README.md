@@ -50,8 +50,8 @@ and proxy variables.
 
 Create a sandbox from exactly one source:
 
-- `template_id="python311"` for a catalog template.
 - `image="docker.io/library/python:3.12-slim"` for an OCI image.
+- `template_id="python311"` for a catalog template.
 - `environment_id="..."` for an existing environment.
 
 ```python
@@ -59,7 +59,7 @@ from axern_sdk import AxernClient, Sandbox
 
 client = AxernClient("127.0.0.1:25000")
 
-with Sandbox(client=client, template_id="python311") as sandbox:
+with Sandbox(client=client, image="docker.io/library/python:3.12-slim") as sandbox:
     print(sandbox.metadata.allocation_id)
 
 client.close()
@@ -77,7 +77,7 @@ from axern_sdk import Sandbox, VolumeMount
 
 with Sandbox(
     client=client,
-    template_id="python311",
+    image="docker.io/library/python:3.12-slim",
     volumes=[
         VolumeMount("data", "/data"),
         VolumeMount("cache", "/cache", readonly=True, options=("rbind",)),
@@ -115,7 +115,7 @@ Use `exec()` for command-result workflows. Set `text=True` to decode stdout and
 stderr; set `check=True` to raise `SandboxExecError` on non-zero exit.
 
 ```python
-with Sandbox(client=client, template_id="python311") as sandbox:
+with Sandbox(client=client, image="docker.io/library/python:3.12-slim") as sandbox:
     result = sandbox.exec("python -c \"print('hello')\"", text=True, check=True)
     print(result.stdout)
 ```
@@ -344,7 +344,7 @@ Runnable examples live in [`examples`](examples):
 
 Examples expect a reachable Axern gateway control edge at `127.0.0.1:25000`.
 `service_gateway.py` also expects `AXERN_SERVICE_URL`, for example
-`http://127.0.0.1:25080`. It accepts `AXERN_NAMESPACE`, `AXERN_TEMPLATE_ID`,
+`http://127.0.0.1:25080`. It accepts `AXERN_NAMESPACE`, `AXERN_IMAGE`,
 `AXERN_RUNTIME_CLASS`, `AXERN_REQUEST_CPU`, `AXERN_REQUEST_MEMORY`,
 `AXERN_LIMIT_CPU`, and `AXERN_LIMIT_MEMORY` for service configuration.
 

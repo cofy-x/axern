@@ -3,64 +3,25 @@
 # shellcheck source=../proxy-env.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/proxy-env.sh"
 
-configure_kind_proxy_from_host() {
-  local kind_proxy_port="${KIND_PROXY_PORT:-7890}"
-  if [ -n "${HTTP_PROXY:-${http_proxy:-}}" ] || [ -n "${HTTPS_PROXY:-${https_proxy:-}}" ]; then
+configure_kind_proxy() {
+  local container_http_proxy container_https_proxy
+  container_http_proxy="$(container_proxy_url "${HTTP_PROXY:-${http_proxy:-}}")"
+  container_https_proxy="$(container_proxy_url "${HTTPS_PROXY:-${https_proxy:-}}")"
+  if [ -z "${container_http_proxy}" ] && [ -z "${container_https_proxy}" ]; then
     return 0
   fi
-  if python3 - "${kind_proxy_port}" <<'PY' >/dev/null 2>&1
-import socket
-import sys
-
-port = int(sys.argv[1])
-sock = socket.socket()
-sock.settimeout(1)
-try:
-    sock.connect(("127.0.0.1", port))
-except OSError:
-    raise SystemExit(1)
-finally:
-    sock.close()
-PY
-  then
-    export HTTP_PROXY="http://127.0.0.1:${kind_proxy_port}"
-    export HTTPS_PROXY="${HTTP_PROXY}"
-    export http_proxy="${HTTP_PROXY}"
-    export https_proxy="${HTTPS_PROXY}"
-    echo "kind_up_proxy=${HTTP_PROXY}"
-  fi
+  export HTTP_PROXY="${container_http_proxy}"
+  export HTTPS_PROXY="${container_https_proxy}"
+  export http_proxy="${container_http_proxy}"
+  export https_proxy="${container_https_proxy}"
+  echo "kind_proxy_configured=true"
 }
 
-configure_compose_proxy_from_host() {
-  local compose_proxy_port="${COMPOSE_PROXY_PORT:-7890}"
+configure_compose_no_proxy() {
   local host_no_proxy
   host_no_proxy="$(append_no_proxy_entries "${NO_PROXY:-${no_proxy:-}}" "$(local_no_proxy_entries compose)")"
   export NO_PROXY="${host_no_proxy}"
   export no_proxy="${host_no_proxy}"
-  if [ -n "${HTTP_PROXY:-${http_proxy:-}}" ] || [ -n "${HTTPS_PROXY:-${https_proxy:-}}" ]; then
-    return 0
-  fi
-  if python3 - "${compose_proxy_port}" <<'PY' >/dev/null 2>&1
-import socket
-import sys
-
-port = int(sys.argv[1])
-sock = socket.socket()
-sock.settimeout(1)
-try:
-    sock.connect(("127.0.0.1", port))
-except OSError:
-    raise SystemExit(1)
-finally:
-    sock.close()
-PY
-  then
-    export HTTP_PROXY="http://127.0.0.1:${compose_proxy_port}"
-    export HTTPS_PROXY="${HTTP_PROXY}"
-    export http_proxy="${HTTP_PROXY}"
-    export https_proxy="${HTTPS_PROXY}"
-    echo "compose_up_proxy=${HTTP_PROXY}"
-  fi
 }
 
 local_no_proxy_entries() {

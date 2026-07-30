@@ -22,7 +22,10 @@ client = AxernClient.from_context(
     os.path.expanduser("~/.config/axern/config.json")
 )
 
-with Sandbox(client=client, template_id="python311") as sandbox:
+with Sandbox(
+    client=client,
+    image="docker.io/library/python:3.12-slim",
+) as sandbox:
     result = sandbox.exec(
         "python -c \"print('hello from Python')\"",
         text=True,

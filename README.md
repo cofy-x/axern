@@ -50,13 +50,13 @@ Use the generated local CLI context:
 ```bash
 AXERN_CLI=deploy/local/state/releases/v$(cat VERSION)/axern
 "${AXERN_CLI}" context current
-"${AXERN_CLI}" catalog list
 "${AXERN_CLI}" run create \
-  --template-id python311 \
+  --image-ref docker.io/library/python:3.12-slim \
   --runtime-class runsc \
   --argv python \
   --argv -c \
-  --argv 'print("hello from Axern")'
+  --argv 'print("hello from Axern")' \
+  --wait
 ```
 
 Inspect or remove the environment:

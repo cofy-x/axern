@@ -22,7 +22,7 @@ const client = AxernClient.fromContext(
 
 const sandbox = await new Sandbox({
   client,
-  templateId: "python311",
+  image: "docker.io/library/python:3.12-slim",
 }).start();
 
 try {

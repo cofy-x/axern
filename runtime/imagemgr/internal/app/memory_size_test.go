@@ -48,7 +48,7 @@ func TestRegistryProxyURLFromTemplate(t *testing.T) {
     "host": "registry.invalid",
     "repo": "placeholder/image",
     "proxy": {
-      "url": "http://proxy.local:7890",
+      "url": "http://proxy.example.test:18080",
       "fallback": true
     }
   }
@@ -60,7 +60,7 @@ func TestRegistryProxyURLFromTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("registryProxyURLFromTemplate() error = %v", err)
 	}
-	if got != "http://proxy.local:7890" {
+	if got != "http://proxy.example.test:18080" {
 		t.Fatalf("registryProxyURLFromTemplate() = %q, want proxy URL", got)
 	}
 }

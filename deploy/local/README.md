@@ -276,8 +276,8 @@ Defaults and overrides:
 - `NYDUS_SOURCE_IMAGE=axern/python311-runtime:dev`
 - `NYDUS_LOCAL_IMAGE=localhost:5001/axern/nydus-smoke:dev`
 - `NYDUS_IMAGE_REBUILD=1` forces conversion when the target already exists.
-- If no proxy is exported and `127.0.0.1:7890` is listening, the Nydus builder
-  image build injects `host.docker.internal:7890` as the Docker build proxy.
+- Explicit `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` values are propagated to
+  the Nydus builder image build. Axern does not probe or select a host proxy.
 - For offline or unstable networks, place upstream release archives under
   `deploy/images/nydus-builder/cache/` using their original filenames, for
   example `nydus-static-v2.4.0-linux-arm64.tgz` and
@@ -357,8 +357,8 @@ make kind-reset
 ## Proxy
 
 Compose and kind reuse exported `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY`.
-If no proxy is exported and a host proxy is listening on `127.0.0.1:7890`, the
-bring-up and refresh scripts auto-configure it for container or pod access via
+If a host proxy is explicitly exported through the standard proxy variables,
+the bring-up and refresh scripts configure it for container or pod access via
 `host.docker.internal`.
 
 ## Defaults

@@ -1,6 +1,6 @@
 ---
 title: SDKs
-description: Choose the Axern SDK for Python, Go, or Node.js.
+description: Choose the Axern SDK for Python, Go, or TypeScript.
 ---
 
 All three SDKs expose the same programmable sandbox boundary: source,
@@ -21,9 +21,11 @@ Install the official packages from their public registries:
 - TypeScript: `pnpm add @cofy-x/axern-sdk` from
   [npm](https://www.npmjs.com/package/@cofy-x/axern-sdk)
 
-Each sandbox selects exactly one source: a template, image, or existing
-environment. Lifecycle and data-plane operations flow through Axern public
-APIs; SDKs do not add SSH or shell fallbacks for platform behavior.
+Each sandbox selects exactly one source. Use an OCI image as the portable
+default, a catalog template for a named reusable environment, or an environment
+ID to continue working with an existing environment. Lifecycle and data-plane
+operations flow through Axern public APIs; SDKs do not add SSH or shell
+fallbacks for platform behavior.
 
 Axern publishes the CLI, Helm chart, runtime images, and all three SDKs under
 one repository version. Python and TypeScript use public package registries;

@@ -5,7 +5,7 @@ export K8S_ENV_NAME=kind
 export K8S_GATEWAY_LOCAL_SSH_PORT="${K8S_GATEWAY_LOCAL_SSH_PORT:-25023}"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-configure_kind_proxy_from_host
+configure_kind_proxy
 
 require_cmd kind
 require_cmd kubectl

@@ -6,8 +6,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  scripts/devbox/devbox.sh build [--project-dir DIR] [--platform PLATFORM] [--image IMAGE] [--apt-mirror-source archive|aliyun|ustc|tuna] [--build-proxy auto|none|URL]
-  scripts/devbox/devbox.sh up [--project-dir DIR] [--platform PLATFORM] [--image IMAGE] [--container-name NAME] [--ssh-port PORT] [--ssh-config-host HOST] [--ssh-config-path PATH] [--apt-mirror-source archive|aliyun|ustc|tuna] [--build-proxy auto|none|URL]
+  scripts/devbox/devbox.sh build [--project-dir DIR] [--platform PLATFORM] [--image IMAGE] [--apt-mirror-source archive|aliyun|ustc|tuna] [--build-proxy none|URL]
+  scripts/devbox/devbox.sh up [--project-dir DIR] [--platform PLATFORM] [--image IMAGE] [--container-name NAME] [--ssh-port PORT] [--ssh-config-host HOST] [--ssh-config-path PATH] [--apt-mirror-source archive|aliyun|ustc|tuna] [--build-proxy none|URL]
   scripts/devbox/devbox.sh status [--container-name NAME]
   scripts/devbox/devbox.sh down [--container-name NAME]
   scripts/devbox/devbox.sh exec [--container-name NAME] [--project-dir DIR] -- CMD...
@@ -120,18 +120,17 @@ container_running() {
   docker ps -q --filter "name=^/${container_name}$" | grep -q .
 }
 
-detect_build_proxy() {
+resolve_build_proxy() {
   case "${build_proxy}" in
     ""|none|off|0)
       return
       ;;
-    auto)
-      if command -v nc >/dev/null 2>&1 && nc -z 127.0.0.1 7890 >/dev/null 2>&1; then
-        printf 'http://host.docker.internal:7890'
-      fi
+    http://*|https://*)
+      printf '%s' "${build_proxy}"
       ;;
     *)
-      printf '%s' "${build_proxy}"
+      echo "build proxy must be none or an HTTP(S) URL" >&2
+      return 2
       ;;
   esac
 }
@@ -146,7 +145,7 @@ build_image() {
     -t "${image}"
   )
 
-  proxy_url="$(detect_build_proxy)"
+  proxy_url="$(resolve_build_proxy)"
   if [ -n "${proxy_url}" ]; then
     build_args+=(--add-host "host.docker.internal:host-gateway")
     build_args+=(

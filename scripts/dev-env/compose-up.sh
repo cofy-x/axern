@@ -3,7 +3,7 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-configure_compose_proxy_from_host
+configure_compose_no_proxy
 
 require_cmd docker
 require_cmd curl

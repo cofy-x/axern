@@ -29,7 +29,7 @@ Regional mirrors and a host proxy remain explicit options:
 
 ```bash
 DEVBOX_APT_MIRROR_SOURCE=aliyun \
-DEVBOX_BUILD_PROXY=auto \
+DEVBOX_BUILD_PROXY=http://host.docker.internal:8080 \
 GOPROXY=https://goproxy.cn,direct \
 NPM_CONFIG_REGISTRY=https://registry.npmmirror.com \
 make devbox-image-build

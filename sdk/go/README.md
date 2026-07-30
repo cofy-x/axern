@@ -53,8 +53,8 @@ func main() {
 	defer client.Close()
 
 	sandbox, err := axern.NewSandbox(axern.SandboxOptions{
-		Client:     client,
-		TemplateID: "python311",
+		Client: client,
+		Image:  "docker.io/library/python:3.12-slim",
 	})
 	if err != nil {
 		log.Fatal(err)

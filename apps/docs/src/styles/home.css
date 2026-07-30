@@ -526,7 +526,7 @@ main:has(.ax-hero) .content-panel + .content-panel { border-top: 0; }
 
 .ax-scene__code-flow {
   --ax-flow-travel: min(19vw, 14rem);
-  top: 44.5%;
+  top: 39.5%;
   left: 38%;
   gap: 0.08rem;
   padding: 0.42rem 1.15rem 0.42rem 0.58rem;
@@ -542,7 +542,7 @@ main:has(.ax-hero) .content-panel + .content-panel { border-top: 0; }
 .ax-flow-token--danger { color: #ff8b80; }
 
 .ax-scene[data-mode='SERVICE'] .ax-scene__code-flow {
-  top: 52%;
+  top: 47%;
   border-left-color: #55dba6;
   background: linear-gradient(90deg, rgb(3 18 15 / 96%) 0 62%, transparent 100%);
 }
@@ -554,7 +554,7 @@ main:has(.ax-hero) .content-panel + .content-panel { border-top: 0; }
   --ax-flow-travel: min(19vw, 14rem);
   position: absolute;
   z-index: 4;
-  top: 44.5%;
+  top: 39.5%;
   left: 38%;
   display: flex;
   align-items: center;
@@ -571,7 +571,7 @@ main:has(.ax-hero) .content-panel + .content-panel { border-top: 0; }
 
 .ax-scene__stdout-flow {
   --ax-flow-travel: min(13vw, 10rem);
-  top: 56%;
+  top: 51%;
   left: 66%;
   gap: 0.55rem;
   padding: 0.4rem 1.05rem 0.4rem 0.55rem;
@@ -1119,22 +1119,22 @@ main:has(.ax-hero) footer .pagination-links a:focus-visible {
   .ax-scene__core-label strong { font-size: 0.62rem; }
   .ax-scene__code-flow {
     --ax-flow-travel: 32vw;
-    top: 57%;
+    top: 53%;
     left: 8%;
     padding: 0.42rem 0.48rem;
     font-size: 0.52rem;
   }
   .ax-scene__threat-flow {
     --ax-flow-travel: 32vw;
-    top: 57%;
+    top: 53%;
     left: 8%;
     padding: 0.42rem 0.75rem 0.42rem 0.48rem;
     font-size: 0.52rem;
   }
-  .ax-scene[data-mode='SERVICE'] .ax-scene__code-flow { top: 63%; }
+  .ax-scene[data-mode='SERVICE'] .ax-scene__code-flow { top: 59%; }
   .ax-scene__stdout-flow {
     --ax-flow-travel: 24vw;
-    top: 69%;
+    top: 65%;
     left: 54%;
     padding: 0.38rem 0.45rem;
     font-size: 0.48rem;

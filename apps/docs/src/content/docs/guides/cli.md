@@ -12,7 +12,6 @@ database internals.
 ```bash
 axern context list
 axern context current
-axern catalog list
 ```
 
 For a Helm installation, keep a gateway port-forward open and import the
@@ -32,7 +31,7 @@ axern context import-kubernetes local \
 ```bash
 axern run create \
   --namespace default \
-  --template-id python311 \
+  --image-ref docker.io/library/python:3.12-slim \
   --runtime-class runsc \
   --argv python \
   --argv -c \
@@ -51,7 +50,7 @@ metadata:
     example: docs
 spec:
   source:
-    template: python311
+    image: docker.io/library/python:3.12-slim
   command:
     argv: [python, -c, "print('ok')"]
   runtime_class: runsc
@@ -61,6 +60,10 @@ spec:
 ```bash
 axern run create --file run.yaml --wait --output json
 ```
+
+OCI images are the portable default for new workloads. Use
+`axern catalog list` and `--template-id` when the platform provides a named,
+reusable environment with a curated toolchain or configuration.
 
 The CLI help is authoritative for the complete flag surface. See the
 [CLI source guide](https://github.com/cofy-x/axern/tree/main/apps/cli) for

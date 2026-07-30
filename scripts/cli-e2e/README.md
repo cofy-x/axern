@@ -21,7 +21,8 @@ proxy-dependent smoke coverage in a dedicated entrypoint.
 The image-ref smoke uses `docker.io/library/nginx:1.27` with `runc` and `runsc`
 by default and can be pointed at another external image with
 `AXERN_CLI_E2E_IMAGE_REF`. Override the runtime matrix with
-`AXERN_CLI_E2E_IMAGE_REF_RUNTIME_CLASSES`. When `127.0.0.1:7890` is reachable,
-the shared Docker verifier exports the runtime-facing proxy as
-`http://host.docker.internal:7890` and includes local addresses in
-`REGISTRY_NO_PROXY`.
+`AXERN_CLI_E2E_IMAGE_REF_RUNTIME_CLASSES`. To use a proxy, export standard
+`HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` values or the focused
+`VERIFY_DOCKER_*_PROXY` overrides. The shared Docker verifier converts
+loopback proxy hosts for container access and includes local addresses in
+`REGISTRY_NO_PROXY`; it does not probe or select a host proxy.

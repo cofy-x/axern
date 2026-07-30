@@ -43,7 +43,7 @@ const client = AxernClient.fromContext(
 
 const sandbox = await new Sandbox({
   client,
-  image: "python:3.12-slim",
+  image: "docker.io/library/python:3.12-slim",
   namespace: "typescript-sdk-example",
   tunnel: {
     upstream: "127.0.0.1:8080",
