@@ -66,6 +66,8 @@ limited to `ctx`, `ns`, `svc`, and `fn`.
 axern context list
 axern context use hk
 axern context import-kubernetes local --namespace axern-system --current
+axern doctor
+axern doctor --probe
 
 axern run create --file run.yaml --wait
 axern service create --file service.yaml --wait
@@ -101,6 +103,25 @@ usage, and admission signals.
 
 Generate completion with `axern completion bash|zsh|fish`.
 
+## Platform Doctor
+
+`axern doctor` is read-only by default. It validates local connection settings,
+mTLS material and certificate lifetime, gateway connectivity, the selected
+namespace, and the runtime catalog. Messages and JSON output use stable codes
+and do not include certificate paths, private keys, raw endpoints, or server
+error text.
+
+Use `--probe` when a real data-plane check is required:
+
+```bash
+axern doctor --namespace default --probe
+```
+
+The probe creates a catalog-backed Environment from the `python311` template,
+executes a small `runsc` Run, and deletes the temporary Environment. The Run
+remains as normal control-plane history. Use `--template-id`,
+`--runtime-class`, and `--probe-timeout` only with `--probe`.
+
 ## Resource Spec
 
 Run, Service, and Function creation accepts a strict YAML or JSON envelope:
@@ -135,8 +156,11 @@ is rendered from stable public DTOs rather than generated proto objects. YAML
 is an input format, not an output format.
 
 - `0`: success.
-- `1`: platform, network, or server operation failure.
-- `2`: invalid arguments, context, configuration, or spec.
+- `1`: platform, network, or server operation failure; `doctor` also uses it
+  for a degraded result.
+- `2`: invalid arguments, context, configuration, or spec; `doctor` still
+  renders its structured configuration check before returning this code.
+- `3`: `doctor` could not complete a required health check.
 - `run create --wait`: a normally terminated workload returns its exit code.
 
 ## Build And Verify

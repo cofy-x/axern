@@ -199,18 +199,18 @@ func start(runtime command.Runtime, cmd *cobra.Command, mode appagent.Mode, args
 	if err != nil {
 		return command.Usage(err)
 	}
-	connection, err := runtime.ConnectionConfig()
+	connection, err := runtime.ResolveConnection()
 	if err != nil {
 		return command.Usage(err)
 	}
-	session, err := runtime.Open(cmd.Context())
+	session, err := connection.Open(cmd.Context())
 	if err != nil {
 		return err
 	}
 	defer session.Close()
 	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return appagent.New().Start(signalCtx, appagent.Params{CreateContext: session.Context, Profile: profile, Workspace: options.workspace, ServiceClient: session.Clients.Service, Catalog: session.Clients.Catalog, Environment: session.Clients.Environment, Tunnel: apptunnel.New(session.Clients.Tunnel), Remote: sshRemoteRunner{}, RemoteTarget: remote, Mode: mode, RunArgs: args, TTL: options.ttl, ReadyTimeout: options.readyTimeout, ServiceTimeout: options.serviceTimeout, Relay: tunnelrelay.Config(connection), RelayDialer: tunnelrelay.PeerDialer, Connector: apptunnel.ConnectorConfig{PingInterval: options.pingInterval, PongTimeout: options.pongTimeout, MaxStreams: options.maxStreams}, OnReconnect: func(err error, backoff time.Duration) {
+	return appagent.New().Start(signalCtx, appagent.Params{CreateContext: session.Context, Profile: profile, Workspace: options.workspace, ServiceClient: session.Clients.Service, Catalog: session.Clients.Catalog, Environment: session.Clients.Environment, Tunnel: apptunnel.New(session.Clients.Tunnel), Remote: sshRemoteRunner{}, RemoteTarget: remote, Mode: mode, RunArgs: args, TTL: options.ttl, ReadyTimeout: options.readyTimeout, ServiceTimeout: options.serviceTimeout, Relay: tunnelrelay.Config(connection.Config), RelayDialer: tunnelrelay.PeerDialer, Connector: apptunnel.ConnectorConfig{PingInterval: options.pingInterval, PongTimeout: options.pongTimeout, MaxStreams: options.maxStreams}, OnReconnect: func(err error, backoff time.Duration) {
 		fmt.Fprintf(cmd.ErrOrStderr(), "agent tunnel disconnected: %v; reconnecting in %s\n", err, backoff)
 	}, OnReady: func(result appagent.Result) error {
 		if err := renderReady(cmd.OutOrStdout(), result, format); err != nil {

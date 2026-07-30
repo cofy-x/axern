@@ -9,6 +9,7 @@ import (
 	"github.com/cofy-x/axern/apps/cli/internal/commands/catalog"
 	contextcmd "github.com/cofy-x/axern/apps/cli/internal/commands/context"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/dashboard"
+	doctorcmd "github.com/cofy-x/axern/apps/cli/internal/commands/doctor"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/environment"
 	functioncmd "github.com/cofy-x/axern/apps/cli/internal/commands/function"
 	namespacecmd "github.com/cofy-x/axern/apps/cli/internal/commands/namespace"
@@ -54,6 +55,7 @@ func New(version string) *cobra.Command {
 		return runtime.ValidateOutput()
 	}
 	root.AddCommand(
+		doctorcmd.Command(runtime),
 		contextcmd.Command(runtime),
 		admincmd.Command(runtime),
 		catalog.Command(runtime),

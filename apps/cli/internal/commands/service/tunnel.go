@@ -35,18 +35,18 @@ func tunnelCommand(runtime command.Runtime) *cobra.Command {
 		if _, _, err := net.SplitHostPort(target); err != nil {
 			return command.Usage(fmt.Errorf("--to must be host:port: %w", err))
 		}
-		connection, err := runtime.ConnectionConfig()
+		connection, err := runtime.ResolveConnection()
 		if err != nil {
 			return command.Usage(err)
 		}
-		session, err := runtime.Open(cmd.Context())
+		session, err := connection.Open(cmd.Context())
 		if err != nil {
 			return err
 		}
 		defer session.Close()
 		signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		return apptunnel.New(session.Clients.Tunnel).ForwardService(signalCtx, session.Clients.Service, apptunnel.ServiceForwardParams{CreateContext: session.Context, ServiceID: args[0], AllocationID: strings.TrimSpace(allocationID), NodeID: strings.TrimSpace(nodeID), LocalTarget: target, TTL: ttl, ReadyTimeout: readyTimeout, Relay: tunnelrelay.Config(connection), RelayDialer: tunnelrelay.PeerDialer, OnReconnect: func(err error, backoff time.Duration) {
+		return apptunnel.New(session.Clients.Tunnel).ForwardService(signalCtx, session.Clients.Service, apptunnel.ServiceForwardParams{CreateContext: session.Context, ServiceID: args[0], AllocationID: strings.TrimSpace(allocationID), NodeID: strings.TrimSpace(nodeID), LocalTarget: target, TTL: ttl, ReadyTimeout: readyTimeout, Relay: tunnelrelay.Config(connection.Config), RelayDialer: tunnelrelay.PeerDialer, OnReconnect: func(err error, backoff time.Duration) {
 			fmt.Fprintf(cmd.ErrOrStderr(), "tunnel disconnected: %v; reconnecting in %s\n", err, backoff)
 		}, Connector: apptunnel.ConnectorConfig{PingInterval: pingInterval, PongTimeout: pongTimeout, MaxStreams: maxStreams}, DisableRenew: noRenew, OnSessionCreated: func(session apptunnel.ServiceForwardSession) error {
 			return renderServiceTunnelSession(cmd.OutOrStdout(), session, target, format)

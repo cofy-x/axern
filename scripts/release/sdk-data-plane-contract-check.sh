@@ -34,6 +34,7 @@ for value in (
     "AXERN_SDK_ACCEPTANCE_CONFIG",
     "AXERN_SDK_ACCEPTANCE_CONTEXT=release",
     "AXERN_SDK_ACCEPTANCE_CLI",
+    "doctor --namespace default --output json",
 ):
     if value not in harness:
         raise SystemExit(f"kind acceptance is missing SDK hook contract: {value}")

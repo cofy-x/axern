@@ -56,11 +56,11 @@ func openCommand(runtime command.Runtime) *cobra.Command {
 }
 
 func runForward(cmd *cobra.Command, runtime command.Runtime, opts openOptions) error {
-	connection, err := runtime.ConnectionConfig()
+	connection, err := runtime.ResolveConnection()
 	if err != nil {
 		return command.Usage(err)
 	}
-	session, err := runtime.Open(cmd.Context())
+	session, err := connection.Open(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func runForward(cmd *cobra.Command, runtime command.Runtime, opts openOptions) e
 		TTL:           opts.ttl,
 		WaitReady:     opts.waitReady,
 		ReadyTimeout:  opts.readyTimeout,
-		Relay:         tunnelrelay.Config(connection),
+		Relay:         tunnelrelay.Config(connection.Config),
 		RelayDialer:   tunnelrelay.PeerDialer,
 		OnReconnect: func(err error, backoff time.Duration) {
 			fmt.Fprintf(cmd.ErrOrStderr(), "tunnel disconnected: %v; reconnecting in %s\n", err, backoff)

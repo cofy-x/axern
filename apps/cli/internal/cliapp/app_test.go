@@ -39,7 +39,7 @@ func TestHelpIncludesCompletionAndExplicitAgentCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := out.String()
-	for _, value := range []string{"agent", "completion", "service", "function", "ssh", "tunnel"} {
+	for _, value := range []string{"agent", "completion", "doctor", "service", "function", "ssh", "tunnel"} {
 		if !strings.Contains(text, value) {
 			t.Fatalf("help missing %s:\n%s", value, text)
 		}

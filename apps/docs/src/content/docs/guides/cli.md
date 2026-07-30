@@ -26,6 +26,30 @@ axern context import-kubernetes local \
   --current
 ```
 
+## Diagnose the platform
+
+Start with the read-only platform doctor. It validates the selected context,
+mTLS certificate lifetime and key permissions, gateway connectivity, namespace
+access, and the runtime catalog without creating resources:
+
+```bash
+axern doctor --namespace default
+```
+
+Use an explicit probe when control-plane reachability is not enough:
+
+```bash
+axern doctor --namespace default --probe
+```
+
+The probe creates a temporary catalog-backed Environment from the `python311`
+template, executes a small `runsc` Run, and deletes the Environment after the
+Run reaches a terminal state. The Run remains as normal control-plane history.
+JSON output exposes stable check codes without printing certificate paths,
+private keys, raw endpoints, or server error text. Doctor exits with `0` for
+healthy, `1` for degraded, `2` for invalid usage or connection configuration,
+and `3` when a required platform health check fails.
+
 ## Run isolated Python
 
 ```bash

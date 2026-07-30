@@ -35,16 +35,16 @@ func doctorCommand(runtime command.Runtime) *cobra.Command {
 			if timeout <= 0 {
 				return command.Usage(fmt.Errorf("--check-timeout must be positive"))
 			}
-			connection, err := runtime.ConnectionConfig()
+			connection, err := runtime.ResolveConnection()
 			if err != nil {
 				return command.Usage(err)
 			}
-			session, err := runtime.Open(cmd.Context())
+			session, err := connection.Open(cmd.Context())
 			if err != nil {
 				return err
 			}
 			defer session.Close()
-			relay := tunnelrelay.Config(connection)
+			relay := tunnelrelay.Config(connection.Config)
 			report, err := apptunnel.New(session.Clients.Tunnel).Doctor(session.Context, apptunnel.DoctorParams{
 				SessionID: strings.TrimSpace(sessionID), AllocationID: strings.TrimSpace(allocationID), ServiceID: strings.TrimSpace(serviceID),
 				LocalTarget: strings.TrimSpace(localTarget), Timeout: timeout, ServiceClient: session.Clients.Service,

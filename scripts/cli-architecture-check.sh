@@ -49,6 +49,7 @@ expected_application_packages='apps/cli/internal/application/admin
 apps/cli/internal/application/agent
 apps/cli/internal/application/catalog
 apps/cli/internal/application/dashboard
+apps/cli/internal/application/doctor
 apps/cli/internal/application/environment
 apps/cli/internal/application/function
 apps/cli/internal/application/namespace
@@ -68,6 +69,7 @@ apps/cli/internal/commands/agent
 apps/cli/internal/commands/catalog
 apps/cli/internal/commands/context
 apps/cli/internal/commands/dashboard
+apps/cli/internal/commands/doctor
 apps/cli/internal/commands/environment
 apps/cli/internal/commands/function
 apps/cli/internal/commands/namespace

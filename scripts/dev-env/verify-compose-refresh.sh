@@ -58,6 +58,7 @@ run_with_retry 2 make local-compose-refresh
 
 log "running compose smoke suite"
 run_with_retry 2 make local-compose-smoke
+run_with_retry 2 make local-compose-doctor-smoke
 run_with_retry 2 make local-compose-gateway-smoke
 run_with_retry 2 make local-compose-service-volume-smoke
 run_with_retry 2 make local-compose-run-smoke

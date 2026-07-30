@@ -23,6 +23,7 @@ gateway. The generated CLI and context stay under `deploy/local/state/`.
 AXERN_CLI=deploy/local/state/releases/v$(cat VERSION)/axern
 
 "${AXERN_CLI}" context current
+"${AXERN_CLI}" namespace create default
 "${AXERN_CLI}" run create \
   --image-ref docker.io/library/python:3.12-slim \
   --runtime-class runsc \

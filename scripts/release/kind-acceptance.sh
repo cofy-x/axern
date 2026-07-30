@@ -112,7 +112,7 @@ fi
 config="${state_dir}/config.json"
 "${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}" --config "${config}" context import-kubernetes release \
   --namespace "${namespace}" --cert-dir "${state_dir}/certs" --current
-"${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}" --config "${config}" catalog list --output json >/dev/null
+"${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}" --config "${config}" doctor --namespace default --output json >/dev/null
 
 cat >"${state_dir}/run.yaml" <<'YAML'
 api_version: axern/v1

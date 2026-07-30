@@ -64,6 +64,11 @@ type Runtime struct {
 	Root    *cobra.Command
 }
 
+type ResolvedConnection struct {
+	ContextName string
+	Config      controlv1.Config
+}
+
 func (r Runtime) Format(allowed ...output.Format) (output.Format, error) {
 	format, err := output.ParseFormat(r.Options.Output, allowed...)
 	if err != nil {
@@ -82,14 +87,15 @@ func (r Runtime) ResolveContext() (string, *clientconfig.Context, bool, error) {
 }
 
 func (r Runtime) Open(ctx context.Context) (*controlv1.Session, error) {
-	config, err := r.ConnectionConfig()
+	connection, err := r.ResolveConnection()
 	if err != nil {
 		return nil, Usage(err)
 	}
-	return controlv1.Open(ctx, config)
+	return connection.Open(ctx)
 }
 
-func (r Runtime) ConnectionConfig() (controlv1.Config, error) {
+func (r Runtime) ResolveConnection() (ResolvedConnection, error) {
+	contextName := ""
 	resolved := controlv1.Config{
 		Endpoint: controlv1.DefaultTarget, TLSCACert: controlv1.DefaultTLSCACert,
 		TLSCert: controlv1.DefaultTLSCert, TLSKey: controlv1.DefaultTLSKey,
@@ -97,11 +103,12 @@ func (r Runtime) ConnectionConfig() (controlv1.Config, error) {
 		Timeout:   r.Options.Timeout,
 	}
 	if !r.hasExplicitConnection() {
-		_, profile, ok, err := r.ResolveContext()
+		name, profile, ok, err := r.ResolveContext()
 		if err != nil {
-			return controlv1.Config{}, err
+			return ResolvedConnection{}, err
 		}
 		if ok {
+			contextName = name
 			resolved.Endpoint = profile.Endpoint
 			resolved.TLSCACert = profile.TLS.CACert
 			resolved.TLSCert = profile.TLS.Cert
@@ -123,19 +130,23 @@ func (r Runtime) ConnectionConfig() (controlv1.Config, error) {
 	overrideString(r.Root, "tls-server-name", &resolved.TLSServerName, r.Options.TLSServerName)
 	overrideString(r.Root, "proxy-mode", &resolved.ProxyMode, r.Options.ProxyMode)
 	if strings.TrimSpace(resolved.Endpoint) == "" {
-		return controlv1.Config{}, fmt.Errorf("endpoint is required")
+		return ResolvedConnection{}, fmt.Errorf("endpoint is required")
 	}
 	if strings.TrimSpace(resolved.TLSCACert) == "" || strings.TrimSpace(resolved.TLSCert) == "" || strings.TrimSpace(resolved.TLSKey) == "" {
-		return controlv1.Config{}, fmt.Errorf("gateway mTLS requires tls ca cert, cert, and key")
+		return ResolvedConnection{}, fmt.Errorf("gateway mTLS requires tls ca cert, cert, and key")
 	}
 	switch resolved.ProxyMode {
 	case "", controlv1.ProxyModeEnv:
 		resolved.ProxyMode = controlv1.ProxyModeEnv
 	case controlv1.ProxyModeDirect:
 	default:
-		return controlv1.Config{}, fmt.Errorf("proxy mode must be %q or %q", controlv1.ProxyModeEnv, controlv1.ProxyModeDirect)
+		return ResolvedConnection{}, fmt.Errorf("proxy mode must be %q or %q", controlv1.ProxyModeEnv, controlv1.ProxyModeDirect)
 	}
-	return resolved, nil
+	return ResolvedConnection{ContextName: contextName, Config: resolved}, nil
+}
+
+func (c ResolvedConnection) Open(ctx context.Context) (*controlv1.Session, error) {
+	return controlv1.Open(ctx, c.Config)
 }
 
 func (r Runtime) hasExplicitConnection() bool {
