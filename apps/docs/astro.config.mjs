@@ -11,6 +11,7 @@ const sidebar = [
       { label: 'Overview', translations: { 'zh-cn': '产品概览' }, link: '/' },
       { label: 'Getting Started', translations: { 'zh-cn': '入门' }, link: '/getting-started/' },
       { label: 'Compose Quickstart', translations: { 'zh-cn': 'Compose 快速开始' }, link: '/getting-started/compose/' },
+      { label: 'Kubernetes Install', translations: { 'zh-cn': 'Kubernetes 安装' }, link: '/getting-started/kubernetes/' },
     ],
   },
   {
@@ -19,7 +20,14 @@ const sidebar = [
     items: [
       { label: 'Axern CLI', translations: { 'zh-cn': 'Axern CLI' }, link: '/guides/cli/' },
       { label: 'Identity and Access', translations: { 'zh-cn': '身份与权限' }, link: '/guides/authorization/' },
+      { label: 'Catalog and Environments', translations: { 'zh-cn': 'Catalog 与环境' }, link: '/guides/catalog/' },
+      { label: 'Secrets', translations: { 'zh-cn': 'Secret' }, link: '/guides/secrets/' },
       { label: 'Python Service', translations: { 'zh-cn': 'Python Service' }, link: '/guides/python-service/' },
+      { label: 'Functions', translations: { 'zh-cn': 'Function' }, link: '/guides/functions/' },
+      { label: 'Coding Agents', translations: { 'zh-cn': '编码 Agent' }, link: '/guides/agent/' },
+      { label: 'SSH Access', translations: { 'zh-cn': 'SSH 访问' }, link: '/guides/ssh/' },
+      { label: 'Reverse Tunnels', translations: { 'zh-cn': '反向隧道' }, link: '/guides/tunnels/' },
+      { label: 'Storage and Volumes', translations: { 'zh-cn': '存储与卷' }, link: '/guides/storage/' },
     ],
   },
   {
@@ -34,12 +42,18 @@ const sidebar = [
   },
   {
     label: 'Axrun',
-    items: [{ label: 'Managed Rollouts', translations: { 'zh-cn': '托管 Rollout' }, link: '/axrun/' }],
+    items: [
+      { label: 'Managed Rollouts', translations: { 'zh-cn': '托管 Rollout' }, link: '/axrun/' },
+      { label: 'TaskSets and Local Workflows', translations: { 'zh-cn': 'TaskSet 与本地工作流' }, link: '/axrun/local-workflows/' },
+    ],
   },
   {
     label: 'Concepts',
     translations: { 'zh-cn': '概念' },
-    items: [{ label: 'Architecture', translations: { 'zh-cn': '整体架构' }, link: '/architecture/' }],
+    items: [
+      { label: 'Architecture', translations: { 'zh-cn': '整体架构' }, link: '/architecture/' },
+      { label: 'Runtime and Resources', translations: { 'zh-cn': '运行时与资源' }, link: '/architecture/resources/' },
+    ],
   },
 ];
 

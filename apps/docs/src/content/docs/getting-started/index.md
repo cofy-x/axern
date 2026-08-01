@@ -24,7 +24,7 @@ checksummed CLI. It does not require Go, Rust, Python, or Node.js toolchains.
 | Learn product commands | [Axern CLI](/guides/cli/) |
 | Build an application | [SDK overview](/sdk/) |
 | Run agent evaluations | [Axrun managed rollouts](/axrun/) |
-| Install on Kubernetes | [Helm chart guide](https://github.com/cofy-x/axern/tree/main/deploy/helm/axern) |
+| Install on Kubernetes | [Kubernetes Install](/getting-started/kubernetes/) |
 
 :::caution[Pre-1.0 security boundary]
 The generated local credentials and loopback listeners are development
