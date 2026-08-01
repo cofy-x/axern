@@ -7,7 +7,7 @@ The Python SDK offers synchronous `Sandbox` and asynchronous `AsyncSandbox`
 surfaces.
 
 ```bash
-uv add axern-sdk
+uv add axern-sdk==<version>
 ```
 
 The official package is published as

@@ -13,12 +13,13 @@ cd axern
 make quickstart
 ```
 
-`make quickstart` 会等待服务就绪，并通过公开 Gateway 执行核心 Smoke。生成的 CLI 与 Context 保存在 `deploy/local/state/`。
+`make quickstart` 会等待服务就绪，并通过公开 Gateway 执行核心 Smoke。版本化 CLI 和证书保存在 `deploy/local/state/`；当前 Context 默认写入 `~/.config/axern/config.json`。
 
 ## 运行沙箱
 
 ```bash
-AXERN_CLI=deploy/local/state/releases/v$(cat VERSION)/axern
+source deploy/local/state/compose/axern.env
+AXERN_CLI="deploy/local/state/releases/v$(cat VERSION)/axern"
 
 "${AXERN_CLI}" context current
 "${AXERN_CLI}" namespace create default

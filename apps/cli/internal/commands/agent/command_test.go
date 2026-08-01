@@ -71,8 +71,38 @@ func TestProfileSetUsesUnambiguousAgentConfigFlag(t *testing.T) {
 	if cmd.Flags().Lookup("agent-config") == nil {
 		t.Fatal("profile set is missing --agent-config")
 	}
+	for _, name := range []string{"token-stdin", "token-env"} {
+		if cmd.Flags().Lookup(name) == nil {
+			t.Fatalf("profile set is missing --%s", name)
+		}
+	}
+	if cmd.Flags().Lookup("token") != nil {
+		t.Fatal("profile set must not accept provider tokens in argv")
+	}
 	if cmd.Flags().Lookup("config") != nil {
 		t.Fatal("profile set must not shadow the global --config flag")
+	}
+}
+
+func TestReadProviderTokenSupportsStdinAndEnvironment(t *testing.T) {
+	cmd := profileSetCommand(command.Runtime{})
+	cmd.SetIn(strings.NewReader("stdin-token\n"))
+	value, err := readProviderToken(cmd, true, "")
+	if err != nil || value != "stdin-token" {
+		t.Fatalf("stdin token = %q, err = %v", value, err)
+	}
+
+	t.Setenv("AXERN_TEST_PROVIDER_TOKEN", "env-token")
+	value, err = readProviderToken(cmd, false, "AXERN_TEST_PROVIDER_TOKEN")
+	if err != nil || value != "env-token" {
+		t.Fatalf("environment token = %q, err = %v", value, err)
+	}
+}
+
+func TestReadProviderTokenRejectsMultipleSources(t *testing.T) {
+	cmd := profileSetCommand(command.Runtime{})
+	if _, err := readProviderToken(cmd, true, "AXERN_TEST_PROVIDER_TOKEN"); err == nil {
+		t.Fatal("readProviderToken accepted stdin and environment together")
 	}
 }
 

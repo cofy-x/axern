@@ -15,12 +15,15 @@ make quickstart
 ```
 
 `make quickstart` waits for readiness and runs a core smoke through the public
-gateway. The generated CLI and context stay under `deploy/local/state/`.
+gateway. The versioned CLI and certificates are stored under
+`deploy/local/state/`; the selected context is written to the default CLI
+config at `~/.config/axern/config.json`.
 
 ## Run a sandbox
 
 ```bash
-AXERN_CLI=deploy/local/state/releases/v$(cat VERSION)/axern
+source deploy/local/state/compose/axern.env
+AXERN_CLI="deploy/local/state/releases/v$(cat VERSION)/axern"
 
 "${AXERN_CLI}" context current
 "${AXERN_CLI}" namespace create default

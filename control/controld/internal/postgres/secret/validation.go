@@ -11,6 +11,8 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
+const maxSecretPayloadBytes = 64 << 10
+
 func normalizeSecretData(secretType secretv1.SecretType, stringData map[string]string) (map[string]string, error) {
 	if secretType == secretv1.SecretType_SECRET_TYPE_UNSPECIFIED {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "secret type is required")
@@ -25,6 +27,13 @@ func normalizeSecretData(secretType secretv1.SecretType, stringData map[string]s
 	}
 	if len(data) == 0 {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "string_data is required")
+	}
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "secret data must be valid UTF-8 strings")
+	}
+	if len(payload) > maxSecretPayloadBytes {
+		return nil, grpcstatus.Errorf(codes.InvalidArgument, "secret data exceeds %d KiB limit", maxSecretPayloadBytes>>10)
 	}
 	switch secretType {
 	case secretv1.SecretType_SECRET_TYPE_OPAQUE:

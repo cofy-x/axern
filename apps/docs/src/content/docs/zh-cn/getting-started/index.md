@@ -21,7 +21,7 @@ Release Quickstart 会下载版本化的多架构镜像和带校验和的 CLI，
 | 学习产品命令 | [Axern CLI](/zh-cn/guides/cli/) |
 | 构建应用 | [SDK 概览](/zh-cn/sdk/) |
 | 运行智能体评估 | [Axrun 托管 Rollout](/zh-cn/axrun/) |
-| 安装到 Kubernetes | [Helm Chart 指南](https://github.com/cofy-x/axern/tree/main/deploy/helm/axern) |
+| 安装到 Kubernetes | [Kubernetes 安装指南](/zh-cn/getting-started/kubernetes/) |
 
 :::caution[Pre-1.0 安全边界]
 本地生成的凭据和 loopback 监听仅用于开发。共享部署必须自行管理 TLS、Ingress、镜像信任、网络策略、密钥、配额和持久化存储。

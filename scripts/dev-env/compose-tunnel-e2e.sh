@@ -712,21 +712,21 @@ verify_agent_product_once() {
 	else
 		printf '{}\n' >"${agent_config}"
 	fi
-	AXERN_CONFIG="${agent_config}" \
+	printf '%s\n' "${agent_upstream_token}" | AXERN_CONFIG="${agent_config}" \
 	"${AXERN_SMOKE_CMD[@]}" agent profile set "${claude_profile}" \
 		--agent claude-code \
 		--provider anthropic \
 		--upstream "http://127.0.0.1:${upstream_port}/anthropic" \
-		--token "${agent_upstream_token}" \
+		--token-stdin \
 		--namespace "${namespace}" \
 		--model compose-sonnet \
 		--agent-config api_timeout_ms=3000000 >/dev/null
-	AXERN_CONFIG="${agent_config}" \
+	printf '%s\n' "${agent_upstream_token}" | AXERN_CONFIG="${agent_config}" \
 	"${AXERN_SMOKE_CMD[@]}" agent profile set "${codex_profile}" \
 		--agent codex \
 		--provider openai \
 		--upstream "http://127.0.0.1:${upstream_port}/openai/v1" \
-		--token "${agent_upstream_token}" \
+		--token-stdin \
 		--namespace "${namespace}" \
 		--model compose-codex >/dev/null
 

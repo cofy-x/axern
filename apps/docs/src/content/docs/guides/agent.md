@@ -24,7 +24,7 @@ axern agent profile set dev-codex \
   --agent codex \
   --provider openai \
   --upstream https://api.openai.com/v1 \
-  --token <local-token> \
+  --token-stdin \
   --model <model> \
   --use
 
@@ -32,11 +32,29 @@ axern agent profile set dev-claude \
   --agent claude-code \
   --provider anthropic \
   --upstream https://api.anthropic.com \
-  --token <local-token> \
+  --token-env AXERN_ANTHROPIC_TOKEN \
   --model <model>
 ```
 
-Profile and doctor commands never print the stored token.
+The first command reads one token from stdin; the second reads the named
+environment variable. For example:
+
+```bash
+printf '%s\n' "$OPENAI_API_KEY" | axern agent profile set dev-codex \
+  --agent codex \
+  --provider openai \
+  --upstream https://api.openai.com/v1 \
+  --token-stdin \
+  --model <model> \
+  --use
+```
+
+Profile and doctor commands never print the stored token. The CLI accepts
+provider credentials only through stdin or a named environment variable, not
+as command-line values. Prefer stdin when possible; an environment variable
+keeps the value out of argv, and referencing an existing variable avoids
+writing the value literally in command history. The variable remains visible
+to the local CLI process.
 
 ## Start a session
 

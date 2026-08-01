@@ -10,6 +10,17 @@ workloads need a development API server, a mock, or a local credential-holding
 proxy. It is the opposite of a port-forward; your machine does not use the
 tunnel to call the remote service.
 
+:::caution[Local network exposure]
+
+Every process in the remote allocation can reach the tunnel's local target.
+Do not point a tunnel at a production database, cloud metadata endpoint, or
+an administrative interface. Bind local development servers to loopback,
+use a short-lived session, and treat the remote workload as trusted for the
+duration of the tunnel. The tunnel does not make the local target public to
+the internet, but it does cross the sandbox boundary by design.
+
+:::
+
 ## Tunnel from a Service
 
 Start the local target first, then open a foreground tunnel from a ready

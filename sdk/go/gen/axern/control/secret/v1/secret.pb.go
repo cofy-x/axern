@@ -247,11 +247,12 @@ func (x *SecretListFilter) GetPageSize() int32 {
 }
 
 type CreateSecretRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Namespace     string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	Type          SecretType             `protobuf:"varint,2,opt,name=type,proto3,enum=axern.control.secret.v1.SecretType" json:"type,omitempty"`
-	StringData    map[string]string      `protobuf:"bytes,3,rep,name=string_data,json=stringData,proto3" json:"string_data,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Labels        map[string]string      `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Namespace string                 `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Type      SecretType             `protobuf:"varint,2,opt,name=type,proto3,enum=axern.control.secret.v1.SecretType" json:"type,omitempty"`
+	// The JSON-encoded map must not exceed 64 KiB. Values are preserved verbatim.
+	StringData    map[string]string `protobuf:"bytes,3,rep,name=string_data,json=stringData,proto3" json:"string_data,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Labels        map[string]string `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

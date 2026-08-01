@@ -6,7 +6,7 @@ description: Create and program an Axern sandbox from Node.js.
 The TypeScript SDK is Node.js-first and uses Promise APIs.
 
 ```bash
-pnpm add @cofy-x/axern-sdk
+pnpm add @cofy-x/axern-sdk@<version>
 ```
 
 The official package is published as

@@ -59,6 +59,23 @@ The parser rejects unknown fields, conflicting sources, unsafe source paths,
 and invalid scaling. Credentials are referenced by ID and never embedded in
 the spec.
 
+The manifest resolves `function.source` relative to the manifest directory.
+A minimal repository layout is:
+
+```text
+hello/
+  function.yaml
+  payload.json
+  src/
+    handler.py
+```
+
+With `source: src` and `handler: handler.hello`, the bundle must contain
+`src/handler.py`. Keep `payload.json` outside the bundle; it is the invocation
+input. The handler return value is serialized as the invocation result, while
+an exception produces a failed invocation. Initializer state is reused by a
+warm worker and must not be treated as durable storage.
+
 ## Deploy and invoke
 
 ```bash

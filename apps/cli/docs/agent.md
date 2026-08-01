@@ -54,10 +54,13 @@ axern agent profile set dev-codex \
   --agent codex \
   --provider openai \
   --upstream https://api.example.test/v1 \
-  --token <local-token> \
+  --token-stdin \
   --model <model> \
   --use
 ```
+
+Pipe the provider token through stdin or use `--token-env NAME`; provider
+credentials are never accepted as command-line values.
 
 The Codex upstream must implement the OpenAI Responses API. Include the API
 base path, normally `/v1`, in `--upstream`; an endpoint that only implements
@@ -77,7 +80,7 @@ axern agent profile set dev-claude \
   --agent claude-code \
   --provider anthropic \
   --upstream https://api.example.test/anthropic \
-  --token <local-token> \
+  --token-env AXERN_ANTHROPIC_TOKEN \
   --model <model>
 ```
 

@@ -2,6 +2,7 @@ package publicv1_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
@@ -10,6 +11,22 @@ import (
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
+
+func TestCreateSecretRejectsOversizedPayload(t *testing.T) {
+	service := newTestService(t)
+	defer service.Close()
+
+	_, err := service.PublicV1Handler().CreateSecret(context.Background(), &secretv1.CreateSecretRequest{
+		Namespace: "default",
+		Type:      secretv1.SecretType_SECRET_TYPE_OPAQUE,
+		StringData: map[string]string{
+			"token": strings.Repeat("x", 64<<10),
+		},
+	})
+	if grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("CreateSecret() code = %v, want %v: %v", grpcstatus.Code(err), codes.InvalidArgument, err)
+	}
+}
 
 func TestSecretCRUDRedactsValues(t *testing.T) {
 	service := newTestService(t)

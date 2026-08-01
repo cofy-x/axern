@@ -201,8 +201,9 @@ local_smoke_create_environment() {
 
 local_smoke_create_secret() {
   local namespace="$1"
-  local_smoke_json_once_or_recover_by_namespace secret secrets secret "${namespace}" \
-    "${AXERN_SMOKE_CMD[@]}" secret create -o json --namespace "${namespace}" --type opaque --literal token=hello-local
+  printf '%s\n' 'token=hello-local' | \
+    local_smoke_json_once_or_recover_by_namespace secret secrets secret "${namespace}" \
+      "${AXERN_SMOKE_CMD[@]}" secret create -o json --namespace "${namespace}" --type opaque --literal-stdin
 }
 
 local_smoke_delete_service() {

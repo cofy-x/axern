@@ -7,6 +7,20 @@ Axrun is Axern's native agent harness, task compiler, rollout client, verifier,
 and trajectory exporter. It stays above the sandbox platform and consumes only
 public Axern APIs.
 
+## Before you start
+
+Managed Rollouts require:
+
+- a running Axern control plane and an active CLI context with permission to
+  create workloads in the target namespace;
+- the `axrun` binary from the same release as the Axern gateway;
+- a TaskSet repository published as an immutable
+  `repository@sha256:...` reference, with the rollout worker able to pull it;
+- a versioned provider profile and the namespace policy needed by the rollout.
+
+Local TaskSet bundles are useful for compiler development, but they are not a
+managed rollout artifact and cannot replace repository publishing.
+
 ```mermaid
 flowchart LR
     Build["TaskSetBuild"] --> Compile["Deterministic compile"]
@@ -28,12 +42,14 @@ axrun task inspect .axrun/tasksets/demo
 ```
 
 Local bundles support compiler development. Managed Rollouts require an
-immutable `repository@sha256:...` reference.
+immutable `repository@sha256:...` reference published through the configured
+artifact path.
 
 ## Configure a managed profile
 
-Pass credentials on stdin so they do not enter shell history, YAML, or generic
-Secret APIs:
+Pass credentials on stdin so they do not enter argv, YAML, or generic Secret
+APIs. Read them from an existing environment variable or a protected input
+source instead of writing the value literally in command history:
 
 ```bash
 axrun profile create production \

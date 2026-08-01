@@ -7,18 +7,26 @@ All three SDKs expose the same programmable sandbox boundary: source,
 lifecycle, execution, attached processes, files, archive transfer, tunnels,
 metadata, and typed errors. Mutating RPCs are never retried implicitly.
 
-| SDK | Best fit | Async model | Start |
-| --- | --- | --- | --- |
-| Python | Agent tooling, notebooks, orchestration | Sync and asyncio | [Python SDK](/sdk/python/) |
-| Go | Services and infrastructure controllers | `context.Context` | [Go SDK](/sdk/go/) |
-| TypeScript | Node.js applications and tools | Promise APIs | [TypeScript SDK](/sdk/typescript/) |
+:::caution[Pin the SDK to the Axern release]
+
+The SDK and control-plane contracts are versioned together. Use the package
+version that matches the Axern CLI/chart release; do not use a floating
+`latest` dependency in production.
+
+:::
+
+| SDK | Best fit | Start |
+| --- | --- | --- |
+| Python | Agent tooling, notebooks, orchestration | [Python SDK](/sdk/python/) |
+| Go | Services and infrastructure controllers | [Go SDK](/sdk/go/) |
+| TypeScript | Node.js applications and tools | [TypeScript SDK](/sdk/typescript/) |
 
 Install the official packages from their public registries:
 
-- Python: `uv add axern-sdk` from [PyPI](https://pypi.org/project/axern-sdk/)
-- Go: `go get github.com/cofy-x/axern/sdk/go@latest` from the
+- Python: `uv add axern-sdk==<version>` from [PyPI](https://pypi.org/project/axern-sdk/)
+- Go: `go get github.com/cofy-x/axern/sdk/go@<version>` from the
   [Go module index](https://pkg.go.dev/github.com/cofy-x/axern/sdk/go)
-- TypeScript: `pnpm add @cofy-x/axern-sdk` from
+- TypeScript: `pnpm add @cofy-x/axern-sdk@<version>` from
   [npm](https://www.npmjs.com/package/@cofy-x/axern-sdk)
 
 Each sandbox selects exactly one source. Use an OCI image as the portable

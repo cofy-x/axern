@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 verify_secret_environment_service_rollout() {
-  secret_create_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" secret create -o json --type opaque --literal token=hello-secret)"
+  secret_create_output="$(printf '%s\n' 'token=hello-secret' | "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" secret create -o json --type opaque --literal-stdin)"
   secret_id="$(json_query "secret create" 'json.load(sys.stdin)["secret"]["id"]' "${secret_create_output}")"
   [ -n "${secret_id}" ] || {
     echo "axern secret create did not return a secret id" >&2

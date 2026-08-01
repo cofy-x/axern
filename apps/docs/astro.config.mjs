@@ -15,19 +15,19 @@ const sidebar = [
     ],
   },
   {
-    label: 'Build',
-    translations: { 'zh-cn': '构建' },
+    label: 'Use Axern',
+    translations: { 'zh-cn': '使用 Axern' },
     items: [
       { label: 'Axern CLI', translations: { 'zh-cn': 'Axern CLI' }, link: '/guides/cli/' },
       { label: 'Identity and Access', translations: { 'zh-cn': '身份与权限' }, link: '/guides/authorization/' },
       { label: 'Catalog and Environments', translations: { 'zh-cn': 'Catalog 与环境' }, link: '/guides/catalog/' },
       { label: 'Secrets', translations: { 'zh-cn': 'Secret' }, link: '/guides/secrets/' },
+      { label: 'Storage and Volumes', translations: { 'zh-cn': '存储与卷' }, link: '/guides/storage/' },
       { label: 'Python Service', translations: { 'zh-cn': 'Python Service' }, link: '/guides/python-service/' },
       { label: 'Functions', translations: { 'zh-cn': 'Function' }, link: '/guides/functions/' },
       { label: 'Coding Agents', translations: { 'zh-cn': '编码 Agent' }, link: '/guides/agent/' },
       { label: 'SSH Access', translations: { 'zh-cn': 'SSH 访问' }, link: '/guides/ssh/' },
       { label: 'Reverse Tunnels', translations: { 'zh-cn': '反向隧道' }, link: '/guides/tunnels/' },
-      { label: 'Storage and Volumes', translations: { 'zh-cn': '存储与卷' }, link: '/guides/storage/' },
     ],
   },
   {

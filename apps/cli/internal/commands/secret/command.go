@@ -3,6 +3,7 @@ package secret
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -22,7 +23,8 @@ func Command(runtime command.Runtime) *cobra.Command {
 
 func createCommand(runtime command.Runtime) *cobra.Command {
 	var namespace, kind, file string
-	var literals, labels []string
+	var labels []string
+	var literalStdin bool
 	cmd := &cobra.Command{Use: "create", Short: "Create an immutable secret", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		secretType, err := parse.SecretType(kind)
 		if err != nil {
@@ -34,13 +36,19 @@ func createCommand(runtime command.Runtime) *cobra.Command {
 			if file != "" {
 				return command.Usage(fmt.Errorf("--file requires --type docker-config-json"))
 			}
-			data = parse.Labels(literals)
+			if !literalStdin {
+				return command.Usage(fmt.Errorf("opaque secrets require --literal-stdin"))
+			}
+			data, err = readSecretLiterals(cmd.InOrStdin())
+			if err != nil {
+				return command.Usage(err)
+			}
 			if len(data) == 0 {
-				return command.Usage(fmt.Errorf("at least one --literal is required"))
+				return command.Usage(fmt.Errorf("at least one KEY=VALUE line is required on stdin"))
 			}
 		case secretv1.SecretType_SECRET_TYPE_DOCKER_CONFIG_JSON:
-			if len(literals) != 0 || file == "" {
-				return command.Usage(fmt.Errorf("docker-config-json requires --file and forbids --literal"))
+			if literalStdin || file == "" {
+				return command.Usage(fmt.Errorf("docker-config-json requires --file and forbids --literal-stdin"))
 			}
 			content, err := os.ReadFile(file)
 			if err != nil {
@@ -62,10 +70,36 @@ func createCommand(runtime command.Runtime) *cobra.Command {
 	f := cmd.Flags()
 	f.StringVar(&namespace, "namespace", "default", "namespace")
 	f.StringVar(&kind, "type", "opaque", "secret type")
-	f.StringArrayVar(&literals, "literal", nil, "secret key=value; may be repeated")
+	f.BoolVar(&literalStdin, "literal-stdin", false, "read opaque secret key=value lines from stdin")
 	f.StringVar(&file, "file", "", "secret source file")
 	f.StringArrayVar(&labels, "label", nil, "label key=value; may be repeated")
 	return cmd
+}
+
+const maxOpaqueSecretInputBytes = 64 << 10
+
+func readSecretLiterals(in io.Reader) (map[string]string, error) {
+	contents, err := io.ReadAll(io.LimitReader(in, maxOpaqueSecretInputBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(contents) > maxOpaqueSecretInputBytes {
+		return nil, fmt.Errorf("opaque secret input exceeds 64 KiB limit")
+	}
+	lines := make([]string, 0)
+	for _, line := range strings.Split(string(contents), "\n") {
+		if strings.TrimSpace(line) != "" {
+			lines = append(lines, strings.TrimSuffix(line, "\r"))
+		}
+	}
+	values, err := parse.EnvFlags(lines)
+	if err != nil {
+		return nil, fmt.Errorf("invalid stdin secret: %w", err)
+	}
+	if len(values) == 0 {
+		return nil, fmt.Errorf("stdin secret must contain at least one KEY=VALUE line")
+	}
+	return values, nil
 }
 
 func getCommand(runtime command.Runtime) *cobra.Command {

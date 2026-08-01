@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"sort"
@@ -330,7 +331,9 @@ func profileCommand(runtime command.Runtime) *cobra.Command {
 }
 
 func profileSetCommand(runtime command.Runtime) *cobra.Command {
-	var agentType, provider, upstream, token, template, namespace, remoteUser, model string
+	var agentType, provider, upstream, template, namespace, remoteUser, model string
+	var tokenStdin bool
+	var tokenEnv string
 	var configValues, envValues []string
 	var restore, use bool
 	cmd := &cobra.Command{Use: "set <name>", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
@@ -349,8 +352,9 @@ func profileSetCommand(runtime command.Runtime) *cobra.Command {
 		if _, err := agentprofile.ParseUpstream("agent profile", upstream); err != nil {
 			return command.Usage(err)
 		}
-		if token == "" {
-			return command.Usage(fmt.Errorf("token is required"))
+		resolvedToken, err := readProviderToken(cmd, tokenStdin, tokenEnv)
+		if err != nil {
+			return command.Usage(err)
 		}
 		configMap, err := keyValues(configValues)
 		if err != nil {
@@ -366,7 +370,7 @@ func profileSetCommand(runtime command.Runtime) *cobra.Command {
 			}
 			configMap[defaultModelConfigKey(parsedAgent)] = model
 		}
-		stored := &agentprofile.ProfileConfig{Agent: string(parsedAgent), Provider: string(parsedProvider), WireAPI: string(wireAPI), Upstream: upstream, Token: token, TemplateID: template, Namespace: namespace, RemoteUser: remoteUser, RestoreOnExit: restore, Config: configMap, Env: envMap}
+		stored := &agentprofile.ProfileConfig{Agent: string(parsedAgent), Provider: string(parsedProvider), WireAPI: string(wireAPI), Upstream: upstream, Token: resolvedToken, TemplateID: template, Namespace: namespace, RemoteUser: remoteUser, RestoreOnExit: restore, Config: configMap, Env: envMap}
 		profile, err := agentprofile.ParseProfile(args[0], stored)
 		if err != nil {
 			return command.Usage(err)
@@ -394,7 +398,8 @@ func profileSetCommand(runtime command.Runtime) *cobra.Command {
 	f.StringVar(&agentType, "agent", "", "codex or claude-code")
 	f.StringVar(&provider, "provider", "", "openai or anthropic")
 	f.StringVar(&upstream, "upstream", "", "provider base URL")
-	f.StringVar(&token, "token", "", "provider token")
+	f.BoolVar(&tokenStdin, "token-stdin", false, "read provider token from stdin")
+	f.StringVar(&tokenEnv, "token-env", "", "read provider token from the named environment variable")
 	f.StringVar(&template, "template-id", "", "runtime template")
 	f.StringVar(&namespace, "namespace", appagent.DefaultNamespace, "namespace")
 	f.StringVar(&remoteUser, "remote-user", appagent.DefaultRemoteUser, "container user")
@@ -404,6 +409,40 @@ func profileSetCommand(runtime command.Runtime) *cobra.Command {
 	f.BoolVar(&restore, "restore-on-exit", false, "restore remote config on exit")
 	f.BoolVar(&use, "use", false, "select this profile")
 	return cmd
+}
+
+const maxProviderTokenBytes = 16 << 10
+
+func readProviderToken(cmd *cobra.Command, stdin bool, envName string) (string, error) {
+	if stdin == (strings.TrimSpace(envName) != "") {
+		return "", fmt.Errorf("exactly one of --token-stdin or --token-env is required")
+	}
+
+	var value []byte
+	var err error
+	switch {
+	case stdin:
+		value, err = io.ReadAll(io.LimitReader(cmd.InOrStdin(), maxProviderTokenBytes+1))
+	case strings.TrimSpace(envName) != "":
+		raw, ok := os.LookupEnv(strings.TrimSpace(envName))
+		if !ok {
+			return "", fmt.Errorf("token environment variable %q is not set", strings.TrimSpace(envName))
+		}
+		value = []byte(raw)
+	default:
+		return "", fmt.Errorf("exactly one of --token-stdin or --token-env is required")
+	}
+	if err != nil {
+		return "", err
+	}
+	if len(value) > maxProviderTokenBytes {
+		return "", fmt.Errorf("provider token exceeds 16 KiB limit")
+	}
+	valueString := strings.TrimSpace(string(value))
+	if valueString == "" {
+		return "", fmt.Errorf("provider token is empty")
+	}
+	return valueString, nil
 }
 
 func defaultModelConfigKey(agent agentprofile.AgentType) string {

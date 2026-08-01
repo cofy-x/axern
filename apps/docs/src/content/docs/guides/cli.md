@@ -15,16 +15,23 @@ axern context current
 ```
 
 For a Helm installation, keep a gateway port-forward open and import the
-chart-generated mTLS identity:
+chart-generated mTLS identity. SSH is optional and disabled by the default
+chart values, so the basic CLI path only forwards the control and HTTP ports:
 
 ```bash
 kubectl --namespace axern-system port-forward svc/gatewayd \
-  25100:25000 25101:25080 25122:25022
+  25100:25000 25101:25080
 
 axern context import-kubernetes local \
   --namespace axern-system \
+  --endpoint 127.0.0.1:25100 \
+  --service-url http://127.0.0.1:25101 \
+  --ssh-endpoint "" \
   --current
 ```
+
+Use the [Kubernetes install guide](/getting-started/kubernetes/) when an
+interactive agent workflow also needs the separately enabled SSH port.
 
 ## Diagnose the platform
 
@@ -95,6 +102,29 @@ axern run create --file run.yaml --wait --output json
 OCI images are the portable default for new workloads. Use
 `axern catalog list` and `--template-id` when the platform provides a named,
 reusable environment with a curated toolchain or configuration.
+
+## Pass credentials without putting values in argv
+
+Prefer stdin for provider tokens and opaque secrets. These forms keep the
+value out of command arguments. Referencing an existing environment variable
+also avoids writing the value literally in the command or heredoc history, but
+the variable remains visible to the local CLI process:
+
+```bash
+printf '%s\n' "$OPENAI_API_KEY" | axern agent profile set dev-codex \
+  --agent codex \
+  --provider openai \
+  --upstream https://api.openai.com/v1 \
+  --token-stdin \
+  --model <model>
+
+printf '%s\n' "API_KEY=$AXERN_SECRET_API_KEY" | \
+  axern secret create --namespace default --literal-stdin
+```
+
+`--token-env NAME` is also available for agent profiles. The CLI deliberately
+does not accept provider tokens or opaque secret values as command-line
+arguments.
 
 The CLI help is authoritative for the complete flag surface. See the
 [CLI source guide](https://github.com/cofy-x/axern/tree/main/apps/cli) for
