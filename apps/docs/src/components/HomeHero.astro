@@ -8,6 +8,7 @@ const zh = locale === 'zh-cn';
 const base = zh ? '/zh-cn' : '';
 
 import SandboxScene from './SandboxScene.astro';
+import HeroBackdrop from './HeroBackdrop.astro';
 
 const escapeHtml = (value: string) => value
   .replaceAll('&', '&amp;')
@@ -113,6 +114,7 @@ await sandbox.close();`,
 ---
 
 <section class="ax-hero">
+  <HeroBackdrop />
   <div class="ax-hero__copy">
     <p class="ax-kicker">{zh ? '面向智能体的执行基础设施' : 'AGENTIC EXECUTION INFRASTRUCTURE'}</p>
     <h1
@@ -133,18 +135,15 @@ await sandbox.close();`,
     </h1>
     <p class="ax-lede">
       {zh
-        ? '使用 runsc 隔离智能体生成的不可信代码，并通过 runc 运行可信的长期服务——共享一套资源与生命周期模型。'
-        : 'Isolate untrusted agent-generated code with runsc, and run trusted long-lived services with runc—through one resource and lifecycle model.'}
+        ? '用 runsc 隔离不可信的智能体生成代码，用 runc 运行可信的长期服务——共享一套资源与生命周期模型。'
+        : 'Isolate untrusted agent-generated code with runsc. Run trusted long-lived services with runc. One resource and lifecycle model.'}
     </p>
     <div class="ax-actions">
-      <a class="ax-button ax-button--primary" href={`${base}/getting-started/compose/`}>
-        {zh ? '在本地运行 Axern' : 'Run Axern locally'}
+      <a class="ax-button ax-button--primary" href={`${base}/getting-started/`}>
+        {zh ? '快速开始' : 'Quickstart'}
       </a>
-      <a class="ax-button" href={`${base}/getting-started/`}>
-        {zh ? '阅读快速开始' : 'Read the quickstart'}
-      </a>
-      <a class="ax-text-link" href="https://github.com/cofy-x/axern">
-        {zh ? '在 GitHub 查看源码 ↗' : 'View source on GitHub ↗'}
+      <a class="ax-button" href="https://github.com/cofy-x/axern">
+        GitHub ↗
       </a>
     </div>
     <div class="ax-signals not-content" aria-label={zh ? '项目信息' : 'Project signals'}>
@@ -159,6 +158,7 @@ await sandbox.close();`,
       <button
         type="button"
         aria-pressed="true"
+        aria-controls="axern-runtime-scene"
         data-scene-mode="AGENT"
       >
         <span>{zh ? '智能体沙箱' : 'Agent Sandbox'}</span>
@@ -167,6 +167,7 @@ await sandbox.close();`,
       <button
         type="button"
         aria-pressed="false"
+        aria-controls="axern-runtime-scene"
         data-scene-mode="SERVICE"
       >
         <span>{zh ? '长期服务' : 'Durable Service'}</span>
@@ -174,43 +175,6 @@ await sandbox.close();`,
       </button>
     </div>
     <SandboxScene />
-  </div>
-</section>
-
-<section class="ax-section ax-section--intro" aria-labelledby="ax-build-heading">
-  <div class="ax-section__heading">
-    <p class="ax-eyebrow">{zh ? '一个平台，三种工作负载' : 'ONE PLATFORM, THREE WORKLOADS'}</p>
-    <h2 id="ax-build-heading">{zh ? '从一个沙箱，构建完整智能体系统' : 'Build the whole agent system from one sandbox primitive'}</h2>
-    <p>{zh ? '无需为一次性执行、常驻服务和评测任务维护三套运行时。' : 'Use the same lifecycle, identity, and data-plane contracts for one-shot execution, long-running services, and evaluated agent work.'}</p>
-  </div>
-  <div class="ax-workload-grid">
-    <article>
-      <div class="ax-workload-meta">
-        <span class="ax-workload-tag">[ AGENT SANDBOX ]</span>
-        <span class="ax-workload-index">01 / 03</span>
-      </div>
-      <h3>{zh ? '隔离不可信智能体代码' : 'Isolate untrusted agent code'}</h3>
-      <p>{zh ? '通过 runsc 隔离边界执行智能体生成的代码，并保留进程、文件、终端与输出能力。' : 'Execute agent-generated code behind a runsc isolation boundary while retaining process, file, terminal, and output APIs.'}</p>
-      <a href={`${base}/sdk/`}>{zh ? '选择 SDK' : 'Choose an SDK'}</a>
-    </article>
-    <article>
-      <div class="ax-workload-meta">
-        <span class="ax-workload-tag">[ SERVICE ]</span>
-        <span class="ax-workload-index">02 / 03</span>
-      </div>
-      <h3>{zh ? '运行可信长期服务' : 'Run trusted durable services'}</h3>
-      <p>{zh ? '用 runc 承载性能敏感的长期进程，并让副本、健康检查、存储与滚动更新持续可靠。' : 'Use runc for trusted, performance-sensitive processes with durable replicas, health, storage, and rollouts.'}</p>
-      <a href={`${base}/guides/python-service/`}>{zh ? '构建 Python Service' : 'Build a Python Service'}</a>
-    </article>
-    <article>
-      <div class="ax-workload-meta">
-        <span class="ax-workload-tag">[ AXRUN ]</span>
-        <span class="ax-workload-index">03 / 03</span>
-      </div>
-      <h3>{zh ? '保存智能体证据' : 'Preserve agent evidence'}</h3>
-      <p>{zh ? '将不可变任务、受控并发、验证、轨迹、用量和产物组织成可复现 Rollout。' : 'Turn immutable tasks, controlled concurrency, verification, trajectories, usage, and artifacts into reproducible rollouts.'}</p>
-      <a href={`${base}/axrun/`}>{zh ? '了解 Axrun' : 'Explore Axrun'}</a>
-    </article>
   </div>
 </section>
 
@@ -253,6 +217,52 @@ await sandbox.close();`,
         <pre><code set:html={example.highlighted}></code></pre>
       </div>
     ))}
+  </div>
+</section>
+
+<section class="ax-section ax-section--intro" aria-labelledby="ax-paths-heading">
+  <div class="ax-section__heading">
+    <p class="ax-eyebrow">{zh ? '从这里开始' : 'START HERE'}</p>
+    <h2 id="ax-paths-heading">{zh ? '按你的目标进入文档' : 'Find your path through the docs'}</h2>
+    <p>{zh ? '一个平台覆盖一次性执行、常驻服务与可复现评测——从符合你目标的路径开始。' : 'One platform for one-shot execution, durable services, and reproducible evaluation—start from the path that matches your goal.'}</p>
+  </div>
+  <div class="ax-workload-grid ax-workload-grid--paths">
+    <article>
+      <div class="ax-workload-meta">
+        <span class="ax-workload-tag">[ QUICKSTART ]</span>
+        <span class="ax-workload-index">01 / 04</span>
+      </div>
+      <h3>{zh ? '运行你的第一个沙箱' : 'Run your first sandbox'}</h3>
+      <p>{zh ? '用本地 Compose 拉起完整栈，几分钟内在 runsc 隔离的沙箱中执行代码。' : 'Bring up the local Compose stack and execute code in a runsc-isolated sandbox in minutes.'}</p>
+      <a href={`${base}/getting-started/`}>{zh ? '进入快速开始' : 'Start the quickstart'}</a>
+    </article>
+    <article>
+      <div class="ax-workload-meta">
+        <span class="ax-workload-tag">[ SDK ]</span>
+        <span class="ax-workload-index">02 / 04</span>
+      </div>
+      <h3>{zh ? '编程公开 API' : 'Program the public API'}</h3>
+      <p>{zh ? '使用 Python、Go 或 TypeScript SDK，与 CLI 共享同一套平台能力。' : 'Use the Python, Go, or TypeScript SDK—same platform capabilities as the CLI, no SSH fallbacks.'}</p>
+      <a href={`${base}/sdk/`}>{zh ? '选择 SDK' : 'Choose an SDK'}</a>
+    </article>
+    <article>
+      <div class="ax-workload-meta">
+        <span class="ax-workload-tag">[ SELF-HOST ]</span>
+        <span class="ax-workload-index">03 / 04</span>
+      </div>
+      <h3>{zh ? '部署到 Kubernetes' : 'Deploy on Kubernetes'}</h3>
+      <p>{zh ? '用 Helm Chart 在你自己的集群上安装控制面、Gateway 与节点运行时。' : 'Install the control plane, gateway, and node runtime on your own cluster with the Helm chart.'}</p>
+      <a href={`${base}/getting-started/kubernetes/`}>{zh ? '使用 Helm 部署' : 'Deploy with Helm'}</a>
+    </article>
+    <article>
+      <div class="ax-workload-meta">
+        <span class="ax-workload-tag">[ AXRUN ]</span>
+        <span class="ax-workload-index">04 / 04</span>
+      </div>
+      <h3>{zh ? '评测智能体工作' : 'Evaluate agent work'}</h3>
+      <p>{zh ? '将不可变任务、受控并发、验证、轨迹、用量和产物组织成可复现 Rollout。' : 'Turn immutable tasks, controlled concurrency, verification, trajectories, usage, and artifacts into reproducible rollouts.'}</p>
+      <a href={`${base}/axrun/`}>{zh ? '了解 Axrun' : 'Explore Axrun'}</a>
+    </article>
   </div>
 </section>
 

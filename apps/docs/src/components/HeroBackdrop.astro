@@ -1,0 +1,335 @@
+<canvas class="ax-hero-backdrop" data-hero-backdrop aria-hidden="true"></canvas>
+
+<script>
+  const heroBoxEdges = [
+    0, 1, 1, 3, 3, 2, 2, 0,
+    4, 5, 5, 7, 7, 6, 6, 4,
+    0, 4, 1, 5, 2, 6, 3, 7,
+  ];
+
+  const heroBoxCorners = (size: number) => [
+    [-size, -size, -size], [size, -size, -size],
+    [-size, size, -size], [size, size, -size],
+    [-size, -size, size], [size, -size, size],
+    [-size, size, size], [size, size, size],
+  ];
+
+  const heroBoxLines = (size: number) => {
+    const corners = heroBoxCorners(size);
+    const values: number[] = [];
+    heroBoxEdges.forEach((index) => values.push(...corners[index]));
+    return new Float32Array(values);
+  };
+
+  const heroBoxFaces = (size: number) => {
+    const corners = heroBoxCorners(size);
+    const faces = [
+      0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5,
+      0, 4, 5, 0, 5, 1, 2, 3, 7, 2, 7, 6,
+      0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3,
+    ];
+    return new Float32Array(faces.flatMap((index) => corners[index]));
+  };
+
+  const heroOrbitRing = () => {
+    const values: number[] = [];
+    const segments = 96;
+    for (let index = 0; index <= segments; index += 1) {
+      const angle = (index / segments) * Math.PI * 2;
+      values.push(Math.cos(angle) * 1.45, Math.sin(angle) * 0.33, Math.sin(angle) * 0.82);
+    }
+    return new Float32Array(values);
+  };
+
+  const heroParticles = () => {
+    let seed = 4241;
+    const random = () => {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647;
+    };
+    const values: number[] = [];
+    for (let index = 0; index < 110; index += 1) {
+      const theta = random() * Math.PI * 2;
+      const phi = Math.acos(random() * 2 - 1);
+      const radius = 1.2 + random() * 0.65;
+      values.push(
+        Math.sin(phi) * Math.cos(theta) * radius,
+        Math.cos(phi) * radius * 0.72,
+        Math.sin(phi) * Math.sin(theta) * radius,
+      );
+    }
+    return new Float32Array(values);
+  };
+
+  const heroVertexSource = `
+    attribute vec3 aPosition;
+    uniform float uTime;
+    uniform float uAspect;
+    uniform float uPointSize;
+    uniform vec2 uPointer;
+    varying float vDepth;
+
+    void main() {
+      float ay = 0.68 + uTime * 0.14 + uPointer.x * 0.28;
+      float ax = 0.42 + sin(uTime * 0.09) * 0.04 + uPointer.y * 0.14;
+      mat3 rotateY = mat3(
+        cos(ay), 0.0, -sin(ay),
+        0.0, 1.0, 0.0,
+        sin(ay), 0.0, cos(ay)
+      );
+      mat3 rotateX = mat3(
+        1.0, 0.0, 0.0,
+        0.0, cos(ax), sin(ax),
+        0.0, -sin(ax), cos(ax)
+      );
+      vec3 position = rotateX * rotateY * aPosition;
+      position.y -= 0.10;
+      float depth = 5.0 - position.z;
+      gl_Position = vec4(
+        position.x * 2.35 / uAspect / depth,
+        position.y * 2.35 / depth,
+        0.0,
+        1.0
+      );
+      gl_PointSize = uPointSize * (0.75 + (position.z + 2.4) * 0.12);
+      vDepth = clamp((position.z + 2.4) / 4.8, 0.0, 1.0);
+    }
+  `;
+
+  const heroFragmentSource = `
+    precision mediump float;
+    uniform vec4 uColor;
+    uniform float uPoints;
+    varying float vDepth;
+
+    void main() {
+      if (uPoints > 0.5) {
+        vec2 point = gl_PointCoord - vec2(0.5);
+        if (dot(point, point) > 0.25) discard;
+      }
+      gl_FragColor = vec4(uColor.rgb, uColor.a * (0.55 + vDepth * 0.45));
+    }
+  `;
+
+  document.querySelectorAll<HTMLCanvasElement>('[data-hero-backdrop]').forEach((canvas) => {
+    if (canvas.dataset.heroBackdropReady === 'true') return;
+
+    const gl = canvas.getContext('webgl', { alpha: true, antialias: true, premultipliedAlpha: true });
+    if (!gl) {
+      canvas.remove();
+      return;
+    }
+
+    const compile = (type: number, source: string) => {
+      const shader = gl.createShader(type);
+      if (!shader) return null;
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
+      gl.deleteShader(shader);
+      return null;
+    };
+
+    const vertex = compile(gl.VERTEX_SHADER, heroVertexSource);
+    const fragment = compile(gl.FRAGMENT_SHADER, heroFragmentSource);
+    const program = vertex && fragment ? gl.createProgram() : null;
+    if (!vertex || !fragment || !program) {
+      if (vertex) gl.deleteShader(vertex);
+      if (fragment) gl.deleteShader(fragment);
+      canvas.remove();
+      return;
+    }
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      gl.deleteProgram(program);
+      gl.deleteShader(vertex);
+      gl.deleteShader(fragment);
+      canvas.remove();
+      return;
+    }
+    gl.deleteShader(vertex);
+    gl.deleteShader(fragment);
+    gl.useProgram(program);
+    canvas.dataset.heroBackdropReady = 'true';
+
+    const positionLocation = gl.getAttribLocation(program, 'aPosition');
+    const timeLocation = gl.getUniformLocation(program, 'uTime');
+    const aspectLocation = gl.getUniformLocation(program, 'uAspect');
+    const pointSizeLocation = gl.getUniformLocation(program, 'uPointSize');
+    const pointerLocation = gl.getUniformLocation(program, 'uPointer');
+    const colorLocation = gl.getUniformLocation(program, 'uColor');
+    const pointsLocation = gl.getUniformLocation(program, 'uPoints');
+
+    const makeBuffer = (values: Float32Array) => {
+      const buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, values, gl.STATIC_DRAW);
+      return { buffer, count: values.length / 3 };
+    };
+
+    const outerLines = makeBuffer(heroBoxLines(0.95));
+    const innerLines = makeBuffer(heroBoxLines(0.52));
+    const innerFaces = makeBuffer(heroBoxFaces(0.52));
+    const ring = makeBuffer(heroOrbitRing());
+    const particles = makeBuffer(heroParticles());
+
+    let rgb: [number, number, number] = [0.47, 0.66, 1.0];
+    let accentRgb: [number, number, number] = [0.47, 0.66, 1.0];
+    const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+    let reducedMotion = motionQuery.matches;
+    const pointer = { x: 0, y: 0, targetX: 0, targetY: 0 };
+    let visible = true;
+    let frame = 0;
+    let disposed = false;
+
+    const readCssColor = (property: string, fallback: [number, number, number]) => {
+      const raw = getComputedStyle(document.documentElement).getPropertyValue(property).trim();
+      const match = raw.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+      if (!match) return fallback;
+      let hex = match[1];
+      if (hex.length === 3) hex = hex.split('').map((char) => char + char).join('');
+      return [
+        parseInt(hex.slice(0, 2), 16) / 255,
+        parseInt(hex.slice(2, 4), 16) / 255,
+        parseInt(hex.slice(4, 6), 16) / 255,
+      ] as [number, number, number];
+    };
+
+    const readThemeColor = () => {
+      rgb = readCssColor('--ax-primary', rgb);
+      accentRgb = readCssColor('--ax-hero-accent', rgb);
+    };
+
+    const bind = (entry: { buffer: WebGLBuffer | null }) => {
+      gl.bindBuffer(gl.ARRAY_BUFFER, entry.buffer);
+      gl.enableVertexAttribArray(positionLocation);
+      gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
+    };
+
+    const draw = (
+      entry: { buffer: WebGLBuffer | null; count: number },
+      mode: number,
+      alpha: number,
+      points = false,
+      color: [number, number, number] = rgb,
+    ) => {
+      bind(entry);
+      gl.uniform4fv(colorLocation, [color[0], color[1], color[2], alpha]);
+      gl.uniform1f(pointsLocation, points ? 1 : 0);
+      gl.drawArrays(mode, 0, entry.count);
+    };
+
+    const render = (now: number) => {
+      if (disposed) return;
+      const bounds = canvas.getBoundingClientRect();
+      const ratio = Math.min(devicePixelRatio || 1, 1.5);
+      const width = Math.max(1, Math.round(bounds.width * ratio));
+      const height = Math.max(1, Math.round(bounds.height * ratio));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      gl.viewport(0, 0, width, height);
+      gl.uniform1f(aspectLocation, width / height);
+      gl.uniform1f(pointSizeLocation, ratio * 3.4);
+
+      pointer.x += (pointer.targetX - pointer.x) * 0.04;
+      pointer.y += (pointer.targetY - pointer.y) * 0.04;
+      const time = reducedMotion ? 0 : now * 0.001;
+      gl.uniform1f(timeLocation, time);
+      gl.uniform2f(pointerLocation, pointer.x, pointer.y);
+
+      const dark = document.documentElement.dataset.theme !== 'light';
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.BLEND);
+
+      gl.blendFunc(gl.SRC_ALPHA, dark ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
+      draw(innerFaces, gl.TRIANGLES, 0.09, false, dark ? rgb : accentRgb);
+      draw(particles, gl.POINTS, dark ? 0.55 : 0.4, true, dark ? rgb : accentRgb);
+
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      draw(innerFaces, gl.TRIANGLES, dark ? 0.05 : 0.06, false, dark ? rgb : accentRgb);
+      draw(ring, gl.LINE_STRIP, dark ? 0.14 : 0.22, false, dark ? rgb : accentRgb);
+      draw(outerLines, gl.LINES, 0.38);
+      draw(innerLines, gl.LINES, 0.9);
+
+      if (!reducedMotion && visible && !document.hidden) frame = requestAnimationFrame(render);
+    };
+
+    const hero = canvas.closest<HTMLElement>('.ax-hero') ?? canvas;
+    const handlePointerMove = (event: PointerEvent) => {
+      const bounds = canvas.getBoundingClientRect();
+      if (bounds.width === 0 || bounds.height === 0) return;
+      pointer.targetX = ((event.clientX - bounds.left) / bounds.width - 0.5) * 2;
+      pointer.targetY = ((event.clientY - bounds.top) / bounds.height - 0.5) * -2;
+    };
+    const handlePointerLeave = () => {
+      pointer.targetX = 0;
+      pointer.targetY = 0;
+    };
+    const handleVisibilityChange = () => {
+      if (!document.hidden && visible) start();
+    };
+    const handleMotionChange = (event: MediaQueryListEvent) => {
+      reducedMotion = event.matches;
+      start();
+    };
+
+    const start = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      if (disposed || !visible || document.hidden) return;
+      frame = requestAnimationFrame(render);
+    };
+
+    readThemeColor();
+    const themeObserver = new MutationObserver(() => {
+      readThemeColor();
+      start();
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    const resizeObserver = new ResizeObserver(start);
+    resizeObserver.observe(canvas);
+    const intersectionObserver = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      if (visible) start();
+      else {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+    }, { rootMargin: '80px' });
+    intersectionObserver.observe(canvas);
+
+    const buffers = [outerLines, innerLines, innerFaces, ring, particles];
+    const cleanup = () => {
+      if (disposed) return;
+      disposed = true;
+      cancelAnimationFrame(frame);
+      frame = 0;
+      themeObserver.disconnect();
+      resizeObserver.disconnect();
+      intersectionObserver.disconnect();
+      hero.removeEventListener('pointermove', handlePointerMove);
+      hero.removeEventListener('pointerleave', handlePointerLeave);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      motionQuery.removeEventListener('change', handleMotionChange);
+      document.removeEventListener('astro:before-swap', cleanup);
+      buffers.forEach(({ buffer }) => { if (buffer) gl.deleteBuffer(buffer); });
+      gl.deleteProgram(program);
+      delete canvas.dataset.heroBackdropReady;
+    };
+
+    hero.addEventListener('pointermove', handlePointerMove);
+    hero.addEventListener('pointerleave', handlePointerLeave);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    motionQuery.addEventListener('change', handleMotionChange);
+    document.addEventListener('astro:before-swap', cleanup, { once: true });
+    start();
+  });
+</script>

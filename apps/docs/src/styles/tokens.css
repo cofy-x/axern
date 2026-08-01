@@ -13,6 +13,7 @@
   --sl-font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --ax-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --ax-primary: #78a7ff;
+  --ax-hero-accent: #78a7ff;
   --ax-on-primary: #0b0d12;
   --ax-panel: color-mix(in srgb, var(--sl-color-black) 95%, var(--ax-primary));
 }
@@ -30,6 +31,7 @@
   --sl-color-gray-6: #f0f1f3;
   --sl-color-black: #fbfbfd;
   --ax-primary: #3867e8;
+  --ax-hero-accent: #42a9c2;
   --ax-on-primary: #ffffff;
   --ax-panel: #f4f6fb;
 }

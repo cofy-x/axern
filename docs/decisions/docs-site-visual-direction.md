@@ -11,7 +11,9 @@ observable runtime behavior.
 ## Design Contract
 
 - Lead with the AI Sandbox category and product outcome, then provide a local
-  path to a working sandbox.
+  path to a working sandbox. Show real SDK and CLI usage immediately after the
+  hero, and route readers into the documentation by intent (quickstart, SDK,
+  self-hosting, Axrun) rather than by marketing narrative.
 - Use a compact grid, square borders, high-contrast controls, and a small set
   of reusable spacing and color tokens.
 - Use code, terminal recordings, and runtime state as the primary product
