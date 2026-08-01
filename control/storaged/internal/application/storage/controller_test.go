@@ -40,7 +40,9 @@ func TestWorkloadClaimReclaimRetriesAndAllowsSameNameRecreate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := controller.DeleteWorkloadVolumeClaims(ctx, &privatestoragev1.DeleteWorkloadVolumeClaimsRequest{Namespace: "default", WorkloadID: "svc-1"})
+	response, err := controller.DeleteWorkloadVolumeClaims(ctx, &privatestoragev1.DeleteWorkloadVolumeClaimsRequest{
+		Namespace: "default", WorkloadID: "svc-1", WorkloadType: "service",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +57,9 @@ func TestWorkloadClaimReclaimRetriesAndAllowsSameNameRecreate(t *testing.T) {
 	if _, err := controller.ReportVolumeReclaim(ctx, reclaimReport(reclaim, false, "node unavailable")); err != nil {
 		t.Fatal(err)
 	}
-	response, err = controller.DeleteWorkloadVolumeClaims(ctx, &privatestoragev1.DeleteWorkloadVolumeClaimsRequest{Namespace: "default", WorkloadID: "svc-1"})
+	response, err = controller.DeleteWorkloadVolumeClaims(ctx, &privatestoragev1.DeleteWorkloadVolumeClaimsRequest{
+		Namespace: "default", WorkloadID: "svc-1", WorkloadType: "service",
+	})
 	if err != nil || response.GetComplete() || len(response.GetReclaims()) != 0 {
 		t.Fatalf("backoff reclaim = %#v, err=%v", response, err)
 	}
@@ -78,7 +82,9 @@ func TestWorkloadClaimReclaimRetriesAndAllowsSameNameRecreate(t *testing.T) {
 	if _, err := controller.ReportVolumeReclaim(ctx, reclaimReport(claimed.GetReclaims()[0], true, "")); err != nil {
 		t.Fatal(err)
 	}
-	response, err = controller.DeleteWorkloadVolumeClaims(ctx, &privatestoragev1.DeleteWorkloadVolumeClaimsRequest{Namespace: "default", WorkloadID: "svc-1"})
+	response, err = controller.DeleteWorkloadVolumeClaims(ctx, &privatestoragev1.DeleteWorkloadVolumeClaimsRequest{
+		Namespace: "default", WorkloadID: "svc-1", WorkloadType: "service",
+	})
 	if err != nil || !response.GetComplete() {
 		t.Fatalf("completed reclaim = %#v, err=%v", response, err)
 	}

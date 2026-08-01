@@ -37,7 +37,15 @@ func (s *MemoryStore) ReserveVolumeBinding(_ context.Context, req kernel.VolumeB
 	if claim == nil || class == nil || mount == nil {
 		return nil, fmt.Errorf("volume binding reserve requires claim, class, and mount")
 	}
-	if stored := s.claims[claim.GetNamespace()+"/"+claim.GetName()]; stored != nil && stored.GetTopology().GetNodeID() != "" && stored.GetTopology().GetNodeID() != req.NodeID {
+	stored := s.claims[claim.GetNamespace()+"/"+claim.GetName()]
+	if stored == nil || stored.GetID() != claim.GetID() || stored.GetStatus() == storagev1.VolumeStatus_VOLUME_STATUS_DELETED {
+		return nil, fmt.Errorf("volume claim %q not found", claim.GetID())
+	}
+	if err := kernel.ValidateVolumeClaimOwnership(stored, req.WorkloadID, req.WorkloadType); err != nil {
+		return nil, err
+	}
+	claim = proto.Clone(stored).(*storagev1.VolumeClaim)
+	if stored.GetTopology().GetNodeID() != "" && stored.GetTopology().GetNodeID() != req.NodeID {
 		return nil, fmt.Errorf("volume claim %q is already bound to node %q", claim.GetID(), stored.GetTopology().GetNodeID())
 	}
 	bindingID := req.AllocationID + "/" + claim.GetName()
@@ -62,7 +70,6 @@ func (s *MemoryStore) ReserveVolumeBinding(_ context.Context, req kernel.VolumeB
 		}
 	}
 	volume := resolvedNodeVolumeFromReserve(req, claim, class, mount, bindingID)
-	stored := s.claims[claim.GetNamespace()+"/"+claim.GetName()]
 	if stored != nil {
 		if err := kernel.TransitionClaimStatus(stored.GetStatus(), storagev1.VolumeStatus_VOLUME_STATUS_BOUND); err != nil {
 			return nil, err

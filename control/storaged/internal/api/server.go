@@ -99,6 +99,10 @@ func (s *Server) DeleteWorkloadVolumeClaims(ctx context.Context, req *privatesto
 	return s.controller.DeleteWorkloadVolumeClaims(ctx, req)
 }
 
+func (s *Server) ReleaseWorkloadVolumeClaims(ctx context.Context, req *privatestoragev1.ReleaseWorkloadVolumeClaimsRequest) (*privatestoragev1.ReleaseWorkloadVolumeClaimsResponse, error) {
+	return s.controller.ReleaseWorkloadVolumeClaims(ctx, req)
+}
+
 func (s *Server) ReportVolumeReclaim(ctx context.Context, req *privatestoragev1.ReportVolumeReclaimRequest) (*privatestoragev1.ReportVolumeReclaimResponse, error) {
 	return s.controller.ReportVolumeReclaim(ctx, req)
 }

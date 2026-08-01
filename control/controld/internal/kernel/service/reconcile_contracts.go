@@ -25,6 +25,7 @@ type StorageCoordinator interface {
 	ReportBindingPublishFailed(ctx context.Context, allocationID, nodeID string, volumes []*privatestoragev1.ResolvedNodeVolume, message string) error
 	ReportBindingRelease(ctx context.Context, allocationID, nodeID string, observations []*privatestoragev1.VolumeReleaseObservation) error
 	DeleteWorkloadVolumeClaims(ctx context.Context, namespace, serviceID string) (*privatestoragev1.DeleteWorkloadVolumeClaimsResponse, error)
+	ReleaseWorkloadVolumeClaims(ctx context.Context, namespace, serviceID string) (*privatestoragev1.ReleaseWorkloadVolumeClaimsResponse, error)
 	ClaimVolumeReclaims(ctx context.Context, leaseOwner string, excludedNodeIDs []string) (*privatestoragev1.VolumeReclaim, error)
 	ReportVolumeReclaim(ctx context.Context, reclaim *privatestoragev1.VolumeReclaim, succeeded bool, message string) error
 }

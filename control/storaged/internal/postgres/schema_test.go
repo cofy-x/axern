@@ -31,6 +31,8 @@ func TestLoadMigrations(t *testing.T) {
 	for _, fragment := range []string{
 		"claim_id text PRIMARY KEY",
 		"storage_volume_claims_active_name_idx",
+		"storage_volume_claims_owner_idx",
+		"(payload->>'owner_type'), (payload->>'owner_id')",
 		"WHERE status <> 'VOLUME_STATUS_DELETED'",
 	} {
 		if !strings.Contains(migrations[0].SQL, fragment) {

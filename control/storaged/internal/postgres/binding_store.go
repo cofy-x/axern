@@ -55,6 +55,9 @@ func (s *Store) ReserveVolumeBinding(ctx context.Context, req kernel.VolumeBindi
 	if lockedClaim.GetStatus() == storagev1.VolumeStatus_VOLUME_STATUS_DELETED {
 		return nil, fmt.Errorf("volume claim %q not found", req.Claim.GetID())
 	}
+	if err := kernel.ValidateVolumeClaimOwnership(lockedClaim, req.WorkloadID, req.WorkloadType); err != nil {
+		return nil, err
+	}
 	if boundNode := lockedClaim.GetTopology().GetNodeID(); boundNode != "" && boundNode != req.NodeID {
 		return nil, fmt.Errorf("volume claim %q is already bound to node %q", req.Claim.GetID(), boundNode)
 	}
@@ -132,7 +135,10 @@ func (s *Store) ReserveVolumeBinding(ctx context.Context, req kernel.VolumeBindi
 	`, binding.GetBindingID(), binding.GetClaimID(), binding.GetNamespace(), binding.GetClaimName(), binding.GetWorkloadID(), binding.GetWorkloadType(), binding.GetAllocationID(), binding.GetNodeID(), binding.GetStatus().String(), payload, binding.GetMessage(), now, now); err != nil {
 		return nil, err
 	}
-	claim := proto.Clone(req.Claim).(*storagev1.VolumeClaim)
+	// Persist from the row locked in this transaction, never from the caller's
+	// pre-lock snapshot. The request may have been resolved before an ownership
+	// or status transition committed.
+	claim := proto.Clone(lockedClaim).(*storagev1.VolumeClaim)
 	if err := kernel.TransitionClaimStatus(claim.GetStatus(), storagev1.VolumeStatus_VOLUME_STATUS_BOUND); err != nil {
 		return nil, err
 	}

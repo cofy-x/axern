@@ -17,6 +17,7 @@ type Store interface {
 	GetVolumeClaim(context.Context, string, string) (*storagev1.VolumeClaim, bool, error)
 	ListVolumeClaims(context.Context, *storagev1.VolumeClaimListFilter) ([]*storagev1.VolumeClaim, error)
 	UpdateVolumeClaim(context.Context, string, string, int64, func(*storagev1.VolumeClaim) error) (*storagev1.VolumeClaim, error)
+	ReleaseWorkloadVolumeClaims(context.Context, string, string, string, time.Time) ([]string, error)
 	GetVolumeBindingForClaim(context.Context, string) (*privatestoragev1.VolumeBinding, bool, error)
 	ReserveVolumeBinding(context.Context, kernel.VolumeBindingReserve) (*privatestoragev1.ResolvedNodeVolume, error)
 	ReleaseVolumeBindings(context.Context, string, string) error

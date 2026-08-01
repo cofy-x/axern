@@ -232,3 +232,38 @@ func (s *MemoryStore) UpdateVolumeClaim(_ context.Context, namespace, name strin
 	s.claims[key] = next
 	return proto.Clone(next).(*storagev1.VolumeClaim), nil
 }
+
+func (s *MemoryStore) ReleaseWorkloadVolumeClaims(_ context.Context, namespace, workloadID, workloadType string, now time.Time) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureLocked()
+
+	keys := make([]string, 0)
+	for key, claim := range s.claims {
+		if claim.GetNamespace() == namespace && claim.GetOwnerID() == workloadID && claim.GetOwnerType() == workloadType &&
+			claim.GetStatus() != storagev1.VolumeStatus_VOLUME_STATUS_DELETED {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		claim := s.claims[key]
+		for _, binding := range s.bindings {
+			if binding.GetClaimID() == claim.GetID() && binding.GetStatus() != storagev1.VolumeStatus_VOLUME_STATUS_DELETED {
+				return nil, fmt.Errorf("volume claim %q still has active binding %q", claim.GetID(), binding.GetBindingID())
+			}
+		}
+	}
+
+	releasedClaimIDs := make([]string, 0, len(keys))
+	for _, key := range keys {
+		claim := s.claims[key]
+		claim.OwnerID = ""
+		claim.OwnerType = ""
+		claim.Message = "volume claim owner released; backend retained"
+		claim.Version++
+		claim.UpdatedAt = timestamppb.New(now.UTC())
+		releasedClaimIDs = append(releasedClaimIDs, claim.GetID())
+	}
+	return releasedClaimIDs, nil
+}

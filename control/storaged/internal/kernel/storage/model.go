@@ -195,6 +195,28 @@ func IsTerminalClaimStatus(status storagev1.VolumeStatus) bool {
 	return status == storagev1.VolumeStatus_VOLUME_STATUS_DELETED
 }
 
+// ValidateVolumeClaimOwnership verifies the durable owner of a service-scoped
+// claim. Callers that make a decision from a locked claim must invoke this
+// after acquiring the lock so a stale pre-lock snapshot cannot authorize a
+// binding for a previous workload.
+func ValidateVolumeClaimOwnership(claim *storagev1.VolumeClaim, workloadID, workloadType string) error {
+	if claim == nil {
+		return fmt.Errorf("volume claim is required")
+	}
+	if claim.GetBindingScope() != storagev1.VolumeBindingScope_VOLUME_BINDING_SCOPE_SERVICE {
+		return nil
+	}
+	workloadID = strings.TrimSpace(workloadID)
+	workloadType = strings.TrimSpace(workloadType)
+	if workloadID == "" || workloadType == "" {
+		return fmt.Errorf("volume claim binding workload id and workload type are required")
+	}
+	if claim.GetOwnerID() != workloadID || claim.GetOwnerType() != workloadType {
+		return fmt.Errorf("volume claim %q/%q is owned by another workload", claim.GetNamespace(), claim.GetName())
+	}
+	return nil
+}
+
 func TransitionClaimStatus(current, next storagev1.VolumeStatus) error {
 	if current == storagev1.VolumeStatus_VOLUME_STATUS_UNSPECIFIED {
 		return fmt.Errorf("current volume claim status is required")

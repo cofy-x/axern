@@ -53,9 +53,8 @@ func (c *Controller) ensureClaimAndClass(ctx context.Context, namespace, workloa
 				return nil, nil, err
 			}
 		}
-		if claim.GetBindingScope() == storagev1.VolumeBindingScope_VOLUME_BINDING_SCOPE_SERVICE &&
-			(claim.GetOwnerID() != strings.TrimSpace(workloadID) || claim.GetOwnerType() != strings.TrimSpace(workloadType)) {
-			return nil, nil, fmt.Errorf("volume claim %q/%q is owned by another workload", namespace, claimName)
+		if err := kernel.ValidateVolumeClaimOwnership(claim, workloadID, workloadType); err != nil {
+			return nil, nil, err
 		}
 		return claim, class, nil
 	}
@@ -85,9 +84,8 @@ func (c *Controller) ensureClaimAndClass(ctx context.Context, namespace, workloa
 	if createErr != nil {
 		claim, class, err = c.claimAndClass(ctx, namespace, claimName)
 		if err == nil {
-			if claim.GetBindingScope() == storagev1.VolumeBindingScope_VOLUME_BINDING_SCOPE_SERVICE &&
-				(claim.GetOwnerID() != strings.TrimSpace(workloadID) || claim.GetOwnerType() != strings.TrimSpace(workloadType)) {
-				return nil, nil, fmt.Errorf("volume claim %q/%q is owned by another workload", namespace, claimName)
+			if err := kernel.ValidateVolumeClaimOwnership(claim, workloadID, workloadType); err != nil {
+				return nil, nil, err
 			}
 			return claim, class, nil
 		}

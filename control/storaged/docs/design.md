@@ -90,6 +90,15 @@ behavior can differ under `runsc`, so compatibility is part of the protocol.
 - Binding status records one allocation's publish or release observation.
 - Allocation release leaves a service-scoped claim reusable and must not delete
   service data.
+- Workload deletion with a retain disposition releases claim ownership:
+  `ReleaseWorkloadVolumeClaims` clears the owner of the workload's live claims
+  so a future workload can claim the same claim and re-attach the original
+  backend. Owner release locks the workload's claims in stable order, rejects
+  active bindings, and commits all owner changes atomically. Binding reserve
+  revalidates ownership after acquiring the same claim lock so a stale
+  allocation cannot bind after ownership is released or transferred. Workload
+  deletion with a delete disposition tombstones claims through
+  `DeleteWorkloadVolumeClaims`.
 - Claim deletion is the only path that evaluates reclaim policy.
 - A `Delete` Claim persists reclaim attempt, lease, next retry, topology, and
   redacted error state. Node or controller outages do not cancel deletion.

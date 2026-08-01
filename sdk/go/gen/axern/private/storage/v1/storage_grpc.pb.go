@@ -28,6 +28,7 @@ const (
 	StorageCoordinator_ReportVolumeRelease_FullMethodName         = "/axern.private.storage.v1.StorageCoordinator/ReportVolumeRelease"
 	StorageCoordinator_GetVolumeBindingHealth_FullMethodName      = "/axern.private.storage.v1.StorageCoordinator/GetVolumeBindingHealth"
 	StorageCoordinator_DeleteWorkloadVolumeClaims_FullMethodName  = "/axern.private.storage.v1.StorageCoordinator/DeleteWorkloadVolumeClaims"
+	StorageCoordinator_ReleaseWorkloadVolumeClaims_FullMethodName = "/axern.private.storage.v1.StorageCoordinator/ReleaseWorkloadVolumeClaims"
 	StorageCoordinator_ReportVolumeReclaim_FullMethodName         = "/axern.private.storage.v1.StorageCoordinator/ReportVolumeReclaim"
 	StorageCoordinator_ListVolumeReclaims_FullMethodName          = "/axern.private.storage.v1.StorageCoordinator/ListVolumeReclaims"
 	StorageCoordinator_ClaimVolumeReclaims_FullMethodName         = "/axern.private.storage.v1.StorageCoordinator/ClaimVolumeReclaims"
@@ -47,6 +48,7 @@ type StorageCoordinatorClient interface {
 	ReportVolumeRelease(ctx context.Context, in *ReportVolumeReleaseRequest, opts ...grpc.CallOption) (*ReportVolumeReleaseResponse, error)
 	GetVolumeBindingHealth(ctx context.Context, in *VolumeBindingHealthRequest, opts ...grpc.CallOption) (*VolumeBindingHealthResponse, error)
 	DeleteWorkloadVolumeClaims(ctx context.Context, in *DeleteWorkloadVolumeClaimsRequest, opts ...grpc.CallOption) (*DeleteWorkloadVolumeClaimsResponse, error)
+	ReleaseWorkloadVolumeClaims(ctx context.Context, in *ReleaseWorkloadVolumeClaimsRequest, opts ...grpc.CallOption) (*ReleaseWorkloadVolumeClaimsResponse, error)
 	ReportVolumeReclaim(ctx context.Context, in *ReportVolumeReclaimRequest, opts ...grpc.CallOption) (*ReportVolumeReclaimResponse, error)
 	ListVolumeReclaims(ctx context.Context, in *ListVolumeReclaimsRequest, opts ...grpc.CallOption) (*ListVolumeReclaimsResponse, error)
 	ClaimVolumeReclaims(ctx context.Context, in *ClaimVolumeReclaimsRequest, opts ...grpc.CallOption) (*ClaimVolumeReclaimsResponse, error)
@@ -142,6 +144,15 @@ func (c *storageCoordinatorClient) DeleteWorkloadVolumeClaims(ctx context.Contex
 	return out, nil
 }
 
+func (c *storageCoordinatorClient) ReleaseWorkloadVolumeClaims(ctx context.Context, in *ReleaseWorkloadVolumeClaimsRequest, opts ...grpc.CallOption) (*ReleaseWorkloadVolumeClaimsResponse, error) {
+	out := new(ReleaseWorkloadVolumeClaimsResponse)
+	err := c.cc.Invoke(ctx, StorageCoordinator_ReleaseWorkloadVolumeClaims_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *storageCoordinatorClient) ReportVolumeReclaim(ctx context.Context, in *ReportVolumeReclaimRequest, opts ...grpc.CallOption) (*ReportVolumeReclaimResponse, error) {
 	out := new(ReportVolumeReclaimResponse)
 	err := c.cc.Invoke(ctx, StorageCoordinator_ReportVolumeReclaim_FullMethodName, in, out, opts...)
@@ -191,6 +202,7 @@ type StorageCoordinatorServer interface {
 	ReportVolumeRelease(context.Context, *ReportVolumeReleaseRequest) (*ReportVolumeReleaseResponse, error)
 	GetVolumeBindingHealth(context.Context, *VolumeBindingHealthRequest) (*VolumeBindingHealthResponse, error)
 	DeleteWorkloadVolumeClaims(context.Context, *DeleteWorkloadVolumeClaimsRequest) (*DeleteWorkloadVolumeClaimsResponse, error)
+	ReleaseWorkloadVolumeClaims(context.Context, *ReleaseWorkloadVolumeClaimsRequest) (*ReleaseWorkloadVolumeClaimsResponse, error)
 	ReportVolumeReclaim(context.Context, *ReportVolumeReclaimRequest) (*ReportVolumeReclaimResponse, error)
 	ListVolumeReclaims(context.Context, *ListVolumeReclaimsRequest) (*ListVolumeReclaimsResponse, error)
 	ClaimVolumeReclaims(context.Context, *ClaimVolumeReclaimsRequest) (*ClaimVolumeReclaimsResponse, error)
@@ -228,6 +240,9 @@ func (UnimplementedStorageCoordinatorServer) GetVolumeBindingHealth(context.Cont
 }
 func (UnimplementedStorageCoordinatorServer) DeleteWorkloadVolumeClaims(context.Context, *DeleteWorkloadVolumeClaimsRequest) (*DeleteWorkloadVolumeClaimsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteWorkloadVolumeClaims not implemented")
+}
+func (UnimplementedStorageCoordinatorServer) ReleaseWorkloadVolumeClaims(context.Context, *ReleaseWorkloadVolumeClaimsRequest) (*ReleaseWorkloadVolumeClaimsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReleaseWorkloadVolumeClaims not implemented")
 }
 func (UnimplementedStorageCoordinatorServer) ReportVolumeReclaim(context.Context, *ReportVolumeReclaimRequest) (*ReportVolumeReclaimResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReportVolumeReclaim not implemented")
@@ -416,6 +431,24 @@ func _StorageCoordinator_DeleteWorkloadVolumeClaims_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _StorageCoordinator_ReleaseWorkloadVolumeClaims_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReleaseWorkloadVolumeClaimsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StorageCoordinatorServer).ReleaseWorkloadVolumeClaims(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StorageCoordinator_ReleaseWorkloadVolumeClaims_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StorageCoordinatorServer).ReleaseWorkloadVolumeClaims(ctx, req.(*ReleaseWorkloadVolumeClaimsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _StorageCoordinator_ReportVolumeReclaim_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReportVolumeReclaimRequest)
 	if err := dec(in); err != nil {
@@ -530,6 +563,10 @@ var StorageCoordinator_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteWorkloadVolumeClaims",
 			Handler:    _StorageCoordinator_DeleteWorkloadVolumeClaims_Handler,
+		},
+		{
+			MethodName: "ReleaseWorkloadVolumeClaims",
+			Handler:    _StorageCoordinator_ReleaseWorkloadVolumeClaims_Handler,
 		},
 		{
 			MethodName: "ReportVolumeReclaim",

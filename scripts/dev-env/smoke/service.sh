@@ -105,7 +105,7 @@ run_local_service_volume_smoke() {
   local environment_id
   environment_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["environment"]["id"])' <<<"${env_json}")"
 
-  local service_script_initial service_script_updated
+  local service_script_initial service_script_updated service_script_reattached
   service_script_initial="$(cat <<'SH'
 set -eu
 if [ ! -f /tmp/sentinel.txt ]; then
@@ -120,6 +120,15 @@ expected='local-service-volume-sentinel'
 test -f /tmp/sentinel.txt
 test "$(tr -d '\n' </tmp/sentinel.txt)" = "${expected}"
 printf '%s\n' 'replacement-observed' >/tmp/updated.txt
+exec python -m http.server 8080 --directory /tmp
+SH
+)"
+  service_script_reattached="$(cat <<'SH'
+set -eu
+expected='local-service-volume-sentinel'
+test -f /tmp/sentinel.txt
+test "$(tr -d '\n' </tmp/sentinel.txt)" = "${expected}"
+printf '%s\n' 'reattached-observed' >/tmp/reattached.txt
 exec python -m http.server 8080 --directory /tmp
 SH
 )"
@@ -211,6 +220,22 @@ SH
   local_smoke_delete_service "${service_id}"
   service_id=""
   local_smoke_assert_service_volume_storage_state "${env_name}" "${namespace}" "VOLUME_STATUS_BOUND" "VOLUME_STATUS_DELETED"
+
+  echo "${service_prefix}_service_volume_smoke_phase=reattach_retained_claim" >&2
+  service_json="$(local_smoke_json_once_or_recover_by_namespace service services service "${namespace}" \
+    "${AXERN_SMOKE_CMD[@]}" service create -o json --namespace "${namespace}" \
+    --environment-id "${environment_id}" --replicas 1 \
+    --volume data:/tmp:rw,rbind \
+    --argv /bin/sh --argv -lc --argv "${service_script_reattached}" \
+    --readiness-http-port 8080 --readiness-http-path /reattached.txt --readiness-period 1s --readiness-timeout 1s)"
+  service_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["service"]["id"])' <<<"${service_json}")"
+  local_smoke_wait_service_ready "${service_id}"
+  local_smoke_assert_service_volume_http_body "${env_name}" "${namespace}" "${service_id}" 8080 /reattached.txt reattached-observed
+  local_smoke_assert_service_volume_storage_state "${env_name}" "${namespace}" "VOLUME_STATUS_PUBLISHED" "VOLUME_STATUS_PUBLISHED"
+  local_smoke_delete_service "${service_id}"
+  service_id=""
+  local_smoke_assert_service_volume_storage_state "${env_name}" "${namespace}" "VOLUME_STATUS_BOUND" "VOLUME_STATUS_DELETED"
+
   echo "${service_prefix}_service_volume_smoke_phase=failure_injection" >&2
   local_smoke_service_volume_failure_smoke "${env_name}" "${service_prefix}"
 

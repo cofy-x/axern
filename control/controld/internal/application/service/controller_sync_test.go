@@ -219,6 +219,60 @@ func TestSyncDeletedWaitsForPhysicalVolumeReclaimBeforeComplete(t *testing.T) {
 	}
 }
 
+func TestSyncDeletedRetainDispositionReleasesClaimOwners(t *testing.T) {
+	now := time.Date(2026, 8, 1, 3, 0, 0, 0, time.UTC)
+	service := &servicev1.Service{
+		ID: "svc-1", Namespace: "default", Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETING,
+		DeletionStatus: &servicev1.ServiceDeletionStatus{
+			Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
+			VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_RETAIN,
+		},
+	}
+	storage := &fakeStorageCoordinator{}
+	controller := &controller{
+		allocations: &fakeReconcileAllocationStore{history: []*servicekernel.AllocationRecord{{
+			AllocationID: "alloc-1", NodeID: "node-a", NodeTarget: "node-a:24010",
+			Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED,
+		}}},
+		statuses: &fakeReconcileStatusStore{service: service}, storage: storage,
+	}
+	next, err := controller.syncDeleted(context.Background(), service, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.GetDeletionStatus().GetPhase() != servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE {
+		t.Fatalf("retained deletion = %#v, want complete", next.GetDeletionStatus())
+	}
+	if storage.releaseCalls != 1 || len(storage.releasedServices) != 1 || storage.releasedServices[0] != "svc-1" {
+		t.Fatalf("release calls=%d services=%v, want one release for svc-1", storage.releaseCalls, storage.releasedServices)
+	}
+}
+
+func TestSyncDeletedRetainDispositionRetriesWhenReleaseFails(t *testing.T) {
+	now := time.Date(2026, 8, 1, 3, 5, 0, 0, time.UTC)
+	service := &servicev1.Service{
+		ID: "svc-1", Namespace: "default", Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETING,
+		DeletionStatus: &servicev1.ServiceDeletionStatus{
+			Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
+			VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_RETAIN,
+		},
+	}
+	storage := &fakeStorageCoordinator{releaseErr: errors.New("storaged unavailable")}
+	controller := &controller{
+		allocations: &fakeReconcileAllocationStore{history: []*servicekernel.AllocationRecord{{
+			AllocationID: "alloc-1", NodeID: "node-a", NodeTarget: "node-a:24010",
+			Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED,
+		}}},
+		statuses: &fakeReconcileStatusStore{service: service}, storage: storage,
+	}
+	if _, err := controller.syncDeleted(context.Background(), service, now); err == nil {
+		t.Fatal("syncDeleted() error = nil, want release failure to block completion")
+	}
+	if storage.releaseCalls != 1 {
+		t.Fatalf("release calls=%d, want 1", storage.releaseCalls)
+	}
+}
+
 func TestSyncDeletedMissingDeletionStatusFails(t *testing.T) {
 	now := time.Date(2026, 7, 17, 11, 0, 0, 0, time.UTC)
 	service := &servicev1.Service{
@@ -1047,6 +1101,9 @@ type fakeStorageCoordinator struct {
 	publishFailures     []string
 	deleteResponses     []*privatestoragev1.DeleteWorkloadVolumeClaimsResponse
 	deleteCalls         int
+	releaseErr          error
+	releaseCalls        int
+	releasedServices    []string
 	claimReclaims       []*privatestoragev1.VolumeReclaim
 	reports             []reclaimReport
 }
@@ -1096,6 +1153,17 @@ func (f *fakeStorageCoordinator) DeleteWorkloadVolumeClaims(context.Context, str
 		return response, nil
 	}
 	return &privatestoragev1.DeleteWorkloadVolumeClaimsResponse{Complete: true}, nil
+}
+
+func (f *fakeStorageCoordinator) ReleaseWorkloadVolumeClaims(_ context.Context, _ string, serviceID string) (*privatestoragev1.ReleaseWorkloadVolumeClaimsResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.releaseCalls++
+	f.releasedServices = append(f.releasedServices, serviceID)
+	if f.releaseErr != nil {
+		return nil, f.releaseErr
+	}
+	return &privatestoragev1.ReleaseWorkloadVolumeClaimsResponse{}, nil
 }
 
 func (f *fakeStorageCoordinator) ReportVolumeReclaim(_ context.Context, reclaim *privatestoragev1.VolumeReclaim, succeeded bool, message string) error {

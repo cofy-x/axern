@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
+	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	adminkernel "github.com/cofy-x/axern/control/controld/internal/kernel/admin"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	consistencykernel "github.com/cofy-x/axern/control/controld/internal/kernel/consistency"
@@ -42,6 +42,18 @@ type Nodes interface {
 	RetireNode(ctx context.Context, nodeID, operatorReason string, now time.Time) (*nodekernel.Record, error)
 }
 
+type Access interface {
+	CreatePrincipal(ctx context.Context, name, displayName string, kind accesskernel.PrincipalKind) (accesskernel.Principal, error)
+	ListPrincipals(ctx context.Context) ([]accesskernel.Principal, error)
+	DisablePrincipal(ctx context.Context, id string) (accesskernel.Principal, error)
+	AddCredential(ctx context.Context, principalID, label string, der []byte) (accesskernel.Credential, error)
+	ListCredentials(ctx context.Context, principalID string) ([]accesskernel.Credential, error)
+	RevokeCredential(ctx context.Context, id string) (accesskernel.Credential, error)
+	GrantBinding(ctx context.Context, principalID string, scope accesskernel.ScopeType, namespace string, role accesskernel.Role) (accesskernel.Binding, error)
+	ListBindings(ctx context.Context, principalID, namespace string, includeRevoked bool) ([]accesskernel.Binding, error)
+	RevokeBinding(ctx context.Context, id string) (accesskernel.Binding, error)
+}
+
 type Dependencies struct {
 	Now                        func() time.Time
 	AllocationLifecycleRetries AllocationLifecycleRetries
@@ -52,5 +64,5 @@ type Dependencies struct {
 	Nodes                      Nodes
 	NodeHeartbeatWindow        time.Duration
 	NodeSummaryWindow          time.Duration
-	Access                     *appaccess.Service
+	Access                     Access
 }

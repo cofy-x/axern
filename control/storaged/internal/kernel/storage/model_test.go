@@ -28,6 +28,31 @@ func TestStableNameRejectsPathLikeValues(t *testing.T) {
 	}
 }
 
+func TestValidateVolumeClaimOwnership(t *testing.T) {
+	claim := &storagev1.VolumeClaim{
+		Namespace: "default", Name: "workspace",
+		BindingScope: storagev1.VolumeBindingScope_VOLUME_BINDING_SCOPE_SERVICE,
+		OwnerID:      "svc-1", OwnerType: "service",
+	}
+	if err := ValidateVolumeClaimOwnership(claim, "svc-1", "service"); err != nil {
+		t.Fatalf("matching owner error = %v", err)
+	}
+	for _, owner := range [][2]string{{"svc-2", "service"}, {"svc-1", "run"}, {"", ""}} {
+		if err := ValidateVolumeClaimOwnership(claim, owner[0], owner[1]); err == nil {
+			t.Fatalf("owner %q/%q accepted, want rejection", owner[1], owner[0])
+		}
+	}
+	claim.OwnerID = ""
+	claim.OwnerType = ""
+	if err := ValidateVolumeClaimOwnership(claim, "", ""); err == nil {
+		t.Fatal("empty claim and request ownership accepted, want workload identity rejection")
+	}
+	claim.BindingScope = storagev1.VolumeBindingScope_VOLUME_BINDING_SCOPE_ALLOCATION
+	if err := ValidateVolumeClaimOwnership(claim, "", ""); err != nil {
+		t.Fatalf("allocation-scoped owner validation error = %v", err)
+	}
+}
+
 func TestTransitionClaimStatus(t *testing.T) {
 	allowed := []struct {
 		name    string
