@@ -125,6 +125,15 @@ an allocation is running, service-scoped data survives node-runtime restart and
 allocation replacement, and allocation purge leaves no active bindings while
 the claim remains reusable until it is deleted.
 
+Service deletion decides claim ownership, not reclaim policy: a retain
+disposition completes only after `storaged` clears the claim owner
+(`ReleaseWorkloadVolumeClaims`), leaving the claim ownerless and re-attachable
+with its original backend by a future workload; a delete disposition
+tombstones claims and drives physical reclaim for `Delete` policies. Owner
+release and binding reserve serialize on the claim row: release rejects active
+bindings and changes all matching claims atomically, while reserve revalidates
+the durable owner after taking the lock.
+
 ## Validation Matrix
 
 Use the narrowest layer that owns the risk, then one local truth environment

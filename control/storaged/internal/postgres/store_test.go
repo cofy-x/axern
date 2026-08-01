@@ -288,6 +288,50 @@ func TestStoreVolumeBindingPublishReleaseLifecycle(t *testing.T) {
 	}
 }
 
+func TestStoreReleaseWorkloadVolumeClaimsIsAtomicAndFencesStaleReserve(t *testing.T) {
+	db := newStoreTestDB(t)
+	store := NewStore(db)
+	ctx := context.Background()
+	now := testStoreNow()
+	class, staleClaim := createStoreClassAndClaim(t, ctx, store, now)
+	second := testVolumeClaim("default", "cache", "local", now)
+	second.OwnerID = "svc-123"
+	second.OwnerType = "service"
+	second.BackendHandle = second.GetID()
+	if _, err := store.CreateVolumeClaim(ctx, second); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.ReserveVolumeBinding(ctx, kernel.VolumeBindingReserve{
+		Namespace: "default", WorkloadID: "svc-123", WorkloadType: "service", AllocationID: "alloc-1", NodeID: "node-a",
+		Mount: &privatestoragev1.WorkloadVolumeMount{ClaimName: "cache", Target: "/cache"}, Claim: second, Class: class,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ReleaseWorkloadVolumeClaims(ctx, "default", "svc-123", "service", now.Add(time.Minute)); err == nil {
+		t.Fatal("ReleaseWorkloadVolumeClaims() error = nil, want active binding rejection")
+	}
+	if current := getStoreClaim(t, ctx, store, "default", "data"); current.GetOwnerID() != "svc-123" {
+		t.Fatalf("unbound claim owner=%q, want atomic rollback to svc-123", current.GetOwnerID())
+	}
+	if err := store.ReleaseVolumeBindings(ctx, "alloc-1", "node-a"); err != nil {
+		t.Fatal(err)
+	}
+	released, err := store.ReleaseWorkloadVolumeClaims(ctx, "default", "svc-123", "service", now.Add(2*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(released) != 2 || released[0] != "default/cache" || released[1] != "default/data" {
+		t.Fatalf("released=%v, want stable claim-id order", released)
+	}
+	if _, err := store.ReserveVolumeBinding(ctx, kernel.VolumeBindingReserve{
+		Namespace: "default", WorkloadID: "svc-123", WorkloadType: "service", AllocationID: "alloc-stale", NodeID: "node-a",
+		Mount: &privatestoragev1.WorkloadVolumeMount{ClaimName: "data", Target: "/data"}, Claim: staleClaim, Class: class,
+	}); err == nil || !strings.Contains(err.Error(), "owned by another workload") {
+		t.Fatalf("ReserveVolumeBinding(stale owner) error=%v, want ownership rejection", err)
+	}
+}
+
 func TestStoreRejectsVolumeBindingOnConflictingNode(t *testing.T) {
 	db := newStoreTestDB(t)
 	store := NewStore(db)
@@ -458,6 +502,17 @@ func createStoreClassAndClaim(t *testing.T, ctx context.Context, store *Store, n
 	claim, err := store.CreateVolumeClaim(ctx, testVolumeClaim("default", "data", "local", now))
 	if err != nil {
 		t.Fatalf("CreateVolumeClaim() error = %v", err)
+	}
+	claim, err = store.UpdateVolumeClaim(ctx, claim.GetNamespace(), claim.GetName(), claim.GetVersion(), func(next *storagev1.VolumeClaim) error {
+		next.OwnerID = "svc-123"
+		next.OwnerType = "service"
+		next.BackendHandle = next.GetID()
+		next.Version++
+		next.UpdatedAt = timestamppb.New(now)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("own test volume claim: %v", err)
 	}
 	return class, claim
 }

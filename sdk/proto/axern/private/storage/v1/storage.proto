@@ -204,12 +204,23 @@ message VolumeReclaim {
 message DeleteWorkloadVolumeClaimsRequest {
   string namespace = 1;
   string workload_id = 2;
+  string workload_type = 3;
 }
 
 message DeleteWorkloadVolumeClaimsResponse {
   repeated VolumeReclaim reclaims = 1;
   bool complete = 2;
   repeated string claim_ids = 3;
+}
+
+message ReleaseWorkloadVolumeClaimsRequest {
+  string namespace = 1;
+  string workload_id = 2;
+  string workload_type = 3;
+}
+
+message ReleaseWorkloadVolumeClaimsResponse {
+  repeated string released_claim_ids = 1;
 }
 
 message ReportVolumeReclaimRequest {
@@ -273,6 +284,7 @@ service StorageCoordinator {
   rpc ReportVolumeRelease(ReportVolumeReleaseRequest) returns (ReportVolumeReleaseResponse) {}
   rpc GetVolumeBindingHealth(VolumeBindingHealthRequest) returns (VolumeBindingHealthResponse) {}
   rpc DeleteWorkloadVolumeClaims(DeleteWorkloadVolumeClaimsRequest) returns (DeleteWorkloadVolumeClaimsResponse) {}
+  rpc ReleaseWorkloadVolumeClaims(ReleaseWorkloadVolumeClaimsRequest) returns (ReleaseWorkloadVolumeClaimsResponse) {}
   rpc ReportVolumeReclaim(ReportVolumeReclaimRequest) returns (ReportVolumeReclaimResponse) {}
   rpc ListVolumeReclaims(ListVolumeReclaimsRequest) returns (ListVolumeReclaimsResponse) {}
   rpc ClaimVolumeReclaims(ClaimVolumeReclaimsRequest) returns (ClaimVolumeReclaimsResponse) {}

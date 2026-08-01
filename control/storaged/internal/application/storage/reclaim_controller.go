@@ -14,8 +14,9 @@ import (
 func (c *Controller) DeleteWorkloadVolumeClaims(ctx context.Context, req *privatestoragev1.DeleteWorkloadVolumeClaimsRequest) (*privatestoragev1.DeleteWorkloadVolumeClaimsResponse, error) {
 	namespace := strings.TrimSpace(req.GetNamespace())
 	workloadID := strings.TrimSpace(req.GetWorkloadID())
-	if namespace == "" || workloadID == "" {
-		return nil, fmt.Errorf("storage delete workload namespace and workload id are required")
+	workloadType := strings.TrimSpace(req.GetWorkloadType())
+	if namespace == "" || workloadID == "" || workloadType == "" {
+		return nil, fmt.Errorf("storage delete workload namespace, workload id, and workload type are required")
 	}
 	claims, err := c.store.ListVolumeClaims(ctx, &storagev1.VolumeClaimListFilter{Namespace: namespace})
 	if err != nil {
@@ -24,7 +25,7 @@ func (c *Controller) DeleteWorkloadVolumeClaims(ctx context.Context, req *privat
 	now := c.now().UTC()
 	result := &privatestoragev1.DeleteWorkloadVolumeClaimsResponse{Complete: true}
 	for _, candidate := range claims {
-		if candidate.GetOwnerType() != "service" || candidate.GetOwnerID() != workloadID || candidate.GetStatus() == storagev1.VolumeStatus_VOLUME_STATUS_DELETED {
+		if candidate.GetOwnerType() != workloadType || candidate.GetOwnerID() != workloadID || candidate.GetStatus() == storagev1.VolumeStatus_VOLUME_STATUS_DELETED {
 			continue
 		}
 		result.ClaimIds = append(result.ClaimIds, candidate.GetID())
@@ -55,7 +56,7 @@ func (c *Controller) DeleteWorkloadVolumeClaims(ctx context.Context, req *privat
 		}
 	}
 	if !result.Complete {
-		remaining, err := c.workloadHasDeletingClaims(ctx, namespace, workloadID)
+		remaining, err := c.workloadHasDeletingClaims(ctx, namespace, workloadID, workloadType)
 		if err != nil {
 			return nil, err
 		}
@@ -127,13 +128,13 @@ func (c *Controller) completeClaimDeletion(ctx context.Context, claim *storagev1
 	})
 }
 
-func (c *Controller) workloadHasDeletingClaims(ctx context.Context, namespace, workloadID string) (bool, error) {
+func (c *Controller) workloadHasDeletingClaims(ctx context.Context, namespace, workloadID, workloadType string) (bool, error) {
 	claims, err := c.store.ListVolumeClaims(ctx, &storagev1.VolumeClaimListFilter{Namespace: namespace})
 	if err != nil {
 		return false, err
 	}
 	for _, claim := range claims {
-		if claim.GetOwnerID() == workloadID && claim.GetOwnerType() == "service" && claim.GetStatus() != storagev1.VolumeStatus_VOLUME_STATUS_DELETED {
+		if claim.GetOwnerID() == workloadID && claim.GetOwnerType() == workloadType && claim.GetStatus() != storagev1.VolumeStatus_VOLUME_STATUS_DELETED {
 			return true, nil
 		}
 	}

@@ -18,7 +18,10 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
-const DefaultTimeout = 10 * time.Second
+const (
+	DefaultTimeout      = 10 * time.Second
+	serviceWorkloadType = "service"
+)
 
 type Coordinator interface {
 	ResolveRequirements(ctx context.Context, namespace, serviceID string, config *commonv1.ExecutionConfig) ([]*privatestoragev1.VolumeRequirement, error)
@@ -27,6 +30,7 @@ type Coordinator interface {
 	ReportBindingPublishFailed(ctx context.Context, allocationID, nodeID string, volumes []*privatestoragev1.ResolvedNodeVolume, message string) error
 	ReportBindingRelease(ctx context.Context, allocationID, nodeID string, observations []*privatestoragev1.VolumeReleaseObservation) error
 	DeleteWorkloadVolumeClaims(ctx context.Context, namespace, serviceID string) (*privatestoragev1.DeleteWorkloadVolumeClaimsResponse, error)
+	ReleaseWorkloadVolumeClaims(ctx context.Context, namespace, serviceID string) (*privatestoragev1.ReleaseWorkloadVolumeClaimsResponse, error)
 	ClaimVolumeReclaims(ctx context.Context, leaseOwner string, excludedNodeIDs []string) (*privatestoragev1.VolumeReclaim, error)
 	ReportVolumeReclaim(ctx context.Context, reclaim *privatestoragev1.VolumeReclaim, succeeded bool, message string) error
 	VolumeReclaimQueueHealth(context.Context) (*privatestoragev1.VolumeReclaimQueueHealth, error)
@@ -247,7 +251,7 @@ func (c *Client) ResolveRequirements(ctx context.Context, namespace, serviceID s
 	resp, err := c.client.ResolveVolumeRequirements(callCtx, &privatestoragev1.ResolveVolumeRequirementsRequest{
 		Namespace:    namespace,
 		WorkloadID:   serviceID,
-		WorkloadType: "service",
+		WorkloadType: serviceWorkloadType,
 		Mounts:       workloadMounts(config),
 	})
 	if err != nil {
@@ -265,7 +269,7 @@ func (c *Client) ReserveBindings(ctx context.Context, req servicekernel.StorageR
 	resp, err := c.client.ReserveVolumeBinding(callCtx, &privatestoragev1.ReserveVolumeBindingRequest{
 		Namespace:    req.Namespace,
 		WorkloadID:   req.ServiceID,
-		WorkloadType: "service",
+		WorkloadType: serviceWorkloadType,
 		AllocationID: req.AllocationID,
 		NodeID:       req.NodeID,
 		Mounts:       workloadMounts(req.Config),
@@ -296,7 +300,20 @@ func (c *Client) DeleteWorkloadVolumeClaims(ctx context.Context, namespace, serv
 	}
 	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
-	return c.client.DeleteWorkloadVolumeClaims(callCtx, &privatestoragev1.DeleteWorkloadVolumeClaimsRequest{Namespace: namespace, WorkloadID: serviceID})
+	return c.client.DeleteWorkloadVolumeClaims(callCtx, &privatestoragev1.DeleteWorkloadVolumeClaimsRequest{
+		Namespace: namespace, WorkloadID: serviceID, WorkloadType: serviceWorkloadType,
+	})
+}
+
+func (c *Client) ReleaseWorkloadVolumeClaims(ctx context.Context, namespace, serviceID string) (*privatestoragev1.ReleaseWorkloadVolumeClaimsResponse, error) {
+	if c == nil || c.client == nil {
+		return &privatestoragev1.ReleaseWorkloadVolumeClaimsResponse{}, nil
+	}
+	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	return c.client.ReleaseWorkloadVolumeClaims(callCtx, &privatestoragev1.ReleaseWorkloadVolumeClaimsRequest{
+		Namespace: namespace, WorkloadID: serviceID, WorkloadType: serviceWorkloadType,
+	})
 }
 
 func (c *Client) ClaimVolumeReclaims(ctx context.Context, leaseOwner string, excludedNodeIDs []string) (*privatestoragev1.VolumeReclaim, error) {

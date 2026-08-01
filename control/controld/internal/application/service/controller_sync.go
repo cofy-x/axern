@@ -279,11 +279,16 @@ func (c *controller) syncDeleted(ctx context.Context, current *servicev1.Service
 	if deletion.GetPhase() == servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE {
 		return next, nil
 	}
-	if deletion.GetVolumeDisposition() != servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE {
-		return c.completeServiceDeletion(ctx, next, nil, now)
-	}
 	if c.storage == nil {
-		return current, fmt.Errorf("service storage coordinator is required for volume deletion")
+		return current, fmt.Errorf("service storage coordinator is required for volume disposition")
+	}
+	if deletion.GetVolumeDisposition() != servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE {
+		// Retained volumes stay re-attachable: release the owner so a
+		// future workload can claim the same claim and backend.
+		if _, err := c.storage.ReleaseWorkloadVolumeClaims(ctx, next.GetNamespace(), next.GetID()); err != nil {
+			return current, err
+		}
+		return c.completeServiceDeletion(ctx, next, nil, now)
 	}
 	result, err := c.storage.DeleteWorkloadVolumeClaims(ctx, next.GetNamespace(), next.GetID())
 	if err != nil {

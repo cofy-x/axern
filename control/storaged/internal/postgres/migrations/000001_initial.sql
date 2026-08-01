@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS storage_volume_claims (
 
 CREATE INDEX IF NOT EXISTS storage_volume_claims_namespace_idx ON storage_volume_claims(namespace);
 CREATE INDEX IF NOT EXISTS storage_volume_claims_status_idx ON storage_volume_claims(status);
+CREATE INDEX IF NOT EXISTS storage_volume_claims_owner_idx
+	ON storage_volume_claims(namespace, (payload->>'owner_type'), (payload->>'owner_id'), claim_id)
+	WHERE status <> 'VOLUME_STATUS_DELETED';
 CREATE UNIQUE INDEX IF NOT EXISTS storage_volume_claims_active_name_idx
 	ON storage_volume_claims(namespace, name)
 	WHERE status <> 'VOLUME_STATUS_DELETED';
