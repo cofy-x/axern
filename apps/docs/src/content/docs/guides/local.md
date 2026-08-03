@@ -84,6 +84,26 @@ axern local doctor
 axern local logs node --tail 200
 ```
 
+## Workload DNS
+
+Local Axern discovers non-loopback resolver IPs from the host and passes them
+to axnoded for OCI workloads. Docker's container-local resolver is not copied
+into a nested sandbox because its loopback address is not reachable there.
+`axern local doctor` reports `runtime_dns` as a required check.
+
+VPNs and managed networks sometimes expose DNS through a resolver that is not
+listed in the host resolver files. Set an explicit comma-separated list before
+starting or recreating the local stack:
+
+```bash
+AXERN_LOCAL_DNS_NAMESERVERS=10.0.0.53,10.0.0.54 axern local up
+```
+
+Values must be IP addresses reachable from Docker workloads. Loopback,
+unspecified, empty, and hostname values are rejected. After changing resolver
+settings for a running instance, use `axern local down` followed by `axern
+local up` to recreate the Node container while preserving data.
+
 ## Version changes
 
 `local up` never silently changes a stack version. A mismatch tells you to run
