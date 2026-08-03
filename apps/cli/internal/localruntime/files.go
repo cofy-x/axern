@@ -80,6 +80,23 @@ func randomHex(bytes int) (string, error) {
 	return hex.EncodeToString(value), nil
 }
 
+func randomBase64(bytes int) (string, error) {
+	value := make([]byte, bytes)
+	if _, err := rand.Read(value); err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(value), nil
+}
+
+func validSecretsMasterKey(value string) bool {
+	value = strings.TrimSpace(value)
+	if len(value) == 32 {
+		return true
+	}
+	decoded, err := base64.StdEncoding.DecodeString(value)
+	return err == nil && len(decoded) == 32
+}
+
 func ensurePKI(dir string) error {
 	if validCertificateSet(dir) {
 		return nil

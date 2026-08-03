@@ -44,6 +44,13 @@ message ResolveAllocationTerminalRequest {
   int64 ttl_seconds = 2;
   string client_certificate_fingerprint = 3;
   string rollout_execution_lease = 4;
+  AllocationAccessPurpose purpose = 5;
+}
+
+enum AllocationAccessPurpose {
+  ALLOCATION_ACCESS_PURPOSE_UNSPECIFIED = 0;
+  ALLOCATION_ACCESS_PURPOSE_INTERACTIVE = 1;
+  ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT = 2;
 }
 
 message ResolveAllocationTerminalResponse {

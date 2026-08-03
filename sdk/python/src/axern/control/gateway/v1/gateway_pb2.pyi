@@ -1,12 +1,22 @@
 from axern.control.common.v1 import common_pb2 as _common_pb2
 from axern.control.service.v1 import service_types_pb2 as _service_types_pb2
 from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from collections.abc import Iterable as _Iterable, Mapping as _Mapping
 from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
+
+class AllocationAccessPurpose(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    ALLOCATION_ACCESS_PURPOSE_UNSPECIFIED: _ClassVar[AllocationAccessPurpose]
+    ALLOCATION_ACCESS_PURPOSE_INTERACTIVE: _ClassVar[AllocationAccessPurpose]
+    ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT: _ClassVar[AllocationAccessPurpose]
+ALLOCATION_ACCESS_PURPOSE_UNSPECIFIED: AllocationAccessPurpose
+ALLOCATION_ACCESS_PURPOSE_INTERACTIVE: AllocationAccessPurpose
+ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT: AllocationAccessPurpose
 
 class ResolveServiceRouteRequest(_message.Message):
     __slots__ = ("namespace", "service_id", "port_ref", "ttl_seconds")
@@ -65,16 +75,18 @@ class ResolveServiceRouteResponse(_message.Message):
     def __init__(self, service_id: _Optional[str] = ..., namespace: _Optional[str] = ..., service_status: _Optional[_Union[_service_types_pb2.ServiceStatus, str]] = ..., port: _Optional[_Union[ServiceRoutePort, _Mapping]] = ..., endpoints: _Optional[_Iterable[_Union[ServiceRouteEndpoint, _Mapping]]] = ...) -> None: ...
 
 class ResolveAllocationTerminalRequest(_message.Message):
-    __slots__ = ("allocation_id", "ttl_seconds", "client_certificate_fingerprint", "rollout_execution_lease")
+    __slots__ = ("allocation_id", "ttl_seconds", "client_certificate_fingerprint", "rollout_execution_lease", "purpose")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     TTL_SECONDS_FIELD_NUMBER: _ClassVar[int]
     CLIENT_CERTIFICATE_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
     ROLLOUT_EXECUTION_LEASE_FIELD_NUMBER: _ClassVar[int]
+    PURPOSE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
     ttl_seconds: int
     client_certificate_fingerprint: str
     rollout_execution_lease: str
-    def __init__(self, allocation_id: _Optional[str] = ..., ttl_seconds: _Optional[int] = ..., client_certificate_fingerprint: _Optional[str] = ..., rollout_execution_lease: _Optional[str] = ...) -> None: ...
+    purpose: AllocationAccessPurpose
+    def __init__(self, allocation_id: _Optional[str] = ..., ttl_seconds: _Optional[int] = ..., client_certificate_fingerprint: _Optional[str] = ..., rollout_execution_lease: _Optional[str] = ..., purpose: _Optional[_Union[AllocationAccessPurpose, str]] = ...) -> None: ...
 
 class ResolveAllocationTerminalResponse(_message.Message):
     __slots__ = ("allocation_id", "owner_type", "owner_id", "node_id", "node_target", "attempt", "lease")

@@ -146,8 +146,7 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 		return err
 	}
 	if err := m.waitReady(ctx, 3*time.Minute); err != nil {
-		fmt.Fprintln(m.Stderr, "Axern did not become ready; recent service status follows.")
-		_ = m.composeRun(context.Background(), options.Profile, "ps")
+		m.printStartupDiagnostics(options.Profile)
 		return err
 	}
 	if err := m.writeContext(options.Use); err != nil {
@@ -165,6 +164,13 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	}
 	m.printReady()
 	return nil
+}
+
+func (m *Manager) printStartupDiagnostics(profile string) {
+	fmt.Fprintln(m.Stderr, "Axern did not become ready; recent service status follows.")
+	_ = m.composeRun(context.Background(), profile, "ps")
+	fmt.Fprintln(m.Stderr, "Recent core service logs follow.")
+	_ = m.composeRun(context.Background(), profile, "logs", "--no-color", "--tail", "80", "storaged", "controld", "tunneld", "node", "gatewayd")
 }
 
 func (m *Manager) printReady() {
@@ -632,7 +638,14 @@ func (m *Manager) writeEnv(profile string) error {
 	if data, err := os.ReadFile(secretsPath); err == nil {
 		_ = json.Unmarshal(data, &secretValues)
 	}
-	for _, key := range []string{"master", "postgres", "minio_user", "minio_password", "dev_token", "node_token"} {
+	if !validSecretsMasterKey(secretValues["master"]) {
+		value, err := randomBase64(32)
+		if err != nil {
+			return err
+		}
+		secretValues["master"] = value
+	}
+	for _, key := range []string{"postgres", "minio_user", "minio_password", "dev_token", "node_token"} {
 		if secretValues[key] == "" {
 			value, err := randomHex(24)
 			if err != nil {

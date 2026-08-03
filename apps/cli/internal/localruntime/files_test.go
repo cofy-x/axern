@@ -1,10 +1,16 @@
 package localruntime
 
 import (
+	"bytes"
+	"context"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
+	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -99,5 +105,83 @@ func TestContainerProxyOnlyRewritesLoopbackHost(t *testing.T) {
 func TestQuoteDotEnv(t *testing.T) {
 	if got, want := quoteDotEnv("a b#c\\d\n"), `"a b#c\\d\n"`; got != want {
 		t.Fatalf("quoteDotEnv() = %q, want %q", got, want)
+	}
+}
+
+func TestWriteEnvGeneratesAndRepairsSecretsMasterKey(t *testing.T) {
+	tests := []struct {
+		name       string
+		existing   string
+		wantSame   bool
+		wantBase64 bool
+	}{
+		{name: "new key", wantBase64: true},
+		{name: "invalid failed initialization key", existing: "0123456789abcdef0123456789abcdef0123456789abcdef", wantBase64: true},
+		{name: "valid raw key", existing: "0123456789abcdef0123456789abcdef", wantSame: true},
+		{name: "valid base64 key", existing: base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32)), wantSame: true, wantBase64: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			manager := &Manager{Dir: dir}
+			if test.existing != "" {
+				data, err := json.Marshal(map[string]string{"master": test.existing})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "secrets.json"), data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := manager.writeEnv(""); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(filepath.Join(dir, "secrets.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var secrets map[string]string
+			if err := json.Unmarshal(data, &secrets); err != nil {
+				t.Fatal(err)
+			}
+			key := secrets["master"]
+			if !validSecretsMasterKey(key) {
+				t.Fatalf("generated master key is invalid: %q", key)
+			}
+			if test.wantSame && key != test.existing {
+				t.Fatalf("valid master key changed: got %q, want %q", key, test.existing)
+			}
+			if test.wantBase64 {
+				decoded, err := base64.StdEncoding.DecodeString(key)
+				if err != nil || len(decoded) != 32 {
+					t.Fatalf("master key is not base64-encoded 32 bytes: length=%d err=%v", len(decoded), err)
+				}
+			}
+		})
+	}
+}
+
+type recordingRunner struct{ calls [][]string }
+
+func (r *recordingRunner) Run(_ context.Context, _, _ io.Writer, name string, args ...string) error {
+	r.calls = append(r.calls, append([]string{name}, args...))
+	return nil
+}
+
+func (*recordingRunner) Output(context.Context, string, ...string) ([]byte, error) { return nil, nil }
+
+func TestStartupDiagnosticsIncludesBoundedCoreLogs(t *testing.T) {
+	runner := &recordingRunner{}
+	var stderr bytes.Buffer
+	manager := &Manager{Dir: t.TempDir(), Runner: runner, Stdout: io.Discard, Stderr: &stderr}
+	manager.printStartupDiagnostics("")
+	if len(runner.calls) != 2 {
+		t.Fatalf("diagnostic calls = %d, want 2", len(runner.calls))
+	}
+	if got, want := runner.calls[1][len(runner.calls[1])-9:], []string{"logs", "--no-color", "--tail", "80", "storaged", "controld", "tunneld", "node", "gatewayd"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("log diagnostics = %#v, want %#v", got, want)
+	}
+	if !bytes.Contains(stderr.Bytes(), []byte("Recent core service logs follow.")) {
+		t.Fatalf("diagnostic stderr = %q", stderr.String())
 	}
 }
