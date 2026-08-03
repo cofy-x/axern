@@ -15,10 +15,9 @@ import (
 )
 
 const (
-	allocationReconcileLeaseTTL         = 30 * time.Second
-	allocationReconcileRenewInterval    = 10 * time.Second
-	allocationReconcileExecutionTimeout = 10 * time.Minute
-	allocationReconcileRefillInterval   = 10 * time.Millisecond
+	allocationReconcileLeaseTTL       = 30 * time.Second
+	allocationReconcileRenewInterval  = 10 * time.Second
+	allocationReconcileRefillInterval = 10 * time.Millisecond
 )
 
 type allocationReconcileResult struct {
@@ -138,7 +137,11 @@ func nonnegativeDuration(duration time.Duration) time.Duration {
 }
 
 func (c *controller) startAllocationReconcileClaim(ctx context.Context, item allocationkernel.ReconcileItem, claimedAt time.Time) *allocationReconcileClaim {
-	workerCtx, cancel := context.WithTimeout(ctx, allocationReconcileExecutionTimeout)
+	timeout := allocationkernel.LifecycleOperationTimeout
+	if item.Reason == allocationkernel.ReconcileReasonCreate {
+		timeout = allocationkernel.CreateExecutionTimeout
+	}
+	workerCtx, cancel := context.WithTimeout(ctx, timeout)
 	claim := &allocationReconcileClaim{
 		item:        item,
 		claimedAt:   claimedAt,

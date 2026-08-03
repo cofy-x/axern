@@ -181,6 +181,46 @@ func TestPeriodicReconcileComponentsAreIsolated(t *testing.T) {
 	}
 }
 
+func TestPeriodicRunReconcileUsesItsOwnLifecycleDeadline(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	app := &App{
+		reconcileInterval: time.Millisecond,
+		reconcileTimeout:  10 * time.Millisecond,
+		now:               func() time.Time { return time.Now().UTC() },
+		reconcileCtx:      ctx,
+		cancelReconcile:   cancel,
+		stopCh:            make(chan struct{}),
+		runReconciler: runReconcilerFunc(func(ctx context.Context, _ time.Time) error {
+			select {
+			case <-time.After(30 * time.Millisecond):
+				select {
+				case result <- nil:
+				default:
+				}
+				return nil
+			case <-ctx.Done():
+				select {
+				case result <- ctx.Err():
+				default:
+				}
+				return ctx.Err()
+			}
+		}),
+		reconcileHealth: reconcilekernel.NewHealthTracker(reconcilekernel.ComponentRun),
+	}
+	app.startPeriodicReconciler()
+	t.Cleanup(func() { _ = app.Close() })
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatalf("run reconcile was canceled by generic component timeout: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("run reconcile did not complete")
+	}
+}
+
 func TestPeriodicReconcileStopsWhenLifecycleIsCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	called := make(chan struct{}, 1)
@@ -254,6 +294,77 @@ func TestReconcileComponentTimeoutIsRecordedAndCloseCancelsWork(t *testing.T) {
 	}
 }
 
+func TestAllocationReconcileIsNotBoundByGenericComponentTimeout(t *testing.T) {
+	release := make(chan struct{})
+	done := make(chan struct{})
+	app := &App{
+		reconcileTimeout: 10 * time.Millisecond,
+		now:              func() time.Time { return time.Now().UTC() },
+		allocationReconciler: allocationReconcilerFunc(func(context.Context, time.Time) (int, error) {
+			close(done)
+			<-release
+			return 0, nil
+		}),
+		reconcileHealth: reconcilekernel.NewHealthTracker(reconcilekernel.ComponentAllocation),
+	}
+	finished := make(chan struct{})
+	go func() {
+		app.reconcileAllocationBatches(app.now())
+		close(finished)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("allocation reconcile did not start")
+	}
+	select {
+	case <-finished:
+		t.Fatal("allocation reconcile was canceled by the generic component timeout")
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("allocation reconcile did not finish after release")
+	}
+	got := app.reconcileHealth.Snapshot().Components[0]
+	if got.Running || got.ConsecutiveFailures != 0 {
+		t.Fatalf("health = %#v, want completed allocation reconcile", got)
+	}
+}
+
+func TestAllocationReconcileInheritsApplicationLifecycleCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
+	app := &App{
+		now:          func() time.Time { return time.Now().UTC() },
+		reconcileCtx: ctx,
+		allocationReconciler: allocationReconcilerFunc(func(ctx context.Context, _ time.Time) (int, error) {
+			close(started)
+			<-ctx.Done()
+			return 0, ctx.Err()
+		}),
+		reconcileHealth: reconcilekernel.NewHealthTracker(reconcilekernel.ComponentAllocation),
+	}
+	finished := make(chan struct{})
+	go func() {
+		app.reconcileAllocationBatches(app.now())
+		close(finished)
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("allocation reconcile did not start")
+	}
+	cancel()
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("allocation reconcile did not stop after application cancellation")
+	}
+}
+
 type reconcileFunc struct {
 	reconcilePending    func(context.Context, time.Time) error
 	reconcileAutoscaled func(context.Context, time.Time) error
@@ -269,6 +380,12 @@ func (f runReconcilerFunc) ReconcilePending(ctx context.Context, now time.Time) 
 type availabilityReconcilerFunc func(context.Context, time.Time) error
 
 func (f availabilityReconcilerFunc) ReconcileUnavailableNodes(ctx context.Context, now time.Time) error {
+	return f(ctx, now)
+}
+
+type allocationReconcilerFunc func(context.Context, time.Time) (int, error)
+
+func (f allocationReconcilerFunc) ReconcileAllocationBatch(ctx context.Context, now time.Time) (int, error) {
 	return f(ctx, now)
 }
 

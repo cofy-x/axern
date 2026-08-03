@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	secretkernel "github.com/cofy-x/axern/control/controld/internal/kernel/secret"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
@@ -22,6 +23,24 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
+
+func TestBridgeUsesSeparateLifecycleTimeouts(t *testing.T) {
+	bridge := New(&captureLifecycleClient{}, Config{})
+	if bridge.createTimeout != allocationkernel.CreateExecutionTimeout {
+		t.Fatalf("create timeout = %s, want %s", bridge.createTimeout, allocationkernel.CreateExecutionTimeout)
+	}
+	if bridge.operationTimeout != allocationkernel.LifecycleOperationTimeout {
+		t.Fatalf("operation timeout = %s, want %s", bridge.operationTimeout, allocationkernel.LifecycleOperationTimeout)
+	}
+
+	bridge = New(&captureLifecycleClient{}, Config{
+		CreateTimeout:    3 * time.Minute,
+		OperationTimeout: 15 * time.Second,
+	})
+	if bridge.createTimeout != 3*time.Minute || bridge.operationTimeout != 15*time.Second {
+		t.Fatalf("configured timeouts = create:%s operation:%s", bridge.createTimeout, bridge.operationTimeout)
+	}
+}
 
 func TestBuildCreateAllocationRequest(t *testing.T) {
 	run := &runv1.Run{

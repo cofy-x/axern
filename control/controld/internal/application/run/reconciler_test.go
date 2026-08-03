@@ -3,10 +3,10 @@ package apprun
 import (
 	"context"
 	"errors"
-	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	"testing"
 	"time"
 
+	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
@@ -117,6 +117,13 @@ func TestReconcilerStartsQueuedAllocation(t *testing.T) {
 	}
 	if lifecycle.created != 1 {
 		t.Fatalf("create calls = %d, want 1", lifecycle.created)
+	}
+	if !lifecycle.createHasDeadline {
+		t.Fatal("create context has no deadline")
+	}
+	remaining := time.Until(lifecycle.createDeadline)
+	if remaining < 9*time.Minute || remaining > allocationkernel.CreateExecutionTimeout {
+		t.Fatalf("create deadline remaining = %s, want approximately %s", remaining, allocationkernel.CreateExecutionTimeout)
 	}
 	if store.completedStartAllocationID != "alloc-a" {
 		t.Fatalf("completed start allocation = %q, want alloc-a", store.completedStartAllocationID)
@@ -269,14 +276,17 @@ func (f *fakeReconcileStore) recordSchedule(req allocationkernel.ScheduleReconci
 }
 
 type fakeReconcileLifecycle struct {
-	deleted   int
-	created   int
-	deleteErr error
-	createErr error
+	deleted           int
+	created           int
+	deleteErr         error
+	createErr         error
+	createDeadline    time.Time
+	createHasDeadline bool
 }
 
-func (f *fakeReconcileLifecycle) CreateAllocation(context.Context, string, *runv1.Run, *environmentv1.Environment, string) error {
+func (f *fakeReconcileLifecycle) CreateAllocation(ctx context.Context, _ string, _ *runv1.Run, _ *environmentv1.Environment, _ string) error {
 	f.created++
+	f.createDeadline, f.createHasDeadline = ctx.Deadline()
 	return f.createErr
 }
 
