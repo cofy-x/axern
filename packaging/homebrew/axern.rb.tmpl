@@ -1,0 +1,34 @@
+class Axern < Formula
+  desc "Programmable execution platform for isolated AI-agent workloads"
+  homepage "https://axern.cofy-x.space"
+  version "@VERSION@"
+  license "Apache-2.0"
+
+  on_macos do
+    if Hardware::CPU.arm?
+      url "@BASE@/axern_@VERSION@_darwin_arm64.tar.gz"
+      sha256 "@DARWIN_ARM_SHA@"
+    else
+      url "@BASE@/axern_@VERSION@_darwin_amd64.tar.gz"
+      sha256 "@DARWIN_AMD_SHA@"
+    end
+  end
+
+  on_linux do
+    if Hardware::CPU.arm?
+      url "@BASE@/axern_@VERSION@_linux_arm64.tar.gz"
+      sha256 "@LINUX_ARM_SHA@"
+    else
+      url "@BASE@/axern_@VERSION@_linux_amd64.tar.gz"
+      sha256 "@LINUX_AMD_SHA@"
+    end
+  end
+
+  def install
+    bin.install "axern"
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/axern version")
+  end
+end
