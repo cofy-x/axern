@@ -53,7 +53,7 @@ run_local_run_smoke() {
   quota_list="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" quota list --sort pressure --limit 0 -o json)"
   python3 -c 'import json,sys; data=json.load(sys.stdin); assert any(item["namespace"] == sys.argv[1] for item in data["quotas"])' "${namespace}" <<<"${quota_list}" >/dev/null
 
-  run_json="$(local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" "${AXERN_SMOKE_CMD[@]}" run create -o json --namespace "${namespace}" --environment-id "${environment_id}" --argv python --argv -c --argv 'import time; time.sleep(60)')"
+  run_json="$(local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" "${AXERN_SMOKE_CMD[@]}" run --detach -o json --namespace "${namespace}" --environment "${environment_id}" -- python -c 'import time; time.sleep(60)')"
   run_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["run"]["id"])' <<<"${run_json}")"
   [ -n "${run_id}" ]
   python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["run"]["status"] != "failed"' <<<"${run_json}" >/dev/null
@@ -65,8 +65,8 @@ run_local_run_smoke() {
   python3 -c 'import json,sys; data=json.load(sys.stdin); assert any(item["id"] == sys.argv[1] for item in data["runs"])' "${run_id}" <<<"${run_list}" >/dev/null
 
   quota_error="$(mktemp)"
-  if "${AXERN_SMOKE_CMD[@]}" run create -o json --namespace "${namespace}" --environment-id "${environment_id}" --request-cpu 600m --request-memory 128MiB >/dev/null 2>"${quota_error}"; then
-    echo "run create over namespace quota succeeded unexpectedly" >&2
+  if "${AXERN_SMOKE_CMD[@]}" run -o json --namespace "${namespace}" --environment "${environment_id}" --request-cpu 600m --request-memory 128MiB >/dev/null 2>"${quota_error}"; then
+    echo "run over namespace quota succeeded unexpectedly" >&2
     return 1
   fi
   if ! grep -q "namespace quota exceeded" "${quota_error}"; then
@@ -84,7 +84,7 @@ run_local_run_smoke() {
   local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" quota unset -o json --namespace "${namespace}" >/dev/null
   quota_set="false"
 
-  default_run_json="$(local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" "${AXERN_SMOKE_CMD[@]}" run create -o json --namespace "${namespace}" --environment-id "${environment_id}")"
+  default_run_json="$(local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" "${AXERN_SMOKE_CMD[@]}" run --detach -o json --namespace "${namespace}" --environment "${environment_id}")"
   default_run_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["run"]["id"])' <<<"${default_run_json}")"
   [ -n "${default_run_id}" ]
   python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["run"]["status"] != "failed"' <<<"${default_run_json}" >/dev/null
@@ -93,8 +93,8 @@ run_local_run_smoke() {
 	default_run_id=""
 
   rejected_run_error="$(mktemp)"
-  if "${AXERN_SMOKE_CMD[@]}" run create -o json --namespace "${namespace}" --environment-id "${environment_id}" --argv " " --argv python >/dev/null 2>"${rejected_run_error}"; then
-    echo "run create with blank argv succeeded unexpectedly" >&2
+  if "${AXERN_SMOKE_CMD[@]}" run -o json --namespace "${namespace}" --environment "${environment_id}" -- " " python >/dev/null 2>"${rejected_run_error}"; then
+    echo "run with blank argv succeeded unexpectedly" >&2
     return 1
   fi
   if ! grep -q "config.argv\\[0\\] must be non-empty" "${rejected_run_error}"; then
@@ -104,7 +104,7 @@ run_local_run_smoke() {
   rm -f "${rejected_run_error}"
   rejected_run_error=""
 
-  failed_run_json="$(local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" "${AXERN_SMOKE_CMD[@]}" run create -o json --namespace "${namespace}" --environment-id "${environment_id}" --argv python --argv -c --argv 'import sys; sys.exit(42)')"
+  failed_run_json="$(local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" "${AXERN_SMOKE_CMD[@]}" run --detach -o json --namespace "${namespace}" --environment "${environment_id}" -- python -c 'import sys; sys.exit(42)')"
   failed_run_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["run"]["id"])' <<<"${failed_run_json}")"
   [ -n "${failed_run_id}" ]
   run_get="$(local_smoke_wait_for_run_status "${failed_run_id}" failed)"

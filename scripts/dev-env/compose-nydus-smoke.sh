@@ -78,11 +78,10 @@ trap cleanup_nydus_smoke EXIT
 
 create_output="$(
   local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" \
-    "${AXERN_SMOKE_CMD[@]}" run create -o json \
+    "${AXERN_SMOKE_CMD[@]}" run --detach -o json \
       --namespace "${namespace}" \
-      --image-ref "${nydus_image}" \
       --runtime-class "${runtime_class}" \
-      --argv /bin/sh --argv -lc --argv 'python -c "print(\"compose-nydus-rootfs-ok\")" && sleep 600'
+      "${nydus_image}" -- /bin/sh -lc 'python -c "print(\"compose-nydus-rootfs-ok\")" && sleep 600'
 )"
 run_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["run"]["id"])' <<<"${create_output}")"
 environment_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["run"].get("environment_id",""))' <<<"${create_output}")"

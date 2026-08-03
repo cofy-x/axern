@@ -20,6 +20,7 @@ import (
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -49,6 +50,7 @@ func dial(ctx context.Context, config Config) (*grpc.ClientConn, Clients, error)
 		Tunnel:           tunnelv1.NewTunnelControlClient(conn),
 		Namespace:        namespacev1.NewNamespaceControlClient(conn),
 		Quota:            quotav1.NewQuotaControlClient(conn),
+		Node:             nodesandboxv1.NewNodeSandboxClient(conn),
 	}, nil
 }
 

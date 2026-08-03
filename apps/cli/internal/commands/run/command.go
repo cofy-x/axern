@@ -2,7 +2,13 @@ package run
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/signal"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	apprun "github.com/cofy-x/axern/apps/cli/internal/application/run"
@@ -13,68 +19,159 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func Command(runtime command.Runtime) *cobra.Command {
-	root := &cobra.Command{Use: "run", Short: "Manage one-shot runs"}
-	root.AddCommand(createCommand(runtime), getCommand(runtime), listCommand(runtime), cancelCommand(runtime))
+	options := &createOptions{namespace: "default", waitTimeout: apprun.DefaultCreateWaitTimeout}
+	root := &cobra.Command{
+		Use:   "run [flags] <image> [--] <command...>",
+		Short: "Run a command in an isolated environment",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if options.file != "" {
+				if len(args) != 0 {
+					return command.Usage(fmt.Errorf("--file does not accept image or command arguments"))
+				}
+				return nil
+			}
+			if options.environmentID != "" || options.templateID != "" {
+				return nil
+			}
+			if len(args) == 0 {
+				return command.Usage(fmt.Errorf("image is required unless --template, --environment, or --file is used"))
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if options.file == "" {
+				switch {
+				case options.environmentID != "" || options.templateID != "":
+					options.argv = append([]string(nil), args...)
+				default:
+					options.imageRef = args[0]
+					options.argv = append([]string(nil), args[1:]...)
+				}
+			}
+			return execute(runtime, cmd, options)
+		},
+	}
+	options.bind(root)
+	root.AddCommand(getCommand(runtime), listCommand(runtime), cancelCommand(runtime), logsCommand(runtime))
 	return root
 }
 
 type createOptions struct {
-	file, namespace, environmentID, templateID, templateVersion, imageRef, credentialID, cwd, runtimeClass, requestCPU, requestMemory, limitCPU, limitMemory, waitFor string
-	argv, env, secretEnv, secretFile, imageMount, labels                                                                                                              []string
-	rootfsReadonly, wait                                                                                                                                              bool
-	waitTimeout                                                                                                                                                       time.Duration
+	file, namespace, environmentID, templateID, templateVersion, imageRef, credentialID, cwd, runtimeClass, requestCPU, requestMemory, limitCPU, limitMemory string
+	argv, env, secretEnv, secretFile, imageMount, labels                                                                                                     []string
+	rootfsReadonly                                                                                                                                           bool
+	detach                                                                                                                                                   bool
+	waitTimeout                                                                                                                                              time.Duration
 }
 
-func createCommand(runtime command.Runtime) *cobra.Command {
-	options := &createOptions{namespace: "default", waitFor: string(apprun.WaitTargetTerminal), waitTimeout: apprun.DefaultCreateWaitTimeout}
-	cmd := &cobra.Command{Use: "create", Short: "Create a run", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		params, err := options.params(cmd)
-		if err != nil {
-			return command.Usage(err)
-		}
-		s, err := runtime.Open(cmd.Context())
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		control := apprun.NewWithEnvironment(s.Clients.Run, s.Clients.Environment)
-		resp, err := control.Create(s.Context, params)
-		if err != nil {
-			return err
-		}
-		value := resp.GetRun()
-		if options.wait {
-			target, err := apprun.ParseWaitTarget(options.waitFor, apprun.WaitTargetTerminal)
-			if err != nil {
-				return command.Usage(err)
+func execute(runtime command.Runtime, cmd *cobra.Command, options *createOptions) error {
+	params, err := options.params(cmd)
+	if err != nil {
+		return command.Usage(err)
+	}
+	s, err := runtime.Open(cmd.Context())
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+	control := apprun.NewWithEnvironment(s.Clients.Run, s.Clients.Environment)
+	resp, err := control.Create(s.Context, params)
+	if err != nil {
+		return err
+	}
+	value := resp.GetRun()
+	if options.detach {
+		return renderRun(runtime, cmd, value)
+	}
+	fmt.Fprintf(cmd.ErrOrStderr(), "Run: %s\n", value.GetID())
+	executionCtx, forceExit := context.WithCancel(s.Context)
+	defer forceExit()
+	signals := make(chan os.Signal, 2)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
+	cancelDone := make(chan struct{})
+	var interrupted atomic.Bool
+	var forced atomic.Bool
+	var cancelFailed atomic.Bool
+	go func() {
+		select {
+		case <-signals:
+			interrupted.Store(true)
+			fmt.Fprintln(cmd.ErrOrStderr(), "Cancelling run; press Ctrl-C again to exit immediately...")
+			cancelCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if _, err := control.Cancel(cancelCtx, value.GetID()); err != nil {
+				cancelFailed.Store(true)
+				fmt.Fprintf(cmd.ErrOrStderr(), "warning: cancellation request failed: %v\n", err)
 			}
-			final, waitErr := control.Wait(s.Context, value.GetID(), target, options.waitTimeout, nil)
-			if final != nil {
-				value = final
+			cancel()
+			select {
+			case <-signals:
+				forced.Store(true)
+				forceExit()
+			case <-cancelDone:
 			}
-			if err := renderRun(runtime, cmd, value); err != nil {
+		case <-cancelDone:
+		}
+	}()
+	defer close(cancelDone)
+	ready, waitErr := control.Wait(executionCtx, value.GetID(), apprun.WaitTargetRunning, options.waitTimeout, nil)
+	if ready != nil {
+		value = ready
+	}
+	if value.GetAllocationID() != "" {
+		if _, err := apprun.ReadOutput(executionCtx, s.Clients.Node, value.GetAllocationID(), "", true, func(event apprun.OutputEvent) error {
+			if event.Truncated {
+				fmt.Fprintln(cmd.ErrOrStderr(), "warning: run output was truncated at 64 MiB")
+			}
+			switch event.Stream {
+			case nodesandboxv1.OutputStream_OUTPUT_STREAM_STDOUT:
+				_, err := cmd.OutOrStdout().Write(event.Data)
+				return err
+			case nodesandboxv1.OutputStream_OUTPUT_STREAM_STDERR:
+				_, err := cmd.ErrOrStderr().Write(event.Data)
 				return err
 			}
-			if value.GetExitCodeKnown() && value.GetExitCode() != 0 {
-				return command.ExitError{Code: int(value.GetExitCode()), Err: waitErr}
+			return nil
+		}); err != nil && grpcstatus.Code(err) != codes.NotFound {
+			if forced.Load() {
+				return command.ExitError{Code: 130, Err: err}
 			}
-			return waitErr
+			return err
 		}
-		return renderRun(runtime, cmd, value)
-	}}
-	options.bind(cmd)
-	return cmd
+	}
+	if waitErr == nil || value.GetAllocationID() != "" {
+		final, err := control.Wait(executionCtx, value.GetID(), apprun.WaitTargetTerminal, options.waitTimeout, nil)
+		if final != nil {
+			value = final
+		}
+		waitErr = err
+	}
+	if forced.Load() {
+		return command.ExitError{Code: 130, Err: context.Canceled}
+	}
+	if interrupted.Load() {
+		if cancelFailed.Load() && waitErr == nil {
+			waitErr = fmt.Errorf("run cancellation could not be confirmed")
+		}
+		return command.ExitError{Code: 130, Err: waitErr}
+	}
+	if value.GetExitCodeKnown() && value.GetExitCode() != 0 {
+		return command.ExitError{Code: int(value.GetExitCode())}
+	}
+	return waitErr
 }
 
 func (o *createOptions) bind(cmd *cobra.Command) {
 	f := cmd.Flags()
 	f.StringVarP(&o.file, "file", "f", "", "axern/v1 Run spec")
 	f.StringVar(&o.namespace, "namespace", "default", "namespace")
-	f.StringArrayVar(&o.argv, "argv", nil, "command argument; may be repeated")
 	f.StringArrayVar(&o.env, "env", nil, "environment KEY=VALUE; may be repeated")
 	f.StringArrayVar(&o.secretEnv, "secret-env", nil, "secret environment mapping; may be repeated")
 	f.StringArrayVar(&o.secretFile, "secret-file", nil, "secret file mapping; may be repeated")
@@ -82,18 +179,16 @@ func (o *createOptions) bind(cmd *cobra.Command) {
 	f.StringVar(&o.cwd, "cwd", "", "working directory")
 	f.StringVar(&o.runtimeClass, "runtime-class", "", "runtime class")
 	f.StringArrayVar(&o.labels, "label", nil, "label key=value; may be repeated")
-	f.StringVar(&o.environmentID, "environment-id", "", "existing environment id")
-	f.StringVar(&o.templateID, "template-id", "", "runtime template id")
+	f.StringVar(&o.environmentID, "environment", "", "existing environment id")
+	f.StringVar(&o.templateID, "template", "", "runtime template id")
 	f.StringVar(&o.templateVersion, "template-version", "", "runtime template version")
-	f.StringVar(&o.imageRef, "image-ref", "", "OCI image reference")
 	f.StringVar(&o.credentialID, "registry-credential-id", "", "registry credential id")
 	f.BoolVar(&o.rootfsReadonly, "rootfs-readonly", false, "mount rootfs read-only")
 	f.StringVar(&o.requestCPU, "request-cpu", "", "CPU request")
 	f.StringVar(&o.requestMemory, "request-memory", "", "memory request")
 	f.StringVar(&o.limitCPU, "limit-cpu", "", "CPU limit")
 	f.StringVar(&o.limitMemory, "limit-memory", "", "memory limit")
-	f.BoolVar(&o.wait, "wait", false, "wait for selected state")
-	f.StringVar(&o.waitFor, "wait-for", string(apprun.WaitTargetTerminal), "running or terminal")
+	f.BoolVar(&o.detach, "detach", false, "create the run without following output")
 	f.DurationVar(&o.waitTimeout, "wait-timeout", apprun.DefaultCreateWaitTimeout, "wait timeout; 0 disables it")
 }
 
@@ -111,6 +206,15 @@ func (o createOptions) params(cmd *cobra.Command) (apprun.CreateParams, error) {
 		environmentID, environment := value.EnvironmentSpec()
 		execution, err := value.ExecutionConfig()
 		return apprun.CreateParams{Namespace: value.Metadata.Namespace, EnvironmentID: environmentID, Spec: environment, Config: execution, Labels: value.Metadata.Labels}, err
+	}
+	if o.templateVersion != "" && o.templateID == "" {
+		return apprun.CreateParams{}, fmt.Errorf("--template-version requires --template")
+	}
+	if o.environmentID != "" && (o.credentialID != "" || cmd.Flags().Changed("rootfs-readonly")) {
+		return apprun.CreateParams{}, fmt.Errorf("--registry-credential-id and --rootfs-readonly require an image")
+	}
+	if o.templateID != "" && (o.credentialID != "" || cmd.Flags().Changed("rootfs-readonly")) {
+		return apprun.CreateParams{}, fmt.Errorf("--registry-credential-id and --rootfs-readonly cannot be combined with --template")
 	}
 	execution, err := executionConfig(o)
 	if err != nil {
@@ -159,7 +263,7 @@ func environmentSpec(o createOptions) (*environmentv1.EnvironmentSpec, error) {
 		selected++
 	}
 	if selected != 1 {
-		return nil, fmt.Errorf("exactly one of environment-id, template-id, or image-ref is required")
+		return nil, fmt.Errorf("exactly one of environment, template, or image is required")
 	}
 	if o.environmentID != "" {
 		return nil, nil
@@ -174,7 +278,55 @@ func environmentSpec(o createOptions) (*environmentv1.EnvironmentSpec, error) {
 	return value, nil
 }
 
-var runDefinitionFlags = []string{"namespace", "argv", "env", "secret-env", "secret-file", "image-mount", "cwd", "runtime-class", "label", "environment-id", "template-id", "template-version", "image-ref", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "limit-cpu", "limit-memory"}
+var runDefinitionFlags = []string{"namespace", "env", "secret-env", "secret-file", "image-mount", "cwd", "runtime-class", "label", "environment", "template", "template-version", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "limit-cpu", "limit-memory"}
+
+func logsCommand(runtime command.Runtime) *cobra.Command {
+	var follow bool
+	var cursor string
+	cmd := &cobra.Command{Use: "logs <run-id>", Short: "Read run stdout and stderr", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		s, err := runtime.Open(cmd.Context())
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		response, err := apprun.New(s.Clients.Run).Get(s.Context, args[0])
+		if err != nil {
+			return err
+		}
+		run := response.GetRun()
+		if run.GetAllocationID() == "" {
+			return fmt.Errorf("run %s has no allocation output yet", args[0])
+		}
+		_, err = apprun.ReadOutput(s.Context, s.Clients.Node, run.GetAllocationID(), cursor, follow, func(event apprun.OutputEvent) error {
+			if runtime.Options.Output == "json" {
+				stream := "unknown"
+				if event.Stream == nodesandboxv1.OutputStream_OUTPUT_STREAM_STDOUT {
+					stream = "stdout"
+				} else if event.Stream == nodesandboxv1.OutputStream_OUTPUT_STREAM_STDERR {
+					stream = "stderr"
+				}
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(struct {
+					Stream     string `json:"stream"`
+					DataBase64 string `json:"data_base64"`
+					Cursor     string `json:"cursor"`
+					Terminal   bool   `json:"terminal"`
+					Truncated  bool   `json:"truncated"`
+					ObservedAt int64  `json:"observed_at_unix_milli"`
+				}{stream, base64.StdEncoding.EncodeToString(event.Data), event.NextCursor, event.Terminal, event.Truncated, event.ObservedAt})
+			}
+			writer := cmd.OutOrStdout()
+			if event.Stream == nodesandboxv1.OutputStream_OUTPUT_STREAM_STDERR {
+				writer = cmd.ErrOrStderr()
+			}
+			_, err := writer.Write(event.Data)
+			return err
+		})
+		return err
+	}}
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "follow output until the run exits")
+	cmd.Flags().StringVar(&cursor, "cursor", "", "resume from an opaque output cursor")
+	return cmd
+}
 
 func getCommand(runtime command.Runtime) *cobra.Command {
 	return runOne(runtime, "get", func(ctx context.Context, c apprun.Control, id string) (*runv1.Run, error) {

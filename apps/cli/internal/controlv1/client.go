@@ -15,6 +15,7 @@ import (
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 )
 
 const (
@@ -63,4 +64,5 @@ type Clients struct {
 	Tunnel           tunnelv1.TunnelControlClient
 	Namespace        namespacev1.NamespaceControlClient
 	Quota            quotav1.QuotaControlClient
+	Node             nodesandboxv1.NodeSandboxClient
 }
