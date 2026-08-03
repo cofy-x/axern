@@ -70,6 +70,7 @@ open-source-check: ## Audit the public source tree, credentials, metadata, and d
 
 release-check: ## Verify release versions and package contracts
 	bash $(ROOTDIR)/scripts/release/version-check.sh
+	bash $(ROOTDIR)/scripts/release/helm-platform-contract-check.sh
 	bash $(ROOTDIR)/scripts/release/homebrew-formula-check.sh
 	bash $(ROOTDIR)/scripts/dev-env/docker-build-cache-test.sh
 	bash $(ROOTDIR)/scripts/release/image-build-contract-check.sh

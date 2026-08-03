@@ -2,12 +2,10 @@
 set -euo pipefail
 
 destination="${1:?usage: $0 <destination>}"
-version=v3.18.6
-archive_sha256=3f43c0aa57243852dd542493a0f54f1396c0bc8ec7296bbb2c01e802010819ce
-case "$(uname -s)-$(uname -m)" in
-  Linux-x86_64|Linux-amd64) platform=linux-amd64 ;;
-  *) echo "the release workflow Helm installer supports Linux amd64" >&2; exit 1 ;;
-esac
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+read -r version platform archive_sha256 < <(
+  bash "${root}/scripts/release/helm-platform.sh" "$(uname -s)" "$(uname -m)"
+)
 
 tmp_dir="$(mktemp -d)"
 cleanup() { rm -rf "${tmp_dir}"; }
