@@ -61,6 +61,7 @@ type Manager struct {
 	Stderr     io.Writer
 	Runner     Runner
 	Dir        string
+	removeAll  func(string) error
 }
 
 func New(version, configPath string, stdout, stderr io.Writer) (*Manager, error) {
@@ -209,25 +210,98 @@ func (m *Manager) down(ctx context.Context, removeVolumes bool) error {
 }
 
 func (m *Manager) Reset(ctx context.Context) error {
+	clean, err := m.validatedResetPath()
+	if err != nil {
+		return err
+	}
 	release, err := m.lock()
 	if err != nil {
 		return err
 	}
 	defer release()
+	helperImage := m.backupHelperImage()
 	if err := m.down(ctx, true); err != nil {
+		return err
+	}
+	if err := m.removeLocalData(ctx, clean, helperImage); err != nil {
 		return err
 	}
 	if err := m.removeContext(); err != nil {
 		return err
 	}
-	clean, err := filepath.Abs(m.Dir)
-	if err != nil || filepath.Base(clean) != "local" {
-		return fmt.Errorf("refusing to reset unexpected local path %q", m.Dir)
-	}
-	if err := os.RemoveAll(clean); err != nil {
-		return err
-	}
 	fmt.Fprintln(m.Stdout, "Axern local data was removed and cannot be recovered.")
+	return nil
+}
+
+func (m *Manager) validatedResetPath() (string, error) {
+	expected, err := DataDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve expected local data path: %w", err)
+	}
+	clean, err := filepath.Abs(m.Dir)
+	if err != nil {
+		return "", fmt.Errorf("resolve local data path %q: %w", m.Dir, err)
+	}
+	expected, err = filepath.Abs(expected)
+	if err != nil {
+		return "", fmt.Errorf("resolve expected local data path %q: %w", expected, err)
+	}
+	if clean != expected || filepath.Base(clean) != ContextName {
+		return "", fmt.Errorf("refusing to reset unexpected local path %q", m.Dir)
+	}
+	configPath := m.ConfigPath
+	if configPath == "" {
+		configPath = config.DefaultPath()
+	}
+	configPath, err = filepath.Abs(configPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve Axern config path: %w", err)
+	}
+	if pathWithin(clean, configPath) {
+		return "", fmt.Errorf("refusing to reset local data containing Axern config %q; move --config outside %q first", configPath, clean)
+	}
+	info, err := os.Lstat(clean)
+	if err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", fmt.Errorf("refusing to reset symlinked local path %q", m.Dir)
+		}
+		if !info.IsDir() {
+			return "", fmt.Errorf("refusing to reset non-directory local path %q", m.Dir)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("inspect local data path %q: %w", m.Dir, err)
+	}
+	return clean, nil
+}
+
+func pathWithin(root, path string) bool {
+	relative, err := filepath.Rel(root, path)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
+func (m *Manager) removeLocalData(ctx context.Context, clean, helperImage string) error {
+	removeAll := os.RemoveAll
+	if m.removeAll != nil {
+		removeAll = m.removeAll
+	}
+	hostErr := removeAll(clean)
+	if hostErr == nil {
+		return nil
+	}
+	if err := os.MkdirAll(clean, 0o700); err != nil {
+		return fmt.Errorf("prepare local data cleanup after %v: %w", hostErr, err)
+	}
+	script := `set -eu
+for path in /source/* /source/.[!.]* /source/..?*; do
+  [ -e "$path" ] || [ -L "$path" ] || continue
+  rm -rf -- "$path"
+done`
+	if err := m.Runner.Run(ctx, m.Stdout, m.Stderr, "docker", "run", "--rm", "--network", "none", "--read-only", "--user", "0:0", "--entrypoint", "/bin/sh", "-v", clean+":/source", helperImage, "-c", script); err != nil {
+		return fmt.Errorf("remove root-owned local data after host cleanup failed (%v): %w", hostErr, err)
+	}
+	if err := removeAll(clean); err != nil {
+		return fmt.Errorf("remove local data after root cleanup: %w", err)
+	}
 	return nil
 }
 
@@ -341,7 +415,7 @@ func (m *Manager) backupHelperImage() string {
 			}
 		}
 	}
-	return "postgres:16-alpine"
+	return localbundle.ImageReferences(m.Version)["POSTGRES_IMAGE"]
 }
 
 func versionLess(left, right string) bool {
