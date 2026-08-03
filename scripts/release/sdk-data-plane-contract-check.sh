@@ -3,7 +3,9 @@ set -euo pipefail
 
 AXERN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 bash -n \
+  "${AXERN_ROOT}/scripts/release/homebrew-formula-check.sh" \
   "${AXERN_ROOT}/scripts/release/kind-acceptance.sh" \
+  "${AXERN_ROOT}/scripts/release/local-release-smoke.sh" \
   "${AXERN_ROOT}/scripts/release/sdk-data-plane-acceptance.sh"
 node --check "${AXERN_ROOT}/scripts/release/sdk-data-plane/typescript.mjs"
 test -z "$(gofmt -l "${AXERN_ROOT}/scripts/release/sdk-data-plane/main.go")" || {
@@ -23,6 +25,12 @@ workflow = (root / ".github/workflows/release.yml").read_text()
 required_workflow = (
     "workflow_dispatch:",
     "needs: [artifacts, images, sdk-artifacts]",
+    "local-candidate-acceptance:",
+    "homebrew-formula-check:",
+    "needs: [sdk-artifacts, candidate-acceptance, local-candidate-acceptance, homebrew-formula-check]",
+    "needs: [artifacts, images, candidate-acceptance, local-candidate-acceptance, homebrew-formula-check, sdk-publish]",
+    "local-release-smoke.sh",
+    "homebrew-formula-check.sh",
     "sdk-data-plane-acceptance.sh candidate",
     "sdk-data-plane-acceptance.sh published",
 )
@@ -31,7 +39,7 @@ for value in required_workflow:
         raise SystemExit(f"release workflow is missing SDK data-plane contract: {value}")
 if workflow.count("if: github.ref_type == 'tag'") != 4:
     raise SystemExit("release workflow must restrict all publication jobs to tag events")
-for value in ("homebrew:", "homebrew-formula.sh", "cofy-x/homebrew-tap", "HOMEBREW_TAP_TOKEN"):
+for value in ("homebrew:", "needs: [acceptance]", "cofy-x/homebrew-tap", "HOMEBREW_TAP_TOKEN"):
     if value not in workflow:
         raise SystemExit(f"release workflow is missing Homebrew publication contract: {value}")
 global_env = workflow.split("jobs:", 1)[0]
@@ -69,6 +77,11 @@ acceptance = (root / "scripts/release/sdk-data-plane-acceptance.sh").read_text()
 for value in ("service get", '${language}.service-id', "run_sdk python", "run_sdk typescript", "run_sdk go"):
     if value not in acceptance:
         raise SystemExit(f"SDK data-plane harness is missing CLI handshake contract: {value}")
+
+local_smoke = (root / "scripts/release/local-release-smoke.sh").read_text()
+for value in ('print("hello from axern")', 'print("hello from stderr"', "run_status", '"${run_status}" -ne 7'):
+    if value not in local_smoke:
+        raise SystemExit(f"local release smoke is missing foreground Run behavior: {value}")
 
 if (root / "scripts/release/verify-published-sdks.sh").exists():
     raise SystemExit("obsolete import-only published SDK verifier must not exist")
