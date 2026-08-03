@@ -7,7 +7,30 @@ cleanup() {
   AXERN_HOME="${smoke_root}" "${cli}" local down >/dev/null 2>&1 || true
   AXERN_HOME="${smoke_root}" "${cli}" local reset --force >/dev/null 2>&1 || true
 }
-trap cleanup EXIT
+
+diagnostics() {
+  echo "local release smoke failed; collecting diagnostics" >&2
+  for output in run.stdout run.stderr exit.stdout exit.stderr; do
+    if [[ -s "${smoke_root}/${output}" ]]; then
+      echo "--- ${output} ---" >&2
+      sed -n '1,240p' "${smoke_root}/${output}" >&2
+    fi
+  done
+  echo "--- local status ---" >&2
+  AXERN_HOME="${smoke_root}" "${cli}" --config "${smoke_root}/config.json" --timeout 30s local status >&2 || true
+  echo "--- local logs ---" >&2
+  AXERN_HOME="${smoke_root}" "${cli}" --config "${smoke_root}/config.json" --timeout 30s local logs --tail 200 >&2 || true
+}
+
+on_exit() {
+  status=$?
+  if [[ "${status}" -ne 0 ]]; then
+    diagnostics
+  fi
+  cleanup
+  return "${status}"
+}
+trap on_exit EXIT
 
 export AXERN_HOME="${smoke_root}"
 config="${smoke_root}/config.json"
