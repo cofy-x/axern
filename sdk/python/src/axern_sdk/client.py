@@ -14,6 +14,7 @@ from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2, environment_pb2_grpc
 from axern.control.function.v1 import function_pb2_grpc
 from axern.control.run.v1 import run_pb2, run_pb2_grpc
+from axern.node.sandbox.v1 import node_pb2, node_pb2_grpc
 from axern.control.service.v1 import (
     service_event_pb2,
     service_pb2,
@@ -307,6 +308,99 @@ class AxernClient:
             timeout=timeout,
         )
         return response.run
+
+    def watch_run(
+        self,
+        run_id: str,
+        *,
+        after_version: int = 0,
+        timeout: float | None = None,
+    ) -> Generator[run_pb2.Run, None, None]:
+        """Yield newer run snapshots and resume transient disconnects by version."""
+
+        if not run_id.strip():
+            raise ValueError("run_id is required")
+        if after_version < 0:
+            raise ValueError("after_version must be non-negative")
+        deadline = None if timeout is None else time.monotonic() + timeout
+        version = after_version
+        retry_delay = _SERVICE_WATCH_RETRY_MIN_SECONDS
+        while True:
+            remaining = None if deadline is None else deadline - time.monotonic()
+            if remaining is not None and remaining <= 0:
+                raise TimeoutError(f"run {run_id} watch timed out")
+            call = self.runs.WatchRun(
+                run_pb2.WatchRunRequest(run_id=run_id, after_version=version),
+                timeout=remaining,
+            )
+            try:
+                for response in call:
+                    if not response.HasField("run") or response.run.version <= version:
+                        continue
+                    version = response.run.version
+                    retry_delay = _SERVICE_WATCH_RETRY_MIN_SECONDS
+                    yield response.run
+                return
+            except grpc.RpcError as exc:
+                if not _is_transient_service_read_code(exc.code()):
+                    raise
+            finally:
+                call.cancel()
+            remaining = None if deadline is None else deadline - time.monotonic()
+            if remaining is not None and remaining <= 0:
+                raise TimeoutError(f"run {run_id} watch timed out")
+            time.sleep(retry_delay if remaining is None else min(retry_delay, remaining))
+            retry_delay = min(retry_delay * 2, _SERVICE_WATCH_RETRY_MAX_SECONDS)
+
+    def read_run_output(
+        self,
+        run_id: str,
+        *,
+        cursor: str = "",
+        follow: bool = False,
+        timeout: float | None = None,
+    ) -> Generator[node_pb2.ReadOutputResponse, None, None]:
+        """Yield stdout/stderr events, resuming transient disconnects by cursor."""
+
+        if not run_id.strip():
+            raise ValueError("run_id is required")
+        run = self.runs.GetRun(run_pb2.GetRunRequest(run_id=run_id), timeout=timeout).run
+        if not run.allocation_id:
+            raise RuntimeError(f"run {run_id} output is not available yet")
+        next_cursor = cursor
+        deadline = None if timeout is None else time.monotonic() + timeout
+        retry_delay = _SERVICE_WATCH_RETRY_MIN_SECONDS
+        not_found_since: float | None = None
+        while True:
+            remaining = None if deadline is None else deadline - time.monotonic()
+            if remaining is not None and remaining <= 0:
+                raise TimeoutError(f"run {run_id} output read timed out")
+            call = node_pb2_grpc.NodeSandboxStub(self._channel).ReadOutput(
+                node_pb2.ReadOutputRequest(allocation_id=run.allocation_id, cursor=next_cursor, follow=follow),
+                timeout=remaining,
+            )
+            try:
+                for event in call:
+                    next_cursor = event.next_cursor
+                    retry_delay = _SERVICE_WATCH_RETRY_MIN_SECONDS
+                    not_found_since = None
+                    yield event
+                return
+            except grpc.RpcError as exc:
+                startup_not_found = exc.code() == grpc.StatusCode.NOT_FOUND
+                if not follow or (not _is_transient_service_read_code(exc.code()) and not startup_not_found):
+                    raise
+                if startup_not_found:
+                    not_found_since = not_found_since or time.monotonic()
+                    if time.monotonic() - not_found_since >= 30:
+                        raise
+            finally:
+                call.cancel()
+            remaining = None if deadline is None else deadline - time.monotonic()
+            if remaining is not None and remaining <= 0:
+                raise TimeoutError(f"run {run_id} output read timed out")
+            time.sleep(retry_delay if remaining is None else min(retry_delay, remaining))
+            retry_delay = min(retry_delay * 2, _SERVICE_WATCH_RETRY_MAX_SECONDS)
 
     def create_service(
         self,

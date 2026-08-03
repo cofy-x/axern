@@ -11,6 +11,7 @@ import (
 	agentprofilev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/agentprofile/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	rolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/rollout/v1"
+	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	artifactv1 "github.com/cofy-x/axern/sdk/go/gen/axern/data/artifact/v1"
@@ -30,6 +31,7 @@ type Client struct {
 	environments  environmentv1.EnvironmentControlClient
 	agentProfiles agentprofilev1.AgentProfileControlClient
 	rollouts      rolloutv1.RolloutControlClient
+	runs          runv1.RunControlClient
 	services      servicev1.ServiceControlClient
 	tunnels       tunnelcontrolv1.TunnelControlClient
 	nodes         nodesandboxv1.NodeSandboxClient
@@ -164,6 +166,7 @@ func NewClient(ctx context.Context, target string, options ...ClientOption) (*Cl
 		environments:  environmentv1.NewEnvironmentControlClient(conn),
 		agentProfiles: agentprofilev1.NewAgentProfileControlClient(conn),
 		rollouts:      rolloutv1.NewRolloutControlClient(conn),
+		runs:          runv1.NewRunControlClient(conn),
 		services:      servicev1.NewServiceControlClient(conn),
 		tunnels:       tunnelcontrolv1.NewTunnelControlClient(conn),
 		nodes:         nodesandboxv1.NewNodeSandboxClient(conn),

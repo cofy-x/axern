@@ -25,6 +25,7 @@ const (
 	NodeSandbox_ExecImage_FullMethodName             = "/axern.node.sandbox.v1.NodeSandbox/ExecImage"
 	NodeSandbox_ProcessImage_FullMethodName          = "/axern.node.sandbox.v1.NodeSandbox/ProcessImage"
 	NodeSandbox_WaitSandbox_FullMethodName           = "/axern.node.sandbox.v1.NodeSandbox/WaitSandbox"
+	NodeSandbox_ReadOutput_FullMethodName            = "/axern.node.sandbox.v1.NodeSandbox/ReadOutput"
 	NodeSandbox_CapabilityStatus_FullMethodName      = "/axern.node.sandbox.v1.NodeSandbox/CapabilityStatus"
 	NodeSandbox_ProxyHTTP_FullMethodName             = "/axern.node.sandbox.v1.NodeSandbox/ProxyHTTP"
 	NodeSandbox_StatFile_FullMethodName              = "/axern.node.sandbox.v1.NodeSandbox/StatFile"
@@ -66,6 +67,7 @@ type NodeSandboxClient interface {
 	ExecImage(ctx context.Context, in *ExecImageRequest, opts ...grpc.CallOption) (*ExecImageResponse, error)
 	ProcessImage(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessImageClient, error)
 	WaitSandbox(ctx context.Context, in *WaitSandboxRequest, opts ...grpc.CallOption) (*WaitSandboxResponse, error)
+	ReadOutput(ctx context.Context, in *ReadOutputRequest, opts ...grpc.CallOption) (NodeSandbox_ReadOutputClient, error)
 	CapabilityStatus(ctx context.Context, in *CapabilityStatusRequest, opts ...grpc.CallOption) (*CapabilityStatusResponse, error)
 	ProxyHTTP(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProxyHTTPClient, error)
 	StatFile(ctx context.Context, in *StatFileRequest, opts ...grpc.CallOption) (*StatFileResponse, error)
@@ -225,6 +227,38 @@ func (c *nodeSandboxClient) WaitSandbox(ctx context.Context, in *WaitSandboxRequ
 	return out, nil
 }
 
+func (c *nodeSandboxClient) ReadOutput(ctx context.Context, in *ReadOutputRequest, opts ...grpc.CallOption) (NodeSandbox_ReadOutputClient, error) {
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[3], NodeSandbox_ReadOutput_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &nodeSandboxReadOutputClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type NodeSandbox_ReadOutputClient interface {
+	Recv() (*ReadOutputResponse, error)
+	grpc.ClientStream
+}
+
+type nodeSandboxReadOutputClient struct {
+	grpc.ClientStream
+}
+
+func (x *nodeSandboxReadOutputClient) Recv() (*ReadOutputResponse, error) {
+	m := new(ReadOutputResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *nodeSandboxClient) CapabilityStatus(ctx context.Context, in *CapabilityStatusRequest, opts ...grpc.CallOption) (*CapabilityStatusResponse, error) {
 	out := new(CapabilityStatusResponse)
 	err := c.cc.Invoke(ctx, NodeSandbox_CapabilityStatus_FullMethodName, in, out, opts...)
@@ -235,7 +269,7 @@ func (c *nodeSandboxClient) CapabilityStatus(ctx context.Context, in *Capability
 }
 
 func (c *nodeSandboxClient) ProxyHTTP(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProxyHTTPClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[3], NodeSandbox_ProxyHTTP_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[4], NodeSandbox_ProxyHTTP_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -374,7 +408,7 @@ func (c *nodeSandboxClient) Touch(ctx context.Context, in *TouchRequest, opts ..
 }
 
 func (c *nodeSandboxClient) UploadArchive(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_UploadArchiveClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[4], NodeSandbox_UploadArchive_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[5], NodeSandbox_UploadArchive_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -408,7 +442,7 @@ func (x *nodeSandboxUploadArchiveClient) CloseAndRecv() (*UploadArchiveResponse,
 }
 
 func (c *nodeSandboxClient) DownloadArchive(ctx context.Context, in *DownloadArchiveRequest, opts ...grpc.CallOption) (NodeSandbox_DownloadArchiveClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[5], NodeSandbox_DownloadArchive_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[6], NodeSandbox_DownloadArchive_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -566,6 +600,7 @@ type NodeSandboxServer interface {
 	ExecImage(context.Context, *ExecImageRequest) (*ExecImageResponse, error)
 	ProcessImage(NodeSandbox_ProcessImageServer) error
 	WaitSandbox(context.Context, *WaitSandboxRequest) (*WaitSandboxResponse, error)
+	ReadOutput(*ReadOutputRequest, NodeSandbox_ReadOutputServer) error
 	CapabilityStatus(context.Context, *CapabilityStatusRequest) (*CapabilityStatusResponse, error)
 	ProxyHTTP(NodeSandbox_ProxyHTTPServer) error
 	StatFile(context.Context, *StatFileRequest) (*StatFileResponse, error)
@@ -619,6 +654,9 @@ func (UnimplementedNodeSandboxServer) ProcessImage(NodeSandbox_ProcessImageServe
 }
 func (UnimplementedNodeSandboxServer) WaitSandbox(context.Context, *WaitSandboxRequest) (*WaitSandboxResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WaitSandbox not implemented")
+}
+func (UnimplementedNodeSandboxServer) ReadOutput(*ReadOutputRequest, NodeSandbox_ReadOutputServer) error {
+	return status.Errorf(codes.Unimplemented, "method ReadOutput not implemented")
 }
 func (UnimplementedNodeSandboxServer) CapabilityStatus(context.Context, *CapabilityStatusRequest) (*CapabilityStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CapabilityStatus not implemented")
@@ -850,6 +888,27 @@ func _NodeSandbox_WaitSandbox_Handler(srv interface{}, ctx context.Context, dec 
 		return srv.(NodeSandboxServer).WaitSandbox(ctx, req.(*WaitSandboxRequest))
 	}
 	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeSandbox_ReadOutput_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ReadOutputRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(NodeSandboxServer).ReadOutput(m, &nodeSandboxReadOutputServer{stream})
+}
+
+type NodeSandbox_ReadOutputServer interface {
+	Send(*ReadOutputResponse) error
+	grpc.ServerStream
+}
+
+type nodeSandboxReadOutputServer struct {
+	grpc.ServerStream
+}
+
+func (x *nodeSandboxReadOutputServer) Send(m *ReadOutputResponse) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 func _NodeSandbox_CapabilityStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -1535,6 +1594,11 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 			Handler:       _NodeSandbox_ProcessImage_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
+		},
+		{
+			StreamName:    "ReadOutput",
+			Handler:       _NodeSandbox_ReadOutput_Handler,
+			ServerStreams: true,
 		},
 		{
 			StreamName:    "ProxyHTTP",

@@ -34,6 +34,9 @@ message Run {
   bool exit_code_known = 13;
   string message = 14;
   axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 15;
+  // Reserved for durable output metadata once output retention is owned by
+  // the control plane rather than inferred from a node-local allocation.
+  reserved 16 to 18;
 }
 
 message RunListFilter {
@@ -63,6 +66,15 @@ message GetRunResponse {
   Run run = 1;
 }
 
+message WatchRunRequest {
+  string run_id = 1;
+  int64 after_version = 2;
+}
+
+message WatchRunResponse {
+  Run run = 1;
+}
+
 message ListRunsRequest {
   RunListFilter filter = 1;
 }
@@ -83,6 +95,7 @@ message CancelRunResponse {
 service RunControl {
   rpc CreateRun(CreateRunRequest) returns (CreateRunResponse) {}
   rpc GetRun(GetRunRequest) returns (GetRunResponse) {}
+  rpc WatchRun(WatchRunRequest) returns (stream WatchRunResponse) {}
   rpc ListRuns(ListRunsRequest) returns (ListRunsResponse) {}
   rpc CancelRun(CancelRunRequest) returns (CancelRunResponse) {}
 }

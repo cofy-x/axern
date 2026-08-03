@@ -199,6 +199,29 @@ message WaitSandboxResponse {
   string message = 4;
 }
 
+enum OutputStream {
+  OUTPUT_STREAM_UNSPECIFIED = 0;
+  OUTPUT_STREAM_STDOUT = 1;
+  OUTPUT_STREAM_STDERR = 2;
+}
+
+message ReadOutputRequest {
+  string allocation_id = 1;
+  int64 attempt = 2;
+  string execution_lease_token = 3;
+  string cursor = 4;
+  bool follow = 5;
+}
+
+message ReadOutputResponse {
+  OutputStream stream = 1;
+  bytes data = 2;
+  string next_cursor = 3;
+  bool terminal = 4;
+  bool truncated = 5;
+  int64 observed_at_unix_milli = 6;
+}
+
 // Capabilities
 
 message CapabilityStatusRequest {
@@ -620,6 +643,7 @@ service NodeSandbox {
   rpc ExecImage(ExecImageRequest) returns (ExecImageResponse) {}
   rpc ProcessImage(stream ProcessImageRequest) returns (stream ProcessImageResponse) {}
   rpc WaitSandbox(WaitSandboxRequest) returns (WaitSandboxResponse) {}
+  rpc ReadOutput(ReadOutputRequest) returns (stream ReadOutputResponse) {}
   rpc CapabilityStatus(CapabilityStatusRequest) returns (CapabilityStatusResponse) {}
   rpc ProxyHTTP(stream ProxyHTTPRequest) returns (stream ProxyHTTPResponse) {}
   rpc StatFile(StatFileRequest) returns (StatFileResponse) {}

@@ -44,6 +44,11 @@ class RunControlStub:
                 request_serializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.GetRunRequest.SerializeToString,
                 response_deserializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.GetRunResponse.FromString,
                 _registered_method=True)
+        self.WatchRun = channel.unary_stream(
+                '/axern.control.run.v1.RunControl/WatchRun',
+                request_serializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.WatchRunRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.WatchRunResponse.FromString,
+                _registered_method=True)
         self.ListRuns = channel.unary_unary(
                 '/axern.control.run.v1.RunControl/ListRuns',
                 request_serializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.ListRunsRequest.SerializeToString,
@@ -66,6 +71,12 @@ class RunControlServicer:
         raise NotImplementedError('Method not implemented!')
 
     def GetRun(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def WatchRun(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -95,6 +106,11 @@ def add_RunControlServicer_to_server(servicer, server):
                     servicer.GetRun,
                     request_deserializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.GetRunRequest.FromString,
                     response_serializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.GetRunResponse.SerializeToString,
+            ),
+            'WatchRun': grpc.unary_stream_rpc_method_handler(
+                    servicer.WatchRun,
+                    request_deserializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.WatchRunRequest.FromString,
+                    response_serializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.WatchRunResponse.SerializeToString,
             ),
             'ListRuns': grpc.unary_unary_rpc_method_handler(
                     servicer.ListRuns,
@@ -161,6 +177,33 @@ class RunControl:
             '/axern.control.run.v1.RunControl/GetRun',
             axern_dot_control_dot_run_dot_v1_dot_run__pb2.GetRunRequest.SerializeToString,
             axern_dot_control_dot_run_dot_v1_dot_run__pb2.GetRunResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def WatchRun(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/axern.control.run.v1.RunControl/WatchRun',
+            axern_dot_control_dot_run_dot_v1_dot_run__pb2.WatchRunRequest.SerializeToString,
+            axern_dot_control_dot_run_dot_v1_dot_run__pb2.WatchRunResponse.FromString,
             options,
             channel_credentials,
             insecure,
