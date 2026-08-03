@@ -45,11 +45,13 @@ product documents.
 
 Before creating tags, dispatch the `Release` workflow against the accepted
 `main` commit and verify that its recorded head SHA is the intended release
-commit. A manual run builds the same artifacts and architecture images and
-executes the full candidate kind and SDK data-plane acceptance, but all
-publication jobs are structurally restricted to tag events. Candidate images
-use commit-scoped tags so a later qualification cannot overwrite an earlier
-candidate. Do not create the release tags until this candidate run succeeds.
+commit. A manual run builds the same artifacts and architecture images,
+executes the full candidate kind and SDK data-plane acceptance, proves the
+source-free local experience on Linux amd64 and arm64, and validates the
+Homebrew formula generated from the candidate checksums. All publication jobs
+are structurally restricted to tag events. Candidate images use commit-scoped
+tags so a later qualification cannot overwrite an earlier candidate. Do not
+create the release tags until this candidate run succeeds.
 
 ## Publish
 
@@ -72,16 +74,29 @@ mismatched Go SDK tag. The workflow then:
 4. generates SPDX and CycloneDX source SBOMs plus unified checksums;
 5. installs the candidate CLI, chart, and amd64 images into a fresh kind
    cluster and executes a real sandbox Run before any final version is used;
-6. installs the candidate Python wheel, npm tarball, and standalone Go module
+6. installs the candidate CLI from release archives on Linux amd64 and arm64,
+   then verifies `local up`, a foreground Run, retained data, and reset without
+   using repository deployment assets;
+7. generates and validates the four-platform Homebrew formula against the
+   candidate release checksums;
+8. installs the candidate Python wheel, npm tarball, and standalone Go module
    in clean consumers, then uses every SDK to create a `runsc` Sandbox, execute
    Python, and prove through `axern service get` that the CLI observes the same
    live resource;
-7. publishes `axern-sdk` to PyPI and `@cofy-x/axern-sdk` to npm with trusted
+9. publishes `axern-sdk` to PyPI and `@cofy-x/axern-sdk` to npm with trusted
    publishing;
-8. publishes multi-architecture GHCR manifests and the OCI Helm chart;
-9. attests and attaches the release files to a GitHub Release; and
-10. repeats the fresh-kind Run and the complete SDK data-plane acceptance from
+10. publishes multi-architecture GHCR manifests and the OCI Helm chart;
+11. attests and attaches the release files to a GitHub Release;
+12. repeats the source-free local smoke, fresh-kind Run, and complete SDK
+    data-plane acceptance from
     anonymously readable PyPI, npm, and Go module artifacts.
+
+After published acceptance succeeds, the Homebrew job updates
+`cofy-x/homebrew-tap`. Set the repository variable `HOMEBREW_TAP_ENABLED` to
+`true` and provide `HOMEBREW_TAP_TOKEN` as a fine-grained credential with
+contents write access only to that tap repository. Keep the job disabled until
+both settings are present; the release itself remains usable through its
+archives when Homebrew publication is intentionally disabled.
 
 Registry publication is safely repeatable but remains immutable. On a rerun,
 the workflow skips an SDK version only when every PyPI filename and SHA-256, or

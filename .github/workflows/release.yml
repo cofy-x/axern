@@ -239,9 +239,56 @@ jobs:
             bash scripts/release/kind-acceptance.sh \
               bash scripts/release/sdk-data-plane-acceptance.sh candidate
 
+  local-candidate-acceptance:
+    needs: [artifacts, images]
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Download release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-artifacts
+          path: dist/release
+      - name: Install candidate CLI
+        env:
+          AXERN_RELEASE_DOWNLOAD_BASE: file://${{ github.workspace }}/dist/release
+        run: bash scripts/release/install-cli.sh "${RUNNER_TEMP}/bin/axern"
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify source-free local experience
+        env:
+          AXERN_CLI_BINARY: ${{ runner.temp }}/bin/axern
+        run: bash scripts/release/local-release-smoke.sh
+
+  homebrew-formula-check:
+    needs: artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Download release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-artifacts
+          path: dist/release
+      - name: Verify generated Homebrew formula
+        run: bash scripts/release/homebrew-formula-check.sh "${RUNNER_TEMP}/axern.rb"
+
   sdk-publish:
     if: github.ref_type == 'tag'
-    needs: [sdk-artifacts, candidate-acceptance]
+    needs: [sdk-artifacts, candidate-acceptance, local-candidate-acceptance, homebrew-formula-check]
     runs-on: ubuntu-latest
     environment: sdk-release
     permissions:
@@ -275,7 +322,7 @@ jobs:
 
   publish:
     if: github.ref_type == 'tag'
-    needs: [artifacts, images, candidate-acceptance, sdk-publish]
+    needs: [artifacts, images, candidate-acceptance, local-candidate-acceptance, homebrew-formula-check, sdk-publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -382,7 +429,7 @@ jobs:
 
   homebrew:
     if: github.ref_type == 'tag' && vars.HOMEBREW_TAP_ENABLED == 'true'
-    needs: [publish]
+    needs: [acceptance]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Axern
@@ -401,7 +448,7 @@ jobs:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
       - name: Update formula
-        run: bash axern/scripts/release/homebrew-formula.sh "${GITHUB_WORKSPACE}/homebrew-tap/Formula/axern.rb"
+        run: bash axern/scripts/release/homebrew-formula-check.sh "${GITHUB_WORKSPACE}/homebrew-tap/Formula/axern.rb"
       - name: Publish formula
         working-directory: homebrew-tap
         run: |
