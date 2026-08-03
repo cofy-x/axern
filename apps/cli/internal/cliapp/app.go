@@ -1,6 +1,7 @@
 package cliapp
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/cofy-x/axern/apps/cli/internal/command"
@@ -13,6 +14,7 @@ import (
 	"github.com/cofy-x/axern/apps/cli/internal/commands/environment"
 	functioncmd "github.com/cofy-x/axern/apps/cli/internal/commands/function"
 	identitycmd "github.com/cofy-x/axern/apps/cli/internal/commands/identity"
+	localcmd "github.com/cofy-x/axern/apps/cli/internal/commands/local"
 	namespacecmd "github.com/cofy-x/axern/apps/cli/internal/commands/namespace"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/quota"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/run"
@@ -52,14 +54,25 @@ func New(version string) *cobra.Command {
 	flags.DurationVar(&options.Timeout, "timeout", 0, "overall command timeout; 0 disables it")
 	flags.StringVarP(&options.Output, "output", "o", "table", "output format: table or json")
 	runtime := command.Runtime{Options: options, Root: root}
+	versionCommand := &cobra.Command{
+		Use:   "version",
+		Short: "Print the Axern CLI version",
+		Args:  command.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			_, err := fmt.Fprintln(cmd.OutOrStdout(), version)
+			return err
+		},
+	}
 	root.PersistentPreRunE = func(_ *cobra.Command, _ []string) error {
 		return runtime.ValidateOutput()
 	}
 	root.AddCommand(
+		versionCommand,
 		doctorcmd.Command(runtime),
 		contextcmd.Command(runtime),
 		admincmd.Command(runtime),
 		identitycmd.Command(runtime),
+		localcmd.Command(runtime, version),
 		catalog.Command(runtime),
 		environment.Command(runtime),
 		functioncmd.Command(runtime),
