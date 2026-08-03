@@ -118,7 +118,19 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 	if err != nil {
 		return nil, err
 	}
-	if alloc.Status != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING {
+	purpose := req.GetPurpose()
+	if purpose == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_UNSPECIFIED {
+		purpose = gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE
+	}
+	if purpose != gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE && purpose != gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation access purpose is invalid")
+	}
+	if purpose == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT && alloc.OwnerType != allocationkernel.OwnerRun {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "allocation does not belong to a run")
+	}
+	terminalRunOutput := purpose == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT &&
+		(allocationkernel.IsEnded(alloc.Status) || alloc.Status == commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASING)
+	if alloc.Status != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING && !terminalRunOutput {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "allocation is not running")
 	}
 	leaseType := commonv1.LeaseType_LEASE_TYPE_RUN

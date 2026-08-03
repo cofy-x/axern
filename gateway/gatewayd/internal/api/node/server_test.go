@@ -40,12 +40,35 @@ func TestExecResolvesInjectsLeaseAndForwards(t *testing.T) {
 	if got := h.resolver.requests[0].GetRolloutExecutionLease(); got != "work-lease" {
 		t.Fatalf("rollout execution lease = %q", got)
 	}
+	if got := h.resolver.requests[0].GetPurpose(); got != gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE {
+		t.Fatalf("allocation access purpose = %v, want interactive", got)
+	}
 	if got := h.dialer.targets[0]; got != "node.internal:24010" {
 		t.Fatalf("dial target = %q", got)
 	}
 	req := h.backend.exec
 	if req.GetAllocationID() != "alloc-public" || req.GetAttempt() != 7 || req.GetExecutionLeaseToken() != "lease-token" {
 		t.Fatalf("backend exec auth fields = allocation %q attempt %d token %q", req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	}
+}
+
+func TestReadOutputUsesRunOutputAccessPurpose(t *testing.T) {
+	h := newHarness(t)
+	defer h.Close()
+
+	stream, err := h.client.ReadOutput(context.Background(), &nodesandboxv1.ReadOutputRequest{AllocationID: "alloc-public", Follow: true})
+	if err != nil {
+		t.Fatalf("ReadOutput returned error: %v", err)
+	}
+	response, err := stream.Recv()
+	if err != nil {
+		t.Fatalf("ReadOutput Recv returned error: %v", err)
+	}
+	if !response.GetTerminal() || string(response.GetData()) != "done\n" {
+		t.Fatalf("ReadOutput response = %#v", response)
+	}
+	if got := h.resolver.requests[0].GetPurpose(); got != gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT {
+		t.Fatalf("allocation access purpose = %v, want run output", got)
 	}
 }
 
@@ -569,6 +592,18 @@ type fakeBackend struct {
 func (b *fakeBackend) Exec(_ context.Context, req *nodesandboxv1.ExecRequest) (*nodesandboxv1.ExecResponse, error) {
 	b.exec = req
 	return &nodesandboxv1.ExecResponse{ExitCode: 0, Stdout: []byte("ok")}, nil
+}
+
+func (b *fakeBackend) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream nodesandboxv1.NodeSandbox_ReadOutputServer) error {
+	if err := stream.SendHeader(metadata.Pairs(nodekernel.ExecutionLeaseAcceptedHeader, "1")); err != nil {
+		return err
+	}
+	return stream.Send(&nodesandboxv1.ReadOutputResponse{
+		Stream:     nodesandboxv1.OutputStream_OUTPUT_STREAM_STDOUT,
+		Data:       []byte("done\n"),
+		NextCursor: "cursor-1",
+		Terminal:   true,
+	})
 }
 
 func (b *fakeBackend) MaterializeTaskAssets(_ context.Context, req *nodesandboxv1.MaterializeTaskAssetsRequest) (*nodesandboxv1.MaterializeTaskAssetsResponse, error) {

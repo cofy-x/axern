@@ -16,13 +16,17 @@ import (
 )
 
 func (s *Server) unary(ctx context.Context, req proto.Message, call func(nodesandboxv1.NodeSandboxClient) error) error {
-	return s.withResolvedClient(ctx, req, nodekernel.IsExecutionLeaseRejected, func(client nodesandboxv1.NodeSandboxClient) error {
+	return s.withResolvedClient(ctx, req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, nodekernel.IsExecutionLeaseRejected, func(client nodesandboxv1.NodeSandboxClient) error {
 		return call(client)
 	})
 }
 
 func serverStream[T any](s *Server, ctx context.Context, req proto.Message, shouldRetry func(error) bool, open func(nodesandboxv1.NodeSandboxClient) (T, error), call func(T) error) error {
-	return s.withResolvedClient(ctx, req, shouldRetry, func(client nodesandboxv1.NodeSandboxClient) error {
+	return serverStreamForPurpose(s, ctx, req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, shouldRetry, open, call)
+}
+
+func serverStreamForPurpose[T any](s *Server, ctx context.Context, req proto.Message, purpose gatewayv1.AllocationAccessPurpose, shouldRetry func(error) bool, open func(nodesandboxv1.NodeSandboxClient) (T, error), call func(T) error) error {
+	return s.withResolvedClient(ctx, req, purpose, shouldRetry, func(client nodesandboxv1.NodeSandboxClient) error {
 		up, err := open(client)
 		if err != nil {
 			return err
@@ -32,7 +36,7 @@ func serverStream[T any](s *Server, ctx context.Context, req proto.Message, shou
 }
 
 func bidi[T interface{ CloseSend() error }](s *Server, ctx context.Context, req proto.Message, shouldRetry func(error) bool, open func(nodesandboxv1.NodeSandboxClient) (T, error), call func(T) error) error {
-	return s.withResolvedClient(ctx, req, shouldRetry, func(client nodesandboxv1.NodeSandboxClient) error {
+	return s.withResolvedClient(ctx, req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, shouldRetry, func(client nodesandboxv1.NodeSandboxClient) error {
 		up, err := open(client)
 		if err != nil {
 			return err
@@ -42,7 +46,7 @@ func bidi[T interface{ CloseSend() error }](s *Server, ctx context.Context, req 
 	})
 }
 
-func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, shouldRetry func(error) bool, call func(nodesandboxv1.NodeSandboxClient) error) error {
+func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, purpose gatewayv1.AllocationAccessPurpose, shouldRetry func(error) bool, call func(nodesandboxv1.NodeSandboxClient) error) error {
 	if req == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "request is required")
 	}
@@ -62,6 +66,7 @@ func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, shou
 			TtlSeconds:                   300,
 			ClientCertificateFingerprint: fingerprint,
 			RolloutExecutionLease:        rolloutExecutionLease,
+			Purpose:                      purpose,
 		})
 		if resolveErr != nil {
 			return resolveErr

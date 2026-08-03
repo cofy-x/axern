@@ -352,7 +352,7 @@ func (s *Server) ExecStream(stream nodesandboxv1.NodeSandbox_ExecStreamServer) e
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "exec stream must start with open")
 	}
-	return s.withResolvedClient(stream.Context(), open, isLeaseOpenRejection, func(client nodesandboxv1.NodeSandboxClient) error {
+	return s.withResolvedClient(stream.Context(), open, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, isLeaseOpenRejection, func(client nodesandboxv1.NodeSandboxClient) error {
 		up, err := client.ExecStream(stream.Context())
 		if err != nil {
 			return err
@@ -554,7 +554,7 @@ func (s *Server) DownloadArchive(req *nodesandboxv1.DownloadArchiveRequest, stre
 }
 
 func (s *Server) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream nodesandboxv1.NodeSandbox_ReadOutputServer) error {
-	return serverStream(s, stream.Context(), req, isLeaseOpenRejection, func(client nodesandboxv1.NodeSandboxClient) (nodesandboxv1.NodeSandbox_ReadOutputClient, error) {
+	return serverStreamForPurpose(s, stream.Context(), req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT, isLeaseOpenRejection, func(client nodesandboxv1.NodeSandboxClient) (nodesandboxv1.NodeSandbox_ReadOutputClient, error) {
 		return client.ReadOutput(stream.Context(), req)
 	}, func(up nodesandboxv1.NodeSandbox_ReadOutputClient) error {
 		header, err := acceptedExecutionLeaseHeader(up, "run output", func() error {
