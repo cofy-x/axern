@@ -1,61 +1,68 @@
 ---
-title: Compose Quickstart
-description: Start the complete Axern stack and run a sandbox in ten minutes.
+title: Local Axern
+description: Run and manage a source-free, machine-level Axern instance.
 ---
 
-The supported release path starts PostgreSQL, MinIO, the control plane,
-gateway, node services, and a smoke workload from published artifacts.
+`axern local up` is the supported local installation. The CLI contains the
+version-matched deployment bundle, generates local identity material, invokes
+Docker Compose v2, and configures the public gateway context.
 
-## Start Axern
+It is a machine-level instance: you can run the command from any directory and
+do not need an Axern project file.
 
-```bash
-git clone https://github.com/cofy-x/axern.git
-cd axern
-make quickstart
-```
-
-`make quickstart` waits for readiness and runs a core smoke through the public
-gateway. The versioned CLI and certificates are stored under
-`deploy/local/state/`; the selected context is written to the default CLI
-config at `~/.config/axern/config.json`.
-
-## Run a sandbox
+## Start and inspect
 
 ```bash
-source deploy/local/state/compose/axern.env
-AXERN_CLI="deploy/local/state/releases/v$(cat VERSION)/axern"
-
-"${AXERN_CLI}" context current
-"${AXERN_CLI}" namespace create default
-"${AXERN_CLI}" run create \
-  --image-ref docker.io/library/python:3.12-slim \
-  --runtime-class runsc \
-  --argv python \
-  --argv -c \
-  --argv 'print("hello from Axern")' \
-  --wait
+axern local up
+axern local status
 ```
 
-Use `--output json` for automation. A normally terminated `run create --wait`
-returns the workload's exit code.
+Starting again is idempotent. Existing PostgreSQL, object, runtime, and
+identity data is preserved. If another context is already selected, `local up`
+does not replace it; use `axern local up --use` when you want to switch.
 
-## Inspect and clean up
+Optional local telemetry is deliberately excluded from the cold-start path:
 
 ```bash
-make local-compose-status
-make local-compose-purge
+axern local up --profile observability
 ```
 
-Purge removes the Compose containers, generated state, and local development
-database. It does not delete unrelated Docker resources.
-
-## Develop from source
-
-The source path remains separate and builds the current checkout into local
-`:dev` images:
+## Diagnose and read logs
 
 ```bash
-make quickstart-source
+axern local doctor
+axern local logs
+axern local logs gatewayd --follow --tail 100
 ```
 
-Both paths exercise the same Compose and public gateway contract.
+`doctor` is read-only and reports an executable recommendation for each failed
+check. Use `--output json` with `status` or `doctor` in automation.
+
+## Stop, upgrade, or delete
+
+```bash
+axern local down
+axern local upgrade
+axern local reset
+```
+
+`down` removes containers and the network but keeps data. Upgrades are always
+explicit and create a local backup before migration. `reset` permanently
+deletes the instance and requires interactive confirmation, or `--force` in
+CI.
+
+To locate the data without relying on platform-specific paths:
+
+```bash
+axern local path
+```
+
+See the [`axern local` reference](/guides/local/) for ports, paths, proxy
+handling, failure recovery, and complete command behavior.
+
+## Developing Axern itself
+
+Repository Compose scripts and source-built `:dev` images are contributor
+tools, not an installation path. If you are changing Axern, follow the
+[contributor guide](https://github.com/cofy-x/axern/blob/main/CONTRIBUTING.md)
+and the local deployment README in the repository.

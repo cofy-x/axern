@@ -30,7 +30,7 @@ test -x "${repo_dir}/bin/axern" || {
 }
 curl --noproxy 'localhost,127.0.0.1,::1' --connect-timeout 2 --max-time 5 \
   --fail --silent --show-error "${service_url%/}/healthz" >/dev/null || {
-  echo "local Axern gateway is not ready at ${service_url}; run make quickstart" >&2
+  echo "local Axern gateway is not ready at ${service_url}; run axern local up" >&2
   exit 1
 }
 

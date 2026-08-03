@@ -1,4 +1,8 @@
-# Local Deployment
+# Contributor Local Deployment
+
+These repository workflows are for Axern contributors building the current
+checkout. Product users should install the release CLI and run `axern local
+up`; they do not need this directory, Make, or source-built images.
 
 This directory contains the repo-supported local truth environments:
 

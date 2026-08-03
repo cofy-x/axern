@@ -10,7 +10,7 @@ const sidebar = [
     items: [
       { label: 'Overview', translations: { 'zh-cn': '产品概览' }, link: '/' },
       { label: 'Getting Started', translations: { 'zh-cn': '入门' }, link: '/getting-started/' },
-      { label: 'Compose Quickstart', translations: { 'zh-cn': 'Compose 快速开始' }, link: '/getting-started/compose/' },
+      { label: 'Local Axern', translations: { 'zh-cn': 'Local Axern' }, link: '/getting-started/compose/' },
       { label: 'Kubernetes Install', translations: { 'zh-cn': 'Kubernetes 安装' }, link: '/getting-started/kubernetes/' },
     ],
   },
@@ -19,6 +19,7 @@ const sidebar = [
     translations: { 'zh-cn': '使用 Axern' },
     items: [
       { label: 'Axern CLI', translations: { 'zh-cn': 'Axern CLI' }, link: '/guides/cli/' },
+      { label: 'Axern Local', translations: { 'zh-cn': 'Axern Local' }, link: '/guides/local/' },
       { label: 'Identity and Access', translations: { 'zh-cn': '身份与权限' }, link: '/guides/authorization/' },
       { label: 'Catalog and Environments', translations: { 'zh-cn': 'Catalog 与环境' }, link: '/guides/catalog/' },
       { label: 'Secrets', translations: { 'zh-cn': 'Secret' }, link: '/guides/secrets/' },

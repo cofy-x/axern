@@ -14,6 +14,13 @@ axern context list
 axern context current
 ```
 
+For a local machine, the recommended path creates and manages the context for
+you:
+
+```bash
+axern local up
+```
+
 For a Helm installation, keep a gateway port-forward open and import the
 chart-generated mTLS identity. SSH is optional and disabled by the default
 chart values, so the basic CLI path only forwards the control and HTTP ports:
@@ -67,14 +74,8 @@ workflow.
 ## Run isolated Python
 
 ```bash
-axern run create \
-  --namespace default \
-  --image-ref docker.io/library/python:3.12-slim \
-  --runtime-class runsc \
-  --argv python \
-  --argv -c \
-  --argv 'import platform; print(platform.python_version())' \
-  --wait
+axern run docker.io/library/python:3.12-slim -- \
+  python -c 'import platform; print(platform.python_version())'
 ```
 
 Use a strict resource file when a specification should be reviewed or reused:
@@ -96,12 +97,16 @@ spec:
 ```
 
 ```bash
-axern run create --file run.yaml --wait --output json
+axern run --file run.yaml
 ```
 
 OCI images are the portable default for new workloads. Use
-`axern catalog list` and `--template-id` when the platform provides a named,
+`axern catalog list` and `--template` when the platform provides a named,
 reusable environment with a curated toolchain or configuration.
+
+By default, `run` attaches to stdout/stderr and exits with the remote command's
+exit code. Use `--detach` for asynchronous creation, then inspect it with
+`axern run get`, `axern run list`, or `axern run logs --follow`.
 
 ## Pass credentials without putting values in argv
 

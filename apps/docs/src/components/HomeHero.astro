@@ -102,13 +102,8 @@ await sandbox.close();`,
     id: 'cli',
     label: 'CLI',
     language: 'cli',
-    code: `axern run create \\
-  --image-ref docker.io/library/python:3.12-slim \\
-  --runtime-class runsc \\
-  --argv python \\
-  --argv -c \\
-  --argv 'print(42)' \\
-  --wait`,
+    code: `axern local up
+axern run python:3.12-slim -- python -c 'print(42)'`,
   },
 ].map((example) => ({ ...example, highlighted: highlightCode(example.code, example.language) }));
 ---
@@ -233,7 +228,7 @@ await sandbox.close();`,
         <span class="ax-workload-index">01 / 04</span>
       </div>
       <h3>{zh ? '运行你的第一个沙箱' : 'Run your first sandbox'}</h3>
-      <p>{zh ? '用本地 Compose 拉起完整栈，几分钟内在 runsc 隔离的沙箱中执行代码。' : 'Bring up the local Compose stack and execute code in a runsc-isolated sandbox in minutes.'}</p>
+      <p>{zh ? '安装一个 CLI，无需源码即可拉起完整本地栈并执行隔离代码。' : 'Install one CLI, start the complete local stack without source code, and execute isolated code.'}</p>
       <a href={`${base}/getting-started/`}>{zh ? '进入快速开始' : 'Start the quickstart'}</a>
     </article>
     <article>

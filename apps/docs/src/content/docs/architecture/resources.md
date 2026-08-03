@@ -14,10 +14,8 @@ workload duration:
   services that need full host-kernel compatibility.
 
 ```bash
-axern run create \
-  --image-ref docker.io/library/python:3.12-slim \
-  --runtime-class runsc \
-  --argv python --argv -c --argv 'print("hello")'
+axern run --runtime-class runsc docker.io/library/python:3.12-slim -- \
+  python -c 'print("hello")'
 ```
 
 ## Requests and limits
@@ -29,12 +27,11 @@ omitted, the control plane reserves a default of `500m` CPU and `4GiB` memory.
 The invariant is `0 < request <= limit` when a matching limit is set.
 
 ```bash
-axern run create \
-  --template-id python311 \
+axern run --template python311 \
   --request-cpu 500m \
   --request-memory 512MiB \
   --limit-memory 1GiB \
-  --argv python --argv -c --argv 'print("hello")'
+  -- python -c 'print("hello")'
 ```
 
 Runs and services use the same resource flags; mutable service resources

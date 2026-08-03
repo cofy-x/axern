@@ -1,48 +1,56 @@
 ---
-title: Compose 快速开始
-description: 在十分钟内启动完整 Axern 服务并运行一个沙箱。
+title: Local Axern
+description: 管理无需源码、机器级的 Axern 本地实例。
 ---
 
-官方 Release 路径会从已发布制品启动 PostgreSQL、MinIO、控制面、Gateway、节点服务和一个 Smoke 工作负载。
+`axern local up` 是官方支持的本地安装入口。CLI 内置同版本部署资源，负责
+生成本地身份、调用 Docker Compose v2，并配置公开 Gateway Context。
 
-## 启动 Axern
+它是机器级实例：可以从任意目录运行，不需要项目初始化文件。
 
-```bash
-git clone https://github.com/cofy-x/axern.git
-cd axern
-make quickstart
-```
-
-`make quickstart` 会等待服务就绪，并通过公开 Gateway 执行核心 Smoke。版本化 CLI 和证书保存在 `deploy/local/state/`；当前 Context 默认写入 `~/.config/axern/config.json`。
-
-## 运行沙箱
+## 启动和查看状态
 
 ```bash
-source deploy/local/state/compose/axern.env
-AXERN_CLI="deploy/local/state/releases/v$(cat VERSION)/axern"
-
-"${AXERN_CLI}" context current
-"${AXERN_CLI}" namespace create default
-"${AXERN_CLI}" run create \
-  --image-ref docker.io/library/python:3.12-slim \
-  --runtime-class runsc \
-  --argv python \
-  --argv -c \
-  --argv 'print("hello from Axern")' \
-  --wait
+axern local up
+axern local status
 ```
 
-自动化场景使用 `--output json`。正常结束的 `run create --wait` 会返回工作负载本身的退出码。
+重复执行是幂等的，不会删除 PostgreSQL、对象、运行时和身份数据。如果
+已有其他当前 Context，`local up` 会保留它；使用 `--use` 显式切换。
 
-## 检查与清理
+可观测组件默认关闭，需要时显式启用：
 
 ```bash
-make local-compose-status
-make local-compose-purge
+axern local up --profile observability
 ```
 
-源码开发路径使用当前 checkout 构建本地 `:dev` 镜像：
+## 诊断和日志
 
 ```bash
-make quickstart-source
+axern local doctor
+axern local logs
+axern local logs gatewayd --follow --tail 100
 ```
+
+`doctor` 只读执行，并为每个失败项给出可操作的修复建议。自动化场景可对
+`status` 或 `doctor` 使用 `--output json`。
+
+## 停止、升级和删除
+
+```bash
+axern local down
+axern local upgrade
+axern local reset
+```
+
+`down` 删除容器和网络但保留数据。升级必须显式执行，并在迁移前创建本地
+备份。`reset` 永久删除实例，交互模式要求确认，CI 中必须使用 `--force`。
+
+```bash
+axern local path
+```
+
+完整端口、路径、代理和故障恢复说明见 [`axern local` 参考](/zh-cn/guides/local/)。
+
+仓库 Compose 脚本和源码构建的 `:dev` 镜像仅用于贡献者开发，不是用户安装
+入口。
