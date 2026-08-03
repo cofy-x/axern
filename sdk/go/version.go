@@ -1,6 +1,6 @@
 package axernsdk
 
-var version = "0.4.0"
+var version = "0.4.1"
 
 // Version returns the Go SDK version.
 func Version() string {
