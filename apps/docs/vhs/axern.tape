@@ -10,6 +10,6 @@ Env HOME "~"
 Type "axern --help | sed -n '1,17p'"
 Enter
 Sleep 4s
-Type "axern run create --help | sed -n '1,18p'"
+Type "axern run --help | sed -n '1,18p'"
 Enter
 Sleep 5s

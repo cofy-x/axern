@@ -129,7 +129,7 @@ spec:
   runtime_class: runsc
   resources: {}
 YAML
-"${cli}" --config "${config}" --timeout 10m run create --file "${state_dir}/run.yaml" --wait
+"${cli}" --config "${config}" --timeout 10m run --file "${state_dir}/run.yaml"
 
 if [ "$#" -gt 0 ]; then
   AXERN_SDK_ACCEPTANCE_CONFIG="${config}" \

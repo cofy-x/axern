@@ -34,6 +34,8 @@ apps/cli/internal/command
 apps/cli/internal/commands
 apps/cli/internal/config
 apps/cli/internal/controlv1
+apps/cli/internal/localbundle
+apps/cli/internal/localruntime
 apps/cli/internal/output
 apps/cli/internal/parse
 apps/cli/internal/resourcespec
@@ -73,6 +75,7 @@ apps/cli/internal/commands/doctor
 apps/cli/internal/commands/environment
 apps/cli/internal/commands/function
 apps/cli/internal/commands/identity
+apps/cli/internal/commands/local
 apps/cli/internal/commands/namespace
 apps/cli/internal/commands/quota
 apps/cli/internal/commands/run

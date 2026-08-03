@@ -69,7 +69,12 @@ axern context import-kubernetes local --namespace axern-system --current
 axern doctor
 axern doctor --probe
 
-axern run create --file run.yaml --wait
+axern local up
+axern local status
+axern run --file run.yaml
+axern run python:3.12-slim -- python -c 'print("hello")'
+axern run --detach python:3.12-slim -- python -c 'print("later")'
+axern run logs --follow <run-id>
 axern service create --file service.yaml --wait
 axern service get <service-id>
 axern function deploy --file function.yaml --wait
@@ -151,7 +156,7 @@ that does not match the command are rejected. Function source directories are
 resolved relative to the spec file and cannot escape through `..` or symlinks.
 
 When `--file` is used, resource-definition flags cannot be mixed with the
-spec. Context, output, wait, and timeout flags remain operational overrides.
+spec. Context, output, detach, and timeout flags remain operational overrides.
 
 ## Output And Exit Codes
 
@@ -165,7 +170,8 @@ is an input format, not an output format.
 - `2`: invalid arguments, context, configuration, or spec; `doctor` still
   renders its structured configuration check before returning this code.
 - `3`: `doctor` could not complete a required health check.
-- `run create --wait`: a normally terminated workload returns its exit code.
+- `run`: a normally terminated workload returns its exit code; the first
+  interrupt requests cancellation and a second exits immediately with `130`.
 
 ## Build And Verify
 

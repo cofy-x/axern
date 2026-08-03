@@ -89,6 +89,10 @@ for contract in (
     "packages: write",
     "docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3",
     'build-and-push-images.sh "${{ matrix.arch }}"',
+    "image-lock:",
+    "build-local-image-lock.sh dist/local-image-lock/images.lock",
+    "AXERN_LOCAL_IMAGE_LOCK_FILE:",
+    "name: local-image-lock",
 ):
     if contract not in release_workflow:
         raise SystemExit(f"release candidate image contract is missing: {contract}")
@@ -97,6 +101,24 @@ if "setup-qemu-action" in release_workflow:
 global_env = release_workflow.split("jobs:", 1)[0]
 if "AXERN_RELEASE_VERSION:" in global_env:
     raise SystemExit("candidate image version must not override artifact versions globally")
+
+lock_builder = (root / "scripts/release/build-local-image-lock.sh").read_text()
+for contract in (
+    "linux/amd64",
+    "linux/arm64",
+    "imagetools create",
+    "imagetools inspect",
+    "sha256sum",
+    "POSTGRES_IMAGE",
+    "OTEL_LGTM_IMAGE",
+):
+    if contract not in lock_builder:
+        raise SystemExit(f"local image digest lock contract is missing: {contract}")
+
+cli_builder = (root / "scripts/release/build-cli.sh").read_text()
+for contract in ("AXERN_LOCAL_IMAGE_LOCK_FILE", "localbundle.imageLock", "images.lock"):
+    if contract not in cli_builder:
+        raise SystemExit(f"CLI release image lock injection is missing: {contract}")
 PY
 
 echo "release_image_build_contract_ok=true"

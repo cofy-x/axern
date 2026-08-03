@@ -64,6 +64,11 @@ class NodeSandboxStub:
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxRequest.SerializeToString,
                 response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxResponse.FromString,
                 _registered_method=True)
+        self.ReadOutput = channel.unary_stream(
+                '/axern.node.sandbox.v1.NodeSandbox/ReadOutput',
+                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ReadOutputRequest.SerializeToString,
+                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ReadOutputResponse.FromString,
+                _registered_method=True)
         self.CapabilityStatus = channel.unary_unary(
                 '/axern.node.sandbox.v1.NodeSandbox/CapabilityStatus',
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CapabilityStatusRequest.SerializeToString,
@@ -245,6 +250,12 @@ class NodeSandboxServicer:
         raise NotImplementedError('Method not implemented!')
 
     def WaitSandbox(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ReadOutput(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -456,6 +467,11 @@ def add_NodeSandboxServicer_to_server(servicer, server):
                     servicer.WaitSandbox,
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxRequest.FromString,
                     response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxResponse.SerializeToString,
+            ),
+            'ReadOutput': grpc.unary_stream_rpc_method_handler(
+                    servicer.ReadOutput,
+                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ReadOutputRequest.FromString,
+                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ReadOutputResponse.SerializeToString,
             ),
             'CapabilityStatus': grpc.unary_unary_rpc_method_handler(
                     servicer.CapabilityStatus,
@@ -765,6 +781,33 @@ class NodeSandbox:
             '/axern.node.sandbox.v1.NodeSandbox/WaitSandbox',
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxRequest.SerializeToString,
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReadOutput(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/axern.node.sandbox.v1.NodeSandbox/ReadOutput',
+            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ReadOutputRequest.SerializeToString,
+            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ReadOutputResponse.FromString,
             options,
             channel_credentials,
             insecure,

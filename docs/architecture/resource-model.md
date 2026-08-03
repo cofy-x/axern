@@ -49,12 +49,11 @@ Memory values accept byte units:
 Example:
 
 ```bash
-axern run create \
-  --template-id python311 \
+axern run --template python311 \
   --request-cpu 500m \
   --request-memory 512MiB \
   --limit-memory 1GiB \
-  --argv python --argv -c --argv 'print("hello")'
+  -- python -c 'print("hello")'
 ```
 
 Runs and services use the same resource flags. Mutable service resource

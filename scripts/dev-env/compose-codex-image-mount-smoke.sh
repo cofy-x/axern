@@ -116,12 +116,11 @@ trap cleanup_codex_image_mount_smoke EXIT
 
 create_output="$(
   local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" \
-    "${AXERN_SMOKE_CMD[@]}" run create -o json --wait --wait-for terminal --wait-timeout 180s \
+    "${AXERN_SMOKE_CMD[@]}" run --detach -o json \
       --namespace "${namespace}" \
-      --image-ref "${task_cluster_image}" \
       --image-mount "${bundle_cluster_image}:/opt/axern/agents/codex:ro" \
-      --argv /bin/sh --argv -lc \
-      --argv '/opt/axern/agents/codex/bin/codex --version | tee /tmp/codex-version.txt && grep -F "codex-cli" /tmp/codex-version.txt && ! touch /opt/axern/agents/codex/write-test' || true
+      "${task_cluster_image}" -- /bin/sh -lc \
+      '/opt/axern/agents/codex/bin/codex --version | tee /tmp/codex-version.txt && grep -F "codex-cli" /tmp/codex-version.txt && ! touch /opt/axern/agents/codex/write-test' || true
 )"
 if ! run_id="$(extract_run_json_field id <<<"${create_output}" 2>/dev/null)"; then
   printf '%s\n' "${create_output}" >&2

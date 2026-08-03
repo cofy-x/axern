@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	RunControl_CreateRun_FullMethodName = "/axern.control.run.v1.RunControl/CreateRun"
 	RunControl_GetRun_FullMethodName    = "/axern.control.run.v1.RunControl/GetRun"
+	RunControl_WatchRun_FullMethodName  = "/axern.control.run.v1.RunControl/WatchRun"
 	RunControl_ListRuns_FullMethodName  = "/axern.control.run.v1.RunControl/ListRuns"
 	RunControl_CancelRun_FullMethodName = "/axern.control.run.v1.RunControl/CancelRun"
 )
@@ -31,6 +32,7 @@ const (
 type RunControlClient interface {
 	CreateRun(ctx context.Context, in *CreateRunRequest, opts ...grpc.CallOption) (*CreateRunResponse, error)
 	GetRun(ctx context.Context, in *GetRunRequest, opts ...grpc.CallOption) (*GetRunResponse, error)
+	WatchRun(ctx context.Context, in *WatchRunRequest, opts ...grpc.CallOption) (RunControl_WatchRunClient, error)
 	ListRuns(ctx context.Context, in *ListRunsRequest, opts ...grpc.CallOption) (*ListRunsResponse, error)
 	CancelRun(ctx context.Context, in *CancelRunRequest, opts ...grpc.CallOption) (*CancelRunResponse, error)
 }
@@ -61,6 +63,38 @@ func (c *runControlClient) GetRun(ctx context.Context, in *GetRunRequest, opts .
 	return out, nil
 }
 
+func (c *runControlClient) WatchRun(ctx context.Context, in *WatchRunRequest, opts ...grpc.CallOption) (RunControl_WatchRunClient, error) {
+	stream, err := c.cc.NewStream(ctx, &RunControl_ServiceDesc.Streams[0], RunControl_WatchRun_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &runControlWatchRunClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type RunControl_WatchRunClient interface {
+	Recv() (*WatchRunResponse, error)
+	grpc.ClientStream
+}
+
+type runControlWatchRunClient struct {
+	grpc.ClientStream
+}
+
+func (x *runControlWatchRunClient) Recv() (*WatchRunResponse, error) {
+	m := new(WatchRunResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *runControlClient) ListRuns(ctx context.Context, in *ListRunsRequest, opts ...grpc.CallOption) (*ListRunsResponse, error) {
 	out := new(ListRunsResponse)
 	err := c.cc.Invoke(ctx, RunControl_ListRuns_FullMethodName, in, out, opts...)
@@ -85,6 +119,7 @@ func (c *runControlClient) CancelRun(ctx context.Context, in *CancelRunRequest, 
 type RunControlServer interface {
 	CreateRun(context.Context, *CreateRunRequest) (*CreateRunResponse, error)
 	GetRun(context.Context, *GetRunRequest) (*GetRunResponse, error)
+	WatchRun(*WatchRunRequest, RunControl_WatchRunServer) error
 	ListRuns(context.Context, *ListRunsRequest) (*ListRunsResponse, error)
 	CancelRun(context.Context, *CancelRunRequest) (*CancelRunResponse, error)
 	mustEmbedUnimplementedRunControlServer()
@@ -99,6 +134,9 @@ func (UnimplementedRunControlServer) CreateRun(context.Context, *CreateRunReques
 }
 func (UnimplementedRunControlServer) GetRun(context.Context, *GetRunRequest) (*GetRunResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRun not implemented")
+}
+func (UnimplementedRunControlServer) WatchRun(*WatchRunRequest, RunControl_WatchRunServer) error {
+	return status.Errorf(codes.Unimplemented, "method WatchRun not implemented")
 }
 func (UnimplementedRunControlServer) ListRuns(context.Context, *ListRunsRequest) (*ListRunsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRuns not implemented")
@@ -153,6 +191,27 @@ func _RunControl_GetRun_Handler(srv interface{}, ctx context.Context, dec func(i
 		return srv.(RunControlServer).GetRun(ctx, req.(*GetRunRequest))
 	}
 	return interceptor(ctx, in, info, handler)
+}
+
+func _RunControl_WatchRun_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchRunRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(RunControlServer).WatchRun(m, &runControlWatchRunServer{stream})
+}
+
+type RunControl_WatchRunServer interface {
+	Send(*WatchRunResponse) error
+	grpc.ServerStream
+}
+
+type runControlWatchRunServer struct {
+	grpc.ServerStream
+}
+
+func (x *runControlWatchRunServer) Send(m *WatchRunResponse) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 func _RunControl_ListRuns_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -215,6 +274,12 @@ var RunControl_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _RunControl_CancelRun_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchRun",
+			Handler:       _RunControl_WatchRun_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "axern/control/run/v1/run.proto",
 }

@@ -1,0 +1,21 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+exporters:
+  otlphttp/lgtm:
+    endpoint: http://otel-lgtm:4318
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlphttp/lgtm]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlphttp/lgtm]
+    logs:
+      receivers: [otlp]
+      exporters: [otlphttp/lgtm]

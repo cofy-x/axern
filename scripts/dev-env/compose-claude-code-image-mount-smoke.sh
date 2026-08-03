@@ -116,12 +116,11 @@ trap cleanup_claude_code_image_mount_smoke EXIT
 
 create_output="$(
   local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" \
-    "${AXERN_SMOKE_CMD[@]}" run create -o json --wait --wait-for terminal --wait-timeout 180s \
+    "${AXERN_SMOKE_CMD[@]}" run --detach -o json \
       --namespace "${namespace}" \
-      --image-ref "${task_cluster_image}" \
       --image-mount "${bundle_cluster_image}:/opt/axern/agents/claude-code:ro" \
-      --argv /bin/sh --argv -lc \
-      --argv '/opt/axern/agents/claude-code/bin/claude --version | tee /tmp/claude-version.txt && grep -F "Claude Code" /tmp/claude-version.txt && ! touch /opt/axern/agents/claude-code/write-test' || true
+      "${task_cluster_image}" -- /bin/sh -lc \
+      '/opt/axern/agents/claude-code/bin/claude --version | tee /tmp/claude-version.txt && grep -F "Claude Code" /tmp/claude-version.txt && ! touch /opt/axern/agents/claude-code/write-test' || true
 )"
 if ! run_id="$(extract_run_json_field id <<<"${create_output}" 2>/dev/null)"; then
   printf '%s\n' "${create_output}" >&2

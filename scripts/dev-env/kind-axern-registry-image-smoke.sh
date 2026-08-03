@@ -69,10 +69,9 @@ trap cleanup_registry_image_smoke EXIT
 
 create_output="$(
   local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" \
-    "${AXERN_SMOKE_CMD[@]}" run create -o json --wait --wait-for terminal --wait-timeout 180s \
+    "${AXERN_SMOKE_CMD[@]}" run --detach -o json \
       --namespace "${namespace}" \
-      --image-ref "${cluster_image}" \
-      --argv python --argv -c --argv 'print("registry-image-smoke-ok")' || true
+      "${cluster_image}" -- python -c 'print("registry-image-smoke-ok")' || true
 )"
 if ! run_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["run"]["id"])' <<<"${create_output}" 2>/dev/null)"; then
   printf '%s\n' "${create_output}" >&2

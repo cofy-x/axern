@@ -52,12 +52,18 @@ export interface CreateServiceOptions {
   labels?: Record<string, string>;
 }
 
+export interface ReadRunOutputOptions {
+  cursor?: string;
+  follow?: boolean;
+}
+
 export class AxernClient {
   readonly endpoint: string;
 
   private readonly credentials: grpc.ChannelCredentials;
   private readonly controlOptions: grpc.ChannelOptions;
   private readonly environmentControl: grpc.Client;
+  private readonly runControl: grpc.Client;
   private readonly serviceControl: grpc.Client;
   private readonly tunnelControl: grpc.Client;
   private readonly gatewayTransport: GatewayTransportOptions;
@@ -98,9 +104,11 @@ export class AxernClient {
       "v1",
       "EnvironmentControl",
     ]);
+    const RunControl = serviceConstructor(["axern", "control", "run", "v1", "RunControl"]);
     const ServiceControl = serviceConstructor(["axern", "control", "service", "v1", "ServiceControl"]);
     const TunnelControl = serviceConstructor(["axern", "control", "tunnel", "v1", "TunnelControl"]);
     this.environmentControl = new EnvironmentControl(this.endpoint, this.credentials, this.controlOptions);
+    this.runControl = new RunControl(this.endpoint, this.credentials, this.controlOptions);
     this.serviceControl = new ServiceControl(this.endpoint, this.credentials, this.controlOptions);
     this.tunnelControl = new TunnelControl(this.endpoint, this.credentials, this.controlOptions);
   }
@@ -124,6 +132,7 @@ export class AxernClient {
 
   close(): void {
     this.environmentControl.close();
+    this.runControl.close();
     this.serviceControl.close();
     this.tunnelControl.close();
   }
@@ -161,6 +170,81 @@ export class AxernClient {
       await unary(this.environmentControl, "DeleteEnvironment", { environment_id: required("environmentId", environmentId) });
     } catch (error) {
       throw mapRpcError(error, "delete environment");
+    }
+  }
+
+  async *watchRun(runId: string, afterVersion = 0): AsyncGenerator<Record<string, unknown>> {
+    if (afterVersion < 0) {
+      throw new Error("afterVersion must be non-negative");
+    }
+    let version = afterVersion;
+    let retryDelayMs = 100;
+    for (;;) {
+      const stream = serverStream(this.runControl, "WatchRun", {
+        run_id: required("runId", runId),
+        after_version: version,
+      });
+      try {
+        for await (const response of stream) {
+          const run = response.run as Record<string, unknown> | undefined;
+          if (run === undefined) continue;
+          const nextVersion = Number(run.version ?? 0);
+          if (nextVersion <= version) continue;
+          version = nextVersion;
+          retryDelayMs = 100;
+          yield run;
+        }
+        return;
+      } catch (error) {
+        if (!transientReadError(error)) throw mapRpcError(error, "watch run");
+      }
+      await sleep(retryDelayMs);
+      retryDelayMs = Math.min(retryDelayMs * 2, 2_000);
+    }
+  }
+
+  async *readRunOutput(runId: string, options: ReadRunOutputOptions = {}): AsyncGenerator<Record<string, unknown>> {
+    const response = await unary<Record<string, unknown>, { run?: Record<string, unknown> }>(
+      this.runControl,
+      "GetRun",
+      { run_id: required("runId", runId) },
+    );
+    const allocationId = String(response.run?.allocation_id ?? "");
+    if (allocationId === "") throw new Error(`run ${runId} output is not available yet`);
+    let cursor = options.cursor ?? "";
+    let retryDelayMs = 100;
+    let notFoundSince = 0;
+    for (;;) {
+      const NodeSandbox = serviceConstructor(["axern", "node", "sandbox", "v1", "NodeSandbox"]);
+      const node = new NodeSandbox(this.endpoint, this.credentials, this.controlOptions);
+      const stream = serverStream(node, "ReadOutput", {
+        allocation_id: allocationId,
+        cursor,
+        follow: options.follow ?? false,
+      });
+      try {
+        for await (const event of stream) {
+          cursor = String(event.next_cursor ?? cursor);
+          retryDelayMs = 100;
+          notFoundSince = 0;
+          yield event;
+        }
+        return;
+      } catch (error) {
+        const code = (error as { code?: number }).code;
+        const startupNotFound = code === grpc.status.NOT_FOUND;
+        if (!(options.follow ?? false) || (!transientReadError(error) && !startupNotFound)) {
+          throw mapRpcError(error, "read run output");
+        }
+        if (startupNotFound) {
+          notFoundSince ||= Date.now();
+          if (Date.now() - notFoundSince >= 30_000) throw mapRpcError(error, "read run output");
+        }
+      } finally {
+        node.close();
+      }
+      await sleep(retryDelayMs);
+      retryDelayMs = Math.min(retryDelayMs * 2, 2_000);
     }
   }
 
@@ -240,6 +324,20 @@ function serviceVolumeMounts(mounts: readonly VolumeMount[] | undefined): Record
     readonly: mount.readonly ?? false,
     options: [...(mount.options ?? [])],
   }));
+}
+
+function serverStream(client: grpc.Client, method: string, request: Record<string, unknown>): grpc.ClientReadableStream<Record<string, unknown>> {
+  const fn = (client as unknown as Record<string, Function>)[method];
+  return fn.call(client, request) as grpc.ClientReadableStream<Record<string, unknown>>;
+}
+
+function transientReadError(error: unknown): boolean {
+  const code = (error as { code?: number }).code;
+  return code === grpc.status.UNAVAILABLE || code === grpc.status.DEADLINE_EXCEEDED;
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function controlCredentials(options: {

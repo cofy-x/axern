@@ -552,3 +552,32 @@ func (s *Server) DownloadArchive(req *nodesandboxv1.DownloadArchiveRequest, stre
 		}
 	})
 }
+
+func (s *Server) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream nodesandboxv1.NodeSandbox_ReadOutputServer) error {
+	return serverStream(s, stream.Context(), req, isLeaseOpenRejection, func(client nodesandboxv1.NodeSandboxClient) (nodesandboxv1.NodeSandbox_ReadOutputClient, error) {
+		return client.ReadOutput(stream.Context(), req)
+	}, func(up nodesandboxv1.NodeSandbox_ReadOutputClient) error {
+		header, err := acceptedExecutionLeaseHeader(up, "run output", func() error {
+			_, err := up.Recv()
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		if err := stream.SendHeader(header); err != nil {
+			return err
+		}
+		for {
+			response, err := up.Recv()
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if err := stream.Send(response); err != nil {
+				return err
+			}
+		}
+	})
+}

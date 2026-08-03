@@ -5,20 +5,18 @@ verify_admin_lifecycle() {
 
   docker stop -t 1 "${NODE_CONTAINER_NAME}" >/dev/null
 
-  admin_run_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run create \
+  admin_run_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run --detach \
     -o json \
-    --environment-id "${environment_id}" \
-    --argv /bin/sh \
-    --argv -lc \
-    --argv 'sleep 60' 2>"${cli_error_output}")" || {
-    echo "admin lifecycle run create did not return an accepted run" >&2
+    --environment "${environment_id}" \
+    -- /bin/sh -lc 'sleep 60' 2>"${cli_error_output}")" || {
+    echo "admin lifecycle run did not return an accepted run" >&2
     dump_logs
     exit 1
   }
-  admin_run_id="$(json_query "admin lifecycle run create" 'json.load(sys.stdin)["run"]["id"]' "${admin_run_output}")"
-  admin_allocation_id="$(json_query "admin lifecycle run create" 'json.load(sys.stdin)["run"]["allocation_id"]' "${admin_run_output}")"
+  admin_run_id="$(json_query "admin lifecycle run" 'json.load(sys.stdin)["run"]["id"]' "${admin_run_output}")"
+  admin_allocation_id="$(json_query "admin lifecycle run" 'json.load(sys.stdin)["run"]["allocation_id"]' "${admin_run_output}")"
   [ -n "${admin_run_id}" ] && [ -n "${admin_allocation_id}" ] || {
-    echo "admin lifecycle run create did not return run and allocation ids" >&2
+    echo "admin lifecycle run did not return run and allocation ids" >&2
     dump_logs
     exit 1
   }

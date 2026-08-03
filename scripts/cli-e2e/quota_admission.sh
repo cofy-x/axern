@@ -44,21 +44,19 @@ verify_quota_admission() {
     exit 1
   }
 
-  if "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run create \
+  if "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run \
     -o json \
     --namespace "${namespace}" \
-    --environment-id "${quota_environment_id}" \
-    --argv /bin/sh \
-    --argv -lc \
-    --argv 'sleep 1' >"${cli_object_output}" 2>"${cli_error_output}"; then
-    echo "quota-limited run create unexpectedly succeeded" >&2
+    --environment "${quota_environment_id}" \
+    -- /bin/sh -lc 'sleep 1' >"${cli_object_output}" 2>"${cli_error_output}"; then
+    echo "quota-limited run unexpectedly succeeded" >&2
     cat "${cli_object_output}" >&2 || true
     dump_logs
     exit 1
   fi
 
   if ! grep -Eiq "ResourceExhausted|resource exhausted|namespace quota|quota" "${cli_error_output}"; then
-    echo "quota-limited run create returned an unexpected error" >&2
+    echo "quota-limited run returned an unexpected error" >&2
     cat "${cli_error_output}" >&2 || true
     dump_logs
     exit 1
@@ -140,43 +138,39 @@ verify_quota_admission() {
     exit 1
   fi
 
-  if "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run create \
+  if "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run \
     -o json \
     --namespace "${namespace}" \
-    --environment-id "${quota_environment_id}" \
+    --environment "${quota_environment_id}" \
     --request-memory 1048576GiB \
-    --argv /bin/sh \
-    --argv -lc \
-    --argv 'sleep 1' >"${cli_object_output}" 2>"${cli_error_output}"; then
-    echo "oversized-memory run create unexpectedly succeeded" >&2
+    -- /bin/sh -lc 'sleep 1' >"${cli_object_output}" 2>"${cli_error_output}"; then
+    echo "oversized-memory run unexpectedly succeeded" >&2
     cat "${cli_object_output}" >&2 || true
     dump_logs
     exit 1
   fi
 
   if ! grep -Eiq "no eligible node|insufficient_memory|resource exhausted" "${cli_error_output}" || ! grep -Eiq "insufficient_memory" "${cli_error_output}"; then
-    echo "oversized-memory run create returned an unexpected placement error" >&2
+    echo "oversized-memory run returned an unexpected placement error" >&2
     cat "${cli_error_output}" >&2 || true
     dump_logs
     exit 1
   fi
 
-  if "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run create \
+  if "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run \
     -o json \
     --namespace "${namespace}" \
-    --environment-id "${quota_environment_id}" \
+    --environment "${quota_environment_id}" \
     --runtime-class unsupported-e2e-runtime \
-    --argv /bin/sh \
-    --argv -lc \
-    --argv 'sleep 1' >"${cli_object_output}" 2>"${cli_error_output}"; then
-    echo "unsupported-runtime run create unexpectedly succeeded" >&2
+    -- /bin/sh -lc 'sleep 1' >"${cli_object_output}" 2>"${cli_error_output}"; then
+    echo "unsupported-runtime run unexpectedly succeeded" >&2
     cat "${cli_object_output}" >&2 || true
     dump_logs
     exit 1
   fi
 
   if ! grep -Eiq "no eligible node|runtime_unsupported|unsupported" "${cli_error_output}" || grep -Eiq "insufficient_cpu|insufficient_memory|effective_allocatable|namespace quota" "${cli_error_output}"; then
-    echo "unsupported-runtime run create returned an unexpected node-selection error" >&2
+    echo "unsupported-runtime run returned an unexpected node-selection error" >&2
     cat "${cli_error_output}" >&2 || true
     dump_logs
     exit 1
@@ -185,13 +179,11 @@ verify_quota_admission() {
   quota_run_output=""
   deadline=$((SECONDS + 60))
   while [ "${SECONDS}" -lt "${deadline}" ]; do
-    if quota_run_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run create \
+    if quota_run_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run --detach \
       -o json \
       --namespace "${namespace}" \
-      --environment-id "${quota_environment_id}" \
-      --argv /bin/sh \
-      --argv -lc \
-      --argv 'sleep 30' 2>"${cli_error_output}")"; then
+      --environment "${quota_environment_id}" \
+      -- /bin/sh -lc 'sleep 30' 2>"${cli_error_output}")"; then
       break
     fi
     if grep -q "no eligible node" "${cli_error_output}"; then
@@ -209,9 +201,9 @@ verify_quota_admission() {
     dump_logs
     exit 1
   fi
-  quota_run_id="$(json_query "quota admission recovery run create" 'json.load(sys.stdin)["run"]["id"]' "${quota_run_output}")"
+  quota_run_id="$(json_query "quota admission recovery run" 'json.load(sys.stdin)["run"]["id"]' "${quota_run_output}")"
   [ -n "${quota_run_id}" ] || {
-    echo "quota admission recovery run create did not return a run id" >&2
+    echo "quota admission recovery run did not return a run id" >&2
     dump_logs
     exit 1
   }

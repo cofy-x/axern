@@ -1,28 +1,66 @@
 ---
-title: 入门
-description: 选择适合你的 Axern 安装方式和客户端入口。
+title: 快速开始
+description: 无需克隆源码，在本机安装 Axern 并运行第一个隔离命令。
 ---
 
-Axern 通过统一的公开 Gateway 运行隔离工作负载。先用 Docker Compose 在一台机器上评估完整控制面和节点运行时；迁移到 Kubernetes 后，继续使用相同的 CLI Context 和 SDK 模型。
+无需克隆仓库，也无需安装 Go、Node.js、Helm、`kubectl`、Make 或
+OpenSSL，即可在本机运行完整 Axern。
 
 ## 环境要求
 
-- Docker 与 Compose v2
-- GNU Make、curl、OpenSSL 和 SSH 工具
-- Linux 主机，或者 macOS 上的 Docker Desktop
+- amd64 或 arm64 的 macOS/Linux
+- Docker Desktop，或 Docker Engine + Compose v2
+- 建议至少 4 核 CPU、8 GiB 内存和 20 GiB 可用磁盘
 
-Release Quickstart 会下载版本化的多架构镜像和带校验和的 CLI，不要求本机安装 Go、Rust、Python 或 Node.js 工具链。
+## 1. 安装 CLI
 
-## 选择路径
+```bash
+brew install cofy-x/tap/axern
+```
 
-| 目标 | 从这里开始 |
-| --- | --- |
-| 在本地评估 Axern | [Compose 快速开始](/zh-cn/getting-started/compose/) |
-| 学习产品命令 | [Axern CLI](/zh-cn/guides/cli/) |
-| 构建应用 | [SDK 概览](/zh-cn/sdk/) |
-| 运行智能体评估 | [Axrun 托管 Rollout](/zh-cn/axrun/) |
-| 安装到 Kubernetes | [Kubernetes 安装指南](/zh-cn/getting-started/kubernetes/) |
+不使用 Homebrew 时：
 
-:::caution[Pre-1.0 安全边界]
-本地生成的凭据和 loopback 监听仅用于开发。共享部署必须自行管理 TLS、Ingress、镜像信任、网络策略、密钥、配额和持久化存储。
+```bash
+curl -fsSL https://raw.githubusercontent.com/cofy-x/axern/main/install.sh | sh
+```
+
+安装器会下载 GitHub Release、严格校验 `checksums.txt`，并默认安装到
+用户可写目录。可用 `AXERN_VERSION` 和 `AXERN_INSTALL_DIR` 覆盖默认值。
+
+## 2. 启动 Local Axern
+
+```bash
+axern local up
+```
+
+该命令会检查 Docker 和主机环境，只启动核心服务，等待 Gateway 与节点
+运行时健康，然后创建 `local` Context。运行时与 Agent 镜像会在任务首次
+使用时按需拉取。
+
+## 3. 运行命令
+
+```bash
+axern run python:3.12-slim -- python -c 'print("hello from axern")'
+```
+
+Axern 会把 stdout 和 stderr 实时写入终端，并返回远端命令的真实退出码。
+每次执行同时会创建可查询的持久 Run 记录：
+
+```bash
+axern run list
+axern run logs <run-id>
+```
+
+Run 状态会持久保存；当前输出流由节点本地文件提供，仅在该 Allocation 输出
+仍被保留时可读。默认保留七天的持久输出属于后续独立存储能力。
+
+## 下一步
+
+- 在 [Local Axern](/zh-cn/getting-started/compose/) 中学习启动、停止、诊断、重置和升级。
+- 查看完整的 [`axern local` 参考](/zh-cn/guides/local/)。
+- 团队共享与生产部署请使用 [Kubernetes 安装](/zh-cn/getting-started/kubernetes/)。
+
+:::caution[本地开发边界]
+本地栈只在 `127.0.0.1` 上公开端口，并为单机开发生成身份材料。不要把它
+直接暴露为共享或生产服务。
 :::

@@ -58,6 +58,7 @@ check_equals \
 	"$expected_internal_packages"
 
 expected_service_subpackages='runtime/axnoded/internal/service/allocation
+runtime/axnoded/internal/service/allocationoutput
 runtime/axnoded/internal/service/controlplane
 runtime/axnoded/internal/service/imageprocess
 runtime/axnoded/internal/service/networking

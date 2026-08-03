@@ -6,18 +6,16 @@ verify_run() {
   local run_id=""
   local deadline=$((SECONDS + 60))
   while [ "${SECONDS}" -lt "${deadline}" ]; do
-    if run_create_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run create \
+    if run_create_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run --detach \
       -o json \
-      --environment-id "${environment_id}" \
-      --argv /bin/sh \
-      --argv -lc \
+      --environment "${environment_id}" \
       --secret-env "TOKEN=${secret_id}:token" \
-      --argv 'sleep 60' 2>"${cli_error_output}")"; then
-      run_status="$(json_query "run create" 'json.load(sys.stdin)["run"].get("status", "")' "${run_create_output}")"
+      -- /bin/sh -lc 'sleep 60' 2>"${cli_error_output}")"; then
+      run_status="$(json_query "run" 'json.load(sys.stdin)["run"].get("status", "")' "${run_create_output}")"
       if [ "${run_status}" != "6" ] && ! grep -qi "FAILED" <<<"${run_status}"; then
         break
       fi
-      json_query "run create" 'json.load(sys.stdin)["run"].get("message", "")' "${run_create_output}" >"${cli_error_output}" || true
+      json_query "run" 'json.load(sys.stdin)["run"].get("message", "")' "${run_create_output}" >"${cli_error_output}" || true
       run_create_output=""
       sleep 1
       continue
@@ -31,14 +29,14 @@ verify_run() {
     exit 1
   done
   if [ -z "${run_create_output}" ]; then
-    echo "axern run create did not find an eligible node in time" >&2
+    echo "axern run did not find an eligible node in time" >&2
     cat "${cli_error_output}" >&2 || true
     dump_logs
     exit 1
   fi
-  run_id="$(json_query "run create" 'json.load(sys.stdin)["run"]["id"]' "${run_create_output}")"
+  run_id="$(json_query "run" 'json.load(sys.stdin)["run"]["id"]' "${run_create_output}")"
   [ -n "${run_id}" ] || {
-    echo "axern run create did not return a run id" >&2
+    echo "axern run did not return a run id" >&2
     dump_logs
     exit 1
   }

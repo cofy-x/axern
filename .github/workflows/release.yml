@@ -32,7 +32,7 @@ jobs:
         run: make release-check
 
   artifacts:
-    needs: validate
+    needs: [validate, image-lock]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -56,7 +56,14 @@ jobs:
             "${archive}" | sha256sum --check --strict
           tar -xzf "${archive}" -C "${RUNNER_TEMP}" syft
           printf '%s\n' "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+      - name: Download local image lock
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: local-image-lock
+          path: dist/local-image-lock
       - name: Build CLI and Helm artifacts
+        env:
+          AXERN_LOCAL_IMAGE_LOCK_FILE: ${{ github.workspace }}/dist/local-image-lock/images.lock
         run: make release-build
       - name: Upload release artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -142,6 +149,34 @@ jobs:
       - name: Build and push architecture images
         run: bash scripts/release/build-and-push-images.sh "${{ matrix.arch }}"
 
+  image-lock:
+    needs: [validate, images]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build immutable local image lock
+        env:
+          AXERN_RELEASE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('candidate-{0}', github.sha) }}
+        run: bash scripts/release/build-local-image-lock.sh dist/local-image-lock/images.lock
+      - name: Upload local image lock
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: local-image-lock
+          path: dist/local-image-lock/images.lock
+          if-no-files-found: error
+
   candidate-acceptance:
     needs: [artifacts, images, sdk-artifacts]
     runs-on: ubuntu-latest
@@ -177,6 +212,11 @@ jobs:
         with:
           name: release-artifacts
           path: dist/release
+      - name: Download local image lock
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: local-image-lock
+          path: dist/local-image-lock
       - name: Download SDK artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -254,6 +294,11 @@ jobs:
         with:
           name: release-artifacts
           path: dist/release
+      - name: Download local image lock
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: local-image-lock
+          path: dist/local-image-lock
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
       - name: Log in to GHCR
@@ -269,6 +314,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/release/preflight.sh
       - name: Publish multi-architecture image manifests
+        env:
+          AXERN_LOCAL_IMAGE_LOCK_FILE: ${{ github.workspace }}/dist/local-image-lock/images.lock
         run: bash scripts/release/publish-image-manifests.sh
       - name: Publish Helm OCI chart
         run: helm push "dist/release/axern-$(cat VERSION).tgz" oci://ghcr.io/cofy-x/charts
@@ -291,7 +338,11 @@ jobs:
   acceptance:
     if: github.ref_type == 'tag'
     needs: [publish, sdk-publish]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -318,9 +369,45 @@ jobs:
         run: go install sigs.k8s.io/kind@v0.30.0
       - name: Install released CLI
         run: bash scripts/release/install-cli.sh "${RUNNER_TEMP}/bin/axern"
+      - name: Verify source-free local experience
+        env:
+          AXERN_CLI_BINARY: ${{ runner.temp }}/bin/axern
+        run: bash scripts/release/local-release-smoke.sh
       - name: Verify released chart, images, and CLI
         env:
           AXERN_CLI_BINARY: ${{ runner.temp }}/bin/axern
         run: |
           bash scripts/release/kind-acceptance.sh \
             bash scripts/release/sdk-data-plane-acceptance.sh published
+
+  homebrew:
+    if: github.ref_type == 'tag' && vars.HOMEBREW_TAP_ENABLED == 'true'
+    needs: [publish]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Axern
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: axern
+      - name: Download release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-artifacts
+          path: axern/dist/release
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: cofy-x/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+      - name: Update formula
+        run: bash axern/scripts/release/homebrew-formula.sh "${GITHUB_WORKSPACE}/homebrew-tap/Formula/axern.rb"
+      - name: Publish formula
+        working-directory: homebrew-tap
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Formula/axern.rb
+          git diff --cached --quiet && exit 0
+          git commit -m "axern ${GITHUB_REF_NAME}"
+          git push

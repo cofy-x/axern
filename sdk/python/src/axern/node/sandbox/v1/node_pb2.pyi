@@ -15,6 +15,12 @@ class SandboxProcessState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     SANDBOX_PROCESS_STATE_EXITED: _ClassVar[SandboxProcessState]
     SANDBOX_PROCESS_STATE_UNKNOWN: _ClassVar[SandboxProcessState]
 
+class OutputStream(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    OUTPUT_STREAM_UNSPECIFIED: _ClassVar[OutputStream]
+    OUTPUT_STREAM_STDOUT: _ClassVar[OutputStream]
+    OUTPUT_STREAM_STDERR: _ClassVar[OutputStream]
+
 class TaskAssetKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     TASK_ASSET_KIND_UNSPECIFIED: _ClassVar[TaskAssetKind]
@@ -24,6 +30,9 @@ SANDBOX_PROCESS_STATE_UNSPECIFIED: SandboxProcessState
 SANDBOX_PROCESS_STATE_RUNNING: SandboxProcessState
 SANDBOX_PROCESS_STATE_EXITED: SandboxProcessState
 SANDBOX_PROCESS_STATE_UNKNOWN: SandboxProcessState
+OUTPUT_STREAM_UNSPECIFIED: OutputStream
+OUTPUT_STREAM_STDOUT: OutputStream
+OUTPUT_STREAM_STDERR: OutputStream
 TASK_ASSET_KIND_UNSPECIFIED: TaskAssetKind
 TASK_ASSET_KIND_VERIFIER: TaskAssetKind
 TASK_ASSET_KIND_ORACLE: TaskAssetKind
@@ -335,6 +344,36 @@ class WaitSandboxResponse(_message.Message):
     exit_code_known: bool
     message: str
     def __init__(self, state: _Optional[_Union[SandboxProcessState, str]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ...) -> None: ...
+
+class ReadOutputRequest(_message.Message):
+    __slots__ = ("allocation_id", "attempt", "execution_lease_token", "cursor", "follow")
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    ATTEMPT_FIELD_NUMBER: _ClassVar[int]
+    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
+    CURSOR_FIELD_NUMBER: _ClassVar[int]
+    FOLLOW_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    attempt: int
+    execution_lease_token: str
+    cursor: str
+    follow: bool
+    def __init__(self, allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., execution_lease_token: _Optional[str] = ..., cursor: _Optional[str] = ..., follow: _Optional[bool] = ...) -> None: ...
+
+class ReadOutputResponse(_message.Message):
+    __slots__ = ("stream", "data", "next_cursor", "terminal", "truncated", "observed_at_unix_milli")
+    STREAM_FIELD_NUMBER: _ClassVar[int]
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    NEXT_CURSOR_FIELD_NUMBER: _ClassVar[int]
+    TERMINAL_FIELD_NUMBER: _ClassVar[int]
+    TRUNCATED_FIELD_NUMBER: _ClassVar[int]
+    OBSERVED_AT_UNIX_MILLI_FIELD_NUMBER: _ClassVar[int]
+    stream: OutputStream
+    data: bytes
+    next_cursor: str
+    terminal: bool
+    truncated: bool
+    observed_at_unix_milli: int
+    def __init__(self, stream: _Optional[_Union[OutputStream, str]] = ..., data: _Optional[bytes] = ..., next_cursor: _Optional[str] = ..., terminal: _Optional[bool] = ..., truncated: _Optional[bool] = ..., observed_at_unix_milli: _Optional[int] = ...) -> None: ...
 
 class CapabilityStatusRequest(_message.Message):
     __slots__ = ("allocation_id", "attempt", "execution_lease_token")

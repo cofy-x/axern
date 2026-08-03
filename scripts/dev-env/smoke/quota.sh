@@ -44,8 +44,8 @@ run_local_quota_admission_smoke() {
   environment_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["environment"]["id"])' <<<"${env_json}")"
 
   run_error="$(mktemp)"
-  if "${AXERN_SMOKE_CMD[@]}" run create -o json --namespace "${namespace}" --environment-id "${environment_id}" >/dev/null 2>"${run_error}"; then
-    echo "quota admission run create succeeded unexpectedly" >&2
+  if "${AXERN_SMOKE_CMD[@]}" run -o json --namespace "${namespace}" --environment "${environment_id}" >/dev/null 2>"${run_error}"; then
+    echo "quota admission run succeeded unexpectedly" >&2
     return 1
   fi
   if ! grep -q "namespace quota exceeded" "${run_error}"; then

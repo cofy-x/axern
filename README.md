@@ -30,48 +30,38 @@ share identity, lease, cleanup, and observability contracts.
 
 ## Local Quickstart
 
-The supported local path runs the complete stack with Docker Compose. It needs
-Docker with Compose v2, GNU Make, curl, OpenSSL, and SSH tooling. Linux is the
-primary runtime platform; Docker Desktop provides the supported macOS path.
+The supported local path runs the complete stack with Docker Compose without a
+source checkout. It needs only the `axern` CLI and Docker Compose v2.
 
 ```bash
-git clone https://github.com/cofy-x/axern.git
-cd axern
-make quickstart
+brew install cofy-x/tap/axern
+axern local up
+axern run python:3.12-slim -- python -c 'print("hello from axern")'
 ```
 
-The command downloads the versioned CLI and multi-architecture images, starts
-PostgreSQL, MinIO, the control and node services, waits for readiness, and runs
-a smoke through the public gateway. It does not require a local Go, Rust,
-Python, or Node.js toolchain.
+`local up` starts PostgreSQL, MinIO, the control and node services, waits for
+readiness, and creates the `local` context. It does not require Make, Helm,
+`kubectl`, Go, Rust, Python, or Node.js.
 
 Use the generated local CLI context:
 
 ```bash
-AXERN_CLI=deploy/local/state/releases/v$(cat VERSION)/axern
-"${AXERN_CLI}" context current
-"${AXERN_CLI}" namespace create default
-"${AXERN_CLI}" run create \
-  --image-ref docker.io/library/python:3.12-slim \
-  --runtime-class runsc \
-  --argv python \
-  --argv -c \
-  --argv 'print("hello from Axern")' \
-  --wait
+axern context current
+axern run list
 ```
 
 Inspect or remove the environment:
 
 ```bash
-make local-compose-status
-make local-compose-purge
+axern local status
+axern local down
 ```
 
 The local environment uses generated development credentials and loopback
 listeners. Do not reuse them in a shared or production deployment.
 
-Source development remains a first-class, separate path. It builds the current
-checkout into local `:dev` images and exercises the same Compose contract:
+Source development is a separate contributor path. It builds the current
+checkout into local `:dev` images and exercises the same public contract:
 
 ```bash
 make quickstart-source

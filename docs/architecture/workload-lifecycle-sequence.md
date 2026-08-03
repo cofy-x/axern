@@ -44,7 +44,7 @@ sequenceDiagram
     Control-->>Client: "Running, ready, or terminal state"
 ```
 
-`run create --wait` returns the workload exit code after normal termination.
+Foreground `axern run` returns the workload exit code after normal termination.
 Service wait observes rollout, replica, readiness, and event state. Function
 deploy observes its worker service through the Function deployment projection.
 

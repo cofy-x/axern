@@ -129,6 +129,20 @@ class GetRunResponse(_message.Message):
     run: Run
     def __init__(self, run: _Optional[_Union[Run, _Mapping]] = ...) -> None: ...
 
+class WatchRunRequest(_message.Message):
+    __slots__ = ("run_id", "after_version")
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    AFTER_VERSION_FIELD_NUMBER: _ClassVar[int]
+    run_id: str
+    after_version: int
+    def __init__(self, run_id: _Optional[str] = ..., after_version: _Optional[int] = ...) -> None: ...
+
+class WatchRunResponse(_message.Message):
+    __slots__ = ("run",)
+    RUN_FIELD_NUMBER: _ClassVar[int]
+    run: Run
+    def __init__(self, run: _Optional[_Union[Run, _Mapping]] = ...) -> None: ...
+
 class ListRunsRequest(_message.Message):
     __slots__ = ("filter",)
     FILTER_FIELD_NUMBER: _ClassVar[int]
