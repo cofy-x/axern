@@ -506,6 +506,11 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool) DoctorReport 
 	advise := func(code string, ok bool, message, recommendation string) {
 		report.Checks = append(report.Checks, Check{Code: code, OK: ok, Severity: "recommended", Message: message, Recommendation: recommendation})
 	}
+	if nameservers, err := localDNSNameservers(); err != nil {
+		add("runtime_dns", false, "no usable host DNS resolver was found for local workloads", "set AXERN_LOCAL_DNS_NAMESERVERS to a comma-separated list of reachable resolver IPs")
+	} else {
+		add("runtime_dns", true, fmt.Sprintf("%d usable host DNS resolver(s) detected", len(nameservers)), "")
+	}
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
 		add("host_platform", false, runtime.GOOS+" is not supported", "use macOS or Linux with Docker")
 	} else {
@@ -633,6 +638,10 @@ func (m *Manager) materialize(profile string) error {
 }
 
 func (m *Manager) writeEnv(profile string) error {
+	dnsNameservers, err := localDNSNameservers()
+	if err != nil {
+		return fmt.Errorf("configure local workload DNS: %w", err)
+	}
 	secretValues := map[string]string{}
 	secretsPath := filepath.Join(m.Dir, "secrets.json")
 	if data, err := os.ReadFile(secretsPath); err == nil {
@@ -672,7 +681,8 @@ func (m *Manager) writeEnv(profile string) error {
 		"PYTHON311_RUNTIME_IMAGE": images["PYTHON311_RUNTIME_IMAGE"], "SERVER_BASE_RUNTIME_IMAGE": images["SERVER_BASE_RUNTIME_IMAGE"], "CODING_BASE_RUNTIME_IMAGE": images["CODING_BASE_RUNTIME_IMAGE"], "DESKTOP_BASE_RUNTIME_IMAGE": images["DESKTOP_BASE_RUNTIME_IMAGE"], "CLAUDE_CODE_BUNDLE_IMAGE": images["CLAUDE_CODE_BUNDLE_IMAGE"], "CODEX_BUNDLE_IMAGE": images["CODEX_BUNDLE_IMAGE"],
 		"OTEL_COLLECTOR_IMAGE": images["OTEL_COLLECTOR_IMAGE"], "OTEL_LGTM_IMAGE": images["OTEL_LGTM_IMAGE"], "AXERN_SECRETS_MASTER_KEY": secretValues["master"], "LOCAL_DEV_TOKEN": secretValues["dev_token"], "NODE_AUTH_TOKEN": secretValues["node_token"],
 		"CONTAINER_HTTP_PROXY": httpProxy, "CONTAINER_HTTPS_PROXY": httpsProxy, "CONTAINER_NO_PROXY": noProxy, "REGISTRY_PROXY_URL": firstNonEmpty(httpsProxy, httpProxy), "CONTROLD_INSECURE_REGISTRIES": "", "OTEL_ENABLED": otelEnabled, "OTEL_EXPORTER_OTLP_ENDPOINT": otelEndpoint,
-		"LOCAL_UID": strconv.Itoa(os.Getuid()), "LOCAL_GID": strconv.Itoa(os.Getgid()), "CONTROLD_HTTP_PORT": "24101", "GATEWAY_CONTROL_PORT": strconv.Itoa(GatewayControlPort), "GATEWAY_HTTP_PORT": strconv.Itoa(GatewayHTTPPort), "GATEWAY_SSH_PORT": strconv.Itoa(GatewaySSHPort), "POSTGRES_PORT": "25432", "MINIO_API_PORT": "29000", "MINIO_CONSOLE_PORT": "29001", "OTEL_GRPC_PORT": "4317", "OTEL_HTTP_PORT": "4318", "LGTM_UI_PORT": "13000",
+		"AXNODED_DNS_NAMESERVERS": strings.Join(dnsNameservers, ","),
+		"LOCAL_UID":               strconv.Itoa(os.Getuid()), "LOCAL_GID": strconv.Itoa(os.Getgid()), "CONTROLD_HTTP_PORT": "24101", "GATEWAY_CONTROL_PORT": strconv.Itoa(GatewayControlPort), "GATEWAY_HTTP_PORT": strconv.Itoa(GatewayHTTPPort), "GATEWAY_SSH_PORT": strconv.Itoa(GatewaySSHPort), "POSTGRES_PORT": "25432", "MINIO_API_PORT": "29000", "MINIO_CONSOLE_PORT": "29001", "OTEL_GRPC_PORT": "4317", "OTEL_HTTP_PORT": "4318", "LGTM_UI_PORT": "13000",
 	}
 	keys := make([]string, 0, len(values))
 	for key := range values {

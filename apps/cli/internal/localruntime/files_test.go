@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -109,6 +110,7 @@ func TestQuoteDotEnv(t *testing.T) {
 }
 
 func TestWriteEnvGeneratesAndRepairsSecretsMasterKey(t *testing.T) {
+	t.Setenv(localDNSNameserversEnv, "192.0.2.53")
 	tests := []struct {
 		name       string
 		existing   string
@@ -136,6 +138,13 @@ func TestWriteEnvGeneratesAndRepairsSecretsMasterKey(t *testing.T) {
 			if err := manager.writeEnv(""); err != nil {
 				t.Fatal(err)
 			}
+			envData, err := os.ReadFile(filepath.Join(dir, "compose.env"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(envData, []byte(`AXNODED_DNS_NAMESERVERS="192.0.2.53"`)) {
+				t.Fatalf("compose env does not contain resolved workload DNS: %q", envData)
+			}
 			data, err := os.ReadFile(filepath.Join(dir, "secrets.json"))
 			if err != nil {
 				t.Fatal(err)
@@ -159,6 +168,22 @@ func TestWriteEnvGeneratesAndRepairsSecretsMasterKey(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDoctorReportsRequiredRuntimeDNSFailure(t *testing.T) {
+	t.Setenv(localDNSNameserversEnv, "127.0.0.1")
+	manager := &Manager{Dir: t.TempDir(), Runner: &recordingRunner{}, Stdout: io.Discard, Stderr: io.Discard}
+	report := manager.doctor(context.Background(), false)
+	for _, check := range report.Checks {
+		if check.Code != "runtime_dns" {
+			continue
+		}
+		if check.OK || check.Severity != "required" || !strings.Contains(check.Recommendation, localDNSNameserversEnv) {
+			t.Fatalf("runtime DNS check = %#v", check)
+		}
+		return
+	}
+	t.Fatal("doctor did not report runtime_dns")
 }
 
 type recordingRunner struct{ calls [][]string }

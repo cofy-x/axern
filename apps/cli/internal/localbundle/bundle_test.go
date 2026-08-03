@@ -15,6 +15,9 @@ func TestEmbeddedBundleIsSelfContainedAndLoopbackOnly(t *testing.T) {
 	if bytes.Contains(Compose, []byte(":latest")) {
 		t.Fatal("local bundle contains a floating latest image")
 	}
+	if !bytes.Contains(Compose, []byte("AXNODED_DNS_NAMESERVERS: ${AXNODED_DNS_NAMESERVERS}")) {
+		t.Fatal("local bundle does not pass resolved workload DNS to axnoded")
+	}
 	for _, port := range []string{"POSTGRES_PORT", "MINIO_API_PORT", "MINIO_CONSOLE_PORT", "CONTROLD_HTTP_PORT", "GATEWAY_CONTROL_PORT", "GATEWAY_HTTP_PORT", "GATEWAY_SSH_PORT", "OTEL_GRPC_PORT", "OTEL_HTTP_PORT", "LGTM_UI_PORT"} {
 		mapping := []byte("127.0.0.1:${" + port + "}:")
 		if !bytes.Contains(Compose, mapping) {

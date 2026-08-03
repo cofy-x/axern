@@ -65,6 +65,23 @@ axern local doctor
 axern local logs node --tail 200
 ```
 
+## 工作负载 DNS
+
+Local Axern 会从宿主机发现非 loopback DNS Resolver，并传给 axnoded 中的
+OCI 工作负载。Docker 容器内的 loopback Resolver 无法从嵌套 Sandbox 访问，
+因此不会直接复制。`axern local doctor` 将其作为必需的 `runtime_dns` 检查。
+
+VPN 或企业网络有时使用宿主机 Resolver 文件中未列出的 DNS。可在启动或重建
+本地栈前显式设置逗号分隔的 Resolver IP：
+
+```bash
+AXERN_LOCAL_DNS_NAMESERVERS=10.0.0.53,10.0.0.54 axern local up
+```
+
+这些值必须是 Docker 工作负载可访问的 IP 地址；loopback、未指定地址、空值
+和主机名都会被拒绝。运行中的实例修改 DNS 后，执行 `axern local down` 再执行
+`axern local up`，即可在保留数据的同时重建 Node 容器。
+
 ## 升级与卸载
 
 `local up` 不会静默升级。版本不一致时使用 `axern local upgrade`；`status`、
