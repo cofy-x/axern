@@ -67,8 +67,11 @@ preserving a hard process limit and protecting each axnoded independently.
 
 Periodic rollout, run, node, Service, tunnel, and Function maintenance runs in
 independent component loops. A slow dependency in one component therefore does
-not block the cadence of unrelated controllers. Each loop is non-overlapping,
-inherits the process lifecycle context, and has a bounded execution timeout.
+not block the cadence of unrelated controllers. Each loop is non-overlapping
+and inherits the process lifecycle context. Short maintenance loops have a
+bounded component timeout. Run and Service allocation creation instead use a
+bounded timeout per lifecycle item so cold image materialization cannot consume
+the budget of later work or be canceled by a shorter maintenance deadline.
 Service autoscaling and the lower-frequency recovery sweep share one serialized
 Service maintenance loop, while service-ID event workers retain their bounded
 cross-service concurrency. On shutdown, active calls are canceled before the

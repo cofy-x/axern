@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	secretkernel "github.com/cofy-x/axern/control/controld/internal/kernel/secret"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
@@ -21,7 +22,6 @@ import (
 
 const (
 	DefaultRuntime = "runsc"
-	DefaultTimeout = 60 * time.Second
 )
 
 const (
@@ -36,12 +36,14 @@ type Bridge struct {
 	secretValues        secretkernel.ValueResolver
 	registryCredentials environmentkernel.RegistryCredentialResolver
 	defaultRuntime      string
-	timeout             time.Duration
+	createTimeout       time.Duration
+	operationTimeout    time.Duration
 }
 
 type Config struct {
 	DefaultRuntime      string
-	Timeout             time.Duration
+	CreateTimeout       time.Duration
+	OperationTimeout    time.Duration
 	SecretValues        secretkernel.ValueResolver
 	RegistryCredentials environmentkernel.RegistryCredentialResolver
 }
@@ -50,20 +52,24 @@ func New(client LifecycleClient, cfg Config) *Bridge {
 	if cfg.DefaultRuntime == "" {
 		cfg.DefaultRuntime = DefaultRuntime
 	}
-	if cfg.Timeout <= 0 {
-		cfg.Timeout = DefaultTimeout
+	if cfg.CreateTimeout <= 0 {
+		cfg.CreateTimeout = allocationkernel.CreateExecutionTimeout
+	}
+	if cfg.OperationTimeout <= 0 {
+		cfg.OperationTimeout = allocationkernel.LifecycleOperationTimeout
 	}
 	return &Bridge{
 		client:              client,
 		secretValues:        cfg.SecretValues,
 		registryCredentials: cfg.RegistryCredentials,
 		defaultRuntime:      cfg.DefaultRuntime,
-		timeout:             cfg.Timeout,
+		createTimeout:       cfg.CreateTimeout,
+		operationTimeout:    cfg.OperationTimeout,
 	}
 }
 
 func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string) error {
-	callCtx, cancel := context.WithTimeout(ctx, b.timeout)
+	callCtx, cancel := context.WithTimeout(ctx, b.createTimeout)
 	defer cancel()
 	stageStarted := time.Now()
 	req, err := b.buildCreateAllocationRequest(callCtx, createAllocationRequestParams{
@@ -88,7 +94,7 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 }
 
 func (b *Bridge) CreateResolvedAllocation(ctx context.Context, req servicekernel.CreateResolvedAllocationRequest) (*servicekernel.CreateResolvedAllocationResult, error) {
-	callCtx, cancel := context.WithTimeout(ctx, b.timeout)
+	callCtx, cancel := context.WithTimeout(ctx, b.createTimeout)
 	defer cancel()
 	stageStarted := time.Now()
 	wireReq, err := b.buildCreateAllocationRequest(callCtx, createAllocationRequestParams{
@@ -127,7 +133,7 @@ func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID stri
 }
 
 func (b *Bridge) DeleteResolvedAllocation(ctx context.Context, target, allocationID string, attempt int64, nodeID string) ([]*privatestoragev1.VolumeReleaseObservation, error) {
-	callCtx, cancel := context.WithTimeout(ctx, b.timeout)
+	callCtx, cancel := context.WithTimeout(ctx, b.operationTimeout)
 	defer cancel()
 	resp, err := b.client.DeleteAllocation(callCtx, target, &privatenodev1.DeleteAllocationRequest{
 		AllocationID:   allocationID,
@@ -145,7 +151,7 @@ func (b *Bridge) DeleteResolvedAllocation(ctx context.Context, target, allocatio
 }
 
 func (b *Bridge) AllocationDeleted(ctx context.Context, target, allocationID string, attempt int64, nodeID string) (bool, error) {
-	callCtx, cancel := context.WithTimeout(ctx, b.timeout)
+	callCtx, cancel := context.WithTimeout(ctx, b.operationTimeout)
 	defer cancel()
 	_, err := b.client.GetAllocationStatus(callCtx, target, &privatenodev1.GetAllocationStatusRequest{
 		AllocationID: allocationID,
@@ -162,7 +168,7 @@ func (b *Bridge) AllocationDeleted(ctx context.Context, target, allocationID str
 }
 
 func (b *Bridge) DeleteVolume(ctx context.Context, target string, reclaim *privatestoragev1.VolumeReclaim) error {
-	callCtx, cancel := context.WithTimeout(ctx, b.timeout)
+	callCtx, cancel := context.WithTimeout(ctx, b.operationTimeout)
 	defer cancel()
 	_, err := b.client.DeleteVolume(callCtx, target, &privatenodev1.DeleteVolumeRequest{
 		ClaimID: reclaim.GetClaimID(), Backend: reclaim.GetBackend(), BackendHandle: reclaim.GetBackendHandle(), NodeID: reclaim.GetNodeID(),

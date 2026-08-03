@@ -64,7 +64,7 @@ func (a *App) startFunctionInvocationWorkers() {
 
 func (a *App) startPeriodicReconciler() {
 	a.startPeriodicComponent(reconcilekernel.ComponentRollout, a.rolloutPG != nil, a.reconcileRolloutMaintenance)
-	a.startPeriodicComponent(reconcilekernel.ComponentRun, a.runReconciler != nil, func(ctx context.Context, now time.Time) error {
+	a.startPeriodicLifecycleComponent(reconcilekernel.ComponentRun, a.runReconciler != nil, func(ctx context.Context, now time.Time) error {
 		return a.runReconciler.ReconcilePending(ctx, now)
 	})
 	a.startPeriodicComponent(reconcilekernel.ComponentNode, a.nodeReconciler != nil, func(ctx context.Context, now time.Time) error {
@@ -78,6 +78,16 @@ func (a *App) startPeriodicReconciler() {
 }
 
 func (a *App) startPeriodicComponent(component string, enabled bool, reconcile func(context.Context, time.Time) error) {
+	a.startPeriodicComponentLoop(component, enabled, reconcile, a.reconcileComponent)
+}
+
+func (a *App) startPeriodicLifecycleComponent(component string, enabled bool, reconcile func(context.Context, time.Time) error) {
+	a.startPeriodicComponentLoop(component, enabled, reconcile, func(component string, now time.Time, reconcile func(context.Context, time.Time) error) error {
+		return a.reconcileComponentWithContext(a.backgroundReconcileContext(), component, now, reconcile)
+	})
+}
+
+func (a *App) startPeriodicComponentLoop(component string, enabled bool, reconcile func(context.Context, time.Time) error, run func(string, time.Time, func(context.Context, time.Time) error) error) {
 	if !enabled || reconcile == nil {
 		return
 	}
@@ -90,7 +100,7 @@ func (a *App) startPeriodicComponent(component string, enabled bool, reconcile f
 		for {
 			select {
 			case <-ticker.C:
-				a.reconcileComponent(component, a.now(), reconcile)
+				run(component, a.now(), reconcile)
 			case <-lifecycleDone:
 				return
 			case <-a.stopCh:
@@ -198,7 +208,7 @@ func (a *App) startAllocationReconciler() {
 func (a *App) reconcileAllocationBatches(now time.Time) {
 	for {
 		processed := 0
-		err := a.reconcileComponent(reconcilekernel.ComponentAllocation, now, func(ctx context.Context, _ time.Time) error {
+		err := a.reconcileComponentWithContext(a.backgroundReconcileContext(), reconcilekernel.ComponentAllocation, now, func(ctx context.Context, _ time.Time) error {
 			var err error
 			processed, err = a.allocationReconciler.ReconcileAllocationBatch(ctx, a.now())
 			return err
@@ -365,16 +375,20 @@ func (a *App) notifyAllocationReconcile() {
 }
 
 func (a *App) reconcileComponent(component string, now time.Time, reconcile func(context.Context, time.Time) error) error {
+	ctx, cancel := context.WithTimeout(a.backgroundReconcileContext(), a.backgroundReconcileTimeout())
+	defer cancel()
+	return a.reconcileComponentWithContext(ctx, component, now, reconcile)
+}
+
+func (a *App) reconcileComponentWithContext(ctx context.Context, component string, now time.Time, reconcile func(context.Context, time.Time) error) error {
 	var run reconcilekernel.RunHandle
 	if a.reconcileHealth != nil {
 		run = a.reconcileHealth.RecordStart(component, now)
 	}
-	ctx, cancel := context.WithTimeout(a.backgroundReconcileContext(), a.backgroundReconcileTimeout())
 	err := reconcile(ctx, now)
 	if err == nil && ctx.Err() != nil {
 		err = ctx.Err()
 	}
-	cancel()
 	finishedAt := a.now()
 	if a.reconcileHealth != nil {
 		a.reconcileHealth.RecordResult(run, err, finishedAt)

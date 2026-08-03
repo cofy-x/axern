@@ -3,13 +3,15 @@ package allocationkernel
 import "time"
 
 const (
-	ReconcileReasonCreate   = "create"
-	ReconcileReasonDelete   = "delete"
-	DefaultReconcileLimit   = 20
-	DeleteRetryDelay        = 5 * time.Second
-	CreateRetryInitialDelay = 2 * time.Second
-	CreateRetryMaxDelay     = 30 * time.Second
-	CreateRetryMaxAttempts  = 5
+	ReconcileReasonCreate     = "create"
+	ReconcileReasonDelete     = "delete"
+	DefaultReconcileLimit     = 20
+	DeleteRetryDelay          = 5 * time.Second
+	CreateRetryInitialDelay   = 2 * time.Second
+	CreateRetryMaxDelay       = 30 * time.Second
+	CreateRetryMaxAttempts    = 5
+	CreateExecutionTimeout    = 10 * time.Minute
+	LifecycleOperationTimeout = 60 * time.Second
 )
 
 type ReconcileItem struct {

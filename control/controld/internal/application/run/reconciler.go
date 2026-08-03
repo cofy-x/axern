@@ -28,12 +28,20 @@ func (r reconciler) ReconcilePending(ctx context.Context, now time.Time) error {
 	if r.store == nil || r.lifecycle == nil {
 		return nil
 	}
-	items, err := r.store.DueReconcileItems(ctx, allocationkernel.DefaultReconcileLimit, now)
+	queryCtx, cancel := context.WithTimeout(ctx, allocationkernel.LifecycleOperationTimeout)
+	items, err := r.store.DueReconcileItems(queryCtx, allocationkernel.DefaultReconcileLimit, now)
+	cancel()
 	if err != nil {
 		return err
 	}
 	for _, item := range items {
-		err = errors.Join(err, r.reconcileAllocation(ctx, item, now))
+		timeout := allocationkernel.LifecycleOperationTimeout
+		if item.Reason == allocationkernel.ReconcileReasonCreate {
+			timeout = allocationkernel.CreateExecutionTimeout
+		}
+		itemCtx, cancel := context.WithTimeout(ctx, timeout)
+		err = errors.Join(err, r.reconcileAllocation(itemCtx, item, now))
+		cancel()
 	}
 	return err
 }
