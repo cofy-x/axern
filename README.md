@@ -4,7 +4,7 @@
 [![Axrun CI](https://github.com/cofy-x/axern/actions/workflows/axrun-ci.yml/badge.svg)](https://github.com/cofy-x/axern/actions/workflows/axrun-ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 
-[Documentation](https://axern.cofy-x.space) · [Quickstart](https://axern.cofy-x.space/getting-started/compose/) · [SDKs](https://axern.cofy-x.space/sdk/)
+[Documentation](https://axern.cofy-x.space) · [Quickstart](https://axern.cofy-x.space/getting-started/) · [SDKs](https://axern.cofy-x.space/sdk/)
 
 Axern is an open-source sandbox platform for AI agents. It isolates untrusted
 agent-generated code with runsc and runs trusted long-lived services with runc
@@ -35,6 +35,17 @@ source checkout. It needs only the `axern` CLI and Docker Compose v2.
 
 ```bash
 brew install cofy-x/tap/axern
+```
+
+Without Homebrew, use the standalone checksummed installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cofy-x/axern/main/install.sh | sh
+```
+
+Then start Axern and run the first workload:
+
+```bash
 axern local up
 axern run python:3.12-slim -- python -c 'print("hello from axern")'
 ```

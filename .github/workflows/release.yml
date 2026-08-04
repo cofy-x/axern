@@ -382,9 +382,30 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" dist/release/* \
             "${release_args[@]}"
 
+  sdk-publication-readiness:
+    if: github.ref_type == 'tag'
+    needs: [publish, sdk-artifacts]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.12"
+          cache: false
+      - name: Download SDK artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: sdk-artifacts
+          path: dist/sdk
+      - name: Wait for immutable SDK publication
+        run: python3 scripts/release/sdk_publication_readiness.py
+
   acceptance:
     if: github.ref_type == 'tag'
-    needs: [publish, sdk-publish]
+    needs: [sdk-publication-readiness]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -426,35 +447,3 @@ jobs:
         run: |
           bash scripts/release/kind-acceptance.sh \
             bash scripts/release/sdk-data-plane-acceptance.sh published
-
-  homebrew:
-    if: github.ref_type == 'tag' && vars.HOMEBREW_TAP_ENABLED == 'true'
-    needs: [acceptance]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Axern
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          path: axern
-      - name: Download release artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: release-artifacts
-          path: axern/dist/release
-      - name: Checkout Homebrew tap
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          repository: cofy-x/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          path: homebrew-tap
-      - name: Update formula
-        run: bash axern/scripts/release/homebrew-formula-check.sh "${GITHUB_WORKSPACE}/homebrew-tap/Formula/axern.rb"
-      - name: Publish formula
-        working-directory: homebrew-tap
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add Formula/axern.rb
-          git diff --cached --quiet && exit 0
-          git commit -m "axern ${GITHUB_REF_NAME}"
-          git push

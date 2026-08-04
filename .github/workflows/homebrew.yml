@@ -1,0 +1,156 @@
+name: Homebrew
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable Axern version to publish, with or without a leading v
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: homebrew-axern-${{ github.event_name == 'workflow_dispatch' && inputs.version || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Resolve stable release
+        id: release
+        env:
+          REQUESTED_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.event.workflow_run.head_branch }}
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
+          WORKFLOW_EVENT: ${{ github.event_name }}
+          WORKFLOW_REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [[ "${WORKFLOW_EVENT}" == workflow_dispatch && "${WORKFLOW_REF_NAME}" != "${DEFAULT_BRANCH}" ]]; then
+            echo "manual Homebrew publication must run from ${DEFAULT_BRANCH}" >&2
+            exit 2
+          fi
+          version="${REQUESTED_RELEASE#v}"
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Homebrew publication requires a stable semantic version; got ${REQUESTED_RELEASE}" >&2
+            exit 2
+          fi
+          {
+            echo "tag=v${version}"
+            echo "version=${version}"
+            echo "expected_sha=${EXPECTED_SHA}"
+          } >> "${GITHUB_OUTPUT}"
+      - name: Checkout immutable Axern release
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+          fetch-depth: 0
+          path: axern
+      - name: Verify release identity
+        env:
+          AXERN_RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          AXERN_RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          EXPECTED_SHA: ${{ steps.release.outputs.expected_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(cat axern/VERSION)" = "${AXERN_RELEASE_VERSION}"
+          test "$(git -C axern cat-file -t "refs/tags/${AXERN_RELEASE_TAG}")" = tag
+          release_sha="$(git -C axern rev-list -n 1 "${AXERN_RELEASE_TAG}")"
+          if [[ -n "${EXPECTED_SHA}" && "${release_sha}" != "${EXPECTED_SHA}" ]]; then
+            echo "Homebrew release ${AXERN_RELEASE_TAG} points to ${release_sha}, want ${EXPECTED_SHA}" >&2
+            exit 1
+          fi
+          release="$(gh release view "${AXERN_RELEASE_TAG}" --repo cofy-x/axern --json tagName,isDraft,isPrerelease)"
+          jq -e --arg tag "${AXERN_RELEASE_TAG}" \
+            '.tagName == $tag and .isDraft == false and .isPrerelease == false' <<<"${release}" >/dev/null
+      - name: Download immutable release checksums
+        env:
+          AXERN_RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p axern/dist/release
+          gh release download "${AXERN_RELEASE_TAG}" --repo cofy-x/axern \
+            --pattern checksums.txt --dir axern/dist/release
+      - name: Generate and validate formula
+        run: bash axern/scripts/release/homebrew-formula-check.sh "${RUNNER_TEMP}/axern.rb"
+      - name: Upload immutable formula
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: homebrew-formula
+          path: ${{ runner.temp }}/axern.rb
+          if-no-files-found: error
+
+  publish:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: homebrew-release
+    steps:
+      - name: Verify Homebrew credential
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [[ -z "${HOMEBREW_TAP_TOKEN}" ]]; then
+            echo "homebrew-release must provide HOMEBREW_TAP_TOKEN with contents write access to cofy-x/homebrew-tap" >&2
+            exit 1
+          fi
+      - name: Checkout trusted publisher
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          path: publisher
+      - name: Download immutable formula
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: homebrew-formula
+          path: dist/homebrew
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: cofy-x/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+      - name: Reconcile immutable formula
+        id: formula
+        run: >-
+          python3 publisher/scripts/release/homebrew_formula_reconcile.py
+          dist/homebrew/axern.rb homebrew-tap/Formula/axern.rb
+      - name: Publish formula
+        if: steps.formula.outputs.homebrew_formula_changed == 'true'
+        working-directory: homebrew-tap
+        env:
+          AXERN_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Formula/axern.rb
+          git commit -m "axern ${AXERN_RELEASE_VERSION}"
+          git push origin HEAD:main
+
+  verify:
+    needs: [prepare, publish]
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - name: Install from the public tap
+        env:
+          AXERN_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          brew tap cofy-x/tap
+          brew install cofy-x/tap/axern
+          "$(brew --prefix axern)/bin/axern" version | grep -F "${AXERN_RELEASE_VERSION}"
+          brew test cofy-x/tap/axern
