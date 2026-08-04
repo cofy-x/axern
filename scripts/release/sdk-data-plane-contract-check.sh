@@ -39,9 +39,6 @@ for value in required_workflow:
         raise SystemExit(f"release workflow is missing SDK data-plane contract: {value}")
 if workflow.count("if: github.ref_type == 'tag'") != 4:
     raise SystemExit("release workflow must restrict all publication jobs to tag events")
-for value in ("homebrew:", "needs: [acceptance]", "cofy-x/homebrew-tap", "HOMEBREW_TAP_TOKEN"):
-    if value not in workflow:
-        raise SystemExit(f"release workflow is missing Homebrew publication contract: {value}")
 global_env = workflow.split("jobs:", 1)[0]
 if "AXERN_RELEASE_VERSION:" in global_env:
     raise SystemExit("candidate image version must not override SDK or CLI artifact versions globally")

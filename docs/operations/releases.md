@@ -33,6 +33,13 @@ configure trust and remove the bootstrap credential before creating the release
 tags. npm generates provenance automatically for subsequent public OIDC
 publishes.
 
+Homebrew publication uses a separate `Homebrew` workflow so a tap outage or
+credential problem never requires rebuilding immutable release artifacts. Its
+`homebrew-release` environment must provide `HOMEBREW_TAP_TOKEN`, a
+fine-grained token with Contents write access only to
+`cofy-x/homebrew-tap`. Protect that environment independently from
+`sdk-release`; do not expose the tap credential to the release-tag checkout.
+
 The release tag must point at a commit already accepted by the normal `main`
 branch checks. Releases are immutable: never move an existing tag or overwrite
 a GitHub Release, OCI chart version, or final image tag.
@@ -87,30 +94,51 @@ mismatched Go SDK tag. The workflow then:
    publishing;
 10. publishes multi-architecture GHCR manifests and the OCI Helm chart;
 11. attests and attaches the release files to a GitHub Release;
-12. repeats the source-free local smoke, fresh-kind Run, and complete SDK
-    data-plane acceptance from
-    anonymously readable PyPI, npm, and Go module artifacts.
+12. waits in one bounded readiness gate until PyPI and npm expose the exact
+    candidate digests and the public Go proxy plus checksum database resolve
+    the expected Go tag commit;
+13. repeats the source-free local smoke, fresh-kind Run, and complete SDK
+    data-plane acceptance from anonymously readable PyPI, npm, and Go module
+    artifacts on Linux amd64 and arm64.
 
-After published acceptance succeeds, the Homebrew job updates
-`cofy-x/homebrew-tap`. Set the repository variable `HOMEBREW_TAP_ENABLED` to
-`true` and provide `HOMEBREW_TAP_TOKEN` as a fine-grained credential with
-contents write access only to that tap repository. Keep the job disabled until
-both settings are present; the release itself remains usable through its
-archives when Homebrew publication is intentionally disabled.
+Do not query the final Go module version through `proxy.golang.org` before the
+two release tags exist. A pre-release 404 can remain in public negative caches
+after the tag is pushed. Preflight checks use Git refs to prove that a version
+is unused; the readiness gate owns public Go module propagation after publish.
 
 Registry publication is safely repeatable but remains immutable. On a rerun,
 the workflow skips an SDK version only when every PyPI filename and SHA-256, or
 the npm tarball SHA-1, exactly matches the candidate built by the workflow. An
 existing version with different bytes fails the release instead of being
-overwritten. A tag that starts a release is consumed even when publication
-fails: fix the root cause, advance the coherent version, and create new tags.
-Never move or reuse the failed tags.
+overwritten. A tag that starts a release is always consumed and must never be
+moved. Advance the coherent version when a code or artifact fix is required.
+When all immutable artifacts already match and only registry propagation or a
+downstream acceptance step failed, rerun the failed jobs against the same tags.
 
 Container images carry the public source-repository label and the chart carries
 matching source metadata so GHCR associates packages with this public
 repository. After the first release, confirm that every image and
 `charts/axern` allow anonymous reads. A release is not complete while any
 package remains private.
+
+## Publish Homebrew
+
+After a successful tag-triggered `Release` run, the independent `Homebrew`
+workflow prepares the formula without credentials, publishes it through the
+protected `homebrew-release` environment, and verifies a real installation on
+macOS. Formula reconciliation is idempotent: it creates or upgrades
+`Formula/axern.rb`, rejects downgrades, and rejects different content for an
+already-published version.
+
+The workflow also supports an explicit backfill for a completed release:
+
+```bash
+gh workflow run homebrew.yml --ref main -f version="$(cat VERSION)"
+```
+
+Use backfill when the workflow was introduced after a release or when tap
+credentials were unavailable at release time. It consumes the immutable
+GitHub Release checksums and never rebuilds CLI archives.
 
 ## Verify
 
@@ -124,9 +152,13 @@ helm show chart oci://ghcr.io/cofy-x/charts/axern --version "$(cat VERSION)"
 uv run --no-project --with "axern-sdk==$(cat VERSION)" -- python -c 'import axern_sdk; print(axern_sdk.__version__)'
 npm view "@cofy-x/axern-sdk@$(cat VERSION)" version
 go list -m "github.com/cofy-x/axern/sdk/go@v$(cat VERSION)"
+brew install cofy-x/tap/axern
+axern version
 ```
 
 The GitHub Release must contain four CLI archives, `checksums.txt`, SPDX and
 CycloneDX SBOMs, and the matching Helm package. The quickstart and Kubernetes
 commands in the root README are the public installation contract and must be
-rerun when those paths change.
+rerun when those paths change. A release is not fully distributed until the
+independent Homebrew workflow succeeds or the tap is explicitly declared
+unavailable in user-facing installation documentation.
