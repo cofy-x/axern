@@ -1,11 +1,23 @@
 package agents
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/cofy-x/axern/apps/axrun/internal/agentbundle"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 )
+
+func ValidateCanonicalAgentImageMount(spec domain.AgentSpec, agentName string) error {
+	if spec.Runtime == nil || spec.Runtime.Type != domain.AgentRuntimeTypeAgentImage {
+		return nil
+	}
+	expected := agentbundle.MountTarget(agentName)
+	if mountTarget := spec.Runtime.MountTarget; mountTarget != "" && mountTarget != expected {
+		return fmt.Errorf("%s self-contained bundle must be mounted at %s", agentName, expected)
+	}
+	return nil
+}
 
 type SpecParams struct {
 	Name           string

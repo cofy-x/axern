@@ -85,7 +85,7 @@ for node in json.load(sys.stdin).get("nodes", []):
     ' >&2 || true
     docker compose "${compose_args[@]}" logs --no-color --tail=160 \
       controld rollout-worker node gatewayd tunneld mock-provider >&2 || true
-    for failed_rollout_id in "${rollout_id:-}" "${run_id:-}"; do
+    for failed_rollout_id in "${rollout_id:-}" "${run_id:-}" "${claude_rollout_id:-}"; do
       if [[ -n "${failed_rollout_id}" ]]; then
         "${axrun}" --config "${config_file}" --format json rollout get "${failed_rollout_id}" >&2 || true
         "${axrun}" --config "${config_file}" rollout inspect "${failed_rollout_id}" >&2 || true
@@ -166,7 +166,8 @@ path.chmod(0o755)
 PY
 "${axrun}" task build --file "${fixture}/source/taskset.yaml" --output "${fixture}/bundle" >/dev/null
 
-docker compose "${compose_args[@]}" up -d registry mock-provider minio-rollout-bootstrap
+docker compose "${compose_args[@]}" up -d registry minio-rollout-bootstrap
+docker compose "${compose_args[@]}" up -d --force-recreate mock-provider
 docker compose "${compose_args[@]}" up -d --force-recreate --no-deps controld
 docker compose "${compose_args[@]}" up -d --force-recreate --no-deps tunneld node gatewayd
 docker compose "${compose_args[@]}" up -d --force-recreate rollout-worker
@@ -207,6 +208,21 @@ docker exec "${node_container}" axctl --timeout 5m image import \
   --imagemgr-socket /run/imagemgr/imagemgr.sock \
   --archive /tmp/managed-rollout-codex-bundle.tar --ref "${agent_ref}" >/dev/null
 docker exec "${node_container}" rm -f /tmp/managed-rollout-codex-bundle.tar
+
+claude_bundle_image="${CLAUDE_CODE_BUNDLE_IMAGE}"
+if ! docker image inspect "${claude_bundle_image}" >/dev/null 2>&1; then
+  IMAGE_REF="${claude_bundle_image}" \
+    bash "${AXERN_ROOT}/runtime/axnoded/scripts/runtime/build-claude-code-bundle-image.sh" >/dev/null
+fi
+claude_image_id="$(docker image inspect "${claude_bundle_image}" --format '{{.Id}}')"
+claude_agent_ref="axern/claude-code-bundle@${claude_image_id}"
+claude_archive="${fixture}/claude-code-bundle.tar"
+docker save -o "${claude_archive}" "${claude_bundle_image}"
+docker exec -i "${node_container}" /bin/bash -lc 'cat > /tmp/managed-rollout-claude-code-bundle.tar' < "${claude_archive}"
+docker exec "${node_container}" axctl --timeout 5m image import \
+  --imagemgr-socket /run/imagemgr/imagemgr.sock \
+  --archive /tmp/managed-rollout-claude-code-bundle.tar --ref "${claude_agent_ref}" >/dev/null
+docker exec "${node_container}" rm -f /tmp/managed-rollout-claude-code-bundle.tar
 
 runtime_archive="${fixture}/mock-runtime.tar"
 docker save -o "${runtime_archive}" "${mock_runtime_image}"
@@ -299,6 +315,63 @@ printf '%s\n' mock-success | "${axrun}" --config "${config_file}" profile create
   --base-url "${mock_provider_base_url}/v1" --token-stdin --idempotency-key "managed-mock-anthropic-${run_suffix}" >/dev/null
 "${axrun}" --config "${config_file}" profile doctor "${anthropic_profile}" --model mock-scripted-agent >/dev/null
 
+claude_rollout_file="${fixture}/claude-rollout.yaml"
+cat > "${claude_rollout_file}" <<EOF
+api_version: axrun/v1
+kind: Rollout
+metadata:
+  name: managed-mock-claude
+spec:
+  task_set:
+    ref: ${taskset_ref}
+  agent:
+    name: claude-code
+    runtime:
+      kind: agent_image
+      image: ${claude_agent_ref}
+    profile: ${anthropic_profile}
+    approval_policy: never
+  model: mock-scripted-agent
+  execution:
+    runner: axern
+    namespace: default
+    runtime_class: runsc
+    concurrency: 1
+    attempts: 1
+  budget:
+    max_tokens: 1024
+    max_cost_microusd: 10000
+EOF
+
+set +e
+claude_run_output="$("${axrun}" --config "${config_file}" rollout run --file "${claude_rollout_file}")"
+claude_run_status=$?
+set -e
+claude_rollout_id="$(printf '%s\n' "${claude_run_output}" | awk -F'[ =]' '/^rollout=/{print $2}' | tail -1)"
+test -n "${claude_rollout_id}"
+if [[ "${claude_run_status}" -ne 0 ]]; then
+  printf '%s\n' "${claude_run_output}" >&2
+  exit "${claude_run_status}"
+fi
+claude_rollout_json="$("${axrun}" --config "${config_file}" --format json rollout get "${claude_rollout_id}")"
+python3 - "${claude_rollout_json}" <<'PY'
+import json
+import sys
+
+result = json.loads(sys.argv[1])
+rollout = result["rollout"]
+if rollout["status"] != "ROLLOUT_STATUS_COMPLETED":
+    raise SystemExit("Claude Code rollout did not complete")
+episode = result["episodes"][0]
+if not episode.get("passed") or float(episode.get("reward", 0)) <= 0:
+    raise SystemExit("Claude Code agent/verifier/reward did not pass")
+PY
+
+claude_evidence_dir="${fixture}/claude-evidence"
+"${axrun}" --config "${config_file}" rollout artifact download-all "${claude_rollout_id}" \
+  --output-dir "${claude_evidence_dir}" >/dev/null
+test "$(find "${claude_evidence_dir}" -type f | wc -l | tr -d ' ')" -ge 6
+
 request_log="$(docker compose "${compose_args[@]}" exec -T mock-provider wget -qO- --no-check-certificate https://127.0.0.1:24443/__mock/requests)"
 python3 - "${request_log}" <<'PY'
 import json
@@ -316,3 +389,4 @@ PY
 echo "managed_rollout_compose_e2e_ok=true"
 echo "manual_rollout_id=${rollout_id}"
 echo "auto_rollout_id=${run_id}"
+echo "claude_rollout_id=${claude_rollout_id}"

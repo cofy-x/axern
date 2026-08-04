@@ -120,36 +120,38 @@ create_output="$(
       --namespace "${namespace}" \
       --image-mount "${bundle_cluster_image}:/opt/axern/agents/codex:ro" \
       "${task_cluster_image}" -- /bin/sh -lc \
-      '/opt/axern/agents/codex/bin/codex --version | tee /tmp/codex-version.txt && grep -F "codex-cli" /tmp/codex-version.txt && ! touch /opt/axern/agents/codex/write-test' || true
+      'test -r /opt/axern/agents/codex/opt/axern/agent-bundle/manifest.json && LD_LIBRARY_PATH=/definitely-not-a-system-library /opt/axern/agents/codex/bin/codex --version | tee /tmp/codex-version.txt && grep -F "codex-cli" /tmp/codex-version.txt && ! touch /opt/axern/agents/codex/write-test && /bin/sh -c "printf sandbox-ok" && printf "\nagent-bundle-smoke-ready\n" && sleep 600' || true
 )"
 if ! run_id="$(extract_run_json_field id <<<"${create_output}" 2>/dev/null)"; then
   printf '%s\n' "${create_output}" >&2
   echo "failed to parse created run id" >&2
   exit 1
 fi
-if ! run_json="$(local_smoke_wait_for_run_terminal "${run_id}")"; then
+if ! run_json="$(local_smoke_wait_for_run_status "${run_id}" running)"; then
   printf '%s\n' "${run_json}" >&2
-  echo "run ${run_id} did not reach a terminal status" >&2
+  echo "run ${run_id} did not reach running" >&2
   exit 1
 fi
 run_id="$(extract_run_json_field id <<<"${run_json}")"
 environment_id="$(extract_run_json_field environment_id <<<"${run_json}")"
-python3 -c 'import json,sys
-run=json.load(sys.stdin)["run"]
-if run["status"] != "succeeded":
-    raise SystemExit("run status = %s, want succeeded" % run["status"])
-if run.get("exit_code_known") and run.get("exit_code") != 0:
-    raise SystemExit("run exit_code = %s, want 0" % run.get("exit_code"))
-' <<<"${run_json}"
+if ! local_smoke_wait_for_run_output "${run_id}" agent-bundle-smoke-ready >/dev/null; then
+  echo "run ${run_id} did not produce the bundle success marker" >&2
+  exit 1
+fi
+bundle_mount_duration="$(local_smoke_imagemgr_mount_duration "${node_container}" "${bundle_cluster_image}")"
+local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" run cancel "${run_id}" -o json >/dev/null
+local_smoke_wait_for_run_terminal "${run_id}" >/dev/null
 run_id=""
 if [ -n "${environment_id}" ]; then
   local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" environment delete "${environment_id}" -o json >/dev/null
   environment_id=""
 fi
 local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" namespace delete "${namespace}" -o json >/dev/null
+local_smoke_wait_for_image_mount_release "${node_container}" "${bundle_cluster_image}"
 
 echo "codex_image_mount_smoke_ok=true"
 echo "task_base_image=${task_base_image}"
 echo "task_cluster_image=${task_cluster_image}"
-echo "codex_runtime_image=${codex_runtime_image}"
+echo "codex_bundle_source_image=${bundle_source_image}"
 echo "bundle_cluster_image=${bundle_cluster_image}"
+echo "bundle_mount_duration=${bundle_mount_duration}"

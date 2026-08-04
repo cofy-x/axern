@@ -26,3 +26,6 @@ axern_docker_build \
   -f "${DOCKERFILE}" \
   -t "${IMAGE_REF}" \
   "${CONTEXT_DIR}"
+
+bash "${ROOT_DIR}/scripts/runtime/verify-agent-bundle-image.sh" \
+  "${IMAGE_REF}" codex codex "${CODEX_CLI_VERSION}" "codex-cli ${CODEX_CLI_VERSION}"

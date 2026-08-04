@@ -26,3 +26,6 @@ axern_docker_build \
   -f "${DOCKERFILE}" \
   -t "${IMAGE_REF}" \
   "${CONTEXT_DIR}"
+
+bash "${ROOT_DIR}/scripts/runtime/verify-agent-bundle-image.sh" \
+  "${IMAGE_REF}" claude-code claude "${CLAUDE_CODE_VERSION}" "${CLAUDE_CODE_VERSION} (Claude Code)"

@@ -50,6 +50,12 @@ into the task sandbox and the adapter-generated command runs through normal sand
 topology so runs, trajectories, and exports can be audited without inferring it
 from agent names.
 
+Official Claude Code and Codex images are self-contained tool rootfs bundles
+with canonical mount targets under `/opt/axern/agents`. Their loader, system
+libraries, CA certificates, and agent runtime come from the bundle; the task
+rootfs continues to own its shell and project toolchain. Custom agent-image
+runtimes may select another single-name target under the same namespace.
+
 ### RolloutRun
 
 `RolloutRun` is the run envelope. It records TaskSet selection, agent/model
