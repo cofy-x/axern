@@ -87,7 +87,7 @@ for contract in (
     "docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0",
     "crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0",
     "packages: write",
-    "docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3",
+    "docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0",
     'build-and-push-images.sh "${{ matrix.arch }}"',
     "image-lock:",
     "build-local-image-lock.sh dist/local-image-lock/images.lock",
