@@ -19,6 +19,7 @@
 KUBECTL ?= kubectl
 HELM ?= helm
 AXERN_HELM_UPGRADE_ARGS ?= --server-side=true --force-conflicts
+AXERN_HELM_WAIT_ARGS ?= --wait --timeout 10m
 
 AXERN_HELM_CHART ?= $(ROOTDIR)/deploy/helm/axern
 AXERN_HELM_RELEASE ?= axern
@@ -199,7 +200,7 @@ helm-install: helm-lint helm-dry-run ## Install or upgrade Axern with Helm
 		$(call helm_common_args) \
 		--create-namespace \
 		$(AXERN_HELM_UPGRADE_ARGS) \
-		--wait --timeout 10m
+		$(AXERN_HELM_WAIT_ARGS)
 
 helm-status: ## Show the configured Helm release status
 	$(call require_kube_context)
