@@ -63,6 +63,13 @@ mounts the bundle read-only at its canonical target in BusyBox 1.36 and Ubuntu
 Codex helper ELFs, and rejects a non-canonical mount. Override the task-image
 matrix with `AGENT_BUNDLE_VERIFY_BASE_IMAGES` only for focused development.
 
+Bundle builds use upstream Ubuntu, Node.js, and npm endpoints by default. Set
+`APT_MIRROR_SOURCE` to `aliyun`, `ustc`, or `tuna` to select a regional Ubuntu
+mirror. Codex builds also accept `NODE_DOWNLOAD_BASE_URL` and
+`NPM_CONFIG_REGISTRY`. The build wrappers forward upper- and lower-case Docker
+proxy variables after translating a loopback proxy host to
+`host.docker.internal`.
+
 ## Script Layout
 
 - `lib/`

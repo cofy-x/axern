@@ -7,6 +7,8 @@ target_arch="$3"
 ubuntu_base_image="$4"
 node_sha256_amd64="$5"
 node_sha256_arm64="$6"
+node_download_base_url="${7%/}"
+npm_registry="$8"
 canonical_root=/opt/axern/agents/codex
 
 case "$target_arch" in
@@ -32,12 +34,13 @@ esac
 
 test -x "$loader"
 archive="node-v${node_version}-linux-${node_arch}.tar.xz"
-curl -fsSLo "/tmp/$archive" "https://nodejs.org/dist/v${node_version}/$archive"
+curl -fsSLo "/tmp/$archive" "$node_download_base_url/v${node_version}/$archive"
 echo "$node_sha256  /tmp/$archive" | sha256sum -c -
 install -d -m 0755 /tmp/node
 tar -xJf "/tmp/$archive" --strip-components=1 -C /tmp/node
 rm -f "/tmp/$archive"
-PATH="/tmp/node/bin:$PATH" npm install --global --prefix /opt/axern/agent-bundle/npm "@openai/codex@$codex_cli_version"
+PATH="/tmp/node/bin:$PATH" npm install --global --prefix /opt/axern/agent-bundle/npm \
+  --registry "$npm_registry" "@openai/codex@$codex_cli_version"
 package_dir=/opt/axern/agent-bundle/npm/lib/node_modules/@openai/codex
 installed_version="$(/tmp/node/bin/node -p "require('$package_dir/package.json').version")"
 test "$installed_version" = "$codex_cli_version"
@@ -91,7 +94,7 @@ find /opt/axern/agent-bundle -type f -print | while IFS= read -r candidate; do
     patchelf --set-interpreter "$canonical_root$loader" --force-rpath --set-rpath "$canonical_rpath" "$candidate"
     test "$(patchelf --print-interpreter "$candidate")" = "$canonical_root$loader"
     echo "$relative" >> /tmp/dynamic
-  elif [ "$has_dynamic" = true ]; then
+  elif [ "$has_dynamic" = true ] && [ -n "$needed" ]; then
     old_rpath="$(patchelf --print-rpath "$candidate")"
     canonical_rpath="$canonical_root/lib/$multiarch:$canonical_root/usr/lib/$multiarch:$canonical_root/lib:$canonical_root/usr/lib"
     if [ -n "$old_rpath" ]; then canonical_rpath="$old_rpath:$canonical_rpath"; fi
