@@ -1,17 +1,16 @@
 #!/bin/sh
 set -eu
 
-root=/opt/axern/agents/codex
+root=/opt/axern/agents/claude-code
 manifest="$root/opt/axern/agent-bundle/manifest.json"
-node="$root/opt/axern/agent-bundle/node/bin/node"
-entry="$root/opt/axern/agent-bundle/npm/lib/node_modules/@openai/codex/bin/codex.js"
+real_binary="$root/opt/axern/agent-bundle/bin/claude.real"
 
 if [ "${AXRUN_AGENT_BUNDLE_MOUNT_TARGET:-$root}" != "$root" ]; then
-  echo "error: Codex bundle must be mounted at $root" >&2
+  echo "error: Claude Code bundle must be mounted at $root" >&2
   exit 126
 fi
-if [ ! -r "$manifest" ] || [ ! -x "$node" ] || [ ! -r "$entry" ] || [ ! -r "$root/etc/ssl/certs/ca-certificates.crt" ]; then
-  echo "error: Codex bundle must be mounted completely at $root" >&2
+if [ ! -r "$manifest" ] || [ ! -x "$real_binary" ] || [ ! -r "$root/etc/ssl/certs/ca-certificates.crt" ]; then
+  echo "error: Claude Code bundle must be mounted completely at $root" >&2
   exit 126
 fi
 
@@ -22,16 +21,16 @@ elif [ -x "$root/lib/ld-linux-aarch64.so.1" ]; then
   loader="$root/lib/ld-linux-aarch64.so.1"
   multiarch=aarch64-linux-gnu
 else
-  echo "error: Codex bundle architecture loader is missing at $root" >&2
+  echo "error: Claude Code bundle architecture loader is missing at $root" >&2
   exit 126
 fi
 
 test -x "$loader" || {
-  echo "error: Codex bundle loader is missing at $loader" >&2
+  echo "error: Claude Code bundle loader is missing at $loader" >&2
   exit 126
 }
 
 unset LD_LIBRARY_PATH
 export SSL_CERT_FILE="$root/etc/ssl/certs/ca-certificates.crt"
 library_path="$root/lib/$multiarch:$root/usr/lib/$multiarch:$root/lib:$root/usr/lib"
-exec "$loader" --library-path "$library_path" "$node" "$entry" "$@"
+exec "$loader" --library-path "$library_path" "$real_binary" "$@"

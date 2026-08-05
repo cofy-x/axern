@@ -27,6 +27,9 @@ func RegistrationWithProfiles(profiles map[string]agentprofile.Profile) agent.Re
 		InstallStrategy:         agent.InstallPreinstalled,
 		RequiredCapabilities:    []string{"shell", "file-edit", "patch", "artifact"},
 		ProfileRequiredRuntimes: []domain.AgentRuntimeType{domain.AgentRuntimeTypeAgentImage},
+		ValidateRuntime: func(spec domain.AgentSpec) error {
+			return rolloutagents.ValidateCanonicalAgentImageMount(spec, Name)
+		},
 		HarnessFactory: func(spec domain.AgentSpec) (agent.Harness, error) {
 			config, err := codexagent.ConfigFromEnv()
 			if err != nil {

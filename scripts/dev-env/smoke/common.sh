@@ -321,3 +321,68 @@ sys.exit(0 if status in {"cancelled", "failed", "succeeded"} else 1)
   printf '%s\n' "${run_json}"
   return 1
 }
+
+local_smoke_wait_for_run_output() {
+  local run_id="$1"
+  local marker="$2"
+  local deadline=$((SECONDS + 60))
+  local output=""
+  while [ "${SECONDS}" -lt "${deadline}" ]; do
+    output="$("${AXERN_SMOKE_CMD[@]}" run logs "${run_id}" 2>&1 || true)"
+    if printf '%s\n' "${output}" | grep -Fq "${marker}"; then
+      printf '%s\n' "${output}"
+      return 0
+    fi
+    sleep 2
+  done
+  printf '%s\n' "${output}"
+  return 1
+}
+
+local_smoke_wait_for_image_mount_release() {
+  local node_container="$1"
+  local image_url="$2"
+  local deadline=$((SECONDS + 60))
+  local inventory=""
+  while [ "${SECONDS}" -lt "${deadline}" ]; do
+    inventory="$(docker exec "${node_container}" curl -fsS \
+      --unix-socket /run/imagemgr/imagemgr.sock http://unix/inventory 2>/dev/null || true)"
+    if [ -n "${inventory}" ] && python3 -c '
+import json
+import sys
+
+image_url = sys.argv[1]
+payload = json.load(sys.stdin)
+mounted = payload.get("mounted_images") or []
+raise SystemExit(0 if all(item.get("image_url") != image_url for item in mounted) else 1)
+' "${image_url}" <<<"${inventory}"; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "image mount lease was not released for ${image_url}" >&2
+  printf '%s\n' "${inventory}" >&2
+  return 1
+}
+
+local_smoke_imagemgr_mount_duration() {
+  local node_container="$1"
+  local image_url="$2"
+  docker exec "${node_container}" tail -n 2000 /var/lib/imagemgr/logs/imagemgr.log 2>/dev/null | python3 -c '
+import re
+import sys
+
+image_url = sys.argv[1]
+duration = ""
+needle = f"OCI mount success: image={image_url} "
+for line in sys.stdin:
+    if needle not in line:
+        continue
+    match = re.search(r"\bcost=([^\" ]+)", line)
+    if match:
+        duration = match.group(1)
+if not duration:
+    raise SystemExit(f"missing OCI mount duration for {image_url}")
+print(duration)
+' "${image_url}"
+}

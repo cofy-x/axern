@@ -1,6 +1,6 @@
 .PHONY: quickstart quickstart-source axern-config-init \
 		local-images-build nydus-builder-image registry-nydus-image-build \
-		local-compose-up local-compose-down local-compose-status local-compose-purge local-compose-reset local-compose-refresh local-compose-refresh-verify local-compose-image-import local-compose-image-service-smoke local-compose-registry-image-smoke local-compose-image-mount-smoke local-compose-claude-code-image-mount-smoke local-compose-codex-image-mount-smoke local-compose-nydus-smoke \
+		local-compose-up local-compose-down local-compose-status local-compose-purge local-compose-reset local-compose-refresh local-compose-refresh-verify local-compose-image-import local-compose-image-service-smoke local-compose-registry-image-smoke local-compose-image-mount-smoke local-compose-agent-bundle-matrix-smoke local-compose-claude-code-image-mount-smoke local-compose-codex-image-mount-smoke local-compose-nydus-smoke \
 		local-compose-smoke local-compose-doctor-smoke local-compose-gateway-smoke local-compose-gateway-ssh-e2e local-compose-service-volume-smoke local-compose-run-smoke local-compose-function-smoke local-compose-server-base-smoke local-compose-quota-smoke local-compose-tunnel-e2e local-compose-python-sdk-e2e local-compose-computer-use-e2e local-compose-go-sdk-e2e local-compose-managed-rollout-e2e tunnel-benchmark-compose \
 		kind-up kind-down kind-status kind-purge kind-reset kind-refresh kind-refresh-verify registry-up registry-status registry-down registry-image-push kind-image-import kind-image-service-smoke kind-axern-registry-image-smoke kind-axern-nydus-smoke kind-smoke kind-gateway-smoke kind-service-volume-smoke kind-run-smoke kind-server-base-smoke kind-quota-smoke kind-tunnel-e2e kind-tunnel-relay-e2e kind-tunnel-multirelay-e2e kube-env-kind \
 		local-refresh-verify local-truth-verify local-storage-verify \
@@ -45,6 +45,9 @@ local-compose-registry-image-smoke: ## Verify Axern can start an image from the 
 
 local-compose-image-mount-smoke: ## Verify compose run image_mounts with a read-only reusable image bundle
 	bash $(ROOTDIR)/scripts/dev-env/compose-image-mount-smoke.sh
+
+local-compose-agent-bundle-matrix-smoke: ## Verify self-contained agent bundles in BusyBox and Ubuntu task images
+	bash $(ROOTDIR)/scripts/dev-env/compose-agent-bundle-matrix-smoke.sh
 
 local-compose-claude-code-image-mount-smoke: ## Verify Claude Code as a read-only image mount bundle in a task sandbox
 	bash $(ROOTDIR)/scripts/dev-env/compose-claude-code-image-mount-smoke.sh

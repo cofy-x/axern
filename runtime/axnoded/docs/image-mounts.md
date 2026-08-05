@@ -43,9 +43,12 @@ only. Tool images should be relocatable bundles, for example:
   lib/
 ```
 
-Axern does not guarantee ABI compatibility between arbitrary task images and
-mounted bundle images. Use compatible base families for tool bundles that rely
-on shared runtime libraries.
+Axern does not merge operating-system ABIs. A generic tool bundle that relies
+on task libraries must document that dependency. Official Axern Claude Code and
+Codex bundles instead carry a complete, pinned Ubuntu ABI and invoke their own
+loader, so they support both glibc- and musl-based Axrun-compatible task images.
+The task image remains responsible for `/bin/sh`, project commands, and its own
+language and test toolchains.
 
 ## Runtime Ownership
 
@@ -90,6 +93,7 @@ allocation-local COW overlays. See [Workspace Images](workspace-images.md).
 ## Verification
 
 - `make local-compose-image-mount-smoke`
+- `make local-compose-agent-bundle-matrix-smoke`
 - `make local-compose-claude-code-image-mount-smoke`
 - `make local-compose-codex-image-mount-smoke`
 - `make axrun-local-smoke` for the local functional path

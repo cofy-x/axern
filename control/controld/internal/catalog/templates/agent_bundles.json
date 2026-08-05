@@ -10,7 +10,7 @@
       }
     },
     "binaryPath": "/bin/claude",
-    "description": "Relocatable Claude Code CLI bundle for read-only Axern image mounts."
+    "description": "Canonical self-contained Claude Code tool rootfs for read-only Axern image mounts."
   },
   {
     "id": "codex",
@@ -23,6 +23,6 @@
       }
     },
     "binaryPath": "/bin/codex",
-    "description": "Relocatable Codex CLI bundle for read-only Axern image mounts."
+    "description": "Canonical self-contained Codex tool rootfs for read-only Axern image mounts."
   }
 ]

@@ -50,6 +50,26 @@ make verify-docker-build
 make protos-docker
 ```
 
+Self-contained official agent bundles:
+
+```bash
+bash scripts/runtime/build-claude-code-bundle-image.sh
+bash scripts/runtime/build-codex-bundle-image.sh
+```
+
+Each build runs `verify-agent-bundle-image.sh` before succeeding. The verifier
+mounts the bundle read-only at its canonical target in BusyBox 1.36 and Ubuntu
+24.04, checks the exact version and manifest/label contract, exercises packaged
+Codex helper ELFs, and rejects a non-canonical mount. Override the task-image
+matrix with `AGENT_BUNDLE_VERIFY_BASE_IMAGES` only for focused development.
+
+Bundle builds use upstream Ubuntu, Node.js, and npm endpoints by default. Set
+`APT_MIRROR_SOURCE` to `aliyun`, `ustc`, or `tuna` to select a regional Ubuntu
+mirror. Codex builds also accept `NODE_DOWNLOAD_BASE_URL` and
+`NPM_CONFIG_REGISTRY`. The build wrappers forward upper- and lower-case Docker
+proxy variables after translating a loopback proxy host to
+`host.docker.internal`.
+
 ## Script Layout
 
 - `lib/`
@@ -65,6 +85,8 @@ make protos-docker
   - reusable host-side caches for heavy external artifacts
 - `tools/`
   - helper entrypoints such as `protos-docker.sh`
+- `runtime/`
+  - runtime and self-contained agent bundle build/verification helpers
 
 ## Environment Variables
 

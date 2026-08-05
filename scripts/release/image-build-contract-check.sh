@@ -66,6 +66,53 @@ for obsolete in ("AXERN_DOCKER_GHA_CACHE", "AXERN_DOCKER_REGISTRY_CACHE"):
     if obsolete in cache_helper:
         raise SystemExit(f"shared Docker cache helper retains obsolete backend selection: {obsolete}")
 
+bundle_base = "ubuntu:24.04@sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e82f5c538ea"
+bundle_contracts = {
+    "claude-code": root / "runtime/axnoded/docker/runtimes/claude-code-bundle/Dockerfile",
+    "codex": root / "runtime/axnoded/docker/runtimes/codex-bundle/Dockerfile",
+}
+for agent_id, dockerfile in bundle_contracts.items():
+    build_script = dockerfile.parent / "build-bundle.sh"
+    if not build_script.is_file():
+        raise SystemExit(f"{agent_id} bundle build/audit script is missing: {build_script}")
+    dockerfile_text = dockerfile.read_text()
+    if "COPY --chmod=0755 build-bundle.sh" not in dockerfile_text:
+        raise SystemExit(f"{agent_id} Dockerfile does not execute its external build/audit script")
+    wrapper = dockerfile.parent / ("claude" if agent_id == "claude-code" else "codex")
+    wrapper_text = wrapper.read_text()
+    if "uname" in wrapper_text:
+        raise SystemExit(f"{agent_id} wrapper must not require task-image uname")
+    if "unset LD_LIBRARY_PATH" not in wrapper_text:
+        raise SystemExit(f"{agent_id} wrapper does not clear task-image LD_LIBRARY_PATH")
+    text = dockerfile_text + build_script.read_text()
+    for contract in (
+        bundle_base,
+        f'io.axern.agent-bundle.agent-id="{agent_id}"',
+        'io.axern.agent-bundle.architecture="linux/${TARGETARCH}"',
+        f'io.axern.agent-bundle.mount-target="/opt/axern/agents/{agent_id}"',
+        "/opt/axern/agent-bundle/manifest.json",
+        "readelf -h",
+        "--library-path",
+        "--list",
+    ):
+        if contract not in text:
+            raise SystemExit(f"{agent_id} self-contained bundle contract is missing: {contract}")
+
+codex_bundle = bundle_contracts["codex"].read_text() + (bundle_contracts["codex"].parent / "build-bundle.sh").read_text()
+for checksum in (
+    "e798599612f4bb71333a3397ab0d095fd62214e115aea45aa858a145fc72d67e",
+    "aa881151bd0f9f154a0424dd60a72e9ce10672619121658c278a24327ef46831",
+):
+    if checksum not in codex_bundle:
+        raise SystemExit(f"Codex bundle is missing pinned Node checksum {checksum}")
+
+for build_script in (
+    root / "runtime/axnoded/scripts/runtime/build-claude-code-bundle-image.sh",
+    root / "runtime/axnoded/scripts/runtime/build-codex-bundle-image.sh",
+):
+    if "verify-agent-bundle-image.sh" not in build_script.read_text():
+        raise SystemExit(f"bundle build does not run compatibility verification: {build_script}")
+
 release_builder = (root / "scripts/release/build-and-push-images.sh").read_text()
 for contract in (
     "release image builds require a native ${arch} runner",

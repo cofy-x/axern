@@ -9,6 +9,7 @@ import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Lock
+from urllib.parse import urlsplit
 
 
 REQUESTS = []
@@ -45,8 +46,16 @@ def credential_label(headers):
 
 
 def has_tool_result(payload):
-    encoded = json.dumps(payload.get("input", payload.get("messages", [])), separators=(",", ":"))
-    return "function_call_output" in encoded or "tool_result" in encoded
+    pending = [payload.get("input", payload.get("messages", []))]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            if value.get("type") in {"function_call_output", "tool_result"}:
+                return True
+            pending.extend(value.values())
+        elif isinstance(value, list):
+            pending.extend(value)
+    return False
 
 
 def choose_tool(payload):
@@ -56,7 +65,7 @@ def choose_tool(payload):
         lowered = name.lower()
         if any(part in lowered for part in ("shell", "bash", "exec", "terminal")):
             command_key = "cmd" if "exec" in lowered else "command"
-            return name, {command_key: "printf 'managed rollout mock provider ok\\n' > scripted-agent.txt"}
+            return name, {command_key: "printf 'managed rollout mock provider ok\\n' > /workspace/scripted-agent.txt"}
     return "", {}
 
 
@@ -75,10 +84,11 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path == "/healthz":
+        request_path = urlsplit(self.path).path
+        if request_path == "/healthz":
             self.json_response(200, {"ok": True})
             return
-        if self.path == "/__mock/requests":
+        if request_path == "/__mock/requests":
             with REQUESTS_LOCK:
                 requests = list(REQUESTS)
             self.json_response(200, {"requests": requests})
@@ -86,7 +96,8 @@ class Handler(BaseHTTPRequestHandler):
         self.json_response(404, {"error": {"message": "not found"}})
 
     def do_POST(self):
-        if self.path == "/__mock/reset":
+        request_path = urlsplit(self.path).path
+        if request_path == "/__mock/reset":
             with REQUESTS_LOCK:
                 REQUESTS.clear()
             self.json_response(200, {"ok": True})
@@ -98,7 +109,12 @@ class Handler(BaseHTTPRequestHandler):
             self.json_response(400, {"error": {"message": "invalid request"}})
             return
         scenario = scenario_for(self.headers, payload)
-        wire = "anthropic_messages" if self.path.endswith("/messages") else "responses"
+        wire = "anthropic_messages" if request_path.endswith("/messages") else "responses"
+        chosen_tool, _ = choose_tool(payload)
+        tool_names = [
+            tool.get("name") or tool.get("function", {}).get("name") or ""
+            for tool in payload.get("tools", [])
+        ]
         with REQUESTS_LOCK:
             REQUESTS.append({
                 "wire_api": wire,
@@ -106,6 +122,9 @@ class Handler(BaseHTTPRequestHandler):
                 "credential_version": credential_label(self.headers),
                 "model": payload.get("model", ""),
                 "stream": bool(payload.get("stream")),
+                "tool_names": tool_names,
+                "chosen_tool": chosen_tool,
+                "has_tool_result": has_tool_result(payload),
             })
         if scenario == "timeout":
             time.sleep(20)
@@ -132,7 +151,7 @@ class Handler(BaseHTTPRequestHandler):
         if status:
             self.json_response(status, {"error": {"message": "deterministic mock failure", "type": scenario}})
             return
-        if not (self.path.endswith("/responses") or self.path.endswith("/messages")):
+        if not (request_path.endswith("/responses") or request_path.endswith("/messages")):
             self.json_response(404, {"error": {"message": "required protocol endpoint not found"}})
             return
         if payload.get("stream"):
@@ -187,12 +206,17 @@ class Handler(BaseHTTPRequestHandler):
         self.sse("message_start", {"type": "message_start", "message": {"id": message_id, "type": "message", "role": "assistant", "model": payload.get("model", "mock"), "content": [], "stop_reason": None, "usage": {"input_tokens": 11, "output_tokens": 0}}})
         tool_name, arguments = choose_tool(payload)
         if tool_name and not has_tool_result(payload):
-            block = {"type": "tool_use", "id": "toolu_" + uuid.uuid4().hex, "name": tool_name, "input": arguments}
+            block = {"type": "tool_use", "id": "toolu_" + uuid.uuid4().hex, "name": tool_name, "input": {}}
             stop_reason = "tool_use"
         else:
-            block = {"type": "text", "text": "scripted task complete"}
+            block = {"type": "text", "text": ""}
             stop_reason = "end_turn"
         self.sse("content_block_start", {"type": "content_block_start", "index": 0, "content_block": block})
+        if stop_reason == "tool_use":
+            delta = {"type": "input_json_delta", "partial_json": json.dumps(arguments, separators=(",", ":"))}
+        else:
+            delta = {"type": "text_delta", "text": "scripted task complete"}
+        self.sse("content_block_delta", {"type": "content_block_delta", "index": 0, "delta": delta})
         self.sse("content_block_stop", {"type": "content_block_stop", "index": 0})
         self.sse("message_delta", {"type": "message_delta", "delta": {"stop_reason": stop_reason, "stop_sequence": None}, "usage": {"output_tokens": 3}})
         self.sse("message_stop", {"type": "message_stop"})

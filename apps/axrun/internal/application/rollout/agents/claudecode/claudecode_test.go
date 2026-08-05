@@ -32,3 +32,18 @@ func TestRegistrationValidatesAgentImageArtifactPolicy(t *testing.T) {
 		t.Fatalf("ValidateRuntime error = %v, want raw log error", err)
 	}
 }
+
+func TestRegistrationRejectsNonCanonicalAgentImageMount(t *testing.T) {
+	reg := Registration()
+	spec := domain.AgentSpec{
+		Name: Name,
+		Runtime: &domain.AgentRuntimeSpec{
+			Type:        domain.AgentRuntimeTypeAgentImage,
+			MountTarget: "/opt/axern/agents/custom-claude",
+		},
+	}
+	err := reg.ValidateRuntime(spec)
+	if err == nil || !strings.Contains(err.Error(), "/opt/axern/agents/claude-code") {
+		t.Fatalf("ValidateRuntime error = %v", err)
+	}
+}

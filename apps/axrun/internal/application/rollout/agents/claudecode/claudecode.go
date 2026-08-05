@@ -44,6 +44,9 @@ func validateRuntime(spec domain.AgentSpec) error {
 	if spec.Runtime == nil || spec.Runtime.Type != domain.AgentRuntimeTypeAgentImage {
 		return nil
 	}
+	if err := rolloutagents.ValidateCanonicalAgentImageMount(spec, Name); err != nil {
+		return err
+	}
 	artifacts := spec.Runtime.Artifacts
 	if artifacts == nil {
 		return fmt.Errorf("claude-code agent-image runtime requires artifact policy")
