@@ -1,4 +1,4 @@
-Output public/terminal/axrun.gif
+Output apps/docs/public/terminal/axrun.gif
 
 Set Shell "bash"
 Set FontSize 18

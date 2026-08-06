@@ -81,3 +81,7 @@ namespaces.
 
 For the complete trust and audit model, see the repository's
 [authorization architecture](https://github.com/cofy-x/axern/blob/main/docs/architecture/authorization.md).
+Cluster operators running audited administrative workflows (node retirement,
+service purge, storage reclaim, audit review) should follow the repository's
+[dashboard and admin operations guide](https://github.com/cofy-x/axern/blob/main/apps/cli/docs/dashboard-admin-operations.md);
+those runbooks are maintained with the CLI and are not duplicated here.

@@ -61,6 +61,7 @@ seven-day output retention is a separate storage capability.
 ## Next steps
 
 - Learn how to stop, diagnose, reset, and upgrade the stack in [Local Axern](/getting-started/compose/).
+- Define reusable, reviewable executions in [Runs](/guides/run/).
 - See the complete lifecycle reference in [`axern local`](/guides/local/).
 - Use [Kubernetes installation](/getting-started/kubernetes/) for shared or production deployments.
 

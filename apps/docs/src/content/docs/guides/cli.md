@@ -106,7 +106,9 @@ reusable environment with a curated toolchain or configuration.
 
 By default, `run` attaches to stdout/stderr and exits with the remote command's
 exit code. Use `--detach` for asynchronous creation, then inspect it with
-`axern run get`, `axern run list`, or `axern run logs --follow`.
+`axern run get`, `axern run list`, or `axern run logs --follow`. The
+[Runs guide](/guides/run/) covers the full lifecycle, spec fields, and output
+retention.
 
 ## Pass credentials without putting values in argv
 

@@ -7,7 +7,9 @@ The maintained example creates an Environment and a one-replica Service,
 waits for a ready allocation, reaches its HTTP server through the public
 `/svc` gateway route, and removes both resources. It requires `uv` and a
 working Axern context with an HTTP `service_url`; the Compose and Kubernetes
-quickstarts create that context field for you.
+quickstarts create that context field for you. For the Service resource model
+itself — probes, rollouts, and replica inspection — see
+[Services](/guides/service/).
 
 ![Creating, reaching, and cleaning up an image-backed Python Service through Axern](/terminal/python-service.gif)
 

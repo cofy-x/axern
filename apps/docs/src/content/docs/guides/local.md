@@ -8,6 +8,9 @@ assets and service versions come from the installed CLI; source checkout files
 are never consulted. Release binaries embed a verified multi-architecture
 image digest lock, so local startup does not resolve mutable service tags.
 
+This page is the complete reference. For a guided first run, start with
+[Local Axern](/getting-started/compose/).
+
 ## Requirements and boundaries
 
 The first release supports macOS and Linux on amd64 and arm64 with Docker

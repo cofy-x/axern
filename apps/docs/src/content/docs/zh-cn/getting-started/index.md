@@ -52,11 +52,12 @@ axern run logs <run-id>
 ```
 
 Run 状态会持久保存；当前输出流由节点本地文件提供，仅在该 Allocation 输出
-仍被保留时可读。默认保留七天的持久输出属于后续独立存储能力。
+仍被保留时可读。七天期的持久输出保留是一项独立的存储能力。
 
 ## 下一步
 
 - 在 [Local Axern](/zh-cn/getting-started/compose/) 中学习启动、停止、诊断、重置和升级。
+- 在 [Run](/zh-cn/guides/run/) 中定义可复用、可评审的执行。
 - 查看完整的 [`axern local` 参考](/zh-cn/guides/local/)。
 - 团队共享与生产部署请使用 [Kubernetes 安装](/zh-cn/getting-started/kubernetes/)。
 

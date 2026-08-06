@@ -7,6 +7,9 @@ description: Local Axern 的环境要求、生命周期、数据、升级与故�
 已安装的 CLI，不读取源码仓库文件。Release 二进制内置经验证的多架构镜像
 Digest 锁，因此本地启动不会解析可变的服务 Tag。
 
+本页是完整参考。首次上手请从 [Local Axern](/zh-cn/getting-started/compose/)
+教程开始。
+
 ## 支持范围
 
 首版支持 amd64/arm64 的 macOS 和 Linux，以及 Docker Compose v2；不支持

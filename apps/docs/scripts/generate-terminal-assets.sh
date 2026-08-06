@@ -26,6 +26,6 @@ ln -s "${repo_dir}/bin/axern" "${recording_bin}/axern"
 ln -s "${repo_dir}/bin/axrun" "${recording_bin}/axrun"
 export PATH="${recording_bin}:${PATH}"
 
-cd "${docs_dir}"
+cd "${repo_dir}"
 vhs "${docs_dir}/vhs/axern.tape"
 vhs "${docs_dir}/vhs/axrun.tape"

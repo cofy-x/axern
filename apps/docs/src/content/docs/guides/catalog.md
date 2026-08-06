@@ -1,6 +1,6 @@
 ---
-title: Catalog and Environments
-description: Discover runtime templates and agent bundles, and capture them as immutable environments.
+title: Catalog
+description: Discover runtime templates and agent bundles curated by the platform.
 ---
 
 The catalog is the control plane's registry of runtime templates and agent
@@ -20,27 +20,10 @@ exactly one source: a catalog template, a generic OCI image, or an existing
 environment. Prefer generic OCI images for simple experiments; introduce
 templates where their catalog and reuse semantics matter.
 
-## Environments
+Capturing a template or image as an immutable, reusable Environment — and the
+namespace and quota rules around it — is covered in
+[Environments, Namespaces, and Quota](/guides/environments/).
 
-An environment captures a source as an immutable, reusable platform resource.
-Create one from a template or an OCI image reference:
-
-```bash
-axern environment create --template-id python311 --label team=runtime
-axern environment create --image-ref docker.io/library/python:3.12-slim
-axern environment list
-```
-
-Private registries use a stored credential:
-
-```bash
-axern environment create \
-  --image-ref registry.example.com/team/base:1.0 \
-  --registry-credential-id <secret-id>
-```
-
-Environments never mutate after creation. SDKs accept an `environment_id`
-source so repeated sandboxes share one reviewed, platform-managed base. Agent
-bundles are normally resolved implicitly: `axern agent` mounts the matching
-`codex` or `claude-code` bundle, and Axrun freezes the bundle digest at
-rollout planning time.
+Agent bundles are normally resolved implicitly: `axern agent` mounts the
+matching `codex` or `claude-code` bundle, and Axrun freezes the bundle digest
+at rollout planning time.

@@ -21,6 +21,26 @@ version that matches the Axern CLI/chart release; do not use a floating
 | Go | Services and infrastructure controllers | [Go SDK](/sdk/go/) |
 | TypeScript | Node.js applications and tools | [TypeScript SDK](/sdk/typescript/) |
 
+## Capability matrix
+
+The sandbox boundary is shared; language depth differs by design.
+
+| Capability | Python | Go | TypeScript |
+| --- | --- | --- | --- |
+| Sandbox lifecycle, exec, processes | ✓ | ✓ | ✓ |
+| Files and archive transfer | ✓ | ✓ | ✓ |
+| Reverse tunnels | ✓ | ✓ | ✓ |
+| Computer Use | ✓ | ✓ | ✓ |
+| Managed browser | ✓ | — | — |
+| Volumes | ✓ | ✓ | ✓ |
+| Functions (packaging and invocation) | ✓ | — | — |
+| Environments and Services (create, watch) | ✓ | ✓ | — |
+| Rollout control and task-asset helpers | — | ✓ | — |
+| Concurrency model | sync + `AsyncSandbox` | `context.Context` | Promise-native |
+
+Secrets, quota, namespaces, SSH, and admin authorization are CLI surfaces
+today; the SDKs expose them only at the generated protobuf level.
+
 Install the official packages from their public registries:
 
 - Python: `uv add axern-sdk==<version>` from [PyPI](https://pypi.org/project/axern-sdk/)

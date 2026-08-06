@@ -20,15 +20,20 @@ const sidebar = [
     items: [
       { label: 'Axern CLI', translations: { 'zh-cn': 'Axern CLI' }, link: '/guides/cli/' },
       { label: 'Axern Local', translations: { 'zh-cn': 'Axern Local' }, link: '/guides/local/' },
-      { label: 'Identity and Access', translations: { 'zh-cn': '身份与权限' }, link: '/guides/authorization/' },
-      { label: 'Catalog and Environments', translations: { 'zh-cn': 'Catalog 与环境' }, link: '/guides/catalog/' },
-      { label: 'Secrets', translations: { 'zh-cn': 'Secret' }, link: '/guides/secrets/' },
-      { label: 'Storage and Volumes', translations: { 'zh-cn': '存储与卷' }, link: '/guides/storage/' },
+      { label: 'Runs', translations: { 'zh-cn': 'Run' }, link: '/guides/run/' },
+      { label: 'Services', translations: { 'zh-cn': 'Service' }, link: '/guides/service/' },
       { label: 'Python Service', translations: { 'zh-cn': 'Python Service' }, link: '/guides/python-service/' },
       { label: 'Functions', translations: { 'zh-cn': 'Function' }, link: '/guides/functions/' },
       { label: 'Coding Agents', translations: { 'zh-cn': '编码 Agent' }, link: '/guides/agent/' },
+      { label: 'Identity and Access', translations: { 'zh-cn': '身份与权限' }, link: '/guides/authorization/' },
+      { label: 'Catalog', translations: { 'zh-cn': 'Catalog' }, link: '/guides/catalog/' },
+      { label: 'Environments and Quota', translations: { 'zh-cn': '环境与配额' }, link: '/guides/environments/' },
+      { label: 'Secrets', translations: { 'zh-cn': 'Secret' }, link: '/guides/secrets/' },
+      { label: 'Storage and Volumes', translations: { 'zh-cn': '存储与卷' }, link: '/guides/storage/' },
+      { label: 'Computer Use and Browser', translations: { 'zh-cn': 'Computer Use 与浏览器' }, link: '/guides/computer-use/' },
       { label: 'SSH Access', translations: { 'zh-cn': 'SSH 访问' }, link: '/guides/ssh/' },
       { label: 'Reverse Tunnels', translations: { 'zh-cn': '反向隧道' }, link: '/guides/tunnels/' },
+      { label: 'Troubleshooting', translations: { 'zh-cn': '故障排查' }, link: '/guides/troubleshooting/' },
     ],
   },
   {
@@ -43,6 +48,7 @@ const sidebar = [
   },
   {
     label: 'Axrun',
+    translations: { 'zh-cn': 'Axrun' },
     items: [
       { label: 'Managed Rollouts', translations: { 'zh-cn': '托管 Rollout' }, link: '/axrun/' },
       { label: 'TaskSets and Local Workflows', translations: { 'zh-cn': 'TaskSet 与本地工作流' }, link: '/axrun/local-workflows/' },
@@ -53,6 +59,7 @@ const sidebar = [
     translations: { 'zh-cn': '概念' },
     items: [
       { label: 'Architecture', translations: { 'zh-cn': '整体架构' }, link: '/architecture/' },
+      { label: 'Sandbox Model', translations: { 'zh-cn': 'Sandbox 模型' }, link: '/architecture/sandbox-model/' },
       { label: 'Runtime and Resources', translations: { 'zh-cn': '运行时与资源' }, link: '/architecture/resources/' },
     ],
   },
