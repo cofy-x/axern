@@ -751,6 +751,7 @@ main:has(.ax-hero) .content-panel + .content-panel { border-top: 0; }
   font-size: clamp(2.15rem, 4.3vw, 4rem);
   line-height: 1.02;
   letter-spacing: -0.055em;
+  text-wrap: balance;
 }
 
 .ax-section--intro .ax-section__heading h2,
@@ -789,7 +790,6 @@ main:has(.ax-hero) .content-panel + .content-panel { border-top: 0; }
   transition: background-color 160ms ease;
 }
 
-.ax-workload-grid article:nth-child(2) { background: color-mix(in srgb, var(--ax-panel) 92%, var(--ax-primary)); }
 .ax-workload-grid article:hover { background: color-mix(in srgb, var(--ax-panel) 88%, var(--ax-primary)); }
 
 .ax-workload-grid h3 {
@@ -872,7 +872,7 @@ main:has(.ax-hero) .content-panel + .content-panel { border-top: 0; }
   border: 1px solid var(--sl-color-gray-5);
   border-radius: 0;
   background: #03070c;
-  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 20%);
+  box-shadow: 0 0.75rem 2rem rgb(0 0 0 / 12%);
 }
 
 .ax-code__toolbar {
@@ -942,10 +942,33 @@ main:has(.ax-hero) .content-panel + .content-panel { border-top: 0; }
   outline-offset: -2px;
 }
 
+.ax-code__body {
+  display: flex;
+  align-items: stretch;
+}
+
+.ax-code__gutter {
+  flex: 0 0 auto;
+  padding: 1.5rem 0 1.5rem 1.5rem;
+  color: #495566;
+  font-family: var(--ax-font-mono);
+  font-size: 0.82rem;
+  line-height: 1.7;
+  text-align: right;
+  user-select: none;
+}
+
+.ax-code-gutter__line {
+  display: block;
+  min-height: 1.7em;
+}
+
 .ax-code__panel pre {
+  flex: 1 1 auto;
+  min-width: 0;
   min-height: 25rem;
   margin: 0;
-  padding: 1.5rem;
+  padding: 1.5rem 1.5rem 1.5rem 1rem;
   overflow-x: auto;
   border: 0;
   border-radius: 0;
@@ -959,21 +982,9 @@ main:has(.ax-hero) .content-panel + .content-panel { border-top: 0; }
 .ax-code__panel code { font-family: var(--ax-font-mono); }
 
 .ax-code-line {
-  position: relative;
   display: block;
   min-height: 1.7em;
-  padding-left: 3rem;
   white-space: pre;
-}
-
-.ax-code-line::before {
-  position: absolute;
-  left: 0;
-  width: 2rem;
-  color: #495566;
-  content: attr(data-line);
-  text-align: right;
-  user-select: none;
 }
 
 .ax-token--keyword { color: #ff756d; }
@@ -1194,7 +1205,10 @@ main:has(.ax-hero) footer .pagination-links a:focus-visible {
     padding: 1.1rem;
     font-size: 0.7rem;
   }
-  .ax-code-line { padding-left: 2.4rem; }
+  .ax-code__gutter {
+    padding: 1.1rem 0 1.1rem 1.1rem;
+    font-size: 0.7rem;
+  }
   .ax-open-source,
   .ax-maturity { grid-template-columns: 1fr; }
   .ax-open-source { gap: 1rem; }

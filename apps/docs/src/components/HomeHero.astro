@@ -40,10 +40,17 @@ const highlightLine = (line: string, language: string) => {
   return result + escapeHtml(line.slice(cursor));
 };
 
-const highlightCode = (code: string, language: string) => code
-  .split('\n')
-  .map((line, index) => `<span class="ax-code-line" data-line="${index + 1}">${highlightLine(line, language) || ' '}</span>`)
-  .join('');
+const highlightCode = (code: string, language: string) => {
+  const lines = code.split('\n');
+  return {
+    gutter: lines
+      .map((_, index) => `<span class="ax-code-gutter__line">${index + 1}</span>`)
+      .join(''),
+    lines: lines
+      .map((line) => `<span class="ax-code-line">${highlightLine(line, language) || ' '}</span>`)
+      .join(''),
+  };
+};
 
 const codeExamples = [
   {
@@ -179,7 +186,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
     <h2 id="ax-code-heading">{zh ? '用你已经在用的工具编程沙箱' : 'Program a sandbox with the tools you already use'}</h2>
     <p>{zh ? 'CLI 与三种官方 SDK 共享同一套平台能力；客户端不会用 SSH 或 shell fallback 绕过公开 API。' : 'The CLI and three official SDKs share the same platform capabilities. Clients do not bypass the public API with SSH or shell fallbacks.'}</p>
   </div>
-  <div class="ax-code" data-code-tabs>
+  <div class="ax-code not-content" data-code-tabs>
     <div class="ax-code__toolbar">
       <div class="ax-code__tabs" role="tablist" aria-label={zh ? '代码语言' : 'Code language'}>
         {codeExamples.map((example, index) => (
@@ -209,7 +216,10 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
         data-code-panel={example.id}
         hidden={index !== 0}
       >
-        <pre><code set:html={example.highlighted}></code></pre>
+        <div class="ax-code__body">
+          <div class="ax-code__gutter" aria-hidden="true" set:html={example.highlighted.gutter}></div>
+          <pre><code set:html={example.highlighted.lines}></code></pre>
+        </div>
       </div>
     ))}
   </div>
@@ -221,7 +231,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
     <h2 id="ax-paths-heading">{zh ? '按你的目标进入文档' : 'Find your path through the docs'}</h2>
     <p>{zh ? '一个平台覆盖一次性执行、常驻服务与可复现评测——从符合你目标的路径开始。' : 'One platform for one-shot execution, durable services, and reproducible evaluation—start from the path that matches your goal.'}</p>
   </div>
-  <div class="ax-workload-grid ax-workload-grid--paths">
+  <div class="ax-workload-grid ax-workload-grid--paths not-content">
     <article>
       <div class="ax-workload-meta">
         <span class="ax-workload-tag">[ QUICKSTART ]</span>
