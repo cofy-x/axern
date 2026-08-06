@@ -946,6 +946,7 @@ main:has(.ax-hero) .content-panel + .content-panel { border-top: 0; }
   min-height: 25rem;
   margin: 0;
   padding: 1.5rem;
+  overflow-x: auto;
   border: 0;
   border-radius: 0;
   background: transparent;
