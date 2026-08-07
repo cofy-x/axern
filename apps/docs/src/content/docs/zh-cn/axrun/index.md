@@ -5,6 +5,8 @@ description: 编译不可变任务，并在 Axern 上运行可复现、可验证
 
 Axrun 是 Axern 原生的 Agent Harness、任务编译器、Rollout 客户端、验证器和轨迹导出器。它位于 Sandbox 平台之上，只消费公开的 Axern API。
 
+![Axrun Rollout 命令概览](/terminal/axrun.gif)
+
 ## 开始前
 
 托管 Rollout 需要：
@@ -65,7 +67,5 @@ axrun rollout artifact download-all <rollout-id> --output-dir evidence
 ```
 
 规划会冻结任务选择、Payload、Agent 镜像、Profile 版本、隐藏凭据版本和模型契约。托管 Artifact 字节通过 gatewayd 的 mTLS 流式 API 返回；Axrun 从不接触对象存储凭据。
-
-![Axrun Rollout 命令概览](/terminal/axrun.gif)
 
 退出码、流式 JSON、取消、重试和 Worker 行为见 [完整的 Axrun 使用约定](https://github.com/cofy-x/axern/blob/main/apps/axrun/docs/usage.md)。

@@ -28,8 +28,10 @@ flowchart LR
   file, service, terminal, artifact, and tunnel traffic.
 - **Control plane:** persists resources and coordinates placement, leases,
   retries, health, cleanup, rollouts, and storage intent.
-- **Node runtime:** owns sandbox processes, filesystems, images, networking,
-  volumes, probes, and node-local reconciliation.
+- **Node runtime:** owns sandbox processes, filesystems, images, networking
+  (an eBPF NAT dataplane with an explicit iptables rollback; see
+  [Node Networking](/architecture/networking/)), volumes, probes,
+  and node-local reconciliation.
 - **SDKs and Axrun:** compose public APIs without depending on node-private or
   database internals.
 

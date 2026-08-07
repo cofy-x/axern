@@ -7,6 +7,8 @@ description: Manage contexts and run isolated workloads through the Axern public
 to public APIs through `gatewayd`; it never connects directly to node or
 database internals.
 
+![Axern CLI command overview](/terminal/axern.gif)
+
 ## Confirm the current context
 
 ```bash
@@ -136,5 +138,3 @@ arguments.
 The CLI help is authoritative for the complete flag surface. See the
 [CLI source guide](https://github.com/cofy-x/axern/tree/main/apps/cli) for
 contexts, exit codes, aliases, services, tunnels, and admin workflows.
-
-![Axern CLI command overview](/terminal/axern.gif)

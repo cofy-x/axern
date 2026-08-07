@@ -4,7 +4,7 @@
 		gateway-dashboard-assets grafana-assets-check \
 		build-go test-go lint-go fmt-go \
 		build-rust test-rust lint-rust fmt-rust \
-		build-ts test-ts lint-ts pack-ts sdk-typescript-verify docs-dev docs-build docs-check docs-verify docs-assets docs-social-card docs-service-demo docs-service-asset \
+		build-ts test-ts lint-ts pack-ts sdk-typescript-verify docs-dev docs-build docs-check docs-verify docs-layout-check docs-assets docs-social-card docs-service-demo docs-service-asset \
 		build-py test-py lint-py sdk-python-verify sdk-go-verify sdk-artifacts sdk-artifact-verify sdk-release-verify sdk-contract-verify \
 		imagemgr-build imagemgr-test imagemgr-check-architecture \
 		imagefsd-build imagefsd-test
@@ -217,6 +217,9 @@ docs-check: ## Check Axern documentation types, Markdown, Mermaid, and static as
 
 docs-verify: ## Build and fully verify the publishable Axern documentation site
 	$(PNPM) --filter @cofy-x/axern-docs run verify
+
+docs-layout-check: docs-build ## Run headless-Chrome layout smoke checks on the built docs site
+	$(PNPM) --filter @cofy-x/axern-docs run check:layout
 
 docs-assets: axern-cli-build axrun-build ## Regenerate Axern documentation terminal recordings
 	bash $(ROOTDIR)/apps/docs/scripts/generate-terminal-assets.sh

@@ -20,6 +20,15 @@ make sdk-artifact-verify
 make open-source-check
 ```
 
+Confirm the public documentation still matches the release. Every English
+page in `apps/docs` changed since the previous release must have its
+Simplified Chinese counterpart updated in the same release; the `zh-cn`
+locale is a maintained journey, not a best-effort fallback. Review
+time-bounded statements in user-facing pages — currently the storage guide's
+note that the stable CLI has no volume management workflow — and update or
+remove any statement the release makes stale. Run `make docs-verify` before
+tagging.
+
 The GitHub `sdk-release` environment is the deployment boundary for SDK
 registries. PyPI trusts the `Release` workflow for `axern-sdk` and npm trusts
 the same workflow for `@cofy-x/axern-sdk`; both use GitHub OIDC and must not use

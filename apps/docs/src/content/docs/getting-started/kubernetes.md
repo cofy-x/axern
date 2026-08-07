@@ -115,7 +115,9 @@ Review these chart areas before running shared or production workloads:
   verify the CLI checksum before installing it.
 - **Cluster prerequisites:** confirm the required Kubernetes/Helm versions,
   `runsc`/`runc` runtime availability, node privileges for the runtime and
-  volume services, and image-registry reachability from every scheduled node.
+  volume services, an eBPF-capable Linux kernel for the default NAT dataplane
+  (`node.network.natBackend=iptables` is the explicit rollback), and
+  image-registry reachability from every scheduled node.
 - **Gateway exposure:** replace the local port-forward with an explicitly
   managed Service or Ingress, configure TLS server names and network policy,
   and keep SSH disabled unless an interactive workflow needs it.

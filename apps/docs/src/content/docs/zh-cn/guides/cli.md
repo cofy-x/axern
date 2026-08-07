@@ -5,6 +5,8 @@ description: 通过 Axern 公开 API 管理 Context 并运行隔离工作负载�
 
 `axern` 是面向资源和交互式开发的产品 CLI。它通过 `gatewayd` 访问公开 API，从不直连节点或数据库内部。
 
+![Axern CLI 命令概览](/terminal/axern.gif)
+
 ## 确认当前 Context
 
 ```bash
@@ -104,5 +106,3 @@ printf '%s\n' "API_KEY=$AXERN_SECRET_API_KEY" | \
 Agent profile 也可用 `--token-env NAME`。CLI 有意不接受以命令行参数传入 provider token 或不透明 Secret 值。
 
 CLI help 是完整 flag 能力面的权威说明。Context、退出码、别名、Service、Tunnel 和 admin 工作流见仓库的 [CLI 源码指南](https://github.com/cofy-x/axern/tree/main/apps/cli)。
-
-![Axern CLI 命令概览](/terminal/axern.gif)

@@ -16,6 +16,7 @@
   --ax-hero-accent: #78a7ff;
   --ax-on-primary: #0b0d12;
   --ax-panel: color-mix(in srgb, var(--sl-color-black) 95%, var(--ax-primary));
+  --sl-content-width: 50rem;
 }
 
 :root[data-theme='light'] {

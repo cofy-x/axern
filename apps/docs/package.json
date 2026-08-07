@@ -21,6 +21,7 @@
     "check": "astro check",
     "check:content": "pnpm run check && pnpm run lint:markdown && pnpm run check:mermaid && pnpm run check:social-card && pnpm run check:assets",
     "check:links": "node scripts/check-built-links.mjs",
+    "check:layout": "node scripts/check-layout.mjs",
     "check:mermaid": "node scripts/check-mermaid.mjs",
     "check:social-card": "node scripts/generate-social-card.mjs --check",
     "check:assets": "node scripts/check-assets.mjs",

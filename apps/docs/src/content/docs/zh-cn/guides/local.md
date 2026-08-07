@@ -1,5 +1,5 @@
 ---
-title: axern local 参考
+title: Local Axern 参考
 description: Local Axern 的环境要求、生命周期、数据、升级与故障诊断。
 ---
 

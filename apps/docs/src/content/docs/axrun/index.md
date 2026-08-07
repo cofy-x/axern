@@ -7,6 +7,8 @@ Axrun is Axern's native agent harness, task compiler, rollout client, verifier,
 and trajectory exporter. It stays above the sandbox platform and consumes only
 public Axern APIs.
 
+![Axrun rollout command overview](/terminal/axrun.gif)
+
 ## Before you start
 
 Managed Rollouts require:
@@ -76,8 +78,6 @@ axrun rollout artifact download-all <rollout-id> --output-dir evidence
 Planning freezes task selection, payloads, agent image, Profile version, hidden
 credential version, and model contract. Managed artifact bytes return through
 gatewayd's mTLS streaming API; Axrun never receives object-store credentials.
-
-![Axrun rollout command overview](/terminal/axrun.gif)
 
 Read the [complete Axrun usage contract](https://github.com/cofy-x/axern/blob/main/apps/axrun/docs/usage.md)
 for exit codes, streaming JSON, cancellation, retry, and worker behavior.

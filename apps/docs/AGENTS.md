@@ -46,6 +46,9 @@ make agent-doc-check
 ```
 
 Run `make docs-assets` when a tape or recorded CLI surface changes.
+Run `make docs-layout-check` when homepage layout, sidebar structure, or
+shared page chrome changes; it requires a local Chrome or Chromium binary
+(`CHROME_BIN` overrides discovery) and is not part of `docs-verify`.
 Run `make docs-social-card` when the social preview SVG source changes; the
 asset check rejects a stale or modified generated PNG.
 Run `make docs-service-asset` when the homepage Service recording or its Python

@@ -1,5 +1,5 @@
 ---
-title: Axern local reference
+title: Local Axern Reference
 description: Requirements, lifecycle, storage, upgrades, and troubleshooting for Local Axern.
 ---
 
