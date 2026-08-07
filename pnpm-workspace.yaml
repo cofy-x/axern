@@ -6,3 +6,4 @@ overrides:
   fast-uri: 3.1.5
   protobufjs: 7.6.5
   undici: 7.29.0
+  js-yaml: 4.3.1
