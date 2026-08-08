@@ -40,6 +40,7 @@ mount_readonly_fixture() {
   mount -o loop,ro "${image}" "${source_dir}"
 }
 
+mkdir -p /var/lib/axnoded
 mount_readonly_fixture /opt/sample-rootfs "${VERIFY_ROOTFS_IMAGE}" 134217728
 mount_readonly_fixture /opt/nginx-rootfs "${VERIFY_NGINX_ROOTFS_IMAGE}" 536870912
 
