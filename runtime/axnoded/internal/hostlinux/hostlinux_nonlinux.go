@@ -13,6 +13,7 @@ import (
 func VerifyCgroupMemoryLimit(string, int64) error {
 	return fmt.Errorf("cgroup enforcement requires Linux")
 }
+func ProbeCgroupMemoryLimit(string) error     { return fmt.Errorf("cgroup enforcement requires Linux") }
 func VerifyPIDInCgroup(string, int) error     { return fmt.Errorf("cgroup enforcement requires Linux") }
 func VerifyCgroupPIDs(string, int, int) error { return fmt.Errorf("cgroup enforcement requires Linux") }
 func VerifyRunscCgroupProcesses(string, int) error {

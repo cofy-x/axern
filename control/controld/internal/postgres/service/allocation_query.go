@@ -11,7 +11,7 @@ import (
 
 func (s *PGStore) CurrentServiceAllocations(ctx context.Context, serviceID string) ([]*servicekernel.AllocationRecord, error) {
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT a.owner_id, a.allocation_id, a.environment_id, a.node_id, n.node_target, a.attempt, a.status, a.ready, a.readiness_message, a.readiness_probe, a.liveness_probe, a.config
+		SELECT `+allocationRecordSelectColumnsWithServiceID+`
 		FROM allocations a
 		JOIN nodes n ON n.node_id = a.node_id
 		WHERE a.owner_type = $1 AND a.owner_id = $2 AND a.status NOT IN ($3, $4, $5)
@@ -34,7 +34,7 @@ func (s *PGStore) CurrentServiceAllocations(ctx context.Context, serviceID strin
 
 func (s *PGStore) ServiceAllocationHistory(ctx context.Context, serviceID string) ([]*servicekernel.AllocationRecord, error) {
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT a.owner_id, a.allocation_id, a.environment_id, a.node_id, n.node_target, a.attempt, a.status, a.ready, a.readiness_message, a.readiness_probe, a.liveness_probe, a.config
+		SELECT `+allocationRecordSelectColumnsWithServiceID+`
 		FROM allocations a
 		JOIN nodes n ON n.node_id = a.node_id
 		WHERE a.owner_type = $1 AND a.owner_id = $2

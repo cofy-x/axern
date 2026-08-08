@@ -17,7 +17,7 @@ func (r *RunscServiceHandler) overlay2Value(bundleRootReadonly bool, limitBytes 
 		return "", fmt.Errorf("writable runsc rootfs requires runtime filestore_dir")
 	}
 	if limitBytes <= 0 {
-		return "", fmt.Errorf("writable runsc rootfs requires writable_layer_limit_bytes > 0")
+		return "", fmt.Errorf("writable runsc rootfs requires ephemeral_storage_limit_bytes > 0")
 	}
 	return "root:dir=" + filepath.Join(r.filestoreDir, "runsc") +
 		",size=" + strconv.FormatInt(limitBytes, 10), nil

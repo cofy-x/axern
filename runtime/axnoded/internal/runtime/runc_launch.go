@@ -24,11 +24,9 @@ func (r *RuncServiceHandler) launchRun(
 		},
 		WaitStart: r.waitForContainerStart,
 		WaitReady: func(ctx context.Context, bundlePath string, meta *apipb.ContainerMetadata) error {
-			if err := r.verifyMemoryEnforcement(ctx, options); err != nil {
-				return err
-			}
 			return runtimesandboxd.WaitReadyOrExit(ctx, r.Name(), options.ContainerID, bundlePath, meta, r.waitForSandboxReady, r.readExitState)
 		},
+		VerifyRuntime: func(ctx context.Context) error { return r.verifyMemoryEnforcement(ctx, options) },
 		Cleanup: func(reason string) {
 			r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, reason)
 		},

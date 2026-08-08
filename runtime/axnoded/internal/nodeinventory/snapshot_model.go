@@ -19,9 +19,9 @@ type SourceStatus struct {
 }
 
 type NodeResourceQuantity struct {
-	CpuMilli           int64 `json:"cpu_milli"`
-	MemoryBytes        int64 `json:"memory_bytes"`
-	WritableLayerBytes int64 `json:"writable_layer_bytes"`
+	CpuMilli              int64 `json:"cpu_milli"`
+	MemoryBytes           int64 `json:"memory_bytes"`
+	EphemeralStorageBytes int64 `json:"ephemeral_storage_bytes"`
 }
 
 type NodeInfo struct {
@@ -47,12 +47,12 @@ type MemoryInventory struct {
 }
 
 type ResourceInventory struct {
-	CPU           CPUInventory           `json:"cpu"`
-	Memory        MemoryInventory        `json:"memory"`
-	WritableLayer WritableLayerInventory `json:"writable_layer"`
+	CPU              CPUInventory              `json:"cpu"`
+	Memory           MemoryInventory           `json:"memory"`
+	EphemeralStorage EphemeralStorageInventory `json:"ephemeral_storage"`
 }
 
-type WritableLayerInventory struct {
+type EphemeralStorageInventory struct {
 	AxnodedCommittedBytes int64 `json:"axnoded_committed_bytes"`
 	AxnodedUsedBytes      int64 `json:"axnoded_used_bytes"`
 	AxnodedUnboundedCount int64 `json:"axnoded_unbounded_count"`

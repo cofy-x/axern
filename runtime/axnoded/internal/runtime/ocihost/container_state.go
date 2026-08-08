@@ -91,7 +91,7 @@ func (c *Common) ContainerSpec(containerID string) (*spec.Spec, error) {
 func (c *Common) CleanupOnFailure(ctx context.Context, traceID, containerID, msg string) error {
 	logrus.WithField("trace_id", traceID).Warn(msg)
 	_, err := c.Run(ctx, "delete", "--force", containerID)
-	if err != nil && strings.Contains(err.Error(), "file does not exist") {
+	if ocicli.IsContainerNotFound(err, containerID) {
 		return nil
 	}
 	return err

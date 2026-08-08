@@ -70,11 +70,13 @@ CREATE TABLE namespace_resource_quotas (
 	namespace TEXT PRIMARY KEY REFERENCES namespaces(namespace) ON DELETE CASCADE,
 	cpu_milli_limit BIGINT,
 	memory_bytes_limit BIGINT,
+	ephemeral_storage_bytes_limit BIGINT,
 	version BIGINT NOT NULL DEFAULT 1,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
 	CHECK (cpu_milli_limit IS NULL OR cpu_milli_limit >= 0),
-	CHECK (memory_bytes_limit IS NULL OR memory_bytes_limit >= 0)
+	CHECK (memory_bytes_limit IS NULL OR memory_bytes_limit >= 0),
+	CHECK (ephemeral_storage_bytes_limit IS NULL OR ephemeral_storage_bytes_limit >= 0)
 );
 
 CREATE TABLE role_bindings (
@@ -195,6 +197,7 @@ CREATE TABLE allocations (
 	readiness_message TEXT NOT NULL DEFAULT '',
 	readiness_probe JSONB NOT NULL DEFAULT 'null'::jsonb,
 	liveness_probe JSONB NOT NULL DEFAULT 'null'::jsonb,
+	desired_spec_digest TEXT NOT NULL DEFAULT '',
 	config JSONB NOT NULL,
 	workspace_preparation JSONB NOT NULL DEFAULT 'null'::jsonb,
 	version BIGINT NOT NULL DEFAULT 1,
@@ -215,8 +218,12 @@ CREATE TABLE workload_reservations (
 	node_id TEXT NOT NULL,
 	cpu_milli BIGINT NOT NULL DEFAULT 0,
 	memory_bytes BIGINT NOT NULL DEFAULT 0,
+	ephemeral_storage_bytes BIGINT NOT NULL DEFAULT 0,
+	memory_overhead_bytes BIGINT NOT NULL DEFAULT 0,
 	created_at TIMESTAMPTZ NOT NULL,
-	released_at TIMESTAMPTZ
+	released_at TIMESTAMPTZ,
+	CHECK (ephemeral_storage_bytes >= 0),
+	CHECK (memory_overhead_bytes >= 0)
 );
 
 CREATE TABLE namespace_quota_events (
@@ -235,8 +242,14 @@ CREATE TABLE namespace_quota_events (
 	reserved_memory_bytes BIGINT NOT NULL DEFAULT 0,
 	memory_bytes_limit BIGINT,
 	available_memory_bytes BIGINT,
+	requested_ephemeral_storage_bytes BIGINT NOT NULL DEFAULT 0,
+	reserved_ephemeral_storage_bytes BIGINT NOT NULL DEFAULT 0,
+	ephemeral_storage_bytes_limit BIGINT,
+	available_ephemeral_storage_bytes BIGINT,
 	message TEXT NOT NULL DEFAULT '',
-	created_at TIMESTAMPTZ NOT NULL
+	created_at TIMESTAMPTZ NOT NULL,
+	CHECK (ephemeral_storage_bytes_limit IS NULL OR ephemeral_storage_bytes_limit >= 0),
+	CHECK (available_ephemeral_storage_bytes IS NULL OR available_ephemeral_storage_bytes >= 0)
 );
 
 CREATE TABLE execution_leases (
@@ -297,6 +310,9 @@ CREATE INDEX idx_runs_namespace_created ON runs(namespace, created_at DESC);
 CREATE INDEX idx_service_events_service_created ON service_events(service_id, created_at DESC);
 CREATE INDEX idx_allocations_node_status ON allocations(node_id, status);
 CREATE INDEX idx_allocations_owner_status_updated ON allocations(owner_type, owner_id, status, updated_at);
+CREATE INDEX idx_allocations_service_desired_spec
+	ON allocations(owner_id, desired_spec_digest)
+	WHERE owner_type = 'service';
 CREATE INDEX idx_admin_audit_events_created ON admin_audit_events(created_at DESC, event_id DESC);
 CREATE INDEX idx_admin_audit_events_operation_created ON admin_audit_events(operation, created_at DESC, event_id DESC);
 CREATE INDEX idx_admin_audit_events_target_created ON admin_audit_events(target_type, target_id, created_at DESC, event_id DESC);

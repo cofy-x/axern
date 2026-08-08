@@ -64,11 +64,11 @@ func Command(runtime command.Runtime) *cobra.Command {
 }
 
 type createOptions struct {
-	file, namespace, environmentID, templateID, templateVersion, imageRef, credentialID, cwd, runtimeClass, requestCPU, requestMemory, requestWritableLayer, limitCPU, limitMemory, limitWritableLayer string
-	argv, env, secretEnv, secretFile, imageMount, labels                                                                                                                                               []string
-	rootfsReadonly                                                                                                                                                                                     bool
-	detach                                                                                                                                                                                             bool
-	waitTimeout                                                                                                                                                                                        time.Duration
+	file, namespace, environmentID, templateID, templateVersion, imageRef, credentialID, cwd, runtimeClass, requestCPU, requestMemory, requestEphemeralStorage, limitCPU, limitMemory, limitEphemeralStorage string
+	argv, env, secretEnv, secretFile, imageMount, labels                                                                                                                                                     []string
+	rootfsReadonly                                                                                                                                                                                           bool
+	detach                                                                                                                                                                                                   bool
+	waitTimeout                                                                                                                                                                                              time.Duration
 }
 
 func execute(runtime command.Runtime, cmd *cobra.Command, options *createOptions) error {
@@ -186,10 +186,10 @@ func (o *createOptions) bind(cmd *cobra.Command) {
 	f.BoolVar(&o.rootfsReadonly, "rootfs-readonly", false, "mount rootfs read-only")
 	f.StringVar(&o.requestCPU, "request-cpu", "", "CPU request")
 	f.StringVar(&o.requestMemory, "request-memory", "", "memory request")
-	f.StringVar(&o.requestWritableLayer, "request-writable-layer", "", "writable-layer storage request")
+	f.StringVar(&o.requestEphemeralStorage, "request-ephemeral-storage", "", "node-local ephemeral storage request")
 	f.StringVar(&o.limitCPU, "limit-cpu", "", "CPU limit")
 	f.StringVar(&o.limitMemory, "limit-memory", "", "memory limit")
-	f.StringVar(&o.limitWritableLayer, "limit-writable-layer", "", "writable-layer storage limit")
+	f.StringVar(&o.limitEphemeralStorage, "limit-ephemeral-storage", "", "node-local ephemeral storage limit")
 	f.BoolVar(&o.detach, "detach", false, "create the run without following output")
 	f.DurationVar(&o.waitTimeout, "wait-timeout", apprun.DefaultCreateWaitTimeout, "wait timeout; 0 disables it")
 }
@@ -246,7 +246,7 @@ func executionConfig(o createOptions) (*commonv1.ExecutionConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	resources, err := command.Resources(o.requestCPU, o.requestMemory, o.requestWritableLayer, o.limitCPU, o.limitMemory, o.limitWritableLayer)
+	resources, err := command.Resources(o.requestCPU, o.requestMemory, o.requestEphemeralStorage, o.limitCPU, o.limitMemory, o.limitEphemeralStorage)
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +280,7 @@ func environmentSpec(o createOptions) (*environmentv1.EnvironmentSpec, error) {
 	return value, nil
 }
 
-var runDefinitionFlags = []string{"namespace", "env", "secret-env", "secret-file", "image-mount", "cwd", "runtime-class", "label", "environment", "template", "template-version", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "request-writable-layer", "limit-cpu", "limit-memory", "limit-writable-layer"}
+var runDefinitionFlags = []string{"namespace", "env", "secret-env", "secret-file", "image-mount", "cwd", "runtime-class", "label", "environment", "template", "template-version", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
 
 func logsCommand(runtime command.Runtime) *cobra.Command {
 	var follow bool

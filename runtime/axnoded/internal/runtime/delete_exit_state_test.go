@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/ocicli"
 )
 
 func TestRuntimeDeleteAbsentStillCompletesOwnedCleanup(t *testing.T) {
@@ -22,7 +24,7 @@ func TestRuntimeDeleteAbsentStillCompletesOwnedCleanup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler.common.SetExecutor(&scriptedExecutor{errors: map[string][]error{"": {errors.New("container does not exist")}}})
+	handler.common.SetExecutor(&scriptedExecutor{errors: map[string][]error{"": {&ocicli.CommandError{Err: errors.New("exit status 1"), Output: "container alloc-a does not exist"}}}})
 	assertDeleteRemovesExitState(t, handler.common.RuntimeExitStatePath("alloc-a"), func() error {
 		_, err := handler.DeleteContainer(context.Background(), &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"})
 		return err
@@ -61,6 +63,41 @@ func TestRuncDeleteRemovesPersistedExitState(t *testing.T) {
 		_, err := handler.DeleteContainer(context.Background(), &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"})
 		return err
 	}, handler.persistExitState)
+}
+
+func TestDeleteReleasesWritableReservationWhenExitStateRemovalFails(t *testing.T) {
+	rootDir := t.TempDir()
+	handler, err := NewRuncServiceHandler(
+		config.Config{RootDir: rootDir},
+		config.RuntimeNameRunc,
+		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runc"},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	filestore := t.TempDir()
+	manager, err := sharedWritableCapacityManager(filestore, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler.writableCapacity = manager
+	if err := manager.Reserve("alloc-a", config.RuntimeNameRunc, 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	handler.common.SetExecutor(&recordingExecutor{})
+	exitStatePath := handler.common.RuntimeExitStatePath("alloc-a")
+	if err := os.MkdirAll(filepath.Join(exitStatePath, "non-empty"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = handler.DeleteContainer(context.Background(), &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"})
+	if err == nil {
+		t.Fatal("expected exit-state removal error")
+	}
+	if hasWritableReservation(manager, "alloc-a") {
+		t.Fatal("writable reservation must be released after rootfs cleanup succeeds")
+	}
 }
 
 func assertDeleteRemovesExitState(

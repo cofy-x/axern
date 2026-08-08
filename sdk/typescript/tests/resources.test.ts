@@ -15,21 +15,21 @@ test("resource spec parses friendly quantities", () => {
     buildResourceSpec({
       requestCpu: 0.5,
       requestMemory: "128Mi",
-      requestWritableLayer: "256Mi",
+      requestEphemeralStorage: "256Mi",
       limitCpu: "1500m",
       limitMemory: "1Gi",
-      limitWritableLayer: "2Gi",
+      limitEphemeralStorage: "2Gi",
     }),
     {
       requests: {
         cpu_milli: 500,
         memory_bytes: 128 * 1024 * 1024,
-        writable_layer_bytes: 256 * 1024 * 1024,
+        ephemeral_storage_bytes: 256 * 1024 * 1024,
       },
       limits: {
         cpu_milli: 1500,
         memory_bytes: 1024 * 1024 * 1024,
-        writable_layer_bytes: 2 * 1024 * 1024 * 1024,
+        ephemeral_storage_bytes: 2 * 1024 * 1024 * 1024,
       },
     },
   );
@@ -39,10 +39,10 @@ test("resource spec rejects invalid quantities", () => {
   for (const options of [
     { requestCpu: "-1" },
     { requestMemory: "-1" },
-    { requestWritableLayer: "-1" },
+    { requestEphemeralStorage: "-1" },
     { limitCpu: "-1" },
     { limitMemory: "-1" },
-    { limitWritableLayer: "-1" },
+    { limitEphemeralStorage: "-1" },
     { requestCpu: "0.5m" },
     { requestMemory: "0.5B" },
   ]) {

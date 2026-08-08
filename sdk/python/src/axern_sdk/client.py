@@ -47,27 +47,27 @@ def _resource_spec(
     *,
     request_cpu: ResourceQuantity = "",
     request_memory: ResourceQuantity = "",
-    request_writable_layer: ResourceQuantity = "",
+    request_ephemeral_storage: ResourceQuantity = "",
     limit_cpu: ResourceQuantity = "",
     limit_memory: ResourceQuantity = "",
-    limit_writable_layer: ResourceQuantity = "",
+    limit_ephemeral_storage: ResourceQuantity = "",
 ) -> common_pb2.ResourceSpec | None:
     request_cpu_milli = cpu_milli("request_cpu", request_cpu)
     request_memory_bytes = memory_bytes("request_memory", request_memory)
-    request_writable_layer_bytes = memory_bytes("request_writable_layer", request_writable_layer)
+    request_ephemeral_storage_bytes = memory_bytes("request_ephemeral_storage", request_ephemeral_storage)
     limit_cpu_milli = cpu_milli("limit_cpu", limit_cpu)
     limit_memory_bytes = memory_bytes("limit_memory", limit_memory)
-    limit_writable_layer_bytes = memory_bytes("limit_writable_layer", limit_writable_layer)
+    limit_ephemeral_storage_bytes = memory_bytes("limit_ephemeral_storage", limit_ephemeral_storage)
 
     resources = common_pb2.ResourceSpec()
-    if request_cpu_milli > 0 or request_memory_bytes > 0 or request_writable_layer_bytes > 0:
+    if request_cpu_milli > 0 or request_memory_bytes > 0 or request_ephemeral_storage_bytes > 0:
         resources.requests.cpu_milli = request_cpu_milli
         resources.requests.memory_bytes = request_memory_bytes
-        resources.requests.writable_layer_bytes = request_writable_layer_bytes
-    if limit_cpu_milli > 0 or limit_memory_bytes > 0 or limit_writable_layer_bytes > 0:
+        resources.requests.ephemeral_storage_bytes = request_ephemeral_storage_bytes
+    if limit_cpu_milli > 0 or limit_memory_bytes > 0 or limit_ephemeral_storage_bytes > 0:
         resources.limits.cpu_milli = limit_cpu_milli
         resources.limits.memory_bytes = limit_memory_bytes
-        resources.limits.writable_layer_bytes = limit_writable_layer_bytes
+        resources.limits.ephemeral_storage_bytes = limit_ephemeral_storage_bytes
     if not resources.HasField("requests") and not resources.HasField("limits"):
         return None
     return resources
@@ -288,10 +288,10 @@ class AxernClient:
         runtime_class: str = "",
         request_cpu: ResourceQuantity = "",
         request_memory: ResourceQuantity = "",
-        request_writable_layer: ResourceQuantity = "",
+        request_ephemeral_storage: ResourceQuantity = "",
         limit_cpu: ResourceQuantity = "",
         limit_memory: ResourceQuantity = "",
-        limit_writable_layer: ResourceQuantity = "",
+        limit_ephemeral_storage: ResourceQuantity = "",
         labels: dict[str, str] | None = None,
         timeout: float | None = 120.0,
     ) -> run_pb2.Run:
@@ -307,10 +307,10 @@ class AxernClient:
                     resources=_resource_spec(
                         request_cpu=request_cpu,
                         request_memory=request_memory,
-                        request_writable_layer=request_writable_layer,
+                        request_ephemeral_storage=request_ephemeral_storage,
                         limit_cpu=limit_cpu,
                         limit_memory=limit_memory,
-                        limit_writable_layer=limit_writable_layer,
+                        limit_ephemeral_storage=limit_ephemeral_storage,
                     ),
                 ),
                 labels=dict(labels or {}),
@@ -423,10 +423,10 @@ class AxernClient:
         runtime_class: str = "",
         request_cpu: ResourceQuantity = "",
         request_memory: ResourceQuantity = "",
-        request_writable_layer: ResourceQuantity = "",
+        request_ephemeral_storage: ResourceQuantity = "",
         limit_cpu: ResourceQuantity = "",
         limit_memory: ResourceQuantity = "",
-        limit_writable_layer: ResourceQuantity = "",
+        limit_ephemeral_storage: ResourceQuantity = "",
         node_selector: dict[str, str] | None = None,
         volume_mounts: Iterable[ServiceVolumeMountInput] | None = None,
         readiness_probe: ServiceProbeInput | None = None,
@@ -450,10 +450,10 @@ class AxernClient:
                     resources=_resource_spec(
                         request_cpu=request_cpu,
                         request_memory=request_memory,
-                        request_writable_layer=request_writable_layer,
+                        request_ephemeral_storage=request_ephemeral_storage,
                         limit_cpu=limit_cpu,
                         limit_memory=limit_memory,
-                        limit_writable_layer=limit_writable_layer,
+                        limit_ephemeral_storage=limit_ephemeral_storage,
                     ),
                     placement=common_pb2.PlacementConstraints(
                         node_selector=dict(node_selector or {}),

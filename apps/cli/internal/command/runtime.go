@@ -175,7 +175,7 @@ func overrideEnv(name string, destination *string) {
 	}
 }
 
-func Resources(requestCPU, requestMemory, requestWritableLayer, limitCPU, limitMemory, limitWritableLayer string) (*commonv1.ResourceSpec, error) {
+func Resources(requestCPU, requestMemory, requestEphemeralStorage, limitCPU, limitMemory, limitEphemeralStorage string) (*commonv1.ResourceSpec, error) {
 	rc, err := parse.CPU(requestCPU)
 	if err != nil {
 		return nil, fmt.Errorf("request-cpu: %w", err)
@@ -184,9 +184,9 @@ func Resources(requestCPU, requestMemory, requestWritableLayer, limitCPU, limitM
 	if err != nil {
 		return nil, fmt.Errorf("request-memory: %w", err)
 	}
-	rw, err := parse.Memory(requestWritableLayer)
+	requestStorage, err := parse.Memory(requestEphemeralStorage)
 	if err != nil {
-		return nil, fmt.Errorf("request-writable-layer: %w", err)
+		return nil, fmt.Errorf("request-ephemeral-storage: %w", err)
 	}
 	lc, err := parse.CPU(limitCPU)
 	if err != nil {
@@ -196,19 +196,19 @@ func Resources(requestCPU, requestMemory, requestWritableLayer, limitCPU, limitM
 	if err != nil {
 		return nil, fmt.Errorf("limit-memory: %w", err)
 	}
-	lw, err := parse.Memory(limitWritableLayer)
+	limitStorage, err := parse.Memory(limitEphemeralStorage)
 	if err != nil {
-		return nil, fmt.Errorf("limit-writable-layer: %w", err)
+		return nil, fmt.Errorf("limit-ephemeral-storage: %w", err)
 	}
-	if rc == 0 && rm == 0 && rw == 0 && lc == 0 && lm == 0 && lw == 0 {
+	if rc == 0 && rm == 0 && requestStorage == 0 && lc == 0 && lm == 0 && limitStorage == 0 {
 		return nil, nil
 	}
 	value := &commonv1.ResourceSpec{}
-	if rc != 0 || rm != 0 || rw != 0 {
-		value.Requests = &commonv1.ResourceQuantity{CpuMilli: rc, MemoryBytes: rm, WritableLayerBytes: rw}
+	if rc != 0 || rm != 0 || requestStorage != 0 {
+		value.Requests = &commonv1.ResourceQuantity{CpuMilli: rc, MemoryBytes: rm, EphemeralStorageBytes: requestStorage}
 	}
-	if lc != 0 || lm != 0 || lw != 0 {
-		value.Limits = &commonv1.ResourceQuantity{CpuMilli: lc, MemoryBytes: lm, WritableLayerBytes: lw}
+	if lc != 0 || lm != 0 || limitStorage != 0 {
+		value.Limits = &commonv1.ResourceQuantity{CpuMilli: lc, MemoryBytes: lm, EphemeralStorageBytes: limitStorage}
 	}
 	return value, nil
 }

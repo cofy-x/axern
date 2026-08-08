@@ -15,23 +15,24 @@ import (
 )
 
 type allocationRecord struct {
-	AllocationID     string
-	OwnerType        string
-	OwnerID          string
-	EnvironmentID    string
-	NodeID           string
-	NodeTarget       string
-	Attempt          int64
-	Status           commonv1.AllocationStatus
-	Ready            bool
-	ReadinessMessage string
-	ExitCode         int32
-	ExitCodeKnown    bool
-	Message          string
-	CreatedAt        time.Time
-	ReadinessProbe   *servicev1.ServiceProbe
-	LivenessProbe    *servicev1.ServiceProbe
-	Config           *commonv1.ExecutionConfig
+	AllocationID      string
+	OwnerType         string
+	OwnerID           string
+	DesiredSpecDigest string
+	EnvironmentID     string
+	NodeID            string
+	NodeTarget        string
+	Attempt           int64
+	Status            commonv1.AllocationStatus
+	Ready             bool
+	ReadinessMessage  string
+	ExitCode          int32
+	ExitCodeKnown     bool
+	Message           string
+	CreatedAt         time.Time
+	ReadinessProbe    *servicev1.ServiceProbe
+	LivenessProbe     *servicev1.ServiceProbe
+	Config            *commonv1.ExecutionConfig
 }
 
 func (s *PGStore) serviceAllocation(ctx context.Context, tx pgx.Tx, serviceID, allocationID string) (*servicekernel.AllocationRecord, error) {
@@ -54,7 +55,7 @@ func (s *PGStore) allocationRecordsForStatusBatch(ctx context.Context, tx pgx.Tx
 		return records, nil
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT a.allocation_id, a.owner_type, a.owner_id, a.environment_id, a.node_id, n.node_target, a.attempt, a.status, a.ready,
+		SELECT a.allocation_id, a.owner_type, a.owner_id, a.desired_spec_digest, a.environment_id, a.node_id, n.node_target, a.attempt, a.status, a.ready,
 			a.readiness_message, a.exit_code, a.exit_code_known, a.message, a.created_at, a.readiness_probe, a.liveness_probe, a.config
 		FROM allocations a
 		JOIN nodes n ON n.node_id = a.node_id
@@ -91,6 +92,7 @@ func scanStatusAllocationRecord(row statusAllocationRecordScanner) (*allocationR
 		&record.AllocationID,
 		&record.OwnerType,
 		&record.OwnerID,
+		&record.DesiredSpecDigest,
 		&record.EnvironmentID,
 		&record.NodeID,
 		&record.NodeTarget,

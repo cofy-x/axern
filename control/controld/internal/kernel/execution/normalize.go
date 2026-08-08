@@ -77,21 +77,21 @@ func NormalizeResources(in *commonv1.ResourceSpec) *commonv1.ResourceSpec {
 	if out.Requests.MemoryBytes <= 0 {
 		out.Requests.MemoryBytes = defaultRequest(limits.GetMemoryBytes(), DefaultMemoryBytes)
 	}
-	if out.Requests.WritableLayerBytes <= 0 && limits.GetWritableLayerBytes() > 0 {
-		out.Requests.WritableLayerBytes = limits.GetWritableLayerBytes()
+	if out.Requests.EphemeralStorageBytes <= 0 && limits.GetEphemeralStorageBytes() > 0 {
+		out.Requests.EphemeralStorageBytes = limits.GetEphemeralStorageBytes()
 	}
 	return out
 }
 
-// NormalizeResourcesForRootfs resolves the writable-layer contract once the
+// NormalizeResourcesForRootfs resolves the ephemeral-storage contract once the
 // selected environment's rootfs readonly property is known.
 func NormalizeResourcesForRootfs(in *commonv1.ResourceSpec, readonly bool) (*commonv1.ResourceSpec, error) {
 	out := NormalizeResources(in)
-	requested := out.GetRequests().GetWritableLayerBytes()
-	limit := out.GetLimits().GetWritableLayerBytes()
+	requested := out.GetRequests().GetEphemeralStorageBytes()
+	limit := out.GetLimits().GetEphemeralStorageBytes()
 	if readonly {
 		if requested != 0 || limit != 0 {
-			return nil, grpcstatus.Errorf(codes.InvalidArgument, "readonly rootfs conflicts with writable layer resources: request=%d limit=%d", requested, limit)
+			return nil, grpcstatus.Errorf(codes.InvalidArgument, "readonly rootfs conflicts with ephemeral storage resources: request=%d limit=%d", requested, limit)
 		}
 		return out, nil
 	}
@@ -99,11 +99,11 @@ func NormalizeResourcesForRootfs(in *commonv1.ResourceSpec, readonly bool) (*com
 		out.Limits = &commonv1.ResourceQuantity{}
 	}
 	if limit == 0 {
-		limit = DefaultWritableLayerBytes
-		out.Limits.WritableLayerBytes = limit
+		limit = DefaultEphemeralStorageBytes
+		out.Limits.EphemeralStorageBytes = limit
 	}
 	if requested == 0 {
-		out.Requests.WritableLayerBytes = limit
+		out.Requests.EphemeralStorageBytes = limit
 	}
 	return out, nil
 }
@@ -142,8 +142,8 @@ func ValidateResources(in *commonv1.ResourceSpec) error {
 	if limits.GetMemoryBytes() > 0 && requests.GetMemoryBytes() > limits.GetMemoryBytes() {
 		return grpcstatus.Error(codes.InvalidArgument, fmt.Sprintf("config.resources.requests.memory_bytes must be <= limits.memory_bytes: request=%d limit=%d", requests.GetMemoryBytes(), limits.GetMemoryBytes()))
 	}
-	if limits.GetWritableLayerBytes() > 0 && requests.GetWritableLayerBytes() > limits.GetWritableLayerBytes() {
-		return grpcstatus.Error(codes.InvalidArgument, fmt.Sprintf("config.resources.requests.writable_layer_bytes must be <= limits.writable_layer_bytes: request=%d limit=%d", requests.GetWritableLayerBytes(), limits.GetWritableLayerBytes()))
+	if limits.GetEphemeralStorageBytes() > 0 && requests.GetEphemeralStorageBytes() > limits.GetEphemeralStorageBytes() {
+		return grpcstatus.Error(codes.InvalidArgument, fmt.Sprintf("config.resources.requests.ephemeral_storage_bytes must be <= limits.ephemeral_storage_bytes: request=%d limit=%d", requests.GetEphemeralStorageBytes(), limits.GetEphemeralStorageBytes()))
 	}
 	return nil
 }
@@ -155,8 +155,8 @@ func validateResourceSigns(in *commonv1.ResourceSpec) error {
 	if in.GetRequests().GetMemoryBytes() < 0 {
 		return grpcstatus.Error(codes.InvalidArgument, "config.resources.requests.memory_bytes must be >= 0")
 	}
-	if in.GetRequests().GetWritableLayerBytes() < 0 {
-		return grpcstatus.Error(codes.InvalidArgument, "config.resources.requests.writable_layer_bytes must be >= 0")
+	if in.GetRequests().GetEphemeralStorageBytes() < 0 {
+		return grpcstatus.Error(codes.InvalidArgument, "config.resources.requests.ephemeral_storage_bytes must be >= 0")
 	}
 	if in.GetLimits().GetCpuMilli() < 0 {
 		return grpcstatus.Error(codes.InvalidArgument, "config.resources.limits.cpu_milli must be >= 0")
@@ -164,8 +164,8 @@ func validateResourceSigns(in *commonv1.ResourceSpec) error {
 	if in.GetLimits().GetMemoryBytes() < 0 {
 		return grpcstatus.Error(codes.InvalidArgument, "config.resources.limits.memory_bytes must be >= 0")
 	}
-	if in.GetLimits().GetWritableLayerBytes() < 0 {
-		return grpcstatus.Error(codes.InvalidArgument, "config.resources.limits.writable_layer_bytes must be >= 0")
+	if in.GetLimits().GetEphemeralStorageBytes() < 0 {
+		return grpcstatus.Error(codes.InvalidArgument, "config.resources.limits.ephemeral_storage_bytes must be >= 0")
 	}
 
 	return nil

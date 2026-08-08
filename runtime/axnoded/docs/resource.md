@@ -133,8 +133,16 @@ settings.
 | `requests.memory_bytes` | scheduling reservation only; not a hard cgroup limit |
 | `limits.cpu_milli` | cgroup CFS quota/period hard CPU ceiling |
 | `limits.memory_bytes` | cgroup memory hard limit |
-| `requests.writable_layer_bytes` | control-plane and node-local filestore reservation |
-| `limits.writable_layer_bytes` | runsc `size=` or runc XFS project-quota hard limit |
+| `requests.ephemeral_storage_bytes` | control-plane and node-local filestore reservation |
+| `limits.ephemeral_storage_bytes` | runsc `size=` or runc XFS project-quota hard limit |
+
+`ephemeral_storage_bytes` is the public sandbox-lifetime resource. Axnoded
+currently charges only the runc writable upper or runsc file-backed root
+overlay, including metadata, copy-up, and whiteouts. Persistent volumes,
+immutable lower/image cache storage, artifacts, projection placeholders,
+tmpfs, and logs are outside this accounting scope. The runtime implementation
+may continue to call the charged backing a writable layer; that name does not
+broaden the public resource contract.
 
 Container status stores both scheduler-facing `ResourceSpec` and local
 `LinuxResources`. Inventory commitment uses running containers only:
@@ -189,6 +197,12 @@ Key behavior:
 - `cgroup_enforcement = "required"` is the production default. A declared
   memory limit requires the memory controller, a successful write and readback,
   and verified runtime host PID membership. Failure force-deletes the sandbox.
+- Node startup creates a private probe cgroup under `cgroup_root_name`, writes
+  and reads back a memory limit, and removes the probe before publishing
+  `cgroup:memory-limit-ready`. Controld requires this admission capability for
+  workloads with `limits.memory_bytes`. Runtime-specific Sentry, gofer, init,
+  and workload PID attribution remains a per-sandbox post-start verification;
+  the node probe never substitutes for it.
 - Runsc node fit adds the configured Sentry/gofer overhead reservation to the
   user-declared memory request. Namespace quota continues to charge only the
   user declaration; the two values are persisted separately.

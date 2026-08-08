@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/durablefile"
 	"github.com/sirupsen/logrus"
 )
 
@@ -53,15 +54,15 @@ type RootfsBackingFacts struct {
 }
 
 type Request struct {
-	RootDir                 string
-	Readonly                bool
-	RuntimeName             string
-	NeedsHostWritableRootfs bool
-	Backing                 RootfsBackingFacts
-	Targets                 []MountTarget
-	WritableLayerLimitBytes int64
-	ProjectID               uint32
-	RootfsLeaseID           string
+	RootDir                    string
+	Readonly                   bool
+	RuntimeName                string
+	NeedsHostWritableRootfs    bool
+	Backing                    RootfsBackingFacts
+	Targets                    []MountTarget
+	EphemeralStorageLimitBytes int64
+	ProjectID                  uint32
+	RootfsLeaseID              string
 }
 
 // Provider owns the lifecycle of active sandbox-private rootfs views.
@@ -115,11 +116,13 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 		return View{}, fmt.Errorf("private rootfs view requires runtime filestore_dir: %s", request.RootDir)
 	}
 
-	backing := request.Backing
-	if backing.Mountpoint == "" {
-		backing, err = InspectBacking(request.RootDir)
-		if err != nil {
-			return View{}, err
+	backing, err := InspectBacking(request.RootDir)
+	if err != nil {
+		return View{}, err
+	}
+	if request.Backing.Mountpoint != "" {
+		if err := compareBackingIdentity(request.Backing, backing); err != nil {
+			return View{}, fmt.Errorf("rootfs backing changed before projection: %w", err)
 		}
 	}
 	lowerDirs := backing.LowerDirs
@@ -139,25 +142,25 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 		return View{}, err
 	}
 	if request.NeedsHostWritableRootfs {
-		if err := applyProjectQuota(p.filestoreDir, view.UpperDir, request.ProjectID, request.WritableLayerLimitBytes); err != nil {
-			metrics.RecordWritableLayerOperation(request.RuntimeName, "project_quota", "failure")
-			_ = cleanupOverlayView(filepath.Dir(view.MergedDir))
+		if err := applyProjectQuota(p.filestoreDir, view.UpperDir, request.ProjectID, request.EphemeralStorageLimitBytes); err != nil {
+			metrics.RecordEphemeralStorageOperation(request.RuntimeName, "project_quota", "failure")
+			_ = cleanupOverlayViewWithProject(filepath.Dir(view.MergedDir), p.filestoreDir, request.ProjectID)
 			return View{}, err
 		}
-		metrics.RecordWritableLayerOperation(request.RuntimeName, "project_quota", "success")
+		metrics.RecordEphemeralStorageOperation(request.RuntimeName, "project_quota", "success")
 	}
 	if err := mountOverlayView(view); err != nil {
 		result := "failure"
 		if errors.Is(err, syscall.ENOSPC) {
 			result = "enospc"
 		}
-		metrics.RecordWritableLayerOperation(request.RuntimeName, "projection_mount", result)
-		_ = cleanupOverlayView(filepath.Dir(view.MergedDir))
+		metrics.RecordEphemeralStorageOperation(request.RuntimeName, "projection_mount", result)
+		_ = cleanupOverlayViewWithProject(filepath.Dir(view.MergedDir), p.filestoreDir, request.ProjectID)
 		return View{}, err
 	}
-	metrics.RecordWritableLayerOperation(request.RuntimeName, "projection_mount", "success")
+	metrics.RecordEphemeralStorageOperation(request.RuntimeName, "projection_mount", "success")
 	if err := writeProjectionManifest(filepath.Dir(view.MergedDir), request, backing); err != nil {
-		_ = cleanupOverlayView(filepath.Dir(view.MergedDir))
+		_ = cleanupOverlayViewWithProject(filepath.Dir(view.MergedDir), p.filestoreDir, request.ProjectID)
 		return View{}, err
 	}
 
@@ -309,7 +312,7 @@ func (p *overlayProvider) Remove(_ context.Context, containerID string) error {
 	}
 	var result error
 	for _, class := range []string{projectionViewDir, runcViewDir} {
-		if err := cleanupOverlayView(filepath.Join(p.filestoreDir, class, containerID)); err != nil {
+		if err := cleanupPersistedOverlayView(filepath.Join(p.filestoreDir, class, containerID), p.filestoreDir); err != nil {
 			result = errors.Join(result, fmt.Errorf("cleanup %s rootfs view: %w", class, err))
 		}
 	}
@@ -366,7 +369,7 @@ func (p *overlayProvider) ReconcilePersistentViews(_ context.Context, runtimeNam
 				}
 				continue
 			}
-			if err := cleanupOverlayView(root); err != nil {
+			if err := cleanupPersistedOverlayView(root, p.filestoreDir); err != nil {
 				result = errors.Join(result, fmt.Errorf("cleanup stale projection %s: %w", root, err))
 			}
 		}
@@ -375,8 +378,28 @@ func (p *overlayProvider) ReconcilePersistentViews(_ context.Context, runtimeNam
 }
 
 func cleanupOverlayView(rootfsRoot string) error {
+	return cleanupOverlayViewWithProject(rootfsRoot, "", 0)
+}
+
+func cleanupPersistedOverlayView(rootfsRoot, filestoreDir string) error {
+	manifest, err := readProjectionManifest(rootfsRoot)
+	if os.IsNotExist(err) {
+		return cleanupOverlayView(rootfsRoot)
+	}
+	if err != nil {
+		return fmt.Errorf("read projection manifest before cleanup: %w", err)
+	}
+	return cleanupOverlayViewWithProject(rootfsRoot, filestoreDir, manifest.ProjectID)
+}
+
+func cleanupOverlayViewWithProject(rootfsRoot, filestoreDir string, projectID uint32) error {
 	if err := unmountOverlayView(overlayView{MergedDir: filepath.Join(rootfsRoot, "merged")}); err != nil {
 		return err
+	}
+	if projectID != 0 {
+		if err := clearProjectQuota(filestoreDir, filepath.Join(rootfsRoot, "upper"), projectID); err != nil {
+			return err
+		}
 	}
 	return os.RemoveAll(rootfsRoot)
 }
@@ -397,10 +420,15 @@ type projectionManifest struct {
 	HostWritable  bool               `json:"host_writable"`
 	Backing       RootfsBackingFacts `json:"backing"`
 	RootfsLeaseID string             `json:"rootfs_lease_id,omitempty"`
+	ProjectID     uint32             `json:"project_id,omitempty"`
 }
 
 func writeProjectionManifest(root string, request Request, backing RootfsBackingFacts) error {
-	content, err := json.Marshal(projectionManifest{request.RuntimeName, request.Readonly, request.NeedsHostWritableRootfs, backing, request.RootfsLeaseID})
+	content, err := json.Marshal(projectionManifest{
+		RuntimeName: request.RuntimeName, RootReadonly: request.Readonly,
+		HostWritable: request.NeedsHostWritableRootfs, Backing: backing,
+		RootfsLeaseID: request.RootfsLeaseID, ProjectID: request.ProjectID,
+	})
 	if err != nil {
 		return fmt.Errorf("marshal projection manifest: %w", err)
 	}
@@ -427,58 +455,42 @@ func validateProjectionBacking(expected RootfsBackingFacts) error {
 	if err != nil {
 		return err
 	}
-	if actual.MountID != expected.MountID || actual.FSType != expected.FSType || actual.Source != expected.Source || actual.MountRoot != expected.MountRoot {
-		return fmt.Errorf("lower mount identity changed: expected id=%d fs=%s root=%s source=%s, got id=%d fs=%s root=%s source=%s", expected.MountID, expected.FSType, expected.MountRoot, expected.Source, actual.MountID, actual.FSType, actual.MountRoot, actual.Source)
+	return compareBackingIdentity(expected, actual)
+}
+
+func compareBackingIdentity(expected, actual RootfsBackingFacts) error {
+	if actual.MountID == expected.MountID && actual.Mountpoint == expected.Mountpoint && actual.FSType == expected.FSType && actual.Source == expected.Source && actual.MountRoot == expected.MountRoot {
+		return nil
 	}
-	return nil
+	return fmt.Errorf("lower mount identity changed: expected id=%d mountpoint=%s fs=%s root=%s source=%s, got id=%d mountpoint=%s fs=%s root=%s source=%s", expected.MountID, expected.Mountpoint, expected.FSType, expected.MountRoot, expected.Source, actual.MountID, actual.Mountpoint, actual.FSType, actual.MountRoot, actual.Source)
 }
 
 func atomicWrite(target string, content []byte, mode os.FileMode) error {
-	temporary, err := os.CreateTemp(filepath.Dir(target), ".projection-")
-	if err != nil {
-		return err
-	}
-	temporaryPath := temporary.Name()
-	defer func() {
-		_ = temporary.Close()
-		_ = os.Remove(temporaryPath)
-	}()
-	if err := temporary.Chmod(mode); err != nil {
-		return err
-	}
-	if _, err := temporary.Write(content); err != nil {
-		return err
-	}
-	if err := temporary.Sync(); err != nil {
-		return err
-	}
-	if err := temporary.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(temporaryPath, target); err != nil {
-		return err
-	}
-	directory, err := os.Open(filepath.Dir(target))
-	if err != nil {
-		return err
-	}
-	defer directory.Close()
-	return directory.Sync()
+	return durablefile.Write(target, content, mode)
 }
 
 func initializeOverlayView(rootfs overlayView) error {
+	return initializeOverlayViewWithMkdir(rootfs, os.Mkdir)
+}
+
+func initializeOverlayViewWithMkdir(rootfs overlayView, mkdir func(string, os.FileMode) error) (result error) {
 	rootfsRoot := filepath.Dir(rootfs.MergedDir)
 	if err := os.MkdirAll(filepath.Dir(rootfsRoot), 0755); err != nil {
 		return fmt.Errorf("create writable rootfs view class: %w", err)
 	}
-	if err := os.Mkdir(rootfsRoot, 0755); err != nil {
+	if err := mkdir(rootfsRoot, 0755); err != nil {
 		if os.IsExist(err) {
 			return fmt.Errorf("rootfs view already exists for container at %s", rootfsRoot)
 		}
 		return fmt.Errorf("create writable rootfs view: %w", err)
 	}
+	defer func() {
+		if result != nil {
+			result = errors.Join(result, os.RemoveAll(rootfsRoot))
+		}
+	}()
 	for _, dir := range []string{rootfs.UpperDir, rootfs.WorkDir, rootfs.MergedDir} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := mkdir(dir, 0755); err != nil {
 			return fmt.Errorf("mkdir writable rootfs view dir %s: %w", dir, err)
 		}
 	}

@@ -18,15 +18,15 @@ type AdmissionPolicy struct {
 }
 
 type Claim struct {
-	CPUMilli           int64
-	MemoryBytes        int64
-	WritableLayerBytes int64
+	CPUMilli              int64
+	MemoryBytes           int64
+	EphemeralStorageBytes int64
 }
 
 type FitEvaluation struct {
-	CPU           ResourceEvaluation
-	Memory        ResourceEvaluation
-	WritableLayer ResourceEvaluation
+	CPU              ResourceEvaluation
+	Memory           ResourceEvaluation
+	EphemeralStorage ResourceEvaluation
 }
 
 type ResourceEvaluation struct {
@@ -38,15 +38,15 @@ type ResourceEvaluation struct {
 }
 
 type NamespaceQuotaPolicy struct {
-	CPUMilliLimit           *int64
-	MemoryBytesLimit        *int64
-	WritableLayerBytesLimit *int64
+	CPUMilliLimit              *int64
+	MemoryBytesLimit           *int64
+	EphemeralStorageBytesLimit *int64
 }
 
 type QuotaEvaluation struct {
-	CPU           QuotaResourceEvaluation
-	Memory        QuotaResourceEvaluation
-	WritableLayer QuotaResourceEvaluation
+	CPU              QuotaResourceEvaluation
+	Memory           QuotaResourceEvaluation
+	EphemeralStorage QuotaResourceEvaluation
 }
 
 type QuotaResourceEvaluation struct {
@@ -61,13 +61,20 @@ func NormalizeAdmissionPolicy(policy AdmissionPolicy) AdmissionPolicy {
 	if policy.CPUOvercommitRatio == 0 {
 		policy.CPUOvercommitRatio = DefaultCPUOvercommitRatio
 	}
-	if policy.RunscRuntimeOverheadMemoryBytes == 0 {
-		policy.RunscRuntimeOverheadMemoryBytes = DefaultRunscRuntimeOverheadMemoryBytes
-	}
 	if strings.TrimSpace(policy.DefaultRuntimeName) == "" {
 		policy.DefaultRuntimeName = "runsc"
 	}
 	return policy
+}
+
+func SaturatingAdd(left, right int64) int64 {
+	if right > 0 && left > math.MaxInt64-right {
+		return math.MaxInt64
+	}
+	if right < 0 && left < math.MinInt64-right {
+		return math.MinInt64
+	}
+	return left + right
 }
 
 func ValidateAdmissionPolicy(policy AdmissionPolicy) error {
@@ -95,9 +102,9 @@ func (p AdmissionPolicy) RuntimeMemoryOverhead(runtimeName string) int64 {
 func (p AdmissionPolicy) EffectiveAllocatable(allocatable *commonv1.ResourceQuantity) Claim {
 	p = NormalizeAdmissionPolicy(p)
 	return Claim{
-		CPUMilli:           scaleCPUMilli(allocatable.GetCpuMilli(), p.CPUOvercommitRatio),
-		MemoryBytes:        allocatable.GetMemoryBytes(),
-		WritableLayerBytes: allocatable.GetWritableLayerBytes(),
+		CPUMilli:              scaleCPUMilli(allocatable.GetCpuMilli(), p.CPUOvercommitRatio),
+		MemoryBytes:           allocatable.GetMemoryBytes(),
+		EphemeralStorageBytes: allocatable.GetEphemeralStorageBytes(),
 	}
 }
 
@@ -108,17 +115,17 @@ func (p AdmissionPolicy) Fits(allocatable *commonv1.ResourceQuantity, used Claim
 func (p AdmissionPolicy) EvaluateFit(allocatable *commonv1.ResourceQuantity, used Claim, requested Claim) FitEvaluation {
 	effective := p.EffectiveAllocatable(allocatable)
 	return FitEvaluation{
-		CPU:           evaluateResource(used.CPUMilli, requested.CPUMilli, effective.CPUMilli),
-		Memory:        evaluateResource(used.MemoryBytes, requested.MemoryBytes, effective.MemoryBytes),
-		WritableLayer: evaluateResource(used.WritableLayerBytes, requested.WritableLayerBytes, effective.WritableLayerBytes),
+		CPU:              evaluateResource(used.CPUMilli, requested.CPUMilli, effective.CPUMilli),
+		Memory:           evaluateResource(used.MemoryBytes, requested.MemoryBytes, effective.MemoryBytes),
+		EphemeralStorage: evaluateResource(used.EphemeralStorageBytes, requested.EphemeralStorageBytes, effective.EphemeralStorageBytes),
 	}
 }
 
 func QuantityToClaim(quantity *commonv1.ResourceQuantity) Claim {
 	return Claim{
-		CPUMilli:           quantity.GetCpuMilli(),
-		MemoryBytes:        quantity.GetMemoryBytes(),
-		WritableLayerBytes: quantity.GetWritableLayerBytes(),
+		CPUMilli:              quantity.GetCpuMilli(),
+		MemoryBytes:           quantity.GetMemoryBytes(),
+		EphemeralStorageBytes: quantity.GetEphemeralStorageBytes(),
 	}
 }
 
@@ -128,9 +135,9 @@ func (p NamespaceQuotaPolicy) Fits(used Claim, requested Claim) bool {
 
 func (p NamespaceQuotaPolicy) EvaluateFit(used Claim, requested Claim) QuotaEvaluation {
 	return QuotaEvaluation{
-		CPU:           evaluateQuotaResource(used.CPUMilli, requested.CPUMilli, p.CPUMilliLimit),
-		Memory:        evaluateQuotaResource(used.MemoryBytes, requested.MemoryBytes, p.MemoryBytesLimit),
-		WritableLayer: evaluateQuotaResource(used.WritableLayerBytes, requested.WritableLayerBytes, p.WritableLayerBytesLimit),
+		CPU:              evaluateQuotaResource(used.CPUMilli, requested.CPUMilli, p.CPUMilliLimit),
+		Memory:           evaluateQuotaResource(used.MemoryBytes, requested.MemoryBytes, p.MemoryBytesLimit),
+		EphemeralStorage: evaluateQuotaResource(used.EphemeralStorageBytes, requested.EphemeralStorageBytes, p.EphemeralStorageBytesLimit),
 	}
 }
 
@@ -146,11 +153,11 @@ func scaleCPUMilli(cpuMilli int64, ratio float64) int64 {
 }
 
 func (e FitEvaluation) Fits() bool {
-	return e.CPU.Fits && e.Memory.Fits && e.WritableLayer.Fits
+	return e.CPU.Fits && e.Memory.Fits && e.EphemeralStorage.Fits
 }
 
 func (e QuotaEvaluation) Fits() bool {
-	return e.CPU.Fits && e.Memory.Fits && e.WritableLayer.Fits
+	return e.CPU.Fits && e.Memory.Fits && e.EphemeralStorage.Fits
 }
 
 func evaluateResource(used, requested, limit int64) ResourceEvaluation {

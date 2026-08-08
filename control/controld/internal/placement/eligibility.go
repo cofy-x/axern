@@ -97,8 +97,8 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 	if !hasAvailableMemory(e.resourcePolicy, summary, input.Request.GetRequestedMemoryBytes()) {
 		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY)
 	}
-	if !hasAvailableWritableLayer(e.resourcePolicy, summary, input.Request.GetRequestedWritableLayerBytes()) {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_WRITABLE_LAYER)
+	if !hasAvailableEphemeralStorage(e.resourcePolicy, summary, input.Request.GetRequestedEphemeralStorageBytes()) {
+		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_EPHEMERAL_STORAGE)
 	}
 
 	if len(reasons) > 0 {

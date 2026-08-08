@@ -15,11 +15,11 @@ import (
 )
 
 type RuntimePolicy struct {
-	RuntimeName             string
-	NeedsHostWritableRootfs bool
-	WritableLayerLimitBytes int64
-	ProjectID               uint32
-	RootfsLeaseID           string
+	RuntimeName                string
+	NeedsHostWritableRootfs    bool
+	EphemeralStorageLimitBytes int64
+	ProjectID                  uint32
+	RootfsLeaseID              string
 }
 
 // PrepareBundle creates a sandbox-private rootfs projection after the final OCI
@@ -66,7 +66,7 @@ func PrepareBundle(ctx context.Context, provider rootfsview.Provider, options co
 	view, err := provider.Prepare(ctx, options.ContainerID, rootfsview.Request{
 		RootDir: rootfsPath, Readonly: ociSpec.Root.Readonly, RuntimeName: policy.RuntimeName,
 		NeedsHostWritableRootfs: policy.NeedsHostWritableRootfs, Backing: backing, Targets: targets,
-		WritableLayerLimitBytes: policy.WritableLayerLimitBytes, ProjectID: policy.ProjectID,
+		EphemeralStorageLimitBytes: policy.EphemeralStorageLimitBytes, ProjectID: policy.ProjectID,
 		RootfsLeaseID: policy.RootfsLeaseID,
 	})
 	options.RecordStartupStep(contract.StartupPhaseRootfsPrepare, contract.StartupStepRootfsViewPrepare, time.Since(prepareStart))

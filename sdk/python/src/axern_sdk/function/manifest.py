@@ -137,23 +137,23 @@ def _resources(value: Any) -> FunctionResources:
     result = FunctionResources(
         request_cpu=requests.get("cpu", ""),
         request_memory=requests.get("memory", ""),
-        request_writable_layer=requests.get("writable_layer", ""),
+        request_ephemeral_storage=requests.get("ephemeral_storage", ""),
         limit_cpu=limits.get("cpu", ""),
         limit_memory=limits.get("memory", ""),
-        limit_writable_layer=limits.get("writable_layer", ""),
+        limit_ephemeral_storage=limits.get("ephemeral_storage", ""),
     )
     if result.request_cpu:
         cpu_milli("spec.resources.requests.cpu", result.request_cpu)
     if result.request_memory:
         memory_bytes("spec.resources.requests.memory", result.request_memory)
-    if result.request_writable_layer:
-        memory_bytes("spec.resources.requests.writable_layer", result.request_writable_layer)
+    if result.request_ephemeral_storage:
+        memory_bytes("spec.resources.requests.ephemeral_storage", result.request_ephemeral_storage)
     if result.limit_cpu:
         cpu_milli("spec.resources.limits.cpu", result.limit_cpu)
     if result.limit_memory:
         memory_bytes("spec.resources.limits.memory", result.limit_memory)
-    if result.limit_writable_layer:
-        memory_bytes("spec.resources.limits.writable_layer", result.limit_writable_layer)
+    if result.limit_ephemeral_storage:
+        memory_bytes("spec.resources.limits.ephemeral_storage", result.limit_ephemeral_storage)
     return result
 
 
@@ -161,8 +161,8 @@ def _quantity(label: str, value: Any) -> Mapping[str, str]:
     if value is None:
         return {}
     data = _object(label, value)
-    _reject_unknown(label, data, {"cpu", "memory", "writable_layer"})
-    return {key: _optional_string(data, key, label) for key in ("cpu", "memory", "writable_layer")}
+    _reject_unknown(label, data, {"cpu", "memory", "ephemeral_storage"})
+    return {key: _optional_string(data, key, label) for key in ("cpu", "memory", "ephemeral_storage")}
 
 
 def _scaling(value: Any) -> FunctionScaling:

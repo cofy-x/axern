@@ -69,7 +69,7 @@ class PlacementRejectionReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED: _ClassVar[PlacementRejectionReason]
     PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED: _ClassVar[PlacementRejectionReason]
     PLACEMENT_REJECTION_REASON_NODE_RETIRED: _ClassVar[PlacementRejectionReason]
-    PLACEMENT_REJECTION_REASON_INSUFFICIENT_WRITABLE_LAYER: _ClassVar[PlacementRejectionReason]
+    PLACEMENT_REJECTION_REASON_INSUFFICIENT_EPHEMERAL_STORAGE: _ClassVar[PlacementRejectionReason]
 ROOTFS_TYPE_UNSPECIFIED: RootfsType
 ROOTFS_TYPE_LOCAL: RootfsType
 ROOTFS_TYPE_IMAGE: RootfsType
@@ -110,7 +110,7 @@ PLACEMENT_REJECTION_REASON_PORTS_UNSUPPORTED: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_NODE_RETIRED: PlacementRejectionReason
-PLACEMENT_REJECTION_REASON_INSUFFICIENT_WRITABLE_LAYER: PlacementRejectionReason
+PLACEMENT_REJECTION_REASON_INSUFFICIENT_EPHEMERAL_STORAGE: PlacementRejectionReason
 
 class PoolState(_message.Message):
     __slots__ = ("using", "idle", "capacity", "unavailable")
@@ -125,26 +125,26 @@ class PoolState(_message.Message):
     def __init__(self, using: _Optional[int] = ..., idle: _Optional[int] = ..., capacity: _Optional[int] = ..., unavailable: _Optional[int] = ...) -> None: ...
 
 class ResourcesSummary(_message.Message):
-    __slots__ = ("axnoded_committed_milli", "axnoded_used_milli", "axnoded_cpu_unbounded_count", "axnoded_committed_bytes", "axnoded_used_bytes", "axnoded_memory_unbounded_count", "axnoded_writable_layer_committed_bytes", "axnoded_writable_layer_used_bytes", "axnoded_writable_layer_unbounded_count")
+    __slots__ = ("axnoded_committed_milli", "axnoded_used_milli", "axnoded_cpu_unbounded_count", "axnoded_committed_bytes", "axnoded_used_bytes", "axnoded_memory_unbounded_count", "axnoded_ephemeral_storage_committed_bytes", "axnoded_ephemeral_storage_used_bytes", "axnoded_ephemeral_storage_unbounded_count")
     AXNODED_COMMITTED_MILLI_FIELD_NUMBER: _ClassVar[int]
     AXNODED_USED_MILLI_FIELD_NUMBER: _ClassVar[int]
     AXNODED_CPU_UNBOUNDED_COUNT_FIELD_NUMBER: _ClassVar[int]
     AXNODED_COMMITTED_BYTES_FIELD_NUMBER: _ClassVar[int]
     AXNODED_USED_BYTES_FIELD_NUMBER: _ClassVar[int]
     AXNODED_MEMORY_UNBOUNDED_COUNT_FIELD_NUMBER: _ClassVar[int]
-    AXNODED_WRITABLE_LAYER_COMMITTED_BYTES_FIELD_NUMBER: _ClassVar[int]
-    AXNODED_WRITABLE_LAYER_USED_BYTES_FIELD_NUMBER: _ClassVar[int]
-    AXNODED_WRITABLE_LAYER_UNBOUNDED_COUNT_FIELD_NUMBER: _ClassVar[int]
+    AXNODED_EPHEMERAL_STORAGE_COMMITTED_BYTES_FIELD_NUMBER: _ClassVar[int]
+    AXNODED_EPHEMERAL_STORAGE_USED_BYTES_FIELD_NUMBER: _ClassVar[int]
+    AXNODED_EPHEMERAL_STORAGE_UNBOUNDED_COUNT_FIELD_NUMBER: _ClassVar[int]
     axnoded_committed_milli: int
     axnoded_used_milli: int
     axnoded_cpu_unbounded_count: int
     axnoded_committed_bytes: int
     axnoded_used_bytes: int
     axnoded_memory_unbounded_count: int
-    axnoded_writable_layer_committed_bytes: int
-    axnoded_writable_layer_used_bytes: int
-    axnoded_writable_layer_unbounded_count: int
-    def __init__(self, axnoded_committed_milli: _Optional[int] = ..., axnoded_used_milli: _Optional[int] = ..., axnoded_cpu_unbounded_count: _Optional[int] = ..., axnoded_committed_bytes: _Optional[int] = ..., axnoded_used_bytes: _Optional[int] = ..., axnoded_memory_unbounded_count: _Optional[int] = ..., axnoded_writable_layer_committed_bytes: _Optional[int] = ..., axnoded_writable_layer_used_bytes: _Optional[int] = ..., axnoded_writable_layer_unbounded_count: _Optional[int] = ...) -> None: ...
+    axnoded_ephemeral_storage_committed_bytes: int
+    axnoded_ephemeral_storage_used_bytes: int
+    axnoded_ephemeral_storage_unbounded_count: int
+    def __init__(self, axnoded_committed_milli: _Optional[int] = ..., axnoded_used_milli: _Optional[int] = ..., axnoded_cpu_unbounded_count: _Optional[int] = ..., axnoded_committed_bytes: _Optional[int] = ..., axnoded_used_bytes: _Optional[int] = ..., axnoded_memory_unbounded_count: _Optional[int] = ..., axnoded_ephemeral_storage_committed_bytes: _Optional[int] = ..., axnoded_ephemeral_storage_used_bytes: _Optional[int] = ..., axnoded_ephemeral_storage_unbounded_count: _Optional[int] = ...) -> None: ...
 
 class PoolsSummary(_message.Message):
     __slots__ = ("cgroup", "interface", "runtime_slots")

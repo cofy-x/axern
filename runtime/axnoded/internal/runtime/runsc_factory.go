@@ -33,10 +33,16 @@ func NewRunscServiceHandler(cfg config.Config, runtimeName string, runtimeCfg co
 		return nil, err
 	}
 	containerRoot := filepath.Join(cfg.RootDir, "containers")
-	filestoreDir, err := ensureRuntimeFilestore(cfg)
+	filestoreDir, releaseFilestore, err := acquireRuntimeFilestore(cfg)
 	if err != nil {
 		return nil, err
 	}
+	constructed := false
+	defer func() {
+		if !constructed {
+			releaseFilestore(true)
+		}
+	}()
 	rootfsViews := rootfsview.NewOverlayProvider(filestoreDir)
 	writableCapacity, err := sharedWritableCapacityManager(filestoreDir, cfg.RuntimeConfig.FilestoreSystemReserveBytes)
 	if err != nil {
@@ -55,18 +61,20 @@ func NewRunscServiceHandler(cfg config.Config, runtimeName string, runtimeCfg co
 	}
 
 	handler := &RunscServiceHandler{
-		name:                    runtimeName,
-		common:                  common,
-		ignoreCgroups:           cgroupMode == config.CgroupEnforcementDisabledDev,
-		allowSUID:               runtimeCfg.Options.AllowSUIDEnabled(true),
-		filestoreDir:            filestoreDir,
-		writableLayerLimitBytes: cfg.RuntimeConfig.WritableLayerDefaultLimitBytes,
-		writableCapacity:        writableCapacity,
-		capabilityDir:           filepath.Join(cfg.RootDir, "verified-capabilities"),
-		containerRoot:           containerRoot,
-		rootfsViews:             rootfsViews,
-		waitForSandboxReady:     runtimesandboxd.WaitReadyForContainer,
+		name:                              runtimeName,
+		common:                            common,
+		ignoreCgroups:                     cgroupMode == config.CgroupEnforcementDisabledDev,
+		allowSUID:                         runtimeCfg.Options.AllowSUIDEnabled(true),
+		filestoreDir:                      filestoreDir,
+		ephemeralStorageDefaultLimitBytes: cfg.RuntimeConfig.EphemeralStorageDefaultLimitBytes,
+		writableCapacity:                  writableCapacity,
+		capabilityDir:                     filepath.Join(cfg.RootDir, "verified-capabilities"),
+		containerRoot:                     containerRoot,
+		rootfsViews:                       rootfsViews,
+		releaseFilestore:                  func() { releaseFilestore(false) },
+		waitForSandboxReady:               runtimesandboxd.WaitReadyForContainer,
 	}
 	handler.services = newRuntimeServices(containerRoot, handler.OpenExecSession)
+	constructed = true
 	return handler, nil
 }

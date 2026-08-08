@@ -56,10 +56,10 @@ export interface SandboxOptions {
   volumes?: readonly VolumeMount[];
   requestCpu?: ResourceQuantity;
   requestMemory?: ResourceQuantity;
-  requestWritableLayer?: ResourceQuantity;
+  requestEphemeralStorage?: ResourceQuantity;
   limitCpu?: ResourceQuantity;
   limitMemory?: ResourceQuantity;
-  limitWritableLayer?: ResourceQuantity;
+  limitEphemeralStorage?: ResourceQuantity;
   readyTimeoutMs?: number;
   labels?: Record<string, string>;
   registryCredentialId?: string;
@@ -143,10 +143,10 @@ export class Sandbox {
         volumes: this.options.volumes,
         requestCpu: this.options.requestCpu,
         requestMemory: this.options.requestMemory,
-        requestWritableLayer: this.options.requestWritableLayer,
+        requestEphemeralStorage: this.options.requestEphemeralStorage,
         limitCpu: this.options.limitCpu,
         limitMemory: this.options.limitMemory,
-        limitWritableLayer: this.options.limitWritableLayer,
+        limitEphemeralStorage: this.options.limitEphemeralStorage,
         labels: sandboxLabels(this.options.labels),
       });
       this.serviceId = String(service.id ?? "");

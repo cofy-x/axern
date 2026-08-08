@@ -10,7 +10,7 @@ The schema is split by durable ownership boundary:
 
 | Migration | Ownership |
 | --- | --- |
-| `000001_initial.sql` | Nodes, namespaces, environments, secrets, runs, services, allocations, reservations, execution leases, reconciliation, and audit state |
+| `000001_initial.sql` | Nodes, namespaces, environments, secrets, runs, services, desired-spec identity, CPU/memory/ephemeral-storage quota and reservations, allocations, execution leases, reconciliation, and audit state |
 | `000002_tunnel_sessions.sql` | Tunnel sessions, peer events, and the tunnel revision stream |
 | `000003_functions.sql` | Functions, revisions, deployments, invocations, events, idempotency records, and bundles |
 | `000004_managed_rollouts.sql` | Agent Profiles, rollout planning and execution, worker leases, metering, evidence, and artifact metadata |

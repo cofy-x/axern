@@ -95,14 +95,14 @@ LEASE_TYPE_SERVICE: LeaseType
 LEASE_TYPE_INVOKE: LeaseType
 
 class ResourceQuantity(_message.Message):
-    __slots__ = ("cpu_milli", "memory_bytes", "writable_layer_bytes")
+    __slots__ = ("cpu_milli", "memory_bytes", "ephemeral_storage_bytes")
     CPU_MILLI_FIELD_NUMBER: _ClassVar[int]
     MEMORY_BYTES_FIELD_NUMBER: _ClassVar[int]
-    WRITABLE_LAYER_BYTES_FIELD_NUMBER: _ClassVar[int]
+    EPHEMERAL_STORAGE_BYTES_FIELD_NUMBER: _ClassVar[int]
     cpu_milli: int
     memory_bytes: int
-    writable_layer_bytes: int
-    def __init__(self, cpu_milli: _Optional[int] = ..., memory_bytes: _Optional[int] = ..., writable_layer_bytes: _Optional[int] = ...) -> None: ...
+    ephemeral_storage_bytes: int
+    def __init__(self, cpu_milli: _Optional[int] = ..., memory_bytes: _Optional[int] = ..., ephemeral_storage_bytes: _Optional[int] = ...) -> None: ...
 
 class ResourceSpec(_message.Message):
     __slots__ = ("requests", "limits")

@@ -10,13 +10,19 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+const allocationRecordSelectColumns = `a.allocation_id, a.desired_spec_digest, a.environment_id, a.node_id, n.node_target, a.attempt, a.status, a.ready, a.readiness_message, a.readiness_probe, a.liveness_probe, a.config`
+
+const allocationRecordSelectColumnsWithServiceID = `a.owner_id, ` + allocationRecordSelectColumns
+
+const allocationRecordSelectColumnsWithoutNodeTarget = `a.allocation_id, a.desired_spec_digest, a.environment_id, a.node_id, ''::text AS node_target, a.attempt, a.status, a.ready, a.readiness_message, a.readiness_probe, a.liveness_probe, a.config`
+
 func (s *PGStore) listServiceAllocationsByServiceIDs(ctx context.Context, serviceIDs []string) (map[string][]*servicekernel.AllocationRecord, error) {
 	serviceIDs = normalizedIDs(serviceIDs)
 	if len(serviceIDs) == 0 {
 		return map[string][]*servicekernel.AllocationRecord{}, nil
 	}
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT a.owner_id, a.allocation_id, a.environment_id, a.node_id, n.node_target, a.attempt, a.status, a.ready, a.readiness_message, a.readiness_probe, a.liveness_probe, a.config
+		SELECT `+allocationRecordSelectColumnsWithServiceID+`
 		FROM allocations a
 		JOIN nodes n ON n.node_id = a.node_id
 		WHERE a.owner_type = $1 AND a.owner_id = ANY($2) AND a.status NOT IN ($3, $4)
@@ -52,7 +58,7 @@ func scanAllocationRecord(row allocationRecordScanner) (*servicekernel.Allocatio
 		readinessProbeJSON []byte
 		livenessProbeJSON  []byte
 	)
-	if err := row.Scan(&record.AllocationID, &record.EnvironmentID, &record.NodeID, &record.NodeTarget, &record.Attempt, &statusText, &record.Ready, &record.ReadinessMessage, &readinessProbeJSON, &livenessProbeJSON, &configJSON); err != nil {
+	if err := row.Scan(&record.AllocationID, &record.DesiredSpecDigest, &record.EnvironmentID, &record.NodeID, &record.NodeTarget, &record.Attempt, &statusText, &record.Ready, &record.ReadinessMessage, &readinessProbeJSON, &livenessProbeJSON, &configJSON); err != nil {
 		return nil, err
 	}
 	if err := hydrateAllocationRecord(&record, statusText, readinessProbeJSON, livenessProbeJSON, configJSON); err != nil {
@@ -70,7 +76,7 @@ func scanAllocationRecordWithServiceID(row allocationRecordScanner) (string, *se
 		readinessProbeJSON []byte
 		livenessProbeJSON  []byte
 	)
-	if err := row.Scan(&serviceID, &record.AllocationID, &record.EnvironmentID, &record.NodeID, &record.NodeTarget, &record.Attempt, &statusText, &record.Ready, &record.ReadinessMessage, &readinessProbeJSON, &livenessProbeJSON, &configJSON); err != nil {
+	if err := row.Scan(&serviceID, &record.AllocationID, &record.DesiredSpecDigest, &record.EnvironmentID, &record.NodeID, &record.NodeTarget, &record.Attempt, &statusText, &record.Ready, &record.ReadinessMessage, &readinessProbeJSON, &livenessProbeJSON, &configJSON); err != nil {
 		return "", nil, err
 	}
 	if err := hydrateAllocationRecord(&record, statusText, readinessProbeJSON, livenessProbeJSON, configJSON); err != nil {

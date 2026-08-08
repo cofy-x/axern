@@ -53,8 +53,8 @@ func (a *App) observeNodeResources(ctx context.Context, observe sdkobs.Int64Gaug
 		cpuAllocatable := summary.GetAllocatable().GetCpuMilli()
 		memoryCapacity := summary.GetCapacity().GetMemoryBytes()
 		memoryAllocatable := summary.GetAllocatable().GetMemoryBytes()
-		writableCapacity := summary.GetCapacity().GetWritableLayerBytes()
-		writableAllocatable := summary.GetAllocatable().GetWritableLayerBytes()
+		ephemeralStorageCapacity := summary.GetCapacity().GetEphemeralStorageBytes()
+		ephemeralStorageAllocatable := summary.GetAllocatable().GetEphemeralStorageBytes()
 		effective := a.resourcePolicy.EffectiveAllocatable(summary.GetAllocatable())
 		observeNodeResource(observe, nodeResourceObservation{
 			nodeID:               record.NodeID,
@@ -73,9 +73,9 @@ func (a *App) observeNodeResources(ctx context.Context, observe sdkobs.Int64Gaug
 			reserved:             nodeReserved.memoryBytes,
 		})
 		observeNodeResource(observe, nodeResourceObservation{
-			nodeID: record.NodeID, resource: "writable_layer_bytes",
-			capacity: writableCapacity, allocatable: writableAllocatable,
-			effectiveAllocatable: effective.WritableLayerBytes, reserved: nodeReserved.writableLayerBytes,
+			nodeID: record.NodeID, resource: "ephemeral_storage_bytes",
+			capacity: ephemeralStorageCapacity, allocatable: ephemeralStorageAllocatable,
+			effectiveAllocatable: effective.EphemeralStorageBytes, reserved: nodeReserved.ephemeralStorageBytes,
 		})
 		if runtimeCapacity, known := nodekernel.RuntimeSlotCapacity(summary); known {
 			observeNodeResource(observe, nodeResourceObservation{
@@ -176,10 +176,10 @@ func axnodedReadySummary(summary *nodev1.NodeSummary) bool {
 }
 
 type nodeReservedResources struct {
-	cpuMilli           int64
-	memoryBytes        int64
-	writableLayerBytes int64
-	instances          int64
+	cpuMilli              int64
+	memoryBytes           int64
+	ephemeralStorageBytes int64
+	instances             int64
 }
 
 type nodeResourceObservation struct {
@@ -193,7 +193,7 @@ type nodeResourceObservation struct {
 
 func (a *App) activeReservedResources(ctx context.Context) (map[string]nodeReservedResources, error) {
 	rows, err := a.db.Pool().Query(ctx, `
-		SELECT node_id, COALESCE(sum(cpu_milli), 0), COALESCE(sum(memory_bytes + memory_overhead_bytes), 0), COALESCE(sum(writable_layer_bytes), 0), COUNT(*)
+		SELECT node_id, COALESCE(sum(cpu_milli), 0), COALESCE(sum(memory_bytes + memory_overhead_bytes), 0), COALESCE(sum(ephemeral_storage_bytes), 0), COUNT(*)
 		FROM workload_reservations
 		WHERE released_at IS NULL
 		GROUP BY node_id
@@ -207,7 +207,7 @@ func (a *App) activeReservedResources(ctx context.Context) (map[string]nodeReser
 	for rows.Next() {
 		var nodeID string
 		var reserved nodeReservedResources
-		if err := rows.Scan(&nodeID, &reserved.cpuMilli, &reserved.memoryBytes, &reserved.writableLayerBytes, &reserved.instances); err != nil {
+		if err := rows.Scan(&nodeID, &reserved.cpuMilli, &reserved.memoryBytes, &reserved.ephemeralStorageBytes, &reserved.instances); err != nil {
 			return nil, err
 		}
 		out[nodeID] = reserved

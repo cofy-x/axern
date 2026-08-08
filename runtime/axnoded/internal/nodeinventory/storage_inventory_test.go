@@ -40,8 +40,8 @@ func TestWritableStorageInventorySeparatesFilesystemAndAllocationUsage(t *testin
 	if !entry.UnlinkedBackingUsageUnknown {
 		t.Fatal("runsc reservation should expose possible unlinked backing usage")
 	}
-	if snapshot.Resources.WritableLayer.AxnodedUsedBytes != entry.AllocationUsedBytes {
-		t.Fatalf("writable resource usage = %d, want %d", snapshot.Resources.WritableLayer.AxnodedUsedBytes, entry.AllocationUsedBytes)
+	if snapshot.Resources.EphemeralStorage.AxnodedUsedBytes != entry.AllocationUsedBytes {
+		t.Fatalf("ephemeral storage resource usage = %d, want %d", snapshot.Resources.EphemeralStorage.AxnodedUsedBytes, entry.AllocationUsedBytes)
 	}
 }
 

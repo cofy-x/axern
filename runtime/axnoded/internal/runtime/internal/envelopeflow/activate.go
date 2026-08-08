@@ -17,11 +17,11 @@ func Activate(
 	startExitStatePersister func(string) error,
 	waitForStart func(context.Context, string) error,
 	waitForSandboxReady func(context.Context, string, *apipb.ContainerMetadata) error,
+	verifyRuntime func(context.Context) error,
 ) (*apipb.ContainerMetadata, error) {
 	if envelope == nil {
 		return nil, fmt.Errorf("execution envelope is nil")
 	}
-
 	launchStart := time.Now()
 	if err := start(ctx, envelope.ContainerID); err != nil {
 		options.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, contract.StartupStepRuntimeStart, time.Since(launchStart))
@@ -51,6 +51,15 @@ func Activate(
 			return envelope.Metadata, err
 		}
 		options.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, contract.StartupStepSandboxdWaitReady, time.Since(readyStart))
+	}
+	if verifyRuntime != nil {
+		verifyStart := time.Now()
+		if err := verifyRuntime(ctx); err != nil {
+			options.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, contract.StartupStepRuntimeEnforcement, time.Since(verifyStart))
+			options.RecordStartupPhase(contract.StartupPhaseRuntimeLaunch, time.Since(launchStart))
+			return envelope.Metadata, err
+		}
+		options.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, contract.StartupStepRuntimeEnforcement, time.Since(verifyStart))
 	}
 	options.RecordStartupPhase(contract.StartupPhaseRuntimeLaunch, time.Since(launchStart))
 	return envelope.Metadata, nil

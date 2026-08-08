@@ -28,6 +28,22 @@ func (h *sandboxService) initNodeInventory() error {
 	if inventoryCgroupDriver, err = os2.DefaultCgroupDriver(); err != nil {
 		logrus.WithError(err).Warn("node inventory actual usage provider disabled: cgroup driver unavailable")
 	}
+	cgroupMemoryReady := false
+	cgroupMode, err := h.config.PluginConfig.RuntimeConfig.CgroupEnforcementMode()
+	if err != nil {
+		return err
+	}
+	if cgroupMode == config.CgroupEnforcementRequired {
+		rootName := h.config.PluginConfig.ResourceConfig.CgroupRootName
+		if rootName == "" {
+			rootName = config.DefaultCgroupRoot
+		}
+		if probeErr := hostlinux.ProbeCgroupMemoryLimit(rootName); probeErr != nil {
+			logrus.WithError(probeErr).Warn("cgroup memory-limit admission capability unavailable")
+		} else {
+			cgroupMemoryReady = true
+		}
+	}
 	disabledPools := disabledResourcePools(h.config.PluginConfig.ResourceConfig)
 	storageTargets := nodeinventory.DefaultStorageTargets(h.config.RootDir)
 	if filestore := h.config.PluginConfig.RuntimeConfig.FilestoreDir; filestore != "" {
@@ -49,7 +65,7 @@ func (h *sandboxService) initNodeInventory() error {
 		NodeState:             h.config.PluginConfig.ControlPlaneNodeStateValue(),
 		NodeLabels:            h.config.PluginConfig.ControlPlaneNodeLabelsValue(),
 		NodeCapabilities:      servicecontrolplane.DefaultNodeCapabilities(h.config),
-		DynamicCapabilities:   func() []string { return runtimeStorageCapabilities(h.config) },
+		DynamicCapabilities:   func() []string { return runtimeStorageCapabilities(h.config, cgroupMemoryReady) },
 		VolumeHealth:          h.volumeClient.Health,
 		StorageTargets:        storageTargets,
 		RuntimeSlotCapacity:   h.config.PluginConfig.ResourceConfig.MaxInstanceNum,
@@ -59,12 +75,15 @@ func (h *sandboxService) initNodeInventory() error {
 	return nil
 }
 
-func runtimeStorageCapabilities(cfg config.Config) []string {
+func runtimeStorageCapabilities(cfg config.Config, cgroupMemoryReady bool) []string {
 	seen := map[string]struct{}{}
 	add := func(value string) {
 		if value != "" {
 			seen[value] = struct{}{}
 		}
+	}
+	if cgroupMemoryReady {
+		add("cgroup:memory-limit-ready")
 	}
 	if entries, err := os.ReadDir(filepath.Join(cfg.RootDir, "verified-capabilities")); err == nil {
 		bootID, _ := hostlinux.CurrentBootID()
@@ -84,10 +103,10 @@ func runtimeStorageCapabilities(cfg config.Config) []string {
 	if filestore := cfg.PluginConfig.RuntimeConfig.FilestoreDir; filestore != "" {
 		if facts, err := hostlinux.ReadFilestoreCapabilities(filestore); err == nil {
 			if facts.OverlayReady {
-				add("runtime:runsc:writable-layer-hard-limit")
+				add("runtime:runsc:ephemeral-storage-hard-limit")
 			}
 			if facts.ProjectQuotaReady {
-				add("runtime:runc:writable-layer-hard-limit")
+				add("runtime:runc:ephemeral-storage-hard-limit")
 			}
 			if facts.EROFSReady {
 				add("rootfs-lower:erofs")

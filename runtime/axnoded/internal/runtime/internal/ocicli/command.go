@@ -2,6 +2,7 @@ package ocicli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,49 @@ import (
 
 	"github.com/sirupsen/logrus"
 )
+
+// CommandError preserves the runtime command output alongside the process
+// failure. OCI runtimes report semantic errors on stdout or stderr while the
+// underlying *exec.ExitError only contains the exit status.
+type CommandError struct {
+	Err    error
+	Output string
+}
+
+func (e *CommandError) Error() string {
+	output := strings.TrimSpace(e.Output)
+	if output == "" {
+		return e.Err.Error()
+	}
+	return fmt.Sprintf("%v: %s", e.Err, output)
+}
+
+func (e *CommandError) Unwrap() error { return e.Err }
+
+// IsContainerNotFound reports only runtime errors that explicitly identify a
+// missing container. Generic "not found" errors can describe a missing binary,
+// bundle, or dependency and must not trigger storage cleanup.
+func IsContainerNotFound(err error, containerID string) bool {
+	var commandErr *CommandError
+	containerID = strings.ToLower(strings.TrimSpace(containerID))
+	if containerID == "" || !errors.As(err, &commandErr) {
+		return false
+	}
+	output := strings.ToLower(commandErr.Output)
+	for line := range strings.Lines(output) {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "no such container: "+containerID) || strings.Contains(line, "no such container "+containerID) {
+			return true
+		}
+		identities := []string{"container " + containerID, `container "` + containerID + `"`}
+		for _, identity := range identities {
+			if strings.Contains(line, identity+" does not exist") || strings.Contains(line, identity+" not found") {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func EnsureRuntimeDirs(root, runtimeName string) (runtimeRoot string, containerRoot string, err error) {
 	runtimeRoot = filepath.Join(root, runtimeName)
@@ -68,7 +112,10 @@ func ExecuteSystemCommand(ctx context.Context, cmd string, args ...string) ([]by
 		"output_bytes": len(output),
 		"error":        err != nil,
 	}).Debug("executed system command")
-	return output, err
+	if err != nil {
+		return output, &CommandError{Err: err, Output: string(output)}
+	}
+	return output, nil
 }
 
 func RunWithIO(ctx context.Context, binary, runtimeRoot, stdoutPath, stderrPath string, args ...string) error {
@@ -99,7 +146,7 @@ func RunWithIO(ctx context.Context, binary, runtimeRoot, stdoutPath, stderrPath 
 		ReadOutputSnippet(stderrPath),
 	}, "\n"))
 	if output == "" {
-		return err
+		return &CommandError{Err: err}
 	}
-	return fmt.Errorf("%w: %s", err, output)
+	return &CommandError{Err: err, Output: output}
 }

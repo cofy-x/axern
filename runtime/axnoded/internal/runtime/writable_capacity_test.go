@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +28,9 @@ func TestWritableCapacityReservationIsDurableAndIdempotent(t *testing.T) {
 	require.NoError(t, manager.Reserve("sandbox-1", "runc", 4096, 8192))
 	projectID := manager.ProjectID("sandbox-1")
 	assert.NotZero(t, projectID)
+	assert.GreaterOrEqual(t, projectID, hostlinux.AllocationProjectIDMin)
+	assert.LessOrEqual(t, projectID, hostlinux.AllocationProjectIDMax)
+	assert.NotEqual(t, hostlinux.FilestoreProbeProjectID, projectID)
 	require.NoError(t, manager.Reserve("sandbox-1", "runc", 4096, 8192))
 	require.ErrorContains(t, manager.Reserve("sandbox-1", "runc", 4096, 16384), "different writable reservation")
 

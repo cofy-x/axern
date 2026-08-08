@@ -11,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/durablefile"
 	"golang.org/x/sys/unix"
 )
 
@@ -113,43 +115,57 @@ func (m *writableCapacityManager) Reserve(containerID, runtimeName string, reque
 	if err := unix.Statfs(filepath.Dir(m.dir), &stat); err != nil {
 		return fmt.Errorf("stat writable filestore: %w", err)
 	}
-	available := int64(stat.Bavail) * int64(stat.Bsize)
+	available := hostlinux.StatfsBytes(uint64(stat.Bavail), int64(stat.Bsize))
+	capacity := hostlinux.StatfsBytes(uint64(stat.Blocks), int64(stat.Bsize))
 	committed := int64(0)
 	for _, reservation := range m.reservations {
-		committed += reservation.RequestBytes
+		committed = hostlinux.SaturatingAdd(committed, reservation.RequestBytes)
 	}
-	if requestBytes > available-m.systemReserve || requestBytes > (int64(stat.Blocks)*int64(stat.Bsize))-m.systemReserve-committed {
-		metrics.RecordWritableLayerOperation(runtimeName, "reserve", "insufficient_capacity")
+	if requestBytes > hostlinux.RemainingCapacity(available, m.systemReserve) || requestBytes > hostlinux.RemainingCapacity(capacity, m.systemReserve, committed) {
+		metrics.RecordEphemeralStorageOperation(runtimeName, "reserve", "insufficient_capacity")
 		return fmt.Errorf("insufficient writable layer capacity: request=%d available=%d system_reserve=%d committed=%d", requestBytes, available, m.systemReserve, committed)
 	}
 	projectID := uint32(0)
 	if runtimeName == "runc" {
-		projectID = m.allocateProjectID(containerID)
+		allocatedProjectID, err := m.allocateProjectID(containerID)
+		if err != nil {
+			return err
+		}
+		projectID = allocatedProjectID
 	}
 	reservation := writableReservation{ContainerID: containerID, RuntimeName: runtimeName, RequestBytes: requestBytes, LimitBytes: limitBytes, ProjectID: projectID, CreatedAt: time.Now().UTC()}
 	if err := writeJSONAtomic(m.dir, containerID+".json", reservation); err != nil {
-		metrics.RecordWritableLayerOperation(runtimeName, "reserve", "persistence_failure")
+		metrics.RecordEphemeralStorageOperation(runtimeName, "reserve", "persistence_failure")
 		return err
 	}
 	m.reservations[containerID] = reservation
-	metrics.RecordWritableLayerOperation(runtimeName, "reserve", "success")
+	metrics.RecordEphemeralStorageOperation(runtimeName, "reserve", "success")
 	return nil
 }
 
-func (m *writableCapacityManager) allocateProjectID(containerID string) uint32 {
+func (m *writableCapacityManager) allocateProjectID(containerID string) (uint32, error) {
 	used := make(map[uint32]struct{}, len(m.reservations))
 	for _, reservation := range m.reservations {
 		if reservation.ProjectID != 0 {
 			used[reservation.ProjectID] = struct{}{}
 		}
 	}
-	id := uint32(10000) + crc32.ChecksumIEEE([]byte(containerID))%2000000000
-	for {
-		if _, exists := used[id]; !exists {
-			return id
-		}
-		id++
+	rangeSize := uint64(hostlinux.AllocationProjectIDMax) - uint64(hostlinux.AllocationProjectIDMin) + 1
+	if uint64(len(used)) >= rangeSize {
+		return 0, fmt.Errorf("XFS project ID range is exhausted")
 	}
+	id := hostlinux.AllocationProjectIDMin + uint32(uint64(crc32.ChecksumIEEE([]byte(containerID)))%rangeSize)
+	for attempts := uint64(0); attempts < rangeSize; attempts++ {
+		if _, exists := used[id]; !exists {
+			return id, nil
+		}
+		if id == hostlinux.AllocationProjectIDMax {
+			id = hostlinux.AllocationProjectIDMin
+		} else {
+			id++
+		}
+	}
+	return 0, fmt.Errorf("XFS project ID range is exhausted")
 }
 
 func (m *writableCapacityManager) ProjectID(containerID string) uint32 {
@@ -225,7 +241,7 @@ func (m *writableCapacityManager) ValidateRuntimeReservations(runtimeName, conta
 			RequestBytes int64 `json:"request_bytes"`
 			LimitBytes   int64 `json:"limit_bytes"`
 		}
-		value := document.Annotations["io.axnoded.resource/writable-layer"]
+		value := document.Annotations["io.axnoded.resource/ephemeral-storage"]
 		if value == "" || json.Unmarshal([]byte(value), &annotation) != nil || annotation.RequestBytes != reservation.RequestBytes || annotation.LimitBytes != reservation.LimitBytes {
 			result = errors.Join(result, fmt.Errorf("writable reservation %s does not match its OCI annotation", reservation.ContainerID))
 		}
@@ -247,15 +263,15 @@ func (m *writableCapacityManager) Release(containerID string) error {
 		return nil
 	}
 	if err := os.Remove(filepath.Join(m.dir, containerID+".json")); err != nil && !os.IsNotExist(err) {
-		metrics.RecordWritableLayerOperation(reservation.RuntimeName, "release", "failure")
+		metrics.RecordEphemeralStorageOperation(reservation.RuntimeName, "release", "failure")
 		return fmt.Errorf("remove writable reservation: %w", err)
 	}
 	delete(m.reservations, containerID)
-	if err := syncDir(m.dir); err != nil {
-		metrics.RecordWritableLayerOperation(reservation.RuntimeName, "release", "failure")
+	if err := durablefile.SyncDir(m.dir); err != nil {
+		metrics.RecordEphemeralStorageOperation(reservation.RuntimeName, "release", "failure")
 		return err
 	}
-	metrics.RecordWritableLayerOperation(reservation.RuntimeName, "release", "success")
+	metrics.RecordEphemeralStorageOperation(reservation.RuntimeName, "release", "success")
 	return nil
 }
 
@@ -280,45 +296,5 @@ func writeJSONAtomic(dir, name string, value any) error {
 	if err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".reservation-*")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	ok := false
-	defer func() {
-		_ = tmp.Close()
-		if !ok {
-			_ = os.Remove(tmpName)
-		}
-	}()
-	if err := tmp.Chmod(0600); err != nil {
-		return err
-	}
-	if _, err := tmp.Write(data); err != nil {
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tmpName, filepath.Join(dir, name)); err != nil {
-		return err
-	}
-	if err := syncDir(dir); err != nil {
-		return err
-	}
-	ok = true
-	return nil
-}
-
-func syncDir(dir string) error {
-	file, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	return file.Sync()
+	return durablefile.Write(filepath.Join(dir, name), data, 0600)
 }

@@ -142,8 +142,8 @@ func validateNamespaceQuotaLimits(limits *quotav1.NamespaceQuotaLimits) error {
 	if limits.GetMemoryBytes() != nil && limits.GetMemoryBytes().GetValue() < 0 {
 		return grpcstatus.Error(codes.InvalidArgument, "limits.memory_bytes must be >= 0")
 	}
-	if limits.GetWritableLayerBytes() != nil && limits.GetWritableLayerBytes().GetValue() < 0 {
-		return grpcstatus.Error(codes.InvalidArgument, "limits.writable_layer_bytes must be >= 0")
+	if limits.GetEphemeralStorageBytes() != nil && limits.GetEphemeralStorageBytes().GetValue() < 0 {
+		return grpcstatus.Error(codes.InvalidArgument, "limits.ephemeral_storage_bytes must be >= 0")
 	}
 	return nil
 }

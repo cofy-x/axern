@@ -97,10 +97,10 @@ func (s *AxnodedSource) collectStorageInventory(now time.Time, snapshot *NodeInv
 				entry.AllocationUsedBytes = readVisibleWritableUsage(target.Path)
 				entry.UnlinkedBackingUsageUnknown = hasRunscReservations(filepath.Join(target.Path, "reservations"))
 				entry.FilesystemType, entry.MountIdentity = storageMountFacts(target.Path)
-				snapshot.Resources.WritableLayer.AxnodedCommittedBytes = entry.ReservedBytes
-				snapshot.Resources.WritableLayer.AxnodedUsedBytes = entry.AllocationUsedBytes
-				snapshot.Node.Capacity.WritableLayerBytes = entry.CapacityBytes
-				snapshot.Node.Allocatable.WritableLayerBytes = entry.AllocatableBytes
+				snapshot.Resources.EphemeralStorage.AxnodedCommittedBytes = entry.ReservedBytes
+				snapshot.Resources.EphemeralStorage.AxnodedUsedBytes = entry.AllocationUsedBytes
+				snapshot.Node.Capacity.EphemeralStorageBytes = entry.CapacityBytes
+				snapshot.Node.Allocatable.EphemeralStorageBytes = entry.AllocatableBytes
 			}
 			successes++
 		}

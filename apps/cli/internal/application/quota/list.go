@@ -75,18 +75,18 @@ func quotaUpdatedUnix(quota *quotav1.NamespaceQuota) int64 {
 }
 
 func quotaConstrained(quota *quotav1.NamespaceQuota) bool {
-	return quota.GetCpuMilliLimit() != nil || quota.GetMemoryBytesLimit() != nil || quota.GetWritableLayerBytesLimit() != nil
+	return quota.GetCpuMilliLimit() != nil || quota.GetMemoryBytesLimit() != nil || quota.GetEphemeralStorageBytesLimit() != nil
 }
 
 func quotaReserved(quota *quotav1.NamespaceQuota) bool {
-	return quota.GetReservedCpuMilli() > 0 || quota.GetReservedMemoryBytes() > 0 || quota.GetReservedWritableLayerBytes() > 0
+	return quota.GetReservedCpuMilli() > 0 || quota.GetReservedMemoryBytes() > 0 || quota.GetReservedEphemeralStorageBytes() > 0
 }
 
 func quotaPressurePercent(quota *quotav1.NamespaceQuota) int64 {
 	return max(
 		quotaUsagePercent(quota.GetReservedCpuMilli(), quota.GetCpuMilliLimit()),
 		quotaUsagePercent(quota.GetReservedMemoryBytes(), quota.GetMemoryBytesLimit()),
-		quotaUsagePercent(quota.GetReservedWritableLayerBytes(), quota.GetWritableLayerBytesLimit()),
+		quotaUsagePercent(quota.GetReservedEphemeralStorageBytes(), quota.GetEphemeralStorageBytesLimit()),
 	)
 }
 

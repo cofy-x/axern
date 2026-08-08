@@ -11,10 +11,10 @@ export type ResourceQuantity = string | number;
 export interface ResourceOptions {
   requestCpu?: ResourceQuantity;
   requestMemory?: ResourceQuantity;
-  requestWritableLayer?: ResourceQuantity;
+  requestEphemeralStorage?: ResourceQuantity;
   limitCpu?: ResourceQuantity;
   limitMemory?: ResourceQuantity;
-  limitWritableLayer?: ResourceQuantity;
+  limitEphemeralStorage?: ResourceQuantity;
 }
 
 export function buildResourceSpec(options: ResourceOptions): Record<string, unknown> | undefined {
@@ -23,16 +23,16 @@ export function buildResourceSpec(options: ResourceOptions): Record<string, unkn
     options.requestCpu,
     "requestMemory",
     options.requestMemory,
-    "requestWritableLayer",
-    options.requestWritableLayer,
+    "requestEphemeralStorage",
+    options.requestEphemeralStorage,
   );
   const limits = resourceQuantity(
     "limitCpu",
     options.limitCpu,
     "limitMemory",
     options.limitMemory,
-    "limitWritableLayer",
-    options.limitWritableLayer,
+    "limitEphemeralStorage",
+    options.limitEphemeralStorage,
   );
   if (requests === undefined && limits === undefined) {
     return undefined;
@@ -45,19 +45,19 @@ function resourceQuantity(
   cpuValue: ResourceQuantity | undefined,
   memoryName: string,
   memoryValue: ResourceQuantity | undefined,
-  writableName: string,
-  writableValue: ResourceQuantity | undefined,
+  ephemeralStorageName: string,
+  ephemeralStorageValue: ResourceQuantity | undefined,
 ): Record<string, number> | undefined {
   const cpu = parseCpuQuantity(cpuName, cpuValue);
   const memory = parseMemoryQuantity(memoryName, memoryValue);
-  const writable = parseMemoryQuantity(writableName, writableValue);
-  if (cpu <= 0 && memory <= 0 && writable <= 0) {
+  const ephemeralStorage = parseMemoryQuantity(ephemeralStorageName, ephemeralStorageValue);
+  if (cpu <= 0 && memory <= 0 && ephemeralStorage <= 0) {
     return undefined;
   }
   return {
     cpu_milli: cpu,
     memory_bytes: memory,
-    writable_layer_bytes: writable,
+    ephemeral_storage_bytes: ephemeralStorage,
   };
 }
 

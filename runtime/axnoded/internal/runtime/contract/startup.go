@@ -42,6 +42,7 @@ const (
 	StartupStepRuntimeWaitStart      StartupStep = "runtime_wait_start"
 	StartupStepRuntimeExitMonitor    StartupStep = "runtime_exit_monitor"
 	StartupStepSandboxdWaitReady     StartupStep = "sandboxd_wait_ready"
+	StartupStepRuntimeEnforcement    StartupStep = "runtime_enforcement_verify"
 	StartupStepRuntimeRestore        StartupStep = "runtime_restore"
 )
 

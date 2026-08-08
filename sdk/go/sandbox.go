@@ -15,28 +15,28 @@ var defaultSandboxArgv = []string{"/bin/sh", "-lc", "sleep infinity"}
 
 // SandboxOptions describes the service-backed sandbox to create or attach to.
 type SandboxOptions struct {
-	Client               *Client
-	TemplateID           string
-	Image                string
-	EnvironmentID        string
-	Namespace            string
-	Argv                 []string
-	Env                  map[string]string
-	Cwd                  string
-	RuntimeClass         string
-	Volumes              []VolumeMount
-	ImageMounts          []ImageMount
-	WorkspaceImage       *WorkspaceImageSource
-	RequestCPU           ResourceQuantity
-	RequestMemory        ResourceQuantity
-	RequestWritableLayer ResourceQuantity
-	LimitCPU             ResourceQuantity
-	LimitMemory          ResourceQuantity
-	LimitWritableLayer   ResourceQuantity
-	ReadyTimeout         time.Duration
-	Labels               map[string]string
-	RegistryCredentialID string
-	RootFSReadonly       bool
+	Client                  *Client
+	TemplateID              string
+	Image                   string
+	EnvironmentID           string
+	Namespace               string
+	Argv                    []string
+	Env                     map[string]string
+	Cwd                     string
+	RuntimeClass            string
+	Volumes                 []VolumeMount
+	ImageMounts             []ImageMount
+	WorkspaceImage          *WorkspaceImageSource
+	RequestCPU              ResourceQuantity
+	RequestMemory           ResourceQuantity
+	RequestEphemeralStorage ResourceQuantity
+	LimitCPU                ResourceQuantity
+	LimitMemory             ResourceQuantity
+	LimitEphemeralStorage   ResourceQuantity
+	ReadyTimeout            time.Duration
+	Labels                  map[string]string
+	RegistryCredentialID    string
+	RootFSReadonly          bool
 }
 
 // Sandbox is an SDK-owned programmable sandbox backed by an Axern service
@@ -101,22 +101,22 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		environmentID = s.environmentID
 	}
 	service, err := s.client.CreateService(ctx, CreateServiceOptions{
-		Namespace:            s.options.Namespace,
-		EnvironmentID:        environmentID,
-		Argv:                 sandboxArgv(s.options.Argv),
-		Env:                  s.options.Env,
-		Cwd:                  s.options.Cwd,
-		RuntimeClass:         s.options.RuntimeClass,
-		Volumes:              s.options.Volumes,
-		ImageMounts:          s.options.ImageMounts,
-		WorkspaceImage:       s.options.WorkspaceImage,
-		RequestCPU:           s.options.RequestCPU,
-		RequestMemory:        s.options.RequestMemory,
-		RequestWritableLayer: s.options.RequestWritableLayer,
-		LimitCPU:             s.options.LimitCPU,
-		LimitMemory:          s.options.LimitMemory,
-		LimitWritableLayer:   s.options.LimitWritableLayer,
-		Labels:               sandboxLabels(s.options.Labels),
+		Namespace:               s.options.Namespace,
+		EnvironmentID:           environmentID,
+		Argv:                    sandboxArgv(s.options.Argv),
+		Env:                     s.options.Env,
+		Cwd:                     s.options.Cwd,
+		RuntimeClass:            s.options.RuntimeClass,
+		Volumes:                 s.options.Volumes,
+		ImageMounts:             s.options.ImageMounts,
+		WorkspaceImage:          s.options.WorkspaceImage,
+		RequestCPU:              s.options.RequestCPU,
+		RequestMemory:           s.options.RequestMemory,
+		RequestEphemeralStorage: s.options.RequestEphemeralStorage,
+		LimitCPU:                s.options.LimitCPU,
+		LimitMemory:             s.options.LimitMemory,
+		LimitEphemeralStorage:   s.options.LimitEphemeralStorage,
+		Labels:                  sandboxLabels(s.options.Labels),
 	})
 	if err != nil {
 		_ = s.Close(ctx)
@@ -346,7 +346,7 @@ func validateSandboxOptions(options SandboxOptions) error {
 	if _, err := parseMemoryQuantity("request_memory", options.RequestMemory); err != nil {
 		return err
 	}
-	if _, err := parseMemoryQuantity("request_writable_layer", options.RequestWritableLayer); err != nil {
+	if _, err := parseMemoryQuantity("request_ephemeral_storage", options.RequestEphemeralStorage); err != nil {
 		return err
 	}
 	if _, err := parseCPUQuantity("limit_cpu", options.LimitCPU); err != nil {
@@ -355,7 +355,7 @@ func validateSandboxOptions(options SandboxOptions) error {
 	if _, err := parseMemoryQuantity("limit_memory", options.LimitMemory); err != nil {
 		return err
 	}
-	if _, err := parseMemoryQuantity("limit_writable_layer", options.LimitWritableLayer); err != nil {
+	if _, err := parseMemoryQuantity("limit_ephemeral_storage", options.LimitEphemeralStorage); err != nil {
 		return err
 	}
 	if err := validateImageMounts(options.ImageMounts); err != nil {
