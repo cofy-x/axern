@@ -6,6 +6,7 @@ cd "${ROOT_DIR}"
 . "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 NAT_BACKEND="${NAT_BACKEND:-iptables}"
 VOLUMED_LOG="${VOLUMED_LOG:-/tmp/volumed-dashboard.log}"
+VERIFY_NGINX_ROOTFS_IMAGE="${VERIFY_NGINX_ROOTFS_IMAGE:-/var/lib/axnoded/verify-dashboard-nginx-rootfs.ext4}"
 setup_node_runtime_volume_defaults
 
 ensure_bpf_fs() {
@@ -45,29 +46,61 @@ recycle_policy = "destroy"
 image_lib_dir = "/var/lib/axnoded/rootfs"
 image_manager_enabled = false
 volume_manager_socket = "${VOLUMED_SOCKET}"
-ignore_cgroups = true
+cgroup_enforcement = "disabled_dev"
+filestore_mode = "loopback_dev"
+filestore_dir = "/var/lib/axnoded/filestore"
+filestore_loopback_image = "/var/lib/axnoded/filestore.xfs"
+filestore_loopback_size_bytes = 1073741824
+filestore_system_reserve_bytes = 67108864
+writable_layer_default_limit_bytes = 268435456
 
 [plugin.runtime.runtimes.runsc]
 binary = "/usr/local/bin/runsc"
 
 [plugin.runtime.runtimes.runsc.options]
-ignore_cgroups = true
 
 [plugin.runtime.runtimes.runc]
 binary = "/usr/bin/runc"
 EOF
 
-mkdir -p /var/lib/axnoded/root /var/lib/axnoded/store /var/lib/axnoded/rootfs /run/axnoded /tmp/runsc
+mkdir -p \
+  /var/lib/axnoded/root \
+  /var/lib/axnoded/store \
+  /var/lib/axnoded/rootfs \
+  /var/lib/axnoded/filestore \
+  /run/axnoded \
+  /tmp/runsc
 
 AXNODED_PID=""
+rootfs_staging_dir=""
 cleanup() {
   if [ -n "${AXNODED_PID}" ] && kill -0 "${AXNODED_PID}" >/dev/null 2>&1; then
     kill "${AXNODED_PID}" >/dev/null 2>&1 || true
     wait "${AXNODED_PID}" >/dev/null 2>&1 || true
   fi
   stop_node_runtime_volumed
+  umount /opt/nginx-rootfs >/dev/null 2>&1 || true
+  if [ -n "${rootfs_staging_dir}" ]; then
+    umount "${rootfs_staging_dir}" >/dev/null 2>&1 || true
+    rmdir "${rootfs_staging_dir}" >/dev/null 2>&1 || true
+  fi
+  rm -f "${VERIFY_NGINX_ROOTFS_IMAGE}"
 }
 trap cleanup EXIT
+
+# The image-baked nginx fixture is a subdirectory of Docker's OverlayFS. Its
+# host-side lower paths are not reachable from this mount namespace, so replaying
+# that lower chain would be unsafe. Give the demo the same independent readonly
+# backing used by the runtime truth-path verification.
+rootfs_staging_dir="$(mktemp -d /tmp/axnoded-dashboard-rootfs-staging.XXXXXX)"
+truncate -s 536870912 "${VERIFY_NGINX_ROOTFS_IMAGE}"
+mkfs.ext4 -q -F "${VERIFY_NGINX_ROOTFS_IMAGE}"
+mount -o loop "${VERIFY_NGINX_ROOTFS_IMAGE}" "${rootfs_staging_dir}"
+cp -a /opt/nginx-rootfs/. "${rootfs_staging_dir}/"
+umount "${rootfs_staging_dir}"
+rmdir "${rootfs_staging_dir}"
+rootfs_staging_dir=""
+mount -o loop,ro "${VERIFY_NGINX_ROOTFS_IMAGE}" /opt/nginx-rootfs
 
 start_node_runtime_volumed
 

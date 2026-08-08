@@ -16,7 +16,8 @@ import (
 func TestRuncPrepareCreateRequestClearsCgroupOptionsWhenIgnored(t *testing.T) {
 	handler := &RuncServiceHandler{ignoreCgroups: true}
 	request := &apipb.CreateContainerRequest{
-		Resource: &runtimeapi.LinuxContainerResources{MemoryLimitInBytes: 1024},
+		Resource: &runtimeapi.LinuxContainerResources{CpuShares: 1024},
+		Rootfs:   &apipb.Rootfs{Readonly: true},
 	}
 
 	effective, options, err := handler.prepareCreateRequest(request, contract.HandlerOptions{
@@ -31,20 +32,19 @@ func TestRuncPrepareCreateRequestClearsCgroupOptionsWhenIgnored(t *testing.T) {
 	assert.Empty(t, options.RuntimeCgroupPath)
 }
 
-func TestRuncPrepareCreateRequestKeepsEmptyCgroupPathWhenCgroupsEnabled(t *testing.T) {
+func TestRuncPrepareCreateRequestRejectsMissingRequiredCgroup(t *testing.T) {
 	request := &apipb.CreateContainerRequest{
-		Resource: &runtimeapi.LinuxContainerResources{MemoryLimitInBytes: 1024},
+		Resource: &runtimeapi.LinuxContainerResources{CpuShares: 1024},
+		Rootfs:   &apipb.Rootfs{Readonly: true},
 	}
 
-	effective, options, err := (&RuncServiceHandler{}).prepareCreateRequest(request, contract.HandlerOptions{})
+	effective, _, err := (&RuncServiceHandler{}).prepareCreateRequest(request, contract.HandlerOptions{})
 
-	assert.NoError(t, err)
-	assert.Same(t, request, effective)
-	assert.Empty(t, options.CgroupPath)
-	assert.Empty(t, options.RuntimeCgroupPath)
+	assert.ErrorContains(t, err, "no sandbox cgroup was allocated")
+	assert.Nil(t, effective)
 }
 
-func TestRuncCreateContainerSkipsCgroupUpdateWhenIgnoreCgroupsEnabled(t *testing.T) {
+func TestRuncCreateContainerRejectsMemoryLimitWhenCgroupsDisabled(t *testing.T) {
 	rootDir := t.TempDir()
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
 	if err != nil {
@@ -71,17 +71,5 @@ func TestRuncCreateContainerSkipsCgroupUpdateWhenIgnoreCgroupsEnabled(t *testing
 		CgroupPath:  "/sandbox/test",
 		RootfsType:  contract.StartupRootfsTypeLocal,
 	})
-	if err != nil {
-		t.Fatalf("CreateContainer() error = %v", err)
-	}
-
-	bundlePath := filepath.Join(rootDir, "containers", "runc-ignore-cgroups")
-	ociSpec, err := runtimeoci.LoadSpec(filepath.Join(bundlePath, config.ContainerSpecFile))
-	if err != nil {
-		t.Fatalf("load spec: %v", err)
-	}
-	if ociSpec.Linux == nil {
-		t.Fatalf("expected linux section in spec")
-	}
-	assert.Empty(t, ociSpec.Linux.CgroupsPath)
+	assert.ErrorContains(t, err, "memory limit requires cgroup enforcement")
 }

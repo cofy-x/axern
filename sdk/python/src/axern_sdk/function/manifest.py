@@ -137,17 +137,23 @@ def _resources(value: Any) -> FunctionResources:
     result = FunctionResources(
         request_cpu=requests.get("cpu", ""),
         request_memory=requests.get("memory", ""),
+        request_writable_layer=requests.get("writable_layer", ""),
         limit_cpu=limits.get("cpu", ""),
         limit_memory=limits.get("memory", ""),
+        limit_writable_layer=limits.get("writable_layer", ""),
     )
     if result.request_cpu:
         cpu_milli("spec.resources.requests.cpu", result.request_cpu)
     if result.request_memory:
         memory_bytes("spec.resources.requests.memory", result.request_memory)
+    if result.request_writable_layer:
+        memory_bytes("spec.resources.requests.writable_layer", result.request_writable_layer)
     if result.limit_cpu:
         cpu_milli("spec.resources.limits.cpu", result.limit_cpu)
     if result.limit_memory:
         memory_bytes("spec.resources.limits.memory", result.limit_memory)
+    if result.limit_writable_layer:
+        memory_bytes("spec.resources.limits.writable_layer", result.limit_writable_layer)
     return result
 
 
@@ -155,8 +161,8 @@ def _quantity(label: str, value: Any) -> Mapping[str, str]:
     if value is None:
         return {}
     data = _object(label, value)
-    _reject_unknown(label, data, {"cpu", "memory"})
-    return {key: _optional_string(data, key, label) for key in ("cpu", "memory")}
+    _reject_unknown(label, data, {"cpu", "memory", "writable_layer"})
+    return {key: _optional_string(data, key, label) for key in ("cpu", "memory", "writable_layer")}
 
 
 def _scaling(value: Any) -> FunctionScaling:

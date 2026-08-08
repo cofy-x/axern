@@ -19,8 +19,9 @@ const (
 type quotaDiagnosticResource string
 
 const (
-	quotaDiagnosticResourceCPU    quotaDiagnosticResource = "cpu"
-	quotaDiagnosticResourceMemory quotaDiagnosticResource = "memory"
+	quotaDiagnosticResourceCPU           quotaDiagnosticResource = "cpu"
+	quotaDiagnosticResourceMemory        quotaDiagnosticResource = "memory"
+	quotaDiagnosticResourceWritableLayer quotaDiagnosticResource = "writable_layer"
 )
 
 type quotaDiagnosticUnit string
@@ -52,6 +53,9 @@ func quotaRejectionMessage(namespace string, evaluation resourcekernel.QuotaEval
 	if evaluation.Memory.Requested > 0 && !evaluation.Memory.Fits {
 		parts = append(parts, quotaResourceMessage(quotaDiagnosticResourceMemory, quotaDiagnosticUnitBytes, evaluation.Memory))
 	}
+	if evaluation.WritableLayer.Requested > 0 && !evaluation.WritableLayer.Fits {
+		parts = append(parts, quotaResourceMessage(quotaDiagnosticResourceWritableLayer, quotaDiagnosticUnitBytes, evaluation.WritableLayer))
+	}
 	return strings.Join(parts, " ")
 }
 
@@ -82,7 +86,7 @@ func quotaRejectionMetadata(namespace string, evaluation resourcekernel.QuotaEva
 		"namespace":       namespace,
 		"diagnostic_code": string(resourcekernel.AdmissionDiagnosticNamespaceQuotaExceeded),
 	}
-	resources := make([]string, 0, 2)
+	resources := make([]string, 0, 3)
 	if evaluation.CPU.Requested > 0 && !evaluation.CPU.Fits {
 		resources = append(resources, string(quotaDiagnosticResourceCPU))
 		addQuotaResourceMetadata(metadata, quotaDiagnosticResourceCPU, quotaDiagnosticUnitMilli, evaluation.CPU)
@@ -90,6 +94,10 @@ func quotaRejectionMetadata(namespace string, evaluation resourcekernel.QuotaEva
 	if evaluation.Memory.Requested > 0 && !evaluation.Memory.Fits {
 		resources = append(resources, string(quotaDiagnosticResourceMemory))
 		addQuotaResourceMetadata(metadata, quotaDiagnosticResourceMemory, quotaDiagnosticUnitBytes, evaluation.Memory)
+	}
+	if evaluation.WritableLayer.Requested > 0 && !evaluation.WritableLayer.Fits {
+		resources = append(resources, string(quotaDiagnosticResourceWritableLayer))
+		addQuotaResourceMetadata(metadata, quotaDiagnosticResourceWritableLayer, quotaDiagnosticUnitBytes, evaluation.WritableLayer)
 	}
 	if len(resources) > 0 {
 		metadata["resources"] = strings.Join(resources, ",")

@@ -10,6 +10,13 @@ const RuntimeNameRunsc = "runsc"
 // RuntimeNameRunc is the name of runc runtime.
 const RuntimeNameRunc = "runc"
 
+const (
+	FilestoreModeExisting        = "existing"
+	FilestoreModeLoopbackDev     = "loopback_dev"
+	CgroupEnforcementRequired    = "required"
+	CgroupEnforcementDisabledDev = "disabled_dev"
+)
+
 // Sandbox service related constants.
 const (
 	UnknownVersion = "unknown"

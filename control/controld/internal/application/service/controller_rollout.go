@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
@@ -29,7 +30,11 @@ func (c *controller) reconcileRollout(ctx context.Context, current *servicev1.Se
 
 func (c *controller) admitRolloutReplacement(ctx context.Context, current *servicev1.Service, env *environmentv1.Environment, now time.Time) (bool, *servicev1.Service, error) {
 	stageStarted := time.Now()
-	candidates, err := c.selector.SelectCandidates(ctx, env, current.GetConfig())
+	resolvedConfig, err := executionkernel.NormalizeConfigForRootfs(current.GetConfig(), env.GetResolvedTemplate().GetRootfsReadonly())
+	if err != nil {
+		return true, current, err
+	}
+	candidates, err := c.selector.SelectCandidates(ctx, env, resolvedConfig)
 	c.recordReplicaStage(ctx, serviceReplicaPathRolloutReplacement, serviceReplicaStageSelectCandidates, stageStarted, err)
 	if err != nil {
 		if !serviceAdmissionBlocked(err) {
@@ -55,7 +60,7 @@ func (c *controller) admitRolloutReplacement(ctx context.Context, current *servi
 		return true, current, nil
 	}
 	stageStarted = time.Now()
-	next, alloc, err := c.allocations.AdmitAllocation(ctx, current.GetID(), current.GetConfig(), candidates, now)
+	next, alloc, err := c.allocations.AdmitAllocation(ctx, current.GetID(), resolvedConfig, candidates, now)
 	c.recordReplicaStage(ctx, serviceReplicaPathRolloutReplacement, serviceReplicaStageAdmitAllocation, stageStarted, err)
 	if err != nil {
 		if !serviceAdmissionBlocked(err) {

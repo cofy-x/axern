@@ -350,8 +350,10 @@ class AsyncAxernClient:
         runtime_class: str = "",
         request_cpu: ResourceQuantity = "",
         request_memory: ResourceQuantity = "",
+        request_writable_layer: ResourceQuantity = "",
         limit_cpu: ResourceQuantity = "",
         limit_memory: ResourceQuantity = "",
+        limit_writable_layer: ResourceQuantity = "",
         node_selector: dict[str, str] | None = None,
         volume_mounts: Iterable[ServiceVolumeMountInput] | None = None,
         readiness_probe: ServiceProbeInput | None = None,
@@ -375,8 +377,10 @@ class AsyncAxernClient:
                     resources=_resource_spec(
                         request_cpu=request_cpu,
                         request_memory=request_memory,
+                        request_writable_layer=request_writable_layer,
                         limit_cpu=limit_cpu,
                         limit_memory=limit_memory,
+                        limit_writable_layer=limit_writable_layer,
                     ),
                     placement=common_pb2.PlacementConstraints(
                         node_selector=dict(node_selector or {}),

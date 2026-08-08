@@ -1,0 +1,85 @@
+# Runtime Rootfs And Writable Storage Contract
+
+Axern treats the lower rootfs as immutable input. It may be a directory, an
+existing OverlayFS view, Nydus, or EROFS. Runtime behavior is selected from OCI
+semantics, observed mount facts, and the runtime policy; it is not selected by
+an image-product type switch.
+
+## Three independent boundaries
+
+1. Host mount-target projection creates only missing bind targets before OCI
+   create. Runsc receives it only when a target is missing. Runc receives it
+   when a target is missing or whenever the OCI root is writable.
+2. Guest writable rootfs is a file-backed gVisor overlay for runsc and a
+   sandbox-private host OverlayFS plus XFS project quota for runc.
+3. The cgroup memory boundary accounts workload anonymous memory, shmem,
+   runtime processes, and file-backed page cache. Filestore size and quota are
+   storage controls and never substitute for memory enforcement.
+
+## Runtime-provided system files
+
+`/etc/hostname`, `/etc/hosts`, and `/etc/resolv.conf` form one OCI sandbox
+contract for runc and runsc. Exact destinations, a parent destination, and `/`
+own their subtree; `/etc2` does not own `/etc`. An explicit owner suppresses
+the corresponding default source, mount, IP requirement, and resolver work.
+
+Default hosts contain IPv4 and IPv6 localhost entries and map the effective
+hostname to the allocated sandbox IPv4. A missing or invalid interface IPv4 is
+a create error when the default hosts file is required. Sources live under the
+bundle-private `sandbox-files` directory. Sources and `config.json` use
+chmod/write/file-fsync/close/rename/parent-fsync atomic replacement. Axnoded
+never copies the node `/etc` tree and never creates targets in the lower rootfs.
+
+## Projection and backing facts
+
+The provider inspects `/proc/self/mountinfo`, records the deepest covering mount
+ID, filesystem type, mount root, source, readonly state, and effective lower
+chain, and persists those facts in `projection.json`. EROFS is one atomic
+immutable lower. For OverlayFS, the active upper is placed before lowerdirs and
+mount-root offsets are preserved. Unsafe mountinfo or overlay-option encoding
+is rejected.
+
+Every bind source must be a regular file or directory. Destinations must be
+normalized absolute container paths. Parent and leaf symlinks, special files,
+non-directory parents, and source/target type mismatches are rejected. Missing
+parents copy mode/UID/GID from existing lower parents; genuinely new parents
+are root:root `0755`. Arbitrary xattrs, ACLs, devices, FIFOs, and sockets are
+never copied.
+
+Artifacts are partitioned as `projections/<id>`, `runc/<id>`, and `runsc` under
+the filestore. The OCI readonly bit is preserved exactly. Imagemgr's active
+rootfs reference is the lower mount lease; its lease ID is also recorded in the
+projection manifest for reconciliation.
+
+## Writable layers and quota
+
+Writable runsc roots must launch with exactly:
+
+```text
+--overlay2=root:dir=<filestore>/runsc,size=<resolved-limit-bytes>
+```
+
+There is no `root:memory`, direct-write, self-backing, or representation-based
+fallback. Writable runc roots always use a host OverlayFS and require a durable
+project ID plus an XFS project hard quota. Ext4 can host runsc and target-only
+projections but does not publish runc writable hard-limit capability.
+
+The node-local reservation ledger is fsync/rename durable and checks both
+committed requests and live `statfs` availability after the system reserve.
+The reservation, limit, runtime, project ID, and OCI annotation are available
+to restart reconciliation. Compressed EROFS copy-up is charged by actual upper
+usage; lower compressed size is not a capacity estimate.
+
+## Readiness, capability, and cleanup
+
+Filestore startup performs a real OverlayFS scratch mount and XFS project-quota
+probe. If an EROFS fixture is installed, it mounts the real image and exercises
+read, copy-up, create, whiteout, and directory operations using the production
+upper filesystem. Only successful probes publish the corresponding capability.
+Memory hard-limit capability is published only after a real sandbox passes
+limit readback and runtime PID-attribution verification.
+
+Cleanup order is runtime delete, projection/host-overlay unmount, upper/work
+removal, writable reservation/project-ID release, then image mount lease
+release. If runtime delete fails and the process may still live, the projection,
+reservation, project ID, and lower lease remain for reconciliation.

@@ -11,18 +11,20 @@ import (
 )
 
 type reservationRejectionDiagnostics struct {
-	limit          int
-	details        []reservationRejectionDetail
-	omitted        int
-	rejectedCPU    bool
-	rejectedMemory bool
-	rejectedSlots  bool
+	limit                 int
+	details               []reservationRejectionDetail
+	omitted               int
+	rejectedCPU           bool
+	rejectedMemory        bool
+	rejectedWritableLayer bool
+	rejectedSlots         bool
 }
 
 type reservationRejectionDetail struct {
 	NodeID             string
 	CPU                *resourcekernel.ResourceEvaluation
 	Memory             *resourcekernel.ResourceEvaluation
+	WritableLayer      *resourcekernel.ResourceEvaluation
 	CPUOvercommitRatio float64
 	RuntimeSlots       *runtimeSlotEvaluation
 }
@@ -55,6 +57,9 @@ func (d *reservationRejectionDiagnostics) AddCandidate(nodeID string, policy res
 	}
 	if evaluation.Memory.Requested > 0 && !evaluation.Memory.Fits {
 		d.rejectedMemory = true
+	}
+	if evaluation.WritableLayer.Requested > 0 && !evaluation.WritableLayer.Fits {
+		d.rejectedWritableLayer = true
 	}
 	if slots.Known && !slots.Fits {
 		d.rejectedSlots = true
@@ -108,6 +113,9 @@ func (d reservationRejectionDiagnostics) rejectedResources() []string {
 	if d.rejectedMemory {
 		resources = append(resources, "memory")
 	}
+	if d.rejectedWritableLayer {
+		resources = append(resources, "writable_layer")
+	}
 	if d.rejectedSlots {
 		resources = append(resources, "runtime_slots")
 	}
@@ -124,6 +132,9 @@ func buildReservationRejectionDetail(nodeID string, policy resourcekernel.Admiss
 	}
 	if evaluation.Memory.Requested > 0 && !evaluation.Memory.Fits {
 		detail.Memory = &evaluation.Memory
+	}
+	if evaluation.WritableLayer.Requested > 0 && !evaluation.WritableLayer.Fits {
+		detail.WritableLayer = &evaluation.WritableLayer
 	}
 	return detail
 }
@@ -146,6 +157,10 @@ func (d reservationRejectionDetail) Message() string {
 			d.Memory.EffectiveAllocatable,
 			d.Memory.Available,
 		))
+	}
+	if d.WritableLayer != nil {
+		parts = append(parts, fmt.Sprintf("writable_layer requested_bytes=%d reserved_bytes=%d effective_allocatable_bytes=%d available_bytes=%d",
+			d.WritableLayer.Requested, d.WritableLayer.Used, d.WritableLayer.EffectiveAllocatable, d.WritableLayer.Available))
 	}
 	if d.RuntimeSlots != nil {
 		parts = append(parts, fmt.Sprintf("runtime_slots requested=1 reserved=%d active=%d pool_using=%d occupied=%d capacity=%d available=%d",

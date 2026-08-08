@@ -11,12 +11,15 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 	summary := &nodev1.NodeSummary{
 		CollectedAt: timestamppb.New(snapshot.Node.CollectedAt),
 		Resources: &nodev1.ResourcesSummary{
-			AxnodedCommittedMilli:       snapshot.Resources.CPU.AxnodedCommittedMilli,
-			AxnodedUsedMilli:            snapshot.Resources.CPU.AxnodedUsedMilli,
-			AxnodedCpuUnboundedCount:    snapshot.Resources.CPU.AxnodedUnboundedCount,
-			AxnodedCommittedBytes:       snapshot.Resources.Memory.AxnodedCommittedBytes,
-			AxnodedUsedBytes:            snapshot.Resources.Memory.AxnodedUsedBytes,
-			AxnodedMemoryUnboundedCount: snapshot.Resources.Memory.AxnodedUnboundedCount,
+			AxnodedCommittedMilli:              snapshot.Resources.CPU.AxnodedCommittedMilli,
+			AxnodedUsedMilli:                   snapshot.Resources.CPU.AxnodedUsedMilli,
+			AxnodedCpuUnboundedCount:           snapshot.Resources.CPU.AxnodedUnboundedCount,
+			AxnodedCommittedBytes:              snapshot.Resources.Memory.AxnodedCommittedBytes,
+			AxnodedUsedBytes:                   snapshot.Resources.Memory.AxnodedUsedBytes,
+			AxnodedMemoryUnboundedCount:        snapshot.Resources.Memory.AxnodedUnboundedCount,
+			AxnodedWritableLayerCommittedBytes: snapshot.Resources.WritableLayer.AxnodedCommittedBytes,
+			AxnodedWritableLayerUsedBytes:      snapshot.Resources.WritableLayer.AxnodedUsedBytes,
+			AxnodedWritableLayerUnboundedCount: snapshot.Resources.WritableLayer.AxnodedUnboundedCount,
 		},
 		Pools: &nodev1.PoolsSummary{
 			RuntimeSlots: &nodev1.PoolState{
@@ -87,12 +90,12 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 		Labels:       cloneNodeLabels(snapshot.Node.Labels),
 		Capabilities: append([]string(nil), snapshot.Node.Capabilities...),
 		Capacity: &commonv1.ResourceQuantity{
-			CpuMilli:    snapshot.Node.Capacity.CpuMilli,
-			MemoryBytes: snapshot.Node.Capacity.MemoryBytes,
+			CpuMilli: snapshot.Node.Capacity.CpuMilli, MemoryBytes: snapshot.Node.Capacity.MemoryBytes,
+			WritableLayerBytes: snapshot.Node.Capacity.WritableLayerBytes,
 		},
 		Allocatable: &commonv1.ResourceQuantity{
-			CpuMilli:    snapshot.Node.Allocatable.CpuMilli,
-			MemoryBytes: snapshot.Node.Allocatable.MemoryBytes,
+			CpuMilli: snapshot.Node.Allocatable.CpuMilli, MemoryBytes: snapshot.Node.Allocatable.MemoryBytes,
+			WritableLayerBytes: snapshot.Node.Allocatable.WritableLayerBytes,
 		},
 		Storage: make([]*nodev1.NodeStorageSummary, 0, len(snapshot.Storage)),
 	}
@@ -119,15 +122,23 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 	}
 	for _, entry := range snapshot.Storage {
 		summary.Storage = append(summary.Storage, &nodev1.NodeStorageSummary{
-			Target:          entry.Target,
-			CapacityBytes:   entry.CapacityBytes,
-			UsedBytes:       entry.UsedBytes,
-			AvailableBytes:  entry.AvailableBytes,
-			InodesTotal:     entry.InodesTotal,
-			InodesUsed:      entry.InodesUsed,
-			InodesAvailable: entry.InodesAvailable,
-			Collected:       entry.Collected,
-			Error:           entry.Error,
+			Target:                      entry.Target,
+			CapacityBytes:               entry.CapacityBytes,
+			UsedBytes:                   entry.UsedBytes,
+			AvailableBytes:              entry.AvailableBytes,
+			InodesTotal:                 entry.InodesTotal,
+			InodesUsed:                  entry.InodesUsed,
+			InodesAvailable:             entry.InodesAvailable,
+			Collected:                   entry.Collected,
+			Error:                       entry.Error,
+			SystemReserveBytes:          entry.SystemReserveBytes,
+			ReservedBytes:               entry.ReservedBytes,
+			AllocatableBytes:            entry.AllocatableBytes,
+			ActiveReservations:          entry.ActiveReservations,
+			FilesystemType:              entry.FilesystemType,
+			MountIdentity:               entry.MountIdentity,
+			AllocationUsedBytes:         entry.AllocationUsedBytes,
+			UnlinkedBackingUsageUnknown: entry.UnlinkedBackingUsageUnknown,
 		})
 	}
 	return summary
@@ -197,6 +208,8 @@ func mountTypeToProto(mountType string) nodev1.MountType {
 		return nodev1.MountType_MOUNT_TYPE_NYDUS
 	case "oss":
 		return nodev1.MountType_MOUNT_TYPE_OSS
+	case "erofs":
+		return nodev1.MountType_MOUNT_TYPE_EROFS
 	default:
 		return nodev1.MountType_MOUNT_TYPE_UNSPECIFIED
 	}

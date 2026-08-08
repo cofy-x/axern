@@ -47,8 +47,10 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         runtime_class: str = "",
         request_cpu: ResourceQuantity = "",
         request_memory: ResourceQuantity = "",
+        request_writable_layer: ResourceQuantity = "",
         limit_cpu: ResourceQuantity = "",
         limit_memory: ResourceQuantity = "",
+        limit_writable_layer: ResourceQuantity = "",
         volumes: Iterable[VolumeMount] | None = None,
         upstream: str = "",
         remote_port: int | None = None,
@@ -74,8 +76,10 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         self._runtime_class = runtime_class
         self._request_cpu = request_cpu
         self._request_memory = request_memory
+        self._request_writable_layer = request_writable_layer
         self._limit_cpu = limit_cpu
         self._limit_memory = limit_memory
+        self._limit_writable_layer = limit_writable_layer
         self._volumes = tuple(volumes or ())
         self._upstream = upstream
         self._remote_port = remote_port
@@ -169,8 +173,10 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
                 runtime_class=self._runtime_class,
                 request_cpu=self._request_cpu,
                 request_memory=self._request_memory,
+                request_writable_layer=self._request_writable_layer,
                 limit_cpu=self._limit_cpu,
                 limit_memory=self._limit_memory,
+                limit_writable_layer=self._limit_writable_layer,
                 volume_mounts=self._volumes,
                 namespace=self._namespace,
                 labels=self._labels,

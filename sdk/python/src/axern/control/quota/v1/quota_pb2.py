@@ -26,7 +26,7 @@ from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__
 from google.protobuf import wrappers_pb2 as google_dot_protobuf_dot_wrappers__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"axern/control/quota/v1/quota.proto\x12\x16\x61xern.control.quota.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/wrappers.proto\"\xb5\x03\n\x0eNamespaceQuota\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x34\n\x0f\x63pu_milli_limit\x18\x02 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x37\n\x12memory_bytes_limit\x18\x03 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x1a\n\x12reserved_cpu_milli\x18\x04 \x01(\x03\x12\x1d\n\x15reserved_memory_bytes\x18\x05 \x01(\x03\x12\x38\n\x13\x61vailable_cpu_milli\x18\x06 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12;\n\x16\x61vailable_memory_bytes\x18\x07 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x0f\n\x07version\x18\x08 \x01(\x03\x12.\n\ncreated_at\x18\t \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\n \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\xd2\x05\n\x13NamespaceQuotaEvent\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tnamespace\x18\x02 \x01(\t\x12=\n\x04type\x18\x03 \x01(\x0e\x32/.axern.control.quota.v1.NamespaceQuotaEventType\x12N\n\rworkload_type\x18\x04 \x01(\x0e\x32\x37.axern.control.quota.v1.NamespaceQuotaEventWorkloadType\x12\x13\n\x0bworkload_id\x18\x05 \x01(\t\x12\x16\n\x0e\x65nvironment_id\x18\x06 \x01(\t\x12\x41\n\x06reason\x18\x07 \x01(\x0e\x32\x31.axern.control.quota.v1.NamespaceQuotaEventReason\x12\x1b\n\x13requested_cpu_milli\x18\x08 \x01(\x03\x12\x1a\n\x12reserved_cpu_milli\x18\t \x01(\x03\x12\x34\n\x0f\x63pu_milli_limit\x18\n \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x38\n\x13\x61vailable_cpu_milli\x18\x0b \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x1e\n\x16requested_memory_bytes\x18\x0c \x01(\x03\x12\x1d\n\x15reserved_memory_bytes\x18\r \x01(\x03\x12\x37\n\x12memory_bytes_limit\x18\x0e \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12;\n\x16\x61vailable_memory_bytes\x18\x0f \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x0f\n\x07message\x18\x10 \x01(\t\x12.\n\ncreated_at\x18\x11 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"-\n\x18GetNamespaceQuotaRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\"R\n\x19GetNamespaceQuotaResponse\x12\x35\n\x05quota\x18\x01 \x01(\x0b\x32&.axern.control.quota.v1.NamespaceQuota\"\x1c\n\x1aListNamespaceQuotasRequest\"U\n\x1bListNamespaceQuotasResponse\x12\x36\n\x06quotas\x18\x01 \x03(\x0b\x32&.axern.control.quota.v1.NamespaceQuota\"y\n\x14NamespaceQuotaLimits\x12.\n\tcpu_milli\x18\x01 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x31\n\x0cmemory_bytes\x18\x02 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\"k\n\x18SetNamespaceQuotaRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12<\n\x06limits\x18\x02 \x01(\x0b\x32,.axern.control.quota.v1.NamespaceQuotaLimits\"R\n\x19SetNamespaceQuotaResponse\x12\x35\n\x05quota\x18\x01 \x01(\x0b\x32&.axern.control.quota.v1.NamespaceQuota\"/\n\x1aUnsetNamespaceQuotaRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\"T\n\x1bUnsetNamespaceQuotaResponse\x12\x35\n\x05quota\x18\x01 \x01(\x0b\x32&.axern.control.quota.v1.NamespaceQuota\"C\n\x1fListNamespaceQuotaEventsRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\r\n\x05limit\x18\x02 \x01(\x05\"_\n ListNamespaceQuotaEventsResponse\x12;\n\x06\x65vents\x18\x01 \x03(\x0b\x32+.axern.control.quota.v1.NamespaceQuotaEvent*x\n\x17NamespaceQuotaEventType\x12*\n&NAMESPACE_QUOTA_EVENT_TYPE_UNSPECIFIED\x10\x00\x12\x31\n-NAMESPACE_QUOTA_EVENT_TYPE_ADMISSION_REJECTED\x10\x01*\xb4\x01\n\x1fNamespaceQuotaEventWorkloadType\x12\x33\n/NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_UNSPECIFIED\x10\x00\x12+\n\'NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN\x10\x01\x12/\n+NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_SERVICE\x10\x02*\xec\x01\n\x19NamespaceQuotaEventReason\x12,\n(NAMESPACE_QUOTA_EVENT_REASON_UNSPECIFIED\x10\x00\x12\x31\n-NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU\x10\x01\x12\x34\n0NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_MEMORY\x10\x02\x12\x38\n4NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU_MEMORY\x10\x03\x32\x9e\x05\n\x0cQuotaControl\x12z\n\x11GetNamespaceQuota\x12\x30.axern.control.quota.v1.GetNamespaceQuotaRequest\x1a\x31.axern.control.quota.v1.GetNamespaceQuotaResponse\"\x00\x12\x80\x01\n\x13ListNamespaceQuotas\x12\x32.axern.control.quota.v1.ListNamespaceQuotasRequest\x1a\x33.axern.control.quota.v1.ListNamespaceQuotasResponse\"\x00\x12z\n\x11SetNamespaceQuota\x12\x30.axern.control.quota.v1.SetNamespaceQuotaRequest\x1a\x31.axern.control.quota.v1.SetNamespaceQuotaResponse\"\x00\x12\x80\x01\n\x13UnsetNamespaceQuota\x12\x32.axern.control.quota.v1.UnsetNamespaceQuotaRequest\x1a\x33.axern.control.quota.v1.UnsetNamespaceQuotaResponse\"\x00\x12\x8f\x01\n\x18ListNamespaceQuotaEvents\x12\x37.axern.control.quota.v1.ListNamespaceQuotaEventsRequest\x1a\x38.axern.control.quota.v1.ListNamespaceQuotaEventsResponse\"\x00\x42\x43ZAgithub.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1;quotav1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"axern/control/quota/v1/quota.proto\x12\x16\x61xern.control.quota.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/wrappers.proto\"\xe2\x04\n\x0eNamespaceQuota\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x34\n\x0f\x63pu_milli_limit\x18\x02 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x37\n\x12memory_bytes_limit\x18\x03 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x1a\n\x12reserved_cpu_milli\x18\x04 \x01(\x03\x12\x1d\n\x15reserved_memory_bytes\x18\x05 \x01(\x03\x12\x38\n\x13\x61vailable_cpu_milli\x18\x06 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12;\n\x16\x61vailable_memory_bytes\x18\x07 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x0f\n\x07version\x18\x08 \x01(\x03\x12.\n\ncreated_at\x18\t \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\n \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12?\n\x1awritable_layer_bytes_limit\x18\x0b \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12%\n\x1dreserved_writable_layer_bytes\x18\x0c \x01(\x03\x12\x43\n\x1e\x61vailable_writable_layer_bytes\x18\r \x01(\x0b\x32\x1b.google.protobuf.Int64Value\"\xa7\x07\n\x13NamespaceQuotaEvent\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tnamespace\x18\x02 \x01(\t\x12=\n\x04type\x18\x03 \x01(\x0e\x32/.axern.control.quota.v1.NamespaceQuotaEventType\x12N\n\rworkload_type\x18\x04 \x01(\x0e\x32\x37.axern.control.quota.v1.NamespaceQuotaEventWorkloadType\x12\x13\n\x0bworkload_id\x18\x05 \x01(\t\x12\x16\n\x0e\x65nvironment_id\x18\x06 \x01(\t\x12\x41\n\x06reason\x18\x07 \x01(\x0e\x32\x31.axern.control.quota.v1.NamespaceQuotaEventReason\x12\x1b\n\x13requested_cpu_milli\x18\x08 \x01(\x03\x12\x1a\n\x12reserved_cpu_milli\x18\t \x01(\x03\x12\x34\n\x0f\x63pu_milli_limit\x18\n \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x38\n\x13\x61vailable_cpu_milli\x18\x0b \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x1e\n\x16requested_memory_bytes\x18\x0c \x01(\x03\x12\x1d\n\x15reserved_memory_bytes\x18\r \x01(\x03\x12\x37\n\x12memory_bytes_limit\x18\x0e \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12;\n\x16\x61vailable_memory_bytes\x18\x0f \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x0f\n\x07message\x18\x10 \x01(\t\x12.\n\ncreated_at\x18\x11 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12&\n\x1erequested_writable_layer_bytes\x18\x12 \x01(\x03\x12%\n\x1dreserved_writable_layer_bytes\x18\x13 \x01(\x03\x12?\n\x1awritable_layer_bytes_limit\x18\x14 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x43\n\x1e\x61vailable_writable_layer_bytes\x18\x15 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\"-\n\x18GetNamespaceQuotaRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\"R\n\x19GetNamespaceQuotaResponse\x12\x35\n\x05quota\x18\x01 \x01(\x0b\x32&.axern.control.quota.v1.NamespaceQuota\"\x1c\n\x1aListNamespaceQuotasRequest\"U\n\x1bListNamespaceQuotasResponse\x12\x36\n\x06quotas\x18\x01 \x03(\x0b\x32&.axern.control.quota.v1.NamespaceQuota\"\xb4\x01\n\x14NamespaceQuotaLimits\x12.\n\tcpu_milli\x18\x01 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x31\n\x0cmemory_bytes\x18\x02 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\x12\x39\n\x14writable_layer_bytes\x18\x03 \x01(\x0b\x32\x1b.google.protobuf.Int64Value\"k\n\x18SetNamespaceQuotaRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12<\n\x06limits\x18\x02 \x01(\x0b\x32,.axern.control.quota.v1.NamespaceQuotaLimits\"R\n\x19SetNamespaceQuotaResponse\x12\x35\n\x05quota\x18\x01 \x01(\x0b\x32&.axern.control.quota.v1.NamespaceQuota\"/\n\x1aUnsetNamespaceQuotaRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\"T\n\x1bUnsetNamespaceQuotaResponse\x12\x35\n\x05quota\x18\x01 \x01(\x0b\x32&.axern.control.quota.v1.NamespaceQuota\"C\n\x1fListNamespaceQuotaEventsRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\r\n\x05limit\x18\x02 \x01(\x05\"_\n ListNamespaceQuotaEventsResponse\x12;\n\x06\x65vents\x18\x01 \x03(\x0b\x32+.axern.control.quota.v1.NamespaceQuotaEvent*x\n\x17NamespaceQuotaEventType\x12*\n&NAMESPACE_QUOTA_EVENT_TYPE_UNSPECIFIED\x10\x00\x12\x31\n-NAMESPACE_QUOTA_EVENT_TYPE_ADMISSION_REJECTED\x10\x01*\xb4\x01\n\x1fNamespaceQuotaEventWorkloadType\x12\x33\n/NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_UNSPECIFIED\x10\x00\x12+\n\'NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN\x10\x01\x12/\n+NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_SERVICE\x10\x02*\xaa\x02\n\x19NamespaceQuotaEventReason\x12,\n(NAMESPACE_QUOTA_EVENT_REASON_UNSPECIFIED\x10\x00\x12\x31\n-NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU\x10\x01\x12\x34\n0NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_MEMORY\x10\x02\x12\x38\n4NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU_MEMORY\x10\x03\x12<\n8NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_WRITABLE_LAYER\x10\x04\x32\x9e\x05\n\x0cQuotaControl\x12z\n\x11GetNamespaceQuota\x12\x30.axern.control.quota.v1.GetNamespaceQuotaRequest\x1a\x31.axern.control.quota.v1.GetNamespaceQuotaResponse\"\x00\x12\x80\x01\n\x13ListNamespaceQuotas\x12\x32.axern.control.quota.v1.ListNamespaceQuotasRequest\x1a\x33.axern.control.quota.v1.ListNamespaceQuotasResponse\"\x00\x12z\n\x11SetNamespaceQuota\x12\x30.axern.control.quota.v1.SetNamespaceQuotaRequest\x1a\x31.axern.control.quota.v1.SetNamespaceQuotaResponse\"\x00\x12\x80\x01\n\x13UnsetNamespaceQuota\x12\x32.axern.control.quota.v1.UnsetNamespaceQuotaRequest\x1a\x33.axern.control.quota.v1.UnsetNamespaceQuotaResponse\"\x00\x12\x8f\x01\n\x18ListNamespaceQuotaEvents\x12\x37.axern.control.quota.v1.ListNamespaceQuotaEventsRequest\x1a\x38.axern.control.quota.v1.ListNamespaceQuotaEventsResponse\"\x00\x42\x43ZAgithub.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1;quotav1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,38 +34,38 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'axern.control.quota.v1.quot
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZAgithub.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1;quotav1'
-  _globals['_NAMESPACEQUOTAEVENTTYPE']._serialized_start=2157
-  _globals['_NAMESPACEQUOTAEVENTTYPE']._serialized_end=2277
-  _globals['_NAMESPACEQUOTAEVENTWORKLOADTYPE']._serialized_start=2280
-  _globals['_NAMESPACEQUOTAEVENTWORKLOADTYPE']._serialized_end=2460
-  _globals['_NAMESPACEQUOTAEVENTREASON']._serialized_start=2463
-  _globals['_NAMESPACEQUOTAEVENTREASON']._serialized_end=2699
+  _globals['_NAMESPACEQUOTAEVENTTYPE']._serialized_start=2603
+  _globals['_NAMESPACEQUOTAEVENTTYPE']._serialized_end=2723
+  _globals['_NAMESPACEQUOTAEVENTWORKLOADTYPE']._serialized_start=2726
+  _globals['_NAMESPACEQUOTAEVENTWORKLOADTYPE']._serialized_end=2906
+  _globals['_NAMESPACEQUOTAEVENTREASON']._serialized_start=2909
+  _globals['_NAMESPACEQUOTAEVENTREASON']._serialized_end=3207
   _globals['_NAMESPACEQUOTA']._serialized_start=128
-  _globals['_NAMESPACEQUOTA']._serialized_end=565
-  _globals['_NAMESPACEQUOTAEVENT']._serialized_start=568
-  _globals['_NAMESPACEQUOTAEVENT']._serialized_end=1290
-  _globals['_GETNAMESPACEQUOTAREQUEST']._serialized_start=1292
-  _globals['_GETNAMESPACEQUOTAREQUEST']._serialized_end=1337
-  _globals['_GETNAMESPACEQUOTARESPONSE']._serialized_start=1339
-  _globals['_GETNAMESPACEQUOTARESPONSE']._serialized_end=1421
-  _globals['_LISTNAMESPACEQUOTASREQUEST']._serialized_start=1423
-  _globals['_LISTNAMESPACEQUOTASREQUEST']._serialized_end=1451
-  _globals['_LISTNAMESPACEQUOTASRESPONSE']._serialized_start=1453
-  _globals['_LISTNAMESPACEQUOTASRESPONSE']._serialized_end=1538
-  _globals['_NAMESPACEQUOTALIMITS']._serialized_start=1540
-  _globals['_NAMESPACEQUOTALIMITS']._serialized_end=1661
-  _globals['_SETNAMESPACEQUOTAREQUEST']._serialized_start=1663
-  _globals['_SETNAMESPACEQUOTAREQUEST']._serialized_end=1770
-  _globals['_SETNAMESPACEQUOTARESPONSE']._serialized_start=1772
-  _globals['_SETNAMESPACEQUOTARESPONSE']._serialized_end=1854
-  _globals['_UNSETNAMESPACEQUOTAREQUEST']._serialized_start=1856
-  _globals['_UNSETNAMESPACEQUOTAREQUEST']._serialized_end=1903
-  _globals['_UNSETNAMESPACEQUOTARESPONSE']._serialized_start=1905
-  _globals['_UNSETNAMESPACEQUOTARESPONSE']._serialized_end=1989
-  _globals['_LISTNAMESPACEQUOTAEVENTSREQUEST']._serialized_start=1991
-  _globals['_LISTNAMESPACEQUOTAEVENTSREQUEST']._serialized_end=2058
-  _globals['_LISTNAMESPACEQUOTAEVENTSRESPONSE']._serialized_start=2060
-  _globals['_LISTNAMESPACEQUOTAEVENTSRESPONSE']._serialized_end=2155
-  _globals['_QUOTACONTROL']._serialized_start=2702
-  _globals['_QUOTACONTROL']._serialized_end=3372
+  _globals['_NAMESPACEQUOTA']._serialized_end=738
+  _globals['_NAMESPACEQUOTAEVENT']._serialized_start=741
+  _globals['_NAMESPACEQUOTAEVENT']._serialized_end=1676
+  _globals['_GETNAMESPACEQUOTAREQUEST']._serialized_start=1678
+  _globals['_GETNAMESPACEQUOTAREQUEST']._serialized_end=1723
+  _globals['_GETNAMESPACEQUOTARESPONSE']._serialized_start=1725
+  _globals['_GETNAMESPACEQUOTARESPONSE']._serialized_end=1807
+  _globals['_LISTNAMESPACEQUOTASREQUEST']._serialized_start=1809
+  _globals['_LISTNAMESPACEQUOTASREQUEST']._serialized_end=1837
+  _globals['_LISTNAMESPACEQUOTASRESPONSE']._serialized_start=1839
+  _globals['_LISTNAMESPACEQUOTASRESPONSE']._serialized_end=1924
+  _globals['_NAMESPACEQUOTALIMITS']._serialized_start=1927
+  _globals['_NAMESPACEQUOTALIMITS']._serialized_end=2107
+  _globals['_SETNAMESPACEQUOTAREQUEST']._serialized_start=2109
+  _globals['_SETNAMESPACEQUOTAREQUEST']._serialized_end=2216
+  _globals['_SETNAMESPACEQUOTARESPONSE']._serialized_start=2218
+  _globals['_SETNAMESPACEQUOTARESPONSE']._serialized_end=2300
+  _globals['_UNSETNAMESPACEQUOTAREQUEST']._serialized_start=2302
+  _globals['_UNSETNAMESPACEQUOTAREQUEST']._serialized_end=2349
+  _globals['_UNSETNAMESPACEQUOTARESPONSE']._serialized_start=2351
+  _globals['_UNSETNAMESPACEQUOTARESPONSE']._serialized_end=2435
+  _globals['_LISTNAMESPACEQUOTAEVENTSREQUEST']._serialized_start=2437
+  _globals['_LISTNAMESPACEQUOTAEVENTSREQUEST']._serialized_end=2504
+  _globals['_LISTNAMESPACEQUOTAEVENTSRESPONSE']._serialized_start=2506
+  _globals['_LISTNAMESPACEQUOTAEVENTSRESPONSE']._serialized_end=2601
+  _globals['_QUOTACONTROL']._serialized_start=3210
+  _globals['_QUOTACONTROL']._serialized_end=3880
 # @@protoc_insertion_point(module_scope)

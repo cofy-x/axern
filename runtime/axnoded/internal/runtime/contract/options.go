@@ -23,6 +23,7 @@ type HandlerOptions struct {
 
 	CgroupPath         string
 	RuntimeCgroupPath  string
+	MemoryLimitBytes   int64
 	AllocatedResources map[resourcemanager.ResourceName]string
 	RootfsType         string
 

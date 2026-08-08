@@ -14,13 +14,17 @@ import (
 var _ contract.RuntimeHandler = &RuncServiceHandler{}
 
 type RuncServiceHandler struct {
-	name                string
-	common              *ocihost.Common
-	ignoreCgroups       bool
-	rootfsViews         rootfsview.Provider
-	waitLocks           sync.Map
-	waitForSandboxReady sandboxd.ReadyWaiter
-	services            runtimeServices
+	name                    string
+	common                  *ocihost.Common
+	ignoreCgroups           bool
+	writableLayerLimitBytes int64
+	writableCapacity        *writableCapacityManager
+	capabilityDir           string
+	containerRoot           string
+	rootfsViews             rootfsview.Provider
+	waitLocks               sync.Map
+	waitForSandboxReady     sandboxd.ReadyWaiter
+	services                runtimeServices
 }
 
 type runcState struct {

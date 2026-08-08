@@ -21,28 +21,25 @@ func (r *RuncServiceHandler) CreateContainer(ctx context.Context, request *apipb
 	if err != nil {
 		return nil, err
 	}
+	if err := r.writableCapacity.Reserve(options.ContainerID, r.Name(), effectiveRequest.GetWritableLayerRequestBytes(), effectiveRequest.GetWritableLayerLimitBytes()); err != nil {
+		return nil, err
+	}
 	if request.CkptDir != "" {
 		return nil, fmt.Errorf("sample runc runtime does not support restore")
 	}
-	effectiveRequest, writableRootfs, err := rootfsflow.PrepareRequest(ctx, r.rootfsViews, options, effectiveRequest)
-	if err != nil {
-		return nil, err
-	}
-
 	bundlePath, metaData, err := bundleflow.PrepareLaunchBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, bundleOptions)
 	if err != nil {
-		if writableRootfs {
-			r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
-		}
+		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}
-	mountTargetsStart := time.Now()
-	if err := bundleflow.PrepareBundleMountTargets(bundlePath); err != nil {
-		options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepMountTargetsPrepare, time.Since(mountTargetsStart))
+	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsflow.RuntimePolicy{
+		RuntimeName: r.Name(), NeedsHostWritableRootfs: !effectiveRequest.GetRootfs().GetReadonly(),
+		WritableLayerLimitBytes: effectiveRequest.GetWritableLayerLimitBytes(), ProjectID: r.writableCapacity.ProjectID(options.ContainerID),
+		RootfsLeaseID: effectiveRequest.GetRootfs().GetLeaseId(),
+	}); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return metaData, err
 	}
-	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepMountTargetsPrepare, time.Since(mountTargetsStart))
 
 	return r.launchRun(ctx, options, bundlePath, metaData)
 }
@@ -54,24 +51,22 @@ func (r *RuncServiceHandler) PrepareExecutionEnvelope(ctx context.Context, reque
 	if err != nil {
 		return nil, err
 	}
-	effectiveRequest, writableRootfs, err := rootfsflow.PrepareRequest(ctx, r.rootfsViews, options, effectiveRequest)
-	if err != nil {
+	if err := r.writableCapacity.Reserve(options.ContainerID, r.Name(), effectiveRequest.GetWritableLayerRequestBytes(), effectiveRequest.GetWritableLayerLimitBytes()); err != nil {
 		return nil, err
 	}
 	bundlePath, metaData, err := bundleflow.PrepareEnvelopeBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, bundleOptions)
 	if err != nil {
-		if writableRootfs {
-			r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
-		}
-		return nil, err
-	}
-	mountTargetsStart := time.Now()
-	if err := bundleflow.PrepareBundleMountTargets(bundlePath); err != nil {
-		options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepMountTargetsPrepare, time.Since(mountTargetsStart))
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}
-	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepMountTargetsPrepare, time.Since(mountTargetsStart))
+	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsflow.RuntimePolicy{
+		RuntimeName: r.Name(), NeedsHostWritableRootfs: !effectiveRequest.GetRootfs().GetReadonly(),
+		WritableLayerLimitBytes: effectiveRequest.GetWritableLayerLimitBytes(), ProjectID: r.writableCapacity.ProjectID(options.ContainerID),
+		RootfsLeaseID: effectiveRequest.GetRootfs().GetLeaseId(),
+	}); err != nil {
+		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
+		return nil, err
+	}
 
 	if err := r.createExecutionEnvelope(ctx, bundlePath, options.ContainerID); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, fmt.Sprintf("create execution envelope failed: %v", err))
@@ -99,6 +94,10 @@ func (r *RuncServiceHandler) ActivateExecutionEnvelope(ctx context.Context, enve
 }
 
 func (r *RuncServiceHandler) prepareCreateRequest(request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.CreateContainerRequest, contract.HandlerOptions, error) {
+	request, err := resolveWritableLayer(request, r.writableLayerLimitBytes)
+	if err != nil {
+		return nil, contract.HandlerOptions{}, err
+	}
 	prep, err := cgroupflow.PrepareRuntime(request, options, cgroupflow.RuntimePolicy{
 		IgnoreCgroups:           r.ignoreCgroups,
 		DropResourceWhenIgnored: true,

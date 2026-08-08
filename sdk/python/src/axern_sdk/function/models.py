@@ -34,8 +34,10 @@ class FunctionResources:
 
     request_cpu: str = ""
     request_memory: str = ""
+    request_writable_layer: str = ""
     limit_cpu: str = ""
     limit_memory: str = ""
+    limit_writable_layer: str = ""
 
 
 @dataclass(frozen=True, slots=True)

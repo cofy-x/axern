@@ -20,6 +20,7 @@ func (a *App) observeNamespaceResources(ctx context.Context, observe sdkobs.Int6
 	for _, quota := range quotas {
 		observeNamespaceQuotaResource(observe, quota, "cpu_milli", quota.GetCpuMilliLimit(), quota.GetReservedCpuMilli(), quota.GetAvailableCpuMilli())
 		observeNamespaceQuotaResource(observe, quota, "memory_bytes", quota.GetMemoryBytesLimit(), quota.GetReservedMemoryBytes(), quota.GetAvailableMemoryBytes())
+		observeNamespaceQuotaResource(observe, quota, "writable_layer_bytes", quota.GetWritableLayerBytesLimit(), quota.GetReservedWritableLayerBytes(), quota.GetAvailableWritableLayerBytes())
 	}
 	return nil
 }

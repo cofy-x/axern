@@ -100,10 +100,6 @@ func materializeSandboxdInjection(bundleDir string, ociSpec *spec.Spec, options 
 	if err := copySandboxdBinary(binaryPath, hostBinaryPath); err != nil {
 		return err
 	}
-	if err := ensureSandboxdRuntimeMountpoint(bundleDir, ociSpec); err != nil {
-		return err
-	}
-
 	appendSandboxdRuntimeMounts(ociSpec, runtimeDir)
 	ociSpec.Process.Args = []string{
 		SandboxdGuestBinaryPath,
@@ -123,29 +119,6 @@ func sandboxdDaemonEnv(env []string) []string {
 		}
 	}
 	return append(out, "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
-}
-
-func ensureSandboxdRuntimeMountpoint(bundleDir string, ociSpec *spec.Spec) error {
-	rootfsPath := runtimeRootfsPath(bundleDir, ociSpec)
-	if rootfsPath == "" {
-		return nil
-	}
-	mountpoint := filepath.Join(rootfsPath, strings.TrimPrefix(sandboxdRuntimeDir, "/"))
-	if info, err := os.Lstat(mountpoint); err == nil {
-		if !info.IsDir() {
-			return fmt.Errorf("sandboxd runtime mountpoint %s exists but is not a directory", mountpoint)
-		}
-		return nil
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("inspect sandboxd runtime mountpoint %s: %w", mountpoint, err)
-	}
-	if ociSpec.Root != nil && ociSpec.Root.Readonly {
-		return fmt.Errorf("sandboxd runtime mountpoint %s is missing from readonly rootfs", mountpoint)
-	}
-	if err := os.MkdirAll(mountpoint, 0755); err != nil {
-		return fmt.Errorf("create sandboxd runtime mountpoint %s: %w", mountpoint, err)
-	}
-	return nil
 }
 
 func copySandboxdBinary(path, source string) error {

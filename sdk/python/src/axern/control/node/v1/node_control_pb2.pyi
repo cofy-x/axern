@@ -26,6 +26,7 @@ class MountType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     MOUNT_TYPE_OCI: _ClassVar[MountType]
     MOUNT_TYPE_NYDUS: _ClassVar[MountType]
     MOUNT_TYPE_OSS: _ClassVar[MountType]
+    MOUNT_TYPE_EROFS: _ClassVar[MountType]
 
 class ComponentState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -68,6 +69,7 @@ class PlacementRejectionReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED: _ClassVar[PlacementRejectionReason]
     PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED: _ClassVar[PlacementRejectionReason]
     PLACEMENT_REJECTION_REASON_NODE_RETIRED: _ClassVar[PlacementRejectionReason]
+    PLACEMENT_REJECTION_REASON_INSUFFICIENT_WRITABLE_LAYER: _ClassVar[PlacementRejectionReason]
 ROOTFS_TYPE_UNSPECIFIED: RootfsType
 ROOTFS_TYPE_LOCAL: RootfsType
 ROOTFS_TYPE_IMAGE: RootfsType
@@ -77,6 +79,7 @@ MOUNT_TYPE_LOCAL: MountType
 MOUNT_TYPE_OCI: MountType
 MOUNT_TYPE_NYDUS: MountType
 MOUNT_TYPE_OSS: MountType
+MOUNT_TYPE_EROFS: MountType
 COMPONENT_STATE_UNSPECIFIED: ComponentState
 COMPONENT_STATE_READY: ComponentState
 COMPONENT_STATE_WARMING: ComponentState
@@ -107,6 +110,7 @@ PLACEMENT_REJECTION_REASON_PORTS_UNSUPPORTED: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_NODE_RETIRED: PlacementRejectionReason
+PLACEMENT_REJECTION_REASON_INSUFFICIENT_WRITABLE_LAYER: PlacementRejectionReason
 
 class PoolState(_message.Message):
     __slots__ = ("using", "idle", "capacity", "unavailable")
@@ -121,20 +125,26 @@ class PoolState(_message.Message):
     def __init__(self, using: _Optional[int] = ..., idle: _Optional[int] = ..., capacity: _Optional[int] = ..., unavailable: _Optional[int] = ...) -> None: ...
 
 class ResourcesSummary(_message.Message):
-    __slots__ = ("axnoded_committed_milli", "axnoded_used_milli", "axnoded_cpu_unbounded_count", "axnoded_committed_bytes", "axnoded_used_bytes", "axnoded_memory_unbounded_count")
+    __slots__ = ("axnoded_committed_milli", "axnoded_used_milli", "axnoded_cpu_unbounded_count", "axnoded_committed_bytes", "axnoded_used_bytes", "axnoded_memory_unbounded_count", "axnoded_writable_layer_committed_bytes", "axnoded_writable_layer_used_bytes", "axnoded_writable_layer_unbounded_count")
     AXNODED_COMMITTED_MILLI_FIELD_NUMBER: _ClassVar[int]
     AXNODED_USED_MILLI_FIELD_NUMBER: _ClassVar[int]
     AXNODED_CPU_UNBOUNDED_COUNT_FIELD_NUMBER: _ClassVar[int]
     AXNODED_COMMITTED_BYTES_FIELD_NUMBER: _ClassVar[int]
     AXNODED_USED_BYTES_FIELD_NUMBER: _ClassVar[int]
     AXNODED_MEMORY_UNBOUNDED_COUNT_FIELD_NUMBER: _ClassVar[int]
+    AXNODED_WRITABLE_LAYER_COMMITTED_BYTES_FIELD_NUMBER: _ClassVar[int]
+    AXNODED_WRITABLE_LAYER_USED_BYTES_FIELD_NUMBER: _ClassVar[int]
+    AXNODED_WRITABLE_LAYER_UNBOUNDED_COUNT_FIELD_NUMBER: _ClassVar[int]
     axnoded_committed_milli: int
     axnoded_used_milli: int
     axnoded_cpu_unbounded_count: int
     axnoded_committed_bytes: int
     axnoded_used_bytes: int
     axnoded_memory_unbounded_count: int
-    def __init__(self, axnoded_committed_milli: _Optional[int] = ..., axnoded_used_milli: _Optional[int] = ..., axnoded_cpu_unbounded_count: _Optional[int] = ..., axnoded_committed_bytes: _Optional[int] = ..., axnoded_used_bytes: _Optional[int] = ..., axnoded_memory_unbounded_count: _Optional[int] = ...) -> None: ...
+    axnoded_writable_layer_committed_bytes: int
+    axnoded_writable_layer_used_bytes: int
+    axnoded_writable_layer_unbounded_count: int
+    def __init__(self, axnoded_committed_milli: _Optional[int] = ..., axnoded_used_milli: _Optional[int] = ..., axnoded_cpu_unbounded_count: _Optional[int] = ..., axnoded_committed_bytes: _Optional[int] = ..., axnoded_used_bytes: _Optional[int] = ..., axnoded_memory_unbounded_count: _Optional[int] = ..., axnoded_writable_layer_committed_bytes: _Optional[int] = ..., axnoded_writable_layer_used_bytes: _Optional[int] = ..., axnoded_writable_layer_unbounded_count: _Optional[int] = ...) -> None: ...
 
 class PoolsSummary(_message.Message):
     __slots__ = ("cgroup", "interface", "runtime_slots")
@@ -233,7 +243,7 @@ class VolumedSummary(_message.Message):
     def __init__(self, state: _Optional[_Union[ComponentState, str]] = ..., reachable: _Optional[bool] = ..., published_volume_count: _Optional[int] = ..., last_reconcile_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., last_reconcile_error: _Optional[str] = ..., last_reconcile_retained_count: _Optional[int] = ..., last_reconcile_unpublished_count: _Optional[int] = ..., last_reconcile_active_allocation_count: _Optional[int] = ..., last_reconcile_stale_allocation_count: _Optional[int] = ..., last_reconcile_invalid_volume_count: _Optional[int] = ...) -> None: ...
 
 class NodeStorageSummary(_message.Message):
-    __slots__ = ("target", "capacity_bytes", "used_bytes", "available_bytes", "inodes_total", "inodes_used", "inodes_available", "collected", "error")
+    __slots__ = ("target", "capacity_bytes", "used_bytes", "available_bytes", "inodes_total", "inodes_used", "inodes_available", "collected", "error", "system_reserve_bytes", "reserved_bytes", "allocatable_bytes", "active_reservations", "filesystem_type", "mount_identity", "allocation_used_bytes", "unlinked_backing_usage_unknown")
     TARGET_FIELD_NUMBER: _ClassVar[int]
     CAPACITY_BYTES_FIELD_NUMBER: _ClassVar[int]
     USED_BYTES_FIELD_NUMBER: _ClassVar[int]
@@ -243,6 +253,14 @@ class NodeStorageSummary(_message.Message):
     INODES_AVAILABLE_FIELD_NUMBER: _ClassVar[int]
     COLLECTED_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
+    SYSTEM_RESERVE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    RESERVED_BYTES_FIELD_NUMBER: _ClassVar[int]
+    ALLOCATABLE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_RESERVATIONS_FIELD_NUMBER: _ClassVar[int]
+    FILESYSTEM_TYPE_FIELD_NUMBER: _ClassVar[int]
+    MOUNT_IDENTITY_FIELD_NUMBER: _ClassVar[int]
+    ALLOCATION_USED_BYTES_FIELD_NUMBER: _ClassVar[int]
+    UNLINKED_BACKING_USAGE_UNKNOWN_FIELD_NUMBER: _ClassVar[int]
     target: str
     capacity_bytes: int
     used_bytes: int
@@ -252,7 +270,15 @@ class NodeStorageSummary(_message.Message):
     inodes_available: int
     collected: bool
     error: str
-    def __init__(self, target: _Optional[str] = ..., capacity_bytes: _Optional[int] = ..., used_bytes: _Optional[int] = ..., available_bytes: _Optional[int] = ..., inodes_total: _Optional[int] = ..., inodes_used: _Optional[int] = ..., inodes_available: _Optional[int] = ..., collected: _Optional[bool] = ..., error: _Optional[str] = ...) -> None: ...
+    system_reserve_bytes: int
+    reserved_bytes: int
+    allocatable_bytes: int
+    active_reservations: int
+    filesystem_type: str
+    mount_identity: str
+    allocation_used_bytes: int
+    unlinked_backing_usage_unknown: bool
+    def __init__(self, target: _Optional[str] = ..., capacity_bytes: _Optional[int] = ..., used_bytes: _Optional[int] = ..., available_bytes: _Optional[int] = ..., inodes_total: _Optional[int] = ..., inodes_used: _Optional[int] = ..., inodes_available: _Optional[int] = ..., collected: _Optional[bool] = ..., error: _Optional[str] = ..., system_reserve_bytes: _Optional[int] = ..., reserved_bytes: _Optional[int] = ..., allocatable_bytes: _Optional[int] = ..., active_reservations: _Optional[int] = ..., filesystem_type: _Optional[str] = ..., mount_identity: _Optional[str] = ..., allocation_used_bytes: _Optional[int] = ..., unlinked_backing_usage_unknown: _Optional[bool] = ...) -> None: ...
 
 class ComponentsSummary(_message.Message):
     __slots__ = ("axnoded", "imagemgr", "imagefsd", "bpfnet", "volumed")

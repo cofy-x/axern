@@ -45,6 +45,7 @@ type AxnodedSourceOptions struct {
 	NodeState           string
 	NodeLabels          map[string]string
 	NodeCapabilities    []string
+	DynamicCapabilities func() []string
 	LoadBPFNet          func(string) (bpfnet.Status, error)
 	VolumeHealth        volumeHealthFunc
 	StorageTargets      []StorageTarget
@@ -69,6 +70,7 @@ type AxnodedSource struct {
 	nodeState           string
 	nodeLabels          map[string]string
 	nodeCapabilities    []string
+	dynamicCapabilities func() []string
 	loadBPFNet          func(string) (bpfnet.Status, error)
 	volumeHealth        volumeHealthFunc
 	storageTargets      []StorageTarget
@@ -114,6 +116,7 @@ func NewAxnodedSource(opts AxnodedSourceOptions) *AxnodedSource {
 		nodeState:           opts.NodeState,
 		nodeLabels:          cloneStringMap(opts.NodeLabels),
 		nodeCapabilities:    append([]string(nil), opts.NodeCapabilities...),
+		dynamicCapabilities: opts.DynamicCapabilities,
 		loadBPFNet:          loadBPFNet,
 		volumeHealth:        opts.VolumeHealth,
 		storageTargets:      normalizeStorageTargets(opts.StorageTargets),
@@ -137,6 +140,9 @@ func (s *AxnodedSource) Collect(ctx context.Context) (NodeInventorySnapshot, boo
 	snapshot.Node.State = normalizeNodeState(s.nodeState)
 	snapshot.Node.Labels = cloneStringMap(s.nodeLabels)
 	snapshot.Node.Capabilities = append([]string(nil), s.nodeCapabilities...)
+	if s.dynamicCapabilities != nil {
+		snapshot.Node.Capabilities = append(snapshot.Node.Capabilities, s.dynamicCapabilities()...)
+	}
 	resourcesReady := s.collectNodeResources(ctx, now, &snapshot)
 	s.collectStorageInventory(now, &snapshot)
 

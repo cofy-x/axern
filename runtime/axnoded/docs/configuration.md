@@ -131,10 +131,13 @@ materialization, volumed integration, and warm idle runtime retention.
 | `volume_manager_socket` | Local `volumed` Unix socket used to publish resolved node volumes. | Defaults to `/run/volumed/volumed.sock`. |
 | `idle_runtime_retention_ttl` | How long idle runtime templates/rootfs state remain warm. | Empty falls back to `5m`. |
 | `idle_runtime_retention_max` | Max retained static runtime templates per node. | Defaults to `8`; `<= 0` disables idle retention. Size this against the memory cost of a prepared runtime envelope, not allocation capacity. |
-| `ignore_cgroups` | Global default for runtimes that support ignoring runtime-owned cgroups. | `runsc` also supports per-runtime override. |
-| `filestore_dir` | Optional XFS-backed runtime overlay filestore. | Used by runsc overlays and runc writable rootfs views when needed; requires Linux host support. |
-| `filestore_dir_size` | Size of auto-created XFS image for `filestore_dir`. | Required when `filestore_dir` is set and the mount does not already exist. |
-| `overlay_tmpfs_size` | Optional tmpfs upper-layer size limit for runsc overlays. | Empty means no configured size limit. |
+| `cgroup_enforcement` | `required` or explicit local-only `disabled_dev`. | Defaults to `required`. `disabled_dev` rejects any workload declaring a memory hard limit. |
+| `filestore_mode` | `existing` or `loopback_dev`. | Production uses an existing data-disk mount. Loopback mode is development-only and never reformats an existing image. |
+| `filestore_dir` | Runtime writable-storage mount. | Must be a writable independent XFS or ext4 mount; startup performs a real OverlayFS scratch probe. |
+| `filestore_loopback_image` | Persistent image used by `loopback_dev`. | Created only when absent and retained after shutdown. |
+| `filestore_loopback_size_bytes` | Initial size for a newly created loopback image. | Must be positive in `loopback_dev`. |
+| `filestore_system_reserve_bytes` | Capacity unavailable to sandbox reservations. | Admission checks both committed reservations and the live available-space floor. |
+| `writable_layer_default_limit_bytes` | Default per-sandbox writable-layer hard limit. | Writable runsc roots use this in `root:dir=...,size=...`; writable runc roots require XFS project quota. |
 
 Runtime retention is keyed by the static execution template, so namespace,
 service, environment, and allocation-specific volume identity do not duplicate
@@ -170,12 +173,14 @@ less brittle.
 | `base_spec` | Base OCI spec used by axnoded when building bundles. |
 | `[plugin.runtime.runtimes.<name>.options]` | Runtime-specific options. |
 
-`options.ignore_cgroups` overrides the global `plugin.runtime.ignore_cgroups`
-for that runtime. This matters because `runsc` can run with axnoded-managed
-cgroups disabled, while other runtimes may rely on axnoded cgroup allocation.
-For `runsc`, `options.allow_suid = true` maps to `runsc --allow-suid` so
+There is no per-runtime cgroup fallback. In `required` mode cgroup controller
+writes, limit readback, and runtime host-PID attribution are fail-closed. For
+`runsc`, `options.allow_suid = true` maps to `runsc --allow-suid` so
 setuid tools inside Axern-maintained images, such as `sudo`, behave the same
 way they do under `runc`.
+
+See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection,
+EROFS lower, writable-layer, quota, and cleanup contract.
 
 ## Common Profiles
 

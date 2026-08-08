@@ -100,6 +100,7 @@ func TestPrepareBundlePrefersRuntimeCgroupPath(t *testing.T) {
 			RootDir: rootDir,
 		},
 		Command: []string{"/bin/sh"},
+		Mounts:  []*apipb.Mount{{Type: "bind", Source: rootDir, Target: "/", Options: []string{"ro"}}},
 	}
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
 	if err != nil {

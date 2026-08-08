@@ -20,13 +20,14 @@ type Observer interface {
 }
 
 type SelectionObservation struct {
-	Mode                 string
-	Result               string
-	Runtime              string
-	MountType            nodev1.MountType
-	RequestedCPUMilli    int64
-	RequestedMemoryBytes int64
-	EligibleCount        int
-	RejectedCount        int
-	RejectionReasons     []nodev1.PlacementRejectionReason
+	Mode                        string
+	Result                      string
+	Runtime                     string
+	MountType                   nodev1.MountType
+	RequestedCPUMilli           int64
+	RequestedMemoryBytes        int64
+	RequestedWritableLayerBytes int64
+	EligibleCount               int
+	RejectedCount               int
+	RejectionReasons            []nodev1.PlacementRejectionReason
 }

@@ -125,6 +125,7 @@ message Rootfs {
   string lower_dir = 2;
   string root_dir = 3;
   bool readonly = 4;
+  string lease_id = 5;
 }
 
 message ContainerMetadata {

@@ -81,8 +81,9 @@ type Resources struct {
 }
 
 type Quantity struct {
-	CPU    string `json:"cpu,omitempty" yaml:"cpu,omitempty"`
-	Memory string `json:"memory,omitempty" yaml:"memory,omitempty"`
+	CPU           string `json:"cpu,omitempty" yaml:"cpu,omitempty"`
+	Memory        string `json:"memory,omitempty" yaml:"memory,omitempty"`
+	WritableLayer string `json:"writable_layer,omitempty" yaml:"writable_layer,omitempty"`
 }
 
 type Probe struct {
@@ -479,10 +480,14 @@ func quantity(value Quantity) (*commonv1.ResourceQuantity, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cpu == 0 && memory == 0 {
+	writableLayer, err := parse.Memory(value.WritableLayer)
+	if err != nil {
+		return nil, err
+	}
+	if cpu == 0 && memory == 0 && writableLayer == 0 {
 		return nil, nil
 	}
-	return &commonv1.ResourceQuantity{CpuMilli: cpu, MemoryBytes: memory}, nil
+	return &commonv1.ResourceQuantity{CpuMilli: cpu, MemoryBytes: memory, WritableLayerBytes: writableLayer}, nil
 }
 
 func probe(value *Probe) (*servicev1.ServiceProbe, error) {

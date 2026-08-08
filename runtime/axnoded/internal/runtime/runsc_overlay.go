@@ -3,55 +3,38 @@ package runtime
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 )
 
-func (r *RunscServiceHandler) overlay2Value(bundleRootReadonly bool, hostRootPathReadonly bool) string {
+func (r *RunscServiceHandler) overlay2Value(bundleRootReadonly bool, limitBytes int64) (string, error) {
 	if bundleRootReadonly {
-		return ""
+		return "", nil
 	}
-	if r.filestoreDir != "" {
-		return "root:dir=" + r.filestoreDir
+	if r.filestoreDir == "" {
+		return "", fmt.Errorf("writable runsc rootfs requires runtime filestore_dir")
 	}
-	if !hostRootPathReadonly {
-		return ""
+	if limitBytes <= 0 {
+		return "", fmt.Errorf("writable runsc rootfs requires writable_layer_limit_bytes > 0")
 	}
-
-	value := "root:memory"
-	if r.overlayTmpfsSize != "" {
-		value += ",size=" + r.overlayTmpfsSize
-	}
-	return value
+	return "root:dir=" + filepath.Join(r.filestoreDir, "runsc") +
+		",size=" + strconv.FormatInt(limitBytes, 10), nil
 }
 
-func (r *RunscServiceHandler) overlayArgsForBundle(bundlePath string) ([]string, error) {
+func (r *RunscServiceHandler) overlayArgsForBundle(bundlePath string, limitBytes int64) ([]string, error) {
 	ociSpec, err := runtimeoci.LoadSpec(filepath.Join(bundlePath, config.ContainerSpecFile))
 	if err != nil {
 		return nil, fmt.Errorf("load bundle spec for runsc overlay: %w", err)
 	}
-	if ociSpec.Root == nil || ociSpec.Root.Readonly {
-		return nil, nil
+	if ociSpec.Root == nil {
+		return nil, fmt.Errorf("runsc bundle rootfs is required")
 	}
-	if r.filestoreDir != "" {
-		return []string{"--overlay2", r.overlay2Value(false, false)}, nil
-	}
-	rootPath := ociSpec.Root.Path
-	if rootPath == "" {
-		return nil, nil
-	}
-	if !filepath.IsAbs(rootPath) {
-		rootPath = filepath.Join(bundlePath, rootPath)
-	}
-
-	hostRootPathReadonly, err := hostlinux.IsPathReadOnly(rootPath)
+	value, err := r.overlay2Value(ociSpec.Root.Readonly, limitBytes)
 	if err != nil {
-		return nil, fmt.Errorf("detect rootfs mount mode for %s: %w", rootPath, err)
+		return nil, err
 	}
-
-	value := r.overlay2Value(false, hostRootPathReadonly)
 	if value == "" {
 		return nil, nil
 	}

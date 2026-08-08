@@ -145,8 +145,10 @@ func collectResourceFromSpec(id string, oci *specs.Spec) OccupiedResource {
 	}
 	for resourceName, key := range oci.Annotations {
 		if after, ok := strings.CutPrefix(resourceName, resourcemanager.ResourceAnnotationKeyPrefix); ok {
-			resourceName = after
-			resource.Resources[resourcemanager.ResourceName(resourceName)] = key
+			name := resourcemanager.ResourceName(after)
+			if isManagedResourceClaim(name) {
+				resource.Resources[name] = key
+			}
 		}
 	}
 
@@ -156,6 +158,18 @@ func collectResourceFromSpec(id string, oci *specs.Spec) OccupiedResource {
 		}
 	}
 	return resource
+}
+
+// The resource annotation namespace also contains persisted runtime contracts,
+// such as writable-layer reservation metadata. Only pool-backed claims belong
+// to the generic resource managers and may be recycled through Manager.Release.
+func isManagedResourceClaim(name resourcemanager.ResourceName) bool {
+	switch name {
+	case resourcemanager.CgroupResourceName, resourcemanager.InterfaceResourceName:
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *Manager) RuntimeCgroupPath(containerID string) (string, error) {

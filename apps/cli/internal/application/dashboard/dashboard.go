@@ -102,11 +102,17 @@ func (c Control) Summary(ctx context.Context) (Summary, error) {
 		if quota.MemoryBytesLimit != nil {
 			out.Quotas.MemoryConstrained++
 		}
+		if quota.WritableLayerBytesLimit != nil {
+			out.Quotas.WritableLayerConstrained++
+		}
 		if quota.CPUUsagePercent != nil && *quota.CPUUsagePercent >= 80 {
 			out.Quotas.CPUPressure++
 		}
 		if quota.MemoryUsagePercent != nil && *quota.MemoryUsagePercent >= 80 {
 			out.Quotas.MemoryPressure++
+		}
+		if quota.WritableLayerUsagePercent != nil && *quota.WritableLayerUsagePercent >= 80 {
+			out.Quotas.WritableLayerPressure++
 		}
 	}
 	out.Reliability = reliability

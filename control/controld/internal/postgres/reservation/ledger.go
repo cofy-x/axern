@@ -12,13 +12,14 @@ import (
 )
 
 type WorkloadReservation struct {
-	AllocationID string
-	Namespace    string
-	OwnerType    string
-	OwnerID      string
-	NodeID       string
-	Requests     *commonv1.ResourceQuantity
-	CreatedAt    time.Time
+	AllocationID        string
+	Namespace           string
+	OwnerType           string
+	OwnerID             string
+	NodeID              string
+	Requests            *commonv1.ResourceQuantity
+	MemoryOverheadBytes int64
+	CreatedAt           time.Time
 }
 
 func InsertWorkloadReservation(ctx context.Context, tx pgx.Tx, reservation WorkloadReservation) error {
@@ -29,8 +30,8 @@ func InsertWorkloadReservation(ctx context.Context, tx pgx.Tx, reservation Workl
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO workload_reservations (
 			reservation_id, allocation_id, namespace, owner_type, owner_id, node_id,
-			cpu_milli, memory_bytes, created_at, released_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL)
+			cpu_milli, memory_bytes, memory_overhead_bytes, writable_layer_bytes, created_at, released_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULL)
 	`, "resv-"+uuid.NewString(),
 		reservation.AllocationID,
 		environmentkernel.NormalizeNamespace(reservation.Namespace),
@@ -39,6 +40,8 @@ func InsertWorkloadReservation(ctx context.Context, tx pgx.Tx, reservation Workl
 		reservation.NodeID,
 		requests.GetCpuMilli(),
 		requests.GetMemoryBytes(),
+		reservation.MemoryOverheadBytes,
+		requests.GetWritableLayerBytes(),
 		reservation.CreatedAt.UTC(),
 	); err != nil {
 		return fmt.Errorf("insert workload reservation: %w", err)

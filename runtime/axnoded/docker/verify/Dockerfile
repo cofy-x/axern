@@ -104,17 +104,17 @@ ARG APT_MIRROR_SOURCE=archive
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN case "${APT_MIRROR_SOURCE}" in \
-      aliyun) MIRROR="mirrors.aliyun.com" ;; \
-      ustc) MIRROR="mirrors.ustc.edu.cn" ;; \
-      tuna) MIRROR="mirrors.tuna.tsinghua.edu.cn" ;; \
-      archive) MIRROR="ports.ubuntu.com" ;; \
+      aliyun) ARCHIVE_MIRROR="mirrors.aliyun.com"; PORTS_MIRROR="mirrors.aliyun.com"; SECURITY_MIRROR="mirrors.aliyun.com" ;; \
+      ustc) ARCHIVE_MIRROR="mirrors.ustc.edu.cn"; PORTS_MIRROR="mirrors.ustc.edu.cn"; SECURITY_MIRROR="mirrors.ustc.edu.cn" ;; \
+      tuna) ARCHIVE_MIRROR="mirrors.tuna.tsinghua.edu.cn"; PORTS_MIRROR="mirrors.tuna.tsinghua.edu.cn"; SECURITY_MIRROR="mirrors.tuna.tsinghua.edu.cn" ;; \
+      archive) ARCHIVE_MIRROR="archive.ubuntu.com"; PORTS_MIRROR="ports.ubuntu.com"; SECURITY_MIRROR="security.ubuntu.com" ;; \
       *) echo "unsupported APT mirror source: ${APT_MIRROR_SOURCE}" >&2; exit 1 ;; \
     esac && \
     if [ -f /etc/apt/sources.list ]; then \
-      sed -i "s|archive.ubuntu.com|${MIRROR}|g; s|security.ubuntu.com|${MIRROR}|g; s|ports.ubuntu.com|${MIRROR}|g" /etc/apt/sources.list; \
+      sed -i "s|archive.ubuntu.com|${ARCHIVE_MIRROR}|g; s|security.ubuntu.com|${SECURITY_MIRROR}|g; s|ports.ubuntu.com|${PORTS_MIRROR}|g" /etc/apt/sources.list; \
     fi && \
     if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
-      sed -i "s|http://archive.ubuntu.com/ubuntu/|http://${MIRROR}/ubuntu/|g; s|http://security.ubuntu.com/ubuntu/|http://${MIRROR}/ubuntu/|g; s|http://ports.ubuntu.com/ubuntu-ports/|http://${MIRROR}/ubuntu-ports/|g" /etc/apt/sources.list.d/ubuntu.sources; \
+      sed -i "s|http://archive.ubuntu.com/ubuntu/|http://${ARCHIVE_MIRROR}/ubuntu/|g; s|http://security.ubuntu.com/ubuntu/|http://${SECURITY_MIRROR}/ubuntu/|g; s|http://ports.ubuntu.com/ubuntu-ports/|http://${PORTS_MIRROR}/ubuntu-ports/|g" /etc/apt/sources.list.d/ubuntu.sources; \
     fi
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

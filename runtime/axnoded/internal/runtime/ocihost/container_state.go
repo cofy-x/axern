@@ -88,9 +88,13 @@ func (c *Common) ContainerSpec(containerID string) (*spec.Spec, error) {
 	return &out, nil
 }
 
-func (c *Common) CleanupOnFailure(ctx context.Context, traceID, containerID, msg string) {
+func (c *Common) CleanupOnFailure(ctx context.Context, traceID, containerID, msg string) error {
 	logrus.WithField("trace_id", traceID).Warn(msg)
-	_, _ = c.Run(ctx, "delete", "--force", containerID)
+	_, err := c.Run(ctx, "delete", "--force", containerID)
+	if err != nil && strings.Contains(err.Error(), "file does not exist") {
+		return nil
+	}
+	return err
 }
 
 func ParseWaitExitCode(output []byte) (int, error) {

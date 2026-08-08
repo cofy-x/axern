@@ -3,10 +3,14 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
 	"github.com/sirupsen/logrus"
@@ -25,6 +29,13 @@ func (h *sandboxService) initNodeInventory() error {
 		logrus.WithError(err).Warn("node inventory actual usage provider disabled: cgroup driver unavailable")
 	}
 	disabledPools := disabledResourcePools(h.config.PluginConfig.ResourceConfig)
+	storageTargets := nodeinventory.DefaultStorageTargets(h.config.RootDir)
+	if filestore := h.config.PluginConfig.RuntimeConfig.FilestoreDir; filestore != "" {
+		storageTargets = append(storageTargets, nodeinventory.StorageTarget{
+			Target: nodeinventory.StorageTargetRuntimeFilestore, Path: filestore,
+			SystemReserveBytes: h.config.PluginConfig.RuntimeConfig.FilestoreSystemReserveBytes,
+		})
+	}
 	h.nodeInventorySource = nodeinventory.NewAxnodedSource(nodeinventory.AxnodedSourceOptions{
 		Ready:                 h.Ready,
 		RuntimeCount:          h.runtimeHandlers.Count,
@@ -38,13 +49,57 @@ func (h *sandboxService) initNodeInventory() error {
 		NodeState:             h.config.PluginConfig.ControlPlaneNodeStateValue(),
 		NodeLabels:            h.config.PluginConfig.ControlPlaneNodeLabelsValue(),
 		NodeCapabilities:      servicecontrolplane.DefaultNodeCapabilities(h.config),
+		DynamicCapabilities:   func() []string { return runtimeStorageCapabilities(h.config) },
 		VolumeHealth:          h.volumeClient.Health,
-		StorageTargets:        nodeinventory.DefaultStorageTargets(h.config.RootDir),
+		StorageTargets:        storageTargets,
 		RuntimeSlotCapacity:   h.config.PluginConfig.ResourceConfig.MaxInstanceNum,
 		DisabledResourcePools: disabledPools,
 	})
 	h.inventoryCollector = nodeinventory.NewCollector(5*time.Second, h.nodeInventorySource.Collect)
 	return nil
+}
+
+func runtimeStorageCapabilities(cfg config.Config) []string {
+	seen := map[string]struct{}{}
+	add := func(value string) {
+		if value != "" {
+			seen[value] = struct{}{}
+		}
+	}
+	if entries, err := os.ReadDir(filepath.Join(cfg.RootDir, "verified-capabilities")); err == nil {
+		bootID, _ := hostlinux.CurrentBootID()
+		for _, entry := range entries {
+			data, err := os.ReadFile(filepath.Join(cfg.RootDir, "verified-capabilities", entry.Name()))
+			if err != nil || bootID == "" || string(data) != bootID+"\n" {
+				continue
+			}
+			switch entry.Name() {
+			case "runtime-runc-memory-hard-limit":
+				add("runtime:runc:memory-hard-limit")
+			case "runtime-runsc-memory-hard-limit":
+				add("runtime:runsc:memory-hard-limit")
+			}
+		}
+	}
+	if filestore := cfg.PluginConfig.RuntimeConfig.FilestoreDir; filestore != "" {
+		if facts, err := hostlinux.ReadFilestoreCapabilities(filestore); err == nil {
+			if facts.OverlayReady {
+				add("runtime:runsc:writable-layer-hard-limit")
+			}
+			if facts.ProjectQuotaReady {
+				add("runtime:runc:writable-layer-hard-limit")
+			}
+			if facts.EROFSReady {
+				add("rootfs-lower:erofs")
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for capability := range seen {
+		out = append(out, capability)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (h *sandboxService) refreshNodeInventory() {

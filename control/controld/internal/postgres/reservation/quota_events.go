@@ -33,12 +33,14 @@ func insertQuotaAdmissionRejectedEvent(ctx context.Context, tx pgx.Tx, event quo
 			event_id, namespace, event_type, workload_type, workload_id, environment_id, reason,
 			requested_cpu_milli, reserved_cpu_milli, cpu_milli_limit, available_cpu_milli,
 			requested_memory_bytes, reserved_memory_bytes, memory_bytes_limit, available_memory_bytes,
+			requested_writable_layer_bytes, reserved_writable_layer_bytes, writable_layer_bytes_limit, available_writable_layer_bytes,
 			message, created_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7,
 			$8, $9, $10, $11,
 			$12, $13, $14, $15,
-			$16, $17
+			$16, $17, $18, $19,
+			$20, $21
 		)
 	`,
 		"quotaevt-"+uuid.NewString(),
@@ -56,6 +58,10 @@ func insertQuotaAdmissionRejectedEvent(ctx context.Context, tx pgx.Tx, event quo
 		evaluation.Memory.Used,
 		nullableInt64(evaluation.Memory.Limit),
 		nullableInt64(evaluation.Memory.Available),
+		evaluation.WritableLayer.Requested,
+		evaluation.WritableLayer.Used,
+		nullableInt64(evaluation.WritableLayer.Limit),
+		nullableInt64(evaluation.WritableLayer.Available),
 		event.Message,
 		createdAt.UTC(),
 	); err != nil {

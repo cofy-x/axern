@@ -3,7 +3,7 @@ package runtime
 import "testing"
 
 func TestRunscSandboxdArgsEnableHostUDS(t *testing.T) {
-	base := []string{"--overlay2=root:memory"}
+	base := []string{"--overlay2=root:dir=/filestore/runsc,size=1048576"}
 	got := runscSandboxdArgs(base)
 	if len(got) != 2 || got[0] != "--host-uds=create" || got[1] != base[0] {
 		t.Fatalf("args = %#v", got)

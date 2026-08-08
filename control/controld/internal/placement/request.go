@@ -3,17 +3,18 @@ package placement
 import "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 
 type Request struct {
-	RootfsKey              string
-	RootfsType             nodev1.RootfsType
-	MountType              nodev1.MountType
-	Runtime                string
-	RequiresHostPort       bool
-	RequestedCpuMilli      int64
-	RequestedMemoryBytes   int64
-	Ports                  []string
-	Network                string
-	CapabilityRequirements []string
-	NodeSelector           map[string]string
+	RootfsKey                   string
+	RootfsType                  nodev1.RootfsType
+	MountType                   nodev1.MountType
+	Runtime                     string
+	RequiresHostPort            bool
+	RequestedCpuMilli           int64
+	RequestedMemoryBytes        int64
+	RequestedWritableLayerBytes int64
+	Ports                       []string
+	Network                     string
+	CapabilityRequirements      []string
+	NodeSelector                map[string]string
 }
 
 func (r *Request) GetRootfsKey() string {
@@ -60,6 +61,13 @@ func (r *Request) GetRequestedMemoryBytes() int64 {
 		return 0
 	}
 	return r.RequestedMemoryBytes
+}
+
+func (r *Request) GetRequestedWritableLayerBytes() int64 {
+	if r == nil {
+		return 0
+	}
+	return r.RequestedWritableLayerBytes
 }
 
 func (r *Request) GetPorts() []string {

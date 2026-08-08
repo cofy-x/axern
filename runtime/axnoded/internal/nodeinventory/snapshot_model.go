@@ -19,8 +19,9 @@ type SourceStatus struct {
 }
 
 type NodeResourceQuantity struct {
-	CpuMilli    int64 `json:"cpu_milli"`
-	MemoryBytes int64 `json:"memory_bytes"`
+	CpuMilli           int64 `json:"cpu_milli"`
+	MemoryBytes        int64 `json:"memory_bytes"`
+	WritableLayerBytes int64 `json:"writable_layer_bytes"`
 }
 
 type NodeInfo struct {
@@ -46,8 +47,15 @@ type MemoryInventory struct {
 }
 
 type ResourceInventory struct {
-	CPU    CPUInventory    `json:"cpu"`
-	Memory MemoryInventory `json:"memory"`
+	CPU           CPUInventory           `json:"cpu"`
+	Memory        MemoryInventory        `json:"memory"`
+	WritableLayer WritableLayerInventory `json:"writable_layer"`
+}
+
+type WritableLayerInventory struct {
+	AxnodedCommittedBytes int64 `json:"axnoded_committed_bytes"`
+	AxnodedUsedBytes      int64 `json:"axnoded_used_bytes"`
+	AxnodedUnboundedCount int64 `json:"axnoded_unbounded_count"`
 }
 
 type PoolInventory struct {
@@ -64,16 +72,24 @@ type PoolsInventory struct {
 }
 
 type StorageInventoryEntry struct {
-	Target          string `json:"target"`
-	Path            string `json:"path,omitempty"`
-	CapacityBytes   int64  `json:"capacity_bytes"`
-	UsedBytes       int64  `json:"used_bytes"`
-	AvailableBytes  int64  `json:"available_bytes"`
-	InodesTotal     int64  `json:"inodes_total"`
-	InodesUsed      int64  `json:"inodes_used"`
-	InodesAvailable int64  `json:"inodes_available"`
-	Collected       bool   `json:"collected"`
-	Error           string `json:"error,omitempty"`
+	Target                      string `json:"target"`
+	Path                        string `json:"path,omitempty"`
+	CapacityBytes               int64  `json:"capacity_bytes"`
+	UsedBytes                   int64  `json:"used_bytes"`
+	AvailableBytes              int64  `json:"available_bytes"`
+	InodesTotal                 int64  `json:"inodes_total"`
+	InodesUsed                  int64  `json:"inodes_used"`
+	InodesAvailable             int64  `json:"inodes_available"`
+	Collected                   bool   `json:"collected"`
+	Error                       string `json:"error,omitempty"`
+	SystemReserveBytes          int64  `json:"system_reserve_bytes"`
+	ReservedBytes               int64  `json:"reserved_bytes"`
+	AllocatableBytes            int64  `json:"allocatable_bytes"`
+	ActiveReservations          int64  `json:"active_reservations"`
+	FilesystemType              string `json:"filesystem_type,omitempty"`
+	MountIdentity               string `json:"mount_identity,omitempty"`
+	AllocationUsedBytes         int64  `json:"allocation_used_bytes"`
+	UnlinkedBackingUsageUnknown bool   `json:"unlinked_backing_usage_unknown"`
 }
 
 type AxnodedComponentInventory struct {

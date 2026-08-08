@@ -41,7 +41,6 @@ func TestRunscHandlerKillContainerUsesOCIKill(t *testing.T) {
 func TestRunscPrepareExecutionEnvelopeUsesCreate(t *testing.T) {
 	rootDir := t.TempDir()
 	writeFakeSandboxdBinary(t, rootDir)
-	rootfsDir := newReadonlyRootfs(t)
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
@@ -51,17 +50,14 @@ func TestRunscPrepareExecutionEnvelopeUsesCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
+	handler.ignoreCgroups = true
 	recorder := &recordingExecutor{}
 	handler.common.SetExecutor(recorder)
 
-	envelope, err := handler.PrepareExecutionEnvelope(context.Background(), &apipb.CreateContainerRequest{
-		Runtime: "runsc",
-		Command: []string{"/bin/sh"},
-		Rootfs: &apipb.Rootfs{
-			RootDir:  rootfsDir,
-			Readonly: true,
-		},
-	}, contract.HandlerOptions{ContainerID: "axctl-prewarm"})
+	request := newLocalCreateRequest(t)
+	request.Runtime = "runsc"
+	request.Command = []string{"/bin/sh"}
+	envelope, err := handler.PrepareExecutionEnvelope(context.Background(), request, contract.HandlerOptions{ContainerID: "axctl-prewarm"})
 	assert.NoError(t, err)
 	if assert.NotNil(t, envelope) {
 		assert.Equal(t, "axctl-prewarm", envelope.ContainerID)

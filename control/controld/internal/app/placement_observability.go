@@ -27,6 +27,7 @@ func (placementMetricsObserver) RecordSelection(ctx context.Context, observation
 func recordPlacementRequestedResources(ctx context.Context, observation placement.SelectionObservation, baseAttrs []attribute.KeyValue) {
 	recordPlacementRequestedResource(ctx, "cpu_milli", observation.RequestedCPUMilli, baseAttrs)
 	recordPlacementRequestedResource(ctx, "memory_bytes", observation.RequestedMemoryBytes, baseAttrs)
+	recordPlacementRequestedResource(ctx, "writable_layer_bytes", observation.RequestedWritableLayerBytes, baseAttrs)
 }
 
 func recordPlacementRequestedResource(ctx context.Context, resource string, value int64, baseAttrs []attribute.KeyValue) {

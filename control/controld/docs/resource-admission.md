@@ -102,7 +102,7 @@ Resource admission metrics are layered:
 | `axern.controld_placement_selection_total{operation,result,mount_type}` | Placement selection attempts. |
 | `axern.controld_placement_rejection_total{operation,result,reason}` | Placement candidate rejection reasons. |
 | `axern.controld_namespace_resource_current{namespace,resource,state}` | Current namespace quota limits, reserved usage, and available capacity. |
-| `axern.controld_node_resource_current{resource,state}` | Current node CPU, memory, and runtime-slot capacity, reservation, and policy-derived resource state. |
+| `axern.controld_node_resource_current{resource,state}` | Current node CPU, memory, writable-layer, and runtime-slot capacity, reservation, and policy-derived resource state. |
 
 Allocation queue stages have distinct meanings:
 
@@ -157,6 +157,14 @@ diagnostic categories.
   for legacy/raw messages when structured workload diagnostics are unavailable.
 - `axnoded` remains the runtime authority for cgroup enforcement; overcommit
   and quota do not change container limits.
+- `resources.requests.writable_layer_bytes` participates in namespace quota,
+  placement, the transactional controld ledger, and the independent axnoded
+  node-local ledger. `resources.limits.writable_layer_bytes` is the runtime
+  hard quota. Writable roots resolve missing limit to the configured default
+  and missing request to the resolved limit; readonly roots reject nonzero
+  writable-layer resources.
+- Runsc host overhead is added only to node memory fit and persisted as
+  `memory_overhead_bytes`; namespace memory quota charges the declared request.
 - Runtime pool exhaustion returned by `axnoded` is a runtime-start failure, not
   an admission block. Normal saturation must be rejected by transactional
   runtime-slot admission before node dispatch.

@@ -60,7 +60,12 @@ idle_runtime_retention_ttl = "5m"
 idle_runtime_retention_max = 8
 # Set to false for local-rootfs-only setups that do not run imagemgr.
 # image_manager_enabled = false
-ignore_cgroups = true
+cgroup_enforcement = "required"
+# Production filestore example:
+# filestore_mode = "existing"
+# filestore_dir = "/var/lib/axnoded-filestore"
+# filestore_system_reserve_bytes = 10737418240
+# writable_layer_default_limit_bytes = 1073741824
 
 # Workload resolver files are materialized per OCI bundle. Leave nameservers
 # empty to derive usable resolvers from the node; set explicit values for
@@ -75,7 +80,6 @@ binary = "/usr/local/bin/runsc"
 base_spec = "/etc/axnoded/runsc-config.json"
 
 [plugin.runtime.runtimes.runsc.options]
-ignore_cgroups = true
 allow_suid = true
 
 [plugin.runtime.runtimes.runc]

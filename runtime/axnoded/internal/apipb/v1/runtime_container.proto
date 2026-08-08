@@ -21,6 +21,8 @@ message CreateContainerRequest {
   string ckptDir = 11;
   string cwd = 12;
   string ID = 13;
+  int64 writable_layer_request_bytes = 14;
+  int64 writable_layer_limit_bytes = 15;
 }
 
 message CreateContainerResponse {

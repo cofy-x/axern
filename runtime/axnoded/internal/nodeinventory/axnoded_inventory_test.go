@@ -25,6 +25,7 @@ func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 	manager := langruntime.NewLanguageRuntimeManager()
+	manager.ConfigureRetention(time.Minute, 1)
 	fr := &runtimeapi.RuntimeTemplate{
 		ID:      "inventory-retained",
 		Sandbox: "runsc",

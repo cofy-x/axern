@@ -48,10 +48,9 @@ type RuntimeConfig struct {
 
 	RuntimeBinary map[string]string `toml:"runtime_binary" json:"runtimeBinary"`
 
-	// IgnoreCgroups tells runsc not to configure OCI cgroups itself.
-	// Generic axnoded manages cgroups through the internal cgroup driver,
-	// which is more portable across Linux container hosts like OrbStack.
-	IgnoreCgroups bool `toml:"ignore_cgroups" json:"ignoreCgroups"`
+	// CgroupEnforcement is "required" in production. "disabled_dev" is an
+	// explicit development mode and rejects hard memory limits.
+	CgroupEnforcement string `toml:"cgroup_enforcement" json:"cgroupEnforcement"`
 
 	// BasicSpec is the basic spec file for different runtime type.
 	BasicSpec map[string]string `toml:"basic_spec" json:"basicSpec"`
@@ -71,21 +70,20 @@ type RuntimeConfig struct {
 	// ImageManagerSocket points to the local imagemgr Unix socket.
 	ImageManagerSocket string `toml:"image_manager_socket" json:"imageManagerSocket"`
 
-	// FilestoreDir specifies a directory for overlay backing files.
-	// The directory must reside on an XFS filesystem with reflink support for
-	// ficlone to work when forking sandboxes. If the directory is not yet
-	// mounted, axnoded will create an XFS image file at
-	// <parent-of-FilestoreDir>/xfs.img and mount it automatically.
+	// FilestoreDir is the validated root for runtime writable storage.
 	FilestoreDir string `toml:"filestore_dir" json:"filestoreDir"`
 
-	// FilestoreDirSize specifies the size of the XFS image file created for
-	// FilestoreDir (e.g. "100G", "50G"). Required when FilestoreDir is set
-	// and the mount point does not already exist as an XFS filesystem.
-	FilestoreDirSize string `toml:"filestore_dir_size" json:"filestoreDirSize"`
+	// FilestoreMode is "existing" for a production data-disk mount or
+	// "loopback_dev" for an explicitly managed local-development image.
+	FilestoreMode string `toml:"filestore_mode" json:"filestoreMode"`
 
-	// OverlayTmpfsSize specifies the size limit for the overlay tmpfs upper
-	// layer (e.g. "256M", "1G"). When empty, no size limit is applied.
-	OverlayTmpfsSize string `toml:"overlay_tmpfs_size" json:"overlayTmpfsSize"`
+	FilestoreLoopbackImage      string `toml:"filestore_loopback_image" json:"filestoreLoopbackImage"`
+	FilestoreLoopbackSizeBytes  int64  `toml:"filestore_loopback_size_bytes" json:"filestoreLoopbackSizeBytes"`
+	FilestoreSystemReserveBytes int64  `toml:"filestore_system_reserve_bytes" json:"filestoreSystemReserveBytes"`
+
+	// WritableLayerDefaultLimitBytes is the required development-phase hard
+	// size passed to runsc's file-backed root overlay.
+	WritableLayerDefaultLimitBytes int64 `toml:"writable_layer_default_limit_bytes" json:"writableLayerDefaultLimitBytes"`
 
 	// DNS controls the resolver files axnoded materializes into OCI bundles.
 	// When nameservers is empty, axnoded derives usable resolvers from the
@@ -111,8 +109,7 @@ type RuntimeInstanceConfig struct {
 }
 
 type RuntimeOptions struct {
-	IgnoreCgroups *bool `toml:"ignore_cgroups" json:"ignoreCgroups"`
-	AllowSUID     *bool `toml:"allow_suid" json:"allowSuid"`
+	AllowSUID *bool `toml:"allow_suid" json:"allowSuid"`
 }
 
 type RuntimeDNSConfig struct {
@@ -121,11 +118,15 @@ type RuntimeDNSConfig struct {
 	Options       []string `toml:"options" json:"options"`
 }
 
-func (o RuntimeOptions) IgnoreCgroupsEnabled(defaultValue bool) bool {
-	if o.IgnoreCgroups == nil {
-		return defaultValue
+func (c RuntimeConfig) CgroupEnforcementMode() (string, error) {
+	mode := strings.TrimSpace(c.CgroupEnforcement)
+	if mode == "" {
+		mode = CgroupEnforcementRequired
 	}
-	return *o.IgnoreCgroups
+	if mode != CgroupEnforcementRequired && mode != CgroupEnforcementDisabledDev {
+		return "", fmt.Errorf("unsupported cgroup_enforcement %q", mode)
+	}
+	return mode, nil
 }
 
 func (o RuntimeOptions) AllowSUIDEnabled(defaultValue bool) bool {
@@ -154,15 +155,6 @@ func (c RuntimeConfig) NormalizedRuntimeConfigs() map[string]RuntimeInstanceConf
 		runtimeCfg := out[name]
 		if runtimeCfg.BaseSpec == "" {
 			runtimeCfg.BaseSpec = baseSpec
-		}
-		out[name] = runtimeCfg
-	}
-
-	for name, runtimeCfg := range out {
-		// Legacy ignore_cgroups only existed as a runsc-focused global knob.
-		if name == RuntimeNameRunsc && runtimeCfg.Options.IgnoreCgroups == nil {
-			ignoreCgroups := c.IgnoreCgroups
-			runtimeCfg.Options.IgnoreCgroups = &ignoreCgroups
 		}
 		out[name] = runtimeCfg
 	}
@@ -483,25 +475,26 @@ func DefaultConfig() Config {
 						Binary:   DefaultRunscBinary,
 						BaseSpec: "/etc/axnoded/runsc-config.json",
 						Options: RuntimeOptions{
-							IgnoreCgroups: boolPtr(true),
-							AllowSUID:     boolPtr(true),
+							AllowSUID: boolPtr(true),
 						},
 					},
 				},
 				RuntimeBinary: map[string]string{
 					RuntimeNameRunsc: DefaultRunscBinary,
 				},
-				IgnoreCgroups: true,
+				CgroupEnforcement: CgroupEnforcementRequired,
 				BasicSpec: map[string]string{
 					RuntimeNameRunsc: "/etc/axnoded/runsc-config.json",
 				},
-				ImageLibDir:             DefaultImageLibDir,
-				RuntimeRunnerBinary:     DefaultRuntimeRunnerBinary,
-				ImageManagerEnabled:     boolPtr(true),
-				ImageManagerSocket:      DefaultImageManagerSocket,
-				VolumeManagerSocket:     DefaultVolumeManagerSocket,
-				IdleRuntimeRetentionTTL: DefaultIdleRuntimeRetentionTTL,
-				IdleRuntimeRetentionMax: &defaultIdleRuntimeRetentionMax,
+				ImageLibDir:                    DefaultImageLibDir,
+				RuntimeRunnerBinary:            DefaultRuntimeRunnerBinary,
+				ImageManagerEnabled:            boolPtr(true),
+				ImageManagerSocket:             DefaultImageManagerSocket,
+				VolumeManagerSocket:            DefaultVolumeManagerSocket,
+				IdleRuntimeRetentionTTL:        DefaultIdleRuntimeRetentionTTL,
+				IdleRuntimeRetentionMax:        &defaultIdleRuntimeRetentionMax,
+				FilestoreMode:                  FilestoreModeExisting,
+				WritableLayerDefaultLimitBytes: 256 << 20,
 			},
 			ResourceConfig: ResourceConfig{
 				MaxInstanceNum:                DefaultMaxContainerNum,
