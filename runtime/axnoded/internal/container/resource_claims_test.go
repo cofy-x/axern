@@ -6,8 +6,11 @@ import (
 	"testing"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
+	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
+	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/orcaman/concurrent-map/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRuntimeCgroupPathPrefersSpecPath(t *testing.T) {
@@ -56,4 +59,32 @@ func TestParseProcessCgroupPathFallsBackToMemoryController(t *testing.T) {
 	cgroupPath, err := parseProcessCgroupPath("11:cpu:/sandbox/test\n10:memory:/sandbox/test/workload\n")
 	assert.NoError(t, err)
 	assert.Equal(t, "/sandbox/test/workload", cgroupPath)
+}
+
+func TestCollectResourceFromSpecExcludesRuntimeContractAnnotations(t *testing.T) {
+	oci := &specs.Spec{Annotations: map[string]string{
+		resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName): "interface-1",
+		resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.CgroupResourceName):    "/sandbox/cgroup-1",
+		resourcemanager.ResourceAnnotationKeyPrefix + "writable-layer":                              `{"request_bytes":1,"limit_bytes":2}`,
+	}}
+
+	got := collectResourceFromSpec("sandbox-1", oci)
+
+	require.Equal(t, map[resourcemanager.ResourceName]string{
+		resourcemanager.InterfaceResourceName: "interface-1",
+		resourcemanager.CgroupResourceName:    "/sandbox/cgroup-1",
+	}, got.Resources)
+}
+
+func TestClearSpecResourceClaimsPreservesRuntimeContractAnnotations(t *testing.T) {
+	annotations := map[string]string{
+		resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName): "interface-1",
+		resourcemanager.ResourceAnnotationKeyPrefix + "writable-layer":                              `{"request_bytes":1,"limit_bytes":2}`,
+	}
+
+	clearSpecResourceClaims(annotations)
+
+	require.Equal(t, map[string]string{
+		resourcemanager.ResourceAnnotationKeyPrefix + "writable-layer": `{"request_bytes":1,"limit_bytes":2}`,
+	}, annotations)
 }

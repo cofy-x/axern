@@ -90,7 +90,8 @@ func (m *Manager) clearContainerResourceClaims(id string) error {
 
 func clearSpecResourceClaims(annotations map[string]string) {
 	for key := range annotations {
-		if strings.HasPrefix(key, resourcemanager.ResourceAnnotationKeyPrefix) {
+		if resourceName, ok := strings.CutPrefix(key, resourcemanager.ResourceAnnotationKeyPrefix); ok &&
+			isManagedResourceClaim(resourcemanager.ResourceName(resourceName)) {
 			delete(annotations, key)
 		}
 	}
