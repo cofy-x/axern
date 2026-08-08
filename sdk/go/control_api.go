@@ -58,22 +58,22 @@ func (c *Client) DeleteEnvironment(ctx context.Context, environmentID string) er
 
 // CreateServiceOptions configures a single-replica service for sandbox use.
 type CreateServiceOptions struct {
-	Namespace            string
-	EnvironmentID        string
-	Argv                 []string
-	Env                  map[string]string
-	Cwd                  string
-	RuntimeClass         string
-	Volumes              []VolumeMount
-	ImageMounts          []ImageMount
-	WorkspaceImage       *WorkspaceImageSource
-	RequestCPU           ResourceQuantity
-	RequestMemory        ResourceQuantity
-	RequestWritableLayer ResourceQuantity
-	LimitCPU             ResourceQuantity
-	LimitMemory          ResourceQuantity
-	LimitWritableLayer   ResourceQuantity
-	Labels               map[string]string
+	Namespace               string
+	EnvironmentID           string
+	Argv                    []string
+	Env                     map[string]string
+	Cwd                     string
+	RuntimeClass            string
+	Volumes                 []VolumeMount
+	ImageMounts             []ImageMount
+	WorkspaceImage          *WorkspaceImageSource
+	RequestCPU              ResourceQuantity
+	RequestMemory           ResourceQuantity
+	RequestEphemeralStorage ResourceQuantity
+	LimitCPU                ResourceQuantity
+	LimitMemory             ResourceQuantity
+	LimitEphemeralStorage   ResourceQuantity
+	Labels                  map[string]string
 }
 
 // CreateService creates an Axern service.
@@ -90,7 +90,7 @@ func (c *Client) CreateService(ctx context.Context, options CreateServiceOptions
 	if err := validateWorkspaceImageMounts(options.WorkspaceImage, options.ImageMounts, options.Volumes); err != nil {
 		return nil, err
 	}
-	resources, err := buildResourceSpec(options.RequestCPU, options.RequestMemory, options.RequestWritableLayer, options.LimitCPU, options.LimitMemory, options.LimitWritableLayer)
+	resources, err := buildResourceSpec(options.RequestCPU, options.RequestMemory, options.RequestEphemeralStorage, options.LimitCPU, options.LimitMemory, options.LimitEphemeralStorage)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func pathsOverlap(a, b string) bool {
 	return a == b || strings.HasPrefix(a, b+"/") || strings.HasPrefix(b, a+"/")
 }
 
-func buildResourceSpec(requestCPUValue, requestMemoryValue, requestWritableValue, limitCPUValue, limitMemoryValue, limitWritableValue ResourceQuantity) (*commonv1.ResourceSpec, error) {
+func buildResourceSpec(requestCPUValue, requestMemoryValue, requestEphemeralStorageValue, limitCPUValue, limitMemoryValue, limitEphemeralStorageValue ResourceQuantity) (*commonv1.ResourceSpec, error) {
 	requestCPU, err := parseCPUQuantity("request_cpu", requestCPUValue)
 	if err != nil {
 		return nil, err
@@ -311,7 +311,7 @@ func buildResourceSpec(requestCPUValue, requestMemoryValue, requestWritableValue
 	if err != nil {
 		return nil, err
 	}
-	requestWritable, err := parseMemoryQuantity("request_writable_layer", requestWritableValue)
+	requestEphemeralStorage, err := parseMemoryQuantity("request_ephemeral_storage", requestEphemeralStorageValue)
 	if err != nil {
 		return nil, err
 	}
@@ -323,23 +323,23 @@ func buildResourceSpec(requestCPUValue, requestMemoryValue, requestWritableValue
 	if err != nil {
 		return nil, err
 	}
-	limitWritable, err := parseMemoryQuantity("limit_writable_layer", limitWritableValue)
+	limitEphemeralStorage, err := parseMemoryQuantity("limit_ephemeral_storage", limitEphemeralStorageValue)
 	if err != nil {
 		return nil, err
 	}
 	resources := &commonv1.ResourceSpec{}
-	if requestCPU > 0 || requestMemory > 0 || requestWritable > 0 {
+	if requestCPU > 0 || requestMemory > 0 || requestEphemeralStorage > 0 {
 		resources.Requests = &commonv1.ResourceQuantity{
-			CpuMilli:           requestCPU,
-			MemoryBytes:        requestMemory,
-			WritableLayerBytes: requestWritable,
+			CpuMilli:              requestCPU,
+			MemoryBytes:           requestMemory,
+			EphemeralStorageBytes: requestEphemeralStorage,
 		}
 	}
-	if limitCPU > 0 || limitMemory > 0 || limitWritable > 0 {
+	if limitCPU > 0 || limitMemory > 0 || limitEphemeralStorage > 0 {
 		resources.Limits = &commonv1.ResourceQuantity{
-			CpuMilli:           limitCPU,
-			MemoryBytes:        limitMemory,
-			WritableLayerBytes: limitWritable,
+			CpuMilli:              limitCPU,
+			MemoryBytes:           limitMemory,
+			EphemeralStorageBytes: limitEphemeralStorage,
 		}
 	}
 	if resources.Requests == nil && resources.Limits == nil {

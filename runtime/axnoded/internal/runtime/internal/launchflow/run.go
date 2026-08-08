@@ -18,6 +18,7 @@ type Options struct {
 	AfterStart     func() error
 	OnAfterStart   func(error)
 	WaitReady      func(context.Context, string, *apipb.ContainerMetadata) error
+	VerifyRuntime  func(context.Context) error
 	Cleanup        func(string)
 }
 
@@ -55,6 +56,14 @@ func Run(ctx context.Context, options Options) (*apipb.ContainerMetadata, error)
 		return fail("sandboxd ready failed", err)
 	}
 	options.HandlerOptions.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, contract.StartupStepSandboxdWaitReady, time.Since(readyStart))
+	if options.VerifyRuntime != nil {
+		verifyStart := time.Now()
+		if err := options.VerifyRuntime(ctx); err != nil {
+			options.HandlerOptions.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, contract.StartupStepRuntimeEnforcement, time.Since(verifyStart))
+			return fail("runtime enforcement failed", err)
+		}
+		options.HandlerOptions.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, contract.StartupStepRuntimeEnforcement, time.Since(verifyStart))
+	}
 	options.HandlerOptions.RecordStartupPhase(contract.StartupPhaseRuntimeLaunch, time.Since(launchStart))
 	return options.Metadata, nil
 }

@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/grpc/codes"
@@ -240,6 +239,7 @@ func TestRolloutStateHonorsConfiguredBudgets(t *testing.T) {
 		{AllocationID: "old-b", Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, Ready: true, Config: &commonv1.ExecutionConfig{Argv: []string{"/bin/old"}}},
 		{AllocationID: "new-a", Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, Ready: true, Config: &commonv1.ExecutionConfig{Argv: []string{"/bin/new"}}},
 	}
+	stampAllocationDesiredSpecs(t, svc, allocations)
 	status := BuildRolloutStatus(svc, allocations)
 	if status == nil || !status.GetInProgress() {
 		t.Fatalf("rollout status = %+v, want in_progress", status)
@@ -263,6 +263,7 @@ func TestBuildRolloutStatusReturnsSummaryOnlyWhileInProgress(t *testing.T) {
 		{AllocationID: "new-a", Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, Ready: true, Config: &commonv1.ExecutionConfig{Argv: []string{"/bin/new"}}},
 		{AllocationID: "new-b", Status: commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING, Config: &commonv1.ExecutionConfig{Argv: []string{"/bin/new"}}},
 	}
+	stampAllocationDesiredSpecs(t, service, allocations)
 	status := BuildRolloutStatus(service, allocations)
 	if status == nil || !status.GetInProgress() {
 		t.Fatalf("rollout status = %+v, want in_progress", status)
@@ -272,10 +273,12 @@ func TestBuildRolloutStatusReturnsSummaryOnlyWhileInProgress(t *testing.T) {
 	}
 
 	service.Config = &commonv1.ExecutionConfig{Argv: []string{"/bin/old"}}
-	if status := BuildRolloutStatus(service, []*AllocationRecord{
+	matching := []*AllocationRecord{
 		{AllocationID: "old-a", Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, Ready: true, Config: &commonv1.ExecutionConfig{Argv: []string{"/bin/old"}}},
 		{AllocationID: "old-b", Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, Ready: true, Config: &commonv1.ExecutionConfig{Argv: []string{"/bin/old"}}},
-	}); status != nil {
+	}
+	stampAllocationDesiredSpecs(t, service, matching)
+	if status := BuildRolloutStatus(service, matching); status != nil {
 		t.Fatalf("rollout status = %+v, want nil when rollout is not in progress", status)
 	}
 }
@@ -297,6 +300,7 @@ func TestBuildRolloutStatusBlockedByDiagnostic(t *testing.T) {
 			Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/old"}},
 		},
 	}
+	stampAllocationDesiredSpecs(t, service, allocations)
 	status := BuildRolloutStatus(service, allocations)
 	if status == nil {
 		t.Fatal("BuildRolloutStatus() = nil, want blocked rollout summary")
@@ -317,15 +321,25 @@ func TestAllocationOutdatedMatchesEnvironmentDrift(t *testing.T) {
 		EnvironmentID: "env-new",
 		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}},
 	}
-	if !AllocationOutdated("env-old", &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}}, nil, nil, service) {
+	old := CloneService(service)
+	old.EnvironmentID = "env-old"
+	oldDigest, err := DesiredSpecDigest(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !AllocationOutdated(oldDigest, service) {
 		t.Fatal("allocation unexpectedly considered current when environment id drifted")
 	}
-	if AllocationOutdated("env-new", &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}}, nil, nil, service) {
+	currentDigest, err := DesiredSpecDigest(service)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if AllocationOutdated(currentDigest, service) {
 		t.Fatal("allocation unexpectedly considered outdated when environment and config matched")
 	}
 }
 
-func TestAllocationOutdatedMatchesResolvedWritableLayerDefaults(t *testing.T) {
+func TestAllocationOutdatedUsesDesiredSpecIdentity(t *testing.T) {
 	service := &servicev1.Service{
 		EnvironmentID: "env-writable",
 		Config: &commonv1.ExecutionConfig{
@@ -333,17 +347,38 @@ func TestAllocationOutdatedMatchesResolvedWritableLayerDefaults(t *testing.T) {
 			Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 4 << 30}},
 		},
 	}
-	allocationConfig, err := executionkernel.NormalizeConfigForRootfs(service.GetConfig(), false)
+	digest, err := DesiredSpecDigest(service)
 	if err != nil {
-		t.Fatalf("NormalizeConfigForRootfs() error = %v", err)
+		t.Fatalf("DesiredSpecDigest() error = %v", err)
 	}
-	if AllocationOutdated("env-writable", allocationConfig, nil, nil, service) {
-		t.Fatal("allocation with resolved writable-layer defaults unexpectedly considered outdated")
+	if AllocationOutdated(digest, service) {
+		t.Fatal("allocation with matching desired identity unexpectedly considered outdated")
 	}
+	service.Config.Resources.Requests.CpuMilli++
+	if !AllocationOutdated(digest, service) {
+		t.Fatal("allocation with a changed desired spec unexpectedly considered current")
+	}
+}
 
-	allocationConfig.Resources.Limits.WritableLayerBytes++
-	if !AllocationOutdated("env-writable", allocationConfig, nil, nil, service) {
-		t.Fatal("allocation with a different writable-layer limit unexpectedly considered current")
+func TestAllocationWithoutDesiredSpecIdentityIsOutdated(t *testing.T) {
+	if !AllocationOutdated("", &servicev1.Service{Config: &commonv1.ExecutionConfig{}}) {
+		t.Fatal("allocation without desired identity must be replaced")
+	}
+}
+
+func stampAllocationDesiredSpecs(t *testing.T, service *servicev1.Service, allocations []*AllocationRecord) {
+	t.Helper()
+	for _, allocation := range allocations {
+		intent := CloneService(service)
+		intent.EnvironmentID = allocation.EnvironmentID
+		intent.Config = allocation.Config
+		intent.ReadinessProbe = allocation.ReadinessProbe
+		intent.LivenessProbe = allocation.LivenessProbe
+		digest, err := DesiredSpecDigest(intent)
+		if err != nil {
+			t.Fatalf("DesiredSpecDigest() error = %v", err)
+		}
+		allocation.DesiredSpecDigest = digest
 	}
 }
 

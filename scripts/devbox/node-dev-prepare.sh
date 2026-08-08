@@ -85,7 +85,7 @@ filestore_mode = "loopback_dev"
 filestore_loopback_image = "${AXNODED_DIR}/filestore.xfs.img"
 filestore_loopback_size_bytes = 536870912
 filestore_system_reserve_bytes = 67108864
-writable_layer_default_limit_bytes = 268435456
+ephemeral_storage_default_limit_bytes = 268435456
 
 [plugin.runtime.runtimes.runsc]
 binary = "/usr/local/bin/runsc"

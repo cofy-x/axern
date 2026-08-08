@@ -161,7 +161,7 @@ func collectResourceFromSpec(id string, oci *specs.Spec) OccupiedResource {
 }
 
 // The resource annotation namespace also contains persisted runtime contracts,
-// such as writable-layer reservation metadata. Only pool-backed claims belong
+// such as ephemeral-storage reservation metadata. Only pool-backed claims belong
 // to the generic resource managers and may be recycled through Manager.Release.
 func isManagedResourceClaim(name resourcemanager.ResourceName) bool {
 	switch name {

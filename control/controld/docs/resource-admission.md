@@ -102,7 +102,7 @@ Resource admission metrics are layered:
 | `axern.controld_placement_selection_total{operation,result,mount_type}` | Placement selection attempts. |
 | `axern.controld_placement_rejection_total{operation,result,reason}` | Placement candidate rejection reasons. |
 | `axern.controld_namespace_resource_current{namespace,resource,state}` | Current namespace quota limits, reserved usage, and available capacity. |
-| `axern.controld_node_resource_current{resource,state}` | Current node CPU, memory, writable-layer, and runtime-slot capacity, reservation, and policy-derived resource state. |
+| `axern.controld_node_resource_current{resource,state}` | Current node CPU, memory, ephemeral-storage, and runtime-slot capacity, reservation, and policy-derived resource state. |
 
 Allocation queue stages have distinct meanings:
 
@@ -157,12 +157,21 @@ diagnostic categories.
   for legacy/raw messages when structured workload diagnostics are unavailable.
 - `axnoded` remains the runtime authority for cgroup enforcement; overcommit
   and quota do not change container limits.
-- `resources.requests.writable_layer_bytes` participates in namespace quota,
+- A nonzero `resources.limits.memory_bytes` adds the placement requirement
+  `cgroup:memory-limit-ready`. Axnoded publishes it only after a startup probe
+  creates a private cgroup and successfully writes and reads back a memory
+  limit. Each admitted sandbox must still pass runtime-specific PID attribution
+  after start or be force-deleted.
+- `resources.requests.ephemeral_storage_bytes` participates in namespace quota,
   placement, the transactional controld ledger, and the independent axnoded
-  node-local ledger. `resources.limits.writable_layer_bytes` is the runtime
+  node-local ledger. `resources.limits.ephemeral_storage_bytes` is the runtime
   hard quota. Writable roots resolve missing limit to the configured default
   and missing request to the resolved limit; readonly roots reject nonzero
-  writable-layer resources.
+  ephemeral-storage resources.
+- The charged scope is the sandbox-lifetime runc writable upper or runsc
+  file-backed root overlay, including metadata, copy-up, and whiteouts. It does
+  not include persistent volumes, immutable lowers or image caches, artifacts,
+  projection placeholders, tmpfs, or logs.
 - Runsc host overhead is added only to node memory fit and persisted as
   `memory_overhead_bytes`; namespace memory quota charges the declared request.
 - Runtime pool exhaustion returned by `axnoded` is a runtime-start failure, not

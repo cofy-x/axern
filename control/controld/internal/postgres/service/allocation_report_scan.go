@@ -14,9 +14,9 @@ func (s *PGStore) listAllocationRecordsTx(ctx context.Context, tx pgx.Tx, servic
 		return nil, nil
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT allocation_id, environment_id, node_id, ''::text AS node_target, attempt, status, ready, readiness_message, readiness_probe, liveness_probe, config
-		FROM allocations
-		WHERE owner_type = $1 AND owner_id = $2 AND allocation_id = ANY($3::text[])
+		SELECT `+allocationRecordSelectColumnsWithoutNodeTarget+`
+		FROM allocations a
+		WHERE a.owner_type = $1 AND a.owner_id = $2 AND a.allocation_id = ANY($3::text[])
 	`, allocationOwnerService, strings.TrimSpace(serviceID), allocationIDs)
 	if err != nil {
 		return nil, fmt.Errorf("query service allocation records: %w", err)

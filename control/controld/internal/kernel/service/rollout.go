@@ -62,7 +62,7 @@ func outdatedAllocations(allocations []*AllocationRecord, service *servicev1.Ser
 		if alloc == nil || alloc.Status == commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASING {
 			continue
 		}
-		if allocationOutdated(alloc.EnvironmentID, alloc.Config, alloc.ReadinessProbe, alloc.LivenessProbe, service) {
+		if allocationOutdated(alloc.DesiredSpecDigest, service) {
 			out = append(out, alloc)
 		}
 	}
@@ -75,7 +75,7 @@ func countReadyCurrentConfig(allocations []*AllocationRecord, service *servicev1
 		if alloc == nil {
 			continue
 		}
-		if alloc.Status == commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING && alloc.Ready && allocationMatchesDesired(alloc.EnvironmentID, alloc.Config, alloc.ReadinessProbe, alloc.LivenessProbe, service) {
+		if alloc.Status == commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING && alloc.Ready && allocationMatchesDesired(alloc.DesiredSpecDigest, service) {
 			total++
 		}
 	}

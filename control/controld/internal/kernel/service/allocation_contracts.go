@@ -39,18 +39,19 @@ type AllocationReconcileStore interface {
 }
 
 type AllocationRecord struct {
-	AllocationID     string
-	ServiceID        string
-	EnvironmentID    string
-	NodeID           string
-	NodeTarget       string
-	Attempt          int64
-	Status           commonv1.AllocationStatus
-	Ready            bool
-	ReadinessMessage string
-	ReadinessProbe   *servicev1.ServiceProbe
-	LivenessProbe    *servicev1.ServiceProbe
-	Config           *commonv1.ExecutionConfig
+	AllocationID      string
+	ServiceID         string
+	DesiredSpecDigest string
+	EnvironmentID     string
+	NodeID            string
+	NodeTarget        string
+	Attempt           int64
+	Status            commonv1.AllocationStatus
+	Ready             bool
+	ReadinessMessage  string
+	ReadinessProbe    *servicev1.ServiceProbe
+	LivenessProbe     *servicev1.ServiceProbe
+	Config            *commonv1.ExecutionConfig
 }
 
 type AllocationStatusReport struct {

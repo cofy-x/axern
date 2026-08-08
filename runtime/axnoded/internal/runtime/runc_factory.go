@@ -33,10 +33,16 @@ func NewRuncServiceHandler(cfg config.Config, runtimeName string, runtimeCfg con
 		return nil, err
 	}
 	containerRoot := filepath.Join(cfg.RootDir, "containers")
-	filestoreDir, err := ensureRuntimeFilestore(cfg)
+	filestoreDir, releaseFilestore, err := acquireRuntimeFilestore(cfg)
 	if err != nil {
 		return nil, err
 	}
+	constructed := false
+	defer func() {
+		if !constructed {
+			releaseFilestore(true)
+		}
+	}()
 	rootfsViews := rootfsview.NewOverlayProvider(filestoreDir)
 	writableCapacity, err := sharedWritableCapacityManager(filestoreDir, cfg.RuntimeConfig.FilestoreSystemReserveBytes)
 	if err != nil {
@@ -53,16 +59,18 @@ func NewRuncServiceHandler(cfg config.Config, runtimeName string, runtimeCfg con
 		return nil, err
 	}
 	handler := &RuncServiceHandler{
-		name:                    runtimeName,
-		common:                  common,
-		ignoreCgroups:           cgroupMode == config.CgroupEnforcementDisabledDev,
-		writableLayerLimitBytes: cfg.RuntimeConfig.WritableLayerDefaultLimitBytes,
-		writableCapacity:        writableCapacity,
-		capabilityDir:           filepath.Join(cfg.RootDir, "verified-capabilities"),
-		containerRoot:           containerRoot,
-		rootfsViews:             rootfsViews,
-		waitForSandboxReady:     runtimesandboxd.WaitReadyForContainer,
+		name:                              runtimeName,
+		common:                            common,
+		ignoreCgroups:                     cgroupMode == config.CgroupEnforcementDisabledDev,
+		ephemeralStorageDefaultLimitBytes: cfg.RuntimeConfig.EphemeralStorageDefaultLimitBytes,
+		writableCapacity:                  writableCapacity,
+		capabilityDir:                     filepath.Join(cfg.RootDir, "verified-capabilities"),
+		containerRoot:                     containerRoot,
+		rootfsViews:                       rootfsViews,
+		releaseFilestore:                  func() { releaseFilestore(false) },
+		waitForSandboxReady:               runtimesandboxd.WaitReadyForContainer,
 	}
 	handler.services = newRuntimeServices(containerRoot, handler.OpenExecSession)
+	constructed = true
 	return handler, nil
 }

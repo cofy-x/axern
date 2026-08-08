@@ -8,6 +8,7 @@ import (
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/durablefile"
 )
 
 func (r *RuncServiceHandler) verifyMemoryEnforcement(ctx context.Context, options contract.HandlerOptions) error {
@@ -55,34 +56,5 @@ func recordVerifiedCapability(dir, name string) error {
 	if err != nil {
 		return err
 	}
-	file, err := os.CreateTemp(dir, ".capability-*")
-	if err != nil {
-		return err
-	}
-	temporary := file.Name()
-	defer os.Remove(temporary)
-	if err := file.Chmod(0644); err != nil {
-		_ = file.Close()
-		return err
-	}
-	if _, err := file.WriteString(bootID + "\n"); err != nil {
-		_ = file.Close()
-		return err
-	}
-	if err := file.Sync(); err != nil {
-		_ = file.Close()
-		return err
-	}
-	if err := file.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(temporary, filepath.Join(dir, name)); err != nil {
-		return err
-	}
-	parent, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	defer parent.Close()
-	return parent.Sync()
+	return durablefile.Write(filepath.Join(dir, name), []byte(bootID+"\n"), 0644)
 }

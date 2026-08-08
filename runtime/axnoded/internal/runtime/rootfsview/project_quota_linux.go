@@ -3,6 +3,7 @@
 package rootfsview
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -28,6 +29,27 @@ func applyProjectQuota(filestoreDir, upperDir string, projectID uint32, limitByt
 		}
 	}
 	return nil
+}
+
+func clearProjectQuota(filestoreDir, upperDir string, projectID uint32) error {
+	if projectID == 0 {
+		return nil
+	}
+	if !safeXFSQuotaPath(filestoreDir) || !safeXFSQuotaPath(upperDir) {
+		return fmt.Errorf("XFS project quota paths contain unsupported characters")
+	}
+	project := strconv.FormatUint(uint64(projectID), 10)
+	var result error
+	for _, command := range []string{
+		"project -C -p " + upperDir + " " + project,
+		"limit -p bhard=0 bsoft=0 " + project,
+	} {
+		output, err := exec.Command("xfs_quota", "-x", "-c", command, filestoreDir).CombinedOutput()
+		if err != nil {
+			result = errors.Join(result, fmt.Errorf("clear XFS project quota (%s): %s: %w", command, strings.TrimSpace(string(output)), err))
+		}
+	}
+	return result
 }
 
 func safeXFSQuotaPath(value string) bool {

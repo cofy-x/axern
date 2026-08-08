@@ -53,7 +53,7 @@ func (b specBuilder) applyRequestToSpec(ociSpec *spec.Spec, options buildOptions
 		applyMountOverrides(ociSpec, request)
 		applyRootfsOverride(ociSpec, request)
 		ociSpec.Annotations = combineAnnotations(ociSpec.Annotations, request.Labels)
-		applyWritableLayerAnnotation(ociSpec, request)
+		applyEphemeralStorageAnnotation(ociSpec, request)
 		setSpecResource(ociSpec, request.Resource)
 	}
 
@@ -72,10 +72,10 @@ func (b specBuilder) applyRequestToSpec(ociSpec *spec.Spec, options buildOptions
 	return validateProcessArgs(ociSpec)
 }
 
-const writableLayerAnnotationKey = "io.axnoded.resource/writable-layer"
+const ephemeralStorageAnnotationKey = "io.axnoded.resource/ephemeral-storage"
 
-func applyWritableLayerAnnotation(ociSpec *spec.Spec, request *apipb.CreateContainerRequest) {
-	if request.GetWritableLayerRequestBytes() <= 0 {
+func applyEphemeralStorageAnnotation(ociSpec *spec.Spec, request *apipb.CreateContainerRequest) {
+	if request.GetEphemeralStorageRequestBytes() <= 0 {
 		return
 	}
 	if ociSpec.Annotations == nil {
@@ -84,8 +84,8 @@ func applyWritableLayerAnnotation(ociSpec *spec.Spec, request *apipb.CreateConta
 	value, _ := json.Marshal(struct {
 		RequestBytes int64 `json:"request_bytes"`
 		LimitBytes   int64 `json:"limit_bytes"`
-	}{request.GetWritableLayerRequestBytes(), request.GetWritableLayerLimitBytes()})
-	ociSpec.Annotations[writableLayerAnnotationKey] = string(value)
+	}{request.GetEphemeralStorageRequestBytes(), request.GetEphemeralStorageLimitBytes()})
+	ociSpec.Annotations[ephemeralStorageAnnotationKey] = string(value)
 }
 
 func ensureLinuxSpec(ociSpec *spec.Spec) {

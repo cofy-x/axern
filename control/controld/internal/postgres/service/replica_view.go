@@ -21,7 +21,7 @@ func deriveReplicaState(record *serviceReplicaRecord, service *servicev1.Service
 	if record == nil || record.replica == nil {
 		return
 	}
-	record.replica.Outdated = servicekernel.AllocationOutdated(record.environmentID, record.config, record.readinessProbe, record.livenessProbe, service)
+	record.replica.Outdated = servicekernel.AllocationOutdated(record.desiredSpecDigest, service)
 	if record.replica.GetStatus() != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING {
 		record.replica.Ready = false
 	}

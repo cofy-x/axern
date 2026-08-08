@@ -70,10 +70,10 @@ func listCommand(runtime command.Runtime) *cobra.Command {
 }
 
 func setCommand(runtime command.Runtime) *cobra.Command {
-	var namespace, cpu, memory, writableLayer string
+	var namespace, cpu, memory, ephemeralStorage string
 	cmd := &cobra.Command{Use: "set", Short: "Set namespace quota limits", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		if !cmd.Flags().Changed("cpu") && !cmd.Flags().Changed("memory") && !cmd.Flags().Changed("writable-layer") {
-			return command.Usage(fmt.Errorf("cpu, memory, or writable-layer is required"))
+		if !cmd.Flags().Changed("cpu") && !cmd.Flags().Changed("memory") && !cmd.Flags().Changed("ephemeral-storage") {
+			return command.Usage(fmt.Errorf("cpu, memory, or ephemeral-storage is required"))
 		}
 		cpuValue, err := optionalCPU(cpu)
 		if err != nil {
@@ -83,7 +83,7 @@ func setCommand(runtime command.Runtime) *cobra.Command {
 		if err != nil {
 			return command.Usage(err)
 		}
-		writableLayerValue, err := optionalMemory(writableLayer)
+		ephemeralStorageValue, err := optionalMemory(ephemeralStorage)
 		if err != nil {
 			return command.Usage(err)
 		}
@@ -92,7 +92,7 @@ func setCommand(runtime command.Runtime) *cobra.Command {
 			return err
 		}
 		defer s.Close()
-		resp, err := appquota.New(s.Clients.Quota).Set(s.Context, namespace, &quotav1.NamespaceQuotaLimits{CpuMilli: cpuValue, MemoryBytes: memoryValue, WritableLayerBytes: writableLayerValue})
+		resp, err := appquota.New(s.Clients.Quota).Set(s.Context, namespace, &quotav1.NamespaceQuotaLimits{CpuMilli: cpuValue, MemoryBytes: memoryValue, EphemeralStorageBytes: ephemeralStorageValue})
 		if err != nil {
 			return err
 		}
@@ -102,7 +102,7 @@ func setCommand(runtime command.Runtime) *cobra.Command {
 	f.StringVar(&namespace, "namespace", "default", "namespace")
 	f.StringVar(&cpu, "cpu", "", "CPU limit or unlimited")
 	f.StringVar(&memory, "memory", "", "memory limit or unlimited")
-	f.StringVar(&writableLayer, "writable-layer", "", "writable-layer storage limit or unlimited")
+	f.StringVar(&ephemeralStorage, "ephemeral-storage", "", "node-local ephemeral storage limit or unlimited")
 	return cmd
 }
 

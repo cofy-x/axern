@@ -49,6 +49,10 @@ func (s *PGStore) AdmitAllocation(ctx context.Context, serviceID string, config 
 			return err
 		}
 		normalizedConfig := executionkernel.NormalizeConfig(config)
+		desiredSpecDigest, err := servicekernel.DesiredSpecDigest(current)
+		if err != nil {
+			return fmt.Errorf("digest service desired spec: %w", err)
+		}
 		configJSON, err := marshalProtoJSON(normalizedConfig)
 		if err != nil {
 			return err
@@ -62,20 +66,21 @@ func (s *PGStore) AdmitAllocation(ctx context.Context, serviceID string, config 
 			return err
 		}
 		alloc = &servicekernel.AllocationRecord{
-			AllocationID:   "alloc-" + uuid.NewString(),
-			ServiceID:      current.GetID(),
-			NodeID:         selected.NodeID,
-			NodeTarget:     selected.NodeTarget,
-			Attempt:        1,
-			ReadinessProbe: servicekernel.CloneReadinessProbe(current.GetReadinessProbe()),
-			LivenessProbe:  servicekernel.CloneLivenessProbe(current.GetLivenessProbe()),
+			AllocationID:      "alloc-" + uuid.NewString(),
+			ServiceID:         current.GetID(),
+			DesiredSpecDigest: desiredSpecDigest,
+			NodeID:            selected.NodeID,
+			NodeTarget:        selected.NodeTarget,
+			Attempt:           1,
+			ReadinessProbe:    servicekernel.CloneReadinessProbe(current.GetReadinessProbe()),
+			LivenessProbe:     servicekernel.CloneLivenessProbe(current.GetLivenessProbe()),
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO allocations (
-				allocation_id, owner_type, owner_id, environment_id, node_id, attempt, status, ready, readiness_message, readiness_probe, liveness_probe,
+				allocation_id, owner_type, owner_id, desired_spec_digest, environment_id, node_id, attempt, status, ready, readiness_message, readiness_probe, liveness_probe,
 				config, version, created_at, updated_at, exit_code, exit_code_known, message
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, false, '', $8::jsonb, $9::jsonb, $10::jsonb, 1, $11, $12, 0, false, '')
-		`, alloc.AllocationID, allocationOwnerService, current.GetID(), current.GetEnvironmentID(), alloc.NodeID, alloc.Attempt, commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND.String(), readinessProbeJSON, livenessProbeJSON, configJSON, now.UTC(), now.UTC()); err != nil {
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, '', $9::jsonb, $10::jsonb, $11::jsonb, 1, $12, $13, 0, false, '')
+		`, alloc.AllocationID, allocationOwnerService, current.GetID(), desiredSpecDigest, current.GetEnvironmentID(), alloc.NodeID, alloc.Attempt, commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND.String(), readinessProbeJSON, livenessProbeJSON, configJSON, now.UTC(), now.UTC()); err != nil {
 			return fmt.Errorf("insert service allocation: %w", err)
 		}
 		res := normalizedConfig.GetResources().GetRequests()

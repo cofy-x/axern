@@ -21,7 +21,7 @@ func (r *RunscServiceHandler) CreateContainer(ctx context.Context, request *apip
 	if err != nil {
 		return nil, err
 	}
-	if err := r.writableCapacity.Reserve(options.ContainerID, r.Name(), effectiveRequest.GetWritableLayerRequestBytes(), effectiveRequest.GetWritableLayerLimitBytes()); err != nil {
+	if err := r.writableCapacity.Reserve(options.ContainerID, r.Name(), effectiveRequest.GetEphemeralStorageRequestBytes(), effectiveRequest.GetEphemeralStorageLimitBytes()); err != nil {
 		return nil, err
 	}
 	bundlePath, metaData, err := bundleflow.PrepareLaunchBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, bundleOptions)
@@ -34,7 +34,7 @@ func (r *RunscServiceHandler) CreateContainer(ctx context.Context, request *apip
 		return metaData, err
 	}
 	overlayArgsStart := time.Now()
-	overlayArgs, err := r.overlayArgsForBundle(bundlePath, effectiveRequest.GetWritableLayerLimitBytes())
+	overlayArgs, err := r.overlayArgsForBundle(bundlePath, effectiveRequest.GetEphemeralStorageLimitBytes())
 	if err != nil {
 		options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeOverlayArgs, time.Since(overlayArgsStart))
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
@@ -56,7 +56,7 @@ func (r *RunscServiceHandler) PrepareExecutionEnvelope(ctx context.Context, requ
 	if err != nil {
 		return nil, err
 	}
-	if err := r.writableCapacity.Reserve(options.ContainerID, r.Name(), effectiveRequest.GetWritableLayerRequestBytes(), effectiveRequest.GetWritableLayerLimitBytes()); err != nil {
+	if err := r.writableCapacity.Reserve(options.ContainerID, r.Name(), effectiveRequest.GetEphemeralStorageRequestBytes(), effectiveRequest.GetEphemeralStorageLimitBytes()); err != nil {
 		return nil, err
 	}
 	bundlePath, metaData, err := bundleflow.PrepareEnvelopeBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, bundleOptions)
@@ -69,7 +69,7 @@ func (r *RunscServiceHandler) PrepareExecutionEnvelope(ctx context.Context, requ
 		return nil, err
 	}
 	overlayArgsStart := time.Now()
-	overlayArgs, err := r.overlayArgsForBundle(bundlePath, effectiveRequest.GetWritableLayerLimitBytes())
+	overlayArgs, err := r.overlayArgsForBundle(bundlePath, effectiveRequest.GetEphemeralStorageLimitBytes())
 	if err != nil {
 		options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeOverlayArgs, time.Since(overlayArgsStart))
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
@@ -100,11 +100,12 @@ func (r *RunscServiceHandler) ActivateExecutionEnvelope(ctx context.Context, env
 		func(ctx context.Context, bundlePath string, meta *apipb.ContainerMetadata) error {
 			return runtimesandboxd.WaitReadyOrExit(ctx, r.Name(), options.ContainerID, bundlePath, meta, r.waitForSandboxReady, r.readExitState)
 		},
+		func(ctx context.Context) error { return r.verifyMemoryEnforcement(ctx, options) },
 	)
 }
 
 func (r *RunscServiceHandler) prepareCreateRequest(request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.CreateContainerRequest, contract.HandlerOptions, error) {
-	request, err := resolveWritableLayer(request, r.writableLayerLimitBytes)
+	request, err := resolveEphemeralStorage(request, r.ephemeralStorageDefaultLimitBytes)
 	if err != nil {
 		return nil, contract.HandlerOptions{}, err
 	}

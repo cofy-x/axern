@@ -7,7 +7,6 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
-	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"github.com/jackc/pgx/v5"
@@ -19,11 +18,8 @@ import (
 const recentEndedReplicaLimit = 5
 
 type serviceReplicaRecord struct {
-	replica        *servicev1.ServiceReplica
-	config         *commonv1.ExecutionConfig
-	environmentID  string
-	readinessProbe *servicev1.ServiceProbe
-	livenessProbe  *servicev1.ServiceProbe
+	replica           *servicev1.ServiceReplica
+	desiredSpecDigest string
 }
 
 type serviceReplicaScanner interface {
@@ -36,7 +32,7 @@ func (s *PGStore) GetReplica(ctx context.Context, serviceID, replicaID string) (
 		return nil, ok, err
 	}
 	record, err := scanServiceReplicaRecord(s.db.Pool().QueryRow(ctx, `
-		SELECT a.allocation_id, a.owner_id, a.environment_id, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.readiness_probe, a.liveness_probe, a.config, a.workspace_preparation,
+		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.workspace_preparation,
 			COALESCE(q.reason, ''), COALESCE(q.reconcile_attempts, 0), COALESCE(q.last_error, ''), q.next_run_at
 		FROM allocations a
 		LEFT JOIN allocation_reconcile_queue q ON q.allocation_id = a.allocation_id
@@ -60,7 +56,7 @@ func (s *PGStore) ListReplicas(ctx context.Context, serviceID string, filter *se
 		return nil, nil
 	}
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT a.allocation_id, a.owner_id, a.environment_id, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.readiness_probe, a.liveness_probe, a.config, a.workspace_preparation,
+		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.workspace_preparation,
 			COALESCE(q.reason, ''), COALESCE(q.reconcile_attempts, 0), COALESCE(q.last_error, ''), q.next_run_at
 		FROM allocations a
 		LEFT JOIN allocation_reconcile_queue q ON q.allocation_id = a.allocation_id
@@ -99,19 +95,19 @@ func (s *PGStore) ListReplicas(ctx context.Context, serviceID string, filter *se
 
 func scanServiceReplicaRecord(row serviceReplicaScanner) (*serviceReplicaRecord, error) {
 	var (
-		replica                                                                     servicev1.ServiceReplica
-		environmentID                                                               string
-		statusText                                                                  string
-		retryReason, retryLastError                                                 string
-		retryAttempts                                                               int32
-		retryNextRunAt                                                              pgtype.Timestamptz
-		createdAt, updatedAt                                                        time.Time
-		configJSON, readinessProbeJSON, livenessProbeJSON, workspacePreparationJSON []byte
+		replica                     servicev1.ServiceReplica
+		desiredSpecDigest           string
+		statusText                  string
+		retryReason, retryLastError string
+		retryAttempts               int32
+		retryNextRunAt              pgtype.Timestamptz
+		createdAt, updatedAt        time.Time
+		workspacePreparationJSON    []byte
 	)
 	if err := row.Scan(
 		&replica.ID,
 		&replica.ServiceID,
-		&environmentID,
+		&desiredSpecDigest,
 		&replica.NodeID,
 		&replica.Attempt,
 		&statusText,
@@ -122,9 +118,6 @@ func scanServiceReplicaRecord(row serviceReplicaScanner) (*serviceReplicaRecord,
 		&replica.ExitCodeKnown,
 		&createdAt,
 		&updatedAt,
-		&readinessProbeJSON,
-		&livenessProbeJSON,
-		&configJSON,
 		&workspacePreparationJSON,
 		&retryReason,
 		&retryAttempts,
@@ -147,38 +140,15 @@ func scanServiceReplicaRecord(row serviceReplicaScanner) (*serviceReplicaRecord,
 			replica.LifecycleRetry.NextRunAt = timestamppb.New(retryNextRunAt.Time)
 		}
 	}
-	config := &commonv1.ExecutionConfig{}
-	if err := protojson.Unmarshal(configJSON, config); err != nil {
-		return nil, fmt.Errorf("unmarshal service replica config: %w", err)
-	}
 	if len(workspacePreparationJSON) > 0 && string(workspacePreparationJSON) != "null" {
 		replica.WorkspacePreparation = &commonv1.WorkspacePreparationFacts{}
 		if err := protojson.Unmarshal(workspacePreparationJSON, replica.WorkspacePreparation); err != nil {
 			return nil, fmt.Errorf("unmarshal workspace preparation: %w", err)
 		}
 	}
-	var readinessProbe *servicev1.ServiceProbe
-	if len(readinessProbeJSON) > 0 && string(readinessProbeJSON) != "null" {
-		readinessProbe = &servicev1.ServiceProbe{}
-		if err := protojson.Unmarshal(readinessProbeJSON, readinessProbe); err != nil {
-			return nil, fmt.Errorf("unmarshal service replica readiness probe: %w", err)
-		}
-		readinessProbe = servicekernel.NormalizeReadinessProbe(readinessProbe)
-	}
-	var livenessProbe *servicev1.ServiceProbe
-	if len(livenessProbeJSON) > 0 && string(livenessProbeJSON) != "null" {
-		livenessProbe = &servicev1.ServiceProbe{}
-		if err := protojson.Unmarshal(livenessProbeJSON, livenessProbe); err != nil {
-			return nil, fmt.Errorf("unmarshal service replica liveness probe: %w", err)
-		}
-		livenessProbe = servicekernel.NormalizeLivenessProbe(livenessProbe)
-	}
 	return &serviceReplicaRecord{
-		replica:        &replica,
-		config:         config,
-		environmentID:  environmentID,
-		readinessProbe: readinessProbe,
-		livenessProbe:  livenessProbe,
+		replica:           &replica,
+		desiredSpecDigest: desiredSpecDigest,
 	}, nil
 }
 

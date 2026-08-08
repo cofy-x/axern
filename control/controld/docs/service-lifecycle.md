@@ -21,6 +21,14 @@ Service rollout is driven by desired-state drift between the service spec and
 current allocations. Changes to `environment_id`, execution `config`,
 `readiness_probe`, or `liveness_probe` trigger rolling replacement.
 
+Admission stores a deterministic `desired_spec_digest` on every allocation.
+The digest covers exactly those normalized execution-intent fields and excludes
+replica count, rollout progress, status, and other mutable service state.
+Rollout comparison uses this identity rather than attempting to reverse
+rootfs-dependent defaults from the resolved allocation config. Allocations
+created before the identity exists have an empty digest and are replaced once
+under the normal rollout availability budget.
+
 Replacement admission respects `max_surge`. Outdated draining respects
 `max_unavailable` and readiness, so an updated replica must become ready before
 an old ready replica is removed when the availability budget requires it.

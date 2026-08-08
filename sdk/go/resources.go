@@ -26,8 +26,8 @@ func MemoryBytes(bytes int64) ResourceQuantity {
 	return ResourceQuantity(strconv.FormatInt(bytes, 10))
 }
 
-// WritableLayerBytes formats writable-layer storage bytes as a resource quantity.
-func WritableLayerBytes(bytes int64) ResourceQuantity {
+// EphemeralStorageBytes formats node-local ephemeral storage bytes as a resource quantity.
+func EphemeralStorageBytes(bytes int64) ResourceQuantity {
 	return ResourceQuantity(strconv.FormatInt(bytes, 10))
 }
 

@@ -13,20 +13,20 @@ import (
 )
 
 func TestRunscOverlayUsesBoundedFileBacking(t *testing.T) {
-	handler := &RunscServiceHandler{filestoreDir: "/var/lib/axnoded/filestore", writableLayerLimitBytes: 256 << 20}
+	handler := &RunscServiceHandler{filestoreDir: "/var/lib/axnoded/filestore", ephemeralStorageDefaultLimitBytes: 256 << 20}
 	value, err := handler.overlay2Value(false, 256<<20)
 	require.NoError(t, err)
 	assert.Equal(t, "root:dir=/var/lib/axnoded/filestore/runsc,size=268435456", value)
 }
 
 func TestRunscOverlayRejectsMissingFilestore(t *testing.T) {
-	_, err := (&RunscServiceHandler{writableLayerLimitBytes: 256 << 20}).overlay2Value(false, 256<<20)
+	_, err := (&RunscServiceHandler{ephemeralStorageDefaultLimitBytes: 256 << 20}).overlay2Value(false, 256<<20)
 	require.ErrorContains(t, err, "filestore_dir")
 }
 
 func TestRunscOverlayRejectsMissingLimit(t *testing.T) {
 	_, err := (&RunscServiceHandler{filestoreDir: "/filestore"}).overlay2Value(false, 0)
-	require.ErrorContains(t, err, "writable_layer_limit_bytes")
+	require.ErrorContains(t, err, "ephemeral_storage_limit_bytes")
 }
 
 func TestRunscOverlaySkipsReadonlyRoot(t *testing.T) {
@@ -38,7 +38,7 @@ func TestRunscOverlaySkipsReadonlyRoot(t *testing.T) {
 func TestRunscOverlayArgsUsesBoundedFilestore(t *testing.T) {
 	bundlePath := t.TempDir()
 	writeRunscOverlayTestSpec(t, bundlePath, spec.Root{Path: t.TempDir()})
-	handler := &RunscServiceHandler{filestoreDir: "/var/lib/axnoded/filestore", writableLayerLimitBytes: 1024}
+	handler := &RunscServiceHandler{filestoreDir: "/var/lib/axnoded/filestore", ephemeralStorageDefaultLimitBytes: 1024}
 	args, err := handler.overlayArgsForBundle(bundlePath, 256<<20)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"--overlay2", "root:dir=/var/lib/axnoded/filestore/runsc,size=268435456"}, args)

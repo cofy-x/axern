@@ -81,9 +81,9 @@ type RuntimeConfig struct {
 	FilestoreLoopbackSizeBytes  int64  `toml:"filestore_loopback_size_bytes" json:"filestoreLoopbackSizeBytes"`
 	FilestoreSystemReserveBytes int64  `toml:"filestore_system_reserve_bytes" json:"filestoreSystemReserveBytes"`
 
-	// WritableLayerDefaultLimitBytes is the required development-phase hard
+	// EphemeralStorageDefaultLimitBytes is the required development-phase hard
 	// size passed to runsc's file-backed root overlay.
-	WritableLayerDefaultLimitBytes int64 `toml:"writable_layer_default_limit_bytes" json:"writableLayerDefaultLimitBytes"`
+	EphemeralStorageDefaultLimitBytes int64 `toml:"ephemeral_storage_default_limit_bytes" json:"ephemeralStorageDefaultLimitBytes"`
 
 	// DNS controls the resolver files axnoded materializes into OCI bundles.
 	// When nameservers is empty, axnoded derives usable resolvers from the
@@ -486,15 +486,15 @@ func DefaultConfig() Config {
 				BasicSpec: map[string]string{
 					RuntimeNameRunsc: "/etc/axnoded/runsc-config.json",
 				},
-				ImageLibDir:                    DefaultImageLibDir,
-				RuntimeRunnerBinary:            DefaultRuntimeRunnerBinary,
-				ImageManagerEnabled:            boolPtr(true),
-				ImageManagerSocket:             DefaultImageManagerSocket,
-				VolumeManagerSocket:            DefaultVolumeManagerSocket,
-				IdleRuntimeRetentionTTL:        DefaultIdleRuntimeRetentionTTL,
-				IdleRuntimeRetentionMax:        &defaultIdleRuntimeRetentionMax,
-				FilestoreMode:                  FilestoreModeExisting,
-				WritableLayerDefaultLimitBytes: 256 << 20,
+				ImageLibDir:                       DefaultImageLibDir,
+				RuntimeRunnerBinary:               DefaultRuntimeRunnerBinary,
+				ImageManagerEnabled:               boolPtr(true),
+				ImageManagerSocket:                DefaultImageManagerSocket,
+				VolumeManagerSocket:               DefaultVolumeManagerSocket,
+				IdleRuntimeRetentionTTL:           DefaultIdleRuntimeRetentionTTL,
+				IdleRuntimeRetentionMax:           &defaultIdleRuntimeRetentionMax,
+				FilestoreMode:                     FilestoreModeExisting,
+				EphemeralStorageDefaultLimitBytes: 256 << 20,
 			},
 			ResourceConfig: ResourceConfig{
 				MaxInstanceNum:                DefaultMaxContainerNum,

@@ -2,6 +2,7 @@ package rootfsview
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,6 +37,36 @@ func TestOverlayViewInitializationNeverReplacesExistingView(t *testing.T) {
 	require.ErrorContains(t, initializeOverlayView(view), "already exists")
 	require.NoError(t, cleanupOverlayView(filepath.Dir(view.MergedDir)))
 	require.NoError(t, cleanupOverlayView(filepath.Dir(view.MergedDir)))
+}
+
+func TestOverlayViewInitializationRollsBackPartialView(t *testing.T) {
+	view := overlayViewForContainer("sandbox", t.TempDir(), projectionViewDir, []string{"/lower"})
+	calls := 0
+	err := initializeOverlayViewWithMkdir(view, func(name string, mode os.FileMode) error {
+		calls++
+		if calls == 3 {
+			return errors.New("injected mkdir failure")
+		}
+		return os.Mkdir(name, mode)
+	})
+	require.ErrorContains(t, err, "injected mkdir failure")
+	_, statErr := os.Stat(filepath.Dir(view.MergedDir))
+	require.ErrorIs(t, statErr, os.ErrNotExist)
+	require.NoError(t, initializeOverlayView(view))
+}
+
+func TestOverlayProviderRejectsChangedBackingIdentity(t *testing.T) {
+	root := t.TempDir()
+	backing, err := InspectBacking(root)
+	require.NoError(t, err)
+	backing.MountID++
+	provider := NewOverlayProvider(t.TempDir())
+	_, err = provider.Prepare(context.Background(), "sandbox", Request{
+		RootDir: root,
+		Backing: backing,
+		Targets: []MountTarget{{Destination: "/missing", Kind: TargetDirectory}},
+	})
+	require.ErrorContains(t, err, "rootfs backing changed before projection")
 }
 
 func TestInspectMountTargetsNormalizesAndFindsMissingTargets(t *testing.T) {

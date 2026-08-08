@@ -65,7 +65,7 @@ func TestCollectResourceFromSpecExcludesRuntimeContractAnnotations(t *testing.T)
 	oci := &specs.Spec{Annotations: map[string]string{
 		resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName): "interface-1",
 		resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.CgroupResourceName):    "/sandbox/cgroup-1",
-		resourcemanager.ResourceAnnotationKeyPrefix + "writable-layer":                              `{"request_bytes":1,"limit_bytes":2}`,
+		resourcemanager.ResourceAnnotationKeyPrefix + "ephemeral-storage":                           `{"request_bytes":1,"limit_bytes":2}`,
 	}}
 
 	got := collectResourceFromSpec("sandbox-1", oci)
@@ -79,12 +79,12 @@ func TestCollectResourceFromSpecExcludesRuntimeContractAnnotations(t *testing.T)
 func TestClearSpecResourceClaimsPreservesRuntimeContractAnnotations(t *testing.T) {
 	annotations := map[string]string{
 		resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName): "interface-1",
-		resourcemanager.ResourceAnnotationKeyPrefix + "writable-layer":                              `{"request_bytes":1,"limit_bytes":2}`,
+		resourcemanager.ResourceAnnotationKeyPrefix + "ephemeral-storage":                           `{"request_bytes":1,"limit_bytes":2}`,
 	}
 
 	clearSpecResourceClaims(annotations)
 
 	require.Equal(t, map[string]string{
-		resourcemanager.ResourceAnnotationKeyPrefix + "writable-layer": `{"request_bytes":1,"limit_bytes":2}`,
+		resourcemanager.ResourceAnnotationKeyPrefix + "ephemeral-storage": `{"request_bytes":1,"limit_bytes":2}`,
 	}, annotations)
 }

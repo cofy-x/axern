@@ -74,7 +74,7 @@ const (
 	MetricVolumeOperationTotal                   = "axern.axnoded_volume_operation_total"
 	MetricVolumeReconcileCurrent                 = "axern.axnoded_volume_reconcile_current"
 	MetricCgroupMemoryCurrent                    = "axern.axnoded_cgroup_memory_current"
-	MetricWritableLayerOperationTotal            = "axern.axnoded_writable_layer_operation_total"
+	MetricEphemeralStorageOperationTotal         = "axern.axnoded_ephemeral_storage_operation_total"
 	MetricFilestoreProbe                         = "axern.axnoded_filestore_probe_total"
 )
 
@@ -131,7 +131,7 @@ const (
 	descVolumeOperationTotal                   = "Axnoded node volume operation results."
 	descVolumeReconcileCurrent                 = "Axnoded last node volume reconcile counts."
 	descCgroupMemoryCurrent                    = "Per-sandbox cgroup memory.stat and memory.events values."
-	descWritableLayerOperationTotal            = "Writable-layer reservation, quota, ENOSPC, and cleanup operations."
+	descEphemeralStorageOperationTotal         = "Ephemeral-storage reservation, quota, ENOSPC, and cleanup operations."
 	descFilestoreProbe                         = "Runtime filestore capability probe results."
 )
 
@@ -641,10 +641,10 @@ func RecordCgroupMemory(runtime, allocationID, kind string, value int64) {
 	)
 }
 
-func RecordWritableLayerOperation(runtime, operation, result string) {
+func RecordEphemeralStorageOperation(runtime, operation, result string) {
 	recordCounter(
-		MetricWritableLayerOperationTotal,
-		descWritableLayerOperationTotal,
+		MetricEphemeralStorageOperationTotal,
+		descEphemeralStorageOperationTotal,
 		attribute.String(sdkobs.AttrRuntime, runtime),
 		attribute.String(sdkobs.AttrOperation, operation),
 		attribute.String(sdkobs.AttrResult, result),

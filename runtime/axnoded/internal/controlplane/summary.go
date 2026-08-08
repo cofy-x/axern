@@ -11,15 +11,15 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 	summary := &nodev1.NodeSummary{
 		CollectedAt: timestamppb.New(snapshot.Node.CollectedAt),
 		Resources: &nodev1.ResourcesSummary{
-			AxnodedCommittedMilli:              snapshot.Resources.CPU.AxnodedCommittedMilli,
-			AxnodedUsedMilli:                   snapshot.Resources.CPU.AxnodedUsedMilli,
-			AxnodedCpuUnboundedCount:           snapshot.Resources.CPU.AxnodedUnboundedCount,
-			AxnodedCommittedBytes:              snapshot.Resources.Memory.AxnodedCommittedBytes,
-			AxnodedUsedBytes:                   snapshot.Resources.Memory.AxnodedUsedBytes,
-			AxnodedMemoryUnboundedCount:        snapshot.Resources.Memory.AxnodedUnboundedCount,
-			AxnodedWritableLayerCommittedBytes: snapshot.Resources.WritableLayer.AxnodedCommittedBytes,
-			AxnodedWritableLayerUsedBytes:      snapshot.Resources.WritableLayer.AxnodedUsedBytes,
-			AxnodedWritableLayerUnboundedCount: snapshot.Resources.WritableLayer.AxnodedUnboundedCount,
+			AxnodedCommittedMilli:                 snapshot.Resources.CPU.AxnodedCommittedMilli,
+			AxnodedUsedMilli:                      snapshot.Resources.CPU.AxnodedUsedMilli,
+			AxnodedCpuUnboundedCount:              snapshot.Resources.CPU.AxnodedUnboundedCount,
+			AxnodedCommittedBytes:                 snapshot.Resources.Memory.AxnodedCommittedBytes,
+			AxnodedUsedBytes:                      snapshot.Resources.Memory.AxnodedUsedBytes,
+			AxnodedMemoryUnboundedCount:           snapshot.Resources.Memory.AxnodedUnboundedCount,
+			AxnodedEphemeralStorageCommittedBytes: snapshot.Resources.EphemeralStorage.AxnodedCommittedBytes,
+			AxnodedEphemeralStorageUsedBytes:      snapshot.Resources.EphemeralStorage.AxnodedUsedBytes,
+			AxnodedEphemeralStorageUnboundedCount: snapshot.Resources.EphemeralStorage.AxnodedUnboundedCount,
 		},
 		Pools: &nodev1.PoolsSummary{
 			RuntimeSlots: &nodev1.PoolState{
@@ -91,11 +91,11 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 		Capabilities: append([]string(nil), snapshot.Node.Capabilities...),
 		Capacity: &commonv1.ResourceQuantity{
 			CpuMilli: snapshot.Node.Capacity.CpuMilli, MemoryBytes: snapshot.Node.Capacity.MemoryBytes,
-			WritableLayerBytes: snapshot.Node.Capacity.WritableLayerBytes,
+			EphemeralStorageBytes: snapshot.Node.Capacity.EphemeralStorageBytes,
 		},
 		Allocatable: &commonv1.ResourceQuantity{
 			CpuMilli: snapshot.Node.Allocatable.CpuMilli, MemoryBytes: snapshot.Node.Allocatable.MemoryBytes,
-			WritableLayerBytes: snapshot.Node.Allocatable.WritableLayerBytes,
+			EphemeralStorageBytes: snapshot.Node.Allocatable.EphemeralStorageBytes,
 		},
 		Storage: make([]*nodev1.NodeStorageSummary, 0, len(snapshot.Storage)),
 	}

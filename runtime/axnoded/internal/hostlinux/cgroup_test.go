@@ -20,6 +20,42 @@ func (f *fakeCgroup) Stats() (*os2.CgroupStats, error)             { return &os2
 func (f *fakeCgroup) AddProc(pid uint64) error                     { return nil }
 func (f *fakeCgroup) Processes(recursive bool) ([]int, error)      { return nil, nil }
 
+type memoryProbeCgroup struct {
+	limit int64
+}
+
+func (c *memoryProbeCgroup) Update(resources *specs.LinuxResources) error {
+	if resources == nil || resources.Memory == nil || resources.Memory.Limit == nil {
+		return fmt.Errorf("memory limit is missing")
+	}
+	c.limit = *resources.Memory.Limit
+	return nil
+}
+func (c *memoryProbeCgroup) Delete() error                    { return nil }
+func (c *memoryProbeCgroup) Stats() (*os2.CgroupStats, error) { return &os2.CgroupStats{}, nil }
+func (c *memoryProbeCgroup) AddProc(uint64) error             { return nil }
+func (c *memoryProbeCgroup) Processes(bool) ([]int, error)    { return nil, nil }
+
+type memoryProbeDriver struct {
+	cgroup  *memoryProbeCgroup
+	created string
+	removed []string
+}
+
+func (d *memoryProbeDriver) Mode() string { return os2.CgroupModeV2 }
+func (d *memoryProbeDriver) Create(group string, _ *specs.LinuxResources) (os2.Cgroup, error) {
+	d.created = group
+	d.cgroup = &memoryProbeCgroup{}
+	return d.cgroup, nil
+}
+func (d *memoryProbeDriver) Load(string) (os2.Cgroup, error)         { return d.cgroup, nil }
+func (d *memoryProbeDriver) ExistingGroups(string) ([]string, error) { return nil, nil }
+func (d *memoryProbeDriver) Remove(group string) error {
+	d.removed = append(d.removed, group)
+	return nil
+}
+func (d *memoryProbeDriver) LocalCPUCount() (int, error) { return 1, nil }
+
 type fakeCgroupDriver struct{}
 
 func (f *fakeCgroupDriver) Mode() string { return os2.CgroupModeV2 }
@@ -41,6 +77,27 @@ func TestRuntimeCgroupPathUsesWorkloadLeafOnV2(t *testing.T) {
 
 	if got := RuntimeCgroupPath(&fakeCgroupDriver{}, "/sandbox/test"); got != expected {
 		t.Fatalf("RuntimeCgroupPath() = %q, want %q", got, expected)
+	}
+}
+
+func TestProbeCgroupMemoryLimitWritesReadsAndCleansUp(t *testing.T) {
+	driver := &memoryProbeDriver{}
+	verifiedPath := ""
+	err := probeCgroupMemoryLimit(driver, "sandbox", func(path string, limit int64) error {
+		verifiedPath = path
+		if limit != cgroupMemoryProbeLimitBytes || driver.cgroup.limit != limit {
+			return fmt.Errorf("limit mismatch: verify=%d written=%d", limit, driver.cgroup.limit)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if driver.created == "" || verifiedPath != RuntimeCgroupPath(driver, driver.created) {
+		t.Fatalf("created=%q verified=%q", driver.created, verifiedPath)
+	}
+	if len(driver.removed) != 1 || driver.removed[0] != driver.created {
+		t.Fatalf("cleanup calls = %#v", driver.removed)
 	}
 }
 

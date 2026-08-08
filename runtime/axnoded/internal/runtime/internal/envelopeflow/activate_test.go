@@ -11,6 +11,7 @@ import (
 func TestActivateExecutionEnvelopeWaitsForSandboxd(t *testing.T) {
 	var gotBundlePath string
 	var gotMeta *apipb.ContainerMetadata
+	ready := false
 	meta := &apipb.ContainerMetadata{
 		ID: "axctl-prewarm",
 	}
@@ -24,6 +25,13 @@ func TestActivateExecutionEnvelopeWaitsForSandboxd(t *testing.T) {
 		func(_ context.Context, bundlePath string, meta *apipb.ContainerMetadata) error {
 			gotBundlePath = bundlePath
 			gotMeta = meta
+			ready = true
+			return nil
+		},
+		func(context.Context) error {
+			if !ready {
+				t.Fatal("runtime verification ran before sandbox readiness")
+			}
 			return nil
 		},
 	)

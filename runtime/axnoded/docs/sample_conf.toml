@@ -65,7 +65,7 @@ cgroup_enforcement = "required"
 # filestore_mode = "existing"
 # filestore_dir = "/var/lib/axnoded-filestore"
 # filestore_system_reserve_bytes = 10737418240
-# writable_layer_default_limit_bytes = 1073741824
+# ephemeral_storage_default_limit_bytes = 1073741824
 
 # Workload resolver files are materialized per OCI bundle. Leave nameservers
 # empty to derive usable resolvers from the node; set explicit values for

@@ -10,7 +10,11 @@ import "axern/control/storage/v1/storage_types.proto";
 message ResourceQuantity {
   int64 cpu_milli = 1;
   int64 memory_bytes = 2;
-  int64 writable_layer_bytes = 3;
+  // Sandbox-lifetime node-local disposable storage managed by Axern. The
+  // current accounting scope is the runtime writable root overlay and its
+  // metadata/copy-up/whiteouts; persistent volumes and immutable image data
+  // are excluded.
+  int64 ephemeral_storage_bytes = 3;
 }
 
 message ResourceSpec {

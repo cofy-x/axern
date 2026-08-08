@@ -19,9 +19,9 @@ const (
 type quotaDiagnosticResource string
 
 const (
-	quotaDiagnosticResourceCPU           quotaDiagnosticResource = "cpu"
-	quotaDiagnosticResourceMemory        quotaDiagnosticResource = "memory"
-	quotaDiagnosticResourceWritableLayer quotaDiagnosticResource = "writable_layer"
+	quotaDiagnosticResourceCPU              quotaDiagnosticResource = "cpu"
+	quotaDiagnosticResourceMemory           quotaDiagnosticResource = "memory"
+	quotaDiagnosticResourceEphemeralStorage quotaDiagnosticResource = "ephemeral_storage"
 )
 
 type quotaDiagnosticUnit string
@@ -53,8 +53,8 @@ func quotaRejectionMessage(namespace string, evaluation resourcekernel.QuotaEval
 	if evaluation.Memory.Requested > 0 && !evaluation.Memory.Fits {
 		parts = append(parts, quotaResourceMessage(quotaDiagnosticResourceMemory, quotaDiagnosticUnitBytes, evaluation.Memory))
 	}
-	if evaluation.WritableLayer.Requested > 0 && !evaluation.WritableLayer.Fits {
-		parts = append(parts, quotaResourceMessage(quotaDiagnosticResourceWritableLayer, quotaDiagnosticUnitBytes, evaluation.WritableLayer))
+	if evaluation.EphemeralStorage.Requested > 0 && !evaluation.EphemeralStorage.Fits {
+		parts = append(parts, quotaResourceMessage(quotaDiagnosticResourceEphemeralStorage, quotaDiagnosticUnitBytes, evaluation.EphemeralStorage))
 	}
 	return strings.Join(parts, " ")
 }
@@ -95,9 +95,9 @@ func quotaRejectionMetadata(namespace string, evaluation resourcekernel.QuotaEva
 		resources = append(resources, string(quotaDiagnosticResourceMemory))
 		addQuotaResourceMetadata(metadata, quotaDiagnosticResourceMemory, quotaDiagnosticUnitBytes, evaluation.Memory)
 	}
-	if evaluation.WritableLayer.Requested > 0 && !evaluation.WritableLayer.Fits {
-		resources = append(resources, string(quotaDiagnosticResourceWritableLayer))
-		addQuotaResourceMetadata(metadata, quotaDiagnosticResourceWritableLayer, quotaDiagnosticUnitBytes, evaluation.WritableLayer)
+	if evaluation.EphemeralStorage.Requested > 0 && !evaluation.EphemeralStorage.Fits {
+		resources = append(resources, string(quotaDiagnosticResourceEphemeralStorage))
+		addQuotaResourceMetadata(metadata, quotaDiagnosticResourceEphemeralStorage, quotaDiagnosticUnitBytes, evaluation.EphemeralStorage)
 	}
 	if len(resources) > 0 {
 		metadata["resources"] = strings.Join(resources, ",")

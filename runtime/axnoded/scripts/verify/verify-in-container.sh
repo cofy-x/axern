@@ -58,7 +58,7 @@ filestore_dir = "/var/lib/axnoded/filestore"
 filestore_loopback_image = "/var/lib/axnoded/filestore.xfs"
 filestore_loopback_size_bytes = 1073741824
 filestore_system_reserve_bytes = 67108864
-writable_layer_default_limit_bytes = 268435456
+ephemeral_storage_default_limit_bytes = 268435456
 EOF
 
 cat >> /tmp/axnoded-config.toml <<EOF

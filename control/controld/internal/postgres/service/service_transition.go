@@ -27,7 +27,7 @@ func (s *PGStore) recordServiceObservationBatchEvents(ctx context.Context, tx pg
 		alloc := transition.allocation
 		if transition.currentStatus != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING &&
 			transition.nextStatus == commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING &&
-			servicekernel.AllocationMatchesDesired(alloc.EnvironmentID, alloc.Config, alloc.ReadinessProbe, alloc.LivenessProbe, next) &&
+			servicekernel.AllocationMatchesDesired(alloc.DesiredSpecDigest, next) &&
 			(len(current.GetAllocationIds()) > int(current.GetReplicas()) || current.GetUnhealthyReplicas() > 0 || current.GetStatus() == servicev1.ServiceStatus_SERVICE_STATUS_DEGRADED) {
 			if err := recordServiceEvent(ctx, tx, servicekernel.NewServiceEvent(
 				next.GetID(),
@@ -45,7 +45,7 @@ func (s *PGStore) recordServiceObservationBatchEvents(ctx context.Context, tx pg
 			transition.nextStatus == commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING &&
 			!transition.currentReady &&
 			transition.nextReady &&
-			servicekernel.AllocationMatchesDesired(alloc.EnvironmentID, alloc.Config, alloc.ReadinessProbe, alloc.LivenessProbe, next) &&
+			servicekernel.AllocationMatchesDesired(alloc.DesiredSpecDigest, next) &&
 			(len(current.GetAllocationIds()) > int(current.GetReplicas()) || current.GetUnhealthyReplicas() > 0 || current.GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_READY) {
 			if err := recordServiceEvent(ctx, tx, servicekernel.NewServiceEvent(
 				next.GetID(),

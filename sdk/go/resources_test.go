@@ -13,8 +13,8 @@ func TestBuildResourceSpecParsesFriendlyQuantities(t *testing.T) {
 	if got, want := resources.GetRequests().GetMemoryBytes(), int64(512*1024*1024); got != want {
 		t.Fatalf("got request memory %d, want %d", got, want)
 	}
-	if got, want := resources.GetRequests().GetWritableLayerBytes(), int64(256*1024*1024); got != want {
-		t.Fatalf("got request writable layer %d, want %d", got, want)
+	if got, want := resources.GetRequests().GetEphemeralStorageBytes(), int64(256*1024*1024); got != want {
+		t.Fatalf("got request ephemeral storage %d, want %d", got, want)
 	}
 	if got, want := resources.GetLimits().GetCpuMilli(), int64(1500); got != want {
 		t.Fatalf("got limit cpu %d, want %d", got, want)
@@ -22,8 +22,8 @@ func TestBuildResourceSpecParsesFriendlyQuantities(t *testing.T) {
 	if got, want := resources.GetLimits().GetMemoryBytes(), int64(1024*1024*1024); got != want {
 		t.Fatalf("got limit memory %d, want %d", got, want)
 	}
-	if got, want := resources.GetLimits().GetWritableLayerBytes(), int64(2*1024*1024*1024); got != want {
-		t.Fatalf("got limit writable layer %d, want %d", got, want)
+	if got, want := resources.GetLimits().GetEphemeralStorageBytes(), int64(2*1024*1024*1024); got != want {
+		t.Fatalf("got limit ephemeral storage %d, want %d", got, want)
 	}
 }
 

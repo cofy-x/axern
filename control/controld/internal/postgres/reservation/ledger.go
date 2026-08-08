@@ -30,7 +30,7 @@ func InsertWorkloadReservation(ctx context.Context, tx pgx.Tx, reservation Workl
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO workload_reservations (
 			reservation_id, allocation_id, namespace, owner_type, owner_id, node_id,
-			cpu_milli, memory_bytes, memory_overhead_bytes, writable_layer_bytes, created_at, released_at
+			cpu_milli, memory_bytes, memory_overhead_bytes, ephemeral_storage_bytes, created_at, released_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULL)
 	`, "resv-"+uuid.NewString(),
 		reservation.AllocationID,
@@ -41,7 +41,7 @@ func InsertWorkloadReservation(ctx context.Context, tx pgx.Tx, reservation Workl
 		requests.GetCpuMilli(),
 		requests.GetMemoryBytes(),
 		reservation.MemoryOverheadBytes,
-		requests.GetWritableLayerBytes(),
+		requests.GetEphemeralStorageBytes(),
 		reservation.CreatedAt.UTC(),
 	); err != nil {
 		return fmt.Errorf("insert workload reservation: %w", err)

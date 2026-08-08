@@ -241,21 +241,21 @@ func BuildCreateContainerRequest(
 ) *apipb.CreateContainerRequest {
 	resources := request.GetResources()
 	return &apipb.CreateContainerRequest{
-		Runtime:                   request.RuntimeTemplate.Sandbox,
-		Command:                   BuildStartCommand(lrt, request),
-		Rootfs:                    BuildContainerRootfs(lrt),
-		Resource:                  ResourcesToLinux(request.Resources),
-		Mounts:                    BuildStartMounts(request),
-		Envs:                      env,
-		Network:                   networkMode,
-		Labels:                    labels,
-		Stdout:                    request.Stdout,
-		Stderr:                    request.Stderr,
-		CkptDir:                   request.CkptDir,
-		Cwd:                       BuildStartCwd(lrt, request),
-		ID:                        request.ContainerID,
-		WritableLayerRequestBytes: resources.GetRequests().GetWritableLayerBytes(),
-		WritableLayerLimitBytes:   resources.GetLimits().GetWritableLayerBytes(),
+		Runtime:                      request.RuntimeTemplate.Sandbox,
+		Command:                      BuildStartCommand(lrt, request),
+		Rootfs:                       BuildContainerRootfs(lrt),
+		Resource:                     ResourcesToLinux(request.Resources),
+		Mounts:                       BuildStartMounts(request),
+		Envs:                         env,
+		Network:                      networkMode,
+		Labels:                       labels,
+		Stdout:                       request.Stdout,
+		Stderr:                       request.Stderr,
+		CkptDir:                      request.CkptDir,
+		Cwd:                          BuildStartCwd(lrt, request),
+		ID:                           request.ContainerID,
+		EphemeralStorageRequestBytes: resources.GetRequests().GetEphemeralStorageBytes(),
+		EphemeralStorageLimitBytes:   resources.GetLimits().GetEphemeralStorageBytes(),
 	}
 }
 

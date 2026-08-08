@@ -26,43 +26,43 @@ type NamespaceQuotaDescribeJSON struct {
 }
 
 type NamespaceQuotaEventJSON struct {
-	ID                          string `json:"id"`
-	Namespace                   string `json:"namespace"`
-	Type                        string `json:"type"`
-	WorkloadType                string `json:"workload_type"`
-	WorkloadID                  string `json:"workload_id,omitempty"`
-	EnvironmentID               string `json:"environment_id,omitempty"`
-	Reason                      string `json:"reason"`
-	RequestedCPUMilli           int64  `json:"requested_cpu_milli"`
-	ReservedCPUMilli            int64  `json:"reserved_cpu_milli"`
-	CPUMilliLimit               *int64 `json:"cpu_milli_limit,omitempty"`
-	AvailableCPUMilli           *int64 `json:"available_cpu_milli,omitempty"`
-	RequestedMemoryBytes        int64  `json:"requested_memory_bytes"`
-	ReservedMemoryBytes         int64  `json:"reserved_memory_bytes"`
-	MemoryBytesLimit            *int64 `json:"memory_bytes_limit,omitempty"`
-	AvailableMemoryBytes        *int64 `json:"available_memory_bytes,omitempty"`
-	RequestedWritableLayerBytes int64  `json:"requested_writable_layer_bytes"`
-	ReservedWritableLayerBytes  int64  `json:"reserved_writable_layer_bytes"`
-	WritableLayerBytesLimit     *int64 `json:"writable_layer_bytes_limit,omitempty"`
-	AvailableWritableLayerBytes *int64 `json:"available_writable_layer_bytes,omitempty"`
-	Message                     string `json:"message,omitempty"`
-	CreatedAt                   string `json:"created_at,omitempty"`
+	ID                             string `json:"id"`
+	Namespace                      string `json:"namespace"`
+	Type                           string `json:"type"`
+	WorkloadType                   string `json:"workload_type"`
+	WorkloadID                     string `json:"workload_id,omitempty"`
+	EnvironmentID                  string `json:"environment_id,omitempty"`
+	Reason                         string `json:"reason"`
+	RequestedCPUMilli              int64  `json:"requested_cpu_milli"`
+	ReservedCPUMilli               int64  `json:"reserved_cpu_milli"`
+	CPUMilliLimit                  *int64 `json:"cpu_milli_limit,omitempty"`
+	AvailableCPUMilli              *int64 `json:"available_cpu_milli,omitempty"`
+	RequestedMemoryBytes           int64  `json:"requested_memory_bytes"`
+	ReservedMemoryBytes            int64  `json:"reserved_memory_bytes"`
+	MemoryBytesLimit               *int64 `json:"memory_bytes_limit,omitempty"`
+	AvailableMemoryBytes           *int64 `json:"available_memory_bytes,omitempty"`
+	RequestedEphemeralStorageBytes int64  `json:"requested_ephemeral_storage_bytes"`
+	ReservedEphemeralStorageBytes  int64  `json:"reserved_ephemeral_storage_bytes"`
+	EphemeralStorageBytesLimit     *int64 `json:"ephemeral_storage_bytes_limit,omitempty"`
+	AvailableEphemeralStorageBytes *int64 `json:"available_ephemeral_storage_bytes,omitempty"`
+	Message                        string `json:"message,omitempty"`
+	CreatedAt                      string `json:"created_at,omitempty"`
 }
 
 type NamespaceQuotaJSON struct {
-	Namespace                   string `json:"namespace"`
-	CPUMilliLimit               *int64 `json:"cpu_milli_limit,omitempty"`
-	MemoryBytesLimit            *int64 `json:"memory_bytes_limit,omitempty"`
-	ReservedCPUMilli            int64  `json:"reserved_cpu_milli"`
-	ReservedMemoryBytes         int64  `json:"reserved_memory_bytes"`
-	AvailableCPUMilli           *int64 `json:"available_cpu_milli,omitempty"`
-	AvailableMemoryBytes        *int64 `json:"available_memory_bytes,omitempty"`
-	WritableLayerBytesLimit     *int64 `json:"writable_layer_bytes_limit,omitempty"`
-	ReservedWritableLayerBytes  int64  `json:"reserved_writable_layer_bytes"`
-	AvailableWritableLayerBytes *int64 `json:"available_writable_layer_bytes,omitempty"`
-	Version                     int64  `json:"version"`
-	CreatedAt                   string `json:"created_at,omitempty"`
-	UpdatedAt                   string `json:"updated_at,omitempty"`
+	Namespace                      string `json:"namespace"`
+	CPUMilliLimit                  *int64 `json:"cpu_milli_limit,omitempty"`
+	MemoryBytesLimit               *int64 `json:"memory_bytes_limit,omitempty"`
+	ReservedCPUMilli               int64  `json:"reserved_cpu_milli"`
+	ReservedMemoryBytes            int64  `json:"reserved_memory_bytes"`
+	AvailableCPUMilli              *int64 `json:"available_cpu_milli,omitempty"`
+	AvailableMemoryBytes           *int64 `json:"available_memory_bytes,omitempty"`
+	EphemeralStorageBytesLimit     *int64 `json:"ephemeral_storage_bytes_limit,omitempty"`
+	ReservedEphemeralStorageBytes  int64  `json:"reserved_ephemeral_storage_bytes"`
+	AvailableEphemeralStorageBytes *int64 `json:"available_ephemeral_storage_bytes,omitempty"`
+	Version                        int64  `json:"version"`
+	CreatedAt                      string `json:"created_at,omitempty"`
+	UpdatedAt                      string `json:"updated_at,omitempty"`
 }
 
 func PrintNamespaceQuotaJSON(w io.Writer, quota *quotav1.NamespaceQuota) error {
@@ -107,27 +107,27 @@ func NewNamespaceQuotaEventJSON(event *quotav1.NamespaceQuotaEvent) *NamespaceQu
 		return nil
 	}
 	return &NamespaceQuotaEventJSON{
-		ID:                          event.GetID(),
-		Namespace:                   event.GetNamespace(),
-		Type:                        quotaEventTypeJSON(event.GetType()),
-		WorkloadType:                quotaEventWorkloadTypeJSON(event.GetWorkloadType()),
-		WorkloadID:                  event.GetWorkloadID(),
-		EnvironmentID:               event.GetEnvironmentID(),
-		Reason:                      quotaEventReason(event.GetReason()),
-		RequestedCPUMilli:           event.GetRequestedCpuMilli(),
-		ReservedCPUMilli:            event.GetReservedCpuMilli(),
-		CPUMilliLimit:               optionalWrapperInt64(event.GetCpuMilliLimit()),
-		AvailableCPUMilli:           optionalWrapperInt64(event.GetAvailableCpuMilli()),
-		RequestedMemoryBytes:        event.GetRequestedMemoryBytes(),
-		ReservedMemoryBytes:         event.GetReservedMemoryBytes(),
-		MemoryBytesLimit:            optionalWrapperInt64(event.GetMemoryBytesLimit()),
-		AvailableMemoryBytes:        optionalWrapperInt64(event.GetAvailableMemoryBytes()),
-		RequestedWritableLayerBytes: event.GetRequestedWritableLayerBytes(),
-		ReservedWritableLayerBytes:  event.GetReservedWritableLayerBytes(),
-		WritableLayerBytesLimit:     optionalWrapperInt64(event.GetWritableLayerBytesLimit()),
-		AvailableWritableLayerBytes: optionalWrapperInt64(event.GetAvailableWritableLayerBytes()),
-		Message:                     event.GetMessage(),
-		CreatedAt:                   FormatProtoTimestamp(event.GetCreatedAt()),
+		ID:                             event.GetID(),
+		Namespace:                      event.GetNamespace(),
+		Type:                           quotaEventTypeJSON(event.GetType()),
+		WorkloadType:                   quotaEventWorkloadTypeJSON(event.GetWorkloadType()),
+		WorkloadID:                     event.GetWorkloadID(),
+		EnvironmentID:                  event.GetEnvironmentID(),
+		Reason:                         quotaEventReason(event.GetReason()),
+		RequestedCPUMilli:              event.GetRequestedCpuMilli(),
+		ReservedCPUMilli:               event.GetReservedCpuMilli(),
+		CPUMilliLimit:                  optionalWrapperInt64(event.GetCpuMilliLimit()),
+		AvailableCPUMilli:              optionalWrapperInt64(event.GetAvailableCpuMilli()),
+		RequestedMemoryBytes:           event.GetRequestedMemoryBytes(),
+		ReservedMemoryBytes:            event.GetReservedMemoryBytes(),
+		MemoryBytesLimit:               optionalWrapperInt64(event.GetMemoryBytesLimit()),
+		AvailableMemoryBytes:           optionalWrapperInt64(event.GetAvailableMemoryBytes()),
+		RequestedEphemeralStorageBytes: event.GetRequestedEphemeralStorageBytes(),
+		ReservedEphemeralStorageBytes:  event.GetReservedEphemeralStorageBytes(),
+		EphemeralStorageBytesLimit:     optionalWrapperInt64(event.GetEphemeralStorageBytesLimit()),
+		AvailableEphemeralStorageBytes: optionalWrapperInt64(event.GetAvailableEphemeralStorageBytes()),
+		Message:                        event.GetMessage(),
+		CreatedAt:                      FormatProtoTimestamp(event.GetCreatedAt()),
 	}
 }
 
@@ -136,19 +136,19 @@ func NewNamespaceQuotaJSON(quota *quotav1.NamespaceQuota) *NamespaceQuotaJSON {
 		return nil
 	}
 	return &NamespaceQuotaJSON{
-		Namespace:                   quota.GetNamespace(),
-		CPUMilliLimit:               optionalWrapperInt64(quota.GetCpuMilliLimit()),
-		MemoryBytesLimit:            optionalWrapperInt64(quota.GetMemoryBytesLimit()),
-		ReservedCPUMilli:            quota.GetReservedCpuMilli(),
-		ReservedMemoryBytes:         quota.GetReservedMemoryBytes(),
-		AvailableCPUMilli:           optionalWrapperInt64(quota.GetAvailableCpuMilli()),
-		AvailableMemoryBytes:        optionalWrapperInt64(quota.GetAvailableMemoryBytes()),
-		WritableLayerBytesLimit:     optionalWrapperInt64(quota.GetWritableLayerBytesLimit()),
-		ReservedWritableLayerBytes:  quota.GetReservedWritableLayerBytes(),
-		AvailableWritableLayerBytes: optionalWrapperInt64(quota.GetAvailableWritableLayerBytes()),
-		Version:                     quota.GetVersion(),
-		CreatedAt:                   FormatProtoTimestamp(quota.GetCreatedAt()),
-		UpdatedAt:                   FormatProtoTimestamp(quota.GetUpdatedAt()),
+		Namespace:                      quota.GetNamespace(),
+		CPUMilliLimit:                  optionalWrapperInt64(quota.GetCpuMilliLimit()),
+		MemoryBytesLimit:               optionalWrapperInt64(quota.GetMemoryBytesLimit()),
+		ReservedCPUMilli:               quota.GetReservedCpuMilli(),
+		ReservedMemoryBytes:            quota.GetReservedMemoryBytes(),
+		AvailableCPUMilli:              optionalWrapperInt64(quota.GetAvailableCpuMilli()),
+		AvailableMemoryBytes:           optionalWrapperInt64(quota.GetAvailableMemoryBytes()),
+		EphemeralStorageBytesLimit:     optionalWrapperInt64(quota.GetEphemeralStorageBytesLimit()),
+		ReservedEphemeralStorageBytes:  quota.GetReservedEphemeralStorageBytes(),
+		AvailableEphemeralStorageBytes: optionalWrapperInt64(quota.GetAvailableEphemeralStorageBytes()),
+		Version:                        quota.GetVersion(),
+		CreatedAt:                      FormatProtoTimestamp(quota.GetCreatedAt()),
+		UpdatedAt:                      FormatProtoTimestamp(quota.GetUpdatedAt()),
 	}
 }
 

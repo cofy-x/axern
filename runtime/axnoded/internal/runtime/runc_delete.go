@@ -3,14 +3,11 @@ package runtime
 import (
 	"context"
 	"errors"
-	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/sirupsen/logrus"
 )
-
-const rootfsViewCleanupTimeout = 30 * time.Second
 
 func (r *RuncServiceHandler) DeleteContainer(ctx context.Context, request *apipb.DeleteContainerRequest, options contract.HandlerOptions) (*apipb.DeleteContainerResponse, error) {
 	args := []string{"delete"}
@@ -19,7 +16,7 @@ func (r *RuncServiceHandler) DeleteContainer(ctx context.Context, request *apipb
 	}
 	args = append(args, options.ContainerID)
 	_, err := r.common.Run(ctx, args...)
-	if runtimeDeleteTargetAbsent(err) {
+	if runtimeDeleteTargetAbsent(err, options.ContainerID) {
 		err = nil
 	}
 	if err != nil {
@@ -27,16 +24,11 @@ func (r *RuncServiceHandler) DeleteContainer(ctx context.Context, request *apipb
 	}
 	waitLock := r.waitLock(options.ContainerID)
 	waitLock.Lock()
-	err = r.common.RemoveExitState(options.ContainerID)
+	exitStateErr := r.common.RemoveExitState(options.ContainerID)
 	waitLock.Unlock()
 	r.waitLocks.Delete(options.ContainerID)
-	cleanupCtx, cancel := rootfsViewCleanupContext()
-	defer cancel()
-	err = errors.Join(err, r.rootfsViews.Remove(cleanupCtx, options.ContainerID))
-	if err == nil {
-		err = r.writableCapacity.Release(options.ContainerID)
-	}
-	return &apipb.DeleteContainerResponse{}, err
+	storageErr := cleanupOwnedRootfsStorage(options.ContainerID, r.rootfsViews.Remove, r.writableCapacity.Release)
+	return &apipb.DeleteContainerResponse{}, errors.Join(exitStateErr, storageErr)
 }
 
 func (r *RuncServiceHandler) cleanupContainer(ctx context.Context, traceID, containerID, msg string) {
@@ -44,19 +36,9 @@ func (r *RuncServiceHandler) cleanupContainer(ctx context.Context, traceID, cont
 		logrus.WithField("trace_id", traceID).Warnf("runtime cleanup for %s failed; retaining rootfs and writable reservation: %v", containerID, err)
 		return
 	}
-	cleanupCtx, cancel := rootfsViewCleanupContext()
-	defer cancel()
-	if err := r.rootfsViews.Remove(cleanupCtx, containerID); err != nil {
+	if err := cleanupOwnedRootfsStorage(containerID, r.rootfsViews.Remove, r.writableCapacity.Release); err != nil {
 		// Cleanup errors are best-effort here because the caller is already
 		// returning the launch failure that explains why the container failed.
-		logrus.WithField("trace_id", traceID).Warnf("cleanup writable rootfs view for %s failed: %v", containerID, err)
-		return
+		logrus.WithField("trace_id", traceID).Warnf("cleanup writable storage for %s failed: %v", containerID, err)
 	}
-	if err := r.writableCapacity.Release(containerID); err != nil {
-		logrus.WithField("trace_id", traceID).Warnf("release writable reservation for %s failed: %v", containerID, err)
-	}
-}
-
-func rootfsViewCleanupContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), rootfsViewCleanupTimeout)
 }

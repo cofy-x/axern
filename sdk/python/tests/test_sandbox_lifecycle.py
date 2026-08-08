@@ -45,10 +45,10 @@ class SandboxTest(unittest.TestCase):
             registry_credential_id="sec-regcred",
             request_cpu="2",
             request_memory="4GiB",
-            request_writable_layer="6GiB",
+            request_ephemeral_storage="6GiB",
             limit_cpu="4",
             limit_memory="8GiB",
-            limit_writable_layer="10GiB",
+            limit_ephemeral_storage="10GiB",
             upstream="127.0.0.1:8080",
             remote_port=8786,
             _connector_factory=connector_factory,
@@ -63,10 +63,10 @@ class SandboxTest(unittest.TestCase):
             self.assertEqual(client.created_environment["registry_credential_id"], "sec-regcred")
             self.assertEqual(client.created_service["request_cpu"], "2")
             self.assertEqual(client.created_service["request_memory"], "4GiB")
-            self.assertEqual(client.created_service["request_writable_layer"], "6GiB")
+            self.assertEqual(client.created_service["request_ephemeral_storage"], "6GiB")
             self.assertEqual(client.created_service["limit_cpu"], "4")
             self.assertEqual(client.created_service["limit_memory"], "8GiB")
-            self.assertEqual(client.created_service["limit_writable_layer"], "10GiB")
+            self.assertEqual(client.created_service["limit_ephemeral_storage"], "10GiB")
             self.assertEqual(client.created_tunnel["allocation_id"], "alloc-1")
             self.assertEqual(client.created_tunnel["local_target"], "127.0.0.1:8080")
             self.assertEqual(client.created_tunnel["remote_port"], 8786)
@@ -250,10 +250,10 @@ class SandboxTest(unittest.TestCase):
         for kwargs in (
             {"request_cpu": "-1"},
             {"request_memory": "-1"},
-            {"request_writable_layer": "-1"},
+            {"request_ephemeral_storage": "-1"},
             {"limit_cpu": "-1"},
             {"limit_memory": "-1"},
-            {"limit_writable_layer": "-1"},
+            {"limit_ephemeral_storage": "-1"},
         ):
             with self.subTest(kwargs=kwargs):
                 with self.assertRaises(ValueError):
@@ -263,19 +263,19 @@ class SandboxTest(unittest.TestCase):
         resources = _resource_spec(
             request_cpu=0.5,
             request_memory="128Mi",
-            request_writable_layer="256Mi",
+            request_ephemeral_storage="256Mi",
             limit_cpu="1.5",
             limit_memory="1Gi",
-            limit_writable_layer="2Gi",
+            limit_ephemeral_storage="2Gi",
         )
         self.assertIsNotNone(resources)
         assert resources is not None
         self.assertEqual(resources.requests.cpu_milli, 500)
         self.assertEqual(resources.requests.memory_bytes, 128 * 1024 * 1024)
-        self.assertEqual(resources.requests.writable_layer_bytes, 256 * 1024 * 1024)
+        self.assertEqual(resources.requests.ephemeral_storage_bytes, 256 * 1024 * 1024)
         self.assertEqual(resources.limits.cpu_milli, 1500)
         self.assertEqual(resources.limits.memory_bytes, 1024 * 1024 * 1024)
-        self.assertEqual(resources.limits.writable_layer_bytes, 2 * 1024 * 1024 * 1024)
+        self.assertEqual(resources.limits.ephemeral_storage_bytes, 2 * 1024 * 1024 * 1024)
 
     def test_close_skips_purge_when_delete_service_fails(self) -> None:
         client = _FakeClient()

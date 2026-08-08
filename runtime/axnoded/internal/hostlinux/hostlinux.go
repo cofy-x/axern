@@ -46,6 +46,17 @@ func CurrentBootID() (string, error) {
 	return value, nil
 }
 
+// ProbeCgroupMemoryLimit verifies the node-level prerequisites for admitting a
+// memory-limited sandbox. Runtime-specific PID attribution is verified later,
+// after each sandbox starts.
+func ProbeCgroupMemoryLimit(rootName string) (result error) {
+	driver, err := os2.DefaultCgroupDriver()
+	if err != nil {
+		return fmt.Errorf("load cgroup driver: %w", err)
+	}
+	return probeCgroupMemoryLimit(driver, rootName, VerifyCgroupMemoryLimit)
+}
+
 func VerifyCgroupMemoryLimit(cgroupPath string, want int64) error {
 	if want <= 0 {
 		return nil
@@ -393,7 +404,13 @@ func verifyLoopbackMount(filestoreDir, image string) error {
 	return nil
 }
 
-func PrepareFilestore(filestoreDir, mode, image string, loopbackSizeBytes, systemReserveBytes int64) error {
+func PrepareFilestore(filestoreDir, mode, image string, loopbackSizeBytes, systemReserveBytes int64) (result error) {
+	mountedByCall := false
+	defer func() {
+		if result != nil && mountedByCall {
+			result = errors.Join(result, CleanupFilestore(filestoreDir, mode, image))
+		}
+	}()
 	if filestoreDir == "" {
 		return fmt.Errorf("filestore_dir is required")
 	}
@@ -454,6 +471,7 @@ func PrepareFilestore(filestoreDir, mode, image string, loopbackSizeBytes, syste
 			if out, err := exec.Command("mount", "-o", "loop,defaults,discard,prjquota", image, filestoreDir).CombinedOutput(); err != nil {
 				return fmt.Errorf("mount loopback filestore %s: %s: %w", filestoreDir, out, err)
 			}
+			mountedByCall = true
 		}
 		if err := verifyLoopbackMount(filestoreDir, image); err != nil {
 			return err
@@ -479,8 +497,8 @@ func PrepareFilestore(filestoreDir, mode, image string, loopbackSizeBytes, syste
 	if err := unix.Statfs(filestoreDir, &stat); err != nil {
 		return fmt.Errorf("stat filestore: %w", err)
 	}
-	capacity := int64(stat.Blocks) * stat.Bsize
-	available := int64(stat.Bavail) * stat.Bsize
+	capacity := StatfsBytes(uint64(stat.Blocks), int64(stat.Bsize))
+	available := StatfsBytes(uint64(stat.Bavail), int64(stat.Bsize))
 	if systemReserveBytes < 0 || systemReserveBytes >= capacity || systemReserveBytes >= available {
 		return fmt.Errorf("filestore_system_reserve_bytes %d is invalid for capacity=%d available=%d", systemReserveBytes, capacity, available)
 	}
@@ -535,12 +553,9 @@ func writeFilestoreCapabilities(dir string, capabilities FilestoreCapabilities) 
 		return err
 	}
 	name := file.Name()
-	ok := false
 	defer func() {
 		_ = file.Close()
-		if !ok {
-			_ = os.Remove(name)
-		}
+		_ = os.Remove(name)
 	}()
 	if err := file.Chmod(0600); err != nil {
 		return err
@@ -557,16 +572,12 @@ func writeFilestoreCapabilities(dir string, capabilities FilestoreCapabilities) 
 	if err := os.Rename(name, filepath.Join(dir, FilestoreCapabilitiesFile)); err != nil {
 		return err
 	}
-	dirFile, err := os.Open(dir)
+	directory, err := os.Open(dir)
 	if err != nil {
 		return err
 	}
-	defer dirFile.Close()
-	if err := dirFile.Sync(); err != nil {
-		return err
-	}
-	ok = true
-	return nil
+	defer directory.Close()
+	return directory.Sync()
 }
 
 func probeFilestoreCapabilities(filestoreDir, fsType string) (FilestoreCapabilities, error) {
@@ -626,8 +637,15 @@ func probeFilestoreCapabilities(filestoreDir, fsType string) (FilestoreCapabilit
 	return result, nil
 }
 
-func probeXFSProjectQuota(filestoreDir, path string) bool {
-	id := strconv.FormatInt(int64(2000000000)+int64(os.Getpid()%100000), 10)
+func probeXFSProjectQuota(filestoreDir, path string) (ready bool) {
+	id := strconv.FormatUint(uint64(FilestoreProbeProjectID), 10)
+	defer func() {
+		for _, command := range []string{"project -C -p " + path + " " + id, "limit -p bhard=0 bsoft=0 " + id} {
+			if _, err := exec.Command("xfs_quota", "-x", "-c", command, filestoreDir).CombinedOutput(); err != nil {
+				ready = false
+			}
+		}
+	}()
 	for _, command := range []string{"project -s -p " + path + " " + id, "limit -p bhard=1048576 bsoft=1048576 " + id} {
 		if _, err := exec.Command("xfs_quota", "-x", "-c", command, filestoreDir).CombinedOutput(); err != nil {
 			return false

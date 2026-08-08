@@ -23,9 +23,9 @@ func RenderNamespaceQuota(w io.Writer, quota *quotav1.NamespaceQuota) {
 	fmt.Fprintf(w, "Memory Limit: %s\n", formatOptionalQuotaMemory(quota.GetMemoryBytesLimit()))
 	fmt.Fprintf(w, "Memory Reserved: %s\n", formatQuotaMemory(quota.GetReservedMemoryBytes()))
 	fmt.Fprintf(w, "Memory Available: %s\n", formatOptionalQuotaMemory(quota.GetAvailableMemoryBytes()))
-	fmt.Fprintf(w, "Writable Layer Limit: %s\n", formatOptionalQuotaMemory(quota.GetWritableLayerBytesLimit()))
-	fmt.Fprintf(w, "Writable Layer Reserved: %s\n", formatQuotaMemory(quota.GetReservedWritableLayerBytes()))
-	fmt.Fprintf(w, "Writable Layer Available: %s\n", formatOptionalQuotaMemory(quota.GetAvailableWritableLayerBytes()))
+	fmt.Fprintf(w, "Ephemeral Storage Limit: %s\n", formatOptionalQuotaMemory(quota.GetEphemeralStorageBytesLimit()))
+	fmt.Fprintf(w, "Ephemeral Storage Reserved: %s\n", formatQuotaMemory(quota.GetReservedEphemeralStorageBytes()))
+	fmt.Fprintf(w, "Ephemeral Storage Available: %s\n", formatOptionalQuotaMemory(quota.GetAvailableEphemeralStorageBytes()))
 }
 
 func RenderNamespaceQuotaTable(w io.Writer, quotas []*quotav1.NamespaceQuota) {
@@ -38,10 +38,10 @@ func RenderNamespaceQuotaTable(w io.Writer, quotas []*quotav1.NamespaceQuota) {
 			quota.GetNamespace(),
 			formatQuotaCPUUsage(quota.GetReservedCpuMilli(), quota.GetCpuMilliLimit()),
 			formatQuotaMemoryUsage(quota.GetReservedMemoryBytes(), quota.GetMemoryBytesLimit()),
-			formatQuotaMemoryUsage(quota.GetReservedWritableLayerBytes(), quota.GetWritableLayerBytesLimit()),
+			formatQuotaMemoryUsage(quota.GetReservedEphemeralStorageBytes(), quota.GetEphemeralStorageBytesLimit()),
 		})
 	}
-	RenderTable(w, []string{"NAMESPACE", "CPU", "MEMORY", "WRITABLE LAYER"}, rows)
+	RenderTable(w, []string{"NAMESPACE", "CPU", "MEMORY", "EPHEMERAL STORAGE"}, rows)
 }
 
 func RenderNamespaceQuotaDescribe(w io.Writer, quota *quotav1.NamespaceQuota, services []*servicev1.Service) {
@@ -78,10 +78,10 @@ func RenderNamespaceQuotaEventTable(w io.Writer, events []*quotav1.NamespaceQuot
 			quotaEventReason(event.GetReason()),
 			formatQuotaCPU(event.GetRequestedCpuMilli()),
 			formatQuotaMemory(event.GetRequestedMemoryBytes()),
-			formatQuotaMemory(event.GetRequestedWritableLayerBytes()),
+			formatQuotaMemory(event.GetRequestedEphemeralStorageBytes()),
 		})
 	}
-	RenderTable(w, []string{"CREATED", "NAMESPACE", "WORKLOAD", "REASON", "CPU", "MEMORY", "WRITABLE LAYER"}, rows)
+	RenderTable(w, []string{"CREATED", "NAMESPACE", "WORKLOAD", "REASON", "CPU", "MEMORY", "EPHEMERAL STORAGE"}, rows)
 }
 
 func formatOptionalQuotaCPU(value *wrapperspb.Int64Value) string {

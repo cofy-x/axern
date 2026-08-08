@@ -15,19 +15,21 @@ import (
 var _ contract.RuntimeHandler = &RunscServiceHandler{}
 
 type RunscServiceHandler struct {
-	name                    string
-	common                  *ocihost.Common
-	ignoreCgroups           bool
-	allowSUID               bool
-	filestoreDir            string
-	writableLayerLimitBytes int64
-	writableCapacity        *writableCapacityManager
-	capabilityDir           string
-	containerRoot           string
-	rootfsViews             rootfsview.Provider
-	waitLocks               sync.Map
-	waitForSandboxReady     sandboxd.ReadyWaiter
-	services                runtimeServices
+	name                              string
+	common                            *ocihost.Common
+	ignoreCgroups                     bool
+	allowSUID                         bool
+	filestoreDir                      string
+	ephemeralStorageDefaultLimitBytes int64
+	writableCapacity                  *writableCapacityManager
+	capabilityDir                     string
+	containerRoot                     string
+	rootfsViews                       rootfsview.Provider
+	releaseFilestore                  func()
+	shutdownOnce                      sync.Once
+	waitLocks                         sync.Map
+	waitForSandboxReady               sandboxd.ReadyWaiter
+	services                          runtimeServices
 }
 
 type runscState struct {
@@ -75,4 +77,6 @@ func (r *RunscServiceHandler) Version(ctx context.Context) (*runtimeapi.RuntimeV
 	}, nil
 }
 
-func (r *RunscServiceHandler) ShutDown() {}
+func (r *RunscServiceHandler) ShutDown() {
+	r.shutdownOnce.Do(r.releaseFilestore)
+}

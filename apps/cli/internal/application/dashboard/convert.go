@@ -60,11 +60,11 @@ func newResourceQuantityDTO(quantity *commonv1.ResourceQuantity) *ResourceQuanti
 		return nil
 	}
 	out := &ResourceQuantityDTO{
-		CPUMilli:           quantity.GetCpuMilli(),
-		MemoryBytes:        quantity.GetMemoryBytes(),
-		WritableLayerBytes: quantity.GetWritableLayerBytes(),
+		CPUMilli:              quantity.GetCpuMilli(),
+		MemoryBytes:           quantity.GetMemoryBytes(),
+		EphemeralStorageBytes: quantity.GetEphemeralStorageBytes(),
 	}
-	if out.CPUMilli == 0 && out.MemoryBytes == 0 && out.WritableLayerBytes == 0 {
+	if out.CPUMilli == 0 && out.MemoryBytes == 0 && out.EphemeralStorageBytes == 0 {
 		return nil
 	}
 	return out
@@ -287,23 +287,23 @@ func NewQuotaDTO(quota *quotav1.NamespaceQuota) QuotaDTO {
 	}
 	cpuLimit := optionalInt64(quota.GetCpuMilliLimit())
 	memoryLimit := optionalInt64(quota.GetMemoryBytesLimit())
-	writableLayerLimit := optionalInt64(quota.GetWritableLayerBytesLimit())
+	ephemeralStorageLimit := optionalInt64(quota.GetEphemeralStorageBytesLimit())
 	return QuotaDTO{
-		Namespace:                   quota.GetNamespace(),
-		CPUMilliLimit:               cpuLimit,
-		MemoryBytesLimit:            memoryLimit,
-		WritableLayerBytesLimit:     writableLayerLimit,
-		ReservedCPUMilli:            quota.GetReservedCpuMilli(),
-		ReservedMemoryBytes:         quota.GetReservedMemoryBytes(),
-		ReservedWritableLayerBytes:  quota.GetReservedWritableLayerBytes(),
-		AvailableCPUMilli:           optionalInt64(quota.GetAvailableCpuMilli()),
-		AvailableMemoryBytes:        optionalInt64(quota.GetAvailableMemoryBytes()),
-		AvailableWritableLayerBytes: optionalInt64(quota.GetAvailableWritableLayerBytes()),
-		CPUUsagePercent:             quotaUsagePercent(quota.GetReservedCpuMilli(), cpuLimit),
-		MemoryUsagePercent:          quotaUsagePercent(quota.GetReservedMemoryBytes(), memoryLimit),
-		WritableLayerUsagePercent:   quotaUsagePercent(quota.GetReservedWritableLayerBytes(), writableLayerLimit),
-		Version:                     quota.GetVersion(),
-		UpdatedAt:                   formatTime(quota.GetUpdatedAt()),
+		Namespace:                      quota.GetNamespace(),
+		CPUMilliLimit:                  cpuLimit,
+		MemoryBytesLimit:               memoryLimit,
+		EphemeralStorageBytesLimit:     ephemeralStorageLimit,
+		ReservedCPUMilli:               quota.GetReservedCpuMilli(),
+		ReservedMemoryBytes:            quota.GetReservedMemoryBytes(),
+		ReservedEphemeralStorageBytes:  quota.GetReservedEphemeralStorageBytes(),
+		AvailableCPUMilli:              optionalInt64(quota.GetAvailableCpuMilli()),
+		AvailableMemoryBytes:           optionalInt64(quota.GetAvailableMemoryBytes()),
+		AvailableEphemeralStorageBytes: optionalInt64(quota.GetAvailableEphemeralStorageBytes()),
+		CPUUsagePercent:                quotaUsagePercent(quota.GetReservedCpuMilli(), cpuLimit),
+		MemoryUsagePercent:             quotaUsagePercent(quota.GetReservedMemoryBytes(), memoryLimit),
+		EphemeralStorageUsagePercent:   quotaUsagePercent(quota.GetReservedEphemeralStorageBytes(), ephemeralStorageLimit),
+		Version:                        quota.GetVersion(),
+		UpdatedAt:                      formatTime(quota.GetUpdatedAt()),
 	}
 }
 
@@ -312,27 +312,27 @@ func NewQuotaEventDTO(event *quotav1.NamespaceQuotaEvent) QuotaEventDTO {
 		return QuotaEventDTO{}
 	}
 	return QuotaEventDTO{
-		ID:                          event.GetID(),
-		Namespace:                   event.GetNamespace(),
-		Type:                        enumLabel(event.GetType().String(), "NAMESPACE_QUOTA_EVENT_TYPE_"),
-		WorkloadType:                enumLabel(event.GetWorkloadType().String(), "NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_"),
-		WorkloadID:                  event.GetWorkloadID(),
-		EnvironmentID:               event.GetEnvironmentID(),
-		Reason:                      enumLabel(event.GetReason().String(), "NAMESPACE_QUOTA_EVENT_REASON_"),
-		RequestedCPUMilli:           event.GetRequestedCpuMilli(),
-		ReservedCPUMilli:            event.GetReservedCpuMilli(),
-		CPUMilliLimit:               optionalInt64(event.GetCpuMilliLimit()),
-		AvailableCPUMilli:           optionalInt64(event.GetAvailableCpuMilli()),
-		RequestedMemoryBytes:        event.GetRequestedMemoryBytes(),
-		ReservedMemoryBytes:         event.GetReservedMemoryBytes(),
-		MemoryBytesLimit:            optionalInt64(event.GetMemoryBytesLimit()),
-		AvailableMemoryBytes:        optionalInt64(event.GetAvailableMemoryBytes()),
-		RequestedWritableLayerBytes: event.GetRequestedWritableLayerBytes(),
-		ReservedWritableLayerBytes:  event.GetReservedWritableLayerBytes(),
-		WritableLayerBytesLimit:     optionalInt64(event.GetWritableLayerBytesLimit()),
-		AvailableWritableLayerBytes: optionalInt64(event.GetAvailableWritableLayerBytes()),
-		Message:                     event.GetMessage(),
-		CreatedAt:                   formatTime(event.GetCreatedAt()),
+		ID:                             event.GetID(),
+		Namespace:                      event.GetNamespace(),
+		Type:                           enumLabel(event.GetType().String(), "NAMESPACE_QUOTA_EVENT_TYPE_"),
+		WorkloadType:                   enumLabel(event.GetWorkloadType().String(), "NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_"),
+		WorkloadID:                     event.GetWorkloadID(),
+		EnvironmentID:                  event.GetEnvironmentID(),
+		Reason:                         enumLabel(event.GetReason().String(), "NAMESPACE_QUOTA_EVENT_REASON_"),
+		RequestedCPUMilli:              event.GetRequestedCpuMilli(),
+		ReservedCPUMilli:               event.GetReservedCpuMilli(),
+		CPUMilliLimit:                  optionalInt64(event.GetCpuMilliLimit()),
+		AvailableCPUMilli:              optionalInt64(event.GetAvailableCpuMilli()),
+		RequestedMemoryBytes:           event.GetRequestedMemoryBytes(),
+		ReservedMemoryBytes:            event.GetReservedMemoryBytes(),
+		MemoryBytesLimit:               optionalInt64(event.GetMemoryBytesLimit()),
+		AvailableMemoryBytes:           optionalInt64(event.GetAvailableMemoryBytes()),
+		RequestedEphemeralStorageBytes: event.GetRequestedEphemeralStorageBytes(),
+		ReservedEphemeralStorageBytes:  event.GetReservedEphemeralStorageBytes(),
+		EphemeralStorageBytesLimit:     optionalInt64(event.GetEphemeralStorageBytesLimit()),
+		AvailableEphemeralStorageBytes: optionalInt64(event.GetAvailableEphemeralStorageBytes()),
+		Message:                        event.GetMessage(),
+		CreatedAt:                      formatTime(event.GetCreatedAt()),
 	}
 }
 

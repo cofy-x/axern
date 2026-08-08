@@ -137,7 +137,7 @@ materialization, volumed integration, and warm idle runtime retention.
 | `filestore_loopback_image` | Persistent image used by `loopback_dev`. | Created only when absent and retained after shutdown. |
 | `filestore_loopback_size_bytes` | Initial size for a newly created loopback image. | Must be positive in `loopback_dev`. |
 | `filestore_system_reserve_bytes` | Capacity unavailable to sandbox reservations. | Admission checks both committed reservations and the live available-space floor. |
-| `writable_layer_default_limit_bytes` | Default per-sandbox writable-layer hard limit. | Writable runsc roots use this in `root:dir=...,size=...`; writable runc roots require XFS project quota. |
+| `ephemeral_storage_default_limit_bytes` | Internal default backing limit for the public `limits.ephemeral_storage_bytes` contract. | Writable runsc roots use this in `root:dir=...,size=...`; writable runc roots require XFS project quota. |
 
 Runtime retention is keyed by the static execution template, so namespace,
 service, environment, and allocation-specific volume identity do not duplicate
@@ -180,7 +180,7 @@ setuid tools inside Axern-maintained images, such as `sudo`, behave the same
 way they do under `runc`.
 
 See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection,
-EROFS lower, writable-layer, quota, and cleanup contract.
+EROFS lower, ephemeral-storage backing, quota, and cleanup contract.
 
 ## Common Profiles
 

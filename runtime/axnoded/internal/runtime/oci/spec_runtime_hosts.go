@@ -41,14 +41,41 @@ func hostDockerInternalHostEntries() []string {
 	if err != nil {
 		return nil
 	}
+	return parseHostDockerInternalEntries(string(content))
+}
+
+func parseHostDockerInternalEntries(content string) []string {
 	var entries []string
-	scanner := bufio.NewScanner(strings.NewReader(string(content)))
+	seen := make(map[string]struct{})
+	scanner := bufio.NewScanner(strings.NewReader(content))
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") || !strings.Contains(line, "host.docker.internal") {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 2 {
 			continue
 		}
-		entries = append(entries, line)
+		ip := net.ParseIP(fields[0])
+		if ip == nil {
+			continue
+		}
+		found := false
+		for _, alias := range fields[1:] {
+			if strings.HasPrefix(alias, "#") {
+				break
+			}
+			if alias == "host.docker.internal" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+		entry := ip.String() + " host.docker.internal"
+		if _, exists := seen[entry]; exists {
+			continue
+		}
+		seen[entry] = struct{}{}
+		entries = append(entries, entry)
 	}
 	return entries
 }

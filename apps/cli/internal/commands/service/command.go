@@ -28,7 +28,7 @@ func Command(runtime command.Runtime) *cobra.Command {
 
 type createOptions struct {
 	file, namespace, environmentID, templateID, templateVersion, imageRef, credentialID, runtimeClass string
-	requestCPU, requestMemory, requestWritableLayer, limitCPU, limitMemory, limitWritableLayer        string
+	requestCPU, requestMemory, requestEphemeralStorage, limitCPU, limitMemory, limitEphemeralStorage  string
 	argv, env, secretEnv, secretFile, volumes, imageMount, labels                                     []string
 	replicas                                                                                          int32
 	rootfsReadonly, wait                                                                              bool
@@ -109,10 +109,10 @@ func (o *createOptions) bindExecution(f *pflag.FlagSet) {
 	f.StringVar(&o.runtimeClass, "runtime-class", "", "runtime class")
 	f.StringVar(&o.requestCPU, "request-cpu", "", "CPU request")
 	f.StringVar(&o.requestMemory, "request-memory", "", "memory request")
-	f.StringVar(&o.requestWritableLayer, "request-writable-layer", "", "writable-layer storage request")
+	f.StringVar(&o.requestEphemeralStorage, "request-ephemeral-storage", "", "node-local ephemeral storage request")
 	f.StringVar(&o.limitCPU, "limit-cpu", "", "CPU limit")
 	f.StringVar(&o.limitMemory, "limit-memory", "", "memory limit")
-	f.StringVar(&o.limitWritableLayer, "limit-writable-layer", "", "writable-layer storage limit")
+	f.StringVar(&o.limitEphemeralStorage, "limit-ephemeral-storage", "", "node-local ephemeral storage limit")
 }
 
 func bindProbe(f interface {
@@ -222,7 +222,7 @@ func (o createOptions) execution() (*commonv1.ExecutionConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	resources, err := command.Resources(o.requestCPU, o.requestMemory, o.requestWritableLayer, o.limitCPU, o.limitMemory, o.limitWritableLayer)
+	resources, err := command.Resources(o.requestCPU, o.requestMemory, o.requestEphemeralStorage, o.limitCPU, o.limitMemory, o.limitEphemeralStorage)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +272,7 @@ func (p probeOptions) build() (*servicev1.ServiceProbe, error) {
 	return value, nil
 }
 
-var serviceDefinitionFlags = []string{"namespace", "replicas", "argv", "env", "secret-env", "secret-file", "volume", "image-mount", "runtime-class", "label", "environment-id", "template-id", "template-version", "image-ref", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "request-writable-layer", "limit-cpu", "limit-memory", "limit-writable-layer", "readiness-http-port", "readiness-http-path", "readiness-http-scheme", "readiness-tcp-port", "readiness-initial-delay", "readiness-period", "readiness-timeout", "readiness-success-threshold", "readiness-failure-threshold", "liveness-http-port", "liveness-http-path", "liveness-http-scheme", "liveness-tcp-port", "liveness-initial-delay", "liveness-period", "liveness-timeout", "liveness-success-threshold", "liveness-failure-threshold", "autoscale-min-replicas", "autoscale-max-replicas"}
+var serviceDefinitionFlags = []string{"namespace", "replicas", "argv", "env", "secret-env", "secret-file", "volume", "image-mount", "runtime-class", "label", "environment-id", "template-id", "template-version", "image-ref", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage", "readiness-http-port", "readiness-http-path", "readiness-http-scheme", "readiness-tcp-port", "readiness-initial-delay", "readiness-period", "readiness-timeout", "readiness-success-threshold", "readiness-failure-threshold", "liveness-http-port", "liveness-http-path", "liveness-http-scheme", "liveness-tcp-port", "liveness-initial-delay", "liveness-period", "liveness-timeout", "liveness-success-threshold", "liveness-failure-threshold", "autoscale-min-replicas", "autoscale-max-replicas"}
 
 func getCommand(runtime command.Runtime) *cobra.Command {
 	return &cobra.Command{Use: "get <service-id>", Short: "Get service, rollout, and latest event", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
@@ -391,7 +391,7 @@ func updateCommand(runtime command.Runtime) *cobra.Command {
 	return cmd
 }
 
-var serviceExecutionFlags = []string{"argv", "env", "secret-env", "secret-file", "volume", "image-mount", "runtime-class", "request-cpu", "request-memory", "request-writable-layer", "limit-cpu", "limit-memory", "limit-writable-layer"}
+var serviceExecutionFlags = []string{"argv", "env", "secret-env", "secret-file", "volume", "image-mount", "runtime-class", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
 
 func (o createOptions) executionUpdate(cmd *cobra.Command, current *commonv1.ExecutionConfig) (*commonv1.ExecutionConfig, error) {
 	next := &commonv1.ExecutionConfig{}
@@ -447,18 +447,18 @@ func (o createOptions) executionUpdate(cmd *cobra.Command, current *commonv1.Exe
 
 func (o createOptions) mergeUpdatedResources(cmd *cobra.Command, config *commonv1.ExecutionConfig) error {
 	resourceFlags := []struct {
-		name     string
-		value    string
-		memory   bool
-		writable bool
-		limit    bool
+		name             string
+		value            string
+		memory           bool
+		ephemeralStorage bool
+		limit            bool
 	}{
 		{name: "request-cpu", value: o.requestCPU},
 		{name: "request-memory", value: o.requestMemory, memory: true},
-		{name: "request-writable-layer", value: o.requestWritableLayer, memory: true, writable: true},
+		{name: "request-ephemeral-storage", value: o.requestEphemeralStorage, memory: true, ephemeralStorage: true},
 		{name: "limit-cpu", value: o.limitCPU, limit: true},
 		{name: "limit-memory", value: o.limitMemory, memory: true, limit: true},
-		{name: "limit-writable-layer", value: o.limitWritableLayer, memory: true, writable: true, limit: true},
+		{name: "limit-ephemeral-storage", value: o.limitEphemeralStorage, memory: true, ephemeralStorage: true, limit: true},
 	}
 	for _, field := range resourceFlags {
 		if !cmd.Flags().Changed(field.name) {
@@ -491,8 +491,8 @@ func (o createOptions) mergeUpdatedResources(cmd *cobra.Command, config *commonv
 				config.Resources.Requests = quantity
 			}
 		}
-		if field.writable {
-			quantity.WritableLayerBytes = value
+		if field.ephemeralStorage {
+			quantity.EphemeralStorageBytes = value
 		} else if field.memory {
 			quantity.MemoryBytes = value
 		} else {
@@ -502,10 +502,10 @@ func (o createOptions) mergeUpdatedResources(cmd *cobra.Command, config *commonv
 	if config.Resources == nil {
 		return nil
 	}
-	if config.GetResources().GetRequests().GetCpuMilli() == 0 && config.GetResources().GetRequests().GetMemoryBytes() == 0 && config.GetResources().GetRequests().GetWritableLayerBytes() == 0 {
+	if config.GetResources().GetRequests().GetCpuMilli() == 0 && config.GetResources().GetRequests().GetMemoryBytes() == 0 && config.GetResources().GetRequests().GetEphemeralStorageBytes() == 0 {
 		config.Resources.Requests = nil
 	}
-	if config.GetResources().GetLimits().GetCpuMilli() == 0 && config.GetResources().GetLimits().GetMemoryBytes() == 0 && config.GetResources().GetLimits().GetWritableLayerBytes() == 0 {
+	if config.GetResources().GetLimits().GetCpuMilli() == 0 && config.GetResources().GetLimits().GetMemoryBytes() == 0 && config.GetResources().GetLimits().GetEphemeralStorageBytes() == 0 {
 		config.Resources.Limits = nil
 	}
 	if config.GetResources().GetRequests() == nil && config.GetResources().GetLimits() == nil {
