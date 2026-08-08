@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/grpc/codes"
@@ -321,6 +322,28 @@ func TestAllocationOutdatedMatchesEnvironmentDrift(t *testing.T) {
 	}
 	if AllocationOutdated("env-new", &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}}, nil, nil, service) {
 		t.Fatal("allocation unexpectedly considered outdated when environment and config matched")
+	}
+}
+
+func TestAllocationOutdatedMatchesResolvedWritableLayerDefaults(t *testing.T) {
+	service := &servicev1.Service{
+		EnvironmentID: "env-writable",
+		Config: &commonv1.ExecutionConfig{
+			Argv:      []string{"/bin/sleep", "60"},
+			Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 4 << 30}},
+		},
+	}
+	allocationConfig, err := executionkernel.NormalizeConfigForRootfs(service.GetConfig(), false)
+	if err != nil {
+		t.Fatalf("NormalizeConfigForRootfs() error = %v", err)
+	}
+	if AllocationOutdated("env-writable", allocationConfig, nil, nil, service) {
+		t.Fatal("allocation with resolved writable-layer defaults unexpectedly considered outdated")
+	}
+
+	allocationConfig.Resources.Limits.WritableLayerBytes++
+	if !AllocationOutdated("env-writable", allocationConfig, nil, nil, service) {
+		t.Fatal("allocation with a different writable-layer limit unexpectedly considered current")
 	}
 }
 
