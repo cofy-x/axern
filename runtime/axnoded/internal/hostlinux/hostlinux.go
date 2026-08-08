@@ -641,12 +641,23 @@ func probeXFSProjectQuota(filestoreDir, path string) bool {
 		_ = file.Close()
 		_ = os.Remove(file.Name())
 	}()
-	_, writeErr := file.Write(make([]byte, 2*1024*1024))
+	payload := make([]byte, 2*1024*1024)
+	written, writeErr := file.Write(payload)
+	if writeErr == nil && written < len(payload) {
+		_, writeErr = file.Write(payload[written:])
+	}
 	syncErr := file.Sync()
 	if writeErr == nil && syncErr == nil {
 		return false
 	}
-	return errors.Is(writeErr, unix.EDQUOT) || errors.Is(syncErr, unix.EDQUOT)
+	return quotaBoundaryError(writeErr) || quotaBoundaryError(syncErr)
+}
+
+func quotaBoundaryError(err error) bool {
+	// XFS may surface an enforced project hard limit as EDQUOT or ENOSPC,
+	// depending on the kernel and backing device. Both are valid fail-closed
+	// outcomes after the probe has established ample filesystem capacity.
+	return errors.Is(err, unix.EDQUOT) || errors.Is(err, unix.ENOSPC)
 }
 
 func erofsFixturePath() string {
