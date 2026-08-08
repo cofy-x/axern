@@ -58,20 +58,22 @@ func (c *Client) DeleteEnvironment(ctx context.Context, environmentID string) er
 
 // CreateServiceOptions configures a single-replica service for sandbox use.
 type CreateServiceOptions struct {
-	Namespace      string
-	EnvironmentID  string
-	Argv           []string
-	Env            map[string]string
-	Cwd            string
-	RuntimeClass   string
-	Volumes        []VolumeMount
-	ImageMounts    []ImageMount
-	WorkspaceImage *WorkspaceImageSource
-	RequestCPU     ResourceQuantity
-	RequestMemory  ResourceQuantity
-	LimitCPU       ResourceQuantity
-	LimitMemory    ResourceQuantity
-	Labels         map[string]string
+	Namespace            string
+	EnvironmentID        string
+	Argv                 []string
+	Env                  map[string]string
+	Cwd                  string
+	RuntimeClass         string
+	Volumes              []VolumeMount
+	ImageMounts          []ImageMount
+	WorkspaceImage       *WorkspaceImageSource
+	RequestCPU           ResourceQuantity
+	RequestMemory        ResourceQuantity
+	RequestWritableLayer ResourceQuantity
+	LimitCPU             ResourceQuantity
+	LimitMemory          ResourceQuantity
+	LimitWritableLayer   ResourceQuantity
+	Labels               map[string]string
 }
 
 // CreateService creates an Axern service.
@@ -88,7 +90,7 @@ func (c *Client) CreateService(ctx context.Context, options CreateServiceOptions
 	if err := validateWorkspaceImageMounts(options.WorkspaceImage, options.ImageMounts, options.Volumes); err != nil {
 		return nil, err
 	}
-	resources, err := buildResourceSpec(options.RequestCPU, options.RequestMemory, options.LimitCPU, options.LimitMemory)
+	resources, err := buildResourceSpec(options.RequestCPU, options.RequestMemory, options.RequestWritableLayer, options.LimitCPU, options.LimitMemory, options.LimitWritableLayer)
 	if err != nil {
 		return nil, err
 	}
@@ -300,12 +302,16 @@ func pathsOverlap(a, b string) bool {
 	return a == b || strings.HasPrefix(a, b+"/") || strings.HasPrefix(b, a+"/")
 }
 
-func buildResourceSpec(requestCPUValue, requestMemoryValue, limitCPUValue, limitMemoryValue ResourceQuantity) (*commonv1.ResourceSpec, error) {
+func buildResourceSpec(requestCPUValue, requestMemoryValue, requestWritableValue, limitCPUValue, limitMemoryValue, limitWritableValue ResourceQuantity) (*commonv1.ResourceSpec, error) {
 	requestCPU, err := parseCPUQuantity("request_cpu", requestCPUValue)
 	if err != nil {
 		return nil, err
 	}
 	requestMemory, err := parseMemoryQuantity("request_memory", requestMemoryValue)
+	if err != nil {
+		return nil, err
+	}
+	requestWritable, err := parseMemoryQuantity("request_writable_layer", requestWritableValue)
 	if err != nil {
 		return nil, err
 	}
@@ -317,17 +323,23 @@ func buildResourceSpec(requestCPUValue, requestMemoryValue, limitCPUValue, limit
 	if err != nil {
 		return nil, err
 	}
+	limitWritable, err := parseMemoryQuantity("limit_writable_layer", limitWritableValue)
+	if err != nil {
+		return nil, err
+	}
 	resources := &commonv1.ResourceSpec{}
-	if requestCPU > 0 || requestMemory > 0 {
+	if requestCPU > 0 || requestMemory > 0 || requestWritable > 0 {
 		resources.Requests = &commonv1.ResourceQuantity{
-			CpuMilli:    requestCPU,
-			MemoryBytes: requestMemory,
+			CpuMilli:           requestCPU,
+			MemoryBytes:        requestMemory,
+			WritableLayerBytes: requestWritable,
 		}
 	}
-	if limitCPU > 0 || limitMemory > 0 {
+	if limitCPU > 0 || limitMemory > 0 || limitWritable > 0 {
 		resources.Limits = &commonv1.ResourceQuantity{
-			CpuMilli:    limitCPU,
-			MemoryBytes: limitMemory,
+			CpuMilli:           limitCPU,
+			MemoryBytes:        limitMemory,
+			WritableLayerBytes: limitWritable,
 		}
 	}
 	if resources.Requests == nil && resources.Limits == nil {

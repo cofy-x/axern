@@ -73,6 +73,9 @@ const (
 	MetricProbeAttemptDuration                   = "axern.axnoded_probe_attempt_duration_seconds"
 	MetricVolumeOperationTotal                   = "axern.axnoded_volume_operation_total"
 	MetricVolumeReconcileCurrent                 = "axern.axnoded_volume_reconcile_current"
+	MetricCgroupMemoryCurrent                    = "axern.axnoded_cgroup_memory_current"
+	MetricWritableLayerOperationTotal            = "axern.axnoded_writable_layer_operation_total"
+	MetricFilestoreProbe                         = "axern.axnoded_filestore_probe_total"
 )
 
 const (
@@ -127,6 +130,9 @@ const (
 	descProbeAttemptDuration                   = "Axnoded probe attempt duration."
 	descVolumeOperationTotal                   = "Axnoded node volume operation results."
 	descVolumeReconcileCurrent                 = "Axnoded last node volume reconcile counts."
+	descCgroupMemoryCurrent                    = "Per-sandbox cgroup memory.stat and memory.events values."
+	descWritableLayerOperationTotal            = "Writable-layer reservation, quota, ENOSPC, and cleanup operations."
+	descFilestoreProbe                         = "Runtime filestore capability probe results."
 )
 
 const (
@@ -622,6 +628,36 @@ func RecordVolumeOperation(operation, result string) {
 
 func RecordVolumeReconcile(kind string, value float64) {
 	recordGauge(MetricVolumeReconcileCurrent, descVolumeReconcileCurrent, value, attribute.String(sdkobs.AttrState, kind))
+}
+
+func RecordCgroupMemory(runtime, allocationID, kind string, value int64) {
+	recordGauge(
+		MetricCgroupMemoryCurrent,
+		descCgroupMemoryCurrent,
+		float64(value),
+		attribute.String(sdkobs.AttrRuntime, runtime),
+		attribute.String(sdkobs.AttrAllocationID, allocationID),
+		attribute.String(sdkobs.AttrState, kind),
+	)
+}
+
+func RecordWritableLayerOperation(runtime, operation, result string) {
+	recordCounter(
+		MetricWritableLayerOperationTotal,
+		descWritableLayerOperationTotal,
+		attribute.String(sdkobs.AttrRuntime, runtime),
+		attribute.String(sdkobs.AttrOperation, operation),
+		attribute.String(sdkobs.AttrResult, result),
+	)
+}
+
+func RecordFilestoreProbe(probe, result string) {
+	recordCounter(
+		MetricFilestoreProbe,
+		descFilestoreProbe,
+		attribute.String(sdkobs.AttrState, probe),
+		attribute.String(sdkobs.AttrResult, result),
+	)
 }
 
 func startAttrs(startClass, runtime, rootfsType, result string) []attribute.KeyValue {

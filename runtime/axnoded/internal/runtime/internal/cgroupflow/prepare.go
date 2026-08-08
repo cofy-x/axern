@@ -2,6 +2,7 @@ package cgroupflow
 
 import (
 	"fmt"
+	"strings"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
@@ -11,17 +12,16 @@ import (
 )
 
 var (
-	defaultCgroupDriver        = os2.DefaultCgroupDriver
-	runtimeCgroupPath          = hostlinux.RuntimeCgroupPath
-	sanitizeResourceForDriver  = hostlinux.SanitizeResourceForDriver
-	updateCgroup               = hostlinux.UpdateCgroup
-	isCgroupWritePermissionErr = hostlinux.IsCgroupWritePermissionError
+	defaultCgroupDriver       = os2.DefaultCgroupDriver
+	runtimeCgroupPath         = hostlinux.RuntimeCgroupPath
+	sanitizeResourceForDriver = hostlinux.SanitizeResourceForDriver
+	updateCgroup              = hostlinux.UpdateCgroup
+	verifyMemoryLimit         = hostlinux.VerifyCgroupMemoryLimit
 )
 
 type RuntimePolicy struct {
-	IgnoreCgroups                bool
-	DropResourceWhenIgnored      bool
-	AllowWritePermissionFallback bool
+	IgnoreCgroups           bool
+	DropResourceWhenIgnored bool
 }
 
 type Preparation struct {
@@ -31,10 +31,8 @@ type Preparation struct {
 }
 
 type RuntimePreparation struct {
-	Request                 *apipb.CreateContainerRequest
-	Options                 contract.HandlerOptions
-	WritePermissionFallback bool
-	WritePermissionError    error
+	Request *apipb.CreateContainerRequest
+	Options contract.HandlerOptions
 }
 
 func PrepareRuntime(request *apipb.CreateContainerRequest, options contract.HandlerOptions, policy RuntimePolicy) (RuntimePreparation, error) {
@@ -43,6 +41,9 @@ func PrepareRuntime(request *apipb.CreateContainerRequest, options contract.Hand
 		Options: options,
 	}
 	if policy.IgnoreCgroups {
+		if request.GetResource().GetMemoryLimitInBytes() > 0 {
+			return RuntimePreparation{}, fmt.Errorf("memory limit requires cgroup enforcement; disabled_dev is not allowed")
+		}
 		result.Options.CgroupPath = ""
 		result.Options.RuntimeCgroupPath = ""
 		if policy.DropResourceWhenIgnored && request != nil && request.Resource != nil {
@@ -50,12 +51,19 @@ func PrepareRuntime(request *apipb.CreateContainerRequest, options contract.Hand
 		}
 		return result, nil
 	}
+	if strings.TrimSpace(options.CgroupPath) == "" {
+		return RuntimePreparation{}, fmt.Errorf("cgroup enforcement is required but no sandbox cgroup was allocated")
+	}
 
 	prep, err := Prepare(request, options.CgroupPath)
 	if err != nil {
 		return RuntimePreparation{}, err
 	}
 	result.Options.RuntimeCgroupPath = prep.RuntimeCgroupPath
+	result.Options.MemoryLimitBytes = request.GetResource().GetMemoryLimitInBytes()
+	if result.Options.MemoryLimitBytes > 0 && !prep.Active {
+		return RuntimePreparation{}, fmt.Errorf("memory limit requires an allocated cgroup path")
+	}
 	if request == nil || request.Resource == nil || !prep.Active {
 		return result, nil
 	}
@@ -65,13 +73,12 @@ func PrepareRuntime(request *apipb.CreateContainerRequest, options contract.Hand
 		result.Request.Resource = prep.SanitizedResource
 	}
 	if err := updateCgroup(prep.RuntimeCgroupPath, prep.SanitizedResource); err != nil {
-		if policy.AllowWritePermissionFallback && isCgroupWritePermissionErr(err) {
-			result.WritePermissionFallback = true
-			result.WritePermissionError = err
-			result.Request = ocicli.CloneCreateRequestWithoutResource(request)
-			return result, nil
-		}
 		return RuntimePreparation{}, fmt.Errorf("set cgroup resource limits on %s failed: %v", prep.RuntimeCgroupPath, err)
+	}
+	if result.Options.MemoryLimitBytes > 0 {
+		if err := verifyMemoryLimit(prep.RuntimeCgroupPath, result.Options.MemoryLimitBytes); err != nil {
+			return RuntimePreparation{}, fmt.Errorf("verify cgroup memory limit on %s: %w", prep.RuntimeCgroupPath, err)
+		}
 	}
 	return result, nil
 }

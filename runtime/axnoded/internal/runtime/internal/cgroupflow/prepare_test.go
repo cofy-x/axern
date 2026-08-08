@@ -21,20 +21,20 @@ func (fakeCgroupDriver) ExistingGroups(string) ([]string, error) { return nil, n
 func (fakeCgroupDriver) Remove(string) error                     { return nil }
 func (fakeCgroupDriver) LocalCPUCount() (int, error)             { return 1, nil }
 
-func withCgroupRuntimeHooks(t *testing.T, updateErr error, writePermissionErr bool) {
+func withCgroupRuntimeHooks(t *testing.T, updateErr error) {
 	t.Helper()
 
 	oldDefaultCgroupDriver := defaultCgroupDriver
 	oldRuntimeCgroupPath := runtimeCgroupPath
 	oldSanitizeResourceForDriver := sanitizeResourceForDriver
 	oldUpdateCgroup := updateCgroup
-	oldIsCgroupWritePermissionErr := isCgroupWritePermissionErr
+	oldVerifyMemoryLimit := verifyMemoryLimit
 	t.Cleanup(func() {
 		defaultCgroupDriver = oldDefaultCgroupDriver
 		runtimeCgroupPath = oldRuntimeCgroupPath
 		sanitizeResourceForDriver = oldSanitizeResourceForDriver
 		updateCgroup = oldUpdateCgroup
-		isCgroupWritePermissionErr = oldIsCgroupWritePermissionErr
+		verifyMemoryLimit = oldVerifyMemoryLimit
 	})
 
 	defaultCgroupDriver = func() (os2.CgroupDriver, error) {
@@ -49,9 +49,7 @@ func withCgroupRuntimeHooks(t *testing.T, updateErr error, writePermissionErr bo
 	updateCgroup = func(string, *apipb.LinuxContainerResources) error {
 		return updateErr
 	}
-	isCgroupWritePermissionErr = func(error) bool {
-		return writePermissionErr
-	}
+	verifyMemoryLimit = func(string, int64) error { return nil }
 }
 
 func TestPrepareInactiveWhenCgroupPathEmpty(t *testing.T) {
@@ -74,7 +72,7 @@ func TestPrepareInactiveWhenCgroupPathEmpty(t *testing.T) {
 
 func TestPrepareRuntimeClearsCgroupOptionsWhenIgnored(t *testing.T) {
 	request := &apipb.CreateContainerRequest{
-		Resource: &apipb.LinuxContainerResources{MemoryLimitInBytes: 1024},
+		Resource: &apipb.LinuxContainerResources{CpuShares: 1024},
 	}
 
 	prep, err := PrepareRuntime(request, contract.HandlerOptions{
@@ -97,7 +95,7 @@ func TestPrepareRuntimeClearsCgroupOptionsWhenIgnored(t *testing.T) {
 
 func TestPrepareRuntimeDropsResourceWhenIgnoredPolicyRequiresIt(t *testing.T) {
 	request := &apipb.CreateContainerRequest{
-		Resource: &apipb.LinuxContainerResources{MemoryLimitInBytes: 1024},
+		Resource: &apipb.LinuxContainerResources{CpuShares: 1024},
 	}
 
 	prep, err := PrepareRuntime(request, contract.HandlerOptions{
@@ -123,7 +121,7 @@ func TestPrepareRuntimeDropsResourceWhenIgnoredPolicyRequiresIt(t *testing.T) {
 
 func TestPrepareRuntimeFailsClosedWhenCgroupUpdateFails(t *testing.T) {
 	updateErr := errors.New("cgroup update failed")
-	withCgroupRuntimeHooks(t, updateErr, false)
+	withCgroupRuntimeHooks(t, updateErr)
 
 	_, err := PrepareRuntime(&apipb.CreateContainerRequest{
 		Resource: &apipb.LinuxContainerResources{MemoryLimitInBytes: 1024},
@@ -133,38 +131,21 @@ func TestPrepareRuntimeFailsClosedWhenCgroupUpdateFails(t *testing.T) {
 	}
 }
 
-func TestPrepareRuntimeFallsBackOnWritePermissionWhenPolicyAllowsIt(t *testing.T) {
+func TestPrepareRuntimeFailsClosedOnWritePermissionError(t *testing.T) {
 	updateErr := errors.New("read-only cgroup")
-	withCgroupRuntimeHooks(t, updateErr, true)
+	withCgroupRuntimeHooks(t, updateErr)
 	request := &apipb.CreateContainerRequest{
 		Resource: &apipb.LinuxContainerResources{MemoryLimitInBytes: 1024},
 	}
 
-	prep, err := PrepareRuntime(request, contract.HandlerOptions{CgroupPath: "/sandbox/test"}, RuntimePolicy{
-		AllowWritePermissionFallback: true,
-	})
-	if err != nil {
-		t.Fatalf("PrepareRuntime() error = %v", err)
-	}
-	if !prep.WritePermissionFallback {
-		t.Fatalf("PrepareRuntime().WritePermissionFallback = false, want true")
-	}
-	if !errors.Is(prep.WritePermissionError, updateErr) {
-		t.Fatalf("PrepareRuntime().WritePermissionError = %v, want %v", prep.WritePermissionError, updateErr)
-	}
-	if prep.Request == request {
-		t.Fatalf("PrepareRuntime().Request = original request, want clone")
-	}
-	if prep.Request.Resource != nil {
-		t.Fatalf("PrepareRuntime().Request.Resource = %#v, want nil", prep.Request.Resource)
-	}
-	if prep.Options.RuntimeCgroupPath != "/sandbox/test/workload" {
-		t.Fatalf("PrepareRuntime().Options.RuntimeCgroupPath = %q, want workload path", prep.Options.RuntimeCgroupPath)
+	_, err := PrepareRuntime(request, contract.HandlerOptions{CgroupPath: "/sandbox/test"}, RuntimePolicy{})
+	if !errors.Is(err, updateErr) && err == nil {
+		t.Fatalf("PrepareRuntime() error = %v, want fail-closed update error", err)
 	}
 }
 
 func TestPrepareRuntimeUsesSanitizedResourceForBundleAndCgroupUpdate(t *testing.T) {
-	withCgroupRuntimeHooks(t, nil, false)
+	withCgroupRuntimeHooks(t, nil)
 	original := &apipb.LinuxContainerResources{MemoryLimitInBytes: 1024}
 	sanitized := &apipb.LinuxContainerResources{MemoryLimitInBytes: 2048}
 	request := &apipb.CreateContainerRequest{Resource: original}

@@ -64,9 +64,9 @@ func (h *sandboxService) shutdown(ctx context.Context) error {
 	}
 
 	if h.config.RuntimeConfig.FilestoreDir != "" {
-		if err := hostlinux.CleanupXFSMount(h.config.RuntimeConfig.FilestoreDir); err != nil {
-			logrus.Warnf("shutdown: failed to unmount XFS filestore: %v", err)
-			deleteErr = errors.Join(deleteErr, fmt.Errorf("cleanup XFS filestore: %w", err))
+		if err := hostlinux.CleanupFilestore(h.config.RuntimeConfig.FilestoreDir, h.config.RuntimeConfig.FilestoreMode, h.config.RuntimeConfig.FilestoreLoopbackImage); err != nil {
+			logrus.Warnf("shutdown: failed to clean runtime filestore: %v", err)
+			deleteErr = errors.Join(deleteErr, fmt.Errorf("cleanup runtime filestore: %w", err))
 		}
 	}
 	if deleteErr != nil {

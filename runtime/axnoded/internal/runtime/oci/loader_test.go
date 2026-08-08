@@ -2,6 +2,7 @@ package oci
 
 import (
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -11,9 +12,24 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
+
+func newTestBundleLoader(t *testing.T, baseFile, bundleDir string, options ...BundleLoaderOption) (*BundleLoader, error) {
+	t.Helper()
+	loader, err := NewBundleLoader(baseFile, bundleDir, options...)
+	if err != nil {
+		return nil, err
+	}
+	if loader.baseSpec.Annotations == nil {
+		loader.baseSpec.Annotations = map[string]string{}
+	}
+	key := resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName)
+	loader.baseSpec.Annotations[key] = (&resourcemanager.NetResource{Ip: net.ParseIP("10.88.0.2")}).ToString()
+	return loader, nil
+}
 
 func TestCombineEnvs(t *testing.T) {
 	tests := []struct {
@@ -53,7 +69,7 @@ func TestCombineEnvs(t *testing.T) {
 }
 
 func TestGenerateAllowsEmptyCgroupPath(t *testing.T) {
-	loader, err := NewBundleLoader("", t.TempDir())
+	loader, err := newTestBundleLoader(t, "", t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
@@ -80,7 +96,7 @@ func TestGenerateAllowsEmptyCgroupPath(t *testing.T) {
 }
 
 func TestGenerateAddsRequestedLinuxCapabilities(t *testing.T) {
-	loader, err := NewBundleLoader("", t.TempDir())
+	loader, err := newTestBundleLoader(t, "", t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
@@ -120,7 +136,7 @@ func TestGenerateAddsRequestedLinuxCapabilities(t *testing.T) {
 }
 
 func TestGenerateRejectsMissingProcessArgs(t *testing.T) {
-	loader, err := NewBundleLoader("", t.TempDir())
+	loader, err := newTestBundleLoader(t, "", t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
@@ -147,7 +163,7 @@ func TestGeneratePreservesCustomBaseProcessArgsWhenCommandEmpty(t *testing.T) {
 	if err := os.WriteFile(baseFile, data, 0644); err != nil {
 		t.Fatalf("write base spec: %v", err)
 	}
-	loader, err := NewBundleLoader(baseFile, t.TempDir())
+	loader, err := newTestBundleLoader(t, baseFile, t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
@@ -171,7 +187,7 @@ func TestGeneratePreservesCustomBaseProcessArgsWhenCommandEmpty(t *testing.T) {
 }
 
 func TestGenerateOverridesBaseProcessArgsWhenCommandProvided(t *testing.T) {
-	loader, err := NewBundleLoader("", t.TempDir())
+	loader, err := newTestBundleLoader(t, "", t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
@@ -209,7 +225,7 @@ func TestGenerateRaisesManagedProcessRuntimeBaseline(t *testing.T) {
 	if err := os.WriteFile(baseFile, data, 0644); err != nil {
 		t.Fatalf("write base spec: %v", err)
 	}
-	loader, err := NewBundleLoader(baseFile, t.TempDir())
+	loader, err := newTestBundleLoader(t, baseFile, t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
@@ -280,7 +296,7 @@ func TestSpecBuilderUsesExecutionProfile(t *testing.T) {
 }
 
 func TestBundleLoaderUsesExecutionProfileOption(t *testing.T) {
-	loader, err := NewBundleLoader("", t.TempDir(), WithExecutionProfile(ExecutionProfile{
+	loader, err := newTestBundleLoader(t, "", t.TempDir(), WithExecutionProfile(ExecutionProfile{
 		RuntimeBaseline: RuntimeBaselinePolicy{
 			Capabilities: []string{"CAP_SYS_PTRACE"},
 			NoFileLimit:  2097152,
@@ -319,7 +335,7 @@ func TestBundleLoaderUsesExecutionProfileOption(t *testing.T) {
 }
 
 func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
-	loader, err := NewBundleLoader("", t.TempDir())
+	loader, err := newTestBundleLoader(t, "", t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
@@ -459,7 +475,7 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 }
 
 func TestGenerateSetsWorkloadHostnameAndRuntimeEtcFiles(t *testing.T) {
-	loader, err := NewBundleLoader("", t.TempDir())
+	loader, err := newTestBundleLoader(t, "", t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
@@ -483,24 +499,24 @@ func TestGenerateSetsWorkloadHostnameAndRuntimeEtcFiles(t *testing.T) {
 	if got := generated.Annotations[workloadidentity.LabelKeyHostname]; got != generated.Hostname {
 		t.Fatalf("hostname annotation = %q, want %q", got, generated.Hostname)
 	}
-	hostnameFile, err := os.ReadFile(filepath.Join(bundleDir, "etc", "hostname"))
+	hostnameFile, err := os.ReadFile(filepath.Join(bundleDir, "sandbox-files", "hostname"))
 	if err != nil {
 		t.Fatalf("read managed hostname: %v", err)
 	}
 	if got := string(hostnameFile); got != generated.Hostname+"\n" {
 		t.Fatalf("/etc/hostname = %q, want %q", got, generated.Hostname+"\n")
 	}
-	hostsFile, err := os.ReadFile(filepath.Join(bundleDir, "etc", "hosts"))
+	hostsFile, err := os.ReadFile(filepath.Join(bundleDir, "sandbox-files", "hosts"))
 	if err != nil {
 		t.Fatalf("read managed hosts: %v", err)
 	}
-	if !strings.Contains(string(hostsFile), "127.0.1.1 "+generated.Hostname+"\n") {
+	if !strings.Contains(string(hostsFile), "10.88.0.2 "+generated.Hostname+"\n") {
 		t.Fatalf("/etc/hosts = %q, want workload hostname entry", string(hostsFile))
 	}
 }
 
 func TestGenerateCompactsOpaqueServiceIDHostname(t *testing.T) {
-	loader, err := NewBundleLoader("", t.TempDir())
+	loader, err := newTestBundleLoader(t, "", t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
@@ -524,7 +540,7 @@ func TestGenerateCompactsOpaqueServiceIDHostname(t *testing.T) {
 }
 
 func TestMaterializeBundleAddsManagedEtcFileMounts(t *testing.T) {
-	loader, err := NewBundleLoader("", t.TempDir(), WithRuntimeDNSConfig(RuntimeDNSConfig{
+	loader, err := newTestBundleLoader(t, "", t.TempDir(), WithRuntimeDNSConfig(RuntimeDNSConfig{
 		Nameservers: []string{"10.0.0.2"},
 	}))
 	if err != nil {
@@ -542,7 +558,7 @@ func TestMaterializeBundleAddsManagedEtcFileMounts(t *testing.T) {
 	}
 
 	for _, name := range []string{"hostname", "hosts", "resolv.conf"} {
-		path := filepath.Join(bundleDir, "etc", name)
+		path := filepath.Join(bundleDir, "sandbox-files", name)
 		content, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read managed %s: %v", name, err)
@@ -554,8 +570,8 @@ func TestMaterializeBundleAddsManagedEtcFileMounts(t *testing.T) {
 	}
 }
 
-func TestMaterializeBundleUsesManagedEtcDirWhenRootfsEtcFileIsMissing(t *testing.T) {
-	loader, err := NewBundleLoader("", t.TempDir(), WithRuntimeDNSConfig(RuntimeDNSConfig{
+func TestMaterializeBundleUsesIndividualFilesWhenRootfsEtcFileIsMissing(t *testing.T) {
+	loader, err := newTestBundleLoader(t, "", t.TempDir(), WithRuntimeDNSConfig(RuntimeDNSConfig{
 		Nameservers: []string{"10.0.0.2"},
 	}))
 	if err != nil {
@@ -583,22 +599,25 @@ func TestMaterializeBundleUsesManagedEtcDirWhenRootfsEtcFileIsMissing(t *testing
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	managedEtcDir := filepath.Join(bundleDir, "runtime-etc")
-	assertMountPresent(t, generated.Mounts, "/etc", managedEtcDir)
-	assertMountAbsent(t, generated.Mounts, "/etc/hosts")
-	for _, name := range []string{"hostname", "hosts", "resolv.conf", "os-release"} {
-		content, err := os.ReadFile(filepath.Join(managedEtcDir, name))
+	managedFilesDir := filepath.Join(bundleDir, "sandbox-files")
+	assertMountAbsent(t, generated.Mounts, "/etc")
+	for _, name := range []string{"hostname", "hosts", "resolv.conf"} {
+		content, err := os.ReadFile(filepath.Join(managedFilesDir, name))
 		if err != nil {
-			t.Fatalf("read managed etc %s: %v", name, err)
+			t.Fatalf("read sandbox file %s: %v", name, err)
 		}
 		if len(content) == 0 {
-			t.Fatalf("managed etc %s is empty", name)
+			t.Fatalf("sandbox file %s is empty", name)
 		}
+		assertMountPresent(t, generated.Mounts, "/etc/"+name, filepath.Join(managedFilesDir, name))
+	}
+	if content, err := os.ReadFile(filepath.Join(rootfsDir, "etc", "os-release")); err != nil || string(content) != "image-os-release\n" {
+		t.Fatalf("lower os-release changed: %q err=%v", content, err)
 	}
 }
 
-func TestMaterializeBundleManagedEtcDirDoesNotFollowManagedFileSymlinks(t *testing.T) {
-	loader, err := NewBundleLoader("", t.TempDir(), WithRuntimeDNSConfig(RuntimeDNSConfig{
+func TestMaterializeBundleDoesNotCopyRootfsEtcSymlinks(t *testing.T) {
+	loader, err := newTestBundleLoader(t, "", t.TempDir(), WithRuntimeDNSConfig(RuntimeDNSConfig{
 		Nameservers: []string{"10.0.0.2"},
 	}))
 	if err != nil {
@@ -630,7 +649,7 @@ func TestMaterializeBundleManagedEtcDirDoesNotFollowManagedFileSymlinks(t *testi
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	managedEtcDir := filepath.Join(bundleDir, "runtime-etc")
+	managedEtcDir := filepath.Join(bundleDir, "sandbox-files")
 	hostsPath := filepath.Join(managedEtcDir, "hosts")
 	hostsInfo, err := os.Lstat(hostsPath)
 	if err != nil {
@@ -646,12 +665,12 @@ func TestMaterializeBundleManagedEtcDirDoesNotFollowManagedFileSymlinks(t *testi
 	if !strings.Contains(string(hosts), "127.0.0.1 localhost") {
 		t.Fatalf("managed hosts = %q, want runtime hosts content", hosts)
 	}
-	shadowHosts, err := os.ReadFile(filepath.Join(managedEtcDir, "shadow-hosts"))
-	if err != nil {
-		t.Fatalf("read managed shadow-hosts: %v", err)
+	if _, err := os.Stat(filepath.Join(managedEtcDir, "shadow-hosts")); !os.IsNotExist(err) {
+		t.Fatalf("rootfs shadow-hosts was copied into sandbox files: %v", err)
 	}
-	if string(shadowHosts) != "image-shadow-hosts\n" {
-		t.Fatalf("managed shadow-hosts = %q, want image content preserved", shadowHosts)
+	shadowHosts, err := os.ReadFile(filepath.Join(rootfsDir, "etc", "shadow-hosts"))
+	if err != nil || string(shadowHosts) != "image-shadow-hosts\n" {
+		t.Fatalf("lower shadow-hosts changed: %q err=%v", shadowHosts, err)
 	}
 }
 
@@ -684,7 +703,7 @@ func TestBuildResolvConfRejectsMissingUsableNameserver(t *testing.T) {
 }
 
 func TestMaterializeBundleHonorsExistingResolvConfMount(t *testing.T) {
-	loader, err := NewBundleLoader("", t.TempDir(), WithRuntimeDNSConfig(RuntimeDNSConfig{
+	loader, err := newTestBundleLoader(t, "", t.TempDir(), WithRuntimeDNSConfig(RuntimeDNSConfig{
 		HostResolvConfPaths: []string{filepath.Join(t.TempDir(), "missing-resolv.conf")},
 	}))
 	if err != nil {

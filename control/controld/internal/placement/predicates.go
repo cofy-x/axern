@@ -106,3 +106,11 @@ func hasAvailableMemory(policy resourcekernel.AdmissionPolicy, summary *nodev1.N
 	used := summary.GetResources().GetAxnodedCommittedBytes()
 	return policy.Fits(summary.GetAllocatable(), resourcekernel.Claim{MemoryBytes: used}, resourcekernel.Claim{MemoryBytes: requested})
 }
+
+func hasAvailableWritableLayer(policy resourcekernel.AdmissionPolicy, summary *nodev1.NodeSummary, requested int64) bool {
+	if requested <= 0 {
+		return true
+	}
+	used := summary.GetResources().GetAxnodedWritableLayerCommittedBytes()
+	return policy.Fits(summary.GetAllocatable(), resourcekernel.Claim{WritableLayerBytes: used}, resourcekernel.Claim{WritableLayerBytes: requested})
+}

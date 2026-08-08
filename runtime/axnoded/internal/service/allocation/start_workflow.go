@@ -248,9 +248,6 @@ func (h *Controller) startManagedContainer(ctx context.Context, request *runtime
 			lrt.DecRef()
 		}
 	}()
-	if err := ValidateMountTargetsForRootfsReadonly(lrt.RootFS.Path(), lrt.Readonly, startplan.BuildStartMounts(request)); err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to validate mount targets: %v", err)), err
-	}
 	if err := h.rememberContainerRuntime(request.GetContainerID(), lrt); err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed to persist allocation state: %v", err)), err
 	}

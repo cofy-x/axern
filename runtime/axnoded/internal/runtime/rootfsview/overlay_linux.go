@@ -19,6 +19,10 @@ func resolveOverlayLowerDirs(rootDir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return resolveOverlayLowerDirsFromInfo(rootDir, mountInfo)
+}
+
+func resolveOverlayLowerDirsFromInfo(rootDir string, mountInfo mountInfoEntry) ([]string, error) {
 	if mountInfo.fsType != "overlay" {
 		return []string{rootDir}, nil
 	}
@@ -27,22 +31,34 @@ func resolveOverlayLowerDirs(rootDir string) ([]string, error) {
 	if lowerDirValue == "" {
 		return nil, fmt.Errorf("writable rootfs view source is overlay but lowerdir is missing: %s", rootDir)
 	}
+	if strings.Contains(lowerDirValue, `\`) {
+		return nil, fmt.Errorf("overlay lowerdir requires unsupported mount-option escaping: %s", rootDir)
+	}
 	lowerDirs := strings.Split(lowerDirValue, ":")
+	if upperDir := mountOptionValue(mountInfo.superOptions, "upperdir"); upperDir != "" {
+		lowerDirs = append([]string{upperDir}, lowerDirs...)
+	}
 	rel, err := filepath.Rel(mountInfo.mountpoint, rootDir)
 	if err != nil {
 		return nil, fmt.Errorf("resolve rootfs relative path %s from %s: %w", rootDir, mountInfo.mountpoint, err)
 	}
-	if rel == "." {
+	mountRoot := strings.TrimPrefix(filepath.Clean(mountInfo.mountRoot), string(os.PathSeparator))
+	if rel == "." && mountRoot == "" {
 		return lowerDirs, nil
 	}
 	out := make([]string, 0, len(lowerDirs))
 	for _, lowerDir := range lowerDirs {
-		out = append(out, filepath.Join(lowerDir, rel))
+		out = append(out, filepath.Join(lowerDir, mountRoot, rel))
 	}
 	return out, nil
 }
 
 func mountOverlayView(rootfs overlayView) error {
+	for _, candidate := range append(append([]string(nil), rootfs.LowerDirs...), rootfs.UpperDir, rootfs.WorkDir, rootfs.MergedDir) {
+		if strings.ContainsAny(candidate, `,:\`) {
+			return fmt.Errorf("overlay path contains an unsupported mount-option delimiter: %s", candidate)
+		}
+	}
 	mountData := strings.Join([]string{
 		"lowerdir=" + strings.Join(rootfs.LowerDirs, ":"),
 		"upperdir=" + rootfs.UpperDir,
@@ -68,9 +84,29 @@ func unmountOverlayView(rootfs overlayView) error {
 }
 
 type mountInfoEntry struct {
+	mountID      int
+	mountRoot    string
 	mountpoint   string
 	fsType       string
+	source       string
+	mountOptions string
 	superOptions string
+}
+
+func InspectBacking(rootDir string) (RootfsBackingFacts, error) {
+	info, err := mountInfoForPath(rootDir)
+	if err != nil {
+		return RootfsBackingFacts{}, err
+	}
+	lowerDirs, err := resolveOverlayLowerDirsFromInfo(rootDir, info)
+	if err != nil {
+		return RootfsBackingFacts{}, err
+	}
+	return RootfsBackingFacts{
+		MountID: info.mountID, Mountpoint: info.mountpoint, MountRoot: info.mountRoot,
+		FSType: info.fsType, Source: info.source,
+		Readonly: mountOptionsContain(info.mountOptions, "ro"), LowerDirs: lowerDirs,
+	}, nil
 }
 
 func mountInfoForPath(path string) (mountInfoEntry, error) {
@@ -118,14 +154,31 @@ func parseMountInfoLine(line string) (mountInfoEntry, bool) {
 	}
 	pre := strings.Fields(parts[0])
 	post := strings.Fields(parts[1])
-	if len(pre) < 5 || len(post) < 3 {
+	if len(pre) < 6 || len(post) < 3 {
+		return mountInfoEntry{}, false
+	}
+	mountID, err := strconv.Atoi(pre[0])
+	if err != nil {
 		return mountInfoEntry{}, false
 	}
 	return mountInfoEntry{
+		mountID:      mountID,
+		mountRoot:    unescapeMountInfoPath(pre[3]),
 		mountpoint:   unescapeMountInfoPath(pre[4]),
+		mountOptions: pre[5],
 		fsType:       post[0],
+		source:       unescapeMountInfoPath(post[1]),
 		superOptions: post[2],
 	}, true
+}
+
+func mountOptionsContain(options, want string) bool {
+	for option := range strings.SplitSeq(options, ",") {
+		if option == want {
+			return true
+		}
+	}
+	return false
 }
 
 func unescapeMountInfoPath(path string) string {

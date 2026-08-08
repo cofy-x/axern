@@ -57,7 +57,10 @@ func (p authoritativeRunAccess) CreateRun(ctx context.Context, params runkernel.
 	if err != nil {
 		return nil, err
 	}
-	normalizedConfig := executionkernel.NormalizeConfig(params.Config)
+	normalizedConfig, err := executionkernel.NormalizeConfigForRootfs(params.Config, env.GetResolvedTemplate().GetRootfsReadonly())
+	if err != nil {
+		return nil, err
+	}
 	candidates, err := p.selector.SelectCandidates(ctx, env, normalizedConfig)
 	if err != nil {
 		return nil, err

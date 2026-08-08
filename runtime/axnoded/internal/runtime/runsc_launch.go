@@ -35,6 +35,10 @@ func (r *RunscServiceHandler) launchRestore(
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, fmt.Sprintf("sandboxd ready failed: %v", err))
 		return metaData, err
 	}
+	if err := r.verifyMemoryEnforcement(ctx, options); err != nil {
+		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, fmt.Sprintf("memory enforcement failed: %v", err))
+		return metaData, err
+	}
 	options.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, contract.StartupStepSandboxdWaitReady, time.Since(readyStart))
 	options.RecordStartupPhase(contract.StartupPhaseRuntimeLaunch, time.Since(launchStart))
 	return metaData, nil
@@ -62,6 +66,9 @@ func (r *RunscServiceHandler) launchRun(
 			logrus.WithError(err).Warnf("start runsc exit-state persister failed for %s", options.ContainerID)
 		},
 		WaitReady: func(ctx context.Context, bundlePath string, meta *apipb.ContainerMetadata) error {
+			if err := r.verifyMemoryEnforcement(ctx, options); err != nil {
+				return err
+			}
 			return runtimesandboxd.WaitReadyOrExit(ctx, r.Name(), options.ContainerID, bundlePath, meta, r.waitForSandboxReady, r.readExitState)
 		},
 		Cleanup: func(reason string) {

@@ -26,6 +26,11 @@ func MemoryBytes(bytes int64) ResourceQuantity {
 	return ResourceQuantity(strconv.FormatInt(bytes, 10))
 }
 
+// WritableLayerBytes formats writable-layer storage bytes as a resource quantity.
+func WritableLayerBytes(bytes int64) ResourceQuantity {
+	return ResourceQuantity(strconv.FormatInt(bytes, 10))
+}
+
 func parseCPUQuantity(field string, quantity ResourceQuantity) (int64, error) {
 	value := strings.TrimSpace(string(quantity))
 	if value == "" {

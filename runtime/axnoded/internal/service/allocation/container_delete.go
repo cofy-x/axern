@@ -128,7 +128,10 @@ func (h *Controller) callRuntimeDelete(
 	operation string,
 ) (*apipb.DeleteContainerResponse, error) {
 	response, err := handler.DeleteContainer(ctx, request, options)
-	if err != nil && !isDeleteNotFound(err) {
+	if isDeleteNotFound(err) {
+		err = nil
+	}
+	if err != nil {
 		metrics.RecordRuntimeCallResult("delete", "failed", runtimeName)
 		logrus.WithField(trace.ContextKeyTraceId, options.TraceID).Errorf("runtime handler %s failed: %v", operation, err)
 		return response, err

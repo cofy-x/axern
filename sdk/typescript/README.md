@@ -101,10 +101,12 @@ Common options:
 - `client`: explicit `AxernClient` shared by the sandbox
 - `argv`, `env`, `cwd`: initial sandbox process configuration
 - `runtimeClass`: runtime selector, for example `runsc` or `runc`
-- `requestCpu`, `requestMemory`: scheduler resource requests such as `500m`
-  and `512MiB`; numeric CPU values are cores and numeric memory values are bytes
-- `limitCpu`, `limitMemory`: runtime cgroup resource limits such as `1` and
-  `1GiB`; numeric CPU values are cores and numeric memory values are bytes
+- `requestCpu`, `requestMemory`, `requestWritableLayer`: scheduler resource
+  requests such as `500m`, `512MiB`, and `1GiB`; numeric CPU values are cores
+  and numeric memory/storage values are bytes
+- `limitCpu`, `limitMemory`, `limitWritableLayer`: runtime cgroup and writable
+  layer hard limits; numeric CPU values are cores and numeric memory/storage
+  values are bytes
 - `readyTimeoutMs`: service replica readiness timeout
 
 Tunnel options:

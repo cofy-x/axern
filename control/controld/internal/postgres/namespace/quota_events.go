@@ -24,6 +24,7 @@ func (s *Store) ListEvents(ctx context.Context, namespace string, limit int) ([]
 		SELECT event_id, namespace, event_type, workload_type, workload_id, environment_id, reason,
 		       requested_cpu_milli, reserved_cpu_milli, cpu_milli_limit, available_cpu_milli,
 		       requested_memory_bytes, reserved_memory_bytes, memory_bytes_limit, available_memory_bytes,
+		       requested_writable_layer_bytes, reserved_writable_layer_bytes, writable_layer_bytes_limit, available_writable_layer_bytes,
 		       message, created_at
 		FROM namespace_quota_events
 		WHERE namespace = $1
@@ -60,11 +61,12 @@ func normalizeQuotaEventLimit(limit int) int {
 
 func scanQuotaEvent(row quotaScanner) (*quotav1.NamespaceQuotaEvent, error) {
 	var (
-		event                           quotav1.NamespaceQuotaEvent
-		eventType, workloadType, reason string
-		cpuLimit, cpuAvailable          sql.NullInt64
-		memoryLimit, memoryAvailable    sql.NullInt64
-		createdAt                       sql.NullTime
+		event                            quotav1.NamespaceQuotaEvent
+		eventType, workloadType, reason  string
+		cpuLimit, cpuAvailable           sql.NullInt64
+		memoryLimit, memoryAvailable     sql.NullInt64
+		writableLimit, writableAvailable sql.NullInt64
+		createdAt                        sql.NullTime
 	)
 	if err := row.Scan(
 		&event.ID,
@@ -82,6 +84,10 @@ func scanQuotaEvent(row quotaScanner) (*quotav1.NamespaceQuotaEvent, error) {
 		&event.ReservedMemoryBytes,
 		&memoryLimit,
 		&memoryAvailable,
+		&event.RequestedWritableLayerBytes,
+		&event.ReservedWritableLayerBytes,
+		&writableLimit,
+		&writableAvailable,
 		&event.Message,
 		&createdAt,
 	); err != nil {
@@ -94,6 +100,8 @@ func scanQuotaEvent(row quotaScanner) (*quotav1.NamespaceQuotaEvent, error) {
 	event.AvailableCpuMilli = optionalEventInt64(cpuAvailable)
 	event.MemoryBytesLimit = optionalEventInt64(memoryLimit)
 	event.AvailableMemoryBytes = optionalEventInt64(memoryAvailable)
+	event.WritableLayerBytesLimit = optionalEventInt64(writableLimit)
+	event.AvailableWritableLayerBytes = optionalEventInt64(writableAvailable)
 	if createdAt.Valid {
 		event.CreatedAt = timestamppb.New(createdAt.Time)
 	}
@@ -128,6 +136,8 @@ func quotaEventReason(value string) quotav1.NamespaceQuotaEventReason {
 		return quotav1.NamespaceQuotaEventReason_NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_MEMORY
 	case string(resourcekernel.QuotaEventReasonInsufficientCPUMemory):
 		return quotav1.NamespaceQuotaEventReason_NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU_MEMORY
+	case string(resourcekernel.QuotaEventReasonInsufficientWritableLayer):
+		return quotav1.NamespaceQuotaEventReason_NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_WRITABLE_LAYER
 	default:
 		return quotav1.NamespaceQuotaEventReason_NAMESPACE_QUOTA_EVENT_REASON_UNSPECIFIED
 	}

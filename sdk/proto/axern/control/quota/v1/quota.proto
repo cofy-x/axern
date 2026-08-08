@@ -18,6 +18,9 @@ message NamespaceQuota {
   int64 version = 8;
   google.protobuf.Timestamp created_at = 9;
   google.protobuf.Timestamp updated_at = 10;
+  google.protobuf.Int64Value writable_layer_bytes_limit = 11;
+  int64 reserved_writable_layer_bytes = 12;
+  google.protobuf.Int64Value available_writable_layer_bytes = 13;
 }
 
 enum NamespaceQuotaEventType {
@@ -36,6 +39,7 @@ enum NamespaceQuotaEventReason {
   NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU = 1;
   NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_MEMORY = 2;
   NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU_MEMORY = 3;
+  NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_WRITABLE_LAYER = 4;
 }
 
 message NamespaceQuotaEvent {
@@ -56,6 +60,10 @@ message NamespaceQuotaEvent {
   google.protobuf.Int64Value available_memory_bytes = 15;
   string message = 16;
   google.protobuf.Timestamp created_at = 17;
+  int64 requested_writable_layer_bytes = 18;
+  int64 reserved_writable_layer_bytes = 19;
+  google.protobuf.Int64Value writable_layer_bytes_limit = 20;
+  google.protobuf.Int64Value available_writable_layer_bytes = 21;
 }
 
 message GetNamespaceQuotaRequest {
@@ -76,6 +84,7 @@ message ListNamespaceQuotasResponse {
 message NamespaceQuotaLimits {
   google.protobuf.Int64Value cpu_milli = 1;
   google.protobuf.Int64Value memory_bytes = 2;
+  google.protobuf.Int64Value writable_layer_bytes = 3;
 }
 
 message SetNamespaceQuotaRequest {

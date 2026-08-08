@@ -29,8 +29,10 @@ type SandboxOptions struct {
 	WorkspaceImage       *WorkspaceImageSource
 	RequestCPU           ResourceQuantity
 	RequestMemory        ResourceQuantity
+	RequestWritableLayer ResourceQuantity
 	LimitCPU             ResourceQuantity
 	LimitMemory          ResourceQuantity
+	LimitWritableLayer   ResourceQuantity
 	ReadyTimeout         time.Duration
 	Labels               map[string]string
 	RegistryCredentialID string
@@ -99,20 +101,22 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		environmentID = s.environmentID
 	}
 	service, err := s.client.CreateService(ctx, CreateServiceOptions{
-		Namespace:      s.options.Namespace,
-		EnvironmentID:  environmentID,
-		Argv:           sandboxArgv(s.options.Argv),
-		Env:            s.options.Env,
-		Cwd:            s.options.Cwd,
-		RuntimeClass:   s.options.RuntimeClass,
-		Volumes:        s.options.Volumes,
-		ImageMounts:    s.options.ImageMounts,
-		WorkspaceImage: s.options.WorkspaceImage,
-		RequestCPU:     s.options.RequestCPU,
-		RequestMemory:  s.options.RequestMemory,
-		LimitCPU:       s.options.LimitCPU,
-		LimitMemory:    s.options.LimitMemory,
-		Labels:         sandboxLabels(s.options.Labels),
+		Namespace:            s.options.Namespace,
+		EnvironmentID:        environmentID,
+		Argv:                 sandboxArgv(s.options.Argv),
+		Env:                  s.options.Env,
+		Cwd:                  s.options.Cwd,
+		RuntimeClass:         s.options.RuntimeClass,
+		Volumes:              s.options.Volumes,
+		ImageMounts:          s.options.ImageMounts,
+		WorkspaceImage:       s.options.WorkspaceImage,
+		RequestCPU:           s.options.RequestCPU,
+		RequestMemory:        s.options.RequestMemory,
+		RequestWritableLayer: s.options.RequestWritableLayer,
+		LimitCPU:             s.options.LimitCPU,
+		LimitMemory:          s.options.LimitMemory,
+		LimitWritableLayer:   s.options.LimitWritableLayer,
+		Labels:               sandboxLabels(s.options.Labels),
 	})
 	if err != nil {
 		_ = s.Close(ctx)
@@ -342,10 +346,16 @@ func validateSandboxOptions(options SandboxOptions) error {
 	if _, err := parseMemoryQuantity("request_memory", options.RequestMemory); err != nil {
 		return err
 	}
+	if _, err := parseMemoryQuantity("request_writable_layer", options.RequestWritableLayer); err != nil {
+		return err
+	}
 	if _, err := parseCPUQuantity("limit_cpu", options.LimitCPU); err != nil {
 		return err
 	}
 	if _, err := parseMemoryQuantity("limit_memory", options.LimitMemory); err != nil {
+		return err
+	}
+	if _, err := parseMemoryQuantity("limit_writable_layer", options.LimitWritableLayer); err != nil {
 		return err
 	}
 	if err := validateImageMounts(options.ImageMounts); err != nil {

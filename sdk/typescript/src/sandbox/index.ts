@@ -56,8 +56,10 @@ export interface SandboxOptions {
   volumes?: readonly VolumeMount[];
   requestCpu?: ResourceQuantity;
   requestMemory?: ResourceQuantity;
+  requestWritableLayer?: ResourceQuantity;
   limitCpu?: ResourceQuantity;
   limitMemory?: ResourceQuantity;
+  limitWritableLayer?: ResourceQuantity;
   readyTimeoutMs?: number;
   labels?: Record<string, string>;
   registryCredentialId?: string;
@@ -141,8 +143,10 @@ export class Sandbox {
         volumes: this.options.volumes,
         requestCpu: this.options.requestCpu,
         requestMemory: this.options.requestMemory,
+        requestWritableLayer: this.options.requestWritableLayer,
         limitCpu: this.options.limitCpu,
         limitMemory: this.options.limitMemory,
+        limitWritableLayer: this.options.limitWritableLayer,
         labels: sandboxLabels(this.options.labels),
       });
       this.serviceId = String(service.id ?? "");

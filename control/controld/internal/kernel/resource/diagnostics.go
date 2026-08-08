@@ -39,10 +39,11 @@ const (
 type QuotaEventReason string
 
 const (
-	QuotaEventReasonInsufficientCPU       QuotaEventReason = "insufficient_cpu"
-	QuotaEventReasonInsufficientMemory    QuotaEventReason = "insufficient_memory"
-	QuotaEventReasonInsufficientCPUMemory QuotaEventReason = "insufficient_cpu_memory"
-	QuotaEventReasonExceeded              QuotaEventReason = "exceeded"
+	QuotaEventReasonInsufficientCPU           QuotaEventReason = "insufficient_cpu"
+	QuotaEventReasonInsufficientMemory        QuotaEventReason = "insufficient_memory"
+	QuotaEventReasonInsufficientCPUMemory     QuotaEventReason = "insufficient_cpu_memory"
+	QuotaEventReasonInsufficientWritableLayer QuotaEventReason = "insufficient_writable_layer"
+	QuotaEventReasonExceeded                  QuotaEventReason = "exceeded"
 )
 
 func AdmissionDiagnosticForReason(reason AdmissionRejectionReason) AdmissionDiagnosticCode {
@@ -74,7 +75,10 @@ func AdmissionReasonBlocksCapacity(reason AdmissionRejectionReason) bool {
 func QuotaEventReasonForEvaluation(evaluation QuotaEvaluation) QuotaEventReason {
 	cpu := evaluation.CPU.Requested > 0 && !evaluation.CPU.Fits
 	memory := evaluation.Memory.Requested > 0 && !evaluation.Memory.Fits
+	writableLayer := evaluation.WritableLayer.Requested > 0 && !evaluation.WritableLayer.Fits
 	switch {
+	case writableLayer && !cpu && !memory:
+		return QuotaEventReasonInsufficientWritableLayer
 	case cpu && memory:
 		return QuotaEventReasonInsufficientCPUMemory
 	case cpu:
@@ -102,6 +106,7 @@ func MessageIndicatesCapacityBlock(message string) bool {
 	message = normalizeDiagnosticMessage(message)
 	return strings.Contains(message, "insufficient_cpu") ||
 		strings.Contains(message, "insufficient_memory") ||
+		strings.Contains(message, "insufficient_writable_layer") ||
 		strings.Contains(message, "effective_allocatable")
 }
 

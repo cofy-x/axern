@@ -15,20 +15,24 @@ import (
 var _ contract.RuntimeHandler = &RunscServiceHandler{}
 
 type RunscServiceHandler struct {
-	name                string
-	common              *ocihost.Common
-	ignoreCgroups       bool
-	allowSUID           bool
-	filestoreDir        string
-	overlayTmpfsSize    string
-	rootfsViews         rootfsview.Provider
-	waitLocks           sync.Map
-	waitForSandboxReady sandboxd.ReadyWaiter
-	services            runtimeServices
+	name                    string
+	common                  *ocihost.Common
+	ignoreCgroups           bool
+	allowSUID               bool
+	filestoreDir            string
+	writableLayerLimitBytes int64
+	writableCapacity        *writableCapacityManager
+	capabilityDir           string
+	containerRoot           string
+	rootfsViews             rootfsview.Provider
+	waitLocks               sync.Map
+	waitForSandboxReady     sandboxd.ReadyWaiter
+	services                runtimeServices
 }
 
 type runscState struct {
 	Status string `json:"status"`
+	Pid    int    `json:"pid"`
 }
 
 var (

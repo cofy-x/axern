@@ -22,22 +22,24 @@ const (
 )
 
 type CreateContainerRequest struct {
-	state         protoimpl.MessageState   `protogen:"open.v1"`
-	Runtime       string                   `protobuf:"bytes,1,opt,name=runtime,proto3" json:"runtime,omitempty"`
-	Command       []string                 `protobuf:"bytes,2,rep,name=command,proto3" json:"command,omitempty"`
-	Mounts        []*Mount                 `protobuf:"bytes,3,rep,name=mounts,proto3" json:"mounts,omitempty"`
-	Rootfs        *Rootfs                  `protobuf:"bytes,4,opt,name=rootfs,proto3" json:"rootfs,omitempty"`
-	Resource      *LinuxContainerResources `protobuf:"bytes,5,opt,name=resource,proto3" json:"resource,omitempty"`
-	Envs          []*KeyValue              `protobuf:"bytes,6,rep,name=envs,proto3" json:"envs,omitempty"`
-	Stdout        string                   `protobuf:"bytes,7,opt,name=stdout,proto3" json:"stdout,omitempty"`
-	Stderr        string                   `protobuf:"bytes,8,opt,name=stderr,proto3" json:"stderr,omitempty"`
-	Network       string                   `protobuf:"bytes,9,opt,name=network,proto3" json:"network,omitempty"`
-	Labels        map[string]string        `protobuf:"bytes,10,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	CkptDir       string                   `protobuf:"bytes,11,opt,name=ckptDir,proto3" json:"ckptDir,omitempty"`
-	Cwd           string                   `protobuf:"bytes,12,opt,name=cwd,proto3" json:"cwd,omitempty"`
-	ID            string                   `protobuf:"bytes,13,opt,name=ID,proto3" json:"ID,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                     protoimpl.MessageState   `protogen:"open.v1"`
+	Runtime                   string                   `protobuf:"bytes,1,opt,name=runtime,proto3" json:"runtime,omitempty"`
+	Command                   []string                 `protobuf:"bytes,2,rep,name=command,proto3" json:"command,omitempty"`
+	Mounts                    []*Mount                 `protobuf:"bytes,3,rep,name=mounts,proto3" json:"mounts,omitempty"`
+	Rootfs                    *Rootfs                  `protobuf:"bytes,4,opt,name=rootfs,proto3" json:"rootfs,omitempty"`
+	Resource                  *LinuxContainerResources `protobuf:"bytes,5,opt,name=resource,proto3" json:"resource,omitempty"`
+	Envs                      []*KeyValue              `protobuf:"bytes,6,rep,name=envs,proto3" json:"envs,omitempty"`
+	Stdout                    string                   `protobuf:"bytes,7,opt,name=stdout,proto3" json:"stdout,omitempty"`
+	Stderr                    string                   `protobuf:"bytes,8,opt,name=stderr,proto3" json:"stderr,omitempty"`
+	Network                   string                   `protobuf:"bytes,9,opt,name=network,proto3" json:"network,omitempty"`
+	Labels                    map[string]string        `protobuf:"bytes,10,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	CkptDir                   string                   `protobuf:"bytes,11,opt,name=ckptDir,proto3" json:"ckptDir,omitempty"`
+	Cwd                       string                   `protobuf:"bytes,12,opt,name=cwd,proto3" json:"cwd,omitempty"`
+	ID                        string                   `protobuf:"bytes,13,opt,name=ID,proto3" json:"ID,omitempty"`
+	WritableLayerRequestBytes int64                    `protobuf:"varint,14,opt,name=writable_layer_request_bytes,json=writableLayerRequestBytes,proto3" json:"writable_layer_request_bytes,omitempty"`
+	WritableLayerLimitBytes   int64                    `protobuf:"varint,15,opt,name=writable_layer_limit_bytes,json=writableLayerLimitBytes,proto3" json:"writable_layer_limit_bytes,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *CreateContainerRequest) Reset() {
@@ -159,6 +161,20 @@ func (x *CreateContainerRequest) GetID() string {
 		return x.ID
 	}
 	return ""
+}
+
+func (x *CreateContainerRequest) GetWritableLayerRequestBytes() int64 {
+	if x != nil {
+		return x.WritableLayerRequestBytes
+	}
+	return 0
+}
+
+func (x *CreateContainerRequest) GetWritableLayerLimitBytes() int64 {
+	if x != nil {
+		return x.WritableLayerLimitBytes
+	}
+	return 0
 }
 
 type CreateContainerResponse struct {
@@ -741,7 +757,7 @@ var File_internal_apipb_v1_runtime_container_proto protoreflect.FileDescriptor
 
 const file_internal_apipb_v1_runtime_container_proto_rawDesc = "" +
 	"\n" +
-	")internal/apipb/v1/runtime_container.proto\x12\x19axnoded.internal.apipb.v1\x1a(internal/apipb/v1/axnoded_internal.proto\x1a\x1finternal/apipb/v1/process.proto\"\xe2\x04\n" +
+	")internal/apipb/v1/runtime_container.proto\x12\x19axnoded.internal.apipb.v1\x1a(internal/apipb/v1/axnoded_internal.proto\x1a\x1finternal/apipb/v1/process.proto\"\xe0\x05\n" +
 	"\x16CreateContainerRequest\x12\x18\n" +
 	"\aruntime\x18\x01 \x01(\tR\aruntime\x12\x18\n" +
 	"\acommand\x18\x02 \x03(\tR\acommand\x128\n" +
@@ -756,7 +772,9 @@ const file_internal_apipb_v1_runtime_container_proto_rawDesc = "" +
 	" \x03(\v2=.axnoded.internal.apipb.v1.CreateContainerRequest.LabelsEntryR\x06labels\x12\x18\n" +
 	"\ackptDir\x18\v \x01(\tR\ackptDir\x12\x10\n" +
 	"\x03cwd\x18\f \x01(\tR\x03cwd\x12\x0e\n" +
-	"\x02ID\x18\r \x01(\tR\x02ID\x1a9\n" +
+	"\x02ID\x18\r \x01(\tR\x02ID\x12?\n" +
+	"\x1cwritable_layer_request_bytes\x18\x0e \x01(\x03R\x19writableLayerRequestBytes\x12;\n" +
+	"\x1awritable_layer_limit_bytes\x18\x0f \x01(\x03R\x17writableLayerLimitBytes\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\")\n" +

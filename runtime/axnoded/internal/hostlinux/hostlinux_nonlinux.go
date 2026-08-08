@@ -10,12 +10,20 @@ import (
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 )
 
-func unsupported(op string) error {
-	return fmt.Errorf("%s is unsupported on %s", op, runtime.GOOS)
+func VerifyCgroupMemoryLimit(string, int64) error {
+	return fmt.Errorf("cgroup enforcement requires Linux")
+}
+func VerifyPIDInCgroup(string, int) error     { return fmt.Errorf("cgroup enforcement requires Linux") }
+func VerifyCgroupPIDs(string, int, int) error { return fmt.Errorf("cgroup enforcement requires Linux") }
+func VerifyRunscCgroupProcesses(string, int) error {
+	return fmt.Errorf("cgroup enforcement requires Linux")
+}
+func ReadCgroupMemoryBreakdown(string) (map[string]int64, error) {
+	return nil, fmt.Errorf("cgroup memory statistics require Linux")
 }
 
-func IsCgroupWritePermissionError(err error) bool {
-	return false
+func unsupported(op string) error {
+	return fmt.Errorf("%s is unsupported on %s", op, runtime.GOOS)
 }
 
 func RuntimeCgroupPath(driver os2.CgroupDriver, cgroupPath string) string {
@@ -40,16 +48,33 @@ func IsPathReadOnly(path string) (bool, error) {
 	return false, unsupported("path readonly detection")
 }
 
-func EnsureXFSMount(filestoreDir, size string) error {
+func PrepareFilestore(filestoreDir, mode, image string, loopbackSizeBytes, systemReserveBytes int64) error {
 	if filestoreDir == "" {
 		return nil
 	}
-	return unsupported("xfs mount setup")
+	return unsupported("filestore setup")
 }
 
-func CleanupXFSMount(filestoreDir string) error {
+func CleanupFilestore(filestoreDir, mode, image string) error {
 	if filestoreDir == "" {
 		return nil
 	}
-	return unsupported("xfs mount cleanup")
+	return unsupported("filestore cleanup")
+}
+
+type FilestoreCapabilities struct {
+	OverlayReady      bool
+	EROFSReady        bool
+	ProjectQuotaReady bool
+	FilesystemType    string
+	MountIdentity     string
+	EROFSProbeError   string
+}
+
+func CurrentBootID() (string, error) {
+	return "", fmt.Errorf("kernel boot ID requires Linux")
+}
+
+func ReadFilestoreCapabilities(string) (FilestoreCapabilities, error) {
+	return FilestoreCapabilities{}, unsupported("filestore capabilities")
 }

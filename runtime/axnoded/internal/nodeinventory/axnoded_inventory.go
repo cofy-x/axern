@@ -9,6 +9,8 @@ import (
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 )
 
@@ -184,6 +186,11 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", c.Metadata.ID, err))
 			continue
+		}
+		if memory, err := hostlinux.ReadCgroupMemoryBreakdown(cgroupPath); err == nil {
+			for _, kind := range []string{"anon", "file", "shmem", "file_dirty", "file_writeback", "event_oom", "event_oom_kill"} {
+				metrics.RecordCgroupMemory(c.Metadata.GetRuntimeHandler(), c.Metadata.ID, kind, memory[kind])
+			}
 		}
 		successes++
 		snapshot.Resources.Memory.AxnodedUsedBytes += int64(stats.MemoryUsage)

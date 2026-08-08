@@ -193,7 +193,7 @@ func TestMaterializeSandboxdInjectionAllowsWorkloadRuntimeStateMounts(t *testing
 	}
 }
 
-func TestMaterializeSandboxdInjectionCreatesMissingRuntimeMountpoint(t *testing.T) {
+func TestMaterializeSandboxdInjectionDoesNotCreateMissingRuntimeMountpoint(t *testing.T) {
 	bundleDir := t.TempDir()
 	rootfsDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
@@ -208,14 +208,12 @@ func TestMaterializeSandboxdInjectionCreatesMissingRuntimeMountpoint(t *testing.
 	if err != nil {
 		t.Fatalf("materializeSandboxdInjection() error = %v", err)
 	}
-	if info, err := os.Stat(filepath.Join(rootfsDir, "mnt")); err != nil {
-		t.Fatalf("stat sandboxd runtime mountpoint: %v", err)
-	} else if !info.IsDir() {
-		t.Fatalf("sandboxd runtime mountpoint is not a directory")
+	if _, err := os.Stat(filepath.Join(rootfsDir, "mnt")); !os.IsNotExist(err) {
+		t.Fatalf("sandboxd injection modified lower rootfs: %v", err)
 	}
 }
 
-func TestMaterializeSandboxdInjectionRejectsRuntimeMountpointFile(t *testing.T) {
+func TestMaterializeSandboxdInjectionDefersRuntimeMountpointTypeValidation(t *testing.T) {
 	bundleDir := t.TempDir()
 	rootfsDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
@@ -230,8 +228,8 @@ func TestMaterializeSandboxdInjectionRejectsRuntimeMountpointFile(t *testing.T) 
 		Process: &spec.Process{Args: []string{"/bin/true"}},
 		Root:    &spec.Root{Path: rootfsDir},
 	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
-	if err == nil {
-		t.Fatal("materializeSandboxdInjection() error = nil, want mountpoint file error")
+	if err != nil {
+		t.Fatalf("materializeSandboxdInjection() error = %v", err)
 	}
 }
 
@@ -255,7 +253,7 @@ func TestMaterializeSandboxdInjectionUsesExistingReadonlyRuntimeMountpoint(t *te
 	}
 }
 
-func TestMaterializeSandboxdInjectionRejectsReadonlyRootfsMissingRuntimeMountpoint(t *testing.T) {
+func TestMaterializeSandboxdInjectionDefersReadonlyMissingMountpointToProjection(t *testing.T) {
 	bundleDir := t.TempDir()
 	rootfsDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
@@ -267,8 +265,8 @@ func TestMaterializeSandboxdInjectionRejectsReadonlyRootfsMissingRuntimeMountpoi
 		Process: &spec.Process{Args: []string{"/bin/true"}},
 		Root:    &spec.Root{Path: rootfsDir, Readonly: true},
 	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
-	if err == nil {
-		t.Fatal("materializeSandboxdInjection() error = nil, want readonly missing mountpoint error")
+	if err != nil {
+		t.Fatalf("materializeSandboxdInjection() error = %v", err)
 	}
 }
 

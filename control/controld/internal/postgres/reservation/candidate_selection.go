@@ -97,7 +97,7 @@ func activeCandidateReservationUsage(ctx context.Context, tx pgx.Tx, locked map[
 	}
 	sort.Strings(nodeIDs)
 	rows, err := tx.Query(ctx, `
-		SELECT node_id, COALESCE(SUM(cpu_milli), 0), COALESCE(SUM(memory_bytes), 0),
+		SELECT node_id, COALESCE(SUM(cpu_milli), 0), COALESCE(SUM(memory_bytes + memory_overhead_bytes), 0), COALESCE(SUM(writable_layer_bytes), 0),
 		       ARRAY_AGG(allocation_id ORDER BY allocation_id)
 		FROM workload_reservations
 		WHERE node_id = ANY($1::text[]) AND released_at IS NULL
@@ -112,7 +112,7 @@ func activeCandidateReservationUsage(ctx context.Context, tx pgx.Tx, locked map[
 	for rows.Next() {
 		var nodeID string
 		var used nodeReservationUsage
-		if err := rows.Scan(&nodeID, &used.resources.CPUMilli, &used.resources.MemoryBytes, &used.allocationIDs); err != nil {
+		if err := rows.Scan(&nodeID, &used.resources.CPUMilli, &used.resources.MemoryBytes, &used.resources.WritableLayerBytes, &used.allocationIDs); err != nil {
 			return nil, fmt.Errorf("scan placement candidate reservations: %w", err)
 		}
 		usage[nodeID] = used

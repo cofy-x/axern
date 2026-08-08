@@ -31,16 +31,18 @@ func LockQuotaPolicy(ctx context.Context, tx pgx.Tx, namespace string) (resource
 	}
 	var cpuLimit sql.NullInt64
 	var memoryLimit sql.NullInt64
+	var writableLayerLimit sql.NullInt64
 	if err := tx.QueryRow(ctx, `
-		SELECT cpu_milli_limit, memory_bytes_limit
+		SELECT cpu_milli_limit, memory_bytes_limit, writable_layer_bytes_limit
 		FROM namespace_resource_quotas
 		WHERE namespace = $1
-	`, normalized).Scan(&cpuLimit, &memoryLimit); err != nil {
+	`, normalized).Scan(&cpuLimit, &memoryLimit, &writableLayerLimit); err != nil {
 		return resourcekernel.NamespaceQuotaPolicy{}, fmt.Errorf("load namespace quota policy: %w", err)
 	}
 	return resourcekernel.NamespaceQuotaPolicy{
-		CPUMilliLimit:    nullableInt64(cpuLimit),
-		MemoryBytesLimit: nullableInt64(memoryLimit),
+		CPUMilliLimit:           nullableInt64(cpuLimit),
+		MemoryBytesLimit:        nullableInt64(memoryLimit),
+		WritableLayerBytesLimit: nullableInt64(writableLayerLimit),
 	}, nil
 }
 

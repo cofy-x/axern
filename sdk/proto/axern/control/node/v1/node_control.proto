@@ -21,6 +21,7 @@ enum MountType {
   MOUNT_TYPE_OCI = 2;
   MOUNT_TYPE_NYDUS = 3;
   MOUNT_TYPE_OSS = 4;
+  MOUNT_TYPE_EROFS = 5;
 }
 
 enum ComponentState {
@@ -54,6 +55,9 @@ message ResourcesSummary {
   int64 axnoded_committed_bytes = 4;
   int64 axnoded_used_bytes = 5;
   int64 axnoded_memory_unbounded_count = 6;
+  int64 axnoded_writable_layer_committed_bytes = 7;
+  int64 axnoded_writable_layer_used_bytes = 8;
+  int64 axnoded_writable_layer_unbounded_count = 9;
 }
 
 message PoolsSummary {
@@ -121,6 +125,14 @@ message NodeStorageSummary {
   int64 inodes_available = 7;
   bool collected = 8;
   string error = 9;
+  int64 system_reserve_bytes = 10;
+  int64 reserved_bytes = 11;
+  int64 allocatable_bytes = 12;
+  int64 active_reservations = 13;
+  string filesystem_type = 14;
+  string mount_identity = 15;
+  int64 allocation_used_bytes = 16;
+  bool unlinked_backing_usage_unknown = 17;
 }
 
 message ComponentsSummary {
@@ -263,6 +275,7 @@ enum PlacementRejectionReason {
   PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED = 13;
   PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED = 14;
   PLACEMENT_REJECTION_REASON_NODE_RETIRED = 15;
+  PLACEMENT_REJECTION_REASON_INSUFFICIENT_WRITABLE_LAYER = 16;
 }
 
 message PlacementRank {

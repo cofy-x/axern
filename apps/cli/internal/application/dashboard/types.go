@@ -44,11 +44,13 @@ type TunnelSummary struct {
 }
 
 type QuotaSummary struct {
-	Namespaces        int `json:"namespaces"`
-	CPUConstrained    int `json:"cpu_constrained"`
-	MemoryConstrained int `json:"memory_constrained"`
-	CPUPressure       int `json:"cpu_pressure"`
-	MemoryPressure    int `json:"memory_pressure"`
+	Namespaces               int `json:"namespaces"`
+	CPUConstrained           int `json:"cpu_constrained"`
+	MemoryConstrained        int `json:"memory_constrained"`
+	WritableLayerConstrained int `json:"writable_layer_constrained"`
+	CPUPressure              int `json:"cpu_pressure"`
+	MemoryPressure           int `json:"memory_pressure"`
+	WritableLayerPressure    int `json:"writable_layer_pressure"`
 }
 
 type ReliabilitySummary struct {
@@ -133,37 +135,45 @@ type AdminAuditEventDTO struct {
 }
 
 type QuotaDTO struct {
-	Namespace            string `json:"namespace"`
-	CPUMilliLimit        *int64 `json:"cpu_milli_limit,omitempty"`
-	MemoryBytesLimit     *int64 `json:"memory_bytes_limit,omitempty"`
-	ReservedCPUMilli     int64  `json:"reserved_cpu_milli"`
-	ReservedMemoryBytes  int64  `json:"reserved_memory_bytes"`
-	AvailableCPUMilli    *int64 `json:"available_cpu_milli,omitempty"`
-	AvailableMemoryBytes *int64 `json:"available_memory_bytes,omitempty"`
-	CPUUsagePercent      *int64 `json:"cpu_usage_percent,omitempty"`
-	MemoryUsagePercent   *int64 `json:"memory_usage_percent,omitempty"`
-	Version              int64  `json:"version"`
-	UpdatedAt            string `json:"updated_at,omitempty"`
+	Namespace                   string `json:"namespace"`
+	CPUMilliLimit               *int64 `json:"cpu_milli_limit,omitempty"`
+	MemoryBytesLimit            *int64 `json:"memory_bytes_limit,omitempty"`
+	WritableLayerBytesLimit     *int64 `json:"writable_layer_bytes_limit,omitempty"`
+	ReservedCPUMilli            int64  `json:"reserved_cpu_milli"`
+	ReservedMemoryBytes         int64  `json:"reserved_memory_bytes"`
+	ReservedWritableLayerBytes  int64  `json:"reserved_writable_layer_bytes"`
+	AvailableCPUMilli           *int64 `json:"available_cpu_milli,omitempty"`
+	AvailableMemoryBytes        *int64 `json:"available_memory_bytes,omitempty"`
+	AvailableWritableLayerBytes *int64 `json:"available_writable_layer_bytes,omitempty"`
+	CPUUsagePercent             *int64 `json:"cpu_usage_percent,omitempty"`
+	MemoryUsagePercent          *int64 `json:"memory_usage_percent,omitempty"`
+	WritableLayerUsagePercent   *int64 `json:"writable_layer_usage_percent,omitempty"`
+	Version                     int64  `json:"version"`
+	UpdatedAt                   string `json:"updated_at,omitempty"`
 }
 
 type QuotaEventDTO struct {
-	ID                   string `json:"id"`
-	Namespace            string `json:"namespace"`
-	Type                 string `json:"type"`
-	WorkloadType         string `json:"workload_type,omitempty"`
-	WorkloadID           string `json:"workload_id,omitempty"`
-	EnvironmentID        string `json:"environment_id,omitempty"`
-	Reason               string `json:"reason,omitempty"`
-	RequestedCPUMilli    int64  `json:"requested_cpu_milli,omitempty"`
-	ReservedCPUMilli     int64  `json:"reserved_cpu_milli,omitempty"`
-	CPUMilliLimit        *int64 `json:"cpu_milli_limit,omitempty"`
-	AvailableCPUMilli    *int64 `json:"available_cpu_milli,omitempty"`
-	RequestedMemoryBytes int64  `json:"requested_memory_bytes,omitempty"`
-	ReservedMemoryBytes  int64  `json:"reserved_memory_bytes,omitempty"`
-	MemoryBytesLimit     *int64 `json:"memory_bytes_limit,omitempty"`
-	AvailableMemoryBytes *int64 `json:"available_memory_bytes,omitempty"`
-	Message              string `json:"message,omitempty"`
-	CreatedAt            string `json:"created_at,omitempty"`
+	ID                          string `json:"id"`
+	Namespace                   string `json:"namespace"`
+	Type                        string `json:"type"`
+	WorkloadType                string `json:"workload_type,omitempty"`
+	WorkloadID                  string `json:"workload_id,omitempty"`
+	EnvironmentID               string `json:"environment_id,omitempty"`
+	Reason                      string `json:"reason,omitempty"`
+	RequestedCPUMilli           int64  `json:"requested_cpu_milli,omitempty"`
+	ReservedCPUMilli            int64  `json:"reserved_cpu_milli,omitempty"`
+	CPUMilliLimit               *int64 `json:"cpu_milli_limit,omitempty"`
+	AvailableCPUMilli           *int64 `json:"available_cpu_milli,omitempty"`
+	RequestedMemoryBytes        int64  `json:"requested_memory_bytes,omitempty"`
+	ReservedMemoryBytes         int64  `json:"reserved_memory_bytes,omitempty"`
+	MemoryBytesLimit            *int64 `json:"memory_bytes_limit,omitempty"`
+	AvailableMemoryBytes        *int64 `json:"available_memory_bytes,omitempty"`
+	RequestedWritableLayerBytes int64  `json:"requested_writable_layer_bytes,omitempty"`
+	ReservedWritableLayerBytes  int64  `json:"reserved_writable_layer_bytes,omitempty"`
+	WritableLayerBytesLimit     *int64 `json:"writable_layer_bytes_limit,omitempty"`
+	AvailableWritableLayerBytes *int64 `json:"available_writable_layer_bytes,omitempty"`
+	Message                     string `json:"message,omitempty"`
+	CreatedAt                   string `json:"created_at,omitempty"`
 }
 
 type ServiceDetail struct {
@@ -198,8 +208,9 @@ type ResourceSpecDTO struct {
 }
 
 type ResourceQuantityDTO struct {
-	CPUMilli    int64 `json:"cpu_milli,omitempty"`
-	MemoryBytes int64 `json:"memory_bytes,omitempty"`
+	CPUMilli           int64 `json:"cpu_milli,omitempty"`
+	MemoryBytes        int64 `json:"memory_bytes,omitempty"`
+	WritableLayerBytes int64 `json:"writable_layer_bytes,omitempty"`
 }
 
 type ReplicaDTO struct {

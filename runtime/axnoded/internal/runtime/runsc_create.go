@@ -12,7 +12,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/envelopeflow"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/rootfsflow"
 	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
-	"github.com/sirupsen/logrus"
 )
 
 func (r *RunscServiceHandler) CreateContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
@@ -22,27 +21,20 @@ func (r *RunscServiceHandler) CreateContainer(ctx context.Context, request *apip
 	if err != nil {
 		return nil, err
 	}
-	effectiveRequest, writableRootfs, err := rootfsflow.PrepareRequest(ctx, r.rootfsViews, options, effectiveRequest)
-	if err != nil {
+	if err := r.writableCapacity.Reserve(options.ContainerID, r.Name(), effectiveRequest.GetWritableLayerRequestBytes(), effectiveRequest.GetWritableLayerLimitBytes()); err != nil {
 		return nil, err
 	}
-
 	bundlePath, metaData, err := bundleflow.PrepareLaunchBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, bundleOptions)
 	if err != nil {
-		if writableRootfs {
-			r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
-		}
+		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}
-	mountTargetsStart := time.Now()
-	if err := bundleflow.PrepareBundleMountTargets(bundlePath); err != nil {
-		options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepMountTargetsPrepare, time.Since(mountTargetsStart))
+	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsflow.RuntimePolicy{RuntimeName: r.Name(), RootfsLeaseID: effectiveRequest.GetRootfs().GetLeaseId()}); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return metaData, err
 	}
-	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepMountTargetsPrepare, time.Since(mountTargetsStart))
 	overlayArgsStart := time.Now()
-	overlayArgs, err := r.overlayArgsForBundle(bundlePath)
+	overlayArgs, err := r.overlayArgsForBundle(bundlePath, effectiveRequest.GetWritableLayerLimitBytes())
 	if err != nil {
 		options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeOverlayArgs, time.Since(overlayArgsStart))
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
@@ -64,26 +56,20 @@ func (r *RunscServiceHandler) PrepareExecutionEnvelope(ctx context.Context, requ
 	if err != nil {
 		return nil, err
 	}
-	effectiveRequest, writableRootfs, err := rootfsflow.PrepareRequest(ctx, r.rootfsViews, options, effectiveRequest)
-	if err != nil {
+	if err := r.writableCapacity.Reserve(options.ContainerID, r.Name(), effectiveRequest.GetWritableLayerRequestBytes(), effectiveRequest.GetWritableLayerLimitBytes()); err != nil {
 		return nil, err
 	}
 	bundlePath, metaData, err := bundleflow.PrepareEnvelopeBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, bundleOptions)
 	if err != nil {
-		if writableRootfs {
-			r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
-		}
-		return nil, err
-	}
-	mountTargetsStart := time.Now()
-	if err := bundleflow.PrepareBundleMountTargets(bundlePath); err != nil {
-		options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepMountTargetsPrepare, time.Since(mountTargetsStart))
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}
-	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepMountTargetsPrepare, time.Since(mountTargetsStart))
+	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsflow.RuntimePolicy{RuntimeName: r.Name(), RootfsLeaseID: effectiveRequest.GetRootfs().GetLeaseId()}); err != nil {
+		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
+		return nil, err
+	}
 	overlayArgsStart := time.Now()
-	overlayArgs, err := r.overlayArgsForBundle(bundlePath)
+	overlayArgs, err := r.overlayArgsForBundle(bundlePath, effectiveRequest.GetWritableLayerLimitBytes())
 	if err != nil {
 		options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeOverlayArgs, time.Since(overlayArgsStart))
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
@@ -118,15 +104,15 @@ func (r *RunscServiceHandler) ActivateExecutionEnvelope(ctx context.Context, env
 }
 
 func (r *RunscServiceHandler) prepareCreateRequest(request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.CreateContainerRequest, contract.HandlerOptions, error) {
-	prep, err := cgroupflow.PrepareRuntime(request, options, cgroupflow.RuntimePolicy{
-		IgnoreCgroups:                r.ignoreCgroups,
-		AllowWritePermissionFallback: true,
-	})
+	request, err := resolveWritableLayer(request, r.writableLayerLimitBytes)
 	if err != nil {
 		return nil, contract.HandlerOptions{}, err
 	}
-	if prep.WritePermissionFallback {
-		logrus.Warnf("cgroup controller is not writable for %s, continuing without runtime resource limits: %v", prep.Options.RuntimeCgroupPath, prep.WritePermissionError)
+	prep, err := cgroupflow.PrepareRuntime(request, options, cgroupflow.RuntimePolicy{
+		IgnoreCgroups: r.ignoreCgroups,
+	})
+	if err != nil {
+		return nil, contract.HandlerOptions{}, err
 	}
 	return prep.Request, prep.Options, nil
 }

@@ -4,6 +4,10 @@ package rootfsview
 
 import "fmt"
 
+func InspectBacking(rootDir string) (RootfsBackingFacts, error) {
+	return RootfsBackingFacts{Mountpoint: rootDir, FSType: "unknown", LowerDirs: []string{rootDir}}, nil
+}
+
 func resolveOverlayLowerDirs(rootDir string) ([]string, error) {
 	return []string{rootDir}, nil
 }

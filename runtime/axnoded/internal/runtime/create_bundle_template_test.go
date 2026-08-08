@@ -151,7 +151,7 @@ func (l *trackingBundleLoader) MaterializeBundle(template *runtimeoci.BundleTemp
 	ociSpec := &spec.Spec{
 		Annotations: map[string]string{"loader": "tracking"},
 		Process:     &spec.Process{},
-		Root:        &spec.Root{Path: rootfsDir},
+		Root:        &spec.Root{Path: rootfsDir, Readonly: true},
 		Linux:       &spec.Linux{},
 	}
 	data, err := json.Marshal(ociSpec)

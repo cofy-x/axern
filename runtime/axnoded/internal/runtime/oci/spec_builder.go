@@ -53,6 +53,7 @@ func (b specBuilder) applyRequestToSpec(ociSpec *spec.Spec, options buildOptions
 		applyMountOverrides(ociSpec, request)
 		applyRootfsOverride(ociSpec, request)
 		ociSpec.Annotations = combineAnnotations(ociSpec.Annotations, request.Labels)
+		applyWritableLayerAnnotation(ociSpec, request)
 		setSpecResource(ociSpec, request.Resource)
 	}
 
@@ -69,6 +70,22 @@ func (b specBuilder) applyRequestToSpec(ociSpec *spec.Spec, options buildOptions
 		ociSpec.Root.Path = options.overrideRootPath
 	}
 	return validateProcessArgs(ociSpec)
+}
+
+const writableLayerAnnotationKey = "io.axnoded.resource/writable-layer"
+
+func applyWritableLayerAnnotation(ociSpec *spec.Spec, request *apipb.CreateContainerRequest) {
+	if request.GetWritableLayerRequestBytes() <= 0 {
+		return
+	}
+	if ociSpec.Annotations == nil {
+		ociSpec.Annotations = make(map[string]string)
+	}
+	value, _ := json.Marshal(struct {
+		RequestBytes int64 `json:"request_bytes"`
+		LimitBytes   int64 `json:"limit_bytes"`
+	}{request.GetWritableLayerRequestBytes(), request.GetWritableLayerLimitBytes()})
+	ociSpec.Annotations[writableLayerAnnotationKey] = string(value)
 }
 
 func ensureLinuxSpec(ociSpec *spec.Spec) {

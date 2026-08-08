@@ -175,7 +175,7 @@ func overrideEnv(name string, destination *string) {
 	}
 }
 
-func Resources(requestCPU, requestMemory, limitCPU, limitMemory string) (*commonv1.ResourceSpec, error) {
+func Resources(requestCPU, requestMemory, requestWritableLayer, limitCPU, limitMemory, limitWritableLayer string) (*commonv1.ResourceSpec, error) {
 	rc, err := parse.CPU(requestCPU)
 	if err != nil {
 		return nil, fmt.Errorf("request-cpu: %w", err)
@@ -183,6 +183,10 @@ func Resources(requestCPU, requestMemory, limitCPU, limitMemory string) (*common
 	rm, err := parse.Memory(requestMemory)
 	if err != nil {
 		return nil, fmt.Errorf("request-memory: %w", err)
+	}
+	rw, err := parse.Memory(requestWritableLayer)
+	if err != nil {
+		return nil, fmt.Errorf("request-writable-layer: %w", err)
 	}
 	lc, err := parse.CPU(limitCPU)
 	if err != nil {
@@ -192,15 +196,19 @@ func Resources(requestCPU, requestMemory, limitCPU, limitMemory string) (*common
 	if err != nil {
 		return nil, fmt.Errorf("limit-memory: %w", err)
 	}
-	if rc == 0 && rm == 0 && lc == 0 && lm == 0 {
+	lw, err := parse.Memory(limitWritableLayer)
+	if err != nil {
+		return nil, fmt.Errorf("limit-writable-layer: %w", err)
+	}
+	if rc == 0 && rm == 0 && rw == 0 && lc == 0 && lm == 0 && lw == 0 {
 		return nil, nil
 	}
 	value := &commonv1.ResourceSpec{}
-	if rc != 0 || rm != 0 {
-		value.Requests = &commonv1.ResourceQuantity{CpuMilli: rc, MemoryBytes: rm}
+	if rc != 0 || rm != 0 || rw != 0 {
+		value.Requests = &commonv1.ResourceQuantity{CpuMilli: rc, MemoryBytes: rm, WritableLayerBytes: rw}
 	}
-	if lc != 0 || lm != 0 {
-		value.Limits = &commonv1.ResourceQuantity{CpuMilli: lc, MemoryBytes: lm}
+	if lc != 0 || lm != 0 || lw != 0 {
+		value.Limits = &commonv1.ResourceQuantity{CpuMilli: lc, MemoryBytes: lm, WritableLayerBytes: lw}
 	}
 	return value, nil
 }

@@ -195,11 +195,13 @@ func EffectiveNetworkMode(defaultMode string, request *runtime.StartRequest) str
 }
 
 func BuildContainerRootfs(lrt *langrtmanager.LanguageRuntime) *apipb.Rootfs {
+	rootfsConfig := lrt.RootFS.Config()
 	return &apipb.Rootfs{
 		Type:     "none",
 		LowerDir: "",
 		RootDir:  lrt.RootFS.Path(),
 		Readonly: lrt.Readonly,
+		LeaseId:  rootfsConfig.LeaseID,
 	}
 }
 
@@ -237,20 +239,23 @@ func BuildCreateContainerRequest(
 	env []*runtime.KeyValue,
 	networkMode string,
 ) *apipb.CreateContainerRequest {
+	resources := request.GetResources()
 	return &apipb.CreateContainerRequest{
-		Runtime:  request.RuntimeTemplate.Sandbox,
-		Command:  BuildStartCommand(lrt, request),
-		Rootfs:   BuildContainerRootfs(lrt),
-		Resource: ResourcesToLinux(request.Resources),
-		Mounts:   BuildStartMounts(request),
-		Envs:     env,
-		Network:  networkMode,
-		Labels:   labels,
-		Stdout:   request.Stdout,
-		Stderr:   request.Stderr,
-		CkptDir:  request.CkptDir,
-		Cwd:      BuildStartCwd(lrt, request),
-		ID:       request.ContainerID,
+		Runtime:                   request.RuntimeTemplate.Sandbox,
+		Command:                   BuildStartCommand(lrt, request),
+		Rootfs:                    BuildContainerRootfs(lrt),
+		Resource:                  ResourcesToLinux(request.Resources),
+		Mounts:                    BuildStartMounts(request),
+		Envs:                      env,
+		Network:                   networkMode,
+		Labels:                    labels,
+		Stdout:                    request.Stdout,
+		Stderr:                    request.Stderr,
+		CkptDir:                   request.CkptDir,
+		Cwd:                       BuildStartCwd(lrt, request),
+		ID:                        request.ContainerID,
+		WritableLayerRequestBytes: resources.GetRequests().GetWritableLayerBytes(),
+		WritableLayerLimitBytes:   resources.GetLimits().GetWritableLayerBytes(),
 	}
 }
 

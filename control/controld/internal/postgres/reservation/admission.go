@@ -45,6 +45,8 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 	}()
 	namespace := environmentkernel.NormalizeNamespace(req.Namespace)
 	requested := resourcekernel.QuantityToClaim(executionkernel.NormalizeConfig(req.Config).GetResources().GetRequests())
+	nodeRequested := requested
+	nodeRequested.MemoryBytes += a.policy.RuntimeMemoryOverhead(req.Config.GetRuntimeClass())
 	stageStarted := time.Now()
 	quota, err := pgnamespace.LockQuotaPolicy(ctx, tx, namespace)
 	recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageLockNamespace, stageStarted, err)
@@ -101,7 +103,7 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 			continue
 		}
 		used := usage[record.NodeID]
-		fit := a.policy.EvaluateFit(allocatableFromSummary(record.Summary), used.resources, requested)
+		fit := a.policy.EvaluateFit(allocatableFromSummary(record.Summary), used.resources, nodeRequested)
 		slots := evaluateRuntimeSlots(record.Summary, used.allocationIDs)
 		if !fit.Fits() || !slots.Fits {
 			diagnostics.AddCandidate(record.NodeID, a.policy, fit, slots)
@@ -123,6 +125,10 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 	return nil, rejection
 }
 
+func (a Admission) RuntimeMemoryOverhead(runtimeName string) int64 {
+	return a.policy.RuntimeMemoryOverhead(runtimeName)
+}
+
 func reservationRejectionError(diagnostics reservationRejectionDiagnostics) error {
 	st := grpcstatus.New(codes.ResourceExhausted, diagnostics.Message())
 	withDetails, err := st.WithDetails(&errdetails.ErrorInfo{
@@ -139,10 +145,10 @@ func reservationRejectionError(diagnostics reservationRejectionDiagnostics) erro
 func activeNamespaceReservationUsage(ctx context.Context, tx pgx.Tx, namespace string) (resourcekernel.Claim, error) {
 	var used resourcekernel.Claim
 	if err := tx.QueryRow(ctx, `
-		SELECT COALESCE(SUM(cpu_milli), 0), COALESCE(SUM(memory_bytes), 0)
+		SELECT COALESCE(SUM(cpu_milli), 0), COALESCE(SUM(memory_bytes), 0), COALESCE(SUM(writable_layer_bytes), 0)
 		FROM workload_reservations
 		WHERE namespace = $1 AND released_at IS NULL
-	`, namespace).Scan(&used.CPUMilli, &used.MemoryBytes); err != nil {
+	`, namespace).Scan(&used.CPUMilli, &used.MemoryBytes, &used.WritableLayerBytes); err != nil {
 		return resourcekernel.Claim{}, fmt.Errorf("sum namespace reservations: %w", err)
 	}
 	return used, nil

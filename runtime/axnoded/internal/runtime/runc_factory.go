@@ -28,12 +28,20 @@ func init() {
 }
 
 func NewRuncServiceHandler(cfg config.Config, runtimeName string, runtimeCfg config.RuntimeInstanceConfig, loader runtimeoci.Loader) (*RuncServiceHandler, error) {
+	cgroupMode, err := cfg.RuntimeConfig.CgroupEnforcementMode()
+	if err != nil {
+		return nil, err
+	}
 	containerRoot := filepath.Join(cfg.RootDir, "containers")
 	filestoreDir, err := ensureRuntimeFilestore(cfg)
 	if err != nil {
 		return nil, err
 	}
 	rootfsViews := rootfsview.NewOverlayProvider(filestoreDir)
+	writableCapacity, err := sharedWritableCapacityManager(filestoreDir, cfg.RuntimeConfig.FilestoreSystemReserveBytes)
+	if err != nil {
+		return nil, err
+	}
 	common, err := ocihost.New(ocihost.Config{
 		Root:                cfg.RootDir,
 		RuntimeName:         runtimeName,
@@ -45,11 +53,15 @@ func NewRuncServiceHandler(cfg config.Config, runtimeName string, runtimeCfg con
 		return nil, err
 	}
 	handler := &RuncServiceHandler{
-		name:                runtimeName,
-		common:              common,
-		ignoreCgroups:       runtimeCfg.Options.IgnoreCgroupsEnabled(false),
-		rootfsViews:         rootfsViews,
-		waitForSandboxReady: runtimesandboxd.WaitReadyForContainer,
+		name:                    runtimeName,
+		common:                  common,
+		ignoreCgroups:           cgroupMode == config.CgroupEnforcementDisabledDev,
+		writableLayerLimitBytes: cfg.RuntimeConfig.WritableLayerDefaultLimitBytes,
+		writableCapacity:        writableCapacity,
+		capabilityDir:           filepath.Join(cfg.RootDir, "verified-capabilities"),
+		containerRoot:           containerRoot,
+		rootfsViews:             rootfsViews,
+		waitForSandboxReady:     runtimesandboxd.WaitReadyForContainer,
 	}
 	handler.services = newRuntimeServices(containerRoot, handler.OpenExecSession)
 	return handler, nil

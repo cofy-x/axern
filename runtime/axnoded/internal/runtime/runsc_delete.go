@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"errors"
-	"strings"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -17,29 +16,38 @@ func (r *RunscServiceHandler) DeleteContainer(ctx context.Context, request *apip
 	}
 	args = append(args, options.ContainerID)
 	_, err := r.common.Run(ctx, args...)
-	if err != nil && strings.Contains(err.Error(), "file does not exist") {
-		if _, ok, readErr := r.readExitState(options.ContainerID); readErr == nil && ok {
-			err = nil
-		}
+	if runtimeDeleteTargetAbsent(err) {
+		err = nil
 	}
-	if err == nil {
-		waitLock := r.waitLock(options.ContainerID)
-		waitLock.Lock()
-		err = r.common.RemoveExitState(options.ContainerID)
-		waitLock.Unlock()
-		r.waitLocks.Delete(options.ContainerID)
+	if err != nil {
+		return &apipb.DeleteContainerResponse{}, err
 	}
+	waitLock := r.waitLock(options.ContainerID)
+	waitLock.Lock()
+	err = r.common.RemoveExitState(options.ContainerID)
+	waitLock.Unlock()
+	r.waitLocks.Delete(options.ContainerID)
 	cleanupCtx, cancel := rootfsViewCleanupContext()
 	defer cancel()
 	err = errors.Join(err, r.rootfsViews.Remove(cleanupCtx, options.ContainerID))
+	if err == nil {
+		err = r.writableCapacity.Release(options.ContainerID)
+	}
 	return &apipb.DeleteContainerResponse{}, err
 }
 
 func (r *RunscServiceHandler) cleanupContainer(ctx context.Context, traceID, containerID, msg string) {
-	r.common.CleanupOnFailure(ctx, traceID, containerID, msg)
+	if err := r.common.CleanupOnFailure(ctx, traceID, containerID, msg); err != nil {
+		logrus.WithField("trace_id", traceID).Warnf("runtime cleanup for %s failed; retaining rootfs and writable reservation: %v", containerID, err)
+		return
+	}
 	cleanupCtx, cancel := rootfsViewCleanupContext()
 	defer cancel()
 	if err := r.rootfsViews.Remove(cleanupCtx, containerID); err != nil {
 		logrus.WithField("trace_id", traceID).Warnf("cleanup writable rootfs view for %s failed: %v", containerID, err)
+		return
+	}
+	if err := r.writableCapacity.Release(containerID); err != nil {
+		logrus.WithField("trace_id", traceID).Warnf("release writable reservation for %s failed: %v", containerID, err)
 	}
 }

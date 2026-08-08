@@ -34,6 +34,10 @@ func (a *App) observeResourcePolicy(_ context.Context, observe sdkobs.Float64Gau
 		attribute.String(sdkobs.AttrResource, "cpu_milli"),
 		attribute.String(sdkobs.AttrState, "overcommit_ratio"),
 	)
+	observe(float64(a.resourcePolicy.RunscRuntimeOverheadMemoryBytes),
+		attribute.String(sdkobs.AttrResource, "runsc_runtime_overhead_memory_bytes"),
+		attribute.String(sdkobs.AttrState, "reservation"),
+	)
 	return nil
 }
 
@@ -49,6 +53,8 @@ func (a *App) observeNodeResources(ctx context.Context, observe sdkobs.Int64Gaug
 		cpuAllocatable := summary.GetAllocatable().GetCpuMilli()
 		memoryCapacity := summary.GetCapacity().GetMemoryBytes()
 		memoryAllocatable := summary.GetAllocatable().GetMemoryBytes()
+		writableCapacity := summary.GetCapacity().GetWritableLayerBytes()
+		writableAllocatable := summary.GetAllocatable().GetWritableLayerBytes()
 		effective := a.resourcePolicy.EffectiveAllocatable(summary.GetAllocatable())
 		observeNodeResource(observe, nodeResourceObservation{
 			nodeID:               record.NodeID,
@@ -65,6 +71,11 @@ func (a *App) observeNodeResources(ctx context.Context, observe sdkobs.Int64Gaug
 			allocatable:          memoryAllocatable,
 			effectiveAllocatable: effective.MemoryBytes,
 			reserved:             nodeReserved.memoryBytes,
+		})
+		observeNodeResource(observe, nodeResourceObservation{
+			nodeID: record.NodeID, resource: "writable_layer_bytes",
+			capacity: writableCapacity, allocatable: writableAllocatable,
+			effectiveAllocatable: effective.WritableLayerBytes, reserved: nodeReserved.writableLayerBytes,
 		})
 		if runtimeCapacity, known := nodekernel.RuntimeSlotCapacity(summary); known {
 			observeNodeResource(observe, nodeResourceObservation{
@@ -165,9 +176,10 @@ func axnodedReadySummary(summary *nodev1.NodeSummary) bool {
 }
 
 type nodeReservedResources struct {
-	cpuMilli    int64
-	memoryBytes int64
-	instances   int64
+	cpuMilli           int64
+	memoryBytes        int64
+	writableLayerBytes int64
+	instances          int64
 }
 
 type nodeResourceObservation struct {
@@ -181,7 +193,7 @@ type nodeResourceObservation struct {
 
 func (a *App) activeReservedResources(ctx context.Context) (map[string]nodeReservedResources, error) {
 	rows, err := a.db.Pool().Query(ctx, `
-		SELECT node_id, COALESCE(sum(cpu_milli), 0), COALESCE(sum(memory_bytes), 0), COUNT(*)
+		SELECT node_id, COALESCE(sum(cpu_milli), 0), COALESCE(sum(memory_bytes + memory_overhead_bytes), 0), COALESCE(sum(writable_layer_bytes), 0), COUNT(*)
 		FROM workload_reservations
 		WHERE released_at IS NULL
 		GROUP BY node_id
@@ -195,7 +207,7 @@ func (a *App) activeReservedResources(ctx context.Context) (map[string]nodeReser
 	for rows.Next() {
 		var nodeID string
 		var reserved nodeReservedResources
-		if err := rows.Scan(&nodeID, &reserved.cpuMilli, &reserved.memoryBytes, &reserved.instances); err != nil {
+		if err := rows.Scan(&nodeID, &reserved.cpuMilli, &reserved.memoryBytes, &reserved.writableLayerBytes, &reserved.instances); err != nil {
 			return nil, err
 		}
 		out[nodeID] = reserved
@@ -232,6 +244,10 @@ func observeNodeStorage(observe sdkobs.Int64GaugeObserver, nodeID string, storag
 	observe(storage.GetInodesTotal(), nodeStorageAttrs(nodeID, storage.GetTarget(), "inodes_total")...)
 	observe(storage.GetInodesUsed(), nodeStorageAttrs(nodeID, storage.GetTarget(), "inodes_used")...)
 	observe(storage.GetInodesAvailable(), nodeStorageAttrs(nodeID, storage.GetTarget(), "inodes_available")...)
+	observe(storage.GetSystemReserveBytes(), nodeStorageAttrs(nodeID, storage.GetTarget(), "system_reserve")...)
+	observe(storage.GetReservedBytes(), nodeStorageAttrs(nodeID, storage.GetTarget(), "reserved")...)
+	observe(storage.GetAllocatableBytes(), nodeStorageAttrs(nodeID, storage.GetTarget(), "allocatable")...)
+	observe(storage.GetActiveReservations(), nodeStorageAttrs(nodeID, storage.GetTarget(), "active_reservations")...)
 }
 
 func observeNodeBPFNet(observe sdkobs.Int64GaugeObserver, nodeID string, bpfnet *nodev1.BpfNetSummary) {

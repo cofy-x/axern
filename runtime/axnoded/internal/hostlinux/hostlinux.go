@@ -3,11 +3,17 @@
 package hostlinux
 
 import (
+	"bufio"
+	"crypto/sha256"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
@@ -16,12 +22,178 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func IsCgroupWritePermissionError(err error) bool {
-	if err == nil {
-		return false
+const FilestoreCapabilitiesFile = ".axern-filestore-capabilities.json"
+
+type FilestoreCapabilities struct {
+	OverlayReady      bool      `json:"overlay_ready"`
+	EROFSReady        bool      `json:"erofs_ready"`
+	ProjectQuotaReady bool      `json:"project_quota_ready"`
+	FilesystemType    string    `json:"filesystem_type"`
+	MountIdentity     string    `json:"mount_identity"`
+	EROFSProbeError   string    `json:"erofs_probe_error,omitempty"`
+	ProbedAt          time.Time `json:"probed_at"`
+}
+
+func CurrentBootID() (string, error) {
+	data, err := os.ReadFile("/proc/sys/kernel/random/boot_id")
+	if err != nil {
+		return "", err
 	}
-	msg := err.Error()
-	return strings.Contains(msg, "/sys/fs/cgroup") && strings.Contains(msg, "permission denied")
+	value := strings.TrimSpace(string(data))
+	if value == "" {
+		return "", fmt.Errorf("kernel boot ID is empty")
+	}
+	return value, nil
+}
+
+func VerifyCgroupMemoryLimit(cgroupPath string, want int64) error {
+	if want <= 0 {
+		return nil
+	}
+	dir := resourceDirForCgroupPath(cgroupPath)
+	paths := []string{filepath.Join(dir, "memory.max"), filepath.Join(dir, "memory.limit_in_bytes")}
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		got, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+		if err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		if got != want {
+			return fmt.Errorf("memory limit readback mismatch: got=%d want=%d", got, want)
+		}
+		return nil
+	}
+	return fmt.Errorf("memory controller is unavailable for %s", cgroupPath)
+}
+
+func VerifyPIDInCgroup(cgroupPath string, pid int) error {
+	if cgroupPath == "" || pid <= 0 {
+		return fmt.Errorf("cgroup path and pid are required")
+	}
+	file, err := os.Open(filepath.Join("/proc", strconv.Itoa(pid), "cgroup"))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	want := "/" + strings.Trim(strings.TrimSpace(cgroupPath), "/")
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		parts := strings.SplitN(scanner.Text(), ":", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		got := filepath.Clean(parts[2])
+		if got == want || strings.HasPrefix(got, strings.TrimSuffix(want, "/")+"/") {
+			return nil
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	return fmt.Errorf("pid %d is not attributed to cgroup %s", pid, want)
+}
+
+func VerifyCgroupPIDs(cgroupPath string, requiredPID, minimum int) error {
+	if err := VerifyPIDInCgroup(cgroupPath, requiredPID); err != nil {
+		return err
+	}
+	seen, err := cgroupPIDs(cgroupPath)
+	if err != nil {
+		return err
+	}
+	if len(seen) < minimum {
+		return fmt.Errorf("cgroup %s has %d attributed host pids, need at least %d", cgroupPath, len(seen), minimum)
+	}
+	return nil
+}
+
+func cgroupPIDs(cgroupPath string) (map[int]struct{}, error) {
+	seen := map[int]struct{}{}
+	root := resourceDirForCgroupPath(cgroupPath)
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || entry.Name() != "cgroup.procs" {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, line := range strings.Fields(string(data)) {
+			pid, err := strconv.Atoi(line)
+			if err == nil && pid > 0 {
+				seen[pid] = struct{}{}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("inventory cgroup pids: %w", err)
+	}
+	return seen, nil
+}
+
+func VerifyRunscCgroupProcesses(cgroupPath string, sentryPID int) error {
+	if err := VerifyPIDInCgroup(cgroupPath, sentryPID); err != nil {
+		return err
+	}
+	pids, err := cgroupPIDs(cgroupPath)
+	if err != nil {
+		return err
+	}
+	sentryFound, goferFound := false, false
+	for pid := range pids {
+		data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "cmdline"))
+		if err != nil {
+			continue
+		}
+		command := strings.ToLower(strings.ReplaceAll(string(data), "\x00", " "))
+		if pid == sentryPID && (strings.Contains(command, "sandbox") || strings.Contains(command, " boot")) {
+			sentryFound = true
+		}
+		if strings.Contains(command, "gofer") {
+			goferFound = true
+		}
+	}
+	if !sentryFound || !goferFound {
+		return fmt.Errorf("runsc cgroup %s attribution incomplete: sentry=%t gofer=%t pids=%d", cgroupPath, sentryFound, goferFound, len(pids))
+	}
+	return nil
+}
+
+func ReadCgroupMemoryBreakdown(cgroupPath string) (map[string]int64, error) {
+	dir := resourceDirForCgroupPath(cgroupPath)
+	values := make(map[string]int64)
+	for _, file := range []string{"memory.stat", "memory.events"} {
+		data, err := os.ReadFile(filepath.Join(dir, file))
+		if err != nil {
+			return nil, err
+		}
+		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) != 2 {
+				continue
+			}
+			value, err := strconv.ParseInt(fields[1], 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("parse %s %q: %w", file, line, err)
+			}
+			key := fields[0]
+			if file == "memory.events" {
+				key = "event_" + key
+			}
+			values[key] = value
+		}
+	}
+	return values, nil
 }
 
 func cloneResource(resource *runtimeapi.LinuxContainerResources) *runtimeapi.LinuxContainerResources {
@@ -144,78 +316,444 @@ func IsPathReadOnly(path string) (bool, error) {
 	return stat.Flags&unix.ST_RDONLY != 0, nil
 }
 
-func isXFSMounted(dir string) (bool, error) {
-	data, err := os.ReadFile("/proc/mounts")
-	if err != nil {
-		return false, fmt.Errorf("read /proc/mounts: %v", err)
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) >= 3 && fields[1] == dir && fields[2] == "xfs" {
-			return true, nil
-		}
-	}
-	return false, nil
+func mountedFilesystem(dir string) (string, bool, error) {
+	fsType, mounted, _, err := mountedFilesystemFacts(dir)
+	return fsType, mounted, err
 }
 
-func EnsureXFSMount(filestoreDir, size string) error {
-	if err := os.MkdirAll(filestoreDir, 0755); err != nil {
-		return fmt.Errorf("mkdir %s: %v", filestoreDir, err)
+func mountedFilesystemFacts(dir string) (string, bool, string, error) {
+	data, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		return "", false, "", fmt.Errorf("read mountinfo: %v", err)
 	}
+	clean := filepath.Clean(dir)
+	for _, line := range strings.Split(string(data), "\n") {
+		parts := strings.SplitN(line, " - ", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		pre, post := strings.Fields(parts[0]), strings.Fields(parts[1])
+		if len(pre) >= 5 && len(post) >= 2 && filepath.Clean(unescapeMountInfoField(pre[4])) == clean {
+			return post[0], true, fmt.Sprintf("%s:%s:%s", pre[0], unescapeMountInfoField(post[1]), clean), nil
+		}
+	}
+	return "", false, "", nil
+}
 
-	imgFile := filepath.Join(filepath.Dir(filestoreDir), "xfs.img")
+func unescapeMountInfoField(value string) string {
+	return strings.NewReplacer(`\040`, " ", `\011`, "\t", `\012`, "\n", `\134`, `\`).Replace(value)
+}
 
-	mounted, err := isXFSMounted(filestoreDir)
+func mountedSource(dir string) (string, bool, error) {
+	data, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		return "", false, err
+	}
+	clean := filepath.Clean(dir)
+	for _, line := range strings.Split(string(data), "\n") {
+		parts := strings.SplitN(line, " - ", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		pre, post := strings.Fields(parts[0]), strings.Fields(parts[1])
+		if len(pre) >= 5 && len(post) >= 2 && filepath.Clean(unescapeMountInfoField(pre[4])) == clean {
+			return unescapeMountInfoField(post[1]), true, nil
+		}
+	}
+	return "", false, nil
+}
+
+func verifyLoopbackMount(filestoreDir, image string) error {
+	source, mounted, err := mountedSource(filestoreDir)
 	if err != nil {
 		return err
 	}
-	if mounted {
-		return nil
+	if !mounted || !strings.HasPrefix(filepath.Base(source), "loop") {
+		return fmt.Errorf("loopback_dev filestore %s is not mounted from a loop device", filestoreDir)
 	}
-
-	_ = os.Remove(imgFile)
-
-	if out, err := exec.Command("truncate", "-s", size, imgFile).CombinedOutput(); err != nil {
-		return fmt.Errorf("truncate %s: %s: %v", imgFile, out, err)
-	}
-	out, err := exec.Command("mkfs.xfs", "-f", "-m", "reflink=1", "-i", "nrext64=0", imgFile).CombinedOutput()
+	data, err := os.ReadFile(filepath.Join("/sys/class/block", filepath.Base(source), "loop/backing_file"))
 	if err != nil {
-		if strings.Contains(string(out), "unknown option") && strings.Contains(string(out), "nrext64") {
-			out, err = exec.Command("mkfs.xfs", "-f", "-m", "reflink=1", imgFile).CombinedOutput()
-			if err != nil {
-				_ = os.Remove(imgFile)
-				return fmt.Errorf("mkfs.xfs: %s: %v", out, err)
-			}
-		} else {
-			_ = os.Remove(imgFile)
-			return fmt.Errorf("mkfs.xfs: %s: %v", out, err)
-		}
+		return fmt.Errorf("read filestore loop backing file: %w", err)
 	}
-
-	if out, err := exec.Command("mount", "-o", "loop,defaults,discard", imgFile, filestoreDir).CombinedOutput(); err != nil {
-		_ = os.Remove(imgFile)
-		return fmt.Errorf("mount xfs %s -> %s: %s: %v", imgFile, filestoreDir, out, err)
+	actual := strings.TrimSpace(string(data))
+	if !filepath.IsAbs(actual) {
+		actual = "/" + actual
 	}
-
+	expected, err := filepath.EvalSymlinks(image)
+	if err != nil {
+		return err
+	}
+	actual, err = filepath.EvalSymlinks(actual)
+	if err != nil {
+		return err
+	}
+	if filepath.Clean(actual) != filepath.Clean(expected) {
+		return fmt.Errorf("filestore loop backing mismatch: mounted=%s configured=%s", actual, expected)
+	}
 	return nil
 }
 
-func CleanupXFSMount(filestoreDir string) error {
+func PrepareFilestore(filestoreDir, mode, image string, loopbackSizeBytes, systemReserveBytes int64) error {
 	if filestoreDir == "" {
+		return fmt.Errorf("filestore_dir is required")
+	}
+	if !filepath.IsAbs(filestoreDir) {
+		return fmt.Errorf("filestore_dir must be absolute: %s", filestoreDir)
+	}
+	switch mode {
+	case "existing":
+		info, err := os.Stat(filestoreDir)
+		if err != nil {
+			return fmt.Errorf("inspect existing filestore %s: %w", filestoreDir, err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("existing filestore %s must be a directory", filestoreDir)
+		}
+	case "loopback_dev":
+		if image == "" || !filepath.IsAbs(image) {
+			return fmt.Errorf("filestore_loopback_image must be an absolute path")
+		}
+		if loopbackSizeBytes <= 0 {
+			return fmt.Errorf("filestore_loopback_size_bytes must be positive")
+		}
+		if err := os.MkdirAll(filestoreDir, 0755); err != nil {
+			return fmt.Errorf("mkdir %s: %w", filestoreDir, err)
+		}
+		if _, err := os.Stat(image); os.IsNotExist(err) {
+			if err := os.MkdirAll(filepath.Dir(image), 0755); err != nil {
+				return err
+			}
+			file, err := os.OpenFile(image, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+			if err != nil {
+				return fmt.Errorf("create loopback image: %w", err)
+			}
+			if err := file.Truncate(loopbackSizeBytes); err != nil {
+				_ = file.Close()
+				return fmt.Errorf("size loopback image: %w", err)
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+			if out, err := exec.Command("mkfs.xfs", "-f", "-m", "reflink=1", image).CombinedOutput(); err != nil {
+				return fmt.Errorf("mkfs.xfs %s (%s bytes): %s: %w", image, strconv.FormatInt(loopbackSizeBytes, 10), out, err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("inspect loopback image: %w", err)
+		} else {
+			info, err := os.Stat(image)
+			if err != nil {
+				return fmt.Errorf("inspect loopback image: %w", err)
+			}
+			if !info.Mode().IsRegular() || info.Size() != loopbackSizeBytes {
+				return fmt.Errorf("existing loopback image must be a regular file of %d bytes, got mode=%s size=%d", loopbackSizeBytes, info.Mode(), info.Size())
+			}
+		}
+		if _, mounted, err := mountedFilesystem(filestoreDir); err != nil {
+			return err
+		} else if !mounted {
+			if out, err := exec.Command("mount", "-o", "loop,defaults,discard,prjquota", image, filestoreDir).CombinedOutput(); err != nil {
+				return fmt.Errorf("mount loopback filestore %s: %s: %w", filestoreDir, out, err)
+			}
+		}
+		if err := verifyLoopbackMount(filestoreDir, image); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported filestore_mode %q", mode)
+	}
+	fsType, mounted, err := mountedFilesystem(filestoreDir)
+	if err != nil {
+		return err
+	}
+	if !mounted {
+		return fmt.Errorf("filestore_dir must be an independent mount: %s", filestoreDir)
+	}
+	if fsType != "xfs" && fsType != "ext4" {
+		return fmt.Errorf("filestore filesystem must be xfs or ext4, got %s", fsType)
+	}
+	readonly, err := IsPathReadOnly(filestoreDir)
+	if err != nil || readonly {
+		return fmt.Errorf("filestore must be writable: readonly=%t: %w", readonly, err)
+	}
+	var stat unix.Statfs_t
+	if err := unix.Statfs(filestoreDir, &stat); err != nil {
+		return fmt.Errorf("stat filestore: %w", err)
+	}
+	capacity := int64(stat.Blocks) * stat.Bsize
+	available := int64(stat.Bavail) * stat.Bsize
+	if systemReserveBytes < 0 || systemReserveBytes >= capacity || systemReserveBytes >= available {
+		return fmt.Errorf("filestore_system_reserve_bytes %d is invalid for capacity=%d available=%d", systemReserveBytes, capacity, available)
+	}
+	for _, subdir := range []string{"runsc", "runc", "projections"} {
+		if err := os.MkdirAll(filepath.Join(filestoreDir, subdir), 0755); err != nil {
+			return fmt.Errorf("create filestore partition %s: %w", subdir, err)
+		}
+	}
+	capabilities, err := probeFilestoreCapabilities(filestoreDir, fsType)
+	if err != nil {
+		return err
+	}
+	_, _, capabilities.MountIdentity, err = mountedFilesystemFacts(filestoreDir)
+	if err != nil {
+		return err
+	}
+	if capabilities.MountIdentity == "" {
+		return fmt.Errorf("filestore mount identity is unavailable for %s", filestoreDir)
+	}
+	if err := writeFilestoreCapabilities(filestoreDir, capabilities); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ReadFilestoreCapabilities(filestoreDir string) (FilestoreCapabilities, error) {
+	data, err := os.ReadFile(filepath.Join(filestoreDir, FilestoreCapabilitiesFile))
+	if err != nil {
+		return FilestoreCapabilities{}, err
+	}
+	var out FilestoreCapabilities
+	if err := json.Unmarshal(data, &out); err != nil {
+		return FilestoreCapabilities{}, err
+	}
+	fsType, mounted, identity, err := mountedFilesystemFacts(filestoreDir)
+	if err != nil {
+		return FilestoreCapabilities{}, err
+	}
+	if !mounted || identity == "" || identity != out.MountIdentity || fsType != out.FilesystemType {
+		return FilestoreCapabilities{}, fmt.Errorf("filestore mount identity changed: stored=%s current=%s", out.MountIdentity, identity)
+	}
+	return out, nil
+}
+
+func writeFilestoreCapabilities(dir string, capabilities FilestoreCapabilities) error {
+	data, err := json.MarshalIndent(capabilities, "", "  ")
+	if err != nil {
+		return err
+	}
+	file, err := os.CreateTemp(dir, ".capabilities-*")
+	if err != nil {
+		return err
+	}
+	name := file.Name()
+	ok := false
+	defer func() {
+		_ = file.Close()
+		if !ok {
+			_ = os.Remove(name)
+		}
+	}()
+	if err := file.Chmod(0600); err != nil {
+		return err
+	}
+	if _, err := file.Write(data); err != nil {
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(name, filepath.Join(dir, FilestoreCapabilitiesFile)); err != nil {
+		return err
+	}
+	dirFile, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer dirFile.Close()
+	if err := dirFile.Sync(); err != nil {
+		return err
+	}
+	ok = true
+	return nil
+}
+
+func probeFilestoreCapabilities(filestoreDir, fsType string) (FilestoreCapabilities, error) {
+	result := FilestoreCapabilities{FilesystemType: fsType, ProbedAt: time.Now().UTC()}
+	probeRoot, err := os.MkdirTemp(filestoreDir, ".axern-overlay-probe-")
+	if err != nil {
+		return result, err
+	}
+	defer os.RemoveAll(probeRoot)
+	lower, upper := filepath.Join(probeRoot, "lower"), filepath.Join(probeRoot, "upper")
+	work, merged := filepath.Join(probeRoot, "work"), filepath.Join(probeRoot, "merged")
+	for _, dir := range []string{lower, upper, work, merged} {
+		if err := os.Mkdir(dir, 0700); err != nil {
+			return result, err
+		}
+	}
+	if err := os.WriteFile(filepath.Join(lower, "lower.txt"), []byte("lower"), 0600); err != nil {
+		return result, err
+	}
+	if err := unix.Setxattr(upper, "user.axern.probe", []byte("1"), 0); err != nil {
+		return result, fmt.Errorf("filestore xattr probe: %w", err)
+	}
+	options := "lowerdir=" + lower + ",upperdir=" + upper + ",workdir=" + work
+	if err := unix.Mount("overlay", merged, "overlay", 0, options); err != nil {
+		return result, fmt.Errorf("filestore overlay scratch mount: %w", err)
+	}
+	mounted := true
+	defer func() {
+		if mounted {
+			_ = unix.Unmount(merged, unix.MNT_DETACH)
+		}
+	}()
+	if err := os.WriteFile(filepath.Join(merged, "created.txt"), []byte("created"), 0600); err != nil {
+		return result, fmt.Errorf("filestore overlay write probe: %w", err)
+	}
+	if err := os.Rename(filepath.Join(merged, "created.txt"), filepath.Join(merged, "renamed.txt")); err != nil {
+		return result, err
+	}
+	if err := os.Remove(filepath.Join(merged, "lower.txt")); err != nil {
+		return result, err
+	}
+	if err := unix.Unmount(merged, 0); err != nil {
+		return result, err
+	}
+	mounted = false
+	result.OverlayReady = true
+	if fsType == "xfs" {
+		result.ProjectQuotaReady = probeXFSProjectQuota(filestoreDir, upper)
+	}
+	if fixture := erofsFixturePath(); fixture != "" {
+		if err := probeEROFSLower(filestoreDir, fixture); err != nil {
+			result.EROFSProbeError = err.Error()
+		} else {
+			result.EROFSReady = true
+		}
+	}
+	return result, nil
+}
+
+func probeXFSProjectQuota(filestoreDir, path string) bool {
+	id := strconv.FormatInt(int64(2000000000)+int64(os.Getpid()%100000), 10)
+	for _, command := range []string{"project -s -p " + path + " " + id, "limit -p bhard=1048576 bsoft=1048576 " + id} {
+		if _, err := exec.Command("xfs_quota", "-x", "-c", command, filestoreDir).CombinedOutput(); err != nil {
+			return false
+		}
+	}
+	file, err := os.OpenFile(filepath.Join(path, "quota-enforcement-probe"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return false
+	}
+	defer func() {
+		_ = file.Close()
+		_ = os.Remove(file.Name())
+	}()
+	_, writeErr := file.Write(make([]byte, 2*1024*1024))
+	syncErr := file.Sync()
+	if writeErr == nil && syncErr == nil {
+		return false
+	}
+	return errors.Is(writeErr, unix.EDQUOT) || errors.Is(syncErr, unix.EDQUOT)
+}
+
+func erofsFixturePath() string {
+	for _, candidate := range []string{strings.TrimSpace(os.Getenv("AXERN_EROFS_FIXTURE")), "/usr/share/axnoded/fixtures/minimal.erofs"} {
+		if candidate != "" {
+			if info, err := os.Stat(candidate); err == nil && info.Mode().IsRegular() {
+				return candidate
+			}
+		}
+	}
+	return ""
+}
+
+func probeEROFSLower(filestoreDir, fixture string) error {
+	fixtureBefore, err := os.ReadFile(fixture)
+	if err != nil {
+		return err
+	}
+	fixtureHash := sha256.Sum256(fixtureBefore)
+	root, err := os.MkdirTemp(filestoreDir, ".axern-erofs-probe-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(root)
+	lower, upper, work, merged := filepath.Join(root, "lower"), filepath.Join(root, "upper"), filepath.Join(root, "work"), filepath.Join(root, "merged")
+	for _, dir := range []string{lower, upper, work, merged} {
+		if err := os.Mkdir(dir, 0700); err != nil {
+			return err
+		}
+	}
+	if output, err := exec.Command("mount", "-t", "erofs", "-o", "loop,ro", fixture, lower).CombinedOutput(); err != nil {
+		return fmt.Errorf("mount EROFS fixture: %s: %w", output, err)
+	}
+	lowerMounted := true
+	defer func() {
+		if lowerMounted {
+			_ = unix.Unmount(lower, unix.MNT_DETACH)
+		}
+	}()
+	if err := unix.Mount("overlay", merged, "overlay", 0, "lowerdir="+lower+",upperdir="+upper+",workdir="+work); err != nil {
+		return fmt.Errorf("overlay on EROFS lower: %w", err)
+	}
+	overlayMounted := true
+	defer func() {
+		if overlayMounted {
+			_ = unix.Unmount(merged, unix.MNT_DETACH)
+		}
+	}()
+	var regular string
+	_ = filepath.WalkDir(merged, func(path string, entry os.DirEntry, err error) error {
+		if err == nil && regular == "" && entry.Type().IsRegular() {
+			regular = path
+		}
+		return nil
+	})
+	if regular == "" {
+		return fmt.Errorf("EROFS fixture has no regular file")
+	}
+	if _, err := os.ReadFile(regular); err != nil {
+		return err
+	}
+	if err := os.WriteFile(regular, []byte("copy-up"), 0600); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(merged, "created"), []byte("create"), 0600); err != nil {
+		return err
+	}
+	if err := os.Mkdir(filepath.Join(merged, "directory"), 0700); err != nil {
+		return err
+	}
+	if err := os.Remove(regular); err != nil {
+		return err
+	}
+	if err := unix.Unmount(merged, 0); err != nil {
+		return err
+	}
+	overlayMounted = false
+	if err := unix.Unmount(lower, 0); err != nil {
+		return err
+	}
+	lowerMounted = false
+	fixtureAfter, err := os.ReadFile(fixture)
+	if err != nil {
+		return err
+	}
+	if sha256.Sum256(fixtureAfter) != fixtureHash {
+		return fmt.Errorf("EROFS fixture changed during lower compatibility probe")
+	}
+	return nil
+}
+
+func CleanupFilestore(filestoreDir, mode, image string) error {
+	if filestoreDir == "" || mode != "loopback_dev" {
 		return nil
 	}
-	mounted, err := isXFSMounted(filestoreDir)
+	_, mounted, err := mountedFilesystem(filestoreDir)
 	if err != nil {
 		return err
 	}
 	if !mounted {
 		return nil
 	}
+	if err := verifyLoopbackMount(filestoreDir, image); err != nil {
+		return err
+	}
 	if out, err := exec.Command("umount", filestoreDir).CombinedOutput(); err != nil {
 		return fmt.Errorf("umount %s: %s: %v", filestoreDir, out, err)
 	}
-	imgFile := filepath.Join(filepath.Dir(filestoreDir), "xfs.img")
-	_ = os.Remove(imgFile)
-	_ = os.Remove(filestoreDir)
 	return nil
 }

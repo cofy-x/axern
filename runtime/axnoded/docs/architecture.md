@@ -46,6 +46,12 @@ Layer ownership:
   transactions. Allocation orchestration owns the schema and keeps runtime
   template identity plus image/workspace ownership in one record per allocation.
 
+Rootfs handling follows the three-boundary contract in
+[rootfs-storage.md](rootfs-storage.md): host target projection, runtime-specific
+guest writable storage, and cgroup memory enforcement are independent. The
+input lower rootfs is immutable across create, start, failure rollback, and
+delete.
+
 ## Create Allocation Flow
 
 ```mermaid

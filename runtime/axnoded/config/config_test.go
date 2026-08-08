@@ -4,7 +4,6 @@ import "testing"
 
 func TestRuntimeConfigNormalizedRuntimeConfigs(t *testing.T) {
 	cfg := RuntimeConfig{
-		IgnoreCgroups: true,
 		RuntimeBinary: map[string]string{
 			RuntimeNameRunsc: "/legacy/runsc",
 			"runc":           "/legacy/runc",
@@ -35,9 +34,6 @@ func TestRuntimeConfigNormalizedRuntimeConfigs(t *testing.T) {
 	if runsc.BaseSpec != "/legacy/runsc.json" {
 		t.Fatalf("expected legacy base spec fallback, got %q", runsc.BaseSpec)
 	}
-	if !runsc.Options.IgnoreCgroupsEnabled(false) {
-		t.Fatalf("expected legacy ignore_cgroups to be preserved for runsc")
-	}
 	if !runsc.Options.AllowSUIDEnabled(true) {
 		t.Fatalf("expected runsc allow_suid default to remain enabled")
 	}
@@ -46,9 +42,6 @@ func TestRuntimeConfigNormalizedRuntimeConfigs(t *testing.T) {
 	if runc.Binary != "/legacy/runc" {
 		t.Fatalf("expected legacy runtime binary, got %q", runc.Binary)
 	}
-	if runc.Options.IgnoreCgroups != nil {
-		t.Fatalf("expected non-runsc runtime to keep nil ignore_cgroups option")
-	}
 
 	crun := runtimes["crun"]
 	if crun.Binary != "/usr/bin/crun" {
@@ -56,6 +49,20 @@ func TestRuntimeConfigNormalizedRuntimeConfigs(t *testing.T) {
 	}
 	if crun.BaseSpec != "/etc/axnoded/crun.json" {
 		t.Fatalf("expected explicit crun base spec, got %q", crun.BaseSpec)
+	}
+}
+
+func TestRuntimeConfigCgroupEnforcementMode(t *testing.T) {
+	mode, err := (RuntimeConfig{}).CgroupEnforcementMode()
+	if err != nil || mode != CgroupEnforcementRequired {
+		t.Fatalf("default mode = %q, %v", mode, err)
+	}
+	mode, err = (RuntimeConfig{CgroupEnforcement: CgroupEnforcementDisabledDev}).CgroupEnforcementMode()
+	if err != nil || mode != CgroupEnforcementDisabledDev {
+		t.Fatalf("dev mode = %q, %v", mode, err)
+	}
+	if _, err := (RuntimeConfig{CgroupEnforcement: "fallback"}).CgroupEnforcementMode(); err == nil {
+		t.Fatal("invalid mode accepted")
 	}
 }
 

@@ -52,6 +52,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     ca-certificates \
     curl \
     e2fsprogs \
+    erofs-utils \
     fuse3 \
     git \
     iproute2 \
@@ -267,6 +268,11 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
 
 FROM node-runtime-base-build AS node-runtime-base-final
 WORKDIR /workspace
+
+COPY deploy/images/fixtures/erofs-root/ /tmp/axern-erofs-fixture-root/
+RUN mkdir -p /usr/share/axnoded/fixtures && \
+    mkfs.erofs /usr/share/axnoded/fixtures/minimal.erofs /tmp/axern-erofs-fixture-root && \
+    rm -rf /tmp/axern-erofs-fixture-root
 
 COPY runtime/axnoded/scripts/ /workspace/scripts/
 COPY deploy/images/lib/node-all-in-one-entrypoint.sh /usr/local/bin/node-all-in-one-entrypoint

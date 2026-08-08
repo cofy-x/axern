@@ -12,17 +12,23 @@ import (
 func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1.ExecutionConfig) *Request {
 	template := env.GetResolvedTemplate()
 	requests := config.GetResources().GetRequests()
+	runtimeName := firstNonEmpty(config.GetRuntimeClass(), p.defaultSandboxRuntime)
+	capabilities := capabilityRequirementsToPlacement(config.GetCapabilityRequirements())
+	if requests.GetWritableLayerBytes() > 0 {
+		capabilities = normalizeStringSlice(append(capabilities, "runtime:"+runtimeName+":writable-layer-hard-limit"))
+	}
 	return &Request{
-		RootfsKey:              firstNonEmpty(env.GetID(), template.GetImageDescriptor().GetDigest()),
-		RootfsType:             controlnodev1.RootfsType_ROOTFS_TYPE_IMAGE,
-		MountType:              controlnodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:                firstNonEmpty(config.GetRuntimeClass(), p.defaultSandboxRuntime),
-		RequestedCpuMilli:      requests.GetCpuMilli(),
-		RequestedMemoryBytes:   requests.GetMemoryBytes(),
-		Ports:                  portSpecsToPlacementPorts(config.GetPorts()),
-		Network:                networkSpecToPlacementNetwork(config.GetNetwork()),
-		CapabilityRequirements: capabilityRequirementsToPlacement(config.GetCapabilityRequirements()),
-		NodeSelector:           cloneStringMap(config.GetPlacement().GetNodeSelector()),
+		RootfsKey:                   firstNonEmpty(env.GetID(), template.GetImageDescriptor().GetDigest()),
+		RootfsType:                  controlnodev1.RootfsType_ROOTFS_TYPE_IMAGE,
+		MountType:                   controlnodev1.MountType_MOUNT_TYPE_OCI,
+		Runtime:                     runtimeName,
+		RequestedCpuMilli:           requests.GetCpuMilli(),
+		RequestedMemoryBytes:        requests.GetMemoryBytes(),
+		RequestedWritableLayerBytes: requests.GetWritableLayerBytes(),
+		Ports:                       portSpecsToPlacementPorts(config.GetPorts()),
+		Network:                     networkSpecToPlacementNetwork(config.GetNetwork()),
+		CapabilityRequirements:      capabilities,
+		NodeSelector:                cloneStringMap(config.GetPlacement().GetNodeSelector()),
 	}
 }
 

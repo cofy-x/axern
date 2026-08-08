@@ -3,7 +3,7 @@ package axernsdk
 import "testing"
 
 func TestBuildResourceSpecParsesFriendlyQuantities(t *testing.T) {
-	resources, err := buildResourceSpec(CPUMilli(500), "512Mi", "1.5", "1GiB")
+	resources, err := buildResourceSpec(CPUMilli(500), "512Mi", "256Mi", "1.5", "1GiB", "2GiB")
 	if err != nil {
 		t.Fatalf("buildResourceSpec returned error: %v", err)
 	}
@@ -13,16 +13,22 @@ func TestBuildResourceSpecParsesFriendlyQuantities(t *testing.T) {
 	if got, want := resources.GetRequests().GetMemoryBytes(), int64(512*1024*1024); got != want {
 		t.Fatalf("got request memory %d, want %d", got, want)
 	}
+	if got, want := resources.GetRequests().GetWritableLayerBytes(), int64(256*1024*1024); got != want {
+		t.Fatalf("got request writable layer %d, want %d", got, want)
+	}
 	if got, want := resources.GetLimits().GetCpuMilli(), int64(1500); got != want {
 		t.Fatalf("got limit cpu %d, want %d", got, want)
 	}
 	if got, want := resources.GetLimits().GetMemoryBytes(), int64(1024*1024*1024); got != want {
 		t.Fatalf("got limit memory %d, want %d", got, want)
 	}
+	if got, want := resources.GetLimits().GetWritableLayerBytes(), int64(2*1024*1024*1024); got != want {
+		t.Fatalf("got limit writable layer %d, want %d", got, want)
+	}
 }
 
 func TestBuildResourceSpecParsesBinaryMemorySuffixVariants(t *testing.T) {
-	resources, err := buildResourceSpec("", "128Mi", "", "2Ki")
+	resources, err := buildResourceSpec("", "128Mi", "", "", "2Ki", "")
 	if err != nil {
 		t.Fatalf("buildResourceSpec returned error: %v", err)
 	}
@@ -35,7 +41,7 @@ func TestBuildResourceSpecParsesBinaryMemorySuffixVariants(t *testing.T) {
 }
 
 func TestResourceQuantityConstructors(t *testing.T) {
-	resources, err := buildResourceSpec(CPUCores(2), MemoryBytes(512), CPUMilli(750), MemoryBytes(1024))
+	resources, err := buildResourceSpec(CPUCores(2), MemoryBytes(512), "", CPUMilli(750), MemoryBytes(1024), "")
 	if err != nil {
 		t.Fatalf("buildResourceSpec returned error: %v", err)
 	}
@@ -69,7 +75,7 @@ func TestBuildResourceSpecRejectsInvalidQuantities(t *testing.T) {
 		{name: "fractional byte", requestMemory: "0.5B"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := buildResourceSpec(tc.requestCPU, tc.requestMemory, tc.limitCPU, tc.limitMemory); err == nil {
+			if _, err := buildResourceSpec(tc.requestCPU, tc.requestMemory, "", tc.limitCPU, tc.limitMemory, ""); err == nil {
 				t.Fatal("expected error")
 			}
 		})

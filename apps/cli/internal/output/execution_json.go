@@ -18,8 +18,9 @@ type ExecutionConfigJSON struct {
 }
 
 type ResourceQuantityJSON struct {
-	CPUMilli    int64 `json:"cpu_milli"`
-	MemoryBytes int64 `json:"memory_bytes"`
+	CPUMilli           int64 `json:"cpu_milli"`
+	MemoryBytes        int64 `json:"memory_bytes"`
+	WritableLayerBytes int64 `json:"writable_layer_bytes"`
 }
 
 type ResourceSpecJSON struct {
@@ -113,7 +114,7 @@ func newResourceQuantityJSON(quantity *commonv1.ResourceQuantity) *ResourceQuant
 	if quantity == nil {
 		return nil
 	}
-	return &ResourceQuantityJSON{CPUMilli: quantity.GetCpuMilli(), MemoryBytes: quantity.GetMemoryBytes()}
+	return &ResourceQuantityJSON{CPUMilli: quantity.GetCpuMilli(), MemoryBytes: quantity.GetMemoryBytes(), WritableLayerBytes: quantity.GetWritableLayerBytes()}
 }
 
 func newPortSpecJSONs(ports []*commonv1.PortSpec) []*PortSpecJSON {

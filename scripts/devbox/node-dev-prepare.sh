@@ -79,16 +79,18 @@ image_lib_dir = "${AXNODED_DIR}/rootfs"
 image_manager_socket = "${RUN_DIR}/imagemgr.sock"
 volume_manager_socket = "${RUN_DIR}/volumed.sock"
 runtime_runner_binary = "${BIN_DIR}/axnoded-runtime-runner"
-ignore_cgroups = true
+cgroup_enforcement = "disabled_dev"
 filestore_dir = "${AXNODED_DIR}/filestore"
-filestore_dir_size = "512M"
-overlay_tmpfs_size = "256M"
+filestore_mode = "loopback_dev"
+filestore_loopback_image = "${AXNODED_DIR}/filestore.xfs.img"
+filestore_loopback_size_bytes = 536870912
+filestore_system_reserve_bytes = 67108864
+writable_layer_default_limit_bytes = 268435456
 
 [plugin.runtime.runtimes.runsc]
 binary = "/usr/local/bin/runsc"
 
 [plugin.runtime.runtimes.runsc.options]
-ignore_cgroups = true
 allow_suid = true
 
 [plugin.runtime.runtimes.runc]

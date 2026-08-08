@@ -1124,6 +1124,7 @@ type Rootfs struct {
 	LowerDir      string                 `protobuf:"bytes,2,opt,name=lower_dir,json=lowerDir,proto3" json:"lower_dir,omitempty"`
 	RootDir       string                 `protobuf:"bytes,3,opt,name=root_dir,json=rootDir,proto3" json:"root_dir,omitempty"`
 	Readonly      bool                   `protobuf:"varint,4,opt,name=readonly,proto3" json:"readonly,omitempty"`
+	LeaseId       string                 `protobuf:"bytes,5,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1184,6 +1185,13 @@ func (x *Rootfs) GetReadonly() bool {
 		return x.Readonly
 	}
 	return false
+}
+
+func (x *Rootfs) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
 }
 
 type ContainerMetadata struct {
@@ -1485,12 +1493,13 @@ const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"B\n" +
 	"\rHugepageLimit\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\tR\bpageSize\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\x04R\x05limit\"p\n" +
+	"\x05limit\x18\x02 \x01(\x04R\x05limit\"\x8b\x01\n" +
 	"\x06Rootfs\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1b\n" +
 	"\tlower_dir\x18\x02 \x01(\tR\blowerDir\x12\x19\n" +
 	"\broot_dir\x18\x03 \x01(\tR\arootDir\x12\x1a\n" +
-	"\breadonly\x18\x04 \x01(\bR\breadonly\"\x89\x02\n" +
+	"\breadonly\x18\x04 \x01(\bR\breadonly\x12\x19\n" +
+	"\blease_id\x18\x05 \x01(\tR\aleaseId\"\x89\x02\n" +
 	"\x11ContainerMetadata\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12'\n" +
 	"\x0fruntime_handler\x18\x03 \x01(\tR\x0eruntimeHandler\x12P\n" +

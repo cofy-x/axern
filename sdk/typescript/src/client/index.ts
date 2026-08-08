@@ -47,8 +47,10 @@ export interface CreateServiceOptions {
   volumes?: readonly VolumeMount[];
   requestCpu?: ResourceQuantity;
   requestMemory?: ResourceQuantity;
+  requestWritableLayer?: ResourceQuantity;
   limitCpu?: ResourceQuantity;
   limitMemory?: ResourceQuantity;
+  limitWritableLayer?: ResourceQuantity;
   labels?: Record<string, string>;
 }
 

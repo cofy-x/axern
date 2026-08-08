@@ -54,7 +54,7 @@ recycle_policy = "destroy"
 image_lib_dir = "/var/lib/axnoded/rootfs"
 image_manager_enabled = false
 volume_manager_socket = "${VOLUMED_SOCKET}"
-ignore_cgroups = true
+cgroup_enforcement = "disabled_dev"
 
 [plugin.runtime.runtimes.${RUNTIME_UNDER_TEST}]
 binary = "${RUNTIME_BINARY}"

@@ -1,19 +1,24 @@
 package nodeinventory
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
 )
 
 const (
-	StorageTargetRootFS       = "rootfs"
-	StorageTargetAxnodedState = "axnoded_state"
-	StorageTargetImageCache   = "image_cache"
-	StorageTargetVolumeData   = "volume_data"
+	StorageTargetRootFS           = "rootfs"
+	StorageTargetAxnodedState     = "axnoded_state"
+	StorageTargetImageCache       = "image_cache"
+	StorageTargetVolumeData       = "volume_data"
+	StorageTargetRuntimeFilestore = "runtime_filestore"
 
 	DefaultRootFSPath       = "/"
 	DefaultAxnodedStatePath = "/var/lib/axnoded"
@@ -22,8 +27,9 @@ const (
 )
 
 type StorageTarget struct {
-	Target string
-	Path   string
+	Target             string
+	Path               string
+	SystemReserveBytes int64
 }
 
 func DefaultStorageTargets(axnodedStatePath string) []StorageTarget {
@@ -55,7 +61,7 @@ func normalizeStorageTargets(targets []StorageTarget) []StorageTarget {
 			continue
 		}
 		seen[name] = struct{}{}
-		out = append(out, StorageTarget{Target: name, Path: path})
+		out = append(out, StorageTarget{Target: name, Path: path, SystemReserveBytes: target.SystemReserveBytes})
 	}
 	return out
 }
@@ -84,6 +90,18 @@ func (s *AxnodedSource) collectStorageInventory(now time.Time, snapshot *NodeInv
 			errs = append(errs, err.Error())
 		} else {
 			entry.Collected = true
+			entry.SystemReserveBytes = target.SystemReserveBytes
+			entry.AllocatableBytes = max(entry.CapacityBytes-target.SystemReserveBytes, 0)
+			if target.Target == StorageTargetRuntimeFilestore {
+				entry.ReservedBytes, entry.ActiveReservations = readWritableReservations(filepath.Join(target.Path, "reservations"))
+				entry.AllocationUsedBytes = readVisibleWritableUsage(target.Path)
+				entry.UnlinkedBackingUsageUnknown = hasRunscReservations(filepath.Join(target.Path, "reservations"))
+				entry.FilesystemType, entry.MountIdentity = storageMountFacts(target.Path)
+				snapshot.Resources.WritableLayer.AxnodedCommittedBytes = entry.ReservedBytes
+				snapshot.Resources.WritableLayer.AxnodedUsedBytes = entry.AllocationUsedBytes
+				snapshot.Node.Capacity.WritableLayerBytes = entry.CapacityBytes
+				snapshot.Node.Allocatable.WritableLayerBytes = entry.AllocatableBytes
+			}
 			successes++
 		}
 		snapshot.Storage = append(snapshot.Storage, entry)
@@ -99,6 +117,74 @@ func (s *AxnodedSource) collectStorageInventory(now time.Time, snapshot *NodeInv
 		return
 	}
 	snapshot.Sources["storage"] = degradedSource(errMsg, now)
+}
+
+func readVisibleWritableUsage(filestore string) int64 {
+	var used int64
+	for _, class := range []string{"projections", "runc", "runsc"} {
+		_ = filepath.WalkDir(filepath.Join(filestore, class), func(_ string, entry os.DirEntry, err error) error {
+			if err != nil || entry == nil {
+				return nil
+			}
+			info, err := entry.Info()
+			if err != nil {
+				return nil
+			}
+			if stat, ok := info.Sys().(*syscall.Stat_t); ok && stat.Blocks > 0 {
+				used += stat.Blocks * 512
+			}
+			return nil
+		})
+	}
+	return used
+}
+
+func hasRunscReservations(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		var value struct {
+			RuntimeName string `json:"runtime_name"`
+		}
+		if json.Unmarshal(data, &value) == nil && value.RuntimeName == "runsc" {
+			return true
+		}
+	}
+	return false
+}
+
+func readWritableReservations(dir string) (int64, int64) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0, 0
+	}
+	var reserved, count int64
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		var value struct {
+			RequestBytes int64 `json:"request_bytes"`
+		}
+		if json.Unmarshal(data, &value) == nil && value.RequestBytes > 0 {
+			reserved += value.RequestBytes
+			count++
+		}
+	}
+	return reserved, count
 }
 
 func collectStorageStatFS(path string) (StorageInventoryEntry, error) {

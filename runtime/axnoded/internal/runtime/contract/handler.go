@@ -31,6 +31,13 @@ type ExecutionEnvelopeHandler interface {
 	ActivateExecutionEnvelope(context.Context, *ExecutionEnvelope, HandlerOptions) (*apipb.ContainerMetadata, error)
 }
 
+// PersistentStorageReconciler converges runtime-private storage only after the
+// caller has restored a complete allocation view. Implementations must retain
+// artifacts when runtime inventory is unavailable or ownership is ambiguous.
+type PersistentStorageReconciler interface {
+	ReconcilePersistentStorage(context.Context, []string) error
+}
+
 type RuntimeHandler interface {
 	Name() string
 	Capabilities() RuntimeCapabilities

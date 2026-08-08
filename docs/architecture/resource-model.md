@@ -13,12 +13,13 @@ caps admitted requests.
 
 ## Requests and Limits
 
-`request` is the amount of CPU or memory a workload asks Axern to reserve for
+`request` is the amount of CPU, memory, or writable-layer storage a workload asks Axern to reserve for
 placement and admission. If a request is omitted, the control plane applies the
 default request before placement:
 
 - CPU request: `500m`
 - memory request: `4GiB`
+- writable rootfs request: the resolved writable-layer limit (default `256MiB`)
 
 `limit` is the runtime hard cap. Limits are converted into node-local Linux
 cgroup settings by `axnoded`. A workload may set requests without limits. In
@@ -46,6 +47,15 @@ Memory values accept byte units:
 --limit-memory 2GiB
 ```
 
+Writable-layer values use the same byte units. Writable roots require both a
+reservation and a hard limit; readonly roots reject non-zero writable-layer
+resources:
+
+```bash
+--request-writable-layer 1GiB
+--limit-writable-layer 2GiB
+```
+
 Example:
 
 ```bash
@@ -53,6 +63,8 @@ axern run --template python311 \
   --request-cpu 500m \
   --request-memory 512MiB \
   --limit-memory 1GiB \
+  --request-writable-layer 1GiB \
+  --limit-writable-layer 2GiB \
   -- python -c 'print("hello")'
 ```
 
@@ -78,7 +90,7 @@ CPU can be overcommitted globally by `controld` with
 floor(node_allocatable_cpu_milli * resource_cpu_overcommit_ratio)
 ```
 
-Memory is not overcommitted. Effective memory allocatable is always the node's
+Memory and writable-layer storage are not overcommitted. Effective memory allocatable is always the node's
 reported memory allocatable value.
 
 Overcommit changes control-plane admission capacity only. It does not change
@@ -87,7 +99,7 @@ container cgroup limits or runtime behavior.
 ## Namespace Quota
 
 Namespace quota is a control-plane admission ceiling over active workload
-requests in a namespace. It limits how much CPU and memory a namespace can
+requests in a namespace. It limits CPU, memory, and writable-layer reservations a namespace can
 reserve, independent of which node eventually runs each workload.
 
 Omitted quota fields are unlimited. `quota unset` returns the namespace policy

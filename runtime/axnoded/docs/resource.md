@@ -133,6 +133,8 @@ settings.
 | `requests.memory_bytes` | scheduling reservation only; not a hard cgroup limit |
 | `limits.cpu_milli` | cgroup CFS quota/period hard CPU ceiling |
 | `limits.memory_bytes` | cgroup memory hard limit |
+| `requests.writable_layer_bytes` | control-plane and node-local filestore reservation |
+| `limits.writable_layer_bytes` | runsc `size=` or runc XFS project-quota hard limit |
 
 Container status stores both scheduler-facing `ResourceSpec` and local
 `LinuxResources`. Inventory commitment uses running containers only:
@@ -184,6 +186,12 @@ Key behavior:
 - `recycle_policy = "destroy"` removes them from the known set and queues GC.
 - GC retries failed removals and tries to kill remaining cgroup processes before
   retrying.
+- `cgroup_enforcement = "required"` is the production default. A declared
+  memory limit requires the memory controller, a successful write and readback,
+  and verified runtime host PID membership. Failure force-deletes the sandbox.
+- Runsc node fit adds the configured Sentry/gofer overhead reservation to the
+  user-declared memory request. Namespace quota continues to charge only the
+  user declaration; the two values are persisted separately.
 
 ## Interfaces And Network
 

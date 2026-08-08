@@ -2,10 +2,48 @@ package nodeinventory
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestWritableStorageInventorySeparatesFilesystemAndAllocationUsage(t *testing.T) {
+	filestore := t.TempDir()
+	requireDir := func(path string) {
+		t.Helper()
+		if err := os.MkdirAll(path, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	requireDir(filepath.Join(filestore, "runc", "sandbox", "upper"))
+	requireDir(filepath.Join(filestore, "reservations"))
+	if err := os.WriteFile(filepath.Join(filestore, "runc", "sandbox", "upper", "data"), make([]byte, 8192), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(filestore, "reservations", "sandbox.json"), []byte(`{"runtime_name":"runsc","request_bytes":4096}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	source := NewAxnodedSource(AxnodedSourceOptions{
+		StorageTargets: []StorageTarget{{Target: StorageTargetRuntimeFilestore, Path: filestore}},
+		StatFS: func(string) (StorageInventoryEntry, error) {
+			return StorageInventoryEntry{CapacityBytes: 1 << 20, UsedBytes: 512 << 10, AvailableBytes: 512 << 10}, nil
+		},
+	})
+	snapshot := NewSnapshot()
+	source.collectStorageInventory(time.Now().UTC(), &snapshot)
+	entry := snapshot.Storage[0]
+	if entry.AllocationUsedBytes <= 0 || entry.AllocationUsedBytes == entry.UsedBytes {
+		t.Fatalf("allocation usage = %d, filesystem usage = %d", entry.AllocationUsedBytes, entry.UsedBytes)
+	}
+	if !entry.UnlinkedBackingUsageUnknown {
+		t.Fatal("runsc reservation should expose possible unlinked backing usage")
+	}
+	if snapshot.Resources.WritableLayer.AxnodedUsedBytes != entry.AllocationUsedBytes {
+		t.Fatalf("writable resource usage = %d, want %d", snapshot.Resources.WritableLayer.AxnodedUsedBytes, entry.AllocationUsedBytes)
+	}
+}
 
 func TestCollectStorageInventoryReportsEachTarget(t *testing.T) {
 	now := time.Date(2026, 7, 7, 9, 0, 0, 0, time.UTC)

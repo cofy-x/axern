@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"path/filepath"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	ebpfnetwork "github.com/cofy-x/axern/runtime/axnoded/internal/network/ebpf"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodestate"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
 	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
@@ -191,6 +193,16 @@ func (h *sandboxService) configureServiceCollaborators() {
 func (h *sandboxService) restorePersistentState() error {
 	if err := h.allocationController().RestoreAllocationState(); err != nil {
 		return err
+	}
+	activeIDs := h.allocationController().ActiveAllocationIDs()
+	for _, handler := range h.containerManager.Handlers() {
+		reconciler, ok := handler.(contract.PersistentStorageReconciler)
+		if !ok {
+			continue
+		}
+		if err := reconciler.ReconcilePersistentStorage(context.Background(), activeIDs); err != nil {
+			return fmt.Errorf("reconcile %s persistent runtime storage: %w", handler.Name(), err)
+		}
 	}
 	h.sandboxNetworking().LoadDnatRules()
 	return nil

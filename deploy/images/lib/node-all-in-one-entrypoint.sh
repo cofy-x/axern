@@ -7,8 +7,11 @@ AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
 AXNODED_GRPC_ADDRESS="${AXNODED_GRPC_ADDRESS:-}"
 AXNODED_HTTP_ADDRESS="${AXNODED_HTTP_ADDRESS:-0.0.0.0:23001}"
 AXNODED_FILESTORE_DIR="${AXNODED_FILESTORE_DIR:-/var/lib/axnoded/filestore}"
-AXNODED_FILESTORE_DIR_SIZE="${AXNODED_FILESTORE_DIR_SIZE:-512M}"
-AXNODED_OVERLAY_TMPFS_SIZE="${AXNODED_OVERLAY_TMPFS_SIZE:-256M}"
+AXNODED_FILESTORE_MODE="${AXNODED_FILESTORE_MODE:-loopback_dev}"
+AXNODED_FILESTORE_LOOPBACK_IMAGE="${AXNODED_FILESTORE_LOOPBACK_IMAGE:-${AXNODED_FILESTORE_DIR}.xfs.img}"
+AXNODED_FILESTORE_LOOPBACK_SIZE_BYTES="${AXNODED_FILESTORE_LOOPBACK_SIZE_BYTES:-536870912}"
+AXNODED_FILESTORE_SYSTEM_RESERVE_BYTES="${AXNODED_FILESTORE_SYSTEM_RESERVE_BYTES:-67108864}"
+AXNODED_WRITABLE_LAYER_DEFAULT_LIMIT_BYTES="${AXNODED_WRITABLE_LAYER_DEFAULT_LIMIT_BYTES:-268435456}"
 OBJECT_STORE_ENABLED="${OBJECT_STORE_ENABLED:-false}"
 OBJECT_STORE_SCHEME="${OBJECT_STORE_SCHEME:-https}"
 OBJECT_STORE_ENDPOINT="${OBJECT_STORE_ENDPOINT:-}"
@@ -218,10 +221,13 @@ image_lib_dir = "${AXNODED_ROOT}/rootfs"
 image_manager_socket = "${IMAGEMGR_SOCKET}"
 volume_manager_socket = "${VOLUMED_SOCKET}"
 runtime_runner_binary = "/usr/local/libexec/axnoded/axnoded-runtime-runner"
-ignore_cgroups = true
+cgroup_enforcement = "required"
 filestore_dir = "${AXNODED_FILESTORE_DIR}"
-filestore_dir_size = "${AXNODED_FILESTORE_DIR_SIZE}"
-overlay_tmpfs_size = "${AXNODED_OVERLAY_TMPFS_SIZE}"
+filestore_mode = "${AXNODED_FILESTORE_MODE}"
+filestore_loopback_image = "${AXNODED_FILESTORE_LOOPBACK_IMAGE}"
+filestore_loopback_size_bytes = ${AXNODED_FILESTORE_LOOPBACK_SIZE_BYTES}
+filestore_system_reserve_bytes = ${AXNODED_FILESTORE_SYSTEM_RESERVE_BYTES}
+writable_layer_default_limit_bytes = ${AXNODED_WRITABLE_LAYER_DEFAULT_LIMIT_BYTES}
 idle_runtime_retention_ttl = "${AXNODED_IDLE_RUNTIME_RETENTION_TTL}"
 idle_runtime_retention_max = ${AXNODED_IDLE_RUNTIME_RETENTION_MAX}
 
@@ -234,14 +240,12 @@ options = $(toml_array_from_csv "${AXNODED_DNS_OPTIONS}")
 binary = "/usr/local/bin/runsc"
 
 [plugin.runtime.runtimes.runsc.options]
-ignore_cgroups = true
 allow_suid = true
 
 [plugin.runtime.runtimes.runc]
 binary = "/usr/bin/runc"
 
 [plugin.runtime.runtimes.runc.options]
-ignore_cgroups = true
 EOF
 
 jq -n \

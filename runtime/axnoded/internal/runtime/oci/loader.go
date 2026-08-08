@@ -174,7 +174,7 @@ func (r *BundleLoader) MaterializeBundle(template *BundleTemplate, options LoadO
 		"spec_path":    ociFile,
 		"spec_bytes":   len(buf),
 	}).Debug("wrote OCI spec")
-	return bundleDir, ociSpec, os.WriteFile(ociFile, buf, 0644)
+	return bundleDir, ociSpec, atomicWriteFile(ociFile, buf, 0644)
 }
 
 func (r *BundleLoader) effectiveProfile(profile *ExecutionProfile) ExecutionProfile {
@@ -210,4 +210,12 @@ func LoadSpec(baseFile string) (*spec.Spec, error) {
 		return nil, err
 	}
 	return &ociSpec, nil
+}
+
+func WriteSpecAtomic(target string, ociSpec *spec.Spec) error {
+	buf, err := jsonutil.UnescapedMarshal(ociSpec)
+	if err != nil {
+		return err
+	}
+	return atomicWriteFile(target, buf, 0644)
 }

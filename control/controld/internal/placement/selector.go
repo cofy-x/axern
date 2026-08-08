@@ -68,10 +68,11 @@ func noEligibleNodeError(req *Request, rejected []*nodev1.PlacementCandidate) er
 		Reason: string(reason),
 		Domain: resourcekernel.AdmissionErrorDomain,
 		Metadata: map[string]string{
-			"diagnostic_code":        string(resourcekernel.AdmissionDiagnosticForReason(reason)),
-			"requested_cpu_milli":    fmt.Sprintf("%d", req.GetRequestedCpuMilli()),
-			"requested_memory_bytes": fmt.Sprintf("%d", req.GetRequestedMemoryBytes()),
-			"rejection_reasons":      strings.Join(rejectionReasonLabels(reasons), ","),
+			"diagnostic_code":                string(resourcekernel.AdmissionDiagnosticForReason(reason)),
+			"requested_cpu_milli":            fmt.Sprintf("%d", req.GetRequestedCpuMilli()),
+			"requested_memory_bytes":         fmt.Sprintf("%d", req.GetRequestedMemoryBytes()),
+			"requested_writable_layer_bytes": fmt.Sprintf("%d", req.GetRequestedWritableLayerBytes()),
+			"rejection_reasons":              strings.Join(rejectionReasonLabels(reasons), ","),
 		},
 	})
 	if err != nil {
@@ -97,7 +98,8 @@ func capacityOnlyRejection(reasons []nodev1.PlacementRejectionReason) bool {
 	for _, reason := range reasons {
 		switch reason {
 		case nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_CPU,
-			nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY:
+			nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY,
+			nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_WRITABLE_LAYER:
 			hasCapacityReason = true
 		case nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_UNSPECIFIED:
 		default:
@@ -108,7 +110,7 @@ func capacityOnlyRejection(reasons []nodev1.PlacementRejectionReason) bool {
 }
 
 func noEligibleNodeMessage(req *Request, rejected []*nodev1.PlacementCandidate) string {
-	message := fmt.Sprintf("no eligible node: requested cpu_milli=%d memory_bytes=%d", req.GetRequestedCpuMilli(), req.GetRequestedMemoryBytes())
+	message := fmt.Sprintf("no eligible node: requested cpu_milli=%d memory_bytes=%d writable_layer_bytes=%d", req.GetRequestedCpuMilli(), req.GetRequestedMemoryBytes(), req.GetRequestedWritableLayerBytes())
 	reasons := rejectionReasonLabels(candidateRejectionReasons(rejected))
 	if len(reasons) > 0 {
 		message += "; rejection_reasons=" + strings.Join(reasons, ",")
@@ -158,15 +160,16 @@ func (p *Selector) observeSelection(ctx context.Context, req *Request, mode, res
 		return
 	}
 	p.observer.RecordSelection(ctx, SelectionObservation{
-		Mode:                 mode,
-		Result:               result,
-		Runtime:              req.GetRuntime(),
-		MountType:            req.GetMountType(),
-		RequestedCPUMilli:    req.GetRequestedCpuMilli(),
-		RequestedMemoryBytes: req.GetRequestedMemoryBytes(),
-		EligibleCount:        eligibleCount,
-		RejectedCount:        len(rejected),
-		RejectionReasons:     candidateRejectionReasons(rejected),
+		Mode:                        mode,
+		Result:                      result,
+		Runtime:                     req.GetRuntime(),
+		MountType:                   req.GetMountType(),
+		RequestedCPUMilli:           req.GetRequestedCpuMilli(),
+		RequestedMemoryBytes:        req.GetRequestedMemoryBytes(),
+		RequestedWritableLayerBytes: req.GetRequestedWritableLayerBytes(),
+		EligibleCount:               eligibleCount,
+		RejectedCount:               len(rejected),
+		RejectionReasons:            candidateRejectionReasons(rejected),
 	})
 }
 

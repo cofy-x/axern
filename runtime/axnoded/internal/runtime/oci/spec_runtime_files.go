@@ -1,7 +1,9 @@
 package oci
 
 import (
+	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -10,6 +12,12 @@ import (
 
 type RuntimeFilesConfig struct {
 	DNS RuntimeDNSConfig
+}
+
+type runtimeEtcFile struct {
+	name    string
+	target  string
+	content string
 }
 
 func DefaultRuntimeFilesConfig() RuntimeFilesConfig {
@@ -47,21 +55,23 @@ func materializeRuntimeEtcFiles(bundleDir string, ociSpec *spec.Spec, runtimeFil
 	if bundleDir == "" || ociSpec == nil {
 		return nil
 	}
-	etcDir := filepath.Join(bundleDir, "etc")
-	if err := os.MkdirAll(etcDir, 0755); err != nil {
-		return err
-	}
-
 	hostname := strings.TrimSpace(ociSpec.Hostname)
 	if hostname == "" {
 		hostname = "axnoded"
 	}
 
-	files := []runtimeEtcFile{
-		{name: "hostname", target: "/etc/hostname", content: hostname + "\n"},
-		{name: "hosts", target: "/etc/hosts", content: buildHostsFile(hostname)},
+	files := make([]runtimeEtcFile, 0, 3)
+	if !mountDestinationsOwn(ociSpec.Mounts, "/etc/hostname") {
+		files = append(files, runtimeEtcFile{name: "hostname", target: "/etc/hostname", content: hostname + "\n"})
 	}
-	if !hasMountDestination(ociSpec, "/etc/resolv.conf") {
+	if !mountDestinationsOwn(ociSpec.Mounts, "/etc/hosts") {
+		sandboxIP, err := sandboxIPv4FromSpec(ociSpec)
+		if err != nil {
+			return err
+		}
+		files = append(files, runtimeEtcFile{name: "hosts", target: "/etc/hosts", content: buildHostsFile(hostname, sandboxIP)})
+	}
+	if !mountDestinationsOwn(ociSpec.Mounts, "/etc/resolv.conf") {
 		resolvConf, err := buildResolvConf(runtimeFiles.DNS)
 		if err != nil {
 			return err
@@ -69,42 +79,55 @@ func materializeRuntimeEtcFiles(bundleDir string, ociSpec *spec.Spec, runtimeFil
 		files = append(files, runtimeEtcFile{name: "resolv.conf", target: "/etc/resolv.conf", content: resolvConf})
 	}
 
-	files = managedRuntimeEtcFiles(ociSpec, files)
 	if len(files) == 0 {
 		return nil
 	}
 
-	rootfsPath := runtimeRootfsPath(bundleDir, ociSpec)
-	if shouldUseRuntimeEtcDirMount(ociSpec, rootfsPath, files) {
-		managedEtcDir := filepath.Join(bundleDir, "runtime-etc")
-		if err := materializeRuntimeEtcDir(rootfsPath, managedEtcDir, files); err != nil {
-			return err
-		}
-		insertRuntimeEtcDirMount(ociSpec, managedEtcDir)
-		return nil
+	runtimeFilesDir := filepath.Join(bundleDir, "sandbox-files")
+	if err := os.RemoveAll(runtimeFilesDir); err != nil {
+		return fmt.Errorf("remove stale sandbox files: %w", err)
 	}
+	if err := os.MkdirAll(runtimeFilesDir, 0755); err != nil {
+		return fmt.Errorf("create sandbox files directory: %w", err)
+	}
+	succeeded := false
+	defer func() {
+		if !succeeded {
+			_ = os.RemoveAll(runtimeFilesDir)
+		}
+	}()
 
 	for _, file := range files {
-		path := filepath.Join(etcDir, file.name)
-		if err := os.WriteFile(path, []byte(file.content), 0644); err != nil {
-			return err
+		source := filepath.Join(runtimeFilesDir, file.name)
+		if err := atomicWriteFile(source, []byte(file.content), 0644); err != nil {
+			return fmt.Errorf("write sandbox file %s: %w", file.name, err)
 		}
-		appendRuntimeFileMountIfAbsent(ociSpec, file.target, path)
+		appendRuntimeFileMountIfAbsent(ociSpec, file.target, source)
 	}
+	succeeded = true
 	return nil
 }
 
-func hasMountDestination(ociSpec *spec.Spec, target string) bool {
-	for _, mount := range ociSpec.Mounts {
-		if mount.Destination == target {
+func mountDestinationsOwn(mounts []spec.Mount, target string) bool {
+	for _, mount := range mounts {
+		if mountDestinationOwns(mount.Destination, target) {
 			return true
 		}
 	}
 	return false
 }
 
+func mountDestinationOwns(destination, target string) bool {
+	destination = path.Clean(strings.TrimSpace(destination))
+	target = path.Clean(strings.TrimSpace(target))
+	if !path.IsAbs(destination) || !path.IsAbs(target) {
+		return false
+	}
+	return destination == "/" || destination == target || strings.HasPrefix(target, destination+"/")
+}
+
 func appendRuntimeFileMountIfAbsent(ociSpec *spec.Spec, target, source string) {
-	if hasMountDestination(ociSpec, target) {
+	if mountDestinationsOwn(ociSpec.Mounts, target) {
 		return
 	}
 	ociSpec.Mounts = append(ociSpec.Mounts, spec.Mount{

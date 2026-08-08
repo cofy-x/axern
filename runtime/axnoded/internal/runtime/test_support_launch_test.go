@@ -14,14 +14,18 @@ import (
 
 func newLocalCreateRequest(t *testing.T) *apipb.CreateContainerRequest {
 	t.Helper()
+	rootfs := newReadonlyRootfs(t)
 
 	return &apipb.CreateContainerRequest{
 		Runtime: config.RuntimeNameRunsc,
 		Rootfs: &apipb.Rootfs{
 			Type:     "local",
-			RootDir:  newReadonlyRootfs(t),
+			RootDir:  rootfs,
 			Readonly: true,
 		},
+		Mounts: []*apipb.Mount{{
+			Type: "bind", Source: filepath.Join(rootfs, "etc", "hosts"), Target: "/etc/hosts", Options: []string{"ro"},
+		}},
 		Command: []string{"/bin/sh", "-c", "exit 0"},
 	}
 }
@@ -30,9 +34,14 @@ func newReadonlyRootfs(t *testing.T) string {
 	t.Helper()
 
 	rootfsDir := t.TempDir()
-	for _, dir := range []string{"dev", "mnt", "proc", "sys", "tmp"} {
+	for _, dir := range []string{"dev", "etc", "mnt", "proc", "sys", "tmp"} {
 		if err := os.MkdirAll(filepath.Join(rootfsDir, dir), 0755); err != nil {
 			t.Fatalf("mkdir rootfs %s: %v", dir, err)
+		}
+	}
+	for _, name := range []string{"hosts", "hostname", "resolv.conf"} {
+		if err := os.WriteFile(filepath.Join(rootfsDir, "etc", name), []byte("fixture\n"), 0644); err != nil {
+			t.Fatalf("write rootfs etc/%s: %v", name, err)
 		}
 	}
 	return rootfsDir

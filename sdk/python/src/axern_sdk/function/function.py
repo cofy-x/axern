@@ -302,14 +302,18 @@ class Function:
         resources = common_pb2.ResourceSpec()
         request_cpu = cpu_milli("manifest.resources.request_cpu", self.spec.resources.request_cpu)
         request_memory = memory_bytes("manifest.resources.request_memory", self.spec.resources.request_memory)
+        request_writable_layer = memory_bytes("manifest.resources.request_writable_layer", self.spec.resources.request_writable_layer)
         limit_cpu = cpu_milli("manifest.resources.limit_cpu", self.spec.resources.limit_cpu)
         limit_memory = memory_bytes("manifest.resources.limit_memory", self.spec.resources.limit_memory)
-        if request_cpu > 0 or request_memory > 0:
+        limit_writable_layer = memory_bytes("manifest.resources.limit_writable_layer", self.spec.resources.limit_writable_layer)
+        if request_cpu > 0 or request_memory > 0 or request_writable_layer > 0:
             resources.requests.cpu_milli = request_cpu
             resources.requests.memory_bytes = request_memory
-        if limit_cpu > 0 or limit_memory > 0:
+            resources.requests.writable_layer_bytes = request_writable_layer
+        if limit_cpu > 0 or limit_memory > 0 or limit_writable_layer > 0:
             resources.limits.cpu_milli = limit_cpu
             resources.limits.memory_bytes = limit_memory
+            resources.limits.writable_layer_bytes = limit_writable_layer
 
         config = common_pb2.ExecutionConfig(
             env=dict(self.spec.env),
