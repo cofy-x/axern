@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -169,11 +170,10 @@ func runOne(workDir string, cfg config, tc runCase) error {
 	if cwd == "" {
 		cwd = "/"
 	}
-	labels := map[string]string(nil)
-	if cfg.netnsPath != "" {
-		labels = map[string]string{
-			resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName): (&resourcemanager.NetResource{NetNSPath: cfg.netnsPath}).ToString(),
-		}
+	labels := map[string]string{
+		resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName): (&resourcemanager.NetResource{
+			Ip: net.ParseIP("10.88.0.2"), NetNSPath: cfg.netnsPath,
+		}).ToString(),
 	}
 	request := &apipb.CreateContainerRequest{
 		Command: tc.argv,

@@ -12,6 +12,7 @@ import (
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
+	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
 func assertSandboxdReady(ctx context.Context, bundlePath string) error {
@@ -121,7 +122,7 @@ func assertSandboxdProbePortsMounts(ctx context.Context, bundlePath string) erro
 	return nil
 }
 
-func assertInjectedSpec(ociSpec any) error {
+func assertInjectedSpec(ociSpec *spec.Spec) error {
 	data, err := json.Marshal(ociSpec)
 	if err != nil {
 		return err
@@ -132,6 +133,32 @@ func assertInjectedSpec(ociSpec any) error {
 	}
 	if !strings.Contains(body, runtimeoci.SandboxdGuestEntrypointPath) {
 		return fmt.Errorf("generated OCI spec does not reference sandboxd entrypoint")
+	}
+	if ociSpec == nil || ociSpec.Hostname == "" {
+		return fmt.Errorf("generated OCI spec has no effective hostname")
+	}
+	var hostsSource string
+	for _, mount := range ociSpec.Mounts {
+		if mount.Destination == "/etc/hosts" {
+			hostsSource = mount.Source
+			break
+		}
+	}
+	if hostsSource == "" {
+		return fmt.Errorf("generated OCI spec has no runtime /etc/hosts mount")
+	}
+	hosts, err := os.ReadFile(hostsSource)
+	if err != nil {
+		return fmt.Errorf("read generated /etc/hosts: %w", err)
+	}
+	for _, expected := range []string{
+		"127.0.0.1 localhost",
+		"::1 localhost ip6-localhost ip6-loopback",
+		"10.88.0.2 " + ociSpec.Hostname,
+	} {
+		if !strings.Contains(string(hosts), expected) {
+			return fmt.Errorf("generated /etc/hosts missing %q: %s", expected, hosts)
+		}
 	}
 	return nil
 }
