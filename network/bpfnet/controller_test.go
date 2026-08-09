@@ -369,6 +369,9 @@ func TestControllerFallsBackToLocalCompatWhenLocalhostAttachIsUnavailable(t *tes
 	if status.State.LastLocalhostError == "" {
 		t.Fatalf("expected localhost attach error to be recorded")
 	}
+	if status.State.LastAttachError != "" {
+		t.Fatalf("localhost compatibility error was also recorded as a dataplane attach failure: %q", status.State.LastAttachError)
+	}
 }
 
 func TestStatusAggregatesKernelAndAttachmentObservation(t *testing.T) {

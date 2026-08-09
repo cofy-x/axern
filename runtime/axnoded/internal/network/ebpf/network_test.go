@@ -79,6 +79,46 @@ func (f *fakeController) gcSnapshot() (int, bpfnet.SNATGCPolicy) {
 	return f.gcCalls, f.gcPolicy
 }
 
+func TestProbeHealthAcceptsLocalhostCompatibilityFallback(t *testing.T) {
+	manager := &BPFNetworkManager{controller: &fakeController{status: bpfnet.Status{State: bpfnet.DataplaneState{
+		TCReady:            true,
+		LocalhostCompat:    true,
+		LastLocalhostError: "read host netns cookie: protocol not available",
+	}}}}
+
+	health, err := manager.ProbeHealth("")
+	if err != nil {
+		t.Fatalf("ProbeHealth() error = %v", err)
+	}
+	if !health.PortForwardingReady || !health.NativeDataplaneReady {
+		t.Fatalf("ProbeHealth() = %#v, want port forwarding and native dataplane ready", health)
+	}
+}
+
+func TestProbeHealthReportsFullFallbackAsNonNative(t *testing.T) {
+	manager := &BPFNetworkManager{controller: &fakeController{status: bpfnet.Status{State: bpfnet.DataplaneState{
+		FullFallback:     true,
+		LastAttachError:  "tc attach failed",
+		LastTCProbeError: "tc probe failed",
+	}}}}
+
+	health, err := manager.ProbeHealth("")
+	if err != nil {
+		t.Fatalf("ProbeHealth() error = %v", err)
+	}
+	if !health.PortForwardingReady || health.NativeDataplaneReady {
+		t.Fatalf("ProbeHealth() = %#v, want fallback port forwarding without native dataplane", health)
+	}
+}
+
+func TestProbeHealthReturnsStatusReadError(t *testing.T) {
+	manager := &BPFNetworkManager{controller: &fakeController{statusErr: errors.New("status unavailable")}}
+
+	if _, err := manager.ProbeHealth(""); err == nil {
+		t.Fatal("ProbeHealth() error = nil, want status read error")
+	}
+}
+
 type fakeFallback struct {
 	setupSNATCalls     int
 	cleanupSNATCalls   int

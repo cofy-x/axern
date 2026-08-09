@@ -106,11 +106,6 @@ func (c *Controller) readyState(uplinks []string, attachment dataplaneAttachment
 		}
 	}
 
-	lastAttachError := ""
-	if attachment.LocalhostAttachError != "" {
-		lastAttachError = attachment.LocalhostAttachError
-	}
-
 	return DataplaneState{
 		Mode:               mode,
 		IPRange:            c.ipRange,
@@ -133,7 +128,6 @@ func (c *Controller) readyState(uplinks []string, attachment dataplaneAttachment
 		LocalhostPathReady: attachment.LocalhostTCPDNAT,
 		FullFallback:       false,
 		LocalhostCompat:    localhostCompat,
-		LastAttachError:    lastAttachError,
 		LastLocalhostError: attachment.LocalhostAttachError,
 		UpdatedAt:          time.Now().UTC(),
 	}

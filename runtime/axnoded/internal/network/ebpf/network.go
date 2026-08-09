@@ -52,9 +52,10 @@ func (m *BPFNetworkManager) ProbeHealth(string) (networkmanager.Health, error) {
 	if err != nil {
 		return networkmanager.Health{}, fmt.Errorf("read bpfnet dataplane status: %w", err)
 	}
-	if status.State.LastAttachError != "" || status.State.LastTCProbeError != "" {
-		return networkmanager.Health{}, fmt.Errorf("bpfnet dataplane unhealthy: attach=%q probe=%q", status.State.LastAttachError, status.State.LastTCProbeError)
-	}
+	// Persisted readiness is authoritative. In particular, failure of the
+	// optional localhost cgroup path records LastLocalhostError while TC ingress
+	// and egress remain healthy, and full iptables fallback can still provide
+	// port forwarding without satisfying the native bpfnet capability.
 	return networkmanager.Health{
 		PortForwardingReady:  status.State.TCReady || status.State.FullFallback,
 		NativeDataplaneReady: status.State.TCReady,
