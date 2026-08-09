@@ -200,8 +200,7 @@ helm-install: helm-lint helm-dry-run ## Install or upgrade Axern with Helm
 	$(HELM) $(call helm_args) upgrade --install '$(AXERN_HELM_RELEASE)' '$(AXERN_HELM_CHART)' \
 		$(call helm_common_args) \
 		--create-namespace \
-		$(AXERN_HELM_UPGRADE_ARGS) \
-		$(AXERN_HELM_EXTRA_UPGRADE_ARGS) \
+		$(AXERN_HELM_UPGRADE_ARGS) $(AXERN_HELM_EXTRA_UPGRADE_ARGS) \
 		$(AXERN_HELM_WAIT_ARGS)
 
 helm-status: ## Show the configured Helm release status
