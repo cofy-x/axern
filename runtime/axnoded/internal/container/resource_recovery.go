@@ -8,10 +8,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// reconcileResourceClaims removes persisted pool ownership that has no
-// corresponding container claim. It runs before the node starts serving so an
-// inconsistent resource store cannot be advertised as usable capacity.
-func (m *Manager) reconcileResourceClaims() error {
+// ReconcileResourceClaims removes persisted pool ownership that has no
+// corresponding container claim. The caller must first validate one complete
+// runtime inventory generation. Otherwise missing container metadata could
+// make a live runtime's resource ownership look unclaimed.
+func (m *Manager) ReconcileResourceClaims() error {
 	claimed := make(map[resourcemanager.ResourceName]map[string]struct{})
 	for id, c := range m.containers.Items() {
 		if c == nil || c.Spec == nil || c.Spec.Version == "" {

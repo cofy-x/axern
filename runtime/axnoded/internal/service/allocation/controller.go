@@ -101,8 +101,8 @@ func (c *Controller) CleanupFailedStart(ctx context.Context, allocationID string
 	return c.cleanupFailedStart(ctx, allocationID)
 }
 
-func (c *Controller) RestoreAllocationState() error {
-	if err := c.loadAllocationStates(); err != nil {
+func (c *Controller) RestoreAllocationState(runtimeInventory map[string]struct{}) error {
+	if err := c.loadAllocationStates(runtimeInventory); err != nil {
 		// Reconciliation is destructive: an incomplete recovery view must not
 		// release leases that a still-running container may still be using.
 		logrus.WithError(err).Warn("restore allocation state; skip mount lease reconciliation")

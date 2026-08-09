@@ -180,6 +180,30 @@ func TestStartMonitorGoroutine(t *testing.T) {
 
 }
 
+func TestStartRecoveredMonitorsAfterInventoryReconciliation(t *testing.T) {
+	containers := cmap.New[*Container]()
+	containers.Set("live", &Container{Metadata: &apipb.ContainerMetadata{ID: "live", RuntimeHandler: "runsc"}})
+	containers.Set("orphan", &Container{Metadata: &apipb.ContainerMetadata{ID: "orphan", RuntimeHandler: "runsc"}})
+
+	handlers := cmap.New[contract.RuntimeHandler]()
+	handlers.Set("runsc", runtimetest.NewFakeRuntimeHandler())
+	m := &Manager{
+		containers:      containers,
+		serviceHandler:  handlers,
+		monitorStopChan: cmap.New[chan struct{}](),
+		syncEventChan:   make(chan Event, 8),
+	}
+
+	// Runtime inventory reconciliation removes the proven orphan before any
+	// recovered Wait call can be started for it.
+	m.containers.Remove("orphan")
+	m.startRecoveredMonitors()
+
+	assert.True(t, m.monitorStopChan.Has("live"))
+	assert.False(t, m.monitorStopChan.Has("orphan"))
+	m.stopMonitor("live")
+}
+
 func TestHousekeeping(t *testing.T) {
 	healthChan := make(chan bool)
 

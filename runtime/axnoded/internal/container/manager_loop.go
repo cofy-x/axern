@@ -11,8 +11,27 @@ import (
 )
 
 func (m *Manager) Start() {
+	if !m.started.CompareAndSwap(false, true) {
+		return
+	}
+	m.startRecoveredMonitors()
 	m.housekeeping()
 	m.loop()
+}
+
+// startRecoveredMonitors runs only after startup runtime inventory
+// reconciliation has removed records that are no longer owned by a live
+// runtime. Starting these monitors in NewManager would race runtime Wait with
+// orphan cleanup and could turn persisted recovery input into false liveness.
+func (m *Manager) startRecoveredMonitors() {
+	for item := range m.containers.IterBuffered() {
+		if item.Val != nil && item.Val.Metadata != nil {
+			m.startMonitorGoroutine(item.Val.Metadata, make(chan struct{}))
+		}
+	}
+	if count := m.monitorStopChan.Count(); count > 0 {
+		logrus.Infof("started monitors for %d runtime-reconciled containers", count)
+	}
 }
 
 func (m *Manager) Stop() {

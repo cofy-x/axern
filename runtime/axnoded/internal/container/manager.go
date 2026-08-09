@@ -40,6 +40,7 @@ type Manager struct {
 	exitObserver func(Event)
 
 	isHousekeepingRunning atomic.Bool
+	started               atomic.Bool
 }
 
 func NewManager(root string, handlers cmap.ConcurrentMap[string, contract.RuntimeHandler], healthChan chan bool, managers ...resourcemanager.Manager) (*Manager, error) {
@@ -67,17 +68,9 @@ func NewManager(root string, handlers cmap.ConcurrentMap[string, contract.Runtim
 	if err := m.loadContainers(); err != nil {
 		return nil, err
 	}
-	if err := m.reconcileResourceClaims(); err != nil {
-		return nil, err
-	}
 
-	for item := range m.containers.IterBuffered() {
-		if item.Val != nil && item.Val.Metadata != nil {
-			m.startMonitorGoroutine(item.Val.Metadata, make(chan struct{}))
-		}
-	}
 	if count := m.containers.Count(); count > 0 {
-		logrus.Infof("recovered %d containers from disk, monitors started", count)
+		logrus.Infof("recovered %d containers from disk, awaiting runtime inventory reconciliation", count)
 	}
 
 	return m, nil

@@ -198,19 +198,76 @@ func (h *sandboxService) configureServiceCollaborators() {
 }
 
 func (h *sandboxService) restorePersistentState() error {
-	if err := h.allocationController().RestoreAllocationState(); err != nil {
+	inventory, err := h.collectRuntimeInventory(context.Background())
+	if err != nil {
 		return err
 	}
-	activeIDs := h.allocationController().ActiveAllocationIDs()
+	if err := h.containerManager.ValidateRuntimeInventory(inventory); err != nil {
+		return fmt.Errorf("validate persisted container inventory: %w", err)
+	}
+	if err := h.containerManager.ReconcileResourceClaims(); err != nil {
+		return fmt.Errorf("reconcile persisted resource claims: %w", err)
+	}
+	if err := h.allocationController().RestoreAllocationState(inventory.allIDs()); err != nil {
+		return err
+	}
 	for _, handler := range h.containerManager.Handlers() {
 		reconciler, ok := handler.(contract.PersistentStorageReconciler)
 		if !ok {
 			continue
 		}
-		if err := reconciler.ReconcilePersistentStorage(context.Background(), activeIDs); err != nil {
+		if err := reconciler.ReconcilePersistentStorage(context.Background(), inventory.forRuntime(handler.Name())); err != nil {
 			return fmt.Errorf("reconcile %s persistent runtime storage: %w", handler.Name(), err)
 		}
 	}
+	if err := h.containerManager.ReconcileRuntimeInventory(inventory); err != nil {
+		return fmt.Errorf("reconcile persisted container inventory: %w", err)
+	}
 	h.sandboxNetworking().LoadDnatRules()
 	return nil
+}
+
+type runtimeInventory map[string]map[string]struct{}
+
+func (h *sandboxService) collectRuntimeInventory(ctx context.Context) (runtimeInventory, error) {
+	inventory := make(runtimeInventory, len(h.containerManager.Handlers()))
+	owners := make(map[string]string)
+	for _, handler := range h.containerManager.Handlers() {
+		runtimeName := handler.Name()
+		states, err := handler.ListContainers(ctx, contract.HandlerOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("list %s containers before persistent-state reconciliation: %w", runtimeName, err)
+		}
+		ids := make(map[string]struct{}, len(states))
+		for _, state := range states {
+			if state == nil || state.ID == "" {
+				return nil, fmt.Errorf("runtime %s returned an invalid container inventory entry", runtimeName)
+			}
+			if owner, duplicate := owners[state.ID]; duplicate {
+				return nil, fmt.Errorf("container %s is reported by both %s and %s", state.ID, owner, runtimeName)
+			}
+			owners[state.ID] = runtimeName
+			ids[state.ID] = struct{}{}
+		}
+		inventory[runtimeName] = ids
+	}
+	return inventory, nil
+}
+
+func (i runtimeInventory) forRuntime(runtimeName string) map[string]struct{} {
+	result := make(map[string]struct{}, len(i[runtimeName]))
+	for id := range i[runtimeName] {
+		result[id] = struct{}{}
+	}
+	return result
+}
+
+func (i runtimeInventory) allIDs() map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, ids := range i {
+		for id := range ids {
+			result[id] = struct{}{}
+		}
+	}
+	return result
 }

@@ -88,3 +88,13 @@ Cleanup order is runtime delete, projection/host-overlay unmount, upper/work
 removal, writable reservation/project-ID release, then image mount lease
 release. If runtime delete fails and the process may still live, the projection,
 reservation, project ID, and lower lease remain for reconciliation.
+
+At daemon startup, one complete generation of successful inventories from all
+enabled runc/runsc handlers is the sole liveness authority for runtime-private
+projections, writable reservations, allocation recovery records, and container
+resource claims. Persisted metadata is recovery input, but cannot keep storage
+alive after the owning runtime has disappeared. Inventory collection and
+ownership validation finish before the first cleanup; an unreadable inventory,
+duplicate ownership, missing live metadata, or an unknown persisted runtime
+causes fail-closed retention with no partial deletion. If a listed runtime is
+still present, backing identity and hard-limit state remain fail-closed.

@@ -276,23 +276,31 @@ func (h *Controller) releaseAllocationState(allocationID string) error {
 	return nil
 }
 
-func (h *Controller) loadAllocationStates() error {
-	var recoveryErr error
-	err := h.store.ForEachRecord(config.AllocationStateBucket, func(key string, value []byte) error {
-		if _, err := h.containers().Get(key); err != nil {
-			if err := h.store.DeleteRecord(config.AllocationStateBucket, key); err != nil {
-				recoveryErr = errors.Join(recoveryErr, fmt.Errorf("delete orphan allocation state %s: %w", key, err))
-			}
-			return nil
+func (h *Controller) loadAllocationStates(runtimeInventory map[string]struct{}) error {
+	records := make(map[string][]byte)
+	if err := h.store.ForEachRecord(config.AllocationStateBucket, func(key string, value []byte) error {
+		records[key] = append([]byte(nil), value...)
+		return nil
+	}); err != nil {
+		return err
+	}
+	for id := range runtimeInventory {
+		if _, ok := records[id]; !ok {
+			return fmt.Errorf("live runtime container %s has no allocation recovery record", id)
 		}
+	}
+
+	var recoveryErr error
+	for key := range runtimeInventory {
+		value := records[key]
 		var record apipb.AllocationState
 		if err := proto.Unmarshal(value, &record); err != nil {
 			recoveryErr = errors.Join(recoveryErr, fmt.Errorf("decode allocation state %s: %w", key, err))
-			return nil
+			continue
 		}
 		if record.GetAllocationID() == "" || record.GetAllocationID() != key {
 			recoveryErr = errors.Join(recoveryErr, fmt.Errorf("allocation state key %s does not match record id %s", key, record.GetAllocationID()))
-			return nil
+			continue
 		}
 		state, err := h.restoreAllocationState(&record)
 		h.stateMu.Lock()
@@ -301,9 +309,21 @@ func (h *Controller) loadAllocationStates() error {
 		if err != nil {
 			recoveryErr = errors.Join(recoveryErr, fmt.Errorf("restore allocation %s state: %w", key, err))
 		}
-		return nil
-	})
-	return errors.Join(err, recoveryErr)
+	}
+	if recoveryErr != nil {
+		return recoveryErr
+	}
+
+	var cleanupErr error
+	for key := range records {
+		if _, live := runtimeInventory[key]; live {
+			continue
+		}
+		if err := h.store.DeleteRecord(config.AllocationStateBucket, key); err != nil {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("delete orphan allocation state %s: %w", key, err))
+		}
+	}
+	return cleanupErr
 }
 
 func (h *Controller) restoreAllocationState(record *apipb.AllocationState) (*allocationState, error) {
