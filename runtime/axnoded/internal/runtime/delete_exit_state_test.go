@@ -62,6 +62,9 @@ func TestRunscForceDeleteStopsForegroundRunBeforeDeletingState(t *testing.T) {
 	}
 	recorder := &recordingExecutor{}
 	handler.common.SetExecutor(recorder)
+	if err := handler.persistExitState("alloc-a", contract.Exit{Timestamp: time.Now().UTC(), Status: 137}); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := handler.DeleteContainer(context.Background(), &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"}); err != nil {
 		t.Fatalf("DeleteContainer() error = %v", err)
@@ -73,6 +76,76 @@ func TestRunscForceDeleteStopsForegroundRunBeforeDeletingState(t *testing.T) {
 	}
 	if got := recorder.Args(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("runtime commands = %#v, want %#v", got, want)
+	}
+}
+
+func TestRunscForceDeleteWaitsForForegroundExitState(t *testing.T) {
+	handler, err := NewRunscServiceHandler(
+		config.Config{RootDir: t.TempDir()},
+		config.RuntimeNameRunsc,
+		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := &recordingExecutor{}
+	handler.common.SetExecutor(recorder)
+	done := make(chan error, 1)
+	go func() {
+		_, err := handler.DeleteContainer(context.Background(), &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"})
+		done <- err
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	for len(recorder.Args()) != 1 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := recorder.Args(); len(got) != 1 || !containsArg(got[0], "kill") {
+		t.Fatalf("commands before exit state = %#v, want only kill", got)
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("DeleteContainer() returned before runtime runner exit: %v", err)
+	default:
+	}
+	if err := handler.persistExitState("alloc-a", contract.Exit{Timestamp: time.Now().UTC(), Status: 137}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("DeleteContainer() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("DeleteContainer() did not continue after exit state was persisted")
+	}
+	if got := recorder.Args(); len(got) != 2 || !containsArg(got[1], "delete") {
+		t.Fatalf("commands after exit state = %#v, want kill then delete", got)
+	}
+}
+
+func TestRunscForceDeleteDoesNotDeleteBeforeForegroundExit(t *testing.T) {
+	handler, err := NewRunscServiceHandler(
+		config.Config{RootDir: t.TempDir()},
+		config.RuntimeNameRunsc,
+		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := &recordingExecutor{}
+	handler.common.SetExecutor(recorder)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	_, err = handler.DeleteContainer(ctx, &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"})
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("DeleteContainer() error = %v, want deadline exceeded", err)
+	}
+	if got := recorder.Args(); len(got) != 1 || !containsArg(got[0], "kill") {
+		t.Fatalf("commands without foreground exit = %#v, want only kill", got)
 	}
 }
 

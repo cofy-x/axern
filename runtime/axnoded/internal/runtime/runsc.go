@@ -40,6 +40,7 @@ type runscState struct {
 var (
 	runscExitStateGracePeriod = 5 * time.Second
 	runscWaitRetryTimeout     = 200 * time.Millisecond
+	runscForceStopTimeout     = 5 * time.Second
 )
 
 func (r *RunscServiceHandler) Name() string {

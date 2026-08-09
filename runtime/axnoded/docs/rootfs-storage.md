@@ -88,10 +88,11 @@ Cleanup order is runtime delete, projection/host-overlay unmount, upper/work
 removal, writable reservation/project-ID release, then image mount lease
 release. If runtime delete fails and the process may still live, the projection,
 reservation, project ID, and lower lease remain for reconciliation.
-For foreground `runsc run` sandboxes, forced deletion is a two-phase runtime
-operation: send `KILL` so the foreground runner can persist exit state and
-release the sandbox lock, then execute `runsc delete --force`. Issuing delete
-first can deadlock teardown behind the lock held by the still-running command.
+For foreground `runsc run` sandboxes, forced deletion is an ordered runtime
+protocol: send `KILL`, wait until the runtime runner has persisted exit state
+and released the sandbox lock, then execute `runsc delete --force`. Issuing
+delete before that barrier can deadlock teardown between the deleting process
+and the still-converging foreground command.
 
 At daemon startup, one complete generation of successful inventories from all
 enabled runc/runsc handlers is the sole liveness authority for runtime-private

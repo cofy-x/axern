@@ -3,6 +3,8 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -35,6 +37,14 @@ func (r *RunscServiceHandler) deleteRuntimeContainer(ctx context.Context, contai
 	var stopErr error
 	if force {
 		_, stopErr = r.runLifecycle(ctx, "kill", containerID, "KILL")
+		if stopErr == nil {
+			if err := r.waitForForegroundRunExit(ctx, containerID); err != nil {
+				// Do not issue delete while the foreground run command may still
+				// own the sandbox lock. The caller must retain rootfs storage and
+				// let reconciliation retry the ordered stop protocol.
+				return err
+			}
+		}
 	}
 
 	args := []string{"delete"}
@@ -52,6 +62,25 @@ func (r *RunscServiceHandler) deleteRuntimeContainer(ctx context.Context, contai
 	// A successful delete is authoritative. The preceding kill may legitimately
 	// report that an already-stopped sandbox was not running.
 	return nil
+}
+
+func (r *RunscServiceHandler) waitForForegroundRunExit(parent context.Context, containerID string) error {
+	ctx, cancel := context.WithTimeout(parent, runscForceStopTimeout)
+	defer cancel()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if _, ok, err := r.readExitState(containerID); err != nil {
+			return fmt.Errorf("read runsc exit state after forced stop: %w", err)
+		} else if ok {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for foreground runsc command to release sandbox state: %w", ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 func (r *RunscServiceHandler) cleanupContainer(ctx context.Context, traceID, containerID, msg string) {
