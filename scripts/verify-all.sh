@@ -169,7 +169,6 @@ describe_step() {
     axnoded-verify-node-startup-metrics-e2e) echo "Run axnoded startup metrics E2E" ;;
     axnoded-verify-node-startup-matrix-smoke) echo "Run axnoded startup matrix smoke verification" ;;
     axnoded-verify-node-bundle-template-e2e) echo "Run axnoded bundle-template reuse E2E" ;;
-    axnoded-verify-node-execution-envelope-prewarm-e2e) echo "Run axnoded execution-envelope prewarm E2E" ;;
     axnoded-verify-node-service-volumes-e2e) echo "Run axnoded service node-local volume persistence E2E" ;;
     axnoded-verify-node-python-runtime-e2e) echo "Run axnoded programmable Python runtime E2E" ;;
     axnoded-verify-node-retention-e2e) echo "Run axnoded runtime retention E2E" ;;
@@ -281,9 +280,6 @@ run_step() {
     axnoded-verify-node-bundle-template-e2e)
       run_cmd make -C runtime/axnoded verify-node-bundle-template-e2e
       ;;
-    axnoded-verify-node-execution-envelope-prewarm-e2e)
-      run_cmd make -C runtime/axnoded verify-node-execution-envelope-prewarm-e2e
-      ;;
     axnoded-verify-node-service-volumes-e2e)
       run_cmd make -C runtime/axnoded verify-node-service-volumes-e2e
       ;;
@@ -363,7 +359,6 @@ steps+=(
   axnoded-verify-node-startup-metrics-e2e
   axnoded-verify-node-startup-matrix-smoke
   axnoded-verify-node-bundle-template-e2e
-  axnoded-verify-node-execution-envelope-prewarm-e2e
   axnoded-verify-node-service-volumes-e2e
   axnoded-verify-node-python-runtime-e2e
   axnoded-verify-node-retention-e2e

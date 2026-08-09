@@ -57,7 +57,7 @@ func parseFlags() verifyStartupConfig {
 	flag.StringVar(&cfg.s3AccessKeySecret, "s3-access-key-secret", "", "S3/OSS access key secret for rootfs-src=s3")
 	flag.StringVar(&cfg.stdoutDir, "stdout-dir", "/tmp/startup-matrix-stdout", "directory for startup sample stdout files")
 	flag.StringVar(&cfg.stderrDir, "stderr-dir", "/tmp/startup-matrix-stderr", "directory for startup sample stderr files")
-	flag.BoolVar(&cfg.omitStdio, "omit-stdio", false, "omit stdout/stderr paths so static-only execution-envelope paths can be exercised")
+	flag.BoolVar(&cfg.omitStdio, "omit-stdio", false, "omit explicit stdout/stderr paths to exercise runtime-provided defaults")
 	flag.StringVar(&cfg.argvJSON, "argv-json", "", "JSON argv array to execute inside the container")
 	flag.BoolVar(&cfg.waitBeforeDelete, "wait-before-delete", false, "wait for the container to exit before issuing delete")
 	flag.IntVar(&cfg.expectedExit, "expected-exit", 0, "expected exit code when wait-before-delete is enabled")

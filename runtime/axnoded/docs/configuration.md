@@ -132,10 +132,10 @@ materialization, volumed integration, and warm idle runtime retention.
 | `image_manager_enabled` | Enables `imagemgr` for image-backed rootfs and inventory. | Defaults to true. Set false for local-rootfs-only setups. |
 | `image_lib_dir` | Local rootfs/image library directory. | Used by image/rootfs flows under axnoded. |
 | `image_manager_socket` | Unix socket for `imagemgr`. | Ignored when `image_manager_enabled = false`; default is `/var/run/imagemgr.sock`. |
-| `runtime_runner_binary` | One-shot helper used to run OCI runtime commands and persist exit state. | Defaults to `/usr/local/libexec/axnoded/axnoded-runtime-runner`; packaged node images install it there. |
+| `runtime_runner_binary` | Host lifecycle helper used to monitor OCI init/runtime processes and durably persist their exact wait status. | Defaults to `/usr/local/libexec/axnoded/axnoded-runtime-runner`; packaged node images install it there. |
 | `volume_manager_socket` | Local `volumed` Unix socket used to publish resolved node volumes. | Defaults to `/run/volumed/volumed.sock`. |
 | `idle_runtime_retention_ttl` | How long idle runtime templates/rootfs state remain warm. | Empty falls back to `5m`. |
-| `idle_runtime_retention_max` | Max retained static runtime templates per node. | Defaults to `8`; `<= 0` disables idle retention. Size this against the memory cost of a prepared runtime envelope, not allocation capacity. |
+| `idle_runtime_retention_max` | Max retained static runtime templates per node. | Defaults to `8`; `<= 0` disables idle retention. Retention keeps rootfs leases and bundle templates, never an allocation-less OCI container. |
 | `cgroup_enforcement` | `required` or explicit local-only `disabled_dev`. | Defaults to `required`. `disabled_dev` rejects any workload declaring a memory hard limit. |
 | `filestore_mode` | `existing` or `loopback_dev`. | Production uses an existing data-disk mount. Loopback mode is development-only and never reformats an existing image. |
 | `filestore_dir` | Runtime writable-storage mount. | Must be a writable independent XFS or ext4 mount; startup performs a real OverlayFS scratch probe. |
@@ -146,12 +146,10 @@ materialization, volumed integration, and warm idle runtime retention.
 
 Runtime retention is keyed by the static execution template, so namespace,
 service, environment, and allocation-specific volume identity do not duplicate
-the same rootfs/template cache entry. Prepared execution envelopes are only
-eligible for requests with no dynamic resources, mounts, environment, network,
-or lifecycle metadata. A dynamic request disables envelope preparation for
-that request shape; a later eligible request can enable it again. Dynamic
-service traffic therefore does not keep a
-runsc/runc process that later allocations cannot safely activate.
+the same rootfs/template cache entry. It retains only reusable immutable rootfs
+and bundle-template inputs. OCI create is always allocation-owned because the
+container ID, cgroup, network, storage reservation, evidence, and cleanup
+record cannot be safely rebound to a future allocation.
 
 ### Runtime DNS
 

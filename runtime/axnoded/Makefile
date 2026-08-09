@@ -55,7 +55,6 @@ HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/demo/nginx ./
 	verify-node-startup-metrics-e2e \
 	verify-node-startup-matrix-smoke \
 	verify-node-bundle-template-e2e \
-	verify-node-execution-envelope-prewarm-e2e \
 	verify-node-service-volumes-e2e \
 	verify-node-service-probes-e2e \
 	verify-node-python-runtime-e2e \
@@ -139,12 +138,15 @@ FORCE:
 protos-shared:
 	$(MAKE) -C $(SDK_PROTO_DIR) generate-go
 
-gen-protoc-internal:
+$(SDK_PROTO_GO_FIX_ACRONYM):
+	$(MAKE) -C $(SDK_PROTO_DIR) tools
+
+gen-protoc-internal: $(SDK_PROTO_GO_FIX_ACRONYM)
 	protoc -I . -I $(REPO_ROOT)/sdk/proto --go_out=. --go_opt=paths=source_relative internal/apipb/v1/*.proto
+	PATH="$(SDK_PROTO_BIN_DIR):$$PATH" $(SDK_PROTO_GO_FIX_ACRONYM) -w -a '(Id|Io|Uuid|Os)$$' $$(find internal/apipb -name '*.pb.go')
 
 protos: protos-shared gen-protoc-internal ## regenerate protobuf code
 	@echo "$(WHALE) $@"
-	PATH="$(SDK_PROTO_BIN_DIR):$$PATH" $(SDK_PROTO_GO_FIX_ACRONYM) -w -a '(Id|Io|Uuid|Os)$$' $(shell find internal/apipb -name '*.pb.go')
 
 protos-docker-build: ## build the pinned Docker image for protobuf generation
 	@bash ./scripts/tools/protos-docker.sh --build-only
@@ -217,9 +219,6 @@ verify-node-startup-matrix-smoke: ## run a focused startup matrix smoke verifica
 
 verify-node-bundle-template-e2e: ## run privileged node all-in-one bundle template reuse end-to-end verification
 	@bash ./scripts/verify/verify-node-bundle-template-e2e.sh
-
-verify-node-execution-envelope-prewarm-e2e: ## run privileged node all-in-one execution-envelope prewarm end-to-end verification
-	@bash ./scripts/verify/verify-node-execution-envelope-prewarm-e2e.sh
 
 verify-node-service-volumes-e2e: ## run privileged node all-in-one service node-local volume persistence verification
 	@bash ./scripts/verify/verify-node-service-volumes-e2e.sh

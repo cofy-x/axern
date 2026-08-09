@@ -13,4 +13,13 @@ func TestExtensionCapabilitiesParsesExactValues(t *testing.T) {
 	if _, err := ExtensionCapabilities([]string{"=value"}); err == nil {
 		t.Fatal("empty extension capability name was accepted")
 	}
+	if _, err := ExtensionCapabilities([]string{"example.com/accelerator=v1", "example.com/accelerator=v2"}); err == nil {
+		t.Fatal("multiple exact values for one extension capability name were accepted")
+	}
+	if _, err := ExtensionCapabilities([]string{"axern.io/internal=true"}); err == nil {
+		t.Fatal("reserved extension capability domain was accepted")
+	}
+	if _, err := ExtensionCapabilities([]string{" example.com/accelerator=v1"}); err == nil {
+		t.Fatal("extension capability name with surrounding whitespace was accepted")
+	}
 }

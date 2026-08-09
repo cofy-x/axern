@@ -27,7 +27,7 @@ type ServiceReplicaJSON struct {
 	ReadinessMessage     string                            `json:"readiness_message,omitempty"`
 	Message              string                            `json:"message,omitempty"`
 	LifecycleRetry       *ServiceReplicaLifecycleRetryJSON `json:"lifecycle_retry,omitempty"`
-	CapabilityConditions []*CapabilityConditionJSON        `json:"capability_conditions,omitempty"`
+	CapabilityConditions *CapabilityConditionSetJSON       `json:"capability_conditions,omitempty"`
 }
 
 type ServiceReplicaLifecycleRetryJSON struct {
@@ -69,7 +69,7 @@ func NewServiceReplicaJSON(replica *servicev1.ServiceReplica) *ServiceReplicaJSO
 		ReadinessMessage:     replica.GetReadinessMessage(),
 		Message:              replica.GetMessage(),
 		LifecycleRetry:       newServiceReplicaLifecycleRetryJSON(replica.GetLifecycleRetry()),
-		CapabilityConditions: newCapabilityConditionJSONs(replica.GetCapabilityConditions()),
+		CapabilityConditions: newCapabilityConditionSetJSON(replica.GetCapabilityConditions()),
 	}
 }
 

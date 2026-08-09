@@ -65,6 +65,7 @@ cat >> /tmp/axnoded-config.toml <<EOF
 
 [plugin.runtime.runtimes.${RUNTIME_UNDER_TEST}]
 binary = "${RUNTIME_BINARY}"
+base_spec = "/etc/axnoded/${RUNTIME_UNDER_TEST}-config.json"
 EOF
 
 mkdir -p \
@@ -75,9 +76,19 @@ mkdir -p \
   /run/axnoded \
   /tmp/runsc
 
+# Axnoded loads every configured runtime before readiness. Materialize the
+# explicit fail-closed base spec for both built-in handlers, not only the
+# runtime selected by this verification profile.
+ensure_node_runtime_base_spec "/usr/bin/runc" "/etc/axnoded/runc-config.json"
+ensure_node_runtime_base_spec "/usr/local/bin/runsc" "/etc/axnoded/runsc-config.json"
+
 AXNODED_PID=""
 rootfs_staging_dir=""
 cleanup() {
+  if [ "${VERIFY_CAPTURE_CAPABILITY_SNAPSHOT:-false}" = "true" ] && \
+     [ -n "${AXNODED_PID}" ] && kill -0 "${AXNODED_PID}" >/dev/null 2>&1; then
+    curl -fsS http://127.0.0.1:23001/inventoryz > /tmp/axnoded-capability-inventory.json || true
+  fi
   if [ -n "${AXNODED_PID}" ] && kill -0 "${AXNODED_PID}" >/dev/null 2>&1; then
     kill "${AXNODED_PID}" >/dev/null 2>&1 || true
     wait "${AXNODED_PID}" >/dev/null 2>&1 || true

@@ -65,13 +65,23 @@ func TestRunJSONUsesStableShape(t *testing.T) {
 			Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT},
 		},
 		CreatedAt: createdAt,
-		CapabilityConditions: []*capabilityv1.CapabilityCondition{{
+		CapabilityConditions: &capabilityv1.CapabilityConditionSet{Revision: 1, ObservedAt: createdAt, Conditions: []*capabilityv1.CapabilityCondition{{
 			Key:        &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT}},
 			State:      capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-			Evidence:   &capabilityv1.CapabilityEvidence{EvidenceID: "runtime-proof", RuntimeName: "runsc"},
+			Proof: &capabilityv1.CapabilityObservationProof{
+				ObservationID: "runtime-observation",
+				Provider:      capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
+				ObservedAt:    createdAt,
+				Evidence: &capabilityv1.CapabilityEvidence{
+					EvidenceID: "runtime-proof",
+					Identity: &capabilityv1.CapabilityEvidence_Runtime{Runtime: &capabilityv1.RuntimeEvidenceIdentity{
+						RuntimeName: "runsc",
+					}},
+				},
+			},
 			ObservedAt: createdAt,
-		}},
+		}}},
 		ExitCode:      0,
 		ExitCodeKnown: true,
 	}

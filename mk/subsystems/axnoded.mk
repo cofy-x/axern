@@ -23,7 +23,6 @@ AXNODED_DIR := runtime/axnoded
 	axnoded-verify-node-startup-metrics-e2e \
 	axnoded-verify-node-startup-matrix-smoke \
 	axnoded-verify-node-bundle-template-e2e \
-	axnoded-verify-node-execution-envelope-prewarm-e2e \
 	axnoded-verify-node-python-runtime-e2e \
 	axnoded-verify-node-retention-e2e \
 	axnoded-verify-node-locality-e2e \
@@ -111,9 +110,6 @@ axnoded-verify-node-startup-matrix-smoke: ## Run the axnoded startup matrix smok
 
 axnoded-verify-node-bundle-template-e2e: ## Run the axnoded node all-in-one bundle template end-to-end verification
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-bundle-template-e2e)
-
-axnoded-verify-node-execution-envelope-prewarm-e2e: ## Run the axnoded node all-in-one execution-envelope prewarm verification
-	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-execution-envelope-prewarm-e2e)
 
 axnoded-verify-node-python-runtime-e2e: ## Run the axnoded node all-in-one programmable Python runtime verification
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-python-runtime-e2e)

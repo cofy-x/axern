@@ -2,6 +2,7 @@ package verifyutil
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
@@ -56,4 +57,16 @@ func (r *RootfsSpec) Apply(spec *privatenodev1.ResolvedExecutionConfig) {
 	spec.ImageDigest = r.ImageRef
 	spec.LocalRootfsPath = r.LocalRootfsPath
 	spec.S3Rootfs = r.S3Rootfs
+	switch r.Type {
+	case "local":
+		spec.LocalityKey = "local:" + filepath.Clean(r.LocalRootfsPath)
+	case "image":
+		spec.LocalityKey = "image:" + strings.TrimSpace(r.ImageRef)
+	case "s3":
+		spec.LocalityKey = fmt.Sprintf("s3:%s/%s/%s",
+			strings.TrimSpace(r.S3Rootfs.GetEndpoint()),
+			strings.TrimSpace(r.S3Rootfs.GetBucket()),
+			strings.TrimPrefix(strings.TrimSpace(r.S3Rootfs.GetObject()), "/"),
+		)
+	}
 }

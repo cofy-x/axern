@@ -73,6 +73,41 @@ wait_for_dashboard() {
   return 1
 }
 
+wait_for_dashboard_capabilities() {
+  local started_at deadline next_progress inventory
+  started_at=${SECONDS}
+  deadline=$((started_at + READY_TIMEOUT))
+  next_progress=$((SECONDS + 15))
+  while [ "${SECONDS}" -lt "${deadline}" ]; do
+    inventory="$(curl -fsS --connect-timeout 1 --max-time 3 \
+      "http://${DASHBOARD_HOST}:${DASHBOARD_HOST_PORT}/inventoryz" 2>/dev/null || true)"
+    if jq -e '
+      def available($name):
+        [.node.capability_snapshot.observations[]?
+          | select(.key.platform == $name and .state == "CAPABILITY_STATE_AVAILABLE")]
+        | length == 1;
+      available("PLATFORM_CAPABILITY_PORT_FORWARDING") and
+      available("PLATFORM_CAPABILITY_NETWORK_BPFNET") and
+      available("PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT") and
+      available("PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT")
+    ' <<<"${inventory}" >/dev/null 2>&1; then
+      echo "dashboard_capabilities_ready=true"
+      return 0
+    fi
+    if ! docker ps --filter "name=${DEMO_CONTAINER_NAME}" --filter "status=running" --format '{{.Names}}' | grep -qx "${DEMO_CONTAINER_NAME}"; then
+      return 1
+    fi
+    if [ "${SECONDS}" -ge "${next_progress}" ]; then
+      echo "waiting_for_dashboard_capabilities=true elapsed_seconds=$((SECONDS - started_at))" >&2
+      next_progress=$((SECONDS + 15))
+    fi
+    sleep 1
+  done
+  echo "--- capability observations ---" >&2
+  jq -r '.node.capability_snapshot.observations[]? | [.key.platform, .state, .reason_code, .reason] | @tsv' <<<"${inventory}" >&2 || true
+  return 1
+}
+
 assert_check_json() {
   local label="$1"
   local json_file stderr_file
@@ -112,11 +147,19 @@ assert_check_json() {
 
 start_demo_instance() {
   local runtime="$1"
+  local result status redirect_url
   # The dashboard handler has a 90-second action deadline. Keep the client
   # bounded while allowing a small margin for the HTTP response.
-  curl -fsS --connect-timeout 2 --max-time 95 -X POST \
+  result="$(curl -sS --connect-timeout 2 --max-time 95 -X POST \
     -d "runtime=${runtime}&action=start" \
-    "http://${DASHBOARD_HOST}:${DASHBOARD_HOST_PORT}/demo/nginx" >/dev/null
+    -o /dev/null -w '%{http_code}\n%{redirect_url}' \
+    "http://${DASHBOARD_HOST}:${DASHBOARD_HOST_PORT}/demo/nginx")"
+  status="$(printf '%s\n' "${result}" | sed -n '1p')"
+  redirect_url="$(printf '%s\n' "${result}" | sed -n '2p')"
+  if [ "${status}" != "303" ] || [[ "${redirect_url}" != *"message=${runtime}+start+ok"* ]] || [[ "${redirect_url}" == *"error="* ]]; then
+    echo "dashboard start action failed: runtime=${runtime} status=${status} redirect=${redirect_url}" >&2
+    return 1
+  fi
 }
 
 wait_for_instances() {
@@ -157,6 +200,10 @@ if ! wait_for_dashboard; then
 fi
 
 assert_check_json "before_instances"
+
+if ! wait_for_dashboard_capabilities; then
+  fail_with_logs "dashboard required capabilities did not become available"
+fi
 
 if ! start_demo_instance "runsc"; then
   fail_with_logs "failed to start managed runsc nginx instance"

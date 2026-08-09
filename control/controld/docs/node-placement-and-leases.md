@@ -86,12 +86,23 @@ state after queue convergence.
 
 Capability loss uses a separate `allocation_capability_reconcile_queue`, so a
 capability transition cannot overwrite create/delete lifecycle intent. Axnoded
-first performs allocation-specific verification. Controld's durable worker is
-a restart and missed-report safety net and retains work until node status
-confirms deletion. Provider evidence, catalog loss policy, and the bounded
+first performs allocation-specific verification and is the only component that
+owns fail-stop deletion for capability loss. Controld's durable worker is a
+restart and missed-report safety net: it requests reconciliation and polls until
+normal lifecycle reporting confirms deletion, but does not race axnoded with a
+second delete. `ADMISSION_ONLY` dependencies never enter this runtime queue;
+the indexed transition transaction queues only `DEGRADE` and `FAIL_STOP`
+dependencies. Provider evidence, catalog loss policy, and the bounded
 verification sequence are defined by the canonical
 [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md)
 contract rather than duplicated here.
+
+Allocation capability conditions use a separate full-set report with a
+monotonic revision fenced by allocation attempt. Controld ignores reports for a
+different attempt and stale or duplicate revisions, then atomically projects
+accepted exact-key sets from normalized condition rows. The report cannot
+mutate allocation lifecycle state, readiness, exit code, Run/Service status, or
+the primary message; only normal lifecycle and exit reports own those fields.
 
 ## Reconciler Health
 

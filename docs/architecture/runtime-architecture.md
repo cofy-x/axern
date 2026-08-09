@@ -13,10 +13,12 @@ Axern V1 separates the durable control plane from node-local execution:
 - `axnoded` also reports node inventory summaries that distinguish actively
   known allocations from the subset already `RUNNING`, so `controld` can
   reconcile missing allocations without failing normal startup in flight.
-- Each node summary contains one atomic typed capability snapshot. Axnoded owns
+- Each node summary contains one atomic typed capability snapshot. Atomic means
+  a coherent published generation, not simultaneous provider sampling; each
+  observation retains its own sample time and independent expiry. Axnoded owns
   observations, the shared catalog owns derivation and loss policy, controld
   owns transaction-time placement admission, and axnoded owns allocation-time
-  enforcement. See the
+  and periodic enforcement. See the
   [Observed Capability Providers](observed-capability-providers.md) contract;
   these platform capabilities are distinct from sandboxd operation discovery.
 - `controld` persists node identities as active or retired. Retirement is an

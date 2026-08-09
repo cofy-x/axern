@@ -33,9 +33,12 @@ never copies the node `/etc` tree and never creates targets in the lower rootfs.
 ## Projection and backing facts
 
 The provider inspects `/proc/self/mountinfo`, records the deepest covering mount
-ID, filesystem type, mount root, source, readonly state, and effective lower
-chain, and persists those facts in `projection.json`. EROFS is one atomic
-immutable lower. For OverlayFS, the active upper is placed before lowerdirs and
+ID, effective root path, filesystem type, mount root, source, readonly state,
+and the path plus mount identity of every ordered effective lower, and persists those facts in
+`projection.json`. Reconciliation re-inspects that same effective root and
+requires all fields, including readonly state, lower ordering, and per-lower
+mount identity, to match. EROFS is one atomic immutable lower. For OverlayFS,
+the active upper is placed before lowerdirs and
 mount-root offsets are preserved. Unsafe mountinfo or overlay-option encoding
 is rejected.
 
@@ -64,6 +67,14 @@ fallback. Writable runc roots always use a host OverlayFS and require a durable
 project ID plus an XFS project hard quota. Ext4 can host runsc and target-only
 projections but cannot satisfy the runc ephemeral-storage hard-limit
 capability.
+
+The immutable runsc launch-enforcement manifest records the exact overlay
+argument, configured backing path, backing directory device/inode identity,
+runtime process identity, and filestore mount identity. Runtime verification
+rejects a symlink, directory replacement, changed immutable launch arguments, or
+identity mismatch even when a path with the same spelling still exists. The
+runc manifest similarly binds the upper project ID, quota limit, OverlayFS
+projection, and filestore mount identity and verifies them through the kernel.
 
 The node-local reservation ledger is fsync/rename durable and checks both
 committed requests and live `statfs` availability after the system reserve.

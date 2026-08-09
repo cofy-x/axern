@@ -96,7 +96,7 @@ packaging change. Update deployment values and runtime docs together, then run
 | --- | --- |
 | CLI and allocation lifecycle | `make verify-node-cli-e2e` |
 | inventory and startup observability | `make verify-node-inventory-e2e`, `make verify-node-startup-metrics-e2e`, `make verify-node-startup-matrix-smoke` |
-| bundle/execution envelope | `make verify-node-bundle-template-e2e`, `make verify-node-execution-envelope-prewarm-e2e` |
+| bundle and managed create/start gate | `make verify-node-bundle-template-e2e`, `make verify-node-cli-e2e` |
 | service volumes/probes | `make verify-node-service-volumes-e2e`, `make verify-node-service-probes-e2e` |
 | runtime profiles | `make verify-node-python-runtime-e2e`, `make build-python311-runtime-image` |
 | retention/locality/warm pool | `make verify-node-retention-e2e`, `make verify-node-locality-e2e`, `make verify-node-warm-pool-e2e` |

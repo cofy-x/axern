@@ -60,7 +60,94 @@ func nodeCommand(runtime command.Runtime) *cobra.Command {
 		return nil
 	}}
 	retire.Flags().StringVar(&reason, "operator-reason", "", "audit reason")
-	root.AddCommand(list, retire)
+	root.AddCommand(list, retire, nodeCapabilityCommand(runtime))
+	return root
+}
+
+func nodeCapabilityCommand(runtime command.Runtime) *cobra.Command {
+	root := &cobra.Command{Use: "capability", Short: "Inspect observed capability evidence and allocation enforcement"}
+	snapshot := &cobra.Command{Use: "snapshot <node-id>", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		s, err := runtime.Open(cmd.Context())
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		resp, err := appadmin.NewNode(s.Clients.AdminNode).CapabilitySnapshot(s.Context, args[0])
+		if err != nil {
+			return err
+		}
+		if runtime.Options.Output == "json" {
+			return output.PrintProtoJSON(cmd.OutOrStdout(), resp)
+		}
+		output.RenderCapabilitySnapshot(cmd.OutOrStdout(), resp.GetSnapshot())
+		return nil
+	}}
+
+	var transitionNodeID string
+	var transitionLimit int
+	transitions := &cobra.Command{Use: "transitions", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		if transitionLimit < 0 {
+			return command.Usage(fmt.Errorf("limit must be >= 0"))
+		}
+		s, err := runtime.Open(cmd.Context())
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		resp, err := appadmin.NewNode(s.Clients.AdminNode).CapabilityTransitions(s.Context, transitionNodeID, transitionLimit)
+		if err != nil {
+			return err
+		}
+		if runtime.Options.Output == "json" {
+			return output.PrintProtoJSON(cmd.OutOrStdout(), resp)
+		}
+		output.RenderCapabilityTransitions(cmd.OutOrStdout(), resp.GetTransitions())
+		return nil
+	}}
+	transitions.Flags().StringVar(&transitionNodeID, "node-id", "", "node identity filter")
+	transitions.Flags().IntVar(&transitionLimit, "limit", 0, "maximum transitions")
+
+	var backlogNodeID string
+	var backlogLimit int
+	backlog := &cobra.Command{Use: "backlog", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		if backlogLimit < 0 {
+			return command.Usage(fmt.Errorf("limit must be >= 0"))
+		}
+		s, err := runtime.Open(cmd.Context())
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		resp, err := appadmin.NewNode(s.Clients.AdminNode).CapabilityBacklog(s.Context, backlogNodeID, backlogLimit)
+		if err != nil {
+			return err
+		}
+		if runtime.Options.Output == "json" {
+			return output.PrintProtoJSON(cmd.OutOrStdout(), resp)
+		}
+		output.RenderCapabilityBacklog(cmd.OutOrStdout(), resp.GetItems())
+		return nil
+	}}
+	backlog.Flags().StringVar(&backlogNodeID, "node-id", "", "node identity filter")
+	backlog.Flags().IntVar(&backlogLimit, "limit", 0, "maximum reconcile items")
+
+	allocation := &cobra.Command{Use: "allocation <allocation-id>", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		s, err := runtime.Open(cmd.Context())
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		resp, err := appadmin.NewNode(s.Clients.AdminNode).AllocationCapability(s.Context, args[0])
+		if err != nil {
+			return err
+		}
+		if runtime.Options.Output == "json" {
+			return output.PrintProtoJSON(cmd.OutOrStdout(), resp)
+		}
+		output.RenderAllocationCapabilityDiagnostics(cmd.OutOrStdout(), resp)
+		return nil
+	}}
+	root.AddCommand(snapshot, transitions, backlog, allocation)
 	return root
 }
 

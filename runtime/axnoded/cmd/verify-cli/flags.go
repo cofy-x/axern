@@ -56,7 +56,7 @@ func parseFlags() verifyCLIConfig {
 	flag.Float64Var(&cfg.limitCPUMilli, "limit-cpu-milli", 0, "CPU limit in milli-CPU units for StartRequest resources")
 	flag.Float64Var(&cfg.limitMemoryMiB, "limit-memory-mib", 0, "memory limit in MiB for StartRequest resources")
 	flag.DurationVar(&cfg.createTimeout, "create-timeout", defaultCreateSandboxTimeout, "timeout for CreateAllocation")
-	flag.Int64Var(&cfg.allocationAttempt, "allocation-attempt", 1, "allocation attempt; use 0 only for static execution-envelope verification")
+	flag.Int64Var(&cfg.allocationAttempt, "allocation-attempt", 1, "positive immutable allocation attempt")
 	flag.Var(&cfg.userEnvFlags, "user-env", "dynamic user env in KEY=VALUE form (repeatable)")
 	flag.Var(&cfg.mountFlags, "mount", "dynamic bind mount in SOURCE:TARGET[:options] form (repeatable)")
 	flag.Parse()

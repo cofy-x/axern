@@ -51,7 +51,8 @@ Layer ownership:
 - `internal/nodecapability` owns provider registration, atomic snapshots,
   recovery hysteresis, and the node-local admission view. The shared catalog
   owns derivation and loss policy; providers do not write node summaries
-  directly.
+  directly. Production startup verifies that every catalog key has exactly one
+  registered provider matching the catalog owner.
 
 The cross-system capability contract is documented in
 [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md).
@@ -81,12 +82,16 @@ sequenceDiagram
 
     Control->>API: NodeLifecycle.CreateAllocation
     API->>Start: create allocation request
-    Start->>Capability: persist and verify admitted dependencies
+    Start->>Capability: derive request-static requirements and verify exact proofs
+    Start->>NodeState: persist request digest + admitted proofs + condition revision 1
     Start->>Volume: publish resolved node volumes
     Start->>LangRT: resolve runtime rootfs / image rootfs
+    Start->>Capability: derive actual-backing requirements and verify exact proofs
     Start->>Resources: allocate cgroup and interface
     Start->>Runtime: create OCI bundle and container
-    Start->>Capability: verify allocation-specific enforcement
+    Runtime-->>Start: immutable launch-enforcement manifest
+    Start->>Capability: verify allocation-specific kernel/runtime enforcement
+    Start->>NodeState: atomically persist create proofs + condition revision 2
     Runtime->>Sandboxd: launch as sandbox PID 1
     Runtime-->>Start: readiness, runtime labels, status
     Start->>Container: persist metadata, resources, and runtime status
@@ -98,9 +103,25 @@ Create invariants:
 
 - `controld` owns placement and sends resolved inputs; `axnoded` owns node-local
   materialization.
-- Capability dependencies are persisted and checked before materialization;
-  runtime-specific hard enforcement is checked again after create. Failure uses
-  the same allocation rollback path.
+- Request-static capability dependencies are derived locally, persisted, and
+  checked before materialization. Actual-backing requirements are re-derived
+  after the image mount lease is acquired and before bundle/runtime side
+  effects. Both sets must exactly match the supplied typed dependencies.
+- The pre-create admitted dependency set and complete healthy condition set are
+  persisted atomically with a canonical request digest before any allocation
+  side effect. Same-attempt retries of a live allocation must match that digest
+  and replay the immutable admitted proof without running a new node-level
+  admission. Admission, runtime create, post-create verification, replay, and
+  Delete share one allocation lifecycle lock. The post-create verified proof and
+  revision 2 condition set are another atomic mutation. Managed recovery rejects
+  a record containing only one projection.
+- Runtime handlers must publish an immutable launch-enforcement manifest.
+  Runtime-specific hard enforcement is checked after create and periodically
+  while the allocation runs. Failure uses the durable, detached allocation
+  termination path rather than the caller's cancelable context.
+- Declared memory limits require cgroup v2 `memory.max` readback and runtime PID
+  membership. Axnoded has no cgroup v1 or ignored-resource fallback for this
+  contract.
 - Resolved volumes are published through `volumed`; `axnoded` does not call
   `storaged` directly.
 - Rootfs/image resolution goes through `internal/langruntime` and `imagemgr`.
@@ -109,13 +130,21 @@ Create invariants:
 - Runtime template identity and image/workspace ownership are committed in one
   allocation record. Durable deletion precedes releasing in-memory handles, so
   a failed state write cannot silently discard cleanup ownership.
+- Dependency proofs, enforcement manifest, complete capability condition set,
+  and capability reconcile generations share the same allocation record.
+  Condition revisions are fenced by allocation attempt. Per-allocation mutation
+  serialization prevents one concurrent update from reverting another;
+  capability conditions never mutate lifecycle status. Capability fail-stop
+  termination has one durable node-local owner, so multiple losses and
+  control-plane safety reconciliation cannot start concurrent cleanup.
+- Condition persistence and reconcile acknowledgement failures retain pending
+  work for retry. Periodic audits cover both `DEGRADE` and `FAIL_STOP`
+  dependencies, while the control-plane reconciliation path may update only
+  conditions and cannot rewrite the historical create admission proof.
 - Recovery scans records independently, removes records with no live container,
   and suppresses destructive image-lease reconciliation whenever any live
   allocation cannot be reconstructed completely. Incomplete live recovery
   fails node startup instead of advertising a partially recovered runtime.
-- Execution-envelope and warm-runtime paths may satisfy create before the
-  fallback OCI create path; both paths must preserve the same status and
-  resource contracts.
 - Sandboxd readiness and baseline capabilities fail closed for normal
   sandboxd-backed OCI workloads, except for the documented short-lived clean
   runtime exit before readiness.
