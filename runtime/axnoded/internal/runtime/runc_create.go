@@ -9,7 +9,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/bundleflow"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/cgroupflow"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/envelopeflow"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/preparedflow"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/rootfsflow"
 	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 )
@@ -19,15 +19,17 @@ func (r *RuncServiceHandler) CreateContainer(ctx context.Context, request *apipb
 		return nil, err
 	}
 	cgroupStart := time.Now()
-	effectiveRequest, bundleOptions, err := r.prepareCreateRequest(request, options)
+	effectiveRequest, preparedOptions, err := r.prepareCreateRequest(request, options)
 	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeCgroupPrepare, time.Since(cgroupStart))
 	if err != nil {
 		return nil, err
 	}
+	options = preparedOptions
+	options.EphemeralStorageLimitBytes = effectiveRequest.GetEphemeralStorageLimitBytes()
 	if err := r.writableCapacity.Reserve(options.ContainerID, r.Name(), effectiveRequest.GetEphemeralStorageRequestBytes(), effectiveRequest.GetEphemeralStorageLimitBytes()); err != nil {
 		return nil, err
 	}
-	bundlePath, metaData, err := bundleflow.PrepareLaunchBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, bundleOptions)
+	bundlePath, metaData, err := bundleflow.PrepareLaunchBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, options)
 	if err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
@@ -35,8 +37,12 @@ func (r *RuncServiceHandler) CreateContainer(ctx context.Context, request *apipb
 	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsflow.RuntimePolicy{
 		RuntimeName: r.Name(), NeedsHostWritableRootfs: !effectiveRequest.GetRootfs().GetReadonly(),
 		EphemeralStorageLimitBytes: effectiveRequest.GetEphemeralStorageLimitBytes(), ProjectID: r.writableCapacity.ProjectID(options.ContainerID),
-		RootfsLeaseID: effectiveRequest.GetRootfs().GetLeaseId(),
+		RootfsLeaseID: effectiveRequest.GetRootfs().GetLeaseID(),
 	}); err != nil {
+		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
+		return metaData, err
+	}
+	if err := writeRuntimeEnforcementManifest(bundlePath, r.Name(), r.filestoreDir, effectiveRequest, options, "", r.writableCapacity.ProjectID(options.ContainerID)); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return metaData, err
 	}
@@ -44,52 +50,58 @@ func (r *RuncServiceHandler) CreateContainer(ctx context.Context, request *apipb
 	return r.launchRun(ctx, options, bundlePath, metaData)
 }
 
-func (r *RuncServiceHandler) PrepareExecutionEnvelope(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*contract.ExecutionEnvelope, error) {
+func (r *RuncServiceHandler) PrepareContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*contract.PreparedContainer, error) {
 	if err := validateRuncCreateRequest(request); err != nil {
 		return nil, err
 	}
 	cgroupStart := time.Now()
-	effectiveRequest, bundleOptions, err := r.prepareCreateRequest(request, options)
+	effectiveRequest, preparedOptions, err := r.prepareCreateRequest(request, options)
 	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeCgroupPrepare, time.Since(cgroupStart))
 	if err != nil {
 		return nil, err
 	}
+	options = preparedOptions
+	options.EphemeralStorageLimitBytes = effectiveRequest.GetEphemeralStorageLimitBytes()
 	if err := r.writableCapacity.Reserve(options.ContainerID, r.Name(), effectiveRequest.GetEphemeralStorageRequestBytes(), effectiveRequest.GetEphemeralStorageLimitBytes()); err != nil {
 		return nil, err
 	}
-	bundlePath, metaData, err := bundleflow.PrepareEnvelopeBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, bundleOptions)
+	bundlePath, metaData, err := bundleflow.PrepareLaunchBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, options)
 	if err != nil {
+		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
+		return nil, err
+	}
+	if err := writeRuntimeEnforcementManifest(bundlePath, r.Name(), r.filestoreDir, effectiveRequest, options, "", r.writableCapacity.ProjectID(options.ContainerID)); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}
 	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsflow.RuntimePolicy{
 		RuntimeName: r.Name(), NeedsHostWritableRootfs: !effectiveRequest.GetRootfs().GetReadonly(),
 		EphemeralStorageLimitBytes: effectiveRequest.GetEphemeralStorageLimitBytes(), ProjectID: r.writableCapacity.ProjectID(options.ContainerID),
-		RootfsLeaseID: effectiveRequest.GetRootfs().GetLeaseId(),
+		RootfsLeaseID: effectiveRequest.GetRootfs().GetLeaseID(),
 	}); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}
 
-	if err := r.createExecutionEnvelope(ctx, bundlePath, options.ContainerID); err != nil {
-		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, fmt.Sprintf("create execution envelope failed: %v", err))
+	if err := r.createPreparedContainer(ctx, metaData.Stdout, metaData.Stderr, bundlePath, options.ContainerID); err != nil {
+		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, fmt.Sprintf("create prepared container failed: %v", err))
 		return nil, err
 	}
 
-	return &contract.ExecutionEnvelope{ContainerID: options.ContainerID, BundlePath: bundlePath, Metadata: metaData}, nil
+	return &contract.PreparedContainer{ContainerID: options.ContainerID, BundlePath: bundlePath, Metadata: metaData}, nil
 }
 
-func (r *RuncServiceHandler) ActivateExecutionEnvelope(ctx context.Context, envelope *contract.ExecutionEnvelope, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
-	return envelopeflow.Activate(
+func (r *RuncServiceHandler) StartPreparedContainer(ctx context.Context, prepared *contract.PreparedContainer, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
+	return preparedflow.Start(
 		ctx,
-		envelope,
+		prepared,
 		options,
 		func(ctx context.Context, containerID string) error {
 			_, err := r.common.Run(ctx, "start", containerID)
 			return err
 		},
-		r.startExitStatePersister,
-		r.waitForEnvelopeStart,
+		nil,
+		r.waitForPreparedContainerStart,
 		func(ctx context.Context, bundlePath string, meta *apipb.ContainerMetadata) error {
 			return runtimesandboxd.WaitReadyOrExit(ctx, r.Name(), options.ContainerID, bundlePath, meta, r.waitForSandboxReady, r.readExitState)
 		},

@@ -5,6 +5,7 @@ import (
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/startupflow"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/ocihost"
 )
 
 func (r *RuncServiceHandler) startRunWithExitState(stdoutPath, stderrPath, bundlePath, containerID string) (<-chan error, error) {
@@ -15,20 +16,21 @@ func (r *RuncServiceHandler) startRunWithExitState(stdoutPath, stderrPath, bundl
 	})
 }
 
-func (r *RuncServiceHandler) createExecutionEnvelope(ctx context.Context, bundlePath, containerID string) error {
-	pidFilePath, _, err := r.common.PrepareContainerStatePaths(containerID)
-	if err != nil {
-		return err
-	}
-	_, err = r.common.Run(ctx, "create", "--pid-file", pidFilePath, "--bundle", bundlePath, containerID)
-	return err
+func (r *RuncServiceHandler) createPreparedContainer(ctx context.Context, stdoutPath, stderrPath, bundlePath, containerID string) error {
+	pidFilePath := r.common.RuntimePIDFilePath(containerID)
+	return r.common.StartCreateWithExitMonitor(ctx, ocihost.InitMonitorStartOptions{
+		StdoutPath:  stdoutPath,
+		StderrPath:  stderrPath,
+		ContainerID: containerID,
+		RuntimeArgs: r.common.CommandArgs("create", "--pid-file", pidFilePath, "--bundle", bundlePath, containerID),
+	})
 }
 
 func (r *RuncServiceHandler) waitForContainerStart(ctx context.Context, containerID string, runWait <-chan error) error {
 	return r.waitForStartup(ctx, containerID, runWait)
 }
 
-func (r *RuncServiceHandler) waitForEnvelopeStart(ctx context.Context, containerID string) error {
+func (r *RuncServiceHandler) waitForPreparedContainerStart(ctx context.Context, containerID string) error {
 	return r.waitForStartup(ctx, containerID, nil)
 }
 

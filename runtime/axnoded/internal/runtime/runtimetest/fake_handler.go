@@ -63,6 +63,14 @@ func (f *FakeRuntimeHandler) CreateContainer(ctx context.Context, request *apipb
 	}, getErrorFromContext(ctx)
 }
 
+func (f *FakeRuntimeHandler) AllocationEnforcementManifest(_ context.Context, containerID string) (*apipb.AllocationEnforcementManifest, error) {
+	return &apipb.AllocationEnforcementManifest{
+		RuntimeName:       f.Name(),
+		BundlePath:        "/fake/" + containerID,
+		CreatedAtUnixNano: time.Now().UTC().UnixNano(),
+	}, nil
+}
+
 func (f *FakeRuntimeHandler) DeleteContainer(ctx context.Context, request *apipb.DeleteContainerRequest, options contract.HandlerOptions) (*apipb.DeleteContainerResponse, error) {
 	return &apipb.DeleteContainerResponse{}, getErrorFromContext(ctx)
 }

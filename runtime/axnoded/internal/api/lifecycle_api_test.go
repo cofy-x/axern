@@ -27,6 +27,21 @@ type fakeNodeLifecycleService struct {
 	releaseObservations  []*privatestoragev1.VolumeReleaseObservation
 	workspacePreparation *commonv1.WorkspacePreparationFacts
 	admittedDependencies []*capabilityv1.CapabilityDependency
+	attempts             map[string]int64
+}
+
+func (f *fakeNodeLifecycleService) ManagedAllocationAttempt(allocationID string) (int64, bool) {
+	if f.attempts != nil {
+		attempt, ok := f.attempts[allocationID]
+		return attempt, ok && attempt > 0
+	}
+	// Most API tests model an already admitted attempt-1 allocation. Tests
+	// that exercise an empty or newer generation provide an explicit map.
+	return 1, true
+}
+
+func (f *fakeNodeLifecycleService) ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error) {
+	return cloneCapabilityDependencies(f.admittedDependencies), nil, nil
 }
 
 func (f *fakeNodeLifecycleService) DeleteVolume(context.Context, string, storagev1.VolumeBackend, string) error {
@@ -36,6 +51,9 @@ func (f *fakeNodeLifecycleService) DeleteVolume(context.Context, string, storage
 func (f *fakeNodeLifecycleService) Start(ctx context.Context, req *runtimev1.StartRequest) (*runtimev1.StartResponse, error) {
 	_ = ctx
 	f.startRequests = append(f.startRequests, req)
+	if f.attempts != nil {
+		f.attempts[req.GetContainerID()] = req.GetAllocationAttempt()
+	}
 	return &runtimev1.StartResponse{
 		Code: 0, ID: req.GetContainerID(), Message: "ok",
 		AdmittedCapabilityDependencies: cloneCapabilityDependencies(f.admittedDependencies),
@@ -95,7 +113,7 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 			Key: &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{
 				Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT,
 			}},
-			SelectedEvidence: &capabilityv1.CapabilityEvidence{EvidenceID: "create-evidence"},
+			SelectedObservation: &capabilityv1.CapabilityObservationProof{Evidence: &capabilityv1.CapabilityEvidence{EvidenceID: "create-evidence"}},
 		}},
 	}
 	server := NewNodeLifecycleServer(fakeService, "node-a", NewAllocationTargetRegistry())
@@ -143,7 +161,7 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	if resp.GetWorkspacePreparation().GetPayloadFormat() != "nydus" || resp.GetWorkspacePreparation().GetPayloadDigest() != "sha256:payload" || !resp.GetWorkspacePreparation().GetCacheHit() {
 		t.Fatalf("workspace preparation = %#v", resp.GetWorkspacePreparation())
 	}
-	if len(resp.GetAdmittedCapabilityDependencies()) != 1 || resp.GetAdmittedCapabilityDependencies()[0].GetSelectedEvidence().GetEvidenceID() != "create-evidence" {
+	if len(resp.GetAdmittedCapabilityDependencies()) != 1 || resp.GetAdmittedCapabilityDependencies()[0].GetSelectedObservation().GetEvidence().GetEvidenceID() != "create-evidence" {
 		t.Fatalf("admitted capability dependencies = %#v", resp.GetAdmittedCapabilityDependencies())
 	}
 	if len(fakeService.startRequests) != 1 {
@@ -152,6 +170,9 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	startReq := fakeService.startRequests[0]
 	if startReq.GetContainerID() != "alloc-123" {
 		t.Fatalf("container id = %q, want alloc-123", startReq.GetContainerID())
+	}
+	if startReq.GetAllocationAttempt() != 1 {
+		t.Fatalf("allocation attempt = %d, want 1", startReq.GetAllocationAttempt())
 	}
 	if startReq.GetRuntimeTemplate().GetRootfs().GetImageUrl() != imageRef {
 		t.Fatalf("image_ref = %q", startReq.GetRuntimeTemplate().GetRootfs().GetImageUrl())
@@ -177,8 +198,8 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	if startReq.GetRuntimeTemplate().GetExecutionProfile().GetCapabilities().GetIncludeAmbient() {
 		t.Fatal("execution profile include_ambient = true, want false")
 	}
-	if !strings.Contains(startReq.GetExtraConfig(), `"allocationAttempt":1`) {
-		t.Fatalf("extra_config = %q, want allocationAttempt", startReq.GetExtraConfig())
+	if strings.Contains(startReq.GetExtraConfig(), `"allocationAttempt"`) {
+		t.Fatalf("extra_config = %q, must not duplicate typed allocation attempt", startReq.GetExtraConfig())
 	}
 	if !strings.Contains(startReq.GetExtraConfig(), `"namespace":"default"`) || !strings.Contains(startReq.GetExtraConfig(), `"serviceId":"svc-123"`) {
 		t.Fatalf("extra_config = %q, want service volume identity", startReq.GetExtraConfig())
@@ -310,6 +331,55 @@ func TestNodeLifecycleDeleteAllocationIsIdempotentWhenRuntimeTargetIsMissing(t *
 	})
 	if grpcstatus.Code(err) != codes.NotFound {
 		t.Fatalf("GetAllocationStatus() after missing target delete code = %v, want not found", grpcstatus.Code(err))
+	}
+}
+
+func TestNodeLifecycleDeleteAllocationIsIdempotentWhenDurableGenerationIsAbsent(t *testing.T) {
+	t.Parallel()
+
+	fakeService := &fakeNodeLifecycleService{
+		attempts:  map[string]int64{},
+		deleteErr: grpcstatus.Error(codes.NotFound, "not found"),
+	}
+	targets := NewAllocationTargetRegistry()
+	server := NewNodeLifecycleServer(fakeService, "node-a", targets)
+
+	if _, err := server.DeleteAllocation(context.Background(), &nodelifecyclev1.DeleteAllocationRequest{
+		AllocationID:   "alloc-released-before-restart",
+		Attempt:        3,
+		NodeID:         "node-a",
+		TimeoutSeconds: 9,
+	}); err != nil {
+		t.Fatalf("DeleteAllocation() error = %v, want idempotent success for absent durable generation", err)
+	}
+	if len(fakeService.deleteRequests) != 1 {
+		t.Fatalf("delete request count = %d, want cleanup attempt", len(fakeService.deleteRequests))
+	}
+	if _, err := server.DeleteAllocation(context.Background(), &nodelifecyclev1.DeleteAllocationRequest{
+		AllocationID: "alloc-released-before-restart",
+		Attempt:      3,
+		NodeID:       "node-a",
+	}); err != nil {
+		t.Fatalf("second DeleteAllocation() error = %v, want tombstone success", err)
+	}
+}
+
+func TestNodeLifecycleGetAllocationStatusReturnsNotFoundWhenDurableGenerationIsAbsent(t *testing.T) {
+	t.Parallel()
+
+	fakeService := &fakeNodeLifecycleService{attempts: map[string]int64{}}
+	server := NewNodeLifecycleServer(fakeService, "node-a", NewAllocationTargetRegistry())
+
+	_, err := server.GetAllocationStatus(context.Background(), &nodelifecyclev1.GetAllocationStatusRequest{
+		AllocationID: "alloc-released-before-restart",
+		Attempt:      3,
+		NodeID:       "node-a",
+	})
+	if grpcstatus.Code(err) != codes.NotFound {
+		t.Fatalf("GetAllocationStatus() code = %v, want not found", grpcstatus.Code(err))
+	}
+	if len(fakeService.listRequests) != 0 {
+		t.Fatalf("list request count = %d, want no runtime lookup without a durable generation", len(fakeService.listRequests))
 	}
 }
 
@@ -458,5 +528,44 @@ func TestNodeLifecycleGetAllocationStatusMapsState(t *testing.T) {
 	}
 	if !resp.GetExitCodeKnown() || resp.GetExitCode() != 23 {
 		t.Fatalf("response = %#v", resp)
+	}
+}
+
+func TestNodeLifecycleFencesStaleAllocationAttempts(t *testing.T) {
+	t.Parallel()
+
+	fakeService := &fakeNodeLifecycleService{attempts: map[string]int64{"alloc-123": 2}}
+	server := NewNodeLifecycleServer(fakeService, "node-a", NewAllocationTargetRegistry())
+	create := &nodelifecyclev1.CreateAllocationRequest{
+		AllocationID: "alloc-123", Attempt: 1, NodeID: "node-a",
+		Config: &nodelifecyclev1.ResolvedExecutionConfig{
+			ImageDescriptor: "docker.io/library/busybox:latest", RuntimeClass: "runsc", Cwd: "/",
+		},
+	}
+	if _, err := server.CreateAllocation(context.Background(), create); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("CreateAllocation stale attempt code = %v", grpcstatus.Code(err))
+	}
+	if _, err := server.GetAllocationStatus(context.Background(), &nodelifecyclev1.GetAllocationStatusRequest{AllocationID: "alloc-123", Attempt: 1, NodeID: "node-a"}); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("GetAllocationStatus stale attempt code = %v", grpcstatus.Code(err))
+	}
+	if _, err := server.DeleteAllocation(context.Background(), &nodelifecyclev1.DeleteAllocationRequest{AllocationID: "alloc-123", Attempt: 1, NodeID: "node-a"}); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("DeleteAllocation stale attempt code = %v", grpcstatus.Code(err))
+	}
+	if len(fakeService.startRequests) != 0 || len(fakeService.deleteRequests) != 0 {
+		t.Fatalf("stale requests reached runtime: starts=%d deletes=%d", len(fakeService.startRequests), len(fakeService.deleteRequests))
+	}
+}
+
+func TestAllocationTargetBindClearsSameIDDeletionTombstone(t *testing.T) {
+	t.Parallel()
+
+	targets := NewAllocationTargetRegistry()
+	targets.markDeleted("alloc-123")
+	targets.bind("alloc-123", "alloc-123")
+	if targets.isDeleted("alloc-123") {
+		t.Fatal("same-ID bind retained the previous allocation tombstone")
+	}
+	if got := targets.resolve("alloc-123"); got != "alloc-123" {
+		t.Fatalf("resolved target = %q", got)
 	}
 }

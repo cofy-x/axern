@@ -2,6 +2,7 @@ package oci
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -95,10 +96,9 @@ func NewBundleLoader(baseFile, bundleDir string, options ...BundleLoaderOption) 
 	if baseFile != "" {
 		bst, err := LoadSpec(baseFile)
 		if err != nil {
-			logrus.Warnf("load base spec failed, use default spec. err: %v", err)
-		} else {
-			bs = bst
+			return nil, fmt.Errorf("load configured OCI base spec %q: %w", baseFile, err)
 		}
+		bs = bst
 	}
 
 	if _, err := os.Stat(bundleDir); os.IsNotExist(err) {

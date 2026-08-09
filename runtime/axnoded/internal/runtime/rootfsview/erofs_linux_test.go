@@ -59,6 +59,9 @@ func TestEROFSIsUsableAsImmutableProjectionLower(t *testing.T) {
 	backing, err := InspectBacking(lower)
 	require.NoError(t, err)
 	require.Equal(t, "erofs", backing.FSType)
+	require.True(t, backing.HasFilesystem("erofs"))
+	require.Len(t, backing.EffectiveLowerChain, 1)
+	require.Equal(t, "erofs", backing.EffectiveLowerChain[0].FSType)
 	provider := NewOverlayProvider(filestore)
 	view, err := provider.Prepare(context.Background(), "erofs-fixture", Request{
 		RootDir: lower, RuntimeName: "runsc", Backing: backing,

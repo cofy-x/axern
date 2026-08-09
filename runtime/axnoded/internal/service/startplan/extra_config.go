@@ -19,7 +19,6 @@ type ExtraConfig struct {
 	ServiceID         string               `json:"serviceId,omitempty"`
 	SecretEnv         []ResolvedSecretEnv  `json:"secretEnv,omitempty"`
 	SecretFiles       []ResolvedSecretFile `json:"secretFiles,omitempty"`
-	AllocationAttempt int64                `json:"allocationAttempt,omitempty"`
 	ReadinessProbe    *probes.Config       `json:"readinessProbe,omitempty"`
 	LivenessProbe     *probes.Config       `json:"livenessProbe,omitempty"`
 }

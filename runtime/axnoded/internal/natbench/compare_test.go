@@ -117,15 +117,6 @@ func TestAggregateReportsUsesMedianPerPathMetric(t *testing.T) {
 	if got := aggregated.Startup.Bundle.MissCount; got != 3 {
 		t.Fatalf("expected aggregated bundle miss count 3, got %d", got)
 	}
-	if aggregated.Startup.Envelope == nil {
-		t.Fatal("expected aggregated execution envelope summary")
-	}
-	if got := aggregated.Startup.Envelope.PreparedCount; got != 3 {
-		t.Fatalf("expected aggregated execution envelope prepared count 3, got %d", got)
-	}
-	if got := aggregated.Startup.Envelope.HitCount; got != 3 {
-		t.Fatalf("expected aggregated execution envelope hit count 3, got %d", got)
-	}
 }
 
 func TestBuildCompareReportAggregatesBackends(t *testing.T) {
@@ -250,12 +241,6 @@ func testReport(backend string, throughput, p95 float64, mappings uint64, cpu fl
 				HitCount:                      2,
 				MissCount:                     1,
 				AverageMaterializeDurationSec: p95 / 5000,
-			},
-			Envelope: &ExecutionEnvelopeSummary{
-				PreparedCount:              1,
-				HitCount:                   1,
-				AveragePrepareDurationSec:  p95 / 4000,
-				AverageActivateDurationSec: p95 / 8000,
 			},
 		},
 		StartedAt:   observed,

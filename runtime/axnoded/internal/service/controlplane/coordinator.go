@@ -24,14 +24,19 @@ type AllocationStatusReporter interface {
 	ReportAllocationStatus(report nodecontrol.AllocationStatusReport)
 }
 
-func (c *Coordinator) ReportCapabilityConditions(allocationID string, attempt int64, status commonv1.AllocationStatus, message string, conditions []*capabilityv1.CapabilityCondition) {
+type AllocationCapabilityConditionReporter interface {
+	ReportAllocationCapabilityConditions(report nodecontrol.AllocationCapabilityConditionReport)
+}
+
+func (c *Coordinator) ReportCapabilityConditions(allocationID string, attempt int64, conditionSet *capabilityv1.CapabilityConditionSet) {
 	if c == nil || c.reporter == nil {
 		return
 	}
-	c.reporter.ReportAllocationStatus(nodecontrol.AllocationStatusReport{
-		AllocationID: allocationID, Attempt: attempt, Status: status, Message: message,
-		ObservedAt: c.now(), CapabilityConditions: conditions,
-	})
+	reporter, ok := c.reporter.(AllocationCapabilityConditionReporter)
+	if !ok {
+		return
+	}
+	reporter.ReportAllocationCapabilityConditions(nodecontrol.AllocationCapabilityConditionReport{AllocationID: allocationID, Attempt: attempt, ConditionSet: conditionSet})
 }
 
 type Options struct {

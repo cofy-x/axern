@@ -1,11 +1,13 @@
 package allocation
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
+	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -104,6 +106,9 @@ func newTestAllocationControllerWithStore(t *testing.T, handlers map[string]cont
 		LangRuntime: lrtManager,
 		Volumes:     volumes,
 		Networking:  networking,
+		PreActivationCapabilityGate: func(context.Context, *runtime.StartRequest, contract.ManagedRuntimeHandler, string) error {
+			return nil
+		},
 	})
 	retentionTTL, err := time.ParseDuration(config.DefaultIdleRuntimeRetentionTTL)
 	if err != nil {

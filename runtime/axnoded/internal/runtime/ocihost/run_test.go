@@ -1,11 +1,14 @@
 package ocihost
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -71,6 +74,109 @@ func TestStartRunWithExitStateRequiresRunnerBinary(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "runtime runner binary is required")
+}
+
+func TestCommonRestartPreservesDurableExitState(t *testing.T) {
+	root := t.TempDir()
+	common, err := New(Config{Root: root, RuntimeName: "runc", RuntimeBinary: "/bin/true"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := contract.Exit{Timestamp: time.Now().UTC().Round(time.Second), Status: 13}
+	if err := common.PersistExitState("alloc-a", want); err != nil {
+		t.Fatal(err)
+	}
+
+	restarted, err := New(Config{Root: root, RuntimeName: "runc", RuntimeBinary: "/bin/true"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := restarted.ReadExitState("alloc-a", "runc")
+	if err != nil || !ok {
+		t.Fatalf("ReadExitState() = (%+v, %v, %v)", got, ok, err)
+	}
+	if got.Status != want.Status || !got.Timestamp.Equal(want.Timestamp) {
+		t.Fatalf("exit state = %+v, want %+v", got, want)
+	}
+}
+
+func TestStartCreateWithExitMonitorPreparesIsolatedState(t *testing.T) {
+	root := t.TempDir()
+	common, err := New(Config{Root: root, RuntimeName: "runc", RuntimeBinary: "/bin/true"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(common.RuntimeExitStatePath("alloc-a"), []byte("stale"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var observed InitMonitorStartOptions
+	common.SetInitMonitorStarter(func(_ context.Context, options InitMonitorStartOptions) error {
+		observed = options
+		if _, err := os.Stat(options.ExitStatePath); !os.IsNotExist(err) {
+			t.Fatalf("stale exit state was not removed: %v", err)
+		}
+		return os.WriteFile(options.RuntimePIDPath, []byte("321\n"), 0644)
+	})
+	if err := common.StartCreateWithExitMonitor(context.Background(), InitMonitorStartOptions{
+		ContainerID: "alloc-a",
+		RuntimeArgs: []string{"create", "alloc-a"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if observed.ReadyStatePath != common.InitMonitorReadyStatePath("alloc-a") || observed.RuntimePIDPath != common.RuntimePIDFilePath("alloc-a") {
+		t.Fatalf("monitor options = %+v", observed)
+	}
+}
+
+func TestAwaitInitMonitorExitStateWaitsForDurableResult(t *testing.T) {
+	common, err := New(Config{Root: t.TempDir(), RuntimeName: "runc", RuntimeBinary: "/bin/true"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	readyPath := common.InitMonitorReadyStatePath("alloc-a")
+	if err := os.MkdirAll(filepath.Dir(readyPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(initMonitorReadyState{Ready: true, InitPID: 321, ObservedAt: time.Now().UTC()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(readyPath, payload, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := common.AwaitInitMonitorExitState(t.Context(), "alloc-a", "runc")
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("AwaitInitMonitorExitState() returned before exit state: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if err := common.PersistExitState("alloc-a", contract.Exit{Timestamp: time.Now().UTC(), Status: 13}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("AwaitInitMonitorExitState() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("AwaitInitMonitorExitState() did not observe durable exit state")
+	}
+}
+
+func TestAwaitInitMonitorExitStateSkipsContainersWithoutMonitorOwnership(t *testing.T) {
+	common, err := New(Config{Root: t.TempDir(), RuntimeName: "runc", RuntimeBinary: "/bin/true"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := common.AwaitInitMonitorExitState(t.Context(), "alloc-a", "runc")
+	if err != nil || expected {
+		t.Fatalf("AwaitInitMonitorExitState() = (%v, %v), want (false, nil)", expected, err)
+	}
 }
 
 func writeRuntimeRunnerTestScript(t *testing.T) string {

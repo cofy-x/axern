@@ -49,9 +49,6 @@ func TestBuildStartupScenarioReportAggregatesColdAndWarmSamples(t *testing.T) {
 	if report.Startup.DominantPhaseP95["warm"] != "runtime_launch" {
 		t.Fatalf("warm dominant p95 = %q, want runtime_launch", report.Startup.DominantPhaseP95["warm"])
 	}
-	if report.Startup.Envelope == nil {
-		t.Fatal("expected execution envelope summary to survive scenario aggregation")
-	}
 	if report.Locality == nil || report.Locality.Key == "" {
 		t.Fatal("expected locality summary from warm sample")
 	}
@@ -82,8 +79,8 @@ func TestBuildStartupMatrixReportProducesGateSummary(t *testing.T) {
 		},
 	})
 
-	if !report.GateSummary.RuntimeLaunchStillDominantAfterParity {
-		t.Fatal("expected runtime launch dominant-after-parity gate to be true")
+	if !report.GateSummary.RuntimeLaunchDominant {
+		t.Fatal("expected runtime launch dominant gate to be true")
 	}
 	if report.GateSummary.ResourceAllocateStillDominant {
 		t.Fatal("expected resource allocate dominant gate to be false")
@@ -93,9 +90,6 @@ func TestBuildStartupMatrixReportProducesGateSummary(t *testing.T) {
 	}
 	if !report.GateSummary.ImagePathDominant {
 		t.Fatal("expected image path dominant gate to be true")
-	}
-	if !report.GateSummary.RuncEnvelopeParityAchieved {
-		t.Fatal("expected runc envelope parity gate to be true")
 	}
 	if !report.GateSummary.HeavierLaunchMechanismCandidate {
 		t.Fatal("expected heavier launch mechanism candidate gate to be true")
@@ -139,13 +133,6 @@ func testStartupSummary(runtimeName, rootfsType, startClass, dominantPhase strin
 		Bundle: &BundleTemplateSummary{
 			HitCount:  hitCount,
 			MissCount: missCount,
-		},
-		Envelope: &ExecutionEnvelopeSummary{
-			PreparedCount:              hitCount + missCount,
-			HitCount:                   hitCount,
-			MissCount:                  missCount,
-			AveragePrepareDurationSec:  p95 / 4,
-			AverageActivateDurationSec: p95 / 8,
 		},
 	}
 	total := hitCount + missCount

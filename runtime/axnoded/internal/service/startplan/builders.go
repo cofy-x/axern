@@ -115,6 +115,9 @@ func BuildStaticStartLabels(request *runtime.StartRequest) map[string]string {
 	if allocationID := strings.TrimSpace(request.ContainerID); allocationID != "" {
 		labels[workloadidentity.LabelKeyAllocationID] = allocationID
 	}
+	if request.GetAllocationAttempt() > 0 {
+		labels[workloadidentity.LabelKeyAllocationAttempt] = strconv.FormatInt(request.GetAllocationAttempt(), 10)
+	}
 	return labels
 }
 
@@ -146,9 +149,6 @@ func BuildDynamicStartLabels(request *runtime.StartRequest) map[string]string {
 		if len(caps) > 0 {
 			labels[runtimecore.LabelKeyLinuxCapabilities] = strings.Join(caps, ",")
 		}
-	}
-	if extraConfig.AllocationAttempt > 0 {
-		labels[workloadidentity.LabelKeyAllocationAttempt] = strconv.FormatInt(extraConfig.AllocationAttempt, 10)
 	}
 	if namespace := strings.TrimSpace(extraConfig.Namespace); namespace != "" {
 		labels[workloadidentity.LabelKeyNamespace] = namespace
@@ -201,7 +201,7 @@ func BuildContainerRootfs(lrt *langrtmanager.LanguageRuntime) *apipb.Rootfs {
 		LowerDir: "",
 		RootDir:  lrt.RootFS.Path(),
 		Readonly: lrt.Readonly,
-		LeaseId:  rootfsConfig.LeaseID,
+		LeaseID:  rootfsConfig.LeaseID,
 	}
 }
 
@@ -281,20 +281,6 @@ func KeyValuesFromStringMap(values map[string]string) []*runtime.KeyValue {
 		env = append(env, &runtime.KeyValue{Key: k, Value: v})
 	}
 	return env
-}
-
-func BuildExecutionEnvelopeRequest(lrt *langrtmanager.LanguageRuntime, defaultNetworkMode string) *apipb.CreateContainerRequest {
-	return &apipb.CreateContainerRequest{
-		Runtime:  lrt.Sandbox,
-		Command:  append([]string(nil), lrt.Command...),
-		Rootfs:   BuildContainerRootfs(lrt),
-		Resource: ResourcesToLinux(nil),
-		Mounts:   CloneRuntimeMounts(lrt.Mounts),
-		Envs:     BuildStaticRuntimeEnv(lrt),
-		Network:  defaultNetworkMode,
-		Labels:   map[string]string{workloadidentity.LabelKeyRuntimeID: lrt.ID},
-		Cwd:      lrt.Cwd,
-	}
 }
 
 func CloneRuntimeMounts(input []*runtime.Mount) []*runtime.Mount {

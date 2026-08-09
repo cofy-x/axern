@@ -3,6 +3,7 @@ package contract
 import (
 	"time"
 
+	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 )
@@ -21,11 +22,13 @@ type HandlerOptions struct {
 	ForceDelete  bool
 	CleanRootDir string
 
-	CgroupPath         string
-	RuntimeCgroupPath  string
-	MemoryLimitBytes   int64
-	AllocatedResources map[resourcemanager.ResourceName]string
-	RootfsType         string
+	CgroupPath                 string
+	RuntimeCgroupPath          string
+	MemoryLimitBytes           int64
+	EphemeralStorageLimitBytes int64
+	EnforcementManifest        *apipb.AllocationEnforcementManifest
+	AllocatedResources         map[resourcemanager.ResourceName]string
+	RootfsType                 string
 
 	BundleTemplateCarrier runtimeoci.TemplateCarrier
 	BundleTemplateSource  *runtimeoci.TemplateOptions

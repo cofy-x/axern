@@ -31,6 +31,12 @@ func newTestBundleLoader(t *testing.T, baseFile, bundleDir string, options ...Bu
 	return loader, nil
 }
 
+func TestNewBundleLoaderRejectsMissingConfiguredBaseSpec(t *testing.T) {
+	if _, err := NewBundleLoader(filepath.Join(t.TempDir(), "missing.json"), t.TempDir()); err == nil {
+		t.Fatal("NewBundleLoader accepted a missing configured base spec")
+	}
+}
+
 func TestCombineEnvs(t *testing.T) {
 	tests := []struct {
 		name    string

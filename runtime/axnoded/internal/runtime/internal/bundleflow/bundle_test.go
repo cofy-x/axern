@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -11,6 +12,34 @@ import (
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
+
+type phaseRecorder struct {
+	phases []contract.StartupPhase
+}
+
+func (r *phaseRecorder) RecordStartupPhase(phase contract.StartupPhase, duration time.Duration) {
+	if duration > 0 {
+		r.phases = append(r.phases, phase)
+	}
+}
+
+func TestPrepareLaunchBundlePublishesMeasuredPhase(t *testing.T) {
+	rootDir := t.TempDir()
+	recorder := &phaseRecorder{}
+	_, _, err := PrepareLaunchBundle(
+		&bundleLoaderStub{rootDir: rootDir},
+		filepath.Join(rootDir, "containers"),
+		"test-runtime",
+		&apipb.CreateContainerRequest{Command: []string{"/bin/true"}},
+		contract.HandlerOptions{ContainerID: "alloc-a", StartupPhaseRecorder: recorder},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recorder.phases) != 1 || recorder.phases[0] != contract.StartupPhaseRuntimeBundle {
+		t.Fatalf("phases = %v, want one runtime bundle phase", recorder.phases)
+	}
+}
 
 func TestPrepareBundleAssignsDefaultLogs(t *testing.T) {
 	rootDir := t.TempDir()

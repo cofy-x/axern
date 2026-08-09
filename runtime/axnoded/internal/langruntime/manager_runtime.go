@@ -16,7 +16,6 @@ type runtimeReplacement struct {
 	retained     bool
 	oldRootfsCfg RootfsConfig
 	newRootfsCfg RootfsConfig
-	envelope     *ExecutionEnvelope
 }
 
 // AddLangRuntimeResult carries the runtime and attribution data produced while
@@ -123,7 +122,6 @@ func (lm *LangRTManager) prepareReplacementLocked(lr *LanguageRuntime, newCfg Ro
 		retained:     lr.retained,
 		oldRootfsCfg: lr.RootFS.Config(),
 		newRootfsCfg: newCfg,
-		envelope:     lr.ClearExecutionEnvelope(),
 	}
 
 	lr.retained = false
@@ -137,12 +135,6 @@ func (lm *LangRTManager) prepareReplacementLocked(lr *LanguageRuntime, newCfg Ro
 func (lm *LangRTManager) executeReplacement(ctx context.Context, replacement runtimeReplacement) {
 	if replacement.runtime == nil {
 		return
-	}
-
-	if replacement.envelope != nil && replacement.envelope.Destroy != nil {
-		if err := destroyExecutionEnvelope(ctx, replacement.envelope); err != nil {
-			logrus.WithError(err).Warnf("destroy execution envelope for runtime %s failed", replacement.runtime.ID)
-		}
 	}
 
 	if replacement.rootfs != nil {

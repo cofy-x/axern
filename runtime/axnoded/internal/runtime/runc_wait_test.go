@@ -2,19 +2,20 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRuncHandlerWaitFallsBackToState(t *testing.T) {
+func TestRuncHandlerWaitNeverInventsZeroExitFromStoppedState(t *testing.T) {
 	rootDir := t.TempDir()
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
 	if err != nil {
@@ -27,20 +28,24 @@ func TestRuncHandlerWaitFallsBackToState(t *testing.T) {
 	}
 	handler.common.SetExecutor(&scriptedExecutor{
 		outputs: map[string][][]byte{
-			"wait":  {[]byte("unknown command")},
-			"state": {[]byte(`{"status":"running"}`), []byte(`{"status":"stopped","exitStatus":0}`)},
-		},
-		errors: map[string][]error{
-			"wait": {assert.AnError},
+			"state": {
+				[]byte(`{"status":"running"}`),
+				[]byte(`{"status":"stopped"}`),
+				[]byte(`{"status":"stopped"}`),
+				[]byte(`{"status":"stopped"}`),
+			},
 		},
 	})
+	previousGrace := runcExitStateGracePeriod
+	runcExitStateGracePeriod = 150 * time.Millisecond
+	t.Cleanup(func() { runcExitStateGracePeriod = previousGrace })
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	exit, err := handler.Wait(ctx, contract.HandlerOptions{ContainerID: "axctl-test"})
-	assert.NoError(t, err)
-	assert.Equal(t, 0, exit.Status)
+	assert.ErrorIs(t, err, contract.ErrExitStatusUnavailable)
+	assert.Equal(t, -1, exit.Status)
 }
 
 func TestRuncHandlerWaitPrefersPersistedExitState(t *testing.T) {
@@ -73,7 +78,7 @@ func TestRuncHandlerWaitPrefersPersistedExitState(t *testing.T) {
 	assert.Equal(t, finishedAt, exit.Timestamp)
 }
 
-func TestRuncHandlerWaitPersistsParsedWaitExit(t *testing.T) {
+func TestRuncHandlerWaitAcceptsInitMonitorExitAfterStoppedState(t *testing.T) {
 	rootDir := t.TempDir()
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
 	if err != nil {
@@ -89,9 +94,17 @@ func TestRuncHandlerWaitPersistsParsedWaitExit(t *testing.T) {
 	}
 	handler.common.SetExecutor(&scriptedExecutor{
 		outputs: map[string][][]byte{
-			"wait": {[]byte(`{"exitStatus":9}`)},
+			"state": {
+				[]byte(`{"status":"stopped"}`),
+				[]byte(`{"status":"stopped"}`),
+				[]byte(`{"status":"stopped"}`),
+			},
 		},
 	})
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		_ = handler.persistExitState("axctl-test", contract.Exit{Timestamp: time.Now().UTC(), Status: 9})
+	}()
 
 	exit, err := handler.Wait(context.Background(), contract.HandlerOptions{ContainerID: "axctl-test"})
 	assert.NoError(t, err)
@@ -115,14 +128,14 @@ func TestRuncHandlerWaitReturnsContextErrorWhenCanceled(t *testing.T) {
 		t.Fatalf("NewRuncServiceHandler() error = %v", err)
 	}
 	handler.common.SetExecutor(&scriptedExecutor{
-		errors: map[string][]error{
-			"wait": {assert.AnError},
-		},
+		outputs: map[string][][]byte{"state": {[]byte(`{"status":"running"}`)}},
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	_, err = handler.Wait(ctx, contract.HandlerOptions{ContainerID: "axctl-test"})
-	assert.ErrorIs(t, err, context.Canceled)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Wait() error = %v, want context canceled", err)
+	}
 }

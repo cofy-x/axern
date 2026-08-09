@@ -16,21 +16,22 @@ func PrepareLaunchBundle(
 	request *apipb.CreateContainerRequest,
 	options contract.HandlerOptions,
 ) (string, *apipb.ContainerMetadata, error) {
-	bundleStart := time.Now()
-	bundlePath, metaData, err := PrepareBundle(loader, containerRoot, runtimeName, request, options)
-	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeBundleMaterial, time.Since(bundleStart))
-	options.RecordStartupPhase(contract.StartupPhaseRuntimeBundle, time.Since(bundleStart))
-	return bundlePath, metaData, err
+	return prepareMeasuredBundle(loader, containerRoot, runtimeName, request, options)
 }
 
-func PrepareEnvelopeBundle(
+func prepareMeasuredBundle(
 	loader runtimeoci.Loader,
 	containerRoot string,
 	runtimeName string,
 	request *apipb.CreateContainerRequest,
 	options contract.HandlerOptions,
 ) (string, *apipb.ContainerMetadata, error) {
-	return PrepareBundle(loader, containerRoot, runtimeName, request, options)
+	bundleStart := time.Now()
+	bundlePath, metaData, err := PrepareBundle(loader, containerRoot, runtimeName, request, options)
+	duration := time.Since(bundleStart)
+	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeBundleMaterial, duration)
+	options.RecordStartupPhase(contract.StartupPhaseRuntimeBundle, duration)
+	return bundlePath, metaData, err
 }
 
 func PrepareBundle(

@@ -52,12 +52,6 @@ func TestStartupSnapshotAndDiffFromMetricsSnapshot(t *testing.T) {
 		counterPoint(axmetrics.MetricBundleTemplateTotal, 3, runtimeRootfsResultAttrs("runsc", "local", "hit")),
 		counterPoint(axmetrics.MetricBundleTemplateTotal, 2, runtimeRootfsResultAttrs("runsc", "local", "miss")),
 		histogramPoint(axmetrics.MetricBundleMaterializeDuration, []float64{0.01, 0.01, 0.01, 0.01, 0.01}, runtimeRootfsResultAttrs("runsc", "local", "ok")),
-		counterPoint(axmetrics.MetricExecutionEnvelopeTotal, 3, runtimeRootfsResultAttrs("runsc", "local", "prepared")),
-		counterPoint(axmetrics.MetricExecutionEnvelopeTotal, 2, runtimeRootfsResultAttrs("runsc", "local", "hit")),
-		counterPoint(axmetrics.MetricExecutionEnvelopeTotal, 1, runtimeRootfsResultAttrs("runsc", "local", "miss")),
-		counterPoint(axmetrics.MetricExecutionEnvelopeTotal, 1, runtimeRootfsResultAttrs("runsc", "local", "fallback")),
-		histogramPoint(axmetrics.MetricExecutionEnvelopePrepare, []float64{0.04, 0.04, 0.04}, runtimeRootfsResultAttrs("runsc", "local", "ok")),
-		histogramPoint(axmetrics.MetricExecutionEnvelopeActivate, []float64{0.015, 0.015}, runtimeRootfsResultAttrs("runsc", "local", "ok")),
 		counterPoint(axmetrics.MetricRuntimeWaitGraceTotal, 3, map[string]string{sdkobs.AttrRuntime: "runsc", sdkobs.AttrResult: "recovered"}),
 		counterPoint(axmetrics.MetricRuntimeWaitGraceTotal, 1, map[string]string{sdkobs.AttrRuntime: "runsc", sdkobs.AttrResult: "unavailable"}),
 	}
@@ -85,11 +79,6 @@ func TestStartupSnapshotAndDiffFromMetricsSnapshot(t *testing.T) {
 			MaterializeSumSeconds: 0.02,
 			MaterializeHistogram:  histogramFromSamples([]float64{0.01, 0.01}),
 		},
-		Envelope: &ExecutionEnvelopeSnapshot{
-			PreparedCount:    1,
-			HitCount:         1,
-			PrepareHistogram: histogramFromSamples([]float64{0.04}),
-		},
 	}
 	after := &StartupSnapshot{
 		Runtime:    "runsc",
@@ -101,9 +90,6 @@ func TestStartupSnapshotAndDiffFromMetricsSnapshot(t *testing.T) {
 	collectStartupPhaseSnapshot(after, points, "runsc", "local")
 	collectBundleTemplateSnapshot(after, points, "runsc", "local")
 	collectBundleMaterializeSnapshot(after, points, "runsc", "local")
-	collectExecutionEnvelopeSnapshot(after, points, "runsc", "local")
-	collectExecutionEnvelopePrepareSnapshot(after, points, "runsc", "local")
-	collectExecutionEnvelopeActivateSnapshot(after, points, "runsc", "local")
 	collectRuntimeWaitGraceSnapshot(after, points, "runsc")
 
 	summary := DiffStartupSummary(before, after)
@@ -183,30 +169,6 @@ func TestStartupSnapshotAndDiffFromMetricsSnapshot(t *testing.T) {
 	}
 	if summary.Bundle.MaterializeQuantiles == nil {
 		t.Fatal("expected bundle materialize quantiles")
-	}
-	if summary.Envelope == nil {
-		t.Fatal("expected execution envelope summary")
-	}
-	if summary.Envelope.PreparedCount != 2 {
-		t.Fatalf("execution envelope prepared count = %d, want 2", summary.Envelope.PreparedCount)
-	}
-	if summary.Envelope.HitCount != 1 {
-		t.Fatalf("execution envelope hit count = %d, want 1", summary.Envelope.HitCount)
-	}
-	if summary.Envelope.MissCount != 1 {
-		t.Fatalf("execution envelope miss count = %d, want 1", summary.Envelope.MissCount)
-	}
-	if summary.Envelope.FallbackCount != 1 {
-		t.Fatalf("execution envelope fallback count = %d, want 1", summary.Envelope.FallbackCount)
-	}
-	if got := summary.Envelope.AveragePrepareDurationSec; got < 0.039999 || got > 0.040001 {
-		t.Fatalf("execution envelope average prepare duration = %v, want approximately 0.04", got)
-	}
-	if got := summary.Envelope.AverageActivateDurationSec; got < 0.014999 || got > 0.015001 {
-		t.Fatalf("execution envelope average activate duration = %v, want approximately 0.015", got)
-	}
-	if summary.Envelope.PrepareQuantiles == nil || summary.Envelope.ActivateQuantiles == nil {
-		t.Fatal("expected execution envelope quantiles")
 	}
 	if summary.DominantPhaseP95["cold"] != "resource_allocate" {
 		t.Fatalf("cold dominant p95 phase = %q, want resource_allocate", summary.DominantPhaseP95["cold"])

@@ -1,7 +1,6 @@
 package langruntime
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -93,19 +92,6 @@ func TestAddLangRuntime_DriftedIdleRuntimeReplaced(t *testing.T) {
 	if !lr1.Retained() {
 		t.Fatal("expected runtime to be retained before drifted replacement")
 	}
-	destroyCalls := 0
-	if !lr1.BeginExecutionEnvelopePrepare() {
-		t.Fatal("expected execution envelope prepare slot")
-	}
-	if !lr1.FinishExecutionEnvelopePrepare(&ExecutionEnvelope{
-		Destroy: func(context.Context) error {
-			destroyCalls++
-			return nil
-		},
-	}) {
-		t.Fatal("expected execution envelope to become ready")
-	}
-
 	drifted := newTestFR("rt-drift", "/other/path")
 	drifted.Command = []string{"/bin/bash"}
 	drifted.Cwd = "/workspace-b"
@@ -123,9 +109,6 @@ func TestAddLangRuntime_DriftedIdleRuntimeReplaced(t *testing.T) {
 	}
 	if !lr1.Released() {
 		t.Fatal("expected previous runtime to be released after replacement")
-	}
-	if destroyCalls != 1 {
-		t.Fatalf("execution envelope destroy calls = %d, want 1", destroyCalls)
 	}
 	if lr1.template != nil {
 		t.Fatal("expected previous bundle template to be cleared on replacement")

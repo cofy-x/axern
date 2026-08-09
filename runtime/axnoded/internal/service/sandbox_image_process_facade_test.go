@@ -122,18 +122,6 @@ func TestExecImageCreatesTransientImageContainerAndCleansUp(t *testing.T) {
 	assert.True(t, session.closed)
 }
 
-func TestEnsureImageProcessRuntimeDisablesExecutionEnvelope(t *testing.T) {
-	rootfsDir := t.TempDir()
-	handler := &runtimeSpyHandler{name: "runsc"}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
-	s.lrtManager = langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir})
-	s.configureAllocationController()
-
-	lrt, err := s.ensureImageProcessRuntime(t.Context(), imageprocess.RuntimeTemplate("runsc", "ghcr.io/cofy-x/agent:latest"))
-	require.NoError(t, err)
-	assert.False(t, lrt.ExecutionEnvelopeEnabled())
-}
-
 func TestExecImageCleansUpTransientContainerWhenProcessOpenFails(t *testing.T) {
 	hostDir := t.TempDir()
 	rootfsDir := t.TempDir()

@@ -15,6 +15,7 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 )
 
 type Manager struct {
@@ -119,21 +120,21 @@ func (m *Manager) UpdateLabels(id string, labels map[string]string) error {
 	if len(labels) == 0 {
 		return nil
 	}
+	metadata := proto.Clone(c.Metadata).(*runtimeapi.ContainerMetadata)
 	needUpdate := false
 	for k, v := range labels {
-		if c.Metadata.Labels == nil {
-			c.Metadata.Labels = make(map[string]string)
+		if metadata.Labels == nil {
+			metadata.Labels = make(map[string]string)
 		}
-		if c.Metadata.Labels[k] != v {
-			c.Metadata.Labels[k] = v
+		if metadata.Labels[k] != v {
+			metadata.Labels[k] = v
 			needUpdate = true
 		}
 	}
 	if !needUpdate {
 		return nil
 	}
-	m.StoreMetadata(id, c.Metadata)
-	return nil
+	return m.StoreMetadata(id, metadata)
 }
 
 func (m *Manager) List(option ...ListOption) []*Container {

@@ -20,7 +20,7 @@ type containerLister interface {
 }
 
 type sandboxLifecycleService interface {
-	Start(context.Context, *runtimeapi.StartRequest) (*runtimeapi.StartResponse, error)
+	StartNodeLocalSandbox(context.Context, *runtimeapi.StartRequest) (*runtimeapi.StartResponse, error)
 	Delete(context.Context, *runtimeapi.DeleteRequest) (*runtimeapi.DeleteResponse, error)
 	List(context.Context, *runtimeapi.ListContainersRequest) (*runtimeapi.ListContainersResponse, error)
 }
@@ -181,7 +181,7 @@ func (d *NginxDashboard) startManagedInstance(ctx context.Context, runtimeName s
 	if err != nil {
 		return err
 	}
-	resp, err := lifecycleSvc.Start(ctx, startReq)
+	resp, err := lifecycleSvc.StartNodeLocalSandbox(ctx, startReq)
 	if err != nil {
 		return fmt.Errorf("start %s nginx demo: %w", runtimeName, err)
 	}

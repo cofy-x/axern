@@ -1,6 +1,7 @@
 package ocicli
 
 import (
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -32,5 +33,25 @@ func TestPersistExitStateAllowsConcurrentWriters(t *testing.T) {
 	}
 	if _, ok, err := ReadPersistedExitState(path, "test"); err != nil || !ok {
 		t.Fatalf("ReadPersistedExitState() = ok %v, err %v", ok, err)
+	}
+}
+
+func TestPersistExitStateRejectsCorruptOrNonRegularExistingState(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "exit.json")
+	if err := os.WriteFile(path, []byte("not-json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := PersistExitState(path, Exit{Timestamp: time.Now().UTC(), Status: 1}); err == nil {
+		t.Fatal("corrupt existing exit state was accepted as durable")
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("missing", path); err != nil {
+		t.Fatal(err)
+	}
+	if err := PersistExitState(path, Exit{Timestamp: time.Now().UTC(), Status: 1}); err == nil {
+		t.Fatal("symlink exit state was accepted as durable")
 	}
 }

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -77,6 +78,26 @@ func (h *runtimeSpyHandler) CreateContainer(_ context.Context, request *apipb.Cr
 		ID:             options.ContainerID,
 		RuntimeHandler: h.name,
 		Labels:         labels,
+	}, nil
+}
+
+func (h *runtimeSpyHandler) PrepareContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*contract.PreparedContainer, error) {
+	metadata, err := h.CreateContainer(ctx, request, options)
+	if err != nil {
+		return nil, err
+	}
+	return &contract.PreparedContainer{ContainerID: options.ContainerID, BundlePath: "/fake/" + options.ContainerID, Metadata: metadata}, nil
+}
+
+func (h *runtimeSpyHandler) StartPreparedContainer(_ context.Context, prepared *contract.PreparedContainer, _ contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
+	return prepared.Metadata, nil
+}
+
+func (h *runtimeSpyHandler) AllocationEnforcementManifest(_ context.Context, containerID string) (*apipb.AllocationEnforcementManifest, error) {
+	return &apipb.AllocationEnforcementManifest{
+		RuntimeName:       h.Name(),
+		BundlePath:        "/fake/" + containerID,
+		CreatedAtUnixNano: time.Now().UTC().UnixNano(),
 	}, nil
 }
 

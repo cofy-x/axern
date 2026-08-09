@@ -16,7 +16,7 @@ func (r *RunscServiceHandler) startRunWithExitState(stdoutPath, stderrPath, bund
 	})
 }
 
-func (r *RunscServiceHandler) createExecutionEnvelope(ctx context.Context, bundlePath, containerID string, overlayArgs []string) error {
+func (r *RunscServiceHandler) createPreparedContainer(ctx context.Context, stdoutPath, stderrPath, bundlePath, containerID string, overlayArgs []string) error {
 	pidFilePath, _, err := r.common.PrepareContainerStatePaths(containerID)
 	if err != nil {
 		return err
@@ -25,15 +25,14 @@ func (r *RunscServiceHandler) createExecutionEnvelope(ctx context.Context, bundl
 	args := r.lifecycleArgs()
 	args = append(args, overlayArgs...)
 	args = append(args, "create", "--pid-file", pidFilePath, "--bundle", bundlePath, containerID)
-	_, err = r.common.Run(ctx, args...)
-	return err
+	return r.common.RunWithIO(ctx, stdoutPath, stderrPath, args...)
 }
 
 func (r *RunscServiceHandler) waitForContainerStart(ctx context.Context, containerID string, runWait <-chan error) error {
 	return r.waitForStartup(ctx, containerID, runWait)
 }
 
-func (r *RunscServiceHandler) waitForEnvelopeStart(ctx context.Context, containerID string) error {
+func (r *RunscServiceHandler) waitForPreparedContainerStart(ctx context.Context, containerID string) error {
 	return r.waitForStartup(ctx, containerID, nil)
 }
 

@@ -38,7 +38,7 @@ func TestRunscHandlerKillContainerUsesOCIKill(t *testing.T) {
 	}
 }
 
-func TestRunscPrepareExecutionEnvelopeUsesCreate(t *testing.T) {
+func TestRunscPrepareContainerUsesCreate(t *testing.T) {
 	rootDir := t.TempDir()
 	writeFakeSandboxdBinary(t, rootDir)
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
@@ -57,20 +57,24 @@ func TestRunscPrepareExecutionEnvelopeUsesCreate(t *testing.T) {
 	request := newLocalCreateRequest(t)
 	request.Runtime = "runsc"
 	request.Command = []string{"/bin/sh"}
-	envelope, err := handler.PrepareExecutionEnvelope(context.Background(), request, contract.HandlerOptions{ContainerID: "axctl-prewarm"})
+	prepared, err := handler.PrepareContainer(context.Background(), request, contract.HandlerOptions{ContainerID: "allocation-prepared"})
 	assert.NoError(t, err)
-	if assert.NotNil(t, envelope) {
-		assert.Equal(t, "axctl-prewarm", envelope.ContainerID)
-		assert.NotEmpty(t, envelope.BundlePath)
+	if assert.NotNil(t, prepared) {
+		assert.Equal(t, "allocation-prepared", prepared.ContainerID)
+		assert.NotEmpty(t, prepared.BundlePath)
 	}
 	args := recorder.Args()
 	if assert.Len(t, args, 1) {
 		assert.Contains(t, args[0], "create")
 		assert.NotContains(t, args[0], "run")
 	}
+	ioCalls, stdoutPaths, stderrPaths := recorder.IOPaths()
+	assert.Equal(t, 1, ioCalls)
+	assert.Equal(t, []string{prepared.Metadata.GetStdout()}, stdoutPaths)
+	assert.Equal(t, []string{prepared.Metadata.GetStderr()}, stderrPaths)
 }
 
-func TestRunscActivateExecutionEnvelopeUsesStart(t *testing.T) {
+func TestRunscStartPreparedContainerUsesStart(t *testing.T) {
 	rootDir := t.TempDir()
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
 	if err != nil {
@@ -84,21 +88,21 @@ func TestRunscActivateExecutionEnvelopeUsesStart(t *testing.T) {
 	disableSandboxReadyWait(t, handler)
 	recorder := &recordingExecutor{}
 	handler.common.SetExecutor(recorder)
-	pidPath := handler.common.RuntimePIDFilePath("axctl-prewarm")
+	pidPath := handler.common.RuntimePIDFilePath("allocation-prepared")
 	assert.NoError(t, os.MkdirAll(filepath.Dir(pidPath), 0755))
 
 	assert.NoError(t, os.WriteFile(pidPath, []byte("1234\n"), 0644))
 
-	meta, err := handler.ActivateExecutionEnvelope(context.Background(), &contract.ExecutionEnvelope{
-		ContainerID: "axctl-prewarm",
+	meta, err := handler.StartPreparedContainer(context.Background(), &contract.PreparedContainer{
+		ContainerID: "allocation-prepared",
 		Metadata: &apipb.ContainerMetadata{
-			ID:             "axctl-prewarm",
+			ID:             "allocation-prepared",
 			RuntimeHandler: "runsc",
 		},
-	}, contract.HandlerOptions{ContainerID: "axctl-prewarm"})
+	}, contract.HandlerOptions{ContainerID: "allocation-prepared"})
 	assert.NoError(t, err)
 	if assert.NotNil(t, meta) {
-		assert.Equal(t, "axctl-prewarm", meta.ID)
+		assert.Equal(t, "allocation-prepared", meta.ID)
 	}
 
 	deadline := time.Now().Add(time.Second)
@@ -131,6 +135,6 @@ func TestRunscActivateExecutionEnvelopeUsesStart(t *testing.T) {
 		assert.True(t, foundWait)
 	}
 	waitForPersistedExitState(t, func() (contract.Exit, bool, error) {
-		return handler.readExitState("axctl-prewarm")
+		return handler.readExitState("allocation-prepared")
 	})
 }

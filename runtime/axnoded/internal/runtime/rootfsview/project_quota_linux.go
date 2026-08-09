@@ -5,10 +5,120 @@ package rootfsview
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
+	"unsafe"
 )
+
+const (
+	fsIOCFSGetXAttr    = uintptr(0x801c581f)
+	fsXFlagProjInherit = uint32(0x00000200)
+	qXGetQuota         = 0x5803
+	projectQuota       = 2
+)
+
+type fsXAttr struct {
+	XFlags     uint32
+	ExtSize    uint32
+	Nextents   uint32
+	ProjectID  uint32
+	CowExtSize uint32
+	Pad        [8]byte
+}
+
+// fsDiskQuota mirrors Linux's fs_disk_quota ABI used by XFS Q_XGETQUOTA.
+type fsDiskQuota struct {
+	Version       uint8
+	Flags         uint8
+	FieldMask     uint16
+	ID            uint32
+	BlkHardLimit  uint64
+	BlkSoftLimit  uint64
+	InoHardLimit  uint64
+	InoSoftLimit  uint64
+	BlockCount    uint64
+	InodeCount    uint64
+	InodeTimer    int32
+	BlockTimer    int32
+	InodeWarnings uint16
+	BlockWarnings uint16
+	Padding2      int32
+	RTBHardLimit  uint64
+	RTBSoftLimit  uint64
+	RTBCount      uint64
+	RTBTimer      int32
+	RTBWarnings   uint16
+	Padding3      uint16
+	Padding4      [8]byte
+}
+
+func VerifyProjectQuota(filestoreDir, upperDir string, projectID uint32, limitBytes int64) error {
+	if projectID == 0 || limitBytes <= 0 {
+		return fmt.Errorf("expected project ID and hard limit must be positive")
+	}
+	file, err := os.Open(upperDir)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	var attr fsXAttr
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, file.Fd(), fsIOCFSGetXAttr, uintptr(unsafe.Pointer(&attr)))
+	if errno != 0 {
+		return fmt.Errorf("FS_IOC_FSGETXATTR %s: %w", upperDir, errno)
+	}
+	if attr.ProjectID != projectID || attr.XFlags&fsXFlagProjInherit == 0 {
+		return fmt.Errorf("upper project assignment changed: project=%d flags=%#x, expected project=%d with inherit", attr.ProjectID, attr.XFlags, projectID)
+	}
+	// XFS Q_XGETQUOTA expects the mounted block-device identity. Passing the
+	// mountpoint happens to work on some quota implementations, but XFS returns
+	// ENOTBLK on kernels that enforce the documented special-device contract.
+	// Resolve it from the effective mount instead of trusting a configured path.
+	quotaDevice, err := xfsQuotaDevice(filestoreDir)
+	if err != nil {
+		return err
+	}
+	special, err := syscall.BytePtrFromString(quotaDevice)
+	if err != nil {
+		return err
+	}
+	var quota fsDiskQuota
+	command := uintptr((qXGetQuota << 8) | projectQuota)
+	_, _, errno = syscall.Syscall6(syscall.SYS_QUOTACTL, command, uintptr(unsafe.Pointer(special)), uintptr(projectID), uintptr(unsafe.Pointer(&quota)), 0, 0)
+	if errno != 0 {
+		return fmt.Errorf("quotactl Q_XGETQUOTA project %d: %w", projectID, errno)
+	}
+	expectedBlocks := uint64((limitBytes + 511) / 512)
+	if quota.ID != projectID || quota.BlkHardLimit != expectedBlocks {
+		return fmt.Errorf("kernel project quota changed: id=%d hard_blocks=%d, expected id=%d hard_blocks=%d", quota.ID, quota.BlkHardLimit, projectID, expectedBlocks)
+	}
+	return nil
+}
+
+func xfsQuotaDevice(filestoreDir string) (string, error) {
+	facts, err := InspectBacking(filestoreDir)
+	if err != nil {
+		return "", fmt.Errorf("inspect filestore mount for project quota: %w", err)
+	}
+	if !strings.EqualFold(facts.FSType, "xfs") {
+		return "", fmt.Errorf("project quota requires XFS, got %q", facts.FSType)
+	}
+	device := filepath.Clean(strings.TrimSpace(facts.Source))
+	if !filepath.IsAbs(device) {
+		return "", fmt.Errorf("XFS mount source %q is not an absolute block-device path", facts.Source)
+	}
+	info, err := os.Stat(device)
+	if err != nil {
+		return "", fmt.Errorf("stat XFS quota device %q: %w", device, err)
+	}
+	if info.Mode()&os.ModeDevice == 0 {
+		return "", fmt.Errorf("XFS mount source %q is not a block device", device)
+	}
+	return device, nil
+}
 
 func applyProjectQuota(filestoreDir, upperDir string, projectID uint32, limitBytes int64) error {
 	if projectID == 0 || limitBytes <= 0 {

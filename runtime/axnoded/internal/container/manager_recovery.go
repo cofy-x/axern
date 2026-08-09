@@ -11,44 +11,48 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/fileutil"
-	"github.com/golang/protobuf/proto"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 )
 
-func (m *Manager) StoreMetadata(id string, data *apipb.ContainerMetadata) {
-	var err error
+func (m *Manager) StoreMetadata(id string, data *apipb.ContainerMetadata) error {
+	if data == nil || data.GetID() == "" || id == "" || data.GetID() != id {
+		return fmt.Errorf("container metadata id %q does not match storage id %q", data.GetID(), id)
+	}
 	containerRoot := filepath.Join(m.root, id)
 	start := time.Now()
-	defer func() {
-		if err == nil && !m.containers.Has(data.ID) {
-			if c, err := m.loadContainer(containerRoot); err != nil {
-				logrus.Warnf("init loading container %s failed: %v, try later when housekeeping", data.ID, err)
-			} else {
-				m.containers.Set(data.ID, c)
-			}
-		}
-	}()
 
-	if _, err = os.Stat(containerRoot); os.IsNotExist(err) {
-		if err = os.MkdirAll(containerRoot, 0755); err != nil {
-			logrus.Errorf("create container root %s failed: %v", containerRoot, err)
-			return
+	if _, err := os.Stat(containerRoot); os.IsNotExist(err) {
+		if err := os.MkdirAll(containerRoot, 0755); err != nil {
+			return fmt.Errorf("create container root %s: %w", containerRoot, err)
 		}
+	} else if err != nil {
+		return fmt.Errorf("stat container root %s: %w", containerRoot, err)
 	}
 	dataFile := filepath.Join(containerRoot, config.ContainerMetaFile)
 	bytes, err := proto.Marshal(data)
 	if err != nil {
-		logrus.Errorf("marshal %s container metadata when store failed: %v", data.ID, err)
-		return
+		return fmt.Errorf("marshal container %s metadata: %w", data.ID, err)
 	}
 
-	if err = fileutil.AtomicWriteFile(dataFile, bytes, 0600); err != nil {
-		logrus.Errorf("save %s container metadata failed: %v", data.ID, err)
-		return
+	if err := fileutil.AtomicWriteFile(dataFile, bytes, 0600); err != nil {
+		return fmt.Errorf("save container %s metadata: %w", data.ID, err)
+	}
+	if current, ok := m.containers.Get(id); ok && current != nil {
+		replacement := *current
+		replacement.Metadata = proto.Clone(data).(*apipb.ContainerMetadata)
+		m.containers.Set(id, &replacement)
+	} else {
+		container, err := m.loadContainer(containerRoot)
+		if err != nil {
+			return fmt.Errorf("load persisted container %s metadata: %w", id, err)
+		}
+		m.containers.Set(id, container)
 	}
 	logrus.Debugf("store container %s metadata success, cost %v", data.ID, time.Since(start).String())
+	return nil
 }
 
 func (m *Manager) loadContainer(containerRoot string) (*Container, error) {

@@ -3,6 +3,7 @@ package ocihost
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,12 +29,19 @@ func (c *Common) RuntimeExitStatePath(containerID string) string {
 	return filepath.Join(c.exitStateRoot, containerID+".json")
 }
 
-func (c *Common) RemoveExitState(containerID string) error {
-	err := os.Remove(c.RuntimeExitStatePath(containerID))
-	if os.IsNotExist(err) {
-		return nil
+func (c *Common) InitMonitorReadyStatePath(containerID string) string {
+	return filepath.Join(c.exitStateRoot, containerID+".monitor-ready.json")
+}
+
+func (c *Common) RemoveContainerState(containerID string) error {
+	var errs []error
+	for _, path := range []string{c.RuntimeExitStatePath(containerID), c.InitMonitorReadyStatePath(containerID)} {
+		err := os.Remove(path)
+		if err != nil && !os.IsNotExist(err) {
+			errs = append(errs, err)
+		}
 	}
-	return err
+	return errors.Join(errs...)
 }
 
 func (c *Common) RuntimePIDFilePath(containerID string) string {

@@ -29,53 +29,90 @@ type stateStore interface {
 }
 
 type Options struct {
-	Config           config.Config
-	Store            stateStore
-	ContainerManager func() *container.Manager
-	RuntimeHandler   func(string) (contract.RuntimeHandler, error)
-	LangRuntime      *langrtmanager.LangRTManager
-	Volumes          *servicevolumes.Coordinator
-	Networking       *servicenetworking.Coordinator
-	Probes           *probes.Coordinator
-	StartMetricSink  StartMetricSink
-	ReportStatus     func(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
-	InventoryChanged func()
+	Config                      config.Config
+	Store                       stateStore
+	ContainerManager            func() *container.Manager
+	RuntimeHandler              func(string) (contract.RuntimeHandler, error)
+	LangRuntime                 *langrtmanager.LangRTManager
+	Volumes                     *servicevolumes.Coordinator
+	Networking                  *servicenetworking.Coordinator
+	Probes                      *probes.Coordinator
+	StartMetricSink             StartMetricSink
+	ReportStatus                func(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
+	InventoryChanged            func()
+	RootfsCapabilityGate        func(context.Context, *runtime.StartRequest, string) error
+	PreActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.ManagedRuntimeHandler, string) error
 }
 
 type Controller struct {
 	config config.Config
 	store  stateStore
 
-	containerManager func() *container.Manager
-	runtimeHandlerFn func(string) (contract.RuntimeHandler, error)
-	lrtManager       *langrtmanager.LangRTManager
-	volumes          *servicevolumes.Coordinator
-	networking       *servicenetworking.Coordinator
-	probes           *probes.Coordinator
-	startMetricSink  StartMetricSink
-	reportStatus     func(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
-	inventoryChanged func()
+	containerManager            func() *container.Manager
+	runtimeHandlerFn            func(string) (contract.RuntimeHandler, error)
+	lrtManager                  *langrtmanager.LangRTManager
+	volumes                     *servicevolumes.Coordinator
+	networking                  *servicenetworking.Coordinator
+	probes                      *probes.Coordinator
+	startMetricSink             StartMetricSink
+	reportStatus                func(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
+	inventoryChanged            func()
+	rootfsCapabilityGate        func(context.Context, *runtime.StartRequest, string) error
+	preActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.ManagedRuntimeHandler, string) error
 
 	stateMu          sync.RWMutex
 	allocationStates map[string]*allocationState
 
-	allocationLifecycleLocks allocationLifecycleLocks
+	allocationLifecycleLocks allocationKeyedLocks
+	recordMutationLocks      allocationKeyedLocks
+}
+
+type internalConformanceContextKey struct{}
+type nodeLocalStartContextKey struct{}
+
+// StartInternalConformance runs the node-owned runtime self-test through the
+// normal allocation workflow while carrying an unforgeable in-process marker.
+// The marker cannot cross the lifecycle RPC boundary and therefore cannot be
+// used by a workload to bypass capability admission.
+func (h *Controller) StartInternalConformance(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
+	return h.Start(context.WithValue(ctx, internalConformanceContextKey{}, true), request)
+}
+
+func IsInternalConformance(ctx context.Context) bool {
+	value, _ := ctx.Value(internalConformanceContextKey{}).(bool)
+	return value
+}
+
+// WithNodeLocalStart marks an in-process operator-owned sandbox start. The
+// marker is never represented in the lifecycle protobuf and therefore cannot
+// cross a gRPC boundary. Node-local starts still use the ordinary capability
+// admission and enforcement gates; the marker only selects their separate
+// durable reporting ownership.
+func WithNodeLocalStart(ctx context.Context) context.Context {
+	return context.WithValue(ctx, nodeLocalStartContextKey{}, true)
+}
+
+func IsNodeLocalStart(ctx context.Context) bool {
+	value, _ := ctx.Value(nodeLocalStartContextKey{}).(bool)
+	return value
 }
 
 func NewController(options Options) *Controller {
 	c := &Controller{
-		config:           options.Config,
-		store:            options.Store,
-		containerManager: options.ContainerManager,
-		runtimeHandlerFn: options.RuntimeHandler,
-		lrtManager:       options.LangRuntime,
-		volumes:          options.Volumes,
-		networking:       options.Networking,
-		probes:           options.Probes,
-		startMetricSink:  options.StartMetricSink,
-		reportStatus:     options.ReportStatus,
-		inventoryChanged: options.InventoryChanged,
-		allocationStates: make(map[string]*allocationState),
+		config:                      options.Config,
+		store:                       options.Store,
+		containerManager:            options.ContainerManager,
+		runtimeHandlerFn:            options.RuntimeHandler,
+		lrtManager:                  options.LangRuntime,
+		volumes:                     options.Volumes,
+		networking:                  options.Networking,
+		probes:                      options.Probes,
+		startMetricSink:             options.StartMetricSink,
+		reportStatus:                options.ReportStatus,
+		inventoryChanged:            options.InventoryChanged,
+		rootfsCapabilityGate:        options.RootfsCapabilityGate,
+		preActivationCapabilityGate: options.PreActivationCapabilityGate,
+		allocationStates:            make(map[string]*allocationState),
 	}
 	if c.startMetricSink == nil {
 		c.startMetricSink = DefaultStartMetricSink{}
@@ -91,6 +128,37 @@ func (c *Controller) notifyInventoryChanged() {
 
 func (c *Controller) Start(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
 	return c.startManagedContainer(ctx, request)
+}
+
+// LockAllocationLifecycle serializes the complete lifecycle contract for one
+// allocation. The service facade uses this lock to keep capability admission,
+// runtime creation, post-create verification, replay, and Delete in one lock
+// domain. Callers must release the returned function and must not recursively
+// acquire the same allocation.
+func (c *Controller) LockAllocationLifecycle(allocationID string) func() {
+	return c.allocationLifecycleLocks.Lock(allocationID)
+}
+
+// StartWithLifecycleHeld enters the runtime start workflow while the caller
+// owns LockAllocationLifecycle for this allocation. It exists so the service
+// facade can include its capability gates in the same critical section as the
+// runtime side effects.
+func (c *Controller) StartWithLifecycleHeld(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
+	if err := startplan.ValidateStartRequest(request); err != nil {
+		return startErrorResponse(err.Error()), err
+	}
+	if strings.TrimSpace(request.GetContainerID()) == "" {
+		return startErrorResponse("allocation id is required"), errord.ErrInvalidArgument
+	}
+	return c.startManagedContainerWithLifecycleHeld(ctx, request, false)
+}
+
+// ExistingActiveStartResponseWithLifecycleHeld resolves an idempotent replay
+// while the caller owns LockAllocationLifecycle. The durable capability launch
+// proof is checked by the facade; this method proves the runtime inventory is
+// still active before that proof is replayed.
+func (c *Controller) ExistingActiveStartResponseWithLifecycleHeld(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, bool, error) {
+	return c.existingActiveStartResponse(ctx, request)
 }
 
 func (c *Controller) Delete(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
@@ -121,10 +189,6 @@ func (c *Controller) PrepareRuntimeTemplate(ctx context.Context, fr *runtime.Run
 
 func (c *Controller) PrepareRuntimeTemplateWithSummary(ctx context.Context, fr *runtime.RuntimeTemplate) (*langrtmanager.LanguageRuntime, LangRuntimePrepareSummary, error) {
 	return c.ensureLangRuntime(ctx, fr)
-}
-
-func (c *Controller) ScheduleExecutionEnvelopePrepare(lrt *langrtmanager.LanguageRuntime) {
-	c.scheduleExecutionEnvelopePrepare(lrt)
 }
 
 func (c *Controller) CreateRuntimeContainer(ctx context.Context, lrt *langrtmanager.LanguageRuntime, templateRequest, createRequest *runtime.CreateContainerRequest, resourceSpec *commonv1.ResourceSpec, recorder contract.StartupPhaseRecorder) (*runtime.CreateContainerResponse, string, error) {
@@ -222,18 +286,18 @@ func (c *Controller) sandboxNetworking() *servicenetworking.Coordinator {
 	return c.networking
 }
 
-func (c *Controller) startReadinessWorker(containerID string, extraConfig startplan.ExtraConfig) {
+func (c *Controller) startReadinessWorker(containerID string, attempt int64, extraConfig startplan.ExtraConfig) {
 	if c == nil || c.probes == nil {
 		return
 	}
-	c.probes.StartReadiness(containerID, extraConfig.AllocationAttempt, extraConfig.ReadinessProbe)
+	c.probes.StartReadiness(containerID, attempt, extraConfig.ReadinessProbe)
 }
 
-func (c *Controller) startLivenessWorker(containerID string, extraConfig startplan.ExtraConfig) {
+func (c *Controller) startLivenessWorker(containerID string, attempt int64, extraConfig startplan.ExtraConfig) {
 	if c == nil || c.probes == nil {
 		return
 	}
-	c.probes.StartLiveness(containerID, extraConfig.AllocationAttempt, extraConfig.LivenessProbe)
+	c.probes.StartLiveness(containerID, attempt, extraConfig.LivenessProbe)
 }
 
 func (c *Controller) stopReadinessWorker(containerID string) {
@@ -250,12 +314,12 @@ func (c *Controller) stopLivenessWorker(containerID string) {
 	c.probes.StopLiveness(containerID)
 }
 
-func (c *Controller) reportStartRunningStatus(containerID string, extraConfig startplan.ExtraConfig, observedAt time.Time) {
-	if c == nil || c.reportStatus == nil || extraConfig.AllocationAttempt <= 0 || strings.TrimSpace(containerID) == "" {
+func (c *Controller) reportStartRunningStatus(containerID string, attempt int64, extraConfig startplan.ExtraConfig, observedAt time.Time) {
+	if c == nil || c.reportStatus == nil || attempt <= 0 || strings.TrimSpace(containerID) == "" {
 		return
 	}
 	if extraConfig.ReadinessProbe != nil {
 		return
 	}
-	c.reportStatus(containerID, extraConfig.AllocationAttempt, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, 0, false, true, "", "", observedAt)
+	c.reportStatus(containerID, attempt, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, 0, false, true, "", "", observedAt)
 }

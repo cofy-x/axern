@@ -72,7 +72,6 @@ func (h *sandboxService) ensureImageProcessRuntime(ctx context.Context, template
 	if err != nil {
 		return nil, err
 	}
-	lrt.SetExecutionEnvelopeEnabled(false)
 	return lrt, nil
 }
 
