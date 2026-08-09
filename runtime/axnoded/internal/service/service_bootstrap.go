@@ -89,7 +89,10 @@ type nodeStateStore interface {
 }
 
 // NewSandboxService creates a new sandbox service from an already parsed config.
-func NewSandboxService(cfg config.Config) (NodeOperatorService, error) {
+func NewSandboxService(ctx context.Context, cfg config.Config) (NodeOperatorService, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("sandbox service context is required")
+	}
 	networkConfig, err := cfg.PluginConfig.NetworkConfig.Normalized()
 	if err != nil {
 		return nil, fmt.Errorf("normalize network config: %w", err)
@@ -104,7 +107,7 @@ func NewSandboxService(cfg config.Config) (NodeOperatorService, error) {
 		return nil, err
 	}
 
-	healthChan, err := s.initContainerRuntime()
+	healthChan, err := s.initContainerRuntime(ctx)
 	if err != nil {
 		s.closeAfterInitializationFailure()
 		return nil, err

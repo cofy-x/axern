@@ -145,6 +145,11 @@ Create invariants:
   and suppresses destructive image-lease reconciliation whenever any live
   allocation cannot be reconstructed completely. Incomplete live recovery
   fails node startup instead of advertising a partially recovered runtime.
+- Persistent-state recovery starts only after every configured runtime handler
+  has loaded. Transient host cleanup, filestore, or runtime-state contention
+  keeps the process NotReady and retries with bounded exponential backoff until
+  the process context is canceled; there is no timeout path that exposes a
+  partial handler registry.
 - Sandboxd readiness and baseline capabilities fail closed for normal
   sandboxd-backed OCI workloads, except for the documented short-lived clean
   runtime exit before readiness.

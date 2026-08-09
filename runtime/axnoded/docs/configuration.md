@@ -169,6 +169,10 @@ less brittle.
 ### Runtime Handlers
 
 `[plugin.runtime.runtimes.<name>]` declares each OCI runtime handler.
+Axnoded treats this set as one startup contract: every configured handler must
+load before persistent container inventory is reconciled or the node can become
+ready. A transient runtime-state or filestore conflict is retried until startup
+is canceled; axnoded never starts with a partial configured runtime set.
 
 | Key | Meaning |
 | --- | --- |

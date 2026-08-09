@@ -30,7 +30,7 @@ import (
 )
 
 func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Handle) error {
-	svc, err := service.NewSandboxService(cfg)
+	svc, err := service.NewSandboxService(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("create sandbox service: %w", err)
 	}
