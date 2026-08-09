@@ -4,6 +4,23 @@ Axern models node capability as `Observation -> Policy -> Enforcement`. A
 capability is never a free-form node label and is never inferred from a
 successful user sandbox.
 
+## Terminology and sources of truth
+
+This document is the canonical cross-subsystem contract for observed node
+capabilities. The wire shape lives in
+`sdk/proto/axern/control/capability/v1/capability.proto`; the platform catalog
+and pure validation rules live in `lib/go/nodecapability`; axnoded's snapshot
+manager lives in `runtime/axnoded/internal/nodecapability`.
+
+Observed node capabilities are not either of these unrelated concepts:
+
+- a narrow Go interface sometimes called a capability at a consumer boundary;
+- sandboxd operation discovery exposed through `NodeSandbox.CapabilityStatus`.
+
+Runtime handlers also expose static handler features and resource requirements.
+Those declarations select local runtime wiring; they cannot publish observed
+platform evidence or satisfy placement by themselves.
+
 ## Observation
 
 Axnoded's capability manager assigns every typed key to exactly one provider.
@@ -24,23 +41,42 @@ Provider evidence is scoped to config digest, boot ID, mount identity, or the
 boot/runtime/config identity tuple. Refreshable network and derived facts carry
 an expiry and fail closed when stale.
 
-The initial providers are:
+The providers are:
 
 - config: extension facts;
-- host: cgroup v2 memory controller and delegation;
+- host: a boot-scoped cgroup v2 memory-controller enforcement probe;
 - network health: bridge/iptables or BPF dataplane and port forwarding;
 - filestore: mount identity, OverlayFS upper, XFS project quota, and real EROFS
   compatibility;
 - runtime conformance: local, registry-independent runc and runsc sandboxes;
 - derived policy: runtime-specific memory and ephemeral-storage hard limits.
 
-Runtime conformance is serialized, limited to 60 seconds, refreshed every 15
-minutes or immediately after runtime/config identity changes, and retries
-failures with exponential backoff capped at five minutes. Recovery requires two
-distinct successful full probes at least five seconds apart. Self-test cleanup
-is part of success. Recovery hysteresis is applied to base observations before
-derived providers run, so a derived capability can never advertise an
-unconfirmed dependency recovery from the same snapshot generation.
+The catalog currently owns this platform set:
+
+| Capability group | Provider and scope | Loss policy | Dependency rule |
+| --- | --- | --- | --- |
+| Port forwarding, bridge, BPF network | network health, refreshable | `DEGRADE` | direct observed health |
+| Cgroup v2 memory controller | host cgroup, boot | `ADMISSION_ONLY` | direct enforcement probe |
+| Runc/runsc memory hard limit | derived, refreshable | `FAIL_STOP` | cgroup fact plus matching runtime self-test |
+| Filestore OverlayFS upper, XFS project quota | filestore, mount | `ADMISSION_ONLY` | direct mount-scoped probe |
+| Runc ephemeral-storage hard limit | derived, refreshable | `FAIL_STOP` | OverlayFS upper, XFS quota, and runc self-test |
+| Runsc ephemeral-storage hard limit | derived, refreshable | `FAIL_STOP` | OverlayFS upper and runsc self-test |
+| EROFS lower compatibility | EROFS probe, mount | `ADMISSION_ONLY` | real fixture probe |
+| Runtime memory and ephemeral self-test facts | matching runtime self-test, runtime | `ADMISSION_ONLY` | internal dependencies, not workload requirements |
+
+Extensions are config-static, config-owned, and always `ADMISSION_ONLY`.
+
+Runtime conformance providers are serialized. Memory and ephemeral-storage
+enforcement use separate self-test sandboxes and observations, so an unavailable
+cgroup boundary cannot suppress storage evidence and a storage failure cannot
+suppress memory evidence. Each self-test is limited to 60 seconds, refreshed
+every 15 minutes or immediately after runtime/config identity changes, and
+retries failures with exponential backoff capped at five minutes. Recovery
+requires two distinct successful probes at least five seconds apart. Self-test
+cleanup is part of success. Recovery hysteresis is applied by the capability
+manager to base observations before derived providers run, so a derived
+capability can never advertise an unconfirmed dependency recovery from the same
+snapshot generation.
 
 ## Policy
 

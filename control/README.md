@@ -20,6 +20,11 @@ control plane and flow through `gatewayd`.
 Node capacity admission consumes the aggregate `runtime_slots` contract
 reported by axnoded. The control plane does not infer capacity from individual
 cgroup or interface pools, and it rejects node reports that omit the aggregate.
+Node capability admission consumes the atomic typed observation snapshot in the
+same report. Platform requirements are derived from workload semantics and
+rechecked while candidate rows are locked; users may declare only structured
+extension requirements. See
+[Observed Capability Providers](../docs/architecture/observed-capability-providers.md).
 Node identity is durable: operators retire permanently removed nodes through
 the audited admin API after allocations, reservations, leases, tunnels, volume
 bindings, reclaims, and lifecycle retries have converged. Retired identities

@@ -51,7 +51,7 @@ the filestore. The OCI readonly bit is preserved exactly. Imagemgr's active
 rootfs reference is the lower mount lease; its lease ID is also recorded in the
 projection manifest for reconciliation.
 
-## Writable layers and quota
+## Ephemeral-storage enforcement
 
 Writable runsc roots must launch with exactly:
 
@@ -62,7 +62,8 @@ Writable runsc roots must launch with exactly:
 There is no `root:memory`, direct-write, self-backing, or representation-based
 fallback. Writable runc roots always use a host OverlayFS and require a durable
 project ID plus an XFS project hard quota. Ext4 can host runsc and target-only
-projections but does not publish runc writable hard-limit capability.
+projections but cannot satisfy the runc ephemeral-storage hard-limit
+capability.
 
 The node-local reservation ledger is fsync/rename durable and checks both
 committed requests and live `statfs` availability after the system reserve.
@@ -70,14 +71,18 @@ The reservation, limit, runtime, project ID, and OCI annotation are available
 to restart reconciliation. Compressed EROFS copy-up is charged by actual upper
 usage; lower compressed size is not a capacity estimate.
 
-## Readiness, capability, and cleanup
+## Readiness, observed capability, and cleanup
 
 Filestore startup performs a real OverlayFS scratch mount and XFS project-quota
 probe. If an EROFS fixture is installed, it mounts the real image and exercises
 read, copy-up, create, whiteout, and directory operations using the production
-upper filesystem. Only successful probes publish the corresponding capability.
-Memory hard-limit capability is published only after a real sandbox passes
-limit readback and runtime PID-attribution verification.
+upper filesystem. Only successful probes can support the corresponding derived
+platform capability. Runtime-specific memory and ephemeral-storage hard-limit
+capabilities additionally require separate local conformance sandboxes so the
+cgroup and storage boundaries cannot mask one another; each real allocation is
+verified again. Provider ownership, evidence validity, and loss policy are
+defined in
+[Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md).
 
 Cleanup order is runtime delete, projection/host-overlay unmount, upper/work
 removal, writable reservation/project-ID release, then image mount lease

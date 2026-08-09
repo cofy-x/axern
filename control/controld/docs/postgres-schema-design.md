@@ -17,7 +17,12 @@ The schema is split by durable ownership boundary:
 
 Each migration declares the final shape of its domain. Migrations run in one
 direction under a Postgres advisory lock and are recorded in
-`schema_migrations` with version, name, checksum, and application time.
+`schema_migrations` with version, name, checksum, and application time. The
+repository currently supports rebuild-only database upgrades, so a coordinated
+contract replacement folds schema changes into the owning baseline migration
+and requires the database to be rebuilt. It must not add a compatibility
+migration or dual-read path without an explicit persisted-database compatibility
+contract.
 
 ```mermaid
 sequenceDiagram
@@ -35,8 +40,10 @@ sequenceDiagram
 ```
 
 An edited checksum, a missing version, or a database ahead of the binary is a
-startup error. A released migration is immutable; future schema changes use a
-new sequential migration.
+startup error for an existing database. Rebuild the database when a coordinated
+baseline replacement changes a checksum. Once a migration participates in a
+declared persisted-database compatibility contract, it is immutable and future
+schema changes use a new sequential migration.
 
 ## Core Control-Plane Model
 
@@ -56,12 +63,15 @@ erDiagram
   allocations ||--o{ workload_reservations : reserves
   allocations ||--o{ execution_leases : authorizes
   allocations ||--o| allocation_reconcile_queue : retries
+  allocations ||--o| allocation_capability_reconcile_queue : verifies
+  nodes ||--o{ node_capability_transitions : records
 ```
 
 ### Catalog and namespace state
 
 - `namespaces` is the durable scope and optimistic-lock row.
-- `namespace_resource_quotas` stores optional CPU and memory admission limits.
+- `namespace_resource_quotas` stores optional CPU, memory, and ephemeral-storage
+  admission limits.
 - `environment_templates` stores versioned catalog entries.
 - `environments.spec` stores user intent; `resolved_template` stores the
   normalized runtime snapshot used by execution paths.
@@ -102,14 +112,24 @@ format/digest, cache result, image resolution/pull time, and COW preparation
 time. Service replica reads expose this allocation fact without parsing node
 logs.
 
-`workload_reservations` records admitted CPU and memory requests. A non-null
-`released_at` closes the reservation without erasing accounting history.
+`workload_reservations` records admitted CPU, memory, runsc host-memory
+overhead, and ephemeral-storage requests. A non-null `released_at` closes the
+reservation without erasing accounting history.
+
+Allocations persist typed capability dependencies, placement evidence,
+create-time admitted evidence, and structured conditions. This is independent
+of the latest node summary so admission and later enforcement can be audited.
 
 ### Reconciliation and audit
 
 `allocation_reconcile_queue` is the durable retry queue. `next_run_at`,
 `reconcile_attempts`, and `last_error` describe retry state; `lease_owner` and
 `lease_expires_at` provide bounded multi-worker claims.
+
+`node_capability_transitions` records idempotent effective state/evidence
+changes. `allocation_capability_reconcile_queue` is the separate durable
+capability-loss queue; it cannot overwrite allocation create/delete retry
+intent.
 
 `admin_audit_events` records operator mutations before lifecycle coordination
 state changes. It is distinct from quota decisions and workload event history.

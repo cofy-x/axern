@@ -10,7 +10,11 @@ cross-runtime network or bpfnet changes, also read
 
 ## Contract
 
-`axnoded` manages two node-local resource classes for each sandbox:
+This document covers the reusable cgroup and interface pools plus their OCI
+claims. Ephemeral-storage reservations and hard limits are a separate
+filestore lifecycle described in [Rootfs And Writable Storage](rootfs-storage.md).
+
+The reusable pool manager owns these two claim types for each sandbox:
 
 | Resource | Owner | Durable claim |
 | --- | --- | --- |
@@ -23,9 +27,12 @@ Resource claims are written into OCI annotations with this prefix:
 io.axnoded.resource/
 ```
 
-The stored OCI spec is the recovery and cleanup contract. Delete,
-housekeeping, and retry paths must collect resource claims from the stored spec,
-not from an in-memory-only allocation record.
+The stored OCI spec is authoritative for cgroup and interface cleanup claims.
+Delete, housekeeping, and retry paths collect those claims from the spec, not
+from an in-memory-only allocation record. It is not the entire allocation
+recovery contract: nodestate owns the allocation dependency and runtime/image
+record, while the filestore ledger and projection manifest own writable-storage
+reservation, project ID, and mount cleanup state.
 
 ## Ownership
 
@@ -200,12 +207,19 @@ Key behavior:
 - Node startup creates a private probe cgroup under `cgroup_root_name`, writes
   and reads back a memory limit, and removes the probe before publishing the
   typed cgroup-controller fact. Runtime-specific runc/runsc memory-hard-limit
-  capability is derived only after its local conformance sandbox also verifies
-  Sentry, gofer, init, and workload PID attribution. Every real allocation is
-  verified again after create.
+  capability is derived only after a dedicated readonly-root conformance
+  sandbox also verifies Sentry, gofer, init, and workload PID attribution.
+  Storage conformance runs in a separate writable-root sandbox; disabling cgroup
+  enforcement for development cannot manufacture memory evidence or suppress
+  storage evidence. Every real allocation is verified again after create.
 - Runsc node fit adds the configured Sentry/gofer overhead reservation to the
   user-declared memory request. Namespace quota continues to charge only the
   user declaration; the two values are persisted separately.
+
+The catalog, evidence validity, placement dependency, and enforcement-loss
+policy for these probes are defined by
+[Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md),
+not by this pool implementation document.
 
 ## Interfaces And Network
 

@@ -34,6 +34,10 @@ Placement is evaluated in three stages:
   unavailable, admission may still bind the allocation to one of those nodes
   and rely on the durable allocation lifecycle retry queue to converge
 
+Capability mismatch, missing evidence, invalid identity, and expired evidence
+are fail-closed eligibility failures. They never enter the transient-health
+fallback.
+
 The selector returns a request-scoped candidate plan rather than a bare node
 list. The plan preserves health, capability, locality, warm-path, and initial
 load preferences until the Postgres admission transaction reaches its
@@ -82,12 +86,12 @@ state after queue convergence.
 
 Capability loss uses a separate `allocation_capability_reconcile_queue`, so a
 capability transition cannot overwrite create/delete lifecycle intent. Axnoded
-first performs allocation-specific verification. Catalog-owned `DEGRADE`
-dependencies retain the sandbox with a structured condition; `FAIL_STOP`
-dependencies are force-deleted when enforcement is definitively lost or cannot
-be proven after the bounded 0/2/5-second verification sequence. Controld's
-durable worker is a restart and missed-report safety net and retains work until
-node status confirms deletion.
+first performs allocation-specific verification. Controld's durable worker is
+a restart and missed-report safety net and retains work until node status
+confirms deletion. Provider evidence, catalog loss policy, and the bounded
+verification sequence are defined by the canonical
+[Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md)
+contract rather than duplicated here.
 
 ## Reconciler Health
 

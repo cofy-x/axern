@@ -125,6 +125,11 @@ background, API inventory, and the full code-layout map, read
   node-availability reconciliation, and lease watches:
   `api/nodev1`, `application/node`, `kernel/node`, `kernel/allocation`, and the
   owning durable stores.
+- Observed capability transitions, allocation dependency conditions, and the
+  separate capability reconcile queue: `application/capability`,
+  `application/node`, `kernel/placement`, `kernel/allocation`, and
+  `postgres/{nodes,allocation,admin}`. Platform provider ownership and loss
+  policy remain in the shared `lib/go/nodecapability` catalog.
 - Allocation lifecycle retry admin operations, admin audit read models, and
   admin reliability read models: `api/adminv1`, `application/admin`,
   `kernel/allocation`, and `kernel/admin` plus `postgres/admin`; debug HTTP
@@ -173,6 +178,10 @@ targets.
 - If node summary shape or placement inputs change, update
   `.x/runtime-stack.md`, `docs/architecture/runtime-architecture.md`, `control/README.md`,
   `control/controld/README.md`, and `runtime/axnoded/README.md` together.
+- If capability keys, evidence, requirement derivation, validity, transition,
+  or loss reconciliation changes, update
+  `docs/architecture/observed-capability-providers.md`, the shared catalog, and
+  the axnoded contract together.
 - If debug HTTP endpoints change, update `control/controld/README.md`.
 - If package responsibilities or placement rules change, update this file and
   the Code Layout / Architecture sections in `control/controld/README.md`

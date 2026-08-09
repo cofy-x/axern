@@ -20,6 +20,7 @@ endpoints and logging for the current daemon invocation.
 | [`../config/config.go`](../config/config.go) | TOML schema, normalization helpers, and default overlay behavior |
 | [`../config/defaults.go`](../config/defaults.go) | default values used before TOML overlay |
 | [Resource Handling](resource.md) | cgroup/interface pool behavior behind `[plugin.resource]` and `[plugin.network]` |
+| [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md) | platform observation and structured extension capability contract |
 | [Runtime Logs](../../../docs/operations/runtime-logs.md) | cross-component log locations and meanings |
 | [Local Troubleshooting](../../../deploy/local/troubleshooting.md) | compose/kind troubleshooting commands |
 
@@ -62,6 +63,10 @@ or heartbeat behavior looks wrong. For allocation status delivery, inspect
 `axern_axnoded_allocation_status_oldest_pending_age_seconds`,
 `axern_axnoded_allocation_status_consecutive_failures`, and
 `axern_axnoded_allocation_status_retry_delay_seconds`.
+
+Extension capability declarations are config-static facts. Platform facts are
+owned by probes and derived policy, and therefore have no configuration list or
+operator override.
 
 ## Network
 

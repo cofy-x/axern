@@ -53,6 +53,9 @@ documents.
 
 - [Runtime Architecture](architecture/runtime-architecture.md): concise current
   control-plane and node-runtime model.
+- [Observed Capability Providers](architecture/observed-capability-providers.md):
+  typed node observations, catalog policy, transactional admission, and
+  allocation enforcement.
 - [Workload Lifecycle](architecture/workload-lifecycle-sequence.md): end-to-end
   control and sandbox data-plane sequences.
 - [Resource Model](architecture/resource-model.md): requests, limits, quota,

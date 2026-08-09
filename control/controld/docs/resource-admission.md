@@ -8,15 +8,19 @@ metrics.
 ## Core Model
 
 Workload `resources.requests` are the admission and reservation contract.
-Workload `resources.limits` are runtime cgroup ceilings enforced by `axnoded`;
-they are not quota usage and do not increase control-plane capacity.
+Workload `resources.limits` are resource-specific hard ceilings enforced by
+`axnoded`; CPU and memory use cgroups, while ephemeral storage uses the selected
+runtime's overlay quota. Limits are not quota usage and do not increase
+control-plane capacity.
 
-CPU, memory, and runtime instance slots have distinct admission semantics:
+CPU, memory, ephemeral storage, and runtime instance slots have distinct
+admission semantics:
 
 | Resource | Admission behavior |
 | --- | --- |
 | CPU | Node allocatable CPU can be overcommitted through the global `-resource-cpu-overcommit-ratio` policy. |
 | Memory | Memory remains strict; effective memory allocatable equals node reported allocatable memory. |
+| Ephemeral storage | Node-local filestore capacity is strict after the system reserve and active reservations. |
 | Runtime slots | One workload reservation consumes one slot. Axnoded reports the aggregate node-owned slot capacity after applying enabled resource-pool constraints. |
 
 Namespace quota is a namespace cap on requests. Node admission is a node cap on
@@ -25,20 +29,23 @@ namespace quota.
 
 ## Admission Sequence
 
-Admission has two capacity gates:
+Admission has two evaluation points:
 
 1. Placement prefilters eligible nodes using the same resource policy as
    reservation admission and emits a request-scoped candidate plan. This gives
    fast eligibility diagnostics while retaining locality and warm-path
    preferences for final admission.
 2. Postgres reservation admission locks namespace quota and candidate nodes,
-   re-sums active reservations, evaluates namespace quota, CPU, memory, and
-   runtime-slot capacity,
+   reruns complete lifecycle, freshness, runtime, component, label, typed
+   capability, CPU, memory, ephemeral-storage, and runtime-slot eligibility,
+   re-sums active reservations,
    refreshes candidate load using reservations not yet reflected by node
    summaries, and writes the workload reservation in one transaction.
 
 The transaction check is authoritative. Placement is an optimization and a
-source of candidate diagnostics, not the durable reservation boundary.
+source of candidate diagnostics, not the durable reservation boundary. Typed
+capability evidence commits with the allocation and reservation as described in
+[Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md).
 
 Runtime-slot admission uses the strongest current occupancy signal:
 
@@ -76,7 +83,7 @@ Current reasons:
 | --- | --- | --- |
 | `NAMESPACE_QUOTA_EXCEEDED` | Namespace request quota would be exceeded. | `ResourceExhausted` |
 | `NODE_RESERVATION_CAPACITY_EXHAUSTED` | No selected candidate has remaining CPU, memory, or runtime-slot reservation capacity after transaction recheck. | `ResourceExhausted` |
-| `PLACEMENT_CAPACITY_EXHAUSTED` | Placement rejected candidates for CPU or memory capacity. | `FailedPrecondition` |
+| `PLACEMENT_CAPACITY_EXHAUSTED` | Placement rejected candidates for CPU, memory, or ephemeral-storage capacity. | `FailedPrecondition` |
 | `NODE_SELECTION_ERROR` | Placement found no eligible node for non-capacity reasons such as runtime, selector, readiness, or capability mismatch. | `FailedPrecondition` |
 
 Human-readable error messages remain stable enough for operators, but workload
@@ -136,7 +143,7 @@ The public CLI and dashboard use these stable labels:
 | Surface Field | Values |
 | --- | --- |
 | `diagnostic_code` | `admission-blocked`, `node-selection-error`, or a concrete service runtime diagnostic such as `runtime-start-error`. |
-| `admission_summary` | `namespace quota exceeded`, `node reservation capacity exhausted`, `node CPU capacity exhausted`, `node memory capacity exhausted`, `node CPU and memory capacity exhausted`, or `resource exhausted`. |
+| `admission_summary` | `namespace quota exceeded`, `node reservation capacity exhausted`, `node CPU capacity exhausted`, `node memory capacity exhausted`, `node CPU and memory capacity exhausted`, or `resource exhausted`. Typed rejection metadata separately identifies insufficient ephemeral storage. |
 
 Run and service JSON output must keep these labels aligned. Table and detail
 renderers may shorten presentation text, but they should not invent different
@@ -157,11 +164,10 @@ diagnostic categories.
   for legacy/raw messages when structured workload diagnostics are unavailable.
 - `axnoded` remains the runtime authority for cgroup enforcement; overcommit
   and quota do not change container limits.
-- A nonzero `resources.limits.memory_bytes` adds the placement requirement
-  the runtime-specific typed memory-hard-limit capability. Axnoded publishes it only after a startup probe
-  creates a private cgroup and successfully writes and reads back a memory
-  limit. Each admitted sandbox must still pass runtime-specific PID attribution
-  after start or be force-deleted.
+- A nonzero `resources.limits.memory_bytes` automatically requires the selected
+  runtime's typed memory-hard-limit capability. Its probes, evidence, and
+  allocation-specific enforcement are defined by the canonical observed
+  capability contract.
 - `resources.requests.ephemeral_storage_bytes` participates in namespace quota,
   placement, the transactional controld ledger, and the independent axnoded
   node-local ledger. `resources.limits.ephemeral_storage_bytes` is the runtime
@@ -177,3 +183,6 @@ diagnostic categories.
 - Runtime pool exhaustion returned by `axnoded` is a runtime-start failure, not
   an admission block. Normal saturation must be rejected by transactional
   runtime-slot admission before node dispatch.
+- Platform capability mismatch is a non-retryable eligibility failure. Only
+  the explicitly classified transient-health cases may use lifecycle retry
+  admission.

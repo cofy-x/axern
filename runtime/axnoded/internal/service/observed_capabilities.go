@@ -107,8 +107,10 @@ func (h *sandboxService) newObservedCapabilityManager(cgroupRoot string) (*nodec
 		cgroupCapabilityProvider(cfg, cgroupRoot, bootID, bootErr),
 		filestoreCapabilityProvider(cfg, bootID, bootErr),
 		erofsCapabilityProvider(cfg, bootID, bootErr),
-		runtimeConformanceCapabilityProvider(cfg, h.runtimeHandlers, config.RuntimeNameRunc, bootID, h.runRuntimeConformanceSelfTest),
-		runtimeConformanceCapabilityProvider(cfg, h.runtimeHandlers, config.RuntimeNameRunsc, bootID, h.runRuntimeConformanceSelfTest),
+		runtimeConformanceCapabilityProvider(cfg, h.runtimeHandlers, config.RuntimeNameRunc, runtimeConformanceKindMemory, bootID, h.runRuntimeConformanceSelfTest),
+		runtimeConformanceCapabilityProvider(cfg, h.runtimeHandlers, config.RuntimeNameRunc, runtimeConformanceKindEphemeral, bootID, h.runRuntimeConformanceSelfTest),
+		runtimeConformanceCapabilityProvider(cfg, h.runtimeHandlers, config.RuntimeNameRunsc, runtimeConformanceKindMemory, bootID, h.runRuntimeConformanceSelfTest),
+		runtimeConformanceCapabilityProvider(cfg, h.runtimeHandlers, config.RuntimeNameRunsc, runtimeConformanceKindEphemeral, bootID, h.runRuntimeConformanceSelfTest),
 		derivedCapabilityProvider{expected: []*capabilityv1.CapabilityKey{
 			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT),
 			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT),
