@@ -1,0 +1,12 @@
+title = "Axern secret scanning configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Ignore generated protobuf CapabilityKey type annotations"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "line"
+paths = ['''(^|/)sdk/python/src/axern/.+_pb2\.pyi$''']
+regexes = ['''^\s*key:\s+_[a-z0-9_]+_pb2\.CapabilityKey\s*$''']

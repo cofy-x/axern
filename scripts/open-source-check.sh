@@ -37,6 +37,7 @@ fi
 python3 "${ROOTDIR}/scripts/open-source-public-surface.py" "${surface_args[@]}"
 
 "${GITLEAKS_BIN}" dir "${candidate}" \
+  --config "${candidate}/.gitleaks.toml" \
   --no-banner \
   --redact \
   --report-format json \
