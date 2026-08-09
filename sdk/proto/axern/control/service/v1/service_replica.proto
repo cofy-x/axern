@@ -36,7 +36,9 @@ message ServiceReplica {
   string readiness_message = 15;
   ServiceReplicaLifecycleRetry lifecycle_retry = 16;
   axern.control.common.v1.WorkspacePreparationFacts workspace_preparation = 17;
-  repeated axern.control.capability.v1.CapabilityCondition capability_conditions = 18;
+	// Full, monotonically revised allocation capability condition projection.
+	// It is independent from replica lifecycle status and message.
+	axern.control.capability.v1.CapabilityConditionSet capability_conditions = 18;
 }
 
 enum ServiceReplicaLifecycleRetryReason {

@@ -60,12 +60,13 @@ message AdminCapabilityTransition {
   axern.control.capability.v1.CapabilityKey key = 5;
   axern.control.capability.v1.CapabilityState old_state = 6;
   axern.control.capability.v1.CapabilityState new_state = 7;
-  string old_evidence_id = 8;
-  string new_evidence_id = 9;
-  axern.control.capability.v1.CapabilityReasonCode reason_code = 10;
-  string reason = 11;
-  google.protobuf.Timestamp observed_at = 12;
-  google.protobuf.Timestamp reported_at = 13;
+  axern.control.capability.v1.CapabilityEvidence old_evidence = 8;
+  axern.control.capability.v1.CapabilityEvidence new_evidence = 9;
+  axern.control.capability.v1.CapabilityReasonCode old_reason_code = 10;
+  axern.control.capability.v1.CapabilityReasonCode new_reason_code = 11;
+  string reason = 12;
+  google.protobuf.Timestamp observed_at = 13;
+  google.protobuf.Timestamp reported_at = 14;
 }
 
 message ListNodeCapabilityTransitionsRequest {
@@ -106,8 +107,12 @@ message GetAllocationCapabilityDiagnosticsResponse {
   string node_id = 2;
   repeated axern.control.capability.v1.CapabilityDependency required_dependencies = 3;
   repeated axern.control.capability.v1.CapabilityDependency admitted_dependencies = 4;
-  repeated axern.control.capability.v1.CapabilityCondition conditions = 5;
+  axern.control.capability.v1.CapabilityConditionSet condition_set = 5;
   AdminCapabilityReconcileItem reconcile = 6;
+  int64 allocation_attempt = 7;
+  bool create_admission_recorded = 8;
+  string create_dependency_set_digest = 9;
+  google.protobuf.Timestamp create_admitted_at = 10;
 }
 
 service NodeAdmin {

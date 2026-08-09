@@ -26,6 +26,8 @@ message StartRequest {
   repeated ImageMount image_mounts = 14;
   WorkspaceImageSource workspace_image = 15;
   repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 16;
+  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 17;
+  int64 allocation_attempt = 18;
 }
 
 message StartResponse {
@@ -33,7 +35,7 @@ message StartResponse {
   string message = 2;
   string ID = 3;
   repeated axern.private.storage.v1.PublishedNodeVolume published_volumes = 4;
-  repeated axern.control.capability.v1.CapabilityCondition capability_verification = 5;
+  axern.control.capability.v1.CapabilityConditionSet capability_verification = 5;
   repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 6;
 }
 

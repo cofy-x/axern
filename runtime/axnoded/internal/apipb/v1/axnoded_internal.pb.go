@@ -764,16 +764,27 @@ func (x *RuntimeTemplate) GetExecutionProfile() *v1.RuntimeExecutionProfile {
 }
 
 type AllocationState struct {
-	state                  protoimpl.MessageState      `protogen:"open.v1"`
-	AllocationID           string                      `protobuf:"bytes,1,opt,name=allocationID,proto3" json:"allocationID,omitempty"`
-	RuntimeTemplate        *RuntimeTemplate            `protobuf:"bytes,2,opt,name=runtime_template,json=runtimeTemplate,proto3" json:"runtime_template,omitempty"`
-	ImageMountUrls         []string                    `protobuf:"bytes,3,rep,name=image_mount_urls,json=imageMountUrls,proto3" json:"image_mount_urls,omitempty"`
-	WorkspaceImageUrl      string                      `protobuf:"bytes,4,opt,name=workspace_image_url,json=workspaceImageUrl,proto3" json:"workspace_image_url,omitempty"`
-	WorkspaceSourcePath    string                      `protobuf:"bytes,5,opt,name=workspace_source_path,json=workspaceSourcePath,proto3" json:"workspace_source_path,omitempty"`
-	WorkspaceTarget        string                      `protobuf:"bytes,6,opt,name=workspace_target,json=workspaceTarget,proto3" json:"workspace_target,omitempty"`
-	CapabilityDependencies []*v11.CapabilityDependency `protobuf:"bytes,7,rep,name=capability_dependencies,json=capabilityDependencies,proto3" json:"capability_dependencies,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	state                  protoimpl.MessageState              `protogen:"open.v1"`
+	AllocationID           string                              `protobuf:"bytes,1,opt,name=allocationID,proto3" json:"allocationID,omitempty"`
+	RuntimeTemplate        *RuntimeTemplate                    `protobuf:"bytes,2,opt,name=runtime_template,json=runtimeTemplate,proto3" json:"runtime_template,omitempty"`
+	ImageMountUrls         []string                            `protobuf:"bytes,3,rep,name=image_mount_urls,json=imageMountUrls,proto3" json:"image_mount_urls,omitempty"`
+	WorkspaceImageUrl      string                              `protobuf:"bytes,4,opt,name=workspace_image_url,json=workspaceImageUrl,proto3" json:"workspace_image_url,omitempty"`
+	WorkspaceSourcePath    string                              `protobuf:"bytes,5,opt,name=workspace_source_path,json=workspaceSourcePath,proto3" json:"workspace_source_path,omitempty"`
+	WorkspaceTarget        string                              `protobuf:"bytes,6,opt,name=workspace_target,json=workspaceTarget,proto3" json:"workspace_target,omitempty"`
+	CapabilityDependencies []*v11.CapabilityDependency         `protobuf:"bytes,7,rep,name=capability_dependencies,json=capabilityDependencies,proto3" json:"capability_dependencies,omitempty"`
+	CapabilityConditions   *v11.CapabilityConditionSet         `protobuf:"bytes,8,opt,name=capability_conditions,json=capabilityConditions,proto3" json:"capability_conditions,omitempty"`
+	EnforcementManifest    *AllocationEnforcementManifest      `protobuf:"bytes,9,opt,name=enforcement_manifest,json=enforcementManifest,proto3" json:"enforcement_manifest,omitempty"`
+	CapabilityReconcile    *AllocationCapabilityReconcileState `protobuf:"bytes,10,opt,name=capability_reconcile,json=capabilityReconcile,proto3" json:"capability_reconcile,omitempty"`
+	AllocationAttempt      int64                               `protobuf:"varint,11,opt,name=allocation_attempt,json=allocationAttempt,proto3" json:"allocation_attempt,omitempty"`
+	LaunchVerification     *AllocationLaunchVerification       `protobuf:"bytes,12,opt,name=launch_verification,json=launchVerification,proto3" json:"launch_verification,omitempty"`
+	// Canonical digest of the behaviorally relevant StartRequest. It fences
+	// same-attempt retries from mutating a running allocation's contract.
+	AllocationRequestDigest string `protobuf:"bytes,13,opt,name=allocation_request_digest,json=allocationRequestDigest,proto3" json:"allocation_request_digest,omitempty"`
+	// Immutable post-create condition proof returned by idempotent Create
+	// replays. capability_conditions remains the current runtime projection.
+	CapabilityAdmissionConditions *v11.CapabilityConditionSet `protobuf:"bytes,14,opt,name=capability_admission_conditions,json=capabilityAdmissionConditions,proto3" json:"capability_admission_conditions,omitempty"`
+	unknownFields                 protoimpl.UnknownFields
+	sizeCache                     protoimpl.SizeCache
 }
 
 func (x *AllocationState) Reset() {
@@ -855,6 +866,370 @@ func (x *AllocationState) GetCapabilityDependencies() []*v11.CapabilityDependenc
 	return nil
 }
 
+func (x *AllocationState) GetCapabilityConditions() *v11.CapabilityConditionSet {
+	if x != nil {
+		return x.CapabilityConditions
+	}
+	return nil
+}
+
+func (x *AllocationState) GetEnforcementManifest() *AllocationEnforcementManifest {
+	if x != nil {
+		return x.EnforcementManifest
+	}
+	return nil
+}
+
+func (x *AllocationState) GetCapabilityReconcile() *AllocationCapabilityReconcileState {
+	if x != nil {
+		return x.CapabilityReconcile
+	}
+	return nil
+}
+
+func (x *AllocationState) GetAllocationAttempt() int64 {
+	if x != nil {
+		return x.AllocationAttempt
+	}
+	return 0
+}
+
+func (x *AllocationState) GetLaunchVerification() *AllocationLaunchVerification {
+	if x != nil {
+		return x.LaunchVerification
+	}
+	return nil
+}
+
+func (x *AllocationState) GetAllocationRequestDigest() string {
+	if x != nil {
+		return x.AllocationRequestDigest
+	}
+	return ""
+}
+
+func (x *AllocationState) GetCapabilityAdmissionConditions() *v11.CapabilityConditionSet {
+	if x != nil {
+		return x.CapabilityAdmissionConditions
+	}
+	return nil
+}
+
+// AllocationLaunchVerification is the durable create-time proof that the
+// runtime-specific hard-enforcement contract was inspected while the OCI
+// container was created but before the workload process was started. The
+// immutable enforcement_manifest records what was launched; this record
+// separately records which allocation requirements were actually verified.
+type AllocationLaunchVerification struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	VerifiedCapabilities []*v11.CapabilityKey   `protobuf:"bytes,1,rep,name=verified_capabilities,json=verifiedCapabilities,proto3" json:"verified_capabilities,omitempty"`
+	VerifiedAtUnixNano   int64                  `protobuf:"varint,2,opt,name=verified_at_unix_nano,json=verifiedAtUnixNano,proto3" json:"verified_at_unix_nano,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *AllocationLaunchVerification) Reset() {
+	*x = AllocationLaunchVerification{}
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllocationLaunchVerification) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllocationLaunchVerification) ProtoMessage() {}
+
+func (x *AllocationLaunchVerification) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllocationLaunchVerification.ProtoReflect.Descriptor instead.
+func (*AllocationLaunchVerification) Descriptor() ([]byte, []int) {
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *AllocationLaunchVerification) GetVerifiedCapabilities() []*v11.CapabilityKey {
+	if x != nil {
+		return x.VerifiedCapabilities
+	}
+	return nil
+}
+
+func (x *AllocationLaunchVerification) GetVerifiedAtUnixNano() int64 {
+	if x != nil {
+		return x.VerifiedAtUnixNano
+	}
+	return 0
+}
+
+type PendingCapabilityReconcile struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           *v11.CapabilityKey     `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Generation    int64                  `protobuf:"varint,2,opt,name=generation,proto3" json:"generation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PendingCapabilityReconcile) Reset() {
+	*x = PendingCapabilityReconcile{}
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PendingCapabilityReconcile) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PendingCapabilityReconcile) ProtoMessage() {}
+
+func (x *PendingCapabilityReconcile) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PendingCapabilityReconcile.ProtoReflect.Descriptor instead.
+func (*PendingCapabilityReconcile) Descriptor() ([]byte, []int) {
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *PendingCapabilityReconcile) GetKey() *v11.CapabilityKey {
+	if x != nil {
+		return x.Key
+	}
+	return nil
+}
+
+func (x *PendingCapabilityReconcile) GetGeneration() int64 {
+	if x != nil {
+		return x.Generation
+	}
+	return 0
+}
+
+// AllocationCapabilityReconcileState is a durable, allocation-scoped queue.
+// Per-key generations make acknowledgement safe when a newer transition is
+// merged while verification or termination is already running.
+type AllocationCapabilityReconcileState struct {
+	state             protoimpl.MessageState        `protogen:"open.v1"`
+	Pending           []*PendingCapabilityReconcile `protobuf:"bytes,1,rep,name=pending,proto3" json:"pending,omitempty"`
+	Terminating       bool                          `protobuf:"varint,2,opt,name=terminating,proto3" json:"terminating,omitempty"`
+	LastError         string                        `protobuf:"bytes,3,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	UpdatedAtUnixNano int64                         `protobuf:"varint,4,opt,name=updated_at_unix_nano,json=updatedAtUnixNano,proto3" json:"updated_at_unix_nano,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *AllocationCapabilityReconcileState) Reset() {
+	*x = AllocationCapabilityReconcileState{}
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllocationCapabilityReconcileState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllocationCapabilityReconcileState) ProtoMessage() {}
+
+func (x *AllocationCapabilityReconcileState) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllocationCapabilityReconcileState.ProtoReflect.Descriptor instead.
+func (*AllocationCapabilityReconcileState) Descriptor() ([]byte, []int) {
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *AllocationCapabilityReconcileState) GetPending() []*PendingCapabilityReconcile {
+	if x != nil {
+		return x.Pending
+	}
+	return nil
+}
+
+func (x *AllocationCapabilityReconcileState) GetTerminating() bool {
+	if x != nil {
+		return x.Terminating
+	}
+	return false
+}
+
+func (x *AllocationCapabilityReconcileState) GetLastError() string {
+	if x != nil {
+		return x.LastError
+	}
+	return ""
+}
+
+func (x *AllocationCapabilityReconcileState) GetUpdatedAtUnixNano() int64 {
+	if x != nil {
+		return x.UpdatedAtUnixNano
+	}
+	return 0
+}
+
+// AllocationEnforcementManifest is the immutable create-time contract used by
+// runtime audits. Runtime-observed identities may be filled after create, but
+// the requested limits and immutable launch contract never change.
+type AllocationEnforcementManifest struct {
+	state                         protoimpl.MessageState `protogen:"open.v1"`
+	RuntimeName                   string                 `protobuf:"bytes,1,opt,name=runtime_name,json=runtimeName,proto3" json:"runtime_name,omitempty"`
+	MemoryLimitBytes              int64                  `protobuf:"varint,2,opt,name=memory_limit_bytes,json=memoryLimitBytes,proto3" json:"memory_limit_bytes,omitempty"`
+	EphemeralStorageLimitBytes    int64                  `protobuf:"varint,3,opt,name=ephemeral_storage_limit_bytes,json=ephemeralStorageLimitBytes,proto3" json:"ephemeral_storage_limit_bytes,omitempty"`
+	CgroupPath                    string                 `protobuf:"bytes,4,opt,name=cgroup_path,json=cgroupPath,proto3" json:"cgroup_path,omitempty"`
+	RuntimeCgroupPath             string                 `protobuf:"bytes,5,opt,name=runtime_cgroup_path,json=runtimeCgroupPath,proto3" json:"runtime_cgroup_path,omitempty"`
+	RunscOverlayArg               string                 `protobuf:"bytes,6,opt,name=runsc_overlay_arg,json=runscOverlayArg,proto3" json:"runsc_overlay_arg,omitempty"`
+	FilestoreMountIdentity        string                 `protobuf:"bytes,7,opt,name=filestore_mount_identity,json=filestoreMountIdentity,proto3" json:"filestore_mount_identity,omitempty"`
+	CreatedAtUnixNano             int64                  `protobuf:"varint,8,opt,name=created_at_unix_nano,json=createdAtUnixNano,proto3" json:"created_at_unix_nano,omitempty"`
+	RuncProjectID                 uint32                 `protobuf:"varint,9,opt,name=runc_project_id,json=runcProjectId,proto3" json:"runc_project_id,omitempty"`
+	BundlePath                    string                 `protobuf:"bytes,10,opt,name=bundle_path,json=bundlePath,proto3" json:"bundle_path,omitempty"`
+	RunscBackingDirectory         string                 `protobuf:"bytes,11,opt,name=runsc_backing_directory,json=runscBackingDirectory,proto3" json:"runsc_backing_directory,omitempty"`
+	RunscBackingDirectoryIdentity string                 `protobuf:"bytes,12,opt,name=runsc_backing_directory_identity,json=runscBackingDirectoryIdentity,proto3" json:"runsc_backing_directory_identity,omitempty"`
+	unknownFields                 protoimpl.UnknownFields
+	sizeCache                     protoimpl.SizeCache
+}
+
+func (x *AllocationEnforcementManifest) Reset() {
+	*x = AllocationEnforcementManifest{}
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllocationEnforcementManifest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllocationEnforcementManifest) ProtoMessage() {}
+
+func (x *AllocationEnforcementManifest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllocationEnforcementManifest.ProtoReflect.Descriptor instead.
+func (*AllocationEnforcementManifest) Descriptor() ([]byte, []int) {
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *AllocationEnforcementManifest) GetRuntimeName() string {
+	if x != nil {
+		return x.RuntimeName
+	}
+	return ""
+}
+
+func (x *AllocationEnforcementManifest) GetMemoryLimitBytes() int64 {
+	if x != nil {
+		return x.MemoryLimitBytes
+	}
+	return 0
+}
+
+func (x *AllocationEnforcementManifest) GetEphemeralStorageLimitBytes() int64 {
+	if x != nil {
+		return x.EphemeralStorageLimitBytes
+	}
+	return 0
+}
+
+func (x *AllocationEnforcementManifest) GetCgroupPath() string {
+	if x != nil {
+		return x.CgroupPath
+	}
+	return ""
+}
+
+func (x *AllocationEnforcementManifest) GetRuntimeCgroupPath() string {
+	if x != nil {
+		return x.RuntimeCgroupPath
+	}
+	return ""
+}
+
+func (x *AllocationEnforcementManifest) GetRunscOverlayArg() string {
+	if x != nil {
+		return x.RunscOverlayArg
+	}
+	return ""
+}
+
+func (x *AllocationEnforcementManifest) GetFilestoreMountIdentity() string {
+	if x != nil {
+		return x.FilestoreMountIdentity
+	}
+	return ""
+}
+
+func (x *AllocationEnforcementManifest) GetCreatedAtUnixNano() int64 {
+	if x != nil {
+		return x.CreatedAtUnixNano
+	}
+	return 0
+}
+
+func (x *AllocationEnforcementManifest) GetRuncProjectID() uint32 {
+	if x != nil {
+		return x.RuncProjectID
+	}
+	return 0
+}
+
+func (x *AllocationEnforcementManifest) GetBundlePath() string {
+	if x != nil {
+		return x.BundlePath
+	}
+	return ""
+}
+
+func (x *AllocationEnforcementManifest) GetRunscBackingDirectory() string {
+	if x != nil {
+		return x.RunscBackingDirectory
+	}
+	return ""
+}
+
+func (x *AllocationEnforcementManifest) GetRunscBackingDirectoryIdentity() string {
+	if x != nil {
+		return x.RunscBackingDirectoryIdentity
+	}
+	return ""
+}
+
 type TerminalResize struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Cols          uint32                 `protobuf:"varint,1,opt,name=cols,proto3" json:"cols,omitempty"`
@@ -865,7 +1240,7 @@ type TerminalResize struct {
 
 func (x *TerminalResize) Reset() {
 	*x = TerminalResize{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[10]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -877,7 +1252,7 @@ func (x *TerminalResize) String() string {
 func (*TerminalResize) ProtoMessage() {}
 
 func (x *TerminalResize) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[10]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -890,7 +1265,7 @@ func (x *TerminalResize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalResize.ProtoReflect.Descriptor instead.
 func (*TerminalResize) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{10}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *TerminalResize) GetCols() uint32 {
@@ -917,7 +1292,7 @@ type KeyValue struct {
 
 func (x *KeyValue) Reset() {
 	*x = KeyValue{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[11]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -929,7 +1304,7 @@ func (x *KeyValue) String() string {
 func (*KeyValue) ProtoMessage() {}
 
 func (x *KeyValue) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[11]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -942,7 +1317,7 @@ func (x *KeyValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyValue.ProtoReflect.Descriptor instead.
 func (*KeyValue) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{11}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *KeyValue) GetKey() string {
@@ -977,7 +1352,7 @@ type LinuxContainerResources struct {
 
 func (x *LinuxContainerResources) Reset() {
 	*x = LinuxContainerResources{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[12]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -989,7 +1364,7 @@ func (x *LinuxContainerResources) String() string {
 func (*LinuxContainerResources) ProtoMessage() {}
 
 func (x *LinuxContainerResources) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[12]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1002,7 +1377,7 @@ func (x *LinuxContainerResources) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinuxContainerResources.ProtoReflect.Descriptor instead.
 func (*LinuxContainerResources) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{12}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *LinuxContainerResources) GetCpuPeriod() uint64 {
@@ -1085,7 +1460,7 @@ type HugepageLimit struct {
 
 func (x *HugepageLimit) Reset() {
 	*x = HugepageLimit{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[13]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1097,7 +1472,7 @@ func (x *HugepageLimit) String() string {
 func (*HugepageLimit) ProtoMessage() {}
 
 func (x *HugepageLimit) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[13]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1110,7 +1485,7 @@ func (x *HugepageLimit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HugepageLimit.ProtoReflect.Descriptor instead.
 func (*HugepageLimit) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{13}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *HugepageLimit) GetPageSize() string {
@@ -1133,14 +1508,14 @@ type Rootfs struct {
 	LowerDir      string                 `protobuf:"bytes,2,opt,name=lower_dir,json=lowerDir,proto3" json:"lower_dir,omitempty"`
 	RootDir       string                 `protobuf:"bytes,3,opt,name=root_dir,json=rootDir,proto3" json:"root_dir,omitempty"`
 	Readonly      bool                   `protobuf:"varint,4,opt,name=readonly,proto3" json:"readonly,omitempty"`
-	LeaseId       string                 `protobuf:"bytes,5,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	LeaseID       string                 `protobuf:"bytes,5,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Rootfs) Reset() {
 	*x = Rootfs{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[14]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1152,7 +1527,7 @@ func (x *Rootfs) String() string {
 func (*Rootfs) ProtoMessage() {}
 
 func (x *Rootfs) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[14]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1165,7 +1540,7 @@ func (x *Rootfs) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Rootfs.ProtoReflect.Descriptor instead.
 func (*Rootfs) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{14}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Rootfs) GetType() string {
@@ -1196,9 +1571,9 @@ func (x *Rootfs) GetReadonly() bool {
 	return false
 }
 
-func (x *Rootfs) GetLeaseId() string {
+func (x *Rootfs) GetLeaseID() string {
 	if x != nil {
-		return x.LeaseId
+		return x.LeaseID
 	}
 	return ""
 }
@@ -1216,7 +1591,7 @@ type ContainerMetadata struct {
 
 func (x *ContainerMetadata) Reset() {
 	*x = ContainerMetadata{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[15]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1228,7 +1603,7 @@ func (x *ContainerMetadata) String() string {
 func (*ContainerMetadata) ProtoMessage() {}
 
 func (x *ContainerMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[15]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1241,7 +1616,7 @@ func (x *ContainerMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerMetadata.ProtoReflect.Descriptor instead.
 func (*ContainerMetadata) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{15}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ContainerMetadata) GetID() string {
@@ -1288,7 +1663,7 @@ type ContainerMetadataList struct {
 
 func (x *ContainerMetadataList) Reset() {
 	*x = ContainerMetadataList{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[16]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1300,7 +1675,7 @@ func (x *ContainerMetadataList) String() string {
 func (*ContainerMetadataList) ProtoMessage() {}
 
 func (x *ContainerMetadataList) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[16]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1313,7 +1688,7 @@ func (x *ContainerMetadataList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerMetadataList.ProtoReflect.Descriptor instead.
 func (*ContainerMetadataList) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{16}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ContainerMetadataList) GetContainers() map[string]*ContainerMetadata {
@@ -1332,7 +1707,7 @@ type Slice struct {
 
 func (x *Slice) Reset() {
 	*x = Slice{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[17]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1344,7 +1719,7 @@ func (x *Slice) String() string {
 func (*Slice) ProtoMessage() {}
 
 func (x *Slice) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[17]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1357,7 +1732,7 @@ func (x *Slice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Slice.ProtoReflect.Descriptor instead.
 func (*Slice) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{17}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Slice) GetItems() []string {
@@ -1376,7 +1751,7 @@ type Map struct {
 
 func (x *Map) Reset() {
 	*x = Map{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[18]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1388,7 +1763,7 @@ func (x *Map) String() string {
 func (*Map) ProtoMessage() {}
 
 func (x *Map) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[18]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1401,7 +1776,7 @@ func (x *Map) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Map.ProtoReflect.Descriptor instead.
 func (*Map) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{18}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *Map) GetItems() map[string]string {
@@ -1467,7 +1842,7 @@ const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\x11execution_profile\x18\b \x01(\v21.axern.control.catalog.v1.RuntimeExecutionProfileR\x10executionProfile\x1a>\n" +
 	"\x10RuntimeEnvsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb1\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcc\b\n" +
 	"\x0fAllocationState\x12\"\n" +
 	"\fallocationID\x18\x01 \x01(\tR\fallocationID\x12U\n" +
 	"\x10runtime_template\x18\x02 \x01(\v2*.axnoded.internal.apipb.v1.RuntimeTemplateR\x0fruntimeTemplate\x12(\n" +
@@ -1475,7 +1850,45 @@ const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\x13workspace_image_url\x18\x04 \x01(\tR\x11workspaceImageUrl\x122\n" +
 	"\x15workspace_source_path\x18\x05 \x01(\tR\x13workspaceSourcePath\x12)\n" +
 	"\x10workspace_target\x18\x06 \x01(\tR\x0fworkspaceTarget\x12j\n" +
-	"\x17capability_dependencies\x18\a \x03(\v21.axern.control.capability.v1.CapabilityDependencyR\x16capabilityDependencies\"8\n" +
+	"\x17capability_dependencies\x18\a \x03(\v21.axern.control.capability.v1.CapabilityDependencyR\x16capabilityDependencies\x12h\n" +
+	"\x15capability_conditions\x18\b \x01(\v23.axern.control.capability.v1.CapabilityConditionSetR\x14capabilityConditions\x12k\n" +
+	"\x14enforcement_manifest\x18\t \x01(\v28.axnoded.internal.apipb.v1.AllocationEnforcementManifestR\x13enforcementManifest\x12p\n" +
+	"\x14capability_reconcile\x18\n" +
+	" \x01(\v2=.axnoded.internal.apipb.v1.AllocationCapabilityReconcileStateR\x13capabilityReconcile\x12-\n" +
+	"\x12allocation_attempt\x18\v \x01(\x03R\x11allocationAttempt\x12h\n" +
+	"\x13launch_verification\x18\f \x01(\v27.axnoded.internal.apipb.v1.AllocationLaunchVerificationR\x12launchVerification\x12:\n" +
+	"\x19allocation_request_digest\x18\r \x01(\tR\x17allocationRequestDigest\x12{\n" +
+	"\x1fcapability_admission_conditions\x18\x0e \x01(\v23.axern.control.capability.v1.CapabilityConditionSetR\x1dcapabilityAdmissionConditions\"\xb2\x01\n" +
+	"\x1cAllocationLaunchVerification\x12_\n" +
+	"\x15verified_capabilities\x18\x01 \x03(\v2*.axern.control.capability.v1.CapabilityKeyR\x14verifiedCapabilities\x121\n" +
+	"\x15verified_at_unix_nano\x18\x02 \x01(\x03R\x12verifiedAtUnixNano\"z\n" +
+	"\x1aPendingCapabilityReconcile\x12<\n" +
+	"\x03key\x18\x01 \x01(\v2*.axern.control.capability.v1.CapabilityKeyR\x03key\x12\x1e\n" +
+	"\n" +
+	"generation\x18\x02 \x01(\x03R\n" +
+	"generation\"\xe7\x01\n" +
+	"\"AllocationCapabilityReconcileState\x12O\n" +
+	"\apending\x18\x01 \x03(\v25.axnoded.internal.apipb.v1.PendingCapabilityReconcileR\apending\x12 \n" +
+	"\vterminating\x18\x02 \x01(\bR\vterminating\x12\x1d\n" +
+	"\n" +
+	"last_error\x18\x03 \x01(\tR\tlastError\x12/\n" +
+	"\x14updated_at_unix_nano\x18\x04 \x01(\x03R\x11updatedAtUnixNano\"\xe5\x04\n" +
+	"\x1dAllocationEnforcementManifest\x12!\n" +
+	"\fruntime_name\x18\x01 \x01(\tR\vruntimeName\x12,\n" +
+	"\x12memory_limit_bytes\x18\x02 \x01(\x03R\x10memoryLimitBytes\x12A\n" +
+	"\x1dephemeral_storage_limit_bytes\x18\x03 \x01(\x03R\x1aephemeralStorageLimitBytes\x12\x1f\n" +
+	"\vcgroup_path\x18\x04 \x01(\tR\n" +
+	"cgroupPath\x12.\n" +
+	"\x13runtime_cgroup_path\x18\x05 \x01(\tR\x11runtimeCgroupPath\x12*\n" +
+	"\x11runsc_overlay_arg\x18\x06 \x01(\tR\x0frunscOverlayArg\x128\n" +
+	"\x18filestore_mount_identity\x18\a \x01(\tR\x16filestoreMountIdentity\x12/\n" +
+	"\x14created_at_unix_nano\x18\b \x01(\x03R\x11createdAtUnixNano\x12&\n" +
+	"\x0frunc_project_id\x18\t \x01(\rR\rruncProjectId\x12\x1f\n" +
+	"\vbundle_path\x18\n" +
+	" \x01(\tR\n" +
+	"bundlePath\x126\n" +
+	"\x17runsc_backing_directory\x18\v \x01(\tR\x15runscBackingDirectory\x12G\n" +
+	" runsc_backing_directory_identity\x18\f \x01(\tR\x1drunscBackingDirectoryIdentity\"8\n" +
 	"\x0eTerminalResize\x12\x12\n" +
 	"\x04cols\x18\x01 \x01(\rR\x04cols\x12\x12\n" +
 	"\x04rows\x18\x02 \x01(\rR\x04rows\"2\n" +
@@ -1556,36 +1969,42 @@ func file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_apipb_v1_axnoded_internal_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_internal_apipb_v1_axnoded_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_internal_apipb_v1_axnoded_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_internal_apipb_v1_axnoded_internal_proto_goTypes = []any{
-	(RootfsSrcType)(0),                    // 0: axnoded.internal.apipb.v1.RootfsSrcType
-	(TaskAssetKind)(0),                    // 1: axnoded.internal.apipb.v1.TaskAssetKind
-	(*S3Config)(nil),                      // 2: axnoded.internal.apipb.v1.S3Config
-	(*RootfsConfig)(nil),                  // 3: axnoded.internal.apipb.v1.RootfsConfig
-	(*Mount)(nil),                         // 4: axnoded.internal.apipb.v1.Mount
-	(*ImageMount)(nil),                    // 5: axnoded.internal.apipb.v1.ImageMount
-	(*WorkspaceImageVariant)(nil),         // 6: axnoded.internal.apipb.v1.WorkspaceImageVariant
-	(*WorkspaceImageSource)(nil),          // 7: axnoded.internal.apipb.v1.WorkspaceImageSource
-	(*MaterializeTaskAssetsRequest)(nil),  // 8: axnoded.internal.apipb.v1.MaterializeTaskAssetsRequest
-	(*MaterializeTaskAssetsResponse)(nil), // 9: axnoded.internal.apipb.v1.MaterializeTaskAssetsResponse
-	(*RuntimeTemplate)(nil),               // 10: axnoded.internal.apipb.v1.RuntimeTemplate
-	(*AllocationState)(nil),               // 11: axnoded.internal.apipb.v1.AllocationState
-	(*TerminalResize)(nil),                // 12: axnoded.internal.apipb.v1.TerminalResize
-	(*KeyValue)(nil),                      // 13: axnoded.internal.apipb.v1.KeyValue
-	(*LinuxContainerResources)(nil),       // 14: axnoded.internal.apipb.v1.LinuxContainerResources
-	(*HugepageLimit)(nil),                 // 15: axnoded.internal.apipb.v1.HugepageLimit
-	(*Rootfs)(nil),                        // 16: axnoded.internal.apipb.v1.Rootfs
-	(*ContainerMetadata)(nil),             // 17: axnoded.internal.apipb.v1.ContainerMetadata
-	(*ContainerMetadataList)(nil),         // 18: axnoded.internal.apipb.v1.ContainerMetadataList
-	(*Slice)(nil),                         // 19: axnoded.internal.apipb.v1.Slice
-	(*Map)(nil),                           // 20: axnoded.internal.apipb.v1.Map
-	nil,                                   // 21: axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
-	nil,                                   // 22: axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
-	nil,                                   // 23: axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
-	nil,                                   // 24: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
-	nil,                                   // 25: axnoded.internal.apipb.v1.Map.ItemsEntry
-	(*v1.RuntimeExecutionProfile)(nil),    // 26: axern.control.catalog.v1.RuntimeExecutionProfile
-	(*v11.CapabilityDependency)(nil),      // 27: axern.control.capability.v1.CapabilityDependency
+	(RootfsSrcType)(0),                         // 0: axnoded.internal.apipb.v1.RootfsSrcType
+	(TaskAssetKind)(0),                         // 1: axnoded.internal.apipb.v1.TaskAssetKind
+	(*S3Config)(nil),                           // 2: axnoded.internal.apipb.v1.S3Config
+	(*RootfsConfig)(nil),                       // 3: axnoded.internal.apipb.v1.RootfsConfig
+	(*Mount)(nil),                              // 4: axnoded.internal.apipb.v1.Mount
+	(*ImageMount)(nil),                         // 5: axnoded.internal.apipb.v1.ImageMount
+	(*WorkspaceImageVariant)(nil),              // 6: axnoded.internal.apipb.v1.WorkspaceImageVariant
+	(*WorkspaceImageSource)(nil),               // 7: axnoded.internal.apipb.v1.WorkspaceImageSource
+	(*MaterializeTaskAssetsRequest)(nil),       // 8: axnoded.internal.apipb.v1.MaterializeTaskAssetsRequest
+	(*MaterializeTaskAssetsResponse)(nil),      // 9: axnoded.internal.apipb.v1.MaterializeTaskAssetsResponse
+	(*RuntimeTemplate)(nil),                    // 10: axnoded.internal.apipb.v1.RuntimeTemplate
+	(*AllocationState)(nil),                    // 11: axnoded.internal.apipb.v1.AllocationState
+	(*AllocationLaunchVerification)(nil),       // 12: axnoded.internal.apipb.v1.AllocationLaunchVerification
+	(*PendingCapabilityReconcile)(nil),         // 13: axnoded.internal.apipb.v1.PendingCapabilityReconcile
+	(*AllocationCapabilityReconcileState)(nil), // 14: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
+	(*AllocationEnforcementManifest)(nil),      // 15: axnoded.internal.apipb.v1.AllocationEnforcementManifest
+	(*TerminalResize)(nil),                     // 16: axnoded.internal.apipb.v1.TerminalResize
+	(*KeyValue)(nil),                           // 17: axnoded.internal.apipb.v1.KeyValue
+	(*LinuxContainerResources)(nil),            // 18: axnoded.internal.apipb.v1.LinuxContainerResources
+	(*HugepageLimit)(nil),                      // 19: axnoded.internal.apipb.v1.HugepageLimit
+	(*Rootfs)(nil),                             // 20: axnoded.internal.apipb.v1.Rootfs
+	(*ContainerMetadata)(nil),                  // 21: axnoded.internal.apipb.v1.ContainerMetadata
+	(*ContainerMetadataList)(nil),              // 22: axnoded.internal.apipb.v1.ContainerMetadataList
+	(*Slice)(nil),                              // 23: axnoded.internal.apipb.v1.Slice
+	(*Map)(nil),                                // 24: axnoded.internal.apipb.v1.Map
+	nil,                                        // 25: axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
+	nil,                                        // 26: axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
+	nil,                                        // 27: axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
+	nil,                                        // 28: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
+	nil,                                        // 29: axnoded.internal.apipb.v1.Map.ItemsEntry
+	(*v1.RuntimeExecutionProfile)(nil),         // 30: axern.control.catalog.v1.RuntimeExecutionProfile
+	(*v11.CapabilityDependency)(nil),           // 31: axern.control.capability.v1.CapabilityDependency
+	(*v11.CapabilityConditionSet)(nil),         // 32: axern.control.capability.v1.CapabilityConditionSet
+	(*v11.CapabilityKey)(nil),                  // 33: axern.control.capability.v1.CapabilityKey
 }
 var file_internal_apipb_v1_axnoded_internal_proto_depIdxs = []int32{
 	0,  // 0: axnoded.internal.apipb.v1.RootfsConfig.type:type_name -> axnoded.internal.apipb.v1.RootfsSrcType
@@ -1593,22 +2012,30 @@ var file_internal_apipb_v1_axnoded_internal_proto_depIdxs = []int32{
 	6,  // 2: axnoded.internal.apipb.v1.WorkspaceImageSource.variants:type_name -> axnoded.internal.apipb.v1.WorkspaceImageVariant
 	1,  // 3: axnoded.internal.apipb.v1.MaterializeTaskAssetsRequest.kind:type_name -> axnoded.internal.apipb.v1.TaskAssetKind
 	3,  // 4: axnoded.internal.apipb.v1.RuntimeTemplate.rootfs:type_name -> axnoded.internal.apipb.v1.RootfsConfig
-	21, // 5: axnoded.internal.apipb.v1.RuntimeTemplate.runtimeEnvs:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
+	25, // 5: axnoded.internal.apipb.v1.RuntimeTemplate.runtimeEnvs:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
 	4,  // 6: axnoded.internal.apipb.v1.RuntimeTemplate.mounts:type_name -> axnoded.internal.apipb.v1.Mount
-	26, // 7: axnoded.internal.apipb.v1.RuntimeTemplate.execution_profile:type_name -> axern.control.catalog.v1.RuntimeExecutionProfile
+	30, // 7: axnoded.internal.apipb.v1.RuntimeTemplate.execution_profile:type_name -> axern.control.catalog.v1.RuntimeExecutionProfile
 	10, // 8: axnoded.internal.apipb.v1.AllocationState.runtime_template:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate
-	27, // 9: axnoded.internal.apipb.v1.AllocationState.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
-	15, // 10: axnoded.internal.apipb.v1.LinuxContainerResources.hugepage_limits:type_name -> axnoded.internal.apipb.v1.HugepageLimit
-	22, // 11: axnoded.internal.apipb.v1.LinuxContainerResources.unified:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
-	23, // 12: axnoded.internal.apipb.v1.ContainerMetadata.labels:type_name -> axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
-	24, // 13: axnoded.internal.apipb.v1.ContainerMetadataList.containers:type_name -> axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
-	25, // 14: axnoded.internal.apipb.v1.Map.items:type_name -> axnoded.internal.apipb.v1.Map.ItemsEntry
-	17, // 15: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry.value:type_name -> axnoded.internal.apipb.v1.ContainerMetadata
-	16, // [16:16] is the sub-list for method output_type
-	16, // [16:16] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	31, // 9: axnoded.internal.apipb.v1.AllocationState.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
+	32, // 10: axnoded.internal.apipb.v1.AllocationState.capability_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
+	15, // 11: axnoded.internal.apipb.v1.AllocationState.enforcement_manifest:type_name -> axnoded.internal.apipb.v1.AllocationEnforcementManifest
+	14, // 12: axnoded.internal.apipb.v1.AllocationState.capability_reconcile:type_name -> axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
+	12, // 13: axnoded.internal.apipb.v1.AllocationState.launch_verification:type_name -> axnoded.internal.apipb.v1.AllocationLaunchVerification
+	32, // 14: axnoded.internal.apipb.v1.AllocationState.capability_admission_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
+	33, // 15: axnoded.internal.apipb.v1.AllocationLaunchVerification.verified_capabilities:type_name -> axern.control.capability.v1.CapabilityKey
+	33, // 16: axnoded.internal.apipb.v1.PendingCapabilityReconcile.key:type_name -> axern.control.capability.v1.CapabilityKey
+	13, // 17: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState.pending:type_name -> axnoded.internal.apipb.v1.PendingCapabilityReconcile
+	19, // 18: axnoded.internal.apipb.v1.LinuxContainerResources.hugepage_limits:type_name -> axnoded.internal.apipb.v1.HugepageLimit
+	26, // 19: axnoded.internal.apipb.v1.LinuxContainerResources.unified:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
+	27, // 20: axnoded.internal.apipb.v1.ContainerMetadata.labels:type_name -> axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
+	28, // 21: axnoded.internal.apipb.v1.ContainerMetadataList.containers:type_name -> axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
+	29, // 22: axnoded.internal.apipb.v1.Map.items:type_name -> axnoded.internal.apipb.v1.Map.ItemsEntry
+	21, // 23: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry.value:type_name -> axnoded.internal.apipb.v1.ContainerMetadata
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_internal_apipb_v1_axnoded_internal_proto_init() }
@@ -1627,7 +2054,7 @@ func file_internal_apipb_v1_axnoded_internal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_apipb_v1_axnoded_internal_proto_rawDesc), len(file_internal_apipb_v1_axnoded_internal_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   24,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

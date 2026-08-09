@@ -397,7 +397,7 @@ class ReportNodeResponse(_message.Message):
     def __init__(self) -> None: ...
 
 class AllocationStatusObservation(_message.Message):
-    __slots__ = ("allocation_id", "attempt", "status", "exit_code", "exit_code_known", "message", "observed_at", "ready", "readiness_message", "capability_conditions")
+    __slots__ = ("allocation_id", "attempt", "status", "exit_code", "exit_code_known", "message", "observed_at", "ready", "readiness_message")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     ATTEMPT_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -407,7 +407,6 @@ class AllocationStatusObservation(_message.Message):
     OBSERVED_AT_FIELD_NUMBER: _ClassVar[int]
     READY_FIELD_NUMBER: _ClassVar[int]
     READINESS_MESSAGE_FIELD_NUMBER: _ClassVar[int]
-    CAPABILITY_CONDITIONS_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
     attempt: int
     status: _common_pb2.AllocationStatus
@@ -417,8 +416,7 @@ class AllocationStatusObservation(_message.Message):
     observed_at: _timestamp_pb2.Timestamp
     ready: bool
     readiness_message: str
-    capability_conditions: _containers.RepeatedCompositeFieldContainer[_capability_pb2.CapabilityCondition]
-    def __init__(self, allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[_common_pb2.AllocationStatus, str]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ready: _Optional[bool] = ..., readiness_message: _Optional[str] = ..., capability_conditions: _Optional[_Iterable[_Union[_capability_pb2.CapabilityCondition, _Mapping]]] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[_common_pb2.AllocationStatus, str]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ready: _Optional[bool] = ..., readiness_message: _Optional[str] = ...) -> None: ...
 
 class BatchReportAllocationStatusRequest(_message.Message):
     __slots__ = ("node_id", "node_auth_token", "observations")
@@ -431,6 +429,30 @@ class BatchReportAllocationStatusRequest(_message.Message):
     def __init__(self, node_id: _Optional[str] = ..., node_auth_token: _Optional[str] = ..., observations: _Optional[_Iterable[_Union[AllocationStatusObservation, _Mapping]]] = ...) -> None: ...
 
 class BatchReportAllocationStatusResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class AllocationCapabilityConditionReport(_message.Message):
+    __slots__ = ("allocation_id", "attempt", "condition_set")
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    ATTEMPT_FIELD_NUMBER: _ClassVar[int]
+    CONDITION_SET_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    attempt: int
+    condition_set: _capability_pb2.CapabilityConditionSet
+    def __init__(self, allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., condition_set: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ...) -> None: ...
+
+class BatchReportAllocationCapabilityConditionsRequest(_message.Message):
+    __slots__ = ("node_id", "node_auth_token", "reports")
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    NODE_AUTH_TOKEN_FIELD_NUMBER: _ClassVar[int]
+    REPORTS_FIELD_NUMBER: _ClassVar[int]
+    node_id: str
+    node_auth_token: str
+    reports: _containers.RepeatedCompositeFieldContainer[AllocationCapabilityConditionReport]
+    def __init__(self, node_id: _Optional[str] = ..., node_auth_token: _Optional[str] = ..., reports: _Optional[_Iterable[_Union[AllocationCapabilityConditionReport, _Mapping]]] = ...) -> None: ...
+
+class BatchReportAllocationCapabilityConditionsResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 

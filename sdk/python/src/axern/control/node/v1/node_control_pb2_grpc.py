@@ -49,6 +49,11 @@ class NodeControlStub:
                 request_serializer=axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.BatchReportAllocationStatusRequest.SerializeToString,
                 response_deserializer=axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.BatchReportAllocationStatusResponse.FromString,
                 _registered_method=True)
+        self.BatchReportAllocationCapabilityConditions = channel.unary_unary(
+                '/axern.control.node.v1.NodeControl/BatchReportAllocationCapabilityConditions',
+                request_serializer=axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.BatchReportAllocationCapabilityConditionsRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.BatchReportAllocationCapabilityConditionsResponse.FromString,
+                _registered_method=True)
         self.WatchExecutionLeases = channel.unary_stream(
                 '/axern.control.node.v1.NodeControl/WatchExecutionLeases',
                 request_serializer=axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.WatchExecutionLeasesRequest.SerializeToString,
@@ -82,6 +87,12 @@ class NodeControlServicer:
         raise NotImplementedError('Method not implemented!')
 
     def BatchReportAllocationStatus(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def BatchReportAllocationCapabilityConditions(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -122,6 +133,11 @@ def add_NodeControlServicer_to_server(servicer, server):
                     servicer.BatchReportAllocationStatus,
                     request_deserializer=axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.BatchReportAllocationStatusRequest.FromString,
                     response_serializer=axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.BatchReportAllocationStatusResponse.SerializeToString,
+            ),
+            'BatchReportAllocationCapabilityConditions': grpc.unary_unary_rpc_method_handler(
+                    servicer.BatchReportAllocationCapabilityConditions,
+                    request_deserializer=axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.BatchReportAllocationCapabilityConditionsRequest.FromString,
+                    response_serializer=axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.BatchReportAllocationCapabilityConditionsResponse.SerializeToString,
             ),
             'WatchExecutionLeases': grpc.unary_stream_rpc_method_handler(
                     servicer.WatchExecutionLeases,
@@ -220,6 +236,33 @@ class NodeControl:
             '/axern.control.node.v1.NodeControl/BatchReportAllocationStatus',
             axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.BatchReportAllocationStatusRequest.SerializeToString,
             axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.BatchReportAllocationStatusResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def BatchReportAllocationCapabilityConditions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.control.node.v1.NodeControl/BatchReportAllocationCapabilityConditions',
+            axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.BatchReportAllocationCapabilityConditionsRequest.SerializeToString,
+            axern_dot_control_dot_node_dot_v1_dot_node__control__pb2.BatchReportAllocationCapabilityConditionsResponse.FromString,
             options,
             channel_credentials,
             insecure,

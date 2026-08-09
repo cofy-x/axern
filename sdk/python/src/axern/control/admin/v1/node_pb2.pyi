@@ -85,7 +85,7 @@ class GetNodeCapabilitySnapshotResponse(_message.Message):
     def __init__(self, snapshot: _Optional[_Union[_capability_pb2.CapabilitySnapshot, _Mapping]] = ...) -> None: ...
 
 class AdminCapabilityTransition(_message.Message):
-    __slots__ = ("transition_id", "node_id", "snapshot_id", "snapshot_sequence", "key", "old_state", "new_state", "old_evidence_id", "new_evidence_id", "reason_code", "reason", "observed_at", "reported_at")
+    __slots__ = ("transition_id", "node_id", "snapshot_id", "snapshot_sequence", "key", "old_state", "new_state", "old_evidence", "new_evidence", "old_reason_code", "new_reason_code", "reason", "observed_at", "reported_at")
     TRANSITION_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     SNAPSHOT_ID_FIELD_NUMBER: _ClassVar[int]
@@ -93,9 +93,10 @@ class AdminCapabilityTransition(_message.Message):
     KEY_FIELD_NUMBER: _ClassVar[int]
     OLD_STATE_FIELD_NUMBER: _ClassVar[int]
     NEW_STATE_FIELD_NUMBER: _ClassVar[int]
-    OLD_EVIDENCE_ID_FIELD_NUMBER: _ClassVar[int]
-    NEW_EVIDENCE_ID_FIELD_NUMBER: _ClassVar[int]
-    REASON_CODE_FIELD_NUMBER: _ClassVar[int]
+    OLD_EVIDENCE_FIELD_NUMBER: _ClassVar[int]
+    NEW_EVIDENCE_FIELD_NUMBER: _ClassVar[int]
+    OLD_REASON_CODE_FIELD_NUMBER: _ClassVar[int]
+    NEW_REASON_CODE_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     OBSERVED_AT_FIELD_NUMBER: _ClassVar[int]
     REPORTED_AT_FIELD_NUMBER: _ClassVar[int]
@@ -106,13 +107,14 @@ class AdminCapabilityTransition(_message.Message):
     key: _capability_pb2.CapabilityKey
     old_state: _capability_pb2.CapabilityState
     new_state: _capability_pb2.CapabilityState
-    old_evidence_id: str
-    new_evidence_id: str
-    reason_code: _capability_pb2.CapabilityReasonCode
+    old_evidence: _capability_pb2.CapabilityEvidence
+    new_evidence: _capability_pb2.CapabilityEvidence
+    old_reason_code: _capability_pb2.CapabilityReasonCode
+    new_reason_code: _capability_pb2.CapabilityReasonCode
     reason: str
     observed_at: _timestamp_pb2.Timestamp
     reported_at: _timestamp_pb2.Timestamp
-    def __init__(self, transition_id: _Optional[str] = ..., node_id: _Optional[str] = ..., snapshot_id: _Optional[str] = ..., snapshot_sequence: _Optional[int] = ..., key: _Optional[_Union[_capability_pb2.CapabilityKey, _Mapping]] = ..., old_state: _Optional[_Union[_capability_pb2.CapabilityState, str]] = ..., new_state: _Optional[_Union[_capability_pb2.CapabilityState, str]] = ..., old_evidence_id: _Optional[str] = ..., new_evidence_id: _Optional[str] = ..., reason_code: _Optional[_Union[_capability_pb2.CapabilityReasonCode, str]] = ..., reason: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., reported_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, transition_id: _Optional[str] = ..., node_id: _Optional[str] = ..., snapshot_id: _Optional[str] = ..., snapshot_sequence: _Optional[int] = ..., key: _Optional[_Union[_capability_pb2.CapabilityKey, _Mapping]] = ..., old_state: _Optional[_Union[_capability_pb2.CapabilityState, str]] = ..., new_state: _Optional[_Union[_capability_pb2.CapabilityState, str]] = ..., old_evidence: _Optional[_Union[_capability_pb2.CapabilityEvidence, _Mapping]] = ..., new_evidence: _Optional[_Union[_capability_pb2.CapabilityEvidence, _Mapping]] = ..., old_reason_code: _Optional[_Union[_capability_pb2.CapabilityReasonCode, str]] = ..., new_reason_code: _Optional[_Union[_capability_pb2.CapabilityReasonCode, str]] = ..., reason: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., reported_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class ListNodeCapabilityTransitionsRequest(_message.Message):
     __slots__ = ("node_id", "limit")
@@ -169,17 +171,25 @@ class GetAllocationCapabilityDiagnosticsRequest(_message.Message):
     def __init__(self, allocation_id: _Optional[str] = ...) -> None: ...
 
 class GetAllocationCapabilityDiagnosticsResponse(_message.Message):
-    __slots__ = ("allocation_id", "node_id", "required_dependencies", "admitted_dependencies", "conditions", "reconcile")
+    __slots__ = ("allocation_id", "node_id", "required_dependencies", "admitted_dependencies", "condition_set", "reconcile", "allocation_attempt", "create_admission_recorded", "create_dependency_set_digest", "create_admitted_at")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_DEPENDENCIES_FIELD_NUMBER: _ClassVar[int]
     ADMITTED_DEPENDENCIES_FIELD_NUMBER: _ClassVar[int]
-    CONDITIONS_FIELD_NUMBER: _ClassVar[int]
+    CONDITION_SET_FIELD_NUMBER: _ClassVar[int]
     RECONCILE_FIELD_NUMBER: _ClassVar[int]
+    ALLOCATION_ATTEMPT_FIELD_NUMBER: _ClassVar[int]
+    CREATE_ADMISSION_RECORDED_FIELD_NUMBER: _ClassVar[int]
+    CREATE_DEPENDENCY_SET_DIGEST_FIELD_NUMBER: _ClassVar[int]
+    CREATE_ADMITTED_AT_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
     node_id: str
     required_dependencies: _containers.RepeatedCompositeFieldContainer[_capability_pb2.CapabilityDependency]
     admitted_dependencies: _containers.RepeatedCompositeFieldContainer[_capability_pb2.CapabilityDependency]
-    conditions: _containers.RepeatedCompositeFieldContainer[_capability_pb2.CapabilityCondition]
+    condition_set: _capability_pb2.CapabilityConditionSet
     reconcile: AdminCapabilityReconcileItem
-    def __init__(self, allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., required_dependencies: _Optional[_Iterable[_Union[_capability_pb2.CapabilityDependency, _Mapping]]] = ..., admitted_dependencies: _Optional[_Iterable[_Union[_capability_pb2.CapabilityDependency, _Mapping]]] = ..., conditions: _Optional[_Iterable[_Union[_capability_pb2.CapabilityCondition, _Mapping]]] = ..., reconcile: _Optional[_Union[AdminCapabilityReconcileItem, _Mapping]] = ...) -> None: ...
+    allocation_attempt: int
+    create_admission_recorded: bool
+    create_dependency_set_digest: str
+    create_admitted_at: _timestamp_pb2.Timestamp
+    def __init__(self, allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., required_dependencies: _Optional[_Iterable[_Union[_capability_pb2.CapabilityDependency, _Mapping]]] = ..., admitted_dependencies: _Optional[_Iterable[_Union[_capability_pb2.CapabilityDependency, _Mapping]]] = ..., condition_set: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ..., reconcile: _Optional[_Union[AdminCapabilityReconcileItem, _Mapping]] = ..., allocation_attempt: _Optional[int] = ..., create_admission_recorded: _Optional[bool] = ..., create_dependency_set_digest: _Optional[str] = ..., create_admitted_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
