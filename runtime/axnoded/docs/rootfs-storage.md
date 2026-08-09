@@ -51,7 +51,7 @@ the filestore. The OCI readonly bit is preserved exactly. Imagemgr's active
 rootfs reference is the lower mount lease; its lease ID is also recorded in the
 projection manifest for reconciliation.
 
-## Writable layers and quota
+## Ephemeral-storage enforcement
 
 Writable runsc roots must launch with exactly:
 
@@ -62,7 +62,8 @@ Writable runsc roots must launch with exactly:
 There is no `root:memory`, direct-write, self-backing, or representation-based
 fallback. Writable runc roots always use a host OverlayFS and require a durable
 project ID plus an XFS project hard quota. Ext4 can host runsc and target-only
-projections but does not publish runc writable hard-limit capability.
+projections but cannot satisfy the runc ephemeral-storage hard-limit
+capability.
 
 The node-local reservation ledger is fsync/rename durable and checks both
 committed requests and live `statfs` availability after the system reserve.
@@ -70,16 +71,48 @@ The reservation, limit, runtime, project ID, and OCI annotation are available
 to restart reconciliation. Compressed EROFS copy-up is charged by actual upper
 usage; lower compressed size is not a capacity estimate.
 
-## Readiness, capability, and cleanup
+## Readiness, observed capability, and cleanup
 
 Filestore startup performs a real OverlayFS scratch mount and XFS project-quota
 probe. If an EROFS fixture is installed, it mounts the real image and exercises
 read, copy-up, create, whiteout, and directory operations using the production
-upper filesystem. Only successful probes publish the corresponding capability.
-Memory hard-limit capability is published only after a real sandbox passes
-limit readback and runtime PID-attribution verification.
+upper filesystem. Only successful probes can support the corresponding derived
+platform capability. Runtime-specific memory and ephemeral-storage hard-limit
+capabilities additionally require separate local conformance sandboxes so the
+cgroup and storage boundaries cannot mask one another; each real allocation is
+verified again. Provider ownership, evidence validity, and loss policy are
+defined in
+[Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md).
 
 Cleanup order is runtime delete, projection/host-overlay unmount, upper/work
 removal, writable reservation/project-ID release, then image mount lease
 release. If runtime delete fails and the process may still live, the projection,
 reservation, project ID, and lower lease remain for reconciliation.
+For foreground `runsc run` sandboxes, forced deletion is an ordered runtime
+protocol: send `KILL`, wait until the runtime runner has persisted exit state
+and released the sandbox lock, then execute `runsc delete --force`. Issuing
+delete before that barrier can deadlock teardown between the deleting process
+and the still-converging foreground command.
+
+At daemon startup, one complete generation of successful inventories from all
+enabled runc/runsc handlers is the sole liveness authority for runtime-private
+projections, writable reservations, allocation recovery records, and container
+resource claims. Persisted metadata is recovery input, but cannot keep storage
+alive after the owning runtime has disappeared. Inventory collection and
+ownership validation finish before the first cleanup; an unreadable inventory,
+duplicate ownership, missing potentially-live metadata, or an unknown persisted
+runtime causes fail-closed retention with no partial deletion. If a listed
+runtime is still present, backing identity and hard-limit state remain
+fail-closed.
+Container recovery identity comes from the metadata stored in the
+manager-owned container directory; allocation IDs are not required to use an
+axnoded-generated prefix. A `created`, `running`, or `unknown` runtime state is
+retained fail-closed. A `stopped` state is terminal rather than live: startup
+force-deletes that OCI runtime record first, then cleans projection/reservation,
+allocation state, resource claims, and bundle metadata in the normal ownership
+order. Once runtime absence or terminal deletion is proven, reconciliation also
+enumerates manager-owned bundle directories directly so a missing `meta.pb`
+cannot leak an otherwise recoverable OCI spec and its resource claims. If both
+metadata and `config.json` are absent after runtime absence and storage cleanup
+have been proven, the remaining directory is an empty/partial bundle shell and
+is removed without inventing resource ownership.

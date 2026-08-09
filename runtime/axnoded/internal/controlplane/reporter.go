@@ -10,10 +10,12 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	sandboxobs "github.com/cofy-x/axern/runtime/axnoded/internal/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -23,15 +25,16 @@ const (
 )
 
 type AllocationStatusReport struct {
-	AllocationID     string
-	Attempt          int64
-	Status           commonv1.AllocationStatus
-	ExitCode         int32
-	ExitCodeKnown    bool
-	Ready            bool
-	ReadinessMessage string
-	Message          string
-	ObservedAt       time.Time
+	AllocationID         string
+	Attempt              int64
+	Status               commonv1.AllocationStatus
+	ExitCode             int32
+	ExitCodeKnown        bool
+	Ready                bool
+	ReadinessMessage     string
+	Message              string
+	ObservedAt           time.Time
+	CapabilityConditions []*capabilityv1.CapabilityCondition
 }
 
 type RuntimeNamesFunc func() []string
@@ -274,16 +277,27 @@ func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) {
 		readinessMessage = ""
 	}
 	r.ensureStatusBatcher().Enqueue(&nodev1.AllocationStatusObservation{
-		AllocationID:     allocationID,
-		Attempt:          report.Attempt,
-		Status:           report.Status,
-		ExitCode:         report.ExitCode,
-		ExitCodeKnown:    report.ExitCodeKnown,
-		Ready:            ready,
-		ReadinessMessage: readinessMessage,
-		Message:          validProtocolString(report.Message),
-		ObservedAt:       timestamppb.New(report.ObservedAt.UTC()),
+		AllocationID:         allocationID,
+		Attempt:              report.Attempt,
+		Status:               report.Status,
+		ExitCode:             report.ExitCode,
+		ExitCodeKnown:        report.ExitCodeKnown,
+		Ready:                ready,
+		ReadinessMessage:     readinessMessage,
+		Message:              validProtocolString(report.Message),
+		ObservedAt:           timestamppb.New(report.ObservedAt.UTC()),
+		CapabilityConditions: cloneCapabilityConditions(report.CapabilityConditions),
 	})
+}
+
+func cloneCapabilityConditions(in []*capabilityv1.CapabilityCondition) []*capabilityv1.CapabilityCondition {
+	out := make([]*capabilityv1.CapabilityCondition, 0, len(in))
+	for _, condition := range in {
+		if condition != nil {
+			out = append(out, proto.Clone(condition).(*capabilityv1.CapabilityCondition))
+		}
+	}
+	return out
 }
 
 func (r *Reporter) AllocationStatusHealth() AllocationStatusReporterHealth {

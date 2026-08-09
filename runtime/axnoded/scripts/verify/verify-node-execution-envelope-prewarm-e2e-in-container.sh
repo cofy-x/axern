@@ -19,6 +19,9 @@ if ! [ -S "${AXNODED_SOCKET}" ] || ! curl -fsS "http://127.0.0.1:23001/readyz" >
   exit 1
 fi
 
+metricsz_wait_capability_snapshot
+metrics_before="$(metricsz_fetch)"
+
 start_container() {
   local runtime_name="$1"
   local runtime_id="$2"
@@ -45,7 +48,7 @@ verify_runtime() {
   }
   axctl --address "${AXNODED_SOCKET}" sandbox delete --timeout 0s "${cold_id}"
 
-  metricsz_wait_value "axern.axnoded_execution_envelope_total" "counter" "1" \
+  metricsz_wait_delta "${metrics_before}" "axern.axnoded_execution_envelope_total" "counter" "1" \
     "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=prepared"
   metricsz_wait_value "axern.axnoded_execution_envelope_current" "gauge" "1" \
     "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.state=ready"
@@ -63,23 +66,23 @@ verify_runtime() {
   }
 
   metrics_output="$(metricsz_fetch)"
-  metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
+  metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
     "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
-  metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_total" "counter" "2" \
+  metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_total" "counter" "2" \
     "axern.start_class=warm" "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
-  metricsz_assert_value "${metrics_output}" "axern.axnoded_execution_envelope_total" "counter" "1" \
+  metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_execution_envelope_total" "counter" "1" \
     "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=prepared"
-  metricsz_assert_value "${metrics_output}" "axern.axnoded_execution_envelope_total" "counter" "1" \
+  metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_execution_envelope_total" "counter" "1" \
     "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=hit"
-  metricsz_assert_value "${metrics_output}" "axern.axnoded_execution_envelope_total" "counter" "1" \
+  metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_execution_envelope_total" "counter" "1" \
     "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=miss"
-  metricsz_assert_value "${metrics_output}" "axern.axnoded_execution_envelope_total" "counter" "1" \
+  metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_execution_envelope_total" "counter" "1" \
     "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=fallback"
-  metricsz_assert_value "${metrics_output}" "axern.axnoded_execution_envelope_prepare_duration_seconds" "histogram" "1" \
+  metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_execution_envelope_prepare_duration_seconds" "histogram" "1" \
     "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
-  metricsz_assert_value "${metrics_output}" "axern.axnoded_execution_envelope_activate_duration_seconds" "histogram" "1" \
+  metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_execution_envelope_activate_duration_seconds" "histogram" "1" \
     "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
-  metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "2" \
+  metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "2" \
     "axern.phase=runtime_launch" "axern.start_class=warm" "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
 }
 

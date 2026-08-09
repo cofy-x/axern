@@ -14,7 +14,7 @@ The `axnoded` node reporter is optional and is configured through:
 - `plugin.control_plane_node_target`
 - `plugin.control_plane_heartbeat_interval`
 - `plugin.control_plane_node_state`
-- `plugin.control_plane_node_capabilities`
+- optional structured `plugin.node_extension_capabilities`
 - `plugin.control_plane_node_labels`
 
 When `plugin.control_plane_target` is empty, `axnoded` does not start the
@@ -34,14 +34,24 @@ Placement is evaluated in three stages:
   unavailable, admission may still bind the allocation to one of those nodes
   and rely on the durable allocation lifecycle retry queue to converge
 
+Capability mismatch, missing evidence, invalid identity, and expired evidence
+are fail-closed eligibility failures. They never enter the transient-health
+fallback.
+
 The selector returns a request-scoped candidate plan rather than a bare node
 list. The plan preserves health, capability, locality, warm-path, and initial
 load preferences until the Postgres admission transaction reaches its
 authoritative node decision.
 
-Durable admission locks candidate node rows in stable node-id order, loads the
-latest active reservations, and refreshes the dynamic load rank before
-selecting a node. It adds only reservations not yet reflected in the latest
+Durable admission locks candidate node rows in stable node-id order and reruns
+the complete eligibility evaluator against the locked row: lifecycle,
+heartbeat and summary freshness, runtime, component health, labels, typed
+capability observations and evidence, capacity, and slots. A candidate that
+changed after the initial plan is skipped and the transaction tries the next
+candidate. The selected observation dependencies and exact evidence commit in
+the same transaction as the allocation and reservation. Admission also loads
+the latest active reservations and refreshes the dynamic load rank. It adds
+only reservations not yet reflected in the latest
 node `committed` summary, so running allocations are not counted twice while
 concurrent `STARTING` allocations still influence placement. Run admission and
 service replica admission share this path; service scale-up does not maintain a
@@ -73,6 +83,15 @@ queue keeps reservation and lease cleanup tied to confirmed node lifecycle
 state instead of best-effort RPC success. The queue is allocation-scoped and
 owner-neutral; run and service controllers apply their own terminal workload
 state after queue convergence.
+
+Capability loss uses a separate `allocation_capability_reconcile_queue`, so a
+capability transition cannot overwrite create/delete lifecycle intent. Axnoded
+first performs allocation-specific verification. Controld's durable worker is
+a restart and missed-report safety net and retains work until node status
+confirms deletion. Provider evidence, catalog loss policy, and the bounded
+verification sequence are defined by the canonical
+[Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md)
+contract rather than duplicated here.
 
 ## Reconciler Health
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
@@ -37,6 +38,22 @@ func (c *Common) RemoveExitState(containerID string) error {
 
 func (c *Common) RuntimePIDFilePath(containerID string) string {
 	return filepath.Join(c.ContainerPath(containerID), "runtime.pid")
+}
+
+// RuntimePID returns the init PID recorded by the OCI runtime. Some runc
+// versions omit pid from `runc state` after a kept container changes state,
+// while the --pid-file remains the runtime's authoritative start artifact.
+func (c *Common) RuntimePID(containerID string) (int, error) {
+	path := c.RuntimePIDFilePath(containerID)
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		return 0, fmt.Errorf("read runtime pid file %q: %w", path, err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(payload)))
+	if err != nil || pid <= 0 {
+		return 0, fmt.Errorf("runtime pid file %q contains invalid pid %q", path, strings.TrimSpace(string(payload)))
+	}
+	return pid, nil
 }
 
 func (c *Common) Version(ctx context.Context) (string, error) {

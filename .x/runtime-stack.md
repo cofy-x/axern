@@ -82,6 +82,14 @@ direct OCI runtime exec is a debug-level tool.
 - Node reports without `runtime_slots` are rejected. Control-plane and node
   releases that introduce a new required node-summary contract must be rebuilt
   together; mixed-version operation is not a supported compatibility path.
+- Node platform capability follows the shared
+  [Observation, Policy, And Enforcement Contract](../docs/architecture/observed-capability-providers.md).
+  Axnoded publishes one atomic typed observation snapshot, the shared catalog
+  derives workload-facing policy, controld repeats eligibility inside the
+  locked admission transaction, and axnoded verifies admitted dependencies
+  before and after runtime creation. Platform requirements are derived from
+  workload semantics; users may request only exact-match extension
+  capabilities.
 - Node identities have a durable `active` or `retired` lifecycle in Postgres.
   Retirement is an audited, irreversible control-plane operation; retired
   identities cannot register, report, authenticate, or receive new placement.
@@ -101,6 +109,7 @@ direct OCI runtime exec is a debug-level tool.
 | --- | --- |
 | Public API, SDK shape, or protobuf contract | `sdk/proto`, generated SDKs, owning service, CLI/app docs |
 | Placement, node registration, allocation lifecycle, runtime catalog | `control/controld`, `runtime/axnoded`, SDKs if user-facing |
+| Node capability observation, catalog policy, admission evidence, or enforcement loss | `sdk/proto`, `lib/go/nodecapability`, `runtime/axnoded`, `control/controld`, CLI/SDK diagnostics |
 | Storage API, volume claims/classes/bindings, node volume specs | `control/storaged`, `control/controld`, `runtime/volumed`, `runtime/axnoded` |
 | Gateway control edge, tunnel client entry, service HTTP, browser terminal entry | `gateway/gatewayd`, `control/controld`, `runtime/tunneld`, `runtime/axnoded` |
 | Internal TCP tunnel relay or node-local tunnel binding | `runtime/tunneld`, `control/controld`, `runtime/axnoded` |
@@ -121,6 +130,9 @@ direct OCI runtime exec is a debug-level tool.
   imagemgr docs together.
 - If a public workload shape or sandbox-local operation changes, update the API,
   affected SDK/app docs, and the owning runtime documentation together.
+- If node capability keys, evidence, provider ownership, validity, loss policy,
+  or requirement derivation changes, update the canonical observed-capability
+  architecture document and both controld and axnoded contracts together.
 
 ## Validation Pointers
 

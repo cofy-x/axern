@@ -47,6 +47,21 @@ type BPFNetworkManager struct {
 	gcStop     chan struct{}
 }
 
+func (m *BPFNetworkManager) ProbeHealth(string) (networkmanager.Health, error) {
+	status, err := m.controller.Status()
+	if err != nil {
+		return networkmanager.Health{}, fmt.Errorf("read bpfnet dataplane status: %w", err)
+	}
+	// Persisted readiness is authoritative. In particular, failure of the
+	// optional localhost cgroup path records LastLocalhostError while TC ingress
+	// and egress remain healthy, and full iptables fallback can still provide
+	// port forwarding without satisfying the native bpfnet capability.
+	return networkmanager.Health{
+		PortForwardingReady:  status.State.TCReady || status.State.FullFallback,
+		NativeDataplaneReady: status.State.TCReady,
+	}, nil
+}
+
 func defaultControllerFactory(cfg config.BPFNetConfig) (dataplaneController, error) {
 	controller := bpfnet.NewController(bpfnet.Config{
 		UplinkDevices:      append([]string(nil), cfg.UplinkDevices...),

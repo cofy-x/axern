@@ -1,10 +1,13 @@
 package nodeinventory
 
 import (
+	"encoding/json"
 	"testing"
 
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestNewSnapshotInitializesHeatCollections(t *testing.T) {
@@ -23,6 +26,30 @@ func TestNewSnapshotInitializesHeatCollections(t *testing.T) {
 	}
 	if len(snapshot.Heat.Locality) != 0 {
 		t.Fatalf("expected heat.locality to start empty, got %d entries", len(snapshot.Heat.Locality))
+	}
+}
+
+func TestNodeInfoJSONRoundTripsCapabilityOneof(t *testing.T) {
+	want := NodeInfo{CapabilitySnapshot: &capabilityv1.CapabilitySnapshot{
+		NodeInstanceID: "instance-a",
+		Sequence:       3,
+		SnapshotID:     "snapshot-3",
+		Observations: []*capabilityv1.CapabilityObservation{{
+			Key: &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{
+				Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT,
+			}},
+		}},
+	}}
+	payload, err := json.Marshal(want)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	var got NodeInfo
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v; payload = %s", err, payload)
+	}
+	if !proto.Equal(got.CapabilitySnapshot, want.CapabilitySnapshot) {
+		t.Fatalf("capability snapshot = %v, want %v", got.CapabilitySnapshot, want.CapabilitySnapshot)
 	}
 }
 

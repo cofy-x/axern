@@ -13,6 +13,7 @@ import (
 )
 
 var _ contract.RuntimeHandler = &RunscServiceHandler{}
+var _ contract.AllocationCapabilityVerifier = &RunscServiceHandler{}
 
 type RunscServiceHandler struct {
 	name                              string
@@ -22,7 +23,6 @@ type RunscServiceHandler struct {
 	filestoreDir                      string
 	ephemeralStorageDefaultLimitBytes int64
 	writableCapacity                  *writableCapacityManager
-	capabilityDir                     string
 	containerRoot                     string
 	rootfsViews                       rootfsview.Provider
 	releaseFilestore                  func()
@@ -40,6 +40,7 @@ type runscState struct {
 var (
 	runscExitStateGracePeriod = 5 * time.Second
 	runscWaitRetryTimeout     = 200 * time.Millisecond
+	runscForceStopTimeout     = 5 * time.Second
 )
 
 func (r *RunscServiceHandler) Name() string {

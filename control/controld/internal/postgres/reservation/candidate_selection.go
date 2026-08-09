@@ -24,7 +24,8 @@ func lockCandidateNodes(ctx context.Context, tx pgx.Tx, candidates []*placementk
 	}
 	rows, err := tx.Query(ctx, `
 		SELECT n.node_id, n.node_target, n.lifecycle_status, n.registered_at, n.updated_at,
-		       n.retired_at, n.retired_reason, s.summary
+		       n.retired_at, n.retired_reason, s.summary,
+		       COALESCE((SELECT ARRAY_AGG(r.runtime_name ORDER BY r.runtime_name) FROM node_runtime_sets r WHERE r.node_id = n.node_id), ARRAY[]::text[])
 		FROM nodes n
 		LEFT JOIN node_summaries s ON s.node_id = n.node_id
 		WHERE n.node_id = ANY($1::text[])
@@ -41,7 +42,7 @@ func lockCandidateNodes(ctx context.Context, tx pgx.Tx, candidates []*placementk
 		var record nodekernel.Record
 		var summaryJSON []byte
 		var retiredAt *time.Time
-		if err := rows.Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.RegisteredAt, &record.UpdatedAt, &retiredAt, &record.RetiredReason, &summaryJSON); err != nil {
+		if err := rows.Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.RegisteredAt, &record.UpdatedAt, &retiredAt, &record.RetiredReason, &summaryJSON, &record.Runtimes); err != nil {
 			return nil, fmt.Errorf("scan locked placement candidate: %w", err)
 		}
 		if retiredAt != nil {
@@ -137,7 +138,7 @@ func refreshPlacementCandidate(candidate *placementkernel.Candidate, record *nod
 	evaluation.Rank.AxnodedActiveInstances = nodekernel.CalculateRuntimeSlotOccupancy(record.Summary, reservedAllocationIDs).Occupied
 	evaluation.Rank.AxnodedUsedMilli = resourcekernel.SaturatingAdd(resources.GetAxnodedUsedMilli(), positiveDifference(reserved.CPUMilli, resources.GetAxnodedCommittedMilli()))
 	evaluation.Rank.AxnodedUsedBytes = resourcekernel.SaturatingAdd(resources.GetAxnodedUsedBytes(), positiveDifference(reserved.MemoryBytes, resources.GetAxnodedCommittedBytes()))
-	return &placementkernel.Candidate{Record: record, Evaluation: evaluation}
+	return &placementkernel.Candidate{Record: record, Evaluation: evaluation, BaseRequest: candidate.BaseRequest, Request: candidate.Request}
 }
 
 func positiveDifference(total, reported int64) int64 {

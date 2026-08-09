@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	ctrlobs "github.com/cofy-x/axern/control/controld/internal/observability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
@@ -62,7 +61,10 @@ func (s *Server) ReportNode(ctx context.Context, req *controlnodev1.ReportNodeRe
 		span.SetStatus(otelcodes.Error, "summary.pools.runtime_slots is required")
 		return nil, grpcstatus.Error(codes.InvalidArgument, "summary.pools.runtime_slots is required")
 	}
-	record, err := s.deps.NodeStore.Report(ctx, nodekernel.ReportParams{
+	if s.deps.Reporter == nil {
+		return nil, grpcstatus.Error(codes.Unavailable, "node reporter is unavailable")
+	}
+	err := s.deps.Reporter.Report(ctx, nodekernel.ReportParams{
 		NodeID:        nodeID,
 		NodeTarget:    req.GetNodeTarget(),
 		Runtimes:      req.GetRuntimes(),
@@ -77,20 +79,6 @@ func (s *Server) ReportNode(ctx context.Context, req *controlnodev1.ReportNodeRe
 			return nil, err
 		}
 		return nil, grpcstatus.Errorf(codes.Internal, "persist node report: %v", err)
-	}
-	s.deps.Registry.Report(record.NodeID, record.NodeTarget, record.Runtimes, record.Summary, record.UpdatedAt)
-	if axnodedReady(req.GetSummary()) {
-		now := s.deps.Now()
-		snapshot := allocationkernel.NodeInventorySnapshot{
-			NodeID:              nodeID,
-			ActiveAllocationIDs: req.GetSummary().GetComponents().GetAxnoded().GetActiveAllocationIds(),
-			CollectedAt:         inventorySnapshotTime(req.GetSummary(), now),
-		}
-		if err := s.deps.Allocations.ReconcileNodeInventory(ctx, snapshot, now); err != nil {
-			span.RecordError(err)
-			span.SetStatus(otelcodes.Error, "reconcile node inventory")
-			return nil, grpcstatus.Errorf(codes.Internal, "reconcile node inventory: %v", err)
-		}
 	}
 	span.SetAttributes(attribute.String(sdkobs.AttrResult, "ok"))
 	return &controlnodev1.ReportNodeResponse{}, nil
@@ -264,23 +252,4 @@ func (s *Server) ReportTunnelSessionStatus(ctx context.Context, req *controlnode
 		return nil, err
 	}
 	return &controlnodev1.ReportTunnelSessionStatusResponse{}, nil
-}
-
-func axnodedReady(summary *controlnodev1.NodeSummary) bool {
-	if summary == nil || summary.GetComponents() == nil || summary.GetComponents().GetAxnoded() == nil {
-		return false
-	}
-	axnoded := summary.GetComponents().GetAxnoded()
-	return axnoded.GetReady() && axnoded.GetState() == controlnodev1.ComponentState_COMPONENT_STATE_READY
-}
-
-func inventorySnapshotTime(summary *controlnodev1.NodeSummary, fallback time.Time) time.Time {
-	if summary == nil || summary.GetCollectedAt() == nil {
-		return fallback
-	}
-	collectedAt := summary.GetCollectedAt().AsTime()
-	if collectedAt.IsZero() {
-		return fallback
-	}
-	return collectedAt
 }

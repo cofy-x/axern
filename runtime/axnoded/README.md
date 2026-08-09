@@ -15,6 +15,13 @@ but startup fails when a loaded runtime requires a disabled pool. Controld does
 not accept reports from older nodes that omit this contract, so such releases
 require a coordinated rebuild rather than mixed-version operation.
 
+Axnoded also owns node capability observation. Providers publish complete typed
+facts through one snapshot manager; the shared catalog derives workload-facing
+platform capabilities, while controld admits against the reported evidence and
+axnoded revalidates it for each allocation. Platform capabilities cannot be
+configured as strings or inferred from successful user sandboxes. See
+[Observed Capability Providers](../../docs/architecture/observed-capability-providers.md).
+
 ## Platform Role
 
 `axnoded` serves these gRPC surfaces:
@@ -96,6 +103,8 @@ Packaged node images install runtime helpers at `/usr/local/libexec/axnoded/`.
   common local/production profiles.
 - [Architecture](docs/architecture.md): internal layers and primary request
   flows.
+- [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md):
+  cross-system observation, policy, admission evidence, and enforcement loss.
 - [Resource Handling](docs/resource.md): resource claims, pools, accounting, and
   network backend invariants.
 - [Sandbox Daemon](docs/sandbox-daemon.md): Axern sandbox daemon

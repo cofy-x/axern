@@ -8,6 +8,7 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
@@ -238,6 +239,10 @@ func (f *fakeReconcileStore) CompleteAllocationStart(_ context.Context, allocati
 	return nil
 }
 
+func (f *fakeReconcileStore) RecordAllocationCapabilityVerification(context.Context, string, *allocationkernel.CapabilityAdmission, time.Time) error {
+	return nil
+}
+
 func (f *fakeReconcileStore) CompleteAllocationRelease(_ context.Context, allocationID string, attempt int64, _ time.Time) error {
 	f.completedAllocationID = allocationID
 	f.completedAttempt = attempt
@@ -284,10 +289,10 @@ type fakeReconcileLifecycle struct {
 	createHasDeadline bool
 }
 
-func (f *fakeReconcileLifecycle) CreateAllocation(ctx context.Context, _ string, _ *runv1.Run, _ *environmentv1.Environment, _ string) error {
+func (f *fakeReconcileLifecycle) CreateAllocation(ctx context.Context, _ string, _ *runv1.Run, _ *environmentv1.Environment, _ string, _ []*capabilityv1.CapabilityDependency) (*allocationkernel.CapabilityAdmission, error) {
 	f.created++
 	f.createDeadline, f.createHasDeadline = ctx.Deadline()
-	return f.createErr
+	return &allocationkernel.CapabilityAdmission{}, f.createErr
 }
 
 func (f *fakeReconcileLifecycle) DeleteAllocation(context.Context, string, string, int64, string) error {

@@ -6,6 +6,7 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
@@ -24,6 +25,7 @@ type AllocationStore interface {
 	BeginAllocationRelease(ctx context.Context, serviceID, allocationID string, now time.Time) (*servicev1.Service, *AllocationRecord, error)
 	MarkAllocationCreateFailed(ctx context.Context, serviceID, allocationID, message string, now time.Time) (*servicev1.Service, error)
 	RecordWorkspacePreparation(ctx context.Context, serviceID, allocationID string, attempt int64, facts *commonv1.WorkspacePreparationFacts, now time.Time) error
+	RecordCapabilityVerification(ctx context.Context, allocationID string, admission *allocationkernel.CapabilityAdmission, now time.Time) error
 	CompleteAllocationRelease(ctx context.Context, allocationID string, now time.Time) error
 	CompleteClaimedAllocationRelease(ctx context.Context, allocationID, owner string, now time.Time) (bool, error)
 }
@@ -39,19 +41,20 @@ type AllocationReconcileStore interface {
 }
 
 type AllocationRecord struct {
-	AllocationID      string
-	ServiceID         string
-	DesiredSpecDigest string
-	EnvironmentID     string
-	NodeID            string
-	NodeTarget        string
-	Attempt           int64
-	Status            commonv1.AllocationStatus
-	Ready             bool
-	ReadinessMessage  string
-	ReadinessProbe    *servicev1.ServiceProbe
-	LivenessProbe     *servicev1.ServiceProbe
-	Config            *commonv1.ExecutionConfig
+	AllocationID           string
+	ServiceID              string
+	DesiredSpecDigest      string
+	EnvironmentID          string
+	NodeID                 string
+	NodeTarget             string
+	Attempt                int64
+	Status                 commonv1.AllocationStatus
+	Ready                  bool
+	ReadinessMessage       string
+	ReadinessProbe         *servicev1.ServiceProbe
+	LivenessProbe          *servicev1.ServiceProbe
+	Config                 *commonv1.ExecutionConfig
+	CapabilityDependencies []*capabilityv1.CapabilityDependency
 }
 
 type AllocationStatusReport struct {

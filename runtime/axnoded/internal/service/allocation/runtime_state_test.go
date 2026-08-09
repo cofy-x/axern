@@ -50,7 +50,7 @@ func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	second := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store, fakeVolumePublisher{})
 	second.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{ID: allocationID, RuntimeHandler: "runsc"})
 	time.Sleep(200 * time.Millisecond)
-	assert.NoError(t, second.controller.loadAllocationStates())
+	assert.NoError(t, second.controller.loadAllocationStates(map[string]struct{}{allocationID: {}}))
 	restored, ok := second.controller.runtimeMapping(allocationID)
 	assert.True(t, ok)
 	assert.Equal(t, template.GetID(), restored.ID)
@@ -63,7 +63,7 @@ func TestLoadAllocationStatesSkipsOrphanContainers(t *testing.T) {
 		AllocationID: allocationID, RuntimeTemplate: testRuntimeTemplate(t, "orphan-runtime"),
 	}))
 	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store, fakeVolumePublisher{})
-	assert.NoError(t, fixture.controller.loadAllocationStates())
+	assert.NoError(t, fixture.controller.loadAllocationStates(map[string]struct{}{}))
 	_, ok := fixture.controller.runtimeMapping(allocationID)
 	assert.False(t, ok)
 	var persisted apipb.AllocationState
@@ -72,6 +72,13 @@ func TestLoadAllocationStatesSkipsOrphanContainers(t *testing.T) {
 
 func TestLoadAllocationStatesEmptyStore(t *testing.T) {
 	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()})
-	assert.NoError(t, fixture.controller.loadAllocationStates())
+	assert.NoError(t, fixture.controller.loadAllocationStates(map[string]struct{}{}))
+	assert.Zero(t, fixture.controller.runtimeMappingCount())
+}
+
+func TestLoadAllocationStatesRejectsLiveRuntimeWithoutRecoveryRecord(t *testing.T) {
+	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()})
+	err := fixture.controller.loadAllocationStates(map[string]struct{}{"missing-live-record": {}})
+	assert.ErrorContains(t, err, "has no allocation recovery record")
 	assert.Zero(t, fixture.controller.runtimeMappingCount())
 }

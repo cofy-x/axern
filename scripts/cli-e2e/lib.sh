@@ -265,6 +265,34 @@ raise SystemExit(1)
   return 1
 }
 
+wait_for_service_deleted() {
+  local service_id="$1"
+  local label="$2"
+  local timeout_seconds="${3:-120}"
+  local deadline services_json
+  if ! [[ "${timeout_seconds}" =~ ^[0-9]+$ ]]; then
+    echo "${label} wait timeout must be numeric seconds, got ${timeout_seconds}" >&2
+    dump_logs
+    return 1
+  fi
+  deadline=$((SECONDS + timeout_seconds))
+  while [ "${SECONDS}" -lt "${deadline}" ]; do
+    services_json="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service list -o json 2>/dev/null || true)"
+    if [ -n "${services_json}" ] && python3 -c '
+import json, sys
+service_id = sys.argv[1]
+payload = json.load(sys.stdin)
+raise SystemExit(1 if any(service.get("id") == service_id for service in payload.get("services", [])) else 0)
+' "${service_id}" <<<"${services_json}" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "${label} was not fully deleted in time" >&2
+  dump_logs
+  return 1
+}
+
 wait_for_postgres() {
   local deadline
   deadline=$((SECONDS + 60))

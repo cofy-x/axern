@@ -13,6 +13,7 @@ COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
 COPY lib/go/llmproxy/go.mod /workspace/lib/go/llmproxy/go.mod
+COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
 RUN cat > /workspace/go.work <<'EOF'
@@ -22,6 +23,7 @@ use (
 	./lib/go/grpcclient
 	./lib/go/imageref
 	./lib/go/llmproxy
+	./lib/go/nodecapability
 	./lib/go/observability
 	./network/bpfnet
 	./runtime/axnoded
@@ -60,6 +62,7 @@ COPY control/storaged/go.mod control/storaged/go.sum /workspace/control/storaged
 COPY gateway/gatewayd/go.mod gateway/gatewayd/go.sum /workspace/gateway/gatewayd/
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
+COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
 RUN cat > /workspace/go.work <<'EOF'
@@ -71,6 +74,7 @@ use (
 	./gateway/gatewayd
 	./lib/go/grpcclient
 	./lib/go/imageref
+	./lib/go/nodecapability
 	./lib/go/observability
 	./sdk/go
 )
@@ -157,6 +161,7 @@ COPY --from=controld-builder /out/controld-access-bootstrap /usr/local/bin/contr
 COPY --from=controld-builder /out/storaged /usr/local/bin/storaged
 COPY --from=controld-builder /out/gatewayd /usr/local/bin/gatewayd
 COPY --from=verify-rootfs /opt/sample-rootfs /opt/sample-rootfs
+COPY --from=verify-rootfs /opt/sample-rootfs /opt/axern/runtime-selftest/rootfs
 COPY --from=verify-rootfs /opt/nginx-rootfs /opt/nginx-rootfs
 
 CMD ["/bin/bash"]

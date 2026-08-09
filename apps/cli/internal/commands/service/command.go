@@ -29,7 +29,7 @@ func Command(runtime command.Runtime) *cobra.Command {
 type createOptions struct {
 	file, namespace, environmentID, templateID, templateVersion, imageRef, credentialID, runtimeClass string
 	requestCPU, requestMemory, requestEphemeralStorage, limitCPU, limitMemory, limitEphemeralStorage  string
-	argv, env, secretEnv, secretFile, volumes, imageMount, labels                                     []string
+	argv, env, secretEnv, secretFile, volumes, imageMount, labels, extensionCapabilities              []string
 	replicas                                                                                          int32
 	rootfsReadonly, wait                                                                              bool
 	waitTimeout                                                                                       time.Duration
@@ -107,6 +107,7 @@ func (o *createOptions) bindExecution(f *pflag.FlagSet) {
 	f.StringArrayVar(&o.volumes, "volume", nil, "volume mount; may be repeated")
 	f.StringArrayVar(&o.imageMount, "image-mount", nil, "read-only image mount; may be repeated")
 	f.StringVar(&o.runtimeClass, "runtime-class", "", "runtime class")
+	f.StringArrayVar(&o.extensionCapabilities, "extension-capability", nil, "exact-match extension <dns-domain>/<name>[=value]; may be repeated")
 	f.StringVar(&o.requestCPU, "request-cpu", "", "CPU request")
 	f.StringVar(&o.requestMemory, "request-memory", "", "memory request")
 	f.StringVar(&o.requestEphemeralStorage, "request-ephemeral-storage", "", "node-local ephemeral storage request")
@@ -222,11 +223,15 @@ func (o createOptions) execution() (*commonv1.ExecutionConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	extensions, err := parse.ExtensionCapabilities(o.extensionCapabilities)
+	if err != nil {
+		return nil, err
+	}
 	resources, err := command.Resources(o.requestCPU, o.requestMemory, o.requestEphemeralStorage, o.limitCPU, o.limitMemory, o.limitEphemeralStorage)
 	if err != nil {
 		return nil, err
 	}
-	return &commonv1.ExecutionConfig{Argv: o.argv, Env: env, SecretEnv: secretEnv, SecretFiles: secretFiles, VolumeMounts: volumes, ImageMounts: imageMounts, RuntimeClass: o.runtimeClass, Resources: resources}, nil
+	return &commonv1.ExecutionConfig{Argv: o.argv, Env: env, SecretEnv: secretEnv, SecretFiles: secretFiles, VolumeMounts: volumes, ImageMounts: imageMounts, RuntimeClass: o.runtimeClass, ExtensionCapabilityRequirements: extensions, Resources: resources}, nil
 }
 
 func (p probeOptions) build() (*servicev1.ServiceProbe, error) {
@@ -272,7 +277,7 @@ func (p probeOptions) build() (*servicev1.ServiceProbe, error) {
 	return value, nil
 }
 
-var serviceDefinitionFlags = []string{"namespace", "replicas", "argv", "env", "secret-env", "secret-file", "volume", "image-mount", "runtime-class", "label", "environment-id", "template-id", "template-version", "image-ref", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage", "readiness-http-port", "readiness-http-path", "readiness-http-scheme", "readiness-tcp-port", "readiness-initial-delay", "readiness-period", "readiness-timeout", "readiness-success-threshold", "readiness-failure-threshold", "liveness-http-port", "liveness-http-path", "liveness-http-scheme", "liveness-tcp-port", "liveness-initial-delay", "liveness-period", "liveness-timeout", "liveness-success-threshold", "liveness-failure-threshold", "autoscale-min-replicas", "autoscale-max-replicas"}
+var serviceDefinitionFlags = []string{"namespace", "replicas", "argv", "env", "secret-env", "secret-file", "volume", "image-mount", "runtime-class", "extension-capability", "label", "environment-id", "template-id", "template-version", "image-ref", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage", "readiness-http-port", "readiness-http-path", "readiness-http-scheme", "readiness-tcp-port", "readiness-initial-delay", "readiness-period", "readiness-timeout", "readiness-success-threshold", "readiness-failure-threshold", "liveness-http-port", "liveness-http-path", "liveness-http-scheme", "liveness-tcp-port", "liveness-initial-delay", "liveness-period", "liveness-timeout", "liveness-success-threshold", "liveness-failure-threshold", "autoscale-min-replicas", "autoscale-max-replicas"}
 
 func getCommand(runtime command.Runtime) *cobra.Command {
 	return &cobra.Command{Use: "get <service-id>", Short: "Get service, rollout, and latest event", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
@@ -391,7 +396,7 @@ func updateCommand(runtime command.Runtime) *cobra.Command {
 	return cmd
 }
 
-var serviceExecutionFlags = []string{"argv", "env", "secret-env", "secret-file", "volume", "image-mount", "runtime-class", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
+var serviceExecutionFlags = []string{"argv", "env", "secret-env", "secret-file", "volume", "image-mount", "runtime-class", "extension-capability", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
 
 func (o createOptions) executionUpdate(cmd *cobra.Command, current *commonv1.ExecutionConfig) (*commonv1.ExecutionConfig, error) {
 	next := &commonv1.ExecutionConfig{}
@@ -438,6 +443,13 @@ func (o createOptions) executionUpdate(cmd *cobra.Command, current *commonv1.Exe
 	}
 	if cmd.Flags().Changed("runtime-class") {
 		next.RuntimeClass = o.runtimeClass
+	}
+	if cmd.Flags().Changed("extension-capability") {
+		value, err := parse.ExtensionCapabilities(o.extensionCapabilities)
+		if err != nil {
+			return nil, err
+		}
+		next.ExtensionCapabilityRequirements = value
 	}
 	if err := o.mergeUpdatedResources(cmd, next); err != nil {
 		return nil, err

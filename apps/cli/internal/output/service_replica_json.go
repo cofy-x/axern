@@ -11,22 +11,23 @@ type ServiceReplicaListJSON struct {
 }
 
 type ServiceReplicaJSON struct {
-	ID               string                            `json:"id"`
-	ServiceID        string                            `json:"service_id"`
-	NodeID           string                            `json:"node_id,omitempty"`
-	Attempt          int64                             `json:"attempt"`
-	Status           string                            `json:"status"`
-	CreatedAt        string                            `json:"created_at,omitempty"`
-	UpdatedAt        string                            `json:"updated_at,omitempty"`
-	ExitCode         *int32                            `json:"exit_code,omitempty"`
-	ExitCodeKnown    bool                              `json:"exit_code_known,omitempty"`
-	Ended            bool                              `json:"ended,omitempty"`
-	Outdated         bool                              `json:"outdated,omitempty"`
-	DiagnosticCode   string                            `json:"diagnostic_code"`
-	Ready            bool                              `json:"ready"`
-	ReadinessMessage string                            `json:"readiness_message,omitempty"`
-	Message          string                            `json:"message,omitempty"`
-	LifecycleRetry   *ServiceReplicaLifecycleRetryJSON `json:"lifecycle_retry,omitempty"`
+	ID                   string                            `json:"id"`
+	ServiceID            string                            `json:"service_id"`
+	NodeID               string                            `json:"node_id,omitempty"`
+	Attempt              int64                             `json:"attempt"`
+	Status               string                            `json:"status"`
+	CreatedAt            string                            `json:"created_at,omitempty"`
+	UpdatedAt            string                            `json:"updated_at,omitempty"`
+	ExitCode             *int32                            `json:"exit_code,omitempty"`
+	ExitCodeKnown        bool                              `json:"exit_code_known,omitempty"`
+	Ended                bool                              `json:"ended,omitempty"`
+	Outdated             bool                              `json:"outdated,omitempty"`
+	DiagnosticCode       string                            `json:"diagnostic_code"`
+	Ready                bool                              `json:"ready"`
+	ReadinessMessage     string                            `json:"readiness_message,omitempty"`
+	Message              string                            `json:"message,omitempty"`
+	LifecycleRetry       *ServiceReplicaLifecycleRetryJSON `json:"lifecycle_retry,omitempty"`
+	CapabilityConditions []*CapabilityConditionJSON        `json:"capability_conditions,omitempty"`
 }
 
 type ServiceReplicaLifecycleRetryJSON struct {
@@ -52,22 +53,23 @@ func NewServiceReplicaJSON(replica *servicev1.ServiceReplica) *ServiceReplicaJSO
 		return nil
 	}
 	return &ServiceReplicaJSON{
-		ID:               replica.GetID(),
-		ServiceID:        replica.GetServiceID(),
-		NodeID:           replica.GetNodeID(),
-		Attempt:          replica.GetAttempt(),
-		Status:           AllocationStatusLabel(replica.GetStatus()),
-		CreatedAt:        FormatProtoTimestamp(replica.GetCreatedAt()),
-		UpdatedAt:        FormatProtoTimestamp(replica.GetUpdatedAt()),
-		ExitCode:         knownExitCode(replica.GetExitCode(), replica.GetExitCodeKnown()),
-		ExitCodeKnown:    replica.GetExitCodeKnown(),
-		Ended:            replica.GetEnded(),
-		Outdated:         replica.GetOutdated(),
-		DiagnosticCode:   WorkloadDiagnosticCodeLabel(replica.GetDiagnosticCode()),
-		Ready:            replica.GetReady(),
-		ReadinessMessage: replica.GetReadinessMessage(),
-		Message:          replica.GetMessage(),
-		LifecycleRetry:   newServiceReplicaLifecycleRetryJSON(replica.GetLifecycleRetry()),
+		ID:                   replica.GetID(),
+		ServiceID:            replica.GetServiceID(),
+		NodeID:               replica.GetNodeID(),
+		Attempt:              replica.GetAttempt(),
+		Status:               AllocationStatusLabel(replica.GetStatus()),
+		CreatedAt:            FormatProtoTimestamp(replica.GetCreatedAt()),
+		UpdatedAt:            FormatProtoTimestamp(replica.GetUpdatedAt()),
+		ExitCode:             knownExitCode(replica.GetExitCode(), replica.GetExitCodeKnown()),
+		ExitCodeKnown:        replica.GetExitCodeKnown(),
+		Ended:                replica.GetEnded(),
+		Outdated:             replica.GetOutdated(),
+		DiagnosticCode:       WorkloadDiagnosticCodeLabel(replica.GetDiagnosticCode()),
+		Ready:                replica.GetReady(),
+		ReadinessMessage:     replica.GetReadinessMessage(),
+		Message:              replica.GetMessage(),
+		LifecycleRetry:       newServiceReplicaLifecycleRetryJSON(replica.GetLifecycleRetry()),
+		CapabilityConditions: newCapabilityConditionJSONs(replica.GetCapabilityConditions()),
 	}
 }
 

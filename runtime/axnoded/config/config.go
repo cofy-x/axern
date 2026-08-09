@@ -7,6 +7,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 )
 
 // Config contains all configurations for sandbox server.
@@ -27,19 +30,24 @@ type PluginConfig struct {
 
 	ResourceConfig `toml:"resource" json:"resource"`
 
-	ControlPlaneTarget             string            `toml:"control_plane_target" json:"controlPlaneTarget"`
-	ControlPlaneNodeID             string            `toml:"control_plane_node_id" json:"controlPlaneNodeId"`
-	ControlPlaneNodeTarget         string            `toml:"control_plane_node_target" json:"controlPlaneNodeTarget"`
-	ControlPlaneNodeAuthToken      string            `toml:"control_plane_node_auth_token" json:"controlPlaneNodeAuthToken"`
-	ControlPlaneHeartbeatInterval  string            `toml:"control_plane_heartbeat_interval" json:"controlPlaneHeartbeatInterval"`
-	ControlPlaneNodeState          string            `toml:"control_plane_node_state" json:"controlPlaneNodeState"`
-	ControlPlaneNodeCapabilities   []string          `toml:"control_plane_node_capabilities" json:"controlPlaneNodeCapabilities"`
-	ControlPlaneNodeLabels         map[string]string `toml:"control_plane_node_labels" json:"controlPlaneNodeLabels"`
-	ControlPlaneNodeResourceSource string            `toml:"control_plane_node_resource_source" json:"controlPlaneNodeResourceSource"`
-	ControlPlaneKubernetesNodeName string            `toml:"control_plane_kubernetes_node_name" json:"controlPlaneKubernetesNodeName"`
-	ControlPlaneTLSCACert          string            `toml:"control_plane_tls_ca_cert" json:"controlPlaneTlsCaCert"`
-	ControlPlaneTLSCert            string            `toml:"control_plane_tls_cert" json:"controlPlaneTlsCert"`
-	ControlPlaneTLSKey             string            `toml:"control_plane_tls_key" json:"controlPlaneTlsKey"`
+	ControlPlaneTarget             string                      `toml:"control_plane_target" json:"controlPlaneTarget"`
+	ControlPlaneNodeID             string                      `toml:"control_plane_node_id" json:"controlPlaneNodeId"`
+	ControlPlaneNodeTarget         string                      `toml:"control_plane_node_target" json:"controlPlaneNodeTarget"`
+	ControlPlaneNodeAuthToken      string                      `toml:"control_plane_node_auth_token" json:"controlPlaneNodeAuthToken"`
+	ControlPlaneHeartbeatInterval  string                      `toml:"control_plane_heartbeat_interval" json:"controlPlaneHeartbeatInterval"`
+	ControlPlaneNodeState          string                      `toml:"control_plane_node_state" json:"controlPlaneNodeState"`
+	NodeExtensionCapabilities      []ExtensionCapabilityConfig `toml:"node_extension_capabilities" json:"nodeExtensionCapabilities"`
+	ControlPlaneNodeLabels         map[string]string           `toml:"control_plane_node_labels" json:"controlPlaneNodeLabels"`
+	ControlPlaneNodeResourceSource string                      `toml:"control_plane_node_resource_source" json:"controlPlaneNodeResourceSource"`
+	ControlPlaneKubernetesNodeName string                      `toml:"control_plane_kubernetes_node_name" json:"controlPlaneKubernetesNodeName"`
+	ControlPlaneTLSCACert          string                      `toml:"control_plane_tls_ca_cert" json:"controlPlaneTlsCaCert"`
+	ControlPlaneTLSCert            string                      `toml:"control_plane_tls_cert" json:"controlPlaneTlsCert"`
+	ControlPlaneTLSKey             string                      `toml:"control_plane_tls_key" json:"controlPlaneTlsKey"`
+}
+
+type ExtensionCapabilityConfig struct {
+	Name  string `toml:"name" json:"name"`
+	Value string `toml:"value" json:"value"`
 }
 
 // RuntimeConfig binary path of the runtime
@@ -274,28 +282,34 @@ func (c PluginConfig) ControlPlaneNodeStateValue() string {
 	}
 }
 
-func (c PluginConfig) ControlPlaneNodeCapabilitiesValue() []string {
-	if len(c.ControlPlaneNodeCapabilities) == 0 {
-		return nil
+func (c PluginConfig) NodeExtensionCapabilitiesValue() ([]*capabilityv1.ExtensionCapability, error) {
+	if len(c.NodeExtensionCapabilities) == 0 {
+		return nil, nil
 	}
-	seen := make(map[string]struct{}, len(c.ControlPlaneNodeCapabilities))
-	out := make([]string, 0, len(c.ControlPlaneNodeCapabilities))
-	for _, capability := range c.ControlPlaneNodeCapabilities {
-		capability = strings.TrimSpace(capability)
-		if capability == "" {
-			continue
+	seen := make(map[string]struct{}, len(c.NodeExtensionCapabilities))
+	out := make([]*capabilityv1.ExtensionCapability, 0, len(c.NodeExtensionCapabilities))
+	for _, configured := range c.NodeExtensionCapabilities {
+		capability := capabilitycontract.NormalizeExtension(&capabilityv1.ExtensionCapability{Name: configured.Name, Value: configured.Value})
+		if err := capabilitycontract.ValidateExtension(capability); err != nil {
+			return nil, err
 		}
-		if _, ok := seen[capability]; ok {
-			continue
+		id, err := capabilitycontract.KeyID(capabilitycontract.ExtensionKey(capability.GetName(), capability.GetValue()))
+		if err != nil {
+			return nil, err
 		}
-		seen[capability] = struct{}{}
+		if _, duplicate := seen[id]; duplicate {
+			return nil, fmt.Errorf("duplicate node extension capability %q", capability.GetName())
+		}
+		seen[id] = struct{}{}
 		out = append(out, capability)
 	}
-	sort.Strings(out)
-	if len(out) == 0 {
-		return nil
-	}
-	return out
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].GetName() != out[j].GetName() {
+			return out[i].GetName() < out[j].GetName()
+		}
+		return out[i].GetValue() < out[j].GetValue()
+	})
+	return out, nil
 }
 
 func (c PluginConfig) ControlPlaneNodeLabelsValue() map[string]string {

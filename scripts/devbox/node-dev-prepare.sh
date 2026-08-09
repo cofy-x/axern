@@ -58,10 +58,6 @@ control_plane_tls_ca_cert = "${CONTROL_PLANE_TLS_CA_CERT}"
 control_plane_tls_cert = "${CONTROL_PLANE_TLS_CERT}"
 control_plane_tls_key = "${CONTROL_PLANE_TLS_KEY}"
 control_plane_node_state = "ready"
-control_plane_node_capabilities = [
-  "feature:ports",
-  "network:iptables",
-]
 
 [plugin.network]
 ip_range = "172.17.0.1/16"

@@ -5,6 +5,7 @@ package axern.control.admin.v1;
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1";
 
 import "google/protobuf/timestamp.proto";
+import "axern/control/capability/v1/capability.proto";
 
 enum AdminNodeLifecycleStatus {
   ADMIN_NODE_LIFECYCLE_STATUS_UNSPECIFIED = 0;
@@ -43,7 +44,77 @@ message RetireAdminNodeResponse {
   AdminNode node = 1;
 }
 
+message GetNodeCapabilitySnapshotRequest {
+  string node_id = 1;
+}
+
+message GetNodeCapabilitySnapshotResponse {
+  axern.control.capability.v1.CapabilitySnapshot snapshot = 1;
+}
+
+message AdminCapabilityTransition {
+  string transition_id = 1;
+  string node_id = 2;
+  string snapshot_id = 3;
+  int64 snapshot_sequence = 4;
+  axern.control.capability.v1.CapabilityKey key = 5;
+  axern.control.capability.v1.CapabilityState old_state = 6;
+  axern.control.capability.v1.CapabilityState new_state = 7;
+  string old_evidence_id = 8;
+  string new_evidence_id = 9;
+  axern.control.capability.v1.CapabilityReasonCode reason_code = 10;
+  string reason = 11;
+  google.protobuf.Timestamp observed_at = 12;
+  google.protobuf.Timestamp reported_at = 13;
+}
+
+message ListNodeCapabilityTransitionsRequest {
+  string node_id = 1;
+  int32 limit = 2;
+}
+
+message ListNodeCapabilityTransitionsResponse {
+  repeated AdminCapabilityTransition transitions = 1;
+}
+
+message AdminCapabilityReconcileItem {
+  string allocation_id = 1;
+  string node_id = 2;
+  repeated axern.control.capability.v1.CapabilityDependency pending_dependencies = 3;
+  int32 attempts = 4;
+  google.protobuf.Timestamp next_run_at = 5;
+  google.protobuf.Timestamp lease_expires_at = 6;
+  string last_error = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message ListCapabilityReconcileQueueRequest {
+  string node_id = 1;
+  int32 limit = 2;
+}
+
+message ListCapabilityReconcileQueueResponse {
+  repeated AdminCapabilityReconcileItem items = 1;
+}
+
+message GetAllocationCapabilityDiagnosticsRequest {
+  string allocation_id = 1;
+}
+
+message GetAllocationCapabilityDiagnosticsResponse {
+  string allocation_id = 1;
+  string node_id = 2;
+  repeated axern.control.capability.v1.CapabilityDependency required_dependencies = 3;
+  repeated axern.control.capability.v1.CapabilityDependency admitted_dependencies = 4;
+  repeated axern.control.capability.v1.CapabilityCondition conditions = 5;
+  AdminCapabilityReconcileItem reconcile = 6;
+}
+
 service NodeAdmin {
   rpc ListAdminNodes(ListAdminNodesRequest) returns (ListAdminNodesResponse) {}
   rpc RetireAdminNode(RetireAdminNodeRequest) returns (RetireAdminNodeResponse) {}
+  rpc GetNodeCapabilitySnapshot(GetNodeCapabilitySnapshotRequest) returns (GetNodeCapabilitySnapshotResponse) {}
+  rpc ListNodeCapabilityTransitions(ListNodeCapabilityTransitionsRequest) returns (ListNodeCapabilityTransitionsResponse) {}
+  rpc ListCapabilityReconcileQueue(ListCapabilityReconcileQueueRequest) returns (ListCapabilityReconcileQueueResponse) {}
+  rpc GetAllocationCapabilityDiagnostics(GetAllocationCapabilityDiagnosticsRequest) returns (GetAllocationCapabilityDiagnosticsResponse) {}
 }

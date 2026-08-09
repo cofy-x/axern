@@ -7,6 +7,7 @@
 package apipb
 
 import (
+	v12 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	v1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	v11 "github.com/cofy-x/axern/sdk/go/gen/axern/private/storage/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -73,24 +74,25 @@ func (ContainerState) EnumDescriptor() ([]byte, []int) {
 }
 
 type StartRequest struct {
-	state           protoimpl.MessageState    `protogen:"open.v1"`
-	RuntimeTemplate *RuntimeTemplate          `protobuf:"bytes,1,opt,name=runtime_template,json=runtimeTemplate,proto3" json:"runtime_template,omitempty"`
-	Mounts          []*Mount                  `protobuf:"bytes,2,rep,name=mounts,proto3" json:"mounts,omitempty"`
-	Resources       *v1.ResourceSpec          `protobuf:"bytes,3,opt,name=resources,proto3" json:"resources,omitempty"`
-	UserEnvs        map[string]string         `protobuf:"bytes,4,rep,name=userEnvs,proto3" json:"userEnvs,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Stdout          string                    `protobuf:"bytes,5,opt,name=stdout,proto3" json:"stdout,omitempty"`
-	Stderr          string                    `protobuf:"bytes,6,opt,name=stderr,proto3" json:"stderr,omitempty"`
-	ExtraConfig     string                    `protobuf:"bytes,7,opt,name=extra_config,json=extraConfig,proto3" json:"extra_config,omitempty"`
-	Network         string                    `protobuf:"bytes,8,opt,name=network,proto3" json:"network,omitempty"`
-	CkptDir         string                    `protobuf:"bytes,9,opt,name=ckptDir,proto3" json:"ckptDir,omitempty"`
-	TraceId         string                    `protobuf:"bytes,10,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
-	Ports           []string                  `protobuf:"bytes,11,rep,name=ports,proto3" json:"ports,omitempty"`
-	ContainerID     string                    `protobuf:"bytes,12,opt,name=containerID,proto3" json:"containerID,omitempty"`
-	NodeVolumes     []*v11.ResolvedNodeVolume `protobuf:"bytes,13,rep,name=node_volumes,json=nodeVolumes,proto3" json:"node_volumes,omitempty"`
-	ImageMounts     []*ImageMount             `protobuf:"bytes,14,rep,name=image_mounts,json=imageMounts,proto3" json:"image_mounts,omitempty"`
-	WorkspaceImage  *WorkspaceImageSource     `protobuf:"bytes,15,opt,name=workspace_image,json=workspaceImage,proto3" json:"workspace_image,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state                  protoimpl.MessageState      `protogen:"open.v1"`
+	RuntimeTemplate        *RuntimeTemplate            `protobuf:"bytes,1,opt,name=runtime_template,json=runtimeTemplate,proto3" json:"runtime_template,omitempty"`
+	Mounts                 []*Mount                    `protobuf:"bytes,2,rep,name=mounts,proto3" json:"mounts,omitempty"`
+	Resources              *v1.ResourceSpec            `protobuf:"bytes,3,opt,name=resources,proto3" json:"resources,omitempty"`
+	UserEnvs               map[string]string           `protobuf:"bytes,4,rep,name=userEnvs,proto3" json:"userEnvs,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Stdout                 string                      `protobuf:"bytes,5,opt,name=stdout,proto3" json:"stdout,omitempty"`
+	Stderr                 string                      `protobuf:"bytes,6,opt,name=stderr,proto3" json:"stderr,omitempty"`
+	ExtraConfig            string                      `protobuf:"bytes,7,opt,name=extra_config,json=extraConfig,proto3" json:"extra_config,omitempty"`
+	Network                string                      `protobuf:"bytes,8,opt,name=network,proto3" json:"network,omitempty"`
+	CkptDir                string                      `protobuf:"bytes,9,opt,name=ckptDir,proto3" json:"ckptDir,omitempty"`
+	TraceId                string                      `protobuf:"bytes,10,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	Ports                  []string                    `protobuf:"bytes,11,rep,name=ports,proto3" json:"ports,omitempty"`
+	ContainerID            string                      `protobuf:"bytes,12,opt,name=containerID,proto3" json:"containerID,omitempty"`
+	NodeVolumes            []*v11.ResolvedNodeVolume   `protobuf:"bytes,13,rep,name=node_volumes,json=nodeVolumes,proto3" json:"node_volumes,omitempty"`
+	ImageMounts            []*ImageMount               `protobuf:"bytes,14,rep,name=image_mounts,json=imageMounts,proto3" json:"image_mounts,omitempty"`
+	WorkspaceImage         *WorkspaceImageSource       `protobuf:"bytes,15,opt,name=workspace_image,json=workspaceImage,proto3" json:"workspace_image,omitempty"`
+	CapabilityDependencies []*v12.CapabilityDependency `protobuf:"bytes,16,rep,name=capability_dependencies,json=capabilityDependencies,proto3" json:"capability_dependencies,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *StartRequest) Reset() {
@@ -228,14 +230,23 @@ func (x *StartRequest) GetWorkspaceImage() *WorkspaceImageSource {
 	return nil
 }
 
+func (x *StartRequest) GetCapabilityDependencies() []*v12.CapabilityDependency {
+	if x != nil {
+		return x.CapabilityDependencies
+	}
+	return nil
+}
+
 type StartResponse struct {
-	state            protoimpl.MessageState     `protogen:"open.v1"`
-	Code             int32                      `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
-	Message          string                     `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	ID               string                     `protobuf:"bytes,3,opt,name=ID,proto3" json:"ID,omitempty"`
-	PublishedVolumes []*v11.PublishedNodeVolume `protobuf:"bytes,4,rep,name=published_volumes,json=publishedVolumes,proto3" json:"published_volumes,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state                          protoimpl.MessageState      `protogen:"open.v1"`
+	Code                           int32                       `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Message                        string                      `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	ID                             string                      `protobuf:"bytes,3,opt,name=ID,proto3" json:"ID,omitempty"`
+	PublishedVolumes               []*v11.PublishedNodeVolume  `protobuf:"bytes,4,rep,name=published_volumes,json=publishedVolumes,proto3" json:"published_volumes,omitempty"`
+	CapabilityVerification         []*v12.CapabilityCondition  `protobuf:"bytes,5,rep,name=capability_verification,json=capabilityVerification,proto3" json:"capability_verification,omitempty"`
+	AdmittedCapabilityDependencies []*v12.CapabilityDependency `protobuf:"bytes,6,rep,name=admitted_capability_dependencies,json=admittedCapabilityDependencies,proto3" json:"admitted_capability_dependencies,omitempty"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
 }
 
 func (x *StartResponse) Reset() {
@@ -292,6 +303,20 @@ func (x *StartResponse) GetID() string {
 func (x *StartResponse) GetPublishedVolumes() []*v11.PublishedNodeVolume {
 	if x != nil {
 		return x.PublishedVolumes
+	}
+	return nil
+}
+
+func (x *StartResponse) GetCapabilityVerification() []*v12.CapabilityCondition {
+	if x != nil {
+		return x.CapabilityVerification
+	}
+	return nil
+}
+
+func (x *StartResponse) GetAdmittedCapabilityDependencies() []*v12.CapabilityDependency {
+	if x != nil {
+		return x.AdmittedCapabilityDependencies
 	}
 	return nil
 }
@@ -1244,7 +1269,7 @@ var File_internal_apipb_v1_lifecycle_proto protoreflect.FileDescriptor
 
 const file_internal_apipb_v1_lifecycle_proto_rawDesc = "" +
 	"\n" +
-	"!internal/apipb/v1/lifecycle.proto\x12\x19axnoded.internal.apipb.v1\x1a(internal/apipb/v1/axnoded_internal.proto\x1a$axern/control/common/v1/common.proto\x1a&axern/private/storage/v1/storage.proto\"\xc3\x06\n" +
+	"!internal/apipb/v1/lifecycle.proto\x12\x19axnoded.internal.apipb.v1\x1a(internal/apipb/v1/axnoded_internal.proto\x1a$axern/control/common/v1/common.proto\x1a,axern/control/capability/v1/capability.proto\x1a&axern/private/storage/v1/storage.proto\"\xaf\a\n" +
 	"\fStartRequest\x12U\n" +
 	"\x10runtime_template\x18\x01 \x01(\v2*.axnoded.internal.apipb.v1.RuntimeTemplateR\x0fruntimeTemplate\x128\n" +
 	"\x06mounts\x18\x02 \x03(\v2 .axnoded.internal.apipb.v1.MountR\x06mounts\x12C\n" +
@@ -1261,15 +1286,18 @@ const file_internal_apipb_v1_lifecycle_proto_rawDesc = "" +
 	"\vcontainerID\x18\f \x01(\tR\vcontainerID\x12O\n" +
 	"\fnode_volumes\x18\r \x03(\v2,.axern.private.storage.v1.ResolvedNodeVolumeR\vnodeVolumes\x12H\n" +
 	"\fimage_mounts\x18\x0e \x03(\v2%.axnoded.internal.apipb.v1.ImageMountR\vimageMounts\x12X\n" +
-	"\x0fworkspace_image\x18\x0f \x01(\v2/.axnoded.internal.apipb.v1.WorkspaceImageSourceR\x0eworkspaceImage\x1a;\n" +
+	"\x0fworkspace_image\x18\x0f \x01(\v2/.axnoded.internal.apipb.v1.WorkspaceImageSourceR\x0eworkspaceImage\x12j\n" +
+	"\x17capability_dependencies\x18\x10 \x03(\v21.axern.control.capability.v1.CapabilityDependencyR\x16capabilityDependencies\x1a;\n" +
 	"\rUserEnvsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa9\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x91\x03\n" +
 	"\rStartResponse\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x0e\n" +
 	"\x02ID\x18\x03 \x01(\tR\x02ID\x12Z\n" +
-	"\x11published_volumes\x18\x04 \x03(\v2-.axern.private.storage.v1.PublishedNodeVolumeR\x10publishedVolumes\"9\n" +
+	"\x11published_volumes\x18\x04 \x03(\v2-.axern.private.storage.v1.PublishedNodeVolumeR\x10publishedVolumes\x12i\n" +
+	"\x17capability_verification\x18\x05 \x03(\v20.axern.control.capability.v1.CapabilityConditionR\x16capabilityVerification\x12{\n" +
+	" admitted_capability_dependencies\x18\x06 \x03(\v21.axern.control.capability.v1.CapabilityDependencyR\x1eadmittedCapabilityDependencies\"9\n" +
 	"\rDeleteRequest\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x18\n" +
 	"\atimeout\x18\x02 \x01(\x03R\atimeout\"\x84\x01\n" +
@@ -1393,10 +1421,12 @@ var file_internal_apipb_v1_lifecycle_proto_goTypes = []any{
 	(*v11.ResolvedNodeVolume)(nil),       // 25: axern.private.storage.v1.ResolvedNodeVolume
 	(*ImageMount)(nil),                   // 26: axnoded.internal.apipb.v1.ImageMount
 	(*WorkspaceImageSource)(nil),         // 27: axnoded.internal.apipb.v1.WorkspaceImageSource
-	(*v11.PublishedNodeVolume)(nil),      // 28: axern.private.storage.v1.PublishedNodeVolume
-	(*v11.VolumeReleaseObservation)(nil), // 29: axern.private.storage.v1.VolumeReleaseObservation
-	(*KeyValue)(nil),                     // 30: axnoded.internal.apipb.v1.KeyValue
-	(*LinuxContainerResources)(nil),      // 31: axnoded.internal.apipb.v1.LinuxContainerResources
+	(*v12.CapabilityDependency)(nil),     // 28: axern.control.capability.v1.CapabilityDependency
+	(*v11.PublishedNodeVolume)(nil),      // 29: axern.private.storage.v1.PublishedNodeVolume
+	(*v12.CapabilityCondition)(nil),      // 30: axern.control.capability.v1.CapabilityCondition
+	(*v11.VolumeReleaseObservation)(nil), // 31: axern.private.storage.v1.VolumeReleaseObservation
+	(*KeyValue)(nil),                     // 32: axnoded.internal.apipb.v1.KeyValue
+	(*LinuxContainerResources)(nil),      // 33: axnoded.internal.apipb.v1.LinuxContainerResources
 }
 var file_internal_apipb_v1_lifecycle_proto_depIdxs = []int32{
 	22, // 0: axnoded.internal.apipb.v1.StartRequest.runtime_template:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate
@@ -1406,21 +1436,24 @@ var file_internal_apipb_v1_lifecycle_proto_depIdxs = []int32{
 	25, // 4: axnoded.internal.apipb.v1.StartRequest.node_volumes:type_name -> axern.private.storage.v1.ResolvedNodeVolume
 	26, // 5: axnoded.internal.apipb.v1.StartRequest.image_mounts:type_name -> axnoded.internal.apipb.v1.ImageMount
 	27, // 6: axnoded.internal.apipb.v1.StartRequest.workspace_image:type_name -> axnoded.internal.apipb.v1.WorkspaceImageSource
-	28, // 7: axnoded.internal.apipb.v1.StartResponse.published_volumes:type_name -> axern.private.storage.v1.PublishedNodeVolume
-	29, // 8: axnoded.internal.apipb.v1.DeleteResponse.volume_release_observations:type_name -> axern.private.storage.v1.VolumeReleaseObservation
-	20, // 9: axnoded.internal.apipb.v1.ListContainersRequest.selector:type_name -> axnoded.internal.apipb.v1.ListContainersRequest.SelectorEntry
-	13, // 10: axnoded.internal.apipb.v1.ListContainersResponse.containers:type_name -> axnoded.internal.apipb.v1.ContainerStatus
-	0,  // 11: axnoded.internal.apipb.v1.ContainerStatus.state:type_name -> axnoded.internal.apipb.v1.ContainerState
-	21, // 12: axnoded.internal.apipb.v1.ContainerStatus.labels:type_name -> axnoded.internal.apipb.v1.ContainerStatus.LabelsEntry
-	23, // 13: axnoded.internal.apipb.v1.ContainerStatus.mounts:type_name -> axnoded.internal.apipb.v1.Mount
-	30, // 14: axnoded.internal.apipb.v1.ContainerStatus.envs:type_name -> axnoded.internal.apipb.v1.KeyValue
-	31, // 15: axnoded.internal.apipb.v1.ContainerStatus.linux_resources:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources
-	16, // 16: axnoded.internal.apipb.v1.VersionResponse.runtimes:type_name -> axnoded.internal.apipb.v1.RuntimeVersion
-	17, // [17:17] is the sub-list for method output_type
-	17, // [17:17] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	28, // 7: axnoded.internal.apipb.v1.StartRequest.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
+	29, // 8: axnoded.internal.apipb.v1.StartResponse.published_volumes:type_name -> axern.private.storage.v1.PublishedNodeVolume
+	30, // 9: axnoded.internal.apipb.v1.StartResponse.capability_verification:type_name -> axern.control.capability.v1.CapabilityCondition
+	28, // 10: axnoded.internal.apipb.v1.StartResponse.admitted_capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
+	31, // 11: axnoded.internal.apipb.v1.DeleteResponse.volume_release_observations:type_name -> axern.private.storage.v1.VolumeReleaseObservation
+	20, // 12: axnoded.internal.apipb.v1.ListContainersRequest.selector:type_name -> axnoded.internal.apipb.v1.ListContainersRequest.SelectorEntry
+	13, // 13: axnoded.internal.apipb.v1.ListContainersResponse.containers:type_name -> axnoded.internal.apipb.v1.ContainerStatus
+	0,  // 14: axnoded.internal.apipb.v1.ContainerStatus.state:type_name -> axnoded.internal.apipb.v1.ContainerState
+	21, // 15: axnoded.internal.apipb.v1.ContainerStatus.labels:type_name -> axnoded.internal.apipb.v1.ContainerStatus.LabelsEntry
+	23, // 16: axnoded.internal.apipb.v1.ContainerStatus.mounts:type_name -> axnoded.internal.apipb.v1.Mount
+	32, // 17: axnoded.internal.apipb.v1.ContainerStatus.envs:type_name -> axnoded.internal.apipb.v1.KeyValue
+	33, // 18: axnoded.internal.apipb.v1.ContainerStatus.linux_resources:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources
+	16, // 19: axnoded.internal.apipb.v1.VersionResponse.runtimes:type_name -> axnoded.internal.apipb.v1.RuntimeVersion
+	20, // [20:20] is the sub-list for method output_type
+	20, // [20:20] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_internal_apipb_v1_lifecycle_proto_init() }

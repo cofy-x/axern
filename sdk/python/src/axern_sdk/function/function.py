@@ -18,6 +18,7 @@ from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2
 from axern.control.function.v1 import function_pb2, function_types_pb2
 from axern_sdk._internal.resources import cpu_milli, memory_bytes
+from axern_sdk.client import _extension_capability_requirements
 from axern_sdk.function.manifest import load_function_spec
 from axern_sdk.function.models import (
     FunctionInvocationError,
@@ -317,6 +318,9 @@ class Function:
 
         config = common_pb2.ExecutionConfig(
             env=dict(self.spec.env),
+            extension_capability_requirements=_extension_capability_requirements(
+                dict(self.spec.extension_capabilities),
+            ),
             secret_env=[
                 common_pb2.SecretEnvVar(name=item.name, secret_id=item.secret_id, key=item.key, optional=item.optional)
                 for item in self.spec.secret_env

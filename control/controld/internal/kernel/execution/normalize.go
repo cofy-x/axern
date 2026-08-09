@@ -5,6 +5,8 @@ import (
 	"path"
 	"strings"
 
+	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -19,6 +21,7 @@ func NormalizeConfig(in *commonv1.ExecutionConfig) *commonv1.ExecutionConfig {
 	out.Resources = NormalizeResources(out.GetResources())
 	out.ImageMounts = NormalizeImageMounts(out.GetImageMounts())
 	out.WorkspaceImage = NormalizeWorkspaceImage(out.GetWorkspaceImage())
+	out.ExtensionCapabilityRequirements = normalizeExtensionCapabilityRequirements(out.GetExtensionCapabilityRequirements())
 	return out
 }
 
@@ -113,12 +116,41 @@ func NormalizeConfigForRootfs(in *commonv1.ExecutionConfig, readonly bool) (*com
 		return nil, err
 	}
 	out := NormalizeConfig(in)
+	if err := validateExtensionCapabilityRequirements(out.GetExtensionCapabilityRequirements()); err != nil {
+		return nil, err
+	}
 	resources, err := NormalizeResourcesForRootfs(out.GetResources(), readonly)
 	if err != nil {
 		return nil, err
 	}
 	out.Resources = resources
 	return out, ValidateResources(out.Resources)
+}
+
+func normalizeExtensionCapabilityRequirements(in []*capabilityv1.ExtensionCapabilityRequirement) []*capabilityv1.ExtensionCapabilityRequirement {
+	out := make([]*capabilityv1.ExtensionCapabilityRequirement, 0, len(in))
+	for _, requirement := range in {
+		if requirement == nil || requirement.GetCapability() == nil {
+			continue
+		}
+		out = append(out, &capabilityv1.ExtensionCapabilityRequirement{Capability: capabilitycontract.NormalizeExtension(requirement.GetCapability())})
+	}
+	return out
+}
+
+func validateExtensionCapabilityRequirements(in []*capabilityv1.ExtensionCapabilityRequirement) error {
+	seen := make(map[string]struct{}, len(in))
+	for _, requirement := range in {
+		if err := capabilitycontract.ValidateExtensionRequirement(requirement); err != nil {
+			return grpcstatus.Errorf(codes.InvalidArgument, "config.extension_capability_requirements: %v", err)
+		}
+		id, _ := capabilitycontract.KeyID(capabilitycontract.ExtensionKey(requirement.GetCapability().GetName(), requirement.GetCapability().GetValue()))
+		if _, duplicate := seen[id]; duplicate {
+			return grpcstatus.Errorf(codes.InvalidArgument, "config.extension_capability_requirements contains duplicate %q", requirement.GetCapability().GetName())
+		}
+		seen[id] = struct{}{}
+	}
+	return nil
 }
 
 func defaultRequest(limit, fallback int64) int64 {

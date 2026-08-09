@@ -74,7 +74,7 @@ func TestWritableCapacityReservationRejectsFilenameMismatch(t *testing.T) {
 func TestWritableCapacityReservationEnforcesLiveAvailableFloor(t *testing.T) {
 	manager := newTestWritableCapacityManager(t, 1<<62)
 
-	require.ErrorContains(t, manager.Reserve("sandbox-1", "runsc", 1, 1), "insufficient writable layer capacity")
+	require.ErrorContains(t, manager.Reserve("sandbox-1", "runsc", 1, 1), "insufficient ephemeral storage capacity")
 }
 
 func TestWritableCapacityReconcileCleansOnlyStaleRuntimeReservations(t *testing.T) {

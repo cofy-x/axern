@@ -458,6 +458,26 @@ func validateProjectionBacking(expected RootfsBackingFacts) error {
 	return compareBackingIdentity(expected, actual)
 }
 
+// VerifyPersistentView proves that an active runc writable root still has the
+// projection identity and project assignment established at create time.
+func VerifyPersistentView(filestoreDir, containerID, runtimeName string) error {
+	root := filepath.Join(filestoreDir, runcViewDir, containerID)
+	manifest, err := readProjectionManifest(root)
+	if err != nil {
+		return fmt.Errorf("read active rootfs projection: %w", err)
+	}
+	if manifest.RuntimeName != runtimeName || !manifest.HostWritable || manifest.ProjectID == 0 {
+		return fmt.Errorf("active rootfs projection enforcement manifest is inconsistent")
+	}
+	if err := validateProjectionBacking(manifest.Backing); err != nil {
+		return err
+	}
+	if err := verifyMountedOverlay(filepath.Join(root, "merged")); err != nil {
+		return fmt.Errorf("verify active rootfs projection mount: %w", err)
+	}
+	return nil
+}
+
 func compareBackingIdentity(expected, actual RootfsBackingFacts) error {
 	if actual.MountID == expected.MountID && actual.Mountpoint == expected.Mountpoint && actual.FSType == expected.FSType && actual.Source == expected.Source && actual.MountRoot == expected.MountRoot {
 		return nil

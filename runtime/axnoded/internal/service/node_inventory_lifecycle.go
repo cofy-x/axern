@@ -3,18 +3,16 @@ package service
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
-	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"github.com/sirupsen/logrus"
 )
+
+const capabilityRefreshInterval = 5 * time.Second
 
 func (h *sandboxService) initNodeInventory() error {
 	imageManagerEnabled := h.config.PluginConfig.RuntimeConfig.ImageManagerEnabledValue()
@@ -23,27 +21,27 @@ func (h *sandboxService) initNodeInventory() error {
 	if err != nil {
 		return err
 	}
-
 	var inventoryCgroupDriver os2.CgroupDriver
 	if inventoryCgroupDriver, err = os2.DefaultCgroupDriver(); err != nil {
 		logrus.WithError(err).Warn("node inventory actual usage provider disabled: cgroup driver unavailable")
 	}
-	cgroupMemoryReady := false
 	cgroupMode, err := h.config.PluginConfig.RuntimeConfig.CgroupEnforcementMode()
 	if err != nil {
 		return err
 	}
-	if cgroupMode == config.CgroupEnforcementRequired {
-		rootName := h.config.PluginConfig.ResourceConfig.CgroupRootName
-		if rootName == "" {
-			rootName = config.DefaultCgroupRoot
-		}
-		if probeErr := hostlinux.ProbeCgroupMemoryLimit(rootName); probeErr != nil {
-			logrus.WithError(probeErr).Warn("cgroup memory-limit admission capability unavailable")
-		} else {
-			cgroupMemoryReady = true
-		}
+	rootName := h.config.PluginConfig.ResourceConfig.CgroupRootName
+	if rootName == "" {
+		rootName = config.DefaultCgroupRoot
 	}
+	if cgroupMode == config.CgroupEnforcementRequired {
+		logrus.Debug("cgroup memory capability will be evaluated by observed-capability provider")
+	}
+	h.capabilityManager, err = h.newObservedCapabilityManager(rootName)
+	if err != nil {
+		return err
+	}
+	h.capabilityManager.Subscribe(h.handleCapabilityTransitions)
+	h.capabilityManager.SetMetricsObserver(capabilityMetricsObserver{})
 	disabledPools := disabledResourcePools(h.config.PluginConfig.ResourceConfig)
 	storageTargets := nodeinventory.DefaultStorageTargets(h.config.RootDir)
 	if filestore := h.config.PluginConfig.RuntimeConfig.FilestoreDir; filestore != "" {
@@ -64,8 +62,7 @@ func (h *sandboxService) initNodeInventory() error {
 		BPFNetPinPath:         h.config.PluginConfig.NetworkConfig.BPFNet.PinPath,
 		NodeState:             h.config.PluginConfig.ControlPlaneNodeStateValue(),
 		NodeLabels:            h.config.PluginConfig.ControlPlaneNodeLabelsValue(),
-		NodeCapabilities:      servicecontrolplane.DefaultNodeCapabilities(h.config),
-		DynamicCapabilities:   func() []string { return runtimeStorageCapabilities(h.config, cgroupMemoryReady) },
+		CapabilitySnapshot:    h.currentCapabilitySnapshot,
 		VolumeHealth:          h.volumeClient.Health,
 		StorageTargets:        storageTargets,
 		RuntimeSlotCapacity:   h.config.PluginConfig.ResourceConfig.MaxInstanceNum,
@@ -75,50 +72,54 @@ func (h *sandboxService) initNodeInventory() error {
 	return nil
 }
 
-func runtimeStorageCapabilities(cfg config.Config, cgroupMemoryReady bool) []string {
-	seen := map[string]struct{}{}
-	add := func(value string) {
-		if value != "" {
-			seen[value] = struct{}{}
+func (h *sandboxService) currentCapabilitySnapshot(context.Context, time.Time) (*capabilityv1.CapabilitySnapshot, error) {
+	if h == nil || h.capabilityManager == nil {
+		return nil, fmt.Errorf("capability manager is unavailable")
+	}
+	snapshot := h.capabilityManager.Snapshot()
+	if snapshot == nil || !h.capabilityManager.Ready() {
+		return nil, nodeinventory.ErrCapabilitySnapshotWarming
+	}
+	return snapshot, nil
+}
+
+// startCapabilityRefresh isolates potentially slow conformance probes from
+// inventory collection. Inventory and heartbeats consume only the last atomic
+// snapshot, so a runtime probe cannot make an otherwise-live node look stale.
+func (h *sandboxService) startCapabilityRefresh(parent context.Context) {
+	if h == nil || h.capabilityManager == nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(parent)
+	h.capabilityRefreshCancel = cancel
+	h.capabilityRefreshWG.Add(1)
+	go func() {
+		defer h.capabilityRefreshWG.Done()
+		ticker := time.NewTicker(capabilityRefreshInterval)
+		defer ticker.Stop()
+		for {
+			if _, err := h.capabilityManager.Refresh(ctx, time.Now().UTC()); err != nil && ctx.Err() == nil {
+				logrus.WithError(err).Warn("refresh observed capability snapshot")
+			}
+			h.refreshNodeInventory()
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
 		}
+	}()
+}
+
+func (h *sandboxService) stopCapabilityRefresh() {
+	if h == nil {
+		return
 	}
-	if cgroupMemoryReady {
-		add("cgroup:memory-limit-ready")
+	if h.capabilityRefreshCancel != nil {
+		h.capabilityRefreshCancel()
+		h.capabilityRefreshCancel = nil
 	}
-	if entries, err := os.ReadDir(filepath.Join(cfg.RootDir, "verified-capabilities")); err == nil {
-		bootID, _ := hostlinux.CurrentBootID()
-		for _, entry := range entries {
-			data, err := os.ReadFile(filepath.Join(cfg.RootDir, "verified-capabilities", entry.Name()))
-			if err != nil || bootID == "" || string(data) != bootID+"\n" {
-				continue
-			}
-			switch entry.Name() {
-			case "runtime-runc-memory-hard-limit":
-				add("runtime:runc:memory-hard-limit")
-			case "runtime-runsc-memory-hard-limit":
-				add("runtime:runsc:memory-hard-limit")
-			}
-		}
-	}
-	if filestore := cfg.PluginConfig.RuntimeConfig.FilestoreDir; filestore != "" {
-		if facts, err := hostlinux.ReadFilestoreCapabilities(filestore); err == nil {
-			if facts.OverlayReady {
-				add("runtime:runsc:ephemeral-storage-hard-limit")
-			}
-			if facts.ProjectQuotaReady {
-				add("runtime:runc:ephemeral-storage-hard-limit")
-			}
-			if facts.EROFSReady {
-				add("rootfs-lower:erofs")
-			}
-		}
-	}
-	out := make([]string, 0, len(seen))
-	for capability := range seen {
-		out = append(out, capability)
-	}
-	sort.Strings(out)
-	return out
+	h.capabilityRefreshWG.Wait()
 }
 
 func (h *sandboxService) refreshNodeInventory() {

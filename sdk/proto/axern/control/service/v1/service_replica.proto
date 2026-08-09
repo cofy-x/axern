@@ -5,6 +5,7 @@ package axern.control.service.v1;
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1;servicev1";
 
 import "axern/control/common/v1/common.proto";
+import "axern/control/capability/v1/capability.proto";
 import "google/protobuf/timestamp.proto";
 
 enum ServiceReplicaView {
@@ -35,6 +36,7 @@ message ServiceReplica {
   string readiness_message = 15;
   ServiceReplicaLifecycleRetry lifecycle_retry = 16;
   axern.control.common.v1.WorkspacePreparationFacts workspace_preparation = 17;
+  repeated axern.control.capability.v1.CapabilityCondition capability_conditions = 18;
 }
 
 enum ServiceReplicaLifecycleRetryReason {

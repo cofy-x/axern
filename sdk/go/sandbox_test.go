@@ -50,9 +50,10 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	defer client.Close()
 
 	sandbox, err := NewSandbox(SandboxOptions{
-		Client:       client,
-		TemplateID:   "python311",
-		ReadyTimeout: time.Second,
+		Client:                client,
+		TemplateID:            "python311",
+		ReadyTimeout:          time.Second,
+		ExtensionCapabilities: []ExtensionCapability{{Name: "example.com/accelerator", Value: "v1"}},
 		Volumes: []VolumeMount{{
 			Name:     "workspace",
 			Target:   "/workspace",
@@ -103,6 +104,9 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	}
 	if got := fake.createServiceRequest.GetConfig().GetImageMounts(); len(got) != 1 || got[0].GetImage() != "example.com/axern/codex-tool:latest" || got[0].GetTarget() != "/opt/axern/tools/codex" || !got[0].GetReadonly() {
 		t.Fatalf("unexpected image mounts: %#v", got)
+	}
+	if got := fake.createServiceRequest.GetConfig().GetExtensionCapabilityRequirements(); len(got) != 1 || got[0].GetCapability().GetName() != "example.com/accelerator" || got[0].GetCapability().GetValue() != "v1" {
+		t.Fatalf("unexpected extension capability requirements: %#v", got)
 	}
 
 	result, err := sandbox.Exec(ctx, "echo hello", ExecOptions{Check: true})

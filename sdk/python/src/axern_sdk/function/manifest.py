@@ -90,6 +90,7 @@ def load_function_spec(path: str | Path) -> FunctionSpec:
     resources = _resources(spec.get("resources"))
     scaling = _scaling(function.get("scaling"))
     env = _string_map("spec.env", spec.get("env"))
+    extension_capabilities = _string_map("spec.extension_capabilities", spec.get("extension_capabilities"))
     secret_env = _secret_env(spec.get("secret_env"))
     secret_files = _secret_files(spec.get("secret_files"))
     volumes = _volumes(spec.get("volumes"))
@@ -108,6 +109,7 @@ def load_function_spec(path: str | Path) -> FunctionSpec:
         resources=resources,
         scaling=scaling,
         env=env,
+        extension_capabilities=extension_capabilities,
         secret_env=secret_env,
         secret_files=secret_files,
         volumes=volumes,
@@ -120,7 +122,7 @@ def load_function_spec(path: str | Path) -> FunctionSpec:
 def _reject_unknown(label: str = "spec", data: Mapping[str, Any] | None = None, allowed: set[str] | None = None, *, spec: Mapping[str, Any] | None = None) -> None:
     if spec is not None:
         data = spec
-        allowed = {"source", "command", "runtime_class", "resources", "function", "env", "secret_env", "secret_files", "volumes", "image_mounts"}
+        allowed = {"source", "command", "runtime_class", "resources", "function", "env", "extension_capabilities", "secret_env", "secret_files", "volumes", "image_mounts"}
     assert data is not None and allowed is not None
     unknown = sorted(set(data) - allowed)
     if unknown:

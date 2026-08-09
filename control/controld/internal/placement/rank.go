@@ -28,7 +28,7 @@ func dedupeRejectionReasons(in []nodev1.PlacementRejectionReason) []nodev1.Place
 	return out
 }
 
-func buildPlacementRank(req *Request, summary *nodev1.NodeSummary, locality *nodev1.LocalitySummary) *nodev1.PlacementRank {
+func buildPlacementRank(req *placementkernel.Request, summary *nodev1.NodeSummary, locality *nodev1.LocalitySummary) *nodev1.PlacementRank {
 	rank := &nodev1.PlacementRank{
 		MountedMatch:               localityMounted(locality, req.GetRootfsKey()),
 		RetainedRootfsCount:        locality.GetRetainedRootfsCount(),

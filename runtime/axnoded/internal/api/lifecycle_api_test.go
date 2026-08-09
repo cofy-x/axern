@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	storagev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1"
@@ -25,6 +26,7 @@ type fakeNodeLifecycleService struct {
 	deleteErr            error
 	releaseObservations  []*privatestoragev1.VolumeReleaseObservation
 	workspacePreparation *commonv1.WorkspacePreparationFacts
+	admittedDependencies []*capabilityv1.CapabilityDependency
 }
 
 func (f *fakeNodeLifecycleService) DeleteVolume(context.Context, string, storagev1.VolumeBackend, string) error {
@@ -34,7 +36,10 @@ func (f *fakeNodeLifecycleService) DeleteVolume(context.Context, string, storage
 func (f *fakeNodeLifecycleService) Start(ctx context.Context, req *runtimev1.StartRequest) (*runtimev1.StartResponse, error) {
 	_ = ctx
 	f.startRequests = append(f.startRequests, req)
-	return &runtimev1.StartResponse{Code: 0, ID: req.GetContainerID(), Message: "ok"}, nil
+	return &runtimev1.StartResponse{
+		Code: 0, ID: req.GetContainerID(), Message: "ok",
+		AdmittedCapabilityDependencies: cloneCapabilityDependencies(f.admittedDependencies),
+	}, nil
 }
 
 func (f *fakeNodeLifecycleService) WorkspacePreparation(string) *commonv1.WorkspacePreparationFacts {
@@ -80,11 +85,19 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	t.Parallel()
 
 	const imageRef = "axern/python311-runtime:dev"
-	fakeService := &fakeNodeLifecycleService{workspacePreparation: &commonv1.WorkspacePreparationFacts{
-		PayloadFormat: "nydus",
-		PayloadDigest: "sha256:payload",
-		CacheHit:      true,
-	}}
+	fakeService := &fakeNodeLifecycleService{
+		workspacePreparation: &commonv1.WorkspacePreparationFacts{
+			PayloadFormat: "nydus",
+			PayloadDigest: "sha256:payload",
+			CacheHit:      true,
+		},
+		admittedDependencies: []*capabilityv1.CapabilityDependency{{
+			Key: &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{
+				Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT,
+			}},
+			SelectedEvidence: &capabilityv1.CapabilityEvidence{EvidenceID: "create-evidence"},
+		}},
+	}
 	server := NewNodeLifecycleServer(fakeService, "node-a", NewAllocationTargetRegistry())
 
 	resp, err := server.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
@@ -129,6 +142,9 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	}
 	if resp.GetWorkspacePreparation().GetPayloadFormat() != "nydus" || resp.GetWorkspacePreparation().GetPayloadDigest() != "sha256:payload" || !resp.GetWorkspacePreparation().GetCacheHit() {
 		t.Fatalf("workspace preparation = %#v", resp.GetWorkspacePreparation())
+	}
+	if len(resp.GetAdmittedCapabilityDependencies()) != 1 || resp.GetAdmittedCapabilityDependencies()[0].GetSelectedEvidence().GetEvidenceID() != "create-evidence" {
+		t.Fatalf("admitted capability dependencies = %#v", resp.GetAdmittedCapabilityDependencies())
 	}
 	if len(fakeService.startRequests) != 1 {
 		t.Fatalf("start request count = %d, want 1", len(fakeService.startRequests))

@@ -39,7 +39,7 @@ func TestCleanContainerRoot(t *testing.T) {
 	err := os.Mkdir(rootPath, 0755)
 	assert.NoError(t, err)
 
-	m.CleanContainerRoot(id)
+	require.NoError(t, m.CleanContainerRoot(id))
 	assert.False(t, dirExists(rootPath))
 }
 
@@ -246,7 +246,7 @@ func TestReconcileResourceClaimsRecyclesOnlyUnclaimedPoolOwnership(t *testing.T)
 		},
 	}})
 
-	require.NoError(t, m.reconcileResourceClaims())
+	require.NoError(t, m.ReconcileResourceClaims())
 	assert.Equal(t, []string{"orphan-resource"}, resourceManager.recycled)
 }
 
@@ -257,5 +257,5 @@ func TestReconcileResourceClaimsRejectsContainerWithoutRecoverableSpec(t *testin
 	}
 	m.containers.Set("alloc-corrupt", &Container{Spec: &specs.Spec{}})
 
-	require.ErrorContains(t, m.reconcileResourceClaims(), "no recoverable OCI spec")
+	require.ErrorContains(t, m.ReconcileResourceClaims(), "no recoverable OCI spec")
 }

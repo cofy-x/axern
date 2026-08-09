@@ -12,6 +12,21 @@ import (
 
 type BridgeNetworkManager struct{}
 
+func (BridgeNetworkManager) ProbeHealth(ipRange string) (networkmanager.Health, error) {
+	ipt, err := iptables.New()
+	if err != nil {
+		return networkmanager.Health{}, err
+	}
+	exists, err := ipt.Exists("nat", "POSTROUTING", "-s", ipRange, "-j", "MASQUERADE")
+	if err != nil {
+		return networkmanager.Health{}, err
+	}
+	if !exists {
+		return networkmanager.Health{}, fmt.Errorf("bridge SNAT rule is missing")
+	}
+	return networkmanager.Health{PortForwardingReady: true, NativeDataplaneReady: true}, nil
+}
+
 // SetupSNATRules implements resourcemanager.NetworkManager.
 func (BridgeNetworkManager) SetupSNATRules(ipRange string) error {
 	// add follow iptable rule: iptables -t nat -A POSTROUTING -s 172.17.0.0/16 -j MASQUERADE

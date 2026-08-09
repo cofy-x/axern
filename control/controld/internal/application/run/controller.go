@@ -9,6 +9,7 @@ import (
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
@@ -28,7 +29,7 @@ type CandidateSelector interface {
 }
 
 type AllocationLifecycle interface {
-	CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string) error
+	CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, dependencies []*capabilityv1.CapabilityDependency) (*allocationkernel.CapabilityAdmission, error)
 	DeleteAllocation(ctx context.Context, target, allocationID string, attempt int64, nodeID string) error
 }
 

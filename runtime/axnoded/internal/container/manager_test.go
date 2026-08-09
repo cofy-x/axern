@@ -6,6 +6,7 @@
 package container
 
 import (
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ import (
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type stopTestResourceManager struct {
@@ -142,6 +144,33 @@ func TestLoadContainer(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestLoadContainersUsesMetadataIdentityWithoutGeneratedPrefix(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "containers")
+	writer := &Manager{
+		root:        root,
+		recyclePath: filepath.Join(t.TempDir(), "recycle"),
+		containers:  cmap.New[*Container](),
+	}
+	writer.StoreMetadata("alloc-123", &apipb.ContainerMetadata{ID: "alloc-123", RuntimeHandler: "runsc"})
+
+	reader := &Manager{root: root, containers: cmap.New[*Container]()}
+	require.NoError(t, reader.loadContainers())
+	assert.True(t, reader.containers.Has("alloc-123"))
+}
+
+func TestLoadContainerRejectsMetadataDirectoryMismatch(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "containers")
+	writer := &Manager{
+		root:        root,
+		recyclePath: filepath.Join(t.TempDir(), "recycle"),
+		containers:  cmap.New[*Container](),
+	}
+	writer.StoreMetadata("directory-id", &apipb.ContainerMetadata{ID: "different-id", RuntimeHandler: "runsc"})
+
+	_, err := writer.loadContainer(filepath.Join(root, "directory-id"))
+	require.ErrorContains(t, err, "does not match directory")
+}
+
 func TestStartMonitorGoroutine(t *testing.T) {
 	containers := cmap.New[*Container]()
 	// Contains "success" to mock success
@@ -178,6 +207,30 @@ func TestStartMonitorGoroutine(t *testing.T) {
 		t.Error("start Monitor did not stop in time")
 	}
 
+}
+
+func TestStartRecoveredMonitorsAfterInventoryReconciliation(t *testing.T) {
+	containers := cmap.New[*Container]()
+	containers.Set("live", &Container{Metadata: &apipb.ContainerMetadata{ID: "live", RuntimeHandler: "runsc"}})
+	containers.Set("orphan", &Container{Metadata: &apipb.ContainerMetadata{ID: "orphan", RuntimeHandler: "runsc"}})
+
+	handlers := cmap.New[contract.RuntimeHandler]()
+	handlers.Set("runsc", runtimetest.NewFakeRuntimeHandler())
+	m := &Manager{
+		containers:      containers,
+		serviceHandler:  handlers,
+		monitorStopChan: cmap.New[chan struct{}](),
+		syncEventChan:   make(chan Event, 8),
+	}
+
+	// Runtime inventory reconciliation removes the proven orphan before any
+	// recovered Wait call can be started for it.
+	m.containers.Remove("orphan")
+	m.startRecoveredMonitors()
+
+	assert.True(t, m.monitorStopChan.Has("live"))
+	assert.False(t, m.monitorStopChan.Has("orphan"))
+	m.stopMonitor("live")
 }
 
 func TestHousekeeping(t *testing.T) {

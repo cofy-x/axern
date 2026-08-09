@@ -3,6 +3,7 @@ package nodebridge
 import (
 	"maps"
 
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
@@ -103,16 +104,39 @@ func cloneNetworkSpec(in *commonv1.NetworkSpec) *commonv1.NetworkSpec {
 	return proto.Clone(in).(*commonv1.NetworkSpec)
 }
 
-func cloneCapabilityRequirements(in []*commonv1.CapabilityRequirement) []*commonv1.CapabilityRequirement {
+func cloneExtensionCapabilityRequirements(in []*capabilityv1.ExtensionCapabilityRequirement) []*capabilityv1.ExtensionCapabilityRequirement {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]*commonv1.CapabilityRequirement, 0, len(in))
+	out := make([]*capabilityv1.ExtensionCapabilityRequirement, 0, len(in))
 	for _, req := range in {
 		if req == nil {
 			continue
 		}
-		out = append(out, proto.Clone(req).(*commonv1.CapabilityRequirement))
+		out = append(out, proto.Clone(req).(*capabilityv1.ExtensionCapabilityRequirement))
+	}
+	return out
+}
+
+func cloneCapabilityDependencies(in []*capabilityv1.CapabilityDependency) []*capabilityv1.CapabilityDependency {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*capabilityv1.CapabilityDependency, 0, len(in))
+	for _, dependency := range in {
+		if dependency != nil {
+			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityDependency))
+		}
+	}
+	return out
+}
+
+func cloneCapabilityConditions(in []*capabilityv1.CapabilityCondition) []*capabilityv1.CapabilityCondition {
+	out := make([]*capabilityv1.CapabilityCondition, 0, len(in))
+	for _, condition := range in {
+		if condition != nil {
+			out = append(out, proto.Clone(condition).(*capabilityv1.CapabilityCondition))
+		}
 	}
 	return out
 }

@@ -11,30 +11,37 @@ import (
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/jsonutil"
-	"github.com/sirupsen/logrus"
 )
 
-func (m *Manager) CleanContainerRoot(id string) {
-	if err := os.RemoveAll(filepath.Join(m.root, id)); err != nil {
-		if strings.Contains(err.Error(), "directory not empty") {
-			err = os.RemoveAll(filepath.Join(m.root, id))
-			if err != nil {
-				logrus.Warnf("remove container %s root failed: %v", filepath.Join(m.root, id), err)
-			}
-		}
+func (m *Manager) CleanContainerRoot(id string) error {
+	path := filepath.Join(m.root, id)
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("remove container root %s: %w", path, err)
 	}
+	return nil
 }
 
 func (m *Manager) Delete(id string) error {
 	resource, err := m.CollectResourceByID(id)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) && !m.containers.Has(id) {
+			if err := m.CleanContainerRoot(id); err != nil {
+				return err
+			}
+			if m.idGenerator != nil {
+				m.idGenerator.ReleaseId(id)
+			}
+			return nil
+		}
 		return fmt.Errorf("collect resource for %s: %w", id, err)
 	}
 	if err := m.Release(resource); err != nil {
 		return fmt.Errorf("release resources for %s: %w", id, err)
 	}
 
-	m.CleanContainerRoot(id)
+	if err := m.CleanContainerRoot(id); err != nil {
+		return err
+	}
 	if !m.containers.Has(id) {
 		return nil
 	}

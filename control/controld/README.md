@@ -123,6 +123,13 @@ summary. Individual cgroup and interface pools are diagnostic details.
 required node-summary contract must rebuild controld and axnoded together
 rather than run a mixed-version compatibility path.
 
+Node reports also carry one atomic typed capability snapshot. Controld derives
+workload requirements, rechecks current evidence while candidate rows are
+locked, and persists admitted dependencies with the allocation. Capability
+transitions use a queue separate from create/delete lifecycle work. The shared
+[Observed Capability Providers](../../docs/architecture/observed-capability-providers.md)
+document is the canonical contract for provider evidence and loss policy.
+
 Node rows are durable identities with `active` and `retired` states. Placement
 and node authentication accept only active identities. `axern admin node
 retire` locks the node, requires a stale heartbeat, and rejects retirement
@@ -315,6 +322,7 @@ Internal runtime endpoints:
 - [Service lifecycle](docs/service-lifecycle.md)
 - [Environment and catalog](docs/environment-and-catalog.md)
 - [Node placement and leases](docs/node-placement-and-leases.md)
+- [Observed capability providers](../../docs/architecture/observed-capability-providers.md)
 - [Reconcile operations](docs/reconcile-operations.md)
 - [Consistency repair boundaries](docs/consistency-repair-boundaries.md)
 - [Resource admission](docs/resource-admission.md)
@@ -367,9 +375,10 @@ flowchart LR
 - `internal/app` is the composition root and lifecycle wiring layer.
 - `internal/api/{adminv1,publicv1,nodev1,gatewayv1,debughttp}` adapts
   gRPC/HTTP to narrow capabilities.
-- `internal/application/{admin,environment,function,gateway,node,run,service}` owns
+- `internal/application/{admin,capability,environment,function,gateway,node,run,service}` owns
   use-case orchestration across kernel contracts and adapters, including node
-  availability and workload lifecycle convergence.
+  availability, capability-loss reconciliation, and workload lifecycle
+  convergence.
 - `internal/kernel/*` owns domain contracts, state transitions, and reusable
   control-plane rules. `internal/kernel/placement` carries request-scoped
   candidate plans and the pure preference ordering shared with durable

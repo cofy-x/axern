@@ -116,7 +116,12 @@ ensure_runtime_base_spec() {
   (
     cd "${tmpdir}"
     "${runtime_bin}" spec >/dev/null 2>&1
-    cp config.json "${output_path}"
+    # Axern's lifecycle is non-interactive. Runtime-generated specs default to
+    # a terminal in some runtimes, which is incompatible with sandboxd and
+    # would make the effective base spec depend on the runtime implementation.
+    jq '.process.terminal = false' config.json >"${output_path}.tmp"
+    chmod 0644 "${output_path}.tmp"
+    mv "${output_path}.tmp" "${output_path}"
   )
   rm -rf "${tmpdir}"
 }
@@ -243,12 +248,14 @@ options = $(toml_array_from_csv "${AXNODED_DNS_OPTIONS}")
 
 [plugin.runtime.runtimes.runsc]
 binary = "/usr/local/bin/runsc"
+base_spec = "/etc/axnoded/runsc-config.json"
 
 [plugin.runtime.runtimes.runsc.options]
 allow_suid = true
 
 [plugin.runtime.runtimes.runc]
 binary = "/usr/bin/runc"
+base_spec = "/etc/axnoded/runc-config.json"
 
 [plugin.runtime.runtimes.runc.options]
 EOF

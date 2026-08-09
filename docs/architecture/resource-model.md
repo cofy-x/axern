@@ -19,12 +19,15 @@ default request before placement:
 
 - CPU request: `500m`
 - memory request: `4GiB`
-- writable rootfs request: the resolved ephemeral-storage limit (default `256MiB`)
+- ephemeral-storage request for a writable rootfs: the resolved
+  ephemeral-storage limit (default `256MiB`)
 
-`limit` is the runtime hard cap. Limits are converted into node-local Linux
-cgroup settings by `axnoded`. A workload may set requests without limits. In
-that case Axern still reserves capacity in the control plane, but the runtime
-does not receive a hard cap for the omitted limit.
+`limit` is the runtime hard cap for that resource. CPU and memory limits become
+Linux cgroup settings. Ephemeral-storage limits become runsc overlay size or
+runc XFS project-quota enforcement. A workload may set CPU or memory requests
+without matching limits; Axern still reserves capacity but does not install the
+omitted hard cap. Writable roots always resolve both an ephemeral-storage
+request and limit.
 
 The invariant is:
 
@@ -83,6 +86,11 @@ checks candidate nodes twice:
    active reservations before committing
 
 Both checks use the same resource admission policy.
+
+The authoritative transaction also reruns lifecycle, freshness, runtime,
+component, label, typed-capability, capacity, and slot eligibility. Capability
+requirements and selected evidence commit atomically with the reservation; see
+the [Observed Capability Providers](observed-capability-providers.md) contract.
 
 CPU can be overcommitted globally by `controld` with
 `-resource-cpu-overcommit-ratio`. The effective CPU allocatable value is:
@@ -179,6 +187,10 @@ field and `admission_summary` as the compact operator-facing label:
 | `node CPU and memory capacity exhausted` | Otherwise eligible nodes lack both CPU and memory request capacity. |
 | `node reservation capacity exhausted` | Placement found candidates, but transaction-time reservation recheck found no remaining capacity. |
 
+The typed placement rejection set distinguishes insufficient ephemeral storage
+even though the current compact CLI summary may use the generic reservation or
+capacity label.
+
 Run creation returns admission failures directly. Service creation and update
 accept desired state first; later replica admission failures surface through
 service status, events, dashboard DTOs, and JSON output.
@@ -188,3 +200,4 @@ service status, events, dashboard DTOs, and JSON output.
 - [Control-plane resource admission](../../control/controld/docs/resource-admission.md)
 - [Control-plane namespace quota](../../control/controld/docs/resource-quota.md)
 - [Node runtime resource handling](../../runtime/axnoded/docs/resource.md)
+- [Observed capability providers](observed-capability-providers.md)

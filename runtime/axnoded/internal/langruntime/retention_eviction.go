@@ -2,6 +2,8 @@ package langruntime
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sort"
 	"time"
 
@@ -131,11 +133,12 @@ func (lm *LangRTManager) prepareEvictionLocked(lr *LanguageRuntime, reason strin
 	return eviction
 }
 
-func (lm *LangRTManager) executeEvictions(ctx context.Context, evictions []retentionEviction) {
+func (lm *LangRTManager) executeEvictions(ctx context.Context, evictions []retentionEviction) error {
 	if len(evictions) == 0 {
-		return
+		return nil
 	}
 
+	var cleanupErr error
 	for _, eviction := range evictions {
 		if eviction.runtime == nil {
 			continue
@@ -144,6 +147,7 @@ func (lm *LangRTManager) executeEvictions(ctx context.Context, evictions []reten
 		releasedRootfs := false
 		if eviction.envelope != nil && eviction.envelope.Destroy != nil {
 			if err := destroyExecutionEnvelope(ctx, eviction.envelope); err != nil {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("destroy execution envelope for runtime %s: %w", eviction.runtime.ID, err))
 				logrus.WithError(err).Warnf("destroy execution envelope for runtime %s failed", eviction.runtime.ID)
 			}
 		}
@@ -171,6 +175,7 @@ func (lm *LangRTManager) executeEvictions(ctx context.Context, evictions []reten
 	}
 
 	lm.updateRetentionGauges()
+	return cleanupErr
 }
 
 func (lm *LangRTManager) retentionEnabled() bool {

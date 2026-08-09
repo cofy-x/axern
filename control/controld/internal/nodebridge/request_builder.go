@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
@@ -14,18 +15,19 @@ import (
 )
 
 type createAllocationRequestParams struct {
-	AllocationID    string
-	Attempt         int64
-	Config          *commonv1.ExecutionConfig
-	Environment     *environmentv1.Environment
-	NodeID          string
-	DefaultRuntime  string
-	Namespace       string
-	ServiceID       string
-	ReadinessProbe  *servicev1.ServiceProbe
-	LivenessProbe   *servicev1.ServiceProbe
-	NodeVolumes     []*privatestoragev1.ResolvedNodeVolume
-	ResolvedSecrets resolvedExecutionSecrets
+	AllocationID           string
+	Attempt                int64
+	Config                 *commonv1.ExecutionConfig
+	Environment            *environmentv1.Environment
+	NodeID                 string
+	DefaultRuntime         string
+	Namespace              string
+	ServiceID              string
+	ReadinessProbe         *servicev1.ServiceProbe
+	LivenessProbe          *servicev1.ServiceProbe
+	NodeVolumes            []*privatestoragev1.ResolvedNodeVolume
+	ResolvedSecrets        resolvedExecutionSecrets
+	CapabilityDependencies []*capabilityv1.CapabilityDependency
 }
 
 func buildCreateAllocationRequestFromParams(params createAllocationRequestParams) *privatenodev1.CreateAllocationRequest {
@@ -49,29 +51,30 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 	res := executionkernel.NormalizeResources(cfg.GetResources())
 
 	out := &privatenodev1.ResolvedExecutionConfig{
-		EnvironmentID:          params.Environment.GetID(),
-		ImageDigest:            template.GetImageDescriptor().GetDigest(),
-		ImageDescriptor:        imageDescriptorRef(template.GetImageDescriptor()),
-		RuntimeClass:           firstNonEmpty(cfg.GetRuntimeClass(), params.DefaultRuntime),
-		Argv:                   resolveExecutionArgv(cfg.GetArgv()),
-		Cwd:                    resolveExecutionCwd(cfg.GetCwd()),
-		Env:                    mergeStringMaps(template.GetDefaultEnv(), cfg.GetEnv()),
-		Resources:              res,
-		CapabilityRequirements: cloneCapabilityRequirements(cfg.GetCapabilityRequirements()),
-		LocalityKey:            firstNonEmpty(params.Environment.GetID(), template.GetImageDescriptor().GetDigest()),
-		RootfsReadonly:         template.GetRootfsReadonly(),
-		Ports:                  clonePortSpecs(cfg.GetPorts()),
-		Network:                cloneNetworkSpec(cfg.GetNetwork()),
-		SecretEnv:              cloneResolvedSecretEnvVars(params.ResolvedSecrets.EnvSecrets),
-		SecretFiles:            cloneResolvedSecretFiles(params.ResolvedSecrets.FileSecrets),
-		ReadinessProbe:         cloneResolvedProbe(params.ReadinessProbe),
-		LivenessProbe:          cloneResolvedProbe(params.LivenessProbe),
-		Namespace:              strings.TrimSpace(params.Namespace),
-		ServiceID:              strings.TrimSpace(params.ServiceID),
-		ExecutionProfile:       cloneRuntimeExecutionProfile(template.GetExecutionProfile()),
-		NodeVolumes:            cloneResolvedNodeVolumes(params.NodeVolumes),
-		ImageMounts:            cloneImageMounts(cfg.GetImageMounts()),
-		WorkspaceImage:         cloneWorkspaceImage(cfg.GetWorkspaceImage()),
+		EnvironmentID:                   params.Environment.GetID(),
+		ImageDigest:                     template.GetImageDescriptor().GetDigest(),
+		ImageDescriptor:                 imageDescriptorRef(template.GetImageDescriptor()),
+		RuntimeClass:                    firstNonEmpty(cfg.GetRuntimeClass(), params.DefaultRuntime),
+		Argv:                            resolveExecutionArgv(cfg.GetArgv()),
+		Cwd:                             resolveExecutionCwd(cfg.GetCwd()),
+		Env:                             mergeStringMaps(template.GetDefaultEnv(), cfg.GetEnv()),
+		Resources:                       res,
+		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(cfg.GetExtensionCapabilityRequirements()),
+		LocalityKey:                     firstNonEmpty(params.Environment.GetID(), template.GetImageDescriptor().GetDigest()),
+		RootfsReadonly:                  template.GetRootfsReadonly(),
+		Ports:                           clonePortSpecs(cfg.GetPorts()),
+		Network:                         cloneNetworkSpec(cfg.GetNetwork()),
+		SecretEnv:                       cloneResolvedSecretEnvVars(params.ResolvedSecrets.EnvSecrets),
+		SecretFiles:                     cloneResolvedSecretFiles(params.ResolvedSecrets.FileSecrets),
+		ReadinessProbe:                  cloneResolvedProbe(params.ReadinessProbe),
+		LivenessProbe:                   cloneResolvedProbe(params.LivenessProbe),
+		Namespace:                       strings.TrimSpace(params.Namespace),
+		ServiceID:                       strings.TrimSpace(params.ServiceID),
+		ExecutionProfile:                cloneRuntimeExecutionProfile(template.GetExecutionProfile()),
+		NodeVolumes:                     cloneResolvedNodeVolumes(params.NodeVolumes),
+		ImageMounts:                     cloneImageMounts(cfg.GetImageMounts()),
+		WorkspaceImage:                  cloneWorkspaceImage(cfg.GetWorkspaceImage()),
+		CapabilityDependencies:          cloneCapabilityDependencies(params.CapabilityDependencies),
 	}
 	if strings.TrimSpace(params.ResolvedSecrets.DockerConfigJSON) != "" {
 		out.RegistryCredential = &privatenodev1.RegistryCredential{DockerConfigJson: params.ResolvedSecrets.DockerConfigJSON}

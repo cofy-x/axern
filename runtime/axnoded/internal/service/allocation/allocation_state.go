@@ -11,6 +11,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
@@ -43,7 +44,54 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && record.GetWorkspaceImageUrl() == "")
+	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && record.GetWorkspaceImageUrl() == "" && len(record.GetCapabilityDependencies()) == 0)
+}
+
+// PrepareCapabilityDependencies is the first durable side effect of create.
+// It makes admission dependencies recoverable before volumes, rootfs, mounts,
+// cgroups, or runtime processes are touched.
+func (h *Controller) PrepareCapabilityDependencies(allocationID string, dependencies []*capabilityv1.CapabilityDependency) error {
+	allocationID = strings.TrimSpace(allocationID)
+	if allocationID == "" {
+		return errors.New("allocation id is required")
+	}
+	desired := &apipb.AllocationState{AllocationID: allocationID}
+	h.stateMu.RLock()
+	if current := h.allocationStates[allocationID]; current != nil {
+		desired = cloneAllocationRecord(current.record)
+	}
+	h.stateMu.RUnlock()
+	desired.CapabilityDependencies = cloneCapabilityDependencies(dependencies)
+	if err := h.persistAllocationRecord(desired); err != nil {
+		return fmt.Errorf("persist allocation capability dependencies: %w", err)
+	}
+	h.stateMu.Lock()
+	state := h.stateLocked(allocationID)
+	state.record = desired
+	h.stateMu.Unlock()
+	return nil
+}
+
+func (h *Controller) CapabilityDependencyManifests() map[string][]*capabilityv1.CapabilityDependency {
+	result := make(map[string][]*capabilityv1.CapabilityDependency)
+	h.stateMu.RLock()
+	defer h.stateMu.RUnlock()
+	for allocationID, state := range h.allocationStates {
+		if state != nil && len(state.record.GetCapabilityDependencies()) > 0 {
+			result[allocationID] = cloneCapabilityDependencies(state.record.GetCapabilityDependencies())
+		}
+	}
+	return result
+}
+
+func cloneCapabilityDependencies(in []*capabilityv1.CapabilityDependency) []*capabilityv1.CapabilityDependency {
+	out := make([]*capabilityv1.CapabilityDependency, 0, len(in))
+	for _, dependency := range in {
+		if dependency != nil {
+			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityDependency))
+		}
+	}
+	return out
 }
 
 func (h *Controller) persistAllocationRecord(record *apipb.AllocationState) error {
@@ -228,23 +276,31 @@ func (h *Controller) releaseAllocationState(allocationID string) error {
 	return nil
 }
 
-func (h *Controller) loadAllocationStates() error {
-	var recoveryErr error
-	err := h.store.ForEachRecord(config.AllocationStateBucket, func(key string, value []byte) error {
-		if _, err := h.containers().Get(key); err != nil {
-			if err := h.store.DeleteRecord(config.AllocationStateBucket, key); err != nil {
-				recoveryErr = errors.Join(recoveryErr, fmt.Errorf("delete orphan allocation state %s: %w", key, err))
-			}
-			return nil
+func (h *Controller) loadAllocationStates(runtimeInventory map[string]struct{}) error {
+	records := make(map[string][]byte)
+	if err := h.store.ForEachRecord(config.AllocationStateBucket, func(key string, value []byte) error {
+		records[key] = append([]byte(nil), value...)
+		return nil
+	}); err != nil {
+		return err
+	}
+	for id := range runtimeInventory {
+		if _, ok := records[id]; !ok {
+			return fmt.Errorf("live runtime container %s has no allocation recovery record", id)
 		}
+	}
+
+	var recoveryErr error
+	for key := range runtimeInventory {
+		value := records[key]
 		var record apipb.AllocationState
 		if err := proto.Unmarshal(value, &record); err != nil {
 			recoveryErr = errors.Join(recoveryErr, fmt.Errorf("decode allocation state %s: %w", key, err))
-			return nil
+			continue
 		}
 		if record.GetAllocationID() == "" || record.GetAllocationID() != key {
 			recoveryErr = errors.Join(recoveryErr, fmt.Errorf("allocation state key %s does not match record id %s", key, record.GetAllocationID()))
-			return nil
+			continue
 		}
 		state, err := h.restoreAllocationState(&record)
 		h.stateMu.Lock()
@@ -253,9 +309,21 @@ func (h *Controller) loadAllocationStates() error {
 		if err != nil {
 			recoveryErr = errors.Join(recoveryErr, fmt.Errorf("restore allocation %s state: %w", key, err))
 		}
-		return nil
-	})
-	return errors.Join(err, recoveryErr)
+	}
+	if recoveryErr != nil {
+		return recoveryErr
+	}
+
+	var cleanupErr error
+	for key := range records {
+		if _, live := runtimeInventory[key]; live {
+			continue
+		}
+		if err := h.store.DeleteRecord(config.AllocationStateBucket, key); err != nil {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("delete orphan allocation state %s: %w", key, err))
+		}
+	}
+	return cleanupErr
 }
 
 func (h *Controller) restoreAllocationState(record *apipb.AllocationState) (*allocationState, error) {

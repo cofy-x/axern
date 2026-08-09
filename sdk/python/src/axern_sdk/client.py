@@ -10,6 +10,7 @@ import grpc
 from google.protobuf import duration_pb2
 
 from axern.control.admin.v1 import service_pb2 as admin_service_pb2, service_pb2_grpc as admin_service_pb2_grpc
+from axern.control.capability.v1 import capability_pb2
 from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2, environment_pb2_grpc
 from axern.control.function.v1 import function_pb2_grpc
@@ -37,6 +38,17 @@ _SERVICE_WATCH_RETRY_MAX_SECONDS = 2.0
 
 ServiceVolumeMountInput = VolumeMount | common_pb2.ServiceVolumeMount
 ServiceProbeInput = ServiceProbe | service_types_pb2.ServiceProbe
+
+
+def _extension_capability_requirements(
+    values: dict[str, str] | None,
+) -> list[capability_pb2.ExtensionCapabilityRequirement]:
+    return [
+        capability_pb2.ExtensionCapabilityRequirement(
+            capability=capability_pb2.ExtensionCapability(name=name, value=value),
+        )
+        for name, value in sorted((values or {}).items())
+    ]
 
 
 def _is_transient_service_read_code(code: grpc.StatusCode) -> bool:
@@ -292,6 +304,7 @@ class AxernClient:
         limit_cpu: ResourceQuantity = "",
         limit_memory: ResourceQuantity = "",
         limit_ephemeral_storage: ResourceQuantity = "",
+        extension_capabilities: dict[str, str] | None = None,
         labels: dict[str, str] | None = None,
         timeout: float | None = 120.0,
     ) -> run_pb2.Run:
@@ -312,6 +325,7 @@ class AxernClient:
                         limit_memory=limit_memory,
                         limit_ephemeral_storage=limit_ephemeral_storage,
                     ),
+                    extension_capability_requirements=_extension_capability_requirements(extension_capabilities),
                 ),
                 labels=dict(labels or {}),
             ),
@@ -427,6 +441,7 @@ class AxernClient:
         limit_cpu: ResourceQuantity = "",
         limit_memory: ResourceQuantity = "",
         limit_ephemeral_storage: ResourceQuantity = "",
+        extension_capabilities: dict[str, str] | None = None,
         node_selector: dict[str, str] | None = None,
         volume_mounts: Iterable[ServiceVolumeMountInput] | None = None,
         readiness_probe: ServiceProbeInput | None = None,
@@ -455,6 +470,7 @@ class AxernClient:
                         limit_memory=limit_memory,
                         limit_ephemeral_storage=limit_ephemeral_storage,
                     ),
+                    extension_capability_requirements=_extension_capability_requirements(extension_capabilities),
                     placement=common_pb2.PlacementConstraints(
                         node_selector=dict(node_selector or {}),
                     ),

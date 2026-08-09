@@ -92,7 +92,7 @@ func TestLoadAllocationStatesRestoresLiveContainerMountOwnership(t *testing.T) {
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{imageURL: filepath.Join(t.TempDir(), "rootfs")}}
 	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
 	fixture.controller.lrtManager = fixture.lrtManager
-	if err := fixture.controller.loadAllocationStates(); err != nil {
+	if err := fixture.controller.loadAllocationStates(map[string]struct{}{allocationID: {}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -128,7 +128,7 @@ func TestLoadAllocationStatesDeletesOrphanRecord(t *testing.T) {
 	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
 		"runsc": runtimetest.NewFakeRuntimeHandler(),
 	}, store, fakeVolumePublisher{})
-	if err := fixture.controller.loadAllocationStates(); err != nil {
+	if err := fixture.controller.loadAllocationStates(map[string]struct{}{}); err != nil {
 		t.Fatal(err)
 	}
 	var record apipb.AllocationState
@@ -150,7 +150,7 @@ func TestRestoreAllocationStateSkipsDestructiveReconcileAfterLiveRecoveryFailure
 	mounter := &imageMountTestMounter{mountErr: errors.New("imagemgr unavailable")}
 	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
 	fixture.controller.lrtManager = fixture.lrtManager
-	if err := fixture.controller.RestoreAllocationState(); err == nil {
+	if err := fixture.controller.RestoreAllocationState(map[string]struct{}{allocationID: {}}); err == nil {
 		t.Fatal("RestoreAllocationState() succeeded with incomplete live state")
 	}
 	if mounter.reconciled != nil {
@@ -179,7 +179,7 @@ func TestLoadAllocationStatesRetainsPartialRecoveryForLiveContainer(t *testing.T
 	}
 	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
 	fixture.controller.lrtManager = fixture.lrtManager
-	if err := fixture.controller.loadAllocationStates(); err == nil {
+	if err := fixture.controller.loadAllocationStates(map[string]struct{}{allocationID: {}}); err == nil {
 		t.Fatal("loadAllocationStates() succeeded with an incomplete live recovery")
 	}
 	fixture.controller.stateMu.RLock()
@@ -258,7 +258,7 @@ func TestLoadAllocationStatesIsolatesCorruptRecordAndRestoresValidRecord(t *test
 	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{ID: allocationID, RuntimeHandler: "runsc"})
 	fixture.manager.StoreMetadata("corrupt-allocation", &apipb.ContainerMetadata{ID: "corrupt-allocation", RuntimeHandler: "runsc"})
 	time.Sleep(100 * time.Millisecond)
-	if err := fixture.controller.loadAllocationStates(); err == nil {
+	if err := fixture.controller.loadAllocationStates(map[string]struct{}{allocationID: {}, "corrupt-allocation": {}}); err == nil {
 		t.Fatal("loadAllocationStates() succeeded with a corrupt record")
 	}
 	if _, ok := fixture.controller.runtimeMapping(allocationID); !ok {

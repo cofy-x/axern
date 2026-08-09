@@ -1,0 +1,169 @@
+syntax = "proto3";
+
+package axern.control.capability.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1;capabilityv1";
+
+import "google/protobuf/timestamp.proto";
+
+// PlatformCapability is the closed set of Axern-owned placement and
+// enforcement claims. User and node configuration cannot manufacture these
+// claims; only the owning observed-capability provider may publish them.
+enum PlatformCapability {
+  PLATFORM_CAPABILITY_UNSPECIFIED = 0;
+  PLATFORM_CAPABILITY_PORT_FORWARDING = 1;
+  PLATFORM_CAPABILITY_NETWORK_BRIDGE = 2;
+  PLATFORM_CAPABILITY_NETWORK_BPFNET = 3;
+  PLATFORM_CAPABILITY_CGROUP_V2_MEMORY_CONTROLLER = 4;
+  PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT = 5;
+  PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT = 6;
+  PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER = 7;
+  PLATFORM_CAPABILITY_XFS_PROJECT_QUOTA = 8;
+  PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT = 9;
+  PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT = 10;
+  PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS = 11;
+  // Provider facts consumed by the catalog's derived workload capabilities.
+  // They are not valid workload requirements on their own.
+  PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST = 12;
+  PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST = 13;
+  PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST = 14;
+  PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST = 15;
+}
+
+message ExtensionCapability {
+  // A DNS-qualified name such as example.com/accelerator. Axern-owned DNS
+  // suffixes are reserved and rejected by API and node configuration parsing.
+  string name = 1;
+  // Values use exact-match semantics. An empty value is a valid claim.
+  string value = 2;
+}
+
+message CapabilityKey {
+  oneof kind {
+    PlatformCapability platform = 1;
+    ExtensionCapability extension = 2;
+  }
+}
+
+enum CapabilityState {
+  CAPABILITY_STATE_UNSPECIFIED = 0;
+  CAPABILITY_STATE_AVAILABLE = 1;
+  CAPABILITY_STATE_DEGRADED = 2;
+  CAPABILITY_STATE_UNAVAILABLE = 3;
+  CAPABILITY_STATE_UNKNOWN = 4;
+}
+
+enum CapabilityProvider {
+  CAPABILITY_PROVIDER_UNSPECIFIED = 0;
+  CAPABILITY_PROVIDER_CONFIG = 1;
+  CAPABILITY_PROVIDER_HOST_CGROUP = 2;
+  CAPABILITY_PROVIDER_FILESTORE = 3;
+  CAPABILITY_PROVIDER_EROFS_PROBE = 4;
+  CAPABILITY_PROVIDER_RUNC_SELF_TEST = 5;
+  CAPABILITY_PROVIDER_RUNSC_SELF_TEST = 6;
+  CAPABILITY_PROVIDER_NETWORK_HEALTH = 7;
+  CAPABILITY_PROVIDER_DERIVED = 8;
+}
+
+enum CapabilityValidityScope {
+  CAPABILITY_VALIDITY_SCOPE_UNSPECIFIED = 0;
+  CAPABILITY_VALIDITY_SCOPE_CONFIG_STATIC = 1;
+  CAPABILITY_VALIDITY_SCOPE_BOOT = 2;
+  CAPABILITY_VALIDITY_SCOPE_MOUNT = 3;
+  CAPABILITY_VALIDITY_SCOPE_RUNTIME = 4;
+  CAPABILITY_VALIDITY_SCOPE_REFRESHABLE = 5;
+}
+
+enum CapabilityReasonCode {
+  CAPABILITY_REASON_CODE_UNSPECIFIED = 0;
+  CAPABILITY_REASON_CODE_AVAILABLE = 1;
+  CAPABILITY_REASON_CODE_DISABLED = 2;
+  CAPABILITY_REASON_CODE_PROBE_FAILED = 3;
+  CAPABILITY_REASON_CODE_PROBE_ERROR = 4;
+  CAPABILITY_REASON_CODE_EXPIRED = 5;
+  CAPABILITY_REASON_CODE_IDENTITY_CHANGED = 6;
+  CAPABILITY_REASON_CODE_DEPENDENCY_UNAVAILABLE = 7;
+  CAPABILITY_REASON_CODE_RECOVERY_PENDING = 8;
+  CAPABILITY_REASON_CODE_ENFORCEMENT_LOST = 9;
+}
+
+message CapabilityEvidence {
+  string evidence_id = 1;
+  string boot_id = 2;
+  string mount_identity = 3;
+  string runtime_name = 4;
+  string runtime_binary_digest = 5;
+  string config_digest = 6;
+}
+
+message CapabilityEvidenceReference {
+  CapabilityKey key = 1;
+  string evidence_id = 2;
+  CapabilityEvidence evidence = 3;
+}
+
+message CapabilityObservation {
+  CapabilityKey key = 1;
+  CapabilityState state = 2;
+  CapabilityProvider provider = 3;
+  CapabilityValidityScope validity_scope = 4;
+  google.protobuf.Timestamp observed_at = 5;
+  google.protobuf.Timestamp valid_until = 6;
+  CapabilityEvidence evidence = 7;
+  repeated CapabilityEvidenceReference dependencies = 8;
+  CapabilityReasonCode reason_code = 9;
+  string reason = 10;
+}
+
+message CapabilitySnapshot {
+  string node_instance_id = 1;
+  int64 sequence = 2;
+  string snapshot_id = 3;
+  google.protobuf.Timestamp collected_at = 4;
+  repeated CapabilityObservation observations = 5;
+}
+
+message ExtensionCapabilityRequirement {
+  ExtensionCapability capability = 1;
+}
+
+enum CapabilityLossPolicy {
+  CAPABILITY_LOSS_POLICY_UNSPECIFIED = 0;
+  CAPABILITY_LOSS_POLICY_ADMISSION_ONLY = 1;
+  CAPABILITY_LOSS_POLICY_DEGRADE = 2;
+  CAPABILITY_LOSS_POLICY_FAIL_STOP = 3;
+}
+
+message CapabilityDependency {
+  CapabilityKey key = 1;
+  CapabilityLossPolicy loss_policy = 2;
+  CapabilityEvidence selected_evidence = 3;
+  repeated CapabilityEvidenceReference dependency_evidence = 4;
+}
+
+// CapabilityDependencySet is the durable representation stored with an
+// allocation. A wrapper keeps JSON persistence on the canonical proto shape.
+message CapabilityDependencySet {
+  repeated CapabilityDependency dependencies = 1;
+}
+
+enum CapabilityConditionState {
+  CAPABILITY_CONDITION_STATE_UNSPECIFIED = 0;
+  CAPABILITY_CONDITION_STATE_HEALTHY = 1;
+  CAPABILITY_CONDITION_STATE_DEGRADED = 2;
+  CAPABILITY_CONDITION_STATE_FAILED = 3;
+  CAPABILITY_CONDITION_STATE_UNKNOWN = 4;
+}
+
+message CapabilityCondition {
+  CapabilityKey key = 1;
+  CapabilityConditionState state = 2;
+  CapabilityReasonCode reason_code = 3;
+  string message = 4;
+  google.protobuf.Timestamp observed_at = 5;
+  CapabilityEvidence evidence = 6;
+}
+
+message CapabilityConditionSet {
+  repeated CapabilityCondition conditions = 1;
+}

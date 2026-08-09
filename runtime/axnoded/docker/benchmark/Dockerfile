@@ -21,6 +21,7 @@ COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
 COPY lib/go/llmproxy/go.mod /workspace/lib/go/llmproxy/go.mod
+COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
 RUN cat > /workspace/go.work <<'EOF'
@@ -30,6 +31,7 @@ use (
 	./lib/go/grpcclient
 	./lib/go/imageref
 	./lib/go/llmproxy
+	./lib/go/nodecapability
 	./lib/go/observability
 	./network/bpfnet
 	./runtime/axnoded
@@ -156,6 +158,8 @@ RUN mkdir -p /opt/sample-rootfs/bin /opt/sample-rootfs/dev /opt/sample-rootfs/pr
     ln -sf busybox /opt/sample-rootfs/bin/sleep && \
     ln -sf busybox /opt/sample-rootfs/bin/echo && \
     ln -sf busybox /opt/sample-rootfs/bin/cat
+
+RUN mkdir -p /opt/axern/runtime-selftest && cp -a /opt/sample-rootfs /opt/axern/runtime-selftest/rootfs
 
 COPY --from=nginx-rootfs / /opt/nginx-rootfs
 

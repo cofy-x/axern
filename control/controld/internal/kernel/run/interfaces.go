@@ -6,6 +6,7 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
@@ -14,10 +15,11 @@ import (
 )
 
 type AllocationRecord struct {
-	AllocationID string
-	NodeID       string
-	NodeTarget   string
-	Attempt      int64
+	AllocationID           string
+	NodeID                 string
+	NodeTarget             string
+	Attempt                int64
+	CapabilityDependencies []*capabilityv1.CapabilityDependency
 }
 
 type EnvironmentStore interface {
@@ -73,6 +75,7 @@ type AllocationReporter interface {
 type ReconcileStore interface {
 	LoadStartAllocation(ctx context.Context, allocationID string) (*StartAllocation, error)
 	CompleteAllocationStart(ctx context.Context, allocationID string, now time.Time) error
+	RecordAllocationCapabilityVerification(ctx context.Context, allocationID string, admission *allocationkernel.CapabilityAdmission, now time.Time) error
 	CompleteAllocationRelease(ctx context.Context, allocationID string, attempt int64, now time.Time) error
 	MarkAllocationCreateFailed(ctx context.Context, allocationID string, message string, now time.Time) (*runv1.Run, error)
 	DueReconcileItems(ctx context.Context, limit int, now time.Time) ([]allocationkernel.ReconcileItem, error)

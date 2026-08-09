@@ -235,6 +235,34 @@ var (
 		Name:        "axern.controld_allocation_reconcile_attempts_current",
 		Description: "Maximum current allocation lifecycle reconcile attempts by owner and reason.",
 	}
+	MetricCapabilityReconcileQueueCurrent = sdkobs.Instrument{
+		Name:        "axern.controld_capability_reconcile_queue_current",
+		Description: "Current allocation capability reconcile work by bounded scheduling state.",
+	}
+	MetricCapabilityReconcileQueueOldestAge = sdkobs.Instrument{
+		Name:        "axern.controld_capability_reconcile_queue_oldest_age_seconds",
+		Description: "Age of the oldest due allocation capability reconcile item.",
+	}
+	MetricCapabilityReconcileAttemptsCurrent = sdkobs.Instrument{
+		Name:        "axern.controld_capability_reconcile_attempts_current",
+		Description: "Maximum current allocation capability reconcile attempt count.",
+	}
+	MetricCapabilityReconcileTotal = sdkobs.Instrument{
+		Name:        "axern.controld_capability_reconcile_total",
+		Description: "Allocation capability reconciliation outcomes by bounded result.",
+	}
+	MetricCapabilityFailStopTotal = sdkobs.Instrument{
+		Name:        "axern.controld_capability_fail_stop_total",
+		Description: "Allocation fail-stop requests caused by capability enforcement loss.",
+	}
+	MetricNodeCapabilityTransitionTotal = sdkobs.Instrument{
+		Name:        "axern.controld_node_capability_transition_total",
+		Description: "Committed node capability transitions by bounded capability, state, and reason code.",
+	}
+	MetricCapabilityAdmissionEvidenceTotal = sdkobs.Instrument{
+		Name:        "axern.controld_capability_admission_evidence_total",
+		Description: "Capability evidence outcomes while candidates are re-evaluated under the admission lock.",
+	}
 	MetricNodeResourceCurrent = sdkobs.Instrument{
 		Name:        "axern.controld_node_resource_current",
 		Description: "Current aggregate node resource quantity by kind.",

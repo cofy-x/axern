@@ -9,6 +9,7 @@ import (
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	consistencykernel "github.com/cofy-x/axern/control/controld/internal/kernel/consistency"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 )
 
 type AllocationLifecycleRetries interface {
@@ -42,6 +43,13 @@ type Nodes interface {
 	RetireNode(ctx context.Context, nodeID, operatorReason string, now time.Time) (*nodekernel.Record, error)
 }
 
+type CapabilityDiagnostics interface {
+	GetNodeCapabilitySnapshot(context.Context, string) (*capabilityv1.CapabilitySnapshot, error)
+	ListNodeCapabilityTransitions(context.Context, string, int32) ([]adminkernel.CapabilityTransition, error)
+	ListCapabilityReconcileQueue(context.Context, string, int32) ([]adminkernel.CapabilityReconcileItem, error)
+	GetAllocationCapabilityDiagnostics(context.Context, string) (*adminkernel.AllocationCapabilityDiagnostics, error)
+}
+
 type Access interface {
 	CreatePrincipal(ctx context.Context, name, displayName string, kind accesskernel.PrincipalKind) (accesskernel.Principal, error)
 	ListPrincipals(ctx context.Context) ([]accesskernel.Principal, error)
@@ -62,6 +70,7 @@ type Dependencies struct {
 	Storage                    Storage
 	Services                   Services
 	Nodes                      Nodes
+	CapabilityDiagnostics      CapabilityDiagnostics
 	NodeHeartbeatWindow        time.Duration
 	NodeSummaryWindow          time.Duration
 	Access                     Access

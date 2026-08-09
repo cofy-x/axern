@@ -10,6 +10,7 @@ import (
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	secretkernel "github.com/cofy-x/axern/control/controld/internal/kernel/secret"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
@@ -464,6 +465,9 @@ func TestBuildCreateAllocationRequestResolvesServiceIdentityThroughBridge(t *tes
 	if result.WorkspacePreparation.GetPayloadFormat() != "nydus" {
 		t.Fatalf("workspace preparation = %#v", result.WorkspacePreparation)
 	}
+	if len(result.AdmittedCapabilityDependencies) != 1 || result.AdmittedCapabilityDependencies[0].GetSelectedEvidence().GetEvidenceID() != "create-evidence" {
+		t.Fatalf("admitted capability dependencies = %#v", result.AdmittedCapabilityDependencies)
+	}
 }
 
 func TestDeleteAllocationTreatsNodeNotFoundAsReleased(t *testing.T) {
@@ -540,6 +544,10 @@ func (c *captureLifecycleClient) CreateAllocation(_ context.Context, _ string, r
 		WorkspacePreparation: &commonv1.WorkspacePreparationFacts{
 			PayloadFormat: "nydus",
 		},
+		AdmittedCapabilityDependencies: []*capabilityv1.CapabilityDependency{{
+			Key:              &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT}},
+			SelectedEvidence: &capabilityv1.CapabilityEvidence{EvidenceID: "create-evidence"},
+		}},
 	}, nil
 }
 

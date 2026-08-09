@@ -44,6 +44,26 @@ class NodeAdminStub:
                 request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RetireAdminNodeRequest.SerializeToString,
                 response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RetireAdminNodeResponse.FromString,
                 _registered_method=True)
+        self.GetNodeCapabilitySnapshot = channel.unary_unary(
+                '/axern.control.admin.v1.NodeAdmin/GetNodeCapabilitySnapshot',
+                request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetNodeCapabilitySnapshotRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetNodeCapabilitySnapshotResponse.FromString,
+                _registered_method=True)
+        self.ListNodeCapabilityTransitions = channel.unary_unary(
+                '/axern.control.admin.v1.NodeAdmin/ListNodeCapabilityTransitions',
+                request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListNodeCapabilityTransitionsRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListNodeCapabilityTransitionsResponse.FromString,
+                _registered_method=True)
+        self.ListCapabilityReconcileQueue = channel.unary_unary(
+                '/axern.control.admin.v1.NodeAdmin/ListCapabilityReconcileQueue',
+                request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListCapabilityReconcileQueueRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListCapabilityReconcileQueueResponse.FromString,
+                _registered_method=True)
+        self.GetAllocationCapabilityDiagnostics = channel.unary_unary(
+                '/axern.control.admin.v1.NodeAdmin/GetAllocationCapabilityDiagnostics',
+                request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetAllocationCapabilityDiagnosticsRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetAllocationCapabilityDiagnosticsResponse.FromString,
+                _registered_method=True)
 
 
 class NodeAdminServicer:
@@ -61,6 +81,30 @@ class NodeAdminServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetNodeCapabilitySnapshot(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListNodeCapabilityTransitions(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListCapabilityReconcileQueue(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetAllocationCapabilityDiagnostics(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_NodeAdminServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -73,6 +117,26 @@ def add_NodeAdminServicer_to_server(servicer, server):
                     servicer.RetireAdminNode,
                     request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RetireAdminNodeRequest.FromString,
                     response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RetireAdminNodeResponse.SerializeToString,
+            ),
+            'GetNodeCapabilitySnapshot': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetNodeCapabilitySnapshot,
+                    request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetNodeCapabilitySnapshotRequest.FromString,
+                    response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetNodeCapabilitySnapshotResponse.SerializeToString,
+            ),
+            'ListNodeCapabilityTransitions': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListNodeCapabilityTransitions,
+                    request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListNodeCapabilityTransitionsRequest.FromString,
+                    response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListNodeCapabilityTransitionsResponse.SerializeToString,
+            ),
+            'ListCapabilityReconcileQueue': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListCapabilityReconcileQueue,
+                    request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListCapabilityReconcileQueueRequest.FromString,
+                    response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListCapabilityReconcileQueueResponse.SerializeToString,
+            ),
+            'GetAllocationCapabilityDiagnostics': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetAllocationCapabilityDiagnostics,
+                    request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetAllocationCapabilityDiagnosticsRequest.FromString,
+                    response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetAllocationCapabilityDiagnosticsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -129,6 +193,114 @@ class NodeAdmin:
             '/axern.control.admin.v1.NodeAdmin/RetireAdminNode',
             axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RetireAdminNodeRequest.SerializeToString,
             axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RetireAdminNodeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetNodeCapabilitySnapshot(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.control.admin.v1.NodeAdmin/GetNodeCapabilitySnapshot',
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetNodeCapabilitySnapshotRequest.SerializeToString,
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetNodeCapabilitySnapshotResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListNodeCapabilityTransitions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.control.admin.v1.NodeAdmin/ListNodeCapabilityTransitions',
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListNodeCapabilityTransitionsRequest.SerializeToString,
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListNodeCapabilityTransitionsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListCapabilityReconcileQueue(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.control.admin.v1.NodeAdmin/ListCapabilityReconcileQueue',
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListCapabilityReconcileQueueRequest.SerializeToString,
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListCapabilityReconcileQueueResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetAllocationCapabilityDiagnostics(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.control.admin.v1.NodeAdmin/GetAllocationCapabilityDiagnostics',
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetAllocationCapabilityDiagnosticsRequest.SerializeToString,
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetAllocationCapabilityDiagnosticsResponse.FromString,
             options,
             channel_credentials,
             insecure,

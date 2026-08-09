@@ -2,6 +2,7 @@ package pgservice
 
 import (
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
@@ -21,14 +22,18 @@ type Option func(*PGStore)
 
 func WithAdmissionPolicy(policy resourcekernel.AdmissionPolicy) Option {
 	return func(s *PGStore) {
-		s.reservations = pgreservation.NewAdmission(policy)
+		s.reservations = pgreservation.NewAdmission(policy, s.reservations.Evaluator())
 	}
+}
+
+func WithPlacementEvaluator(evaluator placementkernel.Evaluator) Option {
+	return func(s *PGStore) { s.reservations = pgreservation.NewAdmission(s.reservations.Policy(), evaluator) }
 }
 
 func NewPGStore(db *postgres.DB, options ...Option) *PGStore {
 	store := &PGStore{
 		db:           db,
-		reservations: pgreservation.NewAdmission(resourcekernel.AdmissionPolicy{}),
+		reservations: pgreservation.NewAdmission(resourcekernel.AdmissionPolicy{}, nil),
 		watches:      newWatchHub(db.Pool()),
 	}
 	for _, option := range options {

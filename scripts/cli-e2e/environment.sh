@@ -197,7 +197,15 @@ setup_e2e_environment() {
     import_python_runtime_image_once
   fi
 
-  deadline=$((SECONDS + 60))
+  # Capability readiness includes serial runc and runsc conformance probes. Each
+  # runtime has a 60-second fail-closed budget, so the inventory wait must cover
+  # both probes plus the first report round trip.
+  local capability_readiness_timeout="${AXERN_CLI_E2E_CAPABILITY_READINESS_TIMEOUT_SECONDS:-150}"
+  if ! [[ "${capability_readiness_timeout}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "AXERN_CLI_E2E_CAPABILITY_READINESS_TIMEOUT_SECONDS must be a positive integer" >&2
+    exit 1
+  fi
+  deadline=$((SECONDS + capability_readiness_timeout))
   while [ "${SECONDS}" -lt "${deadline}" ]; do
     nodes_body="$(curl -fsS "http://${CONTROLD_HTTP_ADDRESS}/nodesz" || true)"
     if node_summary_fresh "${CONTROL_PLANE_NODE_ID}" "${nodes_body}"; then

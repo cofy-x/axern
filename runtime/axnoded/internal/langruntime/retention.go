@@ -2,6 +2,7 @@ package langruntime
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -14,6 +15,7 @@ const (
 	RetentionReasonShutdown    = "shutdown"
 	RetentionReasonDisabled    = "disabled"
 	RetentionReasonConfigDrift = "config_drift"
+	RetentionReasonSelfTest    = "self_test_cleanup"
 )
 
 type RetentionStats struct {
@@ -61,6 +63,29 @@ func (lm *LangRTManager) Close() {
 func (lm *LangRTManager) DrainRetained(ctx context.Context, reason string) {
 	evictions := lm.collectAllRetained(reason)
 	lm.executeEvictions(ctx, evictions)
+}
+
+// EvictIdleRuntime removes one runtime after its last allocation has been
+// deleted. It is intentionally scoped by runtime ID so internal probes can
+// prove that their own runtime and rootfs references were cleaned without
+// disturbing unrelated retained workloads.
+func (lm *LangRTManager) EvictIdleRuntime(ctx context.Context, runtimeID, reason string) error {
+	lm.lrMu.Lock()
+	lr := lm.lrtMap[runtimeID]
+	if lr == nil {
+		lm.lrMu.Unlock()
+		return nil
+	}
+	if lr.refcnt != 0 {
+		refCount := lr.refcnt
+		lm.lrMu.Unlock()
+		return fmt.Errorf("runtime %q still has %d active references", runtimeID, refCount)
+	}
+	eviction := lm.prepareEvictionLocked(lr, reason)
+	lm.updateRetentionGaugesLocked()
+	lm.lrMu.Unlock()
+
+	return lm.executeEvictions(ctx, []retentionEviction{eviction})
 }
 
 func (lm *LangRTManager) RetentionStats() RetentionStats {

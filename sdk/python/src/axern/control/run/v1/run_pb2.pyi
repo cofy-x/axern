@@ -1,6 +1,7 @@
 import datetime
 
 from axern.control.common.v1 import common_pb2 as _common_pb2
+from axern.control.capability.v1 import capability_pb2 as _capability_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
@@ -31,7 +32,7 @@ RUN_STATUS_FAILED: RunStatus
 RUN_STATUS_CANCELLED: RunStatus
 
 class Run(_message.Message):
-    __slots__ = ("id", "namespace", "environment_id", "allocation_id", "attempt", "status", "config", "labels", "version", "created_at", "updated_at", "exit_code", "exit_code_known", "message", "diagnostic_code")
+    __slots__ = ("id", "namespace", "environment_id", "allocation_id", "attempt", "status", "config", "labels", "version", "created_at", "updated_at", "exit_code", "exit_code_known", "message", "diagnostic_code", "capability_conditions")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -54,6 +55,7 @@ class Run(_message.Message):
     EXIT_CODE_KNOWN_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     DIAGNOSTIC_CODE_FIELD_NUMBER: _ClassVar[int]
+    CAPABILITY_CONDITIONS_FIELD_NUMBER: _ClassVar[int]
     id: str
     namespace: str
     environment_id: str
@@ -69,7 +71,8 @@ class Run(_message.Message):
     exit_code_known: bool
     message: str
     diagnostic_code: _common_pb2.WorkloadDiagnosticCode
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[RunStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ...) -> None: ...
+    capability_conditions: _containers.RepeatedCompositeFieldContainer[_capability_pb2.CapabilityCondition]
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[RunStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., capability_conditions: _Optional[_Iterable[_Union[_capability_pb2.CapabilityCondition, _Mapping]]] = ...) -> None: ...
 
 class RunListFilter(_message.Message):
     __slots__ = ("namespace", "statuses", "labels", "cursor", "page_size")

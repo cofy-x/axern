@@ -6,6 +6,7 @@ option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;a
 
 import "internal/apipb/v1/axnoded_internal.proto";
 import "axern/control/common/v1/common.proto";
+import "axern/control/capability/v1/capability.proto";
 import "axern/private/storage/v1/storage.proto";
 
 message StartRequest {
@@ -24,6 +25,7 @@ message StartRequest {
   repeated axern.private.storage.v1.ResolvedNodeVolume node_volumes = 13;
   repeated ImageMount image_mounts = 14;
   WorkspaceImageSource workspace_image = 15;
+  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 16;
 }
 
 message StartResponse {
@@ -31,6 +33,8 @@ message StartResponse {
   string message = 2;
   string ID = 3;
   repeated axern.private.storage.v1.PublishedNodeVolume published_volumes = 4;
+  repeated axern.control.capability.v1.CapabilityCondition capability_verification = 5;
+  repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 6;
 }
 
 message DeleteRequest {

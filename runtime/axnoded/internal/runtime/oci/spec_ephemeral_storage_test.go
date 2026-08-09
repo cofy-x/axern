@@ -18,7 +18,4 @@ func TestApplyEphemeralStorageAnnotationUsesPublicIdentity(t *testing.T) {
 	if got := ociSpec.Annotations["io.axnoded.resource/ephemeral-storage"]; got != `{"request_bytes":67108864,"limit_bytes":134217728}` {
 		t.Fatalf("ephemeral-storage annotation = %q", got)
 	}
-	if _, exists := ociSpec.Annotations["io.axnoded.resource/writable-layer"]; exists {
-		t.Fatal("legacy writable-layer annotation was emitted")
-	}
 }

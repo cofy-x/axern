@@ -71,9 +71,7 @@ func (c *Collector) Refresh(ctx context.Context) (NodeInventorySnapshot, bool) {
 		snapshot.Sources = make(map[string]SourceStatus)
 	}
 	c.snapshot = snapshot
-	if ready {
-		c.ready = true
-	}
+	c.ready = ready
 	return c.snapshot, c.ready
 }
 

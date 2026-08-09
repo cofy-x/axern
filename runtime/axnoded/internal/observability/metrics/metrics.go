@@ -76,6 +76,14 @@ const (
 	MetricCgroupMemoryCurrent                    = "axern.axnoded_cgroup_memory_current"
 	MetricEphemeralStorageOperationTotal         = "axern.axnoded_ephemeral_storage_operation_total"
 	MetricFilestoreProbe                         = "axern.axnoded_filestore_probe_total"
+	MetricCapabilityStateCurrent                 = "axern.axnoded_capability_state_current"
+	MetricCapabilityProbeTotal                   = "axern.axnoded_capability_probe_total"
+	MetricCapabilityProbeDuration                = "axern.axnoded_capability_probe_duration_seconds"
+	MetricCapabilityObservationAge               = "axern.axnoded_capability_observation_age_seconds"
+	MetricCapabilityObservationExpiry            = "axern.axnoded_capability_observation_expiry_seconds"
+	MetricCapabilityTransitionTotal              = "axern.axnoded_capability_transition_total"
+	MetricCapabilitySnapshotSequence             = "axern.axnoded_capability_snapshot_sequence"
+	MetricCapabilityAllocationVerificationTotal  = "axern.axnoded_capability_allocation_verification_total"
 )
 
 const (
@@ -658,6 +666,33 @@ func RecordFilestoreProbe(probe, result string) {
 		attribute.String(sdkobs.AttrState, probe),
 		attribute.String(sdkobs.AttrResult, result),
 	)
+}
+
+func RecordCapabilityProbe(provider, result string, duration time.Duration) {
+	attrs := []attribute.KeyValue{attribute.String("provider", provider), attribute.String(sdkobs.AttrResult, result)}
+	recordCounter(MetricCapabilityProbeTotal, "Observed capability provider probe attempts.", attrs...)
+	recordDuration(MetricCapabilityProbeDuration, "Observed capability provider probe duration.", duration, attrs...)
+}
+
+func RecordCapabilityState(capability, provider, state, reason string, ageSeconds, expirySeconds float64) {
+	attrs := []attribute.KeyValue{attribute.String("capability", capability), attribute.String("provider", provider), attribute.String(sdkobs.AttrState, state), attribute.String("reason_code", reason)}
+	recordGauge(MetricCapabilityStateCurrent, "Current observed capability state.", 1, attrs...)
+	recordGauge(MetricCapabilityObservationAge, "Age of the current capability observation.", ageSeconds, attrs...)
+	if expirySeconds >= 0 {
+		recordGauge(MetricCapabilityObservationExpiry, "Seconds until a refreshable capability expires.", expirySeconds, attrs...)
+	}
+}
+
+func RecordCapabilityTransition(capability, provider, state, reason string) {
+	recordCounter(MetricCapabilityTransitionTotal, "Observed capability state or evidence transitions.", attribute.String("capability", capability), attribute.String("provider", provider), attribute.String(sdkobs.AttrState, state), attribute.String("reason_code", reason))
+}
+
+func RecordCapabilitySnapshotSequence(sequence int64) {
+	recordGauge(MetricCapabilitySnapshotSequence, "Current observed capability snapshot sequence.", float64(sequence))
+}
+
+func RecordCapabilityAllocationVerification(runtime, result string) {
+	recordCounter(MetricCapabilityAllocationVerificationTotal, "Allocation capability verification and fail-stop outcomes.", attribute.String(sdkobs.AttrRuntime, runtime), attribute.String(sdkobs.AttrResult, result))
 }
 
 func startAttrs(startClass, runtime, rootfsType, result string) []attribute.KeyValue {

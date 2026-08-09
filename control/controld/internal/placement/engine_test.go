@@ -5,7 +5,10 @@ import (
 	"time"
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
+	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
+	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/protobuf/proto"
@@ -39,7 +42,7 @@ func TestPlanReturnsRejectedCandidatesWithExplicitReasons(t *testing.T) {
 		},
 	}
 
-	eligible, rejected := engine.Plan(snapshot, &Request{
+	eligible, rejected := engine.Plan(snapshot, &placementkernel.Request{
 		RootfsKey:  "local:/tmp/rootfs",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:  nodev1.MountType_MOUNT_TYPE_LOCAL,
@@ -73,7 +76,7 @@ func TestPlanComponentGatingByMountType(t *testing.T) {
 		},
 	}
 
-	eligible, rejected := engine.Plan(snapshot, &Request{
+	eligible, rejected := engine.Plan(snapshot, &placementkernel.Request{
 		RootfsKey:  "image:repo/app:oci",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:  nodev1.MountType_MOUNT_TYPE_OCI,
@@ -84,7 +87,7 @@ func TestPlanComponentGatingByMountType(t *testing.T) {
 	}
 	assertRejectedReasons(t, rejected[0], "local-node", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE)
 
-	eligible, rejected = engine.Plan(snapshot, &Request{
+	eligible, rejected = engine.Plan(snapshot, &placementkernel.Request{
 		RootfsKey:  "image:repo/app:nydus",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:  nodev1.MountType_MOUNT_TYPE_NYDUS,
@@ -97,6 +100,32 @@ func TestPlanComponentGatingByMountType(t *testing.T) {
 		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE,
 		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE,
 	)
+}
+
+func TestEROFSLocalityRequiresObservedCompatibility(t *testing.T) {
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	rootfsKey := "sha256:erofs-image"
+	summary := readySummary(now)
+	summary.Locality = []*nodev1.LocalitySummary{{Key: rootfsKey, RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE, MountType: nodev1.MountType_MOUNT_TYPE_EROFS, Mounted: true}}
+	record := record("node-erofs", []string{"runsc"}, summary, now)
+	request := &placementkernel.Request{RootfsKey: rootfsKey, RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE, MountType: nodev1.MountType_MOUNT_TYPE_OCI, Runtime: "runsc"}
+
+	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{record}}, request, now)
+	if len(eligible) != 0 || len(rejected) != 1 {
+		t.Fatalf("without EROFS evidence eligible=%#v rejected=%#v", eligible, rejected)
+	}
+	assertRejectedReasons(t, rejected[0], "node-erofs", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED)
+
+	erofs := availableCapabilitySnapshot(now, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS).GetObservations()[0]
+	summary.CapabilitySnapshot.Observations = append(summary.CapabilitySnapshot.Observations, erofs)
+	eligible, rejected = NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{record}}, request, now)
+	if len(eligible) != 1 || len(rejected) != 0 {
+		t.Fatalf("with EROFS evidence eligible=%#v rejected=%#v", eligible, rejected)
+	}
+	candidateRequest := requestForCandidate(request, record, now)
+	if candidateRequest.GetMountType() != nodev1.MountType_MOUNT_TYPE_EROFS || !containsPlatform(candidateRequest.GetCapabilityRequirements(), capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS) {
+		t.Fatalf("candidate request = %#v, want EROFS dependency", candidateRequest)
+	}
 }
 
 func TestPlanPrefersBetterBpfnetWhenPortsAreRequested(t *testing.T) {
@@ -126,7 +155,7 @@ func TestPlanPrefersBetterBpfnetWhenPortsAreRequested(t *testing.T) {
 		},
 	}
 
-	eligible, _ := engine.Plan(snapshot, &Request{
+	eligible, _ := engine.Plan(snapshot, &placementkernel.Request{
 		RootfsKey:  "image:repo/app:latest",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:  nodev1.MountType_MOUNT_TYPE_OCI,
@@ -179,7 +208,7 @@ func TestPlanSortsByFixedTuple(t *testing.T) {
 			record("node-hot", []string{"runsc"}, hot, now),
 			record("node-warm", []string{"runsc"}, warm, now),
 		},
-	}, &Request{
+	}, &placementkernel.Request{
 		RootfsKey:  "image:repo/app:latest",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:  nodev1.MountType_MOUNT_TYPE_OCI,
@@ -199,7 +228,7 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 
 	restricted := readySummary(now)
 	restricted.Labels = map[string]string{"zone": "us-east-1"}
-	restricted.Capabilities = nil
+	restricted.CapabilitySnapshot = nil
 	restricted.NodeState = nodev1.NodeState_NODE_STATE_DRAINING
 	restricted.Allocatable = &commonv1.ResourceQuantity{
 		CpuMilli:    1000,
@@ -212,7 +241,7 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 		Records: []*nodekernel.Record{
 			record("node-a", []string{"runsc"}, restricted, now),
 		},
-	}, &Request{
+	}, &placementkernel.Request{
 		RootfsKey:              "image:repo/app:latest",
 		RootfsType:             nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:              nodev1.MountType_MOUNT_TYPE_OCI,
@@ -221,7 +250,7 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 		RequestedMemoryBytes:   256,
 		Ports:                  []string{"tcp:8080:80"},
 		Network:                "bridge",
-		CapabilityRequirements: []string{"gpu"},
+		CapabilityRequirements: []*capabilityv1.CapabilityKey{capabilitycontract.ExtensionKey("example.com/gpu", "")},
 		NodeSelector:           map[string]string{"zone": "us-west-1"},
 	}, now)
 	if len(eligible) != 0 {
@@ -253,7 +282,7 @@ func TestPlanRejectsInsufficientMemory(t *testing.T) {
 		Records: []*nodekernel.Record{
 			record("node-mem", []string{"runsc"}, summary, now),
 		},
-	}, &Request{
+	}, &placementkernel.Request{
 		RootfsKey:            "image:repo/app:latest",
 		RootfsType:           nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:            nodev1.MountType_MOUNT_TYPE_OCI,
@@ -277,7 +306,7 @@ func TestPlanCPUOvercommitPolicy(t *testing.T) {
 	snapshot := nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-cpu", []string{"runsc"}, summary, now),
 	}}
-	eligible, rejected := engine.Plan(snapshot, &Request{
+	eligible, rejected := engine.Plan(snapshot, &placementkernel.Request{
 		RootfsKey:         "local:/tmp/rootfs",
 		RootfsType:        nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:         nodev1.MountType_MOUNT_TYPE_LOCAL,
@@ -288,7 +317,7 @@ func TestPlanCPUOvercommitPolicy(t *testing.T) {
 		t.Fatalf("expected node-cpu eligible, got eligible=%#v rejected=%#v", eligible, rejected)
 	}
 
-	eligible, rejected = engine.Plan(snapshot, &Request{
+	eligible, rejected = engine.Plan(snapshot, &placementkernel.Request{
 		RootfsKey:         "local:/tmp/rootfs",
 		RootfsType:        nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:         nodev1.MountType_MOUNT_TYPE_LOCAL,
@@ -312,7 +341,7 @@ func TestPlanMemoryDoesNotOvercommit(t *testing.T) {
 	snapshot := nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-mem-overcommit", []string{"runsc"}, summary, now),
 	}}
-	eligible, rejected := engine.Plan(snapshot, &Request{
+	eligible, rejected := engine.Plan(snapshot, &placementkernel.Request{
 		RootfsKey:            "local:/tmp/rootfs",
 		RootfsType:           nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:            nodev1.MountType_MOUNT_TYPE_LOCAL,
@@ -329,7 +358,7 @@ func TestPlanRejectsRetiredNodeAsNonRetryable(t *testing.T) {
 	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 	retired := record("node-retired", []string{"runsc"}, readySummary(now), now)
 	retired.Lifecycle = nodekernel.LifecycleRetired
-	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{retired}}, &Request{Runtime: "runsc", MountType: nodev1.MountType_MOUNT_TYPE_LOCAL}, now)
+	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{retired}}, &placementkernel.Request{Runtime: "runsc", MountType: nodev1.MountType_MOUNT_TYPE_LOCAL}, now)
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("eligible=%#v rejected=%#v", eligible, rejected)
 	}
@@ -370,10 +399,12 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 	return &nodev1.NodeSummary{
 		CollectedAt: timestamppb.New(collectedAt),
 		NodeState:   nodev1.NodeState_NODE_STATE_READY,
-		Capabilities: []string{
-			"feature:ports",
-			"network:bridge",
-		},
+		CapabilitySnapshot: availableCapabilitySnapshot(collectedAt,
+			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING,
+			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
+			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT,
+			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
+		),
 		Resources: &nodev1.ResourcesSummary{
 			AxnodedUsedMilli: 100,
 			AxnodedUsedBytes: 1000,
@@ -414,4 +445,59 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 			},
 		},
 	}
+}
+
+func availableCapabilitySnapshot(observedAt time.Time, platforms ...capabilityv1.PlatformCapability) *capabilityv1.CapabilitySnapshot {
+	observations := make([]*capabilityv1.CapabilityObservation, 0, len(platforms))
+	byPlatform := make(map[capabilityv1.PlatformCapability]*capabilityv1.CapabilityObservation)
+	var add func(capabilityv1.PlatformCapability) *capabilityv1.CapabilityObservation
+	add = func(platform capabilityv1.PlatformCapability) *capabilityv1.CapabilityObservation {
+		if existing := byPlatform[platform]; existing != nil {
+			return existing
+		}
+		key := capabilitycontract.PlatformKey(platform)
+		provider, scope, err := capabilitycontract.ObservationOwner(key)
+		if err != nil {
+			panic(err)
+		}
+		evidence := &capabilityv1.CapabilityEvidence{EvidenceID: platform.String()}
+		switch scope {
+		case capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_CONFIG_STATIC:
+			evidence.ConfigDigest = "test-config"
+		case capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_BOOT:
+			evidence.BootID = "test-boot"
+		case capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_MOUNT:
+			evidence.BootID, evidence.MountIdentity = "test-boot", "test-mount"
+		case capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_RUNTIME:
+			evidence.BootID, evidence.RuntimeName, evidence.RuntimeBinaryDigest, evidence.ConfigDigest = "test-boot", "test-runtime", "test-binary", "test-runtime-config"
+		case capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_REFRESHABLE:
+			evidence.ConfigDigest = "test-refresh"
+		}
+		observation := &capabilityv1.CapabilityObservation{
+			Key: key, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
+			Provider: provider, ValidityScope: scope,
+			ObservedAt: timestamppb.New(observedAt), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
+			Evidence: evidence,
+		}
+		if scope == capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_REFRESHABLE {
+			observation.ValidUntil = timestamppb.New(observedAt.Add(time.Minute))
+		}
+		byPlatform[platform] = observation
+		dependencyKeys, err := capabilitycontract.PlatformDependencyKeys(platform)
+		if err != nil {
+			panic(err)
+		}
+		for _, dependencyKey := range dependencyKeys {
+			dependency := add(dependencyKey.GetPlatform())
+			observation.Dependencies = append(observation.Dependencies, &capabilityv1.CapabilityEvidenceReference{
+				Key: dependency.GetKey(), EvidenceID: dependency.GetEvidence().GetEvidenceID(), Evidence: dependency.GetEvidence(),
+			})
+		}
+		observations = append(observations, observation)
+		return observation
+	}
+	for _, platform := range platforms {
+		add(platform)
+	}
+	return &capabilityv1.CapabilitySnapshot{NodeInstanceID: "test-node-instance", Sequence: 1, SnapshotID: "test-snapshot", CollectedAt: timestamppb.New(observedAt), Observations: observations}
 }

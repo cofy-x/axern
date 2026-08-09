@@ -2,6 +2,7 @@ package nodeinventory
 
 import (
 	"context"
+	"errors"
 	"os"
 	"sync"
 	"time"
@@ -12,13 +13,18 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	runtimevolumev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/volume/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 type runtimeCountFunc func() int
 type readyFunc func() bool
 type volumeHealthFunc func(context.Context) (*runtimevolumev1.VolumeManagerHealth, error)
 type statfsFunc func(string) (StorageInventoryEntry, error)
+type capabilitySnapshotFunc func(context.Context, time.Time) (*capabilityv1.CapabilitySnapshot, error)
+
+var ErrCapabilitySnapshotWarming = errors.New("capability manager is warming")
 
 type containerManagerView interface {
 	List(...container.ListOption) []*container.Container
@@ -44,8 +50,7 @@ type AxnodedSourceOptions struct {
 	BPFNetPinPath       string
 	NodeState           string
 	NodeLabels          map[string]string
-	NodeCapabilities    []string
-	DynamicCapabilities func() []string
+	CapabilitySnapshot  capabilitySnapshotFunc
 	LoadBPFNet          func(string) (bpfnet.Status, error)
 	VolumeHealth        volumeHealthFunc
 	StorageTargets      []StorageTarget
@@ -69,8 +74,7 @@ type AxnodedSource struct {
 	bpfnetPin           string
 	nodeState           string
 	nodeLabels          map[string]string
-	nodeCapabilities    []string
-	dynamicCapabilities func() []string
+	capabilitySnapshot  capabilitySnapshotFunc
 	loadBPFNet          func(string) (bpfnet.Status, error)
 	volumeHealth        volumeHealthFunc
 	storageTargets      []StorageTarget
@@ -115,8 +119,7 @@ func NewAxnodedSource(opts AxnodedSourceOptions) *AxnodedSource {
 		bpfnetPin:           opts.BPFNetPinPath,
 		nodeState:           opts.NodeState,
 		nodeLabels:          cloneStringMap(opts.NodeLabels),
-		nodeCapabilities:    append([]string(nil), opts.NodeCapabilities...),
-		dynamicCapabilities: opts.DynamicCapabilities,
+		capabilitySnapshot:  opts.CapabilitySnapshot,
 		loadBPFNet:          loadBPFNet,
 		volumeHealth:        opts.VolumeHealth,
 		storageTargets:      normalizeStorageTargets(opts.StorageTargets),
@@ -139,9 +142,22 @@ func (s *AxnodedSource) Collect(ctx context.Context) (NodeInventorySnapshot, boo
 	snapshot.Node.Name, _ = os.Hostname()
 	snapshot.Node.State = normalizeNodeState(s.nodeState)
 	snapshot.Node.Labels = cloneStringMap(s.nodeLabels)
-	snapshot.Node.Capabilities = append([]string(nil), s.nodeCapabilities...)
-	if s.dynamicCapabilities != nil {
-		snapshot.Node.Capabilities = append(snapshot.Node.Capabilities, s.dynamicCapabilities()...)
+	capabilitiesReady := true
+	if s.capabilitySnapshot != nil {
+		capabilities, err := s.capabilitySnapshot(ctx, now)
+		if capabilities != nil {
+			snapshot.Node.CapabilitySnapshot = proto.Clone(capabilities).(*capabilityv1.CapabilitySnapshot)
+		}
+		if err != nil {
+			capabilitiesReady = false
+			if errors.Is(err, ErrCapabilitySnapshotWarming) {
+				snapshot.Sources["node_capabilities"] = warmingSource(err.Error())
+			} else {
+				snapshot.Sources["node_capabilities"] = degradedSource(err.Error(), now)
+			}
+		} else {
+			snapshot.Sources["node_capabilities"] = readySource(now)
+		}
 	}
 	resourcesReady := s.collectNodeResources(ctx, now, &snapshot)
 	s.collectStorageInventory(now, &snapshot)
@@ -155,7 +171,7 @@ func (s *AxnodedSource) Collect(ctx context.Context) (NodeInventorySnapshot, boo
 	if snapshot.Node.Name == "" {
 		snapshot.Node.Name = "unknown"
 	}
-	return snapshot, resourcesReady && localReady
+	return snapshot, resourcesReady && localReady && capabilitiesReady
 }
 
 func (s *AxnodedSource) collectNodeResources(ctx context.Context, now time.Time, snapshot *NodeInventorySnapshot) bool {

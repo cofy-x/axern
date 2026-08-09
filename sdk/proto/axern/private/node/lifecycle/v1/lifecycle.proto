@@ -6,6 +6,7 @@ option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifec
 
 import "axern/control/common/v1/common.proto";
 import "axern/control/catalog/v1/catalog.proto";
+import "axern/control/capability/v1/capability.proto";
 import "axern/control/storage/v1/storage_types.proto";
 import "axern/private/storage/v1/storage.proto";
 import "google/protobuf/duration.proto";
@@ -112,7 +113,7 @@ message ResolvedExecutionConfig {
   map<string, string> env = 7;
   repeated SandboxMount mounts = 8;
   axern.control.common.v1.ResourceSpec resources = 9;
-  repeated axern.control.common.v1.CapabilityRequirement capability_requirements = 10;
+  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 10;
   string locality_key = 11;
   bool rootfs_readonly = 12;
   repeated axern.control.common.v1.PortSpec ports = 13;
@@ -133,6 +134,7 @@ message ResolvedExecutionConfig {
   repeated axern.private.storage.v1.ResolvedNodeVolume node_volumes = 28;
   repeated ImageMount image_mounts = 29;
   WorkspaceImageSource workspace_image = 30;
+  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 31;
 }
 
 message CreateAllocationRequest {
@@ -147,6 +149,11 @@ message CreateAllocationResponse {
   int64 attempt = 2;
   repeated axern.private.storage.v1.PublishedNodeVolume published_volumes = 3;
   axern.control.common.v1.WorkspacePreparationFacts workspace_preparation = 4;
+  repeated axern.control.capability.v1.CapabilityCondition capability_verification = 5;
+  // The concrete dependency/evidence set admitted by axnoded after the
+  // runtime-specific post-create verification. This is authoritative; callers
+  // must not reconstruct admitted evidence from conditions.
+  repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 6;
 }
 
 message DeleteAllocationRequest {
@@ -171,4 +178,6 @@ message GetAllocationStatusResponse {
   int32 exit_code = 2;
   bool exit_code_known = 3;
   string message = 4;
+  repeated axern.control.capability.v1.CapabilityCondition capability_verification = 5;
+  repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 6;
 }

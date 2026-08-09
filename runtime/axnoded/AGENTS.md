@@ -24,8 +24,8 @@ README or `docs/`, not here.
 
   | Package | Owns |
   | --- | --- |
-  | [`internal/service/allocation`](internal/service/allocation) | allocation start/delete lifecycle, runtime template mapping, execution envelope, readonly rootfs mount validation, start metrics |
-  | [`internal/service/controlplane`](internal/service/controlplane) | allocation and exit report shaping, node reporter construction, control-plane node capability defaults |
+  | [`internal/service/allocation`](internal/service/allocation) | allocation start/delete lifecycle, capability dependency persistence and verification, runtime template mapping, execution envelope, rootfs preparation, start metrics |
+  | [`internal/service/controlplane`](internal/service/controlplane) | allocation, capability-condition, and exit report shaping plus node reporter construction |
   | [`internal/service/imageprocess`](internal/service/imageprocess) | image-backed process orchestration, actor lifecycle, mount resolution, stream handling, cleanup policy |
   | [`internal/service/networking`](internal/service/networking) | sandbox network lookup, DNAT lifecycle, activation cleanup, HTTP proxy transport |
   | [`internal/service/process`](internal/service/process) | sandbox command execution, exec/process facade orchestration, metrics envelopes, process session transport, stream pump behavior |
@@ -55,8 +55,16 @@ README or `docs/`, not here.
   [`internal/runtime/rootfsview`](internal/runtime/rootfsview). It adapts
   already-resolved rootfs paths for local OCI runtimes; it must not own image
   pull, image mount, or `imagemgr` socket coordination.
-- Runtime capabilities and resource requirements must come from
-  `handler.Capabilities()` and `handler.Requirements()`.
+- Keep observed node capability snapshot ownership under
+  [`internal/nodecapability`](internal/nodecapability). Providers publish typed
+  facts through that manager; they must not append strings to node summaries or
+  treat a successful user allocation as probe evidence. Shared platform keys,
+  provider ownership, dependencies, validity, and loss policy belong in
+  [`lib/go/nodecapability`](../../lib/go/nodecapability).
+- Runtime handler static features and resource requirements must come from
+  `handler.Capabilities()` and `handler.Requirements()`. They are local handler
+  declarations, not observed node platform capabilities and not sandboxd
+  operation discovery.
 - New runtimes must register through `RegisterRuntimeFactory` in
   [`internal/runtime`](internal/runtime).
 - Keep rootfs and image-manager coordination in
@@ -98,6 +106,10 @@ README or `docs/`, not here.
 - Runtime registration, capability, or requirement changes: update runtime
   status/dashboard behavior plus tests in [`internal/runtime`](internal/runtime)
   and [`internal/service/runtime_status_facade_test.go`](internal/service/runtime_status_facade_test.go).
+- Observed node capability changes: update the capability proto, shared catalog,
+  provider manager, inventory/reporting, create-time gate, and
+  [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md)
+  together. Coordinate placement and persistence changes with controld.
 - Image-backed rootfs or `imagemgr` integration changes: keep socket/request
   expectations aligned with `runtime/imagemgr`; update
   [Runtime Stack](../../.x/runtime-stack.md) if the cross-runtime

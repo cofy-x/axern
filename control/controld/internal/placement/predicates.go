@@ -1,7 +1,12 @@
 package placement
 
 import (
+	"time"
+
+	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
+	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
 
@@ -59,36 +64,39 @@ func labelsMatch(labels, selector map[string]string) bool {
 	return true
 }
 
-func hasCapability(summary *nodev1.NodeSummary, want string) bool {
-	if want == "" {
-		return true
-	}
-	for _, capability := range summary.GetCapabilities() {
-		if capability == want {
-			return true
-		}
-	}
-	return false
+func hasCapability(summary *nodev1.NodeSummary, want *capabilityv1.CapabilityKey, now time.Time) bool {
+	_, available := capabilitycontract.AvailableObservation(summary.GetCapabilitySnapshot(), want, now)
+	return available
 }
 
-func hasCapabilities(summary *nodev1.NodeSummary, wants []string) bool {
+func hasCapabilities(summary *nodev1.NodeSummary, wants []*capabilityv1.CapabilityKey, now time.Time) bool {
 	for _, want := range wants {
-		if !hasCapability(summary, want) {
+		if !hasCapability(summary, want, now) {
 			return false
 		}
 	}
 	return true
 }
 
-func requiresPortsCapability(req *Request) bool {
+func requiresPortsCapability(req *placementkernel.Request) bool {
 	return req.GetRequiresHostPort() || len(req.GetPorts()) > 0
 }
 
-func requiredNetworkCapability(req *Request) string {
-	if req == nil || req.GetNetwork() == "" {
-		return ""
+func requiresNodeDataplane(req *placementkernel.Request) bool {
+	return req != nil && req.GetNetwork() != "host"
+}
+
+func availableNetworkCapability(summary *nodev1.NodeSummary, now time.Time) *capabilityv1.CapabilityKey {
+	for _, platform := range []capabilityv1.PlatformCapability{
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
+	} {
+		key := capabilitycontract.PlatformKey(platform)
+		if hasCapability(summary, key, now) {
+			return key
+		}
 	}
-	return "network:" + req.GetNetwork()
+	return nil
 }
 
 func hasAvailableCPU(policy resourcekernel.AdmissionPolicy, summary *nodev1.NodeSummary, requested int64) bool {

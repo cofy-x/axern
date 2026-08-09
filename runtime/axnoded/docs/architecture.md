@@ -10,6 +10,7 @@ This document is the internal architecture map for `runtime/axnoded`. Use
 flowchart TB
     Entry["cmd/axnoded"] --> App["internal/app"]
     App --> API["internal/api"]
+    App --> Capability["internal/nodecapability"]
     API --> Service["internal/service"]
 
     Service --> Allocation["service/allocation + startplan"]
@@ -22,6 +23,8 @@ flowchart TB
     Allocation --> Container["internal/container"]
     Allocation --> NodeState["internal/nodestate"]
     Allocation --> Runtime["internal/runtime"]
+    Capability --> Inventory["atomic capability snapshot"]
+    Capability --> Allocation
 
     Access --> RuntimeClient["internal/runtime/sandboxd"]
     Control --> Container
@@ -45,6 +48,15 @@ Layer ownership:
 - `internal/nodestate` owns the process-wide BoltDB handle and low-level record
   transactions. Allocation orchestration owns the schema and keeps runtime
   template identity plus image/workspace ownership in one record per allocation.
+- `internal/nodecapability` owns provider registration, atomic snapshots,
+  recovery hysteresis, and the node-local admission view. The shared catalog
+  owns derivation and loss policy; providers do not write node summaries
+  directly.
+
+The cross-system capability contract is documented in
+[Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md).
+It is distinct from sandboxd operation discovery described later in this
+document.
 
 Rootfs handling follows the three-boundary contract in
 [rootfs-storage.md](rootfs-storage.md): host target projection, runtime-specific
@@ -59,6 +71,7 @@ sequenceDiagram
     participant Control as controld
     participant API as internal/api
     participant Start as service/allocation
+    participant Capability as internal/nodecapability
     participant Volume as internal/volume
     participant LangRT as internal/langruntime
     participant Resources as internal/resources
@@ -68,10 +81,12 @@ sequenceDiagram
 
     Control->>API: NodeLifecycle.CreateAllocation
     API->>Start: create allocation request
+    Start->>Capability: persist and verify admitted dependencies
     Start->>Volume: publish resolved node volumes
     Start->>LangRT: resolve runtime rootfs / image rootfs
     Start->>Resources: allocate cgroup and interface
     Start->>Runtime: create OCI bundle and container
+    Start->>Capability: verify allocation-specific enforcement
     Runtime->>Sandboxd: launch as sandbox PID 1
     Runtime-->>Start: readiness, runtime labels, status
     Start->>Container: persist metadata, resources, and runtime status
@@ -83,6 +98,9 @@ Create invariants:
 
 - `controld` owns placement and sends resolved inputs; `axnoded` owns node-local
   materialization.
+- Capability dependencies are persisted and checked before materialization;
+  runtime-specific hard enforcement is checked again after create. Failure uses
+  the same allocation rollback path.
 - Resolved volumes are published through `volumed`; `axnoded` does not call
   `storaged` directly.
 - Rootfs/image resolution goes through `internal/langruntime` and `imagemgr`.
@@ -143,6 +161,7 @@ Operation invariants:
 | Cross-runtime sockets, storage, imagemgr, bpfnet, or gateway relationships | [Runtime Stack](../../../.x/runtime-stack.md) |
 | Config fields and local profiles | [Configuration](configuration.md) |
 | Resource claims, pools, accounting, or network backend behavior | [Resource Management](resource.md) |
+| Observed node facts, catalog policy, admission evidence, or enforcement loss | [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md) |
 | Sandboxd injection, PID 1 lifecycle, or daemon API boundary | [Sandbox Daemon](sandbox-daemon.md) |
 | Sandboxd provider state, optional capabilities, or product error shape | [Sandboxd Capabilities And Providers](sandboxd-capabilities.md) |
 | Required validation | [Verification](verification.md) |

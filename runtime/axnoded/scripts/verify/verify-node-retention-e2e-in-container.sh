@@ -6,7 +6,7 @@ IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
 IMAGE_URL="${IMAGE_URL:?IMAGE_URL is required}"
 METRICS_URL="${METRICS_URL:-http://127.0.0.1:23001/debug/metricsz}"
-AXNODED_IDLE_RUNTIME_RETENTION_TTL="${AXNODED_IDLE_RUNTIME_RETENTION_TTL:-5s}"
+AXNODED_IDLE_RUNTIME_RETENTION_TTL="${AXNODED_IDLE_RUNTIME_RETENTION_TTL:-15s}"
 # shellcheck source-path=SCRIPTDIR/..
 source "${SCRIPT_DIR}/../lib/metricsz.sh"
 
@@ -30,6 +30,9 @@ if ! [ -S "${IMAGEMGR_SOCKET}" ] || ! [ -S "${AXNODED_SOCKET}" ] || ! curl -fsS 
   echo "required sockets or axnoded readiness not ready" >&2
   exit 1
 fi
+
+metricsz_wait_capability_snapshot
+metrics_before="$(metricsz_fetch)"
 
 fetch_axnoded_inventory() {
   local body_file="$1"
@@ -136,20 +139,22 @@ container_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtim
 axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}"
 container_id=""
 
-fetch_axnoded_inventory "${inventory_file}"
-wait_for_jq \
-  "inventory retained counts after first delete" \
-  "${inventory_file}" \
-  30 \
-  '.heat.retained_runtime_count == 1 and .heat.retained_rootfs_count == 1 and .components.imagemgr.mounted_image_count >= 1 and (.heat.mounted_image_urls | index($image_url) != null) and any(.heat.locality[]?; .key == ("image:" + $image_url) and .retained_runtime_count >= 1 and .retained_rootfs_count >= 1 and .mounted == true)' \
-  --arg image_url "${IMAGE_URL}"
-
+# Imagemgr is the authoritative lease owner, so verify it before waiting for
+# the eventually refreshed node inventory projection of the same state.
 fetch_imagemgr_details "${details_file}"
 wait_for_jq \
   "imagemgr retained mount detail after first delete" \
   "${details_file}" \
   30 \
   'any(.mounts[]?; .image_url == $image_url)' \
+  --arg image_url "${IMAGE_URL}"
+
+fetch_axnoded_inventory "${inventory_file}"
+wait_for_jq \
+  "inventory retained counts after first delete" \
+  "${inventory_file}" \
+  30 \
+  '.heat.retained_runtime_count == 1 and .heat.retained_rootfs_count == 1 and .components.imagemgr.mounted_image_count >= 1 and (.heat.mounted_image_urls | index($image_url) != null) and any(.heat.locality[]?; .key == ("image:" + $image_url) and .retained_runtime_count >= 1 and .retained_rootfs_count >= 1 and .mounted == true)' \
   --arg image_url "${IMAGE_URL}"
 
 container_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtime_name}.retention.second.stdout" "/tmp/${runtime_name}.retention.second.stderr")"
@@ -169,13 +174,13 @@ wait_for_jq \
   --arg image_url "${IMAGE_URL}"
 
 metrics_output="$(fetch_metrics)"
-metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
+metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
   "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
-metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
+metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
   "axern.start_class=warm" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
-metricsz_assert_value "${metrics_output}" "axern.axnoded_retention_reuse_total" "counter" "1" \
+metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_retention_reuse_total" "counter" "1" \
   "axern.kind=runtime" "axern.rootfs_type=image"
-metricsz_assert_value "${metrics_output}" "axern.axnoded_retention_reuse_total" "counter" "1" \
+metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_retention_reuse_total" "counter" "1" \
   "axern.kind=rootfs" "axern.rootfs_type=image"
 
 wait_for_jq \
@@ -194,9 +199,9 @@ wait_for_jq \
   --arg image_url "${IMAGE_URL}"
 
 metrics_output="$(fetch_metrics)"
-metricsz_assert_value "${metrics_output}" "axern.axnoded_retention_eviction_total" "counter" "1" \
+metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_retention_eviction_total" "counter" "1" \
   "axern.kind=runtime" "axern.rootfs_type=image" "axern.reason=ttl_expired"
-metricsz_assert_value "${metrics_output}" "axern.axnoded_retention_eviction_total" "counter" "1" \
+metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_retention_eviction_total" "counter" "1" \
   "axern.kind=rootfs" "axern.rootfs_type=image" "axern.reason=ttl_expired"
 
 container_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtime_name}.retention.third.stdout" "/tmp/${runtime_name}.retention.third.stderr")"
@@ -208,9 +213,9 @@ axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}"
 container_id=""
 
 metrics_output="$(fetch_metrics)"
-metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_total" "counter" "2" \
+metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_total" "counter" "2" \
   "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
-metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
+metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
   "axern.start_class=warm" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
 
 echo "verify_node_retention_e2e_ok=true"

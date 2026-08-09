@@ -13,6 +13,7 @@ import (
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
 	pgreservation "github.com/cofy-x/axern/control/controld/internal/postgres/reservation"
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
@@ -65,22 +66,27 @@ func (s *PGStore) AdmitAllocation(ctx context.Context, serviceID string, config 
 		if err != nil {
 			return err
 		}
+		capabilityDependenciesJSON, err := marshalProtoJSON(&capabilityv1.CapabilityDependencySet{Dependencies: selected.CapabilityDependencies})
+		if err != nil {
+			return err
+		}
 		alloc = &servicekernel.AllocationRecord{
-			AllocationID:      "alloc-" + uuid.NewString(),
-			ServiceID:         current.GetID(),
-			DesiredSpecDigest: desiredSpecDigest,
-			NodeID:            selected.NodeID,
-			NodeTarget:        selected.NodeTarget,
-			Attempt:           1,
-			ReadinessProbe:    servicekernel.CloneReadinessProbe(current.GetReadinessProbe()),
-			LivenessProbe:     servicekernel.CloneLivenessProbe(current.GetLivenessProbe()),
+			AllocationID:           "alloc-" + uuid.NewString(),
+			ServiceID:              current.GetID(),
+			DesiredSpecDigest:      desiredSpecDigest,
+			NodeID:                 selected.Record.NodeID,
+			NodeTarget:             selected.Record.NodeTarget,
+			Attempt:                1,
+			ReadinessProbe:         servicekernel.CloneReadinessProbe(current.GetReadinessProbe()),
+			LivenessProbe:          servicekernel.CloneLivenessProbe(current.GetLivenessProbe()),
+			CapabilityDependencies: selected.CapabilityDependencies,
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO allocations (
 				allocation_id, owner_type, owner_id, desired_spec_digest, environment_id, node_id, attempt, status, ready, readiness_message, readiness_probe, liveness_probe,
-				config, version, created_at, updated_at, exit_code, exit_code_known, message
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, '', $9::jsonb, $10::jsonb, $11::jsonb, 1, $12, $13, 0, false, '')
-		`, alloc.AllocationID, allocationOwnerService, current.GetID(), desiredSpecDigest, current.GetEnvironmentID(), alloc.NodeID, alloc.Attempt, commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND.String(), readinessProbeJSON, livenessProbeJSON, configJSON, now.UTC(), now.UTC()); err != nil {
+				config, capability_dependencies, version, created_at, updated_at, exit_code, exit_code_known, message
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, '', $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, 1, $13, $14, 0, false, '')
+		`, alloc.AllocationID, allocationOwnerService, current.GetID(), desiredSpecDigest, current.GetEnvironmentID(), alloc.NodeID, alloc.Attempt, commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND.String(), readinessProbeJSON, livenessProbeJSON, configJSON, capabilityDependenciesJSON, now.UTC(), now.UTC()); err != nil {
 			return fmt.Errorf("insert service allocation: %w", err)
 		}
 		res := normalizedConfig.GetResources().GetRequests()

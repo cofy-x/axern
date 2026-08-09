@@ -252,17 +252,18 @@ func (c *controller) reconcileAllocationCreate(ctx context.Context, item allocat
 	}
 	stageStarted = time.Now()
 	createResult, err := c.lifecycle.CreateResolvedAllocation(ctx, servicekernel.CreateResolvedAllocationRequest{
-		Target:         item.NodeTarget,
-		Namespace:      service.GetNamespace(),
-		ServiceID:      service.GetID(),
-		AllocationID:   item.AllocationID,
-		Attempt:        item.Attempt,
-		Config:         service.GetConfig(),
-		Environment:    env,
-		NodeID:         item.NodeID,
-		ReadinessProbe: service.GetReadinessProbe(),
-		LivenessProbe:  service.GetLivenessProbe(),
-		NodeVolumes:    nodeVolumes,
+		Target:                 item.NodeTarget,
+		Namespace:              service.GetNamespace(),
+		ServiceID:              service.GetID(),
+		AllocationID:           item.AllocationID,
+		Attempt:                item.Attempt,
+		Config:                 service.GetConfig(),
+		Environment:            env,
+		NodeID:                 item.NodeID,
+		ReadinessProbe:         service.GetReadinessProbe(),
+		LivenessProbe:          service.GetLivenessProbe(),
+		NodeVolumes:            nodeVolumes,
+		CapabilityDependencies: item.CapabilityDependencies,
 	})
 	c.recordReplicaStage(ctx, serviceReplicaPathReconcileCreate, serviceReplicaStageNodeCreateAllocation, stageStarted, err)
 	if err != nil {
@@ -287,6 +288,12 @@ func (c *controller) reconcileAllocationCreate(ctx context.Context, item allocat
 	stageStarted = time.Now()
 	if createResult == nil {
 		createResult = &servicekernel.CreateResolvedAllocationResult{}
+	}
+	if err := c.allocations.RecordCapabilityVerification(ctx, item.AllocationID, &allocationkernel.CapabilityAdmission{
+		Dependencies: createResult.AdmittedCapabilityDependencies,
+		Conditions:   createResult.CapabilityVerification,
+	}, now); err != nil {
+		return err
 	}
 	if err := c.reportStoragePublished(ctx, item.AllocationID, item.NodeID, createResult.PublishedVolumes); err != nil {
 		c.recordReplicaStage(ctx, serviceReplicaPathReconcileCreate, serviceReplicaStageReportStoragePublished, stageStarted, err)

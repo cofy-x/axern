@@ -876,6 +876,10 @@ func (f *capacityRaceAllocationStore) RecordWorkspacePreparation(context.Context
 	return nil
 }
 
+func (f *capacityRaceAllocationStore) RecordCapabilityVerification(context.Context, string, *allocationkernel.CapabilityAdmission, time.Time) error {
+	return nil
+}
+
 func (f *capacityRaceAllocationStore) CompleteAllocationRelease(context.Context, string, time.Time) error {
 	panic("unexpected CompleteAllocationRelease call")
 }
@@ -920,6 +924,10 @@ func (f *fakeReconcileAllocationStore) MarkAllocationCreateFailed(_ context.Cont
 }
 
 func (f *fakeReconcileAllocationStore) RecordWorkspacePreparation(context.Context, string, string, int64, *commonv1.WorkspacePreparationFacts, time.Time) error {
+	return nil
+}
+
+func (f *fakeReconcileAllocationStore) RecordCapabilityVerification(context.Context, string, *allocationkernel.CapabilityAdmission, time.Time) error {
 	return nil
 }
 

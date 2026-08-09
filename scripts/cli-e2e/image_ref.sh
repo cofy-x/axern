@@ -92,7 +92,7 @@ raise SystemExit(1)
   fi
 
   "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service delete "${service_id}" -o json >"${cli_object_output}"
-  deleted_service_id="$(json_query "service delete external image-ref" 'json.load(sys.stdin)["service_id"]' "$(cat "${cli_object_output}")")"
+  deleted_service_id="$(json_query "service delete external image-ref" 'json.load(sys.stdin)["service"]["id"]' "$(cat "${cli_object_output}")")"
   [ "${deleted_service_id}" = "${service_id}" ] || {
     echo "service delete returned id = ${deleted_service_id}, want ${service_id}" >&2
     dump_logs

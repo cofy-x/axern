@@ -8,6 +8,8 @@ import (
 	"time"
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
+	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/grpc/codes"
@@ -108,13 +110,13 @@ func hashNodeAuthToken(token string) string {
 
 func ReadySummary(collectedAt time.Time) *nodev1.NodeSummary {
 	return &nodev1.NodeSummary{
-		CollectedAt:  timestamppb.New(collectedAt),
-		NodeState:    nodev1.NodeState_NODE_STATE_READY,
-		Capabilities: []string{"feature:ports", "network:bridge"},
-		Resources:    &nodev1.ResourcesSummary{AxnodedUsedMilli: 100, AxnodedUsedBytes: 1000},
-		Allocatable:  &commonv1.ResourceQuantity{CpuMilli: 8000, MemoryBytes: 16 << 30},
-		Capacity:     &commonv1.ResourceQuantity{CpuMilli: 8000, MemoryBytes: 16 << 30},
-		Pools:        &nodev1.PoolsSummary{RuntimeSlots: &nodev1.PoolState{Idle: 8, Capacity: 8}, Cgroup: &nodev1.PoolState{Idle: 1, Capacity: 8}, Interface: &nodev1.PoolState{Idle: 1, Capacity: 8}},
+		CollectedAt:        timestamppb.New(collectedAt),
+		NodeState:          nodev1.NodeState_NODE_STATE_READY,
+		CapabilitySnapshot: readyCapabilitySnapshot(collectedAt),
+		Resources:          &nodev1.ResourcesSummary{AxnodedUsedMilli: 100, AxnodedUsedBytes: 1000},
+		Allocatable:        &commonv1.ResourceQuantity{CpuMilli: 8000, MemoryBytes: 16 << 30},
+		Capacity:           &commonv1.ResourceQuantity{CpuMilli: 8000, MemoryBytes: 16 << 30},
+		Pools:              &nodev1.PoolsSummary{RuntimeSlots: &nodev1.PoolState{Idle: 8, Capacity: 8}, Cgroup: &nodev1.PoolState{Idle: 1, Capacity: 8}, Interface: &nodev1.PoolState{Idle: 1, Capacity: 8}},
 		Components: &nodev1.ComponentsSummary{
 			Axnoded:  &nodev1.AxnodedSummary{State: nodev1.ComponentState_COMPONENT_STATE_READY, Ready: true},
 			Imagemgr: &nodev1.ImagemgrSummary{State: nodev1.ComponentState_COMPONENT_STATE_READY, Reachable: true},
@@ -122,6 +124,31 @@ func ReadySummary(collectedAt time.Time) *nodev1.NodeSummary {
 			Bpfnet:   &nodev1.BpfNetSummary{State: nodev1.ComponentState_COMPONENT_STATE_READY, Enabled: true, Ready: true},
 		},
 	}
+}
+
+func readyCapabilitySnapshot(collectedAt time.Time) *capabilityv1.CapabilitySnapshot {
+	platforms := []capabilityv1.PlatformCapability{
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_CGROUP_V2_MEMORY_CONTROLLER,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_XFS_PROJECT_QUOTA,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS,
+	}
+	observations := make([]*capabilityv1.CapabilityObservation, 0, len(platforms))
+	for _, platform := range platforms {
+		observations = append(observations, &capabilityv1.CapabilityObservation{
+			Key: capabilitycontract.PlatformKey(platform), State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
+			Provider:      capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_CONFIG,
+			ValidityScope: capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_CONFIG_STATIC,
+			ObservedAt:    timestamppb.New(collectedAt), Evidence: &capabilityv1.CapabilityEvidence{EvidenceID: platform.String(), ConfigDigest: "test"},
+		})
+	}
+	return &capabilityv1.CapabilitySnapshot{NodeInstanceID: "test-node-instance", Sequence: 1, SnapshotID: "test-snapshot", CollectedAt: timestamppb.New(collectedAt), Observations: observations}
 }
 
 func cloneNodeRecord(in *nodekernel.Record) *nodekernel.Record {

@@ -20,6 +20,7 @@ endpoints and logging for the current daemon invocation.
 | [`../config/config.go`](../config/config.go) | TOML schema, normalization helpers, and default overlay behavior |
 | [`../config/defaults.go`](../config/defaults.go) | default values used before TOML overlay |
 | [Resource Handling](resource.md) | cgroup/interface pool behavior behind `[plugin.resource]` and `[plugin.network]` |
+| [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md) | platform observation and structured extension capability contract |
 | [Runtime Logs](../../../docs/operations/runtime-logs.md) | cross-component log locations and meanings |
 | [Local Troubleshooting](../../../deploy/local/troubleshooting.md) | compose/kind troubleshooting commands |
 
@@ -51,7 +52,7 @@ inside the mounted dev volume before treating it as a runtime bug.
 | `control_plane_tls_cert` | Client certificate path. | Pair with `control_plane_tls_key`. |
 | `control_plane_tls_key` | Client private key path. | Pair with `control_plane_tls_cert`. |
 | `control_plane_node_state` | Advertised scheduling state. | Valid values are `ready`, `draining`, and `disabled`; invalid values normalize to `ready`. |
-| `control_plane_node_capabilities` | Extra advertised capabilities. | `feature:ports` and `network:<nat_backend>` are added implicitly. |
+| `[[node_extension_capabilities]]` | Exact-match extension facts using `name` and optional `value`. | Names must use `<dns-domain>/<name>`; Axern-owned domains are rejected. Platform capabilities cannot be configured. |
 | `[plugin.control_plane_node_labels]` | Explicit placement labels. | Empty keys are ignored and values are trimmed. Explicit labels override labels collected from the Kubernetes Node object. |
 
 Check the deployment Prometheus/LGTM metrics exported through OTEL, such as
@@ -62,6 +63,10 @@ or heartbeat behavior looks wrong. For allocation status delivery, inspect
 `axern_axnoded_allocation_status_oldest_pending_age_seconds`,
 `axern_axnoded_allocation_status_consecutive_failures`, and
 `axern_axnoded_allocation_status_retry_delay_seconds`.
+
+Extension capability declarations are config-static facts. Platform facts are
+owned by probes and derived policy, and therefore have no configuration list or
+operator override.
 
 ## Network
 
@@ -189,7 +194,7 @@ EROFS lower, ephemeral-storage backing, quota, and cleanup contract.
 | Local compose/kind with imagemgr | Keep `image_manager_enabled = true`; point `image_manager_socket` at the dev socket mounted into axnoded; keep `nat_backend = "iptables"` unless testing bpfnet. |
 | Local rootfs only | Set `image_manager_enabled = false`; make sure requests use local rootfs paths; keep `image_lib_dir` harmless. |
 | eBPF dataplane verification | Set `nat_backend = "ebpf"`; keep `local_out_compat = true` and `iptables_fallback = true`; confirm bpffs and privileged host access. |
-| Control-plane connected node | Set `control_plane_target`, stable `control_plane_node_id`, reachable `control_plane_node_target`, auth token, TLS paths, labels, and capabilities. |
+| Control-plane connected node | Set `control_plane_target`, stable `control_plane_node_id`, reachable `control_plane_node_target`, auth token, TLS paths, labels, and optional extension capabilities. Platform capabilities come from observed providers. |
 | Kubernetes production node | Set `control_plane_node_resource_source = "kubernetes"` and pass the Kubernetes Node name; the Helm chart does this by default and grants read-only `nodes/get` RBAC. |
 | Production node | Move `rootDir`, `storeDir`, and `image_lib_dir` to durable host paths; run `volumed` with durable state and local volume roots; set explicit DNS if node resolvers are not suitable for sandboxes. |
 

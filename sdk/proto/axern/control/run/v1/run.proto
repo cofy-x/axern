@@ -5,6 +5,7 @@ package axern.control.run.v1;
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1;runv1";
 
 import "axern/control/common/v1/common.proto";
+import "axern/control/capability/v1/capability.proto";
 import "google/protobuf/timestamp.proto";
 
 enum RunStatus {
@@ -36,7 +37,8 @@ message Run {
   axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 15;
   // Reserved for durable output metadata once output retention is owned by
   // the control plane rather than inferred from a node-local allocation.
-  reserved 16 to 18;
+  repeated axern.control.capability.v1.CapabilityCondition capability_conditions = 16;
+  reserved 17 to 18;
 }
 
 message RunListFilter {

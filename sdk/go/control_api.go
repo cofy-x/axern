@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
@@ -64,6 +65,7 @@ type CreateServiceOptions struct {
 	Env                     map[string]string
 	Cwd                     string
 	RuntimeClass            string
+	ExtensionCapabilities   []ExtensionCapability
 	Volumes                 []VolumeMount
 	ImageMounts             []ImageMount
 	WorkspaceImage          *WorkspaceImageSource
@@ -99,14 +101,15 @@ func (c *Client) CreateService(ctx context.Context, options CreateServiceOptions
 		EnvironmentID: options.EnvironmentID,
 		Replicas:      1,
 		Config: &commonv1.ExecutionConfig{
-			Argv:           append([]string(nil), options.Argv...),
-			Env:            cloneMap(options.Env),
-			Cwd:            options.Cwd,
-			RuntimeClass:   options.RuntimeClass,
-			VolumeMounts:   serviceVolumeMounts(options.Volumes),
-			ImageMounts:    executionImageMounts(options.ImageMounts),
-			WorkspaceImage: executionWorkspaceImage(options.WorkspaceImage),
-			Resources:      resources,
+			Argv:                            append([]string(nil), options.Argv...),
+			Env:                             cloneMap(options.Env),
+			Cwd:                             options.Cwd,
+			RuntimeClass:                    options.RuntimeClass,
+			ExtensionCapabilityRequirements: extensionCapabilityRequirements(options.ExtensionCapabilities),
+			VolumeMounts:                    serviceVolumeMounts(options.Volumes),
+			ImageMounts:                     executionImageMounts(options.ImageMounts),
+			WorkspaceImage:                  executionWorkspaceImage(options.WorkspaceImage),
+			Resources:                       resources,
 		},
 		Labels: cloneMap(options.Labels),
 	})
@@ -114,6 +117,21 @@ func (c *Client) CreateService(ctx context.Context, options CreateServiceOptions
 		return nil, mapRPCError(err, "create service", "")
 	}
 	return response.GetService(), nil
+}
+
+// ExtensionCapability is an exact-match, DNS-qualified node extension fact.
+// Platform capabilities are inferred by Axern and cannot be requested here.
+type ExtensionCapability struct {
+	Name  string
+	Value string
+}
+
+func extensionCapabilityRequirements(values []ExtensionCapability) []*capabilityv1.ExtensionCapabilityRequirement {
+	result := make([]*capabilityv1.ExtensionCapabilityRequirement, 0, len(values))
+	for _, value := range values {
+		result = append(result, &capabilityv1.ExtensionCapabilityRequirement{Capability: &capabilityv1.ExtensionCapability{Name: strings.TrimSpace(value.Name), Value: value.Value}})
+	}
+	return result
 }
 
 // VolumeMount describes a service volume claim mounted into a sandbox.

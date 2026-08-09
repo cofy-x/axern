@@ -21,8 +21,12 @@ func (h *sandboxService) Ready() bool {
 func (h *sandboxService) Run(ctx context.Context) error {
 	logrus.Infof("sandbox service run at %s", h.config.RootDir)
 	h.ready.Store(false)
+	if h.capabilityReconcileCancel != nil {
+		h.capabilityReconcileCancel()
+	}
 	h.inventoryCollector.Start()
 	h.controlPlaneReports.Start()
+	h.startCapabilityRefresh(ctx)
 	h.lrtManager.Start()
 	go h.containerManager.Start()
 	go func() {
@@ -43,6 +47,7 @@ func (h *sandboxService) Shutdown(ctx context.Context) error {
 func (h *sandboxService) shutdown(ctx context.Context) error {
 	logrus.Info("sandbox service shutting down")
 	h.ready.Store(false)
+	h.stopCapabilityRefresh()
 	h.stopAllReadinessWorkers()
 	h.stopAllLivenessWorkers()
 
