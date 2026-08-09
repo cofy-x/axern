@@ -13,6 +13,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	ebpfnetwork "github.com/cofy-x/axern/runtime/axnoded/internal/network/ebpf"
+	nodecapabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodestate"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -58,9 +59,14 @@ type sandboxService struct {
 	probeCoordinator *probes.Coordinator
 	probeAdapter     *probes.Adapter
 
-	nodeInventorySource *nodeinventory.AxnodedSource
-	inventoryCollector  *nodeinventory.Collector
-	controlPlaneReports *servicecontrolplane.Coordinator
+	nodeInventorySource       *nodeinventory.AxnodedSource
+	inventoryCollector        *nodeinventory.Collector
+	capabilityManager         *nodecapabilitymanager.Manager
+	capabilityReconcileMu     sync.Mutex
+	capabilityReconciling     map[string]struct{}
+	capabilityReconcileCtx    context.Context
+	capabilityReconcileCancel context.CancelFunc
+	controlPlaneReports       *servicecontrolplane.Coordinator
 
 	ready atomic.Bool
 
@@ -144,6 +150,7 @@ func newSandboxServiceState(cfg config.Config) (*sandboxService, error) {
 		volumeClient:    volumeClient,
 		volumeCloser:    volumeClient,
 	}
+	s.capabilityReconcileCtx, s.capabilityReconcileCancel = context.WithCancel(context.Background())
 	s.configureServiceCollaborators()
 	s.lrtManager.ConfigureRetention(retentionTTL, retentionMax)
 	return s, nil

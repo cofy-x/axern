@@ -105,14 +105,25 @@ func startupStepDurationSince(started time.Time) time.Duration {
 	return duration
 }
 
-func (h *Controller) cleanupFailedStart(ctx context.Context, containerID string) {
+func (h *Controller) cleanupFailedStart(ctx context.Context, containerID string) error {
 	h.sandboxNetworking().CleanupDnatRules(containerID)
 	h.sandboxNetworking().CloseHTTPProxyTransports(containerID)
-	_, _ = h.deleteContainer(ctx, &apipb.DeleteContainerRequest{ID: containerID, Timeout: 0})
-	_, _ = h.nodeVolumes().Unpublish(ctx, containerID)
-	if err := h.releaseAllocationState(containerID); err != nil {
-		logrus.WithError(err).WithField("allocation_id", containerID).Warn("release failed-start allocation state")
+	var cleanupErr error
+	if _, err := h.containers().Get(containerID); err == nil {
+		if _, err := h.deleteContainer(ctx, &apipb.DeleteContainerRequest{ID: containerID, Timeout: 0}); err != nil {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("delete failed-start runtime: %w", err))
+		}
 	}
+	if _, err := h.nodeVolumes().Unpublish(ctx, containerID); err != nil {
+		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("unpublish failed-start volumes: %w", err))
+	}
+	if cleanupErr != nil {
+		return cleanupErr
+	}
+	if err := h.releaseAllocationState(containerID); err != nil {
+		return fmt.Errorf("release failed-start allocation state: %w", err)
+	}
+	return nil
 }
 
 func startErrorResponse(message string) *runtime.StartResponse {

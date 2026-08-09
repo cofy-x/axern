@@ -2,8 +2,10 @@ package controlplane
 
 import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -85,10 +87,10 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 				LastReconcileInvalidVolumeCount:    int32(snapshot.Components.Volumed.LastReconcileInvalidVolumeCount),
 			},
 		},
-		Locality:     make([]*nodev1.LocalitySummary, 0, len(snapshot.Heat.Locality)),
-		NodeState:    nodeStateFromString(snapshot.Node.State),
-		Labels:       cloneNodeLabels(snapshot.Node.Labels),
-		Capabilities: append([]string(nil), snapshot.Node.Capabilities...),
+		Locality:           make([]*nodev1.LocalitySummary, 0, len(snapshot.Heat.Locality)),
+		NodeState:          nodeStateFromString(snapshot.Node.State),
+		Labels:             cloneNodeLabels(snapshot.Node.Labels),
+		CapabilitySnapshot: cloneCapabilitySnapshot(snapshot.Node.CapabilitySnapshot),
 		Capacity: &commonv1.ResourceQuantity{
 			CpuMilli: snapshot.Node.Capacity.CpuMilli, MemoryBytes: snapshot.Node.Capacity.MemoryBytes,
 			EphemeralStorageBytes: snapshot.Node.Capacity.EphemeralStorageBytes,
@@ -142,6 +144,13 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 		})
 	}
 	return summary
+}
+
+func cloneCapabilitySnapshot(in *capabilityv1.CapabilitySnapshot) *capabilityv1.CapabilitySnapshot {
+	if in == nil {
+		return nil
+	}
+	return proto.Clone(in).(*capabilityv1.CapabilitySnapshot)
 }
 
 func nodeStateFromString(state string) nodev1.NodeState {

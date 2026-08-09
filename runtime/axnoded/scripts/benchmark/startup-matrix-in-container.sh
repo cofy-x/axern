@@ -28,6 +28,8 @@ AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
 METRICS_URL="${METRICS_URL:-http://127.0.0.1:23001/debug/metricsz}"
 INVENTORY_URL="${INVENTORY_URL:-http://127.0.0.1:23001/inventoryz}"
 VERIFY_DOCKER_PLATFORM="${VERIFY_DOCKER_PLATFORM:-$(resolve_verify_docker_platform_local)}"
+# shellcheck source=/dev/null
+source /workspace/scripts/lib/metricsz.sh
 
 case "${STARTUP_MATRIX_SCENARIO}" in
   runsc-local)
@@ -109,6 +111,12 @@ if ! [ -S "${AXNODED_SOCKET}" ] || ! [ -S "${IMAGEMGR_SOCKET}" ] || ! curl -fsS 
   echo "axnoded node all-in-one did not become ready in time" >&2
   exit 1
 fi
+
+# Process readiness intentionally precedes the first complete capability and
+# inventory generation. Benchmark samples must start after WARMING has ended,
+# otherwise provider self-tests contaminate the scenario baseline and the
+# locality snapshot may still return 503.
+metricsz_wait_capability_snapshot
 
 cmd=(
   /usr/local/bin/verify-startup

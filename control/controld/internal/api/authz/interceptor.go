@@ -356,7 +356,10 @@ func publicPolicy(method string) (methodPolicy, bool) {
 	case "axern.control.admin.v1.AdminReliability":
 		return exactPolicy(methodName, accesskernel.ActionPlatformAdmin, "", "CheckConsistency", "GetAdminReliabilityHealth")
 	case "axern.control.admin.v1.NodeAdmin":
-		return exactPolicy(methodName, accesskernel.ActionPlatformAdmin, "", "ListAdminNodes", "RetireAdminNode")
+		return exactPolicy(methodName, accesskernel.ActionPlatformAdmin, "",
+			"ListAdminNodes", "RetireAdminNode",
+			"GetNodeCapabilitySnapshot", "ListNodeCapabilityTransitions",
+			"ListCapabilityReconcileQueue", "GetAllocationCapabilityDiagnostics")
 	case "axern.control.admin.v1.AllocationLifecycleAdmin":
 		return exactPolicy(methodName, accesskernel.ActionPlatformAdmin, "", "ListAllocationLifecycleRetries", "ForceAllocationLifecycleRetry", "FailAllocationLifecycleRetry", "ClearAllocationLifecycleRetry")
 	case "axern.control.admin.v1.ServiceAdmin":

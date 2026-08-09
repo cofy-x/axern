@@ -12,6 +12,7 @@ import (
 )
 
 var _ contract.RuntimeHandler = &RuncServiceHandler{}
+var _ contract.AllocationCapabilityVerifier = &RuncServiceHandler{}
 
 type RuncServiceHandler struct {
 	name                              string
@@ -19,7 +20,6 @@ type RuncServiceHandler struct {
 	ignoreCgroups                     bool
 	ephemeralStorageDefaultLimitBytes int64
 	writableCapacity                  *writableCapacityManager
-	capabilityDir                     string
 	containerRoot                     string
 	rootfsViews                       rootfsview.Provider
 	releaseFilestore                  func()

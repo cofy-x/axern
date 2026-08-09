@@ -47,6 +47,20 @@ type BPFNetworkManager struct {
 	gcStop     chan struct{}
 }
 
+func (m *BPFNetworkManager) ProbeHealth(string) (networkmanager.Health, error) {
+	status, err := m.controller.Status()
+	if err != nil {
+		return networkmanager.Health{}, fmt.Errorf("read bpfnet dataplane status: %w", err)
+	}
+	if status.State.LastAttachError != "" || status.State.LastTCProbeError != "" {
+		return networkmanager.Health{}, fmt.Errorf("bpfnet dataplane unhealthy: attach=%q probe=%q", status.State.LastAttachError, status.State.LastTCProbeError)
+	}
+	return networkmanager.Health{
+		PortForwardingReady:  status.State.TCReady || status.State.FullFallback,
+		NativeDataplaneReady: status.State.TCReady,
+	}, nil
+}
+
 func defaultControllerFactory(cfg config.BPFNetConfig) (dataplaneController, error) {
 	controller := bpfnet.NewController(bpfnet.Config{
 		UplinkDevices:      append([]string(nil), cfg.UplinkDevices...),

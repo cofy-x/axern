@@ -1,6 +1,14 @@
 package nodeinventory
 
-import "time"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	"google.golang.org/protobuf/encoding/protojson"
+)
 
 const SnapshotVersion = "v1alpha2"
 
@@ -25,13 +33,56 @@ type NodeResourceQuantity struct {
 }
 
 type NodeInfo struct {
-	Name         string               `json:"name"`
-	CollectedAt  time.Time            `json:"collected_at"`
-	State        string               `json:"state"`
-	Labels       map[string]string    `json:"labels,omitempty"`
-	Capabilities []string             `json:"capabilities,omitempty"`
-	Capacity     NodeResourceQuantity `json:"capacity"`
-	Allocatable  NodeResourceQuantity `json:"allocatable"`
+	Name               string                           `json:"name"`
+	CollectedAt        time.Time                        `json:"collected_at"`
+	State              string                           `json:"state"`
+	Labels             map[string]string                `json:"labels,omitempty"`
+	CapabilitySnapshot *capabilityv1.CapabilitySnapshot `json:"capability_snapshot,omitempty"`
+	Capacity           NodeResourceQuantity             `json:"capacity"`
+	Allocatable        NodeResourceQuantity             `json:"allocatable"`
+}
+
+// MarshalJSON keeps the inventory endpoint on ordinary JSON while delegating
+// protobuf oneof encoding to protojson. Standard encoding/json cannot round
+// trip CapabilityKey's generated oneof implementation.
+func (n NodeInfo) MarshalJSON() ([]byte, error) {
+	type nodeInfoAlias NodeInfo
+	var snapshot json.RawMessage
+	if n.CapabilitySnapshot != nil {
+		payload, err := (protojson.MarshalOptions{UseProtoNames: true}).Marshal(n.CapabilitySnapshot)
+		if err != nil {
+			return nil, fmt.Errorf("marshal capability snapshot: %w", err)
+		}
+		snapshot = payload
+	}
+	return json.Marshal(struct {
+		*nodeInfoAlias
+		CapabilitySnapshot json.RawMessage `json:"capability_snapshot,omitempty"`
+	}{nodeInfoAlias: (*nodeInfoAlias)(&n), CapabilitySnapshot: snapshot})
+}
+
+func (n *NodeInfo) UnmarshalJSON(data []byte) error {
+	if n == nil {
+		return fmt.Errorf("unmarshal node info: nil receiver")
+	}
+	type nodeInfoAlias NodeInfo
+	wire := struct {
+		*nodeInfoAlias
+		CapabilitySnapshot json.RawMessage `json:"capability_snapshot"`
+	}{nodeInfoAlias: (*nodeInfoAlias)(n)}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	n.CapabilitySnapshot = nil
+	if len(wire.CapabilitySnapshot) == 0 || bytes.Equal(bytes.TrimSpace(wire.CapabilitySnapshot), []byte("null")) {
+		return nil
+	}
+	snapshot := &capabilityv1.CapabilitySnapshot{}
+	if err := protojson.Unmarshal(wire.CapabilitySnapshot, snapshot); err != nil {
+		return fmt.Errorf("unmarshal capability snapshot: %w", err)
+	}
+	n.CapabilitySnapshot = snapshot
+	return nil
 }
 
 type CPUInventory struct {
@@ -204,8 +255,7 @@ func NewSnapshot() NodeInventorySnapshot {
 	return NodeInventorySnapshot{
 		Version: SnapshotVersion,
 		Node: NodeInfo{
-			Labels:       map[string]string{},
-			Capabilities: []string{},
+			Labels: map[string]string{},
 		},
 		Heat: HeatInventory{
 			MountedImageURLs: []string{},

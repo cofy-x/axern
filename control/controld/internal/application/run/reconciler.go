@@ -67,7 +67,7 @@ func (r reconciler) reconcileStart(ctx context.Context, item allocationkernel.Re
 	if start == nil || start.Run == nil || start.Environment == nil || start.Allocation == nil || runkernel.IsTerminal(start.Run.GetStatus()) {
 		return r.store.CompleteAllocationStart(ctx, item.AllocationID, now)
 	}
-	err = r.lifecycle.CreateAllocation(ctx, start.Allocation.NodeTarget, start.Run, start.Environment, start.Allocation.NodeID)
+	admission, err := r.lifecycle.CreateAllocation(ctx, start.Allocation.NodeTarget, start.Run, start.Environment, start.Allocation.NodeID, start.Allocation.CapabilityDependencies)
 	if err != nil {
 		if req, ok := allocationkernel.ScheduleCreateRetryRequest(item.AllocationID, item.ReconcileAttempts, err.Error(), now); ok {
 			_, err := r.store.RescheduleReconcile(ctx, req, now)
@@ -77,6 +77,9 @@ func (r reconciler) reconcileStart(ctx context.Context, item allocationkernel.Re
 			return markErr
 		}
 		return r.store.CompleteAllocationStart(ctx, item.AllocationID, now)
+	}
+	if err := r.store.RecordAllocationCapabilityVerification(ctx, start.Allocation.AllocationID, admission, now); err != nil {
+		return err
 	}
 	return r.store.CompleteAllocationStart(ctx, item.AllocationID, now)
 }

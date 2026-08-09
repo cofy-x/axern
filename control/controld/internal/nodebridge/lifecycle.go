@@ -11,6 +11,7 @@ import (
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	ctrlobs "github.com/cofy-x/axern/control/controld/internal/observability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
@@ -68,29 +69,34 @@ func New(client LifecycleClient, cfg Config) *Bridge {
 	}
 }
 
-func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string) error {
+func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, dependencies []*capabilityv1.CapabilityDependency) (*allocationkernel.CapabilityAdmission, error) {
 	callCtx, cancel := context.WithTimeout(ctx, b.createTimeout)
 	defer cancel()
 	stageStarted := time.Now()
 	req, err := b.buildCreateAllocationRequest(callCtx, createAllocationRequestParams{
-		AllocationID:   run.GetAllocationID(),
-		Attempt:        run.GetAttempt(),
-		Config:         run.GetConfig(),
-		Environment:    env,
-		NodeID:         nodeID,
-		DefaultRuntime: b.defaultRuntime,
+		AllocationID:           run.GetAllocationID(),
+		Attempt:                run.GetAttempt(),
+		Config:                 run.GetConfig(),
+		Environment:            env,
+		NodeID:                 nodeID,
+		DefaultRuntime:         b.defaultRuntime,
+		CapabilityDependencies: dependencies,
 	})
 	recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateAllocation, nodeLifecycleStageResolveCreateRequest, stageStarted, err)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	stageStarted = time.Now()
-	if _, err := b.client.CreateAllocation(callCtx, target, req); err != nil {
+	resp, err := b.client.CreateAllocation(callCtx, target, req)
+	if err != nil {
 		recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateAllocation, nodeLifecycleStageNodeCreateRPC, stageStarted, err)
-		return formatCreateAllocationError(err)
+		return nil, formatCreateAllocationError(err)
 	}
 	recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateAllocation, nodeLifecycleStageNodeCreateRPC, stageStarted, nil)
-	return nil
+	return &allocationkernel.CapabilityAdmission{
+		Dependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
+		Conditions:   cloneCapabilityConditions(resp.GetCapabilityVerification()),
+	}, nil
 }
 
 func (b *Bridge) CreateResolvedAllocation(ctx context.Context, req servicekernel.CreateResolvedAllocationRequest) (*servicekernel.CreateResolvedAllocationResult, error) {
@@ -98,17 +104,18 @@ func (b *Bridge) CreateResolvedAllocation(ctx context.Context, req servicekernel
 	defer cancel()
 	stageStarted := time.Now()
 	wireReq, err := b.buildCreateAllocationRequest(callCtx, createAllocationRequestParams{
-		AllocationID:   req.AllocationID,
-		Attempt:        req.Attempt,
-		Config:         req.Config,
-		Environment:    req.Environment,
-		NodeID:         req.NodeID,
-		DefaultRuntime: b.defaultRuntime,
-		Namespace:      req.Namespace,
-		ServiceID:      req.ServiceID,
-		ReadinessProbe: req.ReadinessProbe,
-		LivenessProbe:  req.LivenessProbe,
-		NodeVolumes:    req.NodeVolumes,
+		AllocationID:           req.AllocationID,
+		Attempt:                req.Attempt,
+		Config:                 req.Config,
+		Environment:            req.Environment,
+		NodeID:                 req.NodeID,
+		DefaultRuntime:         b.defaultRuntime,
+		Namespace:              req.Namespace,
+		ServiceID:              req.ServiceID,
+		ReadinessProbe:         req.ReadinessProbe,
+		LivenessProbe:          req.LivenessProbe,
+		NodeVolumes:            req.NodeVolumes,
+		CapabilityDependencies: req.CapabilityDependencies,
 	})
 	recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateResolvedAllocation, nodeLifecycleStageResolveCreateRequest, stageStarted, err)
 	if err != nil {
@@ -122,8 +129,10 @@ func (b *Bridge) CreateResolvedAllocation(ctx context.Context, req servicekernel
 	}
 	recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateResolvedAllocation, nodeLifecycleStageNodeCreateRPC, stageStarted, nil)
 	return &servicekernel.CreateResolvedAllocationResult{
-		PublishedVolumes:     clonePublishedNodeVolumes(resp.GetPublishedVolumes()),
-		WorkspacePreparation: resp.GetWorkspacePreparation(),
+		PublishedVolumes:               clonePublishedNodeVolumes(resp.GetPublishedVolumes()),
+		WorkspacePreparation:           resp.GetWorkspacePreparation(),
+		CapabilityVerification:         cloneCapabilityConditions(resp.GetCapabilityVerification()),
+		AdmittedCapabilityDependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
 	}, nil
 }
 

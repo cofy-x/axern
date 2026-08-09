@@ -13,6 +13,7 @@ import (
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	obsmetrics "github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	storagev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1"
@@ -40,6 +41,10 @@ type serviceLike interface {
 
 type workspacePreparationProvider interface {
 	WorkspacePreparation(containerID string) *commonv1.WorkspacePreparationFacts
+}
+
+type allocationCapabilityReconciler interface {
+	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, []*capabilityv1.CapabilityCondition, error)
 }
 
 func (s *nodeLifecycleServer) DeleteVolume(ctx context.Context, req *nodelifecyclev1.DeleteVolumeRequest) (*nodelifecyclev1.DeleteVolumeResponse, error) {
@@ -128,10 +133,12 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 		workspacePreparation = provider.WorkspacePreparation(resp.GetID())
 	}
 	return &nodelifecyclev1.CreateAllocationResponse{
-		AllocationID:         req.GetAllocationID(),
-		Attempt:              req.GetAttempt(),
-		PublishedVolumes:     clonePublishedNodeVolumes(resp.GetPublishedVolumes()),
-		WorkspacePreparation: workspacePreparation,
+		AllocationID:                   req.GetAllocationID(),
+		Attempt:                        req.GetAttempt(),
+		PublishedVolumes:               clonePublishedNodeVolumes(resp.GetPublishedVolumes()),
+		WorkspacePreparation:           workspacePreparation,
+		CapabilityVerification:         cloneCapabilityConditions(resp.GetCapabilityVerification()),
+		AdmittedCapabilityDependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
 	}, nil
 }
 
@@ -256,11 +263,21 @@ func (s *nodeLifecycleServer) GetAllocationStatus(ctx context.Context, req *node
 		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q not found", req.GetAllocationID())
 	}
 	container := resp.GetContainers()[0]
+	var admittedDependencies []*capabilityv1.CapabilityDependency
+	var capabilityVerification []*capabilityv1.CapabilityCondition
+	if reconciler, ok := s.svc.(allocationCapabilityReconciler); ok {
+		admittedDependencies, capabilityVerification, err = reconciler.ReconcileAllocationCapabilities(ctx, req.GetAllocationID())
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &nodelifecyclev1.GetAllocationStatusResponse{
-		Status:        allocationStatusFromContainerState(container.GetState()),
-		ExitCode:      container.GetExitCode(),
-		ExitCodeKnown: container.GetState() == runtimev1.ContainerState_CONTAINER_EXITED,
-		Message:       container.GetMessage(),
+		Status:                         allocationStatusFromContainerState(container.GetState()),
+		ExitCode:                       container.GetExitCode(),
+		ExitCodeKnown:                  container.GetState() == runtimev1.ContainerState_CONTAINER_EXITED,
+		Message:                        container.GetMessage(),
+		CapabilityVerification:         cloneCapabilityConditions(capabilityVerification),
+		AdmittedCapabilityDependencies: cloneCapabilityDependencies(admittedDependencies),
 	}, nil
 }
 
@@ -294,17 +311,18 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		return nil, grpcstatus.Error(codes.Internal, "build stable runtime template id")
 	}
 	return &runtimev1.StartRequest{
-		RuntimeTemplate: runtimeTemplate,
-		Resources:       toRuntimeLifecycleResources(spec.GetResources()),
-		ContainerID:     req.GetAllocationID(),
-		Ports:           lifecyclePortsToRuntime(spec.GetPorts()),
-		Network:         lifecycleNetworkToRuntime(spec.GetNetwork()),
-		ExtraConfig:     lifecycleExtraConfig(spec, req.GetAttempt()),
-		Stdout:          spec.GetStdoutPath(),
-		Stderr:          spec.GetStderrPath(),
-		NodeVolumes:     cloneResolvedNodeVolumes(spec.GetNodeVolumes()),
-		ImageMounts:     cloneImageMounts(spec.GetImageMounts()),
-		WorkspaceImage:  cloneWorkspaceImage(spec.GetWorkspaceImage()),
+		RuntimeTemplate:        runtimeTemplate,
+		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
+		ContainerID:            req.GetAllocationID(),
+		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
+		Network:                lifecycleNetworkToRuntime(spec.GetNetwork()),
+		ExtraConfig:            lifecycleExtraConfig(spec, req.GetAttempt()),
+		Stdout:                 spec.GetStdoutPath(),
+		Stderr:                 spec.GetStderrPath(),
+		NodeVolumes:            cloneResolvedNodeVolumes(spec.GetNodeVolumes()),
+		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
+		WorkspaceImage:         cloneWorkspaceImage(spec.GetWorkspaceImage()),
+		CapabilityDependencies: cloneCapabilityDependencies(spec.GetCapabilityDependencies()),
 	}, nil
 }
 
@@ -336,17 +354,18 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 		return nil, grpcstatus.Error(codes.Internal, "build stable runtime template id")
 	}
 	return &runtimev1.StartRequest{
-		RuntimeTemplate: runtimeTemplate,
-		Resources:       toRuntimeLifecycleResources(spec.GetResources()),
-		ContainerID:     containerID,
-		Ports:           lifecyclePortsToRuntime(spec.GetPorts()),
-		Network:         lifecycleNetworkToRuntime(spec.GetNetwork()),
-		ExtraConfig:     lifecycleExtraConfig(spec, 0),
-		Stdout:          spec.GetStdoutPath(),
-		Stderr:          spec.GetStderrPath(),
-		NodeVolumes:     cloneResolvedNodeVolumes(spec.GetNodeVolumes()),
-		ImageMounts:     cloneImageMounts(spec.GetImageMounts()),
-		WorkspaceImage:  cloneWorkspaceImage(spec.GetWorkspaceImage()),
+		RuntimeTemplate:        runtimeTemplate,
+		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
+		ContainerID:            containerID,
+		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
+		Network:                lifecycleNetworkToRuntime(spec.GetNetwork()),
+		ExtraConfig:            lifecycleExtraConfig(spec, 0),
+		Stdout:                 spec.GetStdoutPath(),
+		Stderr:                 spec.GetStderrPath(),
+		NodeVolumes:            cloneResolvedNodeVolumes(spec.GetNodeVolumes()),
+		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
+		WorkspaceImage:         cloneWorkspaceImage(spec.GetWorkspaceImage()),
+		CapabilityDependencies: cloneCapabilityDependencies(spec.GetCapabilityDependencies()),
 	}, nil
 }
 
@@ -355,6 +374,26 @@ func cloneRuntimeExecutionProfile(in *catalogv1.RuntimeExecutionProfile) *catalo
 		return nil
 	}
 	return proto.Clone(in).(*catalogv1.RuntimeExecutionProfile)
+}
+
+func cloneCapabilityDependencies(in []*capabilityv1.CapabilityDependency) []*capabilityv1.CapabilityDependency {
+	out := make([]*capabilityv1.CapabilityDependency, 0, len(in))
+	for _, dependency := range in {
+		if dependency != nil {
+			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityDependency))
+		}
+	}
+	return out
+}
+
+func cloneCapabilityConditions(in []*capabilityv1.CapabilityCondition) []*capabilityv1.CapabilityCondition {
+	out := make([]*capabilityv1.CapabilityCondition, 0, len(in))
+	for _, condition := range in {
+		if condition != nil {
+			out = append(out, proto.Clone(condition).(*capabilityv1.CapabilityCondition))
+		}
+	}
+	return out
 }
 
 func lifecycleRootfsConfig(spec *nodelifecyclev1.ResolvedExecutionConfig) (*runtimev1.RootfsConfig, error) {

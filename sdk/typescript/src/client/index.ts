@@ -44,6 +44,7 @@ export interface CreateServiceOptions {
   env?: Record<string, string>;
   cwd?: string;
   runtimeClass?: string;
+  extensionCapabilities?: readonly ExtensionCapability[];
   volumes?: readonly VolumeMount[];
   requestCpu?: ResourceQuantity;
   requestMemory?: ResourceQuantity;
@@ -52,6 +53,11 @@ export interface CreateServiceOptions {
   limitMemory?: ResourceQuantity;
   limitEphemeralStorage?: ResourceQuantity;
   labels?: Record<string, string>;
+}
+
+export interface ExtensionCapability {
+  name: string;
+  value?: string;
 }
 
 export interface ReadRunOutputOptions {
@@ -265,6 +271,9 @@ export class AxernClient {
             env: options.env ?? {},
             cwd: options.cwd ?? "",
             runtime_class: options.runtimeClass ?? "",
+            extension_capability_requirements: (options.extensionCapabilities ?? []).map((capability) => ({
+              capability: { name: capability.name, value: capability.value ?? "" },
+            })),
             volume_mounts: serviceVolumeMounts(options.volumes),
             resources,
           },

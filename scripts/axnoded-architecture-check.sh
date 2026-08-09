@@ -42,6 +42,7 @@ runtime/axnoded/internal/hostlinux
 runtime/axnoded/internal/langruntime
 runtime/axnoded/internal/natbench
 runtime/axnoded/internal/network
+runtime/axnoded/internal/nodecapability
 runtime/axnoded/internal/nodeinventory
 runtime/axnoded/internal/nodestate
 runtime/axnoded/internal/observability

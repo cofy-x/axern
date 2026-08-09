@@ -51,6 +51,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         limit_cpu: ResourceQuantity = "",
         limit_memory: ResourceQuantity = "",
         limit_ephemeral_storage: ResourceQuantity = "",
+        extension_capabilities: dict[str, str] | None = None,
         volumes: Iterable[VolumeMount] | None = None,
         upstream: str = "",
         remote_port: int | None = None,
@@ -80,6 +81,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         self._limit_cpu = limit_cpu
         self._limit_memory = limit_memory
         self._limit_ephemeral_storage = limit_ephemeral_storage
+        self._extension_capabilities = dict(extension_capabilities or {})
         self._volumes = tuple(volumes or ())
         self._upstream = upstream
         self._remote_port = remote_port
@@ -177,6 +179,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
                 limit_cpu=self._limit_cpu,
                 limit_memory=self._limit_memory,
                 limit_ephemeral_storage=self._limit_ephemeral_storage,
+                extension_capabilities=self._extension_capabilities,
                 volume_mounts=self._volumes,
                 namespace=self._namespace,
                 labels=self._labels,

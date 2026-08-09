@@ -119,6 +119,7 @@ class FunctionManifestTest(unittest.TestCase):
             {
                 "timeout_seconds": 30,
                 "env": {"GREETING": "hello"},
+                "extension_capabilities": {"example.com/accelerator": "v1"},
                 "resources": {"request_cpu": "500m", "limit_memory": "1GiB"},
                 "scaling": {"min_replicas": 1, "max_replicas": 3, "concurrency": 2, "idle_seconds": 90},
                 "volumes": [{"name": "data", "target": "/data", "readonly": True, "options": ["rbind"]}],
@@ -155,6 +156,9 @@ class FunctionManifestTest(unittest.TestCase):
             self.assertEqual(request.spec.worker_source.environment.namespace, "team-a")
             self.assertEqual(request.spec.timeout.seconds, 30)
             self.assertEqual(request.spec.config.env, {"GREETING": "hello"})
+            extension = request.spec.config.extension_capability_requirements[0].capability
+            self.assertEqual(extension.name, "example.com/accelerator")
+            self.assertEqual(extension.value, "v1")
             self.assertEqual(request.spec.config.resources.requests.cpu_milli, 500)
             self.assertEqual(request.spec.config.resources.limits.memory_bytes, 1024 * 1024 * 1024)
             self.assertEqual(request.spec.config.volume_mounts[0].name, "data")

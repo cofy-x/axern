@@ -1,6 +1,7 @@
 import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
+from axern.control.capability.v1 import capability_pb2 as _capability_pb2
 from axern.control.storage.v1 import storage_types_pb2 as _storage_types_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
@@ -52,6 +53,7 @@ class WorkloadDiagnosticCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     WORKLOAD_DIAGNOSTIC_CODE_VOLUME_PUBLISH_ERROR: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT: _ClassVar[WorkloadDiagnosticCode]
+    WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST: _ClassVar[WorkloadDiagnosticCode]
 
 class LeaseType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -89,6 +91,7 @@ WORKLOAD_DIAGNOSTIC_CODE_STORAGE_RESERVE_ERROR: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_VOLUME_PUBLISH_ERROR: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT: WorkloadDiagnosticCode
+WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST: WorkloadDiagnosticCode
 LEASE_TYPE_UNSPECIFIED: LeaseType
 LEASE_TYPE_RUN: LeaseType
 LEASE_TYPE_SERVICE: LeaseType
@@ -129,14 +132,6 @@ class NetworkSpec(_message.Message):
     MODE_FIELD_NUMBER: _ClassVar[int]
     mode: NetworkMode
     def __init__(self, mode: _Optional[_Union[NetworkMode, str]] = ...) -> None: ...
-
-class CapabilityRequirement(_message.Message):
-    __slots__ = ("name", "value")
-    NAME_FIELD_NUMBER: _ClassVar[int]
-    VALUE_FIELD_NUMBER: _ClassVar[int]
-    name: str
-    value: str
-    def __init__(self, name: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
 
 class PlacementConstraints(_message.Message):
     __slots__ = ("node_selector",)
@@ -236,7 +231,7 @@ class WorkspacePreparationFacts(_message.Message):
     def __init__(self, payload_format: _Optional[str] = ..., payload_digest: _Optional[str] = ..., cache_hit: _Optional[bool] = ..., image_resolve_ms: _Optional[int] = ..., image_pull_ms: _Optional[int] = ..., cow_prepare_ms: _Optional[int] = ...) -> None: ...
 
 class ExecutionConfig(_message.Message):
-    __slots__ = ("argv", "env", "cwd", "resources", "ports", "network", "capability_requirements", "placement", "secret_env", "secret_files", "volume_mounts", "runtime_class", "image_mounts", "workspace_image")
+    __slots__ = ("argv", "env", "cwd", "resources", "ports", "network", "extension_capability_requirements", "placement", "secret_env", "secret_files", "volume_mounts", "runtime_class", "image_mounts", "workspace_image")
     class EnvEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -250,7 +245,7 @@ class ExecutionConfig(_message.Message):
     RESOURCES_FIELD_NUMBER: _ClassVar[int]
     PORTS_FIELD_NUMBER: _ClassVar[int]
     NETWORK_FIELD_NUMBER: _ClassVar[int]
-    CAPABILITY_REQUIREMENTS_FIELD_NUMBER: _ClassVar[int]
+    EXTENSION_CAPABILITY_REQUIREMENTS_FIELD_NUMBER: _ClassVar[int]
     PLACEMENT_FIELD_NUMBER: _ClassVar[int]
     SECRET_ENV_FIELD_NUMBER: _ClassVar[int]
     SECRET_FILES_FIELD_NUMBER: _ClassVar[int]
@@ -264,7 +259,7 @@ class ExecutionConfig(_message.Message):
     resources: ResourceSpec
     ports: _containers.RepeatedCompositeFieldContainer[PortSpec]
     network: NetworkSpec
-    capability_requirements: _containers.RepeatedCompositeFieldContainer[CapabilityRequirement]
+    extension_capability_requirements: _containers.RepeatedCompositeFieldContainer[_capability_pb2.ExtensionCapabilityRequirement]
     placement: PlacementConstraints
     secret_env: _containers.RepeatedCompositeFieldContainer[SecretEnvVar]
     secret_files: _containers.RepeatedCompositeFieldContainer[SecretFile]
@@ -272,7 +267,7 @@ class ExecutionConfig(_message.Message):
     runtime_class: str
     image_mounts: _containers.RepeatedCompositeFieldContainer[ImageMount]
     workspace_image: WorkspaceImageSource
-    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., ports: _Optional[_Iterable[_Union[PortSpec, _Mapping]]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., capability_requirements: _Optional[_Iterable[_Union[CapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., volume_mounts: _Optional[_Iterable[_Union[ServiceVolumeMount, _Mapping]]] = ..., runtime_class: _Optional[str] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ..., workspace_image: _Optional[_Union[WorkspaceImageSource, _Mapping]] = ...) -> None: ...
+    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., ports: _Optional[_Iterable[_Union[PortSpec, _Mapping]]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., volume_mounts: _Optional[_Iterable[_Union[ServiceVolumeMount, _Mapping]]] = ..., runtime_class: _Optional[str] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ..., workspace_image: _Optional[_Union[WorkspaceImageSource, _Mapping]] = ...) -> None: ...
 
 class ExecutionLease(_message.Message):
     __slots__ = ("lease_id", "allocation_id", "node_id", "attempt", "lease_type", "plaintext_token", "revision", "expires_at", "revoked", "node_target", "validation_token_hash")

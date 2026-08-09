@@ -3,7 +3,10 @@
 verify_admin_lifecycle() {
   assert_reconcile_health_debug_endpoint
 
-  docker stop -t 1 "${NODE_CONTAINER_NAME}" >/dev/null
+  # Simulate a node disappearing after its last admitted snapshot without a
+  # graceful final NOT_READY report. This exercises the create lifecycle retry
+  # race; a gracefully stopped node must now be rejected by locked admission.
+  docker kill "${NODE_CONTAINER_NAME}" >/dev/null
 
   admin_run_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run --detach \
     -o json \

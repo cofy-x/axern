@@ -5,6 +5,7 @@ package axern.control.node.v1;
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1;nodev1";
 
 import "axern/control/common/v1/common.proto";
+import "axern/control/capability/v1/capability.proto";
 import "axern/control/tunnel/v1/tunnel.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -169,7 +170,7 @@ message NodeSummary {
   repeated LocalitySummary locality = 5;
   NodeState node_state = 6;
   map<string, string> labels = 7;
-  repeated string capabilities = 8;
+  axern.control.capability.v1.CapabilitySnapshot capability_snapshot = 8;
   axern.control.common.v1.ResourceQuantity capacity = 9;
   axern.control.common.v1.ResourceQuantity allocatable = 10;
   repeated NodeStorageSummary storage = 11;
@@ -204,6 +205,7 @@ message AllocationStatusObservation {
   google.protobuf.Timestamp observed_at = 7;
   bool ready = 8;
   string readiness_message = 9;
+  repeated axern.control.capability.v1.CapabilityCondition capability_conditions = 10;
 }
 
 message BatchReportAllocationStatusRequest {

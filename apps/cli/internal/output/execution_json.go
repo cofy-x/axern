@@ -1,20 +1,23 @@
 package output
 
-import commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+import (
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+)
 
 type ExecutionConfigJSON struct {
-	Argv                   []string                     `json:"argv,omitempty"`
-	Env                    map[string]string            `json:"env,omitempty"`
-	Cwd                    string                       `json:"cwd,omitempty"`
-	Resources              *ResourceSpecJSON            `json:"resources,omitempty"`
-	Ports                  []*PortSpecJSON              `json:"ports,omitempty"`
-	Network                *NetworkSpecJSON             `json:"network,omitempty"`
-	CapabilityRequirements []*CapabilityRequirementJSON `json:"capability_requirements,omitempty"`
-	Placement              *PlacementConstraintsJSON    `json:"placement,omitempty"`
-	SecretEnv              []*SecretEnvVarJSON          `json:"secret_env,omitempty"`
-	SecretFiles            []*SecretFileJSON            `json:"secret_files,omitempty"`
-	VolumeMounts           []*ServiceVolumeMountJSON    `json:"volume_mounts,omitempty"`
-	ImageMounts            []*ImageMountJSON            `json:"image_mounts,omitempty"`
+	Argv                            []string                              `json:"argv,omitempty"`
+	Env                             map[string]string                     `json:"env,omitempty"`
+	Cwd                             string                                `json:"cwd,omitempty"`
+	Resources                       *ResourceSpecJSON                     `json:"resources,omitempty"`
+	Ports                           []*PortSpecJSON                       `json:"ports,omitempty"`
+	Network                         *NetworkSpecJSON                      `json:"network,omitempty"`
+	ExtensionCapabilityRequirements []*ExtensionCapabilityRequirementJSON `json:"extension_capability_requirements,omitempty"`
+	Placement                       *PlacementConstraintsJSON             `json:"placement,omitempty"`
+	SecretEnv                       []*SecretEnvVarJSON                   `json:"secret_env,omitempty"`
+	SecretFiles                     []*SecretFileJSON                     `json:"secret_files,omitempty"`
+	VolumeMounts                    []*ServiceVolumeMountJSON             `json:"volume_mounts,omitempty"`
+	ImageMounts                     []*ImageMountJSON                     `json:"image_mounts,omitempty"`
 }
 
 type ResourceQuantityJSON struct {
@@ -39,7 +42,7 @@ type NetworkSpecJSON struct {
 	Mode string `json:"mode"`
 }
 
-type CapabilityRequirementJSON struct {
+type ExtensionCapabilityRequirementJSON struct {
 	Name  string `json:"name"`
 	Value string `json:"value,omitempty"`
 }
@@ -81,18 +84,18 @@ func NewExecutionConfigJSON(config *commonv1.ExecutionConfig) *ExecutionConfigJS
 		return nil
 	}
 	return &ExecutionConfigJSON{
-		Argv:                   append([]string(nil), config.GetArgv()...),
-		Env:                    cloneStringMap(config.GetEnv()),
-		Cwd:                    config.GetCwd(),
-		Resources:              newResourceSpecJSON(config.GetResources()),
-		Ports:                  newPortSpecJSONs(config.GetPorts()),
-		Network:                newNetworkSpecJSON(config.GetNetwork()),
-		CapabilityRequirements: newCapabilityRequirementJSONs(config.GetCapabilityRequirements()),
-		Placement:              newPlacementConstraintsJSON(config.GetPlacement()),
-		SecretEnv:              newSecretEnvVarJSONs(config.GetSecretEnv()),
-		SecretFiles:            newSecretFileJSONs(config.GetSecretFiles()),
-		VolumeMounts:           newServiceVolumeMountJSONs(config.GetVolumeMounts()),
-		ImageMounts:            newImageMountJSONs(config.GetImageMounts()),
+		Argv:                            append([]string(nil), config.GetArgv()...),
+		Env:                             cloneStringMap(config.GetEnv()),
+		Cwd:                             config.GetCwd(),
+		Resources:                       newResourceSpecJSON(config.GetResources()),
+		Ports:                           newPortSpecJSONs(config.GetPorts()),
+		Network:                         newNetworkSpecJSON(config.GetNetwork()),
+		ExtensionCapabilityRequirements: newExtensionCapabilityRequirementJSONs(config.GetExtensionCapabilityRequirements()),
+		Placement:                       newPlacementConstraintsJSON(config.GetPlacement()),
+		SecretEnv:                       newSecretEnvVarJSONs(config.GetSecretEnv()),
+		SecretFiles:                     newSecretFileJSONs(config.GetSecretFiles()),
+		VolumeMounts:                    newServiceVolumeMountJSONs(config.GetVolumeMounts()),
+		ImageMounts:                     newImageMountJSONs(config.GetImageMounts()),
 	}
 }
 
@@ -143,18 +146,18 @@ func newNetworkSpecJSON(network *commonv1.NetworkSpec) *NetworkSpecJSON {
 	return &NetworkSpecJSON{Mode: networkModeLabel(network.GetMode())}
 }
 
-func newCapabilityRequirementJSONs(requirements []*commonv1.CapabilityRequirement) []*CapabilityRequirementJSON {
+func newExtensionCapabilityRequirementJSONs(requirements []*capabilityv1.ExtensionCapabilityRequirement) []*ExtensionCapabilityRequirementJSON {
 	if len(requirements) == 0 {
 		return nil
 	}
-	out := make([]*CapabilityRequirementJSON, 0, len(requirements))
+	out := make([]*ExtensionCapabilityRequirementJSON, 0, len(requirements))
 	for _, requirement := range requirements {
 		if requirement == nil {
 			continue
 		}
-		out = append(out, &CapabilityRequirementJSON{
-			Name:  requirement.GetName(),
-			Value: requirement.GetValue(),
+		out = append(out, &ExtensionCapabilityRequirementJSON{
+			Name:  requirement.GetCapability().GetName(),
+			Value: requirement.GetCapability().GetValue(),
 		})
 	}
 	return out

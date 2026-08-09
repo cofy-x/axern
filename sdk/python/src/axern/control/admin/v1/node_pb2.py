@@ -23,9 +23,10 @@ _sym_db = _symbol_database.Default()
 
 
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
+from axern.control.capability.v1 import capability_pb2 as axern_dot_control_dot_capability_dot_v1_dot_capability__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n!axern/control/admin/v1/node.proto\x12\x16\x61xern.control.admin.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x96\x03\n\tAdminNode\x12\x0f\n\x07node_id\x18\x01 \x01(\t\x12J\n\x10lifecycle_status\x18\x02 \x01(\x0e\x32\x30.axern.control.admin.v1.AdminNodeLifecycleStatus\x12\x17\n\x0fheartbeat_fresh\x18\x03 \x01(\x08\x12\x15\n\rsummary_fresh\x18\x04 \x01(\x08\x12\x15\n\raxnoded_ready\x18\x05 \x01(\x08\x12\x1d\n\x15heartbeat_age_seconds\x18\x06 \x01(\x03\x12\x1b\n\x13summary_age_seconds\x18\x07 \x01(\x03\x12\x31\n\rregistered_at\x18\x08 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\t \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nretired_at\x18\n \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x16\n\x0eretired_reason\x18\x0b \x01(\t\"c\n\x15ListAdminNodesRequest\x12J\n\x10lifecycle_status\x18\x01 \x01(\x0e\x32\x30.axern.control.admin.v1.AdminNodeLifecycleStatus\"J\n\x16ListAdminNodesResponse\x12\x30\n\x05nodes\x18\x01 \x03(\x0b\x32!.axern.control.admin.v1.AdminNode\"B\n\x16RetireAdminNodeRequest\x12\x0f\n\x07node_id\x18\x01 \x01(\t\x12\x17\n\x0foperator_reason\x18\x02 \x01(\t\"J\n\x17RetireAdminNodeResponse\x12/\n\x04node\x18\x01 \x01(\x0b\x32!.axern.control.admin.v1.AdminNode*\x98\x01\n\x18\x41\x64minNodeLifecycleStatus\x12+\n\'ADMIN_NODE_LIFECYCLE_STATUS_UNSPECIFIED\x10\x00\x12&\n\"ADMIN_NODE_LIFECYCLE_STATUS_ACTIVE\x10\x01\x12\'\n#ADMIN_NODE_LIFECYCLE_STATUS_RETIRED\x10\x02\x32\xf4\x01\n\tNodeAdmin\x12q\n\x0eListAdminNodes\x12-.axern.control.admin.v1.ListAdminNodesRequest\x1a..axern.control.admin.v1.ListAdminNodesResponse\"\x00\x12t\n\x0fRetireAdminNode\x12..axern.control.admin.v1.RetireAdminNodeRequest\x1a/.axern.control.admin.v1.RetireAdminNodeResponse\"\x00\x42\x43ZAgithub.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n!axern/control/admin/v1/node.proto\x12\x16\x61xern.control.admin.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a,axern/control/capability/v1/capability.proto\"\x96\x03\n\tAdminNode\x12\x0f\n\x07node_id\x18\x01 \x01(\t\x12J\n\x10lifecycle_status\x18\x02 \x01(\x0e\x32\x30.axern.control.admin.v1.AdminNodeLifecycleStatus\x12\x17\n\x0fheartbeat_fresh\x18\x03 \x01(\x08\x12\x15\n\rsummary_fresh\x18\x04 \x01(\x08\x12\x15\n\raxnoded_ready\x18\x05 \x01(\x08\x12\x1d\n\x15heartbeat_age_seconds\x18\x06 \x01(\x03\x12\x1b\n\x13summary_age_seconds\x18\x07 \x01(\x03\x12\x31\n\rregistered_at\x18\x08 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\t \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nretired_at\x18\n \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x16\n\x0eretired_reason\x18\x0b \x01(\t\"c\n\x15ListAdminNodesRequest\x12J\n\x10lifecycle_status\x18\x01 \x01(\x0e\x32\x30.axern.control.admin.v1.AdminNodeLifecycleStatus\"J\n\x16ListAdminNodesResponse\x12\x30\n\x05nodes\x18\x01 \x03(\x0b\x32!.axern.control.admin.v1.AdminNode\"B\n\x16RetireAdminNodeRequest\x12\x0f\n\x07node_id\x18\x01 \x01(\t\x12\x17\n\x0foperator_reason\x18\x02 \x01(\t\"J\n\x17RetireAdminNodeResponse\x12/\n\x04node\x18\x01 \x01(\x0b\x32!.axern.control.admin.v1.AdminNode\"3\n GetNodeCapabilitySnapshotRequest\x12\x0f\n\x07node_id\x18\x01 \x01(\t\"f\n!GetNodeCapabilitySnapshotResponse\x12\x41\n\x08snapshot\x18\x01 \x01(\x0b\x32/.axern.control.capability.v1.CapabilitySnapshot\"\x9a\x04\n\x19\x41\x64minCapabilityTransition\x12\x15\n\rtransition_id\x18\x01 \x01(\t\x12\x0f\n\x07node_id\x18\x02 \x01(\t\x12\x13\n\x0bsnapshot_id\x18\x03 \x01(\t\x12\x19\n\x11snapshot_sequence\x18\x04 \x01(\x03\x12\x37\n\x03key\x18\x05 \x01(\x0b\x32*.axern.control.capability.v1.CapabilityKey\x12?\n\told_state\x18\x06 \x01(\x0e\x32,.axern.control.capability.v1.CapabilityState\x12?\n\tnew_state\x18\x07 \x01(\x0e\x32,.axern.control.capability.v1.CapabilityState\x12\x17\n\x0fold_evidence_id\x18\x08 \x01(\t\x12\x17\n\x0fnew_evidence_id\x18\t \x01(\t\x12\x46\n\x0breason_code\x18\n \x01(\x0e\x32\x31.axern.control.capability.v1.CapabilityReasonCode\x12\x0e\n\x06reason\x18\x0b \x01(\t\x12/\n\x0bobserved_at\x18\x0c \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12/\n\x0breported_at\x18\r \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"F\n$ListNodeCapabilityTransitionsRequest\x12\x0f\n\x07node_id\x18\x01 \x01(\t\x12\r\n\x05limit\x18\x02 \x01(\x05\"o\n%ListNodeCapabilityTransitionsResponse\x12\x46\n\x0btransitions\x18\x01 \x03(\x0b\x32\x31.axern.control.admin.v1.AdminCapabilityTransition\"\xd4\x02\n\x1c\x41\x64minCapabilityReconcileItem\x12\x15\n\rallocation_id\x18\x01 \x01(\t\x12\x0f\n\x07node_id\x18\x02 \x01(\t\x12O\n\x14pending_dependencies\x18\x03 \x03(\x0b\x32\x31.axern.control.capability.v1.CapabilityDependency\x12\x10\n\x08\x61ttempts\x18\x04 \x01(\x05\x12/\n\x0bnext_run_at\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x34\n\x10lease_expires_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x12\n\nlast_error\x18\x07 \x01(\t\x12.\n\nupdated_at\x18\x08 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"E\n#ListCapabilityReconcileQueueRequest\x12\x0f\n\x07node_id\x18\x01 \x01(\t\x12\r\n\x05limit\x18\x02 \x01(\x05\"k\n$ListCapabilityReconcileQueueResponse\x12\x43\n\x05items\x18\x01 \x03(\x0b\x32\x34.axern.control.admin.v1.AdminCapabilityReconcileItem\"B\n)GetAllocationCapabilityDiagnosticsRequest\x12\x15\n\rallocation_id\x18\x01 \x01(\t\"\x87\x03\n*GetAllocationCapabilityDiagnosticsResponse\x12\x15\n\rallocation_id\x18\x01 \x01(\t\x12\x0f\n\x07node_id\x18\x02 \x01(\t\x12P\n\x15required_dependencies\x18\x03 \x03(\x0b\x32\x31.axern.control.capability.v1.CapabilityDependency\x12P\n\x15\x61\x64mitted_dependencies\x18\x04 \x03(\x0b\x32\x31.axern.control.capability.v1.CapabilityDependency\x12\x44\n\nconditions\x18\x05 \x03(\x0b\x32\x30.axern.control.capability.v1.CapabilityCondition\x12G\n\treconcile\x18\x06 \x01(\x0b\x32\x34.axern.control.admin.v1.AdminCapabilityReconcileItem*\x98\x01\n\x18\x41\x64minNodeLifecycleStatus\x12+\n\'ADMIN_NODE_LIFECYCLE_STATUS_UNSPECIFIED\x10\x00\x12&\n\"ADMIN_NODE_LIFECYCLE_STATUS_ACTIVE\x10\x01\x12\'\n#ADMIN_NODE_LIFECYCLE_STATUS_RETIRED\x10\x02\x32\xf8\x06\n\tNodeAdmin\x12q\n\x0eListAdminNodes\x12-.axern.control.admin.v1.ListAdminNodesRequest\x1a..axern.control.admin.v1.ListAdminNodesResponse\"\x00\x12t\n\x0fRetireAdminNode\x12..axern.control.admin.v1.RetireAdminNodeRequest\x1a/.axern.control.admin.v1.RetireAdminNodeResponse\"\x00\x12\x92\x01\n\x19GetNodeCapabilitySnapshot\x12\x38.axern.control.admin.v1.GetNodeCapabilitySnapshotRequest\x1a\x39.axern.control.admin.v1.GetNodeCapabilitySnapshotResponse\"\x00\x12\x9e\x01\n\x1dListNodeCapabilityTransitions\x12<.axern.control.admin.v1.ListNodeCapabilityTransitionsRequest\x1a=.axern.control.admin.v1.ListNodeCapabilityTransitionsResponse\"\x00\x12\x9b\x01\n\x1cListCapabilityReconcileQueue\x12;.axern.control.admin.v1.ListCapabilityReconcileQueueRequest\x1a<.axern.control.admin.v1.ListCapabilityReconcileQueueResponse\"\x00\x12\xad\x01\n\"GetAllocationCapabilityDiagnostics\x12\x41.axern.control.admin.v1.GetAllocationCapabilityDiagnosticsRequest\x1a\x42.axern.control.admin.v1.GetAllocationCapabilityDiagnosticsResponse\"\x00\x42\x43ZAgithub.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,18 +34,38 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'axern.control.admin.v1.node
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZAgithub.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1'
-  _globals['_ADMINNODELIFECYCLESTATUS']._serialized_start=825
-  _globals['_ADMINNODELIFECYCLESTATUS']._serialized_end=977
-  _globals['_ADMINNODE']._serialized_start=95
-  _globals['_ADMINNODE']._serialized_end=501
-  _globals['_LISTADMINNODESREQUEST']._serialized_start=503
-  _globals['_LISTADMINNODESREQUEST']._serialized_end=602
-  _globals['_LISTADMINNODESRESPONSE']._serialized_start=604
-  _globals['_LISTADMINNODESRESPONSE']._serialized_end=678
-  _globals['_RETIREADMINNODEREQUEST']._serialized_start=680
-  _globals['_RETIREADMINNODEREQUEST']._serialized_end=746
-  _globals['_RETIREADMINNODERESPONSE']._serialized_start=748
-  _globals['_RETIREADMINNODERESPONSE']._serialized_end=822
-  _globals['_NODEADMIN']._serialized_start=980
-  _globals['_NODEADMIN']._serialized_end=1224
+  _globals['_ADMINNODELIFECYCLESTATUS']._serialized_start=2739
+  _globals['_ADMINNODELIFECYCLESTATUS']._serialized_end=2891
+  _globals['_ADMINNODE']._serialized_start=141
+  _globals['_ADMINNODE']._serialized_end=547
+  _globals['_LISTADMINNODESREQUEST']._serialized_start=549
+  _globals['_LISTADMINNODESREQUEST']._serialized_end=648
+  _globals['_LISTADMINNODESRESPONSE']._serialized_start=650
+  _globals['_LISTADMINNODESRESPONSE']._serialized_end=724
+  _globals['_RETIREADMINNODEREQUEST']._serialized_start=726
+  _globals['_RETIREADMINNODEREQUEST']._serialized_end=792
+  _globals['_RETIREADMINNODERESPONSE']._serialized_start=794
+  _globals['_RETIREADMINNODERESPONSE']._serialized_end=868
+  _globals['_GETNODECAPABILITYSNAPSHOTREQUEST']._serialized_start=870
+  _globals['_GETNODECAPABILITYSNAPSHOTREQUEST']._serialized_end=921
+  _globals['_GETNODECAPABILITYSNAPSHOTRESPONSE']._serialized_start=923
+  _globals['_GETNODECAPABILITYSNAPSHOTRESPONSE']._serialized_end=1025
+  _globals['_ADMINCAPABILITYTRANSITION']._serialized_start=1028
+  _globals['_ADMINCAPABILITYTRANSITION']._serialized_end=1566
+  _globals['_LISTNODECAPABILITYTRANSITIONSREQUEST']._serialized_start=1568
+  _globals['_LISTNODECAPABILITYTRANSITIONSREQUEST']._serialized_end=1638
+  _globals['_LISTNODECAPABILITYTRANSITIONSRESPONSE']._serialized_start=1640
+  _globals['_LISTNODECAPABILITYTRANSITIONSRESPONSE']._serialized_end=1751
+  _globals['_ADMINCAPABILITYRECONCILEITEM']._serialized_start=1754
+  _globals['_ADMINCAPABILITYRECONCILEITEM']._serialized_end=2094
+  _globals['_LISTCAPABILITYRECONCILEQUEUEREQUEST']._serialized_start=2096
+  _globals['_LISTCAPABILITYRECONCILEQUEUEREQUEST']._serialized_end=2165
+  _globals['_LISTCAPABILITYRECONCILEQUEUERESPONSE']._serialized_start=2167
+  _globals['_LISTCAPABILITYRECONCILEQUEUERESPONSE']._serialized_end=2274
+  _globals['_GETALLOCATIONCAPABILITYDIAGNOSTICSREQUEST']._serialized_start=2276
+  _globals['_GETALLOCATIONCAPABILITYDIAGNOSTICSREQUEST']._serialized_end=2342
+  _globals['_GETALLOCATIONCAPABILITYDIAGNOSTICSRESPONSE']._serialized_start=2345
+  _globals['_GETALLOCATIONCAPABILITYDIAGNOSTICSRESPONSE']._serialized_end=2736
+  _globals['_NODEADMIN']._serialized_start=2894
+  _globals['_NODEADMIN']._serialized_end=3782
 # @@protoc_insertion_point(module_scope)

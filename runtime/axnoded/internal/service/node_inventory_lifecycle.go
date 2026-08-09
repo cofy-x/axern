@@ -3,16 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
-	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
 	"github.com/sirupsen/logrus"
 )
 
@@ -23,27 +18,27 @@ func (h *sandboxService) initNodeInventory() error {
 	if err != nil {
 		return err
 	}
-
 	var inventoryCgroupDriver os2.CgroupDriver
 	if inventoryCgroupDriver, err = os2.DefaultCgroupDriver(); err != nil {
 		logrus.WithError(err).Warn("node inventory actual usage provider disabled: cgroup driver unavailable")
 	}
-	cgroupMemoryReady := false
 	cgroupMode, err := h.config.PluginConfig.RuntimeConfig.CgroupEnforcementMode()
 	if err != nil {
 		return err
 	}
-	if cgroupMode == config.CgroupEnforcementRequired {
-		rootName := h.config.PluginConfig.ResourceConfig.CgroupRootName
-		if rootName == "" {
-			rootName = config.DefaultCgroupRoot
-		}
-		if probeErr := hostlinux.ProbeCgroupMemoryLimit(rootName); probeErr != nil {
-			logrus.WithError(probeErr).Warn("cgroup memory-limit admission capability unavailable")
-		} else {
-			cgroupMemoryReady = true
-		}
+	rootName := h.config.PluginConfig.ResourceConfig.CgroupRootName
+	if rootName == "" {
+		rootName = config.DefaultCgroupRoot
 	}
+	if cgroupMode == config.CgroupEnforcementRequired {
+		logrus.Debug("cgroup memory capability will be evaluated by observed-capability provider")
+	}
+	h.capabilityManager, err = h.newObservedCapabilityManager(rootName)
+	if err != nil {
+		return err
+	}
+	h.capabilityManager.Subscribe(h.handleCapabilityTransitions)
+	h.capabilityManager.SetMetricsObserver(capabilityMetricsObserver{})
 	disabledPools := disabledResourcePools(h.config.PluginConfig.ResourceConfig)
 	storageTargets := nodeinventory.DefaultStorageTargets(h.config.RootDir)
 	if filestore := h.config.PluginConfig.RuntimeConfig.FilestoreDir; filestore != "" {
@@ -64,8 +59,7 @@ func (h *sandboxService) initNodeInventory() error {
 		BPFNetPinPath:         h.config.PluginConfig.NetworkConfig.BPFNet.PinPath,
 		NodeState:             h.config.PluginConfig.ControlPlaneNodeStateValue(),
 		NodeLabels:            h.config.PluginConfig.ControlPlaneNodeLabelsValue(),
-		NodeCapabilities:      servicecontrolplane.DefaultNodeCapabilities(h.config),
-		DynamicCapabilities:   func() []string { return runtimeStorageCapabilities(h.config, cgroupMemoryReady) },
+		CapabilitySnapshot:    h.capabilityManager.Refresh,
 		VolumeHealth:          h.volumeClient.Health,
 		StorageTargets:        storageTargets,
 		RuntimeSlotCapacity:   h.config.PluginConfig.ResourceConfig.MaxInstanceNum,
@@ -73,52 +67,6 @@ func (h *sandboxService) initNodeInventory() error {
 	})
 	h.inventoryCollector = nodeinventory.NewCollector(5*time.Second, h.nodeInventorySource.Collect)
 	return nil
-}
-
-func runtimeStorageCapabilities(cfg config.Config, cgroupMemoryReady bool) []string {
-	seen := map[string]struct{}{}
-	add := func(value string) {
-		if value != "" {
-			seen[value] = struct{}{}
-		}
-	}
-	if cgroupMemoryReady {
-		add("cgroup:memory-limit-ready")
-	}
-	if entries, err := os.ReadDir(filepath.Join(cfg.RootDir, "verified-capabilities")); err == nil {
-		bootID, _ := hostlinux.CurrentBootID()
-		for _, entry := range entries {
-			data, err := os.ReadFile(filepath.Join(cfg.RootDir, "verified-capabilities", entry.Name()))
-			if err != nil || bootID == "" || string(data) != bootID+"\n" {
-				continue
-			}
-			switch entry.Name() {
-			case "runtime-runc-memory-hard-limit":
-				add("runtime:runc:memory-hard-limit")
-			case "runtime-runsc-memory-hard-limit":
-				add("runtime:runsc:memory-hard-limit")
-			}
-		}
-	}
-	if filestore := cfg.PluginConfig.RuntimeConfig.FilestoreDir; filestore != "" {
-		if facts, err := hostlinux.ReadFilestoreCapabilities(filestore); err == nil {
-			if facts.OverlayReady {
-				add("runtime:runsc:ephemeral-storage-hard-limit")
-			}
-			if facts.ProjectQuotaReady {
-				add("runtime:runc:ephemeral-storage-hard-limit")
-			}
-			if facts.EROFSReady {
-				add("rootfs-lower:erofs")
-			}
-		}
-	}
-	out := make([]string, 0, len(seen))
-	for capability := range seen {
-		out = append(out, capability)
-	}
-	sort.Strings(out)
-	return out
 }
 
 func (h *sandboxService) refreshNodeInventory() {

@@ -3,7 +3,6 @@ package controlplane
 import (
 	"context"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	sandboxobs "github.com/cofy-x/axern/runtime/axnoded/internal/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
@@ -22,6 +22,16 @@ import (
 
 type AllocationStatusReporter interface {
 	ReportAllocationStatus(report nodecontrol.AllocationStatusReport)
+}
+
+func (c *Coordinator) ReportCapabilityConditions(allocationID string, attempt int64, status commonv1.AllocationStatus, message string, conditions []*capabilityv1.CapabilityCondition) {
+	if c == nil || c.reporter == nil {
+		return
+	}
+	c.reporter.ReportAllocationStatus(nodecontrol.AllocationStatusReport{
+		AllocationID: allocationID, Attempt: attempt, Status: status, Message: message,
+		ObservedAt: c.now(), CapabilityConditions: conditions,
+	})
 }
 
 type Options struct {
@@ -201,36 +211,4 @@ func NewNodeReporter(cfg config.Config, runtimeNames func() []string, inventory 
 		inventory,
 		nodecontrol.BuildNodeSummary,
 	), nil
-}
-
-func DefaultNodeCapabilities(cfg config.Config) []string {
-	capabilities := cfg.PluginConfig.ControlPlaneNodeCapabilitiesValue()
-	seen := make(map[string]struct{}, len(capabilities)+2)
-	out := make([]string, 0, len(capabilities)+2)
-	for _, capability := range capabilities {
-		if capability == "" {
-			continue
-		}
-		if _, ok := seen[capability]; ok {
-			continue
-		}
-		seen[capability] = struct{}{}
-		out = append(out, capability)
-	}
-
-	for _, implicit := range []string{
-		"feature:ports",
-		"network:" + cfg.PluginConfig.NetworkConfig.NatBackend,
-	} {
-		if implicit == "" || implicit == "network:" {
-			continue
-		}
-		if _, ok := seen[implicit]; ok {
-			continue
-		}
-		seen[implicit] = struct{}{}
-		out = append(out, implicit)
-	}
-	sort.Strings(out)
-	return out
 }

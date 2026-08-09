@@ -17,6 +17,7 @@ import (
 	rolloutworkerv1 "github.com/cofy-x/axern/control/controld/internal/api/rolloutworkerv1"
 	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
 	appadmin "github.com/cofy-x/axern/control/controld/internal/application/admin"
+	appcapability "github.com/cofy-x/axern/control/controld/internal/application/capability"
 	appfunction "github.com/cofy-x/axern/control/controld/internal/application/function"
 	appnode "github.com/cofy-x/axern/control/controld/internal/application/node"
 	apprun "github.com/cofy-x/axern/control/controld/internal/application/run"
@@ -162,6 +163,7 @@ type App struct {
 	nodeReconciler       appnode.AvailabilityReconciler
 	serviceReconciler    servicekernel.Reconciler
 	allocationReconciler servicekernel.AllocationReconciler
+	capabilityReconciler *appcapability.Reconciler
 	volumeReclaimWorker  servicekernel.VolumeReclaimDispatcher
 	functionController   *appfunction.Controller
 
@@ -262,6 +264,7 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 			reconcilekernel.ComponentNode,
 			reconcilekernel.ComponentService,
 			reconcilekernel.ComponentAllocation,
+			reconcilekernel.ComponentCapability,
 			reconcilekernel.ComponentTunnel,
 			reconcilekernel.ComponentFunction,
 			reconcilekernel.ComponentRollout,
@@ -317,7 +320,7 @@ func (a *App) configureDependencies(cfg Config) error {
 	a.allocationOwners = pgallocation.NewOwnerReader(db.Pool())
 	a.nodeStore = pgnodes.NewPGStore(db)
 	a.namespacePG = pgnamespace.NewStore(db)
-	a.runStore = pgrun.NewStore(db, pgrun.WithAdmissionPolicy(a.resourcePolicy))
+	a.runStore = pgrun.NewStore(db, pgrun.WithAdmissionPolicy(a.resourcePolicy), pgrun.WithPlacementEvaluator(a.placement))
 	a.functionPG = pgfunction.NewStore(db, cfg.FunctionInvocationWorkers)
 	masterKey, err := secretkernel.NormalizeMasterKey(cfg.SecretsMasterKey)
 	if err != nil {
@@ -345,7 +348,7 @@ func (a *App) configureDependencies(cfg Config) error {
 	if strings.TrimSpace(cfg.ArtifactS3Bucket) != "" {
 		a.artifactAccessAPI = artifactaccessv1.New(a.rolloutPG)
 	}
-	a.servicePG = pgservice.NewPGStore(db, pgservice.WithAdmissionPolicy(a.resourcePolicy))
+	a.servicePG = pgservice.NewPGStore(db, pgservice.WithAdmissionPolicy(a.resourcePolicy), pgservice.WithPlacementEvaluator(a.placement))
 	relays, err := pgtunnel.ParseRelays(cfg.TunnelRelays)
 	if err != nil {
 		return err
@@ -379,6 +382,7 @@ func (a *App) configureDependencies(cfg Config) error {
 		a.functionInvoker = invoker
 	}
 	a.runReconciler = apprun.NewReconciler(a.runStore, a.nodeBridge)
+	a.capabilityReconciler = appcapability.NewReconciler(pgallocation.NewCapabilityQueue(a.db), a.nodeLifecycle)
 	a.rolloutPG.StartNotifications()
 	return nil
 }

@@ -97,8 +97,8 @@ func (c *Controller) Delete(ctx context.Context, request *runtime.DeleteRequest)
 	return c.deleteManagedContainer(ctx, request)
 }
 
-func (c *Controller) CleanupFailedStart(ctx context.Context, allocationID string) {
-	c.cleanupFailedStart(ctx, allocationID)
+func (c *Controller) CleanupFailedStart(ctx context.Context, allocationID string) error {
+	return c.cleanupFailedStart(ctx, allocationID)
 }
 
 func (c *Controller) RestoreAllocationState() error {

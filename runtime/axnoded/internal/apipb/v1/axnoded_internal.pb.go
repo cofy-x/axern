@@ -7,6 +7,7 @@
 package apipb
 
 import (
+	v11 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	v1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -763,15 +764,16 @@ func (x *RuntimeTemplate) GetExecutionProfile() *v1.RuntimeExecutionProfile {
 }
 
 type AllocationState struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	AllocationID        string                 `protobuf:"bytes,1,opt,name=allocationID,proto3" json:"allocationID,omitempty"`
-	RuntimeTemplate     *RuntimeTemplate       `protobuf:"bytes,2,opt,name=runtime_template,json=runtimeTemplate,proto3" json:"runtime_template,omitempty"`
-	ImageMountUrls      []string               `protobuf:"bytes,3,rep,name=image_mount_urls,json=imageMountUrls,proto3" json:"image_mount_urls,omitempty"`
-	WorkspaceImageUrl   string                 `protobuf:"bytes,4,opt,name=workspace_image_url,json=workspaceImageUrl,proto3" json:"workspace_image_url,omitempty"`
-	WorkspaceSourcePath string                 `protobuf:"bytes,5,opt,name=workspace_source_path,json=workspaceSourcePath,proto3" json:"workspace_source_path,omitempty"`
-	WorkspaceTarget     string                 `protobuf:"bytes,6,opt,name=workspace_target,json=workspaceTarget,proto3" json:"workspace_target,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                  protoimpl.MessageState      `protogen:"open.v1"`
+	AllocationID           string                      `protobuf:"bytes,1,opt,name=allocationID,proto3" json:"allocationID,omitempty"`
+	RuntimeTemplate        *RuntimeTemplate            `protobuf:"bytes,2,opt,name=runtime_template,json=runtimeTemplate,proto3" json:"runtime_template,omitempty"`
+	ImageMountUrls         []string                    `protobuf:"bytes,3,rep,name=image_mount_urls,json=imageMountUrls,proto3" json:"image_mount_urls,omitempty"`
+	WorkspaceImageUrl      string                      `protobuf:"bytes,4,opt,name=workspace_image_url,json=workspaceImageUrl,proto3" json:"workspace_image_url,omitempty"`
+	WorkspaceSourcePath    string                      `protobuf:"bytes,5,opt,name=workspace_source_path,json=workspaceSourcePath,proto3" json:"workspace_source_path,omitempty"`
+	WorkspaceTarget        string                      `protobuf:"bytes,6,opt,name=workspace_target,json=workspaceTarget,proto3" json:"workspace_target,omitempty"`
+	CapabilityDependencies []*v11.CapabilityDependency `protobuf:"bytes,7,rep,name=capability_dependencies,json=capabilityDependencies,proto3" json:"capability_dependencies,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *AllocationState) Reset() {
@@ -844,6 +846,13 @@ func (x *AllocationState) GetWorkspaceTarget() string {
 		return x.WorkspaceTarget
 	}
 	return ""
+}
+
+func (x *AllocationState) GetCapabilityDependencies() []*v11.CapabilityDependency {
+	if x != nil {
+		return x.CapabilityDependencies
+	}
+	return nil
 }
 
 type TerminalResize struct {
@@ -1406,7 +1415,7 @@ var File_internal_apipb_v1_axnoded_internal_proto protoreflect.FileDescriptor
 
 const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\n" +
-	"(internal/apipb/v1/axnoded_internal.proto\x12\x19axnoded.internal.apipb.v1\x1a&axern/control/catalog/v1/catalog.proto\"\xa4\x01\n" +
+	"(internal/apipb/v1/axnoded_internal.proto\x12\x19axnoded.internal.apipb.v1\x1a&axern/control/catalog/v1/catalog.proto\x1a,axern/control/capability/v1/capability.proto\"\xa4\x01\n" +
 	"\bS3Config\x12\x1a\n" +
 	"\bendpoint\x18\x01 \x01(\tR\bendpoint\x12\x16\n" +
 	"\x06bucket\x18\x02 \x01(\tR\x06bucket\x12\x16\n" +
@@ -1458,14 +1467,15 @@ const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\x11execution_profile\x18\b \x01(\v21.axern.control.catalog.v1.RuntimeExecutionProfileR\x10executionProfile\x1a>\n" +
 	"\x10RuntimeEnvsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc5\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb1\x03\n" +
 	"\x0fAllocationState\x12\"\n" +
 	"\fallocationID\x18\x01 \x01(\tR\fallocationID\x12U\n" +
 	"\x10runtime_template\x18\x02 \x01(\v2*.axnoded.internal.apipb.v1.RuntimeTemplateR\x0fruntimeTemplate\x12(\n" +
 	"\x10image_mount_urls\x18\x03 \x03(\tR\x0eimageMountUrls\x12.\n" +
 	"\x13workspace_image_url\x18\x04 \x01(\tR\x11workspaceImageUrl\x122\n" +
 	"\x15workspace_source_path\x18\x05 \x01(\tR\x13workspaceSourcePath\x12)\n" +
-	"\x10workspace_target\x18\x06 \x01(\tR\x0fworkspaceTarget\"8\n" +
+	"\x10workspace_target\x18\x06 \x01(\tR\x0fworkspaceTarget\x12j\n" +
+	"\x17capability_dependencies\x18\a \x03(\v21.axern.control.capability.v1.CapabilityDependencyR\x16capabilityDependencies\"8\n" +
 	"\x0eTerminalResize\x12\x12\n" +
 	"\x04cols\x18\x01 \x01(\rR\x04cols\x12\x12\n" +
 	"\x04rows\x18\x02 \x01(\rR\x04rows\"2\n" +
@@ -1575,6 +1585,7 @@ var file_internal_apipb_v1_axnoded_internal_proto_goTypes = []any{
 	nil,                                   // 24: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
 	nil,                                   // 25: axnoded.internal.apipb.v1.Map.ItemsEntry
 	(*v1.RuntimeExecutionProfile)(nil),    // 26: axern.control.catalog.v1.RuntimeExecutionProfile
+	(*v11.CapabilityDependency)(nil),      // 27: axern.control.capability.v1.CapabilityDependency
 }
 var file_internal_apipb_v1_axnoded_internal_proto_depIdxs = []int32{
 	0,  // 0: axnoded.internal.apipb.v1.RootfsConfig.type:type_name -> axnoded.internal.apipb.v1.RootfsSrcType
@@ -1586,17 +1597,18 @@ var file_internal_apipb_v1_axnoded_internal_proto_depIdxs = []int32{
 	4,  // 6: axnoded.internal.apipb.v1.RuntimeTemplate.mounts:type_name -> axnoded.internal.apipb.v1.Mount
 	26, // 7: axnoded.internal.apipb.v1.RuntimeTemplate.execution_profile:type_name -> axern.control.catalog.v1.RuntimeExecutionProfile
 	10, // 8: axnoded.internal.apipb.v1.AllocationState.runtime_template:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate
-	15, // 9: axnoded.internal.apipb.v1.LinuxContainerResources.hugepage_limits:type_name -> axnoded.internal.apipb.v1.HugepageLimit
-	22, // 10: axnoded.internal.apipb.v1.LinuxContainerResources.unified:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
-	23, // 11: axnoded.internal.apipb.v1.ContainerMetadata.labels:type_name -> axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
-	24, // 12: axnoded.internal.apipb.v1.ContainerMetadataList.containers:type_name -> axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
-	25, // 13: axnoded.internal.apipb.v1.Map.items:type_name -> axnoded.internal.apipb.v1.Map.ItemsEntry
-	17, // 14: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry.value:type_name -> axnoded.internal.apipb.v1.ContainerMetadata
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	27, // 9: axnoded.internal.apipb.v1.AllocationState.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
+	15, // 10: axnoded.internal.apipb.v1.LinuxContainerResources.hugepage_limits:type_name -> axnoded.internal.apipb.v1.HugepageLimit
+	22, // 11: axnoded.internal.apipb.v1.LinuxContainerResources.unified:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
+	23, // 12: axnoded.internal.apipb.v1.ContainerMetadata.labels:type_name -> axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
+	24, // 13: axnoded.internal.apipb.v1.ContainerMetadataList.containers:type_name -> axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
+	25, // 14: axnoded.internal.apipb.v1.Map.items:type_name -> axnoded.internal.apipb.v1.Map.ItemsEntry
+	17, // 15: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry.value:type_name -> axnoded.internal.apipb.v1.ContainerMetadata
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_internal_apipb_v1_axnoded_internal_proto_init() }

@@ -123,7 +123,7 @@ func (m *writableCapacityManager) Reserve(containerID, runtimeName string, reque
 	}
 	if requestBytes > hostlinux.RemainingCapacity(available, m.systemReserve) || requestBytes > hostlinux.RemainingCapacity(capacity, m.systemReserve, committed) {
 		metrics.RecordEphemeralStorageOperation(runtimeName, "reserve", "insufficient_capacity")
-		return fmt.Errorf("insufficient writable layer capacity: request=%d available=%d system_reserve=%d committed=%d", requestBytes, available, m.systemReserve, committed)
+		return fmt.Errorf("insufficient ephemeral storage capacity: request=%d available=%d system_reserve=%d committed=%d", requestBytes, available, m.systemReserve, committed)
 	}
 	projectID := uint32(0)
 	if runtimeName == "runc" {
@@ -197,7 +197,7 @@ func (m *writableCapacityManager) ReconcileRuntime(runtimeName string, retained 
 	for _, id := range stale {
 		if cleanup != nil {
 			if err := cleanup(id); err != nil {
-				result = errors.Join(result, fmt.Errorf("cleanup stale writable layer %s: %w", id, err))
+				result = errors.Join(result, fmt.Errorf("cleanup stale ephemeral storage reservation %s: %w", id, err))
 				continue
 			}
 		}

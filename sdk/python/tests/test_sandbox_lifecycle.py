@@ -125,6 +125,7 @@ class SandboxTest(unittest.TestCase):
 
         service = client.create_service(
             environment_id="env-1",
+            extension_capabilities={"example.com/accelerator": "v1"},
             volume_mounts=[
                 VolumeMount("data", "/data"),
                 VolumeMount("cache", "/cache", readonly=True, options=("rbind",)),
@@ -132,6 +133,9 @@ class SandboxTest(unittest.TestCase):
         )
 
         self.assertEqual(service.id, "svc-1")
+        extension = stub.request.config.extension_capability_requirements[0].capability
+        self.assertEqual(extension.name, "example.com/accelerator")
+        self.assertEqual(extension.value, "v1")
         mounts = list(stub.request.config.volume_mounts)
         self.assertEqual(len(mounts), 2)
         self.assertEqual(mounts[0].name, "data")

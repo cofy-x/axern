@@ -14,7 +14,7 @@ The `axnoded` node reporter is optional and is configured through:
 - `plugin.control_plane_node_target`
 - `plugin.control_plane_heartbeat_interval`
 - `plugin.control_plane_node_state`
-- `plugin.control_plane_node_capabilities`
+- optional structured `plugin.node_extension_capabilities`
 - `plugin.control_plane_node_labels`
 
 When `plugin.control_plane_target` is empty, `axnoded` does not start the
@@ -39,9 +39,15 @@ list. The plan preserves health, capability, locality, warm-path, and initial
 load preferences until the Postgres admission transaction reaches its
 authoritative node decision.
 
-Durable admission locks candidate node rows in stable node-id order, loads the
-latest active reservations, and refreshes the dynamic load rank before
-selecting a node. It adds only reservations not yet reflected in the latest
+Durable admission locks candidate node rows in stable node-id order and reruns
+the complete eligibility evaluator against the locked row: lifecycle,
+heartbeat and summary freshness, runtime, component health, labels, typed
+capability observations and evidence, capacity, and slots. A candidate that
+changed after the initial plan is skipped and the transaction tries the next
+candidate. The selected observation dependencies and exact evidence commit in
+the same transaction as the allocation and reservation. Admission also loads
+the latest active reservations and refreshes the dynamic load rank. It adds
+only reservations not yet reflected in the latest
 node `committed` summary, so running allocations are not counted twice while
 concurrent `STARTING` allocations still influence placement. Run admission and
 service replica admission share this path; service scale-up does not maintain a
@@ -73,6 +79,15 @@ queue keeps reservation and lease cleanup tied to confirmed node lifecycle
 state instead of best-effort RPC success. The queue is allocation-scoped and
 owner-neutral; run and service controllers apply their own terminal workload
 state after queue convergence.
+
+Capability loss uses a separate `allocation_capability_reconcile_queue`, so a
+capability transition cannot overwrite create/delete lifecycle intent. Axnoded
+first performs allocation-specific verification. Catalog-owned `DEGRADE`
+dependencies retain the sandbox with a structured condition; `FAIL_STOP`
+dependencies are force-deleted when enforcement is definitively lost or cannot
+be proven after the bounded 0/2/5-second verification sequence. Controld's
+durable worker is a restart and missed-report safety net and retains work until
+node status confirms deletion.
 
 ## Reconciler Health
 

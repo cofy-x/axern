@@ -2,6 +2,7 @@ package langruntime
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -202,6 +203,63 @@ func TestDrainRetainedEvictsAllRetainedRuntimes(t *testing.T) {
 	}
 	if mock.UmountCount() != 2 {
 		t.Fatalf("expected both retained rootfs to be umounted, got %d", mock.UmountCount())
+	}
+}
+
+func TestEvictIdleRuntimeOnlyEvictsSelectedRuntime(t *testing.T) {
+	mock := &mockMounter{}
+	lm := NewLanguageRuntimeManager(mock)
+	lm.ConfigureRetention(time.Minute, 2)
+	first, err := addTestLangRuntime(lm, newTestFR("first", "/first"), true)
+	if err != nil {
+		t.Fatalf("AddLangRuntime(first) error = %v", err)
+	}
+	second, err := addTestLangRuntime(lm, newTestFR("second", "/second"), true)
+	if err != nil {
+		t.Fatalf("AddLangRuntime(second) error = %v", err)
+	}
+
+	first.IncRef()
+	first.DecRef()
+	second.IncRef()
+	second.DecRef()
+
+	if err := lm.EvictIdleRuntime(t.Context(), first.ID, RetentionReasonSelfTest); err != nil {
+		t.Fatalf("EvictIdleRuntime() error = %v", err)
+	}
+	if lm.GetLangRuntime(first.ID) != nil {
+		t.Fatalf("runtime %q was not evicted", first.ID)
+	}
+	if lm.GetLangRuntime(second.ID) != second {
+		t.Fatalf("unrelated runtime %q was evicted", second.ID)
+	}
+	if first.RootFS.RetainedRefCount() != 0 {
+		t.Fatalf("selected rootfs retained refs = %d, want 0", first.RootFS.RetainedRefCount())
+	}
+	if second.RootFS.RetainedRefCount() != 1 {
+		t.Fatalf("unrelated rootfs retained refs = %d, want 1", second.RootFS.RetainedRefCount())
+	}
+}
+
+func TestEvictIdleRuntimeReturnsEnvelopeCleanupFailure(t *testing.T) {
+	mock := &mockMounter{}
+	lm := NewLanguageRuntimeManager(mock)
+	lm.ConfigureRetention(time.Minute, 1)
+	lr, err := addTestLangRuntime(lm, newTestFR("self-test", "/self-test"), true)
+	if err != nil {
+		t.Fatalf("AddLangRuntime() error = %v", err)
+	}
+	lr.IncRef()
+	lr.DecRef()
+
+	wantErr := errors.New("destroy failed")
+	if !lr.BeginExecutionEnvelopePrepare() || !lr.FinishExecutionEnvelopePrepare(&ExecutionEnvelope{
+		Destroy: func(context.Context) error { return wantErr },
+	}) {
+		t.Fatal("prepare execution envelope")
+	}
+	if err := lm.EvictIdleRuntime(t.Context(), lr.ID, RetentionReasonSelfTest); !errors.Is(err, wantErr) {
+		t.Fatalf("EvictIdleRuntime() error = %v, want %v", err, wantErr)
 	}
 }
 

@@ -15,6 +15,20 @@ metricsz_fetch() {
   printf '%s\n' "${snapshot}"
 }
 
+metricsz_wait_capability_snapshot() {
+  local url="${INVENTORY_URL:-http://127.0.0.1:23001/inventoryz}"
+  local snapshot
+  for _ in $(seq 1 160); do
+    if snapshot="$(curl -fsS "${url}" 2>/dev/null)" && \
+      jq -e '(.node.capability_snapshot.sequence // 0) > 0' >/dev/null <<<"${snapshot}"; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "timed out waiting for the initial observed-capability snapshot from ${url}" >&2
+  exit 1
+}
+
 metricsz_value() {
   local snapshot="$1"
   local metric_name="$2"
@@ -52,6 +66,35 @@ metricsz_value() {
   done < <(jq -c --arg name "${metric_name}" --arg type "${metric_type}" '.points[]? | select(.name == $name and .type == $type)' <<<"${snapshot}")
 
   return 1
+}
+
+metricsz_value_or_zero() {
+  local snapshot="$1"
+  local metric_name="$2"
+  local metric_type="$3"
+  shift 3
+
+  local value
+  if value="$(metricsz_value "${snapshot}" "${metric_name}" "${metric_type}" "$@")"; then
+    printf '%s\n' "${value}"
+    return 0
+  fi
+  printf '0\n'
+}
+
+metricsz_has_delta() {
+  local before_snapshot="$1"
+  local after_snapshot="$2"
+  local metric_name="$3"
+  local metric_type="$4"
+  local expected="$5"
+  shift 5
+
+  local before_value after_value
+  before_value="$(metricsz_value_or_zero "${before_snapshot}" "${metric_name}" "${metric_type}" "$@")" || return 1
+  after_value="$(metricsz_value_or_zero "${after_snapshot}" "${metric_name}" "${metric_type}" "$@")" || return 1
+  awk -v before="${before_value}" -v after="${after_value}" -v expected="${expected}" \
+    'BEGIN { exit !((after + 0) - (before + 0) == expected + 0) }'
 }
 
 metricsz_has_value() {
@@ -116,6 +159,23 @@ metricsz_assert_absent() {
   fi
 }
 
+metricsz_assert_delta() {
+  local before_snapshot="$1"
+  local after_snapshot="$2"
+  local metric_name="$3"
+  local metric_type="$4"
+  local expected="$5"
+  shift 5
+
+  if ! metricsz_has_delta "${before_snapshot}" "${after_snapshot}" "${metric_name}" "${metric_type}" "${expected}" "$@"; then
+    local before_value after_value
+    before_value="$(metricsz_value_or_zero "${before_snapshot}" "${metric_name}" "${metric_type}" "$@")"
+    after_value="$(metricsz_value_or_zero "${after_snapshot}" "${metric_name}" "${metric_type}" "$@")"
+    echo "unexpected metric delta: ${metric_name} type=${metric_type} expected=${expected} before=${before_value} after=${after_value} labels=$*" >&2
+    exit 1
+  fi
+}
+
 metricsz_wait_value() {
   local metric_name="$1"
   local metric_type="$2"
@@ -159,5 +219,31 @@ metricsz_wait_at_least() {
     actual="$(metricsz_value "${snapshot}" "${metric_name}" "${metric_type}" "$@" 2>/dev/null || echo missing)"
   fi
   echo "timed out waiting for metric: ${metric_name} type=${metric_type} minimum=${minimum} actual=${actual} labels=$*" >&2
+  exit 1
+}
+
+
+metricsz_wait_delta() {
+  local before_snapshot="$1"
+  local metric_name="$2"
+  local metric_type="$3"
+  local expected="$4"
+  shift 4
+
+  local snapshot
+  for _ in $(seq 1 40); do
+    if snapshot="$(metricsz_fetch 2>/dev/null)" && \
+      metricsz_has_delta "${before_snapshot}" "${snapshot}" "${metric_name}" "${metric_type}" "${expected}" "$@"; then
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  local before_value after_value="missing"
+  before_value="$(metricsz_value_or_zero "${before_snapshot}" "${metric_name}" "${metric_type}" "$@")"
+  if snapshot="$(metricsz_fetch 2>/dev/null)"; then
+    after_value="$(metricsz_value_or_zero "${snapshot}" "${metric_name}" "${metric_type}" "$@")"
+  fi
+  echo "timed out waiting for metric delta: ${metric_name} type=${metric_type} expected=${expected} before=${before_value} after=${after_value} labels=$*" >&2
   exit 1
 }

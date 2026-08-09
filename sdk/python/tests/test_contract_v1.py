@@ -134,6 +134,7 @@ class ContractV1Test(unittest.TestCase):
             },
         )
         parameters = inspect.signature(Sandbox).parameters
+        self.assertIn("extension_capabilities", parameters)
         self.assertIn("upstream", parameters)
         self.assertIn("remote_port", parameters)
 

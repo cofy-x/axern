@@ -5,6 +5,7 @@ import (
 	"time"
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
+	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
@@ -41,7 +42,7 @@ func NewEngine(cfg Config) *Engine {
 	}
 }
 
-func (e *Engine) Plan(snapshot nodekernel.Snapshot, req *Request, now time.Time) ([]*nodev1.PlacementCandidate, []*nodev1.PlacementCandidate) {
+func (e *Engine) Plan(snapshot nodekernel.Snapshot, req *placementkernel.Request, now time.Time) ([]*nodev1.PlacementCandidate, []*nodev1.PlacementCandidate) {
 	planned := make([]*nodev1.PlacementCandidate, 0, len(snapshot.Records))
 	for _, record := range snapshot.Records {
 		candidate := e.evaluateCandidate(CandidateInput{
@@ -71,4 +72,8 @@ func (e *Engine) Plan(snapshot nodekernel.Snapshot, req *Request, now time.Time)
 		return rejected[i].GetNodeID() < rejected[j].GetNodeID()
 	})
 	return eligible, rejected
+}
+
+func (e *Engine) Evaluate(record *nodekernel.Record, req *placementkernel.Request, now time.Time) *nodev1.PlacementCandidate {
+	return e.evaluateCandidate(CandidateInput{Record: record, Request: req, Now: now})
 }

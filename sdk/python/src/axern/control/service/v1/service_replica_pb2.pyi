@@ -1,6 +1,7 @@
 import datetime
 
 from axern.control.common.v1 import common_pb2 as _common_pb2
+from axern.control.capability.v1 import capability_pb2 as _capability_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
@@ -38,7 +39,7 @@ SERVICE_REPLICA_LIFECYCLE_RETRY_REASON_CREATE: ServiceReplicaLifecycleRetryReaso
 SERVICE_REPLICA_LIFECYCLE_RETRY_REASON_DELETE: ServiceReplicaLifecycleRetryReason
 
 class ServiceReplica(_message.Message):
-    __slots__ = ("id", "service_id", "node_id", "attempt", "status", "message", "exit_code", "exit_code_known", "created_at", "updated_at", "ended", "outdated", "diagnostic_code", "ready", "readiness_message", "lifecycle_retry", "workspace_preparation")
+    __slots__ = ("id", "service_id", "node_id", "attempt", "status", "message", "exit_code", "exit_code_known", "created_at", "updated_at", "ended", "outdated", "diagnostic_code", "ready", "readiness_message", "lifecycle_retry", "workspace_preparation", "capability_conditions")
     ID_FIELD_NUMBER: _ClassVar[int]
     SERVICE_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -56,6 +57,7 @@ class ServiceReplica(_message.Message):
     READINESS_MESSAGE_FIELD_NUMBER: _ClassVar[int]
     LIFECYCLE_RETRY_FIELD_NUMBER: _ClassVar[int]
     WORKSPACE_PREPARATION_FIELD_NUMBER: _ClassVar[int]
+    CAPABILITY_CONDITIONS_FIELD_NUMBER: _ClassVar[int]
     id: str
     service_id: str
     node_id: str
@@ -73,7 +75,8 @@ class ServiceReplica(_message.Message):
     readiness_message: str
     lifecycle_retry: ServiceReplicaLifecycleRetry
     workspace_preparation: _common_pb2.WorkspacePreparationFacts
-    def __init__(self, id: _Optional[str] = ..., service_id: _Optional[str] = ..., node_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[_common_pb2.AllocationStatus, str]] = ..., message: _Optional[str] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ended: _Optional[bool] = ..., outdated: _Optional[bool] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., ready: _Optional[bool] = ..., readiness_message: _Optional[str] = ..., lifecycle_retry: _Optional[_Union[ServiceReplicaLifecycleRetry, _Mapping]] = ..., workspace_preparation: _Optional[_Union[_common_pb2.WorkspacePreparationFacts, _Mapping]] = ...) -> None: ...
+    capability_conditions: _containers.RepeatedCompositeFieldContainer[_capability_pb2.CapabilityCondition]
+    def __init__(self, id: _Optional[str] = ..., service_id: _Optional[str] = ..., node_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[_common_pb2.AllocationStatus, str]] = ..., message: _Optional[str] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ended: _Optional[bool] = ..., outdated: _Optional[bool] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., ready: _Optional[bool] = ..., readiness_message: _Optional[str] = ..., lifecycle_retry: _Optional[_Union[ServiceReplicaLifecycleRetry, _Mapping]] = ..., workspace_preparation: _Optional[_Union[_common_pb2.WorkspacePreparationFacts, _Mapping]] = ..., capability_conditions: _Optional[_Iterable[_Union[_capability_pb2.CapabilityCondition, _Mapping]]] = ...) -> None: ...
 
 class ServiceReplicaLifecycleRetry(_message.Message):
     __slots__ = ("reason", "attempts", "last_error", "next_run_at")

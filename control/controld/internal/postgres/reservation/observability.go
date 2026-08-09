@@ -117,3 +117,9 @@ func recordNodeReservationRejected(ctx context.Context, namespace string, diagno
 		recordResourceAdmission(ctx, namespace, resourceAdmissionScopeNodeReservation, string(quotaAdmissionRejected), "insufficient_"+resource)
 	}
 }
+
+func recordCapabilityAdmissionEvidence(ctx context.Context, result string) {
+	sdkobs.Int64Counter(ctrlobs.MetricCapabilityAdmissionEvidenceTotal.Name, ctrlobs.MetricCapabilityAdmissionEvidenceTotal.Description).Add(ctx, 1,
+		attribute.String(sdkobs.AttrResult, result),
+	)
+}

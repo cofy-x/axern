@@ -162,4 +162,17 @@ verify_secret_environment_service_rollout() {
     dump_logs
     exit 1
   }
+
+  # The shared secret is exercised by the following run test. Delete this
+  # service first so that deleting the secret cannot leave an active workload
+  # whose create reconciliation is no longer materializable during the admin
+  # node-outage scenario.
+  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service delete "${service_id}" -o json >"${cli_object_output}"
+  deleted_service_id="$(json_query "service delete after rollout" 'json.load(sys.stdin)["service"]["id"]' "$(cat "${cli_object_output}")")"
+  [ "${deleted_service_id}" = "${service_id}" ] || {
+    echo "service delete returned ${deleted_service_id}, want ${service_id}" >&2
+    dump_logs
+    exit 1
+  }
+  wait_for_service_deleted "${service_id}" "service after rollout"
 }

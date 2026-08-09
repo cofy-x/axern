@@ -12,6 +12,7 @@ import (
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
 	pgreservation "github.com/cofy-x/axern/control/controld/internal/postgres/reservation"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	"github.com/google/uuid"
@@ -60,6 +61,10 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		if err != nil {
 			return err
 		}
+		capabilityDependenciesJSON, err := marshalProtoJSON(&capabilityv1.CapabilityDependencySet{Dependencies: selected.CapabilityDependencies})
+		if err != nil {
+			return err
+		}
 		run = &runv1.Run{
 			ID:            runID,
 			Namespace:     namespace,
@@ -74,10 +79,11 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 			UpdatedAt:     timestamppb.New(now),
 		}
 		alloc = &runkernel.AllocationRecord{
-			AllocationID: run.GetAllocationID(),
-			NodeID:       selected.NodeID,
-			NodeTarget:   selected.NodeTarget,
-			Attempt:      run.GetAttempt(),
+			AllocationID:           run.GetAllocationID(),
+			NodeID:                 selected.Record.NodeID,
+			NodeTarget:             selected.Record.NodeTarget,
+			Attempt:                run.GetAttempt(),
+			CapabilityDependencies: selected.CapabilityDependencies,
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO runs (
@@ -90,9 +96,9 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO allocations (
 				allocation_id, owner_type, owner_id, environment_id, node_id, attempt, status,
-				config, version, created_at, updated_at, exit_code, exit_code_known, message
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 1, $9, $10, 0, false, '')
-		`, alloc.AllocationID, allocationOwnerRun, run.GetID(), params.Environment.GetID(), alloc.NodeID, alloc.Attempt, commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND.String(), cfgJSON, now.UTC(), now.UTC()); err != nil {
+				config, capability_dependencies, version, created_at, updated_at, exit_code, exit_code_known, message
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, 1, $10, $11, 0, false, '')
+		`, alloc.AllocationID, allocationOwnerRun, run.GetID(), params.Environment.GetID(), alloc.NodeID, alloc.Attempt, commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND.String(), cfgJSON, capabilityDependenciesJSON, now.UTC(), now.UTC()); err != nil {
 			return fmt.Errorf("insert allocation: %w", err)
 		}
 		res := normalizedConfig.GetResources().GetRequests()

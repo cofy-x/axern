@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -45,20 +46,21 @@ type Metadata struct {
 }
 
 type Spec struct {
-	Source       Source            `json:"source" yaml:"source"`
-	Command      Command           `json:"command,omitempty" yaml:"command,omitempty"`
-	RuntimeClass string            `json:"runtime_class,omitempty" yaml:"runtime_class,omitempty"`
-	Resources    Resources         `json:"resources,omitempty" yaml:"resources,omitempty"`
-	Replicas     *int32            `json:"replicas,omitempty" yaml:"replicas,omitempty"`
-	Readiness    *Probe            `json:"readiness,omitempty" yaml:"readiness,omitempty"`
-	Liveness     *Probe            `json:"liveness,omitempty" yaml:"liveness,omitempty"`
-	Autoscaling  *Autoscaling      `json:"autoscaling,omitempty" yaml:"autoscaling,omitempty"`
-	Function     *Function         `json:"function,omitempty" yaml:"function,omitempty"`
-	Env          map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
-	SecretEnv    []SecretEnv       `json:"secret_env,omitempty" yaml:"secret_env,omitempty"`
-	SecretFiles  []SecretFile      `json:"secret_files,omitempty" yaml:"secret_files,omitempty"`
-	Volumes      []Volume          `json:"volumes,omitempty" yaml:"volumes,omitempty"`
-	ImageMounts  []ImageMount      `json:"image_mounts,omitempty" yaml:"image_mounts,omitempty"`
+	Source                Source            `json:"source" yaml:"source"`
+	Command               Command           `json:"command,omitempty" yaml:"command,omitempty"`
+	RuntimeClass          string            `json:"runtime_class,omitempty" yaml:"runtime_class,omitempty"`
+	ExtensionCapabilities map[string]string `json:"extension_capabilities,omitempty" yaml:"extension_capabilities,omitempty"`
+	Resources             Resources         `json:"resources,omitempty" yaml:"resources,omitempty"`
+	Replicas              *int32            `json:"replicas,omitempty" yaml:"replicas,omitempty"`
+	Readiness             *Probe            `json:"readiness,omitempty" yaml:"readiness,omitempty"`
+	Liveness              *Probe            `json:"liveness,omitempty" yaml:"liveness,omitempty"`
+	Autoscaling           *Autoscaling      `json:"autoscaling,omitempty" yaml:"autoscaling,omitempty"`
+	Function              *Function         `json:"function,omitempty" yaml:"function,omitempty"`
+	Env                   map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
+	SecretEnv             []SecretEnv       `json:"secret_env,omitempty" yaml:"secret_env,omitempty"`
+	SecretFiles           []SecretFile      `json:"secret_files,omitempty" yaml:"secret_files,omitempty"`
+	Volumes               []Volume          `json:"volumes,omitempty" yaml:"volumes,omitempty"`
+	ImageMounts           []ImageMount      `json:"image_mounts,omitempty" yaml:"image_mounts,omitempty"`
 }
 
 type Source struct {
@@ -325,16 +327,26 @@ func (e Envelope) ExecutionConfig() (*commonv1.ExecutionConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	extensionValues := make([]string, 0, len(e.Spec.ExtensionCapabilities))
+	for name, value := range e.Spec.ExtensionCapabilities {
+		extensionValues = append(extensionValues, name+"="+value)
+	}
+	sort.Strings(extensionValues)
+	extensions, err := parse.ExtensionCapabilities(extensionValues)
+	if err != nil {
+		return nil, err
+	}
 	return &commonv1.ExecutionConfig{
-		Argv:         append([]string(nil), e.Spec.Command.Argv...),
-		Cwd:          e.Spec.Command.Cwd,
-		Env:          cloneMap(e.Spec.Env),
-		RuntimeClass: e.Spec.RuntimeClass,
-		Resources:    resources,
-		VolumeMounts: volumes,
-		SecretEnv:    secretEnv,
-		SecretFiles:  secretFiles,
-		ImageMounts:  imageMounts,
+		Argv:                            append([]string(nil), e.Spec.Command.Argv...),
+		Cwd:                             e.Spec.Command.Cwd,
+		Env:                             cloneMap(e.Spec.Env),
+		RuntimeClass:                    e.Spec.RuntimeClass,
+		ExtensionCapabilityRequirements: extensions,
+		Resources:                       resources,
+		VolumeMounts:                    volumes,
+		SecretEnv:                       secretEnv,
+		SecretFiles:                     secretFiles,
+		ImageMounts:                     imageMounts,
 	}, nil
 }
 

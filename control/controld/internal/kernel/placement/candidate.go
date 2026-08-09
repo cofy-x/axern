@@ -1,15 +1,36 @@
 package placementkernel
 
 import (
+	"time"
+
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
+
+// Evaluator is the policy boundary durable admission uses to re-evaluate a
+// locked node. Implementations live outside the PostgreSQL adapter.
+type Evaluator interface {
+	Evaluate(*nodekernel.Record, *Request, time.Time) *nodev1.PlacementCandidate
+}
+
+// AdmissionDecision is the durable result of evaluating a candidate while its
+// node row is locked. It keeps the refreshed evaluation and exact evidence
+// together so callers cannot accidentally persist a stale preselection.
+type AdmissionDecision struct {
+	Record                 *nodekernel.Record
+	Evaluation             *nodev1.PlacementCandidate
+	Request                *Request
+	CapabilityDependencies []*capabilityv1.CapabilityDependency
+}
 
 // Candidate carries a request-specific placement evaluation together with the
 // node record that durable admission may lock and refresh.
 type Candidate struct {
 	*nodekernel.Record
-	Evaluation *nodev1.PlacementCandidate
+	Evaluation  *nodev1.PlacementCandidate
+	BaseRequest *Request
+	Request     *Request
 }
 
 func CandidateLess(left, right *Candidate) bool {

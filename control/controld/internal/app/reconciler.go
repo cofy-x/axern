@@ -75,6 +75,7 @@ func (a *App) startPeriodicReconciler() {
 		return a.tunnelPG.ReconcileExpired(ctx, now)
 	})
 	a.startPeriodicComponent(reconcilekernel.ComponentFunction, a.functionController != nil && a.functionPG != nil, a.reconcileFunctionMaintenance)
+	a.startPeriodicLifecycleComponent(reconcilekernel.ComponentCapability, a.capabilityReconciler != nil, a.capabilityReconciler.Reconcile)
 }
 
 func (a *App) startPeriodicComponent(component string, enabled bool, reconcile func(context.Context, time.Time) error) {

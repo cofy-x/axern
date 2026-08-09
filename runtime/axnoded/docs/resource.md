@@ -141,8 +141,8 @@ currently charges only the runc writable upper or runsc file-backed root
 overlay, including metadata, copy-up, and whiteouts. Persistent volumes,
 immutable lower/image cache storage, artifacts, projection placeholders,
 tmpfs, and logs are outside this accounting scope. The runtime implementation
-may continue to call the charged backing a writable layer; that name does not
-broaden the public resource contract.
+may call the charged backing writable storage internally; that implementation
+term does not broaden the public resource contract.
 
 Container status stores both scheduler-facing `ResourceSpec` and local
 `LinuxResources`. Inventory commitment uses running containers only:
@@ -198,11 +198,11 @@ Key behavior:
   memory limit requires the memory controller, a successful write and readback,
   and verified runtime host PID membership. Failure force-deletes the sandbox.
 - Node startup creates a private probe cgroup under `cgroup_root_name`, writes
-  and reads back a memory limit, and removes the probe before publishing
-  `cgroup:memory-limit-ready`. Controld requires this admission capability for
-  workloads with `limits.memory_bytes`. Runtime-specific Sentry, gofer, init,
-  and workload PID attribution remains a per-sandbox post-start verification;
-  the node probe never substitutes for it.
+  and reads back a memory limit, and removes the probe before publishing the
+  typed cgroup-controller fact. Runtime-specific runc/runsc memory-hard-limit
+  capability is derived only after its local conformance sandbox also verifies
+  Sentry, gofer, init, and workload PID attribution. Every real allocation is
+  verified again after create.
 - Runsc node fit adds the configured Sentry/gofer overhead reservation to the
   user-declared memory request. Namespace quota continues to charge only the
   user declaration; the two values are persisted separately.

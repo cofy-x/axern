@@ -11,6 +11,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
@@ -43,7 +44,54 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && record.GetWorkspaceImageUrl() == "")
+	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && record.GetWorkspaceImageUrl() == "" && len(record.GetCapabilityDependencies()) == 0)
+}
+
+// PrepareCapabilityDependencies is the first durable side effect of create.
+// It makes admission dependencies recoverable before volumes, rootfs, mounts,
+// cgroups, or runtime processes are touched.
+func (h *Controller) PrepareCapabilityDependencies(allocationID string, dependencies []*capabilityv1.CapabilityDependency) error {
+	allocationID = strings.TrimSpace(allocationID)
+	if allocationID == "" {
+		return errors.New("allocation id is required")
+	}
+	desired := &apipb.AllocationState{AllocationID: allocationID}
+	h.stateMu.RLock()
+	if current := h.allocationStates[allocationID]; current != nil {
+		desired = cloneAllocationRecord(current.record)
+	}
+	h.stateMu.RUnlock()
+	desired.CapabilityDependencies = cloneCapabilityDependencies(dependencies)
+	if err := h.persistAllocationRecord(desired); err != nil {
+		return fmt.Errorf("persist allocation capability dependencies: %w", err)
+	}
+	h.stateMu.Lock()
+	state := h.stateLocked(allocationID)
+	state.record = desired
+	h.stateMu.Unlock()
+	return nil
+}
+
+func (h *Controller) CapabilityDependencyManifests() map[string][]*capabilityv1.CapabilityDependency {
+	result := make(map[string][]*capabilityv1.CapabilityDependency)
+	h.stateMu.RLock()
+	defer h.stateMu.RUnlock()
+	for allocationID, state := range h.allocationStates {
+		if state != nil && len(state.record.GetCapabilityDependencies()) > 0 {
+			result[allocationID] = cloneCapabilityDependencies(state.record.GetCapabilityDependencies())
+		}
+	}
+	return result
+}
+
+func cloneCapabilityDependencies(in []*capabilityv1.CapabilityDependency) []*capabilityv1.CapabilityDependency {
+	out := make([]*capabilityv1.CapabilityDependency, 0, len(in))
+	for _, dependency := range in {
+		if dependency != nil {
+			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityDependency))
+		}
+	}
+	return out
 }
 
 func (h *Controller) persistAllocationRecord(record *apipb.AllocationState) error {

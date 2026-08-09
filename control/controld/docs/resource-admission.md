@@ -158,7 +158,7 @@ diagnostic categories.
 - `axnoded` remains the runtime authority for cgroup enforcement; overcommit
   and quota do not change container limits.
 - A nonzero `resources.limits.memory_bytes` adds the placement requirement
-  `cgroup:memory-limit-ready`. Axnoded publishes it only after a startup probe
+  the runtime-specific typed memory-hard-limit capability. Axnoded publishes it only after a startup probe
   creates a private cgroup and successfully writes and reads back a memory
   limit. Each admitted sandbox must still pass runtime-specific PID attribution
   after start or be force-deleted.

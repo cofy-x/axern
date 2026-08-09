@@ -22,6 +22,10 @@ type NodeRegistry interface {
 	Report(nodeID, nodeTarget string, runtimes []string, summary *controlnodev1.NodeSummary, now time.Time)
 }
 
+type NodeReporter interface {
+	Report(context.Context, nodekernel.ReportParams) error
+}
+
 type AllocationControl interface {
 	BatchReportAllocationStatus(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationStatusObservation, now time.Time) ([]string, error)
 	ReconcileNodeInventory(ctx context.Context, snapshot allocationkernel.NodeInventorySnapshot, now time.Time) error
@@ -34,6 +38,7 @@ type Dependencies struct {
 	Now                    func() time.Time
 	NodeStore              NodeStore
 	Registry               NodeRegistry
+	Reporter               NodeReporter
 	Allocations            AllocationControl
 	Tunnels                TunnelControl
 	NotifyServiceReconcile func(...string)

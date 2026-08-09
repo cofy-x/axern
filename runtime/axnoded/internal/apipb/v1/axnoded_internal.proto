@@ -5,6 +5,7 @@ package axnoded.internal.apipb.v1;
 option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;apipb";
 
 import "axern/control/catalog/v1/catalog.proto";
+import "axern/control/capability/v1/capability.proto";
 
 enum RootfsSrcType {
   S3 = 0;
@@ -90,6 +91,7 @@ message AllocationState {
   string workspace_image_url = 4;
   string workspace_source_path = 5;
   string workspace_target = 6;
+  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 7;
 }
 
 message TerminalResize {

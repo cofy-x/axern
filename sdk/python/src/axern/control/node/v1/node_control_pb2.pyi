@@ -1,6 +1,7 @@
 import datetime
 
 from axern.control.common.v1 import common_pb2 as _common_pb2
+from axern.control.capability.v1 import capability_pb2 as _capability_pb2
 from axern.control.tunnel.v1 import tunnel_pb2 as _tunnel_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
@@ -329,7 +330,7 @@ class LocalitySummary(_message.Message):
     def __init__(self, key: _Optional[str] = ..., rootfs_type: _Optional[_Union[RootfsType, str]] = ..., mount_type: _Optional[_Union[MountType, str]] = ..., mounted: _Optional[bool] = ..., retained_runtime_count: _Optional[int] = ..., retained_rootfs_count: _Optional[int] = ..., running_container_count: _Optional[int] = ..., nydus_daemon_alive: _Optional[bool] = ..., chunkdb_total_chunks: _Optional[int] = ..., chunkdb_used_bytes: _Optional[int] = ..., chunkdb_recent_access_age_secs: _Optional[int] = ..., peer_healthy_count: _Optional[int] = ..., peer_unhealthy_count: _Optional[int] = ..., peer_hinted_count: _Optional[int] = ..., environment_id: _Optional[str] = ...) -> None: ...
 
 class NodeSummary(_message.Message):
-    __slots__ = ("collected_at", "resources", "pools", "components", "locality", "node_state", "labels", "capabilities", "capacity", "allocatable", "storage")
+    __slots__ = ("collected_at", "resources", "pools", "components", "locality", "node_state", "labels", "capability_snapshot", "capacity", "allocatable", "storage")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -344,7 +345,7 @@ class NodeSummary(_message.Message):
     LOCALITY_FIELD_NUMBER: _ClassVar[int]
     NODE_STATE_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
-    CAPABILITIES_FIELD_NUMBER: _ClassVar[int]
+    CAPABILITY_SNAPSHOT_FIELD_NUMBER: _ClassVar[int]
     CAPACITY_FIELD_NUMBER: _ClassVar[int]
     ALLOCATABLE_FIELD_NUMBER: _ClassVar[int]
     STORAGE_FIELD_NUMBER: _ClassVar[int]
@@ -355,11 +356,11 @@ class NodeSummary(_message.Message):
     locality: _containers.RepeatedCompositeFieldContainer[LocalitySummary]
     node_state: NodeState
     labels: _containers.ScalarMap[str, str]
-    capabilities: _containers.RepeatedScalarFieldContainer[str]
+    capability_snapshot: _capability_pb2.CapabilitySnapshot
     capacity: _common_pb2.ResourceQuantity
     allocatable: _common_pb2.ResourceQuantity
     storage: _containers.RepeatedCompositeFieldContainer[NodeStorageSummary]
-    def __init__(self, collected_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., resources: _Optional[_Union[ResourcesSummary, _Mapping]] = ..., pools: _Optional[_Union[PoolsSummary, _Mapping]] = ..., components: _Optional[_Union[ComponentsSummary, _Mapping]] = ..., locality: _Optional[_Iterable[_Union[LocalitySummary, _Mapping]]] = ..., node_state: _Optional[_Union[NodeState, str]] = ..., labels: _Optional[_Mapping[str, str]] = ..., capabilities: _Optional[_Iterable[str]] = ..., capacity: _Optional[_Union[_common_pb2.ResourceQuantity, _Mapping]] = ..., allocatable: _Optional[_Union[_common_pb2.ResourceQuantity, _Mapping]] = ..., storage: _Optional[_Iterable[_Union[NodeStorageSummary, _Mapping]]] = ...) -> None: ...
+    def __init__(self, collected_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., resources: _Optional[_Union[ResourcesSummary, _Mapping]] = ..., pools: _Optional[_Union[PoolsSummary, _Mapping]] = ..., components: _Optional[_Union[ComponentsSummary, _Mapping]] = ..., locality: _Optional[_Iterable[_Union[LocalitySummary, _Mapping]]] = ..., node_state: _Optional[_Union[NodeState, str]] = ..., labels: _Optional[_Mapping[str, str]] = ..., capability_snapshot: _Optional[_Union[_capability_pb2.CapabilitySnapshot, _Mapping]] = ..., capacity: _Optional[_Union[_common_pb2.ResourceQuantity, _Mapping]] = ..., allocatable: _Optional[_Union[_common_pb2.ResourceQuantity, _Mapping]] = ..., storage: _Optional[_Iterable[_Union[NodeStorageSummary, _Mapping]]] = ...) -> None: ...
 
 class RegisterNodeRequest(_message.Message):
     __slots__ = ("node_id", "runtimes", "node_target", "node_auth_token")
@@ -396,7 +397,7 @@ class ReportNodeResponse(_message.Message):
     def __init__(self) -> None: ...
 
 class AllocationStatusObservation(_message.Message):
-    __slots__ = ("allocation_id", "attempt", "status", "exit_code", "exit_code_known", "message", "observed_at", "ready", "readiness_message")
+    __slots__ = ("allocation_id", "attempt", "status", "exit_code", "exit_code_known", "message", "observed_at", "ready", "readiness_message", "capability_conditions")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     ATTEMPT_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -406,6 +407,7 @@ class AllocationStatusObservation(_message.Message):
     OBSERVED_AT_FIELD_NUMBER: _ClassVar[int]
     READY_FIELD_NUMBER: _ClassVar[int]
     READINESS_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    CAPABILITY_CONDITIONS_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
     attempt: int
     status: _common_pb2.AllocationStatus
@@ -415,7 +417,8 @@ class AllocationStatusObservation(_message.Message):
     observed_at: _timestamp_pb2.Timestamp
     ready: bool
     readiness_message: str
-    def __init__(self, allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[_common_pb2.AllocationStatus, str]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ready: _Optional[bool] = ..., readiness_message: _Optional[str] = ...) -> None: ...
+    capability_conditions: _containers.RepeatedCompositeFieldContainer[_capability_pb2.CapabilityCondition]
+    def __init__(self, allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[_common_pb2.AllocationStatus, str]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ready: _Optional[bool] = ..., readiness_message: _Optional[str] = ..., capability_conditions: _Optional[_Iterable[_Union[_capability_pb2.CapabilityCondition, _Mapping]]] = ...) -> None: ...
 
 class BatchReportAllocationStatusRequest(_message.Message):
     __slots__ = ("node_id", "node_auth_token", "observations")

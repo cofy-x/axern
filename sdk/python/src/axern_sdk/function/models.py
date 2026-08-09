@@ -66,6 +66,7 @@ class FunctionSpec:
     resources: FunctionResources = field(default_factory=FunctionResources)
     scaling: FunctionScaling = field(default_factory=FunctionScaling)
     env: Mapping[str, str] = field(default_factory=dict)
+    extension_capabilities: Mapping[str, str] = field(default_factory=dict)
     secret_env: tuple[SecretEnvVar, ...] = ()
     secret_files: tuple[SecretFile, ...] = ()
     volumes: tuple[VolumeMount, ...] = ()
@@ -76,6 +77,7 @@ class FunctionSpec:
     def __post_init__(self) -> None:
         object.__setattr__(self, "labels", dict(self.labels))
         object.__setattr__(self, "env", dict(self.env))
+        object.__setattr__(self, "extension_capabilities", dict(self.extension_capabilities))
         object.__setattr__(self, "secret_env", tuple(self.secret_env))
         object.__setattr__(self, "secret_files", tuple(self.secret_files))
         object.__setattr__(self, "volumes", tuple(self.volumes))

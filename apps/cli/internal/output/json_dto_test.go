@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
@@ -63,7 +64,14 @@ func TestRunJSONUsesStableShape(t *testing.T) {
 		Config: &commonv1.ExecutionConfig{
 			Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT},
 		},
-		CreatedAt:     createdAt,
+		CreatedAt: createdAt,
+		CapabilityConditions: []*capabilityv1.CapabilityCondition{{
+			Key:        &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT}},
+			State:      capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
+			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
+			Evidence:   &capabilityv1.CapabilityEvidence{EvidenceID: "runtime-proof", RuntimeName: "runsc"},
+			ObservedAt: createdAt,
+		}},
 		ExitCode:      0,
 		ExitCodeKnown: true,
 	}
@@ -76,6 +84,9 @@ func TestRunJSONUsesStableShape(t *testing.T) {
 	}
 	if !strings.Contains(runJSON.String(), `"exit_code": 0`) {
 		t.Fatalf("run JSON should preserve known zero exit code: %s", runJSON.String())
+	}
+	if !strings.Contains(runJSON.String(), `"platform": "runsc_memory_hard_limit"`) || !strings.Contains(runJSON.String(), `"evidence_id": "runtime-proof"`) {
+		t.Fatalf("run JSON omitted structured capability condition: %s", runJSON.String())
 	}
 
 	var failedRunJSON strings.Builder

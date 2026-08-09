@@ -148,7 +148,8 @@ CREATE TABLE runs (
 	updated_at TIMESTAMPTZ NOT NULL,
 	exit_code INTEGER NOT NULL DEFAULT 0,
 	exit_code_known BOOLEAN NOT NULL DEFAULT FALSE,
-	message TEXT NOT NULL DEFAULT ''
+	message TEXT NOT NULL DEFAULT '',
+	capability_conditions JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
 CREATE TABLE services (
@@ -200,6 +201,9 @@ CREATE TABLE allocations (
 	desired_spec_digest TEXT NOT NULL DEFAULT '',
 	config JSONB NOT NULL,
 	workspace_preparation JSONB NOT NULL DEFAULT 'null'::jsonb,
+	capability_dependencies JSONB NOT NULL DEFAULT '{}'::jsonb,
+	capability_conditions JSONB NOT NULL DEFAULT '{}'::jsonb,
+	admitted_capability_dependencies JSONB NOT NULL DEFAULT '{}'::jsonb,
 	version BIGINT NOT NULL DEFAULT 1,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
@@ -207,6 +211,48 @@ CREATE TABLE allocations (
 	exit_code INTEGER NOT NULL DEFAULT 0,
 	exit_code_known BOOLEAN NOT NULL DEFAULT FALSE,
 	message TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE node_capability_transitions (
+	transition_id TEXT PRIMARY KEY,
+	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+	snapshot_id TEXT NOT NULL,
+	snapshot_sequence BIGINT NOT NULL,
+	capability_key JSONB NOT NULL,
+	capability_key_id TEXT NOT NULL,
+	old_state TEXT NOT NULL,
+	new_state TEXT NOT NULL,
+	old_evidence_id TEXT NOT NULL DEFAULT '',
+	new_evidence_id TEXT NOT NULL DEFAULT '',
+	reason_code TEXT NOT NULL,
+	reason TEXT NOT NULL DEFAULT '',
+	observed_at TIMESTAMPTZ NOT NULL,
+	reported_at TIMESTAMPTZ NOT NULL,
+	UNIQUE (node_id, snapshot_id, capability_key_id)
+);
+
+CREATE TABLE node_capability_instances (
+	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+	node_instance_id TEXT NOT NULL,
+	first_snapshot_id TEXT NOT NULL,
+	last_snapshot_id TEXT NOT NULL,
+	last_sequence BIGINT NOT NULL,
+	first_seen_at TIMESTAMPTZ NOT NULL,
+	last_seen_at TIMESTAMPTZ NOT NULL,
+	PRIMARY KEY (node_id, node_instance_id),
+	CHECK (last_sequence > 0)
+);
+
+CREATE TABLE allocation_capability_reconcile_queue (
+	allocation_id TEXT PRIMARY KEY REFERENCES allocations(allocation_id) ON DELETE CASCADE,
+	pending_dependencies JSONB NOT NULL,
+	reconcile_attempts INTEGER NOT NULL DEFAULT 0,
+	next_run_at TIMESTAMPTZ NOT NULL,
+	lease_owner TEXT NOT NULL DEFAULT '',
+	lease_expires_at TIMESTAMPTZ,
+	last_error TEXT NOT NULL DEFAULT '',
+	created_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE workload_reservations (
@@ -310,6 +356,10 @@ CREATE INDEX idx_runs_namespace_created ON runs(namespace, created_at DESC);
 CREATE INDEX idx_service_events_service_created ON service_events(service_id, created_at DESC);
 CREATE INDEX idx_allocations_node_status ON allocations(node_id, status);
 CREATE INDEX idx_allocations_owner_status_updated ON allocations(owner_type, owner_id, status, updated_at);
+CREATE INDEX idx_node_capability_transitions_node_reported
+	ON node_capability_transitions(node_id, reported_at DESC, transition_id DESC);
+CREATE INDEX idx_allocation_capability_reconcile_claimable
+	ON allocation_capability_reconcile_queue(next_run_at, lease_expires_at, allocation_id);
 CREATE INDEX idx_allocations_service_desired_spec
 	ON allocations(owner_id, desired_spec_digest)
 	WHERE owner_type = 'service';

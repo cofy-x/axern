@@ -5,6 +5,7 @@ package axern.control.common.v1;
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1;commonv1";
 
 import "google/protobuf/timestamp.proto";
+import "axern/control/capability/v1/capability.proto";
 import "axern/control/storage/v1/storage_types.proto";
 
 message ResourceQuantity {
@@ -44,11 +45,6 @@ enum NetworkMode {
 
 message NetworkSpec {
   NetworkMode mode = 1;
-}
-
-message CapabilityRequirement {
-  string name = 1;
-  string value = 2;
 }
 
 message PlacementConstraints {
@@ -115,7 +111,7 @@ message ExecutionConfig {
   ResourceSpec resources = 4;
   repeated PortSpec ports = 5;
   NetworkSpec network = 6;
-  repeated CapabilityRequirement capability_requirements = 7;
+  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 7;
   PlacementConstraints placement = 8;
   repeated SecretEnvVar secret_env = 9;
   repeated SecretFile secret_files = 10;
@@ -152,6 +148,7 @@ enum WorkloadDiagnosticCode {
   WORKLOAD_DIAGNOSTIC_CODE_VOLUME_PUBLISH_ERROR = 11;
   WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR = 12;
   WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT = 13;
+  WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST = 14;
 }
 
 enum LeaseType {

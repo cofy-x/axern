@@ -133,6 +133,7 @@ COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
 COPY lib/go/llmproxy/go.mod /workspace/lib/go/llmproxy/go.mod
+COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
 RUN cat > /workspace/go.work <<'EOF'
@@ -142,6 +143,7 @@ use (
 	./lib/go/grpcclient
 	./lib/go/imageref
 	./lib/go/llmproxy
+	./lib/go/nodecapability
 	./lib/go/observability
 	./network/bpfnet
 	./runtime/axnoded
@@ -273,6 +275,20 @@ COPY deploy/images/fixtures/erofs-root/ /tmp/axern-erofs-fixture-root/
 RUN mkdir -p /usr/share/axnoded/fixtures && \
     mkfs.erofs /usr/share/axnoded/fixtures/minimal.erofs /tmp/axern-erofs-fixture-root && \
     rm -rf /tmp/axern-erofs-fixture-root
+
+# Runtime capability observations must be backed by a local, immutable fixture.
+# Keep it in the production node base image so startup conformance never depends
+# on a registry, an image manager, or verification-only Docker stages.
+RUN mkdir -p \
+      /opt/axern/runtime-selftest/rootfs/bin \
+      /opt/axern/runtime-selftest/rootfs/dev \
+      /opt/axern/runtime-selftest/rootfs/proc \
+      /opt/axern/runtime-selftest/rootfs/sys \
+      /opt/axern/runtime-selftest/rootfs/tmp \
+      /opt/axern/runtime-selftest/rootfs/mnt && \
+    cp /bin/busybox /opt/axern/runtime-selftest/rootfs/bin/busybox && \
+    ln -s busybox /opt/axern/runtime-selftest/rootfs/bin/sh && \
+    ln -s busybox /opt/axern/runtime-selftest/rootfs/bin/sleep
 
 COPY runtime/axnoded/scripts/ /workspace/scripts/
 COPY deploy/images/lib/node-all-in-one-entrypoint.sh /usr/local/bin/node-all-in-one-entrypoint

@@ -13,10 +13,12 @@ control_plane_tls_ca_cert = ""
 control_plane_tls_cert = ""
 control_plane_tls_key = ""
 control_plane_node_state = "ready"
-control_plane_node_capabilities = [
-  "feature:ports",
-  "network:iptables",
-]
+
+# Optional exact-match extension facts. Platform capabilities are observed by
+# Axern-owned providers and cannot be declared in configuration.
+# [[plugin.node_extension_capabilities]]
+# name = "example.com/accelerator"
+# value = "a100"
 
 [plugin.control_plane_node_labels]
 # zone = "cn-sha-a"

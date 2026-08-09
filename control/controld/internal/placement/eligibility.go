@@ -4,13 +4,16 @@ import (
 	"time"
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
+	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
+	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/protobuf/proto"
 )
 
 type CandidateInput struct {
 	Record  *nodekernel.Record
-	Request *Request
+	Request *placementkernel.Request
 	Now     time.Time
 }
 
@@ -63,9 +66,13 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 
 	imagemgrReady := imagemgrUsable(summary)
 	imagefsdReady := imagefsdUsable(summary)
-	switch input.Request.GetMountType() {
+	mountType := input.Request.GetMountType()
+	if locality.GetMountType() == nodev1.MountType_MOUNT_TYPE_EROFS {
+		mountType = nodev1.MountType_MOUNT_TYPE_EROFS
+	}
+	switch mountType {
 	case nodev1.MountType_MOUNT_TYPE_LOCAL:
-	case nodev1.MountType_MOUNT_TYPE_OCI:
+	case nodev1.MountType_MOUNT_TYPE_OCI, nodev1.MountType_MOUNT_TYPE_EROFS:
 		if !imagemgrReady {
 			reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE)
 		}
@@ -82,13 +89,16 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 			nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE,
 		)
 	}
-	if requiresPortsCapability(input.Request) && !hasCapability(summary, "feature:ports") {
+	if requiresPortsCapability(input.Request) && !hasCapability(summary, capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING), input.Now) {
 		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_PORTS_UNSUPPORTED)
 	}
-	if network := requiredNetworkCapability(input.Request); network != "" && !hasCapability(summary, network) {
+	if requiresNodeDataplane(input.Request) && availableNetworkCapability(summary, input.Now) == nil {
 		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED)
 	}
-	if !hasCapabilities(summary, input.Request.GetCapabilityRequirements()) {
+	if !hasCapabilities(summary, input.Request.GetCapabilityRequirements(), input.Now) {
+		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED)
+	}
+	if mountType == nodev1.MountType_MOUNT_TYPE_EROFS && !hasCapability(summary, capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS), input.Now) {
 		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED)
 	}
 	if !hasAvailableCPU(e.resourcePolicy, summary, input.Request.GetRequestedCpuMilli()) {

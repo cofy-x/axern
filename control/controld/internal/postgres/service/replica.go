@@ -7,6 +7,7 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"github.com/jackc/pgx/v5"
@@ -32,7 +33,7 @@ func (s *PGStore) GetReplica(ctx context.Context, serviceID, replicaID string) (
 		return nil, ok, err
 	}
 	record, err := scanServiceReplicaRecord(s.db.Pool().QueryRow(ctx, `
-		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.workspace_preparation,
+		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.workspace_preparation, a.capability_conditions,
 			COALESCE(q.reason, ''), COALESCE(q.reconcile_attempts, 0), COALESCE(q.last_error, ''), q.next_run_at
 		FROM allocations a
 		LEFT JOIN allocation_reconcile_queue q ON q.allocation_id = a.allocation_id
@@ -56,7 +57,7 @@ func (s *PGStore) ListReplicas(ctx context.Context, serviceID string, filter *se
 		return nil, nil
 	}
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.workspace_preparation,
+		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.workspace_preparation, a.capability_conditions,
 			COALESCE(q.reason, ''), COALESCE(q.reconcile_attempts, 0), COALESCE(q.last_error, ''), q.next_run_at
 		FROM allocations a
 		LEFT JOIN allocation_reconcile_queue q ON q.allocation_id = a.allocation_id
@@ -103,6 +104,7 @@ func scanServiceReplicaRecord(row serviceReplicaScanner) (*serviceReplicaRecord,
 		retryNextRunAt              pgtype.Timestamptz
 		createdAt, updatedAt        time.Time
 		workspacePreparationJSON    []byte
+		capabilityConditionsJSON    []byte
 	)
 	if err := row.Scan(
 		&replica.ID,
@@ -119,6 +121,7 @@ func scanServiceReplicaRecord(row serviceReplicaScanner) (*serviceReplicaRecord,
 		&createdAt,
 		&updatedAt,
 		&workspacePreparationJSON,
+		&capabilityConditionsJSON,
 		&retryReason,
 		&retryAttempts,
 		&retryLastError,
@@ -146,6 +149,11 @@ func scanServiceReplicaRecord(row serviceReplicaScanner) (*serviceReplicaRecord,
 			return nil, fmt.Errorf("unmarshal workspace preparation: %w", err)
 		}
 	}
+	conditions := &capabilityv1.CapabilityConditionSet{}
+	if err := protojson.Unmarshal(capabilityConditionsJSON, conditions); err != nil {
+		return nil, fmt.Errorf("unmarshal replica capability conditions: %w", err)
+	}
+	replica.CapabilityConditions = conditions.GetConditions()
 	return &serviceReplicaRecord{
 		replica:           &replica,
 		desiredSpecDigest: desiredSpecDigest,

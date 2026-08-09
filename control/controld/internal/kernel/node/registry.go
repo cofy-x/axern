@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -25,6 +26,16 @@ type Record struct {
 	UpdatedAt     time.Time
 	RetiredAt     time.Time
 	RetiredReason string
+	// ReportedCapabilityTransitions contains only transitions committed by the
+	// report operation that returned this record. It is transient observability
+	// data and is never part of the registry's durable node state.
+	ReportedCapabilityTransitions []CapabilityTransition
+}
+
+type CapabilityTransition struct {
+	Key        *capabilityv1.CapabilityKey
+	NewState   capabilityv1.CapabilityState
+	ReasonCode capabilityv1.CapabilityReasonCode
 }
 
 type LifecycleStatus string

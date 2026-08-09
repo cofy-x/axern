@@ -8,6 +8,10 @@ func InspectBacking(rootDir string) (RootfsBackingFacts, error) {
 	return RootfsBackingFacts{Mountpoint: rootDir, FSType: "unknown", LowerDirs: []string{rootDir}}, nil
 }
 
+func verifyMountedOverlay(path string) error {
+	return fmt.Errorf("verify OverlayFS mount %s: unsupported platform", path)
+}
+
 func resolveOverlayLowerDirs(rootDir string) ([]string, error) {
 	return []string{rootDir}, nil
 }

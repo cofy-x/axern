@@ -37,6 +37,17 @@ type DNATReconciler interface {
 	ReconcileDNATRules([]DNATRule) error
 }
 
+// HealthProber reports dataplane facts without mutating host networking.
+// Platform capabilities are published only from this verified state.
+type HealthProber interface {
+	ProbeHealth(ipRange string) (Health, error)
+}
+
+type Health struct {
+	PortForwardingReady  bool
+	NativeDataplaneReady bool
+}
+
 var NetworkManagers = map[string]NetworkManager{}
 
 func Register(name string, manager NetworkManager) {

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
@@ -50,8 +51,10 @@ type AllocationLifecycle interface {
 }
 
 type CreateResolvedAllocationResult struct {
-	PublishedVolumes     []*privatestoragev1.PublishedNodeVolume
-	WorkspacePreparation *commonv1.WorkspacePreparationFacts
+	PublishedVolumes               []*privatestoragev1.PublishedNodeVolume
+	WorkspacePreparation           *commonv1.WorkspacePreparationFacts
+	CapabilityVerification         []*capabilityv1.CapabilityCondition
+	AdmittedCapabilityDependencies []*capabilityv1.CapabilityDependency
 }
 
 // CreateResolvedAllocationRequest is the resolved node-lifecycle payload shape
@@ -59,15 +62,16 @@ type CreateResolvedAllocationResult struct {
 // because it combines several coordinated inputs that should not be passed as a
 // long positional list.
 type CreateResolvedAllocationRequest struct {
-	Target         string
-	Namespace      string
-	ServiceID      string
-	AllocationID   string
-	Attempt        int64
-	Config         *commonv1.ExecutionConfig
-	Environment    *environmentv1.Environment
-	NodeID         string
-	ReadinessProbe *servicev1.ServiceProbe
-	LivenessProbe  *servicev1.ServiceProbe
-	NodeVolumes    []*privatestoragev1.ResolvedNodeVolume
+	Target                 string
+	Namespace              string
+	ServiceID              string
+	AllocationID           string
+	Attempt                int64
+	Config                 *commonv1.ExecutionConfig
+	Environment            *environmentv1.Environment
+	NodeID                 string
+	ReadinessProbe         *servicev1.ServiceProbe
+	LivenessProbe          *servicev1.ServiceProbe
+	NodeVolumes            []*privatestoragev1.ResolvedNodeVolume
+	CapabilityDependencies []*capabilityv1.CapabilityDependency
 }

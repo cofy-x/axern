@@ -40,6 +40,7 @@ const (
 	AttrTrigger          = "axern.trigger"
 	AttrReady            = "axern.ready"
 	AttrReason           = "axern.reason"
+	AttrCapability       = "axern.capability"
 	AttrStage            = "axern.stage"
 	AttrPhase            = "axern.phase"
 	AttrStep             = "axern.step"

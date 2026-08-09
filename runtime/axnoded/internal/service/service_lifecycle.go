@@ -21,6 +21,9 @@ func (h *sandboxService) Ready() bool {
 func (h *sandboxService) Run(ctx context.Context) error {
 	logrus.Infof("sandbox service run at %s", h.config.RootDir)
 	h.ready.Store(false)
+	if h.capabilityReconcileCancel != nil {
+		h.capabilityReconcileCancel()
+	}
 	h.inventoryCollector.Start()
 	h.controlPlaneReports.Start()
 	h.lrtManager.Start()

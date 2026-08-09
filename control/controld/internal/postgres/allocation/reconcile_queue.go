@@ -7,9 +7,11 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type reconcileQueryer interface {
@@ -26,6 +28,7 @@ func DueReconcileItems(ctx context.Context, queryer reconcileQueryer, ownerType 
 	}
 	rows, err := queryer.Query(ctx, `
 		SELECT q.allocation_id, a.owner_id, a.environment_id, q.reason, a.node_id, n.node_target, a.attempt, q.reconcile_attempts, q.last_error, q.next_run_at,
+			a.capability_dependencies,
 			GREATEST(q.next_run_at, q.updated_at, COALESCE(q.lease_expires_at, '-infinity'::timestamptz)) AS eligible_at
 		FROM allocation_reconcile_queue q
 		JOIN allocations a ON a.allocation_id = q.allocation_id
@@ -41,7 +44,11 @@ func DueReconcileItems(ctx context.Context, queryer reconcileQueryer, ownerType 
 	out := make([]allocationkernel.ReconcileItem, 0)
 	for rows.Next() {
 		var item allocationkernel.ReconcileItem
-		if err := rows.Scan(&item.AllocationID, &item.OwnerID, &item.EnvironmentID, &item.Reason, &item.NodeID, &item.NodeTarget, &item.Attempt, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &item.EligibleAt); err != nil {
+		var dependenciesJSON []byte
+		if err := rows.Scan(&item.AllocationID, &item.OwnerID, &item.EnvironmentID, &item.Reason, &item.NodeID, &item.NodeTarget, &item.Attempt, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt); err != nil {
+			return nil, err
+		}
+		if err := decodeCapabilityDependencies(dependenciesJSON, &item); err != nil {
 			return nil, err
 		}
 		out = append(out, item)
@@ -66,6 +73,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 		WITH ranked AS (
 			SELECT q.allocation_id, a.owner_id, a.environment_id, q.reason, a.node_id, n.node_target,
 				a.attempt, q.reconcile_attempts, q.last_error, q.next_run_at,
+				a.capability_dependencies,
 				GREATEST(q.next_run_at, q.updated_at, COALESCE(q.lease_expires_at, '-infinity'::timestamptz)) AS eligible_at,
 				ROW_NUMBER() OVER (PARTITION BY a.node_id ORDER BY q.next_run_at ASC, q.allocation_id ASC) AS node_rank
 			FROM allocation_reconcile_queue q
@@ -76,7 +84,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			  AND (q.lease_expires_at IS NULL OR q.lease_expires_at <= $1)
 		), candidates AS (
 			SELECT r.allocation_id, r.owner_id, r.environment_id, r.reason, r.node_id, r.node_target,
-				r.attempt, r.reconcile_attempts, r.last_error, r.next_run_at, r.eligible_at
+				r.attempt, r.reconcile_attempts, r.last_error, r.next_run_at, r.capability_dependencies, r.eligible_at
 			FROM ranked r
 			JOIN allocation_reconcile_queue q ON q.allocation_id = r.allocation_id
 			ORDER BY r.node_rank ASC, r.next_run_at ASC, r.allocation_id ASC
@@ -91,7 +99,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			RETURNING q.allocation_id
 		)
 		SELECT c.allocation_id, c.owner_id, c.environment_id, c.reason, c.node_id, c.node_target,
-			c.attempt, c.reconcile_attempts, c.last_error, c.next_run_at, c.eligible_at
+			c.attempt, c.reconcile_attempts, c.last_error, c.next_run_at, c.capability_dependencies, c.eligible_at
 		FROM candidates c
 		JOIN claimed USING (allocation_id)
 		ORDER BY c.allocation_id ASC
@@ -103,12 +111,27 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 	out := make([]allocationkernel.ReconcileItem, 0)
 	for rows.Next() {
 		item := allocationkernel.ReconcileItem{ClaimOwner: owner}
-		if err := rows.Scan(&item.AllocationID, &item.OwnerID, &item.EnvironmentID, &item.Reason, &item.NodeID, &item.NodeTarget, &item.Attempt, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &item.EligibleAt); err != nil {
+		var dependenciesJSON []byte
+		if err := rows.Scan(&item.AllocationID, &item.OwnerID, &item.EnvironmentID, &item.Reason, &item.NodeID, &item.NodeTarget, &item.Attempt, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt); err != nil {
+			return nil, err
+		}
+		if err := decodeCapabilityDependencies(dependenciesJSON, &item); err != nil {
 			return nil, err
 		}
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+func decodeCapabilityDependencies(payload []byte, item *allocationkernel.ReconcileItem) error {
+	set := &capabilityv1.CapabilityDependencySet{}
+	if len(payload) > 0 {
+		if err := protojson.Unmarshal(payload, set); err != nil {
+			return fmt.Errorf("unmarshal allocation capability dependencies: %w", err)
+		}
+	}
+	item.CapabilityDependencies = set.GetDependencies()
+	return nil
 }
 
 func RenewReconcileClaim(ctx context.Context, executor reconcileExecutor, allocationID, owner string, now time.Time, leaseTTL time.Duration) (bool, error) {

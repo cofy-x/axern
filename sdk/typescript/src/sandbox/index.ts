@@ -5,6 +5,7 @@
  */
 
 import { AxernClient } from "../client/index.js";
+import type { ExtensionCapability } from "../client/index.js";
 import { SandboxStateError } from "../errors/index.js";
 import type { NodeSandboxClient } from "../node/client.js";
 import type { SandboxProcess } from "../node/process.js";
@@ -53,6 +54,7 @@ export interface SandboxOptions {
   env?: Record<string, string>;
   cwd?: string;
   runtimeClass?: string;
+  extensionCapabilities?: readonly ExtensionCapability[];
   volumes?: readonly VolumeMount[];
   requestCpu?: ResourceQuantity;
   requestMemory?: ResourceQuantity;
@@ -96,7 +98,7 @@ export class Sandbox {
 
   constructor(options: SandboxOptions) {
     validateSandboxOptions(options);
-	this.client = options.client;
+    this.client = options.client;
     this.options = options;
   }
 
@@ -140,6 +142,7 @@ export class Sandbox {
         env: this.options.env,
         cwd: this.options.cwd,
         runtimeClass: this.options.runtimeClass,
+        extensionCapabilities: this.options.extensionCapabilities,
         volumes: this.options.volumes,
         requestCpu: this.options.requestCpu,
         requestMemory: this.options.requestMemory,

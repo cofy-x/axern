@@ -31,6 +31,7 @@ from axern_sdk.client import (
     DEFAULT_ENDPOINT,
     ServiceProbeInput,
     ServiceVolumeMountInput,
+    _extension_capability_requirements,
     _resource_spec,
     _is_transient_service_read_code,
     _service_probe,
@@ -354,6 +355,7 @@ class AsyncAxernClient:
         limit_cpu: ResourceQuantity = "",
         limit_memory: ResourceQuantity = "",
         limit_ephemeral_storage: ResourceQuantity = "",
+        extension_capabilities: dict[str, str] | None = None,
         node_selector: dict[str, str] | None = None,
         volume_mounts: Iterable[ServiceVolumeMountInput] | None = None,
         readiness_probe: ServiceProbeInput | None = None,
@@ -382,6 +384,7 @@ class AsyncAxernClient:
                         limit_memory=limit_memory,
                         limit_ephemeral_storage=limit_ephemeral_storage,
                     ),
+                    extension_capability_requirements=_extension_capability_requirements(extension_capabilities),
                     placement=common_pb2.PlacementConstraints(
                         node_selector=dict(node_selector or {}),
                     ),

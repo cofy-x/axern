@@ -1,6 +1,10 @@
 package allocationkernel
 
-import "time"
+import (
+	"time"
+
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+)
 
 const (
 	ReconcileReasonCreate     = "create"
@@ -15,18 +19,36 @@ const (
 )
 
 type ReconcileItem struct {
-	AllocationID       string
-	OwnerID            string
-	EnvironmentID      string
-	Reason             string
-	NodeID             string
-	NodeTarget         string
-	Attempt            int64
-	ReconcileAttempts  int
-	LastReconcileError string
-	ClaimOwner         string
-	NextRunAt          time.Time
-	EligibleAt         time.Time
+	AllocationID           string
+	OwnerID                string
+	EnvironmentID          string
+	Reason                 string
+	NodeID                 string
+	NodeTarget             string
+	Attempt                int64
+	ReconcileAttempts      int
+	LastReconcileError     string
+	ClaimOwner             string
+	NextRunAt              time.Time
+	EligibleAt             time.Time
+	CapabilityDependencies []*capabilityv1.CapabilityDependency
+}
+
+type CapabilityReconcileItem struct {
+	AllocationID string
+	NodeID       string
+	NodeTarget   string
+	Attempt      int64
+	Dependencies []*capabilityv1.CapabilityDependency
+	Attempts     int
+}
+
+// CapabilityAdmission is the authoritative result of axnoded's post-create
+// capability gate. Dependencies retain the exact selected and transitive
+// evidence; Conditions describe the resulting allocation state.
+type CapabilityAdmission struct {
+	Dependencies []*capabilityv1.CapabilityDependency
+	Conditions   []*capabilityv1.CapabilityCondition
 }
 
 type ScheduleReconcileRequest struct {

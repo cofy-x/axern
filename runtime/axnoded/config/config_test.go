@@ -240,7 +240,7 @@ func TestPluginConfigControlPlaneHelpers(t *testing.T) {
 	cfg.ControlPlaneNodeState = "draining"
 	cfg.ControlPlaneNodeResourceSource = " kubernetes "
 	cfg.ControlPlaneKubernetesNodeName = " node-a "
-	cfg.ControlPlaneNodeCapabilities = []string{" feature:ports ", "network:bridge", "feature:ports"}
+	cfg.NodeExtensionCapabilities = []ExtensionCapabilityConfig{{Name: " example.com/accelerator ", Value: " v1 "}}
 	cfg.ControlPlaneNodeLabels = map[string]string{
 		" zone ": " us-east-1 ",
 		"":       "ignored",
@@ -248,9 +248,9 @@ func TestPluginConfigControlPlaneHelpers(t *testing.T) {
 	if got := cfg.ControlPlaneNodeStateValue(); got != "draining" {
 		t.Fatalf("ControlPlaneNodeStateValue() = %q, want draining", got)
 	}
-	capabilities := cfg.ControlPlaneNodeCapabilitiesValue()
-	if len(capabilities) != 2 || capabilities[0] != "feature:ports" || capabilities[1] != "network:bridge" {
-		t.Fatalf("ControlPlaneNodeCapabilitiesValue() = %#v, want [feature:ports network:bridge]", capabilities)
+	capabilities, err := cfg.NodeExtensionCapabilitiesValue()
+	if err != nil || len(capabilities) != 1 || capabilities[0].GetName() != "example.com/accelerator" || capabilities[0].GetValue() != " v1 " {
+		t.Fatalf("NodeExtensionCapabilitiesValue() = %#v, %v", capabilities, err)
 	}
 	labels := cfg.ControlPlaneNodeLabelsValue()
 	if len(labels) != 1 || labels["zone"] != "us-east-1" {

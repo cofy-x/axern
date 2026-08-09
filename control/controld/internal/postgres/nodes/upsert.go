@@ -8,11 +8,13 @@ import (
 	"time"
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 type nodeUpsertParams struct {
@@ -76,7 +78,29 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 		}
 	}
 
+	var reportedTransitions []nodekernel.CapabilityTransition
 	if params.Summary != nil {
+		var previous *nodev1.NodeSummary
+		var previousJSON []byte
+		if err := tx.QueryRow(ctx, `SELECT summary FROM node_summaries WHERE node_id = $1 FOR UPDATE`, nodeID).Scan(&previousJSON); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("load previous node summary: %w", err)
+		} else if err == nil {
+			previous = &nodev1.NodeSummary{}
+			if err := protojson.Unmarshal(previousJSON, previous); err != nil {
+				return nil, fmt.Errorf("unmarshal previous node summary: %w", err)
+			}
+		}
+		transitions, err := persistCapabilityReport(ctx, tx, nodeID, previous, params.Summary, params.Now)
+		if err != nil {
+			return nil, err
+		}
+		for _, transition := range transitions {
+			reportedTransitions = append(reportedTransitions, nodekernel.CapabilityTransition{
+				Key:        capabilityKeyClone(transition.key),
+				NewState:   transition.newState,
+				ReasonCode: transition.reasonCode,
+			})
+		}
 		payload, err := protojson.Marshal(params.Summary)
 		if err != nil {
 			return nil, fmt.Errorf("marshal node summary: %w", err)
@@ -101,7 +125,15 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit node tx: %w", err)
 	}
+	record.ReportedCapabilityTransitions = reportedTransitions
 	return record, nil
+}
+
+func capabilityKeyClone(key *capabilityv1.CapabilityKey) *capabilityv1.CapabilityKey {
+	if key == nil {
+		return nil
+	}
+	return proto.Clone(key).(*capabilityv1.CapabilityKey)
 }
 
 func collectedAt(summary *nodev1.NodeSummary) *time.Time {

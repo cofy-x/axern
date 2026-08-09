@@ -233,6 +233,37 @@ func TestReservationRejectionErrorIncludesStructuredDetails(t *testing.T) {
 	}
 }
 
+func TestLockedAdmissionEligibilityFailureIsNotReportedAsCapacity(t *testing.T) {
+	err := lockedAdmissionEligibilityError(0, &placementkernel.Request{}, []*nodev1.PlacementCandidate{{
+		NodeID:           "node-a",
+		State:            nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_REJECTED,
+		RejectionReasons: []nodev1.PlacementRejectionReason{nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED},
+	}})
+	if err == nil {
+		t.Fatal("lockedAdmissionEligibilityError returned nil")
+	}
+	st := grpcstatus.Convert(err)
+	if st.Code() != codes.FailedPrecondition {
+		t.Fatalf("code = %v, want FailedPrecondition", st.Code())
+	}
+	info := errorInfoFromStatus(t, st)
+	if info.GetReason() != string(resourcekernel.AdmissionRejectionNodeSelection) {
+		t.Fatalf("reason = %q, want %q", info.GetReason(), resourcekernel.AdmissionRejectionNodeSelection)
+	}
+	if strings.Contains(st.Message(), "remaining reservation capacity") {
+		t.Fatalf("message = %q, must not report reservation capacity", st.Message())
+	}
+}
+
+func TestLockedAdmissionEligibilityFailureDefersToCapacityWhenAnotherCandidateWasEvaluated(t *testing.T) {
+	if err := lockedAdmissionEligibilityError(1, &placementkernel.Request{}, []*nodev1.PlacementCandidate{{
+		State:            nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_REJECTED,
+		RejectionReasons: []nodev1.PlacementRejectionReason{nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED},
+	}}); err != nil {
+		t.Fatalf("lockedAdmissionEligibilityError = %v, want capacity path to decide", err)
+	}
+}
+
 func TestQuotaRejectionErrorIncludesStructuredDetails(t *testing.T) {
 	cpuLimit := int64(1000)
 	evaluation := resourcekernel.NamespaceQuotaPolicy{
