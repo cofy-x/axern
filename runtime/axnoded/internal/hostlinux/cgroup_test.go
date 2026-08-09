@@ -40,9 +40,15 @@ type memoryProbeDriver struct {
 	cgroup  *memoryProbeCgroup
 	created string
 	removed []string
+	mode    string
 }
 
-func (d *memoryProbeDriver) Mode() string { return os2.CgroupModeV2 }
+func (d *memoryProbeDriver) Mode() string {
+	if d.mode == "" {
+		return os2.CgroupModeV2
+	}
+	return d.mode
+}
 func (d *memoryProbeDriver) Create(group string, _ *specs.LinuxResources) (os2.Cgroup, error) {
 	d.created = group
 	d.cgroup = &memoryProbeCgroup{}
@@ -98,6 +104,17 @@ func TestProbeCgroupMemoryLimitWritesReadsAndCleansUp(t *testing.T) {
 	}
 	if len(driver.removed) != 1 || driver.removed[0] != driver.created {
 		t.Fatalf("cleanup calls = %#v", driver.removed)
+	}
+}
+
+func TestProbeCgroupMemoryLimitRejectsNonV2Driver(t *testing.T) {
+	driver := &memoryProbeDriver{mode: "v1"}
+	err := probeCgroupMemoryLimit(driver, "sandbox", func(string, int64) error { return nil })
+	if err == nil || !strings.Contains(err.Error(), "requires cgroup v2") {
+		t.Fatalf("probeCgroupMemoryLimit() error = %v, want cgroup v2 rejection", err)
+	}
+	if driver.created != "" {
+		t.Fatalf("probe created cgroup %q before rejecting v1", driver.created)
 	}
 }
 

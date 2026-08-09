@@ -66,9 +66,43 @@ type runtimeConformanceProvider struct {
 	lastErr          error
 	lastErrorUnknown bool
 	lastReasonCode   capabilityv1.CapabilityReasonCode
+	digestCache      *runtimeFileDigestCache
 }
 
-func runtimeConformanceCapabilityProvider(cfg config.Config, registry *handlerregistry.Registry, runtimeName string, kind runtimeConformanceKind, bootID string, probe runtimeConformanceProbe) *runtimeConformanceProvider {
+type runtimeFileDigestEntry struct {
+	info   os.FileInfo
+	digest string
+}
+
+type runtimeFileDigestCache struct {
+	mu      sync.Mutex
+	entries map[string]runtimeFileDigestEntry
+}
+
+func newRuntimeFileDigestCache() *runtimeFileDigestCache {
+	return &runtimeFileDigestCache{entries: make(map[string]runtimeFileDigestEntry)}
+}
+
+func (c *runtimeFileDigestCache) Digest(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cached, ok := c.entries[path]; ok && runtimeFileMetadataEqual(cached.info, info) {
+		return cached.digest, nil
+	}
+	digest, err := digestFile(path)
+	if err != nil {
+		return "", err
+	}
+	c.entries[path] = runtimeFileDigestEntry{info: info, digest: digest}
+	return digest, nil
+}
+
+func runtimeConformanceCapabilityProvider(cfg config.Config, registry *handlerregistry.Registry, runtimeName string, kind runtimeConformanceKind, bootID string, probe runtimeConformanceProbe, caches ...*runtimeFileDigestCache) *runtimeConformanceProvider {
 	// The call sites use the closed runtime/kind matrix below. Keep each
 	// provider single-keyed: provider ownership and recovery are tracked per
 	// observation, so combining enforcement boundaries would couple their
@@ -85,9 +119,13 @@ func runtimeConformanceCapabilityProvider(cfg config.Config, registry *handlerre
 			fact = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST
 		}
 	}
+	cache := newRuntimeFileDigestCache()
+	if len(caches) > 0 && caches[0] != nil {
+		cache = caches[0]
+	}
 	return &runtimeConformanceProvider{
 		cfg: cfg, registry: registry, runtime: runtimeName, kind: kind, provider: provider, bootID: bootID, probe: probe,
-		expected: capabilitycontract.PlatformKey(fact),
+		expected: capabilitycontract.PlatformKey(fact), digestCache: cache,
 	}
 }
 
@@ -99,6 +137,7 @@ func (p *runtimeConformanceProvider) ExpectedKeys() []*capabilityv1.CapabilityKe
 func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	sampleStarted := time.Now()
 	identity, binaryDigest, configDigest, err := p.runtimeIdentity()
 	identityChanged := err == nil && identity != p.identity
 	probeDue := p.lastProbe.IsZero() || (!p.nextProbe.IsZero() && !now.Before(p.nextProbe)) || (p.nextProbe.IsZero() && now.Sub(p.lastProbe) >= runtimeConformancePeriod)
@@ -111,9 +150,23 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 			disabledReason = "cgroup enforcement is disabled for development"
 		}
 	}
-	if err == nil && disabledReason != "" && (identityChanged || probeDue) {
+	// A previously certified runtime/config subject must stop satisfying new
+	// admission as soon as its identity changes. Publish UNKNOWN first; the
+	// next scheduler tick performs the expensive conformance sandbox. Running
+	// the self-test inline here would leave the old AVAILABLE batch visible for
+	// up to the full probe timeout.
+	if err == nil && identityChanged && !p.lastProbe.IsZero() && disabledReason == "" {
 		p.identity = identity
-		p.lastProbe = now
+		p.lastProbe = runtimeSampleCompletedAt(now, sampleStarted)
+		p.lastErr = errors.New("runtime or runtime configuration identity changed; conformance revalidation is pending")
+		p.lastErrorUnknown = true
+		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_IDENTITY_CHANGED
+		p.failures = 1
+		p.recoveryPending = false
+		p.nextProbe = p.lastProbe
+	} else if err == nil && disabledReason != "" && (identityChanged || probeDue) {
+		p.identity = identity
+		p.lastProbe = runtimeSampleCompletedAt(now, sampleStarted)
 		p.lastErr = errors.New(disabledReason)
 		p.lastErrorUnknown = false
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED
@@ -125,20 +178,20 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		err = p.probe(probeCtx, p.runtime, p.kind)
 		cancel()
 		p.identity = identity
-		p.lastProbe = now
+		p.lastProbe = runtimeSampleCompletedAt(now, sampleStarted)
 		p.lastErr = err
 		p.lastErrorUnknown = false
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED
 		if err != nil {
 			p.failures++
 			p.recoveryPending = false
-			p.nextProbe = now.Add(runtimeProbeRetryDelay(p.failures))
+			p.nextProbe = p.lastProbe.Add(runtimeProbeRetryDelay(p.failures))
 		} else {
 			wasFailing := p.failures > 0
 			p.failures = 0
 			if wasFailing {
 				p.recoveryPending = true
-				p.nextProbe = now.Add(5 * time.Second)
+				p.nextProbe = p.lastProbe.Add(5 * time.Second)
 			} else if p.recoveryPending {
 				p.recoveryPending = false
 				p.nextProbe = time.Time{}
@@ -148,19 +201,20 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		}
 	} else if err != nil && (p.lastProbe.IsZero() || p.nextProbe.IsZero() || !now.Before(p.nextProbe)) {
 		p.identity = identity
-		p.lastProbe = now
+		p.lastProbe = runtimeSampleCompletedAt(now, sampleStarted)
 		p.lastErr = err
 		p.lastErrorUnknown = true
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR
 		p.failures++
 		p.recoveryPending = false
-		p.nextProbe = now.Add(runtimeProbeRetryDelay(p.failures))
+		p.nextProbe = p.lastProbe.Add(runtimeProbeRetryDelay(p.failures))
 	}
-	evidence := &capabilityv1.CapabilityEvidence{
-		BootID: p.bootID, RuntimeName: p.runtime, RuntimeBinaryDigest: binaryDigest, ConfigDigest: configDigest,
+	var evidence *capabilityv1.CapabilityEvidence
+	if binaryDigest != "" && configDigest != "" {
+		evidence = capabilitycontract.RuntimeEvidence(p.bootID, p.runtime, binaryDigest, configDigest)
 	}
 	if p.lastErr != nil {
-		observation := failedObservation(p.expected, capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_RUNTIME, evidence, p.lastReasonCode, p.lastErr.Error())
+		observation := failedObservation(p.expected, evidence, p.lastReasonCode, p.lastErr.Error())
 		if p.lastErrorUnknown {
 			observation.State = capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN
 		}
@@ -168,9 +222,17 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		setObservationTime(observations, p.lastProbe)
 		return observations, nil
 	}
-	result := []*capabilityv1.CapabilityObservation{availableObservation(p.expected, capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_RUNTIME, evidence)}
+	result := []*capabilityv1.CapabilityObservation{availableObservation(p.expected, evidence)}
 	setObservationTime(result, p.lastProbe)
 	return result, nil
+}
+
+func runtimeSampleCompletedAt(sampledAt, wallStarted time.Time) time.Time {
+	elapsed := time.Since(wallStarted)
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	return sampledAt.Add(elapsed)
 }
 
 func runtimeProbeRetryDelay(failures int) time.Duration {
@@ -205,11 +267,11 @@ func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, 
 	if err != nil {
 		return "", "", "", fmt.Errorf("resolve runtime binary: %w", err)
 	}
-	binaryDigest, err = digestFile(runtimeBinary)
+	binaryDigest, err = p.digestCache.Digest(runtimeBinary)
 	if err != nil {
 		return "", "", "", fmt.Errorf("digest runtime binary: %w", err)
 	}
-	baseSpecDigest, err := digestFile(runtimeCfg.BaseSpec)
+	baseSpecDigest, err := p.digestCache.Digest(runtimeCfg.BaseSpec)
 	if err != nil {
 		return "", "", "", fmt.Errorf("digest runtime base spec: %w", err)
 	}
@@ -217,7 +279,7 @@ func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, 
 	if err != nil {
 		return "", "", "", fmt.Errorf("resolve runtime runner binary: %w", err)
 	}
-	runnerDigest, err := digestFile(runner)
+	runnerDigest, err := p.digestCache.Digest(runner)
 	if err != nil {
 		return "", "", "", fmt.Errorf("digest runtime runner binary: %w", err)
 	}
@@ -231,7 +293,7 @@ func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, 
 	}
 	configPayload := strings.Join([]string{baseSpecDigest, runnerDigest, string(options), mode}, "\x00")
 	digest := sha256.Sum256([]byte(configPayload))
-	configDigest = hex.EncodeToString(digest[:])
+	configDigest = "sha256:" + hex.EncodeToString(digest[:])
 	return binaryDigest + ":" + configDigest, binaryDigest, configDigest, nil
 }
 
@@ -241,7 +303,7 @@ func digestFile(path string) (string, error) {
 		return "", err
 	}
 	digest := sha256.Sum256(payload)
-	return hex.EncodeToString(digest[:]), nil
+	return "sha256:" + hex.EncodeToString(digest[:]), nil
 }
 
 func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runtimeName string, kind runtimeConformanceKind) (retErr error) {
@@ -299,7 +361,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 		}
 	}()
 	startAttempted = true
-	response, err := h.allocationController().Start(operationCtx, request)
+	response, err := h.allocationController().StartInternalConformance(operationCtx, request)
 	if err != nil || response == nil || response.GetCode() != 0 {
 		message := "empty response"
 		if response != nil {

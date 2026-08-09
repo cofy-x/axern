@@ -41,7 +41,7 @@ func (h *sandboxService) initNodeInventory() error {
 		return err
 	}
 	h.capabilityManager.Subscribe(h.handleCapabilityTransitions)
-	h.capabilityManager.SetMetricsObserver(capabilityMetricsObserver{})
+	h.capabilityManager.SetMetricsObserver(&capabilityMetricsObserver{})
 	disabledPools := disabledResourcePools(h.config.PluginConfig.ResourceConfig)
 	storageTargets := nodeinventory.DefaultStorageTargets(h.config.RootDir)
 	if filestore := h.config.PluginConfig.RuntimeConfig.FilestoreDir; filestore != "" {
@@ -83,24 +83,22 @@ func (h *sandboxService) currentCapabilitySnapshot(context.Context, time.Time) (
 	return snapshot, nil
 }
 
-// startCapabilityRefresh isolates potentially slow conformance probes from
-// inventory collection. Inventory and heartbeats consume only the last atomic
-// snapshot, so a runtime probe cannot make an otherwise-live node look stale.
+// startCapabilityRefresh starts independent provider schedulers and a separate
+// inventory publisher. Inventory consumes the latest atomic publication; it
+// never forms a global barrier around runtime conformance and health probes.
 func (h *sandboxService) startCapabilityRefresh(parent context.Context) {
 	if h == nil || h.capabilityManager == nil {
 		return
 	}
 	ctx, cancel := context.WithCancel(parent)
 	h.capabilityRefreshCancel = cancel
+	h.capabilityManager.Start(ctx)
 	h.capabilityRefreshWG.Add(1)
 	go func() {
 		defer h.capabilityRefreshWG.Done()
 		ticker := time.NewTicker(capabilityRefreshInterval)
 		defer ticker.Stop()
 		for {
-			if _, err := h.capabilityManager.Refresh(ctx, time.Now().UTC()); err != nil && ctx.Err() == nil {
-				logrus.WithError(err).Warn("refresh observed capability snapshot")
-			}
 			h.refreshNodeInventory()
 			select {
 			case <-ctx.Done():

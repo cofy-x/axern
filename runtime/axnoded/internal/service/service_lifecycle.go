@@ -24,9 +24,14 @@ func (h *sandboxService) Run(ctx context.Context) error {
 	if h.capabilityReconcileCancel != nil {
 		h.capabilityReconcileCancel()
 	}
+	h.capabilityReconcileCtx, h.capabilityReconcileCancel = context.WithCancel(context.Background())
 	h.inventoryCollector.Start()
 	h.controlPlaneReports.Start()
+	for allocationID, manifest := range h.allocationController().CapabilityConditionManifests() {
+		h.controlPlaneReports.ReportCapabilityConditions(allocationID, manifest.Attempt, manifest.Set)
+	}
 	h.startCapabilityRefresh(ctx)
+	h.startPeriodicCapabilityAudit()
 	h.lrtManager.Start()
 	go h.containerManager.Start()
 	go func() {
@@ -48,6 +53,10 @@ func (h *sandboxService) shutdown(ctx context.Context) error {
 	logrus.Info("sandbox service shutting down")
 	h.ready.Store(false)
 	h.stopCapabilityRefresh()
+	if h.capabilityReconcileCancel != nil {
+		h.capabilityReconcileCancel()
+	}
+	h.capabilityReconcileWG.Wait()
 	h.stopAllReadinessWorkers()
 	h.stopAllLivenessWorkers()
 

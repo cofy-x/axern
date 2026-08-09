@@ -35,7 +35,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var _ SandboxService = &sandboxService{}
+var _ NodeOperatorService = &sandboxService{}
 
 // sandboxService is the NodeSandbox-facing facade assembled by NewSandboxService.
 type sandboxService struct {
@@ -70,6 +70,7 @@ type sandboxService struct {
 	capabilityReconciling     map[string]struct{}
 	capabilityReconcileCtx    context.Context
 	capabilityReconcileCancel context.CancelFunc
+	capabilityReconcileWG     sync.WaitGroup
 	controlPlaneReports       *servicecontrolplane.Coordinator
 
 	ready atomic.Bool
@@ -89,6 +90,11 @@ type nodeStateStore interface {
 
 // NewSandboxService creates a new sandbox service from an already parsed config.
 func NewSandboxService(cfg config.Config) (NodeOperatorService, error) {
+	networkConfig, err := cfg.PluginConfig.NetworkConfig.Normalized()
+	if err != nil {
+		return nil, fmt.Errorf("normalize network config: %w", err)
+	}
+	cfg.PluginConfig.NetworkConfig = networkConfig
 	if err := configureNodeNetwork(cfg); err != nil {
 		return nil, err
 	}

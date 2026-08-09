@@ -21,6 +21,9 @@ func probeCgroupMemoryLimit(driver os2.CgroupDriver, rootName string, verify fun
 	if verify == nil {
 		return fmt.Errorf("cgroup memory probe verifier is nil")
 	}
+	if driver.Mode() != os2.CgroupModeV2 {
+		return fmt.Errorf("cgroup memory hard-limit capability requires cgroup v2, got %q", driver.Mode())
+	}
 	rootName = strings.Trim(strings.TrimSpace(rootName), "/")
 	if rootName == "" {
 		return fmt.Errorf("cgroup memory probe root is empty")

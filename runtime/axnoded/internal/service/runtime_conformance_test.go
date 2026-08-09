@@ -29,7 +29,7 @@ func TestRuntimeConformanceProvidersKeepMemoryAndEphemeralIndependent(t *testing
 		return nil
 	}
 	now := time.Now().UTC()
-	memory := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, "boot", probe)
+	memory := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, probe)
 	memoryObservations, err := memory.Observe(context.Background(), now)
 	if err != nil {
 		t.Fatalf("memory Observe() error = %v", err)
@@ -44,7 +44,7 @@ func TestRuntimeConformanceProvidersKeepMemoryAndEphemeralIndependent(t *testing
 		t.Fatalf("disabled memory probe calls = %d, want 0", calls[runtimeConformanceKindMemory])
 	}
 
-	ephemeral := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindEphemeral, "boot", probe)
+	ephemeral := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindEphemeral, testCapabilityBootID, probe)
 	ephemeralObservations, err := ephemeral.Observe(context.Background(), now)
 	if err != nil {
 		t.Fatalf("ephemeral Observe() error = %v", err)
@@ -54,6 +54,70 @@ func TestRuntimeConformanceProvidersKeepMemoryAndEphemeralIndependent(t *testing
 	}
 	if calls[runtimeConformanceKindEphemeral] != 1 {
 		t.Fatalf("ephemeral probe calls = %d, want 1", calls[runtimeConformanceKindEphemeral])
+	}
+}
+
+func TestRuntimeConformanceIdentityChangeInvalidatesBeforeExpensiveReprobe(t *testing.T) {
+	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
+	registry := handlerregistry.New(cfg)
+	handler := runtimetest.NewFakeRuntimeHandler()
+	handler.RuntimeName = config.RuntimeNameRunsc
+	registry.Set(config.RuntimeNameRunsc, handler)
+	probeCalls := 0
+	provider := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, func(context.Context, string, runtimeConformanceKind) error {
+		probeCalls++
+		return nil
+	})
+	now := time.Now().UTC()
+	initial, err := provider.Observe(context.Background(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if initial[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE || probeCalls != 1 {
+		t.Fatalf("initial observation=%s probes=%d", initial[0].GetState(), probeCalls)
+	}
+
+	runtimePath := cfg.PluginConfig.RuntimeConfig.Runtimes[config.RuntimeNameRunsc].Binary
+	if err := os.WriteFile(runtimePath, []byte("changed-runtime"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := provider.Observe(context.Background(), now.Add(5*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN || changed[0].GetReasonCode() != capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_IDENTITY_CHANGED {
+		t.Fatalf("identity-change observation = state %s reason %s", changed[0].GetState(), changed[0].GetReasonCode())
+	}
+	if probeCalls != 1 {
+		t.Fatalf("identity invalidation blocked on reprobe; calls=%d", probeCalls)
+	}
+
+	reprobed, err := provider.Observe(context.Background(), now.Add(10*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reprobed[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE || probeCalls != 2 {
+		t.Fatalf("reprobe observation=%s probes=%d", reprobed[0].GetState(), probeCalls)
+	}
+}
+
+func TestRuntimeConformanceObservationUsesProbeCompletionTime(t *testing.T) {
+	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
+	registry := handlerregistry.New(cfg)
+	handler := runtimetest.NewFakeRuntimeHandler()
+	handler.RuntimeName = config.RuntimeNameRunsc
+	registry.Set(config.RuntimeNameRunsc, handler)
+	provider := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, func(context.Context, string, runtimeConformanceKind) error {
+		time.Sleep(10 * time.Millisecond)
+		return nil
+	})
+	sampledAt := time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)
+	observations, err := provider.Observe(context.Background(), sampledAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !observations[0].GetObservedAt().AsTime().After(sampledAt) {
+		t.Fatalf("observed_at = %s, want completion after sample start %s", observations[0].GetObservedAt().AsTime(), sampledAt)
 	}
 }
 

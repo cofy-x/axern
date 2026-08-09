@@ -4,6 +4,8 @@ package config
 
 import (
 	"fmt"
+	"net/netip"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -289,19 +291,19 @@ func (c PluginConfig) NodeExtensionCapabilitiesValue() ([]*capabilityv1.Extensio
 	seen := make(map[string]struct{}, len(c.NodeExtensionCapabilities))
 	out := make([]*capabilityv1.ExtensionCapability, 0, len(c.NodeExtensionCapabilities))
 	for _, configured := range c.NodeExtensionCapabilities {
-		capability := capabilitycontract.NormalizeExtension(&capabilityv1.ExtensionCapability{Name: configured.Name, Value: configured.Value})
-		if err := capabilitycontract.ValidateExtension(capability); err != nil {
+		raw := &capabilityv1.ExtensionCapability{Name: configured.Name, Value: configured.Value}
+		if err := capabilitycontract.ValidateExtension(raw); err != nil {
 			return nil, err
 		}
-		id, err := capabilitycontract.KeyID(capabilitycontract.ExtensionKey(capability.GetName(), capability.GetValue()))
-		if err != nil {
-			return nil, err
-		}
-		if _, duplicate := seen[id]; duplicate {
+		capability := capabilitycontract.NormalizeExtension(raw)
+		if _, duplicate := seen[capability.GetName()]; duplicate {
 			return nil, fmt.Errorf("duplicate node extension capability %q", capability.GetName())
 		}
-		seen[id] = struct{}{}
+		seen[capability.GetName()] = struct{}{}
 		out = append(out, capability)
+	}
+	if len(out) > capabilitycontract.MaxExtensionCapabilities {
+		return nil, fmt.Errorf("node extension capability count exceeds %d", capabilitycontract.MaxExtensionCapabilities)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].GetName() != out[j].GetName() {
@@ -461,6 +463,100 @@ type BPFNetConfig struct {
 	// IptablesFallback allows axnoded to fall back to the legacy full
 	// iptables DNAT path when tc attach or feature probing fails.
 	IptablesFallback bool `toml:"iptables_fallback" json:"iptablesFallback"`
+}
+
+// Normalized returns the exact network configuration consumed by the runtime
+// and capability evidence. It canonicalizes semantically unordered sets and
+// effective duration values so evidence identity changes only when dataplane
+// behavior changes.
+func (c NetworkConfig) Normalized() (NetworkConfig, error) {
+	c.NatBackend = strings.ToLower(strings.TrimSpace(c.NatBackend))
+	switch c.NatBackend {
+	case NatBackendIptables, NatBackendEBPF:
+	default:
+		return NetworkConfig{}, fmt.Errorf("unsupported nat_backend %q", c.NatBackend)
+	}
+
+	ipRange, err := netip.ParsePrefix(strings.TrimSpace(c.IPRange))
+	if err != nil || !ipRange.Addr().Is4() {
+		return NetworkConfig{}, fmt.Errorf("network ip_range must be a valid IPv4 prefix: %q", c.IPRange)
+	}
+	c.IPRange = ipRange.String()
+
+	c.BPFNet.PinPath = filepath.Clean(strings.TrimSpace(c.BPFNet.PinPath))
+	if c.NatBackend == NatBackendEBPF {
+		if !filepath.IsAbs(c.BPFNet.PinPath) {
+			return NetworkConfig{}, fmt.Errorf("ebpf pin_path must be absolute: %q", c.BPFNet.PinPath)
+		}
+		if c.BPFNet.MapSize <= 0 || c.BPFNet.SNATMapSize <= 0 {
+			return NetworkConfig{}, fmt.Errorf("ebpf map_size and snat_map_size must be positive")
+		}
+	}
+
+	if c.BPFNet.UplinkDevices, err = normalizeUniqueStrings("ebpf uplink_devices", c.BPFNet.UplinkDevices); err != nil {
+		return NetworkConfig{}, err
+	}
+	if c.BPFNet.NativeRoutingCIDRs, err = normalizeCIDRs(c.BPFNet.NativeRoutingCIDRs); err != nil {
+		return NetworkConfig{}, err
+	}
+	if duration, parseErr := c.BPFNet.SNATGCIntervalDuration(); parseErr != nil {
+		return NetworkConfig{}, fmt.Errorf("ebpf snat_gc_interval: %w", parseErr)
+	} else {
+		c.BPFNet.SNATGCInterval = duration.String()
+	}
+	if duration, parseErr := c.BPFNet.SNATTCPIdleTimeoutDuration(); parseErr != nil {
+		return NetworkConfig{}, fmt.Errorf("ebpf snat_tcp_idle_timeout: %w", parseErr)
+	} else {
+		c.BPFNet.SNATTCPIdleTimeout = duration.String()
+	}
+	if duration, parseErr := c.BPFNet.SNATTCPClosingTimeoutDuration(); parseErr != nil {
+		return NetworkConfig{}, fmt.Errorf("ebpf snat_tcp_closing_timeout: %w", parseErr)
+	} else {
+		c.BPFNet.SNATTCPClosingTimeout = duration.String()
+	}
+	if duration, parseErr := c.BPFNet.SNATDatagramIdleTimeoutDuration(); parseErr != nil {
+		return NetworkConfig{}, fmt.Errorf("ebpf snat_datagram_idle_timeout: %w", parseErr)
+	} else {
+		c.BPFNet.SNATDatagramIdleTimeout = duration.String()
+	}
+	return c, nil
+}
+
+func normalizeUniqueStrings(field string, values []string) ([]string, error) {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return nil, fmt.Errorf("%s contains an empty value", field)
+		}
+		if _, duplicate := seen[value]; duplicate {
+			return nil, fmt.Errorf("%s contains duplicate value %q", field, value)
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func normalizeCIDRs(values []string) ([]string, error) {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(value))
+		if err != nil {
+			return nil, fmt.Errorf("ebpf native_routing_cidrs contains invalid prefix %q", value)
+		}
+		canonical := prefix.Masked().String()
+		if _, duplicate := seen[canonical]; duplicate {
+			return nil, fmt.Errorf("ebpf native_routing_cidrs contains duplicate prefix %q", canonical)
+		}
+		seen[canonical] = struct{}{}
+		out = append(out, canonical)
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 // DefaultConfig returns default configurations of cri plugin.
