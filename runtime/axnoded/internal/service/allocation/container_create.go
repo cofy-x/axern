@@ -190,7 +190,9 @@ func (h *Controller) cleanupFailedContainerCreate(traceID, containerID string, m
 		h.logStdFileSnippet(traceID, containerID, "stdout", metaData.Stdout)
 	}
 	h.logSandboxdDiagnostics(traceID, containerID, metaData)
-	h.containers().CleanContainerRoot(containerID)
+	if err := h.containers().CleanContainerRoot(containerID); err != nil {
+		logrus.WithField("trace_id", traceID).WithError(err).Warn("cleanup failed container root")
+	}
 	if metaData == nil {
 		return
 	}

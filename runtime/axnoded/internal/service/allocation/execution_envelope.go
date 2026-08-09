@@ -137,7 +137,7 @@ func (h *Controller) destroyPreparedExecutionEnvelope(ctx context.Context, runti
 		destroyErr = errors.Join(destroyErr, h.containers().Release(envelope.Resource))
 	}
 	if destroyErr == nil && envelope.Resource.ID != "" {
-		h.containers().CleanContainerRoot(envelope.Resource.ID)
+		destroyErr = h.containers().CleanContainerRoot(envelope.Resource.ID)
 	}
 	return destroyErr
 }

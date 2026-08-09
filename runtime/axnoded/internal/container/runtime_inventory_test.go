@@ -57,6 +57,18 @@ func TestReconcileRuntimeInventoryRemovesDiskOrphanWithoutMetadata(t *testing.T)
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
+func TestReconcileRuntimeInventoryRemovesProvenEmptyDiskOrphan(t *testing.T) {
+	manager := newRuntimeInventoryTestManager(t)
+	orphanRoot := filepath.Join(manager.root, "alloc-empty-terminal")
+	require.NoError(t, os.MkdirAll(orphanRoot, 0o755))
+
+	require.NoError(t, manager.ReconcileRuntimeInventory(map[string]map[string]struct{}{
+		"runsc": {},
+	}))
+	_, err := os.Stat(orphanRoot)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
 func TestReconcileRuntimeInventoryValidatesBeforeCleanup(t *testing.T) {
 	manager := newRuntimeInventoryTestManager(t)
 	manager.containers.Set("orphan", &Container{

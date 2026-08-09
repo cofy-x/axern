@@ -39,7 +39,7 @@ func TestCleanContainerRoot(t *testing.T) {
 	err := os.Mkdir(rootPath, 0755)
 	assert.NoError(t, err)
 
-	m.CleanContainerRoot(id)
+	require.NoError(t, m.CleanContainerRoot(id))
 	assert.False(t, dirExists(rootPath))
 }
 

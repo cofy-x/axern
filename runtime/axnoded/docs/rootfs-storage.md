@@ -107,4 +107,7 @@ force-deletes that OCI runtime record first, then cleans projection/reservation,
 allocation state, resource claims, and bundle metadata in the normal ownership
 order. Once runtime absence or terminal deletion is proven, reconciliation also
 enumerates manager-owned bundle directories directly so a missing `meta.pb`
-cannot leak an otherwise recoverable OCI spec and its resource claims.
+cannot leak an otherwise recoverable OCI spec and its resource claims. If both
+metadata and `config.json` are absent after runtime absence and storage cleanup
+have been proven, the remaining directory is an empty/partial bundle shell and
+is removed without inventing resource ownership.
