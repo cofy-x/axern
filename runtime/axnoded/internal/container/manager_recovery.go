@@ -3,9 +3,9 @@ package container
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
@@ -54,18 +54,16 @@ func (m *Manager) StoreMetadata(id string, data *apipb.ContainerMetadata) {
 func (m *Manager) loadContainer(containerRoot string) (*Container, error) {
 	b, err := os.ReadFile(filepath.Join(containerRoot, config.ContainerMetaFile))
 	if err != nil {
-		if os.IsNotExist(err) {
-			if err2 := os.Rename(containerRoot, filepath.Join(m.recyclePath, filepath.Base(containerRoot))); err2 != nil {
-				logrus.Warnf("move container %s to recycle bin failed: %v", containerRoot, err2)
-			}
-			return nil, err
-		}
 		return nil, err
 	}
 
 	var meta apipb.ContainerMetadata
 	if err = proto.Unmarshal(b, &meta); err != nil {
 		return nil, err
+	}
+	directoryID := filepath.Base(containerRoot)
+	if meta.GetID() == "" || meta.GetID() != directoryID {
+		return nil, fmt.Errorf("container metadata id %q does not match directory %q", meta.GetID(), directoryID)
 	}
 
 	container := new(Container)
@@ -107,7 +105,7 @@ func (m *Manager) loadContainers() error {
 
 	m.containers = cmap.New[*Container]()
 	for _, containerDir := range list {
-		if !containerDir.IsDir() || !strings.HasPrefix(containerDir.Name(), config.SandboxContainerPrefix) {
+		if !containerDir.IsDir() {
 			logrus.Debugf("manager load skip %s", containerDir.Name())
 			continue
 		}

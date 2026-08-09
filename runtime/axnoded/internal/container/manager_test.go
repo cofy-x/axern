@@ -6,6 +6,7 @@
 package container
 
 import (
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ import (
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type stopTestResourceManager struct {
@@ -140,6 +142,33 @@ func TestLoadContainer(t *testing.T) {
 	// Test loading failed(file not-exist) and recycle failed
 	_, err = m1.loadContainer(t.TempDir())
 	assert.Error(t, err)
+}
+
+func TestLoadContainersUsesMetadataIdentityWithoutGeneratedPrefix(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "containers")
+	writer := &Manager{
+		root:        root,
+		recyclePath: filepath.Join(t.TempDir(), "recycle"),
+		containers:  cmap.New[*Container](),
+	}
+	writer.StoreMetadata("alloc-123", &apipb.ContainerMetadata{ID: "alloc-123", RuntimeHandler: "runsc"})
+
+	reader := &Manager{root: root, containers: cmap.New[*Container]()}
+	require.NoError(t, reader.loadContainers())
+	assert.True(t, reader.containers.Has("alloc-123"))
+}
+
+func TestLoadContainerRejectsMetadataDirectoryMismatch(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "containers")
+	writer := &Manager{
+		root:        root,
+		recyclePath: filepath.Join(t.TempDir(), "recycle"),
+		containers:  cmap.New[*Container](),
+	}
+	writer.StoreMetadata("directory-id", &apipb.ContainerMetadata{ID: "different-id", RuntimeHandler: "runsc"})
+
+	_, err := writer.loadContainer(filepath.Join(root, "directory-id"))
+	require.ErrorContains(t, err, "does not match directory")
 }
 
 func TestStartMonitorGoroutine(t *testing.T) {

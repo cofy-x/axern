@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
+	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	ebpfnetwork "github.com/cofy-x/axern/runtime/axnoded/internal/network/ebpf"
@@ -202,13 +204,17 @@ func (h *sandboxService) restorePersistentState() error {
 	if err != nil {
 		return err
 	}
-	if err := h.containerManager.ValidateRuntimeInventory(inventory); err != nil {
+	if err := h.containerManager.ValidateRuntimeInventory(inventory.allByRuntime()); err != nil {
 		return fmt.Errorf("validate persisted container inventory: %w", err)
 	}
 	if err := h.containerManager.ReconcileResourceClaims(); err != nil {
 		return fmt.Errorf("reconcile persisted resource claims: %w", err)
 	}
-	if err := h.allocationController().RestoreAllocationState(inventory.allIDs()); err != nil {
+	if err := h.cleanupTerminalRuntimeContainers(context.Background(), inventory); err != nil {
+		return err
+	}
+	retained := inventory.retained()
+	if err := h.allocationController().RestoreAllocationState(retained.allIDs()); err != nil {
 		return err
 	}
 	for _, handler := range h.containerManager.Handlers() {
@@ -216,18 +222,18 @@ func (h *sandboxService) restorePersistentState() error {
 		if !ok {
 			continue
 		}
-		if err := reconciler.ReconcilePersistentStorage(context.Background(), inventory.forRuntime(handler.Name())); err != nil {
+		if err := reconciler.ReconcilePersistentStorage(context.Background(), retained.forRuntime(handler.Name())); err != nil {
 			return fmt.Errorf("reconcile %s persistent runtime storage: %w", handler.Name(), err)
 		}
 	}
-	if err := h.containerManager.ReconcileRuntimeInventory(inventory); err != nil {
+	if err := h.containerManager.ReconcileRuntimeInventory(retained.allByRuntime()); err != nil {
 		return fmt.Errorf("reconcile persisted container inventory: %w", err)
 	}
 	h.sandboxNetworking().LoadDnatRules()
 	return nil
 }
 
-type runtimeInventory map[string]map[string]struct{}
+type runtimeInventory map[string]map[string]contract.ContainerStatus
 
 func (h *sandboxService) collectRuntimeInventory(ctx context.Context) (runtimeInventory, error) {
 	inventory := make(runtimeInventory, len(h.containerManager.Handlers()))
@@ -238,7 +244,7 @@ func (h *sandboxService) collectRuntimeInventory(ctx context.Context) (runtimeIn
 		if err != nil {
 			return nil, fmt.Errorf("list %s containers before persistent-state reconciliation: %w", runtimeName, err)
 		}
-		ids := make(map[string]struct{}, len(states))
+		ids := make(map[string]contract.ContainerStatus, len(states))
 		for _, state := range states {
 			if state == nil || state.ID == "" {
 				return nil, fmt.Errorf("runtime %s returned an invalid container inventory entry", runtimeName)
@@ -246,18 +252,67 @@ func (h *sandboxService) collectRuntimeInventory(ctx context.Context) (runtimeIn
 			if owner, duplicate := owners[state.ID]; duplicate {
 				return nil, fmt.Errorf("container %s is reported by both %s and %s", state.ID, owner, runtimeName)
 			}
+			switch state.Status {
+			case contract.ContainerStatusCreated, contract.ContainerStatusRunning, contract.ContainerStatusExited, contract.ContainerStatusUnknown:
+			default:
+				return nil, fmt.Errorf("runtime %s container %s returned invalid status %q", runtimeName, state.ID, state.Status)
+			}
 			owners[state.ID] = runtimeName
-			ids[state.ID] = struct{}{}
+			ids[state.ID] = state.Status
 		}
 		inventory[runtimeName] = ids
 	}
 	return inventory, nil
 }
 
+func (h *sandboxService) cleanupTerminalRuntimeContainers(ctx context.Context, inventory runtimeInventory) error {
+	handlers := h.containerManager.Handlers()
+	sort.Slice(handlers, func(i, j int) bool { return handlers[i].Name() < handlers[j].Name() })
+	for _, handler := range handlers {
+		ids := make([]string, 0)
+		for id, status := range inventory[handler.Name()] {
+			if status == contract.ContainerStatusExited {
+				ids = append(ids, id)
+			}
+		}
+		sort.Strings(ids)
+		for _, id := range ids {
+			if _, err := handler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{
+				ContainerID: id,
+				ForceDelete: true,
+			}); err != nil {
+				return fmt.Errorf("delete terminal %s container %s before persistent-state reconciliation: %w", handler.Name(), id, err)
+			}
+		}
+	}
+	return nil
+}
+
+func (i runtimeInventory) retained() runtimeInventory {
+	result := make(runtimeInventory, len(i))
+	for runtimeName, states := range i {
+		result[runtimeName] = make(map[string]contract.ContainerStatus)
+		for id, status := range states {
+			if status != contract.ContainerStatusExited {
+				result[runtimeName][id] = status
+			}
+		}
+	}
+	return result
+}
+
 func (i runtimeInventory) forRuntime(runtimeName string) map[string]struct{} {
 	result := make(map[string]struct{}, len(i[runtimeName]))
 	for id := range i[runtimeName] {
 		result[id] = struct{}{}
+	}
+	return result
+}
+
+func (i runtimeInventory) allByRuntime() map[string]map[string]struct{} {
+	result := make(map[string]map[string]struct{}, len(i))
+	for runtimeName := range i {
+		result[runtimeName] = i.forRuntime(runtimeName)
 	}
 	return result
 }
