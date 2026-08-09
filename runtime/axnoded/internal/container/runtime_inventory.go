@@ -3,6 +3,7 @@ package container
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 )
 
@@ -16,12 +17,34 @@ func (m *Manager) ReconcileRuntimeInventory(inventory map[string]map[string]stru
 		return err
 	}
 
-	stale := make([]string, 0)
+	staleSet := make(map[string]struct{})
 	for id, container := range m.containers.Items() {
 		ids := inventory[container.Metadata.GetRuntimeHandler()]
 		if _, live := ids[id]; !live {
-			stale = append(stale, id)
+			staleSet[id] = struct{}{}
 		}
+	}
+	directories, err := os.ReadDir(m.root)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("list persisted container directories: %w", err)
+	}
+	for _, directory := range directories {
+		if directory.IsDir() {
+			id := directory.Name()
+			live := false
+			for _, ids := range inventory {
+				if _, live = ids[id]; live {
+					break
+				}
+			}
+			if !live {
+				staleSet[id] = struct{}{}
+			}
+		}
+	}
+	stale := make([]string, 0, len(staleSet))
+	for id := range staleSet {
+		stale = append(stale, id)
 	}
 	sort.Strings(stale)
 

@@ -95,13 +95,16 @@ projections, writable reservations, allocation recovery records, and container
 resource claims. Persisted metadata is recovery input, but cannot keep storage
 alive after the owning runtime has disappeared. Inventory collection and
 ownership validation finish before the first cleanup; an unreadable inventory,
-duplicate ownership, missing live metadata, or an unknown persisted runtime
-causes fail-closed retention with no partial deletion. If a listed runtime is
-still present, backing identity and hard-limit state remain fail-closed.
+duplicate ownership, missing potentially-live metadata, or an unknown persisted
+runtime causes fail-closed retention with no partial deletion. If a listed
+runtime is still present, backing identity and hard-limit state remain
+fail-closed.
 Container recovery identity comes from the metadata stored in the
 manager-owned container directory; allocation IDs are not required to use an
 axnoded-generated prefix. A `created`, `running`, or `unknown` runtime state is
 retained fail-closed. A `stopped` state is terminal rather than live: startup
 force-deletes that OCI runtime record first, then cleans projection/reservation,
 allocation state, resource claims, and bundle metadata in the normal ownership
-order.
+order. Once runtime absence or terminal deletion is proven, reconciliation also
+enumerates manager-owned bundle directories directly so a missing `meta.pb`
+cannot leak an otherwise recoverable OCI spec and its resource claims.

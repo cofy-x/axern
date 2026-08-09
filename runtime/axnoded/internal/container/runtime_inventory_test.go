@@ -1,6 +1,8 @@
 package container
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
@@ -36,6 +38,23 @@ func TestReconcileRuntimeInventoryRemovesPersistedOrphan(t *testing.T) {
 		"runsc": {},
 	}))
 	assert.False(t, manager.containers.Has("orphan"))
+}
+
+func TestReconcileRuntimeInventoryRemovesDiskOrphanWithoutMetadata(t *testing.T) {
+	manager := newRuntimeInventoryTestManager(t)
+	orphanRoot := filepath.Join(manager.root, "alloc-terminal")
+	require.NoError(t, os.MkdirAll(orphanRoot, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(orphanRoot, config.ContainerSpecFile),
+		[]byte(`{"ociVersion":"1.2.0"}`),
+		0o600,
+	))
+
+	require.NoError(t, manager.ReconcileRuntimeInventory(map[string]map[string]struct{}{
+		"runsc": {},
+	}))
+	_, err := os.Stat(orphanRoot)
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestReconcileRuntimeInventoryValidatesBeforeCleanup(t *testing.T) {

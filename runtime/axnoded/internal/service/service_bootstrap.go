@@ -204,16 +204,13 @@ func (h *sandboxService) restorePersistentState() error {
 	if err != nil {
 		return err
 	}
-	if err := h.containerManager.ValidateRuntimeInventory(inventory.allByRuntime()); err != nil {
+	retained := inventory.retained()
+	if err := h.containerManager.ValidateRuntimeInventory(retained.allByRuntime()); err != nil {
 		return fmt.Errorf("validate persisted container inventory: %w", err)
-	}
-	if err := h.containerManager.ReconcileResourceClaims(); err != nil {
-		return fmt.Errorf("reconcile persisted resource claims: %w", err)
 	}
 	if err := h.cleanupTerminalRuntimeContainers(context.Background(), inventory); err != nil {
 		return err
 	}
-	retained := inventory.retained()
 	if err := h.allocationController().RestoreAllocationState(retained.allIDs()); err != nil {
 		return err
 	}
@@ -228,6 +225,9 @@ func (h *sandboxService) restorePersistentState() error {
 	}
 	if err := h.containerManager.ReconcileRuntimeInventory(retained.allByRuntime()); err != nil {
 		return fmt.Errorf("reconcile persisted container inventory: %w", err)
+	}
+	if err := h.containerManager.ReconcileResourceClaims(); err != nil {
+		return fmt.Errorf("reconcile persisted resource claims: %w", err)
 	}
 	h.sandboxNetworking().LoadDnatRules()
 	return nil
