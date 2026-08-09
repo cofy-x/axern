@@ -139,3 +139,24 @@ func TestMaterializeRuntimeConformanceRootfsRejectsCorruptPublishedFixture(t *te
 		t.Fatal("materializeRuntimeConformanceRootfs() error = nil, want corrupt fixture rejection")
 	}
 }
+
+func TestVerifyRuntimeConformanceCleanupRejectsRemainingArtifact(t *testing.T) {
+	root := t.TempDir()
+	filestore := t.TempDir()
+	service := &sandboxService{config: config.Config{
+		RootDir: root,
+		PluginConfig: config.PluginConfig{RuntimeConfig: config.RuntimeConfig{
+			FilestoreDir: filestore,
+		}},
+	}}
+	id := "capability-selftest-runsc-memory-allocation"
+	if err := service.verifyRuntimeConformanceCleanup(id); err != nil {
+		t.Fatalf("empty cleanup verification error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(filestore, "projections", id), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.verifyRuntimeConformanceCleanup(id); err == nil {
+		t.Fatal("cleanup verification accepted a remaining projection")
+	}
+}

@@ -24,7 +24,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -33,6 +32,7 @@ const (
 	runtimeConformanceResult  = "/.axern-quota-result"
 	runtimeConformancePeriod  = 15 * time.Minute
 	runtimeConformanceTimeout = 60 * time.Second
+	runtimeConformanceCleanup = 30 * time.Second
 	// Memory and ephemeral storage use separate sandboxes so one unavailable
 	// enforcement boundary cannot suppress evidence for the other.
 	runtimeConformanceMemoryLimit = 256 << 20
@@ -253,7 +253,16 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 		return err
 	}
 	runtimeID := "capability-selftest-" + runtimeName + "-" + string(kind)
-	allocationID := runtimeID + "-" + uuid.NewString()
+	// Providers are serialized per runtime/kind. A deterministic allocation ID
+	// makes interrupted probes reconcilable and prevents retries from creating
+	// an unbounded series of orphan bundles.
+	allocationID := runtimeID + "-allocation"
+	preflightCtx, preflightCancel := context.WithTimeout(ctx, runtimeConformanceCleanup)
+	if err := h.cleanupRuntimeConformanceAllocation(preflightCtx, runtimeName, allocationID); err != nil {
+		preflightCancel()
+		return fmt.Errorf("cleanup previous runtime conformance sandbox: %w", err)
+	}
+	preflightCancel()
 	request, err := runtimeConformanceStartRequest(allocationID, runtimeID, runtimeName, rootfs, kind)
 	if err != nil {
 		return err
@@ -263,9 +272,14 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 		if !startAttempted {
 			return
 		}
-		deleteCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		// Cleanup remains inside the provider's 60-second probe deadline, but
+		// gets enough time for runsc force-delete to reap Sentry/gofer and
+		// return after the sandbox has exited. Ten seconds killed the delete
+		// command while the runtime was still converging and leaked every
+		// bundle/projection on subsequent retries.
+		deleteCtx, cancel := context.WithTimeout(ctx, runtimeConformanceCleanup)
 		defer cancel()
-		if _, err := h.allocationController().Delete(deleteCtx, &runtimev1.DeleteRequest{ID: allocationID, Timeout: 0}); err != nil && !errors.Is(err, errord.ErrNotFound) && !errord.IsNotFound(errord.FromGRPC(err)) {
+		if err := h.cleanupRuntimeConformanceAllocation(deleteCtx, runtimeName, allocationID); err != nil {
 			if retErr == nil {
 				retErr = fmt.Errorf("cleanup self-test allocation: %w", err)
 			} else {
@@ -307,6 +321,64 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 	verification := h.verifyAllocationCapability(ctx, allocationID, &capabilityv1.CapabilityDependency{Key: key, LossPolicy: lossPolicy})
 	if verification.State != contract.CapabilityVerificationVerified {
 		return fmt.Errorf("verify %s conformance: %s", platform, verificationMessage(verification))
+	}
+	return nil
+}
+
+func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context, runtimeName, allocationID string) error {
+	_, err := h.allocationController().Delete(ctx, &runtimev1.DeleteRequest{ID: allocationID, Timeout: 0})
+	if err == nil {
+		return h.verifyRuntimeConformanceCleanup(allocationID)
+	}
+	if !errors.Is(err, errord.ErrNotFound) && !errord.IsNotFound(errord.FromGRPC(err)) {
+		return err
+	}
+
+	// A probe can fail after creating runtime-owned storage but before manager
+	// metadata becomes visible. The normal allocation delete then has no
+	// ownership record, so complete the same ordered cleanup from the reserved
+	// self-test identity: runtime/storage, network activation, resources/bundle,
+	// and finally allocation state.
+	handler, ok := h.runtimeHandlers.Get(runtimeName)
+	if !ok {
+		return fmt.Errorf("runtime handler %s is unavailable", runtimeName)
+	}
+	resource, resourceErr := h.containerManager.CollectResourceByID(allocationID)
+	if resourceErr != nil && !errors.Is(resourceErr, os.ErrNotExist) {
+		return fmt.Errorf("collect partial self-test resources: %w", resourceErr)
+	}
+	if _, deleteErr := handler.DeleteContainer(ctx, &runtimev1.DeleteContainerRequest{ID: allocationID, Timeout: 0}, contract.HandlerOptions{
+		ContainerID: allocationID,
+		ForceDelete: true,
+	}); deleteErr != nil {
+		return fmt.Errorf("delete partial self-test runtime: %w", deleteErr)
+	}
+	if resourceErr == nil {
+		if networkErr := h.sandboxNetworking().CleanupActivationNetwork(resource); networkErr != nil {
+			return fmt.Errorf("cleanup partial self-test network: %w", networkErr)
+		}
+	}
+	if managerErr := h.containerManager.Delete(allocationID); managerErr != nil {
+		return fmt.Errorf("cleanup partial self-test bundle: %w", managerErr)
+	}
+	if stateErr := h.allocationController().CleanupFailedStart(ctx, allocationID); stateErr != nil {
+		return fmt.Errorf("cleanup partial self-test state: %w", stateErr)
+	}
+	return h.verifyRuntimeConformanceCleanup(allocationID)
+}
+
+func (h *sandboxService) verifyRuntimeConformanceCleanup(allocationID string) error {
+	paths := []string{
+		filepath.Join(h.config.RootDir, "containers", allocationID),
+		filepath.Join(h.config.PluginConfig.RuntimeConfig.FilestoreDir, "projections", allocationID),
+		filepath.Join(h.config.PluginConfig.RuntimeConfig.FilestoreDir, "runc", allocationID),
+	}
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			return fmt.Errorf("self-test artifact remains at %s", path)
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("verify self-test artifact %s: %w", path, err)
+		}
 	}
 	return nil
 }

@@ -73,10 +73,14 @@ suppress memory evidence. Each self-test is limited to 60 seconds, refreshed
 every 15 minutes or immediately after runtime/config identity changes, and
 retries failures with exponential backoff capped at five minutes. Recovery
 requires two distinct successful probes at least five seconds apart. Self-test
-cleanup is part of success. Recovery hysteresis is applied by the capability
-manager to base observations before derived providers run, so a derived
-capability can never advertise an unconfirmed dependency recovery from the same
-snapshot generation.
+cleanup is part of success and remains inside the 60-second probe deadline, with
+up to 30 seconds reserved for runtime teardown. Each runtime/kind pair uses one
+deterministic, reserved allocation identity: an interrupted probe is reconciled
+before retry instead of creating a new bundle, projection, or reservation.
+Cleanup verifies that the bundle and runtime-owned storage paths are absent.
+Recovery hysteresis is applied by the capability manager to base observations
+before derived providers run, so a derived capability can never advertise an
+unconfirmed dependency recovery from the same snapshot generation.
 
 ## Policy
 
