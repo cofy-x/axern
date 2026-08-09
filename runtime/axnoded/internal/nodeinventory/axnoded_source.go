@@ -2,6 +2,7 @@ package nodeinventory
 
 import (
 	"context"
+	"errors"
 	"os"
 	"sync"
 	"time"
@@ -22,6 +23,8 @@ type readyFunc func() bool
 type volumeHealthFunc func(context.Context) (*runtimevolumev1.VolumeManagerHealth, error)
 type statfsFunc func(string) (StorageInventoryEntry, error)
 type capabilitySnapshotFunc func(context.Context, time.Time) (*capabilityv1.CapabilitySnapshot, error)
+
+var ErrCapabilitySnapshotWarming = errors.New("capability manager is warming")
 
 type containerManagerView interface {
 	List(...container.ListOption) []*container.Container
@@ -139,13 +142,19 @@ func (s *AxnodedSource) Collect(ctx context.Context) (NodeInventorySnapshot, boo
 	snapshot.Node.Name, _ = os.Hostname()
 	snapshot.Node.State = normalizeNodeState(s.nodeState)
 	snapshot.Node.Labels = cloneStringMap(s.nodeLabels)
+	capabilitiesReady := true
 	if s.capabilitySnapshot != nil {
 		capabilities, err := s.capabilitySnapshot(ctx, now)
 		if capabilities != nil {
 			snapshot.Node.CapabilitySnapshot = proto.Clone(capabilities).(*capabilityv1.CapabilitySnapshot)
 		}
 		if err != nil {
-			snapshot.Sources["node_capabilities"] = degradedSource(err.Error(), now)
+			capabilitiesReady = false
+			if errors.Is(err, ErrCapabilitySnapshotWarming) {
+				snapshot.Sources["node_capabilities"] = warmingSource(err.Error())
+			} else {
+				snapshot.Sources["node_capabilities"] = degradedSource(err.Error(), now)
+			}
 		} else {
 			snapshot.Sources["node_capabilities"] = readySource(now)
 		}
@@ -162,7 +171,7 @@ func (s *AxnodedSource) Collect(ctx context.Context) (NodeInventorySnapshot, boo
 	if snapshot.Node.Name == "" {
 		snapshot.Node.Name = "unknown"
 	}
-	return snapshot, resourcesReady && localReady
+	return snapshot, resourcesReady && localReady && capabilitiesReady
 }
 
 func (s *AxnodedSource) collectNodeResources(ctx context.Context, now time.Time, snapshot *NodeInventorySnapshot) bool {

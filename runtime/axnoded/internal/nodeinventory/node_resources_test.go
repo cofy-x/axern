@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 )
 
 func TestResourcesFromKubernetesNodeUsesCapacityAndAllocatable(t *testing.T) {
@@ -77,6 +79,29 @@ func TestAxnodedSourceMergesKubernetesAndConfiguredNodeLabels(t *testing.T) {
 	}
 	if got := snapshot.Node.Labels["axern.cofy.io/pool"]; got != "runtime" {
 		t.Fatalf("pool label = %q, want runtime", got)
+	}
+}
+
+func TestAxnodedSourceReportsWarmingCapabilitySnapshotAsNotReady(t *testing.T) {
+	source := NewAxnodedSource(AxnodedSourceOptions{
+		NodeResources: &flakyNodeResourceProvider{resources: NodeResources{}},
+		Ready:         func() bool { return true },
+		RuntimeCount:  func() int { return 1 },
+		Container: &fakeContainerManager{pools: map[string]PoolInventory{
+			"cgroup": {Capacity: 8}, "interface": {Capacity: 8},
+		}},
+		CapabilitySnapshot: func(context.Context, time.Time) (*capabilityv1.CapabilitySnapshot, error) {
+			return nil, ErrCapabilitySnapshotWarming
+		},
+	})
+
+	snapshot, ready := source.Collect(context.Background())
+	if ready {
+		t.Fatal("warming capability manager must keep node inventory not ready")
+	}
+	status := snapshot.Sources["node_capabilities"]
+	if status.Status != StatusWarming || status.Error != ErrCapabilitySnapshotWarming.Error() {
+		t.Fatalf("capability source status = %#v", status)
 	}
 }
 

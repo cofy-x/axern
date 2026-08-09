@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -46,6 +47,33 @@ func TestRunscDeleteRemovesPersistedExitState(t *testing.T) {
 		_, err := handler.DeleteContainer(context.Background(), &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"})
 		return err
 	}, handler.persistExitState)
+}
+
+func TestRunscForceDeleteStopsForegroundRunBeforeDeletingState(t *testing.T) {
+	rootDir := t.TempDir()
+	handler, err := NewRunscServiceHandler(
+		config.Config{RootDir: rootDir},
+		config.RuntimeNameRunsc,
+		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("NewRunscServiceHandler() error = %v", err)
+	}
+	recorder := &recordingExecutor{}
+	handler.common.SetExecutor(recorder)
+
+	if _, err := handler.DeleteContainer(context.Background(), &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"}); err != nil {
+		t.Fatalf("DeleteContainer() error = %v", err)
+	}
+
+	want := [][]string{
+		{"--root", filepath.Join(rootDir, config.RuntimeNameRunsc), "--allow-suid", "kill", "alloc-a", "KILL"},
+		{"--root", filepath.Join(rootDir, config.RuntimeNameRunsc), "--allow-suid", "delete", "--force", "alloc-a"},
+	}
+	if got := recorder.Args(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("runtime commands = %#v, want %#v", got, want)
+	}
 }
 
 func TestRuncDeleteRemovesPersistedExitState(t *testing.T) {

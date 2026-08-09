@@ -160,3 +160,22 @@ func TestVerifyRuntimeConformanceCleanupRejectsRemainingArtifact(t *testing.T) {
 		t.Fatal("cleanup verification accepted a remaining projection")
 	}
 }
+
+func TestRuntimeConformanceOperationContextReservesCleanupDeadline(t *testing.T) {
+	parentDeadline := time.Now().Add(runtimeConformanceCleanup + time.Second)
+	parent, cancelParent := context.WithDeadline(context.Background(), parentDeadline)
+	defer cancelParent()
+
+	operation, cancelOperation, err := runtimeConformanceOperationContext(parent)
+	if err != nil {
+		t.Fatalf("runtimeConformanceOperationContext() error = %v", err)
+	}
+	defer cancelOperation()
+	deadline, ok := operation.Deadline()
+	if !ok {
+		t.Fatal("operation context has no deadline")
+	}
+	if delta := parentDeadline.Sub(deadline); delta < runtimeConformanceCleanup-time.Millisecond || delta > runtimeConformanceCleanup+time.Millisecond {
+		t.Fatalf("reserved cleanup window = %v, want %v", delta, runtimeConformanceCleanup)
+	}
+}

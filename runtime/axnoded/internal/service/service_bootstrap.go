@@ -64,6 +64,8 @@ type sandboxService struct {
 	nodeInventorySource       *nodeinventory.AxnodedSource
 	inventoryCollector        *nodeinventory.Collector
 	capabilityManager         *nodecapabilitymanager.Manager
+	capabilityRefreshCancel   context.CancelFunc
+	capabilityRefreshWG       sync.WaitGroup
 	capabilityReconcileMu     sync.Mutex
 	capabilityReconciling     map[string]struct{}
 	capabilityReconcileCtx    context.Context

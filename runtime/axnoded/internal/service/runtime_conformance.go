@@ -267,17 +267,20 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 	if err != nil {
 		return err
 	}
+	operationCtx, operationCancel, err := runtimeConformanceOperationContext(ctx)
+	if err != nil {
+		return err
+	}
+	defer operationCancel()
 	startAttempted := false
 	defer func() {
 		if !startAttempted {
 			return
 		}
-		// Cleanup remains inside the provider's 60-second probe deadline, but
-		// gets enough time for runsc force-delete to reap Sentry/gofer and
-		// return after the sandbox has exited. Ten seconds killed the delete
-		// command while the runtime was still converging and leaked every
-		// bundle/projection on subsequent retries.
-		deleteCtx, cancel := context.WithTimeout(ctx, runtimeConformanceCleanup)
+		// Cleanup is a compensating action and must survive probe cancellation
+		// and service shutdown. The operation deadline reserves this bounded
+		// cleanup window inside the provider's 60-second conformance budget.
+		deleteCtx, cancel := context.WithTimeout(context.Background(), runtimeConformanceCleanup)
 		defer cancel()
 		if err := h.cleanupRuntimeConformanceAllocation(deleteCtx, runtimeName, allocationID); err != nil {
 			if retErr == nil {
@@ -296,7 +299,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 		}
 	}()
 	startAttempted = true
-	response, err := h.allocationController().Start(ctx, request)
+	response, err := h.allocationController().Start(operationCtx, request)
 	if err != nil || response == nil || response.GetCode() != 0 {
 		message := "empty response"
 		if response != nil {
@@ -305,7 +308,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 		return fmt.Errorf("start runtime conformance sandbox: %w", firstRuntimeConformanceError(err, message))
 	}
 	if kind == runtimeConformanceKindEphemeral {
-		if err := h.verifyRuntimeConformanceQuotaResult(ctx, allocationID); err != nil {
+		if err := h.verifyRuntimeConformanceQuotaResult(operationCtx, allocationID); err != nil {
 			return err
 		}
 	}
@@ -318,11 +321,23 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 	if err != nil {
 		return err
 	}
-	verification := h.verifyAllocationCapability(ctx, allocationID, &capabilityv1.CapabilityDependency{Key: key, LossPolicy: lossPolicy})
+	verification := h.verifyAllocationCapability(operationCtx, allocationID, &capabilityv1.CapabilityDependency{Key: key, LossPolicy: lossPolicy})
 	if verification.State != contract.CapabilityVerificationVerified {
 		return fmt.Errorf("verify %s conformance: %s", platform, verificationMessage(verification))
 	}
 	return nil
+}
+
+func runtimeConformanceOperationContext(parent context.Context) (context.Context, context.CancelFunc, error) {
+	operationDeadline := time.Now().Add(runtimeConformanceTimeout - runtimeConformanceCleanup)
+	if deadline, ok := parent.Deadline(); ok {
+		operationDeadline = deadline.Add(-runtimeConformanceCleanup)
+	}
+	if !operationDeadline.After(time.Now()) {
+		return nil, nil, fmt.Errorf("runtime conformance cleanup reserve exhausted before sandbox start")
+	}
+	ctx, cancel := context.WithDeadline(parent, operationDeadline)
+	return ctx, cancel, nil
 }
 
 func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context, runtimeName, allocationID string) error {

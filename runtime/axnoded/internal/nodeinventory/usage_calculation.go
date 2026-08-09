@@ -15,6 +15,10 @@ func readySource(now time.Time) SourceStatus {
 	}
 }
 
+func warmingSource(message string) SourceStatus {
+	return SourceStatus{Status: StatusWarming, Error: message}
+}
+
 func degradedSource(message string, now time.Time) SourceStatus {
 	return SourceStatus{
 		Status:        StatusDegraded,

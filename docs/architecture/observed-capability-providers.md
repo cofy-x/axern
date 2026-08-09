@@ -31,6 +31,14 @@ validation of the complete snapshot fails collection. The node remains `WARMING`
 until all providers have produced an initial result. Individual unavailable
 capabilities do not make unrelated workloads unschedulable.
 
+Provider execution runs in the capability manager's background refresh loop;
+node inventory reads only the latest complete snapshot. Slow runtime
+conformance must therefore publish a fresh `WARMING` node summary, never block
+heartbeat/inventory collection and make a live node appear stale. The first
+complete snapshot changes the node from warming to admission-ready even when
+some observations are unavailable, because typed placement still fails closed
+only for workloads that depend on those observations.
+
 Platform keys are a closed proto enum. The central catalog owns each platform
 key's provider, validity scope, loss policy, and derived dependency graph;
 snapshots with a mismatched owner, scope, or dependency set are rejected.

@@ -1,16 +1,37 @@
 package service
 
 import (
+	"context"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	nodecapabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
 )
+
+func TestCurrentCapabilitySnapshotReportsWarmingWithoutRunningProviders(t *testing.T) {
+	manager, err := nodecapabilitymanager.NewManager()
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := &sandboxService{capabilityManager: manager}
+
+	if snapshot, err := service.currentCapabilitySnapshot(context.Background(), time.Now()); err == nil || snapshot != nil {
+		t.Fatalf("warming snapshot = %#v, error = %v", snapshot, err)
+	}
+	if _, err := manager.Refresh(context.Background(), time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot, err := service.currentCapabilitySnapshot(context.Background(), time.Now()); err != nil || snapshot == nil {
+		t.Fatalf("published snapshot = %#v, error = %v", snapshot, err)
+	}
+}
 
 func TestNodeResourceProviderRejectsUnknownSource(t *testing.T) {
 	_, err := nodeResourceProvider(config.PluginConfig{

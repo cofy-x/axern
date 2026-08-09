@@ -8,8 +8,11 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"github.com/sirupsen/logrus"
 )
+
+const capabilityRefreshInterval = 5 * time.Second
 
 func (h *sandboxService) initNodeInventory() error {
 	imageManagerEnabled := h.config.PluginConfig.RuntimeConfig.ImageManagerEnabledValue()
@@ -59,7 +62,7 @@ func (h *sandboxService) initNodeInventory() error {
 		BPFNetPinPath:         h.config.PluginConfig.NetworkConfig.BPFNet.PinPath,
 		NodeState:             h.config.PluginConfig.ControlPlaneNodeStateValue(),
 		NodeLabels:            h.config.PluginConfig.ControlPlaneNodeLabelsValue(),
-		CapabilitySnapshot:    h.capabilityManager.Refresh,
+		CapabilitySnapshot:    h.currentCapabilitySnapshot,
 		VolumeHealth:          h.volumeClient.Health,
 		StorageTargets:        storageTargets,
 		RuntimeSlotCapacity:   h.config.PluginConfig.ResourceConfig.MaxInstanceNum,
@@ -67,6 +70,56 @@ func (h *sandboxService) initNodeInventory() error {
 	})
 	h.inventoryCollector = nodeinventory.NewCollector(5*time.Second, h.nodeInventorySource.Collect)
 	return nil
+}
+
+func (h *sandboxService) currentCapabilitySnapshot(context.Context, time.Time) (*capabilityv1.CapabilitySnapshot, error) {
+	if h == nil || h.capabilityManager == nil {
+		return nil, fmt.Errorf("capability manager is unavailable")
+	}
+	snapshot := h.capabilityManager.Snapshot()
+	if snapshot == nil || !h.capabilityManager.Ready() {
+		return nil, nodeinventory.ErrCapabilitySnapshotWarming
+	}
+	return snapshot, nil
+}
+
+// startCapabilityRefresh isolates potentially slow conformance probes from
+// inventory collection. Inventory and heartbeats consume only the last atomic
+// snapshot, so a runtime probe cannot make an otherwise-live node look stale.
+func (h *sandboxService) startCapabilityRefresh(parent context.Context) {
+	if h == nil || h.capabilityManager == nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(parent)
+	h.capabilityRefreshCancel = cancel
+	h.capabilityRefreshWG.Add(1)
+	go func() {
+		defer h.capabilityRefreshWG.Done()
+		ticker := time.NewTicker(capabilityRefreshInterval)
+		defer ticker.Stop()
+		for {
+			if _, err := h.capabilityManager.Refresh(ctx, time.Now().UTC()); err != nil && ctx.Err() == nil {
+				logrus.WithError(err).Warn("refresh observed capability snapshot")
+			}
+			h.refreshNodeInventory()
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+}
+
+func (h *sandboxService) stopCapabilityRefresh() {
+	if h == nil {
+		return
+	}
+	if h.capabilityRefreshCancel != nil {
+		h.capabilityRefreshCancel()
+		h.capabilityRefreshCancel = nil
+	}
+	h.capabilityRefreshWG.Wait()
 }
 
 func (h *sandboxService) refreshNodeInventory() {
