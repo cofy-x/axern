@@ -53,7 +53,7 @@ type AllocationLifecycle interface {
 type CreateResolvedAllocationResult struct {
 	PublishedVolumes               []*privatestoragev1.PublishedNodeVolume
 	WorkspacePreparation           *commonv1.WorkspacePreparationFacts
-	CapabilityVerification         []*capabilityv1.CapabilityCondition
+	CapabilityVerification         *capabilityv1.CapabilityConditionSet
 	AdmittedCapabilityDependencies []*capabilityv1.CapabilityDependency
 }
 

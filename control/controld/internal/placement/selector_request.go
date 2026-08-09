@@ -1,6 +1,7 @@
 package placement
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -12,43 +13,44 @@ import (
 	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
 
-func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1.ExecutionConfig) *placementkernel.Request {
+func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1.ExecutionConfig) (*placementkernel.Request, error) {
 	template := env.GetResolvedTemplate()
 	requests := config.GetResources().GetRequests()
+	limits := config.GetResources().GetLimits()
 	runtimeName := firstNonEmpty(config.GetRuntimeClass(), p.defaultSandboxRuntime)
-	capabilities := extensionRequirementsToPlacement(config.GetExtensionCapabilityRequirements())
 	ports := portSpecsToPlacementPorts(config.GetPorts())
-	if len(ports) > 0 {
-		capabilities = appendCapabilityKey(capabilities, capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING))
-	}
 	network := networkSpecToPlacementNetwork(config.GetNetwork())
-	if !template.GetRootfsReadonly() || requests.GetEphemeralStorageBytes() > 0 {
-		platform := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT
-		if runtimeName == "runsc" {
-			platform = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT
-		}
-		capabilities = appendCapabilityKey(capabilities, capabilitycontract.PlatformKey(platform))
-	}
-	if config.GetResources().GetLimits().GetMemoryBytes() > 0 {
-		platform := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT
-		if runtimeName == "runsc" {
-			platform = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT
-		}
-		capabilities = appendCapabilityKey(capabilities, capabilitycontract.PlatformKey(platform))
+	capabilities, err := capabilitycontract.DeriveRequestStaticRequirements(capabilitycontract.RequirementInput{
+		RuntimeName:                 runtimeName,
+		HasPorts:                    len(ports) > 0,
+		NetworkMode:                 network,
+		MemoryLimitBytes:            limits.GetMemoryBytes(),
+		RootfsWritable:              !template.GetRootfsReadonly(),
+		EphemeralStorageLimitBytes:  limits.GetEphemeralStorageBytes(),
+		ExtensionCapabilityRequests: config.GetExtensionCapabilityRequirements(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("derive placement capability requirements: %w", err)
 	}
 	return &placementkernel.Request{
 		RootfsKey:                      firstNonEmpty(env.GetID(), template.GetImageDescriptor().GetDigest()),
 		RootfsType:                     controlnodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:                      controlnodev1.MountType_MOUNT_TYPE_OCI,
 		Runtime:                        runtimeName,
+		MemoryLimitBytes:               limits.GetMemoryBytes(),
+		RootfsWritable:                 !template.GetRootfsReadonly(),
+		EphemeralStorageLimitBytes:     limits.GetEphemeralStorageBytes(),
 		RequestedCpuMilli:              requests.GetCpuMilli(),
 		RequestedMemoryBytes:           requests.GetMemoryBytes(),
 		RequestedEphemeralStorageBytes: requests.GetEphemeralStorageBytes(),
 		Ports:                          ports,
 		Network:                        network,
 		CapabilityRequirements:         capabilities,
-		NodeSelector:                   cloneStringMap(config.GetPlacement().GetNodeSelector()),
-	}
+		ExtensionCapabilityRequirements: cloneExtensionRequirements(
+			config.GetExtensionCapabilityRequirements(),
+		),
+		NodeSelector: cloneStringMap(config.GetPlacement().GetNodeSelector()),
+	}, nil
 }
 
 func firstNonEmpty(values ...string) string {
@@ -91,32 +93,21 @@ func networkSpecToPlacementNetwork(in *commonv1.NetworkSpec) string {
 	return strings.ToLower(strings.TrimPrefix(in.GetMode().String(), "NETWORK_MODE_"))
 }
 
-func extensionRequirementsToPlacement(in []*capabilityv1.ExtensionCapabilityRequirement) []*capabilityv1.CapabilityKey {
+func cloneExtensionRequirements(in []*capabilityv1.ExtensionCapabilityRequirement) []*capabilityv1.ExtensionCapabilityRequirement {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]*capabilityv1.CapabilityKey, 0, len(in))
+	out := make([]*capabilityv1.ExtensionCapabilityRequirement, 0, len(in))
 	for _, req := range in {
 		if req == nil || req.GetCapability() == nil {
+			out = append(out, req)
 			continue
 		}
-		out = appendCapabilityKey(out, capabilitycontract.ExtensionKey(req.GetCapability().GetName(), req.GetCapability().GetValue()))
+		out = append(out, &capabilityv1.ExtensionCapabilityRequirement{
+			Capability: capabilitycontract.NormalizeExtension(req.GetCapability()),
+		})
 	}
 	return out
-}
-
-func appendCapabilityKey(in []*capabilityv1.CapabilityKey, key *capabilityv1.CapabilityKey) []*capabilityv1.CapabilityKey {
-	want, err := capabilitycontract.KeyID(key)
-	if err != nil {
-		return in
-	}
-	for _, existing := range in {
-		id, _ := capabilitycontract.KeyID(existing)
-		if id == want {
-			return in
-		}
-	}
-	return append(in, key)
 }
 
 func cloneStringMap(in map[string]string) map[string]string {

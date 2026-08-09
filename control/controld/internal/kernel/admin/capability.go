@@ -11,8 +11,8 @@ type CapabilityTransition struct {
 	SnapshotSequence                 int64
 	Key                              *capabilityv1.CapabilityKey
 	OldState, NewState               capabilityv1.CapabilityState
-	OldEvidenceID, NewEvidenceID     string
-	ReasonCode                       capabilityv1.CapabilityReasonCode
+	OldEvidence, NewEvidence         *capabilityv1.CapabilityEvidence
+	OldReasonCode, NewReasonCode     capabilityv1.CapabilityReasonCode
 	Reason                           string
 	ObservedAt, ReportedAt           time.Time
 }
@@ -28,9 +28,13 @@ type CapabilityReconcileItem struct {
 }
 
 type AllocationCapabilityDiagnostics struct {
-	AllocationID, NodeID string
-	Dependencies         []*capabilityv1.CapabilityDependency
-	AdmittedDependencies []*capabilityv1.CapabilityDependency
-	Conditions           []*capabilityv1.CapabilityCondition
-	Reconcile            *CapabilityReconcileItem
+	AllocationID, NodeID      string
+	Attempt                   int64
+	CreateAdmissionRecorded   bool
+	CreateDependencySetDigest string
+	CreateAdmittedAt          *time.Time
+	Dependencies              []*capabilityv1.CapabilityDependency
+	AdmittedDependencies      []*capabilityv1.CapabilityDependency
+	ConditionSet              *capabilityv1.CapabilityConditionSet
+	Reconcile                 *CapabilityReconcileItem
 }

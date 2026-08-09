@@ -33,7 +33,10 @@ func (s *PGStore) GetReplica(ctx context.Context, serviceID, replicaID string) (
 		return nil, ok, err
 	}
 	record, err := scanServiceReplicaRecord(s.db.Pool().QueryRow(ctx, `
-		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.workspace_preparation, a.capability_conditions,
+		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.workspace_preparation,
+			COALESCE((SELECT revision FROM allocation_capability_condition_sets cs WHERE cs.allocation_id = a.allocation_id AND cs.allocation_attempt = a.attempt), 0),
+			(SELECT observed_at FROM allocation_capability_condition_sets cs WHERE cs.allocation_id = a.allocation_id AND cs.allocation_attempt = a.attempt),
+			COALESCE((SELECT jsonb_build_object('conditions', COALESCE(jsonb_agg(cc.condition ORDER BY cc.capability_key_id), '[]'::jsonb)) FROM allocation_capability_conditions cc WHERE cc.allocation_id = a.allocation_id AND cc.allocation_attempt = a.attempt), '{"conditions":[]}'::jsonb),
 			COALESCE(q.reason, ''), COALESCE(q.reconcile_attempts, 0), COALESCE(q.last_error, ''), q.next_run_at
 		FROM allocations a
 		LEFT JOIN allocation_reconcile_queue q ON q.allocation_id = a.allocation_id
@@ -57,7 +60,10 @@ func (s *PGStore) ListReplicas(ctx context.Context, serviceID string, filter *se
 		return nil, nil
 	}
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.workspace_preparation, a.capability_conditions,
+		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.workspace_preparation,
+			COALESCE((SELECT revision FROM allocation_capability_condition_sets cs WHERE cs.allocation_id = a.allocation_id AND cs.allocation_attempt = a.attempt), 0),
+			(SELECT observed_at FROM allocation_capability_condition_sets cs WHERE cs.allocation_id = a.allocation_id AND cs.allocation_attempt = a.attempt),
+			COALESCE((SELECT jsonb_build_object('conditions', COALESCE(jsonb_agg(cc.condition ORDER BY cc.capability_key_id), '[]'::jsonb)) FROM allocation_capability_conditions cc WHERE cc.allocation_id = a.allocation_id AND cc.allocation_attempt = a.attempt), '{"conditions":[]}'::jsonb),
 			COALESCE(q.reason, ''), COALESCE(q.reconcile_attempts, 0), COALESCE(q.last_error, ''), q.next_run_at
 		FROM allocations a
 		LEFT JOIN allocation_reconcile_queue q ON q.allocation_id = a.allocation_id
@@ -105,6 +111,8 @@ func scanServiceReplicaRecord(row serviceReplicaScanner) (*serviceReplicaRecord,
 		createdAt, updatedAt        time.Time
 		workspacePreparationJSON    []byte
 		capabilityConditionsJSON    []byte
+		capabilityRevision          int64
+		capabilityObservedAt        pgtype.Timestamptz
 	)
 	if err := row.Scan(
 		&replica.ID,
@@ -121,6 +129,8 @@ func scanServiceReplicaRecord(row serviceReplicaScanner) (*serviceReplicaRecord,
 		&createdAt,
 		&updatedAt,
 		&workspacePreparationJSON,
+		&capabilityRevision,
+		&capabilityObservedAt,
 		&capabilityConditionsJSON,
 		&retryReason,
 		&retryAttempts,
@@ -153,7 +163,11 @@ func scanServiceReplicaRecord(row serviceReplicaScanner) (*serviceReplicaRecord,
 	if err := protojson.Unmarshal(capabilityConditionsJSON, conditions); err != nil {
 		return nil, fmt.Errorf("unmarshal replica capability conditions: %w", err)
 	}
-	replica.CapabilityConditions = conditions.GetConditions()
+	if capabilityRevision > 0 && capabilityObservedAt.Valid {
+		conditions.Revision = capabilityRevision
+		conditions.ObservedAt = timestamppb.New(capabilityObservedAt.Time)
+		replica.CapabilityConditions = conditions
+	}
 	return &serviceReplicaRecord{
 		replica:           &replica,
 		desiredSpecDigest: desiredSpecDigest,

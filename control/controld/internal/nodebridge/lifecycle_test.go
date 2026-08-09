@@ -465,7 +465,7 @@ func TestBuildCreateAllocationRequestResolvesServiceIdentityThroughBridge(t *tes
 	if result.WorkspacePreparation.GetPayloadFormat() != "nydus" {
 		t.Fatalf("workspace preparation = %#v", result.WorkspacePreparation)
 	}
-	if len(result.AdmittedCapabilityDependencies) != 1 || result.AdmittedCapabilityDependencies[0].GetSelectedEvidence().GetEvidenceID() != "create-evidence" {
+	if len(result.AdmittedCapabilityDependencies) != 1 || result.AdmittedCapabilityDependencies[0].GetSelectedObservation().GetEvidence().GetEvidenceID() != "create-evidence" {
 		t.Fatalf("admitted capability dependencies = %#v", result.AdmittedCapabilityDependencies)
 	}
 }
@@ -545,8 +545,10 @@ func (c *captureLifecycleClient) CreateAllocation(_ context.Context, _ string, r
 			PayloadFormat: "nydus",
 		},
 		AdmittedCapabilityDependencies: []*capabilityv1.CapabilityDependency{{
-			Key:              &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT}},
-			SelectedEvidence: &capabilityv1.CapabilityEvidence{EvidenceID: "create-evidence"},
+			Key: &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT}},
+			SelectedObservation: &capabilityv1.CapabilityObservationProof{
+				Evidence: &capabilityv1.CapabilityEvidence{EvidenceID: "create-evidence"},
+			},
 		}},
 	}, nil
 }

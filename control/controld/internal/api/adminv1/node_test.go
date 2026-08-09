@@ -8,6 +8,9 @@ import (
 	adminkernel "github.com/cofy-x/axern/control/controld/internal/kernel/admin"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func TestListAdminNodesMapsLifecycleAndHealth(t *testing.T) {
@@ -41,6 +44,60 @@ func TestRetireAdminNodeForwardsNormalizedRequest(t *testing.T) {
 	}
 }
 
+func TestGetAllocationCapabilityDiagnosticsPreservesAttemptFence(t *testing.T) {
+	admittedAt := time.Date(2026, 7, 26, 12, 1, 0, 0, time.UTC)
+	diagnostics := &fakeCapabilityDiagnostics{allocation: &adminkernel.AllocationCapabilityDiagnostics{
+		AllocationID:              "allocation-a",
+		NodeID:                    "node-a",
+		Attempt:                   7,
+		CreateAdmissionRecorded:   true,
+		CreateDependencySetDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		CreateAdmittedAt:          &admittedAt,
+		ConditionSet:              &capabilityv1.CapabilityConditionSet{Revision: 3},
+	}}
+	srv := New(Dependencies{CapabilityDiagnostics: diagnostics})
+
+	resp, err := srv.GetAllocationCapabilityDiagnostics(context.Background(), &adminv1.GetAllocationCapabilityDiagnosticsRequest{AllocationID: " allocation-a "})
+	if err != nil {
+		t.Fatalf("GetAllocationCapabilityDiagnostics() error = %v", err)
+	}
+	if diagnostics.allocationID != "allocation-a" || resp.GetAllocationAttempt() != 7 || resp.GetConditionSet().GetRevision() != 3 ||
+		!resp.GetCreateAdmissionRecorded() || resp.GetCreateDependencySetDigest() != diagnostics.allocation.CreateDependencySetDigest ||
+		!resp.GetCreateAdmittedAt().AsTime().Equal(admittedAt) {
+		t.Fatalf("allocationID = %q, response = %+v", diagnostics.allocationID, resp)
+	}
+}
+
+func TestCapabilityDiagnosticListsRejectNegativeLimit(t *testing.T) {
+	srv := New(Dependencies{CapabilityDiagnostics: &fakeCapabilityDiagnostics{}})
+	tests := []struct {
+		name string
+		call func() error
+	}{
+		{
+			name: "transitions",
+			call: func() error {
+				_, err := srv.ListNodeCapabilityTransitions(context.Background(), &adminv1.ListNodeCapabilityTransitionsRequest{Limit: -1})
+				return err
+			},
+		},
+		{
+			name: "backlog",
+			call: func() error {
+				_, err := srv.ListCapabilityReconcileQueue(context.Background(), &adminv1.ListCapabilityReconcileQueueRequest{Limit: -1})
+				return err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.call(); grpcstatus.Code(err) != codes.InvalidArgument {
+				t.Fatalf("error = %v, want InvalidArgument", err)
+			}
+		})
+	}
+}
+
 type fakeNodeAdmin struct {
 	filter  adminkernel.NodeListFilter
 	records []*nodekernel.Record
@@ -58,4 +115,26 @@ func (f *fakeNodeAdmin) RetireNode(_ context.Context, nodeID, reason string, _ t
 	f.nodeID = nodeID
 	f.reason = reason
 	return f.record, nil
+}
+
+type fakeCapabilityDiagnostics struct {
+	allocationID string
+	allocation   *adminkernel.AllocationCapabilityDiagnostics
+}
+
+func (*fakeCapabilityDiagnostics) GetNodeCapabilitySnapshot(context.Context, string) (*capabilityv1.CapabilitySnapshot, error) {
+	return nil, nil
+}
+
+func (*fakeCapabilityDiagnostics) ListNodeCapabilityTransitions(context.Context, string, int32) ([]adminkernel.CapabilityTransition, error) {
+	return nil, nil
+}
+
+func (*fakeCapabilityDiagnostics) ListCapabilityReconcileQueue(context.Context, string, int32) ([]adminkernel.CapabilityReconcileItem, error) {
+	return nil, nil
+}
+
+func (f *fakeCapabilityDiagnostics) GetAllocationCapabilityDiagnostics(_ context.Context, allocationID string) (*adminkernel.AllocationCapabilityDiagnostics, error) {
+	f.allocationID = allocationID
+	return f.allocation, nil
 }

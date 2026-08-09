@@ -39,6 +39,7 @@ func (a *App) registerClusterMetrics() error {
 		{ctrlobs.MetricCapabilityReconcileQueueCurrent, a.observeCapabilityReconcileQueue},
 		{ctrlobs.MetricCapabilityReconcileQueueOldestAge, a.observeCapabilityReconcileQueueOldestAge},
 		{ctrlobs.MetricCapabilityReconcileAttemptsCurrent, a.observeCapabilityReconcileAttempts},
+		{ctrlobs.MetricCapabilityConditionAllocationsCurrent, a.observeCapabilityConditionAllocations},
 		{ctrlobs.MetricPostgresPoolConnections, a.observePostgresPoolConnections},
 		{ctrlobs.MetricReconcileConsecutiveFailures, a.observeReconcileConsecutiveFailures},
 		{ctrlobs.MetricReconcileLastSuccessAge, a.observeReconcileLastSuccessAge},

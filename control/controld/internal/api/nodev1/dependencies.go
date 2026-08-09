@@ -28,6 +28,7 @@ type NodeReporter interface {
 
 type AllocationControl interface {
 	BatchReportAllocationStatus(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationStatusObservation, now time.Time) ([]string, error)
+	BatchReportAllocationCapabilityConditions(ctx context.Context, nodeID string, reports []*controlnodev1.AllocationCapabilityConditionReport, now time.Time) error
 	ReconcileNodeInventory(ctx context.Context, snapshot allocationkernel.NodeInventorySnapshot, now time.Time) error
 	WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*commonv1.ExecutionLease, int64, error)
 }

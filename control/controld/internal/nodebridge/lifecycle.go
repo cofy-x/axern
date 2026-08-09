@@ -94,8 +94,9 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 	}
 	recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateAllocation, nodeLifecycleStageNodeCreateRPC, stageStarted, nil)
 	return &allocationkernel.CapabilityAdmission{
+		Attempt:      run.GetAttempt(),
 		Dependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
-		Conditions:   cloneCapabilityConditions(resp.GetCapabilityVerification()),
+		ConditionSet: cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
 	}, nil
 }
 
@@ -131,7 +132,7 @@ func (b *Bridge) CreateResolvedAllocation(ctx context.Context, req servicekernel
 	return &servicekernel.CreateResolvedAllocationResult{
 		PublishedVolumes:               clonePublishedNodeVolumes(resp.GetPublishedVolumes()),
 		WorkspacePreparation:           resp.GetWorkspacePreparation(),
-		CapabilityVerification:         cloneCapabilityConditions(resp.GetCapabilityVerification()),
+		CapabilityVerification:         cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
 		AdmittedCapabilityDependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
 	}, nil
 }

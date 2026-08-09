@@ -239,7 +239,7 @@ func (f *fakeReconcileStore) CompleteAllocationStart(_ context.Context, allocati
 	return nil
 }
 
-func (f *fakeReconcileStore) RecordAllocationCapabilityVerification(context.Context, string, *allocationkernel.CapabilityAdmission, time.Time) error {
+func (f *fakeReconcileStore) RecordAllocationCapabilityAdmission(context.Context, string, *allocationkernel.CapabilityAdmission, time.Time) error {
 	return nil
 }
 

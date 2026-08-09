@@ -22,13 +22,19 @@ type reconcileExecutor interface {
 	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 }
 
+const capabilityDependenciesProjectionSQL = `COALESCE((
+	SELECT jsonb_build_object('dependencies', COALESCE(jsonb_agg(COALESCE(cd.admitted_dependency, cd.placement_dependency) ORDER BY cd.capability_key_id), '[]'::jsonb))
+	FROM allocation_capability_dependencies cd
+	WHERE cd.allocation_id = a.allocation_id
+), '{"dependencies":[]}'::jsonb)`
+
 func DueReconcileItems(ctx context.Context, queryer reconcileQueryer, ownerType string, limit int, now time.Time) ([]allocationkernel.ReconcileItem, error) {
 	if limit <= 0 {
 		limit = allocationkernel.DefaultReconcileLimit
 	}
 	rows, err := queryer.Query(ctx, `
 		SELECT q.allocation_id, a.owner_id, a.environment_id, q.reason, a.node_id, n.node_target, a.attempt, q.reconcile_attempts, q.last_error, q.next_run_at,
-			a.capability_dependencies,
+			`+capabilityDependenciesProjectionSQL+`,
 			GREATEST(q.next_run_at, q.updated_at, COALESCE(q.lease_expires_at, '-infinity'::timestamptz)) AS eligible_at
 		FROM allocation_reconcile_queue q
 		JOIN allocations a ON a.allocation_id = q.allocation_id
@@ -73,7 +79,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 		WITH ranked AS (
 			SELECT q.allocation_id, a.owner_id, a.environment_id, q.reason, a.node_id, n.node_target,
 				a.attempt, q.reconcile_attempts, q.last_error, q.next_run_at,
-				a.capability_dependencies,
+				`+capabilityDependenciesProjectionSQL+` AS capability_dependencies,
 				GREATEST(q.next_run_at, q.updated_at, COALESCE(q.lease_expires_at, '-infinity'::timestamptz)) AS eligible_at,
 				ROW_NUMBER() OVER (PARTITION BY a.node_id ORDER BY q.next_run_at ASC, q.allocation_id ASC) AS node_rank
 			FROM allocation_reconcile_queue q

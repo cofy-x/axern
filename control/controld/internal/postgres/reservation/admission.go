@@ -101,6 +101,10 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 	if err != nil {
 		return nil, err
 	}
+	// req.Now is the selection clock. Advance it by the real time spent waiting
+	// for quota and node row locks so a short-lived observation cannot remain
+	// eligible merely because admission was queued behind another transaction.
+	lockedEvaluationTime := req.Now.Add(time.Since(totalStarted))
 	stageStarted = time.Now()
 	diagnostics := newReservationRejectionDiagnostics(maxReservationRejectionDetails)
 	lockedEligibilityRejections := make([]*nodev1.PlacementCandidate, 0)
@@ -122,8 +126,18 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 		if baseRequest == nil {
 			continue
 		}
-		freshRequest := placementkernel.ResolveRequestForNode(baseRequest, record.Summary, req.Now)
-		freshEvaluation := a.placement.Evaluate(record, freshRequest, req.Now)
+		freshRequest, resolveErr := placementkernel.ResolveRequestForNode(baseRequest, record.Summary, lockedEvaluationTime)
+		if resolveErr != nil {
+			freshEvaluation := a.placement.Evaluate(record, baseRequest, lockedEvaluationTime)
+			if freshEvaluation != nil {
+				lockedEligibilityRejections = append(lockedEligibilityRejections, freshEvaluation)
+				if lockedRejectionRequest == nil {
+					lockedRejectionRequest = baseRequest
+				}
+			}
+			continue
+		}
+		freshEvaluation := a.placement.Evaluate(record, freshRequest, lockedEvaluationTime)
 		if freshEvaluation == nil || freshEvaluation.GetState() != nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_ELIGIBLE {
 			if freshEvaluation != nil {
 				lockedEligibilityRejections = append(lockedEligibilityRejections, freshEvaluation)
@@ -145,7 +159,7 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 			diagnostics.AddCandidate(record.NodeID, a.policy, fit, slots)
 			continue
 		}
-		refreshed := refreshPlacementCandidate(&placementkernel.Candidate{Record: record, Evaluation: freshEvaluation, BaseRequest: baseRequest, Request: freshRequest}, record, used.resources, used.allocationIDs, req.Now)
+		refreshed := refreshPlacementCandidate(&placementkernel.Candidate{Record: record, Evaluation: freshEvaluation, BaseRequest: baseRequest, Request: freshRequest}, record, used.resources, used.allocationIDs, lockedEvaluationTime)
 		if selected == nil || placementkernel.CandidateLess(refreshed, selected) {
 			selected = refreshed
 		}
@@ -158,7 +172,7 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 			}
 			recordCapabilityAdmissionEvidence(ctx, evidenceResult)
 		}
-		dependencies, err := nodecapability.ResolveDependencies(selected.Record.Summary.GetCapabilitySnapshot(), selected.Request.GetCapabilityRequirements(), req.Now)
+		dependencies, err := nodecapability.ResolveDependencies(selected.Record.Summary.GetCapabilitySnapshot(), selected.Request.GetCapabilityRequirements(), lockedEvaluationTime)
 		if err != nil {
 			recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageSelectCandidate, stageStarted, err)
 			return nil, fmt.Errorf("resolve admitted capability evidence: %w", err)

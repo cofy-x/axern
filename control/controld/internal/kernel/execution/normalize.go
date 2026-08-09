@@ -115,10 +115,10 @@ func NormalizeConfigForRootfs(in *commonv1.ExecutionConfig, readonly bool) (*com
 	if err := validateResourceSigns(in.GetResources()); err != nil {
 		return nil, err
 	}
-	out := NormalizeConfig(in)
-	if err := validateExtensionCapabilityRequirements(out.GetExtensionCapabilityRequirements()); err != nil {
+	if err := validateExtensionCapabilityRequirements(in.GetExtensionCapabilityRequirements()); err != nil {
 		return nil, err
 	}
+	out := NormalizeConfig(in)
 	resources, err := NormalizeResourcesForRootfs(out.GetResources(), readonly)
 	if err != nil {
 		return nil, err
@@ -131,6 +131,7 @@ func normalizeExtensionCapabilityRequirements(in []*capabilityv1.ExtensionCapabi
 	out := make([]*capabilityv1.ExtensionCapabilityRequirement, 0, len(in))
 	for _, requirement := range in {
 		if requirement == nil || requirement.GetCapability() == nil {
+			out = append(out, requirement)
 			continue
 		}
 		out = append(out, &capabilityv1.ExtensionCapabilityRequirement{Capability: capabilitycontract.NormalizeExtension(requirement.GetCapability())})
@@ -139,16 +140,8 @@ func normalizeExtensionCapabilityRequirements(in []*capabilityv1.ExtensionCapabi
 }
 
 func validateExtensionCapabilityRequirements(in []*capabilityv1.ExtensionCapabilityRequirement) error {
-	seen := make(map[string]struct{}, len(in))
-	for _, requirement := range in {
-		if err := capabilitycontract.ValidateExtensionRequirement(requirement); err != nil {
-			return grpcstatus.Errorf(codes.InvalidArgument, "config.extension_capability_requirements: %v", err)
-		}
-		id, _ := capabilitycontract.KeyID(capabilitycontract.ExtensionKey(requirement.GetCapability().GetName(), requirement.GetCapability().GetValue()))
-		if _, duplicate := seen[id]; duplicate {
-			return grpcstatus.Errorf(codes.InvalidArgument, "config.extension_capability_requirements contains duplicate %q", requirement.GetCapability().GetName())
-		}
-		seen[id] = struct{}{}
+	if err := capabilitycontract.ValidateExtensionRequirements(in); err != nil {
+		return grpcstatus.Errorf(codes.InvalidArgument, "config.extension_capability_requirements: %v", err)
 	}
 	return nil
 }

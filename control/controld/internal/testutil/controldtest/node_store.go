@@ -8,7 +8,6 @@ import (
 	"time"
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
-	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
@@ -139,16 +138,7 @@ func readyCapabilitySnapshot(collectedAt time.Time) *capabilityv1.CapabilitySnap
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS,
 	}
-	observations := make([]*capabilityv1.CapabilityObservation, 0, len(platforms))
-	for _, platform := range platforms {
-		observations = append(observations, &capabilityv1.CapabilityObservation{
-			Key: capabilitycontract.PlatformKey(platform), State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
-			Provider:      capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_CONFIG,
-			ValidityScope: capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_CONFIG_STATIC,
-			ObservedAt:    timestamppb.New(collectedAt), Evidence: &capabilityv1.CapabilityEvidence{EvidenceID: platform.String(), ConfigDigest: "test"},
-		})
-	}
-	return &capabilityv1.CapabilitySnapshot{NodeInstanceID: "test-node-instance", Sequence: 1, SnapshotID: "test-snapshot", CollectedAt: timestamppb.New(collectedAt), Observations: observations}
+	return AvailableCapabilitySnapshot(collectedAt, platforms...)
 }
 
 func cloneNodeRecord(in *nodekernel.Record) *nodekernel.Record {

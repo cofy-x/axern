@@ -28,6 +28,11 @@ type nodeUpsertParams struct {
 
 func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodekernel.Record, error) {
 	nodeID := strings.TrimSpace(params.NodeID)
+	if params.Summary != nil {
+		if err := validateSummaryPublication(params.Summary, params.Now); err != nil {
+			return nil, err
+		}
+	}
 	nodeAuthToken := strings.TrimSpace(params.NodeAuthToken)
 	if nodeAuthToken == "" {
 		return nil, grpcstatus.Error(codes.PermissionDenied, "node auth token is required")
@@ -90,6 +95,11 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 				return nil, fmt.Errorf("unmarshal previous node summary: %w", err)
 			}
 		}
+		if previous != nil &&
+			previous.GetCapabilitySnapshot().GetNodeInstanceID() == params.Summary.GetCapabilitySnapshot().GetNodeInstanceID() &&
+			params.Summary.GetCollectedAt().AsTime().Before(previous.GetCollectedAt().AsTime()) {
+			return nil, fmt.Errorf("node summary collected_at must not move backwards within node instance %q", params.Summary.GetCapabilitySnapshot().GetNodeInstanceID())
+		}
 		transitions, err := persistCapabilityReport(ctx, tx, nodeID, previous, params.Summary, params.Now)
 		if err != nil {
 			return nil, err
@@ -98,7 +108,7 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 			reportedTransitions = append(reportedTransitions, nodekernel.CapabilityTransition{
 				Key:        capabilityKeyClone(transition.key),
 				NewState:   transition.newState,
-				ReasonCode: transition.reasonCode,
+				ReasonCode: transition.newReasonCode,
 			})
 		}
 		payload, err := protojson.Marshal(params.Summary)
@@ -127,6 +137,30 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 	}
 	record.ReportedCapabilityTransitions = reportedTransitions
 	return record, nil
+}
+
+func validateSummaryPublication(summary *nodev1.NodeSummary, reportedAt time.Time) error {
+	if summary == nil || summary.GetCollectedAt() == nil {
+		return fmt.Errorf("node summary collected_at is required")
+	}
+	if err := summary.GetCollectedAt().CheckValid(); err != nil {
+		return fmt.Errorf("node summary collected_at: %w", err)
+	}
+	if reportedAt.IsZero() {
+		return fmt.Errorf("node summary report time is required")
+	}
+	collectedAt := summary.GetCollectedAt().AsTime()
+	if collectedAt.After(reportedAt.Add(time.Minute)) {
+		return fmt.Errorf("node summary collected_at is in the future")
+	}
+	snapshot := summary.GetCapabilitySnapshot()
+	if snapshot == nil || snapshot.GetCollectedAt() == nil {
+		return fmt.Errorf("node summary capability snapshot and collected_at are required")
+	}
+	if snapshot.GetCollectedAt().AsTime().After(collectedAt) {
+		return fmt.Errorf("capability snapshot was published after its enclosing node summary")
+	}
+	return nil
 }
 
 func capabilityKeyClone(key *capabilityv1.CapabilityKey) *capabilityv1.CapabilityKey {

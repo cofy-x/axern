@@ -289,9 +289,10 @@ func (c *controller) reconcileAllocationCreate(ctx context.Context, item allocat
 	if createResult == nil {
 		createResult = &servicekernel.CreateResolvedAllocationResult{}
 	}
-	if err := c.allocations.RecordCapabilityVerification(ctx, item.AllocationID, &allocationkernel.CapabilityAdmission{
+	if err := c.allocations.RecordCapabilityAdmission(ctx, item.AllocationID, &allocationkernel.CapabilityAdmission{
+		Attempt:      item.Attempt,
 		Dependencies: createResult.AdmittedCapabilityDependencies,
-		Conditions:   createResult.CapabilityVerification,
+		ConditionSet: createResult.CapabilityVerification,
 	}, now); err != nil {
 		return err
 	}
