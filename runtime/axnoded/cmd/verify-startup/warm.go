@@ -38,7 +38,7 @@ func runVerifyStartup(cfg verifyStartupConfig) error {
 	if err != nil {
 		return fmt.Errorf("resolve command: %w", err)
 	}
-	conn, err := verifyutil.DialNodeClients(cfg.address)
+	conn, err := verifyutil.DialNodeClients(cfg.address, verifyutil.WithInventoryURL(cfg.inventoryURL))
 	if err != nil {
 		return fmt.Errorf("dial axnoded: %w", err)
 	}

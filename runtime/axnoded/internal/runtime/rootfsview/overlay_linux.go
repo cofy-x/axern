@@ -23,6 +23,15 @@ func resolveOverlayLowerDirs(rootDir string) ([]string, error) {
 }
 
 func resolveOverlayLowerDirsFromInfo(rootDir string, mountInfo mountInfoEntry) ([]string, error) {
+	if err := validateOverlayPath("effective rootfs", rootDir); err != nil {
+		return nil, err
+	}
+	if err := validateCanonicalAbsolutePath("rootfs mountpoint", mountInfo.mountpoint); err != nil {
+		return nil, err
+	}
+	if err := validateCanonicalAbsolutePath("rootfs mount root", mountInfo.mountRoot); err != nil {
+		return nil, err
+	}
 	if mountInfo.fsType != "overlay" {
 		return []string{rootDir}, nil
 	}
@@ -38,9 +47,17 @@ func resolveOverlayLowerDirsFromInfo(rootDir string, mountInfo mountInfoEntry) (
 	if upperDir := mountOptionValue(mountInfo.superOptions, "upperdir"); upperDir != "" {
 		lowerDirs = append([]string{upperDir}, lowerDirs...)
 	}
+	for _, lowerDir := range lowerDirs {
+		if err := validateOverlayPath("overlay source", lowerDir); err != nil {
+			return nil, err
+		}
+	}
 	rel, err := filepath.Rel(mountInfo.mountpoint, rootDir)
 	if err != nil {
 		return nil, fmt.Errorf("resolve rootfs relative path %s from %s: %w", rootDir, mountInfo.mountpoint, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return nil, fmt.Errorf("effective rootfs %s escapes mountpoint %s", rootDir, mountInfo.mountpoint)
 	}
 	mountRoot := strings.TrimPrefix(filepath.Clean(mountInfo.mountRoot), string(os.PathSeparator))
 	if rel == "." && mountRoot == "" {
@@ -48,15 +65,42 @@ func resolveOverlayLowerDirsFromInfo(rootDir string, mountInfo mountInfoEntry) (
 	}
 	out := make([]string, 0, len(lowerDirs))
 	for _, lowerDir := range lowerDirs {
-		out = append(out, filepath.Join(lowerDir, mountRoot, rel))
+		effective := filepath.Join(lowerDir, mountRoot, rel)
+		if err := validateOverlayPath("effective overlay source", effective); err != nil {
+			return nil, err
+		}
+		out = append(out, effective)
 	}
 	return out, nil
 }
 
+func validateOverlayPath(name, candidate string) error {
+	if err := validateCanonicalAbsolutePath(name, candidate); err != nil {
+		return err
+	}
+	if strings.ContainsAny(candidate, `,:\`) || strings.ContainsAny(candidate, "\x00\n\r\t") {
+		return fmt.Errorf("%s contains an unsupported mount-option delimiter: %s", name, candidate)
+	}
+	return nil
+}
+
+func validateCanonicalAbsolutePath(name, candidate string) error {
+	if candidate == "" || !filepath.IsAbs(candidate) || filepath.Clean(candidate) != candidate {
+		return fmt.Errorf("%s must be a canonical absolute path: %s", name, candidate)
+	}
+	if strings.ContainsAny(candidate, "\x00\n\r\t") {
+		return fmt.Errorf("%s contains a control character", name)
+	}
+	return nil
+}
+
 func mountOverlayView(rootfs overlayView) error {
+	if len(rootfs.LowerDirs) == 0 {
+		return fmt.Errorf("overlay lowerdir is required")
+	}
 	for _, candidate := range append(append([]string(nil), rootfs.LowerDirs...), rootfs.UpperDir, rootfs.WorkDir, rootfs.MergedDir) {
-		if strings.ContainsAny(candidate, `,:\`) {
-			return fmt.Errorf("overlay path contains an unsupported mount-option delimiter: %s", candidate)
+		if err := validateOverlayPath("overlay path", candidate); err != nil {
+			return err
 		}
 	}
 	mountData := strings.Join([]string{
@@ -102,10 +146,39 @@ func InspectBacking(rootDir string) (RootfsBackingFacts, error) {
 	if err != nil {
 		return RootfsBackingFacts{}, err
 	}
+	var statfs unix.Statfs_t
+	if err := unix.Statfs(rootDir, &statfs); err != nil {
+		return RootfsBackingFacts{}, fmt.Errorf("statfs rootfs backing %s: %w", rootDir, err)
+	}
+	lowerChain := make([]RootfsBackingLayerFacts, 0, len(lowerDirs))
+	for _, lowerDir := range lowerDirs {
+		layer, layerErr := inspectBackingLayer(lowerDir)
+		if layerErr != nil {
+			return RootfsBackingFacts{}, fmt.Errorf("inspect effective rootfs lower %s: %w", lowerDir, layerErr)
+		}
+		lowerChain = append(lowerChain, layer)
+	}
 	return RootfsBackingFacts{
-		MountID: info.mountID, Mountpoint: info.mountpoint, MountRoot: info.mountRoot,
+		EffectiveRoot: filepath.Clean(rootDir), MountID: info.mountID, Mountpoint: info.mountpoint, MountRoot: info.mountRoot,
 		FSType: info.fsType, Source: info.source,
-		Readonly: mountOptionsContain(info.mountOptions, "ro"), LowerDirs: lowerDirs,
+		Readonly: mountOptionsContain(info.mountOptions, "ro") || statfs.Flags&unix.ST_RDONLY != 0, LowerDirs: lowerDirs,
+		EffectiveLowerChain: lowerChain,
+	}, nil
+}
+
+func inspectBackingLayer(path string) (RootfsBackingLayerFacts, error) {
+	info, err := mountInfoForPath(path)
+	if err != nil {
+		return RootfsBackingLayerFacts{}, err
+	}
+	var statfs unix.Statfs_t
+	if err := unix.Statfs(path, &statfs); err != nil {
+		return RootfsBackingLayerFacts{}, fmt.Errorf("statfs backing layer %s: %w", path, err)
+	}
+	return RootfsBackingLayerFacts{
+		Path: filepath.Clean(path), MountID: info.mountID, Mountpoint: info.mountpoint,
+		MountRoot: info.mountRoot, FSType: info.fsType, Source: info.source,
+		Readonly: mountOptionsContain(info.mountOptions, "ro") || statfs.Flags&unix.ST_RDONLY != 0,
 	}, nil
 }
 

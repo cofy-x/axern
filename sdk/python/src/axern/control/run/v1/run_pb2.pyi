@@ -71,8 +71,8 @@ class Run(_message.Message):
     exit_code_known: bool
     message: str
     diagnostic_code: _common_pb2.WorkloadDiagnosticCode
-    capability_conditions: _containers.RepeatedCompositeFieldContainer[_capability_pb2.CapabilityCondition]
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[RunStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., capability_conditions: _Optional[_Iterable[_Union[_capability_pb2.CapabilityCondition, _Mapping]]] = ...) -> None: ...
+    capability_conditions: _capability_pb2.CapabilityConditionSet
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[RunStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., capability_conditions: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ...) -> None: ...
 
 class RunListFilter(_message.Message):
     __slots__ = ("namespace", "statuses", "labels", "cursor", "page_size")

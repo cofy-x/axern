@@ -57,5 +57,17 @@ func GetRuntimeHandler(cfg config.Config, runtimeName string) (contract.RuntimeH
 	if !ok {
 		return nil, errord.ErrNotImplemented
 	}
-	return factory.New(cfg, runtimeName, runtimeCfg)
+	handler, err := factory.New(cfg, runtimeName, runtimeCfg)
+	if err != nil {
+		return nil, err
+	}
+	if handler == nil {
+		return nil, fmt.Errorf("runtime %s factory returned a nil handler", runtimeName)
+	}
+	if handler.Name() != runtimeName {
+		actualName := handler.Name()
+		handler.ShutDown()
+		return nil, fmt.Errorf("runtime %s factory returned handler named %s", runtimeName, actualName)
+	}
+	return handler, nil
 }

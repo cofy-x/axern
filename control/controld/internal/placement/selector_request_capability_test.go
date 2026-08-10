@@ -12,16 +12,22 @@ import (
 
 func TestBuildRequestRequiresCgroupMemoryReadinessForHardLimit(t *testing.T) {
 	selector := &Selector{defaultSandboxRuntime: "runsc"}
-	request := selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{
+	request, err := selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{
 		Resources: &commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{MemoryBytes: 1 << 30}},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !containsPlatform(request.CapabilityRequirements, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT) {
 		t.Fatalf("capabilities = %#v", request.CapabilityRequirements)
 	}
 
-	request = selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{
+	request, err = selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{
 		Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{MemoryBytes: 1 << 30}},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if containsPlatform(request.CapabilityRequirements, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT) {
 		t.Fatalf("memory request without a hard limit requires enforcement capability: %#v", request.CapabilityRequirements)
 	}
@@ -29,9 +35,12 @@ func TestBuildRequestRequiresCgroupMemoryReadinessForHardLimit(t *testing.T) {
 
 func TestBuildRequestUsesEphemeralStorageContract(t *testing.T) {
 	selector := &Selector{defaultSandboxRuntime: "runsc"}
-	request := selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{
+	request, err := selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{
 		Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{EphemeralStorageBytes: 512 << 20}},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got, want := request.RequestedEphemeralStorageBytes, int64(512<<20); got != want {
 		t.Fatalf("requested ephemeral storage = %d, want %d", got, want)
 	}
@@ -42,15 +51,21 @@ func TestBuildRequestUsesEphemeralStorageContract(t *testing.T) {
 
 func TestBuildRequestPersistsNetworkAndPortDependencies(t *testing.T) {
 	selector := &Selector{defaultSandboxRuntime: "runsc"}
-	request := selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{
+	request, err := selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{
 		Ports:   []*commonv1.PortSpec{{ContainerPort: 8080}},
 		Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !containsPlatform(request.CapabilityRequirements, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING) {
 		t.Fatalf("capabilities = %#v", request.CapabilityRequirements)
 	}
 	now := time.Now().UTC()
-	candidate := requestForCandidate(request, record("node-a", []string{"runsc"}, readySummary(now), now), now)
+	candidate, err := requestForCandidate(request, record("node-a", []string{"runsc"}, readySummary(now), now), now)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !containsPlatform(candidate.CapabilityRequirements, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE) {
 		t.Fatalf("candidate capabilities = %#v", candidate.CapabilityRequirements)
 	}

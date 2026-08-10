@@ -19,11 +19,15 @@ func (r *RunscServiceHandler) DeleteContainer(ctx context.Context, request *apip
 	}
 	waitLock := r.waitLock(options.ContainerID)
 	waitLock.Lock()
-	exitStateErr := r.common.RemoveExitState(options.ContainerID)
+	storageErr := cleanupOwnedRootfsStorage(options.ContainerID, r.rootfsViews.Remove, r.writableCapacity.Release)
+	if storageErr != nil {
+		waitLock.Unlock()
+		return &apipb.DeleteContainerResponse{}, storageErr
+	}
+	exitStateErr := r.common.RemoveContainerState(options.ContainerID)
 	waitLock.Unlock()
 	r.waitLocks.Delete(options.ContainerID)
-	storageErr := cleanupOwnedRootfsStorage(options.ContainerID, r.rootfsViews.Remove, r.writableCapacity.Release)
-	return &apipb.DeleteContainerResponse{}, errors.Join(exitStateErr, storageErr)
+	return &apipb.DeleteContainerResponse{}, exitStateErr
 }
 
 // deleteRuntimeContainer implements the runsc stop/delete protocol. Axnoded
@@ -91,5 +95,9 @@ func (r *RunscServiceHandler) cleanupContainer(ctx context.Context, traceID, con
 	}
 	if err := cleanupOwnedRootfsStorage(containerID, r.rootfsViews.Remove, r.writableCapacity.Release); err != nil {
 		logrus.WithField("trace_id", traceID).Warnf("cleanup writable storage for %s failed: %v", containerID, err)
+		return
+	}
+	if err := r.common.RemoveContainerState(containerID); err != nil {
+		logrus.WithField("trace_id", traceID).Warnf("cleanup runtime exit state for %s failed: %v", containerID, err)
 	}
 }

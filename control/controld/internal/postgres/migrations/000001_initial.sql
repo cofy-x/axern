@@ -148,8 +148,7 @@ CREATE TABLE runs (
 	updated_at TIMESTAMPTZ NOT NULL,
 	exit_code INTEGER NOT NULL DEFAULT 0,
 	exit_code_known BOOLEAN NOT NULL DEFAULT FALSE,
-	message TEXT NOT NULL DEFAULT '',
-	capability_conditions JSONB NOT NULL DEFAULT '{}'::jsonb
+	message TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE services (
@@ -201,16 +200,16 @@ CREATE TABLE allocations (
 	desired_spec_digest TEXT NOT NULL DEFAULT '',
 	config JSONB NOT NULL,
 	workspace_preparation JSONB NOT NULL DEFAULT 'null'::jsonb,
-	capability_dependencies JSONB NOT NULL DEFAULT '{}'::jsonb,
-	capability_conditions JSONB NOT NULL DEFAULT '{}'::jsonb,
-	admitted_capability_dependencies JSONB NOT NULL DEFAULT '{}'::jsonb,
 	version BIGINT NOT NULL DEFAULT 1,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
 	node_active_at TIMESTAMPTZ,
 	exit_code INTEGER NOT NULL DEFAULT 0,
 	exit_code_known BOOLEAN NOT NULL DEFAULT FALSE,
-	message TEXT NOT NULL DEFAULT ''
+	message TEXT NOT NULL DEFAULT '',
+	UNIQUE (allocation_id, node_id),
+	UNIQUE (allocation_id, attempt),
+	CHECK (attempt > 0)
 );
 
 CREATE TABLE node_capability_transitions (
@@ -222,13 +221,72 @@ CREATE TABLE node_capability_transitions (
 	capability_key_id TEXT NOT NULL,
 	old_state TEXT NOT NULL,
 	new_state TEXT NOT NULL,
-	old_evidence_id TEXT NOT NULL DEFAULT '',
-	new_evidence_id TEXT NOT NULL DEFAULT '',
-	reason_code TEXT NOT NULL,
+	old_evidence JSONB NOT NULL DEFAULT 'null'::jsonb,
+	new_evidence JSONB NOT NULL DEFAULT 'null'::jsonb,
+	old_reason_code TEXT NOT NULL,
+	new_reason_code TEXT NOT NULL,
 	reason TEXT NOT NULL DEFAULT '',
 	observed_at TIMESTAMPTZ NOT NULL,
 	reported_at TIMESTAMPTZ NOT NULL,
 	UNIQUE (node_id, snapshot_id, capability_key_id)
+);
+
+CREATE TABLE allocation_capability_dependencies (
+	allocation_id TEXT NOT NULL,
+	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+	capability_key_id TEXT NOT NULL,
+	capability_key JSONB NOT NULL,
+	loss_policy TEXT NOT NULL,
+	placement_dependency JSONB NOT NULL,
+	admitted_dependency JSONB,
+	created_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL,
+	PRIMARY KEY (allocation_id, capability_key_id),
+	FOREIGN KEY (allocation_id, node_id)
+			REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE
+);
+
+CREATE TABLE allocation_capability_admissions (
+	allocation_id TEXT PRIMARY KEY,
+	allocation_attempt BIGINT NOT NULL,
+	dependency_set_digest TEXT NOT NULL,
+	admitted_at TIMESTAMPTZ NOT NULL,
+	FOREIGN KEY (allocation_id, allocation_attempt)
+		REFERENCES allocations(allocation_id, attempt) ON DELETE CASCADE,
+	CHECK (allocation_attempt > 0),
+	CHECK (dependency_set_digest ~ '^sha256:[0-9a-f]{64}$')
+);
+
+CREATE TABLE allocation_capability_condition_sets (
+	allocation_id TEXT PRIMARY KEY,
+	allocation_attempt BIGINT NOT NULL,
+	revision BIGINT NOT NULL,
+	payload_digest TEXT NOT NULL,
+	observed_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL,
+	UNIQUE (allocation_id, allocation_attempt, revision),
+	FOREIGN KEY (allocation_id, allocation_attempt)
+		REFERENCES allocations(allocation_id, attempt) ON DELETE CASCADE,
+	CHECK (allocation_attempt > 0),
+	CHECK (revision > 0),
+	CHECK (payload_digest ~ '^sha256:[0-9a-f]{64}$')
+);
+
+CREATE TABLE allocation_capability_conditions (
+	allocation_id TEXT NOT NULL,
+	capability_key_id TEXT NOT NULL,
+	allocation_attempt BIGINT NOT NULL,
+	condition_revision BIGINT NOT NULL,
+	observed_at TIMESTAMPTZ NOT NULL,
+	condition JSONB NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL,
+	PRIMARY KEY (allocation_id, capability_key_id),
+	FOREIGN KEY (allocation_id, capability_key_id)
+		REFERENCES allocation_capability_dependencies(allocation_id, capability_key_id) ON DELETE CASCADE,
+	FOREIGN KEY (allocation_id, allocation_attempt, condition_revision)
+		REFERENCES allocation_capability_condition_sets(allocation_id, allocation_attempt, revision) ON DELETE CASCADE,
+	CHECK (allocation_attempt > 0),
+	CHECK (condition_revision > 0)
 );
 
 CREATE TABLE node_capability_instances (
@@ -245,7 +303,6 @@ CREATE TABLE node_capability_instances (
 
 CREATE TABLE allocation_capability_reconcile_queue (
 	allocation_id TEXT PRIMARY KEY REFERENCES allocations(allocation_id) ON DELETE CASCADE,
-	pending_dependencies JSONB NOT NULL,
 	reconcile_attempts INTEGER NOT NULL DEFAULT 0,
 	next_run_at TIMESTAMPTZ NOT NULL,
 	lease_owner TEXT NOT NULL DEFAULT '',
@@ -253,6 +310,17 @@ CREATE TABLE allocation_capability_reconcile_queue (
 	last_error TEXT NOT NULL DEFAULT '',
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE allocation_capability_reconcile_pending_keys (
+	allocation_id TEXT NOT NULL REFERENCES allocation_capability_reconcile_queue(allocation_id) ON DELETE CASCADE,
+	capability_key_id TEXT NOT NULL,
+	snapshot_sequence BIGINT NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL,
+	PRIMARY KEY (allocation_id, capability_key_id),
+	FOREIGN KEY (allocation_id, capability_key_id)
+		REFERENCES allocation_capability_dependencies(allocation_id, capability_key_id) ON DELETE CASCADE
 );
 
 CREATE TABLE workload_reservations (
@@ -358,6 +426,10 @@ CREATE INDEX idx_allocations_node_status ON allocations(node_id, status);
 CREATE INDEX idx_allocations_owner_status_updated ON allocations(owner_type, owner_id, status, updated_at);
 CREATE INDEX idx_node_capability_transitions_node_reported
 	ON node_capability_transitions(node_id, reported_at DESC, transition_id DESC);
+CREATE INDEX idx_allocation_capability_dependencies_node_key
+	ON allocation_capability_dependencies(node_id, capability_key_id, allocation_id);
+CREATE INDEX idx_allocation_capability_conditions_allocation_revision
+	ON allocation_capability_conditions(allocation_id, condition_revision);
 CREATE INDEX idx_allocation_capability_reconcile_claimable
 	ON allocation_capability_reconcile_queue(next_run_at, lease_expires_at, allocation_id);
 CREATE INDEX idx_allocations_service_desired_spec

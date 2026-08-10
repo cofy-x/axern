@@ -149,7 +149,7 @@ message CreateAllocationResponse {
   int64 attempt = 2;
   repeated axern.private.storage.v1.PublishedNodeVolume published_volumes = 3;
   axern.control.common.v1.WorkspacePreparationFacts workspace_preparation = 4;
-  repeated axern.control.capability.v1.CapabilityCondition capability_verification = 5;
+  axern.control.capability.v1.CapabilityConditionSet capability_verification = 5;
   // The concrete dependency/evidence set admitted by axnoded after the
   // runtime-specific post-create verification. This is authoritative; callers
   // must not reconstruct admitted evidence from conditions.
@@ -178,6 +178,6 @@ message GetAllocationStatusResponse {
   int32 exit_code = 2;
   bool exit_code_known = 3;
   string message = 4;
-  repeated axern.control.capability.v1.CapabilityCondition capability_verification = 5;
+  axern.control.capability.v1.CapabilityConditionSet capability_verification = 5;
   repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 6;
 }

@@ -41,12 +41,9 @@ func CaptureStartupSnapshot(metricsURL, runtimeName, rootfsType string) (*Startu
 	collectStartupPhaseSnapshot(out, snapshot.Points, runtimeName, rootfsType)
 	collectBundleTemplateSnapshot(out, snapshot.Points, runtimeName, rootfsType)
 	collectBundleMaterializeSnapshot(out, snapshot.Points, runtimeName, rootfsType)
-	collectExecutionEnvelopeSnapshot(out, snapshot.Points, runtimeName, rootfsType)
-	collectExecutionEnvelopePrepareSnapshot(out, snapshot.Points, runtimeName, rootfsType)
-	collectExecutionEnvelopeActivateSnapshot(out, snapshot.Points, runtimeName, rootfsType)
 	collectRuntimeWaitGraceSnapshot(out, snapshot.Points, runtimeName)
 
-	if len(out.Classes) == 0 && len(out.Phases) == 0 && out.Bundle == nil && out.Envelope == nil && out.WaitGrace == nil {
+	if len(out.Classes) == 0 && len(out.Phases) == 0 && out.Bundle == nil && out.WaitGrace == nil {
 		return nil, nil
 	}
 	return out, nil
@@ -201,77 +198,6 @@ func collectBundleMaterializeSnapshot(snapshot *StartupSnapshot, points []axmetr
 		return
 	}
 	snapshot.Bundle = bundle
-}
-
-func collectExecutionEnvelopeSnapshot(snapshot *StartupSnapshot, points []axmetrics.Point, runtimeName, rootfsType string) {
-	envelope := snapshot.Envelope
-	for _, point := range points {
-		if point.Name != axmetrics.MetricExecutionEnvelopeTotal || point.Type != axmetrics.TypeCounter {
-			continue
-		}
-		if !hasRuntimeRootfs(point, runtimeName, rootfsType) {
-			continue
-		}
-		if envelope == nil {
-			envelope = &ExecutionEnvelopeSnapshot{}
-		}
-		switch point.Attributes[sdkobs.AttrResult] {
-		case "prepared":
-			envelope.PreparedCount += roundedCounter(point.Value)
-		case "hit":
-			envelope.HitCount += roundedCounter(point.Value)
-		case "miss":
-			envelope.MissCount += roundedCounter(point.Value)
-		case "error":
-			envelope.ErrorCount += roundedCounter(point.Value)
-		case "fallback":
-			envelope.FallbackCount += roundedCounter(point.Value)
-		}
-	}
-	if envelope == nil || (envelope.PreparedCount == 0 && envelope.HitCount == 0 && envelope.MissCount == 0 && envelope.ErrorCount == 0 && envelope.FallbackCount == 0) {
-		return
-	}
-	snapshot.Envelope = envelope
-}
-
-func collectExecutionEnvelopePrepareSnapshot(snapshot *StartupSnapshot, points []axmetrics.Point, runtimeName, rootfsType string) {
-	envelope := snapshot.Envelope
-	for _, point := range points {
-		if point.Name != axmetrics.MetricExecutionEnvelopePrepare || point.Type != axmetrics.TypeHistogram {
-			continue
-		}
-		if !hasRuntimeRootfs(point, runtimeName, rootfsType) || point.Attributes[sdkobs.AttrResult] != "ok" {
-			continue
-		}
-		if envelope == nil {
-			envelope = &ExecutionEnvelopeSnapshot{}
-		}
-		envelope.PrepareHistogram = mergeHistogram(envelope.PrepareHistogram, histogramFromPoint(point.Count, point.Sum, point.SampleStart, point.Samples))
-	}
-	if envelope == nil || (envelope.PreparedCount == 0 && envelope.HitCount == 0 && envelope.MissCount == 0 && envelope.ErrorCount == 0 && envelope.FallbackCount == 0 && envelope.PrepareHistogram == nil) {
-		return
-	}
-	snapshot.Envelope = envelope
-}
-
-func collectExecutionEnvelopeActivateSnapshot(snapshot *StartupSnapshot, points []axmetrics.Point, runtimeName, rootfsType string) {
-	envelope := snapshot.Envelope
-	for _, point := range points {
-		if point.Name != axmetrics.MetricExecutionEnvelopeActivate || point.Type != axmetrics.TypeHistogram {
-			continue
-		}
-		if !hasRuntimeRootfs(point, runtimeName, rootfsType) || point.Attributes[sdkobs.AttrResult] != "ok" {
-			continue
-		}
-		if envelope == nil {
-			envelope = &ExecutionEnvelopeSnapshot{}
-		}
-		envelope.ActivateHistogram = mergeHistogram(envelope.ActivateHistogram, histogramFromPoint(point.Count, point.Sum, point.SampleStart, point.Samples))
-	}
-	if envelope == nil || (envelope.PreparedCount == 0 && envelope.HitCount == 0 && envelope.MissCount == 0 && envelope.ErrorCount == 0 && envelope.FallbackCount == 0 && envelope.PrepareHistogram == nil && envelope.ActivateHistogram == nil) {
-		return
-	}
-	snapshot.Envelope = envelope
 }
 
 func collectRuntimeWaitGraceSnapshot(snapshot *StartupSnapshot, points []axmetrics.Point, runtimeName string) {

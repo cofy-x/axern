@@ -80,6 +80,26 @@ func (h *runtimeSpyHandler) CreateContainer(_ context.Context, request *apipb.Cr
 	}, nil
 }
 
+func (h *runtimeSpyHandler) PrepareContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*contract.PreparedContainer, error) {
+	metadata, err := h.CreateContainer(ctx, request, options)
+	if err != nil {
+		return nil, err
+	}
+	return &contract.PreparedContainer{ContainerID: options.ContainerID, BundlePath: "/fake/" + options.ContainerID, Metadata: metadata}, nil
+}
+
+func (h *runtimeSpyHandler) StartPreparedContainer(_ context.Context, prepared *contract.PreparedContainer, _ contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
+	return prepared.Metadata, nil
+}
+
+func (h *runtimeSpyHandler) AllocationEnforcementManifest(_ context.Context, containerID string) (*apipb.AllocationEnforcementManifest, error) {
+	return &apipb.AllocationEnforcementManifest{
+		RuntimeName:       h.Name(),
+		BundlePath:        "/fake/" + containerID,
+		CreatedAtUnixNano: time.Now().UTC().UnixNano(),
+	}, nil
+}
+
 func (h *runtimeSpyHandler) DeleteContainer(_ context.Context, _ *apipb.DeleteContainerRequest, options contract.HandlerOptions) (*apipb.DeleteContainerResponse, error) {
 	h.deleteCalls++
 	h.lastDeleteOptions = options

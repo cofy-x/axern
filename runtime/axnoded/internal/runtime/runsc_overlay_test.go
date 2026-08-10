@@ -29,6 +29,13 @@ func TestRunscOverlayRejectsMissingLimit(t *testing.T) {
 	require.ErrorContains(t, err, "ephemeral_storage_limit_bytes")
 }
 
+func TestRunscOverlayRejectsUnsafeBackingPath(t *testing.T) {
+	for _, path := range []string{"/filestore,other", "/filestore:other", "/filestore\\other", "/filestore\nother"} {
+		_, err := (&RunscServiceHandler{filestoreDir: path}).overlay2Value(false, 256<<20)
+		require.ErrorContains(t, err, "unsupported option delimiter")
+	}
+}
+
 func TestRunscOverlaySkipsReadonlyRoot(t *testing.T) {
 	value, err := (&RunscServiceHandler{}).overlay2Value(true, 0)
 	require.NoError(t, err)

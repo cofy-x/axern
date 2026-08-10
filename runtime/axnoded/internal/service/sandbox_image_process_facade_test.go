@@ -118,20 +118,8 @@ func TestExecImageCreatesTransientImageContainerAndCleansUp(t *testing.T) {
 	assert.Equal(t, []string{"tool", "run"}, handler.lastSessionOpen.GetCommand())
 	assert.Equal(t, "/workspace", handler.lastSessionOpen.GetCwd())
 	assert.Equal(t, "B", handler.lastSessionOpen.GetEnvs()[0].GetValue())
-	assert.True(t, session.stdinClosed)
-	assert.True(t, session.closed)
-}
-
-func TestEnsureImageProcessRuntimeDisablesExecutionEnvelope(t *testing.T) {
-	rootfsDir := t.TempDir()
-	handler := &runtimeSpyHandler{name: "runsc"}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
-	s.lrtManager = langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir})
-	s.configureAllocationController()
-
-	lrt, err := s.ensureImageProcessRuntime(t.Context(), imageprocess.RuntimeTemplate("runsc", "ghcr.io/cofy-x/agent:latest"))
-	require.NoError(t, err)
-	assert.False(t, lrt.ExecutionEnvelopeEnabled())
+	assert.True(t, session.isStdinClosed())
+	assert.True(t, session.isClosed())
 }
 
 func TestExecImageCleansUpTransientContainerWhenProcessOpenFails(t *testing.T) {
@@ -201,7 +189,7 @@ func TestExecImageCleansUpTransientContainerWhenCloseStdinFails(t *testing.T) {
 	})
 
 	assert.Error(t, err)
-	assert.True(t, session.closed)
+	assert.True(t, session.isClosed())
 	assert.Equal(t, 1, handler.createCalls)
 	assert.Equal(t, 1, handler.deleteCalls)
 }
@@ -250,8 +238,8 @@ func TestProcessImageCleansUpTransientContainerAndRootfsWhenStreamCloses(t *test
 	assert.Equal(t, 1, handler.createCalls)
 	assert.Equal(t, 1, handler.deleteCalls)
 	assert.Equal(t, 1, mounter.UmountCount())
-	assert.True(t, session.stdinClosed)
-	assert.True(t, session.closed)
+	assert.True(t, session.isStdinClosed())
+	assert.True(t, session.isClosed())
 	require.Len(t, stream.sent, 2)
 	assert.NotNil(t, stream.sent[0].GetReady())
 	assert.NotNil(t, stream.sent[1].GetExit())

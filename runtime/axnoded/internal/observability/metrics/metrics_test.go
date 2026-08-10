@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -126,5 +127,30 @@ func TestSnapshotCurrentSanitizesAttributeValues(t *testing.T) {
 	got := snapshot.Points[0].Attributes["value"]
 	if !strings.HasSuffix(got, "...[truncated]") {
 		t.Fatalf("attribute value was not sanitized: length=%d", len(got))
+	}
+}
+
+func TestCapabilityGovernanceMetricsUseBoundedDimensions(t *testing.T) {
+	ResetForTest()
+	RecordCapabilityRecoveryDebounce("PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT", "CAPABILITY_PROVIDER_RUNTIME_CONFORMANCE")
+	RecordCapabilityFailStopCleanup("runsc", "retry")
+
+	snapshot := SnapshotCurrent()
+	if len(snapshot.Points) != 2 {
+		t.Fatalf("point count = %d, want 2", len(snapshot.Points))
+	}
+	for _, point := range snapshot.Points {
+		switch point.Name {
+		case MetricCapabilityRecoveryDebounceTotal:
+			if point.Attributes["capability"] == "" || point.Attributes["provider"] == "" {
+				t.Fatalf("recovery debounce attributes = %#v", point.Attributes)
+			}
+		case MetricCapabilityFailStopCleanupTotal:
+			if point.Attributes[sdkobs.AttrRuntime] != "runsc" || point.Attributes[sdkobs.AttrResult] != "retry" {
+				t.Fatalf("fail-stop cleanup attributes = %#v", point.Attributes)
+			}
+		default:
+			t.Fatalf("unexpected metric %q", point.Name)
+		}
 	}
 }

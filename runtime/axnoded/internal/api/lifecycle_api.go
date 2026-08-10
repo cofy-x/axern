@@ -37,14 +37,12 @@ type serviceLike interface {
 	Delete(context.Context, *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error)
 	List(context.Context, *runtimev1.ListContainersRequest) (*runtimev1.ListContainersResponse, error)
 	DeleteVolume(context.Context, string, storagev1.VolumeBackend, string) error
+	ManagedAllocationAttempt(string) (int64, bool)
+	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error)
 }
 
 type workspacePreparationProvider interface {
 	WorkspacePreparation(containerID string) *commonv1.WorkspacePreparationFacts
-}
-
-type allocationCapabilityReconciler interface {
-	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, []*capabilityv1.CapabilityCondition, error)
 }
 
 func (s *nodeLifecycleServer) DeleteVolume(ctx context.Context, req *nodelifecyclev1.DeleteVolumeRequest) (*nodelifecyclev1.DeleteVolumeResponse, error) {
@@ -96,8 +94,18 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
 		return nil, resultErr
 	}
+	if req.GetAttempt() <= 0 {
+		resultErr = grpcstatus.Error(codes.InvalidArgument, "positive allocation attempt is required")
+		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
+		return nil, resultErr
+	}
 	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
 		resultErr = grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
+		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if current, found := s.svc.ManagedAllocationAttempt(req.GetAllocationID()); found && current != req.GetAttempt() {
+		resultErr = grpcstatus.Errorf(codes.FailedPrecondition, "allocation attempt %d does not match current attempt %d", req.GetAttempt(), current)
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
 		return nil, resultErr
 	}
@@ -137,7 +145,7 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 		Attempt:                        req.GetAttempt(),
 		PublishedVolumes:               clonePublishedNodeVolumes(resp.GetPublishedVolumes()),
 		WorkspacePreparation:           workspacePreparation,
-		CapabilityVerification:         cloneCapabilityConditions(resp.GetCapabilityVerification()),
+		CapabilityVerification:         cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
 		AdmittedCapabilityDependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
 	}, nil
 }
@@ -185,6 +193,11 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
 		return nil, resultErr
 	}
+	if req.GetAttempt() <= 0 {
+		resultErr = grpcstatus.Error(codes.InvalidArgument, "positive allocation attempt is required")
+		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
+		return nil, resultErr
+	}
 	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
 		resultErr = grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
 		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
@@ -193,6 +206,11 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, nil)
 	if s.targets.isDeleted(req.GetAllocationID()) {
 		return &nodelifecyclev1.DeleteAllocationResponse{}, nil
+	}
+	if current, found := s.svc.ManagedAllocationAttempt(req.GetAllocationID()); found && current != req.GetAttempt() {
+		resultErr = grpcstatus.Errorf(codes.FailedPrecondition, "allocation attempt %d does not match current attempt %d", req.GetAttempt(), current)
+		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
+		return nil, resultErr
 	}
 	stageStarted = time.Now()
 	targetID := s.targets.resolve(req.GetAllocationID())
@@ -249,11 +267,21 @@ func (s *nodeLifecycleServer) GetAllocationStatus(ctx context.Context, req *node
 	if strings.TrimSpace(req.GetAllocationID()) == "" {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
+	if req.GetAttempt() <= 0 {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "positive allocation attempt is required")
+	}
 	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
 		return nil, grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
 	}
 	if s.targets.isDeleted(req.GetAllocationID()) {
 		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q not found", req.GetAllocationID())
+	}
+	current, found := s.svc.ManagedAllocationAttempt(req.GetAllocationID())
+	if !found {
+		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q not found", req.GetAllocationID())
+	}
+	if current != req.GetAttempt() {
+		return nil, grpcstatus.Errorf(codes.FailedPrecondition, "allocation attempt %d does not match current attempt %d", req.GetAttempt(), current)
 	}
 	resp, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: s.targets.resolve(req.GetAllocationID())})
 	if err != nil {
@@ -263,20 +291,16 @@ func (s *nodeLifecycleServer) GetAllocationStatus(ctx context.Context, req *node
 		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q not found", req.GetAllocationID())
 	}
 	container := resp.GetContainers()[0]
-	var admittedDependencies []*capabilityv1.CapabilityDependency
-	var capabilityVerification []*capabilityv1.CapabilityCondition
-	if reconciler, ok := s.svc.(allocationCapabilityReconciler); ok {
-		admittedDependencies, capabilityVerification, err = reconciler.ReconcileAllocationCapabilities(ctx, req.GetAllocationID())
-		if err != nil {
-			return nil, err
-		}
+	admittedDependencies, capabilityVerification, err := s.svc.ReconcileAllocationCapabilities(ctx, req.GetAllocationID())
+	if err != nil {
+		return nil, err
 	}
 	return &nodelifecyclev1.GetAllocationStatusResponse{
 		Status:                         allocationStatusFromContainerState(container.GetState()),
 		ExitCode:                       container.GetExitCode(),
 		ExitCodeKnown:                  container.GetState() == runtimev1.ContainerState_CONTAINER_EXITED,
 		Message:                        container.GetMessage(),
-		CapabilityVerification:         cloneCapabilityConditions(capabilityVerification),
+		CapabilityVerification:         cloneCapabilityConditionSet(capabilityVerification),
 		AdmittedCapabilityDependencies: cloneCapabilityDependencies(admittedDependencies),
 	}, nil
 }
@@ -314,15 +338,19 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		RuntimeTemplate:        runtimeTemplate,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
 		ContainerID:            req.GetAllocationID(),
+		AllocationAttempt:      req.GetAttempt(),
 		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
 		Network:                lifecycleNetworkToRuntime(spec.GetNetwork()),
-		ExtraConfig:            lifecycleExtraConfig(spec, req.GetAttempt()),
+		ExtraConfig:            lifecycleExtraConfig(spec),
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
 		NodeVolumes:            cloneResolvedNodeVolumes(spec.GetNodeVolumes()),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
 		WorkspaceImage:         cloneWorkspaceImage(spec.GetWorkspaceImage()),
 		CapabilityDependencies: cloneCapabilityDependencies(spec.GetCapabilityDependencies()),
+		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
+			spec.GetExtensionCapabilityRequirements(),
+		),
 	}, nil
 }
 
@@ -359,13 +387,16 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 		ContainerID:            containerID,
 		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
 		Network:                lifecycleNetworkToRuntime(spec.GetNetwork()),
-		ExtraConfig:            lifecycleExtraConfig(spec, 0),
+		ExtraConfig:            lifecycleExtraConfig(spec),
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
 		NodeVolumes:            cloneResolvedNodeVolumes(spec.GetNodeVolumes()),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
 		WorkspaceImage:         cloneWorkspaceImage(spec.GetWorkspaceImage()),
 		CapabilityDependencies: cloneCapabilityDependencies(spec.GetCapabilityDependencies()),
+		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
+			spec.GetExtensionCapabilityRequirements(),
+		),
 	}, nil
 }
 
@@ -386,11 +417,18 @@ func cloneCapabilityDependencies(in []*capabilityv1.CapabilityDependency) []*cap
 	return out
 }
 
-func cloneCapabilityConditions(in []*capabilityv1.CapabilityCondition) []*capabilityv1.CapabilityCondition {
-	out := make([]*capabilityv1.CapabilityCondition, 0, len(in))
-	for _, condition := range in {
-		if condition != nil {
-			out = append(out, proto.Clone(condition).(*capabilityv1.CapabilityCondition))
+func cloneCapabilityConditionSet(in *capabilityv1.CapabilityConditionSet) *capabilityv1.CapabilityConditionSet {
+	if in == nil {
+		return nil
+	}
+	return proto.Clone(in).(*capabilityv1.CapabilityConditionSet)
+}
+
+func cloneExtensionCapabilityRequirements(in []*capabilityv1.ExtensionCapabilityRequirement) []*capabilityv1.ExtensionCapabilityRequirement {
+	out := make([]*capabilityv1.ExtensionCapabilityRequirement, 0, len(in))
+	for _, requirement := range in {
+		if requirement != nil {
+			out = append(out, proto.Clone(requirement).(*capabilityv1.ExtensionCapabilityRequirement))
 		}
 	}
 	return out
@@ -607,9 +645,8 @@ type lifecycleProbeJSON struct {
 	FailureThreshold         int32 `json:"failureThreshold,omitempty"`
 }
 
-func lifecycleExtraConfig(spec *nodelifecyclev1.ResolvedExecutionConfig, attempt int64) string {
-	if attempt <= 0 &&
-		strings.TrimSpace(spec.GetNamespace()) == "" &&
+func lifecycleExtraConfig(spec *nodelifecyclev1.ResolvedExecutionConfig) string {
+	if strings.TrimSpace(spec.GetNamespace()) == "" &&
 		strings.TrimSpace(spec.GetServiceID()) == "" &&
 		len(spec.GetLinuxCapabilities()) == 0 &&
 		len(spec.GetSecretEnv()) == 0 &&
@@ -624,7 +661,6 @@ func lifecycleExtraConfig(spec *nodelifecyclev1.ResolvedExecutionConfig, attempt
 		DockerConfigJSON  string              `json:"dockerConfigJson,omitempty"`
 		Namespace         string              `json:"namespace,omitempty"`
 		ServiceID         string              `json:"serviceId,omitempty"`
-		AllocationAttempt int64               `json:"allocationAttempt,omitempty"`
 		ReadinessProbe    *lifecycleProbeJSON `json:"readinessProbe,omitempty"`
 		LivenessProbe     *lifecycleProbeJSON `json:"livenessProbe,omitempty"`
 		SecretEnv         []struct {
@@ -641,7 +677,6 @@ func lifecycleExtraConfig(spec *nodelifecyclev1.ResolvedExecutionConfig, attempt
 		DockerConfigJSON:  strings.TrimSpace(spec.GetRegistryCredential().GetDockerConfigJson()),
 		Namespace:         strings.TrimSpace(spec.GetNamespace()),
 		ServiceID:         strings.TrimSpace(spec.GetServiceID()),
-		AllocationAttempt: attempt,
 	}
 	for _, item := range spec.GetSecretEnv() {
 		if item == nil {

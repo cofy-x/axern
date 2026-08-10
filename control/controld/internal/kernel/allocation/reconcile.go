@@ -35,20 +35,31 @@ type ReconcileItem struct {
 }
 
 type CapabilityReconcileItem struct {
-	AllocationID string
-	NodeID       string
-	NodeTarget   string
-	Attempt      int64
-	Dependencies []*capabilityv1.CapabilityDependency
-	Attempts     int
+	AllocationID       string
+	NodeID             string
+	NodeTarget         string
+	Attempt            int64
+	Dependencies       []*capabilityv1.CapabilityDependency
+	PendingGenerations map[string]int64
+	Attempts           int
 }
 
 // CapabilityAdmission is the authoritative result of axnoded's post-create
 // capability gate. Dependencies retain the exact selected and transitive
 // evidence; Conditions describe the resulting allocation state.
 type CapabilityAdmission struct {
+	Attempt      int64
 	Dependencies []*capabilityv1.CapabilityDependency
-	Conditions   []*capabilityv1.CapabilityCondition
+	ConditionSet *capabilityv1.CapabilityConditionSet
+}
+
+// CapabilityReconciliation is a runtime verification projection. Its
+// dependencies must equal the immutable create admission; only ConditionSet
+// may advance.
+type CapabilityReconciliation struct {
+	Attempt      int64
+	Dependencies []*capabilityv1.CapabilityDependency
+	ConditionSet *capabilityv1.CapabilityConditionSet
 }
 
 type ScheduleReconcileRequest struct {

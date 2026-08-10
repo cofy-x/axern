@@ -43,24 +43,37 @@ func (r *Registry) Map() cmap.ConcurrentMap[string, contract.RuntimeHandler] {
 	return r.handlers
 }
 
-func (r *Registry) LoadWithRetry() {
+func (r *Registry) Load(ctx context.Context) error {
 	if r == nil {
-		return
+		return fmt.Errorf("runtime handler registry is required")
 	}
-	logrus.Debugf("loading runtime handlers: %v", r.config.PluginConfig.RuntimeConfig.NormalizedRuntimeConfigs())
+	if ctx == nil {
+		return fmt.Errorf("runtime handler load context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("load configured runtime handlers: %w", err)
+	}
+	runtimeConfigs := r.config.PluginConfig.RuntimeConfig.NormalizedRuntimeConfigs()
+	runtimeNames := make([]string, 0, len(runtimeConfigs))
+	for runtimeName := range runtimeConfigs {
+		runtimeNames = append(runtimeNames, runtimeName)
+	}
+	sort.Strings(runtimeNames)
+	logrus.Debugf("loading runtime handlers: %v", runtimeConfigs)
 
 	containersRoot := filepath.Join(r.config.RootDir, "containers")
 	if err := os.MkdirAll(containersRoot, 0o755); err != nil {
-		logrus.Errorf("create containers dir failed: %v", err)
+		return fmt.Errorf("create runtime containers directory: %w", err)
 	}
 
-	const maxWait = 30 * time.Second
 	backoff := 100 * time.Millisecond
-	deadline := time.Now().Add(maxWait)
 
 	for {
 		allLoaded := true
-		for runtimeName := range r.config.PluginConfig.RuntimeConfig.NormalizedRuntimeConfigs() {
+		for _, runtimeName := range runtimeNames {
+			if err := ctx.Err(); err != nil {
+				return fmt.Errorf("load configured runtime handlers: %w", err)
+			}
 			if r.handlers.Has(runtimeName) {
 				continue
 			}
@@ -74,16 +87,27 @@ func (r *Registry) LoadWithRetry() {
 			r.handlers.Set(runtimeName, handler)
 		}
 
-		if allLoaded || time.Now().After(deadline) {
-			if !allLoaded {
-				logrus.Errorf("timeout waiting for runtime handlers after %v", maxWait)
-			}
-			return
+		if allLoaded {
+			return nil
 		}
 
-		time.Sleep(backoff)
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return fmt.Errorf("load configured runtime handlers: %w", ctx.Err())
+		case <-timer.C:
+		}
 		if backoff < 5*time.Second {
 			backoff *= 2
+			if backoff > 5*time.Second {
+				backoff = 5 * time.Second
+			}
 		}
 	}
 }

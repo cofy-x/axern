@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
@@ -19,7 +20,11 @@ func (r *RunscServiceHandler) overlay2Value(bundleRootReadonly bool, limitBytes 
 	if limitBytes <= 0 {
 		return "", fmt.Errorf("writable runsc rootfs requires ephemeral_storage_limit_bytes > 0")
 	}
-	return "root:dir=" + filepath.Join(r.filestoreDir, "runsc") +
+	backingDir := filepath.Join(r.filestoreDir, "runsc")
+	if strings.ContainsAny(backingDir, `,:\`) || strings.ContainsAny(backingDir, "\n\r\t") {
+		return "", fmt.Errorf("runsc overlay backing path contains an unsupported option delimiter: %s", backingDir)
+	}
+	return "root:dir=" + backingDir +
 		",size=" + strconv.FormatInt(limitBytes, 10), nil
 }
 

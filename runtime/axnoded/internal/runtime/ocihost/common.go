@@ -2,6 +2,7 @@ package ocihost
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +22,7 @@ type Common struct {
 	exitStateRoot       string
 	executor            Executor
 	ociLoader           runtimeoci.Loader
+	initMonitorStarter  func(context.Context, InitMonitorStartOptions) error
 }
 
 type Config struct {
@@ -36,7 +38,8 @@ func New(cfg Config) (*Common, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.RemoveAll(filepath.Join(runtimeRoot, runtimeExitStateStoreDirName)); err != nil {
+	exitStateRoot := filepath.Join(cfg.Root, runtimeExitStateStoreDirName, cfg.RuntimeName)
+	if err := os.MkdirAll(exitStateRoot, 0755); err != nil {
 		return nil, err
 	}
 	return &Common{
@@ -44,10 +47,14 @@ func New(cfg Config) (*Common, error) {
 		runtimeRunnerBinary: cfg.RuntimeRunnerBinary,
 		containerRoot:       containerRoot,
 		runtimeRoot:         runtimeRoot,
-		exitStateRoot:       filepath.Join(cfg.Root, runtimeExitStateStoreDirName, cfg.RuntimeName),
+		exitStateRoot:       exitStateRoot,
 		executor:            &SystemExecutor{},
 		ociLoader:           cfg.Loader,
 	}, nil
+}
+
+func (c *Common) SetInitMonitorStarter(starter func(context.Context, InitMonitorStartOptions) error) {
+	c.initMonitorStarter = starter
 }
 
 func (c *Common) SetExecutor(executor Executor) {
@@ -87,7 +94,11 @@ func (c *Common) Run(ctx context.Context, args ...string) ([]byte, error) {
 }
 
 func (c *Common) RunWithIO(ctx context.Context, stdoutPath, stderrPath string, args ...string) error {
-	return ocicli.RunWithIO(ctx, c.binary, c.runtimeRoot, stdoutPath, stderrPath, args...)
+	executor, ok := c.executor.(IOExecutor)
+	if !ok {
+		return fmt.Errorf("runtime executor does not support inherited stdio")
+	}
+	return executor.ExecuteWithIO(ctx, c.binary, c.runtimeRoot, stdoutPath, stderrPath, args...)
 }
 
 func (c *Common) NewCommandContext(ctx context.Context, args ...string) *exec.Cmd {

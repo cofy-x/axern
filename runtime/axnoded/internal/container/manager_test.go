@@ -165,10 +165,8 @@ func TestLoadContainerRejectsMetadataDirectoryMismatch(t *testing.T) {
 		recyclePath: filepath.Join(t.TempDir(), "recycle"),
 		containers:  cmap.New[*Container](),
 	}
-	writer.StoreMetadata("directory-id", &apipb.ContainerMetadata{ID: "different-id", RuntimeHandler: "runsc"})
-
-	_, err := writer.loadContainer(filepath.Join(root, "directory-id"))
-	require.ErrorContains(t, err, "does not match directory")
+	err := writer.StoreMetadata("directory-id", &apipb.ContainerMetadata{ID: "different-id", RuntimeHandler: "runsc"})
+	require.ErrorContains(t, err, "does not match storage id")
 }
 
 func TestStartMonitorGoroutine(t *testing.T) {

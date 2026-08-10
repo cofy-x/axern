@@ -2,17 +2,21 @@ package nodev1
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
+	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestReportNodeRequiresRuntimeSlotContract(t *testing.T) {
@@ -136,6 +140,64 @@ func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) 
 	}
 }
 
+func TestBatchReportAllocationCapabilityConditionsIsAuthenticatedAndConditionOnly(t *testing.T) {
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	nodeStore := controldtest.NewMemoryNodeStore()
+	if _, err := nodeStore.Register(context.Background(), nodekernel.RegisterParams{NodeID: "node-a", NodeAuthToken: "token-a", Now: now}); err != nil {
+		t.Fatal(err)
+	}
+	allocations := &fakeAllocationControl{}
+	server := New(Dependencies{Now: func() time.Time { return now }, NodeStore: nodeStore, Allocations: allocations})
+	report := validCapabilityConditionReport(now)
+	if _, err := server.BatchReportAllocationCapabilityConditions(context.Background(), &controlnodev1.BatchReportAllocationCapabilityConditionsRequest{
+		NodeID: "node-a", NodeAuthToken: "token-a", Reports: []*controlnodev1.AllocationCapabilityConditionReport{report},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if allocations.conditionCalls != 1 || allocations.conditionNodeID != "node-a" || len(allocations.conditionReports) != 1 {
+		t.Fatalf("condition forwarding = calls:%d node:%q reports:%d", allocations.conditionCalls, allocations.conditionNodeID, len(allocations.conditionReports))
+	}
+	if allocations.calls != 0 {
+		t.Fatalf("condition reporting invoked lifecycle status path %d time(s)", allocations.calls)
+	}
+
+	duplicate := []*controlnodev1.AllocationCapabilityConditionReport{report, report}
+	_, err := server.BatchReportAllocationCapabilityConditions(context.Background(), &controlnodev1.BatchReportAllocationCapabilityConditionsRequest{
+		NodeID: "node-a", NodeAuthToken: "token-a", Reports: duplicate,
+	})
+	if grpcstatus.Code(err) != codes.InvalidArgument || allocations.conditionCalls != 1 {
+		t.Fatalf("duplicate condition report error=%v calls=%d", err, allocations.conditionCalls)
+	}
+	_, err = server.BatchReportAllocationCapabilityConditions(context.Background(), &controlnodev1.BatchReportAllocationCapabilityConditionsRequest{
+		NodeID: "node-a", NodeAuthToken: "wrong", Reports: []*controlnodev1.AllocationCapabilityConditionReport{report},
+	})
+	if grpcstatus.Code(err) != codes.PermissionDenied || allocations.conditionCalls != 1 {
+		t.Fatalf("unauthenticated condition report error=%v calls=%d", err, allocations.conditionCalls)
+	}
+}
+
+func validCapabilityConditionReport(now time.Time) *controlnodev1.AllocationCapabilityConditionReport {
+	key := capabilitycontract.ExtensionKey("example.com/accelerator", "v1")
+	evidence := capabilitycontract.ConfigEvidence("sha256:" + strings.Repeat("a", 64))
+	observation := &capabilityv1.CapabilityObservation{
+		Key:        capabilitycontract.CloneKey(key),
+		State:      capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
+		Provider:   capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_CONFIG,
+		ObservedAt: timestamppb.New(now),
+		Evidence:   evidence,
+		ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
+	}
+	capabilitycontract.NormalizeObservation(observation)
+	return &controlnodev1.AllocationCapabilityConditionReport{
+		AllocationID: "allocation-a", Attempt: 1,
+		ConditionSet: &capabilityv1.CapabilityConditionSet{Revision: 1, ObservedAt: timestamppb.New(now), Conditions: []*capabilityv1.CapabilityCondition{{
+			Key: key, State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
+			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, ObservedAt: timestamppb.New(now),
+			Proof: capabilitycontract.NewObservationProof(observation),
+		}}},
+	}
+}
+
 func TestReportTunnelSessionStatusRequiresNodeAuth(t *testing.T) {
 	now := time.Now().UTC()
 	nodeStore := controldtest.NewMemoryNodeStore()
@@ -192,6 +254,9 @@ type fakeAllocationControl struct {
 	nodeID              string
 	observations        []*controlnodev1.AllocationStatusObservation
 	reconcileServiceIDs []string
+	conditionCalls      int
+	conditionNodeID     string
+	conditionReports    []*controlnodev1.AllocationCapabilityConditionReport
 }
 
 func (f *fakeAllocationControl) BatchReportAllocationStatus(_ context.Context, nodeID string, observations []*controlnodev1.AllocationStatusObservation, _ time.Time) ([]string, error) {
@@ -199,6 +264,13 @@ func (f *fakeAllocationControl) BatchReportAllocationStatus(_ context.Context, n
 	f.nodeID = nodeID
 	f.observations = append([]*controlnodev1.AllocationStatusObservation(nil), observations...)
 	return f.reconcileServiceIDs, nil
+}
+
+func (f *fakeAllocationControl) BatchReportAllocationCapabilityConditions(_ context.Context, nodeID string, reports []*controlnodev1.AllocationCapabilityConditionReport, _ time.Time) error {
+	f.conditionCalls++
+	f.conditionNodeID = nodeID
+	f.conditionReports = append([]*controlnodev1.AllocationCapabilityConditionReport(nil), reports...)
+	return nil
 }
 
 func (f *fakeAllocationControl) ReconcileNodeInventory(context.Context, allocationkernel.NodeInventorySnapshot, time.Time) error {

@@ -69,34 +69,12 @@ func hasCapability(summary *nodev1.NodeSummary, want *capabilityv1.CapabilityKey
 	return available
 }
 
-func hasCapabilities(summary *nodev1.NodeSummary, wants []*capabilityv1.CapabilityKey, now time.Time) bool {
-	for _, want := range wants {
-		if !hasCapability(summary, want, now) {
-			return false
-		}
-	}
-	return true
-}
-
-func requiresPortsCapability(req *placementkernel.Request) bool {
-	return req.GetRequiresHostPort() || len(req.GetPorts()) > 0
-}
-
 func requiresNodeDataplane(req *placementkernel.Request) bool {
 	return req != nil && req.GetNetwork() != "host"
 }
 
-func availableNetworkCapability(summary *nodev1.NodeSummary, now time.Time) *capabilityv1.CapabilityKey {
-	for _, platform := range []capabilityv1.PlatformCapability{
-		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET,
-		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
-	} {
-		key := capabilitycontract.PlatformKey(platform)
-		if hasCapability(summary, key, now) {
-			return key
-		}
-	}
-	return nil
+func requiresPortsCapability(req *placementkernel.Request) bool {
+	return req != nil && (req.GetRequiresHostPort() || len(req.GetPorts()) > 0)
 }
 
 func hasAvailableCPU(policy resourcekernel.AdmissionPolicy, summary *nodev1.NodeSummary, requested int64) bool {

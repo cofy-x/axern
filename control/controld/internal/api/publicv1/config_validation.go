@@ -6,6 +6,7 @@ import (
 
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
+	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/grpc/codes"
@@ -75,6 +76,16 @@ func validateExecutionConfigResources(config *commonv1.ExecutionConfig) error {
 		return nil
 	}
 	return executionkernel.ValidateResources(config.GetResources())
+}
+
+func validateExecutionConfigCapabilities(config *commonv1.ExecutionConfig) error {
+	if config == nil {
+		return nil
+	}
+	if err := capabilitycontract.ValidateExtensionRequirements(config.GetExtensionCapabilityRequirements()); err != nil {
+		return grpcstatus.Errorf(codes.InvalidArgument, "config.extension_capability_requirements: %v", err)
+	}
+	return nil
 }
 
 func validateExecutionConfigImageMounts(config *commonv1.ExecutionConfig) error {

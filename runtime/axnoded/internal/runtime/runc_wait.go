@@ -5,55 +5,47 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cofy-x/axern/runtime/axnoded/config"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	"github.com/sirupsen/logrus"
 )
 
 func (r *RuncServiceHandler) Wait(ctx context.Context, options contract.HandlerOptions) (contract.Exit, error) {
-	if exit, ok, err := r.readExitState(options.ContainerID); ok || err != nil {
-		return exit, err
-	}
+	waitLock := r.waitLock(options.ContainerID)
+	waitLock.Lock()
+	defer waitLock.Unlock()
 
-	exit, ok, err := r.common.Wait(ctx, "wait", options.ContainerID)
-	if ok && err == nil {
-		return exit, r.persistExitState(options.ContainerID, exit)
-	}
-	if ok {
-		return contract.Exit{}, err
-	}
-	if ctx.Err() != nil {
-		return contract.Exit{}, ctx.Err()
-	}
-	logrus.WithError(err).Debugf("runc wait failed for %s, falling back to exit-state polling", options.ContainerID)
-	return r.waitByState(ctx, options.ContainerID, err)
-}
-
-func (r *RuncServiceHandler) waitByState(ctx context.Context, containerID string, waitErr error) (contract.Exit, error) {
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+	var stoppedWithoutExitAt time.Time
 
 	for {
-		if exit, ok, err := r.readExitState(containerID); ok || err != nil {
+		if exit, ok, err := r.readExitState(options.ContainerID); ok {
+			if !stoppedWithoutExitAt.IsZero() {
+				metrics.RecordRuntimeWaitGrace(config.RuntimeNameRunc, "recovered")
+			}
 			return exit, err
+		} else if err != nil {
+			return contract.Exit{}, fmt.Errorf("runc exit state is unreadable for %s: %w: %w", options.ContainerID, err, contract.ErrExitStatusUnavailable)
+		}
+		if err := ctx.Err(); err != nil {
+			return contract.Exit{}, err
 		}
 
-		state, err := r.state(ctx, containerID)
+		state, err := r.state(ctx, options.ContainerID)
 		if err != nil {
-			return contract.Exit{}, fmt.Errorf("runc wait failed: %w; state fallback failed: %v", waitErr, err)
+			return contract.Exit{}, fmt.Errorf("read runc state while waiting for %s: %w", options.ContainerID, err)
 		}
 		if state.Status == string(contract.ContainerStatusExited) {
-			exitCode := 0
-			switch {
-			case state.ExitStatus != nil:
-				exitCode = *state.ExitStatus
-			case state.ExitCode != nil:
-				exitCode = *state.ExitCode
+			if stoppedWithoutExitAt.IsZero() {
+				stoppedWithoutExitAt = time.Now()
 			}
-			exit := contract.Exit{Timestamp: time.Now(), Status: exitCode}
-			if persistErr := r.persistExitState(containerID, exit); persistErr != nil {
-				return contract.Exit{}, persistErr
+			if time.Since(stoppedWithoutExitAt) >= runcExitStateGracePeriod {
+				metrics.RecordRuntimeWaitGrace(config.RuntimeNameRunc, "unavailable")
+				return contract.Exit{Timestamp: time.Now(), Status: -1}, fmt.Errorf("runc reported %s as stopped but its init monitor did not provide an exit status: %w", options.ContainerID, contract.ErrExitStatusUnavailable)
 			}
-			return exit, nil
+		} else {
+			stoppedWithoutExitAt = time.Time{}
 		}
 
 		select {

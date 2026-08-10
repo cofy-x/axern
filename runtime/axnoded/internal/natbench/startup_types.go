@@ -29,7 +29,6 @@ type StartupSummary struct {
 	DominantPhaseP95 map[string]string                           `json:"dominantPhaseP95,omitempty"`
 	DominantPhaseP99 map[string]string                           `json:"dominantPhaseP99,omitempty"`
 	Bundle           *BundleTemplateSummary                      `json:"bundle,omitempty"`
-	Envelope         *ExecutionEnvelopeSummary                   `json:"executionEnvelope,omitempty"`
 	WaitGrace        *RuntimeWaitGraceSummary                    `json:"waitGrace,omitempty"`
 }
 
@@ -47,7 +46,6 @@ type StartupSnapshot struct {
 	Classes    map[string]StartupClassSnapshot `json:"classes,omitempty"`
 	Phases     map[string]StartupPhaseSnapshot `json:"phases,omitempty"`
 	Bundle     *BundleTemplateSnapshot         `json:"bundle,omitempty"`
-	Envelope   *ExecutionEnvelopeSnapshot      `json:"executionEnvelope,omitempty"`
 	WaitGrace  *RuntimeWaitGraceSnapshot       `json:"waitGrace,omitempty"`
 }
 
@@ -107,30 +105,6 @@ type BundleTemplateSnapshot struct {
 	MaterializeCount      uint64             `json:"materializeCount,omitempty"`
 	MaterializeSumSeconds float64            `json:"materializeSumSeconds,omitempty"`
 	MaterializeHistogram  *HistogramSnapshot `json:"materializeHistogram,omitempty"`
-}
-
-type ExecutionEnvelopeSummary struct {
-	PreparedCount              uint64             `json:"preparedCount,omitempty"`
-	HitCount                   uint64             `json:"hitCount,omitempty"`
-	MissCount                  uint64             `json:"missCount,omitempty"`
-	ErrorCount                 uint64             `json:"errorCount,omitempty"`
-	FallbackCount              uint64             `json:"fallbackCount,omitempty"`
-	AveragePrepareDurationSec  float64            `json:"averagePrepareDurationSeconds,omitempty"`
-	PrepareQuantiles           *DurationQuantiles `json:"prepareQuantiles,omitempty"`
-	PrepareHistogram           *HistogramSnapshot `json:"prepareHistogram,omitempty"`
-	AverageActivateDurationSec float64            `json:"averageActivateDurationSeconds,omitempty"`
-	ActivateQuantiles          *DurationQuantiles `json:"activateQuantiles,omitempty"`
-	ActivateHistogram          *HistogramSnapshot `json:"activateHistogram,omitempty"`
-}
-
-type ExecutionEnvelopeSnapshot struct {
-	PreparedCount     uint64             `json:"preparedCount,omitempty"`
-	HitCount          uint64             `json:"hitCount,omitempty"`
-	MissCount         uint64             `json:"missCount,omitempty"`
-	ErrorCount        uint64             `json:"errorCount,omitempty"`
-	FallbackCount     uint64             `json:"fallbackCount,omitempty"`
-	PrepareHistogram  *HistogramSnapshot `json:"prepareHistogram,omitempty"`
-	ActivateHistogram *HistogramSnapshot `json:"activateHistogram,omitempty"`
 }
 
 type RuntimeWaitGraceSummary struct {

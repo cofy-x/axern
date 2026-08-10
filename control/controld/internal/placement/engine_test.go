@@ -7,7 +7,7 @@ import (
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
-	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
+	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
@@ -56,7 +56,10 @@ func TestPlanReturnsRejectedCandidatesWithExplicitReasons(t *testing.T) {
 	}
 	assertRejectedReasons(t, rejected[0], "runtime-mismatch", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_RUNTIME_UNSUPPORTED)
 	assertRejectedReasons(t, rejected[1], "stale-heartbeat", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_HEARTBEAT)
-	assertRejectedReasons(t, rejected[2], "stale-summary", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_SUMMARY)
+	assertRejectedReasons(t, rejected[2], "stale-summary",
+		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_SUMMARY,
+		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED,
+	)
 }
 
 func TestPlanComponentGatingByMountType(t *testing.T) {
@@ -122,7 +125,10 @@ func TestEROFSLocalityRequiresObservedCompatibility(t *testing.T) {
 	if len(eligible) != 1 || len(rejected) != 0 {
 		t.Fatalf("with EROFS evidence eligible=%#v rejected=%#v", eligible, rejected)
 	}
-	candidateRequest := requestForCandidate(request, record, now)
+	candidateRequest, err := requestForCandidate(request, record, now)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if candidateRequest.GetMountType() != nodev1.MountType_MOUNT_TYPE_EROFS || !containsPlatform(candidateRequest.GetCapabilityRequirements(), capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS) {
 		t.Fatalf("candidate request = %#v, want EROFS dependency", candidateRequest)
 	}
@@ -242,16 +248,16 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 			record("node-a", []string{"runsc"}, restricted, now),
 		},
 	}, &placementkernel.Request{
-		RootfsKey:              "image:repo/app:latest",
-		RootfsType:             nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
-		MountType:              nodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:                "runsc",
-		RequestedCpuMilli:      200,
-		RequestedMemoryBytes:   256,
-		Ports:                  []string{"tcp:8080:80"},
-		Network:                "bridge",
-		CapabilityRequirements: []*capabilityv1.CapabilityKey{capabilitycontract.ExtensionKey("example.com/gpu", "")},
-		NodeSelector:           map[string]string{"zone": "us-west-1"},
+		RootfsKey:                       "image:repo/app:latest",
+		RootfsType:                      nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
+		MountType:                       nodev1.MountType_MOUNT_TYPE_OCI,
+		Runtime:                         "runsc",
+		RequestedCpuMilli:               200,
+		RequestedMemoryBytes:            256,
+		Ports:                           []string{"tcp:8080:80"},
+		Network:                         "bridge",
+		ExtensionCapabilityRequirements: []*capabilityv1.ExtensionCapabilityRequirement{{Capability: &capabilityv1.ExtensionCapability{Name: "example.com/gpu"}}},
+		NodeSelector:                    map[string]string{"zone": "us-west-1"},
 	}, now)
 	if len(eligible) != 0 {
 		t.Fatalf("expected no eligible candidates, got %#v", eligible)
@@ -448,56 +454,5 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 }
 
 func availableCapabilitySnapshot(observedAt time.Time, platforms ...capabilityv1.PlatformCapability) *capabilityv1.CapabilitySnapshot {
-	observations := make([]*capabilityv1.CapabilityObservation, 0, len(platforms))
-	byPlatform := make(map[capabilityv1.PlatformCapability]*capabilityv1.CapabilityObservation)
-	var add func(capabilityv1.PlatformCapability) *capabilityv1.CapabilityObservation
-	add = func(platform capabilityv1.PlatformCapability) *capabilityv1.CapabilityObservation {
-		if existing := byPlatform[platform]; existing != nil {
-			return existing
-		}
-		key := capabilitycontract.PlatformKey(platform)
-		provider, scope, err := capabilitycontract.ObservationOwner(key)
-		if err != nil {
-			panic(err)
-		}
-		evidence := &capabilityv1.CapabilityEvidence{EvidenceID: platform.String()}
-		switch scope {
-		case capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_CONFIG_STATIC:
-			evidence.ConfigDigest = "test-config"
-		case capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_BOOT:
-			evidence.BootID = "test-boot"
-		case capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_MOUNT:
-			evidence.BootID, evidence.MountIdentity = "test-boot", "test-mount"
-		case capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_RUNTIME:
-			evidence.BootID, evidence.RuntimeName, evidence.RuntimeBinaryDigest, evidence.ConfigDigest = "test-boot", "test-runtime", "test-binary", "test-runtime-config"
-		case capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_REFRESHABLE:
-			evidence.ConfigDigest = "test-refresh"
-		}
-		observation := &capabilityv1.CapabilityObservation{
-			Key: key, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
-			Provider: provider, ValidityScope: scope,
-			ObservedAt: timestamppb.New(observedAt), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-			Evidence: evidence,
-		}
-		if scope == capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_REFRESHABLE {
-			observation.ValidUntil = timestamppb.New(observedAt.Add(time.Minute))
-		}
-		byPlatform[platform] = observation
-		dependencyKeys, err := capabilitycontract.PlatformDependencyKeys(platform)
-		if err != nil {
-			panic(err)
-		}
-		for _, dependencyKey := range dependencyKeys {
-			dependency := add(dependencyKey.GetPlatform())
-			observation.Dependencies = append(observation.Dependencies, &capabilityv1.CapabilityEvidenceReference{
-				Key: dependency.GetKey(), EvidenceID: dependency.GetEvidence().GetEvidenceID(), Evidence: dependency.GetEvidence(),
-			})
-		}
-		observations = append(observations, observation)
-		return observation
-	}
-	for _, platform := range platforms {
-		add(platform)
-	}
-	return &capabilityv1.CapabilitySnapshot{NodeInstanceID: "test-node-instance", Sequence: 1, SnapshotID: "test-snapshot", CollectedAt: timestamppb.New(observedAt), Observations: observations}
+	return controldtest.AvailableCapabilitySnapshot(observedAt, platforms...)
 }

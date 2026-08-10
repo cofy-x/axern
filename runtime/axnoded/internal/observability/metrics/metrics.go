@@ -54,10 +54,6 @@ const (
 	MetricResourcePoolRefillDuration             = "axern.axnoded_resource_pool_refill_duration_seconds"
 	MetricBundleTemplateTotal                    = "axern.axnoded_bundle_template_total"
 	MetricBundleMaterializeDuration              = "axern.axnoded_bundle_materialize_duration_seconds"
-	MetricExecutionEnvelopeTotal                 = "axern.axnoded_execution_envelope_total"
-	MetricExecutionEnvelopePrepare               = "axern.axnoded_execution_envelope_prepare_duration_seconds"
-	MetricExecutionEnvelopeActivate              = "axern.axnoded_execution_envelope_activate_duration_seconds"
-	MetricExecutionEnvelopeCurrent               = "axern.axnoded_execution_envelope_current"
 	MetricRuntimeWaitGraceTotal                  = "axern.axnoded_runtime_wait_grace_total"
 	MetricControlPlaneRPCTotal                   = "axern.axnoded_control_plane_rpc_total"
 	MetricControlPlaneRPCDuration                = "axern.axnoded_control_plane_rpc_duration_seconds"
@@ -82,8 +78,10 @@ const (
 	MetricCapabilityObservationAge               = "axern.axnoded_capability_observation_age_seconds"
 	MetricCapabilityObservationExpiry            = "axern.axnoded_capability_observation_expiry_seconds"
 	MetricCapabilityTransitionTotal              = "axern.axnoded_capability_transition_total"
+	MetricCapabilityRecoveryDebounceTotal        = "axern.axnoded_capability_recovery_debounce_total"
 	MetricCapabilitySnapshotSequence             = "axern.axnoded_capability_snapshot_sequence"
 	MetricCapabilityAllocationVerificationTotal  = "axern.axnoded_capability_allocation_verification_total"
+	MetricCapabilityFailStopCleanupTotal         = "axern.axnoded_capability_fail_stop_cleanup_total"
 )
 
 const (
@@ -119,10 +117,6 @@ const (
 	descResourcePoolRefillDuration             = "Axnoded resource pool refill duration."
 	descBundleTemplateTotal                    = "Axnoded bundle template results."
 	descBundleMaterializeDuration              = "Axnoded bundle materialization duration."
-	descExecutionEnvelopeTotal                 = "Axnoded execution-envelope results."
-	descExecutionEnvelopePrepare               = "Axnoded execution-envelope prepare duration."
-	descExecutionEnvelopeActivate              = "Axnoded execution-envelope activation duration."
-	descExecutionEnvelopeCurrent               = "Axnoded execution-envelope lifecycle current state."
 	descRuntimeWaitGraceTotal                  = "Axnoded runtime wait grace-path resolutions."
 	descControlPlaneRPCTotal                   = "Axnoded control-plane reporter RPC attempts."
 	descControlPlaneRPCDuration                = "Axnoded control-plane reporter RPC duration."
@@ -463,43 +457,6 @@ func RecordBundleMaterializeDuration(runtime, rootfsType, result string, seconds
 	)
 }
 
-func RecordExecutionEnvelope(runtime, rootfsType, result string) {
-	recordCounter(
-		MetricExecutionEnvelopeTotal,
-		descExecutionEnvelopeTotal,
-		runtimeRootfsResultAttrs(runtime, rootfsType, result)...,
-	)
-}
-
-func RecordExecutionEnvelopePrepareDuration(runtime, rootfsType, result string, seconds float64) {
-	recordDurationSeconds(
-		MetricExecutionEnvelopePrepare,
-		descExecutionEnvelopePrepare,
-		seconds,
-		runtimeRootfsResultAttrs(runtime, rootfsType, result)...,
-	)
-}
-
-func RecordExecutionEnvelopeActivateDuration(runtime, rootfsType, result string, seconds float64) {
-	recordDurationSeconds(
-		MetricExecutionEnvelopeActivate,
-		descExecutionEnvelopeActivate,
-		seconds,
-		runtimeRootfsResultAttrs(runtime, rootfsType, result)...,
-	)
-}
-
-func RecordExecutionEnvelopeGauge(runtime, rootfsType, state string, value float64) {
-	recordGauge(
-		MetricExecutionEnvelopeCurrent,
-		descExecutionEnvelopeCurrent,
-		value,
-		attribute.String(sdkobs.AttrRuntime, runtime),
-		attribute.String(sdkobs.AttrRootFSType, rootfsType),
-		attribute.String(sdkobs.AttrState, state),
-	)
-}
-
 func RecordRuntimeWaitGrace(runtime, result string) {
 	recordCounter(
 		MetricRuntimeWaitGraceTotal,
@@ -674,17 +631,25 @@ func RecordCapabilityProbe(provider, result string, duration time.Duration) {
 	recordDuration(MetricCapabilityProbeDuration, "Observed capability provider probe duration.", duration, attrs...)
 }
 
-func RecordCapabilityState(capability, provider, state, reason string, ageSeconds, expirySeconds float64) {
-	attrs := []attribute.KeyValue{attribute.String("capability", capability), attribute.String("provider", provider), attribute.String(sdkobs.AttrState, state), attribute.String("reason_code", reason)}
-	recordGauge(MetricCapabilityStateCurrent, "Current observed capability state.", 1, attrs...)
-	recordGauge(MetricCapabilityObservationAge, "Age of the current capability observation.", ageSeconds, attrs...)
+func RecordCapabilityState(capability, provider, state, reason string, count float64) {
+	stateAttrs := []attribute.KeyValue{attribute.String("capability", capability), attribute.String("provider", provider), attribute.String(sdkobs.AttrState, state), attribute.String("reason_code", reason)}
+	recordGauge(MetricCapabilityStateCurrent, "Current observed capability state count.", count, stateAttrs...)
+}
+
+func RecordCapabilityObservation(capability, provider string, ageSeconds, expirySeconds float64) {
+	identityAttrs := []attribute.KeyValue{attribute.String("capability", capability), attribute.String("provider", provider)}
+	recordGauge(MetricCapabilityObservationAge, "Maximum age of current capability observations.", ageSeconds, identityAttrs...)
 	if expirySeconds >= 0 {
-		recordGauge(MetricCapabilityObservationExpiry, "Seconds until a refreshable capability expires.", expirySeconds, attrs...)
+		recordGauge(MetricCapabilityObservationExpiry, "Minimum seconds until a refreshable capability expires.", expirySeconds, identityAttrs...)
 	}
 }
 
 func RecordCapabilityTransition(capability, provider, state, reason string) {
 	recordCounter(MetricCapabilityTransitionTotal, "Observed capability state or evidence transitions.", attribute.String("capability", capability), attribute.String("provider", provider), attribute.String(sdkobs.AttrState, state), attribute.String("reason_code", reason))
+}
+
+func RecordCapabilityRecoveryDebounce(capability, provider string) {
+	recordCounter(MetricCapabilityRecoveryDebounceTotal, "Observed capability recoveries waiting for the required independent success samples.", attribute.String("capability", capability), attribute.String("provider", provider))
 }
 
 func RecordCapabilitySnapshotSequence(sequence int64) {
@@ -693,6 +658,10 @@ func RecordCapabilitySnapshotSequence(sequence int64) {
 
 func RecordCapabilityAllocationVerification(runtime, result string) {
 	recordCounter(MetricCapabilityAllocationVerificationTotal, "Allocation capability verification and fail-stop outcomes.", attribute.String(sdkobs.AttrRuntime, runtime), attribute.String(sdkobs.AttrResult, result))
+}
+
+func RecordCapabilityFailStopCleanup(runtime, result string) {
+	recordCounter(MetricCapabilityFailStopCleanupTotal, "Fail-stop allocation deletion and cleanup outcomes.", attribute.String(sdkobs.AttrRuntime, runtime), attribute.String(sdkobs.AttrResult, result))
 }
 
 func startAttrs(startClass, runtime, rootfsType, result string) []attribute.KeyValue {

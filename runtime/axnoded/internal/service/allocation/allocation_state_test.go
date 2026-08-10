@@ -14,7 +14,9 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type failingAllocationStateStore struct{ testStateStore }
@@ -68,13 +70,80 @@ func (s *countingAllocationStateStore) DeleteRecord(bucket, key string) error {
 
 func persistedAllocationState(t *testing.T, store stateStore, allocationID string, images ...string) {
 	t.Helper()
+	now := time.Now().UTC()
 	record := &apipb.AllocationState{
 		AllocationID:    allocationID,
 		RuntimeTemplate: testRuntimeTemplate(t, "runtime-"+allocationID),
 		ImageMountUrls:  images,
+		EnforcementManifest: &apipb.AllocationEnforcementManifest{
+			RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/" + allocationID,
+			CreatedAtUnixNano: now.UnixNano(),
+		},
+		LaunchVerification: &apipb.AllocationLaunchVerification{VerifiedAtUnixNano: now.UnixNano()},
 	}
 	if err := store.PutRecord(config.AllocationStateBucket, allocationID, record); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLoadAllocationStatesRejectsMissingAtomicLaunchProof(t *testing.T) {
+	store := storetest.NewMockStore()
+	const allocationID = "missing-launch-proof"
+	record := &apipb.AllocationState{
+		AllocationID: allocationID, RuntimeTemplate: testRuntimeTemplate(t, "runtime-"+allocationID),
+		EnforcementManifest: &apipb.AllocationEnforcementManifest{
+			RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/" + allocationID,
+			CreatedAtUnixNano: time.Now().UnixNano(),
+		},
+	}
+	if err := store.PutRecord(config.AllocationStateBucket, allocationID, record); err != nil {
+		t.Fatal(err)
+	}
+	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
+		"runsc": runtimetest.NewFakeRuntimeHandler(),
+	}, store, fakeVolumePublisher{})
+	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{ID: allocationID, RuntimeHandler: "runsc"})
+	time.Sleep(100 * time.Millisecond)
+	if err := fixture.controller.loadAllocationStates(map[string]struct{}{allocationID: {}}); err == nil {
+		t.Fatal("loadAllocationStates() accepted a live allocation without atomic launch verification")
+	}
+}
+
+func TestValidateRecoveredManagedAllocationRequiresDurableCapabilityConditionSet(t *testing.T) {
+	now := time.Now().UTC()
+	manifest := &apipb.AllocationEnforcementManifest{
+		RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/managed-condition-recovery",
+		CreatedAtUnixNano: now.UnixNano(),
+	}
+	verification, err := newLaunchVerification(manifest, nil, now, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := &apipb.AllocationState{
+		AllocationID: "managed-condition-recovery", AllocationAttempt: 1,
+		AllocationRequestDigest: testAllocationRequestDigest,
+		EnforcementManifest:     manifest, LaunchVerification: verification,
+	}
+	if err := validateRecoveredCapabilityState(record, now); err == nil {
+		t.Fatal("validateRecoveredCapabilityState() accepted a managed allocation without a condition set")
+	}
+	record.CapabilityConditions = &capabilityv1.CapabilityConditionSet{
+		Revision: 1, ObservedAt: timestamppb.New(now),
+	}
+	record.CapabilityAdmissionConditions = &capabilityv1.CapabilityConditionSet{
+		Revision: 2, ObservedAt: timestamppb.New(now),
+	}
+	record.AllocationRequestDigest = ""
+	if err := validateRecoveredCapabilityState(record, now); err == nil {
+		t.Fatal("validateRecoveredCapabilityState() accepted a managed allocation without a request digest")
+	}
+	record.AllocationRequestDigest = testAllocationRequestDigest
+	if err := validateRecoveredCapabilityState(record, now); err != nil {
+		t.Fatalf("validateRecoveredCapabilityState() rejected an atomic empty admission: %v", err)
+	}
+	record.CapabilityAdmissionConditions = nil
+	if err := validateRecoveredCapabilityState(record, now); err == nil {
+		t.Fatal("validateRecoveredCapabilityState() accepted a managed allocation without sealed create proof")
 	}
 }
 

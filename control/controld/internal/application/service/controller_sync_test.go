@@ -876,7 +876,7 @@ func (f *capacityRaceAllocationStore) RecordWorkspacePreparation(context.Context
 	return nil
 }
 
-func (f *capacityRaceAllocationStore) RecordCapabilityVerification(context.Context, string, *allocationkernel.CapabilityAdmission, time.Time) error {
+func (f *capacityRaceAllocationStore) RecordCapabilityAdmission(context.Context, string, *allocationkernel.CapabilityAdmission, time.Time) error {
 	return nil
 }
 
@@ -927,7 +927,7 @@ func (f *fakeReconcileAllocationStore) RecordWorkspacePreparation(context.Contex
 	return nil
 }
 
-func (f *fakeReconcileAllocationStore) RecordCapabilityVerification(context.Context, string, *allocationkernel.CapabilityAdmission, time.Time) error {
+func (f *fakeReconcileAllocationStore) RecordCapabilityAdmission(context.Context, string, *allocationkernel.CapabilityAdmission, time.Time) error {
 	return nil
 }
 

@@ -49,6 +49,15 @@ func TestResolveOverlayLowerDirsRejectsEscapedOption(t *testing.T) {
 	require.ErrorContains(t, err, "unsupported mount-option escaping")
 }
 
+func TestResolveOverlayLowerDirsRejectsNonCanonicalOrRelativeSources(t *testing.T) {
+	for _, lowerdir := range []string{"relative", "/lower/../escape", "/lower::/other"} {
+		_, err := resolveOverlayLowerDirsFromInfo("/mnt/image", mountInfoEntry{
+			mountRoot: "/", mountpoint: "/mnt/image", fsType: "overlay", superOptions: "lowerdir=" + lowerdir,
+		})
+		require.Error(t, err, lowerdir)
+	}
+}
+
 func TestUnescapeMountInfoPath(t *testing.T) {
 	assert.Equal(t, "/tmp/root fs", unescapeMountInfoPath(`/tmp/root\040fs`))
 }

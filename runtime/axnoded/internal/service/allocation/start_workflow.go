@@ -113,6 +113,28 @@ func (h *Controller) cleanupFailedStart(ctx context.Context, containerID string)
 		if _, err := h.deleteContainer(ctx, &apipb.DeleteContainerRequest{ID: containerID, Timeout: 0}); err != nil {
 			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("delete failed-start runtime: %w", err))
 		}
+	} else if runtime, ok := h.runtimeMapping(containerID); ok {
+		// OCI create may succeed before container metadata is durably indexed.
+		// Recover ownership from the allocation record and bundle so a metadata
+		// persistence failure cannot strand runtime, network, or resource state.
+		handler, handlerErr := h.runtimeHandler(runtime.Sandbox)
+		if handlerErr != nil {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("resolve partial failed-start runtime: %w", handlerErr))
+		} else {
+			resource, resourceErr := h.containers().CollectResourceByID(containerID)
+			if resourceErr != nil && !errors.Is(resourceErr, os.ErrNotExist) {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("collect partial failed-start resources: %w", resourceErr))
+			}
+			if _, deleteErr := handler.DeleteContainer(ctx, &apipb.DeleteContainerRequest{ID: containerID, Timeout: 0}, contract.HandlerOptions{ContainerID: containerID, ForceDelete: true}); deleteErr != nil && !isDeleteNotFound(deleteErr) {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("delete partial failed-start runtime: %w", deleteErr))
+			} else if resourceErr == nil {
+				if networkErr := h.sandboxNetworking().CleanupActivationNetwork(resource); networkErr != nil {
+					cleanupErr = errors.Join(cleanupErr, fmt.Errorf("cleanup partial failed-start network: %w", networkErr))
+				} else if deleteErr := h.containers().Delete(containerID); deleteErr != nil {
+					cleanupErr = errors.Join(cleanupErr, fmt.Errorf("finalize partial failed-start runtime: %w", deleteErr))
+				}
+			}
+		}
 	}
 	if _, err := h.nodeVolumes().Unpublish(ctx, containerID); err != nil {
 		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("unpublish failed-start volumes: %w", err))
@@ -173,6 +195,10 @@ func (h *Controller) startManagedContainer(ctx context.Context, request *runtime
 	}
 	unlockLifecycle := h.allocationLifecycleLocks.Lock(request.GetContainerID())
 	defer unlockLifecycle()
+	return h.startManagedContainerWithLifecycleHeld(ctx, request, generatedAllocationID)
+}
+
+func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context, request *runtime.StartRequest, generatedAllocationID bool) (*runtime.StartResponse, error) {
 	if resp, ok, err := h.existingActiveStartResponse(ctx, request); ok {
 		return resp, err
 	}
@@ -181,12 +207,13 @@ func (h *Controller) startManagedContainer(ctx context.Context, request *runtime
 	result := contract.StartupResultError
 	succeeded := false
 	stateCommitted := false
+	preserveStateOnFailure := false
 	defer func() {
 		recorder.Finish(result)
 		if succeeded {
 			return
 		}
-		if stateCommitted {
+		if stateCommitted && !preserveStateOnFailure {
 			if err := h.releaseAllocationState(request.GetContainerID()); err != nil {
 				logrus.WithError(err).WithField("allocation_id", request.GetContainerID()).Warn("release failed-start allocation state")
 				return
@@ -252,6 +279,11 @@ func (h *Controller) startManagedContainer(ctx context.Context, request *runtime
 	if err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed to add new runtime: %v", request.RuntimeTemplate)), err
 	}
+	if h.rootfsCapabilityGate != nil {
+		if err := h.rootfsCapabilityGate(ctx, request, lrt.RootFS.Path()); err != nil {
+			return startErrorResponse(fmt.Sprintf("Failed rootfs capability gate: %v", err)), err
+		}
+	}
 
 	lrt.IncRef()
 	defer func() {
@@ -273,15 +305,10 @@ func (h *Controller) startManagedContainer(ctx context.Context, request *runtime
 	)
 	templateRequest := startplan.BuildBundleTemplateRequest(lrt, request)
 
-	createResponse, containerIP, hit, err := h.tryStartWithExecutionEnvelope(ctx, lrt, request, recorder)
+	createResponse, containerIP, err := h.createManagedContainer(ctx, lrt, request, templateRequest, createRequest, request.Resources, recorder)
 	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to start with execution envelope: %v", err)), err
-	}
-	if !hit {
-		createResponse, containerIP, err = h.createContainer(ctx, lrt, templateRequest, createRequest, request.Resources, recorder)
-		if err != nil {
-			return startErrorResponse(fmt.Sprintf("Failed to start: %v", err)), err
-		}
+		preserveStateOnFailure = errors.Is(err, errRuntimeCleanupPending)
+		return startErrorResponse(fmt.Sprintf("Failed to start: %v", err)), err
 	}
 
 	networkStart := time.Now()
@@ -296,9 +323,9 @@ func (h *Controller) startManagedContainer(ctx context.Context, request *runtime
 	}
 
 	succeeded = true
-	h.startReadinessWorker(createResponse.ID, extraConfig)
-	h.startLivenessWorker(createResponse.ID, extraConfig)
-	h.reportStartRunningStatus(createResponse.ID, extraConfig, time.Now().UTC())
+	h.startReadinessWorker(createResponse.ID, request.GetAllocationAttempt(), extraConfig)
+	h.startLivenessWorker(createResponse.ID, request.GetAllocationAttempt(), extraConfig)
+	h.reportStartRunningStatus(createResponse.ID, request.GetAllocationAttempt(), extraConfig, time.Now().UTC())
 	result = contract.StartupResultOK
 	resp := startSuccessResponse(createResponse.ID)
 	resp.PublishedVolumes = publishResult.Published

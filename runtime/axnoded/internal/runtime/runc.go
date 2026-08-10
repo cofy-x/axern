@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"sync"
+	"time"
 
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -20,6 +21,7 @@ type RuncServiceHandler struct {
 	ignoreCgroups                     bool
 	ephemeralStorageDefaultLimitBytes int64
 	writableCapacity                  *writableCapacityManager
+	filestoreDir                      string
 	containerRoot                     string
 	rootfsViews                       rootfsview.Provider
 	releaseFilestore                  func()
@@ -30,11 +32,12 @@ type RuncServiceHandler struct {
 }
 
 type runcState struct {
-	Status     string `json:"status"`
-	Pid        *int   `json:"pid"`
-	ExitStatus *int   `json:"exitStatus"`
-	ExitCode   *int   `json:"exitCode"`
+	Status string `json:"status"`
+	Pid    *int   `json:"pid"`
 }
+
+var runcExitStateGracePeriod = 5 * time.Second
+var runcDeleteMonitorWaitTimeout = 5 * time.Second
 
 func (r *RuncServiceHandler) Name() string {
 	return r.name

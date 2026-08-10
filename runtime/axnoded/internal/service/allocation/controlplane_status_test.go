@@ -13,7 +13,7 @@ func TestReportStartRunningStatusMarksReadyWithoutReadinessProbe(t *testing.T) {
 	recorder := &statusReportRecorder{}
 	controller := NewController(Options{ReportStatus: recorder.Report})
 
-	controller.reportStartRunningStatus("alloc-123", startplan.ExtraConfig{AllocationAttempt: 3}, time.Now().UTC())
+	controller.reportStartRunningStatus("alloc-123", 3, startplan.ExtraConfig{}, time.Now().UTC())
 
 	if recorder.lastID != "alloc-123" {
 		t.Fatalf("reported allocation id = %q, want alloc-123", recorder.lastID)
@@ -33,7 +33,7 @@ func TestReportStartRunningStatusDefersToReadinessProbe(t *testing.T) {
 	recorder := &statusReportRecorder{}
 	controller := NewController(Options{ReportStatus: recorder.Report})
 
-	controller.reportStartRunningStatus("alloc-123", startplan.ExtraConfig{AllocationAttempt: 3, ReadinessProbe: &probes.Config{}}, time.Now().UTC())
+	controller.reportStartRunningStatus("alloc-123", 3, startplan.ExtraConfig{ReadinessProbe: &probes.Config{}}, time.Now().UTC())
 
 	if recorder.lastID != "" {
 		t.Fatalf("reported allocation id = %q, want no report", recorder.lastID)

@@ -18,23 +18,23 @@ type RunResponseJSON struct {
 }
 
 type RunJSON struct {
-	ID                   string                     `json:"id"`
-	Namespace            string                     `json:"namespace"`
-	EnvironmentID        string                     `json:"environment_id"`
-	AllocationID         string                     `json:"allocation_id,omitempty"`
-	Attempt              int64                      `json:"attempt,omitempty"`
-	Status               string                     `json:"status"`
-	Config               *ExecutionConfigJSON       `json:"config,omitempty"`
-	Labels               map[string]string          `json:"labels,omitempty"`
-	Version              int64                      `json:"version"`
-	CreatedAt            string                     `json:"created_at,omitempty"`
-	UpdatedAt            string                     `json:"updated_at,omitempty"`
-	ExitCode             *int32                     `json:"exit_code,omitempty"`
-	ExitCodeKnown        bool                       `json:"exit_code_known,omitempty"`
-	DiagnosticCode       string                     `json:"diagnostic_code,omitempty"`
-	AdmissionSummary     string                     `json:"admission_summary,omitempty"`
-	Message              string                     `json:"message,omitempty"`
-	CapabilityConditions []*CapabilityConditionJSON `json:"capability_conditions,omitempty"`
+	ID                   string                      `json:"id"`
+	Namespace            string                      `json:"namespace"`
+	EnvironmentID        string                      `json:"environment_id"`
+	AllocationID         string                      `json:"allocation_id,omitempty"`
+	Attempt              int64                       `json:"attempt,omitempty"`
+	Status               string                      `json:"status"`
+	Config               *ExecutionConfigJSON        `json:"config,omitempty"`
+	Labels               map[string]string           `json:"labels,omitempty"`
+	Version              int64                       `json:"version"`
+	CreatedAt            string                      `json:"created_at,omitempty"`
+	UpdatedAt            string                      `json:"updated_at,omitempty"`
+	ExitCode             *int32                      `json:"exit_code,omitempty"`
+	ExitCodeKnown        bool                        `json:"exit_code_known,omitempty"`
+	DiagnosticCode       string                      `json:"diagnostic_code,omitempty"`
+	AdmissionSummary     string                      `json:"admission_summary,omitempty"`
+	Message              string                      `json:"message,omitempty"`
+	CapabilityConditions *CapabilityConditionSetJSON `json:"capability_conditions,omitempty"`
 }
 
 func PrintRunListJSON(w io.Writer, resp *runv1.ListRunsResponse) error {
@@ -81,7 +81,7 @@ func NewRunJSON(run *runv1.Run) *RunJSON {
 		DiagnosticCode:       diagnosticCode,
 		AdmissionSummary:     workloaddiagnostic.AdmissionBlockedSummary(run.GetMessage()),
 		Message:              run.GetMessage(),
-		CapabilityConditions: newCapabilityConditionJSONs(run.GetCapabilityConditions()),
+		CapabilityConditions: newCapabilityConditionSetJSON(run.GetCapabilityConditions()),
 	}
 }
 

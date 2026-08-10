@@ -5,7 +5,10 @@ package rootfsview
 import "fmt"
 
 func InspectBacking(rootDir string) (RootfsBackingFacts, error) {
-	return RootfsBackingFacts{Mountpoint: rootDir, FSType: "unknown", LowerDirs: []string{rootDir}}, nil
+	return RootfsBackingFacts{
+		EffectiveRoot: rootDir, Mountpoint: rootDir, FSType: "unknown", LowerDirs: []string{rootDir},
+		EffectiveLowerChain: []RootfsBackingLayerFacts{{Path: rootDir, Mountpoint: rootDir, FSType: "unknown"}},
+	}, nil
 }
 
 func verifyMountedOverlay(path string) error {

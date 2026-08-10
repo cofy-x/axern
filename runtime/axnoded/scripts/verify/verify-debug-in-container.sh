@@ -6,7 +6,7 @@ BPFNET_STATE_DIR="${BPFNET_STATE_DIR:-/var/run/axern/bpfnet}"
 TARGET_IP="$(jq -r '.[0].targetIp // empty' "${BPFNET_STATE_DIR}/service_map.json" 2>/dev/null || true)"
 
 set +e
-VERIFY_KEEP_EXTERNAL_PROBE=true bash /workspace/scripts/verify/verify-in-container.sh
+VERIFY_CAPTURE_CAPABILITY_SNAPSHOT=true VERIFY_KEEP_EXTERNAL_PROBE=true bash /workspace/scripts/verify/verify-in-container.sh
 code=$?
 set -e
 
@@ -52,6 +52,8 @@ echo "--- stdout ---"
 cat /tmp/axnoded-verify.stdout || true
 echo "--- stderr ---"
 cat /tmp/axnoded-verify.stderr || true
+echo "--- axnoded capability snapshot ---"
+jq '.node.capability_snapshot // empty' /tmp/axnoded-capability-inventory.json 2>/dev/null || true
 echo "--- nginx stdout ---"
 cat /tmp/axnoded-nginx.stdout || true
 echo "--- nginx stderr ---"

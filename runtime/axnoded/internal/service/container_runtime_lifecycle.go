@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sort"
@@ -13,8 +14,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (h *sandboxService) initContainerRuntime() (chan bool, error) {
-	h.runtimeHandlers.LoadWithRetry()
+func (h *sandboxService) initContainerRuntime(ctx context.Context) (chan bool, error) {
+	if err := h.runtimeHandlers.Load(ctx); err != nil {
+		return nil, err
+	}
 	if err := validateRuntimeResourceConfiguration(h.runtimeHandlers, h.config.PluginConfig.ResourceConfig); err != nil {
 		return nil, err
 	}

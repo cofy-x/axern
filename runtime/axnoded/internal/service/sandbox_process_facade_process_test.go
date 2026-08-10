@@ -72,10 +72,10 @@ func TestProcessForwardsStdinSignalAndExit(t *testing.T) {
 	}}
 
 	require.NoError(t, s.Process(stream))
-	assert.Equal(t, []byte("payload"), session.writes[0])
-	assert.Equal(t, [][2]uint32{{120, 40}}, session.resizeCalls)
-	assert.Equal(t, []string{"TERM"}, session.signals)
-	assert.True(t, session.stdinClosed)
+	assert.Equal(t, [][]byte{[]byte("payload")}, session.writesSnapshot())
+	assert.Equal(t, [][2]uint32{{120, 40}}, session.resizeCallsSnapshot())
+	assert.Equal(t, []string{"TERM"}, session.signalsSnapshot())
+	assert.True(t, session.isStdinClosed())
 	require.Len(t, stream.sent, 3)
 	assert.NotNil(t, stream.sent[0].GetReady())
 	assert.Equal(t, "ok\n", string(stream.sent[1].GetStdout()))

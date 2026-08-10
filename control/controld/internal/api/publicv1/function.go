@@ -285,6 +285,9 @@ func validateDeployFunctionRequest(req *functionv1.DeployFunctionRequest) error 
 	if err := validateExecutionConfigResources(spec.GetConfig()); err != nil {
 		return err
 	}
+	if err := validateExecutionConfigCapabilities(spec.GetConfig()); err != nil {
+		return err
+	}
 	if err := validateExecutionConfigImageMounts(spec.GetConfig()); err != nil {
 		return err
 	}

@@ -5,7 +5,6 @@ import (
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
-	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/protobuf/proto"
@@ -22,6 +21,11 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 	if record == nil {
 		return nil
 	}
+	request, derivationErr := placementkernel.ResolveRequestForNode(input.Request, record.Summary, input.Now)
+	if request == nil {
+		return nil
+	}
+	input.Request = request
 
 	summary := record.Summary
 	locality := cloneLocality(findMatchingLocality(summary.GetLocality(), input.Request.GetRootfsKey()))
@@ -89,18 +93,10 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 			nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE,
 		)
 	}
-	if requiresPortsCapability(input.Request) && !hasCapability(summary, capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING), input.Now) {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_PORTS_UNSUPPORTED)
-	}
-	if requiresNodeDataplane(input.Request) && availableNetworkCapability(summary, input.Now) == nil {
+	if derivationErr != nil && requiresNodeDataplane(input.Request) {
 		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED)
 	}
-	if !hasCapabilities(summary, input.Request.GetCapabilityRequirements(), input.Now) {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED)
-	}
-	if mountType == nodev1.MountType_MOUNT_TYPE_EROFS && !hasCapability(summary, capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS), input.Now) {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED)
-	}
+	reasons = append(reasons, missingCapabilityRejectionReasons(summary, input.Request.GetCapabilityRequirements(), input.Now)...)
 	if !hasAvailableCPU(e.resourcePolicy, summary, input.Request.GetRequestedCpuMilli()) {
 		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_CPU)
 	}
@@ -116,6 +112,25 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 		candidate.RejectionReasons = dedupeRejectionReasons(reasons)
 	}
 	return candidate
+}
+
+func missingCapabilityRejectionReasons(summary *nodev1.NodeSummary, requirements []*capabilityv1.CapabilityKey, now time.Time) []nodev1.PlacementRejectionReason {
+	reasons := make([]nodev1.PlacementRejectionReason, 0, 2)
+	for _, requirement := range requirements {
+		if hasCapability(summary, requirement, now) {
+			continue
+		}
+		switch requirement.GetPlatform() {
+		case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING:
+			reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_PORTS_UNSUPPORTED)
+		case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
+			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET:
+			reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED)
+		default:
+			reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED)
+		}
+	}
+	return dedupeRejectionReasons(reasons)
 }
 
 func clonePools(in *nodev1.PoolsSummary) *nodev1.PoolsSummary {

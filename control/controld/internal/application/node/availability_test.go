@@ -103,6 +103,10 @@ type fakeAvailabilityAllocations struct {
 	errByNodeID        map[string]error
 }
 
+func (f *fakeAvailabilityAllocations) BatchReportAllocationCapabilityConditions(context.Context, string, []*nodev1.AllocationCapabilityConditionReport, time.Time) error {
+	panic("unexpected BatchReportAllocationCapabilityConditions call")
+}
+
 type fakeLifecycleRegistry struct {
 	nodeID    string
 	status    nodekernel.LifecycleStatus

@@ -11,13 +11,11 @@ import (
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	pgreservation "github.com/cofy-x/axern/control/controld/internal/postgres/reservation"
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
-	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"github.com/jackc/pgx/v5"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -223,25 +221,20 @@ func (s *PGStore) updateServiceAllocationStatuses(ctx context.Context, tx pgx.Tx
 			readinessMessage = ""
 		}
 		message := strings.TrimSpace(observation.GetMessage())
-		conditions := &capabilityv1.CapabilityConditionSet{Conditions: observation.GetCapabilityConditions()}
-		conditionsJSON, err := marshalProtoJSON(conditions)
-		if err != nil {
-			return nil, err
-		}
-		if serviceAllocationObservationMatches(alloc, observation, nextReady, readinessMessage, message, conditions) {
+		if serviceAllocationObservationMatches(alloc, observation, nextReady, readinessMessage, message) {
 			continue
 		}
 		nodeActiveAt := allocationkernel.NodeActiveObservationTime(observation, now)
 		if _, err := tx.Exec(ctx, `
 			UPDATE allocations
-			SET status = $2, ready = $3, readiness_message = $4, exit_code = $5, exit_code_known = $6, message = $7, capability_conditions = $14::jsonb,
+			SET status = $2, ready = $3, readiness_message = $4, exit_code = $5, exit_code_known = $6, message = $7,
 				version = version + 1, updated_at = $8,
 				node_active_at = CASE
 					WHEN node_active_at IS NULL AND $2 IN ($11, $12) THEN $13
 					ELSE node_active_at
 				END
 			WHERE allocation_id = $1 AND attempt = $9 AND owner_type = $10
-		`, alloc.AllocationID, nextStatus.String(), nextReady, readinessMessage, observation.GetExitCode(), observation.GetExitCodeKnown(), message, now.UTC(), observation.GetAttempt(), allocationOwnerService, commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(), nodeActiveAt, conditionsJSON); err != nil {
+		`, alloc.AllocationID, nextStatus.String(), nextReady, readinessMessage, observation.GetExitCode(), observation.GetExitCodeKnown(), message, now.UTC(), observation.GetAttempt(), allocationOwnerService, commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(), nodeActiveAt); err != nil {
 			return nil, fmt.Errorf("update service allocation status: %w", err)
 		}
 		transitions = append(transitions, &serviceStatusTransition{
@@ -280,14 +273,13 @@ func (s *PGStore) updateServiceAllocationStatuses(ctx context.Context, tx pgx.Tx
 	return transitions, nil
 }
 
-func serviceAllocationObservationMatches(alloc *allocationRecord, observation *nodev1.AllocationStatusObservation, ready bool, readinessMessage, message string, conditions *capabilityv1.CapabilityConditionSet) bool {
+func serviceAllocationObservationMatches(alloc *allocationRecord, observation *nodev1.AllocationStatusObservation, ready bool, readinessMessage, message string) bool {
 	return alloc != nil && observation != nil &&
 		alloc.Status == observation.GetStatus() &&
 		alloc.Ready == ready &&
 		strings.TrimSpace(alloc.ReadinessMessage) == readinessMessage &&
 		alloc.ExitCode == observation.GetExitCode() &&
-		alloc.ExitCodeKnown == observation.GetExitCodeKnown() &&
-		strings.TrimSpace(alloc.Message) == message && proto.Equal(alloc.CapabilityConditions, conditions)
+		alloc.ExitCodeKnown == observation.GetExitCodeKnown() && strings.TrimSpace(alloc.Message) == message
 }
 
 func (s *PGStore) projectServiceStatusBatch(ctx context.Context, tx pgx.Tx, current *servicev1.Service, transitions []*serviceStatusTransition, now time.Time) ([]*servicekernel.AllocationStatusReport, bool, error) {

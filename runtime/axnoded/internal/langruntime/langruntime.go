@@ -33,11 +33,6 @@ type LanguageRuntime struct {
 	templateMu    sync.Mutex
 	template      *runtimeoci.BundleTemplate
 	templateReady chan struct{}
-
-	envelopeMu                 sync.Mutex
-	executionEnvelope          *ExecutionEnvelope
-	executionEnvelopePreparing bool
-	executionEnvelopeDisabled  bool
 }
 
 func (lr *LanguageRuntime) SetTemporary(temporary bool) {
@@ -96,32 +91,6 @@ func (lr *LanguageRuntime) Retained() bool {
 		return false
 	}
 	return lr.retained
-}
-
-func (lr *LanguageRuntime) SetExecutionEnvelopeEnabled(enabled bool) *ExecutionEnvelope {
-	if lr == nil {
-		return nil
-	}
-	lr.envelopeMu.Lock()
-	lr.executionEnvelopeDisabled = !enabled
-	var envelope *ExecutionEnvelope
-	if !enabled {
-		envelope = lr.executionEnvelope
-		lr.executionEnvelope = nil
-		lr.executionEnvelopePreparing = false
-	}
-	lr.envelopeMu.Unlock()
-	lr.updateExecutionEnvelopeGauges()
-	return envelope
-}
-
-func (lr *LanguageRuntime) ExecutionEnvelopeEnabled() bool {
-	if lr == nil {
-		return false
-	}
-	lr.envelopeMu.Lock()
-	defer lr.envelopeMu.Unlock()
-	return !lr.executionEnvelopeDisabled
 }
 
 func (lr *LanguageRuntime) Released() bool {

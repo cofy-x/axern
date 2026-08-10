@@ -44,13 +44,42 @@ type MountTarget struct {
 }
 
 type RootfsBackingFacts struct {
-	MountID    int      `json:"mount_id"`
-	Mountpoint string   `json:"mountpoint"`
-	MountRoot  string   `json:"mount_root"`
-	FSType     string   `json:"fs_type"`
-	Source     string   `json:"source"`
-	Readonly   bool     `json:"readonly"`
-	LowerDirs  []string `json:"lower_dirs"`
+	EffectiveRoot       string                    `json:"effective_root"`
+	MountID             int                       `json:"mount_id"`
+	Mountpoint          string                    `json:"mountpoint"`
+	MountRoot           string                    `json:"mount_root"`
+	FSType              string                    `json:"fs_type"`
+	Source              string                    `json:"source"`
+	Readonly            bool                      `json:"readonly"`
+	LowerDirs           []string                  `json:"lower_dirs"`
+	EffectiveLowerChain []RootfsBackingLayerFacts `json:"effective_lower_chain"`
+}
+
+// RootfsBackingLayerFacts identifies the mount that provides one directory in
+// the effective lower chain. The path alone is not an identity: an image
+// manager may remount a different filesystem at the same pathname.
+type RootfsBackingLayerFacts struct {
+	Path       string `json:"path"`
+	MountID    int    `json:"mount_id"`
+	Mountpoint string `json:"mountpoint"`
+	MountRoot  string `json:"mount_root"`
+	FSType     string `json:"fs_type"`
+	Source     string `json:"source"`
+	Readonly   bool   `json:"readonly"`
+}
+
+// HasFilesystem reports whether the effective root or any directory that
+// contributes to its lower chain is backed by the named filesystem.
+func (facts RootfsBackingFacts) HasFilesystem(fsType string) bool {
+	if strings.EqualFold(facts.FSType, fsType) {
+		return true
+	}
+	for _, layer := range facts.EffectiveLowerChain {
+		if strings.EqualFold(layer.FSType, fsType) {
+			return true
+		}
+	}
+	return false
 }
 
 type Request struct {
@@ -180,7 +209,10 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 func inspectMountTargets(root string, targets []MountTarget) ([]MountTarget, error) {
 	missing := make([]MountTarget, 0)
 	for _, target := range targets {
-		destination := path.Clean(strings.TrimSpace(target.Destination))
+		destination := strings.TrimSpace(target.Destination)
+		if destination == "" || destination != target.Destination || path.Clean(destination) != destination {
+			return nil, fmt.Errorf("bind mount target %q must be a canonical container path", target.Destination)
+		}
 		if !path.IsAbs(destination) {
 			return nil, fmt.Errorf("bind mount target %q must be an absolute container path", target.Destination)
 		}
@@ -198,7 +230,6 @@ func inspectMountTargets(root string, targets []MountTarget) ([]MountTarget, err
 			return nil, err
 		}
 		if !ready {
-			target.Destination = destination
 			missing = append(missing, target)
 		}
 	}
@@ -444,29 +475,35 @@ func readProjectionManifest(root string) (projectionManifest, error) {
 	if err := json.Unmarshal(data, &manifest); err != nil {
 		return projectionManifest{}, err
 	}
-	if manifest.RuntimeName == "" || manifest.Backing.Mountpoint == "" || manifest.Backing.MountID == 0 {
+	if manifest.RuntimeName == "" || manifest.Backing.EffectiveRoot == "" || manifest.Backing.Mountpoint == "" || manifest.Backing.MountID == 0 {
 		return projectionManifest{}, fmt.Errorf("projection manifest is incomplete")
 	}
 	return manifest, nil
 }
 
 func validateProjectionBacking(expected RootfsBackingFacts) error {
-	actual, err := InspectBacking(expected.Mountpoint)
+	actual, err := InspectBacking(expected.EffectiveRoot)
 	if err != nil {
 		return err
 	}
 	return compareBackingIdentity(expected, actual)
 }
 
+type PersistentViewExpectation struct {
+	RuntimeName string
+	ProjectID   uint32
+	LimitBytes  int64
+}
+
 // VerifyPersistentView proves that an active runc writable root still has the
-// projection identity and project assignment established at create time.
-func VerifyPersistentView(filestoreDir, containerID, runtimeName string) error {
+// projection, kernel project assignment, and hard quota established at create.
+func VerifyPersistentView(filestoreDir, containerID string, expected PersistentViewExpectation) error {
 	root := filepath.Join(filestoreDir, runcViewDir, containerID)
 	manifest, err := readProjectionManifest(root)
 	if err != nil {
 		return fmt.Errorf("read active rootfs projection: %w", err)
 	}
-	if manifest.RuntimeName != runtimeName || !manifest.HostWritable || manifest.ProjectID == 0 {
+	if manifest.RuntimeName != expected.RuntimeName || !manifest.HostWritable || manifest.ProjectID == 0 || manifest.ProjectID != expected.ProjectID {
 		return fmt.Errorf("active rootfs projection enforcement manifest is inconsistent")
 	}
 	if err := validateProjectionBacking(manifest.Backing); err != nil {
@@ -475,14 +512,41 @@ func VerifyPersistentView(filestoreDir, containerID, runtimeName string) error {
 	if err := verifyMountedOverlay(filepath.Join(root, "merged")); err != nil {
 		return fmt.Errorf("verify active rootfs projection mount: %w", err)
 	}
+	if err := VerifyProjectQuota(filestoreDir, filepath.Join(root, "upper"), expected.ProjectID, expected.LimitBytes); err != nil {
+		return fmt.Errorf("verify active rootfs project quota: %w", err)
+	}
 	return nil
 }
 
 func compareBackingIdentity(expected, actual RootfsBackingFacts) error {
-	if actual.MountID == expected.MountID && actual.Mountpoint == expected.Mountpoint && actual.FSType == expected.FSType && actual.Source == expected.Source && actual.MountRoot == expected.MountRoot {
+	if actual.EffectiveRoot == expected.EffectiveRoot && actual.MountID == expected.MountID && actual.Mountpoint == expected.Mountpoint && actual.FSType == expected.FSType && actual.Source == expected.Source && actual.MountRoot == expected.MountRoot && actual.Readonly == expected.Readonly && slicesEqual(actual.LowerDirs, expected.LowerDirs) && backingLayersEqual(actual.EffectiveLowerChain, expected.EffectiveLowerChain) {
 		return nil
 	}
-	return fmt.Errorf("lower mount identity changed: expected id=%d mountpoint=%s fs=%s root=%s source=%s, got id=%d mountpoint=%s fs=%s root=%s source=%s", expected.MountID, expected.Mountpoint, expected.FSType, expected.MountRoot, expected.Source, actual.MountID, actual.Mountpoint, actual.FSType, actual.MountRoot, actual.Source)
+	return fmt.Errorf("lower mount identity changed: expected effective=%s id=%d mountpoint=%s fs=%s root=%s source=%s readonly=%t lowers=%v chain=%v, got effective=%s id=%d mountpoint=%s fs=%s root=%s source=%s readonly=%t lowers=%v chain=%v", expected.EffectiveRoot, expected.MountID, expected.Mountpoint, expected.FSType, expected.MountRoot, expected.Source, expected.Readonly, expected.LowerDirs, expected.EffectiveLowerChain, actual.EffectiveRoot, actual.MountID, actual.Mountpoint, actual.FSType, actual.MountRoot, actual.Source, actual.Readonly, actual.LowerDirs, actual.EffectiveLowerChain)
+}
+
+func slicesEqual(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func backingLayersEqual(left, right []RootfsBackingLayerFacts) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func atomicWrite(target string, content []byte, mode os.FileMode) error {

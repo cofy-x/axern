@@ -208,7 +208,11 @@ Key behavior:
   and reads back a memory limit, and removes the probe before publishing the
   typed cgroup-controller fact. Runtime-specific runc/runsc memory-hard-limit
   capability is derived only after a dedicated readonly-root conformance
-  sandbox also verifies Sentry, gofer, init, and workload PID attribution.
+  sandbox also verifies the runtime-specific host process boundary. Runc
+  reconciles its state init PID with the immutable pid-file PID and checks
+  membership. Runsc checks Sentry and gofer roles, executable identity, and
+  membership; guest workload memory is accounted through Sentry, not through a
+  separate guest host PID.
   Storage conformance runs in a separate writable-root sandbox; disabling cgroup
   enforcement for development cannot manufacture memory evidence or suppress
   storage evidence. Every real allocation is verified again after create.

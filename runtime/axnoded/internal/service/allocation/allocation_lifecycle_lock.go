@@ -5,17 +5,19 @@ import (
 	"sync"
 )
 
-type allocationLifecycleLocks struct {
+// allocationKeyedLocks serializes work for one allocation without blocking
+// independent allocations. Callers must not recursively acquire the same key.
+type allocationKeyedLocks struct {
 	mu    sync.Mutex
-	locks map[string]*allocationLifecycleLock
+	locks map[string]*allocationKeyedLock
 }
 
-type allocationLifecycleLock struct {
+type allocationKeyedLock struct {
 	mu   sync.Mutex
 	refs int
 }
 
-func (l *allocationLifecycleLocks) Lock(allocationID string) func() {
+func (l *allocationKeyedLocks) Lock(allocationID string) func() {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" {
 		return func() {}
@@ -23,11 +25,11 @@ func (l *allocationLifecycleLocks) Lock(allocationID string) func() {
 
 	l.mu.Lock()
 	if l.locks == nil {
-		l.locks = make(map[string]*allocationLifecycleLock)
+		l.locks = make(map[string]*allocationKeyedLock)
 	}
 	lock := l.locks[allocationID]
 	if lock == nil {
-		lock = &allocationLifecycleLock{}
+		lock = &allocationKeyedLock{}
 		l.locks[allocationID] = lock
 	}
 	lock.refs++

@@ -89,7 +89,6 @@ func NewLanguageRuntimeManager(mounter ...ImageMounter) *LangRTManager {
 		rootfsMap:   make(map[RootfsConfig]*rootfsEntry),
 	}
 	lm.updateRetentionGauges()
-	lm.updateExecutionEnvelopeGauges()
 	return lm
 }
 

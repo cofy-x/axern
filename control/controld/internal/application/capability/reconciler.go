@@ -18,14 +18,13 @@ import (
 
 type LifecycleClient interface {
 	GetAllocationStatus(context.Context, string, *privatenodev1.GetAllocationStatusRequest) (*privatenodev1.GetAllocationStatusResponse, error)
-	DeleteAllocation(context.Context, string, *privatenodev1.DeleteAllocationRequest) (*privatenodev1.DeleteAllocationResponse, error)
 }
 
 type Queue interface {
 	Claim(context.Context, string, int, time.Time, time.Duration) ([]allocationkernel.CapabilityReconcileItem, error)
-	Complete(context.Context, string, string) error
+	Complete(context.Context, allocationkernel.CapabilityReconcileItem, string, time.Time) error
 	Retry(context.Context, allocationkernel.CapabilityReconcileItem, string, time.Time, error) error
-	RecordAdmission(context.Context, allocationkernel.CapabilityReconcileItem, string, *allocationkernel.CapabilityAdmission, time.Time) error
+	RecordConditions(context.Context, allocationkernel.CapabilityReconcileItem, string, *allocationkernel.CapabilityReconciliation, time.Time) error
 }
 
 type Reconciler struct {
@@ -65,34 +64,31 @@ func (r *Reconciler) reconcileOne(ctx context.Context, item allocationkernel.Cap
 		AllocationID: item.AllocationID, Attempt: item.Attempt, NodeID: item.NodeID,
 	})
 	if status.Code(err) == codes.NotFound {
-		return r.queue.Complete(ctx, item.AllocationID, r.owner)
+		return r.queue.Complete(ctx, item, r.owner, now)
 	}
 	if err != nil {
 		return err
 	}
-	conditions := response.GetCapabilityVerification()
-	admission := &allocationkernel.CapabilityAdmission{
+	conditionSet := response.GetCapabilityVerification()
+	reconciliation := &allocationkernel.CapabilityReconciliation{
+		Attempt:      item.Attempt,
 		Dependencies: response.GetAdmittedCapabilityDependencies(),
-		Conditions:   conditions,
+		ConditionSet: conditionSet,
 	}
-	if err := r.queue.RecordAdmission(ctx, item, r.owner, admission, now); err != nil {
+	if err := r.queue.RecordConditions(ctx, item, r.owner, reconciliation, now); err != nil {
 		return err
 	}
-	if hasFailedCondition(conditions) {
+	if hasFailedCondition(conditionSet.GetConditions()) {
 		sdkobs.Int64Counter(ctrlobs.MetricCapabilityFailStopTotal.Name, ctrlobs.MetricCapabilityFailStopTotal.Description).Add(ctx, 1,
 			attribute.String(sdkobs.AttrReason, "enforcement_lost"),
 		)
-		if _, err := r.client.DeleteAllocation(ctx, item.NodeTarget, &privatenodev1.DeleteAllocationRequest{
-			AllocationID: item.AllocationID, Attempt: item.Attempt, NodeID: item.NodeID, TimeoutSeconds: 10,
-		}); err != nil && status.Code(err) != codes.NotFound {
-			return fmt.Errorf("force-delete allocation after capability loss: %w", err)
-		}
-		// Keep the durable queue item until a subsequent status check proves the
-		// runtime is gone. A successful delete RPC only confirms that cleanup was
-		// accepted; it does not make the allocation safe to forget.
-		return fmt.Errorf("capability fail-stop delete issued; awaiting deletion confirmation")
+		// GetAllocationStatus persists node-local termination ownership before it
+		// returns a failed condition. Controld deliberately does not become a
+		// second Delete initiator; the durable queue remains the restart and
+		// missed-report safety net until the node proves the allocation is gone.
+		return fmt.Errorf("capability fail-stop is owned by the node; awaiting deletion confirmation")
 	}
-	return r.queue.Complete(ctx, item.AllocationID, r.owner)
+	return r.queue.Complete(ctx, item, r.owner, now)
 }
 
 func recordReconcile(ctx context.Context, result string) {

@@ -360,10 +360,6 @@ func aggregateStartupSummaries(summaries []*StartupSummary) *StartupSummary {
 	classDurationWeight := make(map[string]float64)
 	bundleMaterializeWeight := 0.0
 	bundleMaterializeCount := uint64(0)
-	envelopePrepareWeight := 0.0
-	envelopePrepareCount := uint64(0)
-	envelopeActivateWeight := 0.0
-	envelopeActivateCount := uint64(0)
 	for _, summary := range summaries {
 		if summary == nil {
 			continue
@@ -410,22 +406,6 @@ func aggregateStartupSummaries(summaries []*StartupSummary) *StartupSummary {
 			bundleMaterializeWeight += summary.Bundle.AverageMaterializeDurationSec * float64(count)
 			bundleMaterializeCount += count
 		}
-		if summary.Envelope != nil {
-			if out.Envelope == nil {
-				out.Envelope = &ExecutionEnvelopeSummary{}
-			}
-			out.Envelope.PreparedCount += summary.Envelope.PreparedCount
-			out.Envelope.HitCount += summary.Envelope.HitCount
-			out.Envelope.MissCount += summary.Envelope.MissCount
-			out.Envelope.ErrorCount += summary.Envelope.ErrorCount
-			out.Envelope.FallbackCount += summary.Envelope.FallbackCount
-			out.Envelope.PrepareHistogram = mergeHistogram(out.Envelope.PrepareHistogram, summary.Envelope.PrepareHistogram)
-			out.Envelope.ActivateHistogram = mergeHistogram(out.Envelope.ActivateHistogram, summary.Envelope.ActivateHistogram)
-			envelopePrepareWeight += summary.Envelope.AveragePrepareDurationSec * float64(summary.Envelope.PreparedCount)
-			envelopePrepareCount += summary.Envelope.PreparedCount
-			envelopeActivateWeight += summary.Envelope.AverageActivateDurationSec * float64(summary.Envelope.HitCount)
-			envelopeActivateCount += summary.Envelope.HitCount
-		}
 	}
 
 	for startClass, aggregated := range out.Classes {
@@ -465,29 +445,6 @@ func aggregateStartupSummaries(summaries []*StartupSummary) *StartupSummary {
 		}
 		if out.Bundle.HitCount == 0 && out.Bundle.MissCount == 0 && out.Bundle.ErrorCount == 0 && out.Bundle.AverageMaterializeDurationSec == 0 {
 			out.Bundle = nil
-		}
-	}
-	if out.Envelope != nil {
-		if out.Envelope.PrepareHistogram != nil && out.Envelope.PrepareHistogram.Count > 0 {
-			out.Envelope.AveragePrepareDurationSec = out.Envelope.PrepareHistogram.SumSeconds / float64(out.Envelope.PrepareHistogram.Count)
-			out.Envelope.PrepareQuantiles = histogramQuantiles(out.Envelope.PrepareHistogram)
-		} else if envelopePrepareCount > 0 {
-			out.Envelope.AveragePrepareDurationSec = envelopePrepareWeight / float64(envelopePrepareCount)
-		}
-		if out.Envelope.ActivateHistogram != nil && out.Envelope.ActivateHistogram.Count > 0 {
-			out.Envelope.AverageActivateDurationSec = out.Envelope.ActivateHistogram.SumSeconds / float64(out.Envelope.ActivateHistogram.Count)
-			out.Envelope.ActivateQuantiles = histogramQuantiles(out.Envelope.ActivateHistogram)
-		} else if envelopeActivateCount > 0 {
-			out.Envelope.AverageActivateDurationSec = envelopeActivateWeight / float64(envelopeActivateCount)
-		}
-		if out.Envelope.PreparedCount == 0 &&
-			out.Envelope.HitCount == 0 &&
-			out.Envelope.MissCount == 0 &&
-			out.Envelope.ErrorCount == 0 &&
-			out.Envelope.FallbackCount == 0 &&
-			out.Envelope.AveragePrepareDurationSec == 0 &&
-			out.Envelope.AverageActivateDurationSec == 0 {
-			out.Envelope = nil
 		}
 	}
 	if out.WaitGrace != nil && out.WaitGrace.RecoveredCount == 0 && out.WaitGrace.UnavailableCount == 0 {

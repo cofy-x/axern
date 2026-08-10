@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -164,6 +165,75 @@ func TestRuncDeleteRemovesPersistedExitState(t *testing.T) {
 		_, err := handler.DeleteContainer(context.Background(), &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"})
 		return err
 	}, handler.persistExitState)
+}
+
+func TestRuncDeleteWaitsForInitMonitorBeforeReleasingOwnedStorage(t *testing.T) {
+	rootDir := t.TempDir()
+	handler, err := NewRuncServiceHandler(
+		config.Config{RootDir: rootDir},
+		config.RuntimeNameRunc,
+		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runc"},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	filestore := t.TempDir()
+	manager, err := sharedWritableCapacityManager(filestore, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler.writableCapacity = manager
+	if err := manager.Reserve("alloc-a", config.RuntimeNameRunc, 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	handler.common.SetExecutor(&recordingExecutor{})
+	readyPath := handler.common.InitMonitorReadyStatePath("alloc-a")
+	if err := os.MkdirAll(filepath.Dir(readyPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	readyPayload, err := json.Marshal(map[string]any{
+		"ready": true, "initPid": 321, "observedAt": time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(readyPath, readyPayload, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	callerCtx, cancelCaller := context.WithCancel(context.Background())
+	cancelCaller()
+	done := make(chan error, 1)
+	go func() {
+		_, err := handler.DeleteContainer(callerCtx, &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("DeleteContainer() returned before init monitor persisted exit state: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if !hasWritableReservation(manager, "alloc-a") {
+		t.Fatal("writable reservation released before init monitor persistence barrier")
+	}
+	if err := handler.persistExitState("alloc-a", contract.Exit{Timestamp: time.Now().UTC(), Status: 137}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("DeleteContainer() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("DeleteContainer() did not continue after init monitor persistence")
+	}
+	if hasWritableReservation(manager, "alloc-a") {
+		t.Fatal("writable reservation retained after ordered delete completed")
+	}
+	if _, err := os.Stat(readyPath); !os.IsNotExist(err) {
+		t.Fatalf("monitor ready state stat error = %v, want not exist", err)
+	}
 }
 
 func TestDeleteReleasesWritableReservationWhenExitStateRemovalFails(t *testing.T) {

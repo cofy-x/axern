@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestRuntimeConfigNormalizedRuntimeConfigs(t *testing.T) {
 	cfg := RuntimeConfig{
@@ -49,6 +52,53 @@ func TestRuntimeConfigNormalizedRuntimeConfigs(t *testing.T) {
 	}
 	if crun.BaseSpec != "/etc/axnoded/crun.json" {
 		t.Fatalf("expected explicit crun base spec, got %q", crun.BaseSpec)
+	}
+}
+
+func TestNetworkConfigNormalizedCanonicalizesSemanticSetsAndDurations(t *testing.T) {
+	input := DefaultConfig().PluginConfig.NetworkConfig
+	input.NatBackend = " EBPF "
+	input.IPRange = "172.17.0.1/16"
+	input.BPFNet.UplinkDevices = []string{" eth1 ", "eth0"}
+	input.BPFNet.NativeRoutingCIDRs = []string{"10.2.3.4/16", "10.0.0.0/8"}
+	input.BPFNet.SNATGCInterval = "1000ms"
+
+	got, err := input.Normalized()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.NatBackend != NatBackendEBPF || got.BPFNet.SNATGCInterval != "1s" {
+		t.Fatalf("normalized scalar values = %#v", got)
+	}
+	if want := []string{"eth0", "eth1"}; !reflect.DeepEqual(got.BPFNet.UplinkDevices, want) {
+		t.Fatalf("uplink devices = %#v, want %#v", got.BPFNet.UplinkDevices, want)
+	}
+	if want := []string{"10.0.0.0/8", "10.2.0.0/16"}; !reflect.DeepEqual(got.BPFNet.NativeRoutingCIDRs, want) {
+		t.Fatalf("native routing CIDRs = %#v, want %#v", got.BPFNet.NativeRoutingCIDRs, want)
+	}
+}
+
+func TestNetworkConfigNormalizedRejectsAmbiguousOrInvalidValues(t *testing.T) {
+	tests := map[string]func(*NetworkConfig){
+		"unsupported backend": func(c *NetworkConfig) { c.NatBackend = "custom" },
+		"invalid IP range":    func(c *NetworkConfig) { c.IPRange = "not-a-prefix" },
+		"duplicate uplink": func(c *NetworkConfig) {
+			c.NatBackend = NatBackendEBPF
+			c.BPFNet.UplinkDevices = []string{"eth0", " eth0 "}
+		},
+		"duplicate canonical CIDR": func(c *NetworkConfig) {
+			c.NatBackend = NatBackendEBPF
+			c.BPFNet.NativeRoutingCIDRs = []string{"10.0.0.1/8", "10.0.0.0/8"}
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			cfg := DefaultConfig().PluginConfig.NetworkConfig
+			mutate(&cfg)
+			if _, err := cfg.Normalized(); err == nil {
+				t.Fatal("invalid network configuration was accepted")
+			}
+		})
 	}
 }
 
@@ -248,10 +298,19 @@ func TestPluginConfigControlPlaneHelpers(t *testing.T) {
 	if got := cfg.ControlPlaneNodeStateValue(); got != "draining" {
 		t.Fatalf("ControlPlaneNodeStateValue() = %q, want draining", got)
 	}
+	if _, err := cfg.NodeExtensionCapabilitiesValue(); err == nil {
+		t.Fatal("NodeExtensionCapabilitiesValue accepted surrounding name whitespace")
+	}
+	cfg.NodeExtensionCapabilities = []ExtensionCapabilityConfig{{Name: "Example.COM/accelerator", Value: " v1 "}}
 	capabilities, err := cfg.NodeExtensionCapabilitiesValue()
 	if err != nil || len(capabilities) != 1 || capabilities[0].GetName() != "example.com/accelerator" || capabilities[0].GetValue() != " v1 " {
 		t.Fatalf("NodeExtensionCapabilitiesValue() = %#v, %v", capabilities, err)
 	}
+	cfg.NodeExtensionCapabilities = []ExtensionCapabilityConfig{{Name: "example.com/accelerator", Value: "v1"}, {Name: "example.com/accelerator", Value: "v2"}}
+	if _, err := cfg.NodeExtensionCapabilitiesValue(); err == nil {
+		t.Fatal("NodeExtensionCapabilitiesValue accepted multiple values for one qualified name")
+	}
+	cfg.NodeExtensionCapabilities = nil
 	labels := cfg.ControlPlaneNodeLabelsValue()
 	if len(labels) != 1 || labels["zone"] != "us-east-1" {
 		t.Fatalf("ControlPlaneNodeLabelsValue() = %#v, want zone=us-east-1", labels)

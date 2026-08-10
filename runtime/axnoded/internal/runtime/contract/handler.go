@@ -20,16 +20,24 @@ type RuntimeRequirements struct {
 	Resources             []resourcemanager.ResourceName
 }
 
-type ExecutionEnvelope struct {
+// PreparedContainer is an allocation-owned OCI container that has completed
+// runtime create but has not started user code. Its identity and host resources
+// are immutable and may not be rebound to another allocation.
+type PreparedContainer struct {
 	ContainerID string
 	BundlePath  string
 	Metadata    *apipb.ContainerMetadata
 }
 
-type ExecutionEnvelopeHandler interface {
-	EligibleForExecutionEnvelope(*apipb.StartRequest) bool
-	PrepareExecutionEnvelope(context.Context, *apipb.CreateContainerRequest, HandlerOptions) (*ExecutionEnvelope, error)
-	ActivateExecutionEnvelope(context.Context, *ExecutionEnvelope, HandlerOptions) (*apipb.ContainerMetadata, error)
+// ManagedRuntimeHandler is the fail-closed lifecycle contract for workload
+// allocations. Managed starts must be split into OCI create and start so
+// allocation-specific enforcement can be verified before user code executes.
+// RuntimeHandler.CreateContainer remains available to node-owned auxiliary
+// containers whose lifecycle is not an allocation lifecycle.
+type ManagedRuntimeHandler interface {
+	RuntimeHandler
+	PrepareContainer(context.Context, *apipb.CreateContainerRequest, HandlerOptions) (*PreparedContainer, error)
+	StartPreparedContainer(context.Context, *PreparedContainer, HandlerOptions) (*apipb.ContainerMetadata, error)
 }
 
 // PersistentStorageReconciler converges runtime-private storage against a
@@ -43,6 +51,12 @@ type PersistentStorageReconciler interface {
 
 type AllocationCapabilityVerifier interface {
 	VerifyAllocationCapability(context.Context, *capabilityv1.CapabilityDependency, HandlerOptions) CapabilityVerification
+}
+
+// AllocationEnforcementManifestProvider returns the immutable launch contract
+// written by the runtime before the process is created.
+type AllocationEnforcementManifestProvider interface {
+	AllocationEnforcementManifest(context.Context, string) (*apipb.AllocationEnforcementManifest, error)
 }
 
 type CapabilityVerificationState uint8
@@ -74,6 +88,7 @@ func InconclusiveCapability(err error) CapabilityVerification {
 }
 
 type RuntimeHandler interface {
+	AllocationEnforcementManifestProvider
 	Name() string
 	Capabilities() RuntimeCapabilities
 	Requirements() RuntimeRequirements

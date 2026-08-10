@@ -25,16 +25,21 @@ const (
 )
 
 type AllocationStatusReport struct {
-	AllocationID         string
-	Attempt              int64
-	Status               commonv1.AllocationStatus
-	ExitCode             int32
-	ExitCodeKnown        bool
-	Ready                bool
-	ReadinessMessage     string
-	Message              string
-	ObservedAt           time.Time
-	CapabilityConditions []*capabilityv1.CapabilityCondition
+	AllocationID     string
+	Attempt          int64
+	Status           commonv1.AllocationStatus
+	ExitCode         int32
+	ExitCodeKnown    bool
+	Ready            bool
+	ReadinessMessage string
+	Message          string
+	ObservedAt       time.Time
+}
+
+type AllocationCapabilityConditionReport struct {
+	AllocationID string
+	Attempt      int64
+	ConditionSet *capabilityv1.CapabilityConditionSet
 }
 
 type RuntimeNamesFunc func() []string
@@ -42,18 +47,20 @@ type SnapshotFunc func() (nodeinventory.NodeInventorySnapshot, bool)
 type SummaryBuilder func(nodeinventory.NodeInventorySnapshot) *nodev1.NodeSummary
 
 type Reporter struct {
-	target            string
-	nodeID            string
-	nodeTarget        string
-	nodeAuthToken     string
-	interval          time.Duration
-	runtimeNames      RuntimeNamesFunc
-	snapshot          SnapshotFunc
-	summaryBuilder    SummaryBuilder
-	refreshInventory  func()
-	control           NodeControlClientProvider
-	statusBatcher     *allocationStatusBatcher
-	statusBatcherOnce sync.Once
+	target               string
+	nodeID               string
+	nodeTarget           string
+	nodeAuthToken        string
+	interval             time.Duration
+	runtimeNames         RuntimeNamesFunc
+	snapshot             SnapshotFunc
+	summaryBuilder       SummaryBuilder
+	refreshInventory     func()
+	control              NodeControlClientProvider
+	statusBatcher        *allocationStatusBatcher
+	statusBatcherOnce    sync.Once
+	conditionBatcher     *allocationConditionBatcher
+	conditionBatcherOnce sync.Once
 
 	stopCh    chan struct{}
 	changeCh  chan struct{}
@@ -99,6 +106,7 @@ func NewReporter(
 		changeCh:       make(chan struct{}, 1),
 	}
 	reporter.statusBatcher = newAllocationStatusBatcher(reporter.sendAllocationStatusBatch)
+	reporter.conditionBatcher = newAllocationConditionBatcher(reporter.sendAllocationConditionBatch)
 	return reporter
 }
 
@@ -111,6 +119,7 @@ func (r *Reporter) Start() {
 			r.changeCh = make(chan struct{}, 1)
 		}
 		r.ensureStatusBatcher().Start()
+		r.ensureConditionBatcher().Start()
 		r.wg.Add(1)
 		go func() {
 			defer r.wg.Done()
@@ -182,6 +191,7 @@ func (r *Reporter) Stop() {
 		close(r.stopCh)
 		r.wg.Wait()
 		r.ensureStatusBatcher().Stop()
+		r.ensureConditionBatcher().Stop()
 		if r.control != nil {
 			if err := r.control.Close(); err != nil {
 				logrus.WithError(err).Warn("close control-plane reporter client")
@@ -277,27 +287,27 @@ func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) {
 		readinessMessage = ""
 	}
 	r.ensureStatusBatcher().Enqueue(&nodev1.AllocationStatusObservation{
-		AllocationID:         allocationID,
-		Attempt:              report.Attempt,
-		Status:               report.Status,
-		ExitCode:             report.ExitCode,
-		ExitCodeKnown:        report.ExitCodeKnown,
-		Ready:                ready,
-		ReadinessMessage:     readinessMessage,
-		Message:              validProtocolString(report.Message),
-		ObservedAt:           timestamppb.New(report.ObservedAt.UTC()),
-		CapabilityConditions: cloneCapabilityConditions(report.CapabilityConditions),
+		AllocationID:     allocationID,
+		Attempt:          report.Attempt,
+		Status:           report.Status,
+		ExitCode:         report.ExitCode,
+		ExitCodeKnown:    report.ExitCodeKnown,
+		Ready:            ready,
+		ReadinessMessage: readinessMessage,
+		Message:          validProtocolString(report.Message),
+		ObservedAt:       timestamppb.New(report.ObservedAt.UTC()),
 	})
 }
 
-func cloneCapabilityConditions(in []*capabilityv1.CapabilityCondition) []*capabilityv1.CapabilityCondition {
-	out := make([]*capabilityv1.CapabilityCondition, 0, len(in))
-	for _, condition := range in {
-		if condition != nil {
-			out = append(out, proto.Clone(condition).(*capabilityv1.CapabilityCondition))
-		}
+func (r *Reporter) ReportAllocationCapabilityConditions(report AllocationCapabilityConditionReport) {
+	allocationID := strings.TrimSpace(report.AllocationID)
+	if r == nil || allocationID == "" || report.Attempt <= 0 || report.ConditionSet == nil || report.ConditionSet.GetRevision() <= 0 {
+		return
 	}
-	return out
+	r.ensureConditionBatcher().Enqueue(&nodev1.AllocationCapabilityConditionReport{
+		AllocationID: allocationID, Attempt: report.Attempt,
+		ConditionSet: proto.Clone(report.ConditionSet).(*capabilityv1.CapabilityConditionSet),
+	})
 }
 
 func (r *Reporter) AllocationStatusHealth() AllocationStatusReporterHealth {
@@ -318,6 +328,32 @@ func (r *Reporter) ensureStatusBatcher() *allocationStatusBatcher {
 		}
 	})
 	return r.statusBatcher
+}
+
+func (r *Reporter) ensureConditionBatcher() *allocationConditionBatcher {
+	r.conditionBatcherOnce.Do(func() {
+		if r.conditionBatcher == nil {
+			r.conditionBatcher = newAllocationConditionBatcher(r.sendAllocationConditionBatch)
+		}
+	})
+	return r.conditionBatcher
+}
+
+func (r *Reporter) sendAllocationConditionBatch(ctx context.Context, reports []*nodev1.AllocationCapabilityConditionReport) error {
+	request := &nodev1.BatchReportAllocationCapabilityConditionsRequest{
+		NodeID: r.nodeID, NodeAuthToken: r.nodeAuthToken, Reports: reports,
+	}
+	err := r.withClient(ctx, func(ctx context.Context, client nodev1.NodeControlClient) error {
+		_, err := client.BatchReportAllocationCapabilityConditions(ctx, request)
+		return err
+	})
+	result := "ok"
+	if err != nil {
+		result = "error"
+		logrus.WithError(err).Warn("control-plane capability condition batch failed")
+	}
+	metrics.RecordControlPlaneRPC("batch_report_allocation_capability_conditions", result)
+	return err
 }
 
 func (r *Reporter) sendAllocationStatusBatch(ctx context.Context, observations []*nodev1.AllocationStatusObservation) error {

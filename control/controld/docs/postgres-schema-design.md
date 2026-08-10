@@ -63,7 +63,12 @@ erDiagram
   allocations ||--o{ workload_reservations : reserves
   allocations ||--o{ execution_leases : authorizes
   allocations ||--o| allocation_reconcile_queue : retries
+  allocations ||--o{ allocation_capability_dependencies : requires
+	allocations ||--o| allocation_capability_admissions : admits
+  allocations ||--o| allocation_capability_condition_sets : owns
+  allocation_capability_condition_sets ||--o{ allocation_capability_conditions : projects
   allocations ||--o| allocation_capability_reconcile_queue : verifies
+  allocation_capability_reconcile_queue ||--o{ allocation_capability_reconcile_pending_keys : merges
   nodes ||--o{ node_capability_transitions : records
 ```
 
@@ -116,9 +121,28 @@ logs.
 overhead, and ephemeral-storage requests. A non-null `released_at` closes the
 reservation without erasing accounting history.
 
-Allocations persist typed capability dependencies, placement evidence,
-create-time admitted evidence, and structured conditions. This is independent
-of the latest node summary so admission and later enforcement can be audited.
+`allocation_capability_dependencies` stores one typed key per allocation with
+catalog loss policy, placement proof, and create-time admitted proof.
+`allocation_capability_admissions` is the immutable per-attempt commit marker
+and stores the canonical admitted dependency-set digest, including the
+zero-dependency case. The first post-create admission transaction binds the
+proof rows, projects conditions, and inserts this marker atomically. A retried
+Create may only replay the exact digest and proof set; it never refreshes the
+historical create proof. Runtime capability reconciliation is condition-only. The
+`(node_id, capability_key_id, allocation_id)` index is the authoritative path
+from a node transition to affected allocations; report processing never scans
+allocation configuration JSON.
+
+`allocation_capability_condition_sets` owns the latest attempt, full-set
+revision, observation time, and canonical protobuf SHA-256 payload digest.
+`allocation_capability_conditions` stores the normalized per-key projection
+and references the same `(allocation_id, attempt, revision)`, so a new
+allocation attempt can restart its node-local revision while an old attempt
+remains fenced, and readers cannot observe a partially replaced generation.
+An exact revision replay is idempotent only when the digest matches; a
+different payload at the same revision is rejected. Conditions are independent
+of allocation lifecycle columns and cannot update status, readiness, exit
+information, or the primary message.
 
 ### Reconciliation and audit
 
@@ -126,10 +150,21 @@ of the latest node summary so admission and later enforcement can be audited.
 `reconcile_attempts`, and `last_error` describe retry state; `lease_owner` and
 `lease_expires_at` provide bounded multi-worker claims.
 
-`node_capability_transitions` records idempotent effective state/evidence
-changes. `allocation_capability_reconcile_queue` is the separate durable
-capability-loss queue; it cannot overwrite allocation create/delete retry
-intent.
+`node_capability_transitions` records idempotent effective state, evidence, and
+bounded reason-code changes. Ordinary TTL refresh without one of those changes
+does not create history. `allocation_capability_reconcile_queue` owns claim and
+retry state; `allocation_capability_reconcile_pending_keys` merges the latest
+snapshot sequence per key. This capability-loss queue is separate from
+create/delete lifecycle intent.
+
+A node report replaces the latest summary, evaluates effective transitions,
+inserts idempotent transition rows, and merges pending keys for directly indexed
+active `DEGRADE` or `FAIL_STOP` dependencies in one transaction.
+`ADMISSION_ONLY` rows remain durable admission evidence but are never runtime
+reconcile work. Rollback leaves all four projections
+unchanged. Capability condition reporting likewise replaces the attempt-fenced
+set header and normalized rows in one transaction; it has no write path to the
+allocation lifecycle columns.
 
 `admin_audit_events` records operator mutations before lifecycle coordination
 state changes. It is distinct from quota decisions and workload event history.

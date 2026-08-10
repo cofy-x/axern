@@ -109,35 +109,6 @@ func DiffStartupSummary(before, after *StartupSnapshot) *StartupSummary {
 		}
 	}
 
-	if after.Envelope != nil {
-		beforeEnvelope := ExecutionEnvelopeSnapshot{}
-		if before != nil && before.Envelope != nil {
-			beforeEnvelope = *before.Envelope
-		}
-		prepareHistogram := subtractHistogram(after.Envelope.PrepareHistogram, beforeEnvelope.PrepareHistogram)
-		activateHistogram := subtractHistogram(after.Envelope.ActivateHistogram, beforeEnvelope.ActivateHistogram)
-		envelopeSummary := &ExecutionEnvelopeSummary{
-			PreparedCount:     subtractStartupCounter(after.Envelope.PreparedCount, beforeEnvelope.PreparedCount),
-			HitCount:          subtractStartupCounter(after.Envelope.HitCount, beforeEnvelope.HitCount),
-			MissCount:         subtractStartupCounter(after.Envelope.MissCount, beforeEnvelope.MissCount),
-			ErrorCount:        subtractStartupCounter(after.Envelope.ErrorCount, beforeEnvelope.ErrorCount),
-			FallbackCount:     subtractStartupCounter(after.Envelope.FallbackCount, beforeEnvelope.FallbackCount),
-			PrepareHistogram:  prepareHistogram,
-			ActivateHistogram: activateHistogram,
-		}
-		if prepareHistogram != nil && prepareHistogram.Count > 0 {
-			envelopeSummary.AveragePrepareDurationSec = prepareHistogram.SumSeconds / float64(prepareHistogram.Count)
-			envelopeSummary.PrepareQuantiles = histogramQuantiles(prepareHistogram)
-		}
-		if activateHistogram != nil && activateHistogram.Count > 0 {
-			envelopeSummary.AverageActivateDurationSec = activateHistogram.SumSeconds / float64(activateHistogram.Count)
-			envelopeSummary.ActivateQuantiles = histogramQuantiles(activateHistogram)
-		}
-		if envelopeSummary.PreparedCount > 0 || envelopeSummary.HitCount > 0 || envelopeSummary.MissCount > 0 || envelopeSummary.ErrorCount > 0 || envelopeSummary.FallbackCount > 0 || prepareHistogram != nil || activateHistogram != nil {
-			summary.Envelope = envelopeSummary
-		}
-	}
-
 	if after.WaitGrace != nil {
 		beforeWaitGrace := RuntimeWaitGraceSnapshot{}
 		if before != nil && before.WaitGrace != nil {
@@ -153,7 +124,7 @@ func DiffStartupSummary(before, after *StartupSnapshot) *StartupSummary {
 	}
 
 	finalizeStartupSummary(summary)
-	if len(summary.Classes) == 0 && len(summary.Phases) == 0 && summary.Bundle == nil && summary.Envelope == nil && summary.WaitGrace == nil {
+	if len(summary.Classes) == 0 && len(summary.Phases) == 0 && summary.Bundle == nil && summary.WaitGrace == nil {
 		return nil
 	}
 	return summary

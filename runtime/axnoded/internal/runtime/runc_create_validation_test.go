@@ -26,11 +26,11 @@ func TestRuncRejectsRestoreBeforeWritableReservation(t *testing.T) {
 	if hasWritableReservation(handler.writableCapacity, "restore") {
 		t.Fatal("unsupported restore must not reserve writable capacity")
 	}
-	if _, err := handler.PrepareExecutionEnvelope(context.Background(), request, contract.HandlerOptions{ContainerID: "envelope-restore"}); err == nil {
-		t.Fatal("PrepareExecutionEnvelope must reject unsupported restore")
+	if _, err := handler.PrepareContainer(context.Background(), request, contract.HandlerOptions{ContainerID: "prepared-restore"}); err == nil {
+		t.Fatal("PrepareContainer must reject unsupported restore")
 	}
-	if hasWritableReservation(handler.writableCapacity, "envelope-restore") {
-		t.Fatal("unsupported envelope restore must not reserve writable capacity")
+	if hasWritableReservation(handler.writableCapacity, "prepared-restore") {
+		t.Fatal("unsupported prepared restore must not reserve writable capacity")
 	}
 }
 

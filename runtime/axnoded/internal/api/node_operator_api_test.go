@@ -10,6 +10,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service"
 	filev1 "github.com/cofy-x/axern/sdk/go/gen/axern/common/file/v1"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	storagev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
@@ -34,10 +35,15 @@ type fakeNodeOperatorService struct {
 	diagnosticsFull      bool
 }
 
+func (f *fakeNodeOperatorService) ManagedAllocationAttempt(string) (int64, bool) { return 1, true }
+
 func (f *fakeNodeOperatorService) Run(context.Context) error      { return nil }
 func (f *fakeNodeOperatorService) Shutdown(context.Context) error { return nil }
 func (f *fakeNodeOperatorService) DeleteVolume(context.Context, string, storagev1.VolumeBackend, string) error {
 	return nil
+}
+func (f *fakeNodeOperatorService) ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error) {
+	return nil, nil, nil
 }
 func (f *fakeNodeOperatorService) Start(context.Context, *runtimev1.StartRequest) (*runtimev1.StartResponse, error) {
 	return nil, nil

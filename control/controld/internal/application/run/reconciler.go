@@ -78,7 +78,7 @@ func (r reconciler) reconcileStart(ctx context.Context, item allocationkernel.Re
 		}
 		return r.store.CompleteAllocationStart(ctx, item.AllocationID, now)
 	}
-	if err := r.store.RecordAllocationCapabilityVerification(ctx, start.Allocation.AllocationID, admission, now); err != nil {
+	if err := r.store.RecordAllocationCapabilityAdmission(ctx, start.Allocation.AllocationID, admission, now); err != nil {
 		return err
 	}
 	return r.store.CompleteAllocationStart(ctx, item.AllocationID, now)

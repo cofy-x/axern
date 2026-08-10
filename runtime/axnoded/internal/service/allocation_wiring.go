@@ -17,13 +17,15 @@ func (h *sandboxService) allocationOptions() allocation.Options {
 		ContainerManager: func() *container.Manager {
 			return h.containerManager
 		},
-		RuntimeHandler:   h.runtimeHandler,
-		LangRuntime:      h.lrtManager,
-		Volumes:          h.volumes,
-		Networking:       h.networking,
-		Probes:           h.probeCoordinator,
-		ReportStatus:     h.ReportAllocationStatus,
-		InventoryChanged: h.notifyNodeInventoryChanged,
+		RuntimeHandler:              h.runtimeHandler,
+		LangRuntime:                 h.lrtManager,
+		Volumes:                     h.volumes,
+		Networking:                  h.networking,
+		Probes:                      h.probeCoordinator,
+		ReportStatus:                h.ReportAllocationStatus,
+		InventoryChanged:            h.notifyNodeInventoryChanged,
+		RootfsCapabilityGate:        h.verifyRootfsCapabilityRequirements,
+		PreActivationCapabilityGate: h.verifyPreparedAllocationCapabilities,
 	}
 }
 

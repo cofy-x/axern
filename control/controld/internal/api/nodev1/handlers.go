@@ -7,6 +7,7 @@ import (
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	ctrlobs "github.com/cofy-x/axern/control/controld/internal/observability"
+	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
@@ -152,6 +153,47 @@ func validateAllocationStatusBatch(observations []*controlnodev1.AllocationStatu
 			return grpcstatus.Errorf(codes.InvalidArgument, "duplicate allocation status observation %q", allocationID)
 		}
 		seen[allocationID] = struct{}{}
+	}
+	return nil
+}
+
+func (s *Server) BatchReportAllocationCapabilityConditions(ctx context.Context, req *controlnodev1.BatchReportAllocationCapabilityConditionsRequest) (*controlnodev1.BatchReportAllocationCapabilityConditionsResponse, error) {
+	nodeID := strings.TrimSpace(req.GetNodeID())
+	if nodeID == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "node_id is required")
+	}
+	if err := validateAllocationCapabilityConditionBatch(req.GetReports(), s.deps.Now()); err != nil {
+		return nil, err
+	}
+	if err := s.deps.NodeStore.Authenticate(ctx, nodeID, req.GetNodeAuthToken()); err != nil {
+		return nil, err
+	}
+	if err := s.deps.Allocations.BatchReportAllocationCapabilityConditions(ctx, nodeID, req.GetReports(), s.deps.Now()); err != nil {
+		return nil, err
+	}
+	return &controlnodev1.BatchReportAllocationCapabilityConditionsResponse{}, nil
+}
+
+func validateAllocationCapabilityConditionBatch(reports []*controlnodev1.AllocationCapabilityConditionReport, now time.Time) error {
+	if len(reports) == 0 {
+		return grpcstatus.Error(codes.InvalidArgument, "at least one allocation capability condition report is required")
+	}
+	if len(reports) > maxAllocationStatusBatch {
+		return grpcstatus.Errorf(codes.InvalidArgument, "allocation capability condition batch exceeds limit %d", maxAllocationStatusBatch)
+	}
+	seen := make(map[string]struct{}, len(reports))
+	for _, report := range reports {
+		allocationID := strings.TrimSpace(report.GetAllocationID())
+		if allocationID == "" || report.GetAttempt() <= 0 {
+			return grpcstatus.Error(codes.InvalidArgument, "allocation capability condition report requires allocation_id and attempt")
+		}
+		if _, duplicate := seen[allocationID]; duplicate {
+			return grpcstatus.Errorf(codes.InvalidArgument, "duplicate allocation capability condition report %q", allocationID)
+		}
+		seen[allocationID] = struct{}{}
+		if err := capabilitycontract.ValidateConditionSet(report.GetConditionSet(), now); err != nil {
+			return grpcstatus.Errorf(codes.InvalidArgument, "allocation %q capability conditions: %v", allocationID, err)
+		}
 	}
 	return nil
 }

@@ -112,8 +112,9 @@ func TestBuildStartLabels(t *testing.T) {
 
 	t.Run("workload identity", func(t *testing.T) {
 		req := &runtime.StartRequest{
-			RuntimeTemplate: &runtime.RuntimeTemplate{ID: "rt-1"},
-			ExtraConfig:     `{"namespace":"team-a","serviceId":"claude-code","allocationAttempt":3}`,
+			RuntimeTemplate:   &runtime.RuntimeTemplate{ID: "rt-1"},
+			ExtraConfig:       `{"namespace":"team-a","serviceId":"claude-code"}`,
+			AllocationAttempt: 3,
 		}
 		labels := BuildStartLabels(req)
 		assert.Equal(t, "team-a", labels[workloadidentity.LabelKeyNamespace])

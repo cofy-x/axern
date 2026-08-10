@@ -1,6 +1,7 @@
 package placementkernel
 
 import (
+	"fmt"
 	"time"
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
@@ -13,73 +14,82 @@ import (
 // It contains platform requirements inferred from the workload rather than
 // user-controlled platform capability names.
 type Request struct {
-	RootfsKey                      string
-	RootfsType                     nodev1.RootfsType
-	MountType                      nodev1.MountType
-	Runtime                        string
-	RequiresHostPort               bool
-	RequestedCpuMilli              int64
-	RequestedMemoryBytes           int64
-	RequestedEphemeralStorageBytes int64
-	Ports                          []string
-	Network                        string
-	CapabilityRequirements         []*capabilityv1.CapabilityKey
-	NodeSelector                   map[string]string
+	RootfsKey                       string
+	RootfsType                      nodev1.RootfsType
+	MountType                       nodev1.MountType
+	Runtime                         string
+	MemoryLimitBytes                int64
+	RootfsWritable                  bool
+	EphemeralStorageLimitBytes      int64
+	RequiresHostPort                bool
+	RequestedCpuMilli               int64
+	RequestedMemoryBytes            int64
+	RequestedEphemeralStorageBytes  int64
+	Ports                           []string
+	Network                         string
+	NetworkBackend                  string
+	CapabilityRequirements          []*capabilityv1.CapabilityKey
+	ExtensionCapabilityRequirements []*capabilityv1.ExtensionCapabilityRequirement
+	NodeSelector                    map[string]string
 }
 
 // ResolveRequestForNode derives representation- and backend-specific
 // requirements from the same locked NodeSummary used for eligibility. The
 // returned request is independent from the base request and is safe to persist
 // with an admission decision.
-func ResolveRequestForNode(base *Request, summary *nodev1.NodeSummary, now time.Time) *Request {
+func ResolveRequestForNode(base *Request, summary *nodev1.NodeSummary, now time.Time) (*Request, error) {
 	if base == nil {
-		return nil
+		return nil, nil
 	}
 	out := *base
 	out.Ports = append([]string(nil), base.Ports...)
-	out.CapabilityRequirements = cloneCapabilityKeys(base.CapabilityRequirements)
+	out.ExtensionCapabilityRequirements = cloneExtensionRequirements(base.ExtensionCapabilityRequirements)
 	out.NodeSelector = cloneLabels(base.NodeSelector)
+	erofsBacking := false
 	for _, locality := range summary.GetLocality() {
 		if locality.GetKey() == base.GetRootfsKey() && locality.GetMountType() == nodev1.MountType_MOUNT_TYPE_EROFS {
 			out.MountType = nodev1.MountType_MOUNT_TYPE_EROFS
-			out.CapabilityRequirements = appendCapability(out.CapabilityRequirements, capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS))
+			erofsBacking = true
 			break
 		}
 	}
+	var networkErr error
 	if out.GetNetwork() != "host" {
-		for _, platform := range []capabilityv1.PlatformCapability{
-			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET,
-			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
-		} {
-			key := capabilitycontract.PlatformKey(platform)
-			if _, available := capabilitycontract.AvailableObservation(summary.GetCapabilitySnapshot(), key, now); available {
-				out.CapabilityRequirements = appendCapability(out.CapabilityRequirements, key)
-				break
-			}
+		out.NetworkBackend = capabilitycontract.AvailableNetworkBackend(summary.GetCapabilitySnapshot(), now)
+		if out.NetworkBackend == "" {
+			networkErr = fmt.Errorf("node has no available network backend")
 		}
 	}
-	return &out
-}
-
-func appendCapability(in []*capabilityv1.CapabilityKey, key *capabilityv1.CapabilityKey) []*capabilityv1.CapabilityKey {
-	want, err := capabilitycontract.KeyID(key)
+	input := capabilitycontract.RequirementInput{
+		RuntimeName:                 out.Runtime,
+		HasPorts:                    len(out.Ports) > 0 || out.RequiresHostPort,
+		NetworkMode:                 out.Network,
+		NetworkBackend:              out.NetworkBackend,
+		MemoryLimitBytes:            out.MemoryLimitBytes,
+		RootfsWritable:              out.RootfsWritable,
+		EphemeralStorageLimitBytes:  out.EphemeralStorageLimitBytes,
+		EROFSBacking:                erofsBacking,
+		ExtensionCapabilityRequests: out.ExtensionCapabilityRequirements,
+	}
+	var requirements []*capabilityv1.CapabilityKey
+	var err error
+	if networkErr != nil {
+		requirements, err = capabilitycontract.DeriveRequestStaticRequirements(input)
+	} else {
+		requirements, err = capabilitycontract.DeriveRequirements(input)
+	}
 	if err != nil {
-		return in
+		return &out, fmt.Errorf("derive node-specific capability requirements: %w", err)
 	}
-	for _, existing := range in {
-		id, _ := capabilitycontract.KeyID(existing)
-		if id == want {
-			return in
-		}
-	}
-	return append(in, capabilitycontract.CloneKey(key))
+	out.CapabilityRequirements = requirements
+	return &out, networkErr
 }
 
-func cloneCapabilityKeys(in []*capabilityv1.CapabilityKey) []*capabilityv1.CapabilityKey {
-	out := make([]*capabilityv1.CapabilityKey, 0, len(in))
-	for _, key := range in {
-		if key != nil {
-			out = append(out, proto.Clone(key).(*capabilityv1.CapabilityKey))
+func cloneExtensionRequirements(in []*capabilityv1.ExtensionCapabilityRequirement) []*capabilityv1.ExtensionCapabilityRequirement {
+	out := make([]*capabilityv1.ExtensionCapabilityRequirement, 0, len(in))
+	for _, requirement := range in {
+		if requirement != nil {
+			out = append(out, proto.Clone(requirement).(*capabilityv1.ExtensionCapabilityRequirement))
 		}
 	}
 	return out

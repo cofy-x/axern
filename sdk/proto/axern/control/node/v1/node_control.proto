@@ -205,7 +205,6 @@ message AllocationStatusObservation {
   google.protobuf.Timestamp observed_at = 7;
   bool ready = 8;
   string readiness_message = 9;
-  repeated axern.control.capability.v1.CapabilityCondition capability_conditions = 10;
 }
 
 message BatchReportAllocationStatusRequest {
@@ -215,6 +214,23 @@ message BatchReportAllocationStatusRequest {
 }
 
 message BatchReportAllocationStatusResponse {}
+
+// AllocationCapabilityConditionReport is deliberately independent from
+// lifecycle status. Updating capability conditions cannot make an allocation
+// RUNNING, READY, terminal, or alter its exit status/message.
+message AllocationCapabilityConditionReport {
+  string allocation_id = 1;
+  int64 attempt = 2;
+  axern.control.capability.v1.CapabilityConditionSet condition_set = 3;
+}
+
+message BatchReportAllocationCapabilityConditionsRequest {
+  string node_id = 1;
+  string node_auth_token = 2;
+  repeated AllocationCapabilityConditionReport reports = 3;
+}
+
+message BatchReportAllocationCapabilityConditionsResponse {}
 
 message WatchExecutionLeasesRequest {
   string node_id = 1;
@@ -311,6 +327,7 @@ service NodeControl {
   rpc RegisterNode(RegisterNodeRequest) returns (RegisterNodeResponse) {}
   rpc ReportNode(ReportNodeRequest) returns (ReportNodeResponse) {}
   rpc BatchReportAllocationStatus(BatchReportAllocationStatusRequest) returns (BatchReportAllocationStatusResponse) {}
+  rpc BatchReportAllocationCapabilityConditions(BatchReportAllocationCapabilityConditionsRequest) returns (BatchReportAllocationCapabilityConditionsResponse) {}
   rpc WatchExecutionLeases(WatchExecutionLeasesRequest) returns (stream WatchExecutionLeasesResponse) {}
   rpc WatchTunnelSessions(WatchTunnelSessionsRequest) returns (stream WatchTunnelSessionsResponse) {}
   rpc ReportTunnelSessionStatus(ReportTunnelSessionStatusRequest) returns (ReportTunnelSessionStatusResponse) {}

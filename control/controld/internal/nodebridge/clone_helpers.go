@@ -141,6 +141,13 @@ func cloneCapabilityConditions(in []*capabilityv1.CapabilityCondition) []*capabi
 	return out
 }
 
+func cloneCapabilityConditionSet(in *capabilityv1.CapabilityConditionSet) *capabilityv1.CapabilityConditionSet {
+	if in == nil {
+		return nil
+	}
+	return proto.Clone(in).(*capabilityv1.CapabilityConditionSet)
+}
+
 func cloneResolvedSecretEnvVars(in []*privatenodev1.ResolvedSecretEnvVar) []*privatenodev1.ResolvedSecretEnvVar {
 	if len(in) == 0 {
 		return nil

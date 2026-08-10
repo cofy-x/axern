@@ -2,13 +2,16 @@ package pgallocation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
+	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -43,9 +46,22 @@ func (q *CapabilityQueue) Claim(ctx context.Context, owner string, limit int, no
 			UPDATE allocation_capability_reconcile_queue q
 			SET lease_owner = $3, lease_expires_at = $4, updated_at = $1
 			FROM candidates c WHERE q.allocation_id = c.allocation_id
-			RETURNING q.allocation_id, q.pending_dependencies, q.reconcile_attempts
+			RETURNING q.allocation_id, q.reconcile_attempts
 		)
-		SELECT c.allocation_id, a.node_id, n.node_target, a.attempt, c.pending_dependencies, c.reconcile_attempts
+		SELECT c.allocation_id, a.node_id, n.node_target, a.attempt,
+			jsonb_build_object('dependencies', COALESCE((
+				SELECT jsonb_agg(COALESCE(d.admitted_dependency, d.placement_dependency) ORDER BY p.capability_key_id)
+				FROM allocation_capability_reconcile_pending_keys p
+				JOIN allocation_capability_dependencies d
+				  ON d.allocation_id = p.allocation_id AND d.capability_key_id = p.capability_key_id
+				WHERE p.allocation_id = c.allocation_id
+			), '[]'::jsonb)),
+			COALESCE((
+				SELECT jsonb_object_agg(p.capability_key_id, p.snapshot_sequence)
+				FROM allocation_capability_reconcile_pending_keys p
+				WHERE p.allocation_id = c.allocation_id
+			), '{}'::jsonb),
+			c.reconcile_attempts
 		FROM claimed c
 		JOIN allocations a ON a.allocation_id = c.allocation_id
 		JOIN nodes n ON n.node_id = a.node_id
@@ -58,27 +74,83 @@ func (q *CapabilityQueue) Claim(ctx context.Context, owner string, limit int, no
 	var items []allocationkernel.CapabilityReconcileItem
 	for rows.Next() {
 		var item allocationkernel.CapabilityReconcileItem
-		var payload []byte
-		if err := rows.Scan(&item.AllocationID, &item.NodeID, &item.NodeTarget, &item.Attempt, &payload, &item.Attempts); err != nil {
+		var dependencyPayload, generationPayload []byte
+		if err := rows.Scan(&item.AllocationID, &item.NodeID, &item.NodeTarget, &item.Attempt, &dependencyPayload, &generationPayload, &item.Attempts); err != nil {
 			return nil, err
 		}
 		set := &capabilityv1.CapabilityDependencySet{}
-		if err := protojson.Unmarshal(payload, set); err != nil {
+		if err := protojson.Unmarshal(dependencyPayload, set); err != nil {
 			return nil, fmt.Errorf("unmarshal queued capability dependencies: %w", err)
 		}
+		if err := json.Unmarshal(generationPayload, &item.PendingGenerations); err != nil {
+			return nil, fmt.Errorf("unmarshal queued capability generations: %w", err)
+		}
+		if len(item.PendingGenerations) == 0 {
+			return nil, fmt.Errorf("capability reconcile item %q has no pending generations", item.AllocationID)
+		}
 		item.Dependencies = set.GetDependencies()
+		if err := validateClaimedCapabilityWork(item); err != nil {
+			return nil, err
+		}
 		items = append(items, item)
 	}
 	return items, rows.Err()
 }
 
-func (q *CapabilityQueue) Complete(ctx context.Context, allocationID, owner string) error {
-	tag, err := q.db.Pool().Exec(ctx, `DELETE FROM allocation_capability_reconcile_queue WHERE allocation_id = $1 AND lease_owner = $2`, strings.TrimSpace(allocationID), strings.TrimSpace(owner))
-	if err != nil {
-		return err
+func (q *CapabilityQueue) Complete(ctx context.Context, item allocationkernel.CapabilityReconcileItem, owner string, now time.Time) error {
+	allocationID := strings.TrimSpace(item.AllocationID)
+	owner = strings.TrimSpace(owner)
+	if allocationID == "" || owner == "" || len(item.PendingGenerations) == 0 {
+		return fmt.Errorf("complete capability reconciliation: allocation, owner, and claimed generations are required")
 	}
-	if tag.RowsAffected() != 1 {
+	tx, err := q.db.Pool().Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin capability reconcile completion: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	var allocationExists bool
+	err = tx.QueryRow(ctx, `
+		SELECT TRUE FROM allocation_capability_reconcile_queue
+		WHERE allocation_id = $1 AND lease_owner = $2 AND lease_expires_at > $3
+		FOR UPDATE
+	`, allocationID, owner, now.UTC()).Scan(&allocationExists)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("complete capability reconciliation for %q: lease is no longer owned", allocationID)
+	}
+	if err != nil {
+		return fmt.Errorf("lock capability reconciliation completion for %q: %w", allocationID, err)
+	}
+	keyIDs := make([]string, 0, len(item.PendingGenerations))
+	for keyID := range item.PendingGenerations {
+		keyIDs = append(keyIDs, keyID)
+	}
+	sort.Strings(keyIDs)
+	for _, keyID := range keyIDs {
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM allocation_capability_reconcile_pending_keys
+			WHERE allocation_id = $1 AND capability_key_id = $2 AND snapshot_sequence <= $3
+		`, allocationID, keyID, item.PendingGenerations[keyID]); err != nil {
+			return fmt.Errorf("ack capability generation %q for %q: %w", keyID, allocationID, err)
+		}
+	}
+	var remaining int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM allocation_capability_reconcile_pending_keys WHERE allocation_id = $1`, allocationID).Scan(&remaining); err != nil {
+		return fmt.Errorf("count remaining capability generations for %q: %w", allocationID, err)
+	}
+	if remaining == 0 {
+		if _, err := tx.Exec(ctx, `DELETE FROM allocation_capability_reconcile_queue WHERE allocation_id = $1`, allocationID); err != nil {
+			return fmt.Errorf("complete capability reconciliation for %q: %w", allocationID, err)
+		}
+	} else if _, err := tx.Exec(ctx, `
+		UPDATE allocation_capability_reconcile_queue
+		SET next_run_at = LEAST(next_run_at, $2), lease_owner = '', lease_expires_at = NULL,
+			last_error = '', updated_at = $2
+		WHERE allocation_id = $1
+	`, allocationID, now.UTC()); err != nil {
+		return fmt.Errorf("release capability reconciliation with newer work for %q: %w", allocationID, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit capability reconcile completion for %q: %w", allocationID, err)
 	}
 	return nil
 }
@@ -92,8 +164,8 @@ func (q *CapabilityQueue) Retry(ctx context.Context, item allocationkernel.Capab
 		UPDATE allocation_capability_reconcile_queue
 		SET reconcile_attempts = reconcile_attempts + 1, last_error = $3, next_run_at = $4,
 			lease_owner = '', lease_expires_at = NULL, updated_at = $5
-		WHERE allocation_id = $1 AND lease_owner = $2
-	`, item.AllocationID, strings.TrimSpace(owner), strings.TrimSpace(reconcileErr.Error()), now.Add(delay).UTC(), now.UTC())
+		WHERE allocation_id = $1 AND lease_owner = $2 AND lease_expires_at > $5
+	`, item.AllocationID, strings.TrimSpace(owner), capabilitycontract.BoundedReason(strings.TrimSpace(reconcileErr.Error())), now.Add(delay).UTC(), now.UTC())
 	if err != nil {
 		return err
 	}
@@ -103,7 +175,30 @@ func (q *CapabilityQueue) Retry(ctx context.Context, item allocationkernel.Capab
 	return nil
 }
 
-func (q *CapabilityQueue) RecordAdmission(ctx context.Context, item allocationkernel.CapabilityReconcileItem, owner string, admission *allocationkernel.CapabilityAdmission, now time.Time) error {
+func validateClaimedCapabilityWork(item allocationkernel.CapabilityReconcileItem) error {
+	dependencyKeys := make(map[string]struct{}, len(item.Dependencies))
+	for _, dependency := range item.Dependencies {
+		keyID, err := capabilitycontract.KeyID(dependency.GetKey())
+		if err != nil {
+			return fmt.Errorf("capability reconcile item %q has malformed dependency: %w", item.AllocationID, err)
+		}
+		if _, duplicate := dependencyKeys[keyID]; duplicate {
+			return fmt.Errorf("capability reconcile item %q has duplicate dependency %q", item.AllocationID, keyID)
+		}
+		dependencyKeys[keyID] = struct{}{}
+	}
+	if len(dependencyKeys) != len(item.PendingGenerations) {
+		return fmt.Errorf("capability reconcile item %q has %d pending generations but %d durable dependencies", item.AllocationID, len(item.PendingGenerations), len(dependencyKeys))
+	}
+	for keyID := range item.PendingGenerations {
+		if _, ok := dependencyKeys[keyID]; !ok {
+			return fmt.Errorf("capability reconcile item %q is missing durable dependency %q", item.AllocationID, keyID)
+		}
+	}
+	return nil
+}
+
+func (q *CapabilityQueue) RecordConditions(ctx context.Context, item allocationkernel.CapabilityReconcileItem, owner string, reconciliation *allocationkernel.CapabilityReconciliation, now time.Time) error {
 	tx, err := q.db.Pool().Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin capability reconciliation verification: %w", err)
@@ -125,7 +220,17 @@ func (q *CapabilityQueue) RecordAdmission(ctx context.Context, item allocationke
 	if !leased {
 		return fmt.Errorf("record capability reconciliation for %q: invalid lease", item.AllocationID)
 	}
-	if err := RecordCapabilityVerification(ctx, tx, item.AllocationID, admission, now); err != nil {
+	if reconciliation == nil || reconciliation.Attempt != item.Attempt || reconciliation.ConditionSet == nil {
+		return fmt.Errorf("record capability reconciliation for %q: attempt and full condition set are required", item.AllocationID)
+	}
+	durableDependencies, err := LoadCapabilityDependencies(ctx, tx, item.AllocationID)
+	if err != nil {
+		return err
+	}
+	if !sameDependencyProofs(durableDependencies, reconciliation.Dependencies) {
+		return fmt.Errorf("record capability reconciliation for %q: node returned dependencies that differ from immutable create proof", item.AllocationID)
+	}
+	if err := ReplaceCapabilityConditions(ctx, tx, item.AllocationID, reconciliation.ConditionSet, now); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {

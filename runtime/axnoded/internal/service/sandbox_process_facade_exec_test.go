@@ -187,8 +187,8 @@ func TestExecStreamForwardsNonTTYStdinAndExit(t *testing.T) {
 	}
 	assert.Equal(t, "axctl-exec-stream", handler.lastSessionOptions.ContainerID)
 	assert.Equal(t, "true", handler.lastSessionOptions.ContainerLabels[runtimesandboxd.LabelReady])
-	assert.Equal(t, [][]byte{[]byte("payload")}, session.writes)
-	assert.True(t, session.stdinClosed)
+	assert.Equal(t, [][]byte{[]byte("payload")}, session.writesSnapshot())
+	assert.True(t, session.isStdinClosed())
 }
 
 func TestExecStreamForwardsChunksAndExit(t *testing.T) {

@@ -24,12 +24,16 @@ func (r *AllocationTargetRegistry) bind(allocationID, targetID string) {
 	}
 	allocationID = strings.TrimSpace(allocationID)
 	targetID = strings.TrimSpace(targetID)
-	if allocationID == "" || targetID == "" || allocationID == targetID {
+	if allocationID == "" || targetID == "" {
 		return
 	}
 	r.mu.Lock()
 	delete(r.deleted, allocationID)
-	r.targets[allocationID] = targetID
+	if allocationID == targetID {
+		delete(r.targets, allocationID)
+	} else {
+		r.targets[allocationID] = targetID
+	}
 	r.mu.Unlock()
 }
 

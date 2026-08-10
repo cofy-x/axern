@@ -56,11 +56,13 @@ ephemeral_storage_default_limit_bytes = 268435456
 
 [plugin.runtime.runtimes.runsc]
 binary = "/usr/local/bin/runsc"
+base_spec = "/etc/axnoded/runsc-config.json"
 
 [plugin.runtime.runtimes.runsc.options]
 
 [plugin.runtime.runtimes.runc]
 binary = "/usr/bin/runc"
+base_spec = "/etc/axnoded/runc-config.json"
 EOF
 
 mkdir -p \
@@ -70,6 +72,12 @@ mkdir -p \
   /var/lib/axnoded/filestore \
   /run/axnoded \
   /tmp/runsc
+
+# The dashboard demo enables both built-in runtimes. Their configured base
+# specs are mandatory runtime identities, so materialize both before axnoded
+# starts instead of depending on an image entrypoint side effect.
+ensure_node_runtime_base_spec "/usr/bin/runc" "/etc/axnoded/runc-config.json"
+ensure_node_runtime_base_spec "/usr/local/bin/runsc" "/etc/axnoded/runsc-config.json"
 
 AXNODED_PID=""
 rootfs_staging_dir=""

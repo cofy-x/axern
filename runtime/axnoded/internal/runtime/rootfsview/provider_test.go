@@ -69,18 +69,70 @@ func TestOverlayProviderRejectsChangedBackingIdentity(t *testing.T) {
 	require.ErrorContains(t, err, "rootfs backing changed before projection")
 }
 
-func TestInspectMountTargetsNormalizesAndFindsMissingTargets(t *testing.T) {
+func TestCompareBackingIdentityCoversReadonlyAndEffectiveLowerChain(t *testing.T) {
+	expected := RootfsBackingFacts{
+		EffectiveRoot: "/images/rootfs", MountID: 42, Mountpoint: "/images", MountRoot: "/",
+		FSType: "overlay", Source: "overlay", LowerDirs: []string{"/upper/rootfs", "/lower/rootfs"},
+		EffectiveLowerChain: []RootfsBackingLayerFacts{
+			{Path: "/upper/rootfs", MountID: 7, Mountpoint: "/upper", FSType: "xfs", Source: "/dev/loop7"},
+			{Path: "/lower/rootfs", MountID: 8, Mountpoint: "/lower", FSType: "erofs", Source: "/dev/loop8", Readonly: true},
+		},
+	}
+	if err := compareBackingIdentity(expected, expected); err != nil {
+		t.Fatalf("identical backing rejected: %v", err)
+	}
+	readonly := expected
+	readonly.Readonly = true
+	if err := compareBackingIdentity(expected, readonly); err == nil {
+		t.Fatal("read-only remount preserved rootfs backing identity")
+	}
+	reordered := expected
+	reordered.LowerDirs = []string{"/lower/rootfs", "/upper/rootfs"}
+	if err := compareBackingIdentity(expected, reordered); err == nil {
+		t.Fatal("changed effective lower chain preserved rootfs backing identity")
+	}
+	remounted := expected
+	remounted.EffectiveLowerChain = append([]RootfsBackingLayerFacts(nil), expected.EffectiveLowerChain...)
+	remounted.EffectiveLowerChain[1].MountID++
+	if err := compareBackingIdentity(expected, remounted); err == nil {
+		t.Fatal("changed effective lower mount identity was accepted")
+	}
+}
+
+func TestRootfsBackingFactsHasFilesystemIncludesEffectiveLowerChain(t *testing.T) {
+	facts := RootfsBackingFacts{
+		FSType: "overlay",
+		EffectiveLowerChain: []RootfsBackingLayerFacts{
+			{Path: "/upper", FSType: "xfs"},
+			{Path: "/image", FSType: "erofs"},
+		},
+	}
+	assert.True(t, facts.HasFilesystem("EROFS"))
+	assert.False(t, facts.HasFilesystem("ext4"))
+}
+
+func TestInspectMountTargetsFindsMissingTargets(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "etc"), 0750))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "etc", "hostname"), nil, 0644))
 
 	missing, err := inspectMountTargets(root, []MountTarget{
 		{Destination: "/etc/hostname", Kind: TargetRegularFile},
-		{Destination: "/etc/../mnt", Kind: TargetDirectory},
+		{Destination: "/mnt", Kind: TargetDirectory},
 	})
 	require.NoError(t, err)
 	require.Len(t, missing, 1)
 	assert.Equal(t, "/mnt", missing[0].Destination)
+}
+
+func TestInspectMountTargetsRejectsNonCanonicalDestinations(t *testing.T) {
+	root := t.TempDir()
+	for _, destination := range []string{"", " /etc/hosts", "/etc/hosts ", "//etc/hosts", "/etc/../hosts", "/etc/./hosts", "/etc/hosts/"} {
+		t.Run(destination, func(t *testing.T) {
+			_, err := inspectMountTargets(root, []MountTarget{{Destination: destination, Kind: TargetRegularFile}})
+			require.ErrorContains(t, err, "canonical")
+		})
+	}
 }
 
 func TestInspectMountTargetsRejectsSymlinkAndTypeMismatch(t *testing.T) {
@@ -132,7 +184,7 @@ func TestReconcilePersistentViewsRemovesOnlyStaleRuntimeOwnedView(t *testing.T) 
 	} {
 		root := filepath.Join(filestore, projectionViewDir, item.id)
 		require.NoError(t, os.MkdirAll(filepath.Join(root, "merged"), 0755))
-		content := []byte(`{"runtime_name":"` + item.runtime + `","backing":{"mount_id":1,"mountpoint":"/definitely-not-the-active-mount"}}`)
+		content := []byte(`{"runtime_name":"` + item.runtime + `","backing":{"effective_root":"/definitely-not-the-active-mount","mount_id":1,"mountpoint":"/definitely-not-the-active-mount"}}`)
 		require.NoError(t, atomicWrite(filepath.Join(root, "projection.json"), content, 0644))
 	}
 

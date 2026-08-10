@@ -3,10 +3,10 @@ package runtime
 import (
 	"context"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/ocihost"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -38,7 +38,7 @@ func TestRuncHandlerKillContainerUsesOCIKill(t *testing.T) {
 	}
 }
 
-func TestRuncPrepareExecutionEnvelopeUsesCreate(t *testing.T) {
+func TestRuncPrepareContainerUsesCreate(t *testing.T) {
 	rootDir := t.TempDir()
 	writeFakeSandboxdBinary(t, rootDir)
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
@@ -53,24 +53,29 @@ func TestRuncPrepareExecutionEnvelopeUsesCreate(t *testing.T) {
 	handler.ignoreCgroups = true
 	recorder := &recordingExecutor{}
 	handler.common.SetExecutor(recorder)
+	var monitorOptions ocihost.InitMonitorStartOptions
+	handler.common.SetInitMonitorStarter(func(_ context.Context, options ocihost.InitMonitorStartOptions) error {
+		monitorOptions = options
+		return os.WriteFile(options.RuntimePIDPath, []byte("1234\n"), 0644)
+	})
 
 	request := newLocalCreateRequest(t)
 	request.Runtime = "runc"
 	request.Command = []string{"/bin/sh"}
-	envelope, err := handler.PrepareExecutionEnvelope(context.Background(), request, contract.HandlerOptions{ContainerID: "axctl-prewarm"})
+	prepared, err := handler.PrepareContainer(context.Background(), request, contract.HandlerOptions{ContainerID: "allocation-prepared"})
 	assert.NoError(t, err)
-	if assert.NotNil(t, envelope) {
-		assert.Equal(t, "axctl-prewarm", envelope.ContainerID)
-		assert.NotEmpty(t, envelope.BundlePath)
+	if assert.NotNil(t, prepared) {
+		assert.Equal(t, "allocation-prepared", prepared.ContainerID)
+		assert.NotEmpty(t, prepared.BundlePath)
 	}
-	args := recorder.Args()
-	if assert.Len(t, args, 1) {
-		assert.Contains(t, args[0], "create")
-		assert.NotContains(t, args[0], "run")
-	}
+	assert.Contains(t, monitorOptions.RuntimeArgs, "create")
+	assert.NotContains(t, monitorOptions.RuntimeArgs, "run")
+	assert.Equal(t, prepared.Metadata.GetStdout(), monitorOptions.StdoutPath)
+	assert.Equal(t, prepared.Metadata.GetStderr(), monitorOptions.StderrPath)
+	assert.Equal(t, handler.common.RuntimePIDFilePath("allocation-prepared"), monitorOptions.RuntimePIDPath)
 }
 
-func TestRuncActivateExecutionEnvelopeUsesStart(t *testing.T) {
+func TestRuncStartPreparedContainerUsesStart(t *testing.T) {
 	rootDir := t.TempDir()
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
 	if err != nil {
@@ -84,53 +89,28 @@ func TestRuncActivateExecutionEnvelopeUsesStart(t *testing.T) {
 	disableSandboxReadyWait(t, handler)
 	recorder := &recordingExecutor{}
 	handler.common.SetExecutor(recorder)
-	pidPath := handler.common.RuntimePIDFilePath("axctl-prewarm")
+	pidPath := handler.common.RuntimePIDFilePath("allocation-prepared")
 	assert.NoError(t, os.MkdirAll(filepath.Dir(pidPath), 0755))
 
 	assert.NoError(t, os.WriteFile(pidPath, []byte("1234\n"), 0644))
 
-	meta, err := handler.ActivateExecutionEnvelope(context.Background(), &contract.ExecutionEnvelope{
-		ContainerID: "axctl-prewarm",
+	meta, err := handler.StartPreparedContainer(context.Background(), &contract.PreparedContainer{
+		ContainerID: "allocation-prepared",
 		Metadata: &apipb.ContainerMetadata{
-			ID:             "axctl-prewarm",
+			ID:             "allocation-prepared",
 			RuntimeHandler: "runc",
 		},
-	}, contract.HandlerOptions{ContainerID: "axctl-prewarm"})
+	}, contract.HandlerOptions{ContainerID: "allocation-prepared"})
 	assert.NoError(t, err)
 	if assert.NotNil(t, meta) {
-		assert.Equal(t, "axctl-prewarm", meta.ID)
+		assert.Equal(t, "allocation-prepared", meta.ID)
 	}
 
-	deadline := time.Now().Add(time.Second)
-	var args [][]string
-	for time.Now().Before(deadline) {
-		args = recorder.Args()
-		if len(args) >= 2 {
-			foundWait := false
-			for _, entry := range args {
-				if containsArg(entry, "wait") {
-					foundWait = true
-					break
-				}
-			}
-			if foundWait {
-				break
-			}
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if assert.GreaterOrEqual(t, len(args), 2) {
+	args := recorder.Args()
+	if assert.NotEmpty(t, args) {
 		assert.Contains(t, args[0], "start")
-		foundWait := false
-		for _, entry := range args {
-			if containsArg(entry, "wait") {
-				foundWait = true
-				break
-			}
-		}
-		assert.True(t, foundWait)
 	}
-	waitForPersistedExitState(t, func() (contract.Exit, bool, error) {
-		return handler.readExitState("axctl-prewarm")
-	})
+	for _, entry := range args {
+		assert.NotContains(t, entry, "wait", "runc has no portable wait command; the create-time init monitor owns exit collection")
+	}
 }

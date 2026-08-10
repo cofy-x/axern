@@ -33,6 +33,9 @@ func (s *Server) ListNodeCapabilityTransitions(ctx context.Context, req *adminv1
 	if s.deps.CapabilityDiagnostics == nil {
 		return nil, grpcstatus.Error(codes.Unavailable, "capability diagnostics are unavailable")
 	}
+	if req.GetLimit() < 0 {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "limit must be non-negative")
+	}
 	items, err := s.deps.CapabilityDiagnostics.ListNodeCapabilityTransitions(ctx, strings.TrimSpace(req.GetNodeID()), req.GetLimit())
 	if err != nil {
 		return nil, err
@@ -42,8 +45,9 @@ func (s *Server) ListNodeCapabilityTransitions(ctx context.Context, req *adminv1
 		out = append(out, &adminv1.AdminCapabilityTransition{
 			TransitionID: item.TransitionID, NodeID: item.NodeID, SnapshotID: item.SnapshotID,
 			SnapshotSequence: item.SnapshotSequence, Key: item.Key, OldState: item.OldState,
-			NewState: item.NewState, OldEvidenceID: item.OldEvidenceID, NewEvidenceID: item.NewEvidenceID,
-			ReasonCode: item.ReasonCode, Reason: item.Reason, ObservedAt: timestamppb.New(item.ObservedAt),
+			NewState: item.NewState, OldEvidence: item.OldEvidence, NewEvidence: item.NewEvidence,
+			OldReasonCode: item.OldReasonCode, NewReasonCode: item.NewReasonCode,
+			Reason: item.Reason, ObservedAt: timestamppb.New(item.ObservedAt),
 			ReportedAt: timestamppb.New(item.ReportedAt),
 		})
 	}
@@ -53,6 +57,9 @@ func (s *Server) ListNodeCapabilityTransitions(ctx context.Context, req *adminv1
 func (s *Server) ListCapabilityReconcileQueue(ctx context.Context, req *adminv1.ListCapabilityReconcileQueueRequest) (*adminv1.ListCapabilityReconcileQueueResponse, error) {
 	if s.deps.CapabilityDiagnostics == nil {
 		return nil, grpcstatus.Error(codes.Unavailable, "capability diagnostics are unavailable")
+	}
+	if req.GetLimit() < 0 {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "limit must be non-negative")
 	}
 	items, err := s.deps.CapabilityDiagnostics.ListCapabilityReconcileQueue(ctx, strings.TrimSpace(req.GetNodeID()), req.GetLimit())
 	if err != nil {
@@ -77,11 +84,16 @@ func (s *Server) GetAllocationCapabilityDiagnostics(ctx context.Context, req *ad
 	if err != nil {
 		return nil, err
 	}
-	return &adminv1.GetAllocationCapabilityDiagnosticsResponse{
-		AllocationID: diagnostics.AllocationID, NodeID: diagnostics.NodeID,
+	response := &adminv1.GetAllocationCapabilityDiagnosticsResponse{
+		AllocationID: diagnostics.AllocationID, NodeID: diagnostics.NodeID, AllocationAttempt: diagnostics.Attempt,
 		RequiredDependencies: diagnostics.Dependencies, AdmittedDependencies: diagnostics.AdmittedDependencies,
-		Conditions: diagnostics.Conditions, Reconcile: capabilityReconcileItemToProto(diagnostics.Reconcile),
-	}, nil
+		ConditionSet: diagnostics.ConditionSet, Reconcile: capabilityReconcileItemToProto(diagnostics.Reconcile),
+		CreateAdmissionRecorded: diagnostics.CreateAdmissionRecorded, CreateDependencySetDigest: diagnostics.CreateDependencySetDigest,
+	}
+	if diagnostics.CreateAdmittedAt != nil {
+		response.CreateAdmittedAt = timestamppb.New(*diagnostics.CreateAdmittedAt)
+	}
+	return response, nil
 }
 
 func capabilityReconcileItemToProto(item *adminkernel.CapabilityReconcileItem) *adminv1.AdminCapabilityReconcileItem {

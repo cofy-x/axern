@@ -25,6 +25,7 @@ type fakeSandboxService struct {
 	inventoryReady     bool
 	runtimeStatuses    []service.RuntimeStatus
 	startRequests      []*runtimeapi.StartRequest
+	nodeLocalStarts    []*runtimeapi.StartRequest
 	deleteRequests     []*runtimeapi.DeleteRequest
 	listRequests       []*runtimeapi.ListContainersRequest
 	containers         []*runtimeapi.ContainerStatus
@@ -43,6 +44,13 @@ func (f *fakeSandboxService) Start(_ context.Context, req *runtimeapi.StartReque
 		ID:      req.GetContainerID(),
 		Runtime: req.GetRuntimeTemplate().GetSandbox(),
 		State:   runtimeapi.ContainerState_CONTAINER_RUNNING,
+	})
+	return &runtimeapi.StartResponse{Code: 0, ID: req.GetContainerID(), Message: "ok"}, nil
+}
+func (f *fakeSandboxService) StartNodeLocalSandbox(_ context.Context, req *runtimeapi.StartRequest) (*runtimeapi.StartResponse, error) {
+	f.nodeLocalStarts = append(f.nodeLocalStarts, proto.Clone(req).(*runtimeapi.StartRequest))
+	f.containers = append(f.containers, &runtimeapi.ContainerStatus{
+		ID: req.GetContainerID(), Runtime: req.GetRuntimeTemplate().GetSandbox(), State: runtimeapi.ContainerState_CONTAINER_RUNNING,
 	})
 	return &runtimeapi.StartResponse{Code: 0, ID: req.GetContainerID(), Message: "ok"}, nil
 }
@@ -269,10 +277,10 @@ func TestDashboardStartActionCreatesManagedSandbox(t *testing.T) {
 	if resp.Code != http.StatusSeeOther {
 		t.Fatalf("status code = %d, want %d", resp.Code, http.StatusSeeOther)
 	}
-	if len(svc.startRequests) != 1 {
-		t.Fatalf("start request count = %d, want 1", len(svc.startRequests))
+	if len(svc.nodeLocalStarts) != 1 || len(svc.startRequests) != 0 {
+		t.Fatalf("node-local starts = %d generic starts = %d, want 1/0", len(svc.nodeLocalStarts), len(svc.startRequests))
 	}
-	startReq := svc.startRequests[0]
+	startReq := svc.nodeLocalStarts[0]
 	if startReq.GetContainerID() != spec.SandboxID {
 		t.Fatalf("container id = %q, want %q", startReq.GetContainerID(), spec.SandboxID)
 	}

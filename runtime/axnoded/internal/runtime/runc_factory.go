@@ -64,6 +64,7 @@ func NewRuncServiceHandler(cfg config.Config, runtimeName string, runtimeCfg con
 		ignoreCgroups:                     cgroupMode == config.CgroupEnforcementDisabledDev,
 		ephemeralStorageDefaultLimitBytes: cfg.RuntimeConfig.EphemeralStorageDefaultLimitBytes,
 		writableCapacity:                  writableCapacity,
+		filestoreDir:                      filestoreDir,
 		containerRoot:                     containerRoot,
 		rootfsViews:                       rootfsViews,
 		releaseFilestore:                  func() { releaseFilestore(false) },

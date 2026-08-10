@@ -24,7 +24,7 @@ README or `docs/`, not here.
 
   | Package | Owns |
   | --- | --- |
-  | [`internal/service/allocation`](internal/service/allocation) | allocation start/delete lifecycle, capability dependency persistence and verification, runtime template mapping, execution envelope, rootfs preparation, start metrics |
+  | [`internal/service/allocation`](internal/service/allocation) | allocation start/delete lifecycle, capability dependency persistence and verification, runtime template mapping, prepared-container enforcement gate, rootfs preparation, start metrics |
   | [`internal/service/controlplane`](internal/service/controlplane) | allocation, capability-condition, and exit report shaping plus node reporter construction |
   | [`internal/service/imageprocess`](internal/service/imageprocess) | image-backed process orchestration, actor lifecycle, mount resolution, stream handling, cleanup policy |
   | [`internal/service/networking`](internal/service/networking) | sandbox network lookup, DNAT lifecycle, activation cleanup, HTTP proxy transport |

@@ -2,8 +2,6 @@ package langruntime
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"sort"
 	"time"
 
@@ -18,7 +16,6 @@ type retentionEviction struct {
 	rootfsType string
 	reason     string
 	retained   bool
-	envelope   *ExecutionEnvelope
 }
 
 func (lm *LangRTManager) runSweeper(stopCh <-chan struct{}, doneCh chan<- struct{}) {
@@ -122,7 +119,6 @@ func (lm *LangRTManager) prepareEvictionLocked(lr *LanguageRuntime, reason strin
 		rootfsType: rootfsTypeLabelFromConfig(lr.RootFS.Config()),
 		reason:     reason,
 		retained:   lr.retained,
-		envelope:   lr.ClearExecutionEnvelope(),
 	}
 
 	lr.retained = false
@@ -145,12 +141,6 @@ func (lm *LangRTManager) executeEvictions(ctx context.Context, evictions []reten
 		}
 
 		releasedRootfs := false
-		if eviction.envelope != nil && eviction.envelope.Destroy != nil {
-			if err := destroyExecutionEnvelope(ctx, eviction.envelope); err != nil {
-				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("destroy execution envelope for runtime %s: %w", eviction.runtime.ID, err))
-				logrus.WithError(err).Warnf("destroy execution envelope for runtime %s failed", eviction.runtime.ID)
-			}
-		}
 		if eviction.rootfs != nil {
 			if eviction.retained {
 				releasedRootfs = eviction.rootfs.ReleaseRetainedRef()
@@ -228,5 +218,4 @@ func (lm *LangRTManager) updateRetentionGaugesLocked() {
 	for rootfsType, count := range rootfsCounts {
 		metrics.RecordRetainedRootfsGauge(rootfsType, count)
 	}
-	lm.updateExecutionEnvelopeGaugesLocked()
 }

@@ -39,13 +39,12 @@ type StartupScenarioReport struct {
 }
 
 type StartupMatrixGateSummary struct {
-	ResourceAllocateStillDominant         bool `json:"resourceAllocateStillDominant"`
-	RuntimeBundlePrepareStillDominant     bool `json:"runtimeBundlePrepareStillDominant"`
-	RuncEnvelopeParityAchieved            bool `json:"runcEnvelopeParityAchieved"`
-	RuntimeLaunchStillDominantAfterParity bool `json:"runtimeLaunchStillDominantAfterEnvelopeParity"`
-	ImagePathDominant                     bool `json:"imagePathDominant"`
-	HeavierLaunchMechanismCandidate       bool `json:"heavierLaunchMechanismCandidate"`
-	SnapshotRestoreStillDeferred          bool `json:"snapshotRestoreStillDeferred"`
+	ResourceAllocateStillDominant     bool `json:"resourceAllocateStillDominant"`
+	RuntimeBundlePrepareStillDominant bool `json:"runtimeBundlePrepareStillDominant"`
+	RuntimeLaunchDominant             bool `json:"runtimeLaunchDominant"`
+	ImagePathDominant                 bool `json:"imagePathDominant"`
+	HeavierLaunchMechanismCandidate   bool `json:"heavierLaunchMechanismCandidate"`
+	SnapshotRestoreStillDeferred      bool `json:"snapshotRestoreStillDeferred"`
 }
 
 type StartupMatrixReport struct {
@@ -186,11 +185,6 @@ func BuildStartupMatrixReport(scenarios []StartupScenarioReport) StartupMatrixRe
 			continue
 		}
 		warmScenarioCount++
-		if scenario.Runtime == "runc" && scenario.Startup.Envelope != nil &&
-			scenario.Startup.Envelope.PreparedCount > 0 &&
-			scenario.Startup.Envelope.HitCount > 0 {
-			report.GateSummary.RuncEnvelopeParityAchieved = true
-		}
 		if dominantP95 == "resource_allocate" || dominantP99 == "resource_allocate" {
 			report.GateSummary.ResourceAllocateStillDominant = true
 		}
@@ -206,13 +200,12 @@ func BuildStartupMatrixReport(scenarios []StartupScenarioReport) StartupMatrixRe
 	}
 
 	if warmScenarioCount > 0 && runtimeLaunchDominantCount*2 >= warmScenarioCount {
-		report.GateSummary.RuntimeLaunchStillDominantAfterParity = true
+		report.GateSummary.RuntimeLaunchDominant = true
 	}
 	report.GateSummary.HeavierLaunchMechanismCandidate =
-		report.GateSummary.RuncEnvelopeParityAchieved &&
-			!report.GateSummary.ResourceAllocateStillDominant &&
+		!report.GateSummary.ResourceAllocateStillDominant &&
 			!report.GateSummary.RuntimeBundlePrepareStillDominant &&
-			report.GateSummary.RuntimeLaunchStillDominantAfterParity
+			report.GateSummary.RuntimeLaunchDominant
 	report.GateSummary.SnapshotRestoreStillDeferred = true
 	return report
 }

@@ -3,6 +3,7 @@ package publicv1
 import (
 	"testing"
 
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -195,6 +196,18 @@ func TestValidateExecutionConfigImageMounts(t *testing.T) {
 				t.Fatalf("code = %v, want InvalidArgument (err=%v)", grpcstatus.Code(err), err)
 			}
 		})
+	}
+}
+
+func TestValidateExecutionConfigCapabilitiesRejectsMalformedRequirements(t *testing.T) {
+	for _, config := range []*commonv1.ExecutionConfig{
+		{ExtensionCapabilityRequirements: []*capabilityv1.ExtensionCapabilityRequirement{nil}},
+		{ExtensionCapabilityRequirements: []*capabilityv1.ExtensionCapabilityRequirement{{}}},
+		{ExtensionCapabilityRequirements: []*capabilityv1.ExtensionCapabilityRequirement{{Capability: &capabilityv1.ExtensionCapability{Name: " example.com/accelerator"}}}},
+	} {
+		if err := validateExecutionConfigCapabilities(config); grpcstatus.Code(err) != codes.InvalidArgument {
+			t.Fatalf("validateExecutionConfigCapabilities(%+v) code = %s, want InvalidArgument", config, grpcstatus.Code(err))
+		}
 	}
 }
 

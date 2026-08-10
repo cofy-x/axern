@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -21,10 +22,20 @@ import (
 const dialTimeout = 15 * time.Second
 
 type NodeClients struct {
-	Lifecycle privatenodev1.NodeLifecycleClient
-	Node      nodesandboxv1.NodeSandboxClient
-	Health    healthgrpc.HealthClient
-	conn      *grpc.ClientConn
+	Lifecycle    privatenodev1.NodeLifecycleClient
+	Node         nodesandboxv1.NodeSandboxClient
+	Health       healthgrpc.HealthClient
+	inventoryURL string
+	httpClient   *http.Client
+	conn         *grpc.ClientConn
+}
+
+type NodeClientOption func(*NodeClients)
+
+func WithInventoryURL(url string) NodeClientOption {
+	return func(clients *NodeClients) {
+		clients.inventoryURL = url
+	}
 }
 
 type SandboxHandle struct {
@@ -66,17 +77,25 @@ func DialGRPC(address string) (*grpc.ClientConn, error) {
 	)
 }
 
-func DialNodeClients(address string) (*NodeClients, error) {
+func DialNodeClients(address string, options ...NodeClientOption) (*NodeClients, error) {
 	conn, err := DialGRPC(address)
 	if err != nil {
 		return nil, err
 	}
-	return &NodeClients{
-		Lifecycle: privatenodev1.NewNodeLifecycleClient(conn),
-		Node:      nodesandboxv1.NewNodeSandboxClient(conn),
-		Health:    healthgrpc.NewHealthClient(conn),
-		conn:      conn,
-	}, nil
+	clients := &NodeClients{
+		Lifecycle:    privatenodev1.NewNodeLifecycleClient(conn),
+		Node:         nodesandboxv1.NewNodeSandboxClient(conn),
+		Health:       healthgrpc.NewHealthClient(conn),
+		inventoryURL: firstNonEmptyString(os.Getenv("AXNODED_INVENTORY_URL"), "http://127.0.0.1:23001/inventoryz"),
+		httpClient:   &http.Client{Timeout: 10 * time.Second},
+		conn:         conn,
+	}
+	for _, option := range options {
+		if option != nil {
+			option(clients)
+		}
+	}
+	return clients, nil
 }
 
 func (c *NodeClients) Close() error {
@@ -102,11 +121,15 @@ func CreateAllocationWithAttempt(ctx context.Context, clients *NodeClients, sand
 	if sandboxID == "" {
 		sandboxID = NewSandboxID("verify")
 	}
+	preparedSpec, err := prepareCapabilityDependencies(ctx, clients, spec)
+	if err != nil {
+		return nil, fmt.Errorf("prepare capability dependencies: %w", err)
+	}
 	req := &privatenodev1.CreateAllocationRequest{
 		AllocationID: sandboxID,
 		Attempt:      attempt,
 		NodeID:       "",
-		Config:       spec,
+		Config:       preparedSpec,
 	}
 	resp, err := clients.Lifecycle.CreateAllocation(ctx, req)
 	if err != nil {
@@ -118,6 +141,15 @@ func CreateAllocationWithAttempt(ctx context.Context, clients *NodeClients, sand
 		Attempt:    resp.GetAttempt(),
 		LeaseToken: "verify-local-lease",
 	}, nil
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func GetAllocationStatus(ctx context.Context, clients *NodeClients, sandboxID string) (*privatenodev1.GetAllocationStatusResponse, error) {

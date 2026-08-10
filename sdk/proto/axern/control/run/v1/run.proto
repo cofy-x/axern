@@ -35,9 +35,9 @@ message Run {
   bool exit_code_known = 13;
   string message = 14;
   axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 15;
-  // Reserved for durable output metadata once output retention is owned by
-  // the control plane rather than inferred from a node-local allocation.
-  repeated axern.control.capability.v1.CapabilityCondition capability_conditions = 16;
+	// Full, monotonically revised allocation capability condition projection.
+	// It is independent from run lifecycle status and message.
+	axern.control.capability.v1.CapabilityConditionSet capability_conditions = 16;
   reserved 17 to 18;
 }
 

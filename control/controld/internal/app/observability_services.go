@@ -403,6 +403,35 @@ func (a *App) observeCapabilityReconcileAttempts(ctx context.Context, observe sd
 	return nil
 }
 
+func (a *App) observeCapabilityConditionAllocations(ctx context.Context, observe sdkobs.Int64GaugeObserver) error {
+	rows, err := a.db.Pool().Query(ctx, `
+		SELECT condition->>'state', count(DISTINCT allocation_id)
+		FROM allocation_capability_conditions
+		WHERE condition->>'state' IN (
+			'CAPABILITY_CONDITION_STATE_DEGRADED',
+			'CAPABILITY_CONDITION_STATE_FAILED',
+			'CAPABILITY_CONDITION_STATE_UNKNOWN'
+		)
+		GROUP BY condition->>'state'
+	`)
+	if err != nil {
+		return fmt.Errorf("query capability condition allocation metrics: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var state string
+		var count int64
+		if err := rows.Scan(&state, &count); err != nil {
+			return fmt.Errorf("scan capability condition allocation metrics: %w", err)
+		}
+		observe(count, attribute.String(sdkobs.AttrState, state))
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate capability condition allocation metrics: %w", err)
+	}
+	return nil
+}
+
 type capabilityReconcileQueueMetric struct {
 	pendingDue          int64
 	pendingScheduled    int64

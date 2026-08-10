@@ -25,7 +25,7 @@ type AllocationStore interface {
 	BeginAllocationRelease(ctx context.Context, serviceID, allocationID string, now time.Time) (*servicev1.Service, *AllocationRecord, error)
 	MarkAllocationCreateFailed(ctx context.Context, serviceID, allocationID, message string, now time.Time) (*servicev1.Service, error)
 	RecordWorkspacePreparation(ctx context.Context, serviceID, allocationID string, attempt int64, facts *commonv1.WorkspacePreparationFacts, now time.Time) error
-	RecordCapabilityVerification(ctx context.Context, allocationID string, admission *allocationkernel.CapabilityAdmission, now time.Time) error
+	RecordCapabilityAdmission(ctx context.Context, allocationID string, admission *allocationkernel.CapabilityAdmission, now time.Time) error
 	CompleteAllocationRelease(ctx context.Context, allocationID string, now time.Time) error
 	CompleteClaimedAllocationRelease(ctx context.Context, allocationID, owner string, now time.Time) (bool, error)
 }

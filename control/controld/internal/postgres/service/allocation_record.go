@@ -8,7 +8,6 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
-	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"github.com/jackc/pgx/v5"
@@ -16,25 +15,24 @@ import (
 )
 
 type allocationRecord struct {
-	AllocationID         string
-	OwnerType            string
-	OwnerID              string
-	DesiredSpecDigest    string
-	EnvironmentID        string
-	NodeID               string
-	NodeTarget           string
-	Attempt              int64
-	Status               commonv1.AllocationStatus
-	Ready                bool
-	ReadinessMessage     string
-	ExitCode             int32
-	ExitCodeKnown        bool
-	Message              string
-	CreatedAt            time.Time
-	ReadinessProbe       *servicev1.ServiceProbe
-	LivenessProbe        *servicev1.ServiceProbe
-	Config               *commonv1.ExecutionConfig
-	CapabilityConditions *capabilityv1.CapabilityConditionSet
+	AllocationID      string
+	OwnerType         string
+	OwnerID           string
+	DesiredSpecDigest string
+	EnvironmentID     string
+	NodeID            string
+	NodeTarget        string
+	Attempt           int64
+	Status            commonv1.AllocationStatus
+	Ready             bool
+	ReadinessMessage  string
+	ExitCode          int32
+	ExitCodeKnown     bool
+	Message           string
+	CreatedAt         time.Time
+	ReadinessProbe    *servicev1.ServiceProbe
+	LivenessProbe     *servicev1.ServiceProbe
+	Config            *commonv1.ExecutionConfig
 }
 
 func (s *PGStore) serviceAllocation(ctx context.Context, tx pgx.Tx, serviceID, allocationID string) (*servicekernel.AllocationRecord, error) {
@@ -58,7 +56,7 @@ func (s *PGStore) allocationRecordsForStatusBatch(ctx context.Context, tx pgx.Tx
 	}
 	rows, err := tx.Query(ctx, `
 		SELECT a.allocation_id, a.owner_type, a.owner_id, a.desired_spec_digest, a.environment_id, a.node_id, n.node_target, a.attempt, a.status, a.ready,
-			a.readiness_message, a.exit_code, a.exit_code_known, a.message, a.created_at, a.readiness_probe, a.liveness_probe, a.config, a.capability_conditions
+			a.readiness_message, a.exit_code, a.exit_code_known, a.message, a.created_at, a.readiness_probe, a.liveness_probe, a.config
 		FROM allocations a
 		JOIN nodes n ON n.node_id = a.node_id
 		WHERE a.allocation_id = ANY($1::text[])
@@ -89,7 +87,7 @@ type statusAllocationRecordScanner interface {
 func scanStatusAllocationRecord(row statusAllocationRecordScanner) (*allocationRecord, error) {
 	record := &allocationRecord{}
 	var statusText string
-	var configJSON, readinessProbeJSON, livenessProbeJSON, capabilityConditionsJSON []byte
+	var configJSON, readinessProbeJSON, livenessProbeJSON []byte
 	if err := row.Scan(
 		&record.AllocationID,
 		&record.OwnerType,
@@ -109,7 +107,6 @@ func scanStatusAllocationRecord(row statusAllocationRecordScanner) (*allocationR
 		&readinessProbeJSON,
 		&livenessProbeJSON,
 		&configJSON,
-		&capabilityConditionsJSON,
 	); err != nil {
 		return nil, fmt.Errorf("scan service allocation for status batch: %w", err)
 	}
@@ -131,10 +128,6 @@ func scanStatusAllocationRecord(row statusAllocationRecordScanner) (*allocationR
 	record.Config = &commonv1.ExecutionConfig{}
 	if err := protojson.Unmarshal(configJSON, record.Config); err != nil {
 		return nil, fmt.Errorf("unmarshal allocation config: %w", err)
-	}
-	record.CapabilityConditions = &capabilityv1.CapabilityConditionSet{}
-	if err := protojson.Unmarshal(capabilityConditionsJSON, record.CapabilityConditions); err != nil {
-		return nil, fmt.Errorf("unmarshal allocation capability conditions: %w", err)
 	}
 	return record, nil
 }

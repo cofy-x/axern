@@ -54,7 +54,7 @@ for scenario in "${SCENARIOS[@]}"; do
       > "${scenario_report}"
 
   jq -r --arg scenario "${scenario}" '
-    "startup_matrix_scenario scenario=\($scenario) cold_samples=\(.coldSamples) warm_samples=\(.warmSamples) cold_p95=\(.startup.classes.cold.quantiles.p95Seconds // 0) warm_p95=\(.startup.classes.warm.quantiles.p95Seconds // 0) warm_dominant_p95=\(.startup.dominantPhaseP95.warm // "") warm_dominant_p99=\(.startup.dominantPhaseP99.warm // "") bundle_hit_rate=\(.startup.bundle.hitRate // 0) envelope_hits=\(.startup.executionEnvelope.hitCount // 0) envelope_prepared=\(.startup.executionEnvelope.preparedCount // 0)"' \
+    "startup_matrix_scenario scenario=\($scenario) cold_samples=\(.coldSamples) warm_samples=\(.warmSamples) cold_p95=\(.startup.classes.cold.quantiles.p95Seconds // 0) warm_p95=\(.startup.classes.warm.quantiles.p95Seconds // 0) warm_dominant_p95=\(.startup.dominantPhaseP95.warm // "") warm_dominant_p99=\(.startup.dominantPhaseP99.warm // "") bundle_hit_rate=\(.startup.bundle.hitRate // 0)"' \
     "${scenario_report}" >&2
 done
 

@@ -247,6 +247,10 @@ var (
 		Name:        "axern.controld_capability_reconcile_attempts_current",
 		Description: "Maximum current allocation capability reconcile attempt count.",
 	}
+	MetricCapabilityConditionAllocationsCurrent = sdkobs.Instrument{
+		Name:        "axern.controld_capability_condition_allocations_current",
+		Description: "Current allocations affected by a non-healthy capability condition.",
+	}
 	MetricCapabilityReconcileTotal = sdkobs.Instrument{
 		Name:        "axern.controld_capability_reconcile_total",
 		Description: "Allocation capability reconciliation outcomes by bounded result.",

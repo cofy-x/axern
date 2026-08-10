@@ -18,15 +18,17 @@ import (
 )
 
 type capabilityTransition struct {
-	key           *capabilityv1.CapabilityKey
-	keyID         string
-	oldState      capabilityv1.CapabilityState
-	newState      capabilityv1.CapabilityState
-	oldEvidenceID string
-	newEvidenceID string
-	reasonCode    capabilityv1.CapabilityReasonCode
-	reason        string
-	observedAt    time.Time
+	snapshotSequence int64
+	key              *capabilityv1.CapabilityKey
+	keyID            string
+	oldState         capabilityv1.CapabilityState
+	newState         capabilityv1.CapabilityState
+	oldEvidence      *capabilityv1.CapabilityEvidence
+	newEvidence      *capabilityv1.CapabilityEvidence
+	oldReasonCode    capabilityv1.CapabilityReasonCode
+	newReasonCode    capabilityv1.CapabilityReasonCode
+	reason           string
+	observedAt       time.Time
 }
 
 func persistCapabilityReport(ctx context.Context, tx pgx.Tx, nodeID string, previous, next *nodev1.NodeSummary, reportedAt time.Time) ([]capabilityTransition, error) {
@@ -55,16 +57,34 @@ func persistCapabilityReport(ctx context.Context, tx pgx.Tx, nodeID string, prev
 			return nil, fmt.Errorf("marshal capability key %q: %w", transition.keyID, err)
 		}
 		transitionID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(nodeID+"\x00"+nextSnapshot.GetSnapshotID()+"\x00"+transition.keyID)).String()
-		if _, err := tx.Exec(ctx, `
+		oldEvidenceJSON, err := marshalNullableCapabilityEvidence(transition.oldEvidence)
+		if err != nil {
+			return nil, fmt.Errorf("marshal old capability evidence %q: %w", transition.keyID, err)
+		}
+		newEvidenceJSON, err := marshalNullableCapabilityEvidence(transition.newEvidence)
+		if err != nil {
+			return nil, fmt.Errorf("marshal new capability evidence %q: %w", transition.keyID, err)
+		}
+		tag, err := tx.Exec(ctx, `
 			INSERT INTO node_capability_transitions (
 				transition_id, node_id, snapshot_id, snapshot_sequence, capability_key, capability_key_id,
-				old_state, new_state, old_evidence_id, new_evidence_id, reason_code, reason, observed_at, reported_at
-			) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+				old_state, new_state, old_evidence, new_evidence,
+				old_reason_code, new_reason_code, reason, observed_at, reported_at
+			) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9::jsonb, $10::jsonb, $11, $12, $13, $14, $15)
 			ON CONFLICT (node_id, snapshot_id, capability_key_id) DO NOTHING
 		`, transitionID, nodeID, nextSnapshot.GetSnapshotID(), nextSnapshot.GetSequence(), string(keyJSON), transition.keyID,
-			transition.oldState.String(), transition.newState.String(), transition.oldEvidenceID, transition.newEvidenceID,
-			transition.reasonCode.String(), transition.reason, transition.observedAt, reportedAt.UTC()); err != nil {
+			transition.oldState.String(), transition.newState.String(), string(oldEvidenceJSON), string(newEvidenceJSON),
+			transition.oldReasonCode.String(), transition.newReasonCode.String(),
+			transition.reason, transition.observedAt, reportedAt.UTC())
+		if err != nil {
 			return nil, fmt.Errorf("insert capability transition %q: %w", transition.keyID, err)
+		}
+		// An exact report replay returns before transition generation. Reaching
+		// this conflict therefore means a node reused an older snapshot identity
+		// for a different sequence or payload. Failing the report preserves the
+		// transition journal instead of silently losing history.
+		if tag.RowsAffected() != 1 {
+			return nil, fmt.Errorf("capability snapshot identity %q was already used for capability %q", nextSnapshot.GetSnapshotID(), transition.keyID)
 		}
 	}
 	if len(transitions) == 0 {
@@ -74,6 +94,13 @@ func persistCapabilityReport(ctx context.Context, tx pgx.Tx, nodeID string, prev
 		return nil, err
 	}
 	return transitions, nil
+}
+
+func marshalNullableCapabilityEvidence(evidence *capabilityv1.CapabilityEvidence) ([]byte, error) {
+	if evidence == nil {
+		return []byte("null"), nil
+	}
+	return protojson.Marshal(evidence)
 }
 
 func persistCapabilityInstance(ctx context.Context, tx pgx.Tx, nodeID string, previous, next *capabilityv1.CapabilitySnapshot, reportedAt time.Time) error {
@@ -135,12 +162,29 @@ func validateSnapshotAdvance(previous, next *capabilityv1.CapabilitySnapshot) (b
 		if next.GetCollectedAt().AsTime().Before(previous.GetCollectedAt().AsTime()) {
 			return false, fmt.Errorf("capability snapshot collected_at must not move backwards within node instance %q", next.GetNodeInstanceID())
 		}
+		if !sameObservationKeys(previous, next) {
+			return false, fmt.Errorf("capability observation ownership cannot change within node instance %q", next.GetNodeInstanceID())
+		}
 		return false, nil
 	}
 	if next.GetSequence() == previous.GetSequence() && next.GetSnapshotID() == previous.GetSnapshotID() && proto.Equal(next, previous) {
 		return true, nil
 	}
 	return false, fmt.Errorf("capability snapshot sequence must increase within node instance %q", next.GetNodeInstanceID())
+}
+
+func sameObservationKeys(left, right *capabilityv1.CapabilitySnapshot) bool {
+	leftByKey, leftErr := observationsByKey(left)
+	rightByKey, rightErr := observationsByKey(right)
+	if leftErr != nil || rightErr != nil || len(leftByKey) != len(rightByKey) {
+		return false
+	}
+	for key := range leftByKey {
+		if _, exists := rightByKey[key]; !exists {
+			return false
+		}
+	}
+	return true
 }
 
 func capabilityTransitions(previous, next *capabilityv1.CapabilitySnapshot, now time.Time) ([]capabilityTransition, error) {
@@ -168,34 +212,47 @@ func capabilityTransitions(previous, next *capabilityv1.CapabilitySnapshot, now 
 	for _, id := range ids {
 		oldObservation := oldByKey[id]
 		newObservation := newByKey[id]
-		oldState := effectiveState(previous, oldObservation, now)
-		newState := effectiveState(next, newObservation, now)
-		oldEvidence := oldObservation.GetEvidence().GetEvidenceID()
-		newEvidence := newObservation.GetEvidence().GetEvidenceID()
-		if oldState == newState && oldEvidence == newEvidence {
+		// A transition is historical evidence. Evaluate each side at the time
+		// its own snapshot was published; evaluating the old side at the new
+		// report time would retroactively turn an expired AVAILABLE observation
+		// into UNKNOWN and destroy the actual state change.
+		evaluation, changed := nodecapability.EvaluateObservationTransition(
+			previous, oldObservation, snapshotEvaluationTime(previous, now),
+			next, newObservation, snapshotEvaluationTime(next, now),
+		)
+		if !changed {
 			continue
 		}
 		key := newObservation.GetKey()
 		if key == nil {
 			key = oldObservation.GetKey()
 		}
-		observedAt := now.UTC()
-		if newObservation.GetObservedAt() != nil {
+		observedAt := snapshotEvaluationTime(next, now).UTC()
+		if newObservation != nil && newObservation.GetObservedAt() != nil {
 			observedAt = newObservation.GetObservedAt().AsTime().UTC()
 		}
 		result = append(result, capabilityTransition{
-			key:           key,
-			keyID:         id,
-			oldState:      oldState,
-			newState:      newState,
-			oldEvidenceID: oldEvidence,
-			newEvidenceID: newEvidence,
-			reasonCode:    newObservation.GetReasonCode(),
-			reason:        newObservation.GetReason(),
-			observedAt:    observedAt,
+			snapshotSequence: next.GetSequence(),
+			key:              key,
+			keyID:            id,
+			oldState:         evaluation.Previous.State,
+			newState:         evaluation.Current.State,
+			oldEvidence:      cloneEvidence(oldObservation.GetEvidence()),
+			newEvidence:      cloneEvidence(newObservation.GetEvidence()),
+			oldReasonCode:    evaluation.Previous.ReasonCode,
+			newReasonCode:    evaluation.Current.ReasonCode,
+			reason:           evaluation.Current.Reason,
+			observedAt:       observedAt,
 		})
 	}
 	return result, nil
+}
+
+func snapshotEvaluationTime(snapshot *capabilityv1.CapabilitySnapshot, fallback time.Time) time.Time {
+	if snapshot != nil && snapshot.GetCollectedAt() != nil {
+		return snapshot.GetCollectedAt().AsTime()
+	}
+	return fallback
 }
 
 func observationsByKey(snapshot *capabilityv1.CapabilitySnapshot) (map[string]*capabilityv1.CapabilityObservation, error) {
@@ -213,125 +270,75 @@ func observationsByKey(snapshot *capabilityv1.CapabilitySnapshot) (map[string]*c
 	return result, nil
 }
 
-func effectiveState(snapshot *capabilityv1.CapabilitySnapshot, observation *capabilityv1.CapabilityObservation, now time.Time) capabilityv1.CapabilityState {
-	if observation == nil {
-		return capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN
-	}
-	if _, available := nodecapability.AvailableObservation(snapshot, observation.GetKey(), now); available {
-		return capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
-	}
-	if observation.GetState() == capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
-		return capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN
-	}
-	return observation.GetState()
-}
-
 func enqueueAffectedAllocations(ctx context.Context, tx pgx.Tx, nodeID string, transitions []capabilityTransition, now time.Time) error {
-	changed := make(map[string]struct{}, len(transitions))
+	changed := make(map[string]int64, len(transitions))
 	for _, transition := range transitions {
-		changed[transition.keyID] = struct{}{}
+		changed[transition.keyID] = max(changed[transition.keyID], transition.snapshotSequence)
+	}
+	keyIDs := make([]string, 0, len(changed))
+	for keyID := range changed {
+		keyIDs = append(keyIDs, keyID)
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT allocation_id, capability_dependencies
-		FROM allocations
-		WHERE node_id = $1 AND status NOT IN ($2, $3, $4)
-		FOR UPDATE
-	`, nodeID,
-		commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED.String(),
-		commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-		commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String())
+		SELECT d.allocation_id, d.capability_key_id
+		FROM allocation_capability_dependencies d
+		JOIN allocations a ON a.allocation_id = d.allocation_id
+		WHERE d.node_id = $1 AND d.capability_key_id = ANY($2::text[])
+		  AND a.status IN ($3, $4, $5, $6)
+		  AND d.loss_policy <> $7
+		ORDER BY d.allocation_id, d.capability_key_id
+		FOR UPDATE OF d
+	`, nodeID, keyIDs,
+		commonv1.AllocationStatus_ALLOCATION_STATUS_RESERVED.String(),
+		commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND.String(),
+		commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING.String(),
+		commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(),
+		capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_ADMISSION_ONLY.String())
 	if err != nil {
 		return fmt.Errorf("load allocations affected by capability transitions: %w", err)
 	}
 	defer rows.Close()
-	type affectedAllocation struct {
-		id           string
-		dependencies []*capabilityv1.CapabilityDependency
-	}
-	var affected []affectedAllocation
+	affected := make(map[string][]string)
 	for rows.Next() {
-		var allocationID string
-		var dependenciesJSON []byte
-		if err := rows.Scan(&allocationID, &dependenciesJSON); err != nil {
+		var allocationID, keyID string
+		if err := rows.Scan(&allocationID, &keyID); err != nil {
 			return fmt.Errorf("scan capability-dependent allocation: %w", err)
 		}
-		set := &capabilityv1.CapabilityDependencySet{}
-		if len(dependenciesJSON) > 0 {
-			if err := protojson.Unmarshal(dependenciesJSON, set); err != nil {
-				return fmt.Errorf("unmarshal allocation %q capability dependencies: %w", allocationID, err)
-			}
-		}
-		pending := make([]*capabilityv1.CapabilityDependency, 0, len(set.GetDependencies()))
-		for _, dependency := range set.GetDependencies() {
-			id, err := nodecapability.KeyID(dependency.GetKey())
-			if err != nil {
-				return err
-			}
-			if _, needsReconcile := changed[id]; needsReconcile {
-				pending = append(pending, dependency)
-			}
-		}
-		if len(pending) > 0 {
-			affected = append(affected, affectedAllocation{id: allocationID, dependencies: pending})
-		}
+		affected[allocationID] = append(affected[allocationID], keyID)
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("iterate capability-dependent allocations: %w", err)
 	}
-	for _, allocation := range affected {
-		merged, err := mergeQueuedDependencies(ctx, tx, allocation.id, allocation.dependencies)
-		if err != nil {
-			return err
-		}
-		payload, err := protojson.Marshal(&capabilityv1.CapabilityDependencySet{Dependencies: merged})
-		if err != nil {
-			return fmt.Errorf("marshal capability reconcile dependencies: %w", err)
-		}
+	for allocationID, pendingKeys := range affected {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO allocation_capability_reconcile_queue (
-				allocation_id, pending_dependencies, next_run_at, created_at, updated_at
-			) VALUES ($1, $2::jsonb, $3, $3, $3)
+				allocation_id, next_run_at, created_at, updated_at
+			) VALUES ($1, $2, $2, $2)
 			ON CONFLICT (allocation_id) DO UPDATE SET
-				pending_dependencies = EXCLUDED.pending_dependencies,
 				next_run_at = LEAST(allocation_capability_reconcile_queue.next_run_at, EXCLUDED.next_run_at),
-				lease_owner = '', lease_expires_at = NULL, updated_at = EXCLUDED.updated_at
-		`, allocation.id, string(payload), now.UTC()); err != nil {
-			return fmt.Errorf("enqueue allocation %q capability reconcile: %w", allocation.id, err)
+				updated_at = EXCLUDED.updated_at
+		`, allocationID, now.UTC()); err != nil {
+			return fmt.Errorf("enqueue allocation %q capability reconcile: %w", allocationID, err)
+		}
+		for _, keyID := range pendingKeys {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO allocation_capability_reconcile_pending_keys (
+					allocation_id, capability_key_id, snapshot_sequence, created_at, updated_at
+				) VALUES ($1, $2, $3, $4, $4)
+				ON CONFLICT (allocation_id, capability_key_id) DO UPDATE SET
+					snapshot_sequence = GREATEST(allocation_capability_reconcile_pending_keys.snapshot_sequence, EXCLUDED.snapshot_sequence),
+					updated_at = EXCLUDED.updated_at
+			`, allocationID, keyID, changed[keyID], now.UTC()); err != nil {
+				return fmt.Errorf("enqueue allocation %q capability key %q: %w", allocationID, keyID, err)
+			}
 		}
 	}
 	return nil
 }
 
-func mergeQueuedDependencies(ctx context.Context, tx pgx.Tx, allocationID string, additions []*capabilityv1.CapabilityDependency) ([]*capabilityv1.CapabilityDependency, error) {
-	set := &capabilityv1.CapabilityDependencySet{Dependencies: append([]*capabilityv1.CapabilityDependency(nil), additions...)}
-	var existingJSON []byte
-	err := tx.QueryRow(ctx, `SELECT pending_dependencies FROM allocation_capability_reconcile_queue WHERE allocation_id = $1 FOR UPDATE`, allocationID).Scan(&existingJSON)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("lock allocation %q capability reconcile: %w", allocationID, err)
+func cloneEvidence(in *capabilityv1.CapabilityEvidence) *capabilityv1.CapabilityEvidence {
+	if in == nil {
+		return nil
 	}
-	if err == nil {
-		existing := &capabilityv1.CapabilityDependencySet{}
-		if unmarshalErr := protojson.Unmarshal(existingJSON, existing); unmarshalErr != nil {
-			return nil, fmt.Errorf("unmarshal queued dependencies for allocation %q: %w", allocationID, unmarshalErr)
-		}
-		set.Dependencies = append(set.Dependencies, existing.GetDependencies()...)
-	}
-	byKey := make(map[string]*capabilityv1.CapabilityDependency, len(set.GetDependencies()))
-	for _, dependency := range set.GetDependencies() {
-		id, keyErr := nodecapability.KeyID(dependency.GetKey())
-		if keyErr != nil {
-			return nil, keyErr
-		}
-		byKey[id] = dependency
-	}
-	ids := make([]string, 0, len(byKey))
-	for id := range byKey {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	result := make([]*capabilityv1.CapabilityDependency, 0, len(ids))
-	for _, id := range ids {
-		result = append(result, byKey[id])
-	}
-	return result, nil
+	return proto.Clone(in).(*capabilityv1.CapabilityEvidence)
 }

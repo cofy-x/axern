@@ -92,6 +92,60 @@ message AllocationState {
   string workspace_source_path = 5;
   string workspace_target = 6;
   repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 7;
+  axern.control.capability.v1.CapabilityConditionSet capability_conditions = 8;
+  AllocationEnforcementManifest enforcement_manifest = 9;
+  AllocationCapabilityReconcileState capability_reconcile = 10;
+  int64 allocation_attempt = 11;
+  AllocationLaunchVerification launch_verification = 12;
+  // Canonical digest of the behaviorally relevant StartRequest. It fences
+  // same-attempt retries from mutating a running allocation's contract.
+  string allocation_request_digest = 13;
+  // Immutable post-create condition proof returned by idempotent Create
+  // replays. capability_conditions remains the current runtime projection.
+  axern.control.capability.v1.CapabilityConditionSet capability_admission_conditions = 14;
+}
+
+// AllocationLaunchVerification is the durable create-time proof that the
+// runtime-specific hard-enforcement contract was inspected while the OCI
+// container was created but before the workload process was started. The
+// immutable enforcement_manifest records what was launched; this record
+// separately records which allocation requirements were actually verified.
+message AllocationLaunchVerification {
+  repeated axern.control.capability.v1.CapabilityKey verified_capabilities = 1;
+  int64 verified_at_unix_nano = 2;
+}
+
+message PendingCapabilityReconcile {
+  axern.control.capability.v1.CapabilityKey key = 1;
+  int64 generation = 2;
+}
+
+// AllocationCapabilityReconcileState is a durable, allocation-scoped queue.
+// Per-key generations make acknowledgement safe when a newer transition is
+// merged while verification or termination is already running.
+message AllocationCapabilityReconcileState {
+  repeated PendingCapabilityReconcile pending = 1;
+  bool terminating = 2;
+  string last_error = 3;
+  int64 updated_at_unix_nano = 4;
+}
+
+// AllocationEnforcementManifest is the immutable create-time contract used by
+// runtime audits. Runtime-observed identities may be filled after create, but
+// the requested limits and immutable launch contract never change.
+message AllocationEnforcementManifest {
+  string runtime_name = 1;
+  int64 memory_limit_bytes = 2;
+  int64 ephemeral_storage_limit_bytes = 3;
+  string cgroup_path = 4;
+  string runtime_cgroup_path = 5;
+  string runsc_overlay_arg = 6;
+  string filestore_mount_identity = 7;
+  int64 created_at_unix_nano = 8;
+  uint32 runc_project_id = 9;
+  string bundle_path = 10;
+  string runsc_backing_directory = 11;
+  string runsc_backing_directory_identity = 12;
 }
 
 message TerminalResize {

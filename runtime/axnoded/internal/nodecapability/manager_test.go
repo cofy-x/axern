@@ -3,6 +3,7 @@ package nodecapability
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -10,9 +11,10 @@ import (
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+const testBootID = "11111111-2222-3333-4444-555555555555"
 
 type testProvider struct {
 	provider capabilityv1.CapabilityProvider
@@ -26,17 +28,63 @@ func (p testProvider) Observe(_ context.Context, now time.Time) ([]*capabilityv1
 	return p.observe(now)
 }
 
-func TestManagerRejectsDuplicateOwnership(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
-	p := func(provider capabilityv1.CapabilityProvider) testProvider {
-		return testProvider{provider: provider, keys: []*capabilityv1.CapabilityKey{key}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) { return nil, nil }}
+type testDeriver struct{ testProvider }
+
+func (p testDeriver) Derive(_ context.Context, now time.Time, _ map[string]*capabilityv1.CapabilityObservation) ([]*capabilityv1.CapabilityObservation, error) {
+	return p.observe(now)
+}
+
+type serialPublicationMetrics struct {
+	active  atomic.Int32
+	maximum atomic.Int32
+}
+
+func (*serialPublicationMetrics) RecordProviderProbe(capabilityv1.CapabilityProvider, string, time.Duration) {
+}
+func (m *serialPublicationMetrics) RecordSnapshot(*capabilityv1.CapabilitySnapshot) {
+	current := m.active.Add(1)
+	defer m.active.Add(-1)
+	for {
+		seen := m.maximum.Load()
+		if current <= seen || m.maximum.CompareAndSwap(seen, current) {
+			break
+		}
 	}
-	if _, err := NewManager(p(capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_CONFIG), p(capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH)); err == nil {
-		t.Fatal("NewManager() accepted duplicate capability ownership")
+	time.Sleep(20 * time.Millisecond)
+}
+func (*serialPublicationMetrics) RecordTransitions([]*Transition) {}
+
+func digest(character string) string { return "sha256:" + strings.Repeat(character, 64) }
+
+func networkObservation(key *capabilityv1.CapabilityKey, now time.Time, state capabilityv1.CapabilityState) *capabilityv1.CapabilityObservation {
+	reason := capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE
+	if state != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
+		reason = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED
+	}
+	return &capabilityv1.CapabilityObservation{
+		Key: key, State: state, ObservedAt: timestamppb.New(now),
+		ValidUntil: timestamppb.New(now.Add(capabilitycontract.HealthObservationValidity)),
+		ReasonCode: reason, Evidence: capabilitycontract.ConfigEvidence(digest("a")),
 	}
 }
 
-func TestManagerPublishesAtomicUnknownForMissingObservation(t *testing.T) {
+func TestManagerRejectsDuplicateOwnership(t *testing.T) {
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) { return nil, nil }}
+	if _, err := NewManager(provider, provider); err == nil {
+		t.Fatal("NewManager accepted duplicate capability ownership")
+	}
+}
+
+func TestValidateCatalogProviderCoverageRejectsMissingPlatformProvider(t *testing.T) {
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}}
+	if err := ValidateCatalogProviderCoverage(provider); err == nil {
+		t.Fatal("partial production provider catalog was accepted")
+	}
+}
+
+func TestManagerPublishesAtomicUnknownForProviderError(t *testing.T) {
 	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
 	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 		return nil, errors.New("probe unavailable")
@@ -44,21 +92,16 @@ func TestManagerPublishesAtomicUnknownForMissingObservation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	now := time.Now().UTC()
-	snapshot, refreshErr := manager.Refresh(context.Background(), now)
-	if refreshErr != nil || !manager.Ready() || snapshot.GetSequence() != 1 || len(snapshot.GetObservations()) != 1 {
-		t.Fatalf("snapshot=%#v error=%v ready=%v", snapshot, refreshErr, manager.Ready())
+	snapshot, err := manager.Refresh(context.Background(), time.Now().UTC())
+	if err != nil || !manager.Ready() || len(snapshot.GetObservations()) != 1 {
+		t.Fatalf("snapshot=%#v error=%v ready=%v", snapshot, err, manager.Ready())
 	}
-	observation := snapshot.GetObservations()[0]
-	if observation.GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN || observation.GetReasonCode() != capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR {
+	if observation := snapshot.GetObservations()[0]; observation.GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN || observation.GetReasonCode() != capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR {
 		t.Fatalf("provider failure observation = %#v", observation)
-	}
-	if snapshot.GetObservations()[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN {
-		t.Fatalf("observation = %#v", snapshot.GetObservations()[0])
 	}
 }
 
-func TestManagerSerializesRefreshGenerations(t *testing.T) {
+func TestManagerSerializesOneProviderWithoutBlockingIndependentProviders(t *testing.T) {
 	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
 	var active, maximum atomic.Int32
 	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
@@ -71,43 +114,276 @@ func TestManagerSerializesRefreshGenerations(t *testing.T) {
 			}
 		}
 		time.Sleep(20 * time.Millisecond)
-		return []*capabilityv1.CapabilityObservation{{
-			Key: key, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
-			ValidityScope: capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_REFRESHABLE,
-			ObservedAt:    timestamppb.New(now), ValidUntil: timestamppb.New(now.Add(time.Minute)),
-			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-			Evidence:   &capabilityv1.CapabilityEvidence{ConfigDigest: "network"},
-		}}, nil
+		return []*capabilityv1.CapabilityObservation{networkObservation(key, now, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)}, nil
 	}}
 	manager, err := NewManager(provider)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var wg sync.WaitGroup
+	var wait sync.WaitGroup
 	for range 2 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if _, err := manager.Refresh(context.Background(), time.Now().UTC()); err != nil {
-				t.Errorf("Refresh() error = %v", err)
-			}
-		}()
+		wait.Add(1)
+		go func() { defer wait.Done(); _, _ = manager.Refresh(context.Background(), time.Now().UTC()) }()
 	}
-	wg.Wait()
+	wait.Wait()
 	if maximum.Load() != 1 {
-		t.Fatalf("concurrent provider observations = %d, want 1", maximum.Load())
-	}
-	if snapshot := manager.Snapshot(); snapshot.GetSequence() != 2 {
-		t.Fatalf("snapshot sequence = %d, want 2", snapshot.GetSequence())
+		t.Fatalf("concurrent samples = %d, want 1", maximum.Load())
 	}
 }
 
-func TestManagerRejectsStaleRefreshTime(t *testing.T) {
+func TestManagerSerializesSnapshotPublicationAndObserverDelivery(t *testing.T) {
 	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
-	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-		return []*capabilityv1.CapabilityObservation{{Key: key, State: capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN, ValidityScope: capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_REFRESHABLE, ObservedAt: timestamppb.New(now), ValidUntil: timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR, Evidence: &capabilityv1.CapabilityEvidence{ConfigDigest: "network"}}}, nil
-	}}
+	manager, err := NewManager(testProvider{
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
+		keys:     []*capabilityv1.CapabilityKey{key},
+		observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			return []*capabilityv1.CapabilityObservation{networkObservation(key, now, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if _, err := manager.Refresh(context.Background(), now); err != nil {
+		t.Fatal(err)
+	}
+	metrics := &serialPublicationMetrics{}
+	manager.SetMetricsObserver(metrics)
+	var wait sync.WaitGroup
+	for range 2 {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			if _, err := manager.publish(context.Background(), now.Add(time.Second)); err != nil {
+				t.Errorf("publish: %v", err)
+			}
+		}()
+	}
+	wait.Wait()
+	if metrics.maximum.Load() != 1 {
+		t.Fatalf("concurrent snapshot observer deliveries = %d, want 1", metrics.maximum.Load())
+	}
+}
+
+func TestSlowTransitionHandlerDoesNotBlockSnapshotPublication(t *testing.T) {
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	state := capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
+	manager, err := NewManager(testProvider{
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
+		keys:     []*capabilityv1.CapabilityKey{key},
+		observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			return []*capabilityv1.CapabilityObservation{networkObservation(key, now, state)}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if _, err := manager.Refresh(context.Background(), now); err != nil {
+		t.Fatal(err)
+	}
+
+	handlerStarted := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	manager.Subscribe(func(context.Context, []*Transition) {
+		close(handlerStarted)
+		<-releaseHandler
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	manager.startDeliveryWorker(ctx)
+
+	state = capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE
+	if _, err := manager.Refresh(context.Background(), now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-handlerStarted:
+	case <-time.After(time.Second):
+		t.Fatal("transition handler was not invoked")
+	}
+
+	published := make(chan error, 1)
+	go func() {
+		for offset := 2; offset < 34; offset++ {
+			if _, err := manager.publish(context.Background(), now.Add(time.Duration(offset)*time.Second)); err != nil {
+				published <- err
+				return
+			}
+		}
+		published <- nil
+	}()
+	select {
+	case err := <-published:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("slow transition delivery blocked a later snapshot publication")
+	}
+	manager.deliveryMu.Lock()
+	queued := len(manager.deliveryQueue)
+	manager.deliveryMu.Unlock()
+	if queued != 1 {
+		t.Fatalf("queued no-transition deliveries = %d, want one coalesced latest snapshot", queued)
+	}
+	close(releaseHandler)
+}
+
+func TestTransitionHandlerPanicDoesNotSuppressFollowingHandler(t *testing.T) {
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	state := capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
+	manager, err := NewManager(testProvider{
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
+		keys:     []*capabilityv1.CapabilityKey{key},
+		observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			return []*capabilityv1.CapabilityObservation{networkObservation(key, now, state)}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if _, err := manager.Refresh(context.Background(), now); err != nil {
+		t.Fatal(err)
+	}
+	manager.Subscribe(func(context.Context, []*Transition) { panic("broken subscriber") })
+	delivered := make(chan struct{}, 1)
+	manager.Subscribe(func(context.Context, []*Transition) { delivered <- struct{}{} })
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	manager.startDeliveryWorker(ctx)
+
+	state = capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE
+	if _, err := manager.Refresh(context.Background(), now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-delivered:
+	case <-time.After(time.Second):
+		t.Fatal("a panicking transition handler suppressed the following handler")
+	}
+}
+
+func TestRuntimeProviderSerialLaneHonorsCancellationWhileQueued(t *testing.T) {
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)
+	called := false
+	provider := testProvider{
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST,
+		keys:     []*capabilityv1.CapabilityKey{key},
+		observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			called = true
+			return nil, nil
+		},
+	}
 	manager, err := NewManager(provider)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-manager.runtimeProbeSerial
+	defer func() { manager.runtimeProbeSerial <- struct{}{} }()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := manager.observeSafely(ctx, provider, time.Now().UTC()); !errors.Is(err, context.Canceled) {
+		t.Fatalf("queued runtime provider error = %v, want context canceled", err)
+	}
+	if called {
+		t.Fatal("queued runtime provider ran after its scheduler context was canceled")
+	}
+}
+
+func TestSlowRuntimeProviderDoesNotBlockHealthPublication(t *testing.T) {
+	runtimeKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)
+	networkKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	releaseRuntime := make(chan struct{})
+	networkPublished := make(chan struct{}, 1)
+	manager, err := NewManager(
+		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{runtimeKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			<-releaseRuntime
+			return []*capabilityv1.CapabilityObservation{{Key: runtimeKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(now), ValidUntil: timestamppb.New(now.Add(capabilitycontract.RuntimeObservationValidity)), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, "runc", digest("b"), digest("c"))}}, nil
+		}},
+		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{networkKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			select {
+			case networkPublished <- struct{}{}:
+			default:
+			}
+			return []*capabilityv1.CapabilityObservation{networkObservation(networkKey, now, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)}, nil
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	manager.Start(ctx)
+	select {
+	case <-networkPublished:
+	case <-time.After(time.Second):
+		t.Fatal("health provider was blocked by runtime conformance")
+	}
+	var snapshot *capabilityv1.CapabilitySnapshot
+	deadline := time.Now().Add(time.Second)
+	for snapshot == nil && time.Now().Before(deadline) {
+		snapshot = manager.Snapshot()
+		time.Sleep(time.Millisecond)
+	}
+	if snapshot == nil || len(snapshot.GetObservations()) != 1 || snapshot.GetObservations()[0].GetKey().GetPlatform() != capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING {
+		t.Fatalf("health publication = %#v", snapshot)
+	}
+	if manager.Ready() {
+		t.Fatal("manager became READY before slow provider produced its first batch")
+	}
+	close(releaseRuntime)
+}
+
+func TestDerivedCapabilityDoesNotEnterRecoveryDuringInitialWarming(t *testing.T) {
+	filestoreKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER)
+	selfTestKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST)
+	derivedKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT)
+	releaseSelfTest := make(chan struct{})
+	manager, err := NewManager(
+		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_FILESTORE, keys: []*capabilityv1.CapabilityKey{filestoreKey}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			return []*capabilityv1.CapabilityObservation{{Key: filestoreKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampledAt), ValidUntil: timestamppb.New(sampledAt.Add(capabilitycontract.HealthObservationValidity)), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.MountEvidence(testBootID, "42:/filestore:xfs")}}, nil
+		}},
+		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{selfTestKey}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			<-releaseSelfTest
+			return []*capabilityv1.CapabilityObservation{{Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampledAt), ValidUntil: timestamppb.New(sampledAt.Add(capabilitycontract.RuntimeObservationValidity)), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, "runsc", digest("b"), digest("c"))}}, nil
+		}},
+		testDeriver{testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_DERIVED, keys: []*capabilityv1.CapabilityKey{derivedKey}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			return []*capabilityv1.CapabilityObservation{{Key: derivedKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampledAt), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE}}, nil
+		}}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	manager.Start(ctx)
+	deadline := time.Now().Add(time.Second)
+	for manager.Snapshot() == nil && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if manager.Ready() {
+		t.Fatal("manager became ready before every base provider completed")
+	}
+	close(releaseSelfTest)
+	for !manager.Ready() && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if !manager.Ready() {
+		t.Fatal("manager did not become ready after every base provider completed")
+	}
+	observation, ok := capabilitycontract.AvailableObservation(manager.Snapshot(), derivedKey, time.Now().UTC())
+	if !ok || observation.GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
+		t.Fatalf("first complete derived observation = %#v, want AVAILABLE without recovery debounce", observation)
+	}
+}
+
+func TestManagerRejectsStalePublicationTime(t *testing.T) {
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+		return []*capabilityv1.CapabilityObservation{networkObservation(key, now, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)}, nil
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,121 +392,70 @@ func TestManagerRejectsStaleRefreshTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := manager.Refresh(context.Background(), now.Add(-time.Second)); err == nil {
-		t.Fatal("Refresh() accepted a timestamp older than the published snapshot")
-	}
-	if snapshot := manager.Snapshot(); snapshot.GetSequence() != 1 {
-		t.Fatalf("snapshot sequence = %d, want stale refresh to leave it at 1", snapshot.GetSequence())
+		t.Fatal("Refresh accepted a timestamp older than the published snapshot")
 	}
 }
 
-func TestEvidenceIdentityDescribesFactsNotHealthState(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
-	base := &capabilityv1.CapabilityObservation{
-		Key: key, Provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
-		ValidityScope: capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_REFRESHABLE,
-		Evidence:      &capabilityv1.CapabilityEvidence{ConfigDigest: "network-v1"},
-	}
-	available := proto.Clone(base).(*capabilityv1.CapabilityObservation)
-	available.State = capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
-	available.ReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE
-	failed := proto.Clone(base).(*capabilityv1.CapabilityObservation)
-	failed.State = capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE
-	failed.ReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED
-	failed.Reason = "dataplane unavailable"
-	if evidenceID(available) != evidenceID(failed) {
-		t.Fatal("health state changed the identity of otherwise identical evidence")
-	}
-	changed := proto.Clone(base).(*capabilityv1.CapabilityObservation)
-	changed.Evidence.ConfigDigest = "network-v2"
-	if evidenceID(available) == evidenceID(changed) {
-		t.Fatal("evidence fact change did not change its identity")
-	}
-}
-
-func TestManagerRejectsObservationWithWrongCatalogScope(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
-	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-		return []*capabilityv1.CapabilityObservation{{
-			Key: key, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
-			ValidityScope: capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_CONFIG_STATIC,
-			ObservedAt:    timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-			Evidence: &capabilityv1.CapabilityEvidence{ConfigDigest: "network"},
-		}}, nil
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := manager.Refresh(context.Background(), time.Now().UTC()); err == nil {
-		t.Fatal("Refresh() accepted an observation with the wrong catalog scope")
-	}
-}
-
-func TestManagerRecoveryRequiresTwoDistinctSuccessfulProbes(t *testing.T) {
+func TestManagerRecoveryRequiresTwoIndependentSamples(t *testing.T) {
 	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
 	state := capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE
 	observedAt := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-		reasonCode := capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED
-		if state == capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
-			reasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE
-		}
-		return []*capabilityv1.CapabilityObservation{{Key: key, State: state, ValidityScope: capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_REFRESHABLE, ObservedAt: timestamppb.New(observedAt), ValidUntil: timestamppb.New(observedAt.Add(time.Minute)), ReasonCode: reasonCode, Evidence: &capabilityv1.CapabilityEvidence{ConfigDigest: "network"}}}, nil
+		return []*capabilityv1.CapabilityObservation{networkObservation(key, observedAt, state)}, nil
 	}}
 	manager, err := NewManager(provider)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.Refresh(context.Background(), observedAt); err != nil {
-		t.Fatal(err)
-	}
+	_, _ = manager.Refresh(context.Background(), observedAt)
 	state = capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
 	first, _ := manager.Refresh(context.Background(), observedAt.Add(5*time.Second))
 	if first.GetObservations()[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_DEGRADED {
-		t.Fatalf("first recovery = %s", first.GetObservations()[0].GetState())
+		t.Fatal("first successful recovery sample was not debounced")
 	}
 	second, _ := manager.Refresh(context.Background(), observedAt.Add(10*time.Second))
 	if second.GetObservations()[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_DEGRADED {
-		t.Fatal("cached success incorrectly completed recovery")
+		t.Fatal("republication of the same sample completed recovery")
 	}
 	observedAt = observedAt.Add(10 * time.Second)
 	third, _ := manager.Refresh(context.Background(), observedAt.Add(5*time.Second))
 	if third.GetObservations()[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
-		t.Fatalf("second probe recovery = %s", third.GetObservations()[0].GetState())
+		t.Fatal("second independent recovery sample did not restore availability")
 	}
 }
 
-func TestManagerAdmitsCurrentDependencyEvidence(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT)
-	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
-	derivedProvider := testProvider{
-		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_DERIVED,
-		keys:     []*capabilityv1.CapabilityKey{key},
-		observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			return []*capabilityv1.CapabilityObservation{{
-				Key: key, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
-				ValidityScope: capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_REFRESHABLE,
-				ObservedAt:    timestamppb.New(now), ValidUntil: timestamppb.New(now.Add(time.Minute)),
-				ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-				Evidence:   &capabilityv1.CapabilityEvidence{EvidenceID: "current", ConfigDigest: "derived-v1"},
-				Dependencies: []*capabilityv1.CapabilityEvidenceReference{
-					{Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER), EvidenceID: "mount-v2", Evidence: &capabilityv1.CapabilityEvidence{EvidenceID: "mount-v2", BootID: "boot", MountIdentity: "mount-v2"}},
-					{Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST), EvidenceID: "self-test-v2", Evidence: &capabilityv1.CapabilityEvidence{EvidenceID: "self-test-v2", BootID: "boot", RuntimeName: "runsc", RuntimeBinaryDigest: "binary", ConfigDigest: "runtime-config"}},
-				},
-			}}, nil
-		},
-	}
-	// The manager requires every dependency reference to resolve inside the
-	// same snapshot, so use a base provider as the real source of mount-v2.
-	baseKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER)
+func TestDerivedCapabilityRecoversWithConfirmedBaseObservations(t *testing.T) {
+	filestoreKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER)
 	selfTestKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST)
+	derivedKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT)
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	filestoreState := capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE
+	filestoreObservedAt := now
 	manager, err := NewManager(
-		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_FILESTORE, keys: []*capabilityv1.CapabilityKey{baseKey}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			return []*capabilityv1.CapabilityObservation{{Key: baseKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ValidityScope: capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_MOUNT, ObservedAt: timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: &capabilityv1.CapabilityEvidence{EvidenceID: "mount-v2", BootID: "boot", MountIdentity: "mount-v2"}}}, nil
+		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_FILESTORE, keys: []*capabilityv1.CapabilityKey{filestoreKey}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			observation := &capabilityv1.CapabilityObservation{
+				Key: filestoreKey, State: filestoreState, ObservedAt: timestamppb.New(filestoreObservedAt),
+				ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED,
+				Reason:     "filestore unavailable", Evidence: capabilitycontract.MountEvidence(testBootID, "42:/filestore:xfs"),
+			}
+			if filestoreState == capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
+				observation.ReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE
+				observation.Reason = ""
+				observation.ValidUntil = timestamppb.New(filestoreObservedAt.Add(capabilitycontract.HealthObservationValidity))
+			}
+			return []*capabilityv1.CapabilityObservation{observation}, nil
 		}},
 		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{selfTestKey}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			return []*capabilityv1.CapabilityObservation{{Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ValidityScope: capabilityv1.CapabilityValidityScope_CAPABILITY_VALIDITY_SCOPE_RUNTIME, ObservedAt: timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: &capabilityv1.CapabilityEvidence{EvidenceID: "self-test-v2", BootID: "boot", RuntimeName: "runsc", RuntimeBinaryDigest: "binary", ConfigDigest: "runtime-config"}}}, nil
+			return []*capabilityv1.CapabilityObservation{{
+				Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
+				ObservedAt: timestamppb.New(now), ValidUntil: timestamppb.New(now.Add(capabilitycontract.RuntimeObservationValidity)),
+				ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
+				Evidence:   capabilitycontract.RuntimeEvidence(testBootID, "runsc", digest("b"), digest("c")),
+			}}, nil
 		}},
-		derivedProvider,
+		testDeriver{testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_DERIVED, keys: []*capabilityv1.CapabilityKey{derivedKey}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			return []*capabilityv1.CapabilityObservation{{Key: derivedKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampledAt), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE}}, nil
+		}}},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -238,18 +463,133 @@ func TestManagerAdmitsCurrentDependencyEvidence(t *testing.T) {
 	if _, err := manager.Refresh(context.Background(), now); err != nil {
 		t.Fatal(err)
 	}
-	placement := &capabilityv1.CapabilityDependency{
-		Key: key, LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP,
-		SelectedEvidence: &capabilityv1.CapabilityEvidence{EvidenceID: "placement"},
-	}
-	admitted, conditions, err := manager.AdmitDependencies([]*capabilityv1.CapabilityDependency{placement}, now)
+	filestoreState = capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
+	filestoreObservedAt = now.Add(5 * time.Second)
+	first, err := manager.Refresh(context.Background(), filestoreObservedAt)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(admitted) != 1 || admitted[0].GetSelectedEvidence().GetEvidenceID() != "current" || admitted[0].GetDependencyEvidence()[0].GetEvidence().GetMountIdentity() != "mount-v2" {
-		t.Fatalf("admitted dependencies = %#v", admitted)
+	if _, available := capabilitycontract.AvailableObservation(first, derivedKey, filestoreObservedAt); available {
+		t.Fatal("derived capability recovered before the base provider's second independent success")
 	}
-	if len(conditions) != 1 || conditions[0].GetEvidence().GetEvidenceID() != "current" {
-		t.Fatalf("conditions = %#v", conditions)
+	filestoreObservedAt = now.Add(10 * time.Second)
+	second, err := manager.Refresh(context.Background(), filestoreObservedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observation, available := capabilitycontract.AvailableObservation(second, derivedKey, filestoreObservedAt); !available || observation.GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
+		t.Fatalf("derived observation = %#v, want immediate availability after base recovery", observation)
+	}
+}
+
+func TestManagerErrorRecoveryRequiresTwoIndependentSamples(t *testing.T) {
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	failing := true
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+		if failing {
+			return nil, errors.New("probe unavailable")
+		}
+		return []*capabilityv1.CapabilityObservation{networkObservation(key, sampledAt, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)}, nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Refresh(context.Background(), now); err != nil {
+		t.Fatal(err)
+	}
+	failing = false
+	first, err := manager.Refresh(context.Background(), now.Add(5*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.GetObservations()[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_DEGRADED {
+		t.Fatal("first success after provider error bypassed recovery debounce")
+	}
+	second, err := manager.Refresh(context.Background(), now.Add(10*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.GetObservations()[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
+		t.Fatal("second independent success did not recover provider error")
+	}
+}
+
+func TestManagerExpiryRecoveryRequiresTwoIndependentSamples(t *testing.T) {
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+		return []*capabilityv1.CapabilityObservation{networkObservation(key, sampledAt, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)}, nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Refresh(context.Background(), now); err != nil {
+		t.Fatal(err)
+	}
+	expired, err := manager.publish(context.Background(), now.Add(capabilitycontract.HealthObservationValidity))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expired.GetObservations()[0].GetReasonCode() != capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_EXPIRED {
+		t.Fatal("expired observation did not fail closed")
+	}
+	first, err := manager.Refresh(context.Background(), now.Add(20*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.GetObservations()[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_DEGRADED {
+		t.Fatal("first success after expiry bypassed recovery debounce")
+	}
+	second, err := manager.Refresh(context.Background(), now.Add(25*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.GetObservations()[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
+		t.Fatal("second independent success did not recover expiry")
+	}
+}
+
+func TestManagerAdmitsCurrentCompleteProof(t *testing.T) {
+	baseKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER)
+	selfTestKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST)
+	derivedKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT)
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	sampleTime := now
+	manager, err := NewManager(
+		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_FILESTORE, keys: []*capabilityv1.CapabilityKey{baseKey}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			return []*capabilityv1.CapabilityObservation{{Key: baseKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampleTime), ValidUntil: timestamppb.New(sampleTime.Add(capabilitycontract.HealthObservationValidity)), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.MountEvidence(testBootID, "42:/filestore:xfs")}}, nil
+		}},
+		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{selfTestKey}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			return []*capabilityv1.CapabilityObservation{{Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampleTime), ValidUntil: timestamppb.New(sampleTime.Add(capabilitycontract.RuntimeObservationValidity)), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, "runsc", digest("b"), digest("c"))}}, nil
+		}},
+		testDeriver{testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_DERIVED, keys: []*capabilityv1.CapabilityKey{derivedKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			return []*capabilityv1.CapabilityObservation{{Key: derivedKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE}}, nil
+		}}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := manager.Refresh(context.Background(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	placement, err := capabilitycontract.ResolveDependencies(first, []*capabilityv1.CapabilityKey{derivedKey}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sampleTime = now.Add(5 * time.Second)
+	if _, err := manager.Refresh(context.Background(), sampleTime); err != nil {
+		t.Fatal(err)
+	}
+	admitted, conditions, err := manager.AdmitDependencies(placement, sampleTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if admitted[0].GetSelectedObservation().GetObservationID() == placement[0].GetSelectedObservation().GetObservationID() {
+		t.Fatal("admission did not bind the current observation")
+	}
+	if len(admitted[0].GetDependencyObservations()) != 2 || conditions[0].GetProof().GetObservationID() != admitted[0].GetSelectedObservation().GetObservationID() {
+		t.Fatalf("admitted proof is incomplete: admitted=%#v conditions=%#v", admitted, conditions)
 	}
 }

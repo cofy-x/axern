@@ -37,7 +37,10 @@ func (p *Selector) WithObserver(observer Observer) *Selector {
 }
 
 func (p *Selector) SelectCandidates(ctx context.Context, env *environmentv1.Environment, config *commonv1.ExecutionConfig) ([]*placementkernel.Candidate, error) {
-	req := p.buildRequest(env, config)
+	req, err := p.buildRequest(env, config)
+	if err != nil {
+		return nil, err
+	}
 	now := p.now()
 	candidates, rejected, snapshot, err := p.planEligibleCandidates(req, now)
 	if err != nil {
@@ -72,7 +75,11 @@ func (p *Selector) planEligibleCandidates(req *placementkernel.Request, now time
 	out := make([]*placementkernel.Candidate, 0, len(eligible))
 	for _, evaluation := range eligible {
 		if record := byID[strings.TrimSpace(evaluation.GetNodeID())]; record != nil {
-			out = append(out, &placementkernel.Candidate{Record: record, Evaluation: evaluation, BaseRequest: req, Request: requestForCandidate(req, record, now)})
+			candidateRequest, resolveErr := requestForCandidate(req, record, now)
+			if resolveErr != nil {
+				return nil, rejected, snapshot, resolveErr
+			}
+			out = append(out, &placementkernel.Candidate{Record: record, Evaluation: evaluation, BaseRequest: req, Request: candidateRequest})
 		}
 	}
 	if len(out) == 0 {
@@ -116,15 +123,19 @@ func retryableCandidatesFromRejected(snapshot nodekernel.Snapshot, rejected []*n
 			continue
 		}
 		if record := byID[strings.TrimSpace(evaluation.GetNodeID())]; record != nil {
-			out = append(out, &placementkernel.Candidate{Record: record, Evaluation: evaluation, BaseRequest: req, Request: requestForCandidate(req, record, now)})
+			candidateRequest, err := requestForCandidate(req, record, now)
+			if err != nil {
+				continue
+			}
+			out = append(out, &placementkernel.Candidate{Record: record, Evaluation: evaluation, BaseRequest: req, Request: candidateRequest})
 		}
 	}
 	return out
 }
 
-func requestForCandidate(request *placementkernel.Request, record *nodekernel.Record, now time.Time) *placementkernel.Request {
+func requestForCandidate(request *placementkernel.Request, record *nodekernel.Record, now time.Time) (*placementkernel.Request, error) {
 	if request == nil || record == nil {
-		return nil
+		return nil, nil
 	}
 	return placementkernel.ResolveRequestForNode(request, record.Summary, now)
 }

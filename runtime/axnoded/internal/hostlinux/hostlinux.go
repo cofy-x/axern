@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -62,25 +63,19 @@ func VerifyCgroupMemoryLimit(cgroupPath string, want int64) error {
 		return nil
 	}
 	dir := resourceDirForCgroupPath(cgroupPath)
-	paths := []string{filepath.Join(dir, "memory.max"), filepath.Join(dir, "memory.limit_in_bytes")}
-	for _, path := range paths {
-		data, err := os.ReadFile(path)
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		got, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
-		if err != nil {
-			return fmt.Errorf("parse %s: %w", path, err)
-		}
-		if got != want {
-			return fmt.Errorf("memory limit readback mismatch: got=%d want=%d", got, want)
-		}
-		return nil
+	path := filepath.Join(dir, "memory.max")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read cgroup v2 memory.max: %w", err)
 	}
-	return fmt.Errorf("memory controller is unavailable for %s", cgroupPath)
+	got, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse %s: %w", path, err)
+	}
+	if got != want {
+		return fmt.Errorf("memory limit readback mismatch: got=%d want=%d", got, want)
+	}
+	return nil
 }
 
 func VerifyPIDInCgroup(cgroupPath string, pid int) error {
@@ -152,9 +147,13 @@ func cgroupPIDs(cgroupPath string) (map[int]struct{}, error) {
 	return seen, nil
 }
 
-func VerifyRunscCgroupProcesses(cgroupPath string, sentryPID int) error {
+func VerifyRunscCgroupProcesses(cgroupPath string, sentryPID int, runtimeBinary string) error {
 	if err := VerifyPIDInCgroup(cgroupPath, sentryPID); err != nil {
 		return err
+	}
+	expectedBinary, err := os.Stat(runtimeBinary)
+	if err != nil {
+		return fmt.Errorf("stat configured runsc binary: %w", err)
 	}
 	pids, err := cgroupPIDs(cgroupPath)
 	if err != nil {
@@ -167,10 +166,22 @@ func VerifyRunscCgroupProcesses(cgroupPath string, sentryPID int) error {
 			continue
 		}
 		command := strings.ToLower(strings.ReplaceAll(string(data), "\x00", " "))
-		if pid == sentryPID && (strings.Contains(command, "sandbox") || strings.Contains(command, " boot")) {
+		isSentry := pid == sentryPID && (strings.Contains(command, "sandbox") || strings.Contains(command, " boot"))
+		isGofer := strings.Contains(command, "gofer")
+		if !isSentry && !isGofer {
+			continue
+		}
+		actualBinary, err := os.Stat(filepath.Join("/proc", strconv.Itoa(pid), "exe"))
+		if err != nil {
+			return fmt.Errorf("stat runsc process %d executable: %w", pid, err)
+		}
+		if !os.SameFile(actualBinary, expectedBinary) {
+			return fmt.Errorf("runsc process %d executable identity differs from configured runtime", pid)
+		}
+		if isSentry {
 			sentryFound = true
 		}
-		if strings.Contains(command, "gofer") {
+		if isGofer {
 			goferFound = true
 		}
 	}
@@ -344,11 +355,41 @@ func mountedFilesystemFacts(dir string) (string, bool, string, error) {
 			continue
 		}
 		pre, post := strings.Fields(parts[0]), strings.Fields(parts[1])
-		if len(pre) >= 5 && len(post) >= 2 && filepath.Clean(unescapeMountInfoField(pre[4])) == clean {
-			return post[0], true, fmt.Sprintf("%s:%s:%s", pre[0], unescapeMountInfoField(post[1]), clean), nil
+		if len(pre) >= 6 && len(post) >= 3 && filepath.Clean(unescapeMountInfoField(pre[4])) == clean {
+			identity, err := canonicalMountIdentity(pre, post)
+			if err != nil {
+				return "", false, "", err
+			}
+			return post[0], true, identity, nil
 		}
 	}
 	return "", false, "", nil
+}
+
+func canonicalMountIdentity(pre, post []string) (string, error) {
+	if len(pre) < 6 || len(post) < 3 {
+		return "", fmt.Errorf("mountinfo entry is incomplete")
+	}
+	if _, err := strconv.ParseUint(pre[0], 10, 64); err != nil {
+		return "", fmt.Errorf("mountinfo mount ID %q is invalid: %w", pre[0], err)
+	}
+	if _, err := strconv.ParseUint(pre[1], 10, 64); err != nil {
+		return "", fmt.Errorf("mountinfo parent mount ID %q is invalid: %w", pre[1], err)
+	}
+	optional := append([]string(nil), pre[6:]...)
+	sort.Strings(optional)
+	fields := []string{
+		pre[0], pre[1], pre[2], unescapeMountInfoField(pre[3]), unescapeMountInfoField(pre[4]),
+		canonicalMountOptions(pre[5]), strings.Join(optional, ","), post[0], unescapeMountInfoField(post[1]), canonicalMountOptions(post[2]),
+	}
+	digest := sha256.Sum256([]byte(strings.Join(fields, "\x00")))
+	return fmt.Sprintf("mount:v2:%s:sha256:%x", pre[0], digest[:]), nil
+}
+
+func canonicalMountOptions(options string) string {
+	items := strings.Split(options, ",")
+	sort.Strings(items)
+	return strings.Join(items, ",")
 }
 
 func unescapeMountInfoField(value string) string {
@@ -416,6 +457,9 @@ func PrepareFilestore(filestoreDir, mode, image string, loopbackSizeBytes, syste
 	}
 	if !filepath.IsAbs(filestoreDir) {
 		return fmt.Errorf("filestore_dir must be absolute: %s", filestoreDir)
+	}
+	if strings.ContainsAny(filestoreDir, `,:\`) || strings.ContainsAny(filestoreDir, "\n\r\t") {
+		return fmt.Errorf("filestore_dir contains an unsupported overlay option delimiter: %s", filestoreDir)
 	}
 	switch mode {
 	case "existing":
@@ -540,7 +584,28 @@ func ReadFilestoreCapabilities(filestoreDir string) (FilestoreCapabilities, erro
 	if !mounted || identity == "" || identity != out.MountIdentity || fsType != out.FilesystemType {
 		return FilestoreCapabilities{}, fmt.Errorf("filestore mount identity changed: stored=%s current=%s", out.MountIdentity, identity)
 	}
+	readonly, err := IsPathReadOnly(filestoreDir)
+	if err != nil {
+		return FilestoreCapabilities{}, fmt.Errorf("inspect filestore writeability: %w", err)
+	}
+	if readonly {
+		return FilestoreCapabilities{}, fmt.Errorf("filestore mount is read-only")
+	}
 	return out, nil
+}
+
+// DirectoryIdentity returns a mount-local directory identity suitable for a
+// durable enforcement manifest. Lstat intentionally rejects a symlink so a
+// backing directory cannot be redirected without invalidating the proof.
+func DirectoryIdentity(path string) (string, error) {
+	var stat unix.Stat_t
+	if err := unix.Lstat(path, &stat); err != nil {
+		return "", err
+	}
+	if stat.Mode&unix.S_IFMT != unix.S_IFDIR {
+		return "", fmt.Errorf("path is not a directory: %s", path)
+	}
+	return fmt.Sprintf("devino:v1:%x:%x", uint64(stat.Dev), stat.Ino), nil
 }
 
 func writeFilestoreCapabilities(dir string, capabilities FilestoreCapabilities) error {
