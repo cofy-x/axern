@@ -47,13 +47,15 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 	} else if identity != ledger.GetMemoryCapacityIdentity() {
 		return nil, fmt.Errorf("cgroup ledger memory capacity identity is not canonical")
 	}
-	for _, lease := range ledger.GetLeases() {
-		if err := validateCgroupLease(lease); err != nil {
-			return nil, err
-		}
-		if filepath.Dir(lease.GetCgroupID()) != resolvedRoot {
-			return nil, fmt.Errorf("cgroup %s is outside resolved sandbox root %s", lease.GetCgroupID(), resolvedRoot)
-		}
+	reconciledLeases, discardedIdleLeases, err := reconcileCgroupLeasesForRoot(ledger.GetLeases(), resolvedRoot)
+	if err != nil {
+		return nil, err
+	}
+	if discardedIdleLeases > 0 {
+		logrus.WithFields(logrus.Fields{
+			"discarded_idle_leases": discardedIdleLeases,
+			"resolved_root":         resolvedRoot,
+		}).Info("discarded never-assigned cgroup leases from a previous delegation root")
 	}
 	if err := cgroupDriver.EnsureRoot(rootName); err != nil {
 		return nil, fmt.Errorf("prepare allocation cgroup root %q: %w", rootName, err)
@@ -67,7 +69,7 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 	usingIDs := cmap.New[struct{}]()
 	leases := cmap.New[*apipb.CgroupLease]()
 	gcQueue := queue.New("")
-	for _, lease := range ledger.GetLeases() {
+	for _, lease := range reconciledLeases {
 		kernelPresent := cgs.Has(lease.GetCgroupID())
 		copy := proto.Clone(lease).(*apipb.CgroupLease)
 		if !kernelPresent {
@@ -133,6 +135,34 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 	c.keepStoring()
 	go c.gc()
 	return c, nil
+}
+
+func reconcileCgroupLeasesForRoot(leases []*apipb.CgroupLease, resolvedRoot string) ([]*apipb.CgroupLease, int, error) {
+	result := make([]*apipb.CgroupLease, 0, len(leases))
+	discardedIdle := 0
+	for _, lease := range leases {
+		if err := validateCgroupLease(lease); err != nil {
+			return nil, 0, err
+		}
+		if filepath.Dir(lease.GetCgroupID()) == resolvedRoot {
+			result = append(result, lease)
+			continue
+		}
+		if lease.GetState() == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE {
+			// Idle leases have never belonged to an allocation and carry no
+			// memory commitment. Their kernel objects are owned by the previous
+			// delegated root and disappear with that root; recreate warm objects
+			// below the current root instead of making a Pod replacement
+			// permanently crash-loop.
+			discardedIdle++
+			continue
+		}
+		return nil, 0, fmt.Errorf(
+			"non-idle cgroup %s is outside resolved sandbox root %s; drain allocations and reconcile cleanup debt before replacing the delegated root",
+			lease.GetCgroupID(), resolvedRoot,
+		)
+	}
+	return result, discardedIdle, nil
 }
 
 func missingKernelLeaseConverged(state apipb.CgroupLifecycleState) bool {

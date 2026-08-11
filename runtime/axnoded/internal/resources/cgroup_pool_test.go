@@ -375,6 +375,53 @@ func TestValidateCgroupLeaseRejectsInvalidUTF8IdentityDiagnostic(t *testing.T) {
 	}
 }
 
+func TestReconcileCgroupLeasesForRootDiscardsOnlyStaleIdleLeases(t *testing.T) {
+	leases := []*apipb.CgroupLease{
+		{CgroupID: "/old/sandbox/idle", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE},
+		{CgroupID: "/current/sandbox/idle", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE},
+	}
+
+	reconciled, discarded, err := reconcileCgroupLeasesForRoot(leases, "/current/sandbox")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if discarded != 1 {
+		t.Fatalf("discarded leases = %d, want 1", discarded)
+	}
+	if len(reconciled) != 1 || reconciled[0].GetCgroupID() != "/current/sandbox/idle" {
+		t.Fatalf("reconciled leases = %#v", reconciled)
+	}
+}
+
+func TestReconcileCgroupLeasesForRootRejectsStaleOwnership(t *testing.T) {
+	for _, lease := range []*apipb.CgroupLease{
+		{
+			CgroupID: "/old/sandbox/assigned", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
+			AllocationID: "allocation-a", RuntimeName: "runc", AssignedAtUnixNano: 1,
+		},
+		{
+			CgroupID: "/old/sandbox/retiring", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+			RetiringAtUnixNano: 1,
+		},
+	} {
+		t.Run(lease.GetState().String(), func(t *testing.T) {
+			if _, _, err := reconcileCgroupLeasesForRoot([]*apipb.CgroupLease{lease}, "/current/sandbox"); err == nil {
+				t.Fatalf("reconcileCgroupLeasesForRoot() accepted stale %s lease", lease.GetState())
+			}
+		})
+	}
+}
+
+func TestReconcileCgroupLeasesForRootValidatesStaleIdleLeaseBeforeDiscard(t *testing.T) {
+	lease := &apipb.CgroupLease{
+		CgroupID: "/old/sandbox/idle", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE,
+		AllocationID: "unexpected-owner",
+	}
+	if _, _, err := reconcileCgroupLeasesForRoot([]*apipb.CgroupLease{lease}, "/current/sandbox"); err == nil {
+		t.Fatal("reconcileCgroupLeasesForRoot() discarded a malformed idle lease")
+	}
+}
+
 type MockCgroup struct {
 	path string
 }

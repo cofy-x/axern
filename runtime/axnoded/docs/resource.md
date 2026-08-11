@@ -208,6 +208,11 @@ Key behavior:
 - Warm creation may place a never-assigned empty cgroup in `idle`. Assignment is
   a one-way ownership boundary: delete moves it to `retiring`, never back to
   `idle`.
+- When the process receives a different delegated root after replacement,
+  startup discards only old-root `idle` leases and recreates the warm pool under
+  the current root. Any old-root `assigned` or `retiring` lease remains a hard
+  startup error until allocations are drained and cleanup debt is reconciled;
+  its commitment is never silently released.
 - `cgroup_cache_size = 0` disables only warm creation. In required mode the
   manager remains active and creates one-use allocation cgroups on demand.
 - GC never kills an unexplained remaining process. It retains the retiring
