@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
+	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"google.golang.org/protobuf/proto"
 )
@@ -36,6 +37,7 @@ type AllocateOption struct {
 	MemoryLimitBytes   int64
 	AllocationAttempt  int64
 	RuntimeName        string
+	CgroupOwnerKind    apipb.CgroupLeaseOwnerKind
 }
 
 // RetiringMemoryLease is the durable information needed to keep reporting an

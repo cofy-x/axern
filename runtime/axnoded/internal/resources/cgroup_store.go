@@ -47,15 +47,15 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 	} else if identity != ledger.GetMemoryCapacityIdentity() {
 		return nil, fmt.Errorf("cgroup ledger memory capacity identity is not canonical")
 	}
-	reconciledLeases, discardedIdleLeases, err := reconcileCgroupLeasesForRoot(ledger.GetLeases(), resolvedRoot)
+	reconciledLeases, discardedRecreatableLeases, err := reconcileCgroupLeasesForRoot(ledger.GetLeases(), resolvedRoot)
 	if err != nil {
 		return nil, err
 	}
-	if discardedIdleLeases > 0 {
+	if discardedRecreatableLeases > 0 {
 		logrus.WithFields(logrus.Fields{
-			"discarded_idle_leases": discardedIdleLeases,
-			"resolved_root":         resolvedRoot,
-		}).Info("discarded never-assigned cgroup leases from a previous delegation root")
+			"discarded_recreatable_leases": discardedRecreatableLeases,
+			"resolved_root":                resolvedRoot,
+		}).Info("discarded recreatable cgroup leases from a previous delegation root")
 	}
 	if err := cgroupDriver.EnsureRoot(rootName); err != nil {
 		return nil, fmt.Errorf("prepare allocation cgroup root %q: %w", rootName, err)
@@ -139,7 +139,7 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 
 func reconcileCgroupLeasesForRoot(leases []*apipb.CgroupLease, resolvedRoot string) ([]*apipb.CgroupLease, int, error) {
 	result := make([]*apipb.CgroupLease, 0, len(leases))
-	discardedIdle := 0
+	discardedRecreatable := 0
 	for _, lease := range leases {
 		if err := validateCgroupLease(lease); err != nil {
 			return nil, 0, err
@@ -148,13 +148,13 @@ func reconcileCgroupLeasesForRoot(leases []*apipb.CgroupLease, resolvedRoot stri
 			result = append(result, lease)
 			continue
 		}
-		if lease.GetState() == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE {
-			// Idle leases have never belonged to an allocation and carry no
-			// memory commitment. Their kernel objects are owned by the previous
-			// delegated root and disappear with that root; recreate warm objects
-			// below the current root instead of making a Pod replacement
-			// permanently crash-loop.
-			discardedIdle++
+		if staleCgroupLeaseIsRecreatable(lease) {
+			// Never-assigned leases carry no allocation commitment. Internal
+			// conformance is node-owned, cannot be requested over RPC, and is
+			// retried from a deterministic identity whose preflight removes any
+			// remaining runtime/storage artifacts. Recreate both below the
+			// current root instead of making a Pod replacement crash-loop.
+			discardedRecreatable++
 			continue
 		}
 		return nil, 0, fmt.Errorf(
@@ -162,7 +162,21 @@ func reconcileCgroupLeasesForRoot(leases []*apipb.CgroupLease, resolvedRoot stri
 			lease.GetCgroupID(), resolvedRoot,
 		)
 	}
-	return result, discardedIdle, nil
+	return result, discardedRecreatable, nil
+}
+
+func staleCgroupLeaseIsRecreatable(lease *apipb.CgroupLease) bool {
+	if lease == nil {
+		return false
+	}
+	if lease.GetState() == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE {
+		return true
+	}
+	if lease.GetState() == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING &&
+		lease.GetAllocationID() == "" {
+		return true
+	}
+	return lease.GetOwnerKind() == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE
 }
 
 func missingKernelLeaseConverged(state apipb.CgroupLifecycleState) bool {
@@ -178,12 +192,13 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE:
 		if lease.GetAllocationID() != "" || lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 ||
 			lease.GetAllocationAttempt() != 0 || lease.GetRuntimeName() != "" || lease.GetAssignedAtUnixNano() != 0 ||
-			lease.GetRetiringAtUnixNano() != 0 || lease.GetReclaimRequestedAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) {
+			lease.GetRetiringAtUnixNano() != 0 || lease.GetReclaimRequestedAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) ||
+			lease.GetOwnerKind() != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED {
 			return fmt.Errorf("idle cgroup %s contains allocation ownership", lease.GetCgroupID())
 		}
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED:
 		if lease.GetAllocationID() == "" || lease.GetAssignedAtUnixNano() <= 0 || lease.GetRetiringAtUnixNano() != 0 || lease.GetReclaimRequestedAtUnixNano() != 0 ||
-			(lease.GetRuntimeName() != "runc" && lease.GetRuntimeName() != "runsc") {
+			(lease.GetRuntimeName() != "runc" && lease.GetRuntimeName() != "runsc") || !validAssignedCgroupOwner(lease.GetOwnerKind()) {
 			return fmt.Errorf("assigned cgroup %s has malformed ownership", lease.GetCgroupID())
 		}
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING:
@@ -192,6 +207,16 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 		}
 		if requestedAt := lease.GetReclaimRequestedAtUnixNano(); requestedAt < 0 || requestedAt > time.Now().Add(time.Minute).UnixNano() {
 			return fmt.Errorf("retiring cgroup %s has invalid reclaim request time", lease.GetCgroupID())
+		}
+		if lease.GetAllocationID() == "" {
+			if lease.GetOwnerKind() != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED ||
+				lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 || lease.GetRuntimeName() != "" ||
+				lease.GetAssignedAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) {
+				return fmt.Errorf("unowned retiring cgroup %s contains allocation ownership", lease.GetCgroupID())
+			}
+		} else if lease.GetAssignedAtUnixNano() <= 0 || (lease.GetRuntimeName() != "runc" && lease.GetRuntimeName() != "runsc") ||
+			!validAssignedCgroupOwner(lease.GetOwnerKind()) {
+			return fmt.Errorf("retiring cgroup %s has malformed allocation ownership", lease.GetCgroupID())
 		}
 	default:
 		return fmt.Errorf("cgroup %s has invalid lifecycle state %s", lease.GetCgroupID(), lease.GetState())
@@ -220,6 +245,11 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 		return fmt.Errorf("cgroup %s cleanup diagnostic is invalid or exceeds 1024 bytes", lease.GetCgroupID())
 	}
 	return nil
+}
+
+func validAssignedCgroupOwner(owner apipb.CgroupLeaseOwnerKind) bool {
+	return owner == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD ||
+		owner == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE
 }
 
 func boundedCgroupDiagnostic(message string) string {

@@ -209,10 +209,13 @@ Key behavior:
   a one-way ownership boundary: delete moves it to `retiring`, never back to
   `idle`.
 - When the process receives a different delegated root after replacement,
-  startup discards only old-root `idle` leases and recreates the warm pool under
-  the current root. Any old-root `assigned` or `retiring` lease remains a hard
-  startup error until allocations are drained and cleanup debt is reconciled;
-  its commitment is never silently released.
+  startup discards only never-assigned leases and leases owned by the internal
+  runtime-conformance harness. It recreates the warm pool under the current
+  root, while the deterministic conformance preflight removes interrupted
+  probe artifacts. Any workload-owned old-root `assigned` or `retiring` lease
+  remains a hard startup error until allocations are drained and cleanup debt
+  is reconciled; its commitment is never silently released. Ownership is a
+  durable typed field and is never inferred from an allocation ID prefix.
 - `cgroup_cache_size = 0` disables only warm creation. In required mode the
   manager remains active and creates one-use allocation cgroups on demand.
 - GC never kills an unexplained remaining process. It retains the retiring

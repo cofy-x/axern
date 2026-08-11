@@ -250,6 +250,7 @@ func (h *Controller) prepareContainerResources(ctx context.Context, traceID, run
 		MemoryLimitBytes:   resourceSpec.GetLimits().GetMemoryBytes(),
 		AllocationAttempt:  allocationAttempt,
 		RuntimeName:        runtimeName,
+		CgroupOwnerKind:    cgroupLeaseOwnerKind(ctx),
 	}, resourceNames...)
 	if err != nil {
 		logrus.WithField(trace.ContextKeyTraceId, traceID).Errorf("occpuy resource failed: %v", err)
@@ -257,6 +258,13 @@ func (h *Controller) prepareContainerResources(ctx context.Context, traceID, run
 	}
 
 	return handler, resource, nil
+}
+
+func cgroupLeaseOwnerKind(ctx context.Context) apipb.CgroupLeaseOwnerKind {
+	if IsInternalConformance(ctx) {
+		return apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE
+	}
+	return apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD
 }
 
 func envValue(envs []*apipb.KeyValue, key string) string {

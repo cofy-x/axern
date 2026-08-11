@@ -98,6 +98,7 @@ func TestCgroupManagerAllocateLazilyCreatesWhenPoolIsEmpty(t *testing.T) {
 	assert.Equal(t, int64(7), lease.GetAllocationAttempt())
 	assert.Equal(t, int64(1024), lease.GetMemoryLimitBytes())
 	assert.Equal(t, "runsc", lease.GetRuntimeName())
+	assert.Equal(t, apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD, lease.GetOwnerKind())
 }
 
 func TestBoundedCgroupDiagnosticPreservesUTF8(t *testing.T) {
@@ -348,7 +349,8 @@ func TestBindMemoryDomainIsDurableAndIdentityImmutable(t *testing.T) {
 func TestValidateCgroupLeaseRejectsPartialMemoryIdentity(t *testing.T) {
 	err := validateCgroupLease(&apipb.CgroupLease{
 		CgroupID: "/sandbox/assigned", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
-		AllocationID: "alloc-a", MemoryLimitBytes: 2048, AssignedAtUnixNano: 1, CgroupBootID: "boot-a",
+		AllocationID: "alloc-a", RuntimeName: "runc", MemoryLimitBytes: 2048, AssignedAtUnixNano: 1, CgroupBootID: "boot-a",
+		OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD,
 	})
 	if err == nil {
 		t.Fatal("validateCgroupLease() accepted a partial memory identity")
@@ -359,6 +361,7 @@ func TestValidateCgroupLeaseRequiresAssignedRuntimeForNodeLocalAllocation(t *tes
 	err := validateCgroupLease(&apipb.CgroupLease{
 		CgroupID: "/sandbox/assigned", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
 		AllocationID: "node-local", AssignedAtUnixNano: 1,
+		OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD,
 	})
 	if err == nil {
 		t.Fatal("validateCgroupLease() accepted assigned ownership without a runtime")
@@ -398,15 +401,42 @@ func TestReconcileCgroupLeasesForRootRejectsStaleOwnership(t *testing.T) {
 		{
 			CgroupID: "/old/sandbox/assigned", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
 			AllocationID: "allocation-a", RuntimeName: "runc", AssignedAtUnixNano: 1,
+			OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD,
 		},
 		{
 			CgroupID: "/old/sandbox/retiring", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
-			RetiringAtUnixNano: 1,
+			AllocationID: "allocation-b", RuntimeName: "runsc", AssignedAtUnixNano: 1, RetiringAtUnixNano: 2,
+			OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD,
 		},
 	} {
 		t.Run(lease.GetState().String(), func(t *testing.T) {
 			if _, _, err := reconcileCgroupLeasesForRoot([]*apipb.CgroupLease{lease}, "/current/sandbox"); err == nil {
 				t.Fatalf("reconcileCgroupLeasesForRoot() accepted stale %s lease", lease.GetState())
+			}
+		})
+	}
+}
+
+func TestReconcileCgroupLeasesForRootDiscardsStaleInternalConformance(t *testing.T) {
+	for _, state := range []apipb.CgroupLifecycleState{
+		apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
+		apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+	} {
+		lease := &apipb.CgroupLease{
+			CgroupID: "/old/sandbox/conformance", State: state,
+			AllocationID: "self-test", RuntimeName: "runsc", AssignedAtUnixNano: 1,
+			OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE,
+		}
+		if state == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING {
+			lease.RetiringAtUnixNano = 2
+		}
+		t.Run(state.String(), func(t *testing.T) {
+			reconciled, discarded, err := reconcileCgroupLeasesForRoot([]*apipb.CgroupLease{lease}, "/current/sandbox")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(reconciled) != 0 || discarded != 1 {
+				t.Fatalf("reconciled=%d discarded=%d", len(reconciled), discarded)
 			}
 		})
 	}

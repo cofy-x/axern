@@ -124,6 +124,55 @@ func (CgroupLifecycleState) EnumDescriptor() ([]byte, []int) {
 	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{1}
 }
 
+type CgroupLeaseOwnerKind int32
+
+const (
+	CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED         CgroupLeaseOwnerKind = 0
+	CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD            CgroupLeaseOwnerKind = 1
+	CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE CgroupLeaseOwnerKind = 2
+)
+
+// Enum value maps for CgroupLeaseOwnerKind.
+var (
+	CgroupLeaseOwnerKind_name = map[int32]string{
+		0: "CGROUP_LEASE_OWNER_KIND_UNSPECIFIED",
+		1: "CGROUP_LEASE_OWNER_KIND_WORKLOAD",
+		2: "CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE",
+	}
+	CgroupLeaseOwnerKind_value = map[string]int32{
+		"CGROUP_LEASE_OWNER_KIND_UNSPECIFIED":         0,
+		"CGROUP_LEASE_OWNER_KIND_WORKLOAD":            1,
+		"CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE": 2,
+	}
+)
+
+func (x CgroupLeaseOwnerKind) Enum() *CgroupLeaseOwnerKind {
+	p := new(CgroupLeaseOwnerKind)
+	*p = x
+	return p
+}
+
+func (x CgroupLeaseOwnerKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CgroupLeaseOwnerKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_internal_apipb_v1_axnoded_internal_proto_enumTypes[2].Descriptor()
+}
+
+func (CgroupLeaseOwnerKind) Type() protoreflect.EnumType {
+	return &file_internal_apipb_v1_axnoded_internal_proto_enumTypes[2]
+}
+
+func (x CgroupLeaseOwnerKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CgroupLeaseOwnerKind.Descriptor instead.
+func (CgroupLeaseOwnerKind) EnumDescriptor() ([]byte, []int) {
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{2}
+}
+
 type TaskAssetKind int32
 
 const (
@@ -157,11 +206,11 @@ func (x TaskAssetKind) String() string {
 }
 
 func (TaskAssetKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_internal_apipb_v1_axnoded_internal_proto_enumTypes[2].Descriptor()
+	return file_internal_apipb_v1_axnoded_internal_proto_enumTypes[3].Descriptor()
 }
 
 func (TaskAssetKind) Type() protoreflect.EnumType {
-	return &file_internal_apipb_v1_axnoded_internal_proto_enumTypes[2]
+	return &file_internal_apipb_v1_axnoded_internal_proto_enumTypes[3]
 }
 
 func (x TaskAssetKind) Number() protoreflect.EnumNumber {
@@ -170,7 +219,7 @@ func (x TaskAssetKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TaskAssetKind.Descriptor instead.
 func (TaskAssetKind) EnumDescriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{2}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{3}
 }
 
 type CgroupLease struct {
@@ -192,6 +241,7 @@ type CgroupLease struct {
 	CgroupParentInode             uint64                 `protobuf:"varint,15,opt,name=cgroup_parent_inode,json=cgroupParentInode,proto3" json:"cgroup_parent_inode,omitempty"`
 	CgroupLeafInode               uint64                 `protobuf:"varint,16,opt,name=cgroup_leaf_inode,json=cgroupLeafInode,proto3" json:"cgroup_leaf_inode,omitempty"`
 	LastIdentityVerificationError string                 `protobuf:"bytes,17,opt,name=last_identity_verification_error,json=lastIdentityVerificationError,proto3" json:"last_identity_verification_error,omitempty"`
+	OwnerKind                     CgroupLeaseOwnerKind   `protobuf:"varint,18,opt,name=owner_kind,json=ownerKind,proto3,enum=axnoded.internal.apipb.v1.CgroupLeaseOwnerKind" json:"owner_kind,omitempty"`
 	unknownFields                 protoimpl.UnknownFields
 	sizeCache                     protoimpl.SizeCache
 }
@@ -343,6 +393,13 @@ func (x *CgroupLease) GetLastIdentityVerificationError() string {
 		return x.LastIdentityVerificationError
 	}
 	return ""
+}
+
+func (x *CgroupLease) GetOwnerKind() CgroupLeaseOwnerKind {
+	if x != nil {
+		return x.OwnerKind
+	}
+	return CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED
 }
 
 type CgroupLedger struct {
@@ -2201,7 +2258,7 @@ var File_internal_apipb_v1_axnoded_internal_proto protoreflect.FileDescriptor
 
 const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\n" +
-	"(internal/apipb/v1/axnoded_internal.proto\x12\x19axnoded.internal.apipb.v1\x1a&axern/control/catalog/v1/catalog.proto\x1a,axern/control/capability/v1/capability.proto\"\xd3\x06\n" +
+	"(internal/apipb/v1/axnoded_internal.proto\x12\x19axnoded.internal.apipb.v1\x1a&axern/control/catalog/v1/catalog.proto\x1a,axern/control/capability/v1/capability.proto\"\xa3\a\n" +
 	"\vCgroupLease\x12\x1b\n" +
 	"\tcgroup_id\x18\x01 \x01(\tR\bcgroupId\x12E\n" +
 	"\x05state\x18\x02 \x01(\x0e2/.axnoded.internal.apipb.v1.CgroupLifecycleStateR\x05state\x12#\n" +
@@ -2220,7 +2277,9 @@ const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\x15cgroup_mount_identity\x18\x0e \x01(\tR\x13cgroupMountIdentity\x12.\n" +
 	"\x13cgroup_parent_inode\x18\x0f \x01(\x04R\x11cgroupParentInode\x12*\n" +
 	"\x11cgroup_leaf_inode\x18\x10 \x01(\x04R\x0fcgroupLeafInode\x12G\n" +
-	" last_identity_verification_error\x18\x11 \x01(\tR\x1dlastIdentityVerificationError\"\x88\x01\n" +
+	" last_identity_verification_error\x18\x11 \x01(\tR\x1dlastIdentityVerificationError\x12N\n" +
+	"\n" +
+	"owner_kind\x18\x12 \x01(\x0e2/.axnoded.internal.apipb.v1.CgroupLeaseOwnerKindR\townerKind\"\x88\x01\n" +
 	"\fCgroupLedger\x12>\n" +
 	"\x06leases\x18\x01 \x03(\v2&.axnoded.internal.apipb.v1.CgroupLeaseR\x06leases\x128\n" +
 	"\x18memory_capacity_identity\x18\x02 \x01(\tR\x16memoryCapacityIdentity\"<\n" +
@@ -2401,7 +2460,11 @@ const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\"CGROUP_LIFECYCLE_STATE_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bCGROUP_LIFECYCLE_STATE_IDLE\x10\x01\x12#\n" +
 	"\x1fCGROUP_LIFECYCLE_STATE_ASSIGNED\x10\x02\x12#\n" +
-	"\x1fCGROUP_LIFECYCLE_STATE_RETIRING\x10\x03*j\n" +
+	"\x1fCGROUP_LIFECYCLE_STATE_RETIRING\x10\x03*\x96\x01\n" +
+	"\x14CgroupLeaseOwnerKind\x12'\n" +
+	"#CGROUP_LEASE_OWNER_KIND_UNSPECIFIED\x10\x00\x12$\n" +
+	" CGROUP_LEASE_OWNER_KIND_WORKLOAD\x10\x01\x12/\n" +
+	"+CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE\x10\x02*j\n" +
 	"\rTaskAssetKind\x12\x1f\n" +
 	"\x1bTASK_ASSET_KIND_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18TASK_ASSET_KIND_VERIFIER\x10\x01\x12\x1a\n" +
@@ -2419,80 +2482,82 @@ func file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP() []byte {
 	return file_internal_apipb_v1_axnoded_internal_proto_rawDescData
 }
 
-var file_internal_apipb_v1_axnoded_internal_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_internal_apipb_v1_axnoded_internal_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
 var file_internal_apipb_v1_axnoded_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_internal_apipb_v1_axnoded_internal_proto_goTypes = []any{
 	(RootfsSrcType)(0),                         // 0: axnoded.internal.apipb.v1.RootfsSrcType
 	(CgroupLifecycleState)(0),                  // 1: axnoded.internal.apipb.v1.CgroupLifecycleState
-	(TaskAssetKind)(0),                         // 2: axnoded.internal.apipb.v1.TaskAssetKind
-	(*CgroupLease)(nil),                        // 3: axnoded.internal.apipb.v1.CgroupLease
-	(*CgroupLedger)(nil),                       // 4: axnoded.internal.apipb.v1.CgroupLedger
-	(*DurableSequence)(nil),                    // 5: axnoded.internal.apipb.v1.DurableSequence
-	(*S3Config)(nil),                           // 6: axnoded.internal.apipb.v1.S3Config
-	(*RootfsConfig)(nil),                       // 7: axnoded.internal.apipb.v1.RootfsConfig
-	(*Mount)(nil),                              // 8: axnoded.internal.apipb.v1.Mount
-	(*ImageMount)(nil),                         // 9: axnoded.internal.apipb.v1.ImageMount
-	(*WorkspaceImageVariant)(nil),              // 10: axnoded.internal.apipb.v1.WorkspaceImageVariant
-	(*WorkspaceImageSource)(nil),               // 11: axnoded.internal.apipb.v1.WorkspaceImageSource
-	(*MaterializeTaskAssetsRequest)(nil),       // 12: axnoded.internal.apipb.v1.MaterializeTaskAssetsRequest
-	(*MaterializeTaskAssetsResponse)(nil),      // 13: axnoded.internal.apipb.v1.MaterializeTaskAssetsResponse
-	(*RuntimeTemplate)(nil),                    // 14: axnoded.internal.apipb.v1.RuntimeTemplate
-	(*AllocationState)(nil),                    // 15: axnoded.internal.apipb.v1.AllocationState
-	(*AllocationLaunchVerification)(nil),       // 16: axnoded.internal.apipb.v1.AllocationLaunchVerification
-	(*PendingCapabilityReconcile)(nil),         // 17: axnoded.internal.apipb.v1.PendingCapabilityReconcile
-	(*AllocationCapabilityReconcileState)(nil), // 18: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
-	(*AllocationEnforcementManifest)(nil),      // 19: axnoded.internal.apipb.v1.AllocationEnforcementManifest
-	(*TerminalResize)(nil),                     // 20: axnoded.internal.apipb.v1.TerminalResize
-	(*KeyValue)(nil),                           // 21: axnoded.internal.apipb.v1.KeyValue
-	(*LinuxContainerResources)(nil),            // 22: axnoded.internal.apipb.v1.LinuxContainerResources
-	(*HugepageLimit)(nil),                      // 23: axnoded.internal.apipb.v1.HugepageLimit
-	(*Rootfs)(nil),                             // 24: axnoded.internal.apipb.v1.Rootfs
-	(*ContainerMetadata)(nil),                  // 25: axnoded.internal.apipb.v1.ContainerMetadata
-	(*ContainerMetadataList)(nil),              // 26: axnoded.internal.apipb.v1.ContainerMetadataList
-	(*Slice)(nil),                              // 27: axnoded.internal.apipb.v1.Slice
-	(*Map)(nil),                                // 28: axnoded.internal.apipb.v1.Map
-	nil,                                        // 29: axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
-	nil,                                        // 30: axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
-	nil,                                        // 31: axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
-	nil,                                        // 32: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
-	nil,                                        // 33: axnoded.internal.apipb.v1.Map.ItemsEntry
-	(*v1.RuntimeExecutionProfile)(nil),         // 34: axern.control.catalog.v1.RuntimeExecutionProfile
-	(*v11.CapabilityDependency)(nil),           // 35: axern.control.capability.v1.CapabilityDependency
-	(*v11.CapabilityConditionSet)(nil),         // 36: axern.control.capability.v1.CapabilityConditionSet
-	(*v11.CapabilityKey)(nil),                  // 37: axern.control.capability.v1.CapabilityKey
+	(CgroupLeaseOwnerKind)(0),                  // 2: axnoded.internal.apipb.v1.CgroupLeaseOwnerKind
+	(TaskAssetKind)(0),                         // 3: axnoded.internal.apipb.v1.TaskAssetKind
+	(*CgroupLease)(nil),                        // 4: axnoded.internal.apipb.v1.CgroupLease
+	(*CgroupLedger)(nil),                       // 5: axnoded.internal.apipb.v1.CgroupLedger
+	(*DurableSequence)(nil),                    // 6: axnoded.internal.apipb.v1.DurableSequence
+	(*S3Config)(nil),                           // 7: axnoded.internal.apipb.v1.S3Config
+	(*RootfsConfig)(nil),                       // 8: axnoded.internal.apipb.v1.RootfsConfig
+	(*Mount)(nil),                              // 9: axnoded.internal.apipb.v1.Mount
+	(*ImageMount)(nil),                         // 10: axnoded.internal.apipb.v1.ImageMount
+	(*WorkspaceImageVariant)(nil),              // 11: axnoded.internal.apipb.v1.WorkspaceImageVariant
+	(*WorkspaceImageSource)(nil),               // 12: axnoded.internal.apipb.v1.WorkspaceImageSource
+	(*MaterializeTaskAssetsRequest)(nil),       // 13: axnoded.internal.apipb.v1.MaterializeTaskAssetsRequest
+	(*MaterializeTaskAssetsResponse)(nil),      // 14: axnoded.internal.apipb.v1.MaterializeTaskAssetsResponse
+	(*RuntimeTemplate)(nil),                    // 15: axnoded.internal.apipb.v1.RuntimeTemplate
+	(*AllocationState)(nil),                    // 16: axnoded.internal.apipb.v1.AllocationState
+	(*AllocationLaunchVerification)(nil),       // 17: axnoded.internal.apipb.v1.AllocationLaunchVerification
+	(*PendingCapabilityReconcile)(nil),         // 18: axnoded.internal.apipb.v1.PendingCapabilityReconcile
+	(*AllocationCapabilityReconcileState)(nil), // 19: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
+	(*AllocationEnforcementManifest)(nil),      // 20: axnoded.internal.apipb.v1.AllocationEnforcementManifest
+	(*TerminalResize)(nil),                     // 21: axnoded.internal.apipb.v1.TerminalResize
+	(*KeyValue)(nil),                           // 22: axnoded.internal.apipb.v1.KeyValue
+	(*LinuxContainerResources)(nil),            // 23: axnoded.internal.apipb.v1.LinuxContainerResources
+	(*HugepageLimit)(nil),                      // 24: axnoded.internal.apipb.v1.HugepageLimit
+	(*Rootfs)(nil),                             // 25: axnoded.internal.apipb.v1.Rootfs
+	(*ContainerMetadata)(nil),                  // 26: axnoded.internal.apipb.v1.ContainerMetadata
+	(*ContainerMetadataList)(nil),              // 27: axnoded.internal.apipb.v1.ContainerMetadataList
+	(*Slice)(nil),                              // 28: axnoded.internal.apipb.v1.Slice
+	(*Map)(nil),                                // 29: axnoded.internal.apipb.v1.Map
+	nil,                                        // 30: axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
+	nil,                                        // 31: axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
+	nil,                                        // 32: axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
+	nil,                                        // 33: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
+	nil,                                        // 34: axnoded.internal.apipb.v1.Map.ItemsEntry
+	(*v1.RuntimeExecutionProfile)(nil),         // 35: axern.control.catalog.v1.RuntimeExecutionProfile
+	(*v11.CapabilityDependency)(nil),           // 36: axern.control.capability.v1.CapabilityDependency
+	(*v11.CapabilityConditionSet)(nil),         // 37: axern.control.capability.v1.CapabilityConditionSet
+	(*v11.CapabilityKey)(nil),                  // 38: axern.control.capability.v1.CapabilityKey
 }
 var file_internal_apipb_v1_axnoded_internal_proto_depIdxs = []int32{
 	1,  // 0: axnoded.internal.apipb.v1.CgroupLease.state:type_name -> axnoded.internal.apipb.v1.CgroupLifecycleState
-	3,  // 1: axnoded.internal.apipb.v1.CgroupLedger.leases:type_name -> axnoded.internal.apipb.v1.CgroupLease
-	0,  // 2: axnoded.internal.apipb.v1.RootfsConfig.type:type_name -> axnoded.internal.apipb.v1.RootfsSrcType
-	6,  // 3: axnoded.internal.apipb.v1.RootfsConfig.s3_config:type_name -> axnoded.internal.apipb.v1.S3Config
-	10, // 4: axnoded.internal.apipb.v1.WorkspaceImageSource.variants:type_name -> axnoded.internal.apipb.v1.WorkspaceImageVariant
-	2,  // 5: axnoded.internal.apipb.v1.MaterializeTaskAssetsRequest.kind:type_name -> axnoded.internal.apipb.v1.TaskAssetKind
-	7,  // 6: axnoded.internal.apipb.v1.RuntimeTemplate.rootfs:type_name -> axnoded.internal.apipb.v1.RootfsConfig
-	29, // 7: axnoded.internal.apipb.v1.RuntimeTemplate.runtimeEnvs:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
-	8,  // 8: axnoded.internal.apipb.v1.RuntimeTemplate.mounts:type_name -> axnoded.internal.apipb.v1.Mount
-	34, // 9: axnoded.internal.apipb.v1.RuntimeTemplate.execution_profile:type_name -> axern.control.catalog.v1.RuntimeExecutionProfile
-	14, // 10: axnoded.internal.apipb.v1.AllocationState.runtime_template:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate
-	35, // 11: axnoded.internal.apipb.v1.AllocationState.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
-	36, // 12: axnoded.internal.apipb.v1.AllocationState.capability_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
-	19, // 13: axnoded.internal.apipb.v1.AllocationState.enforcement_manifest:type_name -> axnoded.internal.apipb.v1.AllocationEnforcementManifest
-	18, // 14: axnoded.internal.apipb.v1.AllocationState.capability_reconcile:type_name -> axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
-	16, // 15: axnoded.internal.apipb.v1.AllocationState.launch_verification:type_name -> axnoded.internal.apipb.v1.AllocationLaunchVerification
-	36, // 16: axnoded.internal.apipb.v1.AllocationState.capability_admission_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
-	37, // 17: axnoded.internal.apipb.v1.AllocationLaunchVerification.verified_capabilities:type_name -> axern.control.capability.v1.CapabilityKey
-	37, // 18: axnoded.internal.apipb.v1.PendingCapabilityReconcile.key:type_name -> axern.control.capability.v1.CapabilityKey
-	17, // 19: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState.pending:type_name -> axnoded.internal.apipb.v1.PendingCapabilityReconcile
-	23, // 20: axnoded.internal.apipb.v1.LinuxContainerResources.hugepage_limits:type_name -> axnoded.internal.apipb.v1.HugepageLimit
-	30, // 21: axnoded.internal.apipb.v1.LinuxContainerResources.unified:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
-	31, // 22: axnoded.internal.apipb.v1.ContainerMetadata.labels:type_name -> axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
-	32, // 23: axnoded.internal.apipb.v1.ContainerMetadataList.containers:type_name -> axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
-	33, // 24: axnoded.internal.apipb.v1.Map.items:type_name -> axnoded.internal.apipb.v1.Map.ItemsEntry
-	25, // 25: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry.value:type_name -> axnoded.internal.apipb.v1.ContainerMetadata
-	26, // [26:26] is the sub-list for method output_type
-	26, // [26:26] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	2,  // 1: axnoded.internal.apipb.v1.CgroupLease.owner_kind:type_name -> axnoded.internal.apipb.v1.CgroupLeaseOwnerKind
+	4,  // 2: axnoded.internal.apipb.v1.CgroupLedger.leases:type_name -> axnoded.internal.apipb.v1.CgroupLease
+	0,  // 3: axnoded.internal.apipb.v1.RootfsConfig.type:type_name -> axnoded.internal.apipb.v1.RootfsSrcType
+	7,  // 4: axnoded.internal.apipb.v1.RootfsConfig.s3_config:type_name -> axnoded.internal.apipb.v1.S3Config
+	11, // 5: axnoded.internal.apipb.v1.WorkspaceImageSource.variants:type_name -> axnoded.internal.apipb.v1.WorkspaceImageVariant
+	3,  // 6: axnoded.internal.apipb.v1.MaterializeTaskAssetsRequest.kind:type_name -> axnoded.internal.apipb.v1.TaskAssetKind
+	8,  // 7: axnoded.internal.apipb.v1.RuntimeTemplate.rootfs:type_name -> axnoded.internal.apipb.v1.RootfsConfig
+	30, // 8: axnoded.internal.apipb.v1.RuntimeTemplate.runtimeEnvs:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
+	9,  // 9: axnoded.internal.apipb.v1.RuntimeTemplate.mounts:type_name -> axnoded.internal.apipb.v1.Mount
+	35, // 10: axnoded.internal.apipb.v1.RuntimeTemplate.execution_profile:type_name -> axern.control.catalog.v1.RuntimeExecutionProfile
+	15, // 11: axnoded.internal.apipb.v1.AllocationState.runtime_template:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate
+	36, // 12: axnoded.internal.apipb.v1.AllocationState.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
+	37, // 13: axnoded.internal.apipb.v1.AllocationState.capability_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
+	20, // 14: axnoded.internal.apipb.v1.AllocationState.enforcement_manifest:type_name -> axnoded.internal.apipb.v1.AllocationEnforcementManifest
+	19, // 15: axnoded.internal.apipb.v1.AllocationState.capability_reconcile:type_name -> axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
+	17, // 16: axnoded.internal.apipb.v1.AllocationState.launch_verification:type_name -> axnoded.internal.apipb.v1.AllocationLaunchVerification
+	37, // 17: axnoded.internal.apipb.v1.AllocationState.capability_admission_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
+	38, // 18: axnoded.internal.apipb.v1.AllocationLaunchVerification.verified_capabilities:type_name -> axern.control.capability.v1.CapabilityKey
+	38, // 19: axnoded.internal.apipb.v1.PendingCapabilityReconcile.key:type_name -> axern.control.capability.v1.CapabilityKey
+	18, // 20: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState.pending:type_name -> axnoded.internal.apipb.v1.PendingCapabilityReconcile
+	24, // 21: axnoded.internal.apipb.v1.LinuxContainerResources.hugepage_limits:type_name -> axnoded.internal.apipb.v1.HugepageLimit
+	31, // 22: axnoded.internal.apipb.v1.LinuxContainerResources.unified:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
+	32, // 23: axnoded.internal.apipb.v1.ContainerMetadata.labels:type_name -> axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
+	33, // 24: axnoded.internal.apipb.v1.ContainerMetadataList.containers:type_name -> axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
+	34, // 25: axnoded.internal.apipb.v1.Map.items:type_name -> axnoded.internal.apipb.v1.Map.ItemsEntry
+	26, // 26: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry.value:type_name -> axnoded.internal.apipb.v1.ContainerMetadata
+	27, // [27:27] is the sub-list for method output_type
+	27, // [27:27] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_internal_apipb_v1_axnoded_internal_proto_init() }
@@ -2510,7 +2575,7 @@ func file_internal_apipb_v1_axnoded_internal_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_apipb_v1_axnoded_internal_proto_rawDesc), len(file_internal_apipb_v1_axnoded_internal_proto_rawDesc)),
-			NumEnums:      3,
+			NumEnums:      4,
 			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   0,

@@ -113,6 +113,13 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 	if opt.MemoryLimitBytes > 0 && opt.MemoryRequestBytes > opt.MemoryLimitBytes {
 		return EmptyStringResource, fmt.Errorf("cgroup memory request cannot exceed its hard limit")
 	}
+	if opt.CgroupOwnerKind == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED {
+		opt.CgroupOwnerKind = apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD
+	}
+	if opt.CgroupOwnerKind != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD &&
+		opt.CgroupOwnerKind != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE {
+		return EmptyStringResource, fmt.Errorf("cgroup allocation owner kind is invalid")
+	}
 
 	c.Lock()
 	capacity := c.memoryCapacity
@@ -180,6 +187,7 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 	lease.MemoryLimitBytes = opt.MemoryLimitBytes
 	lease.AllocationAttempt = opt.AllocationAttempt
 	lease.RuntimeName = opt.RuntimeName
+	lease.OwnerKind = opt.CgroupOwnerKind
 	lease.AssignedAtUnixNano = time.Now().UTC().UnixNano()
 	c.leases.Set(id, lease)
 	c.usingID.Set(id, struct{}{})
@@ -191,6 +199,7 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 		lease.MemoryLimitBytes = 0
 		lease.AllocationAttempt = 0
 		lease.RuntimeName = ""
+		lease.OwnerKind = apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED
 		lease.AssignedAtUnixNano = 0
 		lease.ReclaimRequestedAtUnixNano = 0
 		c.leases.Set(id, lease)

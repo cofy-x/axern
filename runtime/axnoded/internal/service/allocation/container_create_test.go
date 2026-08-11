@@ -89,3 +89,13 @@ func TestCreateRuntimeContainerIgnoresUserResourceAnnotationOverride(t *testing.
 		t.Fatalf("network annotation unexpectedly accepted user override %q", got)
 	}
 }
+
+func TestCgroupLeaseOwnerKindIsUnforgeableContextState(t *testing.T) {
+	if got := cgroupLeaseOwnerKind(context.Background()); got != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD {
+		t.Fatalf("ordinary owner kind = %s", got)
+	}
+	ctx := context.WithValue(context.Background(), internalConformanceContextKey{}, true)
+	if got := cgroupLeaseOwnerKind(ctx); got != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE {
+		t.Fatalf("internal conformance owner kind = %s", got)
+	}
+}
