@@ -50,3 +50,12 @@ func TestResourceRowsExposeCommitmentAndUnboundedCounts(t *testing.T) {
 		t.Fatalf("running counts = %+v, want 3", rows)
 	}
 }
+
+func TestBuildResourceReportExposesControlPlaneNodeID(t *testing.T) {
+	report := buildResourceReport(&inventorySnapshot{
+		Node: inventoryNode{NodeID: "node-worker-0"},
+	})
+	if report.NodeID != "node-worker-0" {
+		t.Fatalf("node id = %q, want node-worker-0", report.NodeID)
+	}
+}

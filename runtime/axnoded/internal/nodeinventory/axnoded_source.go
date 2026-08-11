@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,6 +48,7 @@ type langRuntimeManagerView interface {
 }
 
 type AxnodedSourceOptions struct {
+	NodeID                    string
 	Ready                     readyFunc
 	RuntimeCount              runtimeCountFunc
 	Container                 containerManagerView
@@ -80,6 +82,7 @@ type AxnodedSourceOptions struct {
 }
 
 type AxnodedSource struct {
+	nodeID                    string
 	ready                     readyFunc
 	runtimeCount              runtimeCountFunc
 	container                 containerManagerView
@@ -138,6 +141,7 @@ func NewAxnodedSource(opts AxnodedSourceOptions) *AxnodedSource {
 	}
 	runtimeSlotCapacity = min(runtimeSlotCapacity, container.MaxContainerNum)
 	return &AxnodedSource{
+		nodeID:                    strings.TrimSpace(opts.NodeID),
 		ready:                     opts.Ready,
 		runtimeCount:              opts.RuntimeCount,
 		container:                 opts.Container,
@@ -177,6 +181,7 @@ func (s *AxnodedSource) resourcePoolDisabled(name resources.ResourceName) bool {
 func (s *AxnodedSource) Collect(ctx context.Context) (NodeInventorySnapshot, bool) {
 	now := time.Now().UTC()
 	snapshot := NewSnapshot()
+	snapshot.Node.NodeID = s.nodeID
 	snapshot.Node.CollectedAt = now
 	snapshot.Node.Name, _ = os.Hostname()
 	snapshot.Node.State = normalizeNodeState(s.nodeState)

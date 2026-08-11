@@ -44,6 +44,7 @@ type resourceQuantity struct {
 }
 
 type inventoryNode struct {
+	NodeID       string                `json:"node_id"`
 	Capacity     resourceQuantity      `json:"capacity"`
 	MemoryBudget inventoryMemoryBudget `json:"memory_budget"`
 }
@@ -84,6 +85,7 @@ type resourceRow struct {
 }
 
 type resourceReport struct {
+	NodeID       string                `json:"node_id"`
 	Resources    []resourceRow         `json:"resources"`
 	MemoryBudget inventoryMemoryBudget `json:"memory_budget"`
 }
@@ -114,6 +116,7 @@ var ResourcesCmd = cli.Command{
 			fmt.Println(string(encoded))
 			return nil
 		}
+		fmt.Printf("Node ID: %s\n", fallbackValue(report.NodeID, "-"))
 		printResourceRows(os.Stdout, report.Resources)
 		printMemoryBudget(os.Stdout, report.MemoryBudget)
 		return nil
@@ -194,7 +197,11 @@ func buildResourceReport(snapshot *inventorySnapshot) resourceReport {
 	if snapshot == nil {
 		return resourceReport{}
 	}
-	return resourceReport{Resources: resourceRows(snapshot), MemoryBudget: snapshot.Node.MemoryBudget}
+	return resourceReport{
+		NodeID:       snapshot.Node.NodeID,
+		Resources:    resourceRows(snapshot),
+		MemoryBudget: snapshot.Node.MemoryBudget,
+	}
 }
 
 func printResourceRows(out io.Writer, rows []resourceRow) {

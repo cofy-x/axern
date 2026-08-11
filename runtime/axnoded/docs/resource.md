@@ -303,8 +303,11 @@ delegates compatibility work to the iptables backend.
 ## Inspection
 
 Use `axctl node resources`, `/inventoryz`, and Prometheus metrics to inspect
-idle, using, target, allocation result, refill result, and GC queue state. For
-compose/kind command examples, use
+idle, using, target, allocation result, refill result, and GC queue state. Both
+JSON surfaces expose `node.node_id`/`node_id` as the exact control-plane node
+identity used by placement and allocation reports; tooling must not reconstruct
+it from a hostname or Kubernetes Pod name. For compose/kind command examples,
+use
 [Local Troubleshooting](../../../deploy/local/troubleshooting.md).
 
 ## Sync Points

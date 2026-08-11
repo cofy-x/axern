@@ -56,6 +56,7 @@ func TestAxnodedSourceMergesKubernetesAndConfiguredNodeLabels(t *testing.T) {
 		},
 	}}
 	source := NewAxnodedSource(AxnodedSourceOptions{
+		NodeID:        " node-worker-0 ",
 		NodeResources: provider,
 		NodeLabels: map[string]string{
 			"topology.kubernetes.io/zone": "zone-explicit",
@@ -71,6 +72,9 @@ func TestAxnodedSourceMergesKubernetesAndConfiguredNodeLabels(t *testing.T) {
 	snapshot, ready := source.Collect(context.Background())
 	if !ready {
 		t.Fatal("expected inventory to be ready")
+	}
+	if got := snapshot.Node.NodeID; got != "node-worker-0" {
+		t.Fatalf("node id = %q, want node-worker-0", got)
 	}
 	if got := snapshot.Node.Labels["kubernetes.io/hostname"]; got != "node-a" {
 		t.Fatalf("hostname label = %q, want node-a", got)

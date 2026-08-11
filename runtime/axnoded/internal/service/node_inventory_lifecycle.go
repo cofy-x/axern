@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
@@ -78,7 +79,9 @@ func (h *sandboxService) initNodeInventory() error {
 		}
 		memoryCapacityObserver = func(resources.MemoryCapacitySnapshot) error { return nil }
 	}
+	hostname, _ := os.Hostname()
 	h.nodeInventorySource = nodeinventory.NewAxnodedSource(nodeinventory.AxnodedSourceOptions{
+		NodeID:                    h.config.PluginConfig.ControlPlaneNodeIDValue(hostname),
 		Ready:                     h.Ready,
 		RuntimeCount:              h.runtimeHandlers.Count,
 		Container:                 h.containerManager,

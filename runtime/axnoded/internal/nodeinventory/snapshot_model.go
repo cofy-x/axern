@@ -34,6 +34,7 @@ type NodeResourceQuantity struct {
 }
 
 type NodeInfo struct {
+	NodeID             string                           `json:"node_id"`
 	Name               string                           `json:"name"`
 	CollectedAt        time.Time                        `json:"collected_at"`
 	State              string                           `json:"state"`
