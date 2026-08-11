@@ -13,11 +13,15 @@ func (f fakeVolumePublisher) DeleteVolume(context.Context, string, storagev1.Vol
 }
 
 type fakeVolumePublisher struct {
-	published []*privatestoragev1.PublishedNodeVolume
-	listed    []*privatestoragev1.PublishedNodeVolume
+	published    []*privatestoragev1.PublishedNodeVolume
+	listed       []*privatestoragev1.PublishedNodeVolume
+	publishCalls *int
 }
 
 func (f fakeVolumePublisher) PublishAll(context.Context, string, string, []*privatestoragev1.ResolvedNodeVolume) ([]*privatestoragev1.PublishedNodeVolume, error) {
+	if f.publishCalls != nil {
+		(*f.publishCalls)++
+	}
 	return f.published, nil
 }
 

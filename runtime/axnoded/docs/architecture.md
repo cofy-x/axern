@@ -119,9 +119,12 @@ Create invariants:
   Runtime-specific hard enforcement is checked after create and periodically
   while the allocation runs. Failure uses the durable, detached allocation
   termination path rather than the caller's cancelable context.
-- Declared memory limits require cgroup v2 `memory.max` readback and runtime PID
-  membership. Axnoded has no cgroup v1 or ignored-resource fallback for this
-  contract.
+- Declared memory limits require parent/leaf cgroup v2 `memory.max` readback,
+  `memory.swap.max=0`, parent/leaf `memory.oom.group=1`, stable cgroup identity, and
+  runtime PID membership. The host memcg is the total sandbox budget, including
+  runsc runtime processes and guest accounting plus lower/upper page cache.
+  Axnoded has no cgroup v1, runtime-overhead reservation, or ignored-resource
+  fallback for this contract.
 - Resolved volumes are published through `volumed`; `axnoded` does not call
   `storaged` directly.
 - Rootfs/image resolution goes through `internal/langruntime` and `imagemgr`.

@@ -6,6 +6,7 @@ option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;a
 
 import "google/protobuf/timestamp.proto";
 import "axern/control/capability/v1/capability.proto";
+import "axern/control/node/v1/node_control.proto";
 
 enum AdminNodeLifecycleStatus {
   ADMIN_NODE_LIFECYCLE_STATUS_UNSPECIFIED = 0;
@@ -113,6 +114,17 @@ message GetAllocationCapabilityDiagnosticsResponse {
   bool create_admission_recorded = 8;
   string create_dependency_set_digest = 9;
   google.protobuf.Timestamp create_admitted_at = 10;
+  AllocationMemoryAdmissionEvidence memory_admission = 11;
+  axern.control.node.v1.AllocationMemoryObservation latest_memory_observation = 12;
+}
+
+message AllocationMemoryAdmissionEvidence {
+  int64 sandbox_memory_request_bytes = 1;
+  int64 sandbox_memory_limit_bytes = 2;
+  axern.control.node.v1.NodeMemoryBudget node_memory_budget = 3;
+  google.protobuf.Timestamp summary_collected_at = 4;
+  int64 node_local_commitment_bytes = 5;
+  google.protobuf.Timestamp admitted_at = 6;
 }
 
 service NodeAdmin {

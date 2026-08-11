@@ -24,7 +24,7 @@ func environmentSelectSQL() string {
 
 func runSelectSQL() string {
 	return `SELECT run_id, namespace, environment_id, allocation_id, attempt, status,
-		config, labels, version, created_at, updated_at, exit_code, exit_code_known, message,
+		config, labels, version, created_at, updated_at, exit_code, exit_code_known, diagnostic_code, message,
 		COALESCE((SELECT revision FROM allocation_capability_condition_sets s WHERE s.allocation_id = runs.allocation_id AND s.allocation_attempt = runs.attempt), 0),
 		(SELECT observed_at FROM allocation_capability_condition_sets s WHERE s.allocation_id = runs.allocation_id AND s.allocation_attempt = runs.attempt),
 		COALESCE((
@@ -68,16 +68,17 @@ func scanRun(row scanner) (*runv1.Run, error) {
 	var (
 		run                                              runv1.Run
 		statusText                                       string
+		diagnosticCodeText                               string
 		configJSON, labelsJSON, capabilityConditionsJSON []byte
 		createdAt, updatedAt                             time.Time
 		capabilityRevision                               int64
 		capabilityObservedAt                             pgtype.Timestamptz
 	)
-	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &run.Attempt, &statusText, &configJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &run.ExitCode, &run.ExitCodeKnown, &run.Message, &capabilityRevision, &capabilityObservedAt, &capabilityConditionsJSON); err != nil {
+	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &run.Attempt, &statusText, &configJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &run.ExitCode, &run.ExitCodeKnown, &diagnosticCodeText, &run.Message, &capabilityRevision, &capabilityObservedAt, &capabilityConditionsJSON); err != nil {
 		return nil, err
 	}
 	run.Status = parseRunStatus(statusText)
-	run.DiagnosticCode = workloadkernel.ClassifyDiagnostic(runDiagnosticAllocationStatus(run.GetStatus(), run.GetExitCodeKnown()), run.GetMessage())
+	run.DiagnosticCode = workloadkernel.ResolveDiagnostic(workloadkernel.ParseDiagnosticCode(diagnosticCodeText), runDiagnosticAllocationStatus(run.GetStatus(), run.GetExitCodeKnown()), run.GetMessage())
 	run.Config = &commonv1.ExecutionConfig{}
 	if err := protojson.Unmarshal(configJSON, run.Config); err != nil {
 		return nil, fmt.Errorf("unmarshal run config: %w", err)

@@ -46,6 +46,18 @@ class NodeState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     NODE_STATE_DISABLED: _ClassVar[NodeState]
     NODE_STATE_UNREACHABLE: _ClassVar[NodeState]
 
+class NodeMemoryBudgetMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    NODE_MEMORY_BUDGET_MODE_UNSPECIFIED: _ClassVar[NodeMemoryBudgetMode]
+    NODE_MEMORY_BUDGET_MODE_CGROUP_V2: _ClassVar[NodeMemoryBudgetMode]
+    NODE_MEMORY_BUDGET_MODE_DISABLED_DEV: _ClassVar[NodeMemoryBudgetMode]
+
+class AllocationMemoryCleanupState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    ALLOCATION_MEMORY_CLEANUP_STATE_UNSPECIFIED: _ClassVar[AllocationMemoryCleanupState]
+    ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED: _ClassVar[AllocationMemoryCleanupState]
+    ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING: _ClassVar[AllocationMemoryCleanupState]
+
 class PlacementCandidateState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     PLACEMENT_CANDIDATE_STATE_UNSPECIFIED: _ClassVar[PlacementCandidateState]
@@ -71,6 +83,8 @@ class PlacementRejectionReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED: _ClassVar[PlacementRejectionReason]
     PLACEMENT_REJECTION_REASON_NODE_RETIRED: _ClassVar[PlacementRejectionReason]
     PLACEMENT_REJECTION_REASON_INSUFFICIENT_EPHEMERAL_STORAGE: _ClassVar[PlacementRejectionReason]
+    PLACEMENT_REJECTION_REASON_NODE_MEMORY_SYSTEM_RESERVE_EXHAUSTED: _ClassVar[PlacementRejectionReason]
+    PLACEMENT_REJECTION_REASON_NODE_MEMORY_BUDGET_UNAVAILABLE: _ClassVar[PlacementRejectionReason]
 ROOTFS_TYPE_UNSPECIFIED: RootfsType
 ROOTFS_TYPE_LOCAL: RootfsType
 ROOTFS_TYPE_IMAGE: RootfsType
@@ -92,6 +106,12 @@ NODE_STATE_READY: NodeState
 NODE_STATE_DRAINING: NodeState
 NODE_STATE_DISABLED: NodeState
 NODE_STATE_UNREACHABLE: NodeState
+NODE_MEMORY_BUDGET_MODE_UNSPECIFIED: NodeMemoryBudgetMode
+NODE_MEMORY_BUDGET_MODE_CGROUP_V2: NodeMemoryBudgetMode
+NODE_MEMORY_BUDGET_MODE_DISABLED_DEV: NodeMemoryBudgetMode
+ALLOCATION_MEMORY_CLEANUP_STATE_UNSPECIFIED: AllocationMemoryCleanupState
+ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED: AllocationMemoryCleanupState
+ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING: AllocationMemoryCleanupState
 PLACEMENT_CANDIDATE_STATE_UNSPECIFIED: PlacementCandidateState
 PLACEMENT_CANDIDATE_STATE_ELIGIBLE: PlacementCandidateState
 PLACEMENT_CANDIDATE_STATE_REJECTED: PlacementCandidateState
@@ -112,6 +132,8 @@ PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_NODE_RETIRED: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_INSUFFICIENT_EPHEMERAL_STORAGE: PlacementRejectionReason
+PLACEMENT_REJECTION_REASON_NODE_MEMORY_SYSTEM_RESERVE_EXHAUSTED: PlacementRejectionReason
+PLACEMENT_REJECTION_REASON_NODE_MEMORY_BUDGET_UNAVAILABLE: PlacementRejectionReason
 
 class PoolState(_message.Message):
     __slots__ = ("using", "idle", "capacity", "unavailable")
@@ -146,6 +168,40 @@ class ResourcesSummary(_message.Message):
     axnoded_ephemeral_storage_used_bytes: int
     axnoded_ephemeral_storage_unbounded_count: int
     def __init__(self, axnoded_committed_milli: _Optional[int] = ..., axnoded_used_milli: _Optional[int] = ..., axnoded_cpu_unbounded_count: _Optional[int] = ..., axnoded_committed_bytes: _Optional[int] = ..., axnoded_used_bytes: _Optional[int] = ..., axnoded_memory_unbounded_count: _Optional[int] = ..., axnoded_ephemeral_storage_committed_bytes: _Optional[int] = ..., axnoded_ephemeral_storage_used_bytes: _Optional[int] = ..., axnoded_ephemeral_storage_unbounded_count: _Optional[int] = ...) -> None: ...
+
+class NodeMemoryBudget(_message.Message):
+    __slots__ = ("physical_capacity_bytes", "source_allocatable_bytes", "delegated_root_limit_bytes", "delegated_root_limit_finite", "system_reserve_bytes", "effective_allocatable_bytes", "local_commitment_bytes", "cleanup_debt_bytes", "internal_current_bytes", "capacity_identity", "sampled_at", "retiring_cgroup_count", "oldest_retiring_age_seconds", "system_reserve_exhausted", "mode")
+    PHYSICAL_CAPACITY_BYTES_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_ALLOCATABLE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    DELEGATED_ROOT_LIMIT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    DELEGATED_ROOT_LIMIT_FINITE_FIELD_NUMBER: _ClassVar[int]
+    SYSTEM_RESERVE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    EFFECTIVE_ALLOCATABLE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    LOCAL_COMMITMENT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    CLEANUP_DEBT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    INTERNAL_CURRENT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    CAPACITY_IDENTITY_FIELD_NUMBER: _ClassVar[int]
+    SAMPLED_AT_FIELD_NUMBER: _ClassVar[int]
+    RETIRING_CGROUP_COUNT_FIELD_NUMBER: _ClassVar[int]
+    OLDEST_RETIRING_AGE_SECONDS_FIELD_NUMBER: _ClassVar[int]
+    SYSTEM_RESERVE_EXHAUSTED_FIELD_NUMBER: _ClassVar[int]
+    MODE_FIELD_NUMBER: _ClassVar[int]
+    physical_capacity_bytes: int
+    source_allocatable_bytes: int
+    delegated_root_limit_bytes: int
+    delegated_root_limit_finite: bool
+    system_reserve_bytes: int
+    effective_allocatable_bytes: int
+    local_commitment_bytes: int
+    cleanup_debt_bytes: int
+    internal_current_bytes: int
+    capacity_identity: str
+    sampled_at: _timestamp_pb2.Timestamp
+    retiring_cgroup_count: int
+    oldest_retiring_age_seconds: int
+    system_reserve_exhausted: bool
+    mode: NodeMemoryBudgetMode
+    def __init__(self, physical_capacity_bytes: _Optional[int] = ..., source_allocatable_bytes: _Optional[int] = ..., delegated_root_limit_bytes: _Optional[int] = ..., delegated_root_limit_finite: _Optional[bool] = ..., system_reserve_bytes: _Optional[int] = ..., effective_allocatable_bytes: _Optional[int] = ..., local_commitment_bytes: _Optional[int] = ..., cleanup_debt_bytes: _Optional[int] = ..., internal_current_bytes: _Optional[int] = ..., capacity_identity: _Optional[str] = ..., sampled_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., retiring_cgroup_count: _Optional[int] = ..., oldest_retiring_age_seconds: _Optional[int] = ..., system_reserve_exhausted: _Optional[bool] = ..., mode: _Optional[_Union[NodeMemoryBudgetMode, str]] = ...) -> None: ...
 
 class PoolsSummary(_message.Message):
     __slots__ = ("cgroup", "interface", "runtime_slots")
@@ -330,7 +386,7 @@ class LocalitySummary(_message.Message):
     def __init__(self, key: _Optional[str] = ..., rootfs_type: _Optional[_Union[RootfsType, str]] = ..., mount_type: _Optional[_Union[MountType, str]] = ..., mounted: _Optional[bool] = ..., retained_runtime_count: _Optional[int] = ..., retained_rootfs_count: _Optional[int] = ..., running_container_count: _Optional[int] = ..., nydus_daemon_alive: _Optional[bool] = ..., chunkdb_total_chunks: _Optional[int] = ..., chunkdb_used_bytes: _Optional[int] = ..., chunkdb_recent_access_age_secs: _Optional[int] = ..., peer_healthy_count: _Optional[int] = ..., peer_unhealthy_count: _Optional[int] = ..., peer_hinted_count: _Optional[int] = ..., environment_id: _Optional[str] = ...) -> None: ...
 
 class NodeSummary(_message.Message):
-    __slots__ = ("collected_at", "resources", "pools", "components", "locality", "node_state", "labels", "capability_snapshot", "capacity", "allocatable", "storage")
+    __slots__ = ("collected_at", "resources", "pools", "components", "locality", "node_state", "labels", "capability_snapshot", "capacity", "allocatable", "storage", "memory_budget")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -349,6 +405,7 @@ class NodeSummary(_message.Message):
     CAPACITY_FIELD_NUMBER: _ClassVar[int]
     ALLOCATABLE_FIELD_NUMBER: _ClassVar[int]
     STORAGE_FIELD_NUMBER: _ClassVar[int]
+    MEMORY_BUDGET_FIELD_NUMBER: _ClassVar[int]
     collected_at: _timestamp_pb2.Timestamp
     resources: ResourcesSummary
     pools: PoolsSummary
@@ -360,7 +417,8 @@ class NodeSummary(_message.Message):
     capacity: _common_pb2.ResourceQuantity
     allocatable: _common_pb2.ResourceQuantity
     storage: _containers.RepeatedCompositeFieldContainer[NodeStorageSummary]
-    def __init__(self, collected_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., resources: _Optional[_Union[ResourcesSummary, _Mapping]] = ..., pools: _Optional[_Union[PoolsSummary, _Mapping]] = ..., components: _Optional[_Union[ComponentsSummary, _Mapping]] = ..., locality: _Optional[_Iterable[_Union[LocalitySummary, _Mapping]]] = ..., node_state: _Optional[_Union[NodeState, str]] = ..., labels: _Optional[_Mapping[str, str]] = ..., capability_snapshot: _Optional[_Union[_capability_pb2.CapabilitySnapshot, _Mapping]] = ..., capacity: _Optional[_Union[_common_pb2.ResourceQuantity, _Mapping]] = ..., allocatable: _Optional[_Union[_common_pb2.ResourceQuantity, _Mapping]] = ..., storage: _Optional[_Iterable[_Union[NodeStorageSummary, _Mapping]]] = ...) -> None: ...
+    memory_budget: NodeMemoryBudget
+    def __init__(self, collected_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., resources: _Optional[_Union[ResourcesSummary, _Mapping]] = ..., pools: _Optional[_Union[PoolsSummary, _Mapping]] = ..., components: _Optional[_Union[ComponentsSummary, _Mapping]] = ..., locality: _Optional[_Iterable[_Union[LocalitySummary, _Mapping]]] = ..., node_state: _Optional[_Union[NodeState, str]] = ..., labels: _Optional[_Mapping[str, str]] = ..., capability_snapshot: _Optional[_Union[_capability_pb2.CapabilitySnapshot, _Mapping]] = ..., capacity: _Optional[_Union[_common_pb2.ResourceQuantity, _Mapping]] = ..., allocatable: _Optional[_Union[_common_pb2.ResourceQuantity, _Mapping]] = ..., storage: _Optional[_Iterable[_Union[NodeStorageSummary, _Mapping]]] = ..., memory_budget: _Optional[_Union[NodeMemoryBudget, _Mapping]] = ...) -> None: ...
 
 class RegisterNodeRequest(_message.Message):
     __slots__ = ("node_id", "runtimes", "node_target", "node_auth_token")
@@ -397,7 +455,7 @@ class ReportNodeResponse(_message.Message):
     def __init__(self) -> None: ...
 
 class AllocationStatusObservation(_message.Message):
-    __slots__ = ("allocation_id", "attempt", "status", "exit_code", "exit_code_known", "message", "observed_at", "ready", "readiness_message")
+    __slots__ = ("allocation_id", "attempt", "status", "exit_code", "exit_code_known", "message", "observed_at", "ready", "readiness_message", "diagnostic_code")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     ATTEMPT_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -407,6 +465,7 @@ class AllocationStatusObservation(_message.Message):
     OBSERVED_AT_FIELD_NUMBER: _ClassVar[int]
     READY_FIELD_NUMBER: _ClassVar[int]
     READINESS_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    DIAGNOSTIC_CODE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
     attempt: int
     status: _common_pb2.AllocationStatus
@@ -416,7 +475,8 @@ class AllocationStatusObservation(_message.Message):
     observed_at: _timestamp_pb2.Timestamp
     ready: bool
     readiness_message: str
-    def __init__(self, allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[_common_pb2.AllocationStatus, str]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ready: _Optional[bool] = ..., readiness_message: _Optional[str] = ...) -> None: ...
+    diagnostic_code: _common_pb2.WorkloadDiagnosticCode
+    def __init__(self, allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[_common_pb2.AllocationStatus, str]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ready: _Optional[bool] = ..., readiness_message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ...) -> None: ...
 
 class BatchReportAllocationStatusRequest(_message.Message):
     __slots__ = ("node_id", "node_auth_token", "observations")
@@ -453,6 +513,86 @@ class BatchReportAllocationCapabilityConditionsRequest(_message.Message):
     def __init__(self, node_id: _Optional[str] = ..., node_auth_token: _Optional[str] = ..., reports: _Optional[_Iterable[_Union[AllocationCapabilityConditionReport, _Mapping]]] = ...) -> None: ...
 
 class BatchReportAllocationCapabilityConditionsResponse(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class AllocationMemoryObservation(_message.Message):
+    __slots__ = ("allocation_id", "attempt", "revision", "observed_at", "request_bytes", "limit_bytes", "current_bytes", "peak_bytes", "swap_current_bytes", "anon_bytes", "file_bytes", "shmem_bytes", "kernel_bytes", "dirty_bytes", "writeback_bytes", "event_high", "event_max", "event_oom", "event_oom_kill", "event_oom_group_kill", "psi_some_avg10", "psi_full_avg10", "psi_some_total_usec", "psi_full_total_usec", "cgroup_identity", "runtime", "parent_controls_verified", "leaf_controls_verified", "pid_roles_verified", "cleanup_state", "psi_available")
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    ATTEMPT_FIELD_NUMBER: _ClassVar[int]
+    REVISION_FIELD_NUMBER: _ClassVar[int]
+    OBSERVED_AT_FIELD_NUMBER: _ClassVar[int]
+    REQUEST_BYTES_FIELD_NUMBER: _ClassVar[int]
+    LIMIT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    CURRENT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    PEAK_BYTES_FIELD_NUMBER: _ClassVar[int]
+    SWAP_CURRENT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    ANON_BYTES_FIELD_NUMBER: _ClassVar[int]
+    FILE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    SHMEM_BYTES_FIELD_NUMBER: _ClassVar[int]
+    KERNEL_BYTES_FIELD_NUMBER: _ClassVar[int]
+    DIRTY_BYTES_FIELD_NUMBER: _ClassVar[int]
+    WRITEBACK_BYTES_FIELD_NUMBER: _ClassVar[int]
+    EVENT_HIGH_FIELD_NUMBER: _ClassVar[int]
+    EVENT_MAX_FIELD_NUMBER: _ClassVar[int]
+    EVENT_OOM_FIELD_NUMBER: _ClassVar[int]
+    EVENT_OOM_KILL_FIELD_NUMBER: _ClassVar[int]
+    EVENT_OOM_GROUP_KILL_FIELD_NUMBER: _ClassVar[int]
+    PSI_SOME_AVG10_FIELD_NUMBER: _ClassVar[int]
+    PSI_FULL_AVG10_FIELD_NUMBER: _ClassVar[int]
+    PSI_SOME_TOTAL_USEC_FIELD_NUMBER: _ClassVar[int]
+    PSI_FULL_TOTAL_USEC_FIELD_NUMBER: _ClassVar[int]
+    CGROUP_IDENTITY_FIELD_NUMBER: _ClassVar[int]
+    RUNTIME_FIELD_NUMBER: _ClassVar[int]
+    PARENT_CONTROLS_VERIFIED_FIELD_NUMBER: _ClassVar[int]
+    LEAF_CONTROLS_VERIFIED_FIELD_NUMBER: _ClassVar[int]
+    PID_ROLES_VERIFIED_FIELD_NUMBER: _ClassVar[int]
+    CLEANUP_STATE_FIELD_NUMBER: _ClassVar[int]
+    PSI_AVAILABLE_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    attempt: int
+    revision: int
+    observed_at: _timestamp_pb2.Timestamp
+    request_bytes: int
+    limit_bytes: int
+    current_bytes: int
+    peak_bytes: int
+    swap_current_bytes: int
+    anon_bytes: int
+    file_bytes: int
+    shmem_bytes: int
+    kernel_bytes: int
+    dirty_bytes: int
+    writeback_bytes: int
+    event_high: int
+    event_max: int
+    event_oom: int
+    event_oom_kill: int
+    event_oom_group_kill: int
+    psi_some_avg10: float
+    psi_full_avg10: float
+    psi_some_total_usec: int
+    psi_full_total_usec: int
+    cgroup_identity: str
+    runtime: str
+    parent_controls_verified: bool
+    leaf_controls_verified: bool
+    pid_roles_verified: bool
+    cleanup_state: AllocationMemoryCleanupState
+    psi_available: bool
+    def __init__(self, allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., revision: _Optional[int] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., request_bytes: _Optional[int] = ..., limit_bytes: _Optional[int] = ..., current_bytes: _Optional[int] = ..., peak_bytes: _Optional[int] = ..., swap_current_bytes: _Optional[int] = ..., anon_bytes: _Optional[int] = ..., file_bytes: _Optional[int] = ..., shmem_bytes: _Optional[int] = ..., kernel_bytes: _Optional[int] = ..., dirty_bytes: _Optional[int] = ..., writeback_bytes: _Optional[int] = ..., event_high: _Optional[int] = ..., event_max: _Optional[int] = ..., event_oom: _Optional[int] = ..., event_oom_kill: _Optional[int] = ..., event_oom_group_kill: _Optional[int] = ..., psi_some_avg10: _Optional[float] = ..., psi_full_avg10: _Optional[float] = ..., psi_some_total_usec: _Optional[int] = ..., psi_full_total_usec: _Optional[int] = ..., cgroup_identity: _Optional[str] = ..., runtime: _Optional[str] = ..., parent_controls_verified: _Optional[bool] = ..., leaf_controls_verified: _Optional[bool] = ..., pid_roles_verified: _Optional[bool] = ..., cleanup_state: _Optional[_Union[AllocationMemoryCleanupState, str]] = ..., psi_available: _Optional[bool] = ...) -> None: ...
+
+class BatchReportAllocationMemoryObservationsRequest(_message.Message):
+    __slots__ = ("node_id", "node_auth_token", "observations")
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    NODE_AUTH_TOKEN_FIELD_NUMBER: _ClassVar[int]
+    OBSERVATIONS_FIELD_NUMBER: _ClassVar[int]
+    node_id: str
+    node_auth_token: str
+    observations: _containers.RepeatedCompositeFieldContainer[AllocationMemoryObservation]
+    def __init__(self, node_id: _Optional[str] = ..., node_auth_token: _Optional[str] = ..., observations: _Optional[_Iterable[_Union[AllocationMemoryObservation, _Mapping]]] = ...) -> None: ...
+
+class BatchReportAllocationMemoryObservationsResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 

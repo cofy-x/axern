@@ -58,6 +58,10 @@ const (
 	AllocationStateBucket = "allocations"
 	// DNATRulesBucket stores the active DNAT rule snapshot.
 	DNATRulesBucket = "dnat_rules"
+	// MemoryObservationSequenceBucket stores the reserved high watermark for
+	// allocation memory observation revisions. Sequence blocks are persisted
+	// before use so an axnoded restart can skip values but never reuse them.
+	MemoryObservationSequenceBucket = "memory_observation_sequence"
 )
 
 const (

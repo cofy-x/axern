@@ -80,6 +80,12 @@ func (c *Client) GetSandboxDiagnostics(sandboxID string, full bool) (*nodeoperat
 	return c.operatorClient.GetSandboxDiagnostics(ctx, &nodeoperatorv1.GetSandboxDiagnosticsRequest{SandboxID: sandboxID, Full: full})
 }
 
+func (c *Client) GetSandboxMemory(sandboxID string) (*nodeoperatorv1.GetSandboxMemoryResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	return c.operatorClient.GetSandboxMemory(ctx, &nodeoperatorv1.GetSandboxMemoryRequest{SandboxID: sandboxID})
+}
+
 func (c *Client) DeleteSandbox(sandboxID string, timeoutSeconds int64) (*nodeoperatorv1.DeleteSandboxResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.deleteRPCTimeout(timeoutSeconds))
 	defer cancel()

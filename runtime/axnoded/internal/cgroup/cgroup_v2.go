@@ -18,14 +18,53 @@ import (
 )
 
 type cgroupV2Driver struct {
-	mountpoint string
+	mountpoint      string
+	delegationGroup string
 }
 
 func (d *cgroupV2Driver) Mode() string { return CgroupModeV2 }
 
+func (d *cgroupV2Driver) ResolveRoot(rootName string) (string, error) {
+	name, err := validateManagedRootName(rootName)
+	if err != nil {
+		return "", err
+	}
+	delegation := normalizeGroup(d.delegationGroup)
+	return normalizeGroup(path.Join(delegation, name)), nil
+}
+
+func (d *cgroupV2Driver) EnsureRoot(rootName string) error {
+	rootName, err := d.ResolveRoot(rootName)
+	if err != nil {
+		return err
+	}
+	delegationDir := path.Join(d.mountpoint, trimGroup(d.delegationGroup))
+	if err := requireCgroupController(delegationDir, "memory"); err != nil {
+		return fmt.Errorf("validate delegated memory controller: %w", err)
+	}
+	internalDir := path.Join(delegationDir, cgroupInternalGroup)
+	if err := stdos.MkdirAll(internalDir, 0755); err != nil {
+		return err
+	}
+	if err := d.moveProcessesToChild(delegationDir, internalDir); err != nil {
+		return fmt.Errorf("move delegated control processes to internal cgroup: %w", err)
+	}
+	if err := d.enableControllers(delegationDir); err != nil {
+		return fmt.Errorf("enable delegated root controllers: %w", err)
+	}
+	sandboxDir := path.Join(d.mountpoint, trimGroup(rootName))
+	if err := stdos.MkdirAll(sandboxDir, 0755); err != nil {
+		return err
+	}
+	return d.enableControllers(sandboxDir)
+}
+
 func (d *cgroupV2Driver) Create(group string, resources *specs.LinuxResources) (Cgroup, error) {
 	_ = resources
-	parentDir := path.Join(d.mountpoint, trimGroup(group))
+	group, parentDir, err := d.managedGroup(group, false)
+	if err != nil {
+		return nil, err
+	}
 	if err := stdos.MkdirAll(parentDir, 0755); err != nil {
 		return nil, err
 	}
@@ -47,14 +86,16 @@ func (d *cgroupV2Driver) Create(group string, resources *specs.LinuxResources) (
 
 func (d *cgroupV2Driver) ensureControllersPath(dir string) error {
 	dir = filepath.Clean(dir)
-	if !strings.HasPrefix(dir, d.mountpoint) {
-		return fmt.Errorf("cgroup dir %s is outside mountpoint %s", dir, d.mountpoint)
+	delegationDir := filepath.Clean(path.Join(d.mountpoint, trimGroup(d.delegationGroup)))
+	relative, err := filepath.Rel(delegationDir, dir)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("cgroup dir %s is outside delegated root %s", dir, delegationDir)
 	}
 
 	var chain []string
 	for current := dir; ; current = path.Dir(current) {
 		chain = append(chain, current)
-		if current == d.mountpoint {
+		if current == delegationDir {
 			break
 		}
 	}
@@ -102,16 +143,10 @@ func (d *cgroupV2Driver) ensureControllers(dir string) error {
 func (d *cgroupV2Driver) enableControllers(dir string) error {
 	controllersData, err := stdos.ReadFile(path.Join(dir, "cgroup.controllers"))
 	if err != nil {
-		if stdos.IsNotExist(err) {
-			return nil
-		}
 		return err
 	}
 	enabledData, err := stdos.ReadFile(path.Join(dir, "cgroup.subtree_control"))
 	if err != nil {
-		if stdos.IsNotExist(err) {
-			return nil
-		}
 		return err
 	}
 
@@ -133,6 +168,36 @@ func (d *cgroupV2Driver) enableControllers(dir string) error {
 		}
 	}
 	return nil
+}
+
+func requireCgroupController(dir, controller string) error {
+	data, err := stdos.ReadFile(path.Join(dir, "cgroup.controllers"))
+	if err != nil {
+		return err
+	}
+	for _, available := range strings.Fields(string(data)) {
+		if available == controller {
+			return nil
+		}
+	}
+	return fmt.Errorf("controller %q is not delegated through %s", controller, dir)
+}
+
+func (d *cgroupV2Driver) managedGroup(group string, allowWorkload bool) (string, string, error) {
+	group = normalizeGroup(group)
+	delegation := normalizeGroup(d.delegationGroup)
+	relative, err := filepath.Rel(delegation, group)
+	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("cgroup %q is outside delegated root %q", group, delegation)
+	}
+	first := strings.Split(relative, string(filepath.Separator))[0]
+	if first == cgroupInternalGroup {
+		return "", "", fmt.Errorf("cgroup %q belongs to the reserved internal domain", group)
+	}
+	if !allowWorkload && path.Base(group) == CgroupWorkloadLeafName {
+		return "", "", fmt.Errorf("allocation operation requires a parent cgroup, got workload leaf %q", group)
+	}
+	return group, path.Join(d.mountpoint, trimGroup(group)), nil
 }
 
 func (d *cgroupV2Driver) currentCgroupDir() (string, error) {
@@ -165,7 +230,10 @@ func (d *cgroupV2Driver) moveCurrentProcessesToChild(dir string) error {
 	if err := stdos.MkdirAll(internalDir, 0755); err != nil {
 		return err
 	}
+	return d.moveProcessesToChild(dir, internalDir)
+}
 
+func (d *cgroupV2Driver) moveProcessesToChild(dir, internalDir string) error {
 	data, err := stdos.ReadFile(path.Join(dir, "cgroup.procs"))
 	if err != nil {
 		return err
@@ -205,7 +273,11 @@ func isCgroupBusyError(err error) bool {
 }
 
 func (d *cgroupV2Driver) Load(group string) (Cgroup, error) {
-	manager, err := cg2.Load(normalizeGroup(group), cg2.WithMountpoint(d.mountpoint))
+	group, _, err := d.managedGroup(group, true)
+	if err != nil {
+		return nil, err
+	}
+	manager, err := cg2.Load(group, cg2.WithMountpoint(d.mountpoint))
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +285,10 @@ func (d *cgroupV2Driver) Load(group string) (Cgroup, error) {
 }
 
 func (d *cgroupV2Driver) ExistingGroups(rootName string) ([]string, error) {
-	rootDir := path.Join(d.mountpoint, trimGroup(rootName))
+	rootName, rootDir, err := d.managedGroup(rootName, false)
+	if err != nil {
+		return nil, err
+	}
 	entries, err := stdos.ReadDir(rootDir)
 	if err != nil {
 		if stdos.IsNotExist(err) {
@@ -231,21 +306,25 @@ func (d *cgroupV2Driver) ExistingGroups(rootName string) ([]string, error) {
 }
 
 func (d *cgroupV2Driver) Remove(group string) error {
-	manager, err := d.Load(group)
-	if err == nil {
-		if err = manager.Delete(); err == nil {
-			return nil
-		}
-	}
-	dir := path.Join(d.mountpoint, trimGroup(group))
-	if err := stdos.RemoveAll(dir); err != nil && !stdos.IsNotExist(err) {
+	group, parentDir, err := d.managedGroup(group, false)
+	if err != nil {
 		return err
+	}
+	workloadDir := path.Join(parentDir, CgroupWorkloadLeafName)
+	for _, dir := range []string{workloadDir, parentDir} {
+		if err := stdos.Remove(dir); err != nil && !stdos.IsNotExist(err) {
+			// An unexpected child or remaining process is durable cleanup debt.
+			// Never recursively erase a cgroup subtree whose ownership was not
+			// established by this allocation lease.
+			return fmt.Errorf("remove cgroup %s: %w", dir, err)
+		}
 	}
 	return nil
 }
 
 func (d *cgroupV2Driver) LocalCPUCount() (int, error) {
-	data, err := stdos.ReadFile(path.Join(d.mountpoint, "cpu.max"))
+	delegationDir := path.Join(d.mountpoint, trimGroup(d.delegationGroup))
+	data, err := stdos.ReadFile(path.Join(delegationDir, "cpu.max"))
 	if err != nil {
 		return 0, fmt.Errorf("read cpu.max failed: %w", err)
 	}
@@ -255,8 +334,8 @@ func (d *cgroupV2Driver) LocalCPUCount() (int, error) {
 	}
 	if fields[0] == "max" {
 		return cpuCountFromCpusetFiles(
-			path.Join(d.mountpoint, "cpuset.cpus"),
-			path.Join(d.mountpoint, "cpuset.cpus.effective"),
+			path.Join(delegationDir, "cpuset.cpus"),
+			path.Join(delegationDir, "cpuset.cpus.effective"),
 		)
 	}
 	quota, err := strconv.Atoi(fields[0])

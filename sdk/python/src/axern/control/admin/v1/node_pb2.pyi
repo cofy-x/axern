@@ -2,6 +2,7 @@ import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from axern.control.capability.v1 import capability_pb2 as _capability_pb2
+from axern.control.node.v1 import node_control_pb2 as _node_control_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -171,7 +172,7 @@ class GetAllocationCapabilityDiagnosticsRequest(_message.Message):
     def __init__(self, allocation_id: _Optional[str] = ...) -> None: ...
 
 class GetAllocationCapabilityDiagnosticsResponse(_message.Message):
-    __slots__ = ("allocation_id", "node_id", "required_dependencies", "admitted_dependencies", "condition_set", "reconcile", "allocation_attempt", "create_admission_recorded", "create_dependency_set_digest", "create_admitted_at")
+    __slots__ = ("allocation_id", "node_id", "required_dependencies", "admitted_dependencies", "condition_set", "reconcile", "allocation_attempt", "create_admission_recorded", "create_dependency_set_digest", "create_admitted_at", "memory_admission", "latest_memory_observation")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     REQUIRED_DEPENDENCIES_FIELD_NUMBER: _ClassVar[int]
@@ -182,6 +183,8 @@ class GetAllocationCapabilityDiagnosticsResponse(_message.Message):
     CREATE_ADMISSION_RECORDED_FIELD_NUMBER: _ClassVar[int]
     CREATE_DEPENDENCY_SET_DIGEST_FIELD_NUMBER: _ClassVar[int]
     CREATE_ADMITTED_AT_FIELD_NUMBER: _ClassVar[int]
+    MEMORY_ADMISSION_FIELD_NUMBER: _ClassVar[int]
+    LATEST_MEMORY_OBSERVATION_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
     node_id: str
     required_dependencies: _containers.RepeatedCompositeFieldContainer[_capability_pb2.CapabilityDependency]
@@ -192,4 +195,22 @@ class GetAllocationCapabilityDiagnosticsResponse(_message.Message):
     create_admission_recorded: bool
     create_dependency_set_digest: str
     create_admitted_at: _timestamp_pb2.Timestamp
-    def __init__(self, allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., required_dependencies: _Optional[_Iterable[_Union[_capability_pb2.CapabilityDependency, _Mapping]]] = ..., admitted_dependencies: _Optional[_Iterable[_Union[_capability_pb2.CapabilityDependency, _Mapping]]] = ..., condition_set: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ..., reconcile: _Optional[_Union[AdminCapabilityReconcileItem, _Mapping]] = ..., allocation_attempt: _Optional[int] = ..., create_admission_recorded: _Optional[bool] = ..., create_dependency_set_digest: _Optional[str] = ..., create_admitted_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    memory_admission: AllocationMemoryAdmissionEvidence
+    latest_memory_observation: _node_control_pb2.AllocationMemoryObservation
+    def __init__(self, allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., required_dependencies: _Optional[_Iterable[_Union[_capability_pb2.CapabilityDependency, _Mapping]]] = ..., admitted_dependencies: _Optional[_Iterable[_Union[_capability_pb2.CapabilityDependency, _Mapping]]] = ..., condition_set: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ..., reconcile: _Optional[_Union[AdminCapabilityReconcileItem, _Mapping]] = ..., allocation_attempt: _Optional[int] = ..., create_admission_recorded: _Optional[bool] = ..., create_dependency_set_digest: _Optional[str] = ..., create_admitted_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., memory_admission: _Optional[_Union[AllocationMemoryAdmissionEvidence, _Mapping]] = ..., latest_memory_observation: _Optional[_Union[_node_control_pb2.AllocationMemoryObservation, _Mapping]] = ...) -> None: ...
+
+class AllocationMemoryAdmissionEvidence(_message.Message):
+    __slots__ = ("sandbox_memory_request_bytes", "sandbox_memory_limit_bytes", "node_memory_budget", "summary_collected_at", "node_local_commitment_bytes", "admitted_at")
+    SANDBOX_MEMORY_REQUEST_BYTES_FIELD_NUMBER: _ClassVar[int]
+    SANDBOX_MEMORY_LIMIT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    NODE_MEMORY_BUDGET_FIELD_NUMBER: _ClassVar[int]
+    SUMMARY_COLLECTED_AT_FIELD_NUMBER: _ClassVar[int]
+    NODE_LOCAL_COMMITMENT_BYTES_FIELD_NUMBER: _ClassVar[int]
+    ADMITTED_AT_FIELD_NUMBER: _ClassVar[int]
+    sandbox_memory_request_bytes: int
+    sandbox_memory_limit_bytes: int
+    node_memory_budget: _node_control_pb2.NodeMemoryBudget
+    summary_collected_at: _timestamp_pb2.Timestamp
+    node_local_commitment_bytes: int
+    admitted_at: _timestamp_pb2.Timestamp
+    def __init__(self, sandbox_memory_request_bytes: _Optional[int] = ..., sandbox_memory_limit_bytes: _Optional[int] = ..., node_memory_budget: _Optional[_Union[_node_control_pb2.NodeMemoryBudget, _Mapping]] = ..., summary_collected_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., node_local_commitment_bytes: _Optional[int] = ..., admitted_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...

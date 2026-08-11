@@ -82,6 +82,24 @@ func TestValidateRuntimeResourceConfigurationAllowsUnusedDisabledPool(t *testing
 	}
 }
 
+func TestValidateRuntimeResourceConfigurationAllowsRequiredCgroupWithoutPrewarming(t *testing.T) {
+	registry := handlerregistry.New(config.Config{})
+	registry.Set("runsc", &runtimeSpyHandler{
+		name: "runsc",
+		requirements: contract.RuntimeRequirements{
+			Resources: []resources.ResourceName{resources.CgroupResourceName, resources.InterfaceResourceName},
+		},
+	})
+
+	if err := validateRuntimeResourceConfiguration(registry, config.ResourceConfig{
+		MaxInstanceNum:     8,
+		CgroupCacheSize:    0,
+		InterfaceCacheSize: 8,
+	}); err != nil {
+		t.Fatalf("validateRuntimeResourceConfiguration() error = %v", err)
+	}
+}
+
 func TestValidateRuntimeResourceConfigurationRejectsCapacityAboveContainerLimit(t *testing.T) {
 	err := validateRuntimeResourceConfiguration(handlerregistry.New(config.Config{}), config.ResourceConfig{
 		MaxInstanceNum: container.MaxContainerNum + 1,
@@ -123,11 +141,19 @@ func TestValidateRuntimeResourceConfigurationRejectsInvalidPoolSizes(t *testing.
 	}
 }
 
-func TestDisabledResourcePoolsFollowsConfiguredPoolSizes(t *testing.T) {
+func TestDisabledResourcePoolsSeparatesEnforcementFromWarmTarget(t *testing.T) {
 	got := disabledResourcePools(config.ResourceConfig{
 		CgroupCacheSize:    0,
 		InterfaceCacheSize: 8,
-	})
+	}, false)
+	if len(got) != 0 {
+		t.Fatalf("required zero-warm disabledResourcePools() = %v, want none", got)
+	}
+
+	got = disabledResourcePools(config.ResourceConfig{
+		CgroupCacheSize:    8,
+		InterfaceCacheSize: 8,
+	}, true)
 	want := []resources.ResourceName{resources.CgroupResourceName}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("disabledResourcePools() = %v, want %v", got, want)

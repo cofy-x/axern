@@ -49,6 +49,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-smoke ./cmd/verify-smoke && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-sandboxd-oci ./cmd/verify-sandboxd-oci && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axern-sandboxd ./cmd/axern-sandboxd && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-nginx ./cmd/verify-nginx && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/verify-udp ./cmd/verify-udp && \
     cd /workspace/network/bpfnet && \
@@ -62,6 +63,7 @@ COPY control/storaged/go.mod control/storaged/go.sum /workspace/control/storaged
 COPY gateway/gatewayd/go.mod gateway/gatewayd/go.sum /workspace/gateway/gatewayd/
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
+COPY lib/go/memorybudget/go.mod /workspace/lib/go/memorybudget/go.mod
 COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
@@ -74,6 +76,7 @@ use (
 	./gateway/gatewayd
 	./lib/go/grpcclient
 	./lib/go/imageref
+	./lib/go/memorybudget
 	./lib/go/nodecapability
 	./lib/go/observability
 	./sdk/go
@@ -162,6 +165,7 @@ COPY --from=controld-builder /out/storaged /usr/local/bin/storaged
 COPY --from=controld-builder /out/gatewayd /usr/local/bin/gatewayd
 COPY --from=verify-rootfs /opt/sample-rootfs /opt/sample-rootfs
 COPY --from=verify-rootfs /opt/sample-rootfs /opt/axern/runtime-selftest/rootfs
+COPY --from=axnoded-verify-builder /out/memory-hog /opt/axern/runtime-selftest/rootfs/bin/memory-hog
 COPY --from=verify-rootfs /opt/nginx-rootfs /opt/nginx-rootfs
 
 CMD ["/bin/bash"]

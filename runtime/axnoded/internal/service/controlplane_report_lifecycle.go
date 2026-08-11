@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
@@ -65,6 +68,41 @@ func (h *sandboxService) handleContainerExitControlPlaneReport(event container.E
 		return
 	}
 	h.controlPlaneReports.ReportContainerExit(event)
+}
+
+func (h *sandboxService) classifyContainerExit(event container.Event) (commonv1.WorkloadDiagnosticCode, string) {
+	if event.DiagnosticCode != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
+		return event.DiagnosticCode, event.Reason
+	}
+	if !h.allocationExitWasMemoryOOM(event.ContainerID) {
+		return event.DiagnosticCode, event.Reason
+	}
+	manifest := h.allocations.EnforcementManifest(event.ContainerID)
+	metrics.RecordSandboxMemoryOOM(manifest.GetRuntimeName())
+	return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED, "sandbox memory limit exceeded"
+}
+
+func (h *sandboxService) allocationExitWasMemoryOOM(allocationID string) bool {
+	if h == nil || h.allocations == nil {
+		return false
+	}
+	manifest := h.allocations.EnforcementManifest(allocationID)
+	if manifest == nil || manifest.GetMemoryLimitBytes() <= 0 || manifest.GetCgroupPath() == "" {
+		return false
+	}
+	observation, err := hostlinux.ReadCgroupMemoryObservation(manifest.GetCgroupPath())
+	if err != nil {
+		return false
+	}
+	return memoryObservationIndicatesOOM(manifest, observation)
+}
+
+func memoryObservationIndicatesOOM(manifest *apipb.AllocationEnforcementManifest, observation *hostlinux.CgroupMemoryObservation) bool {
+	if manifest == nil || observation == nil || manifest.GetMemoryLimitBytes() <= 0 {
+		return false
+	}
+	return observation.Events["oom_kill"] > manifest.GetInitialMemoryEventOomKill() ||
+		observation.Events["oom_group_kill"] > manifest.GetInitialMemoryEventOomGroupKill()
 }
 
 func (h *sandboxService) ReportAllocationStatus(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time) {

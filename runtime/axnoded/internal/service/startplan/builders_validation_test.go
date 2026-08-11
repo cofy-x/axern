@@ -27,6 +27,7 @@ func TestResourcesToLinux(t *testing.T) {
 		assert.Equal(t, uint64(100000), res.CpuPeriod)
 		assert.Equal(t, int64(50000), res.CpuQuota)
 		assert.Equal(t, int64(256*1024*1024), res.MemoryLimitInBytes)
+		assert.Equal(t, res.MemoryLimitInBytes, res.MemorySwapLimitInBytes)
 	})
 
 	t.Run("enforces minimum cpu shares", func(t *testing.T) {

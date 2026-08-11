@@ -22,3 +22,16 @@ func TestParseCpusetCPUCount(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateManagedRootName(t *testing.T) {
+	for _, valid := range []string{"sandbox", "axern-sandboxes"} {
+		if got, err := validateManagedRootName(valid); err != nil || got != valid {
+			t.Fatalf("validateManagedRootName(%q) = %q, %v", valid, got, err)
+		}
+	}
+	for _, invalid := range []string{"", ".", "..", "/sandbox", `parent\\sandbox`, "internal", "workload"} {
+		if _, err := validateManagedRootName(invalid); err == nil {
+			t.Fatalf("validateManagedRootName(%q) accepted invalid name", invalid)
+		}
+	}
+}

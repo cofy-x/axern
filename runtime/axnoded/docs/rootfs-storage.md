@@ -13,8 +13,9 @@ an image-product type switch.
 2. Guest writable rootfs is a file-backed gVisor overlay for runsc and a
    sandbox-private host OverlayFS plus XFS project quota for runc.
 3. The cgroup memory boundary accounts workload anonymous memory, shmem,
-   runtime processes, and file-backed page cache. Filestore size and quota are
-   storage controls and never substitute for memory enforcement.
+   runtime processes, kernel memory, EROFS lower page cache, file-backed
+   writable-overlay page cache, dirty pages, and writeback. Filestore size and
+   quota are storage controls and never substitute for memory enforcement.
 
 ## Runtime-provided system files
 
@@ -95,10 +96,14 @@ verified again. Provider ownership, evidence validity, and loss policy are
 defined in
 [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md).
 
-Cleanup order is runtime delete, projection/host-overlay unmount, upper/work
-removal, writable reservation/project-ID release, then image mount lease
-release. If runtime delete fails and the process may still live, the projection,
-reservation, project ID, and lower lease remain for reconciliation.
+Cleanup order is runtime delete plus monitor exit-state barrier, volume and
+rootfs cleanup, projection/host-overlay unmount, upper/work removal, writable
+reservation/project-ID release, image mount lease release, and finally cgroup
+retirement. The retiring cgroup retains its memory commitment until processes,
+dirty/writeback and charged page cache converge and `memory.reclaim` plus
+removal succeed. If runtime delete fails and the process may still live, the
+projection, reservation, project ID, lower lease, and cgroup ownership remain
+for reconciliation.
 For foreground `runsc run` sandboxes, forced deletion is an ordered runtime
 protocol: send `KILL`, wait until the runtime runner has persisted exit state
 and released the sandbox lock, then execute `runsc delete --force`. Issuing

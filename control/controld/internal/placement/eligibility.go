@@ -5,6 +5,7 @@ import (
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
+	"github.com/cofy-x/axern/lib/go/memorybudget"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/protobuf/proto"
@@ -66,6 +67,16 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 	}
 	if summary == nil || !summary.GetComponents().GetAxnoded().GetReady() {
 		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_AXNODED_NOT_READY)
+	}
+	if summary.GetMemoryBudget().GetSystemReserveExhausted() {
+		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_MEMORY_SYSTEM_RESERVE_EXHAUSTED)
+	}
+	// Every sandbox consumes the delegated node memory domain even when the
+	// workload declares a zero request. Missing or stale capacity evidence must
+	// therefore reject all placement instead of allowing an unreserved workload
+	// to bypass the node-local admission boundary.
+	if err := memorybudget.ValidateSummary(summary, input.Now); err != nil {
+		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_MEMORY_BUDGET_UNAVAILABLE)
 	}
 
 	imagemgrReady := imagemgrUsable(summary)

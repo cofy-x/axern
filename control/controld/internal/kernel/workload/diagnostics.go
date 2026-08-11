@@ -100,6 +100,24 @@ func ClassifyDiagnostic(status commonv1.AllocationStatus, message string) common
 	}
 }
 
+// ResolveDiagnostic preserves an explicit, bounded diagnostic emitted by the
+// component that observed the failure. Text classification is reserved for
+// control-plane failures that do not yet have a structured source; safety
+// events such as memcg OOM must never be reconstructed from human text.
+func ResolveDiagnostic(explicit commonv1.WorkloadDiagnosticCode, status commonv1.AllocationStatus, message string) commonv1.WorkloadDiagnosticCode {
+	if explicit != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
+		return explicit
+	}
+	return ClassifyDiagnostic(status, message)
+}
+
+func ParseDiagnosticCode(value string) commonv1.WorkloadDiagnosticCode {
+	if number, ok := commonv1.WorkloadDiagnosticCode_value[strings.TrimSpace(value)]; ok {
+		return commonv1.WorkloadDiagnosticCode(number)
+	}
+	return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED
+}
+
 func containsDiagnosticToken(message string, tokens ...string) bool {
 	if message == "" {
 		return false

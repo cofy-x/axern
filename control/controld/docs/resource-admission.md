@@ -19,7 +19,7 @@ admission semantics:
 | Resource | Admission behavior |
 | --- | --- |
 | CPU | Node allocatable CPU can be overcommitted through the global `-resource-cpu-overcommit-ratio` policy. |
-| Memory | Memory remains strict; effective memory allocatable equals node reported allocatable memory. |
+| Memory | Memory remains strict. Effective allocatable is the lesser of the node resource source and finite delegated cgroup-root limit, minus the explicit node system reserve. Admission uses the larger of controld reservations and axnoded local commitments. |
 | Ephemeral storage | Node-local filestore capacity is strict after the system reserve and active reservations. |
 | Runtime slots | One workload reservation consumes one slot. Axnoded reports the aggregate node-owned slot capacity after applying enabled resource-pool constraints. |
 
@@ -178,8 +178,24 @@ diagnostic categories.
   file-backed root overlay, including metadata, copy-up, and whiteouts. It does
   not include persistent volumes, immutable lowers or image caches, artifacts,
   projection placeholders, tmpfs, or logs.
-- Runsc host overhead is added only to node memory fit and persisted as
-  `memory_overhead_bytes`; namespace memory quota charges the declared request.
+- `requests.memory_bytes` is the sandbox cgroup reservation and namespace-quota
+  charge. `limits.memory_bytes` is the sandbox cgroup `memory.max`; runtime
+  processes, guest accounting, shmem, kernel memory, lower and writable-overlay
+  page cache, dirty pages, and writeback all share that boundary. There is no
+  separate runsc overhead reservation.
+- Node-local control-plane processes are outside sandbox cgroups and are covered
+  only by the node's explicit `memory_system_reserve_bytes`. A terminal database
+  reservation cannot make capacity reusable while axnoded still reports an
+  assigned or retiring local commitment.
+- `NodeMemoryBudget` keeps `physical_capacity_bytes` and
+  `source_allocatable_bytes` separate. Scheduling starts from the source
+  allocatable value, caps it by a finite delegated-root `memory.max`, and then
+  subtracts the system reserve; physical capacity is never added again.
+- The budget mode is explicit. Production `CGROUP_V2` observations require a
+  positive system reserve and a boot/mount-scoped capacity identity.
+  `DISABLED_DEV` still publishes resource-source capacity so local workloads
+  can reserve memory, but uses zero reserve and cannot advertise or satisfy a
+  runtime memory-hard-limit capability.
 - Runtime pool exhaustion returned by `axnoded` is a runtime-start failure, not
   an admission block. Normal saturation must be rejected by transactional
   runtime-slot admission before node dispatch.

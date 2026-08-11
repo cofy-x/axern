@@ -13,6 +13,45 @@ enum RootfsSrcType {
   LOCAL = 2;
 }
 
+enum CgroupLifecycleState {
+  CGROUP_LIFECYCLE_STATE_UNSPECIFIED = 0;
+  CGROUP_LIFECYCLE_STATE_IDLE = 1;
+  CGROUP_LIFECYCLE_STATE_ASSIGNED = 2;
+  CGROUP_LIFECYCLE_STATE_RETIRING = 3;
+}
+
+message CgroupLease {
+  string cgroup_id = 1;
+  CgroupLifecycleState state = 2;
+  string allocation_id = 3;
+  int64 memory_request_bytes = 4;
+  int64 assigned_at_unix_nano = 5;
+  int64 retiring_at_unix_nano = 6;
+  string last_cleanup_error = 7;
+  int64 current_charged_bytes = 8;
+  int64 reclaim_requested_at_unix_nano = 9;
+  int64 allocation_attempt = 10;
+  int64 memory_limit_bytes = 11;
+  string runtime_name = 12;
+  string cgroup_boot_id = 13;
+  string cgroup_mount_identity = 14;
+  uint64 cgroup_parent_inode = 15;
+  uint64 cgroup_leaf_inode = 16;
+  string last_identity_verification_error = 17;
+}
+
+message CgroupLedger {
+  repeated CgroupLease leases = 1;
+  // Last node memory-capacity identity accepted by local admission. This stays
+  // durable even when the current sample is invalidated so an axnoded restart
+  // cannot make commitments from an older boot or cgroup mount admissible.
+  string memory_capacity_identity = 2;
+}
+
+message DurableSequence {
+  int64 reserved_through = 1;
+}
+
 message S3Config {
   string endpoint = 1;
   string bucket = 2;
@@ -146,6 +185,17 @@ message AllocationEnforcementManifest {
   string bundle_path = 10;
   string runsc_backing_directory = 11;
   string runsc_backing_directory_identity = 12;
+  string cgroup_boot_id = 13;
+  string cgroup_mount_identity = 14;
+  uint64 cgroup_parent_inode = 15;
+  uint64 cgroup_leaf_inode = 16;
+  int64 memory_swap_max_bytes = 17;
+  bool memory_oom_group = 18;
+  uint64 initial_memory_event_high = 19;
+  uint64 initial_memory_event_max = 20;
+  uint64 initial_memory_event_oom = 21;
+  uint64 initial_memory_event_oom_kill = 22;
+  uint64 initial_memory_event_oom_group_kill = 23;
 }
 
 message TerminalResize {

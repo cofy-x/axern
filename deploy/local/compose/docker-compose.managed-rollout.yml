@@ -54,9 +54,6 @@ services:
       SSL_CERT_FILE: /certs/ca.crt
       # Keep the nested sandbox network disjoint from Docker's Linux host bridge.
       AXNODED_NETWORK_IP_RANGE: ${MANAGED_ROLLOUT_SANDBOX_IP_RANGE:-10.250.0.1/16}
-      # This nested Compose runtime ignores runtime-owned cgroups; cgroup
-      # enforcement is covered by the dedicated Linux runtime gates.
-      AXNODED_CGROUP_ENFORCEMENT: disabled_dev
       AXNODED_CGROUP_CACHE_SIZE: "0"
     volumes:
       - type: bind

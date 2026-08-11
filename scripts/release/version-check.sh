@@ -95,10 +95,15 @@ for image in (
         raise SystemExit(f"deploy/helm/axern/values.yaml does not reference {image} v{want}")
 
 tool_versions = {}
-for line in (root / "runtime/axnoded/runtime-tools.sh").read_text().splitlines():
+for line in (root / "runtime/axnoded/gvisor.lock").read_text().splitlines():
     if line and not line.startswith("#"):
         key, value = line.split("=", 1)
         tool_versions[key] = value
+for line in (root / "runtime/axnoded/runtime-tools.sh").read_text().splitlines():
+    if line and not line.startswith("#"):
+        match = re.fullmatch(r"(AXERN_MC_[A-Z0-9_]+)=(.+)", line)
+        if match:
+            tool_versions[match.group(1)] = match.group(2)
 for key in ("AXERN_GVISOR_RELEASE", "AXERN_MC_RELEASE"):
     if not tool_versions.get(key):
         raise SystemExit(f"runtime tool version {key} is missing")
@@ -108,6 +113,11 @@ for key in (
 ):
     if not re.fullmatch(r"[0-9a-f]{128}" if "SHA512" in key else r"[0-9a-f]{64}", tool_versions.get(key, "")):
         raise SystemExit(f"runtime tool digest {key} is invalid")
+if tool_versions.get("AXERN_GVISOR_TAG") != f"release-{tool_versions.get('AXERN_GVISOR_RELEASE', '')}":
+    raise SystemExit("gVisor source tag and artifact release do not match")
+for key in ("AXERN_GVISOR_TAG_OBJECT", "AXERN_GVISOR_COMMIT"):
+    if not re.fullmatch(r"[0-9a-f]{40}", tool_versions.get(key, "")):
+        raise SystemExit(f"gVisor source identity {key} is invalid")
 for relative in (
     "deploy/images/lib/node-runtime-base.Dockerfile",
     "runtime/axnoded/docker/benchmark/Dockerfile",
@@ -117,6 +127,24 @@ for relative in (
 ):
     if "release/latest" in (root / relative).read_text():
         raise SystemExit(f"{relative} must not download a rolling runtime tool release")
+
+# runtime-tools.sh is deliberately fail-closed: every consumer must make the
+# source/artifact lock available in the same build or execution environment.
+for relative in (
+    "deploy/images/lib/node-runtime-base.Dockerfile",
+    "runtime/axnoded/docker/benchmark/Dockerfile",
+    "docker/devbox/Dockerfile",
+):
+    text = (root / relative).read_text()
+    if "runtime-tools.sh" in text and "runtime/axnoded/gvisor.lock" not in text:
+        raise SystemExit(f"{relative} sources runtime-tools.sh without installing gvisor.lock")
+for relative in (
+    "runtime/axnoded/scripts/cache/cache-runsc.sh",
+    "runtime/axnoded/scripts/cache/cache-minio-mc.sh",
+):
+    text = (root / relative).read_text()
+    if "runtime-tools.sh" in text and "AXERN_GVISOR_LOCK=" not in text:
+        raise SystemExit(f"{relative} sources runtime-tools.sh without selecting gvisor.lock")
 PY
 
 if grep -Eq '^[[:space:]]*replace([[:space:]]|\()' "${AXERN_ROOT}/sdk/go/go.mod"; then

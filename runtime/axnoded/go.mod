@@ -9,13 +9,12 @@ replace github.com/cofy-x/axern/sdk/go => ../../sdk/go
 replace github.com/cofy-x/axern/lib/go/nodecapability => ../../lib/go/nodecapability
 
 require (
-	github.com/cofy-x/axern/network/bpfnet v0.0.0
 	github.com/cofy-x/axern/lib/go/nodecapability v0.0.0
+	github.com/cofy-x/axern/network/bpfnet v0.0.0
 	github.com/cofy-x/axern/sdk/go v0.0.0
 	github.com/containerd/cgroups/v3 v3.0.1
 	github.com/coreos/go-iptables v0.6.0
 	github.com/creack/pty v1.1.24
-	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
 	github.com/opencontainers/runtime-spec v1.1.0-rc.1
 	github.com/orcaman/concurrent-map/v2 v2.0.1

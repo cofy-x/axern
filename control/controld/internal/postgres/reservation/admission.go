@@ -56,7 +56,6 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 	}
 	requested := resourcekernel.QuantityToClaim(executionkernel.NormalizeConfig(req.Config).GetResources().GetRequests())
 	nodeRequested := requested
-	nodeRequested.MemoryBytes = resourcekernel.SaturatingAdd(nodeRequested.MemoryBytes, a.policy.RuntimeMemoryOverhead(req.Config.GetRuntimeClass()))
 	stageStarted := time.Now()
 	quota, err := pgnamespace.LockQuotaPolicy(ctx, tx, namespace)
 	recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageLockNamespace, stageStarted, err)
@@ -153,13 +152,14 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 		}
 		reservationEvaluated++
 		used := usage[record.NodeID]
-		fit := a.policy.EvaluateFit(allocatableFromSummary(record.Summary), used.resources, nodeRequested)
+		effectiveUsed := effectiveReservationUsage(record.Summary, used.resources)
+		fit := a.policy.EvaluateFit(allocatableFromSummary(record.Summary), effectiveUsed, nodeRequested)
 		slots := evaluateRuntimeSlots(record.Summary, used.allocationIDs)
 		if !fit.Fits() || !slots.Fits {
 			diagnostics.AddCandidate(record.NodeID, a.policy, fit, slots)
 			continue
 		}
-		refreshed := refreshPlacementCandidate(&placementkernel.Candidate{Record: record, Evaluation: freshEvaluation, BaseRequest: baseRequest, Request: freshRequest}, record, used.resources, used.allocationIDs, lockedEvaluationTime)
+		refreshed := refreshPlacementCandidate(&placementkernel.Candidate{Record: record, Evaluation: freshEvaluation, BaseRequest: baseRequest, Request: freshRequest}, record, effectiveUsed, used.allocationIDs, lockedEvaluationTime)
 		if selected == nil || placementkernel.CandidateLess(refreshed, selected) {
 			selected = refreshed
 		}
@@ -212,10 +212,6 @@ func candidateSnapshotID(candidates []*placementkernel.Candidate, nodeID string)
 	return ""
 }
 
-func (a Admission) RuntimeMemoryOverhead(runtimeName string) int64 {
-	return a.policy.RuntimeMemoryOverhead(runtimeName)
-}
-
 func reservationRejectionError(diagnostics reservationRejectionDiagnostics) error {
 	st := grpcstatus.New(codes.ResourceExhausted, diagnostics.Message())
 	withDetails, err := st.WithDetails(&errdetails.ErrorInfo{
@@ -232,7 +228,7 @@ func reservationRejectionError(diagnostics reservationRejectionDiagnostics) erro
 func activeNamespaceReservationUsage(ctx context.Context, tx pgx.Tx, namespace string) (resourcekernel.Claim, error) {
 	var used resourcekernel.Claim
 	if err := tx.QueryRow(ctx, `
-		SELECT COALESCE(SUM(cpu_milli), 0), COALESCE(SUM(memory_bytes), 0), COALESCE(SUM(ephemeral_storage_bytes), 0)
+		SELECT COALESCE(SUM(cpu_milli), 0), COALESCE(SUM(sandbox_memory_request_bytes), 0), COALESCE(SUM(ephemeral_storage_bytes), 0)
 		FROM workload_reservations
 		WHERE namespace = $1 AND released_at IS NULL
 	`, namespace).Scan(&used.CPUMilli, &used.MemoryBytes, &used.EphemeralStorageBytes); err != nil {

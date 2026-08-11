@@ -66,6 +66,7 @@ func TestPostgresServiceEnvironmentUpdateRollsReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateService(environment_id) error = %v", err)
 	}
+	reconcileAllocationLifecycle(t, app, now)
 	if updateResp.GetService().GetEnvironmentID() != newEnv.GetID() {
 		t.Fatalf("updated environment_id = %q, want %q", updateResp.GetService().GetEnvironmentID(), newEnv.GetID())
 	}

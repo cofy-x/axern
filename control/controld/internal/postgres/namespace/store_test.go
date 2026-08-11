@@ -373,7 +373,7 @@ func insertReservation(t *testing.T, db *postgres.DB, reservationID, allocationI
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO workload_reservations (
 			reservation_id, allocation_id, namespace, owner_type, owner_id, node_id,
-			cpu_milli, memory_bytes, created_at, released_at
+			cpu_milli, sandbox_memory_request_bytes, created_at, released_at
 		) VALUES ($1, $2, $3, 'run', $4, 'node-a', $5, $6, $7, $8)
 	`, reservationID, allocationID, namespace, allocationID, cpuMilli, memoryBytes, now, releasedAt); err != nil {
 		t.Fatalf("insert reservation %s: %v", reservationID, err)

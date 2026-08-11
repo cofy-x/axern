@@ -320,6 +320,10 @@ This contract requires coordinated controld, axnoded, proto, SDK, and CLI
 deployment. Mixed versions are unsupported; development databases and node
 state are rebuilt during rollout.
 
-Public memory accounting semantics, runtime overhead calibration, and page
-cache attribution remain owned by issue #43. They are not inferred from this
-capability evidence contract.
+Public memory is a total sandbox memcg budget as finalized by issue #43.
+Capability evidence proves the runtime can enforce that host boundary; it does
+not add a runtime overhead reservation or reinterpret guest-usable headroom.
+Anonymous memory, shmem, kernel memory, EROFS lower page cache, file-backed
+overlay page cache, dirty pages, and writeback are usage attribution within the
+same limit. Node-local daemons remain outside that boundary and are covered by
+the independently qualified node system reserve.

@@ -10,18 +10,61 @@ import (
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 )
 
+type CgroupMemoryDomain struct {
+	BootID        string
+	MountIdentity string
+	ParentInode   uint64
+	LeafInode     uint64
+	LimitBytes    int64
+	SwapMaxBytes  int64
+	OOMGroup      bool
+	InitialEvents map[string]uint64
+}
+
+type CgroupMemoryObservation struct {
+	CurrentBytes int64
+	PeakBytes    int64
+	SwapCurrent  int64
+	Stat         map[string]int64
+	Events       map[string]uint64
+	PSIAvailable bool
+	PSISomeAvg10 float64
+	PSIFullAvg10 float64
+	PSISomeTotal uint64
+	PSIFullTotal uint64
+}
+
 func VerifyCgroupMemoryLimit(string, int64) error {
 	return fmt.Errorf("cgroup enforcement requires Linux")
 }
 func ProbeCgroupMemoryLimit(string) error     { return fmt.Errorf("cgroup enforcement requires Linux") }
 func VerifyPIDInCgroup(string, int) error     { return fmt.Errorf("cgroup enforcement requires Linux") }
 func VerifyCgroupPIDs(string, int, int) error { return fmt.Errorf("cgroup enforcement requires Linux") }
+func VerifyRuncCgroupProcessTree(string, int) error {
+	return fmt.Errorf("cgroup enforcement requires Linux")
+}
 func VerifyRunscCgroupProcesses(string, int, string) error {
 	return fmt.Errorf("cgroup enforcement requires Linux")
 }
 func ReadCgroupMemoryBreakdown(string) (map[string]int64, error) {
 	return nil, fmt.Errorf("cgroup memory statistics require Linux")
 }
+func ConfigureCgroupMemoryDomain(string, string, int64) (*CgroupMemoryDomain, error) {
+	return nil, fmt.Errorf("cgroup enforcement requires Linux")
+}
+func InspectCgroupMemoryDomain(string, string) (*CgroupMemoryDomain, error) {
+	return nil, fmt.Errorf("cgroup enforcement requires Linux")
+}
+func InspectCgroupMemoryParent(string) (*CgroupMemoryDomain, error) {
+	return nil, fmt.Errorf("cgroup enforcement requires Linux")
+}
+func VerifyCgroupMemoryDomain(string, string, int64, string, string, uint64, uint64) error {
+	return fmt.Errorf("cgroup enforcement requires Linux")
+}
+func ReadCgroupMemoryObservation(string) (*CgroupMemoryObservation, error) {
+	return nil, fmt.Errorf("cgroup memory statistics require Linux")
+}
+func ReclaimCgroupMemory(string) error { return fmt.Errorf("cgroup memory reclaim requires Linux") }
 
 func unsupported(op string) error {
 	return fmt.Errorf("%s is unsupported on %s", op, runtime.GOOS)

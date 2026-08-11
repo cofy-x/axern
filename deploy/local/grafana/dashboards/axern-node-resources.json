@@ -1710,6 +1710,151 @@
           }
         }
       ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Authoritative node memory budget terms. The binary reserve-exhausted state is intentionally shown separately from byte-valued series.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 59
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "10.4.1",
+      "targets": [
+        {
+          "expr": "axern_axnoded_node_memory_budget_current{axern_state=~\"physical_capacity|source_allocatable|delegated_root_limit|system_reserve|effective_allocatable|local_commitment|cleanup_debt|internal_current|sandbox_current\"}",
+          "legendFormat": "{{axern_node_id}} / {{axern_state}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Node Memory Budget and Cleanup Debt",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Host memcg attribution for sandbox totals, grouped by runtime and bounded statistic name.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 59
+      },
+      "id": 18,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "10.4.1",
+      "targets": [
+        {
+          "expr": "axern_axnoded_cgroup_memory_current{axern_state=~\"current|peak|swap_current|anon|file|shmem|kernel|file_dirty|file_writeback\"}",
+          "legendFormat": "{{axern_node_id}} / {{axern_runtime}} / {{axern_state}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Sandbox Memcg Attribution",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "description": "Admission rejection, workload OOM, retiring-cgroup cleanup, and reserve-exhaustion signals. Series are bounded by reason/runtime labels.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 67
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "10.4.1",
+      "targets": [
+        {
+          "expr": "sum by (axern_node_id, axern_runtime) (rate(axern_axnoded_sandbox_memory_oom_total[5m]))",
+          "legendFormat": "OOM {{axern_node_id}} / {{axern_runtime}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (axern_node_id, axern_result) (rate(axern_axnoded_memory_admission_total[5m]))",
+          "legendFormat": "Admission {{axern_node_id}} / {{axern_result}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (axern_node_id, axern_operation, axern_result) (rate(axern_axnoded_cgroup_retirement_total[5m]))",
+          "legendFormat": "Retirement {{axern_node_id}} / {{axern_operation}} / {{axern_result}}",
+          "refId": "C"
+        },
+        {
+          "expr": "max by (axern_node_id) (axern_axnoded_node_memory_budget_current{axern_state=\"system_reserve_exhausted\"})",
+          "legendFormat": "Reserve exhausted {{axern_node_id}}",
+          "refId": "D"
+        }
+      ],
+      "title": "Memory Admission, OOM, and Retirement",
+      "type": "timeseries"
     }
   ],
   "refresh": "15s",

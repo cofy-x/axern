@@ -61,6 +61,45 @@ message ResourcesSummary {
   int64 axnoded_ephemeral_storage_unbounded_count = 9;
 }
 
+// NodeMemoryBudget is the node-observed scheduling boundary. The system
+// reserve covers node-local control processes and is never charged to a
+// namespace or allocation.
+enum NodeMemoryBudgetMode {
+  NODE_MEMORY_BUDGET_MODE_UNSPECIFIED = 0;
+  // Capacity and internal usage are observed from the delegated cgroup v2
+  // domain. Runtime-specific hard-limit capabilities remain separate facts.
+  NODE_MEMORY_BUDGET_MODE_CGROUP_V2 = 1;
+  // Local-development capacity is observed from the configured node resource
+  // source without claiming a cgroup hard boundary.
+  NODE_MEMORY_BUDGET_MODE_DISABLED_DEV = 2;
+}
+
+message NodeMemoryBudget {
+  // Physical capacity reported by the selected node resource source. This is
+  // a consistency/diagnostic fact and is never added to allocatable memory.
+  int64 physical_capacity_bytes = 1;
+  // The resource source's schedulable value before the Axern system reserve.
+  int64 source_allocatable_bytes = 2;
+  // A finite value further caps source_allocatable_bytes; zero with
+  // delegated_root_limit_finite=false represents kernel `max`.
+  int64 delegated_root_limit_bytes = 3;
+  bool delegated_root_limit_finite = 4;
+  int64 system_reserve_bytes = 5;
+  int64 effective_allocatable_bytes = 6;
+  int64 local_commitment_bytes = 7;
+  int64 cleanup_debt_bytes = 8;
+  int64 internal_current_bytes = 9;
+  // Identity of the capacity domain. Production uses the boot-scoped cgroup
+  // mount/root identity; disabled_dev uses a boot-scoped resource-source
+  // identity and cannot satisfy runtime hard-limit requirements.
+  string capacity_identity = 10;
+  google.protobuf.Timestamp sampled_at = 11;
+  int32 retiring_cgroup_count = 12;
+  int64 oldest_retiring_age_seconds = 13;
+  bool system_reserve_exhausted = 14;
+  NodeMemoryBudgetMode mode = 15;
+}
+
 message PoolsSummary {
   PoolState cgroup = 1;
   PoolState interface = 2;
@@ -174,6 +213,7 @@ message NodeSummary {
   axern.control.common.v1.ResourceQuantity capacity = 9;
   axern.control.common.v1.ResourceQuantity allocatable = 10;
   repeated NodeStorageSummary storage = 11;
+  NodeMemoryBudget memory_budget = 12;
 }
 
 message RegisterNodeRequest {
@@ -205,6 +245,10 @@ message AllocationStatusObservation {
   google.protobuf.Timestamp observed_at = 7;
   bool ready = 8;
   string readiness_message = 9;
+  // diagnostic_code is the bounded, machine-readable terminal or degraded
+  // cause observed by the node. The message remains operator context and is
+  // never parsed to recover this code.
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 10;
 }
 
 message BatchReportAllocationStatusRequest {
@@ -231,6 +275,63 @@ message BatchReportAllocationCapabilityConditionsRequest {
 }
 
 message BatchReportAllocationCapabilityConditionsResponse {}
+
+// AllocationMemoryObservation is a bounded latest-value report from the host
+// cgroup. Runtime-specific diagnostics such as `runsc usage --full` are not
+// included because they cannot be added to these kernel counters.
+enum AllocationMemoryCleanupState {
+  ALLOCATION_MEMORY_CLEANUP_STATE_UNSPECIFIED = 0;
+  ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED = 1;
+  ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING = 2;
+}
+
+message AllocationMemoryObservation {
+  string allocation_id = 1;
+  int64 attempt = 2;
+  int64 revision = 3;
+  google.protobuf.Timestamp observed_at = 4;
+  int64 request_bytes = 5;
+  // Zero means the sandbox has no per-allocation hard limit. Usage and cgroup
+  // identity remain observable, while the control-verification fields must be
+  // false and swap_current_bytes is informational rather than constrained.
+  int64 limit_bytes = 6;
+  int64 current_bytes = 7;
+  int64 peak_bytes = 8;
+  int64 swap_current_bytes = 9;
+  int64 anon_bytes = 10;
+  int64 file_bytes = 11;
+  int64 shmem_bytes = 12;
+  int64 kernel_bytes = 13;
+  int64 dirty_bytes = 14;
+  int64 writeback_bytes = 15;
+  uint64 event_high = 16;
+  uint64 event_max = 17;
+  uint64 event_oom = 18;
+  uint64 event_oom_kill = 19;
+  uint64 event_oom_group_kill = 20;
+  double psi_some_avg10 = 21;
+  double psi_full_avg10 = 22;
+  uint64 psi_some_total_usec = 23;
+  uint64 psi_full_total_usec = 24;
+  string cgroup_identity = 25;
+  string runtime = 26;
+  bool parent_controls_verified = 27;
+  bool leaf_controls_verified = 28;
+  bool pid_roles_verified = 29;
+  AllocationMemoryCleanupState cleanup_state = 30;
+  // psi_available distinguishes an unsupported per-cgroup PSI interface from
+  // a supported interface that currently reports zero pressure. When false,
+  // all PSI values above must be zero.
+  bool psi_available = 31;
+}
+
+message BatchReportAllocationMemoryObservationsRequest {
+  string node_id = 1;
+  string node_auth_token = 2;
+  repeated AllocationMemoryObservation observations = 3;
+}
+
+message BatchReportAllocationMemoryObservationsResponse {}
 
 message WatchExecutionLeasesRequest {
   string node_id = 1;
@@ -294,6 +395,8 @@ enum PlacementRejectionReason {
   PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED = 14;
   PLACEMENT_REJECTION_REASON_NODE_RETIRED = 15;
   PLACEMENT_REJECTION_REASON_INSUFFICIENT_EPHEMERAL_STORAGE = 16;
+  PLACEMENT_REJECTION_REASON_NODE_MEMORY_SYSTEM_RESERVE_EXHAUSTED = 17;
+  PLACEMENT_REJECTION_REASON_NODE_MEMORY_BUDGET_UNAVAILABLE = 18;
 }
 
 message PlacementRank {
@@ -328,6 +431,7 @@ service NodeControl {
   rpc ReportNode(ReportNodeRequest) returns (ReportNodeResponse) {}
   rpc BatchReportAllocationStatus(BatchReportAllocationStatusRequest) returns (BatchReportAllocationStatusResponse) {}
   rpc BatchReportAllocationCapabilityConditions(BatchReportAllocationCapabilityConditionsRequest) returns (BatchReportAllocationCapabilityConditionsResponse) {}
+  rpc BatchReportAllocationMemoryObservations(BatchReportAllocationMemoryObservationsRequest) returns (BatchReportAllocationMemoryObservationsResponse) {}
   rpc WatchExecutionLeases(WatchExecutionLeasesRequest) returns (stream WatchExecutionLeasesResponse) {}
   rpc WatchTunnelSessions(WatchTunnelSessionsRequest) returns (stream WatchTunnelSessionsResponse) {}
   rpc ReportTunnelSessionStatus(ReportTunnelSessionStatusRequest) returns (ReportTunnelSessionStatusResponse) {}

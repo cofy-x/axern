@@ -8,6 +8,7 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
+	workloadkernel "github.com/cofy-x/axern/control/controld/internal/kernel/workload"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"github.com/jackc/pgx/v5"
@@ -28,6 +29,7 @@ type allocationRecord struct {
 	ReadinessMessage  string
 	ExitCode          int32
 	ExitCodeKnown     bool
+	DiagnosticCode    commonv1.WorkloadDiagnosticCode
 	Message           string
 	CreatedAt         time.Time
 	ReadinessProbe    *servicev1.ServiceProbe
@@ -56,7 +58,7 @@ func (s *PGStore) allocationRecordsForStatusBatch(ctx context.Context, tx pgx.Tx
 	}
 	rows, err := tx.Query(ctx, `
 		SELECT a.allocation_id, a.owner_type, a.owner_id, a.desired_spec_digest, a.environment_id, a.node_id, n.node_target, a.attempt, a.status, a.ready,
-			a.readiness_message, a.exit_code, a.exit_code_known, a.message, a.created_at, a.readiness_probe, a.liveness_probe, a.config
+			a.readiness_message, a.exit_code, a.exit_code_known, a.diagnostic_code, a.message, a.created_at, a.readiness_probe, a.liveness_probe, a.config
 		FROM allocations a
 		JOIN nodes n ON n.node_id = a.node_id
 		WHERE a.allocation_id = ANY($1::text[])
@@ -86,7 +88,7 @@ type statusAllocationRecordScanner interface {
 
 func scanStatusAllocationRecord(row statusAllocationRecordScanner) (*allocationRecord, error) {
 	record := &allocationRecord{}
-	var statusText string
+	var statusText, diagnosticCodeText string
 	var configJSON, readinessProbeJSON, livenessProbeJSON []byte
 	if err := row.Scan(
 		&record.AllocationID,
@@ -102,6 +104,7 @@ func scanStatusAllocationRecord(row statusAllocationRecordScanner) (*allocationR
 		&record.ReadinessMessage,
 		&record.ExitCode,
 		&record.ExitCodeKnown,
+		&diagnosticCodeText,
 		&record.Message,
 		&record.CreatedAt,
 		&readinessProbeJSON,
@@ -111,6 +114,7 @@ func scanStatusAllocationRecord(row statusAllocationRecordScanner) (*allocationR
 		return nil, fmt.Errorf("scan service allocation for status batch: %w", err)
 	}
 	record.Status = allocationkernel.ParseStatus(statusText)
+	record.DiagnosticCode = workloadkernel.ParseDiagnosticCode(diagnosticCodeText)
 	if len(readinessProbeJSON) > 0 && string(readinessProbeJSON) != "null" {
 		record.ReadinessProbe = &servicev1.ServiceProbe{}
 		if err := protojson.Unmarshal(readinessProbeJSON, record.ReadinessProbe); err != nil {

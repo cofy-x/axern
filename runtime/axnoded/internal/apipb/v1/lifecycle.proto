@@ -109,6 +109,7 @@ message ContainerStatus {
   string stderr = 13;
   LinuxContainerResources linux_resources = 14;
   int32 pid = 15;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 16;
 }
 
 message VersionRequest {

@@ -9,6 +9,7 @@ import (
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -54,6 +55,15 @@ func TestGetAllocationCapabilityDiagnosticsPreservesAttemptFence(t *testing.T) {
 		CreateDependencySetDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		CreateAdmittedAt:          &admittedAt,
 		ConditionSet:              &capabilityv1.CapabilityConditionSet{Revision: 3},
+		MemoryAdmission: &adminkernel.AllocationMemoryAdmission{
+			SandboxMemoryRequestBytes: 128 << 20,
+			SandboxMemoryLimitBytes:   256 << 20,
+			NodeMemoryBudget:          &nodev1.NodeMemoryBudget{EffectiveAllocatableBytes: 8 << 30},
+			SummaryCollectedAt:        admittedAt.Add(-time.Second),
+			NodeLocalCommitmentBytes:  512 << 20,
+			AdmittedAt:                admittedAt,
+		},
+		LatestMemoryObservation: &nodev1.AllocationMemoryObservation{Revision: 9, CurrentBytes: 64 << 20},
 	}}
 	srv := New(Dependencies{CapabilityDiagnostics: diagnostics})
 
@@ -63,7 +73,9 @@ func TestGetAllocationCapabilityDiagnosticsPreservesAttemptFence(t *testing.T) {
 	}
 	if diagnostics.allocationID != "allocation-a" || resp.GetAllocationAttempt() != 7 || resp.GetConditionSet().GetRevision() != 3 ||
 		!resp.GetCreateAdmissionRecorded() || resp.GetCreateDependencySetDigest() != diagnostics.allocation.CreateDependencySetDigest ||
-		!resp.GetCreateAdmittedAt().AsTime().Equal(admittedAt) {
+		!resp.GetCreateAdmittedAt().AsTime().Equal(admittedAt) ||
+		resp.GetMemoryAdmission().GetSandboxMemoryRequestBytes() != 128<<20 ||
+		resp.GetLatestMemoryObservation().GetRevision() != 9 {
 		t.Fatalf("allocationID = %q, response = %+v", diagnostics.allocationID, resp)
 	}
 }

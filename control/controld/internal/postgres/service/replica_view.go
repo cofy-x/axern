@@ -29,7 +29,7 @@ func deriveReplicaState(record *serviceReplicaRecord, service *servicev1.Service
 	if diagnosticMessage == "" {
 		diagnosticMessage = strings.TrimSpace(record.replica.GetLifecycleRetry().GetLastError())
 	}
-	record.replica.DiagnosticCode = workloadkernel.ClassifyDiagnostic(record.replica.GetStatus(), diagnosticMessage)
+	record.replica.DiagnosticCode = workloadkernel.ResolveDiagnostic(record.replica.GetDiagnosticCode(), record.replica.GetStatus(), diagnosticMessage)
 }
 
 func matchReplicaFilter(replica *servicev1.ServiceReplica, filter *servicev1.ServiceReplicaListFilter) bool {

@@ -68,6 +68,7 @@ func newTestService(t *testing.T, handlers map[string]contract.RuntimeHandler) *
 	s.configureSandboxControl()
 	s.configureControlPlaneReports()
 	s.configureAllocationController()
+	cm.SetExitClassifier(s.classifyContainerExit)
 	cm.SetExitObserver(s.handleContainerExitControlPlaneReport)
 	retentionTTL, err := time.ParseDuration(config.DefaultIdleRuntimeRetentionTTL)
 	if !assert.NoError(t, err) {

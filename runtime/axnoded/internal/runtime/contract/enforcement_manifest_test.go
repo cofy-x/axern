@@ -43,6 +43,11 @@ func TestValidateEnforcementManifestRejectsCrossRuntimeAndMutableBackingState(t 
 	}
 	memory.CgroupPath = "/sandbox/allocation"
 	memory.RuntimeCgroupPath = "/sandbox/allocation/runtime"
+	memory.CgroupBootID = "boot-1"
+	memory.CgroupMountIdentity = "mount-1"
+	memory.CgroupParentInode = 10
+	memory.CgroupLeafInode = 11
+	memory.MemoryOomGroup = true
 	if err := ValidateEnforcementManifest(memory, ""); err != nil {
 		t.Fatalf("valid memory enforcement manifest rejected: %v", err)
 	}

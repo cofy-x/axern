@@ -394,7 +394,7 @@ func insertAllocationDependents(t *testing.T, db *postgres.DB, allocationID stri
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO workload_reservations (
 			reservation_id, allocation_id, namespace, owner_type, owner_id, node_id,
-			cpu_milli, memory_bytes, created_at, released_at
+			cpu_milli, sandbox_memory_request_bytes, created_at, released_at
 		) VALUES ($1, $2, 'default', 'run', 'run-test', 'node-test', 500, 4294967296, $3, $3)
 	`, "resv-"+allocationID, allocationID, now.UTC()); err != nil {
 		t.Fatalf("insert node reservation: %v", err)
@@ -438,16 +438,35 @@ func insertLease(t *testing.T, db *postgres.DB, leaseID, allocationID string, cr
 
 func insertTunnelSession(t *testing.T, db *postgres.DB, sessionID, allocationID, status string, createdAt, expiresAt time.Time) {
 	t.Helper()
+	ensureRetentionTunnelIdentity(t, db, createdAt)
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO tunnel_sessions (
-			session_id, allocation_id, node_id, node_target, attempt, remote_port,
+			session_id, allocation_id, namespace, creator_principal_id, node_id, node_target, attempt, remote_port,
 			local_target, edge_target, node_edge_target, status, reason, bound_addr, revoked,
 			client_token_hash, node_token_encrypted, node_token_hash, revision, created_at, updated_at, expires_at
-		) VALUES ($1, $2, 'node-test', '127.0.0.1:24010', 1, 30001,
+		) VALUES ($1, $2, 'default', 'prn-retention-test', 'node-test', '127.0.0.1:24010', 1, 30001,
 			'127.0.0.1:8080', '127.0.0.1:24210', '127.0.0.1:24210', $3, '', '', FALSE,
 			'client-hash', decode('00', 'hex'), 'node-hash', 0, $4, $4, $5)
 	`, sessionID, allocationID, status, createdAt.UTC(), expiresAt.UTC()); err != nil {
 		t.Fatalf("insert tunnel session: %v", err)
+	}
+}
+
+func ensureRetentionTunnelIdentity(t *testing.T, db *postgres.DB, now time.Time) {
+	t.Helper()
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO namespaces(namespace, version, created_at, updated_at)
+		VALUES ('default', 1, $1, $1)
+		ON CONFLICT (namespace) DO NOTHING
+	`, now.UTC()); err != nil {
+		t.Fatalf("insert tunnel namespace fixture: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO principals(principal_id, name, display_name, kind, status, version, created_at, updated_at)
+		VALUES ('prn-retention-test', 'retention-test', 'Retention Test', 'human', 'active', 1, $1, $1)
+		ON CONFLICT (principal_id) DO NOTHING
+	`, now.UTC()); err != nil {
+		t.Fatalf("insert tunnel principal fixture: %v", err)
 	}
 }
 

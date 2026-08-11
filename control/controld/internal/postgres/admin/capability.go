@@ -166,6 +166,9 @@ func (s *Store) GetAllocationCapabilityDiagnostics(ctx context.Context, allocati
 	if err := s.loadCapabilityConditionSet(ctx, allocationID, result.Attempt, result); err != nil {
 		return nil, err
 	}
+	if err := s.loadAllocationMemoryDiagnostics(ctx, allocationID, result.Attempt, result); err != nil {
+		return nil, err
+	}
 	row := s.db.Pool().QueryRow(ctx, capabilityQueueSelect+` WHERE q.allocation_id = $1`, allocationID)
 	item, err := scanCapabilityReconcileItem(row)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -175,6 +178,53 @@ func (s *Store) GetAllocationCapabilityDiagnostics(ctx context.Context, allocati
 		result.Reconcile = item
 	}
 	return result, nil
+}
+
+func (s *Store) loadAllocationMemoryDiagnostics(ctx context.Context, allocationID string, attempt int64, result *adminkernel.AllocationCapabilityDiagnostics) error {
+	var admission adminkernel.AllocationMemoryAdmission
+	var budgetJSON []byte
+	err := s.db.Pool().QueryRow(ctx, `
+		SELECT sandbox_memory_request_bytes, sandbox_memory_limit_bytes,
+		       node_memory_budget, summary_collected_at,
+		       node_local_commitment_bytes, admitted_at
+		FROM allocation_memory_admission_evidence
+		WHERE allocation_id = $1 AND allocation_attempt = $2
+	`, allocationID, attempt).Scan(
+		&admission.SandboxMemoryRequestBytes,
+		&admission.SandboxMemoryLimitBytes,
+		&budgetJSON,
+		&admission.SummaryCollectedAt,
+		&admission.NodeLocalCommitmentBytes,
+		&admission.AdmittedAt,
+	)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("load allocation memory admission evidence: %w", err)
+	}
+	if err == nil {
+		admission.NodeMemoryBudget = &nodev1.NodeMemoryBudget{}
+		if err := protojson.Unmarshal(budgetJSON, admission.NodeMemoryBudget); err != nil {
+			return fmt.Errorf("unmarshal allocation memory admission budget: %w", err)
+		}
+		result.MemoryAdmission = &admission
+	}
+
+	var observationJSON []byte
+	err = s.db.Pool().QueryRow(ctx, `
+		SELECT observation
+		FROM allocation_memory_observations
+		WHERE allocation_id = $1 AND allocation_attempt = $2
+	`, allocationID, attempt).Scan(&observationJSON)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("load latest allocation memory observation: %w", err)
+	}
+	result.LatestMemoryObservation = &nodev1.AllocationMemoryObservation{}
+	if err := protojson.Unmarshal(observationJSON, result.LatestMemoryObservation); err != nil {
+		return fmt.Errorf("unmarshal latest allocation memory observation: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) loadCapabilityConditionSet(ctx context.Context, allocationID string, attempt int64, result *adminkernel.AllocationCapabilityDiagnostics) error {

@@ -153,6 +153,9 @@ func (m *InterfaceManager) waitForBuild(ctx context.Context) error {
 }
 
 func (m *InterfaceManager) ShutDown() error {
+	if m.poolController != nil {
+		m.poolController.shutdown()
+	}
 	m.stopStoreLoop()
 	if m.storeMark.Load() {
 		m.store()

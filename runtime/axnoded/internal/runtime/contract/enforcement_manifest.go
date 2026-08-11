@@ -36,6 +36,20 @@ func ValidateEnforcementManifest(manifest *apipb.AllocationEnforcementManifest, 
 				return fmt.Errorf("memory enforcement manifest requires a clean bounded %s", name)
 			}
 		}
+		if strings.TrimSpace(manifest.GetCgroupBootID()) == "" || len(manifest.GetCgroupBootID()) > 128 {
+			return fmt.Errorf("memory enforcement manifest requires bounded cgroup boot identity")
+		}
+		if strings.TrimSpace(manifest.GetCgroupMountIdentity()) == "" || len(manifest.GetCgroupMountIdentity()) > 1024 {
+			return fmt.Errorf("memory enforcement manifest requires bounded cgroup mount identity")
+		}
+		if manifest.GetCgroupParentInode() == 0 || manifest.GetCgroupLeafInode() == 0 || manifest.GetCgroupParentInode() == manifest.GetCgroupLeafInode() {
+			return fmt.Errorf("memory enforcement manifest requires distinct parent and leaf identities")
+		}
+		if manifest.GetMemorySwapMaxBytes() != 0 || !manifest.GetMemoryOomGroup() {
+			return fmt.Errorf("memory enforcement manifest requires swap disabled and group OOM")
+		}
+	} else if manifest.GetCgroupBootID() != "" || manifest.GetCgroupMountIdentity() != "" || manifest.GetCgroupParentInode() != 0 || manifest.GetCgroupLeafInode() != 0 || manifest.GetMemorySwapMaxBytes() != 0 || manifest.GetMemoryOomGroup() {
+		return fmt.Errorf("unlimited allocation enforcement manifest contains cgroup memory state")
 	}
 	bundlePath := filepath.Clean(strings.TrimSpace(manifest.GetBundlePath()))
 	if !filepath.IsAbs(bundlePath) || bundlePath == string(filepath.Separator) || bundlePath != manifest.GetBundlePath() {

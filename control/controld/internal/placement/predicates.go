@@ -90,6 +90,9 @@ func hasAvailableMemory(policy resourcekernel.AdmissionPolicy, summary *nodev1.N
 		return true
 	}
 	used := summary.GetResources().GetAxnodedCommittedBytes()
+	if local := summary.GetMemoryBudget().GetLocalCommitmentBytes(); local > used {
+		used = local
+	}
 	return policy.Fits(summary.GetAllocatable(), resourcekernel.Claim{MemoryBytes: used}, resourcekernel.Claim{MemoryBytes: requested})
 }
 

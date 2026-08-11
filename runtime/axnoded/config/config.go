@@ -404,29 +404,34 @@ func parsePositiveDurationWithDefault(value, defaultValue string) (time.Duration
 
 type ResourceConfig struct {
 	MaxInstanceNum int `toml:"max_instance_num" json:"maxInstanceNum"`
+	// MemorySystemReserveBytes covers axnoded, lifecycle monitors, and all
+	// node-local control daemons outside sandbox cgroups. Production must set an
+	// explicit positive value; disabled_dev may explicitly use zero.
+	MemorySystemReserveBytes int64 `toml:"memory_system_reserve_bytes" json:"memorySystemReserveBytes"`
 
-	// CgroupRootName is the path of cgroup. Default is sandbox.
+	// CgroupRootName is the single sandbox child name created beneath the
+	// process's delegated cgroup-v2 root. It is not a host-absolute path.
 	CgroupRootName string `toml:"cgroup_root_name" json:"cgroupRootName"`
-	// CgroupCacheSize is the size of cgroup cache. Default is same as max_instance_num.
+	// CgroupCacheSize is the target number of never-assigned warm cgroups.
+	// Zero disables prewarming, not cgroup enforcement or on-demand creation.
 	CgroupCacheSize int `toml:"cgroup_cache_size" json:"cgroupCacheSize"`
 	// InterfaceCacheSize is the size of interface cache. Default is same as max_instance_num.
 	InterfaceCacheSize int `toml:"interface_cache_size" json:"interfaceCacheSize"`
 	// ResourcePoolReconcileInterval controls how frequently axnoded
 	// reconciles the cgroup/interface warm pools toward their idle target.
 	ResourcePoolReconcileInterval string `toml:"resource_pool_reconcile_interval" json:"resourcePoolReconcileInterval"`
-	ResourceAdvanceConfig
 }
 
-// ResourceAdvanceConfig will override the resource config
-type ResourceAdvanceConfig struct {
-	// RecyclePolicy is the policy of recycle cgroup. Default is reuse.
-	RecyclePolicy string `toml:"recycle_policy" json:"recyclePolicy"`
+func (c ResourceConfig) CgroupRootNameValue() (string, error) {
+	name := strings.TrimSpace(c.CgroupRootName)
+	if name == "" {
+		name = DefaultCgroupRoot
+	}
+	if name == "." || name == ".." || strings.ContainsAny(name, `/\\`) || name == "internal" || name == "workload" {
+		return "", fmt.Errorf("cgroup_root_name %q must be a non-reserved single child name", name)
+	}
+	return name, nil
 }
-
-const (
-	RecyclePolicyReuse   = "reuse"
-	RecyclePolicyDestroy = "destroy"
-)
 
 // NetworkConfig contains network-related configuration for axnoded.
 type NetworkConfig struct {

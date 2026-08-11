@@ -4,6 +4,7 @@ import (
 	"time"
 
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
 
 type CapabilityTransition struct {
@@ -37,4 +38,15 @@ type AllocationCapabilityDiagnostics struct {
 	AdmittedDependencies      []*capabilityv1.CapabilityDependency
 	ConditionSet              *capabilityv1.CapabilityConditionSet
 	Reconcile                 *CapabilityReconcileItem
+	MemoryAdmission           *AllocationMemoryAdmission
+	LatestMemoryObservation   *nodev1.AllocationMemoryObservation
+}
+
+type AllocationMemoryAdmission struct {
+	SandboxMemoryRequestBytes int64
+	SandboxMemoryLimitBytes   int64
+	NodeMemoryBudget          *nodev1.NodeMemoryBudget
+	SummaryCollectedAt        time.Time
+	NodeLocalCommitmentBytes  int64
+	AdmittedAt                time.Time
 }

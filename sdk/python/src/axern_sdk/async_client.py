@@ -9,7 +9,11 @@ from collections.abc import AsyncGenerator, Iterable
 import grpc
 from google.protobuf import duration_pb2
 
-from axern.control.admin.v1 import service_pb2 as admin_service_pb2, service_pb2_grpc as admin_service_pb2_grpc
+from axern.control.admin.v1 import (
+    node_pb2_grpc as admin_node_pb2_grpc,
+    service_pb2 as admin_service_pb2,
+    service_pb2_grpc as admin_service_pb2_grpc,
+)
 from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2, environment_pb2_grpc
 from axern.control.function.v1 import function_pb2_grpc
@@ -68,6 +72,7 @@ class AsyncAxernClient:
         self._environments: environment_pb2_grpc.EnvironmentControlStub | None = None
         self._runs: run_pb2_grpc.RunControlStub | None = None
         self._services: service_pb2_grpc.ServiceControlStub | None = None
+        self._node_admin: admin_node_pb2_grpc.NodeAdminStub | None = None
         self._service_admin: admin_service_pb2_grpc.ServiceAdminStub | None = None
         self._functions: function_pb2_grpc.FunctionControlStub | None = None
         self._tunnels: tunnel_pb2_grpc.TunnelControlStub | None = None
@@ -78,6 +83,7 @@ class AsyncAxernClient:
         if self._owns_channel:
             self._channel = None
             self._loop = None
+            self._node_admin = None
             self._environments = None
             self._runs = None
             self._services = None
@@ -153,6 +159,12 @@ class AsyncAxernClient:
         return self._service_admin
 
     @property
+    def node_admin(self) -> admin_node_pb2_grpc.NodeAdminStub:
+        self._ensure_channel()
+        assert self._node_admin is not None
+        return self._node_admin
+
+    @property
     def functions(self) -> function_pb2_grpc.FunctionControlStub:
         self._ensure_channel()
         assert self._functions is not None
@@ -175,6 +187,7 @@ class AsyncAxernClient:
                 self._environments = environment_pb2_grpc.EnvironmentControlStub(self._channel)
                 self._runs = run_pb2_grpc.RunControlStub(self._channel)
                 self._services = service_pb2_grpc.ServiceControlStub(self._channel)
+                self._node_admin = admin_node_pb2_grpc.NodeAdminStub(self._channel)
                 self._service_admin = admin_service_pb2_grpc.ServiceAdminStub(self._channel)
                 self._functions = function_pb2_grpc.FunctionControlStub(self._channel)
                 self._tunnels = tunnel_pb2_grpc.TunnelControlStub(self._channel)
@@ -191,6 +204,7 @@ class AsyncAxernClient:
         self._environments = environment_pb2_grpc.EnvironmentControlStub(self._channel)
         self._runs = run_pb2_grpc.RunControlStub(self._channel)
         self._services = service_pb2_grpc.ServiceControlStub(self._channel)
+        self._node_admin = admin_node_pb2_grpc.NodeAdminStub(self._channel)
         self._service_admin = admin_service_pb2_grpc.ServiceAdminStub(self._channel)
         self._functions = function_pb2_grpc.FunctionControlStub(self._channel)
         self._tunnels = tunnel_pb2_grpc.TunnelControlStub(self._channel)

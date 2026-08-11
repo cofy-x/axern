@@ -211,6 +211,7 @@ RUN --mount=type=cache,target=/var/cache/axern-downloads,sharing=locked \
     docker compose version
 
 COPY runtime/axnoded/runtime-tools.sh /usr/local/share/axern/runtime-tools.sh
+COPY runtime/axnoded/gvisor.lock /usr/local/share/axern/gvisor.lock
 
 RUN --mount=type=cache,target=/var/cache/axern-downloads,sharing=locked \
     set -eux; \
@@ -232,14 +233,21 @@ RUN --mount=type=cache,target=/var/cache/axern-downloads,sharing=locked \
     install -m 0755 "${gvisor_dir}/extracted/containerd-shim-runsc-v1" /usr/local/bin/containerd-shim-runsc-v1; \
     install -d -m 0755 /usr/local/bin/gvisor-bin; \
     cp -a "${gvisor_dir}/extracted/gvisor-bin/." /usr/local/bin/gvisor-bin/; \
-    runsc --version
+    runsc --version | grep -F "${AXERN_GVISOR_TAG}"
 
-RUN mkdir -p /opt/sample-rootfs/bin /opt/sample-rootfs/dev /opt/sample-rootfs/proc /opt/sample-rootfs/sys /opt/sample-rootfs/tmp && \
+COPY runtime/axnoded/cmd/memory-hog/main.go /tmp/axern-memory-hog.go
+
+RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /tmp/axern-memory-hog /tmp/axern-memory-hog.go && \
+    mkdir -p /opt/sample-rootfs/bin /opt/sample-rootfs/dev /opt/sample-rootfs/proc /opt/sample-rootfs/sys /opt/sample-rootfs/tmp && \
     cp /bin/busybox /opt/sample-rootfs/bin/busybox && \
+    install -m 0755 /tmp/axern-memory-hog /opt/sample-rootfs/bin/memory-hog && \
+    rm -f /tmp/axern-memory-hog /tmp/axern-memory-hog.go && \
     ln -sf busybox /opt/sample-rootfs/bin/sh && \
     ln -sf busybox /opt/sample-rootfs/bin/sleep && \
     ln -sf busybox /opt/sample-rootfs/bin/echo && \
-    ln -sf busybox /opt/sample-rootfs/bin/cat
+    ln -sf busybox /opt/sample-rootfs/bin/cat && \
+    mkdir -p /opt/axern/runtime-selftest && \
+    cp -a /opt/sample-rootfs /opt/axern/runtime-selftest/rootfs
 
 RUN set -eux; \
     profile="/home/${DEVBOX_USER}/.bashrc"; \

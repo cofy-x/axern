@@ -10,9 +10,11 @@ import (
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
 
 func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
@@ -226,9 +228,85 @@ func TestCollectAxnodedInventoryResourceCommitmentUsesRequests(t *testing.T) {
 	}
 }
 
+func TestCollectAxnodedInventoryDisabledDevDoesNotFabricateCgroupUsage(t *testing.T) {
+	source := NewAxnodedSource(AxnodedSourceOptions{
+		Ready:               func() bool { return true },
+		RuntimeCount:        func() int { return 1 },
+		MemoryBudgetEnabled: true,
+		// No CgroupDriver is intentional: disabled_dev has no allocation-owned
+		// cgroup from which usage could be attributed safely.
+		MemoryCgroupEnforced: false,
+		Container: &fakeContainerManager{
+			list: []*container.Container{
+				inventoryContainer("disabled-dev", container.Status{
+					StartedAt: "2026-08-11T00:00:00Z",
+					ResourceSpec: &commonv1.ResourceSpec{
+						Requests: &commonv1.ResourceQuantity{MemoryBytes: 128 * 1024 * 1024},
+					},
+				}),
+			},
+			pools: map[string]PoolInventory{
+				"cgroup":    {Capacity: 8},
+				"interface": {Capacity: 8},
+			},
+			runtimeCgroup: map[string]string{"disabled-dev": "/"},
+		},
+	})
+
+	snapshot := NewSnapshot()
+	if ready := source.collectAxnodedInventory(time.Now().UTC(), &snapshot); !ready {
+		t.Fatal("collectAxnodedInventory() ready = false in disabled_dev")
+	}
+	if got := snapshot.Components.Axnoded.Status; got != StatusReady {
+		t.Fatalf("axnoded status = %q, want %q", got, StatusReady)
+	}
+	if got, want := snapshot.Resources.Memory.AxnodedCommittedBytes, int64(128*1024*1024); got != want {
+		t.Fatalf("committed memory = %d, want %d", got, want)
+	}
+	if got := snapshot.Resources.Memory.AxnodedUsedBytes; got != 0 {
+		t.Fatalf("attributed memory usage = %d, want unavailable zero projection", got)
+	}
+	if got := len(snapshot.AllocationMemoryObservations); got != 0 {
+		t.Fatalf("allocation memory observations = %d, want 0", got)
+	}
+}
+
 func inventoryContainer(id string, status container.Status) *container.Container {
 	return &container.Container{
 		Metadata: &runtimeapi.ContainerMetadata{ID: id},
 		Status:   &fakeStatusStorage{status: status},
+	}
+}
+
+func TestMemoryObservationFromKernelPreservesRetiringOwnership(t *testing.T) {
+	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+	observation := memoryObservationFromKernel(
+		"alloc-retiring", 4, 512, 1024, "runsc", nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING, 9, now,
+		&hostlinux.CgroupMemoryDomain{BootID: "boot", MountIdentity: "mount", ParentInode: 11, LeafInode: 12},
+		&hostlinux.CgroupMemoryObservation{
+			CurrentBytes: 700, PeakBytes: 900, Stat: map[string]int64{"anon": 100, "file": 500},
+			Events: map[string]uint64{"oom": 1}, PSIAvailable: true, PSISomeAvg10: 0.5, PSISomeTotal: 42,
+		},
+		true, false,
+	)
+	if observation.GetAllocationID() != "alloc-retiring" || observation.GetAttempt() != 4 || observation.GetRevision() != 9 ||
+		observation.GetCleanupState() != nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING || observation.GetCurrentBytes() != 700 || observation.GetRuntime() != "runsc" ||
+		observation.GetCgroupIdentity() != "boot=boot:mount:11:12" || !observation.GetParentControlsVerified() || observation.GetLeafControlsVerified() ||
+		!observation.GetPsiAvailable() || observation.GetPsiSomeAvg10() != 0.5 || observation.GetPsiSomeTotalUsec() != 42 {
+		t.Fatalf("memoryObservationFromKernel() = %+v", observation)
+	}
+}
+
+func TestMemoryObservationFromKernelRepresentsUnlimitedSandboxWithoutHardControlClaim(t *testing.T) {
+	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+	observation := memoryObservationFromKernel(
+		"alloc-unlimited", 2, 512, 0, "runc", nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, 10, now,
+		&hostlinux.CgroupMemoryDomain{BootID: "boot", MountIdentity: "mount", ParentInode: 21, LeafInode: 22, LimitBytes: -1, SwapMaxBytes: -1},
+		&hostlinux.CgroupMemoryObservation{CurrentBytes: 700, PeakBytes: 900, SwapCurrent: 12},
+		false, false,
+	)
+	if observation.GetLimitBytes() != 0 || observation.GetSwapCurrentBytes() != 12 || observation.GetParentControlsVerified() || observation.GetLeafControlsVerified() ||
+		observation.GetCgroupIdentity() != "boot=boot:mount:21:22" {
+		t.Fatalf("unlimited memory observation = %+v", observation)
 	}
 }

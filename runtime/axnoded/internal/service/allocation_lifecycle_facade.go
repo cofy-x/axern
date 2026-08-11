@@ -98,9 +98,6 @@ func (h *sandboxService) Start(ctx context.Context, request *runtime.StartReques
 				err = fmt.Errorf("allocation start failed: %s", resp.GetMessage())
 			}
 		}
-		if cleanupErr := h.cleanupFailedStartDetached(request.GetContainerID()); cleanupErr != nil {
-			err = fmt.Errorf("%w; cleanup failed-start allocation: %v", err, cleanupErr)
-		}
 		op.SetErrorStatus("allocation start failed")
 		return resp, errord.ToGRPC(err)
 	}
@@ -194,6 +191,15 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 	manifest, err := handler.AllocationEnforcementManifest(ctx, containerID)
 	if err != nil {
 		return fmt.Errorf("read immutable runtime enforcement manifest: %w", err)
+	}
+	if manifest.GetMemoryLimitBytes() > 0 {
+		if err := h.containerManager.BindCgroupMemoryDomain(
+			manifest.GetCgroupPath(), containerID, manifest.GetMemoryLimitBytes(),
+			manifest.GetCgroupBootID(), manifest.GetCgroupMountIdentity(),
+			manifest.GetCgroupParentInode(), manifest.GetCgroupLeafInode(),
+		); err != nil {
+			return fmt.Errorf("persist allocation cgroup memory identity: %w", err)
+		}
 	}
 	durableDependencies := h.allocationController().CapabilityDependencies(containerID)
 	dependencies := request.GetCapabilityDependencies()

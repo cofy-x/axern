@@ -148,6 +148,7 @@ CREATE TABLE runs (
 	updated_at TIMESTAMPTZ NOT NULL,
 	exit_code INTEGER NOT NULL DEFAULT 0,
 	exit_code_known BOOLEAN NOT NULL DEFAULT FALSE,
+	diagnostic_code TEXT NOT NULL DEFAULT 'WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED',
 	message TEXT NOT NULL DEFAULT ''
 );
 
@@ -171,6 +172,7 @@ CREATE TABLE services (
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
 	message TEXT NOT NULL DEFAULT '',
+	diagnostic_code TEXT NOT NULL DEFAULT 'WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED',
 	deletion_status JSONB NOT NULL DEFAULT 'null'::jsonb
 );
 
@@ -206,6 +208,7 @@ CREATE TABLE allocations (
 	node_active_at TIMESTAMPTZ,
 	exit_code INTEGER NOT NULL DEFAULT 0,
 	exit_code_known BOOLEAN NOT NULL DEFAULT FALSE,
+	diagnostic_code TEXT NOT NULL DEFAULT 'WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED',
 	message TEXT NOT NULL DEFAULT '',
 	UNIQUE (allocation_id, node_id),
 	UNIQUE (allocation_id, attempt),
@@ -289,6 +292,157 @@ CREATE TABLE allocation_capability_conditions (
 	CHECK (condition_revision > 0)
 );
 
+CREATE TABLE allocation_memory_admission_evidence (
+	allocation_id TEXT PRIMARY KEY,
+	allocation_attempt BIGINT NOT NULL,
+	node_id TEXT NOT NULL,
+	sandbox_memory_request_bytes BIGINT NOT NULL,
+	sandbox_memory_limit_bytes BIGINT NOT NULL,
+	node_memory_budget JSONB NOT NULL,
+	summary_collected_at TIMESTAMPTZ NOT NULL,
+	node_local_commitment_bytes BIGINT NOT NULL,
+	admitted_at TIMESTAMPTZ NOT NULL,
+	FOREIGN KEY (allocation_id, allocation_attempt)
+		REFERENCES allocations(allocation_id, attempt) ON DELETE CASCADE,
+	FOREIGN KEY (allocation_id, node_id)
+		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE,
+	CHECK (allocation_attempt > 0),
+	CHECK (sandbox_memory_request_bytes >= 0),
+	CHECK (sandbox_memory_limit_bytes >= 0),
+	CHECK (sandbox_memory_limit_bytes = 0 OR sandbox_memory_request_bytes <= sandbox_memory_limit_bytes),
+	CHECK (node_local_commitment_bytes >= 0),
+	-- Node summaries are sampled on the node while admission is committed on the
+	-- control plane. Match the publication contract's bounded clock-skew window
+	-- instead of rejecting valid evidence from a node whose clock is slightly ahead.
+	CHECK (summary_collected_at <= admitted_at + INTERVAL '1 minute'),
+	CHECK (jsonb_typeof(node_memory_budget) = 'object'),
+	CHECK (
+		COALESCE((node_memory_budget->>'physical_capacity_bytes')::BIGINT, -1) > 0
+			AND COALESCE((node_memory_budget->>'source_allocatable_bytes')::BIGINT, -1) > 0
+			AND (node_memory_budget->>'source_allocatable_bytes')::BIGINT <=
+				(node_memory_budget->>'physical_capacity_bytes')::BIGINT
+			AND COALESCE(node_memory_budget->>'mode', '') IN (
+				'NODE_MEMORY_BUDGET_MODE_CGROUP_V2',
+				'NODE_MEMORY_BUDGET_MODE_DISABLED_DEV'
+			)
+			AND (
+				(node_memory_budget->>'mode' = 'NODE_MEMORY_BUDGET_MODE_CGROUP_V2'
+				 AND COALESCE((node_memory_budget->>'system_reserve_bytes')::BIGINT, -1) > 0)
+				OR
+				(node_memory_budget->>'mode' = 'NODE_MEMORY_BUDGET_MODE_DISABLED_DEV'
+				 AND COALESCE((node_memory_budget->>'system_reserve_bytes')::BIGINT, 0) = 0
+				 AND COALESCE((node_memory_budget->>'internal_current_bytes')::BIGINT, 0) = 0
+				 AND NOT COALESCE((node_memory_budget->>'delegated_root_limit_finite')::BOOLEAN, FALSE)
+				 AND COALESCE((node_memory_budget->>'delegated_root_limit_bytes')::BIGINT, 0) = 0)
+			)
+			AND COALESCE((node_memory_budget->>'effective_allocatable_bytes')::BIGINT, -1) > 0
+			AND COALESCE((node_memory_budget->>'local_commitment_bytes')::BIGINT, 0) = node_local_commitment_bytes
+			AND COALESCE((node_memory_budget->>'cleanup_debt_bytes')::BIGINT, 0) >= 0
+			AND COALESCE((node_memory_budget->>'cleanup_debt_bytes')::BIGINT, 0) <=
+				COALESCE((node_memory_budget->>'local_commitment_bytes')::BIGINT, 0)
+			AND COALESCE((node_memory_budget->>'internal_current_bytes')::BIGINT, 0) >= 0
+			AND COALESCE(node_memory_budget->>'capacity_identity', '') <> ''
+			AND COALESCE(node_memory_budget->>'sampled_at', '') <> ''
+			AND (node_memory_budget->>'sampled_at')::TIMESTAMPTZ <= summary_collected_at
+			AND COALESCE((node_memory_budget->>'system_reserve_exhausted')::BOOLEAN, FALSE) = FALSE
+			AND (
+				(COALESCE((node_memory_budget->>'delegated_root_limit_finite')::BOOLEAN, FALSE)
+				 AND COALESCE((node_memory_budget->>'delegated_root_limit_bytes')::BIGINT, -1) > 0)
+				OR
+				(NOT COALESCE((node_memory_budget->>'delegated_root_limit_finite')::BOOLEAN, FALSE)
+				 AND COALESCE((node_memory_budget->>'delegated_root_limit_bytes')::BIGINT, 0) = 0)
+			)
+			AND COALESCE((node_memory_budget->>'effective_allocatable_bytes')::BIGINT, -1) =
+				CASE
+					WHEN COALESCE((node_memory_budget->>'delegated_root_limit_finite')::BOOLEAN, FALSE)
+					THEN LEAST(
+						(node_memory_budget->>'source_allocatable_bytes')::BIGINT,
+						(node_memory_budget->>'delegated_root_limit_bytes')::BIGINT
+					) - COALESCE((node_memory_budget->>'system_reserve_bytes')::BIGINT, 0)
+					ELSE (node_memory_budget->>'source_allocatable_bytes')::BIGINT -
+						COALESCE((node_memory_budget->>'system_reserve_bytes')::BIGINT, 0)
+				END
+		)
+	);
+
+CREATE TABLE allocation_memory_observations (
+	allocation_id TEXT PRIMARY KEY,
+	allocation_attempt BIGINT NOT NULL,
+	node_id TEXT NOT NULL,
+	revision BIGINT NOT NULL,
+	observed_at TIMESTAMPTZ NOT NULL,
+	observation JSONB NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL,
+	FOREIGN KEY (allocation_id, allocation_attempt)
+		REFERENCES allocations(allocation_id, attempt) ON DELETE CASCADE,
+	FOREIGN KEY (allocation_id, node_id)
+		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE,
+	CHECK (allocation_attempt > 0),
+	CHECK (revision > 0),
+	CHECK (jsonb_typeof(observation) = 'object'),
+	CHECK (COALESCE(observation->>'allocation_id', '') = allocation_id),
+	CHECK (COALESCE((observation->>'attempt')::BIGINT, -1) = allocation_attempt),
+	CHECK (COALESCE((observation->>'revision')::BIGINT, -1) = revision),
+	CHECK (COALESCE(observation->>'observed_at', '') <> ''),
+	CHECK ((observation->>'observed_at')::TIMESTAMPTZ = observed_at),
+	CHECK (COALESCE((observation->>'request_bytes')::BIGINT, 0) >= 0),
+	CHECK (COALESCE((observation->>'limit_bytes')::BIGINT, 0) >= 0),
+	CHECK (
+		COALESCE((observation->>'limit_bytes')::BIGINT, 0) = 0 OR
+		COALESCE((observation->>'request_bytes')::BIGINT, 0) <= (observation->>'limit_bytes')::BIGINT
+	),
+	CHECK (COALESCE((observation->>'current_bytes')::BIGINT, 0) >= 0),
+	CHECK (COALESCE((observation->>'peak_bytes')::BIGINT, 0) >= 0),
+	CHECK (
+		COALESCE((observation->>'peak_bytes')::BIGINT, 0) >=
+		COALESCE((observation->>'current_bytes')::BIGINT, 0)
+	),
+	CHECK (COALESCE((observation->>'swap_current_bytes')::BIGINT, 0) >= 0),
+	CHECK (
+		COALESCE((observation->>'limit_bytes')::BIGINT, 0) = 0 OR
+		COALESCE((observation->>'swap_current_bytes')::BIGINT, 0) = 0
+	),
+	CHECK (COALESCE((observation->>'anon_bytes')::BIGINT, 0) >= 0),
+	CHECK (COALESCE((observation->>'file_bytes')::BIGINT, 0) >= 0),
+	CHECK (COALESCE((observation->>'shmem_bytes')::BIGINT, 0) >= 0),
+	CHECK (COALESCE((observation->>'kernel_bytes')::BIGINT, 0) >= 0),
+	CHECK (COALESCE((observation->>'dirty_bytes')::BIGINT, 0) >= 0),
+	CHECK (COALESCE((observation->>'writeback_bytes')::BIGINT, 0) >= 0),
+	CHECK (COALESCE(observation->>'cgroup_identity', '') <> ''),
+	CHECK (octet_length(COALESCE(observation->>'cgroup_identity', '')) <= 1024),
+	CHECK (COALESCE(observation->>'runtime', '') IN ('runc', 'runsc')),
+	CHECK (
+		(
+			COALESCE((observation->>'limit_bytes')::BIGINT, 0) = 0 AND
+			COALESCE((observation->>'parent_controls_verified')::BOOLEAN, FALSE) = FALSE AND
+			COALESCE((observation->>'leaf_controls_verified')::BOOLEAN, FALSE) = FALSE
+		) OR (
+			COALESCE((observation->>'limit_bytes')::BIGINT, 0) > 0 AND
+			COALESCE((observation->>'parent_controls_verified')::BOOLEAN, FALSE) = TRUE AND
+			(
+				COALESCE(observation->>'cleanup_state', '') = 'ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING' OR
+				COALESCE((observation->>'leaf_controls_verified')::BOOLEAN, FALSE) = TRUE
+			)
+		)
+	),
+	CHECK (COALESCE(observation->>'cleanup_state', '') IN (
+		'ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED',
+		'ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING'
+	)),
+	CHECK (
+		COALESCE(observation->>'cleanup_state', '') <> 'ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING' OR
+		COALESCE((observation->>'pid_roles_verified')::BOOLEAN, FALSE) = FALSE
+	),
+	CHECK (
+		COALESCE((observation->>'psi_available')::BOOLEAN, FALSE) = TRUE OR (
+			COALESCE((observation->>'psi_some_avg10')::DOUBLE PRECISION, 0) = 0 AND
+			COALESCE((observation->>'psi_full_avg10')::DOUBLE PRECISION, 0) = 0 AND
+			COALESCE((observation->>'psi_some_total_usec')::BIGINT, 0) = 0 AND
+			COALESCE((observation->>'psi_full_total_usec')::BIGINT, 0) = 0
+		)
+	)
+);
+
 CREATE TABLE node_capability_instances (
 	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
 	node_instance_id TEXT NOT NULL,
@@ -331,13 +485,14 @@ CREATE TABLE workload_reservations (
 	owner_id TEXT NOT NULL,
 	node_id TEXT NOT NULL,
 	cpu_milli BIGINT NOT NULL DEFAULT 0,
-	memory_bytes BIGINT NOT NULL DEFAULT 0,
+	sandbox_memory_request_bytes BIGINT NOT NULL DEFAULT 0,
 	ephemeral_storage_bytes BIGINT NOT NULL DEFAULT 0,
-	memory_overhead_bytes BIGINT NOT NULL DEFAULT 0,
 	created_at TIMESTAMPTZ NOT NULL,
 	released_at TIMESTAMPTZ,
+	CHECK (cpu_milli >= 0),
+	CHECK (sandbox_memory_request_bytes >= 0),
 	CHECK (ephemeral_storage_bytes >= 0),
-	CHECK (memory_overhead_bytes >= 0)
+	UNIQUE (allocation_id)
 );
 
 CREATE TABLE namespace_quota_events (
@@ -362,6 +517,16 @@ CREATE TABLE namespace_quota_events (
 	available_ephemeral_storage_bytes BIGINT,
 	message TEXT NOT NULL DEFAULT '',
 	created_at TIMESTAMPTZ NOT NULL,
+	CHECK (requested_cpu_milli >= 0),
+	CHECK (reserved_cpu_milli >= 0),
+	CHECK (cpu_milli_limit IS NULL OR cpu_milli_limit >= 0),
+	CHECK (available_cpu_milli IS NULL OR available_cpu_milli >= 0),
+	CHECK (requested_memory_bytes >= 0),
+	CHECK (reserved_memory_bytes >= 0),
+	CHECK (memory_bytes_limit IS NULL OR memory_bytes_limit >= 0),
+	CHECK (available_memory_bytes IS NULL OR available_memory_bytes >= 0),
+	CHECK (requested_ephemeral_storage_bytes >= 0),
+	CHECK (reserved_ephemeral_storage_bytes >= 0),
 	CHECK (ephemeral_storage_bytes_limit IS NULL OR ephemeral_storage_bytes_limit >= 0),
 	CHECK (available_ephemeral_storage_bytes IS NULL OR available_ephemeral_storage_bytes >= 0)
 );
@@ -430,6 +595,8 @@ CREATE INDEX idx_allocation_capability_dependencies_node_key
 	ON allocation_capability_dependencies(node_id, capability_key_id, allocation_id);
 CREATE INDEX idx_allocation_capability_conditions_allocation_revision
 	ON allocation_capability_conditions(allocation_id, condition_revision);
+CREATE INDEX idx_allocation_memory_observations_node_updated
+	ON allocation_memory_observations(node_id, updated_at DESC);
 CREATE INDEX idx_allocation_capability_reconcile_claimable
 	ON allocation_capability_reconcile_queue(next_run_at, lease_expires_at, allocation_id);
 CREATE INDEX idx_allocations_service_desired_spec

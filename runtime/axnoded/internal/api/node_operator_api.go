@@ -6,10 +6,12 @@ import (
 
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service"
+	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -59,7 +61,33 @@ func (s *nodeOperatorServer) GetSandboxDiagnostics(ctx context.Context, req *nod
 	if err != nil {
 		return nil, err
 	}
-	return localSandboxDiagnostics(req.GetSandboxID(), diagnostics), nil
+	response := localSandboxDiagnostics(req.GetSandboxID(), diagnostics)
+	response.Memory = s.latestAllocationMemoryObservation(targetID)
+	return response, nil
+}
+
+func (s *nodeOperatorServer) GetSandboxMemory(_ context.Context, req *nodeoperatorv1.GetSandboxMemoryRequest) (*nodeoperatorv1.GetSandboxMemoryResponse, error) {
+	if req.GetSandboxID() == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
+	}
+	observation := s.latestAllocationMemoryObservation(s.targets.resolve(req.GetSandboxID()))
+	if observation == nil {
+		return nil, grpcstatus.Errorf(codes.FailedPrecondition, "bounded memory observation for sandbox %q is unavailable", req.GetSandboxID())
+	}
+	return &nodeoperatorv1.GetSandboxMemoryResponse{Observation: observation}, nil
+}
+
+func (s *nodeOperatorServer) latestAllocationMemoryObservation(containerID string) *controlnodev1.AllocationMemoryObservation {
+	snapshot, ready := s.svc.NodeInventory()
+	if !ready {
+		return nil
+	}
+	for _, observation := range snapshot.AllocationMemoryObservations {
+		if observation != nil && observation.GetAllocationID() == containerID {
+			return proto.Clone(observation).(*controlnodev1.AllocationMemoryObservation)
+		}
+	}
+	return nil
 }
 
 func (s *nodeOperatorServer) DeleteSandbox(ctx context.Context, req *nodeoperatorv1.DeleteSandboxRequest) (*nodeoperatorv1.DeleteSandboxResponse, error) {

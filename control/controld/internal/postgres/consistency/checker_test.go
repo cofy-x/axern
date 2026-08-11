@@ -110,7 +110,7 @@ func insertConsistencyReservation(t *testing.T, db *postgres.DB, reservationID, 
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO workload_reservations (
 			reservation_id, allocation_id, namespace, owner_type, owner_id, node_id,
-			cpu_milli, memory_bytes, created_at, released_at
+			cpu_milli, sandbox_memory_request_bytes, created_at, released_at
 		) VALUES ($1, $2, 'default', $3, $4, 'node-test', 500, 536870912, $5, NULL)
 	`, reservationID, allocationID, ownerType, ownerID, now.UTC()); err != nil {
 		t.Fatalf("insert reservation: %v", err)
@@ -122,7 +122,7 @@ func insertReleasedConsistencyReservation(t *testing.T, db *postgres.DB, reserva
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO workload_reservations (
 			reservation_id, allocation_id, namespace, owner_type, owner_id, node_id,
-			cpu_milli, memory_bytes, created_at, released_at
+			cpu_milli, sandbox_memory_request_bytes, created_at, released_at
 		) VALUES ($1, $2, 'default', $3, $4, 'node-test', 500, 536870912, $5, $5)
 	`, reservationID, allocationID, ownerType, ownerID, now.UTC()); err != nil {
 		t.Fatalf("insert released reservation: %v", err)
@@ -165,16 +165,35 @@ func insertConsistencyTunnelRevoked(t *testing.T, db *postgres.DB, sessionID, al
 
 func insertConsistencyTunnelWithRevoked(t *testing.T, db *postgres.DB, sessionID, allocationID, status string, revoked bool, createdAt, expiresAt time.Time) {
 	t.Helper()
+	ensureConsistencyTunnelIdentity(t, db, createdAt)
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO tunnel_sessions (
-			session_id, allocation_id, node_id, node_target, attempt, remote_port,
+			session_id, allocation_id, namespace, creator_principal_id, node_id, node_target, attempt, remote_port,
 			local_target, edge_target, node_edge_target, status, reason, bound_addr, revoked,
 			client_token_hash, node_token_encrypted, node_token_hash, revision, created_at, updated_at, expires_at
-		) VALUES ($1, $2, 'node-test', '127.0.0.1:24010', 1, 30001,
+		) VALUES ($1, $2, 'default', 'prn-consistency-test', 'node-test', '127.0.0.1:24010', 1, 30001,
 			'127.0.0.1:8080', '127.0.0.1:24210', '127.0.0.1:24210', $3, '', '', $4,
 			'client-hash', $5, 'node-hash', 0, $6, $6, $7)
 	`, sessionID, allocationID, status, revoked, []byte("node-token"), createdAt.UTC(), expiresAt.UTC()); err != nil {
 		t.Fatalf("insert tunnel session: %v", err)
+	}
+}
+
+func ensureConsistencyTunnelIdentity(t *testing.T, db *postgres.DB, now time.Time) {
+	t.Helper()
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO namespaces(namespace, version, created_at, updated_at)
+		VALUES ('default', 1, $1, $1)
+		ON CONFLICT (namespace) DO NOTHING
+	`, now.UTC()); err != nil {
+		t.Fatalf("insert tunnel namespace fixture: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO principals(principal_id, name, display_name, kind, status, version, created_at, updated_at)
+		VALUES ('prn-consistency-test', 'consistency-test', 'Consistency Test', 'human', 'active', 1, $1, $1)
+		ON CONFLICT (principal_id) DO NOTHING
+	`, now.UTC()); err != nil {
+		t.Fatalf("insert tunnel principal fixture: %v", err)
 	}
 }
 

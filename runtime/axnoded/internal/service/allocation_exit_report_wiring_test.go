@@ -23,6 +23,7 @@ type fakeAllocationStatusReporter struct {
 	ready            bool
 	readinessMessage string
 	message          string
+	diagnosticCode   commonv1.WorkloadDiagnosticCode
 }
 
 func (f *fakeAllocationStatusReporter) ReportAllocationStatus(report controlplane.AllocationStatusReport) {
@@ -34,6 +35,7 @@ func (f *fakeAllocationStatusReporter) ReportAllocationStatus(report controlplan
 	f.ready = report.Ready
 	f.readinessMessage = report.ReadinessMessage
 	f.message = report.Message
+	f.diagnosticCode = report.DiagnosticCode
 }
 
 func TestContainerExitObserverReportsAllocationStatus(t *testing.T) {

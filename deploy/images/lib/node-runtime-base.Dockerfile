@@ -82,6 +82,7 @@ RUN cargo --version
 COPY runtime/axnoded/.cache/gvisor/ /opt/gvisor-cache/
 COPY runtime/axnoded/.cache/minio/ /opt/minio-cache/
 COPY runtime/axnoded/runtime-tools.sh /usr/local/share/axern/runtime-tools.sh
+COPY runtime/axnoded/gvisor.lock /usr/local/share/axern/gvisor.lock
 
 RUN set -eux; \
     . /usr/local/share/axern/runtime-tools.sh; \
@@ -103,6 +104,7 @@ RUN set -eux; \
     install -m 0755 /tmp/gvisor/runsc /usr/local/bin/runsc; \
     if [ -f /tmp/gvisor/containerd-shim-runsc-v1 ]; then install -m 0755 /tmp/gvisor/containerd-shim-runsc-v1 /usr/local/bin/containerd-shim-runsc-v1; fi; \
     if [ -d /tmp/gvisor/gvisor-bin ]; then mkdir -p /usr/local/bin/gvisor-bin && cp -a /tmp/gvisor/gvisor-bin/. /usr/local/bin/gvisor-bin/; fi; \
+    /usr/local/bin/runsc --version | grep -F "${AXERN_GVISOR_TAG}"; \
     rm -rf /tmp/gvisor /tmp/gvisor.tar.bz2
 
 RUN set -eux; \
@@ -170,6 +172,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/axnoded ./cmd/axnoded && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axern-sandboxd ./cmd/axern-sandboxd && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axnoded-runtime-runner ./cmd/axnoded-runtime-runner && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/axctl ./axctl && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egress-probe ./cmd/egress-probe && \
     cd /workspace/runtime/tunneld && \
@@ -271,6 +274,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
 FROM node-runtime-base-build AS node-runtime-base-final
 WORKDIR /workspace
 
+COPY --from=axnoded-builder /out/memory-hog /tmp/axern-memory-hog
 COPY deploy/images/fixtures/erofs-root/ /tmp/axern-erofs-fixture-root/
 RUN mkdir -p /usr/share/axnoded/fixtures && \
     mkfs.erofs /usr/share/axnoded/fixtures/minimal.erofs /tmp/axern-erofs-fixture-root && \
@@ -287,6 +291,8 @@ RUN mkdir -p \
       /opt/axern/runtime-selftest/rootfs/tmp \
       /opt/axern/runtime-selftest/rootfs/mnt && \
     cp /bin/busybox /opt/axern/runtime-selftest/rootfs/bin/busybox && \
+    install -m 0755 /tmp/axern-memory-hog /opt/axern/runtime-selftest/rootfs/bin/memory-hog && \
+    rm -f /tmp/axern-memory-hog && \
     ln -s busybox /opt/axern/runtime-selftest/rootfs/bin/sh && \
     ln -s busybox /opt/axern/runtime-selftest/rootfs/bin/sleep
 

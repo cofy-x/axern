@@ -10,8 +10,9 @@ cross-runtime network or bpfnet changes, also read
 
 ## Contract
 
-This document covers the reusable cgroup and interface pools plus their OCI
-claims. Ephemeral-storage reservations and hard limits are a separate
+This document covers allocation-owned cgroup domains, the reusable interface
+pool, and their OCI claims. Only never-assigned warm cgroups are reusable;
+every cgroup assigned to an allocation is destroyed after cleanup. Ephemeral-storage reservations and hard limits are a separate
 filestore lifecycle described in [Rootfs And Writable Storage](rootfs-storage.md).
 
 The reusable pool manager owns these two claim types for each sandbox:
@@ -49,17 +50,17 @@ pool controller for each resizable pool.
 
 Recovery rules:
 
-- `CgroupManager` loads persisted using IDs from the `cgroups` store bucket,
-  scans existing cgroups under `cgroup_root_name`, and deletes scanned cgroups
-  that are not marked using.
+- `CgroupManager` loads the durable `idle / assigned / retiring` lease ledger.
+  Assigned ownership must agree with recovered OCI claims. Retiring leases keep
+  their memory commitment and resume reclaim/removal after restart.
 - `InterfaceManager` loads persisted using IDs from the `network_interfaces` store
   bucket, scans host veths, returns non-using veths to the idle queue, and
   rebuilds the idle IP queue from `ip_range`.
 - Managers periodically persist using IDs when `storeMark` is set.
-- Before serving, the container manager reconciles every persisted pool using
-  ID against recovered OCI resource claims. Unclaimed resources are recycled;
-  a recycle failure fails node startup so recovery is retried instead of
-  advertising inconsistent capacity.
+- Before serving, the container manager reconciles every persisted assigned
+  lease against recovered OCI resource claims. Ownership ambiguity fails node
+  startup instead of advertising inconsistent capacity. An assigned cgroup is
+  never converted back to idle during recovery.
 - Startup recovery must be idempotent; a partially deleted sandbox should not
   permanently poison the pool.
 
@@ -87,26 +88,31 @@ Allocation rules:
 - If allocation fails partway through, `container.Manager.Occupy` releases any
   resources already allocated for that start attempt.
 
-Delete first collects resource claims, then asks the runtime to delete the
-container, then releases node-local resources.
+Delete first collects resource claims, crosses the runtime/monitor exit-state
+barrier, releases rootfs, volume, storage and image leases, and only then moves
+the allocation cgroup to retiring.
 
 Delete rules:
 
 - Collect claims from OCI `config.json` annotations before runtime delete.
 - If the cgroup annotation is missing, fall back to `linux.cgroupsPath`.
 - Clean activation-specific network rules before final container cleanup.
-- Every resource manager's recycle operation is idempotent so a partially
-  successful multi-resource cleanup can be retried safely.
+- Every cleanup operation is idempotent so a partially successful
+  multi-resource cleanup can be retried safely. Interface claims may return to
+  the warm pool; allocation-owned cgroups may not.
 - Interface recycle treats an already-absent host veth as successful cleanup.
   Runtime netns deletion can remove the peer before the explicit node cleanup
   runs; restoring ownership in that case would create a permanent ghost claim.
 - A late exit event after an explicit delete treats an already-removed
   container bundle as cleanup complete when the in-memory container is also
   absent.
-- Successful delete schedules a coalesced inventory refresh and node report so
-  placement can reuse a confirmed-free runtime slot without waiting for the
-  periodic heartbeat. Create needs no matching refresh because its durable
-  reservation accounts for the slot before node startup begins.
+- A successful runtime delete does not immediately release memory capacity.
+  The retiring cgroup remains committed at `max(original request,
+  memory.current)` until it contains no process, dirty/writeback converges,
+  `memory.reclaim` drains charged cache, and removal succeeds.
+- Successful final cleanup schedules a coalesced inventory refresh and node
+  report. Create needs no matching refresh because its durable reservation
+  accounts for the slot before node startup begins.
 - Clear resource annotations and `linux.cgroupsPath` only after every resource
   release succeeds.
 - Preserve the OCI spec, claims, and in-memory container when release fails.
@@ -137,9 +143,9 @@ settings.
 | Field | Local behavior |
 | --- | --- |
 | `requests.cpu_milli` | cgroup CPU shares for relative fairness |
-| `requests.memory_bytes` | scheduling reservation only; not a hard cgroup limit |
+| `requests.memory_bytes` | total sandbox cgroup scheduling reservation and node-local commitment |
 | `limits.cpu_milli` | cgroup CFS quota/period hard CPU ceiling |
-| `limits.memory_bytes` | cgroup memory hard limit |
+| `limits.memory_bytes` | total sandbox host-cgroup hard limit; swap is disabled and group OOM is enabled |
 | `requests.ephemeral_storage_bytes` | control-plane and node-local filestore reservation |
 | `limits.ephemeral_storage_bytes` | runsc `size=` or runc XFS project-quota hard limit |
 
@@ -189,21 +195,30 @@ capacity.
 
 ## Cgroups
 
-`CgroupManager` owns cgroup creation, reuse, destruction, persistence, and GC.
+`CgroupManager` owns cgroup creation, one-allocation ownership, destruction,
+persistence, reclaim, and cleanup debt.
 
 Key behavior:
 
 - Root defaults to `/sandbox`.
 - IDs are generated under the configured root.
 - Existing cgroups are scanned at startup.
-- Using IDs are persisted under the `cgroups` store bucket.
-- `recycle_policy = "reuse"` returns deleted cgroups to the idle queue.
-- `recycle_policy = "destroy"` removes them from the known set and queues GC.
-- GC retries failed removals and tries to kill remaining cgroup processes before
-  retrying.
+- The durable lease ledger records `idle`, `assigned`, or `retiring`, allocation
+  ownership, memory request, cgroup identity, current charge, and cleanup error.
+- Warm creation may place a never-assigned empty cgroup in `idle`. Assignment is
+  a one-way ownership boundary: delete moves it to `retiring`, never back to
+  `idle`.
+- `cgroup_cache_size = 0` disables only warm creation. In required mode the
+  manager remains active and creates one-use allocation cgroups on demand.
+- GC never kills an unexplained remaining process. It retains the retiring
+  lease, retries after the runtime/monitor barrier, waits for dirty/writeback,
+  invokes `memory.reclaim`, and removes the empty cgroup.
 - `cgroup_enforcement = "required"` is the production default. A declared
-  memory limit requires the memory controller, a successful write and readback,
-  and verified runtime host PID membership. Failure force-deletes the sandbox.
+  memory limit writes the same `memory.max` to allocation parent and workload
+  leaf, writes `memory.swap.max=0`, sets parent and leaf
+  `memory.oom.group=1`, reads all
+  controls back, and verifies runtime host PID membership. Failure force-deletes
+  the sandbox.
 - Node startup creates a private probe cgroup under `cgroup_root_name`, writes
   and reads back a memory limit, and removes the probe before publishing the
   typed cgroup-controller fact. Runtime-specific runc/runsc memory-hard-limit
@@ -213,12 +228,38 @@ Key behavior:
   membership. Runsc checks Sentry and gofer roles, executable identity, and
   membership; guest workload memory is accounted through Sentry, not through a
   separate guest host PID.
-  Storage conformance runs in a separate writable-root sandbox; disabling cgroup
+  The conformance workload allocates and touches anonymous memory until a real
+  group OOM, then verifies memory-event deltas, monitor exit-state persistence,
+  swap prohibition, and cleanup. Storage conformance runs in a separate writable-root sandbox; disabling cgroup
   enforcement for development cannot manufacture memory evidence or suppress
   storage evidence. Every real allocation is verified again after create.
-- Runsc node fit adds the configured Sentry/gofer overhead reservation to the
-  user-declared memory request. Namespace quota continues to charge only the
-  user declaration; the two values are persisted separately.
+- `requests.memory_bytes` is the complete sandbox memcg reservation. Runc init
+  and descendants, runsc Sentry/gofer and guest accounting, anon, shmem, kernel
+  memory, EROFS lower page cache, writable-overlay page cache, dirty pages, and
+  writeback all consume it. There is no runsc overhead reservation.
+- `memory_system_reserve_bytes` covers axnoded, lifecycle monitors, imagemgr,
+  imagefsd, volumed, Nydus daemons/cache, and other node-local processes outside
+  sandbox cgroups. Production requires a qualification-derived positive value;
+  exceeding it blocks new create without terminating existing sandboxes.
+- Every process charged to that reserve must run below the same delegated
+  cgroup-v2 root and inherit its `internal` child. The packaged all-in-one node
+  satisfies this by moving the supervisor and its existing children before
+  enabling the sandbox subtree; separate service units must be deployed under
+  an equivalent shared delegation. A daemon outside that domain is a deployment
+  error because `internal/memory.current` cannot account for it.
+- The node memory budget reports physical capacity separately from the resource
+  source's allocatable value. The sandbox scheduling base is
+  `min(source_allocatable_bytes, delegated_root_limit_bytes)` when the delegated
+  limit is finite, minus the system reserve. Physical capacity is a diagnostic
+  consistency fact, not extra allocatable memory.
+- Capacity reporting and hard-limit enforcement are separate contracts.
+  Production publishes `CGROUP_V2` with a positive reserve and cgroup-backed
+  capacity identity. Explicit `disabled_dev` publishes `DISABLED_DEV` capacity
+  with zero reserve, but memory limits remain ineligible because the runtime
+  hard-limit capability is unavailable. Because this mode has no
+  allocation-owned memcg, allocation CPU/memory usage observations are omitted
+  rather than sampling the shared delegated root and fabricating attribution;
+  request commitments remain authoritative for local admission.
 
 The catalog, evidence validity, placement dependency, and enforcement-loss
 policy for these probes are defined by

@@ -8,6 +8,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"github.com/sirupsen/logrus"
 )
@@ -29,11 +30,21 @@ func (h *sandboxService) initNodeInventory() error {
 	if err != nil {
 		return err
 	}
-	rootName := h.config.PluginConfig.ResourceConfig.CgroupRootName
-	if rootName == "" {
-		rootName = config.DefaultCgroupRoot
+	rootName, err := h.config.PluginConfig.ResourceConfig.CgroupRootNameValue()
+	if err != nil {
+		return err
 	}
 	if cgroupMode == config.CgroupEnforcementRequired {
+		if inventoryCgroupDriver == nil {
+			return fmt.Errorf("resolve delegated cgroup root: cgroup driver is unavailable")
+		}
+		rootName, err = inventoryCgroupDriver.ResolveRoot(rootName)
+		if err != nil {
+			return fmt.Errorf("resolve delegated sandbox cgroup root: %w", err)
+		}
+		if err := h.initializeMemoryObservationSequence(); err != nil {
+			return err
+		}
 		logrus.Debug("cgroup memory capability will be evaluated by observed-capability provider")
 	}
 	h.capabilityManager, err = h.newObservedCapabilityManager(rootName)
@@ -42,7 +53,10 @@ func (h *sandboxService) initNodeInventory() error {
 	}
 	h.capabilityManager.Subscribe(h.handleCapabilityTransitions)
 	h.capabilityManager.SetMetricsObserver(&capabilityMetricsObserver{})
-	disabledPools := disabledResourcePools(h.config.PluginConfig.ResourceConfig)
+	disabledPools := disabledResourcePools(
+		h.config.PluginConfig.ResourceConfig,
+		cgroupMode != config.CgroupEnforcementRequired,
+	)
 	storageTargets := nodeinventory.DefaultStorageTargets(h.config.RootDir)
 	if filestore := h.config.PluginConfig.RuntimeConfig.FilestoreDir; filestore != "" {
 		storageTargets = append(storageTargets, nodeinventory.StorageTarget{
@@ -50,23 +64,46 @@ func (h *sandboxService) initNodeInventory() error {
 			SystemReserveBytes: h.config.PluginConfig.RuntimeConfig.FilestoreSystemReserveBytes,
 		})
 	}
+	var nextMemoryObservationRevision func() (int64, error)
+	memoryCommitment := h.containerManager.MemoryCommitment
+	memoryCapacityObserver := h.containerManager.UpdateMemoryCapacity
+	if cgroupMode == config.CgroupEnforcementRequired {
+		nextMemoryObservationRevision = h.nextMemoryObservationRevision
+	} else {
+		// disabled_dev has no cgroup resource manager by construction. It still
+		// publishes resource-source scheduling capacity, but must not pretend to
+		// own kernel-backed commitments or a node-local hard-admission gate.
+		memoryCommitment = func() (resources.MemoryCommitment, error) {
+			return resources.MemoryCommitment{}, nil
+		}
+		memoryCapacityObserver = func(resources.MemoryCapacitySnapshot) error { return nil }
+	}
 	h.nodeInventorySource = nodeinventory.NewAxnodedSource(nodeinventory.AxnodedSourceOptions{
-		Ready:                 h.Ready,
-		RuntimeCount:          h.runtimeHandlers.Count,
-		Container:             h.containerManager,
-		LangRuntime:           h.lrtManager,
-		ImageManager:          nodeinventory.NewImageManagerClient(imageManagerEnabled, imageManagerSocket),
-		NodeResources:         nodeResources,
-		CgroupDriver:          inventoryCgroupDriver,
-		NatBackend:            h.config.PluginConfig.NetworkConfig.NatBackend,
-		BPFNetPinPath:         h.config.PluginConfig.NetworkConfig.BPFNet.PinPath,
-		NodeState:             h.config.PluginConfig.ControlPlaneNodeStateValue(),
-		NodeLabels:            h.config.PluginConfig.ControlPlaneNodeLabelsValue(),
-		CapabilitySnapshot:    h.currentCapabilitySnapshot,
-		VolumeHealth:          h.volumeClient.Health,
-		StorageTargets:        storageTargets,
-		RuntimeSlotCapacity:   h.config.PluginConfig.ResourceConfig.MaxInstanceNum,
-		DisabledResourcePools: disabledPools,
+		Ready:                     h.Ready,
+		RuntimeCount:              h.runtimeHandlers.Count,
+		Container:                 h.containerManager,
+		LangRuntime:               h.lrtManager,
+		ImageManager:              nodeinventory.NewImageManagerClient(imageManagerEnabled, imageManagerSocket),
+		NodeResources:             nodeResources,
+		CgroupDriver:              inventoryCgroupDriver,
+		NatBackend:                h.config.PluginConfig.NetworkConfig.NatBackend,
+		BPFNetPinPath:             h.config.PluginConfig.NetworkConfig.BPFNet.PinPath,
+		NodeState:                 h.config.PluginConfig.ControlPlaneNodeStateValue(),
+		NodeLabels:                h.config.PluginConfig.ControlPlaneNodeLabelsValue(),
+		CapabilitySnapshot:        h.currentCapabilitySnapshot,
+		VolumeHealth:              h.volumeClient.Health,
+		StorageTargets:            storageTargets,
+		RuntimeSlotCapacity:       h.config.PluginConfig.ResourceConfig.MaxInstanceNum,
+		MemoryBudgetEnabled:       true,
+		MemoryCgroupEnforced:      cgroupMode == config.CgroupEnforcementRequired,
+		CgroupRootName:            rootName,
+		MemorySystemReserveBytes:  h.config.PluginConfig.ResourceConfig.MemorySystemReserveBytes,
+		MemoryCommitment:          memoryCommitment,
+		MemoryCapacityObserver:    memoryCapacityObserver,
+		MemoryObservationRevision: nextMemoryObservationRevision,
+		MemoryPIDRolesVerifier:    h.verifyMemoryPIDRoles,
+		RetiringMemoryLeases:      h.containerManager.RetiringMemoryLeases,
+		DisabledResourcePools:     disabledPools,
 	})
 	h.inventoryCollector = nodeinventory.NewCollector(5*time.Second, h.nodeInventorySource.Collect)
 	return nil

@@ -132,6 +132,7 @@ func (c *Coordinator) ReportAllocationStatus(allocationID string, attempt int64,
 		Ready:            ready,
 		ReadinessMessage: strings.TrimSpace(readinessMessage),
 		Message:          message,
+		DiagnosticCode:   commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED,
 		ObservedAt:       observedAt,
 	})
 }
@@ -153,8 +154,12 @@ func (c *Coordinator) ReportContainerExit(event container.Event) {
 		return
 	}
 	message := strings.TrimSpace(event.Reason)
+	diagnosticCode := event.DiagnosticCode
 	if message == "" && ct.Status != nil {
 		message = strings.TrimSpace(ct.Status.Get().Message)
+	}
+	if diagnosticCode == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED && ct.Status != nil {
+		diagnosticCode = ct.Status.Get().DiagnosticCode
 	}
 	observedAt := event.ExitedAt.UTC()
 	if observedAt.IsZero() {
@@ -167,13 +172,14 @@ func (c *Coordinator) ReportContainerExit(event container.Event) {
 		"known":         event.ExitCodeKnown,
 	}).Debug("reporting exited allocation status to control plane")
 	c.reporter.ReportAllocationStatus(nodecontrol.AllocationStatusReport{
-		AllocationID:  allocationID,
-		Attempt:       attempt,
-		Status:        commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED,
-		ExitCode:      event.ExitCode,
-		ExitCodeKnown: event.ExitCodeKnown,
-		Message:       message,
-		ObservedAt:    observedAt,
+		AllocationID:   allocationID,
+		Attempt:        attempt,
+		Status:         commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED,
+		ExitCode:       event.ExitCode,
+		ExitCodeKnown:  event.ExitCodeKnown,
+		Message:        message,
+		DiagnosticCode: diagnosticCode,
+		ObservedAt:     observedAt,
 	})
 }
 

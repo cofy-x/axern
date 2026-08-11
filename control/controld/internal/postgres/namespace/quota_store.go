@@ -158,7 +158,7 @@ func quotaSelectSQL(where string) string {
 		       q.memory_bytes_limit,
 		       q.ephemeral_storage_bytes_limit,
 		       COALESCE(SUM(w.cpu_milli), 0) AS reserved_cpu_milli,
-		       COALESCE(SUM(w.memory_bytes), 0) AS reserved_memory_bytes,
+		       COALESCE(SUM(w.sandbox_memory_request_bytes), 0) AS reserved_memory_bytes,
 		       COALESCE(SUM(w.ephemeral_storage_bytes), 0) AS reserved_ephemeral_storage_bytes,
 		       q.version,
 		       q.created_at,

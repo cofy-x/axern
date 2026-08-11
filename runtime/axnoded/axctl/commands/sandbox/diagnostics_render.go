@@ -33,6 +33,10 @@ func renderSandboxDiagnostics(w io.Writer, diagnostics *nodeoperatorv1.GetSandbo
 			renderSandboxDiagnosticProvider(w, provider)
 		}
 	}
+	if diagnostics.GetMemory() != nil {
+		fmt.Fprintln(w, "Memory:")
+		renderSandboxMemory(w, diagnostics.GetMemory())
+	}
 }
 
 func renderSandboxDiagnosticProvider(w io.Writer, provider *nodeoperatorv1.SandboxdProvider) {

@@ -1,7 +1,13 @@
 # Pinned runtime tools embedded in Axern node and development images.
-AXERN_GVISOR_RELEASE=20260721.0
-AXERN_GVISOR_SHA512_AMD64=1e951f8d9dd2198e16ad66066fac0db42943ac8e8ca35c7173a20f0fbc859b8185c33c478ae0dc3c4e76b8c06d99ed118286caf43ad207c96578b42af62cae72
-AXERN_GVISOR_SHA512_ARM64=27a6d5103c36ef11c7e8c6158b7039ac43623d77147227d4e6d083835d0cd20fe3b100680ffeca9e6691ee7ba31de19b613c10ef860771e861e7971b24bc2947
+# Callers outside the installed image must set AXERN_GVISOR_LOCK explicitly.
+_axern_gvisor_lock=${AXERN_GVISOR_LOCK:-/usr/local/share/axern/gvisor.lock}
+if [ ! -r "${_axern_gvisor_lock}" ]; then
+  printf 'Axern gVisor lock is missing or unreadable: %s\n' "${_axern_gvisor_lock}" >&2
+  return 1 2>/dev/null || exit 1
+fi
+# shellcheck disable=SC1090
+. "${_axern_gvisor_lock}"
+unset _axern_gvisor_lock
 AXERN_MC_RELEASE=RELEASE.2025-08-13T08-35-41Z
 AXERN_MC_SHA256_AMD64=01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891
 AXERN_MC_SHA256_ARM64=14c8c9616cfce4636add161304353244e8de383b2e2752c0e9dad01d4c27c12c

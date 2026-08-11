@@ -2,11 +2,21 @@
 
 package cgroup
 
-import stdos "os"
+import (
+	stdos "os"
+	"path"
+)
 
 func newDefaultCgroupDriver() (CgroupDriver, error) {
 	if isCgroupV2Unified() {
-		return &cgroupV2Driver{mountpoint: "/sys/fs/cgroup"}, nil
+		delegationGroup, err := currentUnifiedGroup()
+		if err != nil {
+			return nil, err
+		}
+		if path.Base(delegationGroup) == cgroupInternalGroup {
+			delegationGroup = path.Dir(delegationGroup)
+		}
+		return &cgroupV2Driver{mountpoint: "/sys/fs/cgroup", delegationGroup: normalizeGroup(delegationGroup)}, nil
 	}
 	return &cgroupV1Driver{}, nil
 }

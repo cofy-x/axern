@@ -59,6 +59,10 @@ spec:
               value: /certs/node.crt
             - name: AXNODED_CONTROL_PLANE_TLS_KEY
               value: /certs/node.key
+            # Local-only test reserve. Production deployments must use a
+            # measured qualification receipt.
+            - name: AXNODED_MEMORY_SYSTEM_RESERVE_BYTES
+              value: "536870912"
             - name: MINIO_ENDPOINT
               value: minio.axern-local.svc.cluster.local:9000
             - name: MINIO_ACCESS_KEY

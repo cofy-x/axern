@@ -54,6 +54,7 @@ class WorkloadDiagnosticCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST: _ClassVar[WorkloadDiagnosticCode]
+    WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED: _ClassVar[WorkloadDiagnosticCode]
 
 class LeaseType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -92,6 +93,7 @@ WORKLOAD_DIAGNOSTIC_CODE_VOLUME_PUBLISH_ERROR: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST: WorkloadDiagnosticCode
+WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED: WorkloadDiagnosticCode
 LEASE_TYPE_UNSPECIFIED: LeaseType
 LEASE_TYPE_RUN: LeaseType
 LEASE_TYPE_SERVICE: LeaseType

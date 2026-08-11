@@ -3,6 +3,7 @@ package pgservice
 import (
 	"fmt"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
+	workloadkernel "github.com/cofy-x/axern/control/controld/internal/kernel/workload"
 	"time"
 
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -13,7 +14,7 @@ import (
 
 func serviceSelectSQL() string {
 	return `SELECT service_id, namespace, environment_id, replicas, ready_replicas, unhealthy_replicas, rollout_policy, readiness_probe, liveness_probe, autoscaling_policy, autoscaling_status, status, config,
-		allocation_ids, labels, version, created_at, updated_at, message, deletion_status FROM services`
+		allocation_ids, labels, version, created_at, updated_at, message, diagnostic_code, deletion_status FROM services`
 }
 
 type serviceScanner interface {
@@ -24,16 +25,18 @@ func scanService(row serviceScanner) (*servicev1.Service, error) {
 	var (
 		service                                                  servicev1.Service
 		statusText                                               string
+		diagnosticCodeText                                       string
 		configJSON, allocationIDsJSON, labelsJSON                []byte
 		rolloutPolicyJSON, readinessProbeJSON, livenessProbeJSON []byte
 		autoscalingPolicyJSON, autoscalingStatusJSON             []byte
 		deletionStatusJSON                                       []byte
 		createdAt, updatedAt                                     time.Time
 	)
-	if err := row.Scan(&service.ID, &service.Namespace, &service.EnvironmentID, &service.Replicas, &service.ReadyReplicas, &service.UnhealthyReplicas, &rolloutPolicyJSON, &readinessProbeJSON, &livenessProbeJSON, &autoscalingPolicyJSON, &autoscalingStatusJSON, &statusText, &configJSON, &allocationIDsJSON, &labelsJSON, &service.Version, &createdAt, &updatedAt, &service.Message, &deletionStatusJSON); err != nil {
+	if err := row.Scan(&service.ID, &service.Namespace, &service.EnvironmentID, &service.Replicas, &service.ReadyReplicas, &service.UnhealthyReplicas, &rolloutPolicyJSON, &readinessProbeJSON, &livenessProbeJSON, &autoscalingPolicyJSON, &autoscalingStatusJSON, &statusText, &configJSON, &allocationIDsJSON, &labelsJSON, &service.Version, &createdAt, &updatedAt, &service.Message, &diagnosticCodeText, &deletionStatusJSON); err != nil {
 		return nil, err
 	}
 	service.Status = parseServiceStatus(statusText)
+	service.DiagnosticCode = workloadkernel.ParseDiagnosticCode(diagnosticCodeText)
 	service.Config = &commonv1.ExecutionConfig{}
 	if err := protojson.Unmarshal(configJSON, service.Config); err != nil {
 		return nil, fmt.Errorf("unmarshal service config: %w", err)

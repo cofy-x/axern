@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
-	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/sirupsen/logrus"
 )
@@ -78,11 +77,8 @@ func (m *Manager) housekeeping() {
 			continue
 		}
 
-		if container.Status.Get().State() == apipb.ContainerState_CONTAINER_EXITED {
-			if err := m.ReleaseContainerResources(id); err != nil {
-				logrus.Errorf("release resources for exited container %s failed: %v", id, err)
-			}
-		}
+		// Exited allocations retain all resource claims until the authoritative
+		// Delete workflow completes ordered cleanup.
 	}
 
 	dir, err := os.ReadDir(m.recyclePath)
@@ -93,12 +89,14 @@ func (m *Manager) housekeeping() {
 	}
 
 	for item := range m.containers.IterBuffered() {
-		m.startMonitorGoroutine(item.Val.Metadata, make(chan struct{}))
+		if err := m.StartMonitor(item.Val.Metadata); err != nil {
+			logrus.WithError(err).WithField("container_id", item.Key).Error("start container monitor during housekeeping")
+		}
 	}
 
 	metrics.RecordResourceGauge("container", float64(m.containers.Count()))
 
-	for item := range m.monitorStopChan.IterBuffered() {
+	for item := range m.monitors.IterBuffered() {
 		if !m.containers.Has(item.Key) {
 			logrus.Infof("container %s is deleted, release releated resource", item.Key)
 			m.ReceiveEvent(Event{Type: EventTypeDelete, ContainerID: item.Key})

@@ -36,7 +36,7 @@ import (
 //                      DELETED
 
 // statusVersion is current version of container status.
-const statusVersion = "v1"
+const statusVersion = "v2"
 
 const unknownExitStatusMessage = "container exited but runtime exit status is unavailable"
 
@@ -62,6 +62,9 @@ type Status struct {
 	ExitCodeKnown bool
 	// Message carries lifecycle details such as missing runtime exit status.
 	Message string
+	// DiagnosticCode is the structured terminal reason proven before the exit
+	// checkpoint is published. It survives reporter retries and node restart.
+	DiagnosticCode commonv1.WorkloadDiagnosticCode
 	// Unknown indicates that the container status is not fully loaded.
 	// This field doesn't need to be checkpointed.
 	Unknown bool `json:"-"`
@@ -76,6 +79,7 @@ func (s Status) Equal(other Status) bool {
 	if s.Pid != other.Pid || s.StartedAt != other.StartedAt ||
 		s.FinishedAt != other.FinishedAt || s.ExitCode != other.ExitCode ||
 		s.ExitCodeKnown != other.ExitCodeKnown || s.Message != other.Message ||
+		s.DiagnosticCode != other.DiagnosticCode ||
 		s.Unknown != other.Unknown {
 		return false
 	}
@@ -149,6 +153,7 @@ func GenerateStatusFromState(state *contract.UnionContainerState, path string) S
 			ExitCode:       0,
 			ExitCodeKnown:  false,
 			Message:        "",
+			DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED,
 			Unknown:        false,
 			LinuxResources: nil,
 		},
@@ -180,6 +185,7 @@ func UpdateStatusByState(state *contract.UnionContainerState, status Status) Sta
 		status.ExitCode = -1
 		status.ExitCodeKnown = false
 		status.Message = ""
+		status.DiagnosticCode = commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED
 		status.Unknown = false
 	case contract.ContainerStatusExited:
 		status.Unknown = false

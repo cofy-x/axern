@@ -66,6 +66,7 @@ func TestPostgresServiceReplicaDiagnosticsForSecretProjectionFailure(t *testing.
 	if err != nil {
 		t.Fatalf("UpdateService(secret rollout) error = %v", err)
 	}
+	reconcileAllocationLifecycle(t, app, now)
 	rollout := updateResp.GetService().GetRolloutStatus()
 	if rollout == nil || !rollout.GetInProgress() {
 		t.Fatalf("rollout status = %+v, want in-progress blocked rollout", rollout)
@@ -201,6 +202,7 @@ func TestPostgresServiceReplicaDiagnosticsForRegistryAuthFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateService(environment_id) error = %v", err)
 	}
+	reconcileAllocationLifecycle(t, app, now)
 	rollout := updateResp.GetService().GetRolloutStatus()
 	if rollout == nil || !rollout.GetInProgress() {
 		t.Fatalf("rollout status = %+v, want in-progress blocked rollout", rollout)

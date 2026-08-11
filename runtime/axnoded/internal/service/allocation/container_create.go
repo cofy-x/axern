@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
@@ -16,6 +18,7 @@ import (
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/sirupsen/logrus"
@@ -48,7 +51,7 @@ func (h *Controller) createContainer(
 		attribute.String(sdkobs.AttrAllocationID, request.GetID()),
 		attribute.String(sdkobs.AttrRuntime, request.GetRuntime()),
 	)
-	handler, resource, err := h.prepareContainerCreate(ctx, traceID.String(), request)
+	handler, resource, err := h.prepareContainerCreate(ctx, traceID.String(), request, resourceSpec)
 	if err != nil {
 		resourceSpan.RecordError(err)
 		resourceSpan.SetStatus(codes.Error, "resource allocate")
@@ -77,28 +80,23 @@ func (h *Controller) createContainer(
 	runtimeSpan.End()
 	if err != nil {
 		logrus.WithField(trace.ContextKeyTraceId, traceID).Errorf("runtime handler create container failed: %v", err)
-		if cleanupErr := h.containers().Release(resource); cleanupErr != nil {
-			return response, "", errors.Join(err, fmt.Errorf("release resources after container create failure: %w", cleanupErr))
-		}
 		h.cleanupFailedContainerCreate(traceID.String(), resource.ID, metaData)
-		return response, "", err
+		return response, "", h.cleanupCreatedRuntime(handler, resource, err)
 	}
 
 	response.ID = resource.ID
 	if err := h.containers().StoreMetadata(resource.ID, metaData); err != nil {
-		return response, "", h.cleanupUnregisteredRuntime(handler, resource, fmt.Errorf("persist created container metadata: %w", err))
+		return response, "", h.cleanupCreatedRuntime(handler, resource, fmt.Errorf("persist created container metadata: %w", err))
 	}
 	if err := h.containers().SetResources(resource.ID, request.Resource, resourceSpec); err != nil {
-		logrus.WithField(trace.ContextKeyTraceId, traceID).Warnf("persist container %s resources failed: %v", resource.ID, err)
+		return response, "", h.cleanupCreatedRuntime(handler, resource, fmt.Errorf("persist created container resources: %w", err))
 	}
 	h.syncCreatedContainerStatus(ctx, resource.ID, handler)
+	if err := h.containers().StartMonitor(metaData); err != nil {
+		return response, "", h.cleanupCreatedRuntime(handler, resource, fmt.Errorf("register created container monitor: %w", err))
+	}
 	logrus.WithField(trace.ContextKeyTraceId, traceID).Infof("CreateContainer %s success, traceID: %v, spanID: %v, cost: %v", resource.ID, traceID, spanID, time.Since(start).String())
 
-	go h.containers().ReceiveEvent(container.Event{
-		Type:        container.EventTypeCreate,
-		MetaData:    metaData,
-		ContainerID: resource.ID,
-	})
 	return response, containerIPFromResource(resource), nil
 }
 
@@ -112,49 +110,32 @@ func (h *Controller) createManagedContainer(
 	startRequest *apipb.StartRequest,
 	templateRequest *apipb.CreateContainerRequest,
 	request *apipb.CreateContainerRequest,
-	resourceSpec *commonv1.ResourceSpec,
+	handler contract.RuntimeHandler,
+	resource container.OccupiedResource,
 	phaseRecorder contract.StartupPhaseRecorder,
 ) (*apipb.CreateContainerResponse, string, error) {
 	traceID, spanID := trace.GetContextID(ctx)
 	response := new(apipb.CreateContainerResponse)
-
-	resourceAllocateStart := time.Now()
-	handler, resource, err := h.prepareContainerCreate(ctx, traceID.String(), request)
-	if phaseRecorder != nil {
-		phaseRecorder.RecordStartupPhase(contract.StartupPhaseResourceAllocate, time.Since(resourceAllocateStart))
-	}
-	if err != nil {
-		return response, "", err
+	if handler == nil || resource.ID == "" || resource.ID != request.GetID() {
+		return response, "", errors.Join(errors.New("managed allocation resources are missing or inconsistent"), errRuntimeCleanupPending)
 	}
 	managed, ok := handler.(contract.ManagedRuntimeHandler)
 	if !ok {
-		err = fmt.Errorf("runtime %q does not implement the managed create/start contract", handler.Name())
-		if cleanupErr := h.containers().Release(resource); cleanupErr != nil {
-			err = errors.Join(err, fmt.Errorf("release resources after managed runtime contract failure: %w", cleanupErr))
-		}
-		return response, "", err
+		err := fmt.Errorf("runtime %q does not implement the managed create/start contract", handler.Name())
+		return response, "", errors.Join(err, errRuntimeCleanupPending)
 	}
 
 	options := h.createHandlerOptions(traceID.String(), spanID.String(), lrt, templateRequest, resource, phaseRecorder)
 	prepared, err := managed.PrepareContainer(ctx, request, options)
 	if err != nil {
-		if cleanupErr := h.containers().Release(resource); cleanupErr != nil {
-			err = errors.Join(err, fmt.Errorf("release resources after managed create failure: %w", cleanupErr))
-		}
 		h.cleanupFailedContainerCreate(traceID.String(), resource.ID, preparedContainerMetadata(prepared))
-		return response, "", err
+		return response, "", errors.Join(err, errRuntimeCleanupPending)
 	}
 	cleanupPrepared := func(cause error) error {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if _, getErr := h.containers().Get(resource.ID); getErr == nil {
-			_, deleteErr := h.deleteContainer(cleanupCtx, &apipb.DeleteContainerRequest{ID: resource.ID, Timeout: 0})
-			if deleteErr != nil {
-				return errors.Join(cause, errRuntimeCleanupPending, deleteErr)
-			}
-			return errors.Join(cause, deleteErr)
-		}
-		return h.cleanupUnregisteredRuntime(managed, resource, cause)
+		// The service facade owns the single ordered rollback after any resource
+		// allocation. Returning this marker keeps allocation state and image
+		// leases durable until runtime deletion has crossed the exit-state barrier.
+		return errors.Join(cause, errRuntimeCleanupPending)
 	}
 	if prepared == nil || prepared.Metadata == nil || prepared.Metadata.GetID() != resource.ID || prepared.ContainerID != resource.ID {
 		return response, "", cleanupPrepared(errors.New("managed runtime returned an invalid prepared container"))
@@ -180,15 +161,17 @@ func (h *Controller) createManagedContainer(
 	if err := h.containers().StoreMetadata(resource.ID, metaData); err != nil {
 		return response, "", cleanupPrepared(fmt.Errorf("persist activated container metadata: %w", err))
 	}
-	if err := h.containers().SetResources(resource.ID, request.Resource, resourceSpec); err != nil {
-		logrus.WithField(trace.ContextKeyTraceId, traceID).Warnf("persist container %s resources failed: %v", resource.ID, err)
+	if err := h.containers().SetResources(resource.ID, request.Resource, startRequest.GetResources()); err != nil {
+		return response, "", cleanupPrepared(fmt.Errorf("persist activated container resources: %w", err))
 	}
 	h.syncCreatedContainerStatus(ctx, resource.ID, managed)
-	go h.containers().ReceiveEvent(container.Event{Type: container.EventTypeCreate, MetaData: metaData, ContainerID: resource.ID})
+	if err := h.containers().StartMonitor(metaData); err != nil {
+		return response, "", cleanupPrepared(fmt.Errorf("register activated container monitor: %w", err))
+	}
 	return response, containerIPFromResource(resource), nil
 }
 
-func (h *Controller) cleanupUnregisteredRuntime(handler contract.RuntimeHandler, resource container.OccupiedResource, cause error) error {
+func (h *Controller) cleanupCreatedRuntime(handler contract.RuntimeHandler, resource container.OccupiedResource, cause error) error {
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, deleteErr := handler.DeleteContainer(cleanupCtx, &apipb.DeleteContainerRequest{ID: resource.ID, Timeout: 0}, contract.HandlerOptions{ContainerID: resource.ID, ForceDelete: true})
@@ -200,11 +183,8 @@ func (h *Controller) cleanupUnregisteredRuntime(handler contract.RuntimeHandler,
 	if err := h.sandboxNetworking().CleanupActivationNetwork(resource); err != nil {
 		return errors.Join(cause, errRuntimeCleanupPending, fmt.Errorf("cleanup unregistered runtime network: %w", err))
 	}
-	if err := h.containers().Release(resource); err != nil {
-		return errors.Join(cause, errRuntimeCleanupPending, fmt.Errorf("release unregistered runtime resources: %w", err))
-	}
-	if err := h.containers().CleanContainerRoot(resource.ID); err != nil {
-		return errors.Join(cause, errRuntimeCleanupPending, fmt.Errorf("remove unregistered runtime bundle: %w", err))
+	if err := h.containers().DeleteAfterConfirmedRuntimeDelete(resource.ID, resource); err != nil {
+		return errors.Join(cause, errRuntimeCleanupPending, fmt.Errorf("finalize failed runtime resources: %w", err))
 	}
 	return cause
 }
@@ -233,15 +213,24 @@ func (h *Controller) syncCreatedContainerStatus(ctx context.Context, containerID
 	}
 }
 
-func (h *Controller) prepareContainerCreate(ctx context.Context, traceID string, request *apipb.CreateContainerRequest) (contract.RuntimeHandler, container.OccupiedResource, error) {
+func (h *Controller) prepareContainerCreate(ctx context.Context, traceID string, request *apipb.CreateContainerRequest, resourceSpec *commonv1.ResourceSpec) (contract.RuntimeHandler, container.OccupiedResource, error) {
+	attempt, _ := strconv.ParseInt(strings.TrimSpace(request.GetLabels()[workloadidentity.LabelKeyAllocationAttempt]), 10, 64)
+	return h.prepareContainerResources(ctx, traceID, request.GetRuntime(), request.GetID(), attempt, request.GetEnvs(), resourceSpec)
+}
+
+// prepareContainerResources is the node-local admission boundary. Managed
+// starts call it before secrets, volumes, image mounts, rootfs preparation, or
+// runtime artifacts so a rejected memory commitment has no external side
+// effects to roll back.
+func (h *Controller) prepareContainerResources(ctx context.Context, traceID, runtimeName, containerID string, allocationAttempt int64, envs []*apipb.KeyValue, resourceSpec *commonv1.ResourceSpec) (contract.RuntimeHandler, container.OccupiedResource, error) {
 	var empty container.OccupiedResource
 
-	if err := h.checkRuntime(request.Runtime); err != nil {
+	if err := h.checkRuntime(runtimeName); err != nil {
 		logrus.WithField(trace.ContextKeyTraceId, traceID).Debugf("check runtime failed: %v", err)
 		return nil, empty, errord.ErrNotImplemented
 	}
 
-	handler, err := h.runtimeHandler(request.Runtime)
+	handler, err := h.runtimeHandler(runtimeName)
 	if err != nil {
 		return nil, empty, errord.ErrNotImplemented
 	}
@@ -252,11 +241,15 @@ func (h *Controller) prepareContainerCreate(ctx context.Context, traceID string,
 	}
 
 	resource, err := h.containers().Occupy(resourcemanager.AllocateOption{
-		Context:      ctx,
-		ContainerID:  request.GetID(),
-		EnvID:        envValue(request.Envs, config.SandboxEnvKey),
-		TraceID:      traceID,
-		FunctionName: envValue(request.Envs, config.SandboxFunctionNameKey),
+		Context:            ctx,
+		ContainerID:        containerID,
+		EnvID:              envValue(envs, config.SandboxEnvKey),
+		TraceID:            traceID,
+		FunctionName:       envValue(envs, config.SandboxFunctionNameKey),
+		MemoryRequestBytes: resourceSpec.GetRequests().GetMemoryBytes(),
+		MemoryLimitBytes:   resourceSpec.GetLimits().GetMemoryBytes(),
+		AllocationAttempt:  allocationAttempt,
+		RuntimeName:        runtimeName,
 	}, resourceNames...)
 	if err != nil {
 		logrus.WithField(trace.ContextKeyTraceId, traceID).Errorf("occpuy resource failed: %v", err)
@@ -308,9 +301,6 @@ func (h *Controller) cleanupFailedContainerCreate(traceID, containerID string, m
 		h.logStdFileSnippet(traceID, containerID, "stdout", metaData.Stdout)
 	}
 	h.logSandboxdDiagnostics(traceID, containerID, metaData)
-	if err := h.containers().CleanContainerRoot(containerID); err != nil {
-		logrus.WithField("trace_id", traceID).WithError(err).Warn("cleanup failed container root")
-	}
 	if metaData == nil {
 		return
 	}

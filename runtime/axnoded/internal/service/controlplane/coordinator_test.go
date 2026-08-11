@@ -80,10 +80,11 @@ func TestReportContainerExitUsesAllocationAttemptLabel(t *testing.T) {
 	})
 
 	coordinator.ReportContainerExit(container.Event{
-		ContainerID:   "alloc-123",
-		ExitCode:      42,
-		ExitCodeKnown: true,
-		ExitedAt:      time.Date(2026, 5, 1, 2, 3, 4, 0, time.UTC),
+		ContainerID:    "alloc-123",
+		ExitCode:       42,
+		ExitCodeKnown:  true,
+		DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED,
+		ExitedAt:       time.Date(2026, 5, 1, 2, 3, 4, 0, time.UTC),
 	})
 
 	if reporter.report.AllocationID != "alloc-123" {
@@ -97,6 +98,9 @@ func TestReportContainerExitUsesAllocationAttemptLabel(t *testing.T) {
 	}
 	if reporter.report.ExitCode != 42 || !reporter.report.ExitCodeKnown {
 		t.Fatalf("exit = %d/%v, want 42/true", reporter.report.ExitCode, reporter.report.ExitCodeKnown)
+	}
+	if reporter.report.DiagnosticCode != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED {
+		t.Fatalf("diagnostic code = %v, want MEMORY_LIMIT_EXCEEDED", reporter.report.DiagnosticCode)
 	}
 }
 

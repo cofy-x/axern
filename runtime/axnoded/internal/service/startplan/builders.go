@@ -42,6 +42,9 @@ func ResourcesToLinux(resources *commonv1.ResourceSpec) *runtime.LinuxContainerR
 	}
 	if memLimit := resources.GetLimits().GetMemoryBytes(); memLimit > 0 {
 		res.MemoryLimitInBytes = memLimit
+		// OCI Swap is the total memory+swap limit. Setting it equal to the
+		// memory limit maps to cgroup v2 memory.swap.max=0.
+		res.MemorySwapLimitInBytes = memLimit
 	}
 	return res
 }

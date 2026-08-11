@@ -119,6 +119,103 @@ func VerifyCgroupPIDs(cgroupPath string, requiredPID, minimum int) error {
 	return nil
 }
 
+// VerifyRuncCgroupProcessTree proves that the container init process and every
+// currently live descendant discoverable through all thread children lists are
+// still contained by the workload cgroup. Checking only cgroup.procs can prove
+// that some processes are charged, but cannot detect a descendant that was
+// moved out of the enforcement boundary.
+func VerifyRuncCgroupProcessTree(cgroupPath string, initPID int) error {
+	if err := VerifyPIDInCgroup(cgroupPath, initPID); err != nil {
+		return fmt.Errorf("verify runc init attribution: %w", err)
+	}
+	descendants, err := processTreePIDs(initPID)
+	if err != nil {
+		return err
+	}
+	for _, pid := range descendants {
+		if pid == initPID {
+			continue
+		}
+		if err := VerifyPIDInCgroup(cgroupPath, pid); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("verify runc descendant %d attribution: %w", pid, err)
+		}
+	}
+	return nil
+}
+
+func processTreePIDs(rootPID int) ([]int, error) {
+	const maximumProcesses = 32768
+	if rootPID <= 0 {
+		return nil, fmt.Errorf("root pid must be positive")
+	}
+	seen := map[int]struct{}{rootPID: {}}
+	queue := []int{rootPID}
+	for len(queue) > 0 {
+		pid := queue[0]
+		queue = queue[1:]
+		children, err := processChildren(pid)
+		if err != nil {
+			if pid != rootPID && errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, fmt.Errorf("read process %d descendants: %w", pid, err)
+		}
+		for _, child := range children {
+			if _, exists := seen[child]; exists {
+				continue
+			}
+			if len(seen) >= maximumProcesses {
+				return nil, fmt.Errorf("process tree rooted at %d exceeds safety limit %d", rootPID, maximumProcesses)
+			}
+			seen[child] = struct{}{}
+			queue = append(queue, child)
+		}
+	}
+	result := make([]int, 0, len(seen))
+	for pid := range seen {
+		result = append(result, pid)
+	}
+	sort.Ints(result)
+	return result, nil
+}
+
+func processChildren(pid int) ([]int, error) {
+	taskDir := filepath.Join("/proc", strconv.Itoa(pid), "task")
+	tasks, err := os.ReadDir(taskDir)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[int]struct{})
+	for _, task := range tasks {
+		if !task.IsDir() {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(taskDir, task.Name(), "children"))
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, err
+		}
+		for _, field := range strings.Fields(string(data)) {
+			child, err := strconv.Atoi(field)
+			if err != nil || child <= 0 {
+				return nil, fmt.Errorf("invalid child pid %q for process %d", field, pid)
+			}
+			seen[child] = struct{}{}
+		}
+	}
+	children := make([]int, 0, len(seen))
+	for child := range seen {
+		children = append(children, child)
+	}
+	sort.Ints(children)
+	return children, nil
+}
+
 func cgroupPIDs(cgroupPath string) (map[int]struct{}, error) {
 	seen := map[int]struct{}{}
 	root := resourceDirForCgroupPath(cgroupPath)

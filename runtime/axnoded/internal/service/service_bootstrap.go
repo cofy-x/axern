@@ -72,6 +72,9 @@ type sandboxService struct {
 	capabilityReconcileCancel context.CancelFunc
 	capabilityReconcileWG     sync.WaitGroup
 	controlPlaneReports       *servicecontrolplane.Coordinator
+	memoryObservationMu       sync.Mutex
+	memoryObservationNext     int64
+	memoryObservationReserved int64
 
 	ready atomic.Bool
 
@@ -92,6 +95,9 @@ type nodeStateStore interface {
 func NewSandboxService(ctx context.Context, cfg config.Config) (NodeOperatorService, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("sandbox service context is required")
+	}
+	if err := validateMemoryBoundaryConfiguration(cfg); err != nil {
+		return nil, err
 	}
 	networkConfig, err := cfg.PluginConfig.NetworkConfig.Normalized()
 	if err != nil {
@@ -126,6 +132,34 @@ func NewSandboxService(ctx context.Context, cfg config.Config) (NodeOperatorServ
 	}
 	s.watchContainerReadiness(healthChan)
 	return s, nil
+}
+
+// validateMemoryBoundaryConfiguration is deliberately called before network,
+// state-store, runtime, or cgroup initialization. A production memory boundary
+// with no qualified node reserve is a configuration error, not a late
+// readiness condition that may leave host side effects behind.
+func validateMemoryBoundaryConfiguration(cfg config.Config) error {
+	if _, err := cfg.PluginConfig.ResourceConfig.CgroupRootNameValue(); err != nil {
+		return err
+	}
+	mode, err := cfg.PluginConfig.RuntimeConfig.CgroupEnforcementMode()
+	if err != nil {
+		return err
+	}
+	reserve := cfg.PluginConfig.ResourceConfig.MemorySystemReserveBytes
+	switch mode {
+	case config.CgroupEnforcementRequired:
+		if reserve <= 0 {
+			return fmt.Errorf("memory_system_reserve_bytes must be explicitly positive when cgroup_enforcement=required")
+		}
+	case config.CgroupEnforcementDisabledDev:
+		if reserve != 0 {
+			return fmt.Errorf("memory_system_reserve_bytes must be zero when cgroup_enforcement=disabled_dev")
+		}
+	default:
+		return fmt.Errorf("unsupported cgroup enforcement mode %q", mode)
+	}
+	return nil
 }
 
 func configureNodeNetwork(cfg config.Config) error {

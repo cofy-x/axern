@@ -22,8 +22,7 @@ func TestPostgresConcurrentServiceStatusBatchesProjectOncePerNode(t *testing.T) 
 		nodeID := fmt.Sprintf("node-%d", i)
 		registerReadyNode(t, app, nodeID, now)
 		summary := controldtest.ReadySummary(now)
-		summary.Capacity.MemoryBytes = 64 << 30
-		summary.Allocatable.MemoryBytes = 64 << 30
+		controldtest.SetReadySummaryMemory(summary, 64<<30)
 		if _, err := app.NodeV1Handler().ReportNode(context.Background(), &nodev1.ReportNodeRequest{
 			NodeID:        nodeID,
 			Runtimes:      []string{"runsc"},

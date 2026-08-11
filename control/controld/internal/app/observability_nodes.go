@@ -34,10 +34,6 @@ func (a *App) observeResourcePolicy(_ context.Context, observe sdkobs.Float64Gau
 		attribute.String(sdkobs.AttrResource, "cpu_milli"),
 		attribute.String(sdkobs.AttrState, "overcommit_ratio"),
 	)
-	observe(float64(a.resourcePolicy.RunscRuntimeOverheadMemoryBytes),
-		attribute.String(sdkobs.AttrResource, "runsc_runtime_overhead_memory_bytes"),
-		attribute.String(sdkobs.AttrState, "reservation"),
-	)
 	return nil
 }
 
@@ -193,7 +189,7 @@ type nodeResourceObservation struct {
 
 func (a *App) activeReservedResources(ctx context.Context) (map[string]nodeReservedResources, error) {
 	rows, err := a.db.Pool().Query(ctx, `
-		SELECT node_id, COALESCE(sum(cpu_milli), 0), COALESCE(sum(memory_bytes + memory_overhead_bytes), 0), COALESCE(sum(ephemeral_storage_bytes), 0), COUNT(*)
+		SELECT node_id, COALESCE(sum(cpu_milli), 0), COALESCE(sum(sandbox_memory_request_bytes), 0), COALESCE(sum(ephemeral_storage_bytes), 0), COUNT(*)
 		FROM workload_reservations
 		WHERE released_at IS NULL
 		GROUP BY node_id

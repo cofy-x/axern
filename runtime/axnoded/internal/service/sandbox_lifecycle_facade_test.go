@@ -110,10 +110,16 @@ func TestStart_AddsRuntimeIDLabelForTemporaryRuntime(t *testing.T) {
 }
 
 func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
+	runtimeDeleted := make(chan struct{})
 	handler := &runtimeSpyHandler{name: "runsc", waitFunc: func(ctx context.Context, _ contract.HandlerOptions) (contract.Exit, error) {
-		<-ctx.Done()
-		return contract.Exit{}, ctx.Err()
+		select {
+		case <-runtimeDeleted:
+			return contract.Exit{Status: 0, Timestamp: time.Now().UTC()}, nil
+		case <-ctx.Done():
+			return contract.Exit{}, ctx.Err()
+		}
 	}}
+	handler.deleteHook = func() { close(runtimeDeleted) }
 	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
 	now := time.Now().UTC()
 	extension := capabilitycontract.ExtensionKey("example.com/accelerator", "model-a")

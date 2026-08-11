@@ -10,6 +10,10 @@ import "axern/control/storage/v1/storage_types.proto";
 
 message ResourceQuantity {
   int64 cpu_milli = 1;
+  // Total sandbox memory budget. requests.memory_bytes is the placement,
+  // reservation, and namespace-quota commitment. limits.memory_bytes is the
+  // host cgroup v2 hard boundary and includes runtime processes, guest
+  // accounting, kernel memory, shmem, and charged file/page cache.
   int64 memory_bytes = 2;
   // Sandbox-lifetime node-local disposable storage managed by Axern. The
   // current accounting scope is the runtime writable root overlay and its
@@ -149,6 +153,7 @@ enum WorkloadDiagnosticCode {
   WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR = 12;
   WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT = 13;
   WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST = 14;
+  WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED = 15;
 }
 
 enum LeaseType {

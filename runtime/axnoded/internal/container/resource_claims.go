@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -13,7 +14,6 @@ import (
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
-	"github.com/cofy-x/axern/runtime/axnoded/pkg/jsonutil"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/sirupsen/logrus"
 )
@@ -103,20 +103,43 @@ func (m *Manager) Release(resource OccupiedResource) error {
 }
 
 func (m *Manager) ReleaseResource(resources map[resourcemanager.ResourceName]string) error {
-	var releaseErr error
-	for r, key := range resources {
-		manager, ok := m.resourceManagers.Get(string(r))
-		if !ok {
-			releaseErr = errors.Join(releaseErr, fmt.Errorf("resource manager for %s not found", r))
-			continue
-		}
-		if err := manager.Recycle(key); err != nil {
-			releaseErr = errors.Join(releaseErr, fmt.Errorf("recycle resource %s[%s]: %w", r, key, err))
-		} else {
-			logrus.Infof("recycle resource %s[%s] success", r, key)
+	// Cgroup retirement is the memory-commitment release barrier. Keep it last:
+	// if any network or other allocation-owned resource cannot be retired, the
+	// cgroup lease must remain assigned so node-local admission continues to
+	// charge the allocation. Sorting also makes cleanup and its diagnostics
+	// deterministic instead of depending on Go map iteration order.
+	names := make([]resourcemanager.ResourceName, 0, len(resources))
+	for name := range resources {
+		if name != resourcemanager.CgroupResourceName {
+			names = append(names, name)
 		}
 	}
-	return releaseErr
+	sort.Slice(names, func(i, j int) bool { return names[i] < names[j] })
+
+	release := func(r resourcemanager.ResourceName) error {
+		key := resources[r]
+		manager, ok := m.resourceManagers.Get(string(r))
+		if !ok {
+			return fmt.Errorf("resource manager for %s not found", r)
+		}
+		if err := manager.Recycle(key); err != nil {
+			return fmt.Errorf("recycle resource %s[%s]: %w", r, key, err)
+		}
+		logrus.Infof("recycle resource %s[%s] success", r, key)
+		return nil
+	}
+
+	var releaseErr error
+	for _, name := range names {
+		releaseErr = errors.Join(releaseErr, release(name))
+	}
+	if releaseErr != nil {
+		return releaseErr
+	}
+	if _, ok := resources[resourcemanager.CgroupResourceName]; ok {
+		return release(resourcemanager.CgroupResourceName)
+	}
+	return nil
 }
 
 func (m *Manager) CollectResourceByID(id string) (OccupiedResource, error) {
@@ -237,16 +260,4 @@ func parseProcessCgroupPath(raw string) (string, error) {
 		return "", fmt.Errorf("process cgroup path not found")
 	}
 	return fallback, nil
-}
-
-func (m *Manager) UpdateCgroupResource(containerID, resourceValue string) error {
-	ociPath := filepath.Join(m.root, containerID, "config.json")
-	oci, err := runtimeoci.LoadSpec(ociPath)
-	if err != nil {
-		return err
-	}
-	oci.Annotations[fmt.Sprintf("%s%s", resourcemanager.ResourceAnnotationKeyPrefix, resourcemanager.CgroupResourceName)] = resourceValue
-	oci.Linux.CgroupsPath = resourceValue
-	buf, _ := jsonutil.UnescapedMarshal(oci)
-	return os.WriteFile(ociPath, buf, 0644)
 }

@@ -68,7 +68,7 @@ func (s *PGStore) recordServiceObservationBatchEvents(ctx context.Context, tx pg
 			return transition.nextStatus == commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED ||
 				transition.nextStatus == commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED
 		})
-		diagnosticCode := workloadkernel.ClassifyDiagnostic(cause.nextStatus, next.GetMessage())
+		diagnosticCode := workloadkernel.ResolveDiagnostic(cause.diagnosticCode, cause.nextStatus, next.GetMessage())
 		if diagnosticCode == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_LIVENESS_PROBE_FAILED {
 			if err := recordServiceEvent(ctx, tx, servicekernel.NewServiceEvent(
 				next.GetID(),
@@ -119,6 +119,7 @@ func applyObservedStatusBatchMessage(service *servicev1.Service, transitions []*
 	}
 	if service.GetStatus() == servicev1.ServiceStatus_SERVICE_STATUS_READY {
 		service.Message = ""
+		service.DiagnosticCode = commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED
 		return
 	}
 	if service.GetStatus() == servicev1.ServiceStatus_SERVICE_STATUS_DEGRADED {
@@ -128,6 +129,7 @@ func applyObservedStatusBatchMessage(service *servicev1.Service, transitions []*
 				strings.TrimSpace(transition.message) != ""
 		}); transition != nil && strings.TrimSpace(transition.message) != "" {
 			service.Message = strings.TrimSpace(transition.message)
+			service.DiagnosticCode = workloadkernel.ResolveDiagnostic(transition.diagnosticCode, transition.nextStatus, transition.message)
 			return
 		}
 	}

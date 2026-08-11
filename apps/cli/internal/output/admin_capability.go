@@ -84,6 +84,29 @@ func RenderAllocationCapabilityDiagnostics(w io.Writer, diagnostics *adminv1.Get
 		diagnostics.GetCreateDependencySetDigest(),
 		FormatProtoTimestamp(diagnostics.GetCreateAdmittedAt()),
 	}})
+	if admission := diagnostics.GetMemoryAdmission(); admission != nil {
+		budget := admission.GetNodeMemoryBudget()
+		rootLimit := "max"
+		if budget.GetDelegatedRootLimitFinite() {
+			rootLimit = formatBytes(budget.GetDelegatedRootLimitBytes())
+		}
+		RenderTable(w, []string{"MEMORY REQUEST", "MEMORY LIMIT", "BUDGET MODE", "CAPACITY IDENTITY", "PHYSICAL", "SOURCE ALLOCATABLE", "CGROUP ROOT", "SYSTEM RESERVE", "NODE EFFECTIVE", "NODE COMMITTED", "CLEANUP DEBT", "INTERNAL", "BUDGET SAMPLED", "ADMITTED"}, [][]string{{
+			formatBytes(admission.GetSandboxMemoryRequestBytes()),
+			formatBytes(admission.GetSandboxMemoryLimitBytes()),
+			budget.GetMode().String(),
+			budget.GetCapacityIdentity(),
+			formatBytes(budget.GetPhysicalCapacityBytes()),
+			formatBytes(budget.GetSourceAllocatableBytes()),
+			rootLimit,
+			formatBytes(budget.GetSystemReserveBytes()),
+			formatBytes(budget.GetEffectiveAllocatableBytes()),
+			formatBytes(admission.GetNodeLocalCommitmentBytes()),
+			formatBytes(budget.GetCleanupDebtBytes()),
+			formatBytes(budget.GetInternalCurrentBytes()),
+			FormatProtoTimestamp(budget.GetSampledAt()),
+			FormatProtoTimestamp(admission.GetAdmittedAt()),
+		}})
+	}
 	rows := make([][]string, 0, len(diagnostics.GetRequiredDependencies())+len(diagnostics.GetAdmittedDependencies()))
 	appendDependencies := func(kind string, dependencies []*capabilityv1.CapabilityDependency) {
 		for _, dependency := range dependencies {
@@ -132,6 +155,42 @@ func RenderAllocationCapabilityDiagnostics(w io.Writer, diagnostics *adminv1.Get
 	if diagnostics.GetReconcile() != nil {
 		RenderCapabilityBacklog(w, []*adminv1.AdminCapabilityReconcileItem{diagnostics.GetReconcile()})
 	}
+	if observation := diagnostics.GetLatestMemoryObservation(); observation != nil {
+		RenderTable(w, []string{"MEMORY CURRENT", "PEAK", "ANON", "FILE", "SHMEM", "KERNEL", "DIRTY", "WRITEBACK", "OOM KILL", "CGROUP", "CLEANUP", "OBSERVED"}, [][]string{{
+			formatBytes(observation.GetCurrentBytes()),
+			formatBytes(observation.GetPeakBytes()),
+			formatBytes(observation.GetAnonBytes()),
+			formatBytes(observation.GetFileBytes()),
+			formatBytes(observation.GetShmemBytes()),
+			formatBytes(observation.GetKernelBytes()),
+			formatBytes(observation.GetDirtyBytes()),
+			formatBytes(observation.GetWritebackBytes()),
+			fmt.Sprintf("%d", observation.GetEventOomKill()),
+			ShortMessage(observation.GetCgroupIdentity(), 18),
+			strings.ToLower(strings.TrimPrefix(observation.GetCleanupState().String(), "ALLOCATION_MEMORY_CLEANUP_STATE_")),
+			FormatProtoTimestamp(observation.GetObservedAt()),
+		}})
+	}
+}
+
+func formatBytes(value int64) string {
+	if value == 0 {
+		return "0 B"
+	}
+	const unit = int64(1024)
+	if value < unit {
+		return fmt.Sprintf("%d B", value)
+	}
+	divisor := unit
+	suffix := "KiB"
+	for _, next := range []string{"MiB", "GiB", "TiB"} {
+		if value < divisor*unit {
+			break
+		}
+		divisor *= unit
+		suffix = next
+	}
+	return fmt.Sprintf("%.1f %s", float64(value)/float64(divisor), suffix)
 }
 
 func capabilityKeyLabel(key *capabilityv1.CapabilityKey) string {

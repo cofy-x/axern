@@ -61,6 +61,7 @@ func TestPostgresServiceConfigUpdateMultiReplicaKeepsAvailability(t *testing.T) 
 	if err != nil {
 		t.Fatalf("UpdateService(config) error = %v", err)
 	}
+	reconcileAllocationLifecycle(t, app, now)
 	if len(updateResp.GetService().GetAllocationIds()) != 3 {
 		t.Fatalf("allocation_ids after first surge = %#v, want 3", updateResp.GetService().GetAllocationIds())
 	}
@@ -234,6 +235,7 @@ func TestPostgresServiceConfigUpdateHonorsCustomRolloutPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateService(config) error = %v", err)
 	}
+	reconcileAllocationLifecycle(t, app, now)
 	if len(updateResp.GetService().GetAllocationIds()) != 1 {
 		t.Fatalf("allocation_ids after rollout start = %#v, want 1 after no-surge deletion", updateResp.GetService().GetAllocationIds())
 	}
@@ -312,6 +314,7 @@ func TestPostgresServiceScaleDownDuringRolloutDrainsBeforeAdmittingReplacement(t
 	if err != nil {
 		t.Fatalf("UpdateService(replicas+config) error = %v", err)
 	}
+	reconcileAllocationLifecycle(t, app, now)
 	if updateResp.GetService().GetReplicas() != 1 {
 		t.Fatalf("replicas after update = %d, want 1", updateResp.GetService().GetReplicas())
 	}

@@ -89,9 +89,20 @@ func (s *Server) GetAllocationCapabilityDiagnostics(ctx context.Context, req *ad
 		RequiredDependencies: diagnostics.Dependencies, AdmittedDependencies: diagnostics.AdmittedDependencies,
 		ConditionSet: diagnostics.ConditionSet, Reconcile: capabilityReconcileItemToProto(diagnostics.Reconcile),
 		CreateAdmissionRecorded: diagnostics.CreateAdmissionRecorded, CreateDependencySetDigest: diagnostics.CreateDependencySetDigest,
+		LatestMemoryObservation: diagnostics.LatestMemoryObservation,
 	}
 	if diagnostics.CreateAdmittedAt != nil {
 		response.CreateAdmittedAt = timestamppb.New(*diagnostics.CreateAdmittedAt)
+	}
+	if admission := diagnostics.MemoryAdmission; admission != nil {
+		response.MemoryAdmission = &adminv1.AllocationMemoryAdmissionEvidence{
+			SandboxMemoryRequestBytes: admission.SandboxMemoryRequestBytes,
+			SandboxMemoryLimitBytes:   admission.SandboxMemoryLimitBytes,
+			NodeMemoryBudget:          admission.NodeMemoryBudget,
+			SummaryCollectedAt:        timestamppb.New(admission.SummaryCollectedAt),
+			NodeLocalCommitmentBytes:  admission.NodeLocalCommitmentBytes,
+			AdmittedAt:                timestamppb.New(admission.AdmittedAt),
+		}
 	}
 	return response, nil
 }

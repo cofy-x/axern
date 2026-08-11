@@ -56,20 +56,14 @@ func TestPostgresServiceCRUD(t *testing.T) {
 	if len(createResp.GetService().GetAllocationIds()) != 0 {
 		t.Fatalf("durable create allocation_ids = %#v, want reconciliation to admit replicas", createResp.GetService().GetAllocationIds())
 	}
-	if err := app.serviceReconciler.ReconcilePending(context.Background(), now); err != nil {
-		t.Fatalf("ReconcilePending(after create) error = %v", err)
-	}
-	admittedResp, err := public.GetService(context.Background(), &servicev1.GetServiceRequest{ServiceID: serviceID})
-	if err != nil {
-		t.Fatalf("GetService(after admission) error = %v", err)
-	}
-	if len(admittedResp.GetService().GetAllocationIds()) != 2 {
-		t.Fatalf("admitted allocation_ids = %#v, want 2 replicas", admittedResp.GetService().GetAllocationIds())
+	admitted := reconcileCreatedService(t, app, serviceID, now)
+	if len(admitted.GetAllocationIds()) != 2 {
+		t.Fatalf("admitted allocation_ids = %#v, want 2 replicas", admitted.GetAllocationIds())
 	}
 	if len(lifecycle.CreateRequests) != 2 {
 		t.Fatalf("node lifecycle create requests = %d, want 2", len(lifecycle.CreateRequests))
 	}
-	initialAllocationIDs := append([]string(nil), admittedResp.GetService().GetAllocationIds()...)
+	initialAllocationIDs := append([]string(nil), admitted.GetAllocationIds()...)
 	observations := make([]*nodev1.AllocationStatusObservation, 0, len(initialAllocationIDs))
 	for _, allocationID := range initialAllocationIDs {
 		observations = append(observations, &nodev1.AllocationStatusObservation{
@@ -97,8 +91,8 @@ func TestPostgresServiceCRUD(t *testing.T) {
 	if gotResp.GetService().GetReadyReplicas() != 2 || gotResp.GetService().GetUnhealthyReplicas() != 0 {
 		t.Fatalf("service counters after RUNNING = ready:%d unhealthy:%d, want 2/0", gotResp.GetService().GetReadyReplicas(), gotResp.GetService().GetUnhealthyReplicas())
 	}
-	if gotResp.GetService().GetVersion() != admittedResp.GetService().GetVersion()+1 {
-		t.Fatalf("service version after batch = %d, want %d", gotResp.GetService().GetVersion(), admittedResp.GetService().GetVersion()+1)
+	if gotResp.GetService().GetVersion() != admitted.GetVersion()+1 {
+		t.Fatalf("service version after batch = %d, want %d", gotResp.GetService().GetVersion(), admitted.GetVersion()+1)
 	}
 	if _, err := node.BatchReportAllocationStatus(context.Background(), &nodev1.BatchReportAllocationStatusRequest{
 		NodeID:        "node-a",
@@ -134,6 +128,7 @@ func TestPostgresServiceCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateService() error = %v", err)
 	}
+	reconcileAllocationLifecycle(t, app, now)
 	if updateResp.GetService().GetReplicas() != 0 {
 		t.Fatalf("updated replicas = %d, want 0", updateResp.GetService().GetReplicas())
 	}
@@ -159,6 +154,7 @@ func TestPostgresServiceCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateService(scale-up) error = %v", err)
 	}
+	reconcileAllocationLifecycle(t, app, now)
 	if updateResp.GetService().GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_RECONCILING {
 		t.Fatalf("scaled-up status = %v, want RECONCILING before RUNNING report", updateResp.GetService().GetStatus())
 	}
@@ -173,8 +169,16 @@ func TestPostgresServiceCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeleteService() error = %v", err)
 	}
-	if deleteResp.GetService().GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETED {
-		t.Fatalf("deleted status = %v, want DELETED", deleteResp.GetService().GetStatus())
+	if deleteResp.GetService().GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETING {
+		t.Fatalf("delete request status = %v, want DELETING", deleteResp.GetService().GetStatus())
+	}
+	reconcileDeletedServiceAllocations(t, app, now)
+	deletedResp, err := public.GetService(context.Background(), &servicev1.GetServiceRequest{ServiceID: serviceID})
+	if err != nil {
+		t.Fatalf("GetService(after delete reconciliation) error = %v", err)
+	}
+	if deletedResp.GetService().GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETED {
+		t.Fatalf("reconciled delete status = %v, want DELETED", deletedResp.GetService().GetStatus())
 	}
 	staleStatus, err := app.servicePG.UpdateStatus(
 		context.Background(),

@@ -11,6 +11,8 @@ func TestVerifyDurableEnforcementManifestRequiresExactImmutableContract(t *testi
 	durable := &apipb.AllocationEnforcementManifest{
 		RuntimeName: "runsc", MemoryLimitBytes: 1024, EphemeralStorageLimitBytes: 2048,
 		CgroupPath: "/workload", RuntimeCgroupPath: "/workload/runtime",
+		CgroupBootID: "boot-1", CgroupMountIdentity: "mount-1",
+		CgroupParentInode: 10, CgroupLeafInode: 11, MemoryOomGroup: true,
 		RunscOverlayArg:        "root:dir=/filestore/runsc,size=2048",
 		FilestoreMountIdentity: "42:/dev/loop0:/filestore", BundlePath: "/containers/allocation",
 		RunscBackingDirectory: "/filestore/runsc", RunscBackingDirectoryIdentity: "devino:v1:fe:10",

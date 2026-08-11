@@ -26,6 +26,7 @@ type serviceStatusTransition struct {
 	nextStatus       commonv1.AllocationStatus
 	nextReady        bool
 	message          string
+	diagnosticCode   commonv1.WorkloadDiagnosticCode
 	readinessMessage string
 }
 
@@ -221,20 +222,21 @@ func (s *PGStore) updateServiceAllocationStatuses(ctx context.Context, tx pgx.Tx
 			readinessMessage = ""
 		}
 		message := strings.TrimSpace(observation.GetMessage())
-		if serviceAllocationObservationMatches(alloc, observation, nextReady, readinessMessage, message) {
+		diagnosticCode := observation.GetDiagnosticCode()
+		if serviceAllocationObservationMatches(alloc, observation, nextReady, readinessMessage, diagnosticCode, message) {
 			continue
 		}
 		nodeActiveAt := allocationkernel.NodeActiveObservationTime(observation, now)
 		if _, err := tx.Exec(ctx, `
 			UPDATE allocations
-			SET status = $2, ready = $3, readiness_message = $4, exit_code = $5, exit_code_known = $6, message = $7,
-				version = version + 1, updated_at = $8,
+			SET status = $2, ready = $3, readiness_message = $4, exit_code = $5, exit_code_known = $6, diagnostic_code = $7, message = $8,
+				version = version + 1, updated_at = $9,
 				node_active_at = CASE
-					WHEN node_active_at IS NULL AND $2 IN ($11, $12) THEN $13
+					WHEN node_active_at IS NULL AND $2 IN ($12, $13) THEN $14
 					ELSE node_active_at
 				END
-			WHERE allocation_id = $1 AND attempt = $9 AND owner_type = $10
-		`, alloc.AllocationID, nextStatus.String(), nextReady, readinessMessage, observation.GetExitCode(), observation.GetExitCodeKnown(), message, now.UTC(), observation.GetAttempt(), allocationOwnerService, commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(), nodeActiveAt); err != nil {
+			WHERE allocation_id = $1 AND attempt = $10 AND owner_type = $11
+		`, alloc.AllocationID, nextStatus.String(), nextReady, readinessMessage, observation.GetExitCode(), observation.GetExitCodeKnown(), diagnosticCode.String(), message, now.UTC(), observation.GetAttempt(), allocationOwnerService, commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(), nodeActiveAt); err != nil {
 			return nil, fmt.Errorf("update service allocation status: %w", err)
 		}
 		transitions = append(transitions, &serviceStatusTransition{
@@ -244,6 +246,7 @@ func (s *PGStore) updateServiceAllocationStatuses(ctx context.Context, tx pgx.Tx
 			nextStatus:       nextStatus,
 			nextReady:        nextReady,
 			message:          message,
+			diagnosticCode:   diagnosticCode,
 			readinessMessage: readinessMessage,
 		})
 		if allocationkernel.IsEnded(nextStatus) {
@@ -273,13 +276,14 @@ func (s *PGStore) updateServiceAllocationStatuses(ctx context.Context, tx pgx.Tx
 	return transitions, nil
 }
 
-func serviceAllocationObservationMatches(alloc *allocationRecord, observation *nodev1.AllocationStatusObservation, ready bool, readinessMessage, message string) bool {
+func serviceAllocationObservationMatches(alloc *allocationRecord, observation *nodev1.AllocationStatusObservation, ready bool, readinessMessage string, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) bool {
 	return alloc != nil && observation != nil &&
 		alloc.Status == observation.GetStatus() &&
 		alloc.Ready == ready &&
 		strings.TrimSpace(alloc.ReadinessMessage) == readinessMessage &&
 		alloc.ExitCode == observation.GetExitCode() &&
-		alloc.ExitCodeKnown == observation.GetExitCodeKnown() && strings.TrimSpace(alloc.Message) == message
+		alloc.ExitCodeKnown == observation.GetExitCodeKnown() &&
+		alloc.DiagnosticCode == diagnosticCode && strings.TrimSpace(alloc.Message) == message
 }
 
 func (s *PGStore) projectServiceStatusBatch(ctx context.Context, tx pgx.Tx, current *servicev1.Service, transitions []*serviceStatusTransition, now time.Time) ([]*servicekernel.AllocationStatusReport, bool, error) {

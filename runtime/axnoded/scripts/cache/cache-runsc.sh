@@ -3,12 +3,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+AXERN_GVISOR_LOCK="${ROOT_DIR}/gvisor.lock"
 . "${ROOT_DIR}/runtime-tools.sh"
 
 RUNSC_CACHE_ARCH="${RUNSC_CACHE_ARCH:-aarch64}"
 RUNSC_CACHE_REFRESH="${RUNSC_CACHE_REFRESH:-false}"
 RUNSC_CACHE_ROOT="${RUNSC_CACHE_ROOT:-${ROOT_DIR}/.cache/gvisor}"
-RUNSC_RELEASE="${RUNSC_RELEASE:-${AXERN_GVISOR_RELEASE}}"
 RUNSC_RELEASE_BASE_URL="${RUNSC_RELEASE_BASE_URL:-https://storage.googleapis.com/gvisor/releases/release}"
 
 case "${RUNSC_CACHE_ARCH}" in
@@ -28,7 +28,8 @@ esac
 cache_dir="${RUNSC_CACHE_ROOT}/${RUNSC_CACHE_ARCH}"
 runsc_path="${cache_dir}/runsc"
 release_path="${cache_dir}/.release"
-url="${RUNSC_RELEASE_BASE_URL}/${RUNSC_RELEASE}/${RUNSC_RELEASE_ARCH}/gvisor.tar.bz2"
+archive_digest_path="${cache_dir}/.archive-sha512"
+url="${RUNSC_RELEASE_BASE_URL}/${AXERN_GVISOR_RELEASE}/${RUNSC_RELEASE_ARCH}/gvisor.tar.bz2"
 
 mkdir -p "${cache_dir}"
 
@@ -49,7 +50,9 @@ verify_sha512() {
 if [ "${RUNSC_CACHE_REFRESH}" != "true" ] && \
    [ -x "${runsc_path}" ] && \
    [ -x "${cache_dir}/gvisor-bin/checkpointgofer" ] && \
-   [ "$(cat "${release_path}" 2>/dev/null || true)" = "${RUNSC_RELEASE}" ]; then
+   [ "$(cat "${release_path}" 2>/dev/null || true)" = "${AXERN_GVISOR_RELEASE}" ] && \
+   [ "$(cat "${archive_digest_path}" 2>/dev/null || true)" = "${RUNSC_ARCHIVE_SHA512}" ] && \
+   LC_ALL=C grep -aFq "${AXERN_GVISOR_TAG}" "${runsc_path}"; then
   echo "runsc_cache_ready=true"
   echo "runsc_cache_path=${runsc_path}"
   exit 0
@@ -70,8 +73,13 @@ tar -xjf "${tmpdir}/gvisor.tar.bz2" -C "${tmpdir}/extracted"
 rm -rf "${cache_dir}"
 mkdir -p "${cache_dir}"
 cp -a "${tmpdir}/extracted/." "${cache_dir}/"
-printf '%s\n' "${RUNSC_RELEASE}" > "${release_path}"
+printf '%s\n' "${AXERN_GVISOR_RELEASE}" > "${release_path}"
+printf '%s\n' "${RUNSC_ARCHIVE_SHA512}" > "${archive_digest_path}"
 chmod 0755 "${runsc_path}" "${cache_dir}/containerd-shim-runsc-v1" "${cache_dir}"/gvisor-bin/*
+LC_ALL=C grep -aFq "${AXERN_GVISOR_TAG}" "${runsc_path}" || {
+  echo "cached runsc does not identify the locked gVisor release ${AXERN_GVISOR_TAG}" >&2
+  exit 1
+}
 
 echo "runsc_cache_ready=true"
 echo "runsc_cache_path=${runsc_path}"

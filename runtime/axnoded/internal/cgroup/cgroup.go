@@ -1,10 +1,12 @@
 package cgroup
 
 import (
-	specs "github.com/opencontainers/runtime-spec/specs-go"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
 
 type CgroupStats struct {
@@ -27,6 +29,12 @@ type Cgroup interface {
 
 type CgroupDriver interface {
 	Mode() string
+	// ResolveRoot returns the kernel-absolute sandbox subtree below the
+	// process's delegated cgroup-v2 root.
+	ResolveRoot(rootName string) (string, error)
+	// EnsureRoot establishes the runtime-owned hierarchy and controller
+	// delegation without creating an allocation cgroup.
+	EnsureRoot(rootName string) error
 	Create(group string, resources *specs.LinuxResources) (Cgroup, error)
 	Load(group string) (Cgroup, error)
 	ExistingGroups(rootName string) ([]string, error)
@@ -39,7 +47,7 @@ const (
 	CgroupModeV2 = "v2"
 
 	CgroupWorkloadLeafName = "workload"
-	cgroupInternalGroup    = ".axnoded-system"
+	cgroupInternalGroup    = "internal"
 )
 
 var (
@@ -81,6 +89,20 @@ func WorkloadGroup(group string, mode string) string {
 		return normalizeGroup(group)
 	}
 	return filepath.Join(normalizeGroup(group), CgroupWorkloadLeafName)
+}
+
+func validateManagedRootName(rootName string) (string, error) {
+	rootName = strings.TrimSpace(rootName)
+	if rootName == "" {
+		return "", fmt.Errorf("managed cgroup root name is required")
+	}
+	if rootName == "." || rootName == ".." || strings.ContainsAny(rootName, `/\\`) {
+		return "", fmt.Errorf("managed cgroup root %q must be a single child name", rootName)
+	}
+	if rootName == cgroupInternalGroup || rootName == CgroupWorkloadLeafName {
+		return "", fmt.Errorf("managed cgroup root %q is reserved", rootName)
+	}
+	return rootName, nil
 }
 
 func maxInt(a, b int) int {

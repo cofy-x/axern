@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"sync"
 	"time"
 
@@ -113,9 +114,15 @@ func ReadySummary(collectedAt time.Time) *nodev1.NodeSummary {
 		NodeState:          nodev1.NodeState_NODE_STATE_READY,
 		CapabilitySnapshot: readyCapabilitySnapshot(collectedAt),
 		Resources:          &nodev1.ResourcesSummary{AxnodedUsedMilli: 100, AxnodedUsedBytes: 1000},
-		Allocatable:        &commonv1.ResourceQuantity{CpuMilli: 8000, MemoryBytes: 16 << 30},
-		Capacity:           &commonv1.ResourceQuantity{CpuMilli: 8000, MemoryBytes: 16 << 30},
-		Pools:              &nodev1.PoolsSummary{RuntimeSlots: &nodev1.PoolState{Idle: 8, Capacity: 8}, Cgroup: &nodev1.PoolState{Idle: 1, Capacity: 8}, Interface: &nodev1.PoolState{Idle: 1, Capacity: 8}},
+		Allocatable:        &commonv1.ResourceQuantity{CpuMilli: 8000, MemoryBytes: 16 << 30, EphemeralStorageBytes: 64 << 30},
+		Capacity:           &commonv1.ResourceQuantity{CpuMilli: 8000, MemoryBytes: 20 << 30, EphemeralStorageBytes: 64 << 30},
+		MemoryBudget: &nodev1.NodeMemoryBudget{
+			PhysicalCapacityBytes: 20 << 30, SourceAllocatableBytes: 17 << 30, SystemReserveBytes: 1 << 30,
+			EffectiveAllocatableBytes: 16 << 30, CapacityIdentity: "test-boot:test-mount:test-root",
+			Mode:      nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
+			SampledAt: timestamppb.New(collectedAt),
+		},
+		Pools: &nodev1.PoolsSummary{RuntimeSlots: &nodev1.PoolState{Idle: 8, Capacity: 8}, Cgroup: &nodev1.PoolState{Idle: 1, Capacity: 8}, Interface: &nodev1.PoolState{Idle: 1, Capacity: 8}},
 		Components: &nodev1.ComponentsSummary{
 			Axnoded:  &nodev1.AxnodedSummary{State: nodev1.ComponentState_COMPONENT_STATE_READY, Ready: true},
 			Imagemgr: &nodev1.ImagemgrSummary{State: nodev1.ComponentState_COMPONENT_STATE_READY, Reachable: true},
@@ -138,7 +145,44 @@ func readyCapabilitySnapshot(collectedAt time.Time) *capabilityv1.CapabilitySnap
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS,
 	}
-	return AvailableCapabilitySnapshot(collectedAt, platforms...)
+	snapshot := AvailableCapabilitySnapshot(collectedAt, platforms...)
+	sequence := collectedAt.UTC().UnixNano()
+	if sequence <= 0 {
+		sequence = 1
+	}
+	snapshot.Sequence = sequence
+	snapshot.SnapshotID = fmt.Sprintf("test-snapshot-%d", sequence)
+	return snapshot
+}
+
+// SetReadySummaryMemory rewrites the complete, internally consistent memory
+// budget projection used by placement tests. Tests must not mutate only the
+// legacy allocatable field because production admission binds it to the
+// independently sampled capacity budget.
+func SetReadySummaryMemory(summary *nodev1.NodeSummary, effectiveAllocatableBytes int64) {
+	if summary == nil {
+		return
+	}
+	const systemReserveBytes = int64(1 << 30)
+	physicalCapacityBytes := effectiveAllocatableBytes + systemReserveBytes
+	if summary.Allocatable == nil {
+		summary.Allocatable = &commonv1.ResourceQuantity{}
+	}
+	if summary.Capacity == nil || summary.Capacity == summary.Allocatable {
+		summary.Capacity = proto.Clone(summary.Allocatable).(*commonv1.ResourceQuantity)
+	}
+	summary.Allocatable.MemoryBytes = effectiveAllocatableBytes
+	summary.Capacity.MemoryBytes = physicalCapacityBytes
+	sampledAt := summary.GetCollectedAt()
+	summary.MemoryBudget = &nodev1.NodeMemoryBudget{
+		PhysicalCapacityBytes:     physicalCapacityBytes,
+		SourceAllocatableBytes:    physicalCapacityBytes,
+		SystemReserveBytes:        systemReserveBytes,
+		EffectiveAllocatableBytes: effectiveAllocatableBytes,
+		CapacityIdentity:          "test-boot:test-mount:test-root",
+		Mode:                      nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
+		SampledAt:                 sampledAt,
+	}
 }
 
 func cloneNodeRecord(in *nodekernel.Record) *nodekernel.Record {

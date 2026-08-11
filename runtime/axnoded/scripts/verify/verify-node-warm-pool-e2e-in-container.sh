@@ -30,6 +30,8 @@ if ! [ -S "${AXNODED_SOCKET}" ] || ! curl -fsS "http://127.0.0.1:23001/readyz" >
   exit 1
 fi
 
+metricsz_wait_platform_capability_available "PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT"
+
 start_container() {
   local index="$1"
   verify-cli \

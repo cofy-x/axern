@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -53,12 +54,21 @@ func registerReadyNode(t *testing.T, app *App, nodeID string, now time.Time) {
 	}); err != nil {
 		t.Fatalf("RegisterNode() error = %v", err)
 	}
+	reportReadyNodeSnapshot(t, app, nodeID, now, 1)
+}
+
+func reportReadyNodeSnapshot(t *testing.T, app *App, nodeID string, now time.Time, sequence int64) {
+	t.Helper()
+	node := app.NodeV1Handler()
+	summary := controldtest.ReadySummary(now)
+	summary.CapabilitySnapshot.Sequence = sequence
+	summary.CapabilitySnapshot.SnapshotID = fmt.Sprintf("test-snapshot-%d", sequence)
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
 		NodeID:        nodeID,
 		Runtimes:      []string{"runsc"},
 		NodeTarget:    "127.0.0.1:25000",
 		NodeAuthToken: "test-node-token",
-		Summary:       controldtest.ReadySummary(now),
+		Summary:       summary,
 	}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
@@ -69,11 +79,19 @@ func reconcileCreatedService(t *testing.T, app *App, serviceID string, now time.
 	if err := app.serviceReconciler.ReconcilePending(context.Background(), now); err != nil {
 		t.Fatalf("ReconcilePending(service admission) error = %v", err)
 	}
+	reconcileAllocationLifecycle(t, app, now)
 	response, err := app.PublicV1Handler().GetService(context.Background(), &servicev1.GetServiceRequest{ServiceID: serviceID})
 	if err != nil {
 		t.Fatalf("GetService(after admission) error = %v", err)
 	}
 	return response.GetService()
+}
+
+func reconcileAllocationLifecycle(t *testing.T, app *App, now time.Time) {
+	t.Helper()
+	if _, err := app.allocationReconciler.ReconcileAllocationBatch(context.Background(), now); err != nil {
+		t.Fatalf("ReconcileAllocationBatch(allocation lifecycle) error = %v", err)
+	}
 }
 
 func createDefaultEnvironment(t *testing.T, app *App) *environmentv1.Environment {

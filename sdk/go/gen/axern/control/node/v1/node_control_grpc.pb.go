@@ -23,6 +23,7 @@ const (
 	NodeControl_ReportNode_FullMethodName                                = "/axern.control.node.v1.NodeControl/ReportNode"
 	NodeControl_BatchReportAllocationStatus_FullMethodName               = "/axern.control.node.v1.NodeControl/BatchReportAllocationStatus"
 	NodeControl_BatchReportAllocationCapabilityConditions_FullMethodName = "/axern.control.node.v1.NodeControl/BatchReportAllocationCapabilityConditions"
+	NodeControl_BatchReportAllocationMemoryObservations_FullMethodName   = "/axern.control.node.v1.NodeControl/BatchReportAllocationMemoryObservations"
 	NodeControl_WatchExecutionLeases_FullMethodName                      = "/axern.control.node.v1.NodeControl/WatchExecutionLeases"
 	NodeControl_WatchTunnelSessions_FullMethodName                       = "/axern.control.node.v1.NodeControl/WatchTunnelSessions"
 	NodeControl_ReportTunnelSessionStatus_FullMethodName                 = "/axern.control.node.v1.NodeControl/ReportTunnelSessionStatus"
@@ -36,6 +37,7 @@ type NodeControlClient interface {
 	ReportNode(ctx context.Context, in *ReportNodeRequest, opts ...grpc.CallOption) (*ReportNodeResponse, error)
 	BatchReportAllocationStatus(ctx context.Context, in *BatchReportAllocationStatusRequest, opts ...grpc.CallOption) (*BatchReportAllocationStatusResponse, error)
 	BatchReportAllocationCapabilityConditions(ctx context.Context, in *BatchReportAllocationCapabilityConditionsRequest, opts ...grpc.CallOption) (*BatchReportAllocationCapabilityConditionsResponse, error)
+	BatchReportAllocationMemoryObservations(ctx context.Context, in *BatchReportAllocationMemoryObservationsRequest, opts ...grpc.CallOption) (*BatchReportAllocationMemoryObservationsResponse, error)
 	WatchExecutionLeases(ctx context.Context, in *WatchExecutionLeasesRequest, opts ...grpc.CallOption) (NodeControl_WatchExecutionLeasesClient, error)
 	WatchTunnelSessions(ctx context.Context, in *WatchTunnelSessionsRequest, opts ...grpc.CallOption) (NodeControl_WatchTunnelSessionsClient, error)
 	ReportTunnelSessionStatus(ctx context.Context, in *ReportTunnelSessionStatusRequest, opts ...grpc.CallOption) (*ReportTunnelSessionStatusResponse, error)
@@ -79,6 +81,15 @@ func (c *nodeControlClient) BatchReportAllocationStatus(ctx context.Context, in 
 func (c *nodeControlClient) BatchReportAllocationCapabilityConditions(ctx context.Context, in *BatchReportAllocationCapabilityConditionsRequest, opts ...grpc.CallOption) (*BatchReportAllocationCapabilityConditionsResponse, error) {
 	out := new(BatchReportAllocationCapabilityConditionsResponse)
 	err := c.cc.Invoke(ctx, NodeControl_BatchReportAllocationCapabilityConditions_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeControlClient) BatchReportAllocationMemoryObservations(ctx context.Context, in *BatchReportAllocationMemoryObservationsRequest, opts ...grpc.CallOption) (*BatchReportAllocationMemoryObservationsResponse, error) {
+	out := new(BatchReportAllocationMemoryObservationsResponse)
+	err := c.cc.Invoke(ctx, NodeControl_BatchReportAllocationMemoryObservations_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +177,7 @@ type NodeControlServer interface {
 	ReportNode(context.Context, *ReportNodeRequest) (*ReportNodeResponse, error)
 	BatchReportAllocationStatus(context.Context, *BatchReportAllocationStatusRequest) (*BatchReportAllocationStatusResponse, error)
 	BatchReportAllocationCapabilityConditions(context.Context, *BatchReportAllocationCapabilityConditionsRequest) (*BatchReportAllocationCapabilityConditionsResponse, error)
+	BatchReportAllocationMemoryObservations(context.Context, *BatchReportAllocationMemoryObservationsRequest) (*BatchReportAllocationMemoryObservationsResponse, error)
 	WatchExecutionLeases(*WatchExecutionLeasesRequest, NodeControl_WatchExecutionLeasesServer) error
 	WatchTunnelSessions(*WatchTunnelSessionsRequest, NodeControl_WatchTunnelSessionsServer) error
 	ReportTunnelSessionStatus(context.Context, *ReportTunnelSessionStatusRequest) (*ReportTunnelSessionStatusResponse, error)
@@ -187,6 +199,9 @@ func (UnimplementedNodeControlServer) BatchReportAllocationStatus(context.Contex
 }
 func (UnimplementedNodeControlServer) BatchReportAllocationCapabilityConditions(context.Context, *BatchReportAllocationCapabilityConditionsRequest) (*BatchReportAllocationCapabilityConditionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchReportAllocationCapabilityConditions not implemented")
+}
+func (UnimplementedNodeControlServer) BatchReportAllocationMemoryObservations(context.Context, *BatchReportAllocationMemoryObservationsRequest) (*BatchReportAllocationMemoryObservationsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchReportAllocationMemoryObservations not implemented")
 }
 func (UnimplementedNodeControlServer) WatchExecutionLeases(*WatchExecutionLeasesRequest, NodeControl_WatchExecutionLeasesServer) error {
 	return status.Errorf(codes.Unimplemented, "method WatchExecutionLeases not implemented")
@@ -282,6 +297,24 @@ func _NodeControl_BatchReportAllocationCapabilityConditions_Handler(srv interfac
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NodeControl_BatchReportAllocationMemoryObservations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchReportAllocationMemoryObservationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeControlServer).BatchReportAllocationMemoryObservations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeControl_BatchReportAllocationMemoryObservations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeControlServer).BatchReportAllocationMemoryObservations(ctx, req.(*BatchReportAllocationMemoryObservationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _NodeControl_WatchExecutionLeases_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(WatchExecutionLeasesRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -364,6 +397,10 @@ var NodeControl_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BatchReportAllocationCapabilityConditions",
 			Handler:    _NodeControl_BatchReportAllocationCapabilityConditions_Handler,
+		},
+		{
+			MethodName: "BatchReportAllocationMemoryObservations",
+			Handler:    _NodeControl_BatchReportAllocationMemoryObservations_Handler,
 		},
 		{
 			MethodName: "ReportTunnelSessionStatus",

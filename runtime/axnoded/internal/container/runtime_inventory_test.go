@@ -21,7 +21,7 @@ func newRuntimeInventoryTestManager(t *testing.T) *Manager {
 		root:             t.TempDir(),
 		recyclePath:      t.TempDir(),
 		containers:       cmap.New[*Container](),
-		monitorStopChan:  cmap.New[chan struct{}](),
+		monitors:         cmap.New[*containerMonitor](),
 		resourceManagers: cmap.New[resources.Manager](),
 		idGenerator:      truncindex.NewTruncGenerator(config.SandboxContainerPrefix, nil),
 	}
@@ -29,10 +29,7 @@ func newRuntimeInventoryTestManager(t *testing.T) *Manager {
 
 func TestReconcileRuntimeInventoryRemovesPersistedOrphan(t *testing.T) {
 	manager := newRuntimeInventoryTestManager(t)
-	manager.containers.Set("orphan", &Container{
-		Metadata: &apipb.ContainerMetadata{ID: "orphan", RuntimeHandler: "runsc"},
-		Spec:     &spec.Spec{},
-	})
+	require.NoError(t, manager.StoreMetadata("orphan", &apipb.ContainerMetadata{ID: "orphan", RuntimeHandler: "runsc"}))
 
 	require.NoError(t, manager.ReconcileRuntimeInventory(map[string]map[string]struct{}{
 		"runsc": {},

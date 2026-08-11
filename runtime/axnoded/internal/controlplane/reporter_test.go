@@ -24,6 +24,7 @@ type fakeNodeControlServer struct {
 	registerCalls []*nodev1.RegisterNodeRequest
 	reportCalls   []*nodev1.ReportNodeRequest
 	statusCalls   []*nodev1.BatchReportAllocationStatusRequest
+	memoryCalls   []*nodev1.BatchReportAllocationMemoryObservationsRequest
 }
 
 type fakeNodeControlProvider struct {
@@ -60,6 +61,13 @@ func (s *fakeNodeControlServer) BatchReportAllocationStatus(ctx context.Context,
 	defer s.mu.Unlock()
 	s.statusCalls = append(s.statusCalls, req)
 	return &nodev1.BatchReportAllocationStatusResponse{}, nil
+}
+
+func (s *fakeNodeControlServer) BatchReportAllocationMemoryObservations(_ context.Context, req *nodev1.BatchReportAllocationMemoryObservationsRequest) (*nodev1.BatchReportAllocationMemoryObservationsResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.memoryCalls = append(s.memoryCalls, req)
+	return &nodev1.BatchReportAllocationMemoryObservationsResponse{}, nil
 }
 
 func TestReporterSkipsHeartbeatUntilInventoryReady(t *testing.T) {
@@ -104,6 +112,38 @@ func TestReporterSkipsHeartbeatUntilInventoryReady(t *testing.T) {
 	}
 	if fake.reportCalls[0].GetSummary() == nil || fake.reportCalls[0].GetSummary().GetCollectedAt() == nil {
 		t.Fatalf("expected report call to carry summary.collected_at: %#v", fake.reportCalls[0])
+	}
+}
+
+func TestReporterSendsMemoryObservationsWhileInventoryIsNotReady(t *testing.T) {
+	client, fake, cleanup := newFakeNodeControlClient(t)
+	defer cleanup()
+
+	r := &Reporter{
+		nodeID:       "node-a",
+		runtimeNames: func() []string { return []string{"runsc"} },
+		snapshot: func() (nodeinventory.NodeInventorySnapshot, bool) {
+			snapshot := nodeinventory.NewSnapshot()
+			snapshot.AllocationMemoryObservations = []*nodev1.AllocationMemoryObservation{{
+				AllocationID: "allocation-a",
+			}}
+			return snapshot, false
+		},
+		summaryBuilder: func(nodeinventory.NodeInventorySnapshot) *nodev1.NodeSummary {
+			t.Fatal("summary must not be built while inventory is unavailable")
+			return nil
+		},
+		control: fakeNodeControlProvider{client: client},
+	}
+	r.report()
+
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.reportCalls) != 0 {
+		t.Fatalf("node report calls = %d, want 0", len(fake.reportCalls))
+	}
+	if len(fake.memoryCalls) != 1 || len(fake.memoryCalls[0].GetObservations()) != 1 {
+		t.Fatalf("memory report calls = %#v, want one observation batch", fake.memoryCalls)
 	}
 }
 
@@ -226,13 +266,14 @@ func TestReporterAllocationStatusPreservesObservedSemantics(t *testing.T) {
 		ObservedAt:       observedAt,
 	})
 	r.ReportAllocationStatus(AllocationStatusReport{
-		AllocationID:  "alloc-2",
-		Attempt:       2,
-		Status:        commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED,
-		ExitCode:      17,
-		ExitCodeKnown: true,
-		Message:       "process exited",
-		ObservedAt:    observedAt,
+		AllocationID:   "alloc-2",
+		Attempt:        2,
+		Status:         commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED,
+		ExitCode:       17,
+		ExitCodeKnown:  true,
+		Message:        "process exited",
+		DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED,
+		ObservedAt:     observedAt,
 	})
 
 	awaitStatusCalls(t, fake, 1)
@@ -253,6 +294,9 @@ func TestReporterAllocationStatusPreservesObservedSemantics(t *testing.T) {
 	}
 	if observations[0].GetReadinessMessage() != "warming up" {
 		t.Fatalf("readiness_message = %q, want warming up", observations[0].GetReadinessMessage())
+	}
+	if observations[1].GetDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED {
+		t.Fatalf("diagnostic_code = %v, want MEMORY_LIMIT_EXCEEDED", observations[1].GetDiagnosticCode())
 	}
 	if observations[1].GetAllocationID() != "alloc-2" || observations[1].GetStatus() != commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED {
 		t.Fatalf("second observation = id:%q status:%v, want alloc-2/EXITED", observations[1].GetAllocationID(), observations[1].GetStatus())

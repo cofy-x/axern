@@ -3,7 +3,6 @@ package allocation
 import (
 	"context"
 	"errors"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"strings"
 	"time"
 
@@ -11,11 +10,27 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/trace"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	"github.com/sirupsen/logrus"
 )
 
 func (h *Controller) deleteContainer(ctx context.Context, request *apipb.DeleteContainerRequest) (response *apipb.DeleteContainerResponse, err error) {
+	response, resource, err := h.deleteContainerRuntime(ctx, request)
+	if err != nil {
+		return response, err
+	}
+	if err := h.finalizeContainerDelete(request.ID, resource); err != nil {
+		return response, err
+	}
+	return response, nil
+}
+
+// deleteContainerRuntime crosses the runtime exit-state barrier and cleans
+// runtime-owned rootfs/storage plus activation networking, but deliberately
+// retains the node-local resource claims. The managed lifecycle releases
+// volumes and image leases before calling finalizeContainerDelete.
+func (h *Controller) deleteContainerRuntime(ctx context.Context, request *apipb.DeleteContainerRequest) (response *apipb.DeleteContainerResponse, resource container.OccupiedResource, err error) {
 	traceID, spanID := trace.GetContextID(ctx)
 	start := time.Now()
 	defer func() {
@@ -30,7 +45,7 @@ func (h *Controller) deleteContainer(ctx context.Context, request *apipb.DeleteC
 	c, handler, err := h.runtimeHandlerForContainer(request.ID)
 	if err != nil {
 		recordAllocationDeleteStage("resolve_runtime", "", stageStarted, err)
-		return response, err
+		return response, resource, err
 	}
 	runtimeName := c.Metadata.RuntimeHandler
 	recordAllocationDeleteStage("resolve_runtime", runtimeName, stageStarted, nil)
@@ -38,15 +53,15 @@ func (h *Controller) deleteContainer(ctx context.Context, request *apipb.DeleteC
 	stageStarted = time.Now()
 	if err := h.checkRuntime(runtimeName); err != nil {
 		recordAllocationDeleteStage("validate_runtime", runtimeName, stageStarted, err)
-		return response, errord.ErrNotImplemented
+		return response, resource, errord.ErrNotImplemented
 	}
 	recordAllocationDeleteStage("validate_runtime", runtimeName, stageStarted, nil)
 
 	stageStarted = time.Now()
-	resource, err := h.containers().CollectResourceByID(request.ID)
+	resource, err = h.containers().CollectResourceByID(request.ID)
 	if err != nil {
 		recordAllocationDeleteStage("collect_resource", runtimeName, stageStarted, err)
-		return response, err
+		return response, resource, err
 	}
 	recordAllocationDeleteStage("collect_resource", runtimeName, stageStarted, nil)
 
@@ -54,27 +69,21 @@ func (h *Controller) deleteContainer(ctx context.Context, request *apipb.DeleteC
 	response, err = h.deleteContainerWithRuntime(ctx, request, c, handler, traceID.String(), spanID.String())
 	if err != nil {
 		recordAllocationDeleteStage("runtime_delete", runtimeName, stageStarted, err)
-		return response, err
+		return response, resource, err
 	}
 	recordAllocationDeleteStage("runtime_delete", runtimeName, stageStarted, nil)
 
 	stageStarted = time.Now()
 	if err := h.sandboxNetworking().CleanupActivationNetwork(resource); err != nil {
 		recordAllocationDeleteStage("network_cleanup", runtimeName, stageStarted, err)
-		return response, err
+		return response, resource, err
 	}
 	recordAllocationDeleteStage("network_cleanup", runtimeName, stageStarted, nil)
 	stageStarted = time.Now()
 	h.sandboxNetworking().CloseHTTPProxyTransports(request.ID)
 	recordAllocationDeleteStage("transport_cleanup", runtimeName, stageStarted, nil)
 
-	stageStarted = time.Now()
-	if err := h.finalizeContainerDelete(request.ID); err != nil {
-		recordAllocationDeleteStage("finalize", runtimeName, stageStarted, err)
-		return response, err
-	}
-	recordAllocationDeleteStage("finalize", runtimeName, stageStarted, nil)
-	return response, nil
+	return response, resource, nil
 }
 
 func recordAllocationDeleteStage(stage, runtimeName string, started time.Time, err error) {
@@ -160,14 +169,23 @@ func cleanRootDirForContainer(c *container.Container) string {
 	return c.Spec.Process.Cwd
 }
 
-func (h *Controller) finalizeContainerDelete(containerID string) error {
-	if err := h.containers().Delete(containerID); err != nil {
+func (h *Controller) finalizeContainerDelete(containerID string, resource container.OccupiedResource) error {
+	if err := h.containers().DeleteWithResource(containerID, resource); err != nil {
 		return err
 	}
 	go h.containers().ReceiveEvent(container.Event{
 		Type:        container.EventTypeDelete,
 		ContainerID: containerID,
 	})
+	h.notifyInventoryChanged()
+	return nil
+}
+
+func (h *Controller) finalizeFailedContainerDelete(containerID string, resource container.OccupiedResource) error {
+	if err := h.containers().DeleteAfterConfirmedRuntimeDelete(containerID, resource); err != nil {
+		return err
+	}
+	go h.containers().ReceiveEvent(container.Event{Type: container.EventTypeDelete, ContainerID: containerID})
 	h.notifyInventoryChanged()
 	return nil
 }

@@ -53,6 +53,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     cd /workspace/runtime/axnoded && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/axnoded ./cmd/axnoded && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axnoded-runtime-runner ./cmd/axnoded-runtime-runner && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egress-probe ./cmd/egress-probe && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-egress ./cmd/verify-egress && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-smoke ./cmd/verify-smoke && \
@@ -62,6 +63,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 FROM ${NGINX_IMAGE} AS nginx-rootfs
 
 FROM ${BASE_IMAGE} AS benchmark-base
+COPY --from=axnoded-builder /out/memory-hog /tmp/axern-memory-hog
 
 ARG APT_MIRROR_SOURCE=archive
 ARG PERF_KERNEL_RELEASE=
@@ -129,6 +131,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 COPY runtime/axnoded/.cache/gvisor/ /opt/gvisor-cache/
 COPY runtime/axnoded/runtime-tools.sh /usr/local/share/axern/runtime-tools.sh
+COPY runtime/axnoded/gvisor.lock /usr/local/share/axern/gvisor.lock
 
 RUN set -eux; \
     . /usr/local/share/axern/runtime-tools.sh; \
@@ -150,10 +153,13 @@ RUN set -eux; \
     install -m 0755 /tmp/gvisor/runsc /usr/local/bin/runsc; \
     if [ -f /tmp/gvisor/containerd-shim-runsc-v1 ]; then install -m 0755 /tmp/gvisor/containerd-shim-runsc-v1 /usr/local/bin/containerd-shim-runsc-v1; fi; \
     if [ -d /tmp/gvisor/gvisor-bin ]; then mkdir -p /usr/local/bin/gvisor-bin && cp -a /tmp/gvisor/gvisor-bin/. /usr/local/bin/gvisor-bin/; fi; \
+    /usr/local/bin/runsc --version | grep -F "${AXERN_GVISOR_TAG}"; \
     rm -rf /tmp/gvisor /tmp/gvisor.tar.bz2
 
 RUN mkdir -p /opt/sample-rootfs/bin /opt/sample-rootfs/dev /opt/sample-rootfs/proc /opt/sample-rootfs/sys /opt/sample-rootfs/tmp /opt/sample-rootfs/mnt && \
     cp /bin/busybox /opt/sample-rootfs/bin/busybox && \
+    install -m 0755 /tmp/axern-memory-hog /opt/sample-rootfs/bin/memory-hog && \
+    rm -f /tmp/axern-memory-hog && \
     ln -sf busybox /opt/sample-rootfs/bin/sh && \
     ln -sf busybox /opt/sample-rootfs/bin/sleep && \
     ln -sf busybox /opt/sample-rootfs/bin/echo && \

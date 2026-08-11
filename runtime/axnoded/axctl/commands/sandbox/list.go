@@ -33,6 +33,7 @@ var Command = cli.Command{
 		ListCmd,
 		InspectCmd,
 		DiagnosticsCmd,
+		MemoryCmd,
 		ExecCmd,
 		WaitCmd,
 		KillCmd,

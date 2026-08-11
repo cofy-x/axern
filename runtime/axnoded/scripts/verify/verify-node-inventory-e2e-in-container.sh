@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
 IMAGE_URL="${IMAGE_URL:?IMAGE_URL is required}"
 AXNODED_CONTAINER_ROOT="${AXNODED_CONTAINER_ROOT:-/var/lib/axnoded/root/containers}"
+# shellcheck source-path=SCRIPTDIR/..
+source "${SCRIPT_DIR}/../lib/metricsz.sh"
 REQUEST_ONLY_STATUS_FILTER='
   .ResourceSpec.requests.cpu_milli == 250 and
   .ResourceSpec.requests.memory_bytes == 134217728 and
@@ -135,6 +138,8 @@ wait_for_jq \
 fetch_imagemgr_inventory "${imagemgr_inventory}"
 jq -e 'has("mounted_images") and (.mounted_images | type == "array")' "${imagemgr_inventory}" >/dev/null
 jq -e 'has("daemons") and (.daemons | type == "array")' "${imagemgr_inventory}" >/dev/null
+
+metricsz_wait_platform_capability_available "PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT"
 
 container_id="$(
   verify-cli \

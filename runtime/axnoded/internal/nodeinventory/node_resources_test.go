@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 )
 
@@ -154,7 +155,7 @@ func TestAxnodedSourceNodeResourceProviderFailureBlocksFirstReport(t *testing.T)
 	}
 }
 
-func TestAxnodedSourceKeepsLastNodeResourcesDuringProviderDegradation(t *testing.T) {
+func TestAxnodedSourceKeepsLastNodeResourcesForDiagnosticsButBlocksReporting(t *testing.T) {
 	provider := &flakyNodeResourceProvider{
 		resources: NodeResources{
 			Capacity:    NodeResourceQuantity{CpuMilli: 2000, MemoryBytes: 4 << 30},
@@ -183,14 +184,38 @@ func TestAxnodedSourceKeepsLastNodeResourcesDuringProviderDegradation(t *testing
 
 	provider.err = errors.New("temporary kubernetes api error")
 	snapshot, ready = source.Collect(context.Background())
-	if !ready {
-		t.Fatal("expected cached node resources to keep inventory reportable")
+	if ready {
+		t.Fatal("expected degraded node resources to block inventory reporting")
 	}
 	if got, want := snapshot.Node.Allocatable.MemoryBytes, int64(2<<30); got != want {
 		t.Fatalf("cached allocatable memory = %d, want %d", got, want)
 	}
 	if snapshot.Sources["node_resources"].Status != StatusDegraded {
 		t.Fatalf("node resource source = %#v, want degraded", snapshot.Sources["node_resources"])
+	}
+	if snapshot.Sources["node_resources"].LastSuccessAt == nil {
+		t.Fatal("expected degraded node resource source to retain its last successful sample time")
+	}
+}
+
+func TestMemoryBudgetInvalidatesLocalAdmissionWhenNodeResourcesAreUnavailable(t *testing.T) {
+	var observed resources.MemoryCapacitySnapshot
+	source := NewAxnodedSource(AxnodedSourceOptions{
+		MemoryBudgetEnabled: true,
+		MemoryCapacityObserver: func(snapshot resources.MemoryCapacitySnapshot) error {
+			observed = snapshot
+			return nil
+		},
+	})
+	snapshot := NewSnapshot()
+	if ready := source.collectMemoryBudget(time.Now().UTC(), false, &snapshot); ready {
+		t.Fatal("expected unavailable node resources to block memory budget publication")
+	}
+	if !observed.Unavailable {
+		t.Fatalf("memory capacity observation = %#v, want unavailable", observed)
+	}
+	if got := snapshot.Sources["node_memory_budget"].Status; got != StatusError {
+		t.Fatalf("memory budget source status = %q, want %q", got, StatusError)
 	}
 }
 

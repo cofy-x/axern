@@ -13,7 +13,13 @@ func TestNormalizeInventoryURL(t *testing.T) {
 
 func TestResourceRowsExposeCommitmentAndUnboundedCounts(t *testing.T) {
 	rows := resourceRows(&inventorySnapshot{
-		Node: inventoryNode{Capacity: resourceQuantity{CPUMilli: 4000, MemoryBytes: 8 << 30}},
+		Node: inventoryNode{
+			Capacity: resourceQuantity{CPUMilli: 4000, MemoryBytes: 8 << 30},
+			MemoryBudget: inventoryMemoryBudget{
+				PhysicalCapacityBytes: 8 << 30, SourceAllocatableBytes: 7 << 30, SystemReserveBytes: 1 << 30,
+				EffectiveAllocatableBytes: 6 << 30, LocalCommitmentBytes: 4 << 30,
+			},
+		},
 		Resources: inventoryResources{
 			CPU: inventoryCPU{
 				AxnodedCommittedMilli: 500,
@@ -36,6 +42,9 @@ func TestResourceRowsExposeCommitmentAndUnboundedCounts(t *testing.T) {
 	}
 	if rows[1].Resource != "memory_bytes" || rows[1].Committed != 4<<30 || rows[1].Used != 128<<20 || rows[1].Unbounded != 2 {
 		t.Fatalf("unexpected memory row: %+v", rows[1])
+	}
+	if rows[1].Capacity != 6<<30 {
+		t.Fatalf("memory scheduling capacity = %d, want %d", rows[1].Capacity, int64(6<<30))
 	}
 	if rows[0].RunningCount != 3 || rows[1].RunningCount != 3 {
 		t.Fatalf("running counts = %+v, want 3", rows)

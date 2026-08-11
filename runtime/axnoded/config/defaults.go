@@ -27,7 +27,7 @@ const (
 	DefaultMaxContainerNum  = 1000
 	DefaultMaxCacheLimitNum = 800
 
-	DefaultCgroupRoot = "/sandbox"
+	DefaultCgroupRoot = "sandbox"
 
 	DefaultIPRange = "172.17.0.1/16"
 

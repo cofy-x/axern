@@ -36,7 +36,7 @@ func TestPostgresAdminRetiresIdleNodeAndFencesReporter(t *testing.T) {
 	if err != nil || len(audit.GetEvents()) != 1 {
 		t.Fatalf("ListAdminAuditEvents() = %+v, %v", audit, err)
 	}
-	_, err = app.NodeV1Handler().ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-a", NodeAuthToken: "test-node-token", Summary: controldtest.ReadySummary(now)})
+	_, err = app.NodeV1Handler().ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-a", NodeAuthToken: "test-node-token", Summary: controldtest.ReadySummary(now.Add(2 * time.Hour))})
 	if grpcstatus.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("ReportNode(retired) error = %v", err)
 	}

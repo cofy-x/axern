@@ -27,11 +27,32 @@ type Manager interface {
 }
 
 type AllocateOption struct {
-	Context      context.Context
-	ContainerID  string
-	EnvID        string
-	FunctionName string
-	TraceID      string
+	Context            context.Context
+	ContainerID        string
+	EnvID              string
+	FunctionName       string
+	TraceID            string
+	MemoryRequestBytes int64
+	MemoryLimitBytes   int64
+	AllocationAttempt  int64
+	RuntimeName        string
+}
+
+// RetiringMemoryLease is the durable information needed to keep reporting an
+// allocation's memcg after its runtime and bundle state have been removed.
+// Kernel identity and usage are sampled from the live cgroup, never trusted
+// from this record.
+type RetiringMemoryLease struct {
+	CgroupID          string
+	AllocationID      string
+	AllocationAttempt int64
+	MemoryRequest     int64
+	MemoryLimit       int64
+	RuntimeName       string
+	BootID            string
+	MountIdentity     string
+	ParentInode       uint64
+	LeafInode         uint64
 }
 
 // resizable extends Manager with pool sizing methods used by the internal resize loop.
@@ -62,6 +83,10 @@ func NewResourceManager(db stateStore, cfg config.Config) ([]Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+	cgroupMode, err := cfg.PluginConfig.RuntimeConfig.CgroupEnforcementMode()
+	if err != nil {
+		return nil, err
+	}
 
 	if cfg.InterfaceCacheSize > 0 {
 		interfaceManager, err := LoadNetworkManager(db, cfg.MaxInstanceNum, cfg.InterfaceCacheSize, cfg.PluginConfig.NetworkConfig)
@@ -75,8 +100,11 @@ func NewResourceManager(db stateStore, cfg config.Config) ([]Manager, error) {
 		}
 	}
 
-	if cfg.CgroupCacheSize > 0 {
-		cgroupManager, err := NewCgroupManager(db, cfg.ResourceConfig)
+	// Enforcement enablement and warm-pool sizing are independent contracts.
+	// A required node always owns a cgroup manager; cache_size=0 merely asks it
+	// to create each one-use allocation cgroup synchronously.
+	if cgroupMode == config.CgroupEnforcementRequired {
+		cgroupManager, err := NewCgroupManager(db, cfg.ResourceConfig, cgroupMode == config.CgroupEnforcementRequired)
 		if err != nil {
 			return nil, cleanup(err)
 		}

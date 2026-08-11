@@ -33,6 +33,7 @@ type AllocationStatusReport struct {
 	Ready            bool
 	ReadinessMessage string
 	Message          string
+	DiagnosticCode   commonv1.WorkloadDiagnosticCode
 	ObservedAt       time.Time
 }
 
@@ -244,6 +245,14 @@ func (r *Reporter) report() {
 	defer func() { op.End(opErr) }()
 	snapshot, ready := r.snapshot()
 	if !ready {
+		// Node-summary readiness gates placement, but it must not suppress
+		// allocation-owned memory evidence that was collected successfully in
+		// the same round. Existing sandbox OOM and cleanup-debt diagnostics remain
+		// reportable while an unrelated node resource or capability provider is
+		// unavailable.
+		if err := r.sendAllocationMemoryBatch(ctx, snapshot.AllocationMemoryObservations); err != nil {
+			logrus.WithError(err).Warn("control-plane allocation memory batch failed while node inventory was unavailable")
+		}
 		op.SetResult(sdkobs.ResultSkipped)
 		metrics.RecordControlPlaneRPC("report", "skipped")
 		return
@@ -273,6 +282,40 @@ func (r *Reporter) report() {
 	}
 	metrics.RecordControlPlaneRPC("report", "ok")
 	metrics.RecordControlPlaneRPCDuration("report", "ok", time.Since(started).Seconds())
+	if err := r.sendAllocationMemoryBatch(ctx, snapshot.AllocationMemoryObservations); err != nil {
+		// The latest observations remain in the inventory snapshot and are retried
+		// on the next report. Node heartbeat success is independent from this
+		// diagnostic stream.
+		logrus.WithError(err).Warn("control-plane allocation memory batch failed")
+	}
+}
+
+func (r *Reporter) sendAllocationMemoryBatch(ctx context.Context, observations []*nodev1.AllocationMemoryObservation) error {
+	if len(observations) == 0 {
+		return nil
+	}
+	cloned := make([]*nodev1.AllocationMemoryObservation, 0, len(observations))
+	for _, observation := range observations {
+		if observation != nil {
+			cloned = append(cloned, proto.Clone(observation).(*nodev1.AllocationMemoryObservation))
+		}
+	}
+	if len(cloned) == 0 {
+		return nil
+	}
+	request := &nodev1.BatchReportAllocationMemoryObservationsRequest{
+		NodeID: r.nodeID, NodeAuthToken: r.nodeAuthToken, Observations: cloned,
+	}
+	err := r.withClient(ctx, func(ctx context.Context, client nodev1.NodeControlClient) error {
+		_, err := client.BatchReportAllocationMemoryObservations(ctx, request)
+		return err
+	})
+	result := "ok"
+	if err != nil {
+		result = "error"
+	}
+	metrics.RecordControlPlaneRPC("batch_report_allocation_memory", result)
+	return err
 }
 
 func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) {
@@ -295,6 +338,7 @@ func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) {
 		Ready:            ready,
 		ReadinessMessage: readinessMessage,
 		Message:          validProtocolString(report.Message),
+		DiagnosticCode:   report.DiagnosticCode,
 		ObservedAt:       timestamppb.New(report.ObservedAt.UTC()),
 	})
 }

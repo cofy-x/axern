@@ -20,8 +20,8 @@ func (r *RuncServiceHandler) verifyMemoryEnforcement(ctx context.Context, option
 		return err
 	}
 	cgroupPath := options.RuntimeCgroupPath
-	if err := hostlinux.VerifyCgroupMemoryLimit(cgroupPath, options.MemoryLimitBytes); err != nil {
-		return fmt.Errorf("verify runc memory.max: %w", err)
+	if err := hostlinux.VerifyCgroupMemoryDomain(options.CgroupPath, cgroupPath, options.MemoryLimitBytes, manifest.GetCgroupBootID(), manifest.GetCgroupMountIdentity(), manifest.GetCgroupParentInode(), manifest.GetCgroupLeafInode()); err != nil {
+		return fmt.Errorf("verify runc memory domain: %w", err)
 	}
 	state, err := r.state(ctx, options.ContainerID)
 	if err != nil {
@@ -37,7 +37,7 @@ func (r *RuncServiceHandler) verifyMemoryEnforcement(ctx context.Context, option
 	if launchPID != *state.Pid {
 		return fmt.Errorf("runc state pid %d differs from immutable launch pid %d", *state.Pid, launchPID)
 	}
-	if err := hostlinux.VerifyCgroupPIDs(cgroupPath, *state.Pid, 1); err != nil {
+	if err := hostlinux.VerifyRuncCgroupProcessTree(cgroupPath, *state.Pid); err != nil {
 		return err
 	}
 	return nil
@@ -55,8 +55,8 @@ func (r *RunscServiceHandler) verifyMemoryEnforcement(ctx context.Context, optio
 		return err
 	}
 	cgroupPath := options.RuntimeCgroupPath
-	if err := hostlinux.VerifyCgroupMemoryLimit(cgroupPath, options.MemoryLimitBytes); err != nil {
-		return fmt.Errorf("verify runsc memory.max: %w", err)
+	if err := hostlinux.VerifyCgroupMemoryDomain(options.CgroupPath, cgroupPath, options.MemoryLimitBytes, manifest.GetCgroupBootID(), manifest.GetCgroupMountIdentity(), manifest.GetCgroupParentInode(), manifest.GetCgroupLeafInode()); err != nil {
+		return fmt.Errorf("verify runsc memory domain: %w", err)
 	}
 	state, err := r.state(ctx, options.ContainerID)
 	if err != nil {

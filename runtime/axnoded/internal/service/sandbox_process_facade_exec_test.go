@@ -11,6 +11,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -69,7 +70,7 @@ func sandboxdReadyTestLabels() map[string]string {
 func storeExitedExecContainer(t *testing.T, s *sandboxService, runtimeName string, id string) {
 	t.Helper()
 	storeRunningExecContainer(t, s, runtimeName, id)
-	assert.NoError(t, s.containerManager.SetExit(id, 0, true, time.Now().Format(time.RFC3339Nano), ""))
+	assert.NoError(t, s.containerManager.SetExit(id, 0, true, time.Now().Format(time.RFC3339Nano), "", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED))
 }
 
 func TestExecRejectsInvalidArgument(t *testing.T) {

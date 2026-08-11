@@ -215,6 +215,11 @@ services:
       AXNODED_CONTROL_PLANE_TLS_CERT: /certs/node.crt
       AXNODED_CONTROL_PLANE_TLS_KEY: /certs/node.key
       AXNODED_DNS_NAMESERVERS: ${AXNODED_DNS_NAMESERVERS:-}
+      # Local Compose runs inside the Docker VM without a production cgroup
+      # delegation contract. Linux hard-limit qualification uses dedicated
+      # privileged gates instead of claiming enforcement here.
+      AXNODED_CGROUP_ENFORCEMENT: disabled_dev
+      AXNODED_MEMORY_SYSTEM_RESERVE_BYTES: "0"
       REGISTRY_PROXY_URL: ${REGISTRY_PROXY_URL}
       REGISTRY_NO_PROXY: ${CONTAINER_NO_PROXY}
       IMAGEMGR_INSECURE_REGISTRIES: ${IMAGEMGR_INSECURE_REGISTRIES}

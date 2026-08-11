@@ -16,7 +16,7 @@ var (
 	runtimeCgroupPath         = hostlinux.RuntimeCgroupPath
 	sanitizeResourceForDriver = hostlinux.SanitizeResourceForDriver
 	updateCgroup              = hostlinux.UpdateCgroup
-	verifyMemoryLimit         = hostlinux.VerifyCgroupMemoryLimit
+	configureMemoryDomain     = hostlinux.ConfigureCgroupMemoryDomain
 )
 
 type RuntimePolicy struct {
@@ -67,6 +67,11 @@ func PrepareRuntime(request *apipb.CreateContainerRequest, options contract.Hand
 	if request == nil || request.Resource == nil || !prep.Active {
 		return result, nil
 	}
+	if result.Options.MemoryLimitBytes > 0 {
+		prep.SanitizedResource = ocicli.CloneLinuxContainerResources(prep.SanitizedResource)
+		prep.SanitizedResource.MemoryLimitInBytes = result.Options.MemoryLimitBytes
+		prep.SanitizedResource.MemorySwapLimitInBytes = result.Options.MemoryLimitBytes
+	}
 
 	if prep.SanitizedResource != request.Resource {
 		result.Request = ocicli.CloneCreateRequestWithoutResource(request)
@@ -76,8 +81,8 @@ func PrepareRuntime(request *apipb.CreateContainerRequest, options contract.Hand
 		return RuntimePreparation{}, fmt.Errorf("set cgroup resource limits on %s failed: %v", prep.RuntimeCgroupPath, err)
 	}
 	if result.Options.MemoryLimitBytes > 0 {
-		if err := verifyMemoryLimit(prep.RuntimeCgroupPath, result.Options.MemoryLimitBytes); err != nil {
-			return RuntimePreparation{}, fmt.Errorf("verify cgroup memory limit on %s: %w", prep.RuntimeCgroupPath, err)
+		if _, err := configureMemoryDomain(options.CgroupPath, prep.RuntimeCgroupPath, result.Options.MemoryLimitBytes); err != nil {
+			return RuntimePreparation{}, fmt.Errorf("configure sandbox memory domain %s: %w", options.CgroupPath, err)
 		}
 	}
 	return result, nil

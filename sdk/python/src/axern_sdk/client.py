@@ -9,7 +9,11 @@ from collections.abc import Generator, Iterable
 import grpc
 from google.protobuf import duration_pb2
 
-from axern.control.admin.v1 import service_pb2 as admin_service_pb2, service_pb2_grpc as admin_service_pb2_grpc
+from axern.control.admin.v1 import (
+    node_pb2_grpc as admin_node_pb2_grpc,
+    service_pb2 as admin_service_pb2,
+    service_pb2_grpc as admin_service_pb2_grpc,
+)
 from axern.control.capability.v1 import capability_pb2
 from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2, environment_pb2_grpc
@@ -191,6 +195,7 @@ class AxernClient:
         self.environments = environment_pb2_grpc.EnvironmentControlStub(self._channel)
         self.runs = run_pb2_grpc.RunControlStub(self._channel)
         self.services = service_pb2_grpc.ServiceControlStub(self._channel)
+        self.node_admin = admin_node_pb2_grpc.NodeAdminStub(self._channel)
         self.service_admin = admin_service_pb2_grpc.ServiceAdminStub(self._channel)
         self.functions = function_pb2_grpc.FunctionControlStub(self._channel)
         self.tunnels = tunnel_pb2_grpc.TunnelControlStub(self._channel)

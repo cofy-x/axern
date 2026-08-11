@@ -32,7 +32,8 @@ func TestInvokeFunctionDispatchesAndRecordsSuccess(t *testing.T) {
 			ActiveRevisionID: "fnrev-1",
 			WorkerServiceID:  "svc-1",
 			DesiredReplicas:  1,
-			Status:           functionv1.FunctionDeploymentStatus_FUNCTION_DEPLOYMENT_STATUS_WARMING,
+			ReadyReplicas:    1,
+			Status:           functionv1.FunctionDeploymentStatus_FUNCTION_DEPLOYMENT_STATUS_READY,
 		},
 	}
 	invoker := &fakeFunctionInvoker{result: &functionv1.FunctionResult{ContentType: "application/json", Data: []byte(`{"ok":true}`)}}
@@ -54,6 +55,29 @@ func TestInvokeFunctionDispatchesAndRecordsSuccess(t *testing.T) {
 	}
 	if got := resp.GetInvocation().GetResult().GetData(); string(got) != `{"ok":true}` {
 		t.Fatalf("result data = %s, want success payload", string(got))
+	}
+}
+
+func TestInvokeFunctionDoesNotDispatchToNonReadyWorker(t *testing.T) {
+	now := time.Date(2026, 6, 13, 10, 0, 0, 0, time.UTC)
+	store := readyFunctionStore()
+	store.deployment.Status = functionv1.FunctionDeploymentStatus_FUNCTION_DEPLOYMENT_STATUS_WARMING
+	store.deployment.ReadyReplicas = 0
+	invoker := &fakeFunctionInvoker{}
+	controller := NewController(ControllerDeps{Store: store, Invoker: invoker})
+
+	response, err := controller.InvokeFunction(context.Background(), &functionv1.InvokeFunctionRequest{
+		Name: "hello",
+		Mode: functionv1.FunctionInvocationMode_FUNCTION_INVOCATION_MODE_SYNC,
+	}, now)
+	if err != nil {
+		t.Fatalf("InvokeFunction() error = %v", err)
+	}
+	if invoker.called {
+		t.Fatal("invoker was called for a non-ready deployment")
+	}
+	if got := response.GetInvocation().GetError().GetCode(); got != "worker_not_ready" {
+		t.Fatalf("invocation error code = %q, want worker_not_ready", got)
 	}
 }
 

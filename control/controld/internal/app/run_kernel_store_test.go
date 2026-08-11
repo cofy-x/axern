@@ -14,7 +14,7 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
 
-func TestPostgresRunKernelEnvironmentLabelsDoNotAffectDedupe(t *testing.T) {
+func TestPostgresRunKernelEnvironmentLabelsDoNotChangeSpecIdentity(t *testing.T) {
 	app, _ := newPostgresTestService(t)
 	defer app.Close()
 	public := app.PublicV1Handler()
@@ -33,11 +33,14 @@ func TestPostgresRunKernelEnvironmentLabelsDoNotAffectDedupe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateEnvironment(second) error = %v", err)
 	}
-	if first.GetEnvironment().GetID() != second.GetEnvironment().GetID() {
-		t.Fatalf("environment ids differ: %q != %q", first.GetEnvironment().GetID(), second.GetEnvironment().GetID())
+	if first.GetEnvironment().GetID() == second.GetEnvironment().GetID() {
+		t.Fatalf("independent environment resources reused id %q", first.GetEnvironment().GetID())
 	}
 	if first.GetEnvironment().GetSpecHash() != second.GetEnvironment().GetSpecHash() {
 		t.Fatalf("spec hashes differ: %q != %q", first.GetEnvironment().GetSpecHash(), second.GetEnvironment().GetSpecHash())
+	}
+	if first.GetEnvironment().GetLabels()["team"] != "infra" || second.GetEnvironment().GetLabels()["team"] != "runtime" {
+		t.Fatalf("environment labels were not independently preserved: first=%v second=%v", first.GetEnvironment().GetLabels(), second.GetEnvironment().GetLabels())
 	}
 }
 

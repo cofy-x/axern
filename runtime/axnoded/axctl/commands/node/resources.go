@@ -44,7 +44,26 @@ type resourceQuantity struct {
 }
 
 type inventoryNode struct {
-	Capacity resourceQuantity `json:"capacity"`
+	Capacity     resourceQuantity      `json:"capacity"`
+	MemoryBudget inventoryMemoryBudget `json:"memory_budget"`
+}
+
+type inventoryMemoryBudget struct {
+	PhysicalCapacityBytes     int64  `json:"physical_capacity_bytes"`
+	SourceAllocatableBytes    int64  `json:"source_allocatable_bytes"`
+	DelegatedRootLimitBytes   int64  `json:"delegated_root_limit_bytes"`
+	DelegatedRootLimitFinite  bool   `json:"delegated_root_limit_finite"`
+	SystemReserveBytes        int64  `json:"system_reserve_bytes"`
+	EffectiveAllocatableBytes int64  `json:"effective_allocatable_bytes"`
+	LocalCommitmentBytes      int64  `json:"local_commitment_bytes"`
+	CleanupDebtBytes          int64  `json:"cleanup_debt_bytes"`
+	InternalCurrentBytes      int64  `json:"internal_current_bytes"`
+	RetiringCgroupCount       int64  `json:"retiring_cgroup_count"`
+	OldestRetiringAgeSeconds  int64  `json:"oldest_retiring_age_seconds"`
+	SystemReserveExhausted    bool   `json:"system_reserve_exhausted"`
+	CapacityIdentity          string `json:"capacity_identity"`
+	Mode                      string `json:"mode"`
+	SampledAt                 string `json:"sampled_at"`
 }
 
 type inventoryComponents struct {
@@ -64,6 +83,11 @@ type resourceRow struct {
 	RunningCount int64  `json:"running_containers"`
 }
 
+type resourceReport struct {
+	Resources    []resourceRow         `json:"resources"`
+	MemoryBudget inventoryMemoryBudget `json:"memory_budget"`
+}
+
 var ResourcesCmd = cli.Command{
 	Name:  "resources",
 	Usage: "Print local axnoded resource commitment and usage",
@@ -81,16 +105,17 @@ var ResourcesCmd = cli.Command{
 		if err != nil {
 			return err
 		}
-		rows := resourceRows(snapshot)
+		report := buildResourceReport(snapshot)
 		if context.Bool("json") {
-			encoded, err := json.MarshalIndent(rows, "", "  ")
+			encoded, err := json.MarshalIndent(report, "", "  ")
 			if err != nil {
 				return err
 			}
 			fmt.Println(string(encoded))
 			return nil
 		}
-		printResourceRows(os.Stdout, rows)
+		printResourceRows(os.Stdout, report.Resources)
+		printMemoryBudget(os.Stdout, report.MemoryBudget)
 		return nil
 	},
 }
@@ -141,6 +166,10 @@ func resourceRows(snapshot *inventorySnapshot) []resourceRow {
 		return nil
 	}
 	running := snapshot.Components.Axnoded.RunningContainers
+	memoryCapacity := snapshot.Node.MemoryBudget.EffectiveAllocatableBytes
+	if memoryCapacity <= 0 {
+		memoryCapacity = snapshot.Node.Capacity.MemoryBytes
+	}
 	return []resourceRow{
 		{
 			Resource:     "cpu_milli",
@@ -154,11 +183,18 @@ func resourceRows(snapshot *inventorySnapshot) []resourceRow {
 			Resource:     "memory_bytes",
 			Committed:    snapshot.Resources.Memory.AxnodedCommittedBytes,
 			Used:         snapshot.Resources.Memory.AxnodedUsedBytes,
-			Capacity:     snapshot.Node.Capacity.MemoryBytes,
+			Capacity:     memoryCapacity,
 			Unbounded:    snapshot.Resources.Memory.AxnodedUnboundedCount,
 			RunningCount: running,
 		},
 	}
+}
+
+func buildResourceReport(snapshot *inventorySnapshot) resourceReport {
+	if snapshot == nil {
+		return resourceReport{}
+	}
+	return resourceReport{Resources: resourceRows(snapshot), MemoryBudget: snapshot.Node.MemoryBudget}
 }
 
 func printResourceRows(out io.Writer, rows []resourceRow) {
@@ -168,4 +204,32 @@ func printResourceRows(out io.Writer, rows []resourceRow) {
 		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\t%d\t%d\n", row.Resource, row.Committed, row.Used, row.Capacity, row.Unbounded, row.RunningCount)
 	}
 	_ = tw.Flush()
+}
+
+func printMemoryBudget(out io.Writer, budget inventoryMemoryBudget) {
+	fmt.Fprintln(out, "Memory budget:")
+	tw := tabwriter.NewWriter(out, 0, 8, 2, ' ', 0)
+	fmt.Fprintln(tw, "PHYSICAL\tSOURCE ALLOCATABLE\tRAW\tRESERVE\tEFFECTIVE\tCOMMITTED\tCLEANUP DEBT\tINTERNAL\tRETIRING\tEXHAUSTED")
+	fmt.Fprintf(tw, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%t\n",
+		budget.PhysicalCapacityBytes, budget.SourceAllocatableBytes,
+		budget.EffectiveAllocatableBytes+budget.SystemReserveBytes,
+		budget.SystemReserveBytes, budget.EffectiveAllocatableBytes,
+		budget.LocalCommitmentBytes, budget.CleanupDebtBytes, budget.InternalCurrentBytes,
+		budget.RetiringCgroupCount, budget.SystemReserveExhausted)
+	_ = tw.Flush()
+	if budget.DelegatedRootLimitFinite {
+		fmt.Fprintf(out, "Delegated root limit: %d bytes\n", budget.DelegatedRootLimitBytes)
+	} else {
+		fmt.Fprintln(out, "Delegated root limit: max")
+	}
+	fmt.Fprintf(out, "Mode: %s\n", fallbackValue(budget.Mode, "-"))
+	fmt.Fprintf(out, "Capacity identity: %s\n", fallbackValue(budget.CapacityIdentity, "-"))
+	fmt.Fprintf(out, "Sampled at: %s\n", fallbackValue(budget.SampledAt, "-"))
+}
+
+func fallbackValue(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }
