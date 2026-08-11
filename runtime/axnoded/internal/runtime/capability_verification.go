@@ -128,7 +128,7 @@ func (r *RunscServiceHandler) VerifyAllocationCapability(ctx context.Context, de
 		backingIdentity, err := hostlinux.DirectoryIdentity(expectedBackingDirectory)
 		if err != nil {
 			wrapped := fmt.Errorf("read runsc overlay backing directory identity: %w", err)
-			if os.IsNotExist(err) {
+			if errors.Is(err, os.ErrNotExist) {
 				return contract.LostCapability(wrapped)
 			}
 			return contract.InconclusiveCapability(wrapped)
@@ -175,7 +175,7 @@ func classifyCapabilityVerificationError(err error) contract.CapabilityVerificat
 	if errors.As(err, &inconclusive) {
 		return contract.InconclusiveCapability(err)
 	}
-	if os.IsNotExist(err) {
+	if errors.Is(err, os.ErrNotExist) {
 		return contract.LostCapability(err)
 	}
 	var pathErr *os.PathError

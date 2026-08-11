@@ -284,7 +284,7 @@ func TestMemoryObservationFromKernelPreservesRetiringOwnership(t *testing.T) {
 		"alloc-retiring", 4, 512, 1024, "runsc", nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING, 9, now,
 		&hostlinux.CgroupMemoryDomain{BootID: "boot", MountIdentity: "mount", ParentInode: 11, LeafInode: 12},
 		&hostlinux.CgroupMemoryObservation{
-			CurrentBytes: 700, PeakBytes: 900, Stat: map[string]int64{"anon": 100, "file": 500},
+			CurrentBytes: 700, PeakBytes: 900, PeakAvailable: true, Stat: map[string]int64{"anon": 100, "file": 500},
 			Events: map[string]uint64{"oom": 1}, PSIAvailable: true, PSISomeAvg10: 0.5, PSISomeTotal: 42,
 		},
 		true, false,
@@ -302,7 +302,7 @@ func TestMemoryObservationFromKernelRepresentsUnlimitedSandboxWithoutHardControl
 	observation := memoryObservationFromKernel(
 		"alloc-unlimited", 2, 512, 0, "runc", nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, 10, now,
 		&hostlinux.CgroupMemoryDomain{BootID: "boot", MountIdentity: "mount", ParentInode: 21, LeafInode: 22, LimitBytes: -1, SwapMaxBytes: -1},
-		&hostlinux.CgroupMemoryObservation{CurrentBytes: 700, PeakBytes: 900, SwapCurrent: 12},
+		&hostlinux.CgroupMemoryObservation{CurrentBytes: 700, PeakBytes: 900, PeakAvailable: true, SwapCurrent: 12},
 		false, false,
 	)
 	if observation.GetLimitBytes() != 0 || observation.GetSwapCurrentBytes() != 12 || observation.GetParentControlsVerified() || observation.GetLeafControlsVerified() ||

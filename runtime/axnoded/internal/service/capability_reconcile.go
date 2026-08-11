@@ -387,7 +387,7 @@ func (h *sandboxService) verifyAllocationCapability(ctx context.Context, allocat
 		}
 		if _, err := os.Stat(networkState.NetNSPath); err != nil {
 			wrapped := fmt.Errorf("verify sandbox network namespace: %w", err)
-			if os.IsNotExist(err) {
+			if errors.Is(err, os.ErrNotExist) {
 				return contract.LostCapability(wrapped)
 			}
 			return contract.InconclusiveCapability(wrapped)

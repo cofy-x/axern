@@ -568,7 +568,7 @@ func memoryObservationFromKernel(
 ) *nodev1.AllocationMemoryObservation {
 	return &nodev1.AllocationMemoryObservation{
 		AllocationID: allocationID, Attempt: attempt, Revision: revision, ObservedAt: timestamppb.New(now),
-		RequestBytes: requestBytes, LimitBytes: limitBytes, CurrentBytes: usage.CurrentBytes, PeakBytes: usage.PeakBytes,
+		RequestBytes: requestBytes, LimitBytes: limitBytes, CurrentBytes: usage.CurrentBytes, PeakBytes: usage.PeakBytes, PeakAvailable: usage.PeakAvailable,
 		SwapCurrentBytes: usage.SwapCurrent, AnonBytes: usage.Stat["anon"], FileBytes: usage.Stat["file"],
 		ShmemBytes: usage.Stat["shmem"], KernelBytes: usage.Stat["kernel"], DirtyBytes: usage.Stat["file_dirty"],
 		WritebackBytes: usage.Stat["file_writeback"], EventHigh: usage.Events["high"], EventMax: usage.Events["max"],

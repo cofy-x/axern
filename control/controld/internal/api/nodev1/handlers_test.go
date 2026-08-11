@@ -64,7 +64,7 @@ func TestValidateAllocationMemoryObservationBatchRejectsAmbiguousEnforcementData
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	valid := &controlnodev1.AllocationMemoryObservation{
 		AllocationID: "alloc-a", Attempt: 1, Revision: 1, ObservedAt: timestamppb.New(now),
-		RequestBytes: 128, LimitBytes: 256, CurrentBytes: 64, PeakBytes: 96,
+		RequestBytes: 128, LimitBytes: 256, CurrentBytes: 64, PeakBytes: 96, PeakAvailable: true,
 		CgroupIdentity: "boot:mount:parent:leaf", Runtime: "runsc", ParentControlsVerified: true, LeafControlsVerified: true,
 		CleanupState: controlnodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED,
 	}
@@ -77,6 +77,17 @@ func TestValidateAllocationMemoryObservationBatchRejectsAmbiguousEnforcementData
 	withPSI.PsiSomeTotalUsec = 10
 	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{withPSI}, now); err != nil {
 		t.Fatalf("available PSI observation validation error = %v", err)
+	}
+	sampledPeak := proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
+	sampledPeak.PeakAvailable = false
+	sampledPeak.PeakBytes = sampledPeak.CurrentBytes
+	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{sampledPeak}, now); err != nil {
+		t.Fatalf("sampled peak observation validation error = %v", err)
+	}
+	invalidSampledPeak := proto.Clone(sampledPeak).(*controlnodev1.AllocationMemoryObservation)
+	invalidSampledPeak.PeakBytes++
+	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalidSampledPeak}, now); grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("inconsistent sampled peak observation validation error = %v, want InvalidArgument", err)
 	}
 	invalidPSI := proto.Clone(withPSI).(*controlnodev1.AllocationMemoryObservation)
 	invalidPSI.PsiAvailable = false

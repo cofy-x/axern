@@ -323,6 +323,11 @@ message AllocationMemoryObservation {
   // a supported interface that currently reports zero pressure. When false,
   // all PSI values above must be zero.
   bool psi_available = 31;
+  // peak_available reports whether peak_bytes came from the kernel
+  // memory.peak interface. Older cgroup v2 kernels may omit that optional
+  // file; in that case peak_bytes equals current_bytes and is only a sampled
+  // lower bound. Hard-limit evidence never depends on this observability bit.
+  bool peak_available = 32;
 }
 
 message BatchReportAllocationMemoryObservationsRequest {

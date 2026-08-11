@@ -22,16 +22,17 @@ type CgroupMemoryDomain struct {
 }
 
 type CgroupMemoryObservation struct {
-	CurrentBytes int64
-	PeakBytes    int64
-	SwapCurrent  int64
-	Stat         map[string]int64
-	Events       map[string]uint64
-	PSIAvailable bool
-	PSISomeAvg10 float64
-	PSIFullAvg10 float64
-	PSISomeTotal uint64
-	PSIFullTotal uint64
+	CurrentBytes  int64
+	PeakBytes     int64
+	PeakAvailable bool
+	SwapCurrent   int64
+	Stat          map[string]int64
+	Events        map[string]uint64
+	PSIAvailable  bool
+	PSISomeAvg10  float64
+	PSIFullAvg10  float64
+	PSISomeTotal  uint64
+	PSIFullTotal  uint64
 }
 
 func VerifyCgroupMemoryLimit(string, int64) error {

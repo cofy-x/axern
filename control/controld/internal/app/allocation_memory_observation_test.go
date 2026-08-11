@@ -35,7 +35,7 @@ func TestPostgresAcceptsBoundedRetiringMemoryObservationWithoutWorkloadLeaf(t *t
 
 	observation := &nodev1.AllocationMemoryObservation{
 		AllocationID: allocationID, Attempt: 1, Revision: 1, ObservedAt: timestamppb.New(now),
-		RequestBytes: 128 << 20, LimitBytes: 256 << 20, CurrentBytes: 32 << 20, PeakBytes: 64 << 20,
+		RequestBytes: 128 << 20, LimitBytes: 256 << 20, CurrentBytes: 32 << 20, PeakBytes: 64 << 20, PeakAvailable: true,
 		CgroupIdentity: "boot=test:mount=test:parent=1:leaf=2", Runtime: "runsc",
 		ParentControlsVerified: true, LeafControlsVerified: false, PidRolesVerified: false,
 		CleanupState: nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING,

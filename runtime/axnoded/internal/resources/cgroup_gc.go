@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -77,7 +78,7 @@ func (c *CgroupManager) convergeRetiringCgroup(id string) error {
 	}
 	if cgroupLeaseHasMemoryIdentity(lease) {
 		if err := verifyPersistedCgroupIdentity(lease, c.cgroupDriver.Mode()); err != nil {
-			if os.IsNotExist(err) {
+			if errors.Is(err, os.ErrNotExist) {
 				return nil
 			}
 			return fmt.Errorf("verify retiring cgroup identity: %w", err)
@@ -93,7 +94,7 @@ func (c *CgroupManager) convergeRetiringCgroup(id string) error {
 	// deliberately refusing to kill it.
 	observation, err := retirementMemory.ReadObservation(id)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
 		return fmt.Errorf("read retiring cgroup memory: %w", err)
@@ -109,14 +110,14 @@ func (c *CgroupManager) convergeRetiringCgroup(id string) error {
 	c.Unlock()
 	cgroup, err := c.cgroupDriver.Load(id)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
 		return fmt.Errorf("load retiring cgroup: %w", err)
 	}
 	processes, err := cgroup.Processes(true)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
 		return fmt.Errorf("inventory retiring cgroup processes: %w", err)
@@ -205,7 +206,7 @@ func (c *CgroupManager) completeRetiringCgroup(id string) error {
 
 func (c *CgroupManager) removeCgroupFromSystem(name string) error {
 	err := c.cgroupDriver.Remove(name)
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("delete cgroup %s: %w", name, err)
 	}
 	return nil

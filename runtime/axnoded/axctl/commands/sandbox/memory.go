@@ -67,7 +67,11 @@ func renderSandboxMemory(w io.Writer, memory *controlnodev1.AllocationMemoryObse
 	fmt.Fprintf(w, "  Runtime: %s\n", fallbackString(memory.GetRuntime(), "-"))
 	fmt.Fprintf(w, "  Observed At: %s (revision %d)\n", formatTimestamp(memory.GetObservedAt()), memory.GetRevision())
 	fmt.Fprintf(w, "  Request / Limit: %d / %d bytes\n", memory.GetRequestBytes(), memory.GetLimitBytes())
-	fmt.Fprintf(w, "  Current / Peak / Swap: %d / %d / %d bytes\n", memory.GetCurrentBytes(), memory.GetPeakBytes(), memory.GetSwapCurrentBytes())
+	peakSource := "sampled current"
+	if memory.GetPeakAvailable() {
+		peakSource = "kernel memory.peak"
+	}
+	fmt.Fprintf(w, "  Current / Peak / Swap: %d / %d / %d bytes (peak source: %s)\n", memory.GetCurrentBytes(), memory.GetPeakBytes(), memory.GetSwapCurrentBytes(), peakSource)
 	fmt.Fprintf(w, "  Anon / File / Shmem / Kernel: %d / %d / %d / %d bytes\n", memory.GetAnonBytes(), memory.GetFileBytes(), memory.GetShmemBytes(), memory.GetKernelBytes())
 	fmt.Fprintf(w, "  Dirty / Writeback: %d / %d bytes\n", memory.GetDirtyBytes(), memory.GetWritebackBytes())
 	fmt.Fprintf(w, "  Events high/max/oom/oom_kill/group_kill: %d/%d/%d/%d/%d\n", memory.GetEventHigh(), memory.GetEventMax(), memory.GetEventOom(), memory.GetEventOomKill(), memory.GetEventOomGroupKill())

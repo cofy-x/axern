@@ -43,7 +43,7 @@ func (c *CgroupManager) Recycle(id string) error {
 	}
 	domain, err := retirementMemory.InspectParent(id)
 	if err != nil {
-		if !os.IsNotExist(err) {
+		if !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("inspect cgroup %s before retirement: %w", id, err)
 		}
 	} else {
@@ -54,7 +54,7 @@ func (c *CgroupManager) Recycle(id string) error {
 		}
 		observation, err := retirementMemory.ReadObservation(id)
 		if err != nil {
-			if !os.IsNotExist(err) {
+			if !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("sample cgroup %s before retirement: %w", id, err)
 			}
 		} else {

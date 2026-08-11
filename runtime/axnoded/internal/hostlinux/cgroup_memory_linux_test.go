@@ -50,8 +50,32 @@ func TestReadCgroupMemoryObservationAllowsUnavailablePSI(t *testing.T) {
 	if observation.PSIAvailable {
 		t.Fatal("PSIAvailable = true without memory.pressure")
 	}
-	if observation.CurrentBytes != 10 || observation.PeakBytes != 20 || observation.Events["oom_kill"] != 1 {
+	if observation.CurrentBytes != 10 || observation.PeakBytes != 20 || !observation.PeakAvailable || observation.Events["oom_kill"] != 1 {
 		t.Fatalf("observation = %+v", observation)
+	}
+}
+
+func TestReadCgroupMemoryObservationUsesCurrentWhenKernelPeakIsUnavailable(t *testing.T) {
+	dir := writeMemoryObservationFixture(t)
+	if err := os.Remove(filepath.Join(dir, "memory.peak")); err != nil {
+		t.Fatalf("remove memory.peak: %v", err)
+	}
+
+	observation, err := readCgroupMemoryObservationDir(dir)
+	if err != nil {
+		t.Fatalf("readCgroupMemoryObservationDir() error = %v", err)
+	}
+	if observation.PeakAvailable || observation.PeakBytes != observation.CurrentBytes {
+		t.Fatalf("observation = %+v", observation)
+	}
+}
+
+func TestReadCgroupMemoryObservationRejectsKernelPeakBelowCurrent(t *testing.T) {
+	dir := writeMemoryObservationFixture(t)
+	writeFixtureFile(t, dir, "memory.peak", "9\n")
+
+	if _, err := readCgroupMemoryObservationDir(dir); err == nil || !strings.Contains(err.Error(), "below memory.current") {
+		t.Fatalf("readCgroupMemoryObservationDir() error = %v", err)
 	}
 }
 

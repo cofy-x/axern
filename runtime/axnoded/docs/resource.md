@@ -260,6 +260,12 @@ Key behavior:
   `min(source_allocatable_bytes, delegated_root_limit_bytes)` when the delegated
   limit is finite, minus the system reserve. Physical capacity is a diagnostic
   consistency fact, not extra allocatable memory.
+- Per-allocation observations always report `memory.current`. When the host
+  kernel exposes `memory.peak`, `peak_available=true` identifies the kernel
+  high-water mark. Older cgroup-v2 kernels report the current sample as
+  `peak_bytes` with `peak_available=false`; this is an observability limitation,
+  not a hard-limit fallback. Enforcement continues to depend on control
+  readback, OOM events, cgroup identity, and runtime PID attribution.
 - Capacity reporting and hard-limit enforcement are separate contracts.
   Production publishes `CGROUP_V2` with a positive reserve and cgroup-backed
   capacity identity. Explicit `disabled_dev` publishes `DISABLED_DEV` capacity

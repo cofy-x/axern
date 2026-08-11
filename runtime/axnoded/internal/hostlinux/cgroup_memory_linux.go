@@ -4,6 +4,7 @@ package hostlinux
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,16 +29,17 @@ type CgroupMemoryDomain struct {
 // CgroupMemoryObservation is the bounded host-kernel view used for reporting,
 // OOM diagnosis, cleanup debt, and periodic enforcement audits.
 type CgroupMemoryObservation struct {
-	CurrentBytes int64
-	PeakBytes    int64
-	SwapCurrent  int64
-	Stat         map[string]int64
-	Events       map[string]uint64
-	PSIAvailable bool
-	PSISomeAvg10 float64
-	PSIFullAvg10 float64
-	PSISomeTotal uint64
-	PSIFullTotal uint64
+	CurrentBytes  int64
+	PeakBytes     int64
+	PeakAvailable bool
+	SwapCurrent   int64
+	Stat          map[string]int64
+	Events        map[string]uint64
+	PSIAvailable  bool
+	PSISomeAvg10  float64
+	PSIFullAvg10  float64
+	PSISomeTotal  uint64
+	PSIFullTotal  uint64
 }
 
 // ConfigureCgroupMemoryDomain establishes one hard boundary at both the
@@ -196,9 +198,18 @@ func readCgroupMemoryObservationDir(dir string) (*CgroupMemoryObservation, error
 	if err != nil {
 		return nil, err
 	}
-	peak, err := readCgroupInt64(filepath.Join(dir, "memory.peak"))
-	if err != nil {
-		return nil, err
+	peak := current
+	peakAvailable := true
+	if kernelPeak, err := readCgroupInt64(filepath.Join(dir, "memory.peak")); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		peakAvailable = false
+	} else {
+		peak = kernelPeak
+	}
+	if peak < current {
+		return nil, fmt.Errorf("cgroup memory.peak %d is below memory.current %d", peak, current)
 	}
 	swapCurrent, err := readCgroupInt64(filepath.Join(dir, "memory.swap.current"))
 	if err != nil {
@@ -212,13 +223,13 @@ func readCgroupMemoryObservationDir(dir string) (*CgroupMemoryObservation, error
 	if err != nil {
 		return nil, err
 	}
-	obs := &CgroupMemoryObservation{CurrentBytes: current, PeakBytes: peak, SwapCurrent: swapCurrent, Stat: stat, Events: events}
+	obs := &CgroupMemoryObservation{CurrentBytes: current, PeakBytes: peak, PeakAvailable: peakAvailable, SwapCurrent: swapCurrent, Stat: stat, Events: events}
 	if err := readMemoryPressure(filepath.Join(dir, "memory.pressure"), obs); err != nil {
 		// Per-cgroup PSI is an optional observability facility. Its absence must
 		// not invalidate otherwise verified memory.max, swap, OOM-event, or PID
 		// enforcement. Keep malformed or unreadable files fail-closed so a
 		// provider cannot publish misleading pressure values.
-		if !os.IsNotExist(err) {
+		if !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
 	} else {

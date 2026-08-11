@@ -268,6 +268,9 @@ func validateAllocationMemoryObservationBatch(observations []*controlnodev1.Allo
 		if observation.GetPeakBytes() < observation.GetCurrentBytes() || (bounded && observation.GetSwapCurrentBytes() != 0) {
 			return grpcstatus.Errorf(codes.InvalidArgument, "allocation %q has inconsistent memory peak or nonzero swap", allocationID)
 		}
+		if !observation.GetPeakAvailable() && observation.GetPeakBytes() != observation.GetCurrentBytes() {
+			return grpcstatus.Errorf(codes.InvalidArgument, "allocation %q reports a non-kernel peak that differs from its current sample", allocationID)
+		}
 		cleanupState := observation.GetCleanupState()
 		switch cleanupState {
 		case controlnodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED:

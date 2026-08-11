@@ -397,6 +397,11 @@ CREATE TABLE allocation_memory_observations (
 		COALESCE((observation->>'peak_bytes')::BIGINT, 0) >=
 		COALESCE((observation->>'current_bytes')::BIGINT, 0)
 	),
+	CHECK (
+		COALESCE((observation->>'peak_available')::BOOLEAN, FALSE) = TRUE OR
+		COALESCE((observation->>'peak_bytes')::BIGINT, 0) =
+		COALESCE((observation->>'current_bytes')::BIGINT, 0)
+	),
 	CHECK (COALESCE((observation->>'swap_current_bytes')::BIGINT, 0) >= 0),
 	CHECK (
 		COALESCE((observation->>'limit_bytes')::BIGINT, 0) = 0 OR

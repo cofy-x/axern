@@ -4,6 +4,7 @@ package resources
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -284,6 +285,42 @@ func TestCgroupManagerRecycleFailsClosedBeforeIdentityMismatchCanReleaseCommitme
 	}
 	if commitment := manager.MemoryCommitment(); commitment.CommittedBytes != 1024 || commitment.CleanupDebtBytes != 0 {
 		t.Fatalf("failed retirement commitment = %+v", commitment)
+	}
+}
+
+func TestCgroupManagerRecycleAcceptsWrappedMissingKernelCgroup(t *testing.T) {
+	manager := &CgroupManager{
+		usingID: cmap.New[struct{}](), idleID: queue.New(""), leases: cmap.New[*apipb.CgroupLease](),
+		cgroups: cmap.New[struct{}](), gcQueue: queue.New(""), db: discardStateStore{},
+		retirementMemory: &stubCgroupRetirementMemory{
+			inspectErr: fmt.Errorf("inspect parent: %w", os.ErrNotExist),
+			readErr:    fmt.Errorf("read observation: %w", os.ErrNotExist),
+		},
+	}
+	id := "/sandbox/disappeared"
+	manager.usingID.Set(id, struct{}{})
+	manager.cgroups.Set(id, struct{}{})
+	manager.leases.Set(id, &apipb.CgroupLease{
+		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
+		AllocationID: "alloc-gone", MemoryRequestBytes: 1024, AssignedAtUnixNano: 1,
+	})
+
+	if err := manager.Recycle(id); err != nil {
+		t.Fatalf("Recycle() error = %v", err)
+	}
+	lease, _ := manager.leases.Get(id)
+	if lease.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING {
+		t.Fatalf("lease state = %s", lease.GetState())
+	}
+	if err := manager.convergeRetiringCgroup(id); err != nil {
+		t.Fatalf("convergeRetiringCgroup() error = %v", err)
+	}
+	manager.generator = truncindex.NewFixLenGenerator(12, []string{id})
+	if err := manager.completeRetiringCgroup(id); err != nil {
+		t.Fatalf("completeRetiringCgroup() error = %v", err)
+	}
+	if manager.usingID.Has(id) || manager.leases.Has(id) || manager.cgroups.Has(id) {
+		t.Fatal("completed retirement retained durable commitment")
 	}
 }
 

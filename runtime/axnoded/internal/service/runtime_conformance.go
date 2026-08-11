@@ -600,7 +600,7 @@ func (h *sandboxService) verifyRuntimeConformanceMemoryOOM(ctx context.Context, 
 				observation.Events["oom_group_kill"] <= manifest.GetInitialMemoryEventOomGroupKill() {
 				return fmt.Errorf("memory-hog exited without a memcg OOM kill event")
 			}
-			if observation.PeakBytes <= 0 || observation.PeakBytes > manifest.GetMemoryLimitBytes()+(16<<20) {
+			if observation.PeakAvailable && (observation.PeakBytes <= 0 || observation.PeakBytes > manifest.GetMemoryLimitBytes()+(16<<20)) {
 				return fmt.Errorf("runtime conformance memory peak %d is inconsistent with limit %d", observation.PeakBytes, manifest.GetMemoryLimitBytes())
 			}
 			return nil

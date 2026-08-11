@@ -156,9 +156,14 @@ func RenderAllocationCapabilityDiagnostics(w io.Writer, diagnostics *adminv1.Get
 		RenderCapabilityBacklog(w, []*adminv1.AdminCapabilityReconcileItem{diagnostics.GetReconcile()})
 	}
 	if observation := diagnostics.GetLatestMemoryObservation(); observation != nil {
-		RenderTable(w, []string{"MEMORY CURRENT", "PEAK", "ANON", "FILE", "SHMEM", "KERNEL", "DIRTY", "WRITEBACK", "OOM KILL", "CGROUP", "CLEANUP", "OBSERVED"}, [][]string{{
+		peakSource := "sampled current"
+		if observation.GetPeakAvailable() {
+			peakSource = "kernel memory.peak"
+		}
+		RenderTable(w, []string{"MEMORY CURRENT", "PEAK", "PEAK SOURCE", "ANON", "FILE", "SHMEM", "KERNEL", "DIRTY", "WRITEBACK", "OOM KILL", "CGROUP", "CLEANUP", "OBSERVED"}, [][]string{{
 			formatBytes(observation.GetCurrentBytes()),
 			formatBytes(observation.GetPeakBytes()),
+			peakSource,
 			formatBytes(observation.GetAnonBytes()),
 			formatBytes(observation.GetFileBytes()),
 			formatBytes(observation.GetShmemBytes()),
