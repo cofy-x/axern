@@ -25,6 +25,7 @@ const daemonIDSchemaVersion = "v3"
 
 type OSSLoopManager interface {
 	EnsureMounted(id, imagePath string) (string, error)
+	EffectiveLowerDirs(id string) ([]string, error)
 	ReleaseResource(id string) (ossloop.UnmountResult, error)
 }
 

@@ -238,7 +238,21 @@ message Rootfs {
   string lower_dir = 2;
   string root_dir = 3;
   bool readonly = 4;
-  string lease_id = 5;
+  reserved 5;
+  ImmutableRootfsMount immutable_mount = 6;
+}
+
+// ImmutableRootfsMount is emitted by the rootfs source owner. OCI runtime
+// projection consumes this bounded descriptor and never parses image-manager
+// implementation details from mountinfo.
+message ImmutableRootfsMount {
+  string identity = 1;
+  string filesystem = 2;
+  repeated string backing_filesystems = 3;
+  repeated string lower_dirs = 4;
+  bool readonly = 5;
+  string lease_id = 6;
+  string effective_root = 7;
 }
 
 message ContainerMetadata {

@@ -149,7 +149,7 @@ func refreshPlacementCandidate(candidate *placementkernel.Candidate, record *nod
 	resources := record.Summary.GetResources()
 	evaluation.Rank.AxnodedActiveInstances = nodekernel.CalculateRuntimeSlotOccupancy(record.Summary, reservedAllocationIDs).Occupied
 	evaluation.Rank.AxnodedUsedMilli = resourcekernel.SaturatingAdd(resources.GetAxnodedUsedMilli(), positiveDifference(reserved.CPUMilli, resources.GetAxnodedCommittedMilli()))
-	evaluation.Rank.AxnodedUsedBytes = resourcekernel.SaturatingAdd(resources.GetAxnodedUsedBytes(), positiveDifference(reserved.MemoryBytes, resources.GetAxnodedCommittedBytes()))
+	evaluation.Rank.AxnodedUsedBytes = resourcekernel.SaturatingAdd(resources.GetAxnodedUsedBytes(), positiveDifference(reserved.MemoryBytes, record.Summary.GetMemoryBudget().GetLocalCommitmentBytes()))
 	return &placementkernel.Candidate{Record: record, Evaluation: evaluation, BaseRequest: candidate.BaseRequest, Request: candidate.Request}
 }
 

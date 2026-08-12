@@ -297,6 +297,10 @@ func verifyPersistedCgroupIdentity(lease *apipb.CgroupLease, mode string) error 
 	if lease.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING && domain.LeafInode != lease.GetCgroupLeafInode() {
 		return fmt.Errorf("workload cgroup identity changed")
 	}
+	if lease.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING &&
+		(domain.LeafLimitBytes != lease.GetMemoryLimitBytes() || domain.LeafSwapMaxBytes != 0) {
+		return fmt.Errorf("OCI workload memory contract changed: limit=%d swap=%d", domain.LeafLimitBytes, domain.LeafSwapMaxBytes)
+	}
 	return nil
 }
 

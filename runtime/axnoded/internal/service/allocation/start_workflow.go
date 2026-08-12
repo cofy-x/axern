@@ -321,7 +321,7 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 		return startErrorResponse(fmt.Sprintf("Failed to add new runtime: %v", request.RuntimeTemplate)), err
 	}
 	if h.rootfsCapabilityGate != nil {
-		if err := h.rootfsCapabilityGate(ctx, request, lrt.RootFS.Path()); err != nil {
+		if err := h.rootfsCapabilityGate(ctx, request, lrt.RootFS); err != nil {
 			return startErrorResponse(fmt.Sprintf("Failed rootfs capability gate: %v", err)), err
 		}
 	}

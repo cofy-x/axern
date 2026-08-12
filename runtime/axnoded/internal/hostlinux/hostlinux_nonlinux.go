@@ -11,14 +11,16 @@ import (
 )
 
 type CgroupMemoryDomain struct {
-	BootID        string
-	MountIdentity string
-	ParentInode   uint64
-	LeafInode     uint64
-	LimitBytes    int64
-	SwapMaxBytes  int64
-	OOMGroup      bool
-	InitialEvents map[string]uint64
+	BootID           string
+	MountIdentity    string
+	ParentInode      uint64
+	LeafInode        uint64
+	LimitBytes       int64
+	SwapMaxBytes     int64
+	OOMGroup         bool
+	LeafLimitBytes   int64
+	LeafSwapMaxBytes int64
+	InitialEvents    map[string]uint64
 }
 
 type CgroupMemoryObservation struct {

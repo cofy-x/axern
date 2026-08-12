@@ -122,6 +122,32 @@ func TestRuntimeConformanceObservationUsesProbeCompletionTime(t *testing.T) {
 	}
 }
 
+func TestRuntimeConformanceDoesNotPeriodicallyRepeatDestructiveProbe(t *testing.T) {
+	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
+	registry := handlerregistry.New(cfg)
+	handler := runtimetest.NewFakeRuntimeHandler()
+	handler.RuntimeName = config.RuntimeNameRunsc
+	registry.Set(config.RuntimeNameRunsc, handler)
+	probeCalls := 0
+	provider := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, func(context.Context, string, runtimeConformanceKind) error {
+		probeCalls++
+		return nil
+	})
+	now := time.Now().UTC()
+	for _, sample := range []time.Time{now, now.Add(15 * time.Minute), now.Add(24 * time.Hour)} {
+		observations, err := provider.Observe(context.Background(), sample)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if observations[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
+			t.Fatalf("observation at %s = %s", sample, observations[0].GetState())
+		}
+	}
+	if probeCalls != 1 {
+		t.Fatalf("destructive probe calls = %d, want startup certification only", probeCalls)
+	}
+}
+
 func TestRuntimeConformanceStartRequestsIsolateEnforcementBoundaries(t *testing.T) {
 	memory, err := runtimeConformanceStartRequest("memory-allocation", "memory-runtime", config.RuntimeNameRunsc, "/rootfs", runtimeConformanceKindMemory)
 	if err != nil {

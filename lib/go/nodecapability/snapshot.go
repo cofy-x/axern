@@ -101,7 +101,7 @@ func AvailableObservation(snapshot *capabilityv1.CapabilitySnapshot, key *capabi
 		return nil, false
 	}
 	byKey, err := observationsByKey(snapshot.GetObservations())
-	if err != nil || !availableObservationGraph(byKey, want, now, make(map[string]bool)) {
+	if err != nil || !availableObservationSet(byKey, want, now) {
 		return nil, false
 	}
 	return byKey[want], true
@@ -130,22 +130,24 @@ func observationsByKey(observations []*capabilityv1.CapabilityObservation) (map[
 	return byKey, nil
 }
 
-func availableObservationGraph(byKey map[string]*capabilityv1.CapabilityObservation, id string, now time.Time, visiting map[string]bool) bool {
-	if visiting[id] {
-		return false
-	}
+// availableObservationSet validates one bounded, flat proof set. The static
+// catalog permits derived workload capabilities to depend only on base
+// internal facts, so runtime evaluation never needs nested proof structures.
+func availableObservationSet(byKey map[string]*capabilityv1.CapabilityObservation, id string, now time.Time) bool {
 	observation := byKey[id]
 	if !observationValid(observation, now) {
 		return false
 	}
-	visiting[id] = true
-	defer delete(visiting, id)
 	for _, proof := range observation.GetDependencies() {
 		dependencyID, err := KeyID(proof.GetKey())
-		if err != nil || !availableObservationGraph(byKey, dependencyID, now, visiting) {
+		if err != nil {
 			return false
 		}
-		if !proto.Equal(NewObservationProof(byKey[dependencyID]), proof) {
+		dependency := byKey[dependencyID]
+		if !observationValid(dependency, now) || len(dependency.GetDependencies()) != 0 {
+			return false
+		}
+		if !proto.Equal(NewObservationProof(dependency), proof) {
 			return false
 		}
 	}
@@ -207,7 +209,7 @@ func ValidateSnapshot(snapshot *capabilityv1.CapabilitySnapshot, now time.Time) 
 		if observation.GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
 			continue
 		}
-		if !availableObservationGraph(byKey, id, now, make(map[string]bool)) {
+		if !availableObservationSet(byKey, id, now) {
 			return fmt.Errorf("available capability observation %q has invalid or unavailable dependency proof", id)
 		}
 	}
@@ -415,14 +417,14 @@ func ValidateDependencySet(dependencies []*capabilityv1.CapabilityDependency, no
 			expectedKeys = nil
 		}
 		if !proofKeysMatch(expectedKeys, dependency.GetDependencyObservations()) {
-			return fmt.Errorf("capability dependency %q proof graph does not match catalog", id)
+			return fmt.Errorf("capability dependency %q proof set does not match catalog", id)
 		}
 		for _, proof := range dependency.GetDependencyObservations() {
 			if err := ValidateObservationProof(proof, selectedAt); err != nil {
-				return fmt.Errorf("capability dependency %q proof graph: %w", id, err)
+				return fmt.Errorf("capability dependency %q proof set: %w", id, err)
 			}
 			if proof.GetObservedAt().AsTime().After(selectedAt) {
-				return fmt.Errorf("capability dependency %q proof graph contains proof observed after its snapshot", id)
+				return fmt.Errorf("capability dependency %q proof set contains proof observed after its snapshot", id)
 			}
 		}
 		if selectedProof.GetEvidence().GetDerived() != nil {

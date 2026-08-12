@@ -1971,14 +1971,14 @@ func (x *HugepageLimit) GetLimit() uint64 {
 }
 
 type Rootfs struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	LowerDir      string                 `protobuf:"bytes,2,opt,name=lower_dir,json=lowerDir,proto3" json:"lower_dir,omitempty"`
-	RootDir       string                 `protobuf:"bytes,3,opt,name=root_dir,json=rootDir,proto3" json:"root_dir,omitempty"`
-	Readonly      bool                   `protobuf:"varint,4,opt,name=readonly,proto3" json:"readonly,omitempty"`
-	LeaseID       string                 `protobuf:"bytes,5,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Type           string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	LowerDir       string                 `protobuf:"bytes,2,opt,name=lower_dir,json=lowerDir,proto3" json:"lower_dir,omitempty"`
+	RootDir        string                 `protobuf:"bytes,3,opt,name=root_dir,json=rootDir,proto3" json:"root_dir,omitempty"`
+	Readonly       bool                   `protobuf:"varint,4,opt,name=readonly,proto3" json:"readonly,omitempty"`
+	ImmutableMount *ImmutableRootfsMount  `protobuf:"bytes,6,opt,name=immutable_mount,json=immutableMount,proto3" json:"immutable_mount,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Rootfs) Reset() {
@@ -2039,9 +2039,104 @@ func (x *Rootfs) GetReadonly() bool {
 	return false
 }
 
-func (x *Rootfs) GetLeaseID() string {
+func (x *Rootfs) GetImmutableMount() *ImmutableRootfsMount {
+	if x != nil {
+		return x.ImmutableMount
+	}
+	return nil
+}
+
+// ImmutableRootfsMount is emitted by the rootfs source owner. OCI runtime
+// projection consumes this bounded descriptor and never parses image-manager
+// implementation details from mountinfo.
+type ImmutableRootfsMount struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Identity           string                 `protobuf:"bytes,1,opt,name=identity,proto3" json:"identity,omitempty"`
+	Filesystem         string                 `protobuf:"bytes,2,opt,name=filesystem,proto3" json:"filesystem,omitempty"`
+	BackingFilesystems []string               `protobuf:"bytes,3,rep,name=backing_filesystems,json=backingFilesystems,proto3" json:"backing_filesystems,omitempty"`
+	LowerDirs          []string               `protobuf:"bytes,4,rep,name=lower_dirs,json=lowerDirs,proto3" json:"lower_dirs,omitempty"`
+	Readonly           bool                   `protobuf:"varint,5,opt,name=readonly,proto3" json:"readonly,omitempty"`
+	LeaseID            string                 `protobuf:"bytes,6,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	EffectiveRoot      string                 `protobuf:"bytes,7,opt,name=effective_root,json=effectiveRoot,proto3" json:"effective_root,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *ImmutableRootfsMount) Reset() {
+	*x = ImmutableRootfsMount{}
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImmutableRootfsMount) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImmutableRootfsMount) ProtoMessage() {}
+
+func (x *ImmutableRootfsMount) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImmutableRootfsMount.ProtoReflect.Descriptor instead.
+func (*ImmutableRootfsMount) Descriptor() ([]byte, []int) {
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ImmutableRootfsMount) GetIdentity() string {
+	if x != nil {
+		return x.Identity
+	}
+	return ""
+}
+
+func (x *ImmutableRootfsMount) GetFilesystem() string {
+	if x != nil {
+		return x.Filesystem
+	}
+	return ""
+}
+
+func (x *ImmutableRootfsMount) GetBackingFilesystems() []string {
+	if x != nil {
+		return x.BackingFilesystems
+	}
+	return nil
+}
+
+func (x *ImmutableRootfsMount) GetLowerDirs() []string {
+	if x != nil {
+		return x.LowerDirs
+	}
+	return nil
+}
+
+func (x *ImmutableRootfsMount) GetReadonly() bool {
+	if x != nil {
+		return x.Readonly
+	}
+	return false
+}
+
+func (x *ImmutableRootfsMount) GetLeaseID() string {
 	if x != nil {
 		return x.LeaseID
+	}
+	return ""
+}
+
+func (x *ImmutableRootfsMount) GetEffectiveRoot() string {
+	if x != nil {
+		return x.EffectiveRoot
 	}
 	return ""
 }
@@ -2059,7 +2154,7 @@ type ContainerMetadata struct {
 
 func (x *ContainerMetadata) Reset() {
 	*x = ContainerMetadata{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[22]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2071,7 +2166,7 @@ func (x *ContainerMetadata) String() string {
 func (*ContainerMetadata) ProtoMessage() {}
 
 func (x *ContainerMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[22]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2084,7 +2179,7 @@ func (x *ContainerMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerMetadata.ProtoReflect.Descriptor instead.
 func (*ContainerMetadata) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{22}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ContainerMetadata) GetID() string {
@@ -2131,7 +2226,7 @@ type ContainerMetadataList struct {
 
 func (x *ContainerMetadataList) Reset() {
 	*x = ContainerMetadataList{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[23]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2143,7 +2238,7 @@ func (x *ContainerMetadataList) String() string {
 func (*ContainerMetadataList) ProtoMessage() {}
 
 func (x *ContainerMetadataList) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[23]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2156,7 +2251,7 @@ func (x *ContainerMetadataList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerMetadataList.ProtoReflect.Descriptor instead.
 func (*ContainerMetadataList) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{23}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ContainerMetadataList) GetContainers() map[string]*ContainerMetadata {
@@ -2175,7 +2270,7 @@ type Slice struct {
 
 func (x *Slice) Reset() {
 	*x = Slice{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[24]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2187,7 +2282,7 @@ func (x *Slice) String() string {
 func (*Slice) ProtoMessage() {}
 
 func (x *Slice) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[24]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2200,7 +2295,7 @@ func (x *Slice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Slice.ProtoReflect.Descriptor instead.
 func (*Slice) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{24}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *Slice) GetItems() []string {
@@ -2219,7 +2314,7 @@ type Map struct {
 
 func (x *Map) Reset() {
 	*x = Map{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[25]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2231,7 +2326,7 @@ func (x *Map) String() string {
 func (*Map) ProtoMessage() {}
 
 func (x *Map) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[25]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2244,7 +2339,7 @@ func (x *Map) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Map.ProtoReflect.Descriptor instead.
 func (*Map) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{25}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Map) GetItems() map[string]string {
@@ -2421,13 +2516,24 @@ const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"B\n" +
 	"\rHugepageLimit\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\tR\bpageSize\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\x04R\x05limit\"\x8b\x01\n" +
+	"\x05limit\x18\x02 \x01(\x04R\x05limit\"\xd0\x01\n" +
 	"\x06Rootfs\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1b\n" +
 	"\tlower_dir\x18\x02 \x01(\tR\blowerDir\x12\x19\n" +
 	"\broot_dir\x18\x03 \x01(\tR\arootDir\x12\x1a\n" +
-	"\breadonly\x18\x04 \x01(\bR\breadonly\x12\x19\n" +
-	"\blease_id\x18\x05 \x01(\tR\aleaseId\"\x89\x02\n" +
+	"\breadonly\x18\x04 \x01(\bR\breadonly\x12X\n" +
+	"\x0fimmutable_mount\x18\x06 \x01(\v2/.axnoded.internal.apipb.v1.ImmutableRootfsMountR\x0eimmutableMountJ\x04\b\x05\x10\x06\"\x80\x02\n" +
+	"\x14ImmutableRootfsMount\x12\x1a\n" +
+	"\bidentity\x18\x01 \x01(\tR\bidentity\x12\x1e\n" +
+	"\n" +
+	"filesystem\x18\x02 \x01(\tR\n" +
+	"filesystem\x12/\n" +
+	"\x13backing_filesystems\x18\x03 \x03(\tR\x12backingFilesystems\x12\x1d\n" +
+	"\n" +
+	"lower_dirs\x18\x04 \x03(\tR\tlowerDirs\x12\x1a\n" +
+	"\breadonly\x18\x05 \x01(\bR\breadonly\x12\x19\n" +
+	"\blease_id\x18\x06 \x01(\tR\aleaseId\x12%\n" +
+	"\x0eeffective_root\x18\a \x01(\tR\reffectiveRoot\"\x89\x02\n" +
 	"\x11ContainerMetadata\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12'\n" +
 	"\x0fruntime_handler\x18\x03 \x01(\tR\x0eruntimeHandler\x12P\n" +
@@ -2483,7 +2589,7 @@ func file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_apipb_v1_axnoded_internal_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_internal_apipb_v1_axnoded_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_internal_apipb_v1_axnoded_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_internal_apipb_v1_axnoded_internal_proto_goTypes = []any{
 	(RootfsSrcType)(0),                         // 0: axnoded.internal.apipb.v1.RootfsSrcType
 	(CgroupLifecycleState)(0),                  // 1: axnoded.internal.apipb.v1.CgroupLifecycleState
@@ -2511,19 +2617,20 @@ var file_internal_apipb_v1_axnoded_internal_proto_goTypes = []any{
 	(*LinuxContainerResources)(nil),            // 23: axnoded.internal.apipb.v1.LinuxContainerResources
 	(*HugepageLimit)(nil),                      // 24: axnoded.internal.apipb.v1.HugepageLimit
 	(*Rootfs)(nil),                             // 25: axnoded.internal.apipb.v1.Rootfs
-	(*ContainerMetadata)(nil),                  // 26: axnoded.internal.apipb.v1.ContainerMetadata
-	(*ContainerMetadataList)(nil),              // 27: axnoded.internal.apipb.v1.ContainerMetadataList
-	(*Slice)(nil),                              // 28: axnoded.internal.apipb.v1.Slice
-	(*Map)(nil),                                // 29: axnoded.internal.apipb.v1.Map
-	nil,                                        // 30: axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
-	nil,                                        // 31: axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
-	nil,                                        // 32: axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
-	nil,                                        // 33: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
-	nil,                                        // 34: axnoded.internal.apipb.v1.Map.ItemsEntry
-	(*v1.RuntimeExecutionProfile)(nil),         // 35: axern.control.catalog.v1.RuntimeExecutionProfile
-	(*v11.CapabilityDependency)(nil),           // 36: axern.control.capability.v1.CapabilityDependency
-	(*v11.CapabilityConditionSet)(nil),         // 37: axern.control.capability.v1.CapabilityConditionSet
-	(*v11.CapabilityKey)(nil),                  // 38: axern.control.capability.v1.CapabilityKey
+	(*ImmutableRootfsMount)(nil),               // 26: axnoded.internal.apipb.v1.ImmutableRootfsMount
+	(*ContainerMetadata)(nil),                  // 27: axnoded.internal.apipb.v1.ContainerMetadata
+	(*ContainerMetadataList)(nil),              // 28: axnoded.internal.apipb.v1.ContainerMetadataList
+	(*Slice)(nil),                              // 29: axnoded.internal.apipb.v1.Slice
+	(*Map)(nil),                                // 30: axnoded.internal.apipb.v1.Map
+	nil,                                        // 31: axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
+	nil,                                        // 32: axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
+	nil,                                        // 33: axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
+	nil,                                        // 34: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
+	nil,                                        // 35: axnoded.internal.apipb.v1.Map.ItemsEntry
+	(*v1.RuntimeExecutionProfile)(nil),         // 36: axern.control.catalog.v1.RuntimeExecutionProfile
+	(*v11.CapabilityDependency)(nil),           // 37: axern.control.capability.v1.CapabilityDependency
+	(*v11.CapabilityConditionSet)(nil),         // 38: axern.control.capability.v1.CapabilityConditionSet
+	(*v11.CapabilityKey)(nil),                  // 39: axern.control.capability.v1.CapabilityKey
 }
 var file_internal_apipb_v1_axnoded_internal_proto_depIdxs = []int32{
 	1,  // 0: axnoded.internal.apipb.v1.CgroupLease.state:type_name -> axnoded.internal.apipb.v1.CgroupLifecycleState
@@ -2534,30 +2641,31 @@ var file_internal_apipb_v1_axnoded_internal_proto_depIdxs = []int32{
 	11, // 5: axnoded.internal.apipb.v1.WorkspaceImageSource.variants:type_name -> axnoded.internal.apipb.v1.WorkspaceImageVariant
 	3,  // 6: axnoded.internal.apipb.v1.MaterializeTaskAssetsRequest.kind:type_name -> axnoded.internal.apipb.v1.TaskAssetKind
 	8,  // 7: axnoded.internal.apipb.v1.RuntimeTemplate.rootfs:type_name -> axnoded.internal.apipb.v1.RootfsConfig
-	30, // 8: axnoded.internal.apipb.v1.RuntimeTemplate.runtimeEnvs:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
+	31, // 8: axnoded.internal.apipb.v1.RuntimeTemplate.runtimeEnvs:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
 	9,  // 9: axnoded.internal.apipb.v1.RuntimeTemplate.mounts:type_name -> axnoded.internal.apipb.v1.Mount
-	35, // 10: axnoded.internal.apipb.v1.RuntimeTemplate.execution_profile:type_name -> axern.control.catalog.v1.RuntimeExecutionProfile
+	36, // 10: axnoded.internal.apipb.v1.RuntimeTemplate.execution_profile:type_name -> axern.control.catalog.v1.RuntimeExecutionProfile
 	15, // 11: axnoded.internal.apipb.v1.AllocationState.runtime_template:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate
-	36, // 12: axnoded.internal.apipb.v1.AllocationState.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
-	37, // 13: axnoded.internal.apipb.v1.AllocationState.capability_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
+	37, // 12: axnoded.internal.apipb.v1.AllocationState.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
+	38, // 13: axnoded.internal.apipb.v1.AllocationState.capability_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
 	20, // 14: axnoded.internal.apipb.v1.AllocationState.enforcement_manifest:type_name -> axnoded.internal.apipb.v1.AllocationEnforcementManifest
 	19, // 15: axnoded.internal.apipb.v1.AllocationState.capability_reconcile:type_name -> axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
 	17, // 16: axnoded.internal.apipb.v1.AllocationState.launch_verification:type_name -> axnoded.internal.apipb.v1.AllocationLaunchVerification
-	37, // 17: axnoded.internal.apipb.v1.AllocationState.capability_admission_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
-	38, // 18: axnoded.internal.apipb.v1.AllocationLaunchVerification.verified_capabilities:type_name -> axern.control.capability.v1.CapabilityKey
-	38, // 19: axnoded.internal.apipb.v1.PendingCapabilityReconcile.key:type_name -> axern.control.capability.v1.CapabilityKey
+	38, // 17: axnoded.internal.apipb.v1.AllocationState.capability_admission_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
+	39, // 18: axnoded.internal.apipb.v1.AllocationLaunchVerification.verified_capabilities:type_name -> axern.control.capability.v1.CapabilityKey
+	39, // 19: axnoded.internal.apipb.v1.PendingCapabilityReconcile.key:type_name -> axern.control.capability.v1.CapabilityKey
 	18, // 20: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState.pending:type_name -> axnoded.internal.apipb.v1.PendingCapabilityReconcile
 	24, // 21: axnoded.internal.apipb.v1.LinuxContainerResources.hugepage_limits:type_name -> axnoded.internal.apipb.v1.HugepageLimit
-	31, // 22: axnoded.internal.apipb.v1.LinuxContainerResources.unified:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
-	32, // 23: axnoded.internal.apipb.v1.ContainerMetadata.labels:type_name -> axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
-	33, // 24: axnoded.internal.apipb.v1.ContainerMetadataList.containers:type_name -> axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
-	34, // 25: axnoded.internal.apipb.v1.Map.items:type_name -> axnoded.internal.apipb.v1.Map.ItemsEntry
-	26, // 26: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry.value:type_name -> axnoded.internal.apipb.v1.ContainerMetadata
-	27, // [27:27] is the sub-list for method output_type
-	27, // [27:27] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	32, // 22: axnoded.internal.apipb.v1.LinuxContainerResources.unified:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
+	26, // 23: axnoded.internal.apipb.v1.Rootfs.immutable_mount:type_name -> axnoded.internal.apipb.v1.ImmutableRootfsMount
+	33, // 24: axnoded.internal.apipb.v1.ContainerMetadata.labels:type_name -> axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
+	34, // 25: axnoded.internal.apipb.v1.ContainerMetadataList.containers:type_name -> axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
+	35, // 26: axnoded.internal.apipb.v1.Map.items:type_name -> axnoded.internal.apipb.v1.Map.ItemsEntry
+	27, // 27: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry.value:type_name -> axnoded.internal.apipb.v1.ContainerMetadata
+	28, // [28:28] is the sub-list for method output_type
+	28, // [28:28] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_internal_apipb_v1_axnoded_internal_proto_init() }
@@ -2576,7 +2684,7 @@ func file_internal_apipb_v1_axnoded_internal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_apipb_v1_axnoded_internal_proto_rawDesc), len(file_internal_apipb_v1_axnoded_internal_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   31,
+			NumMessages:   32,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

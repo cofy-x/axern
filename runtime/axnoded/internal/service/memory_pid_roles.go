@@ -9,9 +9,10 @@ import (
 )
 
 // verifyMemoryPIDRoles is a read-only, /proc-based sampling check. It avoids
-// spawning one runtime CLI process per allocation every inventory interval;
-// the independent 60-second enforcement audit still executes the complete
-// runtime verifier and owns fail-stop decisions.
+// spawning one runtime CLI process per allocation every inventory interval.
+// Event-triggered reconciliation and the bounded ten-minute sharded audit add
+// control and identity checks and own fail-stop decisions; neither path runs a
+// destructive conformance sandbox.
 func (h *sandboxService) verifyMemoryPIDRoles(allocationID, runtimeName, workloadPath string, runtimePID int) error {
 	if strings.TrimSpace(allocationID) == "" || strings.TrimSpace(workloadPath) == "" || runtimePID <= 0 {
 		return fmt.Errorf("allocation, workload cgroup, and runtime PID are required")

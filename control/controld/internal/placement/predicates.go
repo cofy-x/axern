@@ -89,10 +89,11 @@ func hasAvailableMemory(policy resourcekernel.AdmissionPolicy, summary *nodev1.N
 	if requested <= 0 {
 		return true
 	}
-	used := summary.GetResources().GetAxnodedCommittedBytes()
-	if local := summary.GetMemoryBudget().GetLocalCommitmentBytes(); local > used {
-		used = local
-	}
+	// The node-local capacity manager is the only node commitment ledger.
+	// resources.axnoded_committed_bytes is a diagnostic inventory aggregate and
+	// must not become a third admission account beside DB reservations and the
+	// durable node-local commitment.
+	used := summary.GetMemoryBudget().GetLocalCommitmentBytes()
 	return policy.Fits(summary.GetAllocatable(), resourcekernel.Claim{MemoryBytes: used}, resourcekernel.Claim{MemoryBytes: requested})
 }
 

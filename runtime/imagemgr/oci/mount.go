@@ -72,7 +72,7 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 		}
 		timing.Stage("reuse_in_memory_mount", time.Since(stageStart))
 		logrus.Infof("OCI mount reuse in-memory: image=%s cache_key=%s mount_path=%s cost=%s", imageURL, cacheKey, info.MountPath, time.Since(opStart))
-		return &MountResult{MountPath: info.MountPath, Env: info.Env, ImageConfig: cloneImageConfig(info.ImageConfig)}, nil
+		return &MountResult{MountPath: info.MountPath, Env: info.Env, ImageConfig: cloneImageConfig(info.ImageConfig), MountID: info.MountID, LowerDirs: append([]string(nil), info.LowerDirs...)}, nil
 	}
 
 	// Reuse mounted state restored from BoltDB after restart.
@@ -98,7 +98,7 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 		m.setContainer(cacheKey, info)
 		timing.Stage("reuse_persisted_mount", time.Since(stageStart))
 		logrus.Infof("OCI mount reuse persisted: image=%s cache_key=%s mount_path=%s cost=%s", imageURL, cacheKey, rec.MountPath, time.Since(opStart))
-		return &MountResult{MountPath: rec.MountPath, Env: rec.Env, ImageConfig: cloneImageConfig(rec.ImageConfig)}, nil
+		return &MountResult{MountPath: rec.MountPath, Env: rec.Env, ImageConfig: cloneImageConfig(rec.ImageConfig), MountID: rec.MountID, LowerDirs: append([]string(nil), rec.LowerDirs...)}, nil
 	}
 	timing.Stage("check_existing_mount", time.Since(stageStart))
 
@@ -241,7 +241,7 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 	rollbackResources = false
 	logrus.Infof("OCI mount success: image=%s cache_key=%s mount_id=%s mount_path=%s layers=%d cost=%s", imageURL, cacheKey, mountID, mountPath, len(layerDigests), time.Since(opStart))
 
-	return &MountResult{MountPath: mountPath, Env: envVars, ImageConfig: cloneImageConfig(imageConfig)}, nil
+	return &MountResult{MountPath: mountPath, Env: envVars, ImageConfig: cloneImageConfig(imageConfig), MountID: mountID, LowerDirs: append([]string(nil), lowerDirs...)}, nil
 }
 
 func (m *Manager) validateRequestedImportedGeneration(imageURL, cacheKey string) error {

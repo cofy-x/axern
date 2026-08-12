@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
@@ -46,7 +47,7 @@ func TestPrepareBundleAppliesProjectionAndPreservesReadonly(t *testing.T) {
 	}))
 	provider := &providerStub{view: rootfsview.View{RootDir: projectedPath, Prepared: true}}
 
-	prepared, err := PrepareBundle(context.Background(), provider, contract.HandlerOptions{ContainerID: "alloc-1"}, bundlePath, RuntimePolicy{RuntimeName: "runsc"})
+	prepared, err := PrepareBundle(context.Background(), provider, contract.HandlerOptions{ContainerID: "alloc-1"}, bundlePath, RuntimePolicy{RuntimeName: "runsc", ImmutableMount: testImmutableMount(rootfsPath)})
 
 	require.NoError(t, err)
 	assert.True(t, prepared)
@@ -69,7 +70,7 @@ func TestPrepareBundleLeavesSpecWhenProjectionIsNotNeeded(t *testing.T) {
 	}))
 	provider := &providerStub{}
 
-	prepared, err := PrepareBundle(context.Background(), provider, contract.HandlerOptions{ContainerID: "alloc-1"}, bundlePath, RuntimePolicy{})
+	prepared, err := PrepareBundle(context.Background(), provider, contract.HandlerOptions{ContainerID: "alloc-1"}, bundlePath, RuntimePolicy{ImmutableMount: testImmutableMount(rootfsPath)})
 
 	require.NoError(t, err)
 	assert.False(t, prepared)
@@ -89,8 +90,15 @@ func TestPrepareBundleRejectsSpecialBindSource(t *testing.T) {
 		Mounts: []spec.Mount{{Type: "bind", Source: pipe, Destination: "/pipe"}},
 	}))
 
-	_, err := PrepareBundle(context.Background(), &providerStub{}, contract.HandlerOptions{ContainerID: "alloc-1"}, bundlePath, RuntimePolicy{})
+	_, err := PrepareBundle(context.Background(), &providerStub{}, contract.HandlerOptions{ContainerID: "alloc-1"}, bundlePath, RuntimePolicy{ImmutableMount: testImmutableMount(rootfsPath)})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "neither a regular file nor a directory")
+}
+
+func testImmutableMount(root string) rootfsview.ImmutableMountDescriptor {
+	return rootfsview.ImmutableMountDescriptor{
+		Identity: "sha256:" + strings.Repeat("a", 64), EffectiveRoot: root, Filesystem: "test",
+		LowerDirs: []string{root}, Readonly: true,
+	}
 }

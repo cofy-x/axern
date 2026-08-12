@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -55,48 +56,40 @@ func TestOverlayViewInitializationRollsBackPartialView(t *testing.T) {
 	require.NoError(t, initializeOverlayView(view))
 }
 
-func TestOverlayProviderRejectsChangedBackingIdentity(t *testing.T) {
+func TestImmutableMountDescriptorIsSourceOwnedAndBounded(t *testing.T) {
 	root := t.TempDir()
 	backing, err := InspectBacking(root)
 	require.NoError(t, err)
-	backing.MountID++
-	provider := NewOverlayProvider(t.TempDir())
-	_, err = provider.Prepare(context.Background(), "sandbox", Request{
-		RootDir: root,
-		Backing: backing,
-		Targets: []MountTarget{{Destination: "/missing", Kind: TargetDirectory}},
-	})
-	require.ErrorContains(t, err, "rootfs backing changed before projection")
+	descriptor := backing.ImmutableMountDescriptor("")
+	require.NoError(t, ValidateImmutableMountDescriptor(descriptor, root))
+	descriptor.Identity = "derived-v1"
+	require.ErrorContains(t, ValidateImmutableMountDescriptor(descriptor, root), "sha256")
+
+	descriptor = backing.ImmutableMountDescriptor("")
+	descriptor.LowerDirs = make([]string, maxImmutableLowerDirs+1)
+	require.ErrorContains(t, ValidateImmutableMountDescriptorContract(descriptor, root), "too many lower dirs")
 }
 
-func TestCompareBackingIdentityCoversReadonlyAndEffectiveLowerChain(t *testing.T) {
-	expected := RootfsBackingFacts{
-		EffectiveRoot: "/images/rootfs", MountID: 42, Mountpoint: "/images", MountRoot: "/",
-		FSType: "overlay", Source: "overlay", LowerDirs: []string{"/upper/rootfs", "/lower/rootfs"},
-		EffectiveLowerChain: []RootfsBackingLayerFacts{
-			{Path: "/upper/rootfs", MountID: 7, Mountpoint: "/upper", FSType: "xfs", Source: "/dev/loop7"},
-			{Path: "/lower/rootfs", MountID: 8, Mountpoint: "/lower", FSType: "erofs", Source: "/dev/loop8", Readonly: true},
-		},
+func TestImmutableMountDescriptorContractRejectsDuplicateAndMalformedState(t *testing.T) {
+	root := t.TempDir()
+	descriptor := ImmutableMountDescriptor{
+		Identity: "sha256:" + strings.Repeat("a", 64), EffectiveRoot: root, Filesystem: "overlay",
+		BackingFilesystems: []string{"erofs"}, LowerDirs: []string{root}, Readonly: true, LeaseID: "lease-1",
 	}
-	if err := compareBackingIdentity(expected, expected); err != nil {
-		t.Fatalf("identical backing rejected: %v", err)
-	}
-	readonly := expected
-	readonly.Readonly = true
-	if err := compareBackingIdentity(expected, readonly); err == nil {
-		t.Fatal("read-only remount preserved rootfs backing identity")
-	}
-	reordered := expected
-	reordered.LowerDirs = []string{"/lower/rootfs", "/upper/rootfs"}
-	if err := compareBackingIdentity(expected, reordered); err == nil {
-		t.Fatal("changed effective lower chain preserved rootfs backing identity")
-	}
-	remounted := expected
-	remounted.EffectiveLowerChain = append([]RootfsBackingLayerFacts(nil), expected.EffectiveLowerChain...)
-	remounted.EffectiveLowerChain[1].MountID++
-	if err := compareBackingIdentity(expected, remounted); err == nil {
-		t.Fatal("changed effective lower mount identity was accepted")
-	}
+	require.NoError(t, ValidateImmutableMountDescriptorContract(descriptor, root))
+	descriptor.LowerDirs = []string{root, root}
+	require.ErrorContains(t, ValidateImmutableMountDescriptorContract(descriptor, root), "duplicated")
+	descriptor.LowerDirs = []string{root}
+	descriptor.Identity = "sha256:" + strings.Repeat("g", 64)
+	require.ErrorContains(t, ValidateImmutableMountDescriptorContract(descriptor, root), "sha256")
+
+	descriptor.Identity = "sha256:" + strings.Repeat("a", 64)
+	descriptor.BackingFilesystems = []string{"xfs", "erofs"}
+	require.ErrorContains(t, ValidateImmutableMountDescriptorContract(descriptor, root), "ordered")
+	descriptor.BackingFilesystems = []string{"erofs", "xfs"}
+	require.ErrorContains(t, ValidateImmutableMountDescriptorContract(descriptor, root+"/../"+filepath.Base(root)), "canonical")
+	descriptor.LeaseID = " lease-1"
+	require.ErrorContains(t, ValidateImmutableMountDescriptorContract(descriptor, root), "lease")
 }
 
 func TestRootfsBackingFactsHasFilesystemIncludesEffectiveLowerChain(t *testing.T) {
@@ -184,16 +177,37 @@ func TestReconcilePersistentViewsRemovesOnlyStaleRuntimeOwnedView(t *testing.T) 
 	} {
 		root := filepath.Join(filestore, projectionViewDir, item.id)
 		require.NoError(t, os.MkdirAll(filepath.Join(root, "merged"), 0755))
-		content := []byte(`{"runtime_name":"` + item.runtime + `","backing":{"effective_root":"/definitely-not-the-active-mount","mount_id":1,"mountpoint":"/definitely-not-the-active-mount"}}`)
+		content := []byte(`{"runtime_name":"` + item.runtime + `","immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/imagemgr/rootfs","filesystem":"overlay","lower_dirs":["/imagemgr/lower"],"readonly":true}}`)
 		require.NoError(t, atomicWrite(filepath.Join(root, "projection.json"), content, 0644))
 	}
 
 	err := provider.ReconcilePersistentViews(context.Background(), "runc", map[string]struct{}{"active-runc": {}})
-	require.ErrorContains(t, err, "active projection")
+	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "stale-runc"))
 	assert.ErrorIs(t, err, os.ErrNotExist)
 	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "active-runc"))
 	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "stale-runsc"))
 	require.NoError(t, err)
+}
+
+func TestReadProjectionManifestRejectsUnboundedInput(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "projection.json"), make([]byte, maxProjectionManifestBytes+1), 0644))
+	_, err := readProjectionManifest(root)
+	require.ErrorContains(t, err, "size")
+}
+
+func TestReadProjectionManifestRejectsUnknownOrTrailingState(t *testing.T) {
+	for name, content := range map[string]string{
+		"unknown":  `{"runtime_name":"runc","unknown":true,"immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/rootfs","filesystem":"overlay","lower_dirs":["/lower"],"readonly":true}}`,
+		"trailing": `{"runtime_name":"runc","immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/rootfs","filesystem":"overlay","lower_dirs":["/lower"],"readonly":true}} {}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(root, "projection.json"), []byte(content), 0644))
+			_, err := readProjectionManifest(root)
+			require.Error(t, err)
+		})
+	}
 }

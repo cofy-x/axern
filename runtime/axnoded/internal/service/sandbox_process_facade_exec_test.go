@@ -23,6 +23,7 @@ type execStreamServerStub struct {
 	requests  []*runtime.ExecStreamRequest
 	sent      []*runtime.ExecStreamResponse
 	recvIndex int
+	recvEOF   func()
 }
 
 func (s *execStreamServerStub) SetHeader(metadata.MD) error  { return nil }
@@ -42,6 +43,10 @@ func (s *execStreamServerStub) Send(resp *runtime.ExecStreamResponse) error {
 }
 func (s *execStreamServerStub) Recv() (*runtime.ExecStreamRequest, error) {
 	if s.recvIndex >= len(s.requests) {
+		if s.recvEOF != nil {
+			s.recvEOF()
+			s.recvEOF = nil
+		}
 		return nil, io.EOF
 	}
 	req := s.requests[s.recvIndex]
@@ -150,12 +155,14 @@ func TestExecStreamRequiresOpenFrame(t *testing.T) {
 }
 
 func TestExecStreamForwardsNonTTYStdinAndExit(t *testing.T) {
+	inputDone := make(chan struct{})
 	session := &execSessionStub{
 		chunks: []contract.Chunk{
 			{Stdout: []byte("stdout")},
 			{Stderr: []byte("stderr")},
 		},
-		exit: contract.Exit{Status: 3},
+		exit:        contract.Exit{Status: 3},
+		recvEOFWait: inputDone,
 	}
 	handler := &runtimeSpyHandler{
 		name:         "runsc",
@@ -166,6 +173,7 @@ func TestExecStreamForwardsNonTTYStdinAndExit(t *testing.T) {
 	storeRunningExecContainer(t, s, "runsc", "axctl-exec-stream")
 
 	stream := &execStreamServerStub{
+		recvEOF: func() { close(inputDone) },
 		requests: []*runtime.ExecStreamRequest{
 			{Payload: &runtime.ExecStreamRequest_Open{Open: &runtime.ExecStreamOpen{
 				ID:      "axctl-exec-stream",

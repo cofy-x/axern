@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -22,7 +24,17 @@ import (
 
 var inconclusiveVerificationDelays = []time.Duration{0, 2 * time.Second, 5 * time.Second}
 
-const capabilityReconcileRetryDelay = 2 * time.Second
+const (
+	capabilityReconcileRetryDelay = 2 * time.Second
+	// Runtime audits read controls, identities, and PID membership only. One
+	// deterministic shard is scheduled per tick so every allocation is covered
+	// over ten minutes without a node-wide 60-second verification storm. The
+	// scheduler advances a monotonic shard cursor, so a delayed tick extends the
+	// sweep instead of silently skipping work.
+	capabilityAuditTick        = 5 * time.Second
+	capabilityAuditShardCount  = 120
+	capabilityReconcileWorkers = 4
+)
 
 type capabilityReconcileResult struct {
 	retryErr         error
@@ -62,16 +74,9 @@ func (h *sandboxService) handleCapabilityTransitions(_ context.Context, transiti
 // New generations are persisted before this call and are therefore picked up
 // by the running worker's next loop rather than being dropped.
 func (h *sandboxService) startCapabilityReconcileWorker(allocationID string) {
-	h.capabilityReconcileMu.Lock()
-	if h.capabilityReconciling == nil {
-		h.capabilityReconciling = make(map[string]struct{})
-	}
-	if _, running := h.capabilityReconciling[allocationID]; running {
-		h.capabilityReconcileMu.Unlock()
+	if !h.acquireCapabilityReconcileWorker(allocationID) {
 		return
 	}
-	h.capabilityReconciling[allocationID] = struct{}{}
-	h.capabilityReconcileMu.Unlock()
 	ctx := h.capabilityReconcileCtx
 	if ctx == nil {
 		ctx = context.Background()
@@ -80,19 +85,73 @@ func (h *sandboxService) startCapabilityReconcileWorker(allocationID string) {
 	go func() {
 		defer h.capabilityReconcileWG.Done()
 		defer func() {
-			h.capabilityReconcileMu.Lock()
-			delete(h.capabilityReconciling, allocationID)
-			h.capabilityReconcileMu.Unlock()
-			// Close the enqueue/exit race: if work arrived after the final read,
-			// acquire ownership again after releasing the running marker.
+			h.finishCapabilityReconcileWorker(allocationID)
 			if ctx.Err() == nil {
-				if state := h.allocationController().CapabilityReconcileState(allocationID); state != nil && (state.GetTerminating() || len(state.GetPending()) > 0) {
-					h.startCapabilityReconcileWorker(allocationID)
-				}
+				// Close the enqueue/exit race and use the released node-wide budget
+				// to resume durable work in stable allocation order.
+				h.startPendingCapabilityReconcileWorkers()
 			}
 		}()
 		h.runCapabilityReconcileWorker(ctx, allocationID)
 	}()
+}
+
+func (h *sandboxService) acquireCapabilityReconcileWorker(allocationID string) bool {
+	h.capabilityReconcileMu.Lock()
+	defer h.capabilityReconcileMu.Unlock()
+	if h.capabilityReconciling == nil {
+		h.capabilityReconciling = make(map[string]bool)
+	}
+	if _, running := h.capabilityReconciling[allocationID]; running {
+		return false
+	}
+	if h.capabilityReconcileActive >= capabilityReconcileWorkers {
+		// Work is durable. A completing worker or the next audit tick resumes it.
+		return false
+	}
+	h.capabilityReconciling[allocationID] = true
+	h.capabilityReconcileActive++
+	return true
+}
+
+// releaseCapabilityReconcileBudget keeps the per-allocation termination owner
+// while returning its verification permit. Cleanup may retry indefinitely and
+// must not prevent another allocation from proving and enforcing a hard-limit
+// loss.
+func (h *sandboxService) releaseCapabilityReconcileBudget(allocationID string) {
+	h.capabilityReconcileMu.Lock()
+	if holdsBudget, running := h.capabilityReconciling[allocationID]; running && holdsBudget {
+		h.capabilityReconciling[allocationID] = false
+		h.capabilityReconcileActive--
+	}
+	h.capabilityReconcileMu.Unlock()
+}
+
+func (h *sandboxService) finishCapabilityReconcileWorker(allocationID string) {
+	h.capabilityReconcileMu.Lock()
+	if holdsBudget, running := h.capabilityReconciling[allocationID]; running {
+		if holdsBudget {
+			h.capabilityReconcileActive--
+		}
+		delete(h.capabilityReconciling, allocationID)
+	}
+	h.capabilityReconcileMu.Unlock()
+}
+
+func (h *sandboxService) startPendingCapabilityReconcileWorkers() {
+	manifests := h.allocationController().CapabilityDependencyManifests()
+	allocationIDs := make([]string, 0, len(manifests))
+	for allocationID := range manifests {
+		allocationIDs = append(allocationIDs, allocationID)
+	}
+	sort.Strings(allocationIDs)
+	for _, allocationID := range allocationIDs {
+		state := h.allocationController().CapabilityReconcileState(allocationID)
+		if state == nil || (!state.GetTerminating() && len(state.GetPending()) == 0) {
+			continue
+		}
+		h.startCapabilityReconcileWorker(allocationID)
+	}
 }
 
 func (h *sandboxService) startPeriodicCapabilityAudit() {
@@ -103,26 +162,29 @@ func (h *sandboxService) startPeriodicCapabilityAudit() {
 	h.capabilityReconcileWG.Add(1)
 	go func() {
 		defer h.capabilityReconcileWG.Done()
-		for allocationID := range h.allocationController().CapabilityDependencyManifests() {
-			if state := h.allocationController().CapabilityReconcileState(allocationID); state != nil && (state.GetTerminating() || len(state.GetPending()) > 0) {
-				h.startCapabilityReconcileWorker(allocationID)
-			}
-		}
+		h.startPendingCapabilityReconcileWorkers()
+		auditShard := capabilityAuditShardAt(time.Now().UTC())
+		ticker := time.NewTicker(capabilityAuditTick)
+		defer ticker.Stop()
 		for {
-			jitter := time.Duration(time.Now().UnixNano() % int64(20*time.Second))
-			timer := time.NewTimer(50*time.Second + jitter)
+			var now time.Time
 			select {
 			case <-ctx.Done():
-				timer.Stop()
 				return
-			case <-timer.C:
+			case now = <-ticker.C:
 			}
+			h.startPendingCapabilityReconcileWorkers()
+			currentAuditShard := auditShard
+			auditShard = nextCapabilityAuditShard(auditShard)
 			snapshot := h.capabilityManager.Snapshot()
 			generation := snapshot.GetSequence()
 			if generation <= 0 {
-				generation = time.Now().UTC().UnixNano()
+				generation = now.UTC().UnixNano()
 			}
 			for allocationID, dependencies := range h.allocationController().CapabilityDependencyManifests() {
+				if capabilityAuditShard(allocationID) != currentAuditShard {
+					continue
+				}
 				keys := periodicCapabilityAuditKeys(dependencies)
 				if len(keys) == 0 {
 					continue
@@ -137,10 +199,25 @@ func (h *sandboxService) startPeriodicCapabilityAudit() {
 	}()
 }
 
-// Periodic verification is the durable safety net for a transition that could
-// not be merged while node state storage was temporarily unavailable. Hard
-// enforcement and operational DEGRADE capabilities are both audited;
-// ADMISSION_ONLY facts never affect an already running allocation.
+func capabilityAuditShard(allocationID string) uint32 {
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(allocationID))
+	return hash.Sum32() % capabilityAuditShardCount
+}
+
+func capabilityAuditShardAt(now time.Time) uint32 {
+	return uint32(now.UnixNano()/int64(capabilityAuditTick)) % capabilityAuditShardCount
+}
+
+func nextCapabilityAuditShard(current uint32) uint32 {
+	return (current + 1) % capabilityAuditShardCount
+}
+
+// The sharded audit is a cheap safety net for missed transitions and silent
+// control drift. Verifiers may read kernel/runtime controls, identities, and
+// PID membership only; destructive OOM and disk-fill probes belong to startup,
+// identity-change conformance, and qualification. ADMISSION_ONLY facts never
+// affect an already running allocation.
 func periodicCapabilityAuditKeys(dependencies []*capabilityv1.CapabilityDependency) []*capabilityv1.CapabilityKey {
 	keys := make([]*capabilityv1.CapabilityKey, 0, len(dependencies))
 	for _, dependency := range dependencies {
@@ -159,6 +236,8 @@ func (h *sandboxService) runCapabilityReconcileWorker(ctx context.Context, alloc
 			return
 		}
 		if state.GetTerminating() {
+			h.releaseCapabilityReconcileBudget(allocationID)
+			h.startPendingCapabilityReconcileWorkers()
 			h.failStopAllocation(ctx, allocationID, errors.New(state.GetLastError()))
 			return
 		}
@@ -231,6 +310,8 @@ func (h *sandboxService) runCapabilityReconcileWorker(ctx context.Context, alloc
 				logrus.WithError(err).WithField("allocation_id", allocationID).Error("persist fail-stop ownership")
 				return
 			}
+			h.releaseCapabilityReconcileBudget(allocationID)
+			h.startPendingCapabilityReconcileWorkers()
 			h.failStopAllocation(ctx, allocationID, reason)
 			return
 		}

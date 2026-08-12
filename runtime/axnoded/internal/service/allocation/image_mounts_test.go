@@ -36,9 +36,18 @@ func (m *imageMountTestMounter) Mount(cfg langrtmanager.RootfsConfig) (*langrtma
 	}
 	switch cfg.SrcType {
 	case runtime.RootfsSrcType_LOCAL:
-		return &langrtmanager.MountResult{Path: cfg.Path}, nil
+		mount, err := langrtmanager.DescribeLocalRootfs(cfg.Path)
+		return &langrtmanager.MountResult{Path: cfg.Path, ImmutableMount: mount}, err
 	case runtime.RootfsSrcType_IMAGE:
-		return &langrtmanager.MountResult{Path: m.imagePaths[cfg.ImageUrl]}, nil
+		path := m.imagePaths[cfg.ImageUrl]
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return nil, err
+		}
+		mount, err := langrtmanager.DescribeLocalRootfs(path)
+		if mount != nil {
+			mount.LeaseID = cfg.LeaseID
+		}
+		return &langrtmanager.MountResult{Path: path, ImmutableMount: mount}, err
 	default:
 		return nil, nil
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/cgroupflow"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/preparedflow"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/rootfsflow"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
 	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 )
 
@@ -31,7 +32,7 @@ func (r *RunscServiceHandler) CreateContainer(ctx context.Context, request *apip
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}
-	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsflow.RuntimePolicy{RuntimeName: r.Name(), RootfsLeaseID: effectiveRequest.GetRootfs().GetLeaseID()}); err != nil {
+	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsflow.RuntimePolicy{RuntimeName: r.Name(), ImmutableMount: rootfsview.ImmutableMountFromProto(effectiveRequest.GetRootfs().GetImmutableMount())}); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return metaData, err
 	}
@@ -76,7 +77,7 @@ func (r *RunscServiceHandler) PrepareContainer(ctx context.Context, request *api
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}
-	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsflow.RuntimePolicy{RuntimeName: r.Name(), RootfsLeaseID: effectiveRequest.GetRootfs().GetLeaseID()}); err != nil {
+	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsflow.RuntimePolicy{RuntimeName: r.Name(), ImmutableMount: rootfsview.ImmutableMountFromProto(effectiveRequest.GetRootfs().GetImmutableMount())}); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}

@@ -68,7 +68,8 @@ type sandboxService struct {
 	capabilityRefreshCancel   context.CancelFunc
 	capabilityRefreshWG       sync.WaitGroup
 	capabilityReconcileMu     sync.Mutex
-	capabilityReconciling     map[string]struct{}
+	capabilityReconciling     map[string]bool
+	capabilityReconcileActive int
 	capabilityReconcileCtx    context.Context
 	capabilityReconcileCancel context.CancelFunc
 	capabilityReconcileWG     sync.WaitGroup

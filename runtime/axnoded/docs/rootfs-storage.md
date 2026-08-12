@@ -2,8 +2,8 @@
 
 Axern treats the lower rootfs as immutable input. It may be a directory, an
 existing OverlayFS view, Nydus, or EROFS. Runtime behavior is selected from OCI
-semantics, observed mount facts, and the runtime policy; it is not selected by
-an image-product type switch.
+semantics, the source-owned immutable mount descriptor, and runtime policy; it
+is not selected by an image-product type switch.
 
 ## Three independent boundaries
 
@@ -31,17 +31,24 @@ bundle-private `sandbox-files` directory. Sources and `config.json` use
 chmod/write/file-fsync/close/rename/parent-fsync atomic replacement. Axnoded
 never copies the node `/etc` tree and never creates targets in the lower rootfs.
 
-## Projection and backing facts
+## Immutable mount hand-off and projection
 
-The provider inspects `/proc/self/mountinfo`, records the deepest covering mount
-ID, effective root path, filesystem type, mount root, source, readonly state,
-and the path plus mount identity of every ordered effective lower, and persists those facts in
-`projection.json`. Reconciliation re-inspects that same effective root and
-requires all fields, including readonly state, lower ordering, and per-lower
-mount identity, to match. EROFS is one atomic immutable lower. For OverlayFS,
-the active upper is placed before lowerdirs and
-mount-root offsets are preserved. Unsafe mountinfo or overlay-option encoding
-is rejected.
+Imagemgr owns image representation, the effective immutable mount, its opaque
+identity, and its lease. Every image mount response returns one bounded, flat
+descriptor containing the effective root, filesystem diagnostics, exact ordered
+OverlayFS lower paths when projection needs them, readonly state, source-owned
+identity, and lease ID. OCI, Nydus, OSS, and future EROFS details stop at this
+boundary. The projection provider validates and consumes the descriptor; it
+does not parse image metadata or reverse-engineer mountinfo to rediscover image
+layers. Local developer rootfs sources are described once by their source
+adapter using the same contract.
+
+`projection.json` records this descriptor only for lifecycle correlation.
+Imagemgr and its lease reconciliation own lower health and identity changes;
+projection reconciliation owns the host OverlayFS mount, placeholder upper,
+work directory, and quota state. This prevents projection from becoming a
+second image manager. Unsafe or non-canonical lower paths and mount-option
+encoding are rejected before an OverlayFS mount.
 
 Every bind source must be a regular file or directory. Destinations must be
 normalized absolute container paths. Parent and leaf symlinks, special files,
@@ -52,8 +59,8 @@ never copied.
 
 Artifacts are partitioned as `projections/<id>`, `runc/<id>`, and `runsc` under
 the filestore. The OCI readonly bit is preserved exactly. Imagemgr's active
-rootfs reference is the lower mount lease; its lease ID is also recorded in the
-projection manifest for reconciliation.
+rootfs reference and immutable identity remain owned by the lower mount lease;
+projection cleanup must finish before that lease is released.
 
 ## Ephemeral-storage enforcement
 
@@ -92,7 +99,10 @@ upper filesystem. Only successful probes can support the corresponding derived
 platform capability. Runtime-specific memory and ephemeral-storage hard-limit
 capabilities additionally require separate local conformance sandboxes so the
 cgroup and storage boundaries cannot mask one another; each real allocation is
-verified again. Provider ownership, evidence validity, and loss policy are
+verified again. Destructive OOM and quota-fill conformance runs only at startup,
+runtime/config identity change, and qualification. Runtime audits are
+event-triggered plus bounded/sharded and only read controls, identities, and PID
+membership. Provider ownership, evidence validity, and loss policy are
 defined in
 [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md).
 

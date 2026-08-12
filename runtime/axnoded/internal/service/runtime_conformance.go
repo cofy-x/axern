@@ -31,7 +31,6 @@ import (
 const (
 	runtimeConformanceFixture = "/opt/axern/runtime-selftest/rootfs"
 	runtimeConformanceResult  = "/.axern-quota-result"
-	runtimeConformancePeriod  = 15 * time.Minute
 	runtimeConformanceTimeout = 60 * time.Second
 	runtimeConformanceCleanup = 30 * time.Second
 	// Memory and ephemeral storage use separate sandboxes so one unavailable
@@ -65,7 +64,6 @@ type runtimeConformanceProvider struct {
 	lastProbe        time.Time
 	nextProbe        time.Time
 	failures         int
-	recoveryPending  bool
 	lastErr          error
 	lastErrorUnknown bool
 	lastReasonCode   capabilityv1.CapabilityReasonCode
@@ -143,7 +141,12 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 	sampleStarted := time.Now()
 	identity, binaryDigest, configDigest, err := p.runtimeIdentity()
 	identityChanged := err == nil && identity != p.identity
-	probeDue := p.lastProbe.IsZero() || (!p.nextProbe.IsZero() && !now.Before(p.nextProbe)) || (p.nextProbe.IsZero() && now.Sub(p.lastProbe) >= runtimeConformancePeriod)
+	// Conformance creates a destructive sandbox (real OOM or quota fill). A
+	// successful result is bound to the runtime/config identity and is not a
+	// health sample: rerun it only for first certification, identity changes,
+	// or failure retry. Cheap runtime identity and allocation control audits
+	// provide the continuous enforcement signal.
+	probeDue := p.lastProbe.IsZero() || (!p.nextProbe.IsZero() && !now.Before(p.nextProbe))
 	disabledReason := ""
 	if err == nil && p.kind == runtimeConformanceKindMemory {
 		mode, modeErr := p.cfg.PluginConfig.RuntimeConfig.CgroupEnforcementMode()
@@ -165,7 +168,6 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.lastErrorUnknown = true
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_IDENTITY_CHANGED
 		p.failures = 1
-		p.recoveryPending = false
 		p.nextProbe = p.lastProbe
 	} else if err == nil && disabledReason != "" && (identityChanged || probeDue) {
 		p.identity = identity
@@ -174,7 +176,6 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.lastErrorUnknown = false
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED
 		p.failures = 0
-		p.recoveryPending = false
 		p.nextProbe = time.Time{}
 	} else if err == nil && (identityChanged || probeDue) {
 		probeCtx, cancel := context.WithTimeout(ctx, runtimeConformanceTimeout)
@@ -187,20 +188,10 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED
 		if err != nil {
 			p.failures++
-			p.recoveryPending = false
 			p.nextProbe = p.lastProbe.Add(runtimeProbeRetryDelay(p.failures))
 		} else {
-			wasFailing := p.failures > 0
 			p.failures = 0
-			if wasFailing {
-				p.recoveryPending = true
-				p.nextProbe = p.lastProbe.Add(5 * time.Second)
-			} else if p.recoveryPending {
-				p.recoveryPending = false
-				p.nextProbe = time.Time{}
-			} else {
-				p.nextProbe = time.Time{}
-			}
+			p.nextProbe = time.Time{}
 		}
 	} else if err != nil && (p.lastProbe.IsZero() || p.nextProbe.IsZero() || !now.Before(p.nextProbe)) {
 		p.identity = identity
@@ -209,7 +200,6 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.lastErrorUnknown = true
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR
 		p.failures++
-		p.recoveryPending = false
 		p.nextProbe = p.lastProbe.Add(runtimeProbeRetryDelay(p.failures))
 	}
 	var evidence *capabilityv1.CapabilityEvidence

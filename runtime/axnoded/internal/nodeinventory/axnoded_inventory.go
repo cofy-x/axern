@@ -519,6 +519,9 @@ func retiringMemoryObservation(driver os2.CgroupDriver, lease resources.Retiring
 		if lease.LeafInode != 0 && fullDomain.LeafInode != lease.LeafInode {
 			return nil, fmt.Errorf("retiring workload cgroup identity changed")
 		}
+		if bounded && (fullDomain.LeafLimitBytes != lease.MemoryLimit || fullDomain.LeafSwapMaxBytes != 0) {
+			return nil, fmt.Errorf("retiring OCI workload memory contract differs from allocation limit")
+		}
 		domain = fullDomain
 		leafControlsVerified = bounded
 	} else if !errors.Is(fullErr, os.ErrNotExist) {
@@ -552,6 +555,9 @@ func allocationMemoryObservation(c *container.Container, workloadPath string, li
 	bounded := limitBytes > 0
 	if bounded && (domain.LimitBytes != limitBytes || domain.SwapMaxBytes != 0 || !domain.OOMGroup) {
 		return nil, fmt.Errorf("memory enforcement differs from allocation limit")
+	}
+	if bounded && (domain.LeafLimitBytes != limitBytes || domain.LeafSwapMaxBytes != 0) {
+		return nil, fmt.Errorf("OCI workload memory contract differs from allocation limit")
 	}
 	usage, err := hostlinux.ReadCgroupMemoryObservation(parentPath)
 	if err != nil {

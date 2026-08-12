@@ -47,14 +47,18 @@ subscribers and publications. The delivered context is detached from the probe
 caller after publication; cancellation of a completed probe cannot suppress the
 durable reconcile enqueue. Subscribers must remain bounded and persist work
 instead of running allocation verification inline. Periodic allocation audits
-remain the convergence safety net for shutdown races or a temporary node-state
-write failure. Consecutive publications with no semantic transition coalesce to
+remain a convergence safety net for shutdown races or a temporary node-state
+write failure, but they are deliberately cheap: control-file reads,
+source/runtime identity, and PID membership only. A stable allocation hash
+spreads one full pass over ten minutes, with at most four node-wide reconcile
+workers. Real OOM and quota-fill probes are forbidden from this path.
+Consecutive publications with no semantic transition coalesce to
 the newest pending snapshot while a subscriber is busy; transition-bearing
 generations remain ordered and are never coalesced.
 
 Platform keys are a closed proto enum. The central catalog owns each platform
 key's provider, evidence identity kind, freshness policy, workload audience,
-loss policy, verifier, and derived dependency graph. Startup rejects incomplete
+loss policy, verifier, and bounded direct dependency set. Startup rejects incomplete
 enum coverage, duplicate ownership, missing dependencies, cycles, and invalid
 fact/derived boundaries. Production wiring performs a second coverage check:
 every catalog key must be owned exactly once by a registered provider, and the
@@ -77,7 +81,7 @@ sample time, expiry, and evidence. Any receiver can recompute it; opaque or
 tampered observation IDs are rejected without trusting the sender.
 Expired facts fail closed even when the enclosing `NodeSummary` is fresh.
 Boot identities are canonical lowercase UUIDs. Configuration, runtime, catalog,
-and proof-graph digests use canonical lowercase `sha256:<hex>` encoding.
+and proof-set digests use canonical lowercase `sha256:<hex>` encoding.
 Filestore mount identity is an opaque, bounded mount-instance token: consumers
 compare it for equality and never parse filesystem details from it. Its
 canonical digest covers the kernel mount/parent IDs, device, mount root and
@@ -123,13 +127,16 @@ result, and unselected backends report explicit `UNAVAILABLE/DISABLED`. Missing
 keys therefore mean a malformed provider batch, not an implicit configuration.
 
 Network and filestore health are sampled every five seconds and expire after
-15 seconds. Runtime identity is checked on the health cadence; the expensive
-conformance sandbox runs every 15 minutes, expires after 20 minutes, and is
-invalidated immediately when its binary or config identity changes. A failed
+15 seconds. Runtime identity is checked on the health cadence. The expensive
+conformance sandbox runs only for initial certification, after a runtime/config
+identity change, and during explicit deployment qualification. A failed probe
+retries with bounded backoff. A successful conformance fact is identity-scoped
+and does not expire merely because time passed. A failed
 boot cgroup probe retries with exponential backoff. Static config facts bind
 their provider-specific digest and have no TTL. Recovery from a base-provider
 error, panic, malformed output, or expiry requires two independent successes
-at least five seconds apart. Derived capabilities add no second debounce: they
+at least five seconds apart. A failed destructive runtime conformance needs one
+complete successful rerun, not two destructive reruns. Derived capabilities add no second debounce: they
 become available when every dependency has already completed its own recovery
 policy, because recomputing the same pure expression is not independent host
 evidence.
@@ -137,10 +144,9 @@ evidence.
 Runtime conformance providers are serialized. Memory and ephemeral-storage
 enforcement use separate self-test sandboxes and observations, so an unavailable
 cgroup boundary cannot suppress storage evidence and a storage failure cannot
-suppress memory evidence. Each self-test is limited to 60 seconds, refreshed
-every 15 minutes or immediately after runtime/config identity changes, and
-retries failures with exponential backoff capped at five minutes. Recovery
-requires two distinct successful probes at least five seconds apart. Self-test
+suppress memory evidence. Each self-test is limited to 60 seconds, reruns only
+after runtime/config identity changes or a prior failure, and retries failures
+with exponential backoff capped at five minutes. Self-test
 cleanup is part of success and remains inside the 60-second probe deadline, with
 up to 30 seconds reserved for runtime teardown. Each runtime/kind pair uses one
 deterministic, reserved allocation identity: an interrupted probe is reconciled
@@ -265,9 +271,11 @@ allocation, so simultaneous capability losses aggregate into one ordered
 fail-stop workflow. New generations arriving during verification are processed
 in the next loop and are not lost. A condition persistence or queue-ack failure
 leaves the generation pending and retries it; it is never logged and discarded.
-Periodic audits cover every `DEGRADE` and `FAIL_STOP` dependency as a durable
-safety net for a transition that could not be enqueued during local state-store
-failure. Fail-stop cleanup is detached from the request context and remains
+Event transitions enqueue immediate work. The bounded, sharded audit covers
+every `DEGRADE` and `FAIL_STOP` dependency with cheap control/identity/PID
+verification as a durable safety net for a transition that could not be
+enqueued during local state-store failure. Fail-stop cleanup is detached from
+the request context and remains
 durable until runtime deletion and resource cleanup converge. Axnoded is the
 single owner of allocation termination for capability loss; controld's durable
 reconciler polls and retries reconciliation but never issues a competing delete
@@ -297,6 +305,13 @@ policy ends at admission; `DEGRADE` and `FAIL_STOP` dependencies are queued for
 allocation-specific verification. The node report
 transaction writes the new summary, transitions, and affected queue items
 before the in-process registry is updated.
+
+Resource state has exactly three owners. Controld owns scheduling reservations;
+axnoded owns node-local commitments and cleanup debt; the kernel/runtime owns
+actual usage and enforcement. Admission uses the greater of the locked database
+reservation and reported local commitment to close lifecycle races. That
+calculation is not persisted as a third ledger, and diagnostic inventory totals
+never become an admission authority.
 
 Node-instance history is also durable. Sequence and collection time cannot
 move backwards within an instance, snapshot IDs cannot be reused, and a

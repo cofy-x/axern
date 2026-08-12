@@ -25,6 +25,7 @@ func TestSelectCandidatesNoEligibleErrorIncludesResourceRequestAndReasons(t *tes
 	setTestMemoryCapacity(summary, 1024)
 	summary.Resources.AxnodedCommittedMilli = 900
 	summary.Resources.AxnodedCommittedBytes = 900
+	summary.MemoryBudget.LocalCommitmentBytes = 900
 
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
@@ -72,6 +73,7 @@ func TestSelectCandidatesNoEligibleMixedFailuresAreNodeSelection(t *testing.T) {
 	setTestMemoryCapacity(unsupportedLowCapacity, 1024)
 	unsupportedLowCapacity.Resources.AxnodedCommittedMilli = 900
 	unsupportedLowCapacity.Resources.AxnodedCommittedBytes = 900
+	unsupportedLowCapacity.MemoryBudget.LocalCommitmentBytes = 900
 
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
@@ -109,6 +111,7 @@ func TestSelectCandidatesNoEligibleCapacityAndSelectionCandidatesAreNodeSelectio
 	setTestMemoryCapacity(lowCapacity, 1024)
 	lowCapacity.Resources.AxnodedCommittedMilli = 900
 	lowCapacity.Resources.AxnodedCommittedBytes = 900
+	lowCapacity.MemoryBudget.LocalCommitmentBytes = 900
 
 	runtimeUnsupported := readySummary(now)
 

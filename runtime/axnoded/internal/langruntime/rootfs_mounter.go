@@ -3,11 +3,13 @@ package langruntime
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
 
 	runtime_api "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
 )
 
 // ImageMounter abstracts rootfs mount/umount operations for testability.
@@ -19,9 +21,10 @@ type ImageMounter interface {
 }
 
 type MountResult struct {
-	Path        string
-	Env         []string
-	ImageConfig *ImageConfig
+	Path           string
+	Env            []string
+	ImageConfig    *ImageConfig
+	ImmutableMount *runtime_api.ImmutableRootfsMount
 }
 
 type imageManagerClient interface {
@@ -114,12 +117,28 @@ func (rf *RootFS) MountImage() error {
 	if err != nil {
 		return err
 	}
-	if result == nil || result.Path == "" {
-		return fmt.Errorf("mount result path is empty")
+	if err := validateMountResult(result, rf.cfg.LeaseID); err != nil {
+		cleanupErr := rf.mounter.Umount(rf.cfg)
+		return errors.Join(err, cleanupErr)
 	}
 	rf.path = result.Path
 	rf.env = append([]string(nil), result.Env...)
 	rf.imageConfig = cloneImageConfig(result.ImageConfig)
+	rf.immutableMount = cloneImmutableMount(result.ImmutableMount)
+	return nil
+}
+
+func validateMountResult(result *MountResult, leaseID string) error {
+	if result == nil || result.Path == "" {
+		return fmt.Errorf("mount result path is empty")
+	}
+	descriptor := rootfsview.ImmutableMountFromProto(result.ImmutableMount)
+	if descriptor.LeaseID != leaseID {
+		return fmt.Errorf("mount result lease %q differs from requested lease", descriptor.LeaseID)
+	}
+	if err := rootfsview.ValidateImmutableMountDescriptorContract(descriptor, result.Path); err != nil {
+		return fmt.Errorf("mount result immutable rootfs contract is invalid: %w", err)
+	}
 	return nil
 }
 
@@ -130,10 +149,11 @@ func (rf *RootFS) UmountImage() error {
 func (d *defaultMounter) Mount(cfg RootfsConfig) (*MountResult, error) {
 	switch cfg.SrcType {
 	case runtime_api.RootfsSrcType_LOCAL:
-		if _, err := os.Stat(cfg.Path); err != nil {
-			return nil, fmt.Errorf("failed to stat local rootfs path %s: %w", cfg.Path, err)
+		mount, err := DescribeLocalRootfs(cfg.Path)
+		if err != nil {
+			return nil, err
 		}
-		return &MountResult{Path: cfg.Path}, nil
+		return &MountResult{Path: cfg.Path, ImmutableMount: mount}, nil
 	case runtime_api.RootfsSrcType_IMAGE:
 		if d.client == nil {
 			return nil, fmt.Errorf("image manager client is not configured")
@@ -171,14 +191,56 @@ func (d *defaultMounter) Mount(cfg RootfsConfig) (*MountResult, error) {
 	}
 }
 
+func DescribeLocalRootfs(path string) (*runtime_api.ImmutableRootfsMount, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("failed to stat local rootfs path %s: %w", path, err)
+	}
+	facts, err := rootfsview.InspectBacking(path)
+	if err != nil {
+		return nil, fmt.Errorf("inspect local rootfs immutable mount: %w", err)
+	}
+	return immutableMountProto(facts.ImmutableMountDescriptor("")), nil
+}
+
 func mountResultFromImageManager(info *imageManagerMountInfo) *MountResult {
 	if info == nil {
 		return nil
 	}
 	return &MountResult{
-		Path:        info.MountPath,
-		Env:         append([]string(nil), info.Env...),
-		ImageConfig: cloneImageConfig(info.ImageConfig),
+		Path:           info.MountPath,
+		Env:            append([]string(nil), info.Env...),
+		ImageConfig:    cloneImageConfig(info.ImageConfig),
+		ImmutableMount: imageManagerImmutableMountProto(info.ImmutableMount),
+	}
+}
+
+func imageManagerImmutableMountProto(in *imageManagerImmutableMount) *runtime_api.ImmutableRootfsMount {
+	if in == nil {
+		return nil
+	}
+	return &runtime_api.ImmutableRootfsMount{
+		Identity: in.Identity, EffectiveRoot: in.EffectiveRoot, Filesystem: in.Filesystem,
+		BackingFilesystems: append([]string(nil), in.BackingFilesystems...), LowerDirs: append([]string(nil), in.LowerDirs...),
+		Readonly: in.Readonly, LeaseID: in.LeaseID,
+	}
+}
+
+func immutableMountProto(in rootfsview.ImmutableMountDescriptor) *runtime_api.ImmutableRootfsMount {
+	return &runtime_api.ImmutableRootfsMount{
+		Identity: in.Identity, EffectiveRoot: in.EffectiveRoot, Filesystem: in.Filesystem,
+		BackingFilesystems: append([]string(nil), in.BackingFilesystems...), LowerDirs: append([]string(nil), in.LowerDirs...),
+		Readonly: in.Readonly, LeaseID: in.LeaseID,
+	}
+}
+
+func cloneImmutableMount(in *runtime_api.ImmutableRootfsMount) *runtime_api.ImmutableRootfsMount {
+	if in == nil {
+		return nil
+	}
+	return &runtime_api.ImmutableRootfsMount{
+		Identity: in.GetIdentity(), EffectiveRoot: in.GetEffectiveRoot(), Filesystem: in.GetFilesystem(),
+		BackingFilesystems: append([]string(nil), in.GetBackingFilesystems()...), LowerDirs: append([]string(nil), in.GetLowerDirs()...),
+		Readonly: in.GetReadonly(), LeaseID: in.GetLeaseID(),
 	}
 }
 

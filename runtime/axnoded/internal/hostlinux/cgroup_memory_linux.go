@@ -20,10 +20,17 @@ type CgroupMemoryDomain struct {
 	MountIdentity string
 	ParentInode   uint64
 	LeafInode     uint64
-	LimitBytes    int64
-	SwapMaxBytes  int64
-	OOMGroup      bool
-	InitialEvents map[string]uint64
+	// LimitBytes, SwapMaxBytes, and OOMGroup describe the allocation parent,
+	// which is the final safety boundary for the entire sandbox subtree.
+	LimitBytes   int64
+	SwapMaxBytes int64
+	OOMGroup     bool
+	// LeafLimitBytes and LeafSwapMaxBytes are the OCI/runtime contract and
+	// attribution boundary. They must agree with the allocation budget but are
+	// not a second authoritative safety boundary.
+	LeafLimitBytes   int64
+	LeafSwapMaxBytes int64
+	InitialEvents    map[string]uint64
 }
 
 // CgroupMemoryObservation is the bounded host-kernel view used for reporting,
@@ -42,11 +49,9 @@ type CgroupMemoryObservation struct {
 	PSIFullTotal  uint64
 }
 
-// ConfigureCgroupMemoryDomain establishes one hard boundary at both the
-// allocation parent and OCI workload leaf. The duplicate memory.max prevents
-// an accidental process move between those two allocation-owned cgroups from
-// escaping the declared limit. memory.oom.group is required on both levels:
-// an OOM invoked by the leaf does not inherit the ancestor's grouping policy.
+// ConfigureCgroupMemoryDomain establishes the allocation parent as the final
+// safety boundary. The OCI runtime owns the workload leaf controls; Axern
+// verifies that contract instead of writing a second authoritative limit.
 func ConfigureCgroupMemoryDomain(parentPath, workloadPath string, limitBytes int64) (*CgroupMemoryDomain, error) {
 	if limitBytes <= 0 {
 		return nil, fmt.Errorf("sandbox memory limit must be positive")
@@ -65,23 +70,32 @@ func ConfigureCgroupMemoryDomain(parentPath, workloadPath string, limitBytes int
 	if err != nil {
 		return nil, err
 	}
-	if domain.LimitBytes != limitBytes || domain.SwapMaxBytes != 0 || !domain.OOMGroup {
-		return nil, fmt.Errorf("sandbox memory control readback mismatch: limit=%d swap=%d oom_group=%t", domain.LimitBytes, domain.SwapMaxBytes, domain.OOMGroup)
+	if err := verifyCgroupMemoryControls(domain, limitBytes); err != nil {
+		return nil, err
 	}
 	return domain, nil
 }
 
 func configureCgroupMemoryControls(parentDir, workloadDir string, limitBytes int64) error {
-	for _, dir := range []string{parentDir, workloadDir} {
-		if err := writeAndVerifyCgroupValue(filepath.Join(dir, "memory.max"), strconv.FormatInt(limitBytes, 10)); err != nil {
-			return err
-		}
-		if err := writeAndVerifyCgroupValue(filepath.Join(dir, "memory.swap.max"), "0"); err != nil {
-			return err
-		}
-		if err := writeAndVerifyCgroupValue(filepath.Join(dir, "memory.oom.group"), "1"); err != nil {
-			return err
-		}
+	if err := writeAndVerifyCgroupValue(filepath.Join(parentDir, "memory.max"), strconv.FormatInt(limitBytes, 10)); err != nil {
+		return err
+	}
+	if err := writeAndVerifyCgroupValue(filepath.Join(parentDir, "memory.swap.max"), "0"); err != nil {
+		return err
+	}
+	if err := writeAndVerifyCgroupValue(filepath.Join(parentDir, "memory.oom.group"), "1"); err != nil {
+		return err
+	}
+	leafLimit, err := readCgroupInt64(filepath.Join(workloadDir, "memory.max"))
+	if err != nil {
+		return err
+	}
+	leafSwap, err := readCgroupInt64(filepath.Join(workloadDir, "memory.swap.max"))
+	if err != nil {
+		return err
+	}
+	if leafLimit != limitBytes || leafSwap != 0 {
+		return fmt.Errorf("OCI workload memory contract mismatch: limit=%d swap=%d, want limit=%d swap=0", leafLimit, leafSwap, limitBytes)
 	}
 	return nil
 }
@@ -91,8 +105,8 @@ func VerifyCgroupMemoryDomain(parentPath, workloadPath string, limitBytes int64,
 	if err != nil {
 		return err
 	}
-	if domain.LimitBytes != limitBytes || domain.SwapMaxBytes != 0 || !domain.OOMGroup {
-		return fmt.Errorf("sandbox memory controls changed: limit=%d swap=%d oom_group=%t", domain.LimitBytes, domain.SwapMaxBytes, domain.OOMGroup)
+	if err := verifyCgroupMemoryControls(domain, limitBytes); err != nil {
+		return err
 	}
 	if wantBootID != "" && domain.BootID != wantBootID {
 		return fmt.Errorf("cgroup boot identity changed")
@@ -105,6 +119,19 @@ func VerifyCgroupMemoryDomain(parentPath, workloadPath string, limitBytes int64,
 	}
 	if wantLeafInode != 0 && domain.LeafInode != wantLeafInode {
 		return fmt.Errorf("workload cgroup identity changed")
+	}
+	return nil
+}
+
+func verifyCgroupMemoryControls(domain *CgroupMemoryDomain, limitBytes int64) error {
+	if domain == nil {
+		return fmt.Errorf("sandbox memory domain is required")
+	}
+	if domain.LimitBytes != limitBytes || domain.SwapMaxBytes != 0 || !domain.OOMGroup {
+		return fmt.Errorf("allocation memory safety boundary changed: limit=%d swap=%d oom_group=%t", domain.LimitBytes, domain.SwapMaxBytes, domain.OOMGroup)
+	}
+	if domain.LeafLimitBytes != limitBytes || domain.LeafSwapMaxBytes != 0 {
+		return fmt.Errorf("OCI workload memory contract changed: limit=%d swap=%d", domain.LeafLimitBytes, domain.LeafSwapMaxBytes)
 	}
 	return nil
 }
@@ -123,24 +150,13 @@ func InspectCgroupMemoryDomain(parentPath, workloadPath string) (*CgroupMemoryDo
 	if err != nil {
 		return nil, err
 	}
-	if domain.LimitBytes != leafLimit {
-		return nil, fmt.Errorf("allocation and workload memory.max differ: parent=%d leaf=%d", domain.LimitBytes, leafLimit)
-	}
 	leafSwap, err := readCgroupInt64(filepath.Join(workloadDir, "memory.swap.max"))
 	if err != nil {
 		return nil, err
 	}
-	if domain.SwapMaxBytes != leafSwap {
-		return nil, fmt.Errorf("allocation and workload memory.swap.max differ: parent=%d leaf=%d", domain.SwapMaxBytes, leafSwap)
-	}
-	leafOOMGroup, err := readCgroupInt64(filepath.Join(workloadDir, "memory.oom.group"))
-	if err != nil {
-		return nil, err
-	}
-	if domain.OOMGroup != (leafOOMGroup == 1) {
-		return nil, fmt.Errorf("allocation and workload memory.oom.group differ: parent=%t leaf=%d", domain.OOMGroup, leafOOMGroup)
-	}
 	domain.LeafInode = leafInode
+	domain.LeafLimitBytes = leafLimit
+	domain.LeafSwapMaxBytes = leafSwap
 	return domain, nil
 }
 

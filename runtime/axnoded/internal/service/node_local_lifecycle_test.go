@@ -11,6 +11,7 @@ import (
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	capabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
@@ -56,7 +57,11 @@ func TestRootfsCapabilityGateRebindsCurrentObservationBeforeRuntimeSideEffects(t
 		CapabilityDependencies:          placement,
 	}
 	service := &sandboxService{capabilityManager: manager}
-	if err := service.verifyRootfsCapabilityRequirements(context.Background(), request, rootfs); err != nil {
+	mountedRootfs, err := langrtmanager.NewRootFS(langrtmanager.RootfsConfig{SrcType: apipb.RootfsSrcType_LOCAL, Path: rootfs}, langrtmanager.NewDefaultMounter(false, ""), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.verifyRootfsCapabilityRequirements(context.Background(), request, mountedRootfs); err != nil {
 		t.Fatal(err)
 	}
 	got := request.GetCapabilityDependencies()[0].GetSelectedObservation().GetObservationID()

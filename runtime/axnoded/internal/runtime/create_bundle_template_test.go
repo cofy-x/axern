@@ -144,10 +144,7 @@ func (l *trackingBundleLoader) MaterializeBundle(template *runtimeoci.BundleTemp
 	if err := os.MkdirAll(bundleDir, 0755); err != nil {
 		return "", nil, err
 	}
-	rootfsDir := tRootfsDir(bundleDir)
-	if err := os.MkdirAll(rootfsDir, 0755); err != nil {
-		return "", nil, err
-	}
+	rootfsDir := options.Request.GetRootfs().GetRootDir()
 	ociSpec := &spec.Spec{
 		Annotations: map[string]string{"loader": "tracking"},
 		Process:     &spec.Process{},
@@ -167,8 +164,4 @@ func (l *trackingBundleLoader) MaterializeBundle(template *runtimeoci.BundleTemp
 func (l *trackingBundleLoader) Generate(options runtimeoci.LoadOptions) (string, *spec.Spec, error) {
 	l.generateCalls++
 	return "", nil, fmt.Errorf("unexpected fallback generate")
-}
-
-func tRootfsDir(bundleDir string) string {
-	return filepath.Join(bundleDir, "rootfs")
 }

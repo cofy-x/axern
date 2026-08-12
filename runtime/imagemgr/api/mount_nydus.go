@@ -37,6 +37,9 @@ func (w *HttpWorker) MountNydus(ctx context.Context, req *NydusMountRequest) (*M
 		if err != nil {
 			return nil, err
 		}
+		if err := attachNydusImmutableMount(info, req); err != nil {
+			return nil, err
+		}
 		if _, err := w.mountStore.Acquire(record, req.LeaseID, req.Owner); err != nil {
 			return nil, fmt.Errorf("persist Nydus mount lease: %w", err)
 		}
@@ -47,6 +50,10 @@ func (w *HttpWorker) MountNydus(ctx context.Context, req *NydusMountRequest) (*M
 		return nil, err
 	}
 	record := &mountstore.Record{CacheKey: key, ImageURL: req.ImageURL, MountType: string(MountTypeNydus), NydusImageURL: req.ImageURL, MountPoint: info.MountPath}
+	if err := attachNydusImmutableMount(info, req); err != nil {
+		_ = w.unmountNydusResource(ctx, req.ImageURL)
+		return nil, err
+	}
 	if _, err := w.mountStore.Acquire(record, req.LeaseID, req.Owner); err != nil {
 		if rollbackErr := w.unmountNydusResource(ctx, req.ImageURL); rollbackErr != nil {
 			return nil, fmt.Errorf("persist Nydus mount lease: %w; rollback mount: %v", err, rollbackErr)
@@ -54,6 +61,18 @@ func (w *HttpWorker) MountNydus(ctx context.Context, req *NydusMountRequest) (*M
 		return nil, fmt.Errorf("persist Nydus mount lease: %w", err)
 	}
 	return info, nil
+}
+
+func attachNydusImmutableMount(info *MountInfo, req *NydusMountRequest) error {
+	if info == nil || req == nil {
+		return fmt.Errorf("Nydus immutable mount requires mount info and request")
+	}
+	descriptor, err := immutableMountDescriptor(info.MountPath, req.LeaseID, "nydus", generateNydusID(req.ImageURL), []string{info.MountPath}, []string{"nydus"})
+	if err != nil {
+		return fmt.Errorf("describe Nydus immutable mount: %w", err)
+	}
+	info.ImmutableMount = descriptor
+	return nil
 }
 
 func (w *HttpWorker) ensureNydusMounted(ctx context.Context, req *NydusMountRequest) (*MountInfo, error) {

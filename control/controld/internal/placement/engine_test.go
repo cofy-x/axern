@@ -244,6 +244,7 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 	setTestMemoryCapacity(restricted, 1024)
 	restricted.Resources.AxnodedCommittedMilli = 900
 	restricted.Resources.AxnodedCommittedBytes = 900
+	restricted.MemoryBudget.LocalCommitmentBytes = 900
 
 	eligible, rejected := engine.Plan(nodekernel.Snapshot{
 		Records: []*nodekernel.Record{
@@ -286,6 +287,7 @@ func TestPlanRejectsInsufficientMemory(t *testing.T) {
 	}
 	setTestMemoryCapacity(summary, 2048)
 	summary.Resources.AxnodedCommittedBytes = 1800
+	summary.MemoryBudget.LocalCommitmentBytes = 1800
 
 	eligible, rejected := engine.Plan(nodekernel.Snapshot{
 		Records: []*nodekernel.Record{
@@ -302,6 +304,27 @@ func TestPlanRejectsInsufficientMemory(t *testing.T) {
 		t.Fatalf("expected no eligible candidates, got %#v", eligible)
 	}
 	assertRejectedReasons(t, rejected[0], "node-mem", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY)
+}
+
+func TestPlanIgnoresDiagnosticMemoryAggregateWhenLocalLedgerHasCapacity(t *testing.T) {
+	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
+	summary := readySummary(now)
+	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 4000, MemoryBytes: 2048}
+	setTestMemoryCapacity(summary, 2048)
+	summary.MemoryBudget.LocalCommitmentBytes = 256
+	// This inventory aggregate may lag or include diagnostic runtime state. It
+	// must not become a third commitment ledger.
+	summary.Resources.AxnodedCommittedBytes = 2000
+
+	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{
+		record("node-memory-ledger", []string{"runsc"}, summary, now),
+	}}, &placementkernel.Request{
+		RootfsKey: "local:/tmp/rootfs", RootfsType: nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
+		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, Runtime: "runsc", RequestedMemoryBytes: 512,
+	}, now)
+	if len(eligible) != 1 || len(rejected) != 0 {
+		t.Fatalf("eligible=%#v rejected=%#v, want node admitted from local commitment ledger", eligible, rejected)
+	}
 }
 
 func TestPlanCountsNodeLocalRetiringMemoryCommitment(t *testing.T) {
@@ -364,6 +387,7 @@ func TestPlanMemoryDoesNotOvercommit(t *testing.T) {
 	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 1000, MemoryBytes: 1 << 30}
 	setTestMemoryCapacity(summary, 1<<30)
 	summary.Resources.AxnodedCommittedBytes = 900 << 20
+	summary.MemoryBudget.LocalCommitmentBytes = 900 << 20
 
 	snapshot := nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-mem-overcommit", []string{"runsc"}, summary, now),

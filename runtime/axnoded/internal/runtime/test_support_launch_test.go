@@ -10,11 +10,17 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
 )
 
 func newLocalCreateRequest(t *testing.T) *apipb.CreateContainerRequest {
 	t.Helper()
 	rootfs := newReadonlyRootfs(t)
+	facts, err := rootfsview.InspectBacking(rootfs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	immutable := facts.ImmutableMountDescriptor("")
 
 	return &apipb.CreateContainerRequest{
 		Runtime: config.RuntimeNameRunsc,
@@ -22,6 +28,10 @@ func newLocalCreateRequest(t *testing.T) *apipb.CreateContainerRequest {
 			Type:     "local",
 			RootDir:  rootfs,
 			Readonly: true,
+			ImmutableMount: &apipb.ImmutableRootfsMount{
+				Identity: immutable.Identity, EffectiveRoot: immutable.EffectiveRoot, Filesystem: immutable.Filesystem,
+				BackingFilesystems: immutable.BackingFilesystems, LowerDirs: immutable.LowerDirs, Readonly: true,
+			},
 		},
 		Mounts: []*apipb.Mount{{
 			Type: "bind", Source: filepath.Join(rootfs, "etc", "hosts"), Target: "/etc/hosts", Options: []string{"ro"},

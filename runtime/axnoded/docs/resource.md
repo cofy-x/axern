@@ -251,12 +251,13 @@ Key behavior:
   diagnostic facts, not cgroup-v2 removal preconditions. A
   missing reclaim interface is not treated as proof of cleanup; the subsequent
   cgroup removal remains mandatory and fail-closed.
-- `cgroup_enforcement = "required"` is the production default. A declared
-  memory limit writes the same `memory.max` to allocation parent and workload
-  leaf, writes `memory.swap.max=0`, sets parent and leaf
-  `memory.oom.group=1`, reads all
-  controls back, and verifies runtime host PID membership. Failure force-deletes
-  the sandbox.
+- `cgroup_enforcement = "required"` is the production default. The allocation
+  parent is the sole safety boundary: a declared limit writes parent
+  `memory.max`, parent `memory.swap.max=0`, and parent `memory.oom.group=1` and
+  reads them back. The workload leaf is the OCI/runtime contract and attribution
+  boundary; axnoded verifies the runtime-created leaf limit/swap controls and
+  host PID membership but does not install a second authoritative limit there.
+  Failure force-deletes the sandbox.
 - Node startup creates a private probe cgroup under `cgroup_root_name`, writes
   and reads back a memory limit, and removes the probe before publishing the
   typed cgroup-controller fact. Runtime-specific runc/runsc memory-hard-limit
@@ -270,7 +271,10 @@ Key behavior:
   group OOM, then verifies memory-event deltas, monitor exit-state persistence,
   swap prohibition, and cleanup. Storage conformance runs in a separate writable-root sandbox; disabling cgroup
   enforcement for development cannot manufacture memory evidence or suppress
-  storage evidence. Every real allocation is verified again after create.
+  storage evidence. These destructive probes run at initial certification,
+  runtime/config identity change, and deployment qualification—not on a timer.
+  Every real allocation is verified again after create, and event-triggered plus
+  sharded runtime audits use only cheap control/identity/PID reads.
 - `requests.memory_bytes` is the complete sandbox memcg reservation. Runc init
   and descendants, runsc Sentry/gofer and guest accounting, anon, shmem, kernel
   memory, EROFS lower page cache, writable-overlay page cache, dirty pages, and

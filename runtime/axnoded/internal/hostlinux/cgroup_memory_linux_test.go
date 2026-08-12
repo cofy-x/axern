@@ -12,25 +12,29 @@ import (
 	"testing"
 )
 
-func TestConfigureCgroupMemoryControlsGroupsParentAndLeafOOM(t *testing.T) {
+func TestConfigureCgroupMemoryControlsOwnsParentAndVerifiesLeafContract(t *testing.T) {
 	parent := t.TempDir()
 	leaf := filepath.Join(parent, "workload")
 	if err := os.Mkdir(leaf, 0o755); err != nil {
 		t.Fatalf("create workload cgroup fixture: %v", err)
 	}
-	for _, dir := range []string{parent, leaf} {
-		writeFixtureFile(t, dir, "memory.max", "0\n")
-		writeFixtureFile(t, dir, "memory.swap.max", "9\n")
-		writeFixtureFile(t, dir, "memory.oom.group", "0\n")
-	}
 	const limit = int64(64 << 20)
+	writeFixtureFile(t, parent, "memory.max", "0\n")
+	writeFixtureFile(t, parent, "memory.swap.max", "9\n")
+	writeFixtureFile(t, parent, "memory.oom.group", "0\n")
+	// OCI/runtime establishes the leaf contract before Axern installs the
+	// allocation parent safety boundary.
+	writeFixtureFile(t, leaf, "memory.max", strconv.FormatInt(limit, 10)+"\n")
+	writeFixtureFile(t, leaf, "memory.swap.max", "0\n")
+	writeFixtureFile(t, leaf, "memory.oom.group", "0\n")
 	if err := configureCgroupMemoryControls(parent, leaf, limit); err != nil {
 		t.Fatalf("configureCgroupMemoryControls() error = %v", err)
 	}
-	for _, dir := range []string{parent, leaf} {
-		for name, want := range map[string]string{
-			"memory.max": strconv.FormatInt(limit, 10), "memory.swap.max": "0", "memory.oom.group": "1",
-		} {
+	for dir, controls := range map[string]map[string]string{
+		parent: {"memory.max": strconv.FormatInt(limit, 10), "memory.swap.max": "0", "memory.oom.group": "1"},
+		leaf:   {"memory.max": strconv.FormatInt(limit, 10), "memory.swap.max": "0", "memory.oom.group": "0"},
+	} {
+		for name, want := range controls {
 			data, err := os.ReadFile(filepath.Join(dir, name))
 			if err != nil {
 				t.Fatalf("read %s: %v", name, err)
@@ -39,6 +43,22 @@ func TestConfigureCgroupMemoryControlsGroupsParentAndLeafOOM(t *testing.T) {
 				t.Fatalf("%s in %s = %q, want %q", name, dir, got, want)
 			}
 		}
+	}
+}
+
+func TestConfigureCgroupMemoryControlsRejectsLeafContractMismatch(t *testing.T) {
+	parent := t.TempDir()
+	leaf := filepath.Join(parent, "workload")
+	if err := os.Mkdir(leaf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"memory.max", "memory.swap.max", "memory.oom.group"} {
+		writeFixtureFile(t, parent, name, "0\n")
+	}
+	writeFixtureFile(t, leaf, "memory.max", "1024\n")
+	writeFixtureFile(t, leaf, "memory.swap.max", "0\n")
+	if err := configureCgroupMemoryControls(parent, leaf, 2048); err == nil || !strings.Contains(err.Error(), "OCI workload memory contract mismatch") {
+		t.Fatalf("configureCgroupMemoryControls() error = %v", err)
 	}
 }
 

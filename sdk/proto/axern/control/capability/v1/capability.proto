@@ -121,7 +121,7 @@ message CapabilityEvidence {
 }
 
 // CapabilityObservationProof is the durable, non-recursive proof selected
-// from a snapshot. Dependency graphs are represented as a flat set of proofs
+// from a snapshot. Dependencies are represented as one bounded flat proof set
 // so persistence and validation remain bounded.
 message CapabilityObservationProof {
   CapabilityKey key = 1;

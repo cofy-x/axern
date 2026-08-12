@@ -198,13 +198,12 @@ func EffectiveNetworkMode(defaultMode string, request *runtime.StartRequest) str
 }
 
 func BuildContainerRootfs(lrt *langrtmanager.LanguageRuntime) *apipb.Rootfs {
-	rootfsConfig := lrt.RootFS.Config()
 	return &apipb.Rootfs{
-		Type:     "none",
-		LowerDir: "",
-		RootDir:  lrt.RootFS.Path(),
-		Readonly: lrt.Readonly,
-		LeaseID:  rootfsConfig.LeaseID,
+		Type:           "none",
+		LowerDir:       "",
+		RootDir:        lrt.RootFS.Path(),
+		Readonly:       lrt.Readonly,
+		ImmutableMount: lrt.RootFS.ImmutableMount(),
 	}
 }
 

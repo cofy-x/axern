@@ -1,14 +1,18 @@
 package rootfsview
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -20,9 +24,39 @@ import (
 const (
 	projectionViewDir = "projections"
 	runcViewDir       = "runc"
+
+	maxImmutableLowerDirs          = 256
+	maxImmutableBackingFilesystems = 32
+	maxImmutablePathBytes          = 4096
+	maxImmutableLeaseIDBytes       = 512
+	maxProjectionManifestBytes     = 1 << 20
 )
 
-var mountInfoOctalEscapePattern = regexp.MustCompile(`\\[0-7]{3}`)
+var (
+	mountInfoOctalEscapePattern = regexp.MustCompile(`\\[0-7]{3}`)
+	immutableIdentityPattern    = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	immutableFilesystemPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._+-]{0,63}$`)
+)
+
+func validateOverlayPath(name, candidate string) error {
+	if err := validateCanonicalAbsolutePath(name, candidate); err != nil {
+		return err
+	}
+	if strings.ContainsAny(candidate, `,:\`) || strings.ContainsAny(candidate, "\x00\n\r\t") {
+		return fmt.Errorf("%s contains an unsupported mount-option delimiter: %s", name, candidate)
+	}
+	return nil
+}
+
+func validateCanonicalAbsolutePath(name, candidate string) error {
+	if candidate == "" || !filepath.IsAbs(candidate) || filepath.Clean(candidate) != candidate {
+		return fmt.Errorf("%s must be a canonical absolute path: %s", name, candidate)
+	}
+	if strings.ContainsAny(candidate, "\x00\n\r\t") {
+		return fmt.Errorf("%s contains a control character", name)
+	}
+	return nil
+}
 
 // View is a prepared container rootfs view. Prepared views are active
 // container snapshots and must be removed when the container is deleted.
@@ -53,6 +87,70 @@ type RootfsBackingFacts struct {
 	Readonly            bool                      `json:"readonly"`
 	LowerDirs           []string                  `json:"lower_dirs"`
 	EffectiveLowerChain []RootfsBackingLayerFacts `json:"effective_lower_chain"`
+}
+
+// ImmutableMountDescriptor is the bounded hand-off from a rootfs source owner
+// to runtime projection. It contains no image-format-specific state and cannot
+// grow into a recursive backing graph.
+type ImmutableMountDescriptor struct {
+	Identity           string   `json:"identity"`
+	EffectiveRoot      string   `json:"effective_root"`
+	Filesystem         string   `json:"filesystem"`
+	BackingFilesystems []string `json:"backing_filesystems,omitempty"`
+	LowerDirs          []string `json:"lower_dirs"`
+	Readonly           bool     `json:"readonly"`
+	LeaseID            string   `json:"lease_id,omitempty"`
+}
+
+func (descriptor ImmutableMountDescriptor) HasFilesystem(filesystem string) bool {
+	if strings.EqualFold(descriptor.Filesystem, filesystem) {
+		return true
+	}
+	for _, item := range descriptor.BackingFilesystems {
+		if strings.EqualFold(item, filesystem) {
+			return true
+		}
+	}
+	return false
+}
+
+// ImmutableMountDescriptor converts the one-time local-source observation to
+// the same immutable contract that imagemgr emits for image-backed rootfses.
+func (facts RootfsBackingFacts) ImmutableMountDescriptor(leaseID string) ImmutableMountDescriptor {
+	lowerDirs := append([]string(nil), facts.LowerDirs...)
+	if len(lowerDirs) == 0 && facts.EffectiveRoot != "" {
+		lowerDirs = []string{facts.EffectiveRoot}
+	}
+	filesystems := []string{strings.ToLower(strings.TrimSpace(facts.FSType))}
+	for _, layer := range facts.EffectiveLowerChain {
+		filesystems = append(filesystems, strings.ToLower(strings.TrimSpace(layer.FSType)))
+	}
+	filesystems = uniqueSortedStrings(filesystems)
+	payload, _ := json.Marshal(facts)
+	digest := sha256.Sum256(payload)
+	return ImmutableMountDescriptor{
+		Identity: fmt.Sprintf("sha256:%x", digest[:]), EffectiveRoot: filepath.Clean(facts.EffectiveRoot),
+		Filesystem: strings.ToLower(strings.TrimSpace(facts.FSType)), BackingFilesystems: filesystems,
+		LowerDirs: lowerDirs, Readonly: true, LeaseID: strings.TrimSpace(leaseID),
+	}
+}
+
+func uniqueSortedStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, duplicate := seen[value]; duplicate {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // RootfsBackingLayerFacts identifies the mount that provides one directory in
@@ -87,11 +185,10 @@ type Request struct {
 	Readonly                   bool
 	RuntimeName                string
 	NeedsHostWritableRootfs    bool
-	Backing                    RootfsBackingFacts
+	ImmutableMount             ImmutableMountDescriptor
 	Targets                    []MountTarget
 	EphemeralStorageLimitBytes int64
 	ProjectID                  uint32
-	RootfsLeaseID              string
 }
 
 // Provider owns the lifecycle of active sandbox-private rootfs views.
@@ -145,19 +242,10 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 		return View{}, fmt.Errorf("private rootfs view requires runtime filestore_dir: %s", request.RootDir)
 	}
 
-	backing, err := InspectBacking(request.RootDir)
-	if err != nil {
+	if err := ValidateImmutableMountDescriptor(request.ImmutableMount, request.RootDir); err != nil {
 		return View{}, err
 	}
-	if request.Backing.Mountpoint != "" {
-		if err := compareBackingIdentity(request.Backing, backing); err != nil {
-			return View{}, fmt.Errorf("rootfs backing changed before projection: %w", err)
-		}
-	}
-	lowerDirs := backing.LowerDirs
-	if len(lowerDirs) == 0 {
-		lowerDirs = []string{request.RootDir}
-	}
+	lowerDirs := append([]string(nil), request.ImmutableMount.LowerDirs...)
 	viewClass := projectionViewDir
 	if request.NeedsHostWritableRootfs {
 		viewClass = runcViewDir
@@ -188,7 +276,7 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 		return View{}, err
 	}
 	metrics.RecordEphemeralStorageOperation(request.RuntimeName, "projection_mount", "success")
-	if err := writeProjectionManifest(filepath.Dir(view.MergedDir), request, backing); err != nil {
+	if err := writeProjectionManifest(filepath.Dir(view.MergedDir), request); err != nil {
 		_ = cleanupOverlayViewWithProject(filepath.Dir(view.MergedDir), p.filestoreDir, request.ProjectID)
 		return View{}, err
 	}
@@ -201,7 +289,7 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 		"missing_targets": len(missing),
 		"root_readonly":   request.Readonly,
 		"runtime":         request.RuntimeName,
-		"backing_fs":      backing.FSType,
+		"backing_fs":      request.ImmutableMount.Filesystem,
 	}).Debug("prepared sandbox-private rootfs view")
 	return View{RootDir: view.MergedDir, Prepared: true}, nil
 }
@@ -366,6 +454,104 @@ func validContainerID(value string) bool {
 	return true
 }
 
+func ValidateImmutableMountDescriptor(descriptor ImmutableMountDescriptor, rootDir string) error {
+	if err := ValidateImmutableMountDescriptorContract(descriptor, rootDir); err != nil {
+		return err
+	}
+	if err := validateImmutableDirectory("immutable mount effective root", descriptor.EffectiveRoot); err != nil {
+		return err
+	}
+	for _, lowerDir := range descriptor.LowerDirs {
+		if err := validateImmutableDirectory("immutable lower dir", lowerDir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ValidateImmutableMountDescriptorContract validates the bounded hand-off
+// without probing host state. The source consumer uses it at transport/cache
+// boundaries; projection calls ValidateImmutableMountDescriptor immediately
+// before mounting to additionally prove the paths still exist.
+func ValidateImmutableMountDescriptorContract(descriptor ImmutableMountDescriptor, rootDir string) error {
+	if strings.TrimSpace(rootDir) != rootDir {
+		return fmt.Errorf("runtime root must use its canonical representation")
+	}
+	if err := validateCanonicalAbsolutePath("runtime root", rootDir); err != nil {
+		return err
+	}
+	if descriptor.EffectiveRoot != rootDir {
+		return fmt.Errorf("immutable mount effective root %q differs from runtime root %q", descriptor.EffectiveRoot, rootDir)
+	}
+	if err := validateCanonicalAbsolutePath("immutable mount effective root", descriptor.EffectiveRoot); err != nil {
+		return err
+	}
+	if !descriptor.Readonly || strings.TrimSpace(descriptor.Identity) == "" || strings.TrimSpace(descriptor.Filesystem) == "" || len(descriptor.LowerDirs) == 0 {
+		return fmt.Errorf("rootfs source must provide a complete immutable mount descriptor")
+	}
+	if !immutableIdentityPattern.MatchString(descriptor.Identity) {
+		return fmt.Errorf("immutable mount identity must be a sha256 digest")
+	}
+	if !immutableFilesystemPattern.MatchString(descriptor.Filesystem) {
+		return fmt.Errorf("immutable mount filesystem is malformed: %q", descriptor.Filesystem)
+	}
+	if len(descriptor.BackingFilesystems) > maxImmutableBackingFilesystems {
+		return fmt.Errorf("immutable mount has too many backing filesystems: %d", len(descriptor.BackingFilesystems))
+	}
+	seenFilesystems := make(map[string]struct{}, len(descriptor.BackingFilesystems))
+	previousFilesystem := ""
+	for _, filesystem := range descriptor.BackingFilesystems {
+		if !immutableFilesystemPattern.MatchString(filesystem) {
+			return fmt.Errorf("immutable mount backing filesystem is malformed: %q", filesystem)
+		}
+		if _, duplicate := seenFilesystems[filesystem]; duplicate {
+			return fmt.Errorf("immutable mount backing filesystem is duplicated: %q", filesystem)
+		}
+		if previousFilesystem != "" && filesystem < previousFilesystem {
+			return fmt.Errorf("immutable mount backing filesystems are not canonically ordered")
+		}
+		seenFilesystems[filesystem] = struct{}{}
+		previousFilesystem = filesystem
+	}
+	if strings.TrimSpace(descriptor.LeaseID) != descriptor.LeaseID || len(descriptor.LeaseID) > maxImmutableLeaseIDBytes || strings.ContainsAny(descriptor.LeaseID, "\x00\n\r\t") {
+		return fmt.Errorf("rootfs lease is malformed")
+	}
+	if len(descriptor.LowerDirs) > maxImmutableLowerDirs {
+		return fmt.Errorf("immutable mount has too many lower dirs: %d", len(descriptor.LowerDirs))
+	}
+	seenLowers := make(map[string]struct{}, len(descriptor.LowerDirs))
+	for _, lowerDir := range descriptor.LowerDirs {
+		if _, duplicate := seenLowers[lowerDir]; duplicate {
+			return fmt.Errorf("immutable lower dir is duplicated: %s", lowerDir)
+		}
+		seenLowers[lowerDir] = struct{}{}
+		if err := validateOverlayPath("immutable lower dir", lowerDir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateImmutableDirectory(name, candidate string) error {
+	if len(candidate) > maxImmutablePathBytes {
+		return fmt.Errorf("%s exceeds %d bytes", name, maxImmutablePathBytes)
+	}
+	if err := validateCanonicalAbsolutePath(name, candidate); err != nil {
+		return err
+	}
+	info, err := os.Lstat(candidate)
+	if err != nil {
+		return fmt.Errorf("lstat %s %s: %w", name, candidate, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s must not be a symlink: %s", name, candidate)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%s is not a directory: %s", name, candidate)
+	}
+	return nil
+}
+
 func (p *overlayProvider) ReconcilePersistentViews(_ context.Context, runtimeName string, retained map[string]struct{}) error {
 	if p.filestoreDir == "" {
 		return nil
@@ -395,9 +581,8 @@ func (p *overlayProvider) ReconcilePersistentViews(_ context.Context, runtimeNam
 				continue
 			}
 			if _, ok := retained[entry.Name()]; ok {
-				if err := validateProjectionBacking(manifest.Backing); err != nil {
-					result = errors.Join(result, fmt.Errorf("active projection %s is degraded: %w", root, err))
-				}
+				// The rootfs source owner and its lease reconcile lower health.
+				// Projection owns only the active overlay and its writable state.
 				continue
 			}
 			if err := cleanupPersistedOverlayView(root, p.filestoreDir); err != nil {
@@ -446,19 +631,18 @@ func overlayViewForContainer(containerID, filestoreDir, class string, lowerDirs 
 }
 
 type projectionManifest struct {
-	RuntimeName   string             `json:"runtime_name"`
-	RootReadonly  bool               `json:"root_readonly"`
-	HostWritable  bool               `json:"host_writable"`
-	Backing       RootfsBackingFacts `json:"backing"`
-	RootfsLeaseID string             `json:"rootfs_lease_id,omitempty"`
-	ProjectID     uint32             `json:"project_id,omitempty"`
+	RuntimeName    string                   `json:"runtime_name"`
+	RootReadonly   bool                     `json:"root_readonly"`
+	HostWritable   bool                     `json:"host_writable"`
+	ImmutableMount ImmutableMountDescriptor `json:"immutable_mount"`
+	ProjectID      uint32                   `json:"project_id,omitempty"`
 }
 
-func writeProjectionManifest(root string, request Request, backing RootfsBackingFacts) error {
+func writeProjectionManifest(root string, request Request) error {
 	content, err := json.Marshal(projectionManifest{
 		RuntimeName: request.RuntimeName, RootReadonly: request.Readonly,
-		HostWritable: request.NeedsHostWritableRootfs, Backing: backing,
-		RootfsLeaseID: request.RootfsLeaseID, ProjectID: request.ProjectID,
+		HostWritable: request.NeedsHostWritableRootfs, ImmutableMount: request.ImmutableMount,
+		ProjectID: request.ProjectID,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal projection manifest: %w", err)
@@ -467,26 +651,53 @@ func writeProjectionManifest(root string, request Request, backing RootfsBacking
 }
 
 func readProjectionManifest(root string) (projectionManifest, error) {
-	data, err := os.ReadFile(filepath.Join(root, "projection.json"))
+	manifestPath := filepath.Join(root, "projection.json")
+	file, err := os.Open(manifestPath)
 	if err != nil {
 		return projectionManifest{}, err
 	}
-	var manifest projectionManifest
-	if err := json.Unmarshal(data, &manifest); err != nil {
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
 		return projectionManifest{}, err
 	}
-	if manifest.RuntimeName == "" || manifest.Backing.EffectiveRoot == "" || manifest.Backing.Mountpoint == "" || manifest.Backing.MountID == 0 {
+	if info.Size() <= 0 || info.Size() > maxProjectionManifestBytes {
+		return projectionManifest{}, fmt.Errorf("projection manifest size %d is outside the accepted range", info.Size())
+	}
+	data, err := io.ReadAll(io.LimitReader(file, maxProjectionManifestBytes+1))
+	if err != nil {
+		return projectionManifest{}, err
+	}
+	if len(data) > maxProjectionManifestBytes {
+		return projectionManifest{}, fmt.Errorf("projection manifest exceeds %d bytes", maxProjectionManifestBytes)
+	}
+	var manifest projectionManifest
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&manifest); err != nil {
+		return projectionManifest{}, err
+	}
+	if err := ensureJSONEOF(decoder); err != nil {
+		return projectionManifest{}, err
+	}
+	if !immutableFilesystemPattern.MatchString(manifest.RuntimeName) || manifest.ImmutableMount.EffectiveRoot == "" || manifest.ImmutableMount.Identity == "" {
 		return projectionManifest{}, fmt.Errorf("projection manifest is incomplete")
+	}
+	if err := ValidateImmutableMountDescriptorContract(manifest.ImmutableMount, manifest.ImmutableMount.EffectiveRoot); err != nil {
+		return projectionManifest{}, fmt.Errorf("projection manifest immutable mount is invalid: %w", err)
 	}
 	return manifest, nil
 }
 
-func validateProjectionBacking(expected RootfsBackingFacts) error {
-	actual, err := InspectBacking(expected.EffectiveRoot)
-	if err != nil {
+func ensureJSONEOF(decoder *json.Decoder) error {
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return fmt.Errorf("projection manifest contains trailing JSON")
+		}
 		return err
 	}
-	return compareBackingIdentity(expected, actual)
+	return nil
 }
 
 type PersistentViewExpectation struct {
@@ -506,9 +717,6 @@ func VerifyPersistentView(filestoreDir, containerID string, expected PersistentV
 	if manifest.RuntimeName != expected.RuntimeName || !manifest.HostWritable || manifest.ProjectID == 0 || manifest.ProjectID != expected.ProjectID {
 		return fmt.Errorf("active rootfs projection enforcement manifest is inconsistent")
 	}
-	if err := validateProjectionBacking(manifest.Backing); err != nil {
-		return err
-	}
 	if err := verifyMountedOverlay(filepath.Join(root, "merged")); err != nil {
 		return fmt.Errorf("verify active rootfs projection mount: %w", err)
 	}
@@ -516,37 +724,6 @@ func VerifyPersistentView(filestoreDir, containerID string, expected PersistentV
 		return fmt.Errorf("verify active rootfs project quota: %w", err)
 	}
 	return nil
-}
-
-func compareBackingIdentity(expected, actual RootfsBackingFacts) error {
-	if actual.EffectiveRoot == expected.EffectiveRoot && actual.MountID == expected.MountID && actual.Mountpoint == expected.Mountpoint && actual.FSType == expected.FSType && actual.Source == expected.Source && actual.MountRoot == expected.MountRoot && actual.Readonly == expected.Readonly && slicesEqual(actual.LowerDirs, expected.LowerDirs) && backingLayersEqual(actual.EffectiveLowerChain, expected.EffectiveLowerChain) {
-		return nil
-	}
-	return fmt.Errorf("lower mount identity changed: expected effective=%s id=%d mountpoint=%s fs=%s root=%s source=%s readonly=%t lowers=%v chain=%v, got effective=%s id=%d mountpoint=%s fs=%s root=%s source=%s readonly=%t lowers=%v chain=%v", expected.EffectiveRoot, expected.MountID, expected.Mountpoint, expected.FSType, expected.MountRoot, expected.Source, expected.Readonly, expected.LowerDirs, expected.EffectiveLowerChain, actual.EffectiveRoot, actual.MountID, actual.Mountpoint, actual.FSType, actual.MountRoot, actual.Source, actual.Readonly, actual.LowerDirs, actual.EffectiveLowerChain)
-}
-
-func slicesEqual(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
-}
-
-func backingLayersEqual(left, right []RootfsBackingLayerFacts) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }
 
 func atomicWrite(target string, content []byte, mode os.FileMode) error {

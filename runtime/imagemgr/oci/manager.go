@@ -105,6 +105,8 @@ type MountResult struct {
 	MountPath   string
 	Env         []string
 	ImageConfig *ImageConfig
+	MountID     string
+	LowerDirs   []string
 }
 
 // NewManager creates a new OCI manager.

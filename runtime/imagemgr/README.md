@@ -217,6 +217,13 @@ The mount endpoints return:
 
 - `mount_path`
 - optional environment values needed by higher-level runtime consumers
+- `immutable_mount`: a bounded source-owned descriptor containing the effective
+  root, opaque identity, filesystem diagnostics, exact ordered lower paths,
+  readonly state, and lease ID
+
+The descriptor is the only image-representation hand-off to runtime rootfs
+projection. Consumers validate it but do not parse OCI layers, Nydus bootstrap
+state, OSS loop internals, or mountinfo to reconstruct image state.
 
 `GET /list_oci_mount_details` returns the mounted image URL, resolved mount
 path, and mount type (`oci` or `nydus`) for image-backed rootfs mounts.

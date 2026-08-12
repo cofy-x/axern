@@ -73,10 +73,29 @@ func (w *HttpWorker) MountOCI(ctx context.Context, req *OCIMountRequest) (*OCIMo
 	if record.CacheKey != key {
 		resourceUnlock := w.lockMount(record.CacheKey)
 		defer resourceUnlock()
-		// The Nydus route and direct Nydus API share one resource identity. A
-		// final consumer may have released it while route detection ran, so
-		// confirm the resource under its canonical lock before recording lease.
-		return w.acquireRecordedOCI(ctx, req, record)
+		// The Nydus route and direct Nydus API share one resource identity. Decide
+		// ownership under that canonical lock: an existing record is shared and
+		// must never be rolled back by this request; an absent record means this
+		// request owns the newly mounted resource until its lease is durable.
+		existing, getErr := w.mountStore.GetMount(record.CacheKey)
+		if getErr != nil {
+			return nil, getErr
+		}
+		if existing != nil {
+			return w.acquireRecordedOCI(ctx, req, existing)
+		}
+		if MountType(record.MountType) != MountTypeNydus {
+			return nil, fmt.Errorf("mount route changed resource key for non-Nydus type %q", record.MountType)
+		}
+		descriptor, descriptorErr := immutableMountDescriptor(response.MountPath, req.LeaseID, "nydus", generateNydusID(record.NydusImageURL), []string{response.MountPath}, []string{"nydus"})
+		if descriptorErr != nil {
+			return nil, errors.Join(fmt.Errorf("describe Nydus immutable mount: %w", descriptorErr), w.unmountNydusResource(ctx, record.NydusImageURL))
+		}
+		response.ImmutableMount = descriptor
+		if _, acquireErr := w.mountStore.Acquire(record, req.LeaseID, req.Owner); acquireErr != nil {
+			return nil, errors.Join(fmt.Errorf("persist mount lease: %w", acquireErr), w.unmountNydusResource(ctx, record.NydusImageURL))
+		}
+		return response, nil
 	}
 	if _, err := w.mountStore.Acquire(record, req.LeaseID, req.Owner); err != nil {
 		if rollbackErr := w.unmountResource(ctx, record); rollbackErr != nil {
@@ -96,7 +115,7 @@ func (w *HttpWorker) mountNewOCI(ctx context.Context, req *OCIMountRequest, impo
 	if w.nydusClient != nil {
 		// Try original URL
 		if attempt, err := w.tryMountNydus(ctx, req.ImageURL, req.DockerConfigJSON); err == nil {
-			return &OCIMountResponse{MountPath: attempt.mountPoint, Env: attempt.env}, newNydusMountRecord(req, req.ImageURL, attempt.mountPoint), nil
+			return rawNydusOCIMountResponse(attempt), newNydusMountRecord(req, req.ImageURL, attempt.mountPoint), nil
 		} else if attempt.detected {
 			logrus.WithError(err).Warnf("detected Nydus image for %s but Nydus mount failed, skip OCI fallback", req.ImageURL)
 			return nil, nil, err
@@ -107,7 +126,7 @@ func (w *HttpWorker) mountNewOCI(ctx context.Context, req *OCIMountRequest, impo
 			imageWithSuffix := req.ImageURL + w.nydusSuffix
 			logrus.Infof("trying Nydus detection with suffix: %s", imageWithSuffix)
 			if attempt, err := w.tryMountNydus(ctx, imageWithSuffix, req.DockerConfigJSON); err == nil {
-				return &OCIMountResponse{MountPath: attempt.mountPoint, Env: attempt.env}, newNydusMountRecord(req, imageWithSuffix, attempt.mountPoint), nil
+				return rawNydusOCIMountResponse(attempt), newNydusMountRecord(req, imageWithSuffix, attempt.mountPoint), nil
 			} else if attempt.detected {
 				logrus.WithError(err).Warnf("detected Nydus image for %s via suffix %s but Nydus mount failed, skip OCI fallback", req.ImageURL, imageWithSuffix)
 				return nil, nil, err
@@ -125,10 +144,16 @@ func (w *HttpWorker) ensureOCIOverlayMounted(ctx context.Context, req *OCIMountR
 	if err != nil {
 		return nil, nil, err
 	}
+	descriptor, err := immutableMountDescriptor(result.MountPath, req.LeaseID, "overlay", result.MountID, result.LowerDirs, nil)
+	if err != nil {
+		cause := fmt.Errorf("describe OCI immutable mount: %w", err)
+		return nil, nil, errors.Join(cause, w.ociMgr.UnmountImageWithContextAndKey(ctx, req.ImageURL, mountKey(req.ImageURL, req.CacheKey)))
+	}
 	return &OCIMountResponse{
-		MountPath:   result.MountPath,
-		Env:         result.Env,
-		ImageConfig: imageConfigFromOCI(result.ImageConfig),
+		MountPath:      result.MountPath,
+		Env:            result.Env,
+		ImageConfig:    imageConfigFromOCI(result.ImageConfig),
+		ImmutableMount: descriptor,
 	}, newOCIMountRecord(req, result.MountPath), nil
 }
 
@@ -140,13 +165,21 @@ func (w *HttpWorker) acquireRecordedOCI(ctx context.Context, req *OCIMountReques
 		if err != nil {
 			return nil, err
 		}
-		response = &OCIMountResponse{MountPath: info.MountPath, Env: info.Env}
+		descriptor, descriptorErr := immutableMountDescriptor(info.MountPath, req.LeaseID, "nydus", generateNydusID(record.NydusImageURL), []string{info.MountPath}, []string{"nydus"})
+		if descriptorErr != nil {
+			return nil, descriptorErr
+		}
+		response = &OCIMountResponse{MountPath: info.MountPath, Env: info.Env, ImmutableMount: descriptor}
 	case MountTypeOCI:
 		result, err := w.ociMgr.MountImageWithContextAndAuthKey(ctx, req.ImageURL, req.DockerConfigJSON, record.CacheKey)
 		if err != nil {
 			return nil, err
 		}
-		response = &OCIMountResponse{MountPath: result.MountPath, Env: result.Env, ImageConfig: imageConfigFromOCI(result.ImageConfig)}
+		descriptor, descriptorErr := immutableMountDescriptor(result.MountPath, req.LeaseID, "overlay", result.MountID, result.LowerDirs, nil)
+		if descriptorErr != nil {
+			return nil, descriptorErr
+		}
+		response = &OCIMountResponse{MountPath: result.MountPath, Env: result.Env, ImageConfig: imageConfigFromOCI(result.ImageConfig), ImmutableMount: descriptor}
 	default:
 		return nil, fmt.Errorf("unsupported persisted mount type %q", record.MountType)
 	}
@@ -154,6 +187,10 @@ func (w *HttpWorker) acquireRecordedOCI(ctx context.Context, req *OCIMountReques
 		return nil, fmt.Errorf("persist mount lease: %w", err)
 	}
 	return response, nil
+}
+
+func rawNydusOCIMountResponse(attempt nydusMountAttempt) *OCIMountResponse {
+	return &OCIMountResponse{MountPath: attempt.mountPoint, Env: attempt.env}
 }
 
 func imageConfigFromOCI(in *oci.ImageConfig) *ImageConfig {
