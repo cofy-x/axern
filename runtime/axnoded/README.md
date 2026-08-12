@@ -155,6 +155,14 @@ product workflows. Common local inspection starts with:
 axctl node check
 axctl sandbox list
 axctl image mounts
+
+# Qualification-only: evict one page-aligned regular-file range from an exact,
+# currently mounted image identity. This never uses the global drop_caches knob.
+axctl image drop-page-cache \
+  --ref registry.example/fixture@sha256:<digest> \
+  --path /qualification/lower-payload.bin \
+  --offset 0 \
+  --length 33554432
 ```
 
 The daemon HTTP surface exposes a read-only dashboard, cached inventory at

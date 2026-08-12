@@ -68,5 +68,5 @@ var ImportCmd = cli.Command{
 var Command = cli.Command{
 	Name:        "image",
 	Usage:       "Manage local node image cache",
-	Subcommands: []cli.Command{ImportCmd, ListCmd, InspectCmd, MountsCmd},
+	Subcommands: []cli.Command{ImportCmd, ListCmd, InspectCmd, MountsCmd, DropPageCacheCmd},
 }
