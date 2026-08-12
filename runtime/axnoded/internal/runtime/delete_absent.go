@@ -7,7 +7,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 )
 
-func runtimeDeleteTargetAbsent(err error, containerID string) bool {
+func runtimeContainerAbsent(err error, containerID string) bool {
 	if err == nil {
 		return false
 	}
