@@ -125,9 +125,6 @@ func (c *CgroupManager) convergeRetiringCgroup(id string) error {
 	if len(processes) != 0 {
 		return fmt.Errorf("retiring cgroup still contains %d process(es)", len(processes))
 	}
-	if observation.Stat["file_dirty"] != 0 || observation.Stat["file_writeback"] != 0 {
-		return fmt.Errorf("retiring cgroup writeback has not converged: dirty=%d writeback=%d", observation.Stat["file_dirty"], observation.Stat["file_writeback"])
-	}
 	if observation.CurrentBytes > 0 {
 		requestedAt := current.GetReclaimRequestedAtUnixNano()
 		if requestedAt == 0 {
@@ -167,10 +164,13 @@ func (c *CgroupManager) convergeRetiringCgroup(id string) error {
 				return fmt.Errorf("reclaim retiring cgroup memory returned unknown result %d", result)
 			}
 		}
-		// memory.current may retain kernel metadata or pages already reparentable
-		// at rmdir. Once the explicit reclaim request has had a retry interval and
-		// dirty/writeback are zero, deletion is the convergence operation; waiting
-		// for an exact zero can strand cleanup debt forever.
+		// memory.current and memory.stat may retain kernel metadata, clean page
+		// cache, or dirty/writeback charges after the allocation processes and
+		// backing files are gone. Cgroup v2 does not require those counters to
+		// reach zero before rmdir: successful removal reparents every remaining
+		// charge to the sandbox ancestor, whose memory.current is sampled as the
+		// node-local admission safety floor. Once an explicit reclaim request has
+		// had a retry interval, removal is the authoritative convergence operation.
 		if time.Since(time.Unix(0, requestedAt)) < time.Second {
 			return fmt.Errorf("retiring cgroup reclaim is still settling at %d charged bytes", observation.CurrentBytes)
 		}

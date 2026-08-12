@@ -298,12 +298,15 @@ func TestConvergeRetiringCgroupChargesOrphanBeforeRemainingProcessRetry(t *testi
 	}
 }
 
-func TestConvergeRetiringCgroupRemovesEmptyDomainWithoutMemoryReclaim(t *testing.T) {
+func TestConvergeRetiringCgroupRemovesEmptyDomainWithResidualWritebackWithoutMemoryReclaim(t *testing.T) {
 	id := "/sandbox/without-memory-reclaim"
 	driver := &warmPoolStubCgroupDriver{}
 	memory := &gcRetirementMemoryStub{
-		observation: &hostlinux.CgroupMemoryObservation{CurrentBytes: 4096, Stat: map[string]int64{}},
-		reclaim:     hostlinux.CgroupMemoryReclaimUnavailable,
+		observation: &hostlinux.CgroupMemoryObservation{
+			CurrentBytes: 4096,
+			Stat:         map[string]int64{"file_dirty": 135168, "file_writeback": 4096},
+		},
+		reclaim: hostlinux.CgroupMemoryReclaimUnavailable,
 	}
 	manager := &CgroupManager{
 		leases: cmap.New[*apipb.CgroupLease](), cgroups: cmap.New[struct{}](),
@@ -332,8 +335,11 @@ func TestConvergeRetiringCgroupKeepsDebtWhenRemovalFailsWithoutMemoryReclaim(t *
 	removeErr := errors.New("cgroup is still busy")
 	driver := &warmPoolStubCgroupDriver{removeErr: removeErr}
 	memory := &gcRetirementMemoryStub{
-		observation: &hostlinux.CgroupMemoryObservation{CurrentBytes: 4096, Stat: map[string]int64{}},
-		reclaim:     hostlinux.CgroupMemoryReclaimUnavailable,
+		observation: &hostlinux.CgroupMemoryObservation{
+			CurrentBytes: 4096,
+			Stat:         map[string]int64{"file_dirty": 135168, "file_writeback": 4096},
+		},
+		reclaim: hostlinux.CgroupMemoryReclaimUnavailable,
 	}
 	manager := &CgroupManager{
 		leases: cmap.New[*apipb.CgroupLease](), cgroups: cmap.New[struct{}](),

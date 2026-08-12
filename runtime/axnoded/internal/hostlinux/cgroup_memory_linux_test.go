@@ -141,6 +141,29 @@ func TestReclaimCgroupMemoryDirSkipsZeroCharge(t *testing.T) {
 	}
 }
 
+func TestClassifyCgroupMemoryReclaimWrite(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantResult CgroupMemoryReclaimResult
+		wantError  bool
+	}{
+		{name: "accepted", wantResult: CgroupMemoryReclaimRequested},
+		{name: "partial", err: syscall.EAGAIN, wantResult: CgroupMemoryReclaimRequested},
+		{name: "missing", err: os.ErrNotExist, wantResult: CgroupMemoryReclaimUnavailable},
+		{name: "unsupported", err: syscall.EOPNOTSUPP, wantResult: CgroupMemoryReclaimUnavailable},
+		{name: "permission", err: os.ErrPermission, wantResult: CgroupMemoryReclaimNotNeeded, wantError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := classifyCgroupMemoryReclaimWrite(tt.err)
+			if result != tt.wantResult || (err != nil) != tt.wantError {
+				t.Fatalf("classifyCgroupMemoryReclaimWrite(%v) = (%d, %v), want (%d, error=%t)", tt.err, result, err, tt.wantResult, tt.wantError)
+			}
+		})
+	}
+}
+
 func TestReadCgroupMemoryObservationRejectsKernelPeakBelowCurrent(t *testing.T) {
 	dir := writeMemoryObservationFixture(t)
 	writeFixtureFile(t, dir, "memory.peak", "9\n")
