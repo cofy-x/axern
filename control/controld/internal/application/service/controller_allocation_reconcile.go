@@ -61,7 +61,7 @@ func (c *controller) ReconcileAllocationBatch(ctx context.Context, now time.Time
 		if available > 0 && claiming {
 			owner := "controld-" + uuid.NewString()
 			claimStarted := time.Now()
-			items, err := c.reconcile.ClaimDueReconcileItems(ctx, owner, available, time.Now(), allocationReconcileLeaseTTL)
+			items, err := c.reconcile.ClaimDueReconcileItems(ctx, owner, available, now, allocationReconcileLeaseTTL)
 			claimedAt := time.Now()
 			c.recordServiceAllocationQueue(ctx, "batch", serviceAllocationQueueStageClaimStore, claimedAt.Sub(claimStarted), err)
 			if err != nil {

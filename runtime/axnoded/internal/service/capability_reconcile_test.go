@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -137,6 +138,50 @@ func TestPeriodicCapabilityAuditCoversOperationalAndFailStopDependencies(t *test
 	}
 	if !capabilitycontract.RequirementKeysEqual(keys, []*capabilityv1.CapabilityKey{port.GetKey(), memory.GetKey()}) {
 		t.Fatalf("periodic audit keys = %#v", keys)
+	}
+}
+
+func TestCapabilityAuditShardsAreStableAndCoverOneCycle(t *testing.T) {
+	const allocationID = "allocation-stable-shard"
+	want := capabilityAuditShard(allocationID)
+	if want >= capabilityAuditShardCount || capabilityAuditShard(allocationID) != want {
+		t.Fatalf("unstable capability audit shard %d", want)
+	}
+	current := capabilityAuditShardAt(time.Now().UTC())
+	seen := make(map[uint32]struct{}, capabilityAuditShardCount)
+	for index := 0; index < capabilityAuditShardCount; index++ {
+		seen[current] = struct{}{}
+		current = nextCapabilityAuditShard(current)
+	}
+	if len(seen) != capabilityAuditShardCount {
+		t.Fatalf("audit cycle covered %d shards, want %d", len(seen), capabilityAuditShardCount)
+	}
+}
+
+func TestCapabilityReconcileWorkerOwnershipIsPerAllocationAndBounded(t *testing.T) {
+	service := &sandboxService{}
+	for index := 0; index < capabilityReconcileWorkers; index++ {
+		if !service.acquireCapabilityReconcileWorker(fmt.Sprintf("allocation-%d", index)) {
+			t.Fatalf("worker %d was rejected below the node budget", index)
+		}
+	}
+	if service.acquireCapabilityReconcileWorker("allocation-over-budget") {
+		t.Fatal("worker started above the node-wide budget")
+	}
+	if service.acquireCapabilityReconcileWorker("allocation-0") {
+		t.Fatal("second worker acquired the same allocation")
+	}
+	service.releaseCapabilityReconcileBudget("allocation-0")
+	if !service.acquireCapabilityReconcileWorker("allocation-over-budget") {
+		t.Fatal("terminating cleanup retained a verification permit")
+	}
+	if service.acquireCapabilityReconcileWorker("allocation-0") {
+		t.Fatal("terminating cleanup lost its unique allocation ownership")
+	}
+	service.finishCapabilityReconcileWorker("allocation-0")
+	service.finishCapabilityReconcileWorker("allocation-1")
+	if !service.acquireCapabilityReconcileWorker("allocation-0") {
+		t.Fatal("finished cleanup retained allocation ownership")
 	}
 }
 

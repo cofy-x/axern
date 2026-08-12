@@ -3,6 +3,7 @@ package langruntime
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -38,7 +39,8 @@ func (m *mockMounter) Mount(cfg RootfsConfig) (*MountResult, error) {
 		return nil, m.mountErr
 	}
 	m.mountCount++
-	return &MountResult{Path: fmt.Sprintf("/fake/rootfs/%s/%d", cfg.Path, m.mountCount)}, nil
+	path := filepath.Join("/fake/rootfs", strings.TrimPrefix(cfg.Path, "/"), fmt.Sprintf("%d", m.mountCount))
+	return &MountResult{Path: path, ImmutableMount: testImmutableMount(path, cfg.LeaseID)}, nil
 }
 
 func (m *mockMounter) Umount(cfg RootfsConfig) error {
@@ -79,7 +81,7 @@ func (m *mockImageManagerClient) ResolveOCIImageCacheKey(imageURL string) (strin
 
 func (m *mockImageManagerClient) MountOCI(req *ociMountRequest) (*imageManagerMountInfo, error) {
 	m.ociMounts++
-	return &imageManagerMountInfo{MountPath: m.ociMountPath, Env: append([]string(nil), m.ociEnv...), ImageConfig: cloneImageConfig(m.ociConfig)}, nil
+	return &imageManagerMountInfo{MountPath: m.ociMountPath, Env: append([]string(nil), m.ociEnv...), ImageConfig: cloneImageConfig(m.ociConfig), ImmutableMount: testImageManagerImmutableMount(m.ociMountPath, req.LeaseID)}, nil
 }
 
 func (m *mockImageManagerClient) UmountOCI(req *ociUmountRequest) error {
@@ -88,7 +90,7 @@ func (m *mockImageManagerClient) UmountOCI(req *ociUmountRequest) error {
 
 func (m *mockImageManagerClient) MountOSS(req *ossMountRequest) (*imageManagerMountInfo, error) {
 	m.ossMounts++
-	return &imageManagerMountInfo{MountPath: m.ossMountPath, Env: append([]string(nil), m.ossEnv...)}, nil
+	return &imageManagerMountInfo{MountPath: m.ossMountPath, Env: append([]string(nil), m.ossEnv...), ImmutableMount: testImageManagerImmutableMount(m.ossMountPath, req.LeaseID)}, nil
 }
 
 func (m *mockImageManagerClient) UmountOSS(req *ossUmountRequest) error {
@@ -160,13 +162,27 @@ type blockingLeaseMounter struct {
 }
 
 func (m *blockingLeaseMounter) Resolve(cfg RootfsConfig) (RootfsConfig, error) { return cfg, nil }
-func (m *blockingLeaseMounter) Mount(RootfsConfig) (*MountResult, error) {
+func (m *blockingLeaseMounter) Mount(cfg RootfsConfig) (*MountResult, error) {
 	close(m.mountStarted)
 	<-m.allowMount
-	return &MountResult{Path: "/mounted"}, nil
+	return &MountResult{Path: "/mounted", ImmutableMount: testImmutableMount("/mounted", cfg.LeaseID)}, nil
 }
 func (m *blockingLeaseMounter) Umount(RootfsConfig) error { return nil }
 func (m *blockingLeaseMounter) Reconcile([]string) error  { return nil }
+
+func testImmutableMount(path, leaseID string) *api.ImmutableRootfsMount {
+	return &api.ImmutableRootfsMount{
+		Identity: "sha256:" + strings.Repeat("a", 64), EffectiveRoot: path, Filesystem: "test",
+		LowerDirs: []string{path}, Readonly: true, LeaseID: leaseID,
+	}
+}
+
+func testImageManagerImmutableMount(path, leaseID string) *imageManagerImmutableMount {
+	return &imageManagerImmutableMount{
+		Identity: "sha256:" + strings.Repeat("a", 64), EffectiveRoot: path, Filesystem: "test",
+		LowerDirs: []string{path}, Readonly: true, LeaseID: leaseID,
+	}
+}
 
 func TestMountLeaseReconcileWaitsForInflightAcquire(t *testing.T) {
 	mounter := &blockingLeaseMounter{mountStarted: make(chan struct{}), allowMount: make(chan struct{})}

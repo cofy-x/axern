@@ -68,9 +68,9 @@ func (s *PGStore) Create(ctx context.Context, params servicekernel.CreateParams,
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO services (
 				service_id, namespace, environment_id, replicas, ready_replicas, unhealthy_replicas, rollout_policy, readiness_probe, liveness_probe, autoscaling_policy, autoscaling_status, status, config,
-				allocation_ids, labels, version, created_at, updated_at, message
-			) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13::jsonb, $14::jsonb, $15::jsonb, $16, $17, $18, $19)
-		`, service.GetID(), service.GetNamespace(), service.GetEnvironmentID(), service.GetReplicas(), service.GetReadyReplicas(), service.GetUnhealthyReplicas(), rolloutPolicyJSON, readinessProbeJSON, livenessProbeJSON, autoscalingPolicyJSON, autoscalingStatusJSON, service.GetStatus().String(), configJSON, allocationIDsJSON, labelsJSON, service.GetVersion(), now.UTC(), now.UTC(), service.GetMessage()); err != nil {
+				allocation_ids, labels, version, created_at, updated_at, message, diagnostic_code
+			) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13::jsonb, $14::jsonb, $15::jsonb, $16, $17, $18, $19, $20)
+		`, service.GetID(), service.GetNamespace(), service.GetEnvironmentID(), service.GetReplicas(), service.GetReadyReplicas(), service.GetUnhealthyReplicas(), rolloutPolicyJSON, readinessProbeJSON, livenessProbeJSON, autoscalingPolicyJSON, autoscalingStatusJSON, service.GetStatus().String(), configJSON, allocationIDsJSON, labelsJSON, service.GetVersion(), now.UTC(), now.UTC(), service.GetMessage(), service.GetDiagnosticCode().String()); err != nil {
 			return fmt.Errorf("insert service: %w", err)
 		}
 		return notifyServiceChanged(ctx, tx, service.GetID())

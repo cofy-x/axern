@@ -6,6 +6,7 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -26,22 +27,20 @@ type Container struct {
 type EventType string
 
 const (
-	EventTypeCreate EventType = "create"
-	EventTypeStart  EventType = "start"
 	EventTypeExit   EventType = "exit"
 	EventTypeDelete EventType = "delete"
 )
 
 type Event struct {
-	Type        EventType                `json:"type"`
-	ContainerID string                   `json:"id"`
-	MetaData    *apipb.ContainerMetadata `json:"metadata"`
+	Type        EventType `json:"type"`
+	ContainerID string    `json:"id"`
 	// lifecycle information
-	Pid           int32     `json:"pid"`
-	ExitedAt      time.Time `json:"exited_at"`
-	ExitCode      int32     `json:"exit_code"`
-	ExitCodeKnown bool      `json:"exit_code_known"`
-	Reason        string    `json:"reason"`
+	Pid            int32                           `json:"pid"`
+	ExitedAt       time.Time                       `json:"exited_at"`
+	ExitCode       int32                           `json:"exit_code"`
+	ExitCodeKnown  bool                            `json:"exit_code_known"`
+	Reason         string                          `json:"reason"`
+	DiagnosticCode commonv1.WorkloadDiagnosticCode `json:"diagnostic_code"`
 }
 
 func (c *Container) EnvValue(key string) string {
@@ -120,6 +119,7 @@ func (c *Container) ApiStatus() *runtimeapi.ContainerStatus {
 		FinishedAt:     ParseTimestamp(c.Status.Get().FinishedAt),
 		ExitCode:       c.Status.Get().ExitCode,
 		Message:        c.Status.Get().Message,
+		DiagnosticCode: c.Status.Get().DiagnosticCode,
 		Labels:         copyLabels,
 		Mounts:         MountsToAPI(c.Spec.Mounts),
 		Envs:           envKv,

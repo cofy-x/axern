@@ -248,7 +248,10 @@ func validateFreshness(key *capabilityv1.CapabilityKey, observedAt, validUntil *
 		}
 		if definition.Identity == IdentityDerived {
 			if validUntil == nil {
-				return fmt.Errorf("derived observation is missing inherited valid_until")
+				// A derived observation whose complete direct proof set is
+				// identity-scoped inherits no expiry. Any expiring dependency still
+				// supplies the earliest valid_until below.
+				return nil
 			}
 			if !validUntil.AsTime().After(observedAt.AsTime()) {
 				return fmt.Errorf("derived valid_until must be after observed_at")

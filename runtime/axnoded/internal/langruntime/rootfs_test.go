@@ -6,6 +6,35 @@ import (
 	api "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 )
 
+type malformedMountResultMounter struct {
+	umounts int
+	result  *MountResult
+}
+
+func (m *malformedMountResultMounter) Resolve(cfg RootfsConfig) (RootfsConfig, error) {
+	return cfg, nil
+}
+
+func (m *malformedMountResultMounter) Mount(RootfsConfig) (*MountResult, error) {
+	if m.result != nil {
+		return m.result, nil
+	}
+	return &MountResult{
+		Path: "/mounted/rootfs",
+		ImmutableMount: &api.ImmutableRootfsMount{
+			Identity: "derived-v1", EffectiveRoot: "/mounted/rootfs", Filesystem: "overlay",
+			LowerDirs: []string{"/mounted/lower"}, Readonly: true,
+		},
+	}, nil
+}
+
+func (m *malformedMountResultMounter) Umount(RootfsConfig) error {
+	m.umounts++
+	return nil
+}
+
+func (*malformedMountResultMounter) Reconcile([]string) error { return nil }
+
 func TestNewRootFSLocalMountLifecycle(t *testing.T) {
 	cleanupCalls := 0
 	rootfs, err := NewRootFS(
@@ -28,6 +57,35 @@ func TestNewRootFSLocalMountLifecycle(t *testing.T) {
 	}
 	if cleanupCalls != 1 {
 		t.Fatalf("cleanup calls = %d, want 1", cleanupCalls)
+	}
+}
+
+func TestNewRootFSRollsBackMalformedSourceDescriptor(t *testing.T) {
+	mounter := &malformedMountResultMounter{}
+	_, err := NewRootFS(RootfsConfig{SrcType: api.RootfsSrcType_LOCAL, Path: "/source"}, mounter, nil)
+	if err == nil {
+		t.Fatal("expected malformed immutable mount descriptor to fail")
+	}
+	if mounter.umounts != 1 {
+		t.Fatalf("umount calls = %d, want 1", mounter.umounts)
+	}
+}
+
+func TestNewRootFSRollsBackMismatchedSourceLease(t *testing.T) {
+	mounter := &malformedMountResultMounter{result: &MountResult{
+		Path: "/mounted/rootfs",
+		ImmutableMount: &api.ImmutableRootfsMount{
+			Identity:      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			EffectiveRoot: "/mounted/rootfs", Filesystem: "overlay", LowerDirs: []string{"/mounted/lower"},
+			Readonly: true, LeaseID: "different-lease",
+		},
+	}}
+	_, err := NewRootFS(RootfsConfig{SrcType: api.RootfsSrcType_IMAGE, LeaseID: "requested-lease"}, mounter, nil)
+	if err == nil {
+		t.Fatal("expected mismatched source lease to fail")
+	}
+	if mounter.umounts != 1 {
+		t.Fatalf("umount calls = %d, want 1", mounter.umounts)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
+	workloadkernel "github.com/cofy-x/axern/control/controld/internal/kernel/workload"
 	pgreservation "github.com/cofy-x/axern/control/controld/internal/postgres/reservation"
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -35,29 +36,30 @@ func (s *Store) BatchReportAllocationStatus(ctx context.Context, nodeID string, 
 			}
 			nextStatus := obs.GetStatus()
 			message := strings.TrimSpace(obs.GetMessage())
-			if runAllocationObservationMatches(alloc, obs, message) {
+			diagnosticCode := obs.GetDiagnosticCode()
+			if runAllocationObservationMatches(alloc, obs, diagnosticCode, message) {
 				continue
 			}
 			nodeActiveAt := allocationkernel.NodeActiveObservationTime(obs, now)
 			if _, err := tx.Exec(ctx, `
 			UPDATE allocations
-			SET status = $2, exit_code = $3, exit_code_known = $4, message = $5,
-				version = version + 1, updated_at = $6,
+			SET status = $2, exit_code = $3, exit_code_known = $4, diagnostic_code = $5, message = $6,
+				version = version + 1, updated_at = $7,
 				node_active_at = CASE
-					WHEN node_active_at IS NULL AND $2 IN ($8, $9) THEN $10
+					WHEN node_active_at IS NULL AND $2 IN ($9, $10) THEN $11
 					ELSE node_active_at
 				END
-			WHERE allocation_id = $1 AND attempt = $7
-			`, alloc.allocationID, nextStatus.String(), obs.GetExitCode(), obs.GetExitCodeKnown(), message, now.UTC(), obs.GetAttempt(), commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(), nodeActiveAt); err != nil {
+			WHERE allocation_id = $1 AND attempt = $8
+			`, alloc.allocationID, nextStatus.String(), obs.GetExitCode(), obs.GetExitCodeKnown(), diagnosticCode.String(), message, now.UTC(), obs.GetAttempt(), commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(), nodeActiveAt); err != nil {
 				return fmt.Errorf("update allocation status: %w", err)
 			}
 			runStatus := allocationkernel.RunStatusFromAllocation(nextStatus, obs.GetExitCode())
 			if _, err := tx.Exec(ctx, `
 			UPDATE runs
-			SET status = $2, exit_code = $3, exit_code_known = $4, message = $5,
-				version = version + 1, updated_at = $6
-			WHERE allocation_id = $1 AND attempt = $7 AND status NOT IN ($8, $9, $10)
-			`, alloc.allocationID, runStatus.String(), obs.GetExitCode(), obs.GetExitCodeKnown(), message, now.UTC(), obs.GetAttempt(), runv1.RunStatus_RUN_STATUS_SUCCEEDED.String(), runv1.RunStatus_RUN_STATUS_FAILED.String(), runv1.RunStatus_RUN_STATUS_CANCELLED.String()); err != nil {
+			SET status = $2, exit_code = $3, exit_code_known = $4, diagnostic_code = $5, message = $6,
+				version = version + 1, updated_at = $7
+			WHERE allocation_id = $1 AND attempt = $8 AND status NOT IN ($9, $10, $11)
+			`, alloc.allocationID, runStatus.String(), obs.GetExitCode(), obs.GetExitCodeKnown(), diagnosticCode.String(), message, now.UTC(), obs.GetAttempt(), runv1.RunStatus_RUN_STATUS_SUCCEEDED.String(), runv1.RunStatus_RUN_STATUS_FAILED.String(), runv1.RunStatus_RUN_STATUS_CANCELLED.String()); err != nil {
 				return fmt.Errorf("update run status: %w", err)
 			}
 			if runkernel.IsTerminal(runStatus) {
@@ -85,20 +87,22 @@ func (s *Store) BatchReportAllocationStatus(ctx context.Context, nodeID string, 
 }
 
 type runStatusAllocation struct {
-	allocationID  string
-	nodeID        string
-	attempt       int64
-	status        commonv1.AllocationStatus
-	exitCode      int32
-	exitCodeKnown bool
-	message       string
+	allocationID   string
+	nodeID         string
+	attempt        int64
+	status         commonv1.AllocationStatus
+	exitCode       int32
+	exitCodeKnown  bool
+	diagnosticCode commonv1.WorkloadDiagnosticCode
+	message        string
 }
 
-func runAllocationObservationMatches(allocation *runStatusAllocation, observation *nodev1.AllocationStatusObservation, message string) bool {
+func runAllocationObservationMatches(allocation *runStatusAllocation, observation *nodev1.AllocationStatusObservation, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) bool {
 	return allocation != nil && observation != nil &&
 		allocation.status == observation.GetStatus() &&
 		allocation.exitCode == observation.GetExitCode() &&
-		allocation.exitCodeKnown == observation.GetExitCodeKnown() && strings.TrimSpace(allocation.message) == message
+		allocation.exitCodeKnown == observation.GetExitCodeKnown() &&
+		allocation.diagnosticCode == diagnosticCode && strings.TrimSpace(allocation.message) == message
 }
 
 func lockRunStatusAllocations(ctx context.Context, tx pgx.Tx, allocationIDs []string) (map[string]*runStatusAllocation, error) {
@@ -107,7 +111,7 @@ func lockRunStatusAllocations(ctx context.Context, tx pgx.Tx, allocationIDs []st
 		return allocations, nil
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT allocation_id, node_id, attempt, status, exit_code, exit_code_known, message
+		SELECT allocation_id, node_id, attempt, status, exit_code, exit_code_known, diagnostic_code, message
 		FROM allocations
 		WHERE owner_type = $1 AND allocation_id = ANY($2::text[])
 		ORDER BY allocation_id
@@ -120,10 +124,12 @@ func lockRunStatusAllocations(ctx context.Context, tx pgx.Tx, allocationIDs []st
 	for rows.Next() {
 		allocation := &runStatusAllocation{}
 		var statusText string
-		if err := rows.Scan(&allocation.allocationID, &allocation.nodeID, &allocation.attempt, &statusText, &allocation.exitCode, &allocation.exitCodeKnown, &allocation.message); err != nil {
+		var diagnosticCodeText string
+		if err := rows.Scan(&allocation.allocationID, &allocation.nodeID, &allocation.attempt, &statusText, &allocation.exitCode, &allocation.exitCodeKnown, &diagnosticCodeText, &allocation.message); err != nil {
 			return nil, fmt.Errorf("scan run allocation for status batch: %w", err)
 		}
 		allocation.status = parseAllocationStatus(statusText)
+		allocation.diagnosticCode = workloadkernel.ParseDiagnosticCode(diagnosticCodeText)
 		allocations[allocation.allocationID] = allocation
 	}
 	if err := rows.Err(); err != nil {

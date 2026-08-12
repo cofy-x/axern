@@ -226,12 +226,15 @@ same effective CPU allocatable value:
 floor(node_allocatable_cpu_milli * resource_cpu_overcommit_ratio)
 ```
 
-Memory does not overcommit in the first policy version; effective memory
-allocatable remains the node-reported allocatable memory. Runtime limits are
-unchanged: requests drive placement and reservations, while limits remain node
-runtime hard limits. Node resource metrics keep the physical `allocatable`
-series and also expose `effective_allocatable`; `available` is calculated from
-the effective value so dashboards match admission behavior.
+Memory does not overcommit. Axnoded reports physical capacity and the resource
+source's allocatable value as distinct facts. Raw allocatable is the lesser of
+`source_allocatable_bytes` and any finite delegated cgroup-root limit;
+`physical_capacity_bytes` is diagnostic identity-bound capacity and is not a
+second scheduling pool. Effective allocatable subtracts the explicit system
+reserve. Placement and the locked admission transaction use the larger
+of database reservations and the latest node-local commitment so terminating
+workloads remain charged until cgroup cleanup converges. Requests drive that
+reservation; limits remain the sandbox-domain host `memory.max`.
 
 Each active workload reservation also consumes one runtime instance slot. The
 transactional capacity comes from the node-owned aggregate `runtime_slots`

@@ -11,9 +11,30 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/ocicli"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestRunscHandlerWaitReturnsUnavailableWhenRuntimeContainerIsAbsent(t *testing.T) {
+	rootDir := t.TempDir()
+	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
+	if err != nil {
+		t.Fatalf("NewBundleLoader() error = %v", err)
+	}
+
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
+	if err != nil {
+		t.Fatalf("NewRunscServiceHandler() error = %v", err)
+	}
+	handler.common.SetExecutor(&scriptedExecutor{errors: map[string][]error{
+		"wait": {&ocicli.CommandError{Err: errors.New("exit status 128"), Output: "error: container axctl-test not found"}},
+	}})
+
+	exit, err := handler.Wait(context.Background(), contract.HandlerOptions{ContainerID: "axctl-test"})
+	assert.ErrorIs(t, err, contract.ErrExitStatusUnavailable)
+	assert.Equal(t, -1, exit.Status)
+}
 
 func runscWaitGraceAttrs(result string) map[string]string {
 	return map[string]string{

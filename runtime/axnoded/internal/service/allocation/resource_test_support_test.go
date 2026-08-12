@@ -1,6 +1,7 @@
 package allocation
 
 import (
+	"fmt"
 	"path/filepath"
 	"sync"
 
@@ -14,10 +15,11 @@ func newTestResourceManagers() []resourcemanager.Manager {
 }
 
 type testResourceManager struct {
-	name   resourcemanager.ResourceName
-	prefix string
-	mu     sync.Mutex
-	using  map[string]struct{}
+	name        resourcemanager.ResourceName
+	prefix      string
+	mu          sync.Mutex
+	using       map[string]struct{}
+	allocateErr error
 }
 
 func newTestResourceManager(name resourcemanager.ResourceName, prefix string) *testResourceManager {
@@ -31,6 +33,9 @@ func newTestResourceManager(name resourcemanager.ResourceName, prefix string) *t
 func (m *testResourceManager) Allocate(opt resourcemanager.AllocateOption) (resourcemanager.Resource, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.allocateErr != nil {
+		return resourcemanager.EmptyStringResource, m.allocateErr
+	}
 	id := opt.ContainerID
 	if id == "" {
 		id = "test-resource"
@@ -38,6 +43,12 @@ func (m *testResourceManager) Allocate(opt resourcemanager.AllocateOption) (reso
 	value := filepath.Join(m.prefix, id)
 	m.using[value] = struct{}{}
 	return resourcemanager.NewStringResource(value), nil
+}
+
+func newRejectingTestResourceManager(name resourcemanager.ResourceName) *testResourceManager {
+	manager := newTestResourceManager(name, "/rejected")
+	manager.allocateErr = fmt.Errorf("node-local admission rejected")
+	return manager
 }
 
 func (m *testResourceManager) Recycle(id string) error {

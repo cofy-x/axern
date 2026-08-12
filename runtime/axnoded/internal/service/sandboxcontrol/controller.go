@@ -52,17 +52,18 @@ func (c *Controller) List(_ context.Context, request *runtime.ListContainersRequ
 		}
 		status := item.Status.Get()
 		response.Containers = append(response.Containers, &runtime.ContainerStatus{
-			ID:         item.Metadata.ID,
-			Runtime:    item.Metadata.RuntimeHandler,
-			State:      status.State(),
-			StartedAt:  container.ParseTimestamp(status.StartedAt),
-			FinishedAt: container.ParseTimestamp(status.FinishedAt),
-			ExitCode:   status.ExitCode,
-			Message:    status.Message,
-			Labels:     item.Metadata.Labels,
-			Stdout:     item.Metadata.Stdout,
-			Stderr:     item.Metadata.Stderr,
-			Pid:        int32(status.Pid),
+			ID:             item.Metadata.ID,
+			Runtime:        item.Metadata.RuntimeHandler,
+			State:          status.State(),
+			StartedAt:      container.ParseTimestamp(status.StartedAt),
+			FinishedAt:     container.ParseTimestamp(status.FinishedAt),
+			ExitCode:       status.ExitCode,
+			Message:        status.Message,
+			DiagnosticCode: status.DiagnosticCode,
+			Labels:         item.Metadata.Labels,
+			Stdout:         item.Metadata.Stdout,
+			Stderr:         item.Metadata.Stderr,
+			Pid:            int32(status.Pid),
 		})
 	}
 	return response, nil

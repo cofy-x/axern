@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -145,7 +146,7 @@ func TestDeleteManagedContainerPreservesRuntimeReferenceOnFailure(t *testing.T) 
 	assert.True(t, ok)
 }
 
-func TestConfigureStartPortsNoContainerIPRollsBack(t *testing.T) {
+func TestConfigureStartPortsNoContainerIPLeavesRollbackToLifecycle(t *testing.T) {
 	handler := &runtimeSpyHandler{name: "runsc"}
 	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
 	containerID := "axctl-start-rollback-no-ip"
@@ -154,12 +155,12 @@ func TestConfigureStartPortsNoContainerIPRollsBack(t *testing.T) {
 	err := fixture.controller.ConfigureStartPorts(context.Background(), containerID, "", []string{"tcp:8080:80"})
 
 	assert.EqualError(t, err, "Failed to get container IP for DNAT")
-	assert.Equal(t, 1, handler.deleteCalls)
+	assert.Equal(t, 0, handler.deleteCalls)
 	_, getErr := fixture.manager.Get(containerID)
-	assert.Error(t, getErr)
+	assert.NoError(t, getErr)
 }
 
-func TestConfigureStartPortsDnatFailureRollsBack(t *testing.T) {
+func TestConfigureStartPortsDnatFailureLeavesRollbackToLifecycle(t *testing.T) {
 	fake := &fakeNetworkManager{failNext: true}
 	networkmanager.Register(testNetworkType, fake)
 	t.Cleanup(func() {
@@ -175,10 +176,10 @@ func TestConfigureStartPortsDnatFailureRollsBack(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Failed to setup DNAT rules")
-	assert.Equal(t, 1, handler.deleteCalls)
+	assert.Equal(t, 0, handler.deleteCalls)
 	assert.Empty(t, fake.removed)
 	_, getErr := fixture.manager.Get(containerID)
-	assert.Error(t, getErr)
+	assert.NoError(t, getErr)
 }
 
 func testDeleteTarget(id string, cwd string, env string, annotations map[string]string) *container.Container {
@@ -200,8 +201,14 @@ func testDeleteTarget(id string, cwd string, env string, annotations map[string]
 func storeTestContainer(t *testing.T, fixture testAllocationController, containerID string, runtimeName string) {
 	t.Helper()
 	writeContainerSpecFile(t, fixture.controller.config.RootDir, containerID, nil)
-	fixture.manager.StoreMetadata(containerID, &apipb.ContainerMetadata{
+	metadata := &apipb.ContainerMetadata{
 		ID:             containerID,
 		RuntimeHandler: runtimeName,
-	})
+	}
+	assert.NoError(t, fixture.manager.StoreMetadata(containerID, metadata))
+	assert.NoError(t, fixture.manager.StartMonitor(metadata))
+	assert.Eventually(t, func() bool {
+		stored, err := fixture.manager.Get(containerID)
+		return err == nil && stored.Status.Get().State() == apipb.ContainerState_CONTAINER_EXITED
+	}, time.Second, time.Millisecond, "runtime spy monitor did not persist its immediate exit")
 }

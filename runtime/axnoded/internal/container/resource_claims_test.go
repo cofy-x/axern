@@ -75,16 +75,3 @@ func TestCollectResourceFromSpecExcludesRuntimeContractAnnotations(t *testing.T)
 		resourcemanager.CgroupResourceName:    "/sandbox/cgroup-1",
 	}, got.Resources)
 }
-
-func TestClearSpecResourceClaimsPreservesRuntimeContractAnnotations(t *testing.T) {
-	annotations := map[string]string{
-		resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName): "interface-1",
-		resourcemanager.ResourceAnnotationKeyPrefix + "ephemeral-storage":                           `{"request_bytes":1,"limit_bytes":2}`,
-	}
-
-	clearSpecResourceClaims(annotations)
-
-	require.Equal(t, map[string]string{
-		resourcemanager.ResourceAnnotationKeyPrefix + "ephemeral-storage": `{"request_bytes":1,"limit_bytes":2}`,
-	}, annotations)
-}

@@ -22,6 +22,8 @@ node:
   image:
     repository: axern/local-node-all-in-one
     tag: dev
+  # Local validation only; production values must come from qualification.
+  memorySystemReserveBytes: "536870912"
 
 gatewayd:
   image:

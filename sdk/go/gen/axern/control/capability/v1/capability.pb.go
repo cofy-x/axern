@@ -953,7 +953,7 @@ func (*CapabilityEvidence_Runtime) isCapabilityEvidence_Identity() {}
 func (*CapabilityEvidence_Derived) isCapabilityEvidence_Identity() {}
 
 // CapabilityObservationProof is the durable, non-recursive proof selected
-// from a snapshot. Dependency graphs are represented as a flat set of proofs
+// from a snapshot. Dependencies are represented as one bounded flat proof set
 // so persistence and validation remain bounded.
 type CapabilityObservationProof struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`

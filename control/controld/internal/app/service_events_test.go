@@ -109,7 +109,7 @@ func TestPostgresServiceInitialCreateLifecycleRetryIsObservable(t *testing.T) {
 	}
 }
 
-func TestPostgresServiceCreateExplainsReadonlyRootfsMountTargetFailure(t *testing.T) {
+func TestPostgresServiceVolumeMountRequiresStorageCoordinator(t *testing.T) {
 	app, lifecycle := newPostgresTestService(t)
 	defer app.Close()
 	now := time.Date(2026, 4, 25, 18, 45, 0, 0, time.UTC)
@@ -118,7 +118,6 @@ func TestPostgresServiceCreateExplainsReadonlyRootfsMountTargetFailure(t *testin
 
 	registerReadyNode(t, app, "node-a", now)
 	env := createDefaultEnvironment(t, app)
-	lifecycle.CreateErr = errors.New(`rpc error: code = Internal desc = node start failed: Failed to validate mount targets: mount target "/var/lib/app" does not exist in readonly rootfs`)
 
 	createResp, err := public.CreateService(context.Background(), &servicev1.CreateServiceRequest{
 		Namespace:     "default",
@@ -135,7 +134,7 @@ func TestPostgresServiceCreateExplainsReadonlyRootfsMountTargetFailure(t *testin
 		t.Fatalf("CreateService() error = %v", err)
 	}
 	observed := reconcileCreatedService(t, app, createResp.GetService().GetID(), now)
-	wantMessage := `mount target "/var/lib/app" does not exist in the readonly image rootfs; use an existing image path or disable readonly rootfs`
+	wantMessage := `rpc error: code = FailedPrecondition desc = service volume mounts require a storage coordinator`
 	if got := observed.GetMessage(); got != wantMessage {
 		t.Fatalf("reconciled service message = %q, want %q", got, wantMessage)
 	}
@@ -144,10 +143,10 @@ func TestPostgresServiceCreateExplainsReadonlyRootfsMountTargetFailure(t *testin
 	if err != nil {
 		t.Fatalf("ListServiceReplicas() error = %v", err)
 	}
-	if len(replicasResp.GetReplicas()) != 1 || replicasResp.GetReplicas()[0].GetLifecycleRetry() == nil {
-		t.Fatalf("replicas = %+v, want one replica with lifecycle retry", replicasResp.GetReplicas())
+	if len(replicasResp.GetReplicas()) != 0 {
+		t.Fatalf("replicas = %+v, want no admitted replica", replicasResp.GetReplicas())
 	}
-	if got := replicasResp.GetReplicas()[0].GetDiagnosticCode(); got != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR {
-		t.Fatalf("replica diagnostic = %v, want RUNTIME_START_ERROR", got)
+	if len(lifecycle.CreateRequests) != 0 {
+		t.Fatalf("node lifecycle create requests = %d, want 0", len(lifecycle.CreateRequests))
 	}
 }

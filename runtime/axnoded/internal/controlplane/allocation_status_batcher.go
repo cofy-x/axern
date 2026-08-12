@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"sort"
 	"strings"
@@ -34,8 +35,9 @@ type queuedAllocationStatus struct {
 
 // AllocationStatusReporterHealth is the bounded process-local status reporter
 // read model exposed through axnoded diagnostics. It is not durable workload
-// state; controld and node inventory remain responsible for convergence after
-// a node process restart.
+// state; controld owns admitted lifecycle state and axnoded reconstructs
+// unacknowledged terminal reports from its durable node-state outbox after a
+// process restart.
 type AllocationStatusReporterHealth struct {
 	Status              string     `json:"status"`
 	Pending             int        `json:"pending"`
@@ -62,6 +64,7 @@ type allocationStatusBatcher struct {
 
 	mu                  sync.Mutex
 	pending             map[string]queuedAllocationStatus
+	inFlightBatch       map[string]queuedAllocationStatus
 	oldestPendingAt     time.Time
 	sequence            uint64
 	stopped             bool
@@ -89,6 +92,7 @@ func newAllocationStatusBatcher(send allocationStatusBatchSender) *allocationSta
 		retryInitialDelay: allocationStatusRetryInitialDelay,
 		retryMaxDelay:     allocationStatusRetryMaxDelay,
 		pending:           make(map[string]queuedAllocationStatus),
+		inFlightBatch:     make(map[string]queuedAllocationStatus),
 		wake:              make(chan struct{}, 1),
 		stop:              make(chan struct{}),
 	}
@@ -124,20 +128,23 @@ func (b *allocationStatusBatcher) Stop() {
 	})
 }
 
-func (b *allocationStatusBatcher) Enqueue(observation *nodev1.AllocationStatusObservation) {
+// Enqueue returns whether this observation became the current queued proof.
+// A durable terminal producer uses the result to discard an obsolete outbox
+// record or retry a queue-capacity failure without crossing its exit barrier.
+func (b *allocationStatusBatcher) Enqueue(observation *nodev1.AllocationStatusObservation) (bool, error) {
 	if b == nil || observation == nil {
-		return
+		return false, errors.New("allocation status batcher and observation are required")
 	}
 	allocationID := strings.TrimSpace(observation.GetAllocationID())
 	if allocationID == "" || observation.GetAttempt() <= 0 || !allocationStatusValid(observation.GetStatus()) {
 		metrics.RecordAllocationStatusQueueEvent("invalid")
-		return
+		return false, errors.New("allocation status observation is invalid")
 	}
 	b.mu.Lock()
 	if b.stopped {
 		b.mu.Unlock()
 		metrics.RecordAllocationStatusQueueEvent("stopped")
-		return
+		return false, errors.New("allocation status batcher is stopped")
 	}
 	b.sequence++
 	next := queuedAllocationStatus{
@@ -145,13 +152,35 @@ func (b *allocationStatusBatcher) Enqueue(observation *nodev1.AllocationStatusOb
 		enqueuedAt:  b.now(),
 		sequence:    b.sequence,
 	}
+	next.observation.AllocationID = allocationID
 	current, exists := b.pending[allocationID]
+	inFlightCurrent, inFlight := b.inFlightBatch[allocationID]
+	if exists && sameTerminalProof(next.observation, current.observation) {
+		b.mu.Unlock()
+		metrics.RecordAllocationStatusQueueEvent("retained")
+		return true, nil
+	}
+	if exists && conflictingTerminalProof(next.observation, current.observation) {
+		b.mu.Unlock()
+		metrics.RecordAllocationStatusQueueEvent("ignored")
+		return false, nil
+	}
+	if !exists && inFlight && sameTerminalProof(next.observation, inFlightCurrent.observation) {
+		b.mu.Unlock()
+		metrics.RecordAllocationStatusQueueEvent("retained")
+		return true, nil
+	}
+	if !exists && inFlight && conflictingTerminalProof(next.observation, inFlightCurrent.observation) {
+		b.mu.Unlock()
+		metrics.RecordAllocationStatusQueueEvent("ignored")
+		return false, nil
+	}
 	evictedNonterminal := false
-	if !exists && len(b.pending) >= allocationStatusQueueLimit {
+	if !exists && !inFlight && b.unacknowledgedCountLocked() >= allocationStatusQueueLimit {
 		if !allocationStatusEnded(next.observation.GetStatus()) || !b.evictOldestNonterminalLocked() {
 			b.mu.Unlock()
 			metrics.RecordAllocationStatusQueueEvent("dropped")
-			return
+			return false, errors.New("allocation status queue is full")
 		}
 		evictedNonterminal = true
 	}
@@ -167,7 +196,7 @@ func (b *allocationStatusBatcher) Enqueue(observation *nodev1.AllocationStatusOb
 			result = "coalesced"
 		}
 	}
-	pending := len(b.pending)
+	pending := b.unacknowledgedCountLocked()
 	b.mu.Unlock()
 	if evictedNonterminal {
 		metrics.RecordAllocationStatusQueueEvent("evicted_nonterminal")
@@ -176,9 +205,10 @@ func (b *allocationStatusBatcher) Enqueue(observation *nodev1.AllocationStatusOb
 	metrics.RecordAllocationStatusQueueCurrent(pending)
 	b.recordHealthMetrics()
 	if result == "ignored" {
-		return
+		return false, nil
 	}
 	b.signal()
+	return true, nil
 }
 
 func (b *allocationStatusBatcher) evictOldestNonterminalLocked() bool {
@@ -308,7 +338,7 @@ func (b *allocationStatusBatcher) sendBatch(observations []*nodev1.AllocationSta
 
 func (b *allocationStatusBatcher) drain(limit int) []queuedAllocationStatus {
 	b.mu.Lock()
-	if len(b.pending) == 0 {
+	if len(b.pending) == 0 || len(b.inFlightBatch) != 0 {
 		b.mu.Unlock()
 		return nil
 	}
@@ -322,11 +352,13 @@ func (b *allocationStatusBatcher) drain(limit int) []queuedAllocationStatus {
 	}
 	out := make([]queuedAllocationStatus, 0, len(ids))
 	for _, allocationID := range ids {
-		out = append(out, b.pending[allocationID])
+		item := b.pending[allocationID]
+		out = append(out, item)
+		b.inFlightBatch[allocationID] = item
 		delete(b.pending, allocationID)
 	}
 	b.recomputeOldestPendingAtLocked()
-	pending := len(b.pending)
+	pending := b.unacknowledgedCountLocked()
 	b.mu.Unlock()
 	metrics.RecordAllocationStatusQueueCurrent(pending)
 	return out
@@ -336,6 +368,7 @@ func (b *allocationStatusBatcher) requeue(batch []queuedAllocationStatus) {
 	b.mu.Lock()
 	for _, failed := range batch {
 		allocationID := failed.observation.GetAllocationID()
+		b.removeInFlightLocked(allocationID, failed.sequence)
 		current, ok := b.pending[allocationID]
 		if !ok || allocationStatusSupersedes(failed, current) {
 			b.pending[allocationID] = failed
@@ -348,7 +381,8 @@ func (b *allocationStatusBatcher) requeue(batch []queuedAllocationStatus) {
 			b.updateOldestPendingAtLocked(current.enqueuedAt)
 		}
 	}
-	pending := len(b.pending)
+	b.recomputeOldestPendingAtLocked()
+	pending := b.unacknowledgedCountLocked()
 	b.mu.Unlock()
 	metrics.RecordAllocationStatusQueueCurrent(pending)
 	b.recordHealthMetrics()
@@ -362,9 +396,10 @@ func (b *allocationStatusBatcher) acknowledge(batch []queuedAllocationStatus) {
 		if ok && allocationStatusSupersedes(sent, current) {
 			delete(b.pending, allocationID)
 		}
+		b.removeInFlightLocked(allocationID, sent.sequence)
 	}
 	b.recomputeOldestPendingAtLocked()
-	pending := len(b.pending)
+	pending := b.unacknowledgedCountLocked()
 	b.mu.Unlock()
 	metrics.RecordAllocationStatusQueueCurrent(pending)
 	b.recordHealthMetrics()
@@ -391,7 +426,33 @@ func (b *allocationStatusBatcher) recordBatchResult(batch []queuedAllocationStat
 func (b *allocationStatusBatcher) pendingCount() int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return len(b.pending)
+	return b.unacknowledgedCountLocked()
+}
+
+// UnacknowledgedAllocationIDs returns allocation identities whose latest
+// lifecycle observation has not yet received a successful control-plane RPC
+// acknowledgement. Node inventory keeps these identities active so a
+// short-lived allocation cannot disappear before its terminal evidence is
+// durably visible to controld.
+func (b *allocationStatusBatcher) UnacknowledgedAllocationIDs() []string {
+	if b == nil {
+		return nil
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	ids := make([]string, 0, b.unacknowledgedCountLocked())
+	seen := make(map[string]struct{}, b.unacknowledgedCountLocked())
+	for allocationID := range b.pending {
+		seen[allocationID] = struct{}{}
+	}
+	for allocationID := range b.inFlightBatch {
+		seen[allocationID] = struct{}{}
+	}
+	for allocationID := range seen {
+		ids = append(ids, allocationID)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 func (b *allocationStatusBatcher) Health() AllocationStatusReporterHealth {
@@ -402,7 +463,7 @@ func (b *allocationStatusBatcher) Health() AllocationStatusReporterHealth {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	health := AllocationStatusReporterHealth{
-		Pending:             len(b.pending),
+		Pending:             b.unacknowledgedCountLocked(),
 		InFlight:            b.inFlight,
 		LastAttemptAt:       timePointer(b.lastAttemptAt),
 		LastSuccessAt:       timePointer(b.lastSuccessAt),
@@ -424,7 +485,7 @@ func (b *allocationStatusBatcher) Health() AllocationStatusReporterHealth {
 		health.Status = "sending"
 	case !b.nextRetryAt.IsZero():
 		health.Status = "retrying"
-	case len(b.pending) > 0:
+	case b.unacknowledgedCountLocked() > 0:
 		health.Status = "queued"
 	default:
 		health.Status = "idle"
@@ -473,6 +534,26 @@ func (b *allocationStatusBatcher) recomputeOldestPendingAtLocked() {
 	b.oldestPendingAt = time.Time{}
 	for _, item := range b.pending {
 		b.updateOldestPendingAtLocked(item.enqueuedAt)
+	}
+	for _, item := range b.inFlightBatch {
+		b.updateOldestPendingAtLocked(item.enqueuedAt)
+	}
+}
+
+func (b *allocationStatusBatcher) unacknowledgedCountLocked() int {
+	count := len(b.inFlightBatch)
+	for allocationID := range b.pending {
+		if _, exists := b.inFlightBatch[allocationID]; !exists {
+			count++
+		}
+	}
+	return count
+}
+
+func (b *allocationStatusBatcher) removeInFlightLocked(allocationID string, sequence uint64) {
+	current, exists := b.inFlightBatch[allocationID]
+	if exists && current.sequence == sequence {
+		delete(b.inFlightBatch, allocationID)
 	}
 }
 
@@ -562,6 +643,22 @@ func allocationStatusSupersedes(next, current queuedAllocationStatus) bool {
 		return nextEnded
 	}
 	return next.sequence > current.sequence
+}
+
+func sameTerminalProof(left, right *nodev1.AllocationStatusObservation) bool {
+	return left != nil && right != nil &&
+		left.GetAttempt() == right.GetAttempt() &&
+		allocationStatusEnded(left.GetStatus()) &&
+		allocationStatusEnded(right.GetStatus()) &&
+		proto.Equal(left, right)
+}
+
+func conflictingTerminalProof(left, right *nodev1.AllocationStatusObservation) bool {
+	return left != nil && right != nil &&
+		left.GetAttempt() == right.GetAttempt() &&
+		allocationStatusEnded(left.GetStatus()) &&
+		allocationStatusEnded(right.GetStatus()) &&
+		!proto.Equal(left, right)
 }
 
 func allocationStatusEnded(status commonv1.AllocationStatus) bool {

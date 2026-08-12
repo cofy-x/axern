@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 func TestCreateEnvironmentCreatesOwnedResourcesFromNormalizedSpec(t *testing.T) {
@@ -525,15 +526,16 @@ func TestFunctionInvokeRecordsFailure(t *testing.T) {
 		Payload:   &functionv1.FunctionPayload{ContentType: "application/json", Data: []byte(`{"name":"Axern"}`)},
 		RequestID: "req-1",
 		Labels:    map[string]string{"request": "test"},
+		Timeout:   durationpb.New(100 * time.Millisecond),
 	})
 	if err != nil {
 		t.Fatalf("InvokeFunction() error = %v", err)
 	}
-	if invoked.GetInvocation().GetStatus() != functionv1.FunctionInvocationStatus_FUNCTION_INVOCATION_STATUS_FAILED {
-		t.Fatalf("invocation status = %s, want FAILED", invoked.GetInvocation().GetStatus())
+	if invoked.GetInvocation().GetStatus() != functionv1.FunctionInvocationStatus_FUNCTION_INVOCATION_STATUS_TIMED_OUT {
+		t.Fatalf("invocation status = %s, want TIMED_OUT", invoked.GetInvocation().GetStatus())
 	}
-	if invoked.GetInvocation().GetError().GetCode() != "worker_not_ready" {
-		t.Fatalf("invocation error code = %q, want worker_not_ready", invoked.GetInvocation().GetError().GetCode())
+	if invoked.GetInvocation().GetError().GetCode() != "timeout" {
+		t.Fatalf("invocation error code = %q, want timeout", invoked.GetInvocation().GetError().GetCode())
 	}
 	if invoked.GetInvocation().GetFunctionID() != deployed.GetFunction().GetID() {
 		t.Fatalf("invocation function id = %q, want %q", invoked.GetInvocation().GetFunctionID(), deployed.GetFunction().GetID())
@@ -596,8 +598,8 @@ func TestFunctionDeleteSoftDeletesAndRejectsInvoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetService(worker after delete) error = %v", err)
 	}
-	if workerAfterDelete.GetService().GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETED {
-		t.Fatalf("worker service status after delete = %s, want DELETED", workerAfterDelete.GetService().GetStatus())
+	if workerAfterDelete.GetService().GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETING {
+		t.Fatalf("worker service status after delete = %s, want DELETING", workerAfterDelete.GetService().GetStatus())
 	}
 
 	byName, err := public.GetFunction(context.Background(), &functionv1.GetFunctionRequest{Name: "hello"})

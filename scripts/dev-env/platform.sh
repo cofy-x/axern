@@ -591,6 +591,35 @@ print(f"volumed_error_nodes={volumed_error_nodes}")
 '
 }
 
+local_smoke_wait_for_compose_allocation_cleanup() {
+  local timeout_seconds="${1:-120}"
+  case "${timeout_seconds}" in
+    '' | *[!0-9]*) echo "cleanup timeout must be a positive integer" >&2; return 1 ;;
+    0) echo "cleanup timeout must be positive" >&2; return 1 ;;
+  esac
+  local deadline=$((SECONDS + timeout_seconds))
+  local status_body=""
+  while [ "${SECONDS}" -lt "${deadline}" ]; do
+    status_body="$(bash "${AXERN_ROOT}/scripts/dev-env/compose-status.sh" 2>/dev/null || true)"
+    if printf '%s\n' "${status_body}" | grep -q '^controld_health=ready$' &&
+      printf '%s\n' "${status_body}" | grep -q '^node_summary_fresh=true$' &&
+      printf '%s\n' "${status_body}" | grep -q '^axnoded_ready=true$' &&
+      printf '%s\n' "${status_body}" | grep -Eq '^interface_pool=0/[0-9]+/[0-9]+$' &&
+      printf '%s\n' "${status_body}" | grep -Eq '^cgroup_pool=0/[0-9]+/[0-9]+$' &&
+      printf '%s\n' "${status_body}" | grep -Eq '^runtime_slots=0/[0-9]+/[0-9]+/[0-9]+$' &&
+      printf '%s\n' "${status_body}" | grep -q '^running_allocation_ids=0$' &&
+      printf '%s\n' "${status_body}" | grep -q '^active_allocation_ids=0$' &&
+      printf '%s\n' "${status_body}" | grep -q '^running_containers=0$'; then
+      echo "compose_allocation_cleanup_converged=true"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "compose allocation cleanup did not converge within ${timeout_seconds}s" >&2
+  printf '%s\n' "${status_body}" >&2
+  return 1
+}
+
 emit_compose_imported_image_status() {
   local node_container="${COMPOSE_PROJECT_NAME}-node-1"
   local body=""

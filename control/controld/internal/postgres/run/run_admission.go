@@ -101,14 +101,19 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		}
 		res := normalizedConfig.GetResources().GetRequests()
 		if err := pgreservation.InsertWorkloadReservation(ctx, tx, pgreservation.WorkloadReservation{
-			AllocationID:        alloc.AllocationID,
-			Namespace:           run.GetNamespace(),
-			OwnerType:           allocationOwnerRun,
-			OwnerID:             run.GetID(),
-			NodeID:              alloc.NodeID,
-			Requests:            res,
-			MemoryOverheadBytes: s.reservations.RuntimeMemoryOverhead(normalizedConfig.GetRuntimeClass()),
-			CreatedAt:           now,
+			AllocationID: alloc.AllocationID,
+			Namespace:    run.GetNamespace(),
+			OwnerType:    allocationOwnerRun,
+			OwnerID:      run.GetID(),
+			NodeID:       alloc.NodeID,
+			Requests:     res,
+			CreatedAt:    now,
+		}); err != nil {
+			return err
+		}
+		if err := pgreservation.InsertMemoryAdmissionEvidence(ctx, tx, pgreservation.MemoryAdmissionEvidence{
+			AllocationID: alloc.AllocationID, Attempt: alloc.Attempt, NodeID: alloc.NodeID,
+			Resources: normalizedConfig.GetResources(), Summary: selected.Record.Summary, AdmittedAt: now,
 		}); err != nil {
 			return err
 		}

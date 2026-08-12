@@ -250,6 +250,9 @@ func TestPostgresDeletedServiceReconcileRetriesAllocationRelease(t *testing.T) {
 	if queueItems != 0 {
 		t.Fatalf("reconcile queue items after delete retry success = %d, want 0", queueItems)
 	}
+	if err := app.serviceReconciler.ReconcilePending(context.Background(), now); err != nil {
+		t.Fatalf("ReconcilePending(complete deletion after retry) error = %v", err)
+	}
 
 	purgeResp, err := app.AdminV1Handler().PurgeService(context.Background(), &adminv1.PurgeServiceRequest{ServiceID: serviceID, OperatorReason: "test cleanup"})
 	if err != nil {
@@ -303,6 +306,9 @@ func TestPostgresDeletedServiceDoesNotReleaseWhileNodeStillReportsAllocation(t *
 	if got := lifecycle.DeleteRequests[1].GetAllocationID(); got != allocationID {
 		t.Fatalf("retry delete allocation = %q, want %q", got, allocationID)
 	}
+	if err := app.serviceReconciler.ReconcilePending(context.Background(), now); err != nil {
+		t.Fatalf("ReconcilePending(complete deletion after disappearance) error = %v", err)
+	}
 	if _, err := app.AdminV1Handler().PurgeService(context.Background(), &adminv1.PurgeServiceRequest{ServiceID: serviceID, OperatorReason: "test cleanup"}); err != nil {
 		t.Fatalf("PurgeService() after node disappearance error = %v", err)
 	}
@@ -315,5 +321,8 @@ func reconcileDeletedServiceAllocations(t *testing.T, app *App, now time.Time) {
 	}
 	if _, err := app.allocationReconciler.ReconcileAllocationBatch(context.Background(), now); err != nil {
 		t.Fatalf("ReconcileAllocationBatch(deleted service) error = %v", err)
+	}
+	if err := app.serviceReconciler.ReconcilePending(context.Background(), now); err != nil {
+		t.Fatalf("ReconcilePending(complete deleted service) error = %v", err)
 	}
 }

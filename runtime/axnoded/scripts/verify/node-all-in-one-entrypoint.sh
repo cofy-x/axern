@@ -44,6 +44,10 @@ mkdir -p /var/lib/axnoded
 mount_readonly_fixture /opt/sample-rootfs "${VERIFY_ROOTFS_IMAGE}" 134217728
 mount_readonly_fixture /opt/nginx-rootfs "${VERIFY_NGINX_ROOTFS_IMAGE}" 536870912
 
+# Verification containers run the same fail-closed production entrypoint but
+# use an explicit test-only reserve. Production values come from a measured
+# qualification receipt and must never inherit this harness value.
+export AXNODED_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES:-536870912}"
 /usr/local/bin/node-all-in-one-entrypoint "$@" &
 child_pid=$!
 wait "${child_pid}"

@@ -6,13 +6,16 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
 
 type fakeCgroupDriver struct{}
 
-func (fakeCgroupDriver) Mode() string { return os2.CgroupModeV2 }
+func (fakeCgroupDriver) Mode() string                                { return os2.CgroupModeV2 }
+func (fakeCgroupDriver) EnsureRoot(string) error                     { return nil }
+func (fakeCgroupDriver) ResolveRoot(rootName string) (string, error) { return rootName, nil }
 func (fakeCgroupDriver) Create(string, *specs.LinuxResources) (os2.Cgroup, error) {
 	return nil, nil
 }
@@ -28,13 +31,13 @@ func withCgroupRuntimeHooks(t *testing.T, updateErr error) {
 	oldRuntimeCgroupPath := runtimeCgroupPath
 	oldSanitizeResourceForDriver := sanitizeResourceForDriver
 	oldUpdateCgroup := updateCgroup
-	oldVerifyMemoryLimit := verifyMemoryLimit
+	oldConfigureMemoryDomain := configureMemoryDomain
 	t.Cleanup(func() {
 		defaultCgroupDriver = oldDefaultCgroupDriver
 		runtimeCgroupPath = oldRuntimeCgroupPath
 		sanitizeResourceForDriver = oldSanitizeResourceForDriver
 		updateCgroup = oldUpdateCgroup
-		verifyMemoryLimit = oldVerifyMemoryLimit
+		configureMemoryDomain = oldConfigureMemoryDomain
 	})
 
 	defaultCgroupDriver = func() (os2.CgroupDriver, error) {
@@ -49,7 +52,9 @@ func withCgroupRuntimeHooks(t *testing.T, updateErr error) {
 	updateCgroup = func(string, *apipb.LinuxContainerResources) error {
 		return updateErr
 	}
-	verifyMemoryLimit = func(string, int64) error { return nil }
+	configureMemoryDomain = func(string, string, int64) (*hostlinux.CgroupMemoryDomain, error) {
+		return &hostlinux.CgroupMemoryDomain{}, nil
+	}
 }
 
 func TestPrepareInactiveWhenCgroupPathEmpty(t *testing.T) {
@@ -168,11 +173,11 @@ func TestPrepareRuntimeUsesSanitizedResourceForBundleAndCgroupUpdate(t *testing.
 	if prep.Request == request {
 		t.Fatalf("PrepareRuntime().Request = original request, want clone")
 	}
-	if prep.Request.Resource != sanitized {
-		t.Fatalf("PrepareRuntime().Request.Resource = %#v, want sanitized", prep.Request.Resource)
+	if prep.Request.Resource == sanitized || prep.Request.Resource.GetMemoryLimitInBytes() != original.GetMemoryLimitInBytes() || prep.Request.Resource.GetMemorySwapLimitInBytes() != original.GetMemoryLimitInBytes() {
+		t.Fatalf("PrepareRuntime().Request.Resource = %#v, want cloned swap-disabled contract", prep.Request.Resource)
 	}
-	if updatedResource != sanitized {
-		t.Fatalf("updateCgroup() resource = %#v, want sanitized", updatedResource)
+	if updatedResource != prep.Request.Resource {
+		t.Fatalf("updateCgroup() resource = %#v, want bundle resource %#v", updatedResource, prep.Request.Resource)
 	}
 	if request.Resource != original {
 		t.Fatalf("PrepareRuntime() mutated original request resource")

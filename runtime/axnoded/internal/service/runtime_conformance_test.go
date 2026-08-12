@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -121,6 +122,32 @@ func TestRuntimeConformanceObservationUsesProbeCompletionTime(t *testing.T) {
 	}
 }
 
+func TestRuntimeConformanceDoesNotPeriodicallyRepeatDestructiveProbe(t *testing.T) {
+	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
+	registry := handlerregistry.New(cfg)
+	handler := runtimetest.NewFakeRuntimeHandler()
+	handler.RuntimeName = config.RuntimeNameRunsc
+	registry.Set(config.RuntimeNameRunsc, handler)
+	probeCalls := 0
+	provider := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, func(context.Context, string, runtimeConformanceKind) error {
+		probeCalls++
+		return nil
+	})
+	now := time.Now().UTC()
+	for _, sample := range []time.Time{now, now.Add(15 * time.Minute), now.Add(24 * time.Hour)} {
+		observations, err := provider.Observe(context.Background(), sample)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if observations[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
+			t.Fatalf("observation at %s = %s", sample, observations[0].GetState())
+		}
+	}
+	if probeCalls != 1 {
+		t.Fatalf("destructive probe calls = %d, want startup certification only", probeCalls)
+	}
+}
+
 func TestRuntimeConformanceStartRequestsIsolateEnforcementBoundaries(t *testing.T) {
 	memory, err := runtimeConformanceStartRequest("memory-allocation", "memory-runtime", config.RuntimeNameRunsc, "/rootfs", runtimeConformanceKindMemory)
 	if err != nil {
@@ -175,6 +202,9 @@ func TestMaterializeRuntimeConformanceRootfs(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(fixtureBin, "busybox"), []byte("fixture"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(fixtureBin, "memory-hog"), []byte("fixture"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	rootfs, err := materializeRuntimeConformanceRootfs(filestore, fixture)
 	if err != nil {
@@ -192,15 +222,41 @@ func TestMaterializeRuntimeConformanceRootfs(t *testing.T) {
 	}
 }
 
-func TestMaterializeRuntimeConformanceRootfsRejectsCorruptPublishedFixture(t *testing.T) {
+func TestMaterializeRuntimeConformanceRootfsAtomicallyRepairsCorruptPublishedFixture(t *testing.T) {
 	filestore := t.TempDir()
 	rootfs := filepath.Join(filestore, "system", "runtime-conformance", "rootfs")
 	if err := os.MkdirAll(rootfs, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	fixture := t.TempDir()
+	fixtureBin := filepath.Join(fixture, "bin")
+	if err := os.Mkdir(fixtureBin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"busybox", "memory-hog"} {
+		if err := os.WriteFile(filepath.Join(fixtureBin, name), []byte(name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 
-	if _, err := materializeRuntimeConformanceRootfs(filestore, t.TempDir()); err == nil {
-		t.Fatal("materializeRuntimeConformanceRootfs() error = nil, want corrupt fixture rejection")
+	got, err := materializeRuntimeConformanceRootfs(filestore, fixture)
+	if err != nil {
+		t.Fatalf("materializeRuntimeConformanceRootfs() error = %v", err)
+	}
+	if got != rootfs {
+		t.Fatalf("rootfs = %q, want %q", got, rootfs)
+	}
+	if err := validateRuntimeConformanceRootfs(got); err != nil {
+		t.Fatalf("validate repaired rootfs: %v", err)
+	}
+	entries, err := os.ReadDir(filepath.Dir(rootfs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".rootfs-") {
+			t.Fatalf("stale materialization artifact remains: %s", entry.Name())
+		}
 	}
 }
 
@@ -210,18 +266,34 @@ func TestVerifyRuntimeConformanceCleanupRejectsRemainingArtifact(t *testing.T) {
 	service := &sandboxService{config: config.Config{
 		RootDir: root,
 		PluginConfig: config.PluginConfig{RuntimeConfig: config.RuntimeConfig{
-			FilestoreDir: filestore,
+			FilestoreDir:      filestore,
+			CgroupEnforcement: config.CgroupEnforcementDisabledDev,
 		}},
 	}}
 	id := "capability-selftest-runsc-memory-allocation"
-	if err := service.verifyRuntimeConformanceCleanup(id); err != nil {
+	if err := service.verifyRuntimeConformanceCleanup(context.Background(), id); err != nil {
 		t.Fatalf("empty cleanup verification error = %v", err)
 	}
 	if err := os.MkdirAll(filepath.Join(filestore, "projections", id), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.verifyRuntimeConformanceCleanup(id); err == nil {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	if err := service.verifyRuntimeConformanceCleanup(ctx, id); err == nil {
 		t.Fatal("cleanup verification accepted a remaining projection")
+	}
+}
+
+func TestVerifyRuntimeConformanceCleanupRequiresManagerForRequiredCgroups(t *testing.T) {
+	service := &sandboxService{config: config.Config{
+		RootDir: t.TempDir(),
+		PluginConfig: config.PluginConfig{RuntimeConfig: config.RuntimeConfig{
+			FilestoreDir:      t.TempDir(),
+			CgroupEnforcement: config.CgroupEnforcementRequired,
+		}},
+	}}
+	if err := service.verifyRuntimeConformanceCleanup(context.Background(), "self-test"); err == nil {
+		t.Fatal("required cgroup cleanup accepted a missing container manager")
 	}
 }
 

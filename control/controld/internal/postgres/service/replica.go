@@ -7,6 +7,7 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	workloadkernel "github.com/cofy-x/axern/control/controld/internal/kernel/workload"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
@@ -33,7 +34,7 @@ func (s *PGStore) GetReplica(ctx context.Context, serviceID, replicaID string) (
 		return nil, ok, err
 	}
 	record, err := scanServiceReplicaRecord(s.db.Pool().QueryRow(ctx, `
-		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.workspace_preparation,
+		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.diagnostic_code, a.created_at, a.updated_at, a.workspace_preparation,
 			COALESCE((SELECT revision FROM allocation_capability_condition_sets cs WHERE cs.allocation_id = a.allocation_id AND cs.allocation_attempt = a.attempt), 0),
 			(SELECT observed_at FROM allocation_capability_condition_sets cs WHERE cs.allocation_id = a.allocation_id AND cs.allocation_attempt = a.attempt),
 			COALESCE((SELECT jsonb_build_object('conditions', COALESCE(jsonb_agg(cc.condition ORDER BY cc.capability_key_id), '[]'::jsonb)) FROM allocation_capability_conditions cc WHERE cc.allocation_id = a.allocation_id AND cc.allocation_attempt = a.attempt), '{"conditions":[]}'::jsonb),
@@ -60,7 +61,7 @@ func (s *PGStore) ListReplicas(ctx context.Context, serviceID string, filter *se
 		return nil, nil
 	}
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.created_at, a.updated_at, a.workspace_preparation,
+		SELECT a.allocation_id, a.owner_id, a.desired_spec_digest, a.node_id, a.attempt, a.status, a.ready, a.readiness_message, a.message, a.exit_code, a.exit_code_known, a.diagnostic_code, a.created_at, a.updated_at, a.workspace_preparation,
 			COALESCE((SELECT revision FROM allocation_capability_condition_sets cs WHERE cs.allocation_id = a.allocation_id AND cs.allocation_attempt = a.attempt), 0),
 			(SELECT observed_at FROM allocation_capability_condition_sets cs WHERE cs.allocation_id = a.allocation_id AND cs.allocation_attempt = a.attempt),
 			COALESCE((SELECT jsonb_build_object('conditions', COALESCE(jsonb_agg(cc.condition ORDER BY cc.capability_key_id), '[]'::jsonb)) FROM allocation_capability_conditions cc WHERE cc.allocation_id = a.allocation_id AND cc.allocation_attempt = a.attempt), '{"conditions":[]}'::jsonb),
@@ -105,6 +106,7 @@ func scanServiceReplicaRecord(row serviceReplicaScanner) (*serviceReplicaRecord,
 		replica                     servicev1.ServiceReplica
 		desiredSpecDigest           string
 		statusText                  string
+		diagnosticCodeText          string
 		retryReason, retryLastError string
 		retryAttempts               int32
 		retryNextRunAt              pgtype.Timestamptz
@@ -126,6 +128,7 @@ func scanServiceReplicaRecord(row serviceReplicaScanner) (*serviceReplicaRecord,
 		&replica.Message,
 		&replica.ExitCode,
 		&replica.ExitCodeKnown,
+		&diagnosticCodeText,
 		&createdAt,
 		&updatedAt,
 		&workspacePreparationJSON,
@@ -140,6 +143,7 @@ func scanServiceReplicaRecord(row serviceReplicaScanner) (*serviceReplicaRecord,
 		return nil, err
 	}
 	replica.Status = allocationkernel.ParseStatus(statusText)
+	replica.DiagnosticCode = workloadkernel.ParseDiagnosticCode(diagnosticCodeText)
 	replica.Ended = allocationkernel.IsEnded(replica.GetStatus())
 	replica.CreatedAt = timestamppb.New(createdAt)
 	replica.UpdatedAt = timestamppb.New(updatedAt)

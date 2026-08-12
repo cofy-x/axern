@@ -50,6 +50,13 @@ func (m *mockOSSLoopManager) EnsureMounted(id, imagePath string) (string, error)
 	return path, nil
 }
 
+func (m *mockOSSLoopManager) EffectiveLowerDirs(id string) ([]string, error) {
+	if _, ok := m.mounts[id]; !ok {
+		return nil, fmt.Errorf("oss rootfs %s is not mounted", id)
+	}
+	return []string{"/rootfs-lower/" + id, "/rootfs-support"}, nil
+}
+
 func (m *mockOSSLoopManager) ReleaseResource(id string) (ossloop.UnmountResult, error) {
 	path, ok := m.mounts[id]
 	if !ok {

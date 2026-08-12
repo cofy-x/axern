@@ -478,7 +478,7 @@ func (m *Manager) normalizeBatch(slot *providerSlot, sampledAt, completedAt time
 		id, _ := capabilitycontract.KeyID(observation.GetKey())
 		capabilitycontract.NormalizeObservation(observation)
 		state := m.recoveryByKey[id]
-		applyRecoveryPolicy(&state, observation, completedAt)
+		applyRecoveryPolicy(&state, observation, completedAt, recoveryConfirmations(slot.provider.Provider()))
 		if state.hadFailure {
 			m.recoveryByKey[id] = state
 		} else {
@@ -560,8 +560,8 @@ func (m *Manager) publish(ctx context.Context, now time.Time) (*capabilityv1.Cap
 		// Derived capabilities do not run an independent probe. Their base
 		// observations have already satisfied the manager's two-sample recovery
 		// policy, so applying the same debounce again would require a third and
-		// fourth proof. Runtime-derived capabilities could otherwise remain
-		// unavailable until the next 15-minute conformance probe.
+		// fourth proof. A runtime fact is certified by one complete destructive
+		// conformance result and is not periodically rerun merely to debounce it.
 		for _, item := range normalized {
 			id, _ := capabilitycontract.KeyID(item.GetKey())
 			all[id] = item
@@ -643,7 +643,9 @@ func warmingDerivedObservations(deriver Deriver, now time.Time) []*capabilityv1.
 // applyRecoveryObservations owns recovery hysteresis for every publication
 // path, including probe errors, malformed batches, expiry, and derived
 // failures. Keeping this in the manager prevents providers from bypassing the
-// two-sample recovery contract by choosing a particular failure state.
+// recovery contract by choosing a particular failure state. Runtime self-test
+// recovery is a single destructive conformance result; cheap health samples
+// retain the two-independent-sample debounce.
 func (m *Manager) applyRecoveryObservations(observations []*capabilityv1.CapabilityObservation, completedAt time.Time) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -653,7 +655,7 @@ func (m *Manager) applyRecoveryObservations(observations []*capabilityv1.Capabil
 			continue
 		}
 		state := m.recoveryByKey[id]
-		applyRecoveryPolicy(&state, observation, completedAt)
+		applyRecoveryPolicy(&state, observation, completedAt, recoveryConfirmations(observation.GetProvider()))
 		if state.hadFailure {
 			m.recoveryByKey[id] = state
 		} else {
@@ -847,7 +849,14 @@ func unknownObservation(key *capabilityv1.CapabilityKey, provider capabilityv1.C
 	return observation
 }
 
-func applyRecoveryPolicy(state *recoveryState, observation *capabilityv1.CapabilityObservation, completedAt time.Time) {
+func recoveryConfirmations(provider capabilityv1.CapabilityProvider) int {
+	if isRuntimeProvider(provider) {
+		return 1
+	}
+	return 2
+}
+
+func applyRecoveryPolicy(state *recoveryState, observation *capabilityv1.CapabilityObservation, completedAt time.Time, required int) {
 	if observation.GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
 		state.hadFailure = true
 		state.firstSuccess = time.Time{}
@@ -856,6 +865,10 @@ func applyRecoveryPolicy(state *recoveryState, observation *capabilityv1.Capabil
 		return
 	}
 	if !state.hadFailure {
+		return
+	}
+	if required <= 1 {
+		*state = recoveryState{}
 		return
 	}
 	proof := recoverySampleProof(observation)
@@ -867,7 +880,7 @@ func applyRecoveryPolicy(state *recoveryState, observation *capabilityv1.Capabil
 		state.lastSuccessProof = proof
 		state.successes++
 	}
-	if state.successes < 2 {
+	if state.successes < required {
 		observation.State = capabilityv1.CapabilityState_CAPABILITY_STATE_DEGRADED
 		observation.ReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_RECOVERY_PENDING
 		observation.Reason = "capability recovery requires a second independent successful sample"

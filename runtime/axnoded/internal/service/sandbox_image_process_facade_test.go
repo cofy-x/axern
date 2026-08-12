@@ -38,7 +38,11 @@ func (m *imageProcessTestMounter) Mount(cfg langrtmanager.RootfsConfig) (*langrt
 	if m.path == "" {
 		return nil, fmt.Errorf("test rootfs path is empty")
 	}
-	return &langrtmanager.MountResult{Path: m.path, Env: []string{"IMAGE_ENV=1"}}, nil
+	mount, err := langrtmanager.DescribeLocalRootfs(m.path)
+	if mount != nil {
+		mount.LeaseID = cfg.LeaseID
+	}
+	return &langrtmanager.MountResult{Path: m.path, Env: []string{"IMAGE_ENV=1"}, ImmutableMount: mount}, err
 }
 
 func (m *imageProcessTestMounter) Umount(langrtmanager.RootfsConfig) error {

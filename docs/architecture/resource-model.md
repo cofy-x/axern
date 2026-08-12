@@ -13,8 +13,9 @@ caps admitted requests.
 
 ## Requests and Limits
 
-`request` is the amount of CPU, memory, or ephemeral storage a workload asks Axern to reserve for
-placement and admission. If a request is omitted, the control plane applies the
+`request` is the amount of CPU, sandbox memory, or ephemeral storage a workload asks Axern to reserve for
+placement and admission. Memory is the total sandbox cgroup budget, not a
+promise of guest-usable heap after runtime and page-cache usage. If a request is omitted, the control plane applies the
 default request before placement:
 
 - CPU request: `500m`
@@ -22,8 +23,9 @@ default request before placement:
 - ephemeral-storage request for a writable rootfs: the resolved
   ephemeral-storage limit (default `256MiB`)
 
-`limit` is the runtime hard cap for that resource. CPU and memory limits become
-Linux cgroup settings. Ephemeral-storage limits become runsc overlay size or
+`limit` is the runtime hard cap for that resource. A memory limit becomes the
+host cgroup v2 `memory.max` for the complete sandbox domain, with swap disabled
+and group OOM enabled. Ephemeral-storage limits become runsc overlay size or
 runc XFS project-quota enforcement. A workload may set CPU or memory requests
 without matching limits; Axern still reserves capacity but does not install the
 omitted hard cap. Writable roots always resolve both an ephemeral-storage
@@ -153,6 +155,10 @@ Quota and node admission are separate gates:
 - CPU overcommit changes node admission capacity only; it does not increase
   namespace quota
 - memory is strict for both namespace quota and node admission
+- runtime memory is already inside the sandbox budget and is never added as a
+  hidden overhead reservation
+- node-local daemons are outside sandbox cgroups and consume the separately
+  qualified node system reserve, which is not namespace quota usage
 
 Namespace deletion is lifecycle cleanup, not quota reset. It rejects live
 operational state such as active reservations, non-terminal runs, live

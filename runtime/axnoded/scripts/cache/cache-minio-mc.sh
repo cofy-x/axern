@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+AXERN_GVISOR_LOCK="${ROOT_DIR}/gvisor.lock"
 . "${ROOT_DIR}/runtime-tools.sh"
 
 MC_CACHE_ARCH="${MC_CACHE_ARCH:-arm64}"

@@ -36,7 +36,7 @@ func TestNewRegistersSupportedOperatorCommands(t *testing.T) {
 	for _, command := range sandboxCmd.Subcommands {
 		sandboxSubcommandNames = append(sandboxSubcommandNames, command.Name)
 	}
-	assert.ElementsMatch(t, []string{"list", "inspect", "diagnostics", "exec", "wait", "kill", "delete"}, sandboxSubcommandNames)
+	assert.ElementsMatch(t, []string{"list", "inspect", "diagnostics", "memory", "exec", "wait", "kill", "delete"}, sandboxSubcommandNames)
 
 	var nodeCmd *cli.Command
 	for idx := range app.Commands {

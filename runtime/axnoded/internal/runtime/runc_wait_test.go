@@ -11,9 +11,50 @@ import (
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/ocicli"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestRuncHandlerWaitReturnsUnavailableWhenRuntimeContainerIsAbsent(t *testing.T) {
+	rootDir := t.TempDir()
+	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
+	if err != nil {
+		t.Fatalf("NewBundleLoader() error = %v", err)
+	}
+
+	handler, err := NewRuncServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunc, config.RuntimeInstanceConfig{Binary: "/usr/bin/runc"}, loader)
+	if err != nil {
+		t.Fatalf("NewRuncServiceHandler() error = %v", err)
+	}
+	handler.common.SetExecutor(&scriptedExecutor{errors: map[string][]error{
+		"state": {&ocicli.CommandError{Err: errors.New("exit status 1"), Output: `container "axctl-test" does not exist`}},
+	}})
+
+	exit, err := handler.Wait(context.Background(), contract.HandlerOptions{ContainerID: "axctl-test"})
+	assert.ErrorIs(t, err, contract.ErrExitStatusUnavailable)
+	assert.Equal(t, -1, exit.Status)
+}
+
+func TestRuncHandlerWaitAcceptsScopedAbsentOutputWithoutContainerID(t *testing.T) {
+	rootDir := t.TempDir()
+	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
+	if err != nil {
+		t.Fatalf("NewBundleLoader() error = %v", err)
+	}
+
+	handler, err := NewRuncServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunc, config.RuntimeInstanceConfig{Binary: "/usr/bin/runc"}, loader)
+	if err != nil {
+		t.Fatalf("NewRuncServiceHandler() error = %v", err)
+	}
+	handler.common.SetExecutor(&scriptedExecutor{errors: map[string][]error{
+		"state": {&ocicli.CommandError{Err: errors.New("exit status 1"), Output: `time="2026-08-12T17:18:02Z" level=error msg="container does not exist"`}},
+	}})
+
+	exit, err := handler.Wait(context.Background(), contract.HandlerOptions{ContainerID: "axctl-test"})
+	assert.ErrorIs(t, err, contract.ErrExitStatusUnavailable)
+	assert.Equal(t, -1, exit.Status)
+}
 
 func TestRuncHandlerWaitNeverInventsZeroExitFromStoppedState(t *testing.T) {
 	rootDir := t.TempDir()

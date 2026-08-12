@@ -28,8 +28,14 @@ func (s *PGStore) enrichService(ctx context.Context, service *servicev1.Service)
 	}
 	if strings.TrimSpace(message) != "" {
 		service.Message = message
+		service.DiagnosticCode = workloadkernel.ResolveDiagnostic(
+			commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED,
+			commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED,
+			message,
+		)
+	} else {
+		applyServiceDiagnostics(service)
 	}
-	applyServiceDiagnostics(service)
 	service.RolloutStatus = servicekernel.BuildRolloutStatus(service, allocations)
 	return nil
 }
@@ -59,8 +65,14 @@ func (s *PGStore) enrichServices(ctx context.Context, services []*servicev1.Serv
 		}
 		if retryMessage := strings.TrimSpace(retryMessages[service.GetID()]); retryMessage != "" {
 			service.Message = retryMessage
+			service.DiagnosticCode = workloadkernel.ResolveDiagnostic(
+				commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED,
+				commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED,
+				retryMessage,
+			)
+		} else {
+			applyServiceDiagnostics(service)
 		}
-		applyServiceDiagnostics(service)
 		service.RolloutStatus = servicekernel.BuildRolloutStatus(service, allocationsByService[service.GetID()])
 	}
 	return nil
@@ -70,7 +82,12 @@ func applyServiceDiagnostics(service *servicev1.Service) {
 	if service == nil {
 		return
 	}
-	service.DiagnosticCode = workloadkernel.ClassifyDiagnostic(serviceDiagnosticAllocationStatus(service.GetStatus()), service.GetMessage())
+	status := serviceDiagnosticAllocationStatus(service.GetStatus())
+	if status == commonv1.AllocationStatus_ALLOCATION_STATUS_UNSPECIFIED {
+		service.DiagnosticCode = commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED
+		return
+	}
+	service.DiagnosticCode = workloadkernel.ResolveDiagnostic(service.GetDiagnosticCode(), status, service.GetMessage())
 }
 
 func serviceDiagnosticAllocationStatus(status servicev1.ServiceStatus) commonv1.AllocationStatus {

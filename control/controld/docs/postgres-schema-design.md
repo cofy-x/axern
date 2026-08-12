@@ -117,9 +117,19 @@ format/digest, cache result, image resolution/pull time, and COW preparation
 time. Service replica reads expose this allocation fact without parsing node
 logs.
 
-`workload_reservations` records admitted CPU, memory, runsc host-memory
-overhead, and ephemeral-storage requests. A non-null `released_at` closes the
-reservation without erasing accounting history.
+`workload_reservations` records admitted CPU, sandbox-memory, and
+ephemeral-storage requests. `sandbox_memory_request_bytes` is the public
+request without a runtime overhead side channel. A non-null `released_at`
+closes the control-plane reservation without erasing accounting history;
+node admission still honors a larger axnoded local commitment until host
+cleanup completes.
+
+`allocation_memory_admission_evidence` freezes the node memory budget used by
+the admission transaction, including distinct physical capacity, source
+allocatable, delegated-root limit, system reserve, and node-local commitment
+facts. `allocation_memory_observations` keeps only the
+latest attempt- and revision-fenced host memcg sample for diagnostics; it is
+not a second reservation ledger.
 
 `allocation_capability_dependencies` stores one typed key per allocation with
 catalog loss policy, placement proof, and create-time admitted proof.

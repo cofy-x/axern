@@ -33,10 +33,24 @@ func (req *OSSUmountRequest) String() string {
 }
 
 type MountInfo struct {
-	MountPath   string       `json:"mount_path"`
-	MountPoint  string       `json:"mount_point,omitempty"`
-	Env         []string     `json:"env,omitempty"`
-	ImageConfig *ImageConfig `json:"image_config,omitempty"`
+	MountPath      string          `json:"mount_path"`
+	MountPoint     string          `json:"mount_point,omitempty"`
+	Env            []string        `json:"env,omitempty"`
+	ImageConfig    *ImageConfig    `json:"image_config,omitempty"`
+	ImmutableMount *ImmutableMount `json:"immutable_mount,omitempty"`
+}
+
+// ImmutableMount is the source-owned effective lower contract returned with
+// every mounted rootfs lease. Runtime projection consumes this descriptor and
+// never reverse-engineers OCI, Nydus, OSS, or future EROFS implementations.
+type ImmutableMount struct {
+	Identity           string   `json:"identity"`
+	EffectiveRoot      string   `json:"effective_root"`
+	Filesystem         string   `json:"filesystem"`
+	BackingFilesystems []string `json:"backing_filesystems,omitempty"`
+	LowerDirs          []string `json:"lower_dirs"`
+	Readonly           bool     `json:"readonly"`
+	LeaseID            string   `json:"lease_id"`
 }
 
 type ImageConfig struct {
@@ -125,9 +139,10 @@ type ImportedImageDetail struct {
 
 // OCIMountResponse is returned by the /oci_mount endpoint.
 type OCIMountResponse struct {
-	MountPath   string       `json:"mount_path"`
-	Env         []string     `json:"env,omitempty"`
-	ImageConfig *ImageConfig `json:"image_config,omitempty"`
+	MountPath      string          `json:"mount_path"`
+	Env            []string        `json:"env,omitempty"`
+	ImageConfig    *ImageConfig    `json:"image_config,omitempty"`
+	ImmutableMount *ImmutableMount `json:"immutable_mount"`
 }
 
 // OCIMountRequest is used to request mounting an OCI image

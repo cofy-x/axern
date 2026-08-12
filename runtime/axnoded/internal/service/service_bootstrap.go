@@ -13,6 +13,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	nodecontrol "github.com/cofy-x/axern/runtime/axnoded/internal/controlplane"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	ebpfnetwork "github.com/cofy-x/axern/runtime/axnoded/internal/network/ebpf"
 	nodecapabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
@@ -67,11 +68,16 @@ type sandboxService struct {
 	capabilityRefreshCancel   context.CancelFunc
 	capabilityRefreshWG       sync.WaitGroup
 	capabilityReconcileMu     sync.Mutex
-	capabilityReconciling     map[string]struct{}
+	capabilityReconciling     map[string]bool
+	capabilityReconcileActive int
 	capabilityReconcileCtx    context.Context
 	capabilityReconcileCancel context.CancelFunc
 	capabilityReconcileWG     sync.WaitGroup
 	controlPlaneReports       *servicecontrolplane.Coordinator
+	allocationStatusOutbox    *nodecontrol.AllocationStatusOutbox
+	memoryObservationMu       sync.Mutex
+	memoryObservationNext     int64
+	memoryObservationReserved int64
 
 	ready atomic.Bool
 
@@ -92,6 +98,9 @@ type nodeStateStore interface {
 func NewSandboxService(ctx context.Context, cfg config.Config) (NodeOperatorService, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("sandbox service context is required")
+	}
+	if err := validateMemoryBoundaryConfiguration(cfg); err != nil {
+		return nil, err
 	}
 	networkConfig, err := cfg.PluginConfig.NetworkConfig.Normalized()
 	if err != nil {
@@ -126,6 +135,34 @@ func NewSandboxService(ctx context.Context, cfg config.Config) (NodeOperatorServ
 	}
 	s.watchContainerReadiness(healthChan)
 	return s, nil
+}
+
+// validateMemoryBoundaryConfiguration is deliberately called before network,
+// state-store, runtime, or cgroup initialization. A production memory boundary
+// with no qualified node reserve is a configuration error, not a late
+// readiness condition that may leave host side effects behind.
+func validateMemoryBoundaryConfiguration(cfg config.Config) error {
+	if _, err := cfg.PluginConfig.ResourceConfig.CgroupRootNameValue(); err != nil {
+		return err
+	}
+	mode, err := cfg.PluginConfig.RuntimeConfig.CgroupEnforcementMode()
+	if err != nil {
+		return err
+	}
+	reserve := cfg.PluginConfig.ResourceConfig.MemorySystemReserveBytes
+	switch mode {
+	case config.CgroupEnforcementRequired:
+		if reserve <= 0 {
+			return fmt.Errorf("memory_system_reserve_bytes must be explicitly positive when cgroup_enforcement=required")
+		}
+	case config.CgroupEnforcementDisabledDev:
+		if reserve != 0 {
+			return fmt.Errorf("memory_system_reserve_bytes must be zero when cgroup_enforcement=disabled_dev")
+		}
+	default:
+		return fmt.Errorf("unsupported cgroup enforcement mode %q", mode)
+	}
+	return nil
 }
 
 func configureNodeNetwork(cfg config.Config) error {
@@ -163,6 +200,9 @@ func newSandboxServiceState(cfg config.Config) (*sandboxService, error) {
 		volumeClient:    volumeClient,
 		volumeCloser:    volumeClient,
 	}
+	if cfg.PluginConfig.ControlPlaneTargetValue() != "" {
+		s.allocationStatusOutbox = nodecontrol.NewAllocationStatusOutbox(stateDB)
+	}
 	s.capabilityReconcileCtx, s.capabilityReconcileCancel = context.WithCancel(context.Background())
 	s.configureServiceCollaborators()
 	s.lrtManager.ConfigureRetention(retentionTTL, retentionMax)
@@ -183,7 +223,13 @@ func (h *sandboxService) closeAfterInitializationFailure() {
 		return
 	}
 	if h.containerManager != nil {
-		h.containerManager.Stop()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if err := h.containerManager.Stop(ctx); err != nil {
+			logrus.WithError(err).Warn("stop container manager after initialization failure")
+			cancel()
+			return
+		}
+		cancel()
 	}
 	if h.runtimeHandlers != nil {
 		for item := range h.runtimeHandlers.Map().IterBuffered() {
@@ -218,6 +264,9 @@ func (h *sandboxService) restorePersistentState() error {
 	retained := inventory.retained()
 	if err := h.containerManager.ValidateRuntimeInventory(retained.allByRuntime()); err != nil {
 		return fmt.Errorf("validate persisted container inventory: %w", err)
+	}
+	if err := h.seedTerminalAllocationStatusOutbox(); err != nil {
+		return err
 	}
 	if err := h.cleanupTerminalRuntimeContainers(context.Background(), inventory); err != nil {
 		return err

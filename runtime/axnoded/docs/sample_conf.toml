@@ -48,8 +48,13 @@ iptables_fallback = true
 [plugin.resource]
 cgroup_cache_size = 800
 interface_cache_size = 800
-cgroup_root_name = "/sandbox"
+cgroup_root_name = "sandbox"
 max_instance_num = 1000
+# Required in production. Replace with the value from this environment's
+# memory qualification receipt; there is deliberately no reusable default.
+# memory_system_reserve_bytes = <qualification-receipt-bytes>
+# For an explicit local-only profile, set this to 0 and change
+# plugin.runtime.cgroup_enforcement below to "disabled_dev" as one operation.
 resource_pool_reconcile_interval = "1s"
 
 [plugin.runtime]

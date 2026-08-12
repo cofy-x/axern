@@ -280,6 +280,9 @@ func (c *controller) syncDeleted(ctx context.Context, current *servicev1.Service
 		return next, nil
 	}
 	if c.storage == nil {
+		if len(next.GetConfig().GetVolumeMounts()) == 0 && len(deletion.GetClaimIds()) == 0 {
+			return c.completeServiceDeletion(ctx, next, nil, now)
+		}
 		return current, fmt.Errorf("service storage coordinator is required for volume disposition")
 	}
 	if deletion.GetVolumeDisposition() != servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE {

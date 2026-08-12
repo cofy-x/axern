@@ -107,6 +107,10 @@ func (f *fakeAvailabilityAllocations) BatchReportAllocationCapabilityConditions(
 	panic("unexpected BatchReportAllocationCapabilityConditions call")
 }
 
+func (f *fakeAvailabilityAllocations) BatchReportAllocationMemoryObservations(context.Context, string, []*nodev1.AllocationMemoryObservation, time.Time) error {
+	panic("unexpected BatchReportAllocationMemoryObservations call")
+}
+
 type fakeLifecycleRegistry struct {
 	nodeID    string
 	status    nodekernel.LifecycleStatus

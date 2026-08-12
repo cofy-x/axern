@@ -26,7 +26,7 @@ func TestRefreshPlacementCandidateRanksOnlyUnreportedReservations(t *testing.T) 
 			AxnodedUsedMilli:      125,
 			AxnodedCommittedBytes: 512,
 			AxnodedUsedBytes:      256,
-		}},
+		}, MemoryBudget: &nodev1.NodeMemoryBudget{LocalCommitmentBytes: 512}},
 	}
 	candidate := &placementkernel.Candidate{
 		Record: record,

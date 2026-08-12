@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -42,6 +43,11 @@ func newTestService(t *testing.T, handlers map[string]contract.RuntimeHandler) *
 	if !assert.NoError(t, err) {
 		t.FailNow()
 	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		assert.NoError(t, cm.Stop(ctx))
+	})
 
 	s := &sandboxService{
 		config: config.Config{
@@ -68,6 +74,7 @@ func newTestService(t *testing.T, handlers map[string]contract.RuntimeHandler) *
 	s.configureSandboxControl()
 	s.configureControlPlaneReports()
 	s.configureAllocationController()
+	cm.SetExitClassifier(s.classifyContainerExit)
 	cm.SetExitObserver(s.handleContainerExitControlPlaneReport)
 	retentionTTL, err := time.ParseDuration(config.DefaultIdleRuntimeRetentionTTL)
 	if !assert.NoError(t, err) {

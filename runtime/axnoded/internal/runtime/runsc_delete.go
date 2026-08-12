@@ -57,7 +57,7 @@ func (r *RunscServiceHandler) deleteRuntimeContainer(ctx context.Context, contai
 	}
 	args = append(args, containerID)
 	_, deleteErr := r.runLifecycle(ctx, args...)
-	if runtimeDeleteTargetAbsent(deleteErr, containerID) {
+	if runtimeContainerAbsent(deleteErr, containerID) {
 		return nil
 	}
 	if deleteErr != nil {

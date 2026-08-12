@@ -109,10 +109,10 @@ func (o *createOptions) bindExecution(f *pflag.FlagSet) {
 	f.StringVar(&o.runtimeClass, "runtime-class", "", "runtime class")
 	f.StringArrayVar(&o.extensionCapabilities, "extension-capability", nil, "exact-match extension <dns-domain>/<name>[=value]; may be repeated")
 	f.StringVar(&o.requestCPU, "request-cpu", "", "CPU request")
-	f.StringVar(&o.requestMemory, "request-memory", "", "memory request")
+	f.StringVar(&o.requestMemory, "request-memory", "", "total sandbox memory scheduling request")
 	f.StringVar(&o.requestEphemeralStorage, "request-ephemeral-storage", "", "node-local ephemeral storage request")
 	f.StringVar(&o.limitCPU, "limit-cpu", "", "CPU limit")
-	f.StringVar(&o.limitMemory, "limit-memory", "", "memory limit")
+	f.StringVar(&o.limitMemory, "limit-memory", "", "total sandbox cgroup hard limit")
 	f.StringVar(&o.limitEphemeralStorage, "limit-ephemeral-storage", "", "node-local ephemeral storage limit")
 }
 

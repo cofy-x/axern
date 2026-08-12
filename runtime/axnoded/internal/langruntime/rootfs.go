@@ -10,16 +10,17 @@ import (
 )
 
 type RootFS struct {
-	cfg          RootfsConfig
-	path         string
-	env          []string
-	imageConfig  *ImageConfig
-	mounter      ImageMounter
-	cleanupFunc  func()
-	mu           sync.Mutex // mu protects fields below
-	activeRefs   int64
-	retainedRefs int64
-	deleted      bool
+	cfg            RootfsConfig
+	path           string
+	env            []string
+	imageConfig    *ImageConfig
+	immutableMount *runtime_api.ImmutableRootfsMount
+	mounter        ImageMounter
+	cleanupFunc    func()
+	mu             sync.Mutex // mu protects fields below
+	activeRefs     int64
+	retainedRefs   int64
+	deleted        bool
 }
 
 type ImageConfig struct {
@@ -63,6 +64,13 @@ func (rf *RootFS) Path() string {
 
 func (rf *RootFS) Env() []string {
 	return rf.env
+}
+
+func (rf *RootFS) ImmutableMount() *runtime_api.ImmutableRootfsMount {
+	if rf == nil {
+		return nil
+	}
+	return cloneImmutableMount(rf.immutableMount)
 }
 
 func (rf *RootFS) DefaultCommand() []string {

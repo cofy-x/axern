@@ -88,6 +88,18 @@ type nodeReservationUsage struct {
 	allocationIDs []string
 }
 
+// effectiveReservationUsage closes the gap between control-plane reservation
+// release and node-local cgroup cleanup. A retiring cgroup remains committed
+// until axnoded has reclaimed and removed it, even when the allocation has
+// already reached a terminal control-plane state.
+func effectiveReservationUsage(summary *nodev1.NodeSummary, database resourcekernel.Claim) resourcekernel.Claim {
+	local := summary.GetMemoryBudget().GetLocalCommitmentBytes()
+	if local > database.MemoryBytes {
+		database.MemoryBytes = local
+	}
+	return database
+}
+
 func activeCandidateReservationUsage(ctx context.Context, tx pgx.Tx, locked map[string]*nodekernel.Record) (map[string]nodeReservationUsage, error) {
 	if len(locked) == 0 {
 		return nil, nil
@@ -98,7 +110,7 @@ func activeCandidateReservationUsage(ctx context.Context, tx pgx.Tx, locked map[
 	}
 	sort.Strings(nodeIDs)
 	rows, err := tx.Query(ctx, `
-		SELECT node_id, COALESCE(SUM(cpu_milli), 0), COALESCE(SUM(memory_bytes + memory_overhead_bytes), 0), COALESCE(SUM(ephemeral_storage_bytes), 0),
+		SELECT node_id, COALESCE(SUM(cpu_milli), 0), COALESCE(SUM(sandbox_memory_request_bytes), 0), COALESCE(SUM(ephemeral_storage_bytes), 0),
 		       ARRAY_AGG(allocation_id ORDER BY allocation_id)
 		FROM workload_reservations
 		WHERE node_id = ANY($1::text[]) AND released_at IS NULL
@@ -137,7 +149,7 @@ func refreshPlacementCandidate(candidate *placementkernel.Candidate, record *nod
 	resources := record.Summary.GetResources()
 	evaluation.Rank.AxnodedActiveInstances = nodekernel.CalculateRuntimeSlotOccupancy(record.Summary, reservedAllocationIDs).Occupied
 	evaluation.Rank.AxnodedUsedMilli = resourcekernel.SaturatingAdd(resources.GetAxnodedUsedMilli(), positiveDifference(reserved.CPUMilli, resources.GetAxnodedCommittedMilli()))
-	evaluation.Rank.AxnodedUsedBytes = resourcekernel.SaturatingAdd(resources.GetAxnodedUsedBytes(), positiveDifference(reserved.MemoryBytes, resources.GetAxnodedCommittedBytes()))
+	evaluation.Rank.AxnodedUsedBytes = resourcekernel.SaturatingAdd(resources.GetAxnodedUsedBytes(), positiveDifference(reserved.MemoryBytes, record.Summary.GetMemoryBudget().GetLocalCommitmentBytes()))
 	return &placementkernel.Candidate{Record: record, Evaluation: evaluation, BaseRequest: candidate.BaseRequest, Request: candidate.Request}
 }
 

@@ -13,6 +13,8 @@ import (
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -117,8 +119,8 @@ func TestPostgresServiceCreateFailureRetriesBeforeFailing(t *testing.T) {
 
 	lifecycle.CreateErr = nil
 	now = nextRunAt
-	if err := app.serviceReconciler.ReconcilePending(context.Background(), now); err != nil {
-		t.Fatalf("ReconcilePending() error = %v", err)
+	if _, err := app.allocationReconciler.ReconcileAllocationBatch(context.Background(), now); err != nil {
+		t.Fatalf("ReconcileAllocationBatch() error = %v", err)
 	}
 
 	var queueItems int
@@ -213,8 +215,8 @@ func TestPostgresServiceCreateRetryExhaustionReleasesReservationAndAdmitsReplace
 
 	for i := 1; i < allocationkernel.CreateRetryMaxAttempts; i++ {
 		now = now.Add(allocationkernel.CreateRetryDelay(i))
-		if err := app.serviceReconciler.ReconcilePending(context.Background(), now); err != nil {
-			t.Fatalf("ReconcilePending(attempt %d) error = %v", i+1, err)
+		if _, err := app.allocationReconciler.ReconcileAllocationBatch(context.Background(), now); err != nil {
+			t.Fatalf("ReconcileAllocationBatch(attempt %d) error = %v", i+1, err)
 		}
 	}
 
@@ -247,15 +249,12 @@ func TestPostgresServiceCreateRetryExhaustionReleasesReservationAndAdmitsReplace
 	}
 
 	lifecycle.CreateErr = nil
-	app.reconcileV1()
-	gotResp, err := public.GetService(context.Background(), &servicev1.GetServiceRequest{ServiceID: createResp.GetService().GetID()})
-	if err != nil {
-		t.Fatalf("GetService(after replacement reconcile) error = %v", err)
+	reportReadyNodeSnapshot(t, app, "node-a", now, 2)
+	replacement := reconcileCreatedService(t, app, createResp.GetService().GetID(), now)
+	if len(replacement.GetAllocationIds()) != 1 {
+		t.Fatalf("allocation_ids after replacement reconcile = %#v, want one replacement", replacement.GetAllocationIds())
 	}
-	if len(gotResp.GetService().GetAllocationIds()) != 1 {
-		t.Fatalf("allocation_ids after replacement reconcile = %#v, want one replacement", gotResp.GetService().GetAllocationIds())
-	}
-	replacementID := gotResp.GetService().GetAllocationIds()[0]
+	replacementID := replacement.GetAllocationIds()[0]
 	if replacementID == failedAllocationID {
 		t.Fatal("replacement reused exhausted allocation id")
 	}
@@ -446,7 +445,7 @@ func TestPostgresServiceMissingFromNodeInventoryDegradesService(t *testing.T) {
 	}
 }
 
-func TestPostgresServiceStaleNodeInventoryDoesNotFailNewAllocation(t *testing.T) {
+func TestPostgresServiceRejectsStaleNodeSummaryWithoutFailingAllocation(t *testing.T) {
 	app, _ := newPostgresTestService(t)
 	defer app.Close()
 	now := time.Date(2026, 4, 26, 10, 20, 0, 0, time.UTC)
@@ -494,8 +493,8 @@ func TestPostgresServiceStaleNodeInventoryDoesNotFailNewAllocation(t *testing.T)
 		NodeTarget:    "127.0.0.1:25000",
 		NodeAuthToken: "test-node-token",
 		Summary:       summary,
-	}); err != nil {
-		t.Fatalf("ReportNode(stale inventory) error = %v", err)
+	}); grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("ReportNode(stale summary) code = %v, want InvalidArgument", grpcstatus.Code(err))
 	}
 
 	gotResp, err := public.GetService(context.Background(), &servicev1.GetServiceRequest{ServiceID: createResp.GetService().GetID()})

@@ -116,12 +116,20 @@ Create invariants:
   revision 2 condition set are another atomic mutation. Managed recovery rejects
   a record containing only one projection.
 - Runtime handlers must publish an immutable launch-enforcement manifest.
-  Runtime-specific hard enforcement is checked after create and periodically
-  while the allocation runs. Failure uses the durable, detached allocation
-  termination path rather than the caller's cancelable context.
-- Declared memory limits require cgroup v2 `memory.max` readback and runtime PID
-  membership. Axnoded has no cgroup v1 or ignored-resource fallback for this
-  contract.
+  Runtime-specific hard enforcement is checked after create, immediately after
+  relevant events, and by a bounded sharded audit of cheap controls, identities,
+  and PID membership. Destructive conformance is not a runtime audit. Failure
+  uses the durable, detached allocation termination path rather than the
+  caller's cancelable context.
+- The allocation parent is the authoritative memory safety boundary and
+  requires cgroup v2 `memory.max`, `memory.swap.max=0`, and
+  `memory.oom.group=1` readback. The workload leaf is the OCI/runtime contract
+  and attribution boundary; its runtime-created limit/swap controls, stable
+  cgroup identity, and PID membership are verified without installing a second
+  authoritative Axern limit. The host memcg is the total sandbox budget, including
+  runsc runtime processes and guest accounting plus lower/upper page cache.
+  Axnoded has no cgroup v1, runtime-overhead reservation, or ignored-resource
+  fallback for this contract.
 - Resolved volumes are published through `volumed`; `axnoded` does not call
   `storaged` directly.
 - Rootfs/image resolution goes through `internal/langruntime` and `imagemgr`.
@@ -138,8 +146,9 @@ Create invariants:
   termination has one durable node-local owner, so multiple losses and
   control-plane safety reconciliation cannot start concurrent cleanup.
 - Condition persistence and reconcile acknowledgement failures retain pending
-  work for retry. Periodic audits cover both `DEGRADE` and `FAIL_STOP`
-  dependencies, while the control-plane reconciliation path may update only
+  work for retry. Event-triggered reconciliation plus the bounded sharded audit
+  covers both `DEGRADE` and `FAIL_STOP` dependencies, while the control-plane
+  reconciliation path may update only
   conditions and cannot rewrite the historical create admission proof.
 - Recovery scans records independently, removes records with no live container,
   and suppresses destructive image-lease reconciliation whenever any live

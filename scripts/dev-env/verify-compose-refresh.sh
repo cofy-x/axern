@@ -89,6 +89,9 @@ if [ "${LOCAL_COMPOSE_AXERN_NYDUS_SMOKE:-0}" = "1" ] || [ "${LOCAL_COMPOSE_AXERN
   run_with_retry 2 make local-compose-nydus-smoke
 fi
 
+log "waiting for compose allocation cleanup convergence"
+run_cmd bash -lc 'source scripts/dev-env/lib.sh; local_smoke_wait_for_compose_allocation_cleanup 120'
+
 log "compose refresh verification completed"
 bash "${ROOT_DIR}/scripts/dev-env/compose-status.sh" || true
 echo "compose_refresh_verify_ok=true"

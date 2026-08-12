@@ -248,6 +248,9 @@ func (a *App) reconcileComponents(serviceRecovery bool) {
 	} else {
 		a.reconcileAutoscaledServices(a.now())
 	}
+	if a.allocationReconciler != nil {
+		a.reconcileAllocationBatches(a.now())
+	}
 	if a.tunnelPG != nil {
 		a.reconcileComponent(reconcilekernel.ComponentTunnel, a.now(), func(ctx context.Context, now time.Time) error {
 			return a.tunnelPG.ReconcileExpired(ctx, now)

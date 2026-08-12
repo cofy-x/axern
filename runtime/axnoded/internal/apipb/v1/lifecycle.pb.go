@@ -850,22 +850,23 @@ func (x *ListContainersResponse) GetContainers() []*ContainerStatus {
 }
 
 type ContainerStatus struct {
-	state          protoimpl.MessageState   `protogen:"open.v1"`
-	ID             string                   `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	Command        []string                 `protobuf:"bytes,2,rep,name=command,proto3" json:"command,omitempty"`
-	Runtime        string                   `protobuf:"bytes,3,opt,name=runtime,proto3" json:"runtime,omitempty"`
-	State          ContainerState           `protobuf:"varint,4,opt,name=state,proto3,enum=axnoded.internal.apipb.v1.ContainerState" json:"state,omitempty"`
-	StartedAt      int64                    `protobuf:"varint,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
-	FinishedAt     int64                    `protobuf:"varint,6,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
-	ExitCode       int32                    `protobuf:"varint,7,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
-	Message        string                   `protobuf:"bytes,8,opt,name=message,proto3" json:"message,omitempty"`
-	Labels         map[string]string        `protobuf:"bytes,9,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Mounts         []*Mount                 `protobuf:"bytes,10,rep,name=mounts,proto3" json:"mounts,omitempty"`
-	Envs           []*KeyValue              `protobuf:"bytes,11,rep,name=envs,proto3" json:"envs,omitempty"`
-	Stdout         string                   `protobuf:"bytes,12,opt,name=stdout,proto3" json:"stdout,omitempty"`
-	Stderr         string                   `protobuf:"bytes,13,opt,name=stderr,proto3" json:"stderr,omitempty"`
-	LinuxResources *LinuxContainerResources `protobuf:"bytes,14,opt,name=linux_resources,json=linuxResources,proto3" json:"linux_resources,omitempty"`
-	Pid            int32                    `protobuf:"varint,15,opt,name=pid,proto3" json:"pid,omitempty"`
+	state          protoimpl.MessageState    `protogen:"open.v1"`
+	ID             string                    `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	Command        []string                  `protobuf:"bytes,2,rep,name=command,proto3" json:"command,omitempty"`
+	Runtime        string                    `protobuf:"bytes,3,opt,name=runtime,proto3" json:"runtime,omitempty"`
+	State          ContainerState            `protobuf:"varint,4,opt,name=state,proto3,enum=axnoded.internal.apipb.v1.ContainerState" json:"state,omitempty"`
+	StartedAt      int64                     `protobuf:"varint,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	FinishedAt     int64                     `protobuf:"varint,6,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	ExitCode       int32                     `protobuf:"varint,7,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	Message        string                    `protobuf:"bytes,8,opt,name=message,proto3" json:"message,omitempty"`
+	Labels         map[string]string         `protobuf:"bytes,9,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Mounts         []*Mount                  `protobuf:"bytes,10,rep,name=mounts,proto3" json:"mounts,omitempty"`
+	Envs           []*KeyValue               `protobuf:"bytes,11,rep,name=envs,proto3" json:"envs,omitempty"`
+	Stdout         string                    `protobuf:"bytes,12,opt,name=stdout,proto3" json:"stdout,omitempty"`
+	Stderr         string                    `protobuf:"bytes,13,opt,name=stderr,proto3" json:"stderr,omitempty"`
+	LinuxResources *LinuxContainerResources  `protobuf:"bytes,14,opt,name=linux_resources,json=linuxResources,proto3" json:"linux_resources,omitempty"`
+	Pid            int32                     `protobuf:"varint,15,opt,name=pid,proto3" json:"pid,omitempty"`
+	DiagnosticCode v1.WorkloadDiagnosticCode `protobuf:"varint,16,opt,name=diagnostic_code,json=diagnosticCode,proto3,enum=axern.control.common.v1.WorkloadDiagnosticCode" json:"diagnostic_code,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1003,6 +1004,13 @@ func (x *ContainerStatus) GetPid() int32 {
 		return x.Pid
 	}
 	return 0
+}
+
+func (x *ContainerStatus) GetDiagnosticCode() v1.WorkloadDiagnosticCode {
+	if x != nil {
+		return x.DiagnosticCode
+	}
+	return v1.WorkloadDiagnosticCode(0)
 }
 
 type VersionRequest struct {
@@ -1350,7 +1358,7 @@ const file_internal_apipb_v1_lifecycle_proto_rawDesc = "" +
 	"\x16ListContainersResponse\x12J\n" +
 	"\n" +
 	"containers\x18\x01 \x03(\v2*.axnoded.internal.apipb.v1.ContainerStatusR\n" +
-	"containers\"\xaa\x05\n" +
+	"containers\"\x84\x06\n" +
 	"\x0fContainerStatus\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x18\n" +
 	"\acommand\x18\x02 \x03(\tR\acommand\x12\x18\n" +
@@ -1369,7 +1377,8 @@ const file_internal_apipb_v1_lifecycle_proto_rawDesc = "" +
 	"\x06stdout\x18\f \x01(\tR\x06stdout\x12\x16\n" +
 	"\x06stderr\x18\r \x01(\tR\x06stderr\x12[\n" +
 	"\x0flinux_resources\x18\x0e \x01(\v22.axnoded.internal.apipb.v1.LinuxContainerResourcesR\x0elinuxResources\x12\x10\n" +
-	"\x03pid\x18\x0f \x01(\x05R\x03pid\x1a9\n" +
+	"\x03pid\x18\x0f \x01(\x05R\x03pid\x12X\n" +
+	"\x0fdiagnostic_code\x18\x10 \x01(\x0e2/.axern.control.common.v1.WorkloadDiagnosticCodeR\x0ediagnosticCode\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"*\n" +
@@ -1446,6 +1455,7 @@ var file_internal_apipb_v1_lifecycle_proto_goTypes = []any{
 	(*v11.VolumeReleaseObservation)(nil),       // 32: axern.private.storage.v1.VolumeReleaseObservation
 	(*KeyValue)(nil),                           // 33: axnoded.internal.apipb.v1.KeyValue
 	(*LinuxContainerResources)(nil),            // 34: axnoded.internal.apipb.v1.LinuxContainerResources
+	(v1.WorkloadDiagnosticCode)(0),             // 35: axern.control.common.v1.WorkloadDiagnosticCode
 }
 var file_internal_apipb_v1_lifecycle_proto_depIdxs = []int32{
 	22, // 0: axnoded.internal.apipb.v1.StartRequest.runtime_template:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate
@@ -1468,12 +1478,13 @@ var file_internal_apipb_v1_lifecycle_proto_depIdxs = []int32{
 	23, // 17: axnoded.internal.apipb.v1.ContainerStatus.mounts:type_name -> axnoded.internal.apipb.v1.Mount
 	33, // 18: axnoded.internal.apipb.v1.ContainerStatus.envs:type_name -> axnoded.internal.apipb.v1.KeyValue
 	34, // 19: axnoded.internal.apipb.v1.ContainerStatus.linux_resources:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources
-	16, // 20: axnoded.internal.apipb.v1.VersionResponse.runtimes:type_name -> axnoded.internal.apipb.v1.RuntimeVersion
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	35, // 20: axnoded.internal.apipb.v1.ContainerStatus.diagnostic_code:type_name -> axern.control.common.v1.WorkloadDiagnosticCode
+	16, // 21: axnoded.internal.apipb.v1.VersionResponse.runtimes:type_name -> axnoded.internal.apipb.v1.RuntimeVersion
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_internal_apipb_v1_lifecycle_proto_init() }

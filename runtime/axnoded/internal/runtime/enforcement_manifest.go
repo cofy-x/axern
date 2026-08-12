@@ -27,6 +27,23 @@ func writeRuntimeEnforcementManifest(bundlePath, runtimeName, filestoreDir strin
 		RunscOverlayArg: overlayArg, RuncProjectID: projectID,
 		BundlePath: bundlePath, CreatedAtUnixNano: time.Now().UTC().UnixNano(),
 	}
+	if options.MemoryLimitBytes > 0 {
+		domain, err := hostlinux.InspectCgroupMemoryDomain(options.CgroupPath, options.RuntimeCgroupPath)
+		if err != nil {
+			return fmt.Errorf("inspect cgroup memory domain for enforcement manifest: %w", err)
+		}
+		manifest.CgroupBootID = domain.BootID
+		manifest.CgroupMountIdentity = domain.MountIdentity
+		manifest.CgroupParentInode = domain.ParentInode
+		manifest.CgroupLeafInode = domain.LeafInode
+		manifest.MemorySwapMaxBytes = domain.SwapMaxBytes
+		manifest.MemoryOomGroup = domain.OOMGroup
+		manifest.InitialMemoryEventHigh = domain.InitialEvents["high"]
+		manifest.InitialMemoryEventMax = domain.InitialEvents["max"]
+		manifest.InitialMemoryEventOom = domain.InitialEvents["oom"]
+		manifest.InitialMemoryEventOomKill = domain.InitialEvents["oom_kill"]
+		manifest.InitialMemoryEventOomGroupKill = domain.InitialEvents["oom_group_kill"]
+	}
 	if request.GetEphemeralStorageLimitBytes() > 0 {
 		if filestoreDir == "" {
 			return fmt.Errorf("ephemeral storage enforcement manifest requires filestore directory")

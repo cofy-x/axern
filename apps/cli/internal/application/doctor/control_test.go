@@ -120,6 +120,10 @@ func TestDiagnoseProbeCompletesAndDeletesEnvironment(t *testing.T) {
 	if runs.createRequest.GetConfig().GetRuntimeClass() != "runsc" || runs.createRequest.GetEnvironmentID() != "env-probe" {
 		t.Fatalf("probe run request = %#v", runs.createRequest)
 	}
+	resources := runs.createRequest.GetConfig().GetResources()
+	if resources.GetRequests().GetMemoryBytes() == 0 || resources.GetLimits().GetMemoryBytes() != 0 {
+		t.Fatalf("doctor probe memory contract = %#v, want request without hard limit", resources)
+	}
 }
 
 func TestDiagnoseProbeFailureStillCancelsRunAndDeletesEnvironment(t *testing.T) {

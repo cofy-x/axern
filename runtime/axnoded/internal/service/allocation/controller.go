@@ -40,7 +40,7 @@ type Options struct {
 	StartMetricSink             StartMetricSink
 	ReportStatus                func(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
 	InventoryChanged            func()
-	RootfsCapabilityGate        func(context.Context, *runtime.StartRequest, string) error
+	RootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *langrtmanager.RootFS) error
 	PreActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.ManagedRuntimeHandler, string) error
 }
 
@@ -57,7 +57,7 @@ type Controller struct {
 	startMetricSink             StartMetricSink
 	reportStatus                func(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
 	inventoryChanged            func()
-	rootfsCapabilityGate        func(context.Context, *runtime.StartRequest, string) error
+	rootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *langrtmanager.RootFS) error
 	preActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.ManagedRuntimeHandler, string) error
 
 	stateMu          sync.RWMutex

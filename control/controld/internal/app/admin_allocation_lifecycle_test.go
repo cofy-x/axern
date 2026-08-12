@@ -103,8 +103,8 @@ func TestPostgresAdminForceAllocationLifecycleRetry(t *testing.T) {
 	}
 
 	lifecycle.CreateErr = nil
-	if err := app.serviceReconciler.ReconcilePending(context.Background(), now); err != nil {
-		t.Fatalf("ReconcilePending() error = %v", err)
+	if _, err := app.allocationReconciler.ReconcileAllocationBatch(context.Background(), now); err != nil {
+		t.Fatalf("ReconcileAllocationBatch() error = %v", err)
 	}
 	var queueItems int
 	if err := app.db.Pool().QueryRow(context.Background(), `

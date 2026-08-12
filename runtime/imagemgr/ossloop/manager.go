@@ -99,6 +99,25 @@ func (m *Manager) EnsureMounted(id, imagePath string) (string, error) {
 	return m.mount(id, imagePath, false)
 }
 
+// EffectiveLowerDirs returns the exact ordered lower set used by the
+// source-owned immutable mount. Callers must not parse OverlayFS options to
+// rediscover this implementation detail.
+func (m *Manager) EffectiveLowerDirs(id string) ([]string, error) {
+	if err := validateMountID(id); err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	state, err := m.loadStateLocked(id)
+	if err != nil {
+		return nil, err
+	}
+	if state == nil {
+		return nil, fmt.Errorf("oss rootfs %s is not mounted", id)
+	}
+	return []string{m.lowerPath(id), m.supportDir}, nil
+}
+
 func (m *Manager) mount(id, imagePath string, addReference bool) (string, error) {
 	if err := validateMountID(id); err != nil {
 		return "", err

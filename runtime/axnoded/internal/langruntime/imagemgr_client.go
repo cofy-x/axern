@@ -14,9 +14,20 @@ import (
 )
 
 type imageManagerMountInfo struct {
-	MountPath   string       `json:"mount_path"`
-	Env         []string     `json:"env,omitempty"`
-	ImageConfig *ImageConfig `json:"image_config,omitempty"`
+	MountPath      string                      `json:"mount_path"`
+	Env            []string                    `json:"env,omitempty"`
+	ImageConfig    *ImageConfig                `json:"image_config,omitempty"`
+	ImmutableMount *imageManagerImmutableMount `json:"immutable_mount"`
+}
+
+type imageManagerImmutableMount struct {
+	Identity           string   `json:"identity"`
+	EffectiveRoot      string   `json:"effective_root"`
+	Filesystem         string   `json:"filesystem"`
+	BackingFilesystems []string `json:"backing_filesystems,omitempty"`
+	LowerDirs          []string `json:"lower_dirs"`
+	Readonly           bool     `json:"readonly"`
+	LeaseID            string   `json:"lease_id"`
 }
 
 type ociMountRequest struct {

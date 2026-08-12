@@ -17,6 +17,7 @@ type runtimeSpyHandler struct {
 	waitFunc             func(context.Context, contract.HandlerOptions) (contract.Exit, error)
 	createCalls          int
 	deleteCalls          int
+	deleteHook           func()
 	killCalls            int
 	lastOptions          contract.HandlerOptions
 	lastExecOptions      contract.HandlerOptions
@@ -103,6 +104,9 @@ func (h *runtimeSpyHandler) AllocationEnforcementManifest(_ context.Context, con
 
 func (h *runtimeSpyHandler) DeleteContainer(_ context.Context, _ *apipb.DeleteContainerRequest, _ contract.HandlerOptions) (*apipb.DeleteContainerResponse, error) {
 	h.deleteCalls++
+	if h.deleteHook != nil {
+		h.deleteHook()
+	}
 	return &apipb.DeleteContainerResponse{}, nil
 }
 

@@ -12,6 +12,7 @@ import (
 	filev1 "github.com/cofy-x/axern/sdk/go/gen/axern/common/file/v1"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	storagev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
@@ -33,6 +34,8 @@ type fakeNodeOperatorService struct {
 	reportedKnown        bool
 	diagnosticsID        string
 	diagnosticsFull      bool
+	inventory            nodeinventory.NodeInventorySnapshot
+	inventoryReady       bool
 }
 
 func (f *fakeNodeOperatorService) ManagedAllocationAttempt(string) (int64, bool) { return 1, true }
@@ -62,7 +65,7 @@ func (f *fakeNodeOperatorService) ProxyHTTP(service.HTTPProxyServer) error  { re
 func (f *fakeNodeOperatorService) Ready() bool                              { return true }
 func (f *fakeNodeOperatorService) RuntimeStatuses() []service.RuntimeStatus { return nil }
 func (f *fakeNodeOperatorService) NodeInventory() (nodeinventory.NodeInventorySnapshot, bool) {
-	return nodeinventory.NewSnapshot(), false
+	return f.inventory, f.inventoryReady
 }
 func (f *fakeNodeOperatorService) NetworkForSandbox(containerID string) (*service.SandboxNetwork, error) {
 	return &service.SandboxNetwork{IP: "172.17.0.2", NetNSPath: "/var/run/netns/axctl-test"}, nil
@@ -396,6 +399,37 @@ func TestNodeOperatorSandboxDiagnosticsBridgesSandboxdSnapshot(t *testing.T) {
 	}
 	if resp.GetRawJson() == "" || resp.GetGeneratedAt() == nil {
 		t.Fatalf("diagnostics raw/generated missing: %#v", resp)
+	}
+}
+
+func TestNodeOperatorSandboxMemoryReturnsLatestResolvedObservation(t *testing.T) {
+	t.Parallel()
+
+	inventory := nodeinventory.NewSnapshot()
+	inventory.AllocationMemoryObservations = []*controlnodev1.AllocationMemoryObservation{{
+		AllocationID: "container-123", Attempt: 2, Revision: 7, LimitBytes: 512 << 20,
+	}}
+	fakeService := &fakeNodeOperatorService{inventory: inventory, inventoryReady: true}
+	targets := NewAllocationTargetRegistry()
+	targets.bind("allocation-123", "container-123")
+	server := NewNodeOperatorServer(fakeService, targets)
+
+	resp, err := server.GetSandboxMemory(context.Background(), &nodeoperatorv1.GetSandboxMemoryRequest{SandboxID: "allocation-123"})
+	if err != nil {
+		t.Fatalf("GetSandboxMemory() error = %v", err)
+	}
+	if got := resp.GetObservation(); got.GetAllocationID() != "container-123" || got.GetRevision() != 7 || got.GetLimitBytes() != 512<<20 {
+		t.Fatalf("GetSandboxMemory() = %#v", got)
+	}
+}
+
+func TestNodeOperatorSandboxMemoryFailsClosedWithoutFreshObservation(t *testing.T) {
+	t.Parallel()
+
+	server := NewNodeOperatorServer(&fakeNodeOperatorService{}, NewAllocationTargetRegistry())
+	_, err := server.GetSandboxMemory(context.Background(), &nodeoperatorv1.GetSandboxMemoryRequest{SandboxID: "sandbox-123"})
+	if grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("GetSandboxMemory() code = %v, want %v", grpcstatus.Code(err), codes.FailedPrecondition)
 	}
 }
 

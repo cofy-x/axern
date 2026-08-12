@@ -50,7 +50,7 @@ func (m *Manager) ReconcileRuntimeInventory(inventory map[string]map[string]stru
 
 	var result error
 	for _, id := range stale {
-		if err := m.Delete(id); err != nil {
+		if err := m.DeleteAfterConfirmedRuntimeAbsence(id); err != nil {
 			result = errors.Join(result, fmt.Errorf("cleanup orphan container %s: %w", id, err))
 		}
 	}

@@ -44,9 +44,8 @@ ${BPFNET_UPLINKS_CONFIG}
 [plugin.resource]
 cgroup_cache_size = 4
 interface_cache_size = 4
-cgroup_root_name = "/sandbox"
+cgroup_root_name = "sandbox"
 max_instance_num = 8
-recycle_policy = "destroy"
 
 [plugin.runtime]
 image_lib_dir = "/var/lib/axnoded/rootfs"

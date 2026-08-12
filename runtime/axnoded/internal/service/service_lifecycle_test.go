@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -21,7 +22,9 @@ func TestRunReturnsWithoutBlocking(t *testing.T) {
 		"runsc": runtimetest.NewFakeRuntimeHandler(),
 	})
 	t.Cleanup(func() {
-		require.NoError(t, s.Shutdown(t.Context()))
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, s.Shutdown(ctx))
 	})
 
 	done := make(chan error, 1)
@@ -43,7 +46,9 @@ func TestRunMarksServiceReadyAfterInitialHousekeeping(t *testing.T) {
 	})
 	s.ready.Store(false)
 	t.Cleanup(func() {
-		require.NoError(t, s.Shutdown(t.Context()))
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, s.Shutdown(ctx))
 	})
 
 	require.NoError(t, s.Run(t.Context()))

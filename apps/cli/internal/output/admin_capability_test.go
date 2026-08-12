@@ -9,6 +9,7 @@ import (
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -34,6 +35,25 @@ func TestRenderAllocationCapabilityDiagnosticsIncludesProofAndAttemptIdentity(t 
 		CreateDependencySetDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		CreateAdmittedAt:          timestamppb.New(now),
 		RequiredDependencies:      []*capabilityv1.CapabilityDependency{dependency},
+		MemoryAdmission: &adminv1.AllocationMemoryAdmissionEvidence{
+			SandboxMemoryRequestBytes: 128 << 20,
+			SandboxMemoryLimitBytes:   256 << 20,
+			NodeMemoryBudget: &nodev1.NodeMemoryBudget{
+				PhysicalCapacityBytes:     12 << 30,
+				SourceAllocatableBytes:    10 << 30,
+				SystemReserveBytes:        2 << 30,
+				EffectiveAllocatableBytes: 8 << 30,
+				CleanupDebtBytes:          64 << 20,
+				InternalCurrentBytes:      32 << 20,
+				SampledAt:                 timestamppb.New(now),
+			},
+			NodeLocalCommitmentBytes: 512 << 20,
+			AdmittedAt:               timestamppb.New(now),
+		},
+		LatestMemoryObservation: &nodev1.AllocationMemoryObservation{
+			CurrentBytes: 64 << 20, PeakBytes: 96 << 20, PeakAvailable: true, EventOomKill: 1,
+			CgroupIdentity: "boot:inode", CleanupState: nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, ObservedAt: timestamppb.New(now),
+		},
 		ConditionSet: &capabilityv1.CapabilityConditionSet{
 			Revision:   3,
 			ObservedAt: timestamppb.New(now),
@@ -49,7 +69,7 @@ func TestRenderAllocationCapabilityDiagnosticsIncludesProofAndAttemptIdentity(t 
 	var buffer bytes.Buffer
 	RenderAllocationCapabilityDiagnostics(&buffer, diagnostics)
 	output := buffer.String()
-	for _, expected := range []string{"PROVIDER", "SNAPSHOT", "DEPENDENCIES", "config", "snapshot-1", "ATTEMPT", "7", "CREATE ADMISSION", "true", "REVISION", "3"} {
+	for _, expected := range []string{"PROVIDER", "SNAPSHOT", "DEPENDENCIES", "config", "snapshot-1", "ATTEMPT", "7", "CREATE ADMISSION", "true", "REVISION", "3", "MEMORY REQUEST", "128.0 MiB", "PHYSICAL", "12.0 GiB", "SOURCE ALLOCATABLE", "10.0 GiB", "NODE COMMITTED", "512.0 MiB", "MEMORY CURRENT", "PEAK SOURCE", "kernel memory.peak", "OOM KILL", "assigned"} {
 		if !strings.Contains(output, expected) {
 			t.Fatalf("output does not contain %q:\n%s", expected, output)
 		}

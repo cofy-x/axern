@@ -28,20 +28,28 @@ type Manager struct {
 	// resourceManagers is a map of resource manager, key is resource type
 	resourceManagers cmap.ConcurrentMap[string, resourcemanager.Manager]
 
-	monitorStopChan cmap.ConcurrentMap[string, chan struct{}]
+	monitorMu sync.Mutex
+	monitors  cmap.ConcurrentMap[string, *containerMonitor]
+	workerMu  sync.Mutex
+	workers   sync.WaitGroup
 	// handle container event asynchronously, largest 200 events
 	syncEventChan chan Event
 	// check id is valid
 	idGenerator truncindex.UniqueIdGenerator
 
-	stopChan chan struct{}
-	stopOnce sync.Once
+	stopChan         chan struct{}
+	stopOnce         sync.Once
+	loopDone         chan struct{}
+	resourceStopOnce sync.Once
+	resourceStopErr  error
 
-	healthChan   chan bool
-	exitObserver func(Event)
+	healthChan     chan bool
+	exitObserver   func(Event) error
+	exitClassifier func(Event) (commonv1.WorkloadDiagnosticCode, string)
 
 	isHousekeepingRunning atomic.Bool
 	started               atomic.Bool
+	stopped               atomic.Bool
 }
 
 func NewManager(root string, handlers cmap.ConcurrentMap[string, contract.RuntimeHandler], healthChan chan bool, managers ...resourcemanager.Manager) (*Manager, error) {
@@ -54,11 +62,12 @@ func NewManager(root string, handlers cmap.ConcurrentMap[string, contract.Runtim
 		recyclePath:      filepath.Join(root, config.RecycleBin),
 		containers:       cmap.New[*Container](),
 		serviceHandler:   handlers,
-		monitorStopChan:  cmap.New[chan struct{}](),
+		monitors:         cmap.New[*containerMonitor](),
 		resourceManagers: cmap.New[resourcemanager.Manager](),
 		idGenerator:      truncindex.NewTruncGenerator(config.SandboxContainerPrefix, []string{}),
 		syncEventChan:    make(chan Event, 4096),
 		stopChan:         make(chan struct{}),
+		loopDone:         make(chan struct{}),
 		healthChan:       healthChan,
 	}
 
@@ -77,11 +86,21 @@ func NewManager(root string, handlers cmap.ConcurrentMap[string, contract.Runtim
 	return m, nil
 }
 
-func (m *Manager) SetExitObserver(observer func(Event)) {
+func (m *Manager) SetExitObserver(observer func(Event) error) {
 	if m == nil {
 		return
 	}
 	m.exitObserver = observer
+}
+
+// SetExitClassifier installs the read-only classifier used before an exit is
+// durably checkpointed. The callback may only classify the event and replace
+// its human-readable reason; lifecycle identity remains owned by Manager.
+func (m *Manager) SetExitClassifier(classifier func(Event) (commonv1.WorkloadDiagnosticCode, string)) {
+	if m == nil {
+		return
+	}
+	m.exitClassifier = classifier
 }
 
 func (m *Manager) Handlers() []contract.RuntimeHandler {
@@ -231,4 +250,79 @@ func (m *Manager) ResourcePoolStatus(kind resourcemanager.ResourceName) (resourc
 		status.Unavailable = reporter.UnavailableNum()
 	}
 	return status, nil
+}
+
+type memoryCommitmentReporter interface {
+	MemoryCommitment() resourcemanager.MemoryCommitment
+}
+
+func (m *Manager) MemoryCommitment() (resourcemanager.MemoryCommitment, error) {
+	manager, ok := m.resourceManagers.Get(string(resourcemanager.CgroupResourceName))
+	if !ok {
+		return resourcemanager.MemoryCommitment{}, fmt.Errorf("cgroup resource manager is unavailable")
+	}
+	reporter, ok := manager.(memoryCommitmentReporter)
+	if !ok {
+		return resourcemanager.MemoryCommitment{}, fmt.Errorf("cgroup resource manager does not publish memory commitment")
+	}
+	return reporter.MemoryCommitment(), nil
+}
+
+func (m *Manager) CgroupCleanupPending(allocationID string) (bool, error) {
+	manager, ok := m.resourceManagers.Get(string(resourcemanager.CgroupResourceName))
+	if !ok {
+		return false, fmt.Errorf("cgroup resource manager is unavailable")
+	}
+	reporter, ok := manager.(interface{ HasAllocationLease(string) bool })
+	if !ok {
+		return false, fmt.Errorf("cgroup resource manager does not publish allocation ownership")
+	}
+	return reporter.HasAllocationLease(allocationID), nil
+}
+
+func (m *Manager) RetiringMemoryLeases() []resourcemanager.RetiringMemoryLease {
+	if m == nil {
+		return nil
+	}
+	manager, ok := m.resourceManagers.Get(string(resourcemanager.CgroupResourceName))
+	if !ok {
+		return nil
+	}
+	reporter, ok := manager.(interface {
+		RetiringMemoryLeases() []resourcemanager.RetiringMemoryLease
+	})
+	if !ok {
+		return nil
+	}
+	return reporter.RetiringMemoryLeases()
+}
+
+// BindCgroupMemoryDomain persists the kernel identity proven by the immutable
+// runtime enforcement manifest before the workload is allowed to start.
+func (m *Manager) BindCgroupMemoryDomain(cgroupID, allocationID string, limitBytes int64, bootID, mountIdentity string, parentInode, leafInode uint64) error {
+	manager, ok := m.resourceManagers.Get(string(resourcemanager.CgroupResourceName))
+	if !ok {
+		return fmt.Errorf("cgroup resource manager is unavailable")
+	}
+	binder, ok := manager.(interface {
+		BindMemoryDomain(string, string, int64, string, string, uint64, uint64) error
+	})
+	if !ok {
+		return fmt.Errorf("cgroup resource manager does not persist memory identity")
+	}
+	return binder.BindMemoryDomain(cgroupID, allocationID, limitBytes, bootID, mountIdentity, parentInode, leafInode)
+}
+
+func (m *Manager) UpdateMemoryCapacity(snapshot resourcemanager.MemoryCapacitySnapshot) error {
+	manager, ok := m.resourceManagers.Get(string(resourcemanager.CgroupResourceName))
+	if !ok {
+		return fmt.Errorf("cgroup resource manager is unavailable")
+	}
+	updater, ok := manager.(interface {
+		UpdateMemoryCapacity(resourcemanager.MemoryCapacitySnapshot) error
+	})
+	if !ok {
+		return fmt.Errorf("cgroup resource manager does not accept memory capacity")
+	}
+	return updater.UpdateMemoryCapacity(snapshot)
 }

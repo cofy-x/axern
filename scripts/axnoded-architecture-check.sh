@@ -81,6 +81,7 @@ runtime/axnoded/cmd/axnoded
 runtime/axnoded/cmd/axnoded-runtime-runner
 runtime/axnoded/cmd/egress-probe
 runtime/axnoded/cmd/internal
+runtime/axnoded/cmd/memory-hog
 runtime/axnoded/cmd/natbench-compare
 runtime/axnoded/cmd/natbench-startup-matrix
 runtime/axnoded/cmd/protoc-gen-go-fieldpath

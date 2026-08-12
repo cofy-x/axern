@@ -2,14 +2,13 @@ package container
 
 import (
 	"context"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
-	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/sirupsen/logrus"
 )
 
@@ -60,11 +59,13 @@ func (m *Manager) housekeeping() {
 			continue
 		}
 
-		if container.Status != nil {
-			if err := container.Status.UpdateSync(func(status Status) (Status, error) {
-				return UpdateStatusByState(cstates[id], status), nil
-			}); err != nil {
-				logrus.Errorf("update container %s status failed: %v", id, err)
+		// Runtime inventory is an identity/liveness view, not terminal exit
+		// evidence. Only Wait may publish FinishedAt, exit code, or diagnostics;
+		// otherwise housekeeping can race the monitor and create a fabricated
+		// unknown exit that survives restart.
+		if container.Status != nil && cstates[id] != nil {
+			if err := m.SyncRuntimeIdentityFromState(id, cstates[id]); err != nil {
+				logrus.Errorf("update container %s runtime identity failed: %v", id, err)
 			}
 		}
 
@@ -78,11 +79,8 @@ func (m *Manager) housekeeping() {
 			continue
 		}
 
-		if container.Status.Get().State() == apipb.ContainerState_CONTAINER_EXITED {
-			if err := m.ReleaseContainerResources(id); err != nil {
-				logrus.Errorf("release resources for exited container %s failed: %v", id, err)
-			}
-		}
+		// Exited allocations retain all resource claims until the authoritative
+		// Delete workflow completes ordered cleanup.
 	}
 
 	dir, err := os.ReadDir(m.recyclePath)
@@ -93,12 +91,14 @@ func (m *Manager) housekeeping() {
 	}
 
 	for item := range m.containers.IterBuffered() {
-		m.startMonitorGoroutine(item.Val.Metadata, make(chan struct{}))
+		if err := m.StartMonitor(item.Val.Metadata); err != nil {
+			logrus.WithError(err).WithField("container_id", item.Key).Error("start container monitor during housekeeping")
+		}
 	}
 
 	metrics.RecordResourceGauge("container", float64(m.containers.Count()))
 
-	for item := range m.monitorStopChan.IterBuffered() {
+	for item := range m.monitors.IterBuffered() {
 		if !m.containers.Has(item.Key) {
 			logrus.Infof("container %s is deleted, release releated resource", item.Key)
 			m.ReceiveEvent(Event{Type: EventTypeDelete, ContainerID: item.Key})

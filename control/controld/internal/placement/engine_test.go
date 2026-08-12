@@ -59,6 +59,7 @@ func TestPlanReturnsRejectedCandidatesWithExplicitReasons(t *testing.T) {
 	assertRejectedReasons(t, rejected[2], "stale-summary",
 		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_SUMMARY,
 		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED,
+		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_MEMORY_BUDGET_UNAVAILABLE,
 	)
 }
 
@@ -240,8 +241,10 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 		CpuMilli:    1000,
 		MemoryBytes: 1024,
 	}
+	setTestMemoryCapacity(restricted, 1024)
 	restricted.Resources.AxnodedCommittedMilli = 900
 	restricted.Resources.AxnodedCommittedBytes = 900
+	restricted.MemoryBudget.LocalCommitmentBytes = 900
 
 	eligible, rejected := engine.Plan(nodekernel.Snapshot{
 		Records: []*nodekernel.Record{
@@ -282,7 +285,9 @@ func TestPlanRejectsInsufficientMemory(t *testing.T) {
 		CpuMilli:    4000,
 		MemoryBytes: 2048,
 	}
+	setTestMemoryCapacity(summary, 2048)
 	summary.Resources.AxnodedCommittedBytes = 1800
+	summary.MemoryBudget.LocalCommitmentBytes = 1800
 
 	eligible, rejected := engine.Plan(nodekernel.Snapshot{
 		Records: []*nodekernel.Record{
@@ -301,12 +306,51 @@ func TestPlanRejectsInsufficientMemory(t *testing.T) {
 	assertRejectedReasons(t, rejected[0], "node-mem", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY)
 }
 
+func TestPlanIgnoresDiagnosticMemoryAggregateWhenLocalLedgerHasCapacity(t *testing.T) {
+	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
+	summary := readySummary(now)
+	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 4000, MemoryBytes: 2048}
+	setTestMemoryCapacity(summary, 2048)
+	summary.MemoryBudget.LocalCommitmentBytes = 256
+	// This inventory aggregate may lag or include diagnostic runtime state. It
+	// must not become a third commitment ledger.
+	summary.Resources.AxnodedCommittedBytes = 2000
+
+	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{
+		record("node-memory-ledger", []string{"runsc"}, summary, now),
+	}}, &placementkernel.Request{
+		RootfsKey: "local:/tmp/rootfs", RootfsType: nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
+		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, Runtime: "runsc", RequestedMemoryBytes: 512,
+	}, now)
+	if len(eligible) != 1 || len(rejected) != 0 {
+		t.Fatalf("eligible=%#v rejected=%#v, want node admitted from local commitment ledger", eligible, rejected)
+	}
+}
+
+func TestPlanCountsNodeLocalRetiringMemoryCommitment(t *testing.T) {
+	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+	summary := readySummary(now)
+	summary.MemoryBudget.LocalCommitmentBytes = 15 << 30
+	summary.MemoryBudget.CleanupDebtBytes = 15 << 30
+	summary.MemoryBudget.RetiringCgroupCount = 1
+	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{
+		record("node-retiring", []string{"runsc"}, summary, now),
+	}}, &placementkernel.Request{
+		RootfsKey: "local:/tmp/rootfs", RootfsType: nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
+		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, Runtime: "runsc", RequestedMemoryBytes: 2 << 30,
+	}, now)
+	if len(eligible) != 0 || len(rejected) != 1 {
+		t.Fatalf("eligible=%#v rejected=%#v", eligible, rejected)
+	}
+	assertRejectedReasons(t, rejected[0], "node-retiring", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY)
+}
+
 func TestPlanCPUOvercommitPolicy(t *testing.T) {
 	engine := NewEngine(Config{ResourcePolicy: resourcekernel.AdmissionPolicy{CPUOvercommitRatio: 2}})
 	now := time.Date(2026, 5, 8, 12, 0, 0, 0, time.UTC)
 	summary := readySummary(now)
 	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 1000, MemoryBytes: 1 << 30}
-	summary.Capacity = summary.Allocatable
+	setTestMemoryCapacity(summary, 1<<30)
 	summary.Resources.AxnodedCommittedMilli = 1500
 
 	snapshot := nodekernel.Snapshot{Records: []*nodekernel.Record{
@@ -341,8 +385,9 @@ func TestPlanMemoryDoesNotOvercommit(t *testing.T) {
 	now := time.Date(2026, 5, 8, 12, 30, 0, 0, time.UTC)
 	summary := readySummary(now)
 	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 1000, MemoryBytes: 1 << 30}
-	summary.Capacity = summary.Allocatable
+	setTestMemoryCapacity(summary, 1<<30)
 	summary.Resources.AxnodedCommittedBytes = 900 << 20
+	summary.MemoryBudget.LocalCommitmentBytes = 900 << 20
 
 	snapshot := nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-mem-overcommit", []string{"runsc"}, summary, now),
@@ -421,7 +466,16 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 		},
 		Capacity: &commonv1.ResourceQuantity{
 			CpuMilli:    8000,
-			MemoryBytes: 16 << 30,
+			MemoryBytes: 20 << 30,
+		},
+		MemoryBudget: &nodev1.NodeMemoryBudget{
+			PhysicalCapacityBytes:     20 << 30,
+			SourceAllocatableBytes:    17 << 30,
+			SystemReserveBytes:        1 << 30,
+			EffectiveAllocatableBytes: 16 << 30,
+			CapacityIdentity:          "test-boot:test-mount:test-root",
+			Mode:                      nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
+			SampledAt:                 timestamppb.New(collectedAt),
 		},
 		Pools: &nodev1.PoolsSummary{
 			RuntimeSlots: &nodev1.PoolState{Idle: 8, Capacity: 8},
@@ -450,6 +504,28 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 				NeedsLocalhostCompat:  false,
 			},
 		},
+	}
+}
+
+func setTestMemoryCapacity(summary *nodev1.NodeSummary, effective int64) {
+	if effective <= 0 {
+		panic("test memory capacity must be positive")
+	}
+	reserve := max(int64(1), effective/4)
+	physical := effective + reserve
+	if summary.Allocatable == nil {
+		summary.Allocatable = &commonv1.ResourceQuantity{}
+	}
+	if summary.Capacity == nil {
+		summary.Capacity = &commonv1.ResourceQuantity{}
+	}
+	summary.Allocatable.MemoryBytes = effective
+	summary.Capacity.MemoryBytes = physical
+	summary.MemoryBudget = &nodev1.NodeMemoryBudget{
+		PhysicalCapacityBytes: physical, SourceAllocatableBytes: physical, SystemReserveBytes: reserve,
+		EffectiveAllocatableBytes: effective, CapacityIdentity: "test-boot:test-mount:test-root",
+		Mode:      nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
+		SampledAt: summary.GetCollectedAt(),
 	}
 }
 

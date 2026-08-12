@@ -294,6 +294,9 @@ node:
   runtime:
     idleRetentionTTL: 5m
     idleRetentionMax: 8
+  # Required for production. Set this from the environment's memory
+  # qualification receipt; the chart intentionally has no default.
+  memorySystemReserveBytes: ""
   resourceSource: kubernetes
   network:
     # Dedicated per-node sandbox CIDR. Deployments must validate it against

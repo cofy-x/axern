@@ -55,7 +55,11 @@ func (c Control) probe(ctx context.Context, session *Session) Check {
 			RuntimeClass: options.RuntimeClass,
 			Resources: &commonv1.ResourceSpec{
 				Requests: &commonv1.ResourceQuantity{CpuMilli: 50, MemoryBytes: 64 * 1024 * 1024},
-				Limits:   &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 256 * 1024 * 1024},
+				// Doctor verifies catalog-backed data-plane reachability. Memory
+				// hard-limit conformance is a separate observed capability and node
+				// qualification contract, so this generic probe must remain valid on
+				// explicit disabled_dev nodes.
+				Limits: &commonv1.ResourceQuantity{CpuMilli: 250},
 			},
 		},
 		Labels: map[string]string{"axern.doctor": "probe"},

@@ -1,0 +1,9 @@
+# Axern production gVisor source and release artifact lock.
+# Keep this file parseable as POSIX shell assignments: build images source it,
+# while repository checks compare the source identity with gvisor-hangar.
+AXERN_GVISOR_RELEASE=20260721.0
+AXERN_GVISOR_TAG=release-20260721.0
+AXERN_GVISOR_TAG_OBJECT=00181ba5bb2c3238509510d583c231fb416ebd0f
+AXERN_GVISOR_COMMIT=9f653e577965df2ddd13875b5530cd2588661f1c
+AXERN_GVISOR_SHA512_AMD64=1e951f8d9dd2198e16ad66066fac0db42943ac8e8ca35c7173a20f0fbc859b8185c33c478ae0dc3c4e76b8c06d99ed118286caf43ad207c96578b42af62cae72
+AXERN_GVISOR_SHA512_ARM64=27a6d5103c36ef11c7e8c6158b7039ac43623d77147227d4e6d083835d0cd20fe3b100680ffeca9e6691ee7ba31de19b613c10ef860771e861e7971b24bc2947

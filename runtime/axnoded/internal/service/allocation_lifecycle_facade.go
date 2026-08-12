@@ -9,6 +9,7 @@ import (
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	sandboxobs "github.com/cofy-x/axern/runtime/axnoded/internal/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -98,9 +99,6 @@ func (h *sandboxService) Start(ctx context.Context, request *runtime.StartReques
 				err = fmt.Errorf("allocation start failed: %s", resp.GetMessage())
 			}
 		}
-		if cleanupErr := h.cleanupFailedStartDetached(request.GetContainerID()); cleanupErr != nil {
-			err = fmt.Errorf("%w; cleanup failed-start allocation: %v", err, cleanupErr)
-		}
 		op.SetErrorStatus("allocation start failed")
 		return resp, errord.ToGRPC(err)
 	}
@@ -162,11 +160,11 @@ func (h *sandboxService) prepareNodeLocalStartRequest(request *runtime.StartRequ
 	if h.capabilityManager == nil || !h.capabilityManager.Ready() {
 		return nil, fmt.Errorf("capability manager is warming")
 	}
-	facts, err := rootfsview.InspectBacking(rootfs.GetPath())
+	immutableMount, err := langrtmanager.DescribeLocalRootfs(rootfs.GetPath())
 	if err != nil {
 		return nil, fmt.Errorf("inspect node-local rootfs backing: %w", err)
 	}
-	keys, err := capabilitycontract.DeriveRequirements(h.requirementInput(request, facts.HasFilesystem("erofs")))
+	keys, err := capabilitycontract.DeriveRequirements(h.requirementInput(request, rootfsview.ImmutableMountFromProto(immutableMount).HasFilesystem("erofs")))
 	if err != nil {
 		return nil, fmt.Errorf("derive node-local capability requirements: %w", err)
 	}
@@ -194,6 +192,15 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 	manifest, err := handler.AllocationEnforcementManifest(ctx, containerID)
 	if err != nil {
 		return fmt.Errorf("read immutable runtime enforcement manifest: %w", err)
+	}
+	if manifest.GetMemoryLimitBytes() > 0 {
+		if err := h.containerManager.BindCgroupMemoryDomain(
+			manifest.GetCgroupPath(), containerID, manifest.GetMemoryLimitBytes(),
+			manifest.GetCgroupBootID(), manifest.GetCgroupMountIdentity(),
+			manifest.GetCgroupParentInode(), manifest.GetCgroupLeafInode(),
+		); err != nil {
+			return fmt.Errorf("persist allocation cgroup memory identity: %w", err)
+		}
 	}
 	durableDependencies := h.allocationController().CapabilityDependencies(containerID)
 	dependencies := request.GetCapabilityDependencies()
@@ -257,12 +264,6 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 	return h.allocationController().StoreLaunchVerification(containerID, manifest, verifiedKeys, time.Now().UTC())
 }
 
-func (h *sandboxService) cleanupFailedStartDetached(allocationID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	return h.allocationController().CleanupFailedStart(ctx, allocationID)
-}
-
 func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs bool) capabilitycontract.RequirementInput {
 	resources := request.GetResources()
 	template := request.GetRuntimeTemplate()
@@ -317,15 +318,18 @@ func (h *sandboxService) verifyRequestCapabilityRequirements(request *runtime.St
 	return nil
 }
 
-func (h *sandboxService) verifyRootfsCapabilityRequirements(ctx context.Context, request *runtime.StartRequest, rootfsPath string) error {
+func (h *sandboxService) verifyRootfsCapabilityRequirements(ctx context.Context, request *runtime.StartRequest, rootfs *langrtmanager.RootFS) error {
 	if allocation.IsInternalConformance(ctx) {
 		return nil
 	}
-	facts, err := rootfsview.InspectBacking(rootfsPath)
-	if err != nil {
-		return fmt.Errorf("inspect rootfs backing: %w", err)
+	if rootfs == nil || strings.TrimSpace(rootfs.Path()) == "" {
+		return fmt.Errorf("materialized rootfs and immutable mount descriptor are required")
 	}
-	derived, err := capabilitycontract.DeriveRequirements(h.requirementInput(request, facts.HasFilesystem("erofs")))
+	mount := rootfsview.ImmutableMountFromProto(rootfs.ImmutableMount())
+	if err := rootfsview.ValidateImmutableMountDescriptor(mount, rootfs.Path()); err != nil {
+		return fmt.Errorf("validate rootfs source contract: %w", err)
+	}
+	derived, err := capabilitycontract.DeriveRequirements(h.requirementInput(request, mount.HasFilesystem("erofs")))
 	if err != nil {
 		return err
 	}
@@ -334,7 +338,7 @@ func (h *sandboxService) verifyRootfsCapabilityRequirements(ctx context.Context,
 		return fmt.Errorf("validate supplied dependencies: %w", err)
 	}
 	if !capabilitycontract.RequirementKeysEqual(derived, supplied) {
-		return fmt.Errorf("supplied dependencies do not exactly match actual rootfs-derived requirements (filesystem=%s)", facts.FSType)
+		return fmt.Errorf("supplied dependencies do not exactly match rootfs source-derived requirements (filesystem=%s)", mount.Filesystem)
 	}
 	// Rootfs materialization may take longer than a health observation's TTL.
 	// Rebind the exact requirement set to the manager's current snapshot before

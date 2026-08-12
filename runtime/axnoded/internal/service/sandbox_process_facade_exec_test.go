@@ -11,6 +11,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -22,6 +23,7 @@ type execStreamServerStub struct {
 	requests  []*runtime.ExecStreamRequest
 	sent      []*runtime.ExecStreamResponse
 	recvIndex int
+	recvEOF   func()
 }
 
 func (s *execStreamServerStub) SetHeader(metadata.MD) error  { return nil }
@@ -41,6 +43,10 @@ func (s *execStreamServerStub) Send(resp *runtime.ExecStreamResponse) error {
 }
 func (s *execStreamServerStub) Recv() (*runtime.ExecStreamRequest, error) {
 	if s.recvIndex >= len(s.requests) {
+		if s.recvEOF != nil {
+			s.recvEOF()
+			s.recvEOF = nil
+		}
 		return nil, io.EOF
 	}
 	req := s.requests[s.recvIndex]
@@ -69,7 +75,7 @@ func sandboxdReadyTestLabels() map[string]string {
 func storeExitedExecContainer(t *testing.T, s *sandboxService, runtimeName string, id string) {
 	t.Helper()
 	storeRunningExecContainer(t, s, runtimeName, id)
-	assert.NoError(t, s.containerManager.SetExit(id, 0, true, time.Now().Format(time.RFC3339Nano), ""))
+	assert.NoError(t, s.containerManager.SetExit(id, 0, true, time.Now().UTC(), "", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED))
 }
 
 func TestExecRejectsInvalidArgument(t *testing.T) {
@@ -149,12 +155,14 @@ func TestExecStreamRequiresOpenFrame(t *testing.T) {
 }
 
 func TestExecStreamForwardsNonTTYStdinAndExit(t *testing.T) {
+	inputDone := make(chan struct{})
 	session := &execSessionStub{
 		chunks: []contract.Chunk{
 			{Stdout: []byte("stdout")},
 			{Stderr: []byte("stderr")},
 		},
-		exit: contract.Exit{Status: 3},
+		exit:        contract.Exit{Status: 3},
+		recvEOFWait: inputDone,
 	}
 	handler := &runtimeSpyHandler{
 		name:         "runsc",
@@ -165,6 +173,7 @@ func TestExecStreamForwardsNonTTYStdinAndExit(t *testing.T) {
 	storeRunningExecContainer(t, s, "runsc", "axctl-exec-stream")
 
 	stream := &execStreamServerStub{
+		recvEOF: func() { close(inputDone) },
 		requests: []*runtime.ExecStreamRequest{
 			{Payload: &runtime.ExecStreamRequest_Open{Open: &runtime.ExecStreamOpen{
 				ID:      "axctl-exec-stream",

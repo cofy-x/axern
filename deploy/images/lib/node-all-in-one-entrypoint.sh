@@ -43,6 +43,7 @@ AXNODED_DNS_NAMESERVERS="${AXNODED_DNS_NAMESERVERS:-}"
 AXNODED_DNS_SEARCH_DOMAINS="${AXNODED_DNS_SEARCH_DOMAINS:-}"
 AXNODED_DNS_OPTIONS="${AXNODED_DNS_OPTIONS:-}"
 AXNODED_CGROUP_ENFORCEMENT="${AXNODED_CGROUP_ENFORCEMENT:-required}"
+AXNODED_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES:-}"
 AXNODED_RESOURCE_POOL_RECONCILE_INTERVAL="${AXNODED_RESOURCE_POOL_RECONCILE_INTERVAL:-1s}"
 AXNODED_NETWORK_IP_RANGE="${AXNODED_NETWORK_IP_RANGE:-172.17.0.1/16}"
 AXNODED_CGROUP_CACHE_SIZE="${AXNODED_CGROUP_CACHE_SIZE:-16}"
@@ -158,6 +159,27 @@ ensure_loop_devices
 ensure_runtime_base_spec /usr/local/bin/runsc /etc/axnoded/runsc-config.json
 ensure_runtime_base_spec /usr/bin/runc /etc/axnoded/runc-config.json
 
+case "${AXNODED_CGROUP_ENFORCEMENT}" in
+  required)
+    if ! [[ "${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES}" =~ ^[1-9][0-9]*$ ]]; then
+      echo "AXNODED_MEMORY_SYSTEM_RESERVE_BYTES must be an explicit positive integer when AXNODED_CGROUP_ENFORCEMENT=required" >&2
+      exit 1
+    fi
+    ;;
+  disabled_dev)
+    if [ -z "${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES}" ]; then
+      AXNODED_MEMORY_SYSTEM_RESERVE_BYTES=0
+    elif [ "${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES}" != "0" ]; then
+      echo "AXNODED_MEMORY_SYSTEM_RESERVE_BYTES must be zero when AXNODED_CGROUP_ENFORCEMENT=disabled_dev" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "unsupported AXNODED_CGROUP_ENFORCEMENT=${AXNODED_CGROUP_ENFORCEMENT}" >&2
+    exit 1
+    ;;
+esac
+
 toml_array_from_csv() {
   local input="$1"
   local output="["
@@ -221,10 +243,10 @@ iptables_fallback = ${BPFNET_IPTABLES_FALLBACK}
 [plugin.resource]
 cgroup_cache_size = ${AXNODED_CGROUP_CACHE_SIZE}
 interface_cache_size = ${AXNODED_INTERFACE_CACHE_SIZE}
-cgroup_root_name = "/sandbox"
+cgroup_root_name = "sandbox"
 max_instance_num = ${AXNODED_MAX_INSTANCE_NUM}
+memory_system_reserve_bytes = ${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES}
 resource_pool_reconcile_interval = "${AXNODED_RESOURCE_POOL_RECONCILE_INTERVAL}"
-recycle_policy = "destroy"
 
 [plugin.runtime]
 image_lib_dir = "${AXNODED_ROOT}/rootfs"

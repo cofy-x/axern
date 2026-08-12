@@ -1,6 +1,7 @@
 package storetest
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"sync"
@@ -51,6 +52,38 @@ func (m *MockStore) GetRecord(bucket, key string, value proto.Message) error {
 		return errord.ErrNotFound
 	}
 	return proto.Unmarshal(data, value)
+}
+
+func (m *MockStore) GetRecordBytes(bucket, key string) ([]byte, error) {
+	m.Lock()
+	defer m.Unlock()
+	data, ok := m.data[bucket][key]
+	if !ok {
+		return nil, errord.ErrNotFound
+	}
+	return append([]byte(nil), data...), nil
+}
+
+func (m *MockStore) CompareAndSwapRecord(bucket, key string, expected []byte, expectedExists bool, next proto.Message) (bool, error) {
+	m.Lock()
+	defer m.Unlock()
+	current, currentExists := m.data[bucket][key]
+	if currentExists != expectedExists || (currentExists && !bytes.Equal(current, expected)) {
+		return false, nil
+	}
+	if next == nil {
+		delete(m.data[bucket], key)
+		return true, nil
+	}
+	data, err := proto.Marshal(next)
+	if err != nil {
+		return false, err
+	}
+	if m.data[bucket] == nil {
+		m.data[bucket] = make(map[string][]byte)
+	}
+	m.data[bucket][key] = data
+	return true, nil
 }
 
 func (m *MockStore) DeleteRecord(bucket, key string) error {

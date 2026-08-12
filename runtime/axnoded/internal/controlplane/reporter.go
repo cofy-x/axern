@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +34,7 @@ type AllocationStatusReport struct {
 	Ready            bool
 	ReadinessMessage string
 	Message          string
+	DiagnosticCode   commonv1.WorkloadDiagnosticCode
 	ObservedAt       time.Time
 }
 
@@ -61,6 +63,7 @@ type Reporter struct {
 	statusBatcherOnce    sync.Once
 	conditionBatcher     *allocationConditionBatcher
 	conditionBatcherOnce sync.Once
+	statusOutbox         *AllocationStatusOutbox
 
 	stopCh    chan struct{}
 	changeCh  chan struct{}
@@ -81,6 +84,7 @@ func NewReporter(
 	runtimeNames RuntimeNamesFunc,
 	snapshot SnapshotFunc,
 	summaryBuilder SummaryBuilder,
+	statusOutbox *AllocationStatusOutbox,
 ) *Reporter {
 	target = strings.TrimSpace(target)
 	nodeID = strings.TrimSpace(nodeID)
@@ -101,6 +105,7 @@ func NewReporter(
 		runtimeNames:   runtimeNames,
 		snapshot:       snapshot,
 		summaryBuilder: summaryBuilder,
+		statusOutbox:   statusOutbox,
 		control:        control,
 		stopCh:         make(chan struct{}),
 		changeCh:       make(chan struct{}, 1),
@@ -244,6 +249,14 @@ func (r *Reporter) report() {
 	defer func() { op.End(opErr) }()
 	snapshot, ready := r.snapshot()
 	if !ready {
+		// Node-summary readiness gates placement, but it must not suppress
+		// allocation-owned memory evidence that was collected successfully in
+		// the same round. Existing sandbox OOM and cleanup-debt diagnostics remain
+		// reportable while an unrelated node resource or capability provider is
+		// unavailable.
+		if err := r.sendAllocationMemoryBatch(ctx, snapshot.AllocationMemoryObservations); err != nil {
+			logrus.WithError(err).Warn("control-plane allocation memory batch failed while node inventory was unavailable")
+		}
 		op.SetResult(sdkobs.ResultSkipped)
 		metrics.RecordControlPlaneRPC("report", "skipped")
 		return
@@ -273,12 +286,79 @@ func (r *Reporter) report() {
 	}
 	metrics.RecordControlPlaneRPC("report", "ok")
 	metrics.RecordControlPlaneRPCDuration("report", "ok", time.Since(started).Seconds())
+	if err := r.sendAllocationMemoryBatch(ctx, snapshot.AllocationMemoryObservations); err != nil {
+		// The latest observations remain in the inventory snapshot and are retried
+		// on the next report. Node heartbeat success is independent from this
+		// diagnostic stream.
+		logrus.WithError(err).Warn("control-plane allocation memory batch failed")
+	}
 }
 
-func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) {
+func (r *Reporter) sendAllocationMemoryBatch(ctx context.Context, observations []*nodev1.AllocationMemoryObservation) error {
+	if len(observations) == 0 {
+		return nil
+	}
+	cloned := make([]*nodev1.AllocationMemoryObservation, 0, len(observations))
+	for _, observation := range observations {
+		if observation != nil {
+			cloned = append(cloned, proto.Clone(observation).(*nodev1.AllocationMemoryObservation))
+		}
+	}
+	if len(cloned) == 0 {
+		return nil
+	}
+	request := &nodev1.BatchReportAllocationMemoryObservationsRequest{
+		NodeID: r.nodeID, NodeAuthToken: r.nodeAuthToken, Observations: cloned,
+	}
+	err := r.withClient(ctx, func(ctx context.Context, client nodev1.NodeControlClient) error {
+		_, err := client.BatchReportAllocationMemoryObservations(ctx, request)
+		return err
+	})
+	result := "ok"
+	if err != nil {
+		result = "error"
+	}
+	metrics.RecordControlPlaneRPC("batch_report_allocation_memory", result)
+	return err
+}
+
+func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) error {
+	if r == nil {
+		return fmt.Errorf("allocation status reporter is required")
+	}
+	observation, err := AllocationStatusObservationFromReport(report)
+	if err != nil {
+		return err
+	}
+	terminal := allocationStatusEnded(observation.GetStatus())
+	if terminal {
+		current, err := r.statusOutbox.Persist(observation)
+		if err != nil {
+			return err
+		}
+		if !current {
+			return nil
+		}
+	}
+	accepted, err := r.ensureStatusBatcher().Enqueue(observation)
+	if err != nil {
+		return err
+	}
+	if terminal && !accepted {
+		// A newer attempt already owns both the queue and its own durable proof.
+		// The obsolete record must not survive forever merely because it was
+		// correctly rejected by the coalescing policy.
+		return r.statusOutbox.Acknowledge([]*nodev1.AllocationStatusObservation{observation})
+	}
+	return nil
+}
+
+// AllocationStatusObservationFromReport is the single shaping contract for
+// live reports and terminal outbox recovery.
+func AllocationStatusObservationFromReport(report AllocationStatusReport) (*nodev1.AllocationStatusObservation, error) {
 	allocationID := strings.TrimSpace(report.AllocationID)
-	if r == nil || allocationID == "" || report.Attempt <= 0 {
-		return
+	if allocationID == "" || report.Attempt <= 0 || !allocationStatusValid(report.Status) {
+		return nil, fmt.Errorf("allocation status report identity is invalid")
 	}
 	ready := report.Ready
 	readinessMessage := validProtocolString(strings.TrimSpace(report.ReadinessMessage))
@@ -286,7 +366,15 @@ func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) {
 		ready = false
 		readinessMessage = ""
 	}
-	r.ensureStatusBatcher().Enqueue(&nodev1.AllocationStatusObservation{
+	observedAt := report.ObservedAt.UTC()
+	if observedAt.IsZero() {
+		observedAt = time.Now().UTC()
+	}
+	observedAtProto := timestamppb.New(observedAt)
+	if err := observedAtProto.CheckValid(); err != nil {
+		return nil, fmt.Errorf("allocation status observation time is invalid: %w", err)
+	}
+	return &nodev1.AllocationStatusObservation{
 		AllocationID:     allocationID,
 		Attempt:          report.Attempt,
 		Status:           report.Status,
@@ -295,8 +383,33 @@ func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) {
 		Ready:            ready,
 		ReadinessMessage: readinessMessage,
 		Message:          validProtocolString(report.Message),
-		ObservedAt:       timestamppb.New(report.ObservedAt.UTC()),
-	})
+		DiagnosticCode:   report.DiagnosticCode,
+		ObservedAt:       observedAtProto,
+	}, nil
+}
+
+// ReplayDurableAllocationStatuses restores the process-local batching queue
+// from the node-state outbox before inventory publication begins.
+func (r *Reporter) ReplayDurableAllocationStatuses() error {
+	if r == nil || r.statusOutbox == nil {
+		return nil
+	}
+	observations, err := r.statusOutbox.Replay()
+	if err != nil {
+		return err
+	}
+	for _, observation := range observations {
+		accepted, err := r.ensureStatusBatcher().Enqueue(observation)
+		if err != nil {
+			return fmt.Errorf("replay terminal allocation status %s: %w", observation.GetAllocationID(), err)
+		}
+		if !accepted {
+			if err := r.statusOutbox.Acknowledge([]*nodev1.AllocationStatusObservation{observation}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (r *Reporter) ReportAllocationCapabilityConditions(report AllocationCapabilityConditionReport) {
@@ -315,6 +428,16 @@ func (r *Reporter) AllocationStatusHealth() AllocationStatusReporterHealth {
 		return AllocationStatusReporterHealth{Status: "disabled"}
 	}
 	return r.ensureStatusBatcher().Health()
+}
+
+// UnacknowledgedAllocationStatusIDs exposes the causal reporting barrier used
+// by node inventory. An allocation remains locally active until controld has
+// acknowledged every queued or in-flight lifecycle observation for it.
+func (r *Reporter) UnacknowledgedAllocationStatusIDs() []string {
+	if r == nil {
+		return nil
+	}
+	return r.ensureStatusBatcher().UnacknowledgedAllocationIDs()
 }
 
 func validProtocolString(value string) string {
@@ -389,6 +512,14 @@ func (r *Reporter) sendAllocationStatusBatch(ctx context.Context, observations [
 		metrics.RecordControlPlaneRPC("batch_report_allocation_status", "error")
 		metrics.RecordControlPlaneRPCDuration("batch_report_allocation_status", "error", time.Since(started).Seconds())
 		logrus.WithError(err).Warn("control-plane allocation status batch failed")
+		return err
+	}
+	if err := r.statusOutbox.Acknowledge(observations); err != nil {
+		op.SetErrorStatus("acknowledge allocation status outbox")
+		opErr = err
+		metrics.RecordControlPlaneRPC("batch_report_allocation_status", "error")
+		metrics.RecordControlPlaneRPCDuration("batch_report_allocation_status", "error", time.Since(started).Seconds())
+		logrus.WithError(err).Warn("control-plane allocation status outbox acknowledgement failed")
 		return err
 	}
 	metrics.RecordControlPlaneRPC("batch_report_allocation_status", "ok")

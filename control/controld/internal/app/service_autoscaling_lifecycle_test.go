@@ -54,6 +54,7 @@ func TestPostgresServiceClearAutoscalingPolicyReturnsToManualReplicas(t *testing
 	if err != nil {
 		t.Fatalf("UpdateService(clear autoscaling_policy) error = %v", err)
 	}
+	reconcileAllocationLifecycle(t, app, now)
 	if updateResp.GetService().GetAutoscalingPolicy() != nil {
 		t.Fatalf("autoscaling policy after clear = %+v, want nil", updateResp.GetService().GetAutoscalingPolicy())
 	}
@@ -105,11 +106,19 @@ func TestPostgresDeletedAutoscaledServiceDoesNotRecreateReplicas(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeleteService() error = %v", err)
 	}
-	if deleteResp.GetService().GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETED {
-		t.Fatalf("delete status = %v, want DELETED", deleteResp.GetService().GetStatus())
+	if deleteResp.GetService().GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETING {
+		t.Fatalf("delete request status = %v, want DELETING", deleteResp.GetService().GetStatus())
 	}
-	if len(deleteResp.GetService().GetAllocationIds()) != 0 {
-		t.Fatalf("allocation_ids after delete = %#v, want none", deleteResp.GetService().GetAllocationIds())
+	reconcileDeletedServiceAllocations(t, app, now)
+	deletedResp, err := public.GetService(context.Background(), &servicev1.GetServiceRequest{ServiceID: serviceID})
+	if err != nil {
+		t.Fatalf("GetService(after delete reconciliation) error = %v", err)
+	}
+	if deletedResp.GetService().GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETED {
+		t.Fatalf("delete status = %v, want DELETED", deletedResp.GetService().GetStatus())
+	}
+	if len(deletedResp.GetService().GetAllocationIds()) != 0 {
+		t.Fatalf("allocation_ids after delete reconciliation = %#v, want none", deletedResp.GetService().GetAllocationIds())
 	}
 	if len(lifecycle.DeleteRequests) != 3 {
 		t.Fatalf("delete requests after service delete = %d, want 3", len(lifecycle.DeleteRequests))

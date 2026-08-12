@@ -103,6 +103,7 @@ func TestPostgresServiceConfigUpdateRollsReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateService(config) error = %v", err)
 	}
+	reconcileAllocationLifecycle(t, app, now)
 	if updateResp.GetService().GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_RECONCILING {
 		t.Fatalf("status after config update = %v, want RECONCILING", updateResp.GetService().GetStatus())
 	}

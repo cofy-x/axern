@@ -1,3 +1,8 @@
+{{- $memorySystemReserveValue := required "node.memorySystemReserveBytes must be set from a memory qualification receipt" .Values.node.memorySystemReserveBytes -}}
+{{- $memorySystemReserve := toString $memorySystemReserveValue -}}
+{{- if not (regexMatch "^[1-9][0-9]*$" $memorySystemReserve) -}}
+{{- fail "node.memorySystemReserveBytes must be a positive decimal integer" -}}
+{{- end }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -82,6 +87,8 @@ spec:
               value: {{ .Values.node.runtime.idleRetentionTTL | quote }}
             - name: AXNODED_IDLE_RUNTIME_RETENTION_MAX
               value: {{ .Values.node.runtime.idleRetentionMax | quote }}
+            - name: AXNODED_MEMORY_SYSTEM_RESERVE_BYTES
+              value: {{ $memorySystemReserve | quote }}
             - name: AXNODED_CONTROL_PLANE_NODE_RESOURCE_SOURCE
               value: {{ $nodeResourceSource | quote }}
             - name: AXNODED_CONTROL_PLANE_KUBERNETES_NODE_NAME

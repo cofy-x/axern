@@ -116,6 +116,20 @@ func TestRuntimeConfigCgroupEnforcementMode(t *testing.T) {
 	}
 }
 
+func TestResourceConfigCgroupRootNameIsDelegatedChild(t *testing.T) {
+	if got, err := (ResourceConfig{}).CgroupRootNameValue(); err != nil || got != "sandbox" {
+		t.Fatalf("default cgroup root = %q, %v", got, err)
+	}
+	if got, err := (ResourceConfig{CgroupRootName: "tenant-sandbox"}).CgroupRootNameValue(); err != nil || got != "tenant-sandbox" {
+		t.Fatalf("custom cgroup root = %q, %v", got, err)
+	}
+	for _, invalid := range []string{"/sandbox", "parent/sandbox", "..", "internal", "workload"} {
+		if _, err := (ResourceConfig{CgroupRootName: invalid}).CgroupRootNameValue(); err == nil {
+			t.Fatalf("invalid cgroup root %q accepted", invalid)
+		}
+	}
+}
+
 func TestRuntimeOptionsAllowSUIDEnabled(t *testing.T) {
 	if !(RuntimeOptions{}).AllowSUIDEnabled(true) {
 		t.Fatal("expected nil allow_suid option to use true default")

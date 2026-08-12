@@ -11,11 +11,17 @@ import (
 
 func TestBuildContainerRootfsPreservesLanguageRuntimeSettings(t *testing.T) {
 	rootfsDir := t.TempDir()
+	rootfsSource, err := langrtmanager.NewRootFS(
+		langrtmanager.RootfsConfig{SrcType: apipb.RootfsSrcType_LOCAL, Path: rootfsDir},
+		langrtmanager.NewDefaultMounter(false, ""), nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	lrt := &langrtmanager.LanguageRuntime{
 		Readonly: false,
-		RootFS:   &langrtmanager.RootFS{},
+		RootFS:   rootfsSource,
 	}
-	setRootFSPath(t, lrt.RootFS, rootfsDir)
 
 	rootfs := BuildContainerRootfs(lrt)
 	if rootfs == nil {
@@ -26,6 +32,9 @@ func TestBuildContainerRootfsPreservesLanguageRuntimeSettings(t *testing.T) {
 	}
 	if rootfs.RootDir != rootfsDir {
 		t.Fatalf("RootDir = %q, want %q", rootfs.RootDir, rootfsDir)
+	}
+	if rootfs.GetImmutableMount().GetEffectiveRoot() != rootfsDir || !rootfs.GetImmutableMount().GetReadonly() {
+		t.Fatalf("ImmutableMount = %#v, want source-owned descriptor for %q", rootfs.GetImmutableMount(), rootfsDir)
 	}
 }
 

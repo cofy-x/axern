@@ -18,6 +18,7 @@ import (
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
@@ -30,7 +31,6 @@ import (
 const (
 	runtimeConformanceFixture = "/opt/axern/runtime-selftest/rootfs"
 	runtimeConformanceResult  = "/.axern-quota-result"
-	runtimeConformancePeriod  = 15 * time.Minute
 	runtimeConformanceTimeout = 60 * time.Second
 	runtimeConformanceCleanup = 30 * time.Second
 	// Memory and ephemeral storage use separate sandboxes so one unavailable
@@ -38,6 +38,8 @@ const (
 	runtimeConformanceMemoryLimit = 256 << 20
 	runtimeConformanceStorage     = 64 << 20
 )
+
+var runtimeConformanceRootfsMu sync.Mutex
 
 type runtimeConformanceKind string
 
@@ -62,7 +64,6 @@ type runtimeConformanceProvider struct {
 	lastProbe        time.Time
 	nextProbe        time.Time
 	failures         int
-	recoveryPending  bool
 	lastErr          error
 	lastErrorUnknown bool
 	lastReasonCode   capabilityv1.CapabilityReasonCode
@@ -140,7 +141,12 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 	sampleStarted := time.Now()
 	identity, binaryDigest, configDigest, err := p.runtimeIdentity()
 	identityChanged := err == nil && identity != p.identity
-	probeDue := p.lastProbe.IsZero() || (!p.nextProbe.IsZero() && !now.Before(p.nextProbe)) || (p.nextProbe.IsZero() && now.Sub(p.lastProbe) >= runtimeConformancePeriod)
+	// Conformance creates a destructive sandbox (real OOM or quota fill). A
+	// successful result is bound to the runtime/config identity and is not a
+	// health sample: rerun it only for first certification, identity changes,
+	// or failure retry. Cheap runtime identity and allocation control audits
+	// provide the continuous enforcement signal.
+	probeDue := p.lastProbe.IsZero() || (!p.nextProbe.IsZero() && !now.Before(p.nextProbe))
 	disabledReason := ""
 	if err == nil && p.kind == runtimeConformanceKindMemory {
 		mode, modeErr := p.cfg.PluginConfig.RuntimeConfig.CgroupEnforcementMode()
@@ -162,7 +168,6 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.lastErrorUnknown = true
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_IDENTITY_CHANGED
 		p.failures = 1
-		p.recoveryPending = false
 		p.nextProbe = p.lastProbe
 	} else if err == nil && disabledReason != "" && (identityChanged || probeDue) {
 		p.identity = identity
@@ -171,7 +176,6 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.lastErrorUnknown = false
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED
 		p.failures = 0
-		p.recoveryPending = false
 		p.nextProbe = time.Time{}
 	} else if err == nil && (identityChanged || probeDue) {
 		probeCtx, cancel := context.WithTimeout(ctx, runtimeConformanceTimeout)
@@ -184,20 +188,10 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED
 		if err != nil {
 			p.failures++
-			p.recoveryPending = false
 			p.nextProbe = p.lastProbe.Add(runtimeProbeRetryDelay(p.failures))
 		} else {
-			wasFailing := p.failures > 0
 			p.failures = 0
-			if wasFailing {
-				p.recoveryPending = true
-				p.nextProbe = p.lastProbe.Add(5 * time.Second)
-			} else if p.recoveryPending {
-				p.recoveryPending = false
-				p.nextProbe = time.Time{}
-			} else {
-				p.nextProbe = time.Time{}
-			}
+			p.nextProbe = time.Time{}
 		}
 	} else if err != nil && (p.lastProbe.IsZero() || p.nextProbe.IsZero() || !now.Before(p.nextProbe)) {
 		p.identity = identity
@@ -206,7 +200,6 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.lastErrorUnknown = true
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR
 		p.failures++
-		p.recoveryPending = false
 		p.nextProbe = p.lastProbe.Add(runtimeProbeRetryDelay(p.failures))
 	}
 	var evidence *capabilityv1.CapabilityEvidence
@@ -373,6 +366,8 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 		if err := h.verifyRuntimeConformanceQuotaResult(operationCtx, allocationID); err != nil {
 			return err
 		}
+	} else if kind == runtimeConformanceKindMemory {
+		return h.verifyRuntimeConformanceMemoryOOM(operationCtx, allocationID)
 	}
 	platform, err := runtimeConformancePlatform(runtimeName, kind)
 	if err != nil {
@@ -405,7 +400,7 @@ func runtimeConformanceOperationContext(parent context.Context) (context.Context
 func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context, runtimeName, allocationID string) error {
 	_, err := h.allocationController().Delete(ctx, &runtimev1.DeleteRequest{ID: allocationID, Timeout: 0})
 	if err == nil {
-		return h.verifyRuntimeConformanceCleanup(allocationID)
+		return h.verifyRuntimeConformanceCleanup(ctx, allocationID)
 	}
 	if !errors.Is(err, errord.ErrNotFound) && !errord.IsNotFound(errord.FromGRPC(err)) {
 		return err
@@ -435,29 +430,59 @@ func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context
 			return fmt.Errorf("cleanup partial self-test network: %w", networkErr)
 		}
 	}
-	if managerErr := h.containerManager.Delete(allocationID); managerErr != nil {
+	if managerErr := h.containerManager.DeleteAfterConfirmedRuntimeAbsence(allocationID); managerErr != nil {
 		return fmt.Errorf("cleanup partial self-test bundle: %w", managerErr)
 	}
 	if stateErr := h.allocationController().CleanupFailedStart(ctx, allocationID); stateErr != nil {
 		return fmt.Errorf("cleanup partial self-test state: %w", stateErr)
 	}
-	return h.verifyRuntimeConformanceCleanup(allocationID)
+	return h.verifyRuntimeConformanceCleanup(ctx, allocationID)
 }
 
-func (h *sandboxService) verifyRuntimeConformanceCleanup(allocationID string) error {
+func (h *sandboxService) verifyRuntimeConformanceCleanup(ctx context.Context, allocationID string) error {
+	mode, err := h.config.PluginConfig.RuntimeConfig.CgroupEnforcementMode()
+	if err != nil {
+		return fmt.Errorf("resolve cgroup enforcement for self-test cleanup: %w", err)
+	}
+	verifyCgroup := mode == config.CgroupEnforcementRequired
+	if verifyCgroup && h.containerManager == nil {
+		return fmt.Errorf("verify self-test cgroup cleanup: container manager is unavailable")
+	}
 	paths := []string{
 		filepath.Join(h.config.RootDir, "containers", allocationID),
 		filepath.Join(h.config.PluginConfig.RuntimeConfig.FilestoreDir, "projections", allocationID),
 		filepath.Join(h.config.PluginConfig.RuntimeConfig.FilestoreDir, "runc", allocationID),
 	}
-	for _, path := range paths {
-		if _, err := os.Stat(path); err == nil {
-			return fmt.Errorf("self-test artifact remains at %s", path)
-		} else if !os.IsNotExist(err) {
-			return fmt.Errorf("verify self-test artifact %s: %w", path, err)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		remaining := ""
+		for _, path := range paths {
+			if _, err := os.Stat(path); err == nil {
+				remaining = "artifact " + path
+				break
+			} else if !os.IsNotExist(err) {
+				return fmt.Errorf("verify self-test artifact %s: %w", path, err)
+			}
+		}
+		if remaining == "" && verifyCgroup {
+			pending, err := h.containerManager.CgroupCleanupPending(allocationID)
+			if err != nil {
+				return fmt.Errorf("verify self-test cgroup cleanup: %w", err)
+			}
+			if pending {
+				remaining = "durable cgroup lease"
+			}
+		}
+		if remaining == "" {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("self-test cleanup did not converge; remaining %s: %w", remaining, ctx.Err())
+		case <-ticker.C:
 		}
 	}
-	return nil
 }
 
 func runtimeConformanceStartRequest(allocationID, runtimeID, runtimeName, rootfs string, kind runtimeConformanceKind) (*runtimev1.StartRequest, error) {
@@ -477,6 +502,7 @@ func runtimeConformanceStartRequest(allocationID, runtimeID, runtimeName, rootfs
 	}
 	switch kind {
 	case runtimeConformanceKindMemory:
+		request.RuntimeTemplate.Command = []string{"/bin/memory-hog"}
 		request.Resources = &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{MemoryBytes: runtimeConformanceMemoryLimit},
 			Limits:   &commonv1.ResourceQuantity{MemoryBytes: runtimeConformanceMemoryLimit},
@@ -534,7 +560,53 @@ func (h *sandboxService) verifyRuntimeConformanceQuotaResult(ctx context.Context
 	}
 }
 
+func (h *sandboxService) verifyRuntimeConformanceMemoryOOM(ctx context.Context, allocationID string) error {
+	manifest := h.allocationController().EnforcementManifest(allocationID)
+	if manifest == nil || manifest.GetMemoryLimitBytes() != runtimeConformanceMemoryLimit {
+		return fmt.Errorf("runtime conformance memory enforcement manifest is unavailable or inconsistent")
+	}
+	if h.allocationController().LaunchVerification(allocationID) == nil {
+		return fmt.Errorf("runtime conformance create-time memory verification is unavailable")
+	}
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		ct, err := h.containerManager.Get(allocationID)
+		if err != nil {
+			return fmt.Errorf("read runtime conformance container status: %w", err)
+		}
+		if ct == nil || ct.Status == nil {
+			return fmt.Errorf("runtime conformance container status is unavailable")
+		}
+		observation, err := hostlinux.ReadCgroupMemoryObservation(manifest.GetCgroupPath())
+		if err != nil {
+			return fmt.Errorf("read runtime conformance memory events: %w", err)
+		}
+		if observation.SwapCurrent != 0 {
+			return fmt.Errorf("runtime conformance used %d bytes of swap despite memory.swap.max=0", observation.SwapCurrent)
+		}
+		if ct.Status.Get().State() == runtimev1.ContainerState_CONTAINER_EXITED {
+			if observation.Events["oom_kill"] <= manifest.GetInitialMemoryEventOomKill() &&
+				observation.Events["oom_group_kill"] <= manifest.GetInitialMemoryEventOomGroupKill() {
+				return fmt.Errorf("memory-hog exited without a memcg OOM kill event")
+			}
+			if observation.PeakAvailable && (observation.PeakBytes <= 0 || observation.PeakBytes > manifest.GetMemoryLimitBytes()+(16<<20)) {
+				return fmt.Errorf("runtime conformance memory peak %d is inconsistent with limit %d", observation.PeakBytes, manifest.GetMemoryLimitBytes())
+			}
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for runtime conformance memcg OOM: %w", ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
 func materializeRuntimeConformanceRootfs(filestore, fixture string) (string, error) {
+	runtimeConformanceRootfsMu.Lock()
+	defer runtimeConformanceRootfsMu.Unlock()
+
 	filestore = strings.TrimSpace(filestore)
 	if filestore == "" {
 		return "", fmt.Errorf("runtime conformance requires filestore_dir")
@@ -567,6 +639,12 @@ func materializeRuntimeConformanceRootfs(filestore, fixture string) (string, err
 	); err != nil {
 		return "", err
 	}
+	if err := copyRuntimeConformanceFile(
+		filepath.Join(fixture, "bin", "memory-hog"),
+		filepath.Join(staging, "bin", "memory-hog"),
+	); err != nil {
+		return "", err
+	}
 	for _, name := range []string{"sh", "sleep"} {
 		if err := os.Symlink("busybox", filepath.Join(staging, "bin", name)); err != nil {
 			return "", fmt.Errorf("create runtime conformance symlink %q: %w", name, err)
@@ -575,16 +653,52 @@ func materializeRuntimeConformanceRootfs(filestore, fixture string) (string, err
 	if err := syncDirectory(staging); err != nil {
 		return "", fmt.Errorf("sync runtime conformance rootfs staging directory: %w", err)
 	}
+	quarantine := ""
+	if _, err := os.Lstat(destination); err == nil {
+		quarantine = filepath.Join(parent, fmt.Sprintf(".rootfs-invalid-%d", time.Now().UTC().UnixNano()))
+		if err := os.Rename(destination, quarantine); err != nil {
+			return "", fmt.Errorf("quarantine invalid runtime conformance rootfs: %w", err)
+		}
+		if err := syncDirectory(parent); err != nil {
+			_ = os.Rename(quarantine, destination)
+			return "", fmt.Errorf("sync quarantined runtime conformance rootfs: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("inspect runtime conformance rootfs destination: %w", err)
+	}
 	if err := os.Rename(staging, destination); err != nil {
-		if validateErr := validateRuntimeConformanceRootfs(destination); validateErr == nil {
-			return destination, nil
+		if quarantine != "" {
+			_ = os.Rename(quarantine, destination)
+			_ = syncDirectory(parent)
 		}
 		return "", fmt.Errorf("publish runtime conformance rootfs: %w", err)
 	}
 	if err := syncDirectory(parent); err != nil {
 		return "", fmt.Errorf("sync runtime conformance rootfs parent: %w", err)
 	}
+	if err := removeRuntimeConformanceRootfsDebris(parent); err != nil {
+		return "", err
+	}
 	return destination, nil
+}
+
+func removeRuntimeConformanceRootfsDebris(parent string) error {
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		return fmt.Errorf("list runtime conformance rootfs parent: %w", err)
+	}
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), ".rootfs-") {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(parent, entry.Name())); err != nil {
+			return fmt.Errorf("remove runtime conformance rootfs debris %q: %w", entry.Name(), err)
+		}
+	}
+	if err := syncDirectory(parent); err != nil {
+		return fmt.Errorf("sync runtime conformance rootfs debris cleanup: %w", err)
+	}
+	return nil
 }
 
 func validateRuntimeConformanceRootfs(rootfs string) error {
@@ -601,6 +715,13 @@ func validateRuntimeConformanceRootfs(rootfs string) error {
 	}
 	if !busybox.Mode().IsRegular() || busybox.Mode().Perm()&0o111 == 0 {
 		return fmt.Errorf("bin/busybox is not an executable regular file")
+	}
+	memoryHog, err := os.Lstat(filepath.Join(rootfs, "bin", "memory-hog"))
+	if err != nil {
+		return err
+	}
+	if !memoryHog.Mode().IsRegular() || memoryHog.Mode().Perm()&0o111 == 0 {
+		return fmt.Errorf("bin/memory-hog is not an executable regular file")
 	}
 	for _, name := range []string{"sh", "sleep"} {
 		target, err := os.Readlink(filepath.Join(rootfs, "bin", name))

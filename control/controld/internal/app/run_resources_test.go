@@ -28,8 +28,9 @@ func TestPostgresRunResourceNormalizationPlacementAndReservations(t *testing.T) 
 	env := createDefaultEnvironment(t, app)
 
 	small := controldtest.ReadySummary(now)
-	small.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 400, MemoryBytes: 1 << 30}
-	small.Capacity = small.Allocatable
+	small.Allocatable.CpuMilli = 400
+	small.Capacity.CpuMilli = 400
+	controldtest.SetReadySummaryMemory(small, 1<<30)
 	reportReadyNodeSummary(t, app, "node-a", now, small)
 
 	_, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
@@ -65,8 +66,10 @@ func TestPostgresRunResourceNormalizationPlacementAndReservations(t *testing.T) 
 	if defaultRequests.GetMemoryBytes() != executionkernel.DefaultMemoryBytes {
 		t.Fatalf("default memory request = %d, want %d", defaultRequests.GetMemoryBytes(), executionkernel.DefaultMemoryBytes)
 	}
-	if defaulted.GetRun().GetConfig().GetResources().GetLimits() != nil {
-		t.Fatalf("default limits = %#v, want nil", defaulted.GetRun().GetConfig().GetResources().GetLimits())
+	defaultLimits := defaulted.GetRun().GetConfig().GetResources().GetLimits()
+	if defaultLimits == nil || defaultLimits.GetCpuMilli() != 0 || defaultLimits.GetMemoryBytes() != 0 ||
+		defaultLimits.GetEphemeralStorageBytes() != executionkernel.DefaultEphemeralStorageBytes {
+		t.Fatalf("default limits = %#v, want only ephemeral_storage_bytes=%d", defaultLimits, executionkernel.DefaultEphemeralStorageBytes)
 	}
 	assertActiveReservation(t, app, defaulted.GetRun().GetAllocationID(), executionkernel.DefaultCPUMilli, executionkernel.DefaultMemoryBytes)
 
@@ -87,8 +90,10 @@ func TestPostgresRunResourceNormalizationPlacementAndReservations(t *testing.T) 
 	if requestOnlyResources.GetRequests().GetCpuMilli() != 250 || requestOnlyResources.GetRequests().GetMemoryBytes() != 128<<20 {
 		t.Fatalf("request-only requests = %+v, want 250/128MiB", requestOnlyResources.GetRequests())
 	}
-	if requestOnlyResources.GetLimits() != nil {
-		t.Fatalf("request-only limits = %#v, want nil", requestOnlyResources.GetLimits())
+	requestOnlyLimits := requestOnlyResources.GetLimits()
+	if requestOnlyLimits == nil || requestOnlyLimits.GetCpuMilli() != 0 || requestOnlyLimits.GetMemoryBytes() != 0 ||
+		requestOnlyLimits.GetEphemeralStorageBytes() != executionkernel.DefaultEphemeralStorageBytes {
+		t.Fatalf("request-only limits = %#v, want only ephemeral_storage_bytes=%d", requestOnlyLimits, executionkernel.DefaultEphemeralStorageBytes)
 	}
 	assertActiveReservation(t, app, requestOnly.GetRun().GetAllocationID(), 250, 128<<20)
 
@@ -120,8 +125,9 @@ func TestPostgresRunAdmissionBalancesStalePlacementSnapshots(t *testing.T) {
 
 	for _, nodeID := range []string{"node-a", "node-b"} {
 		summary := controldtest.ReadySummary(now)
-		summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 2000, MemoryBytes: 4 << 30}
-		summary.Capacity = summary.Allocatable
+		summary.Allocatable.CpuMilli = 2000
+		summary.Capacity.CpuMilli = 2000
+		controldtest.SetReadySummaryMemory(summary, 4<<30)
 		reportReadyNodeSummary(t, app, nodeID, now, summary)
 	}
 	for range 4 {
@@ -177,8 +183,9 @@ func TestPostgresResourceCPUOvercommitAdmission(t *testing.T) {
 	env := createDefaultEnvironment(t, app)
 
 	summary := controldtest.ReadySummary(now)
-	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 1000, MemoryBytes: 8 << 30}
-	summary.Capacity = summary.Allocatable
+	summary.Allocatable.CpuMilli = 1000
+	summary.Capacity.CpuMilli = 1000
+	controldtest.SetReadySummaryMemory(summary, 8<<30)
 	reportReadyNodeSummary(t, app, "node-a", now, summary)
 
 	first, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
@@ -245,8 +252,9 @@ func TestPostgresResourceMemoryDoesNotOvercommit(t *testing.T) {
 	env := createDefaultEnvironment(t, app)
 
 	summary := controldtest.ReadySummary(now)
-	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 4000, MemoryBytes: 512 << 20}
-	summary.Capacity = summary.Allocatable
+	summary.Allocatable.CpuMilli = 4000
+	summary.Capacity.CpuMilli = 4000
+	controldtest.SetReadySummaryMemory(summary, 512<<20)
 	reportReadyNodeSummary(t, app, "node-a", now, summary)
 
 	_, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
@@ -298,8 +306,9 @@ func TestPostgresRunNamespaceResourceQuotaAdmission(t *testing.T) {
 	setNamespaceQuota(t, app, "default", int64(1000), int64(1<<30))
 
 	summary := controldtest.ReadySummary(now)
-	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 1000, MemoryBytes: 8 << 30}
-	summary.Capacity = summary.Allocatable
+	summary.Allocatable.CpuMilli = 1000
+	summary.Capacity.CpuMilli = 1000
+	controldtest.SetReadySummaryMemory(summary, 8<<30)
 	reportReadyNodeSummary(t, app, "node-a", now, summary)
 
 	first, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
@@ -398,8 +407,9 @@ func TestPostgresServiceResourceCPUOvercommitAdmission(t *testing.T) {
 	env := createDefaultEnvironment(t, app)
 
 	summary := controldtest.ReadySummary(now)
-	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 1000, MemoryBytes: 8 << 30}
-	summary.Capacity = summary.Allocatable
+	summary.Allocatable.CpuMilli = 1000
+	summary.Capacity.CpuMilli = 1000
+	controldtest.SetReadySummaryMemory(summary, 8<<30)
 	reportReadyNodeSummary(t, app, "node-a", now, summary)
 
 	createResp, err := public.CreateService(context.Background(), &servicev1.CreateServiceRequest{
@@ -463,8 +473,9 @@ func TestPostgresServiceNamespaceResourceQuotaAdmission(t *testing.T) {
 	setNamespaceQuota(t, app, "default", int64(1000), nil)
 
 	summary := controldtest.ReadySummary(now)
-	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 1000, MemoryBytes: 8 << 30}
-	summary.Capacity = summary.Allocatable
+	summary.Allocatable.CpuMilli = 1000
+	summary.Capacity.CpuMilli = 1000
+	controldtest.SetReadySummaryMemory(summary, 8<<30)
 	reportReadyNodeSummary(t, app, "node-a", now, summary)
 
 	createResp, err := public.CreateService(context.Background(), &servicev1.CreateServiceRequest{
@@ -563,7 +574,7 @@ func assertActiveReservation(t *testing.T, app *App, allocationID string, wantCP
 	t.Helper()
 	var cpu, memory int64
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT cpu_milli, memory_bytes
+		SELECT cpu_milli, sandbox_memory_request_bytes
 		FROM workload_reservations
 		WHERE allocation_id = $1 AND released_at IS NULL
 	`, allocationID).Scan(&cpu, &memory); err != nil {

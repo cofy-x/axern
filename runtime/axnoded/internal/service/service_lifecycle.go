@@ -25,6 +25,9 @@ func (h *sandboxService) Run(ctx context.Context) error {
 		h.capabilityReconcileCancel()
 	}
 	h.capabilityReconcileCtx, h.capabilityReconcileCancel = context.WithCancel(context.Background())
+	if err := h.controlPlaneReports.ReplayDurableAllocationStatuses(); err != nil {
+		return fmt.Errorf("replay durable allocation status outbox: %w", err)
+	}
 	h.inventoryCollector.Start()
 	h.controlPlaneReports.Start()
 	for allocationID, manifest := range h.allocationController().CapabilityConditionManifests() {
@@ -70,7 +73,16 @@ func (h *sandboxService) shutdown(ctx context.Context) error {
 	h.lrtManager.DrainRetained(ctx, langrtmanager.RetentionReasonShutdown)
 	h.lrtManager.Close()
 	h.closeVolume()
-	h.containerManager.Stop()
+	if err := h.containerManager.Stop(ctx); err != nil {
+		deleteErr = errors.Join(deleteErr, fmt.Errorf("stop container manager: %w", err))
+		// A monitor may still be checkpointing terminal state or invoking the
+		// control-plane reporter. Keep the reporter and node-state store open;
+		// the process supervisor will terminate after this bounded one-shot
+		// shutdown failure, but this process must not close dependencies under
+		// live users.
+		logrus.WithError(deleteErr).Warn("sandbox service shutdown retained reporting and node state after container manager join failure")
+		return deleteErr
+	}
 	h.inventoryCollector.Stop()
 	h.controlPlaneReports.Stop()
 	if err := h.store.Close(); err != nil {

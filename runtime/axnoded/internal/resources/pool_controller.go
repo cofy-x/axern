@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"sync"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
@@ -25,12 +26,14 @@ const (
 	resourcePoolRefillError = "error"
 )
 
-var managerRecord = make(map[ResourceName]bool)
-
 type poolController struct {
-	manager  resizable
-	interval time.Duration
-	triggerC chan string
+	manager   resizable
+	interval  time.Duration
+	triggerC  chan string
+	stopC     chan struct{}
+	doneC     chan struct{}
+	startOnce sync.Once
+	stopOnce  sync.Once
 }
 
 type reconcileOutcome struct {
@@ -44,23 +47,38 @@ func newPoolController(manager resizable, interval time.Duration) *poolControlle
 		manager:  manager,
 		interval: interval,
 		triggerC: make(chan string, 1),
+		stopC:    make(chan struct{}),
+		doneC:    make(chan struct{}),
 	}
 }
 
 func (c *poolController) start() {
-	go func() {
-		c.reconcile(ResourcePoolTriggerPeriodic)
-		syncTicker := time.NewTicker(c.interval)
-		defer syncTicker.Stop()
-		for {
-			select {
-			case trigger := <-c.triggerC:
-				c.reconcile(trigger)
-			case <-syncTicker.C:
-				c.reconcile(ResourcePoolTriggerPeriodic)
+	c.startOnce.Do(func() {
+		go func() {
+			defer close(c.doneC)
+			c.reconcile(ResourcePoolTriggerPeriodic)
+			syncTicker := time.NewTicker(c.interval)
+			defer syncTicker.Stop()
+			for {
+				select {
+				case trigger := <-c.triggerC:
+					c.reconcile(trigger)
+				case <-syncTicker.C:
+					c.reconcile(ResourcePoolTriggerPeriodic)
+				case <-c.stopC:
+					return
+				}
 			}
-		}
-	}()
+		}()
+	})
+}
+
+func (c *poolController) shutdown() {
+	if c == nil {
+		return
+	}
+	c.stopOnce.Do(func() { close(c.stopC) })
+	<-c.doneC
 }
 
 func (c *poolController) request(trigger string) {
@@ -83,11 +101,7 @@ func (c *poolController) reconcile(trigger string) {
 
 func runManager(period time.Duration, ms ...resizable) {
 	for _, m := range ms {
-		if managerRecord[m.ResourceName()] {
-			continue
-		}
 		logrus.Debugf("start to sync resource %s", m.ResourceName())
-		managerRecord[m.ResourceName()] = true
 		recordPoolState(m)
 		controller := newPoolController(m, period)
 		if controllable, ok := m.(poolControllable); ok {

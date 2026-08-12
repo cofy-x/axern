@@ -44,6 +44,7 @@ func (h *sandboxService) initContainerRuntime(ctx context.Context) (chan bool, e
 		shutdownResourceManagers(resourceManagers)
 		return nil, err
 	}
+	h.containerManager.SetExitClassifier(h.classifyContainerExit)
 	h.containerManager.SetExitObserver(h.handleContainerExitControlPlaneReport)
 	return healthChan, nil
 }
@@ -88,7 +89,7 @@ func validateRuntimeResourceConfiguration(registry *handlerregistry.Registry, cf
 		}
 	}
 
-	disabled := disabledResourcePools(cfg)
+	disabled := disabledResourcePools(cfg, !runtimeRegistryRequiresResource(registry, resourcemanager.CgroupResourceName))
 	disabledSet := make(map[resourcemanager.ResourceName]struct{}, len(disabled))
 	for _, name := range disabled {
 		disabledSet[name] = struct{}{}
@@ -108,9 +109,20 @@ func validateRuntimeResourceConfiguration(registry *handlerregistry.Registry, cf
 	return fmt.Errorf("invalid runtime resource configuration: %s", strings.Join(conflicts, "; "))
 }
 
-func disabledResourcePools(cfg config.ResourceConfig) []resourcemanager.ResourceName {
+func runtimeRegistryRequiresResource(registry *handlerregistry.Registry, want resourcemanager.ResourceName) bool {
+	for _, handler := range registry.Items() {
+		for _, resourceName := range handler.Requirements().Resources {
+			if resourceName == want {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func disabledResourcePools(cfg config.ResourceConfig, cgroupDisabled bool) []resourcemanager.ResourceName {
 	disabled := make([]resourcemanager.ResourceName, 0, 2)
-	if cfg.CgroupCacheSize <= 0 {
+	if cgroupDisabled {
 		disabled = append(disabled, resourcemanager.CgroupResourceName)
 	}
 	if cfg.InterfaceCacheSize <= 0 {

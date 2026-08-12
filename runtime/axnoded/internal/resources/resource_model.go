@@ -1,5 +1,7 @@
 package resources
 
+import "time"
+
 type ResourceName string
 
 type PoolStatus struct {
@@ -9,12 +11,33 @@ type PoolStatus struct {
 	Unavailable int
 }
 
+type MemoryCommitment struct {
+	CommittedBytes      int64
+	CleanupDebtBytes    int64
+	RetiringCgroupCount int
+	OldestRetiringAge   time.Duration
+}
+
+// MemoryCapacitySnapshot is the latest node-observed local admission boundary.
+// The resource manager consumes it under the same lock that persists allocation
+// ownership, making capacity check and reservation one atomic operation.
+type MemoryCapacitySnapshot struct {
+	// Unavailable is an explicit invalidation publication. It clears any prior
+	// sample so a recently healthy capacity cannot remain admissible after a
+	// mount, boot, resource-source, or collector failure.
+	Unavailable               bool
+	EffectiveAllocatableBytes int64
+	SandboxCurrentBytes       int64
+	SystemReserveExhausted    bool
+	CapacityIdentity          string
+	SampledAt                 time.Time
+}
+
 const (
 	CgroupResourceName    ResourceName = "cgroup"
 	InterfaceResourceName ResourceName = "interface"
 
 	ResourceAnnotationKeyPrefix = "io.axnoded.resource/"
-	CgroupPrefix                = "/sandbox/"
 )
 
 const (

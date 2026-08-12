@@ -245,8 +245,12 @@ func (m controllerMounter) Resolve(cfg langrtmanager.RootfsConfig) (langrtmanage
 
 func (m controllerMounter) Reconcile([]string) error { return nil }
 
-func (m controllerMounter) Mount(langrtmanager.RootfsConfig) (*langrtmanager.MountResult, error) {
-	return &langrtmanager.MountResult{Path: m.path}, nil
+func (m controllerMounter) Mount(cfg langrtmanager.RootfsConfig) (*langrtmanager.MountResult, error) {
+	mount, err := langrtmanager.DescribeLocalRootfs(m.path)
+	if mount != nil {
+		mount.LeaseID = cfg.LeaseID
+	}
+	return &langrtmanager.MountResult{Path: m.path, ImmutableMount: mount}, err
 }
 
 func (m controllerMounter) Umount(langrtmanager.RootfsConfig) error {

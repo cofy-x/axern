@@ -3,15 +3,82 @@ package allocation
 import (
 	"context"
 	"testing"
+	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 )
 
+func TestCreateRuntimeContainerPreservesFastExitStatus(t *testing.T) {
+	const containerID = "axctl-create-fast-exit"
+	releaseExit := make(chan struct{})
+	waitEntered := make(chan struct{})
+	handler := &runtimeSpyHandler{
+		name: "runsc",
+		waitFunc: func(ctx context.Context, _ contract.HandlerOptions) (contract.Exit, error) {
+			close(waitEntered)
+			select {
+			case <-releaseExit:
+				return contract.Exit{Status: 42, Timestamp: time.Now().UTC()}, nil
+			case <-ctx.Done():
+				return contract.Exit{}, ctx.Err()
+			}
+		},
+		listStates: []*contract.UnionContainerState{{
+			ID:             containerID,
+			InitProcessPid: 321,
+			Status:         contract.ContainerStatusExited,
+			Created:        "2026-08-11T15:59:37Z",
+		}},
+		listHook: func() {
+			select {
+			case <-waitEntered:
+			case <-time.After(time.Second):
+				t.Fatal("runtime state was listed before the Wait observer started")
+			}
+		},
+	}
+	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+
+	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
+		ID:      containerID,
+		Runtime: "runsc",
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("CreateRuntimeContainer() error = %v", err)
+	}
+	if resp.GetID() != containerID {
+		t.Fatalf("container id = %q, want %q", resp.GetID(), containerID)
+	}
+	created, err := fixture.manager.Get(containerID)
+	if err != nil {
+		t.Fatalf("Get(%q) before exact exit: %v", containerID, err)
+	}
+	createdStatus := created.Status.Get()
+	if createdStatus.FinishedAt != "" || createdStatus.Message != "" || createdStatus.ExitCodeKnown {
+		t.Fatalf("lossy runtime list published a terminal status before Wait proof: %+v", createdStatus)
+	}
+	if createdStatus.Pid != 0 || createdStatus.StartedAt == "2026-08-11T15:59:37Z" {
+		t.Fatalf("exited runtime list revived stale process identity: %+v", createdStatus)
+	}
+	close(releaseExit)
+	assertExactContainerExit(t, fixture, containerID, 42)
+}
+
 func TestCreateRuntimeContainerSyncsRuntimeStateIntoStatus(t *testing.T) {
+	runtimeExited := make(chan struct{})
+	t.Cleanup(func() { close(runtimeExited) })
 	handler := &runtimeSpyHandler{
 		name: "runc",
+		waitFunc: func(ctx context.Context, _ contract.HandlerOptions) (contract.Exit, error) {
+			select {
+			case <-runtimeExited:
+				return contract.Exit{Status: 0, Timestamp: time.Now().UTC()}, nil
+			case <-ctx.Done():
+				return contract.Exit{}, ctx.Err()
+			}
+		},
 		listStates: []*contract.UnionContainerState{
 			{
 				ID:             "axctl-create-sync",
@@ -88,4 +155,37 @@ func TestCreateRuntimeContainerIgnoresUserResourceAnnotationOverride(t *testing.
 	if got := handler.lastOptions.AdditionalAnnotations[networkKey]; got == userNetworkResource {
 		t.Fatalf("network annotation unexpectedly accepted user override %q", got)
 	}
+}
+
+func TestCgroupLeaseOwnerKindIsUnforgeableContextState(t *testing.T) {
+	if got := cgroupLeaseOwnerKind(context.Background()); got != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD {
+		t.Fatalf("ordinary owner kind = %s", got)
+	}
+	ctx := context.WithValue(context.Background(), internalConformanceContextKey{}, true)
+	if got := cgroupLeaseOwnerKind(ctx); got != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE {
+		t.Fatalf("internal conformance owner kind = %s", got)
+	}
+}
+
+func assertExactContainerExit(t *testing.T, fixture testAllocationController, containerID string, exitCode int32) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		c, err := fixture.manager.Get(containerID)
+		if err == nil {
+			status := c.Status.Get()
+			if status.ExitCodeKnown && status.ExitCode == exitCode {
+				if status.Message != "" {
+					t.Fatalf("container exit message = %q, want empty for exact runtime exit", status.Message)
+				}
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	c, err := fixture.manager.Get(containerID)
+	if err != nil {
+		t.Fatalf("Get(%q) after exit deadline: %v", containerID, err)
+	}
+	t.Fatalf("container status after exit deadline = %+v, want known exit code %d", c.Status.Get(), exitCode)
 }

@@ -16,6 +16,13 @@ func CloneCreateRequestWithoutResource(request *apipb.CreateContainerRequest) *a
 	return cloned
 }
 
+func CloneLinuxContainerResources(resource *apipb.LinuxContainerResources) *apipb.LinuxContainerResources {
+	if resource == nil {
+		return &apipb.LinuxContainerResources{}
+	}
+	return proto.Clone(resource).(*apipb.LinuxContainerResources)
+}
+
 func LoadSpec(baseFile string) (*spec.Spec, error) {
 	return runtimeoci.LoadSpec(baseFile)
 }

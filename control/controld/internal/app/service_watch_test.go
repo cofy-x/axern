@@ -87,7 +87,20 @@ func TestServiceWatchReportsPurgeAsNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeleteService() error = %v", err)
 	}
-	watch, err := app.servicePG.Watch(context.Background(), serviceID, deleted.GetService().GetVersion())
+	if deleted.GetService().GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETING {
+		t.Fatalf("DeleteService() status = %v, want DELETING", deleted.GetService().GetStatus())
+	}
+	if err := app.serviceReconciler.ReconcilePending(context.Background(), time.Now().UTC()); err != nil {
+		t.Fatalf("ReconcilePending(delete) error = %v", err)
+	}
+	deletedResp, err := app.PublicV1Handler().GetService(context.Background(), &servicev1.GetServiceRequest{ServiceID: serviceID})
+	if err != nil {
+		t.Fatalf("GetService(after delete reconciliation) error = %v", err)
+	}
+	if deletedResp.GetService().GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETED {
+		t.Fatalf("reconciled delete status = %v, want DELETED", deletedResp.GetService().GetStatus())
+	}
+	watch, err := app.servicePG.Watch(context.Background(), serviceID, deletedResp.GetService().GetVersion())
 	if err != nil {
 		t.Fatalf("Watch() error = %v", err)
 	}

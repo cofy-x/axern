@@ -6,8 +6,11 @@
 package container
 
 import (
+	"context"
+	"errors"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,6 +28,54 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type failingStatusStorage struct {
+	status containerStatusForTest
+	err    error
+}
+
+// containerStatusForTest keeps the failing storage's value private from the
+// callback so a failed checkpoint cannot accidentally mutate it in place.
+type containerStatusForTest struct{ value Status }
+
+func (s *failingStatusStorage) Get() Status                 { return deepCopyOf(s.status.value) }
+func (s *failingStatusStorage) UpdateSync(UpdateFunc) error { return s.err }
+func (s *failingStatusStorage) Update(UpdateFunc) error     { return s.err }
+func (s *failingStatusStorage) Delete() error               { return s.err }
+
+type flakyStatusStorage struct {
+	mu        sync.Mutex
+	status    Status
+	failures  int
+	attempted chan struct{}
+}
+
+func (s *flakyStatusStorage) Get() Status {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return deepCopyOf(s.status)
+}
+
+func (s *flakyStatusStorage) UpdateSync(update UpdateFunc) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	select {
+	case s.attempted <- struct{}{}:
+	default:
+	}
+	if s.failures > 0 {
+		s.failures--
+		return errors.New("temporary checkpoint failure")
+	}
+	next, err := update(s.status)
+	if err == nil {
+		s.status = next
+	}
+	return err
+}
+
+func (s *flakyStatusStorage) Update(update UpdateFunc) error { return s.UpdateSync(update) }
+func (s *flakyStatusStorage) Delete() error                  { return nil }
 
 type stopTestResourceManager struct {
 	shutdowns int
@@ -57,9 +108,6 @@ func TestNewManager(t *testing.T) {
 				CgroupRootName:     "huse",
 				CgroupCacheSize:    8,
 				InterfaceCacheSize: 0,
-				ResourceAdvanceConfig: config.ResourceAdvanceConfig{
-					RecyclePolicy: config.RecyclePolicyDestroy,
-				},
 			},
 		},
 	})
@@ -94,6 +142,151 @@ func TestStoreMetadata(t *testing.T) {
 
 	assert.Equal(t, 1, m.containers.Count())
 	assert.True(t, m.containers.Has(metadata.ID))
+}
+
+func TestSyncRuntimeIdentityFromStateDoesNotReviveTerminalProcessIdentity(t *testing.T) {
+	m := &Manager{
+		root:        t.TempDir(),
+		recyclePath: t.TempDir(),
+		containers:  cmap.New[*Container](),
+	}
+	const id = "test-runtime-identity-111111"
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}))
+	before, err := m.Get(id)
+	require.NoError(t, err)
+	originalStartedAt := before.Status.Get().StartedAt
+	finishedAt := time.Now().UTC()
+	require.NoError(t, m.SetExit(
+		id,
+		42,
+		true,
+		finishedAt,
+		"exact runtime exit",
+		commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED,
+	))
+
+	require.NoError(t, m.SyncRuntimeIdentityFromState(id, &contract.UnionContainerState{
+		ID:             id,
+		InitProcessPid: 321,
+		Status:         contract.ContainerStatusExited,
+		Created:        "2026-08-11T15:59:37Z",
+	}))
+
+	stored, err := m.Get(id)
+	require.NoError(t, err)
+	status := stored.Status.Get()
+	assert.Equal(t, -1, status.Pid)
+	assert.Equal(t, originalStartedAt, status.StartedAt)
+	assert.Equal(t, finishedAt.Format(time.RFC3339Nano), status.FinishedAt)
+	assert.Equal(t, int32(42), status.ExitCode)
+	assert.True(t, status.ExitCodeKnown)
+	assert.Equal(t, "exact runtime exit", status.Message)
+	assert.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED, status.DiagnosticCode)
+}
+
+func TestSyncRuntimeIdentityFromRunningStateEnrichesLocalIdentity(t *testing.T) {
+	m := &Manager{
+		root:        t.TempDir(),
+		recyclePath: t.TempDir(),
+		containers:  cmap.New[*Container](),
+	}
+	const id = "test-running-identity-111111"
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}))
+	require.NoError(t, m.SyncRuntimeIdentityFromState(id, &contract.UnionContainerState{
+		ID:             id,
+		InitProcessPid: 321,
+		Status:         contract.ContainerStatusRunning,
+		Created:        "2026-08-11T15:59:37Z",
+	}))
+
+	stored, err := m.Get(id)
+	require.NoError(t, err)
+	status := stored.Status.Get()
+	assert.Equal(t, 321, status.Pid)
+	assert.Equal(t, "2026-08-11T15:59:37Z", status.StartedAt)
+	assert.Empty(t, status.FinishedAt)
+}
+
+func TestPersistMonitorExitClassifiesBeforeCheckpoint(t *testing.T) {
+	m := &Manager{
+		root:        t.TempDir(),
+		recyclePath: t.TempDir(),
+		containers:  cmap.New[*Container](),
+	}
+	const id = "test-memory-oom-111111"
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}))
+	m.SetExitClassifier(func(Event) (commonv1.WorkloadDiagnosticCode, string) {
+		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED,
+			"sandbox memory limit exceeded"
+	})
+
+	classified, err := m.persistMonitorExit(Event{
+		Type: EventTypeExit, ContainerID: id, ExitCode: 137, ExitCodeKnown: true, ExitedAt: time.Now().UTC(),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED, classified.DiagnosticCode)
+
+	stored, err := m.Get(id)
+	require.NoError(t, err)
+	status := stored.Status.Get()
+	assert.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED, status.DiagnosticCode)
+	assert.Equal(t, "sandbox memory limit exceeded", status.Message)
+	assert.Equal(t, int32(137), status.ExitCode)
+	assert.True(t, status.ExitCodeKnown)
+
+	reloaded, err := LoadStatus(filepath.Join(m.root, id))
+	require.NoError(t, err)
+	assert.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED, reloaded.Get().DiagnosticCode)
+}
+
+func TestPersistMonitorExitNormalizesMissingRuntimeTimestamp(t *testing.T) {
+	m := &Manager{
+		root:        t.TempDir(),
+		recyclePath: t.TempDir(),
+		containers:  cmap.New[*Container](),
+	}
+	const id = "test-zero-exit-time-111111"
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}))
+
+	classified, err := m.persistMonitorExit(Event{Type: EventTypeExit, ContainerID: id, ExitCodeKnown: true})
+	require.NoError(t, err)
+	assert.False(t, classified.ExitedAt.IsZero())
+	stored, err := m.Get(id)
+	require.NoError(t, err)
+	assert.Equal(t, classified.ExitedAt, ParseTimestampTime(stored.Status.Get().FinishedAt))
+}
+
+func TestSetExitPropagatesCheckpointFailure(t *testing.T) {
+	wantErr := errors.New("durable status unavailable")
+	const id = "checkpoint-failure-111111"
+	m := &Manager{containers: cmap.New[*Container]()}
+	m.containers.Set(id, &Container{
+		Metadata: &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"},
+		Status:   &failingStatusStorage{err: wantErr},
+	})
+
+	err := m.SetExit(id, 137, true, time.Now().UTC(), "oom", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED)
+	require.ErrorIs(t, err, wantErr)
+}
+
+func TestPersistMonitorExitRetriesTransientCheckpointFailure(t *testing.T) {
+	const id = "checkpoint-retry-111111"
+	storage := &flakyStatusStorage{failures: 1, attempted: make(chan struct{}, 2)}
+	m := &Manager{containers: cmap.New[*Container]()}
+	m.containers.Set(id, &Container{
+		Metadata: &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"},
+		Status:   storage,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	classified, err := m.persistMonitorExitWithRetry(ctx, Event{
+		Type: EventTypeExit, ContainerID: id, ExitCode: 0, ExitCodeKnown: true, ExitedAt: time.Now().UTC(),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, id, classified.ContainerID)
+	assert.Equal(t, int32(0), storage.Get().ExitCode)
+	assert.True(t, storage.Get().ExitCodeKnown)
 }
 
 func TestSetResources(t *testing.T) {
@@ -177,7 +370,9 @@ func TestStartMonitorGoroutine(t *testing.T) {
 	container := &Container{
 		Metadata: &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"},
 		Spec:     &specs.Spec{},
+		PATH:     t.TempDir(),
 	}
+	container.Status, _ = LoadStatus(container.PATH)
 	containers.Set(id, container)
 
 	serviceHandler := cmap.New[contract.RuntimeHandler]()
@@ -188,37 +383,96 @@ func TestStartMonitorGoroutine(t *testing.T) {
 		root:             t.TempDir(),
 		recyclePath:      t.TempDir(),
 		containers:       containers,
-		monitorStopChan:  cmap.New[chan struct{}](),
+		monitors:         cmap.New[*containerMonitor](),
 		serviceHandler:   serviceHandler,
 		resourceManagers: cmap.New[resourcemanager.Manager](),
 		idGenerator:      truncindex.NewTruncGenerator("sandbox", []string{id}),
 	}
 
-	stop := make(chan struct{})
-
-	m.startMonitorGoroutine(container.Metadata, stop)
+	require.NoError(t, m.StartMonitor(container.Metadata))
 	assert.NoError(t, m.Delete(id))
+	assert.False(t, m.monitors.Has(id))
 
-	select {
-	case <-stop:
-	case <-time.After(5 * time.Second):
-		t.Error("start Monitor did not stop in time")
+}
+
+func TestStartMonitorRejectsIncompleteMetadataAndUnknownRuntime(t *testing.T) {
+	m := &Manager{
+		monitors:       cmap.New[*containerMonitor](),
+		serviceHandler: cmap.New[contract.RuntimeHandler](),
 	}
+	require.ErrorContains(t, m.StartMonitor(nil), "complete metadata")
+	require.ErrorContains(t, m.StartMonitor(&apipb.ContainerMetadata{ID: "missing-runtime", RuntimeHandler: "runsc"}), "not found")
+}
 
+func TestStartMonitorRejectsMissingDurableContainerRecord(t *testing.T) {
+	handlers := cmap.New[contract.RuntimeHandler]()
+	handlers.Set("runsc", runtimetest.NewFakeRuntimeHandler())
+	m := &Manager{
+		containers:     cmap.New[*Container](),
+		monitors:       cmap.New[*containerMonitor](),
+		serviceHandler: handlers,
+	}
+	require.ErrorContains(t, m.StartMonitor(&apipb.ContainerMetadata{ID: "missing-record", RuntimeHandler: "runsc"}), "durable status record")
+}
+
+func TestStartMonitorRejectsDurableRuntimeOwnershipMismatch(t *testing.T) {
+	const id = "runtime-mismatch-111111"
+	handlers := cmap.New[contract.RuntimeHandler]()
+	handlers.Set("runc", runtimetest.NewFakeRuntimeHandler())
+	m := &Manager{
+		containers:     cmap.New[*Container](),
+		monitors:       cmap.New[*containerMonitor](),
+		serviceHandler: handlers,
+	}
+	m.containers.Set(id, &Container{
+		Metadata: &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"},
+		Status:   &flakyStatusStorage{status: Status{StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)},
+	})
+	require.ErrorContains(t, m.StartMonitor(&apipb.ContainerMetadata{ID: id, RuntimeHandler: "runc"}), "does not match")
+}
+
+func TestStartMonitorDoesNotRestartDurableTerminalContainer(t *testing.T) {
+	const id = "terminal-monitor-111111"
+	handlers := cmap.New[contract.RuntimeHandler]()
+	handlers.Set("runsc", runtimetest.NewFakeRuntimeHandler())
+	m := &Manager{
+		containers:     cmap.New[*Container](),
+		monitors:       cmap.New[*containerMonitor](),
+		serviceHandler: handlers,
+	}
+	m.containers.Set(id, &Container{
+		Metadata: &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"},
+		Status:   &statusStorage{status: Status{FinishedAt: time.Now().UTC().Format(time.RFC3339Nano)}},
+	})
+	require.NoError(t, m.StartMonitor(m.containers.Items()[id].Metadata))
+	assert.False(t, m.monitors.Has(id))
+}
+
+func TestMonitorExitBarrierRequiresMonitorOrDurableTerminalCheckpoint(t *testing.T) {
+	const id = "missing-monitor-111111"
+	m := &Manager{
+		root:       t.TempDir(),
+		containers: cmap.New[*Container](),
+		monitors:   cmap.New[*containerMonitor](),
+	}
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}))
+	require.ErrorContains(t, m.waitMonitorExitBarrier(id, time.Second), "neither an active monitor nor a durable terminal exit checkpoint")
+	require.NoError(t, m.SetExit(id, 0, true, time.Now().UTC(), "", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED))
+	require.NoError(t, m.waitMonitorExitBarrier(id, time.Second))
 }
 
 func TestStartRecoveredMonitorsAfterInventoryReconciliation(t *testing.T) {
 	containers := cmap.New[*Container]()
-	containers.Set("live", &Container{Metadata: &apipb.ContainerMetadata{ID: "live", RuntimeHandler: "runsc"}})
-	containers.Set("orphan", &Container{Metadata: &apipb.ContainerMetadata{ID: "orphan", RuntimeHandler: "runsc"}})
+	containers.Set("live", &Container{Metadata: &apipb.ContainerMetadata{ID: "live", RuntimeHandler: "runsc"}, Status: &flakyStatusStorage{status: Status{StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)}})
+	containers.Set("orphan", &Container{Metadata: &apipb.ContainerMetadata{ID: "orphan", RuntimeHandler: "runsc"}, Status: &flakyStatusStorage{status: Status{StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)}})
 
 	handlers := cmap.New[contract.RuntimeHandler]()
 	handlers.Set("runsc", runtimetest.NewFakeRuntimeHandler())
 	m := &Manager{
-		containers:      containers,
-		serviceHandler:  handlers,
-		monitorStopChan: cmap.New[chan struct{}](),
-		syncEventChan:   make(chan Event, 8),
+		containers:     containers,
+		serviceHandler: handlers,
+		monitors:       cmap.New[*containerMonitor](),
+		syncEventChan:  make(chan Event, 8),
 	}
 
 	// Runtime inventory reconciliation removes the proven orphan before any
@@ -226,8 +480,8 @@ func TestStartRecoveredMonitorsAfterInventoryReconciliation(t *testing.T) {
 	m.containers.Remove("orphan")
 	m.startRecoveredMonitors()
 
-	assert.True(t, m.monitorStopChan.Has("live"))
-	assert.False(t, m.monitorStopChan.Has("orphan"))
+	assert.True(t, m.monitors.Has("live"))
+	assert.False(t, m.monitors.Has("orphan"))
 	m.stopMonitor("live")
 }
 
@@ -235,12 +489,12 @@ func TestHousekeeping(t *testing.T) {
 	healthChan := make(chan bool)
 
 	m := &Manager{
-		root:            t.TempDir(),
-		recyclePath:     t.TempDir(),
-		containers:      cmap.New[*Container](),
-		serviceHandler:  cmap.New[contract.RuntimeHandler](),
-		monitorStopChan: cmap.New[chan struct{}](),
-		healthChan:      healthChan,
+		root:           t.TempDir(),
+		recyclePath:    t.TempDir(),
+		containers:     cmap.New[*Container](),
+		serviceHandler: cmap.New[contract.RuntimeHandler](),
+		monitors:       cmap.New[*containerMonitor](),
+		healthChan:     healthChan,
 	}
 
 	go m.housekeeping()
@@ -263,12 +517,45 @@ func TestManagerStopIsIdempotent(t *testing.T) {
 	resourceManager := &stopTestResourceManager{}
 	m := &Manager{
 		resourceManagers: cmap.New[resourcemanager.Manager](),
+		monitors:         cmap.New[*containerMonitor](),
 		stopChan:         make(chan struct{}),
 	}
 	m.resourceManagers.Set(string(resourceManager.ResourceName()), resourceManager)
 
-	m.Stop()
-	m.Stop()
+	require.NoError(t, m.Stop(context.Background()))
+	require.NoError(t, m.Stop(context.Background()))
 
 	assert.Equal(t, 1, resourceManager.shutdowns)
+}
+
+func TestManagerStopHonorsDeadlineAndCanResumeMonitorJoin(t *testing.T) {
+	handlers := cmap.New[contract.RuntimeHandler]()
+	handlers.Set("runsc", runtimetest.NewFakeRuntimeHandler())
+	m, err := NewManager(t.TempDir(), handlers, make(chan bool, 1))
+	require.NoError(t, err)
+
+	const id = "stop-monitor-join-111111"
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}))
+	observerEntered := make(chan struct{})
+	releaseObserver := make(chan struct{})
+	m.SetExitObserver(func(Event) error {
+		close(observerEntered)
+		<-releaseObserver
+		return nil
+	})
+	require.NoError(t, m.StartMonitor(m.containers.Items()[id].Metadata))
+	select {
+	case <-observerEntered:
+	case <-time.After(time.Second):
+		t.Fatal("monitor observer did not start")
+	}
+
+	stopCtx, cancelStop := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	require.ErrorIs(t, m.Stop(stopCtx), context.DeadlineExceeded)
+	cancelStop()
+	close(releaseObserver)
+	joinCtx, cancelJoin := context.WithTimeout(context.Background(), time.Second)
+	require.NoError(t, m.Stop(joinCtx))
+	cancelJoin()
+	require.ErrorContains(t, m.StartMonitor(&apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}), "stopped")
 }

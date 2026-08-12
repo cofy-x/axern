@@ -36,9 +36,7 @@ import (
 //                      DELETED
 
 // statusVersion is current version of container status.
-const statusVersion = "v1"
-
-const unknownExitStatusMessage = "container exited but runtime exit status is unavailable"
+const statusVersion = "v2"
 
 // versionedStatus is the internal used versioned container status.
 type versionedStatus struct {
@@ -62,6 +60,9 @@ type Status struct {
 	ExitCodeKnown bool
 	// Message carries lifecycle details such as missing runtime exit status.
 	Message string
+	// DiagnosticCode is the structured terminal reason proven before the exit
+	// checkpoint is published. It survives reporter retries and node restart.
+	DiagnosticCode commonv1.WorkloadDiagnosticCode
 	// Unknown indicates that the container status is not fully loaded.
 	// This field doesn't need to be checkpointed.
 	Unknown bool `json:"-"`
@@ -76,6 +77,7 @@ func (s Status) Equal(other Status) bool {
 	if s.Pid != other.Pid || s.StartedAt != other.StartedAt ||
 		s.FinishedAt != other.FinishedAt || s.ExitCode != other.ExitCode ||
 		s.ExitCodeKnown != other.ExitCodeKnown || s.Message != other.Message ||
+		s.DiagnosticCode != other.DiagnosticCode ||
 		s.Unknown != other.Unknown {
 		return false
 	}
@@ -149,55 +151,12 @@ func GenerateStatusFromState(state *contract.UnionContainerState, path string) S
 			ExitCode:       0,
 			ExitCodeKnown:  false,
 			Message:        "",
+			DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED,
 			Unknown:        false,
 			LinuxResources: nil,
 		},
 		path: path,
 	}
 
-	// means axnoded didn't catch the exit event
-	if state.Status != contract.ContainerStatusRunning {
-		s.status.FinishedAt = time.Now().Format(time.RFC3339)
-		s.status.ExitCode = -1
-		s.status.Message = unknownExitStatusMessage
-	}
 	return s
-}
-
-func UpdateStatusByState(state *contract.UnionContainerState, status Status) Status {
-	if state == nil {
-		return status
-	}
-	switch state.Status {
-	case contract.ContainerStatusRunning:
-		if state.InitProcessPid > 0 {
-			status.Pid = state.InitProcessPid
-		}
-		if state.Created != "" {
-			status.StartedAt = state.Created
-		}
-		status.FinishedAt = ""
-		status.ExitCode = -1
-		status.ExitCodeKnown = false
-		status.Message = ""
-		status.Unknown = false
-	case contract.ContainerStatusExited:
-		status.Unknown = false
-		if state.InitProcessPid > 0 {
-			status.Pid = state.InitProcessPid
-		}
-		if state.Created != "" {
-			status.StartedAt = state.Created
-		}
-		if status.FinishedAt == "" {
-			status.FinishedAt = time.Now().Format(time.RFC3339)
-		}
-		if !status.ExitCodeKnown {
-			status.ExitCode = -1
-			if status.Message == "" {
-				status.Message = unknownExitStatusMessage
-			}
-		}
-	}
-	return status
 }

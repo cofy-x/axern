@@ -26,6 +26,9 @@ AXERN_HELM_CHART ?= $(ROOTDIR)/deploy/helm/axern
 AXERN_HELM_RELEASE ?= axern
 AXERN_HELM_NAMESPACE ?= axern-system
 AXERN_HELM_VALUES ?=
+# Repository-only render/lint fixture. Packaged charts retain an empty default,
+# and real deployments must supply the qualification receipt value explicitly.
+AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES ?= 1
 AXERN_HELM_RENDER_DIR ?= $(ROOTDIR)/deploy/local/state/helm/$(AXERN_HELM_RELEASE)
 AXERN_HELM_RENDER_FILE ?= $(AXERN_HELM_RENDER_DIR)/rendered.yaml
 AXERN_KUBECONFIG ?=
@@ -126,10 +129,12 @@ define helm_common_args
 endef
 
 helm-lint: helm-contract-check ## Lint the Axern Helm chart
-	$(HELM) lint '$(AXERN_HELM_CHART)'
+	$(HELM) lint '$(AXERN_HELM_CHART)' \
+		--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)'
 
 helm-contract-check: ## Verify Helm values preserve runtime argument contracts
-	@value="$$($(HELM) template axern-contract-check '$(AXERN_HELM_CHART)' | \
+	@value="$$($(HELM) template axern-contract-check '$(AXERN_HELM_CHART)' \
+		--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)' | \
 		awk '/- -artifact-max-bytes/{getline; gsub(/[- "'"'"']/, ""); print; exit}')"; \
 		test "$$value" = "8589934592" || { \
 			echo "artifact max bytes rendered as invalid integer: $$value" >&2; \
@@ -137,6 +142,7 @@ helm-contract-check: ## Verify Helm values preserve runtime argument contracts
 		}
 	@for component in postgres minio; do \
 		rendered="$$($(HELM) template axern-contract-check '$(AXERN_HELM_CHART)' \
+			--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)' \
 			--set "$${component}.enabled=true" \
 			--show-only "templates/$${component}.yaml")"; \
 		printf '%s\n' "$$rendered" | grep -q '^    type: RollingUpdate$$' && \

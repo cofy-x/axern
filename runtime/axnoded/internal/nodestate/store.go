@@ -1,6 +1,7 @@
 package nodestate
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -101,6 +102,84 @@ func (s *DB) GetRecord(bucket, key string, value proto.Message) error {
 		return fmt.Errorf("decode node state %s/%s: %w", bucket, key, err)
 	}
 	return nil
+}
+
+// GetRecordBytes returns an isolated copy of the exact encoded record. It is
+// paired with CompareAndSwapRecord for callers that need a durable ownership
+// handoff without a read/modify/write race.
+func (s *DB) GetRecordBytes(bucket, key string) ([]byte, error) {
+	if err := validateAddress(bucket, key); err != nil {
+		return nil, err
+	}
+	var data []byte
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bucket))
+		if b == nil {
+			return errord.ErrNotFound
+		}
+		stored := b.Get([]byte(key))
+		if stored == nil {
+			return errord.ErrNotFound
+		}
+		data = append(data, stored...)
+		return nil
+	})
+	return data, err
+}
+
+// CompareAndSwapRecord atomically replaces or deletes a record only when its
+// exact encoded predecessor and presence still match. A nil next value means
+// delete. expectedExists distinguishes a missing record from a valid empty
+// protobuf encoding.
+func (s *DB) CompareAndSwapRecord(bucket, key string, expected []byte, expectedExists bool, next proto.Message) (bool, error) {
+	if err := validateAddress(bucket, key); err != nil {
+		return false, err
+	}
+	var nextData []byte
+	var err error
+	if next != nil {
+		nextData, err = proto.Marshal(next)
+		if err != nil {
+			return false, fmt.Errorf("marshal node state %s/%s: %w", bucket, key, err)
+		}
+	}
+	swapped := false
+	err = s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bucket))
+		var current []byte
+		currentExists := false
+		if b != nil {
+			if stored := b.Get([]byte(key)); stored != nil {
+				current = stored
+				currentExists = true
+			}
+		}
+		if currentExists != expectedExists || (currentExists && !bytes.Equal(current, expected)) {
+			return nil
+		}
+		if next == nil {
+			if b != nil {
+				if err := b.Delete([]byte(key)); err != nil {
+					return err
+				}
+			}
+			swapped = true
+			return nil
+		}
+		if b == nil {
+			var createErr error
+			b, createErr = tx.CreateBucketIfNotExists([]byte(bucket))
+			if createErr != nil {
+				return createErr
+			}
+		}
+		if err := b.Put([]byte(key), nextData); err != nil {
+			return err
+		}
+		swapped = true
+		return nil
+	})
+	return swapped, err
 }
 
 func (s *DB) DeleteRecord(bucket, key string) error {

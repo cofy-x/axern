@@ -7,6 +7,7 @@ import (
 	"time"
 
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -33,6 +34,7 @@ type NodeResourceQuantity struct {
 }
 
 type NodeInfo struct {
+	NodeID             string                           `json:"node_id"`
 	Name               string                           `json:"name"`
 	CollectedAt        time.Time                        `json:"collected_at"`
 	State              string                           `json:"state"`
@@ -40,6 +42,25 @@ type NodeInfo struct {
 	CapabilitySnapshot *capabilityv1.CapabilitySnapshot `json:"capability_snapshot,omitempty"`
 	Capacity           NodeResourceQuantity             `json:"capacity"`
 	Allocatable        NodeResourceQuantity             `json:"allocatable"`
+	MemoryBudget       MemoryBudgetInventory            `json:"memory_budget"`
+}
+
+type MemoryBudgetInventory struct {
+	PhysicalCapacityBytes     int64     `json:"physical_capacity_bytes"`
+	SourceAllocatableBytes    int64     `json:"source_allocatable_bytes"`
+	DelegatedRootLimitBytes   int64     `json:"delegated_root_limit_bytes"`
+	DelegatedRootLimitFinite  bool      `json:"delegated_root_limit_finite"`
+	SystemReserveBytes        int64     `json:"system_reserve_bytes"`
+	EffectiveAllocatableBytes int64     `json:"effective_allocatable_bytes"`
+	LocalCommitmentBytes      int64     `json:"local_commitment_bytes"`
+	CleanupDebtBytes          int64     `json:"cleanup_debt_bytes"`
+	InternalCurrentBytes      int64     `json:"internal_current_bytes"`
+	CapacityIdentity          string    `json:"capacity_identity"`
+	Mode                      string    `json:"mode"`
+	SampledAt                 time.Time `json:"sampled_at"`
+	RetiringCgroupCount       int       `json:"retiring_cgroup_count"`
+	OldestRetiringAgeSeconds  int64     `json:"oldest_retiring_age_seconds"`
+	SystemReserveExhausted    bool      `json:"system_reserve_exhausted"`
 }
 
 // MarshalJSON keeps the inventory endpoint on ordinary JSON while delegating
@@ -249,6 +270,9 @@ type NodeInventorySnapshot struct {
 	Components ComponentsInventory     `json:"components"`
 	Heat       HeatInventory           `json:"heat"`
 	Sources    map[string]SourceStatus `json:"sources"`
+	// AllocationMemoryObservations are a bounded control-plane report payload,
+	// not part of the operator-facing aggregate inventory JSON.
+	AllocationMemoryObservations []*nodev1.AllocationMemoryObservation `json:"-"`
 }
 
 func NewSnapshot() NodeInventorySnapshot {
@@ -261,6 +285,7 @@ func NewSnapshot() NodeInventorySnapshot {
 			MountedImageURLs: []string{},
 			Locality:         []LocalityHeatEntry{},
 		},
-		Sources: make(map[string]SourceStatus),
+		Sources:                      make(map[string]SourceStatus),
+		AllocationMemoryObservations: []*nodev1.AllocationMemoryObservation{},
 	}
 }

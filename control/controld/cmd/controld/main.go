@@ -71,7 +71,6 @@ type options struct {
 	secretsMasterKey                                       string
 	reconcileTimeout                                       time.Duration
 	resourceCPUOvercommitRatio                             float64
-	runscRuntimeOverheadMemoryBytes                        int64
 	serviceReconcileWorkers                                int
 	serviceAllocationGlobalWorkers                         int
 	serviceAllocationWorkersPerNode                        int
@@ -153,9 +152,7 @@ func run() error {
 		ArtifactS3Endpoint:          opts.artifactS3Endpoint, ArtifactS3Region: opts.artifactS3Region, ArtifactS3Bucket: opts.artifactS3Bucket, ArtifactS3AccessKey: opts.artifactS3AccessKey, ArtifactS3SecretKey: opts.artifactS3SecretKey, ArtifactS3UsePathStyle: opts.artifactS3UsePathStyle,
 		ArtifactTicketSigningKey: opts.artifactTicketSigningKey,
 		ResourcePolicy: resourcekernel.AdmissionPolicy{
-			CPUOvercommitRatio:              opts.resourceCPUOvercommitRatio,
-			RunscRuntimeOverheadMemoryBytes: opts.runscRuntimeOverheadMemoryBytes,
-			DefaultRuntimeName:              "runsc",
+			CPUOvercommitRatio: opts.resourceCPUOvercommitRatio,
 		},
 		ServiceReconcileWorkers:         opts.serviceReconcileWorkers,
 		ServiceAllocationGlobalWorkers:  opts.serviceAllocationGlobalWorkers,
@@ -292,7 +289,6 @@ func parseFlags() (options, error) {
 	flagSet.StringVar(&opts.secretsMasterKey, "secrets-master-key", os.Getenv("AXERN_SECRETS_MASTER_KEY"), "32-byte raw or base64-encoded master key for encrypted secret storage")
 	flagSet.DurationVar(&opts.reconcileTimeout, "reconcile-timeout", 0, "timeout for one background reconcile operation; 0 uses the application default")
 	flagSet.Float64Var(&opts.resourceCPUOvercommitRatio, "resource-cpu-overcommit-ratio", resourcekernel.DefaultCPUOvercommitRatio, "CPU overcommit ratio for request reservation admission")
-	flagSet.Int64Var(&opts.runscRuntimeOverheadMemoryBytes, "runsc-runtime-overhead-memory-bytes", resourcekernel.DefaultRunscRuntimeOverheadMemoryBytes, "host memory reserved per runsc sandbox for Sentry and gofer")
 	flagSet.IntVar(&opts.serviceReconcileWorkers, "service-reconcile-workers", 0, "global service reconcile workers; 0 uses the application default")
 	flagSet.IntVar(&opts.serviceAllocationGlobalWorkers, "service-allocation-global-workers", 0, "global concurrent service allocation creates; 0 uses the application default")
 	flagSet.IntVar(&opts.serviceAllocationWorkersPerNode, "service-allocation-workers-per-node", 0, "concurrent service allocation creates per node; 0 uses the application default")
@@ -328,9 +324,6 @@ func parseFlags() (options, error) {
 	}
 	if opts.resourceCPUOvercommitRatio <= 0 || math.IsNaN(opts.resourceCPUOvercommitRatio) || math.IsInf(opts.resourceCPUOvercommitRatio, 0) {
 		return options{}, fmt.Errorf("resource-cpu-overcommit-ratio must be > 0")
-	}
-	if opts.runscRuntimeOverheadMemoryBytes < 0 {
-		return options{}, fmt.Errorf("runsc-runtime-overhead-memory-bytes must be >= 0")
 	}
 	if opts.postgresMaxConnections < 0 {
 		return options{}, fmt.Errorf("postgres-max-connections must be >= 0")

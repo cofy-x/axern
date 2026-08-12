@@ -2,6 +2,7 @@ package appfunction
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	functionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/function"
@@ -84,7 +85,7 @@ func (c *Controller) executeSyncInvocation(
 	message := "function invocation succeeded"
 	if dispatchErr != nil || fnErr != nil {
 		status = functionv1.FunctionInvocationStatus_FUNCTION_INVOCATION_STATUS_FAILED
-		if dispatchErr != nil && grpcstatus.Code(dispatchErr) == codes.DeadlineExceeded {
+		if deadlineExceeded(dispatchErr) {
 			status = functionv1.FunctionInvocationStatus_FUNCTION_INVOCATION_STATUS_TIMED_OUT
 		}
 		fnErr = normalizeDispatchError(deployment, fnErr, dispatchErr)
@@ -200,6 +201,9 @@ func (c *Controller) dispatchInvocation(ctx context.Context, req FunctionInvokeD
 	if req.Deployment == nil || req.Deployment.GetWorkerServiceID() == "" {
 		return nil, workerUnavailableError(req.Deployment), nil
 	}
+	if req.Deployment.GetStatus() != functionv1.FunctionDeploymentStatus_FUNCTION_DEPLOYMENT_STATUS_READY {
+		return nil, workerNotReadyError(req.Deployment), nil
+	}
 	if c.invoker == nil {
 		return nil, workerDispatchUnavailableError(req.Deployment), nil
 	}
@@ -213,7 +217,7 @@ func normalizeDispatchError(deployment *functionv1.FunctionDeployment, fnErr *fu
 	if dispatchErr == nil {
 		return nil
 	}
-	if grpcstatus.Code(dispatchErr) == codes.DeadlineExceeded {
+	if deadlineExceeded(dispatchErr) {
 		return &functionv1.FunctionError{
 			Code:    "timeout",
 			Message: dispatchErr.Error(),
@@ -237,6 +241,10 @@ func normalizeDispatchError(deployment *functionv1.FunctionDeployment, fnErr *fu
 		Message: dispatchErr.Error(),
 		Details: workerErrorDetails(deployment),
 	}
+}
+
+func deadlineExceeded(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || grpcstatus.Code(err) == codes.DeadlineExceeded
 }
 
 func workerUnavailableError(deployment *functionv1.FunctionDeployment) *functionv1.FunctionError {

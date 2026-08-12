@@ -16,7 +16,7 @@ func (r *RuncServiceHandler) DeleteContainer(ctx context.Context, request *apipb
 	}
 	args = append(args, options.ContainerID)
 	_, err := r.common.Run(ctx, args...)
-	if runtimeDeleteTargetAbsent(err, options.ContainerID) {
+	if runtimeContainerAbsent(err, options.ContainerID) {
 		err = nil
 	}
 	if err != nil {

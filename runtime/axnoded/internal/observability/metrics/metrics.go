@@ -70,6 +70,10 @@ const (
 	MetricVolumeOperationTotal                   = "axern.axnoded_volume_operation_total"
 	MetricVolumeReconcileCurrent                 = "axern.axnoded_volume_reconcile_current"
 	MetricCgroupMemoryCurrent                    = "axern.axnoded_cgroup_memory_current"
+	MetricSandboxMemoryOOMTotal                  = "axern.axnoded_sandbox_memory_oom_total"
+	MetricNodeMemoryBudgetCurrent                = "axern.axnoded_node_memory_budget_current"
+	MetricMemoryAdmissionTotal                   = "axern.axnoded_memory_admission_total"
+	MetricCgroupRetirementTotal                  = "axern.axnoded_cgroup_retirement_total"
 	MetricEphemeralStorageOperationTotal         = "axern.axnoded_ephemeral_storage_operation_total"
 	MetricFilestoreProbe                         = "axern.axnoded_filestore_probe_total"
 	MetricCapabilityStateCurrent                 = "axern.axnoded_capability_state_current"
@@ -132,7 +136,11 @@ const (
 	descProbeAttemptDuration                   = "Axnoded probe attempt duration."
 	descVolumeOperationTotal                   = "Axnoded node volume operation results."
 	descVolumeReconcileCurrent                 = "Axnoded last node volume reconcile counts."
-	descCgroupMemoryCurrent                    = "Per-sandbox cgroup memory.stat and memory.events values."
+	descCgroupMemoryCurrent                    = "Node aggregate sandbox cgroup memory.stat and memory.events values by runtime."
+	descSandboxMemoryOOMTotal                  = "Sandbox exits caused by the host cgroup memory boundary."
+	descNodeMemoryBudgetCurrent                = "Node sandbox memory boundary, commitments, system reserve, and cleanup debt."
+	descMemoryAdmissionTotal                   = "Node-local sandbox memory admission decisions."
+	descCgroupRetirementTotal                  = "Allocation-owned cgroup retirement and reclaim outcomes."
 	descEphemeralStorageOperationTotal         = "Ephemeral-storage reservation, quota, ENOSPC, and cleanup operations."
 	descFilestoreProbe                         = "Runtime filestore capability probe results."
 )
@@ -595,14 +603,47 @@ func RecordVolumeReconcile(kind string, value float64) {
 	recordGauge(MetricVolumeReconcileCurrent, descVolumeReconcileCurrent, value, attribute.String(sdkobs.AttrState, kind))
 }
 
-func RecordCgroupMemory(runtime, allocationID, kind string, value int64) {
+func RecordCgroupMemory(runtime, kind string, value float64) {
 	recordGauge(
 		MetricCgroupMemoryCurrent,
 		descCgroupMemoryCurrent,
-		float64(value),
+		value,
 		attribute.String(sdkobs.AttrRuntime, runtime),
-		attribute.String(sdkobs.AttrAllocationID, allocationID),
 		attribute.String(sdkobs.AttrState, kind),
+	)
+}
+
+func RecordSandboxMemoryOOM(runtime string) {
+	recordCounter(
+		MetricSandboxMemoryOOMTotal,
+		descSandboxMemoryOOMTotal,
+		attribute.String(sdkobs.AttrRuntime, runtime),
+	)
+}
+
+func RecordNodeMemoryBudget(kind string, value int64) {
+	recordGauge(
+		MetricNodeMemoryBudgetCurrent,
+		descNodeMemoryBudgetCurrent,
+		float64(value),
+		attribute.String(sdkobs.AttrState, kind),
+	)
+}
+
+func RecordMemoryAdmission(result string) {
+	recordCounter(
+		MetricMemoryAdmissionTotal,
+		descMemoryAdmissionTotal,
+		attribute.String(sdkobs.AttrResult, result),
+	)
+}
+
+func RecordCgroupRetirement(operation, result string) {
+	recordCounter(
+		MetricCgroupRetirementTotal,
+		descCgroupRetirementTotal,
+		attribute.String(sdkobs.AttrOperation, operation),
+		attribute.String(sdkobs.AttrResult, result),
 	)
 }
 

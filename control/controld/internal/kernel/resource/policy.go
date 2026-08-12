@@ -3,18 +3,14 @@ package resource
 import (
 	"fmt"
 	"math"
-	"strings"
 
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
 const DefaultCPUOvercommitRatio = 1.0
-const DefaultRunscRuntimeOverheadMemoryBytes int64 = 256 * 1024 * 1024
 
 type AdmissionPolicy struct {
-	CPUOvercommitRatio              float64
-	RunscRuntimeOverheadMemoryBytes int64
-	DefaultRuntimeName              string
+	CPUOvercommitRatio float64
 }
 
 type Claim struct {
@@ -61,9 +57,6 @@ func NormalizeAdmissionPolicy(policy AdmissionPolicy) AdmissionPolicy {
 	if policy.CPUOvercommitRatio == 0 {
 		policy.CPUOvercommitRatio = DefaultCPUOvercommitRatio
 	}
-	if strings.TrimSpace(policy.DefaultRuntimeName) == "" {
-		policy.DefaultRuntimeName = "runsc"
-	}
 	return policy
 }
 
@@ -81,22 +74,7 @@ func ValidateAdmissionPolicy(policy AdmissionPolicy) error {
 	if policy.CPUOvercommitRatio <= 0 || math.IsNaN(policy.CPUOvercommitRatio) || math.IsInf(policy.CPUOvercommitRatio, 0) {
 		return fmt.Errorf("resource cpu overcommit ratio must be > 0")
 	}
-	if policy.RunscRuntimeOverheadMemoryBytes < 0 {
-		return fmt.Errorf("runsc runtime overhead memory bytes must be >= 0")
-	}
 	return nil
-}
-
-func (p AdmissionPolicy) RuntimeMemoryOverhead(runtimeName string) int64 {
-	p = NormalizeAdmissionPolicy(p)
-	runtimeName = strings.TrimSpace(runtimeName)
-	if runtimeName == "" {
-		runtimeName = p.DefaultRuntimeName
-	}
-	if runtimeName == "runsc" {
-		return p.RunscRuntimeOverheadMemoryBytes
-	}
-	return 0
 }
 
 func (p AdmissionPolicy) EffectiveAllocatable(allocatable *commonv1.ResourceQuantity) Claim {

@@ -16,10 +16,3 @@ func TestAdmissionArithmeticSaturates(t *testing.T) {
 		t.Fatalf("SaturatingAdd() ordinary signed sum = %d", got)
 	}
 }
-
-func TestZeroRunscOverheadIsExplicit(t *testing.T) {
-	policy := NormalizeAdmissionPolicy(AdmissionPolicy{RunscRuntimeOverheadMemoryBytes: 0})
-	if got := policy.RuntimeMemoryOverhead("runsc"); got != 0 {
-		t.Fatalf("runsc overhead = %d, want explicit zero", got)
-	}
-}

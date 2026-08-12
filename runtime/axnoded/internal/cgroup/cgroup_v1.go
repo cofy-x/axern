@@ -19,6 +19,18 @@ type cgroupV1Driver struct{}
 
 func (d *cgroupV1Driver) Mode() string { return CgroupModeV1 }
 
+func (d *cgroupV1Driver) ResolveRoot(rootName string) (string, error) {
+	name, err := validateManagedRootName(rootName)
+	if err != nil {
+		return "", err
+	}
+	return normalizeGroup(name), nil
+}
+
+func (d *cgroupV1Driver) EnsureRoot(string) error {
+	return fmt.Errorf("allocation memory domains require unified cgroup v2")
+}
+
 func (d *cgroupV1Driver) Create(group string, resources *specs.LinuxResources) (Cgroup, error) {
 	cg, err := cg1.New(cg1.StaticPath(normalizeGroup(group)), resources, cg1.WithHiearchy(cg1.Default))
 	if err != nil {

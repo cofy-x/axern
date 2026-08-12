@@ -22,9 +22,9 @@ func (r *RunscServiceHandler) Wait(ctx context.Context, options contract.Handler
 		return contract.Exit{}, fmt.Errorf("runsc exit state is unreadable for %s: %w: %w", options.ContainerID, err, contract.ErrExitStatusUnavailable)
 	}
 
-	if exit, ok, err := r.waitWithOCI(ctx, options.ContainerID); ok {
-		if err != nil {
-			return exit, err
+	if exit, ok, waitErr := r.waitWithOCI(ctx, options.ContainerID); ok {
+		if waitErr != nil {
+			return exit, waitErr
 		}
 		accepted, persistErr := r.acceptWaitExit(ctx, options.ContainerID, exit)
 		if persistErr != nil {
@@ -33,6 +33,13 @@ func (r *RunscServiceHandler) Wait(ctx context.Context, options contract.Handler
 		if accepted {
 			return exit, nil
 		}
+	} else if runtimeContainerAbsent(waitErr, options.ContainerID) {
+		return contract.Exit{Timestamp: time.Now().UTC(), Status: -1}, fmt.Errorf(
+			"runsc container %s is absent before its exit state was consumed: %v: %w",
+			options.ContainerID,
+			waitErr,
+			contract.ErrExitStatusUnavailable,
+		)
 	}
 	if ctx.Err() != nil {
 		return contract.Exit{}, ctx.Err()
@@ -53,7 +60,16 @@ func (r *RunscServiceHandler) Wait(ctx context.Context, options contract.Handler
 			return contract.Exit{}, fmt.Errorf("runsc exit state is unreadable for %s: %w: %w", options.ContainerID, err, contract.ErrExitStatusUnavailable)
 		}
 
-		if state, err := r.state(ctx, options.ContainerID); err == nil && state.Status == string(contract.ContainerStatusExited) {
+		state, stateErr := r.state(ctx, options.ContainerID)
+		if runtimeContainerAbsent(stateErr, options.ContainerID) {
+			return contract.Exit{Timestamp: time.Now().UTC(), Status: -1}, fmt.Errorf(
+				"runsc container %s is absent before its exit state was consumed: %v: %w",
+				options.ContainerID,
+				stateErr,
+				contract.ErrExitStatusUnavailable,
+			)
+		}
+		if stateErr == nil && state.Status == string(contract.ContainerStatusExited) {
 			if stoppedWithoutExitAt.IsZero() {
 				stoppedWithoutExitAt = time.Now()
 			}

@@ -19,6 +19,7 @@ type runtimeSpyHandler struct {
 	capabilities         contract.RuntimeCapabilities
 	requirements         contract.RuntimeRequirements
 	waitExitCode         int
+	waitFunc             func(context.Context, contract.HandlerOptions) (contract.Exit, error)
 	createCalls          int
 	deleteCalls          int
 	lastOptions          contract.HandlerOptions
@@ -31,6 +32,7 @@ type runtimeSpyHandler struct {
 	launchDuration       time.Duration
 	listStates           []*contract.UnionContainerState
 	listError            error
+	listHook             func()
 	containerSpec        *specs.Spec
 	containerSpecError   error
 	createMetadataLabels map[string]string
@@ -117,6 +119,9 @@ func (h *runtimeSpyHandler) KillContainer(context.Context, *apipb.SignalContaine
 }
 
 func (h *runtimeSpyHandler) ListContainers(context.Context, contract.HandlerOptions) ([]*contract.UnionContainerState, error) {
+	if h.listHook != nil {
+		h.listHook()
+	}
 	if h.listStates != nil || h.listError != nil {
 		return h.listStates, h.listError
 	}
@@ -144,7 +149,10 @@ func (h *runtimeSpyHandler) FileService() contract.FileService { return nil }
 
 func (h *runtimeSpyHandler) CheckpointContainer(*apipb.CheckpointRequest) error { return nil }
 
-func (h *runtimeSpyHandler) Wait(context.Context, contract.HandlerOptions) (contract.Exit, error) {
+func (h *runtimeSpyHandler) Wait(ctx context.Context, options contract.HandlerOptions) (contract.Exit, error) {
+	if h.waitFunc != nil {
+		return h.waitFunc(ctx, options)
+	}
 	return contract.Exit{Status: h.waitExitCode}, nil
 }
 

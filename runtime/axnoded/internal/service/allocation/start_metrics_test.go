@@ -24,7 +24,8 @@ func (m *countingRootfsMounter) Resolve(cfg langrtmanager.RootfsConfig) (langrtm
 func (m *countingRootfsMounter) Reconcile([]string) error { return nil }
 
 func (m *countingRootfsMounter) Mount(cfg langrtmanager.RootfsConfig) (*langrtmanager.MountResult, error) {
-	return &langrtmanager.MountResult{Path: cfg.Path}, nil
+	mount, err := langrtmanager.DescribeLocalRootfs(cfg.Path)
+	return &langrtmanager.MountResult{Path: cfg.Path, ImmutableMount: mount}, err
 }
 
 func (m *countingRootfsMounter) Umount(langrtmanager.RootfsConfig) error {

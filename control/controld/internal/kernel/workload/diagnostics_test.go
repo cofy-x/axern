@@ -100,3 +100,14 @@ func TestClassifyDiagnostic(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveDiagnosticDoesNotParseMemoryOOMText(t *testing.T) {
+	status := commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED
+	message := "sandbox memory limit exceeded"
+	if got := ResolveDiagnostic(commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED, status, message); got != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_PROCESS_EXITED {
+		t.Fatalf("unstructured OOM text resolved to %v, want PROCESS_EXITED", got)
+	}
+	if got := ResolveDiagnostic(commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED, status, "operator text may change"); got != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED {
+		t.Fatalf("explicit OOM code resolved to %v", got)
+	}
+}

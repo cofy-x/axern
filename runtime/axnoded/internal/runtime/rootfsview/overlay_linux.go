@@ -74,26 +74,6 @@ func resolveOverlayLowerDirsFromInfo(rootDir string, mountInfo mountInfoEntry) (
 	return out, nil
 }
 
-func validateOverlayPath(name, candidate string) error {
-	if err := validateCanonicalAbsolutePath(name, candidate); err != nil {
-		return err
-	}
-	if strings.ContainsAny(candidate, `,:\`) || strings.ContainsAny(candidate, "\x00\n\r\t") {
-		return fmt.Errorf("%s contains an unsupported mount-option delimiter: %s", name, candidate)
-	}
-	return nil
-}
-
-func validateCanonicalAbsolutePath(name, candidate string) error {
-	if candidate == "" || !filepath.IsAbs(candidate) || filepath.Clean(candidate) != candidate {
-		return fmt.Errorf("%s must be a canonical absolute path: %s", name, candidate)
-	}
-	if strings.ContainsAny(candidate, "\x00\n\r\t") {
-		return fmt.Errorf("%s contains a control character", name)
-	}
-	return nil
-}
-
 func mountOverlayView(rootfs overlayView) error {
 	if len(rootfs.LowerDirs) == 0 {
 		return fmt.Errorf("overlay lowerdir is required")

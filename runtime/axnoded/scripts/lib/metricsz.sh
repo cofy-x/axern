@@ -29,6 +29,28 @@ metricsz_wait_capability_snapshot() {
   exit 1
 }
 
+metricsz_wait_platform_capability_available() {
+  local capability="$1"
+  local url="${INVENTORY_URL:-http://127.0.0.1:23001/inventoryz}"
+  local snapshot=""
+  for _ in $(seq 1 160); do
+    if snapshot="$(curl -fsS "${url}" 2>/dev/null)" && \
+      jq -e --arg capability "${capability}" '
+        [.node.capability_snapshot.observations[]?
+          | select(.key.platform == $capability and .state == "CAPABILITY_STATE_AVAILABLE")]
+        | length == 1
+      ' >/dev/null <<<"${snapshot}"; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "timed out waiting for available platform capability ${capability} from ${url}" >&2
+  jq -r '.node.capability_snapshot.observations[]? | [.key.platform, .state, .reason_code, .reason] | @tsv' \
+    <<<"${snapshot}" >&2 || true
+  exit 1
+}
+
 metricsz_value() {
   local snapshot="$1"
   local metric_name="$2"

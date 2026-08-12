@@ -100,6 +100,25 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 			EphemeralStorageBytes: snapshot.Node.Allocatable.EphemeralStorageBytes,
 		},
 		Storage: make([]*nodev1.NodeStorageSummary, 0, len(snapshot.Storage)),
+		MemoryBudget: &nodev1.NodeMemoryBudget{
+			PhysicalCapacityBytes:     snapshot.Node.MemoryBudget.PhysicalCapacityBytes,
+			SourceAllocatableBytes:    snapshot.Node.MemoryBudget.SourceAllocatableBytes,
+			DelegatedRootLimitBytes:   snapshot.Node.MemoryBudget.DelegatedRootLimitBytes,
+			DelegatedRootLimitFinite:  snapshot.Node.MemoryBudget.DelegatedRootLimitFinite,
+			SystemReserveBytes:        snapshot.Node.MemoryBudget.SystemReserveBytes,
+			EffectiveAllocatableBytes: snapshot.Node.MemoryBudget.EffectiveAllocatableBytes,
+			LocalCommitmentBytes:      snapshot.Node.MemoryBudget.LocalCommitmentBytes,
+			CleanupDebtBytes:          snapshot.Node.MemoryBudget.CleanupDebtBytes,
+			InternalCurrentBytes:      snapshot.Node.MemoryBudget.InternalCurrentBytes,
+			CapacityIdentity:          snapshot.Node.MemoryBudget.CapacityIdentity,
+			Mode:                      memoryBudgetModeToProto(snapshot.Node.MemoryBudget.Mode),
+			RetiringCgroupCount:       int32(snapshot.Node.MemoryBudget.RetiringCgroupCount),
+			OldestRetiringAgeSeconds:  snapshot.Node.MemoryBudget.OldestRetiringAgeSeconds,
+			SystemReserveExhausted:    snapshot.Node.MemoryBudget.SystemReserveExhausted,
+		},
+	}
+	if !snapshot.Node.MemoryBudget.SampledAt.IsZero() {
+		summary.MemoryBudget.SampledAt = timestamppb.New(snapshot.Node.MemoryBudget.SampledAt)
 	}
 	if !snapshot.Components.Volumed.LastReconcileAt.IsZero() {
 		summary.Components.Volumed.LastReconcileAt = timestamppb.New(snapshot.Components.Volumed.LastReconcileAt)
@@ -144,6 +163,17 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 		})
 	}
 	return summary
+}
+
+func memoryBudgetModeToProto(mode string) nodev1.NodeMemoryBudgetMode {
+	switch mode {
+	case "cgroup_v2":
+		return nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2
+	case "disabled_dev":
+		return nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_DISABLED_DEV
+	default:
+		return nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_UNSPECIFIED
+	}
 }
 
 func cloneCapabilitySnapshot(in *capabilityv1.CapabilitySnapshot) *capabilityv1.CapabilitySnapshot {

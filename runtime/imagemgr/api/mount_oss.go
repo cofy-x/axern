@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -42,9 +43,23 @@ func (w *HttpWorker) MountOSS(ctx context.Context, req *OSSMountRequest) (*Mount
 	if record == nil {
 		record = &mountstore.Record{CacheKey: key, MountType: string(MountTypeOSS), MountPoint: info.MountPath, Endpoint: req.Endpoint, Bucket: req.Bucket, Object: req.Object}
 	}
+	rollbackCreated := func(cause error) error {
+		if !createdResource {
+			return cause
+		}
+		return errors.Join(cause, w.unmountOSSResource(ctx, record))
+	}
+	lowerDirs, err := w.ossLoopMgr.EffectiveLowerDirs(generateOSSID(req.Endpoint, req.Bucket, req.Object))
+	if err != nil {
+		return nil, rollbackCreated(fmt.Errorf("resolve OSS immutable lower dirs: %w", err))
+	}
+	info.ImmutableMount, err = immutableMountDescriptor(info.MountPath, req.LeaseID, "overlay", generateOSSID(req.Endpoint, req.Bucket, req.Object), lowerDirs, []string{"ext4"})
+	if err != nil {
+		return nil, rollbackCreated(fmt.Errorf("describe OSS immutable mount: %w", err))
+	}
 	if _, err := w.mountStore.Acquire(record, req.LeaseID, req.Owner); err != nil {
 		if createdResource {
-			_ = w.unmountOSSResource(ctx, record)
+			return nil, errors.Join(fmt.Errorf("persist OSS mount lease: %w", err), w.unmountOSSResource(ctx, record))
 		}
 		return nil, fmt.Errorf("persist OSS mount lease: %w", err)
 	}

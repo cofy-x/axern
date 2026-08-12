@@ -66,6 +66,10 @@ func (f *fakeRunAllocationStore) BatchReportAllocationCapabilityConditions(conte
 	return nil
 }
 
+func (f *fakeRunAllocationStore) BatchReportAllocationMemoryObservations(context.Context, string, []*nodev1.AllocationMemoryObservation, time.Time) error {
+	return nil
+}
+
 func (f *fakeRunAllocationStore) ReconcileNodeInventory(context.Context, allocationkernel.NodeInventorySnapshot, time.Time) error {
 	return nil
 }

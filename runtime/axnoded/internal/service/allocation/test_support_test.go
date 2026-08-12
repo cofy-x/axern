@@ -10,6 +10,7 @@ import (
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
@@ -37,6 +38,10 @@ func newTestAllocationController(t *testing.T, handlers map[string]contract.Runt
 }
 
 func newTestAllocationControllerWithStore(t *testing.T, handlers map[string]contract.RuntimeHandler, dbStore testStateStore, publisher fakeVolumePublisher) testAllocationController {
+	return newTestAllocationControllerWithResources(t, handlers, dbStore, publisher, newTestResourceManagers()...)
+}
+
+func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]contract.RuntimeHandler, dbStore testStateStore, publisher fakeVolumePublisher, managers ...resourcemanager.Manager) testAllocationController {
 	t.Helper()
 
 	if dbStore == nil {
@@ -62,10 +67,17 @@ func newTestAllocationControllerWithStore(t *testing.T, handlers map[string]cont
 	for name, h := range handlers {
 		registry.Set(name, h)
 	}
-	manager, err := container.NewManager(tmpDir, registry.Map(), make(chan bool, 10), newTestResourceManagers()...)
+	manager, err := container.NewManager(tmpDir, registry.Map(), make(chan bool, 10), managers...)
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := manager.Stop(ctx); err != nil {
+			t.Errorf("stop test container manager: %v", err)
+		}
+	})
 	lrtManager := langrtmanager.NewLanguageRuntimeManager()
 	volumes := servicevolumes.NewCoordinator(servicevolumes.Options{
 		Publisher: publisher,

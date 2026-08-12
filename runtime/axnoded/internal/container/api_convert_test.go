@@ -2,6 +2,7 @@ package container
 
 import (
 	"testing"
+	"time"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
@@ -24,6 +25,20 @@ func TestParseTimestamp(t *testing.T) {
 				t.Errorf("ParseTimestamp() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestParseTimestampTimePreservesNanoseconds(t *testing.T) {
+	const raw = "2023-03-30T15:53:15.73829398+08:00"
+	want, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ParseTimestampTime(raw); !got.Equal(want) {
+		t.Fatalf("ParseTimestampTime() = %s, want %s", got, want)
+	}
+	if got := ParseTimestampTime("malformed"); !got.IsZero() {
+		t.Fatalf("ParseTimestampTime(malformed) = %s, want zero", got)
 	}
 }
 

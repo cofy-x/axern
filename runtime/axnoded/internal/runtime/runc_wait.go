@@ -34,6 +34,14 @@ func (r *RuncServiceHandler) Wait(ctx context.Context, options contract.HandlerO
 
 		state, err := r.state(ctx, options.ContainerID)
 		if err != nil {
+			if runtimeContainerAbsent(err, options.ContainerID) {
+				return contract.Exit{Timestamp: time.Now().UTC(), Status: -1}, fmt.Errorf(
+					"runc container %s is absent before its init monitor exit state was consumed: %v: %w",
+					options.ContainerID,
+					err,
+					contract.ErrExitStatusUnavailable,
+				)
+			}
 			return contract.Exit{}, fmt.Errorf("read runc state while waiting for %s: %w", options.ContainerID, err)
 		}
 		if state.Status == string(contract.ContainerStatusExited) {

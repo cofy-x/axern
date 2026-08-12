@@ -3,14 +3,18 @@ package resources
 import (
 	"context"
 	"errors"
+	"math"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
+	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/queue"
@@ -18,7 +22,13 @@ import (
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 )
+
+type discardStateStore struct{}
+
+func (discardStateStore) SaveSnapshot(string, proto.Message) error { return nil }
+func (discardStateStore) LoadSnapshot(string, proto.Message) error { return errord.ErrNotFound }
 
 type trackingPool struct {
 	name          ResourceName
@@ -47,9 +57,16 @@ func (p *trackingPool) CacheSizeLimit() int { return p.maxCacheSize }
 
 type warmPoolStubCgroupDriver struct {
 	createCalls int
+	processes   []int
+	removeCalls int
+	removeErr   error
 }
 
-func (d *warmPoolStubCgroupDriver) Mode() string { return os2.CgroupModeV2 }
+func (d *warmPoolStubCgroupDriver) Mode() string            { return os2.CgroupModeV2 }
+func (d *warmPoolStubCgroupDriver) EnsureRoot(string) error { return nil }
+func (d *warmPoolStubCgroupDriver) ResolveRoot(rootName string) (string, error) {
+	return "/" + rootName, nil
+}
 
 func (d *warmPoolStubCgroupDriver) Create(group string, resources *spec.LinuxResources) (os2.Cgroup, error) {
 	d.createCalls++
@@ -57,21 +74,48 @@ func (d *warmPoolStubCgroupDriver) Create(group string, resources *spec.LinuxRes
 }
 
 func (d *warmPoolStubCgroupDriver) Load(group string) (os2.Cgroup, error) {
-	return &warmPoolStubCgroup{}, nil
+	return &warmPoolStubCgroup{processes: append([]int(nil), d.processes...)}, nil
 }
 func (d *warmPoolStubCgroupDriver) ExistingGroups(rootName string) ([]string, error) {
 	return nil, nil
 }
-func (d *warmPoolStubCgroupDriver) Remove(group string) error   { return nil }
+func (d *warmPoolStubCgroupDriver) Remove(group string) error {
+	d.removeCalls++
+	return d.removeErr
+}
 func (d *warmPoolStubCgroupDriver) LocalCPUCount() (int, error) { return 1, nil }
 
-type warmPoolStubCgroup struct{}
+type warmPoolStubCgroup struct {
+	processes []int
+}
+
+type gcRetirementMemoryStub struct {
+	observation  *hostlinux.CgroupMemoryObservation
+	reclaim      hostlinux.CgroupMemoryReclaimResult
+	reclaimErr   error
+	reclaimCalls int
+}
+
+func (s *gcRetirementMemoryStub) InspectParent(string) (*hostlinux.CgroupMemoryDomain, error) {
+	return &hostlinux.CgroupMemoryDomain{}, nil
+}
+
+func (s *gcRetirementMemoryStub) ReadObservation(string) (*hostlinux.CgroupMemoryObservation, error) {
+	return s.observation, nil
+}
+
+func (s *gcRetirementMemoryStub) Reclaim(string) (hostlinux.CgroupMemoryReclaimResult, error) {
+	s.reclaimCalls++
+	return s.reclaim, s.reclaimErr
+}
 
 func (c *warmPoolStubCgroup) Update(resources *spec.LinuxResources) error { return nil }
 func (c *warmPoolStubCgroup) Delete() error                               { return nil }
 func (c *warmPoolStubCgroup) Stats() (*os2.CgroupStats, error)            { return &os2.CgroupStats{}, nil }
 func (c *warmPoolStubCgroup) AddProc(pid uint64) error                    { return nil }
-func (c *warmPoolStubCgroup) Processes(recursive bool) ([]int, error)     { return nil, nil }
+func (c *warmPoolStubCgroup) Processes(recursive bool) ([]int, error) {
+	return append([]int(nil), c.processes...), nil
+}
 
 func resourcePoolAttrs(resource string) map[string]string {
 	return map[string]string{sdkobs.AttrResource: resource}
@@ -90,6 +134,23 @@ func TestPoolControllerCoalescesPendingRequests(t *testing.T) {
 	controller.request(ResourcePoolTriggerAllocationMiss)
 	if got := len(controller.triggerC); got != 1 {
 		t.Fatalf("pending trigger queue len = %d, want 1", got)
+	}
+}
+
+func TestCgroupAllocateDisabledDevDoesNotRequireMemcgCapacitySample(t *testing.T) {
+	driver := &warmPoolStubCgroupDriver{}
+	manager := &CgroupManager{
+		size: 2, cacheSize: 1, rootName: "/sandbox",
+		usingID: cmap.New[struct{}](), idleID: queue.New(""), leases: cmap.New[*apipb.CgroupLease](),
+		cgroups: cmap.New[struct{}](), gcQueue: queue.New(""), generator: truncindex.NewFixLenGenerator(12, nil, truncindex.PrefixModifier("/sandbox/")),
+		cgroupDriver: driver, db: discardStateStore{}, memoryAdmissionRequired: false,
+	}
+	resource, err := manager.Allocate(AllocateOption{ContainerID: "dev-allocation", MemoryRequestBytes: 4 << 30})
+	if err != nil {
+		t.Fatalf("Allocate() in disabled_dev mode error = %v", err)
+	}
+	if resource == nil || resource.ToString() == "" {
+		t.Fatal("Allocate() in disabled_dev mode returned no cgroup")
 	}
 }
 
@@ -132,19 +193,21 @@ func TestCgroupManagerAllocateUsesIdlePool(t *testing.T) {
 
 	driver := &warmPoolStubCgroupDriver{}
 	manager := &CgroupManager{
-		size:                 2,
-		cacheSize:            1,
-		rootName:             "sandbox",
-		usingID:              cmap.New[struct{}](),
-		idleID:               queue.New(""),
-		cgroups:              cmap.New[struct{}](),
-		generator:            truncindex.NewFixLenGenerator(12, nil, truncindex.PrefixModifier("/sandbox/")),
-		enableDestroyRecycle: false,
-		gcQueue:              queue.New(""),
-		cgroupDriver:         driver,
+		size:         2,
+		cacheSize:    1,
+		rootName:     "sandbox",
+		usingID:      cmap.New[struct{}](),
+		idleID:       queue.New(""),
+		cgroups:      cmap.New[struct{}](),
+		generator:    truncindex.NewFixLenGenerator(12, nil, truncindex.PrefixModifier("/sandbox/")),
+		leases:       cmap.New[*apipb.CgroupLease](),
+		gcQueue:      queue.New(""),
+		cgroupDriver: driver,
+		db:           discardStateStore{},
 	}
 	manager.idleID.Push("/sandbox/existing")
 	manager.cgroups.Set("/sandbox/existing", struct{}{})
+	manager.leases.Set("/sandbox/existing", &apipb.CgroupLease{CgroupID: "/sandbox/existing", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE})
 
 	attrs := resourcePoolAllocateAttrs("cgroup", ResourcePoolAllocateHit)
 	before := metrics.CounterValueForTest(metrics.MetricResourcePoolAllocateTotal, attrs)
@@ -155,24 +218,216 @@ func TestCgroupManagerAllocateUsesIdlePool(t *testing.T) {
 	assert.Equal(t, before+1, metrics.CounterValueForTest(metrics.MetricResourcePoolAllocateTotal, attrs))
 }
 
+func TestCgroupManagerMemoryAdmissionRequiresFreshCommitmentAndUsageHeadroom(t *testing.T) {
+	newManager := func(snapshot MemoryCapacitySnapshot) *CgroupManager {
+		manager := &CgroupManager{
+			size: 2, cacheSize: 1, rootName: "sandbox",
+			usingID: cmap.New[struct{}](), idleID: queue.New(""), cgroups: cmap.New[struct{}](), leases: cmap.New[*apipb.CgroupLease](),
+			generator: truncindex.NewFixLenGenerator(12, nil, truncindex.PrefixModifier("/sandbox/")),
+			gcQueue:   queue.New(""), cgroupDriver: &warmPoolStubCgroupDriver{}, db: discardStateStore{}, memoryCapacity: snapshot,
+			memoryAdmissionRequired: true,
+		}
+		manager.idleID.Push("/sandbox/idle")
+		manager.cgroups.Set("/sandbox/idle", struct{}{})
+		manager.leases.Set("/sandbox/idle", &apipb.CgroupLease{CgroupID: "/sandbox/idle", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE})
+		return manager
+	}
+	base := MemoryCapacitySnapshot{EffectiveAllocatableBytes: 1024, CapacityIdentity: "boot:mount:root", SampledAt: time.Now().UTC()}
+	stale := base
+	stale.SampledAt = time.Now().Add(-memoryCapacityFreshness - time.Second)
+	if _, err := newManager(stale).Allocate(AllocateOption{ContainerID: "stale", MemoryRequestBytes: 1}); err == nil {
+		t.Fatal("Allocate() accepted stale memory capacity")
+	}
+	hot := base
+	hot.SandboxCurrentBytes = 900
+	if _, err := newManager(hot).Allocate(AllocateOption{ContainerID: "hot", MemoryRequestBytes: 128}); !errors.Is(err, errord.ErrResourceExhausted) {
+		t.Fatalf("Allocate() current headroom error = %v, want resource exhausted", err)
+	}
+	manager := newManager(base)
+	manager.leases.Set("/sandbox/existing", &apipb.CgroupLease{
+		CgroupID: "/sandbox/existing", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
+		AllocationID: "existing", MemoryRequestBytes: 900, AssignedAtUnixNano: 1,
+	})
+	if _, err := manager.Allocate(AllocateOption{ContainerID: "committed", MemoryRequestBytes: 128}); !errors.Is(err, errord.ErrResourceExhausted) {
+		t.Fatalf("Allocate() commitment error = %v, want resource exhausted", err)
+	}
+}
+
+func TestMemoryCommitmentSaturatesInsteadOfWrapping(t *testing.T) {
+	manager := &CgroupManager{leases: cmap.New[*apipb.CgroupLease]()}
+	manager.leases.Set("/sandbox/a", &apipb.CgroupLease{
+		CgroupID: "/sandbox/a", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
+		AllocationID: "a", MemoryRequestBytes: 1<<62 + 1, AssignedAtUnixNano: 1,
+	})
+	manager.leases.Set("/sandbox/b", &apipb.CgroupLease{
+		CgroupID: "/sandbox/b", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+		AllocationID: "b", MemoryRequestBytes: 1<<62 + 1, RetiringAtUnixNano: 1,
+	})
+	commitment := manager.MemoryCommitment()
+	if commitment.CommittedBytes != math.MaxInt64 || commitment.CleanupDebtBytes != 1<<62+1 {
+		t.Fatalf("MemoryCommitment() = %+v", commitment)
+	}
+}
+
+func TestConvergeRetiringCgroupChargesOrphanBeforeRemainingProcessRetry(t *testing.T) {
+	id := "/sandbox/orphan"
+	driver := &warmPoolStubCgroupDriver{processes: []int{123}}
+	manager := &CgroupManager{
+		leases: cmap.New[*apipb.CgroupLease](), cgroups: cmap.New[struct{}](),
+		cgroupDriver: driver, db: discardStateStore{},
+		retirementMemory: &gcRetirementMemoryStub{
+			observation: &hostlinux.CgroupMemoryObservation{CurrentBytes: 4096, Stat: map[string]int64{}},
+		},
+	}
+	manager.leases.Set(id, &apipb.CgroupLease{
+		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+		RetiringAtUnixNano: time.Now().UTC().UnixNano(), LastCleanupError: "cgroup has no durable ownership record",
+	})
+	manager.cgroups.Set(id, struct{}{})
+
+	if err := manager.convergeRetiringCgroup(id); err == nil {
+		t.Fatal("convergeRetiringCgroup() accepted an orphan cgroup with remaining processes")
+	}
+	lease, _ := manager.leases.Get(id)
+	if got := lease.GetCurrentChargedBytes(); got != 4096 {
+		t.Fatalf("orphan cleanup charge = %d, want 4096", got)
+	}
+	commitment := manager.MemoryCommitment()
+	if commitment.CommittedBytes != 4096 || commitment.CleanupDebtBytes != 4096 {
+		t.Fatalf("orphan cleanup commitment = %+v, want 4096 bytes of debt", commitment)
+	}
+}
+
+func TestConvergeRetiringCgroupRemovesEmptyDomainWithResidualWritebackWithoutMemoryReclaim(t *testing.T) {
+	id := "/sandbox/without-memory-reclaim"
+	driver := &warmPoolStubCgroupDriver{}
+	memory := &gcRetirementMemoryStub{
+		observation: &hostlinux.CgroupMemoryObservation{
+			CurrentBytes: 4096,
+			Stat:         map[string]int64{"file_dirty": 135168, "file_writeback": 4096},
+		},
+		reclaim: hostlinux.CgroupMemoryReclaimUnavailable,
+	}
+	manager := &CgroupManager{
+		leases: cmap.New[*apipb.CgroupLease](), cgroups: cmap.New[struct{}](),
+		cgroupDriver: driver, db: discardStateStore{}, retirementMemory: memory,
+	}
+	manager.leases.Set(id, &apipb.CgroupLease{
+		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+		AllocationID: "self-test", MemoryRequestBytes: 1024, RetiringAtUnixNano: time.Now().UTC().UnixNano(),
+	})
+	manager.cgroups.Set(id, struct{}{})
+
+	if err := manager.convergeRetiringCgroup(id); err != nil {
+		t.Fatalf("convergeRetiringCgroup() error = %v", err)
+	}
+	if memory.reclaimCalls != 1 || driver.removeCalls != 1 {
+		t.Fatalf("cleanup calls: reclaim=%d remove=%d, want 1 each", memory.reclaimCalls, driver.removeCalls)
+	}
+	lease, _ := manager.leases.Get(id)
+	if lease.GetCurrentChargedBytes() != 4096 || lease.GetReclaimRequestedAtUnixNano() != 0 {
+		t.Fatalf("retiring lease = %+v", lease)
+	}
+}
+
+func TestConvergeRetiringCgroupKeepsDebtWhenRemovalFailsWithoutMemoryReclaim(t *testing.T) {
+	id := "/sandbox/without-memory-reclaim-busy"
+	removeErr := errors.New("cgroup is still busy")
+	driver := &warmPoolStubCgroupDriver{removeErr: removeErr}
+	memory := &gcRetirementMemoryStub{
+		observation: &hostlinux.CgroupMemoryObservation{
+			CurrentBytes: 4096,
+			Stat:         map[string]int64{"file_dirty": 135168, "file_writeback": 4096},
+		},
+		reclaim: hostlinux.CgroupMemoryReclaimUnavailable,
+	}
+	manager := &CgroupManager{
+		leases: cmap.New[*apipb.CgroupLease](), cgroups: cmap.New[struct{}](),
+		cgroupDriver: driver, db: discardStateStore{}, retirementMemory: memory,
+	}
+	manager.leases.Set(id, &apipb.CgroupLease{
+		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+		AllocationID: "self-test", MemoryRequestBytes: 1024, RetiringAtUnixNano: time.Now().UTC().UnixNano(),
+	})
+	manager.cgroups.Set(id, struct{}{})
+
+	err := manager.convergeRetiringCgroup(id)
+	if !errors.Is(err, removeErr) {
+		t.Fatalf("convergeRetiringCgroup() error = %v, want removal failure", err)
+	}
+	if memory.reclaimCalls != 1 || driver.removeCalls != 1 {
+		t.Fatalf("cleanup calls: reclaim=%d remove=%d, want 1 each", memory.reclaimCalls, driver.removeCalls)
+	}
+	lease, ok := manager.leases.Get(id)
+	if !ok || lease.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING || lease.GetCurrentChargedBytes() != 4096 {
+		t.Fatalf("failed removal released cleanup debt: lease=%+v present=%v", lease, ok)
+	}
+}
+
+func TestConvergeRetiringCgroupPersistsSuccessfulReclaimBeforeRemoval(t *testing.T) {
+	id := "/sandbox/with-memory-reclaim"
+	driver := &warmPoolStubCgroupDriver{}
+	memory := &gcRetirementMemoryStub{
+		observation: &hostlinux.CgroupMemoryObservation{CurrentBytes: 4096, Stat: map[string]int64{}},
+		reclaim:     hostlinux.CgroupMemoryReclaimRequested,
+	}
+	manager := &CgroupManager{
+		leases: cmap.New[*apipb.CgroupLease](), cgroups: cmap.New[struct{}](),
+		cgroupDriver: driver, db: discardStateStore{}, retirementMemory: memory,
+	}
+	manager.leases.Set(id, &apipb.CgroupLease{
+		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+		AllocationID: "self-test", MemoryRequestBytes: 1024, RetiringAtUnixNano: time.Now().UTC().UnixNano(),
+	})
+	manager.cgroups.Set(id, struct{}{})
+
+	err := manager.convergeRetiringCgroup(id)
+	if err == nil || !strings.Contains(err.Error(), "reclaim requested") {
+		t.Fatalf("convergeRetiringCgroup() error = %v, want settling retry", err)
+	}
+	if memory.reclaimCalls != 1 || driver.removeCalls != 0 {
+		t.Fatalf("cleanup calls: reclaim=%d remove=%d, want reclaim only", memory.reclaimCalls, driver.removeCalls)
+	}
+	lease, _ := manager.leases.Get(id)
+	if lease.GetReclaimRequestedAtUnixNano() == 0 {
+		t.Fatal("successful reclaim was not persisted before retry")
+	}
+}
+
+func TestMissingKernelLeaseOnlyConvergesWhenUnassigned(t *testing.T) {
+	if missingKernelLeaseConverged(apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED) {
+		t.Fatal("assigned cgroup ownership was treated as cleanup-complete before runtime reconciliation")
+	}
+	for _, state := range []apipb.CgroupLifecycleState{
+		apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE,
+		apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+	} {
+		if !missingKernelLeaseConverged(state) {
+			t.Fatalf("missing kernel lease state %s did not converge", state)
+		}
+	}
+}
+
 func TestCgroupManagerAllocateReturnsExhaustedWhenAtCapacity(t *testing.T) {
 	metrics.ResetForTest()
 
 	driver := &warmPoolStubCgroupDriver{}
 	manager := &CgroupManager{
-		size:                 1,
-		cacheSize:            1,
-		rootName:             "sandbox",
-		usingID:              cmap.New[struct{}](),
-		idleID:               queue.New(""),
-		cgroups:              cmap.New[struct{}](),
-		generator:            truncindex.NewFixLenGenerator(12, nil, truncindex.PrefixModifier("/sandbox/")),
-		enableDestroyRecycle: false,
-		gcQueue:              queue.New(""),
-		cgroupDriver:         driver,
+		size:         1,
+		cacheSize:    1,
+		rootName:     "sandbox",
+		usingID:      cmap.New[struct{}](),
+		idleID:       queue.New(""),
+		cgroups:      cmap.New[struct{}](),
+		generator:    truncindex.NewFixLenGenerator(12, nil, truncindex.PrefixModifier("/sandbox/")),
+		leases:       cmap.New[*apipb.CgroupLease](),
+		gcQueue:      queue.New(""),
+		cgroupDriver: driver,
+		db:           discardStateStore{},
 	}
 	manager.cgroups.Set("/sandbox/in-use", struct{}{})
 	manager.usingID.Set("/sandbox/in-use", struct{}{})
+	manager.leases.Set("/sandbox/in-use", &apipb.CgroupLease{CgroupID: "/sandbox/in-use", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED, AllocationID: "full", AssignedAtUnixNano: 1})
 
 	attrs := resourcePoolAllocateAttrs("cgroup", ResourcePoolAllocateExhausted)
 	before := metrics.CounterValueForTest(metrics.MetricResourcePoolAllocateTotal, attrs)

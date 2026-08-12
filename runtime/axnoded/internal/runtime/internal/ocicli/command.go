@@ -42,6 +42,13 @@ func IsContainerNotFound(err error, containerID string) bool {
 	output := strings.ToLower(commandErr.Output)
 	for line := range strings.Lines(output) {
 		line = strings.TrimSpace(line)
+		// Current runc emits a scoped logrus error without echoing the ID for
+		// commands such as `runc state <container-id>`. Accept only its complete
+		// canonical message (plain or as the final structured msg field); a
+		// broader substring match could misclassify a missing bundle or rootfs.
+		if line == "container does not exist" || strings.HasSuffix(line, ` msg="container does not exist"`) {
+			return true
+		}
 		if strings.Contains(line, "no such container: "+containerID) || strings.Contains(line, "no such container "+containerID) {
 			return true
 		}

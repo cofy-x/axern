@@ -70,8 +70,11 @@ func (c *controller) handleScaleUpAdmissionError(ctx context.Context, current *s
 }
 
 func (c *controller) filterStorageCandidates(ctx context.Context, current *servicev1.Service, candidates []*placementkernel.Candidate) ([]*placementkernel.Candidate, error) {
-	if c.storage == nil || len(current.GetConfig().GetVolumeMounts()) == 0 {
+	if len(current.GetConfig().GetVolumeMounts()) == 0 {
 		return candidates, nil
+	}
+	if c.storage == nil {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "service volume mounts require a storage coordinator")
 	}
 	requirements, err := c.storage.ResolveRequirements(ctx, current.GetNamespace(), current.GetID(), current.GetConfig())
 	if err != nil {
@@ -103,8 +106,11 @@ func requirementsAllowNode(requirements []*privatestoragev1.VolumeRequirement, n
 }
 
 func (c *controller) reserveStorage(ctx context.Context, current *servicev1.Service, alloc *servicekernel.AllocationRecord) ([]*privatestoragev1.ResolvedNodeVolume, error) {
-	if c.storage == nil || len(current.GetConfig().GetVolumeMounts()) == 0 {
+	if len(current.GetConfig().GetVolumeMounts()) == 0 {
 		return nil, nil
+	}
+	if c.storage == nil {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "service volume mounts require a storage coordinator")
 	}
 	volumes, err := c.storage.ReserveBindings(ctx, servicekernel.StorageReserveRequest{
 		Namespace:    current.GetNamespace(),

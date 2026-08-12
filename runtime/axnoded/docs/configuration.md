@@ -1,8 +1,10 @@
 # Configuration
 
 This document explains the operator-facing meaning of
-[`sample_conf.toml`](sample_conf.toml). Keep the sample file runnable and use
-this page for context, profiles, and troubleshooting hints.
+[`sample_conf.toml`](sample_conf.toml). The sample is a production-shaped
+operator template, not a universal runnable default: required qualification
+values such as `memory_system_reserve_bytes` must be supplied before startup.
+Use this page for context, profiles, and troubleshooting hints.
 
 `axnoded` starts from `config.DefaultConfig()`, then overlays the TOML file
 passed by `-config`. If `-config` is omitted, it reads
@@ -16,7 +18,7 @@ endpoints and logging for the current daemon invocation.
 
 | File | Role |
 | --- | --- |
-| [`sample_conf.toml`](sample_conf.toml) | runnable reference config for local and generic Linux nodes |
+| [`sample_conf.toml`](sample_conf.toml) | production-shaped reference template with deliberately unset environment qualification values |
 | [`../config/config.go`](../config/config.go) | TOML schema, normalization helpers, and default overlay behavior |
 | [`../config/defaults.go`](../config/defaults.go) | default values used before TOML overlay |
 | [Resource Handling](resource.md) | cgroup/interface pool behavior behind `[plugin.resource]` and `[plugin.network]` |
@@ -68,6 +70,12 @@ Extension capability declarations are config-static facts. Platform facts are
 owned by probes and derived policy, and therefore have no configuration list or
 operator override.
 
+Failure of the configured node resource source is fail-closed. Axnoded retains
+the last successful values only in its local inventory for diagnosis; it stops
+publishing heartbeats and invalidates node-local memory admission until a new
+authoritative resource sample succeeds. Cached Kubernetes capacity is never
+re-timestamped as current capacity.
+
 ## Network
 
 `[plugin.network]` configures sandbox bridge/veth networking.
@@ -107,12 +115,12 @@ implementation details are covered in [Resource Handling](resource.md).
 
 | Key | Meaning | Notes |
 | --- | --- | --- |
-| `cgroup_cache_size` | Idle cgroup target. | `0` disables the pool and is valid only when every loaded runtime ignores cgroups; must not exceed `max_instance_num`. |
+| `cgroup_cache_size` | Never-assigned warm cgroup target. | `0` disables prewarming only; required enforcement still creates a fresh one-use cgroup per allocation. Must not exceed `max_instance_num`. |
 | `interface_cache_size` | Idle interface target. | `0` disables the pool and is valid only when no loaded runtime requires interfaces; must not exceed `max_instance_num`. |
-| `cgroup_root_name` | Cgroup root path managed by axnoded. | Defaults to `/sandbox`. |
+| `cgroup_root_name` | Single child name created under axnoded's delegated cgroup-v2 root. | Defaults to `sandbox`. |
 | `max_instance_num` | Positive hard cap for using plus idle resources. | Must not exceed the container hard limit; exhaustion can also come from IP capacity. |
+| `memory_system_reserve_bytes` | Memory reserved for axnoded, lifecycle monitors, and node-local daemons outside sandbox cgroups. | Explicit positive qualification value is mandatory with `cgroup_enforcement = "required"`; `disabled_dev` must use zero because it has no enforceable internal cgroup accounting. There is intentionally no production default. |
 | `resource_pool_reconcile_interval` | Reconcile interval for filling warm pools. | Empty or non-positive falls back to `1s`. |
-| `recycle_policy` | Cgroup recycle mode. | `reuse` returns deleted cgroups to idle; `destroy` sends them to GC. |
 
 Useful symptoms:
 
@@ -198,7 +206,7 @@ EROFS lower, ephemeral-storage backing, quota, and cleanup contract.
 | eBPF dataplane verification | Set `nat_backend = "ebpf"`; keep `local_out_compat = true` and `iptables_fallback = true`; confirm bpffs and privileged host access. |
 | Control-plane connected node | Set `control_plane_target`, stable `control_plane_node_id`, reachable `control_plane_node_target`, auth token, TLS paths, labels, and optional extension capabilities. Platform capabilities come from observed providers. |
 | Kubernetes production node | Set `control_plane_node_resource_source = "kubernetes"` and pass the Kubernetes Node name; the Helm chart does this by default and grants read-only `nodes/get` RBAC. |
-| Production node | Move `rootDir`, `storeDir`, and `image_lib_dir` to durable host paths; run `volumed` with durable state and local volume roots; set explicit DNS if node resolvers are not suitable for sandboxes. |
+| Production node | Move `rootDir`, `storeDir`, and `image_lib_dir` to durable host paths; run `volumed` with durable state and local volume roots; set explicit DNS if node resolvers are not suitable for sandboxes; provide the qualified `memory_system_reserve_bytes` receipt value. |
 
 ## Troubleshooting By Config Area
 

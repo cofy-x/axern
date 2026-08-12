@@ -5,6 +5,14 @@ This is the authoritative verification matrix for `runtime/axnoded`. Use
 knobs. Run commands from `runtime/axnoded` unless you intentionally use root
 wrappers such as `make axnoded-verify-docker`.
 
+Use the repository-wide [verification tiers](../../../docs/verification/local-full-verification.md):
+targeted/host-safe checks are the normal development loop; affected Linux
+integration is the local runtime gate; destructive real-OOM, disk-fill,
+page-cache attribution, repeated concurrency matrices, and reserve calibration
+are external environment qualification owned by the deployment workspace, not
+this repository's local matrix. Do not place qualification workloads in a
+periodic provider or per-allocation audit.
+
 ## Quick Check
 
 ```bash
@@ -67,9 +75,10 @@ Use `make verify-sandboxd-oci-e2e` directly when the change is narrowly scoped
 to runtime bundle injection or PID 1 wiring.
 
 Use the full root `verify-all` only when a release or broad runtime change needs
-complete confidence. On failure, the root script prints the failed step, the raw
-command, and a copyable `--from <step>` resume command; rerun the exact failed
-step once manually when the first failure looks environmental.
+complete confidence. It is not the normal local edit loop and should not be
+restarted from step one after a late failure. The root script prints the failed
+step, raw command, and a copyable `--from <step>` resume command; reproduce the
+exact failed step directly, fix it, then resume from that boundary.
 
 ## Release Assets
 
