@@ -36,6 +36,26 @@ func TestRuncHandlerWaitReturnsUnavailableWhenRuntimeContainerIsAbsent(t *testin
 	assert.Equal(t, -1, exit.Status)
 }
 
+func TestRuncHandlerWaitAcceptsScopedAbsentOutputWithoutContainerID(t *testing.T) {
+	rootDir := t.TempDir()
+	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
+	if err != nil {
+		t.Fatalf("NewBundleLoader() error = %v", err)
+	}
+
+	handler, err := NewRuncServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunc, config.RuntimeInstanceConfig{Binary: "/usr/bin/runc"}, loader)
+	if err != nil {
+		t.Fatalf("NewRuncServiceHandler() error = %v", err)
+	}
+	handler.common.SetExecutor(&scriptedExecutor{errors: map[string][]error{
+		"state": {&ocicli.CommandError{Err: errors.New("exit status 1"), Output: `time="2026-08-12T17:18:02Z" level=error msg="container does not exist"`}},
+	}})
+
+	exit, err := handler.Wait(context.Background(), contract.HandlerOptions{ContainerID: "axctl-test"})
+	assert.ErrorIs(t, err, contract.ErrExitStatusUnavailable)
+	assert.Equal(t, -1, exit.Status)
+}
+
 func TestRuncHandlerWaitNeverInventsZeroExitFromStoppedState(t *testing.T) {
 	rootDir := t.TempDir()
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
