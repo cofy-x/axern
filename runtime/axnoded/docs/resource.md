@@ -109,7 +109,10 @@ Delete rules:
 - A successful runtime delete does not immediately release memory capacity.
   The retiring cgroup remains committed at `max(original request,
   memory.current)` until it contains no process, dirty/writeback converges,
-  `memory.reclaim` drains charged cache, and removal succeeds.
+  and removal succeeds. Cleanup uses `memory.reclaim` as a proactive
+  optimization when the kernel exposes it; absence of that optional interface
+  does not strand an otherwise empty cgroup because successful removal
+  reparents remaining clean charges to the ancestor memcg.
 - Successful final cleanup schedules a coalesced inventory refresh and node
   report. Create needs no matching refresh because its durable reservation
   accounts for the slot before node startup begins.
@@ -242,7 +245,9 @@ Key behavior:
   manager remains active and creates one-use allocation cgroups on demand.
 - GC never kills an unexplained remaining process. It retains the retiring
   lease, retries after the runtime/monitor barrier, waits for dirty/writeback,
-  invokes `memory.reclaim`, and removes the empty cgroup.
+  invokes `memory.reclaim` when available, and removes the empty cgroup. A
+  missing reclaim interface is not treated as proof of cleanup; the subsequent
+  cgroup removal remains mandatory and fail-closed.
 - `cgroup_enforcement = "required"` is the production default. A declared
   memory limit writes the same `memory.max` to allocation parent and workload
   leaf, writes `memory.swap.max=0`, sets parent and leaf

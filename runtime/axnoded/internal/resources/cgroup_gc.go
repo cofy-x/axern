@@ -131,26 +131,41 @@ func (c *CgroupManager) convergeRetiringCgroup(id string) error {
 	if observation.CurrentBytes > 0 {
 		requestedAt := current.GetReclaimRequestedAtUnixNano()
 		if requestedAt == 0 {
-			if err := hostlinux.ReclaimCgroupMemory(id); err != nil {
+			result, err := retirementMemory.Reclaim(id)
+			if err != nil {
 				metrics.RecordCgroupRetirement("reclaim", "failed")
 				return fmt.Errorf("reclaim retiring cgroup memory: %w", err)
 			}
-			c.Lock()
-			current, currentOK = c.leases.Get(id)
-			if !currentOK || current == nil || current.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING {
+			switch result {
+			case hostlinux.CgroupMemoryReclaimRequested:
+				c.Lock()
+				current, currentOK = c.leases.Get(id)
+				if !currentOK || current == nil || current.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING {
+					c.Unlock()
+					return fmt.Errorf("cgroup %s retirement ownership changed after reclaim", id)
+				}
+				current.CurrentChargedBytes = observation.CurrentBytes
+				current.ReclaimRequestedAtUnixNano = time.Now().UTC().UnixNano()
+				c.leases.Set(id, current)
+				storeErr := c.storeLocked()
 				c.Unlock()
-				return fmt.Errorf("cgroup %s retirement ownership changed after reclaim", id)
+				if storeErr != nil {
+					return fmt.Errorf("persist retiring cgroup reclaim request: %w", storeErr)
+				}
+				metrics.RecordCgroupRetirement("reclaim", "requested")
+				return fmt.Errorf("retiring cgroup reclaim requested for %d charged bytes", observation.CurrentBytes)
+			case hostlinux.CgroupMemoryReclaimNotNeeded:
+				metrics.RecordCgroupRetirement("reclaim", "not_needed")
+			case hostlinux.CgroupMemoryReclaimUnavailable:
+				// memory.reclaim is an optional cgroup-v2 interface. Once the
+				// runtime is gone, the hierarchy is empty, dirty/writeback are
+				// zero, and identity still matches, rmdir is the authoritative
+				// convergence operation; the kernel reparents remaining clean
+				// charges to the ancestor memcg.
+				metrics.RecordCgroupRetirement("reclaim", "unavailable")
+			default:
+				return fmt.Errorf("reclaim retiring cgroup memory returned unknown result %d", result)
 			}
-			current.CurrentChargedBytes = observation.CurrentBytes
-			current.ReclaimRequestedAtUnixNano = time.Now().UTC().UnixNano()
-			c.leases.Set(id, current)
-			storeErr := c.storeLocked()
-			c.Unlock()
-			if storeErr != nil {
-				return fmt.Errorf("persist retiring cgroup reclaim request: %w", storeErr)
-			}
-			metrics.RecordCgroupRetirement("reclaim", "requested")
-			return fmt.Errorf("retiring cgroup reclaim requested for %d charged bytes", observation.CurrentBytes)
 		}
 		// memory.current may retain kernel metadata or pages already reparentable
 		// at rmdir. Once the explicit reclaim request has had a retry interval and

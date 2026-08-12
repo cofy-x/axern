@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -57,6 +58,8 @@ func (p *trackingPool) CacheSizeLimit() int { return p.maxCacheSize }
 type warmPoolStubCgroupDriver struct {
 	createCalls int
 	processes   []int
+	removeCalls int
+	removeErr   error
 }
 
 func (d *warmPoolStubCgroupDriver) Mode() string            { return os2.CgroupModeV2 }
@@ -76,7 +79,10 @@ func (d *warmPoolStubCgroupDriver) Load(group string) (os2.Cgroup, error) {
 func (d *warmPoolStubCgroupDriver) ExistingGroups(rootName string) ([]string, error) {
 	return nil, nil
 }
-func (d *warmPoolStubCgroupDriver) Remove(group string) error   { return nil }
+func (d *warmPoolStubCgroupDriver) Remove(group string) error {
+	d.removeCalls++
+	return d.removeErr
+}
 func (d *warmPoolStubCgroupDriver) LocalCPUCount() (int, error) { return 1, nil }
 
 type warmPoolStubCgroup struct {
@@ -84,7 +90,10 @@ type warmPoolStubCgroup struct {
 }
 
 type gcRetirementMemoryStub struct {
-	observation *hostlinux.CgroupMemoryObservation
+	observation  *hostlinux.CgroupMemoryObservation
+	reclaim      hostlinux.CgroupMemoryReclaimResult
+	reclaimErr   error
+	reclaimCalls int
 }
 
 func (s *gcRetirementMemoryStub) InspectParent(string) (*hostlinux.CgroupMemoryDomain, error) {
@@ -93,6 +102,11 @@ func (s *gcRetirementMemoryStub) InspectParent(string) (*hostlinux.CgroupMemoryD
 
 func (s *gcRetirementMemoryStub) ReadObservation(string) (*hostlinux.CgroupMemoryObservation, error) {
 	return s.observation, nil
+}
+
+func (s *gcRetirementMemoryStub) Reclaim(string) (hostlinux.CgroupMemoryReclaimResult, error) {
+	s.reclaimCalls++
+	return s.reclaim, s.reclaimErr
 }
 
 func (c *warmPoolStubCgroup) Update(resources *spec.LinuxResources) error { return nil }
@@ -281,6 +295,96 @@ func TestConvergeRetiringCgroupChargesOrphanBeforeRemainingProcessRetry(t *testi
 	commitment := manager.MemoryCommitment()
 	if commitment.CommittedBytes != 4096 || commitment.CleanupDebtBytes != 4096 {
 		t.Fatalf("orphan cleanup commitment = %+v, want 4096 bytes of debt", commitment)
+	}
+}
+
+func TestConvergeRetiringCgroupRemovesEmptyDomainWithoutMemoryReclaim(t *testing.T) {
+	id := "/sandbox/without-memory-reclaim"
+	driver := &warmPoolStubCgroupDriver{}
+	memory := &gcRetirementMemoryStub{
+		observation: &hostlinux.CgroupMemoryObservation{CurrentBytes: 4096, Stat: map[string]int64{}},
+		reclaim:     hostlinux.CgroupMemoryReclaimUnavailable,
+	}
+	manager := &CgroupManager{
+		leases: cmap.New[*apipb.CgroupLease](), cgroups: cmap.New[struct{}](),
+		cgroupDriver: driver, db: discardStateStore{}, retirementMemory: memory,
+	}
+	manager.leases.Set(id, &apipb.CgroupLease{
+		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+		AllocationID: "self-test", MemoryRequestBytes: 1024, RetiringAtUnixNano: time.Now().UTC().UnixNano(),
+	})
+	manager.cgroups.Set(id, struct{}{})
+
+	if err := manager.convergeRetiringCgroup(id); err != nil {
+		t.Fatalf("convergeRetiringCgroup() error = %v", err)
+	}
+	if memory.reclaimCalls != 1 || driver.removeCalls != 1 {
+		t.Fatalf("cleanup calls: reclaim=%d remove=%d, want 1 each", memory.reclaimCalls, driver.removeCalls)
+	}
+	lease, _ := manager.leases.Get(id)
+	if lease.GetCurrentChargedBytes() != 4096 || lease.GetReclaimRequestedAtUnixNano() != 0 {
+		t.Fatalf("retiring lease = %+v", lease)
+	}
+}
+
+func TestConvergeRetiringCgroupKeepsDebtWhenRemovalFailsWithoutMemoryReclaim(t *testing.T) {
+	id := "/sandbox/without-memory-reclaim-busy"
+	removeErr := errors.New("cgroup is still busy")
+	driver := &warmPoolStubCgroupDriver{removeErr: removeErr}
+	memory := &gcRetirementMemoryStub{
+		observation: &hostlinux.CgroupMemoryObservation{CurrentBytes: 4096, Stat: map[string]int64{}},
+		reclaim:     hostlinux.CgroupMemoryReclaimUnavailable,
+	}
+	manager := &CgroupManager{
+		leases: cmap.New[*apipb.CgroupLease](), cgroups: cmap.New[struct{}](),
+		cgroupDriver: driver, db: discardStateStore{}, retirementMemory: memory,
+	}
+	manager.leases.Set(id, &apipb.CgroupLease{
+		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+		AllocationID: "self-test", MemoryRequestBytes: 1024, RetiringAtUnixNano: time.Now().UTC().UnixNano(),
+	})
+	manager.cgroups.Set(id, struct{}{})
+
+	err := manager.convergeRetiringCgroup(id)
+	if !errors.Is(err, removeErr) {
+		t.Fatalf("convergeRetiringCgroup() error = %v, want removal failure", err)
+	}
+	if memory.reclaimCalls != 1 || driver.removeCalls != 1 {
+		t.Fatalf("cleanup calls: reclaim=%d remove=%d, want 1 each", memory.reclaimCalls, driver.removeCalls)
+	}
+	lease, ok := manager.leases.Get(id)
+	if !ok || lease.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING || lease.GetCurrentChargedBytes() != 4096 {
+		t.Fatalf("failed removal released cleanup debt: lease=%+v present=%v", lease, ok)
+	}
+}
+
+func TestConvergeRetiringCgroupPersistsSuccessfulReclaimBeforeRemoval(t *testing.T) {
+	id := "/sandbox/with-memory-reclaim"
+	driver := &warmPoolStubCgroupDriver{}
+	memory := &gcRetirementMemoryStub{
+		observation: &hostlinux.CgroupMemoryObservation{CurrentBytes: 4096, Stat: map[string]int64{}},
+		reclaim:     hostlinux.CgroupMemoryReclaimRequested,
+	}
+	manager := &CgroupManager{
+		leases: cmap.New[*apipb.CgroupLease](), cgroups: cmap.New[struct{}](),
+		cgroupDriver: driver, db: discardStateStore{}, retirementMemory: memory,
+	}
+	manager.leases.Set(id, &apipb.CgroupLease{
+		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+		AllocationID: "self-test", MemoryRequestBytes: 1024, RetiringAtUnixNano: time.Now().UTC().UnixNano(),
+	})
+	manager.cgroups.Set(id, struct{}{})
+
+	err := manager.convergeRetiringCgroup(id)
+	if err == nil || !strings.Contains(err.Error(), "reclaim requested") {
+		t.Fatalf("convergeRetiringCgroup() error = %v, want settling retry", err)
+	}
+	if memory.reclaimCalls != 1 || driver.removeCalls != 0 {
+		t.Fatalf("cleanup calls: reclaim=%d remove=%d, want reclaim only", memory.reclaimCalls, driver.removeCalls)
+	}
+	lease, _ := manager.leases.Get(id)
+	if lease.GetReclaimRequestedAtUnixNano() == 0 {
+		t.Fatal("successful reclaim was not persisted before retry")
 	}
 }
 

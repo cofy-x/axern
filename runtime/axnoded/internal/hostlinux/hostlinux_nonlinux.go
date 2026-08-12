@@ -65,7 +65,9 @@ func VerifyCgroupMemoryDomain(string, string, int64, string, string, uint64, uin
 func ReadCgroupMemoryObservation(string) (*CgroupMemoryObservation, error) {
 	return nil, fmt.Errorf("cgroup memory statistics require Linux")
 }
-func ReclaimCgroupMemory(string) error { return fmt.Errorf("cgroup memory reclaim requires Linux") }
+func ReclaimCgroupMemory(string) (CgroupMemoryReclaimResult, error) {
+	return CgroupMemoryReclaimNotNeeded, fmt.Errorf("cgroup memory reclaim requires Linux")
+}
 
 func unsupported(op string) error {
 	return fmt.Errorf("%s is unsupported on %s", op, runtime.GOOS)

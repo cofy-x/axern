@@ -72,7 +72,7 @@ func TestReadCgroupMemoryObservationUsesCurrentWhenKernelPeakIsUnavailable(t *te
 	}
 }
 
-func TestOptionalCgroupMemoryObservationUnavailable(t *testing.T) {
+func TestOptionalCgroupMemoryInterfaceUnavailable(t *testing.T) {
 	tests := []struct {
 		name string
 		err  error
@@ -85,10 +85,59 @@ func TestOptionalCgroupMemoryObservationUnavailable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := optionalCgroupMemoryObservationUnavailable(tt.err); got != tt.want {
-				t.Fatalf("optionalCgroupMemoryObservationUnavailable(%v) = %v, want %v", tt.err, got, tt.want)
+			if got := optionalCgroupMemoryInterfaceUnavailable(tt.err); got != tt.want {
+				t.Fatalf("optionalCgroupMemoryInterfaceUnavailable(%v) = %v, want %v", tt.err, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestReclaimCgroupMemoryDirTreatsMissingInterfaceAsOptional(t *testing.T) {
+	dir := t.TempDir()
+	writeFixtureFile(t, dir, "memory.current", "4096\n")
+
+	result, err := reclaimCgroupMemoryDir(dir)
+	if err != nil {
+		t.Fatalf("reclaimCgroupMemoryDir() error = %v", err)
+	}
+	if result != CgroupMemoryReclaimUnavailable {
+		t.Fatalf("reclaimCgroupMemoryDir() = %d, want unavailable", result)
+	}
+}
+
+func TestReclaimCgroupMemoryDirRequestsCurrentCharge(t *testing.T) {
+	dir := t.TempDir()
+	writeFixtureFile(t, dir, "memory.current", "4096\n")
+	if err := os.WriteFile(filepath.Join(dir, "memory.reclaim"), nil, 0o600); err != nil {
+		t.Fatalf("create memory.reclaim fixture: %v", err)
+	}
+
+	result, err := reclaimCgroupMemoryDir(dir)
+	if err != nil {
+		t.Fatalf("reclaimCgroupMemoryDir() error = %v", err)
+	}
+	if result != CgroupMemoryReclaimRequested {
+		t.Fatalf("reclaimCgroupMemoryDir() = %d, want requested", result)
+	}
+	payload, err := os.ReadFile(filepath.Join(dir, "memory.reclaim"))
+	if err != nil {
+		t.Fatalf("read memory.reclaim fixture: %v", err)
+	}
+	if got := strings.TrimSpace(string(payload)); got != "4096" {
+		t.Fatalf("memory.reclaim = %q, want 4096", got)
+	}
+}
+
+func TestReclaimCgroupMemoryDirSkipsZeroCharge(t *testing.T) {
+	dir := t.TempDir()
+	writeFixtureFile(t, dir, "memory.current", "0\n")
+
+	result, err := reclaimCgroupMemoryDir(dir)
+	if err != nil {
+		t.Fatalf("reclaimCgroupMemoryDir() error = %v", err)
+	}
+	if result != CgroupMemoryReclaimNotNeeded {
+		t.Fatalf("reclaimCgroupMemoryDir() = %d, want not needed", result)
 	}
 }
 
