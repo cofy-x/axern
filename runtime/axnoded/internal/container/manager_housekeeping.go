@@ -2,13 +2,13 @@ package container
 
 import (
 	"context"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/sirupsen/logrus"
 )
 
@@ -59,11 +59,13 @@ func (m *Manager) housekeeping() {
 			continue
 		}
 
-		if container.Status != nil {
-			if err := container.Status.UpdateSync(func(status Status) (Status, error) {
-				return UpdateStatusByState(cstates[id], status), nil
-			}); err != nil {
-				logrus.Errorf("update container %s status failed: %v", id, err)
+		// Runtime inventory is an identity/liveness view, not terminal exit
+		// evidence. Only Wait may publish FinishedAt, exit code, or diagnostics;
+		// otherwise housekeeping can race the monitor and create a fabricated
+		// unknown exit that survives restart.
+		if container.Status != nil && cstates[id] != nil {
+			if err := m.SyncRuntimeIdentityFromState(id, cstates[id]); err != nil {
+				logrus.Errorf("update container %s runtime identity failed: %v", id, err)
 			}
 		}
 

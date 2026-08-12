@@ -97,7 +97,7 @@ func (m *Manager) DeleteAfterConfirmedRuntimeDelete(id string, resource Occupied
 			return fmt.Errorf("container %s has no durable status for confirmed runtime deletion", id)
 		}
 		if container.Status.Get().State() != apipb.ContainerState_CONTAINER_EXITED {
-			if err := m.SetExit(id, -1, false, time.Now().UTC().Format(time.RFC3339Nano), "runtime deletion confirmed during failed-create rollback", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED); err != nil {
+			if err := m.SetExit(id, -1, false, time.Now().UTC(), "runtime deletion confirmed during failed-create rollback", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED); err != nil {
 				return fmt.Errorf("checkpoint confirmed runtime deletion for %s: %w", id, err)
 			}
 		}

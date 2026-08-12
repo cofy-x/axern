@@ -38,8 +38,6 @@ import (
 // statusVersion is current version of container status.
 const statusVersion = "v2"
 
-const unknownExitStatusMessage = "container exited but runtime exit status is unavailable"
-
 // versionedStatus is the internal used versioned container status.
 type versionedStatus struct {
 	// Version indicates the version of the versioned container status.
@@ -160,50 +158,5 @@ func GenerateStatusFromState(state *contract.UnionContainerState, path string) S
 		path: path,
 	}
 
-	// means axnoded didn't catch the exit event
-	if state.Status != contract.ContainerStatusRunning {
-		s.status.FinishedAt = time.Now().Format(time.RFC3339)
-		s.status.ExitCode = -1
-		s.status.Message = unknownExitStatusMessage
-	}
 	return s
-}
-
-func UpdateStatusByState(state *contract.UnionContainerState, status Status) Status {
-	if state == nil {
-		return status
-	}
-	switch state.Status {
-	case contract.ContainerStatusRunning:
-		if state.InitProcessPid > 0 {
-			status.Pid = state.InitProcessPid
-		}
-		if state.Created != "" {
-			status.StartedAt = state.Created
-		}
-		status.FinishedAt = ""
-		status.ExitCode = -1
-		status.ExitCodeKnown = false
-		status.Message = ""
-		status.DiagnosticCode = commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED
-		status.Unknown = false
-	case contract.ContainerStatusExited:
-		status.Unknown = false
-		if state.InitProcessPid > 0 {
-			status.Pid = state.InitProcessPid
-		}
-		if state.Created != "" {
-			status.StartedAt = state.Created
-		}
-		if status.FinishedAt == "" {
-			status.FinishedAt = time.Now().Format(time.RFC3339)
-		}
-		if !status.ExitCodeKnown {
-			status.ExitCode = -1
-			if status.Message == "" {
-				status.Message = unknownExitStatusMessage
-			}
-		}
-	}
-	return status
 }

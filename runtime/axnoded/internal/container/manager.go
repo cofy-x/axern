@@ -30,20 +30,26 @@ type Manager struct {
 
 	monitorMu sync.Mutex
 	monitors  cmap.ConcurrentMap[string, *containerMonitor]
+	workerMu  sync.Mutex
+	workers   sync.WaitGroup
 	// handle container event asynchronously, largest 200 events
 	syncEventChan chan Event
 	// check id is valid
 	idGenerator truncindex.UniqueIdGenerator
 
-	stopChan chan struct{}
-	stopOnce sync.Once
+	stopChan         chan struct{}
+	stopOnce         sync.Once
+	loopDone         chan struct{}
+	resourceStopOnce sync.Once
+	resourceStopErr  error
 
 	healthChan     chan bool
-	exitObserver   func(Event)
+	exitObserver   func(Event) error
 	exitClassifier func(Event) (commonv1.WorkloadDiagnosticCode, string)
 
 	isHousekeepingRunning atomic.Bool
 	started               atomic.Bool
+	stopped               atomic.Bool
 }
 
 func NewManager(root string, handlers cmap.ConcurrentMap[string, contract.RuntimeHandler], healthChan chan bool, managers ...resourcemanager.Manager) (*Manager, error) {
@@ -61,6 +67,7 @@ func NewManager(root string, handlers cmap.ConcurrentMap[string, contract.Runtim
 		idGenerator:      truncindex.NewTruncGenerator(config.SandboxContainerPrefix, []string{}),
 		syncEventChan:    make(chan Event, 4096),
 		stopChan:         make(chan struct{}),
+		loopDone:         make(chan struct{}),
 		healthChan:       healthChan,
 	}
 
@@ -79,7 +86,7 @@ func NewManager(root string, handlers cmap.ConcurrentMap[string, contract.Runtim
 	return m, nil
 }
 
-func (m *Manager) SetExitObserver(observer func(Event)) {
+func (m *Manager) SetExitObserver(observer func(Event) error) {
 	if m == nil {
 		return
 	}

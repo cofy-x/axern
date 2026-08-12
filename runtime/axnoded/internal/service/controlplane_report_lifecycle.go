@@ -6,6 +6,7 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	nodecontrol "github.com/cofy-x/axern/runtime/axnoded/internal/controlplane"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
@@ -45,12 +46,12 @@ func (h *sandboxService) configureControlPlaneReports() {
 }
 
 func (h *sandboxService) initControlPlaneReporter() error {
-	reporter, err := servicecontrolplane.NewNodeReporter(h.config, h.runtimeHandlers.Names, h.NodeInventory)
+	reporter, err := servicecontrolplane.NewNodeReporter(h.config, h.runtimeHandlers.Names, h.NodeInventory, h.allocationStatusOutbox)
 	if err != nil {
 		return err
 	}
-	h.controlPlaneReports.SetReporter(reporter)
 	if reporter != nil {
+		h.controlPlaneReports.SetReporter(reporter)
 		reporter.SetInventoryRefresh(h.refreshNodeInventory)
 	}
 	return nil
@@ -63,11 +64,53 @@ func (h *sandboxService) notifyNodeInventoryChanged() {
 	h.controlPlaneReports.NotifyInventoryChanged()
 }
 
-func (h *sandboxService) handleContainerExitControlPlaneReport(event container.Event) {
+func (h *sandboxService) handleContainerExitControlPlaneReport(event container.Event) error {
 	if h == nil || h.controlPlaneReports == nil || event.ContainerID == "" {
-		return
+		return nil
 	}
-	h.controlPlaneReports.ReportContainerExit(event)
+	return h.controlPlaneReports.ReportContainerExit(event)
+}
+
+// seedTerminalAllocationStatusOutbox closes the crash window between the
+// container status checkpoint and outbox persistence. It runs before startup
+// reconciliation is allowed to delete terminal runtime/container artifacts.
+func (h *sandboxService) seedTerminalAllocationStatusOutbox() error {
+	if h == nil || h.containerManager == nil || h.allocationStatusOutbox == nil {
+		return nil
+	}
+	for _, item := range h.containerManager.List() {
+		if item == nil || item.Metadata == nil || item.Status == nil {
+			continue
+		}
+		status := item.Status.Get()
+		if status.State() != apipb.ContainerState_CONTAINER_EXITED {
+			continue
+		}
+		exitedAt := container.ParseTimestampTime(status.FinishedAt)
+		if exitedAt.IsZero() {
+			return fmt.Errorf("recovered terminal allocation %s has an invalid finished timestamp", item.Metadata.GetID())
+		}
+		report := servicecontrolplane.ContainerExitReportFromContainer(item, container.Event{
+			Type:           container.EventTypeExit,
+			ContainerID:    item.Metadata.GetID(),
+			ExitCode:       status.ExitCode,
+			ExitCodeKnown:  status.ExitCodeKnown,
+			ExitedAt:       exitedAt,
+			Reason:         status.Message,
+			DiagnosticCode: status.DiagnosticCode,
+		}, time.Time{})
+		if report.AllocationID == "" || report.Attempt <= 0 {
+			continue
+		}
+		observation, err := nodecontrol.AllocationStatusObservationFromReport(report)
+		if err != nil {
+			return fmt.Errorf("shape recovered terminal allocation status %s: %w", item.Metadata.GetID(), err)
+		}
+		if _, err := h.allocationStatusOutbox.Persist(observation); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h *sandboxService) classifyContainerExit(event container.Event) (commonv1.WorkloadDiagnosticCode, string) {

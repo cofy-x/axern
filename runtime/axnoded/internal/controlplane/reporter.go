@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -62,6 +63,7 @@ type Reporter struct {
 	statusBatcherOnce    sync.Once
 	conditionBatcher     *allocationConditionBatcher
 	conditionBatcherOnce sync.Once
+	statusOutbox         *AllocationStatusOutbox
 
 	stopCh    chan struct{}
 	changeCh  chan struct{}
@@ -82,6 +84,7 @@ func NewReporter(
 	runtimeNames RuntimeNamesFunc,
 	snapshot SnapshotFunc,
 	summaryBuilder SummaryBuilder,
+	statusOutbox *AllocationStatusOutbox,
 ) *Reporter {
 	target = strings.TrimSpace(target)
 	nodeID = strings.TrimSpace(nodeID)
@@ -102,6 +105,7 @@ func NewReporter(
 		runtimeNames:   runtimeNames,
 		snapshot:       snapshot,
 		summaryBuilder: summaryBuilder,
+		statusOutbox:   statusOutbox,
 		control:        control,
 		stopCh:         make(chan struct{}),
 		changeCh:       make(chan struct{}, 1),
@@ -318,10 +322,43 @@ func (r *Reporter) sendAllocationMemoryBatch(ctx context.Context, observations [
 	return err
 }
 
-func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) {
+func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) error {
+	if r == nil {
+		return fmt.Errorf("allocation status reporter is required")
+	}
+	observation, err := AllocationStatusObservationFromReport(report)
+	if err != nil {
+		return err
+	}
+	terminal := allocationStatusEnded(observation.GetStatus())
+	if terminal {
+		current, err := r.statusOutbox.Persist(observation)
+		if err != nil {
+			return err
+		}
+		if !current {
+			return nil
+		}
+	}
+	accepted, err := r.ensureStatusBatcher().Enqueue(observation)
+	if err != nil {
+		return err
+	}
+	if terminal && !accepted {
+		// A newer attempt already owns both the queue and its own durable proof.
+		// The obsolete record must not survive forever merely because it was
+		// correctly rejected by the coalescing policy.
+		return r.statusOutbox.Acknowledge([]*nodev1.AllocationStatusObservation{observation})
+	}
+	return nil
+}
+
+// AllocationStatusObservationFromReport is the single shaping contract for
+// live reports and terminal outbox recovery.
+func AllocationStatusObservationFromReport(report AllocationStatusReport) (*nodev1.AllocationStatusObservation, error) {
 	allocationID := strings.TrimSpace(report.AllocationID)
-	if r == nil || allocationID == "" || report.Attempt <= 0 {
-		return
+	if allocationID == "" || report.Attempt <= 0 || !allocationStatusValid(report.Status) {
+		return nil, fmt.Errorf("allocation status report identity is invalid")
 	}
 	ready := report.Ready
 	readinessMessage := validProtocolString(strings.TrimSpace(report.ReadinessMessage))
@@ -329,7 +366,15 @@ func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) {
 		ready = false
 		readinessMessage = ""
 	}
-	r.ensureStatusBatcher().Enqueue(&nodev1.AllocationStatusObservation{
+	observedAt := report.ObservedAt.UTC()
+	if observedAt.IsZero() {
+		observedAt = time.Now().UTC()
+	}
+	observedAtProto := timestamppb.New(observedAt)
+	if err := observedAtProto.CheckValid(); err != nil {
+		return nil, fmt.Errorf("allocation status observation time is invalid: %w", err)
+	}
+	return &nodev1.AllocationStatusObservation{
 		AllocationID:     allocationID,
 		Attempt:          report.Attempt,
 		Status:           report.Status,
@@ -339,8 +384,32 @@ func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) {
 		ReadinessMessage: readinessMessage,
 		Message:          validProtocolString(report.Message),
 		DiagnosticCode:   report.DiagnosticCode,
-		ObservedAt:       timestamppb.New(report.ObservedAt.UTC()),
-	})
+		ObservedAt:       observedAtProto,
+	}, nil
+}
+
+// ReplayDurableAllocationStatuses restores the process-local batching queue
+// from the node-state outbox before inventory publication begins.
+func (r *Reporter) ReplayDurableAllocationStatuses() error {
+	if r == nil || r.statusOutbox == nil {
+		return nil
+	}
+	observations, err := r.statusOutbox.Replay()
+	if err != nil {
+		return err
+	}
+	for _, observation := range observations {
+		accepted, err := r.ensureStatusBatcher().Enqueue(observation)
+		if err != nil {
+			return fmt.Errorf("replay terminal allocation status %s: %w", observation.GetAllocationID(), err)
+		}
+		if !accepted {
+			if err := r.statusOutbox.Acknowledge([]*nodev1.AllocationStatusObservation{observation}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (r *Reporter) ReportAllocationCapabilityConditions(report AllocationCapabilityConditionReport) {
@@ -359,6 +428,16 @@ func (r *Reporter) AllocationStatusHealth() AllocationStatusReporterHealth {
 		return AllocationStatusReporterHealth{Status: "disabled"}
 	}
 	return r.ensureStatusBatcher().Health()
+}
+
+// UnacknowledgedAllocationStatusIDs exposes the causal reporting barrier used
+// by node inventory. An allocation remains locally active until controld has
+// acknowledged every queued or in-flight lifecycle observation for it.
+func (r *Reporter) UnacknowledgedAllocationStatusIDs() []string {
+	if r == nil {
+		return nil
+	}
+	return r.ensureStatusBatcher().UnacknowledgedAllocationIDs()
 }
 
 func validProtocolString(value string) string {
@@ -433,6 +512,14 @@ func (r *Reporter) sendAllocationStatusBatch(ctx context.Context, observations [
 		metrics.RecordControlPlaneRPC("batch_report_allocation_status", "error")
 		metrics.RecordControlPlaneRPCDuration("batch_report_allocation_status", "error", time.Since(started).Seconds())
 		logrus.WithError(err).Warn("control-plane allocation status batch failed")
+		return err
+	}
+	if err := r.statusOutbox.Acknowledge(observations); err != nil {
+		op.SetErrorStatus("acknowledge allocation status outbox")
+		opErr = err
+		metrics.RecordControlPlaneRPC("batch_report_allocation_status", "error")
+		metrics.RecordControlPlaneRPCDuration("batch_report_allocation_status", "error", time.Since(started).Seconds())
+		logrus.WithError(err).Warn("control-plane allocation status outbox acknowledgement failed")
 		return err
 	}
 	metrics.RecordControlPlaneRPC("batch_report_allocation_status", "ok")

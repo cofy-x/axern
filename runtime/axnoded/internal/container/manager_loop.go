@@ -46,9 +46,19 @@ func (m *Manager) Start() {
 	if !m.started.CompareAndSwap(false, true) {
 		return
 	}
+	if m.loopDone != nil {
+		defer close(m.loopDone)
+	}
+	if m.stopped.Load() {
+		return
+	}
 	m.startRecoveredMonitors()
 	m.housekeeping()
 	m.loop()
+	// Stop closes admission to new workers under workerMu before loop exits, so
+	// Wait cannot race a later Add. loopDone therefore covers every manager-owned
+	// housekeeping/event worker as well as the dispatcher itself.
+	m.workers.Wait()
 }
 
 // startRecoveredMonitors runs only after startup runtime inventory
@@ -68,15 +78,42 @@ func (m *Manager) startRecoveredMonitors() {
 	}
 }
 
-func (m *Manager) Stop() {
+// Stop cancels and joins runtime observers before shutting down resource
+// managers. The caller owns the deadline and may retry with a fresh context if
+// an external runtime handler does not complete cancellation promptly.
+func (m *Manager) Stop(ctx context.Context) error {
+	if m == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("container manager stop requires a context")
+	}
 	m.stopOnce.Do(func() {
+		m.workerMu.Lock()
+		m.stopped.Store(true)
 		if m.stopChan != nil {
 			close(m.stopChan)
 		}
+		m.workerMu.Unlock()
+	})
+	if err := m.stopAllMonitorsAndWait(ctx); err != nil {
+		return err
+	}
+	if m.started.Load() && m.loopDone != nil {
+		select {
+		case <-m.loopDone:
+		case <-ctx.Done():
+			return fmt.Errorf("join container manager loop: %w", ctx.Err())
+		}
+	}
+	m.resourceStopOnce.Do(func() {
 		for item := range m.resourceManagers.IterBuffered() {
-			_ = item.Val.ShutDown()
+			if err := item.Val.ShutDown(); err != nil {
+				m.resourceStopErr = errors.Join(m.resourceStopErr, fmt.Errorf("shutdown %s resource manager: %w", item.Key, err))
+			}
 		}
 	})
+	return m.resourceStopErr
 }
 
 func (m *Manager) loop() {
@@ -86,17 +123,31 @@ func (m *Manager) loop() {
 	for {
 		select {
 		case <-housekeepingTicker.C:
-			go m.housekeeping()
+			m.startWorker(m.housekeeping)
 		case <-m.stopChan:
 			logrus.Infof("container manager start to stop")
-			for item := range m.monitors.IterBuffered() {
-				m.stopMonitor(item.Key)
-			}
 			return
 		case event := <-m.syncEventChan:
-			go m.syncEvent(event)
+			m.startWorker(func() { m.syncEvent(event) })
 		}
 	}
+}
+
+func (m *Manager) startWorker(work func()) {
+	if m == nil || work == nil {
+		return
+	}
+	m.workerMu.Lock()
+	if m.stopped.Load() {
+		m.workerMu.Unlock()
+		return
+	}
+	m.workers.Add(1)
+	m.workerMu.Unlock()
+	go func() {
+		defer m.workers.Done()
+		work()
+	}()
 }
 
 func (m *Manager) syncEvent(event Event) {
@@ -104,18 +155,10 @@ func (m *Manager) syncEvent(event Event) {
 	switch event.Type {
 	case EventTypeDelete:
 		m.stopMonitor(event.ContainerID)
-	case EventTypeExit:
-		event = m.classifyExit(event)
-		if err := m.SetExit(event.ContainerID, event.ExitCode, event.ExitCodeKnown, event.ExitedAt.String(), event.Reason, event.DiagnosticCode); err != nil {
-			logrus.Errorf("set container %s exit failed: %v", event.ContainerID, err)
-			return
-		}
-		if m.exitObserver != nil {
-			m.exitObserver(event)
-		}
-		// Resource ownership remains assigned until the ordered Delete workflow
-		// has cleaned runtime, rootfs/storage, volumes, and image leases. Exit is
-		// only a lifecycle observation and must not release node capacity.
+	default:
+		// Runtime Wait is the only terminal lifecycle authority. Accepting an
+		// asynchronous exit event here would bypass its checkpoint/outbox barrier.
+		logrus.WithField("event_type", event.Type).Warn("ignore unsupported container manager event")
 	}
 }
 
@@ -123,6 +166,9 @@ func (m *Manager) syncEvent(event Event) {
 // successful create is exposed to callers. Registration is the lifecycle
 // barrier; only the runtime Wait itself runs asynchronously.
 func (m *Manager) StartMonitor(metaData *apipb.ContainerMetadata) error {
+	if m.stopped.Load() {
+		return errors.New("container manager is stopped")
+	}
 	if metaData == nil || metaData.GetID() == "" || metaData.GetRuntimeHandler() == "" {
 		return errors.New("container monitor requires complete metadata identity")
 	}
@@ -145,6 +191,11 @@ func (m *Manager) StartMonitor(metaData *apipb.ContainerMetadata) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	monitor := &containerMonitor{cancel: cancel, done: make(chan struct{})}
 	m.monitorMu.Lock()
+	if m.stopped.Load() {
+		m.monitorMu.Unlock()
+		cancel()
+		return errors.New("container manager is stopped")
+	}
 	if existing, ok := m.monitors.Get(metaData.ID); ok && existing != nil {
 		select {
 		case <-existing.done:
@@ -200,8 +251,11 @@ func (m *Manager) monitorContainer(ctx context.Context, metaData *apipb.Containe
 					monitor.finish(persistErr)
 					return
 				}
+				if err := m.notifyMonitorExitWithRetry(ctx, classified); err != nil {
+					monitor.finish(err)
+					return
+				}
 				monitor.finish(nil)
-				m.notifyMonitorExit(classified)
 				return
 			}
 			logrus.Warnf("wait container %s failed without exit status: %v", metaData.ID, err)
@@ -230,8 +284,11 @@ func (m *Manager) monitorContainer(ctx context.Context, metaData *apipb.Containe
 			monitor.finish(persistErr)
 			return
 		}
+		if err := m.notifyMonitorExitWithRetry(ctx, classified); err != nil {
+			monitor.finish(err)
+			return
+		}
 		monitor.finish(nil)
-		m.notifyMonitorExit(classified)
 		return
 	}
 }
@@ -259,30 +316,96 @@ func (m *Manager) persistMonitorExitWithRetry(ctx context.Context, event Event) 
 	}
 }
 
-// persistMonitorExit is the lifecycle barrier consumed by ordered Delete.
-// Status storage is updated synchronously before monitor.done is closed; the
-// observer may enqueue control-plane reporting but does not own local exit
-// durability.
+// persistMonitorExit is the first lifecycle barrier consumed by ordered Delete.
+// Status storage is updated synchronously, then notifyMonitorExitWithRetry
+// persists the control-plane outbox before monitor.done is closed.
 func (m *Manager) persistMonitorExit(event Event) (Event, error) {
 	event = m.classifyExit(event)
-	if err := m.SetExit(event.ContainerID, event.ExitCode, event.ExitCodeKnown, event.ExitedAt.String(), event.Reason, event.DiagnosticCode); err != nil {
+	if event.ExitedAt.IsZero() {
+		event.ExitedAt = time.Now().UTC()
+	} else {
+		event.ExitedAt = event.ExitedAt.UTC()
+	}
+	if err := m.SetExit(event.ContainerID, event.ExitCode, event.ExitCodeKnown, event.ExitedAt, event.Reason, event.DiagnosticCode); err != nil {
 		return event, fmt.Errorf("persist container %s exit: %w", event.ContainerID, err)
 	}
 	return event, nil
 }
 
-func (m *Manager) notifyMonitorExit(event Event) {
-	if m.exitObserver != nil {
-		m.exitObserver(event)
+func (m *Manager) notifyMonitorExitWithRetry(ctx context.Context, event Event) error {
+	if m.exitObserver == nil {
+		return nil
+	}
+	for {
+		if err := m.exitObserver(event); err != nil {
+			logrus.WithError(err).WithField("container_id", event.ContainerID).Error("retry durable container exit publication")
+			timer := time.NewTimer(time.Second)
+			select {
+			case <-ctx.Done():
+				if !timer.Stop() {
+					<-timer.C
+				}
+				return errors.Join(err, ctx.Err())
+			case <-timer.C:
+				continue
+			}
+		}
+		return nil
 	}
 }
 
 func (m *Manager) stopMonitor(id string) {
 	m.monitorMu.Lock()
 	defer m.monitorMu.Unlock()
-	if monitor, exists := m.monitors.Pop(id); exists && monitor != nil {
+	if monitor, exists := m.monitors.Get(id); exists && monitor != nil {
 		monitor.cancel()
+		select {
+		case <-monitor.done:
+			m.monitors.Remove(id)
+		default:
+			// Keep cancellation-in-progress monitors registered. Manager.Stop
+			// must still join their checkpoint/report callbacks before resource
+			// managers and node state can be closed.
+		}
 	}
+}
+
+// stopAllMonitorsAndWait is the shutdown join boundary for runtime Wait
+// observers. State storage and resource managers must remain available until
+// every observer has stopped persisting terminal evidence and invoking its
+// exit callback.
+func (m *Manager) stopAllMonitorsAndWait(ctx context.Context) error {
+	if m == nil {
+		return nil
+	}
+	m.monitorMu.Lock()
+	monitors := make([]*containerMonitor, 0, m.monitors.Count())
+	for item := range m.monitors.IterBuffered() {
+		if item.Val == nil {
+			m.monitors.Remove(item.Key)
+			continue
+		}
+		item.Val.cancel()
+		monitors = append(monitors, item.Val)
+	}
+	m.monitorMu.Unlock()
+	for _, monitor := range monitors {
+		select {
+		case <-monitor.done:
+		case <-ctx.Done():
+			return fmt.Errorf("join container runtime monitors: %w", ctx.Err())
+		}
+	}
+	m.monitorMu.Lock()
+	for item := range m.monitors.IterBuffered() {
+		select {
+		case <-item.Val.done:
+			m.monitors.Remove(item.Key)
+		default:
+		}
+	}
+	m.monitorMu.Unlock()
+	return nil
 }
 
 func (m *Manager) waitMonitorExitBarrier(id string, timeout time.Duration) error {
@@ -347,7 +470,7 @@ func (m *Manager) classifyExit(event Event) Event {
 	return event
 }
 
-func (m *Manager) SetExit(id string, exitCode int32, exitCodeKnown bool, finishAt string, message string, diagnosticCode commonv1.WorkloadDiagnosticCode) error {
+func (m *Manager) SetExit(id string, exitCode int32, exitCodeKnown bool, finishedAt time.Time, message string, diagnosticCode commonv1.WorkloadDiagnosticCode) error {
 	container, ok := m.containers.Get(id)
 	if !ok {
 		return errord.ErrNotFound
@@ -362,10 +485,10 @@ func (m *Manager) SetExit(id string, exitCode int32, exitCodeKnown bool, finishA
 		status.ExitCodeKnown = exitCodeKnown
 		status.Message = message
 		status.DiagnosticCode = diagnosticCode
-		if finishAt == "" || finishAt == "0" {
-			finishAt = time.Now().Format(time.RFC3339Nano)
+		if finishedAt.IsZero() {
+			finishedAt = time.Now().UTC()
 		}
-		status.FinishedAt = finishAt
+		status.FinishedAt = finishedAt.UTC().Format(time.RFC3339Nano)
 		return status, nil
 	}); err != nil {
 		return fmt.Errorf("checkpoint container %s exit status: %w", id, err)

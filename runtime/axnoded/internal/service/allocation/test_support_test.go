@@ -71,6 +71,13 @@ func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := manager.Stop(ctx); err != nil {
+			t.Errorf("stop test container manager: %v", err)
+		}
+	})
 	lrtManager := langrtmanager.NewLanguageRuntimeManager()
 	volumes := servicevolumes.NewCoordinator(servicevolumes.Options{
 		Publisher: publisher,

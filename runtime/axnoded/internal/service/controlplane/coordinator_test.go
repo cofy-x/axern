@@ -12,17 +12,34 @@ import (
 )
 
 type statusReporterSpy struct {
-	report nodecontrol.AllocationStatusReport
-	health nodecontrol.AllocationStatusReporterHealth
+	report            nodecontrol.AllocationStatusReport
+	health            nodecontrol.AllocationStatusReporterHealth
+	unacknowledgedIDs []string
 }
 
-func (s *statusReporterSpy) ReportAllocationStatus(report nodecontrol.AllocationStatusReport) {
+func (s *statusReporterSpy) ReportAllocationStatus(report nodecontrol.AllocationStatusReport) error {
 	s.report = report
+	return nil
+}
+
+func (s *statusReporterSpy) Start() {}
+
+func (s *statusReporterSpy) Stop() {}
+
+func (s *statusReporterSpy) NotifyInventoryChanged() {}
+
+func (s *statusReporterSpy) ReportAllocationCapabilityConditions(nodecontrol.AllocationCapabilityConditionReport) {
 }
 
 func (s *statusReporterSpy) AllocationStatusHealth() nodecontrol.AllocationStatusReporterHealth {
 	return s.health
 }
+
+func (s *statusReporterSpy) UnacknowledgedAllocationStatusIDs() []string {
+	return append([]string(nil), s.unacknowledgedIDs...)
+}
+
+func (s *statusReporterSpy) ReplayDurableAllocationStatuses() error { return nil }
 
 func TestAllocationStatusHealthUsesReporterSnapshot(t *testing.T) {
 	reporter := &statusReporterSpy{health: nodecontrol.AllocationStatusReporterHealth{
@@ -38,6 +55,28 @@ func TestAllocationStatusHealthUsesReporterSnapshot(t *testing.T) {
 	disabled := NewCoordinator(Options{}).AllocationStatusHealth()
 	if disabled.Status != "disabled" {
 		t.Fatalf("disabled health = %#v", disabled)
+	}
+}
+
+func TestSetReporterKeepsConcreteNilDisabled(t *testing.T) {
+	coordinator := NewCoordinator(Options{})
+	coordinator.SetReporter(nil)
+	if got := coordinator.AllocationStatusHealth().Status; got != "disabled" {
+		t.Fatalf("allocation status health = %q, want disabled", got)
+	}
+	if err := coordinator.ReportContainerExit(container.Event{ContainerID: "alloc-1"}); err != nil {
+		t.Fatalf("ReportContainerExit() with disabled reporter error = %v", err)
+	}
+}
+
+func TestUnacknowledgedAllocationStatusIDsUsesReporterSnapshot(t *testing.T) {
+	reporter := &statusReporterSpy{unacknowledgedIDs: []string{"alloc-b", "alloc-a"}}
+	got := NewCoordinator(Options{Reporter: reporter}).UnacknowledgedAllocationStatusIDs()
+	if len(got) != 2 || got[0] != "alloc-b" || got[1] != "alloc-a" {
+		t.Fatalf("unacknowledged allocation ids = %#v", got)
+	}
+	if got := NewCoordinator(Options{}).UnacknowledgedAllocationStatusIDs(); len(got) != 0 {
+		t.Fatalf("disabled unacknowledged allocation ids = %#v, want empty", got)
 	}
 }
 

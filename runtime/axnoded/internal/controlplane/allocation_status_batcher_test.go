@@ -224,6 +224,9 @@ func TestAllocationStatusBatcherBacksOffWithoutNewEventBypass(t *testing.T) {
 	if health.Status != "retrying" || health.ConsecutiveFailures != 1 || health.Pending != 2 {
 		t.Fatalf("health during retry = %#v", health)
 	}
+	if got := batcher.UnacknowledgedAllocationIDs(); len(got) != 2 || got[0] != "alloc-1" || got[1] != "alloc-2" {
+		t.Fatalf("retry allocation ids = %#v, want [alloc-1 alloc-2]", got)
+	}
 	if health.RetryDelaySec != 0.12 || health.NextRetryAt == nil || health.LastError == "" {
 		t.Fatalf("retry diagnostics = %#v", health)
 	}
@@ -305,6 +308,12 @@ func TestAllocationStatusBatcherDoesNotBlockProducer(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for sender")
 	}
+	if got := batcher.UnacknowledgedAllocationIDs(); len(got) != 1 || got[0] != "alloc-1" {
+		t.Fatalf("in-flight allocation ids = %#v, want [alloc-1]", got)
+	}
+	if health := batcher.Health(); health.Pending != 1 || !health.InFlight {
+		t.Fatalf("in-flight health = %#v, want one unacknowledged observation", health)
+	}
 	done := make(chan struct{})
 	go func() {
 		batcher.Enqueue(statusObservation("alloc-2", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, false))
@@ -315,8 +324,61 @@ func TestAllocationStatusBatcherDoesNotBlockProducer(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("enqueue blocked on in-flight sender")
 	}
+	if got := batcher.UnacknowledgedAllocationIDs(); len(got) != 2 || got[0] != "alloc-1" || got[1] != "alloc-2" {
+		t.Fatalf("queued and in-flight allocation ids = %#v, want [alloc-1 alloc-2]", got)
+	}
 	close(releaseSend)
 	batcher.Stop()
+	if got := batcher.UnacknowledgedAllocationIDs(); len(got) != 0 {
+		t.Fatalf("allocation ids after acknowledgement = %#v, want empty", got)
+	}
+}
+
+func TestAllocationStatusBatcherAcknowledgementDoesNotDropNewerPendingStatus(t *testing.T) {
+	batcher := newAllocationStatusBatcher(func(context.Context, []*nodev1.AllocationStatusObservation) error {
+		return nil
+	})
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, false))
+	first := batcher.drain(1)
+	if len(first) != 1 {
+		t.Fatalf("first batch length = %d, want 1", len(first))
+	}
+
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, true))
+	batcher.acknowledge(first)
+
+	if got := batcher.UnacknowledgedAllocationIDs(); len(got) != 1 || got[0] != "alloc-1" {
+		t.Fatalf("allocation ids after old acknowledgement = %#v, want [alloc-1]", got)
+	}
+	if pending := batcher.pendingCount(); pending != 1 {
+		t.Fatalf("pending after old acknowledgement = %d, want 1", pending)
+	}
+	latest := batcher.drain(1)
+	if len(latest) != 1 || latest[0].observation.GetStatus() != commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED {
+		t.Fatalf("latest batch = %#v, want terminal observation", latest)
+	}
+}
+
+func TestAllocationStatusBatcherRetainsFirstTerminalProofForAttempt(t *testing.T) {
+	batcher := newAllocationStatusBatcher(func(context.Context, []*nodev1.AllocationStatusObservation) error {
+		return nil
+	})
+	terminal := statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, false)
+	accepted, err := batcher.Enqueue(terminal)
+	if err != nil || !accepted {
+		t.Fatalf("Enqueue(terminal) = accepted %v, error %v", accepted, err)
+	}
+	accepted, err = batcher.Enqueue(terminal)
+	if err != nil || !accepted {
+		t.Fatalf("Enqueue(duplicate) = accepted %v, error %v", accepted, err)
+	}
+	conflict := statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED, false)
+	if accepted, err = batcher.Enqueue(conflict); err != nil || accepted {
+		t.Fatalf("Enqueue(conflict) = accepted %v, error %v; want ignored", accepted, err)
+	}
+	if got := batcher.pendingCount(); got != 1 {
+		t.Fatalf("pending count = %d, want one immutable terminal proof", got)
+	}
 }
 
 func TestAllocationStatusBatcherBoundsDistinctPendingAllocations(t *testing.T) {

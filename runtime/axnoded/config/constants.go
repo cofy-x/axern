@@ -56,6 +56,11 @@ const (
 	BridgeIPBucket = "network_interfaces"
 	// AllocationStateBucket stores one durable record per active allocation.
 	AllocationStateBucket = "allocations"
+	// AllocationStatusOutboxBucket stores terminal allocation observations until
+	// controld has acknowledged the corresponding status-report RPC. Resource
+	// cleanup may remove the container checkpoint before that acknowledgement,
+	// so the reporting barrier requires its own durable ownership record.
+	AllocationStatusOutboxBucket = "allocation_status_outbox"
 	// DNATRulesBucket stores the active DNAT rule snapshot.
 	DNATRulesBucket = "dnat_rules"
 	// MemoryObservationSequenceBucket stores the reserved high watermark for

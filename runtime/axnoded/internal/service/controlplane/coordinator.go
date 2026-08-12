@@ -20,34 +20,36 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-type AllocationStatusReporter interface {
-	ReportAllocationStatus(report nodecontrol.AllocationStatusReport)
-}
-
-type AllocationCapabilityConditionReporter interface {
+// NodeReporter is the complete reporting dependency used by Coordinator.
+// Lifecycle health and the acknowledgement barrier are correctness inputs, so
+// they must not be discovered through optional type assertions.
+type NodeReporter interface {
+	Start()
+	Stop()
+	NotifyInventoryChanged()
+	ReportAllocationStatus(report nodecontrol.AllocationStatusReport) error
 	ReportAllocationCapabilityConditions(report nodecontrol.AllocationCapabilityConditionReport)
+	AllocationStatusHealth() nodecontrol.AllocationStatusReporterHealth
+	UnacknowledgedAllocationStatusIDs() []string
+	ReplayDurableAllocationStatuses() error
 }
 
 func (c *Coordinator) ReportCapabilityConditions(allocationID string, attempt int64, conditionSet *capabilityv1.CapabilityConditionSet) {
 	if c == nil || c.reporter == nil {
 		return
 	}
-	reporter, ok := c.reporter.(AllocationCapabilityConditionReporter)
-	if !ok {
-		return
-	}
-	reporter.ReportAllocationCapabilityConditions(nodecontrol.AllocationCapabilityConditionReport{AllocationID: allocationID, Attempt: attempt, ConditionSet: conditionSet})
+	c.reporter.ReportAllocationCapabilityConditions(nodecontrol.AllocationCapabilityConditionReport{AllocationID: allocationID, Attempt: attempt, ConditionSet: conditionSet})
 }
 
 type Options struct {
 	GetContainer func(string) (*container.Container, error)
-	Reporter     AllocationStatusReporter
+	Reporter     NodeReporter
 	Now          func() time.Time
 }
 
 type Coordinator struct {
 	getContainer func(string) (*container.Container, error)
-	reporter     AllocationStatusReporter
+	reporter     NodeReporter
 	now          func() time.Time
 }
 
@@ -55,13 +57,14 @@ func (c *Coordinator) AllocationStatusHealth() nodecontrol.AllocationStatusRepor
 	if c == nil || c.reporter == nil {
 		return nodecontrol.AllocationStatusReporterHealth{Status: "disabled"}
 	}
-	provider, ok := c.reporter.(interface {
-		AllocationStatusHealth() nodecontrol.AllocationStatusReporterHealth
-	})
-	if !ok {
-		return nodecontrol.AllocationStatusReporterHealth{Status: "unavailable"}
+	return c.reporter.AllocationStatusHealth()
+}
+
+func (c *Coordinator) UnacknowledgedAllocationStatusIDs() []string {
+	if c == nil || c.reporter == nil {
+		return nil
 	}
-	return provider.AllocationStatusHealth()
+	return c.reporter.UnacknowledgedAllocationStatusIDs()
 }
 
 func NewCoordinator(options Options) *Coordinator {
@@ -76,8 +79,15 @@ func NewCoordinator(options Options) *Coordinator {
 	}
 }
 
-func (c *Coordinator) SetReporter(reporter AllocationStatusReporter) {
+// SetReporter is the production assembly boundary. Taking the concrete
+// reporter prevents a disabled *Reporter(nil) from becoming a non-nil Go
+// interface; tests inject alternate implementations through NewCoordinator.
+func (c *Coordinator) SetReporter(reporter *nodecontrol.Reporter) {
 	if c == nil {
+		return
+	}
+	if reporter == nil {
+		c.reporter = nil
 		return
 	}
 	c.reporter = reporter
@@ -87,9 +97,8 @@ func (c *Coordinator) Start() {
 	if c == nil {
 		return
 	}
-	reporter, ok := c.reporter.(interface{ Start() })
-	if ok && reporter != nil {
-		reporter.Start()
+	if c.reporter != nil {
+		c.reporter.Start()
 	}
 }
 
@@ -97,9 +106,8 @@ func (c *Coordinator) Stop() {
 	if c == nil {
 		return
 	}
-	reporter, ok := c.reporter.(interface{ Stop() })
-	if ok && reporter != nil {
-		reporter.Stop()
+	if c.reporter != nil {
+		c.reporter.Stop()
 	}
 }
 
@@ -107,10 +115,7 @@ func (c *Coordinator) NotifyInventoryChanged() {
 	if c == nil || c.reporter == nil {
 		return
 	}
-	reporter, ok := c.reporter.(interface{ NotifyInventoryChanged() })
-	if ok {
-		reporter.NotifyInventoryChanged()
-	}
+	c.reporter.NotifyInventoryChanged()
 }
 
 func (c *Coordinator) ReportAllocationStatus(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time) {
@@ -123,7 +128,7 @@ func (c *Coordinator) ReportAllocationStatus(allocationID string, attempt int64,
 		attribute.String(sdkobs.AttrStatus, status.String()),
 	)
 	defer span.End()
-	c.reporter.ReportAllocationStatus(nodecontrol.AllocationStatusReport{
+	if err := c.reporter.ReportAllocationStatus(nodecontrol.AllocationStatusReport{
 		AllocationID:     allocationID,
 		Attempt:          attempt,
 		Status:           status,
@@ -134,24 +139,51 @@ func (c *Coordinator) ReportAllocationStatus(allocationID string, attempt int64,
 		Message:          message,
 		DiagnosticCode:   commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED,
 		ObservedAt:       observedAt,
-	})
+	}); err != nil {
+		logrus.WithError(err).WithField("allocation_id", allocationID).Warn("queue allocation status report")
+	}
 }
 
-func (c *Coordinator) ReportContainerExit(event container.Event) {
+func (c *Coordinator) ReportContainerExit(event container.Event) error {
 	if c == nil || c.reporter == nil || c.getContainer == nil || strings.TrimSpace(event.ContainerID) == "" {
-		return
+		return nil
+	}
+	report, ok := c.ContainerExitReport(event)
+	if !ok {
+		return nil
+	}
+	return c.reporter.ReportAllocationStatus(report)
+}
+
+// ContainerExitReport converts a durable runtime exit into the exact typed
+// control-plane observation used both by the live reporter and startup outbox
+// recovery. A false result identifies a non-allocation/internal container.
+func (c *Coordinator) ContainerExitReport(event container.Event) (nodecontrol.AllocationStatusReport, bool) {
+	if c == nil || c.getContainer == nil || strings.TrimSpace(event.ContainerID) == "" {
+		return nodecontrol.AllocationStatusReport{}, false
 	}
 	ct, err := c.getContainer(event.ContainerID)
 	if err != nil || ct == nil || ct.Metadata == nil {
-		return
+		return nodecontrol.AllocationStatusReport{}, false
+	}
+	report := ContainerExitReportFromContainer(ct, event, c.now())
+	return report, report.AllocationID != "" && report.Attempt > 0
+}
+
+// ContainerExitReportFromContainer is the initialization-order-independent
+// shaping contract shared by live runtime observation and startup recovery.
+// The caller must already own the durable container record.
+func ContainerExitReportFromContainer(ct *container.Container, event container.Event, fallbackObservedAt time.Time) nodecontrol.AllocationStatusReport {
+	if ct == nil || ct.Metadata == nil {
+		return nodecontrol.AllocationStatusReport{}
 	}
 	allocationID := strings.TrimSpace(ct.Metadata.ID)
 	if allocationID == "" {
-		return
+		return nodecontrol.AllocationStatusReport{}
 	}
 	attempt := AllocationAttemptFromLabels(ct.Metadata.Labels)
 	if attempt <= 0 {
-		return
+		return nodecontrol.AllocationStatusReport{}
 	}
 	message := strings.TrimSpace(event.Reason)
 	diagnosticCode := event.DiagnosticCode
@@ -163,7 +195,7 @@ func (c *Coordinator) ReportContainerExit(event container.Event) {
 	}
 	observedAt := event.ExitedAt.UTC()
 	if observedAt.IsZero() {
-		observedAt = c.now()
+		observedAt = fallbackObservedAt.UTC()
 	}
 	logrus.WithFields(logrus.Fields{
 		"allocation_id": allocationID,
@@ -171,7 +203,7 @@ func (c *Coordinator) ReportContainerExit(event container.Event) {
 		"exit_code":     event.ExitCode,
 		"known":         event.ExitCodeKnown,
 	}).Debug("reporting exited allocation status to control plane")
-	c.reporter.ReportAllocationStatus(nodecontrol.AllocationStatusReport{
+	return nodecontrol.AllocationStatusReport{
 		AllocationID:   allocationID,
 		Attempt:        attempt,
 		Status:         commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED,
@@ -180,7 +212,14 @@ func (c *Coordinator) ReportContainerExit(event container.Event) {
 		Message:        message,
 		DiagnosticCode: diagnosticCode,
 		ObservedAt:     observedAt,
-	})
+	}
+}
+
+func (c *Coordinator) ReplayDurableAllocationStatuses() error {
+	if c == nil || c.reporter == nil {
+		return nil
+	}
+	return c.reporter.ReplayDurableAllocationStatuses()
 }
 
 func AllocationAttemptFromLabels(labels map[string]string) int64 {
@@ -198,7 +237,12 @@ func AllocationAttemptFromLabels(labels map[string]string) int64 {
 	return attempt
 }
 
-func NewNodeReporter(cfg config.Config, runtimeNames func() []string, inventory func() (nodeinventory.NodeInventorySnapshot, bool)) (*nodecontrol.Reporter, error) {
+func NewNodeReporter(
+	cfg config.Config,
+	runtimeNames func() []string,
+	inventory func() (nodeinventory.NodeInventorySnapshot, bool),
+	statusOutbox *nodecontrol.AllocationStatusOutbox,
+) (*nodecontrol.Reporter, error) {
 	target := cfg.PluginConfig.ControlPlaneTargetValue()
 	if target == "" {
 		return nil, nil
@@ -221,5 +265,6 @@ func NewNodeReporter(cfg config.Config, runtimeNames func() []string, inventory 
 		runtimeNames,
 		inventory,
 		nodecontrol.BuildNodeSummary,
+		statusOutbox,
 	), nil
 }

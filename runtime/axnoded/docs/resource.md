@@ -130,6 +130,28 @@ details rather than a control-plane inference contract.
 Axnoded rejects startup when a loaded runtime requires a pool disabled by
 configuration.
 
+`active_allocation_ids` is a lifecycle-ownership boundary, not an alias for
+running processes. It includes every durable local allocation record, including
+an exited allocation awaiting ordered Delete, plus any allocation whose queued
+or in-flight status observation has not yet received a successful controld RPC
+acknowledgement. `running_allocation_ids` remains the process-state projection.
+This causal acknowledgement barrier prevents a short-lived allocation from
+being classified as missing before its terminal exit evidence is committed.
+Before a monitor crosses its exit barrier, the terminal observation is written
+to a one-current-proof-per-allocation node-state outbox. Atomic compare-and-swap
+publishing and compare-delete acknowledgement ensure an older attempt cannot
+overwrite or erase a newer terminal proof. Within one attempt, the first
+durable terminal proof is immutable, matching controld admission of terminal
+lifecycle state; exact replay is idempotent and later conflicting terminal
+projections are ignored. Startup seeds the
+outbox from any terminal container checkpoint before reconciliation may remove
+runtime artifacts, then replays the outbox into the process-local queue.
+Runtime list/inventory output may enrich PID and creation identity but never
+creates `FinishedAt`, an exit code, or a diagnostic: only the runtime `Wait`
+observer is terminal evidence. Shutdown cancels and joins every observer only
+after any in-progress checkpoint and exit callback have completed, before node
+state or resource managers are closed.
+
 The aggregate `idle` count is the number of runtime slots whose enabled pool
 resources are already materialized. It is the minimum idle count across enabled
 pools, capped by effective available capacity. When no resource pool is enabled,
@@ -262,10 +284,13 @@ Key behavior:
   consistency fact, not extra allocatable memory.
 - Per-allocation observations always report `memory.current`. When the host
   kernel exposes `memory.peak`, `peak_available=true` identifies the kernel
-  high-water mark. Older cgroup-v2 kernels report the current sample as
-  `peak_bytes` with `peak_available=false`; this is an observability limitation,
-  not a hard-limit fallback. Enforcement continues to depend on control
-  readback, OOM events, cgroup identity, and runtime PID attribution.
+  high-water mark. Kernels may omit optional `memory.peak`/`memory.pressure`
+  files or expose them while returning `EOPNOTSUPP`; in those cases the node
+  reports `peak_available=false` and/or `psi_available=false`, with current as
+  the sampled peak lower bound. Malformed, permission-denied, and other I/O
+  failures remain provider errors. Optional observability unavailability is not
+  a hard-limit fallback: enforcement continues to depend on control readback,
+  OOM events, cgroup identity, and runtime PID attribution.
 - Capacity reporting and hard-limit enforcement are separate contracts.
   Production publishes `CGROUP_V2` with a positive reserve and cgroup-backed
   capacity identity. Explicit `disabled_dev` publishes `DISABLED_DEV` capacity

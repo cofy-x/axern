@@ -1,37 +1,59 @@
 #!/usr/bin/env bash
+# shellcheck source-path=SCRIPTDIR
 set -euo pipefail
 
 AXERN_DEV_ENV_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=./lib.sh
 source "${AXERN_DEV_ENV_ROOT}/scripts/dev-env/lib.sh"
+# shellcheck source=./docker-build-cache.sh
 source "${AXERN_DEV_ENV_ROOT}/scripts/dev-env/docker-build-cache.sh"
+# shellcheck source=../../runtime/axnoded/scripts/lib/verify-docker-common.sh
 source "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/lib/verify-docker-common.sh"
 
 require_cmd docker
-go_bin="$(axern_go_bin)"
-require_cmd "${go_bin}"
 begin_named_lock "images-build"
 trap 'end_named_lock "images-build"' EXIT
 
 image_scope="${AXERN_LOCAL_IMAGE_SCOPE:-all}"
+build_node_runtime_base=false
 build_runtime_core=false
 build_full_runtime_catalog=false
-build_node_stack=false
+build_control_stack=false
+build_tunneld=false
+build_node_image=false
 case "${image_scope}" in
   all)
+    build_node_runtime_base=true
     build_runtime_core=true
     build_full_runtime_catalog=true
-    build_node_stack=true
+    build_control_stack=true
+    build_tunneld=true
+    build_node_image=true
     ;;
-  control) ;;
+  control)
+    build_control_stack=true
+    ;;
   managed-rollout)
+    build_node_runtime_base=true
     build_runtime_core=true
-    build_node_stack=true
+    build_control_stack=true
+    build_tunneld=true
+    build_node_image=true
+    ;;
+  node)
+    build_node_runtime_base=true
+    build_node_image=true
     ;;
   *)
-    echo "AXERN_LOCAL_IMAGE_SCOPE must be all, control, or managed-rollout" >&2
+    echo "AXERN_LOCAL_IMAGE_SCOPE must be all, control, managed-rollout, or node" >&2
     exit 2
     ;;
 esac
+
+if [ "${build_control_stack}" = "true" ] || [ "${build_tunneld}" = "true" ]; then
+  go_bin="$(axern_go_bin)"
+  require_cmd "${go_bin}"
+fi
 
 push_image_after_build() {
   local image_ref="$1"
@@ -50,12 +72,14 @@ report_image_build_phase() {
   fi
 }
 
-if [ "${build_runtime_core}" = "true" ]; then
+if [ "${build_node_runtime_base}" = "true" ]; then
   phase_started_at="$(date +%s)"
   build_node_runtime_base_image "${APT_MIRROR_SOURCE}" "${CARGO_REGISTRY_SOURCE}"
   push_image_after_build "${NODE_RUNTIME_BASE_IMAGE_TAG}"
   report_image_build_phase "node-runtime-base" "${phase_started_at}"
+fi
 
+if [ "${build_runtime_core}" = "true" ]; then
   phase_started_at="$(date +%s)"
   IMAGE_REF="${PYTHON311_RUNTIME_IMAGE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-python311-runtime-image.sh" >/dev/null
   push_image_after_build "${PYTHON311_RUNTIME_IMAGE}"
@@ -77,82 +101,97 @@ if [ "${build_full_runtime_catalog}" = "true" ]; then
   report_image_build_phase "runtime-catalog" "${phase_started_at}"
 fi
 
-phase_started_at="$(date +%s)"
-mkdir -p "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build"
-mkdir -p "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build"
-
-if [ "${build_node_stack}" = "true" ]; then
+if [ "${build_control_stack}" = "true" ] || [ "${build_tunneld}" = "true" ]; then
+  phase_started_at="$(date +%s)"
+fi
+if [ "${build_control_stack}" = "true" ]; then
+  mkdir -p "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build"
+  mkdir -p "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build"
+fi
+if [ "${build_tunneld}" = "true" ]; then
   mkdir -p "${AXERN_DEV_ENV_ROOT}/deploy/images/tunneld/.build"
 fi
-rm -rf "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build/dashboard-vendor"
-(
-  cd "${AXERN_DEV_ENV_ROOT}" && \
-    GOTOOLCHAIN=local GOFLAGS= "${go_bin}" run ./gateway/gatewayd/cmd/dashassets \
-      -vendor-dir "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build/dashboard-vendor"
-)
-case "${AXERN_TARGET_GOARCH:-$(uname -m)}" in
-  arm64|aarch64)
-    CONTROLD_GOARCH="arm64"
-    ;;
-  x86_64|amd64)
-    CONTROLD_GOARCH="amd64"
-    ;;
-  *)
-    echo "unsupported host architecture for local controld image: $(uname -m)" >&2
-    exit 1
-    ;;
-esac
-(
-  cd "${AXERN_DEV_ENV_ROOT}" && \
-    GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS= \
-      "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/controld" ./control/controld/cmd/controld
-    GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS= \
-      "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/controld-migrate" ./control/controld/cmd/migrate
-    GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS= \
-      "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/controld-access-bootstrap" ./control/controld/cmd/access-bootstrap
-    GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS= \
-      "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/controld-retention" ./control/controld/cmd/retention
-    GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS= \
-      "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/storaged" ./control/storaged/cmd/storaged
-    GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS= \
-      "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/axrun" ./apps/axrun
-    GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS= \
-      "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build/gatewayd" ./gateway/gatewayd
-)
-
-if [ "${build_node_stack}" = "true" ]; then
+if [ "${build_control_stack}" = "true" ] || [ "${build_tunneld}" = "true" ]; then
+  case "${AXERN_TARGET_GOARCH:-$(uname -m)}" in
+    arm64|aarch64)
+      CONTROLD_GOARCH="arm64"
+      ;;
+    x86_64|amd64)
+      CONTROLD_GOARCH="amd64"
+      ;;
+    *)
+      echo "unsupported host architecture for local application images: $(uname -m)" >&2
+      exit 1
+      ;;
+  esac
+fi
+if [ "${build_control_stack}" = "true" ]; then
+  rm -rf "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build/dashboard-vendor"
   (
     cd "${AXERN_DEV_ENV_ROOT}" && \
-      GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS= \
+      GOTOOLCHAIN=local GOFLAGS='' "${go_bin}" run ./gateway/gatewayd/cmd/dashassets \
+        -vendor-dir "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build/dashboard-vendor"
+  )
+  (
+    cd "${AXERN_DEV_ENV_ROOT}" && \
+      GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
+        "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/controld" ./control/controld/cmd/controld
+      GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
+        "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/controld-migrate" ./control/controld/cmd/migrate
+      GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
+        "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/controld-access-bootstrap" ./control/controld/cmd/access-bootstrap
+      GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
+        "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/controld-retention" ./control/controld/cmd/retention
+      GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
+        "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/storaged" ./control/storaged/cmd/storaged
+      GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
+        "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/axrun" ./apps/axrun
+      GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
+        "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build/gatewayd" ./gateway/gatewayd
+  )
+fi
+
+if [ "${build_tunneld}" = "true" ]; then
+  (
+    cd "${AXERN_DEV_ENV_ROOT}" && \
+      GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
         "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/tunneld/.build/tunneld" ./runtime/tunneld/cmd/tunneld
   )
 fi
-report_image_build_phase "application-binaries" "${phase_started_at}"
+if [ "${build_control_stack}" = "true" ] || [ "${build_tunneld}" = "true" ]; then
+  report_image_build_phase "application-binaries" "${phase_started_at}"
+fi
 
-phase_started_at="$(date +%s)"
-axern_docker_build \
-  -f "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/Dockerfile" \
-  --build-arg "APT_MIRROR_BASE_URL=${APT_MIRROR_BASE_URL:-}" \
-  -t "${CONTROLD_IMAGE}" \
-  "${AXERN_DEV_ENV_ROOT}"
-push_image_after_build "${CONTROLD_IMAGE}"
+if [ "${build_control_stack}" = "true" ]; then
+  phase_started_at="$(date +%s)"
+  axern_docker_build \
+    -f "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/Dockerfile" \
+    --build-arg "APT_MIRROR_BASE_URL=${APT_MIRROR_BASE_URL:-}" \
+    -t "${CONTROLD_IMAGE}" \
+    "${AXERN_DEV_ENV_ROOT}"
+  push_image_after_build "${CONTROLD_IMAGE}"
 
-axern_docker_build \
-  -f "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/Dockerfile" \
-  --build-arg "APT_MIRROR_BASE_URL=${APT_MIRROR_BASE_URL:-}" \
-  -t "${GATEWAYD_IMAGE}" \
-  "${AXERN_DEV_ENV_ROOT}"
-push_image_after_build "${GATEWAYD_IMAGE}"
-report_image_build_phase "control-images" "${phase_started_at}"
+  axern_docker_build \
+    -f "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/Dockerfile" \
+    --build-arg "APT_MIRROR_BASE_URL=${APT_MIRROR_BASE_URL:-}" \
+    -t "${GATEWAYD_IMAGE}" \
+    "${AXERN_DEV_ENV_ROOT}"
+  push_image_after_build "${GATEWAYD_IMAGE}"
+  report_image_build_phase "control-images" "${phase_started_at}"
+fi
 
-if [ "${build_node_stack}" = "true" ]; then
+if [ "${build_tunneld}" = "true" ]; then
   phase_started_at="$(date +%s)"
   axern_docker_build \
     -f "${AXERN_DEV_ENV_ROOT}/deploy/images/tunneld/Dockerfile" \
     -t "${TUNNELD_IMAGE}" \
     "${AXERN_DEV_ENV_ROOT}"
   push_image_after_build "${TUNNELD_IMAGE}"
+  report_image_build_phase "tunneld-image" "${phase_started_at}"
+fi
 
+if [ "${build_node_image}" = "true" ]; then
+  phase_started_at="$(date +%s)"
   axern_docker_build \
     -f "${AXERN_DEV_ENV_ROOT}/deploy/images/node-all-in-one/Dockerfile" \
     --build-arg "NODE_RUNTIME_BASE_IMAGE=${NODE_RUNTIME_BASE_IMAGE_TAG}" \
@@ -160,7 +199,7 @@ if [ "${build_node_stack}" = "true" ]; then
     -t "${NODE_ALL_IN_ONE_IMAGE}" \
     "${AXERN_DEV_ENV_ROOT}"
   push_image_after_build "${NODE_ALL_IN_ONE_IMAGE}"
-  report_image_build_phase "node-images" "${phase_started_at}"
+  report_image_build_phase "node-image" "${phase_started_at}"
 fi
 
 if [ "${build_runtime_core}" = "true" ]; then
@@ -175,8 +214,11 @@ if [ "${build_full_runtime_catalog}" = "true" ]; then
   docker image inspect \
     "${DESKTOP_BASE_RUNTIME_IMAGE}" >/dev/null
 fi
-if [ "${build_node_stack}" = "true" ]; then
-  docker image inspect "${TUNNELD_IMAGE}" "${NODE_ALL_IN_ONE_IMAGE}" >/dev/null
+if [ "${build_tunneld}" = "true" ]; then
+  docker image inspect "${TUNNELD_IMAGE}" >/dev/null
+fi
+if [ "${build_node_image}" = "true" ]; then
+  docker image inspect "${NODE_ALL_IN_ONE_IMAGE}" >/dev/null
 fi
 
 echo "local_images_ready=true"

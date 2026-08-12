@@ -67,17 +67,23 @@ func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInv
 		if allocationID == "" {
 			continue
 		}
+		// Active means axnoded still owns lifecycle or resource state, not that
+		// the runtime process is currently running. An exited allocation remains
+		// active until ordered Delete removes its durable local record.
+		snapshot.Components.Axnoded.ActiveAllocationIDs = append(snapshot.Components.Axnoded.ActiveAllocationIDs, allocationID)
 		if c.Status == nil {
-			snapshot.Components.Axnoded.ActiveAllocationIDs = append(snapshot.Components.Axnoded.ActiveAllocationIDs, allocationID)
 			continue
 		}
 		switch c.Status.Get().State() {
-		case runtimeapi.ContainerState_CONTAINER_EXITED:
-			continue
 		case runtimeapi.ContainerState_CONTAINER_RUNNING:
 			snapshot.Components.Axnoded.RunningAllocationIDs = append(snapshot.Components.Axnoded.RunningAllocationIDs, allocationID)
 		}
-		snapshot.Components.Axnoded.ActiveAllocationIDs = append(snapshot.Components.Axnoded.ActiveAllocationIDs, allocationID)
+	}
+	if s.unackedStatusIDs != nil {
+		snapshot.Components.Axnoded.ActiveAllocationIDs = append(
+			snapshot.Components.Axnoded.ActiveAllocationIDs,
+			s.unackedStatusIDs()...,
+		)
 	}
 	for _, c := range runningContainers {
 		status := c.Status.Get()
@@ -93,8 +99,8 @@ func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInv
 			snapshot.Resources.Memory.AxnodedUnboundedCount++
 		}
 	}
-	sort.Strings(snapshot.Components.Axnoded.RunningAllocationIDs)
-	sort.Strings(snapshot.Components.Axnoded.ActiveAllocationIDs)
+	snapshot.Components.Axnoded.RunningAllocationIDs = sortedUniqueAllocationIDs(snapshot.Components.Axnoded.RunningAllocationIDs)
+	snapshot.Components.Axnoded.ActiveAllocationIDs = sortedUniqueAllocationIDs(snapshot.Components.Axnoded.ActiveAllocationIDs)
 
 	if !s.resourcePoolDisabled(resources.CgroupResourceName) {
 		cgroupPool, err := s.container.ResourcePoolStatus(resources.CgroupResourceName)
@@ -124,6 +130,26 @@ func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInv
 	snapshot.Components.Axnoded.Status = componentStatus
 	snapshot.Components.Axnoded.Error = componentError
 	return true
+}
+
+func sortedUniqueAllocationIDs(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	normalized := values[:0]
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			normalized = append(normalized, value)
+		}
+	}
+	sort.Strings(normalized)
+	unique := normalized[:0]
+	for _, value := range normalized {
+		if len(unique) == 0 || unique[len(unique)-1] != value {
+			unique = append(unique, value)
+		}
+	}
+	return unique
 }
 
 func (s *AxnodedSource) runtimeSlotInventory(active int, pools PoolsInventory) PoolInventory {

@@ -111,6 +111,35 @@ func TestCollectAxnodedInventoryAllowsConfiguredDisabledPool(t *testing.T) {
 	}
 }
 
+func TestCollectAxnodedInventoryPreservesLifecycleOwnershipUntilStatusAcknowledgement(t *testing.T) {
+	source := NewAxnodedSource(AxnodedSourceOptions{
+		Ready:        func() bool { return true },
+		RuntimeCount: func() int { return 1 },
+		Container: &fakeContainerManager{list: []*container.Container{
+			inventoryContainer("exited-local", container.Status{
+				StartedAt:  "2026-08-11T00:00:00Z",
+				FinishedAt: "2026-08-11T00:00:01Z",
+			}),
+		}},
+		DisabledResourcePools: []resources.ResourceName{resources.CgroupResourceName, resources.InterfaceResourceName},
+		UnackedStatusIDs: func() []string {
+			return []string{" pending-remote ", "exited-local", "", "pending-remote"}
+		},
+	})
+
+	snapshot := NewSnapshot()
+	if ready := source.collectAxnodedInventory(time.Now().UTC(), &snapshot); !ready {
+		t.Fatal("collectAxnodedInventory() ready = false, want true")
+	}
+	if got := snapshot.Components.Axnoded.RunningContainers; got != 0 {
+		t.Fatalf("running containers = %d, want 0", got)
+	}
+	got := snapshot.Components.Axnoded.ActiveAllocationIDs
+	if len(got) != 2 || got[0] != "exited-local" || got[1] != "pending-remote" {
+		t.Fatalf("active allocation ids = %#v, want [exited-local pending-remote]", got)
+	}
+}
+
 func TestCollectAxnodedInventoryRequiresConfiguredPool(t *testing.T) {
 	source := NewAxnodedSource(AxnodedSourceOptions{
 		Ready:               func() bool { return true },

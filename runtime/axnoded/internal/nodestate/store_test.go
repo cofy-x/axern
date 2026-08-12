@@ -40,6 +40,33 @@ func TestDBRecordLifecycle(t *testing.T) {
 	}
 }
 
+func TestDBCompareAndSwapRecord(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	first := &apipb.Map{Items: map[string]string{"value": "first"}}
+	swapped, err := db.CompareAndSwapRecord("records", "key", nil, false, first)
+	if err != nil || !swapped {
+		t.Fatalf("create CAS = %v, %v", swapped, err)
+	}
+	encoded, err := db.GetRecordBytes("records", "key")
+	if err != nil {
+		t.Fatalf("GetRecordBytes() error = %v", err)
+	}
+	if swapped, err = db.CompareAndSwapRecord("records", "key", []byte("stale"), true, nil); err != nil || swapped {
+		t.Fatalf("stale delete CAS = %v, %v", swapped, err)
+	}
+	if swapped, err = db.CompareAndSwapRecord("records", "key", encoded, true, nil); err != nil || !swapped {
+		t.Fatalf("exact delete CAS = %v, %v", swapped, err)
+	}
+	if _, err := db.GetRecordBytes("records", "key"); !errord.IsNotFound(err) {
+		t.Fatalf("GetRecordBytes() after delete error = %v, want not found", err)
+	}
+}
+
 func TestDBSnapshotAndIterationSurviveReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "metadata.db")
 	db, err := Open(path)

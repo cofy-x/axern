@@ -91,8 +91,7 @@ func (h *Controller) createContainer(
 	if err := h.containers().SetResources(resource.ID, request.Resource, resourceSpec); err != nil {
 		return response, "", h.cleanupCreatedRuntime(handler, resource, fmt.Errorf("persist created container resources: %w", err))
 	}
-	h.syncCreatedContainerStatus(ctx, resource.ID, handler)
-	if err := h.containers().StartMonitor(metaData); err != nil {
+	if err := h.registerCreatedContainerLifecycle(ctx, resource.ID, metaData, handler); err != nil {
 		return response, "", h.cleanupCreatedRuntime(handler, resource, fmt.Errorf("register created container monitor: %w", err))
 	}
 	logrus.WithField(trace.ContextKeyTraceId, traceID).Infof("CreateContainer %s success, traceID: %v, spanID: %v, cost: %v", resource.ID, traceID, spanID, time.Since(start).String())
@@ -164,11 +163,29 @@ func (h *Controller) createManagedContainer(
 	if err := h.containers().SetResources(resource.ID, request.Resource, startRequest.GetResources()); err != nil {
 		return response, "", cleanupPrepared(fmt.Errorf("persist activated container resources: %w", err))
 	}
-	h.syncCreatedContainerStatus(ctx, resource.ID, managed)
-	if err := h.containers().StartMonitor(metaData); err != nil {
+	if err := h.registerCreatedContainerLifecycle(ctx, resource.ID, metaData, managed); err != nil {
 		return response, "", cleanupPrepared(fmt.Errorf("register activated container monitor: %w", err))
 	}
 	return response, containerIPFromResource(resource), nil
+}
+
+// registerCreatedContainerLifecycle establishes the runtime Wait observer before
+// consulting the runtime's lossy list view. A short-lived process may already
+// be absent or reported only as stopped by ListContainers, while Wait can still
+// recover its durable exit record. A running List entry may enrich runtime
+// identity; an exited entry is ignored because its PID may already be reused.
+// Wait remains the sole create-time source of terminal lifecycle evidence.
+func (h *Controller) registerCreatedContainerLifecycle(
+	ctx context.Context,
+	containerID string,
+	metaData *apipb.ContainerMetadata,
+	handler contract.RuntimeHandler,
+) error {
+	if err := h.containers().StartMonitor(metaData); err != nil {
+		return err
+	}
+	h.syncCreatedContainerStatus(ctx, containerID, handler)
+	return nil
 }
 
 func (h *Controller) cleanupCreatedRuntime(handler contract.RuntimeHandler, resource container.OccupiedResource, cause error) error {
@@ -206,7 +223,7 @@ func (h *Controller) syncCreatedContainerStatus(ctx context.Context, containerID
 		if state == nil || state.ID != containerID {
 			continue
 		}
-		if err := h.containers().SyncStatusFromState(containerID, state); err != nil {
+		if err := h.containers().SyncRuntimeIdentityFromState(containerID, state); err != nil {
 			logrus.Warnf("sync created container %s status failed: %v", containerID, err)
 		}
 		return

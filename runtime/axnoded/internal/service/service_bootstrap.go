@@ -13,6 +13,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	nodecontrol "github.com/cofy-x/axern/runtime/axnoded/internal/controlplane"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	ebpfnetwork "github.com/cofy-x/axern/runtime/axnoded/internal/network/ebpf"
 	nodecapabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
@@ -72,6 +73,7 @@ type sandboxService struct {
 	capabilityReconcileCancel context.CancelFunc
 	capabilityReconcileWG     sync.WaitGroup
 	controlPlaneReports       *servicecontrolplane.Coordinator
+	allocationStatusOutbox    *nodecontrol.AllocationStatusOutbox
 	memoryObservationMu       sync.Mutex
 	memoryObservationNext     int64
 	memoryObservationReserved int64
@@ -197,6 +199,9 @@ func newSandboxServiceState(cfg config.Config) (*sandboxService, error) {
 		volumeClient:    volumeClient,
 		volumeCloser:    volumeClient,
 	}
+	if cfg.PluginConfig.ControlPlaneTargetValue() != "" {
+		s.allocationStatusOutbox = nodecontrol.NewAllocationStatusOutbox(stateDB)
+	}
 	s.capabilityReconcileCtx, s.capabilityReconcileCancel = context.WithCancel(context.Background())
 	s.configureServiceCollaborators()
 	s.lrtManager.ConfigureRetention(retentionTTL, retentionMax)
@@ -217,7 +222,13 @@ func (h *sandboxService) closeAfterInitializationFailure() {
 		return
 	}
 	if h.containerManager != nil {
-		h.containerManager.Stop()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if err := h.containerManager.Stop(ctx); err != nil {
+			logrus.WithError(err).Warn("stop container manager after initialization failure")
+			cancel()
+			return
+		}
+		cancel()
 	}
 	if h.runtimeHandlers != nil {
 		for item := range h.runtimeHandlers.Map().IterBuffered() {
@@ -252,6 +263,9 @@ func (h *sandboxService) restorePersistentState() error {
 	retained := inventory.retained()
 	if err := h.containerManager.ValidateRuntimeInventory(retained.allByRuntime()); err != nil {
 		return fmt.Errorf("validate persisted container inventory: %w", err)
+	}
+	if err := h.seedTerminalAllocationStatusOutbox(); err != nil {
+		return err
 	}
 	if err := h.cleanupTerminalRuntimeContainers(context.Background(), inventory); err != nil {
 		return err

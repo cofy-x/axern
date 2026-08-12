@@ -11,6 +11,7 @@ import (
 
 	"github.com/cofy-x/axern/lib/go/grpcclient"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/grpc"
@@ -221,6 +222,7 @@ func TestReporterCanUseRealGRPCClient(t *testing.T) {
 			_ = snapshot
 			return &nodev1.NodeSummary{}
 		},
+		nil,
 	)
 	if r == nil {
 		t.Fatal("expected reporter")
@@ -246,10 +248,12 @@ func TestReporterAllocationStatusPreservesObservedSemantics(t *testing.T) {
 	client, fake, cleanup := newFakeNodeControlClient(t)
 	defer cleanup()
 
+	outbox := NewAllocationStatusOutbox(storetest.NewMockStore())
 	r := &Reporter{
-		target:  "unused",
-		nodeID:  "node-a",
-		control: fakeNodeControlProvider{client: client},
+		target:       "unused",
+		nodeID:       "node-a",
+		control:      fakeNodeControlProvider{client: client},
+		statusOutbox: outbox,
 	}
 	r.ensureStatusBatcher().Start()
 	defer r.ensureStatusBatcher().Stop()
@@ -277,6 +281,20 @@ func TestReporterAllocationStatusPreservesObservedSemantics(t *testing.T) {
 	})
 
 	awaitStatusCalls(t, fake, 1)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		replayed, err := outbox.Replay()
+		if err != nil {
+			t.Fatalf("Replay() error = %v", err)
+		}
+		if len(replayed) == 0 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if replayed, err := outbox.Replay(); err != nil || len(replayed) != 0 {
+		t.Fatalf("terminal outbox after RPC acknowledgement = %#v, error %v", replayed, err)
+	}
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
 	if len(fake.statusCalls) != 1 {
@@ -339,6 +357,18 @@ func TestReporterAllocationStatusSanitizesRuntimeMessages(t *testing.T) {
 	}
 	if observation.GetMessage() != "runtime \uFFFD output" {
 		t.Fatalf("message = %q, want replacement character", observation.GetMessage())
+	}
+}
+
+func TestAllocationStatusObservationRejectsOutOfRangeTime(t *testing.T) {
+	_, err := AllocationStatusObservationFromReport(AllocationStatusReport{
+		AllocationID: "alloc-invalid-time",
+		Attempt:      1,
+		Status:       commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING,
+		ObservedAt:   time.Date(10000, time.January, 1, 0, 0, 0, 0, time.UTC),
+	})
+	if err == nil {
+		t.Fatal("AllocationStatusObservationFromReport() error = nil, want invalid timestamp")
 	}
 }
 

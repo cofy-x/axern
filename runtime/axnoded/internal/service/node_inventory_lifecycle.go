@@ -106,6 +106,7 @@ func (h *sandboxService) initNodeInventory() error {
 		MemoryObservationRevision: nextMemoryObservationRevision,
 		MemoryPIDRolesVerifier:    h.verifyMemoryPIDRoles,
 		RetiringMemoryLeases:      h.containerManager.RetiringMemoryLeases,
+		UnackedStatusIDs:          h.controlPlaneReports.UnacknowledgedAllocationStatusIDs,
 		DisabledResourcePools:     disabledPools,
 	})
 	h.inventoryCollector = nodeinventory.NewCollector(5*time.Second, h.nodeInventorySource.Collect)

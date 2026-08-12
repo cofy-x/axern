@@ -43,6 +43,48 @@ func TestStartManagedContainerReservesMemoryBeforeVolumeImageOrRootfsSideEffects
 	}
 }
 
+func TestStartManagedContainerPreservesFastExitStatus(t *testing.T) {
+	const containerID = "alloc-managed-fast-exit"
+	releaseExit := make(chan struct{})
+	handler := &runtimeSpyHandler{
+		name: "runsc",
+		waitFunc: func(ctx context.Context, _ contract.HandlerOptions) (contract.Exit, error) {
+			select {
+			case <-releaseExit:
+				return contract.Exit{Status: 42, Timestamp: time.Now().UTC()}, nil
+			case <-ctx.Done():
+				return contract.Exit{}, ctx.Err()
+			}
+		},
+		listStates: []*contract.UnionContainerState{{
+			ID:     containerID,
+			Status: contract.ContainerStatusExited,
+		}},
+		listHook: func() { close(releaseExit) },
+	}
+	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+
+	response, err := fixture.controller.startManagedContainer(context.Background(), &runtimeapi.StartRequest{
+		ContainerID: containerID,
+		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
+			ID:      "runtime-managed-fast-exit",
+			Sandbox: "runsc",
+			Rootfs: &runtimeapi.RootfsConfig{
+				Type:   runtimeapi.RootfsSrcType_LOCAL,
+				Source: &runtimeapi.RootfsConfig_Path{Path: t.TempDir()},
+			},
+			Command: []string{"/bin/sh", "-c", "exit 42"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("startManagedContainer() error = %v", err)
+	}
+	if response.GetID() != containerID {
+		t.Fatalf("container id = %q, want %q", response.GetID(), containerID)
+	}
+	assertExactContainerExit(t, fixture, containerID, 42)
+}
+
 func TestStartManagedContainerSerializesDuplicateAllocationStarts(t *testing.T) {
 	rootfsDir := t.TempDir()
 	createEntered := make(chan struct{})

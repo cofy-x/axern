@@ -3,10 +3,12 @@
 package hostlinux
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -67,6 +69,26 @@ func TestReadCgroupMemoryObservationUsesCurrentWhenKernelPeakIsUnavailable(t *te
 	}
 	if observation.PeakAvailable || observation.PeakBytes != observation.CurrentBytes {
 		t.Fatalf("observation = %+v", observation)
+	}
+}
+
+func TestOptionalCgroupMemoryObservationUnavailable(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "missing", err: fmt.Errorf("read optional file: %w", os.ErrNotExist), want: true},
+		{name: "unsupported", err: &os.PathError{Op: "open", Path: "memory.pressure", Err: syscall.EOPNOTSUPP}, want: true},
+		{name: "permission denied", err: &os.PathError{Op: "open", Path: "memory.pressure", Err: syscall.EACCES}, want: false},
+		{name: "malformed", err: fmt.Errorf("malformed PSI field"), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := optionalCgroupMemoryObservationUnavailable(tt.err); got != tt.want {
+				t.Fatalf("optionalCgroupMemoryObservationUnavailable(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
 	}
 }
 

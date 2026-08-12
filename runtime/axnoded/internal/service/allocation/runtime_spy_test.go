@@ -32,6 +32,7 @@ type runtimeSpyHandler struct {
 	launchDuration       time.Duration
 	listStates           []*contract.UnionContainerState
 	listError            error
+	listHook             func()
 	containerSpec        *specs.Spec
 	containerSpecError   error
 	createMetadataLabels map[string]string
@@ -118,6 +119,9 @@ func (h *runtimeSpyHandler) KillContainer(context.Context, *apipb.SignalContaine
 }
 
 func (h *runtimeSpyHandler) ListContainers(context.Context, contract.HandlerOptions) ([]*contract.UnionContainerState, error) {
+	if h.listHook != nil {
+		h.listHook()
+	}
 	if h.listStates != nil || h.listError != nil {
 		return h.listStates, h.listError
 	}

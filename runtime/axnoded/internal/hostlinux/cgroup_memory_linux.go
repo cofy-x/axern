@@ -201,7 +201,7 @@ func readCgroupMemoryObservationDir(dir string) (*CgroupMemoryObservation, error
 	peak := current
 	peakAvailable := true
 	if kernelPeak, err := readCgroupInt64(filepath.Join(dir, "memory.peak")); err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
+		if !optionalCgroupMemoryObservationUnavailable(err) {
 			return nil, err
 		}
 		peakAvailable = false
@@ -229,13 +229,23 @@ func readCgroupMemoryObservationDir(dir string) (*CgroupMemoryObservation, error
 		// not invalidate otherwise verified memory.max, swap, OOM-event, or PID
 		// enforcement. Keep malformed or unreadable files fail-closed so a
 		// provider cannot publish misleading pressure values.
-		if !errors.Is(err, os.ErrNotExist) {
+		if !optionalCgroupMemoryObservationUnavailable(err) {
 			return nil, err
 		}
 	} else {
 		obs.PSIAvailable = true
 	}
 	return obs, nil
+}
+
+// optionalCgroupMemoryObservationUnavailable identifies kernel interfaces that
+// are optional for diagnostics and do not participate in hard-limit
+// enforcement. Some cgroup v2 deployments expose the files but return
+// EOPNOTSUPP when the kernel or hierarchy does not provide the facility. Treat
+// that exactly like an absent optional file while preserving every other error
+// as a hard observation failure.
+func optionalCgroupMemoryObservationUnavailable(err error) bool {
+	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.EOPNOTSUPP)
 }
 
 func ReclaimCgroupMemory(cgroupPath string) error {

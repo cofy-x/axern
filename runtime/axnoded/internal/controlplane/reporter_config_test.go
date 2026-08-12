@@ -21,6 +21,7 @@ func TestNewReporterReturnsNilWhenControlPlaneDisabled(t *testing.T) {
 		func() []string { return []string{"runsc"} },
 		func() (nodeinventory.NodeInventorySnapshot, bool) { return nodeinventory.NewSnapshot(), true },
 		func(nodeinventory.NodeInventorySnapshot) *nodev1.NodeSummary { return &nodev1.NodeSummary{} },
+		nil,
 	)
 	if r != nil {
 		t.Fatal("expected nil reporter when target is empty")

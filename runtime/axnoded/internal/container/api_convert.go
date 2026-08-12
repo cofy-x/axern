@@ -17,9 +17,19 @@ var timestampLayouts = []string{
 }
 
 func ParseTimestamp(timestamp string) int64 {
+	parsed := ParseTimestampTime(timestamp)
+	if parsed.IsZero() {
+		return 0
+	}
+	return parsed.Unix()
+}
+
+// ParseTimestampTime preserves the full timestamp precision stored in runtime
+// checkpoints. A zero time represents an empty or malformed value.
+func ParseTimestampTime(timestamp string) time.Time {
 	timestamp = strings.TrimSpace(timestamp)
 	if timestamp == "" {
-		return 0
+		return time.Time{}
 	}
 
 	normalized := timestamp
@@ -29,15 +39,15 @@ func ParseTimestamp(timestamp string) int64 {
 
 	for _, layout := range timestampLayouts {
 		if rt, err := time.Parse(layout, normalized); err == nil {
-			return rt.Unix()
+			return rt
 		}
 	}
 
-	t, err := strconv.ParseInt(timestamp, 10, 64)
+	seconds, err := strconv.ParseInt(timestamp, 10, 64)
 	if err != nil {
-		return 0
+		return time.Time{}
 	}
-	return t
+	return time.Unix(seconds, 0).UTC()
 }
 
 func MountsToAPI(mounts []spec.Mount) []*runtime.Mount {

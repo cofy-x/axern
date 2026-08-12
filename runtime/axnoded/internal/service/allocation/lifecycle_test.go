@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -206,4 +207,8 @@ func storeTestContainer(t *testing.T, fixture testAllocationController, containe
 	}
 	assert.NoError(t, fixture.manager.StoreMetadata(containerID, metadata))
 	assert.NoError(t, fixture.manager.StartMonitor(metadata))
+	assert.Eventually(t, func() bool {
+		stored, err := fixture.manager.Get(containerID)
+		return err == nil && stored.Status.Get().State() == apipb.ContainerState_CONTAINER_EXITED
+	}, time.Second, time.Millisecond, "runtime spy monitor did not persist its immediate exit")
 }

@@ -70,7 +70,7 @@ func sandboxdReadyTestLabels() map[string]string {
 func storeExitedExecContainer(t *testing.T, s *sandboxService, runtimeName string, id string) {
 	t.Helper()
 	storeRunningExecContainer(t, s, runtimeName, id)
-	assert.NoError(t, s.containerManager.SetExit(id, 0, true, time.Now().Format(time.RFC3339Nano), "", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED))
+	assert.NoError(t, s.containerManager.SetExit(id, 0, true, time.Now().UTC(), "", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED))
 }
 
 func TestExecRejectsInvalidArgument(t *testing.T) {
