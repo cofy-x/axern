@@ -56,22 +56,27 @@ type fsDiskQuota struct {
 	Padding4      [8]byte
 }
 
-func VerifyProjectQuota(filestoreDir, upperDir string, projectID uint32, limitBytes int64) error {
+func VerifyProjectQuota(filestoreDir, projectRoot string, projectID uint32, limitBytes int64) error {
 	if projectID == 0 || limitBytes <= 0 {
 		return fmt.Errorf("expected project ID and hard limit must be positive")
 	}
-	file, err := os.Open(upperDir)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	var attr fsXAttr
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, file.Fd(), fsIOCFSGetXAttr, uintptr(unsafe.Pointer(&attr)))
-	if errno != 0 {
-		return fmt.Errorf("FS_IOC_FSGETXATTR %s: %w", upperDir, errno)
-	}
-	if attr.ProjectID != projectID || attr.XFlags&fsXFlagProjInherit == 0 {
-		return fmt.Errorf("upper project assignment changed: project=%d flags=%#x, expected project=%d with inherit", attr.ProjectID, attr.XFlags, projectID)
+	for _, candidate := range []string{projectRoot, filepath.Join(projectRoot, "upper"), filepath.Join(projectRoot, "work")} {
+		file, err := os.Open(candidate)
+		if err != nil {
+			return err
+		}
+		var attr fsXAttr
+		_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, file.Fd(), fsIOCFSGetXAttr, uintptr(unsafe.Pointer(&attr)))
+		closeErr := file.Close()
+		if errno != 0 {
+			return fmt.Errorf("FS_IOC_FSGETXATTR %s: %w", candidate, errno)
+		}
+		if closeErr != nil {
+			return fmt.Errorf("close project quota path %s: %w", candidate, closeErr)
+		}
+		if attr.ProjectID != projectID || attr.XFlags&fsXFlagProjInherit == 0 {
+			return fmt.Errorf("rootfs view project assignment changed at %s: project=%d flags=%#x, expected project=%d with inherit", candidate, attr.ProjectID, attr.XFlags, projectID)
+		}
 	}
 	// XFS Q_XGETQUOTA expects the mounted block-device identity. Passing the
 	// mountpoint happens to work on some quota implementations, but XFS returns
@@ -87,7 +92,7 @@ func VerifyProjectQuota(filestoreDir, upperDir string, projectID uint32, limitBy
 	}
 	var quota fsDiskQuota
 	command := uintptr((qXGetQuota << 8) | projectQuota)
-	_, _, errno = syscall.Syscall6(syscall.SYS_QUOTACTL, command, uintptr(unsafe.Pointer(special)), uintptr(projectID), uintptr(unsafe.Pointer(&quota)), 0, 0)
+	_, _, errno := syscall.Syscall6(syscall.SYS_QUOTACTL, command, uintptr(unsafe.Pointer(special)), uintptr(projectID), uintptr(unsafe.Pointer(&quota)), 0, 0)
 	if errno != 0 {
 		return fmt.Errorf("quotactl Q_XGETQUOTA project %d: %w", projectID, errno)
 	}
@@ -120,16 +125,20 @@ func xfsQuotaDevice(filestoreDir string) (string, error) {
 	return device, nil
 }
 
-func applyProjectQuota(filestoreDir, upperDir string, projectID uint32, limitBytes int64) error {
+func applyProjectQuota(filestoreDir, projectRoot string, projectID uint32, limitBytes int64) error {
 	if projectID == 0 || limitBytes <= 0 {
 		return fmt.Errorf("runc writable rootfs requires a positive XFS project ID and limit")
 	}
-	if !safeXFSQuotaPath(filestoreDir) || !safeXFSQuotaPath(upperDir) {
+	if !safeXFSQuotaPath(filestoreDir) || !safeXFSQuotaPath(projectRoot) {
 		return fmt.Errorf("XFS project quota paths contain unsupported characters")
 	}
 	project := strconv.FormatUint(uint64(projectID), 10)
 	commands := []string{
-		"project -s -p " + upperDir + " " + project,
+		// OverlayFS creates copy-up temporaries in work/ before moving them to
+		// upper/. XFS rejects that move with EXDEV when the directories belong
+		// to different projects, so the allocation project owns the complete
+		// private view and all of its copy-up metadata.
+		"project -s -p " + projectRoot + " " + project,
 		"limit -p bhard=" + strconv.FormatInt(limitBytes, 10) + " bsoft=" + strconv.FormatInt(limitBytes, 10) + " " + project,
 	}
 	for _, command := range commands {
@@ -141,17 +150,17 @@ func applyProjectQuota(filestoreDir, upperDir string, projectID uint32, limitByt
 	return nil
 }
 
-func clearProjectQuota(filestoreDir, upperDir string, projectID uint32) error {
+func clearProjectQuota(filestoreDir, projectRoot string, projectID uint32) error {
 	if projectID == 0 {
 		return nil
 	}
-	if !safeXFSQuotaPath(filestoreDir) || !safeXFSQuotaPath(upperDir) {
+	if !safeXFSQuotaPath(filestoreDir) || !safeXFSQuotaPath(projectRoot) {
 		return fmt.Errorf("XFS project quota paths contain unsupported characters")
 	}
 	project := strconv.FormatUint(uint64(projectID), 10)
 	var result error
 	for _, command := range []string{
-		"project -C -p " + upperDir + " " + project,
+		"project -C -p " + projectRoot + " " + project,
 		"limit -p bhard=0 bsoft=0 " + project,
 	} {
 		output, err := exec.Command("xfs_quota", "-x", "-c", command, filestoreDir).CombinedOutput()

@@ -259,7 +259,7 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 		return View{}, err
 	}
 	if request.NeedsHostWritableRootfs {
-		if err := applyProjectQuota(p.filestoreDir, view.UpperDir, request.ProjectID, request.EphemeralStorageLimitBytes); err != nil {
+		if err := applyProjectQuota(p.filestoreDir, filepath.Dir(view.MergedDir), request.ProjectID, request.EphemeralStorageLimitBytes); err != nil {
 			metrics.RecordEphemeralStorageOperation(request.RuntimeName, "project_quota", "failure")
 			_ = cleanupOverlayViewWithProject(filepath.Dir(view.MergedDir), p.filestoreDir, request.ProjectID)
 			return View{}, err
@@ -613,7 +613,7 @@ func cleanupOverlayViewWithProject(rootfsRoot, filestoreDir string, projectID ui
 		return err
 	}
 	if projectID != 0 {
-		if err := clearProjectQuota(filestoreDir, filepath.Join(rootfsRoot, "upper"), projectID); err != nil {
+		if err := clearProjectQuota(filestoreDir, rootfsRoot, projectID); err != nil {
 			return err
 		}
 	}
@@ -720,7 +720,7 @@ func VerifyPersistentView(filestoreDir, containerID string, expected PersistentV
 	if err := verifyMountedOverlay(filepath.Join(root, "merged")); err != nil {
 		return fmt.Errorf("verify active rootfs projection mount: %w", err)
 	}
-	if err := VerifyProjectQuota(filestoreDir, filepath.Join(root, "upper"), expected.ProjectID, expected.LimitBytes); err != nil {
+	if err := VerifyProjectQuota(filestoreDir, root, expected.ProjectID, expected.LimitBytes); err != nil {
 		return fmt.Errorf("verify active rootfs project quota: %w", err)
 	}
 	return nil
