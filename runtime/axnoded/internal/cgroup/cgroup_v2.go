@@ -357,7 +357,15 @@ type cgroupV2 struct {
 }
 
 func (c *cgroupV2) Update(resources *specs.LinuxResources) error {
-	return c.manager.Update(cg2.ToResources(resources))
+	converted := cg2.ToResources(resources)
+	swap, err := cgroupV2SwapLimit(resources.Memory)
+	if err != nil {
+		return err
+	}
+	if resources.Memory != nil && resources.Memory.Swap != nil {
+		converted.Memory.Swap = swap
+	}
+	return c.manager.Update(converted)
 }
 
 func (c *cgroupV2) Delete() error {
