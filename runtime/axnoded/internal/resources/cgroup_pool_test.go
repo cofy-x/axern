@@ -439,7 +439,7 @@ func TestReconcileCgroupLeasesForRootDiscardsOnlyStaleIdleLeases(t *testing.T) {
 	}
 }
 
-func TestReconcileCgroupLeasesForRootRejectsStaleOwnership(t *testing.T) {
+func TestReconcileCgroupLeasesForRootPreservesStaleOwnership(t *testing.T) {
 	for _, lease := range []*apipb.CgroupLease{
 		{
 			CgroupID: "/old/sandbox/assigned", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
@@ -453,8 +453,12 @@ func TestReconcileCgroupLeasesForRootRejectsStaleOwnership(t *testing.T) {
 		},
 	} {
 		t.Run(lease.GetState().String(), func(t *testing.T) {
-			if _, _, err := reconcileCgroupLeasesForRoot([]*apipb.CgroupLease{lease}, "/current/sandbox"); err == nil {
-				t.Fatalf("reconcileCgroupLeasesForRoot() accepted stale %s lease", lease.GetState())
+			reconciled, discarded, err := reconcileCgroupLeasesForRoot([]*apipb.CgroupLease{lease}, "/current/sandbox")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(reconciled) != 1 || reconciled[0] != lease || discarded != 0 {
+				t.Fatalf("reconciled=%#v discarded=%d, want preserved lease", reconciled, discarded)
 			}
 		})
 	}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -76,6 +77,13 @@ func (c *CgroupManager) convergeRetiringCgroup(id string) error {
 	if lease.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING {
 		return fmt.Errorf("cgroup %s cleanup requested from state %s", id, lease.GetState())
 	}
+	staleRoot := c.rootName != "" && filepath.Dir(id) != c.rootName
+	if staleRoot && !cgroupLeaseHasMemoryIdentity(lease) {
+		if _, err := staleDelegationCgroupProcesses(id, filepath.Base(c.rootName)); errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("retiring cgroup %s outside the current delegation has no durable kernel identity", id)
+	}
 	if cgroupLeaseHasMemoryIdentity(lease) {
 		if err := verifyPersistedCgroupIdentity(lease, c.cgroupDriver.Mode()); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
@@ -108,14 +116,7 @@ func (c *CgroupManager) convergeRetiringCgroup(id string) error {
 	current.CurrentChargedBytes = observation.CurrentBytes
 	c.leases.Set(id, current)
 	c.Unlock()
-	cgroup, err := c.cgroupDriver.Load(id)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return fmt.Errorf("load retiring cgroup: %w", err)
-	}
-	processes, err := cgroup.Processes(true)
+	processes, err := c.retiringCgroupProcesses(id, staleRoot)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
@@ -175,7 +176,7 @@ func (c *CgroupManager) convergeRetiringCgroup(id string) error {
 			return fmt.Errorf("retiring cgroup reclaim is still settling at %d charged bytes", observation.CurrentBytes)
 		}
 	}
-	if err := c.removeCgroupFromSystem(id); err != nil {
+	if err := c.removeCgroupFromSystem(id, staleRoot); err != nil {
 		return err
 	}
 	return nil
@@ -219,8 +220,24 @@ func (c *CgroupManager) completeRetiringCgroup(id string) error {
 	return nil
 }
 
-func (c *CgroupManager) removeCgroupFromSystem(name string) error {
-	err := c.cgroupDriver.Remove(name)
+func (c *CgroupManager) retiringCgroupProcesses(name string, staleRoot bool) ([]int, error) {
+	if staleRoot {
+		return staleDelegationCgroupProcesses(name, filepath.Base(c.rootName))
+	}
+	cgroup, err := c.cgroupDriver.Load(name)
+	if err != nil {
+		return nil, err
+	}
+	return cgroup.Processes(true)
+}
+
+func (c *CgroupManager) removeCgroupFromSystem(name string, staleRoot bool) error {
+	var err error
+	if staleRoot {
+		err = removeStaleDelegationCgroup(name, filepath.Base(c.rootName))
+	} else {
+		err = c.cgroupDriver.Remove(name)
+	}
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("delete cgroup %s: %w", name, err)
 	}

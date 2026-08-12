@@ -70,7 +70,12 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 	leases := cmap.New[*apipb.CgroupLease]()
 	gcQueue := queue.New("")
 	for _, lease := range reconciledLeases {
-		kernelPresent := cgs.Has(lease.GetCgroupID())
+		staleRoot := filepath.Dir(lease.GetCgroupID()) != resolvedRoot
+		// A lease from the previous process delegation is not discoverable by
+		// ExistingGroups on the new root. Preserve it until the complete runtime
+		// inventory either proves the allocation absent or restores its monitor;
+		// retirement has a separate identity-checked path for the old root.
+		kernelPresent := staleRoot || cgs.Has(lease.GetCgroupID())
 		copy := proto.Clone(lease).(*apipb.CgroupLease)
 		if !kernelPresent {
 			if missingKernelLeaseConverged(lease.GetState()) {
@@ -157,10 +162,13 @@ func reconcileCgroupLeasesForRoot(leases []*apipb.CgroupLease, resolvedRoot stri
 			discardedRecreatable++
 			continue
 		}
-		return nil, 0, fmt.Errorf(
-			"non-idle cgroup %s is outside resolved sandbox root %s; drain allocations and reconcile cleanup debt before replacing the delegated root",
-			lease.GetCgroupID(), resolvedRoot,
-		)
+		// Assigned and allocation-owned retiring leases remain authoritative
+		// across a process delegation change. Runtime inventory reconciliation
+		// decides whether an assigned lease is still live; the retiring worker
+		// then requires its persisted kernel identity before touching the old
+		// hierarchy. Rejecting here would make cleanup debt impossible to repay
+		// after a Pod or container replacement.
+		result = append(result, lease)
 	}
 	return result, discardedRecreatable, nil
 }
