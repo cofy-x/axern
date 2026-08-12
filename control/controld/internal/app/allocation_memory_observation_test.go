@@ -14,7 +14,7 @@ import (
 func TestPostgresAcceptsBoundedRetiringMemoryObservationWithoutWorkloadLeaf(t *testing.T) {
 	app, _ := newPostgresTestService(t)
 	defer app.Close()
-	now := time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 8, 11, 12, 0, 0, 999, time.UTC)
 	app.now = func() time.Time { return now }
 	registerReadyNode(t, app, "node-a", now)
 	environment := createDefaultEnvironment(t, app)
@@ -48,13 +48,19 @@ func TestPostgresAcceptsBoundedRetiringMemoryObservationWithoutWorkloadLeaf(t *t
 
 	var cleanupState string
 	var leafVerified bool
+	var observedAt, payloadObservedAt time.Time
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT observation->>'cleanup_state', COALESCE((observation->>'leaf_controls_verified')::BOOLEAN, FALSE)
+		SELECT observation->>'cleanup_state', COALESCE((observation->>'leaf_controls_verified')::BOOLEAN, FALSE),
+		       observed_at, (observation->>'observed_at')::TIMESTAMPTZ
 		FROM allocation_memory_observations WHERE allocation_id = $1
-	`, allocationID).Scan(&cleanupState, &leafVerified); err != nil {
+	`, allocationID).Scan(&cleanupState, &leafVerified, &observedAt, &payloadObservedAt); err != nil {
 		t.Fatalf("load retiring memory observation: %v", err)
 	}
 	if cleanupState != "ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING" || leafVerified {
 		t.Fatalf("stored retiring observation = state:%q leaf_verified:%t", cleanupState, leafVerified)
+	}
+	wantObservedAt := now.Truncate(time.Microsecond)
+	if !observedAt.Equal(wantObservedAt) || !payloadObservedAt.Equal(wantObservedAt) {
+		t.Fatalf("stored observed_at = column:%s payload:%s, want %s", observedAt, payloadObservedAt, wantObservedAt)
 	}
 }

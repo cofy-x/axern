@@ -11,6 +11,8 @@ import (
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // BatchReportAllocationMemoryObservations stores one latest, revision-fenced
@@ -39,7 +41,14 @@ func (s *Store) BatchReportAllocationMemoryObservations(ctx context.Context, nod
 			if admittedNodeID != strings.TrimSpace(nodeID) || attempt != observation.GetAttempt() {
 				continue
 			}
-			payload, err := (protojson.MarshalOptions{UseProtoNames: true}).Marshal(observation)
+			// PostgreSQL stores TIMESTAMPTZ with microsecond precision. Normalize
+			// the persisted protobuf clone to that same precision so the JSON
+			// evidence and its indexed observed_at column remain exactly equal.
+			// The caller-owned observation stays unchanged.
+			persisted := proto.Clone(observation).(*nodev1.AllocationMemoryObservation)
+			observedAt := observation.GetObservedAt().AsTime().UTC().Truncate(time.Microsecond)
+			persisted.ObservedAt = timestamppb.New(observedAt)
+			payload, err := (protojson.MarshalOptions{UseProtoNames: true}).Marshal(persisted)
 			if err != nil {
 				return fmt.Errorf("marshal allocation %q memory observation: %w", allocationID, err)
 			}
@@ -57,7 +66,7 @@ func (s *Store) BatchReportAllocationMemoryObservations(ctx context.Context, nod
 				WHERE allocation_memory_observations.allocation_attempt < EXCLUDED.allocation_attempt
 				   OR (allocation_memory_observations.allocation_attempt = EXCLUDED.allocation_attempt
 				       AND allocation_memory_observations.revision < EXCLUDED.revision)
-			`, allocationID, attempt, admittedNodeID, observation.GetRevision(), observation.GetObservedAt().AsTime(), payload, now); err != nil {
+			`, allocationID, attempt, admittedNodeID, observation.GetRevision(), observedAt, payload, now); err != nil {
 				return fmt.Errorf("upsert allocation %q memory observation: %w", allocationID, err)
 			}
 		}
