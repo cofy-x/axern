@@ -32,6 +32,7 @@ type ServiceJSON struct {
 	RolloutPolicy     *ServiceRolloutPolicyJSON     `json:"rollout_policy,omitempty"`
 	RolloutStatus     *ServiceRolloutStatusJSON     `json:"rollout_status,omitempty"`
 	Status            string                        `json:"status"`
+	DeletionStatus    *ServiceDeletionStatusJSON    `json:"deletion_status,omitempty"`
 	Config            *ExecutionConfigJSON          `json:"config,omitempty"`
 	AllocationIDs     []string                      `json:"allocation_ids,omitempty"`
 	Labels            map[string]string             `json:"labels,omitempty"`
@@ -45,6 +46,14 @@ type ServiceJSON struct {
 	LivenessProbe     *ServiceProbeJSON             `json:"liveness_probe"`
 	AutoscalingPolicy *ServiceAutoscalingPolicyJSON `json:"autoscaling_policy,omitempty"`
 	AutoscalingStatus *ServiceAutoscalingStatusJSON `json:"autoscaling_status,omitempty"`
+}
+
+type ServiceDeletionStatusJSON struct {
+	Phase             string   `json:"phase"`
+	VolumeDisposition string   `json:"volume_disposition"`
+	ClaimIDs          []string `json:"claim_ids,omitempty"`
+	Message           string   `json:"message,omitempty"`
+	CompletedAt       string   `json:"completed_at,omitempty"`
 }
 
 type ServiceRolloutPolicyJSON struct {
@@ -134,6 +143,7 @@ func NewServiceJSON(service *servicev1.Service) *ServiceJSON {
 		RolloutPolicy:     newServiceRolloutPolicyJSON(service.GetRolloutPolicy()),
 		RolloutStatus:     newServiceRolloutStatusJSON(service.GetRolloutStatus()),
 		Status:            ServiceStatusLabel(service.GetStatus()),
+		DeletionStatus:    newServiceDeletionStatusJSON(service.GetDeletionStatus()),
 		Config:            NewExecutionConfigJSON(service.GetConfig()),
 		AllocationIDs:     append([]string(nil), service.GetAllocationIds()...),
 		Labels:            cloneStringMap(service.GetLabels()),
@@ -147,6 +157,19 @@ func NewServiceJSON(service *servicev1.Service) *ServiceJSON {
 		LivenessProbe:     newServiceProbeJSON(service.GetLivenessProbe()),
 		AutoscalingPolicy: newServiceAutoscalingPolicyJSON(service.GetAutoscalingPolicy()),
 		AutoscalingStatus: newServiceAutoscalingStatusJSON(service.GetAutoscalingStatus()),
+	}
+}
+
+func newServiceDeletionStatusJSON(status *servicev1.ServiceDeletionStatus) *ServiceDeletionStatusJSON {
+	if status == nil {
+		return nil
+	}
+	return &ServiceDeletionStatusJSON{
+		Phase:             ServiceDeletionPhaseLabel(status.GetPhase()),
+		VolumeDisposition: ServiceVolumeDispositionLabel(status.GetVolumeDisposition()),
+		ClaimIDs:          append([]string(nil), status.GetClaimIds()...),
+		Message:           status.GetMessage(),
+		CompletedAt:       FormatProtoTimestamp(status.GetCompletedAt()),
 	}
 }
 

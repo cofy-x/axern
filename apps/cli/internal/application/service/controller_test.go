@@ -103,6 +103,9 @@ type fakeServiceClient struct {
 	replicaResponses []*servicev1.ListServiceReplicasResponse
 	eventCalls       int
 	eventResponses   []*servicev1.ListServiceEventsResponse
+	deleteCalls      int
+	deleteRequest    *servicev1.DeleteServiceRequest
+	deleteResponse   *servicev1.DeleteServiceResponse
 }
 
 func (f *fakeServiceClient) CreateService(_ context.Context, req *servicev1.CreateServiceRequest, _ ...grpc.CallOption) (*servicev1.CreateServiceResponse, error) {
@@ -130,7 +133,12 @@ func (f *fakeServiceClient) UpdateService(context.Context, *servicev1.UpdateServ
 	return &servicev1.UpdateServiceResponse{}, nil
 }
 
-func (f *fakeServiceClient) DeleteService(context.Context, *servicev1.DeleteServiceRequest, ...grpc.CallOption) (*servicev1.DeleteServiceResponse, error) {
+func (f *fakeServiceClient) DeleteService(_ context.Context, req *servicev1.DeleteServiceRequest, _ ...grpc.CallOption) (*servicev1.DeleteServiceResponse, error) {
+	f.deleteCalls++
+	f.deleteRequest = req
+	if f.deleteResponse != nil {
+		return f.deleteResponse, nil
+	}
 	return &servicev1.DeleteServiceResponse{}, nil
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/cofy-x/axern/apps/cli/internal/output"
 	"github.com/cofy-x/axern/apps/cli/internal/parse"
 	"github.com/cofy-x/axern/apps/cli/internal/resourcespec"
+	axernsdk "github.com/cofy-x/axern/sdk/go"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
@@ -302,26 +303,32 @@ func listCommand(runtime command.Runtime) *cobra.Command {
 	var namespace, cursor string
 	var statuses, labels []string
 	var pageSize int32
-	cmd := &cobra.Command{Use: "list", Short: "List services", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		parsed, err := parse.ServiceStatuses(statuses)
-		if err != nil {
-			return command.Usage(err)
-		}
-		s, err := runtime.Open(cmd.Context())
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		resp, err := appservice.New(s.Clients.Service).List(s.Context, &servicev1.ListServicesRequest{Filter: &servicev1.ServiceListFilter{Namespace: namespace, Statuses: parsed, Labels: parse.Labels(labels), Cursor: cursor, PageSize: pageSize}})
-		if err != nil {
-			return err
-		}
-		if runtime.Options.Output == "json" {
-			return output.PrintServiceListJSON(cmd.OutOrStdout(), resp)
-		}
-		output.RenderServiceTable(cmd.OutOrStdout(), resp.GetServices(), output.ServiceListTableOptions{})
-		return nil
-	}}
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List services",
+		Long:  "List services. The default view excludes terminal deleted records; use --status deleted to retrieve deletion audit records.",
+		Args:  command.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			parsed, err := parse.ServiceStatuses(statuses)
+			if err != nil {
+				return command.Usage(err)
+			}
+			s, err := runtime.Open(cmd.Context())
+			if err != nil {
+				return err
+			}
+			defer s.Close()
+			resp, err := appservice.New(s.Clients.Service).List(s.Context, &servicev1.ListServicesRequest{Filter: &servicev1.ServiceListFilter{Namespace: namespace, Statuses: parsed, Labels: parse.Labels(labels), Cursor: cursor, PageSize: pageSize}})
+			if err != nil {
+				return err
+			}
+			if runtime.Options.Output == "json" {
+				return output.PrintServiceListJSON(cmd.OutOrStdout(), resp)
+			}
+			output.RenderServiceTable(cmd.OutOrStdout(), resp.GetServices(), output.ServiceListTableOptions{})
+			return nil
+		},
+	}
 	f := cmd.Flags()
 	f.StringVar(&namespace, "namespace", "", "namespace filter")
 	f.StringArrayVar(&statuses, "status", nil, "status filter; may be repeated")
@@ -536,22 +543,51 @@ func anyFlagChanged(cmd *cobra.Command, names ...string) bool {
 }
 
 func deleteCommand(runtime command.Runtime) *cobra.Command {
-	return &cobra.Command{Use: "delete <service-id>", Short: "Delete a service", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	var wait bool
+	var waitTimeout time.Duration
+	cmd := &cobra.Command{Use: "delete <service-id>", Short: "Request asynchronous service deletion", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		if cmd.Flags().Changed("wait-timeout") && !wait {
+			return command.Usage(fmt.Errorf("--wait-timeout requires --wait"))
+		}
+		if waitTimeout < 0 {
+			return command.Usage(fmt.Errorf("--wait-timeout must not be negative"))
+		}
 		s, err := runtime.Open(cmd.Context())
 		if err != nil {
 			return err
 		}
 		defer s.Close()
-		result, err := appservice.New(s.Clients.Service).DeleteService(s.Context, args[0])
-		if err != nil {
-			return err
+		control := appservice.New(s.Clients.Service)
+		if wait {
+			watcher, err := axernsdk.NewClient(s.Context, s.Conn.Target(), axernsdk.WithControlConn(s.Conn))
+			if err != nil {
+				return fmt.Errorf("open service deletion watcher: %w", err)
+			}
+			defer watcher.Close()
+			control = appservice.NewWithWatcher(s.Clients.Service, watcher)
 		}
-		if runtime.Options.Output == "json" {
-			return output.PrintServiceResponseJSON(cmd.OutOrStdout(), result.Service)
+		result, deleteErr := control.Delete(s.Context, appservice.DeleteParams{
+			ServiceID:   args[0],
+			Wait:        wait,
+			WaitTimeout: waitTimeout,
+		})
+		if result.Service != nil {
+			if runtime.Options.Output == "json" {
+				if err := output.PrintServiceResponseJSON(cmd.OutOrStdout(), result.Service); err != nil {
+					return err
+				}
+			} else {
+				output.RenderServiceDeletionResult(cmd.OutOrStdout(), result.Service)
+			}
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Service deleted: %s\n", result.ServiceID)
+		if deleteErr != nil {
+			return deleteErr
+		}
 		return nil
 	}}
+	cmd.Flags().BoolVar(&wait, "wait", false, "wait for deletion to complete")
+	cmd.Flags().DurationVar(&waitTimeout, "wait-timeout", appservice.DefaultDeleteWaitTimeout, "deletion timeout; 0 disables it")
+	return cmd
 }
 
 func replicasCommand(runtime command.Runtime) *cobra.Command {
