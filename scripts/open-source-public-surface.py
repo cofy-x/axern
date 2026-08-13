@@ -70,7 +70,7 @@ def main() -> None:
         if not (root / relative).is_file():
             fail(f"missing required file {relative}")
 
-    if "Copyright 2026 Chen Yingwei" not in read_text(root / "NOTICE"):
+    if not re.search(r"^Copyright\s+\d{4}\s+\S", read_text(root / "NOTICE"), re.MULTILINE):
         fail("NOTICE must identify the copyright owner")
 
     forbidden_patterns = (
