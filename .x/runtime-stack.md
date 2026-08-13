@@ -99,6 +99,10 @@ direct OCI runtime exec is a debug-level tool.
   code.
 - Image-backed rootfs flows resolve through `axnoded -> imagemgr -> imagefsd`
   where needed.
+- Agent bundle image mounts remain single bind mounts. Claude Code is bound at
+  its private ABI target `/__claude_code`; axnoded's allocation-private rootfs
+  projection supplies the public `/opt/axern/agents/claude-code` symlink used by
+  Axrun. Both paths participate in mount conflict validation.
 - High-level process, file, PTY, and managed-proxy operations flow through
   sandboxd when supported. Axern tunnel sessions are a separate networking
   primitive.

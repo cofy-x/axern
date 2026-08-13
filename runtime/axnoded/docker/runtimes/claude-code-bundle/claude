@@ -1,12 +1,13 @@
 #!/bin/sh
 set -eu
 
-root=/opt/axern/agents/claude-code
+root=/__claude_code
+public_root=/opt/axern/agents/claude-code
 manifest="$root/opt/axern/agent-bundle/manifest.json"
 real_binary="$root/opt/axern/agent-bundle/bin/claude.real"
 
-if [ "${AXRUN_AGENT_BUNDLE_MOUNT_TARGET:-$root}" != "$root" ]; then
-  echo "error: Claude Code bundle must be mounted at $root" >&2
+if [ "${AXRUN_AGENT_BUNDLE_MOUNT_TARGET:-$public_root}" != "$public_root" ]; then
+  echo "error: Claude Code public bundle entrypoint must be $public_root" >&2
   exit 126
 fi
 if [ ! -r "$manifest" ] || [ ! -x "$real_binary" ] || [ ! -r "$root/etc/ssl/certs/ca-certificates.crt" ]; then
@@ -14,23 +15,11 @@ if [ ! -r "$manifest" ] || [ ! -x "$real_binary" ] || [ ! -r "$root/etc/ssl/cert
   exit 126
 fi
 
-if [ -x "$root/lib64/ld-linux-x86-64.so.2" ]; then
-  loader="$root/lib64/ld-linux-x86-64.so.2"
-  multiarch=x86_64-linux-gnu
-elif [ -x "$root/lib/ld-linux-aarch64.so.1" ]; then
-  loader="$root/lib/ld-linux-aarch64.so.1"
-  multiarch=aarch64-linux-gnu
-else
-  echo "error: Claude Code bundle architecture loader is missing at $root" >&2
-  exit 126
-fi
-
-test -x "$loader" || {
-  echo "error: Claude Code bundle loader is missing at $loader" >&2
+test -x "$root/l" || {
+  echo "error: Claude Code bundle loader is missing at $root/l" >&2
   exit 126
 }
 
 unset LD_LIBRARY_PATH
 export SSL_CERT_FILE="$root/etc/ssl/certs/ca-certificates.crt"
-library_path="$root/lib/$multiarch:$root/usr/lib/$multiarch:$root/lib:$root/usr/lib"
-exec "$loader" --library-path "$library_path" "$real_binary" "$@"
+exec "$real_binary" "$@"

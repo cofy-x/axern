@@ -4,11 +4,14 @@ go 1.25.12
 
 replace github.com/cofy-x/axern/network/bpfnet => ../../network/bpfnet
 
+replace github.com/cofy-x/axern/lib/go/agentbundle => ../../lib/go/agentbundle
+
 replace github.com/cofy-x/axern/sdk/go => ../../sdk/go
 
 replace github.com/cofy-x/axern/lib/go/nodecapability => ../../lib/go/nodecapability
 
 require (
+	github.com/cofy-x/axern/lib/go/agentbundle v0.0.0
 	github.com/cofy-x/axern/lib/go/nodecapability v0.0.0
 	github.com/cofy-x/axern/network/bpfnet v0.0.0
 	github.com/cofy-x/axern/sdk/go v0.0.0

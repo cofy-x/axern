@@ -172,6 +172,37 @@ func TestValidateExecutionConfigImageMounts(t *testing.T) {
 			}},
 		},
 		{
+			name: "Claude public alias overlaps image mount",
+			config: &commonv1.ExecutionConfig{ImageMounts: []*commonv1.ImageMount{
+				{Image: "claude", Target: "/__claude_code"},
+				{Image: "other", Target: "/opt/axern/agents/claude-code"},
+			}},
+		},
+		{
+			name: "Claude public alias overlaps workspace image",
+			config: &commonv1.ExecutionConfig{
+				WorkspaceImage: &commonv1.WorkspaceImageSource{
+					Variants:   []*commonv1.WorkspaceImageVariant{{Format: "oci", Image: "example.com/task@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
+					SourcePath: "tasks/task-a/workspace", Target: "/opt/axern/agents/claude-code/workspace",
+				},
+				ImageMounts: []*commonv1.ImageMount{{Image: "claude", Target: "/__claude_code"}},
+			},
+		},
+		{
+			name: "Claude public alias overlaps volume mount",
+			config: &commonv1.ExecutionConfig{
+				ImageMounts:  []*commonv1.ImageMount{{Image: "claude", Target: "/__claude_code"}},
+				VolumeMounts: []*commonv1.ServiceVolumeMount{{Name: "data", Target: "/opt/axern/agents/claude-code/data"}},
+			},
+		},
+		{
+			name: "Claude public alias overlaps secret file",
+			config: &commonv1.ExecutionConfig{
+				ImageMounts: []*commonv1.ImageMount{{Image: "claude", Target: "/__claude_code"}},
+				SecretFiles: []*commonv1.SecretFile{{Path: "/opt/axern/agents/claude-code/token", SecretID: "sec", Key: "token"}},
+			},
+		},
+		{
 			name: "overlapping volume mount",
 			config: &commonv1.ExecutionConfig{
 				ImageMounts: []*commonv1.ImageMount{{Image: "image", Target: "/opt/axern/tools"}},

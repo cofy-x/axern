@@ -314,7 +314,7 @@ func TestAxernAdapterRuntimeForRequestMountsAgentImageBundleIntoTaskSandbox(t *t
 	}
 	mount := axernRuntime.Config.ImageMounts[0]
 	if mount.Image != "ghcr.io/cofy-x/claude-code-bundle:latest" ||
-		mount.Target != "/opt/axern/agents/claude-code" ||
+		mount.Target != "/__claude_code" ||
 		!mount.Readonly {
 		t.Fatalf("image mount = %#v", mount)
 	}

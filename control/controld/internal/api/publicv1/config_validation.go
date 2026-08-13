@@ -6,6 +6,7 @@ import (
 
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
+	"github.com/cofy-x/axern/lib/go/agentbundle"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
@@ -101,8 +102,13 @@ func validateExecutionConfigImageMounts(config *commonv1.ExecutionConfig) error 
 			workspaceTarget = "/workspace"
 		}
 		for _, imageMount := range config.GetImageMounts() {
-			if imageMount != nil && pathsOverlap(workspaceTarget, imageMount.GetTarget()) {
-				return grpcstatus.Errorf(codes.InvalidArgument, "config.workspace_image target %q overlaps config.image_mounts target %q", workspaceTarget, imageMount.GetTarget())
+			if imageMount == nil {
+				continue
+			}
+			for _, imageTarget := range agentbundle.ClaimedMountTargets(path.Clean(strings.TrimSpace(imageMount.GetTarget()))) {
+				if pathsOverlap(workspaceTarget, imageTarget) {
+					return grpcstatus.Errorf(codes.InvalidArgument, "config.workspace_image target %q overlaps config.image_mounts target %q", workspaceTarget, imageTarget)
+				}
 			}
 		}
 		for _, volume := range config.GetVolumeMounts() {
@@ -136,12 +142,14 @@ func validateExecutionConfigImageMounts(config *commonv1.ExecutionConfig) error 
 		if protectedImageMountTarget(target) {
 			return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q is protected", target)
 		}
-		for existing := range seenTargets {
-			if pathsOverlap(existing, target) {
-				return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q overlaps target %q", target, existing)
+		for _, claimedTarget := range agentbundle.ClaimedMountTargets(target) {
+			for existing := range seenTargets {
+				if pathsOverlap(existing, claimedTarget) {
+					return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q overlaps target %q", claimedTarget, existing)
+				}
 			}
+			seenTargets[claimedTarget] = struct{}{}
 		}
-		seenTargets[target] = struct{}{}
 	}
 	if err := validateImageMountNoVolumeOverlap(config); err != nil {
 		return err
@@ -269,14 +277,15 @@ func validateImageMountNoVolumeOverlap(config *commonv1.ExecutionConfig) error {
 		if imageMount == nil {
 			continue
 		}
-		imageTarget := path.Clean(strings.TrimSpace(imageMount.GetTarget()))
-		for _, volume := range config.GetVolumeMounts() {
-			if volume == nil {
-				continue
-			}
-			volumeTarget := path.Clean(strings.TrimSpace(volume.GetTarget()))
-			if pathsOverlap(imageTarget, volumeTarget) {
-				return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q overlaps config.volume_mounts target %q", imageTarget, volumeTarget)
+		for _, imageTarget := range agentbundle.ClaimedMountTargets(path.Clean(strings.TrimSpace(imageMount.GetTarget()))) {
+			for _, volume := range config.GetVolumeMounts() {
+				if volume == nil {
+					continue
+				}
+				volumeTarget := path.Clean(strings.TrimSpace(volume.GetTarget()))
+				if pathsOverlap(imageTarget, volumeTarget) {
+					return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q overlaps config.volume_mounts target %q", imageTarget, volumeTarget)
+				}
 			}
 		}
 	}
@@ -288,14 +297,15 @@ func validateImageMountNoSecretFileOverlap(config *commonv1.ExecutionConfig) err
 		if imageMount == nil {
 			continue
 		}
-		imageTarget := path.Clean(strings.TrimSpace(imageMount.GetTarget()))
-		for _, secretFile := range config.GetSecretFiles() {
-			if secretFile == nil {
-				continue
-			}
-			secretPath := path.Clean(strings.TrimSpace(secretFile.GetPath()))
-			if pathsOverlap(imageTarget, secretPath) {
-				return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q overlaps config.secret_files path %q", imageTarget, secretPath)
+		for _, imageTarget := range agentbundle.ClaimedMountTargets(path.Clean(strings.TrimSpace(imageMount.GetTarget()))) {
+			for _, secretFile := range config.GetSecretFiles() {
+				if secretFile == nil {
+					continue
+				}
+				secretPath := path.Clean(strings.TrimSpace(secretFile.GetPath()))
+				if pathsOverlap(imageTarget, secretPath) {
+					return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q overlaps config.secret_files path %q", imageTarget, secretPath)
+				}
 			}
 		}
 	}

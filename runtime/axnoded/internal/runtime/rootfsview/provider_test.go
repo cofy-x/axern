@@ -164,6 +164,30 @@ func TestSeedMountTargetsCopiesExistingParentMetadata(t *testing.T) {
 	assert.True(t, leaf.Mode().IsRegular())
 }
 
+func TestSeedSymlinksCreatesPublicClaudeCodePathInProjection(t *testing.T) {
+	lower := t.TempDir()
+	upper := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(lower, "opt", "axern", "agents"), 0755))
+
+	require.NoError(t, seedSymlinks(lower, upper, []Symlink{{
+		Path: "/opt/axern/agents/claude-code", Target: "/__claude_code",
+	}}))
+	target, err := os.Readlink(filepath.Join(upper, "opt", "axern", "agents", "claude-code"))
+	require.NoError(t, err)
+	assert.Equal(t, "/__claude_code", target)
+}
+
+func TestSeedSymlinksRejectsOccupiedPublicPath(t *testing.T) {
+	lower := t.TempDir()
+	upper := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(lower, "opt", "axern", "agents", "claude-code"), 0755))
+
+	err := seedSymlinks(lower, upper, []Symlink{{
+		Path: "/opt/axern/agents/claude-code", Target: "/__claude_code",
+	}})
+	require.ErrorContains(t, err, "already occupied")
+}
+
 func TestReconcilePersistentViewsRemovesOnlyStaleRuntimeOwnedView(t *testing.T) {
 	filestore := t.TempDir()
 	provider := NewOverlayProvider(filestore).(*overlayProvider)

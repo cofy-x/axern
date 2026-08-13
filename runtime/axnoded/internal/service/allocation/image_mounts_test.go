@@ -202,6 +202,20 @@ func TestValidateImageMountTargetsRejectsProtectedAndOverlappingTargets(t *testi
 				{Image: "image-b", Target: "/opt/axern/tools/codex"},
 			}},
 		},
+		{
+			name: "Claude public path overlaps sandbox mount",
+			request: &runtime.StartRequest{
+				ImageMounts: []*runtime.ImageMount{{Image: "claude", Target: "/__claude_code"}},
+				Mounts:      []*runtime.Mount{{Target: "/opt/axern/agents/claude-code/work"}},
+			},
+		},
+		{
+			name: "Claude public path overlaps another image mount",
+			request: &runtime.StartRequest{ImageMounts: []*runtime.ImageMount{
+				{Image: "claude", Target: "/__claude_code"},
+				{Image: "other", Target: "/opt/axern/agents/claude-code"},
+			}},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

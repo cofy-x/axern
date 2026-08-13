@@ -5,6 +5,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/cofy-x/axern/lib/go/agentbundle"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
@@ -100,21 +101,26 @@ func validateImageMountTargets(request *runtime.StartRequest) error {
 		if target == "." || !strings.HasPrefix(target, "/") || pathHasParentReference(rawTarget) {
 			return fmt.Errorf("image mount target %q must be an absolute container path below /: %w", rawTarget, errord.ErrInvalidArgument)
 		}
-		if _, protected := protectedImageMountTargets[target]; protected {
-			return fmt.Errorf("image mount target %q is protected: %w", target, errord.ErrInvalidArgument)
-		}
-		for existing := range seen {
-			if containerPathsOverlap(existing, target) {
-				return fmt.Errorf("image mount target %q overlaps image mount target %q: %w", target, existing, errord.ErrInvalidArgument)
+		claimedTargets := agentbundle.ClaimedMountTargets(target)
+		for _, claimedTarget := range claimedTargets {
+			if _, protected := protectedImageMountTargets[claimedTarget]; protected {
+				return fmt.Errorf("image mount target %q is protected: %w", claimedTarget, errord.ErrInvalidArgument)
+			}
+			for existing := range seen {
+				if containerPathsOverlap(existing, claimedTarget) {
+					return fmt.Errorf("image mount target %q overlaps image mount target %q: %w", claimedTarget, existing, errord.ErrInvalidArgument)
+				}
+			}
+			if err := validateImageMountTargetDoesNotOverlapMounts(claimedTarget, request.GetRuntimeTemplate().GetMounts()); err != nil {
+				return err
+			}
+			if err := validateImageMountTargetDoesNotOverlapMounts(claimedTarget, request.GetMounts()); err != nil {
+				return err
 			}
 		}
-		if err := validateImageMountTargetDoesNotOverlapMounts(target, request.GetRuntimeTemplate().GetMounts()); err != nil {
-			return err
+		for _, claimedTarget := range claimedTargets {
+			seen[claimedTarget] = struct{}{}
 		}
-		if err := validateImageMountTargetDoesNotOverlapMounts(target, request.GetMounts()); err != nil {
-			return err
-		}
-		seen[target] = struct{}{}
 	}
 	return nil
 }

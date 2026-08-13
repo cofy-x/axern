@@ -20,6 +20,10 @@ func MountTargetForSpec(spec domain.AgentSpec) string {
 	return MountTarget(spec.Name)
 }
 
+func ImageMountTargetForSpec(spec domain.AgentSpec) string {
+	return sharedagentbundle.ImageMountTarget(MountTargetForSpec(spec))
+}
+
 func BinDir(mountTarget string) string {
 	return sharedagentbundle.BinDir(mountTarget)
 }

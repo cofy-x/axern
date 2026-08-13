@@ -17,6 +17,7 @@ type bundleRuntime struct {
 	Version     string
 	Image       string
 	MountTarget string
+	ImageTarget string
 	BinDir      string
 	Binary      string
 }
@@ -45,7 +46,8 @@ func resolveAgentBundle(ctx context.Context, catalog appcatalog.RuntimeCatalogCl
 	}
 	return bundleRuntime{
 		ID: id, Version: bundle.GetVersion(), Image: image, MountTarget: mountTarget,
-		BinDir: agentbundle.BinDir(mountTarget), Binary: binary,
+		ImageTarget: agentbundle.ImageMountTarget(mountTarget),
+		BinDir:      agentbundle.BinDir(mountTarget), Binary: binary,
 	}, nil
 }
 

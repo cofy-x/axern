@@ -77,6 +77,11 @@ type MountTarget struct {
 	Kind        TargetKind
 }
 
+type Symlink struct {
+	Path   string `json:"path"`
+	Target string `json:"target"`
+}
+
 type RootfsBackingFacts struct {
 	EffectiveRoot       string                    `json:"effective_root"`
 	MountID             int                       `json:"mount_id"`
@@ -187,6 +192,7 @@ type Request struct {
 	NeedsHostWritableRootfs    bool
 	ImmutableMount             ImmutableMountDescriptor
 	Targets                    []MountTarget
+	Symlinks                   []Symlink
 	EphemeralStorageLimitBytes int64
 	ProjectID                  uint32
 }
@@ -235,7 +241,7 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 	if err != nil {
 		return View{}, err
 	}
-	if len(missing) == 0 && !request.NeedsHostWritableRootfs {
+	if len(missing) == 0 && len(request.Symlinks) == 0 && !request.NeedsHostWritableRootfs {
 		return View{}, nil
 	}
 	if p.filestoreDir == "" {
@@ -255,6 +261,10 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 		return View{}, err
 	}
 	if err := seedMountTargets(request.RootDir, view.UpperDir, missing); err != nil {
+		_ = cleanupOverlayView(filepath.Dir(view.MergedDir))
+		return View{}, err
+	}
+	if err := seedSymlinks(request.RootDir, view.UpperDir, request.Symlinks); err != nil {
 		_ = cleanupOverlayView(filepath.Dir(view.MergedDir))
 		return View{}, err
 	}
@@ -386,6 +396,37 @@ func seedMountTargets(lowerRoot, upperRoot string, targets []MountTarget) error 
 					return err
 				}
 			}
+		}
+	}
+	return nil
+}
+
+func seedSymlinks(lowerRoot, upperRoot string, symlinks []Symlink) error {
+	for _, symlink := range symlinks {
+		linkPath := strings.TrimSpace(symlink.Path)
+		target := strings.TrimSpace(symlink.Target)
+		if !path.IsAbs(linkPath) || path.Clean(linkPath) != linkPath || linkPath == "/" {
+			return fmt.Errorf("runtime symlink path %q must be a canonical absolute container path", symlink.Path)
+		}
+		if !path.IsAbs(target) || path.Clean(target) != target || target == "/" {
+			return fmt.Errorf("runtime symlink target %q must be a canonical absolute container path", symlink.Target)
+		}
+		parts := strings.Split(strings.TrimPrefix(linkPath, "/"), "/")
+		for index := 0; index < len(parts)-1; index++ {
+			relative := filepath.Join(parts[:index+1]...)
+			if err := createProjectionDirectory(filepath.Join(lowerRoot, relative), filepath.Join(upperRoot, relative)); err != nil {
+				return fmt.Errorf("seed runtime symlink parent %q: %w", linkPath, err)
+			}
+		}
+		lowerPath := filepath.Join(lowerRoot, filepath.Join(parts...))
+		if _, err := os.Lstat(lowerPath); err == nil {
+			return fmt.Errorf("runtime symlink path %q is already occupied in the task rootfs", linkPath)
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("inspect runtime symlink path %q: %w", linkPath, err)
+		}
+		upperPath := filepath.Join(upperRoot, filepath.Join(parts...))
+		if err := os.Symlink(target, upperPath); err != nil {
+			return fmt.Errorf("create runtime symlink %q -> %q: %w", linkPath, target, err)
 		}
 	}
 	return nil
@@ -636,13 +677,14 @@ type projectionManifest struct {
 	HostWritable   bool                     `json:"host_writable"`
 	ImmutableMount ImmutableMountDescriptor `json:"immutable_mount"`
 	ProjectID      uint32                   `json:"project_id,omitempty"`
+	Symlinks       []Symlink                `json:"symlinks,omitempty"`
 }
 
 func writeProjectionManifest(root string, request Request) error {
 	content, err := json.Marshal(projectionManifest{
 		RuntimeName: request.RuntimeName, RootReadonly: request.Readonly,
 		HostWritable: request.NeedsHostWritableRootfs, ImmutableMount: request.ImmutableMount,
-		ProjectID: request.ProjectID,
+		ProjectID: request.ProjectID, Symlinks: request.Symlinks,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal projection manifest: %w", err)

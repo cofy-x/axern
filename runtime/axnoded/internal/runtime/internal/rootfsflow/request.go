@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/agentbundle"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
@@ -42,6 +43,7 @@ func PrepareBundle(ctx context.Context, provider rootfsview.Provider, options co
 	}
 
 	targets := make([]rootfsview.MountTarget, 0, len(ociSpec.Mounts))
+	symlinks := make([]rootfsview.Symlink, 0, 1)
 	for _, mount := range ociSpec.Mounts {
 		if mount.Type != "bind" {
 			continue
@@ -59,12 +61,17 @@ func PrepareBundle(ctx context.Context, provider rootfsview.Provider, options co
 			return false, fmt.Errorf("bind mount source %q is neither a regular file nor a directory", mount.Source)
 		}
 		targets = append(targets, rootfsview.MountTarget{Destination: mount.Destination, Kind: kind})
+		if mount.Destination == agentbundle.ClaudeCodeABIMountTarget {
+			symlinks = append(symlinks, rootfsview.Symlink{
+				Path: agentbundle.ClaudeCodeMountTarget, Target: agentbundle.ClaudeCodeABIMountTarget,
+			})
+		}
 	}
 
 	prepareStart := time.Now()
 	view, err := provider.Prepare(ctx, options.ContainerID, rootfsview.Request{
 		RootDir: rootfsPath, Readonly: ociSpec.Root.Readonly, RuntimeName: policy.RuntimeName,
-		NeedsHostWritableRootfs: policy.NeedsHostWritableRootfs, ImmutableMount: policy.ImmutableMount, Targets: targets,
+		NeedsHostWritableRootfs: policy.NeedsHostWritableRootfs, ImmutableMount: policy.ImmutableMount, Targets: targets, Symlinks: symlinks,
 		EphemeralStorageLimitBytes: policy.EphemeralStorageLimitBytes, ProjectID: policy.ProjectID,
 	})
 	options.RecordStartupStep(contract.StartupPhaseRootfsPrepare, contract.StartupStepRootfsViewPrepare, time.Since(prepareStart))

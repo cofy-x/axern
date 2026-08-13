@@ -79,6 +79,26 @@ func TestPrepareBundleLeavesSpecWhenProjectionIsNotNeeded(t *testing.T) {
 	assert.Equal(t, rootfsPath, written.Root.Path)
 }
 
+func TestPrepareBundleModelsClaudeCodePublicSymlinkForSingleABIMount(t *testing.T) {
+	bundlePath := t.TempDir()
+	rootfsPath := t.TempDir()
+	imageSource := t.TempDir()
+	require.NoError(t, runtimeoci.WriteSpecAtomic(filepath.Join(bundlePath, config.ContainerSpecFile), &spec.Spec{
+		Root: &spec.Root{Path: rootfsPath, Readonly: true},
+		Mounts: []spec.Mount{{
+			Type: "bind", Source: imageSource, Destination: "/__claude_code", Options: []string{"rbind", "ro"},
+		}},
+	}))
+	provider := &providerStub{}
+
+	_, err := PrepareBundle(context.Background(), provider, contract.HandlerOptions{ContainerID: "alloc-claude"}, bundlePath, RuntimePolicy{RuntimeName: "runsc", ImmutableMount: testImmutableMount(rootfsPath)})
+
+	require.NoError(t, err)
+	require.Len(t, provider.request.Targets, 1)
+	assert.Equal(t, "/__claude_code", provider.request.Targets[0].Destination)
+	require.Equal(t, []rootfsview.Symlink{{Path: "/opt/axern/agents/claude-code", Target: "/__claude_code"}}, provider.request.Symlinks)
+}
+
 func TestPrepareBundleRejectsSpecialBindSource(t *testing.T) {
 	bundlePath := t.TempDir()
 	rootfsPath := t.TempDir()
