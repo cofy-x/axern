@@ -101,3 +101,17 @@ func TestRenderServiceTableWideWithLabelsIncludesOperationalColumns(t *testing.T
 		}
 	}
 }
+
+func TestRenderServiceTableDistinguishesDeletionLifecycle(t *testing.T) {
+	var b strings.Builder
+	RenderServiceTable(&b, []*servicev1.Service{
+		{ID: "svc-deleting", Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETING},
+		{ID: "svc-deleted", Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETED},
+	}, ServiceListTableOptions{})
+	out := b.String()
+	for _, want := range []string{"svc-deleting", "deleting", "svc-deleted", "deleted"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("output %q does not contain %q", out, want)
+		}
+	}
+}

@@ -3,6 +3,7 @@ package output
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/cofy-x/axern/apps/cli/internal/workloaddiagnostic"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -17,6 +18,18 @@ func RenderServiceDescribe(w io.Writer, service *servicev1.Service, latestEvent 
 	renderServiceDetails(w, service, latestEvent, true)
 }
 
+func RenderServiceDeletionResult(w io.Writer, service *servicev1.Service) {
+	if service == nil {
+		return
+	}
+	phase := service.GetDeletionStatus().GetPhase()
+	if phase == servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE {
+		fmt.Fprintf(w, "Service deleted: %s\n", service.GetID())
+		return
+	}
+	fmt.Fprintf(w, "Service deletion requested: %s (phase=%s)\n", service.GetID(), ServiceDeletionPhaseLabel(phase))
+}
+
 func renderServiceDetails(w io.Writer, service *servicev1.Service, latestEvent *servicev1.ServiceEvent, includeDescribeFields bool) {
 	if service == nil {
 		return
@@ -25,6 +38,23 @@ func renderServiceDetails(w io.Writer, service *servicev1.Service, latestEvent *
 	fmt.Fprintf(w, "Namespace: %s\n", service.GetNamespace())
 	fmt.Fprintf(w, "Environment ID: %s\n", service.GetEnvironmentID())
 	fmt.Fprintf(w, "Status: %s\n", ServiceStatusLabel(service.GetStatus()))
+	if deletion := service.GetDeletionStatus(); deletion != nil {
+		fmt.Fprintf(
+			w,
+			"Deletion: phase=%s volume_disposition=%s\n",
+			ServiceDeletionPhaseLabel(deletion.GetPhase()),
+			ServiceVolumeDispositionLabel(deletion.GetVolumeDisposition()),
+		)
+		if claimIDs := deletion.GetClaimIds(); len(claimIDs) > 0 {
+			fmt.Fprintf(w, "Deletion Claims: %s\n", strings.Join(claimIDs, ","))
+		}
+		if completedAt := FormatProtoTimestamp(deletion.GetCompletedAt()); completedAt != "" {
+			fmt.Fprintf(w, "Deletion Completed At: %s\n", completedAt)
+		}
+		if message := deletion.GetMessage(); message != "" {
+			fmt.Fprintf(w, "Deletion Message: %s\n", message)
+		}
+	}
 	fmt.Fprintf(w, "Replicas: desired=%d ready=%d unhealthy=%d\n", service.GetReplicas(), service.GetReadyReplicas(), service.GetUnhealthyReplicas())
 	if includeDescribeFields {
 		fmt.Fprintf(w, "Labels: %s\n", formatLabels(service.GetLabels()))

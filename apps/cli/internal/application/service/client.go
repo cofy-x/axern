@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	axernsdk "github.com/cofy-x/axern/sdk/go"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/grpc"
 )
@@ -17,11 +18,20 @@ type ServiceClient interface {
 	ListServiceEvents(context.Context, *servicev1.ListServiceEventsRequest, ...grpc.CallOption) (*servicev1.ListServiceEventsResponse, error)
 }
 
+type ServiceWatcher interface {
+	WatchService(context.Context, string, int64) (axernsdk.ServiceWatch, error)
+}
+
 type Control struct {
 	client       ServiceClient
+	watcher      ServiceWatcher
 	environments environmentResolver
 }
 
 func New(client ServiceClient) Control {
 	return Control{client: client}
+}
+
+func NewWithWatcher(client ServiceClient, watcher ServiceWatcher) Control {
+	return Control{client: client, watcher: watcher}
 }

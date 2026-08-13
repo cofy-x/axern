@@ -1,9 +1,12 @@
 package service
 
 import (
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	appservice "github.com/cofy-x/axern/apps/cli/internal/application/service"
 	"github.com/cofy-x/axern/apps/cli/internal/command"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"google.golang.org/protobuf/proto"
@@ -16,6 +19,54 @@ func TestProbeBuildLeavesDefaultDurationsUnset(t *testing.T) {
 	}
 	if probe.GetInitialDelay() != nil || probe.GetPeriod() != nil || probe.GetTimeout() != nil {
 		t.Fatalf("default durations must remain unset: %+v", probe)
+	}
+}
+
+func TestDeleteCommandExposesBoundedWait(t *testing.T) {
+	cmd := deleteCommand(command.Runtime{})
+	if cmd.Flags().Lookup("wait") == nil || cmd.Flags().Lookup("wait-timeout") == nil {
+		t.Fatal("service delete is missing --wait or --wait-timeout")
+	}
+	waitTimeout, err := cmd.Flags().GetDuration("wait-timeout")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if waitTimeout != appservice.DefaultDeleteWaitTimeout {
+		t.Fatalf("--wait-timeout default = %s, want %s", waitTimeout, appservice.DefaultDeleteWaitTimeout)
+	}
+}
+
+func TestDeleteCommandRejectsTimeoutWithoutWait(t *testing.T) {
+	cmd := deleteCommand(command.Runtime{})
+	if err := cmd.Flags().Set("wait-timeout", "1s"); err != nil {
+		t.Fatal(err)
+	}
+	err := cmd.RunE(cmd, []string{"svc-1"})
+	var usageErr command.UsageError
+	if !errors.As(err, &usageErr) || !strings.Contains(err.Error(), "--wait-timeout requires --wait") {
+		t.Fatalf("delete command error = %v, want usage error", err)
+	}
+}
+
+func TestDeleteCommandRejectsNegativeWaitTimeout(t *testing.T) {
+	cmd := deleteCommand(command.Runtime{})
+	if err := cmd.Flags().Set("wait", "true"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Flags().Set("wait-timeout", "-1s"); err != nil {
+		t.Fatal(err)
+	}
+	err := cmd.RunE(cmd, []string{"svc-1"})
+	var usageErr command.UsageError
+	if !errors.As(err, &usageErr) || !strings.Contains(err.Error(), "--wait-timeout must not be negative") {
+		t.Fatalf("delete command error = %v, want negative timeout usage error", err)
+	}
+}
+
+func TestListCommandDocumentsDeletedAuditView(t *testing.T) {
+	cmd := listCommand(command.Runtime{})
+	if !strings.Contains(cmd.Long, "--status deleted") || !strings.Contains(cmd.Long, "excludes terminal deleted records") {
+		t.Fatalf("service list long help = %q, want deleted audit guidance", cmd.Long)
 	}
 }
 

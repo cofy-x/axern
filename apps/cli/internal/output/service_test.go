@@ -249,6 +249,65 @@ func TestRenderServiceOmitsActionlessProbeAndEmptyAutoscalingPolicy(t *testing.T
 	}
 }
 
+func TestRenderServiceDescribeIncludesDeletionLifecycle(t *testing.T) {
+	var b strings.Builder
+	RenderServiceDescribe(&b, &servicev1.Service{
+		ID:     "svc-deleting",
+		Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETING,
+		DeletionStatus: &servicev1.ServiceDeletionStatus{
+			Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES,
+			VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE,
+			ClaimIds:          []string{"claim-a", "claim-b"},
+			Message:           "waiting for volume cleanup",
+			CompletedAt:       timestamppb.New(time.Date(2026, time.August, 13, 8, 30, 0, 0, time.UTC)),
+		},
+	}, nil)
+	out := b.String()
+	for _, want := range []string{
+		"Status: deleting",
+		"Deletion: phase=reclaiming-volumes volume_disposition=delete",
+		"Deletion Claims: claim-a,claim-b",
+		"Deletion Completed At: 2026-08-13T08:30:00Z",
+		"Deletion Message: waiting for volume cleanup",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("output %q does not contain %q", out, want)
+		}
+	}
+}
+
+func TestRenderServiceDeletionResultDistinguishesRequestedAndComplete(t *testing.T) {
+	tests := []struct {
+		name    string
+		service *servicev1.Service
+		want    string
+	}{
+		{
+			name: "requested",
+			service: &servicev1.Service{ID: "svc-1", DeletionStatus: &servicev1.ServiceDeletionStatus{
+				Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
+			}},
+			want: "Service deletion requested: svc-1 (phase=releasing-allocations)\n",
+		},
+		{
+			name: "complete",
+			service: &servicev1.Service{ID: "svc-1", DeletionStatus: &servicev1.ServiceDeletionStatus{
+				Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE,
+			}},
+			want: "Service deleted: svc-1\n",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var b strings.Builder
+			RenderServiceDeletionResult(&b, tc.service)
+			if got := b.String(); got != tc.want {
+				t.Fatalf("RenderServiceDeletionResult() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestFormatRelativeAge(t *testing.T) {
 	base := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	cases := []struct {

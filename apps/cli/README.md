@@ -77,6 +77,7 @@ axern run --detach python:3.12-slim -- python -c 'print("later")'
 axern run logs --follow <run-id>
 axern service create --file service.yaml --wait
 axern service get <service-id>
+axern service delete <service-id> --wait
 axern function deploy --file function.yaml --wait
 axern function invocation list --namespace default <function-name>
 axern quota get --namespace default
@@ -100,6 +101,12 @@ axern identity whoami
 axern admin principal list
 axern admin role-binding list --namespace default
 ```
+
+Service deletion is asynchronous. `service delete` reports that deletion was
+requested; add `--wait` to wait for the persisted deletion phase to complete.
+The default `service list` view excludes deleted audit records; use
+`service list --status deleted` or exact `service get <service-id>` to inspect
+them until an administrator explicitly purges the record.
 
 `agent` requires an explicit `shell`, `run`, `connect`, `doctor`, `list`,
 `stop`, `workspace`, or `profile` subcommand. Agent workspaces keep one Service
