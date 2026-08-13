@@ -648,6 +648,20 @@ func (f *fakeCatalogClient) GetAgentBundle(context.Context, *catalogv1.GetAgentB
 	return &catalogv1.GetAgentBundleResponse{AgentBundle: bundle}, nil
 }
 
+func TestWorkspaceExecutionConfigUsesClaudeCodePrivateImageTarget(t *testing.T) {
+	bundle := bundleRuntime{
+		ID:          "claude-code",
+		Image:       "axern/claude-code-bundle:dev",
+		MountTarget: "/opt/axern/agents/claude-code",
+		ImageTarget: "/__claude_code",
+	}
+
+	mounts := workspaceExecutionConfig("project-a", bundle).GetImageMounts()
+	if len(mounts) != 1 || mounts[0].GetTarget() != "/__claude_code" || !mounts[0].GetReadonly() {
+		t.Fatalf("image mounts = %#v", mounts)
+	}
+}
+
 func fakeTemplate() *catalogv1.RuntimeTemplate {
 	return &catalogv1.RuntimeTemplate{
 		ID:      "coding-base",

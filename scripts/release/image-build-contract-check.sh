@@ -49,6 +49,14 @@ if "axern_docker_build" not in runtime_build:
 if "docker buildx build" in runtime_build:
     raise SystemExit("node runtime base must not bypass the shared Docker build cache helper")
 
+node_runtime_dockerfile = (root / "deploy/images/lib/node-runtime-base.Dockerfile").read_text()
+for contract in (
+    "COPY lib/go/agentbundle/go.mod /workspace/lib/go/agentbundle/go.mod",
+    "./lib/go/agentbundle",
+):
+    if contract not in node_runtime_dockerfile:
+        raise SystemExit(f"node runtime base is missing the agentbundle module staging contract: {contract}")
+
 cache_helper = (root / "scripts/dev-env/docker-build-cache.sh").read_text()
 source_label = '--label "org.opencontainers.image.source=${AXERN_OCI_SOURCE_LABEL}"'
 if source_label not in cache_helper:
@@ -89,16 +97,35 @@ for agent_id, dockerfile in bundle_contracts.items():
         bundle_base,
         f'io.axern.agent-bundle.agent-id="{agent_id}"',
         'io.axern.agent-bundle.architecture="linux/${TARGETARCH}"',
-        f'io.axern.agent-bundle.mount-target="/opt/axern/agents/{agent_id}"',
         "/opt/axern/agent-bundle/manifest.json",
         "readelf -h",
-        "--library-path",
         "--list",
     ):
         if contract not in text:
             raise SystemExit(f"{agent_id} self-contained bundle contract is missing: {contract}")
 
+claude_dockerfile = bundle_contracts["claude-code"].read_text()
+claude_build = (bundle_contracts["claude-code"].parent / "build-bundle.sh").read_text()
+claude_wrapper = (bundle_contracts["claude-code"].parent / "claude").read_text()
+for contract in (
+    'io.axern.agent-bundle.mount-target="/__claude_code"',
+    'io.axern.agent-bundle.public-mount-target="/opt/axern/agents/claude-code"',
+    "canonical_root=/__claude_code",
+    'loader_wrapped_elfs: []',
+    'exec "$real_binary" "$@"',
+):
+    if contract not in claude_dockerfile + claude_build + claude_wrapper:
+        raise SystemExit(f"Claude Code dual-path bundle contract is missing: {contract}")
+if '--library-path' in claude_wrapper:
+    raise SystemExit("Claude Code wrapper must execute its native ELF without a loader wrapper")
+
 codex_bundle = bundle_contracts["codex"].read_text() + (bundle_contracts["codex"].parent / "build-bundle.sh").read_text()
+for contract in (
+    'io.axern.agent-bundle.mount-target="/opt/axern/agents/codex"',
+    "--library-path",
+):
+    if contract not in codex_bundle:
+        raise SystemExit(f"Codex bundle contract is missing: {contract}")
 for checksum in (
     "e798599612f4bb71333a3397ab0d095fd62214e115aea45aa858a145fc72d67e",
     "aa881151bd0f9f154a0424dd60a72e9ce10672619121658c278a24327ef46831",

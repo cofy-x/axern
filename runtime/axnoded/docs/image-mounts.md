@@ -31,6 +31,8 @@ Validation rules:
   template, sandboxd-managed, or secret-file mounts;
 - missing directory targets are materialized in the final task rootfs view;
 - paths that cross rootfs symlinks are rejected;
+- runtime-managed bundle aliases must be absent from the task rootfs and must
+  not overlap any image, sandbox, volume, template, or secret-file mount;
 - setup failure fails allocation start, and allocation cleanup releases mounted
   image rootfs references.
 
@@ -45,10 +47,18 @@ only. Tool images should be relocatable bundles, for example:
 
 Axern does not merge operating-system ABIs. A generic tool bundle that relies
 on task libraries must document that dependency. Official Axern Claude Code and
-Codex bundles instead carry a complete, pinned Ubuntu ABI and invoke their own
+Codex bundles instead carry a complete, pinned Ubuntu ABI and select their own
 loader, so they support both glibc- and musl-based Axrun-compatible task images.
 The task image remains responsible for `/bin/sh`, project commands, and its own
 language and test toolchains.
+
+Claude Code has a dual-path contract backed by one mount. Its image rootfs is
+bound once at the private ABI path `/__claude_code`; the allocation-private
+rootfs projection creates `/opt/axern/agents/claude-code` as a symlink to that
+mount. The public path remains stable for agent discovery and `PATH`, while the
+short ABI path keeps the Bun executable's in-place `PT_INTERP` fixed at
+`/__claude_code/l`. Both paths are reserved together for overlap validation;
+Axern never bind-mounts the Claude image a second time at the public path.
 
 ## Runtime Ownership
 

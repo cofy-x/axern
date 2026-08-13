@@ -26,27 +26,32 @@ does not inherit the coding toolchain.
 Claude Code and Codex are published as self-contained Ubuntu 24.04 tool
 rootfs bundles, not runtime templates. The control-plane Agent Bundle Catalog
 selects their versioned image and absolute bundle binary path. A workload
-mounts the selected image read-only at its canonical
-`/opt/axern/agents/<agent>` path.
+mounts the selected image read-only at its canonical path. Claude Code uses
+`/__claude_code` so its native ELF can name the mount-local interpreter inside
+the fixed-size `PT_INTERP`; other bundles use `/opt/axern/agents/<agent>`.
 
 `claude-code-bundle` exposes `/bin/claude`. `codex-bundle` exposes `/bin/codex`.
 Each bundle carries its own loader, system libraries, CA certificates, and
 agent runtime; Codex additionally carries a pinned Node.js executable and npm
-package. The mounted commands resolve to
+package. The user-visible commands resolve to
 `/opt/axern/agents/claude-code/bin/claude` and
 `/opt/axern/agents/codex/bin/codex`.
 
-Each bundle context keeps three responsibilities separate: `Dockerfile`
-defines the pinned base, layers, arguments, and OCI labels; `build-bundle.sh`
-installs the agent, audits and classifies ELF files, and writes the manifest;
-the agent-named shell file is the minimal runtime wrapper. Build/audit logic
-must not be embedded back into a monolithic Dockerfile.
+Each bundle context keeps responsibilities separate: `Dockerfile` defines the
+pinned base, layers, arguments, and OCI labels; `build-bundle.sh` installs the
+agent, audits and classifies ELF files, and writes the manifest; focused patch
+helpers own any build-time binary transformation; the agent-named shell file is
+the minimal runtime wrapper. Build and audit logic must not be embedded back
+into a monolithic Dockerfile.
 
-Official bundle wrappers reject non-canonical mount targets and use the
-bundle's loader directly without exporting `LD_LIBRARY_PATH`. This keeps the
-agent ABI independent from glibc- and musl-based task images while preserving
-the task image's shell, Git, project toolchain, and test environment. Supported
-task images must still satisfy the Axrun shell contract, including `/bin/sh`.
+Official bundle wrappers reject non-canonical mount targets and never export
+`LD_LIBRARY_PATH`. Codex invokes its bundle loader directly. Claude Code instead
+executes its Bun standalone binary with an in-place `PT_INTERP` that selects the
+bundle loader, preserving `/proc/self/exe` across Bun self-restarts. Both models
+keep the agent ABI independent from glibc- and musl-based task images while
+preserving the task image's shell, Git, project toolchain, and test environment.
+Supported task images must still satisfy the Axrun shell contract, including
+`/bin/sh`.
 
 The task rootfs and bundle have separate responsibilities: `coding-base`
 supplies the coding workspace and shell, while a bundle supplies exactly one

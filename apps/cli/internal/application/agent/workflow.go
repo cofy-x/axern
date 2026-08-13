@@ -258,7 +258,7 @@ func workspaceExecutionConfig(workspace string, bundle bundleRuntime) *commonv1.
 	return &commonv1.ExecutionConfig{VolumeMounts: []*commonv1.ServiceVolumeMount{{
 		Name: workspaceVolumeName(workspace), Target: DefaultWorkspace, Options: []string{"rw", "nosuid", "nodev"},
 		ReclaimPolicy: storagev1.VolumeReclaimPolicy_VOLUME_RECLAIM_POLICY_DELETE,
-	}}, ImageMounts: []*commonv1.ImageMount{{Image: bundle.Image, Target: bundle.MountTarget, Readonly: true}}}
+	}}, ImageMounts: []*commonv1.ImageMount{{Image: bundle.Image, Target: firstNonEmpty(bundle.ImageTarget, bundle.MountTarget), Readonly: true}}}
 }
 
 type serviceUpdateBuilder func(*servicev1.Service) (*servicev1.UpdateServiceRequest, error)

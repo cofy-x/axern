@@ -276,7 +276,7 @@ func agentBundleImageMount(spec domain.AgentSpec) axernsdk.ImageMount {
 	}
 	return axernsdk.ImageMount{
 		Image:    image,
-		Target:   agentbundle.MountTargetForSpec(spec),
+		Target:   agentbundle.ImageMountTargetForSpec(spec),
 		Readonly: true,
 	}
 }

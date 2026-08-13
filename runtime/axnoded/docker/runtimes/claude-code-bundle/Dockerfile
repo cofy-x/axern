@@ -47,10 +47,11 @@ ARG UBUNTU_BASE_IMAGE
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update \
-    && apt-get install -y --no-install-recommends binutils ca-certificates curl file gnupg jq patchelf \
+    && apt-get install -y --no-install-recommends binutils ca-certificates curl file gnupg jq patchelf python3-minimal \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --chmod=0755 build-bundle.sh /usr/local/bin/build-claude-code-bundle
+COPY --chmod=0755 patch-bundle-elf.py /usr/local/bin/patch-claude-bundle-elf
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     build-claude-code-bundle "${CLAUDE_CODE_VERSION}" "${TARGETARCH}" "${UBUNTU_BASE_IMAGE}"
@@ -61,15 +62,26 @@ ARG CLAUDE_CODE_VERSION=2.1.205
 ARG TARGETARCH
 ARG UBUNTU_BASE_IMAGE
 COPY --from=bundle_builder /opt/axern/agent-bundle /opt/axern/agent-bundle
+COPY --from=bundle_builder /tmp/claude-loader /l
 COPY --chmod=0755 claude /bin/claude
+
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) multiarch=x86_64-linux-gnu; lib_alias=glibc0; usr_lib_alias=glibc00000 ;; \
+      arm64) multiarch=aarch64-linux-gnu; lib_alias=glibc00; usr_lib_alias=glibc000000 ;; \
+      *) echo "unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    ln -s "lib/${multiarch}" "/${lib_alias}"; \
+    ln -s "usr/lib/${multiarch}" "/${usr_lib_alias}"
 
 LABEL org.opencontainers.image.title="Axern Claude Code Self-contained Bundle" \
       org.opencontainers.image.description="Canonical self-contained Claude Code tool rootfs for read-only Axern image mounts." \
       org.opencontainers.image.source="https://github.com/cofy-x/axern" \
-      io.axern.agent-bundle.schema-version="1" \
+      io.axern.agent-bundle.schema-version="2" \
       io.axern.agent-bundle.agent-id="claude-code" \
       io.axern.agent-bundle.agent-version="${CLAUDE_CODE_VERSION}" \
       io.axern.agent-bundle.architecture="linux/${TARGETARCH}" \
-      io.axern.agent-bundle.mount-target="/opt/axern/agents/claude-code" \
+      io.axern.agent-bundle.mount-target="/__claude_code" \
+      io.axern.agent-bundle.public-mount-target="/opt/axern/agents/claude-code" \
       io.axern.agent-bundle.entrypoint="/bin/claude" \
       io.axern.agent-bundle.ubuntu-base-image="${UBUNTU_BASE_IMAGE}"

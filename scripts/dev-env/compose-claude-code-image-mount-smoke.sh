@@ -37,7 +37,7 @@ trap 'cleanup_build_dir; end_env_lock compose' EXIT
 cat >"${build_dir}/Task.Dockerfile" <<'EOF'
 ARG TASK_BASE_IMAGE
 FROM ${TASK_BASE_IMAGE}
-RUN mkdir -p /opt/axern/agents/claude-code
+RUN mkdir -p /opt/axern/agents
 EOF
 
 task_source_image="axern/claude-code-image-mount-smoke-task:local"
@@ -118,9 +118,9 @@ create_output="$(
   local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" \
     "${AXERN_SMOKE_CMD[@]}" run --detach -o json \
       --namespace "${namespace}" \
-      --image-mount "${bundle_cluster_image}:/opt/axern/agents/claude-code:ro" \
+      --image-mount "${bundle_cluster_image}:/__claude_code:ro" \
       "${task_cluster_image}" -- /bin/sh -lc \
-      'test -r /opt/axern/agents/claude-code/opt/axern/agent-bundle/manifest.json && LD_LIBRARY_PATH=/definitely-not-a-system-library /opt/axern/agents/claude-code/bin/claude --version | tee /tmp/claude-version.txt && grep -F "Claude Code" /tmp/claude-version.txt && ! touch /opt/axern/agents/claude-code/write-test && /bin/sh -c "printf sandbox-ok" && printf "\nagent-bundle-smoke-ready\n" && sleep 600' || true
+      'test "$(readlink /opt/axern/agents/claude-code)" = /__claude_code && test -r /__claude_code/opt/axern/agent-bundle/manifest.json && LD_LIBRARY_PATH=/definitely-not-a-system-library /opt/axern/agents/claude-code/bin/claude --version | tee /tmp/claude-version.txt && grep -F "Claude Code" /tmp/claude-version.txt && ! touch /__claude_code/write-test && /bin/sh -c "printf sandbox-ok" && printf "\nagent-bundle-smoke-ready\n" && sleep 600' || true
 )"
 if ! run_id="$(extract_run_json_field id <<<"${create_output}" 2>/dev/null)"; then
   printf '%s\n' "${create_output}" >&2

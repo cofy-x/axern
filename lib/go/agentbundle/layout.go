@@ -5,7 +5,11 @@ import (
 	"strings"
 )
 
-const MountRoot = "/opt/axern/agents"
+const (
+	MountRoot                = "/opt/axern/agents"
+	ClaudeCodeMountTarget    = MountRoot + "/claude-code"
+	ClaudeCodeABIMountTarget = "/__claude_code"
+)
 
 func MountTarget(agentName string) string {
 	name := sanitizeMountName(agentName)
@@ -13,6 +17,26 @@ func MountTarget(agentName string) string {
 		name = "agent"
 	}
 	return MountRoot + "/" + name
+}
+
+// ImageMountTarget returns the actual OCI bind mount target for a public agent
+// bundle path. Claude Code has a private short ABI path so its Bun executable
+// can name the mount-local loader without growing PT_INTERP.
+func ImageMountTarget(publicMountTarget string) string {
+	if strings.TrimSpace(publicMountTarget) == ClaudeCodeMountTarget {
+		return ClaudeCodeABIMountTarget
+	}
+	return strings.TrimSpace(publicMountTarget)
+}
+
+// ClaimedMountTargets returns every container path reserved by one image
+// mount. Claude Code's single private ABI mount also reserves its public alias.
+func ClaimedMountTargets(imageMountTarget string) []string {
+	target := strings.TrimSpace(imageMountTarget)
+	if target == ClaudeCodeABIMountTarget {
+		return []string{ClaudeCodeABIMountTarget, ClaudeCodeMountTarget}
+	}
+	return []string{target}
 }
 
 func BinDir(mountTarget string) string {
