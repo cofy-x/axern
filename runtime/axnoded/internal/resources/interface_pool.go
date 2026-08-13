@@ -111,6 +111,7 @@ func (m *InterfaceManager) Del(num int) {
 func (m *InterfaceManager) Allocate(opt AllocateOption) (Resource, error) {
 	m.initializeSlots()
 	for {
+		buildGeneration := m.currentBuildGeneration()
 		cacheStarted := time.Now()
 		if netResourceStr := m.interfaces.Pop(); netResourceStr != "" {
 			metrics.RecordResourceAllocateStage(string(InterfaceResourceName), "cache_pop", "hit", time.Since(cacheStarted).Seconds())
@@ -134,7 +135,7 @@ func (m *InterfaceManager) Allocate(opt AllocateOption) (Resource, error) {
 		}
 		if errors.Is(err, errord.ErrResourceExhausted) {
 			waitStarted := time.Now()
-			waitErr := m.waitForBuild(opt.Context)
+			waitErr := m.waitForBuild(opt.Context, buildGeneration)
 			waitResult := "ok"
 			if waitErr != nil {
 				waitResult = "error"
