@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">Axern — Infrastructure for AI agents</title>
+  <desc id="desc">Axern wordmark and headline next to a terminal panel replaying one CLI session: axern run for a sandbox, axern service create for a durable service, and axern service tunnel for local access.</desc>
+
+  <rect width="1200" height="420" rx="24" fill="#0b0d12"/>
+
+  <g id="title-block">
+    <g transform="translate(64 56) scale(0.875)">
+      <rect width="64" height="64" rx="15" fill="#111318" stroke="#2e3442" stroke-width="1.5"/>
+      <path d="M15.5 46 28.75 16h6.5L48.5 46h-7.75l-2.6-6.5h-12.3L23.25 46H15.5Zm13.1-13h6.8L32 23.9 28.6 33Z" fill="#f7f7f8"/>
+    </g>
+    <text x="136" y="95" fill="#f5f5f7" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="32" font-weight="700" letter-spacing="-0.5">Axern</text>
+
+    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="64" font-weight="700" letter-spacing="-2">
+      <text x="64" y="208" fill="#f5f5f7">Infrastructure</text>
+      <text x="64" y="276" fill="#78a7ff">for AI agents.</text>
+    </g>
+
+    <g fill="#9aa0ad" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18">
+      <text x="64" y="322">Untrusted agent code runs behind a runsc isolation boundary;</text>
+      <text x="64" y="348">trusted services run on runc. One resource and lifecycle model.</text>
+    </g>
+
+    <text x="64" y="390" fill="#6d7180" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">Go · Python · TypeScript SDKs</text>
+  </g>
+
+  <g id="terminal-proof">
+    <rect x="632" y="56" width="504" height="308" rx="14" fill="#10131a" stroke="#262c3a"/>
+    <text x="656" y="92" fill="#6d7180" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">sandbox → service → tunnel</text>
+    <line x1="632" y1="104" x2="1136" y2="104" stroke="#1e2330"/>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">
+      <text x="656" y="140"><tspan fill="#78a7ff">&gt; </tspan><tspan fill="#e8eaf0">axern run python:3.12-slim -- python app.py</tspan></text>
+      <text x="656" y="168" fill="#7d8290">hello from axern</text>
+
+      <text x="656" y="212"><tspan fill="#78a7ff">&gt; </tspan><tspan fill="#e8eaf0">axern service create --file api.yaml --wait</tspan></text>
+      <text x="656" y="240"><tspan fill="#42a9c2">✓ </tspan><tspan fill="#7d8290">service api ready</tspan></text>
+
+      <text x="656" y="284"><tspan fill="#78a7ff">&gt; </tspan><tspan fill="#e8eaf0">axern service tunnel api --to 127.0.0.1:8080</tspan></text>
+      <text x="656" y="312" fill="#7d8290">forwarding 127.0.0.1:8080 → api:8080</text>
+
+      <text x="656" y="352" fill="#78a7ff">&gt; </text>
+      <rect x="674" y="338" width="10" height="19" fill="#78a7ff"/>
+    </g>
+  </g>
+</svg>
