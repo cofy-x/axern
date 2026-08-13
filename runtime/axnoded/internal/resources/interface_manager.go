@@ -36,7 +36,10 @@ type InterfaceManager struct {
 	quarantinedSlots atomic.Int64
 	buildMu          sync.Mutex
 	buildingSlots    int
-	buildChanged     chan struct{}
+	// buildGeneration advances after each warm-pool build so an allocator can
+	// observe a completion that races with its transition into waitForBuild.
+	buildGeneration uint64
+	buildChanged    chan struct{}
 
 	// store resource string.
 	db stateStore
@@ -129,12 +132,23 @@ func (m *InterfaceManager) endBuild() {
 		return
 	}
 	m.buildingSlots--
+	m.buildGeneration++
 	close(m.buildChanged)
 	m.buildChanged = make(chan struct{})
 }
 
-func (m *InterfaceManager) waitForBuild(ctx context.Context) error {
+func (m *InterfaceManager) currentBuildGeneration() uint64 {
 	m.buildMu.Lock()
+	defer m.buildMu.Unlock()
+	return m.buildGeneration
+}
+
+func (m *InterfaceManager) waitForBuild(ctx context.Context, observedGeneration uint64) error {
+	m.buildMu.Lock()
+	if m.buildGeneration != observedGeneration {
+		m.buildMu.Unlock()
+		return nil
+	}
 	if m.buildingSlots == 0 {
 		m.buildMu.Unlock()
 		return errord.ErrResourceExhausted

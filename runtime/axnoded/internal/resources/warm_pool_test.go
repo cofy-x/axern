@@ -533,27 +533,51 @@ func TestInterfaceManagerAllocateReturnsExhaustedWhenAtCapacity(t *testing.T) {
 
 func TestInterfaceManagerAllocateWaitsForInFlightPoolBuild(t *testing.T) {
 	manager := newBlockingInterfacePoolManager()
+	defer manager.releaseLookup()
 	buildDone := make(chan int, 1)
 	go func() {
 		buildDone <- manager.Add(1)
 	}()
 	<-manager.lookupStarted
 
+	waitContext := newWaitObservedContext(context.Background())
 	result := make(chan error, 1)
 	go func() {
-		_, err := manager.Allocate(AllocateOption{Context: context.Background()})
+		_, err := manager.Allocate(AllocateOption{Context: waitContext})
 		result <- err
 	}()
 
-	close(manager.continueLookup)
+	select {
+	case <-waitContext.waitObserved:
+	case err := <-result:
+		t.Fatalf("Allocate() returned before waiting for the in-flight build: %v", err)
+	}
+	manager.releaseLookup()
 	assert.Equal(t, 1, <-buildDone)
 	assert.NoError(t, <-result)
 	assert.Equal(t, 1, manager.UsingNum())
 	assert.Equal(t, int64(1), manager.activeSlots.Load())
 }
 
+func TestInterfaceManagerWaitForBuildObservesCompletedGeneration(t *testing.T) {
+	manager := newBlockingInterfacePoolManager()
+	defer manager.releaseLookup()
+
+	observedGeneration := manager.currentBuildGeneration()
+	buildDone := make(chan int, 1)
+	go func() {
+		buildDone <- manager.Add(1)
+	}()
+	<-manager.lookupStarted
+	manager.releaseLookup()
+	assert.Equal(t, 1, <-buildDone)
+
+	assert.NoError(t, manager.waitForBuild(context.Background(), observedGeneration))
+}
+
 func TestInterfaceManagerAllocateCancelsWhileWaitingForPoolBuild(t *testing.T) {
 	manager := newBlockingInterfacePoolManager()
+	defer manager.releaseLookup()
 	buildDone := make(chan int, 1)
 	go func() {
 		buildDone <- manager.Add(1)
@@ -565,14 +589,39 @@ func TestInterfaceManagerAllocateCancelsWhileWaitingForPoolBuild(t *testing.T) {
 	_, err := manager.Allocate(AllocateOption{Context: ctx})
 	assert.ErrorIs(t, err, context.Canceled)
 
-	close(manager.continueLookup)
+	manager.releaseLookup()
 	assert.Equal(t, 1, <-buildDone)
+}
+
+type waitObservedContext struct {
+	context.Context
+	waitObserved chan struct{}
+	once         sync.Once
+}
+
+func newWaitObservedContext(ctx context.Context) *waitObservedContext {
+	return &waitObservedContext{
+		Context:      ctx,
+		waitObserved: make(chan struct{}),
+	}
+}
+
+func (c *waitObservedContext) Done() <-chan struct{} {
+	// waitForBuild evaluates Done only after it has captured buildChanged. This
+	// signal lets the test release the builder without depending on scheduling.
+	c.once.Do(func() { close(c.waitObserved) })
+	return c.Context.Done()
 }
 
 type blockingInterfacePoolManager struct {
 	*InterfaceManager
 	lookupStarted  chan struct{}
 	continueLookup chan struct{}
+	releaseOnce    sync.Once
+}
+
+func (m *blockingInterfacePoolManager) releaseLookup() {
+	m.releaseOnce.Do(func() { close(m.continueLookup) })
 }
 
 func newBlockingInterfacePoolManager() *blockingInterfacePoolManager {
