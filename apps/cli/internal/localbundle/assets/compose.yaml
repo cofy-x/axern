@@ -169,6 +169,11 @@ services:
       AXNODED_CONTROL_PLANE_TLS_CERT: /certs/node.crt
       AXNODED_CONTROL_PLANE_TLS_KEY: /certs/node.key
       AXNODED_DNS_NAMESERVERS: ${AXNODED_DNS_NAMESERVERS}
+      # Docker Desktop and generic local Compose do not provide Axern's
+      # production cgroup delegation contract. Hard-limit qualification runs
+      # in the dedicated Linux gates instead.
+      AXNODED_CGROUP_ENFORCEMENT: disabled_dev
+      AXNODED_MEMORY_SYSTEM_RESERVE_BYTES: "0"
       REGISTRY_PROXY_URL: ${REGISTRY_PROXY_URL}
       REGISTRY_NO_PROXY: ${CONTAINER_NO_PROXY}
       HTTP_PROXY: ${CONTAINER_HTTP_PROXY}

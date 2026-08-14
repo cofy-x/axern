@@ -53,6 +53,8 @@ for value in (
     "AXERN_SDK_ACCEPTANCE_CLI",
     "namespace create default --output json",
     "doctor --namespace default --output json",
+    "cpu: 100m",
+    "memory: 512MiB",
 ):
     if value not in harness:
         raise SystemExit(f"kind acceptance is missing SDK hook contract: {value}")
@@ -72,6 +74,8 @@ for fixture in fixtures:
     for value in ("service-id", "python311", "runsc", "release-ok", "AXERN_SDK_ACCEPTANCE_HANDSHAKE_DIR"):
         if value not in text:
             raise SystemExit(f"{fixture.relative_to(root)} is missing acceptance behavior: {value}")
+    if "100m" not in text or "512MiB" not in text:
+        raise SystemExit(f"{fixture.relative_to(root)} must declare bounded release-smoke resources")
 
 acceptance = (root / "scripts/release/sdk-data-plane-acceptance.sh").read_text()
 for value in ("service get", '${language}.service-id', "run_sdk python", "run_sdk typescript", "run_sdk go"):
@@ -79,7 +83,7 @@ for value in ("service get", '${language}.service-id', "run_sdk python", "run_sd
         raise SystemExit(f"SDK data-plane harness is missing CLI handshake contract: {value}")
 
 local_smoke = (root / "scripts/release/local-release-smoke.sh").read_text()
-for value in ('print("hello from axern")', 'print("hello from stderr"', "run_status", '"${run_status}" -ne 7'):
+for value in ('print("hello from axern")', 'print("hello from stderr"', "run_status", '"${run_status}" -ne 7', "--request-cpu 100m --request-memory 512MiB"):
     if value not in local_smoke:
         raise SystemExit(f"local release smoke is missing foreground Run behavior: {value}")
 

@@ -135,7 +135,10 @@ spec:
   command:
     argv: [python, -c, "print('axern-release-ok')"]
   runtime_class: runsc
-  resources: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512MiB
 YAML
 "${cli}" --config "${config}" --timeout 10m run --file "${state_dir}/run.yaml"
 

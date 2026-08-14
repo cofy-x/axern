@@ -44,11 +44,13 @@ func main() {
 	defer client.Close()
 
 	sandbox, err := axern.NewSandbox(axern.SandboxOptions{
-		Client:       client,
-		TemplateID:   "python311",
-		RuntimeClass: "runsc",
-		ReadyTimeout: 3 * time.Minute,
-		Labels:       map[string]string{"axern.release.acceptance": "go"},
+		Client:        client,
+		TemplateID:    "python311",
+		RuntimeClass:  "runsc",
+		RequestCPU:    "100m",
+		RequestMemory: "512MiB",
+		ReadyTimeout:  3 * time.Minute,
+		Labels:        map[string]string{"axern.release.acceptance": "go"},
 	})
 	check(err)
 	check(sandbox.Start(ctx))
