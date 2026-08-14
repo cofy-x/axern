@@ -79,6 +79,8 @@ material here only when multiple modules need the same model.
 
 ## Development And Operations
 
+- [v0.5.0 Release Notes](releases/v0.5.0.md): immutable rootfs, observed
+  capabilities, sandbox memory budgets, and the coordinated upgrade boundary.
 - [v0.4.1 Release Notes](releases/v0.4.1.md): Linux arm64 release
   qualification and Homebrew publication completion.
 - [v0.4.0 Release Notes](releases/v0.4.0.md): source-free local operation,
