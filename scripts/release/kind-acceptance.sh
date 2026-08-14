@@ -17,6 +17,11 @@ if ! [[ "${release_test_memory_system_reserve_bytes}" =~ ^[1-9][0-9]*$ ]]; then
   echo "AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES must be a positive decimal integer" >&2
   exit 1
 fi
+capability_ready_timeout_seconds="${AXERN_RELEASE_CAPABILITY_READY_TIMEOUT_SECONDS:-300}"
+if ! [[ "${capability_ready_timeout_seconds}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "AXERN_RELEASE_CAPABILITY_READY_TIMEOUT_SECONDS must be a positive decimal integer" >&2
+  exit 1
+fi
 state_dir="$(mktemp -d)"
 cleanup() {
   jobs -p | xargs kill >/dev/null 2>&1 || true
@@ -123,6 +128,91 @@ cli="${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}"
   --namespace "${namespace}" --cert-dir "${state_dir}/certs" --current
 "${cli}" --config "${config}" namespace create default --output json
 "${cli}" --config "${config}" doctor --namespace default --output json
+
+wait_for_release_capabilities() {
+  local deadline node_id
+  local nodes_json="${state_dir}/nodes.json"
+  local snapshot_json="${state_dir}/capability-snapshot.json"
+  deadline=$((SECONDS + capability_ready_timeout_seconds))
+
+  while ((SECONDS < deadline)); do
+    if "${cli}" --config "${config}" admin node list --status active --output json >"${nodes_json}" 2>/dev/null; then
+      while IFS= read -r node_id; do
+        if "${cli}" --config "${config}" admin node capability snapshot "${node_id}" --output json >"${snapshot_json}" 2>/dev/null &&
+          python3 - "${snapshot_json}" <<'PY'
+import json
+import pathlib
+import sys
+from datetime import datetime, timezone
+
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+now = datetime.now(timezone.utc)
+
+def is_available(item):
+    if (
+        item.get("state") != "CAPABILITY_STATE_AVAILABLE"
+        or item.get("reasonCode") != "CAPABILITY_REASON_CODE_AVAILABLE"
+    ):
+        return False
+    valid_until = item.get("validUntil")
+    if not valid_until:
+        return True
+    return datetime.fromisoformat(valid_until.replace("Z", "+00:00")) > now
+
+available = {
+    item.get("key", {}).get("platform")
+    for item in data.get("snapshot", {}).get("observations", [])
+    if is_available(item)
+}
+network = {
+    "PLATFORM_CAPABILITY_NETWORK_BRIDGE",
+    "PLATFORM_CAPABILITY_NETWORK_BPFNET",
+}
+storage = "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT"
+raise SystemExit(0 if storage in available and not network.isdisjoint(available) else 1)
+PY
+        then
+          echo "release_kind_node_ready=${node_id}"
+          return 0
+        fi
+      done < <(python3 - "${nodes_json}" <<'PY'
+import json
+import pathlib
+import sys
+
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+for node in data.get("nodes", []):
+    if (
+        node.get("lifecycle_status") == "active"
+        and node.get("heartbeat_fresh") is True
+        and node.get("summary_fresh") is True
+        and node.get("axnoded_ready") is True
+        and node.get("node_id")
+    ):
+        print(node["node_id"])
+PY
+      )
+    fi
+    sleep 2
+  done
+
+  echo "timed out waiting for a release node with required network and runsc storage capabilities" >&2
+  if [[ -s "${nodes_json}" ]]; then
+    echo "--- admin nodes ---" >&2
+    cat "${nodes_json}" >&2
+  fi
+  if [[ -s "${snapshot_json}" ]]; then
+    echo "--- latest capability snapshot ---" >&2
+    cat "${snapshot_json}" >&2
+  fi
+  echo "--- node pods ---" >&2
+  kubectl --namespace "${namespace}" get pods -o wide >&2 || true
+  echo "--- node logs ---" >&2
+  kubectl --namespace "${namespace}" logs daemonset/node-all-in-one --all-containers --tail=300 >&2 || true
+  return 1
+}
+
+wait_for_release_capabilities
 
 cat >"${state_dir}/run.yaml" <<'YAML'
 api_version: axern/v1
