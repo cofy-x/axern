@@ -23,6 +23,8 @@ def main() -> None:
             client=client,
             template_id="python311",
             runtime_class="runsc",
+            request_cpu="100m",
+            request_memory="512MiB",
             labels={"axern.release.acceptance": "python"},
         ) as sandbox:
             result = sandbox.exec(["python", "-c", f"print({marker!r})"], check=True, text=True)

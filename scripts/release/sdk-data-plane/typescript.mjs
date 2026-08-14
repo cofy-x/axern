@@ -16,6 +16,8 @@ try {
     client,
     templateId: "python311",
     runtimeClass: "runsc",
+    requestCpu: "100m",
+    requestMemory: "512MiB",
     labels: { "axern.release.acceptance": "typescript" },
   }).start();
   const result = await sandbox.exec(["python", "-c", `print(${JSON.stringify(marker)})`], { check: true });
