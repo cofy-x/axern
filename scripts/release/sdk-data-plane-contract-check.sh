@@ -45,6 +45,9 @@ if "AXERN_RELEASE_VERSION:" in global_env:
 
 harness = (root / "scripts/release/kind-acceptance.sh").read_text()
 for value in (
+    "AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES:-536870912",
+    "AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES must be a positive decimal integer",
+    'node.memorySystemReserveBytes=${release_test_memory_system_reserve_bytes}',
     "AXERN_SDK_ACCEPTANCE_CONFIG",
     "AXERN_SDK_ACCEPTANCE_CONTEXT=release",
     "AXERN_SDK_ACCEPTANCE_CLI",
@@ -83,5 +86,11 @@ for value in ('print("hello from axern")', 'print("hello from stderr"', "run_sta
 if (root / "scripts/release/verify-published-sdks.sh").exists():
     raise SystemExit("obsolete import-only published SDK verifier must not exist")
 PY
+
+if AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES=0 \
+  bash "${AXERN_ROOT}/scripts/release/kind-acceptance.sh" >/dev/null 2>&1; then
+  echo "kind acceptance accepted an invalid test memory system reserve" >&2
+  exit 1
+fi
 
 echo "sdk_data_plane_contract_ok=true"

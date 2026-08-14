@@ -10,6 +10,13 @@ namespace="axern-release"
 cluster="axern-release"
 chart="${AXERN_HELM_CHART:-oci://ghcr.io/cofy-x/charts/axern}"
 image_tag_suffix="${AXERN_RELEASE_IMAGE_TAG_SUFFIX:-}"
+# This disposable kind cluster exercises the required cgroup path with an
+# explicit non-production reserve; production values still come from a receipt.
+release_test_memory_system_reserve_bytes="${AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES:-536870912}"
+if ! [[ "${release_test_memory_system_reserve_bytes}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES must be a positive decimal integer" >&2
+  exit 1
+fi
 state_dir="$(mktemp -d)"
 cleanup() {
   jobs -p | xargs kill >/dev/null 2>&1 || true
@@ -40,6 +47,7 @@ helm_args=(
   install axern "${chart}"
   --namespace "${namespace}"
   --wait --timeout 15m
+  --set-string "node.memorySystemReserveBytes=${release_test_memory_system_reserve_bytes}"
 )
 if [[ "${chart}" == oci://* ]]; then
   helm_args+=(--version "${tag#v}")
