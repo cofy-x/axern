@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="Axern — 面向 AI agent 的基础设施：不可信代码在 runsc 隔离边界后运行，可信服务运行在 runc 上，共享同一套资源与生命周期模型">
+  <img src="./assets/readme/hero.gif" width="100%" alt="Axern — 面向 AI agent 的基础设施：不可信代码在 runsc 隔离边界后运行，可信服务运行在 runc 上，共享同一套资源与生命周期模型">
 </p>
 
 <p align="center">
