@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.gif" width="100%" alt="Axern — infrastructure for AI agents: untrusted code runs behind a runsc isolation boundary, trusted services run on runc, under one resource and lifecycle model">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Axern — infrastructure for AI agents: untrusted code runs behind a runsc isolation boundary, trusted services run on runc, under one resource and lifecycle model">
 </p>
 
 <p align="center">
