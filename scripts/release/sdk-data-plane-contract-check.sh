@@ -47,6 +47,8 @@ harness = (root / "scripts/release/kind-acceptance.sh").read_text()
 for value in (
     "AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES:-536870912",
     "AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES must be a positive decimal integer",
+    "AXERN_RELEASE_CAPABILITY_READY_TIMEOUT_SECONDS:-300",
+    "AXERN_RELEASE_CAPABILITY_READY_TIMEOUT_SECONDS must be a positive decimal integer",
     'node.memorySystemReserveBytes=${release_test_memory_system_reserve_bytes}',
     "AXERN_SDK_ACCEPTANCE_CONFIG",
     "AXERN_SDK_ACCEPTANCE_CONTEXT=release",
@@ -55,6 +57,10 @@ for value in (
     "doctor --namespace default --output json",
     "cpu: 100m",
     "memory: 512MiB",
+    "PLATFORM_CAPABILITY_NETWORK_BRIDGE",
+    "PLATFORM_CAPABILITY_NETWORK_BPFNET",
+    "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT",
+    "admin node capability snapshot",
 ):
     if value not in harness:
         raise SystemExit(f"kind acceptance is missing SDK hook contract: {value}")
@@ -94,6 +100,12 @@ PY
 if AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES=0 \
   bash "${AXERN_ROOT}/scripts/release/kind-acceptance.sh" >/dev/null 2>&1; then
   echo "kind acceptance accepted an invalid test memory system reserve" >&2
+  exit 1
+fi
+
+if AXERN_RELEASE_CAPABILITY_READY_TIMEOUT_SECONDS=0 \
+  bash "${AXERN_ROOT}/scripts/release/kind-acceptance.sh" >/dev/null 2>&1; then
+  echo "kind acceptance accepted an invalid capability readiness timeout" >&2
   exit 1
 fi
 
