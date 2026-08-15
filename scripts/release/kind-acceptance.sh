@@ -209,6 +209,9 @@ PY
   kubectl --namespace "${namespace}" get pods -o wide >&2 || true
   echo "--- node logs ---" >&2
   kubectl --namespace "${namespace}" logs daemonset/node-all-in-one --all-containers --tail=300 >&2 || true
+  echo "--- axnoded file log ---" >&2
+  kubectl --namespace "${namespace}" exec daemonset/node-all-in-one -- \
+    sh -c 'tail -n 500 /var/log/axnoded/axnoded.log' >&2 || true
   return 1
 }
 

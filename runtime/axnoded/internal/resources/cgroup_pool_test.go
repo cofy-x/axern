@@ -262,6 +262,24 @@ func TestCgroupManagerRecycleIsOneWayIntoRetirement(t *testing.T) {
 	}
 }
 
+func TestCgroupManagerAllocationLeaseCleanupStatusIncludesLastError(t *testing.T) {
+	manager := &CgroupManager{leases: cmap.New[*apipb.CgroupLease]()}
+	manager.leases.Set("/sandbox/retiring", &apipb.CgroupLease{
+		CgroupID:         "/sandbox/retiring",
+		AllocationID:     "alloc-a",
+		State:            apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+		LastCleanupError: "retiring cgroup still contains 1 process(es)",
+	})
+
+	pending, detail := manager.AllocationLeaseCleanupStatus("alloc-a")
+	if !pending || detail != "retiring cgroup still contains 1 process(es)" {
+		t.Fatalf("AllocationLeaseCleanupStatus() = (%t, %q)", pending, detail)
+	}
+	if pending, detail := manager.AllocationLeaseCleanupStatus("missing"); pending || detail != "" {
+		t.Fatalf("missing AllocationLeaseCleanupStatus() = (%t, %q)", pending, detail)
+	}
+}
+
 func TestCgroupManagerRecycleFailsClosedBeforeIdentityMismatchCanReleaseCommitment(t *testing.T) {
 	manager := &CgroupManager{
 		usingID: cmap.New[struct{}](), idleID: queue.New(""), leases: cmap.New[*apipb.CgroupLease](),

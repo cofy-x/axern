@@ -466,12 +466,15 @@ func (h *sandboxService) verifyRuntimeConformanceCleanup(ctx context.Context, al
 			}
 		}
 		if remaining == "" && verifyCgroup {
-			pending, err := h.containerManager.CgroupCleanupPending(allocationID)
+			pending, detail, err := h.containerManager.CgroupCleanupStatus(allocationID)
 			if err != nil {
 				return fmt.Errorf("verify self-test cgroup cleanup: %w", err)
 			}
 			if pending {
 				remaining = "durable cgroup lease"
+				if detail != "" {
+					remaining += " (last cleanup error: " + detail + ")"
+				}
 			}
 		}
 		if remaining == "" {
