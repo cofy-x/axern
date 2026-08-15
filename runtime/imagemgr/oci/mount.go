@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -29,6 +28,15 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 	if cacheKey == "" {
 		cacheKey = imageURL
 	}
+	if cacheKey == imageURL {
+		resolved, imported, err := m.ResolveImportedImageCacheKey(imageURL)
+		if err != nil {
+			return nil, fmt.Errorf("resolve imported image generation: %w", err)
+		}
+		if imported {
+			cacheKey = resolved
+		}
+	}
 	logrus.Infof("OCI mount start: image=%s cache_key=%s", imageURL, cacheKey)
 	defer func() {
 		if retErr != nil {
@@ -44,7 +52,11 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 	}
 	timing.Stage("validate_request", time.Since(stageStart))
 
-	unlockImage := m.acquireImageLock(imageURL)
+	lockIdentity := imageURL
+	if _, imported := importedDigestFromCacheKey(cacheKey); imported {
+		lockIdentity = cacheKey
+	}
+	unlockImage := m.acquireImageLock(lockIdentity)
 	defer unlockImage()
 	if err := m.validateRequestedImportedGeneration(imageURL, cacheKey); err != nil {
 		timing.RecordError(err)
@@ -107,7 +119,7 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 	timing.Stage("prepare_mount_id", time.Since(stageStart))
 
 	stageStart = time.Now()
-	img, err := m.fetchImage(ctx, imageURL, dockerConfigJSON)
+	img, err := m.fetchImageWithCacheKey(ctx, imageURL, dockerConfigJSON, cacheKey)
 	if err != nil {
 		timing.RecordError(err)
 		return nil, err
@@ -245,22 +257,16 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 }
 
 func (m *Manager) validateRequestedImportedGeneration(imageURL, cacheKey string) error {
-	if imageURL == "" || cacheKey == "" {
+	wantDigest, ok := importedDigestFromCacheKey(cacheKey)
+	if !ok {
 		return nil
 	}
-	wantDigest, ok := strings.CutPrefix(cacheKey, imageURL+"@")
-	if !ok || !strings.HasPrefix(wantDigest, "sha256:") {
-		return nil
-	}
-	rec, err := m.store.getImport(imageURL)
+	rec, err := m.store.getImportGeneration(wantDigest)
 	if err != nil {
-		return fmt.Errorf("query imported image %s: %w", imageURL, err)
+		return fmt.Errorf("query imported generation %s: %w", wantDigest, err)
 	}
 	if rec == nil {
-		return fmt.Errorf("requested imported image generation %s, but %s is not imported", cacheKey, imageURL)
-	}
-	if rec.ArchiveDigest != wantDigest {
-		return fmt.Errorf("requested stale imported image generation %s; current generation is %s@%s", cacheKey, imageURL, rec.ArchiveDigest)
+		return fmt.Errorf("requested imported image generation %s is unavailable", wantDigest)
 	}
 	return nil
 }

@@ -26,6 +26,7 @@ profile requires additional memory and disk.
 | Command | Behavior |
 | --- | --- |
 | `axern local up` | Preflight, materialize, start, wait for health, and configure the `local` context |
+| `axern local image load IMAGE` | Stream a host Docker image into the local node; `--pull` fetches it first |
 | `axern local status` | Show versions, health, Dashboard, data path, context, and disk use |
 | `axern local logs [component]` | Read aggregate or component logs; supports `--follow`, `--tail`, and `--since` |
 | `axern local doctor` | Perform read-only host, Docker, port, version, and health checks |
@@ -37,6 +38,14 @@ profile requires additional memory and disk.
 Use `axern local up --profile observability` to enable local telemetry and
 `axern local up --profile default` to return to the core profile. Omitting the
 flag preserves the instance's current profile.
+
+Image loading is local-only. It saves the immutable host image ID, validates
+its platform against the running node image, and streams it directly into the
+node without a host-side archive. Rebuilding the same mutable tag moves new
+allocations to the new manifest generation; running allocations retain their
+leased generation. The `local` CLI context records only the current mutable
+tag pointer and submits its immutable digest to the control plane, so creating
+a Run or Service from a loaded image does not contact an external registry.
 
 ## Data paths
 

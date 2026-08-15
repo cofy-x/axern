@@ -1,18 +1,5 @@
 #!/usr/bin/env bash
 
-axrun_bundle_import_archive=""
-axrun_bundle_import_remote_archive=""
-axrun_bundle_import_node_container=""
-
-axrun_cleanup_bundle_import_artifacts() {
-  if [ -n "${axrun_bundle_import_archive}" ]; then
-    rm -f "${axrun_bundle_import_archive}"
-  fi
-  if [ -n "${axrun_bundle_import_remote_archive}" ] && [ -n "${axrun_bundle_import_node_container}" ]; then
-    docker exec "${axrun_bundle_import_node_container}" rm -f "${axrun_bundle_import_remote_archive}" >/dev/null 2>&1 || true
-  fi
-}
-
 axrun_normalize_digest_repository() {
   local repository="$1"
   if [[ "${repository}" != */* ]]; then
@@ -32,10 +19,11 @@ axrun_import_bundle_image_to_compose() {
   local repository="$2"
   local project="${COMPOSE_PROJECT_NAME:-axern-local}"
   local node_container="${project}-node-1"
-  local archive
-  local remote_archive
   local digest
   local imported_ref
+  local import_ref
+  local import_result
+  local image_id
 
   if ! docker image inspect "${local_image}" >/dev/null 2>&1; then
     echo "missing bundle image ${local_image}; build it before running this smoke" >&2
@@ -50,24 +38,15 @@ axrun_import_bundle_image_to_compose() {
     exit 1
   fi
 
-  archive="$(mktemp -t axrun-bundle-image.XXXXXX.tar)"
-  remote_archive="/tmp/axrun-bundle-image-$(date +%s%N).tar"
-  axrun_bundle_import_archive="${archive}"
-  axrun_bundle_import_remote_archive="${remote_archive}"
-  axrun_bundle_import_node_container="${node_container}"
-
-  docker save -o "${archive}" "${local_image}" >/dev/null
-  digest="sha256:$(shasum -a 256 "${archive}" | awk '{print $1}')"
-  imported_ref="$(axrun_normalize_digest_repository "${repository}")@${digest}"
-  docker cp "${archive}" "${node_container}:${remote_archive}" >/dev/null
-  docker exec "${node_container}" axctl image import \
+  image_id="$(docker image inspect "${local_image}" --format '{{.Id}}')"
+  import_ref="$(axrun_normalize_digest_repository "${repository}"):local-import"
+  import_result="$(docker image save "${image_id}" | docker exec -i "${node_container}" axctl image import \
     --imagemgr-socket /run/imagemgr/imagemgr.sock \
-    --archive "${remote_archive}" \
-    --ref "${imported_ref}" >/dev/null
-  axrun_cleanup_bundle_import_artifacts
-  axrun_bundle_import_archive=""
-  axrun_bundle_import_remote_archive=""
-  axrun_bundle_import_node_container=""
+    --file - \
+    --ref "${import_ref}" \
+    --json)"
+  digest="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["generation_digest"])' <<<"${import_result}")"
+  imported_ref="$(axrun_normalize_digest_repository "${repository}")@${digest}"
   printf '%s\n' "${imported_ref}"
 }
 

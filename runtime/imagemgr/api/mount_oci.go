@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/sirupsen/logrus"
 
@@ -29,15 +30,24 @@ func (w *HttpWorker) MountOCI(ctx context.Context, req *OCIMountRequest) (*OCIMo
 		return nil, fmt.Errorf("mount store is not initialized")
 	}
 
-	importedCacheKey, imported, err := w.ociMgr.ResolveImportedImageCacheKey(req.ImageURL)
+	imported, err := w.ociMgr.HasImportedGeneration(req.CacheKey)
 	if err != nil {
-		return nil, fmt.Errorf("query imported image %s: %w", req.ImageURL, err)
+		return nil, fmt.Errorf("query imported generation %s: %w", req.CacheKey, err)
+	}
+	if req.CacheKey == "" {
+		importedCacheKey, currentImported, err := w.ociMgr.ResolveImportedImageCacheKey(req.ImageURL)
+		if err != nil {
+			return nil, fmt.Errorf("query imported image %s: %w", req.ImageURL, err)
+		}
+		imported = currentImported
+		if currentImported {
+			importedReq := *req
+			importedReq.CacheKey = importedCacheKey
+			req = &importedReq
+		}
 	}
 	if imported {
 		logrus.Infof("using imported OCI image archive for %s; skipping Nydus detection", req.ImageURL)
-		importedReq := *req
-		importedReq.CacheKey = importedCacheKey
-		req = &importedReq
 	}
 	key := mountKey(req.ImageURL, req.CacheKey)
 	unlock := w.lockMount(key)
@@ -255,27 +265,46 @@ func (w *HttpWorker) CleanupDaemon(req *CleanupDaemonRequest) error {
 	return w.mgr.CleanupDaemon(req.DaemonID)
 }
 
-func (w *HttpWorker) ImportOCI(ctx context.Context, req *OCIImportRequest) (*OCIImportResponse, error) {
+func (w *HttpWorker) ImportOCI(ctx context.Context, imageRef string, archive io.Reader) (*OCIImportResponse, error) {
 	if w.ociMgr == nil {
 		return nil, fmt.Errorf("oci manager is not initialized")
 	}
-	if req.ImageRef == "" {
+	if imageRef == "" {
 		return nil, fmt.Errorf("image_ref is required")
 	}
-	if req.ArchivePath == "" {
-		return nil, fmt.Errorf("archive_path is required")
+	result, err := w.ociMgr.ImportImage(ctx, imageRef, archive)
+	if err != nil {
+		return nil, err
 	}
-	result, err := w.ociMgr.ImportImageArchive(ctx, req.ImageRef, req.ArchivePath)
+	immutableRef, err := oci.ImmutableImageRef(result.ImageURL, result.GenerationDigest)
 	if err != nil {
 		return nil, err
 	}
 	return &OCIImportResponse{
-		ImageRef:       result.ImageURL,
-		ArchivePath:    result.ArchivePath,
-		ArchiveDigest:  result.ArchiveDigest,
-		SizeBytes:      result.SizeBytes,
-		ImportedAtUnix: result.ImportedAtUnix,
+		SourceRef: result.SourceRef, CanonicalRef: result.ImageURL, ImmutableRef: immutableRef,
+		GenerationDigest: result.GenerationDigest, ArchiveDigest: result.ArchiveDigest,
+		Platform:  formatImagePlatform(result.PlatformOS, result.PlatformArch, result.PlatformVariant),
+		SizeBytes: result.SizeBytes, Reused: result.Reused,
 	}, nil
+}
+
+func (w *HttpWorker) ResolveOCI(imageRef string) (*OCIResolveResponse, error) {
+	if w.ociMgr == nil {
+		return nil, fmt.Errorf("oci manager is not initialized")
+	}
+	canonicalRef, cacheKey, imported, err := w.ociMgr.ResolveImageCacheKey(imageRef)
+	if err != nil {
+		return nil, err
+	}
+	return &OCIResolveResponse{CanonicalRef: canonicalRef, CacheKey: cacheKey, Imported: imported}, nil
+}
+
+func formatImagePlatform(osName, arch, variant string) string {
+	platform := osName + "/" + arch
+	if variant != "" {
+		platform += "/" + variant
+	}
+	return platform
 }
 
 func (w *HttpWorker) ListDaemons() ([]imagefsd.DaemonInfo, error) {
@@ -374,11 +403,10 @@ func (w *HttpWorker) Inventory() (*InventoryResponse, error) {
 		resp.ImportedImages = make([]ImportedImageDetail, 0, len(imports))
 		for _, rec := range imports {
 			resp.ImportedImages = append(resp.ImportedImages, ImportedImageDetail{
-				ImageRef:       rec.ImageURL,
-				ArchivePath:    rec.ArchivePath,
-				ArchiveDigest:  rec.ArchiveDigest,
-				SizeBytes:      rec.SizeBytes,
-				ImportedAtUnix: rec.ImportedAtUnix,
+				ImageRef: rec.ImageURL, GenerationDigest: rec.GenerationDigest,
+				ArchiveDigest: rec.ArchiveDigest,
+				Platform:      formatImagePlatform(rec.PlatformOS, rec.PlatformArch, rec.PlatformVariant),
+				SizeBytes:     rec.SizeBytes, ImportedAtUnix: rec.ImportedAtUnix,
 			})
 		}
 	}

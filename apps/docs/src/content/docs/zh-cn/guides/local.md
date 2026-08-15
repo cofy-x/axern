@@ -18,6 +18,7 @@ description: Local Axern 的环境要求、生命周期、数据、升级与故�
 | 命令 | 行为 |
 | --- | --- |
 | `axern local up` | 预检、生成部署、启动、等待健康并配置 `local` Context |
+| `axern local image load IMAGE` | 将宿主 Docker 镜像流式导入本地节点；`--pull` 会先拉取镜像 |
 | `axern local status` | 展示版本、健康、Dashboard、数据路径、Context 和磁盘占用 |
 | `axern local logs [component]` | 聚合或指定组件日志，支持 `--follow`、`--tail`、`--since` |
 | `axern local doctor` | 只读检查主机、Docker、端口、版本和健康状态 |
@@ -27,6 +28,8 @@ description: Local Axern 的环境要求、生命周期、数据、升级与故�
 | `axern local path` | 输出实际数据目录 |
 
 使用 `axern local up --profile observability` 启用本地可观测组件；使用 `axern local up --profile default` 恢复核心 Profile。不传该参数时保留实例当前 Profile。
+
+镜像导入仅适用于本地模式。CLI 按不可变宿主镜像 ID 保存镜像，核对其平台与运行中的 Node 镜像，并直接流式传输，不在宿主生成归档文件。同一可变 tag 重建后，新 allocation 会使用新的 manifest generation；运行中的 allocation 继续持有已租用的旧 generation。`local` CLI context 只记录当前可变 tag 指针，并向控制面提交其不可变 digest，因此从已导入镜像创建 Run 或 Service 时不会访问外部 registry。
 
 ## 数据路径
 

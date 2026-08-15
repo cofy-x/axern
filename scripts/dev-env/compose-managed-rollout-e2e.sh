@@ -201,13 +201,9 @@ fi
 image_id="$(docker image inspect "${bundle_image}" --format '{{.Id}}')"
 agent_ref="axern/codex-bundle@${image_id}"
 node_container="${COMPOSE_PROJECT_NAME}-node-1"
-archive="${fixture}/codex-bundle.tar"
-docker save -o "${archive}" "${bundle_image}"
-docker exec -i "${node_container}" /bin/bash -lc 'cat > /tmp/managed-rollout-codex-bundle.tar' < "${archive}"
-docker exec "${node_container}" axctl --timeout 5m image import \
+docker image save "${image_id}" | docker exec -i "${node_container}" axctl --timeout 5m image import \
   --imagemgr-socket /run/imagemgr/imagemgr.sock \
-  --archive /tmp/managed-rollout-codex-bundle.tar --ref "${agent_ref}" >/dev/null
-docker exec "${node_container}" rm -f /tmp/managed-rollout-codex-bundle.tar
+  --file - --ref "${agent_ref}" >/dev/null
 
 claude_bundle_image="${CLAUDE_CODE_BUNDLE_IMAGE}"
 if ! docker image inspect "${claude_bundle_image}" >/dev/null 2>&1; then
@@ -216,21 +212,14 @@ if ! docker image inspect "${claude_bundle_image}" >/dev/null 2>&1; then
 fi
 claude_image_id="$(docker image inspect "${claude_bundle_image}" --format '{{.Id}}')"
 claude_agent_ref="axern/claude-code-bundle@${claude_image_id}"
-claude_archive="${fixture}/claude-code-bundle.tar"
-docker save -o "${claude_archive}" "${claude_bundle_image}"
-docker exec -i "${node_container}" /bin/bash -lc 'cat > /tmp/managed-rollout-claude-code-bundle.tar' < "${claude_archive}"
-docker exec "${node_container}" axctl --timeout 5m image import \
+docker image save "${claude_image_id}" | docker exec -i "${node_container}" axctl --timeout 5m image import \
   --imagemgr-socket /run/imagemgr/imagemgr.sock \
-  --archive /tmp/managed-rollout-claude-code-bundle.tar --ref "${claude_agent_ref}" >/dev/null
-docker exec "${node_container}" rm -f /tmp/managed-rollout-claude-code-bundle.tar
+  --file - --ref "${claude_agent_ref}" >/dev/null
 
-runtime_archive="${fixture}/mock-runtime.tar"
-docker save -o "${runtime_archive}" "${mock_runtime_image}"
-docker exec -i "${node_container}" /bin/bash -lc 'cat > /tmp/managed-rollout-mock-runtime.tar' < "${runtime_archive}"
-docker exec "${node_container}" axctl --timeout 5m image import \
+mock_runtime_image_id="$(docker image inspect "${mock_runtime_image}" --format '{{.Id}}')"
+docker image save "${mock_runtime_image_id}" | docker exec -i "${node_container}" axctl --timeout 5m image import \
   --imagemgr-socket /run/imagemgr/imagemgr.sock \
-  --archive /tmp/managed-rollout-mock-runtime.tar --ref "${mock_runtime_ref}" >/dev/null
-docker exec "${node_container}" rm -f /tmp/managed-rollout-mock-runtime.tar
+  --file - --ref "${mock_runtime_ref}" >/dev/null
 
 profile="managed-mock-codex-${run_suffix}"
 printf '%s\n' mock-rotate-v1 | "${axrun}" --config "${config_file}" profile create "${profile}" \

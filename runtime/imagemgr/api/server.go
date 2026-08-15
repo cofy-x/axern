@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
@@ -213,15 +214,16 @@ func (w *HttpWorker) prepareHttp() *http.ServeMux {
 		if !requireMethod(writer, request, http.MethodPost, "oci_import only supports post method") {
 			return
 		}
-		var req OCIImportRequest
-		if !decodeJSONBody(writer, request, &req, "invalid oci import request format") {
+		imageRef := strings.TrimSpace(request.URL.Query().Get("ref"))
+		if imageRef == "" {
+			writeText(writer, http.StatusBadRequest, "ref query parameter is required")
 			return
 		}
-		op, request := startAPIOperation(request, imgobs.SpanOCIImport, "oci_import", attribute.String(sdkobs.AttrImageRef, req.ImageRef))
+		op, request := startAPIOperation(request, imgobs.SpanOCIImport, "oci_import", attribute.String(sdkobs.AttrImageRef, imageRef))
 		var opErr error
 		defer func() { op.End(opErr) }()
 		start := time.Now()
-		resp, err := w.ImportOCI(request.Context(), &req)
+		resp, err := w.ImportOCI(request.Context(), imageRef, request.Body)
 		logAPICall("oci_import", start, err)
 		if err != nil {
 			opErr = err
@@ -229,6 +231,23 @@ func (w *HttpWorker) prepareHttp() *http.ServeMux {
 			return
 		}
 		op.SetHTTPStatusCode(http.StatusOK)
+		writeJSON(writer, http.StatusOK, resp)
+	})
+
+	mux.HandleFunc("/oci_resolve", func(writer http.ResponseWriter, request *http.Request) {
+		if !requireMethod(writer, request, http.MethodGet, "oci_resolve only supports get method") {
+			return
+		}
+		imageRef := strings.TrimSpace(request.URL.Query().Get("ref"))
+		if imageRef == "" {
+			writeText(writer, http.StatusBadRequest, "ref query parameter is required")
+			return
+		}
+		resp, err := w.ResolveOCI(imageRef)
+		if err != nil {
+			writeText(writer, http.StatusInternalServerError, fmt.Sprintf("failed to resolve oci image, err = %s", err))
+			return
+		}
 		writeJSON(writer, http.StatusOK, resp)
 	})
 

@@ -116,25 +116,30 @@ type ReconcileMountLeasesResponse struct {
 	Releasing int `json:"releasing"`
 }
 
-type OCIImportRequest struct {
-	ArchivePath string `json:"archive_path"`
-	ImageRef    string `json:"image_ref"`
+type OCIImportResponse struct {
+	SourceRef        string `json:"source_ref"`
+	CanonicalRef     string `json:"canonical_ref"`
+	ImmutableRef     string `json:"immutable_ref"`
+	GenerationDigest string `json:"generation_digest"`
+	ArchiveDigest    string `json:"archive_digest"`
+	Platform         string `json:"platform"`
+	SizeBytes        int64  `json:"size_bytes"`
+	Reused           bool   `json:"reused"`
 }
 
-type OCIImportResponse struct {
-	ImageRef       string `json:"image_ref"`
-	ArchivePath    string `json:"archive_path"`
-	ArchiveDigest  string `json:"archive_digest,omitempty"`
-	SizeBytes      int64  `json:"size_bytes"`
-	ImportedAtUnix int64  `json:"imported_at_unix"`
+type OCIResolveResponse struct {
+	CanonicalRef string `json:"canonical_ref"`
+	CacheKey     string `json:"cache_key"`
+	Imported     bool   `json:"imported"`
 }
 
 type ImportedImageDetail struct {
-	ImageRef       string `json:"image_ref"`
-	ArchivePath    string `json:"archive_path"`
-	ArchiveDigest  string `json:"archive_digest,omitempty"`
-	SizeBytes      int64  `json:"size_bytes"`
-	ImportedAtUnix int64  `json:"imported_at_unix"`
+	ImageRef         string `json:"image_ref"`
+	GenerationDigest string `json:"generation_digest"`
+	ArchiveDigest    string `json:"archive_digest"`
+	Platform         string `json:"platform"`
+	SizeBytes        int64  `json:"size_bytes"`
+	ImportedAtUnix   int64  `json:"imported_at_unix"`
 }
 
 // OCIMountResponse is returned by the /oci_mount endpoint.

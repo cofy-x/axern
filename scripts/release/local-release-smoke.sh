@@ -38,6 +38,7 @@ common=(--config "${config}" --timeout 10m)
 
 "${cli}" "${common[@]}" local up --use
 "${cli}" "${common[@]}" local status --output json | grep -q '"state": "running"'
+"${cli}" "${common[@]}" local image load python:3.12-slim --pull
 stdout_file="${smoke_root}/run.stdout"
 stderr_file="${smoke_root}/run.stderr"
 "${cli}" "${common[@]}" run --request-cpu 100m --request-memory 512MiB python:3.12-slim -- \

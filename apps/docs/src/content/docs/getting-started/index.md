@@ -36,8 +36,12 @@ axern local up
 
 The command checks Docker and host resources, starts only the core services,
 waits until the gateway and runtime are healthy, and creates the `local`
-context. Runtime and agent images are pulled only when a workload first needs
-them.
+context. Host Docker images are not implicitly shared with the node; load the
+image used by the first workload:
+
+```bash
+axern local image load python:3.12-slim --pull
+```
 
 ## 3. Run a command
 

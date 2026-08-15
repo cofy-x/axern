@@ -34,10 +34,8 @@ func (lm *LangRTManager) GetLangRuntime(id string) *LanguageRuntime {
 	return lm.lrtMap[id]
 }
 
-// FindReusableLangRuntime returns the current runtime when its static template
-// and requested rootfs source still match. ImageCacheKey is derived during
-// resolution, so an unresolved request may reuse the key already held by the
-// mounted runtime without querying imagemgr again.
+// FindReusableLangRuntime returns the current runtime only when its static
+// template and already-resolved immutable rootfs generation match.
 func (lm *LangRTManager) FindReusableLangRuntime(fr *api.RuntimeTemplate, cfg RootfsConfig) *LanguageRuntime {
 	if fr == nil {
 		return nil

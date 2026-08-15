@@ -31,7 +31,11 @@ curl -fsSL https://raw.githubusercontent.com/cofy-x/axern/main/install.sh | sh
 axern local up
 ```
 
-该命令会检查 Docker 和主机环境，只启动核心服务，等待 Gateway 与节点运行时健康，然后创建 `local` Context。运行时与 Agent 镜像会在任务首次使用时按需拉取。
+该命令会检查 Docker 和主机环境，只启动核心服务，等待 Gateway 与节点运行时健康，然后创建 `local` Context。宿主 Docker 镜像不会隐式共享给节点；先导入首个工作负载所需镜像：
+
+```bash
+axern local image load python:3.12-slim --pull
+```
 
 ## 3. 运行命令
 

@@ -1,13 +1,13 @@
 package image
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -84,11 +84,12 @@ func postImport(socketPath string, req importRequest, timeout time.Duration) (*i
 	if err != nil {
 		return nil, err
 	}
-	body, err := json.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	httpResp, err := client.Post("http://unix/oci_import", "application/json", bytes.NewReader(body))
+	// The global axctl timeout remains the UDS connect timeout, but importing a
+	// large archive must not inherit its short whole-request deadline. The
+	// producer pipe and process context own cancellation for this stream.
+	client.Timeout = 0
+	endpoint := "http://unix/oci_import?ref=" + url.QueryEscape(req.ImageRef)
+	httpResp, err := client.Post(endpoint, "application/x-tar", req.Archive)
 	if err != nil {
 		return nil, fmt.Errorf("import image %s: %w", req.ImageRef, err)
 	}
@@ -101,8 +102,8 @@ func postImport(socketPath string, req importRequest, timeout time.Duration) (*i
 	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
 		return nil, fmt.Errorf("decode imagemgr import response: %w", err)
 	}
-	if resp.ImageRef == "" {
-		return nil, fmt.Errorf("imagemgr import response missing image_ref")
+	if resp.CanonicalRef == "" || resp.ImmutableRef == "" || resp.GenerationDigest == "" {
+		return nil, fmt.Errorf("imagemgr import response missing canonical_ref, immutable_ref, or generation_digest")
 	}
 	return &resp, nil
 }

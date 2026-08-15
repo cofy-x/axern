@@ -26,7 +26,11 @@ type layerExtractResult struct {
 }
 
 func (m *Manager) fetchImage(ctx context.Context, imageURL, dockerConfigJSON string) (v1.Image, error) {
-	if img, ok, err := m.importedImage(ctx, imageURL); err != nil {
+	return m.fetchImageWithCacheKey(ctx, imageURL, dockerConfigJSON, "")
+}
+
+func (m *Manager) fetchImageWithCacheKey(ctx context.Context, imageURL, dockerConfigJSON, cacheKey string) (v1.Image, error) {
+	if img, ok, err := m.importedImage(ctx, imageURL, cacheKey); err != nil {
 		return nil, err
 	} else if ok {
 		logrus.Infof("using imported OCI image archive for %s", imageURL)

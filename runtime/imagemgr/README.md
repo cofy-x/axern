@@ -191,9 +191,9 @@ curl --unix-socket /tmp/imagemgr.sock -X POST http://unix/oci_mount \
 Import a Docker archive for later `/oci_mount` by the same ref:
 
 ```bash
-curl --unix-socket /tmp/imagemgr.sock -X POST http://unix/oci_import \
-  -H 'Content-Type: application/json' \
-  -d '{"archive_path":"/tmp/myapp.tar","image_ref":"myapp:dev"}'
+curl --unix-socket /tmp/imagemgr.sock -X POST 'http://unix/oci_import?ref=myapp:dev' \
+  -H 'Content-Type: application/x-tar' \
+  --data-binary @/tmp/myapp.tar
 ```
 
 Unmount an OCI or Nydus-routed image mounted through `/oci_mount`:

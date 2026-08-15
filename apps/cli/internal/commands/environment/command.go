@@ -34,6 +34,9 @@ func createCommand(runtime command.Runtime) *cobra.Command {
 		default:
 			return command.Usage(fmt.Errorf("template-id or image-ref is required"))
 		}
+		if err := runtime.PinLocalEnvironmentImage(spec); err != nil {
+			return command.Usage(err)
+		}
 		s, err := runtime.Open(cmd.Context())
 		if err != nil {
 			return err

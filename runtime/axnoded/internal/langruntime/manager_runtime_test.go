@@ -208,7 +208,7 @@ func TestAddLangRuntime_ImageCacheKeyDriftSupersedesActiveRuntime(t *testing.T) 
 	}
 }
 
-func TestFindReusableLangRuntimeMatchesUnresolvedImageConfig(t *testing.T) {
+func TestFindReusableLangRuntimeRequiresResolvedImageGeneration(t *testing.T) {
 	lm := NewLanguageRuntimeManager(&mockMounter{
 		resolveFunc: func(cfg RootfsConfig) (RootfsConfig, error) {
 			cfg.ImageCacheKey = "example.local/agent:dev@sha256:111"
@@ -233,8 +233,15 @@ func TestFindReusableLangRuntimeMatchesUnresolvedImageConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RootfsConfigFromRuntimeTemplate() error = %v", err)
 	}
+	if got := lm.FindReusableLangRuntime(fr, requested); got != nil {
+		t.Fatal("unresolved mutable image ref must not reuse a mounted runtime")
+	}
+	requested, err = lm.ResolveRootfsConfig(requested)
+	if err != nil {
+		t.Fatalf("ResolveRootfsConfig() error = %v", err)
+	}
 	if got := lm.FindReusableLangRuntime(fr, requested); got != lr {
-		t.Fatal("expected unresolved image config to reuse the mounted runtime")
+		t.Fatal("resolved generation should reuse the mounted runtime")
 	}
 
 	drifted := proto.Clone(fr).(*api.RuntimeTemplate)

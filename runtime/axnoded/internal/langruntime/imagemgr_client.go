@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
@@ -44,15 +45,10 @@ type ociUmountRequest struct {
 	LeaseID  string `json:"lease_id"`
 }
 
-type imageManagerInventory struct {
-	ImportedImages []imageManagerImportedImage `json:"imported_images,omitempty"`
-}
-
-type imageManagerImportedImage struct {
-	ImageRef       string `json:"image_ref"`
-	ArchiveDigest  string `json:"archive_digest,omitempty"`
-	SizeBytes      int64  `json:"size_bytes,omitempty"`
-	ImportedAtUnix int64  `json:"imported_at_unix,omitempty"`
+type imageManagerResolveResponse struct {
+	CanonicalRef string `json:"canonical_ref"`
+	CacheKey     string `json:"cache_key"`
+	Imported     bool   `json:"imported"`
 }
 
 type ossMountRequest struct {
@@ -124,7 +120,7 @@ func (c *httpImageManagerClient) MountOCI(req *ociMountRequest) (*imageManagerMo
 }
 
 func (c *httpImageManagerClient) ResolveOCIImageCacheKey(imageURL string) (string, error) {
-	resp, err := c.clt.Get("http://unix/inventory")
+	resp, err := c.clt.Get("http://unix/oci_resolve?ref=" + url.QueryEscape(imageURL))
 	if err != nil {
 		return "", fmt.Errorf("failed to query image inventory for %s: %w", imageURL, err)
 	}
@@ -133,20 +129,14 @@ func (c *httpImageManagerClient) ResolveOCIImageCacheKey(imageURL string) (strin
 		errMsg, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("failed to query image inventory for %s: %s", imageURL, string(errMsg))
 	}
-	inventory := &imageManagerInventory{}
-	if err := json.NewDecoder(resp.Body).Decode(inventory); err != nil {
-		return "", fmt.Errorf("invalid image inventory response: %w", err)
+	var result imageManagerResolveResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("invalid image resolve response: %w", err)
 	}
-	for _, imported := range inventory.ImportedImages {
-		if imported.ImageRef != imageURL {
-			continue
-		}
-		if imported.ArchiveDigest != "" {
-			return imageURL + "@" + imported.ArchiveDigest, nil
-		}
-		return "", fmt.Errorf("imported image %s has no archive digest; re-import the image", imageURL)
+	if result.CacheKey == "" {
+		return "", fmt.Errorf("image resolve response for %s has no cache key", imageURL)
 	}
-	return imageURL, nil
+	return result.CacheKey, nil
 }
 
 func (c *httpImageManagerClient) UmountOCI(req *ociUmountRequest) error {

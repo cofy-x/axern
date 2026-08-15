@@ -8,13 +8,14 @@ import (
 )
 
 var (
-	layerRecordsBucket  = []byte("layer_records")
-	mountRecordsBucket  = []byte("mount_records")
-	mountTxnBucket      = []byte("mount_txn_records")
-	layerDirMapBucket   = []byte("layer_dir_map")
-	chainRecordsBucket  = []byte("chain_records")
-	chainDirMapBucket   = []byte("chain_dir_map")
-	importRecordsBucket = []byte("import_records")
+	layerRecordsBucket      = []byte("layer_records")
+	mountRecordsBucket      = []byte("mount_records")
+	mountTxnBucket          = []byte("mount_txn_records")
+	layerDirMapBucket       = []byte("layer_dir_map")
+	chainRecordsBucket      = []byte("chain_records")
+	chainDirMapBucket       = []byte("chain_dir_map")
+	importRefsBucket        = []byte("import_refs")
+	importGenerationsBucket = []byte("import_generations")
 
 	ErrLayerNotFound = errors.New("layer not found")
 	ErrChainNotFound = errors.New("chain not found")
@@ -65,13 +66,33 @@ type OciMountTxnRecord struct {
 	CreatedAtUnix int64    `json:"created_at_unix"`
 }
 
-// ImportedImageRecord stores node-local Docker archive metadata for a ref.
+// ImportedImageRecord is the current immutable generation selected by a mutable ref.
 type ImportedImageRecord struct {
-	ImageURL       string `json:"image_url"`
-	ArchivePath    string `json:"archive_path"`
-	ArchiveDigest  string `json:"archive_digest,omitempty"`
-	SizeBytes      int64  `json:"size_bytes"`
-	ImportedAtUnix int64  `json:"imported_at_unix"`
+	ImageURL         string `json:"image_url"`
+	GenerationDigest string `json:"generation_digest"`
+	ArchivePath      string `json:"archive_path"`
+	ArchiveDigest    string `json:"archive_digest"`
+	PlatformOS       string `json:"platform_os"`
+	PlatformArch     string `json:"platform_arch"`
+	PlatformVariant  string `json:"platform_variant,omitempty"`
+	SizeBytes        int64  `json:"size_bytes"`
+	ImportedAtUnix   int64  `json:"imported_at_unix"`
+}
+
+type importedRefRecord struct {
+	ImageURL         string `json:"image_url"`
+	GenerationDigest string `json:"generation_digest"`
+}
+
+type importedGenerationRecord struct {
+	GenerationDigest string `json:"generation_digest"`
+	ArchivePath      string `json:"archive_path"`
+	ArchiveDigest    string `json:"archive_digest"`
+	PlatformOS       string `json:"platform_os"`
+	PlatformArch     string `json:"platform_arch"`
+	PlatformVariant  string `json:"platform_variant,omitempty"`
+	SizeBytes        int64  `json:"size_bytes"`
+	ImportedAtUnix   int64  `json:"imported_at_unix"`
 }
 
 type metadataStore struct {
@@ -103,7 +124,10 @@ func openMetadataStore(dbPath string) (*metadataStore, error) {
 		if _, err := tx.CreateBucketIfNotExists(mountTxnBucket); err != nil {
 			return err
 		}
-		if _, err := tx.CreateBucketIfNotExists(importRecordsBucket); err != nil {
+		if _, err := tx.CreateBucketIfNotExists(importRefsBucket); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists(importGenerationsBucket); err != nil {
 			return err
 		}
 		return nil

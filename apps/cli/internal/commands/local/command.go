@@ -19,7 +19,32 @@ func Command(runtime command.Runtime, version string) *cobra.Command {
 		upCommand(runtime, version), statusCommand(runtime, version), logsCommand(runtime, version),
 		doctorCommand(runtime, version), downCommand(runtime, version), resetCommand(runtime, version),
 		upgradeCommand(runtime, version), pathCommand(runtime, version),
+		imageCommand(runtime, version),
 	)
+	return root
+}
+
+func imageCommand(runtime command.Runtime, version string) *cobra.Command {
+	root := &cobra.Command{Use: "image", Short: "Manage images in the local Axern node"}
+	var pull bool
+	load := &cobra.Command{Use: "load IMAGE", Short: "Stream a local Docker image into the local Axern node", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		service, err := manager(runtime, version, cmd)
+		if err != nil {
+			return err
+		}
+		result, err := service.ImageLoad(cmd.Context(), args[0], applocal.ImageLoadOptions{Pull: pull})
+		if err != nil {
+			return err
+		}
+		if runtime.Options.Output == "json" {
+			return output.PrintJSON(cmd.OutOrStdout(), result)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Loaded %s as %s\n", result.SourceRef, result.ImmutableRef)
+		fmt.Fprintf(cmd.OutOrStdout(), "  generation: %s\n  archive: %s\n  platform: %s\n  size: %d bytes\n  reused: %t\n", result.GenerationDigest, result.ArchiveDigest, result.Platform, result.SizeBytes, result.Reused)
+		return nil
+	}}
+	load.Flags().BoolVar(&pull, "pull", false, "pull IMAGE before loading it")
+	root.AddCommand(load)
 	return root
 }
 

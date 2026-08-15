@@ -177,9 +177,9 @@ func TestEnsureLangRuntimeSummaryWarmAndCold(t *testing.T) {
 	if second.RootfsPrepareTime != 0 {
 		t.Fatalf("second rootfs prepare duration = %v, want 0", second.RootfsPrepareTime)
 	}
-	assertStartupSteps(t, second.Steps)
-	if mounter.resolveCalls != resolveCallsAfterColdStart {
-		t.Fatalf("warm start resolve calls = %d, want unchanged at %d", mounter.resolveCalls, resolveCallsAfterColdStart)
+	assertStartupSteps(t, second.Steps, contract.StartupStepRootfsResolve)
+	if mounter.resolveCalls != resolveCallsAfterColdStart+1 {
+		t.Fatalf("warm start resolve calls = %d, want %d", mounter.resolveCalls, resolveCallsAfterColdStart+1)
 	}
 }
 

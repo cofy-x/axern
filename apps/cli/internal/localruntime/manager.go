@@ -30,6 +30,10 @@ type Runner interface {
 	Output(context.Context, string, ...string) ([]byte, error)
 }
 
+type PipelineRunner interface {
+	Pipe(context.Context, io.Writer, io.Writer, string, []string, string, []string) error
+}
+
 type ExecRunner struct{}
 
 func (ExecRunner) Run(ctx context.Context, stdout, stderr io.Writer, name string, args ...string) error {
@@ -52,6 +56,156 @@ func (ExecRunner) Output(ctx context.Context, name string, args ...string) ([]by
 		return nil, err
 	}
 	return value, nil
+}
+
+func (ExecRunner) Pipe(ctx context.Context, stdout, stderr io.Writer, source string, sourceArgs []string, destination string, destinationArgs []string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		return fmt.Errorf("create image import pipe: %w", err)
+	}
+	sourceCmd := exec.CommandContext(ctx, source, sourceArgs...)
+	destinationCmd := exec.CommandContext(ctx, destination, destinationArgs...)
+	sourceCmd.Stdout, sourceCmd.Stderr = writer, stderr
+	destinationCmd.Stdin, destinationCmd.Stdout, destinationCmd.Stderr = reader, stdout, stderr
+	if err := destinationCmd.Start(); err != nil {
+		_ = reader.Close()
+		_ = writer.Close()
+		return fmt.Errorf("start image import destination: %w", err)
+	}
+	_ = reader.Close()
+	if err := sourceCmd.Start(); err != nil {
+		_ = writer.Close()
+		cancel()
+		_ = destinationCmd.Wait()
+		return fmt.Errorf("start image archive source: %w", err)
+	}
+	_ = writer.Close()
+	sourceErr := sourceCmd.Wait()
+	if sourceErr != nil {
+		cancel()
+	}
+	destinationErr := destinationCmd.Wait()
+	if sourceErr != nil {
+		return fmt.Errorf("stream Docker image archive: %w", sourceErr)
+	}
+	if destinationErr != nil {
+		return fmt.Errorf("import Docker image archive: %w", destinationErr)
+	}
+	return nil
+}
+
+type ImageLoadOptions struct{ Pull bool }
+
+type ImageLoadResult struct {
+	SourceRef        string `json:"source_ref"`
+	CanonicalRef     string `json:"canonical_ref"`
+	ImmutableRef     string `json:"immutable_ref"`
+	GenerationDigest string `json:"generation_digest"`
+	ArchiveDigest    string `json:"archive_digest"`
+	Platform         string `json:"platform"`
+	SizeBytes        int64  `json:"size_bytes"`
+	Reused           bool   `json:"reused"`
+}
+
+type dockerImageInspect struct {
+	ID           string `json:"Id"`
+	OS           string `json:"Os"`
+	Architecture string `json:"Architecture"`
+	Variant      string `json:"Variant"`
+}
+
+func (m *Manager) ImageLoad(ctx context.Context, imageRef string, options ImageLoadOptions) (*ImageLoadResult, error) {
+	imageRef = strings.TrimSpace(imageRef)
+	if imageRef == "" {
+		return nil, fmt.Errorf("image ref is required")
+	}
+	if options.Pull {
+		if err := m.Runner.Run(ctx, m.Stdout, m.Stderr, "docker", "image", "pull", imageRef); err != nil {
+			return nil, err
+		}
+	}
+	source, err := m.inspectDockerImage(ctx, imageRef)
+	if err != nil {
+		return nil, fmt.Errorf("local image %q is unavailable; run `docker pull %s` or retry with `--pull`: %w", imageRef, imageRef, err)
+	}
+	nodeImageIDBytes, err := m.composeOutput(ctx, "", "images", "-q", "node")
+	if err != nil {
+		return nil, fmt.Errorf("resolve running local node image: %w", err)
+	}
+	nodeImageID := strings.TrimSpace(string(nodeImageIDBytes))
+	if nodeImageID == "" {
+		return nil, fmt.Errorf("local node is not running; run `axern local up`")
+	}
+	node, err := m.inspectDockerImage(ctx, nodeImageID)
+	if err != nil {
+		return nil, fmt.Errorf("inspect running local node image: %w", err)
+	}
+	if !dockerPlatformsCompatible(source, node) {
+		return nil, fmt.Errorf("image platform %s does not match local node platform %s", dockerPlatform(source), dockerPlatform(node))
+	}
+	pipeline, ok := m.Runner.(PipelineRunner)
+	if !ok {
+		return nil, fmt.Errorf("local runner does not support streaming image imports")
+	}
+	var response bytes.Buffer
+	destinationArgs := m.composeArgs("", "exec", "-T", "node", "axctl", "image", "import", "--file", "-", "--ref", imageRef, "--json")
+	if err := pipeline.Pipe(ctx, &response, m.Stderr, "docker", []string{"image", "save", source.ID}, "docker", destinationArgs); err != nil {
+		return nil, err
+	}
+	var result ImageLoadResult
+	if err := json.Unmarshal(response.Bytes(), &result); err != nil {
+		return nil, fmt.Errorf("decode local image import result: %w", err)
+	}
+	if result.CanonicalRef == "" || result.ImmutableRef == "" || result.GenerationDigest == "" {
+		return nil, fmt.Errorf("local image import returned incomplete generation identity")
+	}
+	if err := saveLocalImageReference(m.Dir, result.SourceRef, result.CanonicalRef, result.ImmutableRef, result.GenerationDigest); err != nil {
+		return nil, fmt.Errorf("save local image generation pointer: %w", err)
+	}
+	return &result, nil
+}
+
+func (m *Manager) inspectDockerImage(ctx context.Context, image string) (*dockerImageInspect, error) {
+	data, err := m.Runner.Output(ctx, "docker", "image", "inspect", image)
+	if err != nil {
+		return nil, err
+	}
+	var images []dockerImageInspect
+	if err := json.Unmarshal(data, &images); err != nil || len(images) != 1 {
+		if err == nil {
+			err = fmt.Errorf("expected one image, found %d", len(images))
+		}
+		return nil, err
+	}
+	if images[0].ID == "" || images[0].OS == "" || images[0].Architecture == "" {
+		return nil, fmt.Errorf("Docker image inspection returned incomplete identity or platform")
+	}
+	return &images[0], nil
+}
+
+func dockerPlatform(image *dockerImageInspect) string {
+	value := image.OS + "/" + image.Architecture
+	if image.Variant != "" {
+		value += "/" + image.Variant
+	}
+	return value
+}
+
+func dockerPlatformsCompatible(image, node *dockerImageInspect) bool {
+	if image.OS != node.OS || image.Architecture != node.Architecture {
+		return false
+	}
+	if image.Variant == node.Variant {
+		return true
+	}
+	// Docker commonly omits the implicit ARM64 v8 variant on one side of an
+	// inspect comparison. They describe the same execution platform.
+	if image.Architecture == "arm64" {
+		return (image.Variant == "" || image.Variant == "v8") && (node.Variant == "" || node.Variant == "v8")
+	}
+	return false
 }
 
 type Manager struct {
@@ -178,7 +332,8 @@ func (m *Manager) printReady() {
 	fmt.Fprintln(m.Stdout, "Axern local is ready.")
 	fmt.Fprintf(m.Stdout, "Dashboard: http://127.0.0.1:%d\n", GatewayHTTPPort)
 	fmt.Fprintln(m.Stdout, "Context:   local")
-	fmt.Fprintln(m.Stdout, "Next:      axern run python:3.12-slim -- python -c 'print(\"hello from axern\")'")
+	fmt.Fprintln(m.Stdout, "Next:      axern local image load python:3.12-slim --pull")
+	fmt.Fprintln(m.Stdout, "Then:      axern run python:3.12-slim -- python -c 'print(\"hello from axern\")'")
 }
 
 func (m *Manager) Down(ctx context.Context) error {

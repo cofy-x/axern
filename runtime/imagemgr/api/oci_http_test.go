@@ -156,7 +156,6 @@ func TestHttpWorker_MountOCI_ImportedImageSkipsNydusDetection(t *testing.T) {
 
 	_, err = worker.MountOCI(t.Context(), &OCIMountRequest{
 		ImageURL: imageURL,
-		CacheKey: imageURL + "@sha256:0000000000000000000000000000000000000000000000000000000000000000",
 		LeaseID:  "test-import",
 		Owner:    "test",
 	})
@@ -164,10 +163,7 @@ func TestHttpWorker_MountOCI_ImportedImageSkipsNydusDetection(t *testing.T) {
 	if err == nil {
 		t.Fatal("MountOCI() error = nil, want missing imported archive error")
 	}
-	if strings.Contains(err.Error(), "requested stale imported image generation") {
-		t.Fatalf("MountOCI() error = %q, want API to resolve current imported generation", err.Error())
-	}
-	if !strings.Contains(err.Error(), "load imported image archive") {
+	if !strings.Contains(err.Error(), "load imported generation") {
 		t.Fatalf("MountOCI() error = %q, want imported archive load error", err.Error())
 	}
 }
