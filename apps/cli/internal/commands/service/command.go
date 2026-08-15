@@ -52,6 +52,9 @@ func createCommand(runtime command.Runtime) *cobra.Command {
 		if err != nil {
 			return command.Usage(err)
 		}
+		if err := runtime.PinLocalEnvironmentImage(params.Spec); err != nil {
+			return command.Usage(err)
+		}
 		s, err := runtime.Open(cmd.Context())
 		if err != nil {
 			return err

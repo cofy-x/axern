@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	"github.com/spf13/cobra"
 )
 
@@ -128,6 +129,73 @@ func TestResolveConnectionExplicitTransportDoesNotReadContext(t *testing.T) {
 	}
 	if connection.ContextName != "" || connection.Config.Endpoint != "gateway:443" {
 		t.Fatalf("ResolveConnection() = %+v, want context-free explicit transport", connection)
+	}
+}
+
+func TestPinLocalEnvironmentImage(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("AXERN_HOME", root)
+	for _, name := range []string{"AXERN_ENDPOINT", "AXERN_TLS_CA_CERT", "AXERN_TLS_CERT", "AXERN_TLS_KEY"} {
+		t.Setenv(name, "")
+	}
+	configPath := filepath.Join(root, "config.json")
+	if err := os.WriteFile(configPath, []byte(`{
+  "current_context": "local",
+	"contexts": {
+		"local": {
+			"endpoint": "gateway:443",
+			"tls": {"ca_cert": "ca.pem", "cert": "client.pem", "key": "client-key.pem"}
+		},
+		"remote": {
+			"endpoint": "remote:443",
+			"tls": {"ca_cert": "ca.pem", "cert": "client.pem", "key": "client-key.pem"}
+		}
+	}
+}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	localDir := filepath.Join(root, "local")
+	if err := os.MkdirAll(localDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(localDir, "image-references.json"), []byte(`{
+  "version": 1,
+  "references": {
+    "demo:dev": {
+      "canonical_ref": "index.docker.io/library/demo:dev",
+      "immutable_ref": "index.docker.io/library/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generation_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "updated_at": "2026-08-16T00:00:00Z"
+    }
+  }
+}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	runtime := Runtime{Options: &Options{ConfigPath: configPath}, Root: bareRoot()}
+	spec := &environmentv1.EnvironmentSpec{Image: &environmentv1.EnvironmentImageSource{Ref: "demo:dev"}}
+	if err := runtime.PinLocalEnvironmentImage(spec); err != nil {
+		t.Fatalf("PinLocalEnvironmentImage() error = %v", err)
+	}
+	want := "index.docker.io/library/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	if spec.GetImage().GetRef() != want {
+		t.Fatalf("image ref = %q, want %q", spec.GetImage().GetRef(), want)
+	}
+
+	spec.Image.Ref = "demo:dev"
+	spec.Image.RegistryCredentialID = "registry-secret"
+	if err := runtime.PinLocalEnvironmentImage(spec); err == nil {
+		t.Fatal("PinLocalEnvironmentImage() accepted a registry credential for a local generation")
+	}
+
+	remote := Runtime{Options: &Options{ConfigPath: configPath, ContextName: "remote"}, Root: bareRoot()}
+	spec.Image.Ref = "demo:dev"
+	spec.Image.RegistryCredentialID = ""
+	if err := remote.PinLocalEnvironmentImage(spec); err != nil {
+		t.Fatalf("remote PinLocalEnvironmentImage() error = %v", err)
+	}
+	if spec.GetImage().GetRef() != "demo:dev" {
+		t.Fatalf("remote image ref = %q, want mutable registry ref", spec.GetImage().GetRef())
 	}
 }
 

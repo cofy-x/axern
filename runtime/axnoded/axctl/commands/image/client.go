@@ -102,8 +102,8 @@ func postImport(socketPath string, req importRequest, timeout time.Duration) (*i
 	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
 		return nil, fmt.Errorf("decode imagemgr import response: %w", err)
 	}
-	if resp.CanonicalRef == "" || resp.GenerationDigest == "" {
-		return nil, fmt.Errorf("imagemgr import response missing canonical_ref or generation_digest")
+	if resp.CanonicalRef == "" || resp.ImmutableRef == "" || resp.GenerationDigest == "" {
+		return nil, fmt.Errorf("imagemgr import response missing canonical_ref, immutable_ref, or generation_digest")
 	}
 	return &resp, nil
 }

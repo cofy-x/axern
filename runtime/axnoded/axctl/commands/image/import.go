@@ -18,6 +18,7 @@ type importRequest struct {
 type importResponse struct {
 	SourceRef        string `json:"source_ref"`
 	CanonicalRef     string `json:"canonical_ref"`
+	ImmutableRef     string `json:"immutable_ref"`
 	GenerationDigest string `json:"generation_digest"`
 	ArchiveDigest    string `json:"archive_digest"`
 	Platform         string `json:"platform"`
@@ -72,7 +73,7 @@ var ImportCmd = cli.Command{
 		if context.Bool("json") {
 			return json.NewEncoder(os.Stdout).Encode(resp)
 		}
-		fmt.Printf("Imported %s as %s\n", resp.SourceRef, resp.CanonicalRef)
+		fmt.Printf("Imported %s as %s\n", resp.SourceRef, resp.ImmutableRef)
 		fmt.Printf("  generation: %s\n  archive: %s\n  platform: %s\n  size: %d bytes\n  reused: %t\n", resp.GenerationDigest, resp.ArchiveDigest, resp.Platform, resp.SizeBytes, resp.Reused)
 		return nil
 	},

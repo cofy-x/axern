@@ -8,10 +8,12 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/apps/cli/internal/controlv1"
+	"github.com/cofy-x/axern/apps/cli/internal/localruntime"
 	"github.com/cofy-x/axern/apps/cli/internal/output"
 	"github.com/cofy-x/axern/apps/cli/internal/parse"
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	"github.com/spf13/cobra"
 )
 
@@ -92,6 +94,39 @@ func (r Runtime) Open(ctx context.Context) (*controlv1.Session, error) {
 		return nil, Usage(err)
 	}
 	return connection.Open(ctx)
+}
+
+// PinLocalEnvironmentImage replaces a mutable image ref with the immutable
+// generation selected by `axern local image load`. It is deliberately limited
+// to the product-owned local context; remote contexts retain registry-backed
+// resolution and distribution semantics.
+func (r Runtime) PinLocalEnvironmentImage(spec *environmentv1.EnvironmentSpec) error {
+	if spec == nil || spec.GetImage() == nil || strings.TrimSpace(spec.GetImage().GetRef()) == "" {
+		return nil
+	}
+	connection, err := r.ResolveConnection()
+	if err != nil {
+		return err
+	}
+	if connection.ContextName != "local" {
+		return nil
+	}
+	dir, err := localruntime.DataDir()
+	if err != nil {
+		return err
+	}
+	resolved, pinned, err := localruntime.ResolveLocalImageReference(dir, spec.GetImage().GetRef())
+	if err != nil {
+		return fmt.Errorf("resolve local image generation: %w", err)
+	}
+	if !pinned {
+		return nil
+	}
+	if strings.TrimSpace(spec.GetImage().GetRegistryCredentialID()) != "" {
+		return fmt.Errorf("registry credential cannot be combined with a locally loaded image generation")
+	}
+	spec.Image.Ref = resolved
+	return nil
 }
 
 func (r Runtime) ResolveConnection() (ResolvedConnection, error) {

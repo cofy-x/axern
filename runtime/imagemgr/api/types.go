@@ -119,6 +119,7 @@ type ReconcileMountLeasesResponse struct {
 type OCIImportResponse struct {
 	SourceRef        string `json:"source_ref"`
 	CanonicalRef     string `json:"canonical_ref"`
+	ImmutableRef     string `json:"immutable_ref"`
 	GenerationDigest string `json:"generation_digest"`
 	ArchiveDigest    string `json:"archive_digest"`
 	Platform         string `json:"platform"`

@@ -39,7 +39,7 @@ func imageCommand(runtime command.Runtime, version string) *cobra.Command {
 		if runtime.Options.Output == "json" {
 			return output.PrintJSON(cmd.OutOrStdout(), result)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Loaded %s as %s\n", result.SourceRef, result.CanonicalRef)
+		fmt.Fprintf(cmd.OutOrStdout(), "Loaded %s as %s\n", result.SourceRef, result.ImmutableRef)
 		fmt.Fprintf(cmd.OutOrStdout(), "  generation: %s\n  archive: %s\n  platform: %s\n  size: %d bytes\n  reused: %t\n", result.GenerationDigest, result.ArchiveDigest, result.Platform, result.SizeBytes, result.Reused)
 		return nil
 	}}

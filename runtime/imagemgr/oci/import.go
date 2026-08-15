@@ -303,6 +303,22 @@ func canonicalImageRef(raw string) (string, error) {
 	return ref.Name(), nil
 }
 
+// ImmutableImageRef returns the repository-scoped digest reference for an
+// imported generation. The mutable tag remains a convenience pointer; callers
+// that cross the control-plane boundary must use this immutable identity so
+// resolution never requires a registry lookup.
+func ImmutableImageRef(canonicalRef, generationDigest string) (string, error) {
+	ref, err := name.ParseReference(strings.TrimSpace(canonicalRef), name.WeakValidation)
+	if err != nil {
+		return "", fmt.Errorf("invalid canonical image ref %q: %w", canonicalRef, err)
+	}
+	digestValue, err := v1.NewHash(strings.TrimSpace(generationDigest))
+	if err != nil {
+		return "", fmt.Errorf("invalid imported generation digest %q: %w", generationDigest, err)
+	}
+	return ref.Context().Digest(digestValue.String()).Name(), nil
+}
+
 func importedCacheKey(digest string) string { return importedCacheKeyPrefix + digest }
 
 func importedDigestFromCacheKey(cacheKey string) (string, bool) {

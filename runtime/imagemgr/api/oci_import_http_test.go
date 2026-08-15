@@ -57,6 +57,9 @@ func TestHttpHandler_OCIImport(t *testing.T) {
 	if resp.CanonicalRef != imageRef {
 		t.Fatalf("CanonicalRef = %q, want %q", resp.CanonicalRef, imageRef)
 	}
+	if resp.ImmutableRef != "example.local/myapp@"+resp.GenerationDigest {
+		t.Fatalf("ImmutableRef = %q, want digest-pinned ref", resp.ImmutableRef)
+	}
 	if resp.SizeBytes == 0 {
 		t.Fatal("SizeBytes = 0, want non-zero")
 	}

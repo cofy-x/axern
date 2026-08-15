@@ -43,7 +43,9 @@ Image loading is local-only. It saves the immutable host image ID, validates
 its platform against the running node image, and streams it directly into the
 node without a host-side archive. Rebuilding the same mutable tag moves new
 allocations to the new manifest generation; running allocations retain their
-leased generation.
+leased generation. The `local` CLI context records only the current mutable
+tag pointer and submits its immutable digest to the control plane, so creating
+a Run or Service from a loaded image does not contact an external registry.
 
 ## Data paths
 

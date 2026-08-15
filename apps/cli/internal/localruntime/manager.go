@@ -101,6 +101,7 @@ type ImageLoadOptions struct{ Pull bool }
 type ImageLoadResult struct {
 	SourceRef        string `json:"source_ref"`
 	CanonicalRef     string `json:"canonical_ref"`
+	ImmutableRef     string `json:"immutable_ref"`
 	GenerationDigest string `json:"generation_digest"`
 	ArchiveDigest    string `json:"archive_digest"`
 	Platform         string `json:"platform"`
@@ -157,8 +158,11 @@ func (m *Manager) ImageLoad(ctx context.Context, imageRef string, options ImageL
 	if err := json.Unmarshal(response.Bytes(), &result); err != nil {
 		return nil, fmt.Errorf("decode local image import result: %w", err)
 	}
-	if result.CanonicalRef == "" || result.GenerationDigest == "" {
+	if result.CanonicalRef == "" || result.ImmutableRef == "" || result.GenerationDigest == "" {
 		return nil, fmt.Errorf("local image import returned incomplete generation identity")
+	}
+	if err := saveLocalImageReference(m.Dir, result.SourceRef, result.CanonicalRef, result.ImmutableRef, result.GenerationDigest); err != nil {
+		return nil, fmt.Errorf("save local image generation pointer: %w", err)
 	}
 	return &result, nil
 }

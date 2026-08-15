@@ -211,6 +211,21 @@ func TestResolveImportedImageCacheKeyRejectsMissingGeneration(t *testing.T) {
 	}
 }
 
+func TestImmutableImageRefDropsMutableTag(t *testing.T) {
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	got, err := ImmutableImageRef("index.docker.io/library/demo:dev", digest)
+	if err != nil {
+		t.Fatalf("ImmutableImageRef() error = %v", err)
+	}
+	want := "index.docker.io/library/demo@" + digest
+	if got != want {
+		t.Fatalf("ImmutableImageRef() = %q, want %q", got, want)
+	}
+	if _, err := ImmutableImageRef("demo:dev", "sha256:invalid"); err == nil {
+		t.Fatal("ImmutableImageRef() accepted an invalid digest")
+	}
+}
+
 func writeMountableDockerArchive(t *testing.T, imageRef string) string {
 	return writeMountableDockerArchiveWithContent(t, imageRef, "hello from imported image")
 }

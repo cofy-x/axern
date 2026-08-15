@@ -76,6 +76,9 @@ func execute(runtime command.Runtime, cmd *cobra.Command, options *createOptions
 	if err != nil {
 		return command.Usage(err)
 	}
+	if err := runtime.PinLocalEnvironmentImage(params.Spec); err != nil {
+		return command.Usage(err)
+	}
 	s, err := runtime.Open(cmd.Context())
 	if err != nil {
 		return err

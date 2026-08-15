@@ -139,8 +139,8 @@ func (c *HttpClient) ImportOCI(imageRef string, archive io.Reader) (*OCIImportRe
 	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("invalid reply body format: %v", err)
 	}
-	if result.CanonicalRef == "" || result.GenerationDigest == "" {
-		return nil, fmt.Errorf("canonical_ref or generation_digest not found in response")
+	if result.CanonicalRef == "" || result.ImmutableRef == "" || result.GenerationDigest == "" {
+		return nil, fmt.Errorf("canonical_ref, immutable_ref, or generation_digest not found in response")
 	}
 	return &result, nil
 }

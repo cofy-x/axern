@@ -276,8 +276,12 @@ func (w *HttpWorker) ImportOCI(ctx context.Context, imageRef string, archive io.
 	if err != nil {
 		return nil, err
 	}
+	immutableRef, err := oci.ImmutableImageRef(result.ImageURL, result.GenerationDigest)
+	if err != nil {
+		return nil, err
+	}
 	return &OCIImportResponse{
-		SourceRef: result.SourceRef, CanonicalRef: result.ImageURL,
+		SourceRef: result.SourceRef, CanonicalRef: result.ImageURL, ImmutableRef: immutableRef,
 		GenerationDigest: result.GenerationDigest, ArchiveDigest: result.ArchiveDigest,
 		Platform:  formatImagePlatform(result.PlatformOS, result.PlatformArch, result.PlatformVariant),
 		SizeBytes: result.SizeBytes, Reused: result.Reused,
