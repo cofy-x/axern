@@ -34,6 +34,7 @@ runtime_ref() {
 build_runtime_image() {
   local name="$1"
   local ref
+  local image_id
   ref="$(runtime_ref "${name}")"
 
   if [ "${DEV_RUNTIME_IMAGE_REBUILD:-}" != "1" ] && docker image inspect "${ref}" >/dev/null 2>&1; then
@@ -72,7 +73,6 @@ build_runtime_image() {
 load_runtime_image() {
   local name="$1"
   local ref
-  local archive
   ref="$(runtime_ref "${name}")"
 
   build_runtime_image "${name}"
@@ -83,21 +83,13 @@ load_runtime_image() {
     return 1
   fi
 
-  archive="$(mktemp "${TMPDIR:-/tmp}/axern-standalone-runtime-${name}.XXXXXX.tar")"
-  cleanup() {
-    rm -f "${archive:-}"
-  }
-  trap cleanup RETURN
-
-  echo "saving runtime image ${ref}"
-  docker save -o "${archive}" "${ref}"
-
-  echo "importing runtime image ${ref} into standalone imagemgr"
-  go -C "${ROOT_DIR}/runtime/axnoded" run ./axctl \
+  image_id="$(docker image inspect "${ref}" --format '{{.Id}}')"
+  echo "streaming runtime image ${ref} into standalone imagemgr"
+  docker image save "${image_id}" | go -C "${ROOT_DIR}/runtime/axnoded" run ./axctl \
     --address "${RUN_DIR}/axnoded.sock" \
     image import \
     --imagemgr-socket "${RUN_DIR}/imagemgr.sock" \
-    --archive "${archive}" \
+    --file - \
     --ref "${ref}"
 }
 

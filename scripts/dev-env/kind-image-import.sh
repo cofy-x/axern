@@ -34,27 +34,14 @@ if [ -z "${pods}" ]; then
   exit 1
 fi
 
-archive="$(mktemp "${TMPDIR:-/tmp}/axern-kind-image.XXXXXX.tar")"
-remote_archive="/tmp/axern-image-import-${RANDOM}-$(date +%s).tar"
 import_timeout="${AXERN_IMAGE_IMPORT_TIMEOUT:-5m}"
-cleanup() {
-  rm -f "${archive}"
-  while IFS= read -r pod; do
-    [ -n "${pod}" ] || continue
-    kubectl -n "${K8S_NAMESPACE}" exec "${pod}" -- rm -f "${remote_archive}" >/dev/null 2>&1 || true
-  done <<< "${pods}"
-}
-trap cleanup EXIT
-
-echo "Saving host image ${image_ref}"
-docker save -o "${archive}" "${image_ref}"
+image_id="$(docker image inspect "${image_ref}" --format '{{.Id}}')"
 
 while IFS= read -r pod; do
   [ -n "${pod}" ] || continue
-  echo "Importing ${image_ref} into kind node pod ${pod}"
-  kubectl -n "${K8S_NAMESPACE}" exec -i "${pod}" -- /bin/bash -lc "cat > '${remote_archive}'" < "${archive}"
-  kubectl -n "${K8S_NAMESPACE}" exec "${pod}" -- axctl --timeout "${import_timeout}" image import \
+  echo "Streaming ${image_ref} into kind node pod ${pod}"
+  docker image save "${image_id}" | kubectl -n "${K8S_NAMESPACE}" exec -i "${pod}" -- axctl --timeout "${import_timeout}" image import \
     --imagemgr-socket /run/imagemgr/imagemgr.sock \
-    --archive "${remote_archive}" \
+    --file - \
     --ref "${image_ref}"
 done <<< "${pods}"

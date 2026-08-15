@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/imagemgr/imagefsd"
@@ -123,23 +124,23 @@ func (c *HttpClient) ReconcileMountLeases(req *ReconcileMountLeasesRequest) (*Re
 	return &result, nil
 }
 
-func (c *HttpClient) ImportOCI(req *OCIImportRequest) (*OCIImportResponse, error) {
-	body, _ := json.Marshal(req)
-	resp, err := c.clt.Post("http://unix/oci_import", "application/json", bytes.NewReader(body))
+func (c *HttpClient) ImportOCI(imageRef string, archive io.Reader) (*OCIImportResponse, error) {
+	endpoint := "http://unix/oci_import?ref=" + url.QueryEscape(imageRef)
+	resp, err := c.clt.Post(endpoint, "application/x-tar", archive)
 	if err != nil {
-		return nil, fmt.Errorf("failed to import oci image %s: %v", req.ImageRef, err)
+		return nil, fmt.Errorf("failed to import oci image %s: %v", imageRef, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		errMsg, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to import oci image %s: %s", req.ImageRef, string(errMsg))
+		return nil, fmt.Errorf("failed to import oci image %s: %s", imageRef, string(errMsg))
 	}
 	var result OCIImportResponse
 	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("invalid reply body format: %v", err)
 	}
-	if result.ImageRef == "" {
-		return nil, fmt.Errorf("image_ref not found in response")
+	if result.CanonicalRef == "" || result.GenerationDigest == "" {
+		return nil, fmt.Errorf("canonical_ref or generation_digest not found in response")
 	}
 	return &result, nil
 }

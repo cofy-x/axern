@@ -22,23 +22,11 @@ if ! docker ps --format '{{.Names}}' | grep -Fxq "${node_container}"; then
   exit 1
 fi
 
-archive="$(mktemp "${TMPDIR:-/tmp}/axern-compose-image.XXXXXX.tar")"
-remote_archive="/tmp/axern-image-import-${RANDOM}-$(date +%s).tar"
 import_timeout="${AXERN_IMAGE_IMPORT_TIMEOUT:-5m}"
-cleanup() {
-  rm -f "${archive}"
-  docker exec "${node_container}" rm -f "${remote_archive}" >/dev/null 2>&1 || true
-}
-trap cleanup EXIT
+image_id="$(docker image inspect "${image_ref}" --format '{{.Id}}')"
 
-echo "Saving host image ${image_ref}"
-docker save -o "${archive}" "${image_ref}"
-
-echo "Copying image archive into ${node_container}"
-docker exec -i "${node_container}" /bin/bash -lc "cat > '${remote_archive}'" < "${archive}"
-
-echo "Importing ${image_ref} into compose node"
-docker exec "${node_container}" axctl --timeout "${import_timeout}" image import \
+echo "Streaming ${image_ref} into compose node"
+docker image save "${image_id}" | docker exec -i "${node_container}" axctl --timeout "${import_timeout}" image import \
   --imagemgr-socket /run/imagemgr/imagemgr.sock \
-  --archive "${remote_archive}" \
+  --file - \
   --ref "${image_ref}"

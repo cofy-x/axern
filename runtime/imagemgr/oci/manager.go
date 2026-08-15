@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
 
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/sirupsen/logrus"
 
 	"github.com/cofy-x/axern/runtime/imagemgr/internal/rootfssupport"
@@ -69,12 +71,13 @@ type Manager struct {
 	diskUsage func(path string) (float64, error)
 	readMnts  func() (managedMountSnapshot, error)
 
-	layerWorkers  int
-	layerJobs     chan layerExtractJob
-	layerPoolWG   sync.WaitGroup
-	layerPoolOnce sync.Once
-	layerPoolMu   sync.Mutex
-	layerTTL      time.Duration
+	layerWorkers   int
+	layerJobs      chan layerExtractJob
+	layerPoolWG    sync.WaitGroup
+	layerPoolOnce  sync.Once
+	layerPoolMu    sync.Mutex
+	layerTTL       time.Duration
+	targetPlatform *v1.Platform
 }
 
 type imageLockEntry struct {
@@ -186,12 +189,16 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 		readMnts: func() (managedMountSnapshot, error) {
 			return readManagedMounts(mountsDir)
 		},
-		layerWorkers: defaultGlobalLayerWorkers,
-		layerTTL:     defaultLayerZeroRefTTL,
+		layerWorkers:   defaultGlobalLayerWorkers,
+		layerTTL:       defaultLayerZeroRefTTL,
+		targetPlatform: &v1.Platform{OS: runtime.GOOS, Architecture: runtime.GOARCH},
 	}
 
 	if err := mgr.reconcileState(); err != nil {
 		logrus.Warnf("failed to reconcile OCI metadata at startup: %v", err)
+	}
+	if err := mgr.reconcileImportedState(); err != nil {
+		logrus.Warnf("failed to reconcile imported OCI generations at startup: %v", err)
 	}
 
 	go mgr.pruneImagesLoop()

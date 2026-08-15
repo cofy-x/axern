@@ -15,7 +15,13 @@ var ErrMountNotFound = errors.New("OCI mount not found")
 
 // UnmountImageWithContext unmounts an OCI overlay mount and updates layer references.
 func (m *Manager) UnmountImageWithContext(ctx context.Context, imageURL string) (retErr error) {
-	return m.UnmountImageWithContextAndKey(ctx, imageURL, imageURL)
+	cacheKey := imageURL
+	if resolved, imported, err := m.ResolveImportedImageCacheKey(imageURL); err != nil {
+		return err
+	} else if imported {
+		cacheKey = resolved
+	}
+	return m.UnmountImageWithContextAndKey(ctx, imageURL, cacheKey)
 }
 
 func (m *Manager) UnmountImageWithContextAndKey(ctx context.Context, imageURL, cacheKey string) (retErr error) {
@@ -127,6 +133,9 @@ func (m *Manager) unmountImageLocked(timing *OCITimedOperation, imageURL, cacheK
 
 	m.deleteContainer(cacheKey)
 	_ = os.RemoveAll(filepath.Dir(info.MountPath))
+	if err := m.pruneImportedGenerations(); err != nil {
+		logrus.WithError(err).Warn("prune unreferenced imported generations after unmount")
+	}
 	logrus.Infof("OCI unmount success: image=%s cache_key=%s mount_path=%s layers=%d cost=%s", imageURL, cacheKey, info.MountPath, len(info.LayerDigests), time.Since(opStart))
 
 	return nil

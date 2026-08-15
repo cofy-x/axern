@@ -21,10 +21,12 @@ type MountedImageDetail struct {
 }
 
 type ImportedImageDetail struct {
-	ImageRef       string `json:"image_ref"`
-	ArchivePath    string `json:"archive_path"`
-	SizeBytes      int64  `json:"size_bytes"`
-	ImportedAtUnix int64  `json:"imported_at_unix"`
+	ImageRef         string `json:"image_ref"`
+	GenerationDigest string `json:"generation_digest"`
+	ArchiveDigest    string `json:"archive_digest"`
+	Platform         string `json:"platform"`
+	SizeBytes        int64  `json:"size_bytes"`
+	ImportedAtUnix   int64  `json:"imported_at_unix"`
 }
 
 type DaemonInfo struct {

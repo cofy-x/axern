@@ -4,8 +4,11 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"encoding/json"
+	bolt "go.etcd.io/bbolt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -129,32 +132,94 @@ func TestHasImportedImage(t *testing.T) {
 	}
 }
 
-func TestResolveImportedImageCacheKeyRejectsMissingDigest(t *testing.T) {
+func TestImportImageMovesRefWithoutInvalidatingMountedGeneration(t *testing.T) {
+	mgr := newTestManager(t)
+	defer mgr.store.close()
+	imageRef := "example.local/mutable:dev"
+	first, err := mgr.ImportImageArchive(t.Context(), imageRef, writeMountableDockerArchiveWithContent(t, imageRef, "first"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstKey := importedCacheKey(first.GenerationDigest)
+	mgr.setContainer(firstKey, &ContainerInfo{ImageURL: imageRef, MountPath: t.TempDir()})
+
+	second, err := mgr.ImportImageArchive(t.Context(), imageRef, writeMountableDockerArchiveWithContent(t, imageRef, "second"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.GenerationDigest == second.GenerationDigest {
+		t.Fatal("distinct manifests produced the same generation")
+	}
+	current, imported, err := mgr.ResolveImportedImageCacheKey(imageRef)
+	if err != nil || !imported || current != importedCacheKey(second.GenerationDigest) {
+		t.Fatalf("current generation = (%q, %t, %v)", current, imported, err)
+	}
+	if retained, err := mgr.HasImportedGeneration(firstKey); err != nil || !retained {
+		t.Fatalf("old mounted generation retained = (%t, %v)", retained, err)
+	}
+	if _, err := os.Stat(first.ArchivePath); err != nil {
+		t.Fatalf("old generation archive removed while mounted: %v", err)
+	}
+
+	mgr.deleteContainer(firstKey)
+	if err := mgr.pruneImportedGenerations(); err != nil {
+		t.Fatal(err)
+	}
+	if retained, err := mgr.HasImportedGeneration(firstKey); err != nil || retained {
+		t.Fatalf("unreferenced generation retained = (%t, %v)", retained, err)
+	}
+}
+
+func TestImportImageCanonicalizesDockerHubRef(t *testing.T) {
+	mgr := newTestManager(t)
+	defer mgr.store.close()
+	result, err := mgr.ImportImageArchive(t.Context(), "demo:dev", writeMountableDockerArchive(t, "demo:dev"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ImageURL != "index.docker.io/library/demo:dev" {
+		t.Fatalf("canonical ref = %q", result.ImageURL)
+	}
+	canonical, cacheKey, imported, err := mgr.ResolveImageCacheKey("docker.io/library/demo:dev")
+	if err != nil || !imported || canonical != result.ImageURL || cacheKey != importedCacheKey(result.GenerationDigest) {
+		t.Fatalf("ResolveImageCacheKey() = (%q, %q, %t, %v)", canonical, cacheKey, imported, err)
+	}
+	digestRef := "index.docker.io/library/demo@" + result.GenerationDigest
+	_, cacheKey, imported, err = mgr.ResolveImageCacheKey(digestRef)
+	if err != nil || !imported || cacheKey != importedCacheKey(result.GenerationDigest) {
+		t.Fatalf("resolve digest generation = (%q, %t, %v)", cacheKey, imported, err)
+	}
+}
+
+func TestResolveImportedImageCacheKeyRejectsMissingGeneration(t *testing.T) {
 	mgr := newTestManager(t)
 	defer mgr.store.close()
 
 	imageRef := "example.local/missing-digest:dev"
-	if err := mgr.store.putImport(&ImportedImageRecord{
-		ImageURL:       imageRef,
-		ArchivePath:    filepath.Join(t.TempDir(), "image.tar"),
-		SizeBytes:      123,
-		ImportedAtUnix: mgr.now().Unix(),
+	if err := mgr.store.db.Update(func(tx *bolt.Tx) error {
+		data, err := json.Marshal(importedRefRecord{ImageURL: imageRef, GenerationDigest: "sha256:" + strings.Repeat("0", 64)})
+		if err != nil {
+			return err
+		}
+		return tx.Bucket(importRefsBucket).Put([]byte(imageRef), data)
 	}); err != nil {
-		t.Fatalf("putImport() error: %v", err)
+		t.Fatalf("put broken ref: %v", err)
 	}
 
-	if _, imported, err := mgr.ResolveImportedImageCacheKey(imageRef); err == nil {
+	if _, _, err := mgr.ResolveImportedImageCacheKey(imageRef); err == nil {
 		t.Fatal("ResolveImportedImageCacheKey() error = nil, want missing digest error")
-	} else if !imported {
-		t.Fatal("ResolveImportedImageCacheKey() imported = false, want true")
 	}
 }
 
 func writeMountableDockerArchive(t *testing.T, imageRef string) string {
+	return writeMountableDockerArchiveWithContent(t, imageRef, "hello from imported image")
+}
+
+func writeMountableDockerArchiveWithContent(t *testing.T, imageRef, value string) string {
 	t.Helper()
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
-	content := []byte("hello from imported image")
+	content := []byte(value)
 	if err := tw.WriteHeader(&tar.Header{
 		Name:     "app/hello.txt",
 		Typeflag: tar.TypeReg,

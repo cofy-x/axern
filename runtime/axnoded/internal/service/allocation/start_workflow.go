@@ -60,14 +60,6 @@ func (h *Controller) prepareLangRuntime(ctx context.Context, fr *runtime.Runtime
 	summary := LangRuntimePrepareSummary{
 		RootfsType: RootfsTypeFromRuntimeTemplate(fr),
 	}
-	lookupStart := time.Now()
-	lrt := h.lrtManager.FindReusableLangRuntime(fr, rootfsCfg)
-	summary.LangRuntimeLookupTime = time.Since(lookupStart)
-	if lrt != nil {
-		summary.RuntimeReused = true
-		return lrt, summary, nil
-	}
-
 	resolveStart := time.Now()
 	resolvedRootfsCfg, err := h.lrtManager.ResolveRootfsConfig(rootfsCfg)
 	if err != nil {
@@ -78,6 +70,13 @@ func (h *Controller) prepareLangRuntime(ctx context.Context, fr *runtime.Runtime
 		Step:     contract.StartupStepRootfsResolve,
 		Duration: startupStepDurationSince(resolveStart),
 	})
+	lookupStart := time.Now()
+	lrt := h.lrtManager.FindReusableLangRuntime(fr, resolvedRootfsCfg)
+	summary.LangRuntimeLookupTime = time.Since(lookupStart)
+	if lrt != nil {
+		summary.RuntimeReused = true
+		return lrt, summary, nil
+	}
 	prepareStart := time.Now()
 	result, err := h.lrtManager.AddLangRuntime(ctx, fr, resolvedRootfsCfg, true)
 	summary.RootfsPrepareTime = time.Since(prepareStart)

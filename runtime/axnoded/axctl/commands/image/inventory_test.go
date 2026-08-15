@@ -26,7 +26,7 @@ func TestBuildImageRowsMergesImportedAndMounted(t *testing.T) {
 		t.Fatalf("mounted-only row = %+v, want imported no mounted yes", mountedOnly)
 	}
 	merged := rows[1]
-	if !merged.Imported || !merged.Mounted || merged.MountType != "oci" || merged.ArchivePath == "" || merged.ArchiveDigest == "" || merged.CacheKey == "" {
+	if !merged.Imported || !merged.Mounted || merged.MountType != "oci" || merged.GenerationDigest == "" || merged.ArchiveDigest == "" || merged.CacheKey == "" {
 		t.Fatalf("merged row = %+v, want imported and mounted metadata", merged)
 	}
 }
@@ -78,8 +78,9 @@ func TestRenderImageInspect(t *testing.T) {
 	for _, want := range []string{
 		"Image Ref: python:3.12-slim",
 		"Imported: yes",
-		"Archive Path: /var/lib/imagemgr/oci/imports/python.tar",
+		"Generation Digest: sha256:pythonmanifest00000000000000000000000000000000000000000000000000",
 		"Archive Digest: sha256:pythonimport0000000000000000000000000000000000000000000000000000",
+		"Platform: linux/amd64",
 		"Mounted: yes",
 		"Mount Type: oci",
 		"Mount Path: /var/lib/imagemgr/oci/mounts/python/merged",
@@ -138,11 +139,12 @@ func TestRenderImageListJSONShape(t *testing.T) {
 func TestRenderImportResponseJSONShape(t *testing.T) {
 	var out bytes.Buffer
 	resp := importResponse{
-		ImageRef:       "python:3.12-slim",
-		ArchivePath:    "/tmp/python.tar",
-		ArchiveDigest:  "sha256:pythonimport0000000000000000000000000000000000000000000000000000",
-		SizeBytes:      123,
-		ImportedAtUnix: 1700000000,
+		SourceRef:        "python:3.12-slim",
+		CanonicalRef:     "index.docker.io/library/python:3.12-slim",
+		GenerationDigest: "sha256:pythonmanifest00000000000000000000000000000000000000000000000000",
+		ArchiveDigest:    "sha256:pythonimport0000000000000000000000000000000000000000000000000000",
+		Platform:         "linux/amd64",
+		SizeBytes:        123,
 	}
 	if err := json.NewEncoder(&out).Encode(resp); err != nil {
 		t.Fatalf("Encode() error: %v", err)
@@ -151,7 +153,7 @@ func TestRenderImportResponseJSONShape(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
 		t.Fatalf("decode import response JSON: %v", err)
 	}
-	if decoded.ImageRef != resp.ImageRef || decoded.SizeBytes != resp.SizeBytes || decoded.ArchiveDigest != resp.ArchiveDigest {
+	if decoded.CanonicalRef != resp.CanonicalRef || decoded.GenerationDigest != resp.GenerationDigest || decoded.SizeBytes != resp.SizeBytes || decoded.ArchiveDigest != resp.ArchiveDigest {
 		t.Fatalf("decoded import response = %+v, want %+v", decoded, resp)
 	}
 }
@@ -160,18 +162,19 @@ func testInventory() *inventoryResponse {
 	return &inventoryResponse{
 		ImportedImages: []importedImageDetail{
 			{
-				ImageRef:       "python:3.12-slim",
-				ArchivePath:    "/var/lib/imagemgr/oci/imports/python.tar",
-				ArchiveDigest:  "sha256:pythonimport0000000000000000000000000000000000000000000000000000",
-				SizeBytes:      123296768,
-				ImportedAtUnix: 1700000000,
+				ImageRef:         "python:3.12-slim",
+				GenerationDigest: "sha256:pythonmanifest00000000000000000000000000000000000000000000000000",
+				ArchiveDigest:    "sha256:pythonimport0000000000000000000000000000000000000000000000000000",
+				Platform:         "linux/amd64",
+				SizeBytes:        123296768,
+				ImportedAtUnix:   1700000000,
 			},
 			{
-				ImageRef:       "busybox:latest",
-				ArchivePath:    "/var/lib/imagemgr/oci/imports/busybox.tar",
-				ArchiveDigest:  "sha256:busyboximport0000000000000000000000000000000000000000000000000000",
-				SizeBytes:      1024,
-				ImportedAtUnix: 1700000100,
+				ImageRef:         "busybox:latest",
+				GenerationDigest: "sha256:busyboxmanifest0000000000000000000000000000000000000000000000000",
+				ArchiveDigest:    "sha256:busyboximport0000000000000000000000000000000000000000000000000000",
+				SizeBytes:        1024,
+				ImportedAtUnix:   1700000100,
 			},
 		},
 		MountedImages: []mountedImageDetail{

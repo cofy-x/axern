@@ -67,11 +67,6 @@ func rootfsTypeLabelFromConfig(cfg RootfsConfig) string {
 }
 
 func rootfsConfigMatchesRequest(current, requested RootfsConfig) bool {
-	if current.SrcType == api.RootfsSrcType_IMAGE &&
-		requested.SrcType == api.RootfsSrcType_IMAGE &&
-		requested.ImageCacheKey == "" {
-		requested.ImageCacheKey = current.ImageCacheKey
-	}
 	if requested.LeaseID == "" {
 		requested.LeaseID = current.LeaseID
 	}

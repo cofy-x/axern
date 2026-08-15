@@ -1,18 +1,20 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/cofy-x/axern/runtime/imagemgr/internal/mountstore"
 	"github.com/cofy-x/axern/runtime/imagemgr/oci"
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/random"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 )
@@ -36,11 +38,12 @@ func TestHttpHandler_OCIImport(t *testing.T) {
 
 	imageRef := "example.local/myapp:dev"
 	archivePath := writeTestDockerArchive(t, imageRef)
-	body, _ := json.Marshal(OCIImportRequest{
-		ArchivePath: archivePath,
-		ImageRef:    imageRef,
-	})
-	req := httptest.NewRequest(http.MethodPost, "/oci_import", bytes.NewReader(body))
+	archive, err := os.Open(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer archive.Close()
+	req := httptest.NewRequest(http.MethodPost, "/oci_import?ref="+url.QueryEscape(imageRef), archive)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -51,8 +54,8 @@ func TestHttpHandler_OCIImport(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if resp.ImageRef != imageRef {
-		t.Fatalf("ImageRef = %q, want %q", resp.ImageRef, imageRef)
+	if resp.CanonicalRef != imageRef {
+		t.Fatalf("CanonicalRef = %q, want %q", resp.CanonicalRef, imageRef)
 	}
 	if resp.SizeBytes == 0 {
 		t.Fatal("SizeBytes = 0, want non-zero")
@@ -73,6 +76,19 @@ func TestHttpHandler_OCIImport(t *testing.T) {
 	}
 	if inventory.ImportedImages[0].ArchiveDigest != resp.ArchiveDigest {
 		t.Fatalf("ImportedImages[0].ArchiveDigest = %q, want %q", inventory.ImportedImages[0].ArchiveDigest, resp.ArchiveDigest)
+	}
+	resolveReq := httptest.NewRequest(http.MethodGet, "/oci_resolve?ref="+url.QueryEscape(imageRef), nil)
+	resolveWriter := httptest.NewRecorder()
+	handler.ServeHTTP(resolveWriter, resolveReq)
+	if resolveWriter.Code != http.StatusOK {
+		t.Fatalf("resolve status = %d: %s", resolveWriter.Code, resolveWriter.Body.String())
+	}
+	var resolved OCIResolveResponse
+	if err := json.NewDecoder(resolveWriter.Body).Decode(&resolved); err != nil {
+		t.Fatal(err)
+	}
+	if !resolved.Imported || resolved.CacheKey != "local-import@"+resp.GenerationDigest {
+		t.Fatalf("resolved import = %+v", resolved)
 	}
 }
 
@@ -109,11 +125,12 @@ func TestHttpHandler_OCIImportPreservesMountedRecord(t *testing.T) {
 	}
 
 	handler := worker.prepareHttp()
-	body, _ := json.Marshal(OCIImportRequest{
-		ArchivePath: writeTestDockerArchive(t, imageRef),
-		ImageRef:    imageRef,
-	})
-	req := httptest.NewRequest(http.MethodPost, "/oci_import", bytes.NewReader(body))
+	archive, err := os.Open(writeTestDockerArchive(t, imageRef))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer archive.Close()
+	req := httptest.NewRequest(http.MethodPost, "/oci_import?ref="+url.QueryEscape(imageRef), archive)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -134,7 +151,7 @@ func TestHttpHandler_OCIImportValidation(t *testing.T) {
 	worker := mustNewHttpWorker(t, mgr)
 	handler := worker.prepareHttp()
 
-	req := httptest.NewRequest(http.MethodPost, "/oci_import", strings.NewReader(`{"archive_path":"/tmp/nope.tar"}`))
+	req := httptest.NewRequest(http.MethodPost, "/oci_import?ref=example.local/test:dev", strings.NewReader("archive"))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusInternalServerError {
@@ -150,6 +167,15 @@ func writeTestDockerArchive(t *testing.T, imageRef string) string {
 	img, err := random.Image(128, 1)
 	if err != nil {
 		t.Fatalf("random.Image() error: %v", err)
+	}
+	config, err := img.ConfigFile()
+	if err != nil {
+		t.Fatalf("ConfigFile() error: %v", err)
+	}
+	config.OS, config.Architecture = runtime.GOOS, runtime.GOARCH
+	img, err = mutate.ConfigFile(img, config)
+	if err != nil {
+		t.Fatalf("mutate.ConfigFile() error: %v", err)
 	}
 	ref, err := name.ParseReference(imageRef, name.WeakValidation)
 	if err != nil {

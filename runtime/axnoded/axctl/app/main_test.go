@@ -70,5 +70,5 @@ func TestNewRegistersSupportedOperatorCommands(t *testing.T) {
 	for _, command := range imageCmd.Subcommands {
 		imageSubcommandNames = append(imageSubcommandNames, command.Name)
 	}
-	assert.ElementsMatch(t, []string{"import", "list", "inspect", "mounts"}, imageSubcommandNames)
+	assert.ElementsMatch(t, []string{"import", "list", "inspect", "mounts", "drop-page-cache"}, imageSubcommandNames)
 }

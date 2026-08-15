@@ -19,11 +19,12 @@ type mountedImageDetail struct {
 }
 
 type importedImageDetail struct {
-	ImageRef       string `json:"image_ref"`
-	ArchivePath    string `json:"archive_path"`
-	ArchiveDigest  string `json:"archive_digest,omitempty"`
-	SizeBytes      int64  `json:"size_bytes"`
-	ImportedAtUnix int64  `json:"imported_at_unix"`
+	ImageRef         string `json:"image_ref"`
+	GenerationDigest string `json:"generation_digest"`
+	ArchiveDigest    string `json:"archive_digest"`
+	Platform         string `json:"platform"`
+	SizeBytes        int64  `json:"size_bytes"`
+	ImportedAtUnix   int64  `json:"imported_at_unix"`
 }
 
 type inventoryResponse struct {
@@ -32,17 +33,18 @@ type inventoryResponse struct {
 }
 
 type imageRow struct {
-	ImageRef       string `json:"image_ref"`
-	Imported       bool   `json:"imported"`
-	Mounted        bool   `json:"mounted"`
-	MountType      string `json:"mount_type"`
-	MountPath      string `json:"mount_path"`
-	NydusImageURL  string `json:"nydus_image_url"`
-	ArchivePath    string `json:"archive_path"`
-	ArchiveDigest  string `json:"archive_digest"`
-	CacheKey       string `json:"cache_key"`
-	SizeBytes      int64  `json:"size_bytes"`
-	ImportedAtUnix int64  `json:"imported_at_unix"`
+	ImageRef         string `json:"image_ref"`
+	Imported         bool   `json:"imported"`
+	Mounted          bool   `json:"mounted"`
+	MountType        string `json:"mount_type"`
+	MountPath        string `json:"mount_path"`
+	NydusImageURL    string `json:"nydus_image_url"`
+	GenerationDigest string `json:"generation_digest"`
+	ArchiveDigest    string `json:"archive_digest"`
+	Platform         string `json:"platform"`
+	CacheKey         string `json:"cache_key"`
+	SizeBytes        int64  `json:"size_bytes"`
+	ImportedAtUnix   int64  `json:"imported_at_unix"`
 }
 
 type imageListJSON struct {
@@ -64,8 +66,9 @@ func buildImageRows(inventory *inventoryResponse) []imageRow {
 		}
 		row := imageRowForRef(byRef, imported.ImageRef)
 		row.Imported = true
-		row.ArchivePath = imported.ArchivePath
+		row.GenerationDigest = imported.GenerationDigest
 		row.ArchiveDigest = imported.ArchiveDigest
+		row.Platform = imported.Platform
 		row.SizeBytes = imported.SizeBytes
 		row.ImportedAtUnix = imported.ImportedAtUnix
 	}
@@ -103,7 +106,7 @@ func imageRowForRef(byRef map[string]*imageRow, ref string) *imageRow {
 func findImageRow(rows []imageRow, imageRef string) (imageRow, bool) {
 	imageRef = strings.TrimSpace(imageRef)
 	for _, row := range rows {
-		if row.ImageRef == imageRef || row.ArchiveDigest == imageRef || row.CacheKey == imageRef {
+		if row.ImageRef == imageRef || row.GenerationDigest == imageRef || row.ArchiveDigest == imageRef || row.CacheKey == imageRef {
 			return row, true
 		}
 	}
@@ -129,7 +132,7 @@ func sortedMounts(inventory *inventoryResponse) []mountedImageDetail {
 
 func renderImageListTable(w io.Writer, rows []imageRow) {
 	tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', 0)
-	fmt.Fprintln(tw, "REF\tIMPORTED\tMOUNTED\tMOUNT TYPE\tCACHE KEY\tARCHIVE DIGEST\tSIZE\tIMPORTED AT")
+	fmt.Fprintln(tw, "REF\tIMPORTED\tMOUNTED\tMOUNT TYPE\tGENERATION\tPLATFORM\tSIZE\tIMPORTED AT")
 	for _, row := range rows {
 		fmt.Fprintf(
 			tw,
@@ -138,8 +141,8 @@ func renderImageListTable(w io.Writer, rows []imageRow) {
 			yesNo(row.Imported),
 			yesNo(row.Mounted),
 			emptyDash(row.MountType),
-			emptyDash(shortIdentity(row.CacheKey)),
-			emptyDash(shortIdentity(row.ArchiveDigest)),
+			emptyDash(shortIdentity(row.GenerationDigest)),
+			emptyDash(row.Platform),
 			formatSize(row.SizeBytes),
 			formatUnix(row.ImportedAtUnix),
 		)
@@ -150,8 +153,9 @@ func renderImageListTable(w io.Writer, rows []imageRow) {
 func renderImageInspect(w io.Writer, row imageRow) {
 	fmt.Fprintf(w, "Image Ref: %s\n", row.ImageRef)
 	fmt.Fprintf(w, "Imported: %s\n", yesNo(row.Imported))
-	fmt.Fprintf(w, "Archive Path: %s\n", emptyDash(row.ArchivePath))
+	fmt.Fprintf(w, "Generation Digest: %s\n", emptyDash(row.GenerationDigest))
 	fmt.Fprintf(w, "Archive Digest: %s\n", emptyDash(row.ArchiveDigest))
+	fmt.Fprintf(w, "Platform: %s\n", emptyDash(row.Platform))
 	fmt.Fprintf(w, "Size: %s\n", formatSize(row.SizeBytes))
 	fmt.Fprintf(w, "Imported At: %s\n", formatUnix(row.ImportedAtUnix))
 	fmt.Fprintf(w, "Mounted: %s\n", yesNo(row.Mounted))
