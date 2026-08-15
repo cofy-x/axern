@@ -232,7 +232,6 @@ type CgroupLease struct {
 	RetiringAtUnixNano            int64                  `protobuf:"varint,6,opt,name=retiring_at_unix_nano,json=retiringAtUnixNano,proto3" json:"retiring_at_unix_nano,omitempty"`
 	LastCleanupError              string                 `protobuf:"bytes,7,opt,name=last_cleanup_error,json=lastCleanupError,proto3" json:"last_cleanup_error,omitempty"`
 	CurrentChargedBytes           int64                  `protobuf:"varint,8,opt,name=current_charged_bytes,json=currentChargedBytes,proto3" json:"current_charged_bytes,omitempty"`
-	ReclaimRequestedAtUnixNano    int64                  `protobuf:"varint,9,opt,name=reclaim_requested_at_unix_nano,json=reclaimRequestedAtUnixNano,proto3" json:"reclaim_requested_at_unix_nano,omitempty"`
 	AllocationAttempt             int64                  `protobuf:"varint,10,opt,name=allocation_attempt,json=allocationAttempt,proto3" json:"allocation_attempt,omitempty"`
 	MemoryLimitBytes              int64                  `protobuf:"varint,11,opt,name=memory_limit_bytes,json=memoryLimitBytes,proto3" json:"memory_limit_bytes,omitempty"`
 	RuntimeName                   string                 `protobuf:"bytes,12,opt,name=runtime_name,json=runtimeName,proto3" json:"runtime_name,omitempty"`
@@ -328,13 +327,6 @@ func (x *CgroupLease) GetLastCleanupError() string {
 func (x *CgroupLease) GetCurrentChargedBytes() int64 {
 	if x != nil {
 		return x.CurrentChargedBytes
-	}
-	return 0
-}
-
-func (x *CgroupLease) GetReclaimRequestedAtUnixNano() int64 {
-	if x != nil {
-		return x.ReclaimRequestedAtUnixNano
 	}
 	return 0
 }
@@ -2353,7 +2345,7 @@ var File_internal_apipb_v1_axnoded_internal_proto protoreflect.FileDescriptor
 
 const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\n" +
-	"(internal/apipb/v1/axnoded_internal.proto\x12\x19axnoded.internal.apipb.v1\x1a&axern/control/catalog/v1/catalog.proto\x1a,axern/control/capability/v1/capability.proto\"\xa3\a\n" +
+	"(internal/apipb/v1/axnoded_internal.proto\x12\x19axnoded.internal.apipb.v1\x1a&axern/control/catalog/v1/catalog.proto\x1a,axern/control/capability/v1/capability.proto\"\x85\a\n" +
 	"\vCgroupLease\x12\x1b\n" +
 	"\tcgroup_id\x18\x01 \x01(\tR\bcgroupId\x12E\n" +
 	"\x05state\x18\x02 \x01(\x0e2/.axnoded.internal.apipb.v1.CgroupLifecycleStateR\x05state\x12#\n" +
@@ -2362,8 +2354,7 @@ const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\x15assigned_at_unix_nano\x18\x05 \x01(\x03R\x12assignedAtUnixNano\x121\n" +
 	"\x15retiring_at_unix_nano\x18\x06 \x01(\x03R\x12retiringAtUnixNano\x12,\n" +
 	"\x12last_cleanup_error\x18\a \x01(\tR\x10lastCleanupError\x122\n" +
-	"\x15current_charged_bytes\x18\b \x01(\x03R\x13currentChargedBytes\x12B\n" +
-	"\x1ereclaim_requested_at_unix_nano\x18\t \x01(\x03R\x1areclaimRequestedAtUnixNano\x12-\n" +
+	"\x15current_charged_bytes\x18\b \x01(\x03R\x13currentChargedBytes\x12-\n" +
 	"\x12allocation_attempt\x18\n" +
 	" \x01(\x03R\x11allocationAttempt\x12,\n" +
 	"\x12memory_limit_bytes\x18\v \x01(\x03R\x10memoryLimitBytes\x12!\n" +
@@ -2374,7 +2365,8 @@ const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\x11cgroup_leaf_inode\x18\x10 \x01(\x04R\x0fcgroupLeafInode\x12G\n" +
 	" last_identity_verification_error\x18\x11 \x01(\tR\x1dlastIdentityVerificationError\x12N\n" +
 	"\n" +
-	"owner_kind\x18\x12 \x01(\x0e2/.axnoded.internal.apipb.v1.CgroupLeaseOwnerKindR\townerKind\"\x88\x01\n" +
+	"owner_kind\x18\x12 \x01(\x0e2/.axnoded.internal.apipb.v1.CgroupLeaseOwnerKindR\townerKindJ\x04\b\t\x10\n" +
+	"R\x1ereclaim_requested_at_unix_nano\"\x88\x01\n" +
 	"\fCgroupLedger\x12>\n" +
 	"\x06leases\x18\x01 \x03(\v2&.axnoded.internal.apipb.v1.CgroupLeaseR\x06leases\x128\n" +
 	"\x18memory_capacity_identity\x18\x02 \x01(\tR\x16memoryCapacityIdentity\"<\n" +

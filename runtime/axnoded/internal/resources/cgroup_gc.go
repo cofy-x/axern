@@ -8,7 +8,6 @@ import (
 	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
@@ -126,56 +125,14 @@ func (c *CgroupManager) convergeRetiringCgroup(id string) error {
 	if len(processes) != 0 {
 		return fmt.Errorf("retiring cgroup still contains %d process(es)", len(processes))
 	}
-	if observation.CurrentBytes > 0 {
-		requestedAt := current.GetReclaimRequestedAtUnixNano()
-		if requestedAt == 0 {
-			result, err := retirementMemory.Reclaim(id)
-			if err != nil {
-				metrics.RecordCgroupRetirement("reclaim", "failed")
-				return fmt.Errorf("reclaim retiring cgroup memory: %w", err)
-			}
-			switch result {
-			case hostlinux.CgroupMemoryReclaimRequested:
-				c.Lock()
-				current, currentOK = c.leases.Get(id)
-				if !currentOK || current == nil || current.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING {
-					c.Unlock()
-					return fmt.Errorf("cgroup %s retirement ownership changed after reclaim", id)
-				}
-				current.CurrentChargedBytes = observation.CurrentBytes
-				current.ReclaimRequestedAtUnixNano = time.Now().UTC().UnixNano()
-				c.leases.Set(id, current)
-				storeErr := c.storeLocked()
-				c.Unlock()
-				if storeErr != nil {
-					return fmt.Errorf("persist retiring cgroup reclaim request: %w", storeErr)
-				}
-				metrics.RecordCgroupRetirement("reclaim", "requested")
-				return fmt.Errorf("retiring cgroup reclaim requested for %d charged bytes", observation.CurrentBytes)
-			case hostlinux.CgroupMemoryReclaimNotNeeded:
-				metrics.RecordCgroupRetirement("reclaim", "not_needed")
-			case hostlinux.CgroupMemoryReclaimUnavailable:
-				// memory.reclaim is an optional cgroup-v2 interface. Once the
-				// runtime is gone, the hierarchy is empty, dirty/writeback are
-				// zero, and identity still matches, rmdir is the authoritative
-				// convergence operation; the kernel reparents remaining clean
-				// charges to the ancestor memcg.
-				metrics.RecordCgroupRetirement("reclaim", "unavailable")
-			default:
-				return fmt.Errorf("reclaim retiring cgroup memory returned unknown result %d", result)
-			}
-		}
-		// memory.current and memory.stat may retain kernel metadata, clean page
-		// cache, or dirty/writeback charges after the allocation processes and
-		// backing files are gone. Cgroup v2 does not require those counters to
-		// reach zero before rmdir: successful removal reparents every remaining
-		// charge to the sandbox ancestor, whose memory.current is sampled as the
-		// node-local admission safety floor. Once an explicit reclaim request has
-		// had a retry interval, removal is the authoritative convergence operation.
-		if time.Since(time.Unix(0, requestedAt)) < time.Second {
-			return fmt.Errorf("retiring cgroup reclaim is still settling at %d charged bytes", observation.CurrentBytes)
-		}
-	}
+	// memory.current can retain clean page cache and kernel metadata after the
+	// allocation has no processes. Do not issue memory.reclaim here: its write is
+	// a synchronous, optional kernel operation with no cancellation contract and
+	// can block this manager's single durable GC worker indefinitely. Cgroup
+	// removal is the authoritative convergence boundary; the kernel reparents
+	// remaining charges to the sandbox ancestor, which node-local admission
+	// already samples as its current-usage safety floor. A failed removal keeps
+	// this lease and its max(request, current charge) cleanup debt for retry.
 	if err := c.removeCgroupFromSystem(id, staleRoot); err != nil {
 		return err
 	}

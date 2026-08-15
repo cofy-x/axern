@@ -109,12 +109,11 @@ Delete rules:
 - A successful runtime delete does not immediately release memory capacity.
   The retiring cgroup remains committed at `max(original request,
   memory.current)` until it contains no process and removal succeeds. Cleanup
-  uses `memory.reclaim` as a proactive
-  optimization when the kernel exposes it; absence of that optional interface
-  does not strand an otherwise empty cgroup because successful removal
-  reparents all remaining charges to the sandbox ancestor memcg. The ancestor
-  `memory.current` remains part of the node-local admission safety floor while
-  residual clean, dirty, or writeback pages converge.
+  relies on authoritative cgroup removal rather than synchronous proactive
+  reclaim. Successful removal reparents all remaining charges to the sandbox
+  ancestor memcg. The ancestor `memory.current` remains part of the node-local
+  admission safety floor while residual clean, dirty, or writeback pages
+  converge.
 - Successful final cleanup schedules a coalesced inventory refresh and node
   report. Create needs no matching refresh because its durable reservation
   accounts for the slot before node startup begins.
@@ -246,11 +245,10 @@ Key behavior:
 - `cgroup_cache_size = 0` disables only warm creation. In required mode the
   manager remains active and creates one-use allocation cgroups on demand.
 - GC never kills an unexplained remaining process. It retains the retiring
-  lease, retries after the runtime/monitor barrier, invokes `memory.reclaim`
+  lease, retries after the runtime/monitor barrier, verifies the domain is empty
   when available, and removes the empty cgroup. Dirty/writeback counters remain
-  diagnostic facts, not cgroup-v2 removal preconditions. A
-  missing reclaim interface is not treated as proof of cleanup; the subsequent
-  cgroup removal remains mandatory and fail-closed.
+  diagnostic facts, not cgroup-v2 removal preconditions. Successful cgroup
+  removal remains mandatory and fail-closed.
 - `cgroup_enforcement = "required"` is the production default. The allocation
   parent is the sole safety boundary: a declared limit writes parent
   `memory.max`, parent `memory.swap.max=0`, and parent `memory.oom.group=1` and

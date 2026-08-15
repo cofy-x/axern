@@ -110,13 +110,13 @@ Cleanup order is runtime delete plus monitor exit-state barrier, volume and
 rootfs cleanup, projection/host-overlay unmount, upper/work removal, writable
 reservation/project-ID release, image mount lease release, and finally cgroup
 retirement. The retiring cgroup retains its memory commitment until processes
-exit and removal succeeds. When the kernel exposes the
-optional `memory.reclaim` interface, cleanup requests proactive reclaim before
-removal; otherwise successful cgroup removal is the authoritative boundary and
-the kernel reparents remaining clean, dirty, and writeback charges to the
-sandbox ancestor memcg. Ancestor usage remains in the node-local admission
-safety floor until those charges converge. If runtime
-delete fails and the process may still live, the
+exit and removal succeeds. Cleanup deliberately avoids the optional,
+synchronously blocking `memory.reclaim` interface and removes the verified-empty
+cgroup directly. Successful cgroup removal is the authoritative boundary; the
+kernel reparents remaining clean, dirty, and writeback charges to the sandbox
+ancestor memcg. Ancestor usage remains in the node-local admission safety floor
+until those charges converge. If runtime delete fails and the process may still
+live, the
 projection, reservation, project ID, lower lease, and cgroup ownership remain
 for reconciliation.
 For foreground `runsc run` sandboxes, forced deletion is an ordered runtime

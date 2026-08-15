@@ -200,21 +200,18 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE:
 		if lease.GetAllocationID() != "" || lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 ||
 			lease.GetAllocationAttempt() != 0 || lease.GetRuntimeName() != "" || lease.GetAssignedAtUnixNano() != 0 ||
-			lease.GetRetiringAtUnixNano() != 0 || lease.GetReclaimRequestedAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) ||
+			lease.GetRetiringAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) ||
 			lease.GetOwnerKind() != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED {
 			return fmt.Errorf("idle cgroup %s contains allocation ownership", lease.GetCgroupID())
 		}
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED:
-		if lease.GetAllocationID() == "" || lease.GetAssignedAtUnixNano() <= 0 || lease.GetRetiringAtUnixNano() != 0 || lease.GetReclaimRequestedAtUnixNano() != 0 ||
+		if lease.GetAllocationID() == "" || lease.GetAssignedAtUnixNano() <= 0 || lease.GetRetiringAtUnixNano() != 0 ||
 			(lease.GetRuntimeName() != "runc" && lease.GetRuntimeName() != "runsc") || !validAssignedCgroupOwner(lease.GetOwnerKind()) {
 			return fmt.Errorf("assigned cgroup %s has malformed ownership", lease.GetCgroupID())
 		}
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING:
 		if lease.GetRetiringAtUnixNano() <= 0 {
 			return fmt.Errorf("retiring cgroup %s has no retirement time", lease.GetCgroupID())
-		}
-		if requestedAt := lease.GetReclaimRequestedAtUnixNano(); requestedAt < 0 || requestedAt > time.Now().Add(time.Minute).UnixNano() {
-			return fmt.Errorf("retiring cgroup %s has invalid reclaim request time", lease.GetCgroupID())
 		}
 		if lease.GetAllocationID() == "" {
 			if lease.GetOwnerKind() != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED ||
