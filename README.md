@@ -45,10 +45,11 @@ Then start Axern and run the first workload:
 
 ```bash
 axern local up
+axern local image load python:3.12-slim --pull
 axern run python:3.12-slim -- python -c 'print("hello from axern")'
 ```
 
-`local up` starts PostgreSQL, MinIO, the control and node services, waits for readiness, and creates the `local` context:
+`local up` starts PostgreSQL, MinIO, the control and node services, waits for readiness, and creates the `local` context. `local image load` streams the selected host Docker image into that local node without a temporary archive:
 
 ```bash
 axern context current

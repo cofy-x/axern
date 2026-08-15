@@ -11,6 +11,7 @@ description: 管理无需源码、机器级的 Axern 本地实例。
 
 ```bash
 axern local up
+axern local image load python:3.12-slim --pull
 axern local status
 ```
 

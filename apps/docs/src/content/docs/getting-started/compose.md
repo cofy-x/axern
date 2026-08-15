@@ -14,6 +14,7 @@ do not need an Axern project file.
 
 ```bash
 axern local up
+axern local image load python:3.12-slim --pull
 axern local status
 ```
 

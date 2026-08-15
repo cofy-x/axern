@@ -79,6 +79,8 @@ material here only when multiple modules need the same model.
 
 ## Development And Operations
 
+- [v0.5.1 Release Notes](releases/v0.5.1.md): source-free local image loading
+  and immutable imported-image generations.
 - [v0.5.0 Release Notes](releases/v0.5.0.md): immutable rootfs, observed
   capabilities, sandbox memory budgets, and the coordinated upgrade boundary.
 - [v0.4.1 Release Notes](releases/v0.4.1.md): Linux arm64 release

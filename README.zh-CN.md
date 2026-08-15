@@ -43,10 +43,11 @@ curl -fsSL https://raw.githubusercontent.com/cofy-x/axern/main/install.sh | sh
 
 ```bash
 axern local up
+axern local image load python:3.12-slim --pull
 axern run python:3.12-slim -- python -c 'print("hello from axern")'
 ```
 
-`local up` 会启动 PostgreSQL、MinIO 以及控制与节点服务，等待就绪，并创建 `local` 上下文：
+`local up` 会启动 PostgreSQL、MinIO 以及控制与节点服务，等待就绪，并创建 `local` 上下文。`local image load` 会把选定的宿主 Docker 镜像直接流式导入本地节点，不生成中间归档文件：
 
 ```bash
 axern context current
