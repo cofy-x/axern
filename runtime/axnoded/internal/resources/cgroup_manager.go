@@ -278,21 +278,26 @@ func (c *CgroupManager) MemoryCommitment() MemoryCommitment {
 	return c.memoryCommitmentLocked(time.Now().UTC())
 }
 
-// HasAllocationLease reports whether the durable ledger still owns a cgroup
-// for allocationID. Assigned and retiring leases both count: callers must not
-// treat memory capacity as released until the retiring lease is removed.
-func (c *CgroupManager) HasAllocationLease(allocationID string) bool {
+// AllocationLeaseCleanupStatus reports whether allocationID still owns a
+// durable cgroup lease and, when GC has attempted retirement, the latest
+// bounded kernel cleanup error. The diagnostic is intentionally node-local:
+// durable lease ownership remains the admission authority, while callers that
+// wait for convergence need enough evidence to distinguish a live process,
+// identity mismatch, and filesystem removal failure. Assigned and retiring
+// leases both count: callers must not treat memory capacity as released until
+// the retiring lease is removed.
+func (c *CgroupManager) AllocationLeaseCleanupStatus(allocationID string) (bool, string) {
 	if allocationID == "" {
-		return false
+		return false, ""
 	}
 	c.Lock()
 	defer c.Unlock()
 	for item := range c.leases.IterBuffered() {
 		if item.Val != nil && item.Val.GetAllocationID() == allocationID {
-			return true
+			return true, item.Val.GetLastCleanupError()
 		}
 	}
-	return false
+	return false, ""
 }
 
 func (c *CgroupManager) setPoolController(controller *poolController) {

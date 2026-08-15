@@ -268,16 +268,19 @@ func (m *Manager) MemoryCommitment() (resourcemanager.MemoryCommitment, error) {
 	return reporter.MemoryCommitment(), nil
 }
 
-func (m *Manager) CgroupCleanupPending(allocationID string) (bool, error) {
+func (m *Manager) CgroupCleanupStatus(allocationID string) (bool, string, error) {
 	manager, ok := m.resourceManagers.Get(string(resourcemanager.CgroupResourceName))
 	if !ok {
-		return false, fmt.Errorf("cgroup resource manager is unavailable")
+		return false, "", fmt.Errorf("cgroup resource manager is unavailable")
 	}
-	reporter, ok := manager.(interface{ HasAllocationLease(string) bool })
+	reporter, ok := manager.(interface {
+		AllocationLeaseCleanupStatus(string) (bool, string)
+	})
 	if !ok {
-		return false, fmt.Errorf("cgroup resource manager does not publish allocation ownership")
+		return false, "", fmt.Errorf("cgroup resource manager does not publish allocation cleanup status")
 	}
-	return reporter.HasAllocationLease(allocationID), nil
+	pending, detail := reporter.AllocationLeaseCleanupStatus(allocationID)
+	return pending, detail, nil
 }
 
 func (m *Manager) RetiringMemoryLeases() []resourcemanager.RetiringMemoryLease {
