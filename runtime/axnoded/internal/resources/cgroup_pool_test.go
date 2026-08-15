@@ -68,8 +68,6 @@ type stubCgroupRetirementMemory struct {
 	observation *hostlinux.CgroupMemoryObservation
 	inspectErr  error
 	readErr     error
-	reclaim     hostlinux.CgroupMemoryReclaimResult
-	reclaimErr  error
 }
 
 func (s *stubCgroupRetirementMemory) InspectParent(string) (*hostlinux.CgroupMemoryDomain, error) {
@@ -78,10 +76,6 @@ func (s *stubCgroupRetirementMemory) InspectParent(string) (*hostlinux.CgroupMem
 
 func (s *stubCgroupRetirementMemory) ReadObservation(string) (*hostlinux.CgroupMemoryObservation, error) {
 	return s.observation, s.readErr
-}
-
-func (s *stubCgroupRetirementMemory) Reclaim(string) (hostlinux.CgroupMemoryReclaimResult, error) {
-	return s.reclaim, s.reclaimErr
 }
 
 func TestCgroupManagerAllocateLazilyCreatesWhenPoolIsEmpty(t *testing.T) {

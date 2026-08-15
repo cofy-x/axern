@@ -27,6 +27,8 @@ enum CgroupLeaseOwnerKind {
 }
 
 message CgroupLease {
+  reserved 9;
+  reserved "reclaim_requested_at_unix_nano";
   string cgroup_id = 1;
   CgroupLifecycleState state = 2;
   string allocation_id = 3;
@@ -35,7 +37,6 @@ message CgroupLease {
   int64 retiring_at_unix_nano = 6;
   string last_cleanup_error = 7;
   int64 current_charged_bytes = 8;
-  int64 reclaim_requested_at_unix_nano = 9;
   int64 allocation_attempt = 10;
   int64 memory_limit_bytes = 11;
   string runtime_name = 12;

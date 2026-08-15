@@ -73,7 +73,6 @@ type CgroupManager struct {
 type cgroupRetirementMemory interface {
 	InspectParent(cgroupPath string) (*hostlinux.CgroupMemoryDomain, error)
 	ReadObservation(cgroupPath string) (*hostlinux.CgroupMemoryObservation, error)
-	Reclaim(cgroupPath string) (hostlinux.CgroupMemoryReclaimResult, error)
 }
 
 type hostCgroupRetirementMemory struct{}
@@ -84,10 +83,6 @@ func (hostCgroupRetirementMemory) InspectParent(cgroupPath string) (*hostlinux.C
 
 func (hostCgroupRetirementMemory) ReadObservation(cgroupPath string) (*hostlinux.CgroupMemoryObservation, error) {
 	return hostlinux.ReadCgroupMemoryObservation(cgroupPath)
-}
-
-func (hostCgroupRetirementMemory) Reclaim(cgroupPath string) (hostlinux.CgroupMemoryReclaimResult, error) {
-	return hostlinux.ReclaimCgroupMemory(cgroupPath)
 }
 
 func (c *CgroupManager) UpdateMemoryCapacity(snapshot MemoryCapacitySnapshot) error {

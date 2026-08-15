@@ -83,7 +83,6 @@ func (c *CgroupManager) Recycle(id string) error {
 	previous := proto.Clone(lease).(*apipb.CgroupLease)
 	lease.State = apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING
 	lease.RetiringAtUnixNano = time.Now().UTC().UnixNano()
-	lease.ReclaimRequestedAtUnixNano = 0
 	lease.CurrentChargedBytes = chargedBytes
 	lease.LastCleanupError = ""
 	c.leases.Set(id, lease)
@@ -201,7 +200,6 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 		lease.RuntimeName = ""
 		lease.OwnerKind = apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED
 		lease.AssignedAtUnixNano = 0
-		lease.ReclaimRequestedAtUnixNano = 0
 		c.leases.Set(id, lease)
 		c.idleID.Push(id)
 		c.Unlock()
@@ -264,7 +262,6 @@ func (c *CgroupManager) Del(num int) {
 		}
 		lease.State = apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING
 		lease.RetiringAtUnixNano = time.Now().UTC().UnixNano()
-		lease.ReclaimRequestedAtUnixNano = 0
 		c.leases.Set(id, lease)
 		c.gcQueue.Push(id)
 	}

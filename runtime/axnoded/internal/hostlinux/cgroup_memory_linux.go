@@ -264,40 +264,6 @@ func optionalCgroupMemoryInterfaceUnavailable(err error) bool {
 	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.EOPNOTSUPP)
 }
 
-func ReclaimCgroupMemory(cgroupPath string) (CgroupMemoryReclaimResult, error) {
-	return reclaimCgroupMemoryDir(resourceDirForCgroupPath(cgroupPath))
-}
-
-func reclaimCgroupMemoryDir(dir string) (CgroupMemoryReclaimResult, error) {
-	current, err := readCgroupInt64(filepath.Join(dir, "memory.current"))
-	if err != nil {
-		return CgroupMemoryReclaimNotNeeded, err
-	}
-	if current <= 0 {
-		return CgroupMemoryReclaimNotNeeded, nil
-	}
-	return classifyCgroupMemoryReclaimWrite(
-		writeCgroupFile(filepath.Join(dir, "memory.reclaim"), strconv.FormatInt(current, 10)),
-	)
-}
-
-func classifyCgroupMemoryReclaimWrite(err error) (CgroupMemoryReclaimResult, error) {
-	switch {
-	case err == nil:
-		return CgroupMemoryReclaimRequested, nil
-	case errors.Is(err, syscall.EAGAIN):
-		// The cgroup-v2 contract uses EAGAIN to report that proactive
-		// reclaim made less progress than requested. The request still ran;
-		// let retirement wait for one settling interval before the
-		// authoritative cgroup removal attempt.
-		return CgroupMemoryReclaimRequested, nil
-	case optionalCgroupMemoryInterfaceUnavailable(err):
-		return CgroupMemoryReclaimUnavailable, nil
-	default:
-		return CgroupMemoryReclaimNotNeeded, err
-	}
-}
-
 func writeAndVerifyCgroupValue(path, value string) error {
 	if err := writeCgroupFile(path, value); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
