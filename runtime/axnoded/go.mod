@@ -43,7 +43,7 @@ require go.opentelemetry.io/contrib/instrumentation/runtime v0.68.0 // indirect
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cilium/ebpf v0.9.3 // indirect
+	github.com/cilium/ebpf v0.22.0 // indirect
 	github.com/cofy-x/axern/lib/go/grpcclient v0.0.0
 	github.com/cofy-x/axern/lib/go/llmproxy v0.0.0
 	github.com/cofy-x/axern/lib/go/observability v0.0.0
