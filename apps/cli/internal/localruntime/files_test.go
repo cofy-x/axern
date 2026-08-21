@@ -3,6 +3,8 @@ package localruntime
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -13,6 +15,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	gossh "golang.org/x/crypto/ssh"
 )
 
 func TestDataDirHonorsAxernHome(t *testing.T) {
@@ -57,6 +61,51 @@ func TestGeneratedIdentityFilesAreValidAndPrivate(t *testing.T) {
 		if got := info.Mode().Perm(); got != 0o600 {
 			t.Fatalf("%s mode = %o, want 600", path, got)
 		}
+	}
+}
+
+func TestValidSSHPrivateKeyAcceptsOpenSSHEd25519(t *testing.T) {
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, err := gossh.MarshalPrivateKey(key, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "id_ed25519")
+	if err := os.WriteFile(path, pem.EncodeToMemory(block), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !validSSHPrivateKey(path) {
+		t.Fatal("OpenSSH Ed25519 private key was rejected")
+	}
+}
+
+func TestValidCertificateSetAcceptsPKCS8RSAKey(t *testing.T) {
+	dir := t.TempDir()
+	if err := ensurePKI(dir); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "ca.key")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(data)
+	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: encoded}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !validCertificateSet(dir) {
+		t.Fatal("certificate set with PKCS#8 RSA CA key was rejected")
 	}
 }
 
@@ -173,12 +222,12 @@ func TestWriteEnvGeneratesAndRepairsSecretsMasterKey(t *testing.T) {
 func TestDoctorReportsRequiredRuntimeDNSFailure(t *testing.T) {
 	t.Setenv(localDNSNameserversEnv, "127.0.0.1")
 	manager := &Manager{Dir: t.TempDir(), Runner: &recordingRunner{}, Stdout: io.Discard, Stderr: io.Discard}
-	report := manager.doctor(context.Background(), false)
+	report := manager.doctor(context.Background(), false, DoctorOptions{}, doctorDNSConfigDesired)
 	for _, check := range report.Checks {
-		if check.Code != "runtime_dns" {
+		if check.Name != "runtime_dns_config" {
 			continue
 		}
-		if check.OK || check.Severity != "required" || !strings.Contains(check.Recommendation, localDNSNameserversEnv) {
+		if check.Status != checkFail || check.Code != "runtime_dns_config_invalid" || !strings.Contains(check.Remediation, localDNSNameserversEnv) {
 			t.Fatalf("runtime DNS check = %#v", check)
 		}
 		return

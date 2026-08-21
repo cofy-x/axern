@@ -29,7 +29,7 @@ profile requires additional memory and disk.
 | `axern local image load IMAGE` | Stream a host Docker image into the local node; `--pull` fetches it first |
 | `axern local status` | Show versions, health, Dashboard, data path, context, and disk use |
 | `axern local logs [component]` | Read aggregate or component logs; supports `--follow`, `--tail`, and `--since` |
-| `axern local doctor` | Perform read-only host, Docker, port, version, and health checks |
+| `axern local doctor` | Perform read-only host, Docker, port, version, health, and Node DNS checks; `--probe` also verifies sandbox DNS |
 | `axern local down` | Remove containers and network while preserving data |
 | `axern local reset` | Permanently delete data and identity material |
 | `axern local upgrade` | Back up and explicitly migrate to the CLI's stack version |
@@ -101,7 +101,35 @@ axern local logs node --tail 200
 Local Axern discovers non-loopback resolver IPs from the host and passes them
 to axnoded for OCI workloads. Docker's container-local resolver is not copied
 into a nested sandbox because its loopback address is not reachable there.
-`axern local doctor` reports `runtime_dns` as a required check.
+`axern local doctor` validates the resolver configuration actually applied to
+an initialized stack (`runtime_dns_config`) and queries each configured
+resolver directly from the running Node container (`runtime_dns_node`). The
+configuration check uses the materialized `compose.env`, not newly discovered
+host state. Both checks are read-only and use a 15-second timeout by default;
+change it with `--check-timeout`.
+
+To verify the same DNS materialization through a real `runsc` OCI sandbox, run:
+
+```bash
+axern local doctor --probe
+```
+
+The sandbox check (`runtime_dns_sandbox`) uses the public Namespace, Secret,
+Environment, and Run APIs. Cleanup cancels an active Run, then deletes the
+Environment, Secret, and Namespace in dependency order after success, failure,
+timeout, or cancellation. The terminal Run remains as normal control-plane
+history. The default query is the project-controlled absolute name
+`axern.cofy-x.space.`. Managed-network users can select a private name with
+`--dns-query-name`; the value is injected through the temporary Secret and is
+not returned in doctor JSON details or Run arguments.
+
+The probe always connects to the product-owned `local` context and ignores a
+currently selected remote context. Explicit remote endpoint or TLS overrides
+are rejected. Sandbox execution defaults to five minutes; adjust it with
+`--probe-timeout`. The defaults are template `python311` and runtime class
+`runsc`; sandbox-only options require `--probe`. A cleanup failure is a
+required failure and should be remediated by inspecting probe-labeled local
+resources before retrying.
 
 VPNs and managed networks sometimes expose DNS through a resolver that is not
 listed in the host resolver files. Set an explicit comma-separated list before

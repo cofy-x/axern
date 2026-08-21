@@ -9,6 +9,7 @@ import (
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	"google.golang.org/grpc"
 )
 
@@ -30,12 +31,13 @@ const (
 )
 
 type Check struct {
-	Name        string      `json:"name"`
-	Status      CheckStatus `json:"status"`
-	Code        string      `json:"code"`
-	DurationMS  int64       `json:"duration_ms"`
-	Message     string      `json:"message"`
-	Remediation string      `json:"remediation,omitempty"`
+	Name        string           `json:"name"`
+	Status      CheckStatus      `json:"status"`
+	Code        string           `json:"code"`
+	DurationMS  int64            `json:"duration_ms"`
+	Message     string           `json:"message"`
+	Remediation string           `json:"remediation,omitempty"`
+	Details     map[string]int64 `json:"details,omitempty"`
 }
 
 type Report struct {
@@ -82,7 +84,14 @@ type Options struct {
 }
 
 type NamespaceClient interface {
+	CreateNamespace(context.Context, *namespacev1.CreateNamespaceRequest, ...grpc.CallOption) (*namespacev1.CreateNamespaceResponse, error)
 	GetNamespace(context.Context, *namespacev1.GetNamespaceRequest, ...grpc.CallOption) (*namespacev1.GetNamespaceResponse, error)
+	DeleteNamespace(context.Context, *namespacev1.DeleteNamespaceRequest, ...grpc.CallOption) (*namespacev1.DeleteNamespaceResponse, error)
+}
+
+type SecretClient interface {
+	CreateSecret(context.Context, *secretv1.CreateSecretRequest, ...grpc.CallOption) (*secretv1.CreateSecretResponse, error)
+	DeleteSecret(context.Context, *secretv1.DeleteSecretRequest, ...grpc.CallOption) (*secretv1.DeleteSecretResponse, error)
 }
 
 type CatalogClient interface {
@@ -109,6 +118,7 @@ type Session struct {
 	Context     context.Context
 	Identity    IdentityClient
 	Namespace   NamespaceClient
+	Secret      SecretClient
 	Catalog     CatalogClient
 	Environment EnvironmentClient
 	Run         RunClient

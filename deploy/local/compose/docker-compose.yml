@@ -13,7 +13,7 @@ services:
     volumes:
       - "${COMPOSE_STATE_DIR}/postgres:/var/lib/postgresql/data"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d axern"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d axern"]
       interval: 3s
       timeout: 3s
       retries: 20
@@ -207,7 +207,7 @@ services:
       AXNODED_GRPC_ADDRESS: 0.0.0.0:24010
       AXNODED_HTTP_ADDRESS: 0.0.0.0:23001
       AXNODED_CONTROL_PLANE_TARGET: controld:24000
-      AXNODED_CONTROL_PLANE_NODE_ID: node-compose-local
+      AXNODED_CONTROL_PLANE_NODE_ID: ${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}
       AXNODED_CONTROL_PLANE_NODE_TARGET: node:24010
       AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN: node-compose-local-dev-token
       AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL: 1s
@@ -230,7 +230,7 @@ services:
       AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
       OTEL_EXPORTER_OTLP_INSECURE: "true"
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES},axern.node_id=node-compose-local
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES},axern.node_id=${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}
     volumes:
       - "${COMPOSE_STATE_DIR}/run:/shared/run"
       - "${COMPOSE_STATE_DIR}/certs:/certs:ro"

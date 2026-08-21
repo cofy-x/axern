@@ -21,7 +21,7 @@ description: Local Axern 的环境要求、生命周期、数据、升级与故�
 | `axern local image load IMAGE` | 将宿主 Docker 镜像流式导入本地节点；`--pull` 会先拉取镜像 |
 | `axern local status` | 展示版本、健康、Dashboard、数据路径、Context 和磁盘占用 |
 | `axern local logs [component]` | 聚合或指定组件日志，支持 `--follow`、`--tail`、`--since` |
-| `axern local doctor` | 只读检查主机、Docker、端口、版本和健康状态 |
+| `axern local doctor` | 只读检查主机、Docker、端口、版本、健康状态和 Node DNS；`--probe` 额外验证 Sandbox DNS |
 | `axern local down` | 删除容器和网络，保留数据 |
 | `axern local reset` | 永久删除数据和身份材料 |
 | `axern local upgrade` | 备份并显式迁移到 CLI 对应版本 |
@@ -59,7 +59,19 @@ axern local logs node --tail 200
 
 ## 工作负载 DNS
 
-Local Axern 会从宿主机发现非 loopback DNS Resolver，并传给 axnoded 中的 OCI 工作负载。Docker 容器内的 loopback Resolver 无法从嵌套 Sandbox 访问，因此不会直接复制。`axern local doctor` 将其作为必需的 `runtime_dns` 检查。
+Local Axern 会从宿主机发现非 loopback DNS Resolver，并传给 axnoded 中的 OCI 工作负载。Docker 容器内的 loopback Resolver 无法从嵌套 Sandbox 访问，因此不会直接复制。
+
+`axern local doctor` 会验证已初始化 Stack 实际使用的 materialized `compose.env`（`runtime_dns_config`），并从运行中的 Node 容器直接查询每一个已配置 Resolver（`runtime_dns_node`）。这两项检查都是只读操作，默认超时为 15 秒，可用 `--check-timeout` 调整。
+
+要通过真实 `runsc` OCI Sandbox 和正常公共 API 路径验证 DNS，请显式运行：
+
+```bash
+axern local doctor --probe
+```
+
+Sandbox 检查（`runtime_dns_sandbox`）会通过公共 API 创建临时 Namespace、Secret、Environment 和 Run。成功、失败、超时或取消后，清理逻辑会先取消仍在运行的 Run，再按依赖顺序删除 Environment、Secret 和 Namespace；已终止的 Run 仍作为正常控制面历史保留。默认查询项目控制的绝对域名 `axern.cofy-x.space.`；企业网络可通过 `--dns-query-name` 改为私有域名。查询目标通过临时 Secret 注入，不会出现在 Run 参数、doctor JSON details 或 probe 输出中。
+
+Probe 始终连接产品管理的 `local` Context，忽略当前选中的远程 Context，并拒绝显式远程 Endpoint 或 TLS 覆盖。Sandbox 默认超时为 5 分钟，可用 `--probe-timeout` 调整；默认 Template 为 `python311`，Runtime Class 为 `runsc`，这些 Sandbox 专用参数只能与 `--probe` 一起使用。清理失败属于 required failure，应先检查带 doctor probe 标签的本地资源再重试。
 
 VPN 或企业网络有时使用宿主机 Resolver 文件中未列出的 DNS。可在启动或重建本地栈前显式设置逗号分隔的 Resolver IP：
 

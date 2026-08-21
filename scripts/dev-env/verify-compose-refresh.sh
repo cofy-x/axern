@@ -2,6 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=./lib.sh
+source "${ROOT_DIR}/scripts/dev-env/lib.sh"
+
+configure_compose_dns_verification
 
 timestamp() {
   date '+%Y-%m-%d %H:%M:%S'
@@ -59,6 +63,7 @@ run_with_retry 2 make local-compose-refresh
 log "running compose smoke suite"
 run_with_retry 2 make local-compose-smoke
 run_with_retry 2 make local-compose-doctor-smoke
+run_with_retry 2 make local-compose-dns-doctor-smoke
 run_with_retry 2 make local-compose-gateway-smoke
 run_with_retry 2 make local-compose-service-volume-smoke
 run_with_retry 2 make local-compose-run-smoke

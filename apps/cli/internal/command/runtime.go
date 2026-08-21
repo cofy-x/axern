@@ -180,6 +180,52 @@ func (r Runtime) ResolveConnection() (ResolvedConnection, error) {
 	return ResolvedConnection{ContextName: contextName, Config: resolved}, nil
 }
 
+// ResolveNamedConnection resolves a product-owned context without consulting
+// the current context or applying endpoint and TLS overrides.
+func (r Runtime) ResolveNamedConnection(name string) (ResolvedConnection, error) {
+	resolvedName, profile, ok, err := clientconfig.Resolve(r.Options.ConfigPath, name)
+	if err != nil {
+		return ResolvedConnection{}, err
+	}
+	if !ok {
+		return ResolvedConnection{}, fmt.Errorf("axern context %q is not configured", name)
+	}
+	proxyMode := strings.TrimSpace(profile.ProxyMode)
+	if proxyMode == "" {
+		proxyMode = controlv1.ProxyModeEnv
+	}
+	return ResolvedConnection{
+		ContextName: resolvedName,
+		Config: controlv1.Config{
+			Endpoint: profile.Endpoint, TLSCACert: profile.TLS.CACert, TLSCert: profile.TLS.Cert,
+			TLSKey: profile.TLS.Key, TLSServerName: profile.TLS.ServerName,
+			ProxyMode: proxyMode, Timeout: r.Options.Timeout,
+		},
+	}, nil
+}
+
+func (r Runtime) HasExplicitConnectionOverride() bool {
+	if r.Root != nil && r.Root.PersistentFlags().Changed("context") && strings.TrimSpace(r.Options.ContextName) != "" && strings.TrimSpace(r.Options.ContextName) != localruntime.ContextName {
+		return true
+	}
+	for _, value := range []struct {
+		flag string
+		env  string
+	}{
+		{"endpoint", "AXERN_ENDPOINT"},
+		{"tls-ca-cert", "AXERN_TLS_CA_CERT"},
+		{"tls-cert", "AXERN_TLS_CERT"},
+		{"tls-key", "AXERN_TLS_KEY"},
+		{"tls-server-name", "AXERN_TLS_SERVER_NAME"},
+		{"proxy-mode", "AXERN_PROXY_MODE"},
+	} {
+		if (r.Root != nil && r.Root.PersistentFlags().Changed(value.flag)) || strings.TrimSpace(os.Getenv(value.env)) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func (c ResolvedConnection) Open(ctx context.Context) (*controlv1.Session, error) {
 	return controlv1.Open(ctx, c.Config)
 }
@@ -192,7 +238,7 @@ func (r Runtime) hasExplicitConnection() bool {
 }
 
 func (r Runtime) hasExplicitValue(flagName, envName, value string) bool {
-	if r.Root.PersistentFlags().Changed(flagName) {
+	if r.Root != nil && r.Root.PersistentFlags().Changed(flagName) {
 		return strings.TrimSpace(value) != ""
 	}
 	return strings.TrimSpace(os.Getenv(envName)) != ""

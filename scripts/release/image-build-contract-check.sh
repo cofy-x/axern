@@ -49,13 +49,68 @@ if "axern_docker_build" not in runtime_build:
 if "docker buildx build" in runtime_build:
     raise SystemExit("node runtime base must not bypass the shared Docker build cache helper")
 
+function_start = runtime_source.index("import_oci_image_to_node()")
+function_end = runtime_source.index("\n}\n", function_start)
+image_import = runtime_source[function_start:function_end]
+for contract in (
+    'Content-Type: application/x-tar',
+    "--data-binary @-",
+    'http://unix/oci_import?ref=${encoded_ref}',
+):
+    if contract not in image_import:
+        raise SystemExit(f"verify OCI image import is missing the streaming API contract: {contract}")
+for obsolete in ("archive_path", "docker cp", "Content-Type: application/json"):
+    if obsolete in image_import:
+        raise SystemExit(f"verify OCI image import retains the obsolete file API contract: {obsolete}")
+
 node_runtime_dockerfile = (root / "deploy/images/lib/node-runtime-base.Dockerfile").read_text()
 for contract in (
     "COPY lib/go/agentbundle/go.mod /workspace/lib/go/agentbundle/go.mod",
     "./lib/go/agentbundle",
+    "go build -o /out/dns-probe ./cmd/dns-probe",
+    "COPY --from=axnoded-builder /out/dns-probe /usr/local/libexec/axnoded/dns-probe",
 ):
     if contract not in node_runtime_dockerfile:
-        raise SystemExit(f"node runtime base is missing the agentbundle module staging contract: {contract}")
+        raise SystemExit(f"node runtime base is missing a required build contract: {contract}")
+
+def local_replacements(go_mod_paths):
+    replacements = set()
+    for go_mod_path in go_mod_paths:
+        for line in (root / go_mod_path).read_text().splitlines():
+            fields = line.split()
+            if len(fields) == 4 and fields[0] == "replace" and fields[2] == "=>" and fields[3].startswith("../../"):
+                replacements.add(fields[3].removeprefix("../../"))
+    return replacements
+
+def docker_stage(dockerfile_path, stage_name):
+    text = dockerfile_path.read_text()
+    marker = f" AS {stage_name}"
+    start = text.index(marker)
+    start = text.rfind("\nFROM ", 0, start) + 1
+    end = text.find("\nFROM ", start + 1)
+    return text[start:] if end < 0 else text[start:end]
+
+stage_contracts = (
+    (root / "deploy/images/lib/node-runtime-base.Dockerfile", "axnoded-builder", ("runtime/axnoded/go.mod",)),
+    (root / "runtime/axnoded/docker/verify/Dockerfile", "axnoded-verify-builder", ("runtime/axnoded/go.mod",)),
+    (root / "runtime/axnoded/docker/benchmark/Dockerfile", "axnoded-builder", ("runtime/axnoded/go.mod",)),
+    (
+        root / "runtime/axnoded/docker/verify/Dockerfile",
+        "controld-builder",
+        ("control/controld/go.mod", "control/storaged/go.mod", "gateway/gatewayd/go.mod"),
+    ),
+)
+for dockerfile_path, stage_name, go_mod_paths in stage_contracts:
+    dockerfile = docker_stage(dockerfile_path, stage_name)
+    for relative_path in local_replacements(go_mod_paths):
+        if f"COPY {relative_path}/go.mod" not in dockerfile:
+            raise SystemExit(
+                f"{dockerfile_path.relative_to(root)} stage {stage_name} does not copy local module {relative_path}"
+            )
+        if f"./{relative_path}" not in dockerfile:
+            raise SystemExit(
+                f"{dockerfile_path.relative_to(root)} stage {stage_name} omits local module {relative_path} from go.work"
+            )
 
 cache_helper = (root / "scripts/dev-env/docker-build-cache.sh").read_text()
 source_label = '--label "org.opencontainers.image.source=${AXERN_OCI_SOURCE_LABEL}"'
