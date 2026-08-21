@@ -132,6 +132,31 @@ func TestResolveConnectionExplicitTransportDoesNotReadContext(t *testing.T) {
 	}
 }
 
+func TestResolveNamedConnectionIgnoresCurrentContextAndOverrides(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{
+  "current_context": "remote",
+  "contexts": {
+    "local": {"endpoint": "local:443", "tls": {"ca_cert": "local-ca", "cert": "local-cert", "key": "local-key"}},
+    "remote": {"endpoint": "remote:443", "tls": {"ca_cert": "remote-ca", "cert": "remote-cert", "key": "remote-key"}}
+  }
+}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AXERN_ENDPOINT", "override:443")
+	runtime := Runtime{Options: &Options{ConfigPath: path}, Root: bareRoot()}
+	connection, err := runtime.ResolveNamedConnection("local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if connection.ContextName != "local" || connection.Config.Endpoint != "local:443" || connection.Config.TLSCACert != "local-ca" {
+		t.Fatalf("ResolveNamedConnection() = %+v", connection)
+	}
+	if !runtime.HasExplicitConnectionOverride() {
+		t.Fatal("environment endpoint override was not detected")
+	}
+}
+
 func TestPinLocalEnvironmentImage(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("AXERN_HOME", root)
@@ -201,7 +226,7 @@ func TestPinLocalEnvironmentImage(t *testing.T) {
 
 func bareRoot() *cobra.Command {
 	root := &cobra.Command{Use: "test"}
-	for _, name := range []string{"endpoint", "tls-ca-cert", "tls-cert", "tls-key", "tls-server-name", "proxy-mode"} {
+	for _, name := range []string{"context", "endpoint", "tls-ca-cert", "tls-cert", "tls-key", "tls-server-name", "proxy-mode"} {
 		root.PersistentFlags().String(name, "", "")
 	}
 	return root

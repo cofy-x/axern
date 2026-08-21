@@ -270,7 +270,7 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 			return nil
 		}
 	}
-	if report := m.doctor(ctx, false); !report.Healthy {
+	if report := m.doctor(ctx, false, DoctorOptions{}, doctorDNSConfigDesired); report.Status == doctorFailed {
 		return fmt.Errorf("local prerequisites are not ready; run `axern local doctor`")
 	}
 	if err := m.materialize(options.Profile); err != nil {
@@ -720,101 +720,125 @@ func parseComposePS(data []byte) []Component {
 	return components
 }
 
-func (m *Manager) Doctor(ctx context.Context) DoctorReport {
-	return m.doctor(ctx, true)
+func (m *Manager) Doctor(ctx context.Context, options DoctorOptions) DoctorReport {
+	return m.doctor(ctx, true, options, doctorDNSConfigApplied)
 }
 
-func (m *Manager) doctor(ctx context.Context, inspectRuntime bool) DoctorReport {
-	report := DoctorReport{Healthy: true}
-	add := func(code string, ok bool, message, recommendation string) {
-		report.Checks = append(report.Checks, Check{Code: code, OK: ok, Severity: "required", Message: message, Recommendation: recommendation})
-		if !ok {
-			report.Healthy = false
+func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options DoctorOptions, dnsConfigSource doctorDNSConfigSource) DoctorReport {
+	if options.CheckTimeout <= 0 {
+		options.CheckTimeout = 15 * time.Second
+	}
+	queryName, queryErr := NormalizeDNSQueryName(options.QueryName)
+	if options.QueryName == "" {
+		queryName, queryErr = NormalizeDNSQueryName("axern.cofy-x.space.")
+	}
+	report := newDoctorReport(options.Probe)
+	add := func(name string, ok bool, passCode, failCode, message, remediation string) {
+		status, code := checkPass, passCode
+		if ok {
+			remediation = ""
+		} else {
+			status, code = checkFail, failCode
 		}
+		report.add(doctorCheck(name, status, code, message, remediation, time.Time{}, nil))
 	}
-	advise := func(code string, ok bool, message, recommendation string) {
-		report.Checks = append(report.Checks, Check{Code: code, OK: ok, Severity: "recommended", Message: message, Recommendation: recommendation})
+	advise := func(name string, ok bool, passCode, failCode, message, remediation string) {
+		status, code := checkPass, passCode
+		if ok {
+			remediation = ""
+		} else {
+			status, code = checkWarn, failCode
+		}
+		report.add(doctorCheck(name, status, code, message, remediation, time.Time{}, nil))
 	}
-	if nameservers, err := localDNSNameservers(); err != nil {
-		add("runtime_dns", false, "no usable host DNS resolver was found for local workloads", "set AXERN_LOCAL_DNS_NAMESERVERS to a comma-separated list of reachable resolver IPs")
+	nameservers, dnsErr := m.doctorDNSNameservers(dnsConfigSource)
+	dnsConfigOK := dnsErr == nil && queryErr == nil
+	if dnsConfigOK {
+		report.add(doctorCheck("runtime_dns_config", checkPass, "runtime_dns_config_valid", "runtime DNS configuration is valid", "", time.Time{}, map[string]int64{"resolver_count": int64(len(nameservers))}))
 	} else {
-		add("runtime_dns", true, fmt.Sprintf("%d usable host DNS resolver(s) detected", len(nameservers)), "")
+		report.add(doctorCheck("runtime_dns_config", checkFail, "runtime_dns_config_invalid", "runtime DNS configuration is invalid", "set AXERN_LOCAL_DNS_NAMESERVERS to a comma-separated list of reachable resolver IPs", time.Time{}, nil))
 	}
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
-		add("host_platform", false, runtime.GOOS+" is not supported", "use macOS or Linux with Docker")
+		add("host_platform", false, "host_platform_supported", "host_platform_unsupported", runtime.GOOS+" is not supported", "use macOS or Linux with Docker")
 	} else {
-		add("host_platform", true, runtime.GOOS+"/"+runtime.GOARCH+" is supported", "")
+		add("host_platform", true, "host_platform_supported", "host_platform_unsupported", runtime.GOOS+"/"+runtime.GOARCH+" is supported", "")
 	}
-	add("cpu_minimum", runtime.NumCPU() >= 2, fmt.Sprintf("%d CPU cores are available", runtime.NumCPU()), "allocate at least 2 CPU cores to this host")
-	advise("cpu_recommended", runtime.NumCPU() >= 4, fmt.Sprintf("%d CPU cores are available; 4 are recommended", runtime.NumCPU()), "allocate 4 or more CPU cores for smoother workload startup")
+	add("cpu_minimum", runtime.NumCPU() >= 2, "cpu_minimum_met", "cpu_minimum_not_met", fmt.Sprintf("%d CPU cores are available", runtime.NumCPU()), "allocate at least 2 CPU cores to this host")
+	advise("cpu_recommended", runtime.NumCPU() >= 4, "cpu_recommended_met", "cpu_recommended_not_met", fmt.Sprintf("%d CPU cores are available; 4 are recommended", runtime.NumCPU()), "allocate 4 or more CPU cores for smoother workload startup")
 	diskPath, pathErr := existingParent(m.Dir)
 	if pathErr != nil {
-		add("data_path", false, "local data directory cannot be inspected", "set AXERN_HOME to a writable directory")
+		add("data_path", false, "data_path_writable", "data_path_unavailable", "local data directory cannot be inspected", "set AXERN_HOME to a writable directory")
 	} else if info, err := os.Stat(diskPath); err != nil || info.Mode().Perm()&0o222 == 0 {
-		add("data_path", false, "local data directory is not writable", "set AXERN_HOME to a writable directory")
+		add("data_path", false, "data_path_writable", "data_path_unwritable", "local data directory is not writable", "set AXERN_HOME to a writable directory")
 	} else {
-		add("data_path", true, "local data path is writable", "")
+		add("data_path", true, "data_path_writable", "data_path_unwritable", "local data path is writable", "")
 	}
 	if pathErr != nil {
-		add("disk", false, "free disk space could not be inspected", "verify the local data filesystem is mounted")
+		add("disk_minimum", false, "disk_minimum_met", "disk_unavailable", "free disk space could not be inspected", "verify the local data filesystem is mounted")
 	} else if free, err := availableDisk(diskPath); err != nil {
-		add("disk", false, "free disk space could not be inspected", "verify the local data filesystem is mounted and writable")
+		add("disk_minimum", false, "disk_minimum_met", "disk_unavailable", "free disk space could not be inspected", "verify the local data filesystem is mounted and writable")
 	} else {
-		add("disk_minimum", free >= 10<<30, fmt.Sprintf("%s of disk space is available", humanBytes(free)), "free at least 10 GiB on the local data filesystem")
-		advise("disk_recommended", free >= 20<<30, fmt.Sprintf("%s is available; 20 GiB is recommended", humanBytes(free)), "free 20 GiB or more for runtime images and workload output")
+		add("disk_minimum", free >= 10<<30, "disk_minimum_met", "disk_minimum_not_met", fmt.Sprintf("%s of disk space is available", humanBytes(free)), "free at least 10 GiB on the local data filesystem")
+		advise("disk_recommended", free >= 20<<30, "disk_recommended_met", "disk_recommended_not_met", fmt.Sprintf("%s is available; 20 GiB is recommended", humanBytes(free)), "free 20 GiB or more for runtime images and workload output")
 	}
 	if _, err := exec.LookPath("docker"); err != nil {
-		add("docker_cli", false, "Docker CLI was not found", "install Docker Desktop or Docker Engine")
+		add("docker_cli", false, "docker_cli_available", "docker_cli_unavailable", "Docker CLI was not found", "install Docker Desktop or Docker Engine")
+		report.add(skippedDoctorCheck("runtime_dns_node", "runtime_dns_node_skipped", "Node DNS probe requires Docker"))
+		report.add(skippedDoctorCheck("runtime_dns_sandbox", "runtime_dns_sandbox_skipped", "sandbox DNS probe requires Docker"))
 		return report
 	}
-	add("docker_cli", true, "Docker CLI is installed", "")
+	add("docker_cli", true, "docker_cli_available", "docker_cli_unavailable", "Docker CLI is installed", "")
 	dockerInfo, dockerErr := m.Runner.Output(ctx, "docker", "info", "--format", "{{.ServerVersion}} {{.Architecture}} {{.MemTotal}}")
 	if dockerErr != nil {
-		add("docker_daemon", false, "Docker daemon is not available", "start Docker Desktop or the Docker service")
+		add("docker_daemon", false, "docker_daemon_available", "docker_daemon_unavailable", "Docker daemon is not available", "start Docker Desktop or the Docker service")
 	} else {
-		add("docker_daemon", true, "Docker daemon is available", "")
+		add("docker_daemon", true, "docker_daemon_available", "docker_daemon_unavailable", "Docker daemon is available", "")
 		parts := strings.Fields(string(dockerInfo))
 		if len(parts) >= 3 {
 			architecture := parts[1]
 			archOK := (runtime.GOARCH == "amd64" && (architecture == "x86_64" || architecture == "amd64")) || (runtime.GOARCH == "arm64" && (architecture == "aarch64" || architecture == "arm64"))
-			add("docker_architecture", archOK, "Docker architecture is "+architecture, "configure Docker to use the host architecture")
+			add("docker_architecture", archOK, "docker_architecture_compatible", "docker_architecture_incompatible", "Docker architecture is "+architecture, "configure Docker to use the host architecture")
 			memory, _ := strconv.ParseInt(parts[2], 10, 64)
-			add("docker_memory_minimum", memory >= 6<<30, fmt.Sprintf("Docker has %s of memory", humanBytes(memory)), "allocate at least 6 GiB to Docker")
-			advise("docker_memory_recommended", memory >= 8<<30, fmt.Sprintf("Docker has %s of memory; 8 GiB is recommended", humanBytes(memory)), "allocate 8 GiB or more to Docker")
+			add("docker_memory_minimum", memory >= 6<<30, "docker_memory_minimum_met", "docker_memory_minimum_not_met", fmt.Sprintf("Docker has %s of memory", humanBytes(memory)), "allocate at least 6 GiB to Docker")
+			advise("docker_memory_recommended", memory >= 8<<30, "docker_memory_recommended_met", "docker_memory_recommended_not_met", fmt.Sprintf("Docker has %s of memory; 8 GiB is recommended", humanBytes(memory)), "allocate 8 GiB or more to Docker")
 		}
 	}
 	if _, err := m.Runner.Output(ctx, "docker", "compose", "version", "--short"); err != nil {
-		add("compose_v2", false, "Docker Compose v2 is not available", "install the Docker Compose v2 plugin")
+		add("compose_v2", false, "compose_v2_available", "compose_v2_unavailable", "Docker Compose v2 is not available", "install the Docker Compose v2 plugin")
 	} else {
-		add("compose_v2", true, "Docker Compose v2 is available", "")
+		add("compose_v2", true, "compose_v2_available", "compose_v2_unavailable", "Docker Compose v2 is available", "")
 	}
 	metadata, metadataErr := loadMetadata(m.metadataPath())
 	if metadataErr == nil && metadata.Version != m.Version {
-		add("stack_version", false, fmt.Sprintf("local stack is %s and CLI is %s", metadata.Version, m.Version), "run `axern local upgrade`")
+		add("stack_version", false, "stack_version_compatible", "stack_version_incompatible", fmt.Sprintf("local stack is %s and CLI is %s", metadata.Version, m.Version), "run `axern local upgrade`")
 	} else {
-		add("stack_version", true, "local stack version is compatible", "")
+		add("stack_version", true, "stack_version_compatible", "stack_version_incompatible", "local stack version is compatible", "")
 	}
+	stackRunning := false
+	profile := ""
 	if metadataErr == nil {
+		profile = metadata.Profile
 		identityOK := validCertificateSet(filepath.Join(m.Dir, "certs")) && validSSHPrivateKey(filepath.Join(m.Dir, "ssh", "gateway_host_ed25519")) && validSSHPrivateKey(filepath.Join(m.Dir, "ssh", "gateway_client_ed25519"))
 		identityMessage := "local certificate and SSH identity material is valid"
 		if !identityOK {
 			identityMessage = "local certificate or SSH identity material is missing or invalid"
 		}
-		add("local_identity", identityOK, identityMessage, "restore the identity directory from backup or run `axern local reset`")
+		add("local_identity", identityOK, "local_identity_valid", "local_identity_invalid", identityMessage, "restore the identity directory from backup or run `axern local reset`")
 		if inspectRuntime && dockerErr == nil {
 			status, statusErr := m.Status(ctx)
 			switch {
 			case statusErr != nil:
-				add("stack_runtime", false, "local component status could not be inspected", "run `axern local status` and inspect Docker Compose logs")
+				add("stack_runtime", false, "stack_runtime_healthy", "stack_runtime_unavailable", "local component status could not be inspected", "run `axern local status` and inspect Docker Compose logs")
 			case status.State == "stopped":
-				advise("stack_runtime", false, "local services are stopped", "run `axern local up`")
+				advise("stack_runtime", false, "stack_runtime_healthy", "stack_runtime_stopped", "local services are stopped", "run `axern local up`")
 			case status.State != "running":
-				add("stack_runtime", false, "one or more local components are not healthy", "run `axern local status` and `axern local logs`")
+				add("stack_runtime", false, "stack_runtime_healthy", "stack_runtime_unhealthy", "one or more local components are not healthy", "run `axern local status` and `axern local logs`")
 			default:
-				add("stack_runtime", true, "all local components are healthy", "")
+				stackRunning = true
+				add("stack_runtime", true, "stack_runtime_healthy", "stack_runtime_unhealthy", "all local components are healthy", "")
 				request, _ := http.NewRequestWithContext(ctx, http.MethodGet, status.DashboardURL+"/healthz", nil)
 				response, gatewayErr := (&http.Client{Timeout: 3 * time.Second}).Do(request)
-				gatewayOK := gatewayErr == nil && response.StatusCode == http.StatusOK
+				gatewayOK := gatewayErr == nil && response != nil && response.StatusCode == http.StatusOK
 				if response != nil {
 					response.Body.Close()
 				}
@@ -822,13 +846,13 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool) DoctorReport 
 				if !gatewayOK {
 					gatewayMessage = "local gateway health endpoint is not reachable"
 				}
-				add("gateway_connectivity", gatewayOK, gatewayMessage, "inspect `axern local logs gatewayd` and verify local firewall settings")
-				nodeOK := m.localNodeReady(ctx, &http.Client{Timeout: 3 * time.Second})
+				add("gateway_connectivity", gatewayOK, "gateway_connectivity_reachable", "gateway_connectivity_unreachable", gatewayMessage, "inspect `axern local logs gatewayd` and verify local firewall settings")
+				nodeOK := m.nodeReady(ctx, &http.Client{Timeout: 3 * time.Second}, m.doctorNodeID())
 				nodeMessage := "local node is registered with fresh heartbeat and inventory"
 				if !nodeOK {
 					nodeMessage = "local node registration, heartbeat, or inventory is not fresh"
 				}
-				add("node_registration", nodeOK, nodeMessage, "inspect `axern local logs node` and `axern local logs controld`")
+				add("node_registration", nodeOK, "node_registration_healthy", "node_registration_unhealthy", nodeMessage, "inspect `axern local logs node` and `axern local logs controld`")
 			}
 		}
 	}
@@ -836,11 +860,28 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool) DoctorReport 
 		for _, port := range []int{GatewayControlPort, GatewayHTTPPort, GatewaySSHPort, 24101, 25432, 29000, 29001} {
 			listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 			if err != nil {
-				add("port_"+strconv.Itoa(port), false, fmt.Sprintf("port %d is already in use", port), fmt.Sprintf("stop the process using port %d", port))
+				add("port_"+strconv.Itoa(port), false, "port_available", "port_in_use", fmt.Sprintf("port %d is already in use", port), fmt.Sprintf("stop the process using port %d", port))
 			} else {
 				listener.Close()
 			}
 		}
+	}
+	nodeDNSOK := false
+	if !inspectRuntime || !dnsConfigOK || !stackRunning {
+		report.add(skippedDoctorCheck("runtime_dns_node", "runtime_dns_node_skipped", "Node DNS probe prerequisites are not satisfied"))
+	} else {
+		nodeCheck := m.probeNodeDNS(ctx, profile, queryName, options.CheckTimeout)
+		report.add(nodeCheck)
+		nodeDNSOK = nodeCheck.Status == checkPass || nodeCheck.Status == checkWarn
+	}
+	if !options.Probe {
+		report.add(skippedDoctorCheck("runtime_dns_sandbox", "runtime_dns_sandbox_skipped", "sandbox DNS probe was not requested"))
+	} else if !dnsConfigOK || !stackRunning || !nodeDNSOK {
+		report.add(skippedDoctorCheck("runtime_dns_sandbox", "runtime_dns_sandbox_skipped", "sandbox DNS probe prerequisites are not satisfied"))
+	} else if options.SandboxProbe == nil {
+		report.add(doctorCheck("runtime_dns_sandbox", checkFail, "runtime_dns_sandbox_probe_failed", "sandbox DNS probe is unavailable", "verify the local context and retry", time.Time{}, nil))
+	} else {
+		report.add(options.SandboxProbe(ctx))
 	}
 	return report
 }
@@ -910,8 +951,9 @@ func (m *Manager) writeEnv(profile string) error {
 		"PYTHON311_RUNTIME_IMAGE": images["PYTHON311_RUNTIME_IMAGE"], "SERVER_BASE_RUNTIME_IMAGE": images["SERVER_BASE_RUNTIME_IMAGE"], "CODING_BASE_RUNTIME_IMAGE": images["CODING_BASE_RUNTIME_IMAGE"], "DESKTOP_BASE_RUNTIME_IMAGE": images["DESKTOP_BASE_RUNTIME_IMAGE"], "CLAUDE_CODE_BUNDLE_IMAGE": images["CLAUDE_CODE_BUNDLE_IMAGE"], "CODEX_BUNDLE_IMAGE": images["CODEX_BUNDLE_IMAGE"],
 		"OTEL_COLLECTOR_IMAGE": images["OTEL_COLLECTOR_IMAGE"], "OTEL_LGTM_IMAGE": images["OTEL_LGTM_IMAGE"], "AXERN_SECRETS_MASTER_KEY": secretValues["master"], "LOCAL_DEV_TOKEN": secretValues["dev_token"], "NODE_AUTH_TOKEN": secretValues["node_token"],
 		"CONTAINER_HTTP_PROXY": httpProxy, "CONTAINER_HTTPS_PROXY": httpsProxy, "CONTAINER_NO_PROXY": noProxy, "REGISTRY_PROXY_URL": firstNonEmpty(httpsProxy, httpProxy), "CONTROLD_INSECURE_REGISTRIES": "", "OTEL_ENABLED": otelEnabled, "OTEL_EXPORTER_OTLP_ENDPOINT": otelEndpoint,
-		"AXNODED_DNS_NAMESERVERS": strings.Join(dnsNameservers, ","),
-		"LOCAL_UID":               strconv.Itoa(os.Getuid()), "LOCAL_GID": strconv.Itoa(os.Getgid()), "CONTROLD_HTTP_PORT": "24101", "GATEWAY_CONTROL_PORT": strconv.Itoa(GatewayControlPort), "GATEWAY_HTTP_PORT": strconv.Itoa(GatewayHTTPPort), "GATEWAY_SSH_PORT": strconv.Itoa(GatewaySSHPort), "POSTGRES_PORT": "25432", "MINIO_API_PORT": "29000", "MINIO_CONSOLE_PORT": "29001", "OTEL_GRPC_PORT": "4317", "OTEL_HTTP_PORT": "4318", "LGTM_UI_PORT": "13000",
+		"AXNODED_CONTROL_PLANE_NODE_ID": LocalNodeID,
+		"AXNODED_DNS_NAMESERVERS":       strings.Join(dnsNameservers, ","),
+		"LOCAL_UID":                     strconv.Itoa(os.Getuid()), "LOCAL_GID": strconv.Itoa(os.Getgid()), "CONTROLD_HTTP_PORT": "24101", "GATEWAY_CONTROL_PORT": strconv.Itoa(GatewayControlPort), "GATEWAY_HTTP_PORT": strconv.Itoa(GatewayHTTPPort), "GATEWAY_SSH_PORT": strconv.Itoa(GatewaySSHPort), "POSTGRES_PORT": "25432", "MINIO_API_PORT": "29000", "MINIO_CONSOLE_PORT": "29001", "OTEL_GRPC_PORT": "4317", "OTEL_HTTP_PORT": "4318", "LGTM_UI_PORT": "13000",
 	}
 	keys := make([]string, 0, len(values))
 	for key := range values {
@@ -1011,6 +1053,10 @@ func (m *Manager) waitReady(ctx context.Context, timeout time.Duration) error {
 }
 
 func (m *Manager) localNodeReady(ctx context.Context, client *http.Client) bool {
+	return m.nodeReady(ctx, client, LocalNodeID)
+}
+
+func (m *Manager) nodeReady(ctx context.Context, client *http.Client, expectedNodeID string) bool {
 	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:24101/nodesz", nil)
 	response, err := client.Do(request)
 	if err != nil {
@@ -1030,7 +1076,7 @@ func (m *Manager) localNodeReady(ctx context.Context, client *http.Client) bool 
 		return false
 	}
 	for _, node := range payload.Nodes {
-		if node.NodeID == "node-local" && node.Fresh {
+		if node.NodeID == expectedNodeID && node.Fresh {
 			return true
 		}
 	}

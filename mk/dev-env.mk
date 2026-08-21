@@ -1,7 +1,7 @@
 .PHONY: quickstart quickstart-source axern-config-init \
 		local-images-build local-node-images-build nydus-builder-image registry-nydus-image-build \
 		local-compose-up local-compose-down local-compose-status local-compose-purge local-compose-reset local-compose-refresh local-compose-refresh-verify local-compose-image-import local-compose-image-service-smoke local-compose-registry-image-smoke local-compose-image-mount-smoke local-compose-agent-bundle-matrix-smoke local-compose-claude-code-image-mount-smoke local-compose-codex-image-mount-smoke local-compose-nydus-smoke \
-		local-compose-smoke local-compose-doctor-smoke local-compose-gateway-smoke local-compose-gateway-ssh-e2e local-compose-service-volume-smoke local-compose-run-smoke local-compose-function-smoke local-compose-server-base-smoke local-compose-quota-smoke local-compose-tunnel-e2e local-compose-python-sdk-e2e local-compose-computer-use-e2e local-compose-go-sdk-e2e local-compose-managed-rollout-e2e tunnel-benchmark-compose \
+		local-compose-smoke local-compose-doctor-smoke local-compose-dns-doctor-smoke local-compose-gateway-smoke local-compose-gateway-ssh-e2e local-compose-service-volume-smoke local-compose-run-smoke local-compose-function-smoke local-compose-server-base-smoke local-compose-quota-smoke local-compose-tunnel-e2e local-compose-python-sdk-e2e local-compose-computer-use-e2e local-compose-go-sdk-e2e local-compose-managed-rollout-e2e tunnel-benchmark-compose \
 		kind-up kind-down kind-status kind-purge kind-reset kind-refresh kind-refresh-verify registry-up registry-status registry-down registry-image-push kind-image-import kind-image-service-smoke kind-axern-registry-image-smoke kind-axern-nydus-smoke kind-smoke kind-gateway-smoke kind-service-volume-smoke kind-run-smoke kind-server-base-smoke kind-quota-smoke kind-tunnel-e2e kind-tunnel-relay-e2e kind-tunnel-multirelay-e2e kube-env-kind \
 		local-refresh-verify local-truth-verify local-storage-verify \
 		sdk-go-examples-smoke
@@ -78,6 +78,9 @@ local-compose-smoke: ## Run the local Docker Compose truth-environment smoke con
 
 local-compose-doctor-smoke: ## Verify platform doctor read and data-plane probe paths in Compose
 	bash $(ROOTDIR)/scripts/dev-env/compose-doctor-smoke.sh
+
+local-compose-dns-doctor-smoke: ## Verify product local doctor config, Node, and sandbox DNS paths in Compose
+	bash $(ROOTDIR)/scripts/dev-env/compose-dns-doctor-smoke.sh
 
 local-compose-gateway-smoke: ## Run the local Docker Compose gateway HTTP and terminal smoke contract
 	bash $(ROOTDIR)/scripts/dev-env/compose-gateway-smoke.sh

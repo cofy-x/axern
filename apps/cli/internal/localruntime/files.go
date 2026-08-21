@@ -20,6 +20,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	gossh "golang.org/x/crypto/ssh"
 )
 
 func DataDir() (string, error) {
@@ -178,7 +180,13 @@ func validCertificateSet(dir string) bool {
 		return false
 	}
 	if _, err := x509.ParsePKCS1PrivateKey(caKeyBlock.Bytes); err != nil {
-		return false
+		key, parseErr := x509.ParsePKCS8PrivateKey(caKeyBlock.Bytes)
+		if parseErr != nil {
+			return false
+		}
+		if _, ok := key.(*rsa.PrivateKey); !ok {
+			return false
+		}
 	}
 	return true
 }
@@ -261,16 +269,16 @@ func validSSHPrivateKey(path string) bool {
 	if err != nil {
 		return false
 	}
-	block, _ := pem.Decode(data)
-	if block == nil {
-		return false
-	}
-	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	key, err := gossh.ParseRawPrivateKey(data)
 	if err != nil {
 		return false
 	}
-	_, ok := key.(ed25519.PrivateKey)
-	return ok
+	switch key.(type) {
+	case ed25519.PrivateKey, *ed25519.PrivateKey:
+		return true
+	default:
+		return false
+	}
 }
 
 func sshPublicKey(key ed25519.PublicKey) string {

@@ -1,10 +1,14 @@
 package localruntime
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 const (
 	ProjectName        = "axern-local"
 	ContextName        = "local"
+	LocalNodeID        = "node-local"
 	GatewayControlPort = 25000
 	GatewayHTTPPort    = 25080
 	GatewaySSHPort     = 25022
@@ -39,16 +43,26 @@ type Status struct {
 }
 
 type Check struct {
-	Code           string `json:"code"`
-	OK             bool   `json:"ok"`
-	Severity       string `json:"severity"`
-	Message        string `json:"message"`
-	Recommendation string `json:"recommendation,omitempty"`
+	Name        string           `json:"name"`
+	Status      string           `json:"status"`
+	Code        string           `json:"code"`
+	DurationMS  int64            `json:"duration_ms"`
+	Message     string           `json:"message"`
+	Remediation string           `json:"remediation,omitempty"`
+	Details     map[string]int64 `json:"details,omitempty"`
 }
 
 type DoctorReport struct {
-	Healthy bool    `json:"healthy"`
-	Checks  []Check `json:"checks"`
+	Status string  `json:"status"`
+	Mode   string  `json:"mode"`
+	Checks []Check `json:"checks"`
+}
+
+type DoctorOptions struct {
+	Probe        bool
+	QueryName    string
+	CheckTimeout time.Duration
+	SandboxProbe func(context.Context) Check
 }
 
 type UpOptions struct {

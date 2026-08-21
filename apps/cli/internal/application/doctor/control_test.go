@@ -21,6 +21,7 @@ import (
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	"google.golang.org/grpc"
 )
 
@@ -146,12 +147,92 @@ func TestDiagnoseProbeFailureStillCancelsRunAndDeletesEnvironment(t *testing.T) 
 	}
 }
 
+func TestDNSProbeUsesSecretEnvAndCleansResources(t *testing.T) {
+	namespace := &fakeNamespaceClient{}
+	secret := &fakeSecretClient{}
+	environment := &fakeEnvironmentClient{}
+	runs := &fakeRunClient{}
+	check := DNSProbe(context.Background(), &Session{Namespace: namespace, Secret: secret, Environment: environment, Run: runs}, DNSProbeOptions{
+		QueryName: "private.corp.example.", TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Second,
+	})
+	if check.Status != CheckPass || check.Code != "runtime_dns_sandbox_resolved" {
+		t.Fatalf("DNSProbe() = %#v", check)
+	}
+	if namespace.createCalls != 1 || namespace.deleteCalls != 1 || secret.createCalls != 1 || secret.deleteCalls != 1 || environment.deleteCalls != 1 {
+		t.Fatalf("cleanup counts: namespace=%d/%d secret=%d/%d environment=%d", namespace.createCalls, namespace.deleteCalls, secret.createCalls, secret.deleteCalls, environment.deleteCalls)
+	}
+	if got := secret.createRequest.GetStringData()["query_name"]; got != "private.corp.example." {
+		t.Fatalf("secret query name = %q", got)
+	}
+	if strings.Contains(strings.Join(runs.createRequest.GetConfig().GetArgv(), " "), "private.corp.example") {
+		t.Fatal("Run argv contains the DNS query name")
+	}
+	secretEnv := runs.createRequest.GetConfig().GetSecretEnv()
+	if len(secretEnv) != 1 || secretEnv[0].GetSecretID() != "secret-probe" {
+		t.Fatalf("secret env = %#v", secretEnv)
+	}
+}
+
+func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
+	t.Run("creation", func(t *testing.T) {
+		namespace := &fakeNamespaceClient{}
+		check := DNSProbe(context.Background(), &Session{
+			Namespace: namespace, Secret: &fakeSecretClient{createErr: errors.New("create secret")},
+			Environment: &fakeEnvironmentClient{}, Run: &fakeRunClient{},
+		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Second})
+		if check.Code != "runtime_dns_sandbox_probe_failed" || namespace.deleteCalls != 1 {
+			t.Fatalf("DNSProbe() = %#v, namespace deletes = %d", check, namespace.deleteCalls)
+		}
+	})
+	t.Run("query", func(t *testing.T) {
+		for name, exitCode := range map[string]int32{"lookup error": 20, "no IP address": 21} {
+			t.Run(name, func(t *testing.T) {
+				check := DNSProbe(context.Background(), &Session{
+					Namespace: &fakeNamespaceClient{}, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{},
+					Run: &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_FAILED, exitCodeKnown: true, exitCode: exitCode},
+				}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Second})
+				if check.Code != "runtime_dns_sandbox_query_failed" {
+					t.Fatalf("DNSProbe() = %#v", check)
+				}
+			})
+		}
+	})
+	t.Run("unexpected workload exit", func(t *testing.T) {
+		check := DNSProbe(context.Background(), &Session{
+			Namespace: &fakeNamespaceClient{}, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{},
+			Run: &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_FAILED, exitCodeKnown: true, exitCode: 2},
+		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Second})
+		if check.Code != "runtime_dns_sandbox_probe_failed" {
+			t.Fatalf("DNSProbe() = %#v", check)
+		}
+	})
+	t.Run("timeout", func(t *testing.T) {
+		runs := &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_RUNNING}
+		check := DNSProbe(context.Background(), &Session{
+			Namespace: &fakeNamespaceClient{}, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{}, Run: runs,
+		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Millisecond})
+		if check.Code != "runtime_dns_sandbox_probe_failed" || runs.cancelCalls != 1 {
+			t.Fatalf("DNSProbe() = %#v, run cancels = %d", check, runs.cancelCalls)
+		}
+	})
+	t.Run("cleanup", func(t *testing.T) {
+		check := DNSProbe(context.Background(), &Session{
+			Namespace: &fakeNamespaceClient{deleteErr: errors.New("delete namespace")}, Secret: &fakeSecretClient{},
+			Environment: &fakeEnvironmentClient{}, Run: &fakeRunClient{},
+		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Second})
+		if check.Code != "runtime_dns_sandbox_cleanup_failed" {
+			t.Fatalf("DNSProbe() = %#v", check)
+		}
+	})
+}
+
 func successfulOpener(environments *fakeEnvironmentClient, runs *fakeRunClient) SessionOpener {
 	return func(ctx context.Context) (*Session, error) {
 		return &Session{
 			Context:     ctx,
 			Identity:    &fakeIdentityClient{},
 			Namespace:   &fakeNamespaceClient{},
+			Secret:      &fakeSecretClient{},
 			Catalog:     &fakeCatalogClient{},
 			Environment: environments,
 			Run:         runs,
@@ -229,10 +310,48 @@ func writeTLSFixture(t *testing.T, now time.Time, validity time.Duration) TLSCon
 	return TLSConfig{CACert: caPath, Cert: certPath, Key: keyPath}
 }
 
-type fakeNamespaceClient struct{}
+type fakeNamespaceClient struct {
+	createCalls int
+	deleteCalls int
+	deleteErr   error
+}
+
+func (f *fakeNamespaceClient) CreateNamespace(_ context.Context, request *namespacev1.CreateNamespaceRequest, _ ...grpc.CallOption) (*namespacev1.CreateNamespaceResponse, error) {
+	f.createCalls++
+	return &namespacev1.CreateNamespaceResponse{Namespace: &namespacev1.Namespace{Namespace: request.GetNamespace()}}, nil
+}
 
 func (*fakeNamespaceClient) GetNamespace(context.Context, *namespacev1.GetNamespaceRequest, ...grpc.CallOption) (*namespacev1.GetNamespaceResponse, error) {
 	return &namespacev1.GetNamespaceResponse{Namespace: &namespacev1.Namespace{Namespace: "default"}}, nil
+}
+
+func (f *fakeNamespaceClient) DeleteNamespace(_ context.Context, request *namespacev1.DeleteNamespaceRequest, _ ...grpc.CallOption) (*namespacev1.DeleteNamespaceResponse, error) {
+	f.deleteCalls++
+	if f.deleteErr != nil {
+		return nil, f.deleteErr
+	}
+	return &namespacev1.DeleteNamespaceResponse{Namespace: &namespacev1.Namespace{Namespace: request.GetNamespace()}}, nil
+}
+
+type fakeSecretClient struct {
+	createCalls   int
+	deleteCalls   int
+	createRequest *secretv1.CreateSecretRequest
+	createErr     error
+}
+
+func (f *fakeSecretClient) CreateSecret(_ context.Context, request *secretv1.CreateSecretRequest, _ ...grpc.CallOption) (*secretv1.CreateSecretResponse, error) {
+	f.createCalls++
+	f.createRequest = request
+	if f.createErr != nil {
+		return nil, f.createErr
+	}
+	return &secretv1.CreateSecretResponse{Secret: &secretv1.Secret{ID: "secret-probe"}}, nil
+}
+
+func (f *fakeSecretClient) DeleteSecret(context.Context, *secretv1.DeleteSecretRequest, ...grpc.CallOption) (*secretv1.DeleteSecretResponse, error) {
+	f.deleteCalls++
+	return &secretv1.DeleteSecretResponse{Secret: &secretv1.Secret{ID: "secret-probe"}}, nil
 }
 
 type fakeCatalogClient struct{}
@@ -263,6 +382,8 @@ type fakeRunClient struct {
 	cancelCalls   int
 	createRequest *runv1.CreateRunRequest
 	runStatus     runv1.RunStatus
+	exitCodeKnown bool
+	exitCode      int32
 }
 
 func (f *fakeRunClient) CreateRun(_ context.Context, request *runv1.CreateRunRequest, _ ...grpc.CallOption) (*runv1.CreateRunResponse, error) {
@@ -276,7 +397,8 @@ func (f *fakeRunClient) GetRun(context.Context, *runv1.GetRunRequest, ...grpc.Ca
 	if status == runv1.RunStatus_RUN_STATUS_UNSPECIFIED {
 		status = runv1.RunStatus_RUN_STATUS_SUCCEEDED
 	}
-	return &runv1.GetRunResponse{Run: &runv1.Run{ID: "run-probe", Status: status, ExitCodeKnown: status == runv1.RunStatus_RUN_STATUS_SUCCEEDED}}, nil
+	exitCodeKnown := f.exitCodeKnown || status == runv1.RunStatus_RUN_STATUS_SUCCEEDED
+	return &runv1.GetRunResponse{Run: &runv1.Run{ID: "run-probe", Status: status, ExitCodeKnown: exitCodeKnown, ExitCode: f.exitCode}}, nil
 }
 
 func (*fakeRunClient) ListRuns(context.Context, *runv1.ListRunsRequest, ...grpc.CallOption) (*runv1.ListRunsResponse, error) {

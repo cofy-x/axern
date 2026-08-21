@@ -351,11 +351,10 @@ raise SystemExit(1)
 ' "${node_id}" <<<"${body}"
 }
 
-import_oci_image_archive_to_node() {
+import_oci_image_to_node() {
   local image_ref="$1"
   local node_container_name="$2"
-  local archive_in_node="$3"
-  local image_archive payload
+  local encoded_ref image_archive
 
   image_archive="$(mktemp)"
 
@@ -363,29 +362,23 @@ import_oci_image_archive_to_node() {
     rm -f "${image_archive}"
     return 1
   fi
-  if ! docker cp "${image_archive}" "${node_container_name}:${archive_in_node}"; then
-    rm -f "${image_archive}"
-    return 1
-  fi
-  payload="$(python3 - "${image_ref}" "${archive_in_node}" <<'PY'
-import json
+  encoded_ref="$(python3 - "${image_ref}" <<'PY'
 import sys
+import urllib.parse
 
-image_ref, archive_path = sys.argv[1], sys.argv[2]
-print(json.dumps({"image_ref": image_ref, "archive_path": archive_path}))
+print(urllib.parse.quote(sys.argv[1], safe=""))
 PY
 )"
-  if ! printf '%s' "${payload}" | docker exec -i "${node_container_name}" curl \
+  if ! docker exec -i "${node_container_name}" curl \
     -fsS \
     --unix-socket /run/imagemgr/imagemgr.sock \
-    -H "Content-Type: application/json" \
-    -d @- \
-    http://unix/oci_import >/dev/null; then
-    docker exec "${node_container_name}" rm -f "${archive_in_node}" >/dev/null 2>&1 || true
+    -H "Content-Type: application/x-tar" \
+    --data-binary @- \
+    "http://unix/oci_import?ref=${encoded_ref}" \
+    <"${image_archive}" >/dev/null; then
     rm -f "${image_archive}"
     return 1
   fi
-  docker exec "${node_container_name}" rm -f "${archive_in_node}" >/dev/null 2>&1 || true
   rm -f "${image_archive}"
 }
 

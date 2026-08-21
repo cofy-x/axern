@@ -138,6 +138,34 @@ executes a small `runsc` Run, and deletes the temporary Environment. The Run
 remains as normal control-plane history. Use `--template-id`,
 `--runtime-class`, and `--probe-timeout` only with `--probe`.
 
+## Local DNS Doctor
+
+`axern local doctor` uses the same `status`, `mode`, and stable check result
+shape as the platform doctor. It validates the resolver configuration actually
+materialized for an initialized stack and, while the stack is running, queries
+those resolvers directly from the Node container. These checks are read-only.
+
+Use the explicit probe to verify the normal Environment and Run path in a real
+OCI sandbox:
+
+```bash
+axern local doctor --probe
+```
+
+The default query is `axern.cofy-x.space.`. Use `--dns-query-name` for a
+managed or private domain. The override is stored in a temporary Secret and is
+not included in Run arguments, doctor JSON details, or probe output. The probe
+creates a temporary Namespace, Secret, Environment, and Run. Cleanup cancels
+an active Run, then deletes the Environment, Secret, and Namespace even after
+failure or cancellation; the terminal Run remains as normal control-plane
+history. The probe always uses the product-owned `local` context, regardless
+of the currently selected context.
+
+Read-only checks default to 15 seconds (`--check-timeout`); sandbox execution
+defaults to five minutes (`--probe-timeout`). `--template-id` defaults to
+`python311`, and `--runtime-class` defaults to `runsc`; all three sandbox-only
+options require `--probe`.
+
 ## Resource Spec
 
 Run, Service, and Function creation accepts a strict YAML or JSON envelope:

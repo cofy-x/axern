@@ -177,6 +177,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/axctl ./axctl && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egress-probe ./cmd/egress-probe && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/dns-probe ./cmd/dns-probe && \
     cd /workspace/runtime/tunneld && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/node-tunneld ./cmd/node-tunneld && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/tunnel-agent ./cmd/tunnel-agent && \
@@ -309,6 +310,7 @@ COPY --from=axnoded-builder /out/bpfnetctl /usr/local/bin/bpfnetctl
 COPY --from=axnoded-builder /out/axern-sandboxd /usr/local/libexec/axnoded/axern-sandboxd
 COPY --from=axnoded-builder /out/axnoded-runtime-runner /usr/local/libexec/axnoded/axnoded-runtime-runner
 COPY --from=axnoded-builder /out/egress-probe /usr/local/libexec/axnoded/egress-probe
+COPY --from=axnoded-builder /out/dns-probe /usr/local/libexec/axnoded/dns-probe
 COPY --from=axnoded-builder /out/node-tunneld /usr/local/bin/node-tunneld
 COPY --from=axnoded-builder /out/tunnel-agent /usr/local/bin/tunnel-agent
 COPY --from=axnoded-builder /out/volumed /usr/local/bin/volumed

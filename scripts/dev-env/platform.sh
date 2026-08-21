@@ -62,13 +62,14 @@ write_compose_env() {
   local secrets_master_key
   secrets_master_key="$(cat "$(secrets_master_key_file compose)")"
   local container_http_proxy container_https_proxy container_no_proxy registry_proxy_url
-  local axnoded_dns_nameservers
+  local axnoded_dns_nameservers axnoded_node_id
   local tunneld_runtime_uid tunneld_runtime_gid
   container_http_proxy="$(container_proxy_url "${HTTP_PROXY:-${http_proxy:-}}")"
   container_https_proxy="$(container_proxy_url "${HTTPS_PROXY:-${https_proxy:-}}")"
   container_no_proxy="$(append_no_proxy_entries "${NO_PROXY:-${no_proxy:-}}" "$(local_no_proxy_entries compose)")"
   registry_proxy_url="${container_https_proxy:-${container_http_proxy}}"
   axnoded_dns_nameservers="${AXNODED_DNS_NAMESERVERS:-}"
+  axnoded_node_id="${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}"
   tunneld_runtime_uid="$(id -u)"
   tunneld_runtime_gid="$(id -g)"
   local otel_enabled otel_endpoint otel_resource_attrs
@@ -97,6 +98,7 @@ CODEX_BUNDLE_IMAGE=${CODEX_BUNDLE_IMAGE}
 OTEL_COLLECTOR_IMAGE=${OTEL_COLLECTOR_IMAGE}
 OTEL_LGTM_IMAGE=${OTEL_LGTM_IMAGE}
 AXERN_SECRETS_MASTER_KEY=${secrets_master_key}
+AXNODED_CONTROL_PLANE_NODE_ID=${axnoded_node_id}
 CONTAINER_HTTP_PROXY=${container_http_proxy}
 CONTAINER_HTTPS_PROXY=${container_https_proxy}
 CONTAINER_NO_PROXY=${container_no_proxy}
@@ -118,6 +120,40 @@ OTEL_GRPC_PORT=${COMPOSE_OTEL_GRPC_PORT}
 OTEL_HTTP_PORT=${COMPOSE_OTEL_HTTP_PORT}
 LGTM_UI_PORT=${COMPOSE_LGTM_UI_PORT}
 EOF
+}
+
+configure_compose_dns_verification() {
+  local configured normalized
+  configured="${AXERN_VERIFY_DNS_NAMESERVERS:-}"
+  if [ -z "${configured//[[:space:]]/}" ]; then
+    echo "AXERN_VERIFY_DNS_NAMESERVERS is required for Compose DNS verification" >&2
+    echo "set it to a comma-separated resolver IP set reachable from the Node container; no public fallback is used" >&2
+    return 2
+  fi
+  normalized="$(python3 - "${configured}" <<'PY'
+import ipaddress
+import sys
+
+seen = set()
+normalized = []
+for item in sys.argv[1].split(","):
+    value = item.strip()
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError:
+        raise SystemExit("AXERN_VERIFY_DNS_NAMESERVERS contains an invalid IP address")
+    if address.is_loopback or address.is_unspecified:
+        raise SystemExit("AXERN_VERIFY_DNS_NAMESERVERS contains a loopback or unspecified address")
+    canonical = str(address)
+    if canonical not in seen:
+        seen.add(canonical)
+        normalized.append(canonical)
+if not normalized:
+    raise SystemExit("AXERN_VERIFY_DNS_NAMESERVERS contains no usable resolver")
+print(",".join(normalized))
+PY
+)" || return $?
+  export AXNODED_DNS_NAMESERVERS="${normalized}"
 }
 
 ensure_local_images() {

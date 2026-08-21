@@ -2,11 +2,14 @@ package local
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
+	appdoctor "github.com/cofy-x/axern/apps/cli/internal/application/doctor"
 	"github.com/cofy-x/axern/apps/cli/internal/command"
 	applocal "github.com/cofy-x/axern/apps/cli/internal/localruntime"
 	"github.com/cofy-x/axern/apps/cli/internal/output"
@@ -132,36 +135,97 @@ func logsCommand(runtime command.Runtime, version string) *cobra.Command {
 }
 
 func doctorCommand(runtime command.Runtime, version string) *cobra.Command {
-	return &cobra.Command{Use: "doctor", Short: "Diagnose local prerequisites and state", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+	options := applocal.DoctorOptions{QueryName: "axern.cofy-x.space.", CheckTimeout: 15 * time.Second}
+	probeTimeout := 5 * time.Minute
+	templateID := "python311"
+	runtimeClass := "runsc"
+	cmd := &cobra.Command{Use: "doctor", Short: "Diagnose local prerequisites and runtime DNS", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		queryName, err := applocal.NormalizeDNSQueryName(options.QueryName)
+		if err != nil {
+			return command.Usage(fmt.Errorf("--dns-query-name: %w", err))
+		}
+		options.QueryName = queryName
+		if options.CheckTimeout <= 0 {
+			return command.Usage(fmt.Errorf("--check-timeout must be positive"))
+		}
+		for _, name := range []string{"probe-timeout", "template-id", "runtime-class"} {
+			if cmd.Flags().Changed(name) && !options.Probe {
+				return command.Usage(fmt.Errorf("--%s requires --probe", name))
+			}
+		}
+		if options.Probe {
+			if probeTimeout <= 0 {
+				return command.Usage(fmt.Errorf("--probe-timeout must be positive"))
+			}
+			if strings.TrimSpace(templateID) == "" || strings.TrimSpace(runtimeClass) == "" {
+				return command.Usage(fmt.Errorf("--template-id and --runtime-class are required with --probe"))
+			}
+			if runtime.HasExplicitConnectionOverride() {
+				return command.Usage(fmt.Errorf("explicit remote connection options cannot be used with local doctor --probe"))
+			}
+			options.SandboxProbe = func(ctx context.Context) applocal.Check {
+				connection, resolveErr := runtime.ResolveNamedConnection(applocal.ContextName)
+				if resolveErr != nil {
+					return applocal.Check{Name: "runtime_dns_sandbox", Status: "fail", Code: "runtime_dns_sandbox_probe_failed", Message: "the product-owned local context is unavailable", Remediation: "run `axern local up` and retry"}
+				}
+				session, openErr := connection.Open(ctx)
+				if openErr != nil {
+					return applocal.Check{Name: "runtime_dns_sandbox", Status: "fail", Code: "runtime_dns_sandbox_probe_failed", Message: "the local control plane could not be reached", Remediation: "inspect `axern local status` and retry"}
+				}
+				defer session.Close()
+				check := appdoctor.DNSProbe(ctx, &appdoctor.Session{
+					Context: session.Context, Namespace: session.Clients.Namespace, Secret: session.Clients.Secret,
+					Environment: session.Clients.Environment, Run: session.Clients.Run,
+				}, appdoctor.DNSProbeOptions{QueryName: queryName, TemplateID: templateID, RuntimeClass: runtimeClass, Timeout: probeTimeout})
+				return applocal.Check{Name: check.Name, Status: string(check.Status), Code: check.Code, DurationMS: check.DurationMS, Message: check.Message, Remediation: check.Remediation, Details: check.Details}
+			}
+		}
 		service, err := manager(runtime, version, cmd)
 		if err != nil {
 			return err
 		}
-		report := service.Doctor(cmd.Context())
+		report := service.Doctor(cmd.Context(), options)
 		if runtime.Options.Output == "json" {
 			if err := output.PrintJSON(cmd.OutOrStdout(), report); err != nil {
 				return err
 			}
 		} else {
-			for _, check := range report.Checks {
-				state := "ok"
-				if !check.OK {
-					state = "failed"
-					if check.Severity == "recommended" {
-						state = "warning"
-					}
-				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-7s %-24s %s\n", state, check.Code, check.Message)
-				if check.Recommendation != "" {
-					fmt.Fprintf(cmd.OutOrStdout(), "        Fix: %s\n", check.Recommendation)
-				}
-			}
+			renderLocalDoctorTable(cmd, report)
 		}
-		if !report.Healthy {
-			return fmt.Errorf("local environment has failed checks")
+		switch report.Status {
+		case "healthy":
+			return nil
+		case "degraded":
+			return command.ExitError{Code: 1}
+		default:
+			return command.ExitError{Code: 3}
 		}
-		return nil
 	}}
+	cmd.Flags().BoolVar(&options.Probe, "probe", false, "create temporary platform resources and run a DNS query in an OCI sandbox")
+	cmd.Flags().StringVar(&options.QueryName, "dns-query-name", options.QueryName, "absolute DNS name to query")
+	cmd.Flags().DurationVar(&options.CheckTimeout, "check-timeout", options.CheckTimeout, "timeout for each read-only DNS check")
+	cmd.Flags().DurationVar(&probeTimeout, "probe-timeout", probeTimeout, "timeout for sandbox execution; requires --probe")
+	cmd.Flags().StringVar(&templateID, "template-id", templateID, "runtime template used by --probe")
+	cmd.Flags().StringVar(&runtimeClass, "runtime-class", runtimeClass, "runtime class used by --probe")
+	return cmd
+}
+
+func renderLocalDoctorTable(cmd *cobra.Command, report applocal.DoctorReport) {
+	w := cmd.OutOrStdout()
+	fmt.Fprintf(w, "Axern local doctor: %s\n", report.Status)
+	fmt.Fprintf(w, "Mode: %s\n\n", strings.ReplaceAll(report.Mode, "_", "-"))
+	rows := make([][]string, 0, len(report.Checks))
+	for _, check := range report.Checks {
+		rows = append(rows, []string{
+			check.Name,
+			check.Status,
+			check.Code,
+			fmt.Sprintf("%dms", check.DurationMS),
+			check.Message,
+			check.Remediation,
+		})
+	}
+	output.RenderTable(w, []string{"CHECK", "STATUS", "CODE", "LATENCY", "MESSAGE", "REMEDIATION"}, rows)
 }
 
 func downCommand(runtime command.Runtime, version string) *cobra.Command {

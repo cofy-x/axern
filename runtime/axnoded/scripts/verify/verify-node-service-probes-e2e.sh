@@ -309,7 +309,7 @@ if ! [ -S "${shared_run_dir}/axnoded.sock" ] || ! docker exec "${NODE_CONTAINER_
   exit 1
 fi
 
-import_oci_image_archive_to_node "${PYTHON_RUNTIME_IMAGE_REF}" "${NODE_CONTAINER_NAME}" "/tmp/axnoded-service-probes-e2e-runtime.tar"
+import_oci_image_to_node "${PYTHON_RUNTIME_IMAGE_REF}" "${NODE_CONTAINER_NAME}"
 
 deadline=$((SECONDS + 60))
 while [ "${SECONDS}" -lt "${deadline}" ]; do

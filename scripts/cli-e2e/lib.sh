@@ -325,5 +325,5 @@ ensure_python_runtime_image_once() {
 }
 
 import_python_runtime_image_once() {
-  import_oci_image_archive_to_node "${PYTHON_RUNTIME_IMAGE_REF}" "${NODE_CONTAINER_NAME}" "/tmp/axern-cli-e2e-python-runtime.tar"
+  import_oci_image_to_node "${PYTHON_RUNTIME_IMAGE_REF}" "${NODE_CONTAINER_NAME}"
 }
