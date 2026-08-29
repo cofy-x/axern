@@ -203,6 +203,7 @@ services:
       AXNODED_SOCKET: /shared/run/axnoded.sock
       IMAGEMGR_SOCKET: /run/imagemgr/imagemgr.sock
       VOLUMED_SOCKET: /run/volumed/volumed.sock
+      EGRESSD_SOCKET: /run/egressd/egressd.sock
       AXERN_SANDBOXD_BINARY: /usr/local/libexec/axnoded/axern-sandboxd
       AXNODED_GRPC_ADDRESS: 0.0.0.0:24010
       AXNODED_HTTP_ADDRESS: 0.0.0.0:23001
@@ -237,6 +238,7 @@ services:
       - "${COMPOSE_STATE_DIR}/axnoded:/var/lib/axnoded"
       - "node-imagemgr-state:/var/lib/imagemgr"
       - "${COMPOSE_STATE_DIR}/volumed:/var/lib/volumed"
+      - "${COMPOSE_STATE_DIR}/egressd:/var/lib/egressd"
 
   gatewayd:
     image: ${GATEWAYD_IMAGE}

@@ -129,6 +129,7 @@ FROM node-runtime-base-build AS axnoded-builder
 WORKDIR /workspace
 
 COPY runtime/axnoded/go.mod runtime/axnoded/go.sum /workspace/runtime/axnoded/
+COPY runtime/egressd/go.mod runtime/egressd/go.sum /workspace/runtime/egressd/
 COPY runtime/tunneld/go.mod runtime/tunneld/go.sum /workspace/runtime/tunneld/
 COPY runtime/volumed/go.mod runtime/volumed/go.sum /workspace/runtime/volumed/
 COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
@@ -136,6 +137,7 @@ COPY lib/go/agentbundle/go.mod /workspace/lib/go/agentbundle/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
 COPY lib/go/llmproxy/go.mod /workspace/lib/go/llmproxy/go.mod
+COPY lib/go/networkpolicy/go.mod /workspace/lib/go/networkpolicy/go.mod
 COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
@@ -147,10 +149,12 @@ use (
 	./lib/go/grpcclient
 	./lib/go/imageref
 	./lib/go/llmproxy
+	./lib/go/networkpolicy
 	./lib/go/nodecapability
 	./lib/go/observability
 	./network/bpfnet
 	./runtime/axnoded
+	./runtime/egressd
 	./runtime/tunneld
 	./runtime/volumed
 	./sdk/go
@@ -162,6 +166,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= go mod download
 
 COPY runtime/axnoded/ /workspace/runtime/axnoded/
+COPY runtime/egressd/ /workspace/runtime/egressd/
 COPY runtime/tunneld/ /workspace/runtime/tunneld/
 COPY runtime/volumed/ /workspace/runtime/volumed/
 COPY network/bpfnet/ /workspace/network/bpfnet/
@@ -178,6 +183,8 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/axctl ./axctl && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egress-probe ./cmd/egress-probe && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/dns-probe ./cmd/dns-probe && \
+    cd /workspace/runtime/egressd && \
+    GOTOOLCHAIN=local GOFLAGS= go build -o /out/egressd ./cmd/egressd && \
     cd /workspace/runtime/tunneld && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/node-tunneld ./cmd/node-tunneld && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/tunnel-agent ./cmd/tunnel-agent && \
@@ -311,6 +318,7 @@ COPY --from=axnoded-builder /out/axern-sandboxd /usr/local/libexec/axnoded/axern
 COPY --from=axnoded-builder /out/axnoded-runtime-runner /usr/local/libexec/axnoded/axnoded-runtime-runner
 COPY --from=axnoded-builder /out/egress-probe /usr/local/libexec/axnoded/egress-probe
 COPY --from=axnoded-builder /out/dns-probe /usr/local/libexec/axnoded/dns-probe
+COPY --from=axnoded-builder /out/egressd /usr/local/bin/egressd
 COPY --from=axnoded-builder /out/node-tunneld /usr/local/bin/node-tunneld
 COPY --from=axnoded-builder /out/tunnel-agent /usr/local/bin/tunnel-agent
 COPY --from=axnoded-builder /out/volumed /usr/local/bin/volumed

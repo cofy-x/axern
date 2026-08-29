@@ -93,6 +93,7 @@ flowchart LR
     Control --> Storage["storaged\nstorage control plane"]
     Control --> Node
     Storage --> Volume["volumed\nnode volume publish"]
+    Node --> Egress["egressd\ntrusted egress policy enforcement"]
     Node --> Image["imagemgr + imagefsd\nOCI and Nydus rootfs"]
     Node --> Runtime["runc / runsc sandboxes"]
     Axrun["axrun\nagent tasks and evidence"] --> Gateway
@@ -109,6 +110,7 @@ See the [runtime architecture](./docs/architecture/runtime-architecture.md) and 
 | `storaged` | Storage classes, claims, bindings, and topology-aware resolution |
 | `gatewayd` | Public gRPC, HTTP, SSH, terminal, tunnel, service, and sandbox data edge |
 | `axnoded` | Node-local sandbox lifecycle, execution, files, process streams, and cleanup |
+| `egressd` | Trusted node-local egress policy persistence, recovery, reconciliation, and enforcement |
 | `volumed` | Node-local volume publish, unpublish, and reconciliation |
 | `imagemgr` / `imagefsd` | OCI and Nydus image resolution, mount lifecycle, and read-only data plane |
 | `tunneld` | Internal reverse TCP relay and sandbox-local tunnel binding |

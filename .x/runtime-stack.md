@@ -14,6 +14,7 @@ clients / SDKs / apps
         -> gatewayd        Function worker dispatch through the data-plane edge
         -> tunneld         internal raw TCP tunnel relay targets
         -> axnoded         node lifecycle and sandbox execution
+           -> egressd      trusted egress policy lifecycle and host enforcement
            -> volumed      node-local volume publish/unpublish
            -> imagemgr     image rootfs resolution and mount references
               -> imagefsd  read-only image data plane
@@ -57,6 +58,10 @@ the language SDK workspaces.
   - `runtime/axnoded` owns node-local sandbox lifecycle, OCI bundle generation,
     runtime handler integration, node operator APIs, gateway-forwarded sandbox
     operations, and allocation cleanup.
+  - `runtime/egressd` owns the trusted host-side sandbox egress policy record,
+    allocation-attempt fencing, persistence, recovery, reconciliation, and
+    enforcement health. Its private Unix socket and bypass privileges are not
+    exposed to workload namespaces.
   - `runtime/volumed` owns physical node volume publish, unpublish, safe
     Claim-owned deletion, reconcile, and provider health.
   - `runtime/imagemgr` owns image rootfs resolution, OCI/Nydus/OSS image mount
@@ -79,6 +84,11 @@ direct OCI runtime exec is a debug-level tool.
   lifecycle dispatch. The node must reject a policy workload when the matching
   egress enforcement proof is unavailable; it may never silently ignore a
   newer policy shape.
+- Axnoded prepares egress policy after assigning the sandbox interface and
+  before starting the OCI user process. Deletion stops the workload before
+  deleting policy and releasing the interface. Startup reconciliation sends
+  exact allocation ID, attempt, sandbox IP, policy digest, and execution
+  revision proofs; egressd removes every orphan or mismatched record.
 - `requests` drive placement, admission, and node reservation. `limits` remain
   runtime enforcement ceilings.
 - `axnoded` owns the aggregate `runtime_slots` report consumed by placement and
@@ -120,6 +130,7 @@ direct OCI runtime exec is a debug-level tool.
 | Public API, SDK shape, or protobuf contract | `sdk/proto`, generated SDKs, owning service, CLI/app docs |
 | Placement, node registration, allocation lifecycle, runtime catalog | `control/controld`, `runtime/axnoded`, SDKs if user-facing |
 | Node capability observation, catalog policy, admission evidence, or enforcement loss | `sdk/proto`, `lib/go/nodecapability`, `runtime/axnoded`, `control/controld`, CLI/SDK diagnostics |
+| Sandbox DNS or strict egress lifecycle and enforcement | `runtime/egressd`, `runtime/axnoded`, `network/bpfnet`, deployment and verification surfaces |
 | Storage API, volume claims/classes/bindings, node volume specs | `control/storaged`, `control/controld`, `runtime/volumed`, `runtime/axnoded` |
 | Gateway control edge, tunnel client entry, service HTTP, browser terminal entry | `gateway/gatewayd`, `control/controld`, `runtime/tunneld`, `runtime/axnoded` |
 | Internal TCP tunnel relay or node-local tunnel binding | `runtime/tunneld`, `control/controld`, `runtime/axnoded` |

@@ -89,6 +89,7 @@ flowchart LR
     Control --> Storage["storaged\n存储控制平面"]
     Control --> Node
     Storage --> Volume["volumed\n节点卷发布"]
+    Node --> Egress["egressd\n可信出站策略执行"]
     Node --> Image["imagemgr + imagefsd\nOCI 与 Nydus rootfs"]
     Node --> Runtime["runc / runsc 沙箱"]
     Axrun["axrun\nagent 任务与证据"] --> Gateway
@@ -102,6 +103,7 @@ flowchart LR
 | `storaged` | 存储类、声明、绑定与拓扑感知解析 |
 | `gatewayd` | 公共 gRPC、HTTP、SSH、终端、隧道、服务和沙箱数据边缘 |
 | `axnoded` | 节点本地的沙箱生命周期、执行、文件、进程流和清理 |
+| `egressd` | 可信节点本地出站策略的持久化、恢复、调和与执行 |
 | `volumed` | 节点本地的卷发布、卸载和调和 |
 | `imagemgr` / `imagefsd` | OCI 与 Nydus 镜像解析、挂载生命周期和只读数据面 |
 | `tunneld` | 内部反向 TCP 中继和沙箱本地隧道绑定 |

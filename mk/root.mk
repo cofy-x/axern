@@ -30,6 +30,7 @@ bootstrap-go: ## Download Go module dependencies
 	$(GO) -C control/storaged mod download
 	$(GO) -C gateway/gatewayd mod download
 	$(GO) -C runtime/imagemgr mod download
+	$(GO) -C runtime/egressd mod download
 	$(GO) -C sdk/go mod download
 	$(GO) -C runtime/axnoded mod download
 	$(GO) -C runtime/volumed mod download
@@ -95,6 +96,7 @@ build-go: ## Build the root Go binaries
 	$(GO) -C control/storaged build -o ../../bin/storaged ./cmd/storaged
 	$(GO) -C gateway/gatewayd build -o ../../bin/gatewayd ./
 	$(GO) -C runtime/imagemgr build -o ../../bin/imagemgr ./cmd/imagemgr
+	$(GO) -C runtime/egressd build -o ../../bin/egressd ./cmd/egressd
 	$(GO) -C runtime/volumed build -o ../../bin/volumed ./cmd/volumed
 	$(GO) -C runtime/tunneld build -o ../../bin/tunneld ./cmd/tunneld
 	$(GO) -C runtime/tunneld build -o ../../bin/node-tunneld ./cmd/node-tunneld
@@ -148,11 +150,12 @@ test-go: ## Run root Go tests
 	$(GO) -C control/storaged test ./...
 	$(GO) -C gateway/gatewayd test ./...
 	$(GO) -C runtime/imagemgr test ./...
+	$(GO) -C runtime/egressd test ./...
 	$(GO) -C runtime/volumed test ./...
 	$(GO) -C runtime/tunneld test ./...
 
 fmt-go: ## Format root Go files
-	find apps/axrun apps/cli control/controld control/storaged gateway/gatewayd lib/go runtime/imagemgr runtime/tunneld runtime/volumed sdk/go -name '*.go' -print | xargs gofmt -w
+	find apps/axrun apps/cli control/controld control/storaged gateway/gatewayd lib/go runtime/egressd runtime/imagemgr runtime/tunneld runtime/volumed sdk/go -name '*.go' -print | xargs gofmt -w
 
 imagemgr-build: ## Build the imagemgr daemon
 	mkdir -p bin
@@ -162,7 +165,7 @@ imagemgr-test: ## Run imagemgr tests
 	$(GO) -C runtime/imagemgr test ./...
 
 lint-go: ## Ensure root Go files are formatted
-	test -z "$$(find apps/axrun apps/cli control/controld control/storaged gateway/gatewayd lib/go runtime/imagemgr runtime/tunneld runtime/volumed sdk/go -name '*.go' -print | xargs gofmt -l)" || (echo "gofmt reported unformatted files" && exit 1)
+	test -z "$$(find apps/axrun apps/cli control/controld control/storaged gateway/gatewayd lib/go runtime/egressd runtime/imagemgr runtime/tunneld runtime/volumed sdk/go -name '*.go' -print | xargs gofmt -l)" || (echo "gofmt reported unformatted files" && exit 1)
 
 sdk-go-verify: ## Run Go SDK tests, race smoke, vet, and formatting checks
 	$(GO) test -tags=axern_contract ./sdk/go/...

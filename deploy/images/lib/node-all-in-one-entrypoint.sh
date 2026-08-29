@@ -3,6 +3,7 @@ set -euo pipefail
 
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 VOLUMED_SOCKET="${VOLUMED_SOCKET:-/run/volumed/volumed.sock}"
+EGRESSD_SOCKET="${EGRESSD_SOCKET:-/run/egressd/egressd.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
 AXNODED_GRPC_ADDRESS="${AXNODED_GRPC_ADDRESS:-}"
 AXNODED_HTTP_ADDRESS="${AXNODED_HTTP_ADDRESS:-0.0.0.0:23001}"
@@ -75,6 +76,7 @@ NODE_TUNNELD_LOG="${NODE_TUNNELD_LOG:-/var/log/axnoded/node-tunneld.log}"
 AXNODED_ROOT="/var/lib/axnoded"
 IMAGEMGR_ROOT="/var/lib/imagemgr"
 VOLUMED_ROOT="/var/lib/volumed"
+EGRESSD_ROOT="/var/lib/egressd"
 VOLUMED_LOCAL_ROOT="${VOLUMED_LOCAL_ROOT:-${VOLUMED_ROOT}/local}"
 AXNODED_CONFIG="/tmp/axnoded-node-config.toml"
 OSS_TEMPLATE="/tmp/imagemgr-oss-template.json"
@@ -91,6 +93,7 @@ fi
 mkdir -p \
   "$(dirname "${IMAGEMGR_SOCKET}")" \
   "$(dirname "${VOLUMED_SOCKET}")" \
+  "$(dirname "${EGRESSD_SOCKET}")" \
   "$(dirname "${AXNODED_SOCKET}")" \
   "$(dirname "${IMAGEFSD_CHUNK_SERVER_SOCK}")" \
   "${AXNODED_ROOT}/root" \
@@ -99,6 +102,7 @@ mkdir -p \
   "${IMAGEMGR_ROOT}" \
   "${IMAGEMGR_ROOT}/logs" \
   "${VOLUMED_ROOT}" \
+  "${EGRESSD_ROOT}" \
   "${VOLUMED_LOCAL_ROOT}" \
   "$(dirname "${AXNODED_LOG}")" \
   /etc/axnoded \
@@ -412,15 +416,22 @@ IMAGEMGR_PID=$!
   -local-root "${VOLUMED_LOCAL_ROOT}" &
 VOLUMED_PID=$!
 
+/usr/local/bin/egressd \
+  -root "${EGRESSD_ROOT}" \
+  -socket "${EGRESSD_SOCKET}" &
+EGRESSD_PID=$!
+
 cleanup() {
   kill "${NODE_TUNNELD_SUPERVISOR_PID:-0}" >/dev/null 2>&1 || true
   kill "${AXNODED_PID:-0}" >/dev/null 2>&1 || true
   kill "${VOLUMED_PID:-0}" >/dev/null 2>&1 || true
+  kill "${EGRESSD_PID:-0}" >/dev/null 2>&1 || true
   kill "${IMAGEMGR_PID:-0}" >/dev/null 2>&1 || true
   kill "${IMAGEFSD_PID:-0}" >/dev/null 2>&1 || true
   wait "${NODE_TUNNELD_SUPERVISOR_PID:-0}" >/dev/null 2>&1 || true
   wait "${AXNODED_PID:-0}" >/dev/null 2>&1 || true
   wait "${VOLUMED_PID:-0}" >/dev/null 2>&1 || true
+  wait "${EGRESSD_PID:-0}" >/dev/null 2>&1 || true
   wait "${IMAGEMGR_PID:-0}" >/dev/null 2>&1 || true
   wait "${IMAGEFSD_PID:-0}" >/dev/null 2>&1 || true
 }
@@ -460,6 +471,16 @@ for _ in $(seq 1 40); do
 done
 if [ ! -S "${VOLUMED_SOCKET}" ]; then
   echo "volumed socket not ready: ${VOLUMED_SOCKET}" >&2
+  exit 1
+fi
+for _ in $(seq 1 40); do
+  if [ -S "${EGRESSD_SOCKET}" ]; then
+    break
+  fi
+  sleep 1
+done
+if [ ! -S "${EGRESSD_SOCKET}" ]; then
+  echo "egressd socket not ready: ${EGRESSD_SOCKET}" >&2
   exit 1
 fi
 for _ in $(seq 1 40); do
@@ -508,7 +529,7 @@ for _ in $(seq 1 40); do
       NODE_TUNNELD_SUPERVISOR_PID=""
     fi
     echo "node_all_in_one_ready=true"
-    wait -n "${IMAGEFSD_PID}" "${IMAGEMGR_PID}" "${VOLUMED_PID}" "${AXNODED_PID}"
+    wait -n "${IMAGEFSD_PID}" "${IMAGEMGR_PID}" "${VOLUMED_PID}" "${EGRESSD_PID}" "${AXNODED_PID}"
     exit $?
   fi
   sleep 1

@@ -61,6 +61,7 @@ This starts repo-local Postgres plus:
 - `imagefsd`
 - `imagemgr`
 - `volumed`
+- `egressd`
 - `axnoded`
 - `node-tunneld`
 - `gatewayd`
@@ -109,6 +110,7 @@ make devbox-stack-restart SERVICE=gatewayd
 make devbox-stack-restart SERVICE=axnoded
 make devbox-stack-restart SERVICE=imagemgr
 make devbox-stack-restart SERVICE=volumed
+make devbox-stack-restart SERVICE=egressd
 make devbox-stack-restart SERVICE=imagefsd
 make devbox-stack-restart SERVICE=tunneld
 make devbox-stack-restart SERVICE=controld
@@ -121,6 +123,7 @@ Restart behavior is dependency-aware:
 - `axnoded`: rebuilds the dev runtime runner, then restarts `axnoded` and
   `node-tunneld`.
 - `volumed`: restarts `volumed`, `axnoded`, and `node-tunneld`.
+- `egressd`: restarts `egressd`, `axnoded`, and `node-tunneld`.
 - `imagemgr`: restarts `imagemgr`, `axnoded`, and `node-tunneld`.
 - `imagefsd`: rebuilds `imagefsd`, then restarts `imagefsd`, `imagemgr`,
   `axnoded`, and `node-tunneld`.
@@ -148,6 +151,7 @@ make gatewayd-dev-run
 make imagefsd-dev-serve-chunk
 make imagemgr-dev-run
 make volumed-dev-run
+make egressd-dev-run
 make axnoded-dev-run
 ```
 

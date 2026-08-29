@@ -75,6 +75,8 @@ spec:
               value: /run/imagemgr/imagemgr.sock
             - name: VOLUMED_SOCKET
               value: /run/volumed/volumed.sock
+            - name: EGRESSD_SOCKET
+              value: /run/egressd/egressd.sock
             - name: AXNODED_GRPC_ADDRESS
               value: 0.0.0.0:24010
             - name: AXNODED_HTTP_ADDRESS
@@ -178,6 +180,8 @@ spec:
               mountPath: /var/lib/imagemgr
             - name: volumed-state
               mountPath: /var/lib/volumed
+            - name: egressd-state
+              mountPath: /var/lib/egressd
             {{- if .Values.node.registryAuth.existingSecret }}
             - name: registry-auth
               mountPath: /registry-auth
@@ -205,6 +209,10 @@ spec:
         - name: volumed-state
           hostPath:
             path: {{ printf "%s/volumed" .Values.node.state.hostPathRoot | quote }}
+            type: DirectoryOrCreate
+        - name: egressd-state
+          hostPath:
+            path: {{ printf "%s/egressd" .Values.node.state.hostPathRoot | quote }}
             type: DirectoryOrCreate
         {{- if .Values.node.registryAuth.existingSecret }}
         - name: registry-auth

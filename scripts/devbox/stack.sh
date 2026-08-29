@@ -41,12 +41,12 @@ Usage:
 Start Axern's standalone dev stack inside the Linux devbox.
 
 Services:
-  postgres, storaged, controld, tunneld, imagefsd, imagemgr, volumed, axnoded, node-tunneld, gatewayd
+  postgres, storaged, controld, tunneld, imagefsd, imagemgr, volumed, egressd, axnoded, node-tunneld, gatewayd
 EOF
 }
 
 services() {
-  printf '%s\n' postgres storaged controld tunneld imagefsd imagemgr volumed axnoded node-tunneld gatewayd
+  printf '%s\n' postgres storaged controld tunneld imagefsd imagemgr volumed egressd axnoded node-tunneld gatewayd
 }
 
 ensure_linux() {
@@ -150,6 +150,9 @@ service_health() {
       ;;
     volumed)
       unix_socket_status "${RUN_DIR}/volumed.sock" "${state}"
+      ;;
+    egressd)
+      unix_socket_status "${RUN_DIR}/egressd.sock" "${state}"
       ;;
     axnoded)
       printf '%s %s %s' "$(tcp_status 127.0.0.1 23000)" "$(tcp_status 127.0.0.1 23001)" "$(unix_socket_status "${RUN_DIR}/axnoded.sock" "${state}")"
@@ -283,6 +286,7 @@ stop_runtime_services() {
   stop_service gatewayd
   stop_service node-tunneld
   stop_service axnoded
+  stop_service egressd
   stop_service imagemgr
   stop_service imagefsd
   stop_service tunneld
@@ -293,6 +297,7 @@ stop_runtime_services() {
   stop_matching_processes "${ROOT_DIR}/runtime/tunneld.*cmd/tunneld"
   stop_matching_processes "${ROOT_DIR}/runtime/axnoded.*cmd/axnoded"
   stop_matching_processes "${ROOT_DIR}/runtime/volumed.*cmd/volumed"
+  stop_matching_processes "${ROOT_DIR}/runtime/egressd.*cmd/egressd"
   stop_matching_processes "${ROOT_DIR}/runtime/imagemgr.*cmd/imagemgr"
   stop_matching_processes "${ROOT_DIR}/control/storaged.*cmd/storaged"
   stop_matching_processes "${ROOT_DIR}/control/controld.*cmd/controld"
@@ -303,6 +308,7 @@ stop_runtime_services() {
   stop_matching_processes "127.0.0.1:25080"
   stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/volumed.sock"
+  stop_matching_processes "${ROOT_DIR}/.dev/run/egressd.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/imagemgr.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/imagefsd-chunk.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/imagemgr"
@@ -310,6 +316,7 @@ stop_runtime_services() {
   rm -f \
     "${RUN_DIR}/axnoded.sock" \
     "${RUN_DIR}/volumed.sock" \
+    "${RUN_DIR}/egressd.sock" \
     "${RUN_DIR}/imagemgr.sock" \
     "${RUN_DIR}/imagefsd-chunk.sock"
   sleep 1
@@ -427,6 +434,13 @@ start_volumed() {
   wait_unix_socket "${RUN_DIR}/volumed.sock" volumed
 }
 
+start_egressd() {
+  start_service egressd "exec go -C '${ROOT_DIR}/runtime/egressd' run ./cmd/egressd \
+    -root '${DEV_DIR}/egressd' \
+    -socket '${RUN_DIR}/egressd.sock'"
+  wait_unix_socket "${RUN_DIR}/egressd.sock" egressd
+}
+
 start_axnoded() {
   start_service axnoded "exec '${ROOT_DIR}/scripts/devbox/sudo-go.sh' \
     -C '${ROOT_DIR}/runtime/axnoded' run ./cmd/axnoded \
@@ -502,6 +516,7 @@ start_all() {
   start_imagefsd
   start_imagemgr
   start_volumed
+  start_egressd
   start_axnoded
   start_node_tunneld
   start_gatewayd
@@ -543,6 +558,11 @@ stop_service_deep() {
       stop_matching_processes "${ROOT_DIR}/.dev/run/volumed.sock"
       stop_matching_processes "${ROOT_DIR}/.dev/volumed"
       ;;
+    egressd)
+      stop_matching_processes "${ROOT_DIR}/runtime/egressd.*cmd/egressd"
+      stop_matching_processes "${ROOT_DIR}/.dev/run/egressd.sock"
+      stop_matching_processes "${ROOT_DIR}/.dev/egressd"
+      ;;
     axnoded)
       stop_matching_processes "${ROOT_DIR}/runtime/axnoded.*cmd/axnoded"
       stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded.sock"
@@ -577,6 +597,7 @@ restart_service() {
       start_imagefsd
       start_imagemgr
       start_volumed
+      start_egressd
       start_axnoded
       start_node_tunneld
       start_gatewayd
@@ -612,6 +633,14 @@ restart_service() {
       stop_service_deep tunneld
       build_runtime_artifacts
       start_tunneld
+      start_node_tunneld
+      ;;
+    egressd)
+      stop_service_deep node-tunneld
+      stop_service_deep axnoded
+      stop_service_deep egressd
+      start_egressd
+      start_axnoded
       start_node_tunneld
       ;;
     imagefsd)

@@ -26,6 +26,7 @@ include mk/root.mk
 include mk/deploy.mk
 include mk/subsystems/axnoded.mk
 include mk/subsystems/controld.mk
+include mk/subsystems/egressd.mk
 include mk/subsystems/storaged.mk
 include mk/subsystems/volumed.mk
 

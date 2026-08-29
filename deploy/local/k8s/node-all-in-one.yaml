@@ -43,6 +43,8 @@ spec:
               value: /run/imagemgr/imagemgr.sock
             - name: VOLUMED_SOCKET
               value: /run/volumed/volumed.sock
+            - name: EGRESSD_SOCKET
+              value: /run/egressd/egressd.sock
             - name: AXERN_SANDBOXD_BINARY
               value: /usr/local/libexec/axnoded/axern-sandboxd
             - name: AXNODED_GRPC_ADDRESS
@@ -100,6 +102,8 @@ spec:
               mountPath: /var/lib/imagemgr
             - name: volumed-state
               mountPath: /var/lib/volumed
+            - name: egressd-state
+              mountPath: /var/lib/egressd
       volumes:
         - name: certs
           secret:
@@ -117,4 +121,8 @@ spec:
         - name: volumed-state
           hostPath:
             path: /var/lib/axern/node/volumed
+            type: DirectoryOrCreate
+        - name: egressd-state
+          hostPath:
+            path: /var/lib/axern/node/egressd
             type: DirectoryOrCreate
