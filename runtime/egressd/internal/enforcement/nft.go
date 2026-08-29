@@ -123,7 +123,7 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 	var out strings.Builder
 	out.WriteString("destroy table inet " + nftTable + "\n")
 	out.WriteString("table inet " + nftTable + " {\n")
-	out.WriteString(" chain redirect { type filter hook prerouting priority mangle; policy accept;\n")
+	out.WriteString(" chain ingress_proxy { type filter hook prerouting priority mangle; policy accept;\n")
 	fmt.Fprintf(&out, "  meta mark 0x%x return\n", bypassMark)
 	for _, record := range records {
 		family, source, err := nftSource(record.GetSandboxIp())
