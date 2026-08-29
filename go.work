@@ -12,6 +12,7 @@ use (
 	./lib/go/imageref
 	./lib/go/llmproxy
 	./lib/go/memorybudget
+	./lib/go/networkpolicy
 	./lib/go/nodecapability
 	./lib/go/observability
 	./network/bpfnet

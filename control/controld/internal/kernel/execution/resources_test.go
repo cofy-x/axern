@@ -63,6 +63,18 @@ func TestNormalizeConfigDefaultsLimitOnlyRequestsFromLimit(t *testing.T) {
 	}
 }
 
+func TestNormalizeConfigCanonicalizesNetworkPolicy(t *testing.T) {
+	cfg := NormalizeConfig(&commonv1.ExecutionConfig{Network: &commonv1.NetworkSpec{
+		Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT,
+		EgressPolicy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_DnsDeny{DnsDeny: &commonv1.DnsDenyPolicy{
+			DeniedDomains: []string{"Example.COM.", "example.com"},
+		}}},
+	}})
+	if got := cfg.GetNetwork().GetEgressPolicy().GetDnsDeny().GetDeniedDomains(); len(got) != 1 || got[0] != "example.com" {
+		t.Fatalf("normalized domains = %v", got)
+	}
+}
+
 func TestValidateResourcesRejectsLimitBelowRequest(t *testing.T) {
 	err := ValidateResources(&commonv1.ResourceSpec{
 		Requests: &commonv1.ResourceQuantity{CpuMilli: 1000},

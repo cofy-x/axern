@@ -56,6 +56,9 @@ documents.
 - [Observed Capability Providers](architecture/observed-capability-providers.md):
   typed node observations, catalog policy, transactional admission, and
   allocation enforcement.
+- [Sandbox Network Policy](architecture/sandbox-network-policy.md): strict
+  fail-closed egress, DNS-only deny semantics, canonical rules, and admission
+  requirements.
 - [Workload Lifecycle](architecture/workload-lifecycle-sequence.md): end-to-end
   control and sandbox data-plane sequences.
 - [Resource Model](architecture/resource-model.md): requests, limits, quota,

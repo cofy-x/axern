@@ -40,6 +40,10 @@ func (s *Server) CreateService(ctx context.Context, req *servicev1.CreateService
 		opErr = err
 		return nil, err
 	}
+	if err := validateExecutionConfigNetwork(req.GetConfig()); err != nil {
+		opErr = err
+		return nil, err
+	}
 	if err := validateExecutionConfigCapabilities(req.GetConfig()); err != nil {
 		opErr = err
 		return nil, err
@@ -207,6 +211,10 @@ func (s *Server) UpdateService(ctx context.Context, req *servicev1.UpdateService
 		return nil, err
 	}
 	if err := validateExecutionConfigResources(req.GetConfig()); err != nil {
+		opErr = err
+		return nil, err
+	}
+	if err := validateExecutionConfigNetwork(req.GetConfig()); err != nil {
 		opErr = err
 		return nil, err
 	}

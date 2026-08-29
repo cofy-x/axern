@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
+	networkpolicy "github.com/cofy-x/axern/lib/go/networkpolicy"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -19,15 +20,22 @@ func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1
 	limits := config.GetResources().GetLimits()
 	runtimeName := firstNonEmpty(config.GetRuntimeClass(), p.defaultSandboxRuntime)
 	ports := portSpecsToPlacementPorts(config.GetPorts())
-	network := networkSpecToPlacementNetwork(config.GetNetwork())
+	normalizedNetwork, err := networkpolicy.Normalize(config.GetNetwork())
+	if err != nil {
+		return nil, fmt.Errorf("normalize placement network policy: %w", err)
+	}
+	network := networkSpecToPlacementNetwork(normalizedNetwork)
+	policyMode := networkpolicy.Mode(normalizedNetwork)
 	capabilities, err := capabilitycontract.DeriveRequestStaticRequirements(capabilitycontract.RequirementInput{
-		RuntimeName:                 runtimeName,
-		HasPorts:                    len(ports) > 0,
-		NetworkMode:                 network,
-		MemoryLimitBytes:            limits.GetMemoryBytes(),
-		RootfsWritable:              !template.GetRootfsReadonly(),
-		EphemeralStorageLimitBytes:  limits.GetEphemeralStorageBytes(),
-		ExtensionCapabilityRequests: config.GetExtensionCapabilityRequirements(),
+		RuntimeName:                     runtimeName,
+		HasPorts:                        len(ports) > 0,
+		NetworkMode:                     network,
+		RequiresDNSPolicyEnforcement:    policyMode == networkpolicy.EnforcementDNSDeny,
+		RequiresStrictEgressEnforcement: policyMode == networkpolicy.EnforcementStrict && networkpolicy.StrictNeedsEgressd(normalizedNetwork),
+		MemoryLimitBytes:                limits.GetMemoryBytes(),
+		RootfsWritable:                  !template.GetRootfsReadonly(),
+		EphemeralStorageLimitBytes:      limits.GetEphemeralStorageBytes(),
+		ExtensionCapabilityRequests:     config.GetExtensionCapabilityRequirements(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("derive placement capability requirements: %w", err)
@@ -87,6 +95,9 @@ func portSpecsToPlacementPorts(in []*commonv1.PortSpec) []string {
 }
 
 func networkSpecToPlacementNetwork(in *commonv1.NetworkSpec) string {
+	if networkpolicy.IsStrictDenyAll(in) {
+		return "isolated"
+	}
 	if in == nil || in.GetMode() == commonv1.NetworkMode_NETWORK_MODE_UNSPECIFIED {
 		return ""
 	}

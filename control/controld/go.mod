@@ -10,6 +10,8 @@ replace github.com/cofy-x/axern/lib/go/nodecapability => ../../lib/go/nodecapabi
 
 replace github.com/cofy-x/axern/lib/go/memorybudget => ../../lib/go/memorybudget
 
+replace github.com/cofy-x/axern/lib/go/networkpolicy => ../../lib/go/networkpolicy
+
 require (
 	github.com/aws/aws-sdk-go-v2 v1.42.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.30
@@ -18,6 +20,7 @@ require (
 	github.com/cofy-x/axern/lib/go/agentbundle v0.0.0
 	github.com/cofy-x/axern/lib/go/imageref v0.0.0
 	github.com/cofy-x/axern/lib/go/memorybudget v0.0.0
+	github.com/cofy-x/axern/lib/go/networkpolicy v0.0.0
 	github.com/cofy-x/axern/lib/go/nodecapability v0.0.0
 	github.com/cofy-x/axern/sdk/go v0.0.0
 	github.com/google/go-containerregistry v0.20.7

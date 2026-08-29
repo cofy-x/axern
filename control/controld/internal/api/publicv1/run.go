@@ -31,6 +31,10 @@ func (s *Server) CreateRun(ctx context.Context, req *runv1.CreateRunRequest) (*r
 		opErr = err
 		return nil, err
 	}
+	if err := validateExecutionConfigNetwork(req.GetConfig()); err != nil {
+		opErr = err
+		return nil, err
+	}
 	if err := validateExecutionConfigCapabilities(req.GetConfig()); err != nil {
 		opErr = err
 		return nil, err
