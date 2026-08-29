@@ -90,7 +90,7 @@ func (e *NFTExecutor) Health(ctx context.Context) policy.EnforcementHealth {
 	if !e.healthy {
 		return policy.EnforcementHealth{Revision: e.revision, Reason: e.reason}
 	}
-	if err := runNFT(ctx, "list", "table", "inet", nftTable, nil); err != nil {
+	if err := runNFT(ctx, "list", "table", "inet", nftTable); err != nil {
 		e.healthy = false
 		e.reason = fmt.Sprintf("nft ruleset health: %v", err)
 		return policy.EnforcementHealth{Revision: e.revision, Reason: e.reason}
