@@ -142,6 +142,7 @@ materialization, volumed integration, and warm idle runtime retention.
 | `image_manager_socket` | Unix socket for `imagemgr`. | Ignored when `image_manager_enabled = false`; default is `/var/run/imagemgr.sock`. |
 | `runtime_runner_binary` | Host lifecycle helper used to monitor OCI init/runtime processes and durably persist their exact wait status. | Defaults to `/usr/local/libexec/axnoded/axnoded-runtime-runner`; packaged node images install it there. |
 | `volume_manager_socket` | Local `volumed` Unix socket used to publish resolved node volumes. | Defaults to `/run/volumed/volumed.sock`. |
+| `egress_manager_socket` | Trusted node-local `egressd` Unix socket used for fail-closed sandbox policy lifecycle. | Defaults to `/run/egressd/egressd.sock`; absence keeps policy capabilities unavailable without affecting unrestricted sandboxes. |
 | `idle_runtime_retention_ttl` | How long idle runtime templates/rootfs state remain warm. | Empty falls back to `5m`. |
 | `idle_runtime_retention_max` | Max retained static runtime templates per node. | Defaults to `8`; `<= 0` disables idle retention. Retention keeps rootfs leases and bundle templates, never an allocation-less OCI container. |
 | `cgroup_enforcement` | `required` or explicit local-only `disabled_dev`. | Defaults to `required`. `disabled_dev` rejects any workload declaring a memory hard limit. |

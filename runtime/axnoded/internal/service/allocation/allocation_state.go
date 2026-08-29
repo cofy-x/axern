@@ -33,6 +33,11 @@ type CapabilityConditionManifest struct {
 	Set     *capabilityv1.CapabilityConditionSet
 }
 
+type EgressPolicyManifest struct {
+	Attempt int64
+	Proof   *apipb.AllocationEgressPolicyProof
+}
+
 func newAllocationState(allocationID string) *allocationState {
 	return &allocationState{record: &apipb.AllocationState{AllocationID: allocationID}}
 }
@@ -54,7 +59,48 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && record.GetWorkspaceImageUrl() == "" && len(record.GetCapabilityDependencies()) == 0 && record.GetCapabilityConditions() == nil && record.GetCapabilityAdmissionConditions() == nil && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
+	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && record.GetWorkspaceImageUrl() == "" && len(record.GetCapabilityDependencies()) == 0 && record.GetCapabilityConditions() == nil && record.GetCapabilityAdmissionConditions() == nil && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil && record.GetEgressPolicyProof() == nil)
+}
+
+func (h *Controller) StoreEgressPolicyProof(allocationID, sandboxIP, digest string, revision int64) error {
+	allocationID, sandboxIP, digest = strings.TrimSpace(allocationID), strings.TrimSpace(sandboxIP), strings.TrimSpace(digest)
+	if allocationID == "" || sandboxIP == "" || digest == "" || revision <= 0 {
+		return errors.New("complete egress policy proof is required")
+	}
+	unlock := h.recordMutationLocks.Lock(allocationID)
+	defer unlock()
+	h.stateMu.RLock()
+	current := h.allocationStates[allocationID]
+	if current == nil {
+		h.stateMu.RUnlock()
+		return fmt.Errorf("allocation %q has no durable state", allocationID)
+	}
+	desired := cloneAllocationRecord(current.record)
+	h.stateMu.RUnlock()
+	proof := &apipb.AllocationEgressPolicyProof{SandboxIp: sandboxIP, PolicyDigest: digest, ExecutionRevision: revision}
+	if existing := desired.GetEgressPolicyProof(); existing != nil && !proto.Equal(existing, proof) {
+		return fmt.Errorf("allocation egress policy proof conflicts with durable state")
+	}
+	desired.EgressPolicyProof = proof
+	if err := h.persistAllocationRecord(desired); err != nil {
+		return fmt.Errorf("persist allocation egress policy proof: %w", err)
+	}
+	h.stateMu.Lock()
+	h.stateLocked(allocationID).record = desired
+	h.stateMu.Unlock()
+	return nil
+}
+
+func (h *Controller) EgressPolicyProofs() map[string]EgressPolicyManifest {
+	h.stateMu.RLock()
+	defer h.stateMu.RUnlock()
+	out := map[string]EgressPolicyManifest{}
+	for id, state := range h.allocationStates {
+		if state != nil && state.record.GetAllocationAttempt() > 0 && state.record.GetEgressPolicyProof() != nil {
+			out[id] = EgressPolicyManifest{state.record.GetAllocationAttempt(), proto.Clone(state.record.GetEgressPolicyProof()).(*apipb.AllocationEgressPolicyProof)}
+		}
+	}
+	return out
 }
 
 // ReplaceCapabilityAdmission atomically persists the admitted dependency

@@ -12,6 +12,7 @@ import (
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	networkmanager "github.com/cofy-x/axern/runtime/axnoded/internal/network"
 	nodecapabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
@@ -106,7 +107,7 @@ func (h *sandboxService) newObservedCapabilityManager(cgroupRoot string) (*nodec
 		providers = append(providers, configCapabilityProvider(extensions, extensionConfigDigest(extensions)))
 	}
 	providers = append(providers,
-		networkCapabilityProvider(cfg, networkDigest),
+		networkCapabilityProvider(cfg, networkDigest, h.egressClient),
 		cgroupCapabilityProvider(cfg, cgroupRoot, bootID, bootErr),
 		filestoreCapabilityProvider(cfg, bootID, bootErr),
 		runtimeConformanceCapabilityProvider(cfg, h.runtimeHandlers, config.RuntimeNameRunc, runtimeConformanceKindMemory, bootID, h.runRuntimeConformanceSelfTest, runtimeDigestCache),
@@ -146,7 +147,11 @@ func configCapabilityProvider(extensions []*capabilityv1.ExtensionCapability, di
 	}
 }
 
-func networkCapabilityProvider(cfg config.Config, digest string) nodecapabilitymanager.Provider {
+func networkCapabilityProvider(cfg config.Config, digest string, managers ...egress.Manager) nodecapabilitymanager.Provider {
+	var egressManager egress.Manager
+	if len(managers) > 0 {
+		egressManager = managers[0]
+	}
 	keys := []*capabilityv1.CapabilityKey{
 		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING),
 		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE),
@@ -157,7 +162,7 @@ func networkCapabilityProvider(cfg config.Config, digest string) nodecapabilitym
 	return observedProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
 		expected: keys,
-		observe: func(_ context.Context, _ time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+		observe: func(ctx context.Context, _ time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			manager := networkmanager.NetworkManagers[cfg.PluginConfig.NetworkConfig.NatBackend]
 			probe, ok := manager.(networkmanager.HealthProber)
 			evidence := capabilitycontract.ConfigEvidence(digest)
@@ -169,6 +174,16 @@ func networkCapabilityProvider(cfg config.Config, digest string) nodecapabilitym
 			observations := make([]*capabilityv1.CapabilityObservation, len(keys))
 			observations[3] = failedObservation(keys[3], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED, "egressd DNS policy enforcement is not configured")
 			observations[4] = failedObservation(keys[4], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED, "egressd strict egress enforcement is not configured")
+			if egressManager != nil {
+				health, healthErr := egressManager.Health(ctx)
+				if healthErr != nil {
+					observations[3] = unknownCapabilityObservation(keys[3], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR, healthErr.Error())
+					observations[4] = unknownCapabilityObservation(keys[4], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR, healthErr.Error())
+				} else {
+					observations[3] = boolObservation(keys[3], health.GetDnsPolicySelfTestOk(), evidence, "egressd DNS policy self-test failed")
+					observations[4] = boolObservation(keys[4], health.GetStrictEgressSelfTestOk(), evidence, "egressd strict egress self-test failed")
+				}
+			}
 			observations[inactiveIndex] = failedObservation(keys[inactiveIndex], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED, "network backend is not selected by node configuration")
 			if !ok {
 				observations[0] = failedObservation(keys[0], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED, "network backend has no operational health probe")

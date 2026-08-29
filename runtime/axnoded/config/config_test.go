@@ -168,6 +168,9 @@ func TestDefaultConfigSetsVolumeManagerSocket(t *testing.T) {
 	if cfg.PluginConfig.RuntimeConfig.VolumeManagerSocketPath() != DefaultVolumeManagerSocket {
 		t.Fatalf("expected volume manager socket path %q, got %q", DefaultVolumeManagerSocket, cfg.PluginConfig.RuntimeConfig.VolumeManagerSocketPath())
 	}
+	if cfg.PluginConfig.RuntimeConfig.EgressManagerSocketPath() != DefaultEgressManagerSocket {
+		t.Fatalf("expected egress manager socket path %q, got %q", DefaultEgressManagerSocket, cfg.PluginConfig.RuntimeConfig.EgressManagerSocketPath())
+	}
 }
 
 func TestDefaultConfigSetsRuntimeRunnerBinary(t *testing.T) {

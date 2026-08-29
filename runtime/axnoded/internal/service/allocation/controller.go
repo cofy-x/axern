@@ -10,6 +10,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
@@ -42,6 +43,7 @@ type Options struct {
 	InventoryChanged            func()
 	RootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *langrtmanager.RootFS) error
 	PreActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.ManagedRuntimeHandler, string) error
+	Egress                      egress.Manager
 }
 
 type Controller struct {
@@ -59,6 +61,7 @@ type Controller struct {
 	inventoryChanged            func()
 	rootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *langrtmanager.RootFS) error
 	preActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.ManagedRuntimeHandler, string) error
+	egress                      egress.Manager
 
 	stateMu          sync.RWMutex
 	allocationStates map[string]*allocationState
@@ -112,6 +115,7 @@ func NewController(options Options) *Controller {
 		inventoryChanged:            options.InventoryChanged,
 		rootfsCapabilityGate:        options.RootfsCapabilityGate,
 		preActivationCapabilityGate: options.PreActivationCapabilityGate,
+		egress:                      options.Egress,
 		allocationStates:            make(map[string]*allocationState),
 	}
 	if c.startMetricSink == nil {
@@ -206,6 +210,17 @@ func (c *Controller) DeleteRuntimeContainerWithHandler(ctx context.Context, requ
 
 func (c *Controller) ConfigureStartPorts(ctx context.Context, containerID, containerIP string, ports []string) error {
 	return c.configureStartPorts(ctx, containerID, containerIP, ports)
+}
+
+func (c *Controller) ContainerIP(containerID string) string {
+	if c == nil || c.containers() == nil {
+		return ""
+	}
+	resource, err := c.containers().CollectResourceByID(containerID)
+	if err != nil {
+		return ""
+	}
+	return containerIPFromResource(resource)
 }
 
 func (c *Controller) runtimeMapping(containerID string) (*langrtmanager.LanguageRuntime, bool) {

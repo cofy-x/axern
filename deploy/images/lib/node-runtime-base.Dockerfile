@@ -57,6 +57,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     git \
     iproute2 \
     iptables \
+    nftables \
     jq \
     kmod \
     linux-tools-common \

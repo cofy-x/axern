@@ -148,6 +148,11 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 			}
 		}
 	}
+	if attempt, ok := h.ManagedAllocationAttempt(containerID); ok && h.allocationHasEgressPolicy(containerID) {
+		if err := h.deleteEgressPolicy(ctx, containerID, attempt); err != nil {
+			return fmt.Errorf("retire failed-start egress policy: %w", err)
+		}
+	}
 	if _, err := h.nodeVolumes().Unpublish(ctx, containerID); err != nil {
 		return fmt.Errorf("unpublish failed-start volumes: %w", err)
 	}
@@ -222,6 +227,7 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 	succeeded := false
 	stateCommitted := false
 	resourceReserved := false
+	egressPrepared := false
 	var reservedResource container.OccupiedResource
 	defer func() {
 		recorder.Finish(result)
@@ -235,6 +241,14 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 				returnErr = errors.Join(returnErr, errRuntimeCleanupPending, fmt.Errorf("ordered failed-start cleanup: %w", err))
 			}
 			return
+		}
+		if egressPrepared {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := h.deleteEgressPolicy(cleanupCtx, request.GetContainerID(), request.GetAllocationAttempt()); err != nil {
+				returnErr = errors.Join(returnErr, errRuntimeCleanupPending, err)
+				return
+			}
 		}
 		if resourceReserved {
 			if err := h.containers().Release(reservedResource); err != nil {
@@ -265,6 +279,10 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 	}
 	reservedResource = resource
 	resourceReserved = true
+	egressPrepared, err = h.prepareEgressPolicy(ctx, request, resource)
+	if err != nil {
+		return startErrorResponse(fmt.Sprintf("Failed egress policy admission: %v", err)), err
+	}
 	startplan.ApplyResolvedSecretEnv(request, extraConfig)
 	secretCleanup, err := startplan.MaterializeResolvedSecretFiles(request, extraConfig)
 	if err != nil {
@@ -398,6 +416,11 @@ func (h *Controller) deleteManagedContainer(ctx context.Context, request *runtim
 	runtimeAbsent := isDeleteNotFound(err)
 	if err != nil && !runtimeAbsent {
 		return new(runtime.DeleteResponse), err
+	}
+	if attempt, ok := h.ManagedAllocationAttempt(request.ID); ok && h.allocationHasEgressPolicy(request.ID) {
+		if err := h.deleteEgressPolicy(ctx, request.ID, attempt); err != nil {
+			return new(runtime.DeleteResponse), err
+		}
 	}
 	releaseObservations, err := h.nodeVolumes().Unpublish(ctx, request.ID)
 	if err != nil {

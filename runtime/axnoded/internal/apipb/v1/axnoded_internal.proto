@@ -150,6 +150,13 @@ message AllocationState {
   // Immutable post-create condition proof returned by idempotent Create
   // replays. capability_conditions remains the current runtime projection.
   axern.control.capability.v1.CapabilityConditionSet capability_admission_conditions = 14;
+  AllocationEgressPolicyProof egress_policy_proof = 15;
+}
+
+message AllocationEgressPolicyProof {
+  string sandbox_ip = 1;
+  string policy_digest = 2;
+  int64 execution_revision = 3;
 }
 
 // AllocationLaunchVerification is the durable create-time proof that the

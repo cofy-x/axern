@@ -1154,7 +1154,8 @@ type AllocationState struct {
 	AllocationRequestDigest string `protobuf:"bytes,13,opt,name=allocation_request_digest,json=allocationRequestDigest,proto3" json:"allocation_request_digest,omitempty"`
 	// Immutable post-create condition proof returned by idempotent Create
 	// replays. capability_conditions remains the current runtime projection.
-	CapabilityAdmissionConditions *v11.CapabilityConditionSet `protobuf:"bytes,14,opt,name=capability_admission_conditions,json=capabilityAdmissionConditions,proto3" json:"capability_admission_conditions,omitempty"`
+	CapabilityAdmissionConditions *v11.CapabilityConditionSet  `protobuf:"bytes,14,opt,name=capability_admission_conditions,json=capabilityAdmissionConditions,proto3" json:"capability_admission_conditions,omitempty"`
+	EgressPolicyProof             *AllocationEgressPolicyProof `protobuf:"bytes,15,opt,name=egress_policy_proof,json=egressPolicyProof,proto3" json:"egress_policy_proof,omitempty"`
 	unknownFields                 protoimpl.UnknownFields
 	sizeCache                     protoimpl.SizeCache
 }
@@ -1287,6 +1288,73 @@ func (x *AllocationState) GetCapabilityAdmissionConditions() *v11.CapabilityCond
 	return nil
 }
 
+func (x *AllocationState) GetEgressPolicyProof() *AllocationEgressPolicyProof {
+	if x != nil {
+		return x.EgressPolicyProof
+	}
+	return nil
+}
+
+type AllocationEgressPolicyProof struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SandboxIp         string                 `protobuf:"bytes,1,opt,name=sandbox_ip,json=sandboxIp,proto3" json:"sandbox_ip,omitempty"`
+	PolicyDigest      string                 `protobuf:"bytes,2,opt,name=policy_digest,json=policyDigest,proto3" json:"policy_digest,omitempty"`
+	ExecutionRevision int64                  `protobuf:"varint,3,opt,name=execution_revision,json=executionRevision,proto3" json:"execution_revision,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *AllocationEgressPolicyProof) Reset() {
+	*x = AllocationEgressPolicyProof{}
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllocationEgressPolicyProof) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllocationEgressPolicyProof) ProtoMessage() {}
+
+func (x *AllocationEgressPolicyProof) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllocationEgressPolicyProof.ProtoReflect.Descriptor instead.
+func (*AllocationEgressPolicyProof) Descriptor() ([]byte, []int) {
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *AllocationEgressPolicyProof) GetSandboxIp() string {
+	if x != nil {
+		return x.SandboxIp
+	}
+	return ""
+}
+
+func (x *AllocationEgressPolicyProof) GetPolicyDigest() string {
+	if x != nil {
+		return x.PolicyDigest
+	}
+	return ""
+}
+
+func (x *AllocationEgressPolicyProof) GetExecutionRevision() int64 {
+	if x != nil {
+		return x.ExecutionRevision
+	}
+	return 0
+}
+
 // AllocationLaunchVerification is the durable create-time proof that the
 // runtime-specific hard-enforcement contract was inspected while the OCI
 // container was created but before the workload process was started. The
@@ -1302,7 +1370,7 @@ type AllocationLaunchVerification struct {
 
 func (x *AllocationLaunchVerification) Reset() {
 	*x = AllocationLaunchVerification{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[13]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1314,7 +1382,7 @@ func (x *AllocationLaunchVerification) String() string {
 func (*AllocationLaunchVerification) ProtoMessage() {}
 
 func (x *AllocationLaunchVerification) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[13]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1327,7 +1395,7 @@ func (x *AllocationLaunchVerification) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationLaunchVerification.ProtoReflect.Descriptor instead.
 func (*AllocationLaunchVerification) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{13}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *AllocationLaunchVerification) GetVerifiedCapabilities() []*v11.CapabilityKey {
@@ -1354,7 +1422,7 @@ type PendingCapabilityReconcile struct {
 
 func (x *PendingCapabilityReconcile) Reset() {
 	*x = PendingCapabilityReconcile{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[14]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1366,7 +1434,7 @@ func (x *PendingCapabilityReconcile) String() string {
 func (*PendingCapabilityReconcile) ProtoMessage() {}
 
 func (x *PendingCapabilityReconcile) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[14]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1379,7 +1447,7 @@ func (x *PendingCapabilityReconcile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PendingCapabilityReconcile.ProtoReflect.Descriptor instead.
 func (*PendingCapabilityReconcile) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{14}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *PendingCapabilityReconcile) GetKey() *v11.CapabilityKey {
@@ -1411,7 +1479,7 @@ type AllocationCapabilityReconcileState struct {
 
 func (x *AllocationCapabilityReconcileState) Reset() {
 	*x = AllocationCapabilityReconcileState{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[15]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1423,7 +1491,7 @@ func (x *AllocationCapabilityReconcileState) String() string {
 func (*AllocationCapabilityReconcileState) ProtoMessage() {}
 
 func (x *AllocationCapabilityReconcileState) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[15]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1436,7 +1504,7 @@ func (x *AllocationCapabilityReconcileState) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use AllocationCapabilityReconcileState.ProtoReflect.Descriptor instead.
 func (*AllocationCapabilityReconcileState) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{15}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *AllocationCapabilityReconcileState) GetPending() []*PendingCapabilityReconcile {
@@ -1501,7 +1569,7 @@ type AllocationEnforcementManifest struct {
 
 func (x *AllocationEnforcementManifest) Reset() {
 	*x = AllocationEnforcementManifest{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[16]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1513,7 +1581,7 @@ func (x *AllocationEnforcementManifest) String() string {
 func (*AllocationEnforcementManifest) ProtoMessage() {}
 
 func (x *AllocationEnforcementManifest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[16]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1526,7 +1594,7 @@ func (x *AllocationEnforcementManifest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationEnforcementManifest.ProtoReflect.Descriptor instead.
 func (*AllocationEnforcementManifest) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{16}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AllocationEnforcementManifest) GetRuntimeName() string {
@@ -1700,7 +1768,7 @@ type TerminalResize struct {
 
 func (x *TerminalResize) Reset() {
 	*x = TerminalResize{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[17]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1712,7 +1780,7 @@ func (x *TerminalResize) String() string {
 func (*TerminalResize) ProtoMessage() {}
 
 func (x *TerminalResize) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[17]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1725,7 +1793,7 @@ func (x *TerminalResize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalResize.ProtoReflect.Descriptor instead.
 func (*TerminalResize) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{17}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *TerminalResize) GetCols() uint32 {
@@ -1752,7 +1820,7 @@ type KeyValue struct {
 
 func (x *KeyValue) Reset() {
 	*x = KeyValue{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[18]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1764,7 +1832,7 @@ func (x *KeyValue) String() string {
 func (*KeyValue) ProtoMessage() {}
 
 func (x *KeyValue) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[18]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1777,7 +1845,7 @@ func (x *KeyValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyValue.ProtoReflect.Descriptor instead.
 func (*KeyValue) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{18}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *KeyValue) GetKey() string {
@@ -1812,7 +1880,7 @@ type LinuxContainerResources struct {
 
 func (x *LinuxContainerResources) Reset() {
 	*x = LinuxContainerResources{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[19]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1824,7 +1892,7 @@ func (x *LinuxContainerResources) String() string {
 func (*LinuxContainerResources) ProtoMessage() {}
 
 func (x *LinuxContainerResources) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[19]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1837,7 +1905,7 @@ func (x *LinuxContainerResources) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinuxContainerResources.ProtoReflect.Descriptor instead.
 func (*LinuxContainerResources) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{19}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *LinuxContainerResources) GetCpuPeriod() uint64 {
@@ -1920,7 +1988,7 @@ type HugepageLimit struct {
 
 func (x *HugepageLimit) Reset() {
 	*x = HugepageLimit{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[20]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1932,7 +2000,7 @@ func (x *HugepageLimit) String() string {
 func (*HugepageLimit) ProtoMessage() {}
 
 func (x *HugepageLimit) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[20]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1945,7 +2013,7 @@ func (x *HugepageLimit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HugepageLimit.ProtoReflect.Descriptor instead.
 func (*HugepageLimit) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{20}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *HugepageLimit) GetPageSize() string {
@@ -1975,7 +2043,7 @@ type Rootfs struct {
 
 func (x *Rootfs) Reset() {
 	*x = Rootfs{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[21]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1987,7 +2055,7 @@ func (x *Rootfs) String() string {
 func (*Rootfs) ProtoMessage() {}
 
 func (x *Rootfs) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[21]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2000,7 +2068,7 @@ func (x *Rootfs) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Rootfs.ProtoReflect.Descriptor instead.
 func (*Rootfs) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{21}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *Rootfs) GetType() string {
@@ -2056,7 +2124,7 @@ type ImmutableRootfsMount struct {
 
 func (x *ImmutableRootfsMount) Reset() {
 	*x = ImmutableRootfsMount{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[22]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2068,7 +2136,7 @@ func (x *ImmutableRootfsMount) String() string {
 func (*ImmutableRootfsMount) ProtoMessage() {}
 
 func (x *ImmutableRootfsMount) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[22]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2081,7 +2149,7 @@ func (x *ImmutableRootfsMount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImmutableRootfsMount.ProtoReflect.Descriptor instead.
 func (*ImmutableRootfsMount) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{22}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ImmutableRootfsMount) GetIdentity() string {
@@ -2146,7 +2214,7 @@ type ContainerMetadata struct {
 
 func (x *ContainerMetadata) Reset() {
 	*x = ContainerMetadata{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[23]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2158,7 +2226,7 @@ func (x *ContainerMetadata) String() string {
 func (*ContainerMetadata) ProtoMessage() {}
 
 func (x *ContainerMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[23]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2171,7 +2239,7 @@ func (x *ContainerMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerMetadata.ProtoReflect.Descriptor instead.
 func (*ContainerMetadata) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{23}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ContainerMetadata) GetID() string {
@@ -2218,7 +2286,7 @@ type ContainerMetadataList struct {
 
 func (x *ContainerMetadataList) Reset() {
 	*x = ContainerMetadataList{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[24]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2230,7 +2298,7 @@ func (x *ContainerMetadataList) String() string {
 func (*ContainerMetadataList) ProtoMessage() {}
 
 func (x *ContainerMetadataList) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[24]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2243,7 +2311,7 @@ func (x *ContainerMetadataList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerMetadataList.ProtoReflect.Descriptor instead.
 func (*ContainerMetadataList) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{24}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ContainerMetadataList) GetContainers() map[string]*ContainerMetadata {
@@ -2262,7 +2330,7 @@ type Slice struct {
 
 func (x *Slice) Reset() {
 	*x = Slice{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[25]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2274,7 +2342,7 @@ func (x *Slice) String() string {
 func (*Slice) ProtoMessage() {}
 
 func (x *Slice) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[25]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2287,7 +2355,7 @@ func (x *Slice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Slice.ProtoReflect.Descriptor instead.
 func (*Slice) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{25}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Slice) GetItems() []string {
@@ -2306,7 +2374,7 @@ type Map struct {
 
 func (x *Map) Reset() {
 	*x = Map{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[26]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2318,7 +2386,7 @@ func (x *Map) String() string {
 func (*Map) ProtoMessage() {}
 
 func (x *Map) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[26]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2331,7 +2399,7 @@ func (x *Map) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Map.ProtoReflect.Descriptor instead.
 func (*Map) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{26}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *Map) GetItems() map[string]string {
@@ -2423,7 +2491,7 @@ const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\x11execution_profile\x18\b \x01(\v21.axern.control.catalog.v1.RuntimeExecutionProfileR\x10executionProfile\x1a>\n" +
 	"\x10RuntimeEnvsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcc\b\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb4\t\n" +
 	"\x0fAllocationState\x12\"\n" +
 	"\fallocationID\x18\x01 \x01(\tR\fallocationID\x12U\n" +
 	"\x10runtime_template\x18\x02 \x01(\v2*.axnoded.internal.apipb.v1.RuntimeTemplateR\x0fruntimeTemplate\x12(\n" +
@@ -2439,7 +2507,13 @@ const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\x12allocation_attempt\x18\v \x01(\x03R\x11allocationAttempt\x12h\n" +
 	"\x13launch_verification\x18\f \x01(\v27.axnoded.internal.apipb.v1.AllocationLaunchVerificationR\x12launchVerification\x12:\n" +
 	"\x19allocation_request_digest\x18\r \x01(\tR\x17allocationRequestDigest\x12{\n" +
-	"\x1fcapability_admission_conditions\x18\x0e \x01(\v23.axern.control.capability.v1.CapabilityConditionSetR\x1dcapabilityAdmissionConditions\"\xb2\x01\n" +
+	"\x1fcapability_admission_conditions\x18\x0e \x01(\v23.axern.control.capability.v1.CapabilityConditionSetR\x1dcapabilityAdmissionConditions\x12f\n" +
+	"\x13egress_policy_proof\x18\x0f \x01(\v26.axnoded.internal.apipb.v1.AllocationEgressPolicyProofR\x11egressPolicyProof\"\x90\x01\n" +
+	"\x1bAllocationEgressPolicyProof\x12\x1d\n" +
+	"\n" +
+	"sandbox_ip\x18\x01 \x01(\tR\tsandboxIp\x12#\n" +
+	"\rpolicy_digest\x18\x02 \x01(\tR\fpolicyDigest\x12-\n" +
+	"\x12execution_revision\x18\x03 \x01(\x03R\x11executionRevision\"\xb2\x01\n" +
 	"\x1cAllocationLaunchVerification\x12_\n" +
 	"\x15verified_capabilities\x18\x01 \x03(\v2*.axern.control.capability.v1.CapabilityKeyR\x14verifiedCapabilities\x121\n" +
 	"\x15verified_at_unix_nano\x18\x02 \x01(\x03R\x12verifiedAtUnixNano\"z\n" +
@@ -2581,7 +2655,7 @@ func file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_apipb_v1_axnoded_internal_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_internal_apipb_v1_axnoded_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
+var file_internal_apipb_v1_axnoded_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_internal_apipb_v1_axnoded_internal_proto_goTypes = []any{
 	(RootfsSrcType)(0),                         // 0: axnoded.internal.apipb.v1.RootfsSrcType
 	(CgroupLifecycleState)(0),                  // 1: axnoded.internal.apipb.v1.CgroupLifecycleState
@@ -2600,29 +2674,30 @@ var file_internal_apipb_v1_axnoded_internal_proto_goTypes = []any{
 	(*MaterializeTaskAssetsResponse)(nil),      // 14: axnoded.internal.apipb.v1.MaterializeTaskAssetsResponse
 	(*RuntimeTemplate)(nil),                    // 15: axnoded.internal.apipb.v1.RuntimeTemplate
 	(*AllocationState)(nil),                    // 16: axnoded.internal.apipb.v1.AllocationState
-	(*AllocationLaunchVerification)(nil),       // 17: axnoded.internal.apipb.v1.AllocationLaunchVerification
-	(*PendingCapabilityReconcile)(nil),         // 18: axnoded.internal.apipb.v1.PendingCapabilityReconcile
-	(*AllocationCapabilityReconcileState)(nil), // 19: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
-	(*AllocationEnforcementManifest)(nil),      // 20: axnoded.internal.apipb.v1.AllocationEnforcementManifest
-	(*TerminalResize)(nil),                     // 21: axnoded.internal.apipb.v1.TerminalResize
-	(*KeyValue)(nil),                           // 22: axnoded.internal.apipb.v1.KeyValue
-	(*LinuxContainerResources)(nil),            // 23: axnoded.internal.apipb.v1.LinuxContainerResources
-	(*HugepageLimit)(nil),                      // 24: axnoded.internal.apipb.v1.HugepageLimit
-	(*Rootfs)(nil),                             // 25: axnoded.internal.apipb.v1.Rootfs
-	(*ImmutableRootfsMount)(nil),               // 26: axnoded.internal.apipb.v1.ImmutableRootfsMount
-	(*ContainerMetadata)(nil),                  // 27: axnoded.internal.apipb.v1.ContainerMetadata
-	(*ContainerMetadataList)(nil),              // 28: axnoded.internal.apipb.v1.ContainerMetadataList
-	(*Slice)(nil),                              // 29: axnoded.internal.apipb.v1.Slice
-	(*Map)(nil),                                // 30: axnoded.internal.apipb.v1.Map
-	nil,                                        // 31: axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
-	nil,                                        // 32: axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
-	nil,                                        // 33: axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
-	nil,                                        // 34: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
-	nil,                                        // 35: axnoded.internal.apipb.v1.Map.ItemsEntry
-	(*v1.RuntimeExecutionProfile)(nil),         // 36: axern.control.catalog.v1.RuntimeExecutionProfile
-	(*v11.CapabilityDependency)(nil),           // 37: axern.control.capability.v1.CapabilityDependency
-	(*v11.CapabilityConditionSet)(nil),         // 38: axern.control.capability.v1.CapabilityConditionSet
-	(*v11.CapabilityKey)(nil),                  // 39: axern.control.capability.v1.CapabilityKey
+	(*AllocationEgressPolicyProof)(nil),        // 17: axnoded.internal.apipb.v1.AllocationEgressPolicyProof
+	(*AllocationLaunchVerification)(nil),       // 18: axnoded.internal.apipb.v1.AllocationLaunchVerification
+	(*PendingCapabilityReconcile)(nil),         // 19: axnoded.internal.apipb.v1.PendingCapabilityReconcile
+	(*AllocationCapabilityReconcileState)(nil), // 20: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
+	(*AllocationEnforcementManifest)(nil),      // 21: axnoded.internal.apipb.v1.AllocationEnforcementManifest
+	(*TerminalResize)(nil),                     // 22: axnoded.internal.apipb.v1.TerminalResize
+	(*KeyValue)(nil),                           // 23: axnoded.internal.apipb.v1.KeyValue
+	(*LinuxContainerResources)(nil),            // 24: axnoded.internal.apipb.v1.LinuxContainerResources
+	(*HugepageLimit)(nil),                      // 25: axnoded.internal.apipb.v1.HugepageLimit
+	(*Rootfs)(nil),                             // 26: axnoded.internal.apipb.v1.Rootfs
+	(*ImmutableRootfsMount)(nil),               // 27: axnoded.internal.apipb.v1.ImmutableRootfsMount
+	(*ContainerMetadata)(nil),                  // 28: axnoded.internal.apipb.v1.ContainerMetadata
+	(*ContainerMetadataList)(nil),              // 29: axnoded.internal.apipb.v1.ContainerMetadataList
+	(*Slice)(nil),                              // 30: axnoded.internal.apipb.v1.Slice
+	(*Map)(nil),                                // 31: axnoded.internal.apipb.v1.Map
+	nil,                                        // 32: axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
+	nil,                                        // 33: axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
+	nil,                                        // 34: axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
+	nil,                                        // 35: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
+	nil,                                        // 36: axnoded.internal.apipb.v1.Map.ItemsEntry
+	(*v1.RuntimeExecutionProfile)(nil),         // 37: axern.control.catalog.v1.RuntimeExecutionProfile
+	(*v11.CapabilityDependency)(nil),           // 38: axern.control.capability.v1.CapabilityDependency
+	(*v11.CapabilityConditionSet)(nil),         // 39: axern.control.capability.v1.CapabilityConditionSet
+	(*v11.CapabilityKey)(nil),                  // 40: axern.control.capability.v1.CapabilityKey
 }
 var file_internal_apipb_v1_axnoded_internal_proto_depIdxs = []int32{
 	1,  // 0: axnoded.internal.apipb.v1.CgroupLease.state:type_name -> axnoded.internal.apipb.v1.CgroupLifecycleState
@@ -2633,31 +2708,32 @@ var file_internal_apipb_v1_axnoded_internal_proto_depIdxs = []int32{
 	11, // 5: axnoded.internal.apipb.v1.WorkspaceImageSource.variants:type_name -> axnoded.internal.apipb.v1.WorkspaceImageVariant
 	3,  // 6: axnoded.internal.apipb.v1.MaterializeTaskAssetsRequest.kind:type_name -> axnoded.internal.apipb.v1.TaskAssetKind
 	8,  // 7: axnoded.internal.apipb.v1.RuntimeTemplate.rootfs:type_name -> axnoded.internal.apipb.v1.RootfsConfig
-	31, // 8: axnoded.internal.apipb.v1.RuntimeTemplate.runtimeEnvs:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
+	32, // 8: axnoded.internal.apipb.v1.RuntimeTemplate.runtimeEnvs:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
 	9,  // 9: axnoded.internal.apipb.v1.RuntimeTemplate.mounts:type_name -> axnoded.internal.apipb.v1.Mount
-	36, // 10: axnoded.internal.apipb.v1.RuntimeTemplate.execution_profile:type_name -> axern.control.catalog.v1.RuntimeExecutionProfile
+	37, // 10: axnoded.internal.apipb.v1.RuntimeTemplate.execution_profile:type_name -> axern.control.catalog.v1.RuntimeExecutionProfile
 	15, // 11: axnoded.internal.apipb.v1.AllocationState.runtime_template:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate
-	37, // 12: axnoded.internal.apipb.v1.AllocationState.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
-	38, // 13: axnoded.internal.apipb.v1.AllocationState.capability_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
-	20, // 14: axnoded.internal.apipb.v1.AllocationState.enforcement_manifest:type_name -> axnoded.internal.apipb.v1.AllocationEnforcementManifest
-	19, // 15: axnoded.internal.apipb.v1.AllocationState.capability_reconcile:type_name -> axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
-	17, // 16: axnoded.internal.apipb.v1.AllocationState.launch_verification:type_name -> axnoded.internal.apipb.v1.AllocationLaunchVerification
-	38, // 17: axnoded.internal.apipb.v1.AllocationState.capability_admission_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
-	39, // 18: axnoded.internal.apipb.v1.AllocationLaunchVerification.verified_capabilities:type_name -> axern.control.capability.v1.CapabilityKey
-	39, // 19: axnoded.internal.apipb.v1.PendingCapabilityReconcile.key:type_name -> axern.control.capability.v1.CapabilityKey
-	18, // 20: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState.pending:type_name -> axnoded.internal.apipb.v1.PendingCapabilityReconcile
-	24, // 21: axnoded.internal.apipb.v1.LinuxContainerResources.hugepage_limits:type_name -> axnoded.internal.apipb.v1.HugepageLimit
-	32, // 22: axnoded.internal.apipb.v1.LinuxContainerResources.unified:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
-	26, // 23: axnoded.internal.apipb.v1.Rootfs.immutable_mount:type_name -> axnoded.internal.apipb.v1.ImmutableRootfsMount
-	33, // 24: axnoded.internal.apipb.v1.ContainerMetadata.labels:type_name -> axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
-	34, // 25: axnoded.internal.apipb.v1.ContainerMetadataList.containers:type_name -> axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
-	35, // 26: axnoded.internal.apipb.v1.Map.items:type_name -> axnoded.internal.apipb.v1.Map.ItemsEntry
-	27, // 27: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry.value:type_name -> axnoded.internal.apipb.v1.ContainerMetadata
-	28, // [28:28] is the sub-list for method output_type
-	28, // [28:28] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	38, // 12: axnoded.internal.apipb.v1.AllocationState.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
+	39, // 13: axnoded.internal.apipb.v1.AllocationState.capability_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
+	21, // 14: axnoded.internal.apipb.v1.AllocationState.enforcement_manifest:type_name -> axnoded.internal.apipb.v1.AllocationEnforcementManifest
+	20, // 15: axnoded.internal.apipb.v1.AllocationState.capability_reconcile:type_name -> axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
+	18, // 16: axnoded.internal.apipb.v1.AllocationState.launch_verification:type_name -> axnoded.internal.apipb.v1.AllocationLaunchVerification
+	39, // 17: axnoded.internal.apipb.v1.AllocationState.capability_admission_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
+	17, // 18: axnoded.internal.apipb.v1.AllocationState.egress_policy_proof:type_name -> axnoded.internal.apipb.v1.AllocationEgressPolicyProof
+	40, // 19: axnoded.internal.apipb.v1.AllocationLaunchVerification.verified_capabilities:type_name -> axern.control.capability.v1.CapabilityKey
+	40, // 20: axnoded.internal.apipb.v1.PendingCapabilityReconcile.key:type_name -> axern.control.capability.v1.CapabilityKey
+	19, // 21: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState.pending:type_name -> axnoded.internal.apipb.v1.PendingCapabilityReconcile
+	25, // 22: axnoded.internal.apipb.v1.LinuxContainerResources.hugepage_limits:type_name -> axnoded.internal.apipb.v1.HugepageLimit
+	33, // 23: axnoded.internal.apipb.v1.LinuxContainerResources.unified:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
+	27, // 24: axnoded.internal.apipb.v1.Rootfs.immutable_mount:type_name -> axnoded.internal.apipb.v1.ImmutableRootfsMount
+	34, // 25: axnoded.internal.apipb.v1.ContainerMetadata.labels:type_name -> axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
+	35, // 26: axnoded.internal.apipb.v1.ContainerMetadataList.containers:type_name -> axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry
+	36, // 27: axnoded.internal.apipb.v1.Map.items:type_name -> axnoded.internal.apipb.v1.Map.ItemsEntry
+	28, // 28: axnoded.internal.apipb.v1.ContainerMetadataList.ContainersEntry.value:type_name -> axnoded.internal.apipb.v1.ContainerMetadata
+	29, // [29:29] is the sub-list for method output_type
+	29, // [29:29] is the sub-list for method input_type
+	29, // [29:29] is the sub-list for extension type_name
+	29, // [29:29] is the sub-list for extension extendee
+	0,  // [0:29] is the sub-list for field type_name
 }
 
 func init() { file_internal_apipb_v1_axnoded_internal_proto_init() }
@@ -2676,7 +2752,7 @@ func file_internal_apipb_v1_axnoded_internal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_apipb_v1_axnoded_internal_proto_rawDesc), len(file_internal_apipb_v1_axnoded_internal_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   32,
+			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

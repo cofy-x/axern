@@ -62,6 +62,7 @@ image_manager_enabled = true
 image_lib_dir = "/var/lib/axnoded/rootfs"
 image_manager_socket = "/var/run/imagemgr.sock"
 volume_manager_socket = "/run/volumed/volumed.sock"
+egress_manager_socket = "/run/egressd/egressd.sock"
 runtime_runner_binary = "/usr/local/libexec/axnoded/axnoded-runtime-runner"
 idle_runtime_retention_ttl = "5m"
 idle_runtime_retention_max = 8

@@ -149,6 +149,37 @@ func TestReconcileSaveFailureDoesNotPublishNewState(t *testing.T) {
 	}
 }
 
+func TestPersistenceFailureRestoresPreviousDataplane(t *testing.T) {
+	store := &memoryStore{}
+	executor := &recordingExecutor{}
+	m, err := NewManagerWithExecutor(store, executor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.saveErr = errors.New("disk full")
+	if _, _, err := m.Prepare(context.Background(), "alloc-1", 1, "10.0.0.8", dnsDeny("example.com"), 1); err == nil {
+		t.Fatal("Prepare succeeded despite persistence failure")
+	}
+	if len(executor.generations) != 3 || len(executor.generations[0]) != 0 || len(executor.generations[1]) != 1 || len(executor.generations[2]) != 0 {
+		t.Fatalf("dataplane generations = %#v, want empty/apply/rollback", executor.generations)
+	}
+	if len(m.List("")) != 0 {
+		t.Fatal("failed persistence published policy state")
+	}
+}
+
+type recordingExecutor struct {
+	generations [][]*runtimeegressv1.PreparedEgressPolicy
+}
+
+func (e *recordingExecutor) Reconcile(_ context.Context, records []*runtimeegressv1.PreparedEgressPolicy) error {
+	e.generations = append(e.generations, cloneRecords(records))
+	return nil
+}
+func (e *recordingExecutor) Health(context.Context) EnforcementHealth {
+	return EnforcementHealth{DNSPolicyReady: true, StrictEgressReady: true, Revision: int64(len(e.generations))}
+}
+
 type memoryStore struct {
 	records []*runtimeegressv1.PreparedEgressPolicy
 	saveErr error

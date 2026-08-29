@@ -12,3 +12,7 @@ func DNSConfigFromRuntimeConfig(config config.RuntimeDNSConfig) runtimeoci.Runti
 		Options:       append([]string(nil), config.Options...),
 	}
 }
+
+func ResolveRuntimeDNSNameservers(config config.RuntimeDNSConfig) ([]string, error) {
+	return runtimeoci.ResolveRuntimeDNSNameservers(DNSConfigFromRuntimeConfig(config))
+}

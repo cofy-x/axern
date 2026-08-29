@@ -18,6 +18,7 @@ flowchart TB
     Service --> Control["service/sandboxcontrol + probes + networking"]
 
     Allocation --> Volume["internal/volume -> volumed"]
+    Allocation --> Egress["internal/egress -> egressd"]
     Allocation --> LangRuntime["internal/langruntime -> imagemgr"]
     Allocation --> Resources["internal/resources + internal/network"]
     Allocation --> Container["internal/container"]
@@ -42,7 +43,7 @@ Layer ownership:
 - `internal/runtime` owns OCI runtime handlers, bundle creation, runtime state,
   and host-side sandboxd clients.
 - `internal/sandboxd` is the sandbox-local daemon implementation.
-- `internal/langruntime`, `internal/volume`, `internal/resources`, and
+- `internal/langruntime`, `internal/volume`, `internal/egress`, `internal/resources`, and
   `internal/container` own rootfs/image coordination, node-volume publish,
   cgroup/network resources, and persisted container state.
 - `internal/nodestate` owns the process-wide BoltDB handle and low-level record

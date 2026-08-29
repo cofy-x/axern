@@ -73,6 +73,7 @@ func (h *sandboxService) shutdown(ctx context.Context) error {
 	h.lrtManager.DrainRetained(ctx, langrtmanager.RetentionReasonShutdown)
 	h.lrtManager.Close()
 	h.closeVolume()
+	h.closeEgress()
 	if err := h.containerManager.Stop(ctx); err != nil {
 		deleteErr = errors.Join(deleteErr, fmt.Errorf("stop container manager: %w", err))
 		// A monitor may still be checkpointing terminal state or invoking the

@@ -341,6 +341,7 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		AllocationAttempt:      req.GetAttempt(),
 		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
 		Network:                lifecycleNetworkToRuntime(spec.GetNetwork()),
+		EgressPolicy:           cloneNetworkEgressPolicy(spec.GetNetwork().GetEgressPolicy()),
 		ExtraConfig:            lifecycleExtraConfig(spec),
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
@@ -387,6 +388,7 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 		ContainerID:            containerID,
 		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
 		Network:                lifecycleNetworkToRuntime(spec.GetNetwork()),
+		EgressPolicy:           cloneNetworkEgressPolicy(spec.GetNetwork().GetEgressPolicy()),
 		ExtraConfig:            lifecycleExtraConfig(spec),
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
@@ -616,6 +618,13 @@ func lifecycleNetworkToRuntime(in *commonv1.NetworkSpec) string {
 		return ""
 	}
 	return strings.ToLower(strings.TrimPrefix(in.GetMode().String(), "NETWORK_MODE_"))
+}
+
+func cloneNetworkEgressPolicy(in *commonv1.NetworkEgressPolicy) *commonv1.NetworkEgressPolicy {
+	if in == nil {
+		return nil
+	}
+	return proto.Clone(in).(*commonv1.NetworkEgressPolicy)
 }
 
 func itoa32(value int32) string {

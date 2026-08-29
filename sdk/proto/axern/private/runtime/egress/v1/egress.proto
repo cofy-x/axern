@@ -22,6 +22,7 @@ message PreparedEgressPolicy {
   int64 execution_revision = 6;
   EgressPolicyRecoveryState recovery_state = 7;
   google.protobuf.Timestamp updated_at = 8;
+  repeated string upstream_nameservers = 9;
 }
 
 message PreparePolicyRequest {
@@ -30,6 +31,7 @@ message PreparePolicyRequest {
   string sandbox_ip = 3;
   axern.control.common.v1.NetworkEgressPolicy policy = 4;
   int64 execution_revision = 5;
+  repeated string upstream_nameservers = 6;
 }
 
 message PreparePolicyResponse {
@@ -102,6 +104,9 @@ message EgressManagerHealth {
   int32 last_reconcile_active_policy_count = 8;
   int32 last_reconcile_stale_policy_count = 9;
   int32 last_reconcile_invalid_active_policy_count = 10;
+  bool dns_policy_self_test_ok = 11;
+  bool strict_egress_self_test_ok = 12;
+  int64 enforcement_revision = 13;
 }
 
 message EgressManagerHealthResponse {

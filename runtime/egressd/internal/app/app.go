@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/cofy-x/axern/runtime/egressd/internal/api"
+	"github.com/cofy-x/axern/runtime/egressd/internal/enforcement"
 	"github.com/cofy-x/axern/runtime/egressd/internal/policy"
 	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 	"google.golang.org/grpc"
@@ -37,7 +38,14 @@ func Run(args []string) error {
 	if err := os.MkdirAll(opts.root, 0o755); err != nil {
 		return fmt.Errorf("create egressd root: %w", err)
 	}
-	manager, err := policy.NewManager(policy.NewJSONStore(opts.root))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	executor, err := enforcement.NewNFTExecutor(ctx)
+	if err != nil {
+		return fmt.Errorf("create host egress executor: %w", err)
+	}
+	defer executor.Close()
+	manager, err := policy.NewManagerWithExecutor(policy.NewJSONStore(opts.root), executor)
 	if err != nil {
 		return fmt.Errorf("create egress policy manager: %w", err)
 	}
@@ -54,8 +62,6 @@ func Run(args []string) error {
 	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 	healthServer.SetServingStatus("axern.private.runtime.egress.v1.RuntimeEgressService", healthpb.HealthCheckResponse_SERVING)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	errCh := make(chan error, 1)
 	go func() { errCh <- grpcServer.Serve(lis) }()
 	select {
