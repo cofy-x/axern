@@ -9,6 +9,9 @@ Current packages:
 - [`grpcclient`](./grpcclient): small gRPC dialing and readiness helpers.
 - [`imageref`](./imageref): shared container image reference parsing and local
   insecure registry matching helpers.
+- [`networkpolicy`](./networkpolicy): canonical sandbox egress-policy
+  validation, normalization, and enforcement-mode classification shared by the
+  control plane and node runtime.
 - [`nodecapability`](./nodecapability): canonical observed node-capability
   catalog, extension validation, and snapshot eligibility rules shared by the
   node runtime and control plane.

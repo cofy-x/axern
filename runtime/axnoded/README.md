@@ -22,6 +22,11 @@ axnoded revalidates it for each allocation. Platform capabilities cannot be
 configured as strings or inferred from successful user sandboxes. See
 [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md).
 
+Network-policy capability keys are owned by the network-health and derived
+providers. Until egressd is configured and its self-tests pass, the DNS-policy
+and strict-egress facts are explicitly unavailable, so controld cannot place a
+policy workload on that node.
+
 ## Platform Role
 
 `axnoded` serves these gRPC surfaces:

@@ -5,6 +5,7 @@ import (
 	"path"
 	"strings"
 
+	networkpolicy "github.com/cofy-x/axern/lib/go/networkpolicy"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -21,6 +22,9 @@ func NormalizeConfig(in *commonv1.ExecutionConfig) *commonv1.ExecutionConfig {
 	out.Resources = NormalizeResources(out.GetResources())
 	out.ImageMounts = NormalizeImageMounts(out.GetImageMounts())
 	out.WorkspaceImage = NormalizeWorkspaceImage(out.GetWorkspaceImage())
+	if network, err := networkpolicy.Normalize(out.GetNetwork()); err == nil {
+		out.Network = network
+	}
 	out.ExtensionCapabilityRequirements = normalizeExtensionCapabilityRequirements(out.GetExtensionCapabilityRequirements())
 	return out
 }
@@ -118,6 +122,9 @@ func NormalizeConfigForRootfs(in *commonv1.ExecutionConfig, readonly bool) (*com
 	if err := validateExtensionCapabilityRequirements(in.GetExtensionCapabilityRequirements()); err != nil {
 		return nil, err
 	}
+	if err := ValidateNetwork(in.GetNetwork()); err != nil {
+		return nil, err
+	}
 	out := NormalizeConfig(in)
 	resources, err := NormalizeResourcesForRootfs(out.GetResources(), readonly)
 	if err != nil {
@@ -125,6 +132,13 @@ func NormalizeConfigForRootfs(in *commonv1.ExecutionConfig, readonly bool) (*com
 	}
 	out.Resources = resources
 	return out, ValidateResources(out.Resources)
+}
+
+func ValidateNetwork(in *commonv1.NetworkSpec) error {
+	if err := networkpolicy.Validate(in); err != nil {
+		return grpcstatus.Errorf(codes.InvalidArgument, "config.network: %v", err)
+	}
+	return nil
 }
 
 func normalizeExtensionCapabilityRequirements(in []*capabilityv1.ExtensionCapabilityRequirement) []*capabilityv1.ExtensionCapabilityRequirement {

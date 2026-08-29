@@ -79,6 +79,13 @@ func validateExecutionConfigResources(config *commonv1.ExecutionConfig) error {
 	return executionkernel.ValidateResources(config.GetResources())
 }
 
+func validateExecutionConfigNetwork(config *commonv1.ExecutionConfig) error {
+	if config == nil {
+		return nil
+	}
+	return executionkernel.ValidateNetwork(config.GetNetwork())
+}
+
 func validateExecutionConfigCapabilities(config *commonv1.ExecutionConfig) error {
 	if config == nil {
 		return nil

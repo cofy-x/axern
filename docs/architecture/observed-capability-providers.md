@@ -97,11 +97,13 @@ The providers are:
 
 - config: extension facts;
 - host: a boot-scoped cgroup v2 memory-controller enforcement probe;
-- network health: bridge/iptables or BPF dataplane and port forwarding;
+- network health: bridge/iptables or BPF dataplane, port forwarding, and the
+  egressd DNS/strict policy self-tests;
 - filestore: mount identity, OverlayFS upper, XFS project quota, and real EROFS
   compatibility;
 - runtime conformance: local, registry-independent runc and runsc sandboxes;
-- derived policy: runtime-specific memory and ephemeral-storage hard limits.
+- derived policy: runtime-specific memory and ephemeral-storage hard limits,
+  DNS policy enforcement, and strict egress enforcement.
 
 The catalog currently owns this platform set:
 
@@ -115,6 +117,9 @@ The catalog currently owns this platform set:
 | Runsc ephemeral-storage hard limit | derived, refreshable | `FAIL_STOP` | OverlayFS upper and runsc self-test |
 | EROFS lower compatibility | EROFS probe, mount | `ADMISSION_ONLY` | real fixture probe |
 | Runtime memory and ephemeral self-test facts | matching runtime self-test, runtime | `ADMISSION_ONLY` | internal dependencies, not workload requirements |
+| Egressd DNS and strict self-test facts | network health, refreshable | `ADMISSION_ONLY` | internal dependencies, not workload requirements |
+| DNS policy enforcement | derived, refreshable | `FAIL_STOP` | egressd DNS policy self-test |
+| Strict egress enforcement | derived, refreshable | `FAIL_STOP` | egressd DNS and strict policy self-tests |
 
 Extensions are config-static, config-owned, and always `ADMISSION_ONLY`.
 The extension config digest is independent from the network config digest.
@@ -168,9 +173,12 @@ the certified runtime subject.
 ## Policy
 
 The shared catalog is the only owner of platform loss policy. Workload-facing
-requirements are automatically derived from ports, network mode, memory limit,
-writable rootfs/runtime, and EROFS mount representation. Users can request only
-extension capabilities.
+requirements are automatically derived from ports, network mode, egress
+policy, memory limit, writable rootfs/runtime, and EROFS mount representation.
+Users can request only extension capabilities. DNS-only and strict egress
+requirements are mutually exclusive. Isolated or explicit strict deny-all does
+not require egressd because the existing isolated dataplane can prove that no
+egress path exists.
 
 Only an `AVAILABLE` observation whose snapshot, validity period, evidence
 scope, and derived dependency evidence remain valid is eligible for placement.

@@ -24,7 +24,8 @@ Layout:
   contract; controld does not infer it from implementation-specific pools.
 - `axern/control/common/v1`: shared control-plane value types including
   execution config, resource quantities, allocation status, internal execution
-  leases, and workload diagnostic codes used by public workload views
+  leases, immutable strict or DNS-only sandbox egress policy, and workload
+  diagnostic codes used by public workload views
 - `axern/node/sandbox/v1`: gateway-exposed sandbox execution and allocation
   HTTP proxy API; gatewayd resolves allocations and forwards to internal nodes
 - `axern/tunnel/v1`: tunnel relay data-plane peer stream API

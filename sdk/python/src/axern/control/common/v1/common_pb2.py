@@ -27,7 +27,7 @@ from axern.control.capability.v1 import capability_pb2 as axern_dot_control_dot_
 from axern.control.storage.v1 import storage_types_pb2 as axern_dot_control_dot_storage_dot_v1_dot_storage__types__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n$axern/control/common/v1/common.proto\x12\x17\x61xern.control.common.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a,axern/control/capability/v1/capability.proto\x1a,axern/control/storage/v1/storage_types.proto\"\\\n\x10ResourceQuantity\x12\x11\n\tcpu_milli\x18\x01 \x01(\x03\x12\x14\n\x0cmemory_bytes\x18\x02 \x01(\x03\x12\x1f\n\x17\x65phemeral_storage_bytes\x18\x03 \x01(\x03\"\x86\x01\n\x0cResourceSpec\x12;\n\x08requests\x18\x01 \x01(\x0b\x32).axern.control.common.v1.ResourceQuantity\x12\x39\n\x06limits\x18\x02 \x01(\x0b\x32).axern.control.common.v1.ResourceQuantity\"|\n\x08PortSpec\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x37\n\x08protocol\x18\x02 \x01(\x0e\x32%.axern.control.common.v1.PortProtocol\x12\x16\n\x0e\x63ontainer_port\x18\x03 \x01(\x05\x12\x11\n\thost_port\x18\x04 \x01(\x05\"A\n\x0bNetworkSpec\x12\x32\n\x04mode\x18\x01 \x01(\x0e\x32$.axern.control.common.v1.NetworkMode\"\xa3\x01\n\x14PlacementConstraints\x12V\n\rnode_selector\x18\x01 \x03(\x0b\x32?.axern.control.common.v1.PlacementConstraints.NodeSelectorEntry\x1a\x33\n\x11NodeSelectorEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"N\n\x0cSecretEnvVar\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x11\n\tsecret_id\x18\x02 \x01(\t\x12\x0b\n\x03key\x18\x03 \x01(\t\x12\x10\n\x08optional\x18\x04 \x01(\x08\"Z\n\nSecretFile\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x11\n\tsecret_id\x18\x02 \x01(\t\x12\x0b\n\x03key\x18\x03 \x01(\t\x12\x0c\n\x04mode\x18\x04 \x01(\r\x12\x10\n\x08optional\x18\x05 \x01(\x08\"\x9c\x01\n\x12ServiceVolumeMount\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0e\n\x06target\x18\x02 \x01(\t\x12\x10\n\x08readonly\x18\x03 \x01(\x08\x12\x0f\n\x07options\x18\x04 \x03(\t\x12\x45\n\x0ereclaim_policy\x18\x05 \x01(\x0e\x32-.axern.control.storage.v1.VolumeReclaimPolicy\"=\n\nImageMount\x12\r\n\x05image\x18\x01 \x01(\t\x12\x0e\n\x06target\x18\x02 \x01(\t\x12\x10\n\x08readonly\x18\x03 \x01(\x08\"6\n\x15WorkspaceImageVariant\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\r\n\x05image\x18\x02 \x01(\t\"}\n\x14WorkspaceImageSource\x12@\n\x08variants\x18\x01 \x03(\x0b\x32..axern.control.common.v1.WorkspaceImageVariant\x12\x13\n\x0bsource_path\x18\x02 \x01(\t\x12\x0e\n\x06target\x18\x03 \x01(\t\"\xa7\x01\n\x19WorkspacePreparationFacts\x12\x16\n\x0epayload_format\x18\x01 \x01(\t\x12\x16\n\x0epayload_digest\x18\x02 \x01(\t\x12\x11\n\tcache_hit\x18\x03 \x01(\x08\x12\x18\n\x10image_resolve_ms\x18\x04 \x01(\x03\x12\x15\n\rimage_pull_ms\x18\x05 \x01(\x03\x12\x16\n\x0e\x63ow_prepare_ms\x18\x06 \x01(\x03\"\xb9\x06\n\x0f\x45xecutionConfig\x12\x0c\n\x04\x61rgv\x18\x01 \x03(\t\x12>\n\x03\x65nv\x18\x02 \x03(\x0b\x32\x31.axern.control.common.v1.ExecutionConfig.EnvEntry\x12\x0b\n\x03\x63wd\x18\x03 \x01(\t\x12\x38\n\tresources\x18\x04 \x01(\x0b\x32%.axern.control.common.v1.ResourceSpec\x12\x30\n\x05ports\x18\x05 \x03(\x0b\x32!.axern.control.common.v1.PortSpec\x12\x35\n\x07network\x18\x06 \x01(\x0b\x32$.axern.control.common.v1.NetworkSpec\x12\x66\n!extension_capability_requirements\x18\x07 \x03(\x0b\x32;.axern.control.capability.v1.ExtensionCapabilityRequirement\x12@\n\tplacement\x18\x08 \x01(\x0b\x32-.axern.control.common.v1.PlacementConstraints\x12\x39\n\nsecret_env\x18\t \x03(\x0b\x32%.axern.control.common.v1.SecretEnvVar\x12\x39\n\x0csecret_files\x18\n \x03(\x0b\x32#.axern.control.common.v1.SecretFile\x12\x42\n\rvolume_mounts\x18\x0b \x03(\x0b\x32+.axern.control.common.v1.ServiceVolumeMount\x12\x15\n\rruntime_class\x18\x0c \x01(\t\x12\x39\n\x0cimage_mounts\x18\r \x03(\x0b\x32#.axern.control.common.v1.ImageMount\x12\x46\n\x0fworkspace_image\x18\x0e \x01(\x0b\x32-.axern.control.common.v1.WorkspaceImageSource\x1a*\n\x08\x45nvEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xb3\x02\n\x0e\x45xecutionLease\x12\x10\n\x08lease_id\x18\x01 \x01(\t\x12\x15\n\rallocation_id\x18\x02 \x01(\t\x12\x0f\n\x07node_id\x18\x03 \x01(\t\x12\x0f\n\x07\x61ttempt\x18\x04 \x01(\x03\x12\x36\n\nlease_type\x18\x05 \x01(\x0e\x32\".axern.control.common.v1.LeaseType\x12\x17\n\x0fplaintext_token\x18\x06 \x01(\t\x12\x10\n\x08revision\x18\x07 \x01(\x03\x12.\n\nexpires_at\x18\x08 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07revoked\x18\t \x01(\x08\x12\x13\n\x0bnode_target\x18\n \x01(\t\x12\x1d\n\x15validation_token_hash\x18\x0b \x01(\t*[\n\x0cPortProtocol\x12\x1d\n\x19PORT_PROTOCOL_UNSPECIFIED\x10\x00\x12\x15\n\x11PORT_PROTOCOL_TCP\x10\x01\x12\x15\n\x11PORT_PROTOCOL_UDP\x10\x02*w\n\x0bNetworkMode\x12\x1c\n\x18NETWORK_MODE_UNSPECIFIED\x10\x00\x12\x18\n\x14NETWORK_MODE_DEFAULT\x10\x01\x12\x19\n\x15NETWORK_MODE_ISOLATED\x10\x02\x12\x15\n\x11NETWORK_MODE_HOST\x10\x03*\xae\x02\n\x10\x41llocationStatus\x12!\n\x1d\x41LLOCATION_STATUS_UNSPECIFIED\x10\x00\x12\x1e\n\x1a\x41LLOCATION_STATUS_RESERVED\x10\x01\x12\x1b\n\x17\x41LLOCATION_STATUS_BOUND\x10\x02\x12\x1e\n\x1a\x41LLOCATION_STATUS_STARTING\x10\x03\x12\x1d\n\x19\x41LLOCATION_STATUS_RUNNING\x10\x04\x12\x1c\n\x18\x41LLOCATION_STATUS_EXITED\x10\x05\x12\x1c\n\x18\x41LLOCATION_STATUS_FAILED\x10\x06\x12\x1f\n\x1b\x41LLOCATION_STATUS_RELEASING\x10\x07\x12\x1e\n\x1a\x41LLOCATION_STATUS_RELEASED\x10\x08*\xcb\x06\n\x16WorkloadDiagnosticCode\x12(\n$WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED\x10\x00\x12\x34\n0WORKLOAD_DIAGNOSTIC_CODE_SECRET_PROJECTION_ERROR\x10\x01\x12\x30\n,WORKLOAD_DIAGNOSTIC_CODE_REGISTRY_AUTH_ERROR\x10\x02\x12\x33\n/WORKLOAD_DIAGNOSTIC_CODE_IMAGE_RESOLUTION_ERROR\x10\x03\x12\x31\n-WORKLOAD_DIAGNOSTIC_CODE_NODE_SELECTION_ERROR\x10\x04\x12\x30\n,WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR\x10\x05\x12+\n\'WORKLOAD_DIAGNOSTIC_CODE_PROCESS_EXITED\x10\x06\x12\x32\n.WORKLOAD_DIAGNOSTIC_CODE_LIVENESS_PROBE_FAILED\x10\x07\x12.\n*WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED\x10\x08\x12\x39\n5WORKLOAD_DIAGNOSTIC_CODE_STORAGE_TOPOLOGY_UNSATISFIED\x10\t\x12\x32\n.WORKLOAD_DIAGNOSTIC_CODE_STORAGE_RESERVE_ERROR\x10\n\x12\x31\n-WORKLOAD_DIAGNOSTIC_CODE_VOLUME_PUBLISH_ERROR\x10\x0b\x12\x31\n-WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR\x10\x0c\x12\x31\n-WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT\x10\r\x12\x38\n4WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST\x10\x0e\x12\x32\n.WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED\x10\x0f*j\n\tLeaseType\x12\x1a\n\x16LEASE_TYPE_UNSPECIFIED\x10\x00\x12\x12\n\x0eLEASE_TYPE_RUN\x10\x01\x12\x16\n\x12LEASE_TYPE_SERVICE\x10\x02\x12\x15\n\x11LEASE_TYPE_INVOKE\x10\x03\x42\x45ZCgithub.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1;commonv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n$axern/control/common/v1/common.proto\x12\x17\x61xern.control.common.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a,axern/control/capability/v1/capability.proto\x1a,axern/control/storage/v1/storage_types.proto\"\\\n\x10ResourceQuantity\x12\x11\n\tcpu_milli\x18\x01 \x01(\x03\x12\x14\n\x0cmemory_bytes\x18\x02 \x01(\x03\x12\x1f\n\x17\x65phemeral_storage_bytes\x18\x03 \x01(\x03\"\x86\x01\n\x0cResourceSpec\x12;\n\x08requests\x18\x01 \x01(\x0b\x32).axern.control.common.v1.ResourceQuantity\x12\x39\n\x06limits\x18\x02 \x01(\x0b\x32).axern.control.common.v1.ResourceQuantity\"|\n\x08PortSpec\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x37\n\x08protocol\x18\x02 \x01(\x0e\x32%.axern.control.common.v1.PortProtocol\x12\x16\n\x0e\x63ontainer_port\x18\x03 \x01(\x05\x12\x11\n\thost_port\x18\x04 \x01(\x05\"\x86\x01\n\x0bNetworkSpec\x12\x32\n\x04mode\x18\x01 \x01(\x0e\x32$.axern.control.common.v1.NetworkMode\x12\x43\n\regress_policy\x18\x02 \x01(\x0b\x32,.axern.control.common.v1.NetworkEgressPolicy\"\x9a\x01\n\x13NetworkEgressPolicy\x12=\n\x06strict\x18\x01 \x01(\x0b\x32+.axern.control.common.v1.StrictEgressPolicyH\x00\x12:\n\x08\x64ns_deny\x18\x02 \x01(\x0b\x32&.axern.control.common.v1.DnsDenyPolicyH\x00\x42\x08\n\x06policy\"m\n\x12StrictEgressPolicy\x12\x17\n\x0f\x61llowed_domains\x18\x01 \x03(\t\x12>\n\rallowed_cidrs\x18\x02 \x03(\x0b\x32\'.axern.control.common.v1.CIDREgressRule\"\'\n\rDnsDenyPolicy\x12\x16\n\x0e\x64\x65nied_domains\x18\x01 \x03(\t\"\'\n\tPortRange\x12\r\n\x05start\x18\x01 \x01(\r\x12\x0b\n\x03\x65nd\x18\x02 \x01(\r\"\x8c\x01\n\x0e\x43IDREgressRule\x12\x0c\n\x04\x63idr\x18\x01 \x01(\t\x12\x39\n\x08protocol\x18\x02 \x01(\x0e\x32\'.axern.control.common.v1.EgressProtocol\x12\x31\n\x05ports\x18\x03 \x03(\x0b\x32\".axern.control.common.v1.PortRange\"\xa3\x01\n\x14PlacementConstraints\x12V\n\rnode_selector\x18\x01 \x03(\x0b\x32?.axern.control.common.v1.PlacementConstraints.NodeSelectorEntry\x1a\x33\n\x11NodeSelectorEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"N\n\x0cSecretEnvVar\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x11\n\tsecret_id\x18\x02 \x01(\t\x12\x0b\n\x03key\x18\x03 \x01(\t\x12\x10\n\x08optional\x18\x04 \x01(\x08\"Z\n\nSecretFile\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x11\n\tsecret_id\x18\x02 \x01(\t\x12\x0b\n\x03key\x18\x03 \x01(\t\x12\x0c\n\x04mode\x18\x04 \x01(\r\x12\x10\n\x08optional\x18\x05 \x01(\x08\"\x9c\x01\n\x12ServiceVolumeMount\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0e\n\x06target\x18\x02 \x01(\t\x12\x10\n\x08readonly\x18\x03 \x01(\x08\x12\x0f\n\x07options\x18\x04 \x03(\t\x12\x45\n\x0ereclaim_policy\x18\x05 \x01(\x0e\x32-.axern.control.storage.v1.VolumeReclaimPolicy\"=\n\nImageMount\x12\r\n\x05image\x18\x01 \x01(\t\x12\x0e\n\x06target\x18\x02 \x01(\t\x12\x10\n\x08readonly\x18\x03 \x01(\x08\"6\n\x15WorkspaceImageVariant\x12\x0e\n\x06\x66ormat\x18\x01 \x01(\t\x12\r\n\x05image\x18\x02 \x01(\t\"}\n\x14WorkspaceImageSource\x12@\n\x08variants\x18\x01 \x03(\x0b\x32..axern.control.common.v1.WorkspaceImageVariant\x12\x13\n\x0bsource_path\x18\x02 \x01(\t\x12\x0e\n\x06target\x18\x03 \x01(\t\"\xa7\x01\n\x19WorkspacePreparationFacts\x12\x16\n\x0epayload_format\x18\x01 \x01(\t\x12\x16\n\x0epayload_digest\x18\x02 \x01(\t\x12\x11\n\tcache_hit\x18\x03 \x01(\x08\x12\x18\n\x10image_resolve_ms\x18\x04 \x01(\x03\x12\x15\n\rimage_pull_ms\x18\x05 \x01(\x03\x12\x16\n\x0e\x63ow_prepare_ms\x18\x06 \x01(\x03\"\xb9\x06\n\x0f\x45xecutionConfig\x12\x0c\n\x04\x61rgv\x18\x01 \x03(\t\x12>\n\x03\x65nv\x18\x02 \x03(\x0b\x32\x31.axern.control.common.v1.ExecutionConfig.EnvEntry\x12\x0b\n\x03\x63wd\x18\x03 \x01(\t\x12\x38\n\tresources\x18\x04 \x01(\x0b\x32%.axern.control.common.v1.ResourceSpec\x12\x30\n\x05ports\x18\x05 \x03(\x0b\x32!.axern.control.common.v1.PortSpec\x12\x35\n\x07network\x18\x06 \x01(\x0b\x32$.axern.control.common.v1.NetworkSpec\x12\x66\n!extension_capability_requirements\x18\x07 \x03(\x0b\x32;.axern.control.capability.v1.ExtensionCapabilityRequirement\x12@\n\tplacement\x18\x08 \x01(\x0b\x32-.axern.control.common.v1.PlacementConstraints\x12\x39\n\nsecret_env\x18\t \x03(\x0b\x32%.axern.control.common.v1.SecretEnvVar\x12\x39\n\x0csecret_files\x18\n \x03(\x0b\x32#.axern.control.common.v1.SecretFile\x12\x42\n\rvolume_mounts\x18\x0b \x03(\x0b\x32+.axern.control.common.v1.ServiceVolumeMount\x12\x15\n\rruntime_class\x18\x0c \x01(\t\x12\x39\n\x0cimage_mounts\x18\r \x03(\x0b\x32#.axern.control.common.v1.ImageMount\x12\x46\n\x0fworkspace_image\x18\x0e \x01(\x0b\x32-.axern.control.common.v1.WorkspaceImageSource\x1a*\n\x08\x45nvEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xb3\x02\n\x0e\x45xecutionLease\x12\x10\n\x08lease_id\x18\x01 \x01(\t\x12\x15\n\rallocation_id\x18\x02 \x01(\t\x12\x0f\n\x07node_id\x18\x03 \x01(\t\x12\x0f\n\x07\x61ttempt\x18\x04 \x01(\x03\x12\x36\n\nlease_type\x18\x05 \x01(\x0e\x32\".axern.control.common.v1.LeaseType\x12\x17\n\x0fplaintext_token\x18\x06 \x01(\t\x12\x10\n\x08revision\x18\x07 \x01(\x03\x12.\n\nexpires_at\x18\x08 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07revoked\x18\t \x01(\x08\x12\x13\n\x0bnode_target\x18\n \x01(\t\x12\x1d\n\x15validation_token_hash\x18\x0b \x01(\t*[\n\x0cPortProtocol\x12\x1d\n\x19PORT_PROTOCOL_UNSPECIFIED\x10\x00\x12\x15\n\x11PORT_PROTOCOL_TCP\x10\x01\x12\x15\n\x11PORT_PROTOCOL_UDP\x10\x02*w\n\x0bNetworkMode\x12\x1c\n\x18NETWORK_MODE_UNSPECIFIED\x10\x00\x12\x18\n\x14NETWORK_MODE_DEFAULT\x10\x01\x12\x19\n\x15NETWORK_MODE_ISOLATED\x10\x02\x12\x15\n\x11NETWORK_MODE_HOST\x10\x03*c\n\x0e\x45gressProtocol\x12\x1f\n\x1b\x45GRESS_PROTOCOL_UNSPECIFIED\x10\x00\x12\x17\n\x13\x45GRESS_PROTOCOL_TCP\x10\x01\x12\x17\n\x13\x45GRESS_PROTOCOL_UDP\x10\x02*\xae\x02\n\x10\x41llocationStatus\x12!\n\x1d\x41LLOCATION_STATUS_UNSPECIFIED\x10\x00\x12\x1e\n\x1a\x41LLOCATION_STATUS_RESERVED\x10\x01\x12\x1b\n\x17\x41LLOCATION_STATUS_BOUND\x10\x02\x12\x1e\n\x1a\x41LLOCATION_STATUS_STARTING\x10\x03\x12\x1d\n\x19\x41LLOCATION_STATUS_RUNNING\x10\x04\x12\x1c\n\x18\x41LLOCATION_STATUS_EXITED\x10\x05\x12\x1c\n\x18\x41LLOCATION_STATUS_FAILED\x10\x06\x12\x1f\n\x1b\x41LLOCATION_STATUS_RELEASING\x10\x07\x12\x1e\n\x1a\x41LLOCATION_STATUS_RELEASED\x10\x08*\xcb\x06\n\x16WorkloadDiagnosticCode\x12(\n$WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED\x10\x00\x12\x34\n0WORKLOAD_DIAGNOSTIC_CODE_SECRET_PROJECTION_ERROR\x10\x01\x12\x30\n,WORKLOAD_DIAGNOSTIC_CODE_REGISTRY_AUTH_ERROR\x10\x02\x12\x33\n/WORKLOAD_DIAGNOSTIC_CODE_IMAGE_RESOLUTION_ERROR\x10\x03\x12\x31\n-WORKLOAD_DIAGNOSTIC_CODE_NODE_SELECTION_ERROR\x10\x04\x12\x30\n,WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR\x10\x05\x12+\n\'WORKLOAD_DIAGNOSTIC_CODE_PROCESS_EXITED\x10\x06\x12\x32\n.WORKLOAD_DIAGNOSTIC_CODE_LIVENESS_PROBE_FAILED\x10\x07\x12.\n*WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED\x10\x08\x12\x39\n5WORKLOAD_DIAGNOSTIC_CODE_STORAGE_TOPOLOGY_UNSATISFIED\x10\t\x12\x32\n.WORKLOAD_DIAGNOSTIC_CODE_STORAGE_RESERVE_ERROR\x10\n\x12\x31\n-WORKLOAD_DIAGNOSTIC_CODE_VOLUME_PUBLISH_ERROR\x10\x0b\x12\x31\n-WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR\x10\x0c\x12\x31\n-WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT\x10\r\x12\x38\n4WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST\x10\x0e\x12\x32\n.WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED\x10\x0f*j\n\tLeaseType\x12\x1a\n\x16LEASE_TYPE_UNSPECIFIED\x10\x00\x12\x12\n\x0eLEASE_TYPE_RUN\x10\x01\x12\x16\n\x12LEASE_TYPE_SERVICE\x10\x02\x12\x15\n\x11LEASE_TYPE_INVOKE\x10\x03\x42\x45ZCgithub.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1;commonv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -39,46 +39,58 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_PLACEMENTCONSTRAINTS_NODESELECTORENTRY']._serialized_options = b'8\001'
   _globals['_EXECUTIONCONFIG_ENVENTRY']._loaded_options = None
   _globals['_EXECUTIONCONFIG_ENVENTRY']._serialized_options = b'8\001'
-  _globals['_PORTPROTOCOL']._serialized_start=2665
-  _globals['_PORTPROTOCOL']._serialized_end=2756
-  _globals['_NETWORKMODE']._serialized_start=2758
-  _globals['_NETWORKMODE']._serialized_end=2877
-  _globals['_ALLOCATIONSTATUS']._serialized_start=2880
-  _globals['_ALLOCATIONSTATUS']._serialized_end=3182
-  _globals['_WORKLOADDIAGNOSTICCODE']._serialized_start=3185
-  _globals['_WORKLOADDIAGNOSTICCODE']._serialized_end=4028
-  _globals['_LEASETYPE']._serialized_start=4030
-  _globals['_LEASETYPE']._serialized_end=4136
+  _globals['_PORTPROTOCOL']._serialized_start=3228
+  _globals['_PORTPROTOCOL']._serialized_end=3319
+  _globals['_NETWORKMODE']._serialized_start=3321
+  _globals['_NETWORKMODE']._serialized_end=3440
+  _globals['_EGRESSPROTOCOL']._serialized_start=3442
+  _globals['_EGRESSPROTOCOL']._serialized_end=3541
+  _globals['_ALLOCATIONSTATUS']._serialized_start=3544
+  _globals['_ALLOCATIONSTATUS']._serialized_end=3846
+  _globals['_WORKLOADDIAGNOSTICCODE']._serialized_start=3849
+  _globals['_WORKLOADDIAGNOSTICCODE']._serialized_end=4692
+  _globals['_LEASETYPE']._serialized_start=4694
+  _globals['_LEASETYPE']._serialized_end=4800
   _globals['_RESOURCEQUANTITY']._serialized_start=190
   _globals['_RESOURCEQUANTITY']._serialized_end=282
   _globals['_RESOURCESPEC']._serialized_start=285
   _globals['_RESOURCESPEC']._serialized_end=419
   _globals['_PORTSPEC']._serialized_start=421
   _globals['_PORTSPEC']._serialized_end=545
-  _globals['_NETWORKSPEC']._serialized_start=547
-  _globals['_NETWORKSPEC']._serialized_end=612
-  _globals['_PLACEMENTCONSTRAINTS']._serialized_start=615
-  _globals['_PLACEMENTCONSTRAINTS']._serialized_end=778
-  _globals['_PLACEMENTCONSTRAINTS_NODESELECTORENTRY']._serialized_start=727
-  _globals['_PLACEMENTCONSTRAINTS_NODESELECTORENTRY']._serialized_end=778
-  _globals['_SECRETENVVAR']._serialized_start=780
-  _globals['_SECRETENVVAR']._serialized_end=858
-  _globals['_SECRETFILE']._serialized_start=860
-  _globals['_SECRETFILE']._serialized_end=950
-  _globals['_SERVICEVOLUMEMOUNT']._serialized_start=953
-  _globals['_SERVICEVOLUMEMOUNT']._serialized_end=1109
-  _globals['_IMAGEMOUNT']._serialized_start=1111
-  _globals['_IMAGEMOUNT']._serialized_end=1172
-  _globals['_WORKSPACEIMAGEVARIANT']._serialized_start=1174
-  _globals['_WORKSPACEIMAGEVARIANT']._serialized_end=1228
-  _globals['_WORKSPACEIMAGESOURCE']._serialized_start=1230
-  _globals['_WORKSPACEIMAGESOURCE']._serialized_end=1355
-  _globals['_WORKSPACEPREPARATIONFACTS']._serialized_start=1358
-  _globals['_WORKSPACEPREPARATIONFACTS']._serialized_end=1525
-  _globals['_EXECUTIONCONFIG']._serialized_start=1528
-  _globals['_EXECUTIONCONFIG']._serialized_end=2353
-  _globals['_EXECUTIONCONFIG_ENVENTRY']._serialized_start=2311
-  _globals['_EXECUTIONCONFIG_ENVENTRY']._serialized_end=2353
-  _globals['_EXECUTIONLEASE']._serialized_start=2356
-  _globals['_EXECUTIONLEASE']._serialized_end=2663
+  _globals['_NETWORKSPEC']._serialized_start=548
+  _globals['_NETWORKSPEC']._serialized_end=682
+  _globals['_NETWORKEGRESSPOLICY']._serialized_start=685
+  _globals['_NETWORKEGRESSPOLICY']._serialized_end=839
+  _globals['_STRICTEGRESSPOLICY']._serialized_start=841
+  _globals['_STRICTEGRESSPOLICY']._serialized_end=950
+  _globals['_DNSDENYPOLICY']._serialized_start=952
+  _globals['_DNSDENYPOLICY']._serialized_end=991
+  _globals['_PORTRANGE']._serialized_start=993
+  _globals['_PORTRANGE']._serialized_end=1032
+  _globals['_CIDREGRESSRULE']._serialized_start=1035
+  _globals['_CIDREGRESSRULE']._serialized_end=1175
+  _globals['_PLACEMENTCONSTRAINTS']._serialized_start=1178
+  _globals['_PLACEMENTCONSTRAINTS']._serialized_end=1341
+  _globals['_PLACEMENTCONSTRAINTS_NODESELECTORENTRY']._serialized_start=1290
+  _globals['_PLACEMENTCONSTRAINTS_NODESELECTORENTRY']._serialized_end=1341
+  _globals['_SECRETENVVAR']._serialized_start=1343
+  _globals['_SECRETENVVAR']._serialized_end=1421
+  _globals['_SECRETFILE']._serialized_start=1423
+  _globals['_SECRETFILE']._serialized_end=1513
+  _globals['_SERVICEVOLUMEMOUNT']._serialized_start=1516
+  _globals['_SERVICEVOLUMEMOUNT']._serialized_end=1672
+  _globals['_IMAGEMOUNT']._serialized_start=1674
+  _globals['_IMAGEMOUNT']._serialized_end=1735
+  _globals['_WORKSPACEIMAGEVARIANT']._serialized_start=1737
+  _globals['_WORKSPACEIMAGEVARIANT']._serialized_end=1791
+  _globals['_WORKSPACEIMAGESOURCE']._serialized_start=1793
+  _globals['_WORKSPACEIMAGESOURCE']._serialized_end=1918
+  _globals['_WORKSPACEPREPARATIONFACTS']._serialized_start=1921
+  _globals['_WORKSPACEPREPARATIONFACTS']._serialized_end=2088
+  _globals['_EXECUTIONCONFIG']._serialized_start=2091
+  _globals['_EXECUTIONCONFIG']._serialized_end=2916
+  _globals['_EXECUTIONCONFIG_ENVENTRY']._serialized_start=2874
+  _globals['_EXECUTIONCONFIG_ENVENTRY']._serialized_end=2916
+  _globals['_EXECUTIONLEASE']._serialized_start=2919
+  _globals['_EXECUTIONLEASE']._serialized_end=3226
 # @@protoc_insertion_point(module_scope)

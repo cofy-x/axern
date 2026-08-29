@@ -396,6 +396,17 @@ func TestDeriveRequirementsRejectsInternalInjectionAndUsesRuntimeSpecificCapabil
 			t.Fatalf("requirements %#v do not contain %s", keys, required)
 		}
 	}
+
+	policyRequirements, err := DeriveRequirements(RequirementInput{RuntimeName: "runsc", NetworkMode: "default", NetworkBackend: "bridge", RequiresStrictEgressEnforcement: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsPlatform(policyRequirements, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT) {
+		t.Fatalf("strict policy requirements = %#v", policyRequirements)
+	}
+	if _, err := DeriveRequirements(RequirementInput{RuntimeName: "runsc", NetworkMode: "default", NetworkBackend: "bridge", RequiresDNSPolicyEnforcement: true, RequiresStrictEgressEnforcement: true}); err == nil {
+		t.Fatal("mutually exclusive policy requirements were accepted")
+	}
 	if err := ValidateRequirementKeys([]*capabilityv1.CapabilityKey{PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_XFS_PROJECT_QUOTA)}); err == nil {
 		t.Fatal("internal fact injection was accepted")
 	}

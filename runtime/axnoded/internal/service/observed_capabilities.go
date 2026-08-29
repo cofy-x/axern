@@ -118,6 +118,8 @@ func (h *sandboxService) newObservedCapabilityManager(cgroupRoot string) (*nodec
 			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT),
 			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT),
 			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT),
+			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT),
+			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT),
 		}},
 	)
 	if err := nodecapabilitymanager.ValidateCatalogProviderCoverage(providers...); err != nil {
@@ -149,6 +151,8 @@ func networkCapabilityProvider(cfg config.Config, digest string) nodecapabilitym
 		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING),
 		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE),
 		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET),
+		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_EGRESSD_DNS_POLICY_SELF_TEST),
+		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_EGRESSD_STRICT_EGRESS_SELF_TEST),
 	}
 	return observedProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
@@ -162,11 +166,9 @@ func networkCapabilityProvider(cfg config.Config, digest string) nodecapabilitym
 			if cfg.PluginConfig.NetworkConfig.NatBackend == config.NatBackendEBPF {
 				activeIndex, inactiveIndex = 2, 1
 			}
-			observations := []*capabilityv1.CapabilityObservation{
-				nil,
-				nil,
-				nil,
-			}
+			observations := make([]*capabilityv1.CapabilityObservation, len(keys))
+			observations[3] = failedObservation(keys[3], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED, "egressd DNS policy enforcement is not configured")
+			observations[4] = failedObservation(keys[4], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED, "egressd strict egress enforcement is not configured")
 			observations[inactiveIndex] = failedObservation(keys[inactiveIndex], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED, "network backend is not selected by node configuration")
 			if !ok {
 				observations[0] = failedObservation(keys[0], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED, "network backend has no operational health probe")

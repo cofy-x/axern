@@ -242,6 +242,19 @@ func TestValidateExecutionConfigCapabilitiesRejectsMalformedRequirements(t *test
 	}
 }
 
+func TestValidateExecutionConfigNetworkRejectsUnsafeOrAmbiguousPolicy(t *testing.T) {
+	tests := []*commonv1.ExecutionConfig{
+		{Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_HOST, EgressPolicy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{}}}}},
+		{Network: &commonv1.NetworkSpec{EgressPolicy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_DnsDeny{DnsDeny: &commonv1.DnsDenyPolicy{DeniedDomains: []string{"https://example.com"}}}}}},
+		{Network: &commonv1.NetworkSpec{EgressPolicy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{AllowedCidrs: []*commonv1.CIDREgressRule{{Cidr: "169.254.169.254/32", Protocol: commonv1.EgressProtocol_EGRESS_PROTOCOL_TCP, Ports: []*commonv1.PortRange{{Start: 80, End: 80}}}}}}}}},
+	}
+	for _, config := range tests {
+		if err := validateExecutionConfigNetwork(config); grpcstatus.Code(err) != codes.InvalidArgument {
+			t.Fatalf("validateExecutionConfigNetwork(%+v) code = %s, want InvalidArgument", config, grpcstatus.Code(err))
+		}
+	}
+}
+
 func TestValidateNoServiceVolumeMounts(t *testing.T) {
 	err := validateNoServiceVolumeMounts(&commonv1.ExecutionConfig{
 		VolumeMounts: []*commonv1.ServiceVolumeMount{{Name: "data", Target: "/data"}},

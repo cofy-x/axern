@@ -25,6 +25,12 @@ class NetworkMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     NETWORK_MODE_ISOLATED: _ClassVar[NetworkMode]
     NETWORK_MODE_HOST: _ClassVar[NetworkMode]
 
+class EgressProtocol(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    EGRESS_PROTOCOL_UNSPECIFIED: _ClassVar[EgressProtocol]
+    EGRESS_PROTOCOL_TCP: _ClassVar[EgressProtocol]
+    EGRESS_PROTOCOL_UDP: _ClassVar[EgressProtocol]
+
 class AllocationStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     ALLOCATION_STATUS_UNSPECIFIED: _ClassVar[AllocationStatus]
@@ -69,6 +75,9 @@ NETWORK_MODE_UNSPECIFIED: NetworkMode
 NETWORK_MODE_DEFAULT: NetworkMode
 NETWORK_MODE_ISOLATED: NetworkMode
 NETWORK_MODE_HOST: NetworkMode
+EGRESS_PROTOCOL_UNSPECIFIED: EgressProtocol
+EGRESS_PROTOCOL_TCP: EgressProtocol
+EGRESS_PROTOCOL_UDP: EgressProtocol
 ALLOCATION_STATUS_UNSPECIFIED: AllocationStatus
 ALLOCATION_STATUS_RESERVED: AllocationStatus
 ALLOCATION_STATUS_BOUND: AllocationStatus
@@ -130,10 +139,52 @@ class PortSpec(_message.Message):
     def __init__(self, name: _Optional[str] = ..., protocol: _Optional[_Union[PortProtocol, str]] = ..., container_port: _Optional[int] = ..., host_port: _Optional[int] = ...) -> None: ...
 
 class NetworkSpec(_message.Message):
-    __slots__ = ("mode",)
+    __slots__ = ("mode", "egress_policy")
     MODE_FIELD_NUMBER: _ClassVar[int]
+    EGRESS_POLICY_FIELD_NUMBER: _ClassVar[int]
     mode: NetworkMode
-    def __init__(self, mode: _Optional[_Union[NetworkMode, str]] = ...) -> None: ...
+    egress_policy: NetworkEgressPolicy
+    def __init__(self, mode: _Optional[_Union[NetworkMode, str]] = ..., egress_policy: _Optional[_Union[NetworkEgressPolicy, _Mapping]] = ...) -> None: ...
+
+class NetworkEgressPolicy(_message.Message):
+    __slots__ = ("strict", "dns_deny")
+    STRICT_FIELD_NUMBER: _ClassVar[int]
+    DNS_DENY_FIELD_NUMBER: _ClassVar[int]
+    strict: StrictEgressPolicy
+    dns_deny: DnsDenyPolicy
+    def __init__(self, strict: _Optional[_Union[StrictEgressPolicy, _Mapping]] = ..., dns_deny: _Optional[_Union[DnsDenyPolicy, _Mapping]] = ...) -> None: ...
+
+class StrictEgressPolicy(_message.Message):
+    __slots__ = ("allowed_domains", "allowed_cidrs")
+    ALLOWED_DOMAINS_FIELD_NUMBER: _ClassVar[int]
+    ALLOWED_CIDRS_FIELD_NUMBER: _ClassVar[int]
+    allowed_domains: _containers.RepeatedScalarFieldContainer[str]
+    allowed_cidrs: _containers.RepeatedCompositeFieldContainer[CIDREgressRule]
+    def __init__(self, allowed_domains: _Optional[_Iterable[str]] = ..., allowed_cidrs: _Optional[_Iterable[_Union[CIDREgressRule, _Mapping]]] = ...) -> None: ...
+
+class DnsDenyPolicy(_message.Message):
+    __slots__ = ("denied_domains",)
+    DENIED_DOMAINS_FIELD_NUMBER: _ClassVar[int]
+    denied_domains: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, denied_domains: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class PortRange(_message.Message):
+    __slots__ = ("start", "end")
+    START_FIELD_NUMBER: _ClassVar[int]
+    END_FIELD_NUMBER: _ClassVar[int]
+    start: int
+    end: int
+    def __init__(self, start: _Optional[int] = ..., end: _Optional[int] = ...) -> None: ...
+
+class CIDREgressRule(_message.Message):
+    __slots__ = ("cidr", "protocol", "ports")
+    CIDR_FIELD_NUMBER: _ClassVar[int]
+    PROTOCOL_FIELD_NUMBER: _ClassVar[int]
+    PORTS_FIELD_NUMBER: _ClassVar[int]
+    cidr: str
+    protocol: EgressProtocol
+    ports: _containers.RepeatedCompositeFieldContainer[PortRange]
+    def __init__(self, cidr: _Optional[str] = ..., protocol: _Optional[_Union[EgressProtocol, str]] = ..., ports: _Optional[_Iterable[_Union[PortRange, _Mapping]]] = ...) -> None: ...
 
 class PlacementConstraints(_message.Message):
     __slots__ = ("node_selector",)

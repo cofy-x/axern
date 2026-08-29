@@ -13,15 +13,17 @@ import (
 // axnoded. Facts unavailable before image preparation (for example EROFS) are
 // left false during the request-static gate and supplied at the backing gate.
 type RequirementInput struct {
-	RuntimeName                 string
-	HasPorts                    bool
-	NetworkMode                 string
-	NetworkBackend              string
-	MemoryLimitBytes            int64
-	RootfsWritable              bool
-	EphemeralStorageLimitBytes  int64
-	EROFSBacking                bool
-	ExtensionCapabilityRequests []*capabilityv1.ExtensionCapabilityRequirement
+	RuntimeName                     string
+	HasPorts                        bool
+	NetworkMode                     string
+	NetworkBackend                  string
+	RequiresDNSPolicyEnforcement    bool
+	RequiresStrictEgressEnforcement bool
+	MemoryLimitBytes                int64
+	RootfsWritable                  bool
+	EphemeralStorageLimitBytes      int64
+	EROFSBacking                    bool
+	ExtensionCapabilityRequests     []*capabilityv1.ExtensionCapabilityRequirement
 }
 
 func DeriveRequirements(input RequirementInput) ([]*capabilityv1.CapabilityKey, error) {
@@ -50,6 +52,15 @@ func deriveRequirements(input RequirementInput, deferNetworkBackend bool) ([]*ca
 	keys := make([]*capabilityv1.CapabilityKey, 0, len(input.ExtensionCapabilityRequests)+5)
 	if input.HasPorts {
 		keys = append(keys, PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING))
+	}
+	if input.RequiresDNSPolicyEnforcement && input.RequiresStrictEgressEnforcement {
+		return nil, fmt.Errorf("network policy cannot require both DNS-only and strict enforcement")
+	}
+	if input.RequiresDNSPolicyEnforcement {
+		keys = append(keys, PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT))
+	}
+	if input.RequiresStrictEgressEnforcement {
+		keys = append(keys, PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT))
 	}
 	mode := strings.ToLower(strings.TrimSpace(input.NetworkMode))
 	if mode != "host" {

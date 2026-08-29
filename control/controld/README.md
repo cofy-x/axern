@@ -130,6 +130,12 @@ transitions use a queue separate from create/delete lifecycle work. The shared
 [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md)
 document is the canonical contract for provider evidence and loss policy.
 
+Sandbox egress policy is normalized during API validation and contributes a
+derived DNS-policy or strict-egress capability requirement. A node without the
+matching current proof is ineligible; the policy is never forwarded as an
+optional field that an older runtime may ignore. See
+[Sandbox Network Policy](../../docs/architecture/sandbox-network-policy.md).
+
 Node rows are durable identities with `active` and `retired` states. Placement
 and node authentication accept only active identities. `axern admin node
 retire` locks the node, requires a stale heartbeat, and rejects retirement

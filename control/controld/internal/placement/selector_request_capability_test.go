@@ -71,6 +71,56 @@ func TestBuildRequestPersistsNetworkAndPortDependencies(t *testing.T) {
 	}
 }
 
+func TestBuildRequestDerivesNetworkPolicyCapabilities(t *testing.T) {
+	selector := &Selector{defaultSandboxRuntime: "runsc"}
+	tests := []struct {
+		name      string
+		network   *commonv1.NetworkSpec
+		required  capabilityv1.PlatformCapability
+		forbidden capabilityv1.PlatformCapability
+	}{
+		{
+			name:      "dns deny",
+			network:   &commonv1.NetworkSpec{EgressPolicy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_DnsDeny{DnsDeny: &commonv1.DnsDenyPolicy{DeniedDomains: []string{"example.com"}}}}},
+			required:  capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT,
+			forbidden: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT,
+		},
+		{
+			name:      "strict allow",
+			network:   &commonv1.NetworkSpec{EgressPolicy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{AllowedDomains: []string{"example.com"}}}}},
+			required:  capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT,
+			forbidden: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request, err := selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{Network: tt.network})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !containsPlatform(request.CapabilityRequirements, tt.required) || containsPlatform(request.CapabilityRequirements, tt.forbidden) {
+				t.Fatalf("capabilities = %#v", request.CapabilityRequirements)
+			}
+		})
+	}
+
+	request, err := selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_ISOLATED, EgressPolicy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if containsPlatform(request.CapabilityRequirements, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT) {
+		t.Fatalf("isolated deny-all unexpectedly requires egressd: %#v", request.CapabilityRequirements)
+	}
+
+	_, err = selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{Network: &commonv1.NetworkSpec{
+		Mode:         commonv1.NetworkMode_NETWORK_MODE_HOST,
+		EgressPolicy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{}}},
+	}})
+	if err == nil {
+		t.Fatal("host networking with a policy was accepted by placement")
+	}
+}
+
 func containsPlatform(values []*capabilityv1.CapabilityKey, want capabilityv1.PlatformCapability) bool {
 	wantID, _ := capabilitycontract.KeyID(capabilitycontract.PlatformKey(want))
 	for _, value := range values {

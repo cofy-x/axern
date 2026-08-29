@@ -49,6 +49,49 @@ enum NetworkMode {
 
 message NetworkSpec {
   NetworkMode mode = 1;
+  NetworkEgressPolicy egress_policy = 2;
+}
+
+// NetworkEgressPolicy deliberately separates strict enforcement from the
+// DNS-only convenience policy. Callers must not treat dns_deny as an egress
+// security boundary: direct IP traffic, encrypted DNS, and already-known
+// addresses remain outside that policy.
+message NetworkEgressPolicy {
+  oneof policy {
+    StrictEgressPolicy strict = 1;
+    DnsDenyPolicy dns_deny = 2;
+  }
+}
+
+// StrictEgressPolicy is default-deny. Domain grants authorize HTTP and HTTPS
+// only, on TCP ports 80 and 443, and require controlled DNS plus matching HTTP
+// Host or TLS SNI. Other protocols require an explicit CIDR rule.
+message StrictEgressPolicy {
+  repeated string allowed_domains = 1;
+  repeated CIDREgressRule allowed_cidrs = 2;
+}
+
+// DnsDenyPolicy returns REFUSED for matching conventional UDP/TCP DNS queries.
+// It does not block direct IP traffic, DoH, DoT, or previously resolved IPs.
+message DnsDenyPolicy {
+  repeated string denied_domains = 1;
+}
+
+enum EgressProtocol {
+  EGRESS_PROTOCOL_UNSPECIFIED = 0;
+  EGRESS_PROTOCOL_TCP = 1;
+  EGRESS_PROTOCOL_UDP = 2;
+}
+
+message PortRange {
+  uint32 start = 1;
+  uint32 end = 2;
+}
+
+message CIDREgressRule {
+  string cidr = 1;
+  EgressProtocol protocol = 2;
+  repeated PortRange ports = 3;
 }
 
 message PlacementConstraints {

@@ -73,6 +73,12 @@ direct OCI runtime exec is a debug-level tool.
 
 - Workload execution config carries `runtime_class`; empty values default in
   the control/runtime path before node lifecycle dispatch.
+- Workload network policy is immutable execution config. Strict policy is a
+  fail-closed boundary; DNS deny is explicitly DNS-only. Controld normalizes
+  the public policy and derives exact node capability requirements before
+  lifecycle dispatch. The node must reject a policy workload when the matching
+  egress enforcement proof is unavailable; it may never silently ignore a
+  newer policy shape.
 - `requests` drive placement, admission, and node reservation. `limits` remain
   runtime enforcement ceilings.
 - `axnoded` owns the aggregate `runtime_slots` report consumed by placement and
