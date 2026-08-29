@@ -17,6 +17,7 @@ use (
 	./lib/go/observability
 	./network/bpfnet
 	./runtime/axnoded
+	./runtime/egressd
 	./runtime/imagemgr
 	./runtime/tunneld
 	./runtime/volumed

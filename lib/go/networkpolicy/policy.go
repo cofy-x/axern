@@ -101,6 +101,12 @@ func Validate(in *commonv1.NetworkSpec) error {
 	return err
 }
 
+// NormalizeDomain canonicalizes one exact or leading-wildcard domain rule
+// using the same grammar as the public network policy contract.
+func NormalizeDomain(raw string) (string, error) {
+	return normalizeDomain(raw)
+}
+
 func Mode(in *commonv1.NetworkSpec) EnforcementMode {
 	if in == nil {
 		return EnforcementNone

@@ -24,6 +24,7 @@ membership.
 | `control/storaged` | Storage classes, claims, bindings, topology, and resolved node volume specs | [Contract](../control/storaged/AGENTS.md), [README](../control/storaged/README.md) |
 | `gateway/gatewayd` | External control edge and service, terminal, tunnel, and sandbox data-plane forwarding | [Contract](../gateway/gatewayd/AGENTS.md), [README](../gateway/gatewayd/README.md) |
 | `runtime/axnoded` | Node-local sandbox lifecycle, execution, and allocation cleanup | [Contract](../runtime/axnoded/AGENTS.md), [README](../runtime/axnoded/README.md) |
+| `runtime/egressd` | Trusted node-local sandbox egress policy lifecycle and enforcement | [Contract](../runtime/egressd/AGENTS.md), [README](../runtime/egressd/README.md) |
 | `runtime/tunneld` | Internal reverse-TCP relay and node-local tunnel binding | [Contract](../runtime/tunneld/AGENTS.md), [README](../runtime/tunneld/README.md) |
 | `runtime/volumed` | Node-local physical volume publish and reconciliation | [Contract](../runtime/volumed/AGENTS.md), [README](../runtime/volumed/README.md) |
 | `runtime/imagemgr` | Image rootfs resolution and OCI, Nydus, and OSS mount orchestration | [Contract](../runtime/imagemgr/AGENTS.md), [README](../runtime/imagemgr/README.md) |

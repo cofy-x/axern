@@ -1,7 +1,7 @@
 .PHONY: node-dev-prepare node-dev-clean \
 		node-dev-ensure-dlv axnoded-debug-server imagemgr-debug-server \
 		postgres-dev-up postgres-dev-down storaged-dev-run controld-dev-prepare controld-dev-run gatewayd-dev-run \
-		axern-dev axern-dev-build axctl-dev axctl-dev-build \
+		axern-dev axern-dev-build axctl-dev axctl-dev-build egressd-dev-run \
 		dev-runtime-images-build dev-runtime-images-load \
 		axnoded-dev-run imagemgr-dev-run volumed-dev-run imagefsd-dev-serve-chunk \
 		dev-stack-up dev-stack-status dev-stack-down dev-stack-restart dev-stack-logs dev-stack-reset \
@@ -14,6 +14,7 @@ NODE_DEV_RUN_DIR := $(NODE_DEV_DIR)/run
 AXNODED_DEV_DIR := $(NODE_DEV_DIR)/axnoded
 IMAGEMGR_DEV_DIR := $(NODE_DEV_DIR)/imagemgr
 VOLUMED_DEV_DIR := $(NODE_DEV_DIR)/volumed
+EGRESSD_DEV_DIR := $(NODE_DEV_DIR)/egressd
 IMAGEFSD_DEV_DIR := $(NODE_DEV_DIR)/imagefsd
 AXNODED_DEV_DAP_PORT ?= 43001
 IMAGEMGR_DEV_DAP_PORT ?= 43002
@@ -239,6 +240,13 @@ volumed-dev-run: node-dev-prepare ## Run volumed in the repo-local Linux dev wor
 		-root '$(VOLUMED_DEV_DIR)' \
 		-socket '$(NODE_DEV_RUN_DIR)/volumed.sock' \
 		-local-root '$(VOLUMED_DEV_DIR)/local'
+
+egressd-dev-run: node-dev-prepare ## Run egressd in the repo-local Linux dev workspace
+	$(call ensure_linux_workspace)
+	rm -f '$(NODE_DEV_RUN_DIR)/egressd.sock'
+	exec $(GO) -C $(ROOTDIR)/runtime/egressd run ./cmd/egressd \
+		-root '$(EGRESSD_DEV_DIR)' \
+		-socket '$(NODE_DEV_RUN_DIR)/egressd.sock'
 
 imagefsd-dev-serve-chunk: node-dev-prepare imagefsd-build ## Run imagefsd chunk server in the repo-local Linux dev workspace
 	$(call ensure_linux_workspace)

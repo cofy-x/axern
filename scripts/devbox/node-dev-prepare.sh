@@ -15,6 +15,7 @@ BIN_DIR="${STACK_DIR}/bin"
 AXNODED_DIR="${DEV_DIR}/axnoded"
 IMAGEMGR_DIR="${DEV_DIR}/imagemgr"
 VOLUMED_DIR="${DEV_DIR}/volumed"
+EGRESSD_DIR="${DEV_DIR}/egressd"
 IMAGEFSD_DIR="${DEV_DIR}/imagefsd"
 CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET:-127.0.0.1:24000}"
 CONTROL_PLANE_NODE_ID="${AXERN_DEV_CONTROL_PLANE_NODE_ID:-axern-dev-node}"
@@ -39,6 +40,7 @@ mkdir -p \
   "${AXNODED_DIR}/filestore" \
   "${IMAGEMGR_DIR}" \
   "${VOLUMED_DIR}/local" \
+  "${EGRESSD_DIR}" \
   "${IMAGEFSD_DIR}/chunkdb"
 
 bash "${ROOT_DIR}/scripts/dev-mtls-certs.sh" "${DEV_DIR}/certs" >/dev/null

@@ -91,7 +91,11 @@ def docker_stage(dockerfile_path, stage_name):
     return text[start:] if end < 0 else text[start:end]
 
 stage_contracts = (
-    (root / "deploy/images/lib/node-runtime-base.Dockerfile", "axnoded-builder", ("runtime/axnoded/go.mod",)),
+    (
+        root / "deploy/images/lib/node-runtime-base.Dockerfile",
+        "axnoded-builder",
+        ("runtime/axnoded/go.mod", "runtime/egressd/go.mod"),
+    ),
     (root / "runtime/axnoded/docker/verify/Dockerfile", "axnoded-verify-builder", ("runtime/axnoded/go.mod",)),
     (root / "runtime/axnoded/docker/benchmark/Dockerfile", "axnoded-builder", ("runtime/axnoded/go.mod",)),
     (

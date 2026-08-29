@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package axern.private.runtime.egress.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1;runtimeegressv1";
+
+import "axern/control/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+enum EgressPolicyRecoveryState {
+  EGRESS_POLICY_RECOVERY_STATE_UNSPECIFIED = 0;
+  EGRESS_POLICY_RECOVERY_STATE_APPLIED = 1;
+  EGRESS_POLICY_RECOVERY_STATE_RECOVERED = 2;
+}
+
+message PreparedEgressPolicy {
+  string allocation_id = 1;
+  int64 attempt = 2;
+  string sandbox_ip = 3;
+  axern.control.common.v1.NetworkEgressPolicy policy = 4;
+  string policy_digest = 5;
+  int64 execution_revision = 6;
+  EgressPolicyRecoveryState recovery_state = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message PreparePolicyRequest {
+  string allocation_id = 1;
+  int64 attempt = 2;
+  string sandbox_ip = 3;
+  axern.control.common.v1.NetworkEgressPolicy policy = 4;
+  int64 execution_revision = 5;
+}
+
+message PreparePolicyResponse {
+  PreparedEgressPolicy policy = 1;
+  bool already_prepared = 2;
+}
+
+message DeletePolicyRequest {
+  string allocation_id = 1;
+  int64 attempt = 2;
+}
+
+message DeletePolicyResponse {
+  bool deleted = 1;
+}
+
+message GetPolicyRequest {
+  string allocation_id = 1;
+  int64 attempt = 2;
+}
+
+message GetPolicyResponse {
+  PreparedEgressPolicy policy = 1;
+}
+
+message ListPoliciesRequest {
+  string allocation_id = 1;
+}
+
+message ListPoliciesResponse {
+  repeated PreparedEgressPolicy policies = 1;
+}
+
+message ActiveEgressPolicy {
+  string allocation_id = 1;
+  int64 attempt = 2;
+  string sandbox_ip = 3;
+  string policy_digest = 4;
+  int64 execution_revision = 5;
+}
+
+message ReconcilePoliciesRequest {
+  repeated ActiveEgressPolicy active_policies = 1;
+}
+
+message ReconcilePoliciesResponse {
+  int32 active_policy_count = 1;
+  int32 retained_count = 2;
+  int32 deleted_count = 3;
+  int32 stale_policy_count = 4;
+  int32 invalid_active_policy_count = 5;
+}
+
+enum EgressManagerStatus {
+  EGRESS_MANAGER_STATUS_UNSPECIFIED = 0;
+  EGRESS_MANAGER_STATUS_OK = 1;
+  EGRESS_MANAGER_STATUS_ERROR = 2;
+}
+
+message EgressManagerHealthRequest {}
+
+message EgressManagerHealth {
+  EgressManagerStatus status = 1;
+  int32 prepared_policy_count = 2;
+  int32 recovered_policy_count = 3;
+  google.protobuf.Timestamp last_reconcile_at = 4;
+  string last_reconcile_error = 5;
+  int32 last_reconcile_retained_count = 6;
+  int32 last_reconcile_deleted_count = 7;
+  int32 last_reconcile_active_policy_count = 8;
+  int32 last_reconcile_stale_policy_count = 9;
+  int32 last_reconcile_invalid_active_policy_count = 10;
+}
+
+message EgressManagerHealthResponse {
+  EgressManagerHealth health = 1;
+}
+
+service RuntimeEgressService {
+  rpc PreparePolicy(PreparePolicyRequest) returns (PreparePolicyResponse) {}
+  rpc DeletePolicy(DeletePolicyRequest) returns (DeletePolicyResponse) {}
+  rpc GetPolicy(GetPolicyRequest) returns (GetPolicyResponse) {}
+  rpc ListPolicies(ListPoliciesRequest) returns (ListPoliciesResponse) {}
+  rpc ReconcilePolicies(ReconcilePoliciesRequest) returns (ReconcilePoliciesResponse) {}
+  rpc GetEgressManagerHealth(EgressManagerHealthRequest) returns (EgressManagerHealthResponse) {}
+}

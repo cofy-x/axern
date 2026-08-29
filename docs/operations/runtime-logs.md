@@ -18,6 +18,7 @@ For local compose and kind commands, see
 | `node-tunneld` | `/var/log/axnoded/node-tunneld.log` | node-local tunnel agent restarts, allocation netns lookup, axnoded operator socket access, relay connection failures |
 | `imagemgr` | `/var/lib/imagemgr/logs/imagemgr.log` | image import, `/oci_mount`, `/nydus_mount`, `/oss_mount`, overlay mount, Nydus bootstrap fetch, imagefsd daemon launch |
 | `volumed` | process stdout/stderr | resolved volume publish/unpublish, provider validation, persistent publish state, reconcile health |
+| `egressd` | process stdout/stderr | policy prepare/delete fencing, persistent recovery, orphan reconciliation, enforcement health |
 | `imagefsd mount daemon` | `/var/lib/imagemgr/daemons/<daemon-id>/daemon.log` | OSS and Nydus image read path, backend fetches, cache/chunk behavior, FUSE mount daemon internals |
 | `gatewayd` | process stdout/stderr | gateway route resolution, upstream connection failures, HTTP proxying, terminal and SSH forwarding |
 | `tunneld` | process stdout/stderr | relay selection, peer/session pairing, relay drain behavior |
@@ -36,9 +37,11 @@ These paths are inside the node runtime environment, such as the compose
 | `/shared/run/axnoded.sock` | axnoded operator socket used by `axctl` and `node-tunneld` |
 | `/run/imagemgr/imagemgr.sock` | axnoded-to-imagemgr image rootfs API socket |
 | `/run/volumed/volumed.sock` | axnoded-to-volumed volume publish API socket |
+| `/run/egressd/egressd.sock` | axnoded-to-egressd policy lifecycle API socket |
 | `/var/lib/axnoded` | axnoded runtime state, store, rootfs, filestore |
 | `/var/lib/imagemgr` | imagemgr state, logs, mount records, imagefsd daemon dirs |
 | `/var/lib/volumed` | volumed state, local provider root, published volume records |
+| `/var/lib/egressd` | egressd prepared policy records and recovery state |
 | `/var/log/axnoded/axnoded.log` | axnoded daemon log |
 | `/var/log/axnoded/node-tunneld.log` | node-tunneld supervisor log |
 
@@ -78,6 +81,7 @@ runtime class, or image-manager settings look wrong.
 | `storaged` | volume class, claim, binding, storage topology, resolved node volume specs |
 | `axnoded` | node lifecycle, sandbox creation, runtime bundle, cgroup/network, operator socket |
 | `volumed` | node-local physical volume providers, publish records, local cleanup |
+| `egressd` | node-local egress policy persistence, recovery, reconciliation, and host enforcement |
 | `imagemgr` | image import, image-backed rootfs orchestration, OCI overlay, Nydus/OSS daemon lifecycle |
 | `imagefsd` | read-only image data, cache, chunk DB, mount daemon internals |
 | `gatewayd` | service HTTP, terminal, SSH forwarding after route resolution |
