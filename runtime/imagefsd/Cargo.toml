@@ -1,6 +1,6 @@
 [package]
 name = "imagefsd"
-version = "0.5.1"
+version = "0.6.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Read-only Nydus image data plane for Axern"
