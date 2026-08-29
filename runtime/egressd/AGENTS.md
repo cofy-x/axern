@@ -15,6 +15,12 @@ state and enforcement lifecycle.
 - Persist state before reporting a lifecycle mutation as successful.
 - Delete and reconcile must be fenced by the exact allocation attempt; stale
   work may never remove a newer policy.
+- Keep host enforcement in `internal/enforcement`; nftables owns only the
+  `inet axern_egress` table and must not mutate bridge/bpfnet SNAT or DNAT.
+- DNS upstreams must come from the prepared axnoded proof. Never consult the
+  host resolver or add a public fallback in egressd.
+- Domain traffic requires both an unexpired DNS-derived IP authorization and a
+  matching bounded HTTP Host or TLS SNI inspection before relay.
 
 ## Verification
 

@@ -93,8 +93,12 @@ type StartRequest struct {
 	CapabilityDependencies          []*v12.CapabilityDependency           `protobuf:"bytes,16,rep,name=capability_dependencies,json=capabilityDependencies,proto3" json:"capability_dependencies,omitempty"`
 	ExtensionCapabilityRequirements []*v12.ExtensionCapabilityRequirement `protobuf:"bytes,17,rep,name=extension_capability_requirements,json=extensionCapabilityRequirements,proto3" json:"extension_capability_requirements,omitempty"`
 	AllocationAttempt               int64                                 `protobuf:"varint,18,opt,name=allocation_attempt,json=allocationAttempt,proto3" json:"allocation_attempt,omitempty"`
-	unknownFields                   protoimpl.UnknownFields
-	sizeCache                       protoimpl.SizeCache
+	// The normalized public policy is carried intact to the node-local
+	// enforcement boundary. The legacy string network field remains the OCI
+	// network-mode selector and must never be used as a policy surrogate.
+	EgressPolicy  *v1.NetworkEgressPolicy `protobuf:"bytes,19,opt,name=egress_policy,json=egressPolicy,proto3" json:"egress_policy,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *StartRequest) Reset() {
@@ -251,6 +255,13 @@ func (x *StartRequest) GetAllocationAttempt() int64 {
 		return x.AllocationAttempt
 	}
 	return 0
+}
+
+func (x *StartRequest) GetEgressPolicy() *v1.NetworkEgressPolicy {
+	if x != nil {
+		return x.EgressPolicy
+	}
+	return nil
 }
 
 type StartResponse struct {
@@ -1293,7 +1304,7 @@ var File_internal_apipb_v1_lifecycle_proto protoreflect.FileDescriptor
 
 const file_internal_apipb_v1_lifecycle_proto_rawDesc = "" +
 	"\n" +
-	"!internal/apipb/v1/lifecycle.proto\x12\x19axnoded.internal.apipb.v1\x1a(internal/apipb/v1/axnoded_internal.proto\x1a$axern/control/common/v1/common.proto\x1a,axern/control/capability/v1/capability.proto\x1a&axern/private/storage/v1/storage.proto\"\xe8\b\n" +
+	"!internal/apipb/v1/lifecycle.proto\x12\x19axnoded.internal.apipb.v1\x1a(internal/apipb/v1/axnoded_internal.proto\x1a$axern/control/common/v1/common.proto\x1a,axern/control/capability/v1/capability.proto\x1a&axern/private/storage/v1/storage.proto\"\xbb\t\n" +
 	"\fStartRequest\x12U\n" +
 	"\x10runtime_template\x18\x01 \x01(\v2*.axnoded.internal.apipb.v1.RuntimeTemplateR\x0fruntimeTemplate\x128\n" +
 	"\x06mounts\x18\x02 \x03(\v2 .axnoded.internal.apipb.v1.MountR\x06mounts\x12C\n" +
@@ -1313,7 +1324,8 @@ const file_internal_apipb_v1_lifecycle_proto_rawDesc = "" +
 	"\x0fworkspace_image\x18\x0f \x01(\v2/.axnoded.internal.apipb.v1.WorkspaceImageSourceR\x0eworkspaceImage\x12j\n" +
 	"\x17capability_dependencies\x18\x10 \x03(\v21.axern.control.capability.v1.CapabilityDependencyR\x16capabilityDependencies\x12\x87\x01\n" +
 	"!extension_capability_requirements\x18\x11 \x03(\v2;.axern.control.capability.v1.ExtensionCapabilityRequirementR\x1fextensionCapabilityRequirements\x12-\n" +
-	"\x12allocation_attempt\x18\x12 \x01(\x03R\x11allocationAttempt\x1a;\n" +
+	"\x12allocation_attempt\x18\x12 \x01(\x03R\x11allocationAttempt\x12Q\n" +
+	"\regress_policy\x18\x13 \x01(\v2,.axern.control.common.v1.NetworkEgressPolicyR\fegressPolicy\x1a;\n" +
 	"\rUserEnvsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x94\x03\n" +
@@ -1450,12 +1462,13 @@ var file_internal_apipb_v1_lifecycle_proto_goTypes = []any{
 	(*WorkspaceImageSource)(nil),               // 27: axnoded.internal.apipb.v1.WorkspaceImageSource
 	(*v12.CapabilityDependency)(nil),           // 28: axern.control.capability.v1.CapabilityDependency
 	(*v12.ExtensionCapabilityRequirement)(nil), // 29: axern.control.capability.v1.ExtensionCapabilityRequirement
-	(*v11.PublishedNodeVolume)(nil),            // 30: axern.private.storage.v1.PublishedNodeVolume
-	(*v12.CapabilityConditionSet)(nil),         // 31: axern.control.capability.v1.CapabilityConditionSet
-	(*v11.VolumeReleaseObservation)(nil),       // 32: axern.private.storage.v1.VolumeReleaseObservation
-	(*KeyValue)(nil),                           // 33: axnoded.internal.apipb.v1.KeyValue
-	(*LinuxContainerResources)(nil),            // 34: axnoded.internal.apipb.v1.LinuxContainerResources
-	(v1.WorkloadDiagnosticCode)(0),             // 35: axern.control.common.v1.WorkloadDiagnosticCode
+	(*v1.NetworkEgressPolicy)(nil),             // 30: axern.control.common.v1.NetworkEgressPolicy
+	(*v11.PublishedNodeVolume)(nil),            // 31: axern.private.storage.v1.PublishedNodeVolume
+	(*v12.CapabilityConditionSet)(nil),         // 32: axern.control.capability.v1.CapabilityConditionSet
+	(*v11.VolumeReleaseObservation)(nil),       // 33: axern.private.storage.v1.VolumeReleaseObservation
+	(*KeyValue)(nil),                           // 34: axnoded.internal.apipb.v1.KeyValue
+	(*LinuxContainerResources)(nil),            // 35: axnoded.internal.apipb.v1.LinuxContainerResources
+	(v1.WorkloadDiagnosticCode)(0),             // 36: axern.control.common.v1.WorkloadDiagnosticCode
 }
 var file_internal_apipb_v1_lifecycle_proto_depIdxs = []int32{
 	22, // 0: axnoded.internal.apipb.v1.StartRequest.runtime_template:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate
@@ -1467,24 +1480,25 @@ var file_internal_apipb_v1_lifecycle_proto_depIdxs = []int32{
 	27, // 6: axnoded.internal.apipb.v1.StartRequest.workspace_image:type_name -> axnoded.internal.apipb.v1.WorkspaceImageSource
 	28, // 7: axnoded.internal.apipb.v1.StartRequest.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
 	29, // 8: axnoded.internal.apipb.v1.StartRequest.extension_capability_requirements:type_name -> axern.control.capability.v1.ExtensionCapabilityRequirement
-	30, // 9: axnoded.internal.apipb.v1.StartResponse.published_volumes:type_name -> axern.private.storage.v1.PublishedNodeVolume
-	31, // 10: axnoded.internal.apipb.v1.StartResponse.capability_verification:type_name -> axern.control.capability.v1.CapabilityConditionSet
-	28, // 11: axnoded.internal.apipb.v1.StartResponse.admitted_capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
-	32, // 12: axnoded.internal.apipb.v1.DeleteResponse.volume_release_observations:type_name -> axern.private.storage.v1.VolumeReleaseObservation
-	20, // 13: axnoded.internal.apipb.v1.ListContainersRequest.selector:type_name -> axnoded.internal.apipb.v1.ListContainersRequest.SelectorEntry
-	13, // 14: axnoded.internal.apipb.v1.ListContainersResponse.containers:type_name -> axnoded.internal.apipb.v1.ContainerStatus
-	0,  // 15: axnoded.internal.apipb.v1.ContainerStatus.state:type_name -> axnoded.internal.apipb.v1.ContainerState
-	21, // 16: axnoded.internal.apipb.v1.ContainerStatus.labels:type_name -> axnoded.internal.apipb.v1.ContainerStatus.LabelsEntry
-	23, // 17: axnoded.internal.apipb.v1.ContainerStatus.mounts:type_name -> axnoded.internal.apipb.v1.Mount
-	33, // 18: axnoded.internal.apipb.v1.ContainerStatus.envs:type_name -> axnoded.internal.apipb.v1.KeyValue
-	34, // 19: axnoded.internal.apipb.v1.ContainerStatus.linux_resources:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources
-	35, // 20: axnoded.internal.apipb.v1.ContainerStatus.diagnostic_code:type_name -> axern.control.common.v1.WorkloadDiagnosticCode
-	16, // 21: axnoded.internal.apipb.v1.VersionResponse.runtimes:type_name -> axnoded.internal.apipb.v1.RuntimeVersion
-	22, // [22:22] is the sub-list for method output_type
-	22, // [22:22] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	30, // 9: axnoded.internal.apipb.v1.StartRequest.egress_policy:type_name -> axern.control.common.v1.NetworkEgressPolicy
+	31, // 10: axnoded.internal.apipb.v1.StartResponse.published_volumes:type_name -> axern.private.storage.v1.PublishedNodeVolume
+	32, // 11: axnoded.internal.apipb.v1.StartResponse.capability_verification:type_name -> axern.control.capability.v1.CapabilityConditionSet
+	28, // 12: axnoded.internal.apipb.v1.StartResponse.admitted_capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
+	33, // 13: axnoded.internal.apipb.v1.DeleteResponse.volume_release_observations:type_name -> axern.private.storage.v1.VolumeReleaseObservation
+	20, // 14: axnoded.internal.apipb.v1.ListContainersRequest.selector:type_name -> axnoded.internal.apipb.v1.ListContainersRequest.SelectorEntry
+	13, // 15: axnoded.internal.apipb.v1.ListContainersResponse.containers:type_name -> axnoded.internal.apipb.v1.ContainerStatus
+	0,  // 16: axnoded.internal.apipb.v1.ContainerStatus.state:type_name -> axnoded.internal.apipb.v1.ContainerState
+	21, // 17: axnoded.internal.apipb.v1.ContainerStatus.labels:type_name -> axnoded.internal.apipb.v1.ContainerStatus.LabelsEntry
+	23, // 18: axnoded.internal.apipb.v1.ContainerStatus.mounts:type_name -> axnoded.internal.apipb.v1.Mount
+	34, // 19: axnoded.internal.apipb.v1.ContainerStatus.envs:type_name -> axnoded.internal.apipb.v1.KeyValue
+	35, // 20: axnoded.internal.apipb.v1.ContainerStatus.linux_resources:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources
+	36, // 21: axnoded.internal.apipb.v1.ContainerStatus.diagnostic_code:type_name -> axern.control.common.v1.WorkloadDiagnosticCode
+	16, // 22: axnoded.internal.apipb.v1.VersionResponse.runtimes:type_name -> axnoded.internal.apipb.v1.RuntimeVersion
+	23, // [23:23] is the sub-list for method output_type
+	23, // [23:23] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_internal_apipb_v1_lifecycle_proto_init() }

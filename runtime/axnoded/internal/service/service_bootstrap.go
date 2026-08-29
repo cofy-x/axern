@@ -14,6 +14,7 @@ import (
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	nodecontrol "github.com/cofy-x/axern/runtime/axnoded/internal/controlplane"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	ebpfnetwork "github.com/cofy-x/axern/runtime/axnoded/internal/network/ebpf"
 	nodecapabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
@@ -50,6 +51,8 @@ type sandboxService struct {
 	lrtManager        *langrtmanager.LangRTManager
 	volumeClient      volume.Publisher
 	volumeCloser      io.Closer
+	egressClient      egress.Manager
+	egressCloser      io.Closer
 	volumes           *servicevolumes.Coordinator
 	sandboxAccess     *sandboxaccess.Accessor
 	sandboxTargets    *sandboxtarget.Resolver
@@ -186,9 +189,15 @@ func newSandboxServiceState(cfg config.Config) (*sandboxService, error) {
 	if err != nil {
 		return nil, err
 	}
+	egressClient, err := egress.Dial(context.Background(), cfg.PluginConfig.RuntimeConfig.EgressManagerSocketPath())
+	if err != nil {
+		_ = volumeClient.Close()
+		return nil, err
+	}
 	stateDB, err := nodestate.Open(filepath.Join(cfg.StoreDir, "metadata.db"))
 	if err != nil {
 		_ = volumeClient.Close()
+		_ = egressClient.Close()
 		return nil, err
 	}
 
@@ -199,6 +208,8 @@ func newSandboxServiceState(cfg config.Config) (*sandboxService, error) {
 		lrtManager:      langrtmanager.NewLanguageRuntimeManager(langrtmanager.NewDefaultMounter(imageManagerEnabled, imageManagerSocket)),
 		volumeClient:    volumeClient,
 		volumeCloser:    volumeClient,
+		egressClient:    egressClient,
+		egressCloser:    egressClient,
 	}
 	if cfg.PluginConfig.ControlPlaneTargetValue() != "" {
 		s.allocationStatusOutbox = nodecontrol.NewAllocationStatusOutbox(stateDB)
@@ -240,7 +251,17 @@ func (h *sandboxService) closeAfterInitializationFailure() {
 		h.lrtManager.Close()
 	}
 	h.closeVolume()
+	h.closeEgress()
 	h.closeNodeState()
+}
+
+func (h *sandboxService) closeEgress() {
+	if h == nil || h.egressCloser == nil {
+		return
+	}
+	if err := h.egressCloser.Close(); err != nil {
+		logrus.WithError(err).Warn("close egressd client")
+	}
 }
 
 func (h *sandboxService) configureServiceCollaborators() {
@@ -272,6 +293,9 @@ func (h *sandboxService) restorePersistentState() error {
 		return err
 	}
 	if err := h.allocationController().RestoreAllocationState(retained.allIDs()); err != nil {
+		return err
+	}
+	if err := h.reconcileEgressPolicies(context.Background()); err != nil {
 		return err
 	}
 	for _, handler := range h.containerManager.Handlers() {

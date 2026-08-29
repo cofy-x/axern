@@ -6,6 +6,7 @@ all: build
 
 build: ## Build egressd
 	$(GO) build -o ../../bin/egressd ./cmd/egressd
+	$(GO) build -o ../../bin/egressdctl ./cmd/egressdctl
 
 test: ## Run egressd tests
 	$(GO) test ./...

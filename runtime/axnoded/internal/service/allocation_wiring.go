@@ -26,6 +26,7 @@ func (h *sandboxService) allocationOptions() allocation.Options {
 		InventoryChanged:            h.notifyNodeInventoryChanged,
 		RootfsCapabilityGate:        h.verifyRootfsCapabilityRequirements,
 		PreActivationCapabilityGate: h.verifyPreparedAllocationCapabilities,
+		Egress:                      h.egressClient,
 	}
 }
 

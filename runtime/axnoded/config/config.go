@@ -103,6 +103,11 @@ type RuntimeConfig struct {
 	// VolumeManagerSocket points to the local volumed Unix socket.
 	VolumeManagerSocket string `toml:"volume_manager_socket" json:"volumeManagerSocket"`
 
+	// EgressManagerSocket points to the trusted node-local egressd Unix socket.
+	// Connectivity is observed as a capability and is not required for legacy
+	// unrestricted workloads.
+	EgressManagerSocket string `toml:"egress_manager_socket" json:"egressManagerSocket"`
+
 	// IdleRuntimeRetentionTTL controls how long temporary idle runtimes and
 	// their rootfs should remain retained after the last container exits.
 	IdleRuntimeRetentionTTL string `toml:"idle_runtime_retention_ttl" json:"idleRuntimeRetentionTtl"`
@@ -213,6 +218,14 @@ func (c RuntimeConfig) VolumeManagerSocketPath() string {
 	value := strings.TrimSpace(c.VolumeManagerSocket)
 	if value == "" {
 		return DefaultVolumeManagerSocket
+	}
+	return value
+}
+
+func (c RuntimeConfig) EgressManagerSocketPath() string {
+	value := strings.TrimSpace(c.EgressManagerSocket)
+	if value == "" {
+		return DefaultEgressManagerSocket
 	}
 	return value
 }
@@ -606,6 +619,7 @@ func DefaultConfig() Config {
 				ImageManagerEnabled:               boolPtr(true),
 				ImageManagerSocket:                DefaultImageManagerSocket,
 				VolumeManagerSocket:               DefaultVolumeManagerSocket,
+				EgressManagerSocket:               DefaultEgressManagerSocket,
 				IdleRuntimeRetentionTTL:           DefaultIdleRuntimeRetentionTTL,
 				IdleRuntimeRetentionMax:           &defaultIdleRuntimeRetentionMax,
 				FilestoreMode:                     FilestoreModeExisting,

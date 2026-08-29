@@ -16,24 +16,52 @@ var (
 )
 
 func buildResolvConf(config RuntimeDNSConfig) (string, error) {
+	nameservers, searchDomains, options, err := resolveRuntimeDNS(config)
+	if err != nil {
+		return "", err
+	}
+	return buildResolvConfFromParts(nameservers, searchDomains, options)
+}
+
+// ResolveRuntimeDNSNameservers returns the same verified, non-loopback
+// upstream set used to materialize the workload's resolv.conf. Egress policy
+// forwarding must use this result and must never invent a public fallback.
+func ResolveRuntimeDNSNameservers(config RuntimeDNSConfig) ([]string, error) {
+	nameservers, _, _, err := resolveRuntimeDNS(config)
+	return nameservers, err
+}
+
+func resolveRuntimeDNS(config RuntimeDNSConfig) ([]string, []string, []string, error) {
 	config = config.withDefaults()
 	if len(config.Nameservers) > 0 {
-		return buildResolvConfFromParts(config.Nameservers, config.SearchDomains, config.Options)
+		nameservers := normalizeNameservers(config.Nameservers)
+		if len(nameservers) == 0 {
+			return nil, nil, nil, fmt.Errorf("derive OCI runtime DNS config: no usable nameserver found")
+		}
+		return nameservers, append([]string(nil), config.SearchDomains...), append([]string(nil), config.Options...), nil
 	}
 	for _, path := range config.HostResolvConfPaths {
 		content, err := os.ReadFile(path)
 		if err != nil {
 			continue
 		}
-		resolv, err := buildResolvConfFromContent(string(content), config.Options)
+		nameservers, searchDomains, options, err := resolveRuntimeDNSFromContent(string(content), config.Options)
 		if err == nil {
-			return resolv, nil
+			return nameservers, searchDomains, options, nil
 		}
 	}
-	return "", fmt.Errorf("derive OCI runtime DNS config: no usable nameserver found")
+	return nil, nil, nil, fmt.Errorf("derive OCI runtime DNS config: no usable nameserver found")
 }
 
 func buildResolvConfFromContent(content string, defaultOptions []string) (string, error) {
+	nameservers, searchDomains, options, err := resolveRuntimeDNSFromContent(content, defaultOptions)
+	if err != nil {
+		return "", err
+	}
+	return buildResolvConfFromParts(nameservers, searchDomains, options)
+}
+
+func resolveRuntimeDNSFromContent(content string, defaultOptions []string) ([]string, []string, []string, error) {
 	var nameservers []string
 	var searchDomains []string
 	var options []string
@@ -66,7 +94,11 @@ func buildResolvConfFromContent(content string, defaultOptions []string) (string
 	if len(options) == 0 {
 		options = append([]string(nil), defaultOptions...)
 	}
-	return buildResolvConfFromParts(nameservers, searchDomains, options)
+	nameservers = normalizeNameservers(nameservers)
+	if len(nameservers) == 0 {
+		return nil, nil, nil, fmt.Errorf("build OCI runtime resolv.conf: no usable nameserver found")
+	}
+	return nameservers, searchDomains, options, nil
 }
 
 func buildResolvConfFromParts(nameservers []string, searchDomains []string, options []string) (string, error) {

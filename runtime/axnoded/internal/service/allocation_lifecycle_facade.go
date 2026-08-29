@@ -243,6 +243,14 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 		if dependency.GetLossPolicy() != capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP {
 			continue
 		}
+		if dependency.GetKey().GetPlatform() == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT ||
+			dependency.GetKey().GetPlatform() == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT {
+			if err := h.verifyPreparedEgressPolicy(ctx, request, containerID); err != nil {
+				return err
+			}
+			verifiedKeys = append(verifiedKeys, capabilitycontract.CloneKey(dependency.GetKey()))
+			continue
+		}
 		if verifier == nil {
 			var ok bool
 			verifier, ok = handler.(contract.AllocationCapabilityVerifier)

@@ -139,6 +139,7 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 				Requests: &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 134217728},
 				Limits:   &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 268435456},
 			},
+			Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT, EgressPolicy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_DnsDeny{DnsDeny: &commonv1.DnsDenyPolicy{DeniedDomains: []string{"github.com"}}}}},
 			ImageMounts: []*nodelifecyclev1.ImageMount{{
 				Image:  "example.com/axern/codex-tool:latest",
 				Target: "/opt/axern/tools/codex",
@@ -173,6 +174,9 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	}
 	if startReq.GetAllocationAttempt() != 1 {
 		t.Fatalf("allocation attempt = %d, want 1", startReq.GetAllocationAttempt())
+	}
+	if got := startReq.GetEgressPolicy().GetDnsDeny().GetDeniedDomains(); len(got) != 1 || got[0] != "github.com" {
+		t.Fatalf("egress policy was not preserved: %#v", startReq.GetEgressPolicy())
 	}
 	if startReq.GetRuntimeTemplate().GetRootfs().GetImageUrl() != imageRef {
 		t.Fatalf("image_ref = %q", startReq.GetRuntimeTemplate().GetRootfs().GetImageUrl())

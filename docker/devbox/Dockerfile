@@ -58,6 +58,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     htop \
     iproute2 \
     iptables \
+    nftables \
     jq \
     libssl-dev \
     locales \

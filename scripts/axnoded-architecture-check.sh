@@ -38,6 +38,7 @@ runtime/axnoded/internal/cgroup
 runtime/axnoded/internal/container
 runtime/axnoded/internal/controlplane
 runtime/axnoded/internal/demo
+runtime/axnoded/internal/egress
 runtime/axnoded/internal/hostlinux
 runtime/axnoded/internal/langruntime
 runtime/axnoded/internal/natbench

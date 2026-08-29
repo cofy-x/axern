@@ -28,6 +28,10 @@ message StartRequest {
   repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 16;
   repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 17;
   int64 allocation_attempt = 18;
+  // The normalized public policy is carried intact to the node-local
+  // enforcement boundary. The legacy string network field remains the OCI
+  // network-mode selector and must never be used as a policy surrogate.
+  axern.control.common.v1.NetworkEgressPolicy egress_policy = 19;
 }
 
 message StartResponse {

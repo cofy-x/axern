@@ -24,7 +24,7 @@ func (s *Server) PreparePolicy(ctx context.Context, req *runtimeegressv1.Prepare
 	if s == nil || s.manager == nil {
 		return nil, status.Error(codes.FailedPrecondition, "egress policy manager is not configured")
 	}
-	record, alreadyPrepared, err := s.manager.Prepare(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetSandboxIp(), req.GetPolicy(), req.GetExecutionRevision())
+	record, alreadyPrepared, err := s.manager.Prepare(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetSandboxIp(), req.GetPolicy(), req.GetExecutionRevision(), req.GetUpstreamNameservers())
 	if err != nil {
 		return nil, toStatus(err)
 	}
