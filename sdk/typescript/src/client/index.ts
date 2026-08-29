@@ -13,6 +13,7 @@ import { serviceConstructor, unary } from "../generated/proto.js";
 import { NodeSandboxClient } from "../node/client.js";
 import { buildResourceSpec } from "../resources.js";
 import type { ResourceQuantity } from "../resources.js";
+import type { NetworkPolicy } from "../network-policy.js";
 import { TunnelControlClient } from "../tunnel/control.js";
 import type { VolumeMount } from "../types.js";
 import type { GatewayTransportOptions } from "../tunnel/relay.js";
@@ -44,6 +45,7 @@ export interface CreateServiceOptions {
   env?: Record<string, string>;
   cwd?: string;
   runtimeClass?: string;
+  networkPolicy?: NetworkPolicy;
   extensionCapabilities?: readonly ExtensionCapability[];
   volumes?: readonly VolumeMount[];
   requestCpu?: ResourceQuantity;
@@ -271,6 +273,9 @@ export class AxernClient {
             env: options.env ?? {},
             cwd: options.cwd ?? "",
             runtime_class: options.runtimeClass ?? "",
+            ...(options.networkPolicy === undefined
+              ? {}
+              : { network: { egress_policy: options.networkPolicy.toWire() } }),
             extension_capability_requirements: (options.extensionCapabilities ?? []).map((capability) => ({
               capability: { name: capability.name, value: capability.value ?? "" },
             })),

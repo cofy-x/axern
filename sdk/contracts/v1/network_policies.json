@@ -1,0 +1,28 @@
+{
+  "domains": {
+    "input": ["GitHub.COM.", "github.com", "*.BÜCHER.example"],
+    "normalized": ["github.com", "*.xn--bcher-kva.example"]
+  },
+  "cidr": {
+    "cidr": "192.0.2.0/24",
+    "protocol": "tcp",
+    "ports": [
+      {"start": 22, "end": 22},
+      {"start": 8000, "end": 8002}
+    ]
+  },
+  "invalid_domains": [
+    "https://example.com",
+    "example.com:443",
+    "127.0.0.1",
+    "foo.*.example"
+  ],
+  "invalid_cidrs": [
+    "not-a-cidr",
+    "169.254.169.254/32",
+    "100.100.100.200/32",
+    "127.0.0.1/32",
+    "::1/128",
+    "fe80::1/128"
+  ]
+}

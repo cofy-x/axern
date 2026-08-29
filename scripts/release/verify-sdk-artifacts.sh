@@ -40,7 +40,7 @@ const sdk = await import(pathToFileURL(path.join(prefix, "node_modules/@cofy-x/a
 if (sdk.AXERN_VERSION !== expected || sdk.platformName() !== "axern") {
   throw new Error(`unexpected TypeScript SDK metadata: ${sdk.AXERN_VERSION}`);
 }
-for (const symbol of ["AxernClient", "Sandbox", "NodeSandboxClient"]) {
+for (const symbol of ["AxernClient", "Sandbox", "NodeSandboxClient", "NetworkPolicy"]) {
   if (typeof sdk[symbol] !== "function") {
     throw new Error(`missing TypeScript SDK export ${symbol}`);
   }
@@ -50,12 +50,17 @@ for (const method of ["capabilityStatus", "computerUseStatus", "computerUseScree
     throw new Error(`missing TypeScript SDK method ${method}`);
   }
 }
+const networkPolicy = sdk.NetworkPolicy.denyDns("GitHub.COM.", "*.github.com");
+if (JSON.stringify(networkPolicy.toWire()) !== JSON.stringify({ dns_deny: { denied_domains: ["github.com", "*.github.com"] } })) {
+  throw new Error("TypeScript SDK artifact cannot construct a DNS deny policy");
+}
 NODE
 
 cat > "${npm_prefix}/consumer.mts" <<'TS'
 import {
   AXERN_VERSION,
   AxernClient,
+  NetworkPolicy,
   Sandbox,
   type CapabilityStatus,
   type ComputerUseScreenshot,
@@ -66,6 +71,7 @@ declare const sandbox: Sandbox;
 declare const capabilities: CapabilityStatus;
 declare const screenshot: ComputerUseScreenshot;
 void [AXERN_VERSION, client, sandbox, capabilities, screenshot];
+void NetworkPolicy.denyDns("github.com", "*.github.com");
 TS
 pnpm --dir "${AXERN_ROOT}" exec tsc \
   --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext \
@@ -112,6 +118,10 @@ func TestPublicSurface(t *testing.T) {
 		TLS: clientconfig.TLS{CACert: "ca", Cert: "cert", Key: "key"},
 	}); err != nil {
 		t.Fatal(err)
+	}
+	policy, err := axern.DenyDNSNetworkPolicy("GitHub.COM.", "*.github.com")
+	if err != nil || policy == nil {
+		t.Fatalf("Go SDK artifact cannot construct a DNS deny policy: %v", err)
 	}
 }
 GO

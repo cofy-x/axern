@@ -4,7 +4,7 @@ import sys
 
 import axern_sdk
 from axern.control.environment.v1 import environment_pb2
-from axern_sdk import AxernClient, Sandbox
+from axern_sdk import AxernClient, NetworkPolicy, Sandbox
 
 
 def main() -> None:
@@ -18,6 +18,9 @@ def main() -> None:
     for method in ("capability_status", "computer_use_status", "computer_use_screenshot"):
         if not callable(getattr(Sandbox, method, None)):
             raise SystemExit(f"Python SDK artifact is missing Sandbox.{method}")
+    policy = NetworkPolicy.deny_dns("GitHub.COM.", "*.github.com")
+    if list(policy._to_proto().dns_deny.denied_domains) != ["github.com", "*.github.com"]:
+        raise SystemExit("Python SDK artifact cannot construct a DNS deny policy")
 
 
 if __name__ == "__main__":

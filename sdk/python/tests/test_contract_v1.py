@@ -22,6 +22,7 @@ from axern_sdk.errors import (
     SandboxValidationError,
 )
 from axern_sdk.sandbox import Sandbox
+from axern_sdk import CIDRRule, NetworkPolicy, PortRange
 from axern_sdk.sandbox.types import _validate_source
 
 
@@ -137,6 +138,25 @@ class ContractV1Test(unittest.TestCase):
         self.assertIn("extension_capabilities", parameters)
         self.assertIn("upstream", parameters)
         self.assertIn("remote_port", parameters)
+
+    def test_network_policy_contract(self) -> None:
+        contract = load("network_policies.json")
+        domains = contract["domains"]
+        wire = NetworkPolicy.deny_dns(*domains["input"])._to_proto()
+        self.assertEqual(list(wire.dns_deny.denied_domains), domains["normalized"])
+        cidr = contract["cidr"]
+        rule = CIDRRule(
+            cidr["cidr"],
+            cidr["protocol"],
+            tuple(PortRange(item["start"], item["end"]) for item in cidr["ports"]),
+        )
+        self.assertEqual(NetworkPolicy.strict(cidr_rules=(rule,))._to_proto().strict.allowed_cidrs[0].cidr, cidr["cidr"])
+        for value in contract["invalid_domains"]:
+            with self.assertRaises(ValueError):
+                NetworkPolicy.allow_domains(value)
+        for value in contract["invalid_cidrs"]:
+            with self.assertRaises(ValueError):
+                CIDRRule(value, "tcp", (PortRange(443),))
 
 
 def load(name: str) -> dict[str, object]:

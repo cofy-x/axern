@@ -10,6 +10,7 @@ import test from "node:test";
 import { AxernClient } from "../src/client/index.js";
 import { SandboxValidationError } from "../src/errors/index.js";
 import { Sandbox } from "../src/sandbox/index.js";
+import { NetworkPolicy } from "../src/network-policy.js";
 
 test("sandbox creates image-backed environment and delegates exec", async () => {
   const calls: string[] = [];
@@ -55,9 +56,11 @@ test("sandbox creates image-backed environment and delegates exec", async () => 
     close() {},
   } as unknown as AxernClient;
 
+  const networkPolicy = NetworkPolicy.allowDomains("example.com");
   const sandbox = new Sandbox({
     client: fakeClient,
     image: "python:3.12-slim",
+    networkPolicy,
     requestCpu: 1,
     requestMemory: 512,
     limitCpu: "1500m",
@@ -83,6 +86,7 @@ test("sandbox creates image-backed environment and delegates exec", async () => 
   assert.equal(serviceOptions?.limitMemory, "1GiB");
   assert.deepEqual(serviceOptions?.extensionCapabilities, [{ name: "example.com/accelerator", value: "v1" }]);
   assert.deepEqual(serviceOptions?.volumes, [{ name: "workspace", target: "/workspace", readonly: true, options: ["rbind"] }]);
+  assert.equal(serviceOptions?.networkPolicy, networkPolicy);
 });
 
 test("client rejects negative service resource values before RPC", async () => {

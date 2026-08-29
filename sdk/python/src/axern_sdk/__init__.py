@@ -47,6 +47,7 @@ from axern_sdk.function import (
     load_function_spec,
 )
 from axern_sdk.models import HTTPProbe, ImageMount, SecretEnvVar, SecretFile, ServiceProbe, TCPProbe, VolumeMount
+from axern_sdk.network_policy import CIDRRule, NetworkPolicy, PortRange
 from axern_sdk.node import (
     AsyncNodeSandboxClient,
     AsyncProcessResult,
@@ -97,6 +98,7 @@ __all__ = [
     "AxernClient",
     "AxernContext",
     "CatalogClient",
+    "CIDRRule",
     "AsyncNodeSandboxClient",
     "AsyncProcessResult",
     "AsyncSandbox",
@@ -127,6 +129,8 @@ __all__ = [
     "HTTPProbe",
     "ImageMount",
     "NodeSandboxClient",
+    "NetworkPolicy",
+    "PortRange",
     "ProcessResult",
     "Sandbox",
     "SandboxFileInfo",

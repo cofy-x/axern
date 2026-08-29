@@ -48,10 +48,15 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 		t.Fatalf("new client: %v", err)
 	}
 	defer client.Close()
+	policy, err := AllowDomainNetworkPolicy("example.com")
+	if err != nil {
+		t.Fatalf("network policy: %v", err)
+	}
 
 	sandbox, err := NewSandbox(SandboxOptions{
 		Client:                client,
 		TemplateID:            "python311",
+		NetworkPolicy:         policy,
 		ReadyTimeout:          time.Second,
 		ExtensionCapabilities: []ExtensionCapability{{Name: "example.com/accelerator", Value: "v1"}},
 		Volumes: []VolumeMount{{
@@ -107,6 +112,9 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	}
 	if got := fake.createServiceRequest.GetConfig().GetExtensionCapabilityRequirements(); len(got) != 1 || got[0].GetCapability().GetName() != "example.com/accelerator" || got[0].GetCapability().GetValue() != "v1" {
 		t.Fatalf("unexpected extension capability requirements: %#v", got)
+	}
+	if got := fake.createServiceRequest.GetConfig().GetNetwork().GetEgressPolicy().GetStrict().GetAllowedDomains(); len(got) != 1 || got[0] != "example.com" {
+		t.Fatalf("unexpected network policy: %#v", got)
 	}
 
 	result, err := sandbox.Exec(ctx, "echo hello", ExecOptions{Check: true})
