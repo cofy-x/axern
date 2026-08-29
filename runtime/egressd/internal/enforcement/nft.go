@@ -130,14 +130,14 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 		if err != nil {
 			return nil, err
 		}
-		fmt.Fprintf(&out, "  %s saddr %s udp dport 53 meta mark set 0x%x tproxy to :%d accept\n", family, source, policyMark, dnsProxyPort)
-		fmt.Fprintf(&out, "  %s saddr %s tcp dport 53 meta mark set 0x%x tproxy to :%d accept\n", family, source, policyMark, dnsProxyPort)
+		fmt.Fprintf(&out, "  %s saddr %s udp dport 53 meta mark set 0x%x tproxy %s to :%d accept\n", family, source, policyMark, family, dnsProxyPort)
+		fmt.Fprintf(&out, "  %s saddr %s tcp dport 53 meta mark set 0x%x tproxy %s to :%d accept\n", family, source, policyMark, family, dnsProxyPort)
 		if strict := record.GetPolicy().GetStrict(); strict != nil {
 			for _, rule := range strict.GetAllowedCidrs() {
 				writeCIDRRule(&out, family, source, rule, "return")
 			}
-			fmt.Fprintf(&out, "  %s saddr %s tcp dport 80 meta mark set 0x%x tproxy to :%d accept\n", family, source, policyMark, httpProxyPort)
-			fmt.Fprintf(&out, "  %s saddr %s tcp dport 443 meta mark set 0x%x tproxy to :%d accept\n", family, source, policyMark, httpsProxyPort)
+			fmt.Fprintf(&out, "  %s saddr %s tcp dport 80 meta mark set 0x%x tproxy %s to :%d accept\n", family, source, policyMark, family, httpProxyPort)
+			fmt.Fprintf(&out, "  %s saddr %s tcp dport 443 meta mark set 0x%x tproxy %s to :%d accept\n", family, source, policyMark, family, httpsProxyPort)
 		}
 	}
 	out.WriteString(" }\n chain forward { type filter hook forward priority filter; policy accept;\n")

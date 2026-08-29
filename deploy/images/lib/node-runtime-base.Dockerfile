@@ -186,6 +186,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/dns-probe ./cmd/dns-probe && \
     cd /workspace/runtime/egressd && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/egressd ./cmd/egressd && \
+    GOTOOLCHAIN=local GOFLAGS= go build -o /out/egressdctl ./cmd/egressdctl && \
     cd /workspace/runtime/tunneld && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/node-tunneld ./cmd/node-tunneld && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/tunnel-agent ./cmd/tunnel-agent && \
@@ -320,6 +321,7 @@ COPY --from=axnoded-builder /out/axnoded-runtime-runner /usr/local/libexec/axnod
 COPY --from=axnoded-builder /out/egress-probe /usr/local/libexec/axnoded/egress-probe
 COPY --from=axnoded-builder /out/dns-probe /usr/local/libexec/axnoded/dns-probe
 COPY --from=axnoded-builder /out/egressd /usr/local/bin/egressd
+COPY --from=axnoded-builder /out/egressdctl /usr/local/bin/egressdctl
 COPY --from=axnoded-builder /out/node-tunneld /usr/local/bin/node-tunneld
 COPY --from=axnoded-builder /out/tunnel-agent /usr/local/bin/tunnel-agent
 COPY --from=axnoded-builder /out/volumed /usr/local/bin/volumed
