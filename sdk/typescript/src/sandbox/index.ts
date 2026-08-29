@@ -10,6 +10,7 @@ import { SandboxStateError } from "../errors/index.js";
 import type { NodeSandboxClient } from "../node/client.js";
 import type { SandboxProcess } from "../node/process.js";
 import type { ResourceQuantity } from "../resources.js";
+import type { NetworkPolicy } from "../network-policy.js";
 import { startTunnelRuntime, tunnelMetadata } from "../tunnel/runtime.js";
 import type { TunnelRuntime } from "../tunnel/types.js";
 import type {
@@ -54,6 +55,7 @@ export interface SandboxOptions {
   env?: Record<string, string>;
   cwd?: string;
   runtimeClass?: string;
+  networkPolicy?: NetworkPolicy;
   extensionCapabilities?: readonly ExtensionCapability[];
   volumes?: readonly VolumeMount[];
   requestCpu?: ResourceQuantity;
@@ -142,6 +144,7 @@ export class Sandbox {
         env: this.options.env,
         cwd: this.options.cwd,
         runtimeClass: this.options.runtimeClass,
+        networkPolicy: this.options.networkPolicy,
         extensionCapabilities: this.options.extensionCapabilities,
         volumes: this.options.volumes,
         requestCpu: this.options.requestCpu,

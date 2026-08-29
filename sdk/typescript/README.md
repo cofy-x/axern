@@ -68,6 +68,32 @@ try {
 }
 ```
 
+## Network Policies
+
+Omitting `networkPolicy` keeps unrestricted v0.5 behavior. Strict policies are
+fail-closed; `denyDns` only refuses matching traditional UDP/TCP DNS queries and
+does not block direct IP traffic, DoH, DoT, or already-resolved addresses.
+
+```ts
+import { NetworkPolicy, Sandbox } from "@cofy-x/axern-sdk";
+
+const sandbox = await new Sandbox({
+  client,
+  image: "docker.io/library/python:3.12-slim",
+  networkPolicy: NetworkPolicy.denyDns(
+    "github.com",
+    "*.github.com",
+    "githubusercontent.com",
+    "*.githubusercontent.com",
+  ),
+}).start();
+```
+
+`NetworkPolicy.allowDomains("example.com", "*.example.com")` allows only
+strict HTTP/HTTPS destinations validated by DNS plus HTTP Host or TLS SNI.
+`NetworkPolicy.strict({ cidrRules: [...] })` adds explicit TCP/UDP CIDR and port
+grants; `NetworkPolicy.denyAll()` allows no egress.
+
 Run a tool from a separate image with `execImage` or `processImage`. OCI and
 Nydus refs use the same image field. When `mounts` is omitted, the SDK requests
 `/workspace -> /workspace`; pass `mounts: []` for no shared paths. Use

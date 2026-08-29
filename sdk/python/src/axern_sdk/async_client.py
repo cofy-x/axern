@@ -31,6 +31,7 @@ from axern_sdk._internal.channel import async_control_channel
 from axern_sdk._internal.resources import ResourceQuantity
 from axern_sdk._internal.specs import environment_spec
 from axern_sdk.context import load_context
+from axern_sdk.network_policy import NetworkPolicy
 from axern_sdk.client import (
     DEFAULT_ENDPOINT,
     ServiceProbeInput,
@@ -363,6 +364,7 @@ class AsyncAxernClient:
         env: dict[str, str] | None = None,
         cwd: str = "",
         runtime_class: str = "",
+        network_policy: NetworkPolicy | None = None,
         request_cpu: ResourceQuantity = "",
         request_memory: ResourceQuantity = "",
         request_ephemeral_storage: ResourceQuantity = "",
@@ -390,6 +392,11 @@ class AsyncAxernClient:
                     env=dict(env or {}),
                     cwd=cwd,
                     runtime_class=runtime_class,
+                    network=(
+                        common_pb2.NetworkSpec(egress_policy=network_policy._to_proto())
+                        if network_policy is not None
+                        else None
+                    ),
                     resources=_resource_spec(
                         request_cpu=request_cpu,
                         request_memory=request_memory,

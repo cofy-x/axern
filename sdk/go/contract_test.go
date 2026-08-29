@@ -64,6 +64,20 @@ type commonCoreContract struct {
 	AgentSandbox []string `json:"agent_sandbox"`
 }
 
+type networkPolicyContract struct {
+	Domains struct {
+		Input      []string `json:"input"`
+		Normalized []string `json:"normalized"`
+	} `json:"domains"`
+	CIDR struct {
+		CIDR     string      `json:"cidr"`
+		Protocol string      `json:"protocol"`
+		Ports    []PortRange `json:"ports"`
+	} `json:"cidr"`
+	InvalidDomains []string `json:"invalid_domains"`
+	InvalidCIDRs   []string `json:"invalid_cidrs"`
+}
+
 func TestSharedResourceContract(t *testing.T) {
 	var contract resourceContract
 	loadContract(t, "resources.json", &contract)
@@ -218,6 +232,32 @@ func TestSharedCommonCoreContract(t *testing.T) {
 		"computer_use_mouse":      "ComputerUseMouse",
 		"computer_use_keyboard":   "ComputerUseKeyboard",
 	})
+}
+
+func TestSharedNetworkPolicyContract(t *testing.T) {
+	var contract networkPolicyContract
+	loadContract(t, "network_policies.json", &contract)
+	policy, err := DenyDNSNetworkPolicy(contract.Domains.Input...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := policy.proto().GetDnsDeny().GetDeniedDomains(); !reflect.DeepEqual(got, contract.Domains.Normalized) {
+		t.Fatalf("normalized domains = %v, want %v", got, contract.Domains.Normalized)
+	}
+	cidrPolicy, err := NewStrictNetworkPolicy(nil, []CIDRRule{{CIDR: contract.CIDR.CIDR, Protocol: EgressProtocol(contract.CIDR.Protocol), Ports: contract.CIDR.Ports}})
+	if err != nil || cidrPolicy.proto().GetStrict().GetAllowedCidrs()[0].GetCidr() != contract.CIDR.CIDR {
+		t.Fatalf("CIDR policy = %v, %v", cidrPolicy, err)
+	}
+	for _, value := range contract.InvalidDomains {
+		if _, err := AllowDomainNetworkPolicy(value); err == nil {
+			t.Fatalf("invalid domain %q succeeded", value)
+		}
+	}
+	for _, value := range contract.InvalidCIDRs {
+		if _, err := NewStrictNetworkPolicy(nil, []CIDRRule{{CIDR: value, Protocol: EgressProtocolTCP, Ports: []PortRange{{Start: 443}}}}); err == nil {
+			t.Fatalf("invalid CIDR %q succeeded", value)
+		}
+	}
 }
 
 func publicMethods(target reflect.Type) map[string]bool {

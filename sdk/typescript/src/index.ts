@@ -33,6 +33,8 @@ export { SandboxProcess } from "./node/process.js";
 export type { ResourceQuantity } from "./resources.js";
 export { Sandbox } from "./sandbox/index.js";
 export type { SandboxMetadata, SandboxOptions, SandboxState } from "./sandbox/index.js";
+export { NetworkPolicy, cidrRule, portRange } from "./network-policy.js";
+export type { CIDRRule, PortRange, StrictNetworkPolicyOptions } from "./network-policy.js";
 export type {
   ChmodOptions,
   CapabilityDependencyStatus,

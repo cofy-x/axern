@@ -26,6 +26,7 @@ import { buildResourceSpec } from "../src/resources.js";
 import { validateSandboxOptions } from "../src/sandbox/lifecycle.js";
 import { Sandbox } from "../src/sandbox/index.js";
 import type { SandboxOptions } from "../src/sandbox/index.js";
+import { NetworkPolicy, cidrRule, portRange } from "../src/network-policy.js";
 
 interface QuantityCase { input: string; value: number }
 interface ErrorCase { code: string; number: number; class: string; retryable: boolean }
@@ -135,6 +136,22 @@ test("shared common core surface", () => {
     computer_use_mouse: "computerUseMouse",
     computer_use_keyboard: "computerUseKeyboard",
   });
+});
+
+test("shared network policy contract", () => {
+  const contract = load<{
+    domains: { input: string[]; normalized: string[] };
+    cidr: { cidr: string; protocol: "tcp" | "udp"; ports: { start: number; end: number }[] };
+    invalid_domains: string[];
+    invalid_cidrs: string[];
+  }>("network_policies.json");
+  assert.deepEqual(NetworkPolicy.denyDns(...contract.domains.input).toWire(), {
+    dns_deny: { denied_domains: contract.domains.normalized },
+  });
+  const rule = cidrRule(contract.cidr.cidr, contract.cidr.protocol, ...contract.cidr.ports.map((item) => portRange(item.start, item.end)));
+  assert.equal((NetworkPolicy.strict({ cidrRules: [rule] }).toWire() as { strict: { allowed_cidrs: { cidr: string }[] } }).strict.allowed_cidrs[0]?.cidr, contract.cidr.cidr);
+  for (const value of contract.invalid_domains) assert.throws(() => NetworkPolicy.allowDomains(value));
+  for (const value of contract.invalid_cidrs) assert.throws(() => cidrRule(value, "tcp", portRange(443)));
 });
 
 function load<T>(name: string): T {

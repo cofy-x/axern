@@ -24,6 +24,7 @@ type SandboxOptions struct {
 	Env                     map[string]string
 	Cwd                     string
 	RuntimeClass            string
+	NetworkPolicy           *NetworkPolicy
 	ExtensionCapabilities   []ExtensionCapability
 	Volumes                 []VolumeMount
 	ImageMounts             []ImageMount
@@ -108,6 +109,7 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		Env:                     s.options.Env,
 		Cwd:                     s.options.Cwd,
 		RuntimeClass:            s.options.RuntimeClass,
+		NetworkPolicy:           s.options.NetworkPolicy,
 		ExtensionCapabilities:   append([]ExtensionCapability(nil), s.options.ExtensionCapabilities...),
 		Volumes:                 s.options.Volumes,
 		ImageMounts:             s.options.ImageMounts,

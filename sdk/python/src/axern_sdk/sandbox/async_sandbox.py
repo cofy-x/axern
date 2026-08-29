@@ -25,6 +25,7 @@ from axern_sdk.sandbox.async_computer_use import AsyncSandboxComputerUseMixin
 from axern_sdk.sandbox.async_files import AsyncSandboxFileMixin
 from axern_sdk.sandbox.async_lifecycle import wait_ready_replica, wait_service_deleted
 from axern_sdk.sandbox.async_renewal import AsyncTunnelRenewal
+from axern_sdk.network_policy import NetworkPolicy
 from axern_sdk.sandbox.types import DEFAULT_SANDBOX_ARGV, SandboxMetadata, SandboxState, _validate_source
 from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
 
@@ -45,6 +46,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         env: dict[str, str] | None = None,
         cwd: str = "",
         runtime_class: str = "",
+        network_policy: NetworkPolicy | None = None,
         request_cpu: ResourceQuantity = "",
         request_memory: ResourceQuantity = "",
         request_ephemeral_storage: ResourceQuantity = "",
@@ -75,6 +77,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         self._env = dict(env or {})
         self._cwd = cwd
         self._runtime_class = runtime_class
+        self._network_policy = network_policy
         self._request_cpu = request_cpu
         self._request_memory = request_memory
         self._request_ephemeral_storage = request_ephemeral_storage
@@ -173,6 +176,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
                 env=self._env,
                 cwd=self._cwd,
                 runtime_class=self._runtime_class,
+                network_policy=self._network_policy,
                 request_cpu=self._request_cpu,
                 request_memory=self._request_memory,
                 request_ephemeral_storage=self._request_ephemeral_storage,

@@ -65,6 +65,39 @@ with Sandbox(client=client, image="docker.io/library/python:3.12-slim") as sandb
 client.close()
 ```
 
+## Network Policies
+
+Omitting `network_policy` preserves unrestricted v0.5 behavior. Strict
+policies are fail-closed; `deny_dns` only refuses matching traditional UDP/TCP
+DNS queries and does not block direct IP traffic, DoH, DoT, or already-resolved
+addresses.
+
+```python
+from axern_sdk import NetworkPolicy, Sandbox
+
+with Sandbox(
+    client=client,
+    image="docker.io/library/python:3.12-slim",
+    network_policy=NetworkPolicy.deny_dns(
+        "github.com",
+        "*.github.com",
+        "githubusercontent.com",
+        "*.githubusercontent.com",
+        "gitlab.com",
+        "*.gitlab.com",
+        "bitbucket.org",
+        "*.bitbucket.org",
+    ),
+) as sandbox:
+    print(sandbox.metadata.allocation_id)
+```
+
+`NetworkPolicy.allow_domains("example.com", "*.example.com")` is strict: only
+HTTP/HTTPS traffic whose controlled DNS result and HTTP Host or TLS SNI match is
+allowed. Use `NetworkPolicy.strict(..., cidr_rules=(CIDRRule(...),))` for
+explicit TCP/UDP CIDR and port grants, and `NetworkPolicy.deny_all()` for no
+egress.
+
 ## Volumes
 
 Use `VolumeMount` to attach Service V1 volumes to service-backed sandboxes.

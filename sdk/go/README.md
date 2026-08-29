@@ -117,6 +117,34 @@ func main() {
 }
 ```
 
+## Network Policies
+
+Leaving `SandboxOptions.NetworkPolicy` nil preserves unrestricted v0.5
+behavior. Strict policies are fail-closed; DNS deny only refuses matching
+traditional UDP/TCP DNS queries and does not block direct IP traffic, DoH, DoT,
+or already-resolved addresses.
+
+```go
+policy, err := axern.DenyDNSNetworkPolicy(
+	"github.com",
+	"*.github.com",
+	"githubusercontent.com",
+	"*.githubusercontent.com",
+)
+if err != nil {
+	log.Fatal(err)
+}
+sandbox, err := axern.NewSandbox(axern.SandboxOptions{
+	Client:        client,
+	Image:         "docker.io/library/python:3.12-slim",
+	NetworkPolicy: policy,
+})
+```
+
+`AllowDomainNetworkPolicy` allows only strict HTTP/HTTPS destinations validated
+by DNS plus HTTP Host or TLS SNI. `NewStrictNetworkPolicy` also accepts explicit
+TCP/UDP CIDR and port grants; `DenyAllNetworkPolicy` allows no egress.
+
 Run a tool from a separate image against a host-backed sandbox workspace with
 `ExecImage` or `ProcessImage`. The image ref may point to an OCI or Nydus image;
 Axern resolves both through the same runtime image path. When `Mounts` is nil,

@@ -65,6 +65,7 @@ type CreateServiceOptions struct {
 	Env                     map[string]string
 	Cwd                     string
 	RuntimeClass            string
+	NetworkPolicy           *NetworkPolicy
 	ExtensionCapabilities   []ExtensionCapability
 	Volumes                 []VolumeMount
 	ImageMounts             []ImageMount
@@ -105,6 +106,7 @@ func (c *Client) CreateService(ctx context.Context, options CreateServiceOptions
 			Env:                             cloneMap(options.Env),
 			Cwd:                             options.Cwd,
 			RuntimeClass:                    options.RuntimeClass,
+			Network:                         networkSpec(options.NetworkPolicy),
 			ExtensionCapabilityRequirements: extensionCapabilityRequirements(options.ExtensionCapabilities),
 			VolumeMounts:                    serviceVolumeMounts(options.Volumes),
 			ImageMounts:                     executionImageMounts(options.ImageMounts),
@@ -117,6 +119,13 @@ func (c *Client) CreateService(ctx context.Context, options CreateServiceOptions
 		return nil, mapRPCError(err, "create service", "")
 	}
 	return response.GetService(), nil
+}
+
+func networkSpec(policy *NetworkPolicy) *commonv1.NetworkSpec {
+	if policy == nil {
+		return nil
+	}
+	return &commonv1.NetworkSpec{EgressPolicy: policy.proto()}
 }
 
 // ExtensionCapability is an exact-match, DNS-qualified node extension fact.
