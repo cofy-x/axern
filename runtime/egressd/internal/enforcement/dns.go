@@ -105,17 +105,24 @@ func (e *Engine) resolveDNS(source string, wire []byte, tcp bool) ([]byte, error
 				return refusedDNS(query)
 			}
 		case *dnsmessage.AResource:
-			if record.GetPolicy().GetStrict() != nil && domainAllowed(record.GetPolicy(), name) {
-				e.authorize(source, name, netip.AddrFrom4(body.A), answer.Header.TTL)
+			addr := netip.AddrFrom4(body.A)
+			if record.GetPolicy().GetStrict() != nil && domainAllowed(record.GetPolicy(), name) && eligibleDomainAddress(addr) {
+				e.authorize(source, name, addr, answer.Header.TTL)
 			}
 		case *dnsmessage.AAAAResource:
-			if record.GetPolicy().GetStrict() != nil && domainAllowed(record.GetPolicy(), name) {
-				e.authorize(source, name, netip.AddrFrom16(body.AAAA), answer.Header.TTL)
+			addr := netip.AddrFrom16(body.AAAA)
+			if record.GetPolicy().GetStrict() != nil && domainAllowed(record.GetPolicy(), name) && eligibleDomainAddress(addr) {
+				e.authorize(source, name, addr, answer.Header.TTL)
 			}
 		}
 	}
 	e.record(record, obs.ActionAllow, obs.ProtocolDNS, obs.ResultOK, started)
 	return responseWire, nil
+}
+
+func eligibleDomainAddress(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	return addr.IsValid() && addr.IsGlobalUnicast() && !addr.IsPrivate() && !addr.IsLoopback() && !addr.IsLinkLocalUnicast() && !addr.IsMulticast() && !addr.IsUnspecified()
 }
 
 func canonicalDNSName(value string) string {

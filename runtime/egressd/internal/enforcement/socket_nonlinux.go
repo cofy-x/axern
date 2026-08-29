@@ -16,15 +16,19 @@ func dialMarked(netip.AddrPort) (net.Conn, error) {
 	return nil, fmt.Errorf("marked proxy dial requires Linux")
 }
 
-func listenTransparentTCP(port int) (net.Listener, error) {
-	return net.Listen("tcp", fmt.Sprintf(":%d", port))
+func listenTransparentTCP(port int) ([]net.Listener, error) {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return nil, err
+	}
+	return []net.Listener{listener}, nil
 }
 
-func listenTransparentUDP(port int) (*net.UDPConn, error) {
+func listenTransparentUDP(port int) ([]*net.UDPConn, error) {
 	var config net.ListenConfig
 	packet, err := config.ListenPacket(context.Background(), "udp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return nil, err
 	}
-	return packet.(*net.UDPConn), nil
+	return []*net.UDPConn{packet.(*net.UDPConn)}, nil
 }

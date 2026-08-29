@@ -130,14 +130,14 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 		if err != nil {
 			return nil, err
 		}
-		fmt.Fprintf(&out, "  %s saddr %s udp dport 53 meta mark set 0x%x tproxy %s to :%d accept\n", family, source, policyMark, family, dnsProxyPort)
-		fmt.Fprintf(&out, "  %s saddr %s tcp dport 53 meta mark set 0x%x tproxy %s to :%d accept\n", family, source, policyMark, family, dnsProxyPort)
+		writeTProxy(&out, family, source, "udp", 53, dnsProxyPort)
+		writeTProxy(&out, family, source, "tcp", 53, dnsProxyPort)
 		if strict := record.GetPolicy().GetStrict(); strict != nil {
 			for _, rule := range strict.GetAllowedCidrs() {
 				writeCIDRRule(&out, family, source, rule, "return")
 			}
-			fmt.Fprintf(&out, "  %s saddr %s tcp dport 80 meta mark set 0x%x tproxy %s to :%d accept\n", family, source, policyMark, family, httpProxyPort)
-			fmt.Fprintf(&out, "  %s saddr %s tcp dport 443 meta mark set 0x%x tproxy %s to :%d accept\n", family, source, policyMark, family, httpsProxyPort)
+			writeTProxy(&out, family, source, "tcp", 80, httpProxyPort)
+			writeTProxy(&out, family, source, "tcp", 443, httpsProxyPort)
 		}
 	}
 	out.WriteString(" }\n chain forward { type filter hook forward priority filter; policy accept;\n")
@@ -152,8 +152,42 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 		}
 		fmt.Fprintf(&out, "  %s saddr %s drop\n", family, source)
 	}
+	out.WriteString(" }\n chain input { type filter hook input priority filter; policy accept;\n")
+	fmt.Fprintf(&out, "  meta mark 0x%x counter accept\n", policyMark)
+	for _, record := range records {
+		strict := record.GetPolicy().GetStrict()
+		if strict == nil {
+			continue
+		}
+		family, source, _ := nftSource(record.GetSandboxIp())
+		for _, rule := range strict.GetAllowedCidrs() {
+			writeCIDRRule(&out, family, source, rule, "accept")
+		}
+		if family == "ip6" {
+			// NDP is required for the sandbox veth to reach its gateway. Limit it
+			// to the two neighbor-discovery message types and the RFC-mandated
+			// hop limit so this does not become general ICMPv6 egress.
+			fmt.Fprintf(&out, "  ip6 saddr %s ip6 hoplimit 255 icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert } accept\n", source)
+		}
+		fmt.Fprintf(&out, "  %s saddr %s counter drop\n", family, source)
+	}
 	out.WriteString(" }\n}\n")
 	return []byte(out.String()), nil
+}
+
+func writeTProxy(out *strings.Builder, family, source, protocol string, destinationPort, proxyPort int) {
+	// TPROXY is non-terminal. If no matching transparent socket is alive, nft
+	// continues to the following rule, which makes daemon loss fail closed in
+	// prerouting instead of allowing a host wildcard service to receive traffic.
+	fmt.Fprintf(out, "  %s saddr %s %s dport %d counter meta mark set 0x%x tproxy %s to %s accept\n", family, source, protocol, destinationPort, policyMark, family, proxyBindAddress(family, proxyPort))
+	fmt.Fprintf(out, "  %s saddr %s %s dport %d drop\n", family, source, protocol, destinationPort)
+}
+
+func proxyBindAddress(family string, port int) string {
+	if family == "ip6" {
+		return fmt.Sprintf("[::]:%d", port)
+	}
+	return fmt.Sprintf("0.0.0.0:%d", port)
 }
 
 func configurePolicyRouting(ctx context.Context) error {

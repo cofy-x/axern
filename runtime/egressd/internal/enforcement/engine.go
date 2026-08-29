@@ -111,28 +111,48 @@ func (e *Engine) Start(ctx context.Context) error {
 	}
 	dnsTCP, err := listenTransparentTCP(dnsProxyPort)
 	if err != nil {
-		_ = udp.Close()
+		closeAllUDP(udp)
 		return fmt.Errorf("listen DNS TCP: %w", err)
 	}
 	http, err := listenTransparentTCP(httpProxyPort)
 	if err != nil {
-		_ = udp.Close()
-		_ = dnsTCP.Close()
+		closeAllUDP(udp)
+		closeAll(dnsTCP)
 		return fmt.Errorf("listen HTTP proxy: %w", err)
 	}
 	https, err := listenTransparentTCP(httpsProxyPort)
 	if err != nil {
-		_ = udp.Close()
-		_ = dnsTCP.Close()
-		_ = http.Close()
+		closeAllUDP(udp)
+		closeAll(dnsTCP)
+		closeAll(http)
 		return fmt.Errorf("listen HTTPS proxy: %w", err)
 	}
-	e.servers = []io.Closer{udp, dnsTCP, http, https}
-	go e.serveDNSUDP(ctx, udp)
-	go e.serveTCP(ctx, dnsTCP, e.handleDNSTCP)
-	go e.serveTCP(ctx, http, e.handleHTTP)
-	go e.serveTCP(ctx, https, e.handleTLS)
+	for _, listener := range udp {
+		e.servers = append(e.servers, listener)
+		go e.serveDNSUDP(ctx, listener)
+	}
+	for _, group := range []struct {
+		listeners []net.Listener
+		handler   func(net.Conn)
+	}{{dnsTCP, e.handleDNSTCP}, {http, e.handleHTTP}, {https, e.handleTLS}} {
+		for _, listener := range group.listeners {
+			e.servers = append(e.servers, listener)
+			go e.serveTCP(ctx, listener, group.handler)
+		}
+	}
 	return nil
+}
+
+func closeAll(listeners []net.Listener) {
+	for _, listener := range listeners {
+		_ = listener.Close()
+	}
+}
+
+func closeAllUDP(listeners []*net.UDPConn) {
+	for _, listener := range listeners {
+		_ = listener.Close()
+	}
 }
 
 func (e *Engine) Close() error {

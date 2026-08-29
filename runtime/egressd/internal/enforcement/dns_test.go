@@ -67,6 +67,17 @@ func TestDNSDenyRejectsDeniedCNAMEChain(t *testing.T) {
 	}
 }
 
+func TestStrictDomainDNSNeverAuthorizesPrivateOrMetadataAddresses(t *testing.T) {
+	for _, value := range []string{"10.0.0.1", "169.254.169.254", "fd00::1", "::1"} {
+		if eligibleDomainAddress(netip.MustParseAddr(value)) {
+			t.Fatalf("domain policy authorized reserved address %s", value)
+		}
+	}
+	if !eligibleDomainAddress(netip.MustParseAddr("93.184.216.34")) {
+		t.Fatal("public unicast address was rejected")
+	}
+}
+
 func dnsDenyPolicy(domains ...string) *commonv1.NetworkEgressPolicy {
 	return &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_DnsDeny{DnsDeny: &commonv1.DnsDenyPolicy{DeniedDomains: domains}}}
 }

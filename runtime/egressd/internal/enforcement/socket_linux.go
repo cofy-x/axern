@@ -76,39 +76,68 @@ func dialMarked(destination netip.AddrPort) (net.Conn, error) {
 	return dialer.DialContext(context.Background(), "tcp", destination.String())
 }
 
-func listenTransparentTCP(port int) (net.Listener, error) {
-	config := net.ListenConfig{Control: transparentSocketControl}
-	return config.Listen(context.Background(), "tcp6", fmt.Sprintf("[::]:%d", port))
+func listenTransparentTCP(port int) ([]net.Listener, error) {
+	var listeners []net.Listener
+	for _, endpoint := range []struct {
+		network string
+		address string
+		ipv6    bool
+	}{{"tcp4", fmt.Sprintf("0.0.0.0:%d", port), false}, {"tcp6", fmt.Sprintf("[::]:%d", port), true}} {
+		config := net.ListenConfig{Control: transparentSocketControl(endpoint.ipv6)}
+		listener, err := config.Listen(context.Background(), endpoint.network, endpoint.address)
+		if err != nil {
+			closeAll(listeners)
+			return nil, err
+		}
+		listeners = append(listeners, listener)
+	}
+	return listeners, nil
 }
 
-func listenTransparentUDP(port int) (*net.UDPConn, error) {
-	config := net.ListenConfig{Control: transparentSocketControl}
-	packet, err := config.ListenPacket(context.Background(), "udp6", fmt.Sprintf("[::]:%d", port))
-	if err != nil {
-		return nil, err
+func listenTransparentUDP(port int) ([]*net.UDPConn, error) {
+	var listeners []*net.UDPConn
+	for _, endpoint := range []struct {
+		network string
+		address string
+		ipv6    bool
+	}{{"udp4", fmt.Sprintf("0.0.0.0:%d", port), false}, {"udp6", fmt.Sprintf("[::]:%d", port), true}} {
+		config := net.ListenConfig{Control: transparentSocketControl(endpoint.ipv6)}
+		packet, err := config.ListenPacket(context.Background(), endpoint.network, endpoint.address)
+		if err != nil {
+			closeAllUDP(listeners)
+			return nil, err
+		}
+		udp, ok := packet.(*net.UDPConn)
+		if !ok {
+			_ = packet.Close()
+			closeAllUDP(listeners)
+			return nil, fmt.Errorf("transparent DNS listener is not UDP")
+		}
+		listeners = append(listeners, udp)
 	}
-	udp, ok := packet.(*net.UDPConn)
-	if !ok {
-		_ = packet.Close()
-		return nil, fmt.Errorf("transparent DNS listener is not UDP")
-	}
-	return udp, nil
+	return listeners, nil
 }
 
-func transparentSocketControl(_, _ string, raw syscall.RawConn) error {
-	var result error
-	if err := raw.Control(func(fd uintptr) {
-		if err := unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_V6ONLY, 0); err != nil {
-			result = err
-			return
+func transparentSocketControl(ipv6 bool) func(string, string, syscall.RawConn) error {
+	return func(_, _ string, raw syscall.RawConn) error {
+		var result error
+		if err := raw.Control(func(fd uintptr) {
+			if ipv6 {
+				if err := unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_V6ONLY, 1); err != nil {
+					result = err
+					return
+				}
+				if err := unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_TRANSPARENT, 1); err != nil {
+					result = err
+					return
+				}
+				result = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
+				return
+			}
+			result = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
+		}); err != nil {
+			return err
 		}
-		if err := unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_TRANSPARENT, 1); err != nil {
-			result = err
-			return
-		}
-		result = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
-	}); err != nil {
-		return err
+		return result
 	}
-	return result
 }

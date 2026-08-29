@@ -5,6 +5,7 @@ EGRESSD_DIR := runtime/egressd
 	egressd-build \
 	egressd-test \
 	egressd-verify \
+	egressd-linux-truth \
 	egressd-fmt \
 	egressd-vet \
 	egressd-tidy
@@ -29,3 +30,6 @@ egressd-vet: ## Run egressd go vet checks
 
 egressd-tidy: ## Ensure egressd go.mod and go.sum are up to date
 	@$(call run_subsystem_make,$(EGRESSD_DIR),tidy)
+
+egressd-linux-truth: egressd-build ## Run privileged Linux network-namespace policy truth tests
+	@$(EGRESSD_DIR)/scripts/linux-truth.sh
