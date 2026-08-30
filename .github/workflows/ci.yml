@@ -102,6 +102,11 @@ jobs:
       - name: Bootstrap Go dependencies
         run: make bootstrap-go
 
+      - name: Install architecture-check dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes ripgrep
+
       - name: Verify Go architecture boundaries
         run: |
           make axern-cli-check-architecture
