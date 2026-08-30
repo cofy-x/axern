@@ -14,6 +14,8 @@ if ! git -C "${REPO_ROOT}" diff --quiet || ! git -C "${REPO_ROOT}" diff --cached
   echo "network-policy qualification requires a clean candidate checkout" >&2
   exit 1
 fi
+AXERN_GIT_REVISION="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
+export AXERN_GIT_REVISION
 
 VERIFY_DOCKER_PLATFORM="${VERIFY_DOCKER_PLATFORM:-$(resolve_verify_docker_platform)}"
 export VERIFY_DOCKER_PLATFORM
@@ -42,9 +44,7 @@ host_output="$(cd "${host_output}" && pwd)"
 docker_args=(
   run --rm --privileged
   --platform "${VERIFY_DOCKER_PLATFORM}"
-  --mount "type=bind,src=${REPO_ROOT},dst=/qualification-source,readonly"
   --mount "type=bind,src=${host_output},dst=/qualification-output"
-  -e NETWORK_POLICY_QUALIFICATION_REPO_ROOT=/qualification-source
   -e NETWORK_POLICY_QUALIFICATION_OUTPUT_DIR=/qualification-output
   -e "NETWORK_POLICY_QUALIFICATION_BUILD_DIGEST=${runner_image_digest}"
   -e "NETWORK_POLICY_QUALIFICATION_HOST_IDENTITY_DIGEST=${host_identity_digest}"

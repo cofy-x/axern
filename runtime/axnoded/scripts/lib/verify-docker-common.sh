@@ -597,6 +597,7 @@ build_verify_image() {
     --build-arg RUNSC_CACHE_ARCH="${RUNSC_CACHE_ARCH}"
     --build-arg MC_SOURCE="${MC_SOURCE}"
     --build-arg MC_CACHE_ARCH="${MC_CACHE_ARCH}"
+    --build-arg AXERN_GIT_REVISION="${AXERN_GIT_REVISION:-development}"
     -t "${IMAGE_TAG}"
   )
   if [ -n "${build_http_proxy}" ]; then

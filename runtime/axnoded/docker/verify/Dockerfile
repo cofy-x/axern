@@ -2,10 +2,12 @@ ARG GO_IMAGE=golang:1.25.12
 ARG BASE_IMAGE=ubuntu:24.04
 ARG NGINX_IMAGE=nginx:1.15
 ARG NODE_RUNTIME_BASE_IMAGE=axern/local-node-runtime-base:dev
+ARG AXERN_GIT_REVISION=development
 FROM ${GO_IMAGE} AS golang-dist
 FROM ${NGINX_IMAGE} AS nginx-rootfs
 
 FROM ${GO_IMAGE} AS axnoded-verify-builder
+ARG AXERN_GIT_REVISION
 WORKDIR /workspace
 
 COPY runtime/axnoded/go.mod runtime/axnoded/go.sum /workspace/runtime/axnoded/
@@ -51,6 +53,7 @@ COPY sdk/go/ /workspace/sdk/go/
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     mkdir -p /out && \
+    printf '%s\n' "${AXERN_GIT_REVISION}" > /out/qualification-subject-commit && \
     cd /workspace/runtime/axnoded && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/verify-cli ./cmd/verify-cli && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/verify-startup ./cmd/verify-startup && \
@@ -164,6 +167,8 @@ COPY --from=nginx-rootfs / /opt/nginx-rootfs
 RUN mkdir -p /opt/nginx-rootfs/dev /opt/nginx-rootfs/proc /opt/nginx-rootfs/sys /opt/nginx-rootfs/tmp /opt/nginx-rootfs/mnt
 
 FROM ${NODE_RUNTIME_BASE_IMAGE}
+ARG AXERN_GIT_REVISION
+LABEL org.opencontainers.image.revision="${AXERN_GIT_REVISION}"
 WORKDIR /workspace
 
 COPY --from=axnoded-verify-builder /out/verify-cli /usr/local/bin/verify-cli
@@ -173,6 +178,7 @@ COPY --from=axnoded-verify-builder /out/network-policy-probe /usr/local/libexec/
 COPY --from=axnoded-verify-builder /out/network-policy-fixture /usr/local/bin/network-policy-fixture
 COPY --from=axnoded-verify-builder /out/verify-network-policy-qualification /usr/local/bin/verify-network-policy-qualification
 COPY --from=axnoded-verify-builder /out/egressd-qualify /usr/local/bin/egressd-qualify
+COPY --from=axnoded-verify-builder /out/qualification-subject-commit /usr/local/share/axern/qualification-subject-commit
 COPY runtime/egressd/scripts/qualification-matrix.sh /workspace/qualification/scripts/qualification-matrix.sh
 COPY runtime/egressd/qualification/budget.json /workspace/qualification/qualification/budget.json
 COPY runtime/axnoded/scripts/qualification/ /workspace/scripts/qualification/

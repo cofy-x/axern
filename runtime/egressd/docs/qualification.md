@@ -57,8 +57,12 @@ failures is an absolute reliability requirement.
 
 `make network-policy-qualification` builds the repository's privileged verify
 image, records that candidate image's immutable SHA-256 ID as the subject build,
-and executes every matrix cell in the image on a native Linux host. It refuses
-to produce a qualification report on macOS or Docker Desktop.
+embeds the clean checkout commit in that image, and executes every matrix cell
+in the image on a native Linux host. The report reads the subject commit only
+from the immutable image; it does not trust a mounted checkout or caller
+override. A development image without a 40- or 64-character hexadecimal commit
+is rejected as release evidence. The workflow refuses to produce a report on
+macOS or Docker Desktop.
 
 For every cell, the repository driver creates an isolated network namespace
 with fixed documentation-range addresses and starts repository-owned DNS,
@@ -107,9 +111,9 @@ Run a real stable-host qualification with:
 make network-policy-qualification
 ```
 
-The checkout must be clean because the report binds the candidate commit to
-the exact built image. The workflow writes only to the ignored `output/`
-directory unless `_OUTPUT_DIR` selects another location.
+The checkout must be clean because its commit is embedded into the exact built
+image. The workflow writes only to the ignored `output/` directory unless
+`_OUTPUT_DIR` selects another location.
 
 Preserve `report.json`, `comparison.json` when present, the immutable candidate
 build digest, and the candidate commit as release evidence. Do not commit a

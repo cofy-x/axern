@@ -28,11 +28,13 @@ func main() {
 
 func run(args []string, stdout io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("command is required: assemble, validate, or compare")
+		return errors.New("command is required: assemble, subject, validate, or compare")
 	}
 	switch args[0] {
 	case "assemble":
 		return runAssemble(args[1:], stdout)
+	case "subject":
+		return runSubject(args[1:], stdout)
 	case "validate":
 		return runValidate(args[1:], stdout)
 	case "compare":
@@ -40,6 +42,23 @@ func run(args []string, stdout io.Writer) error {
 	default:
 		return fmt.Errorf("unsupported command %q", args[0])
 	}
+}
+
+func runSubject(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("subject", flag.ContinueOnError)
+	path := flags.String("file", "", "embedded qualification subject commit file")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 || *path == "" {
+		return errors.New("subject requires exactly -file")
+	}
+	commit, err := qualification.ReadSubjectCommit(*path)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(stdout, commit)
+	return err
 }
 
 func runValidate(args []string, stdout io.Writer) error {

@@ -39,6 +39,21 @@ func TestPackageManifestDigestIsOrderIndependent(t *testing.T) {
 	}
 }
 
+func TestRunSubjectReadsEmbeddedCommit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "subject")
+	commit := strings.Repeat("a", 40)
+	if err := os.WriteFile(path, []byte(commit+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var output strings.Builder
+	if err := run([]string{"subject", "-file", path}, &output); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(output.String()); got != commit {
+		t.Fatalf("subject output = %q, want %q", got, commit)
+	}
+}
+
 func TestReadLinuxProvenanceFixtures(t *testing.T) {
 	directory := t.TempDir()
 	cpuPath := filepath.Join(directory, "cpuinfo")

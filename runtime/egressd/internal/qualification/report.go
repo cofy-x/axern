@@ -17,6 +17,8 @@ import (
 
 const SchemaVersion = 2
 
+const maxSubjectCommitFileBytes = 1024
+
 var (
 	Runtimes        = []string{"runc", "runsc"}
 	NetworkBackends = []string{"bridge", "ebpf"}
@@ -141,6 +143,26 @@ func ReadReport(path string) (Report, error) {
 	}
 	defer file.Close()
 	return DecodeReport(file)
+}
+
+func ReadSubjectCommit(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	wire, err := io.ReadAll(io.LimitReader(file, maxSubjectCommitFileBytes+1))
+	if err != nil {
+		return "", err
+	}
+	if len(wire) > maxSubjectCommitFileBytes {
+		return "", errors.New("qualification subject commit file exceeds 1024 bytes")
+	}
+	commit := strings.TrimSpace(string(wire))
+	if !validCommit(commit) {
+		return "", errors.New("qualification subject commit must be 40 or 64 lowercase hexadecimal characters")
+	}
+	return commit, nil
 }
 
 func WriteReport(writer io.Writer, report Report) error {
@@ -337,6 +359,9 @@ func validDigest(value string) bool {
 
 func validCommit(value string) bool {
 	if len(value) != 40 && len(value) != 64 {
+		return false
+	}
+	if value != strings.ToLower(value) {
 		return false
 	}
 	_, err := hex.DecodeString(value)

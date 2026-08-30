@@ -3,6 +3,8 @@ package qualification
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -45,6 +47,24 @@ func TestDecodeReportRejectsPrivacySensitiveAndUnknownFields(t *testing.T) {
 	for _, forbidden := range []string{"destination", "domainName", "hostName", "sni", "remoteIp", "cidrValue", "policyDigest", "rawPolicy"} {
 		if bytes.Contains(bytes.ToLower(output.Bytes()), bytes.ToLower([]byte(forbidden))) {
 			t.Fatalf("privacy-sensitive key %q entered report: %s", forbidden, output.String())
+		}
+	}
+}
+
+func TestReadSubjectCommitRejectsUnboundOrOversizedRunner(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "subject")
+	if err := os.WriteFile(path, []byte("\n"+testCommit+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := ReadSubjectCommit(path); err != nil || got != testCommit {
+		t.Fatalf("ReadSubjectCommit() = %q, %v", got, err)
+	}
+	for _, invalid := range []string{"development", strings.ToUpper(testCommit), strings.Repeat("a", 1025)} {
+		if err := os.WriteFile(path, []byte(invalid), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ReadSubjectCommit(path); err == nil {
+			t.Fatalf("ReadSubjectCommit() accepted %q", invalid[:min(len(invalid), 32)])
 		}
 	}
 }
