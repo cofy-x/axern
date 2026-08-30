@@ -17,8 +17,33 @@ func TestLocalNodeReadinessPayloadRequiresDefaultWorkloadCapabilities(t *testing
 	}
 
 	payload.Nodes[0].Summary.CapabilitySnapshot.Observations[1].State = capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE
-	if ready, reason := evaluateLocalNodeReadiness(payload, LocalNodeID, localDefaultWorkloadCapabilities, time.Now()); ready || reason != "required local capability PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT is warming or unavailable" {
+	payload.Nodes[0].Summary.CapabilitySnapshot.Observations[1].Reason = "quota probe failed"
+	if ready, reason := evaluateLocalNodeReadiness(payload, LocalNodeID, localDefaultWorkloadCapabilities, time.Now()); ready || reason != "required local capability PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT is warming or unavailable: quota probe failed" {
 		t.Fatalf("unavailable capability result = ready:%t reason:%q", ready, reason)
+	}
+}
+
+func TestLocalNodeReadinessReportsUnavailableDependency(t *testing.T) {
+	payload := readyLocalNodePayload(time.Now().Add(time.Minute))
+	derived := &payload.Nodes[0].Summary.CapabilitySnapshot.Observations[1]
+	derived.State = capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE
+	derived.Reason = "one or more capability dependencies are unavailable"
+	var dependency struct {
+		Key struct {
+			Kind struct {
+				Platform capabilityv1.PlatformCapability `json:"Platform"`
+			} `json:"Kind"`
+		} `json:"key"`
+	}
+	dependency.Key.Kind.Platform = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST
+	derived.Dependencies = append(derived.Dependencies, dependency)
+	base := localCapabilityObservation{State: capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE, Reason: "sandbox exited before quota result"}
+	base.Key.Kind.Platform = dependency.Key.Kind.Platform
+	payload.Nodes[0].Summary.CapabilitySnapshot.Observations = append(payload.Nodes[0].Summary.CapabilitySnapshot.Observations, base)
+
+	ready, reason := evaluateLocalNodeReadiness(payload, LocalNodeID, localDefaultWorkloadCapabilities, time.Now())
+	if ready || reason != "required local capability PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT is warming or unavailable: dependency PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST: sandbox exited before quota result" {
+		t.Fatalf("dependency result = ready:%t reason:%q", ready, reason)
 	}
 }
 
@@ -66,7 +91,7 @@ func TestLocalNodeReadinessPayloadDecodesDebugCapabilityKeys(t *testing.T) {
 
 func readyLocalNodePayload(validUntil time.Time) localNodeReadinessPayload {
 	var payload localNodeReadinessPayload
-	payload.Nodes = append(payload.Nodes, struct {
+	payload.Nodes = make([]struct {
 		NodeID       string `json:"node_id"`
 		Fresh        bool   `json:"fresh"`
 		SummaryFresh bool   `json:"summary_fresh"`
@@ -85,23 +110,15 @@ func readyLocalNodePayload(validUntil time.Time) localNodeReadinessPayload {
 				} `json:"runtime_slots"`
 			} `json:"pools"`
 			CapabilitySnapshot struct {
-				Sequence     uint64 `json:"sequence"`
-				Observations []struct {
-					Key struct {
-						Kind struct {
-							Platform capabilityv1.PlatformCapability `json:"Platform"`
-						} `json:"Kind"`
-					} `json:"key"`
-					State      capabilityv1.CapabilityState `json:"state"`
-					ValidUntil *struct {
-						Seconds int64 `json:"seconds"`
-						Nanos   int32 `json:"nanos"`
-					} `json:"valid_until"`
-				} `json:"observations"`
+				Sequence     uint64                       `json:"sequence"`
+				Observations []localCapabilityObservation `json:"observations"`
 			} `json:"capability_snapshot"`
 		} `json:"summary"`
-	}{NodeID: LocalNodeID, Fresh: true, SummaryFresh: true})
+	}, 1)
 	node := &payload.Nodes[0]
+	node.NodeID = LocalNodeID
+	node.Fresh = true
+	node.SummaryFresh = true
 	node.Summary.Components.Axnoded.Ready = true
 	node.Summary.Components.Imagemgr.Reachable = true
 	node.Summary.Pools.RuntimeSlots = &struct {
@@ -109,18 +126,7 @@ func readyLocalNodePayload(validUntil time.Time) localNodeReadinessPayload {
 	}{Capacity: 16}
 	node.Summary.CapabilitySnapshot.Sequence = 1
 	for _, platform := range localDefaultWorkloadCapabilities {
-		var observation struct {
-			Key struct {
-				Kind struct {
-					Platform capabilityv1.PlatformCapability `json:"Platform"`
-				} `json:"Kind"`
-			} `json:"key"`
-			State      capabilityv1.CapabilityState `json:"state"`
-			ValidUntil *struct {
-				Seconds int64 `json:"seconds"`
-				Nanos   int32 `json:"nanos"`
-			} `json:"valid_until"`
-		}
+		var observation localCapabilityObservation
 		observation.Key.Kind.Platform = platform
 		observation.State = capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
 		observation.ValidUntil = &struct {
