@@ -83,6 +83,16 @@ for step in steps:
 smoke = (root / "scripts/dev-env/compose-dns-doctor-smoke.sh").read_text()
 if 'query_name="fixture.axern.test."' not in smoke:
     raise SystemExit("DNS doctor smoke does not query the repository fixture")
+
+managed_rollout = (root / ".github/workflows/managed-rollout-ci.yml").read_text()
+for forbidden in (
+    "Resolve runner DNS for nested sandboxes",
+    "/etc/resolv.conf",
+    "/run/systemd/resolve/resolv.conf",
+    "AXNODED_DNS_NAMESERVERS",
+):
+    if forbidden in managed_rollout:
+        raise SystemExit(f"managed rollout CI depends on ambient DNS: {forbidden}")
 PY
 
 echo "hermetic_dns_contract_ok=true"
