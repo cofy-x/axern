@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -234,26 +235,120 @@ func sustained(cfg config) (uint64, uint64) {
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
-			for ctx.Err() == nil {
-				var err error
-				if cfg.mode == "strict_cidr" {
-					if worker%2 == 0 {
-						err = rawTCP(net.JoinHostPort(cfg.address, "18080"), cfg.timeout)
-					} else {
-						err = rawUDP(net.JoinHostPort(cfg.address, "18081"), cfg.timeout)
-					}
-				} else {
-					err = httpRequest(cfg.address, cfg.host, 1, false, cfg.timeout)
-				}
-				operations.Add(1)
-				if err != nil {
-					failures.Add(1)
-				}
+			if cfg.mode != "strict_cidr" {
+				sustainedHTTP(ctx, cfg, &operations, &failures)
+			} else if worker%2 == 0 {
+				sustainedRawTCP(ctx, net.JoinHostPort(cfg.address, "18080"), cfg.timeout, &operations, &failures)
+			} else {
+				sustainedRawUDP(ctx, net.JoinHostPort(cfg.address, "18081"), cfg.timeout, &operations, &failures)
 			}
 		}()
 	}
 	workers.Wait()
 	return operations.Load(), failures.Load()
+}
+
+func sustainedHTTP(ctx context.Context, cfg config, operations, failures *atomic.Uint64) {
+	sustainedHTTPAt(ctx, cfg, net.JoinHostPort(cfg.address, "80"), operations, failures)
+}
+
+func sustainedHTTPAt(ctx context.Context, cfg config, address string, operations, failures *atomic.Uint64) {
+	dialer := &net.Dialer{Timeout: cfg.timeout}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return dialer.DialContext(ctx, "tcp", address)
+		},
+		MaxIdleConns:        1,
+		MaxIdleConnsPerHost: 1,
+		IdleConnTimeout:     cfg.timeout,
+	}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: cfg.timeout}
+	for ctx.Err() == nil {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://fixture/payload?bytes=1", nil)
+		if err == nil {
+			request.Host = cfg.host
+			var response *http.Response
+			response, err = client.Do(request)
+			if err == nil {
+				if response.StatusCode != http.StatusOK || response.ContentLength != 1 {
+					err = fmt.Errorf("HTTP fixture status=%d length=%d", response.StatusCode, response.ContentLength)
+				}
+				if _, readErr := io.Copy(io.Discard, response.Body); err == nil {
+					err = readErr
+				}
+				_ = response.Body.Close()
+			}
+		}
+		recordSustainedOperation(ctx, err, operations, failures)
+	}
+}
+
+func sustainedRawTCP(ctx context.Context, address string, timeout time.Duration, operations, failures *atomic.Uint64) {
+	connection, err := net.DialTimeout("tcp", address, timeout)
+	if err != nil {
+		recordSustainedOperation(ctx, err, operations, failures)
+		return
+	}
+	defer connection.Close()
+	reader := bufio.NewReader(connection)
+	for ctx.Err() == nil {
+		_ = connection.SetDeadline(operationDeadline(ctx, timeout))
+		_, err = io.WriteString(connection, "probe\n")
+		if err == nil {
+			_, err = reader.ReadString('\n')
+		}
+		recordSustainedOperation(ctx, err, operations, failures)
+		if err != nil {
+			return
+		}
+	}
+}
+
+func sustainedRawUDP(ctx context.Context, address string, timeout time.Duration, operations, failures *atomic.Uint64) {
+	connection, err := net.DialTimeout("udp", address, timeout)
+	if err != nil {
+		recordSustainedOperation(ctx, err, operations, failures)
+		return
+	}
+	defer connection.Close()
+	payload := []byte("probe")
+	response := make([]byte, len(payload))
+	for ctx.Err() == nil {
+		_ = connection.SetDeadline(operationDeadline(ctx, timeout))
+		_, err = connection.Write(payload)
+		if err == nil {
+			_, err = io.ReadFull(connection, response)
+		}
+		if err == nil && string(response) != string(payload) {
+			err = errors.New("UDP fixture returned unexpected payload")
+		}
+		recordSustainedOperation(ctx, err, operations, failures)
+		if err != nil {
+			return
+		}
+	}
+}
+
+func recordSustainedOperation(ctx context.Context, err error, operations, failures *atomic.Uint64) {
+	if ctx.Err() != nil {
+		return
+	}
+	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+		return
+	}
+	operations.Add(1)
+	if err != nil {
+		failures.Add(1)
+	}
+}
+
+func operationDeadline(ctx context.Context, timeout time.Duration) time.Time {
+	deadline := time.Now().Add(timeout)
+	if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
+		return contextDeadline
+	}
+	return deadline
 }
 
 func rawTCP(address string, timeout time.Duration) error {

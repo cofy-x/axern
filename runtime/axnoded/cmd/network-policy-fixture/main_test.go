@@ -1,12 +1,42 @@
 package main
 
 import (
+	"bufio"
+	"context"
+	"io"
 	"net"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
 )
+
+func TestRawTCPFixtureServesMultipleRequestsPerConnection(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer listener.Close()
+	go serveRawTCP(ctx, listener)
+	connection, err := net.DialTimeout("tcp", listener.Addr().String(), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	reader := bufio.NewReader(connection)
+	for request := 0; request < 2; request++ {
+		if _, err := io.WriteString(connection, "probe\n"); err != nil {
+			t.Fatal(err)
+		}
+		response, err := reader.ReadString('\n')
+		if err != nil || response != "ok\n" {
+			t.Fatalf("response %d = %q, err = %v", request, response, err)
+		}
+	}
+}
 
 func TestDNSResponseUsesRequestedAddressFamily(t *testing.T) {
 	for _, test := range []struct {

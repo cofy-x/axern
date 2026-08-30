@@ -248,9 +248,15 @@ func serveRawTCP(ctx context.Context, listener net.Listener) {
 		}
 		go func() {
 			defer connection.Close()
-			_ = connection.SetDeadline(time.Now().Add(2 * time.Second))
-			if _, err := bufio.NewReader(connection).ReadString('\n'); err == nil {
-				_, _ = io.WriteString(connection, "ok\n")
+			reader := bufio.NewReader(connection)
+			for ctx.Err() == nil {
+				_ = connection.SetDeadline(time.Now().Add(2 * time.Second))
+				if _, err := reader.ReadString('\n'); err != nil {
+					return
+				}
+				if _, err := io.WriteString(connection, "ok\n"); err != nil {
+					return
+				}
 			}
 		}()
 	}
