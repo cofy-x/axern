@@ -496,8 +496,8 @@ func (c NetworkConfig) Normalized() (NetworkConfig, error) {
 	}
 
 	ipRange, err := netip.ParsePrefix(strings.TrimSpace(c.IPRange))
-	if err != nil || !ipRange.Addr().Is4() {
-		return NetworkConfig{}, fmt.Errorf("network ip_range must be a valid IPv4 prefix: %q", c.IPRange)
+	if err != nil || (!ipRange.Addr().Is4() && !ipRange.Addr().Is6()) {
+		return NetworkConfig{}, fmt.Errorf("network ip_range must be a valid IPv4 or IPv6 prefix: %q", c.IPRange)
 	}
 	c.IPRange = ipRange.String()
 

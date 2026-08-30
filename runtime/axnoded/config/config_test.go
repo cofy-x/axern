@@ -78,6 +78,19 @@ func TestNetworkConfigNormalizedCanonicalizesSemanticSetsAndDurations(t *testing
 	}
 }
 
+func TestNetworkConfigNormalizedAcceptsIPv6Range(t *testing.T) {
+	input := DefaultConfig().PluginConfig.NetworkConfig
+	input.IPRange = "fd31:0:0:0::1/64"
+
+	got, err := input.Normalized()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.IPRange != "fd31::1/64" {
+		t.Fatalf("normalized IPv6 range = %q", got.IPRange)
+	}
+}
+
 func TestNetworkConfigNormalizedRejectsAmbiguousOrInvalidValues(t *testing.T) {
 	tests := map[string]func(*NetworkConfig){
 		"unsupported backend": func(c *NetworkConfig) { c.NatBackend = "custom" },

@@ -22,6 +22,12 @@ those paths. Results contain only fixed axes and numeric aggregates. The schema
 does not accept destination names, addresses, Host/SNI, CIDR values, policy
 digests, or raw daemon state.
 
+The network-backend axis is the requested axnoded configuration. For an IPv6
+pool, `ebpf` exercises axnoded's documented ip6tables compatibility path because
+bpfnet's native programs are IPv4-only; node capability evidence remains the
+effective bridge capability, so the report never treats that cell as native
+IPv6 eBPF performance.
+
 Policy start overhead is evaluated by comparing each policy cell with the
 matching unrestricted cell. The report stores directly measured total start
 latency instead of a pre-subtracted value that would hide baseline variance.

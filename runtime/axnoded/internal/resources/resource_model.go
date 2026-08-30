@@ -45,8 +45,6 @@ const (
 )
 
 const (
-	defaultIpRange = "172.17.0.1/16"
-
 	bridgeName        = "sandbox0"
 	containerEthName  = "eth0"
 	ContainerLoopName = "lo"

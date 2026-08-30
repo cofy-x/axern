@@ -39,7 +39,9 @@ or rollback policy.
 - `bpfnet` does not replace axnoded as the owner of service intent.
 - `bpfnet` does not run as a separate long-lived daemon.
 - Linux localhost UDP hostPort support is out of scope.
-- IPv6 dataplane support is out of scope.
+- Native IPv6 eBPF dataplane support is out of scope. Axnoded may select its
+  explicit bridge/ip6tables compatibility path for an IPv6 sandbox pool, and
+  must expose that effective backend as bridge rather than bpfnet capability.
 
 ## Ownership Model
 
@@ -298,6 +300,7 @@ Fallback is a controlled operational state, not a hidden packet-path feature.
 | `localhost-tcp-iptables-compat` | Localhost TCP hostPort uses iptables compatibility, TC remains eBPF | Acceptable |
 | `iptables-full-fallback` | TC dataplane did not attach or was not usable | Not acceptable for replacement |
 | Unsupported protocol fallback | Non-TCP/UDP service intent is handled outside bpfnet | Expected |
+| IPv6 bridge compatibility | An IPv6 sandbox pool uses axnoded's ip6tables path and publishes bridge capability | Expected; not a native bpfnet result |
 
 `NeedsSNATFallback`, `NeedsFullDNATFallback`, and `NeedsLocalhostCompat` read
 persisted dataplane state instead of transient in-memory booleans. That makes

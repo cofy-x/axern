@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/netip"
 	"sort"
 	"strings"
 	"time"
@@ -168,7 +169,8 @@ func networkCapabilityProvider(cfg config.Config, digest string, managers ...egr
 			evidence := capabilitycontract.ConfigEvidence(digest)
 			activeIndex := 1
 			inactiveIndex := 2
-			if cfg.PluginConfig.NetworkConfig.NatBackend == config.NatBackendEBPF {
+			prefix, _ := netip.ParsePrefix(cfg.PluginConfig.NetworkConfig.IPRange)
+			if cfg.PluginConfig.NetworkConfig.NatBackend == config.NatBackendEBPF && !prefix.Addr().Is6() {
 				activeIndex, inactiveIndex = 2, 1
 			}
 			observations := make([]*capabilityv1.CapabilityObservation, len(keys))

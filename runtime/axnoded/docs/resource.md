@@ -56,6 +56,9 @@ Recovery rules:
 - `InterfaceManager` loads persisted using IDs from the `network_interfaces` store
   bucket, scans host veths, returns non-using veths to the idle queue, and
   rebuilds the idle IP queue from `ip_range`.
+- IPv4 veth names preserve the encoded-address format. IPv6 names encode the
+  low 48 address bits so they remain within Linux `IFNAMSIZ`; recovery combines
+  that suffix with the configured prefix and rejects an unreconstructable link.
 - Managers periodically persist using IDs when `storeMark` is set.
 - Before serving, the container manager reconciles every persisted assigned
   lease against recovered OCI resource claims. Ownership ambiguity fails node

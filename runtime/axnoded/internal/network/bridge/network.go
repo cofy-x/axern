@@ -13,7 +13,7 @@ import (
 type BridgeNetworkManager struct{}
 
 func (BridgeNetworkManager) ProbeHealth(ipRange string) (networkmanager.Health, error) {
-	ipt, err := iptables.New()
+	ipt, err := iptablesForCIDR(ipRange)
 	if err != nil {
 		return networkmanager.Health{}, err
 	}
@@ -30,7 +30,7 @@ func (BridgeNetworkManager) ProbeHealth(ipRange string) (networkmanager.Health, 
 // SetupSNATRules implements resourcemanager.NetworkManager.
 func (BridgeNetworkManager) SetupSNATRules(ipRange string) error {
 	// add follow iptable rule: iptables -t nat -A POSTROUTING -s 172.17.0.0/16 -j MASQUERADE
-	ipt, err := iptables.New()
+	ipt, err := iptablesForCIDR(ipRange)
 	if err != nil {
 		return err
 	}
@@ -48,7 +48,7 @@ func (BridgeNetworkManager) SetupSNATRules(ipRange string) error {
 // CleanupSNATRules implements resourcemanager.NetworkManager.
 func (BridgeNetworkManager) CleanupSNATRules(ipRange string) error {
 	// clean iptable rule if exists.
-	ipt, err := iptables.New()
+	ipt, err := iptablesForCIDR(ipRange)
 	if err != nil {
 		return err
 	}
@@ -85,14 +85,18 @@ func (BridgeNetworkManager) SetupDNATCompatRule(protocol string, dstPort uint16,
 }
 
 func setupDNATRule(protocol string, dstPort uint16, targetIP string, targetPort uint16, includeIngress bool, includeLocalhostCompat bool) error {
-	ipt, err := iptables.New()
+	ipt, ipv6, err := iptablesForAddress(targetIP)
 	if err != nil {
 		return err
 	}
 
 	dstPortStr := strconv.FormatUint(uint64(dstPort), 10)
 	targetPortStr := strconv.FormatUint(uint64(targetPort), 10)
-	toDest := fmt.Sprintf("%s:%s", targetIP, targetPortStr)
+	toDest := net.JoinHostPort(targetIP, targetPortStr)
+	loopback := "127.0.0.1/32"
+	if ipv6 {
+		loopback = "::1/128"
+	}
 
 	if includeIngress {
 		// iptables -t nat -A PREROUTING -p <proto> --dport <dstPort> -j DNAT --to-destination <targetIP>:<targetPort>
@@ -121,7 +125,7 @@ func setupDNATRule(protocol string, dstPort uint16, targetIP string, targetPort 
 
 		// Localhost traffic needs hairpin masquerade so replies can route back to
 		// the host instead of trying to return directly to 127.0.0.1.
-		if err := ipt.AppendUnique("nat", "POSTROUTING", "-p", protocol, "-s", "127.0.0.1/32", "-d", targetIP, "--dport", targetPortStr, "-j", "MASQUERADE"); err != nil {
+		if err := ipt.AppendUnique("nat", "POSTROUTING", "-p", protocol, "-s", loopback, "-d", targetIP, "--dport", targetPortStr, "-j", "MASQUERADE"); err != nil {
 			ipt.Delete("nat", "OUTPUT", outputRule...)
 			if includeIngress {
 				ipt.Delete("filter", "FORWARD", "-p", protocol, "-d", targetIP, "--dport", targetPortStr, "-j", "ACCEPT")
@@ -146,14 +150,18 @@ func (BridgeNetworkManager) CleanupDNATCompatRule(protocol string, dstPort uint1
 }
 
 func cleanupDNATRule(protocol string, dstPort uint16, targetIP string, targetPort uint16, includeIngress bool, includeLocalhostCompat bool) error {
-	ipt, err := iptables.New()
+	ipt, ipv6, err := iptablesForAddress(targetIP)
 	if err != nil {
 		return err
 	}
 
 	dstPortStr := strconv.FormatUint(uint64(dstPort), 10)
 	targetPortStr := strconv.FormatUint(uint64(targetPort), 10)
-	toDest := fmt.Sprintf("%s:%s", targetIP, targetPortStr)
+	toDest := net.JoinHostPort(targetIP, targetPortStr)
+	loopback := "127.0.0.1/32"
+	if ipv6 {
+		loopback = "::1/128"
+	}
 
 	// best-effort: remove both rules, report first error
 	var firstErr error
@@ -171,12 +179,34 @@ func cleanupDNATRule(protocol string, dstPort uint16, targetIP string, targetPor
 		if err := ipt.DeleteIfExists("nat", "OUTPUT", dnatOutputRule(protocol, dstPortStr, toDest)...); err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("failed to delete OUTPUT DNAT rule: %v", err)
 		}
-		if err := ipt.DeleteIfExists("nat", "POSTROUTING", "-p", protocol, "-s", "127.0.0.1/32", "-d", targetIP, "--dport", targetPortStr, "-j", "MASQUERADE"); err != nil && firstErr == nil {
+		if err := ipt.DeleteIfExists("nat", "POSTROUTING", "-p", protocol, "-s", loopback, "-d", targetIP, "--dport", targetPortStr, "-j", "MASQUERADE"); err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("failed to delete hairpin POSTROUTING MASQUERADE rule: %v", err)
 		}
 	}
 
 	return firstErr
+}
+
+func iptablesForCIDR(cidr string) (*iptables.IPTables, error) {
+	ip, _, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, fmt.Errorf("parse network CIDR %q: %w", cidr, err)
+	}
+	ipt, _, err := iptablesForAddress(ip.String())
+	return ipt, err
+}
+
+func iptablesForAddress(address string) (*iptables.IPTables, bool, error) {
+	ip := net.ParseIP(address)
+	if ip == nil {
+		return nil, false, fmt.Errorf("parse network address %q", address)
+	}
+	if ip.To4() != nil {
+		ipt, err := iptables.NewWithProtocol(iptables.ProtocolIPv4)
+		return ipt, false, err
+	}
+	ipt, err := iptables.NewWithProtocol(iptables.ProtocolIPv6)
+	return ipt, true, err
 }
 
 func dnatOutputRule(protocol, dstPort, destination string) []string {

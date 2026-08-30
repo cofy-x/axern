@@ -10,7 +10,11 @@
 - Axnoded integration point: `plugin.network.nat_backend = "ebpf"`.
 - Main packet paths: external TCP/UDP hostPort ingress, sandbox TCP/UDP/ICMP
   egress SNAT, TCP localhost hostPort compatibility.
-- Scope is IPv4. Linux localhost UDP and IPv6 are outside the supported design.
+- Native eBPF scope is IPv4. Linux localhost UDP is outside the supported
+  design. When an axnoded node is configured with an IPv6 sandbox range and
+  `nat_backend = "ebpf"`, axnoded deliberately uses the bridge ip6tables path
+  and advertises the effective bridge capability; it does not claim native
+  bpfnet enforcement for that address family.
 
 ## Ownership Contract
 
