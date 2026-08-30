@@ -23,6 +23,7 @@ import (
 	"github.com/cofy-x/axern/apps/cli/internal/config"
 	"github.com/cofy-x/axern/apps/cli/internal/localbundle"
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 )
 
 type Runner interface {
@@ -847,10 +848,10 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 					gatewayMessage = "local gateway health endpoint is not reachable"
 				}
 				add("gateway_connectivity", gatewayOK, "gateway_connectivity_reachable", "gateway_connectivity_unreachable", gatewayMessage, "inspect `axern local logs gatewayd` and verify local firewall settings")
-				nodeOK := m.nodeReady(ctx, &http.Client{Timeout: 3 * time.Second}, m.doctorNodeID())
+				nodeOK, nodeReason := m.nodeReadiness(ctx, &http.Client{Timeout: 3 * time.Second}, m.doctorNodeID(), localDefaultWorkloadCapabilities)
 				nodeMessage := "local node is registered with fresh heartbeat and inventory"
 				if !nodeOK {
-					nodeMessage = "local node registration, heartbeat, or inventory is not fresh"
+					nodeMessage = nodeReason
 				}
 				add("node_registration", nodeOK, "node_registration_healthy", "node_registration_unhealthy", nodeMessage, "inspect `axern local logs node` and `axern local logs controld`")
 			}
@@ -1031,12 +1032,17 @@ func (m *Manager) waitReady(ctx context.Context, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	client := &http.Client{Timeout: 3 * time.Second}
 	url := fmt.Sprintf("http://127.0.0.1:%d/healthz", GatewayHTTPPort)
+	lastNodeReason := "local node has not reported readiness"
 	for time.Now().Before(deadline) {
 		request, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		response, err := client.Do(request)
 		if err == nil {
 			response.Body.Close()
-			if response.StatusCode == http.StatusOK && m.localNodeReady(ctx, client) {
+			nodeReady, nodeReason := m.localNodeReadiness(ctx, client)
+			if nodeReason != "" {
+				lastNodeReason = nodeReason
+			}
+			if response.StatusCode == http.StatusOK && nodeReady {
 				status, statusErr := m.Status(ctx)
 				if statusErr == nil && status.State == "running" {
 					return nil
@@ -1049,38 +1055,119 @@ func (m *Manager) waitReady(ctx context.Context, timeout time.Duration) error {
 		case <-time.After(time.Second):
 		}
 	}
-	return fmt.Errorf("Axern local did not become healthy within %s", timeout)
+	return fmt.Errorf("Axern local did not become healthy within %s: %s", timeout, lastNodeReason)
 }
 
 func (m *Manager) localNodeReady(ctx context.Context, client *http.Client) bool {
-	return m.nodeReady(ctx, client, LocalNodeID)
+	ready, _ := m.localNodeReadiness(ctx, client)
+	return ready
 }
 
-func (m *Manager) nodeReady(ctx context.Context, client *http.Client, expectedNodeID string) bool {
+func (m *Manager) localNodeReadiness(ctx context.Context, client *http.Client) (bool, string) {
+	return m.nodeReadiness(ctx, client, LocalNodeID, localDefaultWorkloadCapabilities)
+}
+
+var localDefaultWorkloadCapabilities = []capabilityv1.PlatformCapability{
+	capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
+	capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
+}
+
+type localNodeReadinessPayload struct {
+	Nodes []struct {
+		NodeID       string `json:"node_id"`
+		Fresh        bool   `json:"fresh"`
+		SummaryFresh bool   `json:"summary_fresh"`
+		Summary      struct {
+			Components struct {
+				Axnoded struct {
+					Ready bool `json:"ready"`
+				} `json:"axnoded"`
+				Imagemgr struct {
+					Reachable bool `json:"reachable"`
+				} `json:"imagemgr"`
+			} `json:"components"`
+			Pools struct {
+				RuntimeSlots *struct {
+					Capacity int64 `json:"capacity"`
+				} `json:"runtime_slots"`
+			} `json:"pools"`
+			CapabilitySnapshot struct {
+				Sequence     uint64 `json:"sequence"`
+				Observations []struct {
+					Key struct {
+						Kind struct {
+							Platform capabilityv1.PlatformCapability `json:"Platform"`
+						} `json:"Kind"`
+					} `json:"key"`
+					State      capabilityv1.CapabilityState `json:"state"`
+					ValidUntil *struct {
+						Seconds int64 `json:"seconds"`
+						Nanos   int32 `json:"nanos"`
+					} `json:"valid_until"`
+				} `json:"observations"`
+			} `json:"capability_snapshot"`
+		} `json:"summary"`
+	} `json:"nodes"`
+}
+
+func (m *Manager) nodeReadiness(ctx context.Context, client *http.Client, expectedNodeID string, requiredCapabilities []capabilityv1.PlatformCapability) (bool, string) {
 	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:24101/nodesz", nil)
 	response, err := client.Do(request)
 	if err != nil {
-		return false
+		return false, "local node summary endpoint is unreachable"
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return false
+		return false, fmt.Sprintf("local node summary endpoint returned HTTP %d", response.StatusCode)
 	}
-	var payload struct {
-		Nodes []struct {
-			NodeID string `json:"node_id"`
-			Fresh  bool   `json:"fresh"`
-		} `json:"nodes"`
-	}
+	var payload localNodeReadinessPayload
 	if json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&payload) != nil {
-		return false
+		return false, "local node summary response is invalid"
 	}
+	return evaluateLocalNodeReadiness(payload, expectedNodeID, requiredCapabilities, time.Now())
+}
+
+func evaluateLocalNodeReadiness(payload localNodeReadinessPayload, expectedNodeID string, requiredCapabilities []capabilityv1.PlatformCapability, now time.Time) (bool, string) {
 	for _, node := range payload.Nodes {
-		if node.NodeID == expectedNodeID && node.Fresh {
-			return true
+		if node.NodeID != expectedNodeID {
+			continue
 		}
+		if !node.Fresh || !node.SummaryFresh {
+			return false, "local node heartbeat or inventory is not fresh"
+		}
+		if !node.Summary.Components.Axnoded.Ready {
+			return false, "local axnoded is not ready"
+		}
+		if !node.Summary.Components.Imagemgr.Reachable {
+			return false, "local image manager is not reachable"
+		}
+		if node.Summary.Pools.RuntimeSlots == nil || node.Summary.Pools.RuntimeSlots.Capacity <= 0 {
+			return false, "local runtime slot inventory is not ready"
+		}
+		if len(requiredCapabilities) == 0 {
+			return true, ""
+		}
+		if node.Summary.CapabilitySnapshot.Sequence == 0 {
+			return false, "local capability snapshot is warming"
+		}
+		available := make(map[capabilityv1.PlatformCapability]bool, len(node.Summary.CapabilitySnapshot.Observations))
+		for _, observation := range node.Summary.CapabilitySnapshot.Observations {
+			if observation.State != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
+				continue
+			}
+			if observation.ValidUntil != nil && !time.Unix(observation.ValidUntil.Seconds, int64(observation.ValidUntil.Nanos)).After(now) {
+				continue
+			}
+			available[observation.Key.Kind.Platform] = true
+		}
+		for _, capability := range requiredCapabilities {
+			if !available[capability] {
+				return false, fmt.Sprintf("required local capability %s is warming or unavailable", capability.String())
+			}
+		}
+		return true, ""
 	}
-	return false
+	return false, fmt.Sprintf("local node %q is not registered", expectedNodeID)
 }
 
 func (m *Manager) lock() (func(), error) {
