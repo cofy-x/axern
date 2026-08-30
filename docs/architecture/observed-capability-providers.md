@@ -146,10 +146,20 @@ become available when every dependency has already completed its own recovery
 policy, because recomputing the same pure expression is not independent host
 evidence.
 
-Runtime conformance providers are serialized. Memory and ephemeral-storage
-enforcement use separate self-test sandboxes and observations, so an unavailable
-cgroup boundary cannot suppress storage evidence and a storage failure cannot
-suppress memory evidence. Each self-test is limited to 60 seconds, reruns only
+Runtime conformance providers share one global serial lane across runc, runsc,
+memory, and ephemeral-storage probes. The resource manager independently
+enforces the same single-owner rule, so a scheduler regression cannot create a
+second destructive certification sandbox. Certification cgroups live under a
+reserved `conformance` sibling of the configured sandbox domain, with an
+aggregate 256 MiB `memory.max`, zero swap, and group OOM. Their reservation and
+cleanup debt are charged to `memory_system_reserve_bytes`; they are excluded
+from workload slots, sandbox `memory.current`, and workload memory commitment.
+Admission checks both current and committed system-reserve headroom before a
+probe starts. Memory and ephemeral-storage enforcement use separate self-test
+sandboxes and observations, so a storage failure cannot suppress memory evidence
+and a memory-limit probe failure cannot rewrite storage evidence. The shared
+bounded certification domain remains a required node-safety prerequisite for
+both. Each self-test is limited to 60 seconds, reruns only
 after runtime/config identity changes or a prior failure, and retries failures
 with exponential backoff capped at five minutes. Self-test
 cleanup is part of success and remains inside the 60-second probe deadline, with
@@ -157,6 +167,11 @@ up to 30 seconds reserved for runtime teardown. Each runtime/kind pair uses one
 deterministic, reserved allocation identity: an interrupted probe is reconciled
 before retry instead of creating a new bundle, projection, or reservation.
 Cleanup verifies that the bundle and runtime-owned storage paths are absent.
+The node memory collector validates the reserved domain, includes its inode in
+the capacity identity, and publishes bounded current, commitment, cleanup-debt,
+and provider duration/result metrics. Removing or weakening the domain invalidates
+the memory budget instead of silently moving certification back into workload
+capacity.
 Recovery hysteresis is applied by the capability manager to base observations
 before derived providers run, so a derived capability can never advertise an
 unconfirmed dependency recovery. Observation time is the real probe completion

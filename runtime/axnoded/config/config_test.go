@@ -123,7 +123,7 @@ func TestResourceConfigCgroupRootNameIsDelegatedChild(t *testing.T) {
 	if got, err := (ResourceConfig{CgroupRootName: "tenant-sandbox"}).CgroupRootNameValue(); err != nil || got != "tenant-sandbox" {
 		t.Fatalf("custom cgroup root = %q, %v", got, err)
 	}
-	for _, invalid := range []string{"/sandbox", "parent/sandbox", "..", "internal", "workload"} {
+	for _, invalid := range []string{"/sandbox", "parent/sandbox", "..", "internal", "workload", "conformance"} {
 		if _, err := (ResourceConfig{CgroupRootName: invalid}).CgroupRootNameValue(); err == nil {
 			t.Fatalf("invalid cgroup root %q accepted", invalid)
 		}

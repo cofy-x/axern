@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -164,6 +165,12 @@ func TestCgroupLeaseOwnerKindIsUnforgeableContextState(t *testing.T) {
 	ctx := context.WithValue(context.Background(), internalConformanceContextKey{}, true)
 	if got := cgroupLeaseOwnerKind(ctx); got != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE {
 		t.Fatalf("internal conformance owner kind = %s", got)
+	}
+	if got := cgroupMemoryReservation(context.Background(), 123); got != 123 {
+		t.Fatalf("workload reservation = %d", got)
+	}
+	if got := cgroupMemoryReservation(ctx, 0); got != config.RuntimeConformanceMemoryMaxBytes {
+		t.Fatalf("conformance reservation = %d", got)
 	}
 }
 

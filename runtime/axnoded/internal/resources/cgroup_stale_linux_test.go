@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
@@ -94,7 +95,7 @@ func TestStaleDelegationRetirementOnRealCgroupV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.EnsureRoot(currentRootName); err != nil {
+	if err := driver.EnsureRoot(currentRootName, config.RuntimeConformanceMemoryMaxBytes); err != nil {
 		t.Fatal(err)
 	}
 	currentRootDir := filepath.Join(cgroupFilesystemRoot, strings.TrimPrefix(currentRootPath, "/"))

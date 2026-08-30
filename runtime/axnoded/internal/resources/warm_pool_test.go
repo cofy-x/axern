@@ -3,8 +3,10 @@ package resources
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"net"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -61,8 +63,8 @@ type warmPoolStubCgroupDriver struct {
 	removeErr   error
 }
 
-func (d *warmPoolStubCgroupDriver) Mode() string            { return os2.CgroupModeV2 }
-func (d *warmPoolStubCgroupDriver) EnsureRoot(string) error { return nil }
+func (d *warmPoolStubCgroupDriver) Mode() string                   { return os2.CgroupModeV2 }
+func (d *warmPoolStubCgroupDriver) EnsureRoot(string, int64) error { return nil }
 func (d *warmPoolStubCgroupDriver) ResolveRoot(rootName string) (string, error) {
 	return "/" + rootName, nil
 }
@@ -395,6 +397,173 @@ func TestCgroupManagerAllocateReturnsExhaustedWhenAtCapacity(t *testing.T) {
 		t.Fatalf("Allocate() error = %v, want %v", err, errord.ErrResourceExhausted)
 	}
 	assert.Equal(t, before+1, metrics.CounterValueForTest(metrics.MetricResourcePoolAllocateTotal, attrs))
+}
+
+func TestRuntimeConformanceUsesReservedDomainWithoutConsumingWorkloadCapacity(t *testing.T) {
+	manager := &CgroupManager{
+		size:            1,
+		rootName:        "/delegated/sandbox",
+		conformanceRoot: "/delegated/conformance",
+		usingID:         cmap.New[struct{}](),
+		idleID:          queue.New(""),
+		cgroups:         cmap.New[struct{}](),
+		leases:          cmap.New[*apipb.CgroupLease](),
+		gcQueue:         queue.New(""),
+		generator: truncindex.NewFixLenGenerator(
+			12, nil, truncindex.PrefixModifier("/delegated/sandbox/"),
+		),
+		conformanceGenerator: truncindex.NewFixLenGenerator(
+			12, nil, truncindex.PrefixModifier("/delegated/conformance/"),
+		),
+		cgroupDriver:            &warmPoolStubCgroupDriver{},
+		db:                      discardStateStore{},
+		memoryAdmissionRequired: true,
+		memoryCapacity: MemoryCapacitySnapshot{
+			EffectiveAllocatableBytes:       1 << 30,
+			SystemReserveBaseAvailableBytes: 512 << 20,
+			SystemReserveAvailableBytes:     512 << 20,
+			CapacityIdentity:                "boot:mount:roots",
+			SampledAt:                       time.Now().UTC(),
+		},
+	}
+
+	conformance, err := manager.Allocate(AllocateOption{
+		ContainerID: "self-test", MemoryRequestBytes: 256 << 20, RuntimeName: "runsc",
+		CgroupOwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := filepath.Dir(conformance.ToString()); got != manager.conformanceRoot {
+		t.Fatalf("conformance root = %q, want %q", got, manager.conformanceRoot)
+	}
+	commitment := manager.MemoryCommitment()
+	if commitment.CommittedBytes != 0 || commitment.ConformanceBytes != 256<<20 {
+		t.Fatalf("memory commitment = %+v", commitment)
+	}
+	if _, err := manager.Allocate(AllocateOption{
+		ContainerID: "second-self-test", MemoryRequestBytes: 256 << 20, RuntimeName: "runc",
+		CgroupOwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE,
+	}); !errors.Is(err, errord.ErrResourceExhausted) {
+		t.Fatalf("second conformance allocation error = %v, want resource exhausted", err)
+	}
+
+	workload, err := manager.Allocate(AllocateOption{
+		ContainerID: "user", MemoryRequestBytes: 1 << 30, MemoryLimitBytes: 1 << 30, RuntimeName: "runc",
+	})
+	if err != nil {
+		t.Fatalf("workload allocation contended with conformance: %v", err)
+	}
+	if got := filepath.Dir(workload.ToString()); got != manager.rootName {
+		t.Fatalf("workload root = %q, want %q", got, manager.rootName)
+	}
+	commitment = manager.MemoryCommitment()
+	if commitment.CommittedBytes != 1<<30 || commitment.ConformanceBytes != 256<<20 {
+		t.Fatalf("separated memory commitment = %+v", commitment)
+	}
+}
+
+func TestWorkloadCgroupCountPreservesStaleRootCapacityDebt(t *testing.T) {
+	manager := &CgroupManager{
+		rootName:        "/current/tenant-sandbox",
+		conformanceRoot: "/current/conformance",
+		cgroups:         cmap.New[struct{}](),
+		leases:          cmap.New[*apipb.CgroupLease](),
+	}
+	manager.cgroups.Set("/old/sandbox/workload-a", struct{}{})
+	manager.leases.Set("/old/sandbox/workload-a", &apipb.CgroupLease{
+		CgroupID:  "/old/sandbox/workload-a",
+		OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD,
+	})
+	manager.cgroups.Set("/old/conformance/probe-a", struct{}{})
+	manager.leases.Set("/old/conformance/probe-a", &apipb.CgroupLease{
+		CgroupID:  "/old/conformance/probe-a",
+		OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE,
+	})
+	manager.cgroups.Set("/current/conformance/orphan", struct{}{})
+
+	if got := manager.workloadCgroupCountLocked(); got != 1 {
+		t.Fatalf("workload cgroup capacity debt = %d, want 1", got)
+	}
+}
+
+func TestConcurrentInventoryRefreshAndWorkloadAdmissionDoNotRaceRuntimeConformanceReservation(t *testing.T) {
+	const (
+		workloadCount = 32
+		refreshCount  = 64
+	)
+	manager := &CgroupManager{
+		size:            workloadCount,
+		rootName:        "/delegated/sandbox",
+		conformanceRoot: "/delegated/conformance",
+		usingID:         cmap.New[struct{}](),
+		idleID:          queue.New(""),
+		cgroups:         cmap.New[struct{}](),
+		leases:          cmap.New[*apipb.CgroupLease](),
+		gcQueue:         queue.New(""),
+		generator: truncindex.NewFixLenGenerator(
+			12, nil, truncindex.PrefixModifier("/delegated/sandbox/"),
+		),
+		conformanceGenerator: truncindex.NewFixLenGenerator(
+			12, nil, truncindex.PrefixModifier("/delegated/conformance/"),
+		),
+		cgroupDriver:            &warmPoolStubCgroupDriver{},
+		db:                      discardStateStore{},
+		memoryAdmissionRequired: true,
+		memoryCapacity: MemoryCapacitySnapshot{
+			EffectiveAllocatableBytes:       workloadCount << 20,
+			SystemReserveBaseAvailableBytes: 512 << 20,
+			SystemReserveAvailableBytes:     512 << 20,
+			CapacityIdentity:                "boot:mount:roots",
+			SampledAt:                       time.Now().UTC(),
+		},
+		memoryCapacityIdentity: "boot:mount:roots",
+	}
+	if _, err := manager.Allocate(AllocateOption{
+		ContainerID: "self-test", MemoryRequestBytes: 256 << 20, RuntimeName: "runc",
+		CgroupOwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	errs := make(chan error, workloadCount+refreshCount)
+	var wait sync.WaitGroup
+	for range refreshCount {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			errs <- manager.UpdateMemoryCapacity(MemoryCapacitySnapshot{
+				EffectiveAllocatableBytes:       workloadCount << 20,
+				SystemReserveBaseAvailableBytes: 512 << 20,
+				SystemReserveAvailableBytes:     256 << 20,
+				CapacityIdentity:                "boot:mount:roots",
+				SampledAt:                       time.Now().UTC(),
+			})
+		}()
+	}
+	for index := range workloadCount {
+		index := index
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			_, err := manager.Allocate(AllocateOption{
+				ContainerID: fmt.Sprintf("user-%d", index), MemoryRequestBytes: 1 << 20,
+				MemoryLimitBytes: 1 << 20, RuntimeName: "runc",
+			})
+			errs <- err
+		}()
+	}
+	wait.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent workload admission failed: %v", err)
+		}
+	}
+	commitment := manager.MemoryCommitment()
+	if commitment.CommittedBytes != workloadCount<<20 || commitment.ConformanceBytes != 256<<20 {
+		t.Fatalf("concurrent commitment = %+v", commitment)
+	}
 }
 
 func TestInterfaceManagerAllocateMissCreatesSynchronously(t *testing.T) {

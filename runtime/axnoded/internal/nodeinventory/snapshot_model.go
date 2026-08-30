@@ -46,21 +46,25 @@ type NodeInfo struct {
 }
 
 type MemoryBudgetInventory struct {
-	PhysicalCapacityBytes     int64     `json:"physical_capacity_bytes"`
-	SourceAllocatableBytes    int64     `json:"source_allocatable_bytes"`
-	DelegatedRootLimitBytes   int64     `json:"delegated_root_limit_bytes"`
-	DelegatedRootLimitFinite  bool      `json:"delegated_root_limit_finite"`
-	SystemReserveBytes        int64     `json:"system_reserve_bytes"`
-	EffectiveAllocatableBytes int64     `json:"effective_allocatable_bytes"`
-	LocalCommitmentBytes      int64     `json:"local_commitment_bytes"`
-	CleanupDebtBytes          int64     `json:"cleanup_debt_bytes"`
-	InternalCurrentBytes      int64     `json:"internal_current_bytes"`
-	CapacityIdentity          string    `json:"capacity_identity"`
-	Mode                      string    `json:"mode"`
-	SampledAt                 time.Time `json:"sampled_at"`
-	RetiringCgroupCount       int       `json:"retiring_cgroup_count"`
-	OldestRetiringAgeSeconds  int64     `json:"oldest_retiring_age_seconds"`
-	SystemReserveExhausted    bool      `json:"system_reserve_exhausted"`
+	PhysicalCapacityBytes       int64     `json:"physical_capacity_bytes"`
+	SourceAllocatableBytes      int64     `json:"source_allocatable_bytes"`
+	DelegatedRootLimitBytes     int64     `json:"delegated_root_limit_bytes"`
+	DelegatedRootLimitFinite    bool      `json:"delegated_root_limit_finite"`
+	SystemReserveBytes          int64     `json:"system_reserve_bytes"`
+	EffectiveAllocatableBytes   int64     `json:"effective_allocatable_bytes"`
+	LocalCommitmentBytes        int64     `json:"local_commitment_bytes"`
+	CleanupDebtBytes            int64     `json:"cleanup_debt_bytes"`
+	InternalCurrentBytes        int64     `json:"internal_current_bytes"`
+	ConformanceCurrentBytes     int64     `json:"conformance_current_bytes"`
+	ConformanceLimitBytes       int64     `json:"conformance_limit_bytes"`
+	ConformanceCommitmentBytes  int64     `json:"conformance_commitment_bytes"`
+	ConformanceCleanupDebtBytes int64     `json:"conformance_cleanup_debt_bytes"`
+	CapacityIdentity            string    `json:"capacity_identity"`
+	Mode                        string    `json:"mode"`
+	SampledAt                   time.Time `json:"sampled_at"`
+	RetiringCgroupCount         int       `json:"retiring_cgroup_count"`
+	OldestRetiringAgeSeconds    int64     `json:"oldest_retiring_age_seconds"`
+	SystemReserveExhausted      bool      `json:"system_reserve_exhausted"`
 }
 
 // MarshalJSON keeps the inventory endpoint on ordinary JSON while delegating

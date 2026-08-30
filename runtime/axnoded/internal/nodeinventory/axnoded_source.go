@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/network/bpfnet"
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/bpfnetstatus"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
@@ -258,6 +259,7 @@ func (s *AxnodedSource) collectMemoryBudget(now time.Time, nodeResourcesReady bo
 			snapshot.Node.Capacity.MemoryBytes,
 			snapshot.Node.Allocatable.MemoryBytes,
 			s.memorySystemReserveBytes,
+			config.RuntimeConformanceMemoryMaxBytes,
 			s.cgroupRootName,
 		)
 		mode = "cgroup_v2"
@@ -276,21 +278,25 @@ func (s *AxnodedSource) collectMemoryBudget(now time.Time, nodeResourcesReady bo
 	sampledAt := time.Now().UTC()
 	reserveExhausted := s.observeSystemReserveHealth(sample.SystemReserveExhausted)
 	snapshot.Node.MemoryBudget = MemoryBudgetInventory{
-		PhysicalCapacityBytes:     sample.PhysicalCapacityBytes,
-		SourceAllocatableBytes:    sample.SourceAllocatableBytes,
-		DelegatedRootLimitBytes:   sample.DelegatedRootLimitBytes,
-		DelegatedRootLimitFinite:  sample.DelegatedRootLimitFinite,
-		SystemReserveBytes:        sample.SystemReserveBytes,
-		EffectiveAllocatableBytes: sample.EffectiveAllocatable,
-		LocalCommitmentBytes:      commitment.CommittedBytes,
-		CleanupDebtBytes:          commitment.CleanupDebtBytes,
-		InternalCurrentBytes:      sample.InternalCurrentBytes,
-		CapacityIdentity:          sample.CapacityIdentity,
-		Mode:                      mode,
-		SampledAt:                 sampledAt,
-		RetiringCgroupCount:       commitment.RetiringCgroupCount,
-		OldestRetiringAgeSeconds:  int64(commitment.OldestRetiringAge / time.Second),
-		SystemReserveExhausted:    reserveExhausted,
+		PhysicalCapacityBytes:       sample.PhysicalCapacityBytes,
+		SourceAllocatableBytes:      sample.SourceAllocatableBytes,
+		DelegatedRootLimitBytes:     sample.DelegatedRootLimitBytes,
+		DelegatedRootLimitFinite:    sample.DelegatedRootLimitFinite,
+		SystemReserveBytes:          sample.SystemReserveBytes,
+		EffectiveAllocatableBytes:   sample.EffectiveAllocatable,
+		LocalCommitmentBytes:        commitment.CommittedBytes,
+		CleanupDebtBytes:            commitment.CleanupDebtBytes,
+		InternalCurrentBytes:        sample.InternalCurrentBytes,
+		ConformanceCurrentBytes:     sample.ConformanceCurrentBytes,
+		ConformanceLimitBytes:       sample.ConformanceLimitBytes,
+		ConformanceCommitmentBytes:  commitment.ConformanceBytes,
+		ConformanceCleanupDebtBytes: commitment.ConformanceCleanupDebtBytes,
+		CapacityIdentity:            sample.CapacityIdentity,
+		Mode:                        mode,
+		SampledAt:                   sampledAt,
+		RetiringCgroupCount:         commitment.RetiringCgroupCount,
+		OldestRetiringAgeSeconds:    int64(commitment.OldestRetiringAge / time.Second),
+		SystemReserveExhausted:      reserveExhausted,
 	}
 	for kind, value := range map[string]int64{
 		"physical_capacity":           sample.PhysicalCapacityBytes,
@@ -300,7 +306,11 @@ func (s *AxnodedSource) collectMemoryBudget(now time.Time, nodeResourcesReady bo
 		"effective_allocatable":       sample.EffectiveAllocatable,
 		"local_commitment":            commitment.CommittedBytes,
 		"cleanup_debt":                commitment.CleanupDebtBytes,
+		"conformance_commitment":      commitment.ConformanceBytes,
+		"conformance_cleanup_debt":    commitment.ConformanceCleanupDebtBytes,
 		"internal_current":            sample.InternalCurrentBytes,
+		"conformance_current":         sample.ConformanceCurrentBytes,
+		"conformance_limit":           sample.ConformanceLimitBytes,
 		"sandbox_current":             sample.SandboxCurrentBytes,
 		"retiring_count":              int64(commitment.RetiringCgroupCount),
 		"oldest_retiring_age_seconds": int64(commitment.OldestRetiringAge / time.Second),
@@ -313,11 +323,13 @@ func (s *AxnodedSource) collectMemoryBudget(now time.Time, nodeResourcesReady bo
 		return false
 	}
 	if err := s.memoryCapacityObserver(resources.MemoryCapacitySnapshot{
-		EffectiveAllocatableBytes: sample.EffectiveAllocatable,
-		SandboxCurrentBytes:       sample.SandboxCurrentBytes,
-		SystemReserveExhausted:    reserveExhausted,
-		CapacityIdentity:          sample.CapacityIdentity,
-		SampledAt:                 sampledAt,
+		EffectiveAllocatableBytes:       sample.EffectiveAllocatable,
+		SandboxCurrentBytes:             sample.SandboxCurrentBytes,
+		SystemReserveBaseAvailableBytes: max(sample.SystemReserveBytes-sample.InternalCurrentBytes, 0),
+		SystemReserveAvailableBytes:     max(sample.SystemReserveBytes-sample.InternalCurrentBytes-sample.ConformanceCurrentBytes, 0),
+		SystemReserveExhausted:          reserveExhausted,
+		CapacityIdentity:                sample.CapacityIdentity,
+		SampledAt:                       sampledAt,
 	}); err != nil {
 		snapshot.Sources["node_memory_budget"] = errorSource(fmt.Errorf("publish local memory capacity: %w", err))
 		return false

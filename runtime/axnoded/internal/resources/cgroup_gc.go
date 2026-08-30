@@ -76,9 +76,9 @@ func (c *CgroupManager) convergeRetiringCgroup(id string) error {
 	if lease.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING {
 		return fmt.Errorf("cgroup %s cleanup requested from state %s", id, lease.GetState())
 	}
-	staleRoot := c.rootName != "" && filepath.Dir(id) != c.rootName
+	staleRoot := c.rootName != "" && !cgroupPathInCurrentRoot(id, c.rootName, c.conformanceRoot)
 	if staleRoot && !cgroupLeaseHasMemoryIdentity(lease) {
-		if _, err := staleDelegationCgroupProcesses(id, filepath.Base(c.rootName)); errors.Is(err, os.ErrNotExist) {
+		if _, err := staleDelegationCgroupProcesses(id, c.ownedRootBase(lease)); errors.Is(err, os.ErrNotExist) {
 			return nil
 		}
 		return fmt.Errorf("retiring cgroup %s outside the current delegation has no durable kernel identity", id)
@@ -171,7 +171,11 @@ func (c *CgroupManager) completeRetiringCgroup(id string) error {
 		c.Unlock()
 		return fmt.Errorf("persist completed cgroup retirement: %w", err)
 	}
-	c.generator.ReleaseId(id)
+	if filepath.Dir(id) == c.conformanceRoot {
+		c.conformanceGenerator.ReleaseId(id)
+	} else {
+		c.generator.ReleaseId(id)
+	}
 	c.Unlock()
 	recordPoolState(c)
 	return nil
@@ -179,7 +183,8 @@ func (c *CgroupManager) completeRetiringCgroup(id string) error {
 
 func (c *CgroupManager) retiringCgroupProcesses(name string, staleRoot bool) ([]int, error) {
 	if staleRoot {
-		return staleDelegationCgroupProcesses(name, filepath.Base(c.rootName))
+		lease, _ := c.leases.Get(name)
+		return staleDelegationCgroupProcesses(name, c.ownedRootBase(lease))
 	}
 	cgroup, err := c.cgroupDriver.Load(name)
 	if err != nil {
@@ -191,7 +196,8 @@ func (c *CgroupManager) retiringCgroupProcesses(name string, staleRoot bool) ([]
 func (c *CgroupManager) removeCgroupFromSystem(name string, staleRoot bool) error {
 	var err error
 	if staleRoot {
-		err = removeStaleDelegationCgroup(name, filepath.Base(c.rootName))
+		lease, _ := c.leases.Get(name)
+		err = removeStaleDelegationCgroup(name, c.ownedRootBase(lease))
 	} else {
 		err = c.cgroupDriver.Remove(name)
 	}
@@ -199,4 +205,12 @@ func (c *CgroupManager) removeCgroupFromSystem(name string, staleRoot bool) erro
 		return fmt.Errorf("delete cgroup %s: %w", name, err)
 	}
 	return nil
+}
+
+func (c *CgroupManager) ownedRootBase(lease *apipb.CgroupLease) string {
+	if lease != nil && (lease.GetOwnerKind() == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE ||
+		filepath.Base(filepath.Dir(lease.GetCgroupID())) == filepath.Base(c.conformanceRoot)) {
+		return filepath.Base(c.conformanceRoot)
+	}
+	return filepath.Base(c.rootName)
 }

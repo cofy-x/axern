@@ -100,7 +100,7 @@ type fakeCgroupDriver struct {
 }
 
 func (d *fakeCgroupDriver) Mode() string                                { return os2.CgroupModeV2 }
-func (d *fakeCgroupDriver) EnsureRoot(string) error                     { return nil }
+func (d *fakeCgroupDriver) EnsureRoot(string, int64) error              { return nil }
 func (d *fakeCgroupDriver) ResolveRoot(rootName string) (string, error) { return rootName, nil }
 func (d *fakeCgroupDriver) Create(string, *specs.LinuxResources) (os2.Cgroup, error) {
 	return nil, nil

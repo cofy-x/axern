@@ -155,8 +155,8 @@ func validateMemoryBoundaryConfiguration(cfg config.Config) error {
 	reserve := cfg.PluginConfig.ResourceConfig.MemorySystemReserveBytes
 	switch mode {
 	case config.CgroupEnforcementRequired:
-		if reserve <= 0 {
-			return fmt.Errorf("memory_system_reserve_bytes must be explicitly positive when cgroup_enforcement=required")
+		if reserve < config.RuntimeConformanceMemoryMaxBytes {
+			return fmt.Errorf("memory_system_reserve_bytes must be at least %d bytes when cgroup_enforcement=required so runtime certification remains outside sandbox capacity", config.RuntimeConformanceMemoryMaxBytes)
 		}
 	case config.CgroupEnforcementDisabledDev:
 		if reserve != 0 {

@@ -14,7 +14,7 @@ import (
 type fakeCgroupDriver struct{}
 
 func (fakeCgroupDriver) Mode() string                                { return os2.CgroupModeV2 }
-func (fakeCgroupDriver) EnsureRoot(string) error                     { return nil }
+func (fakeCgroupDriver) EnsureRoot(string, int64) error              { return nil }
 func (fakeCgroupDriver) ResolveRoot(rootName string) (string, error) { return rootName, nil }
 func (fakeCgroupDriver) Create(string, *specs.LinuxResources) (os2.Cgroup, error) {
 	return nil, nil

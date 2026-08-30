@@ -49,7 +49,7 @@ func (d *memoryProbeDriver) Mode() string {
 	}
 	return d.mode
 }
-func (d *memoryProbeDriver) EnsureRoot(string) error                     { return nil }
+func (d *memoryProbeDriver) EnsureRoot(string, int64) error              { return nil }
 func (d *memoryProbeDriver) ResolveRoot(rootName string) (string, error) { return rootName, nil }
 func (d *memoryProbeDriver) Create(group string, _ *specs.LinuxResources) (os2.Cgroup, error) {
 	d.created = group
@@ -67,7 +67,7 @@ func (d *memoryProbeDriver) LocalCPUCount() (int, error) { return 1, nil }
 type fakeCgroupDriver struct{}
 
 func (f *fakeCgroupDriver) Mode() string                                { return os2.CgroupModeV2 }
-func (f *fakeCgroupDriver) EnsureRoot(string) error                     { return nil }
+func (f *fakeCgroupDriver) EnsureRoot(string, int64) error              { return nil }
 func (f *fakeCgroupDriver) ResolveRoot(rootName string) (string, error) { return rootName, nil }
 func (f *fakeCgroupDriver) Create(group string, resources *specs.LinuxResources) (os2.Cgroup, error) {
 	return nil, fmt.Errorf("not implemented")

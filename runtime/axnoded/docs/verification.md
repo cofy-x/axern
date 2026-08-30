@@ -25,6 +25,14 @@ For agent-facing documentation changes from the repository root, also run:
 make agent-doc-check
 ```
 
+`make verify-docker-conformance` is the required Linux truth gate for the
+production memory boundary. It starts axnoded with cgroup enforcement enabled,
+certifies both runc and runsc through the global serial lane, validates the
+bounded `conformance` sibling, and then creates a normal workload without
+resource-contention retries. The ordinary runtime profiles retain
+`disabled_dev` to cover the explicit development contract; `make verify-docker`
+runs both contracts.
+
 ## Sandboxd Layers
 
 | Layer | Contract | Target |

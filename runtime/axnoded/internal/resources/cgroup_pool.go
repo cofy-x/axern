@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -135,7 +136,30 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 			metrics.RecordMemoryAdmission("system_reserve_exhausted")
 			return EmptyStringResource, fmt.Errorf("node memory system reserve is exhausted: %w", errord.ErrResourceExhausted)
 		}
-		if opt.MemoryRequestBytes > 0 {
+		if opt.CgroupOwnerKind == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE {
+			if opt.MemoryRequestBytes <= 0 {
+				c.Unlock()
+				return EmptyStringResource, fmt.Errorf("runtime conformance requires an explicit memory reservation")
+			}
+			conformanceCommitted := c.memoryCommitmentLocked(now).ConformanceBytes
+			commitmentHeadroom := max(capacity.SystemReserveBaseAvailableBytes-conformanceCommitted, 0)
+			if opt.MemoryRequestBytes > commitmentHeadroom {
+				c.Unlock()
+				metrics.RecordMemoryAdmission("conformance_commitment_exhausted")
+				return EmptyStringResource, fmt.Errorf(
+					"runtime conformance memory reservation %d exceeds system reserve commitment headroom %d: %w",
+					opt.MemoryRequestBytes, commitmentHeadroom, errord.ErrResourceExhausted,
+				)
+			}
+			if opt.MemoryRequestBytes > capacity.SystemReserveAvailableBytes {
+				c.Unlock()
+				metrics.RecordMemoryAdmission("conformance_reserve_exhausted")
+				return EmptyStringResource, fmt.Errorf(
+					"runtime conformance memory reservation %d exceeds system reserve headroom %d: %w",
+					opt.MemoryRequestBytes, capacity.SystemReserveAvailableBytes, errord.ErrResourceExhausted,
+				)
+			}
+		} else if opt.MemoryRequestBytes > 0 {
 			committed := c.memoryCommitmentLocked(time.Now().UTC()).CommittedBytes
 			if opt.MemoryRequestBytes > capacity.EffectiveAllocatableBytes-committed {
 				c.Unlock()
@@ -159,11 +183,21 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 			}
 		}
 	}
-	id := c.idleID.Pop()
-	hit := id != ""
+	conformance := opt.CgroupOwnerKind == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE
+	if conformance && c.hasActiveConformanceLeaseLocked() {
+		c.Unlock()
+		metrics.RecordMemoryAdmission("conformance_busy")
+		return EmptyStringResource, fmt.Errorf("runtime conformance cgroup is already assigned or retiring: %w", errord.ErrResourceExhausted)
+	}
+	id := ""
+	hit := false
+	if !conformance {
+		id = c.idleID.Pop()
+		hit = id != ""
+	}
 	if !hit {
 		var err error
-		id, err = c.createOneLocked()
+		id, err = c.createOneLocked(opt.CgroupOwnerKind)
 		if err != nil {
 			c.Unlock()
 			result := ResourcePoolAllocateError
@@ -192,6 +226,24 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 	c.usingID.Set(id, struct{}{})
 	if err := c.storeLocked(); err != nil {
 		c.usingID.Remove(id)
+		if conformance {
+			// This object was created synchronously for one certification run and
+			// has never been exposed to a runtime. It cannot become a warm
+			// workload object after an ownership persistence failure.
+			lease.State = apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING
+			lease.AllocationID = ""
+			lease.MemoryRequestBytes = 0
+			lease.MemoryLimitBytes = 0
+			lease.AllocationAttempt = 0
+			lease.RuntimeName = ""
+			lease.OwnerKind = apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED
+			lease.AssignedAtUnixNano = 0
+			lease.RetiringAtUnixNano = time.Now().UTC().UnixNano()
+			c.leases.Set(id, lease)
+			c.gcQueue.Push(id)
+			c.Unlock()
+			return EmptyStringResource, err
+		}
 		lease.State = apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE
 		lease.AllocationID = ""
 		lease.MemoryRequestBytes = 0
@@ -207,7 +259,11 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 	}
 	c.Unlock()
 	if c.memoryAdmissionRequired && opt.MemoryRequestBytes > 0 {
-		metrics.RecordMemoryAdmission("admitted")
+		result := "admitted"
+		if conformance {
+			result = "conformance_admitted"
+		}
+		metrics.RecordMemoryAdmission(result)
 	}
 
 	if hit {
@@ -215,7 +271,7 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 	} else {
 		metrics.RecordResourcePoolAllocate(string(CgroupResourceName), ResourcePoolAllocateMissSyncCreate)
 	}
-	if c.CacheNum() < c.CacheSizeLimit() {
+	if !conformance && c.CacheNum() < c.CacheSizeLimit() {
 		c.requestPoolRefill(ResourcePoolTriggerLowWatermark)
 	}
 	recordPoolState(c)
@@ -238,7 +294,7 @@ func (c *CgroupManager) Add(num int) int {
 func (c *CgroupManager) addLocked(num int) int {
 	added := 0
 	for i := 0; i < num; i++ {
-		id, err := c.createOneLocked()
+		id, err := c.createOneLocked(apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD)
 		if err != nil {
 			logrus.WithError(err).Error("create warm cgroup")
 			continue
@@ -272,19 +328,53 @@ func (c *CgroupManager) Del(num int) {
 	recordPoolState(c)
 }
 
-func (c *CgroupManager) createOneLocked() (string, error) {
-	if c.cgroups.Count() >= c.MaxSizeLimit() {
+func (c *CgroupManager) createOneLocked(owner apipb.CgroupLeaseOwnerKind) (string, error) {
+	if owner != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE && c.workloadCgroupCountLocked() >= c.MaxSizeLimit() {
 		return "", errord.ErrResourceExhausted
 	}
-	id, err := c.generator.GetID()
+	generator := c.generator
+	if owner == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE {
+		generator = c.conformanceGenerator
+	}
+	id, err := generator.GetID()
 	if err != nil {
 		return "", err
 	}
 	if _, err := c.cgroupDriver.Create(id, &specs.LinuxResources{}); err != nil {
-		c.generator.ReleaseId(id)
+		generator.ReleaseId(id)
 		return "", err
 	}
 	c.cgroups.Set(id, struct{}{})
 	c.leases.Set(id, &apipb.CgroupLease{CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE})
 	return id, nil
+}
+
+func (c *CgroupManager) hasActiveConformanceLeaseLocked() bool {
+	for item := range c.leases.IterBuffered() {
+		lease := item.Val
+		if lease != nil && lease.GetOwnerKind() == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE &&
+			(lease.GetState() == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED ||
+				lease.GetState() == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *CgroupManager) workloadCgroupCountLocked() int {
+	count := 0
+	for id := range c.cgroups.Items() {
+		lease, _ := c.leases.Get(id)
+		if lease != nil && lease.GetOwnerKind() == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE {
+			continue
+		}
+		// An unowned kernel object discovered below the current conformance
+		// domain is certification cleanup debt. Every other unknown or stale
+		// object is conservatively charged to workload slot capacity.
+		if filepath.Dir(id) == c.conformanceRoot {
+			continue
+		}
+		count++
+	}
+	return count
 }

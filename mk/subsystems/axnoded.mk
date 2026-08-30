@@ -39,6 +39,7 @@ AXNODED_DIR := runtime/axnoded
 	axnoded-verify-docker-runsc-debug \
 	axnoded-verify-docker-runc \
 	axnoded-verify-docker-runc-debug \
+	axnoded-verify-docker-conformance \
 	axnoded-benchmark-startup-matrix \
 	axnoded-run-nginx-demo \
 	axnoded-stop-nginx-demo \
@@ -158,6 +159,9 @@ axnoded-verify-docker-runc: ## Run axnoded privileged Docker verification agains
 
 axnoded-verify-docker-runc-debug: ## Run axnoded privileged Docker verification against runc with diagnostics
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runc-debug)
+
+axnoded-verify-docker-conformance: ## Run production cgroup and serialized runtime certification truth
+	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-conformance)
 
 axnoded-benchmark-startup-matrix: ## Run the axnoded startup quantile matrix benchmark
 	@$(call run_subsystem_make,$(AXNODED_DIR),benchmark-startup-matrix)

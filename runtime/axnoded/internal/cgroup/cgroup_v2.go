@@ -33,7 +33,10 @@ func (d *cgroupV2Driver) ResolveRoot(rootName string) (string, error) {
 	return normalizeGroup(path.Join(delegation, name)), nil
 }
 
-func (d *cgroupV2Driver) EnsureRoot(rootName string) error {
+func (d *cgroupV2Driver) EnsureRoot(rootName string, conformanceMemoryMaxBytes int64) error {
+	if conformanceMemoryMaxBytes <= 0 {
+		return fmt.Errorf("runtime conformance memory maximum must be positive")
+	}
 	rootName, err := d.ResolveRoot(rootName)
 	if err != nil {
 		return err
@@ -56,7 +59,23 @@ func (d *cgroupV2Driver) EnsureRoot(rootName string) error {
 	if err := stdos.MkdirAll(sandboxDir, 0755); err != nil {
 		return err
 	}
-	return d.enableControllers(sandboxDir)
+	if err := d.enableControllers(sandboxDir); err != nil {
+		return err
+	}
+	conformanceDir := path.Join(delegationDir, CgroupConformanceGroup)
+	if err := stdos.MkdirAll(conformanceDir, 0755); err != nil {
+		return err
+	}
+	for _, control := range []struct{ file, value string }{
+		{"memory.max", strconv.FormatInt(conformanceMemoryMaxBytes, 10)},
+		{"memory.swap.max", "0"},
+		{"memory.oom.group", "1"},
+	} {
+		if err := writeCgroupControl(path.Join(conformanceDir, control.file), control.value); err != nil {
+			return fmt.Errorf("configure runtime conformance %s: %w", control.file, err)
+		}
+	}
+	return d.enableControllers(conformanceDir)
 }
 
 func (d *cgroupV2Driver) Create(group string, resources *specs.LinuxResources) (Cgroup, error) {

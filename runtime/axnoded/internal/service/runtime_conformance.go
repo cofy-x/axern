@@ -35,7 +35,7 @@ const (
 	runtimeConformanceCleanup = 30 * time.Second
 	// Memory and ephemeral storage use separate sandboxes so one unavailable
 	// enforcement boundary cannot suppress evidence for the other.
-	runtimeConformanceMemoryLimit = 256 << 20
+	runtimeConformanceMemoryLimit = config.RuntimeConformanceMemoryMaxBytes
 	runtimeConformanceStorage     = 64 << 20
 )
 

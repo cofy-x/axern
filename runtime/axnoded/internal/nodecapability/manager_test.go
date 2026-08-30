@@ -292,6 +292,49 @@ func TestRuntimeProviderSerialLaneHonorsCancellationWhileQueued(t *testing.T) {
 	}
 }
 
+func TestRuntimeProvidersShareOneGlobalSerialLane(t *testing.T) {
+	var active, maximum atomic.Int32
+	observe := func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+		current := active.Add(1)
+		defer active.Add(-1)
+		for {
+			seen := maximum.Load()
+			if current <= seen || maximum.CompareAndSwap(seen, current) {
+				break
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+		return nil, nil
+	}
+	runcProvider := testProvider{
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST,
+		keys:     []*capabilityv1.CapabilityKey{capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)},
+		observe:  observe,
+	}
+	runscProvider := testProvider{
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
+		keys:     []*capabilityv1.CapabilityKey{capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST)},
+		observe:  observe,
+	}
+	manager, err := NewManager(runcProvider, runscProvider)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wait sync.WaitGroup
+	for _, provider := range []Provider{runcProvider, runscProvider} {
+		provider := provider
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			_, _ = manager.observeSafely(context.Background(), provider, time.Now().UTC())
+		}()
+	}
+	wait.Wait()
+	if maximum.Load() != 1 {
+		t.Fatalf("concurrent runtime certifications = %d, want 1", maximum.Load())
+	}
+}
+
 func TestSlowRuntimeProviderDoesNotBlockHealthPublication(t *testing.T) {
 	runtimeKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)
 	networkKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)

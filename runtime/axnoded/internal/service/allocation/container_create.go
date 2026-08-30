@@ -257,17 +257,19 @@ func (h *Controller) prepareContainerResources(ctx context.Context, traceID, run
 		resourceNames = []resourcemanager.ResourceName{}
 	}
 
+	ownerKind := cgroupLeaseOwnerKind(ctx)
+	memoryReservation := cgroupMemoryReservation(ctx, resourceSpec.GetRequests().GetMemoryBytes())
 	resource, err := h.containers().Occupy(resourcemanager.AllocateOption{
 		Context:            ctx,
 		ContainerID:        containerID,
 		EnvID:              envValue(envs, config.SandboxEnvKey),
 		TraceID:            traceID,
 		FunctionName:       envValue(envs, config.SandboxFunctionNameKey),
-		MemoryRequestBytes: resourceSpec.GetRequests().GetMemoryBytes(),
+		MemoryRequestBytes: memoryReservation,
 		MemoryLimitBytes:   resourceSpec.GetLimits().GetMemoryBytes(),
 		AllocationAttempt:  allocationAttempt,
 		RuntimeName:        runtimeName,
-		CgroupOwnerKind:    cgroupLeaseOwnerKind(ctx),
+		CgroupOwnerKind:    ownerKind,
 	}, resourceNames...)
 	if err != nil {
 		logrus.WithField(trace.ContextKeyTraceId, traceID).Errorf("occpuy resource failed: %v", err)
@@ -282,6 +284,17 @@ func cgroupLeaseOwnerKind(ctx context.Context) apipb.CgroupLeaseOwnerKind {
 		return apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE
 	}
 	return apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD
+}
+
+func cgroupMemoryReservation(ctx context.Context, requested int64) int64 {
+	if IsInternalConformance(ctx) {
+		// Every destructive self-test is charged the aggregate certification
+		// ceiling even when the behavior under test has no OCI memory limit.
+		// This keeps storage evidence independent from memory-limit evidence
+		// while admission still reserves the complete node-owned domain.
+		return config.RuntimeConformanceMemoryMaxBytes
+	}
+	return requested
 }
 
 func envValue(envs []*apipb.KeyValue, key string) string {

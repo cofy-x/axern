@@ -119,7 +119,7 @@ implementation details are covered in [Resource Handling](resource.md).
 | `interface_cache_size` | Idle interface target. | `0` disables the pool and is valid only when no loaded runtime requires interfaces; must not exceed `max_instance_num`. |
 | `cgroup_root_name` | Single child name created under axnoded's delegated cgroup-v2 root. | Defaults to `sandbox`. |
 | `max_instance_num` | Positive hard cap for using plus idle resources. | Must not exceed the container hard limit; exhaustion can also come from IP capacity. |
-| `memory_system_reserve_bytes` | Memory reserved for axnoded, lifecycle monitors, and node-local daemons outside sandbox cgroups. | Explicit positive qualification value is mandatory with `cgroup_enforcement = "required"`; `disabled_dev` must use zero because it has no enforceable internal cgroup accounting. There is intentionally no production default. |
+| `memory_system_reserve_bytes` | Memory reserved for axnoded, lifecycle monitors, node-local daemons, and the isolated runtime-certification cgroup outside sandbox capacity. | At least 256 MiB is mandatory with `cgroup_enforcement = "required"`; production qualification must add sufficient daemon headroom. `disabled_dev` must use zero because it has no enforceable internal cgroup accounting. There is intentionally no production default. |
 | `resource_pool_reconcile_interval` | Reconcile interval for filling warm pools. | Empty or non-positive falls back to `1s`. |
 
 Useful symptoms:

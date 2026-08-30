@@ -440,7 +440,7 @@ func (c ResourceConfig) CgroupRootNameValue() (string, error) {
 	if name == "" {
 		name = DefaultCgroupRoot
 	}
-	if name == "." || name == ".." || strings.ContainsAny(name, `/\\`) || name == "internal" || name == "workload" {
+	if name == "." || name == ".." || strings.ContainsAny(name, `/\\`) || name == "internal" || name == "workload" || name == "conformance" {
 		return "", fmt.Errorf("cgroup_root_name %q must be a non-reserved single child name", name)
 	}
 	return name, nil
