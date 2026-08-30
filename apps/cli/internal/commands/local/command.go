@@ -56,16 +56,26 @@ func manager(runtime command.Runtime, version string, cmd *cobra.Command) (*appl
 }
 
 func upCommand(runtime command.Runtime, version string) *cobra.Command {
-	var options applocal.UpOptions
+	options := applocal.UpOptions{ReadinessTimeout: applocal.DefaultReadinessTimeout}
 	cmd := &cobra.Command{Use: "up", Short: "Start the local Axern stack", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		if options.ReadinessTimeout <= 0 {
+			return command.Usage(fmt.Errorf("--wait-timeout must be positive"))
+		}
 		service, err := manager(runtime, version, cmd)
 		if err != nil {
 			return err
 		}
-		return service.Up(cmd.Context(), options)
+		ctx := cmd.Context()
+		cancel := func() {}
+		if runtime.Options != nil && runtime.Options.Timeout > 0 {
+			ctx, cancel = context.WithTimeout(ctx, runtime.Options.Timeout)
+		}
+		defer cancel()
+		return service.Up(ctx, options)
 	}}
 	cmd.Flags().StringVar(&options.Profile, "profile", "", "profile: default or observability; omitted preserves the current profile")
 	cmd.Flags().BoolVar(&options.Use, "use", false, "select the local context even when another context is active")
+	cmd.Flags().DurationVar(&options.ReadinessTimeout, "wait-timeout", options.ReadinessTimeout, "wait for fresh local capability certification; bounded by --timeout")
 	return cmd
 }
 

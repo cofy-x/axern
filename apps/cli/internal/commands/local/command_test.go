@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cofy-x/axern/apps/cli/internal/command"
 	applocal "github.com/cofy-x/axern/apps/cli/internal/localruntime"
@@ -26,6 +27,31 @@ func TestLocalLifecycleSurface(t *testing.T) {
 		if doctor.Flags().Lookup(name) == nil {
 			t.Fatalf("local doctor flag --%s is missing", name)
 		}
+	}
+	up, _, err := cmd.Find([]string{"up"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitTimeout := up.Flags().Lookup("wait-timeout")
+	if waitTimeout == nil {
+		t.Fatal("local up flag --wait-timeout is missing")
+	}
+	if waitTimeout.DefValue != applocal.DefaultReadinessTimeout.String() {
+		t.Fatalf("--wait-timeout default = %q, want %q", waitTimeout.DefValue, applocal.DefaultReadinessTimeout)
+	}
+}
+
+func TestLocalUpRejectsNonPositiveReadinessTimeout(t *testing.T) {
+	runtime := command.Runtime{Options: &command.Options{}}
+	cmd := upCommand(runtime, "1.2.3")
+	cmd.SetArgs([]string{"--wait-timeout", "0s"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "--wait-timeout must be positive") {
+		t.Fatalf("local up error = %v", err)
+	}
+
+	if applocal.DefaultReadinessTimeout <= 3*time.Minute {
+		t.Fatalf("default readiness timeout = %s, must cover serialized fresh-node certification", applocal.DefaultReadinessTimeout)
 	}
 }
 

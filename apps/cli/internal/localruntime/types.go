@@ -66,8 +66,9 @@ type DoctorOptions struct {
 }
 
 type UpOptions struct {
-	Profile string
-	Use     bool
+	Profile          string
+	Use              bool
+	ReadinessTimeout time.Duration
 }
 
 type LogOptions struct {
