@@ -1102,22 +1102,33 @@ type localNodeReadinessPayload struct {
 				} `json:"runtime_slots"`
 			} `json:"pools"`
 			CapabilitySnapshot struct {
-				Sequence     uint64 `json:"sequence"`
-				Observations []struct {
-					Key struct {
-						Kind struct {
-							Platform capabilityv1.PlatformCapability `json:"Platform"`
-						} `json:"Kind"`
-					} `json:"key"`
-					State      capabilityv1.CapabilityState `json:"state"`
-					ValidUntil *struct {
-						Seconds int64 `json:"seconds"`
-						Nanos   int32 `json:"nanos"`
-					} `json:"valid_until"`
-				} `json:"observations"`
+				Sequence     uint64                       `json:"sequence"`
+				Observations []localCapabilityObservation `json:"observations"`
 			} `json:"capability_snapshot"`
 		} `json:"summary"`
 	} `json:"nodes"`
+}
+
+type localCapabilityObservation struct {
+	Key struct {
+		Kind struct {
+			Platform capabilityv1.PlatformCapability `json:"Platform"`
+		} `json:"Kind"`
+	} `json:"key"`
+	State      capabilityv1.CapabilityState      `json:"state"`
+	Reason     string                            `json:"reason"`
+	ReasonCode capabilityv1.CapabilityReasonCode `json:"reason_code"`
+	ValidUntil *struct {
+		Seconds int64 `json:"seconds"`
+		Nanos   int32 `json:"nanos"`
+	} `json:"valid_until"`
+	Dependencies []struct {
+		Key struct {
+			Kind struct {
+				Platform capabilityv1.PlatformCapability `json:"Platform"`
+			} `json:"Kind"`
+		} `json:"key"`
+	} `json:"dependencies"`
 }
 
 func (m *Manager) nodeReadiness(ctx context.Context, client *http.Client, expectedNodeID string, requiredCapabilities []capabilityv1.PlatformCapability) (bool, string) {
@@ -1160,24 +1171,45 @@ func evaluateLocalNodeReadiness(payload localNodeReadinessPayload, expectedNodeI
 		if node.Summary.CapabilitySnapshot.Sequence == 0 {
 			return false, "local capability snapshot is warming"
 		}
-		available := make(map[capabilityv1.PlatformCapability]bool, len(node.Summary.CapabilitySnapshot.Observations))
+		observations := make(map[capabilityv1.PlatformCapability]localCapabilityObservation, len(node.Summary.CapabilitySnapshot.Observations))
 		for _, observation := range node.Summary.CapabilitySnapshot.Observations {
-			if observation.State != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
-				continue
-			}
-			if observation.ValidUntil != nil && !time.Unix(observation.ValidUntil.Seconds, int64(observation.ValidUntil.Nanos)).After(now) {
-				continue
-			}
-			available[observation.Key.Kind.Platform] = true
+			observations[observation.Key.Kind.Platform] = observation
 		}
 		for _, capability := range requiredCapabilities {
-			if !available[capability] {
-				return false, fmt.Sprintf("required local capability %s is warming or unavailable", capability.String())
+			observation, present := observations[capability]
+			if present && observation.State == capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
+				if observation.ValidUntil == nil || time.Unix(observation.ValidUntil.Seconds, int64(observation.ValidUntil.Nanos)).After(now) {
+					continue
+				}
+				return false, fmt.Sprintf("required local capability %s expired", capability.String())
 			}
+			return false, localCapabilityUnavailableReason(capability, observation, present, observations)
 		}
 		return true, ""
 	}
 	return false, fmt.Sprintf("local node %q is not registered", expectedNodeID)
+}
+
+func localCapabilityUnavailableReason(capability capabilityv1.PlatformCapability, observation localCapabilityObservation, present bool, observations map[capabilityv1.PlatformCapability]localCapabilityObservation) string {
+	prefix := fmt.Sprintf("required local capability %s is warming or unavailable", capability.String())
+	if !present {
+		return prefix
+	}
+	reason := strings.TrimSpace(observation.Reason)
+	for _, dependency := range observation.Dependencies {
+		candidate, ok := observations[dependency.Key.Kind.Platform]
+		if !ok || candidate.State == capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
+			continue
+		}
+		if dependencyReason := strings.TrimSpace(candidate.Reason); dependencyReason != "" {
+			reason = fmt.Sprintf("dependency %s: %s", dependency.Key.Kind.Platform.String(), dependencyReason)
+			break
+		}
+	}
+	if reason == "" {
+		return prefix
+	}
+	return prefix + ": " + reason
 }
 
 func (m *Manager) lock() (func(), error) {

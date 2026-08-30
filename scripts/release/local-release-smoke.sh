@@ -18,6 +18,17 @@ diagnostics() {
   done
   echo "--- local status ---" >&2
   AXERN_HOME="${smoke_root}" "${cli}" --config "${smoke_root}/config.json" --timeout 30s local status >&2 || true
+  echo "--- local capability snapshot ---" >&2
+  curl --fail --silent --show-error --max-time 10 http://127.0.0.1:24101/nodesz >&2 || true
+  echo >&2
+  node_container="$(docker ps \
+    --filter label=com.docker.compose.project=axern-local \
+    --filter label=com.docker.compose.service=node \
+    --format '{{.ID}}' | head -n 1)"
+  if [[ -n "${node_container}" ]]; then
+    echo "--- axnoded log ---" >&2
+    docker exec "${node_container}" sh -c 'tail -n 500 /var/log/axnoded/axnoded.log' >&2 || true
+  fi
   echo "--- local logs ---" >&2
   AXERN_HOME="${smoke_root}" "${cli}" --config "${smoke_root}/config.json" --timeout 30s local logs --tail 200 >&2 || true
 }
