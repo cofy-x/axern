@@ -93,6 +93,50 @@ type NodeOperatorService interface {
 	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error)
 	NetworkForSandbox(containerID string) (*SandboxNetwork, error)
 	SandboxdDiagnostics(ctx context.Context, containerID string, full bool) (SandboxdDiagnostics, error)
+	NetworkPolicyDiagnostics(context.Context, string) NetworkPolicyDiagnostics
+}
+
+type NetworkPolicyMode string
+
+const (
+	NetworkPolicyModeUnrestricted NetworkPolicyMode = "unrestricted"
+	NetworkPolicyModeDNSDeny      NetworkPolicyMode = "dns_deny"
+	NetworkPolicyModeStrict       NetworkPolicyMode = "strict"
+)
+
+type NetworkPolicyStatus string
+
+const (
+	NetworkPolicyStatusOK                    NetworkPolicyStatus = "ok"
+	NetworkPolicyStatusAbsent                NetworkPolicyStatus = "absent"
+	NetworkPolicyStatusCapabilityUnavailable NetworkPolicyStatus = "capability_unavailable"
+	NetworkPolicyStatusEnforcementUnhealthy  NetworkPolicyStatus = "enforcement_unhealthy"
+	NetworkPolicyStatusProofStale            NetworkPolicyStatus = "proof_stale"
+)
+
+type NetworkPolicyCapabilityState string
+
+const (
+	NetworkPolicyCapabilityAvailable   NetworkPolicyCapabilityState = "available"
+	NetworkPolicyCapabilityUnavailable NetworkPolicyCapabilityState = "unavailable"
+	NetworkPolicyCapabilityUnknown     NetworkPolicyCapabilityState = "unknown"
+	NetworkPolicyCapabilityNotRequired NetworkPolicyCapabilityState = "not_required"
+)
+
+type NetworkPolicyDiagnostics struct {
+	Mode                  NetworkPolicyMode
+	Status                NetworkPolicyStatus
+	CapabilityState       NetworkPolicyCapabilityState
+	EnforcementHealthy    bool
+	ExactProof            bool
+	AllocationAttempt     int64
+	ExecutionRevision     int64
+	EnforcementRevision   int64
+	DomainRuleCount       uint32
+	CIDRRuleCount         uint32
+	PortRangeCount        uint32
+	TotalRuleCount        uint32
+	RecoveredAfterRestart bool
 }
 
 type SandboxNetwork struct {

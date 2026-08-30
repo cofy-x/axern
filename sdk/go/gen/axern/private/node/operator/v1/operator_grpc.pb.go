@@ -19,16 +19,17 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	NodeOperator_ListSandboxes_FullMethodName         = "/axern.private.node.operator.v1.NodeOperator/ListSandboxes"
-	NodeOperator_GetSandbox_FullMethodName            = "/axern.private.node.operator.v1.NodeOperator/GetSandbox"
-	NodeOperator_GetSandboxDiagnostics_FullMethodName = "/axern.private.node.operator.v1.NodeOperator/GetSandboxDiagnostics"
-	NodeOperator_GetSandboxMemory_FullMethodName      = "/axern.private.node.operator.v1.NodeOperator/GetSandboxMemory"
-	NodeOperator_DeleteSandbox_FullMethodName         = "/axern.private.node.operator.v1.NodeOperator/DeleteSandbox"
-	NodeOperator_KillSandbox_FullMethodName           = "/axern.private.node.operator.v1.NodeOperator/KillSandbox"
-	NodeOperator_Exec_FullMethodName                  = "/axern.private.node.operator.v1.NodeOperator/Exec"
-	NodeOperator_ExecStream_FullMethodName            = "/axern.private.node.operator.v1.NodeOperator/ExecStream"
-	NodeOperator_WaitSandbox_FullMethodName           = "/axern.private.node.operator.v1.NodeOperator/WaitSandbox"
-	NodeOperator_ResolveSandboxNetwork_FullMethodName = "/axern.private.node.operator.v1.NodeOperator/ResolveSandboxNetwork"
+	NodeOperator_ListSandboxes_FullMethodName               = "/axern.private.node.operator.v1.NodeOperator/ListSandboxes"
+	NodeOperator_GetSandbox_FullMethodName                  = "/axern.private.node.operator.v1.NodeOperator/GetSandbox"
+	NodeOperator_GetSandboxDiagnostics_FullMethodName       = "/axern.private.node.operator.v1.NodeOperator/GetSandboxDiagnostics"
+	NodeOperator_GetSandboxMemory_FullMethodName            = "/axern.private.node.operator.v1.NodeOperator/GetSandboxMemory"
+	NodeOperator_ExplainSandboxNetworkPolicy_FullMethodName = "/axern.private.node.operator.v1.NodeOperator/ExplainSandboxNetworkPolicy"
+	NodeOperator_DeleteSandbox_FullMethodName               = "/axern.private.node.operator.v1.NodeOperator/DeleteSandbox"
+	NodeOperator_KillSandbox_FullMethodName                 = "/axern.private.node.operator.v1.NodeOperator/KillSandbox"
+	NodeOperator_Exec_FullMethodName                        = "/axern.private.node.operator.v1.NodeOperator/Exec"
+	NodeOperator_ExecStream_FullMethodName                  = "/axern.private.node.operator.v1.NodeOperator/ExecStream"
+	NodeOperator_WaitSandbox_FullMethodName                 = "/axern.private.node.operator.v1.NodeOperator/WaitSandbox"
+	NodeOperator_ResolveSandboxNetwork_FullMethodName       = "/axern.private.node.operator.v1.NodeOperator/ResolveSandboxNetwork"
 )
 
 // NodeOperatorClient is the client API for NodeOperator service.
@@ -39,6 +40,7 @@ type NodeOperatorClient interface {
 	GetSandbox(ctx context.Context, in *GetSandboxRequest, opts ...grpc.CallOption) (*GetSandboxResponse, error)
 	GetSandboxDiagnostics(ctx context.Context, in *GetSandboxDiagnosticsRequest, opts ...grpc.CallOption) (*GetSandboxDiagnosticsResponse, error)
 	GetSandboxMemory(ctx context.Context, in *GetSandboxMemoryRequest, opts ...grpc.CallOption) (*GetSandboxMemoryResponse, error)
+	ExplainSandboxNetworkPolicy(ctx context.Context, in *ExplainSandboxNetworkPolicyRequest, opts ...grpc.CallOption) (*ExplainSandboxNetworkPolicyResponse, error)
 	DeleteSandbox(ctx context.Context, in *DeleteSandboxRequest, opts ...grpc.CallOption) (*DeleteSandboxResponse, error)
 	KillSandbox(ctx context.Context, in *KillSandboxRequest, opts ...grpc.CallOption) (*KillSandboxResponse, error)
 	Exec(ctx context.Context, in *ExecRequest, opts ...grpc.CallOption) (*ExecResponse, error)
@@ -85,6 +87,15 @@ func (c *nodeOperatorClient) GetSandboxDiagnostics(ctx context.Context, in *GetS
 func (c *nodeOperatorClient) GetSandboxMemory(ctx context.Context, in *GetSandboxMemoryRequest, opts ...grpc.CallOption) (*GetSandboxMemoryResponse, error) {
 	out := new(GetSandboxMemoryResponse)
 	err := c.cc.Invoke(ctx, NodeOperator_GetSandboxMemory_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeOperatorClient) ExplainSandboxNetworkPolicy(ctx context.Context, in *ExplainSandboxNetworkPolicyRequest, opts ...grpc.CallOption) (*ExplainSandboxNetworkPolicyResponse, error) {
+	out := new(ExplainSandboxNetworkPolicyResponse)
+	err := c.cc.Invoke(ctx, NodeOperator_ExplainSandboxNetworkPolicy_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -175,6 +186,7 @@ type NodeOperatorServer interface {
 	GetSandbox(context.Context, *GetSandboxRequest) (*GetSandboxResponse, error)
 	GetSandboxDiagnostics(context.Context, *GetSandboxDiagnosticsRequest) (*GetSandboxDiagnosticsResponse, error)
 	GetSandboxMemory(context.Context, *GetSandboxMemoryRequest) (*GetSandboxMemoryResponse, error)
+	ExplainSandboxNetworkPolicy(context.Context, *ExplainSandboxNetworkPolicyRequest) (*ExplainSandboxNetworkPolicyResponse, error)
 	DeleteSandbox(context.Context, *DeleteSandboxRequest) (*DeleteSandboxResponse, error)
 	KillSandbox(context.Context, *KillSandboxRequest) (*KillSandboxResponse, error)
 	Exec(context.Context, *ExecRequest) (*ExecResponse, error)
@@ -199,6 +211,9 @@ func (UnimplementedNodeOperatorServer) GetSandboxDiagnostics(context.Context, *G
 }
 func (UnimplementedNodeOperatorServer) GetSandboxMemory(context.Context, *GetSandboxMemoryRequest) (*GetSandboxMemoryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSandboxMemory not implemented")
+}
+func (UnimplementedNodeOperatorServer) ExplainSandboxNetworkPolicy(context.Context, *ExplainSandboxNetworkPolicyRequest) (*ExplainSandboxNetworkPolicyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExplainSandboxNetworkPolicy not implemented")
 }
 func (UnimplementedNodeOperatorServer) DeleteSandbox(context.Context, *DeleteSandboxRequest) (*DeleteSandboxResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSandbox not implemented")
@@ -299,6 +314,24 @@ func _NodeOperator_GetSandboxMemory_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeOperatorServer).GetSandboxMemory(ctx, req.(*GetSandboxMemoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeOperator_ExplainSandboxNetworkPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExplainSandboxNetworkPolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeOperatorServer).ExplainSandboxNetworkPolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeOperator_ExplainSandboxNetworkPolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeOperatorServer).ExplainSandboxNetworkPolicy(ctx, req.(*ExplainSandboxNetworkPolicyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -441,6 +474,10 @@ var NodeOperator_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSandboxMemory",
 			Handler:    _NodeOperator_GetSandboxMemory_Handler,
+		},
+		{
+			MethodName: "ExplainSandboxNetworkPolicy",
+			Handler:    _NodeOperator_ExplainSandboxNetworkPolicy_Handler,
 		},
 		{
 			MethodName: "DeleteSandbox",

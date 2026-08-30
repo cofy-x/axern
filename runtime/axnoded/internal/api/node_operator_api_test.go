@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,9 +37,13 @@ type fakeNodeOperatorService struct {
 	diagnosticsFull      bool
 	inventory            nodeinventory.NodeInventorySnapshot
 	inventoryReady       bool
+	networkPolicy        service.NetworkPolicyDiagnostics
 }
 
 func (f *fakeNodeOperatorService) ManagedAllocationAttempt(string) (int64, bool) { return 1, true }
+func (f *fakeNodeOperatorService) NetworkPolicyDiagnostics(context.Context, string) service.NetworkPolicyDiagnostics {
+	return f.networkPolicy
+}
 
 func (f *fakeNodeOperatorService) Run(context.Context) error      { return nil }
 func (f *fakeNodeOperatorService) Shutdown(context.Context) error { return nil }
@@ -399,6 +404,34 @@ func TestNodeOperatorSandboxDiagnosticsBridgesSandboxdSnapshot(t *testing.T) {
 	}
 	if resp.GetRawJson() == "" || resp.GetGeneratedAt() == nil {
 		t.Fatalf("diagnostics raw/generated missing: %#v", resp)
+	}
+}
+
+func TestNodeOperatorNetworkPolicyDiagnosticsAreBoundedAndPrivacySafe(t *testing.T) {
+	t.Parallel()
+	fakeService := &fakeNodeOperatorService{networkPolicy: service.NetworkPolicyDiagnostics{
+		Mode: service.NetworkPolicyModeStrict, Status: service.NetworkPolicyStatusOK,
+		CapabilityState: service.NetworkPolicyCapabilityAvailable, EnforcementHealthy: true, ExactProof: true,
+		AllocationAttempt: 2, ExecutionRevision: 7, EnforcementRevision: 11,
+		DomainRuleCount: 3, CIDRRuleCount: 2, PortRangeCount: 4, TotalRuleCount: 5, RecoveredAfterRestart: true,
+	}}
+	server := NewNodeOperatorServer(fakeService, NewAllocationTargetRegistry())
+	response, err := server.ExplainSandboxNetworkPolicy(context.Background(), &nodeoperatorv1.ExplainSandboxNetworkPolicyRequest{SandboxID: "sandbox-123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.GetMode() != nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_STRICT ||
+		response.GetStatus() != nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_OK ||
+		!response.GetExactProof() || response.GetTotalRuleCount() != 5 || !response.GetRecoveredAfterRestart() {
+		t.Fatalf("network policy diagnostics = %#v", response)
+	}
+	for index := range response.ProtoReflect().Descriptor().Fields().Len() {
+		name := string(response.ProtoReflect().Descriptor().Fields().Get(index).Name())
+		for _, forbidden := range []string{"domain_name", "host", "sni", "remote_ip", "cidr_value", "policy_digest", "raw"} {
+			if strings.Contains(name, forbidden) {
+				t.Fatalf("privacy-sensitive field %q entered operator diagnostics", name)
+			}
+		}
 	}
 }
 

@@ -77,6 +77,85 @@ func (s *nodeOperatorServer) GetSandboxMemory(_ context.Context, req *nodeoperat
 	return &nodeoperatorv1.GetSandboxMemoryResponse{Observation: observation}, nil
 }
 
+func (s *nodeOperatorServer) ExplainSandboxNetworkPolicy(ctx context.Context, req *nodeoperatorv1.ExplainSandboxNetworkPolicyRequest) (*nodeoperatorv1.ExplainSandboxNetworkPolicyResponse, error) {
+	if req.GetSandboxID() == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
+	}
+	targetID := s.targets.resolve(req.GetSandboxID())
+	listed, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: targetID})
+	if err != nil {
+		return nil, err
+	}
+	if len(listed.GetContainers()) == 0 {
+		return nil, grpcstatus.Errorf(codes.NotFound, "sandbox %q not found", req.GetSandboxID())
+	}
+	return localNetworkPolicyDiagnostics(req.GetSandboxID(), s.svc.NetworkPolicyDiagnostics(ctx, targetID)), nil
+}
+
+func localNetworkPolicyDiagnostics(sandboxID string, diagnostics service.NetworkPolicyDiagnostics) *nodeoperatorv1.ExplainSandboxNetworkPolicyResponse {
+	return &nodeoperatorv1.ExplainSandboxNetworkPolicyResponse{
+		SandboxID:             sandboxID,
+		Mode:                  localNetworkPolicyMode(diagnostics.Mode),
+		Status:                localNetworkPolicyStatus(diagnostics.Status),
+		CapabilityState:       localNetworkPolicyCapabilityState(diagnostics.CapabilityState),
+		EnforcementHealthy:    diagnostics.EnforcementHealthy,
+		ExactProof:            diagnostics.ExactProof,
+		AllocationAttempt:     diagnostics.AllocationAttempt,
+		ExecutionRevision:     diagnostics.ExecutionRevision,
+		EnforcementRevision:   diagnostics.EnforcementRevision,
+		DomainRuleCount:       diagnostics.DomainRuleCount,
+		CidrRuleCount:         diagnostics.CIDRRuleCount,
+		PortRangeCount:        diagnostics.PortRangeCount,
+		TotalRuleCount:        diagnostics.TotalRuleCount,
+		RecoveredAfterRestart: diagnostics.RecoveredAfterRestart,
+	}
+}
+
+func localNetworkPolicyMode(mode service.NetworkPolicyMode) nodeoperatorv1.SandboxNetworkPolicyMode {
+	switch mode {
+	case service.NetworkPolicyModeUnrestricted:
+		return nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_UNRESTRICTED
+	case service.NetworkPolicyModeDNSDeny:
+		return nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_DNS_DENY
+	case service.NetworkPolicyModeStrict:
+		return nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_STRICT
+	default:
+		return nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_UNSPECIFIED
+	}
+}
+
+func localNetworkPolicyStatus(status service.NetworkPolicyStatus) nodeoperatorv1.SandboxNetworkPolicyStatus {
+	switch status {
+	case service.NetworkPolicyStatusOK:
+		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_OK
+	case service.NetworkPolicyStatusAbsent:
+		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_ABSENT
+	case service.NetworkPolicyStatusCapabilityUnavailable:
+		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_CAPABILITY_UNAVAILABLE
+	case service.NetworkPolicyStatusEnforcementUnhealthy:
+		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_ENFORCEMENT_UNHEALTHY
+	case service.NetworkPolicyStatusProofStale:
+		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_PROOF_STALE
+	default:
+		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_UNSPECIFIED
+	}
+}
+
+func localNetworkPolicyCapabilityState(state service.NetworkPolicyCapabilityState) nodeoperatorv1.SandboxNetworkPolicyCapabilityState {
+	switch state {
+	case service.NetworkPolicyCapabilityAvailable:
+		return nodeoperatorv1.SandboxNetworkPolicyCapabilityState_SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_AVAILABLE
+	case service.NetworkPolicyCapabilityUnavailable:
+		return nodeoperatorv1.SandboxNetworkPolicyCapabilityState_SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_UNAVAILABLE
+	case service.NetworkPolicyCapabilityUnknown:
+		return nodeoperatorv1.SandboxNetworkPolicyCapabilityState_SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_UNKNOWN
+	case service.NetworkPolicyCapabilityNotRequired:
+		return nodeoperatorv1.SandboxNetworkPolicyCapabilityState_SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_NOT_REQUIRED
+	default:
+		return nodeoperatorv1.SandboxNetworkPolicyCapabilityState_SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_UNSPECIFIED
+	}
+}
+
 func (s *nodeOperatorServer) latestAllocationMemoryObservation(containerID string) *controlnodev1.AllocationMemoryObservation {
 	snapshot, ready := s.svc.NodeInventory()
 	if !ready {
