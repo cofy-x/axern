@@ -422,19 +422,22 @@ VOLUMED_PID=$!
   -socket "${EGRESSD_SOCKET}" &
 EGRESSD_PID=$!
 
+stop_child() {
+  local pid="${1:-}"
+  if [[ ! "${pid}" =~ ^[1-9][0-9]*$ ]]; then
+    return 0
+  fi
+  kill "${pid}" >/dev/null 2>&1 || true
+  wait "${pid}" >/dev/null 2>&1 || true
+}
+
 cleanup() {
-  kill "${NODE_TUNNELD_SUPERVISOR_PID:-0}" >/dev/null 2>&1 || true
-  kill "${AXNODED_PID:-0}" >/dev/null 2>&1 || true
-  kill "${VOLUMED_PID:-0}" >/dev/null 2>&1 || true
-  kill "${EGRESSD_PID:-0}" >/dev/null 2>&1 || true
-  kill "${IMAGEMGR_PID:-0}" >/dev/null 2>&1 || true
-  kill "${IMAGEFSD_PID:-0}" >/dev/null 2>&1 || true
-  wait "${NODE_TUNNELD_SUPERVISOR_PID:-0}" >/dev/null 2>&1 || true
-  wait "${AXNODED_PID:-0}" >/dev/null 2>&1 || true
-  wait "${VOLUMED_PID:-0}" >/dev/null 2>&1 || true
-  wait "${EGRESSD_PID:-0}" >/dev/null 2>&1 || true
-  wait "${IMAGEMGR_PID:-0}" >/dev/null 2>&1 || true
-  wait "${IMAGEFSD_PID:-0}" >/dev/null 2>&1 || true
+  stop_child "${NODE_TUNNELD_SUPERVISOR_PID:-}"
+  stop_child "${AXNODED_PID:-}"
+  stop_child "${VOLUMED_PID:-}"
+  stop_child "${EGRESSD_PID:-}"
+  stop_child "${IMAGEMGR_PID:-}"
+  stop_child "${IMAGEFSD_PID:-}"
 }
 trap cleanup EXIT
 

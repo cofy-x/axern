@@ -9,11 +9,13 @@ FROM ${GO_IMAGE} AS axnoded-verify-builder
 WORKDIR /workspace
 
 COPY runtime/axnoded/go.mod runtime/axnoded/go.sum /workspace/runtime/axnoded/
+COPY runtime/egressd/go.mod runtime/egressd/go.sum /workspace/runtime/egressd/
 COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
 COPY lib/go/agentbundle/go.mod /workspace/lib/go/agentbundle/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
 COPY lib/go/llmproxy/go.mod /workspace/lib/go/llmproxy/go.mod
+COPY lib/go/networkpolicy/go.mod lib/go/networkpolicy/go.sum /workspace/lib/go/networkpolicy/
 COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
@@ -25,19 +27,24 @@ use (
 	./lib/go/grpcclient
 	./lib/go/imageref
 	./lib/go/llmproxy
+	./lib/go/networkpolicy
 	./lib/go/nodecapability
 	./lib/go/observability
 	./network/bpfnet
 	./runtime/axnoded
+	./runtime/egressd
 	./sdk/go
 )
 EOF
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     cd /workspace/runtime/axnoded && \
+    GOTOOLCHAIN=local GOFLAGS= go mod download && \
+    cd /workspace/runtime/egressd && \
     GOTOOLCHAIN=local GOFLAGS= go mod download
 
 COPY runtime/axnoded/ /workspace/runtime/axnoded/
+COPY runtime/egressd/ /workspace/runtime/egressd/
 COPY network/bpfnet/ /workspace/network/bpfnet/
 COPY lib/go/ /workspace/lib/go/
 COPY sdk/go/ /workspace/sdk/go/
@@ -48,12 +55,17 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/verify-cli ./cmd/verify-cli && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/verify-startup ./cmd/verify-startup && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-egress ./cmd/verify-egress && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/network-policy-probe ./cmd/network-policy-probe && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/network-policy-fixture ./cmd/network-policy-fixture && \
+    GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-network-policy-qualification ./cmd/verify-network-policy-qualification && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-smoke ./cmd/verify-smoke && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-sandboxd-oci ./cmd/verify-sandboxd-oci && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axern-sandboxd ./cmd/axern-sandboxd && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-nginx ./cmd/verify-nginx && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/verify-udp ./cmd/verify-udp && \
+    cd /workspace/runtime/egressd && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egressd-qualify ./cmd/egressd-qualify && \
     cd /workspace/network/bpfnet && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/bpfnetctl ./cmd/bpfnetctl
 
@@ -157,6 +169,13 @@ WORKDIR /workspace
 COPY --from=axnoded-verify-builder /out/verify-cli /usr/local/bin/verify-cli
 COPY --from=axnoded-verify-builder /out/verify-startup /usr/local/bin/verify-startup
 COPY --from=axnoded-verify-builder /out/verify-egress /usr/local/bin/verify-egress
+COPY --from=axnoded-verify-builder /out/network-policy-probe /usr/local/libexec/axnoded/network-policy-probe
+COPY --from=axnoded-verify-builder /out/network-policy-fixture /usr/local/bin/network-policy-fixture
+COPY --from=axnoded-verify-builder /out/verify-network-policy-qualification /usr/local/bin/verify-network-policy-qualification
+COPY --from=axnoded-verify-builder /out/egressd-qualify /usr/local/bin/egressd-qualify
+COPY runtime/egressd/scripts/qualification-matrix.sh /workspace/qualification/scripts/qualification-matrix.sh
+COPY runtime/egressd/qualification/budget.json /workspace/qualification/qualification/budget.json
+COPY runtime/axnoded/scripts/qualification/ /workspace/scripts/qualification/
 COPY --from=axnoded-verify-builder /out/verify-smoke /usr/local/bin/verify-smoke
 COPY --from=axnoded-verify-builder /out/verify-sandboxd-oci /usr/local/bin/verify-sandboxd-oci
 COPY --from=axnoded-verify-builder /out/axern-sandboxd /usr/local/libexec/axnoded/axern-sandboxd

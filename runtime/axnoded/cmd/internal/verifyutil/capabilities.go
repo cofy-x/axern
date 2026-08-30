@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/networkpolicy"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
@@ -35,6 +36,11 @@ func prepareCapabilityDependencies(ctx context.Context, clients *NodeClients, sp
 		return nil, fmt.Errorf("resolved execution config is required")
 	}
 	prepared := proto.Clone(spec).(*privatenodev1.ResolvedExecutionConfig)
+	normalizedNetwork, err := networkpolicy.Normalize(prepared.GetNetwork())
+	if err != nil {
+		return nil, fmt.Errorf("normalize network policy: %w", err)
+	}
+	prepared.Network = normalizedNetwork
 	if len(prepared.GetCapabilityDependencies()) != 0 {
 		return prepared, nil
 	}
@@ -57,16 +63,19 @@ func prepareCapabilityDependencies(ctx context.Context, clients *NodeClients, sp
 		return nil, err
 	}
 	resources := prepared.GetResources()
+	requiresDNSPolicy, requiresStrictPolicy := policyCapabilityRequirements(normalizedNetwork)
 	requirements, err := capabilitycontract.DeriveRequirements(capabilitycontract.RequirementInput{
-		RuntimeName:                 prepared.GetRuntimeClass(),
-		HasPorts:                    len(prepared.GetPorts()) > 0,
-		NetworkMode:                 networkMode(prepared.GetNetwork()),
-		NetworkBackend:              backend,
-		MemoryLimitBytes:            resources.GetLimits().GetMemoryBytes(),
-		RootfsWritable:              !prepared.GetRootfsReadonly(),
-		EphemeralStorageLimitBytes:  resources.GetLimits().GetEphemeralStorageBytes(),
-		EROFSBacking:                erofs,
-		ExtensionCapabilityRequests: prepared.GetExtensionCapabilityRequirements(),
+		RuntimeName:                     prepared.GetRuntimeClass(),
+		HasPorts:                        len(prepared.GetPorts()) > 0,
+		NetworkMode:                     networkMode(normalizedNetwork),
+		NetworkBackend:                  backend,
+		RequiresDNSPolicyEnforcement:    requiresDNSPolicy,
+		RequiresStrictEgressEnforcement: requiresStrictPolicy,
+		MemoryLimitBytes:                resources.GetLimits().GetMemoryBytes(),
+		RootfsWritable:                  !prepared.GetRootfsReadonly(),
+		EphemeralStorageLimitBytes:      resources.GetLimits().GetEphemeralStorageBytes(),
+		EROFSBacking:                    erofs,
+		ExtensionCapabilityRequests:     prepared.GetExtensionCapabilityRequirements(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("derive requirements: %w", err)
@@ -77,6 +86,12 @@ func prepareCapabilityDependencies(ctx context.Context, clients *NodeClients, sp
 	}
 	prepared.CapabilityDependencies = dependencies
 	return prepared, nil
+}
+
+func policyCapabilityRequirements(network *commonv1.NetworkSpec) (dns, strict bool) {
+	mode := networkpolicy.Mode(network)
+	return mode == networkpolicy.EnforcementDNSDeny,
+		mode == networkpolicy.EnforcementStrict && networkpolicy.StrictNeedsEgressd(network)
 }
 
 func waitForNodeInventory(ctx context.Context, client *http.Client, inventoryURL string) (nodeinventory.NodeInventorySnapshot, error) {

@@ -32,3 +32,22 @@ func listenTransparentUDP(port int) ([]*net.UDPConn, error) {
 	}
 	return []*net.UDPConn{packet.(*net.UDPConn)}, nil
 }
+
+func readTransparentUDP(conn *net.UDPConn, payload, _ []byte) (int, *net.UDPAddr, netip.AddrPort, error) {
+	n, source, err := conn.ReadFromUDP(payload)
+	if err != nil {
+		return 0, nil, netip.AddrPort{}, err
+	}
+	local, _ := netip.ParseAddrPort(conn.LocalAddr().String())
+	return n, source, local, nil
+}
+
+func writeTransparentUDPResponse(_ netip.AddrPort, destination *net.UDPAddr, payload []byte) error {
+	conn, err := net.DialUDP("udp", nil, destination)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	_, err = conn.Write(payload)
+	return err
+}

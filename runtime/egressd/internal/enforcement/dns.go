@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"os"
 	"strings"
 	"time"
 
@@ -29,8 +30,9 @@ type dnsCNAMEAnswer struct {
 
 func (e *Engine) serveDNSUDP(ctxDone interface{ Done() <-chan struct{} }, listener *net.UDPConn) {
 	buffer := make([]byte, dnsforward.MaxDNSMessageBytes)
+	oob := make([]byte, 256)
 	for {
-		n, source, err := listener.ReadFromUDP(buffer)
+		n, source, destination, err := readTransparentUDP(listener, buffer, oob)
 		if err != nil {
 			select {
 			case <-ctxDone.Done():
@@ -45,8 +47,12 @@ func (e *Engine) serveDNSUDP(ctxDone interface{ Done() <-chan struct{} }, listen
 			go func() {
 				defer func() { <-e.sem }()
 				response, err := e.resolveDNS(sourceIP(source), query, false)
-				if err == nil {
-					_, _ = listener.WriteToUDP(response, source)
+				if err != nil {
+					e.dnsResolveFailureOnce.Do(func() { fmt.Fprintln(os.Stderr, "egressd_dns_udp_resolve_failure=true") })
+					return
+				}
+				if err := writeTransparentUDPResponse(destination, source, response); err != nil {
+					e.dnsResponseFailureOnce.Do(func() { fmt.Fprintln(os.Stderr, "egressd_dns_udp_response_failure=true") })
 				}
 			}()
 		default:

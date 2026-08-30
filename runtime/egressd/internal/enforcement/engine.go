@@ -36,6 +36,9 @@ type Engine struct {
 	servers  []io.Closer
 	metrics  *obs.Metrics
 	now      func() time.Time
+
+	dnsResolveFailureOnce  sync.Once
+	dnsResponseFailureOnce sync.Once
 }
 
 func NewEngine() *Engine {

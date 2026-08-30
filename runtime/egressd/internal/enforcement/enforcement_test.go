@@ -103,7 +103,7 @@ func TestRenderNFTSeparatesDNSOnlyAndStrictPolicies(t *testing.T) {
 		t.Fatalf("RenderNFT() error = %v", err)
 	}
 	script := string(wire)
-	for _, expected := range []string{"10.0.0.2 udp dport 53", "10.0.0.3 tcp dport 443", "192.0.2.0/24 tcp dport 22 accept", "10.0.0.3 drop", "meta mark set 0xa6e1 tproxy ip to 0.0.0.0:1080 accept", "10.0.0.3 tcp dport 80 drop"} {
+	for _, expected := range []string{"10.0.0.2 udp dport 53", "10.0.0.3 tcp dport 443", "192.0.2.0/24 tcp dport 22 accept", "10.0.0.3 drop", "tproxy ip to :1080 meta mark set 0xa6e1 accept", "10.0.0.3 tcp dport 80 drop"} {
 		if !strings.Contains(script, expected) {
 			t.Fatalf("nft script missing %q:\n%s", expected, script)
 		}

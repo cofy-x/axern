@@ -231,15 +231,8 @@ func writeTProxy(out *strings.Builder, family, source, protocol string, destinat
 	// TPROXY is non-terminal. If no matching transparent socket is alive, nft
 	// continues to the following rule, which makes daemon loss fail closed in
 	// prerouting instead of allowing a host wildcard service to receive traffic.
-	writeManagedRule(out, "%s saddr %s %s dport %d counter meta mark set 0x%x tproxy %s to %s accept", family, source, protocol, destinationPort, policyMark, family, proxyBindAddress(family, proxyPort))
+	writeManagedRule(out, "%s saddr %s %s dport %d counter tproxy %s to :%d meta mark set 0x%x accept", family, source, protocol, destinationPort, family, proxyPort, policyMark)
 	writeManagedRule(out, "%s saddr %s %s dport %d drop", family, source, protocol, destinationPort)
-}
-
-func proxyBindAddress(family string, port int) string {
-	if family == "ip6" {
-		return fmt.Sprintf("[::]:%d", port)
-	}
-	return fmt.Sprintf("0.0.0.0:%d", port)
 }
 
 func configurePolicyRouting(ctx context.Context) error {

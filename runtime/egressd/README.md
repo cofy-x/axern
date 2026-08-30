@@ -37,3 +37,8 @@ start, reconciles active proofs after restart, and uses its existing fail-stop
 capability-loss path if enforcement disappears. Telemetry exposes only mode,
 action, protocol, result, latency, rule count, and allocation ID; query names,
 Host, SNI, remote addresses, and full policy values are not dimensions.
+
+Performance and sustained-reliability evidence is produced by the separate
+[sandbox network-policy qualification](docs/qualification.md). Its full
+runc/runsc, bridge/ebpf, and IPv4/IPv6 matrix uses immutable environment
+provenance and relative budgets; correctness tests never depend on host timing.
