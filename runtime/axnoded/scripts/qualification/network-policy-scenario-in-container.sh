@@ -107,8 +107,11 @@ if [ "${ip_family}" = ipv4 ]; then
   ip netns exec "${fixture_ns}" ip route add default via "${fixture_host_ip}"
   sysctl -qw net.ipv4.ip_forward=1
 else
-  ip -6 addr add "${fixture_host_ip}/64" dev "${fixture_host_dev}"
-  ip netns exec "${fixture_ns}" ip -6 addr add "${fixture_ip}/64" dev "${fixture_peer_dev}"
+  # These documentation-range addresses exist only for the disposable fixture.
+  # Skip duplicate-address detection so the listener cannot race a tentative
+  # address on freshly-created veth devices.
+  ip -6 addr add "${fixture_host_ip}/64" dev "${fixture_host_dev}" nodad
+  ip netns exec "${fixture_ns}" ip -6 addr add "${fixture_ip}/64" dev "${fixture_peer_dev}" nodad
   ip netns exec "${fixture_ns}" ip -6 route add default via "${fixture_host_ip}"
   sysctl -qw net.ipv6.conf.all.forwarding=1
 fi
