@@ -483,6 +483,18 @@ type BPFNetConfig struct {
 	IptablesFallback bool `toml:"iptables_fallback" json:"iptablesFallback"`
 }
 
+// CapabilityBackend returns the effective dataplane identity published to
+// workload placement. Native bpfnet is IPv4-only, so an IPv6 pool selected
+// with the ebpf configuration is truthfully represented by its bridge
+// compatibility backend.
+func (c NetworkConfig) CapabilityBackend() string {
+	prefix, err := netip.ParsePrefix(strings.TrimSpace(c.IPRange))
+	if err == nil && prefix.Addr().Is6() && strings.EqualFold(strings.TrimSpace(c.NatBackend), NatBackendEBPF) {
+		return NatBackendIptables
+	}
+	return strings.ToLower(strings.TrimSpace(c.NatBackend))
+}
+
 // Normalized returns the exact network configuration consumed by the runtime
 // and capability evidence. It canonicalizes semantically unordered sets and
 // effective duration values so evidence identity changes only when dataplane

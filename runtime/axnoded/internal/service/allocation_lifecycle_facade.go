@@ -283,7 +283,7 @@ func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs b
 		RuntimeName:                     template.GetSandbox(),
 		HasPorts:                        len(request.GetPorts()) > 0,
 		NetworkMode:                     request.GetNetwork(),
-		NetworkBackend:                  h.config.PluginConfig.NetworkConfig.NatBackend,
+		NetworkBackend:                  h.config.PluginConfig.NetworkConfig.CapabilityBackend(),
 		RequiresDNSPolicyEnforcement:    policyMode == networkpolicy.EnforcementDNSDeny,
 		RequiresStrictEgressEnforcement: policyMode == networkpolicy.EnforcementStrict && networkpolicy.StrictNeedsEgressd(policySpec),
 		MemoryLimitBytes:                resources.GetLimits().GetMemoryBytes(),

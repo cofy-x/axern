@@ -89,6 +89,10 @@ func TestNetworkConfigNormalizedAcceptsIPv6Range(t *testing.T) {
 	if got.IPRange != "fd31::1/64" {
 		t.Fatalf("normalized IPv6 range = %q", got.IPRange)
 	}
+	got.NatBackend = NatBackendEBPF
+	if got.CapabilityBackend() != NatBackendIptables {
+		t.Fatalf("IPv6 ebpf capability backend = %q", got.CapabilityBackend())
+	}
 }
 
 func TestNetworkConfigNormalizedRejectsAmbiguousOrInvalidValues(t *testing.T) {
