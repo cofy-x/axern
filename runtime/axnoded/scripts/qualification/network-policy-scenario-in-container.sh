@@ -193,4 +193,31 @@ if ! verify-network-policy-qualification \
   exit 1
 fi
 
+# DeleteAllocation confirms that the runtime target has disappeared, while
+# cgroup retirement is deliberately completed by the asynchronous resource
+# GC. Do not stop axnoded or discard its durable ledger until that ownership
+# has converged. Otherwise the next matrix cell can discover a kernel cgroup
+# without the memory-capacity identity that made its commitment durable.
+retirement_converged=false
+inventory=""
+for _ in $(seq 1 120); do
+  inventory="$(curl -fsS http://127.0.0.1:23001/inventoryz 2>/dev/null || true)"
+  if jq -e '
+    .node.memory_budget.local_commitment_bytes == 0 and
+    .node.memory_budget.cleanup_debt_bytes == 0 and
+    .node.memory_budget.retiring_cgroup_count == 0
+  ' <<<"${inventory}" >/dev/null 2>&1; then
+    retirement_converged=true
+    break
+  fi
+  kill -0 "${node_pid}" >/dev/null 2>&1 || { tail -n 160 "${node_log}" >&2; exit 1; }
+  sleep 1
+done
+if [ "${retirement_converged}" != "true" ]; then
+  echo "network-policy qualification resource retirement did not converge" >&2
+  jq '.node.memory_budget' <<<"${inventory}" >&2 || true
+  tail -n 160 "${node_log}" >&2 || true
+  exit 1
+fi
+
 echo "network_policy_qualification_scenario_ok=${runtime_name}/${network_backend}/${ip_family}/${policy_mode}" >&2
