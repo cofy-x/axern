@@ -108,6 +108,9 @@ jobs:
       - name: Test Go workspaces
         run: make test-go
 
+      - name: Fuzz network policy trust boundaries
+        run: make network-policy-fuzz-smoke
+
       - name: Lint Go workspaces
         run: make lint-go
 

@@ -41,3 +41,15 @@ func TestReadHTTPRequestEnforcesHeaderBound(t *testing.T) {
 		t.Fatal("non-numeric Host port was accepted")
 	}
 }
+
+func TestReadHTTPRequestRejectsAmbiguousAuthorityForms(t *testing.T) {
+	for _, wire := range []string{
+		"GET http://allowed.example/ HTTP/1.1\r\nHost: denied.example\r\n\r\n",
+		"GET / HTTP/1.1\r\nHost: allowed.example\r\nHost: denied.example\r\n\r\n",
+		"GET / HTTP/1.1\r\nHost: allowed.example:443\r\n\r\n",
+	} {
+		if request, err := ReadHTTPRequest(strings.NewReader(wire), 4096); err == nil {
+			t.Fatalf("ambiguous HTTP authority was accepted: %#v", request)
+		}
+	}
+}

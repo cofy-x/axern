@@ -21,9 +21,11 @@ const (
 	httpProxyPort  = 1080
 	httpsProxyPort = 1443
 	maxTTL         = 10 * time.Minute
-	negativeTTL    = 30 * time.Second
 	inspectTimeout = 5 * time.Second
 	maxConcurrent  = 512
+
+	maxAuthorizationAddressesPerSource = 4096
+	maxAuthorizationsPerAddress        = 256
 )
 
 type Engine struct {
@@ -33,11 +35,12 @@ type Engine struct {
 	sem      chan struct{}
 	servers  []io.Closer
 	metrics  *obs.Metrics
+	now      func() time.Time
 }
 
 func NewEngine() *Engine {
 	metrics, _ := obs.NewMetrics(nil)
-	return &Engine{policies: map[string]*runtimeegressv1.PreparedEgressPolicy{}, auth: map[string]map[netip.Addr][]authorization{}, sem: make(chan struct{}, maxConcurrent), metrics: metrics}
+	return &Engine{policies: map[string]*runtimeegressv1.PreparedEgressPolicy{}, auth: map[string]map[netip.Addr][]authorization{}, sem: make(chan struct{}, maxConcurrent), metrics: metrics, now: time.Now}
 }
 
 func (e *Engine) SetPolicies(records []*runtimeegressv1.PreparedEgressPolicy) {
@@ -75,17 +78,61 @@ func (e *Engine) authorize(source, domain string, addr netip.Addr, ttl uint32) {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	now := e.now()
 	source = normalizedSource(source)
-	if e.auth[source] == nil {
-		e.auth[source] = map[netip.Addr][]authorization{}
+	byAddress := e.auth[source]
+	if byAddress == nil {
+		byAddress = map[netip.Addr][]authorization{}
+		e.auth[source] = byAddress
 	}
-	e.auth[source][addr.Unmap()] = append(e.auth[source][addr.Unmap()], authorization{domain: domain, expiry: time.Now().Add(duration)})
+	addr = addr.Unmap()
+	entries, exists := byAddress[addr]
+	kept := entries[:0]
+	for _, entry := range entries {
+		if now.Before(entry.expiry) {
+			kept = append(kept, entry)
+		}
+	}
+	entries = kept
+	if exists && len(entries) == 0 {
+		delete(byAddress, addr)
+		exists = false
+	}
+	for index := range entries {
+		if entries[index].domain == domain {
+			entries[index].expiry = now.Add(duration)
+			byAddress[addr] = entries
+			return
+		}
+	}
+	if !exists && len(byAddress) >= maxAuthorizationAddressesPerSource {
+		for address, candidates := range byAddress {
+			live := candidates[:0]
+			for _, entry := range candidates {
+				if now.Before(entry.expiry) {
+					live = append(live, entry)
+				}
+			}
+			if len(live) == 0 {
+				delete(byAddress, address)
+			} else {
+				byAddress[address] = live
+			}
+		}
+		if len(byAddress) >= maxAuthorizationAddressesPerSource {
+			return
+		}
+	}
+	if len(entries) >= maxAuthorizationsPerAddress {
+		return
+	}
+	byAddress[addr] = append(entries, authorization{domain: domain, expiry: now.Add(duration)})
 }
 
 func (e *Engine) authorized(source, domain string, addr netip.Addr) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	now := time.Now()
+	now := e.now()
 	source = normalizedSource(source)
 	byAddress := e.auth[source]
 	if byAddress == nil {
@@ -100,7 +147,15 @@ func (e *Engine) authorized(source, domain string, addr netip.Addr) bool {
 			allowed = allowed || entry.valid(domain, now)
 		}
 	}
-	byAddress[addr.Unmap()] = kept
+	addr = addr.Unmap()
+	if len(kept) == 0 {
+		delete(byAddress, addr)
+		if len(byAddress) == 0 {
+			delete(e.auth, source)
+		}
+	} else {
+		byAddress[addr] = kept
+	}
 	return allowed
 }
 
@@ -277,7 +332,6 @@ func proxyBoth(client, upstream net.Conn) {
 }
 
 var _ = dnsforward.MaxDNSMessageBytes
-var _ = negativeTTL
 
 func (e *Engine) record(record *runtimeegressv1.PreparedEgressPolicy, action obs.Action, protocol obs.Protocol, result obs.Result, started time.Time) {
 	if record == nil {

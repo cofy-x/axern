@@ -6,12 +6,26 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/egressd/internal/dnsforward"
 	obs "github.com/cofy-x/axern/runtime/egressd/internal/observability"
 	"golang.org/x/net/dns/dnsmessage"
 )
+
+const maxCNAMEChainDepth = 16
+
+type dnsAddressAnswer struct {
+	addr netip.Addr
+	ttl  uint32
+	kind dnsmessage.Type
+}
+
+type dnsCNAMEAnswer struct {
+	target string
+	ttl    uint32
+}
 
 func (e *Engine) serveDNSUDP(ctxDone interface{ Done() <-chan struct{} }, listener *net.UDPConn) {
 	buffer := make([]byte, dnsforward.MaxDNSMessageBytes)
@@ -92,32 +106,122 @@ func (e *Engine) resolveDNS(source string, wire []byte, tcp bool) ([]byte, error
 	if err := response.Unpack(responseWire); err != nil {
 		return nil, fmt.Errorf("invalid upstream DNS response: %w", err)
 	}
-	for _, answer := range response.Answers {
-		name := canonicalDNSName(answer.Header.Name.String())
-		if dnsDenied(record.GetPolicy(), name) {
-			e.record(record, obs.ActionDeny, obs.ProtocolDNS, obs.ResultRefused, started)
-			return refusedDNS(query)
-		}
-		switch body := answer.Body.(type) {
-		case *dnsmessage.CNAMEResource:
-			if dnsDenied(record.GetPolicy(), canonicalDNSName(body.CNAME.String())) {
+	if err := validateDNSResponse(query, response); err != nil {
+		return nil, err
+	}
+	if record.GetPolicy().GetDnsDeny() != nil {
+		for _, answer := range dnsResources(response) {
+			name := canonicalDNSName(answer.Header.Name.String())
+			if dnsDenied(record.GetPolicy(), name) {
 				e.record(record, obs.ActionDeny, obs.ProtocolDNS, obs.ResultRefused, started)
 				return refusedDNS(query)
 			}
-		case *dnsmessage.AResource:
-			addr := netip.AddrFrom4(body.A)
-			if record.GetPolicy().GetStrict() != nil && domainAllowed(record.GetPolicy(), name) && eligibleDomainAddress(addr) {
-				e.authorize(source, name, addr, answer.Header.TTL)
+			if body, ok := answer.Body.(*dnsmessage.CNAMEResource); ok && dnsDenied(record.GetPolicy(), canonicalDNSName(body.CNAME.String())) {
+				e.record(record, obs.ActionDeny, obs.ProtocolDNS, obs.ResultRefused, started)
+				return refusedDNS(query)
 			}
-		case *dnsmessage.AAAAResource:
-			addr := netip.AddrFrom16(body.AAAA)
-			if record.GetPolicy().GetStrict() != nil && domainAllowed(record.GetPolicy(), name) && eligibleDomainAddress(addr) {
-				e.authorize(source, name, addr, answer.Header.TTL)
+		}
+	}
+	if record.GetPolicy().GetStrict() != nil && !response.Header.Truncated && response.Header.RCode == dnsmessage.RCodeSuccess {
+		authorizations, err := strictDNSAuthorizations(query.Questions, response.Answers)
+		if err != nil {
+			return nil, fmt.Errorf("invalid strict DNS answer chain: %w", err)
+		}
+		for domain, answers := range authorizations {
+			for _, answer := range answers {
+				if eligibleDomainAddress(answer.addr) {
+					e.authorize(source, domain, answer.addr, answer.ttl)
+				}
 			}
 		}
 	}
 	e.record(record, obs.ActionAllow, obs.ProtocolDNS, obs.ResultOK, started)
 	return responseWire, nil
+}
+
+func validateDNSResponse(query, response dnsmessage.Message) error {
+	if !response.Header.Response || response.Header.ID != query.Header.ID || response.Header.OpCode != query.Header.OpCode {
+		return fmt.Errorf("upstream DNS response header does not match query")
+	}
+	if len(response.Questions) != len(query.Questions) {
+		return fmt.Errorf("upstream DNS response question count does not match query")
+	}
+	for index := range query.Questions {
+		got, want := response.Questions[index], query.Questions[index]
+		if canonicalDNSName(got.Name.String()) != canonicalDNSName(want.Name.String()) || got.Type != want.Type || got.Class != want.Class {
+			return fmt.Errorf("upstream DNS response question %d does not match query", index)
+		}
+	}
+	return nil
+}
+
+func dnsResources(message dnsmessage.Message) []dnsmessage.Resource {
+	resources := make([]dnsmessage.Resource, 0, len(message.Answers)+len(message.Authorities)+len(message.Additionals))
+	resources = append(resources, message.Answers...)
+	resources = append(resources, message.Authorities...)
+	resources = append(resources, message.Additionals...)
+	return resources
+}
+
+func strictDNSAuthorizations(questions []dnsmessage.Question, answers []dnsmessage.Resource) (map[string][]dnsAddressAnswer, error) {
+	cnames := make(map[string]dnsCNAMEAnswer)
+	addresses := make(map[string][]dnsAddressAnswer)
+	for _, answer := range answers {
+		name := canonicalDNSName(answer.Header.Name.String())
+		switch body := answer.Body.(type) {
+		case *dnsmessage.CNAMEResource:
+			if _, exists := cnames[name]; exists {
+				return nil, fmt.Errorf("multiple CNAME answers for %s", name)
+			}
+			cnames[name] = dnsCNAMEAnswer{target: canonicalDNSName(body.CNAME.String()), ttl: answer.Header.TTL}
+		case *dnsmessage.AResource:
+			addresses[name] = append(addresses[name], dnsAddressAnswer{addr: netip.AddrFrom4(body.A), ttl: answer.Header.TTL, kind: dnsmessage.TypeA})
+		case *dnsmessage.AAAAResource:
+			addresses[name] = append(addresses[name], dnsAddressAnswer{addr: netip.AddrFrom16(body.AAAA), ttl: answer.Header.TTL, kind: dnsmessage.TypeAAAA})
+		}
+	}
+	for owner := range cnames {
+		if len(addresses[owner]) != 0 {
+			return nil, fmt.Errorf("CNAME owner %s also has address data", owner)
+		}
+	}
+
+	result := make(map[string][]dnsAddressAnswer)
+	for _, question := range questions {
+		root := canonicalDNSName(question.Name.String())
+		current := root
+		ttl := ^uint32(0)
+		visited := map[string]struct{}{current: {}}
+		for depth := 0; ; depth++ {
+			link, ok := cnames[current]
+			if !ok {
+				break
+			}
+			if depth >= maxCNAMEChainDepth {
+				return nil, fmt.Errorf("CNAME chain for %s exceeds %d links", root, maxCNAMEChainDepth)
+			}
+			if link.ttl < ttl {
+				ttl = link.ttl
+			}
+			current = link.target
+			if _, exists := visited[current]; exists {
+				return nil, fmt.Errorf("CNAME chain for %s contains a loop", root)
+			}
+			visited[current] = struct{}{}
+		}
+		for _, answer := range addresses[current] {
+			if question.Type != dnsmessage.TypeALL && answer.kind != question.Type {
+				continue
+			}
+			effectiveTTL := answer.ttl
+			if ttl < effectiveTTL {
+				effectiveTTL = ttl
+			}
+			answer.ttl = effectiveTTL
+			result[root] = append(result[root], answer)
+		}
+	}
+	return result, nil
 }
 
 func eligibleDomainAddress(addr netip.Addr) bool {
@@ -126,10 +230,7 @@ func eligibleDomainAddress(addr netip.Addr) bool {
 }
 
 func canonicalDNSName(value string) string {
-	if len(value) > 0 && value[len(value)-1] == '.' {
-		return value[:len(value)-1]
-	}
-	return value
+	return strings.ToLower(strings.TrimSuffix(value, "."))
 }
 
 func refusedDNS(query dnsmessage.Message) ([]byte, error) {

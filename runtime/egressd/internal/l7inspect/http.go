@@ -37,6 +37,9 @@ func ReadHTTPRequest(reader io.Reader, maxBytes int) (HTTPRequest, error) {
 	if err != nil {
 		return HTTPRequest{}, fmt.Errorf("parse HTTP request header: %w", err)
 	}
+	if request.URL == nil || request.URL.IsAbs() || request.URL.Host != "" {
+		return HTTPRequest{}, fmt.Errorf("absolute-form HTTP requests are not allowed by domain policy")
+	}
 	if strings.EqualFold(request.Method, http.MethodConnect) {
 		return HTTPRequest{}, fmt.Errorf("HTTP CONNECT is not allowed by domain policy")
 	}
@@ -107,6 +110,9 @@ func validatePort(value string) error {
 	port, err := strconv.ParseUint(value, 10, 16)
 	if err != nil || port == 0 {
 		return fmt.Errorf("invalid HTTP Host port")
+	}
+	if port != 80 {
+		return fmt.Errorf("HTTP Host port must match intercepted TCP port 80")
 	}
 	return nil
 }
