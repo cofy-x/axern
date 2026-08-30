@@ -23,6 +23,7 @@ AXNODED_DIR := runtime/axnoded
 	axnoded-verify-node-startup-metrics-e2e \
 	axnoded-verify-node-startup-matrix-smoke \
 	axnoded-verify-network-policy-linux-smoke \
+	axnoded-verify-network-policy-linux-matrix \
 	axnoded-verify-node-bundle-template-e2e \
 	axnoded-verify-node-python-runtime-e2e \
 	axnoded-verify-node-retention-e2e \
@@ -112,6 +113,9 @@ axnoded-verify-node-startup-matrix-smoke: ## Run the axnoded startup matrix smok
 
 axnoded-verify-network-policy-linux-smoke: ## Run representative native-Linux network-policy data-plane truth
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-network-policy-linux-smoke)
+
+axnoded-verify-network-policy-linux-matrix: ## Run the full native-Linux 32-cell network-policy correctness matrix
+	@$(call run_subsystem_make,$(AXNODED_DIR),verify-network-policy-linux-matrix)
 
 axnoded-verify-node-bundle-template-e2e: ## Run the axnoded node all-in-one bundle template end-to-end verification
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-bundle-template-e2e)

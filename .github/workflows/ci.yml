@@ -122,8 +122,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
-      - name: Run representative native Linux data-plane truth
-        run: make axnoded-verify-network-policy-linux-smoke
+      - name: Run full native Linux network-policy correctness matrix
+        run: make axnoded-verify-network-policy-linux-matrix
 
   rust:
     name: Rust

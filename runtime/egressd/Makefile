@@ -27,6 +27,7 @@ qualification-contract: ## Validate the machine-readable qualification and relat
 	bash -n ./scripts/qualification-matrix.sh
 	bash -n ../axnoded/scripts/qualification/network-policy-matrix.sh
 	bash -n ../axnoded/scripts/qualification/network-policy-scenario-in-container.sh
+	bash -n ../axnoded/scripts/qualification/network-policy-linux-smoke.sh
 
 qualification: ## Run the full qualification in an immutable privileged Linux runner
 	bash ../axnoded/scripts/qualification/network-policy-matrix.sh

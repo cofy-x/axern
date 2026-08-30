@@ -5,6 +5,11 @@ reliability workflow. It is intentionally separate from correctness tests:
 correctness remains fail-closed and does not acquire machine-dependent timing
 assertions.
 
+CI runs `make axnoded-verify-network-policy-linux-matrix` on native Linux with
+minimal samples across the same 32 axes and requires zero failures. That gate
+proves correctness only. The stable-host workflow below owns performance
+sampling, comparable provenance, and regression budgets.
+
 ## Matrix and measurements
 
 One accepted report contains all 32 combinations of:

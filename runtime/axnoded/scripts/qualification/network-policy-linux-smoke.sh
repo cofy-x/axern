@@ -26,12 +26,33 @@ cleanup() {
 }
 trap cleanup EXIT
 
-cells=(
-  "runc bridge ipv4 strict_domain"
-  "runsc bridge ipv6 dns_deny"
-  "runc ebpf ipv6 strict_cidr"
-  "runsc ebpf ipv4 unrestricted"
-)
+matrix_scope="${NETWORK_POLICY_LINUX_MATRIX_SCOPE:-representative}"
+cells=()
+case "${matrix_scope}" in
+  representative)
+    cells=(
+      "runc bridge ipv4 strict_domain"
+      "runsc bridge ipv6 dns_deny"
+      "runc ebpf ipv6 strict_cidr"
+      "runsc ebpf ipv4 unrestricted"
+    )
+    ;;
+  full)
+    for runtime_name in runc runsc; do
+      for network_backend in bridge ebpf; do
+        for ip_family in ipv4 ipv6; do
+          for policy_mode in unrestricted dns_deny strict_domain strict_cidr; do
+            cells+=("${runtime_name} ${network_backend} ${ip_family} ${policy_mode}")
+          done
+        done
+      done
+    done
+    ;;
+  *)
+    echo "unsupported network-policy Linux matrix scope: ${matrix_scope}" >&2
+    exit 1
+    ;;
+esac
 
 for cell in "${cells[@]}"; do
   read -r runtime_name network_backend ip_family policy_mode <<<"${cell}"
@@ -66,4 +87,6 @@ for cell in "${cells[@]}"; do
     ' "${output}" >/dev/null
 done
 
+echo "network_policy_linux_matrix_scope=${matrix_scope}"
+echo "network_policy_linux_matrix_cells=${#cells[@]}"
 echo "network_policy_linux_smoke_ok=true"
