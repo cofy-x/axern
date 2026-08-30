@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cofy-x/axern/lib/go/networkpolicy"
 	"github.com/cofy-x/axern/runtime/egressd/internal/dnsforward"
 	"github.com/cofy-x/axern/runtime/egressd/internal/policy"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -55,6 +56,9 @@ func (e *NFTExecutor) Reconcile(ctx context.Context, records []*runtimeegressv1.
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, record := range records {
+		if !networkpolicy.RequiresDNSUpstreams(record.GetPolicy()) {
+			continue
+		}
 		if _, err := dnsforward.ParseUpstreams(record.GetUpstreamNameservers()); err != nil {
 			e.healthy = false
 			e.reason = err.Error()
@@ -130,8 +134,10 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 		if err != nil {
 			return nil, err
 		}
-		writeTProxy(&out, family, source, "udp", 53, dnsProxyPort)
-		writeTProxy(&out, family, source, "tcp", 53, dnsProxyPort)
+		if networkpolicy.RequiresDNSUpstreams(record.GetPolicy()) {
+			writeTProxy(&out, family, source, "udp", 53, dnsProxyPort)
+			writeTProxy(&out, family, source, "tcp", 53, dnsProxyPort)
+		}
 		if strict := record.GetPolicy().GetStrict(); strict != nil {
 			for _, rule := range strict.GetAllowedCidrs() {
 				writeCIDRRule(&out, family, source, rule, "return")

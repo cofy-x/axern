@@ -72,3 +72,23 @@ func TestRenderNFTSeparatesDNSOnlyAndStrictPolicies(t *testing.T) {
 		t.Fatalf("strict policy must gate forwarded and host-local traffic after proxy interception:\n%s", script)
 	}
 }
+
+func TestRenderNFTDoesNotProxyDNSForStrictPoliciesWithoutDomains(t *testing.T) {
+	records := []*runtimeegressv1.PreparedEgressPolicy{
+		{SandboxIp: "10.0.0.4", Policy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{}}}},
+		{SandboxIp: "10.0.0.5", Policy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{AllowedCidrs: []*commonv1.CIDREgressRule{{Cidr: "10.10.0.0/16", Protocol: commonv1.EgressProtocol_EGRESS_PROTOCOL_UDP, Ports: []*commonv1.PortRange{{Start: 53, End: 53}}}}}}}},
+	}
+	wire, err := RenderNFT(records)
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := string(wire)
+	for _, source := range []string{"10.0.0.4", "10.0.0.5"} {
+		if strings.Contains(script, source+" udp dport 53 meta mark set") || strings.Contains(script, source+" tcp dport 53 meta mark set") {
+			t.Fatalf("policy without domains was sent to DNS proxy:\n%s", script)
+		}
+	}
+	if !strings.Contains(script, "10.10.0.0/16 udp dport 53 accept") {
+		t.Fatalf("explicit CIDR DNS rule was not preserved:\n%s", script)
+	}
+}

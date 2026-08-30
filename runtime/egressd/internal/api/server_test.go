@@ -18,11 +18,12 @@ func TestServerLifecycle(t *testing.T) {
 	}
 	server := NewServer(manager)
 	prepared, err := server.PreparePolicy(context.Background(), &runtimeegressv1.PreparePolicyRequest{
-		AllocationID:      "alloc-1",
-		Attempt:           1,
-		SandboxIp:         "10.0.0.8",
-		Policy:            dnsDeny("Example.COM."),
-		ExecutionRevision: 3,
+		AllocationID:        "alloc-1",
+		Attempt:             1,
+		SandboxIp:           "10.0.0.8",
+		Policy:              dnsDeny("Example.COM."),
+		ExecutionRevision:   3,
+		UpstreamNameservers: []string{"192.0.2.53"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +59,7 @@ func TestServerMapsValidationAndFencingStatus(t *testing.T) {
 	if status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("validation status = %s, want InvalidArgument: %v", status.Code(err), err)
 	}
-	request := &runtimeegressv1.PreparePolicyRequest{AllocationID: "alloc", Attempt: 2, SandboxIp: "10.0.0.8", Policy: dnsDeny("example.com"), ExecutionRevision: 1}
+	request := &runtimeegressv1.PreparePolicyRequest{AllocationID: "alloc", Attempt: 2, SandboxIp: "10.0.0.8", Policy: dnsDeny("example.com"), ExecutionRevision: 1, UpstreamNameservers: []string{"192.0.2.53"}}
 	if _, err := server.PreparePolicy(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}

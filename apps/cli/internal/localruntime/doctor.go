@@ -32,7 +32,7 @@ const (
 type nodeDNSProbeResult struct {
 	Status                  string `json:"status"`
 	Code                    string `json:"code"`
-	ConfiguredResolverCount int64  `json:"configured_resolver_count"`
+	EffectiveResolverCount  int64  `json:"effective_resolver_count"`
 	SuccessfulResolverCount int64  `json:"successful_resolver_count"`
 }
 
@@ -84,6 +84,9 @@ func readMaterializedDNSNameservers(path string) ([]string, error) {
 	value, err := readMaterializedEnvValue(path, "AXNODED_DNS_NAMESERVERS")
 	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(value) == "" {
+		return nil, nil
 	}
 	return discoverLocalDNSNameservers(value, nil)
 }
@@ -157,16 +160,16 @@ func (m *Manager) probeNodeDNS(ctx context.Context, profile, queryName string, t
 		return doctorCheck("runtime_dns_node", checkFail, "runtime_dns_node_unreachable", "Node container DNS probe returned an invalid result", "upgrade or recreate the local stack", started, nil)
 	}
 	details := map[string]int64{
-		"configured_resolver_count": result.ConfiguredResolverCount,
+		"effective_resolver_count":  result.EffectiveResolverCount,
 		"successful_resolver_count": result.SuccessfulResolverCount,
 	}
 	switch {
-	case result.Status == checkPass && result.Code == "runtime_dns_node_reachable" && result.SuccessfulResolverCount == result.ConfiguredResolverCount && result.ConfiguredResolverCount > 0:
-		return doctorCheck("runtime_dns_node", checkPass, "runtime_dns_node_reachable", "all configured resolvers answered from the Node container", "", started, details)
-	case result.Status == checkWarn && result.Code == "runtime_dns_node_partial" && result.SuccessfulResolverCount > 0 && result.SuccessfulResolverCount < result.ConfiguredResolverCount:
-		return doctorCheck("runtime_dns_node", checkWarn, "runtime_dns_node_partial", "only part of the configured resolver set answered from the Node container", "remove or repair unreachable resolvers and recreate the local stack", started, details)
-	case result.Status == checkFail && result.Code == "runtime_dns_node_unreachable" && result.SuccessfulResolverCount == 0 && result.ConfiguredResolverCount > 0:
-		return doctorCheck("runtime_dns_node", checkFail, "runtime_dns_node_unreachable", "configured resolvers did not answer from the Node container", "set AXERN_LOCAL_DNS_NAMESERVERS to reachable resolver IPs, then run `axern local down` and `axern local up`", started, details)
+	case result.Status == checkPass && result.Code == "runtime_dns_node_reachable" && result.SuccessfulResolverCount == result.EffectiveResolverCount && result.EffectiveResolverCount > 0:
+		return doctorCheck("runtime_dns_node", checkPass, "runtime_dns_node_reachable", "all effective resolvers answered from the Node container", "", started, details)
+	case result.Status == checkWarn && result.Code == "runtime_dns_node_partial" && result.SuccessfulResolverCount > 0 && result.SuccessfulResolverCount < result.EffectiveResolverCount:
+		return doctorCheck("runtime_dns_node", checkWarn, "runtime_dns_node_partial", "only part of the effective resolver set answered from the Node container", "remove or repair unreachable resolver overrides and recreate the local stack", started, details)
+	case result.Status == checkFail && result.Code == "runtime_dns_node_unreachable" && result.SuccessfulResolverCount == 0 && result.EffectiveResolverCount > 0:
+		return doctorCheck("runtime_dns_node", checkFail, "runtime_dns_node_unreachable", "effective resolvers did not answer from the Node container", "repair node DNS or set AXERN_LOCAL_DNS_NAMESERVERS to reachable resolver IPs, then recreate the local stack", started, details)
 	default:
 		return doctorCheck("runtime_dns_node", checkFail, "runtime_dns_node_unreachable", "Node container DNS probe returned an inconsistent result", "upgrade or recreate the local stack", started, nil)
 	}

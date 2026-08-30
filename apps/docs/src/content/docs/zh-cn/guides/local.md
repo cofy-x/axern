@@ -59,9 +59,9 @@ axern local logs node --tail 200
 
 ## 工作负载 DNS
 
-Local Axern 会从宿主机发现非 loopback DNS Resolver，并传给 axnoded 中的 OCI 工作负载。Docker 容器内的 loopback Resolver 无法从嵌套 Sandbox 访问，因此不会直接复制。
+默认情况下，axnoded 会从 Node 容器的实际 Resolver 配置派生非 loopback 上游，供 OCI 工作负载使用。Docker 容器内的 loopback Resolver 无法从嵌套 Sandbox 访问，因此不会直接复制；如果 Docker 提供外部上游元数据，axnoded 会使用其中可达的地址。
 
-`axern local doctor` 会验证已初始化 Stack 实际使用的 materialized `compose.env`（`runtime_dns_config`），并从运行中的 Node 容器直接查询每一个已配置 Resolver（`runtime_dns_node`）。这两项检查都是只读操作，默认超时为 15 秒，可用 `--check-timeout` 调整。
+`axern local doctor` 会验证已初始化 Stack 实际使用的 materialized `compose.env`（`runtime_dns_config`），并从运行中的 Node 容器直接查询 axnoded 的每一个有效 Resolver（`runtime_dns_node`）。materialized override 为空表示由 axnoded 从 Node 环境派生，并不是无效配置。这两项检查都是只读操作，默认超时为 15 秒，可用 `--check-timeout` 调整。
 
 要通过真实 `runsc` OCI Sandbox 和正常公共 API 路径验证 DNS，请显式运行：
 
@@ -73,7 +73,7 @@ Sandbox 检查（`runtime_dns_sandbox`）会通过公共 API 创建临时 Namesp
 
 Probe 始终连接产品管理的 `local` Context，忽略当前选中的远程 Context，并拒绝显式远程 Endpoint 或 TLS 覆盖。Sandbox 默认超时为 5 分钟，可用 `--probe-timeout` 调整；默认 Template 为 `python311`，Runtime Class 为 `runsc`，这些 Sandbox 专用参数只能与 `--probe` 一起使用。清理失败属于 required failure，应先检查带 doctor probe 标签的本地资源再重试。
 
-VPN 或企业网络有时使用宿主机 Resolver 文件中未列出的 DNS。可在启动或重建本地栈前显式设置逗号分隔的 Resolver IP：
+VPN 或企业网络有时要求使用 Node 容器实际配置中不可见的 DNS。可在启动或重建本地栈前显式设置逗号分隔的 Resolver IP：
 
 ```bash
 AXERN_LOCAL_DNS_NAMESERVERS=10.0.0.53,10.0.0.54 axern local up

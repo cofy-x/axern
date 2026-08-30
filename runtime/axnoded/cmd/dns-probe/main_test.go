@@ -6,12 +6,28 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"golang.org/x/net/dns/dnsmessage"
 )
+
+func TestEffectiveResolversLoadsAxnodedRuntimeConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "axnoded.toml")
+	if err := os.WriteFile(path, []byte("[plugin.runtime.dns]\nnameservers = [\"192.0.2.53\", \"2001:db8::53\"]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := effectiveResolvers(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(got, ",") != "192.0.2.53,2001:db8::53" {
+		t.Fatalf("effectiveResolvers() = %v", got)
+	}
+}
 
 func TestParseResolversValidatesDeduplicatesAndCanonicalizes(t *testing.T) {
 	got := parseResolvers("192.0.2.53, 2001:db8::53, ::ffff:192.0.2.53, 127.0.0.1, ::, invalid")
@@ -35,7 +51,7 @@ func TestRunProbeClassifiesAllPartialAndNoSuccess(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			value := runProbe(context.Background(), "192.0.2.53,2001:db8::53", "example.test.", time.Second, func(_ context.Context, address, _ string, _ time.Duration) bool {
+			value := runProbe(context.Background(), []string{"192.0.2.53", "2001:db8::53"}, "example.test.", time.Second, func(_ context.Context, address, _ string, _ time.Duration) bool {
 				host, _, err := net.SplitHostPort(address)
 				return err == nil && strings.Contains(test.successful, host)
 			})
@@ -49,7 +65,7 @@ func TestRunProbeClassifiesAllPartialAndNoSuccess(t *testing.T) {
 func TestRunProbeCancellationAndOutputAreSanitized(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	value := runProbe(ctx, "192.0.2.53", "private.corp.example.", time.Second, func(ctx context.Context, _, _ string, _ time.Duration) bool {
+	value := runProbe(ctx, []string{"192.0.2.53"}, "private.corp.example.", time.Second, func(ctx context.Context, _, _ string, _ time.Duration) bool {
 		return ctx.Err() == nil
 	})
 	data, err := json.Marshal(value)
@@ -67,7 +83,7 @@ func TestRunProbeCancellationAndOutputAreSanitized(t *testing.T) {
 
 func TestRunProbeBoundsResolverTimeout(t *testing.T) {
 	started := time.Now()
-	value := runProbe(context.Background(), "192.0.2.53", "example.test.", 20*time.Millisecond, func(ctx context.Context, _, _ string, _ time.Duration) bool {
+	value := runProbe(context.Background(), []string{"192.0.2.53"}, "example.test.", 20*time.Millisecond, func(ctx context.Context, _, _ string, _ time.Duration) bool {
 		<-ctx.Done()
 		return false
 	})
