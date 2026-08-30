@@ -16,7 +16,8 @@ func TestValidateMemoryBoundaryConfiguration(t *testing.T) {
 		wantErr  string
 	}{
 		{name: "required qualified", mode: config.CgroupEnforcementRequired, reserve: 512 << 20},
-		{name: "required missing", mode: config.CgroupEnforcementRequired, wantErr: "explicitly positive"},
+		{name: "required missing", mode: config.CgroupEnforcementRequired, wantErr: "at least"},
+		{name: "required below certification reserve", mode: config.CgroupEnforcementRequired, reserve: config.RuntimeConformanceMemoryMaxBytes - 1, wantErr: "at least"},
 		{name: "development zero", mode: config.CgroupEnforcementDisabledDev},
 		{name: "development positive", mode: config.CgroupEnforcementDisabledDev, reserve: 1, wantErr: "must be zero"},
 		{name: "development negative", mode: config.CgroupEnforcementDisabledDev, reserve: -1, wantErr: "must be zero"},

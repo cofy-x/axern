@@ -34,7 +34,7 @@ type CgroupDriver interface {
 	ResolveRoot(rootName string) (string, error)
 	// EnsureRoot establishes the runtime-owned hierarchy and controller
 	// delegation without creating an allocation cgroup.
-	EnsureRoot(rootName string) error
+	EnsureRoot(rootName string, conformanceMemoryMaxBytes int64) error
 	Create(group string, resources *specs.LinuxResources) (Cgroup, error)
 	Load(group string) (Cgroup, error)
 	ExistingGroups(rootName string) ([]string, error)
@@ -47,6 +47,7 @@ const (
 	CgroupModeV2 = "v2"
 
 	CgroupWorkloadLeafName = "workload"
+	CgroupConformanceGroup = "conformance"
 	cgroupInternalGroup    = "internal"
 )
 
@@ -99,7 +100,7 @@ func validateManagedRootName(rootName string) (string, error) {
 	if rootName == "." || rootName == ".." || strings.ContainsAny(rootName, `/\\`) {
 		return "", fmt.Errorf("managed cgroup root %q must be a single child name", rootName)
 	}
-	if rootName == cgroupInternalGroup || rootName == CgroupWorkloadLeafName {
+	if rootName == cgroupInternalGroup || rootName == CgroupWorkloadLeafName || rootName == CgroupConformanceGroup {
 		return "", fmt.Errorf("managed cgroup root %q is reserved", rootName)
 	}
 	return rootName, nil

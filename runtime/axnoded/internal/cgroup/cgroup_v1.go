@@ -27,7 +27,7 @@ func (d *cgroupV1Driver) ResolveRoot(rootName string) (string, error) {
 	return normalizeGroup(name), nil
 }
 
-func (d *cgroupV1Driver) EnsureRoot(string) error {
+func (d *cgroupV1Driver) EnsureRoot(string, int64) error {
 	return fmt.Errorf("allocation memory domains require unified cgroup v2")
 }
 

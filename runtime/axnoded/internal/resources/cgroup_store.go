@@ -37,6 +37,7 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 	if err != nil {
 		return nil, fmt.Errorf("resolve allocation cgroup root %q: %w", rootName, err)
 	}
+	conformanceRoot := filepath.Join(filepath.Dir(resolvedRoot), os2.CgroupConformanceGroup)
 
 	var ledger apipb.CgroupLedger
 	if err := db.LoadSnapshot(config.CgroupBucket, &ledger); err != nil && !errord.IsNotFound(err) {
@@ -47,7 +48,7 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 	} else if identity != ledger.GetMemoryCapacityIdentity() {
 		return nil, fmt.Errorf("cgroup ledger memory capacity identity is not canonical")
 	}
-	reconciledLeases, discardedRecreatableLeases, err := reconcileCgroupLeasesForRoot(ledger.GetLeases(), resolvedRoot)
+	reconciledLeases, discardedRecreatableLeases, err := reconcileCgroupLeasesForRoots(ledger.GetLeases(), resolvedRoot, conformanceRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -57,12 +58,19 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 			"resolved_root":                resolvedRoot,
 		}).Info("discarded recreatable cgroup leases from a previous delegation root")
 	}
-	if err := cgroupDriver.EnsureRoot(rootName); err != nil {
+	if err := cgroupDriver.EnsureRoot(rootName, config.RuntimeConformanceMemoryMaxBytes); err != nil {
 		return nil, fmt.Errorf("prepare allocation cgroup root %q: %w", rootName, err)
 	}
 	cgs, err := loadAllCgroups(cgroupDriver, resolvedRoot)
 	if err != nil {
 		return nil, err
+	}
+	conformanceCgroups, err := loadAllCgroups(cgroupDriver, conformanceRoot)
+	if err != nil {
+		return nil, err
+	}
+	for id := range conformanceCgroups.Items() {
+		cgs.Set(id, struct{}{})
 	}
 
 	idleIDs := queue.New("")
@@ -70,7 +78,7 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 	leases := cmap.New[*apipb.CgroupLease]()
 	gcQueue := queue.New("")
 	for _, lease := range reconciledLeases {
-		staleRoot := filepath.Dir(lease.GetCgroupID()) != resolvedRoot
+		staleRoot := !cgroupPathInCurrentRoot(lease.GetCgroupID(), resolvedRoot, conformanceRoot)
 		// A lease from the previous process delegation is not discoverable by
 		// ExistingGroups on the new root. Preserve it until the complete runtime
 		// inventory either proves the allocation absent or restores its monitor;
@@ -123,11 +131,12 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 	}
 
 	c := &CgroupManager{
-		size: cfg.MaxInstanceNum, cacheSize: cfg.CgroupCacheSize, rootName: resolvedRoot,
+		size: cfg.MaxInstanceNum, cacheSize: cfg.CgroupCacheSize, rootName: resolvedRoot, conformanceRoot: conformanceRoot,
 		usingID: usingIDs, idleID: idleIDs, leases: leases, gcQueue: gcQueue,
 		gcStop: make(chan struct{}), gcDone: make(chan struct{}),
-		generator: truncindex.NewFixLenGenerator(12, cgs.Keys(), truncindex.PrefixModifier(resolvedRoot+"/")),
-		db:        db, cgroups: cgs, storeMark: atomic.Bool{}, storeStop: make(chan struct{}), storeDone: make(chan struct{}),
+		generator:            truncindex.NewFixLenGenerator(12, cgroupIDsUnderRoot(cgs.Keys(), resolvedRoot), truncindex.PrefixModifier(resolvedRoot+"/")),
+		conformanceGenerator: truncindex.NewFixLenGenerator(12, cgroupIDsUnderRoot(cgs.Keys(), conformanceRoot), truncindex.PrefixModifier(conformanceRoot+"/")),
+		db:                   db, cgroups: cgs, storeMark: atomic.Bool{}, storeStop: make(chan struct{}), storeDone: make(chan struct{}),
 		cgroupDriver: cgroupDriver, retirementMemory: hostCgroupRetirementMemory{}, memoryAdmissionRequired: memoryAdmissionRequired,
 		memoryCapacityIdentity: ledger.GetMemoryCapacityIdentity(),
 	}
@@ -142,14 +151,14 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 	return c, nil
 }
 
-func reconcileCgroupLeasesForRoot(leases []*apipb.CgroupLease, resolvedRoot string) ([]*apipb.CgroupLease, int, error) {
+func reconcileCgroupLeasesForRoots(leases []*apipb.CgroupLease, resolvedRoot, conformanceRoot string) ([]*apipb.CgroupLease, int, error) {
 	result := make([]*apipb.CgroupLease, 0, len(leases))
 	discardedRecreatable := 0
 	for _, lease := range leases {
 		if err := validateCgroupLease(lease); err != nil {
 			return nil, 0, err
 		}
-		if filepath.Dir(lease.GetCgroupID()) == resolvedRoot {
+		if cgroupLeaseInOwnedCurrentRoot(lease, resolvedRoot, conformanceRoot) {
 			result = append(result, lease)
 			continue
 		}
@@ -171,6 +180,38 @@ func reconcileCgroupLeasesForRoot(leases []*apipb.CgroupLease, resolvedRoot stri
 		result = append(result, lease)
 	}
 	return result, discardedRecreatable, nil
+}
+
+func cgroupLeaseInOwnedCurrentRoot(lease *apipb.CgroupLease, workloadRoot, conformanceRoot string) bool {
+	if lease == nil {
+		return false
+	}
+	parent := filepath.Dir(lease.GetCgroupID())
+	if lease.GetOwnerKind() == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE {
+		return parent == conformanceRoot
+	}
+	if lease.GetOwnerKind() == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD ||
+		lease.GetState() == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE {
+		return parent == workloadRoot
+	}
+	// An unowned retiring object can be recovered from either current domain.
+	return lease.GetState() == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING &&
+		(parent == workloadRoot || parent == conformanceRoot)
+}
+
+func cgroupPathInCurrentRoot(id, workloadRoot, conformanceRoot string) bool {
+	parent := filepath.Dir(id)
+	return parent == workloadRoot || parent == conformanceRoot
+}
+
+func cgroupIDsUnderRoot(ids []string, root string) []string {
+	result := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if filepath.Dir(id) == root {
+			result = append(result, id)
+		}
+	}
+	return result
 }
 
 func staleCgroupLeaseIsRecreatable(lease *apipb.CgroupLease) bool {

@@ -29,7 +29,7 @@ func TestValidateManagedRootName(t *testing.T) {
 			t.Fatalf("validateManagedRootName(%q) = %q, %v", valid, got, err)
 		}
 	}
-	for _, invalid := range []string{"", ".", "..", "/sandbox", `parent\\sandbox`, "internal", "workload"} {
+	for _, invalid := range []string{"", ".", "..", "/sandbox", `parent\\sandbox`, "internal", "workload", "conformance"} {
 		if _, err := validateManagedRootName(invalid); err == nil {
 			t.Fatalf("validateManagedRootName(%q) accepted invalid name", invalid)
 		}

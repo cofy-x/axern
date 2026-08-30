@@ -8,6 +8,8 @@ type NodeMemoryBudgetSample struct {
 	SystemReserveBytes       int64
 	EffectiveAllocatable     int64
 	InternalCurrentBytes     int64
+	ConformanceCurrentBytes  int64
+	ConformanceLimitBytes    int64
 	SandboxCurrentBytes      int64
 	CapacityIdentity         string
 	SystemReserveExhausted   bool

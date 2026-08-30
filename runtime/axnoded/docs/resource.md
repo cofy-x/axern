@@ -279,14 +279,23 @@ Key behavior:
   writeback all consume it. There is no runsc overhead reservation.
 - `memory_system_reserve_bytes` covers axnoded, lifecycle monitors, imagemgr,
   imagefsd, volumed, Nydus daemons/cache, and other node-local processes outside
-  sandbox cgroups. Production requires a qualification-derived positive value;
+  sandbox cgroups. It also contains the reserved runtime-certification budget:
+  axnoded creates a sibling `conformance` domain with an aggregate 256 MiB hard
+  limit, zero swap, and group OOM. All runc/runsc memory and storage self-tests
+  share one serial lane and one resource lease in that domain. Certification
+  current usage, commitment, and cleanup debt never reduce workload allocatable
+  memory or `max_instance_num`, but insufficient system-reserve headroom fails
+  the probe closed. Production requires at least 256 MiB and a larger
+  qualification-derived value must cover the node daemons at the same time;
   exceeding it blocks new create without terminating existing sandboxes.
 - Every process charged to that reserve must run below the same delegated
-  cgroup-v2 root and inherit its `internal` child. The packaged all-in-one node
+  cgroup-v2 root. Node daemons inherit its `internal` child; certification
+  processes run only in the bounded `conformance` sibling. The packaged all-in-one node
   satisfies this by moving the supervisor and its existing children before
   enabling the sandbox subtree; separate service units must be deployed under
   an equivalent shared delegation. A daemon outside that domain is a deployment
-  error because `internal/memory.current` cannot account for it.
+  error because the combined `internal/memory.current` and
+  `conformance/memory.current` budget cannot account for it.
 - The node memory budget reports physical capacity separately from the resource
   source's allocatable value. The sandbox scheduling base is
   `min(source_allocatable_bytes, delegated_root_limit_bytes)` when the delegated

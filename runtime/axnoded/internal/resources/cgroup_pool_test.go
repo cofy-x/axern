@@ -28,8 +28,8 @@ type stubCgroupDriver struct {
 	failFirst   int
 }
 
-func (d *stubCgroupDriver) Mode() string            { return os2.CgroupModeV2 }
-func (d *stubCgroupDriver) EnsureRoot(string) error { return nil }
+func (d *stubCgroupDriver) Mode() string                   { return os2.CgroupModeV2 }
+func (d *stubCgroupDriver) EnsureRoot(string, int64) error { return nil }
 func (d *stubCgroupDriver) ResolveRoot(rootName string) (string, error) {
 	return "/" + strings.Trim(rootName, "/"), nil
 }
@@ -439,7 +439,7 @@ func TestReconcileCgroupLeasesForRootDiscardsOnlyStaleIdleLeases(t *testing.T) {
 		{CgroupID: "/current/sandbox/idle", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE},
 	}
 
-	reconciled, discarded, err := reconcileCgroupLeasesForRoot(leases, "/current/sandbox")
+	reconciled, discarded, err := reconcileCgroupLeasesForRoots(leases, "/current/sandbox", "/current/conformance")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,7 +465,7 @@ func TestReconcileCgroupLeasesForRootPreservesStaleOwnership(t *testing.T) {
 		},
 	} {
 		t.Run(lease.GetState().String(), func(t *testing.T) {
-			reconciled, discarded, err := reconcileCgroupLeasesForRoot([]*apipb.CgroupLease{lease}, "/current/sandbox")
+			reconciled, discarded, err := reconcileCgroupLeasesForRoots([]*apipb.CgroupLease{lease}, "/current/sandbox", "/current/conformance")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -490,7 +490,7 @@ func TestReconcileCgroupLeasesForRootDiscardsStaleInternalConformance(t *testing
 			lease.RetiringAtUnixNano = 2
 		}
 		t.Run(state.String(), func(t *testing.T) {
-			reconciled, discarded, err := reconcileCgroupLeasesForRoot([]*apipb.CgroupLease{lease}, "/current/sandbox")
+			reconciled, discarded, err := reconcileCgroupLeasesForRoots([]*apipb.CgroupLease{lease}, "/current/sandbox", "/current/conformance")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -506,7 +506,7 @@ func TestReconcileCgroupLeasesForRootValidatesStaleIdleLeaseBeforeDiscard(t *tes
 		CgroupID: "/old/sandbox/idle", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE,
 		AllocationID: "unexpected-owner",
 	}
-	if _, _, err := reconcileCgroupLeasesForRoot([]*apipb.CgroupLease{lease}, "/current/sandbox"); err == nil {
+	if _, _, err := reconcileCgroupLeasesForRoots([]*apipb.CgroupLease{lease}, "/current/sandbox", "/current/conformance"); err == nil {
 		t.Fatal("reconcileCgroupLeasesForRoot() discarded a malformed idle lease")
 	}
 }

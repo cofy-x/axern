@@ -22,6 +22,10 @@ type CgroupManager struct {
 	size      int
 	cacheSize int
 	rootName  string
+	// conformanceRoot is a sibling of rootName below the delegated cgroup-v2
+	// root. Node-owned destructive certification runs only in this bounded
+	// domain and is excluded from workload slots and memory commitment.
+	conformanceRoot string
 
 	poolController *poolController
 
@@ -32,8 +36,9 @@ type CgroupManager struct {
 	// cgroups tracks every allocation and warm object created under the sandbox
 	// root. Assigned objects are one-use: after retirement their IDs are released
 	// only after the kernel object and durable lease have both disappeared.
-	cgroups   cmap.ConcurrentMap[string, struct{}]
-	generator truncindex.UniqueIdGenerator
+	cgroups              cmap.ConcurrentMap[string, struct{}]
+	generator            truncindex.UniqueIdGenerator
+	conformanceGenerator truncindex.UniqueIdGenerator
 	sync.Mutex
 	db stateStore
 
@@ -106,6 +111,12 @@ func (c *CgroupManager) UpdateMemoryCapacity(snapshot MemoryCapacitySnapshot) er
 	if validationErr == nil && snapshot.SandboxCurrentBytes < 0 {
 		validationErr = fmt.Errorf("sandbox current memory cannot be negative")
 	}
+	if validationErr == nil && snapshot.SystemReserveAvailableBytes < 0 {
+		validationErr = fmt.Errorf("system reserve available memory cannot be negative")
+	}
+	if validationErr == nil && snapshot.SystemReserveBaseAvailableBytes < snapshot.SystemReserveAvailableBytes {
+		validationErr = fmt.Errorf("system reserve base headroom cannot be below current headroom")
+	}
 	if validationErr == nil && snapshot.SampledAt.IsZero() {
 		validationErr = fmt.Errorf("memory capacity sample time is required")
 	}
@@ -173,6 +184,16 @@ func (c *CgroupManager) memoryCommitmentLocked(now time.Time) MemoryCommitment {
 		charge := lease.GetMemoryRequestBytes()
 		if lease.GetState() == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING && lease.GetCurrentChargedBytes() > charge {
 			charge = lease.GetCurrentChargedBytes()
+		}
+		if lease.GetOwnerKind() == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE {
+			switch lease.GetState() {
+			case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED:
+				result.ConformanceBytes = saturatingMemoryAdd(result.ConformanceBytes, charge)
+			case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING:
+				result.ConformanceBytes = saturatingMemoryAdd(result.ConformanceBytes, charge)
+				result.ConformanceCleanupDebtBytes = saturatingMemoryAdd(result.ConformanceCleanupDebtBytes, charge)
+			}
+			continue
 		}
 		switch lease.GetState() {
 		case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED:

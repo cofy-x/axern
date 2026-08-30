@@ -15,6 +15,12 @@ DEFAULT_UPLINK="${DEFAULT_UPLINK:-$(ip route show default | awk '/default/ {prin
 AXNODED_IP_RANGE="${AXNODED_IP_RANGE:-172.31.0.1/16}"
 VERIFY_ROOTFS_IMAGE="${VERIFY_ROOTFS_IMAGE:-/var/lib/axnoded/verify-rootfs.ext4}"
 VERIFY_NGINX_ROOTFS_IMAGE="${VERIFY_NGINX_ROOTFS_IMAGE:-/var/lib/axnoded/verify-nginx-rootfs.ext4}"
+AXNODED_VERIFY_CGROUP_ENFORCEMENT="${AXNODED_VERIFY_CGROUP_ENFORCEMENT:-disabled_dev}"
+case "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" in
+  required) AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES:-536870912}" ;;
+  disabled_dev) AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES=0 ;;
+  *) echo "unsupported AXNODED_VERIFY_CGROUP_ENFORCEMENT=${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" >&2; exit 1 ;;
+esac
 setup_node_runtime_volume_defaults
 ensure_bpf_fs "${NAT_BACKEND}"
 
@@ -46,12 +52,13 @@ cgroup_cache_size = 4
 interface_cache_size = 4
 cgroup_root_name = "sandbox"
 max_instance_num = 8
+memory_system_reserve_bytes = ${AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES}
 
 [plugin.runtime]
 image_lib_dir = "/var/lib/axnoded/rootfs"
 image_manager_enabled = false
 volume_manager_socket = "${VOLUMED_SOCKET}"
-cgroup_enforcement = "disabled_dev"
+cgroup_enforcement = "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}"
 filestore_mode = "loopback_dev"
 filestore_dir = "/var/lib/axnoded/filestore"
 filestore_loopback_image = "/var/lib/axnoded/filestore.xfs"
@@ -157,6 +164,50 @@ if ! [ -S "${SOCKET_ADDRESS}" ] || ! curl -fsS http://127.0.0.1:23001/readyz >/d
   echo "--- axnoded log tail ---" >&2
   tail -n 120 /tmp/axnoded.log >&2 || true
   exit 1
+fi
+
+if [ "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" = "required" ]; then
+  axnoded_group="$(awk -F: '$1 == "0" { print $3 }' "/proc/${AXNODED_PID}/cgroup")"
+  if [ "$(basename "${axnoded_group}")" != "internal" ]; then
+    echo "axnoded cgroup ${axnoded_group} is not the reserved internal domain" >&2
+    exit 1
+  fi
+  conformance_dir="/sys/fs/cgroup/$(dirname "${axnoded_group#/}")/conformance"
+  [ "$(cat "${conformance_dir}/memory.max")" = "268435456" ]
+  [ "$(cat "${conformance_dir}/memory.swap.max")" = "0" ]
+  [ "$(cat "${conformance_dir}/memory.oom.group")" = "1" ]
+
+  inventory=""
+  contract_ready=false
+  for _ in $(seq 1 160); do
+    inventory="$(curl -fsS http://127.0.0.1:23001/inventoryz 2>/dev/null || true)"
+    if jq -e '
+      def available($name):
+        [.node.capability_snapshot.observations[]?
+          | select(.key.platform == $name and .state == "CAPABILITY_STATE_AVAILABLE")]
+        | length == 1;
+      .node.memory_budget.mode == "cgroup_v2" and
+      .node.memory_budget.conformance_limit_bytes == 268435456 and
+      .node.memory_budget.local_commitment_bytes == 0 and
+      .node.memory_budget.conformance_commitment_bytes == 0 and
+      .node.memory_budget.conformance_cleanup_debt_bytes == 0 and
+      available("PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT") and
+      available("PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT") and
+      available("PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT") and
+      available("PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT")
+    ' <<<"${inventory}" >/dev/null 2>&1; then
+      contract_ready=true
+      break
+    fi
+    sleep 1
+  done
+  if [ "${contract_ready}" != "true" ]; then
+    echo "runtime conformance contract did not become observable" >&2
+    jq '.node.memory_budget, .node.capability_snapshot.observations' <<<"${inventory}" >&2 || true
+    tail -n 160 /tmp/axnoded.log >&2 || true
+    exit 1
+  fi
+  echo "cgroup_conformance_contract_ok=true"
 fi
 
 ROOT_DIR="${ROOT_DIR}" SOCKET_ADDRESS="${SOCKET_ADDRESS}" RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST}" \
