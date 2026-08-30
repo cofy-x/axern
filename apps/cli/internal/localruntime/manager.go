@@ -35,6 +35,12 @@ type PipelineRunner interface {
 	Pipe(context.Context, io.Writer, io.Writer, string, []string, string, []string) error
 }
 
+// DefaultReadinessTimeout covers fresh-node runtime capability certification.
+// The destructive runtime conformance probes are deliberately serialized, so
+// their first trustworthy snapshot can take longer than an ordinary service
+// health check on an uncached host.
+const DefaultReadinessTimeout = 10 * time.Minute
+
 type ExecRunner struct{}
 
 func (ExecRunner) Run(ctx context.Context, stdout, stderr io.Writer, name string, args ...string) error {
@@ -301,7 +307,11 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	if err := m.composeRun(ctx, options.Profile, args...); err != nil {
 		return err
 	}
-	if err := m.waitReady(ctx, 3*time.Minute); err != nil {
+	readinessTimeout := options.ReadinessTimeout
+	if readinessTimeout <= 0 {
+		readinessTimeout = DefaultReadinessTimeout
+	}
+	if err := m.waitReady(ctx, readinessTimeout); err != nil {
 		m.printStartupDiagnostics(options.Profile)
 		return err
 	}
