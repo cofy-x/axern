@@ -130,6 +130,22 @@ func IsStrictDenyAll(in *commonv1.NetworkSpec) bool {
 	return strict != nil && len(strict.GetAllowedDomains()) == 0 && len(strict.GetAllowedCidrs()) == 0
 }
 
+// RequiresDNSUpstreams reports whether enforcing policy must forward DNS.
+// DNS deny policies forward queries that are not denied. Strict policies only
+// need DNS forwarding when domain rules are present so returned addresses can
+// be authorized for their TTL. Strict deny-all and CIDR-only policies do not
+// depend on a node resolver.
+func RequiresDNSUpstreams(policy *commonv1.NetworkEgressPolicy) bool {
+	if policy == nil {
+		return false
+	}
+	if policy.GetDnsDeny() != nil {
+		return true
+	}
+	strict := policy.GetStrict()
+	return strict != nil && len(strict.GetAllowedDomains()) > 0
+}
+
 func normalizeStrict(in *commonv1.StrictEgressPolicy) (*commonv1.StrictEgressPolicy, error) {
 	if in == nil {
 		return nil, fmt.Errorf("policy body is required")

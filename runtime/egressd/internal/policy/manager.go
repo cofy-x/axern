@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/lib/go/networkpolicy"
+	"github.com/cofy-x/axern/runtime/egressd/internal/dnsforward"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 	"google.golang.org/protobuf/proto"
@@ -138,6 +139,13 @@ func (m *Manager) Prepare(ctx context.Context, allocationID string, attempt int6
 	}
 	if len(upstreamSets) > 0 {
 		record.UpstreamNameservers = append([]string(nil), upstreamSets[0]...)
+	}
+	if networkpolicy.RequiresDNSUpstreams(record.GetPolicy()) {
+		if _, err := dnsforward.ParseUpstreams(record.GetUpstreamNameservers()); err != nil {
+			return nil, false, fmt.Errorf("DNS forwarding upstreams: %w", err)
+		}
+	} else {
+		record.UpstreamNameservers = nil
 	}
 	key := keyOf(record)
 

@@ -126,9 +126,9 @@ configure_compose_dns_verification() {
   local configured normalized
   configured="${AXERN_VERIFY_DNS_NAMESERVERS:-}"
   if [ -z "${configured//[[:space:]]/}" ]; then
-    echo "AXERN_VERIFY_DNS_NAMESERVERS is required for Compose DNS verification" >&2
-    echo "set it to a comma-separated resolver IP set reachable from the Node container; no public fallback is used" >&2
-    return 2
+    export AXNODED_DNS_NAMESERVERS=""
+    echo "compose_dns_source=node_effective"
+    return 0
   fi
   normalized="$(python3 - "${configured}" <<'PY'
 import ipaddress
@@ -154,6 +154,7 @@ print(",".join(normalized))
 PY
 )" || return $?
   export AXNODED_DNS_NAMESERVERS="${normalized}"
+  echo "compose_dns_source=verification_override"
 }
 
 ensure_local_images() {

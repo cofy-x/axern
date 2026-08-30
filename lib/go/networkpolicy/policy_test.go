@@ -96,6 +96,28 @@ func TestNormalizeDNSDenyDeduplicatesAndClassifies(t *testing.T) {
 	}
 }
 
+func TestRequiresDNSUpstreamsTracksForwardingSemantics(t *testing.T) {
+	cidr := []*commonv1.CIDREgressRule{{Cidr: "10.0.0.0/8", Protocol: commonv1.EgressProtocol_EGRESS_PROTOCOL_TCP, Ports: []*commonv1.PortRange{{Start: 22, End: 22}}}}
+	tests := []struct {
+		name   string
+		policy *commonv1.NetworkEgressPolicy
+		want   bool
+	}{
+		{name: "none"},
+		{name: "deny all", policy: strictPolicy(nil, nil)},
+		{name: "CIDR only", policy: strictPolicy(nil, cidr)},
+		{name: "strict domain", policy: strictPolicy([]string{"example.com"}, nil), want: true},
+		{name: "DNS deny", policy: dnsDenySpec([]string{"example.com"}).GetEgressPolicy(), want: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := RequiresDNSUpstreams(test.policy); got != test.want {
+				t.Fatalf("RequiresDNSUpstreams() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func strictSpec(domains []string, cidrs []*commonv1.CIDREgressRule) *commonv1.NetworkSpec {
 	return &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT, EgressPolicy: strictPolicy(domains, cidrs)}
 }

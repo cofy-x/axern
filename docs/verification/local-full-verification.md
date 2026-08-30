@@ -38,22 +38,22 @@ make local-compose-refresh-verify
 make kind-refresh-verify
 ```
 
-Compose DNS verification requires an explicit resolver set that is reachable
-from the Node container. For example:
+Compose DNS verification uses the same effective resolver set that axnoded
+derives inside the Node container. No DNS environment variable is required:
 
 ```bash
-AXERN_VERIFY_DNS_NAMESERVERS="$REACHABLE_RESOLVER_IPS" \
-  make local-compose-refresh-verify
+make local-compose-refresh-verify
 ```
 
-`AXERN_VERIFY_DNS_NAMESERVERS` is a comma-separated list of IPv4 or IPv6
-addresses. Verification deliberately does not discover host resolvers or fall
-back to a public resolver: the caller must choose infrastructure appropriate
-for the environment being qualified. The refresh target materializes that set
-into the Compose stack and runs `local-compose-dns-doctor-smoke`, which verifies
-the config, Node, and real OCI sandbox DNS layers together with redaction,
-cleanup, table output, and exit-code contracts. Run the standalone smoke only
-after the same resolver set has been materialized by a Compose refresh.
+The Node probe reads axnoded's materialized runtime config, applies axnoded's
+normal resolver derivation, and verifies that effective set without exposing
+addresses. It never asks egressd to discover DNS and never falls back to a
+public resolver. For deterministic infrastructure qualification only,
+`AXERN_VERIFY_DNS_NAMESERVERS` may override the derived set with a comma-separated
+list of reachable IPv4 or IPv6 addresses. The refresh runs
+`local-compose-dns-doctor-smoke`, which verifies the config, Node, and real OCI
+sandbox DNS layers together with redaction, cleanup, table output, and exit-code
+contracts.
 
 Tier 2 proves lifecycle and kernel integration with a small deterministic
 matrix. It may exercise a single startup conformance sandbox, but it does not

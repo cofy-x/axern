@@ -16,7 +16,11 @@ var defaultLocalDNSResolverPaths = []string{
 }
 
 func localDNSNameservers() ([]string, error) {
-	return discoverLocalDNSNameservers(os.Getenv(localDNSNameserversEnv), defaultLocalDNSResolverPaths)
+	override := os.Getenv(localDNSNameserversEnv)
+	if strings.TrimSpace(override) == "" {
+		return nil, nil
+	}
+	return discoverLocalDNSNameservers(override, nil)
 }
 
 func discoverLocalDNSNameservers(override string, paths []string) ([]string, error) {

@@ -124,7 +124,7 @@ if ns curl --fail --silent --max-time 2 'http://[2001:db8::34]/' >/dev/null; the
 fi
 ctl -allocation strict-v6 -attempt 1 delete >/dev/null
 
-ctl -allocation cidr -attempt 1 -ip 10.77.0.2 -revision 1 -mode strict -cidr-rules tcp@93.184.216.34/32@8080,udp@93.184.216.34/32@5354 -upstreams 10.77.0.1:5353 prepare >/dev/null
+ctl -allocation cidr -attempt 1 -ip 10.77.0.2 -revision 1 -mode strict -cidr-rules tcp@93.184.216.34/32@8080,udp@93.184.216.34/32@5354 prepare >/dev/null
 ns curl --fail --silent --max-time 3 http://93.184.216.34:8080/ >/dev/null
 if ns curl --fail --silent --max-time 2 http://93.184.216.34:8081/ >/dev/null; then
   echo "strict CIDR rule allowed an undeclared TCP port" >&2; exit 1
@@ -132,6 +132,12 @@ fi
 ns python3 "${FIXTURES}/udp_probe.py" --address 93.184.216.34 --port 5354
 ns python3 "${FIXTURES}/udp_probe.py" --address 93.184.216.34 --port 5355 --expect-timeout
 ctl -allocation cidr -attempt 1 delete >/dev/null
+
+ctl -allocation deny-all -attempt 1 -ip 10.77.0.2 -revision 1 -mode strict prepare >/dev/null
+if ns curl --fail --silent --max-time 2 http://93.184.216.34:8080/ >/dev/null; then
+  echo "strict deny-all allowed direct egress" >&2; exit 1
+fi
+ctl -allocation deny-all -attempt 1 delete >/dev/null
 
 ctl -allocation dns-soft -attempt 1 -ip 10.77.0.2 -revision 1 -mode dns-deny -domains denied.test -upstreams 10.77.0.1:5353 prepare >/dev/null
 ns python3 "${FIXTURES}/dns_query.py" denied.test --server 10.77.0.1 --expect-rcode 5
