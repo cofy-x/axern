@@ -53,6 +53,7 @@ func TestEnvironmentFingerprintChangesOnlyWithEnvironment(t *testing.T) {
 	report := testReport(t)
 	first := report.Environment.EnvironmentID
 	report.Subject.Commit = strings.Repeat("b", 40)
+	report.Subject.Build = "sha256:" + strings.Repeat("c", 64)
 	second, err := report.Environment.Fingerprint()
 	if err != nil {
 		t.Fatal(err)
@@ -68,13 +69,31 @@ func TestEnvironmentFingerprintChangesOnlyWithEnvironment(t *testing.T) {
 	if third == first {
 		t.Fatal("kernel change retained the environment fingerprint")
 	}
+	report = testReport(t)
+	report.Environment.SystemPackagesDigest = "sha256:" + strings.Repeat("d", 64)
+	fourth, err := report.Environment.Fingerprint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fourth == first {
+		t.Fatal("system package change retained the environment fingerprint")
+	}
+	report = testReport(t)
+	report.Environment.HostIdentityDigest = "sha256:" + strings.Repeat("e", 64)
+	fifth, err := report.Environment.Fingerprint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fifth == first {
+		t.Fatal("host identity change retained the environment fingerprint")
+	}
 }
 
 func testReport(t *testing.T) Report {
 	t.Helper()
 	environment := EnvironmentProvenance{
 		OS: "linux", Architecture: "amd64", KernelRelease: "6.12.0", CPUModel: "qualification cpu",
-		LogicalCPUs: 8, MemoryBytes: 16 << 30, RunnerImageDigest: testDigest,
+		LogicalCPUs: 8, MemoryBytes: 16 << 30, HostIdentityDigest: testDigest, SystemPackagesDigest: testDigest,
 		RuntimeDigests: map[string]string{"runc": testDigest, "runsc": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
 	}
 	var err error

@@ -9,6 +9,7 @@ func TestComparePassesStableCandidateAndRejectsRegressions(t *testing.T) {
 	baseline := testReport(t)
 	candidate := testReport(t)
 	candidate.Subject.Commit = strings.Repeat("c", 40)
+	candidate.Subject.Build = "sha256:" + strings.Repeat("d", 64)
 	budget := testBudget()
 	comparison, err := Compare(baseline, candidate, budget)
 	if err != nil {

@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 var (
 	Runtimes        = []string{"runc", "runsc"}
@@ -25,15 +25,16 @@ var (
 )
 
 type EnvironmentProvenance struct {
-	EnvironmentID     string            `json:"environmentId"`
-	OS                string            `json:"os"`
-	Architecture      string            `json:"architecture"`
-	KernelRelease     string            `json:"kernelRelease"`
-	CPUModel          string            `json:"cpuModel"`
-	LogicalCPUs       int               `json:"logicalCpus"`
-	MemoryBytes       uint64            `json:"memoryBytes"`
-	RunnerImageDigest string            `json:"runnerImageDigest"`
-	RuntimeDigests    map[string]string `json:"runtimeDigests"`
+	EnvironmentID        string            `json:"environmentId"`
+	OS                   string            `json:"os"`
+	Architecture         string            `json:"architecture"`
+	KernelRelease        string            `json:"kernelRelease"`
+	CPUModel             string            `json:"cpuModel"`
+	LogicalCPUs          int               `json:"logicalCpus"`
+	MemoryBytes          uint64            `json:"memoryBytes"`
+	HostIdentityDigest   string            `json:"hostIdentityDigest"`
+	SystemPackagesDigest string            `json:"systemPackagesDigest"`
+	RuntimeDigests       map[string]string `json:"runtimeDigests"`
 }
 
 type SubjectProvenance struct {
@@ -247,8 +248,8 @@ func (environment EnvironmentProvenance) Validate() error {
 	if environment.OS != "linux" || environment.Architecture == "" || environment.KernelRelease == "" || environment.CPUModel == "" || environment.LogicalCPUs <= 0 || environment.MemoryBytes == 0 {
 		return errors.New("complete Linux environment provenance is required")
 	}
-	if !validDigest(environment.RunnerImageDigest) {
-		return errors.New("runnerImageDigest must be a sha256 digest")
+	if !validDigest(environment.HostIdentityDigest) || !validDigest(environment.SystemPackagesDigest) {
+		return errors.New("hostIdentityDigest and systemPackagesDigest must be sha256 digests")
 	}
 	for _, runtimeName := range Runtimes {
 		if !validDigest(environment.RuntimeDigests[runtimeName]) {

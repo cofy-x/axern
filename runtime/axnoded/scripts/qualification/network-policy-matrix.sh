@@ -24,6 +24,15 @@ if ! [[ "${runner_image_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
   echo "qualification runner does not have a canonical sha256 image ID" >&2
   exit 1
 fi
+if [ ! -s /etc/machine-id ]; then
+  echo "network-policy qualification requires a stable Linux /etc/machine-id" >&2
+  exit 1
+fi
+host_identity_digest="sha256:$(sha256sum /etc/machine-id | awk '{print $1}')"
+if ! [[ "${host_identity_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  echo "qualification host does not have a canonical identity digest" >&2
+  exit 1
+fi
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 host_output="${NETWORK_POLICY_QUALIFICATION_OUTPUT_DIR:-${REPO_ROOT}/output/network-policy-qualification-${timestamp}}"
@@ -37,8 +46,8 @@ docker_args=(
   --mount "type=bind,src=${host_output},dst=/qualification-output"
   -e NETWORK_POLICY_QUALIFICATION_REPO_ROOT=/qualification-source
   -e NETWORK_POLICY_QUALIFICATION_OUTPUT_DIR=/qualification-output
-  -e "NETWORK_POLICY_QUALIFICATION_RUNNER_IMAGE_DIGEST=${runner_image_digest}"
   -e "NETWORK_POLICY_QUALIFICATION_BUILD_DIGEST=${runner_image_digest}"
+  -e "NETWORK_POLICY_QUALIFICATION_HOST_IDENTITY_DIGEST=${host_identity_digest}"
 )
 
 for variable in \

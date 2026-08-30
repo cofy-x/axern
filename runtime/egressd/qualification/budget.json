@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "maxLatencyP95Ratio": 1.2,
   "maxLatencyP99Ratio": 1.3,
   "minThroughputRatio": 0.85,

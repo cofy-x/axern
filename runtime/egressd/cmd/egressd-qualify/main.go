@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -112,7 +113,7 @@ func runAssemble(args []string, stdout io.Writer) error {
 	commit := flags.String("subject-commit", "", "candidate git commit")
 	buildDigest := flags.String("subject-build-digest", "", "candidate build-set sha256 digest")
 	dirty := flags.Bool("subject-dirty", false, "mark the candidate checkout dirty")
-	runnerImageDigest := flags.String("runner-image-digest", "", "immutable qualification runner image digest")
+	hostIdentityDigest := flags.String("host-identity-digest", "", "sha256 digest of the stable Linux host identity")
 	runcBinary := flags.String("runc-binary", "", "runc binary used by the matrix")
 	runscBinary := flags.String("runsc-binary", "", "runsc binary used by the matrix")
 	samples := flags.Int("samples", 0, "samples per latency distribution")
@@ -123,14 +124,14 @@ func runAssemble(args []string, stdout io.Writer) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || *samplesDir == "" || *commit == "" || *buildDigest == "" || *runnerImageDigest == "" || *runcBinary == "" || *runscBinary == "" {
-		return errors.New("assemble requires scenarios, subject identity, runner image digest, and both runtime binaries")
+	if flags.NArg() != 0 || *samplesDir == "" || *commit == "" || *buildDigest == "" || *hostIdentityDigest == "" || *runcBinary == "" || *runscBinary == "" {
+		return errors.New("assemble requires scenarios, subject identity, host identity digest, and both runtime binaries")
 	}
 	ruleScaleCounts, err := parseRuleScaleCounts(*ruleScaleRaw)
 	if err != nil {
 		return err
 	}
-	environment, err := captureEnvironment(*runnerImageDigest, map[string]string{"runc": *runcBinary, "runsc": *runscBinary})
+	environment, err := captureEnvironment(*hostIdentityDigest, map[string]string{"runc": *runcBinary, "runsc": *runscBinary})
 	if err != nil {
 		return err
 	}
@@ -187,7 +188,7 @@ func readScenarios(root string) ([]qualification.ScenarioResult, error) {
 	return scenarios, nil
 }
 
-func captureEnvironment(runnerImageDigest string, runtimeBinaries map[string]string) (qualification.EnvironmentProvenance, error) {
+func captureEnvironment(hostIdentityDigest string, runtimeBinaries map[string]string) (qualification.EnvironmentProvenance, error) {
 	if runtime.GOOS != "linux" {
 		return qualification.EnvironmentProvenance{}, errors.New("qualification provenance capture requires Linux")
 	}
@@ -203,6 +204,10 @@ func captureEnvironment(runnerImageDigest string, runtimeBinaries map[string]str
 	if err != nil {
 		return qualification.EnvironmentProvenance{}, err
 	}
+	packagesDigest, err := systemPackagesDigest()
+	if err != nil {
+		return qualification.EnvironmentProvenance{}, err
+	}
 	digests := map[string]string{}
 	for name, path := range runtimeBinaries {
 		digest, err := fileDigest(path)
@@ -213,11 +218,31 @@ func captureEnvironment(runnerImageDigest string, runtimeBinaries map[string]str
 	}
 	environment := qualification.EnvironmentProvenance{
 		OS: runtime.GOOS, Architecture: runtime.GOARCH, KernelRelease: kernel, CPUModel: cpuModel,
-		LogicalCPUs: runtime.NumCPU(), MemoryBytes: memoryBytes, RunnerImageDigest: runnerImageDigest,
-		RuntimeDigests: digests,
+		LogicalCPUs: runtime.NumCPU(), MemoryBytes: memoryBytes, HostIdentityDigest: hostIdentityDigest,
+		SystemPackagesDigest: packagesDigest,
+		RuntimeDigests:       digests,
 	}
 	environment.EnvironmentID, err = environment.Fingerprint()
 	return environment, err
+}
+
+func systemPackagesDigest() (string, error) {
+	command := exec.Command("dpkg-query", "-W", "-f=${binary:Package}=${Version}:${db:Status-Abbrev}\\n")
+	wire, err := command.Output()
+	if err != nil {
+		return "", fmt.Errorf("capture system package manifest: %w", err)
+	}
+	return packageManifestDigest(wire)
+}
+
+func packageManifestDigest(wire []byte) (string, error) {
+	lines := strings.Split(strings.TrimSpace(string(wire)), "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		return "", errors.New("system package manifest is empty")
+	}
+	sort.Strings(lines)
+	digest := sha256.Sum256([]byte(strings.Join(lines, "\n") + "\n"))
+	return "sha256:" + hex.EncodeToString(digest[:]), nil
 }
 
 func readTrimmed(path string) (string, error) {

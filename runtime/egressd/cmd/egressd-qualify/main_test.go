@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -18,6 +19,23 @@ func TestParseRuleScaleCountsNormalizesAndDeduplicates(t *testing.T) {
 	}
 	if _, err := parseRuleScaleCounts("0"); err == nil {
 		t.Fatal("zero rule count was accepted")
+	}
+}
+
+func TestPackageManifestDigestIsOrderIndependent(t *testing.T) {
+	first, err := packageManifestDigest([]byte("nftables=1.0.9\niproute2=6.1.0\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := packageManifestDigest([]byte("iproute2=6.1.0\nnftables=1.0.9\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second || !strings.HasPrefix(first, "sha256:") {
+		t.Fatalf("manifest digests = %q and %q", first, second)
+	}
+	if _, err := packageManifestDigest(nil); err == nil {
+		t.Fatal("empty package manifest was accepted")
 	}
 }
 

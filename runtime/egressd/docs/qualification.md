@@ -39,11 +39,14 @@ latency instead of a pre-subtracted value that would hide baseline variance.
 
 ## Comparable environments
 
-The report fingerprints the Linux architecture, kernel, CPU model and count,
-memory, immutable runner image, and exact runc/runsc binaries. Candidate source
-and build identities are recorded separately, so changing the code under test
-does not make the environment incomparable. A regression comparison refuses
-to run unless the environment fingerprint and all sampling parameters match
+The report fingerprints a one-way digest of the Linux host machine identity,
+architecture, kernel, CPU model and count, memory, the sorted system-package
+manifest, and exact runc/runsc binaries. The raw machine identity is never
+stored. Candidate source and the immutable candidate image identity are
+recorded only as subject provenance, so changing the code under test does not
+make the environment incomparable. Changing the host, kernel, installed
+execution packages, or OCI runtimes does. A regression comparison refuses to
+run unless the environment fingerprint and all sampling parameters match
 exactly.
 
 The committed budget contains relative ratios only. It does not claim that a
@@ -53,9 +56,9 @@ failures is an absolute reliability requirement.
 ## Hermetic runner
 
 `make network-policy-qualification` builds the repository's privileged verify
-image, pins the run to that image's immutable SHA-256 ID, and executes every
-matrix cell in the image on a native Linux host. It refuses to produce a
-qualification report on macOS or Docker Desktop.
+image, records that candidate image's immutable SHA-256 ID as the subject build,
+and executes every matrix cell in the image on a native Linux host. It refuses
+to produce a qualification report on macOS or Docker Desktop.
 
 For every cell, the repository driver creates an isolated network namespace
 with fixed documentation-range addresses and starts repository-owned DNS,
@@ -108,6 +111,6 @@ The checkout must be clean because the report binds the candidate commit to
 the exact built image. The workflow writes only to the ignored `output/`
 directory unless `_OUTPUT_DIR` selects another location.
 
-Preserve `report.json`, `comparison.json` when present, the immutable runner
-digest, and the candidate commit as release evidence. Do not commit a local
-machine's report as a universal baseline.
+Preserve `report.json`, `comparison.json` when present, the immutable candidate
+build digest, and the candidate commit as release evidence. Do not commit a
+local machine's report as a universal baseline.
