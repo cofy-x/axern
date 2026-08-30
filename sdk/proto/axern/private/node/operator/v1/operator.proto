@@ -15,6 +15,30 @@ enum LocalSandboxState {
   LOCAL_SANDBOX_STATE_UNKNOWN = 3;
 }
 
+enum SandboxNetworkPolicyMode {
+  SANDBOX_NETWORK_POLICY_MODE_UNSPECIFIED = 0;
+  SANDBOX_NETWORK_POLICY_MODE_UNRESTRICTED = 1;
+  SANDBOX_NETWORK_POLICY_MODE_DNS_DENY = 2;
+  SANDBOX_NETWORK_POLICY_MODE_STRICT = 3;
+}
+
+enum SandboxNetworkPolicyStatus {
+  SANDBOX_NETWORK_POLICY_STATUS_UNSPECIFIED = 0;
+  SANDBOX_NETWORK_POLICY_STATUS_OK = 1;
+  SANDBOX_NETWORK_POLICY_STATUS_ABSENT = 2;
+  SANDBOX_NETWORK_POLICY_STATUS_CAPABILITY_UNAVAILABLE = 3;
+  SANDBOX_NETWORK_POLICY_STATUS_ENFORCEMENT_UNHEALTHY = 4;
+  SANDBOX_NETWORK_POLICY_STATUS_PROOF_STALE = 5;
+}
+
+enum SandboxNetworkPolicyCapabilityState {
+  SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_UNSPECIFIED = 0;
+  SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_AVAILABLE = 1;
+  SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_UNAVAILABLE = 2;
+  SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_UNKNOWN = 3;
+  SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_NOT_REQUIRED = 4;
+}
+
 message LocalSandbox {
   string sandbox_id = 1;
   string runtime_class = 2;
@@ -102,6 +126,27 @@ message GetSandboxMemoryRequest {
 
 message GetSandboxMemoryResponse {
   axern.control.node.v1.AllocationMemoryObservation observation = 1;
+}
+
+message ExplainSandboxNetworkPolicyRequest {
+  string sandbox_id = 1;
+}
+
+message ExplainSandboxNetworkPolicyResponse {
+  string sandbox_id = 1;
+  SandboxNetworkPolicyMode mode = 2;
+  SandboxNetworkPolicyStatus status = 3;
+  SandboxNetworkPolicyCapabilityState capability_state = 4;
+  bool enforcement_healthy = 5;
+  bool exact_proof = 6;
+  int64 allocation_attempt = 7;
+  int64 execution_revision = 8;
+  int64 enforcement_revision = 9;
+  uint32 domain_rule_count = 10;
+  uint32 cidr_rule_count = 11;
+  uint32 port_range_count = 12;
+  uint32 total_rule_count = 13;
+  bool recovered_after_restart = 14;
 }
 
 message DeleteSandboxRequest {
@@ -192,6 +237,7 @@ service NodeOperator {
   rpc GetSandbox(GetSandboxRequest) returns (GetSandboxResponse) {}
   rpc GetSandboxDiagnostics(GetSandboxDiagnosticsRequest) returns (GetSandboxDiagnosticsResponse) {}
   rpc GetSandboxMemory(GetSandboxMemoryRequest) returns (GetSandboxMemoryResponse) {}
+  rpc ExplainSandboxNetworkPolicy(ExplainSandboxNetworkPolicyRequest) returns (ExplainSandboxNetworkPolicyResponse) {}
   rpc DeleteSandbox(DeleteSandboxRequest) returns (DeleteSandboxResponse) {}
   rpc KillSandbox(KillSandboxRequest) returns (KillSandboxResponse) {}
   rpc Exec(ExecRequest) returns (ExecResponse) {}

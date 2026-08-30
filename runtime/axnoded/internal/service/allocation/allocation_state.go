@@ -103,6 +103,19 @@ func (h *Controller) EgressPolicyProofs() map[string]EgressPolicyManifest {
 	return out
 }
 
+func (h *Controller) EgressPolicyManifest(allocationID string) (EgressPolicyManifest, bool) {
+	h.stateMu.RLock()
+	defer h.stateMu.RUnlock()
+	state := h.allocationStates[strings.TrimSpace(allocationID)]
+	if state == nil || state.record.GetAllocationAttempt() <= 0 || state.record.GetEgressPolicyProof() == nil {
+		return EgressPolicyManifest{}, false
+	}
+	return EgressPolicyManifest{
+		Attempt: state.record.GetAllocationAttempt(),
+		Proof:   proto.Clone(state.record.GetEgressPolicyProof()).(*apipb.AllocationEgressPolicyProof),
+	}, true
+}
+
 // ReplaceCapabilityAdmission atomically persists the admitted dependency
 // proofs and their complete condition projection. The initial admission is the
 // first durable side effect of create, before volumes, rootfs, mounts, cgroups,

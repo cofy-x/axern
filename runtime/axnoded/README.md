@@ -160,6 +160,8 @@ product workflows. Common local inspection starts with:
 axctl node check
 axctl sandbox list
 axctl image mounts
+axctl sandbox network-policy explain <sandbox-id>
+axctl sandbox network-policy doctor --json <sandbox-id>
 
 # Qualification-only: evict one page-aligned regular-file range from an exact,
 # currently mounted image identity. This never uses the global drop_caches knob.
@@ -169,6 +171,14 @@ axctl image drop-page-cache \
   --offset 0 \
   --length 33554432
 ```
+
+Network-policy diagnostics are read-only and intentionally bounded. They show
+the effective mode, stable health category, allocation attempt, execution and
+enforcement revisions, exact-proof state, and normalized rule counts. They do
+not return DNS names, HTTP Host, TLS SNI, destination IP/CIDR values, policy
+digests, or raw egressd records. `doctor` exits non-zero for unavailable
+capability, unhealthy enforcement, or stale proof; a sandbox with no policy is
+reported as `absent` and is not considered degraded.
 
 The daemon HTTP surface exposes a read-only dashboard, cached inventory at
 `/inventoryz`, control-plane reporter health at `/control-planez`, local metrics

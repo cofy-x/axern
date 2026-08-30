@@ -119,6 +119,13 @@ packaging change. Update deployment values and runtime docs together, then run
 | retention/locality/warm pool | `make verify-node-retention-e2e`, `make verify-node-locality-e2e`, `make verify-node-warm-pool-e2e` |
 | rootfs modes | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e`, `make verify-node-oss-e2e` |
 
+Node-local network-policy diagnostics are covered by
+`go test ./internal/service ./internal/api ./axctl/commands/sandbox`. The gate
+must exercise `absent`, `dns_deny`, `strict`, capability-unavailable,
+enforcement-unhealthy, and stale-proof results, and must reject destination
+names, Host/SNI, remote addresses, CIDR values, policy digests, and raw daemon
+state from both the private operator response and stable JSON output.
+
 `verify-node-locality-e2e` reports explicit phases for initial inventory, OCI
 start, OCI retention, Nydus start, and Nydus heat. If create fails, inspect the
 printed context in this order: image pull and imagemgr mount state, runtime
