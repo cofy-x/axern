@@ -41,7 +41,7 @@ TESTFLAGS ?= $(EXTRA_TESTFLAGS)
 HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/demo/nginx ./internal/langruntime ./internal/network/ebpf ./internal/nodestate ./internal/observability/trace ./internal/volume ./pkg/errord ./pkg/truncindex
 
 .PHONY: all clean test test-host check-architecture release release-binary release-cli protos protos-docker protos-docker-build tidy vendor fmt vet help \
-	verify-docker verify-docker-build verify-docker-conformance \
+	verify-docker verify-docker-build verify-docker-conformance verify-network-policy-linux-smoke \
 	verify-sandboxd-e2e \
 	verify-sandboxd-computer-use-e2e \
 	verify-sandboxd-desktop-e2e \
@@ -181,6 +181,9 @@ verify-docker-build: ## build the privileged Docker verification image
 	@bash -lc '. ./scripts/lib/verify-docker-common.sh; ensure_verify_image'
 
 verify-docker: verify-docker-runsc verify-docker-runc verify-docker-conformance ## run privileged Docker verification matrix against runsc, runc, and production cgroup certification
+
+verify-network-policy-linux-smoke: ## run representative native-Linux network-policy data-plane truth
+	@bash ./scripts/qualification/network-policy-linux-smoke.sh
 
 verify-docker-conformance: ## run production cgroup and serialized runc/runsc certification truth
 	@AXNODED_VERIFY_CGROUP_ENFORCEMENT=required RUNTIME_UNDER_TEST=runc RUNTIME_BINARY=/usr/bin/runc bash ./scripts/verify/verify-docker.sh

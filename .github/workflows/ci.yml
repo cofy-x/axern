@@ -114,6 +114,17 @@ jobs:
       - name: Lint Go workspaces
         run: make lint-go
 
+  network-policy-linux:
+    name: Network Policy Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Run representative native Linux data-plane truth
+        run: make axnoded-verify-network-policy-linux-smoke
+
   rust:
     name: Rust
     runs-on: ubuntu-latest
