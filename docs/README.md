@@ -82,6 +82,8 @@ material here only when multiple modules need the same model.
 
 ## Development And Operations
 
+- [v0.6.1 Release Notes](releases/v0.6.1.md): published sandbox network
+  policies and capability-complete local readiness.
 - [v0.6.0 Release Notes](releases/v0.6.0.md): fail-closed sandbox egress,
   DNS-only deny policies, and cross-language SDK support.
 - [v0.5.1 Release Notes](releases/v0.5.1.md): source-free local image loading

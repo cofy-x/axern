@@ -1,6 +1,6 @@
 {
   "name": "@cofy-x/axern",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "description": "Open-source agentic infrastructure for running AI agents in isolated, stateful sandboxes",
   "license": "Apache-2.0",
