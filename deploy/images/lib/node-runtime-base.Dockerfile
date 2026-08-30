@@ -184,6 +184,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/axctl ./axctl && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egress-probe ./cmd/egress-probe && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/dns-probe ./cmd/dns-probe && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/dns-fixture ./cmd/dns-fixture && \
     cd /workspace/runtime/egressd && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/egressd ./cmd/egressd && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/egressdctl ./cmd/egressdctl && \
@@ -320,6 +321,7 @@ COPY --from=axnoded-builder /out/axern-sandboxd /usr/local/libexec/axnoded/axern
 COPY --from=axnoded-builder /out/axnoded-runtime-runner /usr/local/libexec/axnoded/axnoded-runtime-runner
 COPY --from=axnoded-builder /out/egress-probe /usr/local/libexec/axnoded/egress-probe
 COPY --from=axnoded-builder /out/dns-probe /usr/local/libexec/axnoded/dns-probe
+COPY --from=axnoded-builder /out/dns-fixture /usr/local/libexec/axnoded/dns-fixture
 COPY --from=axnoded-builder /out/egressd /usr/local/bin/egressd
 COPY --from=axnoded-builder /out/egressdctl /usr/local/bin/egressdctl
 COPY --from=axnoded-builder /out/node-tunneld /usr/local/bin/node-tunneld

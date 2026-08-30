@@ -20,6 +20,8 @@ write_cli_env compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}"
 if [ "${AXERN_COMPOSE_RESET_STATE:-0}" = "1" ] || [ "${AXERN_COMPOSE_RESET_STATE:-0}" = "true" ]; then
   compose_project_reset_state
 fi
+configure_compose_dns_fixture
+write_compose_env
 compose_project_up
 
 bash "${AXERN_ROOT}/scripts/dev-env/wait-ready.sh" compose

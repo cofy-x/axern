@@ -1,6 +1,7 @@
 .PHONY: bootstrap bootstrap-tools \
 		bootstrap-go bootstrap-rust bootstrap-ts bootstrap-py \
 		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture axern-cli-dashboard-smoke gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
+		hermetic-dns-contract-check \
 		gateway-dashboard-assets grafana-assets-check \
 		build-go test-go lint-go fmt-go \
 		build-rust test-rust lint-rust fmt-rust \
@@ -76,9 +77,13 @@ release-check: ## Verify release versions and package contracts
 	bash $(ROOTDIR)/scripts/dev-env/docker-build-cache-test.sh
 	bash $(ROOTDIR)/scripts/release/image-build-contract-check.sh
 	bash $(ROOTDIR)/scripts/proxy-env-contract-check.sh
+	bash $(ROOTDIR)/scripts/dev-env/hermetic-dns-contract-check.sh
 	bash $(ROOTDIR)/scripts/release/publication-contract-check.sh
 	bash $(ROOTDIR)/scripts/release/sdk-data-plane-contract-check.sh
 	$(MAKE) helm-lint
+
+hermetic-dns-contract-check: ## Verify local verification uses only the repository DNS fixture
+	bash $(ROOTDIR)/scripts/dev-env/hermetic-dns-contract-check.sh
 
 release-build: release-check ## Build CLI archives and the Helm package
 	bash $(ROOTDIR)/scripts/release/build-cli.sh

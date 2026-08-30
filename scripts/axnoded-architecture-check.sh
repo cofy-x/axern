@@ -80,6 +80,7 @@ check_equals \
 expected_cmd_packages='runtime/axnoded/cmd/axern-sandboxd
 runtime/axnoded/cmd/axnoded
 runtime/axnoded/cmd/axnoded-runtime-runner
+runtime/axnoded/cmd/dns-fixture
 runtime/axnoded/cmd/dns-probe
 runtime/axnoded/cmd/egress-probe
 runtime/axnoded/cmd/internal
