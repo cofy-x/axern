@@ -1,8 +1,11 @@
 package enforcement
 
 import (
+	"context"
 	"fmt"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +13,53 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 )
+
+func TestEnsureNFTTableUsesCompatibleCreateIfMissing(t *testing.T) {
+	testCases := []struct {
+		name       string
+		listStatus string
+		addStatus  string
+		wantCalls  string
+		wantError  bool
+	}{
+		{name: "existing", listStatus: "0", addStatus: "0", wantCalls: "list table inet axern_egress\n"},
+		{name: "missing", listStatus: "1", addStatus: "0", wantCalls: "list table inet axern_egress\nadd table inet axern_egress\n"},
+		{name: "create failure", listStatus: "1", addStatus: "1", wantCalls: "list table inet axern_egress\nadd table inet axern_egress\n", wantError: true},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			temp := t.TempDir()
+			calls := filepath.Join(temp, "calls")
+			nft := filepath.Join(temp, "nft")
+			script := `#!/bin/sh
+printf '%s\n' "$*" >>"$NFT_TEST_CALLS"
+case "$1" in
+  list) exit "$NFT_TEST_LIST_STATUS" ;;
+  add) exit "$NFT_TEST_ADD_STATUS" ;;
+  *) exit 90 ;;
+esac
+`
+			if err := os.WriteFile(nft, []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", temp)
+			t.Setenv("NFT_TEST_CALLS", calls)
+			t.Setenv("NFT_TEST_LIST_STATUS", testCase.listStatus)
+			t.Setenv("NFT_TEST_ADD_STATUS", testCase.addStatus)
+			err := ensureNFTTable(context.Background())
+			if (err != nil) != testCase.wantError {
+				t.Fatalf("ensureNFTTable() error = %v, wantError = %v", err, testCase.wantError)
+			}
+			wire, readErr := os.ReadFile(calls)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if string(wire) != testCase.wantCalls {
+				t.Fatalf("nft calls = %q, want %q", wire, testCase.wantCalls)
+			}
+		})
+	}
+}
 
 func TestDomainMatcherKeepsWildcardOffApex(t *testing.T) {
 	if domainMatches("*.example.com", "example.com") {

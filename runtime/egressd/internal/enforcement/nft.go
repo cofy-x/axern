@@ -74,6 +74,11 @@ func (e *NFTExecutor) Reconcile(ctx context.Context, records []*runtimeegressv1.
 		e.reason = err.Error()
 		return err
 	}
+	if err := ensureNFTTable(ctx); err != nil {
+		e.healthy = false
+		e.reason = err.Error()
+		return err
+	}
 	if err := runNFT(ctx, "-c", "-f", "-", script); err != nil {
 		e.healthy = false
 		e.reason = err.Error()
@@ -89,6 +94,16 @@ func (e *NFTExecutor) Reconcile(ctx context.Context, records []*runtimeegressv1.
 	e.revision++
 	e.healthy = true
 	e.reason = ""
+	return nil
+}
+
+func ensureNFTTable(ctx context.Context) error {
+	if _, err := runNFTOutput(ctx, "list", "table", "inet", nftTable); err == nil {
+		return nil
+	}
+	if err := runNFT(ctx, "add", "table", "inet", nftTable); err != nil {
+		return fmt.Errorf("create nft policy table: %w", err)
+	}
 	return nil
 }
 
@@ -171,7 +186,7 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 	records = append([]*runtimeegressv1.PreparedEgressPolicy(nil), records...)
 	sort.Slice(records, func(i, j int) bool { return records[i].GetSandboxIp() < records[j].GetSandboxIp() })
 	var out strings.Builder
-	out.WriteString("destroy table inet " + nftTable + "\n")
+	out.WriteString("delete table inet " + nftTable + "\n")
 	out.WriteString("table inet " + nftTable + " {\n")
 	out.WriteString(" chain ingress_proxy { type filter hook prerouting priority mangle; policy accept;\n")
 	writeManagedRule(&out, "meta mark 0x%x return", bypassMark)
