@@ -6,7 +6,6 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_cmd docker
 require_cmd python3
-configure_compose_dns_verification
 begin_env_lock compose
 
 verify_root=""
@@ -20,7 +19,12 @@ trap cleanup EXIT
 
 bash "${AXERN_ROOT}/scripts/dev-env/wait-ready.sh" compose
 
-query_name="${AXERN_VERIFY_DNS_QUERY_NAME:-axern.cofy-x.space.}"
+query_name="fixture.axern.test."
+configured_nameservers="$(awk -F= '$1 == "AXNODED_DNS_NAMESERVERS" { print $2; exit }' "$(compose_env_file)")"
+if [ -z "${configured_nameservers}" ]; then
+  echo "Compose DNS fixture resolver is not materialized" >&2
+  exit 1
+fi
 compose_file="${DEPLOY_ROOT}/compose/docker-compose.yml"
 compose_args=(--project-name "${COMPOSE_PROJECT_NAME}" --env-file "$(compose_env_file)" -f "${compose_file}")
 verify_root="$(mktemp -d "${TMPDIR:-/tmp}/axern-compose-dns-doctor.XXXXXX")"
@@ -33,7 +37,7 @@ node_result="$(docker compose "${compose_args[@]}" exec -T \
   -e "AXERN_DNS_PROBE_TIMEOUT=15s" \
   node /usr/local/libexec/axnoded/dns-probe)"
 printf '%s\n' "${node_result}" >"${verify_root}/node-result.json"
-python3 - "${verify_root}/node-result.json" "${AXNODED_DNS_NAMESERVERS:-}" <<'PY'
+python3 - "${verify_root}/node-result.json" "${configured_nameservers}" <<'PY'
 import ipaddress
 import json
 import pathlib
@@ -46,8 +50,8 @@ if report.get("status") != "pass" or report.get("code") != "runtime_dns_node_rea
 effective = report.get("effective_resolver_count", 0)
 if effective <= 0 or report.get("successful_resolver_count") != effective:
     raise SystemExit(f"Node DNS probe did not verify every effective resolver: {report}")
-if configured and effective != len(configured):
-    raise SystemExit(f"Node DNS probe did not use the explicit verification override: {report}")
+if effective != len(configured):
+    raise SystemExit(f"Node DNS probe did not use the hermetic fixture: {report}")
 PY
 
 cp "${compose_file}" "${local_dir}/compose.yaml"
@@ -101,7 +105,7 @@ if ! "${local_doctor_cmd[@]}" local doctor --probe --dns-query-name "${query_nam
   exit 1
 fi
 
-python3 - "${read_report_file}" "${probe_report_file}" "${query_name}" "${AXNODED_DNS_NAMESERVERS}" <<'PY'
+python3 - "${read_report_file}" "${probe_report_file}" "${query_name}" "${configured_nameservers}" <<'PY'
 import json
 import pathlib
 import sys

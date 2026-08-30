@@ -65,6 +65,17 @@ services:
     volumes:
       - "${COMPOSE_STATE_DIR}/minio:/data"
 
+  dns-fixture:
+    image: ${NODE_ALL_IN_ONE_IMAGE}
+    restart: unless-stopped
+    entrypoint: ["/usr/local/libexec/axnoded/dns-fixture"]
+    command: ["-listen", "0.0.0.0:53"]
+    healthcheck:
+      test: ["CMD", "/usr/local/libexec/axnoded/dns-fixture", "-check", "127.0.0.1:53"]
+      interval: 1s
+      timeout: 3s
+      retries: 20
+
   storaged:
     image: ${CONTROLD_IMAGE}
     depends_on:
@@ -195,8 +206,12 @@ services:
     privileged: true
     restart: unless-stopped
     depends_on:
-      - controld
-      - minio
+      controld:
+        condition: service_started
+      minio:
+        condition: service_started
+      dns-fixture:
+        condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:

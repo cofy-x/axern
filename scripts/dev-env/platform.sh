@@ -122,39 +122,34 @@ LGTM_UI_PORT=${COMPOSE_LGTM_UI_PORT}
 EOF
 }
 
-configure_compose_dns_verification() {
-  local configured normalized
-  configured="${AXERN_VERIFY_DNS_NAMESERVERS:-}"
-  if [ -z "${configured//[[:space:]]/}" ]; then
-    export AXNODED_DNS_NAMESERVERS=""
-    echo "compose_dns_source=node_effective"
-    return 0
+configure_compose_dns_fixture() {
+  local compose_file container_id fixture_address normalized
+  compose_file="${DEPLOY_ROOT}/compose/docker-compose.yml"
+  docker compose --project-name "${COMPOSE_PROJECT_NAME}" \
+    --env-file "$(compose_env_file)" -f "${compose_file}" \
+    up -d --wait --wait-timeout 30 dns-fixture
+  container_id="$(docker compose --project-name "${COMPOSE_PROJECT_NAME}" \
+    --env-file "$(compose_env_file)" -f "${compose_file}" ps -q dns-fixture)"
+  if [ -z "${container_id}" ]; then
+    echo "Compose DNS fixture did not create a container" >&2
+    return 1
   fi
-  normalized="$(python3 - "${configured}" <<'PY'
+  fixture_address="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' "${container_id}" | awk 'NF { print; exit }')"
+  normalized="$(python3 - "${fixture_address}" <<'PY'
 import ipaddress
 import sys
 
-seen = set()
-normalized = []
-for item in sys.argv[1].split(","):
-    value = item.strip()
-    try:
-        address = ipaddress.ip_address(value)
-    except ValueError:
-        raise SystemExit("AXERN_VERIFY_DNS_NAMESERVERS contains an invalid IP address")
-    if address.is_loopback or address.is_unspecified:
-        raise SystemExit("AXERN_VERIFY_DNS_NAMESERVERS contains a loopback or unspecified address")
-    canonical = str(address)
-    if canonical not in seen:
-        seen.add(canonical)
-        normalized.append(canonical)
-if not normalized:
-    raise SystemExit("AXERN_VERIFY_DNS_NAMESERVERS contains no usable resolver")
-print(",".join(normalized))
+try:
+    address = ipaddress.ip_address(sys.argv[1].strip())
+except ValueError:
+    raise SystemExit("Compose DNS fixture has an invalid container address")
+if address.is_loopback or address.is_unspecified:
+    raise SystemExit("Compose DNS fixture has an unusable container address")
+print(address)
 PY
 )" || return $?
   export AXNODED_DNS_NAMESERVERS="${normalized}"
-  echo "compose_dns_source=verification_override"
+  echo "compose_dns_source=hermetic_fixture"
 }
 
 ensure_local_images() {
@@ -293,8 +288,8 @@ compose_project_reset_state() {
     compose_args+=(--profile otel)
   fi
   docker compose "${compose_args[@]}" stop \
-    gatewayd node tunneld controld-retention controld storaged controld-access-bootstrap controld-migrate postgres minio >/dev/null 2>&1 || true
-  docker compose "${compose_args[@]}" rm -sf controld-access-bootstrap controld-migrate postgres minio >/dev/null 2>&1 || true
+    gatewayd node tunneld controld-retention controld storaged controld-access-bootstrap controld-migrate dns-fixture postgres minio >/dev/null 2>&1 || true
+  docker compose "${compose_args[@]}" rm -sf controld-access-bootstrap controld-migrate dns-fixture postgres minio >/dev/null 2>&1 || true
   rm -rf "${COMPOSE_STATE_DIR}/postgres" "${COMPOSE_STATE_DIR}/minio" "${COMPOSE_STATE_DIR}/run"
   ensure_state_dirs
 }

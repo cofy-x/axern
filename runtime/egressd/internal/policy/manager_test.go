@@ -73,6 +73,12 @@ func TestPrepareRequiresUpstreamsOnlyForDNSForwardingPolicies(t *testing.T) {
 	if _, _, err := m.Prepare(context.Background(), "dns", 1, "10.0.0.8", dnsDeny("example.com"), 1); err == nil || !strings.Contains(err.Error(), "upstream") {
 		t.Fatalf("DNS forwarding policy without upstream error = %v", err)
 	}
+	if _, _, err := m.Prepare(context.Background(), "loopback", 1, "10.0.0.8", dnsDeny("example.com"), 1, []string{"127.0.0.1"}); err == nil || !strings.Contains(err.Error(), "usable node resolver") {
+		t.Fatalf("DNS forwarding policy with loopback upstream error = %v", err)
+	}
+	if len(m.List("")) != 0 {
+		t.Fatal("rejected DNS forwarding policy changed manager state")
+	}
 	denyAll := &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{}}}
 	record, _, err := m.Prepare(context.Background(), "deny-all", 1, "10.0.0.9", denyAll, 1, []string{"invalid"})
 	if err != nil {

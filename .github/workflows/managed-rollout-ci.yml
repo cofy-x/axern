@@ -89,41 +89,6 @@ jobs:
       - name: Bootstrap Go dependencies
         run: make bootstrap-go
 
-      - name: Resolve runner DNS for nested sandboxes
-        shell: python
-        run: |
-          import ipaddress
-          import os
-          from pathlib import Path
-
-          resolvers = []
-          for path in (Path("/etc/resolv.conf"), Path("/run/systemd/resolve/resolv.conf")):
-              try:
-                  lines = path.read_text(encoding="utf-8").splitlines()
-              except OSError:
-                  continue
-              for line in lines:
-                  fields = line.split()
-                  if len(fields) < 2 or fields[0] != "nameserver":
-                      continue
-                  try:
-                      address = ipaddress.ip_address(fields[1])
-                  except ValueError:
-                      continue
-                  if address.is_loopback or address.is_unspecified:
-                      continue
-                  value = str(address)
-                  if value not in resolvers:
-                      resolvers.append(value)
-
-          if not resolvers:
-              raise SystemExit("runner has no non-loopback DNS resolver for nested sandboxes")
-
-          value = ",".join(resolvers)
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
-              output.write(f"AXNODED_DNS_NAMESERVERS={value}\n")
-          print(f"nested_sandbox_dns_nameserver_count={len(resolvers)}")
-
       - name: Managed rollout verification
         run: make axrun-managed-rollout-compose-e2e
 

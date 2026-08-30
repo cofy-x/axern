@@ -5,8 +5,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck source=./lib.sh
 source "${ROOT_DIR}/scripts/dev-env/lib.sh"
 
-configure_compose_dns_verification
-
 timestamp() {
   date '+%Y-%m-%d %H:%M:%S'
 }
