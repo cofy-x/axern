@@ -87,9 +87,12 @@ runtime/axnoded/cmd/internal
 runtime/axnoded/cmd/memory-hog
 runtime/axnoded/cmd/natbench-compare
 runtime/axnoded/cmd/natbench-startup-matrix
+runtime/axnoded/cmd/network-policy-fixture
+runtime/axnoded/cmd/network-policy-probe
 runtime/axnoded/cmd/protoc-gen-go-fieldpath
 runtime/axnoded/cmd/verify-cli
 runtime/axnoded/cmd/verify-egress
+runtime/axnoded/cmd/verify-network-policy-qualification
 runtime/axnoded/cmd/verify-nginx
 runtime/axnoded/cmd/verify-sandboxd-oci
 runtime/axnoded/cmd/verify-sandboxd-provider

@@ -132,7 +132,9 @@ export AXNODED_DNS_NAMESERVERS="${fixture_ip}"
 export BPFNET_UPLINK_DEVICES="${default_uplink},${fixture_host_dev}"
 export NODE_TUNNELD_ENABLED=false
 export AXNODED_CONTROL_PLANE_TARGET=""
-export AXNODED_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES:-536870912}"
+# Keep the qualification sandbox independent from transient all-in-one daemon
+# memory while reserving the fixed 256 MiB runtime-conformance domain.
+export AXNODED_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES:-805306368}"
 
 node_log="/tmp/network-policy-node-${runtime_name}-${network_backend}-${ip_family}-${policy_mode}.log"
 /bin/bash /workspace/scripts/verify/node-all-in-one-entrypoint.sh >"${node_log}" 2>&1 &

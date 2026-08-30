@@ -102,6 +102,13 @@ jobs:
       - name: Bootstrap Go dependencies
         run: make bootstrap-go
 
+      - name: Verify Go architecture boundaries
+        run: |
+          make axern-cli-check-architecture
+          make gatewayd-check-architecture
+          make imagemgr-check-architecture
+          make axnoded-check-architecture
+
       - name: Build Go workspaces
         run: make build-go
 

@@ -45,9 +45,12 @@ mount_readonly_fixture /opt/sample-rootfs "${VERIFY_ROOTFS_IMAGE}" 134217728
 mount_readonly_fixture /opt/nginx-rootfs "${VERIFY_NGINX_ROOTFS_IMAGE}" 536870912
 
 # Verification containers run the same fail-closed production entrypoint but
-# use an explicit test-only reserve. Production values come from a measured
-# qualification receipt and must never inherit this harness value.
-export AXNODED_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES:-536870912}"
+# use an explicit test-only reserve. The reserve must cover both the fixed
+# 256 MiB runtime-conformance cgroup and the complete node-all-in-one daemon
+# set; 512 MiB made capability publication depend on transient daemon memory.
+# Production values come from a measured qualification receipt and must never
+# inherit this harness value.
+export AXNODED_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES:-805306368}"
 /usr/local/bin/node-all-in-one-entrypoint "$@" &
 child_pid=$!
 wait "${child_pid}"
