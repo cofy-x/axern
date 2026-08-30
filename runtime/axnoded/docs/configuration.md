@@ -163,7 +163,12 @@ record cannot be safely rebound to a future allocation.
 ### Runtime DNS
 
 `[plugin.runtime.dns]` controls resolver files materialized into OCI bundles.
-When `nameservers` is empty, axnoded derives usable resolvers from the node.
+When `nameservers` is empty, axnoded derives usable resolvers from the node. If
+the node exposes only loopback resolvers or no usable resolver, axnoded owns an
+inert `/etc/resolv.conf` for the sandbox instead of blocking OCI creation or
+inventing a public fallback. Resolver-independent workloads continue to run;
+DNS diagnostics and domain-policy forwarding remain unavailable until the node
+has a verified upstream resolver.
 
 | Key | Meaning |
 | --- | --- |

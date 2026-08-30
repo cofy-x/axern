@@ -2,6 +2,7 @@ package oci
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -699,12 +700,51 @@ options ndots:0
 	}
 }
 
-func TestBuildResolvConfRejectsMissingUsableNameserver(t *testing.T) {
-	_, err := buildResolvConf(RuntimeDNSConfig{
+func TestBuildResolvConfOwnsInertFileWithoutDerivedNameserver(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing-resolv.conf")
+	got, err := buildResolvConf(RuntimeDNSConfig{HostResolvConfPaths: []string{missing}})
+	if err != nil {
+		t.Fatalf("buildResolvConf() error = %v", err)
+	}
+	if got != noNameserverResolvConf {
+		t.Fatalf("buildResolvConf() = %q, want inert resolver file %q", got, noNameserverResolvConf)
+	}
+
+	loader, err := newTestBundleLoader(t, "", t.TempDir(), WithRuntimeDNSConfig(RuntimeDNSConfig{HostResolvConfPaths: []string{missing}}))
+	if err != nil {
+		t.Fatalf("NewBundleLoader() error = %v", err)
+	}
+	bundleDir, generated, err := loader.Generate(LoadOptions{
+		ContainerID: "resolver-independent",
+		Request: &apipb.CreateContainerRequest{
+			Command: []string{"/bin/true"},
+			Rootfs:  &apipb.Rootfs{RootDir: t.TempDir()},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	resolvPath := filepath.Join(bundleDir, "sandbox-files", "resolv.conf")
+	content, err := os.ReadFile(resolvPath)
+	if err != nil || string(content) != noNameserverResolvConf {
+		t.Fatalf("managed resolv.conf = %q, err=%v", content, err)
+	}
+	assertMountPresent(t, generated.Mounts, "/etc/resolv.conf", resolvPath)
+}
+
+func TestBuildResolvConfRejectsInvalidExplicitNameserver(t *testing.T) {
+	_, err := buildResolvConf(RuntimeDNSConfig{Nameservers: []string{"127.0.0.1", "invalid"}})
+	if !errors.Is(err, errNoUsableNameserver) {
+		t.Fatalf("buildResolvConf() error = %v, want no usable nameserver", err)
+	}
+}
+
+func TestResolveRuntimeDNSNameserversRemainsStrictWithoutDerivedNameserver(t *testing.T) {
+	_, err := ResolveRuntimeDNSNameservers(RuntimeDNSConfig{
 		HostResolvConfPaths: []string{filepath.Join(t.TempDir(), "missing-resolv.conf")},
 	})
-	if err == nil {
-		t.Fatal("buildResolvConf() error = nil, want missing nameserver error")
+	if !errors.Is(err, errNoUsableNameserver) {
+		t.Fatalf("ResolveRuntimeDNSNameservers() error = %v, want no usable nameserver", err)
 	}
 }
 
