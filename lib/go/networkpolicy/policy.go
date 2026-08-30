@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"golang.org/x/net/idna"
@@ -201,6 +202,9 @@ func normalizeDomains(in []string) ([]string, error) {
 func normalizeDomain(raw string) (string, error) {
 	value := strings.TrimSpace(raw)
 	value = strings.TrimSuffix(value, ".")
+	if !utf8.ValidString(value) {
+		return "", fmt.Errorf("domain is not valid UTF-8")
+	}
 	wildcard := strings.HasPrefix(value, "*.")
 	if wildcard {
 		value = strings.TrimPrefix(value, "*.")

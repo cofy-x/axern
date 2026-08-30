@@ -69,18 +69,31 @@ func inspectClientHello(handshake []byte) (ClientHello, error) {
 		return ClientHello{}, fmt.Errorf("expected TLS ClientHello")
 	}
 	body := handshake[4:]
-	if len(body) < 34 {
+	if len(body) < 35 {
 		return ClientHello{}, fmt.Errorf("truncated TLS ClientHello fixed fields")
 	}
 	offset := 34
+	if int(body[offset]) > 32 {
+		return ClientHello{}, fmt.Errorf("TLS session id exceeds 32 bytes")
+	}
 	var err error
 	offset, err = skipVector8(body, offset, "session id")
 	if err != nil {
 		return ClientHello{}, err
 	}
+	if len(body)-offset < 2 {
+		return ClientHello{}, fmt.Errorf("truncated TLS cipher suites")
+	}
+	cipherSuitesLength := int(binary.BigEndian.Uint16(body[offset : offset+2]))
+	if cipherSuitesLength < 2 || cipherSuitesLength%2 != 0 {
+		return ClientHello{}, fmt.Errorf("TLS cipher suites must contain complete 2-byte entries")
+	}
 	offset, err = skipVector16(body, offset, "cipher suites")
 	if err != nil {
 		return ClientHello{}, err
+	}
+	if offset >= len(body) || body[offset] == 0 {
+		return ClientHello{}, fmt.Errorf("TLS compression methods must not be empty")
 	}
 	offset, err = skipVector8(body, offset, "compression methods")
 	if err != nil {
@@ -98,6 +111,7 @@ func inspectClientHello(handshake []byte) (ClientHello, error) {
 		return ClientHello{}, fmt.Errorf("invalid TLS extension block length")
 	}
 	result := ClientHello{}
+	seenExtensions := make(map[uint16]struct{})
 	end := offset + extensionsLength
 	for offset < end {
 		if end-offset < 4 {
@@ -106,6 +120,10 @@ func inspectClientHello(handshake []byte) (ClientHello, error) {
 		extensionType := binary.BigEndian.Uint16(body[offset : offset+2])
 		extensionLength := int(binary.BigEndian.Uint16(body[offset+2 : offset+4]))
 		offset += 4
+		if _, duplicate := seenExtensions[extensionType]; duplicate {
+			return ClientHello{}, fmt.Errorf("duplicate TLS extension 0x%04x", extensionType)
+		}
+		seenExtensions[extensionType] = struct{}{}
 		if extensionLength > end-offset {
 			return ClientHello{}, fmt.Errorf("truncated TLS extension payload")
 		}

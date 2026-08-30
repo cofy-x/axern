@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -9,6 +10,16 @@ import (
 )
 
 func TestMetricsUseFixedLowSensitivityDimensions(t *testing.T) {
+	eventType := reflect.TypeFor[Event]()
+	wantFields := []string{"Mode", "Action", "Protocol", "Result", "AllocationID", "RuleCount", "Latency"}
+	if eventType.NumField() != len(wantFields) {
+		t.Fatalf("metric event fields = %d, want privacy-safe contract %#v", eventType.NumField(), wantFields)
+	}
+	for index, want := range wantFields {
+		if got := eventType.Field(index).Name; got != want {
+			t.Fatalf("metric event field %d = %q, want %q", index, got, want)
+		}
+	}
 	metrics, err := NewMetrics(noop.NewMeterProvider().Meter("test"))
 	if err != nil {
 		t.Fatal(err)

@@ -158,10 +158,22 @@ ns curl --fail --silent --max-time 3 http://93.184.216.34/ >/dev/null
 ctl -allocation dns-soft -attempt 1 delete >/dev/null
 
 ctl -allocation recovery -attempt 7 -ip 10.77.0.2 -revision 3 -mode strict -domains allowed.test -upstreams 10.77.0.1:5353 prepare >/dev/null
+TPROXY_HANDLE="$(nft -a list chain inet axern_egress ingress_proxy | awk '/10\.77\.0\.2 tcp dport 80 .*tproxy/ { print $NF; exit }')"
+if [[ -z "${TPROXY_HANDLE}" ]]; then
+  echo "could not identify the strict HTTP interception rule" >&2; exit 1
+fi
+nft delete rule inet axern_egress ingress_proxy handle "${TPROXY_HANDLE}"
+HEALTH_JSON="$(ctl health)"
+if ! grep -q 'EGRESS_MANAGER_STATUS_ERROR' <<<"${HEALTH_JSON}" || ! grep -q 'nft ruleset proof mismatch' <<<"${HEALTH_JSON}"; then
+  echo "egressd did not detect a missing managed nft rule" >&2; exit 1
+fi
+if ns curl --fail --silent --max-time 2 --resolve allowed.test:80:93.184.216.34 http://allowed.test/ >/dev/null; then
+  echo "strict traffic failed open after an interception rule was deleted" >&2; exit 1
+fi
 kill "${EGRESSD_PID}"
 wait "${EGRESSD_PID}" 2>/dev/null || true
 EGRESSD_PID=""
-"${EGRESSD_BIN}" -root "${STATE_ROOT}/state" -socket "${STATE_ROOT}/run/egressd.sock" >"${STATE_ROOT}/egressd.log" 2>&1 &
+"${EGRESSD_BIN}" -root "${STATE_ROOT}/state" -socket "${STATE_ROOT}/run/egressd.sock" >>"${STATE_ROOT}/egressd.log" 2>&1 &
 EGRESSD_PID=$!
 for _ in 1 2 3 4 5; do
   ctl health >/dev/null 2>&1 && break
@@ -172,6 +184,9 @@ if ! ctl list | grep -q 'recovery'; then
 fi
 if ! nft list chain inet axern_egress forward | grep -q "10.77.0.2 drop"; then
   echo "persisted policy did not restore its dataplane rules" >&2; exit 1
+fi
+if ! ctl health | grep -q 'EGRESS_MANAGER_STATUS_OK'; then
+  echo "restored nft rules did not recover enforcement health" >&2; exit 1
 fi
 ctl reconcile | grep -Eq '"deleted_count":[[:space:]]+1'
 if ctl list | grep -q '"allocation_id"'; then
@@ -190,6 +205,9 @@ if ss -lnt | grep -Eq ':(1080|1443)[[:space:]]'; then
 fi
 if ns curl --fail --silent --max-time 2 --resolve allowed.test:80:93.184.216.34 http://allowed.test/ >/dev/null; then
   echo "strict traffic survived an egressd crash" >&2; exit 1
+fi
+if grep -Eq 'allowed\.test|denied\.test|93\.184\.216\.34|2001:db8::34' "${STATE_ROOT}/egressd.log"; then
+  echo "default egressd logs exposed a DNS name, Host, SNI, or destination IP" >&2; exit 1
 fi
 
 echo "egressd_linux_truth_ok=true"

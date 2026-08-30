@@ -1,6 +1,6 @@
 GO ?= go
 
-.PHONY: all build test verify fmt vet tidy help
+.PHONY: all build test verify fuzz-smoke fmt vet tidy help
 
 all: build
 
@@ -15,6 +15,12 @@ verify: ## Run egressd tests, race checks, and vet
 	$(GO) test ./...
 	$(GO) test -race ./...
 	$(GO) vet ./...
+
+fuzz-smoke: ## Run bounded fuzz smoke for trusted policy parsers
+	$(GO) test -run='^$$' -fuzz='^FuzzInspectMessage$$' -fuzztime=3s -parallel=1 ./internal/dnsforward
+	$(GO) test -run='^$$' -fuzz='^FuzzStrictDNSAuthorizations$$' -fuzztime=3s -parallel=1 ./internal/enforcement
+	$(GO) test -run='^$$' -fuzz='^FuzzReadHTTPRequest$$' -fuzztime=3s -parallel=1 ./internal/l7inspect
+	$(GO) test -run='^$$' -fuzz='^FuzzParseClientHello$$' -fuzztime=3s -parallel=1 ./internal/l7inspect
 
 fmt: ## Format Go sources
 	gofmt -w $$(find . -name '*.go' -print)

@@ -1,6 +1,7 @@
 package enforcement
 
 import (
+	"fmt"
 	"net/netip"
 	"strings"
 	"testing"
@@ -23,8 +24,10 @@ func TestDomainMatcherKeepsWildcardOffApex(t *testing.T) {
 
 func TestAuthorizationExpiresAndIsBoundToDomain(t *testing.T) {
 	engine := NewEngine()
+	now := time.Unix(1_000, 0)
+	engine.now = func() time.Time { return now }
 	engine.auth["10.0.0.2"] = map[netip.Addr][]authorization{
-		netip.MustParseAddr("192.0.2.10"): {{domain: "allowed.example", expiry: time.Now().Add(time.Minute)}},
+		netip.MustParseAddr("192.0.2.10"): {{domain: "allowed.example", expiry: now.Add(time.Minute)}},
 	}
 	if !engine.authorized("10.0.0.2", "allowed.example", netip.MustParseAddr("192.0.2.10")) {
 		t.Fatal("valid authorization rejected")
@@ -32,9 +35,49 @@ func TestAuthorizationExpiresAndIsBoundToDomain(t *testing.T) {
 	if engine.authorized("10.0.0.2", "other.example", netip.MustParseAddr("192.0.2.10")) {
 		t.Fatal("shared-IP virtual host escaped authorization")
 	}
-	engine.auth["10.0.0.2"][netip.MustParseAddr("192.0.2.11")] = []authorization{{domain: "allowed.example", expiry: time.Now().Add(-time.Second)}}
+	engine.auth["10.0.0.2"][netip.MustParseAddr("192.0.2.11")] = []authorization{{domain: "allowed.example", expiry: now.Add(-time.Second)}}
 	if engine.authorized("10.0.0.2", "allowed.example", netip.MustParseAddr("192.0.2.11")) {
 		t.Fatal("expired authorization accepted")
+	}
+}
+
+func TestAuthorizationIsDeduplicatedBoundedAndExpiresAtConnect(t *testing.T) {
+	engine := NewEngine()
+	now := time.Unix(1_000, 0)
+	engine.now = func() time.Time { return now }
+	address := netip.MustParseAddr("192.0.2.10")
+	for range 10_000 {
+		engine.authorize("10.0.0.2", "allowed.example", address, 30)
+	}
+	if got := len(engine.auth["10.0.0.2"][address]); got != 1 {
+		t.Fatalf("duplicate authorizations = %d, want 1", got)
+	}
+	for index := range maxAuthorizationsPerAddress + 10 {
+		engine.authorize("10.0.0.2", fmt.Sprintf("host-%d.example", index), address, 30)
+	}
+	if got := len(engine.auth["10.0.0.2"][address]); got != maxAuthorizationsPerAddress {
+		t.Fatalf("authorizations per address = %d, want %d", got, maxAuthorizationsPerAddress)
+	}
+	if !engine.authorized("10.0.0.2", "allowed.example", address) {
+		t.Fatal("authorization rejected before TTL boundary")
+	}
+	now = now.Add(30 * time.Second)
+	if engine.authorized("10.0.0.2", "allowed.example", address) {
+		t.Fatal("authorization accepted at TTL boundary")
+	}
+	if _, ok := engine.auth["10.0.0.2"]; ok {
+		t.Fatal("expired authorization state was not reclaimed")
+	}
+}
+
+func TestAuthorizationAddressSetIsBounded(t *testing.T) {
+	engine := NewEngine()
+	for index := range maxAuthorizationAddressesPerSource + 10 {
+		address := netip.AddrFrom4([4]byte{192, 0, byte(index >> 8), byte(index)})
+		engine.authorize("10.0.0.2", "allowed.example", address, 30)
+	}
+	if got := len(engine.auth["10.0.0.2"]); got != maxAuthorizationAddressesPerSource {
+		t.Fatalf("authorization addresses = %d, want %d", got, maxAuthorizationAddressesPerSource)
 	}
 }
 
@@ -90,5 +133,51 @@ func TestRenderNFTDoesNotProxyDNSForStrictPoliciesWithoutDomains(t *testing.T) {
 	}
 	if !strings.Contains(script, "10.10.0.0/16 udp dport 53 accept") {
 		t.Fatalf("explicit CIDR DNS rule was not preserved:\n%s", script)
+	}
+}
+
+func TestRenderNFTKeepsIPv4AndIPv6FragmentsFailClosed(t *testing.T) {
+	wire, err := RenderNFT([]*runtimeegressv1.PreparedEgressPolicy{
+		{SandboxIp: "10.0.0.4", Policy: strictPolicy("allowed.example")},
+		{SandboxIp: "fd00::4", Policy: strictPolicy("allowed.example")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := string(wire)
+	for _, sourceDrop := range []string{
+		"ip saddr 10.0.0.4 drop",
+		"ip saddr 10.0.0.4 counter drop",
+		"ip6 saddr fd00::4 drop",
+		"ip6 saddr fd00::4 counter drop",
+	} {
+		if !strings.Contains(script, sourceDrop) {
+			t.Fatalf("strict terminal drop %q is missing; non-initial fragments could escape:\n%s", sourceDrop, script)
+		}
+	}
+}
+
+func TestNFTManagedProofDetectsMissingOrInjectedRules(t *testing.T) {
+	wire, err := RenderNFT([]*runtimeegressv1.PreparedEgressPolicy{{
+		SandboxIp: "10.0.0.4", Policy: strictPolicy("allowed.example"),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := nftManagedProof(wire)
+	if len(expected) == 0 {
+		t.Fatal("rendered rules have no managed proof")
+	}
+	listed := append([]byte("table inet axern_egress {\n"), wire...)
+	if !equalStrings(expected, nftManagedProof(listed)) {
+		t.Fatal("equivalent listed rules did not preserve proof")
+	}
+	missing := strings.Replace(string(listed), ` comment "`+expected[0]+`"`, "", 1)
+	if equalStrings(expected, nftManagedProof([]byte(missing))) {
+		t.Fatal("missing managed rule was not detected")
+	}
+	injected := append(listed, []byte(` comment "axern:0000000000000000"`)...)
+	if equalStrings(expected, nftManagedProof(injected)) {
+		t.Fatal("injected managed rule was not detected")
 	}
 }

@@ -63,6 +63,7 @@ func TestNormalizeRejectsPolicyConflictsAndMalformedRules(t *testing.T) {
 		{name: "empty policy wrapper", spec: &commonv1.NetworkSpec{EgressPolicy: &commonv1.NetworkEgressPolicy{}}},
 		{name: "empty dns deny", spec: dnsDenySpec(nil)},
 		{name: "URL domain", spec: dnsDenySpec([]string{"https://example.com"})},
+		{name: "non UTF-8 domain", spec: dnsDenySpec([]string{string([]byte{'a', 0xff, 'b'})})},
 		{name: "IP domain", spec: dnsDenySpec([]string{"192.0.2.1"})},
 		{name: "bad wildcard", spec: dnsDenySpec([]string{"foo.*.example.com"})},
 		{name: "too long domain", spec: dnsDenySpec([]string{strings.Repeat("a", 64) + ".example"})},

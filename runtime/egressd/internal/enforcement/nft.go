@@ -3,9 +3,11 @@ package enforcement
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"net/netip"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,11 +28,12 @@ const (
 )
 
 type NFTExecutor struct {
-	mu       sync.Mutex
-	engine   *Engine
-	revision int64
-	healthy  bool
-	reason   string
+	mu            sync.Mutex
+	engine        *Engine
+	revision      int64
+	healthy       bool
+	reason        string
+	expectedProof []string
 }
 
 func NewNFTExecutor(ctx context.Context) (*NFTExecutor, error) {
@@ -81,6 +84,7 @@ func (e *NFTExecutor) Reconcile(ctx context.Context, records []*runtimeegressv1.
 		e.reason = err.Error()
 		return fmt.Errorf("apply nft policy: %w", err)
 	}
+	e.expectedProof = nftManagedProof(script)
 	e.engine.SetPolicies(records)
 	e.revision++
 	e.healthy = true
@@ -94,15 +98,27 @@ func (e *NFTExecutor) Health(ctx context.Context) policy.EnforcementHealth {
 	if !e.healthy {
 		return policy.EnforcementHealth{Revision: e.revision, Reason: e.reason}
 	}
-	if err := runNFT(ctx, "list", "table", "inet", nftTable); err != nil {
+	output, err := runNFTOutput(ctx, "list", "table", "inet", nftTable)
+	if err != nil {
 		e.healthy = false
 		e.reason = fmt.Sprintf("nft ruleset health: %v", err)
+		return policy.EnforcementHealth{Revision: e.revision, Reason: e.reason}
+	}
+	actualProof := nftManagedProof(output)
+	if !equalStrings(e.expectedProof, actualProof) {
+		e.healthy = false
+		e.reason = fmt.Sprintf("nft ruleset proof mismatch: expected %d managed rules, found %d", len(e.expectedProof), len(actualProof))
 		return policy.EnforcementHealth{Revision: e.revision, Reason: e.reason}
 	}
 	return policy.EnforcementHealth{DNSPolicyReady: true, StrictEgressReady: true, Revision: e.revision}
 }
 
 func runNFT(ctx context.Context, args ...any) error {
+	_, err := runNFTOutput(ctx, args...)
+	return err
+}
+
+func runNFTOutput(ctx context.Context, args ...any) ([]byte, error) {
 	var input []byte
 	parts := make([]string, 0, len(args))
 	for _, arg := range args {
@@ -116,9 +132,39 @@ func runNFT(ctx context.Context, args ...any) error {
 	command.Stdin = bytes.NewReader(input)
 	output, err := command.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 	}
-	return nil
+	return output, nil
+}
+
+var nftManagedComment = regexp.MustCompile(`comment "(axern:[0-9a-f]{16})"`)
+
+func nftManagedProof(wire []byte) []string {
+	matches := nftManagedComment.FindAllSubmatch(wire, -1)
+	proof := make([]string, 0, len(matches))
+	for _, match := range matches {
+		proof = append(proof, string(match[1]))
+	}
+	sort.Strings(proof)
+	return proof
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func writeManagedRule(out *strings.Builder, format string, args ...any) {
+	rule := fmt.Sprintf(format, args...)
+	digest := sha256.Sum256([]byte(rule))
+	fmt.Fprintf(out, "  %s comment \"axern:%x\"\n", rule, digest[:8])
 }
 
 func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) {
@@ -128,7 +174,7 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 	out.WriteString("destroy table inet " + nftTable + "\n")
 	out.WriteString("table inet " + nftTable + " {\n")
 	out.WriteString(" chain ingress_proxy { type filter hook prerouting priority mangle; policy accept;\n")
-	fmt.Fprintf(&out, "  meta mark 0x%x return\n", bypassMark)
+	writeManagedRule(&out, "meta mark 0x%x return", bypassMark)
 	for _, record := range records {
 		family, source, err := nftSource(record.GetSandboxIp())
 		if err != nil {
@@ -156,10 +202,10 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 		for _, rule := range strict.GetAllowedCidrs() {
 			writeCIDRRule(&out, family, source, rule, "accept")
 		}
-		fmt.Fprintf(&out, "  %s saddr %s drop\n", family, source)
+		writeManagedRule(&out, "%s saddr %s drop", family, source)
 	}
 	out.WriteString(" }\n chain input { type filter hook input priority filter; policy accept;\n")
-	fmt.Fprintf(&out, "  meta mark 0x%x counter accept\n", policyMark)
+	writeManagedRule(&out, "meta mark 0x%x counter accept", policyMark)
 	for _, record := range records {
 		strict := record.GetPolicy().GetStrict()
 		if strict == nil {
@@ -173,9 +219,9 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 			// NDP is required for the sandbox veth to reach its gateway. Limit it
 			// to the two neighbor-discovery message types and the RFC-mandated
 			// hop limit so this does not become general ICMPv6 egress.
-			fmt.Fprintf(&out, "  ip6 saddr %s ip6 hoplimit 255 icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert } accept\n", source)
+			writeManagedRule(&out, "ip6 saddr %s ip6 hoplimit 255 icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert } accept", source)
 		}
-		fmt.Fprintf(&out, "  %s saddr %s counter drop\n", family, source)
+		writeManagedRule(&out, "%s saddr %s counter drop", family, source)
 	}
 	out.WriteString(" }\n}\n")
 	return []byte(out.String()), nil
@@ -185,8 +231,8 @@ func writeTProxy(out *strings.Builder, family, source, protocol string, destinat
 	// TPROXY is non-terminal. If no matching transparent socket is alive, nft
 	// continues to the following rule, which makes daemon loss fail closed in
 	// prerouting instead of allowing a host wildcard service to receive traffic.
-	fmt.Fprintf(out, "  %s saddr %s %s dport %d counter meta mark set 0x%x tproxy %s to %s accept\n", family, source, protocol, destinationPort, policyMark, family, proxyBindAddress(family, proxyPort))
-	fmt.Fprintf(out, "  %s saddr %s %s dport %d drop\n", family, source, protocol, destinationPort)
+	writeManagedRule(out, "%s saddr %s %s dport %d counter meta mark set 0x%x tproxy %s to %s accept", family, source, protocol, destinationPort, policyMark, family, proxyBindAddress(family, proxyPort))
+	writeManagedRule(out, "%s saddr %s %s dport %d drop", family, source, protocol, destinationPort)
 }
 
 func proxyBindAddress(family string, port int) string {
@@ -255,5 +301,5 @@ func writeCIDRRule(out *strings.Builder, sourceFamily, source string, rule *comm
 	if len(ports) > 1 {
 		portExpr = "{ " + strings.Join(ports, ", ") + " }"
 	}
-	fmt.Fprintf(out, "  %s saddr %s %s daddr %s %s dport %s %s\n", sourceFamily, source, destinationFamily, prefix.String(), protocol, portExpr, verdict)
+	writeManagedRule(out, "%s saddr %s %s daddr %s %s dport %s %s", sourceFamily, source, destinationFamily, prefix.String(), protocol, portExpr, verdict)
 }

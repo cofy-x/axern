@@ -38,6 +38,29 @@ func TestParseClientHelloRejectsMalformedAndOversizedInput(t *testing.T) {
 	}
 }
 
+func TestParseClientHelloRejectsAmbiguousVectorsAndDuplicateExtensions(t *testing.T) {
+	emptyCipherSuites := clientHelloHandshake("example.com", false)
+	binary.BigEndian.PutUint16(emptyCipherSuites[39:41], 0)
+
+	oversizedSessionID := clientHelloHandshake("example.com", false)
+	oversizedSessionID[38] = 33
+
+	duplicateSNI := clientHelloHandshake("example.com", false)
+	extension := append([]byte(nil), duplicateSNI[47:]...)
+	duplicateSNI = append(duplicateSNI, extension...)
+	binary.BigEndian.PutUint16(duplicateSNI[45:47], uint16(len(duplicateSNI)-47))
+	handshakeLength := len(duplicateSNI) - 4
+	duplicateSNI[1] = byte(handshakeLength >> 16)
+	duplicateSNI[2] = byte(handshakeLength >> 8)
+	duplicateSNI[3] = byte(handshakeLength)
+
+	for _, handshake := range [][]byte{emptyCipherSuites, oversizedSessionID, duplicateSNI} {
+		if hello, err := ParseClientHello(tlsRecord(handshake), 4096); err == nil {
+			t.Fatalf("ambiguous ClientHello was accepted: %#v", hello)
+		}
+	}
+}
+
 func clientHelloHandshake(serverName string, ech bool) []byte {
 	body := []byte{0x03, 0x03}
 	body = append(body, make([]byte, 32)...)

@@ -5,6 +5,7 @@ EGRESSD_DIR := runtime/egressd
 	egressd-build \
 	egressd-test \
 	egressd-verify \
+	network-policy-fuzz-smoke \
 	egressd-linux-truth \
 	egressd-fmt \
 	egressd-vet \
@@ -21,6 +22,11 @@ egressd-test: ## Run egressd tests
 
 egressd-verify: ## Run egressd tests, race checks, and vet
 	@$(call run_subsystem_make,$(EGRESSD_DIR),verify)
+
+network-policy-fuzz-smoke: ## Run bounded fuzz smoke for policy normalization and trusted egress parsers
+	@$(GO) -C lib/go/networkpolicy test -run='^$$' -fuzz='^FuzzNormalizeDomain$$' -fuzztime=3s -parallel=1 .
+	@$(GO) -C lib/go/networkpolicy test -run='^$$' -fuzz='^FuzzNormalizePolicy$$' -fuzztime=3s -parallel=1 .
+	@$(call run_subsystem_make,$(EGRESSD_DIR),fuzz-smoke)
 
 egressd-fmt: ## Format egressd Go code
 	@$(call run_subsystem_make,$(EGRESSD_DIR),fmt)
