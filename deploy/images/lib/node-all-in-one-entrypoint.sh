@@ -143,23 +143,7 @@ ensure_bpf_fs() {
 
 ensure_bpf_fs
 
-ensure_loop_devices() {
-  if command -v modprobe >/dev/null 2>&1; then
-    modprobe loop >/dev/null 2>&1 || true
-  fi
-  if [ ! -e /dev/loop-control ]; then
-    mknod /dev/loop-control c 10 237
-    chmod 660 /dev/loop-control
-  fi
-  for minor in $(seq 0 7); do
-    if [ ! -e "/dev/loop${minor}" ]; then
-      mknod "/dev/loop${minor}" b 7 "${minor}"
-      chmod 660 "/dev/loop${minor}"
-    fi
-  done
-}
-
-ensure_loop_devices
+/usr/local/bin/axern-ensure-loop-devices 8
 ensure_runtime_base_spec /usr/local/bin/runsc /etc/axnoded/runsc-config.json
 ensure_runtime_base_spec /usr/bin/runc /etc/axnoded/runc-config.json
 

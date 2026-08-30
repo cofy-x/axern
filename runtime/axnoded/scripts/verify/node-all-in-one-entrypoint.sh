@@ -24,6 +24,12 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 143' TERM INT
 
+# Kubernetes exposes only the loop device nodes that existed when a privileged
+# container started. Prepare a bounded pool before creating either rootfs
+# fixture; the production entrypoint runs later and cannot satisfy this
+# prerequisite retroactively.
+/usr/local/bin/axern-ensure-loop-devices 2
+
 mount_readonly_fixture() {
   local source_dir="$1"
   local image="$2"
