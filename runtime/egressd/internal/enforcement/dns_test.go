@@ -1,6 +1,7 @@
 package enforcement
 
 import (
+	"fmt"
 	"net"
 	"net/netip"
 	"testing"
@@ -105,7 +106,7 @@ func dnsQuery(t *testing.T, name string, kind dnsmessage.Type) []byte {
 
 func startUDPUpstream(t *testing.T, respond func(dnsmessage.Message) dnsmessage.Message) string {
 	t.Helper()
-	listener, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	listener, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +129,27 @@ func startUDPUpstream(t *testing.T, respond func(dnsmessage.Message) dnsmessage.
 			}
 		}
 	}()
-	return listener.LocalAddr().String()
+	return net.JoinHostPort(testNodeIPv4(t).String(), fmt.Sprint(listener.LocalAddr().(*net.UDPAddr).Port))
+}
+
+func testNodeIPv4(t *testing.T) net.IP {
+	t.Helper()
+	addresses, err := net.InterfaceAddrs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range addresses {
+		prefix, err := netip.ParsePrefix(value.String())
+		if err != nil {
+			continue
+		}
+		address := prefix.Addr().Unmap()
+		if address.Is4() && address.IsGlobalUnicast() && !address.IsLoopback() {
+			return net.IP(address.AsSlice())
+		}
+	}
+	t.Fatal("test host has no non-loopback IPv4 address")
+	return nil
 }
 
 func mustAddr(value string) netip.Addr { return netip.MustParseAddr(value) }

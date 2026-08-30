@@ -91,6 +91,16 @@ done
 ctl() { "${EGRESSDCTL_BIN}" -socket "${STATE_ROOT}/run/egressd.sock" "$@"; }
 ns() { ip netns exec "${NETNS}" env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY "$@"; }
 
+if ctl -allocation no-upstream -attempt 1 -ip 10.77.0.2 -revision 1 -mode strict -domains allowed.test prepare >/dev/null 2>&1; then
+  echo "strict domain policy started without an explicit DNS upstream" >&2; exit 1
+fi
+if ctl -allocation invalid-upstream -attempt 1 -ip 10.77.0.2 -revision 1 -mode dns-deny -domains denied.test -upstreams 127.0.0.1 prepare >/dev/null 2>&1; then
+  echo "DNS policy started with an unusable loopback upstream" >&2; exit 1
+fi
+if ctl list | grep -Eq 'no-upstream|invalid-upstream'; then
+  echo "rejected DNS policy changed durable state" >&2; exit 1
+fi
+
 ctl -allocation strict -attempt 1 -ip 10.77.0.2 -revision 1 -mode strict -domains allowed.test -upstreams 10.77.0.1:5353 prepare >/dev/null
 ns python3 "${FIXTURES}/dns_query.py" allowed.test --server 10.77.0.1 --expect-rcode 0
 ns python3 "${FIXTURES}/dns_query.py" allowed.test --server 10.77.0.1 --tcp --expect-rcode 0
@@ -141,7 +151,9 @@ ctl -allocation deny-all -attempt 1 delete >/dev/null
 
 ctl -allocation dns-soft -attempt 1 -ip 10.77.0.2 -revision 1 -mode dns-deny -domains denied.test -upstreams 10.77.0.1:5353 prepare >/dev/null
 ns python3 "${FIXTURES}/dns_query.py" denied.test --server 10.77.0.1 --expect-rcode 5
+ns python3 "${FIXTURES}/dns_query.py" denied.test --server 10.77.0.1 --tcp --expect-rcode 5
 ns python3 "${FIXTURES}/dns_query.py" allowed.test --server 10.77.0.1 --expect-rcode 0
+ns python3 "${FIXTURES}/dns_query.py" allowed.test --server 10.77.0.1 --tcp --expect-rcode 0
 ns curl --fail --silent --max-time 3 http://93.184.216.34/ >/dev/null
 ctl -allocation dns-soft -attempt 1 delete >/dev/null
 
