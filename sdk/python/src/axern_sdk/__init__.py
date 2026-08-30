@@ -74,7 +74,7 @@ from axern_sdk.node import (
 from axern_sdk.sandbox import AsyncSandbox, Sandbox, SandboxFileInfo, SandboxFileKind, SandboxMetadata, SandboxState
 from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 __all__ = [
     "AxernError",
