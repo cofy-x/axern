@@ -98,14 +98,15 @@ axern local logs node --tail 200
 
 ## Workload DNS
 
-Local Axern discovers non-loopback resolver IPs from the host and passes them
-to axnoded for OCI workloads. Docker's container-local resolver is not copied
-into a nested sandbox because its loopback address is not reachable there.
+By default, axnoded derives non-loopback resolver IPs from the Node container's
+effective resolver configuration for OCI workloads. Docker's container-local
+loopback resolver is not copied into a nested sandbox; when Docker publishes
+external upstream metadata, axnoded uses those reachable addresses instead.
 `axern local doctor` validates the resolver configuration actually applied to
-an initialized stack (`runtime_dns_config`) and queries each configured
-resolver directly from the running Node container (`runtime_dns_node`). The
-configuration check uses the materialized `compose.env`, not newly discovered
-host state. Both checks are read-only and use a 15-second timeout by default;
+an initialized stack (`runtime_dns_config`) and queries each effective resolver
+directly from the running Node container (`runtime_dns_node`). An empty
+materialized override means axnoded derives the resolver from the Node; it is
+not an invalid configuration. Both checks are read-only and use a 15-second timeout by default;
 change it with `--check-timeout`.
 
 To verify the same DNS materialization through a real `runsc` OCI sandbox, run:
@@ -131,8 +132,8 @@ are rejected. Sandbox execution defaults to five minutes; adjust it with
 required failure and should be remediated by inspecting probe-labeled local
 resources before retrying.
 
-VPNs and managed networks sometimes expose DNS through a resolver that is not
-listed in the host resolver files. Set an explicit comma-separated list before
+VPNs and managed networks sometimes require a resolver that is not visible in
+the Node container's effective configuration. Set an explicit comma-separated list before
 starting or recreating the local stack:
 
 ```bash

@@ -23,6 +23,17 @@ func TestReadMaterializedDNSNameservers(t *testing.T) {
 	}
 }
 
+func TestReadMaterializedDNSNameserversAllowsNodeDerivedMode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "compose.env")
+	if err := os.WriteFile(path, []byte("AXNODED_DNS_NAMESERVERS=\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := readMaterializedDNSNameservers(path)
+	if err != nil || len(got) != 0 {
+		t.Fatalf("node-derived materialized DNS = (%v, %v), want empty valid override", got, err)
+	}
+}
+
 func TestDoctorDNSNameserversPrefersMaterializedConfiguration(t *testing.T) {
 	t.Setenv(localDNSNameserversEnv, "198.51.100.53")
 	dir := t.TempDir()
@@ -84,10 +95,10 @@ func TestDoctorReportFolding(t *testing.T) {
 }
 
 func TestProbeNodeDNSMapsSanitizedPartialResult(t *testing.T) {
-	runner := staticOutputRunner{data: []byte(`{"status":"warn","code":"runtime_dns_node_partial","configured_resolver_count":2,"successful_resolver_count":1}`)}
+	runner := staticOutputRunner{data: []byte(`{"status":"warn","code":"runtime_dns_node_partial","effective_resolver_count":2,"successful_resolver_count":1}`)}
 	manager := &Manager{Dir: t.TempDir(), Runner: runner, Stdout: io.Discard, Stderr: io.Discard}
 	check := manager.probeNodeDNS(context.Background(), "", "private.corp.example.", time.Second)
-	if check.Status != checkWarn || check.Code != "runtime_dns_node_partial" || check.Details["configured_resolver_count"] != 2 {
+	if check.Status != checkWarn || check.Code != "runtime_dns_node_partial" || check.Details["effective_resolver_count"] != 2 {
 		t.Fatalf("check = %#v", check)
 	}
 	if _, ok := check.Details["query_name"]; ok {
@@ -96,7 +107,7 @@ func TestProbeNodeDNSMapsSanitizedPartialResult(t *testing.T) {
 }
 
 func TestProbeNodeDNSRejectsInconsistentResult(t *testing.T) {
-	runner := staticOutputRunner{data: []byte(`{"status":"pass","code":"runtime_dns_node_partial","configured_resolver_count":2,"successful_resolver_count":1}`)}
+	runner := staticOutputRunner{data: []byte(`{"status":"pass","code":"runtime_dns_node_partial","effective_resolver_count":2,"successful_resolver_count":1}`)}
 	manager := &Manager{Dir: t.TempDir(), Runner: runner, Stdout: io.Discard, Stderr: io.Discard}
 	check := manager.probeNodeDNS(context.Background(), "", "example.test.", time.Second)
 	if check.Status != checkFail || check.Code != "runtime_dns_node_unreachable" || check.Details != nil {

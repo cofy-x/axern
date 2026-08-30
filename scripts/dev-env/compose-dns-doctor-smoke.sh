@@ -33,7 +33,7 @@ node_result="$(docker compose "${compose_args[@]}" exec -T \
   -e "AXERN_DNS_PROBE_TIMEOUT=15s" \
   node /usr/local/libexec/axnoded/dns-probe)"
 printf '%s\n' "${node_result}" >"${verify_root}/node-result.json"
-python3 - "${verify_root}/node-result.json" "${AXNODED_DNS_NAMESERVERS}" <<'PY'
+python3 - "${verify_root}/node-result.json" "${AXNODED_DNS_NAMESERVERS:-}" <<'PY'
 import ipaddress
 import json
 import pathlib
@@ -41,14 +41,13 @@ import sys
 
 report = json.loads(pathlib.Path(sys.argv[1]).read_text())
 configured = [str(ipaddress.ip_address(item.strip())) for item in sys.argv[2].split(",") if item.strip()]
-expected = {
-    "status": "pass",
-    "code": "runtime_dns_node_reachable",
-    "configured_resolver_count": len(configured),
-    "successful_resolver_count": len(configured),
-}
-if report != expected:
+if report.get("status") != "pass" or report.get("code") != "runtime_dns_node_reachable":
     raise SystemExit(f"unexpected Node DNS probe result: {report}")
+effective = report.get("effective_resolver_count", 0)
+if effective <= 0 or report.get("successful_resolver_count") != effective:
+    raise SystemExit(f"Node DNS probe did not verify every effective resolver: {report}")
+if configured and effective != len(configured):
+    raise SystemExit(f"Node DNS probe did not use the explicit verification override: {report}")
 PY
 
 cp "${compose_file}" "${local_dir}/compose.yaml"
@@ -181,12 +180,12 @@ updated = []
 found = False
 for line in lines:
     if line.startswith("AXNODED_DNS_NAMESERVERS="):
-        updated.append("AXNODED_DNS_NAMESERVERS=")
+        updated.append("AXNODED_DNS_NAMESERVERS=127.0.0.1")
         found = True
     else:
         updated.append(line)
 if not found:
-    updated.append("AXNODED_DNS_NAMESERVERS=")
+    updated.append("AXNODED_DNS_NAMESERVERS=127.0.0.1")
 path.write_text("\n".join(updated) + "\n")
 PY
 

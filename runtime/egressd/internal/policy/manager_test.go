@@ -13,7 +13,7 @@ import (
 
 func TestPrepareNormalizesAndIsIdempotent(t *testing.T) {
 	mustManager := newTestManager(t, nil)
-	record, already, err := mustManager.Prepare(context.Background(), " alloc-1 ", 1, "10.0.0.8", dnsDeny("BÜCHER.Example.", "xn--bcher-kva.example"), 7)
+	record, already, err := mustManager.Prepare(context.Background(), " alloc-1 ", 1, "10.0.0.8", dnsDeny("BÜCHER.Example.", "xn--bcher-kva.example"), 7, testDNSUpstreams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func TestPrepareNormalizesAndIsIdempotent(t *testing.T) {
 		t.Fatalf("unexpected digest: %q", record.GetPolicyDigest())
 	}
 
-	retry, already, err := mustManager.Prepare(context.Background(), "alloc-1", 1, "10.0.0.8", dnsDeny("xn--bcher-kva.example"), 7)
+	retry, already, err := mustManager.Prepare(context.Background(), "alloc-1", 1, "10.0.0.8", dnsDeny("xn--bcher-kva.example"), 7, testDNSUpstreams)
 	if err != nil || !already {
 		t.Fatalf("idempotent prepare = (%v, %v), want success/already", err, already)
 	}
@@ -40,13 +40,13 @@ func TestPrepareFencesContentAttemptAndIPReuse(t *testing.T) {
 	m := newTestManager(t, nil)
 	prepare(t, m, "alloc-1", 2, "10.0.0.8", 1, dnsDeny("example.com"))
 
-	if _, _, err := m.Prepare(context.Background(), "alloc-1", 2, "10.0.0.9", dnsDeny("example.com"), 1); err == nil || !strings.Contains(err.Error(), "different content") {
+	if _, _, err := m.Prepare(context.Background(), "alloc-1", 2, "10.0.0.9", dnsDeny("example.com"), 1, testDNSUpstreams); err == nil || !strings.Contains(err.Error(), "different content") {
 		t.Fatalf("same-attempt drift error = %v", err)
 	}
-	if _, _, err := m.Prepare(context.Background(), "alloc-1", 1, "10.0.0.9", dnsDeny("example.com"), 1); err == nil || !strings.Contains(err.Error(), "stale") {
+	if _, _, err := m.Prepare(context.Background(), "alloc-1", 1, "10.0.0.9", dnsDeny("example.com"), 1, testDNSUpstreams); err == nil || !strings.Contains(err.Error(), "stale") {
 		t.Fatalf("stale attempt error = %v", err)
 	}
-	if _, _, err := m.Prepare(context.Background(), "alloc-2", 1, "10.0.0.8", dnsDeny("other.example"), 1); err == nil || !strings.Contains(err.Error(), "already owned") {
+	if _, _, err := m.Prepare(context.Background(), "alloc-2", 1, "10.0.0.8", dnsDeny("other.example"), 1, testDNSUpstreams); err == nil || !strings.Contains(err.Error(), "already owned") {
 		t.Fatalf("IP reuse error = %v", err)
 	}
 
@@ -68,13 +68,28 @@ func TestPrepareRejectsUnsafeSandboxIPs(t *testing.T) {
 	}
 }
 
+func TestPrepareRequiresUpstreamsOnlyForDNSForwardingPolicies(t *testing.T) {
+	m := newTestManager(t, nil)
+	if _, _, err := m.Prepare(context.Background(), "dns", 1, "10.0.0.8", dnsDeny("example.com"), 1); err == nil || !strings.Contains(err.Error(), "upstream") {
+		t.Fatalf("DNS forwarding policy without upstream error = %v", err)
+	}
+	denyAll := &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{}}}
+	record, _, err := m.Prepare(context.Background(), "deny-all", 1, "10.0.0.9", denyAll, 1, []string{"invalid"})
+	if err != nil {
+		t.Fatalf("strict deny-all unexpectedly depended on DNS: %v", err)
+	}
+	if len(record.GetUpstreamNameservers()) != 0 {
+		t.Fatalf("strict deny-all persisted unused upstreams: %v", record.GetUpstreamNameservers())
+	}
+}
+
 func TestPrepareCanonicalizesMappedIPv4BeforeIPFencing(t *testing.T) {
 	m := newTestManager(t, nil)
 	record := prepare(t, m, "alloc-1", 1, "::ffff:10.0.0.8", 1, dnsDeny("example.com"))
 	if record.GetSandboxIp() != "10.0.0.8" {
 		t.Fatalf("sandbox IP = %q, want canonical IPv4", record.GetSandboxIp())
 	}
-	if _, _, err := m.Prepare(context.Background(), "alloc-2", 1, "10.0.0.8", dnsDeny("example.net"), 1); err == nil {
+	if _, _, err := m.Prepare(context.Background(), "alloc-2", 1, "10.0.0.8", dnsDeny("example.net"), 1, testDNSUpstreams); err == nil {
 		t.Fatal("canonical IP collision was accepted")
 	}
 }
@@ -157,7 +172,7 @@ func TestPersistenceFailureRestoresPreviousDataplane(t *testing.T) {
 		t.Fatal(err)
 	}
 	store.saveErr = errors.New("disk full")
-	if _, _, err := m.Prepare(context.Background(), "alloc-1", 1, "10.0.0.8", dnsDeny("example.com"), 1); err == nil {
+	if _, _, err := m.Prepare(context.Background(), "alloc-1", 1, "10.0.0.8", dnsDeny("example.com"), 1, testDNSUpstreams); err == nil {
 		t.Fatal("Prepare succeeded despite persistence failure")
 	}
 	if len(executor.generations) != 3 || len(executor.generations[0]) != 0 || len(executor.generations[1]) != 1 || len(executor.generations[2]) != 0 {
@@ -208,7 +223,7 @@ func newTestManager(t *testing.T, store Store) *Manager {
 
 func prepare(t *testing.T, m *Manager, allocationID string, attempt int64, ip string, revision int64, input *commonv1.NetworkEgressPolicy) *runtimeegressv1.PreparedEgressPolicy {
 	t.Helper()
-	record, _, err := m.Prepare(context.Background(), allocationID, attempt, ip, input, revision)
+	record, _, err := m.Prepare(context.Background(), allocationID, attempt, ip, input, revision, testDNSUpstreams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,6 +233,8 @@ func prepare(t *testing.T, m *Manager, allocationID string, attempt int64, ip st
 func dnsDeny(domains ...string) *commonv1.NetworkEgressPolicy {
 	return &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_DnsDeny{DnsDeny: &commonv1.DnsDenyPolicy{DeniedDomains: domains}}}
 }
+
+var testDNSUpstreams = []string{"192.0.2.53"}
 
 func activeProof(record *runtimeegressv1.PreparedEgressPolicy) *runtimeegressv1.ActiveEgressPolicy {
 	return &runtimeegressv1.ActiveEgressPolicy{

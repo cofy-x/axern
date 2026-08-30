@@ -1,25 +1,32 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/netip"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/cofy-x/axern/runtime/axnoded/config"
+	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
+	"github.com/pelletier/go-toml"
 )
 
 const (
 	defaultProbeTimeout = 15 * time.Second
+	defaultConfigPath   = "/tmp/axnoded-node-config.toml"
 	resolverPort        = "53"
 )
 
 type result struct {
 	Status                  string `json:"status"`
 	Code                    string `json:"code"`
-	ConfiguredResolverCount int64  `json:"configured_resolver_count"`
+	EffectiveResolverCount  int64  `json:"effective_resolver_count"`
 	SuccessfulResolverCount int64  `json:"successful_resolver_count"`
 }
 
@@ -30,13 +37,33 @@ func main() {
 	if value, err := time.ParseDuration(strings.TrimSpace(os.Getenv("AXERN_DNS_PROBE_TIMEOUT"))); err == nil && value > 0 {
 		timeout = value
 	}
-	value := runProbe(context.Background(), os.Getenv("AXNODED_DNS_NAMESERVERS"), os.Getenv("AXERN_DNS_PROBE_NAME"), timeout, lookupResolver)
+	configPath := strings.TrimSpace(os.Getenv("AXERN_DNS_PROBE_CONFIG"))
+	if configPath == "" {
+		configPath = defaultConfigPath
+	}
+	resolvers, _ := effectiveResolvers(configPath)
+	value := runProbe(context.Background(), resolvers, os.Getenv("AXERN_DNS_PROBE_NAME"), timeout, lookupResolver)
 	_ = json.NewEncoder(os.Stdout).Encode(value)
 }
 
-func runProbe(ctx context.Context, rawResolvers, queryName string, timeout time.Duration, lookup resolverLookup) result {
-	resolvers := parseResolvers(rawResolvers)
-	value := result{Status: "fail", Code: "runtime_dns_node_unreachable", ConfiguredResolverCount: int64(len(resolvers))}
+func effectiveResolvers(configPath string) ([]string, error) {
+	cfg := config.DefaultConfig()
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("read axnoded config: %w", err)
+	}
+	if err := toml.NewDecoder(bytes.NewReader(data)).Decode(&cfg); err != nil {
+		return nil, fmt.Errorf("decode axnoded config: %w", err)
+	}
+	dns := cfg.PluginConfig.RuntimeConfig.DNS
+	return runtimeoci.ResolveRuntimeDNSNameservers(runtimeoci.RuntimeDNSConfig{
+		Nameservers: append([]string(nil), dns.Nameservers...), SearchDomains: append([]string(nil), dns.SearchDomains...), Options: append([]string(nil), dns.Options...),
+	})
+}
+
+func runProbe(ctx context.Context, resolvers []string, queryName string, timeout time.Duration, lookup resolverLookup) result {
+	resolvers = parseResolvers(strings.Join(resolvers, ","))
+	value := result{Status: "fail", Code: "runtime_dns_node_unreachable", EffectiveResolverCount: int64(len(resolvers))}
 	if len(resolvers) == 0 || !validQueryName(queryName) || timeout <= 0 {
 		return value
 	}
@@ -59,7 +86,7 @@ func runProbe(ctx context.Context, rawResolvers, queryName string, timeout time.
 		}
 	}
 	if value.SuccessfulResolverCount > 0 {
-		if value.SuccessfulResolverCount == value.ConfiguredResolverCount {
+		if value.SuccessfulResolverCount == value.EffectiveResolverCount {
 			value.Status = "pass"
 			value.Code = "runtime_dns_node_reachable"
 		} else {

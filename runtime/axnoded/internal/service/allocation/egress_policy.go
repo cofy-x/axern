@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cofy-x/axern/lib/go/networkpolicy"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
@@ -30,12 +31,16 @@ func (h *Controller) prepareEgressPolicy(ctx context.Context, request *runtime.S
 	if conditions := h.CapabilityConditions(request.GetContainerID()); conditions != nil && conditions.GetRevision() > 0 {
 		revision = conditions.GetRevision()
 	}
-	dnsConfig := h.config.PluginConfig.RuntimeConfig.DNS
-	upstreams, err := runtimeoci.ResolveRuntimeDNSNameservers(runtimeoci.RuntimeDNSConfig{
-		Nameservers: append([]string(nil), dnsConfig.Nameservers...), SearchDomains: append([]string(nil), dnsConfig.SearchDomains...), Options: append([]string(nil), dnsConfig.Options...),
-	})
-	if err != nil {
-		return false, fmt.Errorf("resolve trusted egress DNS upstreams: %w", err)
+	var upstreams []string
+	if networkpolicy.RequiresDNSUpstreams(request.GetEgressPolicy()) {
+		dnsConfig := h.config.PluginConfig.RuntimeConfig.DNS
+		var err error
+		upstreams, err = runtimeoci.ResolveRuntimeDNSNameservers(runtimeoci.RuntimeDNSConfig{
+			Nameservers: append([]string(nil), dnsConfig.Nameservers...), SearchDomains: append([]string(nil), dnsConfig.SearchDomains...), Options: append([]string(nil), dnsConfig.Options...),
+		})
+		if err != nil {
+			return false, fmt.Errorf("resolve trusted egress DNS upstreams: %w", err)
+		}
 	}
 	prepared, err := h.egress.Prepare(ctx, request.GetContainerID(), request.GetAllocationAttempt(), sandboxIP, request.GetEgressPolicy(), revision, upstreams)
 	if err != nil {
