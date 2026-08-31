@@ -41,8 +41,14 @@ for required in runtime_name network_backend ip_family policy_mode samples concu
 done
 
 case "${network_backend}" in
-  bridge) nat_backend=iptables ;;
-  ebpf) nat_backend=ebpf ;;
+  bridge)
+    nat_backend=iptables
+    network_capability=PLATFORM_CAPABILITY_NETWORK_BRIDGE
+    ;;
+  ebpf)
+    nat_backend=ebpf
+    network_capability=PLATFORM_CAPABILITY_NETWORK_BPFNET
+    ;;
   *) echo "unsupported network backend: ${network_backend}" >&2; exit 1 ;;
 esac
 
@@ -146,14 +152,24 @@ export AXNODED_CGROUP_CACHE_SIZE=0
 node_log="/tmp/network-policy-node-${runtime_name}-${network_backend}-${ip_family}-${policy_mode}.log"
 /bin/bash /workspace/scripts/verify/node-all-in-one-entrypoint.sh >"${node_log}" 2>&1 &
 node_pid=$!
+inventory_ready() {
+  jq -e --arg network_capability "${network_capability}" '
+    [.node.capability_snapshot.observations[]?
+     | select(
+         (.key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or
+          .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT" or
+          .key.platform == "PLATFORM_CAPABILITY_PORT_FORWARDING" or
+          .key.platform == $network_capability) and
+         .state == "CAPABILITY_STATE_AVAILABLE")
+     | .key.platform]
+    | unique
+    | length == 4
+  ' >/dev/null 2>&1
+}
 for _ in $(seq 1 180); do
   if [ -S /run/axnoded/axnoded.sock ] && curl -fsS http://127.0.0.1:23001/readyz >/dev/null 2>&1; then
     inventory="$(curl -fsS http://127.0.0.1:23001/inventoryz 2>/dev/null || true)"
-    if jq -e '
-      [.node.capability_snapshot.observations[]?
-       | select((.key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT") and .state == "CAPABILITY_STATE_AVAILABLE")]
-      | length == 2
-    ' <<<"${inventory}" >/dev/null 2>&1; then
+    if inventory_ready <<<"${inventory}"; then
       break
     fi
   fi
@@ -167,12 +183,17 @@ if ! [ -S /run/axnoded/axnoded.sock ] || ! curl -fsS http://127.0.0.1:23001/read
 fi
 
 inventory="$(curl -fsS http://127.0.0.1:23001/inventoryz 2>/dev/null || true)"
-if ! jq -e '
-  [.node.capability_snapshot.observations[]?
-   | select((.key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT") and .state == "CAPABILITY_STATE_AVAILABLE")]
-  | length == 2
-' <<<"${inventory}" >/dev/null 2>&1; then
+if ! inventory_ready <<<"${inventory}"; then
   echo "network-policy enforcement capabilities did not become available" >&2
+  jq --arg network_capability "${network_capability}" '
+    [.node.capability_snapshot.observations[]?
+     | select(
+         .key.platform == "PLATFORM_CAPABILITY_PORT_FORWARDING" or
+         .key.platform == $network_capability or
+         .key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or
+         .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT")
+     | {platform: .key.platform, state, reason_code, reason}]
+  ' <<<"${inventory}" >&2 || true
   tail -n 160 "${node_log}" >&2
   exit 1
 fi
