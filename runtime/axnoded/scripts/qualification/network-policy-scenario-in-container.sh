@@ -135,6 +135,13 @@ export AXNODED_CONTROL_PLANE_TARGET=""
 # Keep the qualification sandbox independent from transient all-in-one daemon
 # memory while reserving the fixed 256 MiB runtime-conformance domain.
 export AXNODED_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES:-805306368}"
+# Network-policy qualification measures policy enforcement rather than warm
+# resource-pool behavior. A prewarmed cgroup is intentionally absent from
+# memory commitment metrics, but it remains a kernel object. Because each cell
+# resets disposable node state, carrying that object across cells would turn it
+# into an orphan without its durable capacity identity. Warm-pool behavior has
+# its own lifecycle E2E; keep this matrix isolated from it.
+export AXNODED_CGROUP_CACHE_SIZE=0
 
 node_log="/tmp/network-policy-node-${runtime_name}-${network_backend}-${ip_family}-${policy_mode}.log"
 /bin/bash /workspace/scripts/verify/node-all-in-one-entrypoint.sh >"${node_log}" 2>&1 &
