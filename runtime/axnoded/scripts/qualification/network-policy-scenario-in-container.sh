@@ -201,10 +201,11 @@ if ! verify-network-policy-qualification \
 fi
 
 # DeleteAllocation confirms that the runtime target has disappeared, while
-# cgroup retirement is deliberately completed by the asynchronous resource
-# GC. Do not stop axnoded or discard its durable ledger until that ownership
-# has converged. Otherwise the next matrix cell can discover a kernel cgroup
-# without the memory-capacity identity that made its commitment durable.
+# workload and runtime-certification cgroup retirement is deliberately
+# completed by the asynchronous resource GC. Do not stop axnoded or discard
+# its durable ledger until both ownership domains have converged. Otherwise the
+# next matrix cell can discover a kernel cgroup without the memory-capacity
+# identity that made its commitment durable.
 retirement_converged=false
 inventory=""
 for _ in $(seq 1 120); do
@@ -212,7 +213,9 @@ for _ in $(seq 1 120); do
   if jq -e '
     .node.memory_budget.local_commitment_bytes == 0 and
     .node.memory_budget.cleanup_debt_bytes == 0 and
-    .node.memory_budget.retiring_cgroup_count == 0
+    .node.memory_budget.retiring_cgroup_count == 0 and
+    .node.memory_budget.conformance_commitment_bytes == 0 and
+    .node.memory_budget.conformance_cleanup_debt_bytes == 0
   ' <<<"${inventory}" >/dev/null 2>&1; then
     retirement_converged=true
     break
