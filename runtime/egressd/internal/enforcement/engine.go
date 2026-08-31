@@ -167,18 +167,18 @@ func (e *Engine) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("listen DNS UDP: %w", err)
 	}
-	dnsTCP, err := listenTransparentTCP(dnsProxyPort)
+	dnsTCP, err := listenTCP(dnsProxyPort)
 	if err != nil {
 		closeAllUDP(udp)
 		return fmt.Errorf("listen DNS TCP: %w", err)
 	}
-	http, err := listenTransparentTCP(httpProxyPort)
+	http, err := listenTCP(httpProxyPort)
 	if err != nil {
 		closeAllUDP(udp)
 		closeAll(dnsTCP)
 		return fmt.Errorf("listen HTTP proxy: %w", err)
 	}
-	https, err := listenTransparentTCP(httpsProxyPort)
+	https, err := listenTCP(httpsProxyPort)
 	if err != nil {
 		closeAllUDP(udp)
 		closeAll(dnsTCP)
@@ -287,7 +287,7 @@ func (e *Engine) handleHTTP(conn net.Conn) {
 		e.record(record, obs.ActionDeny, obs.ProtocolHTTP, obs.ResultRefused, started)
 		return
 	}
-	upstream, err := dialMarked(destination)
+	upstream, err := dialUpstream(destination)
 	if err != nil {
 		return
 	}
@@ -333,7 +333,7 @@ func (e *Engine) handleTLS(conn net.Conn) {
 		e.record(record, obs.ActionDeny, obs.ProtocolHTTPS, obs.ResultRefused, started)
 		return
 	}
-	upstream, err := dialMarked(destination)
+	upstream, err := dialUpstream(destination)
 	if err != nil {
 		return
 	}

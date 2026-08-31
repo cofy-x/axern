@@ -214,10 +214,6 @@ if ! verify-network-policy-qualification \
   --output "${output}"; then
   echo "network-policy qualification scenario failed; dumping bounded dataplane diagnostics" >&2
   nft -a list table inet axern_egress 2>&1 | tail -n 240 >&2 || true
-  ip -4 rule show 2>&1 | tail -n 80 >&2 || true
-  ip -4 route show table 166 2>&1 | tail -n 80 >&2 || true
-  ip -6 rule show 2>&1 | tail -n 80 >&2 || true
-  ip -6 route show table 166 2>&1 | tail -n 80 >&2 || true
   tail -n 160 "${node_log}" >&2 || true
   exit 1
 fi

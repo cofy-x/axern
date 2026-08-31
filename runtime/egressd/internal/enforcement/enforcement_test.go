@@ -153,7 +153,7 @@ func TestRenderNFTSeparatesDNSOnlyAndStrictPolicies(t *testing.T) {
 		t.Fatalf("RenderNFT() error = %v", err)
 	}
 	script := string(wire)
-	for _, expected := range []string{"chain dns_proxy { type nat hook prerouting priority dstnat", "10.0.0.2 udp dport 53 meta mark set 0xa6e1 redirect to :1053", "10.0.0.3 tcp dport 53 meta mark set 0xa6e1 redirect to :1053", "10.0.0.3 tcp dport 443", "192.0.2.0/24 tcp dport 22 accept", "10.0.0.3 drop", "tproxy ip to :1080 meta mark set 0xa6e1 accept", "10.0.0.3 tcp dport 80 drop"} {
+	for _, expected := range []string{"chain proxy_redirect { type nat hook prerouting priority dstnat", "10.0.0.2 udp dport 53 counter redirect to :1053", "10.0.0.3 tcp dport 53 counter redirect to :1053", "10.0.0.3 tcp dport 443 counter redirect to :1443", "10.0.0.3 ct status dnat tcp dport 1080 counter accept", "192.0.2.0/24 tcp dport 22 return", "192.0.2.0/24 tcp dport 22 accept", "10.0.0.3 drop"} {
 		if !strings.Contains(script, expected) {
 			t.Fatalf("nft script missing %q:\n%s", expected, script)
 		}
@@ -177,7 +177,7 @@ func TestRenderNFTDoesNotProxyDNSForStrictPoliciesWithoutDomains(t *testing.T) {
 	}
 	script := string(wire)
 	for _, source := range []string{"10.0.0.4", "10.0.0.5"} {
-		if strings.Contains(script, source+" udp dport 53 meta mark set") || strings.Contains(script, source+" tcp dport 53 meta mark set") {
+		if strings.Contains(script, source+" udp dport 53 counter redirect") || strings.Contains(script, source+" tcp dport 53 counter redirect") {
 			t.Fatalf("policy without domains was sent to DNS proxy:\n%s", script)
 		}
 	}

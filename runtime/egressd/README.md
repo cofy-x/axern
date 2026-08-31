@@ -11,14 +11,13 @@ idempotent only when all enforcement inputs match. Reconciliation retains only
 records backed by an exact active-allocation proof and removes orphaned or
 mismatched records.
 
-The Linux executor owns an isolated `inet axern_egress` nftables table and a
-dedicated policy-routing mark. Rules are keyed only by sandbox source IP and
-use conntrack-backed REDIRECT for conventional DNS and TPROXY for strict
-HTTP/HTTPS traffic that needs the original destination. Explicit strict
-CIDR/transport/port grants return to the ordinary bridge or bpfnet forwarding
-path, so egressd does not take ownership of either backend's SNAT/DNAT state.
-Proxy upstream sockets carry a separate bypass mark and never enter the
-workload namespace.
+The Linux executor owns an isolated `inet axern_egress` nftables table. Rules
+are keyed only by sandbox source IP and use conntrack-backed REDIRECT for
+conventional DNS and strict HTTP/HTTPS traffic;
+the L7 inspectors recover the original TCP destination from conntrack.
+Explicit strict CIDR/transport/port grants return to the ordinary bridge or
+bpfnet forwarding path, so egressd does not take ownership of either backend's
+SNAT/DNAT state. Proxy upstream sockets never enter the workload namespace.
 
 The DNS forwarder accepts only the same non-loopback IP nameservers verified by
 axnoded while constructing the workload resolver configuration. It supports
