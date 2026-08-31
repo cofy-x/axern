@@ -163,7 +163,7 @@ func (e *Engine) authorized(source, domain string, addr netip.Addr) bool {
 }
 
 func (e *Engine) Start(ctx context.Context) error {
-	udp, err := listenTransparentUDP(dnsProxyPort)
+	udp, err := listenDNSUDP(dnsProxyPort)
 	if err != nil {
 		return fmt.Errorf("listen DNS UDP: %w", err)
 	}
@@ -199,6 +199,25 @@ func (e *Engine) Start(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func listenDNSUDP(port int) ([]*net.UDPConn, error) {
+	listeners := make([]*net.UDPConn, 0, 2)
+	for _, endpoint := range []struct {
+		network string
+		address *net.UDPAddr
+	}{
+		{network: "udp4", address: &net.UDPAddr{IP: net.IPv4zero, Port: port}},
+		{network: "udp6", address: &net.UDPAddr{IP: net.IPv6zero, Port: port}},
+	} {
+		listener, err := net.ListenUDP(endpoint.network, endpoint.address)
+		if err != nil {
+			closeAllUDP(listeners)
+			return nil, err
+		}
+		listeners = append(listeners, listener)
+	}
+	return listeners, nil
 }
 
 func closeAll(listeners []net.Listener) {

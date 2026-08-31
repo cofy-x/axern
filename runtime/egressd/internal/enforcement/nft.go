@@ -188,16 +188,25 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 	var out strings.Builder
 	out.WriteString("delete table inet " + nftTable + "\n")
 	out.WriteString("table inet " + nftTable + " {\n")
+	out.WriteString(" chain dns_proxy { type nat hook prerouting priority dstnat; policy accept;\n")
+	for _, record := range records {
+		if !networkpolicy.RequiresDNSUpstreams(record.GetPolicy()) {
+			continue
+		}
+		family, source, err := nftSource(record.GetSandboxIp())
+		if err != nil {
+			return nil, err
+		}
+		writeDNSRedirect(&out, family, source, "udp")
+		writeDNSRedirect(&out, family, source, "tcp")
+	}
+	out.WriteString(" }\n")
 	out.WriteString(" chain ingress_proxy { type filter hook prerouting priority mangle; policy accept;\n")
 	writeManagedRule(&out, "meta mark 0x%x return", bypassMark)
 	for _, record := range records {
 		family, source, err := nftSource(record.GetSandboxIp())
 		if err != nil {
 			return nil, err
-		}
-		if networkpolicy.RequiresDNSUpstreams(record.GetPolicy()) {
-			writeTProxy(&out, family, source, "udp", 53, dnsProxyPort)
-			writeTProxy(&out, family, source, "tcp", 53, dnsProxyPort)
 		}
 		if strict := record.GetPolicy().GetStrict(); strict != nil {
 			for _, rule := range strict.GetAllowedCidrs() {
@@ -240,6 +249,15 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 	}
 	out.WriteString(" }\n}\n")
 	return []byte(out.String()), nil
+}
+
+func writeDNSRedirect(out *strings.Builder, family, source, protocol string) {
+	// DNS does not need the original destination: the prepared policy already
+	// carries the trusted upstream. REDIRECT keeps request and response in one
+	// conntrack flow, including for sandbox veths behind a Linux bridge where
+	// older kernels can route a UDP TPROXY packet locally without delivering it
+	// to the transparent socket. A missing listener remains fail closed.
+	writeManagedRule(out, "%s saddr %s %s dport 53 meta mark set 0x%x redirect to :%d", family, source, protocol, policyMark, dnsProxyPort)
 }
 
 func writeTProxy(out *strings.Builder, family, source, protocol string, destinationPort, proxyPort int) {

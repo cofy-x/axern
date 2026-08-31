@@ -30,9 +30,8 @@ type dnsCNAMEAnswer struct {
 
 func (e *Engine) serveDNSUDP(ctxDone interface{ Done() <-chan struct{} }, listener *net.UDPConn) {
 	buffer := make([]byte, dnsforward.MaxDNSMessageBytes)
-	oob := make([]byte, 256)
 	for {
-		n, source, destination, err := readTransparentUDP(listener, buffer, oob)
+		n, source, err := listener.ReadFromUDP(buffer)
 		if err != nil {
 			select {
 			case <-ctxDone.Done():
@@ -51,7 +50,8 @@ func (e *Engine) serveDNSUDP(ctxDone interface{ Done() <-chan struct{} }, listen
 					e.dnsResolveFailureOnce.Do(func() { fmt.Fprintln(os.Stderr, "egressd_dns_udp_resolve_failure=true") })
 					return
 				}
-				if err := writeTransparentUDPResponse(destination, source, response); err != nil {
+				_ = listener.SetWriteDeadline(time.Now().Add(inspectTimeout))
+				if _, err := listener.WriteToUDP(response, source); err != nil {
 					e.dnsResponseFailureOnce.Do(func() { fmt.Fprintln(os.Stderr, "egressd_dns_udp_response_failure=true") })
 				}
 			}()
