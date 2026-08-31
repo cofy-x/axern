@@ -52,6 +52,11 @@ case "${network_backend}" in
   *) echo "unsupported network backend: ${network_backend}" >&2; exit 1 ;;
 esac
 
+case "${runtime_name}" in
+  runc | runsc) ;;
+  *) echo "unsupported runtime: ${runtime_name}" >&2; exit 1 ;;
+esac
+
 fixture_ns="axern-qual-fixture"
 fixture_host_dev="axqhost0"
 fixture_peer_dev="axqpeer0"
@@ -68,6 +73,13 @@ case "${ip_family}" in
     ;;
   *) echo "unsupported IP family: ${ip_family}" >&2; exit 1 ;;
 esac
+
+# Native bpfnet is IPv4-only. An IPv6 pool configured with the ebpf option
+# intentionally uses the bridge compatibility dataplane and publishes that
+# effective capability to placement and lifecycle gates.
+if [ "${network_backend}" = ebpf ] && [ "${ip_family}" = ipv6 ]; then
+  network_capability=PLATFORM_CAPABILITY_NETWORK_BRIDGE
+fi
 
 node_pid=""
 fixture_pid=""
@@ -89,6 +101,40 @@ cleanup
 mkdir -p /var/lib/axnoded /var/lib/egressd /var/lib/imagemgr /var/lib/volumed /run/axnoded /run/egressd
 # This script only runs in a disposable qualification image. These exact
 # directories contain state created by the preceding matrix cell in that image.
+while IFS= read -r mount_target; do
+  umount "${mount_target}"
+done < <(
+  findmnt -rn -o TARGET |
+    awk '$0 ~ "^/var/lib/(axnoded|egressd|imagemgr|volumed)(/|$)" { print length($0), $0 }' |
+    sort -rn |
+    cut -d ' ' -f 2-
+)
+
+delegation_group="$(awk -F: '$1 == "0" { print $3 }' /proc/self/cgroup)"
+if [ "$(basename "${delegation_group}")" = internal ]; then
+  delegation_group="$(dirname "${delegation_group}")"
+fi
+case "${delegation_group}" in
+  /*) ;;
+  *) echo "qualification runner has no canonical cgroup delegation" >&2; exit 1 ;;
+esac
+if [ "${delegation_group}" = / ]; then
+  echo "qualification runner refuses an unscoped cgroup delegation" >&2
+  exit 1
+fi
+workload_cgroup_root="/sys/fs/cgroup${delegation_group}/sandbox"
+conformance_cgroup_root="/sys/fs/cgroup${delegation_group}/conformance"
+for cgroup_root in "${workload_cgroup_root}" "${conformance_cgroup_root}"; do
+  [ -d "${cgroup_root}" ] || continue
+  while IFS= read -r cgroup_child; do
+    if [ -n "$(cat "${cgroup_child}/cgroup.procs" 2>/dev/null || true)" ]; then
+      echo "qualification refuses to remove a populated stale cgroup" >&2
+      exit 1
+    fi
+    rmdir "${cgroup_child}"
+  done < <(find "${cgroup_root}" -mindepth 1 -depth -type d)
+done
+
 find /var/lib/axnoded /var/lib/egressd /var/lib/imagemgr /var/lib/volumed -mindepth 1 -delete
 find /run/axnoded /run/egressd -mindepth 1 -delete
 
@@ -198,26 +244,9 @@ if ! inventory_ready <<<"${inventory}"; then
   exit 1
 fi
 
-delegation_group="$(awk -F: '$1 == "0" { print $3 }' /proc/self/cgroup)"
-if [ "$(basename "${delegation_group}")" = internal ]; then
-  delegation_group="$(dirname "${delegation_group}")"
-fi
-case "${delegation_group}" in
-  /*) ;;
-  *) echo "qualification runner has no canonical cgroup delegation" >&2; exit 1 ;;
-esac
-if [ "${delegation_group}" = / ]; then
-  echo "qualification runner refuses an unscoped cgroup delegation" >&2
-  exit 1
-fi
-workload_cgroup_root="/sys/fs/cgroup${delegation_group}/sandbox"
-conformance_cgroup_root="/sys/fs/cgroup${delegation_group}/conformance"
 cgroup_children_converged() {
-  local root
-  for root in "${workload_cgroup_root}" "${conformance_cgroup_root}"; do
-    [ -d "${root}" ] || return 1
-    [ -z "$(find "${root}" -mindepth 1 -maxdepth 1 -type d -print -quit)" ] || return 1
-  done
+  [ -d "${workload_cgroup_root}" ] || return 1
+  [ -z "$(find "${workload_cgroup_root}" -mindepth 1 -maxdepth 1 -type d -print -quit)" ]
 }
 
 if ! verify-network-policy-qualification \
@@ -240,11 +269,9 @@ if ! verify-network-policy-qualification \
 fi
 
 # DeleteAllocation confirms that the runtime target has disappeared, while
-# workload and runtime-certification cgroup retirement is deliberately
-# completed by the asynchronous resource GC. Do not stop axnoded or discard
-# its durable ledger until both ownership domains have converged. Otherwise the
-# next matrix cell can discover a kernel cgroup without the memory-capacity
-# identity that made its commitment durable.
+# workload cgroup retirement is deliberately completed by the asynchronous
+# resource GC. Runtime certification is node-owned background work and is not
+# part of a network-policy scenario's resource ownership boundary.
 retirement_converged=false
 inventory=""
 for _ in $(seq 1 120); do
@@ -252,9 +279,7 @@ for _ in $(seq 1 120); do
   if jq -e '
     .node.memory_budget.local_commitment_bytes == 0 and
     .node.memory_budget.cleanup_debt_bytes == 0 and
-    .node.memory_budget.retiring_cgroup_count == 0 and
-    .node.memory_budget.conformance_commitment_bytes == 0 and
-    .node.memory_budget.conformance_cleanup_debt_bytes == 0
+    .node.memory_budget.retiring_cgroup_count == 0
   ' <<<"${inventory}" >/dev/null 2>&1 && cgroup_children_converged; then
     retirement_converged=true
     break
@@ -266,7 +291,6 @@ if [ "${retirement_converged}" != "true" ]; then
   echo "network-policy qualification resource retirement did not converge" >&2
   jq '.node.memory_budget' <<<"${inventory}" >&2 || true
   printf 'workload_cgroup_children=%s\n' "$(find "${workload_cgroup_root}" -mindepth 1 -maxdepth 1 -type d | wc -l)" >&2
-  printf 'conformance_cgroup_children=%s\n' "$(find "${conformance_cgroup_root}" -mindepth 1 -maxdepth 1 -type d | wc -l)" >&2
   tail -n 160 "${node_log}" >&2 || true
   exit 1
 fi

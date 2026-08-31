@@ -304,7 +304,8 @@ func runSandboxSample(cfg config, clients *verifyutil.NodeClients, policy *commo
 	}
 	spec := &privatenodev1.ResolvedExecutionConfig{
 		RuntimeClass: cfg.runtimeName, Cwd: "/", LocalRootfsPath: cfg.rootfs, Argv: arguments,
-		StdoutPath: stdoutPath, StderrPath: stderrPath,
+		RootfsReadonly: true,
+		StdoutPath:     stdoutPath, StderrPath: stderrPath,
 		Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT, EgressPolicy: policy},
 		Mounts: []*privatenodev1.SandboxMount{
 			{Type: "bind", Source: cfg.helperDir, Target: "/axnoded-bin", Options: []string{"rbind", "ro"}},
