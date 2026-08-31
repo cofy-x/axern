@@ -177,6 +177,28 @@ if ! jq -e '
   exit 1
 fi
 
+delegation_group="$(awk -F: '$1 == "0" { print $3 }' /proc/self/cgroup)"
+if [ "$(basename "${delegation_group}")" = internal ]; then
+  delegation_group="$(dirname "${delegation_group}")"
+fi
+case "${delegation_group}" in
+  /*) ;;
+  *) echo "qualification runner has no canonical cgroup delegation" >&2; exit 1 ;;
+esac
+if [ "${delegation_group}" = / ]; then
+  echo "qualification runner refuses an unscoped cgroup delegation" >&2
+  exit 1
+fi
+workload_cgroup_root="/sys/fs/cgroup${delegation_group}/sandbox"
+conformance_cgroup_root="/sys/fs/cgroup${delegation_group}/conformance"
+cgroup_children_converged() {
+  local root
+  for root in "${workload_cgroup_root}" "${conformance_cgroup_root}"; do
+    [ -d "${root}" ] || return 1
+    [ -z "$(find "${root}" -mindepth 1 -maxdepth 1 -type d -print -quit)" ] || return 1
+  done
+}
+
 if ! verify-network-policy-qualification \
   --runtime "${runtime_name}" \
   --network-backend "${network_backend}" \
@@ -216,7 +238,7 @@ for _ in $(seq 1 120); do
     .node.memory_budget.retiring_cgroup_count == 0 and
     .node.memory_budget.conformance_commitment_bytes == 0 and
     .node.memory_budget.conformance_cleanup_debt_bytes == 0
-  ' <<<"${inventory}" >/dev/null 2>&1; then
+  ' <<<"${inventory}" >/dev/null 2>&1 && cgroup_children_converged; then
     retirement_converged=true
     break
   fi
@@ -226,6 +248,8 @@ done
 if [ "${retirement_converged}" != "true" ]; then
   echo "network-policy qualification resource retirement did not converge" >&2
   jq '.node.memory_budget' <<<"${inventory}" >&2 || true
+  printf 'workload_cgroup_children=%s\n' "$(find "${workload_cgroup_root}" -mindepth 1 -maxdepth 1 -type d | wc -l)" >&2
+  printf 'conformance_cgroup_children=%s\n' "$(find "${conformance_cgroup_root}" -mindepth 1 -maxdepth 1 -type d | wc -l)" >&2
   tail -n 160 "${node_log}" >&2 || true
   exit 1
 fi

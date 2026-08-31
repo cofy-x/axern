@@ -54,6 +54,26 @@ case "${matrix_scope}" in
     ;;
 esac
 
+# The production qualification Job runs adjacent cells in one privileged
+# container. Exercise that exact state-reset boundary as well as the isolated
+# per-cell matrix below so kernel objects cannot outlive a deleted node ledger.
+# Run this first because it is the cheaper and historically failure-prone gate.
+docker run --rm --privileged --cgroupns=host \
+  --platform "${VERIFY_DOCKER_PLATFORM}" \
+  --mount "type=bind,src=${output_root},dst=/qualification-output" \
+  "${runner_image_digest}" \
+  /bin/bash -lc '
+    set -euo pipefail
+    scenario=/workspace/scripts/qualification/network-policy-scenario-in-container.sh
+    common=(--runtime runc --network-backend bridge --ip-family ipv4 --samples 1 --concurrency 1 --payload-bytes 1024 --sustained-seconds 1 --rule-scale-counts 1)
+    "${scenario}" "${common[@]}" --policy-mode unrestricted --output /qualification-output/sequential-unrestricted.json
+    "${scenario}" "${common[@]}" --policy-mode dns_deny --output /qualification-output/sequential-dns-deny.json
+  '
+jq -e '.runtime == "runc" and .networkBackend == "bridge" and .ipFamily == "ipv4" and .policyMode == "unrestricted" and .metrics.failures == 0' \
+  "${output_root}/sequential-unrestricted.json" >/dev/null
+jq -e '.runtime == "runc" and .networkBackend == "bridge" and .ipFamily == "ipv4" and .policyMode == "dns_deny" and .metrics.failures == 0' \
+  "${output_root}/sequential-dns-deny.json" >/dev/null
+
 for cell in "${cells[@]}"; do
   read -r runtime_name network_backend ip_family policy_mode <<<"${cell}"
   output="${output_root}/${runtime_name}-${network_backend}-${ip_family}-${policy_mode}.json"
@@ -86,25 +106,6 @@ for cell in "${cells[@]}"; do
       .metrics.operations > 0
     ' "${output}" >/dev/null
 done
-
-# The production qualification Job runs adjacent cells in one privileged
-# container. Exercise that exact state-reset boundary as well as the isolated
-# per-cell matrix above so kernel objects cannot outlive a deleted node ledger.
-docker run --rm --privileged --cgroupns=host \
-  --platform "${VERIFY_DOCKER_PLATFORM}" \
-  --mount "type=bind,src=${output_root},dst=/qualification-output" \
-  "${runner_image_digest}" \
-  /bin/bash -lc '
-    set -euo pipefail
-    scenario=/workspace/scripts/qualification/network-policy-scenario-in-container.sh
-    common=(--runtime runc --network-backend bridge --ip-family ipv4 --samples 1 --concurrency 1 --payload-bytes 1024 --sustained-seconds 1 --rule-scale-counts 1)
-    "${scenario}" "${common[@]}" --policy-mode unrestricted --output /qualification-output/sequential-unrestricted.json
-    "${scenario}" "${common[@]}" --policy-mode dns_deny --output /qualification-output/sequential-dns-deny.json
-  '
-jq -e '.runtime == "runc" and .networkBackend == "bridge" and .ipFamily == "ipv4" and .policyMode == "unrestricted" and .metrics.failures == 0' \
-  "${output_root}/sequential-unrestricted.json" >/dev/null
-jq -e '.runtime == "runc" and .networkBackend == "bridge" and .ipFamily == "ipv4" and .policyMode == "dns_deny" and .metrics.failures == 0' \
-  "${output_root}/sequential-dns-deny.json" >/dev/null
 
 echo "network_policy_linux_matrix_scope=${matrix_scope}"
 echo "network_policy_linux_matrix_cells=${#cells[@]}"
