@@ -83,6 +83,17 @@ fi
 
 node_pid=""
 fixture_pid=""
+cleanup_axern_network_state() {
+  # This privileged script owns the disposable qualification network domain.
+  # A node interrupted while its interface warm pool is still draining can
+  # leave namespace bind mounts behind; carrying them into the next matrix
+  # cell changes host resource pressure and invalidates the isolation claim.
+  while IFS= read -r namespace; do
+    case "${namespace}" in
+      axctl-*) ip netns del "${namespace}" >/dev/null 2>&1 || true ;;
+    esac
+  done < <(ip netns list | awk '{ print $1 }')
+}
 cleanup() {
   if [ -n "${node_pid}" ] && kill -0 "${node_pid}" >/dev/null 2>&1; then
     kill "${node_pid}" >/dev/null 2>&1 || true
@@ -94,6 +105,7 @@ cleanup() {
   fi
   ip netns del "${fixture_ns}" >/dev/null 2>&1 || true
   ip link del "${fixture_host_dev}" >/dev/null 2>&1 || true
+  cleanup_axern_network_state
 }
 trap cleanup EXIT
 
@@ -194,6 +206,10 @@ export AXNODED_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_MEMORY_SYSTEM_RESERVE_BYTE
 # into an orphan without its durable capacity identity. Warm-pool behavior has
 # its own lifecycle E2E; keep this matrix isolated from it.
 export AXNODED_CGROUP_CACHE_SIZE=0
+# The interface manager is required by both OCI runtimes, so zero disables the
+# manager rather than only its warm target. Keep one reusable interface while
+# ensuring each matrix cell does not manufacture a full 16-interface warm pool.
+export AXNODED_INTERFACE_CACHE_SIZE=1
 
 node_log="/tmp/network-policy-node-${runtime_name}-${network_backend}-${ip_family}-${policy_mode}.log"
 /bin/bash /workspace/scripts/verify/node-all-in-one-entrypoint.sh >"${node_log}" 2>&1 &

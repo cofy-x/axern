@@ -336,7 +336,15 @@ func runSandboxSample(cfg config, clients *verifyutil.NodeClients, policy *commo
 	}
 	if waitResponse.GetExitCode() != 0 {
 		dumpActivePolicyDiagnostics()
-		return probeResult{}, 0, fmt.Errorf("sample %d exit=%d stderr=%q", sample, waitResponse.GetExitCode(), strings.TrimSpace(string(stderr)))
+		return probeResult{}, 0, fmt.Errorf(
+			"sample %d exit=%d known=%t state=%s message=%q stderr=%q",
+			sample,
+			waitResponse.GetExitCode(),
+			waitResponse.GetExitCodeKnown(),
+			waitResponse.GetState(),
+			strings.TrimSpace(waitResponse.GetMessage()),
+			strings.TrimSpace(string(stderr)),
+		)
 	}
 	if stdoutErr != nil {
 		return probeResult{}, 0, stdoutErr
