@@ -170,7 +170,7 @@ func TestCgroupLeaseOwnerKindIsUnforgeableContextState(t *testing.T) {
 		t.Fatalf("workload reservation = %d", got)
 	}
 	if got := cgroupMemoryReservation(ctx, 0); got != config.RuntimeConformanceMemoryMaxBytes {
-		t.Fatalf("conformance reservation = %d", got)
+		t.Fatalf("conformance reservation = %d, want aggregate ceiling %d", got, config.RuntimeConformanceMemoryMaxBytes)
 	}
 }
 

@@ -197,8 +197,10 @@ export BPFNET_UPLINK_DEVICES="${default_uplink},${fixture_host_dev}"
 export NODE_TUNNELD_ENABLED=false
 export AXNODED_CONTROL_PLANE_TARGET=""
 # Keep the qualification sandbox independent from transient all-in-one daemon
-# memory while reserving the fixed 256 MiB runtime-conformance domain.
-export AXNODED_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES:-805306368}"
+# memory while reserving the 512 MiB aggregate conformance domain. The 1 GiB
+# harness reserve leaves a separate 512 MiB envelope for node-local daemons;
+# production reserve sizing remains an explicit deployment responsibility.
+export AXNODED_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES:-1073741824}"
 # Network-policy qualification measures policy enforcement rather than warm
 # resource-pool behavior. A prewarmed cgroup is intentionally absent from
 # memory commitment metrics, but it remains a kernel object. Because each cell
@@ -226,6 +228,17 @@ inventory_ready() {
      | .key.platform]
     | unique
     | length == 4
+  ' >/dev/null 2>&1 && jq -e '
+    [.node.capability_snapshot.observations[]?
+     | select(
+         (.key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT" or
+          .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT" or
+          .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT" or
+          .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT") and
+         .state == "CAPABILITY_STATE_AVAILABLE")
+     | .key.platform]
+    | unique
+    | length == 4
   ' >/dev/null 2>&1
 }
 for _ in $(seq 1 180); do
@@ -246,14 +259,18 @@ fi
 
 inventory="$(curl -fsS http://127.0.0.1:23001/inventoryz 2>/dev/null || true)"
 if ! inventory_ready <<<"${inventory}"; then
-  echo "network-policy enforcement capabilities did not become available" >&2
+  echo "network-policy and runtime-certification capabilities did not become available" >&2
   jq --arg network_capability "${network_capability}" '
     [.node.capability_snapshot.observations[]?
      | select(
          .key.platform == "PLATFORM_CAPABILITY_PORT_FORWARDING" or
          .key.platform == $network_capability or
          .key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or
-         .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT")
+         .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT" or
+         .key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT" or
+         .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT" or
+         .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT" or
+         .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT")
      | {platform: .key.platform, state, reason_code, reason}]
   ' <<<"${inventory}" >&2 || true
   tail -n 160 "${node_log}" >&2
