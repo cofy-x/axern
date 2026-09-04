@@ -23,17 +23,17 @@ func buildHostsFile(hostname string, sandboxIP net.IP) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-func sandboxIPv4FromSpec(ociSpec *spec.Spec) (net.IP, error) {
+func sandboxIPFromSpec(ociSpec *spec.Spec) (net.IP, error) {
 	if ociSpec == nil {
-		return nil, fmt.Errorf("sandbox network IPv4 is required for /etc/hosts")
+		return nil, fmt.Errorf("sandbox network IP is required for /etc/hosts")
 	}
 	annotationKey := resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName)
 	raw := strings.TrimSpace(ociSpec.Annotations[annotationKey])
 	networkResource := &resourcemanager.NetResource{}
-	if raw == "" || networkResource.FromString(raw) != nil || networkResource.Ip.To4() == nil {
-		return nil, fmt.Errorf("sandbox network IPv4 is required for /etc/hosts")
+	if raw == "" || networkResource.FromString(raw) != nil || networkResource.Ip == nil {
+		return nil, fmt.Errorf("sandbox network IP is required for /etc/hosts")
 	}
-	return networkResource.Ip.To4(), nil
+	return networkResource.Ip, nil
 }
 
 func hostDockerInternalHostEntries() []string {

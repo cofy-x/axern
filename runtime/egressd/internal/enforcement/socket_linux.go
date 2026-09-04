@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -65,26 +64,18 @@ func originalDestination(conn net.Conn) (destination netip.AddrPort, resultErr e
 	return destination, nil
 }
 
-func dialMarked(destination netip.AddrPort) (net.Conn, error) {
-	dialer := net.Dialer{Timeout: inspectTimeout, Control: func(_, _ string, raw syscall.RawConn) error {
-		var result error
-		if err := raw.Control(func(fd uintptr) { result = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_MARK, bypassMark) }); err != nil {
-			return err
-		}
-		return result
-	}}
+func dialUpstream(destination netip.AddrPort) (net.Conn, error) {
+	dialer := net.Dialer{Timeout: inspectTimeout}
 	return dialer.DialContext(context.Background(), "tcp", destination.String())
 }
 
-func listenTransparentTCP(port int) ([]net.Listener, error) {
+func listenTCP(port int) ([]net.Listener, error) {
 	var listeners []net.Listener
 	for _, endpoint := range []struct {
 		network string
 		address string
-		ipv6    bool
-	}{{"tcp4", fmt.Sprintf("0.0.0.0:%d", port), false}, {"tcp6", fmt.Sprintf("[::]:%d", port), true}} {
-		config := net.ListenConfig{Control: transparentSocketControl(endpoint.ipv6)}
-		listener, err := config.Listen(context.Background(), endpoint.network, endpoint.address)
+	}{{"tcp4", fmt.Sprintf("0.0.0.0:%d", port)}, {"tcp6", fmt.Sprintf("[::]:%d", port)}} {
+		listener, err := net.Listen(endpoint.network, endpoint.address)
 		if err != nil {
 			closeAll(listeners)
 			return nil, err
@@ -92,52 +83,4 @@ func listenTransparentTCP(port int) ([]net.Listener, error) {
 		listeners = append(listeners, listener)
 	}
 	return listeners, nil
-}
-
-func listenTransparentUDP(port int) ([]*net.UDPConn, error) {
-	var listeners []*net.UDPConn
-	for _, endpoint := range []struct {
-		network string
-		address string
-		ipv6    bool
-	}{{"udp4", fmt.Sprintf("0.0.0.0:%d", port), false}, {"udp6", fmt.Sprintf("[::]:%d", port), true}} {
-		config := net.ListenConfig{Control: transparentSocketControl(endpoint.ipv6)}
-		packet, err := config.ListenPacket(context.Background(), endpoint.network, endpoint.address)
-		if err != nil {
-			closeAllUDP(listeners)
-			return nil, err
-		}
-		udp, ok := packet.(*net.UDPConn)
-		if !ok {
-			_ = packet.Close()
-			closeAllUDP(listeners)
-			return nil, fmt.Errorf("transparent DNS listener is not UDP")
-		}
-		listeners = append(listeners, udp)
-	}
-	return listeners, nil
-}
-
-func transparentSocketControl(ipv6 bool) func(string, string, syscall.RawConn) error {
-	return func(_, _ string, raw syscall.RawConn) error {
-		var result error
-		if err := raw.Control(func(fd uintptr) {
-			if ipv6 {
-				if err := unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_V6ONLY, 1); err != nil {
-					result = err
-					return
-				}
-				if err := unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_TRANSPARENT, 1); err != nil {
-					result = err
-					return
-				}
-				result = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
-				return
-			}
-			result = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TRANSPARENT, 1)
-		}); err != nil {
-			return err
-		}
-		return result
-	}
 }

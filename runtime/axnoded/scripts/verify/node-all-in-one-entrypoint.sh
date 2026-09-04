@@ -24,6 +24,12 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 143' TERM INT
 
+# Kubernetes exposes only the loop device nodes that existed when a privileged
+# container started. Prepare a bounded pool before creating either rootfs
+# fixture; the production entrypoint runs later and cannot satisfy this
+# prerequisite retroactively.
+/usr/local/bin/axern-ensure-loop-devices 2
+
 mount_readonly_fixture() {
   local source_dir="$1"
   local image="$2"
@@ -45,9 +51,14 @@ mount_readonly_fixture /opt/sample-rootfs "${VERIFY_ROOTFS_IMAGE}" 134217728
 mount_readonly_fixture /opt/nginx-rootfs "${VERIFY_NGINX_ROOTFS_IMAGE}" 536870912
 
 # Verification containers run the same fail-closed production entrypoint but
-# use an explicit test-only reserve. Production values come from a measured
-# qualification receipt and must never inherit this harness value.
-export AXNODED_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES:-536870912}"
+# use an explicit test-only reserve. The reserve must cover both the fixed
+# 512 MiB aggregate runtime-conformance cgroup and the complete node-all-in-one
+# daemon set. The certification workload itself remains capped at 256 MiB.
+# Smaller reserves made capability publication depend on transient daemon
+# memory and allowed certification to compete with qualification workloads.
+# Production values come from a measured qualification receipt and must never
+# inherit this harness value.
+export AXNODED_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_MEMORY_SYSTEM_RESERVE_BYTES:-1073741824}"
 /usr/local/bin/node-all-in-one-entrypoint "$@" &
 child_pid=$!
 wait "${child_pid}"

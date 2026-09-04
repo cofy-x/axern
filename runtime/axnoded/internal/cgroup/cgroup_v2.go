@@ -14,8 +14,9 @@ import (
 
 	cg2 "github.com/containerd/cgroups/v3/cgroup2"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/sirupsen/logrus"
 )
+
+const controllerEnableAttempts = 16
 
 type cgroupV2Driver struct {
 	mountpoint      string
@@ -45,14 +46,7 @@ func (d *cgroupV2Driver) EnsureRoot(rootName string, conformanceMemoryMaxBytes i
 	if err := requireCgroupController(delegationDir, "memory"); err != nil {
 		return fmt.Errorf("validate delegated memory controller: %w", err)
 	}
-	internalDir := path.Join(delegationDir, cgroupInternalGroup)
-	if err := stdos.MkdirAll(internalDir, 0755); err != nil {
-		return err
-	}
-	if err := d.moveProcessesToChild(delegationDir, internalDir); err != nil {
-		return fmt.Errorf("move delegated control processes to internal cgroup: %w", err)
-	}
-	if err := d.enableControllers(delegationDir); err != nil {
+	if err := d.enableControllersWithEvacuation(delegationDir); err != nil {
 		return fmt.Errorf("enable delegated root controllers: %w", err)
 	}
 	sandboxDir := path.Join(d.mountpoint, trimGroup(rootName))
@@ -130,33 +124,38 @@ func (d *cgroupV2Driver) ensureControllersPath(dir string) error {
 func (d *cgroupV2Driver) ensureControllers(dir string) error {
 	currentDir, currentErr := d.currentCgroupDir()
 	if currentErr == nil && filepath.Clean(dir) == filepath.Clean(currentDir) {
-		processCount, countErr := cgroupProcessCount(dir)
-		if countErr == nil && processCount > 0 {
-			logrus.Debugf("evacuate current cgroup %s with %d processes before enabling controllers", dir, processCount)
-			if moveErr := d.moveCurrentProcessesToChild(dir); moveErr != nil {
-				return moveErr
-			}
-		}
-	}
-
-	err := d.enableControllers(dir)
-	if err == nil || !isCgroupBusyError(err) {
-		return err
-	}
-
-	currentDir, currentErr = d.currentCgroupDir()
-	if currentErr != nil {
-		return err
-	}
-	if filepath.Clean(dir) != filepath.Clean(currentDir) {
-		return err
-	}
-
-	logrus.Warnf("cgroup subtree_control busy on %s, moving current cgroup processes into %s before retry", dir, path.Join(dir, cgroupInternalGroup))
-	if moveErr := d.moveCurrentProcessesToChild(dir); moveErr != nil {
-		return fmt.Errorf("%w: evacuate current cgroup failed: %v", err, moveErr)
+		return d.enableControllersWithEvacuation(dir)
 	}
 	return d.enableControllers(dir)
+}
+
+func (d *cgroupV2Driver) enableControllersWithEvacuation(dir string) error {
+	internalDir := path.Join(dir, cgroupInternalGroup)
+	if err := stdos.MkdirAll(internalDir, 0755); err != nil {
+		return err
+	}
+	return enableControllersAfterEvacuation(
+		func() error { return d.moveProcessesToChild(dir, internalDir) },
+		func() error { return d.enableControllers(dir) },
+	)
+}
+
+func enableControllersAfterEvacuation(moveProcesses, enableControllers func() error) error {
+	var busyErr error
+	for attempt := 1; attempt <= controllerEnableAttempts; attempt++ {
+		if err := moveProcesses(); err != nil {
+			return fmt.Errorf("evacuate control processes: %w", err)
+		}
+		err := enableControllers()
+		if err == nil {
+			return nil
+		}
+		if !isCgroupBusyError(err) {
+			return err
+		}
+		busyErr = err
+	}
+	return fmt.Errorf("enable controllers after %d evacuation attempts: %w", controllerEnableAttempts, busyErr)
 }
 
 func (d *cgroupV2Driver) enableControllers(dir string) error {
@@ -244,14 +243,6 @@ func currentUnifiedGroup() (string, error) {
 	return "", fmt.Errorf("unified cgroup path not found in /proc/self/cgroup")
 }
 
-func (d *cgroupV2Driver) moveCurrentProcessesToChild(dir string) error {
-	internalDir := path.Join(dir, cgroupInternalGroup)
-	if err := stdos.MkdirAll(internalDir, 0755); err != nil {
-		return err
-	}
-	return d.moveProcessesToChild(dir, internalDir)
-}
-
 func (d *cgroupV2Driver) moveProcessesToChild(dir, internalDir string) error {
 	data, err := stdos.ReadFile(path.Join(dir, "cgroup.procs"))
 	if err != nil {
@@ -267,14 +258,6 @@ func (d *cgroupV2Driver) moveProcessesToChild(dir, internalDir string) error {
 		}
 	}
 	return nil
-}
-
-func cgroupProcessCount(dir string) (int, error) {
-	data, err := stdos.ReadFile(path.Join(dir, "cgroup.procs"))
-	if err != nil {
-		return 0, err
-	}
-	return len(strings.Fields(string(data))), nil
 }
 
 func writeCgroupControl(path, value string) error {

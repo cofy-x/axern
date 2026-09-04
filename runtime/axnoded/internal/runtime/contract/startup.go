@@ -10,20 +10,21 @@ type StartupPhase string
 type StartupStep string
 
 const (
-	StartupPhaseLangRuntimeLookup StartupPhase = "langruntime_lookup"
-	StartupPhaseRootfsPrepare     StartupPhase = "rootfs_prepare"
-	StartupPhaseResourceAllocate  StartupPhase = "resource_allocate"
-	StartupPhaseRuntimeBundle     StartupPhase = "runtime_bundle_prepare"
-	StartupPhaseRuntimeLaunch     StartupPhase = "runtime_launch"
-	StartupPhaseNetworkActivate   StartupPhase = "network_activate"
-	StartupResultOK               string       = "ok"
-	StartupResultError            string       = "error"
-	StartupClassCold              string       = "cold"
-	StartupClassWarm              string       = "warm"
-	StartupRootfsTypeLocal        string       = "local"
-	StartupRootfsTypeImage        string       = "image"
-	StartupRootfsTypeS3           string       = "s3"
-	StartupRootfsTypeUnknown      string       = "unknown"
+	StartupPhaseLangRuntimeLookup   StartupPhase = "langruntime_lookup"
+	StartupPhaseRootfsPrepare       StartupPhase = "rootfs_prepare"
+	StartupPhaseResourceAllocate    StartupPhase = "resource_allocate"
+	StartupPhaseEgressPolicyPrepare StartupPhase = "egress_policy_prepare"
+	StartupPhaseRuntimeBundle       StartupPhase = "runtime_bundle_prepare"
+	StartupPhaseRuntimeLaunch       StartupPhase = "runtime_launch"
+	StartupPhaseNetworkActivate     StartupPhase = "network_activate"
+	StartupResultOK                 string       = "ok"
+	StartupResultError              string       = "error"
+	StartupClassCold                string       = "cold"
+	StartupClassWarm                string       = "warm"
+	StartupRootfsTypeLocal          string       = "local"
+	StartupRootfsTypeImage          string       = "image"
+	StartupRootfsTypeS3             string       = "s3"
+	StartupRootfsTypeUnknown        string       = "unknown"
 )
 
 const (

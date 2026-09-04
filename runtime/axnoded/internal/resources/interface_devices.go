@@ -67,15 +67,23 @@ func (m *InterfaceManager) createDevice(ip string) error {
 	if err = runIP("netns", "exec", nsName, "ip", "link", "set", peerVethName, "name", containerEthName); err != nil {
 		return err
 	}
-	if err = runIP("netns", "exec", nsName, "ip", "addr", "add",
-		fmt.Sprintf("%s/%d", ip, prefixLength(m.mask)),
-		"dev", containerEthName); err != nil {
+	addressArgs := []string{"netns", "exec", nsName, "ip", "addr", "add",
+		fmt.Sprintf("%s/%d", ip, prefixLength(m.mask)), "dev", containerEthName}
+	if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() == nil {
+		addressArgs = append(addressArgs, "nodad")
+	}
+	if err = runIP(addressArgs...); err != nil {
 		return err
 	}
 	if err = runIP("netns", "exec", nsName, "ip", "link", "set", containerEthName, "up"); err != nil {
 		return err
 	}
-	if err = runIP("netns", "exec", nsName, "ip", "route", "replace", "default", "via", m.BridgeIp.String()); err != nil {
+	routeArgs := []string{"netns", "exec", nsName, "ip"}
+	if m.BridgeIp.To4() == nil {
+		routeArgs = append(routeArgs, "-6")
+	}
+	routeArgs = append(routeArgs, "route", "replace", "default", "via", m.BridgeIp.String())
+	if err = runIP(routeArgs...); err != nil {
 		return err
 	}
 
@@ -83,8 +91,8 @@ func (m *InterfaceManager) createDevice(ip string) error {
 }
 
 func (m *InterfaceManager) validateDevice(dev *NetResource) error {
-	if dev == nil || dev.Ip == nil || dev.Ip.To4() == nil {
-		return fmt.Errorf("network resource has no valid IPv4 address")
+	if dev == nil || dev.Ip == nil {
+		return fmt.Errorf("network resource has no valid IP address")
 	}
 	ip := dev.Ip.String()
 	hostVethName, _ := ipToVeth(ip)
@@ -108,14 +116,23 @@ func (m *InterfaceManager) validateDeviceConfiguration(dev *NetResource) error {
 	if _, err := runIPOutput("netns", "exec", nsName, "ip", "-o", "link", "show", containerEthName); err != nil {
 		return fmt.Errorf("container interface %s is not available in %s: %w", containerEthName, nsName, err)
 	}
-	addrOutput, err := runIPOutput("netns", "exec", nsName, "ip", "-o", "-4", "addr", "show", "dev", containerEthName)
+	family := "-4"
+	if dev.Ip.To4() == nil {
+		family = "-6"
+	}
+	addrOutput, err := runIPOutput("netns", "exec", nsName, "ip", "-o", family, "addr", "show", "dev", containerEthName)
 	if err != nil {
-		return fmt.Errorf("container interface %s has no IPv4 address in %s: %w", containerEthName, nsName, err)
+		return fmt.Errorf("container interface %s has no %s address in %s: %w", containerEthName, family, nsName, err)
 	}
 	if !strings.Contains(addrOutput, ip+"/") {
-		return fmt.Errorf("container interface %s in %s has unexpected IPv4 address: %s", containerEthName, nsName, strings.TrimSpace(addrOutput))
+		return fmt.Errorf("container interface %s in %s has unexpected address: %s", containerEthName, nsName, strings.TrimSpace(addrOutput))
 	}
-	routeOutput, err := runIPOutput("netns", "exec", nsName, "ip", "route", "show", "default")
+	routeArgs := []string{"netns", "exec", nsName, "ip"}
+	if dev.Ip.To4() == nil {
+		routeArgs = append(routeArgs, "-6")
+	}
+	routeArgs = append(routeArgs, "route", "show", "default")
+	routeOutput, err := runIPOutput(routeArgs...)
 	if err != nil {
 		return fmt.Errorf("container interface %s has no default route in %s: %w", containerEthName, nsName, err)
 	}
@@ -126,8 +143,8 @@ func (m *InterfaceManager) validateDeviceConfiguration(dev *NetResource) error {
 }
 
 func (m *InterfaceManager) rebuildDevice(dev *NetResource) (*NetResource, error) {
-	if dev == nil || dev.Ip == nil || dev.Ip.To4() == nil {
-		return nil, fmt.Errorf("network resource has no valid IPv4 address")
+	if dev == nil || dev.Ip == nil {
+		return nil, fmt.Errorf("network resource has no valid IP address")
 	}
 	ip := dev.Ip.String()
 	hostVethName, _ := ipToVeth(ip)
@@ -150,7 +167,10 @@ func (m *InterfaceManager) rebuildDevice(dev *NetResource) (*NetResource, error)
 }
 
 func (m *InterfaceManager) destroyDevice(dev net.Interface) error {
-	ip := vethToIP(dev.Name)
+	ip := vethToIP(dev.Name, m.IpRange)
+	if ip == nil {
+		return fmt.Errorf("cannot reconstruct address for interface %s", dev.Name)
+	}
 	hostVethName, _ := ipToVeth(ip.String())
 	nsName := netnsName(ip.String())
 

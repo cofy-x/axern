@@ -548,10 +548,6 @@ func (h *Controller) StoreLaunchVerification(allocationID string, manifest *apip
 	if allocationID == "" {
 		return errors.New("allocation ID is required")
 	}
-	verification, err := newLaunchVerification(manifest, verified, observedAt, time.Now().UTC())
-	if err != nil {
-		return err
-	}
 
 	unlock := h.recordMutationLocks.Lock(allocationID)
 	defer unlock()
@@ -563,6 +559,17 @@ func (h *Controller) StoreLaunchVerification(allocationID string, manifest *apip
 	}
 	desired := cloneAllocationRecord(current.record)
 	h.stateMu.RUnlock()
+	verification, err := newLaunchVerification(
+		manifest,
+		verified,
+		desired.GetCapabilityDependencies(),
+		desired.GetEgressPolicyProof(),
+		observedAt,
+		time.Now().UTC(),
+	)
+	if err != nil {
+		return err
+	}
 	if existing := desired.GetEnforcementManifest(); existing != nil && !proto.Equal(existing, manifest) {
 		return fmt.Errorf("allocation %q enforcement manifest is immutable", allocationID)
 	}
@@ -580,7 +587,7 @@ func (h *Controller) StoreLaunchVerification(allocationID string, manifest *apip
 	return nil
 }
 
-func newLaunchVerification(manifest *apipb.AllocationEnforcementManifest, verified []*capabilityv1.CapabilityKey, observedAt, now time.Time) (*apipb.AllocationLaunchVerification, error) {
+func newLaunchVerification(manifest *apipb.AllocationEnforcementManifest, verified []*capabilityv1.CapabilityKey, dependencies []*capabilityv1.CapabilityDependency, egressProof *apipb.AllocationEgressPolicyProof, observedAt, now time.Time) (*apipb.AllocationLaunchVerification, error) {
 	if err := runtimecontract.ValidateEnforcementManifest(manifest, ""); err != nil {
 		return nil, err
 	}
@@ -609,30 +616,64 @@ func newLaunchVerification(manifest *apipb.AllocationEnforcementManifest, verifi
 		right, _ := capabilitycontract.KeyID(canonical[j])
 		return left < right
 	})
-	expected := launchVerificationRequirements(manifest)
+	expected, err := launchVerificationRequirements(manifest, dependencies, egressProof)
+	if err != nil {
+		return nil, err
+	}
 	if !capabilitycontract.RequirementKeysEqual(canonical, expected) {
-		return nil, fmt.Errorf("launch verification keys do not exactly match immutable enforcement manifest")
+		return nil, fmt.Errorf("launch verification keys do not exactly match immutable enforcement contract")
 	}
 	return &apipb.AllocationLaunchVerification{VerifiedCapabilities: canonical, VerifiedAtUnixNano: observedAt.UTC().UnixNano()}, nil
 }
 
-func launchVerificationRequirements(manifest *apipb.AllocationEnforcementManifest) []*capabilityv1.CapabilityKey {
-	var required []*capabilityv1.CapabilityKey
+func launchVerificationRequirements(manifest *apipb.AllocationEnforcementManifest, dependencies []*capabilityv1.CapabilityDependency, egressProof *apipb.AllocationEgressPolicyProof) ([]*capabilityv1.CapabilityKey, error) {
+	required := make([]*capabilityv1.CapabilityKey, 0, len(dependencies))
+	for _, dependency := range dependencies {
+		if dependency == nil || dependency.GetLossPolicy() != capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP {
+			continue
+		}
+		key := dependency.GetKey()
+		if _, err := capabilitycontract.KeyID(key); err != nil {
+			return nil, fmt.Errorf("validate immutable fail-stop dependency: %w", err)
+		}
+		switch key.GetPlatform() {
+		case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT,
+			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT:
+			if egressProof == nil {
+				return nil, fmt.Errorf("egress fail-stop dependency has no prepared policy proof")
+			}
+		}
+		required = append(required, capabilitycontract.CloneKey(key))
+	}
+
+	manifestRequired := make([]*capabilityv1.CapabilityKey, 0, 2)
 	if manifest.GetMemoryLimitBytes() > 0 {
 		platform := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT
 		if manifest.GetRuntimeName() == config.RuntimeNameRunsc {
 			platform = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT
 		}
-		required = append(required, capabilitycontract.PlatformKey(platform))
+		manifestRequired = append(manifestRequired, capabilitycontract.PlatformKey(platform))
 	}
 	if manifest.GetEphemeralStorageLimitBytes() > 0 {
 		platform := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT
 		if manifest.GetRuntimeName() == config.RuntimeNameRunsc {
 			platform = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT
 		}
-		required = append(required, capabilitycontract.PlatformKey(platform))
+		manifestRequired = append(manifestRequired, capabilitycontract.PlatformKey(platform))
 	}
-	return required
+	for _, key := range manifestRequired {
+		found := false
+		for _, candidate := range required {
+			if capabilitycontract.RequirementKeysEqual([]*capabilityv1.CapabilityKey{key}, []*capabilityv1.CapabilityKey{candidate}) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			required = append(required, key)
+		}
+	}
+	return required, nil
 }
 
 func (h *Controller) LaunchVerification(allocationID string) *apipb.AllocationLaunchVerification {
@@ -1048,7 +1089,7 @@ func validateRecoveredCapabilityState(record *apipb.AllocationState, now time.Ti
 		return errors.New("recovered launch enforcement proof has no verified time")
 	}
 	verifiedAt := time.Unix(0, verification.GetVerifiedAtUnixNano()).UTC()
-	expected, err := newLaunchVerification(manifest, verification.GetVerifiedCapabilities(), verifiedAt, now)
+	expected, err := newLaunchVerification(manifest, verification.GetVerifiedCapabilities(), record.GetCapabilityDependencies(), record.GetEgressPolicyProof(), verifiedAt, now)
 	if err != nil {
 		return fmt.Errorf("validate recovered launch enforcement proof: %w", err)
 	}

@@ -1,6 +1,6 @@
 GO ?= go
 
-.PHONY: all build test verify fuzz-smoke fmt vet tidy help
+.PHONY: all build test verify fuzz-smoke qualification-contract qualification fmt vet tidy help
 
 all: build
 
@@ -21,6 +21,16 @@ fuzz-smoke: ## Run bounded fuzz smoke for trusted policy parsers
 	$(GO) test -run='^$$' -fuzz='^FuzzStrictDNSAuthorizations$$' -fuzztime=3s -parallel=1 ./internal/enforcement
 	$(GO) test -run='^$$' -fuzz='^FuzzReadHTTPRequest$$' -fuzztime=3s -parallel=1 ./internal/l7inspect
 	$(GO) test -run='^$$' -fuzz='^FuzzParseClientHello$$' -fuzztime=3s -parallel=1 ./internal/l7inspect
+
+qualification-contract: ## Validate the machine-readable qualification and relative-budget contract
+	$(GO) test ./internal/qualification ./cmd/egressd-qualify
+	bash -n ./scripts/qualification-matrix.sh
+	bash -n ../axnoded/scripts/qualification/network-policy-matrix.sh
+	bash -n ../axnoded/scripts/qualification/network-policy-scenario-in-container.sh
+	bash -n ../axnoded/scripts/qualification/network-policy-linux-smoke.sh
+
+qualification: ## Run the full qualification in an immutable privileged Linux runner
+	bash ../axnoded/scripts/qualification/network-policy-matrix.sh
 
 fmt: ## Format Go sources
 	gofmt -w $$(find . -name '*.go' -print)

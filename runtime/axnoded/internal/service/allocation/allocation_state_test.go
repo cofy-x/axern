@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
@@ -115,7 +116,7 @@ func TestValidateRecoveredManagedAllocationRequiresDurableCapabilityConditionSet
 		RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/managed-condition-recovery",
 		CreatedAtUnixNano: now.UnixNano(),
 	}
-	verification, err := newLaunchVerification(manifest, nil, now, now)
+	verification, err := newLaunchVerification(manifest, nil, nil, nil, now, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,6 +145,27 @@ func TestValidateRecoveredManagedAllocationRequiresDurableCapabilityConditionSet
 	record.CapabilityAdmissionConditions = nil
 	if err := validateRecoveredCapabilityState(record, now); err == nil {
 		t.Fatal("validateRecoveredCapabilityState() accepted a managed allocation without sealed create proof")
+	}
+}
+
+func TestNewLaunchVerificationBindsEgressProof(t *testing.T) {
+	now := time.Now().UTC()
+	manifest := &apipb.AllocationEnforcementManifest{
+		RuntimeName: "runc", BundlePath: "/var/lib/axnoded/root/containers/network-policy",
+		CreatedAtUnixNano: now.UnixNano(),
+	}
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT)
+	dependencies := []*capabilityv1.CapabilityDependency{{
+		Key: key, LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP,
+	}}
+	if _, err := newLaunchVerification(manifest, []*capabilityv1.CapabilityKey{key}, dependencies, nil, now, now); err == nil {
+		t.Fatal("newLaunchVerification() accepted strict egress without a prepared policy proof")
+	}
+	proof := &apipb.AllocationEgressPolicyProof{
+		SandboxIp: "198.19.0.2", PolicyDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ExecutionRevision: 1,
+	}
+	if _, err := newLaunchVerification(manifest, []*capabilityv1.CapabilityKey{key}, dependencies, proof, now, now); err != nil {
+		t.Fatalf("newLaunchVerification() rejected bound strict egress proof: %v", err)
 	}
 }
 

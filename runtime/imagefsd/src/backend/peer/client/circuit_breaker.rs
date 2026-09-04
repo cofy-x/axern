@@ -37,6 +37,11 @@ impl CircuitBreaker {
         self.last_failure_ms.store(now, Ordering::Relaxed);
         self.open.store(true, Ordering::Release);
     }
+
+    #[cfg(all(test, target_os = "linux"))]
+    pub(in crate::backend::peer) fn last_failure_ms(&self) -> u64 {
+        self.last_failure_ms.load(Ordering::Relaxed)
+    }
 }
 
 impl Clone for CircuitBreaker {

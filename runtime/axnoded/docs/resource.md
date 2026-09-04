@@ -56,6 +56,9 @@ Recovery rules:
 - `InterfaceManager` loads persisted using IDs from the `network_interfaces` store
   bucket, scans host veths, returns non-using veths to the idle queue, and
   rebuilds the idle IP queue from `ip_range`.
+- IPv4 veth names preserve the encoded-address format. IPv6 names encode the
+  low 48 address bits so they remain within Linux `IFNAMSIZ`; recovery combines
+  that suffix with the configured prefix and rejects an unreconstructable link.
 - Managers periodically persist using IDs when `storeMark` is set.
 - Before serving, the container manager reconciles every persisted assigned
   lease against recovered OCI resource claims. Ownership ambiguity fails node
@@ -280,12 +283,15 @@ Key behavior:
 - `memory_system_reserve_bytes` covers axnoded, lifecycle monitors, imagemgr,
   imagefsd, volumed, Nydus daemons/cache, and other node-local processes outside
   sandbox cgroups. It also contains the reserved runtime-certification budget:
-  axnoded creates a sibling `conformance` domain with an aggregate 256 MiB hard
-  limit, zero swap, and group OOM. All runc/runsc memory and storage self-tests
-  share one serial lane and one resource lease in that domain. Certification
+  axnoded creates a sibling `conformance` domain with an aggregate 512 MiB hard
+  limit, zero swap, and group OOM. The memory workload exercises a nested
+  256 MiB hard limit; the remaining envelope contains runtime-specific control
+  and monitor processes so their overhead cannot invalidate the workload OOM
+  proof. All runc/runsc memory and storage self-tests share one serial lane and
+  one resource lease in that domain. Certification
   current usage, commitment, and cleanup debt never reduce workload allocatable
   memory or `max_instance_num`, but insufficient system-reserve headroom fails
-  the probe closed. Production requires at least 256 MiB and a larger
+  the probe closed. Production requires at least 512 MiB and a larger
   qualification-derived value must cover the node daemons at the same time;
   exceeding it blocks new create without terminating existing sandboxes.
 - Every process charged to that reserve must run below the same delegated

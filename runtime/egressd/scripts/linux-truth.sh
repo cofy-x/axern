@@ -41,8 +41,6 @@ diagnose() {
   echo "egressd Linux truth diagnostics:" >&2
   cat "${STATE_ROOT}/egressd.log" >&2 2>/dev/null || true
   nft list table inet axern_egress >&2 2>/dev/null || true
-  ip -6 rule show >&2 2>/dev/null || true
-  ip -6 route show table 166 >&2 2>/dev/null || true
   ss -lnptu >&2 2>/dev/null || true
 }
 trap diagnose ERR
@@ -158,11 +156,11 @@ ns curl --fail --silent --max-time 3 http://93.184.216.34/ >/dev/null
 ctl -allocation dns-soft -attempt 1 delete >/dev/null
 
 ctl -allocation recovery -attempt 7 -ip 10.77.0.2 -revision 3 -mode strict -domains allowed.test -upstreams 10.77.0.1:5353 prepare >/dev/null
-TPROXY_HANDLE="$(nft -a list chain inet axern_egress ingress_proxy | awk '/10\.77\.0\.2 tcp dport 80 .*tproxy/ { print $NF; exit }')"
-if [[ -z "${TPROXY_HANDLE}" ]]; then
+REDIRECT_HANDLE="$(nft -a list chain inet axern_egress proxy_redirect | awk '/10\.77\.0\.2 tcp dport 80 .*redirect to :1080/ { print $NF; exit }')"
+if [[ -z "${REDIRECT_HANDLE}" ]]; then
   echo "could not identify the strict HTTP interception rule" >&2; exit 1
 fi
-nft delete rule inet axern_egress ingress_proxy handle "${TPROXY_HANDLE}"
+nft delete rule inet axern_egress proxy_redirect handle "${REDIRECT_HANDLE}"
 HEALTH_JSON="$(ctl health)"
 if ! grep -q 'EGRESS_MANAGER_STATUS_ERROR' <<<"${HEALTH_JSON}" || ! grep -q 'nft ruleset proof mismatch' <<<"${HEALTH_JSON}"; then
   echo "egressd did not detect a missing managed nft rule" >&2; exit 1

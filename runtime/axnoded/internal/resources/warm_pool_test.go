@@ -428,7 +428,8 @@ func TestRuntimeConformanceUsesReservedDomainWithoutConsumingWorkloadCapacity(t 
 	}
 
 	conformance, err := manager.Allocate(AllocateOption{
-		ContainerID: "self-test", MemoryRequestBytes: 256 << 20, RuntimeName: "runsc",
+		ContainerID: "self-test", MemoryRequestBytes: 256 << 20, MemoryLimitBytes: 256 << 20,
+		CapacityReservationBytes: 512 << 20, RuntimeName: "runsc",
 		CgroupOwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE,
 	})
 	if err != nil {
@@ -438,7 +439,7 @@ func TestRuntimeConformanceUsesReservedDomainWithoutConsumingWorkloadCapacity(t 
 		t.Fatalf("conformance root = %q, want %q", got, manager.conformanceRoot)
 	}
 	commitment := manager.MemoryCommitment()
-	if commitment.CommittedBytes != 0 || commitment.ConformanceBytes != 256<<20 {
+	if commitment.CommittedBytes != 0 || commitment.ConformanceBytes != 512<<20 {
 		t.Fatalf("memory commitment = %+v", commitment)
 	}
 	if _, err := manager.Allocate(AllocateOption{
@@ -458,7 +459,7 @@ func TestRuntimeConformanceUsesReservedDomainWithoutConsumingWorkloadCapacity(t 
 		t.Fatalf("workload root = %q, want %q", got, manager.rootName)
 	}
 	commitment = manager.MemoryCommitment()
-	if commitment.CommittedBytes != 1<<30 || commitment.ConformanceBytes != 256<<20 {
+	if commitment.CommittedBytes != 1<<30 || commitment.ConformanceBytes != 512<<20 {
 		t.Fatalf("separated memory commitment = %+v", commitment)
 	}
 }

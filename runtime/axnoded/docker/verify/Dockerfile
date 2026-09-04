@@ -2,18 +2,22 @@ ARG GO_IMAGE=golang:1.25.12
 ARG BASE_IMAGE=ubuntu:24.04
 ARG NGINX_IMAGE=nginx:1.15
 ARG NODE_RUNTIME_BASE_IMAGE=axern/local-node-runtime-base:dev
+ARG AXERN_GIT_REVISION=development
 FROM ${GO_IMAGE} AS golang-dist
 FROM ${NGINX_IMAGE} AS nginx-rootfs
 
 FROM ${GO_IMAGE} AS axnoded-verify-builder
+ARG AXERN_GIT_REVISION
 WORKDIR /workspace
 
 COPY runtime/axnoded/go.mod runtime/axnoded/go.sum /workspace/runtime/axnoded/
+COPY runtime/egressd/go.mod runtime/egressd/go.sum /workspace/runtime/egressd/
 COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
 COPY lib/go/agentbundle/go.mod /workspace/lib/go/agentbundle/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
 COPY lib/go/llmproxy/go.mod /workspace/lib/go/llmproxy/go.mod
+COPY lib/go/networkpolicy/go.mod lib/go/networkpolicy/go.sum /workspace/lib/go/networkpolicy/
 COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
@@ -25,35 +29,46 @@ use (
 	./lib/go/grpcclient
 	./lib/go/imageref
 	./lib/go/llmproxy
+	./lib/go/networkpolicy
 	./lib/go/nodecapability
 	./lib/go/observability
 	./network/bpfnet
 	./runtime/axnoded
+	./runtime/egressd
 	./sdk/go
 )
 EOF
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     cd /workspace/runtime/axnoded && \
+    GOTOOLCHAIN=local GOFLAGS= go mod download && \
+    cd /workspace/runtime/egressd && \
     GOTOOLCHAIN=local GOFLAGS= go mod download
 
 COPY runtime/axnoded/ /workspace/runtime/axnoded/
+COPY runtime/egressd/ /workspace/runtime/egressd/
 COPY network/bpfnet/ /workspace/network/bpfnet/
 COPY lib/go/ /workspace/lib/go/
 COPY sdk/go/ /workspace/sdk/go/
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     mkdir -p /out && \
+    printf '%s\n' "${AXERN_GIT_REVISION}" > /out/qualification-subject-commit && \
     cd /workspace/runtime/axnoded && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/verify-cli ./cmd/verify-cli && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/verify-startup ./cmd/verify-startup && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-egress ./cmd/verify-egress && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/network-policy-probe ./cmd/network-policy-probe && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/network-policy-fixture ./cmd/network-policy-fixture && \
+    GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-network-policy-qualification ./cmd/verify-network-policy-qualification && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-smoke ./cmd/verify-smoke && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-sandboxd-oci ./cmd/verify-sandboxd-oci && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axern-sandboxd ./cmd/axern-sandboxd && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-nginx ./cmd/verify-nginx && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/verify-udp ./cmd/verify-udp && \
+    cd /workspace/runtime/egressd && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egressd-qualify ./cmd/egressd-qualify && \
     cd /workspace/network/bpfnet && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/bpfnetctl ./cmd/bpfnetctl
 
@@ -152,11 +167,21 @@ COPY --from=nginx-rootfs / /opt/nginx-rootfs
 RUN mkdir -p /opt/nginx-rootfs/dev /opt/nginx-rootfs/proc /opt/nginx-rootfs/sys /opt/nginx-rootfs/tmp /opt/nginx-rootfs/mnt
 
 FROM ${NODE_RUNTIME_BASE_IMAGE}
+ARG AXERN_GIT_REVISION
+LABEL org.opencontainers.image.revision="${AXERN_GIT_REVISION}"
 WORKDIR /workspace
 
 COPY --from=axnoded-verify-builder /out/verify-cli /usr/local/bin/verify-cli
 COPY --from=axnoded-verify-builder /out/verify-startup /usr/local/bin/verify-startup
 COPY --from=axnoded-verify-builder /out/verify-egress /usr/local/bin/verify-egress
+COPY --from=axnoded-verify-builder /out/network-policy-probe /usr/local/libexec/axnoded/network-policy-probe
+COPY --from=axnoded-verify-builder /out/network-policy-fixture /usr/local/bin/network-policy-fixture
+COPY --from=axnoded-verify-builder /out/verify-network-policy-qualification /usr/local/bin/verify-network-policy-qualification
+COPY --from=axnoded-verify-builder /out/egressd-qualify /usr/local/bin/egressd-qualify
+COPY --from=axnoded-verify-builder /out/qualification-subject-commit /usr/local/share/axern/qualification-subject-commit
+COPY runtime/egressd/scripts/qualification-matrix.sh /workspace/qualification/scripts/qualification-matrix.sh
+COPY runtime/egressd/qualification/budget.json /workspace/qualification/qualification/budget.json
+COPY runtime/axnoded/scripts/qualification/ /workspace/scripts/qualification/
 COPY --from=axnoded-verify-builder /out/verify-smoke /usr/local/bin/verify-smoke
 COPY --from=axnoded-verify-builder /out/verify-sandboxd-oci /usr/local/bin/verify-sandboxd-oci
 COPY --from=axnoded-verify-builder /out/axern-sandboxd /usr/local/libexec/axnoded/axern-sandboxd

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/networkpolicy"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -17,6 +18,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/proto"
 )
@@ -275,16 +277,20 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs bool) capabilitycontract.RequirementInput {
 	resources := request.GetResources()
 	template := request.GetRuntimeTemplate()
+	policySpec := &commonv1.NetworkSpec{EgressPolicy: request.GetEgressPolicy()}
+	policyMode := networkpolicy.Mode(policySpec)
 	return capabilitycontract.RequirementInput{
-		RuntimeName:                 template.GetSandbox(),
-		HasPorts:                    len(request.GetPorts()) > 0,
-		NetworkMode:                 request.GetNetwork(),
-		NetworkBackend:              h.config.PluginConfig.NetworkConfig.NatBackend,
-		MemoryLimitBytes:            resources.GetLimits().GetMemoryBytes(),
-		RootfsWritable:              !template.GetRootfs().GetReadonly(),
-		EphemeralStorageLimitBytes:  resources.GetLimits().GetEphemeralStorageBytes(),
-		EROFSBacking:                erofs,
-		ExtensionCapabilityRequests: request.GetExtensionCapabilityRequirements(),
+		RuntimeName:                     template.GetSandbox(),
+		HasPorts:                        len(request.GetPorts()) > 0,
+		NetworkMode:                     request.GetNetwork(),
+		NetworkBackend:                  h.config.PluginConfig.NetworkConfig.CapabilityBackend(),
+		RequiresDNSPolicyEnforcement:    policyMode == networkpolicy.EnforcementDNSDeny,
+		RequiresStrictEgressEnforcement: policyMode == networkpolicy.EnforcementStrict && networkpolicy.StrictNeedsEgressd(policySpec),
+		MemoryLimitBytes:                resources.GetLimits().GetMemoryBytes(),
+		RootfsWritable:                  !template.GetRootfs().GetReadonly(),
+		EphemeralStorageLimitBytes:      resources.GetLimits().GetEphemeralStorageBytes(),
+		EROFSBacking:                    erofs,
+		ExtensionCapabilityRequests:     request.GetExtensionCapabilityRequirements(),
 	}
 }
 

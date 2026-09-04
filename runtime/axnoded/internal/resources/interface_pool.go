@@ -229,7 +229,7 @@ func (m *InterfaceManager) Recycle(id string) error {
 	if err := netResource.FromString(id); err != nil {
 		return fmt.Errorf("parse recycled network resource: %w", err)
 	}
-	if netResource.Interface == nil || netResource.Ip == nil || netResource.Ip.To4() == nil {
+	if netResource.Interface == nil || netResource.Ip == nil {
 		return fmt.Errorf("recycled network resource is incomplete: %s", id)
 	}
 	if err := m.destroyInterface(*netResource.Interface); err != nil {

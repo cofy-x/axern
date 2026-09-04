@@ -241,8 +241,12 @@ type CgroupLease struct {
 	CgroupLeafInode               uint64                 `protobuf:"varint,16,opt,name=cgroup_leaf_inode,json=cgroupLeafInode,proto3" json:"cgroup_leaf_inode,omitempty"`
 	LastIdentityVerificationError string                 `protobuf:"bytes,17,opt,name=last_identity_verification_error,json=lastIdentityVerificationError,proto3" json:"last_identity_verification_error,omitempty"`
 	OwnerKind                     CgroupLeaseOwnerKind   `protobuf:"varint,18,opt,name=owner_kind,json=ownerKind,proto3,enum=axnoded.internal.apipb.v1.CgroupLeaseOwnerKind" json:"owner_kind,omitempty"`
-	unknownFields                 protoimpl.UnknownFields
-	sizeCache                     protoimpl.SizeCache
+	// Node admission charge, separated from the OCI workload request/limit so
+	// trusted runtime monitor overhead can be reserved without weakening the
+	// workload's cgroup boundary.
+	CapacityReservationBytes int64 `protobuf:"varint,19,opt,name=capacity_reservation_bytes,json=capacityReservationBytes,proto3" json:"capacity_reservation_bytes,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *CgroupLease) Reset() {
@@ -392,6 +396,13 @@ func (x *CgroupLease) GetOwnerKind() CgroupLeaseOwnerKind {
 		return x.OwnerKind
 	}
 	return CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED
+}
+
+func (x *CgroupLease) GetCapacityReservationBytes() int64 {
+	if x != nil {
+		return x.CapacityReservationBytes
+	}
+	return 0
 }
 
 type CgroupLedger struct {
@@ -2413,7 +2424,7 @@ var File_internal_apipb_v1_axnoded_internal_proto protoreflect.FileDescriptor
 
 const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\n" +
-	"(internal/apipb/v1/axnoded_internal.proto\x12\x19axnoded.internal.apipb.v1\x1a&axern/control/catalog/v1/catalog.proto\x1a,axern/control/capability/v1/capability.proto\"\x85\a\n" +
+	"(internal/apipb/v1/axnoded_internal.proto\x12\x19axnoded.internal.apipb.v1\x1a&axern/control/catalog/v1/catalog.proto\x1a,axern/control/capability/v1/capability.proto\"\xc3\a\n" +
 	"\vCgroupLease\x12\x1b\n" +
 	"\tcgroup_id\x18\x01 \x01(\tR\bcgroupId\x12E\n" +
 	"\x05state\x18\x02 \x01(\x0e2/.axnoded.internal.apipb.v1.CgroupLifecycleStateR\x05state\x12#\n" +
@@ -2433,7 +2444,8 @@ const file_internal_apipb_v1_axnoded_internal_proto_rawDesc = "" +
 	"\x11cgroup_leaf_inode\x18\x10 \x01(\x04R\x0fcgroupLeafInode\x12G\n" +
 	" last_identity_verification_error\x18\x11 \x01(\tR\x1dlastIdentityVerificationError\x12N\n" +
 	"\n" +
-	"owner_kind\x18\x12 \x01(\x0e2/.axnoded.internal.apipb.v1.CgroupLeaseOwnerKindR\townerKindJ\x04\b\t\x10\n" +
+	"owner_kind\x18\x12 \x01(\x0e2/.axnoded.internal.apipb.v1.CgroupLeaseOwnerKindR\townerKind\x12<\n" +
+	"\x1acapacity_reservation_bytes\x18\x13 \x01(\x03R\x18capacityReservationBytesJ\x04\b\t\x10\n" +
 	"R\x1ereclaim_requested_at_unix_nano\"\x88\x01\n" +
 	"\fCgroupLedger\x12>\n" +
 	"\x06leases\x18\x01 \x03(\v2&.axnoded.internal.apipb.v1.CgroupLeaseR\x06leases\x128\n" +

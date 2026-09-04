@@ -149,6 +149,12 @@ func TestRuntimeConformanceDoesNotPeriodicallyRepeatDestructiveProbe(t *testing.
 }
 
 func TestRuntimeConformanceStartRequestsIsolateEnforcementBoundaries(t *testing.T) {
+	if runtimeConformanceMemoryLimit != config.RuntimeConformanceMemoryLimitBytes {
+		t.Fatalf("memory self-test limit = %d, want %d", runtimeConformanceMemoryLimit, config.RuntimeConformanceMemoryLimitBytes)
+	}
+	if config.RuntimeConformanceMemoryMaxBytes <= runtimeConformanceMemoryLimit {
+		t.Fatalf("aggregate conformance ceiling %d must exceed workload limit %d", config.RuntimeConformanceMemoryMaxBytes, runtimeConformanceMemoryLimit)
+	}
 	memory, err := runtimeConformanceStartRequest("memory-allocation", "memory-runtime", config.RuntimeNameRunsc, "/rootfs", runtimeConformanceKindMemory)
 	if err != nil {
 		t.Fatalf("memory request error = %v", err)

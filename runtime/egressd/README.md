@@ -11,13 +11,13 @@ idempotent only when all enforcement inputs match. Reconciliation retains only
 records backed by an exact active-allocation proof and removes orphaned or
 mismatched records.
 
-The Linux executor owns an isolated `inet axern_egress` nftables table and a
-dedicated policy-routing mark. Rules are keyed only by sandbox source IP and
-use TPROXY to send conventional DNS and strict HTTP/HTTPS traffic to bounded
-node-local inspectors. Explicit strict CIDR/transport/port grants return to the
-ordinary bridge or bpfnet forwarding path, so egressd does not take ownership
-of either backend's SNAT/DNAT state. Proxy upstream sockets carry a separate
-bypass mark and never enter the workload namespace.
+The Linux executor owns an isolated `inet axern_egress` nftables table. Rules
+are keyed only by sandbox source IP and use conntrack-backed REDIRECT for
+conventional DNS and strict HTTP/HTTPS traffic;
+the L7 inspectors recover the original TCP destination from conntrack.
+Explicit strict CIDR/transport/port grants return to the ordinary bridge or
+bpfnet forwarding path, so egressd does not take ownership of either backend's
+SNAT/DNAT state. Proxy upstream sockets never enter the workload namespace.
 
 The DNS forwarder accepts only the same non-loopback IP nameservers verified by
 axnoded while constructing the workload resolver configuration. It supports
@@ -37,3 +37,8 @@ start, reconciles active proofs after restart, and uses its existing fail-stop
 capability-loss path if enforcement disappears. Telemetry exposes only mode,
 action, protocol, result, latency, rule count, and allocation ID; query names,
 Host, SNI, remote addresses, and full policy values are not dimensions.
+
+Performance and sustained-reliability evidence is produced by the separate
+[sandbox network-policy qualification](docs/qualification.md). Its full
+runc/runsc, bridge/ebpf, and IPv4/IPv6 matrix uses immutable environment
+provenance and relative budgets; correctness tests never depend on host timing.

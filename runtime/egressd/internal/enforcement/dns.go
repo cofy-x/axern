@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"os"
 	"strings"
 	"time"
 
@@ -45,8 +46,13 @@ func (e *Engine) serveDNSUDP(ctxDone interface{ Done() <-chan struct{} }, listen
 			go func() {
 				defer func() { <-e.sem }()
 				response, err := e.resolveDNS(sourceIP(source), query, false)
-				if err == nil {
-					_, _ = listener.WriteToUDP(response, source)
+				if err != nil {
+					e.dnsResolveFailureOnce.Do(func() { fmt.Fprintln(os.Stderr, "egressd_dns_udp_resolve_failure=true") })
+					return
+				}
+				_ = listener.SetWriteDeadline(time.Now().Add(inspectTimeout))
+				if _, err := listener.WriteToUDP(response, source); err != nil {
+					e.dnsResponseFailureOnce.Do(func() { fmt.Fprintln(os.Stderr, "egressd_dns_udp_response_failure=true") })
 				}
 			}()
 		default:

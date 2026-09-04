@@ -151,8 +151,10 @@ memory, and ephemeral-storage probes. The resource manager independently
 enforces the same single-owner rule, so a scheduler regression cannot create a
 second destructive certification sandbox. Certification cgroups live under a
 reserved `conformance` sibling of the configured sandbox domain, with an
-aggregate 256 MiB `memory.max`, zero swap, and group OOM. Their reservation and
-cleanup debt are charged to `memory_system_reserve_bytes`; they are excluded
+aggregate 512 MiB `memory.max`, zero swap, and group OOM. The nested memory
+workload remains limited to 256 MiB, leaving bounded headroom for runtime
+control and monitor processes. Their reservation and cleanup debt are charged
+to `memory_system_reserve_bytes`; they are excluded
 from workload slots, sandbox `memory.current`, and workload memory commitment.
 Admission checks both current and committed system-reserve headroom before a
 probe starts. Memory and ephemeral-storage enforcement use separate self-test

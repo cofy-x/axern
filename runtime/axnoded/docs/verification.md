@@ -106,6 +106,7 @@ packaging change. Update deployment values and runtime docs together, then run
 | runsc network/eBPF | runsc runtime plus eBPF networking path | `make verify-docker-runsc-ebpf` |
 | debug runtime paths | Narrow runtime diagnostics | `make verify-docker-runsc-debug`, `make verify-docker-runc-debug` |
 | bpfnet diagnostics | Pinned program readiness and managed runtime diagnostics | `make verify-bpfnetctl-e2e` |
+| network-policy Linux correctness | Hermetic 32-cell runc/runsc × bridge/ebpf × IPv4/IPv6 × policy-mode truth with minimal, timing-independent samples | `make verify-network-policy-linux-matrix` |
 
 ## Node And Image Layers
 

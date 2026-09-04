@@ -27,6 +27,11 @@ providers. Until egressd is configured and its self-tests pass, the DNS-policy
 and strict-egress facts are explicitly unavailable, so controld cannot place a
 policy workload on that node.
 
+Sandbox interface pools may be IPv4 or IPv6. Bpfnet's native packet programs
+remain IPv4-only; selecting `ebpf` with an IPv6 pool activates the explicit
+bridge/ip6tables compatibility path and publishes bridge, not bpfnet,
+capability evidence.
+
 ## Platform Role
 
 `axnoded` serves these gRPC surfaces:

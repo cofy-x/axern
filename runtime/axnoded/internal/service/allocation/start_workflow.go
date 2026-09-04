@@ -279,7 +279,11 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 	}
 	reservedResource = resource
 	resourceReserved = true
+	egressPolicyStart := time.Now()
 	egressPrepared, err = h.prepareEgressPolicy(ctx, request, resource)
+	if recorder != nil {
+		recorder.RecordStartupPhase(contract.StartupPhaseEgressPolicyPrepare, time.Since(egressPolicyStart))
+	}
 	if err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed egress policy admission: %v", err)), err
 	}

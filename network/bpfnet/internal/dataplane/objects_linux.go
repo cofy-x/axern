@@ -158,7 +158,7 @@ func pinProgram(path string, program *ebpf.Program) error {
 			return err
 		}
 		return program.Pin(path)
-	} else if !os.IsExist(err) {
+	} else if !pinPathExists(err) {
 		return err
 	}
 
@@ -166,6 +166,10 @@ func pinProgram(path string, program *ebpf.Program) error {
 		return fmt.Errorf("replace stale pinned program: %w", err)
 	}
 	return program.Pin(path)
+}
+
+func pinPathExists(err error) bool {
+	return errors.Is(err, os.ErrExist)
 }
 
 func (d *linuxDataplane) clearPinnedArtifacts() error {

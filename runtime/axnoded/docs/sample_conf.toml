@@ -25,6 +25,8 @@ control_plane_node_state = "ready"
 # arch = "arm64"
 
 [plugin.network]
+# One IPv4 or IPv6 pool. IPv6 with nat_backend="ebpf" uses the explicit
+# bridge/ip6tables compatibility path because native bpfnet is IPv4-only.
 ip_range = "172.17.0.1/16"
 # iptables: legacy full DNAT/SNAT
 # ebpf: TCP/UDP ingress hostPort + TCP/UDP/ICMP egress SNAT in bpfnet,
