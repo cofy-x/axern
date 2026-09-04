@@ -46,6 +46,10 @@ message CgroupLease {
   uint64 cgroup_leaf_inode = 16;
   string last_identity_verification_error = 17;
   CgroupLeaseOwnerKind owner_kind = 18;
+  // Node admission charge, separated from the OCI workload request/limit so
+  // trusted runtime monitor overhead can be reserved without weakening the
+  // workload's cgroup boundary.
+  int64 capacity_reservation_bytes = 19;
 }
 
 message CgroupLedger {

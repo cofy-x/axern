@@ -218,32 +218,31 @@ node_log="/tmp/network-policy-node-${runtime_name}-${network_backend}-${ip_famil
 node_pid=$!
 inventory_ready() {
   jq -e --arg network_capability "${network_capability}" '
-    [.node.capability_snapshot.observations[]?
-     | select(
-         (.key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or
-          .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT" or
-          .key.platform == "PLATFORM_CAPABILITY_PORT_FORWARDING" or
-          .key.platform == $network_capability) and
-         .state == "CAPABILITY_STATE_AVAILABLE")
-     | .key.platform]
-    | unique
-    | length == 4
-  ' >/dev/null 2>&1 && jq -e '
     # Runtime conformance probes are destructive and share the node-owned
     # conformance domain. This network-policy matrix must wait for those probes
     # to finish, but their pass/fail result belongs to the dedicated runtime
     # conformance gate rather than this data-plane gate.
-    [.node.capability_snapshot.observations[]?
-     | select(
-         (.key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST" or
-          .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST" or
-          .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST" or
-          .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST") and
-         (.state == "CAPABILITY_STATE_AVAILABLE" or
-          .state == "CAPABILITY_STATE_UNAVAILABLE"))
-     | .key.platform]
-    | unique
-    | length == 4
+    ([.node.capability_snapshot.observations[]?
+      | select(
+          (.key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or
+           .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT" or
+           .key.platform == "PLATFORM_CAPABILITY_PORT_FORWARDING" or
+           .key.platform == $network_capability) and
+          .state == "CAPABILITY_STATE_AVAILABLE")
+      | .key.platform]
+     | unique
+     | length == 4) and
+    ([.node.capability_snapshot.observations[]?
+      | select(
+          (.key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST" or
+           .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST" or
+           .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST" or
+           .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST") and
+          (.state == "CAPABILITY_STATE_AVAILABLE" or
+           .state == "CAPABILITY_STATE_UNAVAILABLE"))
+      | .key.platform]
+     | unique
+     | length == 4)
   ' >/dev/null 2>&1
 }
 for _ in $(seq 1 180); do

@@ -240,6 +240,7 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 	switch lease.GetState() {
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE:
 		if lease.GetAllocationID() != "" || lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 ||
+			lease.GetCapacityReservationBytes() != 0 ||
 			lease.GetAllocationAttempt() != 0 || lease.GetRuntimeName() != "" || lease.GetAssignedAtUnixNano() != 0 ||
 			lease.GetRetiringAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) ||
 			lease.GetOwnerKind() != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED {
@@ -256,7 +257,7 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 		}
 		if lease.GetAllocationID() == "" {
 			if lease.GetOwnerKind() != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED ||
-				lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 || lease.GetRuntimeName() != "" ||
+				lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 || lease.GetCapacityReservationBytes() != 0 || lease.GetRuntimeName() != "" ||
 				lease.GetAssignedAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) {
 				return fmt.Errorf("unowned retiring cgroup %s contains allocation ownership", lease.GetCgroupID())
 			}
@@ -267,11 +268,24 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 	default:
 		return fmt.Errorf("cgroup %s has invalid lifecycle state %s", lease.GetCgroupID(), lease.GetState())
 	}
-	if lease.GetMemoryRequestBytes() < 0 || lease.GetMemoryLimitBytes() < 0 || lease.GetAllocationAttempt() < 0 || lease.GetCurrentChargedBytes() < 0 {
+	if lease.GetMemoryRequestBytes() < 0 || lease.GetMemoryLimitBytes() < 0 || lease.GetCapacityReservationBytes() < 0 || lease.GetAllocationAttempt() < 0 || lease.GetCurrentChargedBytes() < 0 {
 		return fmt.Errorf("cgroup %s has negative memory accounting", lease.GetCgroupID())
 	}
 	if lease.GetMemoryLimitBytes() > 0 && lease.GetMemoryRequestBytes() > lease.GetMemoryLimitBytes() {
 		return fmt.Errorf("cgroup %s memory request exceeds its hard limit", lease.GetCgroupID())
+	}
+	if lease.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE && lease.GetAllocationID() != "" {
+		capacityReservation := lease.GetCapacityReservationBytes()
+		if capacityReservation == 0 {
+			capacityReservation = lease.GetMemoryRequestBytes()
+		}
+		if capacityReservation < lease.GetMemoryRequestBytes() {
+			return fmt.Errorf("cgroup %s capacity reservation is smaller than its memory request", lease.GetCgroupID())
+		}
+		if lease.GetOwnerKind() == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD &&
+			capacityReservation != lease.GetMemoryRequestBytes() {
+			return fmt.Errorf("workload cgroup %s capacity reservation differs from its memory request", lease.GetCgroupID())
+		}
 	}
 	if cgroupLeaseHasAnyMemoryIdentity(lease) && !cgroupLeaseHasMemoryIdentity(lease) {
 		return fmt.Errorf("cgroup %s has a partial memory identity", lease.GetCgroupID())
