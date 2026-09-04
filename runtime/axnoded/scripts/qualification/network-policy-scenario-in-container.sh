@@ -229,13 +229,18 @@ inventory_ready() {
     | unique
     | length == 4
   ' >/dev/null 2>&1 && jq -e '
+    # Runtime conformance probes are destructive and share the node-owned
+    # conformance domain. This network-policy matrix must wait for those probes
+    # to finish, but their pass/fail result belongs to the dedicated runtime
+    # conformance gate rather than this data-plane gate.
     [.node.capability_snapshot.observations[]?
      | select(
-         (.key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT" or
-          .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT" or
-          .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT" or
-          .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT") and
-         .state == "CAPABILITY_STATE_AVAILABLE")
+         (.key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST" or
+          .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST" or
+          .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST" or
+          .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST") and
+         (.state == "CAPABILITY_STATE_AVAILABLE" or
+          .state == "CAPABILITY_STATE_UNAVAILABLE"))
      | .key.platform]
     | unique
     | length == 4
@@ -259,7 +264,7 @@ fi
 
 inventory="$(curl -fsS http://127.0.0.1:23001/inventoryz 2>/dev/null || true)"
 if ! inventory_ready <<<"${inventory}"; then
-  echo "network-policy and runtime-certification capabilities did not become available" >&2
+  echo "network-policy capabilities did not become available or runtime self-tests did not finish" >&2
   jq --arg network_capability "${network_capability}" '
     [.node.capability_snapshot.observations[]?
      | select(
@@ -270,7 +275,11 @@ if ! inventory_ready <<<"${inventory}"; then
          .key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT" or
          .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT" or
          .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT" or
-         .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT")
+         .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT" or
+         .key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST" or
+         .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST" or
+         .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST" or
+         .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST")
      | {platform: .key.platform, state, reason_code, reason}]
   ' <<<"${inventory}" >&2 || true
   tail -n 160 "${node_log}" >&2
