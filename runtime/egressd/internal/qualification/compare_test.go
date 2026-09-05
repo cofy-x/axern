@@ -59,6 +59,19 @@ func TestCompareRejectsMetricAvailabilityDrift(t *testing.T) {
 	}
 }
 
+func TestComparisonDistinguishesRepeatabilityFromRegression(t *testing.T) {
+	baseline, candidate := testReport(t), testReport(t)
+	comparison, err := Compare(baseline, candidate, testBudget())
+	if err != nil || comparison.Kind != "repeatability" {
+		t.Fatalf("same commit comparison = %+v, %v", comparison, err)
+	}
+	candidate.Subject.Commit = strings.Repeat("c", 40)
+	comparison, err = Compare(baseline, candidate, testBudget())
+	if err != nil || comparison.Kind != "regression" {
+		t.Fatalf("different commit comparison = %+v, %v", comparison, err)
+	}
+}
+
 func testBudget() Budget {
 	return Budget{
 		SchemaVersion: SchemaVersion, MaxLatencyP95Ratio: 1.20, MaxLatencyP99Ratio: 1.30,

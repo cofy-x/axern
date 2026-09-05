@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,6 +146,35 @@ func TestRuntimeConformanceDoesNotPeriodicallyRepeatDestructiveProbe(t *testing.
 	}
 	if probeCalls != 1 {
 		t.Fatalf("destructive probe calls = %d, want startup certification only", probeCalls)
+	}
+}
+
+func TestFailedRuntimeConformanceRemainsLatchedUntilRestart(t *testing.T) {
+	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
+	registry := handlerregistry.New(cfg)
+	handler := runtimetest.NewFakeRuntimeHandler()
+	handler.RuntimeName = config.RuntimeNameRunsc
+	registry.Set(config.RuntimeNameRunsc, handler)
+	calls := 0
+	probe := func(context.Context, string, runtimeConformanceKind) error {
+		calls++
+		return errors.New("certification failed")
+	}
+	p := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, probe)
+	now := time.Now()
+	for _, delay := range []time.Duration{0, time.Minute, time.Hour, 24 * time.Hour} {
+		observations, err := p.Observe(context.Background(), now.Add(delay))
+		if err != nil || observations[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE {
+			t.Fatalf("failed certification not retained: %v %v", observations, err)
+		}
+	}
+	if calls != 1 {
+		t.Fatalf("destructive calls = %d, want 1", calls)
+	}
+	p = runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, probe)
+	_, _ = p.Observe(context.Background(), now)
+	if calls != 2 {
+		t.Fatalf("restart did not recertify: %d", calls)
 	}
 }
 

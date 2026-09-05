@@ -135,6 +135,7 @@ if [ "${delegation_group}" = / ]; then
   exit 1
 fi
 workload_cgroup_root="/sys/fs/cgroup${delegation_group}/sandbox"
+export AXERN_QUALIFICATION_WORKLOAD_CGROUP="${workload_cgroup_root}"
 conformance_cgroup_root="/sys/fs/cgroup${delegation_group}/conformance"
 for cgroup_root in "${workload_cgroup_root}" "${conformance_cgroup_root}"; do
   [ -d "${cgroup_root}" ] || continue
@@ -216,12 +217,19 @@ export AXNODED_INTERFACE_CACHE_SIZE=1
 node_log="/tmp/network-policy-node-${runtime_name}-${network_backend}-${ip_family}-${policy_mode}.log"
 /bin/bash /workspace/scripts/verify/node-all-in-one-entrypoint.sh >"${node_log}" 2>&1 &
 node_pid=$!
+conformance_quiescent() {
+  local children
+  [ -d "${conformance_cgroup_root}" ] || return 1
+  children="$(find "${conformance_cgroup_root}" -mindepth 1 -maxdepth 1 -type d -print -quit)" || return 1
+  [ -z "${children}" ]
+}
 inventory_ready() {
   jq -e --arg network_capability "${network_capability}" '
     # Runtime conformance probes are destructive and share the node-owned
     # conformance domain. This network-policy matrix must wait for those probes
-    # to finish, but their pass/fail result belongs to the dedicated runtime
-    # conformance gate rather than this data-plane gate.
+    # to finish. Both success and failure are latched for the runtime/config
+    # identity; UNAVAILABLE is safe here only because destructive failures no
+    # longer retry in the background. Memory admission still requires proof.
     ([.node.capability_snapshot.observations[]?
       | select(
           (.key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or
@@ -243,7 +251,7 @@ inventory_ready() {
       | .key.platform]
      | unique
      | length == 4)
-  ' >/dev/null 2>&1
+  ' >/dev/null 2>&1 && conformance_quiescent
 }
 for _ in $(seq 1 180); do
   if [ -S /run/axnoded/axnoded.sock ] && curl -fsS http://127.0.0.1:23001/readyz >/dev/null 2>&1; then
@@ -263,7 +271,7 @@ fi
 
 inventory="$(curl -fsS http://127.0.0.1:23001/inventoryz 2>/dev/null || true)"
 if ! inventory_ready <<<"${inventory}"; then
-  echo "network-policy capabilities did not become available or runtime self-tests did not finish" >&2
+  echo "network-policy capabilities unavailable or runtime self-test cleanup has not converged" >&2
   jq --arg network_capability "${network_capability}" '
     [.node.capability_snapshot.observations[]?
      | select(

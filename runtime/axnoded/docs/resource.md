@@ -285,9 +285,10 @@ Key behavior:
   sandbox cgroups. It also contains the reserved runtime-certification budget:
   axnoded creates a sibling `conformance` domain with an aggregate 512 MiB hard
   limit, zero swap, and group OOM. The memory workload exercises a nested
-  256 MiB hard limit; the remaining envelope contains runtime-specific control
-  and monitor processes so their overhead cannot invalidate the workload OOM
-  proof. All runc/runsc memory and storage self-tests share one serial lane and
+  256 MiB hard limit, including runtime processes attributed to that sandbox.
+  The aggregate ceiling/reservation does not enlarge that allocation limit.
+  Host lifecycle monitors inherit `internal`, not the certification sandbox;
+  their memory is charged to the remaining system reserve. All runc/runsc memory and storage self-tests share one serial lane and
   one resource lease in that domain. Certification
   current usage, commitment, and cleanup debt never reduce workload allocatable
   memory or `max_instance_num`, but insufficient system-reserve headroom fails
@@ -296,7 +297,7 @@ Key behavior:
   exceeding it blocks new create without terminating existing sandboxes.
 - Every process charged to that reserve must run below the same delegated
   cgroup-v2 root. Node daemons inherit its `internal` child; certification
-  processes run only in the bounded `conformance` sibling. The packaged all-in-one node
+  workloads run only in the bounded `conformance` sibling. The packaged all-in-one node
   satisfies this by moving the supervisor and its existing children before
   enabling the sandbox subtree; separate service units must be deployed under
   an equivalent shared delegation. A daemon outside that domain is a deployment

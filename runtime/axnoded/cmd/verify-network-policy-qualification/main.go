@@ -233,6 +233,7 @@ func qualify(cfg config) (scenarioResult, error) {
 	var httpValues, tlsValues []float64
 	var operations, failures uint64
 	var peakSessions uint32
+	var workloadRSS uint64
 	segment := time.Duration(cfg.sustainedSeconds) * time.Second / time.Duration(cfg.samples)
 	if segment < 10*time.Millisecond {
 		segment = 10 * time.Millisecond
@@ -242,6 +243,11 @@ func qualify(cfg config) (scenarioResult, error) {
 		if err != nil {
 			return scenarioResult{}, err
 		}
+		rss, err := egressdRSSBytes()
+		if err != nil {
+			return scenarioResult{}, err
+		}
+		workloadRSS = max(workloadRSS, rss)
 		startValues = append(startValues, startMS)
 		firstValues = append(firstValues, probe.FirstConnectionMilliseconds)
 		if probe.DNSMilliseconds != nil {
@@ -274,7 +280,7 @@ func qualify(cfg config) (scenarioResult, error) {
 		RestartConvergenceLatencyMS: makeDistribution(restartValues),
 		HTTPThroughputMbps:          meanPointer(httpValues),
 		TLSThroughputMbps:           meanPointer(tlsValues),
-		MaxRSSBytes:                 maxRSS,
+		MaxRSSBytes:                 max(maxRSS, workloadRSS),
 		PeakConcurrentSessions:      peakSessions,
 		Operations:                  operations,
 		Failures:                    failures,
@@ -286,7 +292,8 @@ func qualify(cfg config) (scenarioResult, error) {
 	return scenarioResult{Runtime: cfg.runtimeName, NetworkBackend: cfg.networkBackend, IPFamily: cfg.ipFamily, PolicyMode: cfg.policyMode, Metrics: metrics}, nil
 }
 
-func runSandboxSample(cfg config, clients *verifyutil.NodeClients, policy *commonv1.NetworkEgressPolicy, sample int, sustained time.Duration) (probeResult, float64, error) {
+func runSandboxSample(cfg config, clients *verifyutil.NodeClients, policy *commonv1.NetworkEgressPolicy, sample int, sustained time.Duration) (result probeResult, latency float64, resultErr error) {
+	dumpMemoryDiagnostics(sample, "before_create")
 	id := verifyutil.NewSandboxID(fmt.Sprintf("netpol-qual-%s-%s-%s-%d", cfg.runtimeName, cfg.ipFamily, cfg.policyMode, sample))
 	stdoutPath := filepath.Join("/tmp", id+".stdout")
 	stderrPath := filepath.Join("/tmp", id+".stderr")
@@ -305,11 +312,15 @@ func runSandboxSample(cfg config, clients *verifyutil.NodeClients, policy *commo
 	spec := &privatenodev1.ResolvedExecutionConfig{
 		RuntimeClass: cfg.runtimeName, Cwd: "/", LocalRootfsPath: cfg.rootfs, Argv: arguments,
 		RootfsReadonly: true,
-		StdoutPath:     stdoutPath, StderrPath: stderrPath,
+		Resources: &commonv1.ResourceSpec{
+			Requests: &commonv1.ResourceQuantity{MemoryBytes: 256 << 20},
+			Limits:   &commonv1.ResourceQuantity{MemoryBytes: 256 << 20},
+		},
+		StdoutPath: stdoutPath, StderrPath: stderrPath,
 		Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT, EgressPolicy: policy},
 		Mounts: []*privatenodev1.SandboxMount{
 			{Type: "bind", Source: cfg.helperDir, Target: "/axnoded-bin", Options: []string{"rbind", "ro"}},
-			{Type: "tmpfs", Source: "tmpfs", Target: "/tmp", Options: []string{"nosuid", "nodev", "mode=1777"}},
+			{Type: "tmpfs", Source: "tmpfs", Target: "/tmp", Options: []string{"nosuid", "nodev", "mode=1777", "size=16m"}},
 		},
 	}
 	startCtx, cancelStart := context.WithTimeout(context.Background(), cfg.startupTimeout)
@@ -318,12 +329,23 @@ func runSandboxSample(cfg config, clients *verifyutil.NodeClients, policy *commo
 	startMS := milliseconds(time.Since(started))
 	cancelStart()
 	if err != nil {
+		dumpMemoryDiagnostics(sample, "create_failed")
 		return probeResult{}, 0, fmt.Errorf("create sample %d: %w", sample, err)
 	}
 	defer func() {
-		deleteCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		dumpMemoryDiagnostics(sample, "before_delete")
+		deleteCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 		defer cancel()
-		_ = handle.Delete(deleteCtx, 0)
+		if err := handle.Delete(deleteCtx, 0); err != nil {
+			resultErr = errors.Join(resultErr, fmt.Errorf("delete sample %d: %w", sample, err))
+			return
+		}
+		if err := waitSampleRetirement(deleteCtx); err != nil {
+			resultErr = errors.Join(resultErr, fmt.Errorf("retire sample %d: %w", sample, err))
+			dumpMemoryDiagnostics(sample, "retirement_failed")
+			return
+		}
+		dumpMemoryDiagnostics(sample, "after_retirement")
 	}()
 	waitCtx, cancelWait := context.WithTimeout(context.Background(), cfg.startupTimeout+time.Duration(cfg.sustainedSeconds)*time.Second)
 	waitResponse, err := handle.Wait(waitCtx)
@@ -606,7 +628,7 @@ func egressdRSSBytes() (uint64, error) {
 		scanner := bufio.NewScanner(status)
 		for scanner.Scan() {
 			fields := strings.Fields(scanner.Text())
-			if len(fields) == 3 && fields[0] == "VmRSS:" && fields[2] == "kB" {
+			if len(fields) == 3 && (fields[0] == "VmRSS:" || fields[0] == "VmHWM:") && fields[2] == "kB" {
 				kilobytes, _ := strconv.ParseUint(fields[1], 10, 64)
 				if kilobytes*1024 > maximum {
 					maximum = kilobytes * 1024

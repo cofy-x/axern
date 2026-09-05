@@ -32,6 +32,7 @@ type Comparison struct {
 	BaselineCommit  string      `json:"baselineCommit"`
 	CandidateCommit string      `json:"candidateCommit"`
 	EnvironmentID   string      `json:"environmentId"`
+	Kind            string      `json:"kind"`
 	Comparable      bool        `json:"comparable"`
 	Passed          bool        `json:"passed"`
 	Violations      []Violation `json:"violations"`
@@ -74,6 +75,10 @@ func Compare(baseline, candidate Report, budget Budget) (Comparison, error) {
 	comparison := Comparison{
 		SchemaVersion: SchemaVersion, BaselineCommit: baseline.Subject.Commit, CandidateCommit: candidate.Subject.Commit,
 		EnvironmentID: candidate.Environment.EnvironmentID,
+	}
+	comparison.Kind = "regression"
+	if baseline.Subject.Commit == candidate.Subject.Commit {
+		comparison.Kind = "repeatability"
 	}
 	if err := baseline.Validate(true); err != nil {
 		return comparison, fmt.Errorf("baseline: %w", err)

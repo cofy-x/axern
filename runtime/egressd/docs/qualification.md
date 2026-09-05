@@ -91,6 +91,21 @@ The output is strict `qualification.ScenarioResult` JSON. Unknown fields are
 rejected, and each cell cleans its sandbox, namespace, daemon state, policy,
 and host rules before the next cell.
 
+Each sample requests and enforces 256 MiB of sandbox memory and a 16 MiB tmpfs.
+Deletion errors and incomplete workload-cgroup retirement fail the sample
+before another allocation starts. The driver emits bounded memory snapshots
+before creation, before deletion and after retirement, including ancestor-local
+OOM events, current/peak usage and process membership. Hierarchical OOM counters
+or a container `OOMKilled` reason alone do not identify the failing boundary.
+Certification results are identity-latched, including failures, so a completed
+failed self-test is not silently scheduled again during a scenario.
+Readiness also requires the certification cgroup domain to contain no allocation
+children; a failed cleanup cannot be mistaken for a quiescent provider.
+
+Comparison output distinguishes `repeatability` (same source commit) from
+`regression` (different source commits). A same-commit rerun does not prove
+absence of a regression against a previously released version.
+
 Optional `NETWORK_POLICY_QUALIFICATION_SAMPLES`, `_CONCURRENCY`,
 `_PAYLOAD_BYTES`, `_SUSTAINED_SECONDS`, `_RULE_SCALE_COUNTS`, and `_OUTPUT_DIR`
 values tune the run. `NETWORK_POLICY_QUALIFICATION_BASELINE` points to a prior

@@ -134,8 +134,11 @@ keys therefore mean a malformed provider batch, not an implicit configuration.
 Network and filestore health are sampled every five seconds and expire after
 15 seconds. Runtime identity is checked on the health cadence. The expensive
 conformance sandbox runs only for initial certification, after a runtime/config
-identity change, and during explicit deployment qualification. A failed probe
-retries with bounded backoff. A successful conformance fact is identity-scoped
+identity change, and during explicit deployment qualification. Both successful
+and failed destructive results are latched for that process/runtime/config
+identity. After repairing a certification failure, restart axnoded to retry;
+background health refresh never reruns a destructive failed certification.
+A successful conformance fact is identity-scoped
 and does not expire merely because time passed. A failed
 boot cgroup probe retries with exponential backoff. Static config facts bind
 their provider-specific digest and have no TTL. Recovery from a base-provider
@@ -152,8 +155,10 @@ enforces the same single-owner rule, so a scheduler regression cannot create a
 second destructive certification sandbox. Certification cgroups live under a
 reserved `conformance` sibling of the configured sandbox domain, with an
 aggregate 512 MiB `memory.max`, zero swap, and group OOM. The nested memory
-workload remains limited to 256 MiB, leaving bounded headroom for runtime
-control and monitor processes. Their reservation and cleanup debt are charged
+workload remains limited to 256 MiB, including its attributed runtime processes.
+The allocation parent and OCI leaf intentionally have the same limit; the
+512 MiB reservation is not a per-allocation enforcement limit. Host lifecycle
+monitors inherit the separate `internal` domain. Certification reservation and cleanup debt are charged
 to `memory_system_reserve_bytes`; they are excluded
 from workload slots, sandbox `memory.current`, and workload memory commitment.
 Admission checks both current and committed system-reserve headroom before a
@@ -161,9 +166,8 @@ probe starts. Memory and ephemeral-storage enforcement use separate self-test
 sandboxes and observations, so a storage failure cannot suppress memory evidence
 and a memory-limit probe failure cannot rewrite storage evidence. The shared
 bounded certification domain remains a required node-safety prerequisite for
-both. Each self-test is limited to 60 seconds, reruns only
-after runtime/config identity changes or a prior failure, and retries failures
-with exponential backoff capped at five minutes. Self-test
+both. Each self-test is limited to 60 seconds and reruns only after an operator
+restart or runtime/config identity change. Self-test
 cleanup is part of success and remains inside the 60-second probe deadline, with
 up to 30 seconds reserved for runtime teardown. Each runtime/kind pair uses one
 deterministic, reserved allocation identity: an interrupted probe is reconciled

@@ -24,11 +24,15 @@ axnoded while constructing the workload resolver configuration. It supports
 UDP and TCP, preserves the query and DNSSEC/EDNS wire representation, rejects
 denied questions or CNAME targets with `REFUSED`, and derives strict per-domain
 destination authorizations from A/AAAA TTLs with a ten-minute safety cap. It
-has no public resolver fallback. Strict HTTP reads one bounded request header
-and checks Host; strict TLS reassembles one bounded ClientHello and checks SNI.
-CONNECT, direct-IP Host, ECH, missing SNI, parser timeout/overflow, and a
+has no public resolver fallback. Strict HTTP parses and checks every request,
+including keep-alive and pipelined messages, and rechecks policy and DNS TTL
+before forwarding each message. Standard HTTP framing streams bodies without
+inspection; header, request, response-write and idle timeouts are bounded.
+Strict TLS reassembles one bounded ClientHello and checks SNI.
+CONNECT, HTTP protocol upgrades, direct-IP Host, ECH, missing SNI, parser timeout/overflow, and a
 domain/IP authorization mismatch fail closed. Traffic is then relayed without
-TLS interception or application-body inspection.
+TLS interception or application-body inspection. HTTPS authorization is SNI
+authorization, not inspection of encrypted HTTP Host/`:authority` fields.
 
 Health reports DNS and strict self-test readiness plus the applied enforcement
 revision. Axnoded derives workload capabilities from these exact facts, checks

@@ -438,6 +438,10 @@ func TestRuntimeConformanceUsesReservedDomainWithoutConsumingWorkloadCapacity(t 
 	if got := filepath.Dir(conformance.ToString()); got != manager.conformanceRoot {
 		t.Fatalf("conformance root = %q, want %q", got, manager.conformanceRoot)
 	}
+	lease, ok := manager.leases.Get(conformance.ToString())
+	if !ok || lease.GetMemoryRequestBytes() != 256<<20 || lease.GetMemoryLimitBytes() != 256<<20 || lease.GetCapacityReservationBytes() != 512<<20 {
+		t.Fatalf("certification reservation changed workload enforcement: %+v", lease)
+	}
 	commitment := manager.MemoryCommitment()
 	if commitment.CommittedBytes != 0 || commitment.ConformanceBytes != 512<<20 {
 		t.Fatalf("memory commitment = %+v", commitment)

@@ -270,34 +270,22 @@ func sourceIP(addr net.Addr) string {
 }
 
 func (e *Engine) handleHTTP(conn net.Conn) {
-	started := time.Now()
 	defer conn.Close()
-	_ = conn.SetReadDeadline(time.Now().Add(inspectTimeout))
-	request, err := l7inspect.ReadHTTPRequest(conn, l7inspect.DefaultMaxHTTPHeaderBytes)
-	if err != nil || request.DirectIP {
-		return
-	}
-	record := e.policy(sourceIP(conn.RemoteAddr()))
-	if record == nil || !domainAllowed(record.GetPolicy(), request.Host) {
-		e.record(record, obs.ActionDeny, obs.ProtocolHTTP, obs.ResultRefused, started)
-		return
-	}
 	destination, err := originalDestination(conn)
-	if err != nil || !e.authorized(sourceIP(conn.RemoteAddr()), request.Host, destination.Addr()) {
-		e.record(record, obs.ActionDeny, obs.ProtocolHTTP, obs.ResultRefused, started)
-		return
-	}
-	upstream, err := dialUpstream(destination)
 	if err != nil {
 		return
 	}
-	defer upstream.Close()
-	_ = conn.SetReadDeadline(time.Time{})
-	if _, err := upstream.Write(request.Bytes); err != nil {
-		return
-	}
-	e.record(record, obs.ActionAllow, obs.ProtocolHTTP, obs.ResultOK, started)
-	proxyBoth(conn, upstream)
+	source := sourceIP(conn.RemoteAddr())
+	l7inspect.RelayHTTP(conn, inspectTimeout, func(request l7inspect.HTTPRequest) bool {
+		started := time.Now()
+		record := e.policy(source)
+		if record == nil || !domainAllowed(record.GetPolicy(), request.Host) || !e.authorized(source, request.Host, destination.Addr()) {
+			e.record(record, obs.ActionDeny, obs.ProtocolHTTP, obs.ResultRefused, started)
+			return false
+		}
+		e.record(record, obs.ActionAllow, obs.ProtocolHTTP, obs.ResultOK, started)
+		return true
+	}, func(context.Context) (net.Conn, error) { return dialUpstream(destination) })
 }
 
 func (e *Engine) handleTLS(conn net.Conn) {

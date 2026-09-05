@@ -31,9 +31,9 @@ const (
 	DefaultCgroupRoot = "sandbox"
 	// RuntimeConformanceMemoryLimitBytes is the hard limit exercised inside the
 	// certification sandbox. RuntimeConformanceMemoryMaxBytes is the larger
-	// aggregate ceiling for that sandbox plus runtime-specific monitor and
-	// control processes. Conflating the two lets a runsc certification OOM its
-	// own control plane instead of proving the workload boundary.
+	// aggregate certification ceiling and capacity reservation, not a larger
+	// per-allocation limit. Host lifecycle monitors inherit the internal domain;
+	// runtime processes in the sandbox remain charged to its 256 MiB limit.
 	RuntimeConformanceMemoryLimitBytes int64 = 256 << 20
 	RuntimeConformanceMemoryMaxBytes   int64 = 512 << 20
 
