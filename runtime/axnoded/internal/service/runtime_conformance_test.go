@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -175,6 +176,22 @@ func TestFailedRuntimeConformanceRemainsLatchedUntilRestart(t *testing.T) {
 	_, _ = p.Observe(context.Background(), now)
 	if calls != 2 {
 		t.Fatalf("restart did not recertify: %d", calls)
+	}
+}
+
+func TestRuntimeConformanceDockerGateMatchesAggregateLimit(t *testing.T) {
+	data, err := os.ReadFile("../../scripts/verify/verify-in-container.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	limit := strconv.FormatInt(config.RuntimeConformanceMemoryMaxBytes, 10)
+	for _, assertion := range []string{
+		`[ "$(cat "${conformance_dir}/memory.max")" = "` + limit + `" ]`,
+		`.node.memory_budget.conformance_limit_bytes == ` + limit + ` and`,
+	} {
+		if !strings.Contains(string(data), assertion) {
+			t.Fatalf("Docker certification assertion does not match aggregate limit: %s", assertion)
+		}
 	}
 }
 
