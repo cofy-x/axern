@@ -1,5 +1,28 @@
 #!/usr/bin/env bash
 
+cli_runtime_capabilities_ready() {
+  python3 -c '
+import json
+import sys
+
+try:
+    nodes = json.load(sys.stdin).get("nodes", [])
+except (ValueError, TypeError):
+    raise SystemExit(1)
+for node in nodes:
+    if node.get("node_id") != sys.argv[1]:
+        continue
+    observations = ((node.get("summary") or {}).get("capability_snapshot") or {}).get("observations", [])
+    available = {
+        ((item.get("key") or {}).get("Kind") or {}).get("Platform")
+        for item in observations if item.get("state") == 1
+    }
+    # Public PlatformCapability values: runc/runsc memory and writable storage.
+    raise SystemExit(0 if {5, 6, 9, 10}.issubset(available) else 1)
+raise SystemExit(1)
+' "$1" <<<"$2"
+}
+
 setup_e2e_environment() {
   ensure_verify_image_once
   docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
@@ -193,10 +216,6 @@ setup_e2e_environment() {
     exit 1
   fi
 
-  if [ "${AXERN_CLI_E2E_IMPORT_RUNTIME_IMAGE}" = "1" ]; then
-    import_python_runtime_image_once
-  fi
-
   # Capability readiness includes serial runc and runsc conformance probes. Each
   # runtime has a 60-second fail-closed budget, so the inventory wait must cover
   # both probes plus the first report round trip.
@@ -208,16 +227,25 @@ setup_e2e_environment() {
   deadline=$((SECONDS + capability_readiness_timeout))
   while [ "${SECONDS}" -lt "${deadline}" ]; do
     nodes_body="$(curl -fsS "http://${CONTROLD_HTTP_ADDRESS}/nodesz" || true)"
-    if node_summary_fresh "${CONTROL_PLANE_NODE_ID}" "${nodes_body}"; then
+    if node_summary_fresh "${CONTROL_PLANE_NODE_ID}" "${nodes_body}" &&
+        cli_runtime_capabilities_ready "${CONTROL_PLANE_NODE_ID}" "${nodes_body}"; then
       break
     fi
     sleep 1
   done
 
   nodes_body="$(curl -fsS "http://${CONTROLD_HTTP_ADDRESS}/nodesz" || true)"
-  if ! node_summary_fresh "${CONTROL_PLANE_NODE_ID}" "${nodes_body}"; then
-    echo "controld did not observe a fresh node summary in time" >&2
+  if ! node_summary_fresh "${CONTROL_PLANE_NODE_ID}" "${nodes_body}" ||
+      ! cli_runtime_capabilities_ready "${CONTROL_PLANE_NODE_ID}" "${nodes_body}"; then
+    echo "controld did not observe fresh, certified runtime capabilities in time" >&2
     dump_logs
     exit 1
+  fi
+
+  # Certification and image import both charge the node's internal reserve.
+  # Import only after certification finishes; a fresh heartbeat alone does not
+  # prove workload capabilities and must not race destructive startup probes.
+  if [ "${AXERN_CLI_E2E_IMPORT_RUNTIME_IMAGE}" = "1" ]; then
+    import_python_runtime_image_once
   fi
 }
