@@ -333,6 +333,9 @@ func runSandboxSample(cfg config, clients *verifyutil.NodeClients, policy *commo
 		return probeResult{}, 0, fmt.Errorf("create sample %d: %w", sample, err)
 	}
 	defer func() {
+		if resultErr != nil {
+			dumpAllocationDiagnostics(sample, clients, id)
+		}
 		dumpMemoryDiagnostics(sample, "before_delete")
 		deleteCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 		defer cancel()

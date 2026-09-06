@@ -292,6 +292,13 @@ Even when the allocation verifier succeeds, an unavailable node observation
 keeps the condition `DEGRADED`; only current node evidence plus successful
 allocation verification can produce `HEALTHY`.
 
+DNS and strict egress reconciliation belongs to egressd, never to the OCI
+runtime verifier. Each verification checks mode-specific enforcement health
+and the durable allocation ID, attempt, source IP, policy digest, and execution
+revision. RPC uncertainty is `INCONCLUSIVE`; an absent, fenced, mismatched, or
+unhealthy policy is `LOST`. The health/read pair has a two-second deadline and
+uses the same bounded fail-stop retry policy as other hard capabilities.
+
 Axnoded persists dependency proofs, the immutable enforcement manifest, a full
 condition set with monotonic revision, and an allocation-scoped durable
 reconcile queue. A transition only merges the latest key generation; it never

@@ -4,11 +4,51 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
 	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
+
+// Egress is owned by egressd, not by the OCI handler. Reconciliation must
+// revalidate the durable attempt-specific proof even when node observations
+// change; an unavailable observation alone does not prove this policy lost.
+func verifyActiveEgressPolicy(ctx context.Context, manager egress.Manager, allocationID string, manifest allocation.EgressPolicyManifest, mode NetworkPolicyMode) contract.CapabilityVerification {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if manager == nil || manifest.Proof == nil {
+		return contract.LostCapability(fmt.Errorf("egress manager or durable proof is unavailable"))
+	}
+	health, err := manager.Health(ctx)
+	if err != nil {
+		return contract.InconclusiveCapability(fmt.Errorf("read egress enforcement health: %w", err))
+	}
+	if !networkPolicyEnforcementHealthy(health, mode) {
+		return contract.LostCapability(fmt.Errorf("egress enforcement is unhealthy"))
+	}
+	record, err := manager.Get(ctx, allocationID, manifest.Attempt)
+	if err != nil {
+		if status.Code(err) == codes.NotFound || status.Code(err) == codes.FailedPrecondition {
+			return contract.LostCapability(fmt.Errorf("exact egress policy is absent or fenced"))
+		}
+		return contract.InconclusiveCapability(fmt.Errorf("read exact egress policy: %w", err))
+	}
+	if record == nil {
+		return contract.LostCapability(fmt.Errorf("exact egress policy is absent"))
+	}
+	var diagnostic NetworkPolicyDiagnostics
+	applyNetworkPolicyRecord(&diagnostic, record, manifest, mode, allocationID)
+	if !diagnostic.ExactProof {
+		return contract.LostCapability(fmt.Errorf("egress policy differs from durable allocation proof"))
+	}
+	return contract.VerifiedCapability()
+}
 
 // verifyPreparedEgressPolicy is the exact pre-activation proof. Capability
 // health alone is insufficient: the record must bind this allocation attempt,

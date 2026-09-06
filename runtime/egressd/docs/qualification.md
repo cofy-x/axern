@@ -97,6 +97,15 @@ before another allocation starts. The driver emits bounded memory snapshots
 before creation, before deletion and after retirement, including ancestor-local
 OOM events, current/peak usage and process membership. Hierarchical OOM counters
 or a container `OOMKilled` reason alone do not identify the failing boundary.
+On sample failure, the driver reads allocation status before test-owned deletion
+and reports only exit fields and capability condition codes, not raw reasons or
+policy proofs. Capability-owned fail-stop emits a structured node event before
+deleting its state. The scenario preserves the last 1 MiB of the actual daemon
+log as `<output>.axnoded.log` on failure, with private file permissions; the
+entrypoint's stdout is only a supervisor log. Treat this sidecar as private
+diagnostic evidence, not a public release artifact, because runtime logs can
+contain fixture arguments. A missing allocation after fail-stop can make the
+status RPC return `NotFound`; the durable log sidecar is therefore also needed.
 Certification results are identity-latched, including failures, so a completed
 failed self-test is not silently scheduled again during a scenario.
 Readiness also requires the certification cgroup domain to contain no allocation

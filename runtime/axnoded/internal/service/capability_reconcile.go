@@ -299,6 +299,10 @@ func (h *sandboxService) runCapabilityReconcileWorker(ctx context.Context, alloc
 						continue
 					}
 					message := "CAPABILITY_ENFORCEMENT_LOST: " + verificationMessage(verification)
+					logrus.WithFields(logrus.Fields{
+						"allocation_id": allocationID, "capability": keyID,
+						"verification_state": verification.State,
+					}).Warn("allocation capability requires fail-stop")
 					conditionErr := h.reportCapabilityCondition(allocationID, dependency, capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_FAILED, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_ENFORCEMENT_LOST, message)
 					terminateReasons = append(terminateReasons, errors.Join(errors.New(message), conditionErr))
 				}
@@ -443,6 +447,13 @@ func verifyCapabilityBatchWithDelays(ctx context.Context, delays []time.Duration
 
 func (h *sandboxService) verifyAllocationCapability(ctx context.Context, allocationID string, dependency *capabilityv1.CapabilityDependency) contract.CapabilityVerification {
 	platform := dependency.GetKey().GetPlatform()
+	if platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT || platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT {
+		manifest, exists := h.allocationController().EgressPolicyManifest(allocationID)
+		if !exists {
+			return contract.LostCapability(fmt.Errorf("durable egress policy proof is unavailable"))
+		}
+		return verifyActiveEgressPolicy(ctx, h.egressClient, allocationID, manifest, allocationNetworkPolicyMode([]*capabilityv1.CapabilityDependency{dependency}))
+	}
 	if platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING || platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE || platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET {
 		manager := network.NetworkManagers[h.config.PluginConfig.NetworkConfig.NatBackend]
 		prober, ok := manager.(network.HealthProber)
@@ -536,6 +547,13 @@ func (h *sandboxService) failStopAllocation(ctx context.Context, allocationID st
 		runtimeName = ct.Metadata.GetRuntimeHandler()
 	}
 	metrics.RecordCapabilityAllocationVerification(runtimeName, "fail_stop")
+	// Emit before Delete removes allocation state. A successful fail-stop must
+	// remain distinguishable from a workload-originated exit or kernel OOM.
+	// Do not log verifyErr: verifier errors may contain policy destinations.
+	logrus.WithFields(logrus.Fields{
+		"allocation_id": allocationID, "runtime": runtimeName,
+		"termination_owner": "capability_reconcile",
+	}).Warn("allocation fail-stop initiated")
 	for {
 		deleteCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		_, err := h.allocationController().Delete(deleteCtx, &runtimev1.DeleteRequest{ID: allocationID, Timeout: 10})

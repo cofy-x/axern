@@ -107,7 +107,18 @@ cleanup() {
   ip link del "${fixture_host_dev}" >/dev/null 2>&1 || true
   cleanup_axern_network_state
 }
-trap cleanup EXIT
+# The entrypoint's stdout is a supervisor log, not the daemon log. Preserve a
+# bounded private sidecar on any failure, before disposable-container cleanup.
+# Raw runtime logs can contain fixture arguments; do not publish them to stdout.
+finish() {
+  local result=$?
+  if [ "${result}" -ne 0 ] && [ -f /var/log/axnoded/axnoded.log ]; then
+    (umask 077; tail -c 1048576 /var/log/axnoded/axnoded.log >"${output}.axnoded.log") || true
+  fi
+  cleanup
+  return "${result}"
+}
+trap finish EXIT
 
 cleanup
 mkdir -p /var/lib/axnoded /var/lib/egressd /var/lib/imagemgr /var/lib/volumed /run/axnoded /run/egressd
