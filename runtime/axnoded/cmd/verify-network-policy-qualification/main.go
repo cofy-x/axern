@@ -511,9 +511,12 @@ func measureRestartConvergence(cfg config) ([]float64, error) {
 	for sample := 0; sample < cfg.samples; sample++ {
 		value, err := oneRestartConvergence(cfg, sample)
 		if err != nil {
-			return nil, err
+			return nil, errors.Join(err, writeRecoveryObservations(cfg.output+".recovery-observations", values, false))
 		}
 		values = append(values, value)
+		if err := writeRecoveryObservations(cfg.output+".recovery-observations", values, sample+1 == cfg.samples); err != nil {
+			return nil, fmt.Errorf("write recovery observations: %w", err)
+		}
 	}
 	return values, nil
 }
@@ -574,18 +577,18 @@ func oneRestartConvergence(cfg config, sample int) (float64, error) {
 	command = nil
 	_ = os.Remove(socket)
 	started := time.Now()
+	recoveryCtx, recoveryCancel := context.WithTimeout(context.Background(), cfg.operationTimeout)
+	defer recoveryCancel()
 	command, err = start()
 	if err != nil {
 		return 0, err
 	}
-	client, err = waitEgressClient(socket, cfg.operationTimeout)
+	client, err = waitEgressClientContext(recoveryCtx, socket)
 	if err != nil {
 		return 0, err
 	}
 	defer client.Close()
-	ctx, cancel = context.WithTimeout(context.Background(), cfg.operationTimeout)
-	recovered, err := client.Get(ctx, prepared.GetAllocationID(), prepared.GetAttempt())
-	cancel()
+	recovered, err := client.Get(recoveryCtx, prepared.GetAllocationID(), prepared.GetAttempt())
 	if err != nil || recovered.GetRecoveryState() != runtimeegressv1.EgressPolicyRecoveryState_EGRESS_POLICY_RECOVERY_STATE_RECOVERED {
 		return 0, fmt.Errorf("recovered policy proof unavailable: state=%s err=%v", recovered.GetRecoveryState(), err)
 	}
@@ -593,21 +596,9 @@ func oneRestartConvergence(cfg config, sample int) (float64, error) {
 }
 
 func waitEgressClient(socket string, timeout time.Duration) (*egress.Client, error) {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		client, err := egress.Dial(context.Background(), socket)
-		if err == nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
-			health, healthErr := client.Health(ctx)
-			cancel()
-			if healthErr == nil && health.GetStatus() == runtimeegressv1.EgressManagerStatus_EGRESS_MANAGER_STATUS_OK {
-				return client, nil
-			}
-			_ = client.Close()
-		}
-		time.Sleep(25 * time.Millisecond)
-	}
-	return nil, fmt.Errorf("egressd did not become healthy at %s", socket)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return waitEgressClientContext(ctx, socket)
 }
 
 func egressdRSSBytes() (uint64, error) {

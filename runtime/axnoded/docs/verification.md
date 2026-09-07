@@ -15,6 +15,31 @@ periodic provider or per-allocation audit.
 
 ## Quick Check
 
+### Recovery measurement diagnosis
+
+The network-policy qualification driver measures client-observed restart
+convergence: process start through healthy RPC and a readable recovered policy
+proof. This is not the daemon's internal recovery duration. Health probes use
+a 1 ms retry interval and share the recovery deadline with the final proof RPC;
+the scheduler and RPC transport can still add observation delay. The previous
+25 ms polling method must not be mixed with this method in a performance baseline.
+
+Each scenario writes ordered samples and method metadata beside its report as
+`<report>.recovery-observations`, including partial samples on recovery failure.
+Twenty samples make nearest-rank P99 equal to the sample maximum; do not treat
+that estimate as a stable tail-latency SLA. Existing release budgets are not
+relaxed by this diagnostic change.
+
+Use `go test ./cmd/verify-network-policy-qualification -run Recovery` for the
+host-safe waiter and evidence tests. The opt-in
+`TestRecoveryMeasurementLinuxTruth` runs only 20 restart/recovery observations
+when `AXERN_RECOVERY_MEASUREMENT_TRUTH=1` in a privileged Linux verification
+container with egressd installed. It does not certify the full matrix. Reuse
+the existing verification image and compile the changed test binary for its
+architecture to diagnose the measuring tool before rebuilding a release candidate.
+
+### Runtime integration
+
 ```bash
 make verify-docker-runsc-ebpf
 ```
