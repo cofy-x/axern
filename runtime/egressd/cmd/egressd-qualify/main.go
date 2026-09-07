@@ -136,6 +136,7 @@ func runAssemble(args []string, stdout io.Writer) error {
 	runcBinary := flags.String("runc-binary", "", "runc binary used by the matrix")
 	runscBinary := flags.String("runsc-binary", "", "runsc binary used by the matrix")
 	samples := flags.Int("samples", 0, "samples per latency distribution")
+	recoverySamples := flags.Int("recovery-samples", 0, "independent recovery observation count")
 	concurrency := flags.Int("concurrency", 0, "target concurrent sessions")
 	payloadBytes := flags.Int("payload-bytes", 0, "relay payload size")
 	sustainedSeconds := flags.Int("sustained-seconds", 0, "sustained reliability interval")
@@ -165,6 +166,7 @@ func runAssemble(args []string, stdout io.Writer) error {
 		Subject:       qualification.SubjectProvenance{Commit: *commit, Dirty: *dirty, Build: *buildDigest},
 		Parameters: qualification.Parameters{
 			Samples: *samples, Concurrency: *concurrency, PayloadBytes: *payloadBytes,
+			RecoverySamples: *recoverySamples, RecoveryMethod: qualification.RecoveryMeasurementMethod,
 			SustainedSeconds: *sustainedSeconds, RuleScaleCounts: ruleScaleCounts,
 		},
 		Scenarios: scenarios,

@@ -26,13 +26,16 @@ the scheduler and RPC transport can still add observation delay. The previous
 
 Each scenario writes ordered samples and method metadata beside its report as
 `<report>.recovery-observations`, including partial samples on recovery failure.
-Twenty samples make nearest-rank P99 equal to the sample maximum; do not treat
-that estimate as a stable tail-latency SLA. Existing release budgets are not
-relaxed by this diagnostic change.
+Twenty samples make nearest-rank P99 equal to the sample maximum. Recovery
+sampling is independent (`--recovery-samples`, default 200) of workload sampling
+(`--samples`). Performance reports record both counts and the measurement
+method; mismatches and old report schemas are rejected. Minimal correctness
+smoke explicitly retains one recovery observation, not a tail-latency claim.
+Existing release budget thresholds are unchanged.
 
 Use `go test ./cmd/verify-network-policy-qualification -run Recovery` for the
 host-safe waiter and evidence tests. The opt-in
-`TestRecoveryMeasurementLinuxTruth` runs only 20 restart/recovery observations
+`TestRecoveryMeasurementLinuxTruth` runs only 200 restart/recovery observations
 when `AXERN_RECOVERY_MEASUREMENT_TRUTH=1` in a privileged Linux verification
 container with egressd installed. It does not certify the full matrix. Reuse
 the existing verification image and compile the changed test binary for its

@@ -17,6 +17,7 @@ HOST_IDENTITY_DIGEST="${NETWORK_POLICY_QUALIFICATION_HOST_IDENTITY_DIGEST:?NETWO
 RUNC_BINARY="${NETWORK_POLICY_QUALIFICATION_RUNC_BINARY:-/usr/bin/runc}"
 RUNSC_BINARY="${NETWORK_POLICY_QUALIFICATION_RUNSC_BINARY:-/usr/local/bin/runsc}"
 SAMPLES="${NETWORK_POLICY_QUALIFICATION_SAMPLES:-20}"
+RECOVERY_SAMPLES="${NETWORK_POLICY_QUALIFICATION_RECOVERY_SAMPLES:-200}"
 CONCURRENCY="${NETWORK_POLICY_QUALIFICATION_CONCURRENCY:-16}"
 PAYLOAD_BYTES="${NETWORK_POLICY_QUALIFICATION_PAYLOAD_BYTES:-1048576}"
 SUSTAINED_SECONDS="${NETWORK_POLICY_QUALIFICATION_SUSTAINED_SECONDS:-60}"
@@ -62,6 +63,7 @@ for runtime_name in "${runtimes[@]}"; do
           --ip-family "${family}" \
           --policy-mode "${mode}" \
           --samples "${SAMPLES}" \
+          --recovery-samples "${RECOVERY_SAMPLES}" \
           --concurrency "${CONCURRENCY}" \
           --payload-bytes "${PAYLOAD_BYTES}" \
           --sustained-seconds "${SUSTAINED_SECONDS}" \
@@ -84,6 +86,7 @@ done
   -runc-binary "${RUNC_BINARY}" \
   -runsc-binary "${RUNSC_BINARY}" \
   -samples "${SAMPLES}" \
+  -recovery-samples "${RECOVERY_SAMPLES}" \
   -concurrency "${CONCURRENCY}" \
   -payload-bytes "${PAYLOAD_BYTES}" \
   -sustained-seconds "${SUSTAINED_SECONDS}" \

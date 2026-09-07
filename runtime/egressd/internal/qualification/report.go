@@ -15,7 +15,10 @@ import (
 	"time"
 )
 
-const SchemaVersion = 2
+const SchemaVersion = 3
+
+const RecoveryMeasurementMethod = "client-health-and-recovered-proof-v2"
+const MinRecoverySamples = 200
 
 const maxSubjectCommitFileBytes = 1024
 
@@ -47,6 +50,8 @@ type SubjectProvenance struct {
 
 type Parameters struct {
 	Samples          int      `json:"samples"`
+	RecoverySamples  int      `json:"recoverySamples"`
+	RecoveryMethod   string   `json:"recoveryMethod"`
 	Concurrency      int      `json:"concurrency"`
 	PayloadBytes     int      `json:"payloadBytes"`
 	SustainedSeconds int      `json:"sustainedSeconds"`
@@ -199,6 +204,9 @@ func (report Report) Validate(fullMatrix bool) error {
 	if err := report.Environment.Validate(); err != nil {
 		return err
 	}
+	if report.Parameters.RecoverySamples <= 0 || report.Parameters.RecoveryMethod != RecoveryMeasurementMethod {
+		return errors.New("positive recoverySamples and the current recoveryMethod are required")
+	}
 	if report.Parameters.Samples <= 0 || report.Parameters.Concurrency <= 0 || report.Parameters.PayloadBytes <= 0 || report.Parameters.SustainedSeconds <= 0 {
 		return errors.New("positive samples, concurrency, payloadBytes, and sustainedSeconds are required")
 	}
@@ -228,8 +236,12 @@ func (report Report) Validate(fullMatrix bool) error {
 			"dns": scenario.Metrics.DNSLatencyMS, "first-connection": scenario.Metrics.FirstConnectionLatencyMS,
 			"restart-convergence": scenario.Metrics.RestartConvergenceLatencyMS,
 		} {
-			if distribution != nil && distribution.Samples != report.Parameters.Samples {
-				return fmt.Errorf("scenario %d %s samples = %d, want %d", index, name, distribution.Samples, report.Parameters.Samples)
+			wantedSamples := report.Parameters.Samples
+			if name == "restart-convergence" {
+				wantedSamples = report.Parameters.RecoverySamples
+			}
+			if distribution != nil && distribution.Samples != wantedSamples {
+				return fmt.Errorf("scenario %d %s samples = %d, want %d", index, name, distribution.Samples, wantedSamples)
 			}
 		}
 		if len(scenario.Metrics.RuleScale) != len(wantedRuleCounts) {

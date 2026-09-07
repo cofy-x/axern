@@ -10,7 +10,7 @@ import (
 func TestConfigValidationRequiresMatchingHermeticFixtureFamily(t *testing.T) {
 	cfg := config{
 		runtimeName: "runc", networkBackend: "bridge", ipFamily: "ipv4", policyMode: "strict_domain",
-		samples: 2, concurrency: 2, payloadBytes: 1024, sustainedSeconds: 1, ruleScaleCounts: []uint32{1}, output: "/tmp/result.json",
+		samples: 2, recoverySamples: 200, concurrency: 2, payloadBytes: 1024, sustainedSeconds: 1, ruleScaleCounts: []uint32{1}, output: "/tmp/result.json",
 		fixtureAddress: "192.0.2.10", dnsServer: "192.0.2.53", operationTimeout: time.Second, startupTimeout: time.Second,
 	}
 	if err := cfg.validate(); err != nil {

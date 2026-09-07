@@ -11,6 +11,7 @@ network_backend=""
 ip_family=""
 policy_mode=""
 samples=""
+recovery_samples=1
 concurrency=""
 payload_bytes=""
 sustained_seconds=""
@@ -24,6 +25,7 @@ while [ "$#" -gt 0 ]; do
     --ip-family) ip_family="${2:?}"; shift 2 ;;
     --policy-mode) policy_mode="${2:?}"; shift 2 ;;
     --samples) samples="${2:?}"; shift 2 ;;
+    --recovery-samples) recovery_samples="${2:?}"; shift 2 ;;
     --concurrency) concurrency="${2:?}"; shift 2 ;;
     --payload-bytes) payload_bytes="${2:?}"; shift 2 ;;
     --sustained-seconds) sustained_seconds="${2:?}"; shift 2 ;;
@@ -315,6 +317,7 @@ if ! verify-network-policy-qualification \
   --ip-family "${ip_family}" \
   --policy-mode "${policy_mode}" \
   --samples "${samples}" \
+  --recovery-samples "${recovery_samples}" \
   --concurrency "${concurrency}" \
   --payload-bytes "${payload_bytes}" \
   --sustained-seconds "${sustained_seconds}" \

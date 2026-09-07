@@ -26,6 +26,63 @@ func TestReportValidatesCompleteMatrixAndCanonicalEnvironment(t *testing.T) {
 	}
 }
 
+func TestIndependentRecoverySampleContract(t *testing.T) {
+	report := testReport(t)
+	report.Parameters.RecoverySamples = 200
+	for i := range report.Scenarios {
+		report.Scenarios[i].Metrics.RestartConvergenceLatencyMS.Samples = 200
+	}
+	if err := report.Validate(true); err != nil {
+		t.Fatal(err)
+	}
+	if report.Scenarios[0].Metrics.SandboxStartLatencyMS.Samples != 20 {
+		t.Fatal("workload sample count changed")
+	}
+	report.Scenarios[0].Metrics.RestartConvergenceLatencyMS.Samples = 20
+	if err := report.Validate(true); err == nil {
+		t.Fatal("under-sampled recovery accepted")
+	}
+}
+
+func TestRecoveryProvenanceRejectsOldMethodAndSchema(t *testing.T) {
+	for _, mutate := range []func(*Report){
+		func(r *Report) { r.SchemaVersion = 2 },
+		func(r *Report) { r.Parameters.RecoveryMethod = "old-25ms" },
+		func(r *Report) { r.Parameters.RecoverySamples = 0 },
+	} {
+		report := testReport(t)
+		mutate(&report)
+		if err := report.Validate(true); err == nil {
+			t.Fatal("incompatible recovery contract accepted")
+		}
+	}
+}
+
+func TestComparisonRejectsDifferentRecoverySampling(t *testing.T) {
+	baseline, candidate := testReport(t), testReport(t)
+	candidate.Parameters.RecoverySamples = 400
+	for i := range candidate.Scenarios {
+		candidate.Scenarios[i].Metrics.RestartConvergenceLatencyMS.Samples = 400
+	}
+	if _, err := Compare(baseline, candidate, testBudget()); err == nil {
+		t.Fatal("mismatched recovery sample counts compared")
+	}
+}
+
+func TestComparisonRejectsDiagnosticOnlyRecoverySamples(t *testing.T) {
+	report := testReport(t)
+	report.Parameters.RecoverySamples = 20
+	for i := range report.Scenarios {
+		report.Scenarios[i].Metrics.RestartConvergenceLatencyMS.Samples = 20
+	}
+	if err := report.Validate(true); err != nil {
+		t.Fatal(err)
+	}
+	if comparison, err := Compare(report, report, testBudget()); err == nil || comparison.Passed {
+		t.Fatal("diagnostic sample count generated a performance pass")
+	}
+}
+
 func TestDecodeReportRejectsPrivacySensitiveAndUnknownFields(t *testing.T) {
 	report := testReport(t)
 	var output bytes.Buffer
@@ -124,7 +181,7 @@ func testReport(t *testing.T) Report {
 	report := Report{
 		SchemaVersion: SchemaVersion, GeneratedAt: time.Unix(1_800_000_000, 0).UTC(), Environment: environment,
 		Subject:    SubjectProvenance{Commit: testCommit, Build: testDigest},
-		Parameters: Parameters{Samples: 20, Concurrency: 16, PayloadBytes: 1 << 20, SustainedSeconds: 60, RuleScaleCounts: []uint32{1, 64, 256}},
+		Parameters: Parameters{Samples: 20, RecoverySamples: 200, RecoveryMethod: RecoveryMeasurementMethod, Concurrency: 16, PayloadBytes: 1 << 20, SustainedSeconds: 60, RuleScaleCounts: []uint32{1, 64, 256}},
 	}
 	for _, runtimeName := range Runtimes {
 		for _, backend := range NetworkBackends {
@@ -144,11 +201,13 @@ func testScenario(runtimeName, backend, family, mode string) ScenarioResult {
 	}
 	httpThroughput := 1000.0
 	tlsThroughput := 900.0
+	recovery := distribution(5)
+	recovery.Samples = 200
 	return ScenarioResult{
 		Runtime: runtimeName, NetworkBackend: backend, IPFamily: family, PolicyMode: mode,
 		Metrics: ScenarioMetrics{
 			PrepareLatencyMS: distribution(1), SandboxStartLatencyMS: distribution(2), DNSLatencyMS: distribution(3),
-			FirstConnectionLatencyMS: distribution(4), RestartConvergenceLatencyMS: distribution(5),
+			FirstConnectionLatencyMS: distribution(4), RestartConvergenceLatencyMS: recovery,
 			HTTPThroughputMbps: &httpThroughput, TLSThroughputMbps: &tlsThroughput,
 			MaxRSSBytes: 64 << 20, PeakConcurrentSessions: 256, Operations: 10_000,
 			RuleScale: []RuleScalePoint{{Rules: 1, PrepareP95MS: 1, ReconcileP95MS: 2, RSSBytes: 64 << 20}, {Rules: 64, PrepareP95MS: 4, ReconcileP95MS: 5, RSSBytes: 65 << 20}, {Rules: 256, PrepareP95MS: 8, ReconcileP95MS: 9, RSSBytes: 66 << 20}},

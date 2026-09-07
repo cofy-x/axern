@@ -16,7 +16,7 @@ func TestRecoveryMeasurementLinuxTruth(t *testing.T) {
 		t.Skip("requires privileged Linux and egressd binary")
 	}
 	cfg := config{
-		samples: 20, operationTimeout: 10 * time.Second, ipFamily: "ipv4",
+		samples: 20, recoverySamples: 200, operationTimeout: 10 * time.Second, ipFamily: "ipv4",
 		recoveryNamespace: "axern-recovery-measurement", egressdBinary: "/usr/local/bin/egressd",
 		output: filepath.Join(t.TempDir(), "recovery"),
 	}
@@ -24,7 +24,7 @@ func TestRecoveryMeasurementLinuxTruth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(values) != cfg.samples {
+	if len(values) != cfg.recoverySamples {
 		t.Fatalf("samples=%d", len(values))
 	}
 	t.Logf("observed recovery milliseconds: %v", values)

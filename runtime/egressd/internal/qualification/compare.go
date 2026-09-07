@@ -86,6 +86,9 @@ func Compare(baseline, candidate Report, budget Budget) (Comparison, error) {
 	if err := candidate.Validate(true); err != nil {
 		return comparison, fmt.Errorf("candidate: %w", err)
 	}
+	if baseline.Parameters.RecoverySamples < MinRecoverySamples || candidate.Parameters.RecoverySamples < MinRecoverySamples {
+		return comparison, fmt.Errorf("performance comparison requires at least %d recovery samples", MinRecoverySamples)
+	}
 	if err := budget.Validate(); err != nil {
 		return comparison, err
 	}

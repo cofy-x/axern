@@ -36,6 +36,7 @@ type config struct {
 	ipFamily          string
 	policyMode        string
 	samples           int
+	recoverySamples   int
 	concurrency       int
 	payloadBytes      int
 	sustainedSeconds  int
@@ -143,6 +144,7 @@ func parseFlags(args []string) (config, error) {
 	flags.StringVar(&cfg.ipFamily, "ip-family", "", "ipv4 or ipv6")
 	flags.StringVar(&cfg.policyMode, "policy-mode", "", "unrestricted, dns_deny, strict_domain, or strict_cidr")
 	flags.IntVar(&cfg.samples, "samples", 0, "latency samples")
+	flags.IntVar(&cfg.recoverySamples, "recovery-samples", 200, "independent recovery observations")
 	flags.IntVar(&cfg.concurrency, "concurrency", 0, "concurrent sessions")
 	flags.IntVar(&cfg.payloadBytes, "payload-bytes", 0, "relay payload bytes")
 	flags.IntVar(&cfg.sustainedSeconds, "sustained-seconds", 0, "total sustained reliability interval")
@@ -198,7 +200,7 @@ func (cfg *config) validate() error {
 	if (fixtureIP.To4() != nil) != wantIPv4 || (dnsIP.To4() != nil) != wantIPv4 {
 		return errors.New("fixture addresses do not match ip-family")
 	}
-	if cfg.samples <= 0 || cfg.concurrency <= 0 || cfg.payloadBytes <= 0 || cfg.sustainedSeconds <= 0 || len(cfg.ruleScaleCounts) == 0 {
+	if cfg.samples <= 0 || cfg.recoverySamples <= 0 || cfg.concurrency <= 0 || cfg.payloadBytes <= 0 || cfg.sustainedSeconds <= 0 || len(cfg.ruleScaleCounts) == 0 {
 		return errors.New("samples, concurrency, payload, sustained interval, and rule scale counts must be positive")
 	}
 	if cfg.output == "" || cfg.operationTimeout <= 0 || cfg.startupTimeout <= 0 {
@@ -507,14 +509,14 @@ func scalePolicy(count uint32, family string) *commonv1.NetworkEgressPolicy {
 }
 
 func measureRestartConvergence(cfg config) ([]float64, error) {
-	values := make([]float64, 0, cfg.samples)
-	for sample := 0; sample < cfg.samples; sample++ {
+	values := make([]float64, 0, cfg.recoverySamples)
+	for sample := 0; sample < cfg.recoverySamples; sample++ {
 		value, err := oneRestartConvergence(cfg, sample)
 		if err != nil {
 			return nil, errors.Join(err, writeRecoveryObservations(cfg.output+".recovery-observations", values, false))
 		}
 		values = append(values, value)
-		if err := writeRecoveryObservations(cfg.output+".recovery-observations", values, sample+1 == cfg.samples); err != nil {
+		if err := writeRecoveryObservations(cfg.output+".recovery-observations", values, sample+1 == cfg.recoverySamples); err != nil {
 			return nil, fmt.Errorf("write recovery observations: %w", err)
 		}
 	}

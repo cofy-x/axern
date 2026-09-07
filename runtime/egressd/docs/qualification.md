@@ -39,6 +39,22 @@ latency instead of a pre-subtracted value that would hide baseline variance.
 
 ## Comparable environments
 
+Schema v3 separates `parameters.samples` (workload and policy-operation
+sampling) from `parameters.recoverySamples` (daemon recovery observations) and
+records `parameters.recoveryMethod`. Restart distributions must match the
+recovery count; other distributions must match the workload count. Comparisons
+require both counts and the method to match exactly. Schema v2 reports must be
+regenerated, not relabeled or padded. Budget schema advances to v3 without
+changing any numerical threshold.
+
+The full performance runner defaults to 20 workload samples and 200 recovery
+observations per cell. Minimal correctness smoke retains one recovery sample;
+it does not provide performance qualification. The deployment workspace enforces
+the performance minimum and validates ordered recovery-observation sidecars.
+The comparison command also rejects recovery counts below 200, even for two
+otherwise identical reports; diagnostic success is not a performance pass.
+This increases cheap restart sampling without multiplying real sandbox samples.
+
 The report fingerprints a one-way digest of the Linux host machine identity,
 architecture, kernel, CPU model and count, memory, the sorted system-package
 manifest, and exact runc/runsc binaries. The raw machine identity is never
@@ -80,6 +96,7 @@ The inner matrix invokes the scenario driver with this stable contract:
 --ip-family <ipv4|ipv6>
 --policy-mode <unrestricted|dns_deny|strict_domain|strict_cidr>
 --samples <count>
+--recovery-samples <count>
 --concurrency <count>
 --payload-bytes <bytes>
 --sustained-seconds <seconds>
@@ -115,7 +132,7 @@ Comparison output distinguishes `repeatability` (same source commit) from
 `regression` (different source commits). A same-commit rerun does not prove
 absence of a regression against a previously released version.
 
-Optional `NETWORK_POLICY_QUALIFICATION_SAMPLES`, `_CONCURRENCY`,
+Optional `NETWORK_POLICY_QUALIFICATION_SAMPLES`, `_RECOVERY_SAMPLES`, `_CONCURRENCY`,
 `_PAYLOAD_BYTES`, `_SUSTAINED_SECONDS`, `_RULE_SCALE_COUNTS`, and `_OUTPUT_DIR`
 values tune the run. `NETWORK_POLICY_QUALIFICATION_BASELINE` points to a prior
 report. When present, the workflow applies `qualification/budget.json` and
