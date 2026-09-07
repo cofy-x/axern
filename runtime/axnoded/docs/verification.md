@@ -43,6 +43,14 @@ architecture to diagnose the measuring tool before rebuilding a release candidat
 
 ### Runtime integration
 
+`TestPrepareMeasurementLinuxTruth` is a separate opt-in diagnostic with
+`AXERN_PREPARE_MEASUREMENT_TRUTH=1`. It runs 200 one-rule CIDR
+Prepare/Reconcile/Delete cycles against an isolated real egressd, preserving
+ordered prepare/reconcile observations in test output. It has no timing
+assertions and does not reproduce sandbox workload contention or the full
+matrix's RSS observation overhead. Use it to investigate rule-scale timing
+before changing any qualification budget or sampling parameter.
+
 ```bash
 make verify-docker-runsc-ebpf
 ```
