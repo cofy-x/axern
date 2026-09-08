@@ -335,7 +335,7 @@ local_smoke_service_volume_failure_smoke() {
       blocked_claim_id=""
     fi
     if [ "${node_runtime_paused:-false}" = "true" ]; then
-      docker unpause "${COMPOSE_PROJECT_NAME}-node-1" >/dev/null 2>&1 || true
+      local_smoke_resume_service_volume_nodes "${env_name}" >/dev/null 2>&1 || true
       node_runtime_paused="false"
     fi
     if [ -n "${service_id:-}" ]; then
@@ -353,10 +353,8 @@ local_smoke_service_volume_failure_smoke() {
   env_json="$(local_smoke_create_environment "${namespace}")"
   local environment_id
   environment_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["environment"]["id"])' <<<"${env_json}")"
-  if [ "${env_name}" = "compose" ]; then
-    docker pause "${COMPOSE_PROJECT_NAME}-node-1" >/dev/null
-    node_runtime_paused="true"
-  fi
+  local_smoke_pause_service_volume_nodes "${env_name}"
+  node_runtime_paused="true"
 
   service_json="$(local_smoke_json_once_or_recover_by_namespace service services service "${namespace}" \
     "${AXERN_SMOKE_CMD[@]}" service create -o json --namespace "${namespace}" \
@@ -387,7 +385,7 @@ SQL
   local_smoke_block_service_volume_claim "${env_name}" "${claim_id}"
   blocked_claim_id="${claim_id}"
   if [ "${node_runtime_paused}" = "true" ]; then
-    docker unpause "${COMPOSE_PROJECT_NAME}-node-1" >/dev/null
+    local_smoke_resume_service_volume_nodes "${env_name}"
     node_runtime_paused="false"
   fi
 
@@ -421,6 +419,54 @@ SQL
   local_smoke_unblock_service_volume_claim "${env_name}" "${claim_id}"
   blocked_claim_id=""
   local_smoke_assert_service_volume_storage_state "${env_name}" "${namespace}" "VOLUME_STATUS_BOUND" "VOLUME_STATUS_DELETED"
+}
+
+local_smoke_pause_service_volume_nodes() {
+  local env_name="$1"
+  case "${env_name}" in
+    compose)
+      docker pause "${COMPOSE_PROJECT_NAME}-node-1" >/dev/null
+      ;;
+    k8s|kind)
+      local pods pod
+      pods="$(kubectl -n "${K8S_NAMESPACE}" get pods -l app=node-all-in-one -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')"
+      [ -n "${pods}" ] || {
+        echo "missing node-all-in-one pods for service volume failure injection" >&2
+        return 1
+      }
+      while IFS= read -r pod; do
+        [ -n "${pod}" ] || continue
+        if ! kubectl -n "${K8S_NAMESPACE}" exec "${pod}" -- sh -lc 'pids="$(pgrep -x axnoded)"; test -n "${pids}"; kill -STOP ${pids}'; then
+          local_smoke_resume_service_volume_nodes "${env_name}" >/dev/null 2>&1 || true
+          return 1
+        fi
+      done <<<"${pods}"
+      ;;
+    *)
+      echo "service volume failure smoke does not know how to pause nodes for ${env_name}" >&2
+      return 1
+      ;;
+  esac
+}
+
+local_smoke_resume_service_volume_nodes() {
+  local env_name="$1"
+  case "${env_name}" in
+    compose)
+      docker unpause "${COMPOSE_PROJECT_NAME}-node-1" >/dev/null
+      ;;
+    k8s|kind)
+      local pods pod
+      pods="$(kubectl -n "${K8S_NAMESPACE}" get pods -l app=node-all-in-one -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)"
+      while IFS= read -r pod; do
+        [ -n "${pod}" ] || continue
+        kubectl -n "${K8S_NAMESPACE}" exec "${pod}" -- sh -lc 'pids="$(pgrep -x axnoded || true)"; [ -z "${pids}" ] || kill -CONT ${pids}' >/dev/null 2>&1 || true
+      done <<<"${pods}"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 local_smoke_assert_service_volume_failure_surface() {
