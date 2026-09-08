@@ -33,6 +33,15 @@ method; mismatches and old report schemas are rejected. Minimal correctness
 smoke explicitly retains one recovery observation, not a tail-latency claim.
 Existing release budget thresholds are unchanged.
 
+The adjacent `<report>.workload-observations` sidecar preserves ordered DNS,
+policy preparation, and rule-scale preparation/reconciliation timings. It adds
+no queries and does not change the probe's measurement boundary: `dns_deny`
+includes both allowed and refused query checks, whereas unrestricted and domain
+strict modes measure their allowed query. Compare like modes only. The sidecar
+contains numeric measurements, rule counts, and method/completion metadata, not
+destinations or allocation identities. An incomplete sidecar is diagnostic only;
+neither sidecar replaces the aggregate qualification gates.
+
 Use `go test ./cmd/verify-network-policy-qualification -run Recovery` for the
 host-safe waiter and evidence tests. The opt-in
 `TestRecoveryMeasurementLinuxTruth` runs only 200 restart/recovery observations

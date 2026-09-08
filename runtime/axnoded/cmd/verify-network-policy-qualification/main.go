@@ -212,7 +212,12 @@ func (cfg *config) validate() error {
 	return nil
 }
 
-func qualify(cfg config) (scenarioResult, error) {
+func qualify(cfg config) (result scenarioResult, resultErr error) {
+	observations := workloadObservations{Method: "sandbox-probe-and-policy-rpc-v1"}
+	defer func() {
+		observations.Complete = resultErr == nil
+		resultErr = errors.Join(resultErr, writeWorkloadObservations(cfg.output+".workload-observations", observations))
+	}()
 	clients, err := verifyutil.DialNodeClients(cfg.axnodedSocket)
 	if err != nil {
 		return scenarioResult{}, err
@@ -226,6 +231,7 @@ func qualify(cfg config) (scenarioResult, error) {
 
 	policy := policyFor(cfg.policyMode, cfg.fixtureAddress)
 	prepareValues, err := measurePrepare(cfg, egressClient, policy)
+	observations.Prepare = prepareValues
 	if err != nil {
 		return scenarioResult{}, err
 	}
@@ -254,6 +260,7 @@ func qualify(cfg config) (scenarioResult, error) {
 		firstValues = append(firstValues, probe.FirstConnectionMilliseconds)
 		if probe.DNSMilliseconds != nil {
 			dnsValues = append(dnsValues, *probe.DNSMilliseconds)
+			observations.DNS = dnsValues
 		}
 		if probe.HTTPThroughputMbps != nil {
 			httpValues = append(httpValues, *probe.HTTPThroughputMbps)
@@ -271,7 +278,7 @@ func qualify(cfg config) (scenarioResult, error) {
 	if err != nil {
 		return scenarioResult{}, err
 	}
-	scale, maxRSS, err := measureRuleScale(cfg, egressClient)
+	scale, maxRSS, err := measureRuleScale(cfg, egressClient, &observations)
 	if err != nil {
 		return scenarioResult{}, err
 	}
@@ -450,12 +457,14 @@ func measurePrepare(cfg config, client *egress.Client, policy *commonv1.NetworkE
 	return values, nil
 }
 
-func measureRuleScale(cfg config, client *egress.Client) ([]ruleScalePoint, uint64, error) {
+func measureRuleScale(cfg config, client *egress.Client, observations *workloadObservations) ([]ruleScalePoint, uint64, error) {
 	points := make([]ruleScalePoint, 0, len(cfg.ruleScaleCounts))
 	maxRSS, _ := egressdRSSBytes()
 	for _, count := range cfg.ruleScaleCounts {
 		prepareValues := make([]float64, 0, cfg.samples)
 		reconcileValues := make([]float64, 0, cfg.samples)
+		observations.RuleScale = append(observations.RuleScale, ruleObservations{Rules: count})
+		raw := &observations.RuleScale[len(observations.RuleScale)-1]
 		for sample := 0; sample < cfg.samples; sample++ {
 			allocationID := fmt.Sprintf("qualification-scale-%d-%d-%d", os.Getpid(), count, sample)
 			policy := scalePolicy(count, cfg.ipFamily)
@@ -463,6 +472,7 @@ func measureRuleScale(cfg config, client *egress.Client) ([]ruleScalePoint, uint
 			started := time.Now()
 			prepared, err := client.Prepare(ctx, allocationID, 1, qualificationSourceIP(cfg.ipFamily), policy, 1, nil)
 			prepareValues = append(prepareValues, milliseconds(time.Since(started)))
+			raw.Prepare = prepareValues
 			cancel()
 			if err != nil {
 				return nil, 0, fmt.Errorf("prepare %d-rule policy: %w", count, err)
@@ -472,6 +482,7 @@ func measureRuleScale(cfg config, client *egress.Client) ([]ruleScalePoint, uint
 			started = time.Now()
 			_, err = client.Reconcile(reconcileCtx, active)
 			reconcileValues = append(reconcileValues, milliseconds(time.Since(started)))
+			raw.Reconcile = reconcileValues
 			cancelReconcile()
 			if err != nil {
 				return nil, 0, fmt.Errorf("reconcile %d-rule policy: %w", count, err)
