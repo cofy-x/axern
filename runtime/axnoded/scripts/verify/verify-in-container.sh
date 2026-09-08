@@ -17,7 +17,7 @@ VERIFY_ROOTFS_IMAGE="${VERIFY_ROOTFS_IMAGE:-/var/lib/axnoded/verify-rootfs.ext4}
 VERIFY_NGINX_ROOTFS_IMAGE="${VERIFY_NGINX_ROOTFS_IMAGE:-/var/lib/axnoded/verify-nginx-rootfs.ext4}"
 AXNODED_VERIFY_CGROUP_ENFORCEMENT="${AXNODED_VERIFY_CGROUP_ENFORCEMENT:-disabled_dev}"
 case "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" in
-  required) AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES:-536870912}" ;;
+  required) AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES:-1073741824}" ;;
   disabled_dev) AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES=0 ;;
   *) echo "unsupported AXNODED_VERIFY_CGROUP_ENFORCEMENT=${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" >&2; exit 1 ;;
 esac
@@ -173,7 +173,7 @@ if [ "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" = "required" ]; then
     exit 1
   fi
   conformance_dir="/sys/fs/cgroup/$(dirname "${axnoded_group#/}")/conformance"
-  [ "$(cat "${conformance_dir}/memory.max")" = "268435456" ]
+  [ "$(cat "${conformance_dir}/memory.max")" = "536870912" ]
   [ "$(cat "${conformance_dir}/memory.swap.max")" = "0" ]
   [ "$(cat "${conformance_dir}/memory.oom.group")" = "1" ]
 
@@ -187,7 +187,7 @@ if [ "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" = "required" ]; then
           | select(.key.platform == $name and .state == "CAPABILITY_STATE_AVAILABLE")]
         | length == 1;
       .node.memory_budget.mode == "cgroup_v2" and
-      .node.memory_budget.conformance_limit_bytes == 268435456 and
+      .node.memory_budget.conformance_limit_bytes == 536870912 and
       .node.memory_budget.local_commitment_bytes == 0 and
       .node.memory_budget.conformance_commitment_bytes == 0 and
       .node.memory_budget.conformance_cleanup_debt_bytes == 0 and

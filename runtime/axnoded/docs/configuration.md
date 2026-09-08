@@ -82,12 +82,16 @@ re-timestamped as current capacity.
 
 | Key | Meaning | Notes |
 | --- | --- | --- |
-| `ip_range` | CIDR used for `sandbox0`, sandbox IPs, and host veth allocation. | Must not collide with host, pod, service, or VPC ranges. |
+| `ip_range` | IPv4 or IPv6 CIDR used for `sandbox0`, sandbox IPs, and host veth allocation. | Must provide at least `max_instance_num` addresses and must not collide with host, pod, service, or VPC ranges. |
 | `nat_backend` | NAT implementation. | Valid values are `iptables` and `ebpf`. |
 
 `iptables` is the legacy full bridge SNAT/DNAT path. `ebpf` keeps the same
 bridge/veth/netns shape, but uses `bpfnet` for supported tc/cgroup dataplane
 paths and delegates unsupported compatibility work to the iptables backend.
+Because bpfnet's native programs are IPv4-only, an IPv6 `ip_range` with
+`nat_backend = "ebpf"` uses the explicit ip6tables compatibility path and the
+node publishes the effective bridge capability. Qualification reports must not
+describe that path as native bpfnet.
 
 `[plugin.network.ebpf]` is only active when `nat_backend = "ebpf"`.
 

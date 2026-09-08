@@ -168,7 +168,7 @@ func networkCapabilityProvider(cfg config.Config, digest string, managers ...egr
 			evidence := capabilitycontract.ConfigEvidence(digest)
 			activeIndex := 1
 			inactiveIndex := 2
-			if cfg.PluginConfig.NetworkConfig.NatBackend == config.NatBackendEBPF {
+			if cfg.PluginConfig.NetworkConfig.CapabilityBackend() == config.NatBackendEBPF {
 				activeIndex, inactiveIndex = 2, 1
 			}
 			observations := make([]*capabilityv1.CapabilityObservation, len(keys))

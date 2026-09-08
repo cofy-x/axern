@@ -20,7 +20,8 @@ state and enforcement lifecycle.
 - DNS upstreams must come from the prepared axnoded proof. Never consult the
   host resolver or add a public fallback in egressd.
 - Domain traffic requires both an unexpired DNS-derived IP authorization and a
-  matching bounded HTTP Host or TLS SNI inspection before relay.
+  matching bounded HTTP Host or TLS SNI inspection before relay. HTTP must
+  authorize every framed request, never just the first request on a connection.
 
 ## Verification
 

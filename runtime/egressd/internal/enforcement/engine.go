@@ -36,6 +36,9 @@ type Engine struct {
 	servers  []io.Closer
 	metrics  *obs.Metrics
 	now      func() time.Time
+
+	dnsResolveFailureOnce  sync.Once
+	dnsResponseFailureOnce sync.Once
 }
 
 func NewEngine() *Engine {
@@ -160,22 +163,22 @@ func (e *Engine) authorized(source, domain string, addr netip.Addr) bool {
 }
 
 func (e *Engine) Start(ctx context.Context) error {
-	udp, err := listenTransparentUDP(dnsProxyPort)
+	udp, err := listenDNSUDP(dnsProxyPort)
 	if err != nil {
 		return fmt.Errorf("listen DNS UDP: %w", err)
 	}
-	dnsTCP, err := listenTransparentTCP(dnsProxyPort)
+	dnsTCP, err := listenTCP(dnsProxyPort)
 	if err != nil {
 		closeAllUDP(udp)
 		return fmt.Errorf("listen DNS TCP: %w", err)
 	}
-	http, err := listenTransparentTCP(httpProxyPort)
+	http, err := listenTCP(httpProxyPort)
 	if err != nil {
 		closeAllUDP(udp)
 		closeAll(dnsTCP)
 		return fmt.Errorf("listen HTTP proxy: %w", err)
 	}
-	https, err := listenTransparentTCP(httpsProxyPort)
+	https, err := listenTCP(httpsProxyPort)
 	if err != nil {
 		closeAllUDP(udp)
 		closeAll(dnsTCP)
@@ -196,6 +199,25 @@ func (e *Engine) Start(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func listenDNSUDP(port int) ([]*net.UDPConn, error) {
+	listeners := make([]*net.UDPConn, 0, 2)
+	for _, endpoint := range []struct {
+		network string
+		address *net.UDPAddr
+	}{
+		{network: "udp4", address: &net.UDPAddr{IP: net.IPv4zero, Port: port}},
+		{network: "udp6", address: &net.UDPAddr{IP: net.IPv6zero, Port: port}},
+	} {
+		listener, err := net.ListenUDP(endpoint.network, endpoint.address)
+		if err != nil {
+			closeAllUDP(listeners)
+			return nil, err
+		}
+		listeners = append(listeners, listener)
+	}
+	return listeners, nil
 }
 
 func closeAll(listeners []net.Listener) {
@@ -248,34 +270,22 @@ func sourceIP(addr net.Addr) string {
 }
 
 func (e *Engine) handleHTTP(conn net.Conn) {
-	started := time.Now()
 	defer conn.Close()
-	_ = conn.SetReadDeadline(time.Now().Add(inspectTimeout))
-	request, err := l7inspect.ReadHTTPRequest(conn, l7inspect.DefaultMaxHTTPHeaderBytes)
-	if err != nil || request.DirectIP {
-		return
-	}
-	record := e.policy(sourceIP(conn.RemoteAddr()))
-	if record == nil || !domainAllowed(record.GetPolicy(), request.Host) {
-		e.record(record, obs.ActionDeny, obs.ProtocolHTTP, obs.ResultRefused, started)
-		return
-	}
 	destination, err := originalDestination(conn)
-	if err != nil || !e.authorized(sourceIP(conn.RemoteAddr()), request.Host, destination.Addr()) {
-		e.record(record, obs.ActionDeny, obs.ProtocolHTTP, obs.ResultRefused, started)
-		return
-	}
-	upstream, err := dialMarked(destination)
 	if err != nil {
 		return
 	}
-	defer upstream.Close()
-	_ = conn.SetReadDeadline(time.Time{})
-	if _, err := upstream.Write(request.Bytes); err != nil {
-		return
-	}
-	e.record(record, obs.ActionAllow, obs.ProtocolHTTP, obs.ResultOK, started)
-	proxyBoth(conn, upstream)
+	source := sourceIP(conn.RemoteAddr())
+	l7inspect.RelayHTTP(conn, inspectTimeout, func(request l7inspect.HTTPRequest) bool {
+		started := time.Now()
+		record := e.policy(source)
+		if record == nil || !domainAllowed(record.GetPolicy(), request.Host) || !e.authorized(source, request.Host, destination.Addr()) {
+			e.record(record, obs.ActionDeny, obs.ProtocolHTTP, obs.ResultRefused, started)
+			return false
+		}
+		e.record(record, obs.ActionAllow, obs.ProtocolHTTP, obs.ResultOK, started)
+		return true
+	}, func(context.Context) (net.Conn, error) { return dialUpstream(destination) })
 }
 
 func (e *Engine) handleTLS(conn net.Conn) {
@@ -311,7 +321,7 @@ func (e *Engine) handleTLS(conn net.Conn) {
 		e.record(record, obs.ActionDeny, obs.ProtocolHTTPS, obs.ResultRefused, started)
 		return
 	}
-	upstream, err := dialMarked(destination)
+	upstream, err := dialUpstream(destination)
 	if err != nil {
 		return
 	}

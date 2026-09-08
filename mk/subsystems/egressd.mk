@@ -6,6 +6,8 @@ EGRESSD_DIR := runtime/egressd
 	egressd-test \
 	egressd-verify \
 	network-policy-fuzz-smoke \
+	network-policy-qualification-contract \
+	network-policy-qualification \
 	egressd-linux-truth \
 	egressd-fmt \
 	egressd-vet \
@@ -27,6 +29,12 @@ network-policy-fuzz-smoke: ## Run bounded fuzz smoke for policy normalization an
 	@$(GO) -C lib/go/networkpolicy test -run='^$$' -fuzz='^FuzzNormalizeDomain$$' -fuzztime=3s -parallel=1 .
 	@$(GO) -C lib/go/networkpolicy test -run='^$$' -fuzz='^FuzzNormalizePolicy$$' -fuzztime=3s -parallel=1 .
 	@$(call run_subsystem_make,$(EGRESSD_DIR),fuzz-smoke)
+
+network-policy-qualification-contract: ## Validate network-policy qualification schemas and relative budgets
+	@$(call run_subsystem_make,$(EGRESSD_DIR),qualification-contract)
+
+network-policy-qualification: ## Run the full Linux network-policy qualification matrix
+	@$(call run_subsystem_make,$(EGRESSD_DIR),qualification)
 
 egressd-fmt: ## Format egressd Go code
 	@$(call run_subsystem_make,$(EGRESSD_DIR),fmt)

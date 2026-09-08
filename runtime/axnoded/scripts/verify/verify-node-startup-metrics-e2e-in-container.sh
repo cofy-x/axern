@@ -75,6 +75,10 @@ for runtime_name in runsc runc; do
   metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
     "axern.phase=resource_allocate" "axern.start_class=warm" "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
   metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
+    "axern.phase=egress_policy_prepare" "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
+  metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
+    "axern.phase=egress_policy_prepare" "axern.start_class=warm" "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
+  metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
     "axern.phase=runtime_bundle_prepare" "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
   metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
     "axern.phase=runtime_launch" "axern.start_class=warm" "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"

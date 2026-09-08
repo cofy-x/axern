@@ -13,6 +13,12 @@ import (
 	privatestoragev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/storage/v1"
 )
 
+func TestStartupObservationDurationSinceClampsNonPositiveDuration(t *testing.T) {
+	if got := startupObservationDurationSince(time.Now().Add(time.Second)); got != time.Nanosecond {
+		t.Fatalf("startupObservationDurationSince() = %v, want %v", got, time.Nanosecond)
+	}
+}
+
 func TestStartManagedContainerReservesMemoryBeforeVolumeImageOrRootfsSideEffects(t *testing.T) {
 	publishCalls := 0
 	handler := &runtimeSpyHandler{

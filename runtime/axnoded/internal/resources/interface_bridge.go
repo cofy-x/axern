@@ -13,6 +13,8 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+const linuxIFAFlagNoDAD = 0x02
+
 func prefixLength(mask net.IPMask) int {
 	ones, _ := mask.Size()
 	return ones
@@ -47,6 +49,14 @@ func ensureIPv4Forwarding(bridge string) error {
 	return nil
 }
 
+func ensureIPv6Forwarding() error {
+	const path = "/proc/sys/net/ipv6/conf/all/forwarding"
+	if err := os.WriteFile(path, []byte("1"), 0644); err != nil {
+		return fmt.Errorf("set %s=1 failed: %w", path, err)
+	}
+	return nil
+}
+
 // initBridge will create bridge and add iptable rule.
 func initBridge(ipRange string, natBackend string) error {
 	if _, err := netlink.LinkByName(bridgeName); err != nil {
@@ -58,20 +68,23 @@ func initBridge(ipRange string, natBackend string) error {
 		if err = netlink.LinkAdd(&netlink.Bridge{LinkAttrs: netlink.LinkAttrs{Name: bridgeName}}); err != nil {
 			return err
 		}
-		addr, err := netlink.ParseAddr(ipRange)
-		if err != nil {
-			return err
-		}
-		if err = netlink.AddrAdd(&netlink.Bridge{LinkAttrs: netlink.LinkAttrs{Name: bridgeName}}, addr); err != nil {
-			return err
-		}
-		if err = netlink.LinkSetUp(&netlink.Bridge{LinkAttrs: netlink.LinkAttrs{Name: bridgeName}}); err != nil {
-			return err
-		}
 	}
 
 	bridgeLink, err := netlink.LinkByName(bridgeName)
 	if err != nil {
+		return err
+	}
+	addr, err := netlink.ParseAddr(ipRange)
+	if err != nil {
+		return err
+	}
+	if addr.IP != nil && addr.IP.To4() == nil {
+		addr.Flags |= linuxIFAFlagNoDAD
+	}
+	if err = netlink.AddrReplace(bridgeLink, addr); err != nil {
+		return err
+	}
+	if err = netlink.LinkSetUp(bridgeLink); err != nil {
 		return err
 	}
 	macAddress, _ := net.ParseMAC(bridgeMac)
@@ -84,7 +97,15 @@ func initBridge(ipRange string, natBackend string) error {
 	} else if err = m.SetupSNATRules(ipRange); err != nil {
 		return err
 	}
-	if err = ensureIPv4Forwarding(bridgeName); err != nil {
+	prefixIP, _, parseErr := net.ParseCIDR(ipRange)
+	if parseErr != nil {
+		return parseErr
+	}
+	if prefixIP.To4() != nil {
+		if err = ensureIPv4Forwarding(bridgeName); err != nil {
+			return err
+		}
+	} else if err = ensureIPv6Forwarding(); err != nil {
 		return err
 	}
 
@@ -92,7 +113,7 @@ func initBridge(ipRange string, natBackend string) error {
 }
 
 // cleanBridge is used to clean bridge and iptable rule after init failed.
-func cleanBridge(natBackend string) error {
+func cleanBridge(natBackend, ipRange string) error {
 	if bridge, err := netlink.LinkByName(bridgeName); err != nil {
 		if !strings.Contains(err.Error(), "not found") {
 			return nil
@@ -103,7 +124,7 @@ func cleanBridge(natBackend string) error {
 
 	if m, ok := networkmanager.NetworkManagers[natBackend]; !ok {
 		return fmt.Errorf("no corresponding network manager for natBackend: %s", natBackend)
-	} else if err := m.CleanupSNATRules(defaultIpRange); err != nil {
+	} else if err := m.CleanupSNATRules(ipRange); err != nil {
 		return err
 	}
 

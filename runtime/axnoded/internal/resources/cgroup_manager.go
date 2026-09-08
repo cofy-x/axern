@@ -181,7 +181,10 @@ func (c *CgroupManager) memoryCommitmentLocked(now time.Time) MemoryCommitment {
 		if lease == nil {
 			continue
 		}
-		charge := lease.GetMemoryRequestBytes()
+		charge := lease.GetCapacityReservationBytes()
+		if charge == 0 {
+			charge = lease.GetMemoryRequestBytes()
+		}
 		if lease.GetState() == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING && lease.GetCurrentChargedBytes() > charge {
 			charge = lease.GetCurrentChargedBytes()
 		}

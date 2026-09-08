@@ -15,6 +15,51 @@ periodic provider or per-allocation audit.
 
 ## Quick Check
 
+### Recovery measurement diagnosis
+
+The network-policy qualification driver measures client-observed restart
+convergence: process start through healthy RPC and a readable recovered policy
+proof. This is not the daemon's internal recovery duration. Health probes use
+a 1 ms retry interval and share the recovery deadline with the final proof RPC;
+the scheduler and RPC transport can still add observation delay. The previous
+25 ms polling method must not be mixed with this method in a performance baseline.
+
+Each scenario writes ordered samples and method metadata beside its report as
+`<report>.recovery-observations`, including partial samples on recovery failure.
+Twenty samples make nearest-rank P99 equal to the sample maximum. Recovery
+sampling is independent (`--recovery-samples`, default 200) of workload sampling
+(`--samples`). Performance reports record both counts and the measurement
+method; mismatches and old report schemas are rejected. Minimal correctness
+smoke explicitly retains one recovery observation, not a tail-latency claim.
+Existing release budget thresholds are unchanged.
+
+The adjacent `<report>.workload-observations` sidecar preserves ordered DNS,
+policy preparation, and rule-scale preparation/reconciliation timings. It adds
+no queries and does not change the probe's measurement boundary: `dns_deny`
+includes both allowed and refused query checks, whereas unrestricted and domain
+strict modes measure their allowed query. Compare like modes only. The sidecar
+contains numeric measurements, rule counts, and method/completion metadata, not
+destinations or allocation identities. An incomplete sidecar is diagnostic only;
+neither sidecar replaces the aggregate qualification gates.
+
+Use `go test ./cmd/verify-network-policy-qualification -run Recovery` for the
+host-safe waiter and evidence tests. The opt-in
+`TestRecoveryMeasurementLinuxTruth` runs only 200 restart/recovery observations
+when `AXERN_RECOVERY_MEASUREMENT_TRUTH=1` in a privileged Linux verification
+container with egressd installed. It does not certify the full matrix. Reuse
+the existing verification image and compile the changed test binary for its
+architecture to diagnose the measuring tool before rebuilding a release candidate.
+
+### Runtime integration
+
+`TestPrepareMeasurementLinuxTruth` is a separate opt-in diagnostic with
+`AXERN_PREPARE_MEASUREMENT_TRUTH=1`. It runs 200 one-rule CIDR
+Prepare/Reconcile/Delete cycles against an isolated real egressd, preserving
+ordered prepare/reconcile observations in test output. It has no timing
+assertions and does not reproduce sandbox workload contention or the full
+matrix's RSS observation overhead. Use it to investigate rule-scale timing
+before changing any qualification budget or sampling parameter.
+
 ```bash
 make verify-docker-runsc-ebpf
 ```
@@ -106,6 +151,7 @@ packaging change. Update deployment values and runtime docs together, then run
 | runsc network/eBPF | runsc runtime plus eBPF networking path | `make verify-docker-runsc-ebpf` |
 | debug runtime paths | Narrow runtime diagnostics | `make verify-docker-runsc-debug`, `make verify-docker-runc-debug` |
 | bpfnet diagnostics | Pinned program readiness and managed runtime diagnostics | `make verify-bpfnetctl-e2e` |
+| network-policy Linux correctness | Hermetic 32-cell runc/runsc × bridge/ebpf × IPv4/IPv6 × policy-mode truth with minimal, timing-independent samples | `make verify-network-policy-linux-matrix` |
 
 ## Node And Image Layers
 

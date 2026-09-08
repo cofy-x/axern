@@ -102,6 +102,18 @@ jobs:
       - name: Bootstrap Go dependencies
         run: make bootstrap-go
 
+      - name: Install architecture-check dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes ripgrep
+
+      - name: Verify Go architecture boundaries
+        run: |
+          make axern-cli-check-architecture
+          make gatewayd-check-architecture
+          make imagemgr-check-architecture
+          make axnoded-check-architecture
+
       - name: Build Go workspaces
         run: make build-go
 
@@ -113,6 +125,17 @@ jobs:
 
       - name: Lint Go workspaces
         run: make lint-go
+
+  network-policy-linux:
+    name: Network Policy Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Run full native Linux network-policy correctness matrix
+        run: make axnoded-verify-network-policy-linux-matrix
 
   rust:
     name: Rust

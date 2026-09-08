@@ -22,11 +22,6 @@ import (
 
 const nftTable = "axern_egress"
 
-const (
-	policyMark = 0xA6E1
-	bypassMark = 0xA6E2
-)
-
 type NFTExecutor struct {
 	mu            sync.Mutex
 	engine        *Engine
@@ -39,12 +34,6 @@ type NFTExecutor struct {
 func NewNFTExecutor(ctx context.Context) (*NFTExecutor, error) {
 	if _, err := exec.LookPath("nft"); err != nil {
 		return nil, fmt.Errorf("nft is required: %w", err)
-	}
-	if _, err := exec.LookPath("ip"); err != nil {
-		return nil, fmt.Errorf("ip is required: %w", err)
-	}
-	if err := configurePolicyRouting(ctx); err != nil {
-		return nil, err
 	}
 	engine := NewEngine()
 	if err := engine.Start(ctx); err != nil {
@@ -74,6 +63,11 @@ func (e *NFTExecutor) Reconcile(ctx context.Context, records []*runtimeegressv1.
 		e.reason = err.Error()
 		return err
 	}
+	if err := ensureNFTTable(ctx); err != nil {
+		e.healthy = false
+		e.reason = err.Error()
+		return err
+	}
 	if err := runNFT(ctx, "-c", "-f", "-", script); err != nil {
 		e.healthy = false
 		e.reason = err.Error()
@@ -89,6 +83,16 @@ func (e *NFTExecutor) Reconcile(ctx context.Context, records []*runtimeegressv1.
 	e.revision++
 	e.healthy = true
 	e.reason = ""
+	return nil
+}
+
+func ensureNFTTable(ctx context.Context) error {
+	if _, err := runNFTOutput(ctx, "list", "table", "inet", nftTable); err == nil {
+		return nil
+	}
+	if err := runNFT(ctx, "add", "table", "inet", nftTable); err != nil {
+		return fmt.Errorf("create nft policy table: %w", err)
+	}
 	return nil
 }
 
@@ -171,28 +175,28 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 	records = append([]*runtimeegressv1.PreparedEgressPolicy(nil), records...)
 	sort.Slice(records, func(i, j int) bool { return records[i].GetSandboxIp() < records[j].GetSandboxIp() })
 	var out strings.Builder
-	out.WriteString("destroy table inet " + nftTable + "\n")
+	out.WriteString("delete table inet " + nftTable + "\n")
 	out.WriteString("table inet " + nftTable + " {\n")
-	out.WriteString(" chain ingress_proxy { type filter hook prerouting priority mangle; policy accept;\n")
-	writeManagedRule(&out, "meta mark 0x%x return", bypassMark)
+	out.WriteString(" chain proxy_redirect { type nat hook prerouting priority dstnat; policy accept;\n")
 	for _, record := range records {
 		family, source, err := nftSource(record.GetSandboxIp())
 		if err != nil {
 			return nil, err
 		}
 		if networkpolicy.RequiresDNSUpstreams(record.GetPolicy()) {
-			writeTProxy(&out, family, source, "udp", 53, dnsProxyPort)
-			writeTProxy(&out, family, source, "tcp", 53, dnsProxyPort)
+			writeProxyRedirect(&out, family, source, "udp", 53, dnsProxyPort)
+			writeProxyRedirect(&out, family, source, "tcp", 53, dnsProxyPort)
 		}
 		if strict := record.GetPolicy().GetStrict(); strict != nil {
 			for _, rule := range strict.GetAllowedCidrs() {
 				writeCIDRRule(&out, family, source, rule, "return")
 			}
-			writeTProxy(&out, family, source, "tcp", 80, httpProxyPort)
-			writeTProxy(&out, family, source, "tcp", 443, httpsProxyPort)
+			writeProxyRedirect(&out, family, source, "tcp", 80, httpProxyPort)
+			writeProxyRedirect(&out, family, source, "tcp", 443, httpsProxyPort)
 		}
 	}
-	out.WriteString(" }\n chain forward { type filter hook forward priority filter; policy accept;\n")
+	out.WriteString(" }\n")
+	out.WriteString(" chain forward { type filter hook forward priority filter; policy accept;\n")
 	for _, record := range records {
 		strict := record.GetPolicy().GetStrict()
 		if strict == nil {
@@ -205,13 +209,18 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 		writeManagedRule(&out, "%s saddr %s drop", family, source)
 	}
 	out.WriteString(" }\n chain input { type filter hook input priority filter; policy accept;\n")
-	writeManagedRule(&out, "meta mark 0x%x counter accept", policyMark)
 	for _, record := range records {
 		strict := record.GetPolicy().GetStrict()
 		if strict == nil {
 			continue
 		}
 		family, source, _ := nftSource(record.GetSandboxIp())
+		if networkpolicy.RequiresDNSUpstreams(record.GetPolicy()) {
+			writeProxyInputAccept(&out, family, source, "udp", dnsProxyPort)
+			writeProxyInputAccept(&out, family, source, "tcp", dnsProxyPort)
+		}
+		writeProxyInputAccept(&out, family, source, "tcp", httpProxyPort)
+		writeProxyInputAccept(&out, family, source, "tcp", httpsProxyPort)
 		for _, rule := range strict.GetAllowedCidrs() {
 			writeCIDRRule(&out, family, source, rule, "accept")
 		}
@@ -227,36 +236,15 @@ func RenderNFT(records []*runtimeegressv1.PreparedEgressPolicy) ([]byte, error) 
 	return []byte(out.String()), nil
 }
 
-func writeTProxy(out *strings.Builder, family, source, protocol string, destinationPort, proxyPort int) {
-	// TPROXY is non-terminal. If no matching transparent socket is alive, nft
-	// continues to the following rule, which makes daemon loss fail closed in
-	// prerouting instead of allowing a host wildcard service to receive traffic.
-	writeManagedRule(out, "%s saddr %s %s dport %d counter meta mark set 0x%x tproxy %s to %s accept", family, source, protocol, destinationPort, policyMark, family, proxyBindAddress(family, proxyPort))
-	writeManagedRule(out, "%s saddr %s %s dport %d drop", family, source, protocol, destinationPort)
+func writeProxyRedirect(out *strings.Builder, family, source, protocol string, destinationPort, proxyPort int) {
+	// REDIRECT keeps the proxy exchange in one conntrack flow. TCP inspectors
+	// recover the original address with SO_ORIGINAL_DST; DNS already carries a
+	// trusted upstream in the prepared policy. A missing listener stays closed.
+	writeManagedRule(out, "%s saddr %s %s dport %d counter redirect to :%d", family, source, protocol, destinationPort, proxyPort)
 }
 
-func proxyBindAddress(family string, port int) string {
-	if family == "ip6" {
-		return fmt.Sprintf("[::]:%d", port)
-	}
-	return fmt.Sprintf("0.0.0.0:%d", port)
-}
-
-func configurePolicyRouting(ctx context.Context) error {
-	commands := [][]string{
-		{"-4", "rule", "add", "fwmark", fmt.Sprintf("0x%x", policyMark), "lookup", "166", "priority", "16600"},
-		{"-4", "route", "replace", "local", "0.0.0.0/0", "dev", "lo", "table", "166"},
-		{"-6", "rule", "add", "fwmark", fmt.Sprintf("0x%x", policyMark), "lookup", "166", "priority", "16600"},
-		{"-6", "route", "replace", "local", "::/0", "dev", "lo", "table", "166"},
-	}
-	for _, args := range commands {
-		command := exec.CommandContext(ctx, "ip", args...)
-		output, err := command.CombinedOutput()
-		if err != nil && !strings.Contains(string(output), "File exists") {
-			return fmt.Errorf("configure policy routing %q: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
-		}
-	}
-	return nil
+func writeProxyInputAccept(out *strings.Builder, family, source, protocol string, proxyPort int) {
+	writeManagedRule(out, "%s saddr %s ct status dnat %s dport %d counter accept", family, source, protocol, proxyPort)
 }
 
 func nftSource(value string) (string, string, error) {

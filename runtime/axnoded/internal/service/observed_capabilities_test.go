@@ -142,6 +142,24 @@ func TestNetworkCapabilityProviderRequiresObservedDataplaneHealth(t *testing.T) 
 	}
 }
 
+func TestNetworkCapabilityProviderPublishesEffectiveBridgeForIPv6EBPFCompatibility(t *testing.T) {
+	previous := networkmanager.NetworkManagers[config.NatBackendEBPF]
+	networkmanager.NetworkManagers[config.NatBackendEBPF] = observedNetworkManager{health: networkmanager.Health{PortForwardingReady: true, NativeDataplaneReady: true}}
+	t.Cleanup(func() { networkmanager.NetworkManagers[config.NatBackendEBPF] = previous })
+	cfg := config.Config{PluginConfig: config.PluginConfig{NetworkConfig: config.NetworkConfig{NatBackend: config.NatBackendEBPF, IPRange: "fd31::1/64"}}}
+
+	observations, err := networkCapabilityProvider(cfg, sha256Digest([]byte("network"))).Observe(context.Background(), time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observations[1].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
+		t.Fatalf("effective bridge capability = %#v", observations[1])
+	}
+	if observations[2].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE {
+		t.Fatalf("native bpfnet capability = %#v", observations[2])
+	}
+}
+
 func TestDerivedCapabilityUsesRecoveryFilteredDependencies(t *testing.T) {
 	cgroupKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_CGROUP_V2_MEMORY_CONTROLLER)
 	selfTestKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)

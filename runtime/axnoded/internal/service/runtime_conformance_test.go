@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -148,7 +150,58 @@ func TestRuntimeConformanceDoesNotPeriodicallyRepeatDestructiveProbe(t *testing.
 	}
 }
 
+func TestFailedRuntimeConformanceRemainsLatchedUntilRestart(t *testing.T) {
+	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
+	registry := handlerregistry.New(cfg)
+	handler := runtimetest.NewFakeRuntimeHandler()
+	handler.RuntimeName = config.RuntimeNameRunsc
+	registry.Set(config.RuntimeNameRunsc, handler)
+	calls := 0
+	probe := func(context.Context, string, runtimeConformanceKind) error {
+		calls++
+		return errors.New("certification failed")
+	}
+	p := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, probe)
+	now := time.Now()
+	for _, delay := range []time.Duration{0, time.Minute, time.Hour, 24 * time.Hour} {
+		observations, err := p.Observe(context.Background(), now.Add(delay))
+		if err != nil || observations[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE {
+			t.Fatalf("failed certification not retained: %v %v", observations, err)
+		}
+	}
+	if calls != 1 {
+		t.Fatalf("destructive calls = %d, want 1", calls)
+	}
+	p = runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, probe)
+	_, _ = p.Observe(context.Background(), now)
+	if calls != 2 {
+		t.Fatalf("restart did not recertify: %d", calls)
+	}
+}
+
+func TestRuntimeConformanceDockerGateMatchesAggregateLimit(t *testing.T) {
+	data, err := os.ReadFile("../../scripts/verify/verify-in-container.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	limit := strconv.FormatInt(config.RuntimeConformanceMemoryMaxBytes, 10)
+	for _, assertion := range []string{
+		`[ "$(cat "${conformance_dir}/memory.max")" = "` + limit + `" ]`,
+		`.node.memory_budget.conformance_limit_bytes == ` + limit + ` and`,
+	} {
+		if !strings.Contains(string(data), assertion) {
+			t.Fatalf("Docker certification assertion does not match aggregate limit: %s", assertion)
+		}
+	}
+}
+
 func TestRuntimeConformanceStartRequestsIsolateEnforcementBoundaries(t *testing.T) {
+	if runtimeConformanceMemoryLimit != config.RuntimeConformanceMemoryLimitBytes {
+		t.Fatalf("memory self-test limit = %d, want %d", runtimeConformanceMemoryLimit, config.RuntimeConformanceMemoryLimitBytes)
+	}
+	if config.RuntimeConformanceMemoryMaxBytes <= runtimeConformanceMemoryLimit {
+		t.Fatalf("aggregate conformance ceiling %d must exceed workload limit %d", config.RuntimeConformanceMemoryMaxBytes, runtimeConformanceMemoryLimit)
+	}
 	memory, err := runtimeConformanceStartRequest("memory-allocation", "memory-runtime", config.RuntimeNameRunsc, "/rootfs", runtimeConformanceKindMemory)
 	if err != nil {
 		t.Fatalf("memory request error = %v", err)

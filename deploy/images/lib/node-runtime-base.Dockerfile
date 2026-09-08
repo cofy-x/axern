@@ -311,8 +311,9 @@ RUN mkdir -p \
 
 COPY runtime/axnoded/scripts/ /workspace/scripts/
 COPY deploy/images/lib/node-all-in-one-entrypoint.sh /usr/local/bin/node-all-in-one-entrypoint
+COPY deploy/images/lib/ensure-loop-devices.sh /usr/local/bin/axern-ensure-loop-devices
 RUN find /workspace/scripts -type f -name '*.sh' -exec chmod +x {} +
-RUN chmod +x /usr/local/bin/node-all-in-one-entrypoint
+RUN chmod +x /usr/local/bin/node-all-in-one-entrypoint /usr/local/bin/axern-ensure-loop-devices
 
 COPY --from=axnoded-builder /out/axnoded /usr/local/bin/axnoded
 COPY --from=axnoded-builder /out/axctl /usr/local/bin/axctl

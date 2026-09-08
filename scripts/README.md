@@ -6,6 +6,7 @@ Template build and code generation scripts were intentionally removed from the p
 
 Scripts:
 
+- `cli-e2e/axern-cli-e2e.sh` Runs product CLI E2E against an isolated control plane and verification node. Startup waits for certified runc/runsc memory and writable-storage capabilities before importing the runtime image; a fresh heartbeat alone does not establish capability readiness, and image import must not compete with destructive certification for the node reserve.
 - `devbox/devbox.sh` Builds, starts, stops, inspects, and enters the repo-local Linux devbox container.
 - `devbox/node-dev-prepare.sh` Prepares the repo-local Linux runtime workspace under `.dev/`.
 - `devbox/node-dev-ensure-dlv.sh` Installs or verifies the Delve debugger used by the Linux debug workflow.

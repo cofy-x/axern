@@ -35,7 +35,7 @@ const (
 	runtimeConformanceCleanup = 30 * time.Second
 	// Memory and ephemeral storage use separate sandboxes so one unavailable
 	// enforcement boundary cannot suppress evidence for the other.
-	runtimeConformanceMemoryLimit = config.RuntimeConformanceMemoryMaxBytes
+	runtimeConformanceMemoryLimit = config.RuntimeConformanceMemoryLimitBytes
 	runtimeConformanceStorage     = 64 << 20
 )
 
@@ -144,7 +144,9 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 	// Conformance creates a destructive sandbox (real OOM or quota fill). A
 	// successful result is bound to the runtime/config identity and is not a
 	// health sample: rerun it only for first certification, identity changes,
-	// or failure retry. Cheap runtime identity and allocation control audits
+	// or an operator restart. Failed certification is also latched for this
+	// identity: destructive retries must not compete with admitted workloads.
+	// Cheap runtime identity and allocation control audits
 	// provide the continuous enforcement signal.
 	probeDue := p.lastProbe.IsZero() || (!p.nextProbe.IsZero() && !now.Before(p.nextProbe))
 	disabledReason := ""
@@ -186,13 +188,8 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.lastErr = err
 		p.lastErrorUnknown = false
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED
-		if err != nil {
-			p.failures++
-			p.nextProbe = p.lastProbe.Add(runtimeProbeRetryDelay(p.failures))
-		} else {
-			p.failures = 0
-			p.nextProbe = time.Time{}
-		}
+		p.failures = 0
+		p.nextProbe = time.Time{}
 	} else if err != nil && (p.lastProbe.IsZero() || p.nextProbe.IsZero() || !now.Before(p.nextProbe)) {
 		p.identity = identity
 		p.lastProbe = runtimeSampleCompletedAt(now, sampleStarted)

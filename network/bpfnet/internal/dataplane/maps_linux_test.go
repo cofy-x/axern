@@ -3,10 +3,21 @@
 package dataplane
 
 import (
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/cofy-x/axern/network/bpfnet/internal/tcprog"
 )
+
+func TestPinPathExistsRecognizesWrappedErrno(t *testing.T) {
+	if !pinPathExists(fmt.Errorf("pin program: %w", os.ErrExist)) {
+		t.Fatal("wrapped EEXIST was not recognized")
+	}
+	if pinPathExists(fmt.Errorf("pin program: %w", os.ErrPermission)) {
+		t.Fatal("non-EEXIST error was recognized as an existing pin")
+	}
+}
 
 func TestSNATReverseKeyForForward(t *testing.T) {
 	key := tcprog.DataplaneSnatFwdKey{

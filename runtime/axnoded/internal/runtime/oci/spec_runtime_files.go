@@ -65,7 +65,7 @@ func materializeRuntimeEtcFiles(bundleDir string, ociSpec *spec.Spec, runtimeFil
 		files = append(files, runtimeEtcFile{name: "hostname", target: "/etc/hostname", content: hostname + "\n"})
 	}
 	if !mountDestinationsOwn(ociSpec.Mounts, "/etc/hosts") {
-		sandboxIP, err := sandboxIPv4FromSpec(ociSpec)
+		sandboxIP, err := sandboxIPFromSpec(ociSpec)
 		if err != nil {
 			return err
 		}

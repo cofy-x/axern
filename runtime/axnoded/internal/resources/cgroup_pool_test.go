@@ -97,6 +97,7 @@ func TestCgroupManagerAllocateLazilyCreatesWhenPoolIsEmpty(t *testing.T) {
 	assert.Equal(t, 1, manager.UsingNum())
 	lease, _ := manager.leases.Get(resource.ToString())
 	assert.Equal(t, int64(7), lease.GetAllocationAttempt())
+	assert.Equal(t, int64(512), lease.GetCapacityReservationBytes())
 	assert.Equal(t, int64(1024), lease.GetMemoryLimitBytes())
 	assert.Equal(t, "runsc", lease.GetRuntimeName())
 	assert.Equal(t, apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD, lease.GetOwnerKind())

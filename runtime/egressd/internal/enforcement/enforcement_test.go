@@ -1,8 +1,11 @@
 package enforcement
 
 import (
+	"context"
 	"fmt"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +13,53 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 )
+
+func TestEnsureNFTTableUsesCompatibleCreateIfMissing(t *testing.T) {
+	testCases := []struct {
+		name       string
+		listStatus string
+		addStatus  string
+		wantCalls  string
+		wantError  bool
+	}{
+		{name: "existing", listStatus: "0", addStatus: "0", wantCalls: "list table inet axern_egress\n"},
+		{name: "missing", listStatus: "1", addStatus: "0", wantCalls: "list table inet axern_egress\nadd table inet axern_egress\n"},
+		{name: "create failure", listStatus: "1", addStatus: "1", wantCalls: "list table inet axern_egress\nadd table inet axern_egress\n", wantError: true},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			temp := t.TempDir()
+			calls := filepath.Join(temp, "calls")
+			nft := filepath.Join(temp, "nft")
+			script := `#!/bin/sh
+printf '%s\n' "$*" >>"$NFT_TEST_CALLS"
+case "$1" in
+  list) exit "$NFT_TEST_LIST_STATUS" ;;
+  add) exit "$NFT_TEST_ADD_STATUS" ;;
+  *) exit 90 ;;
+esac
+`
+			if err := os.WriteFile(nft, []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", temp)
+			t.Setenv("NFT_TEST_CALLS", calls)
+			t.Setenv("NFT_TEST_LIST_STATUS", testCase.listStatus)
+			t.Setenv("NFT_TEST_ADD_STATUS", testCase.addStatus)
+			err := ensureNFTTable(context.Background())
+			if (err != nil) != testCase.wantError {
+				t.Fatalf("ensureNFTTable() error = %v, wantError = %v", err, testCase.wantError)
+			}
+			wire, readErr := os.ReadFile(calls)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if string(wire) != testCase.wantCalls {
+				t.Fatalf("nft calls = %q, want %q", wire, testCase.wantCalls)
+			}
+		})
+	}
+}
 
 func TestDomainMatcherKeepsWildcardOffApex(t *testing.T) {
 	if domainMatches("*.example.com", "example.com") {
@@ -103,7 +153,7 @@ func TestRenderNFTSeparatesDNSOnlyAndStrictPolicies(t *testing.T) {
 		t.Fatalf("RenderNFT() error = %v", err)
 	}
 	script := string(wire)
-	for _, expected := range []string{"10.0.0.2 udp dport 53", "10.0.0.3 tcp dport 443", "192.0.2.0/24 tcp dport 22 accept", "10.0.0.3 drop", "meta mark set 0xa6e1 tproxy ip to 0.0.0.0:1080 accept", "10.0.0.3 tcp dport 80 drop"} {
+	for _, expected := range []string{"chain proxy_redirect { type nat hook prerouting priority dstnat", "10.0.0.2 udp dport 53 counter redirect to :1053", "10.0.0.3 tcp dport 53 counter redirect to :1053", "10.0.0.3 tcp dport 443 counter redirect to :1443", "10.0.0.3 ct status dnat tcp dport 1080 counter accept", "192.0.2.0/24 tcp dport 22 return", "192.0.2.0/24 tcp dport 22 accept", "10.0.0.3 drop"} {
 		if !strings.Contains(script, expected) {
 			t.Fatalf("nft script missing %q:\n%s", expected, script)
 		}
@@ -127,7 +177,7 @@ func TestRenderNFTDoesNotProxyDNSForStrictPoliciesWithoutDomains(t *testing.T) {
 	}
 	script := string(wire)
 	for _, source := range []string{"10.0.0.4", "10.0.0.5"} {
-		if strings.Contains(script, source+" udp dport 53 meta mark set") || strings.Contains(script, source+" tcp dport 53 meta mark set") {
+		if strings.Contains(script, source+" udp dport 53 counter redirect") || strings.Contains(script, source+" tcp dport 53 counter redirect") {
 			t.Fatalf("policy without domains was sent to DNS proxy:\n%s", script)
 		}
 	}

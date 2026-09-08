@@ -42,13 +42,16 @@ func NewInterfaceManager(db stateStore, ipRange string, size int, cacheSize int,
 		usingInterfaces.Set(usingID.Items[idx], struct{}{})
 	}
 
-	gatewayIp, mask, ips, err := generateIP(ipRange, maxVethNum)
+	if size > maxVethNum {
+		size = maxVethNum
+	}
+	gatewayIp, mask, ips, err := generateIP(ipRange, uint32(size))
 	if err != nil {
 		return nil, err
 	}
 
 	if err := initBridge(ipRange, natBackend); err != nil {
-		if cleanErr := cleanBridge(natBackend); cleanErr != nil {
+		if cleanErr := cleanBridge(natBackend, ipRange); cleanErr != nil {
 			logrus.Warnf("clean bridge after init failed: %v", cleanErr)
 		}
 		return nil, err
@@ -57,10 +60,6 @@ func NewInterfaceManager(db stateStore, ipRange string, size int, cacheSize int,
 	bridgeLink, err := netlink.LinkByName(bridgeName)
 	if err != nil {
 		return nil, err
-	}
-
-	if size > maxVethNum {
-		size = maxVethNum
 	}
 
 	cacheSize = calcluteCacheSize(cacheSize)
@@ -167,7 +166,7 @@ func (m *InterfaceManager) cleanup() {
 }
 
 func (m *InterfaceManager) load(ips map[string]struct{}) error {
-	_, ipv4Net, err := net.ParseCIDR(m.IpRange)
+	_, addressNet, err := net.ParseCIDR(m.IpRange)
 	if err != nil {
 		return err
 	}
@@ -187,7 +186,11 @@ func (m *InterfaceManager) load(ips map[string]struct{}) error {
 				logrus.Errorf("set link %v up failed: %v", devs[idx].Name, err)
 				continue
 			}
-			ip := vethToIP(devs[idx].Name)
+			ip := vethToIP(devs[idx].Name, m.IpRange)
+			if ip == nil {
+				logrus.Warnf("ignore interface %s whose address cannot be reconstructed from %s", devs[idx].Name, m.IpRange)
+				continue
+			}
 			dev := &NetResource{
 				Interface: &devs[idx],
 				Ip:        ip,
@@ -216,7 +219,7 @@ func (m *InterfaceManager) load(ips map[string]struct{}) error {
 	}
 
 	for ip := range ips {
-		if ipv4Net.Contains(net.ParseIP(ip)) {
+		if addressNet.Contains(net.ParseIP(ip)) {
 			m.idleIp.Push(ip)
 		}
 	}

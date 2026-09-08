@@ -128,6 +128,7 @@ type fakeFallback struct {
 	cleanupCompatCalls int
 	setupDNATErr       error
 	setupCompatErr     error
+	health             networkmanager.Health
 }
 
 func (f *fakeFallback) SetupSNATRules(string) error {
@@ -162,6 +163,8 @@ func (f *fakeFallback) CleanupDNATCompatRule(string, uint16, string, uint16) err
 	f.cleanupCompatCalls++
 	return nil
 }
+
+func (f *fakeFallback) ProbeHealth(string) (networkmanager.Health, error) { return f.health, nil }
 
 func TestConfigureRegistersBackend(t *testing.T) {
 	resetControllerFactoryForTest()
@@ -208,6 +211,29 @@ func TestSetupSNATRulesUsesFallbackWhenEnabled(t *testing.T) {
 	}
 	if fallback.setupSNATCalls != 1 {
 		t.Fatalf("expected 1 fallback snat call, got %d", fallback.setupSNATCalls)
+	}
+}
+
+func TestIPv6UsesBridgeCompatibilityWithoutAttachingBPF(t *testing.T) {
+	ctrl := &fakeController{fullFallback: map[string]bool{}}
+	fallback := &fakeFallback{health: networkmanager.Health{PortForwardingReady: true, NativeDataplaneReady: true}}
+	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
+
+	if err := manager.SetupSNATRules("fd31::1/64"); err != nil {
+		t.Fatalf("setup IPv6 SNAT rules: %v", err)
+	}
+	if ctrl.ensureCalls != 0 || fallback.setupSNATCalls != 1 || !manager.ipv6Compat.Load() {
+		t.Fatalf("unexpected IPv6 path: ensure=%d fallback=%d compat=%v", ctrl.ensureCalls, fallback.setupSNATCalls, manager.ipv6Compat.Load())
+	}
+	health, err := manager.ProbeHealth("fd31::1/64")
+	if err != nil || !health.NativeDataplaneReady {
+		t.Fatalf("IPv6 compatibility health = %#v, %v", health, err)
+	}
+	if err := manager.SetupDNATRule("tcp", 8443, "fd31::2", 443); err != nil {
+		t.Fatalf("setup IPv6 DNAT: %v", err)
+	}
+	if ctrl.upserts != 0 || fallback.setupDNATCalls != 1 {
+		t.Fatalf("unexpected IPv6 DNAT path: upserts=%d fallback=%d", ctrl.upserts, fallback.setupDNATCalls)
 	}
 }
 

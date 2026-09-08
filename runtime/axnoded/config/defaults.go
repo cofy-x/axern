@@ -29,10 +29,13 @@ const (
 	DefaultMaxCacheLimitNum = 800
 
 	DefaultCgroupRoot = "sandbox"
-	// RuntimeConformanceMemoryMaxBytes is the aggregate hard ceiling for the
-	// serialized, node-owned runtime certification domain. It is charged to the
-	// explicit system reserve and never to admitted sandbox capacity.
-	RuntimeConformanceMemoryMaxBytes int64 = 256 << 20
+	// RuntimeConformanceMemoryLimitBytes is the hard limit exercised inside the
+	// certification sandbox. RuntimeConformanceMemoryMaxBytes is the larger
+	// aggregate certification ceiling and capacity reservation, not a larger
+	// per-allocation limit. Host lifecycle monitors inherit the internal domain;
+	// runtime processes in the sandbox remain charged to its 256 MiB limit.
+	RuntimeConformanceMemoryLimitBytes int64 = 256 << 20
+	RuntimeConformanceMemoryMaxBytes   int64 = 512 << 20
 
 	DefaultIPRange = "172.17.0.1/16"
 

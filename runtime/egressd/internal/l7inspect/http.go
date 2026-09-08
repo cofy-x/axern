@@ -37,24 +37,35 @@ func ReadHTTPRequest(reader io.Reader, maxBytes int) (HTTPRequest, error) {
 	if err != nil {
 		return HTTPRequest{}, fmt.Errorf("parse HTTP request header: %w", err)
 	}
+	result, err := InspectHTTPRequest(request)
+	result.Bytes = header
+	return result, err
+}
+
+// InspectHTTPRequest validates each message, including messages on a reused
+// connection. Body framing remains owned by net/http, never a raw byte relay.
+func InspectHTTPRequest(request *http.Request) (HTTPRequest, error) {
 	if request.URL == nil || request.URL.IsAbs() || request.URL.Host != "" {
 		return HTTPRequest{}, fmt.Errorf("absolute-form HTTP requests are not allowed by domain policy")
 	}
 	if strings.EqualFold(request.Method, http.MethodConnect) {
 		return HTTPRequest{}, fmt.Errorf("HTTP CONNECT is not allowed by domain policy")
 	}
+	if request.ProtoMajor != 1 || request.Header.Get("Upgrade") != "" {
+		return HTTPRequest{}, fmt.Errorf("HTTP protocol upgrades are not allowed by domain policy")
+	}
 	host, err := hostWithoutPort(request.Host)
 	if err != nil {
 		return HTTPRequest{}, err
 	}
 	if addr, err := netip.ParseAddr(host); err == nil {
-		return HTTPRequest{Method: request.Method, Host: addr.Unmap().String(), DirectIP: true, Bytes: header}, nil
+		return HTTPRequest{Method: request.Method, Host: addr.Unmap().String(), DirectIP: true}, nil
 	}
 	host, err = networkpolicy.NormalizeDomain(host)
 	if err != nil || strings.HasPrefix(host, "*.") {
 		return HTTPRequest{}, fmt.Errorf("invalid HTTP Host")
 	}
-	return HTTPRequest{Method: request.Method, Host: host, Bytes: header}, nil
+	return HTTPRequest{Method: request.Method, Host: host}, nil
 }
 
 func readHeader(reader io.Reader, maxBytes int) ([]byte, error) {

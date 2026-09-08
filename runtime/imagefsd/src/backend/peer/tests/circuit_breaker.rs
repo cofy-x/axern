@@ -39,21 +39,17 @@ fn test_local_client_circuit_breaker_skips_connect_when_unavailable() {
     let client = LocalChunkClient::new(runtime, &sock, Duration::from_millis(100));
     let checksum = CheckSum::from_data(b"circuit-breaker-test", CheckSumMethod::Blake3);
 
-    // First call should actually attempt connection and fail.
-    let start = Instant::now();
+    // First call should actually attempt connection and open the breaker.
     assert!(!client.prefetch_chunk_blocking(&checksum));
-    let first_elapsed = start.elapsed();
+    assert!(client.breaker.should_reject());
+    let first_failure_ms = client.breaker.last_failure_ms();
 
-    // Second call should be short-circuited by the breaker.
-    let start = Instant::now();
+    // Move beyond the breaker's millisecond clock resolution. If the second
+    // call attempts another connection, record_failure updates this timestamp;
+    // a genuine short circuit leaves it unchanged.
+    thread::sleep(Duration::from_millis(2));
     assert!(!client.prefetch_chunk_blocking(&checksum));
-    let second_elapsed = start.elapsed();
-
-    // The short-circuited call should be at least 5x faster than the real attempt.
-    assert!(
-        second_elapsed < first_elapsed / 5,
-        "circuit breaker did not skip: first={first_elapsed:?}, second={second_elapsed:?}"
-    );
+    assert_eq!(client.breaker.last_failure_ms(), first_failure_ms);
 }
 
 #[test]
