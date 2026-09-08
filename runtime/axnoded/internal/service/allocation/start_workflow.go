@@ -68,7 +68,7 @@ func (h *Controller) prepareLangRuntime(ctx context.Context, fr *runtime.Runtime
 	summary.Steps = append(summary.Steps, StartupStepSample{
 		Phase:    contract.StartupPhaseRootfsPrepare,
 		Step:     contract.StartupStepRootfsResolve,
-		Duration: startupStepDurationSince(resolveStart),
+		Duration: startupObservationDurationSince(resolveStart),
 	})
 	lookupStart := time.Now()
 	lrt := h.lrtManager.FindReusableLangRuntime(fr, resolvedRootfsCfg)
@@ -97,7 +97,7 @@ func startupStepSamplesFromRootfsReport(report langrtmanager.RootfsPrepareReport
 	return out
 }
 
-func startupStepDurationSince(started time.Time) time.Duration {
+func startupObservationDurationSince(started time.Time) time.Duration {
 	duration := time.Since(started)
 	if duration <= 0 {
 		return time.Nanosecond
@@ -282,7 +282,7 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 	egressPolicyStart := time.Now()
 	egressPrepared, err = h.prepareEgressPolicy(ctx, request, resource)
 	if recorder != nil {
-		recorder.RecordStartupPhase(contract.StartupPhaseEgressPolicyPrepare, time.Since(egressPolicyStart))
+		recorder.RecordStartupPhase(contract.StartupPhaseEgressPolicyPrepare, startupObservationDurationSince(egressPolicyStart))
 	}
 	if err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed egress policy admission: %v", err)), err
