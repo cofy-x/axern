@@ -231,7 +231,7 @@ fi
 
 AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE="${PYTHON_RUNTIME_IMAGE_REF}" \
   "${CONTROLD_BIN}" \
-  -grpc-address "${CONTROLD_GRPC_ADDRESS}" \
+  -grpc-address "0.0.0.0:${CONTROLD_GRPC_ADDRESS##*:}" \
   -http-address "${CONTROLD_HTTP_ADDRESS}" \
   -tls-ca-cert "${cert_dir}/ca.crt" \
   -tls-cert "${cert_dir}/controld.crt" \
@@ -271,6 +271,7 @@ docker run -d \
   --name "${NODE_CONTAINER_NAME}" \
   --privileged \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
+  --add-host "host.docker.internal:host-gateway" \
   -p "${NODE_GRPC_ADDRESS}:${NODE_GRPC_ADDRESS##*:}" \
   --volume "${shared_run_dir}:/shared/run" \
   --volume "${cert_dir}:/shared/certs:ro" \

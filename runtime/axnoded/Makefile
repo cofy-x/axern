@@ -49,6 +49,8 @@ HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/demo/nginx ./
 	verify-sandboxd-provider-smoke \
 	verify-sandboxd-provider-e2e \
 	verify-sandboxd-packaging \
+	verify-docker-network-contract \
+	verify-startup-matrix-contract \
 	verify-sandboxd-release-readiness \
 	verify-node-cli-e2e \
 	verify-node-inventory-e2e \
@@ -111,7 +113,7 @@ else
 	@exit 1
 endif
 
-test: ## run the full Linux test suite
+test: verify-docker-network-contract verify-startup-matrix-contract ## run the full Linux test suite
 	@echo "$(WHALE) $@"
 ifneq ($(GOOS),linux)
 	@echo "make test is Linux-only (current GOOS=$(GOOS)); use 'make test-host' locally or run inside the Linux devbox / verify container." >&2
@@ -120,13 +122,19 @@ endif
 	@$(GO) clean -testcache
 	@$(GOTEST) ${TESTFLAGS} ${PACKAGES}
 
-test-host: ## run the host-safe unit subset for non-Linux development hosts
+test-host: verify-docker-network-contract verify-startup-matrix-contract ## run the host-safe unit subset for non-Linux development hosts
 	@echo "$(WHALE) $@"
 	@$(GO) clean -testcache
 	@$(GOTEST) ${TESTFLAGS} ${HOST_TEST_PACKAGES}
 
 check-architecture: ## verify axnoded package boundary expectations
 	@bash $(REPO_ROOT)/scripts/axnoded-architecture-check.sh
+
+verify-docker-network-contract: ## verify Docker node harnesses isolate sandbox and host routes
+	@bash ./scripts/verify/docker-network-contract-test.sh
+
+verify-startup-matrix-contract: ## verify startup matrix smoke preserves its persisted report
+	@bash ./scripts/verify/startup-matrix-contract-test.sh
 
 bin/protoc-gen-go-fieldpath: cmd/protoc-gen-go-fieldpath FORCE
 	@echo "$(WHALE) $@"

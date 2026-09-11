@@ -148,14 +148,19 @@ wait_for_jq \
   30 \
   'any(.mounts[]?; .image_url == $image_url)' \
   --arg image_url "${IMAGE_URL}"
+locality_key="$(jq -er \
+  --arg image_url "${IMAGE_URL}" \
+  '.mounts[] | select(.image_url == $image_url) | "image:" + (if .cache_key == null or .cache_key == "" then .image_url else .cache_key end)' \
+  "${details_file}")"
 
 fetch_axnoded_inventory "${inventory_file}"
 wait_for_jq \
   "inventory retained counts after first delete" \
   "${inventory_file}" \
   30 \
-  '.heat.retained_runtime_count == 1 and .heat.retained_rootfs_count == 1 and .components.imagemgr.mounted_image_count >= 1 and (.heat.mounted_image_urls | index($image_url) != null) and any(.heat.locality[]?; .key == ("image:" + $image_url) and .retained_runtime_count >= 1 and .retained_rootfs_count >= 1 and .mounted == true)' \
-  --arg image_url "${IMAGE_URL}"
+  '.heat.retained_runtime_count == 1 and .heat.retained_rootfs_count == 1 and .components.imagemgr.mounted_image_count >= 1 and (.heat.mounted_image_urls | index($image_url) != null) and any(.heat.locality[]?; .key == $locality_key and .retained_runtime_count >= 1 and .retained_rootfs_count >= 1 and .mounted == true)' \
+  --arg image_url "${IMAGE_URL}" \
+  --arg locality_key "${locality_key}"
 
 container_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtime_name}.retention.second.stdout" "/tmp/${runtime_name}.retention.second.stderr")"
 [ -n "${container_id}" ] || {
@@ -170,8 +175,8 @@ wait_for_jq \
   "inventory retained counts after second delete" \
   "${inventory_file}" \
   30 \
-  '.heat.retained_runtime_count == 1 and .heat.retained_rootfs_count == 1 and any(.heat.locality[]?; .key == ("image:" + $image_url) and .retained_runtime_count >= 1 and .retained_rootfs_count >= 1)' \
-  --arg image_url "${IMAGE_URL}"
+  '.heat.retained_runtime_count == 1 and .heat.retained_rootfs_count == 1 and any(.heat.locality[]?; .key == $locality_key and .retained_runtime_count >= 1 and .retained_rootfs_count >= 1)' \
+  --arg locality_key "${locality_key}"
 
 metrics_output="$(fetch_metrics)"
 metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
@@ -187,8 +192,9 @@ wait_for_jq \
   "inventory to drop retained runtime after ttl" \
   "${inventory_file}" \
   "$((ttl_seconds + 10))" \
-  '.heat.retained_runtime_count == 0 and .heat.retained_rootfs_count == 0 and .components.imagemgr.mounted_image_count == 0 and (.heat.mounted_image_urls | index($image_url) == null) and all(.heat.locality[]?; .key != ("image:" + $image_url) or (.retained_runtime_count == 0 and .retained_rootfs_count == 0))' \
-  --arg image_url "${IMAGE_URL}"
+  '.heat.retained_runtime_count == 0 and .heat.retained_rootfs_count == 0 and .components.imagemgr.mounted_image_count == 0 and (.heat.mounted_image_urls | index($image_url) == null) and all(.heat.locality[]?; .key != $locality_key or (.retained_runtime_count == 0 and .retained_rootfs_count == 0))' \
+  --arg image_url "${IMAGE_URL}" \
+  --arg locality_key "${locality_key}"
 
 fetch_imagemgr_details "${details_file}"
 wait_for_jq \

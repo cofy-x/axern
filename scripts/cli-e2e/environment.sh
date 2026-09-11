@@ -184,6 +184,7 @@ setup_e2e_environment() {
     -e "REGISTRY_PROXY_URL=${REGISTRY_PROXY_URL}" \
     -e "REGISTRY_NO_PROXY=${REGISTRY_NO_PROXY}" \
     -e "AXNODED_HTTP_ADDRESS=${NODE_HTTP_ADDRESS}" \
+    -e "AXNODED_NETWORK_IP_RANGE=${AXNODED_NETWORK_IP_RANGE}" \
     -e "AXNODED_MAX_INSTANCE_NUM=32" \
     -e "AXNODED_INTERFACE_CACHE_SIZE=16" \
     -e "AXNODED_CGROUP_CACHE_SIZE=16" \
@@ -213,6 +214,12 @@ setup_e2e_environment() {
 
   if ! [ -S "${shared_run_dir}/axnoded.sock" ] || ! docker exec "${NODE_CONTAINER_NAME}" /bin/bash -lc "curl -fsS http://127.0.0.1:23001/readyz >/dev/null"; then
     echo "node container did not become ready in time" >&2
+    dump_logs
+    exit 1
+  fi
+
+  if ! node_control_plane_tcp_ready; then
+    echo "node container cannot reach the host control-plane listener" >&2
     dump_logs
     exit 1
   fi

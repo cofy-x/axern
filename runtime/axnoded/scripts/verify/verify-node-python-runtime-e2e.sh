@@ -238,6 +238,8 @@ docker run -d \
   --name "${NODE_CONTAINER_NAME}" \
   --privileged \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
+  --network "${POSTGRES_NETWORK_NAME}" \
+  --add-host "host.docker.internal:host-gateway" \
   -p "${NODE_GRPC_HOST}:${NODE_GRPC_PORT}:${NODE_GRPC_PORT}" \
   --volume "${shared_run_dir}:/shared/run" \
   --volume "${cert_dir}:/shared/certs:ro" \
@@ -246,10 +248,10 @@ docker run -d \
   -e "REGISTRY_PROXY_URL=${REGISTRY_PROXY_URL}" \
   -e "REGISTRY_NO_PROXY=${REGISTRY_NO_PROXY}" \
   -e "AXNODED_HTTP_ADDRESS=${AXNODED_HTTP_ADDRESS}" \
-  -e "AXNODED_CONTROL_PLANE_TARGET=host.docker.internal:${CONTROLD_GRPC_PORT}" \
+  -e "AXNODED_CONTROL_PLANE_TARGET=controld:${CONTROLD_GRPC_PORT}" \
   -e "AXNODED_CONTROL_PLANE_NODE_ID=${CONTROL_PLANE_NODE_ID}" \
   -e "AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN=${CONTROL_PLANE_NODE_AUTH_TOKEN}" \
-  -e "AXNODED_CONTROL_PLANE_NODE_TARGET=host.docker.internal:${NODE_GRPC_PORT}" \
+  -e "AXNODED_CONTROL_PLANE_NODE_TARGET=${NODE_CONTAINER_NAME}:${NODE_GRPC_PORT}" \
   -e "AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL=1s" \
   -e "AXNODED_CONTROL_PLANE_TLS_CA_CERT=/shared/certs/ca.crt" \
   -e "AXNODED_CONTROL_PLANE_TLS_CERT=/shared/certs/node.crt" \
