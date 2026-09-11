@@ -6,9 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cofy-x/axern/runtime/axnoded/config"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_runManager(t *testing.T) {
@@ -17,22 +16,10 @@ func Test_runManager(t *testing.T) {
 		maxCacheSize: 18,
 	}
 	runManager(time.Second, rsm)
+	t.Cleanup(func() { require.NoError(t, rsm.ShutDown()) })
 	time.Sleep(time.Second * 3)
 
 	assert.Equal(t, 18, rsm.resourceCount)
-
-	manager, err := NewResourceManager(storetest.NewMockStore(), config.Config{
-		PluginConfig: config.PluginConfig{
-			ResourceConfig: config.ResourceConfig{
-				MaxInstanceNum:     10,
-				CgroupRootName:     "sandbox",
-				CgroupCacheSize:    8,
-				InterfaceCacheSize: 0,
-			},
-		},
-	})
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(manager))
 }
 
 func Test_runManagerCal(t *testing.T) {
@@ -41,6 +28,7 @@ func Test_runManagerCal(t *testing.T) {
 		maxCacheSize: 5,
 	}
 	runManager(time.Millisecond, rsm)
+	t.Cleanup(func() { require.NoError(t, rsm.ShutDown()) })
 	time.Sleep(time.Millisecond * 500)
 	reconcilePool(rsm)
 	assert.Equal(t, 5, rsm.resourceCount)

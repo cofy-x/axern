@@ -75,6 +75,15 @@ type resizable interface {
 
 // NewResourceManager will init all resource manager and start to sync resource.
 func NewResourceManager(db stateStore, cfg config.Config) ([]Manager, error) {
+	return newResourceManager(db, cfg, LoadNetworkManager, func(db stateStore, cfg config.ResourceConfig, required bool) (resizable, error) {
+		return NewCgroupManager(db, cfg, required)
+	})
+}
+
+type networkManagerFactory func(stateStore, int, int, config.NetworkConfig) (Manager, error)
+type cgroupManagerFactory func(stateStore, config.ResourceConfig, bool) (resizable, error)
+
+func newResourceManager(db stateStore, cfg config.Config, loadNetwork networkManagerFactory, newCgroup cgroupManagerFactory) ([]Manager, error) {
 	managers := make([]Manager, 0)
 	var resizables []resizable
 	cleanup := func(initErr error) error {
@@ -96,7 +105,7 @@ func NewResourceManager(db stateStore, cfg config.Config) ([]Manager, error) {
 	}
 
 	if cfg.InterfaceCacheSize > 0 {
-		interfaceManager, err := LoadNetworkManager(db, cfg.MaxInstanceNum, cfg.InterfaceCacheSize, cfg.PluginConfig.NetworkConfig)
+		interfaceManager, err := loadNetwork(db, cfg.MaxInstanceNum, cfg.InterfaceCacheSize, cfg.PluginConfig.NetworkConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +120,7 @@ func NewResourceManager(db stateStore, cfg config.Config) ([]Manager, error) {
 	// A required node always owns a cgroup manager; cache_size=0 merely asks it
 	// to create each one-use allocation cgroup synchronously.
 	if cgroupMode == config.CgroupEnforcementRequired {
-		cgroupManager, err := NewCgroupManager(db, cfg.ResourceConfig, cgroupMode == config.CgroupEnforcementRequired)
+		cgroupManager, err := newCgroup(db, cfg.ResourceConfig, cgroupMode == config.CgroupEnforcementRequired)
 		if err != nil {
 			return nil, cleanup(err)
 		}

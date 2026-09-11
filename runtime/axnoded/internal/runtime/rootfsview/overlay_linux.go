@@ -98,11 +98,22 @@ func unmountOverlayView(rootfs overlayView) error {
 	if rootfs.MergedDir == "" {
 		return nil
 	}
-	if err := unix.Unmount(rootfs.MergedDir, 0); err != nil {
+	mergedDir := filepath.Clean(rootfs.MergedDir)
+	mountInfo, err := mountInfoForPath(mergedDir)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect writable rootfs view before unmount %s: %w", mergedDir, err)
+	}
+	if mountInfo.mountpoint != mergedDir {
+		return nil
+	}
+	if err := unix.Unmount(mergedDir, 0); err != nil {
 		if errors.Is(err, unix.EINVAL) || errors.Is(err, unix.ENOENT) {
 			return nil
 		}
-		return fmt.Errorf("unmount writable rootfs view %s: %w", rootfs.MergedDir, err)
+		return fmt.Errorf("unmount writable rootfs view %s: %w", mergedDir, err)
 	}
 	return nil
 }

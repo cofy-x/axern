@@ -9,18 +9,15 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/truncindex"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
@@ -98,32 +95,17 @@ func (m *stopTestResourceManager) ResourceName() resourcemanager.ResourceName {
 	return resourcemanager.ResourceName("test")
 }
 
-func TestNewManager(t *testing.T) {
+func TestNewManagerRegistersResourceManagers(t *testing.T) {
 	handlers := cmap.New[contract.RuntimeHandler]()
 	healthChan := make(chan bool)
-	manager, err := resourcemanager.NewResourceManager(storetest.NewMockStore(), config.Config{
-		PluginConfig: config.PluginConfig{
-			ResourceConfig: config.ResourceConfig{
-				MaxInstanceNum:     10,
-				CgroupRootName:     "huse",
-				CgroupCacheSize:    8,
-				InterfaceCacheSize: 0,
-			},
-		},
-	})
-	if err != nil && runtime.GOOS != "linux" {
-		t.Skipf("resource manager is not host-safe on %s: %v", runtime.GOOS, err)
-	}
-	assert.NotNil(t, manager)
-	assert.Nil(t, err)
+	resourceManager := &stopTestResourceManager{}
 
-	mgr, err := NewManager("/tmp/mock", handlers, healthChan, manager...)
-	assert.NotNil(t, mgr)
-	assert.Nil(t, err)
-
-	go mgr.Start()
-
-	assert.Nil(t, mgr.loadContainers())
+	mgr, err := NewManager(t.TempDir(), handlers, healthChan, resourceManager)
+	require.NoError(t, err)
+	require.NotNil(t, mgr)
+	registered, ok := mgr.resourceManagers.Get(string(resourceManager.ResourceName()))
+	require.True(t, ok)
+	assert.Same(t, resourceManager, registered)
 }
 
 func TestStoreMetadata(t *testing.T) {

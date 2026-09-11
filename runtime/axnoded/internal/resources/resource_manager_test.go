@@ -3,19 +3,21 @@
 package resources
 
 import (
+	"errors"
 	"testing"
 
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestNewManager(t *testing.T) {
+func TestNewResourceManagerComposesCgroupPoolWithoutHostCgroupAccess(t *testing.T) {
 	metrics.ResetForTest()
+	cgroup := &MockResourceManager{maxSize: 10, maxCacheSize: 8, name: string(CgroupResourceName)}
 
-	manager, err := NewResourceManager(storetest.NewMockStore(), config.Config{
+	managers, err := newResourceManager(storetest.NewMockStore(), config.Config{
 		PluginConfig: config.PluginConfig{
 			ResourceConfig: config.ResourceConfig{
 				MaxInstanceNum:  10,
@@ -25,13 +27,17 @@ func TestNewManager(t *testing.T) {
 				InterfaceCacheSize: 0,
 			},
 		},
+	}, func(stateStore, int, int, config.NetworkConfig) (Manager, error) {
+		return nil, errors.New("network factory should not be called")
+	}, func(stateStore, config.ResourceConfig, bool) (resizable, error) {
+		return cgroup, nil
 	})
-	assert.Nil(t, err)
-	assert.NotNil(t, manager)
+	require.NoError(t, err)
+	require.Len(t, managers, 1)
+	require.Same(t, cgroup, managers[0])
+	t.Cleanup(func() { require.NoError(t, cgroup.ShutDown()) })
 
-	assert.Equal(t, float64(8), metrics.GaugeValueForTest(metrics.MetricSandboxResourceCurrent, map[string]string{
+	require.Equal(t, float64(8), metrics.GaugeValueForTest(metrics.MetricSandboxResourceCurrent, map[string]string{
 		sdkobs.AttrResource: "cgroup",
 	}))
-	// TODO: test interface
-	// assert.Equal(t, float64(1), metrics.GaugeValueForTest(metrics.MetricSandboxResourceCurrent, map[string]string{sdkobs.AttrResource: "interface"}))
 }
