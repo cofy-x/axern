@@ -175,6 +175,7 @@ setup_e2e_environment() {
     --name "${NODE_CONTAINER_NAME}" \
     --privileged \
     --platform "${VERIFY_DOCKER_PLATFORM}" \
+    --add-host "host.docker.internal:host-gateway" \
     -p "${NODE_GRPC_ADDRESS}:${NODE_GRPC_ADDRESS##*:}" \
     --volume "${shared_run_dir}:/shared/run" \
     --volume "${cert_dir}:/shared/certs:ro" \
