@@ -11,6 +11,9 @@ docker() {
   if [ "${1:-} ${2:-}" = "buildx version" ]; then
     return "${MOCK_BUILDX_VERSION_STATUS:-0}"
   fi
+  if [ "${1:-} ${2:-}" = "image inspect" ] && [ "${MOCK_IMAGE_INSPECT_STATUS:-0}" != "0" ]; then
+    return "${MOCK_IMAGE_INSPECT_STATUS}"
+  fi
   printf '%s\n' "$*" >> "${calls_file}"
 }
 
@@ -65,5 +68,25 @@ if output="$(AXERN_DOCKER_CACHE_BACKEND=registry \
   exit 1
 fi
 grep -Fq "AXERN_DOCKER_CACHE_BACKEND must be none or gha" <<< "${output}"
+
+: > "${calls_file}"
+source "${AXERN_ROOT}/runtime/axnoded/scripts/lib/verify-docker-common.sh"
+VERIFY_DOCKER_VARIANT=full
+VERIFY_DOCKER_PLATFORM=linux/amd64
+NODE_RUNTIME_BASE_IMAGE_TAG=axern/local-node-runtime-base:dev
+build_verify_image archive crates-io
+assert_contains "image inspect axern/local-node-runtime-base:dev"
+assert_contains "build --platform linux/amd64 -f"
+if grep -Fq "buildx build" "${calls_file}"; then
+  echo "local-parent build unexpectedly used an isolated Buildx image store" >&2
+  exit 1
+fi
+
+if output="$(MOCK_IMAGE_INSPECT_STATUS=1 \
+  axern_docker_build_from_local_parent missing-parent:dev -t child:dev . 2>&1)"; then
+  echo "local-parent build unexpectedly accepted a missing parent" >&2
+  exit 1
+fi
+grep -Fq "required local parent image is not loaded: missing-parent:dev" <<< "${output}"
 
 echo "docker_build_cache_test_ok=true"

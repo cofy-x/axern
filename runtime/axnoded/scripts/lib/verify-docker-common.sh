@@ -630,6 +630,14 @@ build_verify_image() {
     build_args=(--pull "${build_args[@]}")
   fi
 
+  if [ "${VERIFY_DOCKER_VARIANT}" = "full" ]; then
+    axern_docker_build_from_local_parent \
+      "${NODE_RUNTIME_BASE_IMAGE_TAG}" \
+      "${build_args[@]}" \
+      "${REPO_ROOT}"
+    return $?
+  fi
+
   if [ -n "${VERIFY_DOCKER_PLATFORM}" ] && docker buildx version >/dev/null 2>&1; then
     docker buildx build \
       --load \

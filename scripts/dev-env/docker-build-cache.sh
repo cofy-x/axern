@@ -78,3 +78,18 @@ axern_docker_build() {
 
   DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}" docker build "${args[@]}"
 }
+
+# A docker-container Buildx builder has its own image store. Use the daemon
+# builder when a later image consumes a parent that an earlier --load exported
+# into the local Docker image store.
+axern_docker_build_from_local_parent() {
+  local parent_image="$1"
+  shift
+
+  if ! docker image inspect "${parent_image}" >/dev/null 2>&1; then
+    echo "required local parent image is not loaded: ${parent_image}" >&2
+    return 1
+  fi
+
+  DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}" docker build "$@"
+}
