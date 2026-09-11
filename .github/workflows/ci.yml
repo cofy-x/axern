@@ -144,10 +144,10 @@ jobs:
       - name: Bootstrap Go dependencies
         run: make bootstrap-go
 
-      - name: Install architecture-check dependencies
+      - name: Install architecture and protobuf dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes ripgrep
+          sudo apt-get install --no-install-recommends --yes libprotobuf-dev protobuf-compiler ripgrep
 
       - name: Verify Go architecture boundaries
         run: |
@@ -155,6 +155,9 @@ jobs:
           make gatewayd-check-architecture
           make imagemgr-check-architecture
           make axnoded-check-architecture
+
+      - name: Verify committed protobuf outputs
+        run: make proto-generated-check
 
       - name: Build Go workspaces
         run: make build-go

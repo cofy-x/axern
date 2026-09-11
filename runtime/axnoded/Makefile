@@ -142,7 +142,11 @@ $(SDK_PROTO_GO_FIX_ACRONYM):
 	$(MAKE) -C $(SDK_PROTO_DIR) tools
 
 gen-protoc-internal: $(SDK_PROTO_GO_FIX_ACRONYM)
-	protoc -I . -I $(REPO_ROOT)/sdk/proto --go_out=. --go_opt=paths=source_relative internal/apipb/v1/*.proto
+	PATH="$(SDK_PROTO_BIN_DIR):$$PATH" protoc -I . -I $(REPO_ROOT)/sdk/proto --go_out=. --go_opt=paths=source_relative internal/apipb/v1/*.proto
+	@set -e; for generated in internal/apipb/v1/*.pb.go; do \
+		sed -i.bak -E 's|^(//[[:space:]]+protoc[[:space:]]+).*$$|\1(unknown)|' "$${generated}"; \
+		rm -f "$${generated}.bak"; \
+	done
 	PATH="$(SDK_PROTO_BIN_DIR):$$PATH" $(SDK_PROTO_GO_FIX_ACRONYM) -w -a '(Id|Io|Uuid|Os)$$' $$(find internal/apipb -name '*.pb.go')
 
 protos: protos-shared gen-protoc-internal ## regenerate protobuf code
