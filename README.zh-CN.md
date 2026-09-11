@@ -64,6 +64,8 @@ axern local down
 make quickstart-source
 ```
 
+仓库开发通常使用 `make verify-changed` 获得快速反馈。Linux correctness、完整回归和发布资格验证属于不同层级；详见[验证层级](./docs/verification/local-full-verification.md)。
+
 ## 可以构建什么
 
 - **Agent 沙箱：** 在 runsc 隔离边界后执行 agent 生成的代码，同时保留进程、文件、终端和输出 API。

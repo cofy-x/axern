@@ -10,6 +10,34 @@ permissions:
   contents: read
 
 jobs:
+  change-scope:
+    name: Change Scope
+    runs-on: ubuntu-latest
+    outputs:
+      network_policy_linux: ${{ steps.plan.outputs.network_policy_linux }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Select heavyweight verification
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            scripts/verification/plan.sh --plan --all-heavy --github-output "${GITHUB_OUTPUT}"
+          else
+            scripts/verification/plan.sh \
+              --base "${BASE_SHA}" \
+              --head "${HEAD_SHA}" \
+              --plan \
+              --github-output "${GITHUB_OUTPUT}"
+          fi
+
   open-source:
     name: Open Source
     runs-on: ubuntu-latest
@@ -57,6 +85,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate current change scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            scripts/verification/plan.sh --plan --all-heavy
+          else
+            scripts/verification/plan.sh --base "${BASE_SHA}" --head "${HEAD_SHA}" --plan
+          fi
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
@@ -128,13 +170,19 @@ jobs:
 
   network-policy-linux:
     name: Network Policy Linux
+    needs: change-scope
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
+      - name: Explain skipped matrix
+        if: needs.change-scope.outputs.network_policy_linux != 'true'
+        run: echo "Full network-policy matrix is not affected by this change set."
+
       - name: Run full native Linux network-policy correctness matrix
+        if: needs.change-scope.outputs.network_policy_linux == 'true'
         run: make axnoded-verify-network-policy-linux-matrix
 
   rust:

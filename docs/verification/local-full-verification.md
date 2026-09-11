@@ -1,85 +1,104 @@
 # Verification Tiers
 
-Verification is layered by cost and evidence. A normal local edit must not run
-the deployment qualification matrix or repeatedly execute destructive runtime
-conformance. Run each tier on the same commit and worktree; advance only as far
-as the change and delivery stage require.
+Verification is layered by feedback time and evidence strength. Local feedback,
+Linux correctness, full repository regression, and environment qualification
+have different owners and must not be serialized into every edit-and-merge loop.
+Run each required tier on the same commit and worktree.
 
-## Tier 1: fast contract and unit checks
+| Tier | Expected feedback budget | Merge role |
+| :--- | :--- | :--- |
+| Changed host-safe checks | 5 minutes on a warm workspace | Normal local gate |
+| Selected Linux/local integration | 15 minutes for the standard CI path | Affected PR gate |
+| Full repository regression | 45 minutes | Broad-change or asynchronous post-merge gate |
+| Environment qualification | No PR feedback budget | Frozen-candidate release/promotion gate |
 
-Run targeted package tests while editing, then the host-safe repository subset
-before handoff:
+Treat these as maintainability budgets, not timeouts that weaken correctness.
+When a tier repeatedly exceeds its budget, split its smoke feedback from its
+complete evidence workflow instead of reducing the latter's sample or coverage.
 
-```bash
-go test ./path/to/changed/package ./path/to/adjacent/contract/package
-make -C runtime/axnoded test-host
-make agent-doc-check
-```
+## Tier 1: changed and host-safe checks
 
-When protobufs change, also run the repository proto generation and generated
-checks. Tier 1 must not start real OOM or disk-fill workloads. Its normal budget
-is minutes, not hours.
-
-## Tier 2: affected local Linux integration
-
-Use the Linux devbox or privileged Docker verification only for affected
-runtime boundaries:
+Use the change planner as the normal repository entrypoint. It prints its scope
+before running and never starts Compose, kind, privileged Linux, or environment
+qualification:
 
 ```bash
-make -C runtime/axnoded verify-docker
+make verify-changed-plan
+make verify-changed
 ```
 
-Prefer the narrow runc, runsc, sandboxd, rootfs, cgroup, XFS, or EROFS target
-when the change does not cross both runtimes. A broad runtime/rootfs change may
-also run:
+Set `VERIFY_BASE=<ref>` when the comparison base is not `origin/main`. For a
+broad or unclassifiable source change, the planner fails safe to
+`make verify-fast-all`, the complete host-safe source gate. Protobuf generated
+output checks finish before any Go compilation.
+
+Tier 1 must not start real OOM, disk-fill, or sampled performance workloads. Its
+normal budget is minutes. A normal pull request may merge after its selected
+Tier 1 checks and GitHub checks pass; it does not also require a local full gate.
+
+## Tier 2: affected Linux and local integration
+
+Use the Linux devbox or a narrow privileged Docker verification only for an
+affected runtime boundary:
+
+```bash
+make -C runtime/axnoded verify-docker-runsc
+make -C runtime/axnoded verify-network-policy-linux-smoke
+```
+
+Prefer the narrow runc, runsc, sandboxd, rootfs, cgroup, XFS, EROFS, or network
+policy target when a change does not cross several boundaries. A broad runtime
+or deployment change may also run:
 
 ```bash
 make local-compose-refresh-verify
 make kind-refresh-verify
 ```
 
+The repository change planner emits `network_policy_linux` and
+`managed_rollout` scopes. Pull-request CI uses those outputs to keep stable check
+names while avoiding unrelated heavyweight work. Linux CI is authoritative for
+namespace, cgroup, mount, eBPF, runc, and runsc behavior; macOS is not expected
+to duplicate it.
+
 Compose DNS verification uses a repository-owned authoritative fixture over
-both UDP and TCP. No host resolver or DNS environment variable is used:
+UDP and TCP. The refresh materializes that fixture as the explicit node resolver
+and verifies config, node, and real OCI sandbox DNS paths without host-resolver
+or public-resolver fallback.
+
+Tier 2 proves correctness with a small deterministic matrix. Sampling must not
+turn it into an hours-long qualification. If performance evidence is needed,
+keep the correctness smoke and qualification as distinct profiles and outputs.
+
+## Tier 3: asynchronous full repository gate
+
+`make verify-full` is the broad-change and post-merge repository gate. It is not
+a default prerequisite for every pull-request merge or a command to restart
+after each edit. On failure, first reproduce the named step directly, then use
+the printed `--from <step>` resume point while diagnosing:
 
 ```bash
-make local-compose-refresh-verify
+make verify-full ARGS='--include-local-storage'
+make verify-full ARGS='--include-bpfnet-generate-check'
+make verify-full ARGS='--include-proto-breaking'
 ```
 
-The refresh starts the fixture first, materializes its current container address
-as the explicit axnoded resolver, and then starts the Node. The Node probe reads
-that materialized runtime config and verifies every effective resolver without
-exposing addresses. It never asks egressd to discover DNS and never falls back
-to a public resolver. `local-compose-dns-doctor-smoke` verifies the config,
-Node, and real OCI sandbox DNS layers together with redaction, cleanup, table
-output, and exit-code contracts.
+Use `make verify-release` for the source and local-deployment release gate. It
+includes Axrun and local-storage acceptance, but it does not produce an
+environment qualification receipt.
 
-Tier 2 proves lifecycle and kernel integration with a small deterministic
-matrix. It may exercise a single startup conformance sandbox, but it does not
-run 20-sample environment qualification, maximum-concurrency stages, or the
-complete image-performance matrix. Keep this tier within roughly 30–90 minutes;
-split or narrow a command that approaches multi-hour duration.
+## Tier 4: environment qualification
 
-## Tier 3: full repository gate
+Digest-pinned memory, network-policy performance, capacity, soak, regional
+rollout, and deployed acceptance run only for a frozen release candidate or an
+explicitly scoped investigation. They must execute and collect remotely without
+depending on a live developer shell.
 
-`bash ./scripts/verify-all.sh` remains a release/broad-change gate. It is not a
-command to rerun from the beginning after every edit. On failure use the printed
-`--from <step>` resume point after first reproducing the failing step directly.
-Optional storage, BPF generation, and proto-breaking checks are selected only
-when those surfaces changed:
+A reduced remote smoke may provide correctness feedback, but it must have a
+distinct profile and output and can never be presented as qualification or
+promotion evidence. Full qualification preserves its existing sample counts,
+budgets, immutable artifact identity, environment identity, and receipt checks.
 
-```bash
-bash ./scripts/verify-all.sh --include-local-storage
-bash ./scripts/verify-all.sh --include-bpfnet-generate-check
-bash ./scripts/verify-all.sh --include-proto-breaking
-```
-
-The final `git status --short` must contain only intentional changes and every
-executed tier must record its exact command and result in the handoff.
-
-Destructive environment qualification—real-OOM and quota-fill repetitions,
-page-cache and dirty/writeback attribution, maximum-concurrency stages, system
-reserve calibration, cloud rollout, and deployed acceptance—is intentionally
-outside this repository's local verification contract. Its commands, release
-identity, receipts, and environment policy belong to the deployment workspace
-that owns those environments. Do not duplicate that runbook here or move those
-workloads into `go test`, provider refresh, or per-allocation audit paths.
+The final `git status --short` must contain only intentional changes. The handoff
+records the exact commands and results for the tiers that were required, rather
+than claiming tiers that were skipped by scope.

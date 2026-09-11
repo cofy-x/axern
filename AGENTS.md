@@ -70,8 +70,17 @@ updated together.
 
 ## Completing A Change
 
-- Use the narrowest relevant validation from the local contract. Use root
-  `make` targets for cross-workspace changes.
+- Use the narrowest relevant validation from the local contract. After a
+  cohesive edit, run `make verify-changed-plan` and `make verify-changed`; the
+  repository planner is the shared source of truth for host-safe checks and
+  affected heavyweight CI scopes. Use root `make` targets for cross-workspace
+  changes.
+- Do not run Compose, kind, the full repository gate, or regional qualification
+  merely because a normal pull request is approaching merge. Run the affected
+  Linux or local truth path when selected by scope. Reserve `make verify-full`
+  for broad changes and asynchronous post-merge regression, and
+  `make verify-release` plus environment qualification for frozen release
+  candidates.
 - For protobuf changes, run generation and generated-output checks before Go
   compilation; generation replaces `sdk/go/gen` and must not run in parallel
   with compilation.

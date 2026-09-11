@@ -16,6 +16,7 @@ on:
       - "deploy/local/**"
       - "scripts/axrun/**"
       - "scripts/dev-env/**"
+      - "scripts/verification/**"
       - "Makefile"
       - "mk/axrun.mk"
       - "mk/dev-env.mk"
@@ -41,6 +42,7 @@ on:
       - "deploy/local/**"
       - "scripts/axrun/**"
       - "scripts/dev-env/**"
+      - "scripts/verification/**"
       - "Makefile"
       - "mk/axrun.mk"
       - "mk/dev-env.mk"
@@ -69,8 +71,32 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Select heavyweight verification
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            scripts/verification/plan.sh \
+              --base "${BASE_SHA}" \
+              --head "${HEAD_SHA}" \
+              --plan \
+              --github-output "${GITHUB_OUTPUT}"
+          else
+            scripts/verification/plan.sh --plan --all-heavy --github-output "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Explain skipped gate
+        if: steps.scope.outputs.managed_rollout != 'true'
+        run: echo "Managed rollout behavior is not affected by this change set."
 
       - name: Set up Go
+        if: steps.scope.outputs.managed_rollout == 'true'
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: "1.25.12"
@@ -87,9 +113,11 @@ jobs:
             sdk/go/go.sum
 
       - name: Bootstrap Go dependencies
+        if: steps.scope.outputs.managed_rollout == 'true'
         run: make bootstrap-go
 
       - name: Managed rollout verification
+        if: steps.scope.outputs.managed_rollout == 'true'
         run: make axrun-managed-rollout-compose-e2e
 
       - name: Report runner resources after failure

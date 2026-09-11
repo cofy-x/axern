@@ -35,6 +35,9 @@ documents.
 - [Documentation Site Visual Direction](decisions/docs-site-visual-direction.md):
   durable visual, content, interaction, and ownership constraints for the
   public documentation site.
+- [Verification Feedback Tiers](decisions/verification-feedback-tiers.md):
+  separate fast development feedback, Linux correctness, full regression, and
+  frozen-candidate qualification.
 
 ## Product Direction And User Models
 
@@ -75,8 +78,9 @@ material here only when multiple modules need the same model.
 
 ## Verification
 
-- [Local Full Verification](verification/local-full-verification.md): concise
-  repository, Compose, kind, and Nydus verification checklist.
+- [Verification Tiers](verification/local-full-verification.md): change-selected
+  fast checks, Linux correctness, asynchronous full regression, and release
+  qualification boundaries.
 - [Dependency License Policy](legal/dependency-licenses.md): release dependency
   inventory and incompatible-license gate.
 
