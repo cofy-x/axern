@@ -453,7 +453,9 @@ prepare_oci_test_image_source() {
 prepare_nydus_test_image_source() {
   local image_ref="$1"
   local source_mode="${NYDUS_TEST_IMAGE_SOURCE:-local-build}"
-  local build_output runtime_ref
+  local local_registry_port="${OCI_TEST_LOCAL_REGISTRY_PORT:-${LOCAL_REGISTRY_PORT:-5001}}"
+  local local_registry_name="${LOCAL_REGISTRY_NAME:-axern-registry}"
+  local build_output registry_ip registry_runtime_host runtime_ref
 
   PREPARED_NYDUS_TEST_IMAGE="${image_ref}"
   OCI_TEST_INSECURE_REGISTRIES="${IMAGEMGR_INSECURE_REGISTRIES:-${OCI_TEST_INSECURE_REGISTRIES:-}}"
@@ -465,7 +467,22 @@ prepare_nydus_test_image_source() {
       return 0
       ;;
     local-build)
-      build_output="$(NYDUS_PLATFORM="${VERIFY_DOCKER_PLATFORM}" bash "${REPO_ROOT}/scripts/dev-env/registry-nydus-image-build.sh")"
+      if ! LOCAL_REGISTRY_PORT="${local_registry_port}" "${REPO_ROOT}/scripts/dev-env/registry-up.sh" >/dev/null; then
+        echo "failed to start the repo-managed local registry on port ${local_registry_port}" >&2
+        return 1
+      fi
+      registry_ip="$(docker inspect --format '{{with index .NetworkSettings.Networks "bridge"}}{{.IPAddress}}{{end}}' "${local_registry_name}")"
+      if [ -z "${registry_ip}" ]; then
+        echo "local registry has no bridge address: ${local_registry_name}" >&2
+        return 1
+      fi
+      registry_runtime_host="${registry_ip}:5000"
+      build_output="$(
+        LOCAL_REGISTRY_PORT="${local_registry_port}" \
+          LOCAL_REGISTRY_CLUSTER_HOST="${registry_runtime_host}" \
+          NYDUS_PLATFORM="${VERIFY_DOCKER_PLATFORM}" \
+          bash "${REPO_ROOT}/scripts/dev-env/registry-nydus-image-build.sh"
+      )"
       runtime_ref="$(printf '%s\n' "${build_output}" | awk -F= '$1 == "cluster_nydus_image" {print $2}')"
       if [ -z "${runtime_ref}" ]; then
         printf '%s\n' "${build_output}" >&2
@@ -484,6 +501,10 @@ prepare_nydus_test_image_source() {
   else
     OCI_TEST_INSECURE_REGISTRIES="${runtime_ref%%/*}"
   fi
+  case ",${REGISTRY_NO_PROXY}," in
+    *,"${registry_ip}",*) ;;
+    *) REGISTRY_NO_PROXY="${REGISTRY_NO_PROXY:+${REGISTRY_NO_PROXY},}${registry_ip}" ;;
+  esac
 
   PREPARED_NYDUS_TEST_IMAGE="${runtime_ref}"
   export PREPARED_NYDUS_TEST_IMAGE OCI_TEST_INSECURE_REGISTRIES REGISTRY_NO_PROXY

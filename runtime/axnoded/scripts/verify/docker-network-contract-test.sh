@@ -10,7 +10,8 @@ python3 - \
   "${AXNODED_DIR}/scripts/verify/node-all-in-one-entrypoint.sh" \
   "${AXNODED_DIR}/scripts/verify/verify-node-python-runtime-e2e.sh" \
   "${AXNODED_DIR}/scripts/verify/verify-node-service-probes-e2e.sh" \
-  "${AXNODED_DIR}/scripts/verify/verify-node-service-volumes-e2e.sh" <<'PY'
+  "${AXNODED_DIR}/scripts/verify/verify-node-service-volumes-e2e.sh" \
+  "${AXNODED_DIR}/scripts/lib/verify-docker-common.sh" <<'PY'
 import ipaddress
 import pathlib
 import re
@@ -53,12 +54,24 @@ for fragment in (
     if fragment not in python_runtime_text:
         raise SystemExit(f"{python_runtime.name} must use its shared Docker network: {fragment}")
 
-for path in map(pathlib.Path, sys.argv[6:]):
+for path in map(pathlib.Path, sys.argv[6:8]):
     text = path.read_text()
     if '--add-host "host.docker.internal:host-gateway"' not in text:
         raise SystemExit(f"{path.name} must map the Linux host gateway for its control plane")
     if '-grpc-address "0.0.0.0:' not in text:
         raise SystemExit(f"{path.name} must expose controld on the Linux host gateway")
+
+docker_common = pathlib.Path(sys.argv[8]).read_text()
+for fragment in (
+    'registry_runtime_host="${registry_ip}:5000"',
+    'LOCAL_REGISTRY_CLUSTER_HOST="${registry_runtime_host}"',
+    'REGISTRY_NO_PROXY="${REGISTRY_NO_PROXY:+${REGISTRY_NO_PROXY},}${registry_ip}"',
+):
+    if fragment not in docker_common:
+        raise SystemExit(
+            "Nydus local-build verification must use the registry container bridge endpoint: "
+            + fragment
+        )
 PY
 
 echo "docker_network_contract_ok=true"
