@@ -141,13 +141,21 @@ jobs:
             runtime/tunneld/go.sum
             sdk/go/go.sum
 
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
       - name: Bootstrap Go dependencies
         run: make bootstrap-go
 
-      - name: Install architecture-check dependencies
+      - name: Install architecture and protobuf dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes ripgrep
+          sudo apt-get install --no-install-recommends --yes libprotobuf-dev protobuf-compiler ripgrep
 
       - name: Verify Go architecture boundaries
         run: |
@@ -155,6 +163,9 @@ jobs:
           make gatewayd-check-architecture
           make imagemgr-check-architecture
           make axnoded-check-architecture
+
+      - name: Verify committed protobuf outputs
+        run: make proto-generated-check
 
       - name: Build Go workspaces
         run: make build-go
