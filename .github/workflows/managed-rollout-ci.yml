@@ -66,6 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
+      APT_MIRROR_SOURCE: "ustc"
       AXERN_MANAGED_ROLLOUT_PRUNE_BUILD_CACHE: "1"
       GOTOOLCHAIN: local
     steps:

@@ -40,6 +40,19 @@ if missing:
 if not positions["build"] < positions["push"] < positions["consume"]:
     raise SystemExit("node runtime base must be built and pushed before node-all-in-one consumes it")
 
+for image in ("CODEX_BUNDLE_IMAGE", "CLAUDE_CODE_BUNDLE_IMAGE"):
+    contract = f'IMAGE_REF="${{{image}}}" APT_MIRROR_SOURCE="${{APT_MIRROR_SOURCE}}"'
+    if contract not in source:
+        raise SystemExit(f"local image build does not propagate APT_MIRROR_SOURCE to {image}")
+
+for workflow_path in (
+    root / ".github/workflows/ci.yml",
+    root / ".github/workflows/managed-rollout-ci.yml",
+    root / ".github/workflows/post-merge-full.yml",
+):
+    if 'APT_MIRROR_SOURCE: "ustc"' not in workflow_path.read_text():
+        raise SystemExit(f"heavyweight GitHub verification does not select the CI APT mirror: {workflow_path}")
+
 runtime_source = (root / "runtime/axnoded/scripts/lib/verify-docker-common.sh").read_text()
 function_start = runtime_source.index("build_node_runtime_base_image()")
 function_end = runtime_source.index("\n}\n", function_start)

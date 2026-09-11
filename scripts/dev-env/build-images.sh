@@ -87,9 +87,9 @@ if [ "${build_runtime_core}" = "true" ]; then
   push_image_after_build "${SERVER_BASE_RUNTIME_IMAGE}"
   IMAGE_REF="${CODING_BASE_RUNTIME_IMAGE}" SERVER_BASE_RUNTIME_IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-coding-base-runtime-image.sh" >/dev/null
   push_image_after_build "${CODING_BASE_RUNTIME_IMAGE}"
-  IMAGE_REF="${CODEX_BUNDLE_IMAGE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-codex-bundle-image.sh"
+  IMAGE_REF="${CODEX_BUNDLE_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-codex-bundle-image.sh"
   push_image_after_build "${CODEX_BUNDLE_IMAGE}"
-  IMAGE_REF="${CLAUDE_CODE_BUNDLE_IMAGE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-claude-code-bundle-image.sh"
+  IMAGE_REF="${CLAUDE_CODE_BUNDLE_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-claude-code-bundle-image.sh"
   push_image_after_build "${CLAUDE_CODE_BUNDLE_IMAGE}"
   report_image_build_phase "runtime-core" "${phase_started_at}"
 fi
