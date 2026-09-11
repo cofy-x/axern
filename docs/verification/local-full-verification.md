@@ -83,6 +83,23 @@ make verify-full ARGS='--include-bpfnet-generate-check'
 make verify-full ARGS='--include-proto-breaking'
 ```
 
+The `Post-Merge Full` GitHub workflow runs the default `make verify-full` gate
+for every `main` commit and supports manual dispatch. It uses read-only
+repository permissions, language and Docker build caches, a three-hour safety
+timeout, and one concurrency slot per ref. When a newer `main` commit arrives,
+the older in-progress run is cancelled because the newer tree contains and
+supersedes it; a cancelled run is not passing evidence.
+
+Each run publishes a summary plus a 14-day artifact containing the exact
+commit, run identity, bootstrap log, full regression log, and failure
+diagnostics when applicable. GitHub's job log remains the authoritative live
+view. Rerunning the remote job starts from a clean runner; `--from` remains a
+same-workspace local diagnosis aid and is not exposed as a misleading remote
+resume control.
+
+Do not release or promote a commit until its exact `Full Repository Regression`
+job succeeds. The workflow is deliberately not a required pull-request check.
+
 Use `make verify-release` for the source and local-deployment release gate. It
 includes Axrun and local-storage acceptance, but it does not produce an
 environment qualification receipt.

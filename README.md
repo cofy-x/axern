@@ -70,7 +70,9 @@ make quickstart-source
 
 For repository development, `make verify-changed` is the normal fast feedback
 entrypoint. Linux correctness, full regression, and release qualification are
-separate tiers; see the [verification tiers](./docs/verification/local-full-verification.md).
+separate tiers. Every `main` commit receives an unattended, commit-bound full
+regression without delaying pull-request feedback; see the
+[verification tiers](./docs/verification/local-full-verification.md).
 
 ## What You Can Build
 

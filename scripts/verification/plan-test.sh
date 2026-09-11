@@ -24,6 +24,7 @@ assert_plan rollout apps/axrun/internal/application/rollout/execute.go go false 
 assert_plan migration control/controld/internal/postgres/migrations/000005_example.sql go false true
 assert_plan classifier scripts/verification/plan.sh verify-fast-all true true
 assert_plan release-workflow .github/workflows/release.yml verify-fast-all,release-contract true true
+assert_plan post-merge-workflow .github/workflows/post-merge-full.yml verify-fast-all true true
 
 github_output="${work_dir}/github.out"
 paths_file="${work_dir}/empty.paths"
