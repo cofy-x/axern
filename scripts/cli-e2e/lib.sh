@@ -14,6 +14,9 @@ GATEWAY_HTTP_ADDRESS="${GATEWAY_HTTP_ADDRESS:-127.0.0.1:25080}"
 GATEWAY_CONTROL_ADDRESS="${GATEWAY_CONTROL_ADDRESS:-127.0.0.1:25000}"
 GATEWAY_SSH_ADDRESS="${GATEWAY_SSH_ADDRESS:-127.0.0.1:25022}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/shared/run/axnoded.sock}"
+# The privileged node creates sandbox0 from this range. Keep it distinct from
+# Docker's default 172.17.0.0/16 bridge so host-gateway traffic stays on eth0.
+AXNODED_NETWORK_IP_RANGE="${AXNODED_NETWORK_IP_RANGE:-172.31.0.1/16}"
 CONTROL_PLANE_NODE_ID="${CONTROL_PLANE_NODE_ID:-node-axern-cli-e2e}"
 CONTROL_PLANE_NODE_AUTH_TOKEN="${CONTROL_PLANE_NODE_AUTH_TOKEN:-node-axern-cli-e2e-token}"
 PYTHON_RUNTIME_IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF:-axern/python311-runtime:dev}"
@@ -170,6 +173,7 @@ dump_logs() {
   cat "${gatewayd_log}" >&2 || true
   echo "--- node container logs ---" >&2
   docker logs "${NODE_CONTAINER_NAME}" >&2 || true
+  dump_node_control_plane_route
   dump_node_log_tail "axnoded" "/var/log/axnoded/axnoded.log" 160
   dump_node_log_tail "imagemgr" "/var/lib/imagemgr/logs/imagemgr.log" 120
   dump_node_log_tail "node-tunneld" "/var/log/axnoded/node-tunneld.log" 120
@@ -188,6 +192,47 @@ dump_node_log_tail() {
   local lines="$3"
   echo "--- ${label} log tail ---" >&2
   docker exec "${NODE_CONTAINER_NAME}" sh -lc "test -f '${path}' && tail -n '${lines}' '${path}'" >&2 || true
+}
+
+node_control_plane_tcp_ready() {
+  docker exec \
+    -e "AXERN_E2E_CONTROL_PLANE_PORT=${CONTROLD_GRPC_ADDRESS##*:}" \
+    "${NODE_CONTAINER_NAME}" \
+    bash -lc 'timeout 5 bash -lc "exec 3<>/dev/tcp/host.docker.internal/${AXERN_E2E_CONTROL_PLANE_PORT}"' \
+    >/dev/null 2>&1
+}
+
+dump_node_control_plane_route() {
+  echo "--- node to control-plane route ---" >&2
+  docker exec \
+    -e "AXERN_E2E_CONTROL_PLANE_PORT=${CONTROLD_GRPC_ADDRESS##*:}" \
+    "${NODE_CONTAINER_NAME}" \
+    bash -lc '
+      set +e
+      printf "%s\n" "hosts:"
+      getent ahostsv4 host.docker.internal
+      printf "%s\n" "routes:"
+      ip -4 route show
+      if timeout 5 bash -lc "exec 3<>/dev/tcp/host.docker.internal/${AXERN_E2E_CONTROL_PLANE_PORT}"; then
+        printf "%s\n" "control_plane_tcp_ready=true"
+      else
+        printf "control_plane_tcp_ready=false rc=%s\n" "$?"
+      fi
+      if command -v openssl >/dev/null 2>&1; then
+        timeout 10 openssl s_client \
+          -connect "host.docker.internal:${AXERN_E2E_CONTROL_PLANE_PORT}" \
+          -servername host.docker.internal \
+          -CAfile /shared/certs/ca.crt \
+          -cert /shared/certs/node.crt \
+          -key /shared/certs/node.key \
+          -verify_return_error \
+          -verify_hostname host.docker.internal \
+          -brief </dev/null
+        printf "control_plane_tls_probe_rc=%s\n" "$?"
+      else
+        printf "%s\n" "control_plane_tls_probe=openssl-unavailable"
+      fi
+    ' >&2 || true
 }
 
 run_step() {

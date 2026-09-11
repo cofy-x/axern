@@ -2,6 +2,9 @@
 set -euo pipefail
 
 export AXNODED_CONTROL_PLANE_NODE_ID="${AXNODED_CONTROL_PLANE_NODE_ID:-node-verify}"
+# Verification runs inside Docker's network namespace. Keep the nested sandbox
+# bridge off Docker's default 172.17.0.0/16 bridge so host and peer routes work.
+export AXNODED_NETWORK_IP_RANGE="${AXNODED_NETWORK_IP_RANGE:-172.31.0.1/16}"
 
 VERIFY_ROOTFS_IMAGE="${VERIFY_ROOTFS_IMAGE:-/var/lib/axnoded/verify-rootfs.ext4}"
 VERIFY_NGINX_ROOTFS_IMAGE="${VERIFY_NGINX_ROOTFS_IMAGE:-/var/lib/axnoded/verify-nginx-rootfs.ext4}"

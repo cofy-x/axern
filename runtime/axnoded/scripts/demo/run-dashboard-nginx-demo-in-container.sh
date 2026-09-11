@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
 . "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 NAT_BACKEND="${NAT_BACKEND:-iptables}"
+AXNODED_NETWORK_IP_RANGE="${AXNODED_NETWORK_IP_RANGE:-172.31.0.1/16}"
 VOLUMED_LOG="${VOLUMED_LOG:-/tmp/volumed-dashboard.log}"
 VERIFY_NGINX_ROOTFS_IMAGE="${VERIFY_NGINX_ROOTFS_IMAGE:-/var/lib/axnoded/verify-dashboard-nginx-rootfs.ext4}"
 setup_node_runtime_volume_defaults
@@ -26,7 +27,7 @@ rootDir = "/var/lib/axnoded/root"
 storeDir = "/var/lib/axnoded/store"
 
 [plugin.network]
-ip_range = "172.17.0.1/16"
+ip_range = "${AXNODED_NETWORK_IP_RANGE}"
 nat_backend = "${NAT_BACKEND}"
 
 [plugin.network.ebpf]

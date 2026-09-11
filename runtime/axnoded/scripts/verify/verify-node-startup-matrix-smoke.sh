@@ -13,7 +13,7 @@ STARTUP_MATRIX_OUTPUT_DIR="${output_dir}" \
 STARTUP_MATRIX_SCENARIOS="runsc-local,runc-local" \
 STARTUP_MATRIX_COLD_SAMPLES=1 \
 STARTUP_MATRIX_WARM_SAMPLES=2 \
-bash "${ROOT_DIR}/scripts/benchmark/startup-matrix-docker.sh" > "${output_dir}/matrix.json"
+bash "${ROOT_DIR}/scripts/benchmark/startup-matrix-docker.sh" >/dev/null
 
 matrix_json="$(cat "${output_dir}/matrix.json")"
 scenario_report="${output_dir}/scenarios/runsc-local.json"

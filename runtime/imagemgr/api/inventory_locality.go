@@ -90,6 +90,9 @@ func (w *HttpWorker) buildLocalityEntries(
 func mountLocalityKey(mount MountedImageDetail) (string, bool) {
 	switch mount.MountType {
 	case MountTypeOCI:
+		if mount.CacheKey != "" {
+			return "image:" + mount.CacheKey, true
+		}
 		if mount.ImageURL == "" {
 			return "", false
 		}

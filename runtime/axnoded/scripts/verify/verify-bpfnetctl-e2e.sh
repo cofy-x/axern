@@ -189,6 +189,7 @@ docker run -d \
   --privileged \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
   -e "NAT_BACKEND=${NAT_BACKEND}" \
+  -e AXNODED_NETWORK_IP_RANGE \
   -p "${DASHBOARD_HOST}:${DASHBOARD_HOST_PORT}:${CONTAINER_HTTP_PORT}" \
   -p "127.0.0.1:${RUNSC_HOST_PORT}:${RUNSC_HOST_PORT}" \
   -p "127.0.0.1:${RUNC_HOST_PORT}:${RUNC_HOST_PORT}" \
