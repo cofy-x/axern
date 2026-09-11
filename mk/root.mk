@@ -1,7 +1,7 @@
 .PHONY: bootstrap bootstrap-tools \
 		bootstrap-go bootstrap-rust bootstrap-ts bootstrap-py \
 		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract post-merge-workflow-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture axern-cli-dashboard-smoke gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
-		hermetic-dns-contract-check \
+		hermetic-dns-contract-check cli-e2e-environment-contract \
 		gateway-dashboard-assets grafana-assets-check \
 		build-go test-go lint-go fmt-go \
 		build-rust test-rust lint-rust fmt-rust \
@@ -99,6 +99,7 @@ release-check: ## Verify release versions and package contracts
 	bash $(ROOTDIR)/scripts/release/helm-platform-contract-check.sh
 	bash $(ROOTDIR)/scripts/release/homebrew-formula-check.sh
 	bash $(ROOTDIR)/scripts/dev-env/docker-build-cache-test.sh
+	$(MAKE) cli-e2e-environment-contract
 	bash $(ROOTDIR)/scripts/release/image-build-contract-check.sh
 	bash $(ROOTDIR)/scripts/proxy-env-contract-check.sh
 	bash $(ROOTDIR)/scripts/dev-env/hermetic-dns-contract-check.sh
@@ -115,6 +116,9 @@ post-merge-workflow-contract: ## Verify unattended post-merge regression workflo
 
 hermetic-dns-contract-check: ## Verify local verification uses only the repository DNS fixture
 	bash $(ROOTDIR)/scripts/dev-env/hermetic-dns-contract-check.sh
+
+cli-e2e-environment-contract: ## Verify the CLI E2E node can route to host control-plane services
+	bash $(ROOTDIR)/scripts/cli-e2e/environment-contract-test.sh
 
 release-build: release-check ## Build CLI archives and the Helm package
 	bash $(ROOTDIR)/scripts/release/build-cli.sh
