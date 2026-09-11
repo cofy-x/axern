@@ -8,11 +8,12 @@ import (
 
 type MockResourceManager struct {
 	sync.Mutex
-	resourceCount int
-	usingCount    int
-	maxSize       int
-	maxCacheSize  int
-	name          string
+	poolController *poolController
+	resourceCount  int
+	usingCount     int
+	maxSize        int
+	maxCacheSize   int
+	name           string
 }
 
 func (m *MockResourceManager) MaxSizeLimit() int {
@@ -100,7 +101,14 @@ func (m *MockResourceManager) Status() ([]string, []string) {
 }
 
 func (m *MockResourceManager) ShutDown() error {
+	if m.poolController != nil {
+		m.poolController.shutdown()
+	}
 	return nil
+}
+
+func (m *MockResourceManager) setPoolController(controller *poolController) {
+	m.poolController = controller
 }
 
 var (

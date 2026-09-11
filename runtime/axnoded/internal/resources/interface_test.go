@@ -8,7 +8,6 @@ package resources
 import (
 	"errors"
 	"net"
-	"runtime"
 	"testing"
 
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/queue"
@@ -70,12 +69,9 @@ func TestCalcluteCacheSizeOnCPUProbeError(t *testing.T) {
 	assert.Equal(t, rawCacheSize, cacheSize)
 }
 
-func TestDestroyDevice(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("destroyDevice requires Linux netlink")
-	}
+func TestDestroyDeviceRejectsUnrecognizedInterface(t *testing.T) {
 	m := initInterfaceCache()
 
 	err := m.destroyDevice(m.allInterfaces[0])
-	assert.Nil(t, err)
+	assert.ErrorContains(t, err, "cannot reconstruct address")
 }

@@ -28,7 +28,8 @@ func TestDirectoryIdentityRejectsSymlinkAndChangesAfterReplacement(t *testing.T)
 	if _, err := DirectoryIdentity(link); err == nil {
 		t.Fatal("symlink was accepted as durable backing directory identity")
 	}
-	if err := os.Remove(directory); err != nil {
+	retired := filepath.Join(parent, "runsc-retired")
+	if err := os.Rename(directory, retired); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Mkdir(directory, 0o755); err != nil {
