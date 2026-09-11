@@ -84,6 +84,17 @@ fetch_axnoded_inventory() {
   return 1
 }
 
+resolve_image_cache_key() {
+  local image_url="$1"
+
+  curl -fsS \
+    --unix-socket "${IMAGEMGR_SOCKET}" \
+    --get \
+    --data-urlencode "ref=${image_url}" \
+    http://unix/oci_resolve |
+    jq -er '.cache_key | select(type == "string" and length > 0)'
+}
+
 wait_for_jq() {
   local description="$1"
   local file_path="$2"
@@ -146,6 +157,9 @@ wait_for_jq \
   20 \
   '.version == "v1alpha2" and (.heat.locality | type == "array") and .sources.imagemgr.status == "ready" and .components.imagemgr.reachable == true'
 
+oci_locality_key="image:$(resolve_image_cache_key "${OCI_IMAGE_URL}")"
+nydus_locality_key="image:$(resolve_image_cache_key "${NYDUS_IMAGE_URL}")"
+
 log_phase "oci-start"
 oci_runtime_id="locality-oci-$$"
 oci_container_id="$(start_container "oci-start" "${oci_runtime_id}" "${OCI_IMAGE_URL}" "/tmp/locality-oci.stdout" "/tmp/locality-oci.stderr")"
@@ -162,8 +176,8 @@ wait_for_jq \
   "OCI locality entry with retention heat" \
   "${inventory_file}" \
   40 \
-  'any(.heat.locality[]?; .key == ("image:" + $image_url) and .mount_type == "oci" and .mounted == true and .retained_runtime_count >= 1 and .retained_rootfs_count >= 1)' \
-  --arg image_url "${OCI_IMAGE_URL}"
+  'any(.heat.locality[]?; .key == $locality_key and .mount_type == "oci" and .mounted == true and .retained_runtime_count >= 1 and .retained_rootfs_count >= 1)' \
+  --arg locality_key "${oci_locality_key}"
 
 log_phase "nydus-start"
 nydus_runtime_id="locality-nydus-$$"
@@ -179,8 +193,8 @@ wait_for_jq \
   "Nydus locality entry with daemon heat" \
   "${inventory_file}" \
   60 \
-  'any(.heat.locality[]?; .key == ("image:" + $image_url) and .mount_type == "nydus" and .mounted == true and .nydus_daemon_alive == true and .chunkdb_total_chunks >= 0 and .peer_healthy_count >= 0 and .peer_hinted_count >= 0)' \
-  --arg image_url "${NYDUS_IMAGE_URL}"
+  'any(.heat.locality[]?; .key == $locality_key and .mount_type == "nydus" and .mounted == true and .nydus_daemon_alive == true and .chunkdb_total_chunks >= 0 and .peer_healthy_count >= 0 and .peer_hinted_count >= 0)' \
+  --arg locality_key "${nydus_locality_key}"
 
 axctl --address "${AXNODED_SOCKET}" sandbox delete "${nydus_container_id}"
 nydus_container_id=""
