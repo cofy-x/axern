@@ -20,6 +20,19 @@ func TestRunShellOutputUsesSharedWaiter(t *testing.T) {
 	}
 }
 
+func TestRunShellOutputDrainsShortLivedOutputWithoutWaiter(t *testing.T) {
+	const expected = "1280 720"
+	for i := 0; i < 200; i++ {
+		output, err := RunShellOutput(context.Background(), nil, "printf '1280 720'", nil, time.Second)
+		if err != nil {
+			t.Fatalf("RunShellOutput() iteration %d error = %v", i, err)
+		}
+		if string(output) != expected {
+			t.Fatalf("output iteration %d = %q, want %q", i, output, expected)
+		}
+	}
+}
+
 func TestRunShellOutputHandlesShortLivedNoOutputCommand(t *testing.T) {
 	waiter := NewWaiter(context.Background())
 	defer waiter.Stop()

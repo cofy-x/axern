@@ -30,20 +30,30 @@ func RunCommandOutput(ctx context.Context, waiter *Waiter, name string, args []s
 }
 
 func RunStartedCommand(ctx context.Context, cmd *exec.Cmd, waiter *Waiter) ([]byte, error) {
-	stdoutPipe, err := cmd.StdoutPipe()
+	stdoutReader, stdoutWriter, err := os.Pipe()
 	if err != nil {
 		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
-	stderrPipe, err := cmd.StderrPipe()
+	defer stdoutReader.Close()
+
+	stderrReader, stderrWriter, err := os.Pipe()
 	if err != nil {
+		stdoutWriter.Close()
 		return nil, fmt.Errorf("stderr pipe: %w", err)
 	}
+	defer stderrReader.Close()
+	cmd.Stdout = stdoutWriter
+	cmd.Stderr = stderrWriter
 	if err := cmd.Start(); err != nil {
+		stdoutWriter.Close()
+		stderrWriter.Close()
 		return nil, fmt.Errorf("start %s: %w", cmd.Path, err)
 	}
+	stdoutWriter.Close()
+	stderrWriter.Close()
 
-	stdoutCh := readAll(stdoutPipe)
-	stderrCh := readAll(stderrPipe)
+	stdoutCh := readAll(stdoutReader)
+	stderrCh := readAll(stderrReader)
 	waitCh := waitForCommand(cmd, waiter)
 	var timedOut error
 	var result Result
