@@ -68,6 +68,10 @@ It builds the current checkout into local `:dev` images and exercises the same p
 make quickstart-source
 ```
 
+For repository development, `make verify-changed` is the normal fast feedback
+entrypoint. Linux correctness, full regression, and release qualification are
+separate tiers; see the [verification tiers](./docs/verification/local-full-verification.md).
+
 ## What You Can Build
 
 - **Agent sandboxes:** execute agent-generated code behind a runsc isolation boundary while retaining process, file, terminal, and output APIs.

@@ -1,6 +1,6 @@
 .PHONY: bootstrap bootstrap-tools \
 		bootstrap-go bootstrap-rust bootstrap-ts bootstrap-py \
-		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture axern-cli-dashboard-smoke gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
+		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture axern-cli-dashboard-smoke gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
 		hermetic-dns-contract-check \
 		gateway-dashboard-assets grafana-assets-check \
 		build-go test-go lint-go fmt-go \
@@ -51,6 +51,29 @@ test: test-go test-rust test-ts test-py ## Run all root workspace tests
 
 lint: lint-go lint-rust lint-ts lint-py ## Run non-mutating root workspace checks
 
+verify-changed: ## Run host-safe checks selected from changes against VERIFY_BASE (default: origin/main)
+	bash $(ROOTDIR)/scripts/verification/plan.sh --base "$${VERIFY_BASE:-origin/main}"
+
+verify-changed-plan: ## Print change-selected fast and heavyweight verification scopes
+	bash $(ROOTDIR)/scripts/verification/plan.sh --base "$${VERIFY_BASE:-origin/main}" --plan
+
+verify-fast-all: ## Run the complete host-safe source gate without Compose, kind, or privileged Linux
+	$(MAKE) agent-doc-check
+	$(MAKE) axern-cli-check-architecture gatewayd-check-architecture imagemgr-check-architecture axnoded-check-architecture
+	$(MAKE) -C sdk/proto lint
+	$(MAKE) proto-generated-check
+	$(MAKE) lint
+	$(MAKE) test
+	$(MAKE) -C runtime/axnoded test-host
+	$(MAKE) -C runtime/axnoded vet
+	$(MAKE) -C network/bpfnet test
+
+verify-full: ## Run the serial full repository gate for broad changes or post-merge validation
+	bash $(ROOTDIR)/scripts/verify-all.sh $(ARGS)
+
+verify-release: ## Run the source/deployment release gate; environment qualification remains separate
+	bash $(ROOTDIR)/scripts/verify-all.sh --include-axrun --include-local-storage $(ARGS)
+
 fmt: fmt-go fmt-rust ## Format root Go and Rust workspaces
 
 protos: proto-generate ## Regenerate shared protobuf code and runtime-internal protobufs
@@ -71,6 +94,7 @@ open-source-check: ## Audit the public source tree, credentials, metadata, and d
 	bash $(ROOTDIR)/scripts/open-source-check.sh
 
 release-check: ## Verify release versions and package contracts
+	$(MAKE) verification-plan-contract
 	bash $(ROOTDIR)/scripts/release/version-check.sh
 	bash $(ROOTDIR)/scripts/release/helm-platform-contract-check.sh
 	bash $(ROOTDIR)/scripts/release/homebrew-formula-check.sh
@@ -81,6 +105,9 @@ release-check: ## Verify release versions and package contracts
 	bash $(ROOTDIR)/scripts/release/publication-contract-check.sh
 	bash $(ROOTDIR)/scripts/release/sdk-data-plane-contract-check.sh
 	$(MAKE) helm-lint
+
+verification-plan-contract: ## Verify change classification and heavyweight-gate routing
+	bash $(ROOTDIR)/scripts/verification/plan-test.sh
 
 hermetic-dns-contract-check: ## Verify local verification uses only the repository DNS fixture
 	bash $(ROOTDIR)/scripts/dev-env/hermetic-dns-contract-check.sh

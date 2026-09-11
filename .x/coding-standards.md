@@ -40,13 +40,20 @@ Rules and conventions for Axern contributors and agents.
 ## Validation Baseline
 
 - Prefer root `make` targets when they exist for the scope of the change.
+- Use `make verify-changed-plan` and `make verify-changed` as the normal
+  repository handoff gate. The planner must remain host-safe and fail safe to
+  `make verify-fast-all` for unknown or root-orchestration changes.
 - Changes to repository Markdown should run `make agent-doc-check`.
-- Cross-workspace or root orchestration changes should run `make build`, `make test`, and `make lint`.
+- Cross-workspace or root-orchestration changes use `make verify-fast-all`;
+  add `make build` only when build wiring or produced binaries changed.
 - Go changes should run the relevant package tests, subsystem validation, or the root `make test` for the affected `go.work` member.
 - Rust changes should run `cargo fmt --all --check` and `cargo test --workspace -- --test-threads=1`.
 - TypeScript changes under `sdk/typescript` should run `make sdk-typescript-verify`.
 - Python changes under `sdk/python` should run `make test-py` and `make lint-py`; run `uv build sdk/python` when package metadata or distribution behavior changes.
 - Shared protobuf contract changes should run `make protos`, `make proto-generated-check`, and `make -C sdk/proto lint`. Run generation and generated-output checks before Go compilation, never in parallel with it, because the generator replaces `sdk/go/gen` atomically at the workflow level rather than file by file.
+- Linux, Compose, kind, full-repository, and regional qualification tiers are
+  required only when selected by the owning contract and delivery stage. A
+  smaller smoke never substitutes for a release qualification receipt.
 
 ## Repository Hygiene
 

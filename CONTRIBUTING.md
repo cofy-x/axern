@@ -11,18 +11,21 @@ Makefile as the stable command surface.
 
 ```bash
 make bootstrap
-make build
-make test
-make lint
-make proto-generated-check
-make agent-doc-check
-make open-source-check
+make verify-changed-plan
+make verify-changed
 ```
 
-Integration-sensitive changes must also run the relevant Compose, kind, or
-runtime smoke documented by the owning module. Pull requests should describe
-the user impact, design tradeoffs, verification performed, and any operational
-risk.
+The change planner runs only host-safe checks and prints whether Linux network
+policy, managed rollout, or release-contract verification is affected. GitHub
+CI is authoritative for selected Linux correctness checks. Integration-sensitive
+changes may also need the narrow Compose, kind, or runtime smoke documented by
+the owning module.
+
+`make verify-full` is reserved for broad changes and asynchronous post-merge
+regression. `make verify-release` is the source and local-deployment release
+gate; regional performance and capacity qualification remain separate frozen-
+candidate workflows. Pull requests should describe the user impact, design
+tradeoffs, verification performed, and any operational risk.
 
 ## Commit Style
 
