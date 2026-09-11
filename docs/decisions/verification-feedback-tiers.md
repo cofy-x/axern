@@ -22,6 +22,13 @@ qualification remains bound to one frozen commit, immutable artifact digest,
 environment identity, complete samples, budgets, comparison, and receipt. A
 reduced smoke must use a distinct name and cannot satisfy promotion policy.
 
+Every `main` commit starts the remote `Post-Merge Full` workflow. It runs the
+repository-owned `make verify-full` entrypoint on a fresh Linux runner and
+retains commit-bound logs and failure diagnostics. A newer `main` commit
+supersedes an in-progress ancestor so the queue converges on the deployable
+state instead of accumulating stale regressions. Manual dispatch reruns the
+same workflow without creating a second verification definition.
+
 ## Rationale
 
 Local macOS checks and GitHub Linux checks previously repeated source coverage,
@@ -44,6 +51,8 @@ feedback budget.
   running their workload when the classifier says they are unaffected.
 - Full and qualification failures block release or promotion even when the
   originating pull request has already merged.
+- Pull requests do not wait for `Post-Merge Full`; release and promotion wait
+  for its successful result on the exact candidate commit.
 - The classifier contract must be tested whenever paths or ownership change.
 
 ## Revisit When

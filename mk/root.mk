@@ -1,6 +1,6 @@
 .PHONY: bootstrap bootstrap-tools \
 		bootstrap-go bootstrap-rust bootstrap-ts bootstrap-py \
-		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture axern-cli-dashboard-smoke gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
+		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract post-merge-workflow-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture axern-cli-dashboard-smoke gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
 		hermetic-dns-contract-check \
 		gateway-dashboard-assets grafana-assets-check \
 		build-go test-go lint-go fmt-go \
@@ -108,6 +108,10 @@ release-check: ## Verify release versions and package contracts
 
 verification-plan-contract: ## Verify change classification and heavyweight-gate routing
 	bash $(ROOTDIR)/scripts/verification/plan-test.sh
+	$(MAKE) post-merge-workflow-contract
+
+post-merge-workflow-contract: ## Verify unattended post-merge regression workflow invariants
+	bash $(ROOTDIR)/scripts/verification/post-merge-workflow-contract-test.sh
 
 hermetic-dns-contract-check: ## Verify local verification uses only the repository DNS fixture
 	bash $(ROOTDIR)/scripts/dev-env/hermetic-dns-contract-check.sh

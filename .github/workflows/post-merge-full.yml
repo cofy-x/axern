@@ -1,0 +1,157 @@
+name: Post-Merge Full
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: post-merge-full-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  full-regression:
+    name: Full Repository Regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GOTOOLCHAIN: local
+      AXERN_DOCKER_CACHE_BACKEND: gha
+      AXERN_NODE_RUNTIME_BASE_CACHE_BACKEND: gha
+      AXERN_GIT_REVISION: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.12"
+          cache-dependency-path: |
+            go.work.sum
+            **/go.sum
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@451ce45ce31d200b52705aadd15ce75018b006de # 1.89.0
+        with:
+          components: rustfmt
+
+      - name: Cache Cargo
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: full-cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            full-cargo-${{ runner.os }}-
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
+        with:
+          version: "10.24.0"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22.16.0"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Expose GitHub Actions cache runtime
+        uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
+
+      - name: Cache verification downloads
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            runtime/axnoded/.cache/gvisor
+            runtime/axnoded/.cache/minio
+          key: full-verification-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('runtime/axnoded/scripts/cache/*.sh') }}
+          restore-keys: |
+            full-verification-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install host utilities
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes ripgrep
+
+      - name: Initialize evidence
+        run: |
+          evidence_dir="${RUNNER_TEMP}/post-merge-full"
+          mkdir -p "${evidence_dir}"
+          {
+            printf 'commit=%s\n' "${GITHUB_SHA}"
+            printf 'ref=%s\n' "${GITHUB_REF}"
+            printf 'run_id=%s\n' "${GITHUB_RUN_ID}"
+            printf 'run_attempt=%s\n' "${GITHUB_RUN_ATTEMPT}"
+            printf 'runner_os=%s\n' "${RUNNER_OS}"
+            printf 'runner_arch=%s\n' "${RUNNER_ARCH}"
+          } >"${evidence_dir}/metadata.txt"
+
+      - name: Bootstrap repository dependencies
+        id: bootstrap
+        run: |
+          set -o pipefail
+          make bootstrap 2>&1 | tee "${RUNNER_TEMP}/post-merge-full/bootstrap.log"
+
+      - name: Run full repository regression
+        id: regression
+        run: |
+          set -o pipefail
+          make verify-full 2>&1 | tee "${RUNNER_TEMP}/post-merge-full/verify-full.log"
+
+      - name: Capture failure diagnostics
+        if: failure()
+        run: |
+          evidence_dir="${RUNNER_TEMP}/post-merge-full"
+          {
+            df -h
+            docker system df -v
+            docker ps -a --size --no-trunc
+          } >"${evidence_dir}/diagnostics.txt" 2>&1 || true
+
+      - name: Publish run summary
+        if: always()
+        env:
+          BOOTSTRAP_OUTCOME: ${{ steps.bootstrap.outcome }}
+          REGRESSION_OUTCOME: ${{ steps.regression.outcome }}
+        run: |
+          {
+            echo "## Post-merge full regression"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Bootstrap: \`${BOOTSTRAP_OUTCOME}\`"
+            echo "- Regression: \`${REGRESSION_OUTCOME}\`"
+            echo "- Command: \`make verify-full\`"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload regression evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: post-merge-full-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/post-merge-full
+          if-no-files-found: error
+          retention-days: 14

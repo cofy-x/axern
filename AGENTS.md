@@ -81,6 +81,10 @@ updated together.
   for broad changes and asynchronous post-merge regression, and
   `make verify-release` plus environment qualification for frozen release
   candidates.
+- The `Post-Merge Full` workflow owns asynchronous Tier 3 regression for every
+  `main` commit. Do not make it a pull-request check. A newer `main` run may
+  supersede an in-progress ancestor, but release or promotion must wait for a
+  successful `Full Repository Regression` bound to the exact candidate commit.
 - For protobuf changes, run generation and generated-output checks before Go
   compilation; generation replaces `sdk/go/gen` and must not run in parallel
   with compilation.

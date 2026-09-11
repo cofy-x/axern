@@ -64,7 +64,7 @@ axern local down
 make quickstart-source
 ```
 
-仓库开发通常使用 `make verify-changed` 获得快速反馈。Linux correctness、完整回归和发布资格验证属于不同层级；详见[验证层级](./docs/verification/local-full-verification.md)。
+仓库开发通常使用 `make verify-changed` 获得快速反馈。Linux correctness、完整回归和发布资格验证属于不同层级；每个 `main` 提交都会获得不延迟 PR 反馈的远端无人值守完整回归。详见[验证层级](./docs/verification/local-full-verification.md)。
 
 ## 可以构建什么
 
