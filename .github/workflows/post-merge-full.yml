@@ -95,7 +95,7 @@ jobs:
       - name: Install host utilities
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes ripgrep
+          sudo apt-get install --no-install-recommends --yes protobuf-compiler ripgrep
 
       - name: Initialize evidence
         run: |
