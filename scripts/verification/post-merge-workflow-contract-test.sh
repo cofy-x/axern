@@ -17,6 +17,7 @@ required=(
   "timeout-minutes: 180"
   "AXERN_DOCKER_CACHE_BACKEND: gha"
   "AXERN_NODE_RUNTIME_BASE_CACHE_BACKEND: gha"
+  "protobuf-compiler ripgrep"
   "make verify-full"
   "if: failure()"
   "if: always()"
