@@ -7,7 +7,7 @@ import os
 import sys
 import time
 
-from axern_sdk import AxernClient, CatalogClient
+from axern_sdk import AxernClient, CatalogClient, Sandbox
 from axern.control.run.v1 import run_pb2
 
 
@@ -65,13 +65,14 @@ def main() -> int:
                 f"exit_code_known={run.exit_code_known} exit_code={run.exit_code}"
             )
 
-        service = client.create_service(
-            environment_id=environment.id,
-            replicas=1,
-            argv=["python", "-c", "import time; time.sleep(30)"],
-        )
-        if not service.id:
-            raise SystemExit("create_service returned empty id")
+        with Sandbox(client=client, environment_id=environment.id) as sandbox:
+            result = sandbox.exec(
+                ["python", "-c", "print('python-sandbox-sdk-ok')"],
+                check=True,
+                text=True,
+            )
+            if result.stdout.strip() != "python-sandbox-sdk-ok":
+                raise SystemExit(f"sandbox exec returned unexpected output: {result.stdout!r}")
 
         print("verify_node_python_runtime_e2e_ok=true")
         return 0

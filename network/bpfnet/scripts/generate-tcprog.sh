@@ -4,25 +4,58 @@ set -euo pipefail
 MODE="${1:-generate}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "${ROOT_DIR}/../.." && pwd)"
+# shellcheck source=../../../scripts/proxy-env.sh
+source "${REPO_ROOT}/scripts/proxy-env.sh"
+
 IMAGE_TAG="${BPFNET_CODEGEN_IMAGE:-axern-bpfnet-codegen:latest}"
 DOCKER_PLATFORM="${BPFNET_CODEGEN_PLATFORM:-}"
-BPFNET_CODEGEN_REBUILD="${BPFNET_CODEGEN_REBUILD:-0}"
 CACHE_ROOT="${BPFNET_CODEGEN_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/axern/bpfnet-codegen}"
 GOPROXY_VALUE="${BPFNET_CODEGEN_GOPROXY:-https://proxy.golang.org,direct}"
 GOSUMDB_VALUE="${BPFNET_CODEGEN_GOSUMDB:-sum.golang.org}"
+APT_MIRROR_BASE_URL_VALUE="${BPFNET_CODEGEN_APT_MIRROR_BASE_URL:-${APT_MIRROR_BASE_URL:-}}"
+HTTP_PROXY_VALUE="$(container_proxy_url "${BPFNET_CODEGEN_HTTP_PROXY:-${HTTP_PROXY:-${http_proxy:-}}}")"
+HTTPS_PROXY_VALUE="$(container_proxy_url "${BPFNET_CODEGEN_HTTPS_PROXY:-${HTTPS_PROXY:-${https_proxy:-}}}")"
+NO_PROXY_VALUE="$(append_no_proxy_entries \
+  "${BPFNET_CODEGEN_NO_PROXY:-${NO_PROXY:-${no_proxy:-}}}" \
+  "localhost,127.0.0.1,::1,host.docker.internal")"
 
-build_args=(-t "${IMAGE_TAG}" -f "${ROOT_DIR}/docker/codegen/Dockerfile" "${ROOT_DIR}/docker/codegen")
+build_args=(
+  --add-host "host.docker.internal:host-gateway"
+  --build-arg "APT_MIRROR_BASE_URL=${APT_MIRROR_BASE_URL_VALUE}"
+  --build-arg "GOPROXY=${GOPROXY_VALUE}"
+  --build-arg "GOSUMDB=${GOSUMDB_VALUE}"
+  -t "${IMAGE_TAG}"
+  -f "${ROOT_DIR}/docker/codegen/Dockerfile"
+  "${ROOT_DIR}/docker/codegen"
+)
+if [ -n "${HTTP_PROXY_VALUE}" ]; then
+  build_args+=(
+    --build-arg "HTTP_PROXY=${HTTP_PROXY_VALUE}"
+    --build-arg "http_proxy=${HTTP_PROXY_VALUE}"
+  )
+fi
+if [ -n "${HTTPS_PROXY_VALUE}" ]; then
+  build_args+=(
+    --build-arg "HTTPS_PROXY=${HTTPS_PROXY_VALUE}"
+    --build-arg "https_proxy=${HTTPS_PROXY_VALUE}"
+  )
+fi
+if [ -n "${NO_PROXY_VALUE}" ]; then
+  build_args+=(
+    --build-arg "NO_PROXY=${NO_PROXY_VALUE}"
+    --build-arg "no_proxy=${NO_PROXY_VALUE}"
+  )
+fi
 if [ -n "${DOCKER_PLATFORM}" ]; then
   build_args=(--platform "${DOCKER_PLATFORM}" "${build_args[@]}")
 fi
 
-if [ "${BPFNET_CODEGEN_REBUILD}" = "1" ] || ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
-  docker build "${build_args[@]}" >/dev/null
-fi
+docker build "${build_args[@]}" >/dev/null
 mkdir -p "${CACHE_ROOT}"
 
 run_args=(
   run --rm
+  --add-host "host.docker.internal:host-gateway"
   --user "$(id -u):$(id -g)"
   -e HOME=/tmp/bpfnet-codegen-home
   -e GOPATH=/tmp/bpfnet-codegen-cache/go
@@ -35,8 +68,26 @@ run_args=(
   -v "${CACHE_ROOT}:/tmp/bpfnet-codegen-cache"
   -v "${REPO_ROOT}:/workspace"
   -w /workspace/network/bpfnet
-  "${IMAGE_TAG}"
 )
+if [ -n "${HTTP_PROXY_VALUE}" ]; then
+  run_args+=(
+    -e "HTTP_PROXY=${HTTP_PROXY_VALUE}"
+    -e "http_proxy=${HTTP_PROXY_VALUE}"
+  )
+fi
+if [ -n "${HTTPS_PROXY_VALUE}" ]; then
+  run_args+=(
+    -e "HTTPS_PROXY=${HTTPS_PROXY_VALUE}"
+    -e "https_proxy=${HTTPS_PROXY_VALUE}"
+  )
+fi
+if [ -n "${NO_PROXY_VALUE}" ]; then
+  run_args+=(
+    -e "NO_PROXY=${NO_PROXY_VALUE}"
+    -e "no_proxy=${NO_PROXY_VALUE}"
+  )
+fi
+run_args+=("${IMAGE_TAG}")
 
 case "${MODE}" in
   generate)

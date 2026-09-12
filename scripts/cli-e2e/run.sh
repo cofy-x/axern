@@ -1,9 +1,57 @@
 #!/usr/bin/env bash
 
 verify_run() {
+  local secret_create_output=""
+  local secret_id=""
+  local secret_get_id=""
+  local secret_list_seen=""
+  local registry_secret_output=""
+  local registry_secret_id=""
+  local registry_secret_get_id=""
   local run_create_output=""
   local run_status=""
   local run_id=""
+
+  secret_create_output="$(printf '%s\n' 'token=hello-secret' | "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" secret create -o json --type opaque --literal-stdin)"
+  secret_id="$(json_query "secret create" 'json.load(sys.stdin)["secret"]["id"]' "${secret_create_output}")"
+  [ -n "${secret_id}" ] || {
+    echo "axern secret create did not return a secret id" >&2
+    dump_logs
+    exit 1
+  }
+  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" secret get "${secret_id}" -o json >"${cli_object_output}"
+  secret_get_id="$(json_query "secret get" 'json.load(sys.stdin)["secret"]["id"]' "$(cat "${cli_object_output}")")"
+  [ "${secret_get_id}" = "${secret_id}" ] || {
+    echo "axern secret get returned ${secret_get_id}, want ${secret_id}" >&2
+    dump_logs
+    exit 1
+  }
+  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" secret list -o json >"${cli_object_output}"
+  secret_list_seen="$(json_query "secret list" "any(secret.get('id') == '${secret_id}' for secret in json.load(sys.stdin).get('secrets', []))" "$(cat "${cli_object_output}")")"
+  [ "${secret_list_seen}" = "True" ] || {
+    echo "axern secret list did not include ${secret_id}" >&2
+    dump_logs
+    exit 1
+  }
+
+  printf '%s' '{"auths":{}}' >"${docker_secret_file}"
+  registry_secret_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" secret create -o json --type docker-config-json --file "${docker_secret_file}")"
+  registry_secret_id="$(json_query "secret create --type docker-config-json" 'json.load(sys.stdin)["secret"]["id"]' "${registry_secret_output}")"
+  [ -n "${registry_secret_id}" ] || {
+    echo "axern secret create --type docker-config-json did not return a secret id" >&2
+    dump_logs
+    exit 1
+  }
+  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" secret get "${registry_secret_id}" -o json >"${cli_object_output}"
+  registry_secret_get_id="$(json_query "secret get docker-config-json" 'json.load(sys.stdin)["secret"]["id"]' "$(cat "${cli_object_output}")")"
+  [ "${registry_secret_get_id}" = "${registry_secret_id}" ] || {
+    echo "axern secret get docker-config-json returned ${registry_secret_get_id}, want ${registry_secret_id}" >&2
+    dump_logs
+    exit 1
+  }
+  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" secret delete "${registry_secret_id}" -o json >"${cli_object_output}"
+  grep -q "\"id\": \"${registry_secret_id}\"" "${cli_object_output}"
+
   local deadline=$((SECONDS + 60))
   while [ "${SECONDS}" -lt "${deadline}" ]; do
     if run_create_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run --detach \

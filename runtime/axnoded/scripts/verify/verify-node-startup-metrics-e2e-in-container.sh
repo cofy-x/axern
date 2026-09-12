@@ -92,14 +92,14 @@ for runtime_name in runsc; do
     "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
 done
 
-# The final deletes leave one shared local rootfs retained and one idle runtime
-# retained for each runtime backend.
-metricsz_wait_value "axern.axnoded_retained_runtime_current" "gauge" "2" \
+# The final delete leaves the reused runsc runtime and its shared local rootfs
+# retained. A warm start must not create an additional idle runtime.
+metricsz_wait_value "axern.axnoded_retained_runtime_current" "gauge" "1" \
   "axern.rootfs_type=local"
 metricsz_wait_value "axern.axnoded_retained_rootfs_current" "gauge" "1" \
   "axern.rootfs_type=local"
 metrics_output="$(metricsz_fetch)"
-metricsz_assert_value "${metrics_output}" "axern.axnoded_retained_runtime_current" "gauge" "2" \
+metricsz_assert_value "${metrics_output}" "axern.axnoded_retained_runtime_current" "gauge" "1" \
   "axern.rootfs_type=local"
 metricsz_assert_value "${metrics_output}" "axern.axnoded_retained_rootfs_current" "gauge" "1" \
   "axern.rootfs_type=local"

@@ -289,7 +289,7 @@ steps=(
   proto-generated-check
 )
 
-if [ "${include_proto_breaking}" = true ] && [ "${skip_proto_breaking}" = false ]; then
+if [ "${include_proto_breaking}" = true ]; then
   steps+=(proto-breaking)
 fi
 
