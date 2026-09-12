@@ -21,13 +21,11 @@ func writeStatus(w io.Writer, status bpfnet.Status) error {
 	fmt.Fprintf(w, "  snat_port_range: %d-%d\n", state.SNATPortMin, state.SNATPortMax)
 	fmt.Fprintf(w, "  snat_port_attempts: %d\n", state.SNATPortAttempts)
 	fmt.Fprintf(w, "  native_routes: %s\n", joinOrDash(state.NativeRoutingCIDRs))
-	fmt.Fprintf(w, "  iptables_safety_fallback: %s\n", boolWord(state.IptablesFallback))
 	fmt.Fprintf(w, "  tc_ready: %s\n", boolWord(state.TCReady))
 	fmt.Fprintf(w, "  local_out_compat: %s\n", boolWord(state.LocalOutCompat))
 	fmt.Fprintf(w, "  localhost_tcp_dnat: %s\n", boolWord(state.LocalhostTCPDNAT))
 	fmt.Fprintf(w, "  localhost_path_ready: %s\n", boolWord(state.LocalhostPathReady))
 	fmt.Fprintf(w, "  localhost_compat_fallback: %s\n", boolWord(state.LocalhostCompat))
-	fmt.Fprintf(w, "  full_fallback: %s\n", boolWord(state.FullFallback))
 	if state.LastAttachError != "" {
 		fmt.Fprintf(w, "  last_attach_error: %s\n", state.LastAttachError)
 	}
@@ -71,7 +69,6 @@ func writeStatus(w io.Writer, status bpfnet.Status) error {
 	fmt.Fprintf(w, "  upserts: %d\n", status.Stats.Upserts)
 	fmt.Fprintf(w, "  deletes: %d\n", status.Stats.Deletes)
 	fmt.Fprintf(w, "  conflicts: %d\n", status.Stats.Conflicts)
-	fmt.Fprintf(w, "  fallbacks: %d\n", status.Stats.Fallbacks)
 	fmt.Fprintf(w, "  attach_errors: %d\n", status.Stats.AttachErrors)
 
 	snatMaps := status.SNATMaps

@@ -82,7 +82,7 @@ func TestPostgresRunStaleNodeHeartbeatFailsRunAndReleasesReservation(t *testing.
 	}
 	var activeReservations int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM workload_reservations WHERE allocation_id = $1 AND released_at IS NULL
+		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
 	`, allocationID).Scan(&activeReservations); err != nil {
 		t.Fatalf("count active reservations: %v", err)
 	}
@@ -196,9 +196,12 @@ func TestPostgresRunCreateRetryExhaustionReleasesReservation(t *testing.T) {
 	if gotResp.GetRun().GetStatus() != runv1.RunStatus_RUN_STATUS_FAILED {
 		t.Fatalf("run status after create retry exhaustion = %v, want FAILED", gotResp.GetRun().GetStatus())
 	}
+	if gotResp.GetRun().GetDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR {
+		t.Fatalf("run diagnostic_code after create retry exhaustion = %v, want runtime start error", gotResp.GetRun().GetDiagnosticCode())
+	}
 	var activeReservations int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM workload_reservations WHERE allocation_id = $1 AND released_at IS NULL
+		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
 	`, allocationID).Scan(&activeReservations); err != nil {
 		t.Fatalf("count active reservations for failed run: %v", err)
 	}
@@ -298,7 +301,7 @@ func TestPostgresRunCancelDeleteRetryEventuallyReleasesReservation(t *testing.T)
 	}
 	var activeReservations int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM workload_reservations WHERE allocation_id = $1 AND released_at IS NULL
+		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
 	`, allocationID).Scan(&activeReservations); err != nil {
 		t.Fatalf("count active reservations after delete failure: %v", err)
 	}
@@ -317,7 +320,7 @@ func TestPostgresRunCancelDeleteRetryEventuallyReleasesReservation(t *testing.T)
 		t.Fatalf("retry delete allocation = %q, want %q", got, allocationID)
 	}
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM workload_reservations WHERE allocation_id = $1 AND released_at IS NULL
+		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
 	`, allocationID).Scan(&activeReservations); err != nil {
 		t.Fatalf("count active reservations after delete retry success: %v", err)
 	}
@@ -394,7 +397,7 @@ func TestPostgresRunKernelCancelRevokesLeaseAndReleasesReservation(t *testing.T)
 	}
 	var activeReservations int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM workload_reservations WHERE allocation_id = $1 AND released_at IS NULL
+		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
 	`, runResp.GetRun().GetAllocationID()).Scan(&activeReservations); err != nil {
 		t.Fatalf("count active reservations: %v", err)
 	}

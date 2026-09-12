@@ -12,46 +12,21 @@ func TestRepairPlanForIssue(t *testing.T) {
 		wantTargetID   string
 	}{
 		{
-			name: "reservation missing allocation",
-			issue: Issue{
-				Code:         IssueActiveReservationMissingAllocation,
-				AllocationID: "alloc-a",
-			},
-			wantOwner:      RepairOwnerAdminOperatorTriage,
-			wantAction:     RepairActionAdminTriage,
-			wantTargetType: RepairTargetTypeAllocation,
-			wantTargetID:   "alloc-a",
-		},
-		{
 			name: "reservation ended allocation",
 			issue: Issue{
 				Code:         IssueActiveReservationOnEndedAllocation,
 				AllocationID: "alloc-b",
-				OwnerType:    "run",
-				OwnerID:      "run-ended",
+				RunID:        "run-ended",
 			},
-			wantOwner:      RepairOwnerWorkloadController,
-			wantAction:     RepairActionWorkloadCleanup,
+			wantOwner:      RepairOwnerRunController,
+			wantAction:     RepairActionRunCleanup,
 			wantTargetType: RepairTargetTypeRun,
 			wantTargetID:   "run-ended",
 		},
 		{
-			name: "reservation mismatch",
-			issue: Issue{
-				Code:         IssueActiveReservationAllocationMismatch,
-				AllocationID: "alloc-c",
-				OwnerType:    "run",
-				OwnerID:      "run-a",
-			},
-			wantOwner:      RepairOwnerWorkloadController,
-			wantAction:     RepairActionWorkloadCleanupAndReadmit,
-			wantTargetType: RepairTargetTypeRun,
-			wantTargetID:   "run-a",
-		},
-		{
 			name: "lease issue",
 			issue: Issue{
-				Code:         IssueActiveLeaseAllocationNodeMismatch,
+				Code:         IssueActiveLeaseOnEndedAllocation,
 				AllocationID: "alloc-d",
 			},
 			wantOwner:      RepairOwnerNodeLifecycle,

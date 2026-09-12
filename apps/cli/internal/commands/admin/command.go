@@ -247,13 +247,10 @@ func auditCommand(runtime command.Runtime) *cobra.Command {
 
 func allocationRetryCommand(runtime command.Runtime) *cobra.Command {
 	root := &cobra.Command{Use: "allocation-retry", Short: "Inspect and repair lifecycle retries"}
-	var owner, reason string
+	var reason string
 	var due bool
 	var limit int
 	list := &cobra.Command{Use: "list", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		if err := appadmin.ValidateOwnerType(owner); err != nil {
-			return command.Usage(err)
-		}
 		if reason != "" {
 			if err := appadmin.ValidateRetryReason(reason); err != nil {
 				return command.Usage(err)
@@ -264,7 +261,7 @@ func allocationRetryCommand(runtime command.Runtime) *cobra.Command {
 			return err
 		}
 		defer s.Close()
-		resp, err := appadmin.NewAllocationLifecycle(s.Clients.Admin).ListRetries(s.Context, appadmin.LifecycleRetryListOptions{OwnerType: owner, Reason: reason, DueOnly: due, Limit: limit})
+		resp, err := appadmin.NewAllocationLifecycle(s.Clients.Admin).ListRetries(s.Context, appadmin.LifecycleRetryListOptions{Reason: reason, DueOnly: due, Limit: limit})
 		if err != nil {
 			return err
 		}
@@ -275,7 +272,6 @@ func allocationRetryCommand(runtime command.Runtime) *cobra.Command {
 		return nil
 	}}
 	f := list.Flags()
-	f.StringVar(&owner, "owner", "", "run")
 	f.StringVar(&reason, "reason", "", "create or delete")
 	f.BoolVar(&due, "due", false, "only due retries")
 	f.IntVar(&limit, "limit", 0, "maximum rows")

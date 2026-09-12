@@ -24,16 +24,14 @@ func (s *Store) RecordAllocationCapabilityAdmission(ctx context.Context, allocat
 				return fmt.Errorf("marshal workspace preparation: %w", err)
 			}
 		}
-		tag, err := tx.Exec(ctx, `
+		_, err := tx.Exec(ctx, `
 			UPDATE allocations
 			SET workspace_preparation = $2::jsonb, updated_at = $3, version = version + 1
-			WHERE allocation_id = $1 AND owner_type = $4 AND attempt = $5
-		`, allocationID, workspaceJSON, now.UTC(), allocationOwnerRun, admission.Attempt)
+			WHERE allocation_id = $1 AND attempt = $4
+			  AND workspace_preparation IS DISTINCT FROM $2::jsonb
+		`, allocationID, workspaceJSON, now.UTC(), admission.Attempt)
 		if err != nil {
 			return fmt.Errorf("record run workspace preparation: %w", err)
-		}
-		if tag.RowsAffected() != 1 {
-			return fmt.Errorf("record run workspace preparation: allocation %s attempt %d not found", allocationID, admission.Attempt)
 		}
 		return nil
 	})

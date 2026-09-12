@@ -157,16 +157,25 @@ func quotaSelectSQL(where string) string {
 		       q.cpu_milli_limit,
 		       q.memory_bytes_limit,
 		       q.ephemeral_storage_bytes_limit,
-		       COALESCE(SUM(w.cpu_milli), 0) AS reserved_cpu_milli,
-		       COALESCE(SUM(w.sandbox_memory_request_bytes), 0) AS reserved_memory_bytes,
-		       COALESCE(SUM(w.ephemeral_storage_bytes), 0) AS reserved_ephemeral_storage_bytes,
+		       COALESCE(usage.cpu_milli, 0) AS reserved_cpu_milli,
+		       COALESCE(usage.memory_bytes, 0) AS reserved_memory_bytes,
+		       COALESCE(usage.ephemeral_storage_bytes, 0) AS reserved_ephemeral_storage_bytes,
 		       q.version,
 		       q.created_at,
 		       q.updated_at
 		FROM namespace_resource_quotas q
-		LEFT JOIN workload_reservations w ON w.namespace = q.namespace AND w.released_at IS NULL
+		LEFT JOIN (
+			SELECT r.namespace,
+			       SUM(res.cpu_milli) AS cpu_milli,
+			       SUM(res.sandbox_memory_request_bytes) AS memory_bytes,
+			       SUM(res.ephemeral_storage_bytes) AS ephemeral_storage_bytes
+			FROM reservations res
+			JOIN allocations a ON a.allocation_id = res.allocation_id
+			JOIN runs r ON r.run_id = a.run_id
+			WHERE res.released_at IS NULL
+			GROUP BY r.namespace
+		) usage ON usage.namespace = q.namespace
 		` + where + `
-		GROUP BY q.namespace, q.cpu_milli_limit, q.memory_bytes_limit, q.ephemeral_storage_bytes_limit, q.version, q.created_at, q.updated_at
 	`
 }
 

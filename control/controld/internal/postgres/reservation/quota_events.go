@@ -14,8 +14,7 @@ import (
 
 type quotaAdmissionRejectedEvent struct {
 	Namespace     string
-	OwnerType     string
-	OwnerID       string
+	RunID         string
 	EnvironmentID string
 	Evaluation    resourcekernel.QuotaEvaluation
 	Message       string
@@ -30,24 +29,23 @@ func insertQuotaAdmissionRejectedEvent(ctx context.Context, tx pgx.Tx, event quo
 	evaluation := event.Evaluation
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO namespace_quota_events (
-			event_id, namespace, event_type, workload_type, workload_id, environment_id, reason,
+			event_id, namespace, event_type, run_id, environment_id, reason,
 			requested_cpu_milli, reserved_cpu_milli, cpu_milli_limit, available_cpu_milli,
 			requested_memory_bytes, reserved_memory_bytes, memory_bytes_limit, available_memory_bytes,
 			requested_ephemeral_storage_bytes, reserved_ephemeral_storage_bytes, ephemeral_storage_bytes_limit, available_ephemeral_storage_bytes,
 			message, created_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7,
-			$8, $9, $10, $11,
-			$12, $13, $14, $15,
-			$16, $17, $18, $19,
-			$20, $21
+			$1, $2, $3, $4, $5, $6,
+			$7, $8, $9, $10,
+			$11, $12, $13, $14,
+			$15, $16, $17, $18,
+			$19, $20
 		)
 	`,
 		"quotaevt-"+uuid.NewString(),
 		environmentkernel.NormalizeNamespace(event.Namespace),
 		string(resourcekernel.QuotaEventTypeAdmissionRejected),
-		event.OwnerType,
-		event.OwnerID,
+		event.RunID,
 		event.EnvironmentID,
 		string(resourcekernel.QuotaEventReasonForEvaluation(evaluation)),
 		evaluation.CPU.Requested,

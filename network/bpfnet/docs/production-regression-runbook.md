@@ -47,13 +47,13 @@ done
 Required result:
 
 - `bpfnetctl check --json` returns `.ok=true`.
-- `status.state.fullFallback=false`.
+- `status.state.tcReady=true`.
 - `status.attachment.ingressTcAttached=true`.
 - `status.attachment.egressTcAttached=true`.
 - `status.attachment.pinnedMapsReady=true`.
 - `status.attachment.pinnedProgramsReady=true`.
 
-`localhost-tcp-iptables-compat` is acceptable when the kernel does not support the localhost cgroup path. `iptables-full-fallback` is a rollback state and fails production replacement validation.
+`localhost-tcp-iptables-compat` is acceptable when the kernel does not support the localhost cgroup path. Main TC attach or reconciliation failure makes the `ebpf` backend fail closed.
 
 ## Ingress Comparison
 
@@ -274,7 +274,7 @@ $KUBE_ENV \
 The production regression passes when:
 
 - all benchmark eBPF paths have zero failures;
-- bpfnet mode is not `iptables-full-fallback`;
+- bpfnet reports `tcReady=true`;
 - TC ingress and egress remain attached on every node;
 - pinned maps and pinned programs are ready on every node;
 - allocator exhaustion, reverse SYN-ACK misses, and host mismatches stay zero;

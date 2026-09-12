@@ -27,8 +27,7 @@ func TestCheckConsistencyMapsSnapshot(t *testing.T) {
 				Code:         consistencykernel.IssueActiveReservationOnEndedAllocation,
 				Severity:     consistencykernel.SeverityError,
 				AllocationID: "alloc-a",
-				OwnerType:    "run",
-				OwnerID:      "run-a",
+				RunID:        "run-a",
 				NodeID:       "node-a",
 				Status:       "ALLOCATION_STATUS_RELEASED",
 				Detail:       "active reservation remains after allocation ended",
@@ -51,8 +50,8 @@ func TestCheckConsistencyMapsSnapshot(t *testing.T) {
 		t.Fatalf("issues = %+v", got.GetIssues())
 	}
 	issue := got.GetIssues()[0]
-	if issue.GetRepairOwner() != adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_WORKLOAD_CONTROLLER ||
-		issue.GetRepairAction() != adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP ||
+	if issue.GetRepairOwner() != adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_RUN_CONTROLLER ||
+		issue.GetRepairAction() != adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_RUN_CLEANUP ||
 		issue.GetRepairTargetType() != adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_RUN ||
 		issue.GetRepairTargetID() != "run-a" ||
 		issue.GetAutomaticRepair() {

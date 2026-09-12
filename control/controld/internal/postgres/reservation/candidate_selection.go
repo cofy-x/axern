@@ -112,7 +112,7 @@ func activeCandidateReservationUsage(ctx context.Context, tx pgx.Tx, locked map[
 	rows, err := tx.Query(ctx, `
 		SELECT node_id, COALESCE(SUM(cpu_milli), 0), COALESCE(SUM(sandbox_memory_request_bytes), 0), COALESCE(SUM(ephemeral_storage_bytes), 0),
 		       ARRAY_AGG(allocation_id ORDER BY allocation_id)
-		FROM workload_reservations
+		FROM reservations
 		WHERE node_id = ANY($1::text[]) AND released_at IS NULL
 		GROUP BY node_id
 	`, nodeIDs)

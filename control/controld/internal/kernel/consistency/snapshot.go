@@ -15,15 +15,9 @@ const (
 )
 
 const (
-	IssueActiveReservationMissingAllocation  IssueCode = "active_reservation_missing_allocation"
-	IssueActiveReservationOnEndedAllocation  IssueCode = "active_reservation_on_ended_allocation"
-	IssueActiveReservationAllocationMismatch IssueCode = "active_reservation_allocation_mismatch"
-	IssueActiveLeaseMissingAllocation        IssueCode = "active_lease_missing_allocation"
-	IssueActiveLeaseOnEndedAllocation        IssueCode = "active_lease_on_ended_allocation"
-	IssueActiveLeaseAllocationNodeMismatch   IssueCode = "active_lease_allocation_node_mismatch"
-	IssueActiveTunnelMissingAllocation       IssueCode = "active_tunnel_missing_allocation"
-	IssueActiveTunnelOnEndedAllocation       IssueCode = "active_tunnel_on_ended_allocation"
-	IssueActiveTunnelAllocationNodeMismatch  IssueCode = "active_tunnel_allocation_node_mismatch"
+	IssueActiveReservationOnEndedAllocation IssueCode = "active_reservation_on_ended_allocation"
+	IssueActiveLeaseOnEndedAllocation       IssueCode = "active_lease_on_ended_allocation"
+	IssueActiveTunnelOnEndedAllocation      IssueCode = "active_tunnel_on_ended_allocation"
 )
 
 type Snapshot struct {
@@ -45,8 +39,7 @@ type Issue struct {
 	Code         IssueCode `json:"code"`
 	Severity     Severity  `json:"severity"`
 	AllocationID string    `json:"allocation_id,omitempty"`
-	OwnerType    string    `json:"owner_type,omitempty"`
-	OwnerID      string    `json:"owner_id,omitempty"`
+	RunID        string    `json:"run_id,omitempty"`
 	NodeID       string    `json:"node_id,omitempty"`
 	DependentID  string    `json:"dependent_id,omitempty"`
 	Status       string    `json:"status,omitempty"`

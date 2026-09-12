@@ -148,19 +148,19 @@ SQL
       -v "node_id=${node_id}" \
       -v "namespace=${namespace}" \
       -v "due=${due}" <<'SQL' >/dev/null
-INSERT INTO allocations (
-  allocation_id, owner_type, owner_id, environment_id, node_id, attempt,
-  status, config, created_at, updated_at
-) VALUES (
-  :'allocation_id', 'run', :'run_id', 'env-admin-repair-smoke', :'node_id', 1,
-  'ALLOCATION_STATUS_RESERVED', '{}'::jsonb, now(), now()
-);
 INSERT INTO runs (
-  run_id, namespace, environment_id, allocation_id, attempt,
+  run_id, namespace, environment_id,
   status, config, labels, created_at, updated_at
 ) VALUES (
-  :'run_id', :'namespace', 'env-admin-repair-smoke', :'allocation_id', 1,
+  :'run_id', :'namespace', 'env-admin-repair-smoke',
   'RUN_STATUS_PLACED', '{}'::jsonb, '{}'::jsonb, now(), now()
+);
+INSERT INTO allocations (
+  allocation_id, run_id, node_id, attempt,
+  status, config, created_at, updated_at
+) VALUES (
+  :'allocation_id', :'run_id', :'node_id', 1,
+  'ALLOCATION_STATUS_RESERVED', '{}'::jsonb, now(), now()
 );
 INSERT INTO allocation_reconcile_queue (
   allocation_id, reason, next_run_at, reconcile_attempts, last_error, created_at, updated_at

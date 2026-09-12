@@ -190,7 +190,7 @@ type nodeResourceObservation struct {
 func (a *App) activeReservedResources(ctx context.Context) (map[string]nodeReservedResources, error) {
 	rows, err := a.db.Pool().Query(ctx, `
 		SELECT node_id, COALESCE(sum(cpu_milli), 0), COALESCE(sum(sandbox_memory_request_bytes), 0), COALESCE(sum(ephemeral_storage_bytes), 0), COUNT(*)
-		FROM workload_reservations
+		FROM reservations
 		WHERE released_at IS NULL
 		GROUP BY node_id
 	`)
@@ -252,8 +252,6 @@ func observeNodeBPFNet(observe sdkobs.Int64GaugeObserver, nodeID string, bpfnet 
 	}
 	observe(boolToInt64(bpfnet.GetEnabled()), nodeBPFNetAttrs(nodeID, "enabled")...)
 	observe(boolToInt64(bpfnet.GetReady()), nodeBPFNetAttrs(nodeID, "ready")...)
-	observe(boolToInt64(bpfnet.GetNeedsSnatFallback()), nodeBPFNetAttrs(nodeID, "snat_fallback")...)
-	observe(boolToInt64(bpfnet.GetNeedsFullDnatFallback()), nodeBPFNetAttrs(nodeID, "full_dnat_fallback")...)
 	observe(boolToInt64(bpfnet.GetNeedsLocalhostCompat()), nodeBPFNetAttrs(nodeID, "localhost_compat")...)
 }
 

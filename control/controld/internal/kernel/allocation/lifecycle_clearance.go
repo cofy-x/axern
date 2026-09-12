@@ -10,8 +10,7 @@ import (
 type LifecycleRetryClearanceInput struct {
 	AllocationID           string
 	AllocationStatus       string
-	OwnerType              string
-	OwnerRunStatus         string
+	RunStatus              string
 	HasActiveReservation   bool
 	HasActiveLease         bool
 	HasActiveTunnelSession bool
@@ -36,23 +35,18 @@ func EvaluateLifecycleRetryClearance(in LifecycleRetryClearanceInput) LifecycleR
 	if in.HasActiveTunnelSession {
 		return blockedLifecycleRetryClearance("active tunnel sessions")
 	}
-	switch strings.TrimSpace(in.OwnerType) {
-	case OwnerRun:
-		return evaluateRunLifecycleRetryClearance(in)
-	default:
-		return blockedLifecycleRetryClearance("unsupported owner type %s", statusOrUnknown(in.OwnerType))
-	}
+	return evaluateRunLifecycleRetryClearance(in)
 }
 
 func evaluateRunLifecycleRetryClearance(in LifecycleRetryClearanceInput) LifecycleRetryClearance {
-	status := strings.TrimSpace(in.OwnerRunStatus)
+	status := strings.TrimSpace(in.RunStatus)
 	if status == "" {
 		return LifecycleRetryClearance{Clearable: true}
 	}
 	if isTerminalRunStatus(status) {
 		return LifecycleRetryClearance{Clearable: true}
 	}
-	return blockedLifecycleRetryClearance("owner run status is %s", statusOrUnknown(status))
+	return blockedLifecycleRetryClearance("run status is %s", statusOrUnknown(status))
 }
 
 func isTerminalRunStatus(value string) bool {

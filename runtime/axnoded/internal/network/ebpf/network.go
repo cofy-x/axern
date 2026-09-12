@@ -21,8 +21,6 @@ type dataplaneController interface {
 	Cleanup() error
 	UpsertService(protocol string, hostPort uint16, targetIP string, targetPort uint16) error
 	DeleteService(protocol string, hostPort uint16, targetIP string, targetPort uint16) error
-	NeedsSNATFallback() bool
-	NeedsFullDNATFallback(protocol string) bool
 	NeedsLocalhostCompat(protocol string) bool
 	CleanupStaleSNATMappings(policy bpfnet.SNATGCPolicy) (bpfnet.SNATGCResult, error)
 	Status() (bpfnet.Status, error)
@@ -66,10 +64,9 @@ func (m *BPFNetworkManager) ProbeHealth(ipRange string) (networkmanager.Health, 
 	}
 	// Persisted readiness is authoritative. In particular, failure of the
 	// optional localhost cgroup path records LastLocalhostError while TC ingress
-	// and egress remain healthy, and full iptables fallback can still provide
-	// port forwarding without satisfying the native bpfnet capability.
+	// and egress remain healthy.
 	return networkmanager.Health{
-		PortForwardingReady:  status.State.TCReady || status.State.FullFallback,
+		PortForwardingReady:  status.State.TCReady,
 		NativeDataplaneReady: status.State.TCReady,
 	}, nil
 }
@@ -82,7 +79,6 @@ func defaultControllerFactory(cfg config.BPFNetConfig) (dataplaneController, err
 		SNATMapSize:        cfg.SNATMapSize,
 		LocalOutCompat:     cfg.LocalOutCompat,
 		NativeRoutingCIDRs: append([]string(nil), cfg.NativeRoutingCIDRs...),
-		IptablesFallback:   cfg.IptablesFallback,
 	})
 	return controller, nil
 }
@@ -123,10 +119,6 @@ func (m *BPFNetworkManager) SetupSNATRules(ipRange string) error {
 	if err := m.controller.EnsureAttached(ipRange); err != nil {
 		return err
 	}
-	if m.controller.NeedsSNATFallback() {
-		m.stopSNATGC()
-		return m.fallback.SetupSNATRules(ipRange)
-	}
 	m.startSNATGC()
 	return nil
 }
@@ -138,17 +130,8 @@ func (m *BPFNetworkManager) CleanupSNATRules(ipRange string) error {
 		m.ipv6Compat.Store(false)
 		return m.fallback.CleanupSNATRules(ipRange)
 	}
-	var firstErr error
 	m.stopSNATGC()
-	if m.controller.NeedsSNATFallback() {
-		if err := m.fallback.CleanupSNATRules(ipRange); err != nil {
-			firstErr = err
-		}
-	}
-	if err := m.controller.Cleanup(); err != nil && firstErr == nil {
-		firstErr = err
-	}
-	return firstErr
+	return m.controller.Cleanup()
 }
 
 func snatGCSettings(cfg config.BPFNetConfig) (time.Duration, bpfnet.SNATGCPolicy, error) {
@@ -216,17 +199,11 @@ func (m *BPFNetworkManager) SetupNetworkRulesForActivating(ip net.IP, envID stri
 	if ip != nil && ip.To4() == nil {
 		return m.fallback.SetupNetworkRulesForActivating(ip, envID)
 	}
-	if m.controller.NeedsSNATFallback() {
-		return m.fallback.SetupNetworkRulesForActivating(ip, envID)
-	}
 	return nil
 }
 
 func (m *BPFNetworkManager) CleanupNetworkRulesForActivating(ip net.IP) error {
 	if ip != nil && ip.To4() == nil {
-		return m.fallback.CleanupNetworkRulesForActivating(ip)
-	}
-	if m.controller.NeedsSNATFallback() {
 		return m.fallback.CleanupNetworkRulesForActivating(ip)
 	}
 	return nil
@@ -241,13 +218,6 @@ func (m *BPFNetworkManager) SetupDNATRule(protocol string, dstPort uint16, targe
 	}
 	if err := m.controller.UpsertService(protocol, dstPort, targetIP, targetPort); err != nil {
 		return fmt.Errorf("bpfnet upsert service: %w", err)
-	}
-	if m.controller.NeedsFullDNATFallback(protocol) {
-		if err := m.fallback.SetupDNATRule(protocol, dstPort, targetIP, targetPort); err != nil {
-			_ = m.controller.DeleteService(protocol, dstPort, targetIP, targetPort)
-			return err
-		}
-		return nil
 	}
 	if m.controller.NeedsLocalhostCompat(protocol) {
 		compat, ok := m.fallback.(dnatCompatFallback)
@@ -268,11 +238,7 @@ func (m *BPFNetworkManager) CleanupDNATRule(protocol string, dstPort uint16, tar
 		return m.fallback.CleanupDNATRule(protocol, dstPort, targetIP, targetPort)
 	}
 	var firstErr error
-	if m.controller.NeedsFullDNATFallback(protocol) {
-		if err := m.fallback.CleanupDNATRule(protocol, dstPort, targetIP, targetPort); err != nil {
-			firstErr = err
-		}
-	} else if m.controller.NeedsLocalhostCompat(protocol) {
+	if m.controller.NeedsLocalhostCompat(protocol) {
 		compat, ok := m.fallback.(dnatCompatFallback)
 		if !ok {
 			firstErr = fmt.Errorf("fallback network manager does not support localhost DNAT compatibility")

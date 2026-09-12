@@ -28,10 +28,10 @@ control_plane_node_state = "ready"
 # One IPv4 or IPv6 pool. IPv6 with nat_backend="ebpf" uses the explicit
 # bridge/ip6tables compatibility path because native bpfnet is IPv4-only.
 ip_range = "172.17.0.1/16"
-# iptables: legacy full DNAT/SNAT
+# iptables: full bridge DNAT/SNAT
 # ebpf: TCP/UDP ingress hostPort + TCP/UDP/ICMP egress SNAT in bpfnet,
 # plus Linux localhost TCP hostPort via cgroup sock_addr eBPF,
-# with automatic iptables fallback
+# without automatic full-dataplane fallback
 nat_backend = "iptables"
 
 [plugin.network.ebpf]
@@ -45,7 +45,6 @@ snat_datagram_idle_timeout = "10s"
 # enable host-local TCP hostPort access; prefer eBPF localhost path and
 # fall back to iptables compat only when the cgroup attach path is unavailable
 local_out_compat = true
-iptables_fallback = true
 
 [plugin.resource]
 cgroup_cache_size = 800

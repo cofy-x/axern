@@ -156,8 +156,11 @@ func ensureNamespaceDeletable(ctx context.Context, q queryer, namespace string) 
 		{
 			name: "active reservations",
 			query: `SELECT EXISTS (
-				SELECT 1 FROM workload_reservations
-				WHERE namespace = $1 AND released_at IS NULL
+				SELECT 1
+				FROM reservations res
+				JOIN allocations a ON a.allocation_id = res.allocation_id
+				JOIN runs r ON r.run_id = a.run_id
+				WHERE r.namespace = $1 AND res.released_at IS NULL
 			)`,
 		},
 		{

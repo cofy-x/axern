@@ -36,7 +36,7 @@ axern quota get --namespace team-a
 
 配额和节点准入是两道独立的闸门：配额回答命名空间是否还能预留更多，节点准入回答符合条件的节点是否还有剩余容量。两者对内存都是严格的；只有 CPU 可以超卖，且超卖只改变准入容量，从不改变 cgroup limit。
 
-准入失败时，JSON 输出暴露稳定的 `diagnostic_code` 和紧凑的 `admission_summary`，如 `namespace quota exceeded` 或 `node memory capacity exhausted`：
+准入失败时，JSON 输出暴露稳定的 `diagnostic_code`。随附的 `message` 是面向人的上下文，不应被解析为机器契约：
 
 ```bash
 axern run get <run-id> --output json

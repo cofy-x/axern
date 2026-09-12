@@ -29,5 +29,5 @@ func (s *Store) currentAllocation(ctx context.Context, tx pgx.Tx, allocationID s
 }
 
 func (s *Store) runByAllocation(ctx context.Context, tx pgx.Tx, allocationID string) (*runv1.Run, error) {
-	return scanRun(tx.QueryRow(ctx, runSelectSQL()+` WHERE allocation_id = $1`, strings.TrimSpace(allocationID)))
+	return scanRun(tx.QueryRow(ctx, runSelectSQL()+` WHERE a.allocation_id = $1`, strings.TrimSpace(allocationID)))
 }

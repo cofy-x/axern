@@ -21,7 +21,7 @@ const (
 
 type ReconcileItem struct {
 	AllocationID           string
-	OwnerID                string
+	RunID                  string
 	EnvironmentID          string
 	Reason                 string
 	NodeID                 string
@@ -79,10 +79,9 @@ type CreateRetryPlan struct {
 }
 
 type LifecycleRetryFilter struct {
-	OwnerType string
-	Reason    string
-	DueOnly   bool
-	Limit     int
+	Reason  string
+	DueOnly bool
+	Limit   int
 }
 
 type ForceLifecycleRetryRequest struct {
@@ -106,8 +105,7 @@ type ClearLifecycleRetryRequest struct {
 
 type LifecycleRetryItem struct {
 	AllocationID       string    `json:"allocation_id"`
-	OwnerID            string    `json:"owner_id"`
-	OwnerType          string    `json:"owner_type"`
+	RunID              string    `json:"run_id"`
 	EnvironmentID      string    `json:"environment_id,omitempty"`
 	Reason             string    `json:"reason"`
 	NodeID             string    `json:"node_id"`

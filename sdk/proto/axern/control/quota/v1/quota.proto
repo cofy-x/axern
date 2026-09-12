@@ -28,11 +28,6 @@ enum NamespaceQuotaEventType {
   NAMESPACE_QUOTA_EVENT_TYPE_ADMISSION_REJECTED = 1;
 }
 
-enum NamespaceQuotaEventWorkloadType {
-  NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_UNSPECIFIED = 0;
-  NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN = 1;
-}
-
 enum NamespaceQuotaEventReason {
   NAMESPACE_QUOTA_EVENT_REASON_UNSPECIFIED = 0;
   NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU = 1;
@@ -45,24 +40,23 @@ message NamespaceQuotaEvent {
   string id = 1;
   string namespace = 2;
   NamespaceQuotaEventType type = 3;
-  NamespaceQuotaEventWorkloadType workload_type = 4;
-  string workload_id = 5;
-  string environment_id = 6;
-  NamespaceQuotaEventReason reason = 7;
-  int64 requested_cpu_milli = 8;
-  int64 reserved_cpu_milli = 9;
-  google.protobuf.Int64Value cpu_milli_limit = 10;
-  google.protobuf.Int64Value available_cpu_milli = 11;
-  int64 requested_memory_bytes = 12;
-  int64 reserved_memory_bytes = 13;
-  google.protobuf.Int64Value memory_bytes_limit = 14;
-  google.protobuf.Int64Value available_memory_bytes = 15;
-  string message = 16;
-  google.protobuf.Timestamp created_at = 17;
-  int64 requested_ephemeral_storage_bytes = 18;
-  int64 reserved_ephemeral_storage_bytes = 19;
-  google.protobuf.Int64Value ephemeral_storage_bytes_limit = 20;
-  google.protobuf.Int64Value available_ephemeral_storage_bytes = 21;
+  string run_id = 4;
+  string environment_id = 5;
+  NamespaceQuotaEventReason reason = 6;
+  int64 requested_cpu_milli = 7;
+  int64 reserved_cpu_milli = 8;
+  google.protobuf.Int64Value cpu_milli_limit = 9;
+  google.protobuf.Int64Value available_cpu_milli = 10;
+  int64 requested_memory_bytes = 11;
+  int64 reserved_memory_bytes = 12;
+  google.protobuf.Int64Value memory_bytes_limit = 13;
+  google.protobuf.Int64Value available_memory_bytes = 14;
+  string message = 15;
+  google.protobuf.Timestamp created_at = 16;
+  int64 requested_ephemeral_storage_bytes = 17;
+  int64 reserved_ephemeral_storage_bytes = 18;
+  google.protobuf.Int64Value ephemeral_storage_bytes_limit = 19;
+  google.protobuf.Int64Value available_ephemeral_storage_bytes = 20;
 }
 
 message GetNamespaceQuotaRequest {

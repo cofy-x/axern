@@ -95,18 +95,7 @@ flowchart LR
     Axrun["axrun\nagent 任务与证据"] --> Gateway
 ```
 
-`controld` 是产品状态的权威。`gatewayd` 解析并转发公共流量，不拥有放置决策。节点服务负责宿主机本地的运行时、镜像、网络和 allocation 私有的临时可写存储。持久输出使用显式 artifact 交付；沙箱文件不是可复用的持久卷。详细契约见[运行时架构](./docs/architecture/runtime-architecture.md)和[资源模型](./docs/architecture/resource-model.md)。
-
-| 组件                    | 职责                                                            |
-| ----------------------- | --------------------------------------------------------------- |
-| `controld`              | 持久化控制平面状态、放置、租约、Run 生命周期与调和              |
-| `gatewayd`              | 公共 gRPC、SSH、终端、隧道和沙箱数据边缘                        |
-| `axnoded`               | 节点本地的沙箱生命周期、执行、文件、进程流和清理                |
-| `egressd`               | 可信节点本地出站策略的持久化、恢复、调和与执行                  |
-| `imagemgr` / `imagefsd` | OCI 与 Nydus 镜像解析、挂载生命周期和只读数据面                 |
-| `tunneld`               | 内部反向 TCP 中继和沙箱本地隧道绑定                             |
-| `axern`                 | 面向平台资源与访问的产品 CLI                                    |
-| `axrun`                 | agent 任务执行器、验证器，以及轨迹、用量和证据采集              |
+`gatewayd` 是公共控制流量和 Allocation 范围数据面流量的统一外部网关；`controld` 和 PostgreSQL 保持产品状态权威，节点服务负责宿主机本地执行、镜像、网络和 Allocation 私有的临时可写存储。Sandbox 文件不是可复用持久卷，因此调用方需要在清理前导出所需输出。详细契约见[运行时架构](./docs/architecture/runtime-architecture.md)和[资源模型](./docs/architecture/resource-model.md)。
 
 公共客户端提供 Go、Python 和 TypeScript 版本，位于 [`sdk/`](./sdk/README.md)。共享的传输契约定义在 [`sdk/proto`](./sdk/proto/README.md)。
 

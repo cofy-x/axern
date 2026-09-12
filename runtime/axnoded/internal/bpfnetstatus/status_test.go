@@ -96,8 +96,7 @@ func TestKernelDelta(t *testing.T) {
 func TestRequireTCReady(t *testing.T) {
 	status := bpfnet.Status{
 		State: bpfnet.DataplaneState{
-			TCReady:      true,
-			FullFallback: false,
+			TCReady: true,
 		},
 		Attachment: bpfnet.AttachmentReadiness{
 			IngressTCAttached:   true,

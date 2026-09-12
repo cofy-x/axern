@@ -93,18 +93,7 @@ flowchart LR
     Axrun["axrun\nagent tasks and evidence"] --> Gateway
 ```
 
-`controld` is the authority for product state. `gatewayd` resolves and forwards public traffic without owning placement. Node services own host-local runtime, image, network, and allocation-local writable storage. Persistent outputs use explicit artifact delivery; sandbox files are not reusable persistent volumes. See the [runtime architecture](./docs/architecture/runtime-architecture.md) and [resource model](./docs/architecture/resource-model.md) for the detailed contracts.
-
-| Component               | Responsibility                                                                          |
-| ----------------------- | --------------------------------------------------------------------------------------- |
-| `controld`              | Durable control-plane state, placement, leases, Run lifecycle, and reconciliation       |
-| `gatewayd`              | Public gRPC, SSH, terminal, tunnel, and sandbox data edge                               |
-| `axnoded`               | Node-local sandbox lifecycle, execution, files, process streams, and cleanup            |
-| `egressd`               | Trusted node-local egress policy persistence, recovery, reconciliation, and enforcement |
-| `imagemgr` / `imagefsd` | OCI and Nydus image resolution, mount lifecycle, and read-only data plane               |
-| `tunneld`               | Internal reverse TCP relay and sandbox-local tunnel binding                             |
-| `axern`                 | Product CLI for platform resources and access                                           |
-| `axrun`                 | Agent task harness, verifier, trajectory, usage, and evidence capture                   |
+`gatewayd` is the unified external gateway for public control and Allocation-scoped data-plane traffic; `controld` and PostgreSQL remain authoritative for product state, while node services own host-local execution, images, networking, and Allocation-local writable storage. Sandbox files are not reusable persistent volumes, so callers export required outputs before cleanup. See the [runtime architecture](./docs/architecture/runtime-architecture.md) and [resource model](./docs/architecture/resource-model.md) for the detailed contracts.
 
 Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/README.md). Shared wire contracts are defined in [`sdk/proto`](./sdk/proto/README.md).
 

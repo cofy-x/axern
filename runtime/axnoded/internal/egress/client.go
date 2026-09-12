@@ -41,8 +41,8 @@ func Dial(ctx context.Context, socket string) (*Client, error) {
 		return d.DialContext(ctx, "unix", socket)
 	}
 	// Connectivity is deliberately checked by Health/Prepare rather than at
-	// process construction. Nodes without egressd must continue serving legacy
-	// unrestricted sandboxes while advertising policy capabilities unavailable.
+	// process construction. Nodes without egressd can serve Runs that do not
+	// declare an egress policy while advertising policy capabilities unavailable.
 	conn, err := grpc.NewClient("unix:"+socket, grpc.WithContextDialer(dialer), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("dial egressd %s: %w", socket, err)

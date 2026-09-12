@@ -1,6 +1,6 @@
 # bpfnet Production Alerting
 
-This document defines the durable alert policy for bpfnet as the default Axern production NAT dataplane. It focuses on low-cardinality signals that distinguish rollback states and correctness risks from healthy close-path churn.
+This document defines the durable alert policy for bpfnet as the default Axern production NAT dataplane. It focuses on low-cardinality signals that distinguish dataplane failure and correctness risks from healthy close-path churn.
 
 ## Metric Contract
 
@@ -12,15 +12,13 @@ axern_controld_node_bpfnet_current{axern_node_id, axern_state}
 
 `axern_state` is one of:
 
-| State                | Meaning                                          | Healthy value |
-| -------------------- | ------------------------------------------------ | ------------: |
-| `enabled`            | node reports bpfnet component enabled            |           `1` |
-| `ready`              | TC dataplane is ready and not in full fallback   |           `1` |
-| `snat_fallback`      | node needs SNAT fallback                         |           `0` |
-| `full_dnat_fallback` | node needs full DNAT fallback or TC is not ready |           `0` |
-| `localhost_compat`   | localhost TCP path uses iptables compatibility   |       allowed |
+| State              | Meaning                                        | Healthy value |
+| ------------------ | ---------------------------------------------- | ------------: |
+| `enabled`          | node reports bpfnet component enabled          |           `1` |
+| `ready`            | TC dataplane is ready                          |           `1` |
+| `localhost_compat` | localhost TCP path uses iptables compatibility |       allowed |
 
-`localhost_compat=1` is not a page by itself. It is acceptable on kernels where the localhost cgroup path is unavailable, as long as `ready=1` and `full_dnat_fallback=0`.
+`localhost_compat=1` is not a page by itself. It is acceptable on kernels where the localhost cgroup path is unavailable, as long as `ready=1`.
 
 The existing node count metric remains the cluster-level availability gate:
 
@@ -47,24 +45,6 @@ groups:
         annotations:
           summary: "bpfnet dataplane is not ready on {{ $labels.axern_node_id }}"
           description: "The node reports bpfnet enabled but not ready. Inspect bpfnetctl check/status on the node pod."
-
-      - alert: AxernBPFNetFullFallback
-        expr: axern_controld_node_bpfnet_current{axern_state="full_dnat_fallback"} > 0
-        for: 1m
-        labels:
-          severity: page
-        annotations:
-          summary: "bpfnet entered full fallback on {{ $labels.axern_node_id }}"
-          description: "Full fallback means TC ingress/egress did not take over the main dataplane and is not a successful replacement state."
-
-      - alert: AxernBPFNetSNATFallback
-        expr: axern_controld_node_bpfnet_current{axern_state="snat_fallback"} > 0
-        for: 1m
-        labels:
-          severity: page
-        annotations:
-          summary: "bpfnet SNAT fallback required on {{ $labels.axern_node_id }}"
-          description: "Sandbox egress SNAT is not on the expected eBPF path. Inspect attach state and pinned maps/programs."
 
       - alert: AxernNodeReadinessLost
         expr: |
@@ -108,7 +88,7 @@ bpfnetctl dump snat_fwd_map --limit 20
 bpfnetctl dump snat_rev_map --limit 20
 ```
 
-Page immediately when `check --json` returns `.ok=false`, when `status.state.fullFallback=true`, or when TC ingress/egress, pinned maps, or pinned programs are not ready.
+Page immediately when `check --json` returns `.ok=false`, or when TC ingress/egress, pinned maps, or pinned programs are not ready.
 
 ## Benchmark-Gated Signals
 

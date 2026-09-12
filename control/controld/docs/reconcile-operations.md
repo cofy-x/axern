@@ -12,7 +12,7 @@ This runbook covers control-plane reconcile diagnostics and allocation lifecycle
 - Active-node heartbeat freshness, summary freshness, and axnoded readiness are folded into the same reliability response. Retired nodes are excluded.
 - The admin gRPC API and CLI perform audited repair actions.
 
-Debug HTTP endpoints are read-only. Durable mutations must go through admin gRPC so row locks, owner-aware state transitions, and audit records stay in the same transaction.
+Debug HTTP endpoints are read-only. Durable mutations must go through admin gRPC so row locks, lifecycle state transitions, and audit records stay in the same transaction.
 
 ```mermaid
 flowchart LR
@@ -59,7 +59,7 @@ curl -fsS http://127.0.0.1:24001/allocation-reconcilez
 
 Important fields:
 
-- `owner_type`: the durable owner classification; product workload allocations belong to Runs.
+- `run_id`: the Run that owns the Allocation.
 - `reason`: `create` retries start missing node allocations; `delete` retries clean up node state.
 - `reconcile_attempts`: current durable retry count.
 - `last_error`: latest node lifecycle failure.
@@ -103,11 +103,11 @@ axern admin audit list --target-type allocation --target-id <allocation_id>
 
 ## Retry Policy
 
-Create retries are bounded. If create continues failing, the owner-specific reconciler marks the allocation failed, releases its reservation, and removes the queue row.
+Create retries are bounded. If create continues failing, the Run reconciler marks the Allocation and Run failed, releases the reservation, and removes the queue row.
 
 Delete retries are intentionally unbounded. They represent cleanup intent and continue until node deletion is confirmed or an operator clears a stale, already-clean terminal row.
 
-Do not add generic queue deletion. Removing convergence intent without owner-aware cleanup can strand reservations, leases, or tunnel sessions.
+Do not add generic queue deletion. Removing convergence intent without lifecycle cleanup can strand reservations, leases, or tunnel sessions.
 
 ## Verification
 

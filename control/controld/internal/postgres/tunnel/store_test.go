@@ -283,7 +283,7 @@ func newTunnelTestDB(t *testing.T) *postgres.DB {
 		t.Fatalf("apply postgres migrations: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		TRUNCATE TABLE principals, namespaces, tunnel_sessions, allocations, nodes CASCADE
+		TRUNCATE TABLE principals, namespaces, tunnel_sessions, runs, nodes CASCADE
 	`); err != nil {
 		t.Fatalf("truncate tunnel test tables: %v", err)
 	}
@@ -314,18 +314,24 @@ func insertTunnelTestAllocation(t *testing.T, db *postgres.DB, allocationID stri
 		t.Fatalf("insert node: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
+		VALUES ('run-test', 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $1, $1)
+	`, now.UTC()); err != nil {
+		t.Fatalf("insert run: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO allocations (
-			allocation_id, owner_type, owner_id, environment_id, node_id, attempt, status,
+			allocation_id, run_id, node_id, attempt, status,
 			config, version, created_at, updated_at, exit_code, exit_code_known, message
-		) VALUES ($1, 'run', 'run-test', 'env-test', 'node-test', 1, 'ALLOCATION_STATUS_RUNNING',
+		) VALUES ($1, 'run-test', 'node-test', 1, 'ALLOCATION_STATUS_RUNNING',
 			'{}'::jsonb, 1, $2, $2, 0, false, '')
 	`, allocationID, now.UTC()); err != nil {
 		t.Fatalf("insert allocation: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO workload_reservations(
-			reservation_id,allocation_id,namespace,owner_type,owner_id,node_id,created_at
-		) VALUES ('res-' || $1,$1,'default','run','run-test','node-test',$2)
+		INSERT INTO reservations(
+			allocation_id,node_id,created_at
+		) VALUES ($1,'node-test',$2)
 	`, allocationID, now.UTC()); err != nil {
 		t.Fatalf("insert workload reservation: %v", err)
 	}

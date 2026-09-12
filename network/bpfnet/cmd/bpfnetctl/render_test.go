@@ -9,16 +9,15 @@ import (
 	"github.com/cofy-x/axern/network/bpfnet/internal/inspect"
 )
 
-func TestWriteStatusHumanIncludesFallbackAndServices(t *testing.T) {
+func TestWriteStatusHumanIncludesFailureAndServices(t *testing.T) {
 	status := bpfnet.Status{
 		State: bpfnet.DataplaneState{
-			Mode:             bpfnet.ModeIPTablesFullFallback,
+			Mode:             bpfnet.ModeAttachFailed,
 			PinPath:          "/tmp/pins",
 			IPRange:          "172.17.0.1/16",
 			SNATPortMin:      bpfnet.SNATAllocatorPortMin,
 			SNATPortMax:      bpfnet.SNATAllocatorPortMax,
 			SNATPortAttempts: bpfnet.SNATAllocatorPortAttempts,
-			FullFallback:     true,
 			LastAttachError:  "attach failed",
 			LastTCProbeError: "tc probe failed",
 		},
@@ -28,7 +27,7 @@ func TestWriteStatusHumanIncludesFallbackAndServices(t *testing.T) {
 			TargetIP:   "172.17.0.2",
 			TargetPort: 80,
 		}},
-		Stats: bpfnet.Stats{Fallbacks: 1, AttachErrors: 1},
+		Stats: bpfnet.Stats{AttachErrors: 1},
 		Kernel: bpfnet.KernelStats{
 			ServiceHits:                        3,
 			SNATAllocExhausted:                 11,
@@ -82,11 +81,10 @@ func TestWriteStatusHumanIncludesFallbackAndServices(t *testing.T) {
 	}
 	out := buf.String()
 	for _, want := range []string{
-		"mode: iptables-full-fallback",
+		"mode: attach-failed",
 		"localhost_compat_fallback: no",
 		"snat_port_range: 10000-65535",
 		"snat_port_attempts: 256",
-		"full_fallback: yes",
 		"last_attach_error: attach failed",
 		"tcp host:18080 -> 172.17.0.2:80",
 		"fwd_entries: 4",

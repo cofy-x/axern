@@ -49,7 +49,8 @@ func TestPostgresAdminRejectsRetiringNodeWithActiveAllocation(t *testing.T) {
 	app.now = func() time.Time { return now }
 	registerReadyNode(t, app, "node-a", now)
 	app.now = func() time.Time { return now.Add(2 * time.Hour) }
-	if _, err := app.db.Pool().Exec(context.Background(), `INSERT INTO allocations (allocation_id, owner_type, owner_id, node_id, status, config, created_at, updated_at) VALUES ('alloc-a', 'run', 'run-a', 'node-a', 'ALLOCATION_STATUS_RUNNING', '{}'::jsonb, $1, $1)`, now); err != nil {
+	insertAdminNodeTestRun(t, app, "run-a", now)
+	if _, err := app.db.Pool().Exec(context.Background(), `INSERT INTO allocations (allocation_id, run_id, node_id, status, config, created_at, updated_at) VALUES ('alloc-a', 'run-a', 'node-a', 'ALLOCATION_STATUS_RUNNING', '{}'::jsonb, $1, $1)`, now); err != nil {
 		t.Fatalf("insert active allocation: %v", err)
 	}
 	_, err := app.AdminV1Handler().RetireAdminNode(context.Background(), &adminv1.RetireAdminNodeRequest{NodeID: "node-a", OperatorReason: "host permanently removed"})
@@ -65,10 +66,21 @@ func TestPostgresAdminRetiresNodeWithHistoricalExitedAllocation(t *testing.T) {
 	app.now = func() time.Time { return now }
 	registerReadyNode(t, app, "node-a", now)
 	app.now = func() time.Time { return now.Add(2 * time.Hour) }
-	if _, err := app.db.Pool().Exec(context.Background(), `INSERT INTO allocations (allocation_id, owner_type, owner_id, node_id, status, config, created_at, updated_at) VALUES ('alloc-a', 'run', 'run-a', 'node-a', 'ALLOCATION_STATUS_EXITED', '{}'::jsonb, $1, $1)`, now); err != nil {
+	insertAdminNodeTestRun(t, app, "run-a", now)
+	if _, err := app.db.Pool().Exec(context.Background(), `INSERT INTO allocations (allocation_id, run_id, node_id, status, config, created_at, updated_at) VALUES ('alloc-a', 'run-a', 'node-a', 'ALLOCATION_STATUS_EXITED', '{}'::jsonb, $1, $1)`, now); err != nil {
 		t.Fatalf("insert exited allocation: %v", err)
 	}
 	if _, err := app.AdminV1Handler().RetireAdminNode(context.Background(), &adminv1.RetireAdminNodeRequest{NodeID: "node-a", OperatorReason: "host permanently removed"}); err != nil {
 		t.Fatalf("RetireAdminNode() error = %v", err)
+	}
+}
+
+func insertAdminNodeTestRun(t *testing.T, app *App, runID string, now time.Time) {
+	t.Helper()
+	if _, err := app.db.Pool().Exec(context.Background(), `
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
+		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $2, $2)
+	`, runID, now); err != nil {
+		t.Fatalf("insert run: %v", err)
 	}
 }

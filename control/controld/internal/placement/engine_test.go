@@ -153,7 +153,6 @@ func TestPlanPrefersBetterBpfnetWhenPortsAreRequested(t *testing.T) {
 	}}
 	needsFallback := proto.Clone(baseline).(*nodev1.NodeSummary)
 	needsFallback.Components.Bpfnet.Ready = false
-	needsFallback.Components.Bpfnet.NeedsFullDnatFallback = true
 
 	snapshot := nodekernel.Snapshot{
 		Records: []*nodekernel.Record{
@@ -496,12 +495,10 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 				Reachable: true,
 			},
 			Bpfnet: &nodev1.BpfNetSummary{
-				State:                 nodev1.ComponentState_COMPONENT_STATE_READY,
-				Enabled:               true,
-				Ready:                 true,
-				NeedsSnatFallback:     false,
-				NeedsFullDnatFallback: false,
-				NeedsLocalhostCompat:  false,
+				State:                nodev1.ComponentState_COMPONENT_STATE_READY,
+				Enabled:              true,
+				Ready:                true,
+				NeedsLocalhostCompat: false,
 			},
 		},
 	}

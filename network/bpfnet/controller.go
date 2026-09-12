@@ -52,15 +52,13 @@ type DataplaneState struct {
 	SNATPortAttempts   int       `json:"snatPortAttempts"`
 	LocalOutCompat     bool      `json:"localOutCompat"`
 	NativeRoutingCIDRs []string  `json:"nativeRoutingCIDRs"`
-	IptablesFallback   bool      `json:"iptablesFallback"`
 	IngressTCPDNAT     bool      `json:"ingressTcpDnat"`
 	IngressUDPDNAT     bool      `json:"ingressUdpDnat"`
 	EgressSNAT         bool      `json:"egressSnat"`
 	TCReady            bool      `json:"tcReady"`
 	LocalhostTCPDNAT   bool      `json:"localhostTcpDnat"`
 	LocalhostPathReady bool      `json:"localhostPathReady"`
-	FullFallback       bool      `json:"fullFallback"`
-	LocalhostCompat    bool      `json:"localhostCompatFallback"`
+	LocalhostCompat    bool      `json:"localhostCompat"`
 	LastAttachError    string    `json:"lastAttachError,omitempty"`
 	LastTCProbeError   string    `json:"lastTcProbeError,omitempty"`
 	LastLocalhostError string    `json:"lastLocalhostAttachError,omitempty"`
@@ -80,7 +78,6 @@ type Stats struct {
 	Upserts         uint64    `json:"upserts"`
 	Deletes         uint64    `json:"deletes"`
 	Conflicts       uint64    `json:"conflicts"`
-	Fallbacks       uint64    `json:"fallbacks"`
 	AttachErrors    uint64    `json:"attachErrors"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
@@ -200,25 +197,6 @@ func defaultRunner(name string, args ...string) ([]byte, error) {
 	return exec.Command(name, args...).CombinedOutput()
 }
 
-func (c *Controller) NeedsSNATFallback() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return !c.currentStateLocked().TCReady
-}
-
-func (c *Controller) NeedsFullDNATFallback(protocol string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	switch strings.ToLower(protocol) {
-	case "tcp", "udp":
-		return !c.currentStateLocked().TCReady
-	default:
-		return true
-	}
-}
-
 func (c *Controller) NeedsLocalhostCompat(protocol string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -269,31 +247,18 @@ func (c *Controller) EnsureAttached(ipRange string) error {
 	if err != nil {
 		c.bumpStats(func(s *Stats) {
 			s.AttachErrors++
-			s.Fallbacks++
 		})
-		fallbackState := c.fallbackState(uplinks, err)
-		if writeErr := writeJSONFile(c.stateFile, fallbackState); writeErr != nil {
+		failedState := c.failedState(uplinks, err)
+		if writeErr := writeJSONFile(c.stateFile, failedState); writeErr != nil {
 			return writeErr
 		}
-		if !c.cfg.IptablesFallback {
-			return err
-		}
-		return nil
+		return err
 	}
 	c.bumpStats(func(s *Stats) {
 		s.AttachSuccesses++
 	})
 
 	state := c.readyState(uplinks, attachment)
-	if attachment.LocalhostAttachError != "" && !c.cfg.IptablesFallback {
-		if writeErr := writeJSONFile(c.stateFile, state); writeErr != nil {
-			return writeErr
-		}
-		c.bumpStats(func(s *Stats) {
-			s.AttachErrors++
-		})
-		return fmt.Errorf("attach localhost tcp path: %s", attachment.LocalhostAttachError)
-	}
 	return writeJSONFile(c.stateFile, state)
 }
 

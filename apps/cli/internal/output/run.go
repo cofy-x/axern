@@ -5,7 +5,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/cofy-x/axern/apps/cli/internal/workloaddiagnostic"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
@@ -34,11 +33,6 @@ func RenderRun(w io.Writer, run *runv1.Run) {
 	if message := run.GetMessage(); message != "" {
 		if code := run.GetDiagnosticCode(); code != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
 			fmt.Fprintf(w, "Diagnostic: %s\n", WorkloadDiagnosticCodeLabel(code))
-		} else if diagnostic := workloaddiagnostic.DiagnosticCode(message); diagnostic != "" {
-			fmt.Fprintf(w, "Diagnostic: %s\n", diagnostic)
-		}
-		if admission := workloaddiagnostic.AdmissionBlockedSummary(message); admission != "" {
-			fmt.Fprintf(w, "Admission: %s\n", admission)
 		}
 		fmt.Fprintf(w, "Message: %s\n", message)
 	}

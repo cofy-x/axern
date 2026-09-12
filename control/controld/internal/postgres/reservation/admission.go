@@ -28,8 +28,7 @@ const maxReservationRejectionDetails = 5
 
 type ReserveCandidateRequest struct {
 	Namespace     string
-	OwnerType     string
-	OwnerID       string
+	RunID         string
 	EnvironmentID string
 	Candidates    []*placementkernel.Candidate
 	Config        *commonv1.ExecutionConfig
@@ -48,7 +47,7 @@ func (a Admission) Evaluator() placementkernel.Evaluator { return a.placement }
 func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveCandidateRequest) (_ *placementkernel.AdmissionDecision, retErr error) {
 	totalStarted := time.Now()
 	defer func() {
-		recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageTotal, totalStarted, retErr)
+		recordResourceAdmissionStage(ctx, resourceAdmissionStageTotal, totalStarted, retErr)
 	}()
 	namespace := environmentkernel.NormalizeNamespace(req.Namespace)
 	if a.placement == nil {
@@ -58,14 +57,14 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 	nodeRequested := requested
 	stageStarted := time.Now()
 	quota, err := pgnamespace.LockQuotaPolicy(ctx, tx, namespace)
-	recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageLockNamespace, stageStarted, err)
+	recordResourceAdmissionStage(ctx, resourceAdmissionStageLockNamespace, stageStarted, err)
 	if err != nil {
 		return nil, err
 	}
 	stageStarted = time.Now()
 	namespaceUsed, err := activeNamespaceReservationUsage(ctx, tx, namespace)
 	if err != nil {
-		recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageEvaluateNamespace, stageStarted, err)
+		recordResourceAdmissionStage(ctx, resourceAdmissionStageEvaluateNamespace, stageStarted, err)
 		return nil, err
 	}
 	quotaEvaluation := quota.EvaluateFit(namespaceUsed, requested)
@@ -74,29 +73,28 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 		rejection := quotaRejectionError(namespace, quotaEvaluation)
 		if err := insertQuotaAdmissionRejectedEvent(ctx, tx, quotaAdmissionRejectedEvent{
 			Namespace:     namespace,
-			OwnerType:     req.OwnerType,
-			OwnerID:       req.OwnerID,
+			RunID:         req.RunID,
 			EnvironmentID: req.EnvironmentID,
 			Evaluation:    quotaEvaluation,
 			Message:       quotaRejectionMessage(namespace, quotaEvaluation),
 			CreatedAt:     req.Now,
 		}); err != nil {
-			recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageEvaluateNamespace, stageStarted, err)
+			recordResourceAdmissionStage(ctx, resourceAdmissionStageEvaluateNamespace, stageStarted, err)
 			return nil, err
 		}
-		recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageEvaluateNamespace, stageStarted, rejection)
+		recordResourceAdmissionStage(ctx, resourceAdmissionStageEvaluateNamespace, stageStarted, rejection)
 		return nil, committedAdmissionError{err: rejection}
 	}
-	recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageEvaluateNamespace, stageStarted, nil)
+	recordResourceAdmissionStage(ctx, resourceAdmissionStageEvaluateNamespace, stageStarted, nil)
 	stageStarted = time.Now()
 	locked, err := lockCandidateNodes(ctx, tx, req.Candidates)
-	recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageLockCandidates, stageStarted, err)
+	recordResourceAdmissionStage(ctx, resourceAdmissionStageLockCandidates, stageStarted, err)
 	if err != nil {
 		return nil, err
 	}
 	stageStarted = time.Now()
 	usage, err := activeCandidateReservationUsage(ctx, tx, locked)
-	recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageLoadReservations, stageStarted, err)
+	recordResourceAdmissionStage(ctx, resourceAdmissionStageLoadReservations, stageStarted, err)
 	if err != nil {
 		return nil, err
 	}
@@ -174,10 +172,10 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 		}
 		dependencies, err := nodecapability.ResolveDependencies(selected.Record.Summary.GetCapabilitySnapshot(), selected.Request.GetCapabilityRequirements(), lockedEvaluationTime)
 		if err != nil {
-			recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageSelectCandidate, stageStarted, err)
+			recordResourceAdmissionStage(ctx, resourceAdmissionStageSelectCandidate, stageStarted, err)
 			return nil, fmt.Errorf("resolve admitted capability evidence: %w", err)
 		}
-		recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageSelectCandidate, stageStarted, nil)
+		recordResourceAdmissionStage(ctx, resourceAdmissionStageSelectCandidate, stageStarted, nil)
 		recordResourceAdmission(ctx, namespace, resourceAdmissionScopeNodeReservation, string(quotaAdmissionAllowed), "fits")
 		return &placementkernel.AdmissionDecision{
 			Record:                 selected.Record,
@@ -187,11 +185,11 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 		}, nil
 	}
 	if rejection := lockedAdmissionEligibilityError(reservationEvaluated, lockedRejectionRequest, lockedEligibilityRejections); rejection != nil {
-		recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageSelectCandidate, stageStarted, rejection)
+		recordResourceAdmissionStage(ctx, resourceAdmissionStageSelectCandidate, stageStarted, rejection)
 		return nil, rejection
 	}
 	rejection := reservationRejectionError(diagnostics)
-	recordResourceAdmissionStage(ctx, req.OwnerType, resourceAdmissionStageSelectCandidate, stageStarted, rejection)
+	recordResourceAdmissionStage(ctx, resourceAdmissionStageSelectCandidate, stageStarted, rejection)
 	recordNodeReservationRejected(ctx, namespace, diagnostics)
 	return nil, rejection
 }
@@ -228,9 +226,11 @@ func reservationRejectionError(diagnostics reservationRejectionDiagnostics) erro
 func activeNamespaceReservationUsage(ctx context.Context, tx pgx.Tx, namespace string) (resourcekernel.Claim, error) {
 	var used resourcekernel.Claim
 	if err := tx.QueryRow(ctx, `
-		SELECT COALESCE(SUM(cpu_milli), 0), COALESCE(SUM(sandbox_memory_request_bytes), 0), COALESCE(SUM(ephemeral_storage_bytes), 0)
-		FROM workload_reservations
-		WHERE namespace = $1 AND released_at IS NULL
+		SELECT COALESCE(SUM(res.cpu_milli), 0), COALESCE(SUM(res.sandbox_memory_request_bytes), 0), COALESCE(SUM(res.ephemeral_storage_bytes), 0)
+		FROM reservations res
+		JOIN allocations a ON a.allocation_id = res.allocation_id
+		JOIN runs r ON r.run_id = a.run_id
+		WHERE r.namespace = $1 AND res.released_at IS NULL
 	`, namespace).Scan(&used.CPUMilli, &used.MemoryBytes, &used.EphemeralStorageBytes); err != nil {
 		return resourcekernel.Claim{}, fmt.Errorf("sum namespace reservations: %w", err)
 	}

@@ -46,12 +46,6 @@ const (
 )
 
 func recordQuotaAdmission(ctx context.Context, namespace string, result quotaAdmissionResult, reason quotaAdmissionReason) {
-	counter := sdkobs.Int64Counter(ctrlobs.MetricQuotaAdmissionTotal.Name, ctrlobs.MetricQuotaAdmissionTotal.Description)
-	counter.Add(ctx, 1,
-		attribute.String(sdkobs.AttrNamespace, namespace),
-		attribute.String(sdkobs.AttrResult, string(result)),
-		attribute.String(sdkobs.AttrReason, string(reason)),
-	)
 	recordResourceAdmission(ctx, namespace, resourceAdmissionScopeQuota, string(result), string(reason))
 }
 
@@ -65,7 +59,7 @@ func recordResourceAdmission(ctx context.Context, namespace string, scope resour
 	)
 }
 
-func recordResourceAdmissionStage(ctx context.Context, ownerType, stage string, started time.Time, err error) {
+func recordResourceAdmissionStage(ctx context.Context, stage string, started time.Time, err error) {
 	if started.IsZero() {
 		return
 	}
@@ -81,7 +75,6 @@ func recordResourceAdmissionStage(ctx context.Context, ownerType, stage string, 
 		}
 	}
 	sdkobs.DurationHistogram(ctrlobs.MetricResourceAdmissionStageDuration.Name, ctrlobs.MetricResourceAdmissionStageDuration.Description).RecordDuration(ctx, time.Since(started),
-		attribute.String(sdkobs.AttrOwnerType, ownerType),
 		attribute.String(sdkobs.AttrStage, stage),
 		attribute.String(sdkobs.AttrResult, result),
 		attribute.String(sdkobs.AttrErrorClass, errorClass),

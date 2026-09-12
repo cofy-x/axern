@@ -72,6 +72,9 @@ func TestPostgresAdminFailRunCreateLifecycleRetry(t *testing.T) {
 	if gotRun.GetRun().GetStatus() != runv1.RunStatus_RUN_STATUS_FAILED {
 		t.Fatalf("run status after admin fail = %v, want FAILED", gotRun.GetRun().GetStatus())
 	}
+	if gotRun.GetRun().GetDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR {
+		t.Fatalf("run diagnostic_code after admin fail = %v, want runtime start error", gotRun.GetRun().GetDiagnosticCode())
+	}
 	req, ok := allocationkernel.ScheduleCreateRetryRequest(allocationID, 1, "late node failure", now)
 	if !ok {
 		t.Fatal("expected a stale retry request")
@@ -169,12 +172,12 @@ func TestPostgresAdminClearAllocationLifecycleRetryRequiresTerminalCleanup(t *te
 	if _, err := app.db.Pool().Exec(context.Background(), `
 		UPDATE runs
 		SET status = $2, updated_at = $3
-		WHERE allocation_id = $1
+		WHERE run_id = (SELECT run_id FROM allocations WHERE allocation_id = $1)
 	`, allocationID, runv1.RunStatus_RUN_STATUS_FAILED.String(), now.UTC()); err != nil {
 		t.Fatalf("mark run failed for clear precondition: %v", err)
 	}
 	if _, err := app.db.Pool().Exec(context.Background(), `
-		UPDATE workload_reservations
+		UPDATE reservations
 		SET released_at = $2
 		WHERE allocation_id = $1
 	`, allocationID, now.UTC()); err != nil {
@@ -218,7 +221,7 @@ func assertAllocationRetryCleanup(t *testing.T, app *App, allocationID string, a
 	}
 	var activeReservations int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM workload_reservations WHERE allocation_id = $1 AND released_at IS NULL
+		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
 	`, allocationID).Scan(&activeReservations); err != nil {
 		t.Fatalf("count active reservations after admin operation: %v", err)
 	}

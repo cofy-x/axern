@@ -92,8 +92,7 @@ func RenderConsistencyIssueTable(w io.Writer, issues []*adminv1.ConsistencyIssue
 			consistencyIssueCodeLabel(issue.GetCode()),
 			consistencyIssueSeverityLabel(issue.GetSeverity()),
 			issue.GetAllocationID(),
-			issue.GetOwnerType(),
-			issue.GetOwnerID(),
+			issue.GetRunID(),
 			issue.GetNodeID(),
 			issue.GetStatus(),
 			consistencyRepairOwnerLabel(issue.GetRepairOwner()),
@@ -102,7 +101,7 @@ func RenderConsistencyIssueTable(w io.Writer, issues []*adminv1.ConsistencyIssue
 			ShortMessage(issue.GetDetail(), 72),
 		})
 	}
-	RenderTable(w, []string{"CODE", "SEVERITY", "ALLOCATION", "OWNER", "OWNER_ID", "NODE", "STATUS", "REPAIR_OWNER", "REPAIR", "REPAIR_TARGET", "DETAIL"}, rows)
+	RenderTable(w, []string{"CODE", "SEVERITY", "ALLOCATION", "RUN", "NODE", "STATUS", "REPAIR_OWNER", "REPAIR", "REPAIR_TARGET", "DETAIL"}, rows)
 }
 
 func adminReliabilityStatusLabel(status adminv1.AdminReliabilityStatus) string {
@@ -188,8 +187,7 @@ type ConsistencyIssueJSON struct {
 	Code             string `json:"code"`
 	Severity         string `json:"severity"`
 	AllocationID     string `json:"allocation_id,omitempty"`
-	OwnerType        string `json:"owner_type,omitempty"`
-	OwnerID          string `json:"owner_id,omitempty"`
+	RunID            string `json:"run_id,omitempty"`
 	NodeID           string `json:"node_id,omitempty"`
 	Status           string `json:"status,omitempty"`
 	Detail           string `json:"detail,omitempty"`
@@ -283,8 +281,7 @@ func NewConsistencySnapshotJSON(snapshot *adminv1.ConsistencySnapshot) *Consiste
 			Code:             consistencyIssueCodeLabel(issue.GetCode()),
 			Severity:         consistencyIssueSeverityLabel(issue.GetSeverity()),
 			AllocationID:     issue.GetAllocationID(),
-			OwnerType:        issue.GetOwnerType(),
-			OwnerID:          issue.GetOwnerID(),
+			RunID:            issue.GetRunID(),
 			NodeID:           issue.GetNodeID(),
 			Status:           issue.GetStatus(),
 			Detail:           issue.GetDetail(),

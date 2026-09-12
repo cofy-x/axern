@@ -38,7 +38,7 @@ Do not keep completed plans, migration diaries, dated progress summaries, or alt
 - [Workload Lifecycle](architecture/workload-lifecycle-sequence.md): end-to-end control and sandbox data-plane sequences.
 - [Resource Model](architecture/resource-model.md): requests, limits, quota, admission, and diagnostics.
 - [Principal And Namespace Authorization](architecture/authorization.md): public mTLS identity mapping, scoped roles, gateway trust, and rotation.
-- [Storage Architecture](architecture/storage-architecture.md): durable control state, allocation-local writable data, image mounts, artifacts, and cleanup.
+- [Storage Architecture](architecture/storage-architecture.md): durable control state, Allocation-local writable data, image mounts, output transfer, and cleanup.
 - [Nydus Image Runtime](architecture/nydus-image-runtime.md): Nydus mount, caching, deduplication, and scaling model.
 
 For a module-internal design, prefer that module's `docs/` directory. Promote material here only when multiple modules need the same model.

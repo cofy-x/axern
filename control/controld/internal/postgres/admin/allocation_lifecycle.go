@@ -97,7 +97,7 @@ func (s *Store) FailAllocationLifecycleRetry(ctx context.Context, req allocation
 		}); err != nil {
 			return err
 		}
-		if err := failLifecycleRetryOwner(ctx, tx, locked.Item, req.OperatorReason, now); err != nil {
+		if err := failRunLifecycleRetry(ctx, tx, locked.Item, req.OperatorReason, now); err != nil {
 			return err
 		}
 		if err := deleteLifecycleRetry(ctx, tx, req.AllocationID, req.Reason); err != nil {
@@ -129,7 +129,7 @@ func (s *Store) ClearAllocationLifecycleRetry(ctx context.Context, req allocatio
 		if err := requireNoActiveAllocationCleanupState(ctx, tx, req.AllocationID, now); err != nil {
 			return err
 		}
-		if err := requireOwnerConvergedForClear(ctx, tx, locked.Item); err != nil {
+		if err := requireRunConvergedForClear(ctx, tx, locked.Item); err != nil {
 			return err
 		}
 		if err := insertAdminAuditEvent(ctx, tx, adminAuditEvent{

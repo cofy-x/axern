@@ -14,7 +14,7 @@ import (
 )
 
 func (s *Store) GetRun(ctx context.Context, id string) (*runv1.Run, error) {
-	run, err := scanRun(s.db.Pool().QueryRow(ctx, runSelectSQL()+` WHERE run_id = $1`, strings.TrimSpace(id)))
+	run, err := scanRun(s.db.Pool().QueryRow(ctx, runSelectSQL()+` WHERE r.run_id = $1`, strings.TrimSpace(id)))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, grpcstatus.Errorf(codes.NotFound, "run %q not found", id)
 	}
@@ -22,7 +22,7 @@ func (s *Store) GetRun(ctx context.Context, id string) (*runv1.Run, error) {
 }
 
 func (s *Store) ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, error) {
-	rows, err := s.db.Pool().Query(ctx, runSelectSQL()+` ORDER BY created_at DESC`)
+	rows, err := s.db.Pool().Query(ctx, runSelectSQL()+` ORDER BY r.created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("query runs: %w", err)
 	}

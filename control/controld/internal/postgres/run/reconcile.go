@@ -139,7 +139,7 @@ func (s *Store) revokeAllocationLeases(ctx context.Context, tx pgx.Tx, allocatio
 }
 
 func (s *Store) DueReconcileItems(ctx context.Context, limit int, now time.Time) ([]allocationkernel.ReconcileItem, error) {
-	return pgallocation.DueReconcileItems(ctx, s.db.Pool(), allocationOwnerRun, limit, now)
+	return pgallocation.DueReconcileItems(ctx, s.db.Pool(), limit, now)
 }
 
 func (s *Store) ScheduleReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, now time.Time) error {

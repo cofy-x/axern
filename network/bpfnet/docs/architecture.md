@@ -30,10 +30,10 @@ The design keeps `bpfnet` as a library owned by the node runtime process. It is 
 | Component | Owns | Does not own |
 | --- | --- | --- |
 | `runtime/axnoded` | sandbox lifecycle, bridge/veth/netns resources, service hostPort intent, backend selection, rollback policy, SNAT GC scheduling | eBPF program internals |
-| `network/bpfnet.Controller` | public library API, persisted dataplane state, service-map persistence, fallback decisions | sandbox allocation records |
+| `network/bpfnet.Controller` | public library API, persisted dataplane state, service-map persistence, readiness | sandbox allocation records |
 | `network/bpfnet/internal/dataplane` | Linux attach/reconcile, pinned maps, pinned programs, TC links, localhost cgroup links, map inspection | axnoded resource pools |
 | `network/bpfnet/internal/tcprog` | TC and cgroup eBPF programs, map schemas, packet parsing and rewriting | user-facing configuration |
-| `bpfnetctl` | read-only node-local diagnostics | service intent, attach lifecycle, cleanup, fallback policy |
+| `bpfnetctl` | read-only node-local diagnostics | service intent, attach lifecycle, cleanup, backend policy |
 | axnoded benchmark harness | production-like verification and regression data | production traffic routing |
 
 ```mermaid
@@ -93,11 +93,11 @@ sequenceDiagram
     D->>B: attach TC ingress and egress programs
     D->>B: attach localhost cgroup links when enabled
     D-->>C: attachment state
-    C->>S: write ready or fallback dataplane state
-    AX->>C: query fallback decisions
+    C->>S: write ready or failed dataplane state
+    AX->>C: query localhost compatibility state
 ```
 
-If TC attach or required map reconciliation fails and `iptables_fallback` is enabled, the controller records full fallback state and lets axnoded use the `iptables` backend. If only the localhost cgroup path is unavailable, axnoded may use TCP localhost compatibility through `iptables` while TC ingress and egress remain on eBPF.
+If TC attach or required map reconciliation fails, the controller records the failure and returns it; the `ebpf` backend never changes the main dataplane to iptables. Operators can explicitly select `nat_backend = "iptables"` as a separate backend. If only the localhost cgroup path is unavailable, axnoded may use TCP localhost compatibility through iptables while TC ingress and egress remain on eBPF.
 
 ## Service Ingress Path
 
@@ -170,7 +170,7 @@ sequenceDiagram
     SR->>M: delete localhost socket entry
 ```
 
-When this path is unavailable, `localhost-tcp-iptables-compat` is acceptable as long as TC ingress and egress are attached. Its OUTPUT rule must match only host-local destinations; a port-only rule can capture direct node-to-sandbox traffic such as readiness probes. Axnoded reconciles BPFNet's durable service intent against live sandbox DNAT ownership during recovery so mappings from deleted sandboxes do not survive a daemon restart. `iptables-full-fallback` means bpfnet did not take over the main dataplane and is not a valid production replacement state.
+When this path is unavailable, `localhost-tcp-iptables-compat` is acceptable as long as TC ingress and egress are attached. Its OUTPUT rule must match only host-local destinations; a port-only rule can capture direct node-to-sandbox traffic such as readiness probes. Axnoded reconciles BPFNet's durable service intent against live sandbox DNAT ownership during recovery so mappings from deleted sandboxes do not survive a daemon restart.
 
 ## State And Maps
 
@@ -178,9 +178,9 @@ When this path is unavailable, `localhost-tcp-iptables-compat` is acceptable as 
 
 | State                  | Location   | Meaning                                                                     |
 | ---------------------- | ---------- | --------------------------------------------------------------------------- |
-| `dataplane_state.json` | state path | last attach result, fallback mode, uplinks, local addresses, config summary |
+| `dataplane_state.json` | state path | last attach result, compatibility mode, uplinks, local addresses, config summary |
 | `service_map.json`     | state path | durable hostPort service intent known to bpfnet                             |
-| `stats.json`           | state path | controller-level attach/upsert/delete/fallback counters                     |
+| `stats.json`           | state path | controller-level attach/upsert/delete/error counters                        |
 | `service_map`          | bpffs      | kernel hostPort DNAT intent                                                 |
 | `local_addr_map`       | bpffs      | node-local IPv4 addresses accepted for service ingress                      |
 | `uplink_addr_map`      | bpffs      | uplink ifindex to node source IPv4 address                                  |
@@ -237,19 +237,18 @@ flowchart TB
     D --> S["SNATGCResult and map-count diagnostics"]
 ```
 
-## Fallback Model
+## Compatibility And Failure Model
 
-Fallback is a controlled operational state, not a hidden packet-path feature.
+The main dataplane is fail-closed. Compatibility paths are narrow and explicit.
 
 | State                           | Meaning                                                                            | Production replacement interpretation |
 | ------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------- |
 | TC ingress and egress attached  | Main service and sandbox NAT paths run through bpfnet                              | Required                              |
 | `localhost-tcp-iptables-compat` | Localhost TCP hostPort uses iptables compatibility, TC remains eBPF                | Acceptable                            |
-| `iptables-full-fallback`        | TC dataplane did not attach or was not usable                                      | Not acceptable for replacement        |
 | Unsupported protocol fallback   | Non-TCP/UDP service intent is handled outside bpfnet                               | Expected                              |
 | IPv6 bridge compatibility       | An IPv6 sandbox pool uses axnoded's ip6tables path and publishes bridge capability | Expected; not a native bpfnet result  |
 
-`NeedsSNATFallback`, `NeedsFullDNATFallback`, and `NeedsLocalhostCompat` read persisted dataplane state instead of transient in-memory booleans. That makes restart recovery and diagnostics line up with the actual node state.
+`NeedsLocalhostCompat` reads persisted dataplane state instead of a transient in-memory boolean. Main TC failure is represented by `ready=false` and an attach/reconcile error, never by a second active dataplane.
 
 ## Observability And Debugging
 
@@ -258,7 +257,7 @@ Production readiness depends on a small set of durable signals:
 | Signal                               | Healthy direction                                        |
 | ------------------------------------ | -------------------------------------------------------- |
 | `bpfnetctl check --json`             | `.ok=true` on every node                                 |
-| `axern_controld_node_bpfnet_current` | enabled and ready are `1`; fallback states are `0`       |
+| `axern_controld_node_bpfnet_current` | enabled and ready are `1`; localhost compatibility is explicit |
 | TC attachment                        | ingress and egress attached on every uplink              |
 | pinned maps/programs                 | ready                                                    |
 | `snatAllocExhausted`                 | `0`                                                      |

@@ -41,7 +41,6 @@ func (s *PGStore) Cleanup(ctx context.Context, cfg retention.Config, now time.Ti
 		result.TerminalRunsDeleted, err = s.deleteTerminalRuns(ctx, tx, terminalRunRetentionRequest{
 			cutoff:    now.Add(-cfg.TerminalRunsTTL),
 			batchSize: cfg.BatchSize,
-			now:       now,
 		})
 		if err != nil {
 			return err

@@ -21,13 +21,11 @@ type allocationRecord struct {
 func lookupAllocation(ctx context.Context, tx pgx.Tx, allocationID string) (*allocationRecord, error) {
 	var alloc allocationRecord
 	err := tx.QueryRow(ctx, `
-		SELECT a.allocation_id, wr.namespace, a.node_id, n.node_target, a.attempt, a.status
+		SELECT a.allocation_id, r.namespace, a.node_id, n.node_target, a.attempt, a.status
 		FROM allocations a
+		JOIN runs r ON r.run_id = a.run_id
 		JOIN nodes n ON n.node_id = a.node_id
-		JOIN workload_reservations wr ON wr.allocation_id = a.allocation_id
 		WHERE a.allocation_id = $1
-		ORDER BY wr.created_at DESC
-		LIMIT 1
 		FOR UPDATE OF a
 	`, allocationID).Scan(&alloc.AllocationID, &alloc.Namespace, &alloc.NodeID, &alloc.NodeTarget, &alloc.Attempt, &alloc.Status)
 	if errors.Is(err, pgx.ErrNoRows) {

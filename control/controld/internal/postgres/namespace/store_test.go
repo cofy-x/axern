@@ -10,7 +10,6 @@ import (
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
-	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -355,7 +354,7 @@ func truncateNamespaceTestTables(t *testing.T, db *postgres.DB) {
 			principals,
 			runs,
 			environments,
-			workload_reservations,
+			reservations,
 			namespace_resource_quotas,
 			namespaces
 		CASCADE
@@ -371,11 +370,30 @@ func insertReservation(t *testing.T, db *postgres.DB, reservationID, allocationI
 		releasedAt = now.Add(time.Minute)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO workload_reservations (
-			reservation_id, allocation_id, namespace, owner_type, owner_id, node_id,
+		INSERT INTO nodes (node_id, node_target, registered_at, updated_at, last_heartbeat_at, lifecycle_status)
+		VALUES ('node-a', '127.0.0.1:24010', $1, $1, $1, 'active')
+		ON CONFLICT (node_id) DO NOTHING
+	`, now); err != nil {
+		t.Fatalf("insert reservation node: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
+		VALUES ($1, $2, 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $3, $3)
+	`, allocationID, namespace, now); err != nil {
+		t.Fatalf("insert reservation run: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO allocations (allocation_id, run_id, node_id, status, config, created_at, updated_at)
+		VALUES ($1, $1, 'node-a', 'ALLOCATION_STATUS_RUNNING', '{}'::jsonb, $2, $2)
+	`, allocationID, now); err != nil {
+		t.Fatalf("insert reservation allocation: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO reservations (
+			allocation_id, node_id,
 			cpu_milli, sandbox_memory_request_bytes, created_at, released_at
-		) VALUES ($1, $2, $3, 'run', $4, 'node-a', $5, $6, $7, $8)
-	`, reservationID, allocationID, namespace, allocationID, cpuMilli, memoryBytes, now, releasedAt); err != nil {
+		) VALUES ($1, 'node-a', $2, $3, $4, $5)
+	`, allocationID, cpuMilli, memoryBytes, now, releasedAt); err != nil {
 		t.Fatalf("insert reservation %s: %v", reservationID, err)
 	}
 }
@@ -389,17 +407,5 @@ func insertEnvironment(t *testing.T, db *postgres.DB, environmentID, namespace s
 		) VALUES ($1, $2, $3, $4, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $5, $5)
 	`, environmentID, namespace, status.String(), environmentID+"-hash", now); err != nil {
 		t.Fatalf("insert environment %s: %v", environmentID, err)
-	}
-}
-
-func insertRun(t *testing.T, db *postgres.DB, runID, namespace, environmentID, allocationID string, status runv1.RunStatus, now time.Time) {
-	t.Helper()
-	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO runs (
-			run_id, namespace, environment_id, allocation_id, status, config,
-			labels, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, '{}'::jsonb, '{}'::jsonb, $6, $6)
-	`, runID, namespace, environmentID, allocationID, status.String(), now); err != nil {
-		t.Fatalf("insert run %s: %v", runID, err)
 	}
 }

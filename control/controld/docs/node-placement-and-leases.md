@@ -59,9 +59,9 @@ Retirement requires a stale heartbeat and fails while the node has active alloca
 
 ## Lifecycle Retry Queue
 
-The debug `/allocation-reconcilez` endpoint is intentionally read-only. It lists queued allocation lifecycle work: owner, reason, attempts, last error, next retry time, and queue age.
+The debug `/allocation-reconcilez` endpoint is intentionally read-only. It lists queued allocation lifecycle work: Run, reason, attempts, last error, next retry time, and queue age.
 
-The debug `/consistencyz` endpoint is also read-only. It scans the durable Postgres state for active reservations, execution leases, tunnel sessions, and Run/Allocation references that no longer match allocation ownership or terminal allocation state. It is a diagnostic guardrail for convergence bugs; it does not mutate state or replace the owner-aware Run/Allocation or admin repair paths.
+The debug `/consistencyz` endpoint is also read-only. It scans durable Postgres state for active reservations, execution leases, or tunnel sessions attached to terminal Allocations. It is a diagnostic guardrail for convergence bugs; it does not mutate state or replace the Run/Allocation or admin repair paths.
 
 The product-facing admin read model exposes the same consistency snapshot through `axern admin consistency check` and folds it with allocation lifecycle retry counts, active-node fleet health, and reconcile health in `axern admin reliability check`. Smoke tests use the typed admin gRPC path rather than debug HTTP.
 
@@ -69,12 +69,12 @@ Lifecycle retry writes are admin operations, not debug HTTP operations. The queu
 
 The typed gRPC admin surface is:
 
-- `ListAllocationLifecycleRetries`: queue rows plus owner, reason, due-only, limit filters, `clearable`, and `clear_blocked_reason`.
+- `ListAllocationLifecycleRetries`: queue rows plus Run, reason, due-only, limit filters, `clearable`, and `clear_blocked_reason`.
 - `ForceAllocationLifecycleRetry`: lock the row, record an audit event, and move `next_run_at` to `now` without changing reason or attempt count.
 - `FailAllocationLifecycleRetry`: create retries only; mark the owning Run and Allocation failed, release the reservation, remove the retry row, and record the operator reason.
-- `ClearAllocationLifecycleRetry`: stale rows only; require terminal allocation state, owner convergence away from the allocation, and no active reservations, leases, or tunnel sessions.
+- `ClearAllocationLifecycleRetry`: stale rows only; require terminal Allocation and Run convergence plus no active reservations, leases, or tunnel sessions.
 
-All write requests require an explicit human-readable reason, audit before commit, a transactional row lock, and typed gRPC errors when the requested action no longer matches allocation state. There is no generic delete operation: queue rows are convergence intent, and removing one without owner-aware cleanup can strand reservations or leases. For operator triage and repair commands, see [Reconcile Operations](reconcile-operations.md).
+All write requests require an explicit human-readable reason, audit before commit, a transactional row lock, and typed gRPC errors when the requested action no longer matches allocation state. There is no generic delete operation: queue rows are convergence intent, and removing one without lifecycle cleanup can strand reservations or leases. For operator triage and repair commands, see [Reconcile Operations](reconcile-operations.md).
 
 ## Lifecycle Retry Policy
 
@@ -118,7 +118,7 @@ floor(node_allocatable_cpu_milli * resource_cpu_overcommit_ratio)
 
 Memory does not overcommit. Axnoded reports physical capacity and the resource source's allocatable value as distinct facts. Raw allocatable is the lesser of `source_allocatable_bytes` and any finite delegated cgroup-root limit; `physical_capacity_bytes` is diagnostic identity-bound capacity and is not a second scheduling pool. Effective allocatable subtracts the explicit system reserve. Placement and the locked admission transaction use the larger of database reservations and the latest node-local commitment so terminating workloads remain charged until cgroup cleanup converges. Requests drive that reservation; limits remain the sandbox-domain host `memory.max`.
 
-Each active workload reservation also consumes one runtime instance slot. The transactional capacity comes from the node-owned aggregate `runtime_slots` report. Placement ranks nodes by active instance occupancy, including reservations not yet reflected in node summaries, so zero-request workloads remain balanced without weakening the hard admission boundary.
+Each active Allocation reservation also consumes one runtime instance slot. The transactional capacity comes from the node-owned aggregate `runtime_slots` report. Placement ranks nodes by active instance occupancy, including reservations not yet reflected in node summaries, so zero-request Runs remain balanced without weakening the hard admission boundary.
 
 The debug `/resourcez` endpoint also reports the current global resource admission policy, including `cpu_overcommit_ratio`.
 

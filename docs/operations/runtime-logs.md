@@ -69,7 +69,7 @@ Inspect `/tmp/axnoded-node-config.toml` when socket paths, node identity, runtim
 | `egressd`      | node-local egress policy persistence, recovery, reconciliation, and host enforcement                                 |
 | `imagemgr`     | image import, image-backed rootfs orchestration, OCI overlay, Nydus daemon lifecycle                                 |
 | `imagefsd`     | read-only image data, cache, chunk DB, mount daemon internals                                                        |
-| `gatewayd`     | allocation-bound terminal, SSH, tunnel, artifact, and sandbox forwarding after target resolution                     |
+| `gatewayd`     | Allocation-bound process, file, archive, terminal, SSH, Tunnel, and sandbox forwarding after target resolution       |
 | `tunneld`      | relay-side tunnel session pairing                                                                                    |
 | `node-tunneld` | node-local tunnel agent launch and allocation netns lookup                                                           |
 

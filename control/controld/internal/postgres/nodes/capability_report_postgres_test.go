@@ -47,7 +47,10 @@ func TestCapabilityReportUsesDependencyIndexAndRollsBackTransitionQueueAtomicall
 	if _, err := store.Register(ctx, nodekernel.RegisterParams{NodeID: nodeID, NodeTarget: "127.0.0.1:1", Runtimes: []string{"runsc"}, NodeAuthToken: authToken, Now: now}); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _, _ = db.Pool().Exec(context.Background(), `DELETE FROM nodes WHERE node_id = $1`, nodeID) })
+	t.Cleanup(func() {
+		_, _ = db.Pool().Exec(context.Background(), `DELETE FROM runs WHERE run_id = ANY($1::text[])`, []string{affectedID, admissionOnlyID, unrelatedID, terminalID, releasingID})
+		_, _ = db.Pool().Exec(context.Background(), `DELETE FROM nodes WHERE node_id = $1`, nodeID)
+	})
 
 	affectedKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
 	admissionOnlyKey := capabilitycontract.ExtensionKey("example.com/admission-only", "v1")
@@ -67,9 +70,15 @@ func TestCapabilityReportUsesDependencyIndexAndRollsBackTransitionQueueAtomicall
 	insertAllocation := func(allocationID string, status commonv1.AllocationStatus) {
 		t.Helper()
 		if _, err := db.Pool().Exec(ctx, `
+			INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
+			VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $2, $2)
+		`, allocationID, now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Pool().Exec(ctx, `
 			INSERT INTO allocations (
-				allocation_id, owner_type, owner_id, node_id, attempt, status, config, created_at, updated_at
-			) VALUES ($1, 'run', $1, $2, 1, $3, '{}'::jsonb, $4, $4)
+				allocation_id, run_id, node_id, attempt, status, config, created_at, updated_at
+			) VALUES ($1, $1, $2, 1, $3, '{}'::jsonb, $4, $4)
 		`, allocationID, nodeID, status.String(), now); err != nil {
 			t.Fatal(err)
 		}

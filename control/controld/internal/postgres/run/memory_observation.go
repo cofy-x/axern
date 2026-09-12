@@ -15,8 +15,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// BatchReportAllocationMemoryObservations stores one latest, revision-fenced
-// host-kernel observation for every allocation regardless of its owner type.
+// BatchReportAllocationMemoryObservations stores the latest revision-fenced
+// host-kernel observation for each allocation.
 func (s *Store) BatchReportAllocationMemoryObservations(ctx context.Context, nodeID string, observations []*nodev1.AllocationMemoryObservation, now time.Time) error {
 	ordered := append([]*nodev1.AllocationMemoryObservation(nil), observations...)
 	sort.Slice(ordered, func(i, j int) bool {

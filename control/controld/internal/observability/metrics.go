@@ -95,10 +95,6 @@ var (
 		Name:        "axern.controld_quota_operation_duration_seconds",
 		Description: "Control-plane namespace quota operation latency.",
 	}
-	MetricQuotaAdmissionTotal = sdkobs.Instrument{
-		Name:        "axern.controld_quota_admission_total",
-		Description: "Namespace quota admission decisions by result and reason.",
-	}
 	MetricResourceAdmissionTotal = sdkobs.Instrument{
 		Name:        "axern.controld_resource_admission_total",
 		Description: "Control-plane resource admission decisions by scope, result, and reason.",

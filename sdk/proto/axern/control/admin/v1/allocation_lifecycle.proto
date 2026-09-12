@@ -6,11 +6,6 @@ option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;a
 
 import "google/protobuf/timestamp.proto";
 
-enum AllocationLifecycleRetryOwnerType {
-  ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED = 0;
-  ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN = 1;
-}
-
 enum AllocationLifecycleRetryReason {
   ALLOCATION_LIFECYCLE_RETRY_REASON_UNSPECIFIED = 0;
   ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE = 1;
@@ -19,28 +14,26 @@ enum AllocationLifecycleRetryReason {
 
 message AllocationLifecycleRetry {
   string allocation_id = 1;
-  string owner_id = 2;
-  AllocationLifecycleRetryOwnerType owner_type = 3;
-  string environment_id = 4;
-  AllocationLifecycleRetryReason reason = 5;
-  string node_id = 6;
-  string node_target = 7;
-  int64 attempt = 8;
-  int32 reconcile_attempts = 9;
-  string last_error = 10;
-  google.protobuf.Timestamp next_run_at = 11;
-  google.protobuf.Timestamp created_at = 12;
-  google.protobuf.Timestamp updated_at = 13;
-  int64 age_seconds = 14;
-  bool due = 15;
-  bool clearable = 16;
-  string clear_blocked_reason = 17;
+  string run_id = 2;
+  string environment_id = 3;
+  AllocationLifecycleRetryReason reason = 4;
+  string node_id = 5;
+  string node_target = 6;
+  int64 attempt = 7;
+  int32 reconcile_attempts = 8;
+  string last_error = 9;
+  google.protobuf.Timestamp next_run_at = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+  int64 age_seconds = 13;
+  bool due = 14;
+  bool clearable = 15;
+  string clear_blocked_reason = 16;
 }
 
 message AllocationLifecycleRetryFilter {
-  AllocationLifecycleRetryOwnerType owner_type = 1;
-  AllocationLifecycleRetryReason reason = 2;
-  bool due_only = 3;
+  AllocationLifecycleRetryReason reason = 1;
+  bool due_only = 2;
 }
 
 message ListAllocationLifecycleRetriesRequest {

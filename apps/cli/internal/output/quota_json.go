@@ -23,8 +23,7 @@ type NamespaceQuotaEventJSON struct {
 	ID                             string `json:"id"`
 	Namespace                      string `json:"namespace"`
 	Type                           string `json:"type"`
-	WorkloadType                   string `json:"workload_type"`
-	WorkloadID                     string `json:"workload_id,omitempty"`
+	RunID                          string `json:"run_id,omitempty"`
 	EnvironmentID                  string `json:"environment_id,omitempty"`
 	Reason                         string `json:"reason"`
 	RequestedCPUMilli              int64  `json:"requested_cpu_milli"`
@@ -93,8 +92,7 @@ func NewNamespaceQuotaEventJSON(event *quotav1.NamespaceQuotaEvent) *NamespaceQu
 		ID:                             event.GetID(),
 		Namespace:                      event.GetNamespace(),
 		Type:                           quotaEventTypeJSON(event.GetType()),
-		WorkloadType:                   quotaEventWorkloadTypeJSON(event.GetWorkloadType()),
-		WorkloadID:                     event.GetWorkloadID(),
+		RunID:                          event.GetRunID(),
 		EnvironmentID:                  event.GetEnvironmentID(),
 		Reason:                         quotaEventReason(event.GetReason()),
 		RequestedCPUMilli:              event.GetRequestedCpuMilli(),
@@ -140,15 +138,6 @@ func quotaEventTypeJSON(value quotav1.NamespaceQuotaEventType) string {
 		return "admission-rejected"
 	}
 	return ""
-}
-
-func quotaEventWorkloadTypeJSON(value quotav1.NamespaceQuotaEventWorkloadType) string {
-	switch value {
-	case quotav1.NamespaceQuotaEventWorkloadType_NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN:
-		return "run"
-	default:
-		return ""
-	}
 }
 
 func optionalWrapperInt64(value *wrapperspb.Int64Value) *int64 {

@@ -36,7 +36,7 @@ axern quota get --namespace team-a
 
 Quota and node admission are separate gates: quota answers whether the namespace may reserve more, node admission answers whether an eligible node has remaining capacity. Memory is strict for both; only CPU can be overcommitted, and overcommit changes admission capacity only, never cgroup limits.
 
-When admission fails, JSON output exposes a stable `diagnostic_code` and a compact `admission_summary` such as `namespace quota exceeded` or `node memory capacity exhausted`:
+When admission fails, JSON output exposes a stable `diagnostic_code`. The accompanying `message` is human-readable context and must not be parsed as a machine contract:
 
 ```bash
 axern run get <run-id> --output json

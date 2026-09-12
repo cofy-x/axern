@@ -132,17 +132,7 @@ For machine-readable troubleshooting, use JSON output:
 axern run get <run_id> -o json
 ```
 
-Resource-related Run failures expose `diagnostic_code` as the stable machine field and `admission_summary` as the compact operator-facing label:
-
-| Summary                                  | Meaning                                                                                           |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `namespace quota exceeded`               | Namespace quota blocked the requested reservation.                                                |
-| `node CPU capacity exhausted`            | Otherwise eligible nodes lack effective CPU request capacity.                                     |
-| `node memory capacity exhausted`         | Otherwise eligible nodes lack memory request capacity.                                            |
-| `node CPU and memory capacity exhausted` | Otherwise eligible nodes lack both CPU and memory request capacity.                               |
-| `node reservation capacity exhausted`    | Placement found candidates, but transaction-time reservation recheck found no remaining capacity. |
-
-The typed placement rejection set distinguishes insufficient ephemeral storage even though the current compact CLI summary may use the generic reservation or capacity label.
+Resource-related Run failures expose `diagnostic_code` as the stable machine field and `message` as operator context. Clients must not reconstruct diagnostic categories by parsing that human-readable message. Typed placement rejection details distinguish the concrete exhausted resource when callers need finer-grained admission analysis.
 
 Run creation returns admission failures directly. Detached SDK Sandboxes expose later allocation failures through the owning Run status and diagnostics.
 

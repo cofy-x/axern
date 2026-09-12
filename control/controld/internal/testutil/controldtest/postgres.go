@@ -25,7 +25,7 @@ func ResetPostgresControlTables(t *testing.T, dsn string) {
 			tunnel_sessions,
 			allocation_reconcile_queue,
 			execution_leases,
-			workload_reservations,
+			reservations,
 			allocations,
 			runs,
 			secrets,

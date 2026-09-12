@@ -47,16 +47,22 @@ func TestRecordAllocationCapabilityAdmissionIsAtomicAndLifecycleNeutral(t *testi
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
+		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $2, $2)
+	`, "run-"+suffix, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool().Exec(ctx, `
 		INSERT INTO allocations (
-			allocation_id, owner_type, owner_id, node_id, attempt, status,
+			allocation_id, run_id, node_id, attempt, status,
 			config, version, created_at, updated_at, message
-		) VALUES ($1, 'run', $2, $3, 1, $4,
+		) VALUES ($1, $2, $3, 1, $4,
 			'{}'::jsonb, 7, $5, $5, 'lifecycle-message-before-capability-report')
 	`, allocationID, "run-"+suffix, nodeID, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(), now); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_, _ = db.Pool().Exec(context.Background(), `DELETE FROM allocations WHERE allocation_id = $1`, allocationID)
+		_, _ = db.Pool().Exec(context.Background(), `DELETE FROM runs WHERE run_id = $1`, "run-"+suffix)
 		_, _ = db.Pool().Exec(context.Background(), `DELETE FROM nodes WHERE node_id = $1`, nodeID)
 	})
 

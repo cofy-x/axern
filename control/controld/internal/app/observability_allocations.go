@@ -20,22 +20,21 @@ func (a *App) observePostgresPoolConnections(_ context.Context, observe sdkobs.I
 
 func (a *App) observeAllocations(ctx context.Context, observe sdkobs.Int64GaugeObserver) error {
 	rows, err := a.db.Pool().Query(ctx, `
-		SELECT owner_type, status, count(*)
+		SELECT status, count(*)
 		FROM allocations
-		GROUP BY owner_type, status
+		GROUP BY status
 	`)
 	if err != nil {
 		return fmt.Errorf("query allocation metrics: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var ownerType, status string
+		var status string
 		var count int64
-		if err := rows.Scan(&ownerType, &status, &count); err != nil {
+		if err := rows.Scan(&status, &count); err != nil {
 			return err
 		}
 		observe(count,
-			attribute.String(sdkobs.AttrOwnerType, ownerType),
 			attribute.String(sdkobs.AttrStatus, status),
 		)
 	}
@@ -44,23 +43,22 @@ func (a *App) observeAllocations(ctx context.Context, observe sdkobs.Int64GaugeO
 
 func (a *App) observeNodeAllocations(ctx context.Context, observe sdkobs.Int64GaugeObserver) error {
 	rows, err := a.db.Pool().Query(ctx, `
-		SELECT node_id, owner_type, status, count(*)
+		SELECT node_id, status, count(*)
 		FROM allocations
-		GROUP BY node_id, owner_type, status
+		GROUP BY node_id, status
 	`)
 	if err != nil {
 		return fmt.Errorf("query node allocation metrics: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var nodeID, ownerType, status string
+		var nodeID, status string
 		var count int64
-		if err := rows.Scan(&nodeID, &ownerType, &status, &count); err != nil {
+		if err := rows.Scan(&nodeID, &status, &count); err != nil {
 			return err
 		}
 		observe(count,
 			attribute.String(sdkobs.AttrNodeID, nodeID),
-			attribute.String(sdkobs.AttrOwnerType, ownerType),
 			attribute.String(sdkobs.AttrStatus, status),
 		)
 	}
@@ -68,7 +66,6 @@ func (a *App) observeNodeAllocations(ctx context.Context, observe sdkobs.Int64Ga
 }
 
 type allocationReconcileMetricRow struct {
-	ownerType        string
 	reason           string
 	count            int64
 	maxAttempts      int64
@@ -77,28 +74,27 @@ type allocationReconcileMetricRow struct {
 
 func (a *App) allocationReconcileQueueMetrics(ctx context.Context) ([]allocationReconcileMetricRow, error) {
 	rows, err := a.db.Pool().Query(ctx, `
-		SELECT a.owner_type, q.reason, count(*), COALESCE(max(q.reconcile_attempts), 0),
+		SELECT q.reason, count(*), COALESCE(max(q.reconcile_attempts), 0),
 			FLOOR(GREATEST(0, EXTRACT(EPOCH FROM ($1::timestamptz - min(q.created_at)))))::bigint
 		FROM allocation_reconcile_queue q
-		JOIN allocations a ON a.allocation_id = q.allocation_id
-		GROUP BY a.owner_type, q.reason
+		GROUP BY q.reason
 	`, a.now().UTC())
 	if err != nil {
 		return nil, fmt.Errorf("query allocation reconcile queue metrics: %w", err)
 	}
 	defer rows.Close()
 	metrics := []allocationReconcileMetricRow{
-		{ownerType: allocationkernel.OwnerRun, reason: allocationkernel.ReconcileReasonCreate},
-		{ownerType: allocationkernel.OwnerRun, reason: allocationkernel.ReconcileReasonDelete},
+		{reason: allocationkernel.ReconcileReasonCreate},
+		{reason: allocationkernel.ReconcileReasonDelete},
 	}
 	for rows.Next() {
 		var row allocationReconcileMetricRow
-		if err := rows.Scan(&row.ownerType, &row.reason, &row.count, &row.maxAttempts, &row.oldestAgeSeconds); err != nil {
+		if err := rows.Scan(&row.reason, &row.count, &row.maxAttempts, &row.oldestAgeSeconds); err != nil {
 			return nil, err
 		}
 		replaced := false
 		for i := range metrics {
-			if metrics[i].ownerType == row.ownerType && metrics[i].reason == row.reason {
+			if metrics[i].reason == row.reason {
 				metrics[i] = row
 				replaced = true
 				break
@@ -117,7 +113,7 @@ func (a *App) observeAllocationReconcileQueue(ctx context.Context, observe sdkob
 		return err
 	}
 	for _, row := range rows {
-		observe(row.count, attribute.String(sdkobs.AttrOwnerType, row.ownerType), attribute.String(sdkobs.AttrReason, row.reason))
+		observe(row.count, attribute.String(sdkobs.AttrReason, row.reason))
 	}
 	return nil
 }
@@ -128,7 +124,7 @@ func (a *App) observeAllocationReconcileQueueOldestAge(ctx context.Context, obse
 		return err
 	}
 	for _, row := range rows {
-		observe(row.oldestAgeSeconds, attribute.String(sdkobs.AttrOwnerType, row.ownerType), attribute.String(sdkobs.AttrReason, row.reason))
+		observe(row.oldestAgeSeconds, attribute.String(sdkobs.AttrReason, row.reason))
 	}
 	return nil
 }
@@ -139,7 +135,7 @@ func (a *App) observeAllocationReconcileAttempts(ctx context.Context, observe sd
 		return err
 	}
 	for _, row := range rows {
-		observe(row.maxAttempts, attribute.String(sdkobs.AttrOwnerType, row.ownerType), attribute.String(sdkobs.AttrReason, row.reason))
+		observe(row.maxAttempts, attribute.String(sdkobs.AttrReason, row.reason))
 	}
 	return nil
 }

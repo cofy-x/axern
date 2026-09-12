@@ -56,7 +56,6 @@ func TestNetworkConfigDigestUsesCompleteNormalizedNetworkConfig(t *testing.T) {
 		"tcp closing":         func(c *config.NetworkConfig) { c.BPFNet.SNATTCPClosingTimeout = "3s" },
 		"datagram idle":       func(c *config.NetworkConfig) { c.BPFNet.SNATDatagramIdleTimeout = "11s" },
 		"local-out compat":    func(c *config.NetworkConfig) { c.BPFNet.LocalOutCompat = !c.BPFNet.LocalOutCompat },
-		"iptables fallback":   func(c *config.NetworkConfig) { c.BPFNet.IptablesFallback = !c.BPFNet.IptablesFallback },
 		"uplink devices":      func(c *config.NetworkConfig) { c.BPFNet.UplinkDevices = []string{"eth0"} },
 		"native routing CIDR": func(c *config.NetworkConfig) { c.BPFNet.NativeRoutingCIDRs = []string{"10.3.0.0/16"} },
 	}

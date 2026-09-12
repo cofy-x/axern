@@ -1,26 +1,21 @@
 package consistencykernel
 
-import allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
-
 type RepairOwner string
 
 const (
-	RepairOwnerUnspecified         RepairOwner = ""
-	RepairOwnerWorkloadController  RepairOwner = "workload_controller"
-	RepairOwnerNodeLifecycle       RepairOwner = "node_lifecycle"
-	RepairOwnerTunnelController    RepairOwner = "tunnel_controller"
-	RepairOwnerAdminOperatorTriage RepairOwner = "admin_operator_triage"
+	RepairOwnerUnspecified      RepairOwner = ""
+	RepairOwnerRunController    RepairOwner = "run_controller"
+	RepairOwnerNodeLifecycle    RepairOwner = "node_lifecycle"
+	RepairOwnerTunnelController RepairOwner = "tunnel_controller"
 )
 
 type RepairAction string
 
 const (
-	RepairActionUnspecified               RepairAction = ""
-	RepairActionWorkloadCleanup           RepairAction = "workload_cleanup"
-	RepairActionWorkloadCleanupAndReadmit RepairAction = "workload_cleanup_and_readmit"
-	RepairActionNodeLifecycleReconcile    RepairAction = "node_lifecycle_reconcile"
-	RepairActionTunnelLifecycleReconcile  RepairAction = "tunnel_lifecycle_reconcile"
-	RepairActionAdminTriage               RepairAction = "admin_triage"
+	RepairActionUnspecified              RepairAction = ""
+	RepairActionRunCleanup               RepairAction = "run_cleanup"
+	RepairActionNodeLifecycleReconcile   RepairAction = "node_lifecycle_reconcile"
+	RepairActionTunnelLifecycleReconcile RepairAction = "tunnel_lifecycle_reconcile"
 )
 
 type RepairTargetType string
@@ -48,27 +43,17 @@ func RepairPlanForIssue(issue Issue) RepairPlan {
 
 func repairPlanForCode(code IssueCode) RepairPlan {
 	switch code {
-	case IssueActiveReservationMissingAllocation:
-		return RepairPlan{
-			Owner:  RepairOwnerAdminOperatorTriage,
-			Action: RepairActionAdminTriage,
-		}
 	case IssueActiveReservationOnEndedAllocation:
 		return RepairPlan{
-			Owner:  RepairOwnerWorkloadController,
-			Action: RepairActionWorkloadCleanup,
+			Owner:  RepairOwnerRunController,
+			Action: RepairActionRunCleanup,
 		}
-	case IssueActiveReservationAllocationMismatch:
-		return RepairPlan{
-			Owner:  RepairOwnerWorkloadController,
-			Action: RepairActionWorkloadCleanupAndReadmit,
-		}
-	case IssueActiveLeaseMissingAllocation, IssueActiveLeaseOnEndedAllocation, IssueActiveLeaseAllocationNodeMismatch:
+	case IssueActiveLeaseOnEndedAllocation:
 		return RepairPlan{
 			Owner:  RepairOwnerNodeLifecycle,
 			Action: RepairActionNodeLifecycleReconcile,
 		}
-	case IssueActiveTunnelMissingAllocation, IssueActiveTunnelOnEndedAllocation, IssueActiveTunnelAllocationNodeMismatch:
+	case IssueActiveTunnelOnEndedAllocation:
 		return RepairPlan{
 			Owner:  RepairOwnerTunnelController,
 			Action: RepairActionTunnelLifecycleReconcile,
@@ -80,11 +65,12 @@ func repairPlanForCode(code IssueCode) RepairPlan {
 
 func repairTargetForIssue(issue Issue) (RepairTargetType, string) {
 	switch issue.Code {
-	case IssueActiveReservationMissingAllocation:
-		return RepairTargetTypeAllocation, issue.AllocationID
-	case IssueActiveReservationOnEndedAllocation, IssueActiveReservationAllocationMismatch:
-		return workloadRepairTarget(issue)
-	case IssueActiveTunnelMissingAllocation, IssueActiveTunnelOnEndedAllocation, IssueActiveTunnelAllocationNodeMismatch:
+	case IssueActiveReservationOnEndedAllocation:
+		if issue.RunID != "" {
+			return RepairTargetTypeRun, issue.RunID
+		}
+		return allocationRepairTarget(issue)
+	case IssueActiveTunnelOnEndedAllocation:
 		if issue.DependentID != "" {
 			return RepairTargetTypeTunnelSession, issue.DependentID
 		}
@@ -92,16 +78,6 @@ func repairTargetForIssue(issue Issue) (RepairTargetType, string) {
 	default:
 		return allocationRepairTarget(issue)
 	}
-}
-
-func workloadRepairTarget(issue Issue) (RepairTargetType, string) {
-	switch issue.OwnerType {
-	case string(allocationkernel.OwnerRun):
-		if issue.OwnerID != "" {
-			return RepairTargetTypeRun, issue.OwnerID
-		}
-	}
-	return allocationRepairTarget(issue)
 }
 
 func allocationRepairTarget(issue Issue) (RepairTargetType, string) {

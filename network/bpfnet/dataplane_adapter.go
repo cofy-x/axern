@@ -45,11 +45,10 @@ func (d *dataplaneAdapter) CleanupStaleSNATMappings(policy SNATGCPolicy) (SNATGC
 
 func toInternalConfig(cfg Config) internaldataplane.Config {
 	return internaldataplane.Config{
-		PinPath:          cfg.PinPath,
-		MapSize:          cfg.MapSize,
-		SNATMapSize:      cfg.SNATMapSize,
-		LocalOutCompat:   cfg.LocalOutCompat,
-		IptablesFallback: cfg.IptablesFallback,
+		PinPath:        cfg.PinPath,
+		MapSize:        cfg.MapSize,
+		SNATMapSize:    cfg.SNATMapSize,
+		LocalOutCompat: cfg.LocalOutCompat,
 	}
 }
 

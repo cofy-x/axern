@@ -88,5 +88,5 @@ func bpfnetPreferred(summary *nodev1.NodeSummary) bool {
 		return false
 	}
 	component := summary.GetComponents().GetBpfnet()
-	return component.GetReady() && !component.GetNeedsFullDnatFallback()
+	return component.GetReady()
 }

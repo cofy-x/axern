@@ -10,27 +10,19 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class AllocationLifecycleRetryOwnerType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED: _ClassVar[AllocationLifecycleRetryOwnerType]
-    ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN: _ClassVar[AllocationLifecycleRetryOwnerType]
-
 class AllocationLifecycleRetryReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     ALLOCATION_LIFECYCLE_RETRY_REASON_UNSPECIFIED: _ClassVar[AllocationLifecycleRetryReason]
     ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE: _ClassVar[AllocationLifecycleRetryReason]
     ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE: _ClassVar[AllocationLifecycleRetryReason]
-ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED: AllocationLifecycleRetryOwnerType
-ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN: AllocationLifecycleRetryOwnerType
 ALLOCATION_LIFECYCLE_RETRY_REASON_UNSPECIFIED: AllocationLifecycleRetryReason
 ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE: AllocationLifecycleRetryReason
 ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE: AllocationLifecycleRetryReason
 
 class AllocationLifecycleRetry(_message.Message):
-    __slots__ = ("allocation_id", "owner_id", "owner_type", "environment_id", "reason", "node_id", "node_target", "attempt", "reconcile_attempts", "last_error", "next_run_at", "created_at", "updated_at", "age_seconds", "due", "clearable", "clear_blocked_reason")
+    __slots__ = ("allocation_id", "run_id", "environment_id", "reason", "node_id", "node_target", "attempt", "reconcile_attempts", "last_error", "next_run_at", "created_at", "updated_at", "age_seconds", "due", "clearable", "clear_blocked_reason")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    OWNER_ID_FIELD_NUMBER: _ClassVar[int]
-    OWNER_TYPE_FIELD_NUMBER: _ClassVar[int]
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
     ENVIRONMENT_ID_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -46,8 +38,7 @@ class AllocationLifecycleRetry(_message.Message):
     CLEARABLE_FIELD_NUMBER: _ClassVar[int]
     CLEAR_BLOCKED_REASON_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    owner_id: str
-    owner_type: AllocationLifecycleRetryOwnerType
+    run_id: str
     environment_id: str
     reason: AllocationLifecycleRetryReason
     node_id: str
@@ -62,17 +53,15 @@ class AllocationLifecycleRetry(_message.Message):
     due: bool
     clearable: bool
     clear_blocked_reason: str
-    def __init__(self, allocation_id: _Optional[str] = ..., owner_id: _Optional[str] = ..., owner_type: _Optional[_Union[AllocationLifecycleRetryOwnerType, str]] = ..., environment_id: _Optional[str] = ..., reason: _Optional[_Union[AllocationLifecycleRetryReason, str]] = ..., node_id: _Optional[str] = ..., node_target: _Optional[str] = ..., attempt: _Optional[int] = ..., reconcile_attempts: _Optional[int] = ..., last_error: _Optional[str] = ..., next_run_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., age_seconds: _Optional[int] = ..., due: _Optional[bool] = ..., clearable: _Optional[bool] = ..., clear_blocked_reason: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., run_id: _Optional[str] = ..., environment_id: _Optional[str] = ..., reason: _Optional[_Union[AllocationLifecycleRetryReason, str]] = ..., node_id: _Optional[str] = ..., node_target: _Optional[str] = ..., attempt: _Optional[int] = ..., reconcile_attempts: _Optional[int] = ..., last_error: _Optional[str] = ..., next_run_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., age_seconds: _Optional[int] = ..., due: _Optional[bool] = ..., clearable: _Optional[bool] = ..., clear_blocked_reason: _Optional[str] = ...) -> None: ...
 
 class AllocationLifecycleRetryFilter(_message.Message):
-    __slots__ = ("owner_type", "reason", "due_only")
-    OWNER_TYPE_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("reason", "due_only")
     REASON_FIELD_NUMBER: _ClassVar[int]
     DUE_ONLY_FIELD_NUMBER: _ClassVar[int]
-    owner_type: AllocationLifecycleRetryOwnerType
     reason: AllocationLifecycleRetryReason
     due_only: bool
-    def __init__(self, owner_type: _Optional[_Union[AllocationLifecycleRetryOwnerType, str]] = ..., reason: _Optional[_Union[AllocationLifecycleRetryReason, str]] = ..., due_only: _Optional[bool] = ...) -> None: ...
+    def __init__(self, reason: _Optional[_Union[AllocationLifecycleRetryReason, str]] = ..., due_only: _Optional[bool] = ...) -> None: ...
 
 class ListAllocationLifecycleRetriesRequest(_message.Message):
     __slots__ = ("filter", "limit")

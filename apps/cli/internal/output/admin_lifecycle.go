@@ -14,7 +14,7 @@ func RenderAllocationLifecycleRetry(w io.Writer, retry *adminv1.AllocationLifecy
 		return
 	}
 	fmt.Fprintf(w, "Allocation: %s\n", retry.GetAllocationID())
-	fmt.Fprintf(w, "Owner: %s/%s\n", allocationLifecycleRetryOwnerLabel(retry.GetOwnerType()), retry.GetOwnerID())
+	fmt.Fprintf(w, "Run: %s\n", retry.GetRunID())
 	fmt.Fprintf(w, "Reason: %s\n", allocationLifecycleRetryReasonLabel(retry.GetReason()))
 	fmt.Fprintf(w, "Node: %s\n", retry.GetNodeID())
 	if retry.GetNodeTarget() != "" {
@@ -40,8 +40,7 @@ func RenderAllocationLifecycleRetryTable(w io.Writer, retries []*adminv1.Allocat
 		}
 		rows = append(rows, []string{
 			retry.GetAllocationID(),
-			allocationLifecycleRetryOwnerLabel(retry.GetOwnerType()),
-			retry.GetOwnerID(),
+			retry.GetRunID(),
 			allocationLifecycleRetryReasonLabel(retry.GetReason()),
 			retry.GetNodeID(),
 			fmt.Sprintf("%d", retry.GetAttempt()),
@@ -51,7 +50,7 @@ func RenderAllocationLifecycleRetryTable(w io.Writer, retries []*adminv1.Allocat
 			ShortMessage(retry.GetLastError(), 48),
 		})
 	}
-	RenderTable(w, []string{"ALLOCATION", "OWNER", "OWNER_ID", "REASON", "NODE", "ATTEMPT", "RETRIES", "NEXT", "DUE", "LAST_ERROR"}, rows)
+	RenderTable(w, []string{"ALLOCATION", "RUN", "REASON", "NODE", "ATTEMPT", "RETRIES", "NEXT", "DUE", "LAST_ERROR"}, rows)
 }
 
 func formatAllocationLifecycleRetryNextRun(retry *adminv1.AllocationLifecycleRetry, now time.Time) string {
@@ -59,10 +58,6 @@ func formatAllocationLifecycleRetryNextRun(retry *adminv1.AllocationLifecycleRet
 		return "-"
 	}
 	return FormatRelativeAge(retry.GetNextRunAt().AsTime(), now)
-}
-
-func allocationLifecycleRetryOwnerLabel(ownerType adminv1.AllocationLifecycleRetryOwnerType) string {
-	return strings.ToLower(trimEnumPrefix(ownerType.String(), "ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_"))
 }
 
 func allocationLifecycleRetryReasonLabel(reason adminv1.AllocationLifecycleRetryReason) string {

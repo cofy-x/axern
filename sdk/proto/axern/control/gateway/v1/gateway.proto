@@ -20,12 +20,11 @@ enum AllocationAccessPurpose {
 
 message ResolveAllocationTerminalResponse {
   string allocation_id = 1;
-  string owner_type = 2;
-  string owner_id = 3;
-  string node_id = 4;
-  string node_target = 5;
-  int64 attempt = 6;
-  axern.control.common.v1.ExecutionLease lease = 7;
+  string run_id = 2;
+  string node_id = 3;
+  string node_target = 4;
+  int64 attempt = 5;
+  axern.control.common.v1.ExecutionLease lease = 6;
 }
 
 message ResolveTunnelRelayTargetRequest {

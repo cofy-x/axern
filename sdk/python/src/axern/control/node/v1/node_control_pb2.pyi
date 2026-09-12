@@ -254,22 +254,18 @@ class ImagefsdSummary(_message.Message):
     def __init__(self, state: _Optional[_Union[ComponentState, str]] = ..., reachable: _Optional[bool] = ..., chunkdb_present: _Optional[bool] = ..., chunk_count: _Optional[int] = ..., chunkdb_used_bytes: _Optional[int] = ..., chunkdb_usage_percent: _Optional[float] = ...) -> None: ...
 
 class BpfNetSummary(_message.Message):
-    __slots__ = ("state", "enabled", "ready", "mode", "needs_snat_fallback", "needs_full_dnat_fallback", "needs_localhost_compat")
+    __slots__ = ("state", "enabled", "ready", "mode", "needs_localhost_compat")
     STATE_FIELD_NUMBER: _ClassVar[int]
     ENABLED_FIELD_NUMBER: _ClassVar[int]
     READY_FIELD_NUMBER: _ClassVar[int]
     MODE_FIELD_NUMBER: _ClassVar[int]
-    NEEDS_SNAT_FALLBACK_FIELD_NUMBER: _ClassVar[int]
-    NEEDS_FULL_DNAT_FALLBACK_FIELD_NUMBER: _ClassVar[int]
     NEEDS_LOCALHOST_COMPAT_FIELD_NUMBER: _ClassVar[int]
     state: ComponentState
     enabled: bool
     ready: bool
     mode: str
-    needs_snat_fallback: bool
-    needs_full_dnat_fallback: bool
     needs_localhost_compat: bool
-    def __init__(self, state: _Optional[_Union[ComponentState, str]] = ..., enabled: _Optional[bool] = ..., ready: _Optional[bool] = ..., mode: _Optional[str] = ..., needs_snat_fallback: _Optional[bool] = ..., needs_full_dnat_fallback: _Optional[bool] = ..., needs_localhost_compat: _Optional[bool] = ...) -> None: ...
+    def __init__(self, state: _Optional[_Union[ComponentState, str]] = ..., enabled: _Optional[bool] = ..., ready: _Optional[bool] = ..., mode: _Optional[str] = ..., needs_localhost_compat: _Optional[bool] = ...) -> None: ...
 
 class NodeStorageSummary(_message.Message):
     __slots__ = ("target", "capacity_bytes", "used_bytes", "available_bytes", "inodes_total", "inodes_used", "inodes_available", "collected", "error", "system_reserve_bytes", "reserved_bytes", "allocatable_bytes", "active_reservations", "filesystem_type", "mount_identity", "allocation_used_bytes", "unlinked_backing_usage_unknown")

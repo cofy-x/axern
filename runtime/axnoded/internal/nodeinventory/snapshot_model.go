@@ -198,14 +198,12 @@ type ImagefsdComponentInventory struct {
 }
 
 type BPFNetComponentInventory struct {
-	Status                string `json:"status"`
-	Error                 string `json:"error,omitempty"`
-	Enabled               bool   `json:"enabled"`
-	Ready                 bool   `json:"ready"`
-	Mode                  string `json:"mode,omitempty"`
-	NeedsSNATFallback     bool   `json:"needs_snat_fallback"`
-	NeedsFullDNATFallback bool   `json:"needs_full_dnat_fallback"`
-	NeedsLocalhostCompat  bool   `json:"needs_localhost_compat"`
+	Status               string `json:"status"`
+	Error                string `json:"error,omitempty"`
+	Enabled              bool   `json:"enabled"`
+	Ready                bool   `json:"ready"`
+	Mode                 string `json:"mode,omitempty"`
+	NeedsLocalhostCompat bool   `json:"needs_localhost_compat"`
 }
 
 type ComponentsInventory struct {

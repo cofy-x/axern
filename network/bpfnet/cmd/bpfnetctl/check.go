@@ -60,7 +60,7 @@ func runCheck(args []string, stdout io.Writer) error {
 
 func evaluateReadiness(status bpfnet.Status, objects []inspect.ObjectInfo) checkResult {
 	checks := []checkItem{
-		checkBool("tc_ready", status.State.TCReady && !status.State.FullFallback, "tc dataplane is not ready or is in full fallback"),
+		checkBool("tc_ready", status.State.TCReady, "tc dataplane is not ready"),
 		checkBool("tc_filters", status.Attachment.IngressTCAttached && status.Attachment.EgressTCAttached, "tc ingress/egress filters are not both attached"),
 		checkBool("pinned_maps", status.Attachment.PinnedMapsReady, "required pinned maps are not all openable"),
 		checkBool("pinned_programs", status.Attachment.PinnedProgramsReady, "required pinned program objects are not all openable"),

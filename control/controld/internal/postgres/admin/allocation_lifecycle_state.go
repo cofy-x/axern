@@ -28,11 +28,11 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 	var out lockedLifecycleRetry
 	clearanceInput := allocationkernel.LifecycleRetryClearanceInput{}
 	err := tx.QueryRow(ctx, `
-		SELECT q.allocation_id, a.owner_id, a.owner_type, a.environment_id, q.reason, a.node_id, n.node_target, a.attempt,
+		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target, a.attempt,
 			q.reconcile_attempts, q.last_error, q.next_run_at, q.created_at, q.updated_at, a.status,
 			EXISTS (
-				SELECT 1 FROM workload_reservations wr
-				WHERE wr.allocation_id = q.allocation_id AND wr.released_at IS NULL
+				SELECT 1 FROM reservations res
+				WHERE res.allocation_id = q.allocation_id AND res.released_at IS NULL
 			),
 			EXISTS (
 				SELECT 1 FROM execution_leases el
@@ -46,11 +46,12 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 			),
 			COALESCE((
 				SELECT r.status FROM runs r
-				WHERE r.allocation_id = q.allocation_id
+				WHERE r.run_id = a.run_id
 				LIMIT 1
 			), '')
 		FROM allocation_reconcile_queue q
 		JOIN allocations a ON a.allocation_id = q.allocation_id
+		JOIN runs r ON r.run_id = a.run_id
 		JOIN nodes n ON n.node_id = a.node_id
 		WHERE q.allocation_id = $1 AND q.reason = $2
 		FOR UPDATE OF q, a
@@ -59,8 +60,7 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(),
 		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_DEGRADED.String()).Scan(
 		&out.Item.AllocationID,
-		&out.Item.OwnerID,
-		&out.Item.OwnerType,
+		&out.Item.RunID,
 		&out.Item.EnvironmentID,
 		&out.Item.Reason,
 		&out.Item.NodeID,
@@ -75,7 +75,7 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 		&clearanceInput.HasActiveReservation,
 		&clearanceInput.HasActiveLease,
 		&clearanceInput.HasActiveTunnelSession,
-		&clearanceInput.OwnerRunStatus,
+		&clearanceInput.RunStatus,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, grpcstatus.Errorf(codes.NotFound, "allocation lifecycle retry %q with reason %q not found", allocationID, reason)
@@ -91,7 +91,6 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 	out.Item.Due = !out.Item.NextRunAt.After(now)
 	clearanceInput.AllocationID = out.Item.AllocationID
 	clearanceInput.AllocationStatus = out.AllocationStatus
-	clearanceInput.OwnerType = out.Item.OwnerType
 	clearance := allocationkernel.EvaluateLifecycleRetryClearance(clearanceInput)
 	out.Item.Clearable = clearance.Clearable
 	out.Item.ClearBlockedReason = clearance.BlockedReason
@@ -119,28 +118,19 @@ func loadLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 	return item, nil
 }
 
-func failLifecycleRetryOwner(ctx context.Context, tx pgx.Tx, item allocationkernel.LifecycleRetryItem, message string, now time.Time) error {
-	switch item.OwnerType {
-	case allocationkernel.OwnerRun:
-		return failRunLifecycleRetry(ctx, tx, item, message, now)
-	default:
-		return grpcstatus.Errorf(codes.FailedPrecondition, "unsupported allocation lifecycle retry owner_type %q", item.OwnerType)
-	}
-}
-
 func failRunLifecycleRetry(ctx context.Context, tx pgx.Tx, item allocationkernel.LifecycleRetryItem, message string, now time.Time) error {
 	if _, err := tx.Exec(ctx, `
 		UPDATE allocations
-		SET status = $2, message = $3, version = version + 1, updated_at = $4
-		WHERE allocation_id = $1 AND owner_type = $5 AND owner_id = $6
-	`, item.AllocationID, commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(), strings.TrimSpace(message), now.UTC(), allocationkernel.OwnerRun, item.OwnerID); err != nil {
+		SET status = $2, diagnostic_code = $3, message = $4, version = version + 1, updated_at = $5
+		WHERE allocation_id = $1 AND run_id = $6
+	`, item.AllocationID, commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(), commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR.String(), strings.TrimSpace(message), now.UTC(), item.RunID); err != nil {
 		return fmt.Errorf("fail run allocation: %w", err)
 	}
 	tag, err := tx.Exec(ctx, `
 		UPDATE runs
-		SET status = $2, message = $3, version = version + 1, updated_at = $4
-		WHERE allocation_id = $1 AND status NOT IN ($5, $6, $7)
-	`, item.AllocationID, runv1.RunStatus_RUN_STATUS_FAILED.String(), strings.TrimSpace(message), now.UTC(), runv1.RunStatus_RUN_STATUS_SUCCEEDED.String(), runv1.RunStatus_RUN_STATUS_FAILED.String(), runv1.RunStatus_RUN_STATUS_CANCELLED.String())
+		SET status = $2, diagnostic_code = $3, message = $4, version = version + 1, updated_at = $5
+		WHERE run_id = $1 AND status NOT IN ($6, $7, $8)
+	`, item.RunID, runv1.RunStatus_RUN_STATUS_FAILED.String(), commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR.String(), strings.TrimSpace(message), now.UTC(), runv1.RunStatus_RUN_STATUS_SUCCEEDED.String(), runv1.RunStatus_RUN_STATUS_FAILED.String(), runv1.RunStatus_RUN_STATUS_CANCELLED.String())
 	if err != nil {
 		return fmt.Errorf("fail run lifecycle retry: %w", err)
 	}
@@ -230,7 +220,7 @@ func requireNoActiveAllocationCleanupState(ctx context.Context, tx pgx.Tx, alloc
 	var activeReservations int
 	if err := tx.QueryRow(ctx, `
 		SELECT COUNT(*)
-		FROM workload_reservations
+		FROM reservations
 		WHERE allocation_id = $1 AND released_at IS NULL
 	`, strings.TrimSpace(allocationID)).Scan(&activeReservations); err != nil {
 		return fmt.Errorf("count active allocation reservations: %w", err)
@@ -268,23 +258,14 @@ func requireNoActiveAllocationCleanupState(ctx context.Context, tx pgx.Tx, alloc
 	return nil
 }
 
-func requireOwnerConvergedForClear(ctx context.Context, tx pgx.Tx, item allocationkernel.LifecycleRetryItem) error {
-	switch item.OwnerType {
-	case allocationkernel.OwnerRun:
-		return requireRunConvergedForClear(ctx, tx, item)
-	default:
-		return grpcstatus.Errorf(codes.FailedPrecondition, "unsupported allocation lifecycle retry owner_type %q", item.OwnerType)
-	}
-}
-
 func requireRunConvergedForClear(ctx context.Context, tx pgx.Tx, item allocationkernel.LifecycleRetryItem) error {
 	var status string
 	err := tx.QueryRow(ctx, `
 		SELECT status
 		FROM runs
-		WHERE allocation_id = $1
+		WHERE run_id = $1
 		FOR UPDATE
-	`, strings.TrimSpace(item.AllocationID)).Scan(&status)
+	`, strings.TrimSpace(item.RunID)).Scan(&status)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
@@ -297,6 +278,6 @@ func requireRunConvergedForClear(ctx context.Context, tx pgx.Tx, item allocation
 		runv1.RunStatus_RUN_STATUS_CANCELLED.String():
 		return nil
 	default:
-		return grpcstatus.Errorf(codes.FailedPrecondition, "allocation lifecycle retry %q cannot be cleared while owner run status is %s", item.AllocationID, status)
+		return grpcstatus.Errorf(codes.FailedPrecondition, "allocation lifecycle retry %q cannot be cleared while run status is %s", item.AllocationID, status)
 	}
 }

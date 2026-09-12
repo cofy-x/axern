@@ -32,7 +32,6 @@ nat_backend = "${NAT_BACKEND}"
 pin_path = "/sys/fs/bpf/axern/bpfnet"
 map_size = 16384
 local_out_compat = true
-iptables_fallback = true
 
 [plugin.resource]
 cgroup_cache_size = 4

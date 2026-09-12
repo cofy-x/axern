@@ -10,12 +10,9 @@ import (
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
 
-func TestBatchReportAllocationStatusRoutesOwnersOnce(t *testing.T) {
-	owners := &fakeAllocationOwnerResolver{owners: map[string]string{
-		"run-1": allocationkernel.OwnerRun,
-	}}
+func TestBatchReportAllocationStatusUsesRunStore(t *testing.T) {
 	runs := &fakeRunAllocationStore{}
-	control := NewAuthoritative(owners, runs)
+	control := NewAuthoritative(runs)
 	observations := []*nodev1.AllocationStatusObservation{
 		{AllocationID: " run-1 ", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
 		{AllocationID: "unknown-owner", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
@@ -29,22 +26,9 @@ func TestBatchReportAllocationStatusRoutesOwnersOnce(t *testing.T) {
 	if len(reconcileIDs) != 0 {
 		t.Fatalf("reconcile IDs = %#v, want empty", reconcileIDs)
 	}
-	if owners.calls != 1 {
-		t.Fatalf("owner resolver calls = %d, want 1", owners.calls)
+	if got := allocationIDs(runs.observations); len(got) != 3 {
+		t.Fatalf("run observations = %#v, want all allocation observations", got)
 	}
-	if got := allocationIDs(runs.observations); len(got) != 1 || got[0] != " run-1 " {
-		t.Fatalf("run observations = %#v, want canonical owner routing to preserve payload", got)
-	}
-}
-
-type fakeAllocationOwnerResolver struct {
-	owners map[string]string
-	calls  int
-}
-
-func (f *fakeAllocationOwnerResolver) ResolveAllocationOwners(_ context.Context, _ []string) (map[string]string, error) {
-	f.calls++
-	return f.owners, nil
 }
 
 type fakeRunAllocationStore struct {

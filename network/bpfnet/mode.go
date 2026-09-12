@@ -1,10 +1,10 @@
 package bpfnet
 
 const (
-	ModeIPTablesFullFallback                    = "iptables-full-fallback"
-	ModeIngressTCPUDPDNATEgressSNAT             = "ingress-tcp-udp-dnat+egress-snat+iptables-safety-fallback"
-	ModeIngressTCPUDPDNATEgressSNATLocalhostTCP = "ingress-tcp-udp-dnat+egress-snat+localhost-tcp-dnat+iptables-safety-fallback"
-	ModeIngressTCPUDPDNATEgressSNATLocalCompat  = "ingress-tcp-udp-dnat+egress-snat+localhost-tcp-iptables-compat+iptables-safety-fallback"
+	ModeAttachFailed                            = "attach-failed"
+	ModeIngressTCPUDPDNATEgressSNAT             = "ingress-tcp-udp-dnat+egress-snat"
+	ModeIngressTCPUDPDNATEgressSNATLocalhostTCP = "ingress-tcp-udp-dnat+egress-snat+localhost-tcp-dnat"
+	ModeIngressTCPUDPDNATEgressSNATLocalCompat  = "ingress-tcp-udp-dnat+egress-snat+localhost-tcp-iptables-compat"
 )
 
 const (

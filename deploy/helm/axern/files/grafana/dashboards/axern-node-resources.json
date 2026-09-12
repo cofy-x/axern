@@ -1533,74 +1533,6 @@
                 }
               }
             ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "SNAT Fallback"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "Off",
-                        "color": "green",
-                        "index": 0
-                      },
-                      "1": {
-                        "text": "On",
-                        "color": "red",
-                        "index": 1
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Full DNAT Fallback"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "Off",
-                        "color": "green",
-                        "index": 0
-                      },
-                      "1": {
-                        "text": "On",
-                        "color": "red",
-                        "index": 1
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              }
-            ]
           }
         ]
       },
@@ -1645,25 +1577,11 @@
           "legendFormat": "Localhost Compat",
           "instant": true,
           "format": "table"
-        },
-        {
-          "expr": "label_replace(max by (axern_node_id) (axern_controld_node_bpfnet_current{axern_state=\"snat_fallback\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
-          "refId": "D",
-          "legendFormat": "SNAT Fallback",
-          "instant": true,
-          "format": "table"
-        },
-        {
-          "expr": "label_replace(max by (axern_node_id) (axern_controld_node_bpfnet_current{axern_state=\"full_dnat_fallback\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
-          "refId": "E",
-          "legendFormat": "Full DNAT Fallback",
-          "instant": true,
-          "format": "table"
         }
       ],
       "title": "Node BPFNet State",
       "type": "table",
-      "description": "Current BPFNet readiness and compatibility state by node. Fallback columns should remain Off during normal operation.",
+      "description": "Current BPFNet readiness and localhost compatibility state by node.",
       "transformations": [
         {
           "id": "joinByField",
@@ -1683,29 +1601,19 @@
               "axern_node_display 1": true,
               "Time 2": true,
               "axern_node_id 2": true,
-              "axern_node_display 2": true,
-              "Time 3": true,
-              "axern_node_id 3": true,
-              "axern_node_display 3": true,
-              "Time 4": true,
-              "axern_node_id 4": true,
-              "axern_node_display 4": true
+              "axern_node_display 2": true
             },
             "indexByName": {
               "axern_node_display": 0,
               "Value #A": 1,
               "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4,
-              "Value #E": 5
+              "Value #C": 3
             },
             "renameByName": {
               "axern_node_display": "Node",
               "Value #A": "Enabled",
               "Value #B": "Ready",
-              "Value #C": "Localhost Compat",
-              "Value #D": "SNAT Fallback",
-              "Value #E": "Full DNAT Fallback"
+              "Value #C": "Localhost Compat"
             }
           }
         }

@@ -16,8 +16,7 @@ type AllocationLifecycleRetryListJSON struct {
 
 type AllocationLifecycleRetryJSON struct {
 	AllocationID       string `json:"allocation_id"`
-	OwnerID            string `json:"owner_id"`
-	OwnerType          string `json:"owner_type"`
+	RunID              string `json:"run_id"`
 	EnvironmentID      string `json:"environment_id,omitempty"`
 	Reason             string `json:"reason"`
 	NodeID             string `json:"node_id"`
@@ -52,8 +51,7 @@ func NewAllocationLifecycleRetryJSON(retry *adminv1.AllocationLifecycleRetry) *A
 	}
 	return &AllocationLifecycleRetryJSON{
 		AllocationID:       retry.GetAllocationID(),
-		OwnerID:            retry.GetOwnerID(),
-		OwnerType:          allocationLifecycleRetryOwnerLabel(retry.GetOwnerType()),
+		RunID:              retry.GetRunID(),
 		EnvironmentID:      retry.GetEnvironmentID(),
 		Reason:             allocationLifecycleRetryReasonLabel(retry.GetReason()),
 		NodeID:             retry.GetNodeID(),

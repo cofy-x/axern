@@ -126,8 +126,7 @@ func TestAllocationReconcileHandlerReturnsJSONQueue(t *testing.T) {
 		ListReconcileQueue: func(context.Context) ([]allocationkernel.LifecycleRetryItem, error) {
 			return []allocationkernel.LifecycleRetryItem{{
 				AllocationID:      "alloc-1",
-				OwnerID:           "run-1",
-				OwnerType:         allocationkernel.OwnerRun,
+				RunID:             "run-1",
 				Reason:            allocationkernel.ReconcileReasonCreate,
 				NodeID:            "node-a",
 				ReconcileAttempts: 2,
@@ -144,7 +143,7 @@ func TestAllocationReconcileHandlerReturnsJSONQueue(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", recorder.Code)
 	}
-	for _, want := range []string{`"allocation_id":"alloc-1"`, `"owner_type":"run"`, `"reason":"create"`, `"reconcile_attempts":2`, `"due":true`} {
+	for _, want := range []string{`"allocation_id":"alloc-1"`, `"run_id":"run-1"`, `"reason":"create"`, `"reconcile_attempts":2`, `"due":true`} {
 		if !strings.Contains(recorder.Body.String(), want) {
 			t.Fatalf("unexpected allocation reconcile body: %s", recorder.Body.String())
 		}
@@ -211,8 +210,7 @@ func TestConsistencyHandlerReturnsJSONSnapshot(t *testing.T) {
 				Code:         "active_reservation_on_ended_allocation",
 				Severity:     consistencykernel.SeverityError,
 				AllocationID: "alloc-1",
-				OwnerType:    allocationkernel.OwnerRun,
-				OwnerID:      "run-1",
+				RunID:        "run-1",
 			}}, false), nil
 		},
 	})

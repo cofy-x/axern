@@ -154,7 +154,7 @@ func readyCapabilitySnapshot(collectedAt time.Time) *capabilityv1.CapabilitySnap
 
 // SetReadySummaryMemory rewrites the complete, internally consistent memory
 // budget projection used by placement tests. Tests must not mutate only the
-// legacy allocatable field because production admission binds it to the
+// allocatable projection because production admission binds it to the
 // independently sampled capacity budget.
 func SetReadySummaryMemory(summary *nodev1.NodeSummary, effectiveAllocatableBytes int64) {
 	if summary == nil {

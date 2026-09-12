@@ -44,8 +44,7 @@ apps/cli/internal/localruntime
 apps/cli/internal/output
 apps/cli/internal/parse
 apps/cli/internal/resourcespec
-apps/cli/internal/tunnelrelay
-apps/cli/internal/workloaddiagnostic'
+apps/cli/internal/tunnelrelay'
 
 check_equals \
 	"apps/cli/internal top-level packages must stay intentional" \

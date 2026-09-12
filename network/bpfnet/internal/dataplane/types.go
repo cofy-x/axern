@@ -1,11 +1,10 @@
 package dataplane
 
 type Config struct {
-	PinPath          string
-	MapSize          int
-	SNATMapSize      int
-	LocalOutCompat   bool
-	IptablesFallback bool
+	PinPath        string
+	MapSize        int
+	SNATMapSize    int
+	LocalOutCompat bool
 }
 
 type Service struct {

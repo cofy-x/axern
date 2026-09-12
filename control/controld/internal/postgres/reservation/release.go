@@ -19,7 +19,7 @@ func ReleaseAllocations(ctx context.Context, tx pgx.Tx, allocationIDs []string, 
 		return nil
 	}
 	if _, err := tx.Exec(ctx, `
-		UPDATE workload_reservations
+		UPDATE reservations
 		SET released_at = COALESCE(released_at, $2)
 		WHERE allocation_id = ANY($1::text[])
 	`, allocationIDs, now.UTC()); err != nil {

@@ -21,10 +21,9 @@ type AllocationLifecycleControl struct {
 }
 
 type LifecycleRetryListOptions struct {
-	OwnerType string
-	Reason    string
-	DueOnly   bool
-	Limit     int
+	Reason  string
+	DueOnly bool
+	Limit   int
 }
 
 func NewAllocationLifecycle(client AllocationLifecycleClient) AllocationLifecycleControl {
@@ -34,9 +33,8 @@ func NewAllocationLifecycle(client AllocationLifecycleClient) AllocationLifecycl
 func (c AllocationLifecycleControl) ListRetries(ctx context.Context, options LifecycleRetryListOptions) (*adminv1.ListAllocationLifecycleRetriesResponse, error) {
 	return c.client.ListAllocationLifecycleRetries(ctx, &adminv1.ListAllocationLifecycleRetriesRequest{
 		Filter: &adminv1.AllocationLifecycleRetryFilter{
-			OwnerType: parseOwnerType(options.OwnerType),
-			Reason:    ParseRetryReason(options.Reason),
-			DueOnly:   options.DueOnly,
+			Reason:  ParseRetryReason(options.Reason),
+			DueOnly: options.DueOnly,
 		},
 		Limit: int32(options.Limit),
 	})
@@ -87,26 +85,6 @@ func ValidateRetryReason(value string) error {
 func ValidateOperatorReason(value string) error {
 	if strings.TrimSpace(value) == "" {
 		return fmt.Errorf("--operator-reason is required")
-	}
-	return nil
-}
-
-func parseOwnerType(value string) adminv1.AllocationLifecycleRetryOwnerType {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "run":
-		return adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN
-	default:
-		return adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED
-	}
-}
-
-func ValidateOwnerType(value string) error {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return nil
-	}
-	if parseOwnerType(value) == adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED {
-		return fmt.Errorf("--owner must be run")
 	}
 	return nil
 }

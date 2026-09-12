@@ -14,9 +14,9 @@ func (s *Store) activeRunInventoryExpectations(ctx context.Context, nodeID strin
 	rows, err := s.db.Pool().Query(ctx, `
 		SELECT a.allocation_id, a.attempt, a.node_active_at
 		FROM allocations a
-		WHERE a.node_id = $1 AND a.owner_type = $2 AND a.status IN ($3, $4)
+		WHERE a.node_id = $1 AND a.status IN ($2, $3)
 		ORDER BY a.created_at ASC, a.allocation_id ASC
-	`, strings.TrimSpace(nodeID), allocationOwnerRun, commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String())
+	`, strings.TrimSpace(nodeID), commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String())
 	if err != nil {
 		return nil, fmt.Errorf("query active run inventory expectations: %w", err)
 	}
@@ -43,9 +43,9 @@ func (s *Store) unavailableRunAllocations(ctx context.Context, nodeID string) ([
 	rows, err := s.db.Pool().Query(ctx, `
 		SELECT a.allocation_id, a.attempt
 		FROM allocations a
-		WHERE a.node_id = $1 AND a.owner_type = $2 AND a.status IN ($3, $4, $5, $6)
+		WHERE a.node_id = $1 AND a.status IN ($2, $3, $4, $5)
 		ORDER BY a.created_at ASC, a.allocation_id ASC
-	`, strings.TrimSpace(nodeID), allocationOwnerRun,
+	`, strings.TrimSpace(nodeID),
 		commonv1.AllocationStatus_ALLOCATION_STATUS_RESERVED.String(),
 		commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND.String(),
 		commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING.String(),

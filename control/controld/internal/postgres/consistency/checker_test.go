@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -18,8 +17,8 @@ func TestSnapshotReportsActiveDependentsOnEndedAllocation(t *testing.T) {
 	defer db.Close()
 
 	now := time.Date(2026, 5, 10, 9, 0, 0, 0, time.UTC)
-	insertConsistencyAllocation(t, db, "alloc-ended", allocationkernel.OwnerRun, "run-ended", commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String(), now)
-	insertConsistencyReservation(t, db, "resv-ended", "alloc-ended", allocationkernel.OwnerRun, "run-ended", now)
+	insertConsistencyAllocation(t, db, "alloc-ended", "run-ended", commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String(), now)
+	insertConsistencyReservation(t, db, "alloc-ended", now)
 	insertConsistencyLease(t, db, "lease-ended", "alloc-ended", now, now.Add(time.Hour))
 	insertConsistencyTunnel(t, db, "tun-ended", "alloc-ended", tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(), now, now.Add(time.Hour))
 
@@ -58,8 +57,8 @@ func TestSnapshotReportsOKForReleasedDependents(t *testing.T) {
 	defer db.Close()
 
 	now := time.Date(2026, 5, 10, 9, 0, 0, 0, time.UTC)
-	insertConsistencyAllocation(t, db, "alloc-ok", allocationkernel.OwnerRun, "run-ok", commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String(), now)
-	insertReleasedConsistencyReservation(t, db, "resv-ok", "alloc-ok", allocationkernel.OwnerRun, "run-ok", now)
+	insertConsistencyAllocation(t, db, "alloc-ok", "run-ok", commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String(), now)
+	insertReleasedConsistencyReservation(t, db, "alloc-ok", now)
 	insertConsistencyLeaseRevoked(t, db, "lease-ok", "alloc-ok", now, now.Add(time.Hour))
 	insertConsistencyTunnelRevoked(t, db, "tun-ok", "alloc-ok", tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(), now, now.Add(time.Hour))
 
@@ -89,38 +88,51 @@ func openConsistencyTestDB(t *testing.T) *postgres.DB {
 	return db
 }
 
-func insertConsistencyAllocation(t *testing.T, db *postgres.DB, allocationID, ownerType, ownerID, status string, now time.Time) {
+func insertConsistencyAllocation(t *testing.T, db *postgres.DB, allocationID, runID, status string, now time.Time) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO nodes (node_id, node_target, registered_at, updated_at, last_heartbeat_at, lifecycle_status)
+		VALUES ('node-test', '127.0.0.1:24010', $1, $1, $1, 'active')
+		ON CONFLICT (node_id) DO NOTHING
+	`, now.UTC()); err != nil {
+		t.Fatalf("insert node: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
+		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $2, $2)
+	`, runID, now.UTC()); err != nil {
+		t.Fatalf("insert run: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO allocations (
-			allocation_id, owner_type, owner_id, environment_id, node_id, attempt, status,
+			allocation_id, run_id, node_id, attempt, status,
 			config, version, created_at, updated_at, exit_code, exit_code_known, message
-		) VALUES ($1, $2, $3, 'env-test', 'node-test', 1, $4, '{}'::jsonb, 1, $5, $5, 0, false, '')
-	`, allocationID, ownerType, ownerID, status, now.UTC()); err != nil {
+		) VALUES ($1, $2, 'node-test', 1, $3, '{}'::jsonb, 1, $4, $4, 0, false, '')
+	`, allocationID, runID, status, now.UTC()); err != nil {
 		t.Fatalf("insert allocation: %v", err)
 	}
 }
 
-func insertConsistencyReservation(t *testing.T, db *postgres.DB, reservationID, allocationID, ownerType, ownerID string, now time.Time) {
+func insertConsistencyReservation(t *testing.T, db *postgres.DB, allocationID string, now time.Time) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO workload_reservations (
-			reservation_id, allocation_id, namespace, owner_type, owner_id, node_id,
+		INSERT INTO reservations (
+			allocation_id, node_id,
 			cpu_milli, sandbox_memory_request_bytes, created_at, released_at
-		) VALUES ($1, $2, 'default', $3, $4, 'node-test', 500, 536870912, $5, NULL)
-	`, reservationID, allocationID, ownerType, ownerID, now.UTC()); err != nil {
+		) VALUES ($1, 'node-test', 500, 536870912, $2, NULL)
+	`, allocationID, now.UTC()); err != nil {
 		t.Fatalf("insert reservation: %v", err)
 	}
 }
 
-func insertReleasedConsistencyReservation(t *testing.T, db *postgres.DB, reservationID, allocationID, ownerType, ownerID string, now time.Time) {
+func insertReleasedConsistencyReservation(t *testing.T, db *postgres.DB, allocationID string, now time.Time) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO workload_reservations (
-			reservation_id, allocation_id, namespace, owner_type, owner_id, node_id,
+		INSERT INTO reservations (
+			allocation_id, node_id,
 			cpu_milli, sandbox_memory_request_bytes, created_at, released_at
-		) VALUES ($1, $2, 'default', $3, $4, 'node-test', 500, 536870912, $5, $5)
-	`, reservationID, allocationID, ownerType, ownerID, now.UTC()); err != nil {
+		) VALUES ($1, 'node-test', 500, 536870912, $2, $2)
+	`, allocationID, now.UTC()); err != nil {
 		t.Fatalf("insert released reservation: %v", err)
 	}
 }

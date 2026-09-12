@@ -66,7 +66,7 @@ func loadCounts(ctx context.Context, q queryer, now time.Time) (consistencykerne
 	var counts consistencykernel.Counts
 	err := q.QueryRow(ctx, `
 		SELECT
-			(SELECT COUNT(*) FROM workload_reservations WHERE released_at IS NULL),
+			(SELECT COUNT(*) FROM reservations WHERE released_at IS NULL),
 			(SELECT COUNT(*) FROM execution_leases WHERE revoked = FALSE AND expires_at > $1),
 			(SELECT COUNT(*) FROM tunnel_sessions WHERE revoked = FALSE AND status IN (
 				'TUNNEL_SESSION_STATUS_PENDING',
@@ -88,19 +88,12 @@ func loadCounts(ctx context.Context, q queryer, now time.Time) (consistencykerne
 
 func loadActiveReservationIssues(ctx context.Context, q queryer, _ time.Time, limit int) ([]consistencykernel.Issue, bool, error) {
 	rows, err := q.Query(ctx, `
-		SELECT wr.allocation_id, wr.owner_type, wr.owner_id, wr.node_id,
-			COALESCE(a.status, ''), COALESCE(a.owner_type, ''), COALESCE(a.owner_id, ''), COALESCE(a.node_id, '')
-		FROM workload_reservations wr
-		LEFT JOIN allocations a ON a.allocation_id = wr.allocation_id
-		WHERE wr.released_at IS NULL
-		  AND (
-			a.allocation_id IS NULL
-			OR a.status = ANY($1::text[])
-			OR wr.owner_type <> a.owner_type
-			OR wr.owner_id <> a.owner_id
-			OR wr.node_id <> a.node_id
-		  )
-		ORDER BY wr.created_at ASC, wr.allocation_id ASC
+		SELECT a.allocation_id, a.run_id, a.node_id, a.status
+		FROM reservations res
+		JOIN allocations a ON a.allocation_id = res.allocation_id
+		WHERE res.released_at IS NULL
+		  AND a.status = ANY($1::text[])
+		ORDER BY res.created_at ASC, res.allocation_id ASC
 		LIMIT $2
 	`, endedAllocationStatuses(), limit+1)
 	if err != nil {
@@ -113,53 +106,31 @@ func loadActiveReservationIssues(ctx context.Context, q queryer, _ time.Time, li
 		if len(out) == limit {
 			return out, true, nil
 		}
-		var allocationID, reservationOwnerType, reservationOwnerID, reservationNodeID string
-		var allocationStatus, allocationOwnerType, allocationOwnerID, allocationNodeID string
-		if err := rows.Scan(
-			&allocationID,
-			&reservationOwnerType,
-			&reservationOwnerID,
-			&reservationNodeID,
-			&allocationStatus,
-			&allocationOwnerType,
-			&allocationOwnerID,
-			&allocationNodeID,
-		); err != nil {
+		var allocationID, runID, nodeID, allocationStatus string
+		if err := rows.Scan(&allocationID, &runID, &nodeID, &allocationStatus); err != nil {
 			return nil, false, err
 		}
-		issue := consistencykernel.Issue{
+		out = append(out, consistencykernel.Issue{
+			Code:         consistencykernel.IssueActiveReservationOnEndedAllocation,
 			Severity:     consistencykernel.SeverityError,
 			AllocationID: allocationID,
-			OwnerType:    reservationOwnerType,
-			OwnerID:      reservationOwnerID,
-			NodeID:       reservationNodeID,
+			RunID:        runID,
+			NodeID:       nodeID,
 			Status:       allocationStatus,
-		}
-		switch {
-		case allocationStatus == "":
-			issue.Code = consistencykernel.IssueActiveReservationMissingAllocation
-			issue.Detail = "active reservation has no allocation row"
-		case contains(endedAllocationStatuses(), allocationStatus):
-			issue.Code = consistencykernel.IssueActiveReservationOnEndedAllocation
-			issue.Detail = "active reservation remains after allocation ended"
-		default:
-			issue.Code = consistencykernel.IssueActiveReservationAllocationMismatch
-			issue.Detail = fmt.Sprintf("reservation owner/node %s/%s/%s does not match allocation owner/node %s/%s/%s", reservationOwnerType, reservationOwnerID, reservationNodeID, allocationOwnerType, allocationOwnerID, allocationNodeID)
-		}
-		out = append(out, issue)
+			Detail:       "active reservation remains after allocation ended",
+		})
 	}
 	return out, false, rows.Err()
 }
 
 func loadActiveLeaseIssues(ctx context.Context, q queryer, now time.Time, limit int) ([]consistencykernel.Issue, bool, error) {
 	rows, err := q.Query(ctx, `
-		SELECT el.lease_id, el.allocation_id, el.node_id,
-			COALESCE(a.status, ''), COALESCE(a.owner_type, ''), COALESCE(a.owner_id, '')
+		SELECT el.lease_id, a.allocation_id, a.node_id, a.status, a.run_id
 		FROM execution_leases el
-		LEFT JOIN allocations a ON a.allocation_id = el.allocation_id
+		JOIN allocations a ON a.allocation_id = el.allocation_id
 		WHERE el.revoked = FALSE
 		  AND el.expires_at > $2
-		  AND (a.allocation_id IS NULL OR a.status = ANY($1::text[]) OR el.node_id <> a.node_id)
+		  AND a.status = ANY($1::text[])
 		ORDER BY el.created_at ASC, el.allocation_id ASC
 		LIMIT $3
 	`, endedAllocationStatuses(), now.UTC(), limit+1)
@@ -172,17 +143,16 @@ func loadActiveLeaseIssues(ctx context.Context, q queryer, now time.Time, limit 
 
 func loadActiveTunnelIssues(ctx context.Context, q queryer, _ time.Time, limit int) ([]consistencykernel.Issue, bool, error) {
 	rows, err := q.Query(ctx, `
-		SELECT ts.session_id, ts.allocation_id, ts.node_id,
-			COALESCE(a.status, ''), COALESCE(a.owner_type, ''), COALESCE(a.owner_id, '')
+		SELECT ts.session_id, a.allocation_id, a.node_id, a.status, a.run_id
 		FROM tunnel_sessions ts
-		LEFT JOIN allocations a ON a.allocation_id = ts.allocation_id
+		JOIN allocations a ON a.allocation_id = ts.allocation_id
 		WHERE ts.revoked = FALSE
 		  AND ts.status IN (
 			'TUNNEL_SESSION_STATUS_PENDING',
 			'TUNNEL_SESSION_STATUS_RUNNING',
 			'TUNNEL_SESSION_STATUS_DEGRADED'
 		  )
-		  AND (a.allocation_id IS NULL OR a.status = ANY($1::text[]) OR ts.node_id <> a.node_id)
+		  AND a.status = ANY($1::text[])
 		ORDER BY ts.created_at ASC, ts.allocation_id ASC
 		LIMIT $2
 	`, endedAllocationStatuses(), limit+1)
@@ -199,51 +169,33 @@ func scanDependentIssues(rows pgx.Rows, resource dependentResource, limit int) (
 		if len(out) == limit {
 			return out, true, nil
 		}
-		var dependentID, allocationID, nodeID, status, ownerType, ownerID string
-		if err := rows.Scan(&dependentID, &allocationID, &nodeID, &status, &ownerType, &ownerID); err != nil {
+		var dependentID, allocationID, nodeID, status, runID string
+		if err := rows.Scan(&dependentID, &allocationID, &nodeID, &status, &runID); err != nil {
 			return nil, false, err
 		}
 		issue := consistencykernel.Issue{
 			Severity:     consistencykernel.SeverityError,
 			AllocationID: allocationID,
-			OwnerType:    ownerType,
-			OwnerID:      ownerID,
+			RunID:        runID,
 			NodeID:       nodeID,
 			DependentID:  dependentID,
 			Status:       status,
 		}
-		switch {
-		case status == "":
-			issue.Code = dependentIssueCode(resource, "missing_allocation")
-			issue.Detail = string(resource) + " has no allocation row"
-		case contains(endedAllocationStatuses(), status):
-			issue.Code = dependentIssueCode(resource, "on_ended_allocation")
-			issue.Detail = string(resource) + " remains after allocation ended"
-		default:
-			issue.Code = dependentIssueCode(resource, "allocation_node_mismatch")
-			issue.Detail = string(resource) + " node does not match allocation node"
-		}
+		issue.Code = dependentIssueCode(resource)
+		issue.Detail = string(resource) + " remains after allocation ended"
 		out = append(out, issue)
 	}
 	return out, false, rows.Err()
 }
 
-func dependentIssueCode(resource dependentResource, condition string) consistencykernel.IssueCode {
-	switch string(resource) + ":" + condition {
-	case string(dependentResourceLease) + ":missing_allocation":
-		return consistencykernel.IssueActiveLeaseMissingAllocation
-	case string(dependentResourceLease) + ":on_ended_allocation":
+func dependentIssueCode(resource dependentResource) consistencykernel.IssueCode {
+	switch resource {
+	case dependentResourceLease:
 		return consistencykernel.IssueActiveLeaseOnEndedAllocation
-	case string(dependentResourceLease) + ":allocation_node_mismatch":
-		return consistencykernel.IssueActiveLeaseAllocationNodeMismatch
-	case string(dependentResourceTunnel) + ":missing_allocation":
-		return consistencykernel.IssueActiveTunnelMissingAllocation
-	case string(dependentResourceTunnel) + ":on_ended_allocation":
+	case dependentResourceTunnel:
 		return consistencykernel.IssueActiveTunnelOnEndedAllocation
-	case string(dependentResourceTunnel) + ":allocation_node_mismatch":
-		return consistencykernel.IssueActiveTunnelAllocationNodeMismatch
 	default:
-		return consistencykernel.IssueCode(string(resource) + "_" + condition)
+		return consistencykernel.IssueCode(resource + "_on_ended_allocation")
 	}
 }
 
@@ -253,13 +205,4 @@ func endedAllocationStatuses() []string {
 		commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
 		commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String(),
 	}
-}
-
-func contains(values []string, value string) bool {
-	for _, existing := range values {
-		if existing == value {
-			return true
-		}
-	}
-	return false
 }

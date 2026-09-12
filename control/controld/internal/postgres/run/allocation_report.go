@@ -9,7 +9,6 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
-	workloadkernel "github.com/cofy-x/axern/control/controld/internal/kernel/workload"
 	pgreservation "github.com/cofy-x/axern/control/controld/internal/postgres/reservation"
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -58,8 +57,8 @@ func (s *Store) BatchReportAllocationStatus(ctx context.Context, nodeID string, 
 			UPDATE runs
 			SET status = $2, exit_code = $3, exit_code_known = $4, diagnostic_code = $5, message = $6,
 				version = version + 1, updated_at = $7
-			WHERE allocation_id = $1 AND attempt = $8 AND status NOT IN ($9, $10, $11)
-			`, alloc.allocationID, runStatus.String(), obs.GetExitCode(), obs.GetExitCodeKnown(), diagnosticCode.String(), message, now.UTC(), obs.GetAttempt(), runv1.RunStatus_RUN_STATUS_SUCCEEDED.String(), runv1.RunStatus_RUN_STATUS_FAILED.String(), runv1.RunStatus_RUN_STATUS_CANCELLED.String()); err != nil {
+			WHERE run_id = $1 AND status NOT IN ($8, $9, $10)
+			`, alloc.runID, runStatus.String(), obs.GetExitCode(), obs.GetExitCodeKnown(), diagnosticCode.String(), message, now.UTC(), runv1.RunStatus_RUN_STATUS_SUCCEEDED.String(), runv1.RunStatus_RUN_STATUS_FAILED.String(), runv1.RunStatus_RUN_STATUS_CANCELLED.String()); err != nil {
 				return fmt.Errorf("update run status: %w", err)
 			}
 			if runkernel.IsTerminal(runStatus) {
@@ -88,6 +87,7 @@ func (s *Store) BatchReportAllocationStatus(ctx context.Context, nodeID string, 
 
 type runStatusAllocation struct {
 	allocationID   string
+	runID          string
 	nodeID         string
 	attempt        int64
 	status         commonv1.AllocationStatus
@@ -111,12 +111,12 @@ func lockRunStatusAllocations(ctx context.Context, tx pgx.Tx, allocationIDs []st
 		return allocations, nil
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT allocation_id, node_id, attempt, status, exit_code, exit_code_known, diagnostic_code, message
+		SELECT allocation_id, run_id, node_id, attempt, status, exit_code, exit_code_known, diagnostic_code, message
 		FROM allocations
-		WHERE owner_type = $1 AND allocation_id = ANY($2::text[])
+		WHERE allocation_id = ANY($1::text[])
 		ORDER BY allocation_id
 		FOR UPDATE
-	`, allocationOwnerRun, allocationIDs)
+	`, allocationIDs)
 	if err != nil {
 		return nil, fmt.Errorf("lock run allocations for status batch: %w", err)
 	}
@@ -125,11 +125,11 @@ func lockRunStatusAllocations(ctx context.Context, tx pgx.Tx, allocationIDs []st
 		allocation := &runStatusAllocation{}
 		var statusText string
 		var diagnosticCodeText string
-		if err := rows.Scan(&allocation.allocationID, &allocation.nodeID, &allocation.attempt, &statusText, &allocation.exitCode, &allocation.exitCodeKnown, &diagnosticCodeText, &allocation.message); err != nil {
+		if err := rows.Scan(&allocation.allocationID, &allocation.runID, &allocation.nodeID, &allocation.attempt, &statusText, &allocation.exitCode, &allocation.exitCodeKnown, &diagnosticCodeText, &allocation.message); err != nil {
 			return nil, fmt.Errorf("scan run allocation for status batch: %w", err)
 		}
 		allocation.status = parseAllocationStatus(statusText)
-		allocation.diagnosticCode = workloadkernel.ParseDiagnosticCode(diagnosticCodeText)
+		allocation.diagnosticCode = parseWorkloadDiagnosticCode(diagnosticCodeText)
 		allocations[allocation.allocationID] = allocation
 	}
 	if err := rows.Err(); err != nil {
@@ -167,12 +167,13 @@ func (s *Store) ReconcileNodeInventory(ctx context.Context, snapshot allocationk
 	}
 	for _, alloc := range allocationkernel.MissingFromNodeInventory(snapshot, expected) {
 		if err := s.BatchReportAllocationStatus(ctx, nodeID, []*nodev1.AllocationStatusObservation{{
-			AllocationID:  alloc.AllocationID,
-			Attempt:       alloc.Attempt,
-			Status:        commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED,
-			Message:       allocationkernel.MissingFromNodeInventoryMessage,
-			ObservedAt:    timestamppb.New(now.UTC()),
-			ExitCodeKnown: false,
+			AllocationID:   alloc.AllocationID,
+			Attempt:        alloc.Attempt,
+			Status:         commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED,
+			Message:        allocationkernel.MissingFromNodeInventoryMessage,
+			DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR,
+			ObservedAt:     timestamppb.New(now.UTC()),
+			ExitCodeKnown:  false,
 		}}, now); err != nil {
 			return err
 		}
@@ -191,12 +192,13 @@ func (s *Store) ReconcileNodeUnavailable(ctx context.Context, nodeID string, now
 	}
 	for _, alloc := range expected {
 		if err := s.BatchReportAllocationStatus(ctx, nodeID, []*nodev1.AllocationStatusObservation{{
-			AllocationID:  alloc.AllocationID,
-			Attempt:       alloc.Attempt,
-			Status:        commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED,
-			Message:       allocationkernel.NodeUnavailableMessage,
-			ObservedAt:    timestamppb.New(now.UTC()),
-			ExitCodeKnown: false,
+			AllocationID:   alloc.AllocationID,
+			Attempt:        alloc.Attempt,
+			Status:         commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED,
+			Message:        allocationkernel.NodeUnavailableMessage,
+			DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR,
+			ObservedAt:     timestamppb.New(now.UTC()),
+			ExitCodeKnown:  false,
 		}}, now); err != nil {
 			return err
 		}

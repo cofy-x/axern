@@ -30,17 +30,11 @@ The admin consistency API attaches a repair plan to every issue as typed `repair
 
 | Issue family                           | `repair_owner`          | `repair_action`                | target                                                        |
 | -------------------------------------- | ----------------------- | ------------------------------ | ------------------------------------------------------------- |
-| active reservation missing allocation  | `admin_operator_triage` | `admin_triage`                 | `allocation/<allocation_id>`                                  |
-| active reservation on ended allocation | `run_controller`        | `workload_cleanup`             | `run/<owner_id>` or `allocation/<allocation_id>`              |
-| active reservation allocation mismatch | `run_controller`        | `workload_cleanup_and_readmit` | `run/<owner_id>` or `allocation/<allocation_id>`              |
-| active lease missing allocation        | `node_lifecycle`        | `node_lifecycle_reconcile`     | `allocation/<allocation_id>`                                  |
+| active reservation on ended allocation | `run_controller`        | `run_cleanup`                  | `run/<run_id>` or `allocation/<allocation_id>`                |
 | active lease on ended allocation       | `node_lifecycle`        | `node_lifecycle_reconcile`     | `allocation/<allocation_id>`                                  |
-| active lease allocation node mismatch  | `node_lifecycle`        | `node_lifecycle_reconcile`     | `allocation/<allocation_id>`                                  |
-| active tunnel missing allocation       | `tunnel_controller`     | `tunnel_lifecycle_reconcile`   | `tunnel_session/<session_id>` or `allocation/<allocation_id>` |
 | active tunnel on ended allocation      | `tunnel_controller`     | `tunnel_lifecycle_reconcile`   | `tunnel_session/<session_id>` or `allocation/<allocation_id>` |
-| active tunnel allocation node mismatch | `tunnel_controller`     | `tunnel_lifecycle_reconcile`   | `tunnel_session/<session_id>` or `allocation/<allocation_id>` |
 
-The first implementation keeps every issue as manual or owner-reconciled. That is intentional: the same physical row may be part of an in-flight transaction, a retry, or an operator-visible failure state. A generic checker cannot infer the correct owner-aware transition without duplicating controller logic.
+Foreign keys make missing-Allocation and allocation/node mismatch states unrepresentable. The checker therefore reports only lifecycle drift that relational constraints cannot prevent: an active reservation, lease, or tunnel on an ended Allocation. Those issues remain owner-reconciled because a generic checker cannot infer the correct transition without duplicating controller logic.
 
 ## Future Auto Repair
 

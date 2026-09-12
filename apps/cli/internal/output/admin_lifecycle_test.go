@@ -14,8 +14,7 @@ func TestRenderAllocationLifecycleRetryTableHandlesMissingNextRunAt(t *testing.T
 	var out bytes.Buffer
 	RenderAllocationLifecycleRetryTable(&out, []*adminv1.AllocationLifecycleRetry{{
 		AllocationID:      "alloc-a",
-		OwnerType:         adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN,
-		OwnerID:           "run-a",
+		RunID:             "run-a",
 		Reason:            adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE,
 		NodeID:            "node-a",
 		Attempt:           1,
@@ -34,8 +33,7 @@ func TestNewAllocationLifecycleRetryJSON(t *testing.T) {
 	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
 	got := NewAllocationLifecycleRetryJSON(&adminv1.AllocationLifecycleRetry{
 		AllocationID:      "alloc-a",
-		OwnerType:         adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN,
-		OwnerID:           "run-a",
+		RunID:             "run-a",
 		Reason:            adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE,
 		NodeID:            "node-a",
 		ReconcileAttempts: 3,
@@ -43,7 +41,7 @@ func TestNewAllocationLifecycleRetryJSON(t *testing.T) {
 		Due:               true,
 		Clearable:         true,
 	})
-	if got == nil || got.OwnerType != "run" || got.Reason != "delete" || got.NextRunAt != "2026-05-10T12:00:00Z" || !got.Due || !got.Clearable {
+	if got == nil || got.RunID != "run-a" || got.Reason != "delete" || got.NextRunAt != "2026-05-10T12:00:00Z" || !got.Due || !got.Clearable {
 		t.Fatalf("NewAllocationLifecycleRetryJSON() = %+v", got)
 	}
 }
@@ -91,15 +89,15 @@ func TestNewConsistencySnapshotJSON(t *testing.T) {
 			Code:             adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_ENDED_ALLOCATION,
 			Severity:         adminv1.ConsistencyIssueSeverity_CONSISTENCY_ISSUE_SEVERITY_ERROR,
 			AllocationID:     "alloc-a",
-			RepairOwner:      adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_WORKLOAD_CONTROLLER,
-			RepairAction:     adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP,
+			RepairOwner:      adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_RUN_CONTROLLER,
+			RepairAction:     adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_RUN_CLEANUP,
 			RepairTargetType: adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_ALLOCATION,
 			RepairTargetID:   "alloc-a",
 			AutomaticRepair:  false,
 		}},
 		Truncated: true,
 	})
-	if got == nil || got.Status != "inconsistent" || got.Counts.Issues != 1 || len(got.Issues) != 1 || got.Issues[0].Code != "active-reservation-on-ended-allocation" || got.Issues[0].RepairOwner != "workload-controller" || got.Issues[0].RepairAction != "workload-cleanup" || got.Issues[0].RepairTargetType != "allocation" || got.Issues[0].RepairTargetID != "alloc-a" || !got.Truncated {
+	if got == nil || got.Status != "inconsistent" || got.Counts.Issues != 1 || len(got.Issues) != 1 || got.Issues[0].Code != "active-reservation-on-ended-allocation" || got.Issues[0].RepairOwner != "run-controller" || got.Issues[0].RepairAction != "run-cleanup" || got.Issues[0].RepairTargetType != "allocation" || got.Issues[0].RepairTargetID != "alloc-a" || !got.Truncated {
 		t.Fatalf("NewConsistencySnapshotJSON() = %+v", got)
 	}
 }

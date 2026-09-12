@@ -8,6 +8,9 @@ import (
 func (c *Controller) UpsertService(protocol string, hostPort uint16, targetIP string, targetPort uint16) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if !isDataplaneManagedProtocol(protocol) {
+		return fmt.Errorf("unsupported bpfnet service protocol %q", protocol)
+	}
 
 	services, err := c.loadServicesLocked()
 	if err != nil {
@@ -32,25 +35,19 @@ func (c *Controller) UpsertService(protocol string, hostPort uint16, targetIP st
 	}
 
 	state := c.currentStateLocked()
-	programmed := false
-	if isDataplaneManagedProtocol(next.Protocol) && state.TCReady {
-		if err := c.dataplaneLocked().UpsertService(next); err != nil {
-			return err
-		}
-		programmed = true
+	if !state.TCReady {
+		return fmt.Errorf("bpfnet dataplane is not ready")
+	}
+	if err := c.dataplaneLocked().UpsertService(next); err != nil {
+		return err
 	}
 	services[key] = next
 	if err := writeJSONFile(c.svcFile, flattenServices(services)); err != nil {
-		if programmed {
-			_ = c.dataplaneLocked().DeleteService(next)
-		}
+		_ = c.dataplaneLocked().DeleteService(next)
 		return err
 	}
 	c.bumpStats(func(s *Stats) {
 		s.Upserts++
-		if !isDataplaneManagedProtocol(next.Protocol) || !state.TCReady {
-			s.Fallbacks++
-		}
 	})
 	return nil
 }
@@ -87,9 +84,6 @@ func (c *Controller) DeleteService(protocol string, hostPort uint16, _ string, _
 	}
 	c.bumpStats(func(s *Stats) {
 		s.Deletes++
-		if !isDataplaneManagedProtocol(current.Protocol) || !state.TCReady {
-			s.Fallbacks++
-		}
 	})
 	return nil
 }

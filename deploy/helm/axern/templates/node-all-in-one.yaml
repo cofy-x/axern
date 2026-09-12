@@ -117,8 +117,6 @@ spec:
               value: {{ join "," .Values.node.network.ebpf.uplinkDevices | quote }}
             - name: BPFNET_LOCAL_OUT_COMPAT
               value: {{ .Values.node.network.ebpf.localOutCompat | quote }}
-            - name: BPFNET_IPTABLES_FALLBACK
-              value: {{ .Values.node.network.ebpf.iptablesFallback | quote }}
             - name: AXNODED_CONTROL_PLANE_TLS_CA_CERT
               value: /certs/ca.crt
             - name: AXNODED_CONTROL_PLANE_TLS_CERT

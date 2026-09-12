@@ -117,7 +117,7 @@ func (a *App) buildPublicProfile(environments publicv1.Environments, secrets pub
 
 func (a *App) newAuthoritativeNodeProfile() nodeProfile {
 	return nodeProfile{
-		allocations: appnode.NewAuthoritative(a.allocationOwners, a.runStore),
+		allocations: appnode.NewAuthoritative(a.runStore),
 	}
 }
 

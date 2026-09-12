@@ -57,7 +57,7 @@ sequenceDiagram
   participant Node as Node Reservation
   participant Kernel as kernel/resource
 
-  Store->>Reservation: Reserve candidate(namespace, owner, allocation, request)
+  Store->>Reservation: Reserve candidate(namespace, Run, Allocation, request)
   Reservation->>Quota: Lock namespace and quota policy rows
   Reservation->>Quota: Sum active namespace reservations
   Reservation->>Kernel: Evaluate namespace quota fit
@@ -74,22 +74,19 @@ The lock order is always:
 2. Candidate node state.
 3. Allocation and reservation writes.
 
-Run admission is the only product workload path through the reservation helper. Do not add a parallel owner-specific admission ledger.
+Run admission is the only product execution path through the reservation helper. Do not add another admission ledger.
 
 ## Reservation Ledger
 
-The long-term model is a single active workload reservation ledger, `workload_reservations`, shared by node reservation and namespace quota usage:
+The long-term model is one reservation per Allocation. The `reservations` ledger is shared by node reservation and namespace quota usage:
 
 ```text
-workload_reservations
-  reservation_id
-  allocation_id
-  namespace
-  owner_type
-  owner_id
+reservations
+  allocation_id (primary key)
   node_id
   cpu_milli
-  memory_bytes
+  sandbox_memory_request_bytes
+  ephemeral_storage_bytes
   created_at
   released_at
 ```
@@ -97,20 +94,19 @@ workload_reservations
 Required active indexes:
 
 ```sql
-CREATE INDEX idx_workload_reservations_active_node
-  ON workload_reservations(node_id)
+CREATE INDEX idx_reservations_active_node
+  ON reservations(node_id)
   WHERE released_at IS NULL;
 
-CREATE INDEX idx_workload_reservations_active_namespace
-  ON workload_reservations(namespace)
+CREATE INDEX idx_reservations_active_created
+  ON reservations(created_at, allocation_id)
   WHERE released_at IS NULL;
 
-CREATE INDEX idx_workload_reservations_active_allocation
-  ON workload_reservations(allocation_id)
-  WHERE released_at IS NULL;
+CREATE INDEX idx_runs_namespace_id
+  ON runs(namespace, run_id);
 ```
 
-Using one ledger avoids parallel release paths: allocation release, node capacity release, and quota release stay atomic.
+Namespace usage is derived through `Reservation -> Allocation -> Run`; the ledger does not duplicate Namespace ownership. Using one ledger avoids parallel release paths: allocation release, node capacity release, and quota release stay atomic.
 
 ## Package Boundaries
 
@@ -180,7 +176,6 @@ Metrics should expose quota usage separately from node capacity:
 controld_namespace_resource_current{namespace,resource,state=limit}
 controld_namespace_resource_current{namespace,resource,state=reserved}
 controld_namespace_resource_current{namespace,resource,state=available}
-controld_quota_admission_total{namespace,result,reason}
 ```
 
 Debug endpoints should keep node and namespace concepts distinct. `/resourcez` continues to describe node policy and node capacity. `/quotasz` exposes namespace quota state and usage for local diagnostics. The public namespace API is the management surface for namespace lifecycle. The public quota API is the management surface for quota policy.
@@ -192,8 +187,7 @@ namespace_quota_events
   event_id
   namespace
   event_type
-  workload_type
-  workload_id
+  run_id
   environment_id
   reason
   requested_cpu_milli
@@ -218,7 +212,7 @@ Namespace deletion removes the durable namespace row and cascades the quota poli
 
 Deletion is intentionally conservative. The namespace row remains the stable quota lock target until the delete transaction verifies that these blockers are gone:
 
-- active workload reservations
+- active Allocation reservations
 - non-terminal runs
 - live environments
 - active allocations
@@ -234,7 +228,7 @@ The implementation contract is:
 
 1. Namespace creation ensures the namespace row and nullable quota policy row.
 2. Quota set/unset updates the policy row instead of deleting it.
-3. Workload admission ensures namespace state, evaluates quota and node capacity in one reservation transaction, and records usage in `workload_reservations`.
+3. Workload admission ensures namespace state, evaluates quota and node capacity in one reservation transaction, and records usage in `reservations`.
 4. Active usage is read with `released_at IS NULL`.
 5. Namespace deletion rejects live blockers before deleting namespace and quota policy rows.
 6. CLI and SDKs read quota through public APIs; they do not infer quota usage from node summaries.

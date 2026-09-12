@@ -21,16 +21,17 @@ func (s *Store) MarkAllocationCreateFailed(ctx context.Context, allocationID str
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `
 			UPDATE allocations
-			SET status = $2, message = $3, version = version + 1, updated_at = $4
-			WHERE allocation_id = $1 AND status NOT IN ($5, $6, $7)
-		`, allocationID, commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(), message, now.UTC(), commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String()); err != nil {
+			SET status = $2, diagnostic_code = $3, message = $4, version = version + 1, updated_at = $5
+			WHERE allocation_id = $1 AND status NOT IN ($6, $7, $8)
+		`, allocationID, commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(), commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR.String(), message, now.UTC(), commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String()); err != nil {
 			return fmt.Errorf("mark allocation failed: %w", err)
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE runs
-			SET status = $2, message = $3, version = version + 1, updated_at = $4
-			WHERE allocation_id = $1 AND status NOT IN ($5, $6, $7)
-		`, allocationID, runv1.RunStatus_RUN_STATUS_FAILED.String(), message, now.UTC(), runv1.RunStatus_RUN_STATUS_SUCCEEDED.String(), runv1.RunStatus_RUN_STATUS_FAILED.String(), runv1.RunStatus_RUN_STATUS_CANCELLED.String()); err != nil {
+			SET status = $2, diagnostic_code = $3, message = $4, version = version + 1, updated_at = $5
+			WHERE run_id = (SELECT run_id FROM allocations WHERE allocation_id = $1)
+			  AND status NOT IN ($6, $7, $8)
+		`, allocationID, runv1.RunStatus_RUN_STATUS_FAILED.String(), commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR.String(), message, now.UTC(), runv1.RunStatus_RUN_STATUS_SUCCEEDED.String(), runv1.RunStatus_RUN_STATUS_FAILED.String(), runv1.RunStatus_RUN_STATUS_CANCELLED.String()); err != nil {
 			return fmt.Errorf("mark run failed: %w", err)
 		}
 		if err := pgreservation.ReleaseAllocation(ctx, tx, allocationID, now); err != nil {
@@ -50,7 +51,7 @@ func (s *Store) CancelRun(ctx context.Context, runID string, now time.Time) (*ru
 	)
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
 		var err error
-		run, err = scanRun(tx.QueryRow(ctx, runSelectSQL()+` WHERE run_id = $1 FOR UPDATE`, strings.TrimSpace(runID)))
+		run, err = scanRun(tx.QueryRow(ctx, runSelectSQL()+` WHERE r.run_id = $1 FOR UPDATE OF r, a`, strings.TrimSpace(runID)))
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return grpcstatus.Errorf(codes.NotFound, "run %q not found", runID)
@@ -80,7 +81,7 @@ func (s *Store) CancelRun(ctx context.Context, runID string, now time.Time) (*ru
 		if err != nil {
 			return err
 		}
-		run, err = scanRun(tx.QueryRow(ctx, runSelectSQL()+` WHERE run_id = $1`, strings.TrimSpace(runID)))
+		run, err = scanRun(tx.QueryRow(ctx, runSelectSQL()+` WHERE r.run_id = $1`, strings.TrimSpace(runID)))
 		return err
 	})
 	return run, alloc, err

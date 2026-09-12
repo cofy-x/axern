@@ -358,9 +358,6 @@ func TestDefaultConfigSetsBPFNetDefaults(t *testing.T) {
 	if !cfg.PluginConfig.NetworkConfig.BPFNet.LocalOutCompat {
 		t.Fatalf("expected local_out_compat to default to true")
 	}
-	if !cfg.PluginConfig.NetworkConfig.BPFNet.IptablesFallback {
-		t.Fatalf("expected iptables_fallback to default to true")
-	}
 	if interval, err := cfg.PluginConfig.NetworkConfig.BPFNet.SNATGCIntervalDuration(); err != nil || interval.String() != DefaultBPFNetSNATGCInterval {
 		t.Fatalf("SNATGCIntervalDuration() = %v, %v; want %s", interval, err, DefaultBPFNetSNATGCInterval)
 	}

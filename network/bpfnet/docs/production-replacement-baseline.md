@@ -12,7 +12,6 @@ Use these Helm values:
 
 - `node.network.natBackend = ebpf`
 - `node.network.ebpf.localOutCompat = true`
-- `node.network.ebpf.iptablesFallback = true`
 - `node.network.ebpf.snatGcInterval = 1s`
 - `node.network.ebpf.snatTcpClosingTimeout = 2s`
 - `node.network.ebpf.snatDatagramIdleTimeout = 10s`
@@ -21,12 +20,11 @@ The equivalent axnoded config shape is:
 
 - `nat_backend = "ebpf"`
 - `local_out_compat = true`
-- `iptables_fallback = true`
 - `snat_gc_interval = "1s"`
 - `snat_tcp_closing_timeout = "2s"`
 - `snat_datagram_idle_timeout = "10s"`
 
-`iptables` remains the explicit rollback backend. A mode that includes `localhost-tcp-iptables-compat` is acceptable on kernels where the localhost TCP cgroup path is unavailable. `iptables-full-fallback` is not acceptable for production replacement because it means the eBPF dataplane did not take over the main TC ingress/egress path.
+`iptables` remains an explicitly selected rollback backend. A mode that includes `localhost-tcp-iptables-compat` is acceptable on kernels where the localhost TCP cgroup path is unavailable. Main TC attach or reconciliation failure fails the `ebpf` backend instead of switching it to iptables.
 
 ## Validation Envelope
 
@@ -50,7 +48,7 @@ Every production replacement validation must satisfy these gates:
 | Post-GC TCP SNAT maps                | forward/reverse maps drain to `0`                                                               |
 | UDP short-message post-GC state      | UDP reverse entries and translated ports drain to `0` after datagram idle timeout plus GC grace |
 | Node readiness                       | every `node-all-in-one` pod returns `bpfnetctl check --json` with `.ok=true`                    |
-| Dataplane mode                       | TC ingress/egress mode, not `iptables-full-fallback`                                            |
+| Dataplane mode                       | TC ingress/egress ready                                                                          |
 
 Late TCP non-SYN misses can be healthy close-path tail traffic when failures are zero and the marker-gated risk counters above stay zero. Treat them as a bug only when they correlate with failures, host mismatches, reverse SYN-ACK misses, allocator exhaustion, or persistent post-GC map retention.
 

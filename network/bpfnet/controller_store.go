@@ -67,10 +67,10 @@ func readJSONFile(path string, value interface{}) error {
 	return json.Unmarshal(data, value)
 }
 
-func (c *Controller) fallbackState(uplinks []string, attachErr error) DataplaneState {
+func (c *Controller) failedState(uplinks []string, attachErr error) DataplaneState {
 	tcProbeErr, reconcileErr := splitAttachError(attachErr)
 	return DataplaneState{
-		Mode:               ModeIPTablesFullFallback,
+		Mode:               ModeAttachFailed,
 		IPRange:            c.ipRange,
 		UplinkDevices:      uplinks,
 		PinPath:            c.cfg.PinPath,
@@ -81,11 +81,9 @@ func (c *Controller) fallbackState(uplinks []string, attachErr error) DataplaneS
 		SNATPortAttempts:   SNATAllocatorPortAttempts,
 		LocalOutCompat:     c.cfg.LocalOutCompat,
 		NativeRoutingCIDRs: append([]string(nil), c.cfg.NativeRoutingCIDRs...),
-		IptablesFallback:   c.cfg.IptablesFallback,
 		TCReady:            false,
 		LocalhostTCPDNAT:   false,
 		LocalhostPathReady: false,
-		FullFallback:       true,
 		LocalhostCompat:    false,
 		LastAttachError:    attachErr.Error(),
 		LastTCProbeError:   tcProbeErr,
@@ -102,7 +100,7 @@ func (c *Controller) readyState(uplinks []string, attachment dataplaneAttachment
 			mode = ModeIngressTCPUDPDNATEgressSNATLocalhostTCP
 		} else {
 			mode = ModeIngressTCPUDPDNATEgressSNATLocalCompat
-			localhostCompat = c.cfg.IptablesFallback && attachment.LocalhostAttachError != ""
+			localhostCompat = attachment.LocalhostAttachError != ""
 		}
 	}
 
@@ -119,14 +117,12 @@ func (c *Controller) readyState(uplinks []string, attachment dataplaneAttachment
 		SNATPortAttempts:   SNATAllocatorPortAttempts,
 		LocalOutCompat:     c.cfg.LocalOutCompat,
 		NativeRoutingCIDRs: append([]string(nil), c.cfg.NativeRoutingCIDRs...),
-		IptablesFallback:   c.cfg.IptablesFallback,
 		IngressTCPDNAT:     true,
 		IngressUDPDNAT:     true,
 		EgressSNAT:         true,
 		TCReady:            true,
 		LocalhostTCPDNAT:   attachment.LocalhostTCPDNAT,
 		LocalhostPathReady: attachment.LocalhostTCPDNAT,
-		FullFallback:       false,
 		LocalhostCompat:    localhostCompat,
 		LastLocalhostError: attachment.LocalhostAttachError,
 		UpdatedAt:          time.Now().UTC(),

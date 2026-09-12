@@ -78,7 +78,6 @@ Failure of the configured node resource source is fail-closed. Axnoded retains t
 | `uplink_devices` | Optional uplink device allowlist. | Leave empty for auto/default behavior. |
 | `native_routing_cidrs` | CIDRs that should use native routing behavior. | Deployment-specific; keep empty unless the dataplane requires it. |
 | `local_out_compat` | Enables host-local TCP hostPort compatibility through cgroup sock_addr eBPF. | Keep enabled for localhost hostPort checks. |
-| `iptables_fallback` | Allows fallback to the full iptables path when attach or feature probing fails. | Useful for heterogeneous dev and CI hosts. |
 
 When networking fails, inspect the selected backend, `sandbox0`, host veths, DNAT/SNAT rules, and bpfnet attach logs before changing resource sizing.
 
@@ -160,7 +159,7 @@ See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection, EROF
 | --- | --- |
 | Local compose/kind with imagemgr | Keep `image_manager_enabled = true`; point `image_manager_socket` at the dev socket mounted into axnoded; keep `nat_backend = "iptables"` unless testing bpfnet. |
 | Local rootfs only | Set `image_manager_enabled = false`; make sure requests use local rootfs paths; keep `image_lib_dir` harmless. |
-| eBPF dataplane verification | Set `nat_backend = "ebpf"`; keep `local_out_compat = true` and `iptables_fallback = true`; confirm bpffs and privileged host access. |
+| eBPF dataplane verification | Set `nat_backend = "ebpf"`; keep `local_out_compat = true`; confirm bpffs and privileged host access. Main TC failure is fail-closed. |
 | Control-plane connected node | Set `control_plane_target`, stable `control_plane_node_id`, reachable `control_plane_node_target`, auth token, TLS paths, labels, and optional extension capabilities. Platform capabilities come from observed providers. |
 | Kubernetes production node | Set `control_plane_node_resource_source = "kubernetes"` and pass the Kubernetes Node name; the Helm chart does this by default and grants read-only `nodes/get` RBAC. |
 | Production node | Move `rootDir`, `storeDir`, and `image_lib_dir` to durable host paths for runtime recovery; set explicit DNS if node resolvers are not suitable for sandboxes; provide the qualified `memory_system_reserve_bytes` receipt value. |

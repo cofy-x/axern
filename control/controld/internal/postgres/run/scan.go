@@ -2,11 +2,11 @@ package pgrun
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
-	workloadkernel "github.com/cofy-x/axern/control/controld/internal/kernel/workload"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -23,17 +23,17 @@ func environmentSelectSQL() string {
 }
 
 func runSelectSQL() string {
-	return `SELECT run_id, namespace, environment_id, allocation_id, attempt, status,
-		config, labels, version, created_at, updated_at, exit_code, exit_code_known, diagnostic_code, message,
-		COALESCE((SELECT node_id FROM allocations a WHERE a.allocation_id = runs.allocation_id AND a.attempt = runs.attempt), ''),
-		COALESCE((SELECT workspace_preparation FROM allocations a WHERE a.allocation_id = runs.allocation_id AND a.attempt = runs.attempt), 'null'::jsonb),
-		COALESCE((SELECT revision FROM allocation_capability_condition_sets s WHERE s.allocation_id = runs.allocation_id AND s.allocation_attempt = runs.attempt), 0),
-		(SELECT observed_at FROM allocation_capability_condition_sets s WHERE s.allocation_id = runs.allocation_id AND s.allocation_attempt = runs.attempt),
+	return `SELECT r.run_id, r.namespace, r.environment_id, a.allocation_id, a.attempt, r.status,
+		r.config, r.labels, r.version, r.created_at, r.updated_at, r.exit_code, r.exit_code_known, r.diagnostic_code, r.message,
+		a.node_id,
+		a.workspace_preparation,
+		COALESCE((SELECT revision FROM allocation_capability_condition_sets s WHERE s.allocation_id = a.allocation_id AND s.allocation_attempt = a.attempt), 0),
+		(SELECT observed_at FROM allocation_capability_condition_sets s WHERE s.allocation_id = a.allocation_id AND s.allocation_attempt = a.attempt),
 		COALESCE((
 			SELECT jsonb_build_object('conditions', COALESCE(jsonb_agg(c.condition ORDER BY c.capability_key_id), '[]'::jsonb))
-			FROM allocation_capability_conditions c WHERE c.allocation_id = runs.allocation_id AND c.allocation_attempt = runs.attempt
+			FROM allocation_capability_conditions c WHERE c.allocation_id = a.allocation_id AND c.allocation_attempt = a.attempt
 		), '{"conditions":[]}'::jsonb)
-		FROM runs`
+		FROM runs r JOIN allocations a ON a.run_id = r.run_id`
 }
 
 type scanner interface {
@@ -80,7 +80,7 @@ func scanRun(row scanner) (*runv1.Run, error) {
 		return nil, err
 	}
 	run.Status = parseRunStatus(statusText)
-	run.DiagnosticCode = workloadkernel.ResolveDiagnostic(workloadkernel.ParseDiagnosticCode(diagnosticCodeText), runDiagnosticAllocationStatus(run.GetStatus(), run.GetExitCodeKnown()), run.GetMessage())
+	run.DiagnosticCode = parseWorkloadDiagnosticCode(diagnosticCodeText)
 	run.Config = &commonv1.ExecutionConfig{}
 	if err := protojson.Unmarshal(configJSON, run.Config); err != nil {
 		return nil, fmt.Errorf("unmarshal run config: %w", err)
@@ -106,16 +106,11 @@ func scanRun(row scanner) (*runv1.Run, error) {
 	return &run, nil
 }
 
-func runDiagnosticAllocationStatus(status runv1.RunStatus, exitCodeKnown bool) commonv1.AllocationStatus {
-	switch status {
-	case runv1.RunStatus_RUN_STATUS_FAILED:
-		if exitCodeKnown {
-			return commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED
-		}
-		return commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED
-	default:
-		return commonv1.AllocationStatus_ALLOCATION_STATUS_UNSPECIFIED
+func parseWorkloadDiagnosticCode(value string) commonv1.WorkloadDiagnosticCode {
+	if number, ok := commonv1.WorkloadDiagnosticCode_value[strings.TrimSpace(value)]; ok {
+		return commonv1.WorkloadDiagnosticCode(number)
 	}
+	return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED
 }
 
 func scanLease(row scanner) (*commonv1.ExecutionLease, error) {

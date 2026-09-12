@@ -11,8 +11,8 @@
 - Keep the public Go surface limited to configuration, dataplane attachment, endpoint upsert/delete, and status.
 - Internal `Service` names identify endpoint-map records, not Axern product objects; do not propagate that name into public platform APIs.
 - Preserve the configured pin-root contract and update operator documentation with intentional changes.
-- Treat supported ingress, egress, localhost, fallback, and replacement semantics as architecture contracts; change them together with the owning architecture and acceptance documents.
-- `iptables-full-fallback` is rollback, not successful bpfnet replacement. Compatibility modes may not hide loss of the required eBPF packet paths.
+- Treat supported ingress, egress, localhost compatibility, failure, and replacement semantics as architecture contracts; change them together with the owning architecture and acceptance documents.
+- The `ebpf` backend fails closed when its main TC dataplane is unavailable. Rollback requires explicitly selecting the separate `iptables` backend; compatibility modes may not hide loss of required eBPF packet paths.
 - Keep metrics low-cardinality and put Allocation- or flow-specific evidence in node-local diagnostics.
 - Keep generated eBPF source, loaders, and object artifacts synchronized.
 

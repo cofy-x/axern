@@ -111,15 +111,14 @@ func TestRunJSONUsesStableShape(t *testing.T) {
 	}
 	var failedRun struct {
 		Run struct {
-			DiagnosticCode   string `json:"diagnostic_code"`
-			AdmissionSummary string `json:"admission_summary"`
+			DiagnosticCode string `json:"diagnostic_code"`
 		} `json:"run"`
 	}
 	if err := json.Unmarshal([]byte(failedRunJSON.String()), &failedRun); err != nil {
 		t.Fatal(err)
 	}
-	if failedRun.Run.DiagnosticCode != "admission-blocked" || failedRun.Run.AdmissionSummary != "namespace quota exceeded" {
-		t.Fatalf("failed run JSON = %#v, want admission diagnostic fields", failedRun.Run)
+	if failedRun.Run.DiagnosticCode != "admission-blocked" {
+		t.Fatalf("failed run JSON = %#v, want typed admission diagnostic", failedRun.Run)
 	}
 }
 

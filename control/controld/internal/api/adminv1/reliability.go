@@ -93,8 +93,7 @@ func consistencySnapshotToProto(snapshot consistencykernel.Snapshot) *adminv1.Co
 			Code:             consistencyIssueCodeToProto(issue.Code),
 			Severity:         consistencyIssueSeverityToProto(issue.Severity),
 			AllocationID:     issue.AllocationID,
-			OwnerType:        issue.OwnerType,
-			OwnerID:          issue.OwnerID,
+			RunID:            issue.RunID,
 			NodeID:           issue.NodeID,
 			Status:           issue.Status,
 			Detail:           issue.Detail,
@@ -169,24 +168,12 @@ func consistencyIssueSeverityToProto(severity consistencykernel.Severity) adminv
 
 func consistencyIssueCodeToProto(code consistencykernel.IssueCode) adminv1.ConsistencyIssueCode {
 	switch code {
-	case consistencykernel.IssueActiveReservationMissingAllocation:
-		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_MISSING_ALLOCATION
 	case consistencykernel.IssueActiveReservationOnEndedAllocation:
 		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_ENDED_ALLOCATION
-	case consistencykernel.IssueActiveReservationAllocationMismatch:
-		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ALLOCATION_MISMATCH
-	case consistencykernel.IssueActiveLeaseMissingAllocation:
-		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_MISSING_ALLOCATION
 	case consistencykernel.IssueActiveLeaseOnEndedAllocation:
 		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ON_ENDED_ALLOCATION
-	case consistencykernel.IssueActiveLeaseAllocationNodeMismatch:
-		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ALLOCATION_NODE_MISMATCH
-	case consistencykernel.IssueActiveTunnelMissingAllocation:
-		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_MISSING_ALLOCATION
 	case consistencykernel.IssueActiveTunnelOnEndedAllocation:
 		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION
-	case consistencykernel.IssueActiveTunnelAllocationNodeMismatch:
-		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ALLOCATION_NODE_MISMATCH
 	default:
 		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_UNSPECIFIED
 	}
@@ -194,14 +181,12 @@ func consistencyIssueCodeToProto(code consistencykernel.IssueCode) adminv1.Consi
 
 func consistencyRepairOwnerToProto(owner consistencykernel.RepairOwner) adminv1.ConsistencyRepairOwner {
 	switch owner {
-	case consistencykernel.RepairOwnerWorkloadController:
-		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_WORKLOAD_CONTROLLER
+	case consistencykernel.RepairOwnerRunController:
+		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_RUN_CONTROLLER
 	case consistencykernel.RepairOwnerNodeLifecycle:
 		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_NODE_LIFECYCLE
 	case consistencykernel.RepairOwnerTunnelController:
 		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_TUNNEL_CONTROLLER
-	case consistencykernel.RepairOwnerAdminOperatorTriage:
-		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_ADMIN_OPERATOR_TRIAGE
 	default:
 		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_UNSPECIFIED
 	}
@@ -209,16 +194,12 @@ func consistencyRepairOwnerToProto(owner consistencykernel.RepairOwner) adminv1.
 
 func consistencyRepairActionToProto(action consistencykernel.RepairAction) adminv1.ConsistencyRepairAction {
 	switch action {
-	case consistencykernel.RepairActionWorkloadCleanup:
-		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP
-	case consistencykernel.RepairActionWorkloadCleanupAndReadmit:
-		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP_AND_READMIT
+	case consistencykernel.RepairActionRunCleanup:
+		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_RUN_CLEANUP
 	case consistencykernel.RepairActionNodeLifecycleReconcile:
 		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_NODE_LIFECYCLE_RECONCILE
 	case consistencykernel.RepairActionTunnelLifecycleReconcile:
 		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_TUNNEL_LIFECYCLE_RECONCILE
-	case consistencykernel.RepairActionAdminTriage:
-		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_ADMIN_TRIAGE
 	default:
 		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_UNSPECIFIED
 	}

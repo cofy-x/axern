@@ -135,8 +135,6 @@ CREATE TABLE runs (
 	run_id TEXT PRIMARY KEY,
 	namespace TEXT NOT NULL,
 	environment_id TEXT NOT NULL,
-	allocation_id TEXT NOT NULL UNIQUE,
-	attempt BIGINT NOT NULL DEFAULT 1,
 	status TEXT NOT NULL,
 	config JSONB NOT NULL,
 	labels JSONB NOT NULL,
@@ -151,10 +149,8 @@ CREATE TABLE runs (
 
 CREATE TABLE allocations (
 	allocation_id TEXT PRIMARY KEY,
-	owner_type TEXT NOT NULL,
-	owner_id TEXT NOT NULL,
-	environment_id TEXT NOT NULL DEFAULT '',
-	node_id TEXT NOT NULL,
+	run_id TEXT NOT NULL UNIQUE REFERENCES runs(run_id) ON DELETE CASCADE,
+	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE RESTRICT,
 	attempt BIGINT NOT NULL DEFAULT 1,
 	status TEXT NOT NULL,
 	config JSONB NOT NULL,
@@ -439,12 +435,8 @@ CREATE TABLE allocation_capability_reconcile_pending_keys (
 		REFERENCES allocation_capability_dependencies(allocation_id, capability_key_id) ON DELETE CASCADE
 );
 
-CREATE TABLE workload_reservations (
-	reservation_id TEXT PRIMARY KEY,
-	allocation_id TEXT NOT NULL,
-	namespace TEXT NOT NULL,
-	owner_type TEXT NOT NULL,
-	owner_id TEXT NOT NULL,
+CREATE TABLE reservations (
+	allocation_id TEXT PRIMARY KEY,
 	node_id TEXT NOT NULL,
 	cpu_milli BIGINT NOT NULL DEFAULT 0,
 	sandbox_memory_request_bytes BIGINT NOT NULL DEFAULT 0,
@@ -454,15 +446,15 @@ CREATE TABLE workload_reservations (
 	CHECK (cpu_milli >= 0),
 	CHECK (sandbox_memory_request_bytes >= 0),
 	CHECK (ephemeral_storage_bytes >= 0),
-	UNIQUE (allocation_id)
+	FOREIGN KEY (allocation_id, node_id)
+		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE
 );
 
 CREATE TABLE namespace_quota_events (
 	event_id TEXT PRIMARY KEY,
 	namespace TEXT NOT NULL,
 	event_type TEXT NOT NULL,
-	workload_type TEXT NOT NULL DEFAULT '',
-	workload_id TEXT NOT NULL DEFAULT '',
+	run_id TEXT NOT NULL DEFAULT '',
 	environment_id TEXT NOT NULL DEFAULT '',
 	reason TEXT NOT NULL,
 	requested_cpu_milli BIGINT NOT NULL DEFAULT 0,
@@ -504,11 +496,15 @@ CREATE TABLE execution_leases (
 	revision BIGINT NOT NULL,
 	revoked BOOLEAN NOT NULL DEFAULT FALSE,
 	token_hash TEXT NOT NULL,
-	created_at TIMESTAMPTZ NOT NULL
+	created_at TIMESTAMPTZ NOT NULL,
+	FOREIGN KEY (allocation_id, node_id)
+		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE,
+	FOREIGN KEY (allocation_id, attempt)
+		REFERENCES allocations(allocation_id, attempt) ON DELETE CASCADE
 );
 
 CREATE TABLE allocation_reconcile_queue (
-	allocation_id TEXT PRIMARY KEY,
+	allocation_id TEXT PRIMARY KEY REFERENCES allocations(allocation_id) ON DELETE CASCADE,
 	reason TEXT NOT NULL,
 	next_run_at TIMESTAMPTZ NOT NULL,
 	reconcile_attempts INTEGER NOT NULL DEFAULT 0,
@@ -535,7 +531,57 @@ CREATE TABLE control_revisions (
 );
 
 INSERT INTO control_revisions(name, revision)
-VALUES ('execution_leases', 0), ('access', 0);
+VALUES ('execution_leases', 0), ('access', 0), ('tunnel_sessions', 0);
+
+CREATE TABLE tunnel_sessions (
+	session_id TEXT PRIMARY KEY,
+	allocation_id TEXT NOT NULL,
+	namespace TEXT NOT NULL,
+	creator_principal_id TEXT NOT NULL REFERENCES principals(principal_id) ON DELETE RESTRICT,
+	node_id TEXT NOT NULL,
+	node_target TEXT NOT NULL DEFAULT '',
+	attempt BIGINT NOT NULL,
+	remote_port INTEGER NOT NULL,
+	local_target TEXT NOT NULL DEFAULT '',
+	edge_target TEXT NOT NULL DEFAULT '',
+	node_edge_target TEXT NOT NULL DEFAULT '',
+	relay_id TEXT NOT NULL DEFAULT '',
+	client_edge_target TEXT NOT NULL DEFAULT '',
+	status TEXT NOT NULL,
+	reason TEXT NOT NULL DEFAULT '',
+	bound_addr TEXT NOT NULL DEFAULT '',
+	revoked BOOLEAN NOT NULL DEFAULT FALSE,
+	client_token_hash TEXT NOT NULL,
+	node_token_encrypted BYTEA NOT NULL,
+	node_token_hash TEXT NOT NULL,
+	revision BIGINT NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL,
+	expires_at TIMESTAMPTZ NOT NULL,
+	ready_at TIMESTAMPTZ,
+	last_peer_event_at TIMESTAMPTZ,
+	bytes_in BIGINT NOT NULL DEFAULT 0,
+	bytes_out BIGINT NOT NULL DEFAULT 0,
+	FOREIGN KEY (allocation_id, node_id)
+		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE,
+	FOREIGN KEY (allocation_id, attempt)
+		REFERENCES allocations(allocation_id, attempt) ON DELETE CASCADE
+);
+
+CREATE TABLE tunnel_session_events (
+	event_id BIGSERIAL PRIMARY KEY,
+	session_id TEXT NOT NULL REFERENCES tunnel_sessions(session_id) ON DELETE CASCADE,
+	event_type TEXT NOT NULL,
+	status TEXT NOT NULL DEFAULT '',
+	reason_code TEXT NOT NULL DEFAULT '',
+	reason TEXT NOT NULL DEFAULT '',
+	bound_addr TEXT NOT NULL DEFAULT '',
+	relay_id TEXT NOT NULL DEFAULT '',
+	peer_kind TEXT NOT NULL DEFAULT '',
+	bytes_in BIGINT NOT NULL DEFAULT 0,
+	bytes_out BIGINT NOT NULL DEFAULT 0,
+	created_at TIMESTAMPTZ NOT NULL
+);
 
 CREATE INDEX idx_principal_credentials_principal ON principal_credentials(principal_id, created_at DESC);
 CREATE INDEX idx_principal_credentials_active ON principal_credentials(fingerprint) WHERE revoked_at IS NULL;
@@ -548,8 +594,9 @@ CREATE UNIQUE INDEX idx_role_bindings_active_unique
 CREATE INDEX idx_environments_namespace_created ON environments(namespace, created_at DESC);
 CREATE INDEX idx_secrets_namespace_created ON secrets(namespace, created_at DESC);
 CREATE INDEX idx_runs_namespace_created ON runs(namespace, created_at DESC);
+CREATE INDEX idx_runs_namespace_id ON runs(namespace, run_id);
 CREATE INDEX idx_allocations_node_status ON allocations(node_id, status);
-CREATE INDEX idx_allocations_owner_status_updated ON allocations(owner_type, owner_id, status, updated_at);
+CREATE INDEX idx_allocations_run_status_updated ON allocations(run_id, status, updated_at);
 CREATE INDEX idx_node_capability_transitions_node_reported
 	ON node_capability_transitions(node_id, reported_at DESC, transition_id DESC);
 CREATE INDEX idx_allocation_capability_dependencies_node_key
@@ -563,10 +610,8 @@ CREATE INDEX idx_allocation_capability_reconcile_claimable
 CREATE INDEX idx_admin_audit_events_created ON admin_audit_events(created_at DESC, event_id DESC);
 CREATE INDEX idx_admin_audit_events_operation_created ON admin_audit_events(operation, created_at DESC, event_id DESC);
 CREATE INDEX idx_admin_audit_events_target_created ON admin_audit_events(target_type, target_id, created_at DESC, event_id DESC);
-CREATE INDEX idx_workload_reservations_active_node ON workload_reservations(node_id) WHERE released_at IS NULL;
-CREATE INDEX idx_workload_reservations_active_namespace ON workload_reservations(namespace) WHERE released_at IS NULL;
-CREATE INDEX idx_workload_reservations_active_allocation ON workload_reservations(allocation_id) WHERE released_at IS NULL;
-CREATE INDEX idx_workload_reservations_active_created ON workload_reservations(created_at, allocation_id) WHERE released_at IS NULL;
+CREATE INDEX idx_reservations_active_node ON reservations(node_id) WHERE released_at IS NULL;
+CREATE INDEX idx_reservations_active_created ON reservations(created_at, allocation_id) WHERE released_at IS NULL;
 CREATE INDEX idx_namespace_quota_events_namespace_created ON namespace_quota_events(namespace, created_at DESC, event_id DESC);
 CREATE INDEX idx_namespace_quota_events_created ON namespace_quota_events(created_at DESC, event_id DESC);
 CREATE INDEX idx_execution_leases_node_revision ON execution_leases(node_id, revision);
@@ -575,6 +620,25 @@ CREATE INDEX idx_execution_leases_active_created ON execution_leases(created_at,
 CREATE INDEX idx_runs_status_updated ON runs(status, updated_at);
 CREATE INDEX idx_allocation_reconcile_queue_claimable
 	ON allocation_reconcile_queue(next_run_at, lease_expires_at, allocation_id);
+CREATE UNIQUE INDEX idx_tunnel_sessions_active_remote_port
+	ON tunnel_sessions(allocation_id, remote_port)
+	WHERE revoked = FALSE AND status IN (
+		'TUNNEL_SESSION_STATUS_PENDING',
+		'TUNNEL_SESSION_STATUS_RUNNING',
+		'TUNNEL_SESSION_STATUS_DEGRADED'
+	);
+CREATE INDEX idx_tunnel_sessions_node_revision ON tunnel_sessions(node_id, revision);
+CREATE INDEX idx_tunnel_sessions_namespace_created ON tunnel_sessions(namespace, created_at DESC);
+CREATE INDEX idx_tunnel_sessions_expiry ON tunnel_sessions(expires_at, revoked);
+CREATE INDEX idx_tunnel_sessions_active_created
+	ON tunnel_sessions(created_at, allocation_id)
+	WHERE revoked = FALSE AND status IN (
+		'TUNNEL_SESSION_STATUS_PENDING',
+		'TUNNEL_SESSION_STATUS_RUNNING',
+		'TUNNEL_SESSION_STATUS_DEGRADED'
+	);
+CREATE INDEX idx_tunnel_session_events_session_created
+	ON tunnel_session_events(session_id, created_at DESC, event_id DESC);
 
 CREATE FUNCTION notify_execution_lease_change()
 RETURNS TRIGGER AS $$

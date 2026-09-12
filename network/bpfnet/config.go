@@ -23,7 +23,6 @@ type Config struct {
 	SNATMapSize        int
 	LocalOutCompat     bool
 	NativeRoutingCIDRs []string
-	IptablesFallback   bool
 }
 
 func (c Config) WithDefaults() Config {

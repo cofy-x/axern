@@ -24,9 +24,30 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
 		DELETE FROM execution_leases;
+		DELETE FROM runs WHERE run_id = 'run-watch';
+		DELETE FROM nodes WHERE node_id = 'node-a';
 		UPDATE control_revisions SET revision = 0 WHERE name = 'execution_leases'
 	`); err != nil {
 		t.Fatalf("reset leases: %v", err)
+	}
+	now := time.Now().UTC()
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO nodes (node_id, node_target, registered_at, updated_at, last_heartbeat_at, lifecycle_status)
+		VALUES ('node-a', 'node-a:24010', $1, $1, $1, 'active')
+	`, now); err != nil {
+		t.Fatalf("insert lease node: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
+		VALUES ('run-watch', 'default', 'env-watch', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $1, $1)
+	`, now); err != nil {
+		t.Fatalf("insert lease run: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO allocations (allocation_id, run_id, node_id, attempt, status, config, created_at, updated_at)
+		VALUES ('alloc-watch', 'run-watch', 'node-a', 1, 'ALLOCATION_STATUS_RUNNING', '{}'::jsonb, $1, $1)
+	`, now); err != nil {
+		t.Fatalf("insert lease allocation: %v", err)
 	}
 
 	store := NewStore(db)

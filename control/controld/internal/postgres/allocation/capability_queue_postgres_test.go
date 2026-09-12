@@ -43,12 +43,21 @@ func TestCapabilityQueueCompletionPreservesNewerGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO allocations (allocation_id, owner_type, owner_id, node_id, attempt, status, config, created_at, updated_at)
-		VALUES ($1, 'run', $1, $2, 1, $3, '{}'::jsonb, $4, $4)
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
+		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $2, $2)
+	`, allocationID, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool().Exec(ctx, `
+		INSERT INTO allocations (allocation_id, run_id, node_id, attempt, status, config, created_at, updated_at)
+		VALUES ($1, $1, $2, 1, $3, '{}'::jsonb, $4, $4)
 	`, allocationID, nodeID, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(), now); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _, _ = db.Pool().Exec(context.Background(), `DELETE FROM nodes WHERE node_id = $1`, nodeID) })
+	t.Cleanup(func() {
+		_, _ = db.Pool().Exec(context.Background(), `DELETE FROM runs WHERE run_id = $1`, allocationID)
+		_, _ = db.Pool().Exec(context.Background(), `DELETE FROM nodes WHERE node_id = $1`, nodeID)
+	})
 
 	key := capabilitycontract.ExtensionKey("example.com/queue", "v1")
 	observation := &capabilityv1.CapabilityObservation{

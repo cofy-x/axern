@@ -96,8 +96,8 @@ type RuntimeConfig struct {
 	DNS RuntimeDNSConfig `toml:"dns" json:"dns"`
 
 	// EgressManagerSocket points to the trusted node-local egressd Unix socket.
-	// Connectivity is observed as a capability and is not required for legacy
-	// unrestricted workloads.
+	// Connectivity is observed as a capability and is required only when a Run
+	// declares an enforced egress policy.
 	EgressManagerSocket string `toml:"egress_manager_socket" json:"egressManagerSocket"`
 
 	// IdleRuntimeRetentionTTL controls how long temporary idle runtimes and
@@ -429,10 +429,6 @@ type BPFNetConfig struct {
 	LocalOutCompat bool `toml:"local_out_compat" json:"localOutCompat"`
 
 	NativeRoutingCIDRs []string `toml:"native_routing_cidrs" json:"nativeRoutingCidrs"`
-
-	// IptablesFallback allows axnoded to fall back to the legacy full
-	// iptables DNAT path when tc attach or feature probing fails.
-	IptablesFallback bool `toml:"iptables_fallback" json:"iptablesFallback"`
 }
 
 // CapabilityBackend returns the effective dataplane identity published to
@@ -558,7 +554,6 @@ func DefaultConfig() Config {
 					SNATTCPClosingTimeout:   DefaultBPFNetSNATTCPClosingTimeout,
 					SNATDatagramIdleTimeout: DefaultBPFNetSNATDatagramIdleTimeout,
 					LocalOutCompat:          true,
-					IptablesFallback:        true,
 				},
 			},
 			RuntimeConfig: RuntimeConfig{

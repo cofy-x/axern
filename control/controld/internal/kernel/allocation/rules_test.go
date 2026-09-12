@@ -87,7 +87,6 @@ func TestEvaluateLifecycleRetryClearance(t *testing.T) {
 			name: "active allocation blocks clear",
 			in: LifecycleRetryClearanceInput{
 				AllocationStatus: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(),
-				OwnerType:        OwnerRun,
 			},
 			blockedFor: "allocation status is ALLOCATION_STATUS_RUNNING",
 		},
@@ -95,7 +94,6 @@ func TestEvaluateLifecycleRetryClearance(t *testing.T) {
 			name: "active reservation blocks terminal allocation",
 			in: LifecycleRetryClearanceInput{
 				AllocationStatus:     commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:            OwnerRun,
 				HasActiveReservation: true,
 			},
 			blockedFor: "active reservations",
@@ -104,7 +102,6 @@ func TestEvaluateLifecycleRetryClearance(t *testing.T) {
 			name: "active lease blocks terminal allocation",
 			in: LifecycleRetryClearanceInput{
 				AllocationStatus: commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:        OwnerRun,
 				HasActiveLease:   true,
 			},
 			blockedFor: "active leases",
@@ -113,34 +110,30 @@ func TestEvaluateLifecycleRetryClearance(t *testing.T) {
 			name: "active tunnel blocks terminal allocation",
 			in: LifecycleRetryClearanceInput{
 				AllocationStatus:       commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:              OwnerRun,
 				HasActiveTunnelSession: true,
 			},
 			blockedFor: "active tunnel sessions",
 		},
 		{
-			name: "nonterminal run owner blocks clear",
+			name: "nonterminal run blocks clear",
 			in: LifecycleRetryClearanceInput{
 				AllocationStatus: commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:        OwnerRun,
-				OwnerRunStatus:   runv1.RunStatus_RUN_STATUS_RUNNING.String(),
+				RunStatus:        runv1.RunStatus_RUN_STATUS_RUNNING.String(),
 			},
-			blockedFor: "owner run status is RUN_STATUS_RUNNING",
+			blockedFor: "run status is RUN_STATUS_RUNNING",
 		},
 		{
-			name: "terminal run owner is clearable",
+			name: "terminal run is clearable",
 			in: LifecycleRetryClearanceInput{
 				AllocationStatus: commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:        OwnerRun,
-				OwnerRunStatus:   runv1.RunStatus_RUN_STATUS_FAILED.String(),
+				RunStatus:        runv1.RunStatus_RUN_STATUS_FAILED.String(),
 			},
 			clearable: true,
 		},
 		{
-			name: "missing run owner is clearable",
+			name: "missing run is clearable",
 			in: LifecycleRetryClearanceInput{
 				AllocationStatus: commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:        OwnerRun,
 			},
 			clearable: true,
 		},

@@ -13,7 +13,7 @@ CPU, memory, ephemeral storage, and runtime instance slots have distinct admissi
 | CPU | Node allocatable CPU can be overcommitted through the global `-resource-cpu-overcommit-ratio` policy. |
 | Memory | Memory remains strict. Effective allocatable is the lesser of the node resource source and finite delegated cgroup-root limit, minus the explicit node system reserve. Admission uses the larger of controld reservations and axnoded local commitments. |
 | Ephemeral storage | Node-local filestore capacity is strict after the system reserve and active reservations. |
-| Runtime slots | One workload reservation consumes one slot. Axnoded reports the aggregate node-owned slot capacity after applying enabled resource-pool constraints. |
+| Runtime slots | One Allocation reservation consumes one slot. Axnoded reports the aggregate node-owned slot capacity after applying enabled resource-pool constraints. |
 
 Namespace quota is a namespace cap on requests. Node admission is a node cap on requests after applying the global node policy. CPU overcommit never multiplies namespace quota.
 
@@ -22,7 +22,7 @@ Namespace quota is a namespace cap on requests. Node admission is a node cap on 
 Admission has two evaluation points:
 
 1. Placement prefilters eligible nodes using the same resource policy as reservation admission and emits a request-scoped candidate plan. This gives fast eligibility diagnostics while retaining locality and warm-path preferences for final admission.
-2. Postgres reservation admission locks namespace quota and candidate nodes, reruns complete lifecycle, freshness, runtime, component, label, typed capability, CPU, memory, ephemeral-storage, and runtime-slot eligibility, re-sums active reservations, refreshes candidate load using reservations not yet reflected by node summaries, and writes the workload reservation in one transaction.
+2. Postgres reservation admission locks namespace quota and candidate nodes, reruns complete lifecycle, freshness, runtime, component, label, typed capability, CPU, memory, ephemeral-storage, and runtime-slot eligibility, re-sums active reservations, refreshes candidate load using reservations not yet reflected by node summaries, and writes the Allocation reservation in one transaction.
 
 The transaction check is authoritative. Placement is an optimization and a source of candidate diagnostics, not the durable reservation boundary. Typed capability evidence commits with the allocation and reservation as described in [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md).
 
@@ -65,9 +65,8 @@ Resource admission metrics are layered:
 | Metric | Scope |
 | --- | --- |
 | `axern.controld_resource_admission_total{namespace,scope,result,reason}` | Shared resource admission decisions for namespace quota and node reservation. |
-| `axern.controld_resource_admission_stage_duration_seconds{owner_type,stage,result,error_class}` | Durable namespace lock, candidate lock, reservation load, selection, and total admission latency. |
+| `axern.controld_resource_admission_stage_duration_seconds{stage,result,error_class}` | Durable namespace lock, candidate lock, reservation load, selection, and total admission latency. |
 | `axern.controld_postgres_pool_connections{state}` | Current controld Postgres pool maximum, total, acquired, and idle connections. |
-| `axern.controld_quota_admission_total{namespace,result,reason}` | Namespace quota compatibility/detail metric. |
 | `axern.controld_placement_selection_total{operation,result,mount_type}` | Placement selection attempts. |
 | `axern.controld_placement_rejection_total{operation,result,reason}` | Placement candidate rejection reasons. |
 | `axern.controld_namespace_resource_current{namespace,resource,state}` | Current namespace quota limits, reserved usage, and available capacity. |
@@ -77,14 +76,12 @@ Use admission stage durations and pool gauges to distinguish database-pool starv
 
 The namespace lock in resource admission is the linearizable quota boundary. Do not bypass it to reduce latency. Consider batched admission or a single-candidate atomic reservation design only when repeated, same-contract load tests show `lock_namespace` dominating the end-to-end Ready SLO after queue and database-pool waits have been ruled out.
 
-Public clients use `diagnostic_code`, `diagnostic_message`, and `admission_summary` directly instead of reclassifying raw backend messages. The CLI and SDKs use these stable labels:
+Public clients use the typed `diagnostic_code` directly instead of reclassifying raw backend messages:
 
 | Surface Field | Values |
 | --- | --- |
 | `diagnostic_code` | `admission-blocked`, `node-selection-error`, or a concrete runtime diagnostic such as `runtime-start-error`. |
-| `admission_summary` | `namespace quota exceeded`, `node reservation capacity exhausted`, `node CPU capacity exhausted`, `node memory capacity exhausted`, `node CPU and memory capacity exhausted`, or `resource exhausted`. Typed rejection metadata separately identifies insufficient ephemeral storage. |
-
-Run JSON output must keep these labels aligned. Table and detail renderers may shorten presentation text, but they should not invent different diagnostic categories.
+The human-readable Run `message` is operator context, not a machine contract. Typed rejection metadata separately identifies concrete resource insufficiency.
 
 ## Boundary Rules
 
@@ -93,7 +90,7 @@ Run JSON output must keep these labels aligned. Table and detail renderers may s
 - `internal/postgres/reservation` owns transactional namespace quota and node reservation admission.
 - `internal/application/run` maps admission failures into Run diagnostics. It does not sum quota or node reservations.
 - `internal/kernel/workload` owns shared workload diagnostic classification.
-- `apps/cli/internal/workloaddiagnostic` owns CLI-side fallback classification for legacy/raw messages when structured workload diagnostics are unavailable.
+- CLI and SDK clients render the typed diagnostic emitted by the control plane and never infer it from message text.
 - `axnoded` remains the runtime authority for cgroup enforcement; overcommit and quota do not change container limits.
 - A nonzero `resources.limits.memory_bytes` automatically requires the selected runtime's typed memory-hard-limit capability. Its probes, evidence, and allocation-specific enforcement are defined by the canonical observed capability contract.
 - `resources.requests.ephemeral_storage_bytes` participates in namespace quota, placement, the transactional controld ledger, and the independent axnoded node-local ledger. `resources.limits.ephemeral_storage_bytes` is the runtime hard quota. Writable roots resolve missing limit to the configured default and missing request to the resolved limit; readonly roots reject nonzero ephemeral-storage resources.

@@ -1,7 +1,6 @@
 package pgrun
 
 import (
-	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
@@ -12,8 +11,6 @@ import (
 )
 
 const (
-	allocationOwnerRun = allocationkernel.OwnerRun
-
 	leaseRevisionName = "execution_leases"
 
 	defaultExecutionLeaseTTL = 5 * time.Minute

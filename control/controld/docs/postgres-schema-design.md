@@ -4,12 +4,11 @@ Postgres is the authoritative store for `controld`. The canonical schema is defi
 
 ## Migration Layout
 
-The schema is split by durable ownership boundary:
+The rebuild-only schema has one canonical baseline:
 
 | Migration | Ownership |
 | --- | --- |
-| `000001_initial.sql` | Principals, nodes, namespaces, environments, secrets, Runs, Allocations, CPU/memory/ephemeral-storage quota and reservations, execution leases, reconciliation, and audit state |
-| `000002_tunnel_sessions.sql` | Tunnel sessions, peer events, and the tunnel revision stream |
+| `000001_initial.sql` | Principals, nodes, namespaces, environments, secrets, Runs, Allocations, reservations, execution leases, tunnels, reconciliation, and audit state |
 
 Each migration declares the final shape of its domain. Migrations run in one direction under a Postgres advisory lock and are recorded in `schema_migrations` with version, name, checksum, and application time. The repository uses rebuild-only database upgrades: schema changes are folded into the owning baseline migration and the database is recreated. Compatibility migrations and dual-read paths are outside the current contract.
 
@@ -42,11 +41,11 @@ erDiagram
   nodes ||--o{ allocations : hosts
   nodes ||--|| node_summaries : reports
   nodes ||--o{ node_runtime_sets : supports
-  allocations ||--o{ workload_reservations : reserves
+  allocations ||--o| reservations : reserves
   allocations ||--o{ execution_leases : authorizes
   allocations ||--o| allocation_reconcile_queue : retries
   allocations ||--o{ allocation_capability_dependencies : requires
-	allocations ||--o| allocation_capability_admissions : admits
+  allocations ||--o| allocation_capability_admissions : admits
   allocations ||--o| allocation_capability_condition_sets : owns
   allocation_capability_condition_sets ||--o{ allocation_capability_conditions : projects
   allocations ||--o| allocation_capability_reconcile_queue : verifies
@@ -73,11 +72,11 @@ Namespace names are stored on scoped resources for filtering and ownership. Only
 
 ### Runs and allocations
 
-`runs` models one user-visible execution lifecycle and owns one Allocation ID. There is no Service, replica, rollout, or readiness table in the canonical schema.
+`runs` models one user-visible execution lifecycle. Every Run owns exactly one Allocation through the unique, non-null `allocations.run_id` foreign key. Run rows do not duplicate Allocation identity or attempt state. There is no Service, replica, rollout, or readiness table in the canonical schema.
 
-`allocations` is the shared execution unit. Its `owner_type` and `owner_id` identify the owning Run, while `node_id`, `attempt`, status, and exit fields describe the current concrete execution attempt. For a TaskSet workspace, `workspace_preparation` stores the typed node-observed payload format/digest, cache result, image resolution/pull time, and COW preparation time. Allocation and Run diagnostics expose this fact without parsing node logs.
+`allocations` is the concrete execution unit. Its `run_id` is the only ownership relation; `node_id`, `attempt`, status, and exit fields describe the current concrete execution attempt. For a TaskSet workspace, `workspace_preparation` stores the typed node-observed payload format/digest, cache result, image resolution/pull time, and COW preparation time. Allocation and Run diagnostics expose this fact without parsing node logs.
 
-`workload_reservations` records admitted CPU, sandbox-memory, and ephemeral-storage requests. `sandbox_memory_request_bytes` is the public request without a runtime overhead side channel. A non-null `released_at` closes the control-plane reservation without erasing accounting history; node admission still honors a larger axnoded local commitment until host cleanup completes.
+`reservations` records admitted CPU, sandbox-memory, and ephemeral-storage requests. `sandbox_memory_request_bytes` is the public request without a runtime overhead side channel. A non-null `released_at` closes the control-plane reservation without erasing accounting history; node admission still honors a larger axnoded local commitment until host cleanup completes.
 
 `allocation_memory_admission_evidence` freezes the node memory budget used by the admission transaction, including distinct physical capacity, source allocatable, delegated-root limit, system reserve, and node-local commitment facts. `allocation_memory_observations` keeps only the latest attempt- and revision-fenced host memcg sample for diagnostics; it is not a second reservation ledger.
 
@@ -134,7 +133,7 @@ erDiagram
 Indexes follow server-side access paths:
 
 - namespace and creation cursors for list APIs;
-- node/status and owner/status for placement and lifecycle projection;
+- node/status and run/status for placement and lifecycle projection;
 - partial active indexes for reservations, leases, tunnels, and live Allocations;
 - retention indexes on expiry and creation timestamps;
 

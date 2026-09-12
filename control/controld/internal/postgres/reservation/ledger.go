@@ -5,20 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	"github.com/cofy-x/axern/lib/go/memorybudget"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-type WorkloadReservation struct {
+type Reservation struct {
 	AllocationID string
-	Namespace    string
-	OwnerType    string
-	OwnerID      string
 	NodeID       string
 	Requests     *commonv1.ResourceQuantity
 	CreatedAt    time.Time
@@ -99,28 +94,24 @@ func marshalMemoryAdmissionBudget(budget *nodev1.NodeMemoryBudget) ([]byte, erro
 	return payload, nil
 }
 
-func InsertWorkloadReservation(ctx context.Context, tx pgx.Tx, reservation WorkloadReservation) error {
+func InsertReservation(ctx context.Context, tx pgx.Tx, reservation Reservation) error {
 	requests := reservation.Requests
 	if requests == nil {
 		requests = &commonv1.ResourceQuantity{}
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO workload_reservations (
-			reservation_id, allocation_id, namespace, owner_type, owner_id, node_id,
+		INSERT INTO reservations (
+			allocation_id, node_id,
 			cpu_milli, sandbox_memory_request_bytes, ephemeral_storage_bytes, created_at, released_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL)
-	`, "resv-"+uuid.NewString(),
-		reservation.AllocationID,
-		environmentkernel.NormalizeNamespace(reservation.Namespace),
-		reservation.OwnerType,
-		reservation.OwnerID,
+		) VALUES ($1, $2, $3, $4, $5, $6, NULL)
+	`, reservation.AllocationID,
 		reservation.NodeID,
 		requests.GetCpuMilli(),
 		requests.GetMemoryBytes(),
 		requests.GetEphemeralStorageBytes(),
 		reservation.CreatedAt.UTC(),
 	); err != nil {
-		return fmt.Errorf("insert workload reservation: %w", err)
+		return fmt.Errorf("insert reservation: %w", err)
 	}
 	return nil
 }

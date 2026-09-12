@@ -14,7 +14,7 @@
 
 `runtime/axnoded` owns sandbox lifecycle, bridge/veth/netns resources, service hostPort intent, backend selection, rollback policy, and SNAT GC scheduling.
 
-`bpfnet` owns dataplane attach and reconciliation, service-map programming, pinned maps and programs, TC ingress/egress links, localhost TCP cgroup links, status collection, and fallback decisions derived from persisted dataplane state.
+`bpfnet` owns dataplane attach and reconciliation, service-map programming, pinned maps and programs, TC ingress/egress links, localhost TCP cgroup links, and persisted status collection.
 
 `bpfnetctl` is read-only diagnostics. It must not become the writer of service intent, attach lifecycle, cleanup, or rollback policy.
 
@@ -29,7 +29,7 @@
 | Host-local TCP hostPort compatibility             | cgroup `connect4`, `getpeername4`, `sock_release` |
 | Native-routing CIDR skip                          | TC egress                                         |
 
-If the localhost TCP cgroup path is unavailable, axnoded may use `iptables`-based localhost TCP compatibility while TC ingress and egress remain on eBPF. Full `iptables` fallback is a rollback state, not a successful bpfnet replacement state.
+If the localhost TCP cgroup path is unavailable, axnoded may use narrowly scoped `iptables` localhost TCP compatibility while TC ingress and egress remain on eBPF. A main TC attach or reconciliation failure fails the `ebpf` backend; switching the whole node to iptables requires explicitly selecting `nat_backend = "iptables"`.
 
 ## Public Go Surface
 
@@ -40,15 +40,13 @@ If the localhost TCP cgroup path is unavailable, axnoded may use `iptables`-base
   - `UpsertService`
   - `DeleteService`
   - `Status`
-  - `NeedsSNATFallback`
-  - `NeedsFullDNATFallback`
   - `NeedsLocalhostCompat`
 
 ## Layout
 
 | Path                                      | Purpose                                                                                      |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------- |
-| package root                              | public API, persisted state, fallback decisions, axnoded-facing integration                  |
+| package root                              | public API, persisted state, readiness, axnoded-facing integration                           |
 | `internal/dataplane`                      | Linux object reconciliation, map sync, TC attach, localhost cgroup attach, status collection |
 | `internal/tcprog`                         | eBPF C source, generated loaders, committed `.o` artifacts                                   |
 | `cmd/bpfnetctl`                           | read-only node-local diagnostic CLI                                                          |
@@ -59,10 +57,10 @@ If the localhost TCP cgroup path is unavailable, axnoded may use `iptables`-base
 
 ## Documentation Route
 
-- Start with [Architecture](docs/architecture.md) for ownership boundaries, packet flows, SNAT lifecycle, fallback semantics, and observability.
+- Start with [Architecture](docs/architecture.md) for ownership boundaries, packet flows, SNAT lifecycle, compatibility semantics, and observability.
 - Use [Production Replacement Baseline](docs/production-replacement-baseline.md) to decide whether bpfnet remains production-comparable to `iptables`.
 - Use [Production Regression Runbook](docs/production-regression-runbook.md) to run the repeatable Kubernetes benchmark and rollout validation matrix.
-- Use [Production Alerting](docs/production-alerting.md) for the minimal alert signals that distinguish rollback states from healthy close-path churn.
+- Use [Production Alerting](docs/production-alerting.md) for the minimal alert signals that distinguish dataplane failure from healthy close-path churn.
 - Use [axnoded Verification](../../runtime/axnoded/docs/verification.md) and [axnoded Runtime Scripts](../../runtime/axnoded/scripts/README.md) for the benchmark and profile command matrix.
 
 Keep environment-specific rollout logs, kubeconfigs, image tags, registries, and one-off command transcripts out of these docs.

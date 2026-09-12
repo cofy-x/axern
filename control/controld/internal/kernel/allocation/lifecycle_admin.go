@@ -14,10 +14,9 @@ const (
 
 func NormalizeLifecycleRetryFilter(in LifecycleRetryFilter) LifecycleRetryFilter {
 	out := LifecycleRetryFilter{
-		OwnerType: strings.TrimSpace(in.OwnerType),
-		Reason:    strings.TrimSpace(in.Reason),
-		DueOnly:   in.DueOnly,
-		Limit:     in.Limit,
+		Reason:  strings.TrimSpace(in.Reason),
+		DueOnly: in.DueOnly,
+		Limit:   in.Limit,
 	}
 	if out.Limit <= 0 {
 		out.Limit = DefaultLifecycleRetryListLimit
@@ -29,11 +28,6 @@ func NormalizeLifecycleRetryFilter(in LifecycleRetryFilter) LifecycleRetryFilter
 }
 
 func ValidateLifecycleRetryFilter(filter LifecycleRetryFilter) error {
-	switch filter.OwnerType {
-	case "", OwnerRun:
-	default:
-		return grpcstatus.Errorf(codes.InvalidArgument, "unsupported lifecycle retry owner_type %q", filter.OwnerType)
-	}
 	switch filter.Reason {
 	case "", ReconcileReasonCreate, ReconcileReasonDelete:
 	default:

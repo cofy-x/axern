@@ -89,18 +89,16 @@ func lifecycleRetryFilterFromProto(req *adminv1.ListAllocationLifecycleRetriesRe
 	}
 	filter := req.GetFilter()
 	return allocationkernel.LifecycleRetryFilter{
-		OwnerType: ownerTypeFromProto(filter.GetOwnerType()),
-		Reason:    retryReasonFromProto(filter.GetReason()),
-		DueOnly:   filter.GetDueOnly(),
-		Limit:     int(req.GetLimit()),
+		Reason:  retryReasonFromProto(filter.GetReason()),
+		DueOnly: filter.GetDueOnly(),
+		Limit:   int(req.GetLimit()),
 	}
 }
 
 func lifecycleRetryToProto(item allocationkernel.LifecycleRetryItem) *adminv1.AllocationLifecycleRetry {
 	return &adminv1.AllocationLifecycleRetry{
 		AllocationID:       item.AllocationID,
-		OwnerID:            item.OwnerID,
-		OwnerType:          ownerTypeToProto(item.OwnerType),
+		RunID:              item.RunID,
 		EnvironmentID:      item.EnvironmentID,
 		Reason:             retryReasonToProto(item.Reason),
 		NodeID:             item.NodeID,
@@ -115,24 +113,6 @@ func lifecycleRetryToProto(item allocationkernel.LifecycleRetryItem) *adminv1.Al
 		Due:                item.Due,
 		Clearable:          item.Clearable,
 		ClearBlockedReason: item.ClearBlockedReason,
-	}
-}
-
-func ownerTypeFromProto(ownerType adminv1.AllocationLifecycleRetryOwnerType) string {
-	switch ownerType {
-	case adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN:
-		return allocationkernel.OwnerRun
-	default:
-		return ""
-	}
-}
-
-func ownerTypeToProto(ownerType string) adminv1.AllocationLifecycleRetryOwnerType {
-	switch ownerType {
-	case allocationkernel.OwnerRun:
-		return adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN
-	default:
-		return adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED
 	}
 }
 

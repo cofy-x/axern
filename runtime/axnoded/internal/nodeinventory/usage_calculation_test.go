@@ -61,7 +61,6 @@ func TestBPFNetComponentInventory(t *testing.T) {
 		State: bpfnet.DataplaneState{
 			Mode:            "tc",
 			TCReady:         false,
-			FullFallback:    true,
 			LocalhostCompat: true,
 		},
 	})
@@ -69,7 +68,7 @@ func TestBPFNetComponentInventory(t *testing.T) {
 	if component.Ready {
 		t.Fatal("expected non-ready bpfnet component")
 	}
-	if !component.NeedsSNATFallback || !component.NeedsFullDNATFallback || !component.NeedsLocalhostCompat {
-		t.Fatalf("unexpected fallback mapping: %+v", component)
+	if !component.NeedsLocalhostCompat {
+		t.Fatalf("unexpected compatibility mapping: %+v", component)
 	}
 }

@@ -21,7 +21,7 @@ func (s *Store) ListEvents(ctx context.Context, namespace string, limit int) ([]
 	normalized := normalizeNamespace(namespace)
 	limit = normalizeQuotaEventLimit(limit)
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT event_id, namespace, event_type, workload_type, workload_id, environment_id, reason,
+		SELECT event_id, namespace, event_type, run_id, environment_id, reason,
 		       requested_cpu_milli, reserved_cpu_milli, cpu_milli_limit, available_cpu_milli,
 		       requested_memory_bytes, reserved_memory_bytes, memory_bytes_limit, available_memory_bytes,
 		       requested_ephemeral_storage_bytes, reserved_ephemeral_storage_bytes, ephemeral_storage_bytes_limit, available_ephemeral_storage_bytes,
@@ -62,7 +62,7 @@ func normalizeQuotaEventLimit(limit int) int {
 func scanQuotaEvent(row quotaScanner) (*quotav1.NamespaceQuotaEvent, error) {
 	var (
 		event                                            quotav1.NamespaceQuotaEvent
-		eventType, workloadType, reason                  string
+		eventType, reason                                string
 		cpuLimit, cpuAvailable                           sql.NullInt64
 		memoryLimit, memoryAvailable                     sql.NullInt64
 		ephemeralStorageLimit, ephemeralStorageAvailable sql.NullInt64
@@ -72,8 +72,7 @@ func scanQuotaEvent(row quotaScanner) (*quotav1.NamespaceQuotaEvent, error) {
 		&event.ID,
 		&event.Namespace,
 		&eventType,
-		&workloadType,
-		&event.WorkloadID,
+		&event.RunID,
 		&event.EnvironmentID,
 		&reason,
 		&event.RequestedCpuMilli,
@@ -94,7 +93,6 @@ func scanQuotaEvent(row quotaScanner) (*quotav1.NamespaceQuotaEvent, error) {
 		return nil, err
 	}
 	event.Type = quotaEventType(eventType)
-	event.WorkloadType = quotaEventWorkloadType(workloadType)
 	event.Reason = quotaEventReason(reason)
 	event.CpuMilliLimit = optionalEventInt64(cpuLimit)
 	event.AvailableCpuMilli = optionalEventInt64(cpuAvailable)
@@ -114,15 +112,6 @@ func quotaEventType(value string) quotav1.NamespaceQuotaEventType {
 		return quotav1.NamespaceQuotaEventType_NAMESPACE_QUOTA_EVENT_TYPE_ADMISSION_REJECTED
 	default:
 		return quotav1.NamespaceQuotaEventType_NAMESPACE_QUOTA_EVENT_TYPE_UNSPECIFIED
-	}
-}
-
-func quotaEventWorkloadType(value string) quotav1.NamespaceQuotaEventWorkloadType {
-	switch strings.TrimSpace(value) {
-	case string(resourcekernel.QuotaEventWorkloadRun):
-		return quotav1.NamespaceQuotaEventWorkloadType_NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN
-	default:
-		return quotav1.NamespaceQuotaEventWorkloadType_NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_UNSPECIFIED
 	}
 }
 

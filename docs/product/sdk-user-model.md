@@ -12,7 +12,7 @@ This document defines the stable user-facing boundary shared by Axern SDKs and e
 
 ## Sandbox Files And Outputs
 
-Sandbox writable files belong to one allocation. Reusable persistent volumes are not part of the SDK contract; download required files or publish artifacts explicitly before terminating the sandbox.
+Sandbox writable files belong to one Allocation. Reusable persistent volumes are not part of the SDK contract; download required files before terminating the Sandbox. An upper-layer system may publish the downloaded bytes under its own output contract.
 
 ```python
 from axern_sdk import AxernClient, Sandbox
@@ -24,7 +24,7 @@ with Sandbox(client=client, template_id="python311") as sandbox:
     sandbox.download_file("/tmp/result.txt", "result.txt", overwrite=False)
 ```
 
-The downloaded file belongs to the caller's filesystem. It is not an automatic object-store upload or a persistence guarantee for the sandbox directory. Immutable image bundles and allocation-local TaskSet workspaces remain separate runtime composition features. See the [storage lifetime contract](../architecture/storage-architecture.md) for recovery and rebuild rules.
+The downloaded file belongs to the caller's filesystem. It is not an automatic object-store upload or a persistence guarantee for the Sandbox directory. Immutable image inputs and Allocation-local writable workspaces remain separate runtime concerns. See the [storage lifetime contract](../architecture/storage-architecture.md) for recovery and rebuild rules.
 
 ## Connections
 

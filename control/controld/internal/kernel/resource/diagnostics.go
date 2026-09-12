@@ -1,7 +1,5 @@
 package resource
 
-import "strings"
-
 const AdmissionErrorDomain = "axern.control.resource_admission"
 
 type AdmissionRejectionReason string
@@ -27,13 +25,6 @@ type QuotaEventType string
 
 const (
 	QuotaEventTypeAdmissionRejected QuotaEventType = "admission_rejected"
-)
-
-type QuotaEventWorkloadType string
-
-const (
-	QuotaEventWorkloadRun     QuotaEventWorkloadType = "run"
-	QuotaEventWorkloadService QuotaEventWorkloadType = "service"
 )
 
 type QuotaEventReason string
@@ -88,28 +79,4 @@ func QuotaEventReasonForEvaluation(evaluation QuotaEvaluation) QuotaEventReason 
 	default:
 		return QuotaEventReasonExceeded
 	}
-}
-
-func MessageIndicatesAdmissionBlocked(message string) bool {
-	message = normalizeDiagnosticMessage(message)
-	if message == "" {
-		return false
-	}
-	if strings.Contains(message, "namespace quota exceeded") ||
-		strings.Contains(message, "no node has remaining reservation capacity") {
-		return true
-	}
-	return MessageIndicatesCapacityBlock(message)
-}
-
-func MessageIndicatesCapacityBlock(message string) bool {
-	message = normalizeDiagnosticMessage(message)
-	return strings.Contains(message, "insufficient_cpu") ||
-		strings.Contains(message, "insufficient_memory") ||
-		strings.Contains(message, "insufficient_ephemeral_storage") ||
-		strings.Contains(message, "effective_allocatable")
-}
-
-func normalizeDiagnosticMessage(message string) string {
-	return strings.ToLower(strings.TrimSpace(message))
 }

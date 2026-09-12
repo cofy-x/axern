@@ -16,8 +16,10 @@ func (s *Store) ResolveResourceNamespace(ctx context.Context, resourceType, reso
 		"secret":      `SELECT namespace FROM secrets WHERE secret_id=$1`,
 		"tunnel":      `SELECT namespace FROM tunnel_sessions WHERE session_id=$1`,
 		"allocation": `
-			SELECT namespace FROM workload_reservations
-			WHERE allocation_id=$1 ORDER BY created_at DESC LIMIT 1`,
+			SELECT r.namespace
+			FROM allocations a
+			JOIN runs r ON r.run_id = a.run_id
+			WHERE a.allocation_id = $1`,
 	}
 	query, ok := queries[resourceType]
 	if !ok {

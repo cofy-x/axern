@@ -88,11 +88,9 @@ func TestObserveNodeBPFNetReportsReadyNodeState(t *testing.T) {
 			Lifecycle: nodekernel.LifecycleActive,
 			UpdatedAt: now,
 			Summary: readyNodeSummaryWithBPFNet(now, &nodev1.BpfNetSummary{
-				Enabled:               true,
-				Ready:                 true,
-				NeedsSnatFallback:     false,
-				NeedsFullDnatFallback: false,
-				NeedsLocalhostCompat:  true,
+				Enabled:              true,
+				Ready:                true,
+				NeedsLocalhostCompat: true,
 			}),
 		},
 		{
@@ -100,8 +98,7 @@ func TestObserveNodeBPFNetReportsReadyNodeState(t *testing.T) {
 			Lifecycle: nodekernel.LifecycleActive,
 			UpdatedAt: now.Add(-time.Minute),
 			Summary: readyNodeSummaryWithBPFNet(now.Add(-time.Minute), &nodev1.BpfNetSummary{
-				Enabled:               true,
-				NeedsFullDnatFallback: true,
+				Enabled: true,
 			}),
 		},
 	})
@@ -120,16 +117,10 @@ func TestObserveNodeBPFNetReportsReadyNodeState(t *testing.T) {
 	if value, ok := got[stateMetricKey{nodeID: "node-a", state: "ready"}]; !ok || value != 1 {
 		t.Fatalf("ready metric = %d/%v, want 1/true", value, ok)
 	}
-	if value, ok := got[stateMetricKey{nodeID: "node-a", state: "snat_fallback"}]; !ok || value != 0 {
-		t.Fatalf("snat fallback metric = %d/%v, want 0/true", value, ok)
-	}
-	if value, ok := got[stateMetricKey{nodeID: "node-a", state: "full_dnat_fallback"}]; !ok || value != 0 {
-		t.Fatalf("full fallback metric = %d/%v, want 0/true", value, ok)
-	}
 	if value, ok := got[stateMetricKey{nodeID: "node-a", state: "localhost_compat"}]; !ok || value != 1 {
 		t.Fatalf("localhost compat metric = %d/%v, want 1/true", value, ok)
 	}
-	if _, ok := got[stateMetricKey{nodeID: "node-stale", state: "full_dnat_fallback"}]; ok {
+	if _, ok := got[stateMetricKey{nodeID: "node-stale", state: "enabled"}]; ok {
 		t.Fatalf("stale node bpfnet metric was reported: %#v", got)
 	}
 }

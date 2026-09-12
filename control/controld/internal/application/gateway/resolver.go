@@ -22,8 +22,7 @@ type RouteReader interface {
 
 type Allocation struct {
 	AllocationID string
-	OwnerType    string
-	OwnerID      string
+	RunID        string
 	NodeID       string
 	NodeTarget   string
 	Attempt      int64
@@ -58,9 +57,6 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 	if purpose != gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE && purpose != gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation access purpose is invalid")
 	}
-	if alloc.OwnerType != allocationkernel.OwnerRun {
-		return nil, grpcstatus.Error(codes.FailedPrecondition, "allocation does not belong to a run")
-	}
 	terminalRunOutput := purpose == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT &&
 		(allocationkernel.IsEnded(alloc.Status) || alloc.Status == commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASING)
 	if alloc.Status != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING && !terminalRunOutput {
@@ -72,8 +68,7 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 	}
 	return &gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: alloc.AllocationID,
-		OwnerType:    alloc.OwnerType,
-		OwnerID:      alloc.OwnerID,
+		RunID:        alloc.RunID,
 		NodeID:       alloc.NodeID,
 		NodeTarget:   alloc.NodeTarget,
 		Attempt:      alloc.Attempt,

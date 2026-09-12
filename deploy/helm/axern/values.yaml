@@ -262,7 +262,6 @@ node:
       snatDatagramIdleTimeout: 10s
       uplinkDevices: []
       localOutCompat: true
-      iptablesFallback: true
   serviceAccount:
     create: true
     name: ""

@@ -146,7 +146,7 @@ func TestPostgresRunAdmissionBalancesStalePlacementSnapshots(t *testing.T) {
 
 	rows, err := app.db.Pool().Query(context.Background(), `
 		SELECT node_id, count(*)
-		FROM workload_reservations
+		FROM reservations
 		WHERE released_at IS NULL
 		GROUP BY node_id
 	`)
@@ -389,8 +389,8 @@ func TestPostgresRunNamespaceResourceQuotaAdmission(t *testing.T) {
 		}
 	}
 	for _, event := range events {
-		if event.GetWorkloadType() != quotav1.NamespaceQuotaEventWorkloadType_NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN || event.GetWorkloadID() == "" {
-			t.Fatalf("run quota event workload = type:%v id:%q, want run with generated id", event.GetWorkloadType(), event.GetWorkloadID())
+		if event.GetRunID() == "" {
+			t.Fatal("run quota event run_id is empty")
 		}
 	}
 }
@@ -434,7 +434,7 @@ func assertActiveReservation(t *testing.T, app *App, allocationID string, wantCP
 	var cpu, memory int64
 	if err := app.db.Pool().QueryRow(context.Background(), `
 		SELECT cpu_milli, sandbox_memory_request_bytes
-		FROM workload_reservations
+		FROM reservations
 		WHERE allocation_id = $1 AND released_at IS NULL
 	`, allocationID).Scan(&cpu, &memory); err != nil {
 		t.Fatalf("query active reservation for %s: %v", allocationID, err)

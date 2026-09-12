@@ -30,7 +30,6 @@ const (
 	AttrPortRef          = "axern.port_ref"
 	AttrServiceEventType = "axern.service_event_type"
 	AttrStatus           = "axern.status"
-	AttrOwnerType        = "axern.owner_type"
 	AttrResource         = "axern.resource"
 	AttrStorage          = "axern.storage"
 	AttrState            = "axern.state"

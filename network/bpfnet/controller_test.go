@@ -79,10 +79,9 @@ func TestControllerUpsertAndDeleteService(t *testing.T) {
 	})
 
 	ctrl := NewController(Config{
-		PinPath:          t.TempDir(),
-		UplinkDevices:    []string{"eth0"},
-		LocalOutCompat:   true,
-		IptablesFallback: true,
+		PinPath:        t.TempDir(),
+		UplinkDevices:  []string{"eth0"},
+		LocalOutCompat: true,
 	})
 	ctrl.run = func(name string, args ...string) ([]byte, error) {
 		return []byte("ok"), nil
@@ -120,15 +119,6 @@ func TestControllerUpsertAndDeleteService(t *testing.T) {
 	if !status.State.LocalhostPathReady {
 		t.Fatalf("expected localhost path to be recorded as ready")
 	}
-	if status.State.FullFallback {
-		t.Fatalf("expected full fallback to stay disabled after successful attach")
-	}
-	if ctrl.NeedsSNATFallback() {
-		t.Fatalf("expected successful attach to disable SNAT fallback")
-	}
-	if ctrl.NeedsFullDNATFallback("udp") {
-		t.Fatalf("expected udp ingress to stay on the dataplane when attach succeeded")
-	}
 	if ctrl.NeedsLocalhostCompat("udp") {
 		t.Fatalf("expected udp localhost compat to stay disabled")
 	}
@@ -158,14 +148,21 @@ func TestControllerUpsertAndDeleteService(t *testing.T) {
 }
 
 func TestControllerDetectsServiceConflict(t *testing.T) {
+	dp := &fakeDataplane{attachment: dataplaneAttachment{LocalAddresses: []string{"127.0.0.1"}}}
+	newDataplane = func(Config, commandRunner) dataplane { return dp }
+	t.Cleanup(func() {
+		newDataplane = defaultDataplaneFactory
+	})
 	ctrl := NewController(Config{
-		PinPath:          t.TempDir(),
-		UplinkDevices:    []string{"eth0"},
-		LocalOutCompat:   true,
-		IptablesFallback: true,
+		PinPath:        t.TempDir(),
+		UplinkDevices:  []string{"eth0"},
+		LocalOutCompat: true,
 	})
 	ctrl.run = func(name string, args ...string) ([]byte, error) {
 		return []byte("ok"), nil
+	}
+	if err := ctrl.EnsureAttached("172.17.0.1/16"); err != nil {
+		t.Fatalf("ensure attached: %v", err)
 	}
 
 	if err := ctrl.UpsertService("tcp", 18080, "172.17.0.2", 80); err != nil {
@@ -191,7 +188,7 @@ func TestControllerResolvesDefaultRouteDevice(t *testing.T) {
 	}
 }
 
-func TestControllerFallsBackWhenDataplaneAttachFails(t *testing.T) {
+func TestControllerFailsClosedWhenDataplaneAttachFails(t *testing.T) {
 	newDataplane = func(Config, commandRunner) dataplane {
 		return &fakeDataplane{
 			ensureErr: markTCProbeError(errors.New("attach failed")),
@@ -202,36 +199,23 @@ func TestControllerFallsBackWhenDataplaneAttachFails(t *testing.T) {
 	})
 
 	ctrl := NewController(Config{
-		PinPath:          t.TempDir(),
-		UplinkDevices:    []string{"eth0"},
-		IptablesFallback: true,
+		PinPath:       t.TempDir(),
+		UplinkDevices: []string{"eth0"},
 	})
 
-	if err := ctrl.EnsureAttached("172.17.0.1/16"); err != nil {
-		t.Fatalf("ensure attached with fallback: %v", err)
-	}
-	if !ctrl.NeedsFullDNATFallback("tcp") {
-		t.Fatalf("expected tcp ingress to fall back to iptables after attach failure")
-	}
-	if !ctrl.NeedsFullDNATFallback("udp") {
-		t.Fatalf("expected udp ingress to fall back to iptables after attach failure")
+	if err := ctrl.EnsureAttached("172.17.0.1/16"); err == nil {
+		t.Fatal("ensure attached succeeded after dataplane attach failure")
 	}
 
 	status, err := ctrl.Status()
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
-	if !ctrl.NeedsSNATFallback() {
-		t.Fatalf("expected attach failure to keep SNAT fallback enabled")
-	}
-	if status.State.Mode != ModeIPTablesFullFallback {
-		t.Fatalf("unexpected fallback mode %q", status.State.Mode)
+	if status.State.Mode != ModeAttachFailed {
+		t.Fatalf("unexpected failed mode %q", status.State.Mode)
 	}
 	if status.State.TCReady {
-		t.Fatalf("expected tc dataplane to stay disabled in full fallback")
-	}
-	if !status.State.FullFallback {
-		t.Fatalf("expected full fallback state to be recorded")
+		t.Fatalf("expected tc dataplane to stay disabled")
 	}
 	if status.State.LastAttachError == "" {
 		t.Fatalf("expected attach error to be recorded in state")
@@ -241,25 +225,22 @@ func TestControllerFallsBackWhenDataplaneAttachFails(t *testing.T) {
 	}
 }
 
-func TestControllerRecordsUDPFallbackWhenDataplaneIsNotReady(t *testing.T) {
+func TestControllerRejectsServiceWhenDataplaneIsNotReady(t *testing.T) {
 	ctrl := NewController(Config{
 		PinPath:       t.TempDir(),
 		UplinkDevices: []string{"eth0"},
 	})
 
-	if err := ctrl.UpsertService("udp", 15353, "172.17.0.3", 1053); err != nil {
-		t.Fatalf("upsert udp service without dataplane: %v", err)
+	if err := ctrl.UpsertService("udp", 15353, "172.17.0.3", 1053); err == nil {
+		t.Fatal("upsert udp service succeeded without a ready dataplane")
 	}
 
 	status, err := ctrl.Status()
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
-	if len(status.Services) != 1 || status.Services[0].Protocol != "udp" {
-		t.Fatalf("expected one udp service, got %#v", status.Services)
-	}
-	if status.Stats.Fallbacks != 1 {
-		t.Fatalf("expected one fallback accounting event, got %d", status.Stats.Fallbacks)
+	if len(status.Services) != 0 {
+		t.Fatalf("unexpected persisted services: %#v", status.Services)
 	}
 }
 
@@ -334,10 +315,9 @@ func TestControllerFallsBackToLocalCompatWhenLocalhostAttachIsUnavailable(t *tes
 	})
 
 	ctrl := NewController(Config{
-		PinPath:          t.TempDir(),
-		UplinkDevices:    []string{"eth0"},
-		LocalOutCompat:   true,
-		IptablesFallback: true,
+		PinPath:        t.TempDir(),
+		UplinkDevices:  []string{"eth0"},
+		LocalOutCompat: true,
 	})
 	ctrl.run = func(name string, args ...string) ([]byte, error) {
 		return []byte("ok"), nil

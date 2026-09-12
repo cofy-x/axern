@@ -135,9 +135,7 @@ message BpfNetSummary {
   bool enabled = 2;
   bool ready = 3;
   string mode = 4;
-  bool needs_snat_fallback = 5;
-  bool needs_full_dnat_fallback = 6;
-  bool needs_localhost_compat = 7;
+  bool needs_localhost_compat = 5;
 }
 
 message NodeStorageSummary {

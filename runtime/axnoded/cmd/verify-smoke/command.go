@@ -28,7 +28,6 @@ type verifySmokeConfig struct {
 	stderrPath   string
 	command      string
 	argvJSON     string
-	commandShell string
 	expectStdout string
 	expectStderr string
 	expectedExit int
@@ -44,9 +43,8 @@ func parseFlags() verifySmokeConfig {
 	flag.StringVar(&cfg.runtimeID, "runtime-id", "verify-runtime", "runtime id")
 	flag.StringVar(&cfg.stdoutPath, "stdout", "/tmp/axnoded-verify.stdout", "container stdout path")
 	flag.StringVar(&cfg.stderrPath, "stderr", "/tmp/axnoded-verify.stderr", "container stderr path")
-	flag.StringVar(&cfg.command, "command", "", "shell snippet executed as /bin/sh -c ...")
-	flag.StringVar(&cfg.argvJSON, "argv-json", "", "full JSON array argv, overrides -command and -command-shell when set")
-	flag.StringVar(&cfg.commandShell, "command-shell", "echo generic-axnoded-ok; echo generic-axnoded-err 1>&2; sleep 1", "legacy alias for -command")
+	flag.StringVar(&cfg.command, "command", "echo generic-axnoded-ok; echo generic-axnoded-err 1>&2; sleep 1", "shell snippet executed as /bin/sh -c ...")
+	flag.StringVar(&cfg.argvJSON, "argv-json", "", "full JSON array argv, overrides -command when set")
 	flag.StringVar(&cfg.expectStdout, "expect-stdout", "generic-axnoded-ok", "stdout substring expected after the container exits")
 	flag.StringVar(&cfg.expectStderr, "expect-stderr", "generic-axnoded-err", "stderr substring expected after the container exits")
 	flag.IntVar(&cfg.expectedExit, "expected-exit", 0, "expected container exit code")
@@ -55,7 +53,7 @@ func parseFlags() verifySmokeConfig {
 }
 
 func buildExecutionConfig(cfg verifySmokeConfig) (*privatenodev1.ResolvedExecutionConfig, error) {
-	commandToRun, err := resolveCommand(cfg.argvJSON, cfg.command, cfg.commandShell)
+	commandToRun, err := resolveCommand(cfg.argvJSON, cfg.command)
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +72,8 @@ func buildExecutionConfig(cfg verifySmokeConfig) (*privatenodev1.ResolvedExecuti
 	return spec, nil
 }
 
-func resolveCommand(argvJSON, shellSnippet, legacyShellSnippet string) ([]string, error) {
-	return verifyutil.ResolveArgv(argvJSON, shellSnippet, legacyShellSnippet)
+func resolveCommand(argvJSON, shellSnippet string) ([]string, error) {
+	return verifyutil.ResolveArgv(argvJSON, shellSnippet, "")
 }
 
 func buildRootfsSpec(src, localPath, imageURL string) (*verifyutil.RootfsSpec, error) {

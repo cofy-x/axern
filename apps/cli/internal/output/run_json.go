@@ -3,7 +3,6 @@ package output
 import (
 	"io"
 
-	"github.com/cofy-x/axern/apps/cli/internal/workloaddiagnostic"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
@@ -32,7 +31,6 @@ type RunJSON struct {
 	ExitCode             *int32                      `json:"exit_code,omitempty"`
 	ExitCodeKnown        bool                        `json:"exit_code_known,omitempty"`
 	DiagnosticCode       string                      `json:"diagnostic_code,omitempty"`
-	AdmissionSummary     string                      `json:"admission_summary,omitempty"`
 	Message              string                      `json:"message,omitempty"`
 	CapabilityConditions *CapabilityConditionSetJSON `json:"capability_conditions,omitempty"`
 }
@@ -61,8 +59,6 @@ func NewRunJSON(run *runv1.Run) *RunJSON {
 	diagnosticCode := ""
 	if code := run.GetDiagnosticCode(); code != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
 		diagnosticCode = WorkloadDiagnosticCodeLabel(code)
-	} else {
-		diagnosticCode = workloaddiagnostic.DiagnosticCode(run.GetMessage())
 	}
 	return &RunJSON{
 		ID:                   run.GetID(),
@@ -79,7 +75,6 @@ func NewRunJSON(run *runv1.Run) *RunJSON {
 		ExitCode:             exitCode,
 		ExitCodeKnown:        run.GetExitCodeKnown(),
 		DiagnosticCode:       diagnosticCode,
-		AdmissionSummary:     workloaddiagnostic.AdmissionBlockedSummary(run.GetMessage()),
 		Message:              run.GetMessage(),
 		CapabilityConditions: newCapabilityConditionSetJSON(run.GetCapabilityConditions()),
 	}

@@ -31,32 +31,23 @@ class ConsistencyIssueSeverity(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
 class ConsistencyIssueCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     CONSISTENCY_ISSUE_CODE_UNSPECIFIED: _ClassVar[ConsistencyIssueCode]
-    CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_MISSING_ALLOCATION: _ClassVar[ConsistencyIssueCode]
     CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_ENDED_ALLOCATION: _ClassVar[ConsistencyIssueCode]
-    CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ALLOCATION_MISMATCH: _ClassVar[ConsistencyIssueCode]
-    CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_MISSING_ALLOCATION: _ClassVar[ConsistencyIssueCode]
     CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ON_ENDED_ALLOCATION: _ClassVar[ConsistencyIssueCode]
-    CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ALLOCATION_NODE_MISMATCH: _ClassVar[ConsistencyIssueCode]
-    CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_MISSING_ALLOCATION: _ClassVar[ConsistencyIssueCode]
     CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION: _ClassVar[ConsistencyIssueCode]
-    CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ALLOCATION_NODE_MISMATCH: _ClassVar[ConsistencyIssueCode]
 
 class ConsistencyRepairOwner(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     CONSISTENCY_REPAIR_OWNER_UNSPECIFIED: _ClassVar[ConsistencyRepairOwner]
-    CONSISTENCY_REPAIR_OWNER_WORKLOAD_CONTROLLER: _ClassVar[ConsistencyRepairOwner]
+    CONSISTENCY_REPAIR_OWNER_RUN_CONTROLLER: _ClassVar[ConsistencyRepairOwner]
     CONSISTENCY_REPAIR_OWNER_NODE_LIFECYCLE: _ClassVar[ConsistencyRepairOwner]
     CONSISTENCY_REPAIR_OWNER_TUNNEL_CONTROLLER: _ClassVar[ConsistencyRepairOwner]
-    CONSISTENCY_REPAIR_OWNER_ADMIN_OPERATOR_TRIAGE: _ClassVar[ConsistencyRepairOwner]
 
 class ConsistencyRepairAction(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     CONSISTENCY_REPAIR_ACTION_UNSPECIFIED: _ClassVar[ConsistencyRepairAction]
-    CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP: _ClassVar[ConsistencyRepairAction]
-    CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP_AND_READMIT: _ClassVar[ConsistencyRepairAction]
+    CONSISTENCY_REPAIR_ACTION_RUN_CLEANUP: _ClassVar[ConsistencyRepairAction]
     CONSISTENCY_REPAIR_ACTION_NODE_LIFECYCLE_RECONCILE: _ClassVar[ConsistencyRepairAction]
     CONSISTENCY_REPAIR_ACTION_TUNNEL_LIFECYCLE_RECONCILE: _ClassVar[ConsistencyRepairAction]
-    CONSISTENCY_REPAIR_ACTION_ADMIN_TRIAGE: _ClassVar[ConsistencyRepairAction]
 
 class ConsistencyRepairTargetType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -82,26 +73,17 @@ CONSISTENCY_ISSUE_SEVERITY_UNSPECIFIED: ConsistencyIssueSeverity
 CONSISTENCY_ISSUE_SEVERITY_WARNING: ConsistencyIssueSeverity
 CONSISTENCY_ISSUE_SEVERITY_ERROR: ConsistencyIssueSeverity
 CONSISTENCY_ISSUE_CODE_UNSPECIFIED: ConsistencyIssueCode
-CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_MISSING_ALLOCATION: ConsistencyIssueCode
 CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_ENDED_ALLOCATION: ConsistencyIssueCode
-CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ALLOCATION_MISMATCH: ConsistencyIssueCode
-CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_MISSING_ALLOCATION: ConsistencyIssueCode
 CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ON_ENDED_ALLOCATION: ConsistencyIssueCode
-CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ALLOCATION_NODE_MISMATCH: ConsistencyIssueCode
-CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_MISSING_ALLOCATION: ConsistencyIssueCode
 CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION: ConsistencyIssueCode
-CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ALLOCATION_NODE_MISMATCH: ConsistencyIssueCode
 CONSISTENCY_REPAIR_OWNER_UNSPECIFIED: ConsistencyRepairOwner
-CONSISTENCY_REPAIR_OWNER_WORKLOAD_CONTROLLER: ConsistencyRepairOwner
+CONSISTENCY_REPAIR_OWNER_RUN_CONTROLLER: ConsistencyRepairOwner
 CONSISTENCY_REPAIR_OWNER_NODE_LIFECYCLE: ConsistencyRepairOwner
 CONSISTENCY_REPAIR_OWNER_TUNNEL_CONTROLLER: ConsistencyRepairOwner
-CONSISTENCY_REPAIR_OWNER_ADMIN_OPERATOR_TRIAGE: ConsistencyRepairOwner
 CONSISTENCY_REPAIR_ACTION_UNSPECIFIED: ConsistencyRepairAction
-CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP: ConsistencyRepairAction
-CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP_AND_READMIT: ConsistencyRepairAction
+CONSISTENCY_REPAIR_ACTION_RUN_CLEANUP: ConsistencyRepairAction
 CONSISTENCY_REPAIR_ACTION_NODE_LIFECYCLE_RECONCILE: ConsistencyRepairAction
 CONSISTENCY_REPAIR_ACTION_TUNNEL_LIFECYCLE_RECONCILE: ConsistencyRepairAction
-CONSISTENCY_REPAIR_ACTION_ADMIN_TRIAGE: ConsistencyRepairAction
 CONSISTENCY_REPAIR_TARGET_TYPE_UNSPECIFIED: ConsistencyRepairTargetType
 CONSISTENCY_REPAIR_TARGET_TYPE_ALLOCATION: ConsistencyRepairTargetType
 CONSISTENCY_REPAIR_TARGET_TYPE_RUN: ConsistencyRepairTargetType
@@ -127,12 +109,11 @@ class ConsistencyCounts(_message.Message):
     def __init__(self, active_reservations: _Optional[int] = ..., active_leases: _Optional[int] = ..., active_tunnels: _Optional[int] = ..., allocation_lifecycle_retries: _Optional[int] = ..., issues: _Optional[int] = ...) -> None: ...
 
 class ConsistencyIssue(_message.Message):
-    __slots__ = ("code", "severity", "allocation_id", "owner_type", "owner_id", "node_id", "status", "detail", "repair_owner", "repair_action", "automatic_repair", "repair_target_type", "repair_target_id")
+    __slots__ = ("code", "severity", "allocation_id", "run_id", "node_id", "status", "detail", "repair_owner", "repair_action", "automatic_repair", "repair_target_type", "repair_target_id")
     CODE_FIELD_NUMBER: _ClassVar[int]
     SEVERITY_FIELD_NUMBER: _ClassVar[int]
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    OWNER_TYPE_FIELD_NUMBER: _ClassVar[int]
-    OWNER_ID_FIELD_NUMBER: _ClassVar[int]
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     DETAIL_FIELD_NUMBER: _ClassVar[int]
@@ -144,8 +125,7 @@ class ConsistencyIssue(_message.Message):
     code: ConsistencyIssueCode
     severity: ConsistencyIssueSeverity
     allocation_id: str
-    owner_type: str
-    owner_id: str
+    run_id: str
     node_id: str
     status: str
     detail: str
@@ -154,7 +134,7 @@ class ConsistencyIssue(_message.Message):
     automatic_repair: bool
     repair_target_type: ConsistencyRepairTargetType
     repair_target_id: str
-    def __init__(self, code: _Optional[_Union[ConsistencyIssueCode, str]] = ..., severity: _Optional[_Union[ConsistencyIssueSeverity, str]] = ..., allocation_id: _Optional[str] = ..., owner_type: _Optional[str] = ..., owner_id: _Optional[str] = ..., node_id: _Optional[str] = ..., status: _Optional[str] = ..., detail: _Optional[str] = ..., repair_owner: _Optional[_Union[ConsistencyRepairOwner, str]] = ..., repair_action: _Optional[_Union[ConsistencyRepairAction, str]] = ..., automatic_repair: _Optional[bool] = ..., repair_target_type: _Optional[_Union[ConsistencyRepairTargetType, str]] = ..., repair_target_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, code: _Optional[_Union[ConsistencyIssueCode, str]] = ..., severity: _Optional[_Union[ConsistencyIssueSeverity, str]] = ..., allocation_id: _Optional[str] = ..., run_id: _Optional[str] = ..., node_id: _Optional[str] = ..., status: _Optional[str] = ..., detail: _Optional[str] = ..., repair_owner: _Optional[_Union[ConsistencyRepairOwner, str]] = ..., repair_action: _Optional[_Union[ConsistencyRepairAction, str]] = ..., automatic_repair: _Optional[bool] = ..., repair_target_type: _Optional[_Union[ConsistencyRepairTargetType, str]] = ..., repair_target_id: _Optional[str] = ...) -> None: ...
 
 class ConsistencySnapshot(_message.Message):
     __slots__ = ("status", "counts", "issues", "truncated")

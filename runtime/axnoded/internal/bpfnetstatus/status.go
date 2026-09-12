@@ -68,9 +68,6 @@ func RequireTCReady(status bpfnet.Status) error {
 	if !state.TCReady {
 		return fmt.Errorf("expected tc dataplane to be ready: %#v", state)
 	}
-	if state.FullFallback {
-		return fmt.Errorf("expected tc dataplane to avoid full fallback: %#v", state)
-	}
 	if !status.Attachment.IngressTCAttached || !status.Attachment.EgressTCAttached {
 		return fmt.Errorf("expected tc ingress/egress filters to be attached: %#v", status.Attachment)
 	}

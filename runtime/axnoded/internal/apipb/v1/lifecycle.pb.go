@@ -91,8 +91,8 @@ type StartRequest struct {
 	ExtensionCapabilityRequirements []*v11.ExtensionCapabilityRequirement `protobuf:"bytes,16,rep,name=extension_capability_requirements,json=extensionCapabilityRequirements,proto3" json:"extension_capability_requirements,omitempty"`
 	AllocationAttempt               int64                                 `protobuf:"varint,17,opt,name=allocation_attempt,json=allocationAttempt,proto3" json:"allocation_attempt,omitempty"`
 	// The normalized public policy is carried intact to the node-local
-	// enforcement boundary. The legacy string network field remains the OCI
-	// network-mode selector and must never be used as a policy surrogate.
+	// enforcement boundary. The string network field is the OCI network-mode
+	// selector and must never be used as a policy surrogate.
 	EgressPolicy  *v1.NetworkEgressPolicy `protobuf:"bytes,18,opt,name=egress_policy,json=egressPolicy,proto3" json:"egress_policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

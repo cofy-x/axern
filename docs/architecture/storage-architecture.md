@@ -1,26 +1,25 @@
 # Storage Architecture
 
-Axern separates durable control state and delivered artifacts from allocation-local writable files. Persistent workspace orchestration is not part of the execution core.
+Axern separates durable control state from Allocation-local writable files. Persistent workspace and output-storage orchestration is not part of the execution core.
 
 ## Data Ownership And Lifetime
 
 | Data | Owner and location | Lifetime |
 | --- | --- | --- |
 | Workload intent, allocations, attempts, placement, leases, resource reservations, and result metadata | `controld` and PostgreSQL | Durable control state; not a filesystem or process-output stream |
-| Writable sandbox rootfs and TaskSet workspace | `axnoded` and node-local runtime filestore | One allocation; no persistence promise across allocation replacement or node loss |
+| Writable sandbox rootfs and Allocation-local workspace | `axnoded` and node-local runtime filestore | One Allocation; no persistence promise across Allocation replacement or node loss |
 | Immutable rootfs, read-only image bundles, and image caches | `imagemgr` and `imagefsd` where required | Image-owned cache and live mount leases, separate from writable workload data |
 | Allocation ownership, cleanup intent, resource state, and recovery records | `axnoded` and its process-owned embedded database | Node-local recovery; not a second shared control-plane database |
-| Delivered artifacts and rollout evidence | Existing artifact metadata and S3-compatible object storage | Explicit upload/export, ownership, and retention contracts |
 
-PostgreSQL is the only authoritative central state backend. Object storage is a delivery and archive path, not a writable POSIX working directory. Artifact storage, deployment database persistence, and node-runtime recovery records keep their distinct owners and lifetimes.
+PostgreSQL is the only authoritative central state backend. Downloaded outputs belong to the caller or an upper-layer system; object storage is never authoritative execution state or a writable POSIX working directory for an Allocation. Axern does not currently define a generic public Artifact root.
 
 ## Allocation-Local Filesystems
 
 `axnoded` resolves an immutable image rootfs, prepares the allocation-private writable view, and tracks runtime, image, and workspace ownership. Read-only image mounts and runtime-owned bind mounts use the same target validation, conflict checks, and Allocation cleanup boundary.
 
-Writable rootfs storage still requires node-local reservation and runsc hard enforcement. The current charged scope is the runsc file-backed root overlay, including metadata, copy-up, and whiteouts; image caches, artifacts, logs, and other uncharged classes do not silently become part of that reservation. See [Resource Model](resource-model.md) and the [node rootfs storage contract](../../runtime/axnoded/docs/rootfs-storage.md).
+Writable rootfs storage still requires node-local reservation and runsc hard enforcement. The charged scope is the runsc file-backed root overlay, including metadata, copy-up, and whiteouts; image caches, logs, and process output streams do not silently become part of that reservation. See [Resource Model](resource-model.md) and the [node rootfs storage contract](../../runtime/axnoded/docs/rootfs-storage.md).
 
-A replacement allocation starts from its immutable inputs, not from a previous allocation's writable directory. A process restart may recover an existing allocation when its runtime and ownership records are intact; this is not a promise to retain files after node loss or allocation replacement. Export or download required outputs before destroying the allocation. A successful file download copies bytes to the caller; durable artifact publication remains a separate explicit operation.
+A replacement Allocation starts from immutable inputs, not from a previous writable directory. Process restart may recover an existing Allocation when its runtime and ownership records remain intact; this does not promise file retention after node loss or Allocation replacement. Export required outputs before destroying the Allocation. Any future durable output API must follow the ownership rules in the [Stable Domain Model](../product/domain-model.md).
 
 ## Recovery And Cleanup
 
@@ -38,9 +37,4 @@ After Axern establishes a stable external storage contract, its production upgra
 
 ## Validation
 
-- Host-safe checks cover lifecycle adapters, allocation ownership and cleanup, ephemeral reservations, node inventory, and strict configuration decoding.
-- Linux truth checks cover runsc writable-rootfs enforcement, image/workspace mounts, restart recovery, execution, file transfer, and allocation cleanup.
-- Deployment checks prove that the complete execution stack starts with only its declared storage owners.
-- Clean-rebuild tests prove that the initial schema and node state agree with the current execution-storage contract.
-
-Use the [verification tiers](../verification/local-full-verification.md) and [node verification matrix](../../runtime/axnoded/docs/verification.md) to select the required checks. A source or host-safe check alone does not prove Linux mount behavior or a production-data upgrade contract.
+Host-safe checks cover ownership, cleanup, reservations, inventory, and configuration. Linux truth checks cover runsc enforcement, mounts, restart recovery, file transfer, and cleanup; clean-rebuild checks keep central and node-local state aligned. Use the [verification tiers](../verification/local-full-verification.md) and [node verification matrix](../../runtime/axnoded/docs/verification.md) to select the required checks.

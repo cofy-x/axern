@@ -15,17 +15,6 @@ func TestValidateRetryReason(t *testing.T) {
 	}
 }
 
-func TestValidateOwnerType(t *testing.T) {
-	for _, value := range []string{"", "run", " RUN "} {
-		if err := ValidateOwnerType(value); err != nil {
-			t.Fatalf("ValidateOwnerType(%q) error = %v", value, err)
-		}
-	}
-	if err := ValidateOwnerType("node"); err == nil {
-		t.Fatal("ValidateOwnerType(node) unexpectedly succeeded")
-	}
-}
-
 func TestValidateOperatorReason(t *testing.T) {
 	if err := ValidateOperatorReason("operator checked retry"); err != nil {
 		t.Fatalf("ValidateOperatorReason(valid) error = %v", err)

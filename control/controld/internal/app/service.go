@@ -82,21 +82,20 @@ type App struct {
 	imageResolver            environmentkernel.ImageResolver
 	resourcePolicy           resourcekernel.AdmissionPolicy
 
-	db               *postgres.DB
-	adminPG          *pgadmin.Store
-	accessPG         *pgaccess.Store
-	accessControl    *appaccess.Service
-	allocationOwners *pgallocation.OwnerReader
-	runStore         *pgrun.Store
-	namespacePG      *pgnamespace.Store
-	secretDB         *pgsecret.Store
-	tunnelPG         *pgtunnel.Store
-	reconcileCtx     context.Context
-	cancelReconcile  context.CancelFunc
-	stopCh           chan struct{}
-	stopOnce         sync.Once
-	wg               sync.WaitGroup
-	metrics          []sdkobs.ObservableRegistration
+	db              *postgres.DB
+	adminPG         *pgadmin.Store
+	accessPG        *pgaccess.Store
+	accessControl   *appaccess.Service
+	runStore        *pgrun.Store
+	namespacePG     *pgnamespace.Store
+	secretDB        *pgsecret.Store
+	tunnelPG        *pgtunnel.Store
+	reconcileCtx    context.Context
+	cancelReconcile context.CancelFunc
+	stopCh          chan struct{}
+	stopOnce        sync.Once
+	wg              sync.WaitGroup
+	metrics         []sdkobs.ObservableRegistration
 
 	reconcileHealth      *reconcilekernel.HealthTracker
 	runReconciler        apprun.Reconciler
@@ -214,7 +213,6 @@ func (a *App) configureDependencies(cfg Config) error {
 	a.adminPG = pgadmin.NewStore(db)
 	a.accessPG = pgaccess.NewStore(db)
 	a.accessControl = appaccess.New(a.accessPG, a.now)
-	a.allocationOwners = pgallocation.NewOwnerReader(db.Pool())
 	a.nodeStore = pgnodes.NewPGStore(db)
 	a.namespacePG = pgnamespace.NewStore(db)
 	a.runStore = pgrun.NewStore(db, pgrun.WithAdmissionPolicy(a.resourcePolicy), pgrun.WithPlacementEvaluator(a.placement))
