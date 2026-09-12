@@ -2,6 +2,7 @@ package localruntime
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -79,7 +80,9 @@ func TestLocalNodeReadinessPayloadRejectsIncompleteNodeState(t *testing.T) {
 }
 
 func TestLocalNodeReadinessPayloadDecodesDebugCapabilityKeys(t *testing.T) {
-	const body = `{"nodes":[{"node_id":"node-local","fresh":true,"summary_fresh":true,"summary":{"components":{"axnoded":{"ready":true},"imagemgr":{"reachable":true}},"pools":{"runtime_slots":{"capacity":16}},"capability_snapshot":{"sequence":1,"observations":[{"key":{"Kind":{"Platform":2}},"state":1},{"key":{"Kind":{"Platform":10}},"state":1}]}}}]}`
+	body := fmt.Sprintf(`{"nodes":[{"node_id":"node-local","fresh":true,"summary_fresh":true,"summary":{"components":{"axnoded":{"ready":true},"imagemgr":{"reachable":true}},"pools":{"runtime_slots":{"capacity":16}},"capability_snapshot":{"sequence":1,"observations":[{"key":{"Kind":{"Platform":%d}},"state":%d},{"key":{"Kind":{"Platform":%d}},"state":%d}]}}}]}`,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)
 	var payload localNodeReadinessPayload
 	if err := json.NewDecoder(strings.NewReader(body)).Decode(&payload); err != nil {
 		t.Fatal(err)
