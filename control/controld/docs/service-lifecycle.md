@@ -82,7 +82,3 @@ rootfs and workspace-image preparation belong to the allocation lifetime.
 Data that must survive allocation or node loss must be explicitly exported as
 artifacts. Service deletion still waits for confirmed allocation cleanup
 before persisting completion; no physical volume reclaim phase exists.
-
-Deployments with historical persistent volumes must follow
-[Retired Volume Data](retired-volume-data.md). This is a code/API retirement,
-not permission to delete existing database records or node directories.

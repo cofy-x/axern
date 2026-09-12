@@ -31,6 +31,4 @@ cannot re-register and are excluded from placement and fleet health.
 
 For implementation details, runtime contracts, and local commands, use the
 owning subsystem README. Generic persistent-volume APIs and coordination are
-not part of the execution core. See
-[Retired Volume Data](controld/docs/retired-volume-data.md) before changing a
-deployment that previously used them.
+not part of the execution core.

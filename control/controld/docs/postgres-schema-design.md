@@ -17,11 +17,9 @@ The schema is split by durable ownership boundary:
 Each migration declares the final shape of its domain. Migrations run in one
 direction under a Postgres advisory lock and are recorded in
 `schema_migrations` with version, name, checksum, and application time. The
-repository currently supports rebuild-only database upgrades, so a coordinated
-contract replacement folds schema changes into the owning baseline migration
-and requires the database to be rebuilt. It must not add a compatibility
-migration or dual-read path without an explicit persisted-database compatibility
-contract.
+repository uses rebuild-only database upgrades: schema changes are folded into
+the owning baseline migration and the database is recreated. Compatibility
+migrations and dual-read paths are outside the current contract.
 
 ```mermaid
 sequenceDiagram
@@ -39,10 +37,7 @@ sequenceDiagram
 ```
 
 An edited checksum, a missing version, or a database ahead of the binary is a
-startup error for an existing database. Rebuild the database when a coordinated
-baseline replacement changes a checksum. Once a migration participates in a
-declared persisted-database compatibility contract, it is immutable and future
-schema changes use a new sequential migration.
+startup error. Rebuild the database whenever a baseline checksum changes.
 
 ## Core Control-Plane Model
 

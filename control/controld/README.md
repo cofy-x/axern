@@ -119,8 +119,7 @@ and claim-path outcomes. `axern_controld_rollout_work_queue_current` and
 Runtime-slot admission consumes only axnoded's aggregate `runtime_slots`
 summary. Individual cgroup and interface pools are diagnostic details.
 `ReportNode` rejects summaries that omit `runtime_slots`; releases that add a
-required node-summary contract must rebuild controld and axnoded together
-rather than run a mixed-version compatibility path.
+required node-summary contract must rebuild controld and axnoded together.
 
 Node reports also carry one atomic typed capability snapshot. Runsc memory and
 ephemeral-storage hard limits depend on matching conformance evidence; no
@@ -267,9 +266,7 @@ Control-plane coordination and internal calls:
 
 Persistent-volume product APIs are not supported. Sandbox-lifetime writable
 rootfs and workspace-image preparation stay on the allocation path; durable
-artifact storage is separate. Startup refuses legacy Claim or Binding rows,
-including tombstones. No automatic export, row deletion, or physical reclaim
-is performed; see [Retired Volume Data](docs/retired-volume-data.md).
+artifact storage is separate.
 
 The HTTP listener exposes diagnostics and internal runtime artifact downloads.
 Diagnostic endpoints are read-only:
@@ -295,7 +292,6 @@ Diagnostic endpoints are read-only:
 - [Resource admission](docs/resource-admission.md)
 - [Resource quota](docs/resource-quota.md)
 - [Postgres schema design](docs/postgres-schema-design.md)
-- [Retired volume data](docs/retired-volume-data.md)
 
 ## Architecture
 

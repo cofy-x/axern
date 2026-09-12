@@ -130,9 +130,6 @@ axern admin node retire <node-id> --operator-reason "host permanently removed"
 Retirement requires a stale heartbeat and fails while the node has active
 allocations, reservations, execution leases, tunnel sessions, allocation
 lifecycle retries. A successful mutation and its audit event commit together.
-Historical persistent-volume data must be inventoried and exported under the
-archived release before the reduced stack can use new clean state; see
-[Retired Volume Data](retired-volume-data.md).
 
 ## Lifecycle Retry Queue
 

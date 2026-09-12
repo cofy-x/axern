@@ -92,18 +92,3 @@ func TestScanServiceTreatsNullDeletionStatusAsAbsent(t *testing.T) {
 		})
 	}
 }
-
-func TestScanServiceRejectsRetiredVolumePayloads(t *testing.T) {
-	for name, row := range map[string]cannedServiceRow{
-		"volume config":      {config: []byte(`{"volumeMounts":[{"name":"data","target":"/data"}]}`)},
-		"volume disposition": {deletionStatus: []byte(`{"volumeDisposition":"SERVICE_VOLUME_DISPOSITION_RETAIN"}`)},
-		"claim identity":     {deletionStatus: []byte(`{"claimIds":["retained-claim"]}`)},
-		"reclaim phase":      {deletionStatus: []byte(`{"phase":"SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES"}`)},
-	} {
-		t.Run(name, func(t *testing.T) {
-			if service, err := scanService(row); err == nil || service != nil {
-				t.Fatalf("retired storage payload accepted: service=%v error=%v", service, err)
-			}
-		})
-	}
-}

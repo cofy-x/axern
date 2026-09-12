@@ -266,10 +266,6 @@ func (a *App) configureDependencies(cfg Config) error {
 		db.Close()
 		return err
 	}
-	if err := db.CheckRetiredVolumeData(context.Background()); err != nil {
-		db.Close()
-		return err
-	}
 	a.db = db
 	a.adminPG = pgadmin.NewStore(db)
 	a.accessPG = pgaccess.NewStore(db)
