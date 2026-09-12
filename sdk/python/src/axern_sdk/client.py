@@ -274,6 +274,7 @@ class AxernClient:
         env: dict[str, str] | None = None,
         cwd: str = "",
         runtime_class: str = "",
+        network_policy: NetworkPolicy | None = None,
         request_cpu: ResourceQuantity = "",
         request_memory: ResourceQuantity = "",
         request_ephemeral_storage: ResourceQuantity = "",
@@ -293,6 +294,11 @@ class AxernClient:
                     env=dict(env or {}),
                     cwd=cwd,
                     runtime_class=runtime_class,
+                    network=(
+                        common_pb2.NetworkSpec(egress_policy=network_policy._to_proto())
+                        if network_policy is not None
+                        else None
+                    ),
                     resources=_resource_spec(
                         request_cpu=request_cpu,
                         request_memory=request_memory,
@@ -307,6 +313,14 @@ class AxernClient:
             ),
             timeout=timeout,
         )
+        return response.run
+
+    def cancel_run(self, run_id: str, *, timeout: float | None = 30.0) -> run_pb2.Run:
+        """Cancel a run and release its allocation."""
+
+        if not run_id.strip():
+            raise ValueError("run_id is required")
+        response = self.runs.CancelRun(run_pb2.CancelRunRequest(run_id=run_id), timeout=timeout)
         return response.run
 
     def watch_run(

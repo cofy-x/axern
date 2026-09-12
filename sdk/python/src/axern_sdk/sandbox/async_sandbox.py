@@ -22,7 +22,7 @@ from axern_sdk.sandbox.async_browser import AsyncSandboxBrowserMixin
 from axern_sdk.sandbox.async_capabilities import AsyncSandboxCapabilityMixin
 from axern_sdk.sandbox.async_computer_use import AsyncSandboxComputerUseMixin
 from axern_sdk.sandbox.async_files import AsyncSandboxFileMixin
-from axern_sdk.sandbox.async_lifecycle import wait_ready_replica, wait_service_deleted
+from axern_sdk.sandbox.async_lifecycle import wait_running_run
 from axern_sdk.sandbox.async_renewal import AsyncTunnelRenewal
 from axern_sdk.network_policy import NetworkPolicy
 from axern_sdk.sandbox.types import DEFAULT_SANDBOX_ARGV, SandboxMetadata, SandboxState, _validate_source
@@ -30,7 +30,7 @@ from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
 
 
 class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncSandboxComputerUseMixin, AsyncSandboxFileMixin):
-    """Async service-backed Axern sandbox with optional reverse TCP tunnel."""
+    """Async run allocation-backed Axern sandbox with optional reverse TCP tunnel."""
 
     def __init__(
         self,
@@ -97,7 +97,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
 
         self._created_environment = False
         self._created_environment_id = ""
-        self._created_service_id = ""
+        self._created_run_id = ""
         self._created_tunnel_session_id = ""
         self._state: SandboxState | None = None
         self._started_at_ns = 0
@@ -115,8 +115,8 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         return self.state.environment_id
 
     @property
-    def service_id(self) -> str:
-        return self.state.service_id
+    def run_id(self) -> str:
+        return self.state.run_id
 
     @property
     def allocation_id(self) -> str:
@@ -143,7 +143,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         state = self.state
         return SandboxMetadata(
             environment_id=state.environment_id,
-            service_id=state.service_id,
+            run_id=state.run_id,
             allocation_id=state.allocation_id,
             attempt=state.attempt,
             node_id=state.node_id,
@@ -166,9 +166,8 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
             return self
         try:
             environment_id = await self._resolve_environment()
-            service = await self._client.create_service(
+            run = await self._client.create_run(
                 environment_id=environment_id,
-                replicas=1,
                 argv=self._argv,
                 env=self._env,
                 cwd=self._cwd,
@@ -184,16 +183,16 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
                 namespace=self._namespace,
                 labels=self._labels,
             )
-            self._created_service_id = service.id
-            replica = await wait_ready_replica(
+            self._created_run_id = run.id
+            run = await wait_running_run(
                 self._client,
-                service_id=service.id,
+                run_id=run.id,
                 timeout_seconds=self._ready_timeout_seconds,
             )
 
             if self._upstream:
                 tunnel = await self._client.create_tunnel_session(
-                    allocation_id=replica.id,
+                    allocation_id=run.allocation_id,
                     local_target=self._upstream,
                     remote_port=self._remote_port,
                     ttl_seconds=self._tunnel_ttl_seconds,
@@ -227,10 +226,10 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
 
             self._state = SandboxState(
                 environment_id=environment_id,
-                service_id=service.id,
-                allocation_id=replica.id,
-                attempt=replica.attempt,
-                node_id=replica.node_id,
+                run_id=run.id,
+                allocation_id=run.allocation_id,
+                attempt=run.attempt,
+                node_id=run.node_id,
                 tunnel_session_id=tunnel_session_id,
                 bound_addr=bound_addr,
             )
@@ -256,23 +255,12 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
             except Exception:
                 pass
             self._created_tunnel_session_id = ""
-        if self._created_service_id:
-            service_deleted = False
+        if self._created_run_id:
             try:
-                await self._client.delete_service(self._created_service_id, timeout=30.0)
-                service_deleted = True
+                await self._client.cancel_run(self._created_run_id, timeout=30.0)
             except Exception:
                 pass
-            if service_deleted:
-                try:
-                    await wait_service_deleted(
-                        self._client,
-                        service_id=self._created_service_id,
-                        timeout_seconds=self._ready_timeout_seconds,
-                    )
-                except Exception:
-                    pass
-            self._created_service_id = ""
+            self._created_run_id = ""
         if self._created_environment and self._created_environment_id:
             try:
                 await self._client.delete_environment(self._created_environment_id, timeout=30.0)

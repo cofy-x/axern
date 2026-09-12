@@ -278,6 +278,64 @@ class AsyncAxernClient:
             await asyncio.sleep(retry_delay if remaining is None else min(retry_delay, remaining))
             retry_delay = min(retry_delay * 2, _SERVICE_WATCH_RETRY_MAX_SECONDS)
 
+    async def create_run(
+        self,
+        *,
+        environment_id: str,
+        argv: list[str] | None = None,
+        namespace: str = "default",
+        env: dict[str, str] | None = None,
+        cwd: str = "",
+        runtime_class: str = "",
+        network_policy: NetworkPolicy | None = None,
+        request_cpu: ResourceQuantity = "",
+        request_memory: ResourceQuantity = "",
+        request_ephemeral_storage: ResourceQuantity = "",
+        limit_cpu: ResourceQuantity = "",
+        limit_memory: ResourceQuantity = "",
+        limit_ephemeral_storage: ResourceQuantity = "",
+        extension_capabilities: dict[str, str] | None = None,
+        labels: dict[str, str] | None = None,
+        timeout: float | None = 120.0,
+    ) -> run_pb2.Run:
+        response = await self.runs.CreateRun(
+            run_pb2.CreateRunRequest(
+                namespace=namespace,
+                environment_id=environment_id,
+                config=common_pb2.ExecutionConfig(
+                    argv=list(argv or []),
+                    env=dict(env or {}),
+                    cwd=cwd,
+                    runtime_class=runtime_class,
+                    network=(
+                        common_pb2.NetworkSpec(egress_policy=network_policy._to_proto())
+                        if network_policy is not None
+                        else None
+                    ),
+                    resources=_resource_spec(
+                        request_cpu=request_cpu,
+                        request_memory=request_memory,
+                        request_ephemeral_storage=request_ephemeral_storage,
+                        limit_cpu=limit_cpu,
+                        limit_memory=limit_memory,
+                        limit_ephemeral_storage=limit_ephemeral_storage,
+                    ),
+                    extension_capability_requirements=_extension_capability_requirements(extension_capabilities),
+                ),
+                labels=dict(labels or {}),
+            ),
+            timeout=timeout,
+        )
+        return response.run
+
+    async def cancel_run(self, run_id: str, *, timeout: float | None = 30.0) -> run_pb2.Run:
+        """Cancel a run and release its allocation."""
+
+        if not run_id.strip():
+            raise ValueError("run_id is required")
+        response = await self.runs.CancelRun(run_pb2.CancelRunRequest(run_id=run_id), timeout=timeout)
+        return response.run
+
     async def read_run_output(
         self,
         run_id: str,

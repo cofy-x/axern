@@ -55,6 +55,8 @@ export interface CreateServiceOptions {
   labels?: Record<string, string>;
 }
 
+export type CreateRunOptions = CreateServiceOptions;
+
 export interface ExtensionCapability {
   name: string;
   value?: string;
@@ -178,6 +180,45 @@ export class AxernClient {
       await unary(this.environmentControl, "DeleteEnvironment", { environment_id: required("environmentId", environmentId) });
     } catch (error) {
       throw mapRpcError(error, "delete environment");
+    }
+  }
+
+  async createRun(options: CreateRunOptions): Promise<Record<string, unknown>> {
+    const resources = buildResourceSpec(options);
+    try {
+      const response = await unary<Record<string, unknown>, { run: Record<string, unknown> }>(
+        this.runControl,
+        "CreateRun",
+        {
+          namespace: options.namespace ?? "default",
+          environment_id: required("environmentId", options.environmentId),
+          config: {
+            argv: options.argv ?? [],
+            env: options.env ?? {},
+            cwd: options.cwd ?? "",
+            runtime_class: options.runtimeClass ?? "",
+            ...(options.networkPolicy === undefined
+              ? {}
+              : { network: { egress_policy: options.networkPolicy.toWire() } }),
+            extension_capability_requirements: (options.extensionCapabilities ?? []).map((capability) => ({
+              capability: { name: capability.name, value: capability.value ?? "" },
+            })),
+            resources,
+          },
+          labels: options.labels ?? {},
+        },
+      );
+      return response.run;
+    } catch (error) {
+      throw mapRpcError(error, "create run");
+    }
+  }
+
+  async cancelRun(runId: string): Promise<void> {
+    try {
+      await unary(this.runControl, "CancelRun", { run_id: required("runId", runId) });
+    } catch (error) {
+      throw mapRpcError(error, "cancel run");
     }
   }
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2
+from axern.control.run.v1 import run_pb2
 from axern.control.service.v1 import service_replica_pb2, service_types_pb2
 from axern.control.tunnel.v1 import tunnel_pb2
 from axern_sdk.tunnel.config import _GatewayTransport
@@ -27,12 +28,14 @@ class _FakeClient:
     def __init__(self) -> None:
         self.created_environment = None
         self.created_service = None
+        self.created_run = None
         self.created_tunnel = None
         self.revoked = []
         self.deleted = []
         self.purged = []
         self.deleted_environments = []
         self.renewed = []
+        self.cancelled = []
 
     def create_environment(self, **kwargs):
         self.created_environment = kwargs
@@ -44,6 +47,25 @@ class _FakeClient:
     def create_service(self, **kwargs):
         self.created_service = kwargs
         return service_types_pb2.Service(id="svc-1")
+
+    def create_run(self, **kwargs):
+        self.created_run = kwargs
+        return run_pb2.Run(id="run-1", allocation_id="alloc-1", node_id="node-1", attempt=7)
+
+    def watch_run(self, run_id: str, **kwargs):
+        del kwargs
+        yield run_pb2.Run(
+            id=run_id,
+            allocation_id="alloc-1",
+            node_id="node-1",
+            attempt=7,
+            version=1,
+            status=run_pb2.RUN_STATUS_RUNNING,
+        )
+
+    def cancel_run(self, run_id: str, **kwargs):
+        self.cancelled.append((run_id, kwargs))
+        return run_pb2.Run(id=run_id, status=run_pb2.RUN_STATUS_CANCELLED)
 
     def list_service_replicas(self, service_id: str, **kwargs):
         del kwargs
@@ -117,6 +139,23 @@ class _AsyncFakeClient(_FakeClient):
 
     async def create_service(self, **kwargs):
         return super().create_service(**kwargs)
+
+    async def create_run(self, **kwargs):
+        return super().create_run(**kwargs)
+
+    async def watch_run(self, run_id: str, **kwargs):
+        del kwargs
+        yield run_pb2.Run(
+            id=run_id,
+            allocation_id="alloc-1",
+            node_id="node-1",
+            attempt=7,
+            version=1,
+            status=run_pb2.RUN_STATUS_RUNNING,
+        )
+
+    async def cancel_run(self, run_id: str, **kwargs):
+        return super().cancel_run(run_id, **kwargs)
 
     async def list_service_replicas(self, service_id: str, **kwargs):
         return super().list_service_replicas(service_id, **kwargs)

@@ -42,7 +42,7 @@ import type {
   WriteFileOptions,
 } from "../types.js";
 import { directoryArchiveChunks, extractDirectoryArchive } from "./archive.js";
-import { defaultSandboxArgv, sandboxLabels, sandboxMetadata, validateSandboxOptions, waitReadyReplica } from "./lifecycle.js";
+import { defaultSandboxArgv, sandboxLabels, sandboxMetadata, validateSandboxOptions, waitRunningRun } from "./lifecycle.js";
 
 export interface SandboxOptions {
   client: AxernClient;
@@ -71,7 +71,7 @@ export interface SandboxOptions {
 
 export interface SandboxState {
   environmentId: string;
-  serviceId: string;
+  runId: string;
   allocationId: string;
   nodeId: string;
   attempt: number;
@@ -91,7 +91,7 @@ export class Sandbox {
   private readonly options: SandboxOptions;
   private createdEnvironment = false;
   private environmentId = "";
-  private serviceId = "";
+  private runId = "";
   private currentState?: SandboxState;
   private currentMetadata?: SandboxMetadata;
   private tunnelRuntime?: TunnelRuntime;
@@ -135,7 +135,7 @@ export class Sandbox {
         this.environmentId = environmentId;
         this.createdEnvironment = true;
       }
-      const service = await this.client.createService({
+      const run = await this.client.createRun({
         namespace: this.options.namespace,
         environmentId,
         argv: this.options.argv ?? defaultSandboxArgv,
@@ -152,18 +152,18 @@ export class Sandbox {
         limitEphemeralStorage: this.options.limitEphemeralStorage,
         labels: sandboxLabels(this.options.labels),
       });
-      this.serviceId = String(service.id ?? "");
-      const replica = await waitReadyReplica(
-        this.serviceId,
+      this.runId = String(run.id ?? "");
+      const runningRun = await waitRunningRun(
+        this.runId,
         this.options.readyTimeoutMs ?? 180_000,
-        (serviceId) => this.client.listServiceReplicas(serviceId),
+        (runId) => this.client.watchRun(runId),
       );
       this.currentState = {
         environmentId,
-        serviceId: this.serviceId,
-        allocationId: String(replica.id ?? ""),
-        nodeId: String(replica.node_id ?? ""),
-        attempt: Number(replica.attempt ?? 0),
+        runId: this.runId,
+        allocationId: String(runningRun.allocation_id ?? ""),
+        nodeId: String(runningRun.node_id ?? ""),
+        attempt: Number(runningRun.attempt ?? 0),
         startedAt: new Date(),
       };
       this.currentMetadata = sandboxMetadata(this.options, this.currentState);
@@ -187,17 +187,17 @@ export class Sandbox {
   }
 
   async close(): Promise<void> {
-    const serviceId = this.serviceId;
+    const runId = this.runId;
     const tunnelRuntime = this.tunnelRuntime;
-    this.serviceId = "";
+    this.runId = "";
     this.tunnelRuntime = undefined;
     this.currentState = undefined;
     this.currentMetadata = undefined;
     if (tunnelRuntime !== undefined) {
       await tunnelRuntime.stop().catch(() => undefined);
     }
-    if (serviceId !== "") {
-      await this.client.deleteService(serviceId).catch(() => undefined);
+    if (runId !== "") {
+      await this.client.cancelRun(runId).catch(() => undefined);
     }
     if (this.createdEnvironment && this.environmentId !== "") {
       const environmentId = this.environmentId;

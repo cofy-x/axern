@@ -15,7 +15,7 @@ class SandboxState:
     """Stable identifiers for an active SDK sandbox."""
 
     environment_id: str
-    service_id: str
+    run_id: str
     allocation_id: str
     attempt: int
     node_id: str
@@ -28,7 +28,7 @@ class SandboxMetadata:
     """Diagnostic metadata for an active SDK sandbox."""
 
     environment_id: str
-    service_id: str
+    run_id: str
     allocation_id: str
     attempt: int
     node_id: str

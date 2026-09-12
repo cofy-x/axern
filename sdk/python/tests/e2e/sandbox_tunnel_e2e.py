@@ -141,7 +141,7 @@ with urllib.request.urlopen("http://{sandbox.bound_addr}/index.txt", timeout=5) 
                 require_event(events, tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_NODE_CONNECTED)
                 require_event(events, tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_PAIRED)
                 session_id = sandbox.tunnel_session_id
-                service_id = sandbox.service_id
+                service_id = sandbox.run_id
             phase = "sync-cleanup"
             session = client.get_tunnel_session(session_id)
             if session.status != tunnel_pb2.TUNNEL_SESSION_STATUS_REVOKED:
@@ -191,7 +191,7 @@ async def run_async_sandbox_check(args: argparse.Namespace) -> None:
                 argv=["python", "-c", "import time; time.sleep(600)"],
                 ready_timeout_seconds=180,
             ) as sandbox:
-                service_id = sandbox.service_id
+                service_id = sandbox.run_id
                 phase = "async-exec"
                 result = await sandbox.exec(["python", "-c", "print('async-ok')"], timeout_seconds=15, check=True)
                 if result.stdout_text().strip() != "async-ok":

@@ -29,7 +29,7 @@ from fakes import _AsyncFakeClient, _FakeClient, _FakeConnector
 
 class SandboxTest(unittest.TestCase):
 
-    def test_service_backed_sandbox_opens_tunnel_and_cleans_up(self) -> None:
+    def test_run_backed_sandbox_opens_tunnel_and_cleans_up(self) -> None:
         client = _FakeClient()
         connectors: list[_FakeConnector] = []
 
@@ -54,18 +54,18 @@ class SandboxTest(unittest.TestCase):
             _renew_interval_seconds=0.01,
         ) as sandbox:
             self.assertEqual(sandbox.environment_id, "env-1")
-            self.assertEqual(sandbox.service_id, "svc-1")
+            self.assertEqual(sandbox.run_id, "run-1")
             self.assertEqual(sandbox.allocation_id, "alloc-1")
             self.assertEqual(sandbox.attempt, 7)
             self.assertEqual(sandbox.bound_addr, "127.0.0.1:8786")
             self.assertEqual(client.created_environment["image_ref"], "docker.io/library/python:3.12-slim")
             self.assertEqual(client.created_environment["registry_credential_id"], "sec-regcred")
-            self.assertEqual(client.created_service["request_cpu"], "2")
-            self.assertEqual(client.created_service["request_memory"], "4GiB")
-            self.assertEqual(client.created_service["request_ephemeral_storage"], "6GiB")
-            self.assertEqual(client.created_service["limit_cpu"], "4")
-            self.assertEqual(client.created_service["limit_memory"], "8GiB")
-            self.assertEqual(client.created_service["limit_ephemeral_storage"], "10GiB")
+            self.assertEqual(client.created_run["request_cpu"], "2")
+            self.assertEqual(client.created_run["request_memory"], "4GiB")
+            self.assertEqual(client.created_run["request_ephemeral_storage"], "6GiB")
+            self.assertEqual(client.created_run["limit_cpu"], "4")
+            self.assertEqual(client.created_run["limit_memory"], "8GiB")
+            self.assertEqual(client.created_run["limit_ephemeral_storage"], "10GiB")
             self.assertEqual(client.created_tunnel["allocation_id"], "alloc-1")
             self.assertEqual(client.created_tunnel["local_target"], "127.0.0.1:8080")
             self.assertEqual(client.created_tunnel["remote_port"], 8786)
@@ -78,7 +78,7 @@ class SandboxTest(unittest.TestCase):
 
         self.assertTrue(connectors[0].stopped)
         self.assertEqual(client.revoked[0][0], "tun-1")
-        self.assertEqual(client.deleted[0][0], "svc-1")
+        self.assertEqual(client.cancelled[0][0], "run-1")
         self.assertEqual(client.purged, [])
         self.assertEqual(client.deleted_environments[0][0], "env-1")
         self.assertNotIn("template_id", client.created_environment)
@@ -247,16 +247,16 @@ class SandboxTest(unittest.TestCase):
         self.assertEqual(resources.limits.memory_bytes, 1024 * 1024 * 1024)
         self.assertEqual(resources.limits.ephemeral_storage_bytes, 2 * 1024 * 1024 * 1024)
 
-    def test_close_skips_purge_when_delete_service_fails(self) -> None:
+    def test_close_still_deletes_environment_when_cancel_run_fails(self) -> None:
         client = _FakeClient()
 
-        def fail_delete_service(service_id: str, **kwargs):
-            del service_id, kwargs
+        def fail_cancel_run(run_id: str, **kwargs):
+            del run_id, kwargs
             raise RuntimeError("control plane unavailable")
 
         sandbox = Sandbox(client=client, image="docker.io/library/python:3.12-slim")
         sandbox.start()
-        client.delete_service = fail_delete_service
+        client.cancel_run = fail_cancel_run
         sandbox.close()
 
         self.assertEqual(client.purged, [])
@@ -328,7 +328,7 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.created_environment["registry_credential_id"], "sec-regcred")
         self.assertEqual(calls[0]["allocation_id"], "alloc-1")
         self.assertEqual(calls[1]["argv"], ["python", "-V"])
-        self.assertEqual(client.deleted[0][0], "svc-1")
+        self.assertEqual(client.cancelled[0][0], "run-1")
         self.assertEqual(client.deleted_environments[0][0], "env-1")
 
     async def test_async_capability_status_uses_node_client(self) -> None:
@@ -359,24 +359,25 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
         class SlowReplicaClient(_AsyncFakeClient):
             def __init__(self) -> None:
                 super().__init__()
-                self.replica_wait_started = asyncio.Event()
+                self.run_wait_started = asyncio.Event()
 
-            async def list_service_replicas(self, service_id: str, **kwargs):
-                del service_id, kwargs
-                self.replica_wait_started.set()
+            async def watch_run(self, run_id: str, **kwargs):
+                del run_id, kwargs
+                self.run_wait_started.set()
                 await asyncio.sleep(3600)
-                return []
+                if False:
+                    yield None
 
         client = SlowReplicaClient()
         sandbox = AsyncSandbox(client=client, image="docker.io/library/python:3.12-slim")
         task = asyncio.create_task(sandbox.start())
-        await asyncio.wait_for(client.replica_wait_started.wait(), timeout=1.0)
+        await asyncio.wait_for(client.run_wait_started.wait(), timeout=1.0)
 
         task.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await task
 
-        self.assertEqual(client.deleted[0][0], "svc-1")
+        self.assertEqual(client.cancelled[0][0], "run-1")
         self.assertEqual(client.deleted_environments[0][0], "env-1")
         with self.assertRaises(SandboxNotStartedError):
             _ = sandbox.state

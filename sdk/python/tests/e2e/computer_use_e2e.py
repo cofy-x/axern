@@ -62,7 +62,7 @@ def main() -> int:
             argv=SUPERVISORD_ARGV,
             ready_timeout_seconds=180,
         ) as sandbox:
-            desktop_service_id = sandbox.service_id
+            desktop_service_id = sandbox.run_id
             phase = "desktop-status"
             status = wait_for_computer_use_ready(sandbox)
             if not status.available:
@@ -229,7 +229,7 @@ def main() -> int:
             argv=SUPERVISORD_ARGV,
             ready_timeout_seconds=180,
         ) as sandbox:
-            headless_service_id = sandbox.service_id
+            headless_service_id = sandbox.run_id
             diagnostics = sandboxd_diagnostics(sandbox)
             phase = "headless-precondition"
             try:

@@ -21,7 +21,7 @@ from axern_sdk.sandbox.browser import SandboxBrowserMixin
 from axern_sdk.sandbox.capabilities import SandboxCapabilityMixin
 from axern_sdk.sandbox.computer_use import SandboxComputerUseMixin
 from axern_sdk.sandbox.files import SandboxFileMixin
-from axern_sdk.sandbox.lifecycle import wait_ready_replica, wait_service_deleted
+from axern_sdk.sandbox.lifecycle import wait_running_run
 from axern_sdk.network_policy import NetworkPolicy
 from axern_sdk.sandbox.renewal import TunnelRenewal
 from axern_sdk.sandbox.types import DEFAULT_SANDBOX_ARGV, SandboxMetadata, SandboxState, _validate_source
@@ -29,7 +29,7 @@ from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
 
 
 class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMixin, SandboxFileMixin):
-    """Service-backed Axern sandbox with optional reverse TCP tunnel."""
+    """Run allocation-backed Axern sandbox with optional reverse TCP tunnel."""
 
     def __init__(
         self,
@@ -96,7 +96,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
 
         self._created_environment = False
         self._created_environment_id = ""
-        self._created_service_id = ""
+        self._created_run_id = ""
         self._created_tunnel_session_id = ""
         self._tunnel_client_token = ""
         self._state: SandboxState | None = None
@@ -115,8 +115,8 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         return self.state.environment_id
 
     @property
-    def service_id(self) -> str:
-        return self.state.service_id
+    def run_id(self) -> str:
+        return self.state.run_id
 
     @property
     def allocation_id(self) -> str:
@@ -143,7 +143,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         state = self.state
         return SandboxMetadata(
             environment_id=state.environment_id,
-            service_id=state.service_id,
+            run_id=state.run_id,
             allocation_id=state.allocation_id,
             attempt=state.attempt,
             node_id=state.node_id,
@@ -166,9 +166,8 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
             return self
         try:
             environment_id = self._resolve_environment()
-            service = self._client.create_service(
+            run = self._client.create_run(
                 environment_id=environment_id,
-                replicas=1,
                 argv=self._argv,
                 env=self._env,
                 cwd=self._cwd,
@@ -184,16 +183,16 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
                 namespace=self._namespace,
                 labels=self._labels,
             )
-            self._created_service_id = service.id
-            replica = wait_ready_replica(
+            self._created_run_id = run.id
+            run = wait_running_run(
                 self._client,
-                service_id=service.id,
+                run_id=run.id,
                 timeout_seconds=self._ready_timeout_seconds,
             )
 
             if self._upstream:
                 tunnel = self._client.create_tunnel_session(
-                    allocation_id=replica.id,
+                    allocation_id=run.allocation_id,
                     local_target=self._upstream,
                     remote_port=self._remote_port,
                     ttl_seconds=self._tunnel_ttl_seconds,
@@ -228,10 +227,10 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
 
             self._state = SandboxState(
                 environment_id=environment_id,
-                service_id=service.id,
-                allocation_id=replica.id,
-                attempt=replica.attempt,
-                node_id=replica.node_id,
+                run_id=run.id,
+                allocation_id=run.allocation_id,
+                attempt=run.attempt,
+                node_id=run.node_id,
                 tunnel_session_id=tunnel_session_id,
                 bound_addr=bound_addr,
             )
@@ -257,23 +256,12 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
             except Exception:
                 pass
             self._created_tunnel_session_id = ""
-        if self._created_service_id:
-            service_deleted = False
+        if self._created_run_id:
             try:
-                self._client.delete_service(self._created_service_id, timeout=30.0)
-                service_deleted = True
+                self._client.cancel_run(self._created_run_id, timeout=30.0)
             except Exception:
                 pass
-            if service_deleted:
-                try:
-                    wait_service_deleted(
-                        self._client,
-                        service_id=self._created_service_id,
-                        timeout_seconds=self._ready_timeout_seconds,
-                    )
-                except Exception:
-                    pass
-            self._created_service_id = ""
+            self._created_run_id = ""
         if self._created_environment and self._created_environment_id:
             try:
                 self._client.delete_environment(self._created_environment_id, timeout=30.0)
