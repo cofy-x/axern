@@ -1,8 +1,8 @@
 # Service Lifecycle
 
 Services are the long-running, replica-oriented workload model in `controld`.
-They can be gateway-routed, health checked, rolled forward, and autoscaled.
-`Run` does not consume service rollout or autoscaling policy.
+They can be gateway-routed, health checked, and rolled forward. `Run` does not
+consume service rollout policy.
 
 ## Probes
 
@@ -74,16 +74,6 @@ Run and service both use the same durable queue, but service retry feeds back
 into rollout state. A failed service create retry becomes an ended replica and
 opens capacity for a replacement; a successful delete retry is a purge
 precondition.
-
-## Autoscaling
-
-Service autoscaling is deliberately lightweight in V1. A policy can define
-`min_replicas`, `max_replicas`, and UTC cron schedules. Matching schedules set
-the effective desired replica count. When no schedule is active, the service's
-manual `replicas` value remains the desired count.
-
-V1 does not implement CPU, QPS, custom metric autoscaling, cooldown windows, or
-metrics ingestion.
 
 ## Filesystem Lifetime
 

@@ -77,8 +77,6 @@ func (a *App) startPeriodicServiceReconciler() {
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		autoscalingTicker := time.NewTicker(a.reconcileInterval)
-		defer autoscalingTicker.Stop()
 		recoveryInterval := a.serviceRecoveryInterval
 		if recoveryInterval <= 0 {
 			recoveryInterval = defaultServiceRecoveryInterval
@@ -94,8 +92,6 @@ func (a *App) startPeriodicServiceReconciler() {
 		a.reconcileServiceSweep(a.now())
 		for {
 			select {
-			case <-autoscalingTicker.C:
-				a.reconcileAutoscaledServices(a.now())
 			case <-recoveryTicker.C:
 				a.reconcileServiceSweep(a.now())
 			case <-lifecycleDone:
@@ -204,8 +200,6 @@ func (a *App) reconcileComponents(serviceRecovery bool) {
 	}
 	if serviceRecovery {
 		a.reconcileServiceSweep(a.now())
-	} else {
-		a.reconcileAutoscaledServices(a.now())
 	}
 	if a.allocationReconciler != nil {
 		a.reconcileAllocationBatches(a.now())
@@ -235,15 +229,6 @@ func (a *App) reconcileRolloutMaintenance(ctx context.Context, now time.Time) er
 		result = errors.Join(result, fmt.Errorf("reconcile deletes: %w", err))
 	}
 	return result
-}
-
-func (a *App) reconcileAutoscaledServices(now time.Time) {
-	if a.serviceReconciler == nil {
-		return
-	}
-	a.reconcileComponent(reconcilekernel.ComponentService, now, func(ctx context.Context, now time.Time) error {
-		return a.serviceReconciler.ReconcileAutoscaled(ctx, now)
-	})
 }
 
 func (a *App) reconcileServiceSweep(now time.Time) {

@@ -81,9 +81,9 @@ background, API inventory, and the full code-layout map, read
   reservation admission; retirement must not become a transient retryable
   placement condition.
 - Service reconciliation uses a bounded, service-ID-keyed event queue for
-  latency. Autoscaling uses the fast periodic path; pending/retry recovery runs
-  at startup and on the separate low-frequency safety sweep. Do not turn status
-  events or the fast ticker back into full pending-service scans, or enqueue
+  latency. Pending/retry recovery runs at startup and on the separate
+  low-frequency safety sweep. Do not turn status events into full
+  pending-service scans, or enqueue
   no-op syncs for state transitions already completed by durable projection.
   Reconcile independent services through the bounded worker pool. Dispatch node
   allocation creation with both global and per-node concurrency budgets, and
@@ -106,13 +106,13 @@ background, API inventory, and the full code-layout map, read
 - Avoid catch-all files such as `helpers.go`, `utils.go`, or `interfaces.go`
   once a package grows. Prefer names that state the durable responsibility:
   `store.go`, `scan.go`, `tx.go`, `validation.go`, `rollout.go`,
-  `autoscaling.go`, `allocation_contracts.go`, or `reconcile_contracts.go`.
+  `allocation_contracts.go`, or `reconcile_contracts.go`.
 - If behavior seems to belong partly in `internal/app`, put the behavior in the
   non-`app` package and let `app` assemble it.
 
 ## Feature Placement
 
-- Service rollout, replacement, replica convergence, autoscaling, and service
+- Service rollout, replacement, replica convergence, and service
   status: `application/service`, `kernel/service`, `postgres/service`.
 - Run admission, cancellation, allocation cleanup, and internal execution lease issuance:
   `application/run`, `kernel/run`, `postgres/run`.

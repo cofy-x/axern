@@ -130,35 +130,9 @@ func (s *PGStore) SyncObservedStatus(ctx context.Context, serviceID string, now 
 		}
 		applyObservedHealth(next, deriveObservedHealth(next, allocationStatusesFromRecords(allocations)))
 		applyRolloutReconciliation(next, servicekernel.BuildRolloutStatus(next, allocations))
-		next.AutoscalingPolicy = servicekernel.CloneAutoscalingPolicy(current.GetAutoscalingPolicy())
-		next.AutoscalingStatus = servicekernel.CloneAutoscalingStatus(current.GetAutoscalingStatus())
 		if next.GetStatus() == servicev1.ServiceStatus_SERVICE_STATUS_READY {
 			next.Message = ""
 		}
-		next.Version++
-		next.UpdatedAt = timestamppb.New(now)
-		if err := s.persistService(ctx, tx, next, now); err != nil {
-			return err
-		}
-		applyServiceDiagnostics(next)
-		service = next
-		return nil
-	})
-	return service, err
-}
-
-func (s *PGStore) UpdateAutoscalingStatus(ctx context.Context, serviceID string, autoscaling *servicev1.ServiceAutoscalingStatus, now time.Time) (*servicev1.Service, error) {
-	var service *servicev1.Service
-	err := s.withTx(ctx, func(tx pgx.Tx) error {
-		current, err := scanService(tx.QueryRow(ctx, serviceSelectSQL()+` WHERE service_id = $1 FOR UPDATE`, strings.TrimSpace(serviceID)))
-		if err == pgx.ErrNoRows {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		next := servicekernel.CloneService(current)
-		next.AutoscalingStatus = servicekernel.NormalizeAutoscalingStatus(autoscaling)
 		next.Version++
 		next.UpdatedAt = timestamppb.New(now)
 		if err := s.persistService(ctx, tx, next, now); err != nil {

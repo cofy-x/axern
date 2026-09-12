@@ -29,10 +29,6 @@ type WatchStream interface {
 	Close()
 }
 
-type AutoscalingSweepReader interface {
-	ListAutoscaled(ctx context.Context) ([]*servicev1.Service, error)
-}
-
 type Mutator interface {
 	Create(ctx context.Context, params CreateParams, now time.Time) (*servicev1.Service, error)
 	Update(ctx context.Context, req *servicev1.UpdateServiceRequest, now time.Time) (*servicev1.Service, error)
@@ -55,14 +51,12 @@ type EventWriter interface {
 
 type StatusStore interface {
 	UpdateStatus(ctx context.Context, serviceID string, status servicev1.ServiceStatus, message string, now time.Time) (*servicev1.Service, error)
-	UpdateAutoscalingStatus(ctx context.Context, serviceID string, autoscaling *servicev1.ServiceAutoscalingStatus, now time.Time) (*servicev1.Service, error)
 	SyncObservedStatus(ctx context.Context, serviceID string, now time.Time) (*servicev1.Service, error)
 	UpdateDeletionStatus(ctx context.Context, serviceID string, deletion *servicev1.ServiceDeletionStatus, now time.Time) (*servicev1.Service, error)
 }
 
 type Reconciler interface {
 	ReconcilePending(ctx context.Context, now time.Time) error
-	ReconcileAutoscaled(ctx context.Context, now time.Time) error
 	ReconcileServices(ctx context.Context, serviceIDs []string, now time.Time) error
 }
 
@@ -85,7 +79,6 @@ type CreateParams struct {
 	RolloutPolicy  *servicev1.ServiceRolloutPolicy
 	ReadinessProbe *servicev1.ServiceProbe
 	LivenessProbe  *servicev1.ServiceProbe
-	Autoscaling    *servicev1.ServiceAutoscalingPolicy
 }
 
 type DeleteParams struct {

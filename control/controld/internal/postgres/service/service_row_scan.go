@@ -13,7 +13,7 @@ import (
 )
 
 func serviceSelectSQL() string {
-	return `SELECT service_id, namespace, environment_id, replicas, ready_replicas, unhealthy_replicas, rollout_policy, readiness_probe, liveness_probe, autoscaling_policy, autoscaling_status, status, config,
+	return `SELECT service_id, namespace, environment_id, replicas, ready_replicas, unhealthy_replicas, rollout_policy, readiness_probe, liveness_probe, status, config,
 		allocation_ids, labels, version, created_at, updated_at, message, diagnostic_code, deletion_status FROM services`
 }
 
@@ -28,11 +28,10 @@ func scanService(row serviceScanner) (*servicev1.Service, error) {
 		diagnosticCodeText                                       string
 		configJSON, allocationIDsJSON, labelsJSON                []byte
 		rolloutPolicyJSON, readinessProbeJSON, livenessProbeJSON []byte
-		autoscalingPolicyJSON, autoscalingStatusJSON             []byte
 		deletionStatusJSON                                       []byte
 		createdAt, updatedAt                                     time.Time
 	)
-	if err := row.Scan(&service.ID, &service.Namespace, &service.EnvironmentID, &service.Replicas, &service.ReadyReplicas, &service.UnhealthyReplicas, &rolloutPolicyJSON, &readinessProbeJSON, &livenessProbeJSON, &autoscalingPolicyJSON, &autoscalingStatusJSON, &statusText, &configJSON, &allocationIDsJSON, &labelsJSON, &service.Version, &createdAt, &updatedAt, &service.Message, &diagnosticCodeText, &deletionStatusJSON); err != nil {
+	if err := row.Scan(&service.ID, &service.Namespace, &service.EnvironmentID, &service.Replicas, &service.ReadyReplicas, &service.UnhealthyReplicas, &rolloutPolicyJSON, &readinessProbeJSON, &livenessProbeJSON, &statusText, &configJSON, &allocationIDsJSON, &labelsJSON, &service.Version, &createdAt, &updatedAt, &service.Message, &diagnosticCodeText, &deletionStatusJSON); err != nil {
 		return nil, err
 	}
 	service.Status = parseServiceStatus(statusText)
@@ -62,20 +61,6 @@ func scanService(row serviceScanner) (*servicev1.Service, error) {
 			return nil, fmt.Errorf("unmarshal service liveness probe: %w", err)
 		}
 		service.LivenessProbe = servicekernel.NormalizeLivenessProbe(service.LivenessProbe)
-	}
-	if len(autoscalingPolicyJSON) > 0 && string(autoscalingPolicyJSON) != "null" {
-		service.AutoscalingPolicy = &servicev1.ServiceAutoscalingPolicy{}
-		if err := protojson.Unmarshal(autoscalingPolicyJSON, service.AutoscalingPolicy); err != nil {
-			return nil, fmt.Errorf("unmarshal service autoscaling policy: %w", err)
-		}
-		service.AutoscalingPolicy = servicekernel.NormalizeAutoscalingPolicy(service.AutoscalingPolicy)
-	}
-	if len(autoscalingStatusJSON) > 0 && string(autoscalingStatusJSON) != "null" {
-		service.AutoscalingStatus = &servicev1.ServiceAutoscalingStatus{}
-		if err := protojson.Unmarshal(autoscalingStatusJSON, service.AutoscalingStatus); err != nil {
-			return nil, fmt.Errorf("unmarshal service autoscaling status: %w", err)
-		}
-		service.AutoscalingStatus = servicekernel.NormalizeAutoscalingStatus(service.AutoscalingStatus)
 	}
 	if len(deletionStatusJSON) > 0 && string(deletionStatusJSON) != "null" {
 		service.DeletionStatus = &servicev1.ServiceDeletionStatus{}

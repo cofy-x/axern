@@ -19,7 +19,6 @@ message CreateServiceRequest {
   ServiceRolloutPolicy rollout_policy = 6;
   ServiceProbe readiness_probe = 7;
   ServiceProbe liveness_probe = 8;
-  ServiceAutoscalingPolicy autoscaling_policy = 9;
 }
 
 message CreateServiceResponse {
@@ -64,7 +63,6 @@ message UpdateServiceRequest {
   optional string environment_id = 8;
   ServiceProbe readiness_probe = 9;
   ServiceProbe liveness_probe = 10;
-  ServiceAutoscalingPolicy autoscaling_policy = 11;
 }
 
 message UpdateServiceResponse {

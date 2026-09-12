@@ -27,7 +27,6 @@ func TestPrintServiceListJSONUsesStableProbeShape(t *testing.T) {
 				}},
 				Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT},
 			},
-			AutoscalingPolicy: &servicev1.ServiceAutoscalingPolicy{},
 			ReadinessProbe: &servicev1.ServiceProbe{
 				Action: &servicev1.ServiceProbe_Http{
 					Http: &servicev1.HttpProbe{
@@ -64,9 +63,8 @@ func TestPrintServiceListJSONUsesStableProbeShape(t *testing.T) {
 					Mode string `json:"mode"`
 				} `json:"network"`
 			} `json:"config"`
-			AutoscalingPolicy json.RawMessage `json:"autoscaling_policy"`
-			ReadinessProbe    json.RawMessage `json:"readiness_probe"`
-			LivenessProbe     json.RawMessage `json:"liveness_probe"`
+			ReadinessProbe json.RawMessage `json:"readiness_probe"`
+			LivenessProbe  json.RawMessage `json:"liveness_probe"`
 		} `json:"services"`
 	}
 	if err := json.Unmarshal([]byte(b.String()), &got); err != nil {
@@ -80,9 +78,6 @@ func TestPrintServiceListJSONUsesStableProbeShape(t *testing.T) {
 	}
 	if got.Services[0].Config.Ports[0].Protocol != "tcp" || got.Services[0].Config.Network.Mode != "default" {
 		t.Fatalf("config = %#v, want stable string enum labels", got.Services[0].Config)
-	}
-	if len(got.Services[0].AutoscalingPolicy) != 0 {
-		t.Fatalf("autoscaling_policy = %s, want omitted for empty policy", got.Services[0].AutoscalingPolicy)
 	}
 	var readiness map[string]any
 	if err := json.Unmarshal(got.Services[0].ReadinessProbe, &readiness); err != nil {

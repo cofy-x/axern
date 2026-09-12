@@ -64,13 +64,13 @@ Allocation status batches enqueue only services with follow-up controller work,
 such as replacing an ended allocation or advancing an actionable rollout;
 ordinary starting and readiness projection does not schedule a no-op sync. The
 bounded keyed queue coalesces duplicate events; overflow becomes a single full
-sweep. Autoscaling retains the fast periodic cadence, while pending/retry
-recovery runs once at process startup and then on a separate 30-second safety
+sweep. Pending/retry recovery runs once at process startup and then on a
+separate 30-second safety
 sweep. Recovery is not part of the normal startup latency path. Independent
 services run through a bounded worker pool; their allocation creates share a
 controller-wide concurrency budget with single-service replica scale. This
-preserves parallel fanout without turning status events or fast periodic ticks
-into repeated pending-service scans, or multiplying the per-service worker limit
+preserves parallel fanout without turning status events into repeated
+pending-service scans, or multiplying the per-service worker limit
 across every pending service.
 
 `CreateRun` creates a run, allocation, and node reservation in the

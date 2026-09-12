@@ -42,8 +42,8 @@ spec:
 `spec.source` selects exactly one of `image`, `template`, or `environment`.
 `readiness` and `liveness` accept an `http` probe (`port`, `path`, `scheme`)
 or a `tcp_port`, plus `initial_delay`, `period`, `timeout`,
-`success_threshold`, and `failure_threshold` durations. `autoscaling` sets
-`min_replicas` and `max_replicas`. Packaged nodes run services with `runsc`; see
+`success_threshold`, and `failure_threshold` durations. Packaged nodes run
+services with `runsc`; see
 [Runtime and Resources](/architecture/resources/).
 
 ## Reach the Service through the gateway

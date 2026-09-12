@@ -15,7 +15,7 @@ type cannedServiceRow struct {
 }
 
 func (r cannedServiceRow) Scan(dest ...any) error {
-	if len(dest) != 21 {
+	if len(dest) != 19 {
 		return fmt.Errorf("unexpected scan destination count: %d", len(dest))
 	}
 	now := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
@@ -25,7 +25,7 @@ func (r cannedServiceRow) Scan(dest ...any) error {
 	}
 	values := []any{
 		"svc-1", "default", "env-1", int32(0), int32(0), int32(0),
-		[]byte("{}"), []byte("null"), []byte("null"), []byte("null"), []byte("null"),
+		[]byte("{}"), []byte("null"), []byte("null"),
 		"SERVICE_STATUS_DELETING", config, []byte("[]"), []byte("{}"),
 		int64(3), now, now, "releasing", "WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED",
 		r.deletionStatus,

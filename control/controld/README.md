@@ -14,8 +14,7 @@ plane and node state.
 - authenticated allocation status batch ingest with owner routing and durable
   run/service projection
 - environment, run, and service lifecycle control
-- service rollout, readiness/liveness health handling, and lightweight
-  autoscaling
+- service rollout and readiness/liveness health handling
 - edge-triggered service convergence with a bounded cross-service worker pool,
   periodic recovery sweep, and global plus per-node allocation create budgets
 - allocation admission, node reservations, execution leases, and tunnel sessions
@@ -51,8 +50,8 @@ bounded, service-ID-keyed in-process queue coalesces create and actionable
 allocation status events, then reconciles only services that still require
 controller work. Ordinary starting/readiness transitions are completed by the
 durable status projection and do not schedule no-op syncs. Queue overflow
-degrades to one full sweep. Autoscaling keeps the normal fast periodic cadence;
-pending and retry recovery runs once at startup and then on a separate 30-second
+degrades to one full sweep. Pending and retry recovery runs once at startup and
+then on a separate 30-second
 safety sweep after process restarts or missed notifications. Independent
 services reconcile concurrently. Allocation creation is dispatched fairly
 across nodes, bounded by a process-wide ceiling and a per-node ceiling. This
@@ -72,9 +71,9 @@ and inherits the process lifecycle context. Short maintenance loops have a
 bounded component timeout. Run and Service allocation creation instead use a
 bounded timeout per lifecycle item so cold image materialization cannot consume
 the budget of later work or be canceled by a shorter maintenance deadline.
-Service autoscaling and the lower-frequency recovery sweep share one serialized
-Service maintenance loop, while service-ID event workers retain their bounded
-cross-service concurrency. On shutdown, active calls are canceled before the
+The lower-frequency recovery sweep runs in one serialized Service maintenance
+loop, while service-ID event workers retain their bounded cross-service
+concurrency. On shutdown, active calls are canceled before the
 application waits for background goroutines. Reconcile health tracks continuous
 running age correctly across concurrent event workers; timed-out calls and work
 that remains active beyond the timeout degrade `admin reliability check` and

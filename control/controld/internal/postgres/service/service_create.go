@@ -24,11 +24,7 @@ func (s *PGStore) Create(ctx context.Context, params servicekernel.CreateParams,
 	if err != nil {
 		return nil, err
 	}
-	autoscaling, err := servicekernel.ValidateAndNormalizeAutoscalingPolicy(params.Autoscaling)
-	if err != nil {
-		return nil, err
-	}
-	service := servicekernel.NewService(params.Namespace, params.EnvironmentID, params.Replicas, params.Config, params.Labels, policy, readiness, liveness, autoscaling, now)
+	service := servicekernel.NewService(params.Namespace, params.EnvironmentID, params.Replicas, params.Config, params.Labels, policy, readiness, liveness, now)
 	configJSON, err := marshalProtoJSON(service.GetConfig())
 	if err != nil {
 		return nil, err
@@ -42,14 +38,6 @@ func (s *PGStore) Create(ctx context.Context, params servicekernel.CreateParams,
 		return nil, err
 	}
 	livenessProbeJSON, err := marshalProtoJSON(service.GetLivenessProbe())
-	if err != nil {
-		return nil, err
-	}
-	autoscalingPolicyJSON, err := marshalProtoJSON(service.GetAutoscalingPolicy())
-	if err != nil {
-		return nil, err
-	}
-	autoscalingStatusJSON, err := marshalProtoJSON(service.GetAutoscalingStatus())
 	if err != nil {
 		return nil, err
 	}
@@ -67,10 +55,10 @@ func (s *PGStore) Create(ctx context.Context, params servicekernel.CreateParams,
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO services (
-				service_id, namespace, environment_id, replicas, ready_replicas, unhealthy_replicas, rollout_policy, readiness_probe, liveness_probe, autoscaling_policy, autoscaling_status, status, config,
+				service_id, namespace, environment_id, replicas, ready_replicas, unhealthy_replicas, rollout_policy, readiness_probe, liveness_probe, status, config,
 				allocation_ids, labels, version, created_at, updated_at, message, diagnostic_code
-			) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13::jsonb, $14::jsonb, $15::jsonb, $16, $17, $18, $19, $20)
-		`, service.GetID(), service.GetNamespace(), service.GetEnvironmentID(), service.GetReplicas(), service.GetReadyReplicas(), service.GetUnhealthyReplicas(), rolloutPolicyJSON, readinessProbeJSON, livenessProbeJSON, autoscalingPolicyJSON, autoscalingStatusJSON, service.GetStatus().String(), configJSON, allocationIDsJSON, labelsJSON, service.GetVersion(), now.UTC(), now.UTC(), service.GetMessage(), service.GetDiagnosticCode().String()); err != nil {
+			) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14, $15, $16, $17, $18)
+		`, service.GetID(), service.GetNamespace(), service.GetEnvironmentID(), service.GetReplicas(), service.GetReadyReplicas(), service.GetUnhealthyReplicas(), rolloutPolicyJSON, readinessProbeJSON, livenessProbeJSON, service.GetStatus().String(), configJSON, allocationIDsJSON, labelsJSON, service.GetVersion(), now.UTC(), now.UTC(), service.GetMessage(), service.GetDiagnosticCode().String()); err != nil {
 			return fmt.Errorf("insert service: %w", err)
 		}
 		return notifyServiceChanged(ctx, tx, service.GetID())

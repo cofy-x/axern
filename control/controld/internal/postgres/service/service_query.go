@@ -52,23 +52,3 @@ func (s *PGStore) List(ctx context.Context, filter *servicev1.ServiceListFilter)
 	})
 	return out, nil
 }
-
-func (s *PGStore) ListAutoscaled(ctx context.Context) ([]*servicev1.Service, error) {
-	rows, err := s.db.Pool().Query(ctx, serviceSelectSQL()+` WHERE autoscaling_policy <> 'null'::jsonb ORDER BY created_at DESC`)
-	if err != nil {
-		return nil, fmt.Errorf("query autoscaled services: %w", err)
-	}
-	defer rows.Close()
-	out := make([]*servicev1.Service, 0)
-	for rows.Next() {
-		service, err := scanService(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, service)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return out, nil
-}

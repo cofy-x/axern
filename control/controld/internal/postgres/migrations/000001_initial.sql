@@ -162,8 +162,6 @@ CREATE TABLE services (
 	rollout_policy JSONB NOT NULL DEFAULT '{}'::jsonb,
 	readiness_probe JSONB NOT NULL DEFAULT 'null'::jsonb,
 	liveness_probe JSONB NOT NULL DEFAULT 'null'::jsonb,
-	autoscaling_policy JSONB NOT NULL DEFAULT 'null'::jsonb,
-	autoscaling_status JSONB NOT NULL DEFAULT 'null'::jsonb,
 	status TEXT NOT NULL,
 	config JSONB NOT NULL,
 	allocation_ids JSONB NOT NULL,

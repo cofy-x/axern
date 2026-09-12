@@ -294,7 +294,3 @@ func (s *concurrentReconcileStatusStore) UpdateDeletionStatus(context.Context, s
 func (s *concurrentReconcileStatusStore) UpdateStatus(context.Context, string, servicev1.ServiceStatus, string, time.Time) (*servicev1.Service, error) {
 	panic("unexpected UpdateStatus call")
 }
-
-func (s *concurrentReconcileStatusStore) UpdateAutoscalingStatus(context.Context, string, *servicev1.ServiceAutoscalingStatus, time.Time) (*servicev1.Service, error) {
-	panic("unexpected UpdateAutoscalingStatus call")
-}

@@ -8,7 +8,7 @@ execution lease tokens.
 Public workload models have separate semantics:
 
 - `Run`: one-shot, single-allocation execution with terminal exit status.
-- `Service`: long-running replica convergence, rollout, probes, and autoscaling.
+- `Service`: long-running replica convergence, rollout, and probes.
 
 Both use `Environment` as the execution source. A resource spec selects
 exactly one existing environment, catalog template, or OCI image. Template and

@@ -7,8 +7,8 @@ import (
 )
 
 func TestMarshalProtoJSONPreservesAbsentValue(t *testing.T) {
-	var policy *servicev1.ServiceAutoscalingPolicy
-	payload, err := marshalProtoJSON(policy)
+	var probe *servicev1.ServiceProbe
+	payload, err := marshalProtoJSON(probe)
 	if err != nil {
 		t.Fatalf("marshalProtoJSON(nil) error = %v", err)
 	}

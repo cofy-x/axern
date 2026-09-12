@@ -36,13 +36,6 @@ class ServiceRolloutPhase(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     SERVICE_ROLLOUT_PHASE_DRAINING_OUTDATED: _ClassVar[ServiceRolloutPhase]
     SERVICE_ROLLOUT_PHASE_BLOCKED: _ClassVar[ServiceRolloutPhase]
 
-class ServiceAutoscalingAction(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    SERVICE_AUTOSCALING_ACTION_UNSPECIFIED: _ClassVar[ServiceAutoscalingAction]
-    SERVICE_AUTOSCALING_ACTION_SCALED_UP: _ClassVar[ServiceAutoscalingAction]
-    SERVICE_AUTOSCALING_ACTION_SCALED_DOWN: _ClassVar[ServiceAutoscalingAction]
-    SERVICE_AUTOSCALING_ACTION_NO_CHANGE: _ClassVar[ServiceAutoscalingAction]
-
 class HttpProbeScheme(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     HTTP_PROBE_SCHEME_UNSPECIFIED: _ClassVar[HttpProbeScheme]
@@ -63,10 +56,6 @@ SERVICE_ROLLOUT_PHASE_ADMITTING_REPLACEMENT: ServiceRolloutPhase
 SERVICE_ROLLOUT_PHASE_WAITING_FOR_UPDATED_READY: ServiceRolloutPhase
 SERVICE_ROLLOUT_PHASE_DRAINING_OUTDATED: ServiceRolloutPhase
 SERVICE_ROLLOUT_PHASE_BLOCKED: ServiceRolloutPhase
-SERVICE_AUTOSCALING_ACTION_UNSPECIFIED: ServiceAutoscalingAction
-SERVICE_AUTOSCALING_ACTION_SCALED_UP: ServiceAutoscalingAction
-SERVICE_AUTOSCALING_ACTION_SCALED_DOWN: ServiceAutoscalingAction
-SERVICE_AUTOSCALING_ACTION_NO_CHANGE: ServiceAutoscalingAction
 HTTP_PROBE_SCHEME_UNSPECIFIED: HttpProbeScheme
 HTTP_PROBE_SCHEME_HTTP: HttpProbeScheme
 HTTP_PROBE_SCHEME_HTTPS: HttpProbeScheme
@@ -115,48 +104,8 @@ class TcpProbe(_message.Message):
     port: int
     def __init__(self, port: _Optional[int] = ...) -> None: ...
 
-class ServiceAutoscalingSchedule(_message.Message):
-    __slots__ = ("name", "cron_utc", "replicas")
-    NAME_FIELD_NUMBER: _ClassVar[int]
-    CRON_UTC_FIELD_NUMBER: _ClassVar[int]
-    REPLICAS_FIELD_NUMBER: _ClassVar[int]
-    name: str
-    cron_utc: str
-    replicas: int
-    def __init__(self, name: _Optional[str] = ..., cron_utc: _Optional[str] = ..., replicas: _Optional[int] = ...) -> None: ...
-
-class ServiceAutoscalingPolicy(_message.Message):
-    __slots__ = ("min_replicas", "max_replicas", "schedules")
-    MIN_REPLICAS_FIELD_NUMBER: _ClassVar[int]
-    MAX_REPLICAS_FIELD_NUMBER: _ClassVar[int]
-    SCHEDULES_FIELD_NUMBER: _ClassVar[int]
-    min_replicas: int
-    max_replicas: int
-    schedules: _containers.RepeatedCompositeFieldContainer[ServiceAutoscalingSchedule]
-    def __init__(self, min_replicas: _Optional[int] = ..., max_replicas: _Optional[int] = ..., schedules: _Optional[_Iterable[_Union[ServiceAutoscalingSchedule, _Mapping]]] = ...) -> None: ...
-
-class ServiceAutoscalingStatus(_message.Message):
-    __slots__ = ("current_desired_replicas", "effective_min_replicas", "effective_max_replicas", "active_schedule_name", "active_schedule_replicas", "last_evaluated_at", "last_action", "message")
-    CURRENT_DESIRED_REPLICAS_FIELD_NUMBER: _ClassVar[int]
-    EFFECTIVE_MIN_REPLICAS_FIELD_NUMBER: _ClassVar[int]
-    EFFECTIVE_MAX_REPLICAS_FIELD_NUMBER: _ClassVar[int]
-    ACTIVE_SCHEDULE_NAME_FIELD_NUMBER: _ClassVar[int]
-    ACTIVE_SCHEDULE_REPLICAS_FIELD_NUMBER: _ClassVar[int]
-    LAST_EVALUATED_AT_FIELD_NUMBER: _ClassVar[int]
-    LAST_ACTION_FIELD_NUMBER: _ClassVar[int]
-    MESSAGE_FIELD_NUMBER: _ClassVar[int]
-    current_desired_replicas: int
-    effective_min_replicas: int
-    effective_max_replicas: int
-    active_schedule_name: str
-    active_schedule_replicas: int
-    last_evaluated_at: _timestamp_pb2.Timestamp
-    last_action: ServiceAutoscalingAction
-    message: str
-    def __init__(self, current_desired_replicas: _Optional[int] = ..., effective_min_replicas: _Optional[int] = ..., effective_max_replicas: _Optional[int] = ..., active_schedule_name: _Optional[str] = ..., active_schedule_replicas: _Optional[int] = ..., last_evaluated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., last_action: _Optional[_Union[ServiceAutoscalingAction, str]] = ..., message: _Optional[str] = ...) -> None: ...
-
 class Service(_message.Message):
-    __slots__ = ("id", "namespace", "environment_id", "replicas", "ready_replicas", "unhealthy_replicas", "rollout_policy", "rollout_status", "status", "config", "allocation_ids", "labels", "version", "created_at", "updated_at", "message", "readiness_probe", "liveness_probe", "autoscaling_policy", "autoscaling_status", "diagnostic_code", "deletion_status")
+    __slots__ = ("id", "namespace", "environment_id", "replicas", "ready_replicas", "unhealthy_replicas", "rollout_policy", "rollout_status", "status", "config", "allocation_ids", "labels", "version", "created_at", "updated_at", "message", "readiness_probe", "liveness_probe", "diagnostic_code", "deletion_status")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -182,8 +131,6 @@ class Service(_message.Message):
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     READINESS_PROBE_FIELD_NUMBER: _ClassVar[int]
     LIVENESS_PROBE_FIELD_NUMBER: _ClassVar[int]
-    AUTOSCALING_POLICY_FIELD_NUMBER: _ClassVar[int]
-    AUTOSCALING_STATUS_FIELD_NUMBER: _ClassVar[int]
     DIAGNOSTIC_CODE_FIELD_NUMBER: _ClassVar[int]
     DELETION_STATUS_FIELD_NUMBER: _ClassVar[int]
     id: str
@@ -204,11 +151,9 @@ class Service(_message.Message):
     message: str
     readiness_probe: ServiceProbe
     liveness_probe: ServiceProbe
-    autoscaling_policy: ServiceAutoscalingPolicy
-    autoscaling_status: ServiceAutoscalingStatus
     diagnostic_code: _common_pb2.WorkloadDiagnosticCode
     deletion_status: ServiceDeletionStatus
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., replicas: _Optional[int] = ..., ready_replicas: _Optional[int] = ..., unhealthy_replicas: _Optional[int] = ..., rollout_policy: _Optional[_Union[ServiceRolloutPolicy, _Mapping]] = ..., rollout_status: _Optional[_Union[ServiceRolloutStatus, _Mapping]] = ..., status: _Optional[_Union[ServiceStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., allocation_ids: _Optional[_Iterable[str]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[str] = ..., readiness_probe: _Optional[_Union[ServiceProbe, _Mapping]] = ..., liveness_probe: _Optional[_Union[ServiceProbe, _Mapping]] = ..., autoscaling_policy: _Optional[_Union[ServiceAutoscalingPolicy, _Mapping]] = ..., autoscaling_status: _Optional[_Union[ServiceAutoscalingStatus, _Mapping]] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., deletion_status: _Optional[_Union[ServiceDeletionStatus, _Mapping]] = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., replicas: _Optional[int] = ..., ready_replicas: _Optional[int] = ..., unhealthy_replicas: _Optional[int] = ..., rollout_policy: _Optional[_Union[ServiceRolloutPolicy, _Mapping]] = ..., rollout_status: _Optional[_Union[ServiceRolloutStatus, _Mapping]] = ..., status: _Optional[_Union[ServiceStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., allocation_ids: _Optional[_Iterable[str]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[str] = ..., readiness_probe: _Optional[_Union[ServiceProbe, _Mapping]] = ..., liveness_probe: _Optional[_Union[ServiceProbe, _Mapping]] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., deletion_status: _Optional[_Union[ServiceDeletionStatus, _Mapping]] = ...) -> None: ...
 
 class ServiceListFilter(_message.Message):
     __slots__ = ("namespace", "statuses", "labels", "cursor", "page_size")

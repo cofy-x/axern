@@ -12,7 +12,6 @@ const (
 
 type controller struct {
 	store                        servicekernel.Store
-	autoscaling                  servicekernel.AutoscalingSweepReader
 	allocations                  servicekernel.AllocationStore
 	reconcile                    servicekernel.AllocationReconcileStore
 	statuses                     servicekernel.StatusStore
@@ -29,7 +28,6 @@ type controller struct {
 
 type ControllerDeps struct {
 	Store                              servicekernel.Store
-	Autoscaling                        servicekernel.AutoscalingSweepReader
 	Allocations                        servicekernel.AllocationStore
 	Reconcile                          servicekernel.AllocationReconcileStore
 	Statuses                           servicekernel.StatusStore
@@ -58,7 +56,6 @@ func NewController(deps ControllerDeps) servicekernel.Controller {
 	}
 	return &controller{
 		store:                        deps.Store,
-		autoscaling:                  deps.Autoscaling,
 		allocations:                  deps.Allocations,
 		reconcile:                    deps.Reconcile,
 		statuses:                     deps.Statuses,

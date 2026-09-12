@@ -23,29 +23,27 @@ type ServiceDescribeJSON struct {
 }
 
 type ServiceJSON struct {
-	ID                string                        `json:"id"`
-	Namespace         string                        `json:"namespace"`
-	EnvironmentID     string                        `json:"environment_id"`
-	Replicas          int32                         `json:"replicas"`
-	ReadyReplicas     int32                         `json:"ready_replicas"`
-	UnhealthyReplicas int32                         `json:"unhealthy_replicas"`
-	RolloutPolicy     *ServiceRolloutPolicyJSON     `json:"rollout_policy,omitempty"`
-	RolloutStatus     *ServiceRolloutStatusJSON     `json:"rollout_status,omitempty"`
-	Status            string                        `json:"status"`
-	DeletionStatus    *ServiceDeletionStatusJSON    `json:"deletion_status,omitempty"`
-	Config            *ExecutionConfigJSON          `json:"config,omitempty"`
-	AllocationIDs     []string                      `json:"allocation_ids,omitempty"`
-	Labels            map[string]string             `json:"labels,omitempty"`
-	Version           int64                         `json:"version"`
-	CreatedAt         string                        `json:"created_at,omitempty"`
-	UpdatedAt         string                        `json:"updated_at,omitempty"`
-	DiagnosticCode    string                        `json:"diagnostic_code,omitempty"`
-	AdmissionSummary  string                        `json:"admission_summary,omitempty"`
-	Message           string                        `json:"message,omitempty"`
-	ReadinessProbe    *ServiceProbeJSON             `json:"readiness_probe"`
-	LivenessProbe     *ServiceProbeJSON             `json:"liveness_probe"`
-	AutoscalingPolicy *ServiceAutoscalingPolicyJSON `json:"autoscaling_policy,omitempty"`
-	AutoscalingStatus *ServiceAutoscalingStatusJSON `json:"autoscaling_status,omitempty"`
+	ID                string                     `json:"id"`
+	Namespace         string                     `json:"namespace"`
+	EnvironmentID     string                     `json:"environment_id"`
+	Replicas          int32                      `json:"replicas"`
+	ReadyReplicas     int32                      `json:"ready_replicas"`
+	UnhealthyReplicas int32                      `json:"unhealthy_replicas"`
+	RolloutPolicy     *ServiceRolloutPolicyJSON  `json:"rollout_policy,omitempty"`
+	RolloutStatus     *ServiceRolloutStatusJSON  `json:"rollout_status,omitempty"`
+	Status            string                     `json:"status"`
+	DeletionStatus    *ServiceDeletionStatusJSON `json:"deletion_status,omitempty"`
+	Config            *ExecutionConfigJSON       `json:"config,omitempty"`
+	AllocationIDs     []string                   `json:"allocation_ids,omitempty"`
+	Labels            map[string]string          `json:"labels,omitempty"`
+	Version           int64                      `json:"version"`
+	CreatedAt         string                     `json:"created_at,omitempty"`
+	UpdatedAt         string                     `json:"updated_at,omitempty"`
+	DiagnosticCode    string                     `json:"diagnostic_code,omitempty"`
+	AdmissionSummary  string                     `json:"admission_summary,omitempty"`
+	Message           string                     `json:"message,omitempty"`
+	ReadinessProbe    *ServiceProbeJSON          `json:"readiness_probe"`
+	LivenessProbe     *ServiceProbeJSON          `json:"liveness_probe"`
 }
 
 type ServiceDeletionStatusJSON struct {
@@ -79,29 +77,6 @@ type ServiceRolloutStatusJSON struct {
 	Phase                string `json:"phase"`
 	DiagnosticCode       string `json:"diagnostic_code"`
 	DiagnosticMessage    string `json:"diagnostic_message,omitempty"`
-}
-
-type ServiceAutoscalingStatusJSON struct {
-	CurrentDesiredReplicas int32  `json:"current_desired_replicas"`
-	EffectiveMinReplicas   int32  `json:"effective_min_replicas"`
-	EffectiveMaxReplicas   int32  `json:"effective_max_replicas"`
-	ActiveScheduleName     string `json:"active_schedule_name,omitempty"`
-	ActiveScheduleReplicas int32  `json:"active_schedule_replicas,omitempty"`
-	LastEvaluatedAt        string `json:"last_evaluated_at,omitempty"`
-	LastAction             string `json:"last_action"`
-	Message                string `json:"message,omitempty"`
-}
-
-type ServiceAutoscalingPolicyJSON struct {
-	MinReplicas int32                             `json:"min_replicas"`
-	MaxReplicas int32                             `json:"max_replicas"`
-	Schedules   []*ServiceAutoscalingScheduleJSON `json:"schedules,omitempty"`
-}
-
-type ServiceAutoscalingScheduleJSON struct {
-	Name     string `json:"name"`
-	CronUTC  string `json:"cron_utc"`
-	Replicas int32  `json:"replicas"`
 }
 
 func PrintServiceListJSON(w io.Writer, resp *servicev1.ListServicesResponse) error {
@@ -153,8 +128,6 @@ func NewServiceJSON(service *servicev1.Service) *ServiceJSON {
 		Message:           service.GetMessage(),
 		ReadinessProbe:    newServiceProbeJSON(service.GetReadinessProbe()),
 		LivenessProbe:     newServiceProbeJSON(service.GetLivenessProbe()),
-		AutoscalingPolicy: newServiceAutoscalingPolicyJSON(service.GetAutoscalingPolicy()),
-		AutoscalingStatus: newServiceAutoscalingStatusJSON(service.GetAutoscalingStatus()),
 	}
 }
 
@@ -236,50 +209,6 @@ func newServiceRolloutPolicyJSON(policy *servicev1.ServiceRolloutPolicy) *Servic
 	return &ServiceRolloutPolicyJSON{
 		MaxSurge:       policy.GetMaxSurge(),
 		MaxUnavailable: policy.GetMaxUnavailable(),
-	}
-}
-
-func newServiceAutoscalingPolicyJSON(policy *servicev1.ServiceAutoscalingPolicy) *ServiceAutoscalingPolicyJSON {
-	if policy == nil {
-		return nil
-	}
-	if policy.GetMinReplicas() == 0 && policy.GetMaxReplicas() == 0 && len(policy.GetSchedules()) == 0 {
-		return nil
-	}
-	out := &ServiceAutoscalingPolicyJSON{
-		MinReplicas: policy.GetMinReplicas(),
-		MaxReplicas: policy.GetMaxReplicas(),
-		Schedules:   make([]*ServiceAutoscalingScheduleJSON, 0, len(policy.GetSchedules())),
-	}
-	for _, schedule := range policy.GetSchedules() {
-		if schedule == nil {
-			continue
-		}
-		out.Schedules = append(out.Schedules, &ServiceAutoscalingScheduleJSON{
-			Name:     schedule.GetName(),
-			CronUTC:  schedule.GetCronUtc(),
-			Replicas: schedule.GetReplicas(),
-		})
-	}
-	if len(out.Schedules) == 0 {
-		out.Schedules = nil
-	}
-	return out
-}
-
-func newServiceAutoscalingStatusJSON(status *servicev1.ServiceAutoscalingStatus) *ServiceAutoscalingStatusJSON {
-	if status == nil {
-		return nil
-	}
-	return &ServiceAutoscalingStatusJSON{
-		CurrentDesiredReplicas: status.GetCurrentDesiredReplicas(),
-		EffectiveMinReplicas:   status.GetEffectiveMinReplicas(),
-		EffectiveMaxReplicas:   status.GetEffectiveMaxReplicas(),
-		ActiveScheduleName:     status.GetActiveScheduleName(),
-		ActiveScheduleReplicas: status.GetActiveScheduleReplicas(),
-		LastEvaluatedAt:        FormatProtoTimestamp(status.GetLastEvaluatedAt()),
-		LastAction:             ServiceAutoscalingActionLabel(status.GetLastAction()),
-		Message:                status.GetMessage(),
 	}
 }
 

@@ -29,7 +29,7 @@ from axern.control.service.v1 import service_types_pb2 as axern_dot_control_dot_
 from google.protobuf import field_mask_pb2 as google_dot_protobuf_dot_field__mask__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&axern/control/service/v1/service.proto\x12\x18\x61xern.control.service.v1\x1a$axern/control/common/v1/common.proto\x1a,axern/control/service/v1/service_event.proto\x1a.axern/control/service/v1/service_replica.proto\x1a,axern/control/service/v1/service_types.proto\x1a google/protobuf/field_mask.proto\"\xa1\x04\n\x14\x43reateServiceRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x16\n\x0e\x65nvironment_id\x18\x02 \x01(\t\x12\x10\n\x08replicas\x18\x03 \x01(\x05\x12\x38\n\x06\x63onfig\x18\x04 \x01(\x0b\x32(.axern.control.common.v1.ExecutionConfig\x12J\n\x06labels\x18\x05 \x03(\x0b\x32:.axern.control.service.v1.CreateServiceRequest.LabelsEntry\x12\x46\n\x0erollout_policy\x18\x06 \x01(\x0b\x32..axern.control.service.v1.ServiceRolloutPolicy\x12?\n\x0freadiness_probe\x18\x07 \x01(\x0b\x32&.axern.control.service.v1.ServiceProbe\x12>\n\x0eliveness_probe\x18\x08 \x01(\x0b\x32&.axern.control.service.v1.ServiceProbe\x12N\n\x12\x61utoscaling_policy\x18\t \x01(\x0b\x32\x32.axern.control.service.v1.ServiceAutoscalingPolicy\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"K\n\x15\x43reateServiceResponse\x12\x32\n\x07service\x18\x01 \x01(\x0b\x32!.axern.control.service.v1.Service\"\'\n\x11GetServiceRequest\x12\x12\n\nservice_id\x18\x01 \x01(\t\"H\n\x12GetServiceResponse\x12\x32\n\x07service\x18\x01 \x01(\x0b\x32!.axern.control.service.v1.Service\"@\n\x13WatchServiceRequest\x12\x12\n\nservice_id\x18\x01 \x01(\t\x12\x15\n\rafter_version\x18\x02 \x01(\x03\"J\n\x14WatchServiceResponse\x12\x32\n\x07service\x18\x01 \x01(\x0b\x32!.axern.control.service.v1.Service\"R\n\x13ListServicesRequest\x12;\n\x06\x66ilter\x18\x01 \x01(\x0b\x32+.axern.control.service.v1.ServiceListFilter\"`\n\x14ListServicesResponse\x12\x33\n\x08services\x18\x01 \x03(\x0b\x32!.axern.control.service.v1.Service\x12\x13\n\x0bnext_cursor\x18\x02 \x01(\t\"\x97\x05\n\x14UpdateServiceRequest\x12\x12\n\nservice_id\x18\x01 \x01(\t\x12\x18\n\x10\x65xpected_version\x18\x02 \x01(\x03\x12\x15\n\x08replicas\x18\x03 \x01(\x05H\x00\x88\x01\x01\x12\x38\n\x06\x63onfig\x18\x04 \x01(\x0b\x32(.axern.control.common.v1.ExecutionConfig\x12J\n\x06labels\x18\x05 \x03(\x0b\x32:.axern.control.service.v1.UpdateServiceRequest.LabelsEntry\x12/\n\x0bupdate_mask\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.FieldMask\x12\x46\n\x0erollout_policy\x18\x07 \x01(\x0b\x32..axern.control.service.v1.ServiceRolloutPolicy\x12\x1b\n\x0e\x65nvironment_id\x18\x08 \x01(\tH\x01\x88\x01\x01\x12?\n\x0freadiness_probe\x18\t \x01(\x0b\x32&.axern.control.service.v1.ServiceProbe\x12>\n\x0eliveness_probe\x18\n \x01(\x0b\x32&.axern.control.service.v1.ServiceProbe\x12N\n\x12\x61utoscaling_policy\x18\x0b \x01(\x0b\x32\x32.axern.control.service.v1.ServiceAutoscalingPolicy\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x42\x0b\n\t_replicasB\x11\n\x0f_environment_id\"K\n\x15UpdateServiceResponse\x12\x32\n\x07service\x18\x01 \x01(\x0b\x32!.axern.control.service.v1.Service\"_\n\x14\x44\x65leteServiceRequest\x12\x12\n\nservice_id\x18\x01 \x01(\t\x12\x18\n\x10\x65xpected_version\x18\x02 \x01(\x03\x12\x19\n\x11require_suspended\x18\x03 \x01(\x08\"K\n\x15\x44\x65leteServiceResponse\x12\x32\n\x07service\x18\x01 \x01(\x0b\x32!.axern.control.service.v1.Service2\xc2\x08\n\x0eServiceControl\x12r\n\rCreateService\x12..axern.control.service.v1.CreateServiceRequest\x1a/.axern.control.service.v1.CreateServiceResponse\"\x00\x12i\n\nGetService\x12+.axern.control.service.v1.GetServiceRequest\x1a,.axern.control.service.v1.GetServiceResponse\"\x00\x12q\n\x0cWatchService\x12-.axern.control.service.v1.WatchServiceRequest\x1a..axern.control.service.v1.WatchServiceResponse\"\x00\x30\x01\x12~\n\x11GetServiceReplica\x12\x32.axern.control.service.v1.GetServiceReplicaRequest\x1a\x33.axern.control.service.v1.GetServiceReplicaResponse\"\x00\x12o\n\x0cListServices\x12-.axern.control.service.v1.ListServicesRequest\x1a..axern.control.service.v1.ListServicesResponse\"\x00\x12\x84\x01\n\x13ListServiceReplicas\x12\x34.axern.control.service.v1.ListServiceReplicasRequest\x1a\x35.axern.control.service.v1.ListServiceReplicasResponse\"\x00\x12~\n\x11ListServiceEvents\x12\x32.axern.control.service.v1.ListServiceEventsRequest\x1a\x33.axern.control.service.v1.ListServiceEventsResponse\"\x00\x12r\n\rUpdateService\x12..axern.control.service.v1.UpdateServiceRequest\x1a/.axern.control.service.v1.UpdateServiceResponse\"\x00\x12r\n\rDeleteService\x12..axern.control.service.v1.DeleteServiceRequest\x1a/.axern.control.service.v1.DeleteServiceResponse\"\x00\x42GZEgithub.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1;servicev1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&axern/control/service/v1/service.proto\x12\x18\x61xern.control.service.v1\x1a$axern/control/common/v1/common.proto\x1a,axern/control/service/v1/service_event.proto\x1a.axern/control/service/v1/service_replica.proto\x1a,axern/control/service/v1/service_types.proto\x1a google/protobuf/field_mask.proto\"\xd1\x03\n\x14\x43reateServiceRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x16\n\x0e\x65nvironment_id\x18\x02 \x01(\t\x12\x10\n\x08replicas\x18\x03 \x01(\x05\x12\x38\n\x06\x63onfig\x18\x04 \x01(\x0b\x32(.axern.control.common.v1.ExecutionConfig\x12J\n\x06labels\x18\x05 \x03(\x0b\x32:.axern.control.service.v1.CreateServiceRequest.LabelsEntry\x12\x46\n\x0erollout_policy\x18\x06 \x01(\x0b\x32..axern.control.service.v1.ServiceRolloutPolicy\x12?\n\x0freadiness_probe\x18\x07 \x01(\x0b\x32&.axern.control.service.v1.ServiceProbe\x12>\n\x0eliveness_probe\x18\x08 \x01(\x0b\x32&.axern.control.service.v1.ServiceProbe\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"K\n\x15\x43reateServiceResponse\x12\x32\n\x07service\x18\x01 \x01(\x0b\x32!.axern.control.service.v1.Service\"\'\n\x11GetServiceRequest\x12\x12\n\nservice_id\x18\x01 \x01(\t\"H\n\x12GetServiceResponse\x12\x32\n\x07service\x18\x01 \x01(\x0b\x32!.axern.control.service.v1.Service\"@\n\x13WatchServiceRequest\x12\x12\n\nservice_id\x18\x01 \x01(\t\x12\x15\n\rafter_version\x18\x02 \x01(\x03\"J\n\x14WatchServiceResponse\x12\x32\n\x07service\x18\x01 \x01(\x0b\x32!.axern.control.service.v1.Service\"R\n\x13ListServicesRequest\x12;\n\x06\x66ilter\x18\x01 \x01(\x0b\x32+.axern.control.service.v1.ServiceListFilter\"`\n\x14ListServicesResponse\x12\x33\n\x08services\x18\x01 \x03(\x0b\x32!.axern.control.service.v1.Service\x12\x13\n\x0bnext_cursor\x18\x02 \x01(\t\"\xc7\x04\n\x14UpdateServiceRequest\x12\x12\n\nservice_id\x18\x01 \x01(\t\x12\x18\n\x10\x65xpected_version\x18\x02 \x01(\x03\x12\x15\n\x08replicas\x18\x03 \x01(\x05H\x00\x88\x01\x01\x12\x38\n\x06\x63onfig\x18\x04 \x01(\x0b\x32(.axern.control.common.v1.ExecutionConfig\x12J\n\x06labels\x18\x05 \x03(\x0b\x32:.axern.control.service.v1.UpdateServiceRequest.LabelsEntry\x12/\n\x0bupdate_mask\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.FieldMask\x12\x46\n\x0erollout_policy\x18\x07 \x01(\x0b\x32..axern.control.service.v1.ServiceRolloutPolicy\x12\x1b\n\x0e\x65nvironment_id\x18\x08 \x01(\tH\x01\x88\x01\x01\x12?\n\x0freadiness_probe\x18\t \x01(\x0b\x32&.axern.control.service.v1.ServiceProbe\x12>\n\x0eliveness_probe\x18\n \x01(\x0b\x32&.axern.control.service.v1.ServiceProbe\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x42\x0b\n\t_replicasB\x11\n\x0f_environment_id\"K\n\x15UpdateServiceResponse\x12\x32\n\x07service\x18\x01 \x01(\x0b\x32!.axern.control.service.v1.Service\"_\n\x14\x44\x65leteServiceRequest\x12\x12\n\nservice_id\x18\x01 \x01(\t\x12\x18\n\x10\x65xpected_version\x18\x02 \x01(\x03\x12\x19\n\x11require_suspended\x18\x03 \x01(\x08\"K\n\x15\x44\x65leteServiceResponse\x12\x32\n\x07service\x18\x01 \x01(\x0b\x32!.axern.control.service.v1.Service2\xc2\x08\n\x0eServiceControl\x12r\n\rCreateService\x12..axern.control.service.v1.CreateServiceRequest\x1a/.axern.control.service.v1.CreateServiceResponse\"\x00\x12i\n\nGetService\x12+.axern.control.service.v1.GetServiceRequest\x1a,.axern.control.service.v1.GetServiceResponse\"\x00\x12q\n\x0cWatchService\x12-.axern.control.service.v1.WatchServiceRequest\x1a..axern.control.service.v1.WatchServiceResponse\"\x00\x30\x01\x12~\n\x11GetServiceReplica\x12\x32.axern.control.service.v1.GetServiceReplicaRequest\x1a\x33.axern.control.service.v1.GetServiceReplicaResponse\"\x00\x12o\n\x0cListServices\x12-.axern.control.service.v1.ListServicesRequest\x1a..axern.control.service.v1.ListServicesResponse\"\x00\x12\x84\x01\n\x13ListServiceReplicas\x12\x34.axern.control.service.v1.ListServiceReplicasRequest\x1a\x35.axern.control.service.v1.ListServiceReplicasResponse\"\x00\x12~\n\x11ListServiceEvents\x12\x32.axern.control.service.v1.ListServiceEventsRequest\x1a\x33.axern.control.service.v1.ListServiceEventsResponse\"\x00\x12r\n\rUpdateService\x12..axern.control.service.v1.UpdateServiceRequest\x1a/.axern.control.service.v1.UpdateServiceResponse\"\x00\x12r\n\rDeleteService\x12..axern.control.service.v1.DeleteServiceRequest\x1a/.axern.control.service.v1.DeleteServiceResponse\"\x00\x42GZEgithub.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1;servicev1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -42,33 +42,33 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_UPDATESERVICEREQUEST_LABELSENTRY']._loaded_options = None
   _globals['_UPDATESERVICEREQUEST_LABELSENTRY']._serialized_options = b'8\001'
   _globals['_CREATESERVICEREQUEST']._serialized_start=281
-  _globals['_CREATESERVICEREQUEST']._serialized_end=826
-  _globals['_CREATESERVICEREQUEST_LABELSENTRY']._serialized_start=781
-  _globals['_CREATESERVICEREQUEST_LABELSENTRY']._serialized_end=826
-  _globals['_CREATESERVICERESPONSE']._serialized_start=828
-  _globals['_CREATESERVICERESPONSE']._serialized_end=903
-  _globals['_GETSERVICEREQUEST']._serialized_start=905
-  _globals['_GETSERVICEREQUEST']._serialized_end=944
-  _globals['_GETSERVICERESPONSE']._serialized_start=946
-  _globals['_GETSERVICERESPONSE']._serialized_end=1018
-  _globals['_WATCHSERVICEREQUEST']._serialized_start=1020
-  _globals['_WATCHSERVICEREQUEST']._serialized_end=1084
-  _globals['_WATCHSERVICERESPONSE']._serialized_start=1086
-  _globals['_WATCHSERVICERESPONSE']._serialized_end=1160
-  _globals['_LISTSERVICESREQUEST']._serialized_start=1162
-  _globals['_LISTSERVICESREQUEST']._serialized_end=1244
-  _globals['_LISTSERVICESRESPONSE']._serialized_start=1246
-  _globals['_LISTSERVICESRESPONSE']._serialized_end=1342
-  _globals['_UPDATESERVICEREQUEST']._serialized_start=1345
-  _globals['_UPDATESERVICEREQUEST']._serialized_end=2008
-  _globals['_UPDATESERVICEREQUEST_LABELSENTRY']._serialized_start=781
-  _globals['_UPDATESERVICEREQUEST_LABELSENTRY']._serialized_end=826
-  _globals['_UPDATESERVICERESPONSE']._serialized_start=2010
-  _globals['_UPDATESERVICERESPONSE']._serialized_end=2085
-  _globals['_DELETESERVICEREQUEST']._serialized_start=2087
-  _globals['_DELETESERVICEREQUEST']._serialized_end=2182
-  _globals['_DELETESERVICERESPONSE']._serialized_start=2184
-  _globals['_DELETESERVICERESPONSE']._serialized_end=2259
-  _globals['_SERVICECONTROL']._serialized_start=2262
-  _globals['_SERVICECONTROL']._serialized_end=3352
+  _globals['_CREATESERVICEREQUEST']._serialized_end=746
+  _globals['_CREATESERVICEREQUEST_LABELSENTRY']._serialized_start=701
+  _globals['_CREATESERVICEREQUEST_LABELSENTRY']._serialized_end=746
+  _globals['_CREATESERVICERESPONSE']._serialized_start=748
+  _globals['_CREATESERVICERESPONSE']._serialized_end=823
+  _globals['_GETSERVICEREQUEST']._serialized_start=825
+  _globals['_GETSERVICEREQUEST']._serialized_end=864
+  _globals['_GETSERVICERESPONSE']._serialized_start=866
+  _globals['_GETSERVICERESPONSE']._serialized_end=938
+  _globals['_WATCHSERVICEREQUEST']._serialized_start=940
+  _globals['_WATCHSERVICEREQUEST']._serialized_end=1004
+  _globals['_WATCHSERVICERESPONSE']._serialized_start=1006
+  _globals['_WATCHSERVICERESPONSE']._serialized_end=1080
+  _globals['_LISTSERVICESREQUEST']._serialized_start=1082
+  _globals['_LISTSERVICESREQUEST']._serialized_end=1164
+  _globals['_LISTSERVICESRESPONSE']._serialized_start=1166
+  _globals['_LISTSERVICESRESPONSE']._serialized_end=1262
+  _globals['_UPDATESERVICEREQUEST']._serialized_start=1265
+  _globals['_UPDATESERVICEREQUEST']._serialized_end=1848
+  _globals['_UPDATESERVICEREQUEST_LABELSENTRY']._serialized_start=701
+  _globals['_UPDATESERVICEREQUEST_LABELSENTRY']._serialized_end=746
+  _globals['_UPDATESERVICERESPONSE']._serialized_start=1850
+  _globals['_UPDATESERVICERESPONSE']._serialized_end=1925
+  _globals['_DELETESERVICEREQUEST']._serialized_start=1927
+  _globals['_DELETESERVICEREQUEST']._serialized_end=2022
+  _globals['_DELETESERVICERESPONSE']._serialized_start=2024
+  _globals['_DELETESERVICERESPONSE']._serialized_end=2099
+  _globals['_SERVICECONTROL']._serialized_start=2102
+  _globals['_SERVICECONTROL']._serialized_end=3192
 # @@protoc_insertion_point(module_scope)

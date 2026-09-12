@@ -12,7 +12,7 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class CreateServiceRequest(_message.Message):
-    __slots__ = ("namespace", "environment_id", "replicas", "config", "labels", "rollout_policy", "readiness_probe", "liveness_probe", "autoscaling_policy")
+    __slots__ = ("namespace", "environment_id", "replicas", "config", "labels", "rollout_policy", "readiness_probe", "liveness_probe")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -28,7 +28,6 @@ class CreateServiceRequest(_message.Message):
     ROLLOUT_POLICY_FIELD_NUMBER: _ClassVar[int]
     READINESS_PROBE_FIELD_NUMBER: _ClassVar[int]
     LIVENESS_PROBE_FIELD_NUMBER: _ClassVar[int]
-    AUTOSCALING_POLICY_FIELD_NUMBER: _ClassVar[int]
     namespace: str
     environment_id: str
     replicas: int
@@ -37,8 +36,7 @@ class CreateServiceRequest(_message.Message):
     rollout_policy: _service_types_pb2.ServiceRolloutPolicy
     readiness_probe: _service_types_pb2.ServiceProbe
     liveness_probe: _service_types_pb2.ServiceProbe
-    autoscaling_policy: _service_types_pb2.ServiceAutoscalingPolicy
-    def __init__(self, namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., replicas: _Optional[int] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., rollout_policy: _Optional[_Union[_service_types_pb2.ServiceRolloutPolicy, _Mapping]] = ..., readiness_probe: _Optional[_Union[_service_types_pb2.ServiceProbe, _Mapping]] = ..., liveness_probe: _Optional[_Union[_service_types_pb2.ServiceProbe, _Mapping]] = ..., autoscaling_policy: _Optional[_Union[_service_types_pb2.ServiceAutoscalingPolicy, _Mapping]] = ...) -> None: ...
+    def __init__(self, namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., replicas: _Optional[int] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., rollout_policy: _Optional[_Union[_service_types_pb2.ServiceRolloutPolicy, _Mapping]] = ..., readiness_probe: _Optional[_Union[_service_types_pb2.ServiceProbe, _Mapping]] = ..., liveness_probe: _Optional[_Union[_service_types_pb2.ServiceProbe, _Mapping]] = ...) -> None: ...
 
 class CreateServiceResponse(_message.Message):
     __slots__ = ("service",)
@@ -87,7 +85,7 @@ class ListServicesResponse(_message.Message):
     def __init__(self, services: _Optional[_Iterable[_Union[_service_types_pb2.Service, _Mapping]]] = ..., next_cursor: _Optional[str] = ...) -> None: ...
 
 class UpdateServiceRequest(_message.Message):
-    __slots__ = ("service_id", "expected_version", "replicas", "config", "labels", "update_mask", "rollout_policy", "environment_id", "readiness_probe", "liveness_probe", "autoscaling_policy")
+    __slots__ = ("service_id", "expected_version", "replicas", "config", "labels", "update_mask", "rollout_policy", "environment_id", "readiness_probe", "liveness_probe")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -105,7 +103,6 @@ class UpdateServiceRequest(_message.Message):
     ENVIRONMENT_ID_FIELD_NUMBER: _ClassVar[int]
     READINESS_PROBE_FIELD_NUMBER: _ClassVar[int]
     LIVENESS_PROBE_FIELD_NUMBER: _ClassVar[int]
-    AUTOSCALING_POLICY_FIELD_NUMBER: _ClassVar[int]
     service_id: str
     expected_version: int
     replicas: int
@@ -116,8 +113,7 @@ class UpdateServiceRequest(_message.Message):
     environment_id: str
     readiness_probe: _service_types_pb2.ServiceProbe
     liveness_probe: _service_types_pb2.ServiceProbe
-    autoscaling_policy: _service_types_pb2.ServiceAutoscalingPolicy
-    def __init__(self, service_id: _Optional[str] = ..., expected_version: _Optional[int] = ..., replicas: _Optional[int] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., update_mask: _Optional[_Union[_field_mask_pb2.FieldMask, _Mapping]] = ..., rollout_policy: _Optional[_Union[_service_types_pb2.ServiceRolloutPolicy, _Mapping]] = ..., environment_id: _Optional[str] = ..., readiness_probe: _Optional[_Union[_service_types_pb2.ServiceProbe, _Mapping]] = ..., liveness_probe: _Optional[_Union[_service_types_pb2.ServiceProbe, _Mapping]] = ..., autoscaling_policy: _Optional[_Union[_service_types_pb2.ServiceAutoscalingPolicy, _Mapping]] = ...) -> None: ...
+    def __init__(self, service_id: _Optional[str] = ..., expected_version: _Optional[int] = ..., replicas: _Optional[int] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., update_mask: _Optional[_Union[_field_mask_pb2.FieldMask, _Mapping]] = ..., rollout_policy: _Optional[_Union[_service_types_pb2.ServiceRolloutPolicy, _Mapping]] = ..., environment_id: _Optional[str] = ..., readiness_probe: _Optional[_Union[_service_types_pb2.ServiceProbe, _Mapping]] = ..., liveness_probe: _Optional[_Union[_service_types_pb2.ServiceProbe, _Mapping]] = ...) -> None: ...
 
 class UpdateServiceResponse(_message.Message):
     __slots__ = ("service",)

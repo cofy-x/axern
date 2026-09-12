@@ -70,31 +70,6 @@ func renderServiceDetails(w io.Writer, service *servicev1.Service, latestEvent *
 	if probe := service.GetLivenessProbe(); serviceProbeConfigured(probe) {
 		fmt.Fprintf(w, "Liveness Probe: %s\n", formatServiceProbe(probe))
 	}
-	if policy := service.GetAutoscalingPolicy(); serviceAutoscalingPolicyConfigured(policy) {
-		fmt.Fprintf(w, "Autoscaling Policy: min=%d max=%d schedules=%d\n", policy.GetMinReplicas(), policy.GetMaxReplicas(), len(policy.GetSchedules()))
-		for _, schedule := range policy.GetSchedules() {
-			if schedule == nil {
-				continue
-			}
-			fmt.Fprintf(w, "  - %s cron=%s replicas=%d\n", schedule.GetName(), schedule.GetCronUtc(), schedule.GetReplicas())
-		}
-	}
-	if autoscaling := service.GetAutoscalingStatus(); autoscaling != nil {
-		fmt.Fprintf(
-			w,
-			"Autoscaling: current_desired=%d min=%d max=%d active=%s target=%d action=%s evaluated_at=%s\n",
-			autoscaling.GetCurrentDesiredReplicas(),
-			autoscaling.GetEffectiveMinReplicas(),
-			autoscaling.GetEffectiveMaxReplicas(),
-			firstNonEmpty(autoscaling.GetActiveScheduleName(), "-"),
-			autoscaling.GetActiveScheduleReplicas(),
-			ServiceAutoscalingActionLabel(autoscaling.GetLastAction()),
-			FormatProtoTimestamp(autoscaling.GetLastEvaluatedAt()),
-		)
-		if detail := autoscaling.GetMessage(); detail != "" {
-			fmt.Fprintf(w, "Autoscaling Detail: %s\n", detail)
-		}
-	}
 	if policy := service.GetRolloutPolicy(); policy != nil {
 		fmt.Fprintf(w, "Rollout Policy: max_surge=%d max_unavailable=%d\n", policy.GetMaxSurge(), policy.GetMaxUnavailable())
 	}
@@ -135,8 +110,4 @@ func renderServiceDetails(w io.Writer, service *servicev1.Service, latestEvent *
 
 func serviceProbeConfigured(probe *servicev1.ServiceProbe) bool {
 	return newServiceProbeJSON(probe) != nil
-}
-
-func serviceAutoscalingPolicyConfigured(policy *servicev1.ServiceAutoscalingPolicy) bool {
-	return newServiceAutoscalingPolicyJSON(policy) != nil
 }

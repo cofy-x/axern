@@ -18,7 +18,7 @@ type ServiceListTableOptions struct {
 func RenderServiceTable(w io.Writer, services []*servicev1.Service, opts ServiceListTableOptions) {
 	headers := []string{"ID", "NAMESPACE", "STATUS", "READY", "DESIRED"}
 	if opts.Wide {
-		headers = append(headers, "UNHEALTHY", "AUTOSCALE", "ROLLOUT")
+		headers = append(headers, "UNHEALTHY", "ROLLOUT")
 	}
 	headers = append(headers, "AGE")
 	if opts.ShowLabels {
@@ -40,7 +40,6 @@ func RenderServiceTable(w io.Writer, services []*servicev1.Service, opts Service
 			values = append(
 				values,
 				fmt.Sprintf("%d", service.GetUnhealthyReplicas()),
-				serviceAutoscalingIndicator(service),
 				serviceRolloutIndicator(service),
 			)
 		}
@@ -66,17 +65,6 @@ func serviceRolloutIndicator(service *servicev1.Service) string {
 	default:
 		return "in-progress"
 	}
-}
-
-func serviceAutoscalingIndicator(service *servicev1.Service) string {
-	if service.GetAutoscalingPolicy() == nil {
-		return "-"
-	}
-	autoscaling := service.GetAutoscalingStatus()
-	if autoscaling == nil || autoscaling.GetActiveScheduleName() == "" {
-		return "idle"
-	}
-	return fmt.Sprintf("%s:%d", ShortMessage(autoscaling.GetActiveScheduleName(), 12), autoscaling.GetCurrentDesiredReplicas())
 }
 
 func formatServiceAge(service *servicev1.Service) string {

@@ -272,8 +272,3 @@ func validateServiceLivenessProbe(probe *servicev1.ServiceProbe) error {
 	_, err := servicekernel.ValidateAndNormalizeLivenessProbe(probe)
 	return err
 }
-
-func validateServiceAutoscalingPolicy(policy *servicev1.ServiceAutoscalingPolicy) error {
-	_, err := servicekernel.ValidateAndNormalizeAutoscalingPolicy(policy)
-	return err
-}

@@ -46,8 +46,8 @@ Axern V1 separates the durable control plane from node-local execution:
   `ready` and `readiness_message` separately from lifecycle `status`, and
   `controld` gates service `READY` and rollout drain decisions on that
   readiness signal.
-- Service rollout and autoscaling are Service capabilities for long-running,
-  replica-oriented workloads. `Run` stays a single-allocation lifecycle API.
+- Service rollout is a Service capability for long-running, replica-oriented
+  workloads. `Run` stays a single-allocation lifecycle API.
 - Public workload API names are `Environment`, `Run`, and `Service`.
 - Catalog templates and environments are runtime-neutral. Workloads select
   `runsc` through `ExecutionConfig.runtime_class`; omitted values

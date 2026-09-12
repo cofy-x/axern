@@ -649,10 +649,6 @@ func (f *fakeReconcileStatusStore) UpdateStatus(context.Context, string, service
 	panic("unexpected UpdateStatus call")
 }
 
-func (f *fakeReconcileStatusStore) UpdateAutoscalingStatus(context.Context, string, *servicev1.ServiceAutoscalingStatus, time.Time) (*servicev1.Service, error) {
-	panic("unexpected UpdateAutoscalingStatus call")
-}
-
 type fakeServiceAllocationReconcileStore struct {
 	mu                sync.Mutex
 	items             []allocationkernel.ReconcileItem

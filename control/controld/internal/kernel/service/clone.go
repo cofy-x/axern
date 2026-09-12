@@ -44,28 +44,6 @@ func cloneProbe(in *servicev1.ServiceProbe) *servicev1.ServiceProbe {
 	return normalizeProbe(proto.Clone(in).(*servicev1.ServiceProbe))
 }
 
-func cloneAutoscalingPolicy(in *servicev1.ServiceAutoscalingPolicy) *servicev1.ServiceAutoscalingPolicy {
-	if in == nil {
-		return nil
-	}
-	return normalizeAutoscalingPolicy(proto.Clone(in).(*servicev1.ServiceAutoscalingPolicy))
-}
-
-func CloneAutoscalingPolicy(in *servicev1.ServiceAutoscalingPolicy) *servicev1.ServiceAutoscalingPolicy {
-	return cloneAutoscalingPolicy(in)
-}
-
-func cloneAutoscalingStatus(in *servicev1.ServiceAutoscalingStatus) *servicev1.ServiceAutoscalingStatus {
-	if in == nil {
-		return nil
-	}
-	return proto.Clone(in).(*servicev1.ServiceAutoscalingStatus)
-}
-
-func CloneAutoscalingStatus(in *servicev1.ServiceAutoscalingStatus) *servicev1.ServiceAutoscalingStatus {
-	return cloneAutoscalingStatus(in)
-}
-
 func cloneDeletionStatus(in *servicev1.ServiceDeletionStatus) *servicev1.ServiceDeletionStatus {
 	if in == nil {
 		return nil

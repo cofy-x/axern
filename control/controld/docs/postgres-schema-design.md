@@ -104,7 +104,7 @@ index.
 ### Runs, services, and allocations
 
 `runs` models single-shot execution and owns one allocation ID. `services`
-models desired replicas, rollout policy, probes, autoscaling, and current
+models desired replicas, rollout policy, probes, and current
 allocation IDs. `service_events` stores operational history outside the current
 service row.
 

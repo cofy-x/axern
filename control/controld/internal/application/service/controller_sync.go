@@ -38,53 +38,15 @@ func (c *controller) ReconcilePending(ctx context.Context, now time.Time) error 
 		opErr = errors.Join(opErr, err)
 		return opErr
 	}
-	autoscaled, err := c.autoscaledServices(ctx)
-	if err != nil {
-		opErr = errors.Join(opErr, err)
-		return opErr
-	}
-	pending := make([]*servicev1.Service, 0, len(services)+len(autoscaled))
-	seen := make(map[string]struct{}, len(services)+len(autoscaled))
+	pending := make([]*servicev1.Service, 0, len(services))
 	for _, service := range services {
 		if service == nil || service.GetDeletionStatus().GetPhase() == servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE {
-			continue
-		}
-		seen[service.GetID()] = struct{}{}
-		pending = append(pending, service)
-	}
-	for _, service := range autoscaled {
-		if _, ok := seen[service.GetID()]; ok {
 			continue
 		}
 		pending = append(pending, service)
 	}
 	opErr = errors.Join(opErr, c.reconcileServices(ctx, pending, now))
 	return opErr
-}
-
-func (c *controller) ReconcileAutoscaled(ctx context.Context, now time.Time) error {
-	services, err := c.autoscaledServices(ctx)
-	if err != nil {
-		return err
-	}
-	return c.reconcileServices(ctx, services, now)
-}
-
-func (c *controller) autoscaledServices(ctx context.Context) ([]*servicev1.Service, error) {
-	if c.autoscaling == nil {
-		return nil, nil
-	}
-	services, err := c.autoscaling.ListAutoscaled(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*servicev1.Service, 0, len(services))
-	for _, service := range services {
-		if service != nil && service.GetAutoscalingPolicy() != nil {
-			out = append(out, service)
-		}
-	}
-	return out, nil
 }
 
 func (c *controller) ReconcileServices(ctx context.Context, serviceIDs []string, now time.Time) error {
@@ -197,17 +159,12 @@ func (c *controller) Sync(ctx context.Context, service *servicev1.Service, now t
 		opErr = err
 		return next, err
 	}
-	effectiveDesired, current, err := c.evaluateAutoscaling(ctx, current, now)
-	if err != nil {
-		opErr = err
-		return current, err
-	}
 	env, err := c.environments.GetEnvironment(ctx, current.GetEnvironmentID())
 	if err != nil {
 		opErr = err
 		return current, err
 	}
-	desired := effectiveDesired
+	desired := int(current.GetReplicas())
 	allocations, err := c.allocations.CurrentServiceAllocations(ctx, current.GetID())
 	if err != nil {
 		opErr = err

@@ -3,7 +3,7 @@
 // Put service-specific rules here when they define persistent service state or
 // derive operator-facing service views from authoritative service-owned
 // allocations. That includes service CRUD semantics, rollout policy,
-// rollout/event diagnostics, autoscaling evaluation, and service read model
+// rollout/event diagnostics and service read model
 // helpers.
 //
 // Prefer params structs here only for operations whose business input is

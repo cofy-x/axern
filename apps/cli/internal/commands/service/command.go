@@ -35,7 +35,6 @@ type createOptions struct {
 	rootfsReadonly, wait                                                                              bool
 	waitTimeout                                                                                       time.Duration
 	readiness, liveness                                                                               probeOptions
-	autoscaleMin, autoscaleMax                                                                        int32
 }
 
 type probeOptions struct {
@@ -97,8 +96,6 @@ func (o *createOptions) bind(cmd *cobra.Command) {
 	f.BoolVar(&o.rootfsReadonly, "rootfs-readonly", false, "mount rootfs read-only")
 	bindProbe(f, "readiness", &o.readiness)
 	bindProbe(f, "liveness", &o.liveness)
-	f.Int32Var(&o.autoscaleMin, "autoscale-min-replicas", 0, "autoscaling minimum")
-	f.Int32Var(&o.autoscaleMax, "autoscale-max-replicas", 0, "autoscaling maximum")
 	f.BoolVar(&o.wait, "wait", false, "wait for readiness")
 	f.DurationVar(&o.waitTimeout, "wait-timeout", appservice.DefaultCreateWaitTimeout, "readiness timeout; 0 disables it")
 }
@@ -151,8 +148,8 @@ func (o createOptions) params(cmd *cobra.Command) (appservice.CreateParams, erro
 		if err != nil {
 			return appservice.CreateParams{}, err
 		}
-		readiness, liveness, autoscaling, err := value.ServiceConfig()
-		return appservice.CreateParams{Namespace: value.Metadata.Namespace, EnvironmentID: environmentID, Spec: environment, Replicas: value.ServiceReplicas(), Config: execution, Labels: value.Metadata.Labels, ReadinessProbe: readiness, LivenessProbe: liveness, AutoscalingPolicy: autoscaling}, err
+		readiness, liveness, err := value.ServiceConfig()
+		return appservice.CreateParams{Namespace: value.Metadata.Namespace, EnvironmentID: environmentID, Spec: environment, Replicas: value.ServiceReplicas(), Config: execution, Labels: value.Metadata.Labels, ReadinessProbe: readiness, LivenessProbe: liveness}, err
 	}
 	environmentID, environment, err := o.environment()
 	if err != nil {
@@ -170,14 +167,7 @@ func (o createOptions) params(cmd *cobra.Command) (appservice.CreateParams, erro
 	if err != nil {
 		return appservice.CreateParams{}, fmt.Errorf("liveness: %w", err)
 	}
-	var autoscaling *servicev1.ServiceAutoscalingPolicy
-	if o.autoscaleMin != 0 || o.autoscaleMax != 0 {
-		if o.autoscaleMin < 0 || o.autoscaleMax < o.autoscaleMin {
-			return appservice.CreateParams{}, fmt.Errorf("invalid autoscaling range")
-		}
-		autoscaling = &servicev1.ServiceAutoscalingPolicy{MinReplicas: o.autoscaleMin, MaxReplicas: o.autoscaleMax}
-	}
-	return appservice.CreateParams{Namespace: o.namespace, EnvironmentID: environmentID, Spec: environment, Replicas: o.replicas, Config: execution, Labels: parse.Labels(o.labels), ReadinessProbe: readiness, LivenessProbe: liveness, AutoscalingPolicy: autoscaling}, nil
+	return appservice.CreateParams{Namespace: o.namespace, EnvironmentID: environmentID, Spec: environment, Replicas: o.replicas, Config: execution, Labels: parse.Labels(o.labels), ReadinessProbe: readiness, LivenessProbe: liveness}, nil
 }
 
 func (o createOptions) environment() (string, *environmentv1.EnvironmentSpec, error) {
@@ -276,7 +266,7 @@ func (p probeOptions) build() (*servicev1.ServiceProbe, error) {
 	return value, nil
 }
 
-var serviceDefinitionFlags = []string{"namespace", "replicas", "argv", "env", "secret-env", "secret-file", "image-mount", "runtime-class", "extension-capability", "label", "environment-id", "template-id", "template-version", "image-ref", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage", "readiness-http-port", "readiness-http-path", "readiness-http-scheme", "readiness-tcp-port", "readiness-initial-delay", "readiness-period", "readiness-timeout", "readiness-success-threshold", "readiness-failure-threshold", "liveness-http-port", "liveness-http-path", "liveness-http-scheme", "liveness-tcp-port", "liveness-initial-delay", "liveness-period", "liveness-timeout", "liveness-success-threshold", "liveness-failure-threshold", "autoscale-min-replicas", "autoscale-max-replicas"}
+var serviceDefinitionFlags = []string{"namespace", "replicas", "argv", "env", "secret-env", "secret-file", "image-mount", "runtime-class", "extension-capability", "label", "environment-id", "template-id", "template-version", "image-ref", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage", "readiness-http-port", "readiness-http-path", "readiness-http-scheme", "readiness-tcp-port", "readiness-initial-delay", "readiness-period", "readiness-timeout", "readiness-success-threshold", "readiness-failure-threshold", "liveness-http-port", "liveness-http-path", "liveness-http-scheme", "liveness-tcp-port", "liveness-initial-delay", "liveness-period", "liveness-timeout", "liveness-success-threshold", "liveness-failure-threshold"}
 
 func getCommand(runtime command.Runtime) *cobra.Command {
 	return &cobra.Command{Use: "get <service-id>", Short: "Get service, rollout, and latest event", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {

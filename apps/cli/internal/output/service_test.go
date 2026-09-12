@@ -39,25 +39,6 @@ func TestRenderServiceIncludesRolloutSummary(t *testing.T) {
 			SuccessThreshold: 1,
 			FailureThreshold: 3,
 		},
-		AutoscalingPolicy: &servicev1.ServiceAutoscalingPolicy{
-			MinReplicas: 1,
-			MaxReplicas: 5,
-			Schedules: []*servicev1.ServiceAutoscalingSchedule{{
-				Name:     "business",
-				CronUtc:  "* 9-17 * * 1-5",
-				Replicas: 3,
-			}},
-		},
-		AutoscalingStatus: &servicev1.ServiceAutoscalingStatus{
-			CurrentDesiredReplicas: 3,
-			EffectiveMinReplicas:   1,
-			EffectiveMaxReplicas:   5,
-			ActiveScheduleName:     "business",
-			ActiveScheduleReplicas: 3,
-			LastAction:             servicev1.ServiceAutoscalingAction_SERVICE_AUTOSCALING_ACTION_SCALED_UP,
-			LastEvaluatedAt:        timestamppb.Now(),
-			Message:                "active schedule \"business\" targets 3 replicas",
-		},
 		RolloutPolicy: &servicev1.ServiceRolloutPolicy{MaxSurge: 1, MaxUnavailable: 0},
 		RolloutStatus: &servicev1.ServiceRolloutStatus{
 			InProgress:           true,
@@ -77,10 +58,6 @@ func TestRenderServiceIncludesRolloutSummary(t *testing.T) {
 		"Status: reconciling",
 		"Readiness Probe: http port=8080 path=/readyz initial_delay=100ms period=750ms timeout=250ms success_threshold=1 failure_threshold=1",
 		"Liveness Probe: tcp port=9090 initial_delay=0s period=10s timeout=2s success_threshold=1 failure_threshold=3",
-		"Autoscaling Policy: min=1 max=5 schedules=1",
-		"- business cron=* 9-17 * * 1-5 replicas=3",
-		"Autoscaling: current_desired=3 min=1 max=5 active=business target=3 action=scaled-up",
-		"Autoscaling Detail: active schedule \"business\" targets 3 replicas",
 		"Rollout Policy: max_surge=1 max_unavailable=0",
 		"Rollout: in_progress=true phase=waiting-for-updated-ready current=3 updated_ready=1 outdated=2",
 		"Rollout Diagnostic: registry-auth-error",
@@ -218,7 +195,7 @@ func TestRenderServiceDescribeIncludesMetadataAndLatestEvent(t *testing.T) {
 	}
 }
 
-func TestRenderServiceOmitsActionlessProbeAndEmptyAutoscalingPolicy(t *testing.T) {
+func TestRenderServiceOmitsActionlessProbe(t *testing.T) {
 	var b strings.Builder
 	RenderService(&b, &servicev1.Service{
 		ID:            "svc-1",
@@ -231,10 +208,9 @@ func TestRenderServiceOmitsActionlessProbeAndEmptyAutoscalingPolicy(t *testing.T
 			SuccessThreshold: 1,
 			FailureThreshold: 1,
 		},
-		AutoscalingPolicy: &servicev1.ServiceAutoscalingPolicy{},
 	})
 	out := b.String()
-	for _, unexpected := range []string{"Liveness Probe: unknown", "Autoscaling Policy: min=0 max=0"} {
+	for _, unexpected := range []string{"Liveness Probe: unknown"} {
 		if strings.Contains(out, unexpected) {
 			t.Fatalf("output %q unexpectedly contains %q", out, unexpected)
 		}

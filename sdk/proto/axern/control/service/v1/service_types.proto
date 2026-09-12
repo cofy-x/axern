@@ -38,13 +38,6 @@ enum ServiceRolloutPhase {
   SERVICE_ROLLOUT_PHASE_BLOCKED = 4;
 }
 
-enum ServiceAutoscalingAction {
-  SERVICE_AUTOSCALING_ACTION_UNSPECIFIED = 0;
-  SERVICE_AUTOSCALING_ACTION_SCALED_UP = 1;
-  SERVICE_AUTOSCALING_ACTION_SCALED_DOWN = 2;
-  SERVICE_AUTOSCALING_ACTION_NO_CHANGE = 3;
-}
-
 enum HttpProbeScheme {
   HTTP_PROBE_SCHEME_UNSPECIFIED = 0;
   HTTP_PROBE_SCHEME_HTTP = 1;
@@ -74,29 +67,6 @@ message TcpProbe {
   int32 port = 1;
 }
 
-message ServiceAutoscalingSchedule {
-  string name = 1;
-  string cron_utc = 2;
-  int32 replicas = 3;
-}
-
-message ServiceAutoscalingPolicy {
-  int32 min_replicas = 1;
-  int32 max_replicas = 2;
-  repeated ServiceAutoscalingSchedule schedules = 3;
-}
-
-message ServiceAutoscalingStatus {
-  int32 current_desired_replicas = 1;
-  int32 effective_min_replicas = 2;
-  int32 effective_max_replicas = 3;
-  string active_schedule_name = 4;
-  int32 active_schedule_replicas = 5;
-  google.protobuf.Timestamp last_evaluated_at = 6;
-  ServiceAutoscalingAction last_action = 7;
-  string message = 8;
-}
-
 message Service {
   string id = 1;
   string namespace = 2;
@@ -116,10 +86,8 @@ message Service {
   string message = 12;
   ServiceProbe readiness_probe = 17;
   ServiceProbe liveness_probe = 18;
-  ServiceAutoscalingPolicy autoscaling_policy = 19;
-  ServiceAutoscalingStatus autoscaling_status = 20;
-  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 21;
-  ServiceDeletionStatus deletion_status = 22;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 19;
+  ServiceDeletionStatus deletion_status = 20;
 }
 
 message ServiceListFilter {

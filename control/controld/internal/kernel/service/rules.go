@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func NewService(namespace, environmentID string, replicas int32, config *commonv1.ExecutionConfig, labels map[string]string, rolloutPolicy *servicev1.ServiceRolloutPolicy, readinessProbe, livenessProbe *servicev1.ServiceProbe, autoscaling *servicev1.ServiceAutoscalingPolicy, now time.Time) *servicev1.Service {
+func NewService(namespace, environmentID string, replicas int32, config *commonv1.ExecutionConfig, labels map[string]string, rolloutPolicy *servicev1.ServiceRolloutPolicy, readinessProbe, livenessProbe *servicev1.ServiceProbe, now time.Time) *servicev1.Service {
 	service := &servicev1.Service{
 		ID:                "svc-" + uuid.NewString(),
 		Namespace:         environmentkernel.NormalizeNamespace(namespace),
@@ -27,7 +27,6 @@ func NewService(namespace, environmentID string, replicas int32, config *commonv
 		Config:            executionkernel.NormalizeConfig(config),
 		ReadinessProbe:    cloneProbe(readinessProbe),
 		LivenessProbe:     cloneProbe(livenessProbe),
-		AutoscalingPolicy: cloneAutoscalingPolicy(autoscaling),
 		Labels:            cloneLabels(labels),
 		Version:           1,
 		CreatedAt:         timestamppb.New(now),
@@ -104,22 +103,6 @@ func ApplyUpdate(current *servicev1.Service, req *servicev1.UpdateServiceRequest
 		}
 		next.LivenessProbe = probe
 	}
-	if updatePaths["autoscaling_policy"] {
-		policy, err := validateAndNormalizeAutoscalingPolicy(req.GetAutoscalingPolicy())
-		if err != nil {
-			return nil, err
-		}
-		next.AutoscalingPolicy = policy
-		if policy == nil {
-			next.AutoscalingStatus = nil
-		}
-	} else if updateAll && req.GetAutoscalingPolicy() != nil {
-		policy, err := validateAndNormalizeAutoscalingPolicy(req.GetAutoscalingPolicy())
-		if err != nil {
-			return nil, err
-		}
-		next.AutoscalingPolicy = policy
-	}
 	next.Status = computeServiceStatus(next)
 	next.Version++
 	next.UpdatedAt = timestamppb.New(now)
@@ -191,8 +174,6 @@ func ApplyStatusUpdate(current *servicev1.Service, status servicev1.ServiceStatu
 	next.Message = strings.TrimSpace(message)
 	next.ReadyReplicas = current.GetReadyReplicas()
 	next.UnhealthyReplicas = current.GetUnhealthyReplicas()
-	next.AutoscalingPolicy = CloneAutoscalingPolicy(current.GetAutoscalingPolicy())
-	next.AutoscalingStatus = CloneAutoscalingStatus(current.GetAutoscalingStatus())
 	next.Version++
 	next.UpdatedAt = timestamppb.New(now)
 	return next, true

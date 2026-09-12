@@ -98,10 +98,6 @@ func ServiceEventTypeLabel(eventType servicev1.ServiceEventType) string {
 	return trimEnumPrefix(eventType.String(), "SERVICE_EVENT_TYPE_")
 }
 
-func ServiceAutoscalingActionLabel(action servicev1.ServiceAutoscalingAction) string {
-	return trimEnumPrefix(action.String(), "SERVICE_AUTOSCALING_ACTION_")
-}
-
 func ShortMessage(value string, limit int) string {
 	value = strings.TrimSpace(value)
 	if limit <= 0 || len(value) <= limit {

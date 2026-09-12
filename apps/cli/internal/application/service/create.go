@@ -15,15 +15,14 @@ type environmentResolver interface {
 }
 
 type CreateParams struct {
-	Namespace         string
-	EnvironmentID     string
-	Spec              *environmentv1.EnvironmentSpec
-	Replicas          int32
-	Config            *commonv1.ExecutionConfig
-	Labels            map[string]string
-	ReadinessProbe    *servicev1.ServiceProbe
-	LivenessProbe     *servicev1.ServiceProbe
-	AutoscalingPolicy *servicev1.ServiceAutoscalingPolicy
+	Namespace      string
+	EnvironmentID  string
+	Spec           *environmentv1.EnvironmentSpec
+	Replicas       int32
+	Config         *commonv1.ExecutionConfig
+	Labels         map[string]string
+	ReadinessProbe *servicev1.ServiceProbe
+	LivenessProbe  *servicev1.ServiceProbe
 }
 
 func NewWithEnvironment(client ServiceClient, environmentClient appenvironment.EnvironmentClient) Control {
@@ -47,13 +46,12 @@ func (c Control) Create(ctx context.Context, params CreateParams) (*servicev1.Cr
 		environmentID = resolvedID
 	}
 	return c.client.CreateService(ctx, &servicev1.CreateServiceRequest{
-		Namespace:         params.Namespace,
-		EnvironmentID:     environmentID,
-		Replicas:          params.Replicas,
-		Config:            params.Config,
-		Labels:            params.Labels,
-		ReadinessProbe:    params.ReadinessProbe,
-		LivenessProbe:     params.LivenessProbe,
-		AutoscalingPolicy: params.AutoscalingPolicy,
+		Namespace:      params.Namespace,
+		EnvironmentID:  environmentID,
+		Replicas:       params.Replicas,
+		Config:         params.Config,
+		Labels:         params.Labels,
+		ReadinessProbe: params.ReadinessProbe,
+		LivenessProbe:  params.LivenessProbe,
 	})
 }

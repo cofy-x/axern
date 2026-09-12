@@ -13,7 +13,7 @@ import (
 
 func TestNewServiceNormalizesAndPreservesScaleToZero(t *testing.T) {
 	now := time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC)
-	svc := NewService("  ", " env-1 ", 0, nil, map[string]string{"tier": "api"}, nil, nil, nil, nil, now)
+	svc := NewService("  ", " env-1 ", 0, nil, map[string]string{"tier": "api"}, nil, nil, nil, now)
 	if svc.GetNamespace() != "default" {
 		t.Fatalf("namespace = %q, want default", svc.GetNamespace())
 	}
@@ -38,7 +38,7 @@ func TestNewServiceNormalizesAndPreservesScaleToZero(t *testing.T) {
 }
 
 func TestApplyUpdateUsesFieldMask(t *testing.T) {
-	base := NewService("ns", "env", 2, &commonv1.ExecutionConfig{Cwd: "/srv"}, map[string]string{"a": "1"}, nil, nil, nil, nil, time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC))
+	base := NewService("ns", "env", 2, &commonv1.ExecutionConfig{Cwd: "/srv"}, map[string]string{"a": "1"}, nil, nil, nil, time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC))
 	req := &servicev1.UpdateServiceRequest{
 		ServiceID:       base.GetID(),
 		ExpectedVersion: base.GetVersion(),
@@ -62,7 +62,7 @@ func TestApplyUpdateUsesFieldMask(t *testing.T) {
 }
 
 func TestApplyUpdateRejectsVersionMismatch(t *testing.T) {
-	base := NewService("ns", "env", 1, nil, nil, nil, nil, nil, nil, time.Now().UTC())
+	base := NewService("ns", "env", 1, nil, nil, nil, nil, nil, time.Now().UTC())
 	_, err := ApplyUpdate(base, &servicev1.UpdateServiceRequest{
 		ServiceID:       base.GetID(),
 		ExpectedVersion: base.GetVersion() + 1,
@@ -73,7 +73,7 @@ func TestApplyUpdateRejectsVersionMismatch(t *testing.T) {
 }
 
 func TestMarkDeletedClonesAndStartsDeletion(t *testing.T) {
-	base := NewService("ns", "env", 1, nil, nil, nil, nil, nil, nil, time.Now().UTC())
+	base := NewService("ns", "env", 1, nil, nil, nil, nil, nil, time.Now().UTC())
 	next := MarkDeleted(base, time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC))
 	if next.GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETING {
 		t.Fatalf("status = %v, want deleting", next.GetStatus())
@@ -88,7 +88,7 @@ func TestMarkDeletedClonesAndStartsDeletion(t *testing.T) {
 
 func TestApplyStatusUpdatePreservesDeletingState(t *testing.T) {
 	deleted := MarkDeleted(
-		NewService("ns", "env", 1, nil, nil, nil, nil, nil, nil, time.Now().UTC()),
+		NewService("ns", "env", 1, nil, nil, nil, nil, nil, time.Now().UTC()),
 		time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC),
 	)
 
@@ -112,7 +112,7 @@ func TestApplyStatusUpdatePreservesDeletingState(t *testing.T) {
 
 func TestApplyDeletionProgressOnlyCompletesAtTerminalPhase(t *testing.T) {
 	now := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
-	service := MarkDeleted(NewService("ns", "env", 0, nil, nil, nil, nil, nil, nil, now), now)
+	service := MarkDeleted(NewService("ns", "env", 0, nil, nil, nil, nil, nil, now), now)
 	releasing := &servicev1.ServiceDeletionStatus{Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS}
 	next := ApplyDeletionProgress(service, releasing, now.Add(time.Second))
 	if next.GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETING {
@@ -130,7 +130,7 @@ func TestApplyDeletionProgressOnlyCompletesAtTerminalPhase(t *testing.T) {
 
 func TestApplyUpdateRejectsDeletingService(t *testing.T) {
 	now := time.Date(2026, 7, 17, 13, 0, 0, 0, time.UTC)
-	service := MarkDeleted(NewService("ns", "env", 0, nil, nil, nil, nil, nil, nil, now), now)
+	service := MarkDeleted(NewService("ns", "env", 0, nil, nil, nil, nil, nil, now), now)
 	replicas := int32(1)
 	_, err := ApplyUpdate(service, &servicev1.UpdateServiceRequest{ServiceID: service.GetID(), ExpectedVersion: service.GetVersion(), Replicas: &replicas}, now.Add(time.Second))
 	if grpcstatus.Code(err) != codes.FailedPrecondition {
@@ -139,7 +139,7 @@ func TestApplyUpdateRejectsDeletingService(t *testing.T) {
 }
 
 func TestApplyUpdateReplacesRolloutPolicy(t *testing.T) {
-	base := NewService("ns", "env", 2, nil, nil, nil, nil, nil, nil, time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC))
+	base := NewService("ns", "env", 2, nil, nil, nil, nil, nil, time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC))
 	next, err := ApplyUpdate(base, &servicev1.UpdateServiceRequest{
 		ServiceID:       base.GetID(),
 		ExpectedVersion: base.GetVersion(),
@@ -155,7 +155,7 @@ func TestApplyUpdateReplacesRolloutPolicy(t *testing.T) {
 }
 
 func TestApplyUpdateEnvironmentIDUsesFieldMask(t *testing.T) {
-	base := NewService("ns", "env-1", 2, nil, nil, nil, nil, nil, nil, time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC))
+	base := NewService("ns", "env-1", 2, nil, nil, nil, nil, nil, time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC))
 	next, err := ApplyUpdate(base, &servicev1.UpdateServiceRequest{
 		ServiceID:       base.GetID(),
 		ExpectedVersion: base.GetVersion(),
@@ -167,36 +167,6 @@ func TestApplyUpdateEnvironmentIDUsesFieldMask(t *testing.T) {
 	}
 	if next.GetEnvironmentID() != "env-2" {
 		t.Fatalf("environment_id = %q, want env-2", next.GetEnvironmentID())
-	}
-}
-
-func TestApplyUpdateAutoscalingPolicyUsesFieldMask(t *testing.T) {
-	base := NewService("ns", "env", 2, nil, nil, nil, nil, nil, nil, time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC))
-	next, err := ApplyUpdate(base, &servicev1.UpdateServiceRequest{
-		ServiceID:       base.GetID(),
-		ExpectedVersion: base.GetVersion(),
-		AutoscalingPolicy: &servicev1.ServiceAutoscalingPolicy{
-			MinReplicas: 1,
-			MaxReplicas: 5,
-			Schedules: []*servicev1.ServiceAutoscalingSchedule{{
-				Name:     "business",
-				CronUtc:  "* 9-17 * * 1-5",
-				Replicas: 3,
-			}},
-		},
-		UpdateMask: &fieldmaskpb.FieldMask{Paths: []string{"autoscaling_policy"}},
-	}, time.Date(2026, 4, 24, 11, 0, 0, 0, time.UTC))
-	if err != nil {
-		t.Fatalf("ApplyUpdate(autoscaling_policy) error = %v", err)
-	}
-	if next.GetAutoscalingPolicy() == nil {
-		t.Fatal("autoscaling policy = nil, want populated")
-	}
-	if next.GetAutoscalingPolicy().GetMinReplicas() != 1 || next.GetAutoscalingPolicy().GetMaxReplicas() != 5 {
-		t.Fatalf("autoscaling policy = %+v, want min=1 max=5", next.GetAutoscalingPolicy())
-	}
-	if len(next.GetAutoscalingPolicy().GetSchedules()) != 1 || next.GetAutoscalingPolicy().GetSchedules()[0].GetName() != "business" {
-		t.Fatalf("autoscaling schedules = %#v, want business schedule", next.GetAutoscalingPolicy().GetSchedules())
 	}
 }
 

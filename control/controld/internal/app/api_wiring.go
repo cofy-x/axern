@@ -151,7 +151,6 @@ func (a *App) newAuthoritativeNodeProfile() nodeProfile {
 func (a *App) newServiceController(selector *placement.Selector) servicekernel.Controller {
 	return appservice.NewController(appservice.ControllerDeps{
 		Store:                              a.servicePG,
-		Autoscaling:                        a.servicePG,
 		Allocations:                        a.servicePG,
 		Reconcile:                          a.servicePG,
 		Statuses:                           a.servicePG,

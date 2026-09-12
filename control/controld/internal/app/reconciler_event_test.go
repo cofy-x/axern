@@ -102,9 +102,8 @@ func TestServiceReconcileEventsDoNotBlockIndependentBatches(t *testing.T) {
 	}
 }
 
-func TestPeriodicReconcileSeparatesAutoscalingFromRecoverySweep(t *testing.T) {
+func TestPeriodicReconcileDefersServicesToRecoverySweep(t *testing.T) {
 	pendingCalls := 0
-	autoscalingCalls := 0
 	app := &App{
 		now: func() time.Time { return time.Now().UTC() },
 		serviceReconciler: reconcileFunc{
@@ -112,21 +111,17 @@ func TestPeriodicReconcileSeparatesAutoscalingFromRecoverySweep(t *testing.T) {
 				pendingCalls++
 				return nil
 			},
-			reconcileAutoscaled: func(context.Context, time.Time) error {
-				autoscalingCalls++
-				return nil
-			},
 		},
 		reconcileHealth: reconcilekernel.NewHealthTracker(reconcilekernel.ComponentService),
 	}
 
 	app.reconcilePeriodicV1()
-	if pendingCalls != 0 || autoscalingCalls != 1 {
-		t.Fatalf("periodic calls = pending:%d autoscaling:%d, want 0/1", pendingCalls, autoscalingCalls)
+	if pendingCalls != 0 {
+		t.Fatalf("periodic pending calls = %d, want 0", pendingCalls)
 	}
 	app.reconcileV1()
-	if pendingCalls != 1 || autoscalingCalls != 1 {
-		t.Fatalf("recovery calls = pending:%d autoscaling:%d, want 1/1", pendingCalls, autoscalingCalls)
+	if pendingCalls != 1 {
+		t.Fatalf("recovery pending calls = %d, want 1", pendingCalls)
 	}
 }
 
@@ -366,9 +361,8 @@ func TestAllocationReconcileInheritsApplicationLifecycleCancellation(t *testing.
 }
 
 type reconcileFunc struct {
-	reconcilePending    func(context.Context, time.Time) error
-	reconcileAutoscaled func(context.Context, time.Time) error
-	reconcileServices   func(context.Context, []string, time.Time) error
+	reconcilePending  func(context.Context, time.Time) error
+	reconcileServices func(context.Context, []string, time.Time) error
 }
 
 type runReconcilerFunc func(context.Context, time.Time) error
@@ -394,13 +388,6 @@ func (f reconcileFunc) ReconcilePending(ctx context.Context, now time.Time) erro
 		return nil
 	}
 	return f.reconcilePending(ctx, now)
-}
-
-func (f reconcileFunc) ReconcileAutoscaled(ctx context.Context, now time.Time) error {
-	if f.reconcileAutoscaled == nil {
-		return nil
-	}
-	return f.reconcileAutoscaled(ctx, now)
 }
 
 func (f reconcileFunc) ReconcileServices(ctx context.Context, serviceIDs []string, now time.Time) error {

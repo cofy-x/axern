@@ -53,7 +53,6 @@ type Spec struct {
 	Replicas              *int32            `json:"replicas,omitempty" yaml:"replicas,omitempty"`
 	Readiness             *Probe            `json:"readiness,omitempty" yaml:"readiness,omitempty"`
 	Liveness              *Probe            `json:"liveness,omitempty" yaml:"liveness,omitempty"`
-	Autoscaling           *Autoscaling      `json:"autoscaling,omitempty" yaml:"autoscaling,omitempty"`
 	Env                   map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
 	SecretEnv             []SecretEnv       `json:"secret_env,omitempty" yaml:"secret_env,omitempty"`
 	SecretFiles           []SecretFile      `json:"secret_files,omitempty" yaml:"secret_files,omitempty"`
@@ -99,11 +98,6 @@ type HTTPProbe struct {
 	Port   int32  `json:"port" yaml:"port"`
 	Path   string `json:"path,omitempty" yaml:"path,omitempty"`
 	Scheme string `json:"scheme,omitempty" yaml:"scheme,omitempty"`
-}
-
-type Autoscaling struct {
-	MinReplicas int32 `json:"min_replicas" yaml:"min_replicas"`
-	MaxReplicas int32 `json:"max_replicas" yaml:"max_replicas"`
 }
 
 type SecretEnv struct {
@@ -183,15 +177,12 @@ func (e *Envelope) Validate(expected Kind) error {
 	}
 	switch e.Kind {
 	case KindRun:
-		if e.Spec.Replicas != nil || e.Spec.Readiness != nil || e.Spec.Liveness != nil || e.Spec.Autoscaling != nil {
+		if e.Spec.Replicas != nil || e.Spec.Readiness != nil || e.Spec.Liveness != nil {
 			return fmt.Errorf("Run spec contains service fields")
 		}
 	case KindService:
 		if e.Spec.Replicas != nil && *e.Spec.Replicas < 0 {
 			return fmt.Errorf("Service replicas must be non-negative")
-		}
-		if e.Spec.Autoscaling != nil && (e.Spec.Autoscaling.MinReplicas < 0 || e.Spec.Autoscaling.MaxReplicas < e.Spec.Autoscaling.MinReplicas) {
-			return fmt.Errorf("Service autoscaling range is invalid")
 		}
 		if _, err := probe(e.Spec.Readiness); err != nil {
 			return fmt.Errorf("spec.readiness: %w", err)
@@ -213,20 +204,16 @@ func (e Envelope) ServiceReplicas() int32 {
 	return *e.Spec.Replicas
 }
 
-func (e Envelope) ServiceConfig() (*servicev1.ServiceProbe, *servicev1.ServiceProbe, *servicev1.ServiceAutoscalingPolicy, error) {
+func (e Envelope) ServiceConfig() (*servicev1.ServiceProbe, *servicev1.ServiceProbe, error) {
 	readiness, err := probe(e.Spec.Readiness)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	liveness, err := probe(e.Spec.Liveness)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
-	var autoscaling *servicev1.ServiceAutoscalingPolicy
-	if e.Spec.Autoscaling != nil {
-		autoscaling = &servicev1.ServiceAutoscalingPolicy{MinReplicas: e.Spec.Autoscaling.MinReplicas, MaxReplicas: e.Spec.Autoscaling.MaxReplicas}
-	}
-	return readiness, liveness, autoscaling, nil
+	return readiness, liveness, nil
 }
 
 func (e Envelope) EnvironmentSpec() (string, *environmentv1.EnvironmentSpec) {

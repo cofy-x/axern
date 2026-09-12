@@ -60,10 +60,6 @@ func (s *Server) CreateService(ctx context.Context, req *servicev1.CreateService
 		opErr = err
 		return nil, err
 	}
-	if err := validateServiceAutoscalingPolicy(req.GetAutoscalingPolicy()); err != nil {
-		opErr = err
-		return nil, err
-	}
 	if _, err := s.deps.Environments.GetEnvironment(ctx, environmentID); err != nil {
 		opErr = err
 		return nil, err
@@ -77,7 +73,6 @@ func (s *Server) CreateService(ctx context.Context, req *servicev1.CreateService
 		RolloutPolicy:  req.GetRolloutPolicy(),
 		ReadinessProbe: req.GetReadinessProbe(),
 		LivenessProbe:  req.GetLivenessProbe(),
-		Autoscaling:    req.GetAutoscalingPolicy(),
 	}, s.deps.Now())
 	if err != nil {
 		opErr = err
@@ -227,10 +222,6 @@ func (s *Server) UpdateService(ctx context.Context, req *servicev1.UpdateService
 		return nil, err
 	}
 	if err := validateServiceLivenessProbe(req.GetLivenessProbe()); err != nil {
-		opErr = err
-		return nil, err
-	}
-	if err := validateServiceAutoscalingPolicy(req.GetAutoscalingPolicy()); err != nil {
 		opErr = err
 		return nil, err
 	}
