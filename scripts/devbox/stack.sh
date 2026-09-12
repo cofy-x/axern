@@ -8,7 +8,6 @@ RUN_DIR="${DEV_DIR}/run"
 LOG_DIR="${STACK_DIR}/logs"
 PID_DIR="${STACK_DIR}/pids"
 BIN_DIR="${STACK_DIR}/bin"
-GATEWAY_DASHBOARD_VENDOR_DIR="${ROOT_DIR}/gateway/gatewayd/internal/api/http/dashboard/vendor"
 POSTGRES_DATA_DIR="${STACK_DIR}/postgres"
 
 POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}"
@@ -433,19 +432,7 @@ start_node_tunneld() {
     -agent-binary '${BIN_DIR}/tunnel-agent'"
 }
 
-ensure_gateway_dashboard_assets() {
-  if [ -s "${GATEWAY_DASHBOARD_VENDOR_DIR}/xterm.js" ] &&
-    [ -s "${GATEWAY_DASHBOARD_VENDOR_DIR}/xterm.css" ] &&
-    [ -s "${GATEWAY_DASHBOARD_VENDOR_DIR}/addon-fit.js" ]; then
-    return
-  fi
-
-  echo "preparing gateway dashboard assets"
-  make -C "${ROOT_DIR}" gateway-dashboard-assets
-}
-
 start_gatewayd() {
-  ensure_gateway_dashboard_assets
   start_service gatewayd "exec go -C '${ROOT_DIR}/gateway/gatewayd' run . \
     -http-address 127.0.0.1:25080 \
     -control-edge-address 127.0.0.1:25000 \
@@ -454,8 +441,6 @@ start_gatewayd() {
     -control-edge-tls-key '${DEV_DIR}/certs/gatewayd.key' \
     -tunnel-relay-target 127.0.0.1:24100 \
     -tunnel-relay-tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -dashboard-enabled \
-    -dashboard-vendor-dir '${GATEWAY_DASHBOARD_VENDOR_DIR}' \
     -control-target 127.0.0.1:24000 \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
     -tls-cert '${DEV_DIR}/certs/gatewayd.crt' \
@@ -486,7 +471,6 @@ start_all() {
   echo "Axern dev stack is running."
   echo "Control HTTP: http://127.0.0.1:24001/healthz"
   echo "Gateway HTTP: http://127.0.0.1:25080/healthz"
-  echo "Gateway dashboard: http://127.0.0.1:25080/dashboard?token=${AXERN_DEV_TOKEN}"
   echo "Logs: ${LOG_DIR}"
 }
 

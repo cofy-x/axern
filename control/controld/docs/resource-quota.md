@@ -259,8 +259,8 @@ not created, but the event row is committed before the API returns
 event interface.
 
 Events are append-only operational history with retention. They do not affect
-quota usage, placement, or retry behavior. They are used by CLI, dashboard, and
-future alert workflows to explain recent namespace pressure without parsing
+quota usage, placement, or retry behavior. They are used by CLI and future
+alert workflows to explain recent namespace pressure without parsing
 gRPC error text. Event queries require an explicit namespace string but do not
 require the namespace row to still exist, so recently deleted namespaces remain
 diagnosable until retention removes their event history.
@@ -283,9 +283,9 @@ gone:
 Historical rows do not block namespace deletion. Completed, failed, and
 cancelled runs keep their namespace string for auditability.
 
-The dashboard may surface known blockers from public quota and service data,
-but namespace delete remains authoritative because some blockers, such as
-secrets and environments, are not inferred from quota state.
+Clients may surface known blockers from public quota and workload data, but
+namespace delete remains authoritative because some blockers, such as secrets
+and environments, are not inferred from quota state.
 
 ## Current Implementation Contract
 
@@ -299,8 +299,8 @@ The implementation contract is:
 4. Active usage is read with `released_at IS NULL`.
 5. Namespace deletion rejects live blockers before deleting namespace and quota
    policy rows.
-6. CLI, SDKs, and the dashboard read quota through public APIs; they do not
-   infer quota usage from node summaries.
+6. CLI and SDKs read quota through public APIs; they do not infer quota usage
+   from node summaries.
 7. Namespace quota admission rejections are recorded in
    `namespace_quota_events` and queried through the quota API.
 

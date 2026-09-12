@@ -33,17 +33,11 @@ func TestParseGatewayHardeningDefaults(t *testing.T) {
 	if cfg.TerminalIdleTimeout != 10*time.Minute {
 		t.Fatalf("TerminalIdleTimeout = %s, want 10m", cfg.TerminalIdleTimeout)
 	}
-	if cfg.DashboardEnabled {
-		t.Fatal("DashboardEnabled = true, want false")
-	}
 	if cfg.TunnelRelayTarget != DefaultTunnelRelayTarget {
 		t.Fatalf("TunnelRelayTarget = %q, want %q", cfg.TunnelRelayTarget, DefaultTunnelRelayTarget)
 	}
 	if cfg.ControlEdgeAddress != DefaultControlEdgeAddress {
 		t.Fatalf("ControlEdgeAddress = %q, want %q", cfg.ControlEdgeAddress, DefaultControlEdgeAddress)
-	}
-	if cfg.DashboardVendorDir != DefaultDashboardVendorDir {
-		t.Fatalf("DashboardVendorDir = %q, want %q", cfg.DashboardVendorDir, DefaultDashboardVendorDir)
 	}
 }
 
@@ -58,8 +52,6 @@ func TestParseGatewayHardeningEnvAndFlags(t *testing.T) {
 	t.Setenv("GATEWAYD_SERVICE_ENDPOINT_QUARANTINE_TTL", "12s")
 	t.Setenv("GATEWAYD_ROUTE_CACHE_TTL", "4s")
 	t.Setenv("GATEWAYD_ROUTE_CACHE_MAX_ENTRIES", "2048")
-	t.Setenv("GATEWAYD_DASHBOARD_ENABLED", "true")
-	t.Setenv("GATEWAYD_DASHBOARD_VENDOR_DIR", "/tmp/gateway-dashboard-vendor")
 	t.Setenv("GATEWAYD_CONTROL_EDGE_ADDRESS", "127.0.0.1:25001")
 	t.Setenv("GATEWAYD_CONTROL_EDGE_TLS_CA_CERT", "edge-ca.crt")
 	t.Setenv("GATEWAYD_CONTROL_EDGE_TLS_CERT", "edge.crt")
@@ -76,8 +68,6 @@ func TestParseGatewayHardeningEnvAndFlags(t *testing.T) {
 		"-route-cache-max-entries=4096",
 		"-terminal-idle-timeout=11s",
 		"-lease-retry-attempts=5",
-		"-dashboard-enabled=false",
-		"-dashboard-vendor-dir=/var/lib/gateway-dashboard",
 		"-control-edge-address=127.0.0.1:25002",
 		"-tunnel-relay-target=127.0.0.1:24100",
 	})
@@ -105,9 +95,6 @@ func TestParseGatewayHardeningEnvAndFlags(t *testing.T) {
 	if cfg.LeaseRetryAttempts != 5 {
 		t.Fatalf("LeaseRetryAttempts = %d, want 5", cfg.LeaseRetryAttempts)
 	}
-	if cfg.DashboardEnabled {
-		t.Fatal("DashboardEnabled = true, want flag override false")
-	}
 	if cfg.ControlEdgeAddress != "127.0.0.1:25002" {
 		t.Fatalf("ControlEdgeAddress = %q, want flag value", cfg.ControlEdgeAddress)
 	}
@@ -116,9 +103,6 @@ func TestParseGatewayHardeningEnvAndFlags(t *testing.T) {
 	}
 	if cfg.TunnelRelayTarget != "127.0.0.1:24100" || cfg.TunnelRelayTLSCACert != "relay-ca.crt" || cfg.TunnelRelayTLSServerName != "tunneld" {
 		t.Fatalf("tunnel relay config = %#v", cfg)
-	}
-	if cfg.DashboardVendorDir != "/var/lib/gateway-dashboard" {
-		t.Fatalf("DashboardVendorDir = %q, want flag value", cfg.DashboardVendorDir)
 	}
 }
 
@@ -143,26 +127,6 @@ func TestParseRequiresTunnelRelayTLS(t *testing.T) {
 
 	if _, err := Parse([]string{"-tunnel-relay-tls-ca-cert="}); err == nil {
 		t.Fatal("Parse() error = nil, want missing tunnel relay TLS error")
-	}
-}
-
-func TestParseDashboardEnabledFromEnv(t *testing.T) {
-	t.Setenv("GATEWAYD_CONTROL_TARGET", "127.0.0.1:24000")
-	t.Setenv("GATEWAYD_TLS_CA_CERT", "ca.crt")
-	t.Setenv("GATEWAYD_TLS_CERT", "client.crt")
-	t.Setenv("GATEWAYD_TLS_KEY", "client.key")
-	t.Setenv("GATEWAYD_DASHBOARD_ENABLED", "true")
-	t.Setenv("GATEWAYD_DASHBOARD_VENDOR_DIR", "")
-
-	cfg, err := Parse(nil)
-	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
-	}
-	if !cfg.DashboardEnabled {
-		t.Fatal("DashboardEnabled = false, want true")
-	}
-	if cfg.DashboardVendorDir != DefaultDashboardVendorDir {
-		t.Fatalf("DashboardVendorDir = %q, want default", cfg.DashboardVendorDir)
 	}
 }
 

@@ -6,14 +6,14 @@ kind.
 It covers two gateway paths:
 
 - service HTTP forwarding through `/svc/{namespace}/{service_id}/{port}/...`
-- interactive allocation terminals through the browser dashboard or SSH
+- interactive allocation terminals through SSH
 
 ## Local Endpoints
 
-| Environment | HTTP gateway | Dashboard | SSH |
-| --- | --- | --- | --- |
-| compose | `http://127.0.0.1:25080` | `http://127.0.0.1:25080/dashboard?token=axern-local-dev` | `127.0.0.1:25022` |
-| kind | `http://127.0.0.1:25082` | `http://127.0.0.1:25082/dashboard?token=axern-local-dev` | `127.0.0.1:25023` |
+| Environment | HTTP gateway | SSH |
+| --- | --- | --- |
+| compose | `http://127.0.0.1:25080` | `127.0.0.1:25022` |
+| kind | `http://127.0.0.1:25082` | `127.0.0.1:25023` |
 
 `axern ssh` reads the SSH target and generated client key from the current
 axern context. Use `axern ctx list` before testing if both compose and kind
@@ -172,18 +172,6 @@ done
 echo "allocation_id=$allocation_id"
 ```
 
-Open the browser terminal dashboard:
-
-```text
-http://127.0.0.1:25080/dashboard?token=axern-local-dev
-```
-
-Paste `svc_id` into the target field and connect. If the service has one
-current ready replica, the dashboard connects automatically; if it has multiple
-current ready replicas, pick one from the displayed list. You can also paste
-`allocation_id` directly. The compose gateway image includes the xterm assets
-when built through `make local-images-build` or `make local-compose-up`.
-
 SSH into the service. If the service has one current ready replica, the CLI
 selects it automatically:
 
@@ -322,18 +310,6 @@ done
 
 echo "allocation_id=$allocation_id"
 ```
-
-Open the browser terminal dashboard through the repo-managed kind NodePort
-gateway:
-
-```text
-http://127.0.0.1:25082/dashboard?token=axern-local-dev
-```
-
-Paste `svc_id` into the target field and connect. If the service has one
-current ready replica, the dashboard connects automatically; if it has multiple
-current ready replicas, pick one from the displayed list. You can also paste
-`allocation_id` directly.
 
 SSH into the service. If the service has one current ready replica, the CLI
 selects it automatically:

@@ -58,9 +58,6 @@ spec:
             - -ssh-authorized-keys
             - /ssh/authorized_keys
             {{- end }}
-            {{- if .Values.gatewayd.dashboardEnabled }}
-            - -dashboard-enabled
-            {{- end }}
             - -tls-ca-cert
             - /certs/ca.crt
             - -tls-cert
@@ -85,8 +82,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "axern.secretsSecretName" . }}
                   key: GATEWAYD_DEV_TOKEN
-            - name: GATEWAYD_DASHBOARD_ENABLED
-              value: {{ ternary "true" "false" .Values.gatewayd.dashboardEnabled | quote }}
             {{- include "axern.otelEnv" . | nindent 12 }}
           ports:
             - containerPort: 25000

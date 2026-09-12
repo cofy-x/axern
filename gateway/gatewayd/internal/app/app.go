@@ -10,7 +10,6 @@ import (
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/adapters/nodebridge"
 	controlapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/control"
 	httpapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/http"
-	"github.com/cofy-x/axern/gateway/gatewayd/internal/api/http/dashboard"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/api/http/serviceproxy"
 	nodeapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/node"
 	sshapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/ssh"
@@ -77,14 +76,7 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 	}
 	controlServer.RegisterTunnelRelay(tunnelServer)
 	controlServer.RegisterNodeSandbox(nodeapi.New(controlClient, nodes, nodeOptions(cfg), metrics))
-	var dashboardHandler *dashboard.Handler
-	if cfg.DashboardEnabled {
-		dashboardHandler, err = dashboard.New(token, cfg.DashboardVendorDir, dashboard.NewServiceReplicaResolver(controlClient.Gateway))
-		if err != nil {
-			return nil, err
-		}
-	}
-	handler := httpapi.New(routeCache, proxyHandler, terminal, dashboardHandler, token, cfg.RequireHTTPAuth, metrics)
+	handler := httpapi.New(routeCache, proxyHandler, terminal, token, cfg.RequireHTTPAuth, metrics)
 	wrappedHandler := obs.HTTPHandler(handler, "gatewayd.http")
 	return &App{
 		control: controlClient,

@@ -30,7 +30,7 @@ Commands should call application services instead of coordinating generated gRPC
 ## API Boundaries
 
 - Use public SDK packages under `sdk/go/gen/axern/control/...`.
-- Dashboard reliability data must use the public admin RPC exposed by gatewayd.
+- Reliability data must use the public admin RPC exposed by gatewayd.
 - Do not import or depend on `control/controld/internal/...`, runtime-private APIs, node lifecycle APIs, database adapters, or implementation-only protos from this CLI.
 - Keep private operational tooling out of `apps/cli` unless it is promoted to a product-facing workflow.
 

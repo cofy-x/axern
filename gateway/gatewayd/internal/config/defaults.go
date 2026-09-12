@@ -25,8 +25,6 @@ func defaultsFromEnv() Config {
 		SSHAddress:                   defaultString(os.Getenv("GATEWAYD_SSH_ADDRESS"), DefaultSSHAddress),
 		SSHHostKey:                   os.Getenv("GATEWAYD_SSH_HOST_KEY"),
 		SSHAuthorizedKeys:            os.Getenv("GATEWAYD_SSH_AUTHORIZED_KEYS"),
-		DashboardEnabled:             parseBool(os.Getenv("GATEWAYD_DASHBOARD_ENABLED")),
-		DashboardVendorDir:           defaultString(os.Getenv("GATEWAYD_DASHBOARD_VENDOR_DIR"), DefaultDashboardVendorDir),
 		RouteCacheTTL:                durationEnv("GATEWAYD_ROUTE_CACHE_TTL", 3*time.Second),
 		RouteCacheMaxEntries:         intEnv("GATEWAYD_ROUTE_CACHE_MAX_ENTRIES", 8192),
 		ControlDialTimeout:           durationEnv("GATEWAYD_CONTROL_DIAL_TIMEOUT", 15*time.Second),

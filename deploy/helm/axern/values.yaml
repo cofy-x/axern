@@ -320,7 +320,6 @@ gatewayd:
     digest: ""
     pullPolicy: ""
   devToken: ""
-  dashboardEnabled: true
   routeCacheTTL: 3s
   routeCacheMaxEntries: 8192
   serviceEndpointRetryAttempts: 4

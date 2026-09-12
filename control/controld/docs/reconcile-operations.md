@@ -18,7 +18,7 @@ convergence issues.
   typed admin gRPC read models used by smoke tests and operator triage.
 - Active-node heartbeat freshness, summary freshness, and axnoded readiness are
   folded into the same reliability response. Retired nodes are excluded.
-- The admin gRPC API, CLI, and dashboard perform audited repair actions.
+- The admin gRPC API and CLI perform audited repair actions.
 
 Debug HTTP endpoints are read-only. Durable mutations must go through admin
 gRPC so row locks, owner-aware state transitions, and audit records stay in the
@@ -31,7 +31,7 @@ flowchart LR
   QueueZ["/allocation-reconcilez"] --> Triage
   ConsistencyZ["/consistencyz"] --> Triage
   CLIHealth["axern admin reliability check"] --> Triage
-  Triage --> Admin["admin gRPC / CLI / dashboard"]
+  Triage --> Admin["admin gRPC / CLI"]
   Admin --> DB[("Postgres")]
   DB --> Queue["allocation_reconcile_queue"]
   Queue --> Reconciler["run/service reconcilers"]
@@ -155,7 +155,6 @@ make -C control/controld test
 make -C control/controld vet
 make -C control/controld check-architecture
 go test ./apps/cli/...
-make axern-cli-dashboard-smoke
 ```
 
 For an end-to-end local check of admin repair, debug endpoints, and audit:

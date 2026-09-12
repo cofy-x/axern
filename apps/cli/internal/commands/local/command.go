@@ -96,7 +96,7 @@ func statusCommand(runtime command.Runtime, version string) *cobra.Command {
 		if value.StackVersion != "" {
 			fmt.Fprintf(cmd.OutOrStdout(), "Stack:      %s\n", value.StackVersion)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Dashboard:  %s\nData:       %s\nDisk:       %s\n", value.DashboardURL, value.DataPath, formatBytes(value.DiskBytes))
+		fmt.Fprintf(cmd.OutOrStdout(), "HTTP:       %s\nData:       %s\nDisk:       %s\n", value.GatewayHTTPURL, value.DataPath, formatBytes(value.DiskBytes))
 		fmt.Fprintf(cmd.OutOrStdout(), "Gateway:    grpc=%d http=%d ssh=%d\n", value.Ports["gateway_grpc"], value.Ports["gateway_http"], value.Ports["gateway_ssh"])
 		if value.CurrentContext != "" {
 			fmt.Fprintf(cmd.OutOrStdout(), "Context:    %s\n", value.CurrentContext)

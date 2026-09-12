@@ -19,9 +19,6 @@ The command path is:
 cliapp -> commands -> application -> public SDK clients -> gatewayd
 ```
 
-The dashboard also reads reliability state through gateway RPC. It does not
-connect to controld debug HTTP endpoints.
-
 ## Contexts
 
 The default context file is `~/.config/axern/config.json`. Override it with
@@ -88,8 +85,6 @@ axern agent shell --workspace <workspace> --profile <profile>
 axern agent run --workspace <workspace> --profile <profile> -- exec --model <model> "reply ok only"
 axern agent stop --workspace <workspace>
 axern agent workspace delete --workspace <workspace> --yes
-axern dashboard
-
 axern admin reliability check
 axern admin consistency check
 axern admin node list --status active

@@ -195,7 +195,6 @@ services:
       GATEWAYD_SSH_ADDRESS: 0.0.0.0:25022
       GATEWAYD_SSH_HOST_KEY: /ssh/gateway_host_ed25519
       GATEWAYD_SSH_AUTHORIZED_KEYS: /ssh/authorized_keys
-      GATEWAYD_DASHBOARD_ENABLED: "true"
       GATEWAYD_TLS_CA_CERT: /certs/ca.crt
       GATEWAYD_TLS_CERT: /certs/gatewayd.crt
       GATEWAYD_TLS_KEY: /certs/gatewayd.key
@@ -204,7 +203,7 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
       OTEL_EXPORTER_OTLP_INSECURE: "true"
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local
-    command: ["-control-target", "controld:24000", "-control-edge-address", "0.0.0.0:25000", "-control-edge-tls-ca-cert", "/certs/ca.crt", "-control-edge-tls-cert", "/certs/gatewayd.crt", "-control-edge-tls-key", "/certs/gatewayd.key", "-tunnel-relay-target", "tunneld:24100", "-tunnel-relay-tls-ca-cert", "/certs/ca.crt", "-http-address", "0.0.0.0:25080", "-ssh-enabled", "-ssh-address", "0.0.0.0:25022", "-ssh-host-key", "/ssh/gateway_host_ed25519", "-ssh-authorized-keys", "/ssh/authorized_keys", "-dashboard-enabled", "-tls-ca-cert", "/certs/ca.crt", "-tls-cert", "/certs/gatewayd.crt", "-tls-key", "/certs/gatewayd.key", "-dev-token", "${LOCAL_DEV_TOKEN}"]
+    command: ["-control-target", "controld:24000", "-control-edge-address", "0.0.0.0:25000", "-control-edge-tls-ca-cert", "/certs/ca.crt", "-control-edge-tls-cert", "/certs/gatewayd.crt", "-control-edge-tls-key", "/certs/gatewayd.key", "-tunnel-relay-target", "tunneld:24100", "-tunnel-relay-tls-ca-cert", "/certs/ca.crt", "-http-address", "0.0.0.0:25080", "-ssh-enabled", "-ssh-address", "0.0.0.0:25022", "-ssh-host-key", "/ssh/gateway_host_ed25519", "-ssh-authorized-keys", "/ssh/authorized_keys", "-tls-ca-cert", "/certs/ca.crt", "-tls-cert", "/certs/gatewayd.crt", "-tls-key", "/certs/gatewayd.key", "-dev-token", "${LOCAL_DEV_TOKEN}"]
     ports:
       - "127.0.0.1:${GATEWAY_CONTROL_PORT}:25000"
       - "127.0.0.1:${GATEWAY_HTTP_PORT}:25080"

@@ -19,7 +19,7 @@ description: Local Axern 的环境要求、生命周期、数据、升级与故�
 | --- | --- |
 | `axern local up` | 预检、生成部署、启动、等待健康并配置 `local` Context |
 | `axern local image load IMAGE` | 将宿主 Docker 镜像流式导入本地节点；`--pull` 会先拉取镜像 |
-| `axern local status` | 展示版本、健康、Dashboard、数据路径、Context 和磁盘占用 |
+| `axern local status` | 展示版本、健康端点、数据路径、Context 和磁盘占用 |
 | `axern local logs [component]` | 聚合或指定组件日志，支持 `--follow`、`--tail`、`--since` |
 | `axern local doctor` | 只读检查主机、Docker、端口、版本、健康状态和 Node DNS；`--probe` 额外验证 Sandbox DNS |
 | `axern local down` | 删除容器和网络，保留数据 |
@@ -42,7 +42,7 @@ description: Local Axern 的环境要求、生命周期、数据、升级与故�
 
 ## 本地端口
 
-所有宿主机端口仅绑定 `127.0.0.1`：`25000` 为公开 gRPC Gateway，`25080` 为 Dashboard/HTTP，`25022` 为 SSH，`24101` 为控制面 HTTP，`25432` 为 PostgreSQL，`29000/29001` 为 MinIO。Observability Profile 额外使用 `4317`、`4318` 和 `13000`。
+所有宿主机端口仅绑定 `127.0.0.1`：`25000` 为公开 gRPC Gateway，`25080` 为 Gateway HTTP 健康检查和 allocation terminal，`25022` 为 SSH，`24101` 为控制面 HTTP，`25432` 为 PostgreSQL，`29000/29001` 为 MinIO。Observability Profile 额外使用 `4317`、`4318` 和 `13000`。
 
 首版不自动分配替代端口；请停止冲突进程后重新运行 `axern local doctor`。
 

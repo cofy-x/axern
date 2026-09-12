@@ -64,12 +64,6 @@ This starts repo-local Postgres plus:
 - `node-tunneld`
 - `gatewayd`
 
-`gatewayd` starts with the browser dashboard enabled. Open:
-
-```text
-http://127.0.0.1:25080/dashboard?token=axern-local-dev
-```
-
 State and logs live under `.dev/stack`:
 
 - Postgres data: `.dev/stack/postgres`

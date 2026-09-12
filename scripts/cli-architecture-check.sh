@@ -55,7 +55,6 @@ check_equals \
 expected_application_packages='apps/cli/internal/application/admin
 apps/cli/internal/application/agent
 apps/cli/internal/application/catalog
-apps/cli/internal/application/dashboard
 apps/cli/internal/application/doctor
 apps/cli/internal/application/environment
 apps/cli/internal/application/namespace
@@ -74,7 +73,6 @@ expected_command_packages='apps/cli/internal/commands/admin
 apps/cli/internal/commands/agent
 apps/cli/internal/commands/catalog
 apps/cli/internal/commands/context
-apps/cli/internal/commands/dashboard
 apps/cli/internal/commands/doctor
 apps/cli/internal/commands/environment
 apps/cli/internal/commands/identity
@@ -146,7 +144,7 @@ check_empty \
 
 check_empty \
 	"command domain command.go files should aggregate subcommands, not hold command actions" \
-	"rg -n 'Action:[[:space:]]*func|func .*\\(ctx \\*cli\\.Context\\) error' apps/cli/internal/commands/{admin,agent,catalog,context,dashboard,environment,namespace,quota,run,secret,service,tunnel}/command.go -g '*.go' || true"
+	"rg -n 'Action:[[:space:]]*func|func .*\\(ctx \\*cli\\.Context\\) error' apps/cli/internal/commands/{admin,agent,catalog,context,environment,namespace,quota,run,secret,service,tunnel}/command.go -g '*.go' || true"
 
 check_empty \
 	"do not reintroduce transitional type aliases" \

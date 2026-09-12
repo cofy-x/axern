@@ -60,4 +60,4 @@ axern doctor --namespace default
 
 托管的 Axrun Worker 使用专用服务身份。其命名空间访问还受当前执行的 Rollout 工作的短期持久租约进一步限制；Worker 证书本身不能编辑用户命名空间。
 
-完整的信任与审计模型见仓库的 [授权架构](https://github.com/cofy-x/axern/blob/main/docs/architecture/authorization.md)。运行审计化管理工作流（节点退役、Service 清理、存储回收、审计查看）的集群运维者，应遵循仓库的 [Dashboard 与 admin 运维指南](https://github.com/cofy-x/axern/blob/main/apps/cli/docs/dashboard-admin-operations.md)；这些 Runbook 随 CLI 维护，不在此复制。
+完整的信任与审计模型见仓库的 [授权架构](https://github.com/cofy-x/axern/blob/main/docs/architecture/authorization.md)。集群运维者应使用类型化的 `axern admin` 工作流执行审计操作，而不是调用调试 HTTP 接口。

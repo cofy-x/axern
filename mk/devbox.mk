@@ -127,7 +127,6 @@ controld-dev-prepare: node-dev-prepare postgres-dev-up ## Prepare Postgres and m
 
 gatewayd-dev-run: node-dev-prepare ## Run gatewayd in the repo-local Linux dev workspace
 	$(call ensure_linux_workspace)
-	$(MAKE) gateway-dashboard-assets
 	exec $(GO) -C $(ROOTDIR)/gateway/gatewayd run . \
 		-http-address 127.0.0.1:25080 \
 		-control-edge-address 127.0.0.1:25000 \
@@ -136,8 +135,6 @@ gatewayd-dev-run: node-dev-prepare ## Run gatewayd in the repo-local Linux dev w
 		-control-edge-tls-key '$(NODE_DEV_DIR)/certs/gatewayd.key' \
 		-tunnel-relay-target 127.0.0.1:24100 \
 		-tunnel-relay-tls-ca-cert '$(NODE_DEV_DIR)/certs/ca.crt' \
-		-dashboard-enabled \
-		-dashboard-vendor-dir '$(ROOTDIR)/gateway/gatewayd/internal/api/http/dashboard/vendor' \
 		-control-target 127.0.0.1:24000 \
 		-tls-ca-cert '$(NODE_DEV_DIR)/certs/ca.crt' \
 		-tls-cert '$(NODE_DEV_DIR)/certs/gatewayd.crt' \

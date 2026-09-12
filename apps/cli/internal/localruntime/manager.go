@@ -341,7 +341,7 @@ func (m *Manager) printStartupDiagnostics(profile string) {
 
 func (m *Manager) printReady() {
 	fmt.Fprintln(m.Stdout, "Axern local is ready.")
-	fmt.Fprintf(m.Stdout, "Dashboard: http://127.0.0.1:%d\n", GatewayHTTPPort)
+	fmt.Fprintf(m.Stdout, "Gateway:   http://127.0.0.1:%d/healthz\n", GatewayHTTPPort)
 	fmt.Fprintln(m.Stdout, "Context:   local")
 	fmt.Fprintln(m.Stdout, "Next:      axern local image load python:3.12-slim --pull")
 	fmt.Fprintln(m.Stdout, "Then:      axern run python:3.12-slim -- python -c 'print(\"hello from axern\")'")
@@ -671,7 +671,7 @@ func (m *Manager) Logs(ctx context.Context, options LogOptions) error {
 }
 
 func (m *Manager) Status(ctx context.Context) (Status, error) {
-	status := Status{State: "not-initialized", CLIVersion: m.Version, DataPath: m.Dir, DashboardURL: fmt.Sprintf("http://127.0.0.1:%d", GatewayHTTPPort), GatewayTarget: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), Ports: map[string]int{"gateway_grpc": GatewayControlPort, "gateway_http": GatewayHTTPPort, "gateway_ssh": GatewaySSHPort, "control_http": 24101, "postgres": 25432, "minio_api": 29000, "minio_console": 29001}}
+	status := Status{State: "not-initialized", CLIVersion: m.Version, DataPath: m.Dir, GatewayHTTPURL: fmt.Sprintf("http://127.0.0.1:%d", GatewayHTTPPort), GatewayTarget: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), Ports: map[string]int{"gateway_grpc": GatewayControlPort, "gateway_http": GatewayHTTPPort, "gateway_ssh": GatewaySSHPort, "control_http": 24101, "postgres": 25432, "minio_api": 29000, "minio_console": 29001}}
 	metadata, err := loadMetadata(m.metadataPath())
 	if err == nil {
 		status.StackVersion, status.Profile = metadata.Version, metadata.Profile
@@ -847,7 +847,7 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 			default:
 				stackRunning = true
 				add("stack_runtime", true, "stack_runtime_healthy", "stack_runtime_unhealthy", "all local components are healthy", "")
-				request, _ := http.NewRequestWithContext(ctx, http.MethodGet, status.DashboardURL+"/healthz", nil)
+				request, _ := http.NewRequestWithContext(ctx, http.MethodGet, status.GatewayHTTPURL+"/healthz", nil)
 				response, gatewayErr := (&http.Client{Timeout: 3 * time.Second}).Do(request)
 				gatewayOK := gatewayErr == nil && response != nil && response.StatusCode == http.StatusOK
 				if response != nil {

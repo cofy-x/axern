@@ -41,7 +41,6 @@ spec:
             - /ssh/gateway_host_ed25519
             - -ssh-authorized-keys
             - /ssh/authorized_keys
-            - -dashboard-enabled
             - -tls-ca-cert
             - /certs/ca.crt
             - -tls-cert
@@ -53,8 +52,6 @@ spec:
           env:
             - name: AXERN_GATEWAY_DEV_TOKEN
               value: axern-local-dev
-            - name: GATEWAYD_DASHBOARD_ENABLED
-              value: "true"
           ports:
             - containerPort: 25000
             - containerPort: 25080

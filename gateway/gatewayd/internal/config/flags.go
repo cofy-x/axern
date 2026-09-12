@@ -22,8 +22,6 @@ func newFlagSet(cfg *Config) *flag.FlagSet {
 	flags.StringVar(&cfg.SSHAddress, "ssh-address", cfg.SSHAddress, "SSH-compatible terminal listen address")
 	flags.StringVar(&cfg.SSHHostKey, "ssh-host-key", cfg.SSHHostKey, "private host key path for SSH-compatible terminal listener")
 	flags.StringVar(&cfg.SSHAuthorizedKeys, "ssh-authorized-keys", cfg.SSHAuthorizedKeys, "authorized_keys path for SSH-compatible terminal public key authentication")
-	flags.BoolVar(&cfg.DashboardEnabled, "dashboard-enabled", cfg.DashboardEnabled, "enable local gateway terminal dashboard")
-	flags.StringVar(&cfg.DashboardVendorDir, "dashboard-vendor-dir", cfg.DashboardVendorDir, "directory containing downloaded dashboard vendor assets")
 	flags.DurationVar(&cfg.RouteCacheTTL, "route-cache-ttl", cfg.RouteCacheTTL, "service route cache TTL")
 	flags.IntVar(&cfg.RouteCacheMaxEntries, "route-cache-max-entries", cfg.RouteCacheMaxEntries, "maximum service route cache entries")
 	flags.DurationVar(&cfg.ControlDialTimeout, "control-dial-timeout", cfg.ControlDialTimeout, "controld dial timeout")

@@ -68,7 +68,6 @@ go run ./gateway/gatewayd \
 - `GET /healthz`
 - `/svc/{namespace}/{service_id}/{port}/...` proxies HTTP traffic to a READY service replica
 - `/terminal/allocation/{allocation_id}` opens a WebSocket terminal and requires the dev token
-- `/dashboard` serves the optional lightweight terminal dashboard when enabled and requires the dev token
 
 V1 uses path routing only. `{service_id}` is the existing Axern service id, and
 `{port}` is either `PortSpec.name` or a container port number.
@@ -88,32 +87,6 @@ The SSH surface supports interactive `shell` sessions and non-interactive
 started directly; arbitrary exec requests run through `/bin/sh -lc` without a
 TTY unless the client requested one. It does not support SFTP, SCP, SSH agent
 forwarding, X11 forwarding, or SSH TCP forwarding.
-
-## Dashboard
-
-Enable the optional browser dashboard by first downloading untracked xterm
-assets and then starting `gatewayd` with dashboard enabled:
-
-```bash
-make gateway-dashboard-assets
-
-go run ./gateway/gatewayd \
-  -http-address 127.0.0.1:25080 \
-  -dashboard-enabled \
-  -dashboard-vendor-dir gateway/gatewayd/internal/api/http/dashboard/vendor \
-  -control-target 127.0.0.1:24000 \
-  -tls-ca-cert .dev/certs/ca.crt \
-  -tls-cert .dev/certs/gatewayd.crt \
-  -tls-key .dev/certs/gatewayd.key \
-  -dev-token axern-local-dev
-```
-
-Open `http://127.0.0.1:25080/dashboard?token=axern-local-dev`, enter an
-allocation id or service id, and connect. Service ids are resolved in the
-dashboard: one current ready replica connects automatically, while multiple
-current ready replicas are shown as a small allocation picker. The terminal
-connection still uses the existing `/terminal/allocation/{allocation_id}`
-WebSocket path.
 
 ## Observability
 
@@ -164,7 +137,6 @@ Key flags/env:
 - `-route-cache-ttl`, `-route-cache-max-entries`
 - `-terminal-idle-timeout`, `-terminal-max-duration`, `-terminal-max-message-bytes`
 - `-ssh-enabled`, `-ssh-address`, `-ssh-host-key`, `-ssh-authorized-keys`
-- `-dashboard-enabled`, `-dashboard-vendor-dir`
 - `-lease-retry-attempts`, `-lease-retry-base-delay`
 
 Service proxy request bodies are capped, while streaming responses remain

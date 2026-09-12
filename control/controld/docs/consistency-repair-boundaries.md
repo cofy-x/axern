@@ -23,7 +23,7 @@ references.
 ```mermaid
 flowchart LR
   Checker["consistency checker (read-only)"] --> Issues["typed issue codes"]
-  Issues --> Operator["operator / smoke / dashboard"]
+  Issues --> Operator["operator / CLI / smoke"]
   Operator --> Run["run owner repair"]
   Operator --> Service["service owner repair"]
   Operator --> Tunnel["tunnel owner repair"]
@@ -116,5 +116,5 @@ The intended command families are:
 
 Every repair command must accept an operator reason, write an admin audit event,
 and return whether it repaired, refused, or found the state already converged.
-Refusals must use typed diagnostics so the dashboard can show the next owner to
+Refusals must use typed diagnostics so clients can show the next owner to
 inspect without parsing free-form text.

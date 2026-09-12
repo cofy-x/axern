@@ -169,8 +169,8 @@ can keep its namespace string for auditability without blocking deletion.
 
 ## Diagnostics
 
-Resource admission failures are surfaced in CLI output, JSON output, and the
-local dashboard with stable diagnostic labels.
+Resource admission failures are surfaced in CLI and SDK responses with stable
+diagnostic labels.
 
 Plain `no eligible node` failures that do not contain capacity rejection details
 are node-selection failures, not resource admission failures. Examples include
@@ -200,7 +200,7 @@ capacity label.
 
 Run creation returns admission failures directly. Service creation and update
 accept desired state first; later replica admission failures surface through
-service status, events, dashboard DTOs, and JSON output.
+service status, events, and JSON output.
 
 ## Related Implementation Docs
 

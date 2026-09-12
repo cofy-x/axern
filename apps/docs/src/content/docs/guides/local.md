@@ -27,7 +27,7 @@ profile requires additional memory and disk.
 | --- | --- |
 | `axern local up` | Preflight, materialize, start, wait for health, and configure the `local` context |
 | `axern local image load IMAGE` | Stream a host Docker image into the local node; `--pull` fetches it first |
-| `axern local status` | Show versions, health, Dashboard, data path, context, and disk use |
+| `axern local status` | Show versions, health endpoints, data path, context, and disk use |
 | `axern local logs [component]` | Read aggregate or component logs; supports `--follow`, `--tail`, and `--since` |
 | `axern local doctor` | Perform read-only host, Docker, port, version, health, and Node DNS checks; `--probe` also verifies sandbox DNS |
 | `axern local down` | Remove containers and network while preserving data |
@@ -66,7 +66,7 @@ All host listeners bind only to `127.0.0.1`.
 | Port | Purpose |
 | --- | --- |
 | `25000` | Public gRPC gateway |
-| `25080` | Dashboard and HTTP gateway |
+| `25080` | Gateway HTTP health and allocation terminal |
 | `25022` | Gateway SSH |
 | `24101` | Control-plane HTTP |
 | `25432` | PostgreSQL |

@@ -119,12 +119,6 @@ if [ "${build_control_stack}" = "true" ] || [ "${build_tunneld}" = "true" ]; the
   esac
 fi
 if [ "${build_control_stack}" = "true" ]; then
-  rm -rf "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build/dashboard-vendor"
-  (
-    cd "${AXERN_DEV_ENV_ROOT}" && \
-      GOTOOLCHAIN=local GOFLAGS='' "${go_bin}" run ./gateway/gatewayd/cmd/dashassets \
-        -vendor-dir "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build/dashboard-vendor"
-  )
   (
     cd "${AXERN_DEV_ENV_ROOT}" && \
       GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \

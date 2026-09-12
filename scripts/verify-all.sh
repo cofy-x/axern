@@ -127,7 +127,6 @@ describe_step() {
     bootstrap) echo "Bootstrap repository toolchains and workspace dependencies" ;;
     agent-doc-check) echo "Validate repository Markdown links and module contract indexing" ;;
     axern-cli-check-architecture) echo "Verify product CLI package boundary constraints" ;;
-    axern-cli-dashboard-smoke) echo "Run product CLI dashboard API and UI smoke verification" ;;
     gatewayd-check-architecture) echo "Verify gatewayd package boundary constraints" ;;
     imagemgr-check-architecture) echo "Verify imagemgr package boundary constraints" ;;
     axnoded-check-architecture) echo "Verify axnoded package boundary constraints" ;;
@@ -180,9 +179,6 @@ run_step() {
       ;;
     axern-cli-check-architecture)
       run_cmd make axern-cli-check-architecture
-      ;;
-    axern-cli-dashboard-smoke)
-      run_cmd make axern-cli-dashboard-smoke
       ;;
     gatewayd-check-architecture)
       run_cmd make gatewayd-check-architecture
@@ -285,7 +281,6 @@ run_step() {
 steps=(
   agent-doc-check
   axern-cli-check-architecture
-  axern-cli-dashboard-smoke
   gatewayd-check-architecture
   imagemgr-check-architecture
   axnoded-check-architecture

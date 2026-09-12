@@ -18,8 +18,6 @@ func accessRecordForRequest(r *http.Request) observability.AccessLogRecord {
 	switch {
 	case r.URL.Path == "/healthz":
 		record.RouteType = "health"
-	case r.URL.Path == "/dashboard" || strings.HasPrefix(r.URL.Path, "/dashboard/"):
-		record.RouteType = "dashboard"
 	case strings.HasPrefix(r.URL.Path, "/svc/"):
 		record.RouteType = "service"
 		if parsed, ok := parseServicePath(r.URL.Path); ok {

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cofy-x/axern/gateway/gatewayd/internal/api/http/dashboard"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/api/http/serviceproxy"
 	appservice "github.com/cofy-x/axern/gateway/gatewayd/internal/application/service"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/auth"
@@ -38,32 +37,6 @@ func TestStatusRecorderCapturesFirstStatus(t *testing.T) {
 	}
 }
 
-func TestDashboardDisabledReturnsNotFound(t *testing.T) {
-	handler := New(nil, nil, nil, nil, auth.DevToken{Token: "secret"}, false, nil)
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/dashboard?token=secret", nil))
-
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
-	}
-}
-
-func TestDashboardEnabledDoesNotAffectHealthz(t *testing.T) {
-	dashboardHandler, err := dashboard.New(auth.DevToken{Token: "secret"}, t.TempDir(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	handler := New(nil, nil, nil, dashboardHandler, auth.DevToken{Token: "secret"}, false, nil)
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
-	}
-}
-
 func TestServiceRetriesAlternateEndpointForRetryableFailure(t *testing.T) {
 	t.Parallel()
 	routes := &fakeRouteCache{
@@ -88,7 +61,7 @@ func TestServiceRetriesAlternateEndpointForRetryableFailure(t *testing.T) {
 			{status: http.StatusOK, responseBody: "ok"},
 		},
 	}
-	handler := New(routes, proxy, nil, nil, auth.DevToken{}, false, nil)
+	handler := New(routes, proxy, nil, auth.DevToken{}, false, nil)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/svc/default/svc-1/8080/hello", nil))
@@ -129,7 +102,7 @@ func TestServiceLeaseRejectionRefreshesRouteWithoutQuarantine(t *testing.T) {
 			{status: http.StatusOK, responseBody: "ok"},
 		},
 	}
-	handler := New(routes, proxy, nil, nil, auth.DevToken{}, false, nil)
+	handler := New(routes, proxy, nil, auth.DevToken{}, false, nil)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/svc/default/svc-1/8080/hello", nil))
@@ -183,7 +156,7 @@ func TestServiceLeaseRefreshReplaysBodyOnlyWithFreshAuthority(t *testing.T) {
 		LeaseRetryBaseDelay:   time.Nanosecond,
 		EndpointRetryAttempts: 2,
 	}, nil, nil)
-	handler := New(routes, proxy, nil, nil, auth.DevToken{}, false, nil)
+	handler := New(routes, proxy, nil, auth.DevToken{}, false, nil)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/svc/default/svc-1/8080/invoke", strings.NewReader("payload"))
 
@@ -223,7 +196,7 @@ func TestServiceLeaseRetryStopsWhenBackoffIsCanceled(t *testing.T) {
 			err: status.Error(codes.Unauthenticated, "stale lease"),
 		}},
 	}
-	handler := New(routes, proxy, nil, nil, auth.DevToken{}, false, nil)
+	handler := New(routes, proxy, nil, auth.DevToken{}, false, nil)
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/svc/default/svc-1/8080/hello", nil))
@@ -263,7 +236,7 @@ func TestServiceDoesNotRetryUnsafeMethodForRetryableFailure(t *testing.T) {
 			{status: http.StatusOK, responseBody: "ok"},
 		},
 	}
-	handler := New(routes, proxy, nil, nil, auth.DevToken{}, false, nil)
+	handler := New(routes, proxy, nil, auth.DevToken{}, false, nil)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/svc/default/svc-1/8080/hello", strings.NewReader("payload")))
@@ -304,7 +277,7 @@ func TestServiceProxyTotalIncludesRouteResolution(t *testing.T) {
 		},
 		port: &gatewayv1.ServiceRoutePort{Name: "8080", ContainerPort: 8080},
 	}
-	handler := New(routes, &fakeServiceProxy{status: http.StatusOK, responseBody: "ok"}, nil, nil, auth.DevToken{}, false, metrics)
+	handler := New(routes, &fakeServiceProxy{status: http.StatusOK, responseBody: "ok"}, nil, auth.DevToken{}, false, metrics)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/svc/default/svc-1/8080/hello", nil))
 

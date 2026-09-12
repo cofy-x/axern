@@ -13,7 +13,6 @@ const (
 	DefaultTLSKey             = ".dev/certs/gatewayd.key"
 	DefaultControlEdgeTLSCert = ".dev/certs/gatewayd.crt"
 	DefaultControlEdgeTLSKey  = ".dev/certs/gatewayd.key"
-	DefaultDashboardVendorDir = "/usr/local/share/axern/gatewayd/dashboard/vendor"
 )
 
 type Config struct {
@@ -35,8 +34,6 @@ type Config struct {
 	SSHAddress                   string
 	SSHHostKey                   string
 	SSHAuthorizedKeys            string
-	DashboardEnabled             bool
-	DashboardVendorDir           string
 	RouteCacheTTL                time.Duration
 	RouteCacheMaxEntries         int
 	ControlDialTimeout           time.Duration

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cofy-x/axern/gateway/gatewayd/internal/api/http/dashboard"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/api/http/serviceproxy"
 	appservice "github.com/cofy-x/axern/gateway/gatewayd/internal/application/service"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/auth"
@@ -35,14 +34,13 @@ type Handler struct {
 	routes          RouteCache
 	proxy           ServiceProxy
 	terminal        *Terminal
-	dashboard       *dashboard.Handler
 	auth            auth.DevToken
 	requireHTTPAuth bool
 	metrics         *observability.Metrics
 }
 
-func New(routes RouteCache, proxy ServiceProxy, terminal *Terminal, dashboardHandler *dashboard.Handler, token auth.DevToken, requireHTTPAuth bool, metrics *observability.Metrics) *Handler {
-	return &Handler{routes: routes, proxy: proxy, terminal: terminal, dashboard: dashboardHandler, auth: token, requireHTTPAuth: requireHTTPAuth, metrics: metrics}
+func New(routes RouteCache, proxy ServiceProxy, terminal *Terminal, token auth.DevToken, requireHTTPAuth bool, metrics *observability.Metrics) *Handler {
+	return &Handler{routes: routes, proxy: proxy, terminal: terminal, auth: token, requireHTTPAuth: requireHTTPAuth, metrics: metrics}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -61,8 +59,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Path == "/healthz":
 		writeJSON(rec, http.StatusOK, map[string]string{"status": "ok"})
-	case h.dashboard != nil && h.dashboard.Handles(r.URL.Path):
-		h.dashboard.ServeHTTP(rec, r)
 	case strings.HasPrefix(r.URL.Path, "/svc/"):
 		h.serveService(rec, r, &logRecord)
 	case strings.HasPrefix(r.URL.Path, "/terminal/allocation/"):

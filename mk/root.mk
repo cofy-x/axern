@@ -1,8 +1,8 @@
 .PHONY: bootstrap bootstrap-tools \
 		bootstrap-go bootstrap-rust bootstrap-ts bootstrap-py \
-		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract post-merge-workflow-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture axern-cli-dashboard-smoke gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
+		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract post-merge-workflow-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
 		hermetic-dns-contract-check cli-e2e-environment-contract \
-		gateway-dashboard-assets grafana-assets-check \
+		grafana-assets-check \
 		build-go test-go lint-go fmt-go \
 		build-rust test-rust lint-rust fmt-rust \
 		build-ts test-ts lint-ts pack-ts sdk-typescript-verify docs-dev docs-build docs-check docs-verify docs-layout-check docs-assets docs-social-card docs-service-demo docs-service-asset \
@@ -159,9 +159,6 @@ axern-cli-install: ## Build and install the product CLI into the active Go bin d
 axern-cli-check-architecture: ## Verify product CLI package boundary constraints
 	bash $(ROOTDIR)/scripts/cli-architecture-check.sh
 
-axern-cli-dashboard-smoke: ## Verify product CLI dashboard API and UI rendering against mocked APIs
-	node $(ROOTDIR)/scripts/dashboard-smoke.mjs
-
 gatewayd-check-architecture: ## Verify gatewayd package boundary constraints
 	bash $(ROOTDIR)/scripts/gatewayd-architecture-check.sh
 
@@ -173,9 +170,6 @@ axern-cli-e2e: build-go ## Run the product CLI end-to-end verification
 
 axern-cli-image-ref-e2e: build-go ## Run the product CLI external image-ref smoke verification
 	bash $(ROOTDIR)/scripts/cli-e2e/axern-cli-image-ref-e2e.sh
-
-gateway-dashboard-assets: ## Download gatewayd dashboard frontend dependencies
-	$(GO) run ./gateway/gatewayd/cmd/dashassets
 
 grafana-assets-check: ## Verify Helm Grafana assets match local Grafana assets
 	bash $(ROOTDIR)/scripts/grafana-assets-check.sh

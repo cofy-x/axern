@@ -12,7 +12,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && rm -rf /var/lib/apt/lists/partial
 
 COPY deploy/images/gatewayd/.build/gatewayd /usr/local/bin/gatewayd
-COPY deploy/images/gatewayd/.build/dashboard-vendor/ /usr/local/share/axern/gatewayd/dashboard/vendor/
 
 EXPOSE 25080
 

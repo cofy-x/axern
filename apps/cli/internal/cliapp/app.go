@@ -9,7 +9,6 @@ import (
 	agentcmd "github.com/cofy-x/axern/apps/cli/internal/commands/agent"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/catalog"
 	contextcmd "github.com/cofy-x/axern/apps/cli/internal/commands/context"
-	"github.com/cofy-x/axern/apps/cli/internal/commands/dashboard"
 	doctorcmd "github.com/cofy-x/axern/apps/cli/internal/commands/doctor"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/environment"
 	identitycmd "github.com/cofy-x/axern/apps/cli/internal/commands/identity"
@@ -81,7 +80,6 @@ func New(version string) *cobra.Command {
 		quota.Command(runtime),
 		tunnelcmd.Command(runtime),
 		sshcmd.Command(runtime),
-		dashboard.Command(runtime),
 		agentcmd.Command(runtime),
 	)
 	root.InitDefaultCompletionCmd()

@@ -27,8 +27,8 @@ resolution RPC is accepted only from the verified gatewayd workload identity;
 the public gRPC `NodeSandbox` path always carries and authorizes the caller's
 Principal fingerprint.
 
-Gateway-owned service routing, tunnel relay target resolution, terminal
-resolution, and dashboard replica discovery use the private `GatewayControl`
+Gateway-owned service routing, tunnel relay target resolution, and terminal
+resolution use the private `GatewayControl`
 service. Gatewayd does not call public resource services without a Principal.
 Tunnel peers remain authenticated by their short-lived session token at the
 relay, independently of control-plane Principal authentication. Peer token

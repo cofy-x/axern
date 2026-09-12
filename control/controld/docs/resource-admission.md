@@ -87,7 +87,7 @@ Current reasons:
 | `NODE_SELECTION_ERROR` | Placement found no eligible node for non-capacity reasons such as runtime, selector, readiness, or capability mismatch. | `FailedPrecondition` |
 
 Human-readable error messages remain stable enough for operators, but workload
-state, CLI rendering, dashboard DTOs, and future clients should prefer
+state, CLI rendering, SDKs, and future clients should prefer
 `axern.control.common.v1.WorkloadDiagnosticCode` when it is available. Service
 and run views expose that shared diagnostic code directly. Service
 degradation maps quota, node reservation, and placement capacity failures to
@@ -134,11 +134,9 @@ single-candidate atomic reservation design only when repeated, same-contract
 load tests show `lock_namespace` dominating the end-to-end Ready SLO after
 queue and database-pool waits have been ruled out.
 
-Dashboard service DTOs expose `diagnostic_code`, `diagnostic_message`, and
-`admission_summary`. The dashboard should render those fields directly instead
-of reclassifying raw backend messages in JavaScript.
-
-The public CLI and dashboard use these stable labels:
+Public clients use `diagnostic_code`, `diagnostic_message`, and
+`admission_summary` directly instead of reclassifying raw backend messages.
+The CLI and SDKs use these stable labels:
 
 | Surface Field | Values |
 | --- | --- |

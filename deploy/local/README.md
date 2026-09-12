@@ -12,7 +12,7 @@ This directory contains the repo-supported local truth environments:
 - `otel/`: optional local OpenTelemetry/LGTM config
 - `state/`: generated local PKI, CLI env files, SSH keys, and runtime state
 
-For gateway dashboard, service, terminal, and SSH examples, see
+For gateway service, terminal, and SSH examples, see
 [Gateway Quickstart](gateway-quickstart.md).
 
 ## Start
@@ -299,7 +299,6 @@ so extracted OCI layer ownership stays faithful to the image metadata.
 Compose:
 
 - Gateway: `http://127.0.0.1:25080`
-- Dashboard: `http://127.0.0.1:25080/dashboard?token=axern-local-dev`
 - SSH terminal: `127.0.0.1:25022`
 - Grafana LGTM: `http://127.0.0.1:13000`
 - OTLP gRPC: `127.0.0.1:4317`
@@ -309,7 +308,6 @@ Kind:
 
 - Local registry: `http://127.0.0.1:5001`
 - Gateway: `http://127.0.0.1:25082`
-- Dashboard: `http://127.0.0.1:25082/dashboard?token=axern-local-dev`
 - SSH terminal: `127.0.0.1:25023`
 - Grafana LGTM: `http://127.0.0.1:13001`
 - OTLP gRPC: `127.0.0.1:24317`

@@ -11,8 +11,8 @@ forwards data-plane traffic to `axnoded` nodes.
 
 - `main.go`: process bootstrap only.
 - `internal/app`: composition root, dependency construction, and lifecycle.
-- `internal/api/http`: HTTP adapter, service proxy, browser terminal, dashboard,
-  access logging, and URL path parsing.
+- `internal/api/http`: HTTP adapter, service proxy, browser terminal, access
+  logging, and URL path parsing.
 - `internal/api/control`: mTLS public control edge and raw gRPC proxy.
 - `internal/api/tunnel`: public tunnel relay edge that forwards client peers to
   session-bound internal `tunneld` targets.

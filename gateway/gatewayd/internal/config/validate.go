@@ -33,9 +33,6 @@ func validate(cfg Config) (Config, error) {
 			return Config{}, fmt.Errorf("ssh-host-key and ssh-authorized-keys are required when ssh-enabled is true")
 		}
 	}
-	if strings.TrimSpace(cfg.DashboardVendorDir) == "" {
-		cfg.DashboardVendorDir = DefaultDashboardVendorDir
-	}
 	if cfg.RouteCacheTTL <= 0 {
 		cfg.RouteCacheTTL = 3 * time.Second
 	}
