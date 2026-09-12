@@ -68,10 +68,7 @@ type mockImageManagerClient struct {
 	ociMountPath string
 	ociEnv       []string
 	ociConfig    *ImageConfig
-	ossMountPath string
-	ossEnv       []string
 	ociMounts    int
-	ossMounts    int
 	reconciled   []string
 }
 
@@ -85,15 +82,6 @@ func (m *mockImageManagerClient) MountOCI(req *ociMountRequest) (*imageManagerMo
 }
 
 func (m *mockImageManagerClient) UmountOCI(req *ociUmountRequest) error {
-	return nil
-}
-
-func (m *mockImageManagerClient) MountOSS(req *ossMountRequest) (*imageManagerMountInfo, error) {
-	m.ossMounts++
-	return &imageManagerMountInfo{MountPath: m.ossMountPath, Env: append([]string(nil), m.ossEnv...), ImmutableMount: testImageManagerImmutableMount(m.ossMountPath, req.LeaseID)}, nil
-}
-
-func (m *mockImageManagerClient) UmountOSS(req *ossUmountRequest) error {
 	return nil
 }
 
@@ -126,21 +114,16 @@ func TestRootfsLeaseIDStableAndSeparatesCredentialContexts(t *testing.T) {
 
 func TestRootfsConfigStringRedactsCredentials(t *testing.T) {
 	cfg := RootfsConfig{
-		SrcType:          api.RootfsSrcType_S3,
-		Endpoint:         "oss.example",
-		Bucket:           "bucket",
-		Object:           "rootfs.ext4",
-		AccessKeyID:      "sensitive-access-key",
-		AccessKeySecret:  "sensitive-access-secret",
+		SrcType:          api.RootfsSrcType_IMAGE,
 		DockerConfigJSON: "sensitive-registry-auth",
 	}
 	got := cfg.String()
-	for _, secret := range []string{cfg.AccessKeyID, cfg.AccessKeySecret, cfg.DockerConfigJSON} {
+	for _, secret := range []string{cfg.DockerConfigJSON} {
 		if strings.Contains(got, secret) {
 			t.Fatalf("RootfsConfig.String() exposed credential %q: %s", secret, got)
 		}
 	}
-	if !strings.Contains(got, "has_object_credentials:true") || !strings.Contains(got, "has_registry_auth:true") {
+	if !strings.Contains(got, "has_registry_auth:true") {
 		t.Fatalf("RootfsConfig.String() omitted safe credential presence flags: %s", got)
 	}
 }

@@ -15,19 +15,6 @@ func RootfsConfigFromRuntimeTemplate(fr *api.RuntimeTemplate) (RootfsConfig, err
 	}
 
 	switch fr.Rootfs.Type {
-	case api.RootfsSrcType_S3:
-		s3Config := fr.Rootfs.GetS3Config()
-		if s3Config == nil {
-			return cfg, fmt.Errorf("S3Config is nil while rootfs type is S3")
-		}
-		cfg = RootfsConfig{
-			SrcType:         fr.Rootfs.Type,
-			Endpoint:        s3Config.Endpoint,
-			Bucket:          s3Config.Bucket,
-			Object:          s3Config.Object,
-			AccessKeyID:     s3Config.AccessKeyID,
-			AccessKeySecret: s3Config.AccessKeySecret,
-		}
 	case api.RootfsSrcType_IMAGE:
 		imageURL := fr.Rootfs.GetImageUrl()
 		if imageURL == "" {
@@ -59,8 +46,6 @@ func rootfsTypeLabelFromConfig(cfg RootfsConfig) string {
 		return contract.StartupRootfsTypeLocal
 	case api.RootfsSrcType_IMAGE:
 		return contract.StartupRootfsTypeImage
-	case api.RootfsSrcType_S3:
-		return contract.StartupRootfsTypeS3
 	default:
 		return contract.StartupRootfsTypeUnknown
 	}
@@ -85,16 +70,6 @@ func rootfsConfigMessageFromRuntime(lr *LanguageRuntime) *api.RootfsConfig {
 	}
 
 	switch cfg.SrcType {
-	case api.RootfsSrcType_S3:
-		rootfsConfig.Source = &api.RootfsConfig_S3Config{
-			S3Config: &api.S3Config{
-				Endpoint:        cfg.Endpoint,
-				Bucket:          cfg.Bucket,
-				Object:          cfg.Object,
-				AccessKeyID:     cfg.AccessKeyID,
-				AccessKeySecret: cfg.AccessKeySecret,
-			},
-		}
 	case api.RootfsSrcType_IMAGE:
 		rootfsConfig.Source = &api.RootfsConfig_ImageUrl{
 			ImageUrl: cfg.ImageUrl,

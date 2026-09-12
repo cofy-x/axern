@@ -213,9 +213,7 @@ imagemgr-dev-run: node-dev-prepare imagefsd-build ## Run imagemgr in the repo-lo
 			-debug \
 			-root '$(IMAGEMGR_DEV_DIR)' \
 			-imagefsd_bin '$(ROOTDIR)/target/debug/imagefsd' \
-			-oss_template '$(ROOTDIR)/runtime/imagemgr/configs/oss_backend.json.example' \
 			-nydus_template '$(ROOTDIR)/runtime/imagemgr/configs/nydus_registry.json.example' \
-			-oss_auths_path '$(ROOTDIR)/runtime/imagemgr/oss_auths.json.example' \
 			-registry_auths_path '$(ROOTDIR)/runtime/imagemgr/registry_auths.json.example' \
 			-http_sock '$(NODE_DEV_RUN_DIR)/imagemgr.sock'; \
 	elif command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then \
@@ -223,9 +221,7 @@ imagemgr-dev-run: node-dev-prepare imagefsd-build ## Run imagemgr in the repo-lo
 			-debug \
 			-root '$(IMAGEMGR_DEV_DIR)' \
 			-imagefsd_bin '$(ROOTDIR)/target/debug/imagefsd' \
-			-oss_template '$(ROOTDIR)/runtime/imagemgr/configs/oss_backend.json.example' \
 			-nydus_template '$(ROOTDIR)/runtime/imagemgr/configs/nydus_registry.json.example' \
-			-oss_auths_path '$(ROOTDIR)/runtime/imagemgr/oss_auths.json.example' \
 			-registry_auths_path '$(ROOTDIR)/runtime/imagemgr/registry_auths.json.example' \
 			-http_sock '$(NODE_DEV_RUN_DIR)/imagemgr.sock'; \
 	else \

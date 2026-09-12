@@ -572,7 +572,7 @@ resolve_runtime_registry_proxy() {
 
 resolve_runtime_registry_no_proxy() {
   local base_no_proxy=""
-  local defaults="localhost,127.0.0.1,127.0.0.0/8,::1,host.docker.internal,oss"
+  local defaults="localhost,127.0.0.1,127.0.0.0/8,::1,host.docker.internal"
   base_no_proxy="$(resolve_build_no_proxy)"
   if [ -n "${base_no_proxy}" ]; then
     printf '%s,%s\n' "${base_no_proxy}" "${defaults}"

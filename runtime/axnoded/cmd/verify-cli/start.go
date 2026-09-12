@@ -22,11 +22,6 @@ func runVerifyCLI(cfg verifyCLIConfig) error {
 		cfg.rootfsSrc,
 		cfg.rootfsPath,
 		cfg.imageURL,
-		cfg.s3Endpoint,
-		cfg.s3Bucket,
-		cfg.s3Object,
-		cfg.s3AccessKeyID,
-		cfg.s3AccessKeySecret,
 	)
 	if err != nil {
 		return fmt.Errorf("build rootfs spec: %w", err)

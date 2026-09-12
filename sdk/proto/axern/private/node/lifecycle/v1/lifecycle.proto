@@ -35,14 +35,6 @@ message WorkspaceImageSource {
   string target = 3;
 }
 
-message S3Rootfs {
-  string endpoint = 1;
-  string bucket = 2;
-  string object = 3;
-  string access_key_id = 4;
-  string access_key_secret = 5;
-}
-
 message ResolvedSecretEnvVar {
   string name = 1;
   string value = 2;
@@ -119,7 +111,6 @@ message ResolvedExecutionConfig {
   repeated axern.control.common.v1.PortSpec ports = 13;
   axern.control.common.v1.NetworkSpec network = 14;
   string local_rootfs_path = 15;
-  S3Rootfs s3_rootfs = 16;
   string stdout_path = 17;
   string stderr_path = 18;
   repeated string linux_capabilities = 19;

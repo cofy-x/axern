@@ -448,17 +448,8 @@ func lifecycleRootfsConfig(spec *nodelifecyclev1.ResolvedExecutionConfig) (*runt
 	case strings.TrimSpace(spec.GetLocalRootfsPath()) != "":
 		rootfsConfig.Type = runtimev1.RootfsSrcType_LOCAL
 		rootfsConfig.Source = &runtimev1.RootfsConfig_Path{Path: strings.TrimSpace(spec.GetLocalRootfsPath())}
-	case spec.GetS3Rootfs() != nil:
-		rootfsConfig.Type = runtimev1.RootfsSrcType_S3
-		rootfsConfig.Source = &runtimev1.RootfsConfig_S3Config{S3Config: &runtimev1.S3Config{
-			Endpoint:        spec.GetS3Rootfs().GetEndpoint(),
-			Bucket:          spec.GetS3Rootfs().GetBucket(),
-			Object:          spec.GetS3Rootfs().GetObject(),
-			AccessKeyID:     spec.GetS3Rootfs().GetAccessKeyID(),
-			AccessKeySecret: spec.GetS3Rootfs().GetAccessKeySecret(),
-		}}
 	default:
-		return nil, grpcstatus.Error(codes.InvalidArgument, "one of config.image_descriptor, config.image_digest, config.local_rootfs_path, or config.s3_rootfs is required")
+		return nil, grpcstatus.Error(codes.InvalidArgument, "one of config.image_descriptor, config.image_digest, or config.local_rootfs_path is required")
 	}
 	return rootfsConfig, nil
 }
@@ -480,10 +471,6 @@ func stableRuntimeTemplateID(template *runtimev1.RuntimeTemplate) string {
 	}
 	staticTemplate := proto.Clone(template).(*runtimev1.RuntimeTemplate)
 	staticTemplate.ID = ""
-	if s3 := staticTemplate.GetRootfs().GetS3Config(); s3 != nil {
-		s3.AccessKeyID = ""
-		s3.AccessKeySecret = ""
-	}
 	data, err := proto.MarshalOptions{Deterministic: true}.Marshal(staticTemplate)
 	if err != nil {
 		return ""

@@ -154,8 +154,6 @@ func TestDefaultMounterDelegatesRemoteSources(t *testing.T) {
 		ociMountPath: "/mnt/oci/rootfs",
 		ociEnv:       []string{"OCI_ENV=1"},
 		ociConfig:    &ImageConfig{Entrypoint: []string{"/entrypoint"}, Cmd: []string{"serve"}, WorkingDir: "/app"},
-		ossMountPath: "/mnt/oss/rootfs",
-		ossEnv:       []string{"OSS_ENV=1"},
 	}
 	lm := NewLanguageRuntimeManager(&defaultMounter{client: client})
 
@@ -185,26 +183,16 @@ func TestDefaultMounterDelegatesRemoteSources(t *testing.T) {
 		t.Fatalf("IMAGE working dir = %q, want /app", got)
 	}
 
-	ossRuntime, err := addTestLangRuntime(lm, &api.RuntimeTemplate{
-		ID:      "s3-runtime",
-		Sandbox: "runsc",
-		Rootfs: &api.RootfsConfig{
-			Type: api.RootfsSrcType_S3,
-			Source: &api.RootfsConfig_S3Config{
-				S3Config: &api.S3Config{Bucket: "bucket", Object: "object"},
-			},
-		},
-	}, false)
-	if err != nil {
-		t.Fatalf("S3 AddLangRuntime failed: %v", err)
+	if client.ociMounts != 1 {
+		t.Fatalf("unexpected OCI mount calls: %d", client.ociMounts)
 	}
-	if got := ossRuntime.RootFS.Path(); got != client.ossMountPath {
-		t.Fatalf("S3 mount path = %q, want %q", got, client.ossMountPath)
-	}
-	if len(ossRuntime.RootFS.Env()) != 1 || ossRuntime.RootFS.Env()[0] != "OSS_ENV=1" {
-		t.Fatalf("S3 env = %v, want %v", ossRuntime.RootFS.Env(), client.ossEnv)
-	}
-	if client.ociMounts != 1 || client.ossMounts != 1 {
-		t.Fatalf("unexpected remote mount calls: oci=%d oss=%d", client.ociMounts, client.ossMounts)
+}
+
+func TestRootfsConfigRejectsUnspecifiedSource(t *testing.T) {
+	_, err := RootfsConfigFromRuntimeTemplate(&api.RuntimeTemplate{
+		Rootfs: &api.RootfsConfig{Type: api.RootfsSrcType_UNSPECIFIED},
+	})
+	if err == nil {
+		t.Fatal("unspecified rootfs source must be rejected")
 	}
 }

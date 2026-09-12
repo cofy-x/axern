@@ -33,13 +33,6 @@ type ImageConfig struct {
 type RootfsConfig struct {
 	SrcType runtime_api.RootfsSrcType
 
-	// OSS
-	Endpoint        string
-	Bucket          string
-	Object          string
-	AccessKeyID     string
-	AccessKeySecret string
-
 	// docker image
 	ImageUrl         string
 	ImageCacheKey    string
@@ -50,12 +43,11 @@ type RootfsConfig struct {
 	Path string
 }
 
-// String keeps diagnostics useful without exposing registry or object-store
-// credentials carried by the runtime configuration.
+// String keeps diagnostics useful without exposing registry credentials.
 func (cfg RootfsConfig) String() string {
-	return fmt.Sprintf("{source_type:%s image_url:%q image_cache_key:%q endpoint:%q bucket:%q object:%q path:%q lease_id:%q has_registry_auth:%t has_object_credentials:%t}",
-		cfg.SrcType.String(), cfg.ImageUrl, cfg.ImageCacheKey, cfg.Endpoint, cfg.Bucket, cfg.Object, cfg.Path, cfg.LeaseID,
-		cfg.DockerConfigJSON != "", cfg.AccessKeyID != "" || cfg.AccessKeySecret != "")
+	return fmt.Sprintf("{source_type:%s image_url:%q image_cache_key:%q path:%q lease_id:%q has_registry_auth:%t}",
+		cfg.SrcType.String(), cfg.ImageUrl, cfg.ImageCacheKey, cfg.Path, cfg.LeaseID,
+		cfg.DockerConfigJSON != "")
 }
 
 func (rf *RootFS) Path() string {

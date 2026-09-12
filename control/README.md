@@ -14,6 +14,8 @@ Active services and design surfaces:
 The control plane owns durable product metadata, placement, admission,
 lifecycle APIs, storage metadata, gateway route resolution, node image
 inventory summaries, and revocable execution leases.
+Rootfs locality describes local directories or registry images (OCI/Nydus);
+object-store artifact storage is separate from workload rootfs placement.
 Realtime exec, terminal, tunnel, and service HTTP traffic stay outside the
 control plane and flow through `gatewayd`.
 

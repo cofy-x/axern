@@ -31,7 +31,6 @@ AXNODED_DIR := runtime/axnoded
 	axnoded-verify-node-warm-pool-e2e \
 	axnoded-verify-node-oci-e2e \
 	axnoded-verify-node-nydus-e2e \
-	axnoded-verify-node-oss-e2e \
 	axnoded-build-python311-runtime-image \
 	axnoded-build-server-base-runtime-image \
 	axnoded-build-coding-base-runtime-image \
@@ -137,9 +136,6 @@ axnoded-verify-node-oci-e2e: ## Run the axnoded node all-in-one OCI end-to-end v
 
 axnoded-verify-node-nydus-e2e: ## Run the axnoded node all-in-one Nydus end-to-end verification
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-nydus-e2e)
-
-axnoded-verify-node-oss-e2e: ## Run the axnoded node all-in-one OSS end-to-end verification
-	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-oss-e2e)
 
 axnoded-build-python311-runtime-image: ## Build the official axnoded Python 3.11 runtime image
 	@$(call run_subsystem_make,$(AXNODED_DIR),build-python311-runtime-image)

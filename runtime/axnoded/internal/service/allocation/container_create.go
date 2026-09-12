@@ -365,7 +365,7 @@ func rootfsTypeFromLanguageRuntime(lrt *langrtmanager.LanguageRuntime) string {
 		return contract.StartupRootfsTypeUnknown
 	}
 	switch lrt.RootFS.RootfsTypeLabel() {
-	case contract.StartupRootfsTypeLocal, contract.StartupRootfsTypeImage, contract.StartupRootfsTypeS3:
+	case contract.StartupRootfsTypeLocal, contract.StartupRootfsTypeImage:
 		return lrt.RootFS.RootfsTypeLabel()
 	default:
 		return contract.StartupRootfsTypeUnknown

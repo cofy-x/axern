@@ -26,13 +26,6 @@ func ImageRootfsKey(imageURL string) string {
 	return "image:" + strings.TrimSpace(imageURL)
 }
 
-func S3RootfsKey(endpoint, bucket, object string) string {
-	endpoint = strings.TrimSpace(endpoint)
-	bucket = strings.TrimSpace(bucket)
-	object = strings.TrimSpace(object)
-	return "s3:" + endpoint + "/" + bucket + "/" + object
-}
-
 func CaptureLocalitySummary(inventoryURL, key string) (*LocalitySummary, error) {
 	if inventoryURL == "" {
 		return nil, nil

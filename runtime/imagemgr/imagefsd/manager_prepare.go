@@ -24,8 +24,7 @@ func (mgr *manager) loadExistedDaemons() error {
 		d := &Daemon{ctx: mgr.ctx, binPath: mgr.binPath, nodeID: mgr.nodeID, cgroupCtrl: mgr.cgroupCtrl}
 		metaFilePath := filepath.Join(daemonConfigDir, entry.Name())
 		if err = d.LoadExisted(metaFilePath); err != nil {
-			logrus.Errorf("failed to load daemon from meta file %s: %v", metaFilePath, err)
-			continue
+			return fmt.Errorf("failed to load daemon from meta file %s: %w; resolve unsupported legacy mounts before starting imagemgr", metaFilePath, err)
 		}
 		d.savedPath = filepath.Join(daemonConfigDir, d.meta.ID+".json")
 		if err = mgr.reconcileNydusRuntimePolicy(d); err != nil {
@@ -57,7 +56,7 @@ func (mgr *manager) addExistingDaemonsToCgroup() {
 	}
 }
 
-func (mgr *manager) prepare(ossCfgPath string, nydusCfgPath string, ossAuthsPath string, registryAuthsPath string) error {
+func (mgr *manager) prepare(nydusCfgPath string, registryAuthsPath string) error {
 	// chunk db
 	err := os.MkdirAll(filepath.Join(mgr.root, "chunk_db"), 0755)
 	if err != nil {
@@ -92,20 +91,6 @@ func (mgr *manager) prepare(ossCfgPath string, nydusCfgPath string, ossAuthsPath
 		}
 	}
 
-	// Load OSS config template if provided
-	if ossCfgPath != "" {
-		file, err := os.Open(ossCfgPath)
-		if err != nil {
-			return fmt.Errorf("failed to open oss config template file: %w", err)
-		}
-		defer file.Close()
-		if err = json.NewDecoder(file).Decode(&mgr.ossCfgTemplate); err != nil {
-			return fmt.Errorf("failed to load oss config template file: %w", err)
-		}
-	} else {
-		return fmt.Errorf("oss config template path is required")
-	}
-
 	// Load Nydus config template if provided
 	if nydusCfgPath != "" {
 		file, err := os.Open(nydusCfgPath)
@@ -118,22 +103,6 @@ func (mgr *manager) prepare(ossCfgPath string, nydusCfgPath string, ossAuthsPath
 		}
 	} else {
 		return fmt.Errorf("nydus config template path is required")
-	}
-
-	// Load OSS auths
-	if ossAuthsPath != "" {
-		file, err := os.Open(ossAuthsPath)
-		if err != nil {
-			return fmt.Errorf("failed to open OSS auths file: %w", err)
-		}
-		defer file.Close()
-		mgr.ossAuths = make(OSSAuthsConfig)
-		if err = json.NewDecoder(file).Decode(&mgr.ossAuths); err != nil {
-			return fmt.Errorf("failed to load OSS auths file: %w", err)
-		}
-		logrus.Infof("loaded OSS auths for %d endpoint/bucket pairs", len(mgr.ossAuths))
-	} else {
-		return fmt.Errorf("oss auths path is required")
 	}
 
 	// Load registry auths

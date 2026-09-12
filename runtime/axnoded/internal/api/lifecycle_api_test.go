@@ -490,33 +490,6 @@ func TestStableRuntimeTemplateIDFingerprintsStaticTemplate(t *testing.T) {
 	}
 }
 
-func TestStableRuntimeTemplateIDExcludesS3Credentials(t *testing.T) {
-	base := &runtimev1.RuntimeTemplate{
-		Sandbox: "runsc",
-		Rootfs: &runtimev1.RootfsConfig{
-			Type: runtimev1.RootfsSrcType_S3,
-			Source: &runtimev1.RootfsConfig_S3Config{S3Config: &runtimev1.S3Config{
-				Endpoint:        "s3.example",
-				Bucket:          "rootfs",
-				Object:          "image.tar",
-				AccessKeyID:     "first-key",
-				AccessKeySecret: "first-secret",
-			}},
-		},
-	}
-	baseID := stableRuntimeTemplateID(base)
-	rotated := proto.Clone(base).(*runtimev1.RuntimeTemplate)
-	rotated.GetRootfs().GetS3Config().AccessKeyID = "rotated-key"
-	rotated.GetRootfs().GetS3Config().AccessKeySecret = "rotated-secret"
-	if got := stableRuntimeTemplateID(rotated); got != baseID {
-		t.Fatalf("credential rotation must not partition the runtime template cache: got %q, want %q", got, baseID)
-	}
-	rotated.GetRootfs().GetS3Config().Object = "other.tar"
-	if got := stableRuntimeTemplateID(rotated); got == baseID {
-		t.Fatalf("S3 object identity must partition the runtime template cache: %q", got)
-	}
-}
-
 func TestNodeLifecycleGetAllocationStatusMapsState(t *testing.T) {
 	t.Parallel()
 

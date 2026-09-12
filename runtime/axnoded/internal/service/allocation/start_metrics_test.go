@@ -261,16 +261,9 @@ func TestRootfsTypeFromRuntimeTemplate(t *testing.T) {
 			want: contract.StartupRootfsTypeImage,
 		},
 		{
-			name: "s3",
-			fr: &runtimeapi.RuntimeTemplate{
-				Rootfs: &runtimeapi.RootfsConfig{
-					Type: runtimeapi.RootfsSrcType_S3,
-					Source: &runtimeapi.RootfsConfig_S3Config{
-						S3Config: &runtimeapi.S3Config{Endpoint: "oss.example.com", Bucket: "bucket", Object: "rootfs.raw"},
-					},
-				},
-			},
-			want: contract.StartupRootfsTypeS3,
+			name: "removed source",
+			fr:   &runtimeapi.RuntimeTemplate{Rootfs: &runtimeapi.RootfsConfig{Type: runtimeapi.RootfsSrcType_UNSPECIFIED}},
+			want: contract.StartupRootfsTypeUnknown,
 		},
 	}
 

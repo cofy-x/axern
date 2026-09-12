@@ -10,12 +10,6 @@ import (
 func TestManager_CreateDaemon_Nydus(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ossConfig := BackendConfig{
-		BackendType: "oss",
-		Oss:         &OssConfig{},
-	}
-	ossCfgPath := createTestConfigFile(t, tmpDir, "oss_config.json", ossConfig)
-
 	nydusConfig := BackendConfig{
 		BackendType: "registry",
 		Registry: &RegistryConfig{
@@ -26,7 +20,6 @@ func TestManager_CreateDaemon_Nydus(t *testing.T) {
 	}
 	nydusCfgPath := createTestConfigFile(t, tmpDir, "nydus_config.json", nydusConfig)
 
-	ossAuthsPath := createTestOSSAuthsFile(t, tmpDir)
 	registryAuthsPath := createTestRegistryAuthsFile(t, tmpDir)
 
 	mockClient := &mockNydusClient{
@@ -45,11 +38,9 @@ func TestManager_CreateDaemon_Nydus(t *testing.T) {
 	mgr, err := NewManager(&ManagerConfig{
 		NodeID:            "node-test",
 		Root:              tmpDir,
-		OSSCfgPath:        ossCfgPath,
 		NydusCfgPath:      nydusCfgPath,
 		BinPath:           "/usr/local/bin/imagefsd",
 		NydusClient:       mockClient,
-		OSSAuthsPath:      ossAuthsPath,
 		RegistryAuthsPath: registryAuthsPath,
 	})
 	if err != nil {

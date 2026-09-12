@@ -188,7 +188,6 @@ func (lm *LangRTManager) updateRetentionGaugesLocked() {
 	runtimeCounts := map[string]float64{
 		contract.StartupRootfsTypeLocal:   0,
 		contract.StartupRootfsTypeImage:   0,
-		contract.StartupRootfsTypeS3:      0,
 		contract.StartupRootfsTypeUnknown: 0,
 	}
 	for _, lr := range lm.retainedMap {
@@ -204,7 +203,6 @@ func (lm *LangRTManager) updateRetentionGaugesLocked() {
 	rootfsCounts := map[string]float64{
 		contract.StartupRootfsTypeLocal:   0,
 		contract.StartupRootfsTypeImage:   0,
-		contract.StartupRootfsTypeS3:      0,
 		contract.StartupRootfsTypeUnknown: 0,
 	}
 	lm.rfMu.Lock()

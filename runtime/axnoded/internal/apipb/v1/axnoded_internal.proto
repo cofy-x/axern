@@ -8,7 +8,7 @@ import "axern/control/catalog/v1/catalog.proto";
 import "axern/control/capability/v1/capability.proto";
 
 enum RootfsSrcType {
-  S3 = 0;
+  UNSPECIFIED = 0;
   IMAGE = 1;
   LOCAL = 2;
 }
@@ -64,21 +64,12 @@ message DurableSequence {
   int64 reserved_through = 1;
 }
 
-message S3Config {
-  string endpoint = 1;
-  string bucket = 2;
-  string object = 3;
-  string accessKeyID = 4;
-  string access_key_secret = 5;
-}
-
 message RootfsConfig {
   bool readonly = 1;
   RootfsSrcType type = 2;
 
   oneof source {
     string image_url = 3;
-    S3Config s3_config = 4;
     string path = 5;
   }
 }

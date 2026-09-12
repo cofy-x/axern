@@ -103,7 +103,7 @@ nodes and product E2E workflows enable runsc only.
 | `runsc` | sample OCI rootfs | PID 1 injection, bundle socket, lifecycle, file/process/PTY/probe diagnostics | none | `make verify-sandboxd-oci-e2e` |
 | `runsc` | Docker OCI image | node create/wait/kill, network, file/process/terminal through product APIs | browser/computer-use when image supports them | `make verify-docker-runsc-ebpf`, `make local-compose-refresh-verify` |
 | `runc` | Docker OCI image | generic runtime confidence and sandboxd baseline behavior | image-dependent | `make verify-docker-runc` |
-| `runsc` | OCI/Nydus/OSS rootfs | image manager integration, read-only mount handling, sandboxd runtime mount injection | image-dependent | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e`, `make verify-node-oss-e2e` |
+| `runsc` | OCI/Nydus rootfs | image manager integration, read-only mount handling, sandboxd runtime mount injection | image-dependent | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e` |
 | `runsc` | `server-base` | SSH terminal semantics, sudo/nosuid expectations, probes, service smoke | none | `make local-compose-server-base-smoke` |
 | `runsc` | `desktop-base` | normal sandbox lifecycle plus desktop session readiness | computer-use and browser | `make local-compose-computer-use-e2e` |
 
@@ -165,7 +165,7 @@ packaging change. Update deployment values and runtime docs together, then run
 | service volumes/probes | `make verify-node-service-volumes-e2e`, `make verify-node-service-probes-e2e` |
 | runtime profiles | `make verify-node-python-runtime-e2e`, `make build-python311-runtime-image` |
 | retention/locality/warm pool | `make verify-node-retention-e2e`, `make verify-node-locality-e2e`, `make verify-node-warm-pool-e2e` |
-| rootfs modes | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e`, `make verify-node-oss-e2e` |
+| rootfs modes | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e` |
 
 Node-local network-policy diagnostics are covered by
 `go test ./internal/service ./internal/api ./axctl/commands/sandbox`. The gate
@@ -216,7 +216,6 @@ Root-level equivalents exist for common node checks, for example:
 make axnoded-verify-docker
 make axnoded-verify-node-oci-e2e
 make axnoded-verify-node-nydus-e2e
-make axnoded-verify-node-oss-e2e
 ```
 
 ## Local Demos

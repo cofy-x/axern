@@ -17,7 +17,6 @@
 
 - `mount` is implemented on Linux only. On non-Linux targets, mounting returns an unsupported-operation error.
 - `--src local` mounts a single raw file from the local filesystem.
-- `--src oss` mounts a single raw file from a remote backend created from a Nydus `BackendConfigV2` JSON file. Despite the flag name, this path is not OSS-only. With the enabled build features it can use OSS, S3, registry, and HTTP-proxy backends exposed by `nydus-storage`.
 - `--src nydus` mounts a Nydus RAFS filesystem from a bootstrap plus backend config.
 - Optional dedup uses:
   - `ChunkDB`: global content-addressed chunk storage
@@ -139,33 +138,10 @@ Example:
 mkdir -p /mnt/raw
 
 cargo run -p imagefsd -- mount \
+  --node-id node-example \
   --src local \
   --name disk.raw \
   --cache-file /data/disk.raw \
-  --mountpoint /mnt/raw
-```
-
-### `--src oss`
-
-Mount a remote raw file as a single file in the mountpoint. The implementation uses `GeneralBackend`, which loads a Nydus `BackendConfigV2` JSON file.
-
-Required arguments:
-
-- `--name`: remote object/blob identifier and mounted filename; it must still be valid as a single filename inside the mountpoint
-- `--mountpoint`: FUSE mountpoint
-- `--cfg`: backend config JSON
-- `--cache-file`: writable local cache file path
-
-Example:
-
-```bash
-mkdir -p /mnt/raw /var/cache/distill
-
-cargo run -p imagefsd -- mount \
-  --src oss \
-  --name rootfs.raw \
-  --cfg /etc/distill/backend.json \
-  --cache-file /var/cache/distill/rootfs.raw \
   --mountpoint /mnt/raw
 ```
 
@@ -193,6 +169,7 @@ Example:
 mkdir -p /mnt/nydus /var/cache/distill/blobs
 
 cargo run -p imagefsd -- mount \
+  --node-id node-example \
   --src nydus \
   --name nydus-image \
   --bootstrap /images/bootstrap.rafs \
@@ -218,15 +195,16 @@ When enabled:
 - raw-image reads can fall back from cache/backend to chunk reuse
 - Nydus reads can serve decompressed chunks from `ChunkDB` and asynchronously persist newly read chunks into it
 
-Example with dedup enabled:
+Example with dedup enabled (prepare a dedicated writable raw-file copy at
+`/var/cache/distill/rootfs.raw` first; dedup may hole-punch that file):
 
 ```bash
 mkdir -p /mnt/raw /var/cache/distill /var/lib/distill/chunkdb /var/lib/distill/imagedb
 
 cargo run -p imagefsd -- mount \
-  --src oss \
+  --node-id node-example \
+  --src local \
   --name rootfs.raw \
-  --cfg /etc/distill/backend.json \
   --cache-file /var/cache/distill/rootfs.raw \
   --chunk-db-dir /var/lib/distill/chunkdb \
   --image-meta-dir /var/lib/distill/imagedb \
@@ -377,7 +355,7 @@ The fixed chunk size used by the dedup/cache stack is 4 MiB.
 
 ## Backend Configuration
 
-This project does not define its own remote-backend JSON schema. The `--cfg` file for remote raw and Nydus modes is deserialized directly as Nydus `BackendConfigV2`.
+This project does not define its own remote-backend JSON schema. The `--cfg` file for Nydus mode is deserialized directly as Nydus `BackendConfigV2`.
 
 In practice this means:
 

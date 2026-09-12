@@ -418,9 +418,7 @@ start_imagemgr() {
     -root '${DEV_DIR}/imagemgr' \
     -node_id 'node-devbox' \
     -imagefsd_bin '${ROOT_DIR}/target/debug/imagefsd' \
-    -oss_template '${ROOT_DIR}/runtime/imagemgr/configs/oss_backend.json.example' \
     -nydus_template '${ROOT_DIR}/runtime/imagemgr/configs/nydus_registry.json.example' \
-    -oss_auths_path '${ROOT_DIR}/runtime/imagemgr/oss_auths.json.example' \
     -registry_auths_path '${ROOT_DIR}/runtime/imagemgr/registry_auths.json.example' \
     -http_sock '${RUN_DIR}/imagemgr.sock'"
   wait_unix_socket "${RUN_DIR}/imagemgr.sock" imagemgr

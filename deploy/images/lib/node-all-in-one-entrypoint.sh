@@ -17,14 +17,6 @@ AXNODED_FILESTORE_LOOPBACK_IMAGE="${AXNODED_FILESTORE_LOOPBACK_IMAGE:-${AXNODED_
 AXNODED_FILESTORE_LOOPBACK_SIZE_BYTES="${AXNODED_FILESTORE_LOOPBACK_SIZE_BYTES:-8589934592}"
 AXNODED_FILESTORE_SYSTEM_RESERVE_BYTES="${AXNODED_FILESTORE_SYSTEM_RESERVE_BYTES:-67108864}"
 AXNODED_EPHEMERAL_STORAGE_DEFAULT_LIMIT_BYTES="${AXNODED_EPHEMERAL_STORAGE_DEFAULT_LIMIT_BYTES:-268435456}"
-OBJECT_STORE_ENABLED="${OBJECT_STORE_ENABLED:-false}"
-OBJECT_STORE_SCHEME="${OBJECT_STORE_SCHEME:-https}"
-OBJECT_STORE_ENDPOINT="${OBJECT_STORE_ENDPOINT:-}"
-OBJECT_STORE_ACCESS_KEY="${OBJECT_STORE_ACCESS_KEY:-}"
-OBJECT_STORE_SECRET_KEY="${OBJECT_STORE_SECRET_KEY:-}"
-OBJECT_STORE_BUCKET="${OBJECT_STORE_BUCKET:-}"
-OBJECT_STORE_REGION="${OBJECT_STORE_REGION:-}"
-OBJECT_STORE_SKIP_VERIFY="${OBJECT_STORE_SKIP_VERIFY:-false}"
 REGISTRY_PROXY_URL="${REGISTRY_PROXY_URL:-}"
 REGISTRY_PROXY_HEALTH_URL="${REGISTRY_PROXY_HEALTH_URL:-}"
 REGISTRY_BLOB_URL_SCHEME="${REGISTRY_BLOB_URL_SCHEME:-https}"
@@ -79,9 +71,7 @@ VOLUMED_ROOT="/var/lib/volumed"
 EGRESSD_ROOT="/var/lib/egressd"
 VOLUMED_LOCAL_ROOT="${VOLUMED_LOCAL_ROOT:-${VOLUMED_ROOT}/local}"
 AXNODED_CONFIG="/tmp/axnoded-node-config.toml"
-OSS_TEMPLATE="/tmp/imagemgr-oss-template.json"
 NYDUS_TEMPLATE="/tmp/imagemgr-nydus-template.json"
-OSS_AUTHS="/tmp/imagemgr-oss-auths.json"
 REGISTRY_AUTHS="/tmp/imagemgr-registry-auths.json"
 AXNODED_LOG="/var/log/axnoded/axnoded.log"
 IMAGEFSD_CHUNK_DB_DIR="${IMAGEMGR_ROOT}/chunk_db"
@@ -265,31 +255,6 @@ allow_suid = true
 
 EOF
 
-jq -n \
-  --arg scheme "${OBJECT_STORE_SCHEME}" \
-  --arg endpoint "${OBJECT_STORE_ENDPOINT}" \
-  --arg region "${OBJECT_STORE_REGION}" \
-  --arg bucket "${OBJECT_STORE_BUCKET}" \
-  --arg access_key "${OBJECT_STORE_ACCESS_KEY}" \
-  --arg secret_key "${OBJECT_STORE_SECRET_KEY}" \
-  --argjson skip_verify "${OBJECT_STORE_SKIP_VERIFY}" \
-  '{
-    type: "s3",
-    s3: {
-      scheme: $scheme,
-      endpoint: $endpoint,
-      region: $region,
-      bucket_name: $bucket,
-      object_prefix: "",
-      access_key_id: $access_key,
-      access_key_secret: $secret_key,
-      skip_verify: $skip_verify,
-      timeout: 30,
-      connect_timeout: 5,
-      retry_limit: 3
-    }
-  }' > "${OSS_TEMPLATE}"
-
 case "${REGISTRY_PROXY_FALLBACK}" in
   true|false) ;;
   *)
@@ -343,20 +308,6 @@ jq -n \
         }
     end' > "${NYDUS_TEMPLATE}"
 
-if [ "${OBJECT_STORE_ENABLED}" = "true" ]; then
-  if [ -z "${OBJECT_STORE_ENDPOINT}" ] || [ -z "${OBJECT_STORE_BUCKET}" ]; then
-    echo "OBJECT_STORE_ENDPOINT and OBJECT_STORE_BUCKET are required when OBJECT_STORE_ENABLED=true" >&2
-    exit 1
-  fi
-  jq -n \
-    --arg key "${OBJECT_STORE_ENDPOINT}/${OBJECT_STORE_BUCKET}" \
-    --arg access_key "${OBJECT_STORE_ACCESS_KEY}" \
-    --arg secret_key "${OBJECT_STORE_SECRET_KEY}" \
-    '{($key): {access_key_id: $access_key, access_key_secret: $secret_key}}' > "${OSS_AUTHS}"
-else
-  echo '{}' > "${OSS_AUTHS}"
-fi
-
 if [ -n "${REGISTRY_AUTHS_SOURCE}" ] && [ -s "${REGISTRY_AUTHS_SOURCE}" ]; then
   cp "${REGISTRY_AUTHS_SOURCE}" "${REGISTRY_AUTHS}"
 else
@@ -377,9 +328,7 @@ IMAGEFSD_PID=$!
   -root "${IMAGEMGR_ROOT}" \
   -node_id "${AXNODED_CONTROL_PLANE_NODE_ID}" \
   -imagefsd_bin /usr/local/bin/imagefsd \
-  -oss_template "${OSS_TEMPLATE}" \
   -nydus_template "${NYDUS_TEMPLATE}" \
-  -oss_auths_path "${OSS_AUTHS}" \
   -registry_auths_path "${REGISTRY_AUTHS}" \
   -registry_mirror_url "${REGISTRY_MIRROR_URL}" \
   -nydus_readahead_workers "${NYDUS_READAHEAD_WORKERS}" \

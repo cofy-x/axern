@@ -18,37 +18,27 @@ const (
 )
 
 type verifySmokeConfig struct {
-	address        string
-	rootfsSrc      string
-	rootfs         string
-	s3Endpoint     string
-	s3Bucket       string
-	s3Object       string
-	s3AccessKeyID  string
-	s3AccessSecret string
-	imageURL       string
-	runtimeName    string
-	runtimeID      string
-	stdoutPath     string
-	stderrPath     string
-	command        string
-	argvJSON       string
-	commandShell   string
-	expectStdout   string
-	expectStderr   string
-	expectedExit   int
+	address      string
+	rootfsSrc    string
+	rootfs       string
+	imageURL     string
+	runtimeName  string
+	runtimeID    string
+	stdoutPath   string
+	stderrPath   string
+	command      string
+	argvJSON     string
+	commandShell string
+	expectStdout string
+	expectStderr string
+	expectedExit int
 }
 
 func parseFlags() verifySmokeConfig {
 	cfg := verifySmokeConfig{}
 	flag.StringVar(&cfg.address, "address", config.DefaultSocketAddress, "axnoded unix socket path")
-	flag.StringVar(&cfg.rootfsSrc, "rootfs-src", "local", "rootfs source: local, s3, or image")
+	flag.StringVar(&cfg.rootfsSrc, "rootfs-src", "local", "rootfs source: local or image")
 	flag.StringVar(&cfg.rootfs, "rootfs", "/opt/sample-rootfs", "LOCAL rootfs path")
-	flag.StringVar(&cfg.s3Endpoint, "s3-endpoint", "", "S3/OSS endpoint for rootfs-src=s3")
-	flag.StringVar(&cfg.s3Bucket, "s3-bucket", "", "S3/OSS bucket for rootfs-src=s3")
-	flag.StringVar(&cfg.s3Object, "s3-object", "", "S3/OSS object for rootfs-src=s3")
-	flag.StringVar(&cfg.s3AccessKeyID, "s3-access-key-id", "", "S3/OSS access key id for rootfs-src=s3")
-	flag.StringVar(&cfg.s3AccessSecret, "s3-access-key-secret", "", "S3/OSS access key secret for rootfs-src=s3")
 	flag.StringVar(&cfg.imageURL, "image-url", "", "OCI/Nydus image URL for rootfs-src=image")
 	flag.StringVar(&cfg.runtimeName, "runtime", config.RuntimeNameRunsc, "sandbox runtime name under test")
 	flag.StringVar(&cfg.runtimeID, "runtime-id", "verify-runtime", "function runtime id")
@@ -69,7 +59,7 @@ func buildExecutionConfig(cfg verifySmokeConfig) (*privatenodev1.ResolvedExecuti
 	if err != nil {
 		return nil, err
 	}
-	rootfsSpec, err := buildRootfsSpec(cfg.rootfsSrc, cfg.rootfs, cfg.imageURL, cfg.s3Endpoint, cfg.s3Bucket, cfg.s3Object, cfg.s3AccessKeyID, cfg.s3AccessSecret)
+	rootfsSpec, err := buildRootfsSpec(cfg.rootfsSrc, cfg.rootfs, cfg.imageURL)
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +78,6 @@ func resolveCommand(argvJSON, shellSnippet, legacyShellSnippet string) ([]string
 	return verifyutil.ResolveArgv(argvJSON, shellSnippet, legacyShellSnippet)
 }
 
-func buildRootfsSpec(src, localPath, imageURL, endpoint, bucket, object, accessKeyID, accessKeySecret string) (*verifyutil.RootfsSpec, error) {
-	return verifyutil.BuildRootfsSpec(src, localPath, imageURL, endpoint, bucket, object, accessKeyID, accessKeySecret)
+func buildRootfsSpec(src, localPath, imageURL string) (*verifyutil.RootfsSpec, error) {
+	return verifyutil.BuildRootfsSpec(src, localPath, imageURL)
 }

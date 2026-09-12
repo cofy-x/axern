@@ -30,7 +30,7 @@ func runVerifyStartup(cfg verifyStartupConfig) error {
 		return fmt.Errorf("create stderr dir: %w", err)
 	}
 
-	rootfsConfig, rootfsKey, rootfsType, err := buildRootfsConfig(cfg.rootfsSrc, cfg.rootfsPath, cfg.imageURL, cfg.s3Endpoint, cfg.s3Bucket, cfg.s3Object, cfg.s3AccessKeyID, cfg.s3AccessKeySecret)
+	rootfsConfig, rootfsKey, rootfsType, err := buildRootfsConfig(cfg.rootfsSrc, cfg.rootfsPath, cfg.imageURL)
 	if err != nil {
 		return fmt.Errorf("build rootfs config: %w", err)
 	}

@@ -70,8 +70,6 @@ func (rf *RootFS) RootfsTypeLabel() string {
 		return "local"
 	case runtime_api.RootfsSrcType_IMAGE:
 		return "image"
-	case runtime_api.RootfsSrcType_S3:
-		return "s3"
 	default:
 		return "unknown"
 	}

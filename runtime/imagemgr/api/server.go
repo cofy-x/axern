@@ -66,42 +66,6 @@ func startAPIOperation(request *http.Request, spanName, operation string, attrs 
 
 func (w *HttpWorker) prepareHttp() *http.ServeMux {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/oss_mount", func(writer http.ResponseWriter, request *http.Request) {
-		if !requireMethod(writer, request, http.MethodPost, "mount only support post method") {
-			return
-		}
-		var req OSSMountRequest
-		if !decodeJSONBody(writer, request, &req, "invalid oss mount request format") {
-			return
-		}
-		start := time.Now()
-		info, err := w.MountOSS(request.Context(), &req)
-		logAPICall("mount", start, err)
-		if err != nil {
-			writeText(writer, http.StatusInternalServerError, fmt.Sprintf("failed to mount, err = %s", err))
-			return
-		}
-		writeJSON(writer, http.StatusOK, info)
-	})
-
-	mux.HandleFunc("/oss_umount", func(writer http.ResponseWriter, request *http.Request) {
-		if !requireMethod(writer, request, http.MethodPost, "unmount only support post method") {
-			return
-		}
-		var req OSSUmountRequest
-		if !decodeJSONBody(writer, request, &req, "invalid oss unmount request format") {
-			return
-		}
-		start := time.Now()
-		info, err := w.UnmountOSS(request.Context(), &req)
-		logAPICall("umount", start, err)
-		if err != nil {
-			writeText(writer, http.StatusInternalServerError, fmt.Sprintf("failed to unmount, err = %s", err))
-			return
-		}
-		writeJSON(writer, http.StatusOK, info)
-	})
-
 	mux.HandleFunc("/nydus_mount", func(writer http.ResponseWriter, request *http.Request) {
 		if !requireMethod(writer, request, http.MethodPost, "nydus_mount only supports post method") {
 			return

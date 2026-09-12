@@ -16,15 +16,15 @@ For local compose and kind commands, see
 | `storaged` | process stdout/stderr | Storage V1 volume class, claim, binding, and node volume resolution |
 | `axnoded` | `/var/log/axnoded/axnoded.log` | control-plane registration/report failures, lifecycle RPCs, sandbox create/delete, OCI bundle generation, runtime command failures, cgroup setup, network setup |
 | `node-tunneld` | `/var/log/axnoded/node-tunneld.log` | node-local tunnel agent restarts, allocation netns lookup, axnoded operator socket access, relay connection failures |
-| `imagemgr` | `/var/lib/imagemgr/logs/imagemgr.log` | image import, `/oci_mount`, `/nydus_mount`, `/oss_mount`, overlay mount, Nydus bootstrap fetch, imagefsd daemon launch |
+| `imagemgr` | `/var/lib/imagemgr/logs/imagemgr.log` | image import, `/oci_mount`, `/nydus_mount`, overlay mount, Nydus bootstrap fetch, imagefsd daemon launch |
 | `volumed` | process stdout/stderr | resolved volume publish/unpublish, provider validation, persistent publish state, reconcile health |
 | `egressd` | process stdout/stderr | policy prepare/delete fencing, persistent recovery, orphan reconciliation, enforcement health |
-| `imagefsd mount daemon` | `/var/lib/imagemgr/daemons/<daemon-id>/daemon.log` | OSS and Nydus image read path, backend fetches, cache/chunk behavior, FUSE mount daemon internals |
+| `imagefsd mount daemon` | `/var/lib/imagemgr/daemons/<daemon-id>/daemon.log` | Nydus image read path, backend fetches, cache/chunk behavior, FUSE mount daemon internals |
 | `gatewayd` | process stdout/stderr | gateway route resolution, upstream connection failures, HTTP proxying, terminal and SSH forwarding |
 | `tunneld` | process stdout/stderr | relay selection, peer/session pairing, relay drain behavior |
 | `controld-migrate` | job/process stdout/stderr | Postgres schema migration failures |
 | `postgres` | process stdout/stderr | database startup, readiness, connection failures |
-| `minio` | process stdout/stderr | local object storage failures for OSS-style image tests |
+| `minio` | process stdout/stderr | artifact storage and durable rollout evidence failures |
 
 ## Node-Local Paths
 
@@ -82,7 +82,7 @@ runtime class, or image-manager settings look wrong.
 | `axnoded` | node lifecycle, sandbox creation, runtime bundle, cgroup/network, operator socket |
 | `volumed` | node-local physical volume providers, publish records, local cleanup |
 | `egressd` | node-local egress policy persistence, recovery, reconciliation, and host enforcement |
-| `imagemgr` | image import, image-backed rootfs orchestration, OCI overlay, Nydus/OSS daemon lifecycle |
+| `imagemgr` | image import, image-backed rootfs orchestration, OCI overlay, Nydus daemon lifecycle |
 | `imagefsd` | read-only image data, cache, chunk DB, mount daemon internals |
 | `gatewayd` | service HTTP, terminal, SSH forwarding after route resolution |
 | `tunneld` | relay-side tunnel session pairing |

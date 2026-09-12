@@ -3,10 +3,8 @@
 `imagemgr` is the node-local image orchestration daemon used by `axnoded` for
 image-backed rootfs flows.
 
-It exposes an HTTP-over-Unix-socket API and coordinates three mount families:
+It exposes an HTTP-over-Unix-socket API and coordinates two mount families:
 
-- OSS raw image: launch `imagefsd` for the raw object, then expose an ext4
-  rootfs directory through `ossloop`.
 - Nydus image: fetch bootstrap metadata from a registry, launch `imagefsd`, and
   mount the RAFS filesystem.
 - OCI image: pull and extract layers locally, then expose a readonly overlay
@@ -26,8 +24,6 @@ It exposes an HTTP-over-Unix-socket API and coordinates three mount families:
 
 The API surface is:
 
-- `POST /oss_mount`
-- `POST /oss_umount`
 - `POST /nydus_mount`
 - `POST /nydus_umount`
 - `POST /oci_mount`
@@ -45,7 +41,7 @@ The API surface is:
 - `imported_images`: node-local Docker archive refs available to `/oci_mount`
 - `daemons`: live daemon summary plus source identity fields used for locality
 - `chunkdb`: retained top-level ChunkDB aggregate summary
-- `locality`: rootfs-identity entries for OCI, Nydus, and OSS/S3-backed mounts
+- `locality`: rootfs-identity entries for OCI and Nydus mounts
 
 `/oci_mount` first tries Nydus routing when a registry client is configured.
 If Nydus is not detected, it falls back to the local OCI extract-plus-overlay
@@ -67,7 +63,6 @@ allocation-scoped instead of node-global.
 - `imagefsd/`: `imagefsd` config generation, daemon lifecycle, health, and GC
 - `oci/`: OCI pull, extract, overlay mount, and persistent metadata
 - `nydus/`: Nydus registry fetch and bootstrap extraction
-- `ossloop/`: loop-mount of raw images into directory rootfs mounts
 - `configs/`: example backend templates
 - `docs/architecture.md`: mount routing and implementation ownership map
 - `docs/TRACING.md`: tracing and stage-timing notes
@@ -77,9 +72,7 @@ allocation-scoped instead of node-global.
 Manager initialization requires all of the following inputs, even if only one mount flow is exercised in a given environment:
 
 - `-imagefsd_bin`
-- `-oss_template`
 - `-nydus_template`
-- `-oss_auths_path`
 - `-registry_auths_path`
 
 Common optional flags:
@@ -143,9 +136,7 @@ go run ./cmd/imagemgr \
   -debug \
   -root /tmp/imagemgr \
   -imagefsd_bin /usr/local/bin/imagefsd \
-  -oss_template ./configs/oss_backend.json.example \
   -nydus_template ./configs/nydus_registry.json.example \
-  -oss_auths_path ./oss_auths.json.example \
   -registry_auths_path ./registry_auths.json.example \
   -http_sock /tmp/imagemgr.sock \
   -nydus_suffix=-nydus \
@@ -157,20 +148,6 @@ Tracing can be enabled by adding `-enable_tracing`. See [Tracing](./docs/TRACING
 ## API Examples
 
 The examples below assume socket path `/tmp/imagemgr.sock`.
-
-Mount an OSS-backed raw image and expose it as a rootfs directory:
-
-```bash
-curl --unix-socket /tmp/imagemgr.sock -X POST http://unix/oss_mount \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "endpoint": "oss-cn-hangzhou.aliyuncs.com",
-    "bucket": "my-bucket",
-    "object": "images/disk.raw",
-    "lease_id": "example-oss-rootfs",
-    "owner": "operator"
-  }'
-```
 
 Mount a Nydus image directly:
 
@@ -223,7 +200,7 @@ The mount endpoints return:
 
 The descriptor is the only image-representation hand-off to runtime rootfs
 projection. Consumers validate it but do not parse OCI layers, Nydus bootstrap
-state, OSS loop internals, or mountinfo to reconstruct image state.
+state or mountinfo to reconstruct image state.
 
 `GET /list_oci_mount_details` returns the mounted image URL, resolved mount
 path, and mount type (`oci` or `nydus`) for image-backed rootfs mounts.
@@ -236,6 +213,11 @@ durable and are retried by imagemgr reconciliation.
 
 When a daemon needs to be removed explicitly, `POST /cleanup_daemon` accepts a
 JSON body with `daemon_id`.
+
+Persisted mount or daemon records with unsupported source types are rejected at
+startup. Operators must resolve legacy mounts explicitly before upgrading;
+imagemgr does not reinterpret or delete those records automatically. S3 artifact
+storage is independent of node rootfs and remains supported by the control plane.
 
 ## Development And Validation
 
@@ -268,9 +250,8 @@ The same workspace is used for the end-to-end image-backed rootfs checks:
 ```bash
 make axnoded-verify-node-oci-e2e
 make axnoded-verify-node-nydus-e2e
-make axnoded-verify-node-oss-e2e
 ```
 
 On macOS, treat `make imagemgr-test` and `make imagemgr-build` as the best
-available local checks. FUSE, loop-mount, and overlay-mount correctness must be
+available local checks. FUSE and overlay-mount correctness must be
 validated in a Linux workspace.

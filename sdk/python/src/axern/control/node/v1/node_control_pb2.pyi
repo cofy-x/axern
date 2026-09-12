@@ -18,7 +18,6 @@ class RootfsType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     ROOTFS_TYPE_UNSPECIFIED: _ClassVar[RootfsType]
     ROOTFS_TYPE_LOCAL: _ClassVar[RootfsType]
     ROOTFS_TYPE_IMAGE: _ClassVar[RootfsType]
-    ROOTFS_TYPE_S3: _ClassVar[RootfsType]
 
 class MountType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -26,7 +25,6 @@ class MountType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     MOUNT_TYPE_LOCAL: _ClassVar[MountType]
     MOUNT_TYPE_OCI: _ClassVar[MountType]
     MOUNT_TYPE_NYDUS: _ClassVar[MountType]
-    MOUNT_TYPE_OSS: _ClassVar[MountType]
     MOUNT_TYPE_EROFS: _ClassVar[MountType]
 
 class ComponentState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -88,12 +86,10 @@ class PlacementRejectionReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
 ROOTFS_TYPE_UNSPECIFIED: RootfsType
 ROOTFS_TYPE_LOCAL: RootfsType
 ROOTFS_TYPE_IMAGE: RootfsType
-ROOTFS_TYPE_S3: RootfsType
 MOUNT_TYPE_UNSPECIFIED: MountType
 MOUNT_TYPE_LOCAL: MountType
 MOUNT_TYPE_OCI: MountType
 MOUNT_TYPE_NYDUS: MountType
-MOUNT_TYPE_OSS: MountType
 MOUNT_TYPE_EROFS: MountType
 COMPONENT_STATE_UNSPECIFIED: ComponentState
 COMPONENT_STATE_READY: ComponentState

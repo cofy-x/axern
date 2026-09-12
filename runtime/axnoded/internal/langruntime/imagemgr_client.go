@@ -51,23 +51,6 @@ type imageManagerResolveResponse struct {
 	Imported     bool   `json:"imported"`
 }
 
-type ossMountRequest struct {
-	Endpoint        string `json:"endpoint"`
-	Bucket          string `json:"bucket"`
-	Object          string `json:"object"`
-	AccessKeyID     string `json:"access_key_id,omitempty"`
-	AccessKeySecret string `json:"access_key_secret,omitempty"`
-	LeaseID         string `json:"lease_id"`
-	Owner           string `json:"owner,omitempty"`
-}
-
-type ossUmountRequest struct {
-	Endpoint string `json:"endpoint"`
-	Bucket   string `json:"bucket"`
-	Object   string `json:"object"`
-	LeaseID  string `json:"lease_id"`
-}
-
 type reconcileMountLeasesRequest struct {
 	Owner    string   `json:"owner"`
 	LeaseIDs []string `json:"lease_ids"`
@@ -149,41 +132,6 @@ func (c *httpImageManagerClient) UmountOCI(req *ociUmountRequest) error {
 	if resp.StatusCode != http.StatusOK {
 		errMsg, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("failed to unmount oci image %s: %s", req.ImageURL, string(errMsg))
-	}
-	return nil
-}
-
-func (c *httpImageManagerClient) MountOSS(req *ossMountRequest) (*imageManagerMountInfo, error) {
-	body, _ := json.Marshal(req)
-	resp, err := c.clt.Post("http://unix/oss_mount", "application/json", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("failed to mount oss rootfs %s/%s: %w", req.Bucket, req.Object, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		errMsg, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to mount oss rootfs %s/%s: %s", req.Bucket, req.Object, string(errMsg))
-	}
-	result := &imageManagerMountInfo{}
-	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-		return nil, fmt.Errorf("invalid oss mount response: %w", err)
-	}
-	if result.MountPath == "" {
-		return nil, fmt.Errorf("mount_path not found in oss mount response")
-	}
-	return result, nil
-}
-
-func (c *httpImageManagerClient) UmountOSS(req *ossUmountRequest) error {
-	body, _ := json.Marshal(req)
-	resp, err := c.clt.Post("http://unix/oss_umount", "application/json", bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("failed to unmount oss rootfs %s/%s: %w", req.Bucket, req.Object, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		errMsg, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to unmount oss rootfs %s/%s: %s", req.Bucket, req.Object, string(errMsg))
 	}
 	return nil
 }

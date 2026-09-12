@@ -14,21 +14,11 @@ type DaemonCreateOpt struct {
 	ID         string
 	Name       string
 	MountPoint string
-	// OSS Object = ObjectPrefix + Name
-	ObjectPrefix    string
-	Endpoint        string
-	Bucket          string
-	AccessKeyID     string
-	AccessKeySecret string
-	// Source type: "oss" or "nydus"
+	// Source type: "nydus".
 	SourceType       string
 	RegistryAuth     string // For Nydus: base64 credentials for the selected repository.
 	DockerConfigJSON string // Request-scoped auth used only while fetching the bootstrap.
 	ImageURL         string // For Nydus: image URL to fetch bootstrap from registry
-}
-
-func (opts *DaemonCreateOpt) overwriteOSSConfig() bool {
-	return opts.Endpoint != "" && opts.Bucket != "" && opts.ObjectPrefix != ""
 }
 
 type Manager interface {
@@ -47,11 +37,9 @@ type manager struct {
 	binPath                   string
 	nodeID                    string
 	root                      string
-	ossCfgTemplate            BackendConfig // OSS backend config template
 	nydusCfgTemplate          BackendConfig // Nydus backend config template
 	daemons                   map[string]*Daemon
 	nydusClient               NydusClient         // Client for fetching Nydus images
-	ossAuths                  OSSAuthsConfig      // OSS authentication credentials
 	registryAuths             registryauth.Config // Registry authentication credentials
 	cgroupCtrl                *cgroup.Controller  // Memory cgroup for daemon processes (nil = disabled)
 	nydusReadaheadWorkers     int
@@ -110,11 +98,9 @@ type ManagerConfig struct {
 	Context                   context.Context // Context for tracing and cancellation (optional, defaults to Background)
 	NodeID                    string          // Stable control-plane node identity attached to imagefsd metrics.
 	Root                      string          // Root working directory
-	OSSCfgPath                string          // Path to OSS config template file
 	NydusCfgPath              string          // Path to Nydus config template file
 	BinPath                   string          // Path to imagefsd binary
 	NydusClient               NydusClient     // Client for fetching Nydus images
-	OSSAuthsPath              string          // Path to OSS auths file (oss_auths.json)
 	RegistryAuthsPath         string          // Path to registry auths file (registry_auths.json)
 	CgroupMemoryLimit         int64           // Memory limit in bytes for imagefsd cgroup (0 = no limit)
 	NydusReadaheadWorkers     int             // Background workers for demand-triggered Nydus cache readahead.
@@ -141,7 +127,6 @@ func NewManager(config *ManagerConfig) (Manager, error) {
 		nodeID:                    strings.TrimSpace(config.NodeID),
 		binPath:                   config.BinPath,
 		root:                      config.Root,
-		ossCfgTemplate:            BackendConfig{},
 		nydusCfgTemplate:          BackendConfig{},
 		daemons:                   map[string]*Daemon{},
 		nydusClient:               config.NydusClient,
@@ -150,7 +135,7 @@ func NewManager(config *ManagerConfig) (Manager, error) {
 		nydusReadaheadWindowBytes: config.NydusReadaheadWindowBytes,
 		nydusDecodedCacheBytes:    config.NydusDecodedCacheBytes,
 	}
-	if err := mgr.prepare(config.OSSCfgPath, config.NydusCfgPath, config.OSSAuthsPath, config.RegistryAuthsPath); err != nil {
+	if err := mgr.prepare(config.NydusCfgPath, config.RegistryAuthsPath); err != nil {
 		return nil, fmt.Errorf("failed to prepare imagefsd manager: %w", err)
 	}
 	if err := mgr.loadExistedDaemons(); err != nil {

@@ -29,7 +29,7 @@ for encoded in tracked:
     path = root / encoded.decode()
     try:
         content = path.read_text()
-    except UnicodeDecodeError:
+    except (UnicodeDecodeError, FileNotFoundError):
         continue
     if deprecated_name in content:
         raise SystemExit(f"{path.relative_to(root)} restores deprecated host DNS verification input")

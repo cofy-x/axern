@@ -1,7 +1,6 @@
 use super::{FsOptions, Source};
 use crate::backend::cache::Cache;
 use crate::backend::chunkdb::{ChunkDB, ChunkIndexControl};
-use crate::backend::general::GeneralBackend;
 use crate::backend::indexdb::IndexDB;
 use crate::backend::peer::{default_chunk_server_socket, LocalChunkClient, PeerRuntime};
 use crate::backend::{Backend, BackendEx};
@@ -132,31 +131,6 @@ fn setup_chunk_and_index_db(
     }
 }
 
-fn prepare_oss(opts: &FsOptions) -> anyhow::Result<RawImage> {
-    let backend = GeneralBackend::new(&opts.cfg)?;
-    let oss_file = backend.get_reader(&opts.name)?;
-    let size = oss_file.size();
-    if size == 0 {
-        return Err(io::Error::new(ErrorKind::InvalidInput, "Invalid oss file").into());
-    }
-    let cached_oss = Cache::new_with_node_id(oss_file, &opts.cache_file, &opts.node_id)?;
-    let b = Arc::new(cached_oss);
-    let local_chunk_client = build_local_chunk_client(opts);
-    let dedup_db = setup_chunk_and_index_db(
-        &opts.chunk_db_dir,
-        &opts.image_meta_dir,
-        local_chunk_client
-            .as_ref()
-            .map(|client| client.clone() as Arc<dyn ChunkIndexControl>),
-    )?;
-    RawImage::new(
-        &opts.name,
-        b as Arc<dyn BackendEx>,
-        dedup_db,
-        local_chunk_client,
-    )
-}
-
 fn prepare_local(opts: &FsOptions) -> anyhow::Result<RawImage> {
     let local_file = Cache::from_raw_file(&opts.cache_file, &opts.node_id)?;
     let size = local_file.size();
@@ -210,10 +184,6 @@ pub(super) fn run_mount(fs_opts: &FsOptions, log_level: tracing::Level) -> anyho
     let result = match fs_opts.src {
         Source::Local => {
             let image = prepare_local(fs_opts)?;
-            mount_fs(image, &fs_opts.mountpoint, fs_opts.fuse_worker_num)
-        }
-        Source::Oss => {
-            let image = prepare_oss(fs_opts)?;
             mount_fs(image, &fs_opts.mountpoint, fs_opts.fuse_worker_num)
         }
         Source::Nydus => {

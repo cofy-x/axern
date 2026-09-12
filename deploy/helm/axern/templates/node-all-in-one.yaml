@@ -127,22 +127,6 @@ spec:
               value: /certs/node.crt
             - name: AXNODED_CONTROL_PLANE_TLS_KEY
               value: /certs/node.key
-            - name: OBJECT_STORE_ENABLED
-              value: {{ .Values.objectStore.enabled | quote }}
-            - name: OBJECT_STORE_SCHEME
-              value: {{ .Values.objectStore.scheme | quote }}
-            - name: OBJECT_STORE_ENDPOINT
-              value: {{ .Values.objectStore.endpoint | quote }}
-            - name: OBJECT_STORE_REGION
-              value: {{ .Values.objectStore.region | quote }}
-            - name: OBJECT_STORE_BUCKET
-              value: {{ .Values.objectStore.bucket | quote }}
-            - name: OBJECT_STORE_ACCESS_KEY
-              value: {{ .Values.objectStore.accessKey | quote }}
-            - name: OBJECT_STORE_SECRET_KEY
-              value: {{ .Values.objectStore.secretKey | quote }}
-            - name: OBJECT_STORE_SKIP_VERIFY
-              value: {{ .Values.objectStore.skipVerify | quote }}
             {{- if .Values.node.registryAuth.existingSecret }}
             - name: REGISTRY_AUTHS_SOURCE
               value: /registry-auth/{{ .Values.node.registryAuth.dockerConfigKey }}

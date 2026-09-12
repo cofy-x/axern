@@ -23,7 +23,6 @@ const (
 	StartupClassWarm                string       = "warm"
 	StartupRootfsTypeLocal          string       = "local"
 	StartupRootfsTypeImage          string       = "image"
-	StartupRootfsTypeS3             string       = "s3"
 	StartupRootfsTypeUnknown        string       = "unknown"
 )
 
@@ -65,8 +64,6 @@ func RootfsTypeLabel(rootfs *runtimeapi.RootfsConfig) string {
 		return StartupRootfsTypeLocal
 	case runtimeapi.RootfsSrcType_IMAGE:
 		return StartupRootfsTypeImage
-	case runtimeapi.RootfsSrcType_S3:
-		return StartupRootfsTypeS3
 	default:
 		return StartupRootfsTypeUnknown
 	}

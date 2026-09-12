@@ -130,6 +130,10 @@ transitions use a queue separate from create/delete lifecycle work. The shared
 [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md)
 document is the canonical contract for provider evidence and loss policy.
 
+Rootfs locality covers local directories and registry images (OCI/Nydus),
+not raw object-store mounts. S3-compatible rollout artifact storage remains
+independent of rootfs placement.
+
 Sandbox egress policy is normalized during API validation and contributes a
 derived DNS-policy or strict-egress capability requirement. A node without the
 matching current proof is ineligible; the policy is never forwarded as an

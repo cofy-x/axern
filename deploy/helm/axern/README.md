@@ -136,11 +136,11 @@ Chart-managed PostgreSQL and MinIO use a zero-surge deployment strategy. Their
 single-writer volumes must never be mounted by overlapping old and new Pods
 during an upgrade.
 
-MinIO is not an Axern control-plane dependency. `minio.enabled` only deploys an
-in-cluster S3-compatible service, while `objectStore.enabled` controls whether
-node runtime images receive a default S3 backend. OCI and Nydus registry
-rootfs paths require neither setting. Enable both only for an intentional S3
-rootfs test, and give MinIO its own PVC.
+`minio.enabled` deploys in-cluster S3-compatible artifact storage;
+`objectStore.enabled` configures external artifact storage when bundled MinIO
+is disabled. Durable rollout evidence requires one of these stores. Give
+MinIO its own PVC. Node rootfs uses OCI/Nydus registry images and receives no
+object-store credentials.
 
 ## Observability
 

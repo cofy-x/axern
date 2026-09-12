@@ -13,7 +13,6 @@ enum RootfsType {
   ROOTFS_TYPE_UNSPECIFIED = 0;
   ROOTFS_TYPE_LOCAL = 1;
   ROOTFS_TYPE_IMAGE = 2;
-  ROOTFS_TYPE_S3 = 3;
 }
 
 enum MountType {
@@ -21,7 +20,6 @@ enum MountType {
   MOUNT_TYPE_LOCAL = 1;
   MOUNT_TYPE_OCI = 2;
   MOUNT_TYPE_NYDUS = 3;
-  MOUNT_TYPE_OSS = 4;
   MOUNT_TYPE_EROFS = 5;
 }
 

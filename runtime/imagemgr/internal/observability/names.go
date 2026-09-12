@@ -9,8 +9,6 @@ const (
 	SpanOCIImport    = "imagemgr.oci.import"
 	SpanNydusMount   = "imagemgr.nydus.mount"
 	SpanNydusUnmount = "imagemgr.nydus.unmount"
-	SpanOSSMount     = "imagemgr.oss.mount"
-	SpanOSSUnmount   = "imagemgr.oss.unmount"
 	SpanInventory    = "imagemgr.inventory"
 )
 

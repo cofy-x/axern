@@ -91,7 +91,7 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 		if !imagemgrReady {
 			reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE)
 		}
-	case nodev1.MountType_MOUNT_TYPE_NYDUS, nodev1.MountType_MOUNT_TYPE_OSS:
+	case nodev1.MountType_MOUNT_TYPE_NYDUS:
 		if !imagemgrReady {
 			reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE)
 		}

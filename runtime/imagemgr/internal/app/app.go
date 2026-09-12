@@ -23,7 +23,6 @@ import (
 	"github.com/cofy-x/axern/runtime/imagemgr/internal/mountstore"
 	"github.com/cofy-x/axern/runtime/imagemgr/nydus"
 	"github.com/cofy-x/axern/runtime/imagemgr/oci"
-	"github.com/cofy-x/axern/runtime/imagemgr/ossloop"
 	"github.com/cofy-x/axern/runtime/imagemgr/pkg/imageregistry"
 )
 
@@ -34,12 +33,10 @@ func Run(args []string) error {
 	nodeID := flags.String("node_id", "", "Stable control-plane node ID attached to imagefsd metrics.")
 	imagefsdBinPath := flags.String("imagefsd_bin", "/usr/local/bin/imagefsd",
 		"imagefsd binary path.")
-	ossTemplate := flags.String("oss_template", "", "Path to the OSS configuration template file.")
 	nydusTemplate := flags.String("nydus_template", "", "Path to the Nydus backend configuration template file.")
 	debug := flags.Bool("debug", false, "Output debug info or not.")
 	httpSockPath := flags.String("http_sock", api.DefaultHttpSockPath, "Http api socket path")
 	nydusSuffix := flags.String("nydus_suffix", "", "Tag suffix to try when detecting Nydus images (e.g., '-nydus')")
-	ossAuthsPath := flags.String("oss_auths_path", "", "Path to OSS authentication credentials file (oss_auths.json)")
 	registryAuthsPath := flags.String("registry_auths_path", "", "Path to registry authentication credentials file (registry_auths.json)")
 	registryMirrorURL := flags.String("registry_mirror_url", "", "Dynamic registry mirror origin used for OCI pulls and Nydus bootstrap fetches")
 	enableTracing := flags.Bool("enable_tracing", false, "Enable OpenTelemetry tracing for mount/unmount operations")
@@ -119,16 +116,14 @@ func Run(args []string) error {
 	nydusClient := nydus.NewRegistryClientFromShared(sharedRegistryClient)
 	logrus.Info("Registry and Nydus clients initialized successfully")
 
-	// Create manager with both OSS and Nydus config templates
+	// Create manager with the Nydus config template
 	mgr, err := imagefsd.NewManager(&imagefsd.ManagerConfig{
 		Context:                   ctx,
 		NodeID:                    *nodeID,
 		Root:                      *rootWorkDir,
-		OSSCfgPath:                *ossTemplate,
 		NydusCfgPath:              *nydusTemplate,
 		BinPath:                   *imagefsdBinPath,
 		NydusClient:               nydusClient,
-		OSSAuthsPath:              *ossAuthsPath,
 		RegistryAuthsPath:         *registryAuthsPath,
 		CgroupMemoryLimit:         cgroupMemoryLimit,
 		NydusReadaheadWorkers:     *nydusReadaheadWorkers,
@@ -150,13 +145,6 @@ func Run(args []string) error {
 		return err
 	}
 
-	ossLoopMgr, err := ossloop.NewManager(&ossloop.Config{
-		Root: filepath.Join(*rootWorkDir, "oss_rootfs"),
-	})
-	if err != nil {
-		return fmt.Errorf("create oss loop manager: %w", err)
-	}
-
 	dbPath := filepath.Join(*rootWorkDir, "mount_records.db")
 	mountStore, err := mountstore.Open(dbPath)
 	if err != nil {
@@ -171,7 +159,6 @@ func Run(args []string) error {
 		NydusClient:      nydusClient,
 		NydusSuffix:      *nydusSuffix,
 		RegistryProxyURL: registryProxyURL,
-		OSSLoopManager:   ossLoopMgr,
 		MountStore:       mountStore,
 	})
 	if err != nil {

@@ -26,10 +26,8 @@ Keep this file short and rule-oriented. Put background material in:
 - `imagemgr` owns mount orchestration, not the image data plane:
   - OCI extraction and overlay logic belong in [`oci`](oci)
   - imagefsd process lifecycle belongs in [`imagefsd`](imagefsd)
-  - OSS raw-image to directory exposure belongs in [`ossloop`](ossloop)
 - OCI image mounts must stay in [`oci`](oci). Do not route standard OCI images through `imagefsd` unless the feature explicitly requires it.
 - Nydus and registry-auth behavior should reuse [`nydus`](nydus) and [`pkg/imageregistry`](pkg/imageregistry). Do not add a second registry-auth parsing path elsewhere.
-- OSS rootfs flow is intentionally two-stage: raw image mount through `imagefsd`, then loop-mount to a directory rootfs. Preserve that separation unless the feature intentionally redesigns the flow.
 - Socket and workdir expectations are shared with the root Linux dev workflow and with `axnoded`. Treat changes to socket names, `.dev/` layout, or default paths as cross-subsystem changes.
 
 ## Change-to-Validation Matrix
@@ -83,12 +81,12 @@ Prefer root `make` targets when they exist.
 ### Config, auth, or template changes
 
 - Update example files under [`configs`](configs).
-- Update [`oss_auths.json.example`](oss_auths.json.example) and [`registry_auths.json.example`](registry_auths.json.example) when the example shape changes.
+- Update [`registry_auths.json.example`](registry_auths.json.example) when the example shape changes.
 - Update the [Image Manager README](README.md) if required startup inputs or flags change.
 
 ## Environment Caveats
 
-- The real mount environment is Linux. Loop mounts, overlay mounts, and FUSE behavior are not meaningfully validated on macOS.
+- The real mount environment is Linux. Overlay mounts and FUSE behavior are not meaningfully validated on macOS.
 - The recommended truth environment is the repository-root Linux workspace started via `make devbox-up`.
 - The repo-local dev workflow expects:
   - socket at `.dev/run/imagemgr.sock`
@@ -98,11 +96,11 @@ Prefer root `make` targets when they exist.
 ## Cross-Subsystem Dependencies
 
 - `axnoded` consumes `imagemgr` through the Unix socket API for image-backed rootfs flows.
-- `imagemgr` launches and supervises `imagefsd` daemons for OSS and Nydus flows, and depends on `imagefsd` CLI flags remaining compatible.
+- `imagemgr` launches and supervises `imagefsd` daemons for Nydus flows, and depends on `imagefsd` CLI flags remaining compatible.
 - Cross-runtime routing rules live in the [Runtime Stack](../../.x/runtime-stack.md).
 
 ## Task Entry Points
 
 - Use [Repository Layout](README.md#repository-layout) for the maintained code-layout map.
 - Run `make imagemgr-check-architecture` after directory or package-boundary changes.
-- Start daemon wiring and flags in [`internal/app`](internal/app), API and mount orchestration in [`api`](api), mount persistence in [`internal/mountstore`](internal/mountstore), `imagefsd` process lifecycle in [`imagefsd`](imagefsd), OCI image work in [`oci`](oci), Nydus/registry work in [`nydus`](nydus) and [`pkg/imageregistry`](pkg/imageregistry), and OSS directory exposure in [`ossloop`](ossloop).
+- Start daemon wiring and flags in [`internal/app`](internal/app), API and mount orchestration in [`api`](api), mount persistence in [`internal/mountstore`](internal/mountstore), `imagefsd` process lifecycle in [`imagefsd`](imagefsd), OCI image work in [`oci`](oci), Nydus/registry work in [`nydus`](nydus) and [`pkg/imageregistry`](pkg/imageregistry).

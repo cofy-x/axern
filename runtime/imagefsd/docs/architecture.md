@@ -1,7 +1,7 @@
 # Imagefsd Architecture
 
-`imagefsd` is the read-only image data plane used by `imagemgr` for raw-image
-and Nydus rootfs flows. It exposes FUSE mounts for images and can share chunks
+`imagefsd` is the read-only image data plane used by `imagemgr` for Nydus
+rootfs flows, with a separate local raw-file mode. It exposes FUSE mounts for images and can share chunks
 through a node-local or peer-aware chunk server.
 
 Use this document when changing mount internals, dedup behavior, chunk serving,
@@ -19,7 +19,6 @@ flowchart TB
     MountCmd --> Raw["image::raw::RawImage"]
     MountCmd --> Nydus["image::nydus::NydusImage"]
 
-    Raw --> GeneralBackend["backend::general"]
     Raw --> Cache["backend::cache"]
     Nydus --> NydusBackend["nydus_storage backend"]
     Nydus --> Cache
@@ -54,7 +53,7 @@ sequenceDiagram
     opt --chunk-db-dir and --image-meta-dir
         CLI->>Dedup: Open chunk database and image metadata
     end
-    alt --src local or --src oss
+    alt --src local
         CLI->>Image: Build RawImage
     else --src nydus
         CLI->>Image: Build NydusImage
@@ -66,8 +65,6 @@ sequenceDiagram
 Mount ownership stays split by source type:
 
 - `--src local` wraps an existing local raw file.
-- `--src oss` uses `GeneralBackend` with a Nydus backend config, so the path is
-  not OSS-only even though the flag name is historical.
 - `--src nydus` builds a RAFS filesystem from a bootstrap and backend config.
 
 ## Nydus Data Plane
@@ -125,7 +122,7 @@ sequenceDiagram
 - `ChunkDB` is global content-addressed chunk storage.
 - `IndexDB` is per-image offset-to-checksum metadata.
 - Raw-image dedup identity depends on `--name`; changing that meaning is a
-  compatibility change for `imagemgr`.
+  compatibility change for local raw-file callers.
 - Nydus mode requires `--name` at the CLI level, but the filesystem does not use
   it.
 - A local chunk client can reuse chunks from the node-local chunk server before

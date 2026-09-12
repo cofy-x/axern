@@ -27,7 +27,7 @@ membership.
 | `runtime/egressd` | Trusted node-local sandbox egress policy lifecycle and enforcement | [Contract](../runtime/egressd/AGENTS.md), [README](../runtime/egressd/README.md) |
 | `runtime/tunneld` | Internal reverse-TCP relay and node-local tunnel binding | [Contract](../runtime/tunneld/AGENTS.md), [README](../runtime/tunneld/README.md) |
 | `runtime/volumed` | Node-local physical volume publish and reconciliation | [Contract](../runtime/volumed/AGENTS.md), [README](../runtime/volumed/README.md) |
-| `runtime/imagemgr` | Image rootfs resolution and OCI, Nydus, and OSS mount orchestration | [Contract](../runtime/imagemgr/AGENTS.md), [README](../runtime/imagemgr/README.md) |
+| `runtime/imagemgr` | Image rootfs resolution and OCI and Nydus mount orchestration | [Contract](../runtime/imagemgr/AGENTS.md), [README](../runtime/imagemgr/README.md) |
 | `runtime/imagefsd` | Read-only FUSE image data plane and chunk serving | [Contract](../runtime/imagefsd/AGENTS.md), [README](../runtime/imagefsd/README.md) |
 | `network/bpfnet` | Optional eBPF host networking data plane | [Contract](../network/bpfnet/AGENTS.md), [README](../network/bpfnet/README.md) |
 

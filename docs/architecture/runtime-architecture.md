@@ -34,6 +34,8 @@ Axern V1 separates the durable control plane from node-local execution:
   imported-cache and mounted-workload counts. Imported images mean the image is
   present in the node-local `imagemgr` OCI cache; mounted images mean the image
   currently backs a workload rootfs mount.
+  Rootfs sources are local directories or registry images (OCI/Nydus), not
+  raw object-store mounts; rollout artifact storage is a separate data path.
 - Service readiness is a control-plane-visible concern: `axnoded` reports
   `ready` and `readiness_message` separately from lifecycle `status`, and
   `controld` gates service `READY` and rollout drain decisions on that

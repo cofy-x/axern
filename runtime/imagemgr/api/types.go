@@ -6,32 +6,6 @@ import (
 	"github.com/cofy-x/axern/runtime/imagemgr/imagefsd"
 )
 
-type OSSMountRequest struct {
-	MountPoint      string `json:"mount_point,omitempty"`
-	Endpoint        string `json:"endpoint"`
-	Bucket          string `json:"bucket"`
-	Object          string `json:"object"`
-	AccessKeyID     string `json:"access_key_id,omitempty"`
-	AccessKeySecret string `json:"access_key_secret,omitempty"`
-	LeaseID         string `json:"lease_id"`
-	Owner           string `json:"owner,omitempty"`
-}
-
-func (req *OSSMountRequest) String() string {
-	return fmt.Sprintf("(%s, %s, %s, %s)", req.MountPoint, req.Endpoint, req.Bucket, req.Object)
-}
-
-type OSSUmountRequest struct {
-	Endpoint string `json:"endpoint"`
-	Bucket   string `json:"bucket"`
-	Object   string `json:"object"`
-	LeaseID  string `json:"lease_id"`
-}
-
-func (req *OSSUmountRequest) String() string {
-	return fmt.Sprintf("(%s %s %s)", req.Endpoint, req.Bucket, req.Object)
-}
-
 type MountInfo struct {
 	MountPath      string          `json:"mount_path"`
 	MountPoint     string          `json:"mount_point,omitempty"`
@@ -42,7 +16,7 @@ type MountInfo struct {
 
 // ImmutableMount is the source-owned effective lower contract returned with
 // every mounted rootfs lease. Runtime projection consumes this descriptor and
-// never reverse-engineers OCI, Nydus, OSS, or future EROFS implementations.
+// never reverse-engineers OCI, Nydus, or future EROFS implementations.
 type ImmutableMount struct {
 	Identity           string   `json:"identity"`
 	EffectiveRoot      string   `json:"effective_root"`
@@ -65,7 +39,6 @@ type MountType string
 const (
 	MountTypeOCI   MountType = "oci"
 	MountTypeNydus MountType = "nydus"
-	MountTypeOSS   MountType = "oss"
 )
 
 // MountedImageDetail is returned by /list_oci_mount_details for both OCI and

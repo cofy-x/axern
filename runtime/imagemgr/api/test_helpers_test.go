@@ -7,15 +7,13 @@ import (
 
 	"github.com/cofy-x/axern/runtime/imagemgr/imagefsd"
 	"github.com/cofy-x/axern/runtime/imagemgr/internal/mountstore"
-	"github.com/cofy-x/axern/runtime/imagemgr/ossloop"
 )
 
 // mustNewHttpWorker creates an HttpWorker for testing, failing the test on error.
 func mustNewHttpWorker(t *testing.T, mgr imagefsd.Manager) *HttpWorker {
 	t.Helper()
 	w, err := NewHttpWorker(&HttpWorkerConfig{
-		Manager:        mgr,
-		OSSLoopManager: newMockOSSLoopManager(),
+		Manager: mgr,
 	})
 	if err != nil {
 		t.Fatalf("NewHttpWorker: %v", err)
@@ -32,38 +30,6 @@ func openTestMountStore(t *testing.T) *mountstore.Store {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	return store
-}
-
-type mockOSSLoopManager struct {
-	mounts map[string]string
-}
-
-func newMockOSSLoopManager() *mockOSSLoopManager {
-	return &mockOSSLoopManager{
-		mounts: make(map[string]string),
-	}
-}
-
-func (m *mockOSSLoopManager) EnsureMounted(id, imagePath string) (string, error) {
-	path := "/rootfs/" + id
-	m.mounts[id] = path
-	return path, nil
-}
-
-func (m *mockOSSLoopManager) EffectiveLowerDirs(id string) ([]string, error) {
-	if _, ok := m.mounts[id]; !ok {
-		return nil, fmt.Errorf("oss rootfs %s is not mounted", id)
-	}
-	return []string{"/rootfs-lower/" + id, "/rootfs-support"}, nil
-}
-
-func (m *mockOSSLoopManager) ReleaseResource(id string) (ossloop.UnmountResult, error) {
-	path, ok := m.mounts[id]
-	if !ok {
-		return ossloop.UnmountResult{Released: true}, nil
-	}
-	delete(m.mounts, id)
-	return ossloop.UnmountResult{MountPath: path, Released: true}, nil
 }
 
 type mockDaemon struct {

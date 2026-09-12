@@ -65,7 +65,6 @@ HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/demo/nginx ./
 	verify-node-warm-pool-e2e \
 	verify-node-oci-e2e \
 	verify-node-nydus-e2e \
-	verify-node-oss-e2e \
 	build-python311-runtime-image \
 	build-server-base-runtime-image \
 	build-coding-base-runtime-image \
@@ -264,9 +263,6 @@ verify-node-oci-e2e: ## run privileged node all-in-one OCI end-to-end verificati
 
 verify-node-nydus-e2e: ## run privileged node all-in-one Nydus end-to-end verification
 	@bash ./scripts/verify/verify-node-nydus-e2e.sh
-
-verify-node-oss-e2e: ## run privileged node all-in-one OSS end-to-end verification
-	@bash ./scripts/verify/verify-node-oss-e2e.sh
 
 build-python311-runtime-image: ## build the official Python 3.11 runtime image
 	@bash ./scripts/runtime/build-python311-runtime-image.sh

@@ -78,26 +78,6 @@ func TestLocalityKeyFromRootfsConfig(t *testing.T) {
 			want: "image:docker.io/library/nginx:latest",
 			ok:   true,
 		},
-		{
-			name: "s3",
-			cfg: langruntime.RootfsConfig{
-				SrcType:  runtimeapi.RootfsSrcType_S3,
-				Endpoint: "minio:9000",
-				Bucket:   "dist",
-				Object:   "/images/rootfs.raw",
-			},
-			want: "s3:minio:9000/dist/images/rootfs.raw",
-			ok:   true,
-		},
-		{
-			name: "missing object",
-			cfg: langruntime.RootfsConfig{
-				SrcType:  runtimeapi.RootfsSrcType_S3,
-				Endpoint: "minio:9000",
-				Bucket:   "dist",
-			},
-			ok: false,
-		},
 	}
 
 	for _, tt := range tests {

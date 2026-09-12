@@ -251,8 +251,6 @@ func (w *HttpWorker) unmountResource(ctx context.Context, record *mountstore.Rec
 			return nil
 		}
 		return err
-	case MountTypeOSS:
-		return w.unmountOSSResource(ctx, record)
 	default:
 		return fmt.Errorf("unsupported persisted mount type %q", record.MountType)
 	}
@@ -319,8 +317,8 @@ func (w *HttpWorker) ListMountedOCIImages() ([]string, error) {
 		}
 		imageURLs := make([]string, 0, len(records))
 		for _, record := range records {
-			if MountType(record.MountType) == MountTypeOSS {
-				continue
+			if MountType(record.MountType) != MountTypeOCI && MountType(record.MountType) != MountTypeNydus {
+				return nil, fmt.Errorf("unsupported persisted mount type %q", record.MountType)
 			}
 			imageURLs = append(imageURLs, record.ImageURL)
 		}
@@ -340,8 +338,8 @@ func (w *HttpWorker) ListMountedOCIDetails() ([]MountedImageDetail, error) {
 		}
 		mounts := make([]MountedImageDetail, 0, len(records))
 		for _, record := range records {
-			if MountType(record.MountType) == MountTypeOSS {
-				continue
+			if MountType(record.MountType) != MountTypeOCI && MountType(record.MountType) != MountTypeNydus {
+				return nil, fmt.Errorf("unsupported persisted mount type %q", record.MountType)
 			}
 			leaseCount, err := w.mountStore.LeaseCount(record.CacheKey)
 			if err != nil {

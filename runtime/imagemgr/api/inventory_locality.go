@@ -1,9 +1,7 @@
 package api
 
 import (
-	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/cofy-x/axern/runtime/imagemgr/imagefsd"
 )
@@ -16,7 +14,7 @@ func (w *HttpWorker) buildLocalityEntries(
 	hasDaemonBackedEntry := false
 	for _, daemon := range daemons {
 		daemonByMount[daemon.MountPoint] = daemon
-		if daemon.SourceType == imagefsd.SourceTypeNydus || daemon.SourceType == imagefsd.SourceTypeOSS {
+		if daemon.SourceType == imagefsd.SourceTypeNydus {
 			hasDaemonBackedEntry = true
 		}
 	}
@@ -118,12 +116,6 @@ func daemonLocalityKey(daemon imagefsd.DaemonInfo) (string, MountType, bool) {
 			return "", "", false
 		}
 		return "image:" + daemon.ImageURL, MountTypeNydus, true
-	case imagefsd.SourceTypeOSS:
-		object := strings.TrimPrefix(daemon.ObjectPrefix+daemon.Name, "/")
-		if daemon.Endpoint == "" || daemon.Bucket == "" || object == "" {
-			return "", "", false
-		}
-		return fmt.Sprintf("s3:%s/%s/%s", daemon.Endpoint, daemon.Bucket, object), MountTypeOSS, true
 	default:
 		return "", "", false
 	}

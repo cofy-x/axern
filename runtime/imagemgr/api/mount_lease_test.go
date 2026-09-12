@@ -119,21 +119,16 @@ func TestNydusRoutesShareCanonicalResourceIdentity(t *testing.T) {
 	}
 }
 
-func TestOCIInventoryExcludesOSSLeaseResources(t *testing.T) {
+func TestOCIInventoryRejectsUnsupportedLeaseResources(t *testing.T) {
 	worker := mustNewHttpWorker(t, newMockManager())
-	ociRecord := &mountstore.Record{CacheKey: "image:a", ImageURL: "image:a", MountType: string(MountTypeOCI), MountPoint: "/mnt/a"}
-	ossRecord := &mountstore.Record{CacheKey: "oss:a", MountType: string(MountTypeOSS), MountPoint: "/mnt/oss"}
-	if _, err := worker.mountStore.Acquire(ociRecord, "oci-lease", "test"); err != nil {
+	record := &mountstore.Record{CacheKey: "legacy:a", MountType: "oss", MountPoint: "/mnt/legacy"}
+	if _, err := worker.mountStore.Acquire(record, "legacy-lease", "test"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := worker.mountStore.Acquire(ossRecord, "oss-lease", "test"); err != nil {
-		t.Fatal(err)
+	if _, err := worker.ListMountedOCIDetails(); err == nil {
+		t.Fatal("unsupported persisted mount type must be rejected")
 	}
-	mounts, err := worker.ListMountedOCIDetails()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(mounts) != 1 || mounts[0].ImageURL != ociRecord.ImageURL {
-		t.Fatalf("OCI mount details = %+v", mounts)
+	if _, err := worker.ListMountedOCIImages(); err == nil {
+		t.Fatal("unsupported persisted mount type must be rejected")
 	}
 }

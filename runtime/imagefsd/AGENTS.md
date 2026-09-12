@@ -95,7 +95,7 @@ Prefer root `make` targets when they exist.
 
 ## Cross-Subsystem Dependencies
 
-- `imagemgr` launches `imagefsd` and relies on compatible CLI flags and daemon behavior for OSS and Nydus flows.
+- `imagemgr` launches `imagefsd` and relies on compatible CLI flags and daemon behavior for Nydus flows.
 - The repo-local Linux workflow and runtime-stack routing are described in the [Runtime Stack](../../.x/runtime-stack.md).
 
 ## Task Entry Points

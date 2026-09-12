@@ -8,6 +8,10 @@ execution after `controld` placement, and request-scoped image-backed process.
 `controld` is the product-facing control plane. `axnoded` is the node authority
 for executing an admitted allocation.
 
+Rootfs sources are local directories or registry images (OCI/Nydus). Node
+locality reports use those same sources; object-store artifact storage does
+not provide workload rootfs mounts.
+
 Axnoded owns the aggregate `runtime_slots` capacity contract reported to
 controld. It derives the aggregate from `max_instance_num`, active containers,
 and enabled resource-pool constraints. Disabled pools do not block inventory,

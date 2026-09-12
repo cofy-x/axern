@@ -8,25 +8,6 @@ func TestBackendConfig_DeepCopy(t *testing.T) {
 		cfg  BackendConfig
 	}{
 		{
-			name: "OSS config with proxy",
-			cfg: BackendConfig{
-				BackendType: "oss",
-				Oss: &OssConfig{
-					ObjectStoreCommon: ObjectStoreCommon{
-						Endpoint:        "oss-cn-hangzhou.aliyuncs.com",
-						BucketName:      "test-bucket",
-						ObjectPrefix:    "prefix/",
-						AccessKeyId:     "test-key",
-						AccessKeySecret: "test-secret",
-						Proxy: &ProxyConfig{
-							Url:      "http://proxy:8080",
-							Fallback: true,
-						},
-					},
-				},
-			},
-		},
-		{
 			name: "Registry config with proxy",
 			cfg: BackendConfig{
 				BackendType: "registry",
@@ -43,26 +24,6 @@ func TestBackendConfig_DeepCopy(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "S3 config with proxy",
-			cfg: BackendConfig{
-				BackendType: "s3",
-				S3: &S3Config{
-					ObjectStoreCommon: ObjectStoreCommon{
-						Endpoint:        "minio:9000",
-						BucketName:      "test-bucket",
-						ObjectPrefix:    "prefix/",
-						AccessKeyId:     "test-key",
-						AccessKeySecret: "test-secret",
-						Proxy: &ProxyConfig{
-							Url:      "http://proxy:8080",
-							Fallback: true,
-						},
-					},
-					Region: "us-east-1",
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -71,18 +32,6 @@ func TestBackendConfig_DeepCopy(t *testing.T) {
 
 			if copied.BackendType != tt.cfg.BackendType {
 				t.Errorf("BackendType mismatch: got %s, want %s", copied.BackendType, tt.cfg.BackendType)
-			}
-
-			if tt.cfg.Oss != nil {
-				if copied.Oss == tt.cfg.Oss {
-					t.Error("Oss config was not deep copied (same pointer)")
-				}
-				if copied.Oss.Endpoint != tt.cfg.Oss.Endpoint {
-					t.Errorf("Oss.Endpoint mismatch: got %s, want %s", copied.Oss.Endpoint, tt.cfg.Oss.Endpoint)
-				}
-				if tt.cfg.Oss.Proxy != nil && copied.Oss.Proxy == tt.cfg.Oss.Proxy {
-					t.Error("Oss.Proxy was not deep copied (same pointer)")
-				}
 			}
 
 			if tt.cfg.Registry != nil {
@@ -100,30 +49,6 @@ func TestBackendConfig_DeepCopy(t *testing.T) {
 				}
 			}
 
-			if tt.cfg.S3 != nil {
-				if copied.S3 == tt.cfg.S3 {
-					t.Error("S3 config was not deep copied (same pointer)")
-				}
-				if copied.S3.Endpoint != tt.cfg.S3.Endpoint {
-					t.Errorf("S3.Endpoint mismatch: got %s, want %s", copied.S3.Endpoint, tt.cfg.S3.Endpoint)
-				}
-				if tt.cfg.S3.Proxy != nil && copied.S3.Proxy == tt.cfg.S3.Proxy {
-					t.Error("S3.Proxy was not deep copied (same pointer)")
-				}
-			}
-
-			if copied.Oss != nil {
-				copied.Oss.Endpoint = "modified-endpoint"
-				if tt.cfg.Oss.Endpoint == "modified-endpoint" {
-					t.Error("Modifying copied config affected original")
-				}
-			}
-			if copied.S3 != nil {
-				copied.S3.Endpoint = "modified-s3-endpoint"
-				if tt.cfg.S3.Endpoint == "modified-s3-endpoint" {
-					t.Error("Modifying copied S3 config affected original")
-				}
-			}
 			if copied.Registry != nil && len(copied.Registry.CaCertFiles) > 0 {
 				copied.Registry.CaCertFiles[0] = "/modified/ca.crt"
 				if tt.cfg.Registry.CaCertFiles[0] == "/modified/ca.crt" {

@@ -37,7 +37,7 @@ Imagemgr owns image representation, the effective immutable mount, its opaque
 identity, and its lease. Every image mount response returns one bounded, flat
 descriptor containing the effective root, filesystem diagnostics, exact ordered
 OverlayFS lower paths when projection needs them, readonly state, source-owned
-identity, and lease ID. OCI, Nydus, OSS, and future EROFS details stop at this
+identity, and lease ID. OCI, Nydus, and future EROFS details stop at this
 boundary. The projection provider validates and consumes the descriptor; it
 does not parse image metadata or reverse-engineer mountinfo to rediscover image
 layers. Local developer rootfs sources are described once by their source

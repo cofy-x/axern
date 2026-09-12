@@ -1,17 +1,20 @@
 package imagefsd
 
+import "fmt"
+
 func (mgr *manager) newDaemon(opts *DaemonCreateOpt) (*Daemon, error) {
-	switch normalizeSourceType(opts.SourceType) {
+	switch opts.SourceType {
 	case SourceTypeNydus:
 		return mgr.setupNydusDaemon(opts)
-	case SourceTypeOSS:
-		fallthrough
 	default:
-		return mgr.setupOSSDaemon(opts)
+		return nil, fmt.Errorf("unsupported daemon source %q", opts.SourceType)
 	}
 }
 
 func (mgr *manager) CreateDaemon(opts *DaemonCreateOpt) error {
+	if opts == nil || opts.SourceType != SourceTypeNydus {
+		return fmt.Errorf("daemon source must be nydus")
+	}
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
 

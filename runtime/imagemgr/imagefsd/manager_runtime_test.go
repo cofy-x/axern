@@ -5,29 +5,23 @@ import "testing"
 func TestManager_GetDaemon(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ossConfig := BackendConfig{BackendType: "oss", Oss: &OssConfig{}}
-	ossCfgPath := createTestConfigFile(t, tmpDir, "oss_config.json", ossConfig)
-
 	nydusConfig := BackendConfig{BackendType: "registry", Registry: &RegistryConfig{}}
 	nydusCfgPath := createTestConfigFile(t, tmpDir, "nydus_config.json", nydusConfig)
 
-	ossAuthsPath := createTestOSSAuthsFile(t, tmpDir)
 	registryAuthsPath := createTestRegistryAuthsFile(t, tmpDir)
 
 	mgr, err := NewManager(&ManagerConfig{
 		NodeID:            "node-test",
 		Root:              tmpDir,
-		OSSCfgPath:        ossCfgPath,
 		NydusCfgPath:      nydusCfgPath,
 		BinPath:           "/usr/local/bin/imagefsd",
-		OSSAuthsPath:      ossAuthsPath,
 		RegistryAuthsPath: registryAuthsPath,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create manager: %v", err)
 	}
 
-	opts := &DaemonCreateOpt{
+	opts := &DaemonCreateOpt{SourceType: SourceTypeNydus,
 		ID:   "test-get-daemon",
 		Name: "test",
 	}
@@ -55,22 +49,16 @@ func TestManager_GetDaemon(t *testing.T) {
 func TestManager_ListDaemons(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ossConfig := BackendConfig{BackendType: "oss", Oss: &OssConfig{}}
-	ossCfgPath := createTestConfigFile(t, tmpDir, "oss_config.json", ossConfig)
-
 	nydusConfig := BackendConfig{BackendType: "registry", Registry: &RegistryConfig{}}
 	nydusCfgPath := createTestConfigFile(t, tmpDir, "nydus_config.json", nydusConfig)
 
-	ossAuthsPath := createTestOSSAuthsFile(t, tmpDir)
 	registryAuthsPath := createTestRegistryAuthsFile(t, tmpDir)
 
 	mgr, err := NewManager(&ManagerConfig{
 		NodeID:            "node-test",
 		Root:              tmpDir,
-		OSSCfgPath:        ossCfgPath,
 		NydusCfgPath:      nydusCfgPath,
 		BinPath:           "/usr/local/bin/imagefsd",
-		OSSAuthsPath:      ossAuthsPath,
 		RegistryAuthsPath: registryAuthsPath,
 	})
 	if err != nil {
@@ -84,7 +72,7 @@ func TestManager_ListDaemons(t *testing.T) {
 
 	daemonIDs := []string{"daemon-1", "daemon-2", "daemon-3"}
 	for _, id := range daemonIDs {
-		if err := mgr.CreateDaemon(&DaemonCreateOpt{ID: id, Name: id}); err != nil {
+		if err := mgr.CreateDaemon(&DaemonCreateOpt{SourceType: SourceTypeNydus, ID: id, Name: id}); err != nil {
 			t.Fatalf("CreateDaemon(%s) failed: %v", id, err)
 		}
 	}

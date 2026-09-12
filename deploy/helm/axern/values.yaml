@@ -222,6 +222,7 @@ minio:
     storageClassName: ""
 
 objectStore:
+  # External artifact storage for controld and rollout evidence, not node rootfs.
   enabled: false
   scheme: https
   endpoint: ""
@@ -229,7 +230,6 @@ objectStore:
   bucket: ""
   accessKey: ""
   secretKey: ""
-  skipVerify: false
 
 runtimeCatalog:
   python311Image: ghcr.io/cofy-x/axern/python311-runtime:v0.6.2

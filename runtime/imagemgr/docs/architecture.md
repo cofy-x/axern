@@ -2,7 +2,7 @@
 
 `imagemgr` is the node-local image orchestration daemon used by `axnoded`.
 It owns API-level mount routing and process orchestration, while image bytes,
-filesystem reads, loop mounts, and OCI extraction stay in their owning packages.
+filesystem reads and OCI extraction stay in their owning packages.
 
 Use this document when changing mount routing, daemon lifecycle, inventory, or
 the `axnoded` to `imagemgr` integration.
@@ -17,12 +17,9 @@ flowchart TB
     Worker --> OCI["oci.Manager"]
     Worker --> Nydus["nydus.RegistryClient"]
     Worker --> IFSMgr["imagefsd.Manager"]
-    Worker --> OSSLoop["ossloop.Manager"]
 
     IFSMgr --> IFSD["imagefsd daemon process"]
-    IFSD --> RawFuse["raw image FUSE mount"]
     IFSD --> NydusFuse["Nydus RAFS FUSE mount"]
-    OSSLoop --> OSSRootfs["directory rootfs from raw image"]
     OCI --> OCIRootfs["OCI extract + readonly overlay"]
 
     Worker --> Inventory["GET /inventory"]
@@ -32,7 +29,6 @@ flowchart TB
 
 | Entry point | Primary owner | Result |
 | --- | --- | --- |
-| `POST /oss_mount` | `api` + `imagefsd` + `ossloop` | Remote raw image mounted by `imagefsd`, then loop-mounted as a directory rootfs |
 | `POST /nydus_mount` | `api` + `nydus` + `imagefsd` | Registry bootstrap mounted as a Nydus RAFS rootfs |
 | `POST /oci_mount` | `api` + `oci`, optionally `nydus` + `imagefsd` | Imported or pulled OCI image exposed as a readonly overlay, unless Nydus routing succeeds |
 | `POST /oci_import` | `api` + `oci` | Local Docker archive imported into the node-local OCI cache |
@@ -85,31 +81,10 @@ Important routing rules:
   cleanup through `oci.Manager` or `imagefsd.Manager`; failed cleanup remains
   durable for reconciliation.
 
-## OSS Raw Image Flow
+## Mount Ownership
 
-```mermaid
-sequenceDiagram
-    participant Client as axnoded or operator
-    participant API as api.HttpWorker
-    participant IFSD as imagefsd.Manager
-    participant Daemon as imagefsd daemon
-    participant OSSLoop as ossloop.Manager
-
-    Client->>API: POST /oss_mount {endpoint,bucket,object,lease_id,owner}
-    API->>IFSD: CreateDaemon(raw image options)
-    IFSD-->>API: daemon mountpoint + raw image name
-    API->>Daemon: Mount raw object with imagefsd
-    API->>OSSLoop: Mount ext4 raw image as directory rootfs
-    API-->>Client: mount_path + immutable_mount + lease identity
-```
-
-The OSS flow is intentionally two-stage. `imagefsd` exposes the raw remote
-image as a file, and `ossloop` converts that file into the directory rootfs
-that `axnoded` can use. Preserve that split unless the rootfs model is being
-redesigned deliberately.
-
-OCI, Nydus, and OSS resources share the mountstore lease contract. Their
-resource implementations remain owned by `oci`, `imagefsd`, and `ossloop`.
+OCI and Nydus resources share the mountstore lease contract. Their resource
+implementations remain owned by `oci` and `imagefsd`.
 Each owner returns one bounded flat immutable-mount descriptor; axnoded
 projection consumes that descriptor and must not reverse-engineer these
 implementations. Source health and identity stay with imagemgr lease

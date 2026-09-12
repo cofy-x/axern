@@ -112,8 +112,6 @@ func rootfsTypeFromLocalityKey(key string) string {
 		return "local"
 	case strings.HasPrefix(key, "image:"):
 		return "image"
-	case strings.HasPrefix(key, "s3:"):
-		return "s3"
 	default:
 		return "unknown"
 	}

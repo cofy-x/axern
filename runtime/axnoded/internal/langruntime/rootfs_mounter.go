@@ -31,8 +31,6 @@ type imageManagerClient interface {
 	ResolveOCIImageCacheKey(imageURL string) (string, error)
 	MountOCI(req *ociMountRequest) (*imageManagerMountInfo, error)
 	UmountOCI(req *ociUmountRequest) error
-	MountOSS(req *ossMountRequest) (*imageManagerMountInfo, error)
-	UmountOSS(req *ossUmountRequest) error
 	ReconcileMountLeases(req *reconcileMountLeasesRequest) error
 }
 
@@ -56,7 +54,7 @@ func (d *defaultMounter) Resolve(cfg RootfsConfig) (RootfsConfig, error) {
 		}
 		cfg.ImageCacheKey = cacheKey
 	}
-	if cfg.SrcType == runtime_api.RootfsSrcType_IMAGE || cfg.SrcType == runtime_api.RootfsSrcType_S3 {
+	if cfg.SrcType == runtime_api.RootfsSrcType_IMAGE {
 		cfg.LeaseID = rootfsLeaseID(cfg)
 	}
 	return cfg, nil
@@ -67,9 +65,6 @@ func rootfsLeaseID(cfg RootfsConfig) string {
 		SourceType    runtime_api.RootfsSrcType `json:"source_type"`
 		ImageURL      string                    `json:"image_url,omitempty"`
 		ImageCacheKey string                    `json:"image_cache_key,omitempty"`
-		Endpoint      string                    `json:"endpoint,omitempty"`
-		Bucket        string                    `json:"bucket,omitempty"`
-		Object        string                    `json:"object,omitempty"`
 		Credential    string                    `json:"credential_fingerprint,omitempty"`
 	}{SourceType: cfg.SrcType}
 	switch cfg.SrcType {
@@ -77,11 +72,6 @@ func rootfsLeaseID(cfg RootfsConfig) string {
 		identity.ImageURL = cfg.ImageUrl
 		identity.ImageCacheKey = cfg.ImageCacheKey
 		identity.Credential = credentialFingerprint(cfg.DockerConfigJSON)
-	case runtime_api.RootfsSrcType_S3:
-		identity.Endpoint = cfg.Endpoint
-		identity.Bucket = cfg.Bucket
-		identity.Object = cfg.Object
-		identity.Credential = credentialFingerprint(cfg.AccessKeyID + "\x00" + cfg.AccessKeySecret)
 	}
 	data, err := json.Marshal(identity)
 	if err != nil {
@@ -169,23 +159,6 @@ func (d *defaultMounter) Mount(cfg RootfsConfig) (*MountResult, error) {
 			return nil, fmt.Errorf("failed to mount image rootfs %s: %w", cfg.ImageUrl, err)
 		}
 		return mountResultFromImageManager(info), nil
-	case runtime_api.RootfsSrcType_S3:
-		if d.client == nil {
-			return nil, fmt.Errorf("image manager client is not configured")
-		}
-		info, err := d.client.MountOSS(&ossMountRequest{
-			Endpoint:        cfg.Endpoint,
-			Bucket:          cfg.Bucket,
-			Object:          cfg.Object,
-			AccessKeyID:     cfg.AccessKeyID,
-			AccessKeySecret: cfg.AccessKeySecret,
-			LeaseID:         cfg.LeaseID,
-			Owner:           "axnoded",
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to mount oss rootfs %s/%s: %w", cfg.Bucket, cfg.Object, err)
-		}
-		return mountResultFromImageManager(info), nil
 	default:
 		return nil, fmt.Errorf("unsupported rootfs type: %v", cfg.SrcType.String())
 	}
@@ -265,16 +238,6 @@ func (d *defaultMounter) Umount(cfg RootfsConfig) error {
 			return fmt.Errorf("image manager client is not configured")
 		}
 		return d.client.UmountOCI(&ociUmountRequest{ImageURL: cfg.ImageUrl, CacheKey: cfg.ImageCacheKey, LeaseID: cfg.LeaseID})
-	case runtime_api.RootfsSrcType_S3:
-		if d.client == nil {
-			return fmt.Errorf("image manager client is not configured")
-		}
-		return d.client.UmountOSS(&ossUmountRequest{
-			Endpoint: cfg.Endpoint,
-			Bucket:   cfg.Bucket,
-			Object:   cfg.Object,
-			LeaseID:  cfg.LeaseID,
-		})
 	default:
 		return fmt.Errorf("unsupported rootfs type: %v", cfg.SrcType.String())
 	}

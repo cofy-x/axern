@@ -230,8 +230,6 @@ func rootfsTypeToProto(rootfsType string) nodev1.RootfsType {
 		return nodev1.RootfsType_ROOTFS_TYPE_LOCAL
 	case "image":
 		return nodev1.RootfsType_ROOTFS_TYPE_IMAGE
-	case "s3":
-		return nodev1.RootfsType_ROOTFS_TYPE_S3
 	default:
 		return nodev1.RootfsType_ROOTFS_TYPE_UNSPECIFIED
 	}
@@ -245,8 +243,6 @@ func mountTypeToProto(mountType string) nodev1.MountType {
 		return nodev1.MountType_MOUNT_TYPE_OCI
 	case "nydus":
 		return nodev1.MountType_MOUNT_TYPE_NYDUS
-	case "oss":
-		return nodev1.MountType_MOUNT_TYPE_OSS
 	case "erofs":
 		return nodev1.MountType_MOUNT_TYPE_EROFS
 	default:

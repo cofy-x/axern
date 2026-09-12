@@ -64,7 +64,7 @@ the language SDK workspaces.
     exposed to workload namespaces.
   - `runtime/volumed` owns physical node volume publish, unpublish, safe
     Claim-owned deletion, reconcile, and provider health.
-  - `runtime/imagemgr` owns image rootfs resolution, OCI/Nydus/OSS image mount
+  - `runtime/imagemgr` owns image rootfs resolution, OCI/Nydus image mount
     orchestration, imported image cache state, and mounted rootfs references.
   - `runtime/imagefsd` owns the read-only image data plane used by imagemgr.
 - Network:
