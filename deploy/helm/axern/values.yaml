@@ -253,8 +253,6 @@ controld:
   serviceReconcileWorkers: 32
   serviceAllocationGlobalWorkers: 256
   serviceAllocationWorkersPerNode: 12
-  volumeReclaimWorkers: 8
-  volumeReclaimWorkersPerNode: 2
   retention:
     enabled: true
     replicas: 1
