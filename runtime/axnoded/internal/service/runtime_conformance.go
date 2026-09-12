@@ -239,7 +239,7 @@ func setObservationTime(observations []*capabilityv1.CapabilityObservation, obse
 }
 
 func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, configDigest string, err error) {
-	runtimeCfg, configured := p.cfg.PluginConfig.RuntimeConfig.NormalizedRuntimeConfigs()[p.runtime]
+	runtimeCfg, configured := p.cfg.PluginConfig.RuntimeConfig.Runtimes[p.runtime]
 	if !configured {
 		return "", "", "", fmt.Errorf("runtime %q is not configured", p.runtime)
 	}

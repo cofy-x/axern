@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
-	"github.com/pelletier/go-toml"
 )
 
 const (
@@ -47,12 +45,12 @@ func main() {
 }
 
 func effectiveResolvers(configPath string) ([]string, error) {
-	cfg := config.DefaultConfig()
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("read axnoded config: %w", err)
 	}
-	if err := toml.NewDecoder(bytes.NewReader(data)).Decode(&cfg); err != nil {
+	cfg, err := config.Decode(data)
+	if err != nil {
 		return nil, fmt.Errorf("decode axnoded config: %w", err)
 	}
 	dns := cfg.PluginConfig.RuntimeConfig.DNS

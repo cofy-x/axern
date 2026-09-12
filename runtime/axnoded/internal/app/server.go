@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,7 +21,6 @@ import (
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	nodelifecyclev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
-	"github.com/pelletier/go-toml"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	grpc_health "google.golang.org/grpc/health"
@@ -235,15 +233,11 @@ func publishHealth(ctx context.Context, svc service.SandboxService, healthServer
 }
 
 func loadSandboxConfig(configPath string) (config.Config, error) {
-	cfg := config.DefaultConfig()
 	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
 		return config.Config{}, err
 	}
-	if err := toml.NewDecoder(bytes.NewReader(configBytes)).Decode(&cfg); err != nil {
-		return config.Config{}, err
-	}
-	return cfg, nil
+	return config.Decode(configBytes)
 }
 
 func listenUnix(socketPath string) (net.Listener, error) {

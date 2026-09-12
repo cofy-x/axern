@@ -190,6 +190,10 @@ The default, sample, packaged, and devbox configurations enable only gVisor
 (`runsc`), the supported runtime. Unsupported runtime classes are rejected.
 
 `[plugin.runtime.runtimes.<name>]` declares each OCI runtime handler.
+It is the single source for the runtime binary, base spec, and options.
+Configuration decoding rejects unknown keys, including removed
+`runtime_binary` and `basic_spec` tables; settings are never silently merged
+from legacy maps or ignored after a spelling error.
 Axnoded treats this set as one startup contract: every configured handler must
 load before persistent container inventory is reconciled or the node can become
 ready. A transient runtime-state or filestore conflict is retried until startup

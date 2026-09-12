@@ -53,7 +53,7 @@ func (r *Registry) Load(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("load configured runtime handlers: %w", err)
 	}
-	runtimeConfigs := r.config.PluginConfig.RuntimeConfig.NormalizedRuntimeConfigs()
+	runtimeConfigs := r.config.PluginConfig.RuntimeConfig.Runtimes
 	runtimeNames := make([]string, 0, len(runtimeConfigs))
 	for runtimeName := range runtimeConfigs {
 		runtimeNames = append(runtimeNames, runtimeName)
@@ -157,7 +157,7 @@ func (r *Registry) Statuses() []Status {
 		return nil
 	}
 
-	configured := r.config.PluginConfig.RuntimeConfig.NormalizedRuntimeConfigs()
+	configured := r.config.PluginConfig.RuntimeConfig.Runtimes
 	names := make([]string, 0, len(configured))
 	for name := range configured {
 		names = append(names, name)

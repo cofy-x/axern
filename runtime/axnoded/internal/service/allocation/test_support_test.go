@@ -48,18 +48,15 @@ func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]
 		dbStore = storetest.NewMockStore()
 	}
 	tmpDir := t.TempDir()
-	runtimeBinary := make(map[string]string)
 	runtimes := make(map[string]config.RuntimeInstanceConfig)
 	for name := range handlers {
-		runtimeBinary[name] = "/fake/" + name
 		runtimes[name] = config.RuntimeInstanceConfig{Binary: "/fake/" + name}
 	}
 	cfg := config.Config{
 		RootDir: tmpDir,
 		PluginConfig: config.PluginConfig{
 			RuntimeConfig: config.RuntimeConfig{
-				Runtimes:      runtimes,
-				RuntimeBinary: runtimeBinary,
+				Runtimes: runtimes,
 			},
 		},
 	}

@@ -20,10 +20,8 @@ func newTestService(t *testing.T, handlers map[string]contract.RuntimeHandler) *
 
 	tmpDir := t.TempDir()
 
-	runtimeBinary := make(map[string]string)
 	runtimes := make(map[string]config.RuntimeInstanceConfig)
 	for name := range handlers {
-		runtimeBinary[name] = "/fake/" + name
 		runtimes[name] = config.RuntimeInstanceConfig{Binary: "/fake/" + name}
 	}
 	registry := handlerregistry.New(config.Config{
@@ -54,8 +52,7 @@ func newTestService(t *testing.T, handlers map[string]contract.RuntimeHandler) *
 			RootDir: tmpDir,
 			PluginConfig: config.PluginConfig{
 				RuntimeConfig: config.RuntimeConfig{
-					Runtimes:      runtimes,
-					RuntimeBinary: runtimeBinary,
+					Runtimes: runtimes,
 				},
 			},
 		},

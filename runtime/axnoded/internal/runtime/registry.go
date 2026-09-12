@@ -42,7 +42,7 @@ func RegisteredRuntimeFactories() map[string]RuntimeFactory {
 }
 
 func GetRuntimeHandler(cfg config.Config, runtimeName string) (contract.RuntimeHandler, error) {
-	runtimeCfg, ok := cfg.RuntimeConfig.NormalizedRuntimeConfig(runtimeName)
+	runtimeCfg, ok := cfg.RuntimeConfig.Runtimes[runtimeName]
 	if !ok {
 		return nil, errord.ErrNotFound
 	}

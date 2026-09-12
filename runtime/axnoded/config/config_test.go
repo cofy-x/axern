@@ -5,56 +5,6 @@ import (
 	"testing"
 )
 
-func TestRuntimeConfigNormalizedRuntimeConfigs(t *testing.T) {
-	cfg := RuntimeConfig{
-		RuntimeBinary: map[string]string{
-			RuntimeNameRunsc: "/legacy/runsc",
-			"other":          "/legacy/other",
-		},
-		BasicSpec: map[string]string{
-			RuntimeNameRunsc: "/legacy/runsc.json",
-		},
-		Runtimes: map[string]RuntimeInstanceConfig{
-			RuntimeNameRunsc: {
-				Binary: "/new/runsc",
-			},
-			"crun": {
-				Binary:   "/usr/bin/crun",
-				BaseSpec: "/etc/axnoded/crun.json",
-			},
-		},
-	}
-
-	runtimes := cfg.NormalizedRuntimeConfigs()
-	if len(runtimes) != 3 {
-		t.Fatalf("expected 3 runtimes, got %d", len(runtimes))
-	}
-
-	runsc := runtimes[RuntimeNameRunsc]
-	if runsc.Binary != "/new/runsc" {
-		t.Fatalf("expected new binary to win, got %q", runsc.Binary)
-	}
-	if runsc.BaseSpec != "/legacy/runsc.json" {
-		t.Fatalf("expected legacy base spec fallback, got %q", runsc.BaseSpec)
-	}
-	if !runsc.Options.AllowSUIDEnabled(true) {
-		t.Fatalf("expected runsc allow_suid default to remain enabled")
-	}
-
-	other := runtimes["other"]
-	if other.Binary != "/legacy/other" {
-		t.Fatalf("expected legacy runtime binary, got %q", other.Binary)
-	}
-
-	crun := runtimes["crun"]
-	if crun.Binary != "/usr/bin/crun" {
-		t.Fatalf("expected explicit crun binary, got %q", crun.Binary)
-	}
-	if crun.BaseSpec != "/etc/axnoded/crun.json" {
-		t.Fatalf("expected explicit crun base spec, got %q", crun.BaseSpec)
-	}
-}
-
 func TestNetworkConfigNormalizedCanonicalizesSemanticSetsAndDurations(t *testing.T) {
 	input := DefaultConfig().PluginConfig.NetworkConfig
 	input.NatBackend = " EBPF "
@@ -204,7 +154,7 @@ func TestDefaultConfigSetsRuntimeRunnerBinary(t *testing.T) {
 
 func TestDefaultConfigEnablesRunscSUID(t *testing.T) {
 	cfg := DefaultConfig()
-	runsc, ok := cfg.PluginConfig.RuntimeConfig.NormalizedRuntimeConfig(RuntimeNameRunsc)
+	runsc, ok := cfg.PluginConfig.RuntimeConfig.Runtimes[RuntimeNameRunsc]
 	if !ok {
 		t.Fatal("expected default runsc runtime")
 	}

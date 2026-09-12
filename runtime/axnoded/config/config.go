@@ -52,18 +52,13 @@ type ExtensionCapabilityConfig struct {
 	Value string `toml:"value" json:"value"`
 }
 
-// RuntimeConfig binary path of the runtime
+// RuntimeConfig defines runtime instances and shared node execution policy.
 type RuntimeConfig struct {
 	Runtimes map[string]RuntimeInstanceConfig `toml:"runtimes" json:"runtimes"`
-
-	RuntimeBinary map[string]string `toml:"runtime_binary" json:"runtimeBinary"`
 
 	// CgroupEnforcement is "required" in production. "disabled_dev" is an
 	// explicit development mode and rejects hard memory limits.
 	CgroupEnforcement string `toml:"cgroup_enforcement" json:"cgroupEnforcement"`
-
-	// BasicSpec is the basic spec file for different runtime type.
-	BasicSpec map[string]string `toml:"basic_spec" json:"basicSpec"`
 
 	// RuntimeRunnerBinary is the axnoded-owned helper that runs one OCI runtime
 	// invocation and persists its exit state.
@@ -149,38 +144,6 @@ func (o RuntimeOptions) AllowSUIDEnabled(defaultValue bool) bool {
 		return defaultValue
 	}
 	return *o.AllowSUID
-}
-
-func (c RuntimeConfig) NormalizedRuntimeConfigs() map[string]RuntimeInstanceConfig {
-	out := make(map[string]RuntimeInstanceConfig)
-
-	for name, runtimeCfg := range c.Runtimes {
-		out[name] = runtimeCfg
-	}
-
-	for name, binary := range c.RuntimeBinary {
-		runtimeCfg := out[name]
-		if runtimeCfg.Binary == "" {
-			runtimeCfg.Binary = binary
-		}
-		out[name] = runtimeCfg
-	}
-
-	for name, baseSpec := range c.BasicSpec {
-		runtimeCfg := out[name]
-		if runtimeCfg.BaseSpec == "" {
-			runtimeCfg.BaseSpec = baseSpec
-		}
-		out[name] = runtimeCfg
-	}
-
-	return out
-}
-
-func (c RuntimeConfig) NormalizedRuntimeConfig(name string) (RuntimeInstanceConfig, bool) {
-	runtimes := c.NormalizedRuntimeConfigs()
-	runtimeCfg, ok := runtimes[name]
-	return runtimeCfg, ok
 }
 
 func (c RuntimeConfig) ImageManagerEnabledValue() bool {
@@ -619,13 +582,7 @@ func DefaultConfig() Config {
 						},
 					},
 				},
-				RuntimeBinary: map[string]string{
-					RuntimeNameRunsc: DefaultRunscBinary,
-				},
-				CgroupEnforcement: CgroupEnforcementRequired,
-				BasicSpec: map[string]string{
-					RuntimeNameRunsc: "/etc/axnoded/runsc-config.json",
-				},
+				CgroupEnforcement:                 CgroupEnforcementRequired,
 				ImageLibDir:                       DefaultImageLibDir,
 				RuntimeRunnerBinary:               DefaultRuntimeRunnerBinary,
 				ImageManagerEnabled:               boolPtr(true),

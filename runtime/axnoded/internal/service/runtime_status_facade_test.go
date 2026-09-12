@@ -85,8 +85,8 @@ func TestCheckRuntime(t *testing.T) {
 			requestRuntime: "nonexistent",
 			options: []runtimeStatusFacadeServiceOption{
 				setRuntimeConfig(config.RuntimeConfig{
-					RuntimeBinary: map[string]string{
-						"runsc": "/usr/local/bin/runsc",
+					Runtimes: map[string]config.RuntimeInstanceConfig{
+						"runsc": {Binary: "/usr/local/bin/runsc"},
 					},
 				}),
 			},
@@ -97,8 +97,8 @@ func TestCheckRuntime(t *testing.T) {
 			requestRuntime: "runsc",
 			options: []runtimeStatusFacadeServiceOption{
 				setRuntimeConfig(config.RuntimeConfig{
-					RuntimeBinary: map[string]string{
-						"runsc": "/usr/local/bin/runsc",
+					Runtimes: map[string]config.RuntimeInstanceConfig{
+						"runsc": {Binary: "/usr/local/bin/runsc"},
 					},
 				}),
 			},
@@ -109,8 +109,8 @@ func TestCheckRuntime(t *testing.T) {
 			requestRuntime: "runsc",
 			options: []runtimeStatusFacadeServiceOption{
 				setRuntimeConfig(config.RuntimeConfig{
-					RuntimeBinary: map[string]string{
-						"runsc": "/usr/local/bin/runsc",
+					Runtimes: map[string]config.RuntimeInstanceConfig{
+						"runsc": {Binary: "/usr/local/bin/runsc"},
 					},
 				}),
 				addRuntimeHandler("runsc", runtimetest.NewFakeRuntimeHandler()),

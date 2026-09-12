@@ -8,7 +8,7 @@ import (
 )
 
 func TestProductionRuntimeDefaultsEnableOnlyRunsc(t *testing.T) {
-	runtimes := DefaultConfig().PluginConfig.RuntimeConfig.NormalizedRuntimeConfigs()
+	runtimes := DefaultConfig().PluginConfig.RuntimeConfig.Runtimes
 	if len(runtimes) != 1 || runtimes[RuntimeNameRunsc].Binary == "" {
 		t.Fatalf("production defaults must enable only runsc: %v", runtimes)
 	}
