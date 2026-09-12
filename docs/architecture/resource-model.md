@@ -74,9 +74,9 @@ axern run --template python311 \
   -- python -c 'print("hello")'
 ```
 
-Runs and services use the same resource flags. Mutable service resource
-settings can be changed with `axern svc update`; omitted resource flags are
-unchanged.
+Runs are the only workload owner for resource requests and limits. A Sandbox
+created by an SDK uses the same Run/Allocation reservation and enforcement
+path; there is no parallel Service resource model.
 
 ## Node Admission
 
@@ -164,8 +164,9 @@ Quota and node admission are separate gates:
 
 Namespace deletion is lifecycle cleanup, not quota reset. It rejects live
 operational state such as active reservations, non-terminal runs, live
-environments, live services, or secrets. Historical terminal workload metadata
-can keep its namespace string for auditability without blocking deletion.
+environments, active allocations, or secrets. Historical terminal workload
+metadata can keep its namespace string for auditability without blocking
+deletion.
 
 ## Diagnostics
 
@@ -179,11 +180,10 @@ unsupported runtime classes, stale node state, or missing node capabilities.
 For machine-readable troubleshooting, use JSON output:
 
 ```bash
-axern svc get <service_id> -o json
 axern run get <run_id> -o json
 ```
 
-Resource-related service failures expose `diagnostic_code` as the stable machine
+Resource-related Run failures expose `diagnostic_code` as the stable machine
 field and `admission_summary` as the compact operator-facing label:
 
 | Summary | Meaning |
@@ -198,9 +198,8 @@ The typed placement rejection set distinguishes insufficient ephemeral storage
 even though the current compact CLI summary may use the generic reservation or
 capacity label.
 
-Run creation returns admission failures directly. Service creation and update
-accept desired state first; later replica admission failures surface through
-service status, events, and JSON output.
+Run creation returns admission failures directly. Detached SDK Sandboxes expose
+later allocation failures through the owning Run status and diagnostics.
 
 ## Related Implementation Docs
 

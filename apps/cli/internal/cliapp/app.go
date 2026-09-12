@@ -6,7 +6,6 @@ import (
 
 	"github.com/cofy-x/axern/apps/cli/internal/command"
 	admincmd "github.com/cofy-x/axern/apps/cli/internal/commands/admin"
-	agentcmd "github.com/cofy-x/axern/apps/cli/internal/commands/agent"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/catalog"
 	contextcmd "github.com/cofy-x/axern/apps/cli/internal/commands/context"
 	doctorcmd "github.com/cofy-x/axern/apps/cli/internal/commands/doctor"
@@ -17,7 +16,6 @@ import (
 	"github.com/cofy-x/axern/apps/cli/internal/commands/quota"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/run"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/secret"
-	"github.com/cofy-x/axern/apps/cli/internal/commands/service"
 	sshcmd "github.com/cofy-x/axern/apps/cli/internal/commands/ssh"
 	tunnelcmd "github.com/cofy-x/axern/apps/cli/internal/commands/tunnel"
 	"github.com/cofy-x/axern/apps/cli/internal/config"
@@ -76,11 +74,9 @@ func New(version string) *cobra.Command {
 		namespacecmd.Command(runtime),
 		secret.Command(runtime),
 		run.Command(runtime),
-		service.Command(runtime),
 		quota.Command(runtime),
 		tunnelcmd.Command(runtime),
 		sshcmd.Command(runtime),
-		agentcmd.Command(runtime),
 	)
 	root.InitDefaultCompletionCmd()
 	return root

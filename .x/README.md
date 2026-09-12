@@ -10,7 +10,7 @@ notes, or detailed command runbooks.
 | :--- | :--- | :--- |
 | [Project Overview](project-overview.md) | How is the repository organized and developed? | Changing root layout, workspaces, build orchestration, or development environments |
 | [Module Guide](module-guide.md) | Which module owns a task and where is its local contract? | Starting work or crossing into another subtree |
-| [Runtime Stack](runtime-stack.md) | Which component owns a cross-service behavior? | Changing APIs, lifecycle, sockets, or runtime integration |
+| [Runtime Stack](runtime-stack.md) | Which component owns cross-subsystem behavior? | Changing APIs, lifecycle, sockets, or runtime integration |
 | [Coding Standards](coding-standards.md) | Where should code live and how should it be validated? | Implementing or validating a change |
 
 For a task contained inside one module, start with the root

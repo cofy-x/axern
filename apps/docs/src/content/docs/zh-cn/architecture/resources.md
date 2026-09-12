@@ -22,7 +22,7 @@ axern run --template python311 \
   -- python -c 'print("hello")'
 ```
 
-Run 和 Service 使用同一套资源 flag；可变的服务资源用 `axern service update` 修改。
+每个 Run 在创建时声明自己的资源意图。
 
 ## 命名空间配额
 
@@ -39,7 +39,7 @@ axern quota get --namespace team-a
 准入失败时，JSON 输出暴露稳定的 `diagnostic_code` 和紧凑的 `admission_summary`，如 `namespace quota exceeded` 或 `node memory capacity exhausted`：
 
 ```bash
-axern service get <service-id> --output json
+axern run get <run-id> --output json
 ```
 
 仓库的 [资源模型](https://github.com/cofy-x/axern/blob/main/docs/architecture/resource-model.md) 是工程层面的权威来源。

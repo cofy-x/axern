@@ -18,8 +18,9 @@ supported service and sandbox traffic shape while keeping `iptables` as an
 explicit rollback backend.
 
 The design keeps `bpfnet` as a library owned by the node runtime process. It is
-not a daemon and does not own sandbox lifecycle, service lifecycle, scheduling,
-or rollback policy.
+not a daemon and does not own sandbox lifecycle, control-plane workload
+lifecycle, scheduling, or rollback policy. Internal service-map names refer to
+network endpoints, not an Axern Service product.
 
 ## Goals
 

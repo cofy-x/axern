@@ -45,8 +45,8 @@ func TestEmptyHealthSnapshotUsesStableArrayShape(t *testing.T) {
 }
 
 func TestHealthTrackerBoundsLastError(t *testing.T) {
-	tracker := NewHealthTracker(ComponentAllocation)
-	run := tracker.RecordStart(ComponentAllocation, time.Now())
+	tracker := NewHealthTracker(ComponentRun)
+	run := tracker.RecordStart(ComponentRun, time.Now())
 	tracker.RecordResult(run, errors.New(string(make([]byte, maxLastErrorBytes+100))+"错误"), time.Now())
 	got := tracker.Snapshot().Components[0].LastError
 	if len(got) > maxLastErrorBytes+3 || got[len(got)-3:] != "..." || !utf8.ValidString(got) {
@@ -56,9 +56,9 @@ func TestHealthTrackerBoundsLastError(t *testing.T) {
 
 func TestHealthTrackerKeepsRunningUntilConcurrentWorkDrains(t *testing.T) {
 	start := time.Date(2026, 5, 10, 10, 0, 0, 0, time.UTC)
-	tracker := NewHealthTracker(ComponentService)
-	first := tracker.RecordStart(ComponentService, start)
-	second := tracker.RecordStart(ComponentService, start.Add(time.Second))
+	tracker := NewHealthTracker(ComponentRun)
+	first := tracker.RecordStart(ComponentRun, start)
+	second := tracker.RecordStart(ComponentRun, start.Add(time.Second))
 	tracker.RecordResult(first, nil, start.Add(2*time.Second))
 	got := tracker.Snapshot().Components[0]
 	if !got.Running || got.RunningSince == nil || !got.RunningSince.Equal(start) {
@@ -73,9 +73,9 @@ func TestHealthTrackerKeepsRunningUntilConcurrentWorkDrains(t *testing.T) {
 
 func TestHealthTrackerHandlesOutOfOrderConcurrentEvents(t *testing.T) {
 	start := time.Date(2026, 5, 10, 10, 0, 0, 0, time.UTC)
-	tracker := NewHealthTracker(ComponentService)
-	later := tracker.RecordStart(ComponentService, start.Add(time.Second))
-	earlier := tracker.RecordStart(ComponentService, start)
+	tracker := NewHealthTracker(ComponentRun)
+	later := tracker.RecordStart(ComponentRun, start.Add(time.Second))
+	earlier := tracker.RecordStart(ComponentRun, start)
 
 	got := tracker.Snapshot().Components[0]
 	if got.RunningSince == nil || !got.RunningSince.Equal(start) || got.LastStartedAt == nil || !got.LastStartedAt.Equal(start.Add(time.Second)) {

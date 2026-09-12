@@ -1,9 +1,14 @@
 # Project Overview
 
-Axern is Cofy-X's programmable execution platform for isolated AI-agent,
-coding, and general sandbox workloads. The repository contains product APIs and
-CLIs, a durable control plane, an external gateway, node-local runtime services,
-networking, SDKs, and deployment tooling.
+Axern is the open-source environment execution platform for agent evaluation,
+training, and executable data synthesis. A unified SDK exposes secure,
+reproducible, highly concurrent sandboxes. The canonical durable model is
+`Environment -> Run -> Allocation`; higher-level benchmark, agent, verifier,
+and training orchestration stays above the platform.
+
+The repository contains product APIs and CLIs, a durable control plane, an
+external gateway, node-local runtime components, networking, SDKs, and
+deployment tooling.
 
 ## Repository Map
 
@@ -12,7 +17,7 @@ networking, SDKs, and deployment tooling.
 | `apps/` | Executable product entrypoints |
 | `control/` | Durable control-plane services |
 | `gateway/` | External control and data-plane edge |
-| `runtime/` | Node-local execution, image, tunnel, and volume services |
+| `runtime/` | Node-local execution, image, egress, and tunnel components |
 | `network/` | Host networking data planes |
 | `sdk/` | Public SDKs and protobuf contracts |
 | `lib/` | Internal libraries shared by multiple modules |

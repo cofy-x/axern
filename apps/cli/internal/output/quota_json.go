@@ -4,7 +4,6 @@ import (
 	"io"
 
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -18,11 +17,6 @@ type NamespaceQuotaListJSON struct {
 
 type NamespaceQuotaEventsJSON struct {
 	Events []*NamespaceQuotaEventJSON `json:"events"`
-}
-
-type NamespaceQuotaDescribeJSON struct {
-	Quota                    *NamespaceQuotaJSON `json:"quota"`
-	AdmissionBlockedServices []*ServiceJSON      `json:"admission_blocked_services,omitempty"`
 }
 
 type NamespaceQuotaEventJSON struct {
@@ -91,17 +85,6 @@ func PrintNamespaceQuotaEventsJSON(w io.Writer, resp *quotav1.ListNamespaceQuota
 	return PrintJSON(w, out)
 }
 
-func PrintNamespaceQuotaDescribeJSON(w io.Writer, quota *quotav1.NamespaceQuota, services []*servicev1.Service) error {
-	out := NamespaceQuotaDescribeJSON{Quota: NewNamespaceQuotaJSON(quota)}
-	if len(services) > 0 {
-		out.AdmissionBlockedServices = make([]*ServiceJSON, 0, len(services))
-		for _, service := range services {
-			out.AdmissionBlockedServices = append(out.AdmissionBlockedServices, NewServiceJSON(service))
-		}
-	}
-	return PrintJSON(w, out)
-}
-
 func NewNamespaceQuotaEventJSON(event *quotav1.NamespaceQuotaEvent) *NamespaceQuotaEventJSON {
 	if event == nil {
 		return nil
@@ -163,8 +146,6 @@ func quotaEventWorkloadTypeJSON(value quotav1.NamespaceQuotaEventWorkloadType) s
 	switch value {
 	case quotav1.NamespaceQuotaEventWorkloadType_NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN:
 		return "run"
-	case quotav1.NamespaceQuotaEventWorkloadType_NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_SERVICE:
-		return "service"
 	default:
 		return ""
 	}

@@ -45,9 +45,9 @@ registry credential secret via `image.registry_credential_id`. The referenced
 secret must be type `DOCKER_CONFIG_JSON`.
 
 `resolved_template` remains the normalized runtime snapshot for both modes, so
-run, service, and node lifecycle paths consume a single
-environment model. Services can update `environment_id`; image or template
-changes then roll through the service replacement policy.
+Run admission and node lifecycle paths consume a single Environment model. An
+Environment is immutable execution input; changing the source creates another
+Environment and a new Run.
 
 Environments are runtime-neutral. The same digest-pinned template or image
 environment can be executed with different runtime classes by different

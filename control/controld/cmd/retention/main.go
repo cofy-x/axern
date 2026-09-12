@@ -100,13 +100,9 @@ func parseFlags() (options, error) {
 	flagSet.BoolVar(&opts.retention.Enabled, "retention-enabled", opts.retention.Enabled, "enable retention cleanup controller")
 	flagSet.DurationVar(&opts.retention.Interval, "retention-interval", opts.retention.Interval, "retention cleanup interval")
 	flagSet.IntVar(&opts.retention.BatchSize, "retention-batch-size", opts.retention.BatchSize, "maximum rows to delete per retention cleanup class per cycle")
-	flagSet.DurationVar(&opts.retention.ServiceEventsTTL, "retention-service-events-ttl", opts.retention.ServiceEventsTTL, "service event retention TTL")
-	flagSet.IntVar(&opts.retention.ServiceEventsKeep, "retention-service-events-keep", opts.retention.ServiceEventsKeep, "minimum service events to retain per service")
 	flagSet.DurationVar(&opts.retention.TunnelEventsTTL, "retention-tunnel-events-ttl", opts.retention.TunnelEventsTTL, "tunnel session event retention TTL")
 	flagSet.IntVar(&opts.retention.TunnelEventsKeep, "retention-tunnel-events-keep", opts.retention.TunnelEventsKeep, "minimum tunnel session events to retain per session")
 	flagSet.DurationVar(&opts.retention.QuotaEventsTTL, "retention-quota-events-ttl", opts.retention.QuotaEventsTTL, "namespace quota admission event retention TTL")
-	flagSet.DurationVar(&opts.retention.ServiceReplicasTTL, "retention-service-replicas-ttl", opts.retention.ServiceReplicasTTL, "service terminal replica retention TTL")
-	flagSet.IntVar(&opts.retention.ServiceReplicasKeep, "retention-service-replicas-keep", opts.retention.ServiceReplicasKeep, "minimum terminal service replicas to retain per service")
 	flagSet.DurationVar(&opts.retention.TerminalRunsTTL, "retention-terminal-runs-ttl", opts.retention.TerminalRunsTTL, "terminal run retention TTL")
 	flagSet.DurationVar(&opts.retention.LeasesTTL, "retention-leases-ttl", opts.retention.LeasesTTL, "expired or revoked execution lease retention TTL")
 	if err := flagSet.Parse(os.Args[1:]); err != nil {

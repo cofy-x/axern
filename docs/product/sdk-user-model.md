@@ -6,8 +6,11 @@ examples.
 ## Principles
 
 - Keep the first runnable example short.
-- Expose Axern concepts through product nouns such as `Sandbox`, `Run`, and
-  `Service`.
+- Expose Axern concepts through the small product vocabulary of `Environment`,
+  `Run`, `Sandbox`, and `Tunnel`.
+- Treat `Environment -> Run -> Allocation` as the only durable execution model.
+  `Sandbox` owns SDK ergonomics and cleanup around that chain; it is not a
+  separately persisted resource or a hidden Service.
 - Preserve the platform ownership model. SDK helpers should compile to public
   control-plane APIs instead of bypassing control-plane admission or node-local
   execution ownership.
@@ -70,5 +73,5 @@ release.
 Public RPC errors preserve the operation, RPC code, server details,
 retryability, and allocation identity when one exists. Validation, not found,
 permission, timeout, cancellation, and unavailable failures remain distinct.
-SDKs do not retry mutating RPCs. Idempotent reads and service-watch reconnects
+SDKs do not retry mutating RPCs. Idempotent reads and Run-watch reconnects
 may retry only within the caller's total deadline.

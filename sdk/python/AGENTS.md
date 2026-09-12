@@ -39,8 +39,12 @@ Local contract for the Axern Python SDK workspace. Follow the root
 
 ## Sandbox And Tunnel Rules
 
-- `Sandbox` owns SDK-created environment, service, tunnel session, connector,
-  renewal, and cleanup lifecycle.
+- `Sandbox` is the SDK facade over an SDK-created Environment, Run, and current
+  Allocation. It may own tunnel sessions, connectors, renewal, cancellation,
+  and cleanup, but it must not create or emulate a Service lifecycle.
+- Process, file, terminal, SSH, and Tunnel operations target the current
+  Allocation explicitly. Replacement attempts must not reuse stale targets or
+  credentials.
 - Long-lived tunnel support must renew finite tunnel TTLs automatically.
 - Cleanup is best-effort and must not mask startup failures or wait too long
   after an earlier cleanup step failed.
@@ -62,7 +66,7 @@ Local contract for the Axern Python SDK workspace. Follow the root
   uv build sdk/python
   ```
 
-- `Sandbox`, tunnel, cleanup, service lifecycle, or compose workflow changes:
+- `Sandbox`, Run/Allocation, tunnel, cleanup, or compose workflow changes:
 
   ```bash
   make local-compose-python-sdk-e2e

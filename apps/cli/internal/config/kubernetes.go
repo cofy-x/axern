@@ -16,7 +16,6 @@ type KubernetesImportParams struct {
 	ConfigPath      string
 	CertDir         string
 	Endpoint        string
-	ServiceURL      string
 	SSHEndpoint     string
 	SSHIdentityFile string
 	TLSServerName   string
@@ -60,7 +59,6 @@ func ImportKubernetesSecret(secretJSON []byte, params KubernetesImportParams) er
 
 	contextValue := &clientconfig.Context{
 		Endpoint:        params.Endpoint,
-		ServiceURL:      params.ServiceURL,
 		SSHEndpoint:     params.SSHEndpoint,
 		SSHIdentityFile: params.SSHIdentityFile,
 		TLS: clientconfig.TLS{

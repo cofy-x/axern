@@ -1,13 +1,12 @@
 # gatewayd
 
 `gatewayd` is Axern's external entry point for public control API traffic,
-control-plane-managed services, browser terminal sessions, and optional
-SSH-compatible terminal sessions. It also owns the public tunnel relay entry
-for foreground client peers.
+allocation-bound browser terminal and SSH-compatible sessions, artifact and
+sandbox operations, and foreground tunnel client peers.
 
-It does not own placement, lifecycle, or durable state. It resolves service
-routes through `controld`, then forwards traffic directly to the selected
-`axnoded` node using allocation-scoped leases.
+It does not own placement, lifecycle, or durable state. It resolves explicit
+Allocation targets through `controld`, then forwards traffic directly to the
+selected `axnoded` node using attempt-scoped execution leases.
 
 External CLI and SDK control-plane gRPC traffic should terminate at
 `gatewayd`'s control edge listener, which is enabled by default. `controld`
@@ -66,11 +65,10 @@ go run ./gateway/gatewayd \
 ## Routes
 
 - `GET /healthz`
-- `/svc/{namespace}/{service_id}/{port}/...` proxies HTTP traffic to a READY service replica
 - `/terminal/allocation/{allocation_id}` opens a WebSocket terminal and requires the dev token
 
-V1 uses path routing only. `{service_id}` is the existing Axern service id, and
-`{port}` is either `PortSpec.name` or a container port number.
+Gateway routes are allocation-bound. The retired
+`/svc/{namespace}/{service_id}/{port}/...` route has no compatibility handler.
 ## SSH Terminal
 
 When SSH is enabled, `ssh <allocation_id>@<gateway-host> -p <ssh-port>` opens
@@ -91,17 +89,16 @@ forwarding, X11 forwarding, or SSH TCP forwarding.
 ## Observability
 
 Gateway metrics, traces, and logs use the shared OpenTelemetry pipeline. Domain
-metrics cover service proxy stages, route cache and resolve events, upstream
-failures, lease retries, active HTTP requests, and active terminal sessions.
-The route cache exports bounded route, endpoint, quarantine, and in-flight
-entry gauges. Standard Go runtime metrics report heap, allocation, GC,
-goroutine, and scheduler behavior for long-running stability analysis.
+metrics cover allocation target resolution, upstream failures, lease retries,
+tunnel relay traffic, and active terminal or SSH sessions. Standard Go runtime
+metrics report heap, allocation, GC, goroutine, and scheduler behavior for
+long-running stability analysis.
 The deployment Prometheus scrapes the OTel Collector; gatewayd does not expose
 a separate production metrics endpoint.
 
 Every request emits a structured access log with method, path, route type,
-status, duration, namespace, service id, port, allocation id, node id, and
-error class. Logs and metrics never include plaintext lease tokens,
+status, duration, namespace, allocation id, node id, and error class. Logs and
+metrics never include plaintext lease tokens,
 Authorization headers, or terminal stdin/stdout content.
 
 ## Terminal Protocol
@@ -133,39 +130,34 @@ Key flags/env:
 - `-tunnel-relay-target`
 - `-tunnel-relay-tls-ca-cert`, `-tunnel-relay-tls-server-name`
 - `-read-header-timeout`, `-read-timeout`, `-write-timeout`, `-idle-timeout`
-- `-service-upstream-timeout`, `-service-max-request-body-bytes`
-- `-route-cache-ttl`, `-route-cache-max-entries`
 - `-terminal-idle-timeout`, `-terminal-max-duration`, `-terminal-max-message-bytes`
 - `-ssh-enabled`, `-ssh-address`, `-ssh-host-key`, `-ssh-authorized-keys`
 - `-lease-retry-attempts`, `-lease-retry-base-delay`
 
-Service proxy request bodies are capped, while streaming responses remain
-allowed. Terminal sessions enforce read limits, idle timeout, max duration, and
-write deadlines. Browser terminal always requires the dev token. SSH terminal
+Terminal sessions enforce read limits, idle timeout, max duration, and write
+deadlines. Browser terminal always requires the dev token. SSH terminal
 requires public key authentication through the configured `authorized_keys`
-file. Service auth remains controlled by `-require-http-auth`.
+file.
 
 Execution lease recovery is request scoped and bounded. A node acknowledges an
-accepted lease before gatewayd consumes terminal/process input, an HTTP request
-body, or archive chunks, and before gatewayd forwards streamed node output.
+accepted lease before gatewayd consumes terminal/process input or archive
+chunks, and before gatewayd forwards streamed node output.
 An authentication rejection before that boundary invalidates the old authority
 and resolves a fresh lease from controld; gatewayd never retries the same
-rejected token or retries after the node has accepted it. Service
-lease refresh and endpoint failover share `-service-endpoint-retry-attempts` as
-one total attempt budget. Unsafe HTTP requests are retried only for a confirmed
-pre-upstream lease rejection, while the original request body is still
-unconsumed. Endpoint failures continue to retry only replayable idempotent
-requests.
+rejected token or retries after the node has accepted it. Allocation target and
+lease refresh remain request-scoped and may retry only before the node accepts
+authority or consumes client input.
 
 ## Local Smoke
 
 ```bash
 make local-compose-up
-make local-compose-gateway-smoke
+make local-compose-server-base-smoke
 ```
 
-The smoke creates a temporary Python HTTP service, checks `/svc/...`, verifies a
-terminal WebSocket `echo`, then deletes and purges the service.
+The smoke creates a Run-backed Allocation and verifies allocation target
+resolution plus terminal behavior. Tunnel behavior is covered separately by
+`make local-compose-python-sdk-e2e`.
 
 ## Development Checks
 

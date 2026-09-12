@@ -54,9 +54,6 @@ func (h *sandboxService) shutdown(ctx context.Context) error {
 		h.capabilityReconcileCancel()
 	}
 	h.capabilityReconcileWG.Wait()
-	h.stopAllReadinessWorkers()
-	h.stopAllLivenessWorkers()
-
 	containers := h.containerManager.List()
 	deleteErr := h.deleteAllocationsForShutdown(ctx, containers)
 

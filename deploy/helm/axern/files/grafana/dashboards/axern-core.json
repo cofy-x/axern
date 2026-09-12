@@ -1095,23 +1095,13 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "sum(rate(axern_controld_service_ready_duration_seconds_count[5m])) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
-          "refId": "A",
-          "legendFormat": "service ready"
-        },
-        {
-          "expr": "sum(rate(axern_controld_service_replica_ready_duration_seconds_count[5m])) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
-          "refId": "B",
-          "legendFormat": "replica ready"
-        },
-        {
           "expr": "sum(rate(axern_axnoded_allocation_start_duration_seconds_count[5m])) or (0 * sum(axern_axnoded_resource_pool_target_current{axern_resource=\"cgroup\"}))",
-          "refId": "C",
+          "refId": "A",
           "legendFormat": "allocation start"
         },
         {
           "expr": "sum(rate(axern_imagemgr_timed_operation_duration_seconds_count[5m])) or (0 * sum(axern_axnoded_resource_pool_target_current{axern_resource=\"cgroup\"}))",
-          "refId": "D",
+          "refId": "B",
           "legendFormat": "image operation"
         }
       ],

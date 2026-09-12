@@ -8,18 +8,14 @@ from unittest import mock
 
 import grpc
 
-from axern.control.service.v1 import service_pb2, service_types_pb2
 from axern_sdk import (
     AsyncAxernClient,
     AsyncSandbox,
     AxernClient,
     CapabilityStatus,
     ExecResult,
-    HTTPProbe,
     Sandbox,
     SandboxNotStartedError,
-    ServiceProbe,
-    TCPProbe,
 )
 import axern_sdk.client as client_module
 from axern_sdk.client import _resource_spec
@@ -79,7 +75,6 @@ class SandboxTest(unittest.TestCase):
         self.assertTrue(connectors[0].stopped)
         self.assertEqual(client.revoked[0][0], "tun-1")
         self.assertEqual(client.cancelled[0][0], "run-1")
-        self.assertEqual(client.purged, [])
         self.assertEqual(client.deleted_environments[0][0], "env-1")
         self.assertNotIn("template_id", client.created_environment)
 
@@ -89,97 +84,6 @@ class SandboxTest(unittest.TestCase):
             Sandbox(client=client, image="image", template_id="python311")
         with self.assertRaises(ValueError):
             Sandbox(client=client)
-
-    def test_create_service_builds_extension_capability_protos(self) -> None:
-        class ServiceStub:
-            request = None
-
-            def CreateService(self, request, timeout=None):
-                del timeout
-                self.request = request
-                return service_pb2.CreateServiceResponse(service=service_types_pb2.Service(id="svc-1"))
-
-        client = AxernClient.__new__(AxernClient)
-        stub = ServiceStub()
-        client.services = stub
-
-        service = client.create_service(
-            environment_id="env-1",
-            extension_capabilities={"example.com/accelerator": "v1"},
-        )
-
-        self.assertEqual(service.id, "svc-1")
-        extension = stub.request.config.extension_capability_requirements[0].capability
-        self.assertEqual(extension.name, "example.com/accelerator")
-        self.assertEqual(extension.value, "v1")
-    def test_create_service_builds_node_selector(self) -> None:
-        class ServiceStub:
-            request = None
-
-            def CreateService(self, request, timeout=None):
-                del timeout
-                self.request = request
-                return service_pb2.CreateServiceResponse(service=service_types_pb2.Service(id="svc-1"))
-
-        client = AxernClient.__new__(AxernClient)
-        stub = ServiceStub()
-        client.services = stub
-
-        client.create_service(
-            environment_id="env-1",
-            node_selector={"kubernetes.io/hostname": "node-a"},
-        )
-
-        self.assertEqual(
-            dict(stub.request.config.placement.node_selector),
-            {"kubernetes.io/hostname": "node-a"},
-        )
-
-    def test_create_service_builds_probe_protos(self) -> None:
-        class ServiceStub:
-            request = None
-
-            def CreateService(self, request, timeout=None):
-                del timeout
-                self.request = request
-                return service_pb2.CreateServiceResponse(service=service_types_pb2.Service(id="svc-1"))
-
-        client = AxernClient.__new__(AxernClient)
-        stub = ServiceStub()
-        client.services = stub
-
-        client.create_service(
-            environment_id="env-1",
-            readiness_probe=ServiceProbe(
-                http=HTTPProbe(port=8080, path="/readyz"),
-                period=0.1,
-                timeout=1.0,
-            ),
-            liveness_probe=ServiceProbe(tcp=TCPProbe(port=8080), failure_threshold=3),
-        )
-
-        self.assertEqual(stub.request.readiness_probe.http.port, 8080)
-        self.assertEqual(stub.request.readiness_probe.http.path, "/readyz")
-        self.assertEqual(
-            stub.request.readiness_probe.http.scheme,
-            service_types_pb2.HTTP_PROBE_SCHEME_HTTP,
-        )
-        self.assertEqual(stub.request.readiness_probe.period.ToMilliseconds(), 100)
-        self.assertEqual(stub.request.readiness_probe.timeout.ToMilliseconds(), 1000)
-        self.assertEqual(stub.request.liveness_probe.tcp.port, 8080)
-        self.assertEqual(stub.request.liveness_probe.failure_threshold, 3)
-
-    def test_service_probe_rejects_submillisecond_and_negative_values(self) -> None:
-        for kwargs in (
-            {"period": 0.0001},
-            {"timeout": float("inf")},
-            {"success_threshold": 1.5},
-            {"success_threshold": -1},
-            {"failure_threshold": -1},
-        ):
-            with self.subTest(kwargs=kwargs):
-                with self.assertRaises(ValueError):
-                    ServiceProbe(http=HTTPProbe(port=8080), **kwargs)
 
     def test_client_from_env_reads_control_settings(self) -> None:
         fake_channel = grpc.insecure_channel("127.0.0.1:9")
@@ -259,7 +163,6 @@ class SandboxTest(unittest.TestCase):
         client.cancel_run = fail_cancel_run
         sandbox.close()
 
-        self.assertEqual(client.purged, [])
         self.assertEqual(client.deleted_environments[0][0], "env-1")
 
     def test_capability_status_uses_node_client(self) -> None:
@@ -292,7 +195,7 @@ class SandboxTest(unittest.TestCase):
         async def run() -> None:
             try:
                 with self.assertRaises(grpc.aio.AioRpcError):
-                    await client.list_service_replicas("svc-1", timeout=0.01)
+                    await client.cancel_run("run-1", timeout=0.01)
             finally:
                 await client.close()
 

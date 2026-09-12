@@ -34,7 +34,6 @@ import (
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	tunnelrelaycontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/tunnel/v1"
 	"github.com/sirupsen/logrus"
@@ -54,23 +53,20 @@ const (
 )
 
 type options struct {
-	grpcAddress                     string
-	httpAddress                     string
-	logLevel                        string
-	heartbeatFreshnessWindow        time.Duration
-	summaryFreshnessWindow          time.Duration
-	postgresDSN                     string
-	postgresMaxConnections          int
-	secretsMasterKey                string
-	reconcileTimeout                time.Duration
-	resourceCPUOvercommitRatio      float64
-	serviceReconcileWorkers         int
-	serviceAllocationGlobalWorkers  int
-	serviceAllocationWorkersPerNode int
-	tlsCACert                       string
-	tlsCert                         string
-	tlsKey                          string
-	tunnelRelays                    string
+	grpcAddress                string
+	httpAddress                string
+	logLevel                   string
+	heartbeatFreshnessWindow   time.Duration
+	summaryFreshnessWindow     time.Duration
+	postgresDSN                string
+	postgresMaxConnections     int
+	secretsMasterKey           string
+	reconcileTimeout           time.Duration
+	resourceCPUOvercommitRatio float64
+	tlsCACert                  string
+	tlsCert                    string
+	tlsKey                     string
+	tunnelRelays               string
 }
 
 func main() {
@@ -121,9 +117,6 @@ func run() error {
 		ResourcePolicy: resourcekernel.AdmissionPolicy{
 			CPUOvercommitRatio: opts.resourceCPUOvercommitRatio,
 		},
-		ServiceReconcileWorkers:         opts.serviceReconcileWorkers,
-		ServiceAllocationGlobalWorkers:  opts.serviceAllocationGlobalWorkers,
-		ServiceAllocationWorkersPerNode: opts.serviceAllocationWorkersPerNode,
 	})
 	if err != nil {
 		return err
@@ -154,14 +147,12 @@ func run() error {
 	adminv1.RegisterAdminAuditServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterAdminReliabilityServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterNodeAdminServer(grpcServer, svc.AdminV1Handler())
-	adminv1.RegisterServiceAdminServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterAccessAdminServer(grpcServer, svc.AdminV1Handler())
 	identityv1.RegisterIdentityControlServer(grpcServer, svc.IdentityV1Handler())
 	catalogv1.RegisterRuntimeCatalogServer(grpcServer, svc.PublicV1Handler())
 	environmentv1.RegisterEnvironmentControlServer(grpcServer, svc.PublicV1Handler())
 	runv1.RegisterRunControlServer(grpcServer, svc.PublicV1Handler())
 	secretv1.RegisterSecretControlServer(grpcServer, svc.PublicV1Handler())
-	servicev1.RegisterServiceControlServer(grpcServer, svc.PublicV1Handler())
 	tunnelcontrolv1.RegisterTunnelControlServer(grpcServer, svc.PublicV1Handler())
 	namespacev1.RegisterNamespaceControlServer(grpcServer, svc.PublicV1Handler())
 	quotav1.RegisterQuotaControlServer(grpcServer, svc.PublicV1Handler())
@@ -242,9 +233,6 @@ func parseFlags() (options, error) {
 	flagSet.StringVar(&opts.secretsMasterKey, "secrets-master-key", os.Getenv("AXERN_SECRETS_MASTER_KEY"), "32-byte raw or base64-encoded master key for encrypted secret storage")
 	flagSet.DurationVar(&opts.reconcileTimeout, "reconcile-timeout", 0, "timeout for one background reconcile operation; 0 uses the application default")
 	flagSet.Float64Var(&opts.resourceCPUOvercommitRatio, "resource-cpu-overcommit-ratio", resourcekernel.DefaultCPUOvercommitRatio, "CPU overcommit ratio for request reservation admission")
-	flagSet.IntVar(&opts.serviceReconcileWorkers, "service-reconcile-workers", 0, "global service reconcile workers; 0 uses the application default")
-	flagSet.IntVar(&opts.serviceAllocationGlobalWorkers, "service-allocation-global-workers", 0, "global concurrent service allocation creates; 0 uses the application default")
-	flagSet.IntVar(&opts.serviceAllocationWorkersPerNode, "service-allocation-workers-per-node", 0, "concurrent service allocation creates per node; 0 uses the application default")
 	flagSet.StringVar(&opts.tlsCACert, "tls-ca-cert", defaultString(os.Getenv("CONTROLD_TLS_CA_CERT"), defaultTLSCACert), "CA certificate used to verify mTLS clients")
 	flagSet.StringVar(&opts.tlsCert, "tls-cert", defaultString(os.Getenv("CONTROLD_TLS_CERT"), defaultTLSCert), "controld server certificate")
 	flagSet.StringVar(&opts.tlsKey, "tls-key", defaultString(os.Getenv("CONTROLD_TLS_KEY"), defaultTLSKey), "controld server private key")
@@ -266,9 +254,6 @@ func parseFlags() (options, error) {
 	}
 	if opts.reconcileTimeout < 0 {
 		return options{}, fmt.Errorf("reconcile-timeout must be >= 0")
-	}
-	if opts.serviceReconcileWorkers < 0 || opts.serviceAllocationGlobalWorkers < 0 || opts.serviceAllocationWorkersPerNode < 0 {
-		return options{}, fmt.Errorf("service worker counts must be >= 0")
 	}
 	if strings.TrimSpace(opts.tlsCACert) == "" || strings.TrimSpace(opts.tlsCert) == "" || strings.TrimSpace(opts.tlsKey) == "" {
 		return options{}, fmt.Errorf("tls-ca-cert, tls-cert, and tls-key are required")

@@ -16,9 +16,7 @@ import (
 	appgateway "github.com/cofy-x/axern/control/controld/internal/application/gateway"
 	appnode "github.com/cofy-x/axern/control/controld/internal/application/node"
 	apprun "github.com/cofy-x/axern/control/controld/internal/application/run"
-	appservice "github.com/cofy-x/axern/control/controld/internal/application/service"
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
-	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	"github.com/cofy-x/axern/control/controld/internal/placement"
 	pggateway "github.com/cofy-x/axern/control/controld/internal/postgres/gateway"
 )
@@ -27,7 +25,6 @@ type publicProfile struct {
 	environments publicv1.Environments
 	secrets      publicv1.Secrets
 	runs         publicv1.Runs
-	services     publicv1.Services
 }
 
 type nodeProfile struct {
@@ -35,29 +32,22 @@ type nodeProfile struct {
 }
 
 type apiProfile struct {
-	admin                appadmin.AllocationLifecycleControl
-	adminAudit           appadmin.AuditControl
-	adminReliability     appadmin.ReliabilityControl
-	adminServices        apiadminv1.Services
-	adminNodes           appadmin.NodeControl
-	public               publicProfile
-	node                 nodeProfile
-	serviceReconciler    servicekernel.Reconciler
-	allocationReconciler servicekernel.AllocationReconciler
+	admin            appadmin.AllocationLifecycleControl
+	adminAudit       appadmin.AuditControl
+	adminReliability appadmin.ReliabilityControl
+	adminNodes       appadmin.NodeControl
+	public           publicProfile
+	node             nodeProfile
 }
 
 func (a *App) buildAPIs() {
 	selector := a.newPlacementSelector()
 	profile := a.buildAPIProfile(selector)
-	a.serviceReconciler = profile.serviceReconciler
-	a.allocationReconciler = profile.allocationReconciler
-
 	a.adminAPI = apiadminv1.New(apiadminv1.Dependencies{
 		Now:                        func() time.Time { return a.now() },
 		AllocationLifecycleRetries: profile.admin,
 		AdminAuditEvents:           profile.adminAudit,
 		Reliability:                profile.adminReliability,
-		Services:                   profile.adminServices,
 		Nodes:                      profile.adminNodes,
 		CapabilityDiagnostics:      a.adminPG,
 		NodeHeartbeatWindow:        a.heartbeatFreshnessWindow,
@@ -66,25 +56,22 @@ func (a *App) buildAPIs() {
 	})
 	a.identityAPI = apiidentityv1.New()
 	a.publicAPI = publicv1.New(publicv1.Dependencies{
-		Now:            func() time.Time { return a.now() },
-		Catalog:        a.catalog,
-		Environments:   profile.public.environments,
-		Secrets:        profile.public.secrets,
-		Runs:           profile.public.runs,
-		Services:       profile.public.services,
-		ServiceWatcher: a.servicePG,
-		Tunnels:        a.tunnelPG,
-		Namespaces:     a.namespacePG,
-		Quotas:         a.namespacePG,
+		Now:          func() time.Time { return a.now() },
+		Catalog:      a.catalog,
+		Environments: profile.public.environments,
+		Secrets:      profile.public.secrets,
+		Runs:         profile.public.runs,
+		Tunnels:      a.tunnelPG,
+		Namespaces:   a.namespacePG,
+		Quotas:       a.namespacePG,
 	})
 	a.nodeAPI = apinodev1.New(apinodev1.Dependencies{
-		Now:                    func() time.Time { return a.now() },
-		NodeStore:              a.nodeStore,
-		Registry:               a.registry,
-		Reporter:               appnode.NewReporter(a.nodeStore, a.registry, profile.node.allocations, func() time.Time { return a.now() }),
-		Allocations:            profile.node.allocations,
-		Tunnels:                a.tunnelPG,
-		NotifyServiceReconcile: a.notifyServiceReconcile,
+		Now:         func() time.Time { return a.now() },
+		NodeStore:   a.nodeStore,
+		Registry:    a.registry,
+		Reporter:    appnode.NewReporter(a.nodeStore, a.registry, profile.node.allocations, func() time.Time { return a.now() }),
+		Allocations: profile.node.allocations,
+		Tunnels:     a.tunnelPG,
 	})
 	a.nodeReconciler = appnode.NewAvailabilityReconciler(appnode.AvailabilityReconcilerDeps{
 		Nodes:           a.nodeStore,
@@ -120,50 +107,23 @@ func (a *App) newPlacementSelector() *placement.Selector {
 	).WithObserver(placementMetricsObserver{})
 }
 
-func (a *App) buildPublicProfile(environments publicv1.Environments, secrets publicv1.Secrets, runs publicv1.Runs, services publicv1.Services) publicProfile {
+func (a *App) buildPublicProfile(environments publicv1.Environments, secrets publicv1.Secrets, runs publicv1.Runs) publicProfile {
 	return publicProfile{
 		environments: environments,
 		secrets:      secrets,
 		runs:         runs,
-		services:     services,
 	}
 }
 
 func (a *App) newAuthoritativeNodeProfile() nodeProfile {
-	if a.servicePG != nil {
-		return nodeProfile{
-			allocations: appnode.NewAuthoritative(a.allocationOwners, a.runStore, a.servicePG),
-		}
-	}
 	return nodeProfile{
-		allocations: appnode.NewAuthoritative(a.allocationOwners, a.runStore, nil),
+		allocations: appnode.NewAuthoritative(a.allocationOwners, a.runStore),
 	}
-}
-
-func (a *App) newServiceController(selector *placement.Selector) servicekernel.Controller {
-	return appservice.NewController(appservice.ControllerDeps{
-		Store:                              a.servicePG,
-		Allocations:                        a.servicePG,
-		Reconcile:                          a.servicePG,
-		Statuses:                           a.servicePG,
-		Events:                             a.servicePG,
-		Environments:                       a.runStore,
-		Selector:                           selector,
-		Lifecycle:                          a.nodeBridge,
-		NotifyReconcile:                    a.notifyServiceReconcile,
-		ReconcileConcurrency:               a.serviceReconcileWorkers,
-		AllocationCreateGlobalConcurrency:  a.serviceAllocationGlobalWorkers,
-		AllocationCreatePerNodeConcurrency: a.serviceAllocationWorkersPerNode,
-	})
 }
 
 func (a *App) authoritativeProfile(selector *placement.Selector) apiProfile {
 	runs := apprun.NewAuthoritative(a.runStore, selector, a.nodeBridge)
 	environments := appenvironment.NewAuthoritative(a.catalog, a.imageResolver, a.secretDB, a.runStore)
-	var services servicekernel.Controller
-	if a.servicePG != nil {
-		services = a.newServiceController(selector)
-	}
 	profile := apiProfile{
 		admin:      appadmin.NewAllocationLifecycleControl(a.adminPG),
 		adminAudit: appadmin.NewAuditControl(a.adminPG),
@@ -177,13 +137,9 @@ func (a *App) authoritativeProfile(selector *placement.Selector) apiProfile {
 			environments,
 			a.secretDB,
 			runs,
-			services,
 		),
 	}
-	profile.serviceReconciler = services
-	profile.adminServices = appadmin.NewServiceControl(services, a.adminPG)
 	profile.adminNodes = appadmin.NewNodeControl(a.adminPG, a.registry, a.heartbeatFreshnessWindow)
-	profile.allocationReconciler = services
 	profile.node = a.newAuthoritativeNodeProfile()
 	return profile
 }

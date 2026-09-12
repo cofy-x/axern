@@ -259,12 +259,7 @@ func ListLifecycleRetries(ctx context.Context, queryer reconcileQueryer, filter 
 				SELECT r.status FROM runs r
 				WHERE r.allocation_id = q.allocation_id
 				LIMIT 1
-			), ''),
-			EXISTS (
-				SELECT 1
-				FROM services s, jsonb_array_elements_text(s.allocation_ids) AS existing(allocation_id)
-				WHERE s.service_id = a.owner_id AND existing.allocation_id = q.allocation_id
-			)
+			), '')
 		FROM allocation_reconcile_queue q
 		JOIN allocations a ON a.allocation_id = q.allocation_id
 		JOIN nodes n ON n.node_id = a.node_id
@@ -313,12 +308,7 @@ func LoadLifecycleRetry(ctx context.Context, queryer reconcileQueryer, allocatio
 				SELECT r.status FROM runs r
 				WHERE r.allocation_id = q.allocation_id
 				LIMIT 1
-			), ''),
-			EXISTS (
-				SELECT 1
-				FROM services s, jsonb_array_elements_text(s.allocation_ids) AS existing(allocation_id)
-				WHERE s.service_id = a.owner_id AND existing.allocation_id = q.allocation_id
-			)
+			), '')
 		FROM allocation_reconcile_queue q
 		JOIN allocations a ON a.allocation_id = q.allocation_id
 		JOIN nodes n ON n.node_id = a.node_id
@@ -367,7 +357,6 @@ func scanLifecycleRetryRows(rows pgx.Rows, now time.Time) ([]allocationkernel.Li
 			&clearanceInput.HasActiveLease,
 			&clearanceInput.HasActiveTunnelSession,
 			&clearanceInput.OwnerRunStatus,
-			&clearanceInput.OwnerServiceReferencesAllocation,
 		); err != nil {
 			return nil, err
 		}

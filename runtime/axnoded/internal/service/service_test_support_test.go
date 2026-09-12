@@ -61,7 +61,6 @@ func newTestService(t *testing.T, handlers map[string]contract.RuntimeHandler) *
 		store:            storetest.NewMockStore(),
 		lrtManager:       langrtmanager.NewLanguageRuntimeManager(),
 	}
-	s.configureProbeCoordinator()
 	s.configureSandboxTargets()
 	s.configureSandboxAccess()
 	s.configureNetworking()

@@ -5,8 +5,8 @@ description: Execute one-shot isolated commands from an image, template, or envi
 
 A Run is Axern's one-shot workload: it executes a command inside an isolated
 sandbox, streams output, propagates the command's exit code, and leaves a
-durable control-plane record. Long-lived HTTP workloads use a
-[Service](/guides/service/).
+durable control-plane record. Detached Runs also provide the allocation
+lifecycle used by SDK Sandboxes and interactive tools.
 
 ## Run a command
 

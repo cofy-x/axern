@@ -17,6 +17,9 @@ callers.
 ## Rules
 
 - `controld` owns tunnel lifecycle, auth, leases, events, and status semantics. `tunneld` owns only in-memory relay state.
+- Every tunnel session is bound to one explicit Allocation and attempt-scoped
+  authorization. Do not add Service identity, replica selection, or `/svc`
+  route semantics to the tunnel data plane.
 - Keep application protocol adapters out of this module. Claude/OpenAI/HTTP behavior belongs in CLI or gateway adapters above the raw TCP tunnel.
 - Keep `cmd/*` private command logic in the command package. Split large command files by responsibility before creating shared `internal` packages.
 - Do not let `internal/relay` depend on node-local concepts such as runsc, netns paths, `NodeOperator`, or allocation mechanics beyond validated session IDs.
@@ -41,7 +44,7 @@ or relay pairing/revalidation changes:
 
 ```bash
 make local-compose-up
-make local-compose-tunnel-e2e
+make local-compose-python-sdk-e2e
 ```
 
 `make local-compose-up` rebuilds local images by default unless

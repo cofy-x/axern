@@ -13,7 +13,6 @@ const (
 	AuditOperationForceAllocationLifecycleRetry = "force-allocation-lifecycle-retry"
 	AuditOperationFailAllocationLifecycleRetry  = "fail-allocation-lifecycle-retry"
 	AuditOperationClearAllocationLifecycleRetry = "clear-allocation-lifecycle-retry"
-	AuditOperationPurgeService                  = "purge-service"
 	AuditOperationRetireNode                    = "retire-node"
 	AuditOperationCreatePrincipal               = "create-principal"
 	AuditOperationDisablePrincipal              = "disable-principal"
@@ -24,7 +23,6 @@ const (
 	AuditOperationBootstrapAccess               = "bootstrap-access"
 
 	AuditTargetTypeAllocation  = "allocation"
-	AuditTargetTypeService     = "service"
 	AuditTargetTypeNode        = "node"
 	AuditTargetTypePrincipal   = "principal"
 	AuditTargetTypeCredential  = "credential"
@@ -69,8 +67,6 @@ func ParseAuditOperation(value string) adminv1.AdminAuditOperation {
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_FAIL_ALLOCATION_LIFECYCLE_RETRY
 	case AuditOperationClearAllocationLifecycleRetry:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY
-	case AuditOperationPurgeService:
-		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_PURGE_SERVICE
 	case AuditOperationRetireNode:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETIRE_NODE
 	case AuditOperationCreatePrincipal:
@@ -107,8 +103,6 @@ func ParseAuditTargetType(value string) adminv1.AdminAuditTargetType {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case AuditTargetTypeAllocation:
 		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_ALLOCATION
-	case AuditTargetTypeService:
-		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_SERVICE
 	case AuditTargetTypeNode:
 		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_NODE
 	case AuditTargetTypePrincipal:

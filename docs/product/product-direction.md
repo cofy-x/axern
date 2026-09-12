@@ -6,23 +6,24 @@ design moves the platform toward the intended product.
 
 ## North Star
 
-Axern is open-source agentic infrastructure for running AI agents and code in
-isolated sandboxes. Its north star is a high-performance sandbox
-platform where a user can create an environment, run or serve code, connect to
-it securely, observe its lifecycle, retain the right artifacts, and clean it up
-through consistent APIs and SDKs.
+Axern is an open-source environment execution platform for agent evaluation,
+training, and data synthesis. A unified SDK provides secure, rebuildable,
+high-concurrency sandbox infrastructure for creating environments, executing
+agents and tools, exporting results, and cleaning up.
 
 The platform remains general enough for non-agent sandbox workloads, while
-product decisions prioritize long-running and task-oriented agent execution.
+product decisions prioritize repeatable agent workloads and large-scale
+experiment execution.
 
 ## Durable Product Principles
 
 - **Control-plane first:** durable intent, identity, placement, policy, and
   lifecycle state belong in product APIs rather than client-side orchestration.
-- **Sandbox as the primitive:** agent harnesses, coding workspaces, and services
-  compose the same environment, execution, storage, network, and
-  observability capabilities instead of introducing special runtime shortcuts.
-- **Secure remote access:** files, processes, terminals, HTTP services, and
+- **One execution model:** the only durable chain is
+  `Environment -> Run -> Allocation`. `Sandbox` is the SDK primitive backed by
+  that chain, so agent harnesses, evaluators, trainers, and data generators do
+  not introduce special runtime lifecycles.
+- **Secure remote access:** files, processes, terminals, SSH, and
   tunnels use explicit, revocable, task-scoped authorization.
 - **Observable by default:** lifecycle state, logs, metrics, traces, inventory,
   usage, trajectories, and artifacts have clear owners and stable identities.
@@ -38,23 +39,21 @@ product decisions prioritize long-running and task-oriented agent execution.
 ## Long-Term Capability Areas
 
 - Programmable sandbox lifecycle and process, file, terminal, and proxy APIs.
-- Agent coding workspaces with immutable environments, allocation-local files,
-  and explicit output export. Profiles own local agent credentials, Service
-  owns compute, and Tunnel owns one session; project persistence is not a
-  reusable volume primitive.
-- Agent-oriented task execution, verification, trajectory capture, and artifact
-  retention through Axrun and related product layers.
-- Services with readiness, rollout, explicit capacity, and observable lifecycle
-  events.
+- Agent evaluation, training, and synthetic-data workloads built from immutable
+  environments, Run-backed sandboxes, allocation-local files, and explicit
+  output or artifact export.
+- Run status, output, resource usage, and explicit artifact delivery needed by
+  upper-layer verification, trajectory, replay, and result systems.
 - Task-scoped secrets, ephemeral filesystems, durable artifacts, controlled egress,
-  service ingress, and reverse tunnels.
+  reverse tunnels, and optional SSH access.
 - Runtime templates for coding, browser, research, CI, and data workloads
   without marketplace or template sprawl.
-- Usage and billing primitives based on time, resources, runtime class,
-  storage, network exposure, and retained state.
-- A future workload family for batch, training, RL, or experiments when their
-  queueing, retry, checkpoint, concurrency, and budget semantics are defined;
-  do not overload Service replicas to approximate them.
+- Low-cardinality usage and capacity measurements based on time, resources,
+  execution, network, and retained control state.
+- Purpose-built batch, training, RL, or experiment orchestration may be added
+  only after its queueing, retry, checkpoint, concurrency, and budget semantics
+  are defined; it must compose Runs and Sandboxes instead of creating a second
+  execution substrate.
 
 ## Product Boundaries
 
@@ -64,6 +63,10 @@ product decisions prioritize long-running and task-oriented agent execution.
   implementation.
 - The core platform does not absorb application-specific protocol behavior
   that can be implemented through public sandbox and network primitives.
+- Service, Function, Agent Profile, generic Volume, managed evaluation, and
+  benchmark-specific lifecycles are outside the core platform. SSH and Tunnel
+  remain explicit Allocation capabilities, not reasons to restore those
+  product models.
 - Compatibility with an early internal model is not a goal when a coherent
   redesign can update all in-repository consumers together.
 

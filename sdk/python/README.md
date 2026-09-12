@@ -344,13 +344,8 @@ Runnable examples live in [`examples`](examples):
 - [`examples/sandbox_programming.py`](examples/sandbox_programming.py)
 - [`examples/async_sandbox_programming.py`](examples/async_sandbox_programming.py)
 - [`examples/computer_use.py`](examples/computer_use.py)
-- [`examples/service_gateway.py`](examples/service_gateway.py)
 
 Examples expect a reachable Axern gateway control edge at `127.0.0.1:25000`.
-`service_gateway.py` also expects `AXERN_SERVICE_URL`, for example
-`http://127.0.0.1:25080`. It accepts `AXERN_NAMESPACE`, `AXERN_IMAGE`,
-`AXERN_RUNTIME_CLASS`, `AXERN_REQUEST_CPU`, `AXERN_REQUEST_MEMORY`,
-`AXERN_LIMIT_CPU`, and `AXERN_LIMIT_MEMORY` for service configuration.
 
 ## Validation
 

@@ -23,7 +23,7 @@ flowchart LR
 ## Stable ownership
 
 - **Gateway:** authenticates public clients and forwards control, process,
-  file, service, terminal, artifact, and tunnel traffic.
+  file, terminal, artifact, and tunnel traffic.
 - **Control plane:** persists resources and coordinates placement, leases,
   retries, health, cleanup, and rollouts.
 - **Node runtime:** owns sandbox processes, filesystems, images, networking

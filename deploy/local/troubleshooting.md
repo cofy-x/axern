@@ -263,14 +263,9 @@ Use targeted smokes after a suspected fix:
 
 ```bash
 make local-compose-smoke
-make local-compose-gateway-smoke
-make local-compose-tunnel-e2e
-make local-compose-image-service-smoke
+make local-compose-python-sdk-e2e
 
 make kind-smoke
-make kind-gateway-smoke
-make kind-tunnel-e2e
-make kind-image-service-smoke
 ```
 
 Use reset only when local state is suspect:

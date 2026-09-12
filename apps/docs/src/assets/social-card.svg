@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
   <title id="title">Axern — Infrastructure for AI agents</title>
-  <desc id="description">Programmable sandboxes, durable services, and reproducible rollouts.</desc>
+  <desc id="description">Programmable sandboxes for reproducible agent evaluation, training, and data synthesis.</desc>
   <rect width="1200" height="630" fill="#f7f7f8"/>
 
   <g transform="translate(72 120)">
@@ -16,7 +16,7 @@
     <text x="72" y="394" fill="#3867e8">AI agents.</text>
   </g>
 
-  <text x="76" y="470" fill="#545861" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="25" font-weight="500">Programmable sandboxes · Durable services · Reproducible rollouts</text>
+  <text x="76" y="470" fill="#545861" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="25" font-weight="500">Agent evaluation · Training · Data synthesis</text>
   <text x="72" y="540" fill="#777982" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" font-weight="600" letter-spacing="0.3">axern.cofy-x.space</text>
 
   <g id="sandbox-motif">

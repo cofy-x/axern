@@ -5,7 +5,7 @@
 		grafana-assets-check \
 		build-go test-go lint-go fmt-go \
 		build-rust test-rust lint-rust fmt-rust \
-		build-ts test-ts lint-ts pack-ts sdk-typescript-verify docs-dev docs-build docs-check docs-verify docs-layout-check docs-assets docs-social-card docs-service-demo docs-service-asset \
+		build-ts test-ts lint-ts pack-ts sdk-typescript-verify docs-dev docs-build docs-check docs-verify docs-layout-check docs-assets docs-social-card \
 		build-py test-py lint-py sdk-python-verify sdk-go-verify sdk-artifacts sdk-artifact-verify sdk-release-verify sdk-contract-verify \
 		imagemgr-build imagemgr-test imagemgr-check-architecture \
 		imagefsd-build imagefsd-test
@@ -258,16 +258,6 @@ docs-assets: axern-cli-build axrun-build ## Regenerate Axern documentation termi
 docs-social-card: ## Regenerate the public social preview from its SVG source
 	$(PNPM) --filter @cofy-x/axern-docs run generate:social-card
 
-docs-service-demo: ## Run and inspect the Python Service example against local Compose
-	@test -x "$(ROOTDIR)/bin/axern" || { echo "missing $(ROOTDIR)/bin/axern; run make axern-cli-build" >&2; exit 1; }
-	@AXERN_CONTEXT="$${AXERN_DOCS_CONTEXT:-compose}" \
-		AXERN_SERVICE_URL="$${AXERN_SERVICE_URL:-http://127.0.0.1:25080}" \
-		AXERN_CLI_BINARY="$(ROOTDIR)/bin/axern" \
-		$(UV) run --package axern-sdk python apps/docs/scripts/record-service-demo.py
-
-docs-service-asset: axern-cli-build ## Regenerate the real local data-plane Service recording
-	bash $(ROOTDIR)/apps/docs/scripts/generate-service-asset.sh
-
 build-py: ## Build the Python SDK package
 	$(UV) build sdk/python
 
@@ -275,9 +265,9 @@ test-py: ## Run the Python SDK test suite
 	$(UV) run --package axern-sdk python -m unittest discover -s sdk/python/tests
 
 lint-py: ## Run Python SDK lint checks
-	$(UV) run --package axern-sdk python -m compileall sdk/python/src sdk/python/examples apps/docs/scripts/record-service-demo.py
-	$(UV) run --package axern-sdk ruff check sdk/python/src/axern_sdk sdk/python/tests sdk/python/examples apps/docs/scripts/record-service-demo.py
-	cd sdk/python && $(UV) run --package axern-sdk pyright . ../../apps/docs/scripts/record-service-demo.py
+	$(UV) run --package axern-sdk python -m compileall sdk/python/src sdk/python/examples
+	$(UV) run --package axern-sdk ruff check sdk/python/src/axern_sdk sdk/python/tests sdk/python/examples
+	cd sdk/python && $(UV) run --package axern-sdk pyright .
 
 sdk-python-verify: ## Run Python SDK tests, lint, and package build
 	$(MAKE) test-py

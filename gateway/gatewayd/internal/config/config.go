@@ -16,41 +16,34 @@ const (
 )
 
 type Config struct {
-	HTTPAddress                  string
-	ControlEdgeAddress           string
-	ControlEdgeTLSCACert         string
-	ControlEdgeTLSCert           string
-	ControlEdgeTLSKey            string
-	TunnelRelayTarget            string
-	TunnelRelayTLSCACert         string
-	TunnelRelayTLSServerName     string
-	ControlTarget                string
-	TLSCACert                    string
-	TLSCert                      string
-	TLSKey                       string
-	DevToken                     string
-	RequireHTTPAuth              bool
-	SSHEnabled                   bool
-	SSHAddress                   string
-	SSHHostKey                   string
-	SSHAuthorizedKeys            string
-	RouteCacheTTL                time.Duration
-	RouteCacheMaxEntries         int
-	ControlDialTimeout           time.Duration
-	ReadHeaderTimeout            time.Duration
-	ReadTimeout                  time.Duration
-	WriteTimeout                 time.Duration
-	IdleTimeout                  time.Duration
-	ServiceUpstreamTimeout       time.Duration
-	ServiceMaxRequestBodyBytes   int64
-	ServiceEndpointRetryAttempts int
-	ServiceEndpointQuarantineTTL time.Duration
-	TerminalIdleTimeout          time.Duration
-	TerminalMaxDuration          time.Duration
-	TerminalMaxMessageBytes      int64
-	LeaseRetryAttempts           int
-	LeaseRetryBaseDelay          time.Duration
-	LogLevel                     string
+	HTTPAddress              string
+	ControlEdgeAddress       string
+	ControlEdgeTLSCACert     string
+	ControlEdgeTLSCert       string
+	ControlEdgeTLSKey        string
+	TunnelRelayTarget        string
+	TunnelRelayTLSCACert     string
+	TunnelRelayTLSServerName string
+	ControlTarget            string
+	TLSCACert                string
+	TLSCert                  string
+	TLSKey                   string
+	DevToken                 string
+	SSHEnabled               bool
+	SSHAddress               string
+	SSHHostKey               string
+	SSHAuthorizedKeys        string
+	ControlDialTimeout       time.Duration
+	ReadHeaderTimeout        time.Duration
+	ReadTimeout              time.Duration
+	WriteTimeout             time.Duration
+	IdleTimeout              time.Duration
+	TerminalIdleTimeout      time.Duration
+	TerminalMaxDuration      time.Duration
+	TerminalMaxMessageBytes  int64
+	LeaseRetryAttempts       int
+	LeaseRetryBaseDelay      time.Duration
+	LogLevel                 string
 }
 
 func Parse(args []string) (Config, error) {

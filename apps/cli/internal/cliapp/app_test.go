@@ -12,7 +12,7 @@ import (
 
 func TestCommandTreeUsesCanonicalProductCommands(t *testing.T) {
 	root := New("test")
-	want := map[string][]string{"context": {"ctx"}, "namespace": {"ns"}, "service": {"svc"}}
+	want := map[string][]string{"context": {"ctx"}, "namespace": {"ns"}}
 	for name, aliases := range want {
 		cmd, _, err := root.Find([]string{name})
 		if err != nil || cmd.Name() != name {
@@ -22,7 +22,7 @@ func TestCommandTreeUsesCanonicalProductCommands(t *testing.T) {
 			t.Fatalf("%s aliases=%v, want %v", name, cmd.Aliases, aliases)
 		}
 	}
-	for _, removed := range [][]string{{"invoke"}, {"run", "lease"}, {"service", "describe"}, {"quota", "describe"}} {
+	for _, removed := range [][]string{{"invoke"}, {"run", "lease"}, {"service"}, {"agent"}, {"quota", "describe"}} {
 		cmd, args, _ := root.Find(removed)
 		if cmd != root && len(args) == 0 {
 			t.Fatalf("removed command is still registered: %v", removed)
@@ -30,7 +30,7 @@ func TestCommandTreeUsesCanonicalProductCommands(t *testing.T) {
 	}
 }
 
-func TestHelpIncludesCompletionAndExplicitAgentCommands(t *testing.T) {
+func TestHelpIncludesCoreSandboxCommands(t *testing.T) {
 	root := New("test")
 	var out bytes.Buffer
 	root.SetOut(&out)
@@ -39,21 +39,10 @@ func TestHelpIncludesCompletionAndExplicitAgentCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := out.String()
-	for _, value := range []string{"agent", "completion", "doctor", "service", "ssh", "tunnel"} {
+	for _, value := range []string{"completion", "doctor", "run", "ssh", "tunnel"} {
 		if !strings.Contains(text, value) {
 			t.Fatalf("help missing %s:\n%s", value, text)
 		}
-	}
-	agent, _, _ := root.Find([]string{"agent"})
-	if agent.RunE == nil {
-		t.Fatal("agent must reject an omitted subcommand")
-	}
-	root = New("test")
-	root.SetArgs([]string{"agent"})
-	err := root.Execute()
-	var usage command.UsageError
-	if !errors.As(err, &usage) {
-		t.Fatalf("agent error = %v, want UsageError", err)
 	}
 }
 

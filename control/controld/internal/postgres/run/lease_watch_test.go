@@ -61,7 +61,7 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 			lease_id, allocation_id, node_id, node_target, attempt, lease_type,
 			expires_at, revision, revoked, token_hash, created_at
 		) VALUES ('lease-watch', 'alloc-watch', 'node-a', 'node-a:24010', 1,
-			'LEASE_TYPE_SERVICE', $1, $2, false, 'token-hash', $3)
+			'LEASE_TYPE_RUN', $1, $2, false, 'token-hash', $3)
 	`, time.Now().Add(time.Minute).UTC(), revision, time.Now().UTC()); err != nil {
 		t.Fatalf("insert lease: %v", err)
 	}

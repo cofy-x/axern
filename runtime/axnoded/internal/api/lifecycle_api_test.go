@@ -116,8 +116,6 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 		Config: &nodelifecyclev1.ResolvedExecutionConfig{
 			ImageDescriptor: imageRef,
 			RuntimeClass:    "runsc",
-			Namespace:       "default",
-			ServiceID:       "svc-123",
 			Argv:            []string{"/bin/sh", "-lc", "sleep 3600"},
 			Cwd:             "/workspace",
 			Env:             map[string]string{"A": "B"},
@@ -196,8 +194,8 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	if strings.Contains(startReq.GetExtraConfig(), `"allocationAttempt"`) {
 		t.Fatalf("extra_config = %q, must not duplicate typed allocation attempt", startReq.GetExtraConfig())
 	}
-	if !strings.Contains(startReq.GetExtraConfig(), `"namespace":"default"`) || !strings.Contains(startReq.GetExtraConfig(), `"serviceId":"svc-123"`) {
-		t.Fatalf("extra_config = %q, want service identity", startReq.GetExtraConfig())
+	if strings.Contains(startReq.GetExtraConfig(), `"namespace"`) || strings.Contains(startReq.GetExtraConfig(), `"serviceId"`) {
+		t.Fatalf("extra_config = %q, must not contain retired service identity", startReq.GetExtraConfig())
 	}
 }
 
@@ -378,8 +376,6 @@ func TestAllocationRuntimeIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 			ImageDescriptor: "image-a",
 			RuntimeClass:    "runsc",
 			Argv:            []string{"/bin/app"},
-			Namespace:       "default",
-			ServiceID:       "svc-a",
 		},
 	}
 	other := &nodelifecyclev1.CreateAllocationRequest{
@@ -388,8 +384,6 @@ func TestAllocationRuntimeIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 			ImageDescriptor: "image-a",
 			RuntimeClass:    "runsc",
 			Argv:            []string{"/bin/app"},
-			Namespace:       "default",
-			ServiceID:       "svc-b",
 		},
 	}
 	baseStart, err := allocationStartRequest(base)

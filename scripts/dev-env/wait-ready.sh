@@ -44,7 +44,7 @@ case "${mode}" in
       echo "compose node summary did not become fresh in time" >&2
       exit 1
     fi
-    [ "${service_smoke}" = "true" ] && run_local_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose"
+    [ "${service_smoke}" = "true" ] && run_local_run_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose"
     [ "${run_smoke}" = "true" ] && run_local_run_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose"
     [ "${server_base_smoke}" = "true" ] && run_local_server_base_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose" "127.0.0.1:${COMPOSE_GATEWAY_HTTP_PORT}"
     [ "${quota_admission_smoke}" = "true" ] && run_local_quota_admission_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose"
@@ -75,7 +75,7 @@ case "${mode}" in
       echo "k8s node summaries did not become fresh in time" >&2
       exit 1
     fi
-    [ "${service_smoke}" = "true" ] && run_local_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}"
+    [ "${service_smoke}" = "true" ] && run_local_run_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}"
     [ "${run_smoke}" = "true" ] && run_local_run_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}"
     [ "${server_base_smoke}" = "true" ] && run_local_server_base_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_HTTP_PORT}"
     [ "${quota_admission_smoke}" = "true" ] && run_local_quota_admission_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}"

@@ -54,15 +54,6 @@ Regenerate the terminal GIFs from their checked-in VHS tapes with:
 make docs-assets
 ```
 
-The homepage Service recording is a separate data-plane acceptance artifact.
-With the local Compose stack ready and a `compose` context configured, exercise
-the same SDK and CLI flow without recording, or regenerate the GIF:
-
-```bash
-make docs-service-demo
-make docs-service-asset
-```
-
 ## Publication
 
 The GitHub Actions workflow builds the same static output and deploys

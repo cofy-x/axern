@@ -12,7 +12,6 @@ import (
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -156,7 +155,7 @@ func TestCatalogJSONUsesStableShape(t *testing.T) {
 	}
 }
 
-func TestSecretAndServiceEventJSONUseStableShape(t *testing.T) {
+func TestSecretJSONUsesStableShape(t *testing.T) {
 	createdAt := timestamppb.New(time.Date(2026, time.April, 29, 12, 0, 0, 0, time.UTC))
 	var secretJSON strings.Builder
 	if err := PrintSecretResponseJSON(&secretJSON, &secretv1.Secret{
@@ -170,24 +169,6 @@ func TestSecretAndServiceEventJSONUseStableShape(t *testing.T) {
 	}
 	if strings.Contains(secretJSON.String(), "SECRET_TYPE") || strings.Contains(secretJSON.String(), `"seconds"`) {
 		t.Fatalf("secret JSON leaked protobuf internals: %s", secretJSON.String())
-	}
-
-	var eventJSON strings.Builder
-	err := PrintServiceEventListJSON(&eventJSON, &servicev1.ListServiceEventsResponse{
-		Events: []*servicev1.ServiceEvent{{
-			ID:             "event-1",
-			ServiceID:      "svc-1",
-			Type:           servicev1.ServiceEventType_SERVICE_EVENT_TYPE_SERVICE_RECOVERED,
-			Phase:          servicev1.ServiceRolloutPhase_SERVICE_ROLLOUT_PHASE_BLOCKED,
-			DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR,
-			CreatedAt:      createdAt,
-		}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(eventJSON.String(), "SERVICE_EVENT_TYPE") || strings.Contains(eventJSON.String(), "SERVICE_ROLLOUT_PHASE") || strings.Contains(eventJSON.String(), "WORKLOAD_DIAGNOSTIC_CODE") || strings.Contains(eventJSON.String(), `"seconds"`) {
-		t.Fatalf("service event JSON leaked protobuf internals: %s", eventJSON.String())
 	}
 }
 

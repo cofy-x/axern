@@ -65,8 +65,6 @@ const (
 	MetricAllocationStatusOldestPendingAge       = "axern.axnoded_allocation_status_oldest_pending_age_seconds"
 	MetricAllocationStatusConsecutiveFailures    = "axern.axnoded_allocation_status_consecutive_failures"
 	MetricAllocationStatusRetryDelay             = "axern.axnoded_allocation_status_retry_delay_seconds"
-	MetricReadinessWaitDuration                  = "axern.axnoded_readiness_wait_duration_seconds"
-	MetricProbeAttemptDuration                   = "axern.axnoded_probe_attempt_duration_seconds"
 	MetricCgroupMemoryCurrent                    = "axern.axnoded_cgroup_memory_current"
 	MetricSandboxMemoryOOMTotal                  = "axern.axnoded_sandbox_memory_oom_total"
 	MetricNodeMemoryBudgetCurrent                = "axern.axnoded_node_memory_budget_current"
@@ -86,10 +84,7 @@ const (
 	MetricCapabilityFailStopCleanupTotal         = "axern.axnoded_capability_fail_stop_cleanup_total"
 )
 
-const (
-	MetricReadinessProbeStageDuration = "axern.axnoded_readiness_probe_stage_duration_seconds"
-	MetricNetworkNeighborResetTotal   = "axern.axnoded_network_neighbor_reset_total"
-)
+const MetricNetworkNeighborResetTotal = "axern.axnoded_network_neighbor_reset_total"
 
 const (
 	descSandboxActionDuration                  = "Axnoded sandbox API action duration."
@@ -130,8 +125,6 @@ const (
 	descAllocationStatusOldestPendingAge       = "Axnoded oldest pending allocation status observation age."
 	descAllocationStatusConsecutiveFailures    = "Axnoded consecutive allocation status batch failures."
 	descAllocationStatusRetryDelay             = "Axnoded current allocation status retry delay."
-	descReadinessWaitDuration                  = "Axnoded readiness wait duration."
-	descProbeAttemptDuration                   = "Axnoded probe attempt duration."
 	descCgroupMemoryCurrent                    = "Node aggregate sandbox cgroup memory.stat and memory.events values by runtime."
 	descSandboxMemoryOOMTotal                  = "Sandbox exits caused by the host cgroup memory boundary."
 	descNodeMemoryBudgetCurrent                = "Node sandbox memory boundary, commitments, system reserve, and cleanup debt."
@@ -141,10 +134,7 @@ const (
 	descFilestoreProbe                         = "Runtime filestore capability probe results."
 )
 
-const (
-	descReadinessProbeStageDuration = "Axnoded readiness probe execution stage duration."
-	descNetworkNeighborResetTotal   = "Axnoded bridge neighbor reset attempts."
-)
+const descNetworkNeighborResetTotal = "Axnoded bridge neighbor reset attempts."
 
 type Point struct {
 	Name        string            `json:"name"`
@@ -541,39 +531,6 @@ func RecordAllocationStatusReporterHealth(oldestPendingAgeSeconds float64, conse
 		MetricAllocationStatusRetryDelay,
 		descAllocationStatusRetryDelay,
 		max(0, retryDelaySeconds),
-	)
-}
-
-func RecordReadinessWaitDuration(probeType, result string, seconds float64) {
-	recordDurationSeconds(
-		MetricReadinessWaitDuration,
-		descReadinessWaitDuration,
-		seconds,
-		attribute.String(sdkobs.AttrProbeType, probeType),
-		attribute.String(sdkobs.AttrResult, result),
-	)
-}
-
-func RecordProbeAttemptDuration(probeKind, probeType, result string, seconds float64) {
-	recordDurationSeconds(
-		MetricProbeAttemptDuration,
-		descProbeAttemptDuration,
-		seconds,
-		attribute.String(sdkobs.AttrProbeKind, probeKind),
-		attribute.String(sdkobs.AttrProbeType, probeType),
-		attribute.String(sdkobs.AttrResult, result),
-	)
-}
-
-func RecordReadinessProbeStageDuration(probeType, stage, result, errorClass string, seconds float64) {
-	recordDurationSeconds(
-		MetricReadinessProbeStageDuration,
-		descReadinessProbeStageDuration,
-		seconds,
-		attribute.String(sdkobs.AttrProbeType, probeType),
-		attribute.String(sdkobs.AttrStage, stage),
-		attribute.String(sdkobs.AttrResult, result),
-		attribute.String(sdkobs.AttrErrorClass, errorClass),
 	)
 }
 

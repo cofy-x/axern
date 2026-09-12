@@ -37,11 +37,10 @@ type AllocationControl interface {
 type TunnelControl interface{ tunnelkernel.NodeControl }
 
 type Dependencies struct {
-	Now                    func() time.Time
-	NodeStore              NodeStore
-	Registry               NodeRegistry
-	Reporter               NodeReporter
-	Allocations            AllocationControl
-	Tunnels                TunnelControl
-	NotifyServiceReconcile func(...string)
+	Now         func() time.Time
+	NodeStore   NodeStore
+	Registry    NodeRegistry
+	Reporter    NodeReporter
+	Allocations AllocationControl
+	Tunnels     TunnelControl
 }

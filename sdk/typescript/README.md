@@ -132,7 +132,7 @@ Common options:
   and numeric memory/storage values are bytes
 - `limitCpu`, `limitMemory`, `limitEphemeralStorage`: runtime hard limits;
   numeric CPU values are cores and numeric memory/storage values are bytes
-- `readyTimeoutMs`: service replica readiness timeout
+- `readyTimeoutMs`: Run allocation startup timeout
 
 Tunnel options:
 

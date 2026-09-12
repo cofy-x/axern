@@ -21,7 +21,7 @@ membership.
 | Module | Responsibility | Local context |
 | :--- | :--- | :--- |
 | `control/controld` | Durable product semantics, placement, allocation lifecycle, routing, and control state | [Contract](../control/controld/AGENTS.md), [README](../control/controld/README.md) |
-| `gateway/gatewayd` | External control edge and service, terminal, tunnel, and sandbox data-plane forwarding | [Contract](../gateway/gatewayd/AGENTS.md), [README](../gateway/gatewayd/README.md) |
+| `gateway/gatewayd` | External control edge plus allocation terminal, SSH, tunnel, artifact, and sandbox data-plane forwarding | [Contract](../gateway/gatewayd/AGENTS.md), [README](../gateway/gatewayd/README.md) |
 | `runtime/axnoded` | Node-local sandbox lifecycle, execution, and allocation cleanup | [Contract](../runtime/axnoded/AGENTS.md), [README](../runtime/axnoded/README.md) |
 | `runtime/egressd` | Trusted node-local sandbox egress policy lifecycle and enforcement | [Contract](../runtime/egressd/AGENTS.md), [README](../runtime/egressd/README.md) |
 | `runtime/tunneld` | Internal reverse-TCP relay and node-local tunnel binding | [Contract](../runtime/tunneld/AGENTS.md), [README](../runtime/tunneld/README.md) |

@@ -136,7 +136,7 @@ func (s *Server) BatchReportAllocationStatus(ctx context.Context, req *controlno
 	}
 	recordAllocationStatusReportStage(ctx, allocationStatusReportStageAuthenticateNode, stageStarted, nil)
 	stageStarted = time.Now()
-	reconcileServiceIDs, err := s.deps.Allocations.BatchReportAllocationStatus(ctx, nodeID, observations, s.deps.Now())
+	_, err := s.deps.Allocations.BatchReportAllocationStatus(ctx, nodeID, observations, s.deps.Now())
 	if err != nil {
 		op.SetErrorStatus("report allocation status batch")
 		opErr = err
@@ -144,9 +144,6 @@ func (s *Server) BatchReportAllocationStatus(ctx context.Context, req *controlno
 		return nil, err
 	}
 	recordAllocationStatusReportStage(ctx, allocationStatusReportStagePersistStatus, stageStarted, nil)
-	if s.deps.NotifyServiceReconcile != nil && len(reconcileServiceIDs) > 0 {
-		s.deps.NotifyServiceReconcile(reconcileServiceIDs...)
-	}
 	return &controlnodev1.BatchReportAllocationStatusResponse{}, nil
 }
 

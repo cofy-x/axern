@@ -12,8 +12,7 @@ enforced by `axnoded`.
 ## Goals
 
 - Bound namespace resource consumption with durable control-plane state.
-- Keep quota admission consistent for runs, services, and future workload
-  owners.
+- Keep quota admission consistent for every Run-backed Allocation.
 - Evaluate quota in the same Postgres transaction as allocation and node
   reservation admission, using the same pure resource policy model.
 - Keep CPU overcommit as a node admission policy, not a quota multiplier.
@@ -24,8 +23,8 @@ enforced by `axnoded`.
 - No namespace-level CPU overcommit ratio in V1.
 - No memory overcommit.
 - No quota on runtime limits in V1.
-- No quota on count-based resources such as services, runs, replicas,
-  images, or secrets in V1.
+- No quota on count-based resources such as Runs, Allocations, images, or
+  secrets in V1.
 - No per-node, per-runtime, per-region, or per-cloud quota in V1.
 - No billing or chargeback model.
 
@@ -65,7 +64,7 @@ transaction:
 
 ```mermaid
 sequenceDiagram
-  participant Store as Run/Service Store
+  participant Store as Run Store
   participant Reservation as postgres/reservation
   participant Quota as Namespace Quota
   participant Node as Node Reservation
@@ -88,8 +87,8 @@ The lock order is always:
 2. Candidate node state.
 3. Allocation and reservation writes.
 
-Run and service admission share the same reservation helper. Future workload
-owners should add owner metadata to that helper instead of copying the sequence.
+Run admission is the only product workload path through the reservation helper.
+Do not add a parallel owner-specific admission ledger.
 
 ## Reservation Ledger
 
@@ -202,13 +201,6 @@ is synchronous: if namespace quota or node reservation capacity is exhausted,
 `CreateRun` returns `ResourceExhausted` and no run or reservation is created.
 Releasing the allocation releases quota.
 
-Services consume quota per active allocation. During replacement, rollout, or
-surge, both old and new active allocations count. This makes rollout capacity
-explicit and avoids silently exceeding the namespace limit. Service create and
-update are desired-state writes; allocation admission happens in reconciliation.
-Quota or node reservation exhaustion degrades the service with diagnostic code
-`ADMISSION_BLOCKED`, and later capacity can let the service recover to `READY`.
-
 ## Observability
 
 Metrics should expose quota usage separately from node capacity:
@@ -277,7 +269,7 @@ gone:
 - active workload reservations
 - non-terminal runs
 - live environments
-- live services
+- active allocations
 - secrets
 
 Historical rows do not block namespace deletion. Completed, failed, and
@@ -304,6 +296,6 @@ The implementation contract is:
 7. Namespace quota admission rejections are recorded in
    `namespace_quota_events` and queried through the quota API.
 
-Future quota dimensions such as service count or run count should extend this
+Future quota dimensions such as Run or Allocation count should extend this
 same namespace policy and reservation model
 rather than introducing parallel quota ledgers.

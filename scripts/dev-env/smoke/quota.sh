@@ -5,15 +5,11 @@ run_local_quota_admission_smoke() {
   local namespace="${prefix}-${env_name}-quota-smoke-$(date +%s)"
 
   local_smoke_init_axern_cmd "${env_name}" "${endpoint}"
-  local catalog_json env_json run_error service_json service_get service_events service_id quota_list quota_unset_json
+  local catalog_json env_json run_error quota_list quota_unset_json
   local quota_set="false" environment_id=""
   run_error=""
-  service_id=""
   cleanup_local_quota_admission_smoke() {
     local rc=$?
-    if [ -n "${service_id:-}" ]; then
-      local_smoke_delete_service "${service_id}" >/dev/null 2>&1 || true
-    fi
     if [ -n "${environment_id:-}" ]; then
       local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" environment delete "${environment_id}" -o json >/dev/null 2>&1 || true
       environment_id=""
@@ -55,43 +51,6 @@ run_local_quota_admission_smoke() {
   rm -f "${run_error}"
   run_error=""
 
-  service_json="$(local_smoke_json_once_or_recover_by_namespace service services service "${namespace}" \
-    "${AXERN_SMOKE_CMD[@]}" service create -o json --namespace "${namespace}" --environment-id "${environment_id}" \
-    --replicas 1 --argv /bin/sh --argv -lc --argv 'sleep 30')"
-  service_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["service"]["id"])' <<<"${service_json}")"
-  [ -n "${service_id}" ]
-
-  local deadline=$((SECONDS + 40))
-  while [ "${SECONDS}" -lt "${deadline}" ]; do
-    service_get="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" service get -o json "${service_id}" 2>/dev/null || true)"
-    if [ -n "${service_get}" ] && python3 -c '
-import json, sys
-service = json.load(sys.stdin)["service"]
-message = service.get("message") or ""
-sys.exit(0 if service.get("status") == "degraded" and "namespace quota exceeded" in message else 1)
-' <<<"${service_get}"; then
-      break
-    fi
-    sleep 1
-  done
-  python3 -c '
-import json, sys
-service = json.load(sys.stdin)["service"]
-message = service.get("message") or ""
-assert service.get("status") == "degraded" and "namespace quota exceeded" in message
-assert service.get("diagnostic_code") == "admission-blocked"
-assert service.get("admission_summary") == "namespace quota exceeded"
-' <<<"${service_get}" >/dev/null
-
-  service_events="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" service events -o json "${service_id}")"
-  python3 -c '
-import json, sys
-events = json.load(sys.stdin).get("events", [])
-assert any(event.get("diagnostic_code") == "admission-blocked" for event in events)
-' <<<"${service_events}" >/dev/null
-
-  local_smoke_delete_service "${service_id}"
-  service_id=""
   quota_unset_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" quota unset --namespace "${namespace}" -o json)"
   python3 -c '
 import json, sys

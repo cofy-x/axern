@@ -58,7 +58,6 @@ failed_e2e_step=""
 export AXERN_CONFIG="${cli_config_file}"
 unset AXERN_CONTEXT
 unset AXERN_ENDPOINT
-unset AXERN_SERVICE_URL
 unset AXERN_SSH_ENDPOINT
 unset AXERN_SSH_IDENTITY_FILE
 
@@ -258,11 +257,11 @@ json_query() {
   printf '%s\n' "${result}"
 }
 
-wait_for_ready_service_allocation() {
-  local service_id="$1"
+wait_for_running_run_allocation() {
+  local run_id="$1"
   local label="$2"
   local timeout_seconds="${3:-120}"
-  local deadline service_get_json replicas_json allocation_id
+  local deadline run_get_json allocation_id
   if ! [[ "${timeout_seconds}" =~ ^[0-9]+$ ]]; then
     echo "${label} wait timeout must be numeric seconds, got ${timeout_seconds}" >&2
     dump_logs
@@ -270,18 +269,9 @@ wait_for_ready_service_allocation() {
   fi
   deadline=$((SECONDS + timeout_seconds))
   while [ "${SECONDS}" -lt "${deadline}" ]; do
-    service_get_json="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service get "${service_id}" -o json 2>/dev/null || true)"
-    if [ -n "${service_get_json}" ] && python3 -c 'import json,sys; data=json.load(sys.stdin); svc=data["service"]; sys.exit(0 if svc.get("ready_replicas", 0) >= 1 else 1)' <<<"${service_get_json}" >/dev/null 2>&1; then
-      replicas_json="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service replicas "${service_id}" --view current -o json 2>/dev/null || true)"
-      allocation_id="$(python3 -c '
-import json, sys
-payload = json.load(sys.stdin)
-for replica in payload.get("replicas", []):
-    if replica.get("ready") and not replica.get("terminal") and not replica.get("outdated"):
-        print(replica["id"])
-        raise SystemExit(0)
-raise SystemExit(1)
-' <<<"${replicas_json}" 2>/dev/null || true)"
+    run_get_json="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run get "${run_id}" -o json 2>/dev/null || true)"
+    if [ -n "${run_get_json}" ] && python3 -c 'import json,sys; run=json.load(sys.stdin)["run"]; sys.exit(0 if run.get("status") == "running" and run.get("allocation_id") else 1)' <<<"${run_get_json}" >/dev/null 2>&1; then
+      allocation_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["run"]["allocation_id"])' <<<"${run_get_json}")"
       if [ -n "${allocation_id}" ]; then
         printf '%s\n' "${allocation_id}"
         return 0
@@ -289,35 +279,7 @@ raise SystemExit(1)
     fi
     sleep 2
   done
-  echo "${label} did not surface a ready allocation in time" >&2
-  dump_logs
-  return 1
-}
-
-wait_for_service_deleted() {
-  local service_id="$1"
-  local label="$2"
-  local timeout_seconds="${3:-120}"
-  local deadline services_json
-  if ! [[ "${timeout_seconds}" =~ ^[0-9]+$ ]]; then
-    echo "${label} wait timeout must be numeric seconds, got ${timeout_seconds}" >&2
-    dump_logs
-    return 1
-  fi
-  deadline=$((SECONDS + timeout_seconds))
-  while [ "${SECONDS}" -lt "${deadline}" ]; do
-    services_json="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service list -o json 2>/dev/null || true)"
-    if [ -n "${services_json}" ] && python3 -c '
-import json, sys
-service_id = sys.argv[1]
-payload = json.load(sys.stdin)
-raise SystemExit(1 if any(service.get("id") == service_id for service in payload.get("services", [])) else 0)
-' "${service_id}" <<<"${services_json}" >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 2
-  done
-  echo "${label} was not fully deleted in time" >&2
+  echo "${label} did not surface a running allocation in time" >&2
   dump_logs
   return 1
 }

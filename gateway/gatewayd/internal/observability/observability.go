@@ -2,22 +2,15 @@ package observability
 
 import (
 	"context"
-	"time"
 
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 type Metrics struct {
-	activeHTTP        sdkobs.UpDownCounter
-	activeTerminal    sdkobs.UpDownCounter
-	routeResolves     sdkobs.Counter
-	routeCache        sdkobs.Counter
-	routeCacheEntries sdkobs.Gauge
-	upstreamFailure   sdkobs.Counter
-	leaseRetries      sdkobs.Counter
-	serviceStages     sdkobs.Histogram
-	terminalEvents    sdkobs.Counter
+	activeTerminal sdkobs.UpDownCounter
+	leaseRetries   sdkobs.Counter
+	terminalEvents sdkobs.Counter
 }
 
 func NewMetrics(obs *sdkobs.Handle) *Metrics {
@@ -25,36 +18,9 @@ func NewMetrics(obs *sdkobs.Handle) *Metrics {
 		return &Metrics{}
 	}
 	return &Metrics{
-		activeHTTP:        obs.Int64UpDownCounter(MetricHTTPRequestsCurrent.Name, MetricHTTPRequestsCurrent.Description),
-		activeTerminal:    obs.Int64UpDownCounter(MetricTerminalSessionsCurrent.Name, MetricTerminalSessionsCurrent.Description),
-		routeResolves:     obs.Int64Counter(MetricRouteResolveTotal.Name, MetricRouteResolveTotal.Description),
-		routeCache:        obs.Int64Counter(MetricRouteCacheEvents.Name, MetricRouteCacheEvents.Description),
-		routeCacheEntries: obs.Float64Gauge(MetricRouteCacheEntriesCurrent.Name, MetricRouteCacheEntriesCurrent.Description),
-		upstreamFailure:   obs.Int64Counter(MetricUpstreamFailureTotal.Name, MetricUpstreamFailureTotal.Description),
-		leaseRetries:      obs.Int64Counter(MetricLeaseRetryTotal.Name, MetricLeaseRetryTotal.Description),
-		serviceStages:     obs.DurationHistogram(MetricServiceProxyStageDuration.Name, MetricServiceProxyStageDuration.Description),
-		terminalEvents:    obs.Int64Counter(MetricTerminalEventTotal.Name, MetricTerminalEventTotal.Description),
-	}
-}
-
-func (m *Metrics) RouteCacheEntries(state string, value int) {
-	if m == nil {
-		return
-	}
-	m.routeCacheEntries.Record(
-		context.Background(),
-		float64(value),
-		attribute.String(sdkobs.AttrState, normalizeLabel(state, "unknown")),
-	)
-}
-
-func (m *Metrics) IncActiveHTTP() func() {
-	if m == nil {
-		return func() {}
-	}
-	m.activeHTTP.Add(context.Background(), 1)
-	return func() {
-		m.activeHTTP.Add(context.Background(), -1)
+		activeTerminal: obs.Int64UpDownCounter(MetricTerminalSessionsCurrent.Name, MetricTerminalSessionsCurrent.Description),
+		leaseRetries:   obs.Int64Counter(MetricLeaseRetryTotal.Name, MetricLeaseRetryTotal.Description),
+		terminalEvents: obs.Int64Counter(MetricTerminalEventTotal.Name, MetricTerminalEventTotal.Description),
 	}
 }
 
@@ -68,39 +34,6 @@ func (m *Metrics) IncActiveTerminal() func() {
 	}
 }
 
-func (m *Metrics) RouteResolve(result string) {
-	if m == nil {
-		return
-	}
-	m.routeResolves.Add(
-		context.Background(),
-		1,
-		attribute.String(sdkobs.AttrResult, normalizeLabel(result, "unknown")),
-	)
-}
-
-func (m *Metrics) RouteCache(event string) {
-	if m == nil {
-		return
-	}
-	m.routeCache.Add(
-		context.Background(),
-		1,
-		attribute.String(sdkobs.AttrEvent, normalizeLabel(event, "unknown")),
-	)
-}
-
-func (m *Metrics) UpstreamFailure(errorClass string) {
-	if m == nil {
-		return
-	}
-	m.upstreamFailure.Add(
-		context.Background(),
-		1,
-		attribute.String(sdkobs.AttrErrorClass, normalizeLabel(errorClass, "unknown")),
-	)
-}
-
 func (m *Metrics) LeaseRetry(routeType string) {
 	if m == nil {
 		return
@@ -109,20 +42,6 @@ func (m *Metrics) LeaseRetry(routeType string) {
 		context.Background(),
 		1,
 		attribute.String(sdkobs.AttrRouteType, normalizeLabel(routeType, "unknown")),
-	)
-}
-
-func (m *Metrics) ObserveServiceProxyStage(stage, result, errorClass, method string, duration time.Duration) {
-	if m == nil {
-		return
-	}
-	m.serviceStages.RecordDuration(
-		context.Background(),
-		duration,
-		attribute.String(sdkobs.AttrStage, normalizeLabel(stage, "unknown")),
-		attribute.String(sdkobs.AttrResult, normalizeLabel(result, "unknown")),
-		attribute.String(sdkobs.AttrErrorClass, normalizeLabel(errorClass, "none")),
-		attribute.String(sdkobs.AttrHTTPMethod, normalizeLabel(method, "unknown")),
 	)
 }
 

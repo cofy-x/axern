@@ -14,7 +14,7 @@ Read only the context required for the task:
    its `AGENTS.md` when present and its `README.md`.
 2. Read [Project Overview](.x/project-overview.md) for root layout, workspace,
    build orchestration, or placement changes.
-3. Read [Runtime Stack](.x/runtime-stack.md) only when behavior crosses service,
+3. Read [Runtime Stack](.x/runtime-stack.md) only when behavior crosses control,
    SDK, storage, runtime, gateway, or network boundaries.
 4. Read [Coding Standards](.x/coding-standards.md) for language rules and the
    validation baseline.
@@ -56,6 +56,33 @@ behavior and fix the stale document in the same change.
 - Keep root deployment commands and `deploy/helm/` cloud-neutral. Provider-
   specific values, credentials, cluster paths, and cloud resource orchestration
   belong in an external workspace or provider repository.
+
+## Product And Execution Boundary
+
+- Axern is the open-source environment execution platform for agent evaluation,
+  training, and executable data synthesis. It provides secure, reproducible,
+  highly concurrent sandbox infrastructure through one SDK-oriented surface;
+  it is not a general PaaS or an all-in-one benchmark, agent, or training
+  product.
+- The canonical durable execution model is `Environment -> Run -> Allocation`.
+  `Sandbox` is an SDK experience backed by a Run and its Allocation, not a
+  parallel persistent product object.
+- SSH, terminal, process, file, and Tunnel access are retained allocation-bound
+  capabilities. They must not depend on Service identity, replica selection,
+  `/svc` routing, or a persistent workspace product.
+- Do not reintroduce Service, Function, Agent Profile, generic Volume
+  Class/Claim/Binding, `storaged`, or `volumed` product lifecycles. Higher-level
+  evaluation, rollout, verifier, provider, budget, and training orchestration
+  belongs in Axrun, Openbench, or another caller above the execution platform.
+- Runsc is the supported production sandbox backend. Missing required platform
+  capability must fail closed; do not silently fall back to ordinary runc.
+- PostgreSQL is the only authoritative central state backend. During the current
+  pre-stable convergence, the local database and initial schema may be rebuilt;
+  do not preserve obsolete tables, protobuf numbering gaps, aliases, dual
+  writes, or compatibility guards without a concrete external contract.
+- `runtime/axnoded/internal/service` is an implementation-layer package name,
+  not the retired Service product model. Do not mechanically rename it or treat
+  every use of the word "service" as a product-domain dependency.
 
 ## Design Policy
 

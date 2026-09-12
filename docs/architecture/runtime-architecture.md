@@ -2,8 +2,10 @@
 
 Axern V1 separates the durable control plane from node-local execution:
 
-- `controld` owns catalog, environments, runs, services, allocations,
-  reservations, and execution leases.
+- `controld` owns catalog, environments, runs, allocations, reservations,
+  execution leases, and tunnel sessions. The canonical durable execution model
+  is `Environment -> Run -> Allocation`; SDK `Sandbox` objects are facades over
+  that model rather than independent control-plane resources.
 - `axnoded` owns node-local process/container execution and reports allocation
   status back to `controld`. Probe and lifecycle workers enqueue observations
   without waiting for control-plane I/O; the node reporter coalesces the latest
@@ -35,20 +37,19 @@ Axern V1 separates the durable control plane from node-local execution:
   present in the node-local `imagemgr` OCI cache; mounted images mean the image
   currently backs a workload rootfs mount.
   Rootfs sources are local directories or registry images (OCI/Nydus), not
-  raw object-store mounts; rollout artifact storage is a separate data path.
+  raw object-store mounts; explicit artifact delivery is a separate data path.
 - Writable rootfs and workspace directories are allocation-local, with
   node-owned reservations and recovery records. They do not survive allocation
   replacement or node loss by contract. Durable outputs require explicit
   delivery; there is no generic volume class/claim/binding service. See
   [Storage Architecture](storage-architecture.md) for ownership and the
   historical-data upgrade boundary.
-- Service readiness is a control-plane-visible concern: `axnoded` reports
-  `ready` and `readiness_message` separately from lifecycle `status`, and
-  `controld` gates service `READY` and rollout drain decisions on that
-  readiness signal.
-- Service rollout is a Service capability for long-running, replica-oriented
-  workloads. `Run` stays a single-allocation lifecycle API.
-- Public workload API names are `Environment`, `Run`, and `Service`.
+- Allocation lifecycle and exit status are control-plane-visible concerns.
+  `axnoded` reports attempt-fenced observations and `controld` projects them
+  into the owning Run without a Service readiness or replica state machine.
+- Public workload API names are `Environment` and `Run`. `Allocation` is the
+  concrete execution identity used by terminal, SSH, Tunnel, process, file,
+  and administrative lifecycle operations.
 - Catalog templates and environments are runtime-neutral. Workloads select
   `runsc` through `ExecutionConfig.runtime_class`; omitted values
   default to `runsc` in `controld` before placement and node lifecycle dispatch.
@@ -66,7 +67,7 @@ flowchart LR
     Snapshot --> Ctrl
     Ctrl --> Node["axnoded lifecycle API"]
     Node --> CtrlStatus["BatchReportAllocationStatus"]
-    CtrlStatus --> ServiceQueue["keyed service reconcile queue"]
+    CtrlStatus --> RunState["Run / Allocation durable state"]
     Gateway --> Resolve["ResolveAllocationTerminal"]
     Resolve --> NodeExec["NodeSandbox exec with internal allocation lease"]
 ```

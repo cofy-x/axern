@@ -51,7 +51,6 @@ class WorkloadDiagnosticCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     WORKLOAD_DIAGNOSTIC_CODE_NODE_SELECTION_ERROR: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_PROCESS_EXITED: _ClassVar[WorkloadDiagnosticCode]
-    WORKLOAD_DIAGNOSTIC_CODE_LIVENESS_PROBE_FAILED: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED: _ClassVar[WorkloadDiagnosticCode]
@@ -60,8 +59,6 @@ class LeaseType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     LEASE_TYPE_UNSPECIFIED: _ClassVar[LeaseType]
     LEASE_TYPE_RUN: _ClassVar[LeaseType]
-    LEASE_TYPE_SERVICE: _ClassVar[LeaseType]
-    LEASE_TYPE_INVOKE: _ClassVar[LeaseType]
 PORT_PROTOCOL_UNSPECIFIED: PortProtocol
 PORT_PROTOCOL_TCP: PortProtocol
 PORT_PROTOCOL_UDP: PortProtocol
@@ -88,14 +85,11 @@ WORKLOAD_DIAGNOSTIC_CODE_IMAGE_RESOLUTION_ERROR: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_NODE_SELECTION_ERROR: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_PROCESS_EXITED: WorkloadDiagnosticCode
-WORKLOAD_DIAGNOSTIC_CODE_LIVENESS_PROBE_FAILED: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED: WorkloadDiagnosticCode
 LEASE_TYPE_UNSPECIFIED: LeaseType
 LEASE_TYPE_RUN: LeaseType
-LEASE_TYPE_SERVICE: LeaseType
-LEASE_TYPE_INVOKE: LeaseType
 
 class ResourceQuantity(_message.Message):
     __slots__ = ("cpu_milli", "memory_bytes", "ephemeral_storage_bytes")

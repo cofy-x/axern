@@ -5,12 +5,11 @@ allocation routing, obtains internal execution authorization from controld,
 and forwards sandbox traffic to axnoded. Clients never receive node targets or
 execution lease tokens.
 
-Public workload models have separate semantics:
+`Run` is the single public workload model: one execution owns one allocation
+and eventually records a terminal exit status. SDK Sandboxes use a detached
+Run while their client-managed session is active.
 
-- `Run`: one-shot, single-allocation execution with terminal exit status.
-- `Service`: long-running replica convergence, rollout, and probes.
-
-Both use `Environment` as the execution source. A resource spec selects
+Runs use `Environment` as the execution source. A resource spec selects
 exactly one existing environment, catalog template, or OCI image. Template and
 image sources are resolved into an immutable environment before admission.
 Runtime class belongs to execution config, not the environment.
@@ -19,7 +18,7 @@ Runtime class belongs to execution config, not the environment.
 
 Creation is a durable submit operation. Controld records workload intent,
 allocation, reservation, and reconcile work transactionally. Node startup,
-image preparation, probes, and status reporting continue asynchronously.
+image preparation, and status reporting continue asynchronously.
 `--wait` observes the durable lifecycle rather than holding the create RPC
 open.
 
@@ -40,11 +39,10 @@ sequenceDiagram
     Node-->>Control: "BatchReportAllocationStatus"
     Client->>Gateway: "Get workload / events"
     Gateway->>Control: "Read public state"
-    Control-->>Client: "Running, ready, or terminal state"
+    Control-->>Client: "Queued, running, or terminal state"
 ```
 
 Foreground `axern run` returns the workload exit code after normal termination.
-Service wait observes rollout, replica, readiness, and event state.
 
 ## Sandbox Data Plane
 

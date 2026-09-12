@@ -112,9 +112,8 @@ test("shared common core surface", () => {
   assertMethods(contract.client, AxernClient.prototype, {
     environment_create: "createEnvironment",
     environment_delete: "deleteEnvironment",
-    service_create: "createService",
-    service_delete: "deleteService",
-    service_replicas: "listServiceReplicas",
+    run_create: "createRun",
+    run_cancel: "cancelRun",
   });
   assertMethods(contract.sandbox.filter((operation) => operation !== "tunnel"), Sandbox.prototype, {
     lifecycle_start: "start",

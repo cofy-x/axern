@@ -29,8 +29,7 @@ axern run --template python311 \
   -- python -c 'print("hello")'
 ```
 
-Runs and services use the same resource flags; mutable service resources
-change with `axern service update`.
+Every Run declares its resource intent at creation time.
 
 ## Namespace quota
 
@@ -55,7 +54,7 @@ compact `admission_summary` such as `namespace quota exceeded` or
 `node memory capacity exhausted`:
 
 ```bash
-axern service get <service-id> --output json
+axern run get <run-id> --output json
 ```
 
 The repository's

@@ -208,9 +208,8 @@ func TestSharedCommonCoreContract(t *testing.T) {
 	assertContractMethods(t, contract.Client, clientMethods, map[string]string{
 		"environment_create": "CreateEnvironment",
 		"environment_delete": "DeleteEnvironment",
-		"service_create":     "CreateService",
-		"service_delete":     "DeleteService",
-		"service_replicas":   "ListServiceReplicas",
+		"run_create":         "CreateRun",
+		"run_cancel":         "CancelRun",
 	})
 	assertContractMethods(t, contract.Sandbox, sandboxMethods, map[string]string{
 		"lifecycle_start":  "Start",

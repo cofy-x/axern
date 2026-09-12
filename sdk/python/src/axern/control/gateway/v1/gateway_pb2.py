@@ -23,10 +23,9 @@ _sym_db = _symbol_database.Default()
 
 
 from axern.control.common.v1 import common_pb2 as axern_dot_control_dot_common_dot_v1_dot_common__pb2
-from axern.control.service.v1 import service_types_pb2 as axern_dot_control_dot_service_dot_v1_dot_service__types__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&axern/control/gateway/v1/gateway.proto\x12\x18\x61xern.control.gateway.v1\x1a$axern/control/common/v1/common.proto\x1a,axern/control/service/v1/service_types.proto\"j\n\x1aResolveServiceRouteRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x12\n\nservice_id\x18\x02 \x01(\t\x12\x10\n\x08port_ref\x18\x03 \x01(\t\x12\x13\n\x0bttl_seconds\x18\x04 \x01(\x03\"q\n\x10ServiceRoutePort\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x37\n\x08protocol\x18\x02 \x01(\x0e\x32%.axern.control.common.v1.PortProtocol\x12\x16\n\x0e\x63ontainer_port\x18\x03 \x01(\x05\"\xfc\x01\n\x14ServiceRouteEndpoint\x12\x15\n\rallocation_id\x18\x01 \x01(\t\x12\x0f\n\x07node_id\x18\x02 \x01(\t\x12\x13\n\x0bnode_target\x18\x03 \x01(\t\x12\x0f\n\x07\x61ttempt\x18\x04 \x01(\x03\x12\x16\n\x0e\x63ontainer_port\x18\x05 \x01(\x05\x12\x37\n\x08protocol\x18\x06 \x01(\x0e\x32%.axern.control.common.v1.PortProtocol\x12\r\n\x05ready\x18\x07 \x01(\x08\x12\x36\n\x05lease\x18\x08 \x01(\x0b\x32\'.axern.control.common.v1.ExecutionLease\"\x82\x02\n\x1bResolveServiceRouteResponse\x12\x12\n\nservice_id\x18\x01 \x01(\t\x12\x11\n\tnamespace\x18\x02 \x01(\t\x12?\n\x0eservice_status\x18\x03 \x01(\x0e\x32\'.axern.control.service.v1.ServiceStatus\x12\x38\n\x04port\x18\x04 \x01(\x0b\x32*.axern.control.gateway.v1.ServiceRoutePort\x12\x41\n\tendpoints\x18\x05 \x03(\x0b\x32..axern.control.gateway.v1.ServiceRouteEndpoint\"\xba\x01\n ResolveAllocationTerminalRequest\x12\x15\n\rallocation_id\x18\x01 \x01(\t\x12\x13\n\x0bttl_seconds\x18\x02 \x01(\x03\x12&\n\x1e\x63lient_certificate_fingerprint\x18\x03 \x01(\t\x12\x42\n\x07purpose\x18\x04 \x01(\x0e\x32\x31.axern.control.gateway.v1.AllocationAccessPurpose\"\xcf\x01\n!ResolveAllocationTerminalResponse\x12\x15\n\rallocation_id\x18\x01 \x01(\t\x12\x12\n\nowner_type\x18\x02 \x01(\t\x12\x10\n\x08owner_id\x18\x03 \x01(\t\x12\x0f\n\x07node_id\x18\x04 \x01(\t\x12\x13\n\x0bnode_target\x18\x05 \x01(\t\x12\x0f\n\x07\x61ttempt\x18\x06 \x01(\x03\x12\x36\n\x05lease\x18\x07 \x01(\x0b\x32\'.axern.control.common.v1.ExecutionLease\"5\n\x1fResolveTunnelRelayTargetRequest\x12\x12\n\nsession_id\x18\x01 \x01(\t\"<\n ResolveTunnelRelayTargetResponse\x12\x18\n\x10node_edge_target\x18\x01 \x01(\t\"9\n#ResolveServiceReplicaTargetsRequest\x12\x12\n\nservice_id\x18\x01 \x01(\t\">\n\x14ServiceReplicaTarget\x12\x15\n\rallocation_id\x18\x01 \x01(\t\x12\x0f\n\x07node_id\x18\x02 \x01(\t\"h\n$ResolveServiceReplicaTargetsResponse\x12@\n\x08replicas\x18\x01 \x03(\x0b\x32..axern.control.gateway.v1.ServiceReplicaTarget*\x99\x01\n\x17\x41llocationAccessPurpose\x12)\n%ALLOCATION_ACCESS_PURPOSE_UNSPECIFIED\x10\x00\x12)\n%ALLOCATION_ACCESS_PURPOSE_INTERACTIVE\x10\x01\x12(\n$ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT\x10\x02\x32\xe8\x04\n\x0eGatewayControl\x12\x84\x01\n\x13ResolveServiceRoute\x12\x34.axern.control.gateway.v1.ResolveServiceRouteRequest\x1a\x35.axern.control.gateway.v1.ResolveServiceRouteResponse\"\x00\x12\x96\x01\n\x19ResolveAllocationTerminal\x12:.axern.control.gateway.v1.ResolveAllocationTerminalRequest\x1a;.axern.control.gateway.v1.ResolveAllocationTerminalResponse\"\x00\x12\x93\x01\n\x18ResolveTunnelRelayTarget\x12\x39.axern.control.gateway.v1.ResolveTunnelRelayTargetRequest\x1a:.axern.control.gateway.v1.ResolveTunnelRelayTargetResponse\"\x00\x12\x9f\x01\n\x1cResolveServiceReplicaTargets\x12=.axern.control.gateway.v1.ResolveServiceReplicaTargetsRequest\x1a>.axern.control.gateway.v1.ResolveServiceReplicaTargetsResponse\"\x00\x42GZEgithub.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1;gatewayv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&axern/control/gateway/v1/gateway.proto\x12\x18\x61xern.control.gateway.v1\x1a$axern/control/common/v1/common.proto\"\xba\x01\n ResolveAllocationTerminalRequest\x12\x15\n\rallocation_id\x18\x01 \x01(\t\x12\x13\n\x0bttl_seconds\x18\x02 \x01(\x03\x12&\n\x1e\x63lient_certificate_fingerprint\x18\x03 \x01(\t\x12\x42\n\x07purpose\x18\x04 \x01(\x0e\x32\x31.axern.control.gateway.v1.AllocationAccessPurpose\"\xcf\x01\n!ResolveAllocationTerminalResponse\x12\x15\n\rallocation_id\x18\x01 \x01(\t\x12\x12\n\nowner_type\x18\x02 \x01(\t\x12\x10\n\x08owner_id\x18\x03 \x01(\t\x12\x0f\n\x07node_id\x18\x04 \x01(\t\x12\x13\n\x0bnode_target\x18\x05 \x01(\t\x12\x0f\n\x07\x61ttempt\x18\x06 \x01(\x03\x12\x36\n\x05lease\x18\x07 \x01(\x0b\x32\'.axern.control.common.v1.ExecutionLease\"5\n\x1fResolveTunnelRelayTargetRequest\x12\x12\n\nsession_id\x18\x01 \x01(\t\"<\n ResolveTunnelRelayTargetResponse\x12\x18\n\x10node_edge_target\x18\x01 \x01(\t*\x99\x01\n\x17\x41llocationAccessPurpose\x12)\n%ALLOCATION_ACCESS_PURPOSE_UNSPECIFIED\x10\x00\x12)\n%ALLOCATION_ACCESS_PURPOSE_INTERACTIVE\x10\x01\x12(\n$ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT\x10\x02\x32\xbf\x02\n\x0eGatewayControl\x12\x96\x01\n\x19ResolveAllocationTerminal\x12:.axern.control.gateway.v1.ResolveAllocationTerminalRequest\x1a;.axern.control.gateway.v1.ResolveAllocationTerminalResponse\"\x00\x12\x93\x01\n\x18ResolveTunnelRelayTarget\x12\x39.axern.control.gateway.v1.ResolveTunnelRelayTargetRequest\x1a:.axern.control.gateway.v1.ResolveTunnelRelayTargetResponse\"\x00\x42GZEgithub.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1;gatewayv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,30 +33,16 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'axern.control.gateway.v1.ga
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZEgithub.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1;gatewayv1'
-  _globals['_ALLOCATIONACCESSPURPOSE']._serialized_start=1637
-  _globals['_ALLOCATIONACCESSPURPOSE']._serialized_end=1790
-  _globals['_RESOLVESERVICEROUTEREQUEST']._serialized_start=152
-  _globals['_RESOLVESERVICEROUTEREQUEST']._serialized_end=258
-  _globals['_SERVICEROUTEPORT']._serialized_start=260
-  _globals['_SERVICEROUTEPORT']._serialized_end=373
-  _globals['_SERVICEROUTEENDPOINT']._serialized_start=376
-  _globals['_SERVICEROUTEENDPOINT']._serialized_end=628
-  _globals['_RESOLVESERVICEROUTERESPONSE']._serialized_start=631
-  _globals['_RESOLVESERVICEROUTERESPONSE']._serialized_end=889
-  _globals['_RESOLVEALLOCATIONTERMINALREQUEST']._serialized_start=892
-  _globals['_RESOLVEALLOCATIONTERMINALREQUEST']._serialized_end=1078
-  _globals['_RESOLVEALLOCATIONTERMINALRESPONSE']._serialized_start=1081
-  _globals['_RESOLVEALLOCATIONTERMINALRESPONSE']._serialized_end=1288
-  _globals['_RESOLVETUNNELRELAYTARGETREQUEST']._serialized_start=1290
-  _globals['_RESOLVETUNNELRELAYTARGETREQUEST']._serialized_end=1343
-  _globals['_RESOLVETUNNELRELAYTARGETRESPONSE']._serialized_start=1345
-  _globals['_RESOLVETUNNELRELAYTARGETRESPONSE']._serialized_end=1405
-  _globals['_RESOLVESERVICEREPLICATARGETSREQUEST']._serialized_start=1407
-  _globals['_RESOLVESERVICEREPLICATARGETSREQUEST']._serialized_end=1464
-  _globals['_SERVICEREPLICATARGET']._serialized_start=1466
-  _globals['_SERVICEREPLICATARGET']._serialized_end=1528
-  _globals['_RESOLVESERVICEREPLICATARGETSRESPONSE']._serialized_start=1530
-  _globals['_RESOLVESERVICEREPLICATARGETSRESPONSE']._serialized_end=1634
-  _globals['_GATEWAYCONTROL']._serialized_start=1793
-  _globals['_GATEWAYCONTROL']._serialized_end=2409
+  _globals['_ALLOCATIONACCESSPURPOSE']._serialized_start=623
+  _globals['_ALLOCATIONACCESSPURPOSE']._serialized_end=776
+  _globals['_RESOLVEALLOCATIONTERMINALREQUEST']._serialized_start=107
+  _globals['_RESOLVEALLOCATIONTERMINALREQUEST']._serialized_end=293
+  _globals['_RESOLVEALLOCATIONTERMINALRESPONSE']._serialized_start=296
+  _globals['_RESOLVEALLOCATIONTERMINALRESPONSE']._serialized_end=503
+  _globals['_RESOLVETUNNELRELAYTARGETREQUEST']._serialized_start=505
+  _globals['_RESOLVETUNNELRELAYTARGETREQUEST']._serialized_end=558
+  _globals['_RESOLVETUNNELRELAYTARGETRESPONSE']._serialized_start=560
+  _globals['_RESOLVETUNNELRELAYTARGETRESPONSE']._serialized_end=620
+  _globals['_GATEWAYCONTROL']._serialized_start=779
+  _globals['_GATEWAYCONTROL']._serialized_end=1098
 # @@protoc_insertion_point(module_scope)

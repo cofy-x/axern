@@ -13,7 +13,6 @@ import (
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
@@ -49,12 +48,7 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 				SELECT r.status FROM runs r
 				WHERE r.allocation_id = q.allocation_id
 				LIMIT 1
-			), ''),
-			EXISTS (
-				SELECT 1
-				FROM services s, jsonb_array_elements_text(s.allocation_ids) AS existing(allocation_id)
-				WHERE s.service_id = a.owner_id AND existing.allocation_id = q.allocation_id
-			)
+			), '')
 		FROM allocation_reconcile_queue q
 		JOIN allocations a ON a.allocation_id = q.allocation_id
 		JOIN nodes n ON n.node_id = a.node_id
@@ -82,7 +76,6 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 		&clearanceInput.HasActiveLease,
 		&clearanceInput.HasActiveTunnelSession,
 		&clearanceInput.OwnerRunStatus,
-		&clearanceInput.OwnerServiceReferencesAllocation,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, grpcstatus.Errorf(codes.NotFound, "allocation lifecycle retry %q with reason %q not found", allocationID, reason)
@@ -130,8 +123,6 @@ func failLifecycleRetryOwner(ctx context.Context, tx pgx.Tx, item allocationkern
 	switch item.OwnerType {
 	case allocationkernel.OwnerRun:
 		return failRunLifecycleRetry(ctx, tx, item, message, now)
-	case allocationkernel.OwnerService:
-		return failServiceLifecycleRetry(ctx, tx, item, message, now)
 	default:
 		return grpcstatus.Errorf(codes.FailedPrecondition, "unsupported allocation lifecycle retry owner_type %q", item.OwnerType)
 	}
@@ -168,50 +159,6 @@ func failRunLifecycleRetry(ctx context.Context, tx pgx.Tx, item allocationkernel
 		return err
 	}
 	return pgreservation.ReleaseAllocation(ctx, tx, item.AllocationID, now)
-}
-
-func failServiceLifecycleRetry(ctx context.Context, tx pgx.Tx, item allocationkernel.LifecycleRetryItem, message string, now time.Time) error {
-	if _, err := tx.Exec(ctx, `
-		UPDATE allocations
-		SET status = $2, message = $3, version = version + 1, updated_at = $4
-		WHERE allocation_id = $1 AND owner_type = $5 AND owner_id = $6
-	`, item.AllocationID, commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(), strings.TrimSpace(message), now.UTC(), allocationkernel.OwnerService, item.OwnerID); err != nil {
-		return fmt.Errorf("fail service allocation: %w", err)
-	}
-	if err := pgtunnel.RevokeActiveForAllocationsTx(ctx, tx, pgtunnel.RevokeActiveForAllocationsRequest{
-		AllocationIDs: []string{item.AllocationID},
-		Reason:        "admin failed service allocation lifecycle retry",
-		ReasonCode:    tunnelv1.TunnelSessionEventReasonCode_TUNNEL_SESSION_EVENT_REASON_CODE_ALLOCATION_ENDED,
-		Now:           now,
-	}); err != nil {
-		return err
-	}
-	if err := revokeActiveAllocationLeases(ctx, tx, item.AllocationID); err != nil {
-		return err
-	}
-	if err := pgreservation.ReleaseAllocation(ctx, tx, item.AllocationID, now); err != nil {
-		return err
-	}
-	tag, err := tx.Exec(ctx, `
-		UPDATE services
-		SET allocation_ids = COALESCE((
-				SELECT jsonb_agg(allocation_id ORDER BY ord)
-				FROM jsonb_array_elements_text(services.allocation_ids) WITH ORDINALITY AS existing(allocation_id, ord)
-				WHERE existing.allocation_id <> $2
-			), '[]'::jsonb),
-			status = $3,
-			message = $4,
-			version = version + 1,
-			updated_at = $5
-		WHERE service_id = $1
-	`, item.OwnerID, item.AllocationID, servicev1.ServiceStatus_SERVICE_STATUS_DEGRADED.String(), strings.TrimSpace(message), now.UTC())
-	if err != nil {
-		return fmt.Errorf("fail service lifecycle retry: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return grpcstatus.Errorf(codes.FailedPrecondition, "service allocation lifecycle retry %q has no owner service", item.AllocationID)
-	}
-	return nil
 }
 
 func revokeActiveAllocationLeases(ctx context.Context, tx pgx.Tx, allocationID string) error {
@@ -325,8 +272,6 @@ func requireOwnerConvergedForClear(ctx context.Context, tx pgx.Tx, item allocati
 	switch item.OwnerType {
 	case allocationkernel.OwnerRun:
 		return requireRunConvergedForClear(ctx, tx, item)
-	case allocationkernel.OwnerService:
-		return requireServiceConvergedForClear(ctx, tx, item)
 	default:
 		return grpcstatus.Errorf(codes.FailedPrecondition, "unsupported allocation lifecycle retry owner_type %q", item.OwnerType)
 	}
@@ -354,28 +299,4 @@ func requireRunConvergedForClear(ctx context.Context, tx pgx.Tx, item allocation
 	default:
 		return grpcstatus.Errorf(codes.FailedPrecondition, "allocation lifecycle retry %q cannot be cleared while owner run status is %s", item.AllocationID, status)
 	}
-}
-
-func requireServiceConvergedForClear(ctx context.Context, tx pgx.Tx, item allocationkernel.LifecycleRetryItem) error {
-	var stillReferenced bool
-	err := tx.QueryRow(ctx, `
-		WITH locked_service AS (
-			SELECT allocation_ids
-			FROM services
-			WHERE service_id = $1
-			FOR UPDATE
-		)
-		SELECT EXISTS (
-			SELECT 1
-			FROM locked_service s, jsonb_array_elements_text(s.allocation_ids) AS existing(allocation_id)
-			WHERE existing.allocation_id = $2
-		)
-	`, strings.TrimSpace(item.OwnerID), strings.TrimSpace(item.AllocationID)).Scan(&stillReferenced)
-	if err != nil {
-		return fmt.Errorf("check service owner for lifecycle retry clear: %w", err)
-	}
-	if stillReferenced {
-		return grpcstatus.Errorf(codes.FailedPrecondition, "allocation lifecycle retry %q cannot be cleared while owner service still references it", item.AllocationID)
-	}
-	return nil
 }

@@ -22,7 +22,6 @@ import (
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	secretkernel "github.com/cofy-x/axern/control/controld/internal/kernel/secret"
-	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	"github.com/cofy-x/axern/control/controld/internal/nodebridge"
 	"github.com/cofy-x/axern/control/controld/internal/ociimage"
 	"github.com/cofy-x/axern/control/controld/internal/placement"
@@ -34,91 +33,74 @@ import (
 	pgnodes "github.com/cofy-x/axern/control/controld/internal/postgres/nodes"
 	pgrun "github.com/cofy-x/axern/control/controld/internal/postgres/run"
 	pgsecret "github.com/cofy-x/axern/control/controld/internal/postgres/secret"
-	pgservice "github.com/cofy-x/axern/control/controld/internal/postgres/service"
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 )
 
 const (
-	defaultHeartbeatFreshnessWindow        = 15 * time.Second
-	defaultSummaryFreshnessWindow          = 15 * time.Second
-	defaultExecutionLeaseTTL               = 5 * time.Minute
-	defaultSandboxRuntime                  = "runsc"
-	defaultReconcileInterval               = 2 * time.Second
-	defaultReconcileTimeout                = 30 * time.Second
-	defaultServiceRecoveryInterval         = 30 * time.Second
-	defaultServiceReconcileWorkers         = 32
-	defaultPostgresMaxConnections          = 48
-	defaultServiceAllocationGlobalWorkers  = 256
-	defaultServiceAllocationWorkersPerNode = 12
+	defaultHeartbeatFreshnessWindow = 15 * time.Second
+	defaultSummaryFreshnessWindow   = 15 * time.Second
+	defaultExecutionLeaseTTL        = 5 * time.Minute
+	defaultSandboxRuntime           = "runsc"
+	defaultReconcileInterval        = 2 * time.Second
+	defaultReconcileTimeout         = 30 * time.Second
+	defaultPostgresMaxConnections   = 48
 )
 
 type Config struct {
-	LifecycleContext                context.Context
-	HeartbeatFreshnessWindow        time.Duration
-	SummaryFreshnessWindow          time.Duration
-	RuntimeTemplates                []*catalogv1.RuntimeTemplate
-	PostgresDSN                     string
-	PostgresMaxConnections          int32
-	SecretsMasterKey                string
-	ReconcileInterval               time.Duration
-	ReconcileTimeout                time.Duration
-	ServiceReconcileWorkers         int
-	ServiceAllocationGlobalWorkers  int
-	ServiceAllocationWorkersPerNode int
-	TunnelEdgeTarget                string
-	TunnelNodeEdgeTarget            string
-	TunnelRelays                    string
-	ResourcePolicy                  resourcekernel.AdmissionPolicy
+	LifecycleContext         context.Context
+	HeartbeatFreshnessWindow time.Duration
+	SummaryFreshnessWindow   time.Duration
+	RuntimeTemplates         []*catalogv1.RuntimeTemplate
+	PostgresDSN              string
+	PostgresMaxConnections   int32
+	SecretsMasterKey         string
+	ReconcileInterval        time.Duration
+	ReconcileTimeout         time.Duration
+	TunnelEdgeTarget         string
+	TunnelNodeEdgeTarget     string
+	TunnelRelays             string
+	ResourcePolicy           resourcekernel.AdmissionPolicy
 
 	NodeLifecycle nodebridge.LifecycleClient
 	ImageResolver environmentkernel.ImageResolver
 }
 
 type App struct {
-	registry                        *nodekernel.Registry
-	placement                       *placement.Engine
-	catalog                         *catalog.Store
-	nodeStore                       nodekernel.Store
-	nodeLifecycle                   nodebridge.LifecycleClient
-	nodeBridge                      *nodebridge.Bridge
-	heartbeatFreshnessWindow        time.Duration
-	summaryFreshnessWindow          time.Duration
-	reconcileInterval               time.Duration
-	reconcileTimeout                time.Duration
-	serviceRecoveryInterval         time.Duration
-	serviceReconcileWorkers         int
-	serviceAllocationGlobalWorkers  int
-	serviceAllocationWorkersPerNode int
-	now                             func() time.Time
-	imageResolver                   environmentkernel.ImageResolver
-	resourcePolicy                  resourcekernel.AdmissionPolicy
+	registry                 *nodekernel.Registry
+	placement                *placement.Engine
+	catalog                  *catalog.Store
+	nodeStore                nodekernel.Store
+	nodeLifecycle            nodebridge.LifecycleClient
+	nodeBridge               *nodebridge.Bridge
+	heartbeatFreshnessWindow time.Duration
+	summaryFreshnessWindow   time.Duration
+	reconcileInterval        time.Duration
+	reconcileTimeout         time.Duration
+	now                      func() time.Time
+	imageResolver            environmentkernel.ImageResolver
+	resourcePolicy           resourcekernel.AdmissionPolicy
 
-	db                      *postgres.DB
-	adminPG                 *pgadmin.Store
-	accessPG                *pgaccess.Store
-	accessControl           *appaccess.Service
-	allocationOwners        *pgallocation.OwnerReader
-	runStore                *pgrun.Store
-	namespacePG             *pgnamespace.Store
-	secretDB                *pgsecret.Store
-	servicePG               *pgservice.PGStore
-	tunnelPG                *pgtunnel.Store
-	reconcileCtx            context.Context
-	cancelReconcile         context.CancelFunc
-	stopCh                  chan struct{}
-	pendingServiceReconcile *serviceReconcileQueue
-	allocationReconcileWake chan struct{}
-	stopOnce                sync.Once
-	wg                      sync.WaitGroup
-	metrics                 []sdkobs.ObservableRegistration
+	db               *postgres.DB
+	adminPG          *pgadmin.Store
+	accessPG         *pgaccess.Store
+	accessControl    *appaccess.Service
+	allocationOwners *pgallocation.OwnerReader
+	runStore         *pgrun.Store
+	namespacePG      *pgnamespace.Store
+	secretDB         *pgsecret.Store
+	tunnelPG         *pgtunnel.Store
+	reconcileCtx     context.Context
+	cancelReconcile  context.CancelFunc
+	stopCh           chan struct{}
+	stopOnce         sync.Once
+	wg               sync.WaitGroup
+	metrics          []sdkobs.ObservableRegistration
 
 	reconcileHealth      *reconcilekernel.HealthTracker
 	runReconciler        apprun.Reconciler
 	nodeReconciler       appnode.AvailabilityReconciler
-	serviceReconciler    servicekernel.Reconciler
-	allocationReconciler servicekernel.AllocationReconciler
 	capabilityReconciler *appcapability.Reconciler
 
 	adminAPI    *apiadminv1.Server
@@ -146,17 +128,8 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 	if cfg.ReconcileTimeout <= 0 {
 		cfg.ReconcileTimeout = defaultReconcileTimeout
 	}
-	if cfg.ServiceReconcileWorkers <= 0 {
-		cfg.ServiceReconcileWorkers = defaultServiceReconcileWorkers
-	}
 	if cfg.PostgresMaxConnections <= 0 {
 		cfg.PostgresMaxConnections = defaultPostgresMaxConnections
-	}
-	if cfg.ServiceAllocationGlobalWorkers <= 0 {
-		cfg.ServiceAllocationGlobalWorkers = defaultServiceAllocationGlobalWorkers
-	}
-	if cfg.ServiceAllocationWorkersPerNode <= 0 {
-		cfg.ServiceAllocationWorkersPerNode = defaultServiceAllocationWorkersPerNode
 	}
 	cfg.ResourcePolicy = resourcekernel.NormalizeAdmissionPolicy(cfg.ResourcePolicy)
 	if err := resourcekernel.ValidateAdmissionPolicy(cfg.ResourcePolicy); err != nil {
@@ -175,29 +148,21 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 			SummaryFreshnessWindow:   cfg.SummaryFreshnessWindow,
 			ResourcePolicy:           cfg.ResourcePolicy,
 		}),
-		catalog:                         catalog.NewStore(cfg.RuntimeTemplates),
-		heartbeatFreshnessWindow:        cfg.HeartbeatFreshnessWindow,
-		summaryFreshnessWindow:          cfg.SummaryFreshnessWindow,
-		reconcileInterval:               cfg.ReconcileInterval,
-		reconcileTimeout:                cfg.ReconcileTimeout,
-		serviceRecoveryInterval:         defaultServiceRecoveryInterval,
-		serviceReconcileWorkers:         cfg.ServiceReconcileWorkers,
-		serviceAllocationGlobalWorkers:  cfg.ServiceAllocationGlobalWorkers,
-		serviceAllocationWorkersPerNode: cfg.ServiceAllocationWorkersPerNode,
-		resourcePolicy:                  cfg.ResourcePolicy,
+		catalog:                  catalog.NewStore(cfg.RuntimeTemplates),
+		heartbeatFreshnessWindow: cfg.HeartbeatFreshnessWindow,
+		summaryFreshnessWindow:   cfg.SummaryFreshnessWindow,
+		reconcileInterval:        cfg.ReconcileInterval,
+		reconcileTimeout:         cfg.ReconcileTimeout,
+		resourcePolicy:           cfg.ResourcePolicy,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		reconcileCtx:            reconcileCtx,
-		cancelReconcile:         cancelReconcile,
-		stopCh:                  make(chan struct{}),
-		pendingServiceReconcile: newServiceReconcileQueue(),
-		allocationReconcileWake: make(chan struct{}, 1),
+		reconcileCtx:    reconcileCtx,
+		cancelReconcile: cancelReconcile,
+		stopCh:          make(chan struct{}),
 		reconcileHealth: reconcilekernel.NewHealthTracker(
 			reconcilekernel.ComponentRun,
 			reconcilekernel.ComponentNode,
-			reconcilekernel.ComponentService,
-			reconcilekernel.ComponentAllocation,
 			reconcilekernel.ComponentCapability,
 			reconcilekernel.ComponentTunnel,
 		),
@@ -261,7 +226,6 @@ func (a *App) configureDependencies(cfg Config) error {
 	if err != nil {
 		return err
 	}
-	a.servicePG = pgservice.NewPGStore(db, pgservice.WithAdmissionPolicy(a.resourcePolicy), pgservice.WithPlacementEvaluator(a.placement))
 	relays, err := pgtunnel.ParseRelays(cfg.TunnelRelays)
 	if err != nil {
 		return err
@@ -303,9 +267,6 @@ func (a *App) Close() error {
 		}
 		if a.nodeLifecycle != nil {
 			_ = a.nodeLifecycle.Close()
-		}
-		if a.servicePG != nil {
-			a.servicePG.Close()
 		}
 		if a.runStore != nil {
 			a.runStore.Close()

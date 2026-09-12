@@ -6,11 +6,10 @@ import (
 	"testing"
 	"time"
 
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 )
 
-func TestDoctorServiceIDSelectsReadyAllocationAndReportsPeers(t *testing.T) {
+func TestDoctorAllocationSelectsActiveSessionAndReportsPeers(t *testing.T) {
 	client := &fakeTunnelClient{
 		listResp: &tunnelv1.ListTunnelSessionsResponse{Sessions: []*tunnelv1.TunnelSession{{
 			SessionID:        "tun-1",
@@ -27,18 +26,14 @@ func TestDoctorServiceIDSelectsReadyAllocationAndReportsPeers(t *testing.T) {
 		}},
 	}
 	report, err := New(client).Doctor(context.Background(), DoctorParams{
-		ServiceID: "svc-1",
-		ServiceClient: fakeServiceClient{replicas: []*servicev1.ServiceReplica{
-			{ID: "alloc-b", NodeID: "node-b", Ready: true},
-			{ID: "alloc-a", NodeID: "node-a", Ready: true},
-		}},
-		ProbeRelay: func(context.Context, string, time.Duration) bool { return true },
+		AllocationID: "alloc-a",
+		ProbeRelay:   func(context.Context, string, time.Duration) bool { return true },
 	})
 	if err != nil {
 		t.Fatalf("Doctor returned error: %v", err)
 	}
-	if report.SelectedAllocation != "alloc-a" || report.SelectedNodeID != "node-a" {
-		t.Fatalf("unexpected service selection: %+v", report)
+	if report.AllocationID != "alloc-a" || report.SessionID != "tun-1" {
+		t.Fatalf("unexpected allocation selection: %+v", report)
 	}
 	if report.ClientPeer != "connected" || report.NodePeer != "connected" || report.Recommendation != "tunnel checks passed" {
 		t.Fatalf("unexpected peer summary: %+v", report)

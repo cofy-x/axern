@@ -144,23 +144,6 @@ func TestEvaluateLifecycleRetryClearance(t *testing.T) {
 			},
 			clearable: true,
 		},
-		{
-			name: "referenced service owner blocks clear",
-			in: LifecycleRetryClearanceInput{
-				AllocationStatus:                 commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:                        OwnerService,
-				OwnerServiceReferencesAllocation: true,
-			},
-			blockedFor: "owner service still references allocation",
-		},
-		{
-			name: "unreferenced service owner is clearable",
-			in: LifecycleRetryClearanceInput{
-				AllocationStatus: commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:        OwnerService,
-			},
-			clearable: true,
-		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -7,7 +7,6 @@ option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifec
 import "axern/control/common/v1/common.proto";
 import "axern/control/catalog/v1/catalog.proto";
 import "axern/control/capability/v1/capability.proto";
-import "google/protobuf/duration.proto";
 
 message SandboxMount {
   string type = 1;
@@ -48,35 +47,6 @@ message RegistryCredential {
   string docker_config_json = 1;
 }
 
-enum HttpProbeScheme {
-  HTTP_PROBE_SCHEME_UNSPECIFIED = 0;
-  HTTP_PROBE_SCHEME_HTTP = 1;
-  HTTP_PROBE_SCHEME_HTTPS = 2;
-}
-
-message ResolvedProbe {
-  oneof action {
-    ResolvedHttpProbe http = 1;
-    ResolvedTcpProbe tcp = 2;
-  }
-
-  google.protobuf.Duration initial_delay = 3;
-  google.protobuf.Duration period = 4;
-  google.protobuf.Duration timeout = 5;
-  int32 success_threshold = 6;
-  int32 failure_threshold = 7;
-}
-
-message ResolvedHttpProbe {
-  int32 port = 1;
-  string path = 2;
-  HttpProbeScheme scheme = 3;
-}
-
-message ResolvedTcpProbe {
-  int32 port = 1;
-}
-
 service NodeLifecycle {
   rpc CreateAllocation(CreateAllocationRequest) returns (CreateAllocationResponse) {}
   rpc DeleteAllocation(DeleteAllocationRequest) returns (DeleteAllocationResponse) {}
@@ -105,14 +75,10 @@ message ResolvedExecutionConfig {
   repeated ResolvedSecretEnvVar secret_env = 19;
   repeated ResolvedSecretFile secret_files = 20;
   RegistryCredential registry_credential = 21;
-  ResolvedProbe readiness_probe = 22;
-  ResolvedProbe liveness_probe = 23;
-  string namespace = 24;
-  string service_id = 25;
-  axern.control.catalog.v1.RuntimeExecutionProfile execution_profile = 26;
-  repeated ImageMount image_mounts = 27;
-  WorkspaceImageSource workspace_image = 28;
-  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 29;
+  axern.control.catalog.v1.RuntimeExecutionProfile execution_profile = 22;
+  repeated ImageMount image_mounts = 23;
+  WorkspaceImageSource workspace_image = 24;
+  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 25;
 }
 
 message CreateAllocationRequest {

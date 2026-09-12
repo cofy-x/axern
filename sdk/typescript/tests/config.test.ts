@@ -15,7 +15,6 @@ test("loads the explicit Axern context schema", () => {
     contexts: {
       hk: {
         endpoint: "gateway.example:443",
-        service_url: "https://services.example",
         ssh_endpoint: "gateway.example:22",
         ssh_identity_file: "/keys/hk",
         tls: { ca_cert: "/ca", cert: "/cert", key: "/key", server_name: "gateway.example" },
@@ -26,7 +25,6 @@ test("loads the explicit Axern context schema", () => {
 
   const context = loadAxernContext(path);
   assert.equal(context.endpoint, "gateway.example:443");
-  assert.equal(context.serviceUrl, "https://services.example");
   assert.equal(context.proxyMode, "direct");
 });
 

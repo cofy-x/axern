@@ -11,8 +11,8 @@ for the runtime alert policy.
 ## Decision
 
 bpfnet is production-usable as the default Axern NAT dataplane on real Linux
-Kubernetes nodes. It can replace the `iptables` backend for Axern service and
-sandbox traffic when the acceptance gates in this document pass.
+Kubernetes nodes. It can replace the `iptables` backend for Allocation ingress
+and sandbox egress traffic when the acceptance gates in this document pass.
 
 Use these Helm values:
 

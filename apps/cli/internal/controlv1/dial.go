@@ -17,7 +17,6 @@ import (
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc"
@@ -35,14 +34,12 @@ func dial(ctx context.Context, config Config) (*grpc.ClientConn, Clients, error)
 		Admin:            adminv1.NewAllocationLifecycleAdminClient(conn),
 		AdminAudit:       adminv1.NewAdminAuditClient(conn),
 		AdminReliability: adminv1.NewAdminReliabilityClient(conn),
-		AdminService:     adminv1.NewServiceAdminClient(conn),
 		AdminNode:        adminv1.NewNodeAdminClient(conn),
 		AccessAdmin:      adminv1.NewAccessAdminClient(conn),
 		Identity:         identityv1.NewIdentityControlClient(conn),
 		Environment:      environmentv1.NewEnvironmentControlClient(conn),
 		Run:              runv1.NewRunControlClient(conn),
 		Secret:           secretv1.NewSecretControlClient(conn),
-		Service:          servicev1.NewServiceControlClient(conn),
 		Catalog:          catalogv1.NewRuntimeCatalogClient(conn),
 		Tunnel:           tunnelv1.NewTunnelControlClient(conn),
 		Namespace:        namespacev1.NewNamespaceControlClient(conn),

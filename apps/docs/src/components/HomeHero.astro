@@ -170,9 +170,9 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
         type="button"
         aria-pressed="false"
         aria-controls="axern-runtime-scene"
-        data-scene-mode="SERVICE"
+        data-scene-mode="BATCH"
       >
-        <span>{zh ? '长期服务' : 'Durable Service'}</span>
+        <span>{zh ? '批量评测' : 'Evaluation Batch'}</span>
         <strong>runsc</strong>
       </button>
     </div>
@@ -229,7 +229,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
   <div class="ax-section__heading">
     <p class="ax-eyebrow">{zh ? '从这里开始' : 'START HERE'}</p>
     <h2 id="ax-paths-heading">{zh ? '按你的目标进入文档' : 'Find your path through the docs'}</h2>
-    <p>{zh ? '一个平台覆盖一次性执行、常驻服务与可复现评测——从符合你目标的路径开始。' : 'One platform for one-shot execution, durable services, and reproducible evaluation—start from the path that matches your goal.'}</p>
+    <p>{zh ? '一个平台覆盖隔离执行、并发数据合成与可复现评测——从符合你目标的路径开始。' : 'One platform for isolated execution, concurrent data synthesis, and reproducible evaluation—start from the path that matches your goal.'}</p>
   </div>
   <div class="ax-workload-grid ax-workload-grid--paths not-content">
     <article>

@@ -64,8 +64,8 @@ documents.
   admission, and diagnostics.
 - [Principal And Namespace Authorization](architecture/authorization.md):
   public mTLS identity mapping, scoped roles, gateway trust, and rotation.
-- [Storage Architecture](architecture/storage-architecture.md): storage
-  control-plane and node-local volume ownership.
+- [Storage Architecture](architecture/storage-architecture.md): durable control
+  state, allocation-local writable data, image mounts, artifacts, and cleanup.
 - [Nydus Image Runtime](architecture/nydus-image-runtime.md): Nydus mount,
   caching, deduplication, and scaling model.
 
@@ -104,9 +104,5 @@ material here only when multiple modules need the same model.
   Helm publication, and fresh-cluster acceptance.
 - [Runtime Logs](operations/runtime-logs.md): critical logs, node-local paths,
   and symptom routing.
-- [Startup And Readiness Contract](operations/startup-readiness-performance-contract.md):
-  performance metrics, stages, cache states, and acceptance gates.
 - [Kubernetes Helm Chart](../deploy/helm/axern/README.md): cloud-neutral chart,
   scheduling, storage, observability, and networking configuration.
-- [Agent Runtime](../apps/cli/docs/agent.md): run coding agents in an Axern
-  allocation while credentials remain local.

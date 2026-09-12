@@ -12,7 +12,6 @@ import (
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 )
@@ -49,14 +48,12 @@ type Clients struct {
 	Admin            adminv1.AllocationLifecycleAdminClient
 	AdminAudit       adminv1.AdminAuditClient
 	AdminReliability adminv1.AdminReliabilityClient
-	AdminService     adminv1.ServiceAdminClient
 	AdminNode        adminv1.NodeAdminClient
 	AccessAdmin      adminv1.AccessAdminClient
 	Identity         identityv1.IdentityControlClient
 	Environment      environmentv1.EnvironmentControlClient
 	Run              runv1.RunControlClient
 	Secret           secretv1.SecretControlClient
-	Service          servicev1.ServiceControlClient
 	Catalog          catalogv1.RuntimeCatalogClient
 	Tunnel           tunnelv1.TunnelControlClient
 	Namespace        namespacev1.NamespaceControlClient

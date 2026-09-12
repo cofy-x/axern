@@ -15,21 +15,6 @@ func TestParseGatewayHardeningDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	if cfg.ServiceUpstreamTimeout != 30*time.Second {
-		t.Fatalf("ServiceUpstreamTimeout = %s, want 30s", cfg.ServiceUpstreamTimeout)
-	}
-	if cfg.ServiceMaxRequestBodyBytes != 32<<20 {
-		t.Fatalf("ServiceMaxRequestBodyBytes = %d, want 32MiB", cfg.ServiceMaxRequestBodyBytes)
-	}
-	if cfg.ServiceEndpointRetryAttempts != 4 {
-		t.Fatalf("ServiceEndpointRetryAttempts = %d, want 4", cfg.ServiceEndpointRetryAttempts)
-	}
-	if cfg.ServiceEndpointQuarantineTTL != 30*time.Second {
-		t.Fatalf("ServiceEndpointQuarantineTTL = %s, want 30s", cfg.ServiceEndpointQuarantineTTL)
-	}
-	if cfg.RouteCacheTTL != 3*time.Second || cfg.RouteCacheMaxEntries != 8192 {
-		t.Fatalf("route cache config = ttl:%s max:%d, want 3s/8192", cfg.RouteCacheTTL, cfg.RouteCacheMaxEntries)
-	}
 	if cfg.TerminalIdleTimeout != 10*time.Minute {
 		t.Fatalf("TerminalIdleTimeout = %s, want 10m", cfg.TerminalIdleTimeout)
 	}
@@ -46,12 +31,6 @@ func TestParseGatewayHardeningEnvAndFlags(t *testing.T) {
 	t.Setenv("GATEWAYD_TLS_CA_CERT", "ca.crt")
 	t.Setenv("GATEWAYD_TLS_CERT", "client.crt")
 	t.Setenv("GATEWAYD_TLS_KEY", "client.key")
-	t.Setenv("GATEWAYD_SERVICE_UPSTREAM_TIMEOUT", "7s")
-	t.Setenv("GATEWAYD_SERVICE_MAX_REQUEST_BODY_BYTES", "1234")
-	t.Setenv("GATEWAYD_SERVICE_ENDPOINT_RETRY_ATTEMPTS", "2")
-	t.Setenv("GATEWAYD_SERVICE_ENDPOINT_QUARANTINE_TTL", "12s")
-	t.Setenv("GATEWAYD_ROUTE_CACHE_TTL", "4s")
-	t.Setenv("GATEWAYD_ROUTE_CACHE_MAX_ENTRIES", "2048")
 	t.Setenv("GATEWAYD_CONTROL_EDGE_ADDRESS", "127.0.0.1:25001")
 	t.Setenv("GATEWAYD_CONTROL_EDGE_TLS_CA_CERT", "edge-ca.crt")
 	t.Setenv("GATEWAYD_CONTROL_EDGE_TLS_CERT", "edge.crt")
@@ -61,11 +40,6 @@ func TestParseGatewayHardeningEnvAndFlags(t *testing.T) {
 	t.Setenv("GATEWAYD_TUNNEL_RELAY_TLS_SERVER_NAME", "tunneld")
 
 	cfg, err := Parse([]string{
-		"-service-upstream-timeout=9s",
-		"-service-endpoint-retry-attempts=6",
-		"-service-endpoint-quarantine-ttl=15s",
-		"-route-cache-ttl=5s",
-		"-route-cache-max-entries=4096",
 		"-terminal-idle-timeout=11s",
 		"-lease-retry-attempts=5",
 		"-control-edge-address=127.0.0.1:25002",
@@ -73,21 +47,6 @@ func TestParseGatewayHardeningEnvAndFlags(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
-	}
-	if cfg.ServiceUpstreamTimeout != 9*time.Second {
-		t.Fatalf("ServiceUpstreamTimeout = %s, want 9s", cfg.ServiceUpstreamTimeout)
-	}
-	if cfg.ServiceMaxRequestBodyBytes != 1234 {
-		t.Fatalf("ServiceMaxRequestBodyBytes = %d, want env value", cfg.ServiceMaxRequestBodyBytes)
-	}
-	if cfg.ServiceEndpointRetryAttempts != 6 {
-		t.Fatalf("ServiceEndpointRetryAttempts = %d, want flag value", cfg.ServiceEndpointRetryAttempts)
-	}
-	if cfg.ServiceEndpointQuarantineTTL != 15*time.Second {
-		t.Fatalf("ServiceEndpointQuarantineTTL = %s, want flag value", cfg.ServiceEndpointQuarantineTTL)
-	}
-	if cfg.RouteCacheTTL != 5*time.Second || cfg.RouteCacheMaxEntries != 4096 {
-		t.Fatalf("route cache config = ttl:%s max:%d, want flag values", cfg.RouteCacheTTL, cfg.RouteCacheMaxEntries)
 	}
 	if cfg.TerminalIdleTimeout != 11*time.Second {
 		t.Fatalf("TerminalIdleTimeout = %s, want 11s", cfg.TerminalIdleTimeout)

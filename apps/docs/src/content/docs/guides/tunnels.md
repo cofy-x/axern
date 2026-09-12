@@ -1,6 +1,6 @@
 ---
 title: Reverse Tunnels
-description: Expose a local TCP service to code running inside an Axern service or sandbox.
+description: Expose a local TCP service to code running inside an Axern allocation or sandbox.
 ---
 
 An Axern tunnel is a reverse TCP tunnel: code inside a remote allocation calls
@@ -21,24 +21,22 @@ the internet, but it does cross the sandbox boundary by design.
 
 :::
 
-## Tunnel from a Service
+## Tunnel from an allocation
 
-Start the local target first, then open a foreground tunnel from a ready
-service replica:
+Start the local target first, create a detached Run, and open a foreground
+tunnel for its allocation:
 
 ```bash
 python3 -m http.server 8080 --bind 127.0.0.1
 
-axern service create --template-id python311 --replicas 1
-axern service tunnel <service-id> --to 127.0.0.1:8080
+axern run --detach python:3.12-slim -- python -c 'import time; time.sleep(3600)'
+axern tunnel open --allocation-id <allocation-id> --local 127.0.0.1:8080
 ```
 
 The command selects a stable ready replica, creates a tunnel session, waits
 for the allocation-local bind, and prints the session and bind addresses:
 
 ```text
-Service: svc-...
-Selected allocation: alloc-...
 Tunnel session: tun-...
 Local target: 127.0.0.1:8080
 Remote bind: 127.0.0.1:42377
@@ -46,12 +44,8 @@ Press Ctrl-C to revoke the tunnel.
 ```
 
 Inside the allocation, `curl http://127.0.0.1:42377/` now reaches your local
-`127.0.0.1:8080`. Target a specific replica with `--allocation-id` or
-`--node-id`. Keep the command running while the remote workload needs the
+`127.0.0.1:8080`. Keep the command running while the remote workload needs the
 local target; Ctrl-C revokes the session.
-
-`axern tunnel open --allocation-id <allocation-id> --local 127.0.0.1:8080` is
-the lower-level allocation-scoped entrypoint for debugging.
 
 ## Tunnel from an SDK sandbox
 
@@ -77,7 +71,7 @@ with Sandbox(
 ```bash
 axern tunnel list --allocation-id <allocation-id>
 axern tunnel inspect <session-id>
-axern tunnel doctor --service-id <service-id> --local 127.0.0.1:8080
+axern tunnel doctor --allocation-id <allocation-id> --local 127.0.0.1:8080
 axern tunnel revoke <session-id> --reason manual-cleanup
 ```
 

@@ -9,18 +9,15 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	secretkernel "github.com/cofy-x/axern/control/controld/internal/kernel/secret"
-	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 func TestBridgeUsesSeparateLifecycleTimeouts(t *testing.T) {
@@ -141,7 +138,7 @@ func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 	}
 }
 
-func TestBuildResolvedExecutionConfigLeavesServiceArgvEmpty(t *testing.T) {
+func TestBuildResolvedExecutionConfigLeavesImageArgvEmpty(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-service-entrypoint",
 		ResolvedTemplate: &catalogv1.RuntimeTemplate{
@@ -282,76 +279,12 @@ func TestBuildResolvedExecutionConfigForImageBackedEnvironment(t *testing.T) {
 	}
 }
 
-func TestBuildResolvedExecutionConfigIncludesReadinessProbe(t *testing.T) {
-	env := &environmentv1.Environment{
-		ID: "env-readiness",
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{
-			ImageDescriptor: &catalogv1.OciImageDescriptor{
-				Digest: "sha256:ready",
-			},
-		},
-	}
-
-	cfg := buildResolvedExecutionConfig(createAllocationRequestParams{
-		Config: &commonv1.ExecutionConfig{
-			Argv: []string{"/bin/service"},
-		},
-		Environment:    env,
-		DefaultRuntime: DefaultRuntime,
-		ReadinessProbe: &servicev1.ServiceProbe{
-			Action: &servicev1.ServiceProbe_Http{
-				Http: &servicev1.HttpProbe{
-					Port:   8080,
-					Path:   "/readyz",
-					Scheme: servicev1.HttpProbeScheme_HTTP_PROBE_SCHEME_HTTPS,
-				},
-			},
-			Period:           durationpb.New(5 * time.Second),
-			Timeout:          durationpb.New(2 * time.Second),
-			SuccessThreshold: 1,
-			FailureThreshold: 1,
-		},
-	})
-
-	if cfg.GetReadinessProbe() == nil || cfg.GetReadinessProbe().GetHttp() == nil {
-		t.Fatalf("readiness probe = %#v, want resolved HTTP probe", cfg.GetReadinessProbe())
-	}
-	if cfg.GetReadinessProbe().GetHttp().GetPort() != 8080 || cfg.GetReadinessProbe().GetHttp().GetPath() != "/readyz" {
-		t.Fatalf("unexpected readiness probe %#v", cfg.GetReadinessProbe())
-	}
-	if cfg.GetReadinessProbe().GetHttp().GetScheme().String() != "HTTP_PROBE_SCHEME_HTTPS" {
-		t.Fatalf("unexpected readiness probe scheme %#v", cfg.GetReadinessProbe().GetHttp().GetScheme())
-	}
-}
-
 func TestResolveExecutionSecretsReturnsContextualErrors(t *testing.T) {
 	_, err := resolveExecutionSecrets(context.Background(), stubSecretResolver{}, stubSecretResolver{}, &commonv1.ExecutionConfig{
 		SecretEnv: []*commonv1.SecretEnvVar{{Name: "TOKEN", SecretID: "sec-missing", Key: "token"}},
 	}, &environmentv1.Environment{})
 	if err == nil || !strings.Contains(err.Error(), `config.secret_env "TOKEN" references secret "sec-missing"`) {
 		t.Fatalf("err = %v, want contextual secret_env message", err)
-	}
-}
-
-func TestBuildResolvedExecutionConfigIncludesServiceIdentity(t *testing.T) {
-	env := &environmentv1.Environment{
-		ID: "env-service",
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{
-			ImageDescriptor: &catalogv1.OciImageDescriptor{
-				Digest: "sha256:service",
-			},
-		},
-	}
-
-	cfg := buildResolvedExecutionConfig(createAllocationRequestParams{
-		Config:         &commonv1.ExecutionConfig{Argv: []string{"/bin/service"}},
-		Environment:    env,
-		DefaultRuntime: DefaultRuntime,
-		Namespace:      "default",
-		ServiceID:      "svc-123",
-	})
-	if cfg.GetNamespace() != "default" || cfg.GetServiceID() != "svc-123" {
-		t.Fatalf("service identity = namespace:%q service_id:%q, want default/svc-123", cfg.GetNamespace(), cfg.GetServiceID())
 	}
 }
 
@@ -366,57 +299,6 @@ func TestFormatCreateAllocationErrorExplainsReadonlyRootfsTarget(t *testing.T) {
 	}
 	if !errors.Is(err, cause) {
 		t.Fatal("formatted error should unwrap original cause")
-	}
-}
-
-func TestBuildCreateAllocationRequestFromInputIncludesServiceIdentity(t *testing.T) {
-	req := buildCreateAllocationRequestFromParams(createAllocationRequestParams{
-		AllocationID:   "alloc-service",
-		Attempt:        1,
-		Config:         &commonv1.ExecutionConfig{Argv: []string{"/bin/service"}},
-		Environment:    &environmentv1.Environment{ID: "env-service", ResolvedTemplate: &catalogv1.RuntimeTemplate{ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:svc"}}},
-		NodeID:         "node-a",
-		DefaultRuntime: DefaultRuntime,
-		Namespace:      "default",
-		ServiceID:      "svc-456",
-	})
-	if req.GetConfig().GetNamespace() != "default" || req.GetConfig().GetServiceID() != "svc-456" {
-		t.Fatalf("wire config identity = namespace:%q service_id:%q, want default/svc-456", req.GetConfig().GetNamespace(), req.GetConfig().GetServiceID())
-	}
-}
-
-func TestBuildCreateAllocationRequestResolvesServiceIdentityThroughBridge(t *testing.T) {
-	client := &captureLifecycleClient{}
-	bridge := New(client, Config{DefaultRuntime: DefaultRuntime})
-	result, err := bridge.CreateResolvedAllocation(context.Background(), servicekernel.CreateResolvedAllocationRequest{
-		Target:       "127.0.0.1:25000",
-		Namespace:    "default",
-		ServiceID:    "svc-bridge",
-		AllocationID: "alloc-bridge",
-		Attempt:      1,
-		Config:       &commonv1.ExecutionConfig{Argv: []string{"/bin/service"}},
-		Environment: &environmentv1.Environment{
-			ID: "env-bridge",
-			ResolvedTemplate: &catalogv1.RuntimeTemplate{
-				ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:bridge"},
-			},
-		},
-		NodeID: "node-a",
-	})
-	if err != nil {
-		t.Fatalf("CreateResolvedAllocation() error = %v", err)
-	}
-	if client.lastCreate == nil {
-		t.Fatal("last create request = nil, want captured request")
-	}
-	if client.lastCreate.GetConfig().GetNamespace() != "default" || client.lastCreate.GetConfig().GetServiceID() != "svc-bridge" {
-		t.Fatalf("captured config identity = namespace:%q service_id:%q, want default/svc-bridge", client.lastCreate.GetConfig().GetNamespace(), client.lastCreate.GetConfig().GetServiceID())
-	}
-	if result.WorkspacePreparation.GetPayloadFormat() != "nydus" {
-		t.Fatalf("workspace preparation = %#v", result.WorkspacePreparation)
-	}
-	if len(result.AdmittedCapabilityDependencies) != 1 || result.AdmittedCapabilityDependencies[0].GetSelectedObservation().GetEvidence().GetEvidenceID() != "create-evidence" {
-		t.Fatalf("admitted capability dependencies = %#v", result.AdmittedCapabilityDependencies)
 	}
 }
 

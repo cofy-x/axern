@@ -3,7 +3,6 @@ package observability
 import (
 	"context"
 	"testing"
-	"time"
 
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"go.opentelemetry.io/otel"
@@ -26,15 +25,9 @@ func TestMetricsUseUnifiedOTelPipeline(t *testing.T) {
 		t.Fatalf("Init() error = %v", err)
 	}
 	metrics := NewMetrics(obs)
-	releaseHTTP := metrics.IncActiveHTTP()
 	releaseTerminal := metrics.IncActiveTerminal()
-	metrics.RouteCache("hit")
-	metrics.RouteResolve("ok")
-	metrics.UpstreamFailure("timeout")
-	metrics.LeaseRetry("service")
-	metrics.ObserveServiceProxyStage("route_resolve", "ok", "", "GET", time.Millisecond)
+	metrics.LeaseRetry("terminal")
 	metrics.TerminalEvent("open")
-	releaseHTTP()
 	releaseTerminal()
 
 	var resourceMetrics metricdata.ResourceMetrics
@@ -48,13 +41,8 @@ func TestMetricsUseUnifiedOTelPipeline(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		MetricHTTPRequestsCurrent.Name,
 		MetricTerminalSessionsCurrent.Name,
-		MetricRouteResolveTotal.Name,
-		MetricRouteCacheEvents.Name,
-		MetricUpstreamFailureTotal.Name,
 		MetricLeaseRetryTotal.Name,
-		MetricServiceProxyStageDuration.Name,
 		MetricTerminalEventTotal.Name,
 	} {
 		if !names[want] {

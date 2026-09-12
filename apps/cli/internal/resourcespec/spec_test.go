@@ -7,38 +7,6 @@ import (
 	"testing"
 )
 
-func TestServiceReplicasDistinguishesOmittedAndExplicitZero(t *testing.T) {
-	dir := t.TempDir()
-	omitted := writeSpec(t, dir, "omitted.yaml", `
-api_version: axern/v1
-kind: Service
-metadata: {namespace: default}
-spec:
-  source: {template: python311}
-`)
-	explicitZero := writeSpec(t, dir, "zero.json", `{
-  "api_version": "axern/v1",
-  "kind": "Service",
-  "metadata": {"namespace": "default"},
-  "spec": {"source": {"template": "python311"}, "replicas": 0}
-}`)
-
-	first, err := Load(omitted, KindService)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := Load(explicitZero, KindService)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := first.ServiceReplicas(); got != 1 {
-		t.Fatalf("omitted replicas = %d, want 1", got)
-	}
-	if got := second.ServiceReplicas(); got != 0 {
-		t.Fatalf("explicit replicas = %d, want 0", got)
-	}
-}
-
 func TestLoadRejectsUnknownFieldsAndMultipleDocuments(t *testing.T) {
 	dir := t.TempDir()
 	for name, content := range map[string]string{
@@ -84,9 +52,9 @@ spec:
 	if _, err := Load(path, KindRun); err == nil || !strings.Contains(err.Error(), "exactly one") {
 		t.Fatalf("source conflict error = %v", err)
 	}
-	path = writeSpec(t, dir, "service.yaml", `
+	path = writeSpec(t, dir, "sandbox.yaml", `
 api_version: axern/v1
-kind: Service
+kind: Sandbox
 metadata: {}
 spec: {source: {template: python311}}
 `)
@@ -141,24 +109,18 @@ spec:
 	}
 }
 
-func TestLoadRejectsNonCanonicalImageMountTargetAndNegativeProbeThreshold(t *testing.T) {
+func TestLoadRejectsNonCanonicalImageMountTarget(t *testing.T) {
 	dir := t.TempDir()
-	for name, field := range map[string]string{
-		"image-mount": "  image_mounts: [{image: tools:latest, target: /srv/../data}]\n",
-		"probe":       "  readiness: {tcp_port: 8080, failure_threshold: -1}\n",
-	} {
-		t.Run(name, func(t *testing.T) {
-			path := writeSpec(t, dir, name+".yaml", `
+	path := writeSpec(t, dir, "image-mount.yaml", `
 api_version: axern/v1
-kind: Service
+kind: Run
 metadata: {}
 spec:
   source: {template: python311}
-`+field)
-			if _, err := Load(path, KindService); err == nil {
-				t.Fatal("Load() error = nil")
-			}
-		})
+	image_mounts: [{image: tools:latest, target: /srv/../data}]
+`)
+	if _, err := Load(path, KindRun); err == nil {
+		t.Fatal("Load() error = nil")
 	}
 }
 

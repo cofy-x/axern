@@ -12,7 +12,7 @@ For local compose and kind commands, see
 
 | Component | Log or stream | What to look for |
 | --- | --- | --- |
-| `controld` | process stdout/stderr | node registration, heartbeat freshness, node summary ingest, placement rejections, allocation dispatch, service/run state, gateway and tunnel target resolution |
+| `controld` | process stdout/stderr | node registration, heartbeat freshness, node summary ingest, placement rejections, allocation dispatch, Run/Allocation state, gateway and tunnel target resolution |
 | `axnoded` | `/var/log/axnoded/axnoded.log` | control-plane registration/report failures, lifecycle RPCs, sandbox create/delete, OCI bundle generation, runtime command failures, cgroup setup, network setup |
 | `node-tunneld` | `/var/log/axnoded/node-tunneld.log` | node-local tunnel agent restarts, allocation netns lookup, axnoded operator socket access, relay connection failures |
 | `imagemgr` | `/var/lib/imagemgr/logs/imagemgr.log` | image import, `/oci_mount`, `/nydus_mount`, overlay mount, Nydus bootstrap fetch, imagefsd daemon launch |
@@ -76,7 +76,7 @@ runtime class, or image-manager settings look wrong.
 | `egressd` | node-local egress policy persistence, recovery, reconciliation, and host enforcement |
 | `imagemgr` | image import, image-backed rootfs orchestration, OCI overlay, Nydus daemon lifecycle |
 | `imagefsd` | read-only image data, cache, chunk DB, mount daemon internals |
-| `gatewayd` | service HTTP, terminal, SSH forwarding after route resolution |
+| `gatewayd` | allocation-bound terminal, SSH, tunnel, artifact, and sandbox forwarding after target resolution |
 | `tunneld` | relay-side tunnel session pairing |
 | `node-tunneld` | node-local tunnel agent launch and allocation netns lookup |
 

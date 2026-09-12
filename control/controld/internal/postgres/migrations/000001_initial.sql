@@ -149,39 +149,6 @@ CREATE TABLE runs (
 	message TEXT NOT NULL DEFAULT ''
 );
 
-CREATE TABLE services (
-	service_id TEXT PRIMARY KEY,
-	namespace TEXT NOT NULL,
-	environment_id TEXT NOT NULL,
-	replicas INTEGER NOT NULL,
-	ready_replicas INTEGER NOT NULL DEFAULT 0,
-	unhealthy_replicas INTEGER NOT NULL DEFAULT 0,
-	rollout_policy JSONB NOT NULL DEFAULT '{}'::jsonb,
-	readiness_probe JSONB NOT NULL DEFAULT 'null'::jsonb,
-	liveness_probe JSONB NOT NULL DEFAULT 'null'::jsonb,
-	status TEXT NOT NULL,
-	config JSONB NOT NULL,
-	allocation_ids JSONB NOT NULL,
-	labels JSONB NOT NULL,
-	version BIGINT NOT NULL DEFAULT 1,
-	created_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL,
-	message TEXT NOT NULL DEFAULT '',
-	diagnostic_code TEXT NOT NULL DEFAULT 'WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED',
-	deletion_status JSONB NOT NULL DEFAULT 'null'::jsonb
-);
-
-CREATE TABLE service_events (
-	event_id TEXT PRIMARY KEY,
-	service_id TEXT NOT NULL REFERENCES services(service_id) ON DELETE CASCADE,
-	replica_id TEXT NOT NULL DEFAULT '',
-	event_type TEXT NOT NULL,
-	phase TEXT NOT NULL,
-	diagnostic_code TEXT NOT NULL,
-	message TEXT NOT NULL DEFAULT '',
-	created_at TIMESTAMPTZ NOT NULL
-);
-
 CREATE TABLE allocations (
 	allocation_id TEXT PRIMARY KEY,
 	owner_type TEXT NOT NULL,
@@ -190,11 +157,6 @@ CREATE TABLE allocations (
 	node_id TEXT NOT NULL,
 	attempt BIGINT NOT NULL DEFAULT 1,
 	status TEXT NOT NULL,
-	ready BOOLEAN NOT NULL DEFAULT FALSE,
-	readiness_message TEXT NOT NULL DEFAULT '',
-	readiness_probe JSONB NOT NULL DEFAULT 'null'::jsonb,
-	liveness_probe JSONB NOT NULL DEFAULT 'null'::jsonb,
-	desired_spec_digest TEXT NOT NULL DEFAULT '',
 	config JSONB NOT NULL,
 	workspace_preparation JSONB NOT NULL DEFAULT 'null'::jsonb,
 	version BIGINT NOT NULL DEFAULT 1,
@@ -586,7 +548,6 @@ CREATE UNIQUE INDEX idx_role_bindings_active_unique
 CREATE INDEX idx_environments_namespace_created ON environments(namespace, created_at DESC);
 CREATE INDEX idx_secrets_namespace_created ON secrets(namespace, created_at DESC);
 CREATE INDEX idx_runs_namespace_created ON runs(namespace, created_at DESC);
-CREATE INDEX idx_service_events_service_created ON service_events(service_id, created_at DESC);
 CREATE INDEX idx_allocations_node_status ON allocations(node_id, status);
 CREATE INDEX idx_allocations_owner_status_updated ON allocations(owner_type, owner_id, status, updated_at);
 CREATE INDEX idx_node_capability_transitions_node_reported
@@ -599,9 +560,6 @@ CREATE INDEX idx_allocation_memory_observations_node_updated
 	ON allocation_memory_observations(node_id, updated_at DESC);
 CREATE INDEX idx_allocation_capability_reconcile_claimable
 	ON allocation_capability_reconcile_queue(next_run_at, lease_expires_at, allocation_id);
-CREATE INDEX idx_allocations_service_desired_spec
-	ON allocations(owner_id, desired_spec_digest)
-	WHERE owner_type = 'service';
 CREATE INDEX idx_admin_audit_events_created ON admin_audit_events(created_at DESC, event_id DESC);
 CREATE INDEX idx_admin_audit_events_operation_created ON admin_audit_events(operation, created_at DESC, event_id DESC);
 CREATE INDEX idx_admin_audit_events_target_created ON admin_audit_events(target_type, target_id, created_at DESC, event_id DESC);
@@ -614,7 +572,6 @@ CREATE INDEX idx_namespace_quota_events_created ON namespace_quota_events(create
 CREATE INDEX idx_execution_leases_node_revision ON execution_leases(node_id, revision);
 CREATE INDEX idx_execution_leases_retention ON execution_leases(created_at, expires_at, revoked);
 CREATE INDEX idx_execution_leases_active_created ON execution_leases(created_at, allocation_id) WHERE revoked = FALSE;
-CREATE INDEX idx_services_live_created ON services(created_at, service_id) WHERE status NOT IN ('SERVICE_STATUS_DELETING', 'SERVICE_STATUS_DELETED');
 CREATE INDEX idx_runs_status_updated ON runs(status, updated_at);
 CREATE INDEX idx_allocation_reconcile_queue_claimable
 	ON allocation_reconcile_queue(next_run_at, lease_expires_at, allocation_id);

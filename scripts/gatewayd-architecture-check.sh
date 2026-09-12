@@ -50,7 +50,6 @@ check_exact \
 	"$expected_internal_packages"
 
 expected_application_packages='gateway/gatewayd/internal/application/artifact
-gateway/gatewayd/internal/application/service
 gateway/gatewayd/internal/application/terminal'
 
 check_exact \
@@ -87,7 +86,7 @@ check_exact \
 	"find gateway/gatewayd/internal/api -mindepth 1 -maxdepth 1 -type d | sort" \
 	"$expected_api_packages"
 
-expected_http_adapter_packages='gateway/gatewayd/internal/api/http/serviceproxy'
+expected_http_adapter_packages=''
 
 check_exact \
 	"HTTP adapter subpackages must stay intentional" \

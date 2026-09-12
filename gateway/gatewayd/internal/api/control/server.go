@@ -40,7 +40,6 @@ var publicControlServices = map[string]struct{}{
 	"axern.control.admin.v1.AdminReliability":         {},
 	"axern.control.admin.v1.NodeAdmin":                {},
 	"axern.control.admin.v1.AllocationLifecycleAdmin": {},
-	"axern.control.admin.v1.ServiceAdmin":             {},
 	"axern.control.catalog.v1.RuntimeCatalog":         {},
 	"axern.control.environment.v1.EnvironmentControl": {},
 	"axern.control.namespace.v1.NamespaceControl":     {},
@@ -48,7 +47,6 @@ var publicControlServices = map[string]struct{}{
 	"axern.control.quota.v1.QuotaControl":             {},
 	"axern.control.run.v1.RunControl":                 {},
 	"axern.control.secret.v1.SecretControl":           {},
-	"axern.control.service.v1.ServiceControl":         {},
 	"axern.control.tunnel.v1.TunnelControl":           {},
 }
 

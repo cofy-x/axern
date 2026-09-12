@@ -11,7 +11,6 @@ import (
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -62,14 +61,6 @@ func FormatRelativeAge(from, to time.Time) string {
 	}
 }
 
-func ServiceStatusLabel(status servicev1.ServiceStatus) string {
-	return trimEnumPrefix(status.String(), "SERVICE_STATUS_")
-}
-
-func ServiceDeletionPhaseLabel(phase servicev1.ServiceDeletionPhase) string {
-	return trimEnumPrefix(phase.String(), "SERVICE_DELETION_PHASE_")
-}
-
 func AllocationStatusLabel(status commonv1.AllocationStatus) string {
 	return trimEnumPrefix(status.String(), "ALLOCATION_STATUS_")
 }
@@ -88,14 +79,6 @@ func SecretTypeLabel(secretType secretv1.SecretType) string {
 
 func WorkloadDiagnosticCodeLabel(code commonv1.WorkloadDiagnosticCode) string {
 	return trimEnumPrefix(code.String(), "WORKLOAD_DIAGNOSTIC_CODE_")
-}
-
-func ServiceRolloutPhaseLabel(phase servicev1.ServiceRolloutPhase) string {
-	return trimEnumPrefix(phase.String(), "SERVICE_ROLLOUT_PHASE_")
-}
-
-func ServiceEventTypeLabel(eventType servicev1.ServiceEventType) string {
-	return trimEnumPrefix(eventType.String(), "SERVICE_EVENT_TYPE_")
 }
 
 func ShortMessage(value string, limit int) string {

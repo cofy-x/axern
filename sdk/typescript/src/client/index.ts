@@ -37,7 +37,7 @@ export interface CreateEnvironmentOptions {
   labels?: Record<string, string>;
 }
 
-export interface CreateServiceOptions {
+export interface CreateRunOptions {
   namespace?: string;
   environmentId: string;
   argv?: string[];
@@ -54,8 +54,6 @@ export interface CreateServiceOptions {
   limitEphemeralStorage?: ResourceQuantity;
   labels?: Record<string, string>;
 }
-
-export type CreateRunOptions = CreateServiceOptions;
 
 export interface ExtensionCapability {
   name: string;
@@ -74,7 +72,6 @@ export class AxernClient {
   private readonly controlOptions: grpc.ChannelOptions;
   private readonly environmentControl: grpc.Client;
   private readonly runControl: grpc.Client;
-  private readonly serviceControl: grpc.Client;
   private readonly tunnelControl: grpc.Client;
   private readonly gatewayTransport: GatewayTransportOptions;
 
@@ -115,11 +112,9 @@ export class AxernClient {
       "EnvironmentControl",
     ]);
     const RunControl = serviceConstructor(["axern", "control", "run", "v1", "RunControl"]);
-    const ServiceControl = serviceConstructor(["axern", "control", "service", "v1", "ServiceControl"]);
     const TunnelControl = serviceConstructor(["axern", "control", "tunnel", "v1", "TunnelControl"]);
     this.environmentControl = new EnvironmentControl(this.endpoint, this.credentials, this.controlOptions);
     this.runControl = new RunControl(this.endpoint, this.credentials, this.controlOptions);
-    this.serviceControl = new ServiceControl(this.endpoint, this.credentials, this.controlOptions);
     this.tunnelControl = new TunnelControl(this.endpoint, this.credentials, this.controlOptions);
   }
 
@@ -143,7 +138,6 @@ export class AxernClient {
   close(): void {
     this.environmentControl.close();
     this.runControl.close();
-    this.serviceControl.close();
     this.tunnelControl.close();
   }
 
@@ -294,62 +288,6 @@ export class AxernClient {
       }
       await sleep(retryDelayMs);
       retryDelayMs = Math.min(retryDelayMs * 2, 2_000);
-    }
-  }
-
-  async createService(options: CreateServiceOptions): Promise<Record<string, unknown>> {
-    const resources = buildResourceSpec(options);
-    try {
-      const response = await unary<Record<string, unknown>, { service: Record<string, unknown> }>(
-        this.serviceControl,
-        "CreateService",
-        {
-          namespace: options.namespace ?? "default",
-          environment_id: required("environmentId", options.environmentId),
-          replicas: 1,
-          config: {
-            argv: options.argv ?? [],
-            env: options.env ?? {},
-            cwd: options.cwd ?? "",
-            runtime_class: options.runtimeClass ?? "",
-            ...(options.networkPolicy === undefined
-              ? {}
-              : { network: { egress_policy: options.networkPolicy.toWire() } }),
-            extension_capability_requirements: (options.extensionCapabilities ?? []).map((capability) => ({
-              capability: { name: capability.name, value: capability.value ?? "" },
-            })),
-            resources,
-          },
-          labels: options.labels ?? {},
-        },
-      );
-      return response.service;
-    } catch (error) {
-      throw mapRpcError(error, "create service");
-    }
-  }
-
-  async deleteService(serviceId: string): Promise<void> {
-    try {
-      await unary(this.serviceControl, "DeleteService", { service_id: required("serviceId", serviceId) });
-    } catch (error) {
-      throw mapRpcError(error, "delete service");
-    }
-  }
-
-  async listServiceReplicas(serviceId: string): Promise<Record<string, unknown>[]> {
-    try {
-      const response = await unary<Record<string, unknown>, { replicas?: Record<string, unknown>[] }>(
-        this.serviceControl,
-        "ListServiceReplicas",
-        {
-          service_id: required("serviceId", serviceId),
-          filter: { view: 2 },
-        },
-      );
-      return response.replicas ?? [];
-    } catch (error) {
-      throw mapRpcError(error, "list service replicas");
     }
   }
 

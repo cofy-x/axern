@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	consistencykernel "github.com/cofy-x/axern/control/controld/internal/kernel/consistency"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/jackc/pgx/v5"
@@ -43,7 +42,6 @@ func SnapshotWithLimit(ctx context.Context, q queryer, now time.Time, issueLimit
 		loadActiveReservationIssues,
 		loadActiveLeaseIssues,
 		loadActiveTunnelIssues,
-		loadServiceReferenceIssues,
 	}
 	for _, load := range loaders {
 		remaining := issueLimit - len(issues)
@@ -193,60 +191,6 @@ func loadActiveTunnelIssues(ctx context.Context, q queryer, _ time.Time, limit i
 	}
 	defer rows.Close()
 	return scanDependentIssues(rows, dependentResourceTunnel, limit)
-}
-
-func loadServiceReferenceIssues(ctx context.Context, q queryer, _ time.Time, limit int) ([]consistencykernel.Issue, bool, error) {
-	rows, err := q.Query(ctx, `
-		SELECT ref.allocation_id, s.service_id, COALESCE(a.status, ''), COALESCE(a.owner_type, ''), COALESCE(a.owner_id, '')
-		FROM (
-			SELECT service_id, allocation_ids, created_at
-			FROM services
-			WHERE status NOT IN ('SERVICE_STATUS_DELETING', 'SERVICE_STATUS_DELETED')
-		) s
-		CROSS JOIN LATERAL jsonb_array_elements_text(s.allocation_ids) AS ref(allocation_id)
-		LEFT JOIN allocations a ON a.allocation_id = ref.allocation_id
-		WHERE a.allocation_id IS NULL
-		   OR a.status = ANY($1::text[])
-		   OR a.owner_type <> $2
-		   OR a.owner_id <> s.service_id
-		ORDER BY s.created_at ASC, s.service_id ASC, ref.allocation_id ASC
-		LIMIT $3
-	`, endedAllocationStatuses(), allocationkernel.OwnerService, limit+1)
-	if err != nil {
-		return nil, false, fmt.Errorf("query service allocation references: %w", err)
-	}
-	defer rows.Close()
-
-	var out []consistencykernel.Issue
-	for rows.Next() {
-		if len(out) == limit {
-			return out, true, nil
-		}
-		var allocationID, serviceID, status, allocationOwnerType, allocationOwnerID string
-		if err := rows.Scan(&allocationID, &serviceID, &status, &allocationOwnerType, &allocationOwnerID); err != nil {
-			return nil, false, err
-		}
-		issue := consistencykernel.Issue{
-			Severity:     consistencykernel.SeverityError,
-			AllocationID: allocationID,
-			OwnerType:    allocationkernel.OwnerService,
-			OwnerID:      serviceID,
-			Status:       status,
-		}
-		switch {
-		case status == "":
-			issue.Code = consistencykernel.IssueServiceReferenceMissingAllocation
-			issue.Detail = "service references an allocation row that does not exist"
-		case contains(endedAllocationStatuses(), status):
-			issue.Code = consistencykernel.IssueServiceReferenceEndedAllocation
-			issue.Detail = "service still references an ended allocation"
-		default:
-			issue.Code = consistencykernel.IssueServiceReferenceOwnerMismatch
-			issue.Detail = fmt.Sprintf("service references allocation owned by %s/%s", allocationOwnerType, allocationOwnerID)
-		}
-		out = append(out, issue)
-	}
-	return out, false, rows.Err()
 }
 
 func scanDependentIssues(rows pgx.Rows, resource dependentResource, limit int) ([]consistencykernel.Issue, bool, error) {

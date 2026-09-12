@@ -11,13 +11,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cofy-x/axern/apps/cli/internal/parse"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"gopkg.in/yaml.v3"
 )
 
@@ -26,8 +23,7 @@ const APIVersion = "axern/v1"
 type Kind string
 
 const (
-	KindRun     Kind = "Run"
-	KindService Kind = "Service"
+	KindRun Kind = "Run"
 )
 
 type Envelope struct {
@@ -50,9 +46,6 @@ type Spec struct {
 	RuntimeClass          string            `json:"runtime_class,omitempty" yaml:"runtime_class,omitempty"`
 	ExtensionCapabilities map[string]string `json:"extension_capabilities,omitempty" yaml:"extension_capabilities,omitempty"`
 	Resources             Resources         `json:"resources,omitempty" yaml:"resources,omitempty"`
-	Replicas              *int32            `json:"replicas,omitempty" yaml:"replicas,omitempty"`
-	Readiness             *Probe            `json:"readiness,omitempty" yaml:"readiness,omitempty"`
-	Liveness              *Probe            `json:"liveness,omitempty" yaml:"liveness,omitempty"`
 	Env                   map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
 	SecretEnv             []SecretEnv       `json:"secret_env,omitempty" yaml:"secret_env,omitempty"`
 	SecretFiles           []SecretFile      `json:"secret_files,omitempty" yaml:"secret_files,omitempty"`
@@ -82,22 +75,6 @@ type Quantity struct {
 	CPU              string `json:"cpu,omitempty" yaml:"cpu,omitempty"`
 	Memory           string `json:"memory,omitempty" yaml:"memory,omitempty"`
 	EphemeralStorage string `json:"ephemeral_storage,omitempty" yaml:"ephemeral_storage,omitempty"`
-}
-
-type Probe struct {
-	HTTP             *HTTPProbe `json:"http,omitempty" yaml:"http,omitempty"`
-	TCPPort          int32      `json:"tcp_port,omitempty" yaml:"tcp_port,omitempty"`
-	InitialDelay     string     `json:"initial_delay,omitempty" yaml:"initial_delay,omitempty"`
-	Period           string     `json:"period,omitempty" yaml:"period,omitempty"`
-	Timeout          string     `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	SuccessThreshold int32      `json:"success_threshold,omitempty" yaml:"success_threshold,omitempty"`
-	FailureThreshold int32      `json:"failure_threshold,omitempty" yaml:"failure_threshold,omitempty"`
-}
-
-type HTTPProbe struct {
-	Port   int32  `json:"port" yaml:"port"`
-	Path   string `json:"path,omitempty" yaml:"path,omitempty"`
-	Scheme string `json:"scheme,omitempty" yaml:"scheme,omitempty"`
 }
 
 type SecretEnv struct {
@@ -175,45 +152,10 @@ func (e *Envelope) Validate(expected Kind) error {
 	if _, err := e.ResourceSpec(); err != nil {
 		return err
 	}
-	switch e.Kind {
-	case KindRun:
-		if e.Spec.Replicas != nil || e.Spec.Readiness != nil || e.Spec.Liveness != nil {
-			return fmt.Errorf("Run spec contains service fields")
-		}
-	case KindService:
-		if e.Spec.Replicas != nil && *e.Spec.Replicas < 0 {
-			return fmt.Errorf("Service replicas must be non-negative")
-		}
-		if _, err := probe(e.Spec.Readiness); err != nil {
-			return fmt.Errorf("spec.readiness: %w", err)
-		}
-		if _, err := probe(e.Spec.Liveness); err != nil {
-			return fmt.Errorf("spec.liveness: %w", err)
-		}
-	}
 	if _, _, _, err := e.secretAndImageMounts(); err != nil {
 		return err
 	}
 	return nil
-}
-
-func (e Envelope) ServiceReplicas() int32 {
-	if e.Spec.Replicas == nil {
-		return 1
-	}
-	return *e.Spec.Replicas
-}
-
-func (e Envelope) ServiceConfig() (*servicev1.ServiceProbe, *servicev1.ServiceProbe, error) {
-	readiness, err := probe(e.Spec.Readiness)
-	if err != nil {
-		return nil, nil, err
-	}
-	liveness, err := probe(e.Spec.Liveness)
-	if err != nil {
-		return nil, nil, err
-	}
-	return readiness, liveness, nil
 }
 
 func (e Envelope) EnvironmentSpec() (string, *environmentv1.EnvironmentSpec) {
@@ -351,63 +293,6 @@ func quantity(value Quantity) (*commonv1.ResourceQuantity, error) {
 		return nil, nil
 	}
 	return &commonv1.ResourceQuantity{CpuMilli: cpu, MemoryBytes: memory, EphemeralStorageBytes: ephemeralStorage}, nil
-}
-
-func probe(value *Probe) (*servicev1.ServiceProbe, error) {
-	if value == nil {
-		return nil, nil
-	}
-	if (value.HTTP == nil) == (value.TCPPort == 0) {
-		return nil, fmt.Errorf("exactly one of http or tcp_port is required")
-	}
-	if value.SuccessThreshold < 0 || value.FailureThreshold < 0 {
-		return nil, fmt.Errorf("success_threshold and failure_threshold must be non-negative")
-	}
-	out := &servicev1.ServiceProbe{
-		SuccessThreshold: value.SuccessThreshold,
-		FailureThreshold: value.FailureThreshold,
-	}
-	var err error
-	if out.InitialDelay, err = parseDuration(value.InitialDelay); err != nil {
-		return nil, fmt.Errorf("initial_delay: %w", err)
-	}
-	if out.Period, err = parseDuration(value.Period); err != nil {
-		return nil, fmt.Errorf("period: %w", err)
-	}
-	if out.Timeout, err = parseDuration(value.Timeout); err != nil {
-		return nil, fmt.Errorf("timeout: %w", err)
-	}
-	if value.HTTP != nil {
-		if value.HTTP.Port <= 0 || value.HTTP.Port > 65535 {
-			return nil, fmt.Errorf("http.port must be between 1 and 65535")
-		}
-		scheme := servicev1.HttpProbeScheme_HTTP_PROBE_SCHEME_HTTP
-		switch strings.ToLower(strings.TrimSpace(value.HTTP.Scheme)) {
-		case "", "http":
-		case "https":
-			scheme = servicev1.HttpProbeScheme_HTTP_PROBE_SCHEME_HTTPS
-		default:
-			return nil, fmt.Errorf("http.scheme must be http or https")
-		}
-		out.Action = &servicev1.ServiceProbe_Http{Http: &servicev1.HttpProbe{Port: value.HTTP.Port, Path: value.HTTP.Path, Scheme: scheme}}
-	} else {
-		if value.TCPPort <= 0 || value.TCPPort > 65535 {
-			return nil, fmt.Errorf("tcp_port must be between 1 and 65535")
-		}
-		out.Action = &servicev1.ServiceProbe_Tcp{Tcp: &servicev1.TcpProbe{Port: value.TCPPort}}
-	}
-	return out, nil
-}
-
-func parseDuration(value string) (*durationpb.Duration, error) {
-	if strings.TrimSpace(value) == "" {
-		return nil, nil
-	}
-	duration, err := time.ParseDuration(value)
-	if err != nil || duration < 0 {
-		return nil, fmt.Errorf("must be a non-negative duration")
-	}
-	return durationpb.New(duration), nil
 }
 
 func countNonEmpty(values ...string) int {

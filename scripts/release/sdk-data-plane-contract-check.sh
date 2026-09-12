@@ -77,14 +77,14 @@ fixtures = (
 )
 for fixture in fixtures:
     text = fixture.read_text()
-    for value in ("service-id", "python311", "runsc", "release-ok", "AXERN_SDK_ACCEPTANCE_HANDSHAKE_DIR"):
+    for value in ("run-id", "python311", "runsc", "release-ok", "AXERN_SDK_ACCEPTANCE_HANDSHAKE_DIR"):
         if value not in text:
             raise SystemExit(f"{fixture.relative_to(root)} is missing acceptance behavior: {value}")
     if "100m" not in text or "512MiB" not in text:
         raise SystemExit(f"{fixture.relative_to(root)} must declare bounded release-smoke resources")
 
 acceptance = (root / "scripts/release/sdk-data-plane-acceptance.sh").read_text()
-for value in ("service get", '${language}.service-id', "run_sdk python", "run_sdk typescript", "run_sdk go"):
+for value in ("run get", '${language}.run-id', "run_sdk python", "run_sdk typescript", "run_sdk go"):
     if value not in acceptance:
         raise SystemExit(f"SDK data-plane harness is missing CLI handshake contract: {value}")
 

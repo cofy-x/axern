@@ -34,8 +34,8 @@ func TestNewAllocationLifecycleRetryJSON(t *testing.T) {
 	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
 	got := NewAllocationLifecycleRetryJSON(&adminv1.AllocationLifecycleRetry{
 		AllocationID:      "alloc-a",
-		OwnerType:         adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_SERVICE,
-		OwnerID:           "svc-a",
+		OwnerType:         adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN,
+		OwnerID:           "run-a",
 		Reason:            adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE,
 		NodeID:            "node-a",
 		ReconcileAttempts: 3,
@@ -43,7 +43,7 @@ func TestNewAllocationLifecycleRetryJSON(t *testing.T) {
 		Due:               true,
 		Clearable:         true,
 	})
-	if got == nil || got.OwnerType != "service" || got.Reason != "delete" || got.NextRunAt != "2026-05-10T12:00:00Z" || !got.Due || !got.Clearable {
+	if got == nil || got.OwnerType != "run" || got.Reason != "delete" || got.NextRunAt != "2026-05-10T12:00:00Z" || !got.Due || !got.Clearable {
 		t.Fatalf("NewAllocationLifecycleRetryJSON() = %+v", got)
 	}
 }

@@ -68,7 +68,6 @@ runtime/axnoded/internal/service/allocationoutput
 runtime/axnoded/internal/service/controlplane
 runtime/axnoded/internal/service/imageprocess
 runtime/axnoded/internal/service/networking
-runtime/axnoded/internal/service/probes
 runtime/axnoded/internal/service/process
 runtime/axnoded/internal/service/sandboxaccess
 runtime/axnoded/internal/service/sandboxcontrol

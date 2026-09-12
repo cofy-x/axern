@@ -216,52 +216,24 @@ From the host, use:
 make devbox-runtime-images-load
 ```
 
-## Gateway Smoke With A Python Service
+## Gateway Run Smoke
 
 After the standalone stack is running and the `python311` runtime image is
-loaded, you can start a tiny Python HTTP service and reach it through
-`gatewayd`. Run this from a devbox shell or VS Code Remote-SSH terminal:
+loaded, verify the public gateway, control plane, placement, node lifecycle,
+runsc sandbox, and output path with one foreground Run. Run this from a devbox
+shell or VS Code Remote-SSH terminal:
 
 ```bash
 make axern-dev-build
 make dev-runtime-images-load
 
-SERVICE_ID="$(
-  axern svc create \
-    --template-id python311 \
-    --runtime-class runsc \
-    --replicas 1 \
-    --readiness-http-port 8080 \
-    --readiness-http-path / \
-    --argv=python \
-    --argv=-m \
-    --argv=http.server \
-    --argv=8080 \
-    --argv=--bind \
-    --argv=0.0.0.0 \
-    -o json | jq -r '.service.id'
-)"
-
-for _ in $(seq 1 60); do
-  if [ "$(axern svc get "${SERVICE_ID}" -o json | jq -r '.service.ready_replicas')" = "1" ]; then
-    break
-  fi
-  sleep 2
-done
-
-axern svc replicas "${SERVICE_ID}"
-curl -fsS "http://127.0.0.1:25080/svc/default/${SERVICE_ID}/8080/" | head
+axern run --template python311 --runtime-class runsc -- \
+  python -c 'print("axern gateway run smoke")'
 ```
 
-The gateway URL format is
-`/svc/{namespace}/{service_id}/{port}/...`; the standalone `gatewayd` listens
-on `127.0.0.1:25080`.
-
-Clean up the service when finished:
-
-```bash
-axern svc delete --purge --wait "${SERVICE_ID}"
-```
+Use `axern run --detach`, `axern run get`, and `axern run logs --follow` when a
+smoke needs a longer-lived Allocation for terminal, SSH, or Tunnel validation.
+There is no `/svc` gateway route or Service lifecycle.
 
 ## Standalone CLI Helpers
 

@@ -43,7 +43,6 @@ axern admin role-binding grant \
 ```bash
 axern context set developer \
   --endpoint <gateway-host:port> \
-  --service-url <gateway-http-url> \
   --tls-ca-cert ca.crt \
   --tls-cert developer.crt \
   --tls-key developer.key \

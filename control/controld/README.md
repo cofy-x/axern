@@ -1,7 +1,7 @@
 # controld
 
 `controld` is Axern's durable control-plane authority for catalog, environment,
-namespace, run, service, gateway, tunnel, and secret APIs.
+namespace, Run, gateway, tunnel, and secret APIs.
 External CLI and SDK traffic should enter through `gatewayd`'s control edge;
 `controld` stays on the private control-plane network.
 It is backed by Postgres, which is the authoritative state store for control
@@ -11,68 +11,25 @@ plane and node state.
 
 - node registration, heartbeat, summary, active inventory ingest,
   node-availability reconciliation, and audited irreversible node retirement
-- authenticated allocation status batch ingest with owner routing and durable
-  run/service projection
-- environment, run, and service lifecycle control
-- service rollout and readiness/liveness health handling
-- edge-triggered service convergence with a bounded cross-service worker pool,
-  periodic recovery sweep, and global plus per-node allocation create budgets
+- authenticated allocation status batch ingest with durable Run projection
+- Environment and Run lifecycle control
 - allocation admission, node reservations, execution leases, and tunnel sessions
 - namespace lifecycle, resource quota policy, quota admission, and quota usage
   reporting
-- gateway route and terminal target resolution
+- allocation terminal and tunnel relay target resolution
 - control-plane-managed secret metadata, encryption, and resolution
 - read-only runtime catalog and debug HTTP surfaces
 
-`controld` does not own realtime exec, terminal streaming, or service HTTP
-proxying. Realtime execution still goes to selected nodes through the current
+`controld` does not own realtime exec or terminal streaming. Realtime
+execution goes to selected nodes through the current
 SDK path, and `gatewayd` owns external control/data-plane forwarding after
 resolving routes here.
 
-Service create persists desired state and returns before node startup. A
-bounded, service-ID-keyed in-process queue coalesces create and actionable
-allocation status events, then reconciles only services that still require
-controller work. Ordinary starting/readiness transitions are completed by the
-durable status projection and do not schedule no-op syncs. Queue overflow
-degrades to one full sweep. Pending and retry recovery runs once at startup and
-then on a separate 30-second
-safety sweep after process restarts or missed notifications. Independent
-services reconcile concurrently. Allocation creation is dispatched fairly
-across nodes, bounded by a process-wide ceiling and a per-node ceiling. This
-keeps many single-replica services responsive without turning each status event
-or fast periodic tick into a full scan, allowing one busy node to block
-unrelated nodes, or multiplying fanout into unbounded node lifecycle RPCs.
-
-The process-wide service reconcile count, global allocation-create ceiling, and
-per-node allocation-create ceiling are explicit deployment settings. They let
-control-plane throughput scale with the number of runtime nodes while
-preserving a hard process limit and protecting each axnoded independently.
-
-Periodic run, node, Service, and tunnel maintenance runs in
-independent component loops. A slow dependency in one component therefore does
-not block the cadence of unrelated controllers. Each loop is non-overlapping
-and inherits the process lifecycle context. Short maintenance loops have a
-bounded component timeout. Run and Service allocation creation instead use a
-bounded timeout per lifecycle item so cold image materialization cannot consume
-the budget of later work or be canceled by a shorter maintenance deadline.
-The lower-frequency recovery sweep runs in one serialized Service maintenance
-loop, while service-ID event workers retain their bounded cross-service
-concurrency. On shutdown, active calls are canceled before the
-application waits for background goroutines. Reconcile health tracks continuous
-running age correctly across concurrent event workers; timed-out calls and work
-that remains active beyond the timeout degrade `admin reliability check` and
-remain visible through `/reconcilez` and metrics.
-
-`WatchService` exposes the durable service projection as a resumable,
-version-monotonic stream. Every projection write notifies Postgres in the same
-transaction. Each `controld` replica owns one dedicated session connection for
-`LISTEN` and fans wakeups out to local streams, so watch concurrency does not
-consume the query pool. Notifications are hints: a watcher always reloads the
-authoritative row, may coalesce intermediate versions, and SDKs reconnect with
-their last observed version after a transient disconnect. Postgres endpoints
-used by `controld` must therefore preserve session semantics for the listener.
-`axern_controld_service_watch_current{axern_state="active|listener_ready"}`
-exposes stream fanout and listener health without service-ID labels.
+Run creation persists desired execution state and returns before node startup.
+Periodic Run, node, tunnel, and capability maintenance executes in independent,
+non-overlapping component loops. Allocation creation uses a bounded timeout per
+lifecycle item so cold image preparation cannot consume unrelated work budgets.
+On shutdown, active calls are canceled before the application waits for workers.
 
 Runtime-slot admission consumes only axnoded's aggregate `runtime_slots`
 summary. Individual cgroup and interface pools are diagnostic details.
@@ -176,10 +133,9 @@ calls to controld are rejected. See
 [Principal And Namespace Authorization](../../docs/architecture/authorization.md).
 `cmd/retention` assumes the database has already been initialized.
 Retention uses a Postgres advisory lock, so duplicate workers skip instead of
-racing. The cleanup policy covers service events, tunnel session events,
-terminal service allocation history, terminal runs, and expired or revoked
-execution leases; use the `-retention-*-ttl` and `-retention-*-keep` flags on
-`cmd/retention` for per-resource tuning.
+racing. The cleanup policy covers tunnel session events, terminal runs, and
+expired or revoked execution leases; use the `-retention-*-ttl` and
+`-retention-*-keep` flags on `cmd/retention` for per-resource tuning.
 
 Common optional environment variables:
 
@@ -197,7 +153,6 @@ Admin product APIs:
 - `sdk/proto/axern/control/admin/v1/allocation_lifecycle.proto`
 - `sdk/proto/axern/control/admin/v1/reliability.proto`
 - `sdk/proto/axern/control/admin/v1/node.proto`
-- `sdk/proto/axern/control/admin/v1/service.proto`
 
 Public product APIs:
 
@@ -207,7 +162,6 @@ Public product APIs:
 - `sdk/proto/axern/control/gateway/v1/gateway.proto`
 - `sdk/proto/axern/control/namespace/v1/namespace.proto`
 - `sdk/proto/axern/control/run/v1/run.proto`
-- `sdk/proto/axern/control/service/v1/service.proto`
 - `sdk/proto/axern/control/quota/v1/quota.proto`
 - `sdk/proto/axern/control/tunnel/v1/tunnel.proto`
 
@@ -234,9 +188,9 @@ Diagnostic endpoints are read-only:
 
 ## Design Docs
 
-- [Service lifecycle](docs/service-lifecycle.md)
 - [Environment and catalog](docs/environment-and-catalog.md)
 - [Node placement and leases](docs/node-placement-and-leases.md)
+- [Reconcile operations](docs/reconcile-operations.md)
 - [Observed capability providers](../../docs/architecture/observed-capability-providers.md)
 - [Reconcile operations](docs/reconcile-operations.md)
 - [Consistency repair boundaries](docs/consistency-repair-boundaries.md)
@@ -288,7 +242,7 @@ flowchart LR
 - `internal/app` is the composition root and lifecycle wiring layer.
 - `internal/api/{adminv1,publicv1,nodev1,gatewayv1,debughttp}` adapts
   gRPC/HTTP to narrow capabilities.
-- `internal/application/{admin,capability,environment,gateway,node,run,service}` owns
+- `internal/application/{admin,capability,environment,gateway,node,run}` owns
   use-case orchestration across kernel contracts and adapters, including node
   availability, capability-loss reconciliation, and workload lifecycle
   convergence.

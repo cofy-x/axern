@@ -55,46 +55,26 @@ verify_external_image_ref_runtime() {
   local environment_id="$1"
   local runtime_class="$2"
   local ready_timeout="$3"
-  local service_output service_id allocation_id replicas_json deleted_service_id
+  local run_output run_id allocation_id cancelled_run_id
 
   echo "axern_cli_image_ref_e2e_runtime_class=${runtime_class}" >&2
-  service_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service create \
-    -o json \
-    --environment-id "${environment_id}" \
+  run_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run --detach \
+    -o json --environment "${environment_id}" \
     --runtime-class "${runtime_class}" \
-    --replicas 1 \
-    --argv /bin/sh \
-    --argv -lc \
-    --argv 'sleep 120')"
-  service_id="$(json_query "service create external image-ref" 'json.load(sys.stdin)["service"]["id"]' "${service_output}")"
-  [ -n "${service_id}" ] || {
-    echo "service create for external image-ref did not return a service id" >&2
+    -- /bin/sh -lc 'sleep 120')"
+  run_id="$(json_query "run create external image-ref" 'json.load(sys.stdin)["run"]["id"]' "${run_output}")"
+  [ -n "${run_id}" ] || {
+    echo "run create for external image-ref did not return a run id" >&2
     dump_logs
     exit 1
   }
 
-  allocation_id="$(wait_for_ready_service_allocation "${service_id}" "external image-ref service" "${ready_timeout}")"
-  replicas_json="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service replicas "${service_id}" --view current -o json)"
-  if ! python3 -c '
-import json
-import sys
-
-allocation_id = sys.argv[1]
-payload = json.load(sys.stdin)
-for replica in payload.get("replicas", []):
-    if replica.get("id") == allocation_id and replica.get("ready") and not replica.get("terminal"):
-        raise SystemExit(0)
-raise SystemExit(1)
-' "${allocation_id}" <<<"${replicas_json}"; then
-    echo "external image-ref allocation did not appear ready in replicas output" >&2
-    dump_logs
-    exit 1
-  fi
-
-  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service delete "${service_id}" -o json >"${cli_object_output}"
-  deleted_service_id="$(json_query "service delete external image-ref" 'json.load(sys.stdin)["service"]["id"]' "$(cat "${cli_object_output}")")"
-  [ "${deleted_service_id}" = "${service_id}" ] || {
-    echo "service delete returned id = ${deleted_service_id}, want ${service_id}" >&2
+  allocation_id="$(wait_for_running_run_allocation "${run_id}" "external image-ref run" "${ready_timeout}")"
+  [ -n "${allocation_id}" ] || exit 1
+  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run cancel "${run_id}" -o json >"${cli_object_output}"
+  cancelled_run_id="$(json_query "run cancel external image-ref" 'json.load(sys.stdin)["run"]["id"]' "$(cat "${cli_object_output}")")"
+  [ "${cancelled_run_id}" = "${run_id}" ] || {
+    echo "run cancel returned id = ${cancelled_run_id}, want ${run_id}" >&2
     dump_logs
     exit 1
   }

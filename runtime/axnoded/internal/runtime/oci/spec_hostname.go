@@ -1,7 +1,6 @@
 package oci
 
 import (
-	"regexp"
 	"strings"
 	"unicode"
 
@@ -13,10 +12,7 @@ import (
 const (
 	defaultSandboxHostname = "sandbox"
 	maxDNSLabelLength      = 63
-	maxServiceNameLength   = 32
 )
-
-var serviceUUIDPattern = regexp.MustCompile(`^svc-([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 func runtimeHostnameAnnotationKey() string {
 	return workloadidentity.LabelKeyHostname
@@ -57,14 +53,7 @@ func workloadHostname(annotations map[string]string, request *apipb.CreateContai
 		allocationID = strings.TrimSpace(containerID)
 	}
 
-	serviceID := shortServiceIdentity(annotations[workloadidentity.LabelKeyServiceID])
-	if serviceID != "" {
-		if suffix := shortIdentity(allocationID); suffix != "" {
-			return joinHostnameParts(serviceID, suffix)
-		}
-		return serviceID
-	}
-	if suffix := shortIdentity(allocationID); suffix != "" {
+	if suffix := shortAllocationIdentity(allocationID); suffix != "" {
 		return joinHostnameParts("alloc", suffix)
 	}
 	if runtimeID := sanitizeDNSLabel(annotations[workloadidentity.LabelKeyRuntimeID]); runtimeID != "" {
@@ -103,18 +92,10 @@ func shortIdentity(value string) string {
 	return trimDNSLabel(value[:12])
 }
 
-func shortServiceIdentity(value string) string {
+func shortAllocationIdentity(value string) string {
 	value = sanitizeDNSLabel(value)
-	if value == "" {
-		return ""
-	}
-	if matches := serviceUUIDPattern.FindStringSubmatch(value); len(matches) == 2 {
-		return "svc-" + matches[1]
-	}
-	if len(value) <= maxServiceNameLength {
-		return value
-	}
-	return trimDNSLabel(value[:maxServiceNameLength])
+	value = strings.TrimPrefix(value, "alloc-")
+	return shortIdentity(value)
 }
 
 func firstDNSLabel(value string) string {

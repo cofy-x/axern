@@ -12,7 +12,6 @@ Layout:
 - `axern/control/gateway/v1`: public gateway route and terminal target resolution API
 - `axern/control/tunnel/v1`: public tunnel session API for allocation-scoped
   reverse TCP tunnels
-- `axern/control/service/v1`: public static replica service API
 - `axern/control/quota/v1`: public namespace resource quota API
 - `axern/control/node/v1`: shared control-plane/node coordination API for node
   reporting, allocation status, execution lease replication, and tunnel session

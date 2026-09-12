@@ -1,24 +1,24 @@
 ---
 title: Sandbox Model
-description: The shared mental model behind every SDK Sandbox — service-backed lifecycle, execution, files, and explicit cleanup.
+description: The shared mental model behind every SDK Sandbox — run-backed lifecycle, execution, files, and explicit cleanup.
 ---
 
 A Sandbox is the SDK's programmable view of an isolated workload. The same
 model is implemented by the Python, Go, and TypeScript SDKs against shared
 versioned contracts, so concepts transfer between languages.
 
-## A Sandbox is service-backed
+## A Sandbox is Run-backed
 
 Constructing and starting a Sandbox compiles to public control-plane APIs, not
 a private channel:
 
 1. Resolve or create an **Environment** (image, catalog template, or existing
    environment ID — exactly one source).
-2. Create a **Service** with one replica and wait for a ready allocation.
+2. Create a detached **Run** and wait for its allocation to start.
 3. Execute, transfer files, and open tunnels through the node data plane.
 
 Because the backing resources are ordinary Axern resources, they remain
-visible to the CLI (`axern service list`) and subject to the same namespace
+visible to the CLI (`axern run list`) and subject to the same namespace
 quota, admission, and authorization rules as any other workload.
 
 ## Sources and connections
@@ -47,7 +47,7 @@ Once started, a Sandbox supports:
 ## Lifecycle and cleanup
 
 `close()` is deliberate and ordered: stop tunnel renewal, revoke tunnel
-sessions, delete the SDK-created Service (which releases the allocation), and
+sessions, cancel the SDK-created Run (which releases the allocation), and
 delete the Environment only when the SDK created it — an Environment passed in
 by ID is never deleted. All cleanup is best-effort; prefer context managers or
 `defer` so cleanup runs on every path.
@@ -61,7 +61,7 @@ operator action.
 Public RPC errors preserve the operation, RPC code, server details,
 retryability, and allocation identity. Validation, not-found, permission,
 timeout, cancellation, and unavailable failures stay distinct. SDKs never
-retry mutating RPCs implicitly; idempotent reads and service-watch reconnects
+retry mutating RPCs implicitly; idempotent reads and Run-watch reconnects
 retry only within the caller's deadline.
 
 The authoritative contract is the repository's

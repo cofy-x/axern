@@ -4,7 +4,7 @@ description: Reuse immutable environments, organize workloads by namespace, and 
 ---
 
 An Environment is an immutable, reusable execution source: a resolved catalog
-template or OCI image reference that Runs, Services, and Sandboxes can share
+template or OCI image reference that Runs and Sandboxes can share
 without re-resolving the image. Namespaces group resources, and quota bounds
 what each namespace may admit.
 
@@ -35,12 +35,10 @@ Pass the environment ID to any workload instead of resolving the source again:
 
 ```bash
 axern run --environment <environment-id> -- python -c 'print("ok")'
-axern service create --environment-id <environment-id> \
-  --argv=python --argv=-m --argv=http.server --argv=8080
 ```
 
 The SDKs accept the same `environment_id` source when constructing a Sandbox,
-which is how agent workspaces keep a stable environment across sessions.
+which avoids resolving the same source for every evaluation sample.
 
 ## Namespaces
 

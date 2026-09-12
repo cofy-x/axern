@@ -8,14 +8,13 @@ import (
 )
 
 type LifecycleRetryClearanceInput struct {
-	AllocationID                     string
-	AllocationStatus                 string
-	OwnerType                        string
-	OwnerRunStatus                   string
-	OwnerServiceReferencesAllocation bool
-	HasActiveReservation             bool
-	HasActiveLease                   bool
-	HasActiveTunnelSession           bool
+	AllocationID           string
+	AllocationStatus       string
+	OwnerType              string
+	OwnerRunStatus         string
+	HasActiveReservation   bool
+	HasActiveLease         bool
+	HasActiveTunnelSession bool
 }
 
 type LifecycleRetryClearance struct {
@@ -40,11 +39,6 @@ func EvaluateLifecycleRetryClearance(in LifecycleRetryClearanceInput) LifecycleR
 	switch strings.TrimSpace(in.OwnerType) {
 	case OwnerRun:
 		return evaluateRunLifecycleRetryClearance(in)
-	case OwnerService:
-		if in.OwnerServiceReferencesAllocation {
-			return blockedLifecycleRetryClearance("owner service still references allocation")
-		}
-		return LifecycleRetryClearance{Clearable: true}
 	default:
 		return blockedLifecycleRetryClearance("unsupported owner type %s", statusOrUnknown(in.OwnerType))
 	}

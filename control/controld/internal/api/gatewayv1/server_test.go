@@ -17,17 +17,9 @@ type resolverStub struct {
 	terminalCalls int
 }
 
-func (*resolverStub) ResolveServiceRoute(context.Context, *gatewaypb.ResolveServiceRouteRequest, time.Duration, time.Time) (*gatewaypb.ResolveServiceRouteResponse, error) {
-	return &gatewaypb.ResolveServiceRouteResponse{}, nil
-}
-
 func (r *resolverStub) ResolveAllocationTerminal(context.Context, *gatewaypb.ResolveAllocationTerminalRequest, time.Duration, time.Time) (*gatewaypb.ResolveAllocationTerminalResponse, error) {
 	r.terminalCalls++
 	return &gatewaypb.ResolveAllocationTerminalResponse{}, nil
-}
-
-func (*resolverStub) ResolveServiceReplicaTargets(context.Context, string) (*gatewaypb.ResolveServiceReplicaTargetsResponse, error) {
-	return &gatewaypb.ResolveServiceReplicaTargetsResponse{}, nil
 }
 
 type accessAuthorizerStub struct {

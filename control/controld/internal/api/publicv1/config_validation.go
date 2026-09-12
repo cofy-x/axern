@@ -5,11 +5,9 @@ import (
 	"strings"
 
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
-	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	"github.com/cofy-x/axern/lib/go/agentbundle"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -261,14 +259,4 @@ func pathHasParentReference(value string) bool {
 		}
 	}
 	return false
-}
-
-func validateServiceReadinessProbe(probe *servicev1.ServiceProbe) error {
-	_, err := servicekernel.ValidateAndNormalizeReadinessProbe(probe)
-	return err
-}
-
-func validateServiceLivenessProbe(probe *servicev1.ServiceProbe) error {
-	_, err := servicekernel.ValidateAndNormalizeLivenessProbe(probe)
-	return err
 }

@@ -14,41 +14,41 @@ func TestObserveReconcileHealthMetrics(t *testing.T) {
 	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
 	app := &App{
 		now:             func() time.Time { return now },
-		reconcileHealth: reconcilekernel.NewHealthTracker(reconcilekernel.ComponentService),
+		reconcileHealth: reconcilekernel.NewHealthTracker(reconcilekernel.ComponentRun),
 	}
-	run := app.reconcileHealth.RecordStart(reconcilekernel.ComponentService, now.Add(-10*time.Second))
+	run := app.reconcileHealth.RecordStart(reconcilekernel.ComponentRun, now.Add(-10*time.Second))
 	app.reconcileHealth.RecordResult(run, assertErr("database unavailable"), now.Add(-5*time.Second))
 
 	failures := collectReconcileMetric(t, app.observeReconcileConsecutiveFailures)
-	if got := failures[reconcilekernel.ComponentService]; got != 1 {
+	if got := failures[reconcilekernel.ComponentRun]; got != 1 {
 		t.Fatalf("consecutive failures = %d, want 1", got)
 	}
 	errorAge := collectReconcileMetric(t, app.observeReconcileLastErrorAge)
-	if got := errorAge[reconcilekernel.ComponentService]; got != 5 {
+	if got := errorAge[reconcilekernel.ComponentRun]; got != 5 {
 		t.Fatalf("last error age = %d, want 5", got)
 	}
 	running := collectReconcileMetric(t, app.observeReconcileRunning)
-	if got := running[reconcilekernel.ComponentService]; got != 0 {
+	if got := running[reconcilekernel.ComponentRun]; got != 0 {
 		t.Fatalf("running = %d, want 0", got)
 	}
 
-	run = app.reconcileHealth.RecordStart(reconcilekernel.ComponentService, now.Add(-3*time.Second))
+	run = app.reconcileHealth.RecordStart(reconcilekernel.ComponentRun, now.Add(-3*time.Second))
 	app.reconcileHealth.RecordResult(run, nil, now.Add(-2*time.Second))
 	successAge := collectReconcileMetric(t, app.observeReconcileLastSuccessAge)
-	if got := successAge[reconcilekernel.ComponentService]; got != 2 {
+	if got := successAge[reconcilekernel.ComponentRun]; got != 2 {
 		t.Fatalf("last success age = %d, want 2", got)
 	}
 	failures = collectReconcileMetric(t, app.observeReconcileConsecutiveFailures)
-	if got := failures[reconcilekernel.ComponentService]; got != 0 {
+	if got := failures[reconcilekernel.ComponentRun]; got != 0 {
 		t.Fatalf("consecutive failures after success = %d, want 0", got)
 	}
-	if got := collectReconcileMetric(t, app.observeReconcileRunningAge)[reconcilekernel.ComponentService]; got != 0 {
+	if got := collectReconcileMetric(t, app.observeReconcileRunningAge)[reconcilekernel.ComponentRun]; got != 0 {
 		t.Fatalf("idle running age = %d, want 0", got)
 	}
 
-	app.reconcileHealth.RecordStart(reconcilekernel.ComponentService, now.Add(-7*time.Second))
+	app.reconcileHealth.RecordStart(reconcilekernel.ComponentRun, now.Add(-7*time.Second))
 	runningAge := collectReconcileMetric(t, app.observeReconcileRunningAge)
-	if got := runningAge[reconcilekernel.ComponentService]; got != 7 {
+	if got := runningAge[reconcilekernel.ComponentRun]; got != 7 {
 		t.Fatalf("running age = %d, want 7", got)
 	}
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 )
 
@@ -19,11 +18,10 @@ func TestSnapshotReportsActiveDependentsOnEndedAllocation(t *testing.T) {
 	defer db.Close()
 
 	now := time.Date(2026, 5, 10, 9, 0, 0, 0, time.UTC)
-	insertConsistencyAllocation(t, db, "alloc-ended", allocationkernel.OwnerService, "svc-ended", commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String(), now)
-	insertConsistencyReservation(t, db, "resv-ended", "alloc-ended", allocationkernel.OwnerService, "svc-ended", now)
+	insertConsistencyAllocation(t, db, "alloc-ended", allocationkernel.OwnerRun, "run-ended", commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String(), now)
+	insertConsistencyReservation(t, db, "resv-ended", "alloc-ended", allocationkernel.OwnerRun, "run-ended", now)
 	insertConsistencyLease(t, db, "lease-ended", "alloc-ended", now, now.Add(time.Hour))
 	insertConsistencyTunnel(t, db, "tun-ended", "alloc-ended", tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(), now, now.Add(time.Hour))
-	insertConsistencyService(t, db, "svc-ended", "alloc-ended", now)
 
 	snapshot, err := Snapshot(context.Background(), db.Pool(), now)
 	if err != nil {
@@ -39,7 +37,6 @@ func TestSnapshotReportsActiveDependentsOnEndedAllocation(t *testing.T) {
 		"active_reservation_on_ended_allocation": false,
 		"active_lease_on_ended_allocation":       false,
 		"active_tunnel_on_ended_allocation":      false,
-		"service_reference_ended_allocation":     false,
 	}
 	for _, issue := range snapshot.Issues {
 		if _, ok := wantCodes[string(issue.Code)]; ok {
@@ -65,7 +62,6 @@ func TestSnapshotReportsOKForReleasedDependents(t *testing.T) {
 	insertReleasedConsistencyReservation(t, db, "resv-ok", "alloc-ok", allocationkernel.OwnerRun, "run-ok", now)
 	insertConsistencyLeaseRevoked(t, db, "lease-ok", "alloc-ok", now, now.Add(time.Hour))
 	insertConsistencyTunnelRevoked(t, db, "tun-ok", "alloc-ok", tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(), now, now.Add(time.Hour))
-	insertConsistencyServiceWithStatus(t, db, "svc-deleted", "alloc-ok", servicev1.ServiceStatus_SERVICE_STATUS_DELETED.String(), now)
 
 	snapshot, err := Snapshot(context.Background(), db.Pool(), now)
 	if err != nil {
@@ -194,22 +190,5 @@ func ensureConsistencyTunnelIdentity(t *testing.T, db *postgres.DB, now time.Tim
 		ON CONFLICT (principal_id) DO NOTHING
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert tunnel principal fixture: %v", err)
-	}
-}
-
-func insertConsistencyService(t *testing.T, db *postgres.DB, serviceID, allocationID string, now time.Time) {
-	t.Helper()
-	insertConsistencyServiceWithStatus(t, db, serviceID, allocationID, servicev1.ServiceStatus_SERVICE_STATUS_READY.String(), now)
-}
-
-func insertConsistencyServiceWithStatus(t *testing.T, db *postgres.DB, serviceID, allocationID, status string, now time.Time) {
-	t.Helper()
-	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO services (
-			service_id, namespace, environment_id, replicas, status, config, allocation_ids,
-			labels, created_at, updated_at
-		) VALUES ($1, 'default', 'env-test', 1, $2, '{}'::jsonb, jsonb_build_array($3::text), '{}'::jsonb, $4, $4)
-	`, serviceID, status, allocationID, now.UTC()); err != nil {
-		t.Fatalf("insert service: %v", err)
 	}
 }

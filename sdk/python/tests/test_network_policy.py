@@ -3,8 +3,7 @@ from __future__ import annotations
 import unittest
 
 from axern.control.common.v1 import common_pb2
-from axern.control.service.v1 import service_pb2, service_types_pb2
-from axern_sdk import AxernClient, CIDRRule, NetworkPolicy, PortRange
+from axern_sdk import CIDRRule, NetworkPolicy, PortRange
 
 
 class NetworkPolicyTest(unittest.TestCase):
@@ -37,23 +36,6 @@ class NetworkPolicyTest(unittest.TestCase):
             PortRange(0)
         with self.assertRaises(ValueError):
             CIDRRule("not-a-cidr", "tcp", (PortRange(22),))
-
-    def test_create_service_serializes_network_policy(self) -> None:
-        class ServiceStub:
-            request = None
-
-            def CreateService(self, request, timeout=None):
-                del timeout
-                self.request = request
-                return service_pb2.CreateServiceResponse(service=service_types_pb2.Service(id="svc-1"))
-
-        client = AxernClient.__new__(AxernClient)
-        stub = ServiceStub()
-        client.services = stub
-        client.create_service(environment_id="env-1", network_policy=NetworkPolicy.allow_domains("example.com"))
-
-        self.assertEqual(list(stub.request.config.network.egress_policy.strict.allowed_domains), ["example.com"])
-
 
 if __name__ == "__main__":
     unittest.main()

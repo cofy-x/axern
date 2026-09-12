@@ -121,8 +121,6 @@ func quotaEventWorkloadType(value string) quotav1.NamespaceQuotaEventWorkloadTyp
 	switch strings.TrimSpace(value) {
 	case string(resourcekernel.QuotaEventWorkloadRun):
 		return quotav1.NamespaceQuotaEventWorkloadType_NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN
-	case string(resourcekernel.QuotaEventWorkloadService):
-		return quotav1.NamespaceQuotaEventWorkloadType_NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_SERVICE
 	default:
 		return quotav1.NamespaceQuotaEventWorkloadType_NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_UNSPECIFIED
 	}

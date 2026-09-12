@@ -26,7 +26,6 @@ import (
 	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/imageprocess"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/service/probes"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/process"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxaccess"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxcontrol"
@@ -56,9 +55,6 @@ type sandboxService struct {
 	imageProcesses    *imageprocess.Controller
 	sandboxController *sandboxcontrol.Controller
 	allocations       *allocation.Controller
-
-	probeCoordinator *probes.Coordinator
-	probeAdapter     *probes.Adapter
 
 	nodeInventorySource       *nodeinventory.AxnodedSource
 	inventoryCollector        *nodeinventory.Collector
@@ -249,7 +245,6 @@ func (h *sandboxService) closeEgress() {
 }
 
 func (h *sandboxService) configureServiceCollaborators() {
-	h.configureProbeCoordinator()
 	h.configureSandboxTargets()
 	h.configureSandboxAccess()
 	h.configureNetworking()

@@ -19,19 +19,23 @@ README or `docs/`, not here.
   adapters.
 - Keep [`internal/service`](internal/service) as the API-facing orchestration
   facade for sandbox lifecycle and node sandbox RPC glue. It must not import
-  `internal/app` or `internal/api`.
-- Keep service subdomains narrow and explicit:
+  `internal/app` or `internal/api`. This package name means an implementation
+  service layer; it is not the retired Service product model.
+- Every workload lifecycle entry must be keyed by Allocation ID and attempt.
+  Do not add Service replica, rollout, or persistent-volume ownership to the
+  node runtime.
+- Keep orchestration subdomains narrow and explicit:
 
   | Package | Owns |
   | --- | --- |
   | [`internal/service/allocation`](internal/service/allocation) | allocation start/delete lifecycle, capability dependency persistence and verification, runtime template mapping, prepared-container enforcement gate, rootfs preparation, start metrics |
+  | [`internal/service/allocationoutput`](internal/service/allocationoutput) | allocation output paths, retention boundaries, and cleanup coordination |
   | [`internal/service/controlplane`](internal/service/controlplane) | allocation, capability-condition, and exit report shaping plus node reporter construction |
   | [`internal/service/imageprocess`](internal/service/imageprocess) | image-backed process orchestration, actor lifecycle, mount resolution, stream handling, cleanup policy |
   | [`internal/service/networking`](internal/service/networking) | sandbox network lookup, DNAT lifecycle, activation cleanup, HTTP proxy transport |
   | [`internal/service/process`](internal/service/process) | sandbox command execution, exec/process facade orchestration, metrics envelopes, process session transport, stream pump behavior |
   | [`internal/service/sandboxtarget`](internal/service/sandboxtarget) | container-to-runtime target resolution, running-state validation, shared exec-direct capability checks |
   | [`internal/service/sandboxcontrol`](internal/service/sandboxcontrol) | sandbox inspection, wait, kill, checkpoint, and cgroup stats control-plane operations |
-  | [`internal/service/probes`](internal/service/probes) | readiness/liveness worker state, probe target status mapping, sandboxd probe adapters, liveness failure cleanup/report shaping |
   | [`internal/service/sandboxaccess`](internal/service/sandboxaccess) | sandbox-local file, browser, computer-use, diagnostics, and capability operations |
   | [`internal/service/startplan`](internal/service/startplan) | pure start request normalization and container request builders |
 
@@ -76,8 +80,8 @@ README or `docs/`, not here.
   [`internal/nodestate`](internal/nodestate). Consumers define narrow state
   capabilities at their package boundary; allocation state is stored as one
   record per allocation and must not regress to whole-map snapshots.
-- Probe and allocation lifecycle workers must not wait for control-plane status
-  RPCs. Keep allocation observations in the bounded, coalescing reporter queue;
+- Allocation lifecycle workers must not wait for control-plane status RPCs.
+  Keep allocation observations in the bounded, coalescing reporter queue;
   preserve terminal states across retry and expose queue pressure through
   axnoded observability.
 - Keep test doubles in explicit test-support packages such as
@@ -96,15 +100,16 @@ README or `docs/`, not here.
 ## Sync Points
 
 - Proto/API changes: update `.proto` sources, regenerate with `make protos` or
-  `make protos-docker`, and update API, service, CLI, and tests together.
+  `make protos-docker`, and update API, runtime orchestration, CLI, SDKs, and
+  tests together.
 - Config changes: update [`config/config_test.go`](config/config_test.go),
   [Sample Configuration](docs/sample_conf.toml),
   and [Configuration](docs/configuration.md) when the operator-facing shape
   changes. Update the [Node Runtime README](README.md) only when invocation,
   endpoint summaries, or document routing changes.
 - Runtime registration, capability, or requirement changes: update runtime
-  status/dashboard behavior plus tests in [`internal/runtime`](internal/runtime)
-  and [`internal/service/runtime_status_facade_test.go`](internal/service/runtime_status_facade_test.go).
+  status behavior plus tests in [`internal/runtime`](internal/runtime) and the
+  API-facing orchestration facade.
 - Observed node capability changes: update the capability proto, shared catalog,
   provider manager, inventory/reporting, create-time gate, and
   [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md)
@@ -128,7 +133,8 @@ README or `docs/`, not here.
   use `make verify-docker-runsc-debug` or
   `make verify-docker-runsc-ebpf` when the change needs narrower Linux runtime
   validation.
-- Demo/dashboard changes: run `make run-dashboard-nginx-demo`.
+- Node-local nginx diagnostic demo changes: run
+  `make run-dashboard-nginx-demo`.
 
 Use [Verification](docs/verification.md) for the full validation matrix
 and [Runtime Scripts](scripts/README.md) for script-level knobs.

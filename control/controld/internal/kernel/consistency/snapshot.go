@@ -24,9 +24,6 @@ const (
 	IssueActiveTunnelMissingAllocation       IssueCode = "active_tunnel_missing_allocation"
 	IssueActiveTunnelOnEndedAllocation       IssueCode = "active_tunnel_on_ended_allocation"
 	IssueActiveTunnelAllocationNodeMismatch  IssueCode = "active_tunnel_allocation_node_mismatch"
-	IssueServiceReferenceMissingAllocation   IssueCode = "service_reference_missing_allocation"
-	IssueServiceReferenceEndedAllocation     IssueCode = "service_reference_ended_allocation"
-	IssueServiceReferenceOwnerMismatch       IssueCode = "service_reference_owner_mismatch"
 )
 
 type Snapshot struct {

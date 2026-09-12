@@ -28,10 +28,6 @@ type Reliability interface {
 	Health(ctx context.Context, now time.Time) (adminkernel.ReliabilityHealth, error)
 }
 
-type Services interface {
-	PurgeService(ctx context.Context, serviceID, operatorReason string, now time.Time) (string, error)
-}
-
 type Nodes interface {
 	ListNodes(ctx context.Context, filter adminkernel.NodeListFilter) ([]*nodekernel.Record, error)
 	RetireNode(ctx context.Context, nodeID, operatorReason string, now time.Time) (*nodekernel.Record, error)
@@ -61,7 +57,6 @@ type Dependencies struct {
 	AllocationLifecycleRetries AllocationLifecycleRetries
 	AdminAuditEvents           AdminAuditEvents
 	Reliability                Reliability
-	Services                   Services
 	Nodes                      Nodes
 	CapabilityDiagnostics      CapabilityDiagnostics
 	NodeHeartbeatWindow        time.Duration

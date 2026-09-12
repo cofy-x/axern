@@ -1,16 +1,13 @@
 package sshcmd
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 
-	appservice "github.com/cofy-x/axern/apps/cli/internal/application/service"
 	"github.com/cofy-x/axern/apps/cli/internal/command"
 	"github.com/cofy-x/axern/apps/cli/internal/output"
 	"github.com/spf13/cobra"
@@ -18,7 +15,6 @@ import (
 
 type options struct {
 	targetID              string
-	preferredAllocationID string
 	endpoint              string
 	identityFile          string
 	remoteCommand         string
@@ -31,18 +27,18 @@ type options struct {
 func Command(runtime command.Runtime) *cobra.Command {
 	var opts options
 	cmd := &cobra.Command{
-		Use:   "ssh <allocation-id|service-id> [shell]",
-		Short: "Open an SSH-compatible terminal to an allocation or service",
+		Use:   "ssh <allocation-id> [shell]",
+		Short: "Open an SSH-compatible terminal to an allocation",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				return command.Usage(fmt.Errorf("allocation or service id is required"))
+				return command.Usage(fmt.Errorf("allocation id is required"))
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.targetID = strings.TrimSpace(args[0])
 			if strings.Contains(opts.targetID, "@") {
-				return command.Usage(fmt.Errorf("pass only the allocation or service id; the SSH endpoint comes from context or --ssh-endpoint"))
+				return command.Usage(fmt.Errorf("pass only the allocation id; the SSH endpoint comes from context or --ssh-endpoint"))
 			}
 			if len(args) > 1 {
 				if opts.remoteCommand != "" {
@@ -56,24 +52,19 @@ func Command(runtime command.Runtime) *cobra.Command {
 			if opts.containerUser != "" && !validContainerUser(opts.containerUser) {
 				return command.Usage(fmt.Errorf("container user may contain only letters, numbers, '_', '-', '.', and at most one ':'"))
 			}
-			allocationID, err := resolveTargetAllocation(cmd, runtime, opts)
-			if err != nil {
-				return err
-			}
-			args, err = buildArgs(opts, allocationID)
+			sshArgs, err := buildArgs(opts, opts.targetID)
 			if err != nil {
 				return command.Usage(err)
 			}
 			if _, err := exec.LookPath("ssh"); err != nil {
 				return fmt.Errorf("ssh executable not found in PATH")
 			}
-			return runOpenSSH(cmd, args, opts.requestTTY)
+			return runOpenSSH(cmd, sshArgs, opts.requestTTY)
 		},
 	}
 	f := cmd.Flags()
 	f.StringVar(&opts.endpoint, "ssh-endpoint", "", "gateway SSH host:port")
 	f.StringVarP(&opts.identityFile, "identity-file", "i", "", "gateway SSH private key")
-	f.StringVar(&opts.preferredAllocationID, "allocation-id", "", "ready allocation to use when the target is a service")
 	f.StringVar(&opts.remoteCommand, "shell", "", "interactive shell path")
 	f.StringVarP(&opts.containerUser, "user", "u", "", "container user")
 	f.BoolVar(&opts.requestTTY, "tty", true, "request a local OpenSSH pseudo-terminal")
@@ -126,64 +117,6 @@ func hasExplicitSSHConnection(cmd *cobra.Command) bool {
 		identity = strings.TrimSpace(value) != ""
 	}
 	return endpoint && identity
-}
-
-func resolveTargetAllocation(cmd *cobra.Command, runtime command.Runtime, opts options) (string, error) {
-	if !strings.HasPrefix(opts.targetID, "svc-") {
-		if opts.preferredAllocationID != "" {
-			return "", command.Usage(fmt.Errorf("--allocation-id is only valid when the target is a service"))
-		}
-		return opts.targetID, nil
-	}
-	session, err := runtime.Open(cmd.Context())
-	if err != nil {
-		return "", err
-	}
-	defer session.Close()
-	candidates, err := appservice.New(session.Clients.Service).CurrentReadyAllocationCandidates(session.Context, opts.targetID)
-	if err != nil {
-		return "", err
-	}
-	if len(candidates) == 0 {
-		return "", fmt.Errorf("service %s has no current ready allocation", opts.targetID)
-	}
-	if opts.preferredAllocationID != "" {
-		for _, candidate := range candidates {
-			if candidate.ID == opts.preferredAllocationID {
-				return candidate.ID, nil
-			}
-		}
-		return "", fmt.Errorf("allocation %s is not a current ready replica of service %s", opts.preferredAllocationID, opts.targetID)
-	}
-	if len(candidates) == 1 {
-		return candidates[0].ID, nil
-	}
-	return promptServiceAllocation(cmd, opts.targetID, candidates)
-}
-
-func promptServiceAllocation(cmd *cobra.Command, serviceID string, candidates []appservice.AllocationCandidate) (string, error) {
-	info, err := os.Stdin.Stat()
-	if err != nil || info.Mode()&os.ModeCharDevice == 0 {
-		return "", command.Usage(fmt.Errorf("service %s has %d current ready allocations; pass --allocation-id", serviceID, len(candidates)))
-	}
-	fmt.Fprintf(cmd.ErrOrStderr(), "Service %s has %d current ready allocations:\n", serviceID, len(candidates))
-	for i, candidate := range candidates {
-		nodeID := candidate.NodeID
-		if nodeID == "" {
-			nodeID = "-"
-		}
-		fmt.Fprintf(cmd.ErrOrStderr(), "  %d) %s node=%s\n", i+1, candidate.ID, nodeID)
-	}
-	fmt.Fprint(cmd.ErrOrStderr(), "Select allocation: ")
-	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	choice, err := strconv.Atoi(strings.TrimSpace(line))
-	if err != nil || choice < 1 || choice > len(candidates) {
-		return "", command.Usage(fmt.Errorf("invalid allocation selection"))
-	}
-	return candidates[choice-1].ID, nil
 }
 
 func buildArgs(opts options, allocationID string) ([]string, error) {

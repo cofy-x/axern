@@ -24,9 +24,9 @@ try {
   if (result.stdoutText().trim() !== marker) {
     throw new Error(`unexpected TypeScript SDK exec output: ${JSON.stringify(result.stdoutText())}`);
   }
-  writeFileSync(path.join(handshake, "typescript.service-id"), sandbox.metadata.serviceId, "utf8");
+  writeFileSync(path.join(handshake, "typescript.run-id"), sandbox.metadata.runId, "utf8");
   await waitVerified(path.join(handshake, "typescript.verified"));
-  console.log(`sdk_data_plane=typescript service_id=${sandbox.metadata.serviceId} ok=true`);
+  console.log(`sdk_data_plane=typescript run_id=${sandbox.metadata.runId} ok=true`);
 } finally {
   await sandbox?.close();
   client.close();
@@ -38,7 +38,7 @@ async function waitVerified(verifiedPath) {
     if (existsSync(verifiedPath)) return;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error("CLI did not verify the TypeScript SDK service");
+  throw new Error("CLI did not verify the TypeScript SDK Run");
 }
 
 function required(name) {

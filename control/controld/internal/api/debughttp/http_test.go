@@ -126,8 +126,8 @@ func TestAllocationReconcileHandlerReturnsJSONQueue(t *testing.T) {
 		ListReconcileQueue: func(context.Context) ([]allocationkernel.LifecycleRetryItem, error) {
 			return []allocationkernel.LifecycleRetryItem{{
 				AllocationID:      "alloc-1",
-				OwnerID:           "svc-1",
-				OwnerType:         allocationkernel.OwnerService,
+				OwnerID:           "run-1",
+				OwnerType:         allocationkernel.OwnerRun,
 				Reason:            allocationkernel.ReconcileReasonCreate,
 				NodeID:            "node-a",
 				ReconcileAttempts: 2,
@@ -144,7 +144,7 @@ func TestAllocationReconcileHandlerReturnsJSONQueue(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", recorder.Code)
 	}
-	for _, want := range []string{`"allocation_id":"alloc-1"`, `"owner_type":"service"`, `"reason":"create"`, `"reconcile_attempts":2`, `"due":true`} {
+	for _, want := range []string{`"allocation_id":"alloc-1"`, `"owner_type":"run"`, `"reason":"create"`, `"reconcile_attempts":2`, `"due":true`} {
 		if !strings.Contains(recorder.Body.String(), want) {
 			t.Fatalf("unexpected allocation reconcile body: %s", recorder.Body.String())
 		}
@@ -167,7 +167,7 @@ func TestReconcileHealthHandlerReturnsJSONSnapshot(t *testing.T) {
 		},
 		ReconcileHealth: func() reconcilekernel.HealthSnapshot {
 			return reconcilekernel.HealthSnapshot{Components: []reconcilekernel.ComponentHealth{{
-				Component:           reconcilekernel.ComponentService,
+				Component:           reconcilekernel.ComponentRun,
 				LastErrorAt:         &now,
 				LastError:           "database unavailable",
 				ConsecutiveFailures: 2,
@@ -182,7 +182,7 @@ func TestReconcileHealthHandlerReturnsJSONSnapshot(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", recorder.Code)
 	}
-	for _, want := range []string{`"component":"service"`, `"last_error":"database unavailable"`, `"consecutive_failures":2`} {
+	for _, want := range []string{`"component":"run"`, `"last_error":"database unavailable"`, `"consecutive_failures":2`} {
 		if !strings.Contains(recorder.Body.String(), want) {
 			t.Fatalf("unexpected reconcile health body: %s", recorder.Body.String())
 		}

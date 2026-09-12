@@ -16,6 +16,10 @@ Read this file, `apps/docs/README.md`, and
   Starlight's untranslated-content notice.
 - This app owns public installation, CLI, SDK, Axrun, and conceptual user
   documentation.
+- Current product journeys must present `Environment -> Run -> Allocation` as
+  the execution model and `Sandbox` as the SDK facade. Do not publish Service,
+  Function, Agent Profile, or generic Volume workflows; keep SSH and Tunnel as
+  allocation-bound capabilities.
 - Root `docs/` owns detailed engineering architecture, maintainer operations,
   verification contracts, and durable design documents. Summarize those
   contracts here; do not copy them into a second source of truth.
@@ -51,7 +55,3 @@ shared page chrome changes; it requires a local Chrome or Chromium binary
 (`CHROME_BIN` overrides discovery) and is not part of `docs-verify`.
 Run `make docs-social-card` when the social preview SVG source changes; the
 asset check rejects a stale or modified generated PNG.
-Run `make docs-service-asset` when the homepage Service recording or its Python
-example changes; this target requires a ready local Compose data plane and
-must inspect the live Service through the public CLI and leave no Service or
-environment behind.

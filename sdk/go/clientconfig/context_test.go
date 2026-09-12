@@ -13,7 +13,6 @@ func TestLoadAndResolveStrictContext(t *testing.T) {
   "contexts": {
     "hk": {
       "endpoint": "gateway.example:443",
-      "service_url": "https://services.example",
       "ssh_endpoint": "gateway.example:22",
       "ssh_identity_file": "/keys/hk",
       "tls": {"ca_cert": "/ca", "cert": "/cert", "key": "/key", "server_name": "gateway.example"},

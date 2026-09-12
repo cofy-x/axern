@@ -122,8 +122,6 @@ func ownerTypeFromProto(ownerType adminv1.AllocationLifecycleRetryOwnerType) str
 	switch ownerType {
 	case adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN:
 		return allocationkernel.OwnerRun
-	case adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_SERVICE:
-		return allocationkernel.OwnerService
 	default:
 		return ""
 	}
@@ -133,8 +131,6 @@ func ownerTypeToProto(ownerType string) adminv1.AllocationLifecycleRetryOwnerTyp
 	switch ownerType {
 	case allocationkernel.OwnerRun:
 		return adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN
-	case allocationkernel.OwnerService:
-		return adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_SERVICE
 	default:
 		return adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED
 	}

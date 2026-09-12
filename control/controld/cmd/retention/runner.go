@@ -12,12 +12,10 @@ import (
 )
 
 const (
-	resourceServiceEvents      = "service_events"
-	resourceTunnelEvents       = "tunnel_events"
-	resourceQuotaEvents        = "quota_events"
-	resourceServiceAllocations = "service_allocations"
-	resourceTerminalRuns       = "terminal_runs"
-	resourceLeases             = "leases"
+	resourceTunnelEvents = "tunnel_events"
+	resourceQuotaEvents  = "quota_events"
+	resourceTerminalRuns = "terminal_runs"
+	resourceLeases       = "leases"
 )
 
 type cleanupController interface {
@@ -60,10 +58,8 @@ func (r *runner) RunOnce(ctx context.Context) error {
 	}
 	op.End(err)
 
-	recordDeleted(ctx, resourceServiceEvents, result.ServiceEventsDeleted)
 	recordDeleted(ctx, resourceTunnelEvents, result.TunnelEventsDeleted)
 	recordDeleted(ctx, resourceQuotaEvents, result.QuotaEventsDeleted)
-	recordDeleted(ctx, resourceServiceAllocations, result.ServiceAllocationsDeleted)
 	recordDeleted(ctx, resourceTerminalRuns, result.TerminalRunsDeleted)
 	recordDeleted(ctx, resourceLeases, result.LeasesDeleted)
 	logResult(result, err)
@@ -84,13 +80,11 @@ func recordDeleted(ctx context.Context, resource string, count int64) {
 
 func logResult(result retentionkernel.Result, err error) {
 	fields := logrus.Fields{
-		"events_deleted":              result.ServiceEventsDeleted,
-		"tunnel_events_deleted":       result.TunnelEventsDeleted,
-		"quota_events_deleted":        result.QuotaEventsDeleted,
-		"service_allocations_deleted": result.ServiceAllocationsDeleted,
-		"runs_deleted":                result.TerminalRunsDeleted,
-		"leases_deleted":              result.LeasesDeleted,
-		"duration":                    result.Duration.String(),
+		"tunnel_events_deleted": result.TunnelEventsDeleted,
+		"quota_events_deleted":  result.QuotaEventsDeleted,
+		"runs_deleted":          result.TerminalRunsDeleted,
+		"leases_deleted":        result.LeasesDeleted,
+		"duration":              result.Duration.String(),
 	}
 	if err != nil {
 		logrus.WithError(err).WithFields(fields).Warn("retention cleanup failed")

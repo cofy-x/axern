@@ -22,7 +22,7 @@ observable runtime behavior.
   lifecycle, and output in one observable surface. Keep terminal recordings
   with the code or guide they substantiate.
 - Keep the category headline stable while user-selectable Agent Sandbox and
-  Durable Service scenes explain the execution modes. The selected mode may
+  Evaluation Batch scenes explain the execution modes. The selected mode may
   replay its internal lifecycle, but the page does not switch modes without
   user input. Both scenes use `runsc`, the sole packaged production runtime;
     do not present unsupported runtimes as production choices.

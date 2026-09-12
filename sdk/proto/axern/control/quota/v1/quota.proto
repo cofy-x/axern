@@ -31,7 +31,6 @@ enum NamespaceQuotaEventType {
 enum NamespaceQuotaEventWorkloadType {
   NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_UNSPECIFIED = 0;
   NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN = 1;
-  NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_SERVICE = 2;
 }
 
 enum NamespaceQuotaEventReason {

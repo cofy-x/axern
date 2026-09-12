@@ -6,7 +6,6 @@ import (
 
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 	secretkernel "github.com/cofy-x/axern/control/controld/internal/kernel/secret"
-	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	tunnelkernel "github.com/cofy-x/axern/control/controld/internal/kernel/tunnel"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
@@ -38,11 +37,6 @@ type Runs interface {
 
 type Secrets interface{ secretkernel.Control }
 
-type Services interface {
-	servicekernel.Reader
-	servicekernel.Mutator
-}
-
 type Namespaces interface {
 	CreateNamespace(ctx context.Context, namespace string, now time.Time) (*namespacev1.Namespace, error)
 	GetNamespace(ctx context.Context, namespace string) (*namespacev1.Namespace, error)
@@ -59,14 +53,12 @@ type Quotas interface {
 }
 
 type Dependencies struct {
-	Now            func() time.Time
-	Catalog        CatalogReader
-	Environments   Environments
-	Secrets        Secrets
-	Runs           Runs
-	Services       Services
-	ServiceWatcher servicekernel.Watcher
-	Tunnels        tunnelkernel.Control
-	Namespaces     Namespaces
-	Quotas         Quotas
+	Now          func() time.Time
+	Catalog      CatalogReader
+	Environments Environments
+	Secrets      Secrets
+	Runs         Runs
+	Tunnels      tunnelkernel.Control
+	Namespaces   Namespaces
+	Quotas       Quotas
 }

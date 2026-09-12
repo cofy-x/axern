@@ -17,7 +17,7 @@
 
 Axern is an open-source sandbox platform for AI agents.
 It isolates agent-generated code with gVisor (`runsc`) through one resource and lifecycle model. Runsc is the supported execution runtime, with no runtime fallback.
-The CLI and the Go, Python, and TypeScript SDKs expose the same public APIs for environments, processes, files, services, tunnels, lifecycle state, and task evidence.
+The CLI and the Go, Python, and TypeScript SDKs expose the same public APIs for environments, Runs, sandbox processes and files, tunnels, lifecycle state, and task evidence.
 
 > **Project status:** Axern is pre-1.0 and under active development.
 > It is suitable for evaluation and contribution, but operators should review the security and production boundaries before deploying multi-tenant workloads.
@@ -77,16 +77,16 @@ regression without delaying pull-request feedback; see the
 ## What You Can Build
 
 - **Agent sandboxes:** execute agent-generated code behind a runsc isolation boundary while retaining process, file, terminal, and output APIs.
-- **Durable services:** run processes with runsc while the control plane owns replicas, health, and rollouts; export outputs that must outlive an allocation.
+- **Evaluation and synthesis batches:** execute isolated work concurrently through Runs, with explicit inputs, outputs, and lifecycle evidence.
 - **Reproducible agent execution:** use Axrun to coordinate immutable tasks, verification, trajectories, usage, and typed artifacts.
 
 ## Why Axern
 
-- **Sandbox as the primitive:** runs, services, coding workspaces, and agent tasks compose the same execution and lifecycle APIs.
+- **Sandbox as the primitive:** evaluation, training, data synthesis, coding workspaces, and agent tasks compose the same Run execution model.
 - **Durable control plane:** PostgreSQL-backed intent, placement, leases, retries, health, and cleanup state remain authoritative across process or node restarts.
 - **One production runtime:** runsc workloads use the same public APIs; OCI and Nydus image paths converge at the node runtime.
-- **Real data-plane access:** process streams, files, archives, HTTP services, SSH-compatible terminals, and reverse TCP tunnels are explicit capabilities.
-- **Local-to-cluster continuity:** Docker Compose, kind, and the cloud-neutral Helm chart exercise the same service boundaries.
+- **Real data-plane access:** process streams, files, archives, SSH-compatible terminals, and reverse TCP tunnels are explicit allocation capabilities.
+- **Local-to-cluster continuity:** Docker Compose, kind, and the cloud-neutral Helm chart exercise the same component boundaries.
 
 ## Architecture
 
@@ -111,7 +111,7 @@ See the [runtime architecture](./docs/architecture/runtime-architecture.md) and 
 | Component | Responsibility |
 | --- | --- |
 | `controld` | Durable control-plane state, placement, leases, lifecycle, rollout, and reconciliation |
-| `gatewayd` | Public gRPC, HTTP, SSH, terminal, tunnel, service, and sandbox data edge |
+| `gatewayd` | Public gRPC, SSH, terminal, tunnel, and sandbox data edge |
 | `axnoded` | Node-local sandbox lifecycle, execution, files, process streams, and cleanup |
 | `egressd` | Trusted node-local egress policy persistence, recovery, reconciliation, and enforcement |
 | `imagemgr` / `imagefsd` | OCI and Nydus image resolution, mount lifecycle, and read-only data plane |

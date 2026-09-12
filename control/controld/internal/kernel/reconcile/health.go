@@ -11,8 +11,6 @@ const maxLastErrorBytes = 4096
 const (
 	ComponentRun        = "run"
 	ComponentNode       = "node"
-	ComponentService    = "service"
-	ComponentAllocation = "allocation"
 	ComponentCapability = "capability"
 	ComponentTunnel     = "tunnel"
 )

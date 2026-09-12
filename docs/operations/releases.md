@@ -97,8 +97,8 @@ mismatched Go SDK tag. The workflow then:
    candidate release checksums;
 8. installs the candidate Python wheel, npm tarball, and standalone Go module
    in clean consumers, then uses every SDK to create a `runsc` Sandbox, execute
-   Python, and prove through `axern service get` that the CLI observes the same
-   live resource;
+   Python, and prove through `axern run get` that the CLI observes the same
+   owning Run;
 9. publishes `axern-sdk` to PyPI and `@cofy-x/axern-sdk` to npm with trusted
    publishing;
 10. publishes multi-architecture GHCR manifests and the OCI Helm chart;

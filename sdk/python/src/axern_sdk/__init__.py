@@ -34,7 +34,7 @@ from axern_sdk.catalog.models import (
     RuntimeResourcePolicy,
     RuntimeTemplate,
 )
-from axern_sdk.models import HTTPProbe, ImageMount, SecretEnvVar, SecretFile, ServiceProbe, TCPProbe
+from axern_sdk.models import ImageMount, SecretEnvVar, SecretFile
 from axern_sdk.network_policy import CIDRRule, NetworkPolicy, PortRange
 from axern_sdk.node import (
     AsyncNodeSandboxClient,
@@ -105,7 +105,6 @@ __all__ = [
     "ExecResult",
     "ExecStreamEvent",
     "ImageProcessMount",
-    "HTTPProbe",
     "ImageMount",
     "NodeSandboxClient",
     "NetworkPolicy",
@@ -128,10 +127,8 @@ __all__ = [
     "RuntimeNetworkNamespacePolicy",
     "RuntimeResourcePolicy",
     "RuntimeTemplate",
-    "ServiceProbe",
     "SecretEnvVar",
     "SecretFile",
-    "TCPProbe",
     "TLSContext",
     "workspace_mount",
     "load_context",

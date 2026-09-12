@@ -111,17 +111,6 @@ func TestBuildStartLabels(t *testing.T) {
 		assert.Equal(t, "CAP_NET_RAW,CAP_NET_BIND_SERVICE", labels[runtimecore.LabelKeyLinuxCapabilities])
 	})
 
-	t.Run("workload identity", func(t *testing.T) {
-		req := &runtime.StartRequest{
-			RuntimeTemplate:   &runtime.RuntimeTemplate{ID: "rt-1"},
-			ExtraConfig:       `{"namespace":"team-a","serviceId":"claude-code"}`,
-			AllocationAttempt: 3,
-		}
-		labels := BuildStartLabels(req)
-		assert.Equal(t, "team-a", labels[workloadidentity.LabelKeyNamespace])
-		assert.Equal(t, "claude-code", labels[workloadidentity.LabelKeyServiceID])
-		assert.Equal(t, "3", labels[workloadidentity.LabelKeyAllocationAttempt])
-	})
 }
 
 func TestEffectiveNetworkMode(t *testing.T) {

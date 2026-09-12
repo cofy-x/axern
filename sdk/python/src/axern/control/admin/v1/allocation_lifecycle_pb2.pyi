@@ -14,7 +14,6 @@ class AllocationLifecycleRetryOwnerType(int, metaclass=_enum_type_wrapper.EnumTy
     __slots__ = ()
     ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED: _ClassVar[AllocationLifecycleRetryOwnerType]
     ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN: _ClassVar[AllocationLifecycleRetryOwnerType]
-    ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_SERVICE: _ClassVar[AllocationLifecycleRetryOwnerType]
 
 class AllocationLifecycleRetryReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -23,7 +22,6 @@ class AllocationLifecycleRetryReason(int, metaclass=_enum_type_wrapper.EnumTypeW
     ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE: _ClassVar[AllocationLifecycleRetryReason]
 ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED: AllocationLifecycleRetryOwnerType
 ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN: AllocationLifecycleRetryOwnerType
-ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_SERVICE: AllocationLifecycleRetryOwnerType
 ALLOCATION_LIFECYCLE_RETRY_REASON_UNSPECIFIED: AllocationLifecycleRetryReason
 ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE: AllocationLifecycleRetryReason
 ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE: AllocationLifecycleRetryReason

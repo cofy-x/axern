@@ -10,7 +10,7 @@ The schema is split by durable ownership boundary:
 
 | Migration | Ownership |
 | --- | --- |
-| `000001_initial.sql` | Nodes, namespaces, environments, secrets, runs, services, desired-spec identity, CPU/memory/ephemeral-storage quota and reservations, allocations, execution leases, reconciliation, and audit state |
+| `000001_initial.sql` | Principals, nodes, namespaces, environments, secrets, Runs, Allocations, CPU/memory/ephemeral-storage quota and reservations, execution leases, reconciliation, and audit state |
 | `000002_tunnel_sessions.sql` | Tunnel sessions, peer events, and the tunnel revision stream |
 
 Each migration declares the final shape of its domain. Migrations run in one
@@ -46,10 +46,7 @@ erDiagram
   namespaces ||--o{ environments : scopes
   namespaces ||--o{ secrets : scopes
   environments ||--o{ runs : configures
-  environments ||--o{ services : configures
   runs ||--|| allocations : executes
-  services ||--o{ allocations : executes
-  services ||--o{ service_events : records
   nodes ||--o{ allocations : hosts
   nodes ||--|| node_summaries : reports
   nodes ||--o{ node_runtime_sets : supports
@@ -88,19 +85,18 @@ use database foreign keys.
 - `encrypted_payload` is never returned after creation.
 Execution configuration stores secret references, not plaintext.
 
-### Runs, services, and allocations
+### Runs and allocations
 
-`runs` models single-shot execution and owns one allocation ID. `services`
-models desired replicas, rollout policy, probes, and current
-allocation IDs. `service_events` stores operational history outside the current
-service row.
+`runs` models one user-visible execution lifecycle and owns one Allocation ID.
+There is no Service, replica, rollout, or readiness table in the canonical
+schema.
 
 `allocations` is the shared execution unit. Its `owner_type` and `owner_id`
-identify the Run or Service, while `node_id`, `attempt`, status, readiness, and
-exit fields describe the current concrete execution attempt. For a TaskSet
+identify the owning Run, while `node_id`, `attempt`, status, and exit fields
+describe the current concrete execution attempt. For a TaskSet
 workspace, `workspace_preparation` stores the typed node-observed payload
 format/digest, cache result, image resolution/pull time, and COW preparation
-time. Service replica reads expose this allocation fact without parsing node
+time. Allocation and Run diagnostics expose this fact without parsing node
 logs.
 
 `workload_reservations` records admitted CPU, sandbox-memory, and
@@ -218,7 +214,8 @@ Indexes follow server-side access paths:
 
 - namespace and creation cursors for list APIs;
 - node/status and owner/status for placement and lifecycle projection;
-- partial active indexes for reservations, leases, tunnels, and live services;
+- partial active indexes for reservations, leases, tunnels, and live
+  Allocations;
 - retention indexes on expiry and creation timestamps;
 
 New indexes require a concrete query, reconciliation, retention, or uniqueness

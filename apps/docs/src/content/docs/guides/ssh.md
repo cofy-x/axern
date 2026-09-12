@@ -1,10 +1,10 @@
 ---
 title: SSH Access
-description: Open an SSH-compatible terminal into an allocation or a ready service replica.
+description: Open an SSH-compatible terminal into a running allocation.
 ---
 
-`axern ssh` opens an interactive terminal into a running allocation or a ready
-service replica through the gateway's SSH edge. It uses the local OpenSSH
+`axern ssh` opens an interactive terminal into a running allocation through
+the gateway's SSH edge. It uses the local OpenSSH
 client and the SSH endpoint and identity file from the selected context.
 
 :::caution[SSH is an explicit trust boundary]
@@ -20,15 +20,13 @@ ID that the gateway can resolve.
 
 ```bash
 axern ssh <allocation-id>
-axern ssh <service-id>
 ```
 
-When the target is a service, the CLI selects a ready replica; pass
-`--allocation-id` to choose a specific one. Run a one-off command instead of
-an interactive shell by appending it after the target:
+Run a one-off command instead of an interactive shell by appending it after
+the target:
 
 ```bash
-axern ssh <service-id> -- uname -a
+axern ssh <allocation-id> -- uname -a
 axern ssh <allocation-id> --shell /bin/sh
 ```
 
@@ -44,6 +42,5 @@ Useful flags:
   for shared deployments and review host-key rotation before trusting a new
   gateway.
 
-For a coding session with an agent bundle mounted, prefer
-[`axern agent shell`](/guides/agent/); for reaching a local TCP service from
-inside the allocation, use a [reverse tunnel](/guides/tunnels/).
+For reaching a local TCP service from inside the allocation, use a
+[reverse tunnel](/guides/tunnels/).

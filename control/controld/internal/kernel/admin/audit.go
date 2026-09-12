@@ -12,7 +12,6 @@ const (
 	AuditOperationForceAllocationLifecycleRetry = "force_allocation_lifecycle_retry"
 	AuditOperationFailAllocationLifecycleRetry  = "fail_allocation_lifecycle_retry"
 	AuditOperationClearAllocationLifecycleRetry = "clear_allocation_lifecycle_retry"
-	AuditOperationPurgeService                  = "purge_service"
 	AuditOperationRetireNode                    = "retire_node"
 	AuditOperationCreatePrincipal               = "principal.create"
 	AuditOperationDisablePrincipal              = "principal.disable"
@@ -23,7 +22,6 @@ const (
 	AuditOperationBootstrapAccess               = "access.bootstrap"
 
 	AuditTargetAllocation  = "allocation"
-	AuditTargetService     = "service"
 	AuditTargetNode        = "node"
 	AuditTargetPrincipal   = "principal"
 	AuditTargetCredential  = "credential"
@@ -68,12 +66,12 @@ func NormalizeAuditEventFilter(in AuditEventFilter) AuditEventFilter {
 
 func ValidateAuditEventFilter(filter AuditEventFilter) error {
 	switch filter.Operation {
-	case "", AuditOperationForceAllocationLifecycleRetry, AuditOperationFailAllocationLifecycleRetry, AuditOperationClearAllocationLifecycleRetry, AuditOperationPurgeService, AuditOperationRetireNode, AuditOperationCreatePrincipal, AuditOperationDisablePrincipal, AuditOperationAddCredential, AuditOperationRevokeCredential, AuditOperationGrantRoleBinding, AuditOperationRevokeRoleBinding, AuditOperationBootstrapAccess:
+	case "", AuditOperationForceAllocationLifecycleRetry, AuditOperationFailAllocationLifecycleRetry, AuditOperationClearAllocationLifecycleRetry, AuditOperationRetireNode, AuditOperationCreatePrincipal, AuditOperationDisablePrincipal, AuditOperationAddCredential, AuditOperationRevokeCredential, AuditOperationGrantRoleBinding, AuditOperationRevokeRoleBinding, AuditOperationBootstrapAccess:
 	default:
 		return grpcstatus.Errorf(codes.InvalidArgument, "unsupported admin audit operation %q", filter.Operation)
 	}
 	switch filter.TargetType {
-	case "", AuditTargetAllocation, AuditTargetService, AuditTargetNode, AuditTargetPrincipal, AuditTargetCredential, AuditTargetRoleBinding:
+	case "", AuditTargetAllocation, AuditTargetNode, AuditTargetPrincipal, AuditTargetCredential, AuditTargetRoleBinding:
 	default:
 		return grpcstatus.Errorf(codes.InvalidArgument, "unsupported admin audit target_type %q", filter.TargetType)
 	}

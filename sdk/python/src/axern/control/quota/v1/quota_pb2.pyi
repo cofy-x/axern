@@ -20,7 +20,6 @@ class NamespaceQuotaEventWorkloadType(int, metaclass=_enum_type_wrapper.EnumType
     __slots__ = ()
     NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_UNSPECIFIED: _ClassVar[NamespaceQuotaEventWorkloadType]
     NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN: _ClassVar[NamespaceQuotaEventWorkloadType]
-    NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_SERVICE: _ClassVar[NamespaceQuotaEventWorkloadType]
 
 class NamespaceQuotaEventReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -33,7 +32,6 @@ NAMESPACE_QUOTA_EVENT_TYPE_UNSPECIFIED: NamespaceQuotaEventType
 NAMESPACE_QUOTA_EVENT_TYPE_ADMISSION_REJECTED: NamespaceQuotaEventType
 NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_UNSPECIFIED: NamespaceQuotaEventWorkloadType
 NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN: NamespaceQuotaEventWorkloadType
-NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_SERVICE: NamespaceQuotaEventWorkloadType
 NAMESPACE_QUOTA_EVENT_REASON_UNSPECIFIED: NamespaceQuotaEventReason
 NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU: NamespaceQuotaEventReason
 NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_MEMORY: NamespaceQuotaEventReason

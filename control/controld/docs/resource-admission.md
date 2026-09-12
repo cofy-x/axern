@@ -88,11 +88,11 @@ Current reasons:
 
 Human-readable error messages remain stable enough for operators, but workload
 state, CLI rendering, SDKs, and future clients should prefer
-`axern.control.common.v1.WorkloadDiagnosticCode` when it is available. Service
-and run views expose that shared diagnostic code directly. Service
-degradation maps quota, node reservation, and placement capacity failures to
-`WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED`; non-capacity placement failures map
-to node selection.
+`axern.control.common.v1.WorkloadDiagnosticCode` when it is available. Run
+views expose that shared diagnostic code directly. Quota, node reservation,
+and placement capacity failures map to
+`WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED`; non-capacity placement failures
+map to node selection.
 
 ## Observability
 
@@ -102,8 +102,6 @@ Resource admission metrics are layered:
 | --- | --- |
 | `axern.controld_resource_admission_total{namespace,scope,result,reason}` | Shared resource admission decisions for namespace quota and node reservation. |
 | `axern.controld_resource_admission_stage_duration_seconds{owner_type,stage,result,error_class}` | Durable namespace lock, candidate lock, reservation load, selection, and total admission latency. |
-| `axern.controld_service_allocation_queue_duration_seconds{path,stage,result,error_class}` | Durable allocation queue claim-store, due-lag, eligible claim-wait, dispatcher-wait, and total latency. |
-| `axern.controld_service_transaction_stage_duration_seconds{stage,result,error_class}` | Service transaction pool acquisition, body, commit, and total latency. |
 | `axern.controld_postgres_pool_connections{state}` | Current controld Postgres pool maximum, total, acquired, and idle connections. |
 | `axern.controld_quota_admission_total{namespace,result,reason}` | Namespace quota compatibility/detail metric. |
 | `axern.controld_placement_selection_total{operation,result,mount_type}` | Placement selection attempts. |
@@ -111,22 +109,10 @@ Resource admission metrics are layered:
 | `axern.controld_namespace_resource_current{namespace,resource,state}` | Current namespace quota limits, reserved usage, and available capacity. |
 | `axern.controld_node_resource_current{resource,state}` | Current node CPU, memory, ephemeral-storage, and runtime-slot capacity, reservation, and policy-derived resource state. |
 
-Allocation queue stages have distinct meanings:
-
-| Stage | Interval |
-| --- | --- |
-| `claim_store` | Time spent claiming one durable batch from Postgres. |
-| `due_lag` | Time from `next_run_at` until the claim completes. This includes work that delayed making progress after the requested due time and is not queue wait by itself. |
-| `claim_wait` | Time from actual durable eligibility until the claim completes. Eligibility is the latest of `next_run_at`, the queue mutation timestamp, and an expired prior lease. |
-| `dispatcher_wait` | Time from a successful durable claim until a worker is dispatched within the global and per-node budgets. |
-| `total` | Time from durable eligibility until worker dispatch. |
-
-Use `claim_wait` as the queue-delay signal. `due_lag` can include work before the
-item becomes eligible and must not be reported as queue wait. Use transaction
-`begin` and the pool gauges to distinguish database-pool starvation from durable
-queue delay. The pool ceiling is a per-process deployment budget, so the sum
-across all controld replicas and auxiliary database clients must remain below
-the server connection limit.
+Use admission stage durations and pool gauges to distinguish database-pool
+starvation from policy evaluation or locked reservation work. The pool ceiling
+is a per-process deployment budget, so the sum across all controld replicas and
+auxiliary database clients must remain below the server connection limit.
 
 The namespace lock in resource admission is the linearizable quota boundary.
 Do not bypass it to reduce latency. Consider batched admission or a
@@ -140,10 +126,10 @@ The CLI and SDKs use these stable labels:
 
 | Surface Field | Values |
 | --- | --- |
-| `diagnostic_code` | `admission-blocked`, `node-selection-error`, or a concrete service runtime diagnostic such as `runtime-start-error`. |
+| `diagnostic_code` | `admission-blocked`, `node-selection-error`, or a concrete runtime diagnostic such as `runtime-start-error`. |
 | `admission_summary` | `namespace quota exceeded`, `node reservation capacity exhausted`, `node CPU capacity exhausted`, `node memory capacity exhausted`, `node CPU and memory capacity exhausted`, or `resource exhausted`. Typed rejection metadata separately identifies insufficient ephemeral storage. |
 
-Run and service JSON output must keep these labels aligned. Table and detail
+Run JSON output must keep these labels aligned. Table and detail
 renderers may shorten presentation text, but they should not invent different
 diagnostic categories.
 
@@ -155,8 +141,8 @@ diagnostic categories.
   `ErrorInfo` construction.
 - `internal/postgres/reservation` owns transactional namespace quota and node
   reservation admission.
-- `internal/application/service` maps admission failures into service rollout
-  degradation. It does not sum quota or node reservations.
+- `internal/application/run` maps admission failures into Run diagnostics. It
+  does not sum quota or node reservations.
 - `internal/kernel/workload` owns shared workload diagnostic classification.
 - `apps/cli/internal/workloaddiagnostic` owns CLI-side fallback classification
   for legacy/raw messages when structured workload diagnostics are unavailable.

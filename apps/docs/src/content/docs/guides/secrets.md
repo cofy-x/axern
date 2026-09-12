@@ -49,17 +49,16 @@ Secrets are immutable. Rotate them as a replacement workflow:
 
 1. Create a new Secret with the replacement value.
 2. Update or replace every resource that references the old Secret ID.
-3. Wait for the new Service, Run, or Environment revision to become
-   ready and verify the workload.
+3. Wait for the replacement Run or Environment to become active and verify it.
 4. Delete the old Secret only after no active resource references it.
 
 For an Environment registry credential, create a new Environment because the
 Environment itself is immutable; then point the workload at the new
-Environment. For `secret-env` and `secret-file` projections, update the
-Service specification and let its immutable revision roll out.
+Environment. For `secret-env` and `secret-file` projections, submit a new Run
+that references the replacement Secret.
 
 :::note
 Secrets hold platform credential material such as registry pulls. Agent
-provider tokens have dedicated stores that keep plaintext out of generic
-APIs: local `axern agent` or Axrun profiles for client-side agent execution.
+provider tokens belong in the evaluation or training harness credential store,
+not generic platform Secret APIs unless a sandbox explicitly needs them.
 :::

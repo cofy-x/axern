@@ -27,13 +27,13 @@ func TestRepairPlanForIssue(t *testing.T) {
 			issue: Issue{
 				Code:         IssueActiveReservationOnEndedAllocation,
 				AllocationID: "alloc-b",
-				OwnerType:    "service",
-				OwnerID:      "svc-a",
+				OwnerType:    "run",
+				OwnerID:      "run-ended",
 			},
 			wantOwner:      RepairOwnerWorkloadController,
 			wantAction:     RepairActionWorkloadCleanup,
-			wantTargetType: RepairTargetTypeService,
-			wantTargetID:   "svc-a",
+			wantTargetType: RepairTargetTypeRun,
+			wantTargetID:   "run-ended",
 		},
 		{
 			name: "reservation mismatch",
@@ -70,19 +70,6 @@ func TestRepairPlanForIssue(t *testing.T) {
 			wantAction:     RepairActionTunnelLifecycleReconcile,
 			wantTargetType: RepairTargetTypeTunnelSession,
 			wantTargetID:   "tun-a",
-		},
-		{
-			name: "service reference issue",
-			issue: Issue{
-				Code:         IssueServiceReferenceOwnerMismatch,
-				AllocationID: "alloc-f",
-				OwnerType:    "service",
-				OwnerID:      "svc-b",
-			},
-			wantOwner:      RepairOwnerServiceController,
-			wantAction:     RepairActionServiceReconcile,
-			wantTargetType: RepairTargetTypeService,
-			wantTargetID:   "svc-b",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

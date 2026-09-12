@@ -27,14 +27,14 @@ func getCommand(runtime command.Runtime) *cobra.Command {
 			return err
 		}
 		defer s.Close()
-		result, err := appquota.New(s.Clients.Quota).Describe(s.Context, namespace, s.Clients.Service)
+		result, err := appquota.New(s.Clients.Quota).Describe(s.Context, namespace)
 		if err != nil {
 			return err
 		}
 		if runtime.Options.Output == "json" {
-			return output.PrintNamespaceQuotaDescribeJSON(cmd.OutOrStdout(), result.Quota, result.AdmissionBlockedServices)
+			return output.PrintNamespaceQuotaJSON(cmd.OutOrStdout(), result.Quota)
 		}
-		output.RenderNamespaceQuotaDescribe(cmd.OutOrStdout(), result.Quota, result.AdmissionBlockedServices)
+		output.RenderNamespaceQuota(cmd.OutOrStdout(), result.Quota)
 		return nil
 	}}
 	cmd.Flags().StringVar(&namespace, "namespace", "default", "namespace")

@@ -33,34 +33,24 @@ axern local logs gatewayd --follow --tail 100
 
 ## 工作负载
 
-一直无法就绪的 Run 或 Service，通常失败在 source 解析、准入或就绪探针：
+一直无法启动的 Run，通常失败在 source 解析、准入或运行时启动：
 
 ```bash
 axern run get <run-id> --output json
-axern service get <service-id> --output json
-axern service events <service-id>
 axern quota get --namespace default
 ```
 
-准入拒绝会携带诊断码和摘要；调整工作负载规模前先检查命名空间配额。Service 滚动更新通过 `axern service replicas <service-id>` 暴露 `updated` 与 `outdated` 副本。
+准入拒绝会携带诊断码和摘要；调整工作负载规模前先检查命名空间配额。
 
 ## 隧道
 
 ```bash
 axern tunnel doctor --session-id <session-id>
-axern tunnel doctor --service-id <service-id> --local 127.0.0.1:8080
+axern tunnel doctor --allocation-id <allocation-id> --local 127.0.0.1:8080
 axern tunnel inspect <session-id>
 axern tunnel events <session-id>
 ```
 
 Tunnel doctor 校验会话、绑定和（配合 `--local`）本地上游，发现问题时以非零退出。会话生命周期语义见[反向隧道](/zh-cn/guides/tunnels/)。
-
-## Agent Workspace
-
-```bash
-axern agent doctor
-```
-
-Agent doctor 诊断 Agent Profile：校验 Profile 配置，然后探测 Provider 上游兼容性和平台可达性，依赖不健康时以非零退出。见 [编码 Agent](/zh-cn/guides/agent/)。
 
 状态和 doctor 类命令支持 `--output json`，可用于自动化。如果诊断全部通过但行为仍不正确，提交 issue 前请收集命令、其 JSON 输出和相关资源 ID。

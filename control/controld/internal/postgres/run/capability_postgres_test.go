@@ -48,9 +48,9 @@ func TestRecordAllocationCapabilityAdmissionIsAtomicAndLifecycleNeutral(t *testi
 	}
 	if _, err := db.Pool().Exec(ctx, `
 		INSERT INTO allocations (
-			allocation_id, owner_type, owner_id, node_id, attempt, status, ready,
-			readiness_message, config, version, created_at, updated_at, message
-		) VALUES ($1, 'run', $2, $3, 1, $4, true, 'ready-before-capability-report',
+			allocation_id, owner_type, owner_id, node_id, attempt, status,
+			config, version, created_at, updated_at, message
+		) VALUES ($1, 'run', $2, $3, 1, $4,
 			'{}'::jsonb, 7, $5, $5, 'lifecycle-message-before-capability-report')
 	`, allocationID, "run-"+suffix, nodeID, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(), now); err != nil {
 		t.Fatal(err)
@@ -165,18 +165,16 @@ func TestRecordAllocationCapabilityAdmissionIsAtomicAndLifecycleNeutral(t *testi
 	}, now.Add(4*time.Second)); err == nil {
 		t.Fatal("create retry replaced the immutable admitted proof")
 	}
-	var status, readinessMessage, lifecycleMessage string
-	var ready bool
+	var status, lifecycleMessage string
 	var version int64
 	if err := db.Pool().QueryRow(ctx, `
-		SELECT status, ready, readiness_message, message, version
+		SELECT status, message, version
 		FROM allocations WHERE allocation_id = $1
-	`, allocationID).Scan(&status, &ready, &readinessMessage, &lifecycleMessage, &version); err != nil {
+	`, allocationID).Scan(&status, &lifecycleMessage, &version); err != nil {
 		t.Fatal(err)
 	}
-	if status != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String() || !ready ||
-		readinessMessage != "ready-before-capability-report" || lifecycleMessage != "lifecycle-message-before-capability-report" || version != 7 {
-		t.Fatalf("capability report mutated lifecycle: status=%s ready=%v readiness=%q message=%q version=%d", status, ready, readinessMessage, lifecycleMessage, version)
+	if status != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String() || lifecycleMessage != "lifecycle-message-before-capability-report" || version != 7 {
+		t.Fatalf("capability report mutated lifecycle: status=%s message=%q version=%d", status, lifecycleMessage, version)
 	}
 	var revision, attempt, conditionCount int64
 	if err := db.Pool().QueryRow(ctx, `

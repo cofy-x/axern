@@ -13,13 +13,6 @@ func ClassifyDiagnostic(status commonv1.AllocationStatus, message string) common
 	case resourcekernel.MessageIndicatesAdmissionBlocked(message):
 		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED
 	case containsDiagnosticToken(message,
-		"liveness probe failed",
-		"liveness probe returned",
-		"liveness probe tcp connect",
-		"liveness probe execution requires",
-	):
-		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_LIVENESS_PROBE_FAILED
-	case containsDiagnosticToken(message,
 		"config.secret_env",
 		"config.secret_files",
 		"references secret",

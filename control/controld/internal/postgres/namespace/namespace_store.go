@@ -9,7 +9,6 @@ import (
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -189,15 +188,6 @@ func ensureNamespaceDeletable(ctx context.Context, q queryer, namespace string) 
 				  AND status != $2
 			)`,
 			args: []any{environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_DELETED.String()},
-		},
-		{
-			name: "live services",
-			query: `SELECT EXISTS (
-				SELECT 1 FROM services
-				WHERE namespace = $1
-				  AND status != $2
-			)`,
-			args: []any{servicev1.ServiceStatus_SERVICE_STATUS_DELETED.String()},
 		},
 		{
 			name: "secrets",

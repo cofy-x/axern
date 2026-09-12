@@ -6,7 +6,7 @@ belong to subsystem tools such as `axctl`.
 
 ## Product Boundary
 
-- `axern` manages contexts, namespaces, environments, runs, services, quotas,
+- `axern` manages contexts, namespaces, environments, runs, quotas,
   secrets, tunnels, SSH sessions, interactive agents, and
   audited admin workflows.
 - SDKs are the explicit programmatic interface.
@@ -31,7 +31,6 @@ The default context file is `~/.config/axern/config.json`. Override it with
   "contexts": {
     "hk": {
       "endpoint": "gateway.example.com:443",
-      "service_url": "https://services.example.com",
       "ssh_endpoint": "gateway.example.com:22",
       "ssh_identity_file": "~/.ssh/axern_hk",
       "tls": {
@@ -49,15 +48,15 @@ The default context file is `~/.config/axern/config.json`. Override it with
 `proxy_mode` is `env` or `direct`. API and tunnel traffic share `endpoint`,
 TLS, and proxy policy. SSH uses the same context but its own endpoint and key.
 
-Direct overrides use `AXERN_ENDPOINT`, `AXERN_SERVICE_URL`,
-`AXERN_SSH_ENDPOINT`, `AXERN_SSH_IDENTITY_FILE`, `AXERN_TLS_CA_CERT`,
+Direct overrides use `AXERN_ENDPOINT`, `AXERN_SSH_ENDPOINT`,
+`AXERN_SSH_IDENTITY_FILE`, `AXERN_TLS_CA_CERT`,
 `AXERN_TLS_CERT`, `AXERN_TLS_KEY`, `AXERN_TLS_SERVER_NAME`, and
 `AXERN_PROXY_MODE`.
 
 ## Commands
 
 Canonical resource names are used in documentation. Product aliases are
-limited to `ctx`, `ns`, `svc`, and `fn`.
+limited to `ctx` and `ns`.
 
 ```bash
 axern context list
@@ -72,42 +71,22 @@ axern run --file run.yaml
 axern run python:3.12-slim -- python -c 'print("hello")'
 axern run --detach python:3.12-slim -- python -c 'print("later")'
 axern run logs --follow <run-id>
-axern service create --file service.yaml --wait
-axern service get <service-id>
-axern service delete <service-id> --wait
 axern quota get --namespace default
 
-axern ssh <allocation-id|service-id>
-axern service tunnel <service-id> --to 127.0.0.1:8080
-axern tunnel doctor --service-id <service-id>
+axern ssh <allocation-id>
+axern tunnel open --allocation-id <allocation-id> --local 127.0.0.1:8080
+axern tunnel doctor --allocation-id <allocation-id>
 
-axern agent shell --workspace <workspace> --profile <profile>
-axern agent run --workspace <workspace> --profile <profile> -- exec --model <model> "reply ok only"
-axern agent stop --workspace <workspace>
-axern agent workspace delete --workspace <workspace> --yes
 axern admin reliability check
 axern admin consistency check
 axern admin node list --status active
 axern admin node retire <node-id> --operator-reason "host permanently removed"
-axern admin service purge <service-id> --operator-reason "expired test resource"
 axern identity whoami
 axern admin principal list
 axern admin role-binding list --namespace default
 ```
 
-Service deletion is asynchronous. `service delete` reports that deletion was
-requested; add `--wait` to wait for the persisted deletion phase to complete.
-The default `service list` view excludes deleted audit records; use
-`service list --status deleted` or exact `service get <service-id>` to inspect
-them until an administrator explicitly purges the record.
-
-`agent` requires an explicit `shell`, `run`, `connect`, `doctor`, `list`,
-`stop`, `workspace`, or `profile` subcommand. Agent workspaces keep one Service
-with a sandbox-lifetime working directory. `stop` scales compute to zero and
-discards its files; the next session starts a fresh sandbox for the same
-Service. `agent workspace delete` removes a stopped workspace Service. `service
-get` includes rollout and latest event state. `quota get` includes quota,
-usage, and admission signals.
+`quota get` includes quota, usage, and admission signals.
 
 Generate completion with `axern completion bash|zsh|fish`.
 
@@ -161,7 +140,7 @@ options require `--probe`.
 
 ## Resource Spec
 
-Run and Service creation accepts a strict YAML or JSON envelope:
+Run creation accepts a strict YAML or JSON envelope:
 
 ```yaml
 api_version: axern/v1
@@ -212,6 +191,6 @@ make axern-cli-check-architecture
 make local-compose-refresh-verify
 ```
 
-See [tunnel usage](./docs/tunnel.md), [agent runtime](./docs/agent.md), and the
+See [tunnel usage](./docs/tunnel.md) and the
 [resource model](../../docs/architecture/resource-model.md) for deeper product
 contracts.

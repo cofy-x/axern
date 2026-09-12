@@ -62,6 +62,5 @@ Nodes without egressd publish the corresponding self-test facts as
 than running without enforcement. Axern does not support mixed control/node
 versions across this coordinated contract change.
 
-Policies are create-time immutable. A Service policy change creates a normal
-new revision and uses the existing rollout machinery; there is no live policy
-mutation API.
+Policies are immutable for a Run attempt. Changing policy requires a new Run;
+there is no live policy mutation API.

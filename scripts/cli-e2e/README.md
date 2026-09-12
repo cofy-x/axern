@@ -11,7 +11,7 @@ This directory owns the product CLI end-to-end verification flow.
 - `environment.sh` starts the hermetic Postgres, controld, gatewayd,
   and node runtime environment.
 - `admin_lifecycle.sh`, `catalog_namespace_quota.sh`, `quota_admission.sh`,
-  `base_environment.sh`, `ssh_gateway.sh`, `service_rollout.sh`,
+  `base_environment.sh`, `ssh_gateway.sh`,
   `run.sh`, and `image_ref.sh` own scenario checks.
 
 Keep product CLI e2e coverage as focused scenario files in this directory. Wire

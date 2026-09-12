@@ -9,7 +9,6 @@ import "google/protobuf/timestamp.proto";
 enum AllocationLifecycleRetryOwnerType {
   ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED = 0;
   ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN = 1;
-  ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_SERVICE = 2;
 }
 
 enum AllocationLifecycleRetryReason {

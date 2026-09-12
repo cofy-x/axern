@@ -69,10 +69,6 @@ func (c *Client) Conn() *grpc.ClientConn {
 	return c.conn
 }
 
-func (c *Client) ResolveServiceRoute(ctx context.Context, in *gatewayv1.ResolveServiceRouteRequest) (*gatewayv1.ResolveServiceRouteResponse, error) {
-	return c.Gateway.ResolveServiceRoute(ctx, in)
-}
-
 func (c *Client) ResolveAllocationTerminal(ctx context.Context, in *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
 	return c.Gateway.ResolveAllocationTerminal(ctx, in)
 }

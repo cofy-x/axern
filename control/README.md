@@ -12,7 +12,7 @@ lifecycle APIs, gateway route resolution, node image
 inventory summaries, and revocable execution leases.
 Rootfs locality describes local directories or registry images (OCI/Nydus);
 object-store artifact storage is separate from workload rootfs placement.
-Realtime exec, terminal, tunnel, and service HTTP traffic stay outside the
+Realtime exec, terminal, and tunnel traffic stay outside the
 control plane and flow through `gatewayd`.
 
 Node capacity admission consumes the aggregate `runtime_slots` contract

@@ -37,6 +37,9 @@ Commands should call application services instead of coordinating generated gRPC
 ## Design Policy
 
 - Axern is in active development. Prefer a coherent, maintainable shape over preserving flawed internal structure.
+- Keep Environment, Run, and Allocation as the only workload lifecycle exposed
+  by the CLI. SSH and Tunnel remain allocation-bound workflows; do not restore
+  `agent`, `service`, `function`, or generic volume commands.
 - Do not add transitional alias packages, compatibility shims, or workaround paths without an external contract that requires them.
 - Keep command files small. If a workflow needs multiple API calls or non-trivial branching, put that orchestration in `internal/application/<domain>`.
 - Keep rendering out of application services; return SDK response objects or small application result structs and let commands render them.

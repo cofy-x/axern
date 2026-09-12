@@ -30,18 +30,21 @@ document.
 ## Hard Architecture Constraints
 
 - `network/bpfnet` owns reusable network dataplane orchestration only.
-- `runtime/axnoded` owns sandbox lifecycle, service intent, backend selection,
-  rollback policy, and SNAT GC scheduling.
+- `runtime/axnoded` owns sandbox lifecycle, allocation network intent, backend
+  selection, rollback policy, and SNAT GC scheduling.
 - Keep `bpfnet` as a library module; do not introduce a long-running daemon unless explicitly requested.
-- A repo-local diagnostic CLI is allowed for read-only inspection. It must not replace `axnoded` as the writer of service intent or dataplane lifecycle.
-- The public Go surface should stay small and control-plane focused: configuration, dataplane attach, service upsert/delete, and status.
+- A repo-local diagnostic CLI is allowed for read-only inspection. It must not replace `axnoded` as the writer of allocation network intent or dataplane lifecycle.
+- The public Go surface should stay small and control-plane focused:
+  configuration, dataplane attach, network endpoint upsert/delete, and status.
+  Existing internal `Service` names describe bpfnet endpoint-map entries, not
+  the retired Axern Service product model.
 - Preserve the default pin root at `/sys/fs/bpf/axern/bpfnet` unless the change intentionally updates operator-facing configuration and docs together.
 - Treat the current `axnoded` target as external TCP/UDP hostPort ingress, container TCP/UDP/ICMP egress SNAT, and Linux localhost TCP hostPort only. Linux localhost UDP is out of scope unless a new design is explicitly requested.
 - Treat `iptables-full-fallback` as rollback, not a successful bpfnet
   production replacement state. `localhost-tcp-iptables-compat` is acceptable
   only when TC ingress and egress remain on eBPF.
 - Keep Prometheus-facing labels low-cardinality. Use node-local diagnostics for
-  service, allocation, image, path, or single-flow forensic detail.
+  allocation, network endpoint, image, path, or single-flow forensic detail.
 
 ## Documentation Rules
 

@@ -10,15 +10,21 @@ background, API inventory, and the full code-layout map, read
 
 ## Architecture Contract
 
-- `controld` is the Postgres-backed control-plane API and sandbox registry. It
-  is not an invoke proxy, data-plane proxy, terminal streamer, or realtime exec
+- `controld` is the Postgres-backed owner of Environment, Run, Allocation,
+  placement, lease, tunnel-session, and control-plane lifecycle state. It is
+  not an invoke proxy, data-plane proxy, terminal streamer, or realtime exec
   path.
 - Public user contracts belong in `sdk/proto`. The HTTP listener hosts
   diagnostics plus internal runtime artifact downloads; do not treat it as a
   user-facing product API or realtime data-plane proxy.
 - Postgres is the only authoritative state backend. Do not add backend-pluggable
   storage, in-memory app profiles, or fallback state paths unless explicitly
-  requested.
+  requested. During pre-stable convergence, update the initial schema directly
+  and rebuild local databases; do not add old-schema detection, dual reads,
+  aliases, or migration guards for retired internal models.
+- The canonical execution chain is `Environment -> Run -> Allocation`.
+  `Sandbox` is an SDK facade over this chain. Do not restore Service, Function,
+  Agent Profile, or another parallel workload owner.
 - Generic Volume Class, Claim, Binding, and physical reclaim are outside the
   execution core. Do not restore a storage daemon or a compatibility bridge.
   Preserve allocation-owned workspace/rootfs cleanup, ephemeral-storage
@@ -60,21 +66,18 @@ background, API inventory, and the full code-layout map, read
   from kernel/application interfaces to concrete Postgres types.
 - Allocation status ingest is batch-oriented: authenticate the reporting node
   once, resolve allocation owners once, lock rows in deterministic order, and
-  project each affected service once per batch. Do not restore per-observation
-  service transactions or process-local status state.
+  persist the affected Allocation and Run state once per batch. Do not restore
+  per-observation transactions, a Service projection, or process-local status
+  state.
 - Durable node lifecycle status is authoritative. Retired node identities must
   remain fenced from registration, node authentication, placement, and durable
   reservation admission; retirement must not become a transient retryable
   placement condition.
-- Service reconciliation uses a bounded, service-ID-keyed event queue for
-  latency. Pending/retry recovery runs at startup and on the separate
-  low-frequency safety sweep. Do not turn status events into full
-  pending-service scans, or enqueue
-  no-op syncs for state transitions already completed by durable projection.
-  Reconcile independent services through the bounded worker pool. Dispatch node
-  allocation creation with both global and per-node concurrency budgets, and
-  preserve fair progress across nodes so service fanout and replica scale cannot
-  multiply into unbounded RPCs or let one saturated node block the cluster.
+- Allocation and capability reconciliation must use durable, bounded queues.
+  Recovery may run at startup and through low-frequency safety sweeps; status
+  events must not trigger full-table scans or no-op work already reflected in
+  durable state. Dispatch node lifecycle RPCs with global and per-node
+  concurrency budgets so one saturated node cannot block cluster progress.
 - Do not add transitional alias bridges such as `type X = otherpkg.X` or
   `var X = otherpkg.X` when moving code.
 - Do not create `internal/common` for convenience. Put domain rules in the
@@ -83,16 +86,14 @@ background, API inventory, and the full code-layout map, read
   domain rules.
 - Avoid catch-all files such as `helpers.go`, `utils.go`, or `interfaces.go`
   once a package grows. Prefer names that state the durable responsibility:
-  `store.go`, `scan.go`, `tx.go`, `validation.go`, `rollout.go`,
-  `allocation_contracts.go`, or `reconcile_contracts.go`.
+  `store.go`, `scan.go`, `tx.go`, `validation.go`, `admission.go`,
+  `lifecycle.go`, or `reconcile.go`.
 - If behavior seems to belong partly in `internal/app`, put the behavior in the
   non-`app` package and let `app` assemble it.
 
 ## Feature Placement
 
-- Service rollout, replacement, replica convergence, and service
-  status: `application/service`, `kernel/service`, `postgres/service`.
-- Run admission, cancellation, allocation cleanup, and internal execution lease issuance:
+- Run admission, cancellation, status, allocation cleanup, and internal execution lease issuance:
   `application/run`, `kernel/run`, `postgres/run`.
 - Namespace lifecycle, namespace resource quota policy, and namespace lock
   rows: `postgres/namespace` for durable namespace state, quota policy, and
@@ -101,7 +102,7 @@ background, API inventory, and the full code-layout map, read
 - Environment creation and template/image resolution:
   `application/environment`, `kernel/environment`, `postgres/run` for durable
   environment state.
-- Gateway route and terminal resolution:
+- Gateway allocation-target and terminal resolution:
   `application/gateway` plus `postgres/gateway` readers and lease issuers.
 - Node reports, allocation status reports, inventory reconciliation,
   node-availability reconciliation, and lease watches:

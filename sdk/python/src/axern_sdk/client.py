@@ -1,46 +1,32 @@
-"""V1 control-plane client for environments, runs, services, and tunnels."""
+"""V1 control-plane client for environments, runs, and tunnels."""
 
 from __future__ import annotations
 
 import os
 import time
-from collections.abc import Generator, Iterable
+from collections.abc import Generator
 
 import grpc
 from google.protobuf import duration_pb2
 
-from axern.control.admin.v1 import (
-    node_pb2_grpc as admin_node_pb2_grpc,
-    service_pb2 as admin_service_pb2,
-    service_pb2_grpc as admin_service_pb2_grpc,
-)
+from axern.control.admin.v1 import node_pb2_grpc as admin_node_pb2_grpc
 from axern.control.capability.v1 import capability_pb2
 from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2, environment_pb2_grpc
 from axern.control.run.v1 import run_pb2, run_pb2_grpc
 from axern.node.sandbox.v1 import node_pb2, node_pb2_grpc
-from axern.control.service.v1 import (
-    service_event_pb2,
-    service_pb2,
-    service_pb2_grpc,
-    service_replica_pb2,
-    service_types_pb2,
-)
 from axern.control.tunnel.v1 import tunnel_pb2, tunnel_pb2_grpc
 from axern_sdk._internal.channel import control_channel
 from axern_sdk._internal.resources import ResourceQuantity, cpu_milli, memory_bytes
 from axern_sdk._internal.specs import environment_spec
 from axern_sdk.context import load_context
-from axern_sdk.models import HTTPProbe, ServiceProbe, TCPProbe
 from axern_sdk.network_policy import NetworkPolicy
 from axern_sdk.tunnel.config import _GatewayTransport
 
 
 DEFAULT_ENDPOINT = "127.0.0.1:25000"
-_SERVICE_WATCH_RETRY_MIN_SECONDS = 0.1
-_SERVICE_WATCH_RETRY_MAX_SECONDS = 2.0
-
-ServiceProbeInput = ServiceProbe | service_types_pb2.ServiceProbe
+_STREAM_RETRY_MIN_SECONDS = 0.1
+_STREAM_RETRY_MAX_SECONDS = 2.0
 
 
 def _extension_capability_requirements(
@@ -54,7 +40,7 @@ def _extension_capability_requirements(
     ]
 
 
-def _is_transient_service_read_code(code: grpc.StatusCode) -> bool:
+def _is_transient_stream_code(code: grpc.StatusCode) -> bool:
     return code in {grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED}
 
 
@@ -88,54 +74,6 @@ def _resource_spec(
     return resources
 
 
-def _service_probe(probe: ServiceProbeInput | None = None) -> service_types_pb2.ServiceProbe | None:
-    if probe is None:
-        return None
-    if isinstance(probe, service_types_pb2.ServiceProbe):
-        cloned = service_types_pb2.ServiceProbe()
-        cloned.CopyFrom(probe)
-        return cloned
-    if not isinstance(probe, ServiceProbe):
-        raise TypeError(f"unsupported service probe type: {type(probe).__name__}")
-    out = service_types_pb2.ServiceProbe(
-        success_threshold=probe.success_threshold,
-        failure_threshold=probe.failure_threshold,
-    )
-    if probe.initial_delay > 0:
-        out.initial_delay.CopyFrom(_duration(probe.initial_delay))
-    if probe.period > 0:
-        out.period.CopyFrom(_duration(probe.period))
-    if probe.timeout > 0:
-        out.timeout.CopyFrom(_duration(probe.timeout))
-    if probe.http is not None:
-        out.http.CopyFrom(_http_probe(probe.http))
-    elif probe.tcp is not None:
-        out.tcp.CopyFrom(_tcp_probe(probe.tcp))
-    return out
-
-
-def _duration(seconds: float) -> duration_pb2.Duration:
-    milliseconds = round(seconds * 1000)
-    whole_seconds, remaining_milliseconds = divmod(milliseconds, 1000)
-    return duration_pb2.Duration(
-        seconds=whole_seconds,
-        nanos=remaining_milliseconds * 1_000_000,
-    )
-
-
-def _http_probe(probe: HTTPProbe) -> service_types_pb2.HttpProbe:
-    scheme = service_types_pb2.HTTP_PROBE_SCHEME_HTTP
-    if probe.scheme == "https":
-        scheme = service_types_pb2.HTTP_PROBE_SCHEME_HTTPS
-    elif probe.scheme != "http":
-        raise ValueError("HTTPProbe.scheme must be 'http' or 'https'")
-    return service_types_pb2.HttpProbe(port=probe.port, path=probe.path, scheme=scheme)
-
-
-def _tcp_probe(probe: TCPProbe) -> service_types_pb2.TcpProbe:
-    return service_types_pb2.TcpProbe(port=probe.port)
-
-
 class AxernClient:
     """Aggregated V1 client for the control-plane API."""
 
@@ -166,9 +104,7 @@ class AxernClient:
         )
         self.environments = environment_pb2_grpc.EnvironmentControlStub(self._channel)
         self.runs = run_pb2_grpc.RunControlStub(self._channel)
-        self.services = service_pb2_grpc.ServiceControlStub(self._channel)
         self.node_admin = admin_node_pb2_grpc.NodeAdminStub(self._channel)
-        self.service_admin = admin_service_pb2_grpc.ServiceAdminStub(self._channel)
         self.tunnels = tunnel_pb2_grpc.TunnelControlStub(self._channel)
 
     @classmethod
@@ -338,7 +274,7 @@ class AxernClient:
             raise ValueError("after_version must be non-negative")
         deadline = None if timeout is None else time.monotonic() + timeout
         version = after_version
-        retry_delay = _SERVICE_WATCH_RETRY_MIN_SECONDS
+        retry_delay = _STREAM_RETRY_MIN_SECONDS
         while True:
             remaining = None if deadline is None else deadline - time.monotonic()
             if remaining is not None and remaining <= 0:
@@ -352,11 +288,11 @@ class AxernClient:
                     if not response.HasField("run") or response.run.version <= version:
                         continue
                     version = response.run.version
-                    retry_delay = _SERVICE_WATCH_RETRY_MIN_SECONDS
+                    retry_delay = _STREAM_RETRY_MIN_SECONDS
                     yield response.run
                 return
             except grpc.RpcError as exc:
-                if not _is_transient_service_read_code(exc.code()):
+                if not _is_transient_stream_code(exc.code()):
                     raise
             finally:
                 call.cancel()
@@ -364,7 +300,7 @@ class AxernClient:
             if remaining is not None and remaining <= 0:
                 raise TimeoutError(f"run {run_id} watch timed out")
             time.sleep(retry_delay if remaining is None else min(retry_delay, remaining))
-            retry_delay = min(retry_delay * 2, _SERVICE_WATCH_RETRY_MAX_SECONDS)
+            retry_delay = min(retry_delay * 2, _STREAM_RETRY_MAX_SECONDS)
 
     def read_run_output(
         self,
@@ -383,7 +319,7 @@ class AxernClient:
             raise RuntimeError(f"run {run_id} output is not available yet")
         next_cursor = cursor
         deadline = None if timeout is None else time.monotonic() + timeout
-        retry_delay = _SERVICE_WATCH_RETRY_MIN_SECONDS
+        retry_delay = _STREAM_RETRY_MIN_SECONDS
         not_found_since: float | None = None
         while True:
             remaining = None if deadline is None else deadline - time.monotonic()
@@ -396,13 +332,13 @@ class AxernClient:
             try:
                 for event in call:
                     next_cursor = event.next_cursor
-                    retry_delay = _SERVICE_WATCH_RETRY_MIN_SECONDS
+                    retry_delay = _STREAM_RETRY_MIN_SECONDS
                     not_found_since = None
                     yield event
                 return
             except grpc.RpcError as exc:
                 startup_not_found = exc.code() == grpc.StatusCode.NOT_FOUND
-                if not follow or (not _is_transient_service_read_code(exc.code()) and not startup_not_found):
+                if not follow or (not _is_transient_stream_code(exc.code()) and not startup_not_found):
                     raise
                 if startup_not_found:
                     not_found_since = not_found_since or time.monotonic()
@@ -414,257 +350,7 @@ class AxernClient:
             if remaining is not None and remaining <= 0:
                 raise TimeoutError(f"run {run_id} output read timed out")
             time.sleep(retry_delay if remaining is None else min(retry_delay, remaining))
-            retry_delay = min(retry_delay * 2, _SERVICE_WATCH_RETRY_MAX_SECONDS)
-
-    def create_service(
-        self,
-        *,
-        environment_id: str,
-        replicas: int = 1,
-        argv: list[str] | None = None,
-        env: dict[str, str] | None = None,
-        cwd: str = "",
-        runtime_class: str = "",
-        network_policy: NetworkPolicy | None = None,
-        request_cpu: ResourceQuantity = "",
-        request_memory: ResourceQuantity = "",
-        request_ephemeral_storage: ResourceQuantity = "",
-        limit_cpu: ResourceQuantity = "",
-        limit_memory: ResourceQuantity = "",
-        limit_ephemeral_storage: ResourceQuantity = "",
-        extension_capabilities: dict[str, str] | None = None,
-        node_selector: dict[str, str] | None = None,
-        readiness_probe: ServiceProbeInput | None = None,
-        liveness_probe: ServiceProbeInput | None = None,
-        namespace: str = "default",
-        labels: dict[str, str] | None = None,
-        timeout: float | None = 120.0,
-    ) -> service_types_pb2.Service:
-        readiness = _service_probe(readiness_probe)
-        liveness = _service_probe(liveness_probe)
-        response = self.services.CreateService(
-            service_pb2.CreateServiceRequest(
-                namespace=namespace,
-                environment_id=environment_id,
-                replicas=replicas,
-                config=common_pb2.ExecutionConfig(
-                    argv=list(argv or []),
-                    env=dict(env or {}),
-                    cwd=cwd,
-                    runtime_class=runtime_class,
-                    network=(
-                        common_pb2.NetworkSpec(egress_policy=network_policy._to_proto())
-                        if network_policy is not None
-                        else None
-                    ),
-                    resources=_resource_spec(
-                        request_cpu=request_cpu,
-                        request_memory=request_memory,
-                        request_ephemeral_storage=request_ephemeral_storage,
-                        limit_cpu=limit_cpu,
-                        limit_memory=limit_memory,
-                        limit_ephemeral_storage=limit_ephemeral_storage,
-                    ),
-                    extension_capability_requirements=_extension_capability_requirements(extension_capabilities),
-                    placement=common_pb2.PlacementConstraints(
-                        node_selector=dict(node_selector or {}),
-                    ),
-                ),
-                readiness_probe=readiness,
-                liveness_probe=liveness,
-                labels=dict(labels or {}),
-            ),
-            timeout=timeout,
-        )
-        return response.service
-
-    def get_service(
-        self,
-        service_id: str,
-        *,
-        timeout: float | None = 30.0,
-    ) -> service_types_pb2.Service:
-        service_id = service_id.strip()
-        if not service_id:
-            raise ValueError("service_id is required")
-        response = self.services.GetService(
-            service_pb2.GetServiceRequest(service_id=service_id),
-            timeout=timeout,
-        )
-        return response.service
-
-    def list_services(
-        self,
-        *,
-        namespace: str = "",
-        statuses: Iterable[service_types_pb2.ServiceStatus] | None = None,
-        labels: dict[str, str] | None = None,
-        page_size: int = 200,
-        timeout: float | None = 30.0,
-    ) -> list[service_types_pb2.Service]:
-        if page_size <= 0:
-            raise ValueError("page_size must be positive")
-        status_filter = list(statuses or [])
-        deadline = None if timeout is None else time.monotonic() + timeout
-        cursor = ""
-        services: list[service_types_pb2.Service] = []
-        while True:
-            remaining = None if deadline is None else deadline - time.monotonic()
-            if remaining is not None and remaining <= 0:
-                raise TimeoutError("list services timed out")
-            response = self.services.ListServices(
-                service_pb2.ListServicesRequest(
-                    filter=service_types_pb2.ServiceListFilter(
-                        namespace=namespace,
-                        statuses=status_filter,
-                        labels=dict(labels or {}),
-                        cursor=cursor,
-                        page_size=page_size,
-                    )
-                ),
-                timeout=remaining,
-            )
-            services.extend(response.services)
-            cursor = response.next_cursor
-            if not cursor:
-                return services
-
-    def list_service_events(
-        self,
-        service_id: str,
-        *,
-        limit: int = 50,
-        timeout: float | None = 30.0,
-    ) -> list[service_event_pb2.ServiceEvent]:
-        service_id = service_id.strip()
-        if not service_id:
-            raise ValueError("service_id is required")
-        if limit <= 0:
-            raise ValueError("limit must be positive")
-        response = self.services.ListServiceEvents(
-            service_event_pb2.ListServiceEventsRequest(service_id=service_id, limit=limit),
-            timeout=timeout,
-        )
-        return list(response.events)
-
-    def list_service_replicas(
-        self,
-        service_id: str,
-        *,
-        current_only: bool = True,
-        timeout: float | None = 30.0,
-    ) -> list[service_replica_pb2.ServiceReplica]:
-        view = service_replica_pb2.ServiceReplicaView.SERVICE_REPLICA_VIEW_CURRENT
-        if not current_only:
-            view = service_replica_pb2.ServiceReplicaView.SERVICE_REPLICA_VIEW_ALL
-        request = service_replica_pb2.ListServiceReplicasRequest(
-            service_id=service_id,
-            filter=service_replica_pb2.ServiceReplicaListFilter(view=view),
-        )
-        deadline = None if timeout is None else time.monotonic() + timeout
-        retry_delay = _SERVICE_WATCH_RETRY_MIN_SECONDS
-        last_error: grpc.RpcError | None = None
-        while True:
-            remaining = None if deadline is None else deadline - time.monotonic()
-            if remaining is not None and remaining <= 0:
-                if last_error is not None:
-                    raise last_error
-                raise TimeoutError(f"list replicas for service {service_id} timed out")
-            try:
-                response = self.services.ListServiceReplicas(request, timeout=remaining)
-                return list(response.replicas)
-            except grpc.RpcError as exc:
-                if not _is_transient_service_read_code(exc.code()):
-                    raise
-                last_error = exc
-            remaining = None if deadline is None else deadline - time.monotonic()
-            if remaining is not None and remaining <= 0:
-                if last_error is not None:
-                    raise last_error
-                raise TimeoutError(f"list replicas for service {service_id} timed out")
-            sleep_seconds = retry_delay if remaining is None else min(retry_delay, remaining)
-            time.sleep(sleep_seconds)
-            retry_delay = min(retry_delay * 2, _SERVICE_WATCH_RETRY_MAX_SECONDS)
-
-    def watch_service(
-        self,
-        service_id: str,
-        *,
-        after_version: int = 0,
-        timeout: float | None = None,
-    ) -> Generator[service_types_pb2.Service, None, None]:
-        """Yield monotonically newer service snapshots and resume transient disconnects."""
-
-        if not service_id.strip():
-            raise ValueError("service_id is required")
-        if after_version < 0:
-            raise ValueError("after_version must be non-negative")
-        deadline = None if timeout is None else time.monotonic() + timeout
-        last_version = after_version
-        retry_delay = _SERVICE_WATCH_RETRY_MIN_SECONDS
-        while True:
-            remaining = None if deadline is None else deadline - time.monotonic()
-            if remaining is not None and remaining <= 0:
-                raise TimeoutError(f"service {service_id} watch timed out")
-            call = self.services.WatchService(
-                service_pb2.WatchServiceRequest(
-                    service_id=service_id,
-                    after_version=last_version,
-                ),
-                timeout=remaining,
-            )
-            try:
-                for response in call:
-                    if not response.HasField("service"):
-                        raise RuntimeError("WatchService response did not include a service")
-                    service = response.service
-                    if service.version <= last_version:
-                        continue
-                    last_version = service.version
-                    retry_delay = _SERVICE_WATCH_RETRY_MIN_SECONDS
-                    yield service
-            except grpc.RpcError as exc:
-                if not _is_transient_service_read_code(exc.code()):
-                    raise
-            finally:
-                call.cancel()
-
-            remaining = None if deadline is None else deadline - time.monotonic()
-            if remaining is not None and remaining <= 0:
-                raise TimeoutError(f"service {service_id} watch timed out")
-            sleep_seconds = retry_delay if remaining is None else min(retry_delay, remaining)
-            time.sleep(sleep_seconds)
-            retry_delay = min(retry_delay * 2, _SERVICE_WATCH_RETRY_MAX_SECONDS)
-
-    def delete_service(
-        self,
-        service_id: str,
-        *,
-        timeout: float | None = 30.0,
-    ) -> service_types_pb2.Service:
-        response = self.services.DeleteService(
-            service_pb2.DeleteServiceRequest(service_id=service_id),
-            timeout=timeout,
-        )
-        return response.service
-
-    def admin_purge_service(
-        self,
-        service_id: str,
-        *,
-        operator_reason: str,
-        timeout: float | None = 30.0,
-    ) -> str:
-        if not operator_reason.strip():
-            raise ValueError("operator_reason is required")
-        response = self.service_admin.PurgeService(
-            admin_service_pb2.PurgeServiceRequest(
-                service_id=service_id,
-                operator_reason=operator_reason,
-            ),
-            timeout=timeout,
-        )
-        return response.service_id
+            retry_delay = min(retry_delay * 2, _STREAM_RETRY_MAX_SECONDS)
 
     def create_tunnel_session(
         self,

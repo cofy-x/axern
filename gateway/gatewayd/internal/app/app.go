@@ -10,11 +10,9 @@ import (
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/adapters/nodebridge"
 	controlapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/control"
 	httpapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/http"
-	"github.com/cofy-x/axern/gateway/gatewayd/internal/api/http/serviceproxy"
 	nodeapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/node"
 	sshapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/ssh"
 	tunnelapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/tunnel"
-	appservice "github.com/cofy-x/axern/gateway/gatewayd/internal/application/service"
 	term "github.com/cofy-x/axern/gateway/gatewayd/internal/application/terminal"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/auth"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/config"
@@ -39,13 +37,7 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 	nodes := nodebridge.NewDialer(obs)
 	token := auth.DevToken{Token: cfg.DevToken}
 	metrics := observability.NewMetrics(obs)
-	routeCache := appservice.NewCache(controlClient, appservice.Options{
-		TTL:                   cfg.RouteCacheTTL,
-		MaxEntries:            cfg.RouteCacheMaxEntries,
-		EndpointQuarantineTTL: cfg.ServiceEndpointQuarantineTTL,
-	}, metrics, obs)
 	terminalManager := term.NewManager(controlClient, nodes, terminalOptions(cfg), metrics, obs)
-	proxyHandler := serviceproxy.New(nodes, serviceProxyOptions(cfg), metrics, obs)
 	terminal := httpapi.NewTerminal(token, terminalManager, httpTerminalOptions(cfg), metrics)
 	var sshServer *sshapi.Server
 	if cfg.SSHEnabled {
@@ -76,7 +68,7 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 	}
 	controlServer.RegisterTunnelRelay(tunnelServer)
 	controlServer.RegisterNodeSandbox(nodeapi.New(controlClient, nodes, nodeOptions(cfg), metrics))
-	handler := httpapi.New(routeCache, proxyHandler, terminal, token, cfg.RequireHTTPAuth, metrics)
+	handler := httpapi.New(terminal)
 	wrappedHandler := obs.HTTPHandler(handler, "gatewayd.http")
 	return &App{
 		control: controlClient,

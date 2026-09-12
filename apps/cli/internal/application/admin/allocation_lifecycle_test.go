@@ -16,7 +16,7 @@ func TestValidateRetryReason(t *testing.T) {
 }
 
 func TestValidateOwnerType(t *testing.T) {
-	for _, value := range []string{"", "run", "service", " SERVICE "} {
+	for _, value := range []string{"", "run", " RUN "} {
 		if err := ValidateOwnerType(value); err != nil {
 			t.Fatalf("ValidateOwnerType(%q) error = %v", value, err)
 		}

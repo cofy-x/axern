@@ -9,7 +9,6 @@ const (
 	RepairOwnerWorkloadController  RepairOwner = "workload_controller"
 	RepairOwnerNodeLifecycle       RepairOwner = "node_lifecycle"
 	RepairOwnerTunnelController    RepairOwner = "tunnel_controller"
-	RepairOwnerServiceController   RepairOwner = "service_controller"
 	RepairOwnerAdminOperatorTriage RepairOwner = "admin_operator_triage"
 )
 
@@ -21,7 +20,6 @@ const (
 	RepairActionWorkloadCleanupAndReadmit RepairAction = "workload_cleanup_and_readmit"
 	RepairActionNodeLifecycleReconcile    RepairAction = "node_lifecycle_reconcile"
 	RepairActionTunnelLifecycleReconcile  RepairAction = "tunnel_lifecycle_reconcile"
-	RepairActionServiceReconcile          RepairAction = "service_reconcile"
 	RepairActionAdminTriage               RepairAction = "admin_triage"
 )
 
@@ -31,7 +29,6 @@ const (
 	RepairTargetTypeUnspecified   RepairTargetType = ""
 	RepairTargetTypeAllocation    RepairTargetType = "allocation"
 	RepairTargetTypeRun           RepairTargetType = "run"
-	RepairTargetTypeService       RepairTargetType = "service"
 	RepairTargetTypeTunnelSession RepairTargetType = "tunnel_session"
 )
 
@@ -76,11 +73,6 @@ func repairPlanForCode(code IssueCode) RepairPlan {
 			Owner:  RepairOwnerTunnelController,
 			Action: RepairActionTunnelLifecycleReconcile,
 		}
-	case IssueServiceReferenceMissingAllocation, IssueServiceReferenceEndedAllocation, IssueServiceReferenceOwnerMismatch:
-		return RepairPlan{
-			Owner:  RepairOwnerServiceController,
-			Action: RepairActionServiceReconcile,
-		}
 	default:
 		return RepairPlan{}
 	}
@@ -92,11 +84,6 @@ func repairTargetForIssue(issue Issue) (RepairTargetType, string) {
 		return RepairTargetTypeAllocation, issue.AllocationID
 	case IssueActiveReservationOnEndedAllocation, IssueActiveReservationAllocationMismatch:
 		return workloadRepairTarget(issue)
-	case IssueServiceReferenceMissingAllocation, IssueServiceReferenceEndedAllocation, IssueServiceReferenceOwnerMismatch:
-		if issue.OwnerID != "" {
-			return RepairTargetTypeService, issue.OwnerID
-		}
-		return allocationRepairTarget(issue)
 	case IssueActiveTunnelMissingAllocation, IssueActiveTunnelOnEndedAllocation, IssueActiveTunnelAllocationNodeMismatch:
 		if issue.DependentID != "" {
 			return RepairTargetTypeTunnelSession, issue.DependentID
@@ -112,10 +99,6 @@ func workloadRepairTarget(issue Issue) (RepairTargetType, string) {
 	case string(allocationkernel.OwnerRun):
 		if issue.OwnerID != "" {
 			return RepairTargetTypeRun, issue.OwnerID
-		}
-	case string(allocationkernel.OwnerService):
-		if issue.OwnerID != "" {
-			return RepairTargetTypeService, issue.OwnerID
 		}
 	}
 	return allocationRepairTarget(issue)

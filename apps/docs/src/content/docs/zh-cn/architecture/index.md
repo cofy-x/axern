@@ -19,7 +19,7 @@ flowchart LR
 
 ## 稳定的职责划分
 
-- **Gateway：** 认证公开客户端，转发控制、进程、文件、Service、终端、Artifact 和隧道流量。
+- **Gateway：** 认证公开客户端，转发控制、进程、文件、终端和隧道流量。
 - **控制面：** 持久化资源，协调调度、租约、重试、健康、清理、滚动更新。
 - **节点运行时：** 掌管 Sandbox 进程、文件系统、镜像、网络（eBPF NAT 数据面，可显式回退 iptables，见[节点网络](/zh-cn/architecture/networking/)）、探针和节点本地的 reconcile。
 - **SDK 和 Axrun：** 组合公开 API，不依赖节点私有接口或数据库内部。

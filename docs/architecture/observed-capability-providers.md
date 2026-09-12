@@ -317,8 +317,8 @@ for the same failure.
 Capability conditions never own allocation lifecycle. A condition set is a
 complete exact-key projection whose monotonic revision is fenced by allocation
 attempt. Condition reports can replace it only at a newer revision for the
-current attempt; they cannot change status, readiness, exit code, Run/Service
-status, or the primary lifecycle message. Normal delete/exit reporting owns
+current attempt; they cannot change status, readiness, exit code, Run status,
+or the primary lifecycle message. Normal delete/exit reporting owns
 those fields. An exact replay of the same attempt and revision is accepted only
 when its canonical protobuf SHA-256 payload digest is identical; a different
 payload at the same revision is rejected as equivocation. Runtime reconciliation

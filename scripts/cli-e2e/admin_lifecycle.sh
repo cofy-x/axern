@@ -145,7 +145,7 @@ import sys
 
 payload = json.load(sys.stdin)
 components = {item.get("component") for item in payload.get("components", [])}
-missing = {"run", "node", "service", "tunnel"} - components
+missing = {"run", "node", "tunnel"} - components
 if missing:
     raise SystemExit(f"reconcilez missing components: {sorted(missing)}")
 ' <<<"${body}" 2>"${cli_error_output}" || {

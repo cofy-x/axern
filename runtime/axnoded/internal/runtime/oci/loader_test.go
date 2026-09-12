@@ -384,7 +384,6 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 			},
 			Labels: map[string]string{
 				workloadidentity.LabelKeyRuntimeID:    "template-test",
-				workloadidentity.LabelKeyServiceID:    "Claude_Code.Profile",
 				workloadidentity.LabelKeyAllocationID: "alloc-FIRST-1234567890",
 				"netac-rules":                         "10.0.0.0/24",
 			},
@@ -415,7 +414,6 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 			},
 			Labels: map[string]string{
 				workloadidentity.LabelKeyRuntimeID:    "template-test",
-				workloadidentity.LabelKeyServiceID:    "Claude_Code.Profile",
 				workloadidentity.LabelKeyAllocationID: "alloc-second-repeated-value",
 				"netac-rules":                         "0.0.0.0/0",
 			},
@@ -452,11 +450,11 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 	if got := secondSpec.Annotations["extra-annotation"]; got != "second" {
 		t.Fatalf("second extra annotation = %q, want second", got)
 	}
-	if got := firstSpec.Hostname; got != "claude-code-profile-alloc-first" {
-		t.Fatalf("first hostname = %q, want claude-code-profile-alloc-first", got)
+	if got := firstSpec.Hostname; got != "alloc-first-123456" {
+		t.Fatalf("first hostname = %q, want alloc-first-123456", got)
 	}
-	if got := secondSpec.Hostname; got != "claude-code-profile-alloc-second" {
-		t.Fatalf("second hostname = %q, want claude-code-profile-alloc-second", got)
+	if got := secondSpec.Hostname; got != "alloc-second-repea" {
+		t.Fatalf("second hostname = %q, want alloc-second-repea", got)
 	}
 	if got := secondSpec.Annotations[workloadidentity.LabelKeyHostname]; got != secondSpec.Hostname {
 		t.Fatalf("second hostname annotation = %q, want %q", got, secondSpec.Hostname)
@@ -492,16 +490,13 @@ func TestGenerateSetsWorkloadHostnameAndRuntimeEtcFiles(t *testing.T) {
 		Request: &apipb.CreateContainerRequest{
 			Command: []string{"/bin/true"},
 			Rootfs:  &apipb.Rootfs{RootDir: t.TempDir()},
-			Labels: map[string]string{
-				workloadidentity.LabelKeyServiceID: "Claude_Code.Profile",
-			},
 		},
 	})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	if got := generated.Hostname; got != "claude-code-profile-alloc-abcdef" {
-		t.Fatalf("hostname = %q, want claude-code-profile-alloc-abcdef", got)
+	if got := generated.Hostname; got != "alloc-abcdef123456" {
+		t.Fatalf("hostname = %q, want alloc-abcdef123456", got)
 	}
 	if got := generated.Annotations[workloadidentity.LabelKeyHostname]; got != generated.Hostname {
 		t.Fatalf("hostname annotation = %q, want %q", got, generated.Hostname)
@@ -522,7 +517,7 @@ func TestGenerateSetsWorkloadHostnameAndRuntimeEtcFiles(t *testing.T) {
 	}
 }
 
-func TestGenerateCompactsOpaqueServiceIDHostname(t *testing.T) {
+func TestGenerateCompactsOpaqueAllocationIDHostname(t *testing.T) {
 	loader, err := newTestBundleLoader(t, "", t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
@@ -530,19 +525,13 @@ func TestGenerateCompactsOpaqueServiceIDHostname(t *testing.T) {
 
 	_, generated, err := loader.Generate(LoadOptions{
 		ContainerID: "alloc-aaaaaaaaaaaa",
-		Request: &apipb.CreateContainerRequest{
-			Command: []string{"/bin/true"},
-			Rootfs:  &apipb.Rootfs{RootDir: t.TempDir()},
-			Labels: map[string]string{
-				workloadidentity.LabelKeyServiceID: "svc-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-			},
-		},
+		Request:     &apipb.CreateContainerRequest{Command: []string{"/bin/true"}, Rootfs: &apipb.Rootfs{RootDir: t.TempDir()}},
 	})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	if got := generated.Hostname; got != "svc-bbbbbbbb-alloc-aaaaaa" {
-		t.Fatalf("hostname = %q, want svc-bbbbbbbb-alloc-aaaaaa", got)
+	if got := generated.Hostname; got != "alloc-aaaaaaaaaaaa" {
+		t.Fatalf("hostname = %q, want alloc-aaaaaaaaaaaa", got)
 	}
 }
 

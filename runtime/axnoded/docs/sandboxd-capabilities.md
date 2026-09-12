@@ -36,7 +36,7 @@ missing baseline capability is a platform failure and should fail closed.
 | file and archive | SDK/node file APIs | `/files/*`, `/files/archive/*` |
 | process | SDK/node process APIs | `/processes`, wait, signal, stdin, stream |
 | terminal / PTY | SSH and exec-stream terminal flows | terminal process creation, stream, resize, stdin-close |
-| probes | service readiness/liveness | `/probe` |
+| probes | explicit sandbox diagnostics | `/probe` |
 | ports and mounts diagnostics | internal diagnostics and failure reports | `/ports`, `/mounts` |
 
 ## Optional Capabilities

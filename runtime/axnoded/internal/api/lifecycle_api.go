@@ -20,7 +20,6 @@ import (
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 type nodeLifecycleServer struct {
@@ -562,40 +561,16 @@ func toRuntimeLifecycleResources(in *commonv1.ResourceSpec) *commonv1.ResourceSp
 	return proto.Clone(in).(*commonv1.ResourceSpec)
 }
 
-type lifecycleProbeJSON struct {
-	Http *struct {
-		Port   int32  `json:"port,omitempty"`
-		Path   string `json:"path,omitempty"`
-		Scheme string `json:"scheme,omitempty"`
-	} `json:"http,omitempty"`
-	Tcp *struct {
-		Port int32 `json:"port,omitempty"`
-	} `json:"tcp,omitempty"`
-	InitialDelayMilliseconds int64 `json:"initialDelayMilliseconds,omitempty"`
-	PeriodMilliseconds       int64 `json:"periodMilliseconds,omitempty"`
-	TimeoutMilliseconds      int64 `json:"timeoutMilliseconds,omitempty"`
-	SuccessThreshold         int32 `json:"successThreshold,omitempty"`
-	FailureThreshold         int32 `json:"failureThreshold,omitempty"`
-}
-
 func lifecycleExtraConfig(spec *nodelifecyclev1.ResolvedExecutionConfig) string {
-	if strings.TrimSpace(spec.GetNamespace()) == "" &&
-		strings.TrimSpace(spec.GetServiceID()) == "" &&
-		len(spec.GetLinuxCapabilities()) == 0 &&
+	if len(spec.GetLinuxCapabilities()) == 0 &&
 		len(spec.GetSecretEnv()) == 0 &&
 		len(spec.GetSecretFiles()) == 0 &&
-		strings.TrimSpace(spec.GetRegistryCredential().GetDockerConfigJson()) == "" &&
-		spec.GetReadinessProbe() == nil &&
-		spec.GetLivenessProbe() == nil {
+		strings.TrimSpace(spec.GetRegistryCredential().GetDockerConfigJson()) == "" {
 		return ""
 	}
 	payload := struct {
-		LinuxCapabilities []string            `json:"linuxCapabilities,omitempty"`
-		DockerConfigJSON  string              `json:"dockerConfigJson,omitempty"`
-		Namespace         string              `json:"namespace,omitempty"`
-		ServiceID         string              `json:"serviceId,omitempty"`
-		ReadinessProbe    *lifecycleProbeJSON `json:"readinessProbe,omitempty"`
-		LivenessProbe     *lifecycleProbeJSON `json:"livenessProbe,omitempty"`
+		LinuxCapabilities []string `json:"linuxCapabilities,omitempty"`
+		DockerConfigJSON  string   `json:"dockerConfigJson,omitempty"`
 		SecretEnv         []struct {
 			Name  string `json:"name,omitempty"`
 			Value string `json:"value,omitempty"`
@@ -608,8 +583,6 @@ func lifecycleExtraConfig(spec *nodelifecyclev1.ResolvedExecutionConfig) string 
 	}{
 		LinuxCapabilities: append([]string(nil), spec.GetLinuxCapabilities()...),
 		DockerConfigJSON:  strings.TrimSpace(spec.GetRegistryCredential().GetDockerConfigJson()),
-		Namespace:         strings.TrimSpace(spec.GetNamespace()),
-		ServiceID:         strings.TrimSpace(spec.GetServiceID()),
 	}
 	for _, item := range spec.GetSecretEnv() {
 		if item == nil {
@@ -634,48 +607,9 @@ func lifecycleExtraConfig(spec *nodelifecyclev1.ResolvedExecutionConfig) string 
 			Mode:    item.GetMode(),
 		})
 	}
-	payload.ReadinessProbe = lifecycleProbePayload(spec.GetReadinessProbe())
-	payload.LivenessProbe = lifecycleProbePayload(spec.GetLivenessProbe())
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return ""
 	}
 	return string(encoded)
-}
-
-func lifecycleProbePayload(probe *nodelifecyclev1.ResolvedProbe) *lifecycleProbeJSON {
-	if probe == nil {
-		return nil
-	}
-	payload := &lifecycleProbeJSON{
-		InitialDelayMilliseconds: durationMilliseconds(probe.GetInitialDelay()),
-		PeriodMilliseconds:       durationMilliseconds(probe.GetPeriod()),
-		TimeoutMilliseconds:      durationMilliseconds(probe.GetTimeout()),
-		SuccessThreshold:         probe.GetSuccessThreshold(),
-		FailureThreshold:         probe.GetFailureThreshold(),
-	}
-	if http := probe.GetHttp(); http != nil {
-		payload.Http = &struct {
-			Port   int32  `json:"port,omitempty"`
-			Path   string `json:"path,omitempty"`
-			Scheme string `json:"scheme,omitempty"`
-		}{
-			Port:   http.GetPort(),
-			Path:   http.GetPath(),
-			Scheme: strings.ToLower(strings.TrimPrefix(http.GetScheme().String(), "HTTP_PROBE_SCHEME_")),
-		}
-	}
-	if tcp := probe.GetTcp(); tcp != nil {
-		payload.Tcp = &struct {
-			Port int32 `json:"port,omitempty"`
-		}{Port: tcp.GetPort()}
-	}
-	return payload
-}
-
-func durationMilliseconds(value *durationpb.Duration) int64 {
-	if value == nil {
-		return 0
-	}
-	return value.AsDuration().Milliseconds()
 }

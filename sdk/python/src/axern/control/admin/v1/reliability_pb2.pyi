@@ -40,9 +40,6 @@ class ConsistencyIssueCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_MISSING_ALLOCATION: _ClassVar[ConsistencyIssueCode]
     CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION: _ClassVar[ConsistencyIssueCode]
     CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ALLOCATION_NODE_MISMATCH: _ClassVar[ConsistencyIssueCode]
-    CONSISTENCY_ISSUE_CODE_SERVICE_REFERENCE_MISSING_ALLOCATION: _ClassVar[ConsistencyIssueCode]
-    CONSISTENCY_ISSUE_CODE_SERVICE_REFERENCE_ENDED_ALLOCATION: _ClassVar[ConsistencyIssueCode]
-    CONSISTENCY_ISSUE_CODE_SERVICE_REFERENCE_OWNER_MISMATCH: _ClassVar[ConsistencyIssueCode]
 
 class ConsistencyRepairOwner(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -50,7 +47,6 @@ class ConsistencyRepairOwner(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     CONSISTENCY_REPAIR_OWNER_WORKLOAD_CONTROLLER: _ClassVar[ConsistencyRepairOwner]
     CONSISTENCY_REPAIR_OWNER_NODE_LIFECYCLE: _ClassVar[ConsistencyRepairOwner]
     CONSISTENCY_REPAIR_OWNER_TUNNEL_CONTROLLER: _ClassVar[ConsistencyRepairOwner]
-    CONSISTENCY_REPAIR_OWNER_SERVICE_CONTROLLER: _ClassVar[ConsistencyRepairOwner]
     CONSISTENCY_REPAIR_OWNER_ADMIN_OPERATOR_TRIAGE: _ClassVar[ConsistencyRepairOwner]
 
 class ConsistencyRepairAction(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -60,7 +56,6 @@ class ConsistencyRepairAction(int, metaclass=_enum_type_wrapper.EnumTypeWrapper)
     CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP_AND_READMIT: _ClassVar[ConsistencyRepairAction]
     CONSISTENCY_REPAIR_ACTION_NODE_LIFECYCLE_RECONCILE: _ClassVar[ConsistencyRepairAction]
     CONSISTENCY_REPAIR_ACTION_TUNNEL_LIFECYCLE_RECONCILE: _ClassVar[ConsistencyRepairAction]
-    CONSISTENCY_REPAIR_ACTION_SERVICE_RECONCILE: _ClassVar[ConsistencyRepairAction]
     CONSISTENCY_REPAIR_ACTION_ADMIN_TRIAGE: _ClassVar[ConsistencyRepairAction]
 
 class ConsistencyRepairTargetType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -68,7 +63,6 @@ class ConsistencyRepairTargetType(int, metaclass=_enum_type_wrapper.EnumTypeWrap
     CONSISTENCY_REPAIR_TARGET_TYPE_UNSPECIFIED: _ClassVar[ConsistencyRepairTargetType]
     CONSISTENCY_REPAIR_TARGET_TYPE_ALLOCATION: _ClassVar[ConsistencyRepairTargetType]
     CONSISTENCY_REPAIR_TARGET_TYPE_RUN: _ClassVar[ConsistencyRepairTargetType]
-    CONSISTENCY_REPAIR_TARGET_TYPE_SERVICE: _ClassVar[ConsistencyRepairTargetType]
     CONSISTENCY_REPAIR_TARGET_TYPE_TUNNEL_SESSION: _ClassVar[ConsistencyRepairTargetType]
 
 class AdminReliabilitySignalCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -97,26 +91,20 @@ CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ALLOCATION_NODE_MISMATCH: ConsistencyIssueCo
 CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_MISSING_ALLOCATION: ConsistencyIssueCode
 CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION: ConsistencyIssueCode
 CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ALLOCATION_NODE_MISMATCH: ConsistencyIssueCode
-CONSISTENCY_ISSUE_CODE_SERVICE_REFERENCE_MISSING_ALLOCATION: ConsistencyIssueCode
-CONSISTENCY_ISSUE_CODE_SERVICE_REFERENCE_ENDED_ALLOCATION: ConsistencyIssueCode
-CONSISTENCY_ISSUE_CODE_SERVICE_REFERENCE_OWNER_MISMATCH: ConsistencyIssueCode
 CONSISTENCY_REPAIR_OWNER_UNSPECIFIED: ConsistencyRepairOwner
 CONSISTENCY_REPAIR_OWNER_WORKLOAD_CONTROLLER: ConsistencyRepairOwner
 CONSISTENCY_REPAIR_OWNER_NODE_LIFECYCLE: ConsistencyRepairOwner
 CONSISTENCY_REPAIR_OWNER_TUNNEL_CONTROLLER: ConsistencyRepairOwner
-CONSISTENCY_REPAIR_OWNER_SERVICE_CONTROLLER: ConsistencyRepairOwner
 CONSISTENCY_REPAIR_OWNER_ADMIN_OPERATOR_TRIAGE: ConsistencyRepairOwner
 CONSISTENCY_REPAIR_ACTION_UNSPECIFIED: ConsistencyRepairAction
 CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP: ConsistencyRepairAction
 CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP_AND_READMIT: ConsistencyRepairAction
 CONSISTENCY_REPAIR_ACTION_NODE_LIFECYCLE_RECONCILE: ConsistencyRepairAction
 CONSISTENCY_REPAIR_ACTION_TUNNEL_LIFECYCLE_RECONCILE: ConsistencyRepairAction
-CONSISTENCY_REPAIR_ACTION_SERVICE_RECONCILE: ConsistencyRepairAction
 CONSISTENCY_REPAIR_ACTION_ADMIN_TRIAGE: ConsistencyRepairAction
 CONSISTENCY_REPAIR_TARGET_TYPE_UNSPECIFIED: ConsistencyRepairTargetType
 CONSISTENCY_REPAIR_TARGET_TYPE_ALLOCATION: ConsistencyRepairTargetType
 CONSISTENCY_REPAIR_TARGET_TYPE_RUN: ConsistencyRepairTargetType
-CONSISTENCY_REPAIR_TARGET_TYPE_SERVICE: ConsistencyRepairTargetType
 CONSISTENCY_REPAIR_TARGET_TYPE_TUNNEL_SESSION: ConsistencyRepairTargetType
 ADMIN_RELIABILITY_SIGNAL_CODE_UNSPECIFIED: AdminReliabilitySignalCode
 ADMIN_RELIABILITY_SIGNAL_CODE_CONSISTENCY_ISSUES: AdminReliabilitySignalCode

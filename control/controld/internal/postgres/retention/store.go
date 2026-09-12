@@ -30,24 +30,11 @@ func (s *PGStore) Cleanup(ctx context.Context, cfg retention.Config, now time.Ti
 			return nil
 		}
 		var err error
-		result.ServiceEventsDeleted, err = s.deleteServiceEvents(ctx, tx, now.Add(-cfg.ServiceEventsTTL), cfg.ServiceEventsKeep, cfg.BatchSize)
-		if err != nil {
-			return err
-		}
 		result.TunnelEventsDeleted, err = s.deleteTunnelEvents(ctx, tx, now.Add(-cfg.TunnelEventsTTL), cfg.TunnelEventsKeep, cfg.BatchSize)
 		if err != nil {
 			return err
 		}
 		result.QuotaEventsDeleted, err = s.deleteQuotaEvents(ctx, tx, now.Add(-cfg.QuotaEventsTTL), cfg.BatchSize)
-		if err != nil {
-			return err
-		}
-		result.ServiceAllocationsDeleted, err = s.deleteServiceAllocations(ctx, tx, serviceAllocationRetentionRequest{
-			cutoff:    now.Add(-cfg.ServiceReplicasTTL),
-			keep:      cfg.ServiceReplicasKeep,
-			batchSize: cfg.BatchSize,
-			now:       now,
-		})
 		if err != nil {
 			return err
 		}

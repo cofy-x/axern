@@ -9,6 +9,9 @@ This contract applies to the Axern TypeScript SDK.
 - Keep this SDK Node.js-first until browser support is explicitly designed.
 - Keep SDK code as a thin wrapper over Axern control and node RPCs. Do not add
   SDK-side shell fallbacks for platform file/process behavior.
+- Keep `Environment -> Run -> Allocation` as the only execution lifecycle.
+  A `Sandbox` API is a facade over that chain, not a Service-like persistent
+  object. Allocation-bound operations must reject stale targets.
 - Keep generated or dynamic proto access isolated under `src/generated`; product
   APIs should live in `client`, `sandbox`, `node`, `errors`, and small shared
   type modules.

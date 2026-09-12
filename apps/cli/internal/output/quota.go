@@ -6,9 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cofy-x/axern/apps/cli/internal/workloaddiagnostic"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -42,27 +40,6 @@ func RenderNamespaceQuotaTable(w io.Writer, quotas []*quotav1.NamespaceQuota) {
 		})
 	}
 	RenderTable(w, []string{"NAMESPACE", "CPU", "MEMORY", "EPHEMERAL STORAGE"}, rows)
-}
-
-func RenderNamespaceQuotaDescribe(w io.Writer, quota *quotav1.NamespaceQuota, services []*servicev1.Service) {
-	RenderNamespaceQuota(w, quota)
-	fmt.Fprintln(w, "Admission Blocked Services:")
-	if len(services) == 0 {
-		fmt.Fprintln(w, "-")
-		return
-	}
-	rows := make([][]string, 0, len(services))
-	for _, service := range services {
-		if service == nil {
-			continue
-		}
-		rows = append(rows, []string{
-			service.GetID(),
-			ServiceStatusLabel(service.GetStatus()),
-			workloaddiagnostic.AdmissionBlockedSummary(service.GetMessage()),
-		})
-	}
-	RenderTable(w, []string{"SERVICE", "STATUS", "ADMISSION"}, rows)
 }
 
 func RenderNamespaceQuotaEventTable(w io.Writer, events []*quotav1.NamespaceQuotaEvent) {

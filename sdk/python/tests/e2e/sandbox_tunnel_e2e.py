@@ -48,7 +48,7 @@ def main() -> int:
             tls_key=args.tls_key,
             tls_server_name=args.tls_server_name,
         )
-        service_id = ""
+        run_id = ""
         session_id = ""
         phase = "sync-start"
         try:
@@ -141,21 +141,21 @@ with urllib.request.urlopen("http://{sandbox.bound_addr}/index.txt", timeout=5) 
                 require_event(events, tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_NODE_CONNECTED)
                 require_event(events, tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_PAIRED)
                 session_id = sandbox.tunnel_session_id
-                service_id = sandbox.run_id
+                run_id = sandbox.run_id
             phase = "sync-cleanup"
             session = client.get_tunnel_session(session_id)
             if session.status != tunnel_pb2.TUNNEL_SESSION_STATUS_REVOKED:
                 raise SystemExit(f"tunnel status after sandbox close = {session.status}, want revoked")
             print(
                 "python_sdk_sandbox_tunnel_e2e_ok=true "
-                f"runtime_class={args.runtime_class} service_id={service_id} session_id={session_id}"
+                f"runtime_class={args.runtime_class} run_id={run_id} session_id={session_id}"
             )
             phase = "async-check"
             asyncio.run(run_async_sandbox_check(args))
             return 0
         except BaseException as exc:
             if not getattr(exc, "_axern_e2e_logged", False):
-                log_e2e_failure(args, phase=phase, service_id=service_id, session_id=session_id, exc=exc)
+                log_e2e_failure(args, phase=phase, run_id=run_id, session_id=session_id, exc=exc)
             raise
         finally:
             client.close()
@@ -174,7 +174,7 @@ def _handler_for(root: Path):
 
 
 async def run_async_sandbox_check(args: argparse.Namespace) -> None:
-    service_id = ""
+    run_id = ""
     phase = "async-start"
     try:
         async with AsyncAxernClient(
@@ -191,7 +191,7 @@ async def run_async_sandbox_check(args: argparse.Namespace) -> None:
                 argv=["python", "-c", "import time; time.sleep(600)"],
                 ready_timeout_seconds=180,
             ) as sandbox:
-                service_id = sandbox.run_id
+                run_id = sandbox.run_id
                 phase = "async-exec"
                 result = await sandbox.exec(["python", "-c", "print('async-ok')"], timeout_seconds=15, check=True)
                 if result.stdout_text().strip() != "async-ok":
@@ -270,7 +270,7 @@ async def run_async_sandbox_check(args: argparse.Namespace) -> None:
                     if stream_events[-1].exit_code != 0:
                         raise SystemExit(f"async sandbox exec_stream exit code = {stream_events[-1].exit_code}, want 0")
     except BaseException as exc:
-        log_e2e_failure(args, phase=phase, service_id=service_id, session_id="", exc=exc)
+        log_e2e_failure(args, phase=phase, run_id=run_id, session_id="", exc=exc)
         raise
 
 
@@ -278,14 +278,14 @@ def log_e2e_failure(
     args: argparse.Namespace,
     *,
     phase: str,
-    service_id: str,
+    run_id: str,
     session_id: str,
     exc: BaseException,
 ) -> None:
     print(
         "python_sdk_sandbox_e2e_failed=true "
         f"runtime_class={args.runtime_class} phase={phase} "
-        f"service_id={service_id or '-'} session_id={session_id or '-'} "
+        f"run_id={run_id or '-'} session_id={session_id or '-'} "
         f"node_container={args.node_container} "
         f"error_type={type(exc).__name__} error={exc}",
         file=sys.stderr,

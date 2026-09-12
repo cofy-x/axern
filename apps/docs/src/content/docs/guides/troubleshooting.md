@@ -47,25 +47,22 @@ flows.
 
 ## Workloads
 
-A Run or Service that never becomes ready usually fails at source resolution,
-admission, or readiness:
+A Run that never starts usually fails at source resolution, admission, or
+runtime startup:
 
 ```bash
 axern run get <run-id> --output json
-axern service get <service-id> --output json
-axern service events <service-id>
 axern quota get --namespace default
 ```
 
 Admission rejections carry a diagnostic code and summary; check namespace
-quota before resizing a workload. Service rollouts expose `updated` versus
-`outdated` replicas through `axern service replicas <service-id>`.
+quota before resizing a workload.
 
 ## Tunnels
 
 ```bash
 axern tunnel doctor --session-id <session-id>
-axern tunnel doctor --service-id <service-id> --local 127.0.0.1:8080
+axern tunnel doctor --allocation-id <allocation-id> --local 127.0.0.1:8080
 axern tunnel inspect <session-id>
 axern tunnel events <session-id>
 ```
@@ -73,17 +70,6 @@ axern tunnel events <session-id>
 Tunnel doctor validates the session, binding, and (with `--local`) the local
 upstream, exiting non-zero when it finds problems. See
 [Reverse Tunnels](/guides/tunnels/) for session lifecycle semantics.
-
-## Agent workspaces
-
-```bash
-axern agent doctor
-```
-
-The agent doctor diagnoses an agent profile: it validates the profile
-configuration, then probes provider upstream compatibility and platform
-reachability, exiting non-zero when a dependency is unhealthy. See
-[Coding Agents](/guides/agent/).
 
 JSON output is available on status and doctor commands (`--output json`) for
 automation. If diagnostics pass but behavior is still wrong, collect the

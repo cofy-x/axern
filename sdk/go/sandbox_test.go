@@ -18,7 +18,6 @@ import (
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc"
@@ -623,13 +622,11 @@ func startTestSandbox(t *testing.T, ctx context.Context, dialer func(context.Con
 type fakeAxernServer struct {
 	environmentv1.UnimplementedEnvironmentControlServer
 	runv1.UnimplementedRunControlServer
-	servicev1.UnimplementedServiceControlServer
 	gatewayv1.UnimplementedGatewayControlServer
 	tunnelcontrolv1.UnimplementedTunnelControlServer
 	nodesandboxv1.UnimplementedNodeSandboxServer
 
 	files                  map[string][]byte
-	createServiceRequest   *servicev1.CreateServiceRequest
 	createRunRequest       *runv1.CreateRunRequest
 	execArgv               []string
 	execImageSpecs         []*nodesandboxv1.ImageProcessSpec
@@ -653,7 +650,6 @@ type fakeAxernServer struct {
 	uploadCreateParents    bool
 	uploadOverwrite        bool
 	uploadSawNestedFile    bool
-	deletedService         bool
 	cancelledRun           bool
 	deletedEnvironment     bool
 	tunnelAllocationID     string
@@ -672,10 +668,6 @@ type fakeAxernServer struct {
 	processSendScripted    bool
 	processOmitExit        bool
 	processCloseOnScript   bool
-	watchMu                sync.Mutex
-	watchCalls             int
-	watchScripts           [][]int64
-	watchErrors            []codes.Code
 	capabilityStatusSeen   bool
 	computerUseStatusSeen  bool
 	computerUseScreenSeen  bool
@@ -690,7 +682,6 @@ func newBufconnServer(t *testing.T, fake *fakeAxernServer) (*grpc.Server, func(c
 	server := grpc.NewServer()
 	environmentv1.RegisterEnvironmentControlServer(server, fake)
 	runv1.RegisterRunControlServer(server, fake)
-	servicev1.RegisterServiceControlServer(server, fake)
 	gatewayv1.RegisterGatewayControlServer(server, fake)
 	tunnelcontrolv1.RegisterTunnelControlServer(server, fake)
 	nodesandboxv1.RegisterNodeSandboxServer(server, fake)
@@ -738,66 +729,6 @@ func (f *fakeAxernServer) WatchRun(_ *runv1.WatchRunRequest, stream runv1.RunCon
 func (f *fakeAxernServer) CancelRun(context.Context, *runv1.CancelRunRequest) (*runv1.CancelRunResponse, error) {
 	f.cancelledRun = true
 	return &runv1.CancelRunResponse{Run: &runv1.Run{ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_CANCELLED}}, nil
-}
-
-func (f *fakeAxernServer) CreateService(_ context.Context, request *servicev1.CreateServiceRequest) (*servicev1.CreateServiceResponse, error) {
-	f.createServiceRequest = request
-	return &servicev1.CreateServiceResponse{
-		Service: &servicev1.Service{ID: "svc-1", Version: 1},
-	}, nil
-}
-
-func (f *fakeAxernServer) WatchService(_ *servicev1.WatchServiceRequest, stream servicev1.ServiceControl_WatchServiceServer) error {
-	f.watchMu.Lock()
-	call := f.watchCalls
-	f.watchCalls++
-	versions := []int64{2}
-	if call < len(f.watchScripts) {
-		versions = append([]int64(nil), f.watchScripts[call]...)
-	}
-	errorCode := codes.OK
-	if call < len(f.watchErrors) {
-		errorCode = f.watchErrors[call]
-	}
-	f.watchMu.Unlock()
-	for _, version := range versions {
-		if err := stream.Send(&servicev1.WatchServiceResponse{Service: &servicev1.Service{
-			ID:            "svc-1",
-			Version:       version,
-			Status:        servicev1.ServiceStatus_SERVICE_STATUS_READY,
-			ReadyReplicas: 1,
-		}}); err != nil {
-			return err
-		}
-	}
-	if errorCode != codes.OK {
-		return grpcstatus.Error(errorCode, "scripted watch failure")
-	}
-	return nil
-}
-
-func (f *fakeAxernServer) DeleteService(context.Context, *servicev1.DeleteServiceRequest) (*servicev1.DeleteServiceResponse, error) {
-	f.deletedService = true
-	return &servicev1.DeleteServiceResponse{Service: &servicev1.Service{ID: "svc-1"}}, nil
-}
-
-func (f *fakeAxernServer) ListServiceReplicas(context.Context, *servicev1.ListServiceReplicasRequest) (*servicev1.ListServiceReplicasResponse, error) {
-	return &servicev1.ListServiceReplicasResponse{
-		Replicas: []*servicev1.ServiceReplica{
-			{
-				ID:      "alloc-1",
-				NodeID:  "node-1",
-				Attempt: 2,
-				Status:  commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING,
-				Ready:   true,
-				WorkspacePreparation: &commonv1.WorkspacePreparationFacts{
-					PayloadFormat: "nydus",
-					PayloadDigest: "sha256:payload",
-					CacheHit:      true,
-				},
-			},
-		},
-	}, nil
 }
 
 func (f *fakeAxernServer) MaterializeTaskAssets(context.Context, *nodesandboxv1.MaterializeTaskAssetsRequest) (*nodesandboxv1.MaterializeTaskAssetsResponse, error) {

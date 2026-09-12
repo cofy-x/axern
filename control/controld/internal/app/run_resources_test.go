@@ -14,7 +14,6 @@ import (
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -396,134 +395,6 @@ func TestPostgresRunNamespaceResourceQuotaAdmission(t *testing.T) {
 	}
 }
 
-func TestPostgresServiceResourceCPUOvercommitAdmission(t *testing.T) {
-	app, _ := newPostgresTestServiceWithConfig(t, Config{
-		ResourcePolicy: resourcekernel.AdmissionPolicy{CPUOvercommitRatio: 2},
-	})
-	defer app.Close()
-	now := time.Date(2026, 5, 8, 19, 0, 0, 0, time.UTC)
-	app.now = func() time.Time { return now }
-	public := app.PublicV1Handler()
-	env := createDefaultEnvironment(t, app)
-
-	summary := controldtest.ReadySummary(now)
-	summary.Allocatable.CpuMilli = 1000
-	summary.Capacity.CpuMilli = 1000
-	controldtest.SetReadySummaryMemory(summary, 8<<30)
-	reportReadyNodeSummary(t, app, "node-a", now, summary)
-
-	createResp, err := public.CreateService(context.Background(), &servicev1.CreateServiceRequest{
-		Namespace:     "default",
-		EnvironmentID: env.GetID(),
-		Replicas:      2,
-		Config: &commonv1.ExecutionConfig{
-			Argv: []string{"/bin/sleep", "60"},
-			Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{
-				CpuMilli:    900,
-				MemoryBytes: 128 << 20,
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("CreateService(overcommit replicas) error = %v", err)
-	}
-	service := reconcileServiceForTest(t, app, createResp.GetService().GetID(), now)
-	if got := len(service.GetAllocationIds()); got != 2 {
-		t.Fatalf("service allocation_ids = %d, want 2; service=%+v", got, service)
-	}
-	for _, allocationID := range service.GetAllocationIds() {
-		assertActiveReservation(t, app, allocationID, 900, 128<<20)
-	}
-
-	blockedResp, err := public.CreateService(context.Background(), &servicev1.CreateServiceRequest{
-		Namespace:     "default",
-		EnvironmentID: env.GetID(),
-		Replicas:      1,
-		Config: &commonv1.ExecutionConfig{
-			Argv: []string{"/bin/sleep", "60"},
-			Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{
-				CpuMilli:    300,
-				MemoryBytes: 128 << 20,
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("CreateService(over effective cpu) error = %v", err)
-	}
-	blocked := reconcileServiceForTest(t, app, blockedResp.GetService().GetID(), now)
-	for _, want := range []string{
-		"node_id=node-a",
-		"cpu requested_milli=300 reserved_milli=1800 effective_allocatable_milli=2000 available_milli=200 overcommit_ratio=2",
-	} {
-		if !strings.Contains(blocked.GetMessage(), want) {
-			t.Fatalf("CreateService(over effective cpu) message = %q, want to contain %q", blocked.GetMessage(), want)
-		}
-	}
-}
-
-func TestPostgresServiceNamespaceResourceQuotaAdmission(t *testing.T) {
-	app, _ := newPostgresTestServiceWithConfig(t, Config{
-		ResourcePolicy: resourcekernel.AdmissionPolicy{CPUOvercommitRatio: 2},
-	})
-	defer app.Close()
-	now := time.Date(2026, 5, 8, 19, 30, 0, 0, time.UTC)
-	app.now = func() time.Time { return now }
-	public := app.PublicV1Handler()
-	env := createDefaultEnvironment(t, app)
-	setNamespaceQuota(t, app, "default", int64(1000), nil)
-
-	summary := controldtest.ReadySummary(now)
-	summary.Allocatable.CpuMilli = 1000
-	summary.Capacity.CpuMilli = 1000
-	controldtest.SetReadySummaryMemory(summary, 8<<30)
-	reportReadyNodeSummary(t, app, "node-a", now, summary)
-
-	createResp, err := public.CreateService(context.Background(), &servicev1.CreateServiceRequest{
-		Namespace:     "default",
-		EnvironmentID: env.GetID(),
-		Replicas:      2,
-		Config: &commonv1.ExecutionConfig{
-			Argv: []string{"/bin/sleep", "60"},
-			Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{
-				CpuMilli:    400,
-				MemoryBytes: 128 << 20,
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("CreateService(first quota admission) error = %v", err)
-	}
-	service := reconcileServiceForTest(t, app, createResp.GetService().GetID(), now)
-	if got := len(service.GetAllocationIds()); got != 2 {
-		t.Fatalf("service allocation_ids = %d, want 2", got)
-	}
-
-	blockedResp, err := public.CreateService(context.Background(), &servicev1.CreateServiceRequest{
-		Namespace:     "default",
-		EnvironmentID: env.GetID(),
-		Replicas:      1,
-		Config: &commonv1.ExecutionConfig{
-			Argv: []string{"/bin/sleep", "60"},
-			Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{
-				CpuMilli:    300,
-				MemoryBytes: 128 << 20,
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("CreateService(over namespace cpu quota) error = %v", err)
-	}
-	blocked := reconcileServiceForTest(t, app, blockedResp.GetService().GetID(), now)
-	for _, want := range []string{
-		"namespace quota exceeded: namespace=default",
-		"cpu requested_milli=300 reserved_milli=800 limit_milli=1000 available_milli=200",
-	} {
-		if !strings.Contains(blocked.GetMessage(), want) {
-			t.Fatalf("CreateService(over namespace cpu quota) message = %q, want to contain %q", blocked.GetMessage(), want)
-		}
-	}
-}
-
 func TestAppRejectsInvalidResourcePolicy(t *testing.T) {
 	_, err := New(Config{
 		ResourcePolicy: resourcekernel.AdmissionPolicy{CPUOvercommitRatio: -1},
@@ -556,18 +427,6 @@ func reportReadyNodeSummary(t *testing.T, app *App, nodeID string, _ time.Time, 
 	}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
-}
-
-func reconcileServiceForTest(t *testing.T, app *App, serviceID string, now time.Time) *servicev1.Service {
-	t.Helper()
-	if err := app.serviceReconciler.ReconcilePending(context.Background(), now); err != nil {
-		t.Fatalf("ReconcilePending() error = %v", err)
-	}
-	resp, err := app.PublicV1Handler().GetService(context.Background(), &servicev1.GetServiceRequest{ServiceID: serviceID})
-	if err != nil {
-		t.Fatalf("GetService() error = %v", err)
-	}
-	return resp.GetService()
 }
 
 func assertActiveReservation(t *testing.T, app *App, allocationID string, wantCPU, wantMemory int64) {

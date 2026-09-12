@@ -62,27 +62,22 @@ The preserved implementation boundaries are `runtime/axnoded/internal/nodestate`
 lease coordination in `internal/langruntime`. These are execution safety and
 recovery mechanisms, not generic storage-provider abstractions.
 
-## Historical Data And Upgrade Boundary
+## Rebuild Boundary
 
 This is a coordinated control-plane, node, SDK, and deployment contract change.
-Mixed-version operation and silent reinterpretation of old protobuf numbers or
-persisted volume fields are unsupported.
+Mixed-version operation, silent reinterpretation of old protobuf numbers, and
+reuse of persisted Volume, Service, or Function state are unsupported.
 
-Before adopting this model on an existing installation:
+The current pre-stable development contract requires clean control-plane and
+node state. Rebuild the local PostgreSQL database and generated node state when
+the initial schema or execution-storage contract changes. Do not add startup
+detection, read-only compatibility modes, dual schema paths, tombstones, or
+data conversion for retired internal models.
 
-1. Use the archived matching release to inventory old claims, bindings,
-   workloads, and physical directories. Export required data and verify the
-   resulting copies separately from the source archive.
-2. Drain the old allocations through that release and verify runtime, mount,
-   and resource cleanup. Do not start the new node runtime over active
-   historical allocation records.
-3. Start matching new components with new clean control and node state. Keep
-   historical database and filesystem data separately until an operator has
-   explicitly approved its retention or disposal.
-
-The current schema contains no persistent-volume tables or compatibility
-checks. Development databases and node state are rebuilt when this execution
-storage contract changes.
+This development rule does not authorize loss of data after Axern establishes
+a stable external storage contract. A future production upgrade policy must
+define versioned backup, migration, rollback, and deprecation behavior
+explicitly rather than reviving the current retired Volume model.
 
 ## Validation
 
@@ -92,10 +87,10 @@ storage contract changes.
   mounts, restart recovery, execution, file transfer, and allocation cleanup.
 - Deployment checks prove that the retained stack starts without either retired
   daemon. They must not invoke a historical volume cleanup workflow.
-- Historical-data tests prove startup refusal is read-only, including
-  tombstones and database read failures.
+- Clean-rebuild tests prove that the initial schema and node state start without
+  retired tables, fields, daemons, or compatibility guards.
 
 Use the [verification tiers](../verification/local-full-verification.md) and
 [node verification matrix](../../runtime/axnoded/docs/verification.md) to select
 the required checks. A source or host-safe check alone does not prove Linux
-mount behavior or successful migration of an existing installation.
+mount behavior or a future production-data migration contract.

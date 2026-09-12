@@ -12,7 +12,6 @@ import (
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 )
 
 func newPostgresTestService(t *testing.T) (*App, *controldtest.FakeNodeLifecycleClient) {
@@ -71,26 +70,6 @@ func reportReadyNodeSnapshot(t *testing.T, app *App, nodeID string, now time.Tim
 		Summary:       summary,
 	}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
-	}
-}
-
-func reconcileCreatedService(t *testing.T, app *App, serviceID string, now time.Time) *servicev1.Service {
-	t.Helper()
-	if err := app.serviceReconciler.ReconcilePending(context.Background(), now); err != nil {
-		t.Fatalf("ReconcilePending(service admission) error = %v", err)
-	}
-	reconcileAllocationLifecycle(t, app, now)
-	response, err := app.PublicV1Handler().GetService(context.Background(), &servicev1.GetServiceRequest{ServiceID: serviceID})
-	if err != nil {
-		t.Fatalf("GetService(after admission) error = %v", err)
-	}
-	return response.GetService()
-}
-
-func reconcileAllocationLifecycle(t *testing.T, app *App, now time.Time) {
-	t.Helper()
-	if _, err := app.allocationReconciler.ReconcileAllocationBatch(context.Background(), now); err != nil {
-		t.Fatalf("ReconcileAllocationBatch(allocation lifecycle) error = %v", err)
 	}
 }
 

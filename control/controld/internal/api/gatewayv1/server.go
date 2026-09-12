@@ -16,9 +16,7 @@ import (
 )
 
 type Resolver interface {
-	ResolveServiceRoute(ctx context.Context, req *gatewayv1.ResolveServiceRouteRequest, ttl time.Duration, now time.Time) (*gatewayv1.ResolveServiceRouteResponse, error)
 	ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest, ttl time.Duration, now time.Time) (*gatewayv1.ResolveAllocationTerminalResponse, error)
-	ResolveServiceReplicaTargets(context.Context, string) (*gatewayv1.ResolveServiceReplicaTargetsResponse, error)
 }
 
 type TunnelResolver interface {
@@ -47,10 +45,6 @@ func (s *Server) ResolveTunnelRelayTarget(ctx context.Context, req *gatewayv1.Re
 	return &gatewayv1.ResolveTunnelRelayTargetResponse{NodeEdgeTarget: session.GetNodeEdgeTarget()}, nil
 }
 
-func (s *Server) ResolveServiceReplicaTargets(ctx context.Context, req *gatewayv1.ResolveServiceReplicaTargetsRequest) (*gatewayv1.ResolveServiceReplicaTargetsResponse, error) {
-	return s.deps.Resolver.ResolveServiceReplicaTargets(ctx, req.GetServiceID())
-}
-
 type AccessAuthorizer interface {
 	AuthorizeFingerprintResource(context.Context, string, accesskernel.Action, string, string) error
 }
@@ -62,31 +56,6 @@ type Server struct {
 
 func New(deps Dependencies) *Server {
 	return &Server{deps: deps}
-}
-
-func (s *Server) ResolveServiceRoute(ctx context.Context, req *gatewayv1.ResolveServiceRouteRequest) (*gatewayv1.ResolveServiceRouteResponse, error) {
-	ctx, op := sdkobs.StartOperation(ctx, sdkobs.OperationConfig{
-		Name: ctrlobs.SpanGatewayResolveServiceRoute,
-		SpanAttrs: []attribute.KeyValue{
-			attribute.String(sdkobs.AttrServiceID, req.GetServiceID()),
-			attribute.String(sdkobs.AttrNamespace, req.GetNamespace()),
-		},
-		MetricAttrs: []attribute.KeyValue{attribute.String(sdkobs.AttrOperation, "service_route")},
-		Counter:     ctrlobs.MetricGatewayResolveTotal,
-		Duration:    ctrlobs.MetricGatewayResolveDuration,
-	})
-	var err error
-	defer func() { op.End(err) }()
-	ttl := time.Duration(req.GetTtlSeconds()) * time.Second
-	if ttl <= 0 {
-		ttl = s.deps.DefaultTTL
-	}
-	resp, err := s.deps.Resolver.ResolveServiceRoute(ctx, req, ttl, s.now())
-	if err != nil {
-		op.SetErrorStatus("resolve service route")
-		return nil, err
-	}
-	return resp, nil
 }
 
 func (s *Server) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error) {

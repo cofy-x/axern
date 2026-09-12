@@ -15,7 +15,7 @@ axern catalog bundle get <bundle-id>
 ```
 
 Templates such as `python311` or `coding-base` give workloads a reproducible,
-platform-curated rootfs. Every Run, Service, and SDK sandbox selects
+platform-curated rootfs. Every Run and SDK Sandbox selects
 exactly one source: a catalog template, a generic OCI image, or an existing
 environment. Prefer generic OCI images for simple experiments; introduce
 templates where their catalog and reuse semantics matter.
@@ -24,6 +24,5 @@ Capturing a template or image as an immutable, reusable Environment — and the
 namespace and quota rules around it — is covered in
 [Environments, Namespaces, and Quota](/guides/environments/).
 
-Agent bundles are normally resolved implicitly: `axern agent` mounts the
-matching `codex` or `claude-code` bundle, and Axrun freezes the bundle digest
-at rollout planning time.
+Axrun resolves the matching `codex` or `claude-code` Agent Bundle and freezes
+its digest at rollout planning time.

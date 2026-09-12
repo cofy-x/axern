@@ -12,7 +12,6 @@ import (
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -229,44 +228,6 @@ func TestRunAllowsImageDefaultArgv(t *testing.T) {
 	})
 	if grpcstatus.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("CreateRun(empty argv) code = %v, want FailedPrecondition from placement after argv validation passes (err=%v)", grpcstatus.Code(err), err)
-	}
-}
-
-func TestServiceReplicaFallbackViewIsEmptyWithoutAuthoritativeAllocations(t *testing.T) {
-	app := newTestService(t)
-	defer app.Close()
-	public := app.PublicV1Handler()
-
-	envResp, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
-		Spec: &environmentv1.EnvironmentSpec{TemplateID: "python311", Namespace: "default"},
-	})
-	if err != nil {
-		t.Fatalf("CreateEnvironment() error = %v", err)
-	}
-	serviceResp, err := public.CreateService(context.Background(), &servicev1.CreateServiceRequest{
-		Namespace:     "default",
-		EnvironmentID: envResp.GetEnvironment().GetID(),
-		Replicas:      1,
-	})
-	if err != nil {
-		t.Fatalf("CreateService() error = %v", err)
-	}
-	listResp, err := public.ListServiceReplicas(context.Background(), &servicev1.ListServiceReplicasRequest{
-		ServiceID: serviceResp.GetService().GetID(),
-		Filter:    &servicev1.ServiceReplicaListFilter{View: servicev1.ServiceReplicaView_SERVICE_REPLICA_VIEW_CURRENT},
-	})
-	if err != nil {
-		t.Fatalf("ListServiceReplicas() error = %v", err)
-	}
-	if len(listResp.GetReplicas()) != 0 {
-		t.Fatalf("fallback replicas = %d, want 0", len(listResp.GetReplicas()))
-	}
-	_, err = public.GetServiceReplica(context.Background(), &servicev1.GetServiceReplicaRequest{
-		ServiceID: serviceResp.GetService().GetID(),
-		ReplicaID: "alloc-missing",
-	})
-	if grpcstatus.Code(err) != codes.NotFound {
-		t.Fatalf("GetServiceReplica() code = %v, want %v", grpcstatus.Code(err), codes.NotFound)
 	}
 }
 

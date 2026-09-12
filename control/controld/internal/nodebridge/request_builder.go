@@ -8,7 +8,6 @@ import (
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 )
 
@@ -19,10 +18,6 @@ type createAllocationRequestParams struct {
 	Environment            *environmentv1.Environment
 	NodeID                 string
 	DefaultRuntime         string
-	Namespace              string
-	ServiceID              string
-	ReadinessProbe         *servicev1.ServiceProbe
-	LivenessProbe          *servicev1.ServiceProbe
 	ResolvedSecrets        resolvedExecutionSecrets
 	CapabilityDependencies []*capabilityv1.CapabilityDependency
 }
@@ -63,10 +58,6 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 		Network:                         cloneNetworkSpec(cfg.GetNetwork()),
 		SecretEnv:                       cloneResolvedSecretEnvVars(params.ResolvedSecrets.EnvSecrets),
 		SecretFiles:                     cloneResolvedSecretFiles(params.ResolvedSecrets.FileSecrets),
-		ReadinessProbe:                  cloneResolvedProbe(params.ReadinessProbe),
-		LivenessProbe:                   cloneResolvedProbe(params.LivenessProbe),
-		Namespace:                       strings.TrimSpace(params.Namespace),
-		ServiceID:                       strings.TrimSpace(params.ServiceID),
 		ExecutionProfile:                cloneRuntimeExecutionProfile(template.GetExecutionProfile()),
 		ImageMounts:                     cloneImageMounts(cfg.GetImageMounts()),
 		WorkspaceImage:                  cloneWorkspaceImage(cfg.GetWorkspaceImage()),

@@ -153,13 +153,6 @@ func BuildDynamicStartLabels(request *runtime.StartRequest) map[string]string {
 			labels[runtimecore.LabelKeyLinuxCapabilities] = strings.Join(caps, ",")
 		}
 	}
-	if namespace := strings.TrimSpace(extraConfig.Namespace); namespace != "" {
-		labels[workloadidentity.LabelKeyNamespace] = namespace
-	}
-	if serviceID := strings.TrimSpace(extraConfig.ServiceID); serviceID != "" {
-		labels[workloadidentity.LabelKeyServiceID] = serviceID
-	}
-
 	return labels
 }
 

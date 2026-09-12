@@ -8,7 +8,6 @@ export { AxernClient } from "./client/index.js";
 export type {
   AxernClientOptions,
   CreateEnvironmentOptions,
-  CreateServiceOptions,
   CreateRunOptions,
 } from "./client/index.js";
 export { loadAxernContext, loadAxernEnv } from "./config/index.js";

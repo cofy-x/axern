@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 
 export interface AxernConfig {
   endpoint: string;
-  serviceUrl?: string;
   sshEndpoint?: string;
   sshIdentityFile?: string;
   tlsCaCert?: string;
@@ -17,7 +16,6 @@ export interface AxernConfig {
 export function loadAxernEnv(overrides: Partial<AxernConfig> = {}): AxernConfig {
   return {
     endpoint: overrides.endpoint ?? process.env.AXERN_ENDPOINT ?? "127.0.0.1:25000",
-    serviceUrl: overrides.serviceUrl ?? process.env.AXERN_SERVICE_URL,
     sshEndpoint: overrides.sshEndpoint ?? process.env.AXERN_SSH_ENDPOINT,
     sshIdentityFile: overrides.sshIdentityFile ?? process.env.AXERN_SSH_IDENTITY_FILE,
     tlsCaCert: overrides.tlsCaCert ?? process.env.AXERN_TLS_CA_CERT,
@@ -35,12 +33,11 @@ export function loadAxernContext(path: string, name = ""): AxernConfig {
   if (!contextName) throw new Error("Axern context name is required");
   const contexts = objectValue(file.contexts, "contexts");
   const context = objectValue(contexts[contextName], `context ${JSON.stringify(contextName)}`);
-  rejectUnknown(context, ["endpoint", "service_url", "ssh_endpoint", "ssh_identity_file", "tls", "proxy_mode"], "context");
+  rejectUnknown(context, ["endpoint", "ssh_endpoint", "ssh_identity_file", "tls", "proxy_mode"], "context");
   const tls = objectValue(context.tls, "context.tls");
   rejectUnknown(tls, ["ca_cert", "cert", "key", "server_name"], "context.tls");
   const config: AxernConfig = {
     endpoint: stringValue(context.endpoint),
-    serviceUrl: stringValue(context.service_url) || undefined,
     sshEndpoint: stringValue(context.ssh_endpoint) || undefined,
     sshIdentityFile: stringValue(context.ssh_identity_file) || undefined,
     tlsCaCert: stringValue(tls.ca_cert),

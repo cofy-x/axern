@@ -13,7 +13,7 @@ convergence issues.
 - `/allocation-reconcilez` shows read-only allocation lifecycle retry queue
   state.
 - `/consistencyz` shows read-only cross-table consistency issues for active
-  reservations, leases, tunnel sessions, service references, and allocations.
+  reservations, leases, tunnel sessions, Runs, and Allocations.
 - `axern admin consistency check` and `axern admin reliability check` expose the
   typed admin gRPC read models used by smoke tests and operator triage.
 - Active-node heartbeat freshness, summary freshness, and axnoded readiness are
@@ -34,7 +34,7 @@ flowchart LR
   Triage --> Admin["admin gRPC / CLI"]
   Admin --> DB[("Postgres")]
   DB --> Queue["allocation_reconcile_queue"]
-  Queue --> Reconciler["run/service reconcilers"]
+  Queue --> Reconciler["Run / Allocation reconciler"]
 ```
 
 ## Health Triage
@@ -77,7 +77,8 @@ curl -fsS http://127.0.0.1:24001/allocation-reconcilez
 
 Important fields:
 
-- `owner_type`: whether the allocation belongs to a run or service.
+- `owner_type`: the durable owner classification; product workload allocations
+  belong to Runs.
 - `reason`: `create` retries start missing node allocations; `delete` retries
   clean up node state.
 - `reconcile_attempts`: current durable retry count.
@@ -88,7 +89,7 @@ Important fields:
 Use `/consistencyz` when queue state, quotas, or node inventory suggest
 stranded control-plane resources. A healthy response has `status: "ok"`.
 An inconsistent response lists issue codes such as active reservations on ended
-allocations, active leases or tunnel sessions on ended allocations, or service
+allocations, active leases or tunnel sessions on ended allocations, or Run
 references to missing/ended allocations. The endpoint is diagnostic only; fix
 state through the owning reconciler or audited admin operation. Issue details
 are capped; `truncated: true` means the response found more issues than it
@@ -97,7 +98,7 @@ returned.
 Repair ownership for each consistency issue family is defined in
 [Consistency Repair Boundaries](consistency-repair-boundaries.md). The short
 version: diagnostics stay read-only, and writes go through the owning
-run/service/tunnel controller or audited admin operation.
+Run/Allocation or tunnel controller, or an audited admin operation.
 
 ## Repair Actions
 

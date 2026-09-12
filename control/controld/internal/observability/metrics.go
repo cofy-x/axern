@@ -7,14 +7,6 @@ var (
 		Name:        "axern.controld_authorization_decision_total",
 		Description: "Control-plane authorization decisions by bounded action and result.",
 	}
-	MetricGatewayResolveTotal = sdkobs.Instrument{
-		Name:        "axern.controld_gateway_resolve_total",
-		Description: "Gateway route resolve requests.",
-	}
-	MetricGatewayResolveDuration = sdkobs.Instrument{
-		Name:        "axern.controld_gateway_resolve_duration_seconds",
-		Description: "Gateway route resolve latency.",
-	}
 	MetricGatewayTerminalResolveTotal = sdkobs.Instrument{
 		Name:        "axern.controld_gateway_terminal_resolve_total",
 		Description: "Gateway terminal resolve requests.",
@@ -22,14 +14,6 @@ var (
 	MetricGatewayTerminalResolveDuration = sdkobs.Instrument{
 		Name:        "axern.controld_gateway_terminal_resolve_duration_seconds",
 		Description: "Gateway terminal resolve latency.",
-	}
-	MetricServiceOperationTotal = sdkobs.Instrument{
-		Name:        "axern.controld_service_operation_total",
-		Description: "Control-plane service operation requests.",
-	}
-	MetricServiceOperationDuration = sdkobs.Instrument{
-		Name:        "axern.controld_service_operation_duration_seconds",
-		Description: "Control-plane service operation latency.",
 	}
 	MetricReconcileTotal = sdkobs.Instrument{
 		Name:        "axern.controld_reconcile_total",
@@ -70,10 +54,6 @@ var (
 	MetricAllocationStatusReportStageDuration = sdkobs.Instrument{
 		Name:        "axern.controld_allocation_status_report_stage_duration_seconds",
 		Description: "Allocation status report validation, authentication, and persistence stage duration.",
-	}
-	MetricServiceStatusBatchStageDuration = sdkobs.Instrument{
-		Name:        "axern.controld_service_status_batch_stage_duration_seconds",
-		Description: "Service allocation status batch locking, update, projection, and transaction duration.",
 	}
 	MetricEnvironmentOperationTotal = sdkobs.Instrument{
 		Name:        "axern.controld_environment_operation_total",
@@ -127,41 +107,9 @@ var (
 		Name:        "axern.controld_resource_admission_stage_duration_seconds",
 		Description: "Durable resource admission lock, evaluation, and selection stage duration.",
 	}
-	MetricServiceReadyDuration = sdkobs.Instrument{
-		Name:        "axern.controld_service_ready_duration_seconds",
-		Description: "Time from service creation to all desired replicas ready.",
-	}
-	MetricServiceReplicaReadyDuration = sdkobs.Instrument{
-		Name:        "axern.controld_service_replica_ready_duration_seconds",
-		Description: "Time from service replica admission to ready.",
-	}
-	MetricServiceReplicaStageDuration = sdkobs.Instrument{
-		Name:        "axern.controld_service_replica_stage_duration_seconds",
-		Description: "Service replica admission and creation stage duration.",
-	}
-	MetricServiceAllocationQueueDuration = sdkobs.Instrument{
-		Name:        "axern.controld_service_allocation_queue_duration_seconds",
-		Description: "Service allocation due lag, eligible claim wait, dispatcher wait, and total queue latency.",
-	}
-	MetricServiceTransactionStageDuration = sdkobs.Instrument{
-		Name:        "axern.controld_service_transaction_stage_duration_seconds",
-		Description: "Service durable transaction pool acquisition, body, commit, and total duration.",
-	}
 	MetricPostgresPoolConnections = sdkobs.Instrument{
 		Name:        "axern.controld_postgres_pool_connections",
 		Description: "Controld Postgres pool connections by state.",
-	}
-	MetricServiceReconcileStageDuration = sdkobs.Instrument{
-		Name:        "axern.controld_service_reconcile_stage_duration_seconds",
-		Description: "Service reconcile event queue wait, worker queue wait, sync, and total duration.",
-	}
-	MetricServiceReconcileQueueOverflowTotal = sdkobs.Instrument{
-		Name:        "axern.controld_service_reconcile_queue_overflow_total",
-		Description: "Service reconcile keyed queue overflows that fall back to a full sweep.",
-	}
-	MetricServiceAllocationDispatcherCurrent = sdkobs.Instrument{
-		Name:        "axern.controld_service_allocation_dispatcher_current",
-		Description: "Current service allocation dispatcher work by state.",
 	}
 	MetricNodeLifecycleRPCDuration = sdkobs.Instrument{
 		Name:        "axern.controld_node_lifecycle_rpc_duration_seconds",
@@ -170,18 +118,6 @@ var (
 	MetricNodesCurrent = sdkobs.Instrument{
 		Name:        "axern.controld_nodes_current",
 		Description: "Current controld node count by state.",
-	}
-	MetricServicesCurrent = sdkobs.Instrument{
-		Name:        "axern.controld_services_current",
-		Description: "Current service count by status.",
-	}
-	MetricServiceReplicasCurrent = sdkobs.Instrument{
-		Name:        "axern.controld_service_replicas_current",
-		Description: "Current service replica counts by state.",
-	}
-	MetricServiceWatchCurrent = sdkobs.Instrument{
-		Name:        "axern.controld_service_watch_current",
-		Description: "Current service watch streams and PostgreSQL listener readiness by state.",
 	}
 	MetricAllocationsCurrent = sdkobs.Instrument{
 		Name:        "axern.controld_allocations_current",

@@ -18,7 +18,7 @@ version that matches the Axern CLI/chart release; do not use a floating
 | SDK | Best fit | Start |
 | --- | --- | --- |
 | Python | Agent tooling, notebooks, orchestration | [Python SDK](/sdk/python/) |
-| Go | Services and infrastructure controllers | [Go SDK](/sdk/go/) |
+| Go | Infrastructure controllers and Go agents | [Go SDK](/sdk/go/) |
 | TypeScript | Node.js applications and tools | [TypeScript SDK](/sdk/typescript/) |
 
 ## Capability matrix
@@ -32,8 +32,7 @@ The sandbox boundary is shared; language depth differs by design.
 | Reverse tunnels | ✓ | ✓ | ✓ |
 | Computer Use | ✓ | ✓ | ✓ |
 | Managed browser | ✓ | — | — |
-| Environments and Services (create, watch) | ✓ | ✓ | — |
-| Rollout control and task-asset helpers | — | ✓ | — |
+| Environments and Runs | ✓ | ✓ | ✓ |
 | Concurrency model | sync + `AsyncSandbox` | `context.Context` | Promise-native |
 
 Secrets, quota, namespaces, SSH, and admin authorization are CLI surfaces

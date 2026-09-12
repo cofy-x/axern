@@ -47,7 +47,6 @@ AXERN_CLI_CERT_DIR ?= $(AXERN_CLI_STATE_DIR)/certs
 AXERN_CLI_SSH_DIR ?= $(AXERN_CLI_STATE_DIR)/ssh
 AXERN_CLI_PKI_SECRET ?= controld-pki
 AXERN_CLI_ENDPOINT ?= 127.0.0.1:$(AXERN_GATEWAYD_CONTROL_PORT)
-AXERN_CLI_SERVICE_URL ?= http://127.0.0.1:$(AXERN_GATEWAYD_HTTP_PORT)
 AXERN_CLI_SSH_ENDPOINT ?= 127.0.0.1:$(AXERN_GATEWAYD_SSH_PORT)
 AXERN_CLI_SSH_IDENTITY_FILE ?= $(AXERN_CLI_SSH_DIR)/gateway_client_ed25519
 AXERN_CLI_TLS_SERVER_NAME ?=
@@ -296,7 +295,6 @@ helm-axern-context: axern-cli-build ## Install or update a local axern CLI conte
 		--endpoint '$(AXERN_CLI_ENDPOINT)' \
 		--tls-server-name '$(AXERN_CLI_TLS_SERVER_NAME)' \
 		--proxy-mode '$(AXERN_CLI_PROXY_MODE)' \
-		--service-url '$(AXERN_CLI_SERVICE_URL)' \
 		--ssh-endpoint '$(AXERN_CLI_SSH_ENDPOINT)' \
 		--ssh-identity-file '$(AXERN_CLI_SSH_IDENTITY_FILE)' \
 		--current

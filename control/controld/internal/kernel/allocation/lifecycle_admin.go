@@ -30,7 +30,7 @@ func NormalizeLifecycleRetryFilter(in LifecycleRetryFilter) LifecycleRetryFilter
 
 func ValidateLifecycleRetryFilter(filter LifecycleRetryFilter) error {
 	switch filter.OwnerType {
-	case "", OwnerRun, OwnerService:
+	case "", OwnerRun:
 	default:
 		return grpcstatus.Errorf(codes.InvalidArgument, "unsupported lifecycle retry owner_type %q", filter.OwnerType)
 	}

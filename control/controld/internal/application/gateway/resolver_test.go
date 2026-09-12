@@ -7,23 +7,14 @@ import (
 
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
 
 type routeReaderStub struct{ allocation *Allocation }
 
-func (s routeReaderStub) LoadService(context.Context, string) (*servicev1.Service, error) {
-	return nil, nil
-}
-
 func (s routeReaderStub) LoadAllocation(context.Context, string) (*Allocation, error) {
 	return s.allocation, nil
-}
-
-func (s routeReaderStub) ReadyServiceEndpoints(context.Context, string) ([]EndpointTarget, error) {
-	return nil, nil
 }
 
 type leaseIssuerStub struct{ calls int }
@@ -66,49 +57,5 @@ func TestResolveAllocationTerminalAccessPurpose(t *testing.T) {
 				t.Fatalf("lease calls = %d, want %d", leases.calls, test.wantLeases)
 			}
 		})
-	}
-}
-
-func TestResolvePortByName(t *testing.T) {
-	t.Parallel()
-	port, err := ResolvePort([]*commonv1.PortSpec{
-		{Name: "http", Protocol: commonv1.PortProtocol_PORT_PROTOCOL_TCP, ContainerPort: 8080},
-	}, "http")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if port.GetContainerPort() != 8080 || port.GetName() != "http" {
-		t.Fatalf("port = %#v", port)
-	}
-}
-
-func TestResolvePortByNumber(t *testing.T) {
-	t.Parallel()
-	port, err := ResolvePort([]*commonv1.PortSpec{
-		{Name: "http", Protocol: commonv1.PortProtocol_PORT_PROTOCOL_TCP, ContainerPort: 8080},
-	}, "8080")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if port.GetContainerPort() != 8080 {
-		t.Fatalf("container port = %d, want 8080", port.GetContainerPort())
-	}
-}
-
-func TestResolvePortByNumberWithoutPortSpec(t *testing.T) {
-	t.Parallel()
-	port, err := ResolvePort(nil, "8080")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if port.GetContainerPort() != 8080 || port.GetProtocol() != commonv1.PortProtocol_PORT_PROTOCOL_TCP {
-		t.Fatalf("port = %#v", port)
-	}
-}
-
-func TestResolvePortMissing(t *testing.T) {
-	t.Parallel()
-	if _, err := ResolvePort([]*commonv1.PortSpec{{Name: "http", ContainerPort: 8080}}, "metrics"); err == nil {
-		t.Fatal("ResolvePort() unexpectedly succeeded")
 	}
 }

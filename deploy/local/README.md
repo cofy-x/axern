@@ -116,7 +116,6 @@ local smoke suite.
 
 ```bash
 make local-compose-smoke
-make local-compose-gateway-smoke
 make local-compose-run-smoke
 make local-compose-invoke-smoke
 make local-compose-server-base-smoke
@@ -124,7 +123,6 @@ make local-compose-quota-smoke
 make local-compose-computer-use-e2e
 
 make kind-smoke
-make kind-gateway-smoke
 make kind-run-smoke
 make kind-invoke-smoke
 make kind-server-base-smoke
@@ -146,31 +144,22 @@ make kind-quota-smoke
 Tunnel-specific changes should also run:
 
 ```bash
-make local-compose-tunnel-e2e
-make kind-tunnel-e2e
-make kind-tunnel-relay-e2e
-make kind-tunnel-multirelay-e2e
-make tunnel-benchmark-compose
+make local-compose-python-sdk-e2e
 ```
 
-`kind-tunnel-relay-e2e` is the fast control-plane registry/drain check.
-`kind-tunnel-multirelay-e2e` creates two physical kind relay deployments and
-verifies session-bound relay behavior across drain and relay loss. The
-benchmark target records a compose baseline only; it is not a hard performance
-gate.
+The Python SDK E2E creates a Run-backed sandbox and verifies the tunnel session,
+relay pairing, data flow, renewal, and revocation lifecycle.
 
 Image-backed service checks are intentionally separate because registry-first
 paths and optional external image overrides can depend on registry or proxy
 reachability:
 
 ```bash
-make local-compose-image-service-smoke
 make local-compose-registry-image-smoke
 make local-compose-image-mount-smoke
 make local-compose-claude-code-image-mount-smoke
 make local-compose-codex-image-mount-smoke
 make local-compose-nydus-smoke
-make kind-image-service-smoke
 make kind-axern-registry-image-smoke
 make kind-axern-nydus-smoke
 ```

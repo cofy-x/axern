@@ -6,40 +6,34 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
-	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
 
 func TestBatchReportAllocationStatusRoutesOwnersOnce(t *testing.T) {
 	owners := &fakeAllocationOwnerResolver{owners: map[string]string{
-		"run-1":     allocationkernel.OwnerRun,
-		"service-1": allocationkernel.OwnerService,
+		"run-1": allocationkernel.OwnerRun,
 	}}
 	runs := &fakeRunAllocationStore{}
-	services := &fakeServiceAllocationReporter{reconcileServiceIDs: []string{"svc-1"}}
-	control := NewAuthoritative(owners, runs, services)
+	control := NewAuthoritative(owners, runs)
 	observations := []*nodev1.AllocationStatusObservation{
 		{AllocationID: " run-1 ", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
-		{AllocationID: "service-1", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
+		{AllocationID: "unknown-owner", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
 		{AllocationID: "missing", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
 	}
 
-	reconcileServiceIDs, err := control.BatchReportAllocationStatus(context.Background(), "node-a", observations, time.Now().UTC())
+	reconcileIDs, err := control.BatchReportAllocationStatus(context.Background(), "node-a", observations, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("BatchReportAllocationStatus() error = %v", err)
 	}
-	if len(reconcileServiceIDs) != 1 || reconcileServiceIDs[0] != "svc-1" {
-		t.Fatalf("reconcile service IDs = %#v, want [svc-1]", reconcileServiceIDs)
+	if len(reconcileIDs) != 0 {
+		t.Fatalf("reconcile IDs = %#v, want empty", reconcileIDs)
 	}
 	if owners.calls != 1 {
 		t.Fatalf("owner resolver calls = %d, want 1", owners.calls)
 	}
 	if got := allocationIDs(runs.observations); len(got) != 1 || got[0] != " run-1 " {
 		t.Fatalf("run observations = %#v, want canonical owner routing to preserve payload", got)
-	}
-	if got := allocationIDs(services.observations); len(got) != 1 || got[0] != "service-1" {
-		t.Fatalf("service observations = %#v, want [service-1]", got)
 	}
 }
 
@@ -80,24 +74,6 @@ func (f *fakeRunAllocationStore) ReconcileNodeUnavailable(context.Context, strin
 
 func (f *fakeRunAllocationStore) WatchExecutionLeases(context.Context, string, int64, time.Time) ([]*commonv1.ExecutionLease, int64, error) {
 	return nil, 0, nil
-}
-
-type fakeServiceAllocationReporter struct {
-	observations        []*nodev1.AllocationStatusObservation
-	reconcileServiceIDs []string
-}
-
-func (f *fakeServiceAllocationReporter) BatchReportAllocationStatus(_ context.Context, _ string, observations []*nodev1.AllocationStatusObservation, _ time.Time) (servicekernel.AllocationStatusBatchResult, error) {
-	f.observations = append(f.observations, observations...)
-	return servicekernel.AllocationStatusBatchResult{ReconcileServiceIDs: f.reconcileServiceIDs}, nil
-}
-
-func (f *fakeServiceAllocationReporter) ReconcileNodeInventory(context.Context, allocationkernel.NodeInventorySnapshot, time.Time) error {
-	return nil
-}
-
-func (f *fakeServiceAllocationReporter) ReconcileNodeUnavailable(context.Context, string, time.Time) error {
-	return nil
 }
 
 func allocationIDs(observations []*nodev1.AllocationStatusObservation) []string {

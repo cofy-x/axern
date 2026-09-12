@@ -8,18 +8,18 @@ subsystem, read that subsystem's `AGENTS.md` and `README.md` instead.
 
 ```text
 clients / SDKs / apps
-  -> gatewayd          external mTLS identity, control, tunnel, service HTTP, and terminal edge
-     -> controld       product API semantics and durable control state
-        -> gatewayd        Function worker dispatch through the data-plane edge
-        -> tunneld         internal raw TCP tunnel relay targets
-        -> axnoded         node lifecycle and sandbox execution
+  -> gatewayd          external mTLS control edge plus terminal, SSH, tunnel, and artifact data plane
+     -> controld       Environment / Run / Allocation semantics and durable control state
+        -> axnoded         allocation lifecycle and sandbox execution
            -> egressd      trusted egress policy lifecycle and host enforcement
            -> imagemgr     image rootfs resolution and mount references
               -> imagefsd  read-only image data plane
-     -> axnoded        service HTTP and terminal data-plane forwarding
+        -> tunneld         durable tunnel target selection for the raw TCP relay
+     -> axnoded        allocation-bound terminal, SSH, process, file, and artifact forwarding
         -> runsc        production OCI sandbox lifecycle
            -> sandboxd  sandbox PID 1, process/file/PTY/proxy APIs
         -> bpfnet       optional host networking dataplane
+     -> tunneld        public-to-node raw TCP tunnel relay
 ```
 
 Shared API contracts live under `sdk/proto`; generated SDK code lives under
@@ -28,28 +28,21 @@ the language SDK workspaces.
 ## Ownership Rules
 
 - Control plane:
-  - `control/controld` owns product API semantics, placement, allocation
-    registry, node lifecycle dispatch, route resolution, tunnel session
-    control, and durable control-plane state. External product API traffic
-    should enter through `gateway/gatewayd`.
+  - `control/controld` owns Environment, Run, and Allocation semantics,
+    placement, node lifecycle dispatch, allocation target resolution, tunnel
+    session control, and durable control-plane state. External product API
+    traffic should enter through `gateway/gatewayd`.
 - Gateway and tunnels:
-  - `gateway/gatewayd` owns external control API, tunnel client entry, service
-    HTTP, and browser terminal entry.
+  - `gateway/gatewayd` owns the external control API plus allocation-bound
+    terminal, SSH, tunnel client, artifact, and sandbox data-plane entry.
   - Public control and sandbox requests are authenticated at gatewayd and
     authorized by controld against durable Principal credentials and scoped
     role bindings. Direct public controld access is not supported.
-  - `control/controld` may call `gateway/gatewayd` for gateway-owned data-plane
-    actions such as Function worker dispatch. This is an internal orchestration
-    path, not the external product API entry path.
   - `control/controld` owns tunnel sessions and advertises a client target on
     the gateway edge plus a node target on the internal `tunneld` relay.
-  - Managed Axrun workers use distinct mTLS connections: private lease and
-    rollout-worker control calls go directly to `controld`, while allocation
-    and sandbox execution use the public API path through `gatewayd`.
-    The worker's `rollout_executor` identity requires the active durable work
-    lease as a namespace-scoped execution delegation.
   - `runtime/tunneld` owns internal reverse TCP tunnel pairing. Tunnels are
-    platform networking, not Axrun LLM telemetry.
+    allocation-bound platform networking, not Service routing or Axrun LLM
+    telemetry.
 - Node runtime:
   - `runtime/axnoded` owns node-local sandbox lifecycle, OCI bundle generation,
     runtime handler integration, node operator APIs, gateway-forwarded sandbox
@@ -72,6 +65,12 @@ direct OCI runtime exec is a debug-level tool.
 
 ## Runtime Contracts
 
+- The only durable execution chain is `Environment -> Run -> Allocation`.
+  `Sandbox` in an SDK creates and controls that chain; it does not introduce a
+  separate persistent object or borrow a Service lifecycle.
+- Service, Function, Agent Profile, and generic Volume product lifecycles are
+  outside the runtime contract. Do not restore their APIs, schemas,
+  reconcilers, routes, metrics, or compatibility layers.
 - Runsc is the supported execution runtime. Packaged nodes and the
   source-development stack enable only runsc; unsupported runtime classes are
   rejected without fallback.
@@ -135,12 +134,12 @@ direct OCI runtime exec is a debug-level tool.
 
 | Change | Read / update |
 | --- | --- |
-| Public API, SDK shape, or protobuf contract | `sdk/proto`, generated SDKs, owning service, CLI/app docs |
+| Public API, SDK shape, or protobuf contract | `sdk/proto`, generated SDKs, owning module, CLI/app docs |
 | Placement, node registration, allocation lifecycle, runtime catalog | `control/controld`, `runtime/axnoded`, SDKs if user-facing |
 | Node capability observation, catalog policy, admission evidence, or enforcement loss | `sdk/proto`, `lib/go/nodecapability`, `runtime/axnoded`, `control/controld`, CLI/SDK diagnostics |
 | Sandbox DNS or strict egress lifecycle and enforcement | `runtime/egressd`, `runtime/axnoded`, `network/bpfnet`, deployment and verification surfaces |
 | Ephemeral filesystem, writable-storage reservation, and node cleanup | `runtime/axnoded`, `control/controld` for resource admission, storage architecture |
-| Gateway control edge, tunnel client entry, service HTTP, browser terminal entry | `gateway/gatewayd`, `control/controld`, `runtime/tunneld`, `runtime/axnoded` |
+| Gateway control edge, allocation terminal or SSH, tunnel client entry, artifact transfer | `gateway/gatewayd`, `control/controld`, `runtime/tunneld`, `runtime/axnoded` |
 | Internal TCP tunnel relay or node-local tunnel binding | `runtime/tunneld`, `control/controld`, `runtime/axnoded` |
 | Sandboxd lifecycle or process/file/PTY/proxy behavior | `runtime/axnoded`, `runtime/axnoded/docs/sandbox-daemon.md`, SDK/proto if API-visible |
 | Image-backed rootfs resolution | `runtime/axnoded`, `runtime/imagemgr`, `runtime/imagefsd` |
@@ -152,7 +151,7 @@ direct OCI runtime exec is a debug-level tool.
 ## Sync Rules
 
 - If a shared API shape changes, regenerate code and update all affected
-  SDKs, services, tests, and user-facing docs together.
+  SDKs, modules, tests, and user-facing docs together.
 - If a shared socket path or `.dev/` layout changes, update root docs and every
   subsystem doc that names that path.
 - If `axnoded` changes image-manager integration behavior, update axnoded and

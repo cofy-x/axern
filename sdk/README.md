@@ -42,7 +42,7 @@ Intentional language differences:
 - TypeScript APIs are Node.js-first Promise APIs.
 - Naming follows each language's conventions while preserving the same domain
   model.
-- Go exposes lower-level Rollout, service-watch, and task-asset helpers used by
+- Go exposes lower-level Run, process-stream, and task-asset helpers used by
   infrastructure integrations.
 - The higher-level Browser API is currently Python-first and is not part of the
   shared v0.2 contract.

@@ -12,7 +12,7 @@ import (
 
 func Command(runtime command.Runtime) *cobra.Command {
 	root := &cobra.Command{Use: "admin", Short: "Operate audited administrative workflows"}
-	root.AddCommand(principalCommand(runtime), credentialCommand(runtime), roleBindingCommand(runtime), serviceCommand(runtime), nodeCommand(runtime), reliabilityCommand(runtime), consistencyCommand(runtime), auditCommand(runtime), allocationRetryCommand(runtime))
+	root.AddCommand(principalCommand(runtime), credentialCommand(runtime), roleBindingCommand(runtime), nodeCommand(runtime), reliabilityCommand(runtime), consistencyCommand(runtime), auditCommand(runtime), allocationRetryCommand(runtime))
 	return root
 }
 
@@ -151,35 +151,6 @@ func nodeCapabilityCommand(runtime command.Runtime) *cobra.Command {
 	return root
 }
 
-func serviceCommand(runtime command.Runtime) *cobra.Command {
-	root := &cobra.Command{Use: "service", Short: "Administer services"}
-	var reason string
-	purge := &cobra.Command{Use: "purge <service-id>", Short: "Permanently purge a deleted service", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if err := appadmin.ValidateOperatorReason(reason); err != nil {
-			return command.Usage(err)
-		}
-		s, err := runtime.Open(cmd.Context())
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		resp, err := s.Clients.AdminService.PurgeService(s.Context, &adminv1.PurgeServiceRequest{ServiceID: args[0], OperatorReason: reason})
-		if err != nil {
-			return err
-		}
-		if runtime.Options.Output == "json" {
-			return output.PrintJSON(cmd.OutOrStdout(), struct {
-				ServiceID string `json:"service_id"`
-			}{resp.GetServiceID()})
-		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Service purged: %s\n", resp.GetServiceID())
-		return nil
-	}}
-	purge.Flags().StringVar(&reason, "operator-reason", "", "audit reason")
-	root.AddCommand(purge)
-	return root
-}
-
 func reliabilityCommand(runtime command.Runtime) *cobra.Command {
 	root := &cobra.Command{Use: "reliability", Short: "Inspect reliability health"}
 	root.AddCommand(&cobra.Command{Use: "check", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
@@ -304,7 +275,7 @@ func allocationRetryCommand(runtime command.Runtime) *cobra.Command {
 		return nil
 	}}
 	f := list.Flags()
-	f.StringVar(&owner, "owner", "", "run or service")
+	f.StringVar(&owner, "owner", "", "run")
 	f.StringVar(&reason, "reason", "", "create or delete")
 	f.BoolVar(&due, "due", false, "only due retries")
 	f.IntVar(&limit, "limit", 0, "maximum rows")

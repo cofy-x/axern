@@ -364,9 +364,7 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 	}
 
 	succeeded = true
-	h.startReadinessWorker(createResponse.ID, request.GetAllocationAttempt(), extraConfig)
-	h.startLivenessWorker(createResponse.ID, request.GetAllocationAttempt(), extraConfig)
-	h.reportStartRunningStatus(createResponse.ID, request.GetAllocationAttempt(), extraConfig, time.Now().UTC())
+	h.reportStartRunningStatus(createResponse.ID, request.GetAllocationAttempt(), time.Now().UTC())
 	result = contract.StartupResultOK
 	resp := startSuccessResponse(createResponse.ID)
 	return resp, nil
@@ -389,8 +387,6 @@ func (h *Controller) deleteManagedContainer(ctx context.Context, request *runtim
 	unlockLifecycle := h.allocationLifecycleLocks.Lock(request.GetID())
 	defer unlockLifecycle()
 
-	h.stopReadinessWorker(request.ID)
-	h.stopLivenessWorker(request.ID)
 	h.sandboxNetworking().CleanupDnatRules(request.ID)
 	_, resource, err := h.deleteContainerRuntime(ctx, &apipb.DeleteContainerRequest{
 		ID:      request.ID,

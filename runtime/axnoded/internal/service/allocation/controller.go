@@ -14,7 +14,6 @@ import (
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/service/probes"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -35,7 +34,6 @@ type Options struct {
 	RuntimeHandler              func(string) (contract.RuntimeHandler, error)
 	LangRuntime                 *langrtmanager.LangRTManager
 	Networking                  *servicenetworking.Coordinator
-	Probes                      *probes.Coordinator
 	StartMetricSink             StartMetricSink
 	ReportStatus                func(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
 	InventoryChanged            func()
@@ -52,7 +50,6 @@ type Controller struct {
 	runtimeHandlerFn            func(string) (contract.RuntimeHandler, error)
 	lrtManager                  *langrtmanager.LangRTManager
 	networking                  *servicenetworking.Coordinator
-	probes                      *probes.Coordinator
 	startMetricSink             StartMetricSink
 	reportStatus                func(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
 	inventoryChanged            func()
@@ -105,7 +102,6 @@ func NewController(options Options) *Controller {
 		runtimeHandlerFn:            options.RuntimeHandler,
 		lrtManager:                  options.LangRuntime,
 		networking:                  options.Networking,
-		probes:                      options.Probes,
 		startMetricSink:             options.StartMetricSink,
 		reportStatus:                options.ReportStatus,
 		inventoryChanged:            options.InventoryChanged,
@@ -290,39 +286,8 @@ func (c *Controller) sandboxNetworking() *servicenetworking.Coordinator {
 	return c.networking
 }
 
-func (c *Controller) startReadinessWorker(containerID string, attempt int64, extraConfig startplan.ExtraConfig) {
-	if c == nil || c.probes == nil {
-		return
-	}
-	c.probes.StartReadiness(containerID, attempt, extraConfig.ReadinessProbe)
-}
-
-func (c *Controller) startLivenessWorker(containerID string, attempt int64, extraConfig startplan.ExtraConfig) {
-	if c == nil || c.probes == nil {
-		return
-	}
-	c.probes.StartLiveness(containerID, attempt, extraConfig.LivenessProbe)
-}
-
-func (c *Controller) stopReadinessWorker(containerID string) {
-	if c == nil || c.probes == nil {
-		return
-	}
-	c.probes.StopReadiness(containerID)
-}
-
-func (c *Controller) stopLivenessWorker(containerID string) {
-	if c == nil || c.probes == nil {
-		return
-	}
-	c.probes.StopLiveness(containerID)
-}
-
-func (c *Controller) reportStartRunningStatus(containerID string, attempt int64, extraConfig startplan.ExtraConfig, observedAt time.Time) {
+func (c *Controller) reportStartRunningStatus(containerID string, attempt int64, observedAt time.Time) {
 	if c == nil || c.reportStatus == nil || attempt <= 0 || strings.TrimSpace(containerID) == "" {
-		return
-	}
-	if extraConfig.ReadinessProbe != nil {
 		return
 	}
 	c.reportStatus(containerID, attempt, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, 0, false, true, "", "", observedAt)

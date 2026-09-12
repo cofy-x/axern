@@ -187,12 +187,6 @@ func consistencyIssueCodeToProto(code consistencykernel.IssueCode) adminv1.Consi
 		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION
 	case consistencykernel.IssueActiveTunnelAllocationNodeMismatch:
 		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ALLOCATION_NODE_MISMATCH
-	case consistencykernel.IssueServiceReferenceMissingAllocation:
-		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_SERVICE_REFERENCE_MISSING_ALLOCATION
-	case consistencykernel.IssueServiceReferenceEndedAllocation:
-		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_SERVICE_REFERENCE_ENDED_ALLOCATION
-	case consistencykernel.IssueServiceReferenceOwnerMismatch:
-		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_SERVICE_REFERENCE_OWNER_MISMATCH
 	default:
 		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_UNSPECIFIED
 	}
@@ -206,8 +200,6 @@ func consistencyRepairOwnerToProto(owner consistencykernel.RepairOwner) adminv1.
 		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_NODE_LIFECYCLE
 	case consistencykernel.RepairOwnerTunnelController:
 		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_TUNNEL_CONTROLLER
-	case consistencykernel.RepairOwnerServiceController:
-		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_SERVICE_CONTROLLER
 	case consistencykernel.RepairOwnerAdminOperatorTriage:
 		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_ADMIN_OPERATOR_TRIAGE
 	default:
@@ -225,8 +217,6 @@ func consistencyRepairActionToProto(action consistencykernel.RepairAction) admin
 		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_NODE_LIFECYCLE_RECONCILE
 	case consistencykernel.RepairActionTunnelLifecycleReconcile:
 		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_TUNNEL_LIFECYCLE_RECONCILE
-	case consistencykernel.RepairActionServiceReconcile:
-		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_SERVICE_RECONCILE
 	case consistencykernel.RepairActionAdminTriage:
 		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_ADMIN_TRIAGE
 	default:
@@ -240,8 +230,6 @@ func consistencyRepairTargetTypeToProto(targetType consistencykernel.RepairTarge
 		return adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_ALLOCATION
 	case consistencykernel.RepairTargetTypeRun:
 		return adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_RUN
-	case consistencykernel.RepairTargetTypeService:
-		return adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_SERVICE
 	case consistencykernel.RepairTargetTypeTunnelSession:
 		return adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_TUNNEL_SESSION
 	default:

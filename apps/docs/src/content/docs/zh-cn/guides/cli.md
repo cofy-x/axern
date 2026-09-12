@@ -29,7 +29,6 @@ kubectl --namespace axern-system port-forward svc/gatewayd \
 axern context import-kubernetes local \
   --namespace axern-system \
   --endpoint 127.0.0.1:25100 \
-  --service-url http://127.0.0.1:25101 \
   --ssh-endpoint "" \
   --current
 ```
@@ -89,20 +88,13 @@ OCI 镜像是新工作负载的便携默认选择。当平台提供带策展工�
 
 ## 不把凭据写进 argv
 
-Provider token 和不透明 Secret 优先走 stdin，避免值出现在命令参数中。引用已有环境变量也能避免把值写进命令或 heredoc 历史，但变量对本地 CLI 进程仍可见：
+不透明 Secret 优先走 stdin，避免值出现在命令参数中。引用已有环境变量也能避免把值写进命令或 heredoc 历史，但变量对本地 CLI 进程仍可见：
 
 ```bash
-printf '%s\n' "$OPENAI_API_KEY" | axern agent profile set dev-codex \
-  --agent codex \
-  --provider openai \
-  --upstream https://api.openai.com/v1 \
-  --token-stdin \
-  --model <model>
-
 printf '%s\n' "API_KEY=$AXERN_SECRET_API_KEY" | \
   axern secret create --namespace default --literal-stdin
 ```
 
-Agent profile 也可用 `--token-env NAME`。CLI 有意不接受以命令行参数传入 provider token 或不透明 Secret 值。
+CLI 有意不接受以命令行参数传入不透明 Secret 值。
 
-CLI help 是完整 flag 能力面的权威说明。Context、退出码、别名、Service、Tunnel 和 admin 工作流见仓库的 [CLI 源码指南](https://github.com/cofy-x/axern/tree/main/apps/cli)。
+CLI help 是完整 flag 能力面的权威说明。Context、退出码、别名、Run、Tunnel 和 admin 工作流见仓库的 [CLI 源码指南](https://github.com/cofy-x/axern/tree/main/apps/cli)。

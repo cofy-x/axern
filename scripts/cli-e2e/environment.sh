@@ -145,7 +145,6 @@ setup_e2e_environment() {
     --tls-ca-cert "${cert_dir}/ca.crt" \
     --tls-cert "${cert_dir}/client.crt" \
     --tls-key "${cert_dir}/client.key" \
-    --service-url "http://${GATEWAY_HTTP_ADDRESS}" \
     --ssh-endpoint "${GATEWAY_SSH_ADDRESS}" \
     --ssh-identity-file "${ssh_dir}/gateway_client_ed25519" >/dev/null
 

@@ -6,7 +6,6 @@ import (
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/service/probes"
 	"github.com/sirupsen/logrus"
 )
 
@@ -15,12 +14,8 @@ type ExtraConfig struct {
 	CIDRAllowlist     string               `json:"cidrAllowlist,omitempty"`
 	LinuxCapabilities []string             `json:"linuxCapabilities,omitempty"`
 	DockerConfigJSON  string               `json:"dockerConfigJson,omitempty"`
-	Namespace         string               `json:"namespace,omitempty"`
-	ServiceID         string               `json:"serviceId,omitempty"`
 	SecretEnv         []ResolvedSecretEnv  `json:"secretEnv,omitempty"`
 	SecretFiles       []ResolvedSecretFile `json:"secretFiles,omitempty"`
-	ReadinessProbe    *probes.Config       `json:"readinessProbe,omitempty"`
-	LivenessProbe     *probes.Config       `json:"livenessProbe,omitempty"`
 }
 
 type ResolvedSecretEnv struct {

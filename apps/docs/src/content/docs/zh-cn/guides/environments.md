@@ -3,7 +3,7 @@ title: 环境、命名空间与配额
 description: 复用不可变环境，按命名空间组织工作负载，并查看配额与准入信号。
 ---
 
-Environment 是不可变、可复用的执行源：解析好的 Catalog 模板或 OCI 镜像引用，Run、Service 和 Sandbox 可以共享它而不必重复解析镜像。命名空间组织资源，配额限制各命名空间可准入的用量。
+Environment 是不可变、可复用的执行源：解析好的 Catalog 模板或 OCI 镜像引用，Run 和 Sandbox 可以共享它而不必重复解析镜像。命名空间组织资源，配额限制各命名空间可准入的用量。
 
 ## 创建和复用 Environment
 
@@ -29,11 +29,9 @@ axern environment create \
 
 ```bash
 axern run --environment <environment-id> -- python -c 'print("ok")'
-axern service create --environment-id <environment-id> \
-  --argv=python --argv=-m --argv=http.server --argv=8080
 ```
 
-SDK 构造 Sandbox 时接受同样的 `environment_id` source，Agent Workspace 正是借此跨会话保持稳定环境。
+SDK 构造 Sandbox 时接受同样的 `environment_id` source，避免为每个评测样本重复解析同一 source。
 
 ## 命名空间
 

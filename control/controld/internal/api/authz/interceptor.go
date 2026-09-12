@@ -301,8 +301,6 @@ func publicPolicy(method string) (methodPolicy, bool) {
 			"ListCapabilityReconcileQueue", "GetAllocationCapabilityDiagnostics")
 	case "axern.control.admin.v1.AllocationLifecycleAdmin":
 		return exactPolicy(methodName, accesskernel.ActionPlatformAdmin, "", "ListAllocationLifecycleRetries", "ForceAllocationLifecycleRetry", "FailAllocationLifecycleRetry", "ClearAllocationLifecycleRetry")
-	case "axern.control.admin.v1.ServiceAdmin":
-		return exactPolicy(methodName, accesskernel.ActionPlatformAdmin, "", "PurgeService")
 	case "axern.control.namespace.v1.NamespaceControl":
 		if policy, ok := exactPolicy(methodName, accesskernel.ActionNamespaceManage, "", "CreateNamespace", "DeleteNamespace"); ok {
 			return policy, true
@@ -325,10 +323,6 @@ func publicPolicy(method string) (methodPolicy, bool) {
 		return resourcePolicy(methodName, "run", []string{"GetRun", "WatchRun", "ListRuns"}, []string{"CreateRun", "CancelRun"})
 	case "axern.control.secret.v1.SecretControl":
 		return resourcePolicy(methodName, "secret", []string{"GetSecret", "ListSecrets"}, []string{"CreateSecret", "DeleteSecret"})
-	case "axern.control.service.v1.ServiceControl":
-		return resourcePolicy(methodName, "service",
-			[]string{"GetService", "WatchService", "GetServiceReplica", "ListServices", "ListServiceReplicas", "ListServiceEvents"},
-			[]string{"CreateService", "UpdateService", "DeleteService"})
 	case "axern.control.tunnel.v1.TunnelControl":
 		return resourcePolicy(methodName, "tunnel",
 			[]string{"GetTunnelSession", "ListTunnelSessions", "ListTunnelSessionEvents", "InspectTunnelSession"},

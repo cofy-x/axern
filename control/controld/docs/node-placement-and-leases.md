@@ -1,7 +1,6 @@
 # Node Placement and Leases
 
-`controld` performs placement for runs, services, and allocation
-reconciliation. Placement stays separate from
+`controld` performs placement for Runs and Allocation reconciliation. Placement stays separate from
 node-internal execution details; realtime exec still goes directly to the
 selected node.
 
@@ -53,36 +52,28 @@ the same transaction as the allocation and reservation. Admission also loads
 the latest active reservations and refreshes the dynamic load rank. It adds
 only reservations not yet reflected in the latest
 node `committed` summary, so running allocations are not counted twice while
-concurrent `STARTING` allocations still influence placement. Run admission and
-service replica admission share this path; service scale-up does not maintain a
-second process-local placement ledger. Service allocations are durably admitted
-one at a time and their node create RPCs are dispatched concurrently after the
-batch is reserved.
+concurrent `STARTING` allocations still influence placement. Run admission is
+the only workload admission path. Every Allocation is durably admitted before
+its node create RPC is dispatched; no process-local placement ledger or
+Service replica path exists.
 
-Service desired-state writes enqueue the affected service id immediately.
-Allocation status batches enqueue only services with follow-up controller work,
-such as replacing an ended allocation or advancing an actionable rollout;
-ordinary starting and readiness projection does not schedule a no-op sync. The
-bounded keyed queue coalesces duplicate events; overflow becomes a single full
-sweep. Pending/retry recovery runs once at process startup and then on a
-separate 30-second safety
-sweep. Recovery is not part of the normal startup latency path. Independent
-services run through a bounded worker pool; their allocation creates share a
-controller-wide concurrency budget with single-service replica scale. This
-preserves parallel fanout without turning status events into repeated
-pending-service scans, or multiplying the per-service worker limit
-across every pending service.
+Pending lifecycle recovery runs once at process startup and then on a separate
+low-frequency safety sweep. Recovery is not part of the normal startup latency
+path. The durable Allocation queue coalesces repeated intent, and independent
+Allocations run through a bounded worker pool and
+share controller-wide plus per-node concurrency budgets. This preserves fair
+parallel progress without turning status events into repeated table scans or
+letting one saturated node block unrelated work.
 
 `CreateRun` creates a run, allocation, and node reservation in the
 authoritative store, then calls the node allocation lifecycle API after the
 database transaction commits.
 
-Run and service node lifecycle calls are repaired through the durable
+Run-owned node lifecycle calls are repaired through the durable
 `allocation_reconcile_queue` when post-commit create or delete calls fail. That
 queue keeps reservation and lease cleanup tied to confirmed node lifecycle
-state instead of best-effort RPC success. The queue is allocation-scoped and
-owner-neutral; run and service controllers apply their own terminal workload
-state after queue convergence.
+state instead of best-effort RPC success. The queue is Allocation-scoped; the
+Run controller applies terminal workload state after queue convergence.
 
 Capability loss uses a separate `allocation_capability_reconcile_queue`, so a
 capability transition cannot overwrite create/delete lifecycle intent. Axnoded
@@ -101,8 +92,8 @@ Allocation capability conditions use a separate full-set report with a
 monotonic revision fenced by allocation attempt. Controld ignores reports for a
 different attempt and stale or duplicate revisions, then atomically projects
 accepted exact-key sets from normalized condition rows. The report cannot
-mutate allocation lifecycle state, readiness, exit code, Run/Service status, or
-the primary message; only normal lifecycle and exit reports own those fields.
+mutate allocation lifecycle state, exit code, Run status, or the primary
+message; only normal lifecycle and exit reports own those fields.
 
 ## Reconciler Health
 
@@ -139,10 +130,10 @@ next retry time, and queue age.
 
 The debug `/consistencyz` endpoint is also read-only. It scans the durable
 Postgres state for active reservations, execution leases, tunnel sessions, and
-service allocation references that no longer match allocation ownership or
+Run/Allocation references that no longer match allocation ownership or
 terminal allocation state. It is a diagnostic guardrail for convergence bugs;
-it does not mutate state or replace the owner-aware run/service/admin repair
-paths.
+it does not mutate state or replace the owner-aware Run/Allocation or admin
+repair paths.
 
 The product-facing admin read model exposes the same consistency snapshot
 through `axern admin consistency check` and folds it with allocation lifecycle
@@ -152,8 +143,8 @@ HTTP.
 
 Lifecycle retry writes are admin operations, not debug HTTP operations. The
 queue coordinates node lifecycle convergence with allocation status,
-reservations, and lease cleanup, so every write must go through the owning run
-or service controller and its state-transition rules.
+reservations, and lease cleanup, so every write must go through the owning Run
+controller or an audited admin operation and its state-transition rules.
 
 The typed gRPC admin surface is:
 
@@ -161,9 +152,9 @@ The typed gRPC admin surface is:
   limit filters, `clearable`, and `clear_blocked_reason`.
 - `ForceAllocationLifecycleRetry`: lock the row, record an audit event, and
   move `next_run_at` to `now` without changing reason or attempt count.
-- `FailAllocationLifecycleRetry`: create retries only; mark the owning run or
-  service allocation failed, release the reservation, remove the retry row, and
-  record the operator reason.
+- `FailAllocationLifecycleRetry`: create retries only; mark the owning Run and
+  Allocation failed, release the reservation, remove the retry row, and record
+  the operator reason.
 - `ClearAllocationLifecycleRetry`: stale rows only; require terminal
   allocation state, owner convergence away from the allocation, and no active
   reservations, leases, or tunnel sessions.
@@ -211,8 +202,8 @@ Timing rules:
   `CreateRetryMaxDelay` and increments attempts until exhaustion.
 - Run cancel delete failure schedules an immediate `delete` retry without
   incrementing attempts, preserving cancel responsiveness.
-- Service scale-down, rollout drain, service delete, and queued delete failures
-  schedule `delete` at `now + DeleteRetryDelay` and increment attempts.
+- Queued delete failures schedule `delete` at `now + DeleteRetryDelay` and
+  increment attempts.
 
 ## Resource Admission Policy
 
@@ -243,16 +234,12 @@ workloads remain balanced without weakening the hard admission boundary.
 The debug `/resourcez` endpoint also reports the current global resource
 admission policy, including `cpu_overcommit_ratio`.
 
-For services, readiness observations can accompany allocation status while the
-replica remains `RUNNING`.
-
 ## Inventory Reconciliation
 
 `BatchReportAllocationStatus` closes the control-plane state loop when nodes
-report start, readiness, exit, or failure observations. Axnoded coalesces the
-latest observation per allocation before sending; controld authenticates the
-node once, resolves allocation ownership once, and projects each affected
-service once per batch.
+report start, exit, or failure observations. Axnoded coalesces the latest
+observation per Allocation before sending; controld authenticates the node
+once, resolves ownership once, and projects each affected Run once per batch.
 
 `ReportNode` closes the complementary inventory loop. Axnoded summaries carry
 both running allocation ids and the broader set of active locally known
@@ -261,11 +248,10 @@ disappeared from a node without racing legitimate `STARTING` allocations that
 have not reached `RUNNING` yet.
 
 The control-plane reconciler also sweeps nodes whose heartbeat is outside the
-configured freshness window. Active run and service allocations on an
-unavailable node are failed through the same allocation-reporting path used by
-inventory reconciliation. That releases reservations and leases, records the
-allocation failure, and lets service reconciliation admit replacement replicas
-on fresh nodes.
+configured freshness window. Active Run Allocations on an unavailable node are
+failed through the same allocation-reporting path used by inventory
+reconciliation. That releases reservations and leases and records the
+Allocation and owning Run failure.
 
 ## Execution Leases
 
@@ -279,7 +265,7 @@ before reading that node's `(after_revision, current_revision]` lease window;
 the client resumes from `current_revision`. This ordering prevents a concurrent
 commit from being omitted while its revision is already acknowledged.
 
-The control plane is the authoritative registry for environments, runs,
-services, allocations, reservations, and execution leases. Durable
+The control plane is the authoritative registry for Environments, Runs,
+Allocations, reservations, tunnel sessions, and execution leases. Durable
 control-plane state is stored in Postgres; in-memory registries are
 reconstructed caches, not the source of truth.

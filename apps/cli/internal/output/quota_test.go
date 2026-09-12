@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -74,21 +73,5 @@ func TestRenderNamespaceQuotaTableUsesCompactUnlimitedMarker(t *testing.T) {
 	}
 	if strings.Contains(out.String(), "unlimited") {
 		t.Fatalf("table output should use compact unlimited marker:\n%s", out.String())
-	}
-}
-
-func TestRenderNamespaceQuotaDescribeShowsAdmissionBlockedServices(t *testing.T) {
-	quota := &quotav1.NamespaceQuota{Namespace: "team-a"}
-	service := &servicev1.Service{
-		ID:      "svc-a",
-		Status:  servicev1.ServiceStatus_SERVICE_STATUS_DEGRADED,
-		Message: "rpc error: code = ResourceExhausted desc = namespace quota exceeded: namespace=team-a",
-	}
-	var out bytes.Buffer
-	RenderNamespaceQuotaDescribe(&out, quota, []*servicev1.Service{service})
-	for _, want := range []string{"Admission Blocked Services", "svc-a", "degraded", "namespace quota exceeded"} {
-		if !strings.Contains(out.String(), want) {
-			t.Fatalf("describe output missing %q:\n%s", want, out.String())
-		}
 	}
 }

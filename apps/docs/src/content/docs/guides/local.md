@@ -45,7 +45,7 @@ node without a host-side archive. Rebuilding the same mutable tag moves new
 allocations to the new manifest generation; running allocations retain their
 leased generation. The `local` CLI context records only the current mutable
 tag pointer and submits its immutable digest to the control plane, so creating
-a Run or Service from a loaded image does not contact an external registry.
+a Run from a loaded image does not contact an external registry.
 
 ## Data paths
 

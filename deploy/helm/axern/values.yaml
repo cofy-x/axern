@@ -238,9 +238,6 @@ controld:
   summaryFreshnessWindow: 15s
   postgresMaxConnections: 48
   reconcileTimeout: 30s
-  serviceReconcileWorkers: 32
-  serviceAllocationGlobalWorkers: 256
-  serviceAllocationWorkersPerNode: 12
   retention:
     enabled: true
     replicas: 1
@@ -320,10 +317,6 @@ gatewayd:
     digest: ""
     pullPolicy: ""
   devToken: ""
-  routeCacheTTL: 3s
-  routeCacheMaxEntries: 8192
-  serviceEndpointRetryAttempts: 4
-  serviceEndpointQuarantineTTL: 30s
   controlEdge:
     publicAddress: localhost:25100
   ssh:

@@ -10,7 +10,6 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
@@ -126,68 +125,6 @@ func (c *Client) CreateEnvironment(ctx context.Context, options CreateEnvironmen
 func (c *Client) DeleteEnvironment(ctx context.Context, environmentID string) error {
 	_, err := c.environments.DeleteEnvironment(ctx, &environmentv1.DeleteEnvironmentRequest{EnvironmentID: environmentID})
 	return mapRPCError(err, "delete environment", "")
-}
-
-// CreateServiceOptions configures a single-replica service for sandbox use.
-type CreateServiceOptions struct {
-	Namespace               string
-	EnvironmentID           string
-	Argv                    []string
-	Env                     map[string]string
-	Cwd                     string
-	RuntimeClass            string
-	NetworkPolicy           *NetworkPolicy
-	ExtensionCapabilities   []ExtensionCapability
-	ImageMounts             []ImageMount
-	WorkspaceImage          *WorkspaceImageSource
-	RequestCPU              ResourceQuantity
-	RequestMemory           ResourceQuantity
-	RequestEphemeralStorage ResourceQuantity
-	LimitCPU                ResourceQuantity
-	LimitMemory             ResourceQuantity
-	LimitEphemeralStorage   ResourceQuantity
-	Labels                  map[string]string
-}
-
-// CreateService creates an Axern service.
-func (c *Client) CreateService(ctx context.Context, options CreateServiceOptions) (*servicev1.Service, error) {
-	if options.EnvironmentID == "" {
-		return nil, requiredError("environment_id")
-	}
-	if err := validateImageMounts(options.ImageMounts); err != nil {
-		return nil, err
-	}
-	if err := validateWorkspaceImage(options.WorkspaceImage); err != nil {
-		return nil, err
-	}
-	if err := validateWorkspaceImageMounts(options.WorkspaceImage, options.ImageMounts); err != nil {
-		return nil, err
-	}
-	resources, err := buildResourceSpec(options.RequestCPU, options.RequestMemory, options.RequestEphemeralStorage, options.LimitCPU, options.LimitMemory, options.LimitEphemeralStorage)
-	if err != nil {
-		return nil, err
-	}
-	response, err := c.services.CreateService(ctx, &servicev1.CreateServiceRequest{
-		Namespace:     defaultString(options.Namespace, "default"),
-		EnvironmentID: options.EnvironmentID,
-		Replicas:      1,
-		Config: &commonv1.ExecutionConfig{
-			Argv:                            append([]string(nil), options.Argv...),
-			Env:                             cloneMap(options.Env),
-			Cwd:                             options.Cwd,
-			RuntimeClass:                    options.RuntimeClass,
-			Network:                         networkSpec(options.NetworkPolicy),
-			ExtensionCapabilityRequirements: extensionCapabilityRequirements(options.ExtensionCapabilities),
-			ImageMounts:                     executionImageMounts(options.ImageMounts),
-			WorkspaceImage:                  executionWorkspaceImage(options.WorkspaceImage),
-			Resources:                       resources,
-		},
-		Labels: cloneMap(options.Labels),
-	})
-	if err != nil {
-		return nil, mapRPCError(err, "create service", "")
-	}
-	return response.GetService(), nil
 }
 
 func networkSpec(policy *NetworkPolicy) *commonv1.NetworkSpec {
@@ -412,29 +349,6 @@ func buildResourceSpec(requestCPUValue, requestMemoryValue, requestEphemeralStor
 		return nil, nil
 	}
 	return resources, nil
-}
-
-// DeleteService deletes a service by id.
-func (c *Client) DeleteService(ctx context.Context, serviceID string) error {
-	_, err := c.services.DeleteService(ctx, &servicev1.DeleteServiceRequest{ServiceID: serviceID})
-	return mapRPCError(err, "delete service", "")
-}
-
-// ListServiceReplicas returns the current replicas for a service.
-func (c *Client) ListServiceReplicas(ctx context.Context, serviceID string) ([]*servicev1.ServiceReplica, error) {
-	if strings.TrimSpace(serviceID) == "" {
-		return nil, requiredError("service_id")
-	}
-	response, err := c.services.ListServiceReplicas(ctx, &servicev1.ListServiceReplicasRequest{
-		ServiceID: serviceID,
-		Filter: &servicev1.ServiceReplicaListFilter{
-			View: servicev1.ServiceReplicaView_SERVICE_REPLICA_VIEW_CURRENT,
-		},
-	})
-	if err != nil {
-		return nil, mapRPCError(err, "list service replicas", "")
-	}
-	return response.GetReplicas(), nil
 }
 
 // CreateTunnelSessionOptions configures a control-plane tunnel session.

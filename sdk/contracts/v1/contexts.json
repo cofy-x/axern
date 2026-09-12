@@ -4,7 +4,6 @@
       "name": "direct",
       "context": {
         "endpoint": "gateway.example.com:443",
-        "service_url": "https://services.example.com",
         "ssh_endpoint": "ssh.example.com:22",
         "ssh_identity_file": "/credentials/id_ed25519",
         "tls": {

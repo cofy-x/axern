@@ -95,8 +95,6 @@ func parseOwnerType(value string) adminv1.AllocationLifecycleRetryOwnerType {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "run":
 		return adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_RUN
-	case "service":
-		return adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_SERVICE
 	default:
 		return adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED
 	}
@@ -108,7 +106,7 @@ func ValidateOwnerType(value string) error {
 		return nil
 	}
 	if parseOwnerType(value) == adminv1.AllocationLifecycleRetryOwnerType_ALLOCATION_LIFECYCLE_RETRY_OWNER_TYPE_UNSPECIFIED {
-		return fmt.Errorf("--owner must be run or service")
+		return fmt.Errorf("--owner must be run")
 	}
 	return nil
 }

@@ -32,15 +32,12 @@ const sidebar = [
         translations: { 'zh-CN': '工作负载' },
         items: [
           { label: 'Runs', translations: { 'zh-CN': 'Run' }, link: '/guides/run/' },
-          { label: 'Services', translations: { 'zh-CN': 'Service' }, link: '/guides/service/' },
-          { label: 'Coding Agents', translations: { 'zh-CN': '编码 Agent' }, link: '/guides/agent/' },
         ],
       },
       {
         label: 'SDK Guides',
         translations: { 'zh-CN': 'SDK 指南' },
         items: [
-          { label: 'Python Service', translations: { 'zh-CN': 'Python Service' }, link: '/guides/python-service/' },
           { label: 'Computer Use and Browser', translations: { 'zh-CN': 'Computer Use 与浏览器' }, link: '/guides/computer-use/' },
         ],
       },
@@ -110,7 +107,7 @@ export default defineConfig({
     sitemap({ i18n: { defaultLocale: 'en', locales: { en: 'en-US', 'zh-cn': 'zh-CN' } } }),
     starlight({
       title: 'Axern',
-      description: 'Open-source AI sandboxes for untrusted code, durable services, and reproducible agent rollouts.',
+      description: 'Open-source AI sandboxes for secure, reproducible agent evaluation, training, and data synthesis.',
       favicon: '/favicon.svg',
       customCss: ['./src/styles/custom.css'],
       defaultLocale: 'root',

@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2
 from axern.control.run.v1 import run_pb2
-from axern.control.service.v1 import service_replica_pb2, service_types_pb2
 from axern.control.tunnel.v1 import tunnel_pb2
 from axern_sdk.tunnel.config import _GatewayTransport
 
@@ -27,12 +25,9 @@ class _FakeConnector:
 class _FakeClient:
     def __init__(self) -> None:
         self.created_environment = None
-        self.created_service = None
         self.created_run = None
         self.created_tunnel = None
         self.revoked = []
-        self.deleted = []
-        self.purged = []
         self.deleted_environments = []
         self.renewed = []
         self.cancelled = []
@@ -43,10 +38,6 @@ class _FakeClient:
 
     def _gateway_transport(self) -> _GatewayTransport:
         return _GatewayTransport(insecure=True)
-
-    def create_service(self, **kwargs):
-        self.created_service = kwargs
-        return service_types_pb2.Service(id="svc-1")
 
     def create_run(self, **kwargs):
         self.created_run = kwargs
@@ -66,29 +57,6 @@ class _FakeClient:
     def cancel_run(self, run_id: str, **kwargs):
         self.cancelled.append((run_id, kwargs))
         return run_pb2.Run(id=run_id, status=run_pb2.RUN_STATUS_CANCELLED)
-
-    def list_service_replicas(self, service_id: str, **kwargs):
-        del kwargs
-        self.listed_service_id = service_id
-        return [
-            service_replica_pb2.ServiceReplica(
-                id="alloc-1",
-                service_id=service_id,
-                node_id="node-1",
-                attempt=7,
-                status=common_pb2.ALLOCATION_STATUS_RUNNING,
-                ready=True,
-            )
-        ]
-
-    def watch_service(self, service_id: str, **kwargs):
-        del kwargs
-        yield service_types_pb2.Service(
-            id=service_id,
-            version=1,
-            status=service_types_pb2.SERVICE_STATUS_READY,
-            ready_replicas=1,
-        )
 
     def create_tunnel_session(self, **kwargs):
         self.created_tunnel = kwargs
@@ -120,14 +88,6 @@ class _FakeClient:
         self.renewed.append((session_id, client_token, kwargs))
         return tunnel_pb2.TunnelSession(session_id=session_id, status=tunnel_pb2.TUNNEL_SESSION_STATUS_RUNNING)
 
-    def delete_service(self, service_id: str, **kwargs):
-        self.deleted.append((service_id, kwargs))
-        return service_types_pb2.Service(id=service_id)
-
-    def admin_purge_service(self, service_id: str, **kwargs):
-        self.purged.append((service_id, kwargs))
-        return service_id
-
     def delete_environment(self, environment_id: str, **kwargs):
         self.deleted_environments.append((environment_id, kwargs))
         return environment_pb2.Environment(id=environment_id)
@@ -136,9 +96,6 @@ class _FakeClient:
 class _AsyncFakeClient(_FakeClient):
     async def create_environment(self, **kwargs):
         return super().create_environment(**kwargs)
-
-    async def create_service(self, **kwargs):
-        return super().create_service(**kwargs)
 
     async def create_run(self, **kwargs):
         return super().create_run(**kwargs)
@@ -157,18 +114,6 @@ class _AsyncFakeClient(_FakeClient):
     async def cancel_run(self, run_id: str, **kwargs):
         return super().cancel_run(run_id, **kwargs)
 
-    async def list_service_replicas(self, service_id: str, **kwargs):
-        return super().list_service_replicas(service_id, **kwargs)
-
-    async def watch_service(self, service_id: str, **kwargs):
-        del kwargs
-        yield service_types_pb2.Service(
-            id=service_id,
-            version=1,
-            status=service_types_pb2.SERVICE_STATUS_READY,
-            ready_replicas=1,
-        )
-
     async def create_tunnel_session(self, **kwargs):
         return super().create_tunnel_session(**kwargs)
 
@@ -180,12 +125,6 @@ class _AsyncFakeClient(_FakeClient):
 
     async def renew_tunnel_session(self, session_id: str, client_token: str, **kwargs):
         return super().renew_tunnel_session(session_id, client_token, **kwargs)
-
-    async def delete_service(self, service_id: str, **kwargs):
-        return super().delete_service(service_id, **kwargs)
-
-    async def admin_purge_service(self, service_id: str, **kwargs):
-        return super().admin_purge_service(service_id, **kwargs)
 
     async def delete_environment(self, environment_id: str, **kwargs):
         return super().delete_environment(environment_id, **kwargs)

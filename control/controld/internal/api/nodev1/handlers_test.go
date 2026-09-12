@@ -141,17 +141,11 @@ func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) 
 	}); err != nil {
 		t.Fatalf("register node: %v", err)
 	}
-	allocations := &fakeAllocationControl{reconcileServiceIDs: []string{"svc-2", "svc-1"}}
-	notifications := 0
-	var notifiedServiceIDs []string
+	allocations := &fakeAllocationControl{}
 	server := New(Dependencies{
 		Now:         func() time.Time { return now },
 		NodeStore:   nodeStore,
 		Allocations: allocations,
-		NotifyServiceReconcile: func(serviceIDs ...string) {
-			notifications++
-			notifiedServiceIDs = append(notifiedServiceIDs, serviceIDs...)
-		},
 	})
 	observations := []*controlnodev1.AllocationStatusObservation{
 		{AllocationID: "alloc-1", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING},
@@ -168,12 +162,6 @@ func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) 
 	if allocations.calls != 1 || allocations.nodeID != "node-a" || len(allocations.observations) != 2 {
 		t.Fatalf("allocation control call = calls:%d node:%q observations:%d", allocations.calls, allocations.nodeID, len(allocations.observations))
 	}
-	if notifications != 1 {
-		t.Fatalf("service reconcile notifications = %d, want 1", notifications)
-	}
-	if len(notifiedServiceIDs) != 2 || notifiedServiceIDs[0] != "svc-2" || notifiedServiceIDs[1] != "svc-1" {
-		t.Fatalf("notified service IDs = %#v, want [svc-2 svc-1]", notifiedServiceIDs)
-	}
 
 	_, err := server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
 		NodeID:        "node-a",
@@ -188,9 +176,6 @@ func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) 
 	}
 	if allocations.calls != 1 {
 		t.Fatalf("allocation control calls after invalid batch = %d, want 1", allocations.calls)
-	}
-	if notifications != 1 {
-		t.Fatalf("service reconcile notifications after invalid batch = %d, want 1", notifications)
 	}
 
 	_, err = server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
@@ -236,21 +221,6 @@ func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) 
 	}
 	if allocations.calls != 1 {
 		t.Fatalf("allocation control calls after invalid auth = %d, want 1", allocations.calls)
-	}
-	if notifications != 1 {
-		t.Fatalf("service reconcile notifications after invalid auth = %d, want 1", notifications)
-	}
-
-	allocations.reconcileServiceIDs = nil
-	if _, err := server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
-		NodeID:        "node-a",
-		NodeAuthToken: "token-a",
-		Observations:  observations,
-	}); err != nil {
-		t.Fatalf("run-only BatchReportAllocationStatus() error = %v", err)
-	}
-	if notifications != 1 {
-		t.Fatalf("service reconcile notifications after run-only batch = %d, want 1", notifications)
 	}
 }
 
@@ -364,20 +334,19 @@ type fakeTunnelControl struct {
 }
 
 type fakeAllocationControl struct {
-	calls               int
-	nodeID              string
-	observations        []*controlnodev1.AllocationStatusObservation
-	reconcileServiceIDs []string
-	conditionCalls      int
-	conditionNodeID     string
-	conditionReports    []*controlnodev1.AllocationCapabilityConditionReport
+	calls            int
+	nodeID           string
+	observations     []*controlnodev1.AllocationStatusObservation
+	conditionCalls   int
+	conditionNodeID  string
+	conditionReports []*controlnodev1.AllocationCapabilityConditionReport
 }
 
 func (f *fakeAllocationControl) BatchReportAllocationStatus(_ context.Context, nodeID string, observations []*controlnodev1.AllocationStatusObservation, _ time.Time) ([]string, error) {
 	f.calls++
 	f.nodeID = nodeID
 	f.observations = append([]*controlnodev1.AllocationStatusObservation(nil), observations...)
-	return f.reconcileServiceIDs, nil
+	return nil, nil
 }
 
 func (f *fakeAllocationControl) BatchReportAllocationCapabilityConditions(_ context.Context, nodeID string, reports []*controlnodev1.AllocationCapabilityConditionReport, _ time.Time) error {

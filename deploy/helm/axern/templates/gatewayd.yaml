@@ -68,14 +68,6 @@ spec:
             - {{ include "axern.tunneldTarget" . | quote }}
             - -tunnel-relay-tls-ca-cert
             - /certs/ca.crt
-            - -route-cache-ttl
-            - {{ .Values.gatewayd.routeCacheTTL | quote }}
-            - -route-cache-max-entries
-            - {{ .Values.gatewayd.routeCacheMaxEntries | quote }}
-            - -service-endpoint-retry-attempts
-            - {{ .Values.gatewayd.serviceEndpointRetryAttempts | quote }}
-            - -service-endpoint-quarantine-ttl
-            - {{ .Values.gatewayd.serviceEndpointQuarantineTTL | quote }}
           env:
             - name: AXERN_GATEWAY_DEV_TOKEN
               valueFrom:

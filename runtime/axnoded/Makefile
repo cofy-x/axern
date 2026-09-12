@@ -57,7 +57,6 @@ HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/demo/nginx ./
 	verify-node-startup-metrics-e2e \
 	verify-node-startup-matrix-smoke \
 	verify-node-bundle-template-e2e \
-	verify-node-service-probes-e2e \
 	verify-node-python-runtime-e2e \
 	verify-node-retention-e2e \
 	verify-node-locality-e2e \
@@ -238,9 +237,6 @@ verify-node-startup-matrix-smoke: ## run a focused startup matrix smoke verifica
 
 verify-node-bundle-template-e2e: ## run privileged node all-in-one bundle template reuse end-to-end verification
 	@bash ./scripts/verify/verify-node-bundle-template-e2e.sh
-
-verify-node-service-probes-e2e: ## run privileged node all-in-one service readiness+liveness replacement verification
-	@bash ./scripts/verify/verify-node-service-probes-e2e.sh
 
 verify-node-python-runtime-e2e: ## run privileged node all-in-one programmable Python runtime end-to-end verification
 	@bash ./scripts/verify/verify-node-python-runtime-e2e.sh

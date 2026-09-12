@@ -16,20 +16,18 @@ type publicOperationStarter struct{}
 type publicOperationAction string
 
 const (
-	publicActionCreate       publicOperationAction = "create"
-	publicActionGet          publicOperationAction = "get"
-	publicActionList         publicOperationAction = "list"
-	publicActionSet          publicOperationAction = "set"
-	publicActionUnset        publicOperationAction = "unset"
-	publicActionUpdate       publicOperationAction = "update"
-	publicActionDelete       publicOperationAction = "delete"
-	publicActionPurge        publicOperationAction = "purge"
-	publicActionCancel       publicOperationAction = "cancel"
-	publicActionRevoke       publicOperationAction = "revoke"
-	publicActionRenew        publicOperationAction = "renew"
-	publicActionInspect      publicOperationAction = "inspect"
-	publicActionListReplicas publicOperationAction = "list_replicas"
-	publicActionListEvents   publicOperationAction = "list_events"
+	publicActionCreate     publicOperationAction = "create"
+	publicActionGet        publicOperationAction = "get"
+	publicActionList       publicOperationAction = "list"
+	publicActionSet        publicOperationAction = "set"
+	publicActionUnset      publicOperationAction = "unset"
+	publicActionUpdate     publicOperationAction = "update"
+	publicActionDelete     publicOperationAction = "delete"
+	publicActionCancel     publicOperationAction = "cancel"
+	publicActionRevoke     publicOperationAction = "revoke"
+	publicActionRenew      publicOperationAction = "renew"
+	publicActionInspect    publicOperationAction = "inspect"
+	publicActionListEvents publicOperationAction = "list_events"
 )
 
 type publicOperationOptions struct {
@@ -37,10 +35,6 @@ type publicOperationOptions struct {
 }
 
 type publicOperationOption func(*publicOperationOptions)
-
-func withServiceID(serviceID string) publicOperationOption {
-	return withSpanString(sdkobs.AttrServiceID, serviceID)
-}
 
 func withEnvironmentID(environmentID string) publicOperationOption {
 	return withSpanString(sdkobs.AttrEnvironmentID, environmentID)
@@ -66,10 +60,6 @@ func withSpanString(key string, value string) publicOperationOption {
 		}
 		opts.spanAttrs = append(opts.spanAttrs, attribute.String(key, value))
 	}
-}
-
-func (publicOperationStarter) Service(ctx context.Context, spanName string, action publicOperationAction, options ...publicOperationOption) (context.Context, *sdkobs.Operation) {
-	return startPublicOperation(ctx, spanName, action, ctrlobs.MetricServiceOperationTotal, ctrlobs.MetricServiceOperationDuration, options...)
 }
 
 func (publicOperationStarter) Environment(ctx context.Context, spanName string, action publicOperationAction, options ...publicOperationOption) (context.Context, *sdkobs.Operation) {

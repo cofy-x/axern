@@ -30,7 +30,6 @@ func TestSaveAndResolveContext(t *testing.T) {
 		Contexts: map[string]*clientconfig.Context{
 			"kind": {
 				Endpoint:        "127.0.0.1:24210",
-				ServiceURL:      "http://127.0.0.1:25082",
 				SSHEndpoint:     "127.0.0.1:25023",
 				SSHIdentityFile: "/tmp/gateway_client_ed25519",
 				TLS:             clientconfig.TLS{CACert: "/tmp/ca.crt", Cert: "/tmp/client.crt", Key: "/tmp/client.key"},
@@ -52,9 +51,6 @@ func TestSaveAndResolveContext(t *testing.T) {
 	}
 	if ctx.Endpoint != "127.0.0.1:24210" {
 		t.Fatalf("got endpoint %q", ctx.Endpoint)
-	}
-	if ctx.ServiceURL != "http://127.0.0.1:25082" {
-		t.Fatalf("got service URL %q", ctx.ServiceURL)
 	}
 	if ctx.SSHEndpoint != "127.0.0.1:25023" {
 		t.Fatalf("got ssh endpoint %q", ctx.SSHEndpoint)

@@ -30,7 +30,7 @@ func TestBuildReliabilityHealthKeepsRecoveredErrorAsDiagnosticOnly(t *testing.T)
 		consistencykernel.NewSnapshot(consistencykernel.Counts{}, nil, false),
 		AllocationLifecycleRetryCounts{},
 		reconcilekernel.HealthSnapshot{Components: []reconcilekernel.ComponentHealth{{
-			Component:           reconcilekernel.ComponentAllocation,
+			Component:           reconcilekernel.ComponentRun,
 			LastError:           "claim lost",
 			ConsecutiveFailures: 0,
 		}}},

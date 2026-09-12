@@ -1015,7 +1015,7 @@ func (m *Manager) writeContext(use bool) error {
 	if err != nil {
 		return err
 	}
-	cfg.Contexts[ContextName] = &clientconfig.Context{Endpoint: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), ServiceURL: fmt.Sprintf("http://127.0.0.1:%d", GatewayHTTPPort), SSHEndpoint: fmt.Sprintf("127.0.0.1:%d", GatewaySSHPort), SSHIdentityFile: filepath.Join(m.Dir, "ssh", "gateway_client_ed25519"), TLS: clientconfig.TLS{CACert: filepath.Join(m.Dir, "certs", "ca.crt"), Cert: filepath.Join(m.Dir, "certs", "client.crt"), Key: filepath.Join(m.Dir, "certs", "client.key")}, ProxyMode: clientconfig.ProxyModeDirect}
+	cfg.Contexts[ContextName] = &clientconfig.Context{Endpoint: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), SSHEndpoint: fmt.Sprintf("127.0.0.1:%d", GatewaySSHPort), SSHIdentityFile: filepath.Join(m.Dir, "ssh", "gateway_client_ed25519"), TLS: clientconfig.TLS{CACert: filepath.Join(m.Dir, "certs", "ca.crt"), Cert: filepath.Join(m.Dir, "certs", "client.crt"), Key: filepath.Join(m.Dir, "certs", "client.key")}, ProxyMode: clientconfig.ProxyModeDirect}
 	if cfg.CurrentContext == "" || use {
 		cfg.CurrentContext = ContextName
 	}

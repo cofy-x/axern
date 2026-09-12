@@ -2,9 +2,8 @@
   "client": [
     "environment_create",
     "environment_delete",
-    "service_create",
-    "service_delete",
-    "service_replicas"
+    "run_create",
+    "run_cancel"
   ],
   "sandbox": [
     "lifecycle_start",

@@ -27,7 +27,6 @@ type TLS struct {
 
 type Context struct {
 	Endpoint        string `json:"endpoint"`
-	ServiceURL      string `json:"service_url,omitempty"`
 	SSHEndpoint     string `json:"ssh_endpoint,omitempty"`
 	SSHIdentityFile string `json:"ssh_identity_file,omitempty"`
 	TLS             TLS    `json:"tls"`

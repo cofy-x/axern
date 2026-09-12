@@ -39,14 +39,14 @@ retry() {
 run_sdk() {
   local language="$1"
   shift
-  local service_file="${handshake_dir}/${language}.service-id"
+  local run_file="${handshake_dir}/${language}.run-id"
   local verified_file="${handshake_dir}/${language}.verified"
   local sdk_pid=""
-  rm -f "${service_file}" "${verified_file}"
+  rm -f "${run_file}" "${verified_file}"
   "$@" &
   sdk_pid=$!
   for _ in $(seq 1 1200); do
-    if [ -s "${service_file}" ]; then
+    if [ -s "${run_file}" ]; then
       break
     fi
     if ! kill -0 "${sdk_pid}" 2>/dev/null; then
@@ -55,20 +55,20 @@ run_sdk() {
     fi
     sleep 0.25
   done
-  if [ ! -s "${service_file}" ]; then
-    echo "${language} SDK did not publish a service id" >&2
+  if [ ! -s "${run_file}" ]; then
+    echo "${language} SDK did not publish a Run id" >&2
     touch "${verified_file}"
     wait "${sdk_pid}" || true
     return 1
   fi
 
-  local service_id
-  service_id="$(tr -d '[:space:]' < "${service_file}")"
-  local service_json
-  if ! service_json="$("${AXERN_SDK_ACCEPTANCE_CLI}" \
+  local run_id
+  run_id="$(tr -d '[:space:]' < "${run_file}")"
+  local run_json
+  if ! run_json="$("${AXERN_SDK_ACCEPTANCE_CLI}" \
     --config "${AXERN_SDK_ACCEPTANCE_CONFIG}" \
     --context "${AXERN_SDK_ACCEPTANCE_CONTEXT}" \
-    service get "${service_id}" --output json)"; then
+    run get "${run_id}" --output json)"; then
     touch "${verified_file}"
     wait "${sdk_pid}" || true
     return 1
@@ -79,9 +79,9 @@ import sys
 
 expected = sys.argv[1]
 document = json.load(sys.stdin)
-if document.get("service", {}).get("id") != expected:
-    raise SystemExit("Axern CLI did not observe the SDK service")
-' "${service_id}" <<<"${service_json}"; then
+if document.get("run", {}).get("id") != expected:
+    raise SystemExit("Axern CLI did not observe the SDK Run")
+' "${run_id}" <<<"${run_json}"; then
     touch "${verified_file}"
     wait "${sdk_pid}" || true
     return 1

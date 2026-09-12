@@ -75,6 +75,10 @@ cliapp -> commands -> application -> rollout/taskset/localstore/domain
 - Do not make Axrun a benchmark runner, seed-generation product, or agent
   implementation framework. Those systems should call Axrun as an atomic
   execution, verification, and trajectory-capture capability.
+- Axrun is an upper-layer harness, not a second Axern control plane. Its local
+  task, agent, verifier, trajectory, and rollout records must ultimately use
+  Axern through the `Environment -> Run -> Allocation` execution contract; do
+  not reintroduce platform Agent Profile, Service, Function, or Volume objects.
 - Keep the HTTP server as a thin application surface over rollout services.
   It may expose bounded local rollout execution, SSE completion events, and run
   status reads, but it must not become a separate execution engine.

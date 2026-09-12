@@ -16,7 +16,7 @@ import (
 )
 
 func doctorCommand(runtime command.Runtime) *cobra.Command {
-	var sessionID, allocationID, serviceID, localTarget string
+	var sessionID, allocationID, localTarget string
 	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:   "doctor",
@@ -24,13 +24,13 @@ func doctorCommand(runtime command.Runtime) *cobra.Command {
 		Args:  command.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			selected := 0
-			for _, value := range []string{sessionID, allocationID, serviceID} {
+			for _, value := range []string{sessionID, allocationID} {
 				if strings.TrimSpace(value) != "" {
 					selected++
 				}
 			}
 			if selected != 1 {
-				return command.Usage(fmt.Errorf("exactly one of --session-id, --allocation-id, or --service-id is required"))
+				return command.Usage(fmt.Errorf("exactly one of --session-id or --allocation-id is required"))
 			}
 			if timeout <= 0 {
 				return command.Usage(fmt.Errorf("--check-timeout must be positive"))
@@ -46,8 +46,8 @@ func doctorCommand(runtime command.Runtime) *cobra.Command {
 			defer session.Close()
 			relay := tunnelrelay.Config(connection.Config)
 			report, err := apptunnel.New(session.Clients.Tunnel).Doctor(session.Context, apptunnel.DoctorParams{
-				SessionID: strings.TrimSpace(sessionID), AllocationID: strings.TrimSpace(allocationID), ServiceID: strings.TrimSpace(serviceID),
-				LocalTarget: strings.TrimSpace(localTarget), Timeout: timeout, ServiceClient: session.Clients.Service,
+				SessionID: strings.TrimSpace(sessionID), AllocationID: strings.TrimSpace(allocationID),
+				LocalTarget: strings.TrimSpace(localTarget), Timeout: timeout,
 				ProbeRelay: func(ctx context.Context, target string, timeout time.Duration) bool {
 					return probeRelay(ctx, target, relay, timeout)
 				},
@@ -67,7 +67,6 @@ func doctorCommand(runtime command.Runtime) *cobra.Command {
 	f := cmd.Flags()
 	f.StringVar(&sessionID, "session-id", "", "existing tunnel session id")
 	f.StringVar(&allocationID, "allocation-id", "", "allocation whose newest active session should be inspected")
-	f.StringVar(&serviceID, "service-id", "", "service whose selected ready allocation tunnel should be inspected")
 	f.StringVar(&localTarget, "local", "", "optional local upstream host:port to probe")
 	f.DurationVar(&timeout, "check-timeout", 5*time.Second, "per-network-check timeout")
 	return cmd
@@ -84,9 +83,6 @@ func renderDoctor(cmd *cobra.Command, runtime command.Runtime, report apptunnel.
 	w := cmd.OutOrStdout()
 	fmt.Fprintln(w, "Tunnel doctor")
 	fmt.Fprintf(w, "control: reachable=%t\n", report.ControlReachable)
-	if report.ServiceID != "" {
-		fmt.Fprintf(w, "service: id=%s selected_allocation=%s selected_node=%s\n", report.ServiceID, displayValue(report.SelectedAllocation), displayValue(report.SelectedNodeID))
-	}
 	fmt.Fprintf(w, "session: id=%s allocation=%s status=%s bound=%s\n", displayValue(report.SessionID), displayValue(report.AllocationID), displayValue(report.Status), displayValue(report.BoundAddr))
 	fmt.Fprintf(w, "relay: id=%s target=%s reachable=%t\n", displayValue(report.RelayID), displayValue(report.ClientTarget), report.RelayReachable)
 	fmt.Fprintf(w, "node peer: target=%s state=%s\n", displayValue(report.NodeTarget), displayValue(report.NodePeer))

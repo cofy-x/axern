@@ -33,29 +33,11 @@ func validate(cfg Config) (Config, error) {
 			return Config{}, fmt.Errorf("ssh-host-key and ssh-authorized-keys are required when ssh-enabled is true")
 		}
 	}
-	if cfg.RouteCacheTTL <= 0 {
-		cfg.RouteCacheTTL = 3 * time.Second
-	}
-	if cfg.RouteCacheMaxEntries <= 0 {
-		cfg.RouteCacheMaxEntries = 8192
-	}
 	if cfg.ReadHeaderTimeout <= 0 {
 		cfg.ReadHeaderTimeout = 5 * time.Second
 	}
 	if cfg.IdleTimeout <= 0 {
 		cfg.IdleTimeout = 60 * time.Second
-	}
-	if cfg.ServiceUpstreamTimeout <= 0 {
-		cfg.ServiceUpstreamTimeout = 30 * time.Second
-	}
-	if cfg.ServiceMaxRequestBodyBytes <= 0 {
-		cfg.ServiceMaxRequestBodyBytes = 32 << 20
-	}
-	if cfg.ServiceEndpointRetryAttempts <= 0 {
-		cfg.ServiceEndpointRetryAttempts = 4
-	}
-	if cfg.ServiceEndpointQuarantineTTL <= 0 {
-		cfg.ServiceEndpointQuarantineTTL = 30 * time.Second
 	}
 	if cfg.TerminalIdleTimeout <= 0 {
 		cfg.TerminalIdleTimeout = 10 * time.Minute

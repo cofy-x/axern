@@ -19,7 +19,6 @@ import (
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -53,17 +52,17 @@ func TestUnaryRejectsSpoofedOrUnauthorizedIdentity(t *testing.T) {
 		}
 		return req, nil
 	}
-	_, err := i.Unary(ctx, &servicev1.GetServiceRequest{ServiceID: "svc-a"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.service.v1.ServiceControl/GetService"}, handler)
+	_, err := i.Unary(ctx, &runv1.GetRunRequest{RunID: "run-a"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.run.v1.RunControl/GetRun"}, handler)
 	if err != nil || !called {
 		t.Fatalf("authorized read failed: called=%v err=%v", called, err)
 	}
 	called = false
-	_, err = i.Unary(ctx, &servicev1.DeleteServiceRequest{ServiceID: "svc-a"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.service.v1.ServiceControl/DeleteService"}, handler)
+	_, err = i.Unary(ctx, &runv1.CancelRunRequest{RunID: "run-a"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.run.v1.RunControl/CancelRun"}, handler)
 	if status.Code(err) != codes.PermissionDenied || called {
 		t.Fatalf("write result: called=%v code=%v", called, status.Code(err))
 	}
 	i.gatewayPeer = func(context.Context) bool { return false }
-	_, err = i.Unary(ctx, &servicev1.GetServiceRequest{ServiceID: "svc-a"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.service.v1.ServiceControl/GetService"}, handler)
+	_, err = i.Unary(ctx, &runv1.GetRunRequest{RunID: "run-a"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.run.v1.RunControl/GetRun"}, handler)
 	if status.Code(err) != codes.Unauthenticated {
 		t.Fatalf("direct peer code=%v", status.Code(err))
 	}
@@ -73,24 +72,21 @@ func TestUnaryHidesCrossNamespaceResource(t *testing.T) {
 	actor := accesskernel.Actor{Principal: accesskernel.Principal{Status: accesskernel.PrincipalStatusActive}, Bindings: []accesskernel.Binding{{Role: accesskernel.RoleNamespaceViewer, Namespace: "team-a"}}}
 	i := &Interceptor{access: fakeAccess{actor: actor, namespace: "team-b"}, gatewayPeer: func(context.Context) bool { return true }}
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(ClientCertificateFingerprintMetadata, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-	_, err := i.Unary(ctx, &servicev1.GetServiceRequest{ServiceID: "svc-b"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.service.v1.ServiceControl/GetService"}, func(context.Context, any) (any, error) { return nil, nil })
+	_, err := i.Unary(ctx, &runv1.GetRunRequest{RunID: "run-b"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.run.v1.RunControl/GetRun"}, func(context.Context, any) (any, error) { return nil, nil })
 	if status.Code(err) != codes.NotFound {
 		t.Fatalf("cross-namespace lookup code=%v", status.Code(err))
 	}
 }
 
 func TestFieldSearchTraversesRepeatedMessages(t *testing.T) {
-	request := &servicev1.UpdateServiceRequest{
-		ServiceID: "svc-a",
+	request := &runv1.CreateRunRequest{
+		Namespace: "team-a",
 		Config: &commonv1.ExecutionConfig{
 			Ports: []*commonv1.PortSpec{{}},
 		},
 	}
-	if got := findStringField(request.ProtoReflect(), "namespace"); got != "" {
-		t.Fatalf("namespace = %q, want empty", got)
-	}
-	if got := findStringField(request.ProtoReflect(), "service_id"); got != "svc-a" {
-		t.Fatalf("service_id = %q, want svc-a", got)
+	if got := findStringField(request.ProtoReflect(), "namespace"); got != "team-a" {
+		t.Fatalf("namespace = %q, want team-a", got)
 	}
 }
 
@@ -126,11 +122,11 @@ func TestStreamRecheckCancelsAfterRoleRevocation(t *testing.T) {
 func TestEveryRegisteredPublicMethodHasExplicitPolicy(t *testing.T) {
 	services := []*grpc.ServiceDesc{
 		&adminv1.AccessAdmin_ServiceDesc, &adminv1.AdminAudit_ServiceDesc, &adminv1.AdminReliability_ServiceDesc,
-		&adminv1.NodeAdmin_ServiceDesc, &adminv1.AllocationLifecycleAdmin_ServiceDesc, &adminv1.ServiceAdmin_ServiceDesc,
+		&adminv1.NodeAdmin_ServiceDesc, &adminv1.AllocationLifecycleAdmin_ServiceDesc,
 		&catalogv1.RuntimeCatalog_ServiceDesc, &environmentv1.EnvironmentControl_ServiceDesc,
 		&identityv1.IdentityControl_ServiceDesc, &namespacev1.NamespaceControl_ServiceDesc,
 		&quotav1.QuotaControl_ServiceDesc, &runv1.RunControl_ServiceDesc,
-		&secretv1.SecretControl_ServiceDesc, &servicev1.ServiceControl_ServiceDesc, &tunnelv1.TunnelControl_ServiceDesc,
+		&secretv1.SecretControl_ServiceDesc, &tunnelv1.TunnelControl_ServiceDesc,
 	}
 	for _, service := range services {
 		for _, method := range service.Methods {
@@ -161,7 +157,7 @@ func TestNonPrefixReadMethodsAreReadOnly(t *testing.T) {
 }
 
 func TestUnknownMethodOnKnownServiceFailsClosed(t *testing.T) {
-	if _, ok := publicPolicy("/axern.control.service.v1.ServiceControl/FutureMutation"); ok {
+	if _, ok := publicPolicy("/axern.control.run.v1.RunControl/FutureMutation"); ok {
 		t.Fatal("unknown method received an authorization policy")
 	}
 }
@@ -181,7 +177,7 @@ func TestUnknownControlServiceFailsClosed(t *testing.T) {
 func TestGatewayControlRequiresGatewayPeer(t *testing.T) {
 	i := &Interceptor{gatewayPeer: func(context.Context) bool { return false }}
 	called := false
-	_, err := i.Unary(context.Background(), nil, &grpc.UnaryServerInfo{FullMethod: "/axern.control.gateway.v1.GatewayControl/ResolveServiceRoute"}, func(context.Context, any) (any, error) {
+	_, err := i.Unary(context.Background(), nil, &grpc.UnaryServerInfo{FullMethod: "/axern.control.gateway.v1.GatewayControl/ResolveAllocationTerminal"}, func(context.Context, any) (any, error) {
 		called = true
 		return nil, nil
 	})
