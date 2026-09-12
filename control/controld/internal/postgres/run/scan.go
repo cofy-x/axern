@@ -25,6 +25,8 @@ func environmentSelectSQL() string {
 func runSelectSQL() string {
 	return `SELECT run_id, namespace, environment_id, allocation_id, attempt, status,
 		config, labels, version, created_at, updated_at, exit_code, exit_code_known, diagnostic_code, message,
+		COALESCE((SELECT node_id FROM allocations a WHERE a.allocation_id = runs.allocation_id AND a.attempt = runs.attempt), ''),
+		COALESCE((SELECT workspace_preparation FROM allocations a WHERE a.allocation_id = runs.allocation_id AND a.attempt = runs.attempt), 'null'::jsonb),
 		COALESCE((SELECT revision FROM allocation_capability_condition_sets s WHERE s.allocation_id = runs.allocation_id AND s.allocation_attempt = runs.attempt), 0),
 		(SELECT observed_at FROM allocation_capability_condition_sets s WHERE s.allocation_id = runs.allocation_id AND s.allocation_attempt = runs.attempt),
 		COALESCE((
@@ -66,15 +68,15 @@ func scanEnvironment(row scanner) (*environmentv1.Environment, error) {
 
 func scanRun(row scanner) (*runv1.Run, error) {
 	var (
-		run                                              runv1.Run
-		statusText                                       string
-		diagnosticCodeText                               string
-		configJSON, labelsJSON, capabilityConditionsJSON []byte
-		createdAt, updatedAt                             time.Time
-		capabilityRevision                               int64
-		capabilityObservedAt                             pgtype.Timestamptz
+		run                                                                        runv1.Run
+		statusText                                                                 string
+		diagnosticCodeText                                                         string
+		configJSON, labelsJSON, workspacePreparationJSON, capabilityConditionsJSON []byte
+		createdAt, updatedAt                                                       time.Time
+		capabilityRevision                                                         int64
+		capabilityObservedAt                                                       pgtype.Timestamptz
 	)
-	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &run.Attempt, &statusText, &configJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &run.ExitCode, &run.ExitCodeKnown, &diagnosticCodeText, &run.Message, &capabilityRevision, &capabilityObservedAt, &capabilityConditionsJSON); err != nil {
+	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &run.Attempt, &statusText, &configJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &run.ExitCode, &run.ExitCodeKnown, &diagnosticCodeText, &run.Message, &run.NodeID, &workspacePreparationJSON, &capabilityRevision, &capabilityObservedAt, &capabilityConditionsJSON); err != nil {
 		return nil, err
 	}
 	run.Status = parseRunStatus(statusText)
@@ -84,6 +86,12 @@ func scanRun(row scanner) (*runv1.Run, error) {
 		return nil, fmt.Errorf("unmarshal run config: %w", err)
 	}
 	run.Labels = unmarshalJSONMap(labelsJSON)
+	if string(workspacePreparationJSON) != "null" {
+		run.WorkspacePreparation = &commonv1.WorkspacePreparationFacts{}
+		if err := protojson.Unmarshal(workspacePreparationJSON, run.WorkspacePreparation); err != nil {
+			return nil, fmt.Errorf("unmarshal run workspace preparation: %w", err)
+		}
+	}
 	conditionSet := &capabilityv1.CapabilityConditionSet{}
 	if err := protojson.Unmarshal(capabilityConditionsJSON, conditionSet); err != nil {
 		return nil, fmt.Errorf("unmarshal run capability conditions: %w", err)

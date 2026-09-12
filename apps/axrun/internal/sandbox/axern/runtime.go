@@ -230,7 +230,7 @@ func (i instance) State() (sandbox.State, error) {
 	}
 	out := sandbox.State{
 		EnvironmentID:         state.EnvironmentID,
-		ServiceID:             state.ServiceID,
+		RunID:                 state.RunID,
 		AllocationID:          state.AllocationID,
 		NodeID:                state.NodeID,
 		RuntimeClass:          i.runtimeClass,

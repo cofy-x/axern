@@ -70,7 +70,7 @@ func (c ExecCommand) Validate() error {
 
 type State struct {
 	EnvironmentID         string
-	ServiceID             string
+	RunID                 string
 	AllocationID          string
 	NodeID                string
 	RuntimeClass          string

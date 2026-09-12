@@ -37,8 +37,9 @@ message Run {
   axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 15;
 	// Full, monotonically revised allocation capability condition projection.
 	// It is independent from run lifecycle status and message.
-	axern.control.capability.v1.CapabilityConditionSet capability_conditions = 16;
-  reserved 17 to 18;
+  axern.control.capability.v1.CapabilityConditionSet capability_conditions = 16;
+  string node_id = 17;
+  axern.control.common.v1.WorkspacePreparationFacts workspace_preparation = 18;
 }
 
 message RunListFilter {

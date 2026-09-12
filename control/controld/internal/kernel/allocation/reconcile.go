@@ -4,6 +4,7 @@ import (
 	"time"
 
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
 const (
@@ -48,9 +49,10 @@ type CapabilityReconcileItem struct {
 // capability gate. Dependencies retain the exact selected and transitive
 // evidence; Conditions describe the resulting allocation state.
 type CapabilityAdmission struct {
-	Attempt      int64
-	Dependencies []*capabilityv1.CapabilityDependency
-	ConditionSet *capabilityv1.CapabilityConditionSet
+	Attempt              int64
+	Dependencies         []*capabilityv1.CapabilityDependency
+	ConditionSet         *capabilityv1.CapabilityConditionSet
+	WorkspacePreparation *commonv1.WorkspacePreparationFacts
 }
 
 // CapabilityReconciliation is a runtime verification projection. Its

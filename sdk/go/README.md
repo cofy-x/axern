@@ -4,7 +4,7 @@ The Go SDK is the second language surface for Axern programmable sandboxes. It
 focuses on the programmable sandbox loop:
 
 - connect to the control plane
-- create a service-backed sandbox from a template, image, or environment
+- create an allocation-backed sandbox from a template, image, or environment
 - run a command
 - inspect sandbox metadata for logs and diagnostics
 - stream an attached process with stdin/stdout/stderr and lifecycle control

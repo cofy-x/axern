@@ -89,7 +89,7 @@ func PrintMetadata(sandbox *axern.Sandbox) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("service=%s allocation=%s node=%s\n", metadata.ServiceID, metadata.AllocationID, metadata.NodeID)
+	fmt.Printf("run=%s allocation=%s node=%s\n", metadata.RunID, metadata.AllocationID, metadata.NodeID)
 	return nil
 }
 

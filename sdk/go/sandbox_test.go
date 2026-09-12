@@ -17,6 +17,7 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
+	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
@@ -75,7 +76,7 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("state: %v", err)
 	}
-	if state.EnvironmentID != "env-1" || state.ServiceID != "svc-1" || state.AllocationID != "alloc-1" {
+	if state.EnvironmentID != "env-1" || state.RunID != "run-1" || state.AllocationID != "alloc-1" {
 		t.Fatalf("unexpected state: %+v", state)
 	}
 	if state.WorkspacePreparation.GetPayloadFormat() != "nydus" || state.WorkspacePreparation.GetPayloadDigest() != "sha256:payload" || !state.WorkspacePreparation.GetCacheHit() {
@@ -95,16 +96,16 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("metadata: %v", err)
 	}
-	if metadata.EnvironmentID != "env-1" || metadata.ServiceID != "svc-1" || metadata.AllocationID != "alloc-1" || metadata.Attempt != 2 || metadata.NodeID != "node-1" {
+	if metadata.EnvironmentID != "env-1" || metadata.RunID != "run-1" || metadata.AllocationID != "alloc-1" || metadata.Attempt != 2 || metadata.NodeID != "node-1" {
 		t.Fatalf("unexpected metadata: %+v", metadata)
 	}
-	if got := fake.createServiceRequest.GetConfig().GetImageMounts(); len(got) != 1 || got[0].GetImage() != "example.com/axern/codex-tool:latest" || got[0].GetTarget() != "/opt/axern/tools/codex" || !got[0].GetReadonly() {
+	if got := fake.createRunRequest.GetConfig().GetImageMounts(); len(got) != 1 || got[0].GetImage() != "example.com/axern/codex-tool:latest" || got[0].GetTarget() != "/opt/axern/tools/codex" || !got[0].GetReadonly() {
 		t.Fatalf("unexpected image mounts: %#v", got)
 	}
-	if got := fake.createServiceRequest.GetConfig().GetExtensionCapabilityRequirements(); len(got) != 1 || got[0].GetCapability().GetName() != "example.com/accelerator" || got[0].GetCapability().GetValue() != "v1" {
+	if got := fake.createRunRequest.GetConfig().GetExtensionCapabilityRequirements(); len(got) != 1 || got[0].GetCapability().GetName() != "example.com/accelerator" || got[0].GetCapability().GetValue() != "v1" {
 		t.Fatalf("unexpected extension capability requirements: %#v", got)
 	}
-	if got := fake.createServiceRequest.GetConfig().GetNetwork().GetEgressPolicy().GetStrict().GetAllowedDomains(); len(got) != 1 || got[0] != "example.com" {
+	if got := fake.createRunRequest.GetConfig().GetNetwork().GetEgressPolicy().GetStrict().GetAllowedDomains(); len(got) != 1 || got[0] != "example.com" {
 		t.Fatalf("unexpected network policy: %#v", got)
 	}
 
@@ -323,8 +324,8 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	if err := sandbox.Close(ctx); err != nil {
 		t.Fatalf("close sandbox: %v", err)
 	}
-	if !fake.deletedService || !fake.deletedEnvironment {
-		t.Fatalf("cleanup flags service=%v environment=%v", fake.deletedService, fake.deletedEnvironment)
+	if !fake.cancelledRun || !fake.deletedEnvironment {
+		t.Fatalf("cleanup flags run=%v environment=%v", fake.cancelledRun, fake.deletedEnvironment)
 	}
 }
 
@@ -621,6 +622,7 @@ func startTestSandbox(t *testing.T, ctx context.Context, dialer func(context.Con
 
 type fakeAxernServer struct {
 	environmentv1.UnimplementedEnvironmentControlServer
+	runv1.UnimplementedRunControlServer
 	servicev1.UnimplementedServiceControlServer
 	gatewayv1.UnimplementedGatewayControlServer
 	tunnelcontrolv1.UnimplementedTunnelControlServer
@@ -628,6 +630,7 @@ type fakeAxernServer struct {
 
 	files                  map[string][]byte
 	createServiceRequest   *servicev1.CreateServiceRequest
+	createRunRequest       *runv1.CreateRunRequest
 	execArgv               []string
 	execImageSpecs         []*nodesandboxv1.ImageProcessSpec
 	processImageSpec       *nodesandboxv1.ImageProcessSpec
@@ -651,6 +654,7 @@ type fakeAxernServer struct {
 	uploadOverwrite        bool
 	uploadSawNestedFile    bool
 	deletedService         bool
+	cancelledRun           bool
 	deletedEnvironment     bool
 	tunnelAllocationID     string
 	tunnelLocalTarget      string
@@ -685,6 +689,7 @@ func newBufconnServer(t *testing.T, fake *fakeAxernServer) (*grpc.Server, func(c
 	listener := bufconn.Listen(1024 * 1024)
 	server := grpc.NewServer()
 	environmentv1.RegisterEnvironmentControlServer(server, fake)
+	runv1.RegisterRunControlServer(server, fake)
 	servicev1.RegisterServiceControlServer(server, fake)
 	gatewayv1.RegisterGatewayControlServer(server, fake)
 	tunnelcontrolv1.RegisterTunnelControlServer(server, fake)
@@ -708,6 +713,31 @@ func (f *fakeAxernServer) CreateEnvironment(context.Context, *environmentv1.Crea
 func (f *fakeAxernServer) DeleteEnvironment(context.Context, *environmentv1.DeleteEnvironmentRequest) (*environmentv1.DeleteEnvironmentResponse, error) {
 	f.deletedEnvironment = true
 	return &environmentv1.DeleteEnvironmentResponse{Environment: &environmentv1.Environment{ID: "env-1"}}, nil
+}
+
+func (f *fakeAxernServer) CreateRun(_ context.Context, request *runv1.CreateRunRequest) (*runv1.CreateRunResponse, error) {
+	f.createRunRequest = request
+	return &runv1.CreateRunResponse{Run: &runv1.Run{ID: "run-1", AllocationID: "alloc-1", Attempt: 2}}, nil
+}
+
+func (f *fakeAxernServer) WatchRun(_ *runv1.WatchRunRequest, stream runv1.RunControl_WatchRunServer) error {
+	return stream.Send(&runv1.WatchRunResponse{Run: &runv1.Run{
+		ID:           "run-1",
+		AllocationID: "alloc-1",
+		NodeID:       "node-1",
+		Attempt:      2,
+		Status:       runv1.RunStatus_RUN_STATUS_RUNNING,
+		WorkspacePreparation: &commonv1.WorkspacePreparationFacts{
+			PayloadFormat: "nydus",
+			PayloadDigest: "sha256:payload",
+			CacheHit:      true,
+		},
+	}})
+}
+
+func (f *fakeAxernServer) CancelRun(context.Context, *runv1.CancelRunRequest) (*runv1.CancelRunResponse, error) {
+	f.cancelledRun = true
+	return &runv1.CancelRunResponse{Run: &runv1.Run{ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_CANCELLED}}, nil
 }
 
 func (f *fakeAxernServer) CreateService(_ context.Context, request *servicev1.CreateServiceRequest) (*servicev1.CreateServiceResponse, error) {

@@ -103,7 +103,7 @@ func main() {
 	if err != nil {
 		failf("metadata: %v", err)
 	}
-	if metadata.AllocationID == "" || metadata.ServiceID == "" {
+	if metadata.AllocationID == "" || metadata.RunID == "" {
 		failf("metadata missing ids: %+v", metadata)
 	}
 	result, err := sandbox.Exec(ctx, []string{"python", "-c", "print('go-sdk-ok')"}, axern.ExecOptions{Check: true})
@@ -235,7 +235,7 @@ func main() {
 		}
 	}
 
-	if _, err := io.WriteString(os.Stdout, fmt.Sprintf("go_sdk_sandbox_e2e_ok=true runtime_class=%s service_id=%s allocation_id=%s\n", runtimeClass, metadata.ServiceID, metadata.AllocationID)); err != nil {
+	if _, err := io.WriteString(os.Stdout, fmt.Sprintf("go_sdk_sandbox_e2e_ok=true runtime_class=%s run_id=%s allocation_id=%s\n", runtimeClass, metadata.RunID, metadata.AllocationID)); err != nil {
 		failf("%v", err)
 	}
 }

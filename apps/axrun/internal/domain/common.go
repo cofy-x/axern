@@ -170,7 +170,7 @@ type VerifierAssetSpec struct {
 
 type SandboxRuntimeState struct {
 	EnvironmentID         string `json:"environment_id,omitempty"`
-	ServiceID             string `json:"service_id,omitempty"`
+	RunID                 string `json:"run_id,omitempty"`
 	AllocationID          string `json:"allocation_id,omitempty"`
 	NodeID                string `json:"node_id,omitempty"`
 	RuntimeClass          string `json:"runtime_class,omitempty"`

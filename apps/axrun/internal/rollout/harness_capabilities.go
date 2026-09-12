@@ -11,7 +11,7 @@ import (
 
 func sandboxRuntimeState(state sandbox.State) *domain.SandboxRuntimeState {
 	if state.EnvironmentID == "" &&
-		state.ServiceID == "" &&
+		state.RunID == "" &&
 		state.AllocationID == "" &&
 		state.NodeID == "" &&
 		state.RuntimeClass == "" {
@@ -19,7 +19,7 @@ func sandboxRuntimeState(state sandbox.State) *domain.SandboxRuntimeState {
 	}
 	return &domain.SandboxRuntimeState{
 		EnvironmentID:         state.EnvironmentID,
-		ServiceID:             state.ServiceID,
+		RunID:                 state.RunID,
 		AllocationID:          state.AllocationID,
 		NodeID:                state.NodeID,
 		RuntimeClass:          state.RuntimeClass,

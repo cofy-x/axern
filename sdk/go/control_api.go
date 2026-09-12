@@ -9,6 +9,7 @@ import (
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
+	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -22,6 +23,76 @@ type CreateEnvironmentOptions struct {
 	RegistryCredentialID string
 	RootFSReadonly       bool
 	Labels               map[string]string
+}
+
+// CreateRunOptions configures a single allocation-backed execution.
+type CreateRunOptions struct {
+	Namespace               string
+	EnvironmentID           string
+	Argv                    []string
+	Env                     map[string]string
+	Cwd                     string
+	RuntimeClass            string
+	NetworkPolicy           *NetworkPolicy
+	ExtensionCapabilities   []ExtensionCapability
+	ImageMounts             []ImageMount
+	WorkspaceImage          *WorkspaceImageSource
+	RequestCPU              ResourceQuantity
+	RequestMemory           ResourceQuantity
+	RequestEphemeralStorage ResourceQuantity
+	LimitCPU                ResourceQuantity
+	LimitMemory             ResourceQuantity
+	LimitEphemeralStorage   ResourceQuantity
+	Labels                  map[string]string
+}
+
+// CreateRun creates a single Axern allocation.
+func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv1.Run, error) {
+	if options.EnvironmentID == "" {
+		return nil, requiredError("environment_id")
+	}
+	if err := validateImageMounts(options.ImageMounts); err != nil {
+		return nil, err
+	}
+	if err := validateWorkspaceImage(options.WorkspaceImage); err != nil {
+		return nil, err
+	}
+	if err := validateWorkspaceImageMounts(options.WorkspaceImage, options.ImageMounts); err != nil {
+		return nil, err
+	}
+	resources, err := buildResourceSpec(options.RequestCPU, options.RequestMemory, options.RequestEphemeralStorage, options.LimitCPU, options.LimitMemory, options.LimitEphemeralStorage)
+	if err != nil {
+		return nil, err
+	}
+	response, err := c.runs.CreateRun(ctx, &runv1.CreateRunRequest{
+		Namespace:     defaultString(options.Namespace, "default"),
+		EnvironmentID: options.EnvironmentID,
+		Config: &commonv1.ExecutionConfig{
+			Argv:                            append([]string(nil), options.Argv...),
+			Env:                             cloneMap(options.Env),
+			Cwd:                             options.Cwd,
+			RuntimeClass:                    options.RuntimeClass,
+			Network:                         networkSpec(options.NetworkPolicy),
+			ExtensionCapabilityRequirements: extensionCapabilityRequirements(options.ExtensionCapabilities),
+			ImageMounts:                     executionImageMounts(options.ImageMounts),
+			WorkspaceImage:                  executionWorkspaceImage(options.WorkspaceImage),
+			Resources:                       resources,
+		},
+		Labels: cloneMap(options.Labels),
+	})
+	if err != nil {
+		return nil, mapRPCError(err, "create run", "")
+	}
+	return response.GetRun(), nil
+}
+
+// CancelRun releases the allocation owned by runID.
+func (c *Client) CancelRun(ctx context.Context, runID string) error {
+	if runID == "" {
+		return requiredError("run_id")
+	}
+	_, err := c.runs.CancelRun(ctx, &runv1.CancelRunRequest{RunID: runID})
+	return mapRPCError(err, "cancel run", runID)
 }
 
 // CreateEnvironment creates an Axern environment from a template or image.
