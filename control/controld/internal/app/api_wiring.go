@@ -16,12 +16,10 @@ import (
 	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
 	appadmin "github.com/cofy-x/axern/control/controld/internal/application/admin"
 	appenvironment "github.com/cofy-x/axern/control/controld/internal/application/environment"
-	appfunction "github.com/cofy-x/axern/control/controld/internal/application/function"
 	appgateway "github.com/cofy-x/axern/control/controld/internal/application/gateway"
 	appnode "github.com/cofy-x/axern/control/controld/internal/application/node"
 	apprun "github.com/cofy-x/axern/control/controld/internal/application/run"
 	appservice "github.com/cofy-x/axern/control/controld/internal/application/service"
-	functionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/function"
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	"github.com/cofy-x/axern/control/controld/internal/placement"
@@ -33,7 +31,6 @@ type publicProfile struct {
 	secrets      publicv1.Secrets
 	runs         publicv1.Runs
 	services     publicv1.Services
-	functions    functionkernel.Control
 }
 
 type nodeProfile struct {
@@ -50,7 +47,6 @@ type apiProfile struct {
 	node                 nodeProfile
 	serviceReconciler    servicekernel.Reconciler
 	allocationReconciler servicekernel.AllocationReconciler
-	functionController   *appfunction.Controller
 }
 
 func (a *App) buildAPIs() {
@@ -58,7 +54,6 @@ func (a *App) buildAPIs() {
 	profile := a.buildAPIProfile(selector)
 	a.serviceReconciler = profile.serviceReconciler
 	a.allocationReconciler = profile.allocationReconciler
-	a.functionController = profile.functionController
 
 	a.adminAPI = apiadminv1.New(apiadminv1.Dependencies{
 		Now:                        func() time.Time { return a.now() },
@@ -83,7 +78,6 @@ func (a *App) buildAPIs() {
 		Runs:           profile.public.runs,
 		Services:       profile.public.services,
 		ServiceWatcher: a.servicePG,
-		Functions:      profile.public.functions,
 		Tunnels:        a.tunnelPG,
 		Namespaces:     a.namespacePG,
 		Quotas:         a.namespacePG,
@@ -134,13 +128,12 @@ func (a *App) newPlacementSelector() *placement.Selector {
 	).WithObserver(placementMetricsObserver{})
 }
 
-func (a *App) buildPublicProfile(environments publicv1.Environments, secrets publicv1.Secrets, runs publicv1.Runs, services publicv1.Services, functions functionkernel.Control) publicProfile {
+func (a *App) buildPublicProfile(environments publicv1.Environments, secrets publicv1.Secrets, runs publicv1.Runs, services publicv1.Services) publicProfile {
 	return publicProfile{
 		environments: environments,
 		secrets:      secrets,
 		runs:         runs,
 		services:     services,
-		functions:    functions,
 	}
 }
 
@@ -180,15 +173,6 @@ func (a *App) authoritativeProfile(selector *placement.Selector) apiProfile {
 	if a.servicePG != nil {
 		services = a.newServiceController(selector)
 	}
-	functions := appfunction.NewController(appfunction.ControllerDeps{
-		Store:         a.functionPG,
-		Environments:  environments,
-		Services:      services,
-		ServiceWatch:  a.servicePG,
-		Invoker:       a.functionInvoker,
-		BundleBaseURL: a.functionBundleBaseURL,
-		BundleToken:   a.functionBundleToken,
-	})
 	profile := apiProfile{
 		admin:      appadmin.NewAllocationLifecycleControl(a.adminPG),
 		adminAudit: appadmin.NewAuditControl(a.adminPG),
@@ -203,14 +187,12 @@ func (a *App) authoritativeProfile(selector *placement.Selector) apiProfile {
 			a.secretDB,
 			runs,
 			services,
-			functions,
 		),
 	}
 	profile.serviceReconciler = services
 	profile.adminServices = appadmin.NewServiceControl(services, a.adminPG)
 	profile.adminNodes = appadmin.NewNodeControl(a.adminPG, a.registry, a.heartbeatFreshnessWindow)
 	profile.allocationReconciler = services
-	profile.functionController = functions
 	profile.node = a.newAuthoritativeNodeProfile()
 	return profile
 }

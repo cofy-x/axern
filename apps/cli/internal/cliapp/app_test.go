@@ -12,7 +12,7 @@ import (
 
 func TestCommandTreeUsesCanonicalProductCommands(t *testing.T) {
 	root := New("test")
-	want := map[string][]string{"context": {"ctx"}, "namespace": {"ns"}, "service": {"svc"}, "function": {"fn"}}
+	want := map[string][]string{"context": {"ctx"}, "namespace": {"ns"}, "service": {"svc"}}
 	for name, aliases := range want {
 		cmd, _, err := root.Find([]string{name})
 		if err != nil || cmd.Name() != name {
@@ -39,7 +39,7 @@ func TestHelpIncludesCompletionAndExplicitAgentCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := out.String()
-	for _, value := range []string{"agent", "completion", "doctor", "service", "function", "ssh", "tunnel"} {
+	for _, value := range []string{"agent", "completion", "doctor", "service", "ssh", "tunnel"} {
 		if !strings.Contains(text, value) {
 			t.Fatalf("help missing %s:\n%s", value, text)
 		}

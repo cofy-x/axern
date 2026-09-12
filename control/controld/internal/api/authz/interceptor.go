@@ -390,13 +390,6 @@ func publicPolicy(method string) (methodPolicy, bool) {
 		return resourcePolicy(methodName, "service",
 			[]string{"GetService", "WatchService", "GetServiceReplica", "ListServices", "ListServiceReplicas", "ListServiceEvents"},
 			[]string{"CreateService", "UpdateService", "DeleteService"})
-	case "axern.control.function.v1.FunctionControl":
-		if methodName == "GetFunctionInvocation" {
-			return methodPolicy{action: accesskernel.ActionResourceRead, resourceType: "function_invocation"}, true
-		}
-		return resourcePolicy(methodName, "function",
-			[]string{"GetFunction", "ListFunctions", "ListFunctionInvocations", "ListFunctionEvents"},
-			[]string{"UploadFunctionBundle", "DeployFunction", "DeleteFunction", "InvokeFunction"})
 	case "axern.control.tunnel.v1.TunnelControl":
 		return resourcePolicy(methodName, "tunnel",
 			[]string{"GetTunnelSession", "ListTunnelSessions", "ListTunnelSessionEvents", "InspectTunnelSession"},
@@ -473,8 +466,6 @@ func (i *Interceptor) namespace(ctx context.Context, policy methodPolicy, req an
 			field        protoreflect.Name
 			resourceType string
 		}{
-			{field: "invocation_id", resourceType: "function_invocation"},
-			{field: "revision_id", resourceType: "function_revision"},
 			{field: "artifact_id", resourceType: "rollout_artifact"},
 		} {
 			if id := findStringField(message.ProtoReflect(), candidate.field); id != "" {

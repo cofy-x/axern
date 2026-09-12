@@ -255,8 +255,6 @@ controld:
   serviceAllocationWorkersPerNode: 12
   volumeReclaimWorkers: 8
   volumeReclaimWorkersPerNode: 2
-  function:
-    gatewayTimeout: 30s
   retention:
     enabled: true
     replicas: 1

@@ -15,7 +15,6 @@ import (
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	functionv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/function/v1"
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
@@ -179,7 +178,7 @@ func TestEveryRegisteredPublicMethodHasExplicitPolicy(t *testing.T) {
 		&adminv1.AccessAdmin_ServiceDesc, &adminv1.AdminAudit_ServiceDesc, &adminv1.AdminReliability_ServiceDesc,
 		&adminv1.NodeAdmin_ServiceDesc, &adminv1.AllocationLifecycleAdmin_ServiceDesc, &adminv1.ServiceAdmin_ServiceDesc,
 		&agentprofilev1.AgentProfileControl_ServiceDesc, &catalogv1.RuntimeCatalog_ServiceDesc, &environmentv1.EnvironmentControl_ServiceDesc,
-		&functionv1.FunctionControl_ServiceDesc, &identityv1.IdentityControl_ServiceDesc, &namespacev1.NamespaceControl_ServiceDesc,
+		&identityv1.IdentityControl_ServiceDesc, &namespacev1.NamespaceControl_ServiceDesc,
 		&quotav1.QuotaControl_ServiceDesc, &rolloutv1.RolloutControl_ServiceDesc, &runv1.RunControl_ServiceDesc,
 		&secretv1.SecretControl_ServiceDesc, &servicev1.ServiceControl_ServiceDesc, &tunnelv1.TunnelControl_ServiceDesc,
 	}

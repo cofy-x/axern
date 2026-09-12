@@ -1,7 +1,7 @@
 # controld
 
 `controld` is Axern's durable control-plane authority for catalog, environment,
-namespace, run, service, function, gateway, tunnel, and secret APIs.
+namespace, run, service, gateway, tunnel, and secret APIs.
 External CLI and SDK traffic should enter through `gatewayd`'s control edge;
 `controld` stays on the private control-plane network.
 It is backed by Postgres, which is the authoritative state store for control
@@ -13,7 +13,7 @@ plane and node state.
   node-availability reconciliation, and audited irreversible node retirement
 - authenticated allocation status batch ingest with owner routing and durable
   run/service projection
-- environment, run, service, and function lifecycle control
+- environment, run, and service lifecycle control
 - service rollout, readiness/liveness health handling, and lightweight
   autoscaling
 - edge-triggered service convergence with a bounded cross-service worker pool,
@@ -65,7 +65,7 @@ per-node allocation-create ceiling are explicit deployment settings. They let
 control-plane throughput scale with the number of runtime nodes while
 preserving a hard process limit and protecting each axnoded independently.
 
-Periodic rollout, run, node, Service, tunnel, and Function maintenance runs in
+Periodic rollout, run, node, Service, and tunnel maintenance runs in
 independent component loops. A slow dependency in one component therefore does
 not block the cadence of unrelated controllers. Each loop is non-overlapping
 and inherits the process lifecycle context. Short maintenance loops have a
@@ -232,34 +232,8 @@ Common optional environment variables:
 - `CONTROLD_INSECURE_REGISTRIES`: comma-separated registry hosts that should be
   resolved over HTTP instead of HTTPS, used by local truth environments such as
   `localhost:5001` and `host.docker.internal:5001`.
-- `CONTROLD_FUNCTION_GATEWAY_URL`: gatewayd base HTTP URL used by
-  `FunctionControl.InvokeFunction` to dispatch to warm Function workers.
-- `CONTROLD_FUNCTION_GATEWAY_TOKEN`: bearer token sent to gatewayd Function
-  dispatch when gatewayd runs with a dev token.
-- `CONTROLD_FUNCTION_GATEWAY_TIMEOUT`: default timeout for Function worker
-  dispatch through gatewayd, for example `30s`.
-- `-function-invocation-workers`: global bounded asynchronous Function
-  invocation concurrency; `0` uses the application default of 16.
 - `-reconcile-timeout`: maximum duration of one background reconcile operation;
   `0` uses the application default of `30s`.
-- `CONTROLD_FUNCTION_BUNDLE_BASE_URL`: base HTTP URL advertised to Function
-  workers for uploaded bundle downloads.
-- `CONTROLD_FUNCTION_BUNDLE_TOKEN`: bearer token required by the controld
-  Function bundle download endpoint when configured.
-
-Asynchronous Function invocation is durably queued in PostgreSQL and consumed
-by a bounded controld dispatcher. Claims use renewable leases and execution
-generation fencing, with PostgreSQL as the authoritative lease and deadline
-clock. Each work notification wakes one local dispatcher; bounded notification
-tokens and a periodic safety wake preserve low latency without broadcasting a
-claim query to every worker. Dispatch receives only the deadline time remaining
-after queueing and worker preparation, and both application completion and the
-final SQL write fence late results. Deadline cleanup drains bounded batches
-within a periodic time budget so an outage backlog converges without monopolizing
-the reconciler. Delivery is at-least-once and the stable invocation ID is
-forwarded to the worker for application-level deduplication. Active invocations
-prevent Function revision replacement and deletion so execution cannot silently
-cross a revision boundary.
 
 ## API Surface
 
@@ -280,7 +254,6 @@ Public product APIs:
 - `sdk/proto/axern/control/namespace/v1/namespace.proto`
 - `sdk/proto/axern/control/run/v1/run.proto`
 - `sdk/proto/axern/control/service/v1/service.proto`
-- `sdk/proto/axern/control/function/v1/function.proto`
 - `sdk/proto/axern/control/quota/v1/quota.proto`
 - `sdk/proto/axern/control/tunnel/v1/tunnel.proto`
 - `sdk/proto/axern/control/agentprofile/v1/agent_profile.proto`
@@ -312,10 +285,6 @@ Diagnostic endpoints are read-only:
 - `/consistencyz` for read-only reservation, lease, tunnel, and allocation
   consistency diagnostics
 
-Internal runtime endpoints:
-
-- `/runtime/function-bundles/{bundle}.tar` for Function worker bundle downloads
-
 ## Design Docs
 
 - [Service lifecycle](docs/service-lifecycle.md)
@@ -340,7 +309,6 @@ flowchart LR
   postgres["internal/postgres/*\nPostgres durable adapters"]
   placement["internal/placement\ncandidate selection"]
   nodebridge["internal/nodebridge\nnode lifecycle bridge"]
-  functiondispatch["internal/functiondispatch\ngatewayd Function dispatch client"]
   observability["internal/observability\nmetrics + spans"]
   ociimage["internal/ociimage\nOCI resolution"]
   catalog["internal/catalog\nruntime templates"]
@@ -352,7 +320,6 @@ flowchart LR
   app --> postgres
   app --> placement
   app --> nodebridge
-  app --> functiondispatch
   app --> observability
   app --> ociimage
   app --> catalog
@@ -375,7 +342,7 @@ flowchart LR
 - `internal/app` is the composition root and lifecycle wiring layer.
 - `internal/api/{adminv1,publicv1,nodev1,gatewayv1,debughttp}` adapts
   gRPC/HTTP to narrow capabilities.
-- `internal/application/{admin,capability,environment,function,gateway,node,run,service}` owns
+- `internal/application/{admin,capability,environment,gateway,node,run,service}` owns
   use-case orchestration across kernel contracts and adapters, including node
   availability, capability-loss reconciliation, and workload lifecycle
   convergence.
@@ -390,8 +357,6 @@ flowchart LR
   candidate-plan construction, and placement request shaping.
 - `internal/nodebridge` owns control-plane-to-node lifecycle request
   construction and RPC bridging.
-- `internal/functiondispatch` owns the HTTP client adapter from Function
-  invocation orchestration to gatewayd's worker dispatch boundary.
 - `internal/observability`, `internal/ociimage`, and `internal/catalog` own
   metrics/span names, OCI descriptor resolution, and embedded runtime templates.
 - `internal/testutil/controldtest` owns focused test doubles and Postgres test

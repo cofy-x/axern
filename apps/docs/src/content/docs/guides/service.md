@@ -6,7 +6,7 @@ description: Run long-lived HTTP workloads with replicas, readiness probes, roll
 A Service is Axern's long-lived workload: it keeps a target replica count
 healthy, rolls configuration changes across replicas, and exposes container
 ports through the public `/svc` gateway route. One-shot commands use a
-[Run](/guides/run/); event handlers use a [Function](/guides/functions/).
+[Run](/guides/run/).
 
 ## Create a Service
 

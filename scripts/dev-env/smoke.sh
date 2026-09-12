@@ -16,5 +16,3 @@ source "${AXERN_DEV_ENV_SMOKE_DIR}/server-base.sh"
 source "${AXERN_DEV_ENV_SMOKE_DIR}/run.sh"
 # shellcheck source=./smoke/quota.sh
 source "${AXERN_DEV_ENV_SMOKE_DIR}/quota.sh"
-# shellcheck source=./smoke/function.sh
-source "${AXERN_DEV_ENV_SMOKE_DIR}/function.sh"

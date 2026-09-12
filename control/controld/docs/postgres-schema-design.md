@@ -12,8 +12,7 @@ The schema is split by durable ownership boundary:
 | --- | --- |
 | `000001_initial.sql` | Nodes, namespaces, environments, secrets, runs, services, desired-spec identity, CPU/memory/ephemeral-storage quota and reservations, allocations, execution leases, reconciliation, and audit state |
 | `000002_tunnel_sessions.sql` | Tunnel sessions, peer events, and the tunnel revision stream |
-| `000003_functions.sql` | Functions, revisions, deployments, invocations, events, idempotency records, and bundles |
-| `000004_managed_rollouts.sql` | Agent Profiles, rollout planning and execution, worker leases, metering, evidence, and artifact metadata |
+| `000003_managed_rollouts.sql` | Agent Profiles, rollout planning and execution, worker leases, metering, evidence, and artifact metadata |
 
 Each migration declares the final shape of its domain. Migrations run in one
 direction under a Postgres advisory lock and are recorded in
@@ -226,31 +225,6 @@ sessions from claiming the same allocation port.
 `tunnel_session_events` is append-only peer and lifecycle history. The
 `tunnel_sessions` control revision supports incremental node convergence.
 
-## Function Model
-
-```mermaid
-erDiagram
-  functions ||--o{ function_revisions : versions
-  functions ||--|| function_deployments : deploys
-  functions ||--o{ function_invocations : invokes
-  functions ||--o{ function_events : records
-  functions ||--o{ function_idempotency_records : deduplicates
-```
-
-- `functions` owns namespace/name identity and current product status.
-- `function_revisions` stores immutable source and spec snapshots.
-- `function_deployments` stores the current worker service and scaling state.
-- `function_invocations` stores request, result, error, timeout, duration, and
-  lifecycle timestamps.
-- `function_events.event_sequence` provides a globally ordered watch cursor.
-- `function_idempotency_records` fences repeated requests for a function
-  revision.
-- `function_bundles` stores digest-addressed worker payloads for the private
-  Function download path.
-
-Function execution still uses owned worker services; these tables do not create
-a second general execution backend.
-
 ## Managed Rollout Model
 
 ```mermaid
@@ -338,7 +312,7 @@ Indexes follow server-side access paths:
 - partial active indexes for reservations, leases, tunnels, and live services;
 - partial pending/expired claim indexes and leased owner, rollout, and Profile
   capacity indexes for the rollout work claim predicate;
-- sequence indexes for reconnectable Function and rollout watches;
+- sequence indexes for reconnectable rollout watches;
 - retention indexes on expiry and creation timestamps;
 - public visibility and internal ownership indexes for Secret boundaries.
 

@@ -23,11 +23,6 @@ func retentionConfigFromEnv() retentionkernel.Config {
 	cfg.ServiceReplicasKeep = intFromEnv("CONTROLD_RETENTION_SERVICE_REPLICAS_KEEP", cfg.ServiceReplicasKeep)
 	cfg.TerminalRunsTTL = durationFromEnv("CONTROLD_RETENTION_TERMINAL_RUNS_TTL", cfg.TerminalRunsTTL)
 	cfg.LeasesTTL = durationFromEnv("CONTROLD_RETENTION_LEASES_TTL", cfg.LeasesTTL)
-	cfg.FunctionEventsTTL = durationFromEnv("CONTROLD_RETENTION_FUNCTION_EVENTS_TTL", cfg.FunctionEventsTTL)
-	cfg.FunctionEventsKeep = intFromEnv("CONTROLD_RETENTION_FUNCTION_EVENTS_KEEP", cfg.FunctionEventsKeep)
-	cfg.FunctionInvocationsTTL = durationFromEnv("CONTROLD_RETENTION_FUNCTION_INVOCATIONS_TTL", cfg.FunctionInvocationsTTL)
-	cfg.FunctionInvocationsKeep = intFromEnv("CONTROLD_RETENTION_FUNCTION_INVOCATIONS_KEEP", cfg.FunctionInvocationsKeep)
-	cfg.FunctionIdempotencyTTL = durationFromEnv("CONTROLD_RETENTION_FUNCTION_IDEMPOTENCY_TTL", cfg.FunctionIdempotencyTTL)
 	return retentionkernel.NormalizeConfig(cfg)
 }
 

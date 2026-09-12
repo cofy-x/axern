@@ -34,18 +34,6 @@ from axern_sdk.catalog.models import (
     RuntimeResourcePolicy,
     RuntimeTemplate,
 )
-from axern_sdk.function import (
-    Function,
-    FunctionInvocationError,
-    FunctionInvocationResult,
-    FunctionPackage,
-    FunctionResources,
-    FunctionScaling,
-    FunctionSource,
-    FunctionSpec,
-    FunctionWorkerSource,
-    load_function_spec,
-)
 from axern_sdk.models import HTTPProbe, ImageMount, SecretEnvVar, SecretFile, ServiceProbe, TCPProbe
 from axern_sdk.network_policy import CIDRRule, NetworkPolicy, PortRange
 from axern_sdk.node import (
@@ -117,15 +105,6 @@ __all__ = [
     "ExecResult",
     "ExecStreamEvent",
     "ImageProcessMount",
-    "Function",
-    "FunctionInvocationError",
-    "FunctionInvocationResult",
-    "FunctionPackage",
-    "FunctionResources",
-    "FunctionScaling",
-    "FunctionSource",
-    "FunctionSpec",
-    "FunctionWorkerSource",
     "HTTPProbe",
     "ImageMount",
     "NodeSandboxClient",
@@ -155,7 +134,6 @@ __all__ = [
     "TCPProbe",
     "TLSContext",
     "workspace_mount",
-    "load_function_spec",
     "load_context",
 ]
 

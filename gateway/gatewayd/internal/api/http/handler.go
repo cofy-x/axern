@@ -63,8 +63,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeJSON(rec, http.StatusOK, map[string]string{"status": "ok"})
 	case h.dashboard != nil && h.dashboard.Handles(r.URL.Path):
 		h.dashboard.ServeHTTP(rec, r)
-	case r.URL.Path == functionDispatchPath:
-		h.serveFunctionInvoke(rec, r, &logRecord)
 	case strings.HasPrefix(r.URL.Path, "/svc/"):
 		h.serveService(rec, r, &logRecord)
 	case strings.HasPrefix(r.URL.Path, "/terminal/allocation/"):

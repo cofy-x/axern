@@ -14,8 +14,6 @@ const (
 	AttrAllocationID     = "axern.allocation_id"
 	AttrNodeID           = "axern.node_id"
 	AttrEnvironmentID    = "axern.environment_id"
-	AttrFunctionID       = "axern.function_id"
-	AttrInvocationID     = "axern.invocation_id"
 	AttrRuntime          = "axern.runtime"
 	AttrRootFSType       = "axern.rootfs_type"
 	AttrImageRef         = "axern.image_ref"

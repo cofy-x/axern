@@ -119,7 +119,6 @@ make local-compose-smoke
 make local-compose-gateway-smoke
 make local-compose-run-smoke
 make local-compose-invoke-smoke
-make local-compose-function-smoke
 make local-compose-server-base-smoke
 make local-compose-quota-smoke
 make local-compose-computer-use-e2e

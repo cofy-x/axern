@@ -9,9 +9,8 @@ Public workload models have separate semantics:
 
 - `Run`: one-shot, single-allocation execution with terminal exit status.
 - `Service`: long-running replica convergence, rollout, probes, and autoscaling.
-- `Function`: named revisions, worker scaling, results, and invocation history.
 
-All three use `Environment` as the execution source. A resource spec selects
+Both use `Environment` as the execution source. A resource spec selects
 exactly one existing environment, catalog template, or OCI image. Template and
 image sources are resolved into an immutable environment before admission.
 Runtime class belongs to execution config, not the environment.
@@ -45,8 +44,7 @@ sequenceDiagram
 ```
 
 Foreground `axern run` returns the workload exit code after normal termination.
-Service wait observes rollout, replica, readiness, and event state. Function
-deploy observes its worker service through the Function deployment projection.
+Service wait observes rollout, replica, readiness, and event state.
 
 ## Sandbox Data Plane
 

@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/cofy-x/axern/control/controld/internal/api/debughttp"
-	"github.com/cofy-x/axern/control/controld/internal/api/functionhttp"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	consistencykernel "github.com/cofy-x/axern/control/controld/internal/kernel/consistency"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
@@ -20,24 +19,6 @@ const debugReconcileQueueLimit = 100
 
 func (a *App) HTTPHandler() http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle(functionhttp.BundlePathPrefix, functionhttp.New(functionhttp.Config{
-		ReadBundle: func(ctx context.Context, storageURI string) (functionhttp.BundlePayload, bool, error) {
-			if a.functionPG == nil {
-				return functionhttp.BundlePayload{}, false, nil
-			}
-			bundle, ok, err := a.functionPG.ReadBundlePayload(ctx, storageURI)
-			if err != nil || !ok {
-				return functionhttp.BundlePayload{}, ok, err
-			}
-			return functionhttp.BundlePayload{
-				Digest:    bundle.Digest,
-				MediaType: bundle.MediaType,
-				SizeBytes: bundle.SizeBytes,
-				Payload:   bundle.Payload,
-			}, true, nil
-		},
-		Token: a.functionBundleToken,
-	}))
 	mux.Handle("/", debughttp.New(debughttp.Config{
 		DebugNodes: func() []nodekernel.DebugNode {
 			return a.registry.DebugNodes(a.now(), a.heartbeatFreshnessWindow, a.summaryFreshnessWindow)

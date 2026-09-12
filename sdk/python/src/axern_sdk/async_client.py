@@ -1,4 +1,4 @@
-"""Async V1 control-plane client for environments, services, functions, and tunnels."""
+"""Async V1 control-plane client for environments, services, and tunnels."""
 
 from __future__ import annotations
 
@@ -16,7 +16,6 @@ from axern.control.admin.v1 import (
 )
 from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2, environment_pb2_grpc
-from axern.control.function.v1 import function_pb2_grpc
 from axern.control.run.v1 import run_pb2, run_pb2_grpc
 from axern.node.sandbox.v1 import node_pb2, node_pb2_grpc
 from axern.control.service.v1 import (
@@ -73,7 +72,6 @@ class AsyncAxernClient:
         self._services: service_pb2_grpc.ServiceControlStub | None = None
         self._node_admin: admin_node_pb2_grpc.NodeAdminStub | None = None
         self._service_admin: admin_service_pb2_grpc.ServiceAdminStub | None = None
-        self._functions: function_pb2_grpc.FunctionControlStub | None = None
         self._tunnels: tunnel_pb2_grpc.TunnelControlStub | None = None
 
     async def close(self) -> None:
@@ -87,7 +85,6 @@ class AsyncAxernClient:
             self._runs = None
             self._services = None
             self._service_admin = None
-            self._functions = None
             self._tunnels = None
 
     async def __aenter__(self) -> "AsyncAxernClient":
@@ -164,12 +161,6 @@ class AsyncAxernClient:
         return self._node_admin
 
     @property
-    def functions(self) -> function_pb2_grpc.FunctionControlStub:
-        self._ensure_channel()
-        assert self._functions is not None
-        return self._functions
-
-    @property
     def tunnels(self) -> tunnel_pb2_grpc.TunnelControlStub:
         self._ensure_channel()
         assert self._tunnels is not None
@@ -188,7 +179,6 @@ class AsyncAxernClient:
                 self._services = service_pb2_grpc.ServiceControlStub(self._channel)
                 self._node_admin = admin_node_pb2_grpc.NodeAdminStub(self._channel)
                 self._service_admin = admin_service_pb2_grpc.ServiceAdminStub(self._channel)
-                self._functions = function_pb2_grpc.FunctionControlStub(self._channel)
                 self._tunnels = tunnel_pb2_grpc.TunnelControlStub(self._channel)
             return
         self._loop = loop
@@ -205,7 +195,6 @@ class AsyncAxernClient:
         self._services = service_pb2_grpc.ServiceControlStub(self._channel)
         self._node_admin = admin_node_pb2_grpc.NodeAdminStub(self._channel)
         self._service_admin = admin_service_pb2_grpc.ServiceAdminStub(self._channel)
-        self._functions = function_pb2_grpc.FunctionControlStub(self._channel)
         self._tunnels = tunnel_pb2_grpc.TunnelControlStub(self._channel)
 
     def _gateway_transport(self) -> _GatewayTransport:

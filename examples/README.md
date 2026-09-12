@@ -4,11 +4,6 @@ Examples live here when Axern exposes stable SDK or service interfaces.
 
 Avoid adding placeholder demos that do not exercise real platform behavior.
 
-## Product Examples
-
-- [`function-hello`](function-hello) is the golden Axern Function manifest,
-  source, payload, CLI, and Python SDK example.
-
 ## Smoke
 
 - [`smoke/gateway-python`](smoke/gateway-python) verifies a deployed gateway with the Python SDK and direct gateway HTTP access.

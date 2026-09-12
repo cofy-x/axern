@@ -49,14 +49,14 @@ Secrets are immutable. Rotate them as a replacement workflow:
 
 1. Create a new Secret with the replacement value.
 2. Update or replace every resource that references the old Secret ID.
-3. Wait for the new Service, Function, Run, or Environment revision to become
+3. Wait for the new Service, Run, or Environment revision to become
    ready and verify the workload.
 4. Delete the old Secret only after no active resource references it.
 
 For an Environment registry credential, create a new Environment because the
 Environment itself is immutable; then point the workload at the new
 Environment. For `secret-env` and `secret-file` projections, update the
-Service or Function specification and let its immutable revision roll out.
+Service specification and let its immutable revision roll out.
 
 :::note
 Secrets hold platform credential material such as registry pulls. Agent

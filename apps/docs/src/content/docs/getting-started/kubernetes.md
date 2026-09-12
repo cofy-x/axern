@@ -41,7 +41,7 @@ kubectl --namespace axern-system port-forward svc/gatewayd \
 
 In a second terminal, import the chart-generated mTLS identity as a local CLI
 context. The empty SSH endpoint is intentional: SSH is disabled by the chart
-defaults and is not required for catalog, Run, Service, Function, or SDK
+defaults and is not required for catalog, Run, Service, or SDK
 workflows.
 
 ```bash

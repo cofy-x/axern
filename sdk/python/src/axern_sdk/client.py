@@ -1,4 +1,4 @@
-"""V1 control-plane client for environments, runs, services, and functions."""
+"""V1 control-plane client for environments, runs, services, and tunnels."""
 
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ from axern.control.admin.v1 import (
 from axern.control.capability.v1 import capability_pb2
 from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2, environment_pb2_grpc
-from axern.control.function.v1 import function_pb2_grpc
 from axern.control.run.v1 import run_pb2, run_pb2_grpc
 from axern.node.sandbox.v1 import node_pb2, node_pb2_grpc
 from axern.control.service.v1 import (
@@ -170,7 +169,6 @@ class AxernClient:
         self.services = service_pb2_grpc.ServiceControlStub(self._channel)
         self.node_admin = admin_node_pb2_grpc.NodeAdminStub(self._channel)
         self.service_admin = admin_service_pb2_grpc.ServiceAdminStub(self._channel)
-        self.functions = function_pb2_grpc.FunctionControlStub(self._channel)
         self.tunnels = tunnel_pb2_grpc.TunnelControlStub(self._channel)
 
     @classmethod

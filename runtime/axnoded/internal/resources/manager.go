@@ -31,7 +31,6 @@ type AllocateOption struct {
 	Context            context.Context
 	ContainerID        string
 	EnvID              string
-	FunctionName       string
 	TraceID            string
 	MemoryRequestBytes int64
 	MemoryLimitBytes   int64

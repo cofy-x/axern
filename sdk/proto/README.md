@@ -10,9 +10,6 @@ Layout:
 - `axern/control/environment/v1`: public immutable environment API
 - `axern/control/run/v1`: public one-shot run API
 - `axern/control/gateway/v1`: public gateway route and terminal target resolution API
-- `axern/control/function/v1`: public serverless function API for named handler
-  deployment, immutable revisions, warm-pool status, invocation records, and
-  function events
 - `axern/control/tunnel/v1`: public tunnel session API for allocation-scoped
   reverse TCP tunnels
 - `axern/control/service/v1`: public static replica service API

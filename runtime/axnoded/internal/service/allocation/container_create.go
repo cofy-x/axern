@@ -264,7 +264,6 @@ func (h *Controller) prepareContainerResources(ctx context.Context, traceID, run
 		ContainerID:              containerID,
 		EnvID:                    envValue(envs, config.SandboxEnvKey),
 		TraceID:                  traceID,
-		FunctionName:             envValue(envs, config.SandboxFunctionNameKey),
 		MemoryRequestBytes:       memoryRequest,
 		MemoryLimitBytes:         resourceSpec.GetLimits().GetMemoryBytes(),
 		CapacityReservationBytes: cgroupCapacityReservation(ctx, memoryRequest),

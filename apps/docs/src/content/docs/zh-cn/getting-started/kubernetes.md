@@ -29,7 +29,7 @@ kubectl --namespace axern-system port-forward svc/gatewayd \
   25100:25000 25101:25080
 ```
 
-在第二个终端中，把 Chart 生成的 mTLS 身份导入为本地 CLI Context。空的 SSH endpoint 是有意为之：Chart 默认禁用 SSH，而 Catalog、Run、Service、Function 和 SDK 工作流都不需要它。
+在第二个终端中，把 Chart 生成的 mTLS 身份导入为本地 CLI Context。空的 SSH endpoint 是有意为之：Chart 默认禁用 SSH，而 Catalog、Run、Service 和 SDK 工作流都不需要它。
 
 ```bash
 axern context import-kubernetes local \

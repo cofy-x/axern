@@ -12,7 +12,6 @@ import (
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	functionv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/function/v1"
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
@@ -41,7 +40,6 @@ func dial(ctx context.Context, config Config) (*grpc.ClientConn, Clients, error)
 		AccessAdmin:      adminv1.NewAccessAdminClient(conn),
 		Identity:         identityv1.NewIdentityControlClient(conn),
 		Environment:      environmentv1.NewEnvironmentControlClient(conn),
-		Function:         functionv1.NewFunctionControlClient(conn),
 		Run:              runv1.NewRunControlClient(conn),
 		Secret:           secretv1.NewSecretControlClient(conn),
 		Service:          servicev1.NewServiceControlClient(conn),

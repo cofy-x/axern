@@ -65,7 +65,7 @@ func parseFlags() verifyNginxConfig {
 	flag.StringVar(&cfg.address, "address", config.DefaultSocketAddress, "axnoded unix socket path")
 	flag.StringVar(&cfg.rootfs, "rootfs", "/opt/nginx-rootfs", "LOCAL nginx rootfs path")
 	flag.StringVar(&cfg.runtimeName, "runtime", config.RuntimeNameRunsc, "sandbox runtime name under test")
-	flag.StringVar(&cfg.runtimeID, "runtime-id", "verify-nginx-runtime", "function runtime id")
+	flag.StringVar(&cfg.runtimeID, "runtime-id", "verify-nginx-runtime", "runtime id")
 	flag.StringVar(&cfg.stdoutPath, "stdout", "/tmp/axnoded-nginx.stdout", "container stdout path")
 	flag.StringVar(&cfg.stderrPath, "stderr", "/tmp/axnoded-nginx.stderr", "container stderr path")
 	flag.IntVar(&cfg.listenPort, "listen-port", 18080, "host port exposed via DNAT")

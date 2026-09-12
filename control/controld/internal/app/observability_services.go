@@ -160,58 +160,6 @@ func (a *App) observeRolloutWorkOldestDueAge(ctx context.Context, observe sdkobs
 	return nil
 }
 
-func (a *App) observeFunctionInvocationQueue(ctx context.Context, observe sdkobs.Int64GaugeObserver) error {
-	var queuedDue, queuedScheduled, leasedActive, leasedExpired int64
-	if err := a.db.Pool().QueryRow(ctx, `
-		SELECT
-			count(*) FILTER (WHERE status='FUNCTION_INVOCATION_STATUS_QUEUED' AND next_run_at<=now()),
-			count(*) FILTER (WHERE status='FUNCTION_INVOCATION_STATUS_QUEUED' AND next_run_at>now()),
-			count(*) FILTER (WHERE status='FUNCTION_INVOCATION_STATUS_RUNNING' AND lease_expires_at>now()),
-			count(*) FILTER (WHERE status='FUNCTION_INVOCATION_STATUS_RUNNING' AND lease_expires_at<=now())
-		FROM function_invocations
-		WHERE mode='FUNCTION_INVOCATION_MODE_ASYNC'
-		  AND status IN ('FUNCTION_INVOCATION_STATUS_QUEUED','FUNCTION_INVOCATION_STATUS_RUNNING')
-	`).Scan(&queuedDue, &queuedScheduled, &leasedActive, &leasedExpired); err != nil {
-		return fmt.Errorf("query function invocation queue counts: %w", err)
-	}
-	observe(queuedDue, attribute.String(sdkobs.AttrState, "queued_due"))
-	observe(queuedScheduled, attribute.String(sdkobs.AttrState, "queued_scheduled"))
-	observe(leasedActive, attribute.String(sdkobs.AttrState, "leased_active"))
-	observe(leasedExpired, attribute.String(sdkobs.AttrState, "leased_expired"))
-	return nil
-}
-
-func (a *App) observeFunctionInvocationNotifications(_ context.Context, observe sdkobs.Int64GaugeObserver) error {
-	ready := int64(0)
-	if a.functionPG != nil && a.functionPG.InvocationListenerReady() {
-		ready = 1
-	}
-	observe(ready, attribute.String(sdkobs.AttrState, "listener_ready"))
-	return nil
-}
-
-func (a *App) observeFunctionInvocationOldestDueAge(ctx context.Context, observe sdkobs.Float64GaugeObserver) error {
-	var queuedDue, leasedExpired float64
-	if err := a.db.Pool().QueryRow(ctx, `
-		SELECT
-			COALESCE(EXTRACT(EPOCH FROM now()-(
-				SELECT next_run_at FROM function_invocations
-				WHERE mode='FUNCTION_INVOCATION_MODE_ASYNC' AND status='FUNCTION_INVOCATION_STATUS_QUEUED' AND next_run_at<=now()
-				ORDER BY next_run_at,created_at,invocation_id LIMIT 1
-			)),0),
-			COALESCE(EXTRACT(EPOCH FROM now()-(
-				SELECT lease_expires_at FROM function_invocations
-				WHERE mode='FUNCTION_INVOCATION_MODE_ASYNC' AND status='FUNCTION_INVOCATION_STATUS_RUNNING' AND lease_expires_at<=now()
-				ORDER BY lease_expires_at,invocation_id LIMIT 1
-			)),0)
-	`).Scan(&queuedDue, &leasedExpired); err != nil {
-		return fmt.Errorf("query function invocation queue ages: %w", err)
-	}
-	observe(queuedDue, attribute.String(sdkobs.AttrState, "queued_due"))
-	observe(leasedExpired, attribute.String(sdkobs.AttrState, "leased_expired"))
-	return nil
-}
-
 func (a *App) observePostgresPoolConnections(_ context.Context, observe sdkobs.Int64GaugeObserver) error {
 	stats := a.db.Pool().Stat()
 	observe(int64(stats.MaxConns()), attribute.String(sdkobs.AttrState, "max"))

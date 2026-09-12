@@ -123,8 +123,6 @@ background, API inventory, and the full code-layout map, read
 - Environment creation and template/image resolution:
   `application/environment`, `kernel/environment`, `postgres/run` for durable
   environment state.
-- Function revisions, worker rollout, scaling, invocation history, and events:
-  `application/function`, `kernel/function`, and `postgres/function`.
 - Gateway route and terminal resolution:
   `application/gateway` plus `postgres/gateway` readers and lease issuers.
 - Node reports, allocation status reports, inventory reconciliation,
@@ -144,8 +142,6 @@ background, API inventory, and the full code-layout map, read
   process-local ownership in `internal/app` and read-only exposure through
   `api/debughttp`.
 - Debug-only `*z` endpoints: `internal/api/debughttp`.
-- Internal Function worker bundle downloads: `api/functionhttp`, with durable
-  payload reads under `postgres/function`.
 - Agent Profile and rollout lifecycle: `api/publicv1`, `kernel/agentprofile`,
   `kernel/rollout`, and their Postgres stores. Provider execution remains in
   Axrun workers.

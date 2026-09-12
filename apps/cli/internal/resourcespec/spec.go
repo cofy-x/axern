@@ -26,9 +26,8 @@ const APIVersion = "axern/v1"
 type Kind string
 
 const (
-	KindRun      Kind = "Run"
-	KindService  Kind = "Service"
-	KindFunction Kind = "Function"
+	KindRun     Kind = "Run"
+	KindService Kind = "Service"
 )
 
 type Envelope struct {
@@ -55,7 +54,6 @@ type Spec struct {
 	Readiness             *Probe            `json:"readiness,omitempty" yaml:"readiness,omitempty"`
 	Liveness              *Probe            `json:"liveness,omitempty" yaml:"liveness,omitempty"`
 	Autoscaling           *Autoscaling      `json:"autoscaling,omitempty" yaml:"autoscaling,omitempty"`
-	Function              *Function         `json:"function,omitempty" yaml:"function,omitempty"`
 	Env                   map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
 	SecretEnv             []SecretEnv       `json:"secret_env,omitempty" yaml:"secret_env,omitempty"`
 	SecretFiles           []SecretFile      `json:"secret_files,omitempty" yaml:"secret_files,omitempty"`
@@ -106,22 +104,6 @@ type HTTPProbe struct {
 type Autoscaling struct {
 	MinReplicas int32 `json:"min_replicas" yaml:"min_replicas"`
 	MaxReplicas int32 `json:"max_replicas" yaml:"max_replicas"`
-}
-
-type Function struct {
-	Runtime        string  `json:"runtime" yaml:"runtime"`
-	Handler        string  `json:"handler" yaml:"handler"`
-	Initializer    string  `json:"initializer,omitempty" yaml:"initializer,omitempty"`
-	Source         string  `json:"source" yaml:"source"`
-	TimeoutSeconds int     `json:"timeout_seconds,omitempty" yaml:"timeout_seconds,omitempty"`
-	Scaling        Scaling `json:"scaling,omitempty" yaml:"scaling,omitempty"`
-}
-
-type Scaling struct {
-	MinReplicas int32  `json:"min_replicas,omitempty" yaml:"min_replicas,omitempty"`
-	MaxReplicas int32  `json:"max_replicas,omitempty" yaml:"max_replicas,omitempty"`
-	Concurrency int32  `json:"concurrency,omitempty" yaml:"concurrency,omitempty"`
-	IdleTimeout string `json:"idle_timeout,omitempty" yaml:"idle_timeout,omitempty"`
 }
 
 type SecretEnv struct {
@@ -201,12 +183,12 @@ func (e *Envelope) Validate(expected Kind) error {
 	}
 	switch e.Kind {
 	case KindRun:
-		if e.Spec.Replicas != nil || e.Spec.Readiness != nil || e.Spec.Liveness != nil || e.Spec.Autoscaling != nil || e.Spec.Function != nil {
-			return fmt.Errorf("Run spec contains service or function fields")
+		if e.Spec.Replicas != nil || e.Spec.Readiness != nil || e.Spec.Liveness != nil || e.Spec.Autoscaling != nil {
+			return fmt.Errorf("Run spec contains service fields")
 		}
 	case KindService:
-		if e.Spec.Replicas != nil && *e.Spec.Replicas < 0 || e.Spec.Function != nil {
-			return fmt.Errorf("Service replicas must be non-negative and function must be omitted")
+		if e.Spec.Replicas != nil && *e.Spec.Replicas < 0 {
+			return fmt.Errorf("Service replicas must be non-negative")
 		}
 		if e.Spec.Autoscaling != nil && (e.Spec.Autoscaling.MinReplicas < 0 || e.Spec.Autoscaling.MaxReplicas < e.Spec.Autoscaling.MinReplicas) {
 			return fmt.Errorf("Service autoscaling range is invalid")
@@ -216,44 +198,6 @@ func (e *Envelope) Validate(expected Kind) error {
 		}
 		if _, err := probe(e.Spec.Liveness); err != nil {
 			return fmt.Errorf("spec.liveness: %w", err)
-		}
-	case KindFunction:
-		if e.Metadata.Name == "" || e.Spec.Function == nil {
-			return fmt.Errorf("Function metadata.name and spec.function are required")
-		}
-		if e.Spec.Replicas != nil || e.Spec.Readiness != nil || e.Spec.Liveness != nil || e.Spec.Autoscaling != nil {
-			return fmt.Errorf("Function spec contains service fields")
-		}
-		if strings.TrimSpace(e.Spec.Function.Runtime) == "" || strings.TrimSpace(e.Spec.Function.Handler) == "" || strings.TrimSpace(e.Spec.Function.Source) == "" {
-			return fmt.Errorf("Function runtime, handler, and source are required")
-		}
-		if len(e.Spec.Command.Argv) != 0 || e.Spec.Command.Cwd != "" || e.Spec.RuntimeClass != "" || len(e.Spec.SecretEnv) != 0 || len(e.Spec.SecretFiles) != 0 || len(e.Spec.ImageMounts) != 0 {
-			return fmt.Errorf("Function command, runtime_class, secret mounts, and image mounts are owned by the function runtime")
-		}
-		if e.Spec.Function.TimeoutSeconds == 0 {
-			e.Spec.Function.TimeoutSeconds = 60
-		}
-		if e.Spec.Function.TimeoutSeconds < 0 {
-			return fmt.Errorf("Function timeout_seconds must be greater than zero")
-		}
-		if e.Spec.Function.Scaling.MaxReplicas == 0 {
-			e.Spec.Function.Scaling.MaxReplicas = 1
-		}
-		if e.Spec.Function.Scaling.Concurrency == 0 {
-			e.Spec.Function.Scaling.Concurrency = 1
-		}
-		if e.Spec.Function.Scaling.IdleTimeout == "" {
-			e.Spec.Function.Scaling.IdleTimeout = "5m"
-		}
-		if _, err := e.FunctionSourcePath(); err != nil {
-			return err
-		}
-		scaling := e.Spec.Function.Scaling
-		if scaling.MinReplicas < 0 || scaling.MaxReplicas < scaling.MinReplicas || scaling.Concurrency < 1 {
-			return fmt.Errorf("Function scaling values are invalid")
-		}
-		if _, err := parseDuration(scaling.IdleTimeout); err != nil {
-			return fmt.Errorf("spec.function.scaling.idle_timeout: %w", err)
 		}
 	}
 	if _, _, _, err := e.secretAndImageMounts(); err != nil {
@@ -401,43 +345,6 @@ func (e Envelope) ResourceSpec() (*commonv1.ResourceSpec, error) {
 		return nil, nil
 	}
 	return &commonv1.ResourceSpec{Requests: requests, Limits: limits}, nil
-}
-
-func (e Envelope) FunctionSourcePath() (string, error) {
-	if e.Spec.Function == nil {
-		return "", fmt.Errorf("spec.function is required")
-	}
-	if filepath.IsAbs(e.Spec.Function.Source) {
-		return "", fmt.Errorf("spec.function.source must be relative to the spec file")
-	}
-	base, err := filepath.Abs(filepath.Dir(e.Path))
-	if err != nil {
-		return "", err
-	}
-	path, err := filepath.Abs(filepath.Join(base, e.Spec.Function.Source))
-	if err != nil {
-		return "", err
-	}
-	resolvedBase, err := filepath.EvalSymlinks(base)
-	if err != nil {
-		return "", err
-	}
-	resolvedPath, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return "", err
-	}
-	rel, err := filepath.Rel(resolvedBase, resolvedPath)
-	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("spec.function.source must stay below the spec directory")
-	}
-	info, err := os.Stat(resolvedPath)
-	if err != nil {
-		return "", err
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("spec.function.source must be a directory")
-	}
-	return resolvedPath, nil
 }
 
 func quantity(value Quantity) (*commonv1.ResourceQuantity, error) {

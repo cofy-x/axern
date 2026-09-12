@@ -3,7 +3,7 @@ title: Run
 description: 从镜像、模板或环境执行一次性隔离命令，产出持久记录和真实退出码。
 ---
 
-Run 是 Axern 的一次性工作负载：在隔离 Sandbox 中执行命令、流式输出、传递命令的真实退出码，并在控制面留下持久记录。长驻 HTTP 工作负载请用 [Service](/zh-cn/guides/service/)；重复的事件处理请用 [Function](/zh-cn/guides/functions/)。
+Run 是 Axern 的一次性工作负载：在隔离 Sandbox 中执行命令、流式输出、传递命令的真实退出码，并在控制面留下持久记录。长驻 HTTP 工作负载请用 [Service](/zh-cn/guides/service/)。
 
 ## 运行命令
 

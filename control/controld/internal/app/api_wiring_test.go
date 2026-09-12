@@ -41,7 +41,7 @@ func TestAuthoritativeProfileBuildsCompleteAPIs(t *testing.T) {
 		defaultSandboxRuntime,
 	)
 	profile := app.authoritativeProfile(selector)
-	if profile.public.environments == nil || profile.public.runs == nil || profile.public.services == nil || profile.public.functions == nil {
+	if profile.public.environments == nil || profile.public.runs == nil || profile.public.services == nil {
 		t.Fatal("authoritative profile did not build a complete public API dependency set")
 	}
 	if profile.node.allocations == nil {

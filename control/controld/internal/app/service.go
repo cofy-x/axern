@@ -17,12 +17,10 @@ import (
 	rolloutworkerv1 "github.com/cofy-x/axern/control/controld/internal/api/rolloutworkerv1"
 	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
 	appcapability "github.com/cofy-x/axern/control/controld/internal/application/capability"
-	appfunction "github.com/cofy-x/axern/control/controld/internal/application/function"
 	appnode "github.com/cofy-x/axern/control/controld/internal/application/node"
 	apprun "github.com/cofy-x/axern/control/controld/internal/application/run"
 	"github.com/cofy-x/axern/control/controld/internal/artifactstore"
 	"github.com/cofy-x/axern/control/controld/internal/catalog"
-	"github.com/cofy-x/axern/control/controld/internal/functiondispatch"
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
@@ -37,7 +35,6 @@ import (
 	pgadmin "github.com/cofy-x/axern/control/controld/internal/postgres/admin"
 	pgagentprofile "github.com/cofy-x/axern/control/controld/internal/postgres/agentprofile"
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
-	pgfunction "github.com/cofy-x/axern/control/controld/internal/postgres/function"
 	pgnamespace "github.com/cofy-x/axern/control/controld/internal/postgres/namespace"
 	pgnodes "github.com/cofy-x/axern/control/controld/internal/postgres/nodes"
 	pgrollout "github.com/cofy-x/axern/control/controld/internal/postgres/rollout"
@@ -79,12 +76,6 @@ type Config struct {
 	TunnelEdgeTarget                string
 	TunnelNodeEdgeTarget            string
 	TunnelRelays                    string
-	FunctionGatewayURL              string
-	FunctionGatewayToken            string
-	FunctionGatewayTimeout          time.Duration
-	FunctionInvocationWorkers       int
-	FunctionBundleBaseURL           string
-	FunctionBundleToken             string
 	RolloutWorkerToken              string
 	ArtifactS3Endpoint              string
 	ArtifactS3Region                string
@@ -95,9 +86,8 @@ type Config struct {
 	ArtifactTicketSigningKey        string
 	ResourcePolicy                  resourcekernel.AdmissionPolicy
 
-	NodeLifecycle   nodebridge.LifecycleClient
-	ImageResolver   environmentkernel.ImageResolver
-	FunctionInvoker appfunction.FunctionInvoker
+	NodeLifecycle nodebridge.LifecycleClient
+	ImageResolver environmentkernel.ImageResolver
 }
 
 type App struct {
@@ -117,10 +107,6 @@ type App struct {
 	serviceAllocationWorkersPerNode int
 	now                             func() time.Time
 	imageResolver                   environmentkernel.ImageResolver
-	functionInvoker                 appfunction.FunctionInvoker
-	functionBundleBaseURL           string
-	functionBundleToken             string
-	functionInvocationWorkers       int
 	rolloutWorkerToken              string
 	resourcePolicy                  resourcekernel.AdmissionPolicy
 
@@ -132,7 +118,6 @@ type App struct {
 	allocationOwners        *pgallocation.OwnerReader
 	runStore                *pgrun.Store
 	rolloutPG               *pgrollout.Store
-	functionPG              *pgfunction.Store
 	namespacePG             *pgnamespace.Store
 	secretDB                *pgsecret.Store
 	servicePG               *pgservice.PGStore
@@ -152,7 +137,6 @@ type App struct {
 	serviceReconciler    servicekernel.Reconciler
 	allocationReconciler servicekernel.AllocationReconciler
 	capabilityReconciler *appcapability.Reconciler
-	functionController   *appfunction.Controller
 
 	adminAPI          *apiadminv1.Server
 	identityAPI       *apiidentityv1.Server
@@ -187,9 +171,6 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 	if cfg.PostgresMaxConnections <= 0 {
 		cfg.PostgresMaxConnections = defaultPostgresMaxConnections
 	}
-	if cfg.FunctionInvocationWorkers <= 0 {
-		cfg.FunctionInvocationWorkers = defaultFunctionInvocationWorkers
-	}
 	if cfg.ServiceAllocationGlobalWorkers <= 0 {
 		cfg.ServiceAllocationGlobalWorkers = defaultServiceAllocationGlobalWorkers
 	}
@@ -223,9 +204,6 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 		serviceAllocationGlobalWorkers:  cfg.ServiceAllocationGlobalWorkers,
 		serviceAllocationWorkersPerNode: cfg.ServiceAllocationWorkersPerNode,
 		resourcePolicy:                  cfg.ResourcePolicy,
-		functionBundleBaseURL:           strings.TrimSpace(cfg.FunctionBundleBaseURL),
-		functionBundleToken:             strings.TrimSpace(cfg.FunctionBundleToken),
-		functionInvocationWorkers:       cfg.FunctionInvocationWorkers,
 		rolloutWorkerToken:              strings.TrimSpace(cfg.RolloutWorkerToken),
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -242,7 +220,6 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 			reconcilekernel.ComponentAllocation,
 			reconcilekernel.ComponentCapability,
 			reconcilekernel.ComponentTunnel,
-			reconcilekernel.ComponentFunction,
 			reconcilekernel.ComponentRollout,
 		),
 	}
@@ -301,7 +278,6 @@ func (a *App) configureDependencies(cfg Config) error {
 	a.nodeStore = pgnodes.NewPGStore(db)
 	a.namespacePG = pgnamespace.NewStore(db)
 	a.runStore = pgrun.NewStore(db, pgrun.WithAdmissionPolicy(a.resourcePolicy), pgrun.WithPlacementEvaluator(a.placement))
-	a.functionPG = pgfunction.NewStore(db, cfg.FunctionInvocationWorkers)
 	masterKey, err := secretkernel.NormalizeMasterKey(cfg.SecretsMasterKey)
 	if err != nil {
 		return err
@@ -339,19 +315,6 @@ func (a *App) configureDependencies(cfg Config) error {
 		SecretValues:        a.secretDB,
 		RegistryCredentials: a.secretDB,
 	})
-	if cfg.FunctionInvoker != nil {
-		a.functionInvoker = cfg.FunctionInvoker
-	} else if strings.TrimSpace(cfg.FunctionGatewayURL) != "" {
-		invoker, err := functiondispatch.NewGateway(functiondispatch.GatewayConfig{
-			URL:     cfg.FunctionGatewayURL,
-			Token:   cfg.FunctionGatewayToken,
-			Timeout: cfg.FunctionGatewayTimeout,
-		})
-		if err != nil {
-			return err
-		}
-		a.functionInvoker = invoker
-	}
 	a.runReconciler = apprun.NewReconciler(a.runStore, a.nodeBridge)
 	a.capabilityReconciler = appcapability.NewReconciler(pgallocation.NewCapabilityQueue(a.db), a.nodeLifecycle)
 	a.rolloutPG.StartNotifications()
@@ -390,9 +353,6 @@ func (a *App) Close() error {
 		}
 		if a.runStore != nil {
 			a.runStore.Close()
-		}
-		if a.functionPG != nil {
-			a.functionPG.Close()
 		}
 		if a.rolloutPG != nil {
 			a.rolloutPG.Close()

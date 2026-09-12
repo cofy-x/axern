@@ -82,7 +82,7 @@ regression without delaying pull-request feedback; see the
 
 ## Why Axern
 
-- **Sandbox as the primitive:** runs, services, functions, coding workspaces, and agent tasks compose the same execution and lifecycle APIs.
+- **Sandbox as the primitive:** runs, services, coding workspaces, and agent tasks compose the same execution and lifecycle APIs.
 - **Durable control plane:** PostgreSQL-backed intent, placement, leases, retries, health, and cleanup state remain authoritative across process or node restarts.
 - **One production runtime:** runsc workloads use the same public APIs; OCI and Nydus image paths converge at the node runtime.
 - **Real data-plane access:** process streams, files, archives, HTTP services, SSH-compatible terminals, and reverse TCP tunnels are explicit capabilities.

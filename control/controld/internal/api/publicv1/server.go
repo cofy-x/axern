@@ -4,7 +4,6 @@ import (
 	agentprofilev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/agentprofile/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	functionv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/function/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	rolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/rollout/v1"
@@ -21,7 +20,6 @@ type Server struct {
 	runv1.UnimplementedRunControlServer
 	secretv1.UnimplementedSecretControlServer
 	servicev1.UnimplementedServiceControlServer
-	functionv1.UnimplementedFunctionControlServer
 	tunnelv1.UnimplementedTunnelControlServer
 	namespacev1.UnimplementedNamespaceControlServer
 	quotav1.UnimplementedQuotaControlServer

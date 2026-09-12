@@ -9,44 +9,17 @@ import (
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
 	ctrlobs "github.com/cofy-x/axern/control/controld/internal/observability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
-	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 const serviceReconcileStageEventQueueWait = "event_queue_wait"
 const allocationReconcilePollInterval = time.Second
-const defaultFunctionInvocationWorkers = 16
-const functionInvocationExpiryBatchSize = 100
-const functionInvocationExpiryBudget = time.Second
-
-type functionInvocationExpirer interface {
-	ExpireAsyncInvocations(context.Context, int) (int, error)
-}
 
 func (a *App) startReconciler() {
 	a.startPeriodicReconciler()
 	a.startServiceReconcileWorkers()
 	a.startAllocationReconciler()
-	a.startFunctionInvocationWorkers()
-}
-
-func (a *App) startFunctionInvocationWorkers() {
-	if a.functionController == nil || a.functionPG == nil || a.functionInvoker == nil {
-		return
-	}
-	owner := "controld-" + uuid.NewString()
-	workers := a.functionInvocationWorkers
-	if workers <= 0 {
-		workers = defaultFunctionInvocationWorkers
-	}
-	for worker := 0; worker < workers; worker++ {
-		a.wg.Add(1)
-		go func() {
-			defer a.wg.Done()
-			a.functionController.RunAsyncDispatcher(a.reconcileCtx, owner)
-		}()
-	}
 }
 
 func (a *App) startPeriodicReconciler() {
@@ -61,7 +34,6 @@ func (a *App) startPeriodicReconciler() {
 	a.startPeriodicComponent(reconcilekernel.ComponentTunnel, a.tunnelPG != nil, func(ctx context.Context, now time.Time) error {
 		return a.tunnelPG.ReconcileExpired(ctx, now)
 	})
-	a.startPeriodicComponent(reconcilekernel.ComponentFunction, a.functionController != nil && a.functionPG != nil, a.reconcileFunctionMaintenance)
 	a.startPeriodicLifecycleComponent(reconcilekernel.ComponentCapability, a.capabilityReconciler != nil, a.capabilityReconciler.Reconcile)
 }
 
@@ -243,9 +215,6 @@ func (a *App) reconcileComponents(serviceRecovery bool) {
 			return a.tunnelPG.ReconcileExpired(ctx, now)
 		})
 	}
-	if a.functionController != nil && a.functionPG != nil {
-		a.reconcileComponent(reconcilekernel.ComponentFunction, a.now(), a.reconcileFunctionMaintenance)
-	}
 }
 
 func (a *App) reconcileRolloutMaintenance(ctx context.Context, now time.Time) error {
@@ -266,39 +235,6 @@ func (a *App) reconcileRolloutMaintenance(ctx context.Context, now time.Time) er
 		result = errors.Join(result, fmt.Errorf("reconcile deletes: %w", err))
 	}
 	return result
-}
-
-func (a *App) reconcileFunctionMaintenance(ctx context.Context, now time.Time) error {
-	if a.functionController == nil || a.functionPG == nil {
-		return nil
-	}
-	if err := expireAsyncInvocationBatches(ctx, a.functionPG); err != nil {
-		return err
-	}
-	_, err := a.functionController.SweepIdleScaleDown(ctx, now)
-	return err
-}
-
-func expireAsyncInvocationBatches(ctx context.Context, store functionInvocationExpirer) error {
-	budgetCtx, cancel := context.WithTimeout(ctx, functionInvocationExpiryBudget)
-	defer cancel()
-	for {
-		expired, err := store.ExpireAsyncInvocations(budgetCtx, functionInvocationExpiryBatchSize)
-		if err != nil {
-			if budgetCtx.Err() != nil {
-				return nil
-			}
-			return err
-		}
-		if expired < functionInvocationExpiryBatchSize {
-			return nil
-		}
-		select {
-		case <-budgetCtx.Done():
-			return nil
-		default:
-		}
-	}
 }
 
 func (a *App) reconcileAutoscaledServices(now time.Time) {

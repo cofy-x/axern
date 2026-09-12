@@ -360,10 +360,6 @@ start_controld() {
     -tls-cert '${DEV_DIR}/certs/controld.crt' \
     -tls-key '${DEV_DIR}/certs/controld.key' \
     -secrets-master-key '${AXERN_SECRETS_MASTER_KEY}' \
-    -function-gateway-url http://127.0.0.1:25080 \
-    -function-gateway-token '${AXERN_DEV_TOKEN}' \
-    -function-bundle-base-url http://127.0.0.1:24001 \
-    -function-bundle-token '${AXERN_DEV_TOKEN}' \
     -tunnel-relays 'default,127.0.0.1:25000,127.0.0.1:24100,1,false' \
     -postgres-dsn '${POSTGRES_DSN}'"
   wait_tcp 127.0.0.1 24000 controld

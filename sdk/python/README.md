@@ -115,28 +115,6 @@ with Sandbox(
     sandbox.download_file("/tmp/result.txt", "result.txt")
 ```
 
-## Function Manifests
-
-`Function.from_file()` loads and validates an `axern/v1` Function resource.
-`Function.package()` creates a deterministic tar bundle, and `Function.deploy()`
-packages the source, uploads it with `FunctionControl.UploadFunctionBundle`,
-and then calls `FunctionControl.DeployFunction`. The `python311` runtime image
-includes the SDK Function worker module used by controld-managed warm workers.
-`Function.invoke()` calls the dedicated Function invocation API and returns a
-decoded invocation result.
-
-```python
-from axern_sdk import AxernClient, Function
-
-client = AxernClient.from_context("~/.config/axern/config.json")
-function = Function.from_file(client, "examples/function-hello/function.yaml")
-deployment = function.deploy(labels={"team": "runtime"})
-
-print(function.name)
-print(function.spec.handler)
-print(deployment.function.id)
-```
-
 ## Exec
 
 Use `exec()` for command-result workflows. Set `text=True` to decode stdout and
@@ -363,7 +341,6 @@ async with AsyncAxernClient("127.0.0.1:25000") as client:
 
 Runnable examples live in [`examples`](examples):
 
-- [`examples/function_manifest.py`](examples/function_manifest.py)
 - [`examples/sandbox_programming.py`](examples/sandbox_programming.py)
 - [`examples/async_sandbox_programming.py`](examples/async_sandbox_programming.py)
 - [`examples/computer_use.py`](examples/computer_use.py)

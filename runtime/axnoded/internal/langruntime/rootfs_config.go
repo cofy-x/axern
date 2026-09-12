@@ -11,7 +11,7 @@ import (
 func RootfsConfigFromRuntimeTemplate(fr *api.RuntimeTemplate) (RootfsConfig, error) {
 	var cfg RootfsConfig
 	if fr == nil || fr.Rootfs == nil {
-		return cfg, fmt.Errorf("function runtime rootfs is nil")
+		return cfg, fmt.Errorf("runtime rootfs is nil")
 	}
 
 	switch fr.Rootfs.Type {

@@ -45,10 +45,6 @@ documents.
   principles, investment areas, and non-goals.
 - [SDK User Model](product/sdk-user-model.md): intended SDK concepts and common
   lifecycle contract.
-- [Function User Model](product/function-user-model.md): Function resource and
-  command model.
-- [FunctionControl API](product/function-control-proto-design.md): control API
-  ownership and RPC surface.
 - [Axrun Architecture](../apps/axrun/docs/architecture.md): product-owned agent
   execution and trajectory model.
 

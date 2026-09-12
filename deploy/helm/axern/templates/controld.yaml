@@ -100,28 +100,12 @@ spec:
             - /certs/controld.crt
             - -tls-key
             - /certs/controld.key
-            - -function-gateway-url
-            - http://gatewayd.{{ .Release.Namespace }}.svc.cluster.local:25080
-            - -function-gateway-timeout
-            - {{ .Values.controld.function.gatewayTimeout | quote }}
-            - -function-bundle-base-url
-            - http://controld.{{ .Release.Namespace }}.svc.cluster.local:24001
           env:
             - name: CONTROLD_POSTGRES_DSN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "axern.postgresSecretName" . }}
                   key: {{ .Values.postgres.dsnKey }}
-            - name: CONTROLD_FUNCTION_GATEWAY_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "axern.secretsSecretName" . }}
-                  key: GATEWAYD_DEV_TOKEN
-            - name: CONTROLD_FUNCTION_BUNDLE_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "axern.secretsSecretName" . }}
-                  key: GATEWAYD_DEV_TOKEN
             - name: AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE
               value: {{ .Values.runtimeCatalog.python311Image | quote }}
             - name: AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE

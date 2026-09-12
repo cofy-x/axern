@@ -311,34 +311,6 @@ var (
 		Name:        "axern.controld_placement_rejection_total",
 		Description: "Placement candidate rejection reasons.",
 	}
-	MetricFunctionOperationTotal = sdkobs.Instrument{
-		Name:        "axern.controld_function_operation_total",
-		Description: "Control-plane function operation requests.",
-	}
-	MetricFunctionOperationDuration = sdkobs.Instrument{
-		Name:        "axern.controld_function_operation_duration_seconds",
-		Description: "Control-plane function operation latency.",
-	}
-	MetricFunctionInvocationTotal = sdkobs.Instrument{
-		Name:        "axern.controld_function_invocation_total",
-		Description: "Function invocation attempts by mode and terminal status.",
-	}
-	MetricFunctionInvocationDuration = sdkobs.Instrument{
-		Name:        "axern.controld_function_invocation_duration_seconds",
-		Description: "Function invocation dispatch latency.",
-	}
-	MetricFunctionInvocationQueueCurrent = sdkobs.Instrument{
-		Name:        "axern.controld_function_invocation_queue_current",
-		Description: "Current asynchronous function invocations by bounded scheduling state.",
-	}
-	MetricFunctionInvocationOldestDueAge = sdkobs.Instrument{
-		Name:        "axern.controld_function_invocation_oldest_due_age_seconds",
-		Description: "Age of the oldest due asynchronous function invocation by bounded scheduling state.",
-	}
-	MetricFunctionInvocationNotificationCurrent = sdkobs.Instrument{
-		Name:        "axern.controld_function_invocation_notification_current",
-		Description: "Current asynchronous Function invocation PostgreSQL listener readiness.",
-	}
 	MetricRetentionDeletedTotal = sdkobs.Instrument{
 		Name:        "axern.controld_retention_deleted_total",
 		Description: "Rows deleted by controld retention cleanup.",

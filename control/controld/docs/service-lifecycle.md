@@ -2,8 +2,7 @@
 
 Services are the long-running, replica-oriented workload model in `controld`.
 They can be gateway-routed, health checked, rolled forward, and autoscaled.
-`Run` does not consume service rollout or autoscaling policy. A Function owns a
-Service worker, so its execution capacity follows the same rollout contract.
+`Run` does not consume service rollout or autoscaling policy.
 
 ## Probes
 

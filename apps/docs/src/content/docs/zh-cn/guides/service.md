@@ -3,7 +3,7 @@ title: Service
 description: 运行长驻 HTTP 工作负载，支持副本、就绪探针、滚动更新和 Gateway 路由。
 ---
 
-Service 是 Axern 的长驻工作负载：维持目标副本数健康、把配置变更滚动到各副本，并通过公开的 `/svc` Gateway 路由暴露容器端口。一次性命令请用 [Run](/zh-cn/guides/run/)；事件处理请用 [Function](/zh-cn/guides/functions/)。
+Service 是 Axern 的长驻工作负载：维持目标副本数健康、把配置变更滚动到各副本，并通过公开的 `/svc` Gateway 路由暴露容器端口。一次性命令请用 [Run](/zh-cn/guides/run/)。
 
 ## 创建 Service
 

@@ -81,8 +81,7 @@ const (
 )
 
 const (
-	SandboxEnvKey          = "RUNTIME_ENV_ID"
-	SandboxFunctionNameKey = "RUNTIME_FUNCTION_NAME"
+	SandboxEnvKey = "RUNTIME_ENV_ID"
 
 	SandboxContainerOverlayfsLowerDirLabel  = "io.sandbox.container.overlayfs.lowerDir"
 	SandboxContainerOverlayfsTargetDirLabel = "io.sandbox.container.overlayfs.targetDir"
@@ -92,89 +91,6 @@ const (
 )
 
 const (
-	NetAcRule = `{
-		"Version": "",
-		"AppName": "",
-		"StartTime": "0001-01-01T00:00:00Z",
-		"RuleSetName": "",
-		"DnsRuleSet": null,
-		"IngressRuleSet": null,
-		"EgressRuleSet": [
-		  {
-			"RuleName": "function gateway whitelist",
-			"ip_version": 4,
-			"dst_ports": [
-			  {
-				"protocol": "tcp",
-				"first": 8081,
-				"last": 8081
-			  }
-			],
-			"dst_net": [
-			  "11.166.47.237/32"
-			],
-			"dst_domain": "",
-			"Log": true,
-			"Action": "pass",
-			"Priority": 3,
-			"FuseEnable": false,
-			"FuseConfig": {
-			  "TimeDuration": 0,
-			  "Threshold": 0,
-			  "Version": ""
-			}
-		  },
-		  {
-			"RuleName": "function instance blacklist",
-			"ip_version": 4,
-			"dst_ports": [
-			  {
-				"protocol": "all",
-				"first": -1,
-				"last": -1
-			  }
-			],
-			"dst_net": [
-			  "172.17.0.1/16"
-			],
-			"dst_domain": "",
-			"Log": true,
-			"Action": "drop",
-			"Priority": 2,
-			"FuseEnable": false,
-			"FuseConfig": {
-			  "TimeDuration": 0,
-			  "Threshold": 0,
-			  "Version": ""
-			}
-		  },
-		  {
-			"RuleName": "function vpc blacklist",
-			"ip_version": 4,
-			"dst_ports": [
-			  {
-				"protocol": "all",
-				"first": -1,
-				"last": -1
-			  }
-			],
-			"dst_net": [
-			  "6.0.0.0/8"
-			],
-			"dst_domain": "",
-			"Log": true,
-			"Action": "drop",
-			"Priority": 1,
-			"FuseEnable": false,
-			"FuseConfig": {
-			  "TimeDuration": 0,
-			  "Threshold": 0,
-			  "Version": ""
-			}
-		  }
-		]
-	  }`
-
 	NetAcBlockAll = `{
 		"Version": "",
 		"AppName": "",
@@ -184,7 +100,7 @@ const (
 		"IngressRuleSet": null,
 		"EgressRuleSet": [
 		  {
-			"RuleName": "function proxy whitelist",
+			"RuleName": "sandbox proxy whitelist",
 			"ip_version": 4,
 			"dst_ports": [
 			  {

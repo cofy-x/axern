@@ -73,7 +73,7 @@ func parseFlags() verifyEgressConfig {
 	flag.StringVar(&cfg.address, "address", config.DefaultSocketAddress, "axnoded unix socket path")
 	flag.StringVar(&cfg.rootfs, "rootfs", "/opt/sample-rootfs", "LOCAL sample rootfs path")
 	flag.StringVar(&cfg.runtimeName, "runtime", config.RuntimeNameRunsc, "sandbox runtime name under test")
-	flag.StringVar(&cfg.runtimeID, "runtime-id", "verify-egress-runtime", "function runtime id")
+	flag.StringVar(&cfg.runtimeID, "runtime-id", "verify-egress-runtime", "runtime id")
 	flag.StringVar(&cfg.stdoutPath, "stdout", "/tmp/axnoded-egress.stdout", "container stdout path")
 	flag.StringVar(&cfg.stderrPath, "stderr", "/tmp/axnoded-egress.stderr", "container stderr path")
 	flag.StringVar(&cfg.natBackend, "nat-backend", config.NatBackendIptables, "nat backend under test")

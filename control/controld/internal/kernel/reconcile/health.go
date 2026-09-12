@@ -15,7 +15,6 @@ const (
 	ComponentAllocation = "allocation"
 	ComponentCapability = "capability"
 	ComponentTunnel     = "tunnel"
-	ComponentFunction   = "function"
 	ComponentRollout    = "rollout"
 )
 

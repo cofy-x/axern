@@ -15,7 +15,7 @@ axern catalog bundle get <bundle-id>
 ```
 
 Templates such as `python311` or `coding-base` give workloads a reproducible,
-platform-curated rootfs. Every Run, Service, Function, and SDK sandbox selects
+platform-curated rootfs. Every Run, Service, and SDK sandbox selects
 exactly one source: a catalog template, a generic OCI image, or an existing
 environment. Prefer generic OCI images for simple experiments; introduce
 templates where their catalog and reuse semantics matter.

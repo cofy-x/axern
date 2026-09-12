@@ -6,8 +6,8 @@ belong to subsystem tools such as `axctl`.
 
 ## Product Boundary
 
-- `axern` manages contexts, namespaces, environments, runs, services,
-  functions, quotas, secrets, tunnels, SSH sessions, interactive agents, and
+- `axern` manages contexts, namespaces, environments, runs, services, quotas,
+  secrets, tunnels, SSH sessions, interactive agents, and
   audited admin workflows.
 - SDKs are the explicit programmatic interface.
 - `axrun` owns reproducible agent rollout planning, execution, validation, and
@@ -78,8 +78,6 @@ axern run logs --follow <run-id>
 axern service create --file service.yaml --wait
 axern service get <service-id>
 axern service delete <service-id> --wait
-axern function deploy --file function.yaml --wait
-axern function invocation list --namespace default <function-name>
 axern quota get --namespace default
 
 axern ssh <allocation-id|service-id>
@@ -168,7 +166,7 @@ options require `--probe`.
 
 ## Resource Spec
 
-Run, Service, and Function creation accepts a strict YAML or JSON envelope:
+Run and Service creation accepts a strict YAML or JSON envelope:
 
 ```yaml
 api_version: axern/v1
@@ -187,8 +185,7 @@ spec:
 
 `spec.source` selects exactly one environment, template, or image. Unknown
 fields, conflicting sources, invalid quantities, invalid probes, and a kind
-that does not match the command are rejected. Function source directories are
-resolved relative to the spec file and cannot escape through `..` or symlinks.
+that does not match the command are rejected.
 
 When `--file` is used, resource-definition flags cannot be mixed with the
 spec. Context, output, detach, and timeout flags remain operational overrides.

@@ -45,7 +45,7 @@ registry credential secret via `image.registry_credential_id`. The referenced
 secret must be type `DOCKER_CONFIG_JSON`.
 
 `resolved_template` remains the normalized runtime snapshot for both modes, so
-run, service, Function worker, and node lifecycle paths consume a single
+run, service, and node lifecycle paths consume a single
 environment model. Services can update `environment_id`; image or template
 changes then roll through the service replacement policy.
 

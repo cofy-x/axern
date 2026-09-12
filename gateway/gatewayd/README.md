@@ -80,18 +80,11 @@ go run ./gateway/gatewayd \
 
 - `GET /healthz`
 - `/svc/{namespace}/{service_id}/{port}/...` proxies HTTP traffic to a READY service replica
-- `POST /function/invoke` is the internal Function worker dispatch path used by
-  `controld`; it resolves the worker service route, rewrites to `/invoke`, and
-  forwards through the same node lease proxy as `/svc`
 - `/terminal/allocation/{allocation_id}` opens a WebSocket terminal and requires the dev token
 - `/dashboard` serves the optional lightweight terminal dashboard when enabled and requires the dev token
 
 V1 uses path routing only. `{service_id}` is the existing Axern service id, and
 `{port}` is either `PortSpec.name` or a container port number.
-`/function/invoke` expects `X-Axern-Namespace`,
-`X-Axern-Worker-Service-Id`, and optional `X-Axern-Worker-Port` headers; when a
-dev token is configured it requires `Authorization: Bearer <token>`.
-
 ## SSH Terminal
 
 When SSH is enabled, `ssh <allocation_id>@<gateway-host> -p <ssh-port>` opens

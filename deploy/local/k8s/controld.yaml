@@ -37,14 +37,6 @@ spec:
             - /certs/controld.crt
             - -tls-key
             - /certs/controld.key
-            - -function-gateway-url
-            - http://gatewayd.axern-local.svc.cluster.local:25080
-            - -function-gateway-token
-            - axern-local-dev
-            - -function-bundle-base-url
-            - http://controld.axern-local.svc.cluster.local:24001
-            - -function-bundle-token
-            - axern-local-dev
           env:
             - name: AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE
               value: axern/python311-runtime:dev

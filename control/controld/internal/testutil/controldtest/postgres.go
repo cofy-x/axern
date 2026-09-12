@@ -20,13 +20,6 @@ func ResetPostgresControlTables(t *testing.T, dsn string) {
 	if _, err := db.Pool().Exec(context.Background(), `
 		TRUNCATE TABLE
 			admin_audit_events,
-			function_events,
-			function_invocations,
-			function_deployments,
-			function_revisions,
-			function_idempotency_records,
-			function_bundles,
-			functions,
 			namespace_quota_events,
 			tunnel_session_events,
 			tunnel_sessions,

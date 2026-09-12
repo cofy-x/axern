@@ -1,9 +1,6 @@
 package oci
 
-import (
-	"github.com/cofy-x/axern/runtime/axnoded/config"
-	spec "github.com/opencontainers/runtime-spec/specs-go"
-)
+import spec "github.com/opencontainers/runtime-spec/specs-go"
 
 const (
 	ignoreResourceFieldAnnoKey = "io.axnoded/ignore-resource-field"
@@ -82,9 +79,6 @@ func defaultBundleSpec() *spec.Spec {
 				Source:      "sysfs",
 				Options:     []string{"nosuid", "noexec", "nodev", "ro"},
 			},
-		},
-		Annotations: map[string]string{
-			"netac-rules": config.NetAcRule,
 		},
 		Linux: &spec.Linux{
 			Namespaces: []spec.LinuxNamespace{

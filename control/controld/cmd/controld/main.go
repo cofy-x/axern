@@ -28,7 +28,6 @@ import (
 	agentprofilev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/agentprofile/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	functionv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/function/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
@@ -56,7 +55,6 @@ const (
 	defaultTLSCert                  = ".dev/certs/controld.crt"
 	defaultTLSKey                   = ".dev/certs/controld.key"
 	defaultTunnelRelays             = "default,127.0.0.1:25000,127.0.0.1:24100,1,false"
-	defaultFunctionGatewayTimeout   = 30 * time.Second
 )
 
 type options struct {
@@ -77,12 +75,6 @@ type options struct {
 	tlsCert                                                string
 	tlsKey                                                 string
 	tunnelRelays                                           string
-	functionGatewayURL                                     string
-	functionGatewayToken                                   string
-	functionGatewayTimeout                                 time.Duration
-	functionInvocationWorkers                              int
-	functionBundleBaseURL                                  string
-	functionBundleToken                                    string
 	rolloutWorkerToken                                     string
 	artifactS3Endpoint, artifactS3Region, artifactS3Bucket string
 	artifactS3AccessKey, artifactS3SecretKey               string
@@ -127,22 +119,16 @@ func run() error {
 	defer stop()
 
 	svc, err := app.New(app.Config{
-		LifecycleContext:          ctx,
-		HeartbeatFreshnessWindow:  opts.heartbeatFreshnessWindow,
-		SummaryFreshnessWindow:    opts.summaryFreshnessWindow,
-		PostgresDSN:               opts.postgresDSN,
-		PostgresMaxConnections:    int32(opts.postgresMaxConnections),
-		SecretsMasterKey:          opts.secretsMasterKey,
-		ReconcileTimeout:          opts.reconcileTimeout,
-		TunnelRelays:              opts.tunnelRelays,
-		FunctionGatewayURL:        opts.functionGatewayURL,
-		FunctionGatewayToken:      opts.functionGatewayToken,
-		FunctionGatewayTimeout:    opts.functionGatewayTimeout,
-		FunctionInvocationWorkers: opts.functionInvocationWorkers,
-		FunctionBundleBaseURL:     opts.functionBundleBaseURL,
-		FunctionBundleToken:       opts.functionBundleToken,
-		RolloutWorkerToken:        opts.rolloutWorkerToken,
-		ArtifactS3Endpoint:        opts.artifactS3Endpoint, ArtifactS3Region: opts.artifactS3Region, ArtifactS3Bucket: opts.artifactS3Bucket, ArtifactS3AccessKey: opts.artifactS3AccessKey, ArtifactS3SecretKey: opts.artifactS3SecretKey, ArtifactS3UsePathStyle: opts.artifactS3UsePathStyle,
+		LifecycleContext:         ctx,
+		HeartbeatFreshnessWindow: opts.heartbeatFreshnessWindow,
+		SummaryFreshnessWindow:   opts.summaryFreshnessWindow,
+		PostgresDSN:              opts.postgresDSN,
+		PostgresMaxConnections:   int32(opts.postgresMaxConnections),
+		SecretsMasterKey:         opts.secretsMasterKey,
+		ReconcileTimeout:         opts.reconcileTimeout,
+		TunnelRelays:             opts.tunnelRelays,
+		RolloutWorkerToken:       opts.rolloutWorkerToken,
+		ArtifactS3Endpoint:       opts.artifactS3Endpoint, ArtifactS3Region: opts.artifactS3Region, ArtifactS3Bucket: opts.artifactS3Bucket, ArtifactS3AccessKey: opts.artifactS3AccessKey, ArtifactS3SecretKey: opts.artifactS3SecretKey, ArtifactS3UsePathStyle: opts.artifactS3UsePathStyle,
 		ArtifactTicketSigningKey: opts.artifactTicketSigningKey,
 		ResourcePolicy: resourcekernel.AdmissionPolicy{
 			CPUOvercommitRatio: opts.resourceCPUOvercommitRatio,
@@ -188,7 +174,6 @@ func run() error {
 	runv1.RegisterRunControlServer(grpcServer, svc.PublicV1Handler())
 	secretv1.RegisterSecretControlServer(grpcServer, svc.PublicV1Handler())
 	servicev1.RegisterServiceControlServer(grpcServer, svc.PublicV1Handler())
-	functionv1.RegisterFunctionControlServer(grpcServer, svc.PublicV1Handler())
 	tunnelcontrolv1.RegisterTunnelControlServer(grpcServer, svc.PublicV1Handler())
 	namespacev1.RegisterNamespaceControlServer(grpcServer, svc.PublicV1Handler())
 	quotav1.RegisterQuotaControlServer(grpcServer, svc.PublicV1Handler())
@@ -266,10 +251,6 @@ func run() error {
 
 func parseFlags() (options, error) {
 	opts := options{}
-	functionGatewayTimeout, err := durationFromEnv("CONTROLD_FUNCTION_GATEWAY_TIMEOUT", defaultFunctionGatewayTimeout)
-	if err != nil {
-		return options{}, err
-	}
 	flagSet := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	flagSet.StringVar(&opts.grpcAddress, "grpc-address", defaultGRPCAddress, "controld gRPC listen address")
 	flagSet.StringVar(&opts.httpAddress, "http-address", defaultHTTPAddress, "controld HTTP listen address for diagnostics and internal runtime artifacts")
@@ -288,12 +269,6 @@ func parseFlags() (options, error) {
 	flagSet.StringVar(&opts.tlsCert, "tls-cert", defaultString(os.Getenv("CONTROLD_TLS_CERT"), defaultTLSCert), "controld server certificate")
 	flagSet.StringVar(&opts.tlsKey, "tls-key", defaultString(os.Getenv("CONTROLD_TLS_KEY"), defaultTLSKey), "controld server private key")
 	flagSet.StringVar(&opts.tunnelRelays, "tunnel-relays", defaultString(os.Getenv("CONTROLD_TUNNEL_RELAYS"), defaultTunnelRelays), "semicolon-separated tunnel relay registry entries: id,client_target,node_target,weight,drain")
-	flagSet.StringVar(&opts.functionGatewayURL, "function-gateway-url", os.Getenv("CONTROLD_FUNCTION_GATEWAY_URL"), "gatewayd base HTTP URL used for Function worker dispatch")
-	flagSet.StringVar(&opts.functionGatewayToken, "function-gateway-token", os.Getenv("CONTROLD_FUNCTION_GATEWAY_TOKEN"), "bearer token sent to gatewayd Function dispatch when configured")
-	flagSet.DurationVar(&opts.functionGatewayTimeout, "function-gateway-timeout", functionGatewayTimeout, "timeout for Function worker dispatch through gatewayd")
-	flagSet.IntVar(&opts.functionInvocationWorkers, "function-invocation-workers", 0, "global asynchronous Function invocation workers; 0 uses the application default")
-	flagSet.StringVar(&opts.functionBundleBaseURL, "function-bundle-base-url", os.Getenv("CONTROLD_FUNCTION_BUNDLE_BASE_URL"), "base HTTP URL advertised to Function workers for uploaded bundle downloads")
-	flagSet.StringVar(&opts.functionBundleToken, "function-bundle-token", os.Getenv("CONTROLD_FUNCTION_BUNDLE_TOKEN"), "bearer token required for Function bundle downloads when configured")
 	flagSet.StringVar(&opts.rolloutWorkerToken, "rollout-worker-token", os.Getenv("CONTROLD_ROLLOUT_WORKER_TOKEN"), "bootstrap credential for durable rollout workers; empty disables the worker API")
 	flagSet.StringVar(&opts.artifactS3Endpoint, "artifact-s3-endpoint", os.Getenv("CONTROLD_ARTIFACT_S3_ENDPOINT"), "S3-compatible endpoint for rollout artifacts")
 	flagSet.StringVar(&opts.artifactS3Region, "artifact-s3-region", os.Getenv("CONTROLD_ARTIFACT_S3_REGION"), "S3 region for rollout artifacts")

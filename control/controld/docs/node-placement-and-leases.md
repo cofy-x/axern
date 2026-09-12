@@ -1,7 +1,7 @@
 # Node Placement and Leases
 
-`controld` performs placement for runs, services, Function-owned worker
-services, and allocation reconciliation. Placement stays separate from
+`controld` performs placement for runs, services, and allocation
+reconciliation. Placement stays separate from
 node-internal execution details; realtime exec still goes directly to the
 selected node.
 
@@ -283,6 +283,6 @@ the client resumes from `current_revision`. This ordering prevents a concurrent
 commit from being omitted while its revision is already acknowledged.
 
 The control plane is the authoritative registry for environments, runs,
-services, functions, allocations, reservations, and execution leases. Durable
+services, allocations, reservations, and execution leases. Durable
 control-plane state is stored in Postgres; in-memory registries are
 reconstructed caches, not the source of truth.

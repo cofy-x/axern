@@ -19,8 +19,8 @@ product decisions prioritize long-running and task-oriented agent execution.
 
 - **Control-plane first:** durable intent, identity, placement, policy, and
   lifecycle state belong in product APIs rather than client-side orchestration.
-- **Sandbox as the primitive:** agent harnesses, coding workspaces, Functions,
-  and services compose the same environment, execution, storage, network, and
+- **Sandbox as the primitive:** agent harnesses, coding workspaces, and services
+  compose the same environment, execution, storage, network, and
   observability capabilities instead of introducing special runtime shortcuts.
 - **Secure remote access:** files, processes, terminals, HTTP services, and
   tunnels use explicit, revocable, task-scoped authorization.
@@ -44,8 +44,8 @@ product decisions prioritize long-running and task-oriented agent execution.
   reusable volume primitive.
 - Agent-oriented task execution, verification, trajectory capture, and artifact
   retention through Axrun and related product layers.
-- Services and Functions with readiness, rollout, warm capacity,
-  scale-to-zero, invocation history, and explicit handler contracts.
+- Services with readiness, rollout, explicit capacity, and observable lifecycle
+  events.
 - Task-scoped secrets, ephemeral filesystems, durable artifacts, controlled egress,
   service ingress, and reverse tunnels.
 - Runtime templates for coding, browser, research, CI, and data workloads

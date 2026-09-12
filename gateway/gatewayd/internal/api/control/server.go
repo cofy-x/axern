@@ -45,7 +45,6 @@ var publicControlServices = map[string]struct{}{
 	"axern.control.agentprofile.v1.AgentProfileControl": {},
 	"axern.control.catalog.v1.RuntimeCatalog":           {},
 	"axern.control.environment.v1.EnvironmentControl":   {},
-	"axern.control.function.v1.FunctionControl":         {},
 	"axern.control.namespace.v1.NamespaceControl":       {},
 	"axern.control.identity.v1.IdentityControl":         {},
 	"axern.control.quota.v1.QuotaControl":               {},

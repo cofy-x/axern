@@ -70,7 +70,7 @@ func parseFlags() verifyUDPConfig {
 	flag.StringVar(&cfg.address, "address", config.DefaultSocketAddress, "axnoded unix socket path")
 	flag.StringVar(&cfg.rootfs, "rootfs", "/opt/sample-rootfs", "LOCAL sample rootfs path")
 	flag.StringVar(&cfg.runtimeName, "runtime", config.RuntimeNameRunsc, "sandbox runtime name under test")
-	flag.StringVar(&cfg.runtimeID, "runtime-id", "verify-udp-runtime", "function runtime id")
+	flag.StringVar(&cfg.runtimeID, "runtime-id", "verify-udp-runtime", "runtime id")
 	flag.StringVar(&cfg.stdoutPath, "stdout", "/tmp/axnoded-udp.stdout", "container stdout path")
 	flag.StringVar(&cfg.stderrPath, "stderr", "/tmp/axnoded-udp.stderr", "container stderr path")
 	flag.IntVar(&cfg.listenPort, "listen-port", 15353, "host UDP port exposed via DNAT")

@@ -2,7 +2,7 @@
 
 Axern V1 separates the durable control plane from node-local execution:
 
-- `controld` owns catalog, environments, runs, services, functions, allocations,
+- `controld` owns catalog, environments, runs, services, allocations,
   reservations, and execution leases.
 - `axnoded` owns node-local process/container execution and reports allocation
   status back to `controld`. Probe and lifecycle workers enqueue observations
@@ -47,10 +47,8 @@ Axern V1 separates the durable control plane from node-local execution:
   `controld` gates service `READY` and rollout drain decisions on that
   readiness signal.
 - Service rollout and autoscaling are Service capabilities for long-running,
-  replica-oriented workloads. `Run` stays a single-allocation lifecycle API;
-  Function owns revisions, worker scaling, and invocation history.
-- Public control-plane API names are `Environment`, `Run`, `Service`, and
-  `Function`.
+  replica-oriented workloads. `Run` stays a single-allocation lifecycle API.
+- Public workload API names are `Environment`, `Run`, and `Service`.
 - Catalog templates and environments are runtime-neutral. Workloads select
   `runsc` through `ExecutionConfig.runtime_class`; omitted values
   default to `runsc` in `controld` before placement and node lifecycle dispatch.

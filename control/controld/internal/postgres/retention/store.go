@@ -63,16 +63,7 @@ func (s *PGStore) Cleanup(ctx context.Context, cfg retention.Config, now time.Ti
 		if err != nil {
 			return err
 		}
-		result.FunctionEventsDeleted, err = s.deleteFunctionEvents(ctx, tx, now.Add(-cfg.FunctionEventsTTL), cfg.FunctionEventsKeep, cfg.BatchSize)
-		if err != nil {
-			return err
-		}
-		result.FunctionInvocationsDeleted, err = s.deleteFunctionInvocations(ctx, tx, now.Add(-cfg.FunctionInvocationsTTL), cfg.FunctionInvocationsKeep, cfg.BatchSize)
-		if err != nil {
-			return err
-		}
-		result.FunctionIdempotencyDeleted, err = s.deleteFunctionIdempotencyRecords(ctx, tx, now.Add(-cfg.FunctionIdempotencyTTL), cfg.BatchSize)
-		return err
+		return nil
 	})
 	return result, err
 }

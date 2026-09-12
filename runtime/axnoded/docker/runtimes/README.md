@@ -58,14 +58,6 @@ supplies the coding workspace and shell, while a bundle supplies exactly one
 agent tool. Provider tokens and endpoints are injected at runtime and are never
 baked into either image.
 
-## Python Function Worker
-
-`python311` includes the Axern Python SDK and exposes
-`python3 -m axern_sdk.function.worker`. Controld-created Function worker
-Services use that module as their entrypoint, download the uploaded bundle from
-the configured controld bundle endpoint, load the manifest handler, and serve
-`/healthz` plus `/invoke` over HTTP for gatewayd dispatch.
-
 ## Desktop Base Contract
 
 `desktop-base` is Axern's verified desktop-capable profile for sandboxd

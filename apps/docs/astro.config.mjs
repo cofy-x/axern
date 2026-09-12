@@ -33,7 +33,6 @@ const sidebar = [
         items: [
           { label: 'Runs', translations: { 'zh-CN': 'Run' }, link: '/guides/run/' },
           { label: 'Services', translations: { 'zh-CN': 'Service' }, link: '/guides/service/' },
-          { label: 'Functions', translations: { 'zh-CN': 'Function' }, link: '/guides/functions/' },
           { label: 'Coding Agents', translations: { 'zh-CN': '编码 Agent' }, link: '/guides/agent/' },
         ],
       },

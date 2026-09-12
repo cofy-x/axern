@@ -5,7 +5,6 @@ import (
 	"time"
 
 	agentprofilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/agentprofile"
-	functionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/function"
 	rolloutkernel "github.com/cofy-x/axern/control/controld/internal/kernel/rollout"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 	secretkernel "github.com/cofy-x/axern/control/controld/internal/kernel/secret"
@@ -75,7 +74,6 @@ type Dependencies struct {
 	Runs           Runs
 	Services       Services
 	ServiceWatcher servicekernel.Watcher
-	Functions      functionkernel.Control
 	Tunnels        tunnelkernel.Control
 	Namespaces     Namespaces
 	Quotas         Quotas

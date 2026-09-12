@@ -209,9 +209,6 @@ update are desired-state writes; allocation admission happens in reconciliation.
 Quota or node reservation exhaustion degrades the service with diagnostic code
 `ADMISSION_BLOCKED`, and later capacity can let the service recover to `READY`.
 
-Function workers consume quota through their owned Service allocations.
-Function invocation history does not introduce a separate reservation ledger.
-
 ## Observability
 
 Metrics should expose quota usage separately from node capacity:
@@ -284,9 +281,7 @@ gone:
 - secrets
 
 Historical rows do not block namespace deletion. Completed, failed, and
-cancelled runs keep their namespace string for auditability. Function
-invocation history does not block deletion; any live Function worker is already
-represented by its Service and allocation state.
+cancelled runs keep their namespace string for auditability.
 
 The dashboard may surface known blockers from public quota and service data,
 but namespace delete remains authoritative because some blockers, such as
@@ -309,6 +304,6 @@ The implementation contract is:
 7. Namespace quota admission rejections are recorded in
    `namespace_quota_events` and queried through the quota API.
 
-Future quota dimensions such as service count, run count, or Function
-concurrency should extend this same namespace policy and reservation model
+Future quota dimensions such as service count or run count should extend this
+same namespace policy and reservation model
 rather than introducing parallel quota ledgers.

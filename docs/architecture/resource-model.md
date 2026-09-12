@@ -164,9 +164,8 @@ Quota and node admission are separate gates:
 
 Namespace deletion is lifecycle cleanup, not quota reset. It rejects live
 operational state such as active reservations, non-terminal runs, live
-environments, live services, or secrets. Historical terminal workload and
-Function invocation metadata can keep their namespace string for auditability
-without blocking deletion.
+environments, live services, or secrets. Historical terminal workload metadata
+can keep its namespace string for auditability without blocking deletion.
 
 ## Diagnostics
 

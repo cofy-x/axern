@@ -6,8 +6,8 @@ examples.
 ## Principles
 
 - Keep the first runnable example short.
-- Expose Axern concepts through product nouns: `Sandbox`, `Run`, and
-  `Function`.
+- Expose Axern concepts through product nouns such as `Sandbox`, `Run`, and
+  `Service`.
 - Preserve the platform ownership model. SDK helpers should compile to public
   control-plane APIs instead of bypassing control-plane admission or node-local
   execution ownership.
@@ -72,59 +72,3 @@ retryability, and allocation identity when one exists. Validation, not found,
 permission, timeout, cancellation, and unavailable failures remain distinct.
 SDKs do not retry mutating RPCs. Idempotent reads and service-watch reconnects
 may retry only within the caller's total deadline.
-
-## Function
-
-Function is the user-facing model for repeated event handling with a handler
-contract, timeout, warm pool, autoscaling, and optional initializer.
-
-The full product contract lives in
-[Function User Model](./function-user-model.md). The short shape is:
-
-```text
-hello/
-|-- function.yaml
-|-- payload.json
-`-- src/
-    `-- handler.py
-```
-
-Resource spec:
-
-```yaml
-api_version: axern/v1
-kind: Function
-metadata:
-  name: hello
-  namespace: default
-spec:
-  source:
-    template: python311
-  function:
-    runtime: python3.11
-    handler: handler.hello
-    initializer: handler.init
-    source: src
-    timeout_seconds: 600
-    scaling:
-      min_replicas: 0
-      max_replicas: 10
-      concurrency: 2
-```
-
-Python:
-
-```python
-from axern_sdk import AxernClient, Function
-
-client = AxernClient.from_env()
-fn = Function.from_dir(client, "./hello")
-
-fn.deploy()
-print(fn.invoke({"key": "axern"}))
-```
-
-Function deploy and invocation use the dedicated Function API. The worker
-environment, revision, scaling state, invocation result, and invocation history
-remain Function-owned semantics; they are not modeled as ordinary Run or
-Service invocation helpers.
