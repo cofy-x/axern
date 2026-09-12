@@ -1,8 +1,6 @@
 # bpfnet Production Alerting
 
-This document defines the durable alert policy for bpfnet as the default Axern
-production NAT dataplane. It focuses on low-cardinality signals that distinguish
-rollback states and correctness risks from healthy close-path churn.
+This document defines the durable alert policy for bpfnet as the default Axern production NAT dataplane. It focuses on low-cardinality signals that distinguish rollback states and correctness risks from healthy close-path churn.
 
 ## Metric Contract
 
@@ -14,17 +12,15 @@ axern_controld_node_bpfnet_current{axern_node_id, axern_state}
 
 `axern_state` is one of:
 
-| State | Meaning | Healthy value |
-| --- | --- | ---: |
-| `enabled` | node reports bpfnet component enabled | `1` |
-| `ready` | TC dataplane is ready and not in full fallback | `1` |
-| `snat_fallback` | node needs SNAT fallback | `0` |
-| `full_dnat_fallback` | node needs full DNAT fallback or TC is not ready | `0` |
-| `localhost_compat` | localhost TCP path uses iptables compatibility | allowed |
+| State                | Meaning                                          | Healthy value |
+| -------------------- | ------------------------------------------------ | ------------: |
+| `enabled`            | node reports bpfnet component enabled            |           `1` |
+| `ready`              | TC dataplane is ready and not in full fallback   |           `1` |
+| `snat_fallback`      | node needs SNAT fallback                         |           `0` |
+| `full_dnat_fallback` | node needs full DNAT fallback or TC is not ready |           `0` |
+| `localhost_compat`   | localhost TCP path uses iptables compatibility   |       allowed |
 
-`localhost_compat=1` is not a page by itself. It is acceptable on kernels where
-the localhost cgroup path is unavailable, as long as `ready=1` and
-`full_dnat_fallback=0`.
+`localhost_compat=1` is not a page by itself. It is acceptable on kernels where the localhost cgroup path is unavailable, as long as `ready=1` and `full_dnat_fallback=0`.
 
 The existing node count metric remains the cluster-level availability gate:
 
@@ -34,8 +30,7 @@ axern_controld_nodes_current{axern_state}
 
 ## Page Alerts
 
-Use these as Alertmanager rules or equivalent monitors in the production
-observability stack.
+Use these as Alertmanager rules or equivalent monitors in the production observability stack.
 
 ```yaml
 groups:
@@ -103,8 +98,7 @@ groups:
 
 ## Node-Local Checks
 
-Prometheus metrics intentionally avoid service IDs, allocation IDs, image IDs,
-paths, and single-flow details. Use `bpfnetctl` for node-local forensics:
+Prometheus metrics intentionally avoid service IDs, allocation IDs, image IDs, paths, and single-flow details. Use `bpfnetctl` for node-local forensics:
 
 ```bash
 bpfnetctl check --json
@@ -114,14 +108,11 @@ bpfnetctl dump snat_fwd_map --limit 20
 bpfnetctl dump snat_rev_map --limit 20
 ```
 
-Page immediately when `check --json` returns `.ok=false`, when
-`status.state.fullFallback=true`, or when TC ingress/egress, pinned maps, or
-pinned programs are not ready.
+Page immediately when `check --json` returns `.ok=false`, when `status.state.fullFallback=true`, or when TC ingress/egress, pinned maps, or pinned programs are not ready.
 
 ## Benchmark-Gated Signals
 
-Some correctness signals are currently benchmark/probe outputs rather than
-cluster-wide Prometheus metrics:
+Some correctness signals are currently benchmark/probe outputs rather than cluster-wide Prometheus metrics:
 
 - `snatAllocExhausted`
 - `snatTcpReverseMissSynAcks`
@@ -129,10 +120,6 @@ cluster-wide Prometheus metrics:
 - post-GC SNAT forward/reverse/alias map retention
 - UDP translated-port retention after datagram idle timeout plus GC grace
 
-Run the production regression runbook after bpfnet changes and on a scheduled
-production-validation cadence. Treat any non-zero risk counter, eBPF benchmark
-failure, or persistent post-GC retention as a blocking regression.
+Run the production regression runbook after bpfnet changes and on a scheduled production-validation cadence. Treat any non-zero risk counter, eBPF benchmark failure, or persistent post-GC retention as a blocking regression.
 
-Do not page on `snatTcpNonSynMisses` or `snatFallbackHits` alone. Late TCP
-non-SYN misses can be healthy close-path tail traffic when failures are zero,
-post-GC maps drain to zero, and the risk counters above stay zero.
+Do not page on `snatTcpNonSynMisses` or `snatFallbackHits` alone. Late TCP non-SYN misses can be healthy close-path tail traffic when failures are zero, post-GC maps drain to zero, and the risk counters above stay zero.

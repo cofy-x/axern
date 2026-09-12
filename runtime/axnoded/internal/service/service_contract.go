@@ -37,7 +37,7 @@ type SandboxService interface {
 	Checkpoint(context.Context, *runtime.CheckpointRequest) (*runtime.CheckpointResponse, error)
 	Version(context.Context, *runtime.VersionRequest) (*runtime.VersionResponse, error)
 
-	// Service lifecycle and node status.
+	// Node daemon lifecycle and status reporting.
 	Run(context.Context) error
 	Shutdown(context.Context) error
 	Ready() bool

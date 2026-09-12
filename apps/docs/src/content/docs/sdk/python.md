@@ -3,15 +3,13 @@ title: Python SDK
 description: Create and program an Axern sandbox from Python.
 ---
 
-The Python SDK offers synchronous `Sandbox` and asynchronous `AsyncSandbox`
-surfaces.
+The Python SDK offers synchronous `Sandbox` and asynchronous `AsyncSandbox` surfaces.
 
 ```bash
 uv add axern-sdk==<version>
 ```
 
-The official package is published as
-[`axern-sdk` on PyPI](https://pypi.org/project/axern-sdk/).
+The official package is published as [`axern-sdk` on PyPI](https://pypi.org/project/axern-sdk/).
 
 ```python
 import os
@@ -39,9 +37,7 @@ with Sandbox(
 client.close()
 ```
 
-Use `exec_stream()` for incremental output and `process()` when you need stdin,
-termination, or explicit wait behavior. Directory transfer is archive-backed
-and rejects unsafe paths and links.
+Use `exec_stream()` for incremental output and `process()` when you need stdin, termination, or explicit wait behavior. Directory transfer is archive-backed and rejects unsafe paths and links.
 
 - [Python SDK source and full guide](https://github.com/cofy-x/axern/tree/main/sdk/python)
 - [Maintained examples](https://github.com/cofy-x/axern/tree/main/sdk/python/examples)

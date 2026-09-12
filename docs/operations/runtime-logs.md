@@ -1,12 +1,8 @@
 # Runtime Logs
 
-Use this document to understand the critical runtime stack logs and what each
-one means. It is environment-neutral: compose, kind, Helm, and future cloud
-deployments should all map their log collection commands back to these same
-components and node-local paths.
+Use this document to understand the critical runtime stack logs and what each one means. It is environment-neutral: compose, kind, Helm, and future cloud deployments should all map their log collection commands back to these same components and node-local paths.
 
-For local compose and kind commands, see
-[Local Troubleshooting](../../deploy/local/troubleshooting.md).
+For local compose and kind commands, see [Local Troubleshooting](../../deploy/local/troubleshooting.md).
 
 ## Core Logs
 
@@ -22,64 +18,59 @@ For local compose and kind commands, see
 | `tunneld` | process stdout/stderr | relay selection, peer/session pairing, relay drain behavior |
 | `controld-migrate` | job/process stdout/stderr | Postgres schema migration failures |
 | `postgres` | process stdout/stderr | database startup, readiness, connection failures |
-| `minio` | process stdout/stderr | artifact storage and durable rollout evidence failures |
 
 ## Node-Local Paths
 
-These paths are inside the node runtime environment, such as the compose
-`node` container, a kind `node-all-in-one` pod, or a future node-runtime host.
+These paths are inside the node runtime environment, such as the compose `node` container, a kind `node-all-in-one` pod, or a future node-runtime host.
 
-| Path | Meaning |
-| --- | --- |
-| `/tmp/axnoded-node-config.toml` | generated axnoded config used by node-all-in-one deployments |
-| `/shared/run/axnoded.sock` | axnoded operator socket used by `axctl` and `node-tunneld` |
-| `/run/imagemgr/imagemgr.sock` | axnoded-to-imagemgr image rootfs API socket |
-| `/run/egressd/egressd.sock` | axnoded-to-egressd policy lifecycle API socket |
-| `/var/lib/axnoded` | axnoded runtime state, store, rootfs, filestore |
-| `/var/lib/imagemgr` | imagemgr state, logs, mount records, imagefsd daemon dirs |
-| `/var/lib/egressd` | egressd prepared policy records and recovery state |
-| `/var/log/axnoded/axnoded.log` | axnoded daemon log |
-| `/var/log/axnoded/node-tunneld.log` | node-tunneld supervisor log |
+| Path                                | Meaning                                                      |
+| ----------------------------------- | ------------------------------------------------------------ |
+| `/tmp/axnoded-node-config.toml`     | generated axnoded config used by node-all-in-one deployments |
+| `/shared/run/axnoded.sock`          | axnoded operator socket used by `axctl` and `node-tunneld`   |
+| `/run/imagemgr/imagemgr.sock`       | axnoded-to-imagemgr image rootfs API socket                  |
+| `/run/egressd/egressd.sock`         | axnoded-to-egressd policy lifecycle API socket               |
+| `/var/lib/axnoded`                  | axnoded runtime state, store, rootfs, filestore              |
+| `/var/lib/imagemgr`                 | imagemgr state, logs, mount records, imagefsd daemon dirs    |
+| `/var/lib/egressd`                  | egressd prepared policy records and recovery state           |
+| `/var/log/axnoded/axnoded.log`      | axnoded daemon log                                           |
+| `/var/log/axnoded/node-tunneld.log` | node-tunneld supervisor log                                  |
 
 ## Config Fields To Check
 
-Inspect `/tmp/axnoded-node-config.toml` when socket paths, node identity,
-runtime class, or image-manager settings look wrong.
+Inspect `/tmp/axnoded-node-config.toml` when socket paths, node identity, runtime class, or image-manager settings look wrong.
 
-| Field | Why it matters |
-| --- | --- |
-| `plugin.control_plane_target` | where axnoded registers and reports node state |
-| `plugin.control_plane_node_id` | node identity shown in `controld` node summaries |
-| `plugin.control_plane_node_target` | internal node address used by gateway/control-plane routing |
-| `plugin.network.nat_backend` | `iptables` or `ebpf` network path |
-| `plugin.runtime.image_manager_socket` | socket for image-backed rootfs requests |
-| `plugin.runtime.runtimes.runsc.binary` | gVisor runtime binary path |
+| Field                                  | Why it matters                                              |
+| -------------------------------------- | ----------------------------------------------------------- |
+| `plugin.control_plane_target`          | where axnoded registers and reports node state              |
+| `plugin.control_plane_node_id`         | node identity shown in `controld` node summaries            |
+| `plugin.control_plane_node_target`     | internal node address used by gateway/control-plane routing |
+| `plugin.network.nat_backend`           | `iptables` or `ebpf` network path                           |
+| `plugin.runtime.image_manager_socket`  | socket for image-backed rootfs requests                     |
+| `plugin.runtime.runtimes.runsc.binary` | gVisor runtime binary path                                  |
 
 ## Symptom Map
 
-| Symptom | Primary log chain |
-| --- | --- |
-| Environment is not healthy | `controld-migrate`, `postgres`, `controld`, node entrypoint logs |
-| Workload is not scheduled | `controld` -> `axnoded` |
-| Sandbox creation fails | `controld` -> `/var/log/axnoded/axnoded.log` -> `runsc` errors |
-| Writable rootfs or workspace fails | `controld` -> `/var/log/axnoded/axnoded.log` -> `runsc` and node-local filestore errors |
-| Image or rootfs fails | `/var/log/axnoded/axnoded.log` -> `/var/lib/imagemgr/logs/imagemgr.log` -> `/var/lib/imagemgr/daemons/<daemon-id>/daemon.log` |
-| Gateway HTTP or terminal fails | `gatewayd` -> `controld` -> `/var/log/axnoded/axnoded.log` |
-| Tunnel fails | `tunneld` -> `controld` -> `/var/log/axnoded/node-tunneld.log` -> `/var/log/axnoded/axnoded.log` |
+| Symptom                            | Primary log chain                                                                                                             |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Environment is not healthy         | `controld-migrate`, `postgres`, `controld`, node entrypoint logs                                                              |
+| Workload is not scheduled          | `controld` -> `axnoded`                                                                                                       |
+| Sandbox creation fails             | `controld` -> `/var/log/axnoded/axnoded.log` -> `runsc` errors                                                                |
+| Writable rootfs or workspace fails | `controld` -> `/var/log/axnoded/axnoded.log` -> `runsc` and node-local filestore errors                                       |
+| Image or rootfs fails              | `/var/log/axnoded/axnoded.log` -> `/var/lib/imagemgr/logs/imagemgr.log` -> `/var/lib/imagemgr/daemons/<daemon-id>/daemon.log` |
+| Gateway HTTP or terminal fails     | `gatewayd` -> `controld` -> `/var/log/axnoded/axnoded.log`                                                                    |
+| Tunnel fails                       | `tunneld` -> `controld` -> `/var/log/axnoded/node-tunneld.log` -> `/var/log/axnoded/axnoded.log`                              |
 
 ## Ownership Map
 
-| Component | Owns |
-| --- | --- |
-| `controld` | node registration, placement, allocation dispatch, gateway/tunnel resolution |
-| `axnoded` | node lifecycle, sandbox creation, runtime bundle, allocation-local writable storage, cgroup/network, operator socket |
-| `egressd` | node-local egress policy persistence, recovery, reconciliation, and host enforcement |
-| `imagemgr` | image import, image-backed rootfs orchestration, OCI overlay, Nydus daemon lifecycle |
-| `imagefsd` | read-only image data, cache, chunk DB, mount daemon internals |
-| `gatewayd` | allocation-bound terminal, SSH, tunnel, artifact, and sandbox forwarding after target resolution |
-| `tunneld` | relay-side tunnel session pairing |
-| `node-tunneld` | node-local tunnel agent launch and allocation netns lookup |
+| Component      | Owns                                                                                                                 |
+| -------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `controld`     | node registration, placement, allocation dispatch, gateway/tunnel resolution                                         |
+| `axnoded`      | node lifecycle, sandbox creation, runtime bundle, allocation-local writable storage, cgroup/network, operator socket |
+| `egressd`      | node-local egress policy persistence, recovery, reconciliation, and host enforcement                                 |
+| `imagemgr`     | image import, image-backed rootfs orchestration, OCI overlay, Nydus daemon lifecycle                                 |
+| `imagefsd`     | read-only image data, cache, chunk DB, mount daemon internals                                                        |
+| `gatewayd`     | allocation-bound terminal, SSH, tunnel, artifact, and sandbox forwarding after target resolution                     |
+| `tunneld`      | relay-side tunnel session pairing                                                                                    |
+| `node-tunneld` | node-local tunnel agent launch and allocation netns lookup                                                           |
 
-For architecture context, see
-[Runtime Architecture](../architecture/runtime-architecture.md) and
-[Runtime Stack](../../.x/runtime-stack.md).
+For architecture context, see [Runtime Architecture](../architecture/runtime-architecture.md) and [Runtime Stack](../../.x/runtime-stack.md).

@@ -14,10 +14,7 @@ pnpm add @cofy-x/axern-sdk@<version>
 ```typescript
 import { AxernClient, Sandbox } from "@cofy-x/axern-sdk";
 
-const client = AxernClient.fromContext(
-  process.env.AXERN_CONFIG ?? `${process.env.HOME}/.config/axern/config.json`,
-  process.env.AXERN_CONTEXT,
-);
+const client = AxernClient.fromContext(process.env.AXERN_CONFIG ?? `${process.env.HOME}/.config/axern/config.json`, process.env.AXERN_CONTEXT);
 
 const sandbox = await new Sandbox({
   client,

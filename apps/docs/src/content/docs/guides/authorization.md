@@ -3,9 +3,7 @@ title: Identity and namespace access
 description: Understand Axern Principals, scoped roles, certificate rotation, and least-privilege managed execution.
 ---
 
-Axern maps each verified client certificate to a durable Principal. Public CLI
-and SDK calls enter through `gatewayd`; the control plane authorizes the
-Principal for every platform or namespace operation.
+Axern maps each verified client certificate to a durable Principal. Public CLI and SDK calls enter through `gatewayd`; the control plane authorizes the Principal for every platform or namespace operation.
 
 Start by inspecting the selected context:
 
@@ -14,20 +12,11 @@ axern identity whoami
 axern doctor --namespace default
 ```
 
-The built-in roles are `platform_admin`, `namespace_admin`,
-`namespace_editor`, and `namespace_viewer`. Namespace roles apply to exactly
-one namespace. A viewer can inspect resources, an editor can also create and
-execute workloads, and a namespace administrator can manage role bindings in
-that namespace. Platform administrators manage Principals, credentials, and
-platform-wide operations.
+The built-in roles are `platform_admin`, `namespace_admin`, `namespace_editor`, and `namespace_viewer`. Namespace roles apply to exactly one namespace. A viewer can inspect resources, an editor can also create and execute workloads, and a namespace administrator can manage role bindings in that namespace. Platform administrators manage Principals, credentials, and platform-wide operations.
 
 ## Separate bootstrap administration from application access
 
-The commands in this page require an existing platform-admin context. A
-developer must not use their own namespace-editor context to create Principals
-or grant roles. Operators should bootstrap one short-lived admin context,
-create the application Principal and certificate, then switch back to the
-least-privilege context for normal work.
+The commands in this page require an existing platform-admin context. A developer must not use their own namespace-editor context to create Principals or grant roles. Operators should bootstrap one short-lived admin context, create the application Principal and certificate, then switch back to the least-privilege context for normal work.
 
 ## Add a namespace editor
 
@@ -49,8 +38,7 @@ axern admin role-binding grant \
   --role namespace_editor
 ```
 
-Register the matching private key and certificate as a separate local context;
-the private key is never uploaded:
+Register the matching private key and certificate as a separate local context; the private key is never uploaded:
 
 ```bash
 axern context set developer \
@@ -65,20 +53,10 @@ axern identity whoami
 axern doctor --namespace default
 ```
 
-Certificate issuance and CA policy remain operator-owned; the certificate
-must be signed by the CA trusted by the gateway and the registered public
-certificate must match `developer.key`.
+Certificate issuance and CA policy remain operator-owned; the certificate must be signed by the CA trusted by the gateway and the registered public certificate must match `developer.key`.
 
-Private keys remain in the user's context and are never uploaded. To rotate a
-certificate, add the new public certificate first, switch the client context,
-confirm `identity whoami`, and then revoke the old credential.
+Private keys remain in the user's context and are never uploaded. To rotate a certificate, add the new public certificate first, switch the client context, confirm `identity whoami`, and then revoke the old credential.
 
-Managed Axrun workers use a dedicated service identity. Their namespace access
-is further limited by the short-lived durable lease for the rollout work they
-are currently executing; the worker certificate by itself cannot edit user
-namespaces.
+Managed Axrun workers use a dedicated service identity. Their namespace access is further limited by the short-lived durable lease for the rollout work they are currently executing; the worker certificate by itself cannot edit user namespaces.
 
-For the complete trust and audit model, see the repository's
-[authorization architecture](https://github.com/cofy-x/axern/blob/main/docs/architecture/authorization.md).
-Cluster operators should use the typed `axern admin` workflows for audited
-operations rather than debug HTTP endpoints.
+For the complete trust and audit model, see the repository's [authorization architecture](https://github.com/cofy-x/axern/blob/main/docs/architecture/authorization.md). Cluster operators should use the typed `axern admin` workflows for audited operations rather than debug HTTP endpoints.

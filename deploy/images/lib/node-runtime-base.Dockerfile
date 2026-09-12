@@ -12,8 +12,6 @@ ARG GOPROXY=https://proxy.golang.org,direct
 ARG GOSUMDB=sum.golang.org
 ARG RUNSC_SOURCE=remote
 ARG RUNSC_CACHE_ARCH=aarch64
-ARG MC_SOURCE=remote
-ARG MC_CACHE_ARCH=arm64
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CARGO_HOME=/usr/local/cargo
 ENV RUSTUP_HOME=/usr/local/rustup
@@ -45,7 +43,8 @@ RUN APT_SOURCE="${APT_MIRROR_SOURCE}"; \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && apt-get install -y \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y \
     bash \
     bzip2 \
     busybox-static \
@@ -80,7 +79,6 @@ RUN go version
 RUN cargo --version
 
 COPY runtime/axnoded/.cache/gvisor/ /opt/gvisor-cache/
-COPY runtime/axnoded/.cache/minio/ /opt/minio-cache/
 COPY runtime/axnoded/runtime-tools.sh /usr/local/share/axern/runtime-tools.sh
 COPY runtime/axnoded/gvisor.lock /usr/local/share/axern/gvisor.lock
 
@@ -106,24 +104,6 @@ RUN set -eux; \
     if [ -d /tmp/gvisor/gvisor-bin ]; then mkdir -p /usr/local/bin/gvisor-bin && cp -a /tmp/gvisor/gvisor-bin/. /usr/local/bin/gvisor-bin/; fi; \
     /usr/local/bin/runsc --version | grep -F "${AXERN_GVISOR_TAG}"; \
     rm -rf /tmp/gvisor /tmp/gvisor.tar.bz2
-
-RUN set -eux; \
-    . /usr/local/share/axern/runtime-tools.sh; \
-    ARCH="$(dpkg --print-architecture)"; \
-    case "$ARCH" in \
-      amd64) MC_ARCH="amd64"; MC_SHA256="${AXERN_MC_SHA256_AMD64}" ;; \
-      arm64) MC_ARCH="arm64"; MC_SHA256="${AXERN_MC_SHA256_ARM64}" ;; \
-      *) echo "unsupported arch: $ARCH" >&2; exit 1 ;; \
-    esac; \
-    if [ "${MC_SOURCE}" = "local" ]; then \
-      cp "/opt/minio-cache/${MC_CACHE_ARCH}/mc" /tmp/mc; \
-    else \
-      URL="https://dl.min.io/client/mc/release/linux-${MC_ARCH}/archive/mc.${AXERN_MC_RELEASE}"; \
-      curl --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 300 -fsSLo /tmp/mc "${URL}"; \
-      printf '%s  %s\n' "${MC_SHA256}" /tmp/mc | sha256sum -c -; \
-    fi; \
-    install -m 0755 /tmp/mc /usr/local/bin/mc; \
-    rm -f /tmp/mc
 
 FROM node-runtime-base-build AS axnoded-builder
 WORKDIR /workspace
@@ -213,7 +193,8 @@ FROM node-runtime-base-build AS imagefsd-build-base
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && apt-get install -y \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y \
     build-essential \
     cmake \
     libssl-dev \

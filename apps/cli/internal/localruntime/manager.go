@@ -289,10 +289,10 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 		}
 	}
 	fmt.Fprintln(m.Stderr, "Starting Axern local services...")
-	if err := m.composeRun(ctx, options.Profile, "pull", "postgres", "minio", "controld", "tunneld", "node", "gatewayd"); err != nil {
+	if err := m.composeRun(ctx, options.Profile, "pull", "postgres", "controld", "tunneld", "node", "gatewayd"); err != nil {
 		return err
 	}
-	if err := m.composeRun(ctx, options.Profile, "up", "-d", "postgres", "minio"); err != nil {
+	if err := m.composeRun(ctx, options.Profile, "up", "-d", "postgres"); err != nil {
 		return err
 	}
 	_ = m.composeRun(ctx, options.Profile, "rm", "-sf", "controld-migrate", "controld-access-bootstrap")
@@ -671,7 +671,7 @@ func (m *Manager) Logs(ctx context.Context, options LogOptions) error {
 }
 
 func (m *Manager) Status(ctx context.Context) (Status, error) {
-	status := Status{State: "not-initialized", CLIVersion: m.Version, DataPath: m.Dir, GatewayHTTPURL: fmt.Sprintf("http://127.0.0.1:%d", GatewayHTTPPort), GatewayTarget: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), Ports: map[string]int{"gateway_grpc": GatewayControlPort, "gateway_http": GatewayHTTPPort, "gateway_ssh": GatewaySSHPort, "control_http": 24101, "postgres": 25432, "minio_api": 29000, "minio_console": 29001}}
+	status := Status{State: "not-initialized", CLIVersion: m.Version, DataPath: m.Dir, GatewayHTTPURL: fmt.Sprintf("http://127.0.0.1:%d", GatewayHTTPPort), GatewayTarget: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), Ports: map[string]int{"gateway_grpc": GatewayControlPort, "gateway_http": GatewayHTTPPort, "gateway_ssh": GatewaySSHPort, "control_http": 24101, "postgres": 25432}}
 	metadata, err := loadMetadata(m.metadataPath())
 	if err == nil {
 		status.StackVersion, status.Profile = metadata.Version, metadata.Profile
@@ -898,7 +898,7 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 }
 
 func (m *Manager) materialize(profile string) error {
-	for _, dir := range []string{m.Dir, filepath.Join(m.Dir, "data", "postgres"), filepath.Join(m.Dir, "data", "minio"), filepath.Join(m.Dir, "data", "axnoded"), filepath.Join(m.Dir, "run"), filepath.Join(m.Dir, "certs"), filepath.Join(m.Dir, "ssh")} {
+	for _, dir := range []string{m.Dir, filepath.Join(m.Dir, "data", "postgres"), filepath.Join(m.Dir, "data", "axnoded"), filepath.Join(m.Dir, "run"), filepath.Join(m.Dir, "certs"), filepath.Join(m.Dir, "ssh")} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
 		}
@@ -935,7 +935,7 @@ func (m *Manager) writeEnv(profile string) error {
 		}
 		secretValues["master"] = value
 	}
-	for _, key := range []string{"postgres", "minio_user", "minio_password", "dev_token", "node_token"} {
+	for _, key := range []string{"postgres", "dev_token", "node_token"} {
 		if secretValues[key] == "" {
 			value, err := randomHex(24)
 			if err != nil {
@@ -949,7 +949,7 @@ func (m *Manager) writeEnv(profile string) error {
 		return err
 	}
 	images := localbundle.ImageReferences(m.Version)
-	noProxy := "localhost,127.0.0.1,::1,host.docker.internal,controld,gatewayd,tunneld,node,postgres,minio,.svc,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+	noProxy := "localhost,127.0.0.1,::1,host.docker.internal,controld,gatewayd,tunneld,node,postgres,.svc,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 	httpProxy := containerProxy(os.Getenv("HTTP_PROXY"))
 	httpsProxy := containerProxy(os.Getenv("HTTPS_PROXY"))
 	otelEnabled, otelEndpoint := "false", ""
@@ -957,14 +957,14 @@ func (m *Manager) writeEnv(profile string) error {
 		otelEnabled, otelEndpoint = "true", "http://otel-collector:4317"
 	}
 	values := map[string]string{
-		"AXERN_LOCAL_DIR": m.Dir, "POSTGRES_IMAGE": images["POSTGRES_IMAGE"], "MINIO_IMAGE": images["MINIO_IMAGE"], "POSTGRES_PASSWORD": secretValues["postgres"], "MINIO_ROOT_USER": secretValues["minio_user"], "MINIO_ROOT_PASSWORD": secretValues["minio_password"],
+		"AXERN_LOCAL_DIR": m.Dir, "POSTGRES_IMAGE": images["POSTGRES_IMAGE"], "POSTGRES_PASSWORD": secretValues["postgres"],
 		"CONTROLD_IMAGE": images["CONTROLD_IMAGE"], "TUNNELD_IMAGE": images["TUNNELD_IMAGE"], "GATEWAYD_IMAGE": images["GATEWAYD_IMAGE"], "NODE_ALL_IN_ONE_IMAGE": images["NODE_ALL_IN_ONE_IMAGE"],
 		"PYTHON311_RUNTIME_IMAGE": images["PYTHON311_RUNTIME_IMAGE"], "SERVER_BASE_RUNTIME_IMAGE": images["SERVER_BASE_RUNTIME_IMAGE"], "CODING_BASE_RUNTIME_IMAGE": images["CODING_BASE_RUNTIME_IMAGE"], "DESKTOP_BASE_RUNTIME_IMAGE": images["DESKTOP_BASE_RUNTIME_IMAGE"], "CLAUDE_CODE_BUNDLE_IMAGE": images["CLAUDE_CODE_BUNDLE_IMAGE"], "CODEX_BUNDLE_IMAGE": images["CODEX_BUNDLE_IMAGE"],
 		"OTEL_COLLECTOR_IMAGE": images["OTEL_COLLECTOR_IMAGE"], "OTEL_LGTM_IMAGE": images["OTEL_LGTM_IMAGE"], "AXERN_SECRETS_MASTER_KEY": secretValues["master"], "LOCAL_DEV_TOKEN": secretValues["dev_token"], "NODE_AUTH_TOKEN": secretValues["node_token"],
 		"CONTAINER_HTTP_PROXY": httpProxy, "CONTAINER_HTTPS_PROXY": httpsProxy, "CONTAINER_NO_PROXY": noProxy, "REGISTRY_PROXY_URL": firstNonEmpty(httpsProxy, httpProxy), "CONTROLD_INSECURE_REGISTRIES": "", "OTEL_ENABLED": otelEnabled, "OTEL_EXPORTER_OTLP_ENDPOINT": otelEndpoint,
 		"AXNODED_CONTROL_PLANE_NODE_ID": LocalNodeID,
 		"AXNODED_DNS_NAMESERVERS":       strings.Join(dnsNameservers, ","),
-		"LOCAL_UID":                     strconv.Itoa(os.Getuid()), "LOCAL_GID": strconv.Itoa(os.Getgid()), "CONTROLD_HTTP_PORT": "24101", "GATEWAY_CONTROL_PORT": strconv.Itoa(GatewayControlPort), "GATEWAY_HTTP_PORT": strconv.Itoa(GatewayHTTPPort), "GATEWAY_SSH_PORT": strconv.Itoa(GatewaySSHPort), "POSTGRES_PORT": "25432", "MINIO_API_PORT": "29000", "MINIO_CONSOLE_PORT": "29001", "OTEL_GRPC_PORT": "4317", "OTEL_HTTP_PORT": "4318", "LGTM_UI_PORT": "13000",
+		"LOCAL_UID":                     strconv.Itoa(os.Getuid()), "LOCAL_GID": strconv.Itoa(os.Getgid()), "CONTROLD_HTTP_PORT": "24101", "GATEWAY_CONTROL_PORT": strconv.Itoa(GatewayControlPort), "GATEWAY_HTTP_PORT": strconv.Itoa(GatewayHTTPPort), "GATEWAY_SSH_PORT": strconv.Itoa(GatewaySSHPort), "POSTGRES_PORT": "25432", "OTEL_GRPC_PORT": "4317", "OTEL_HTTP_PORT": "4318", "LGTM_UI_PORT": "13000",
 	}
 	keys := make([]string, 0, len(values))
 	for key := range values {

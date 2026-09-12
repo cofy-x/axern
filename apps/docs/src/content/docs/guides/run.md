@@ -3,10 +3,7 @@ title: Runs
 description: Execute one-shot isolated commands from an image, template, or environment with durable records and real exit codes.
 ---
 
-A Run is Axern's one-shot workload: it executes a command inside an isolated
-sandbox, streams output, propagates the command's exit code, and leaves a
-durable control-plane record. Detached Runs also provide the allocation
-lifecycle used by SDK Sandboxes and interactive tools.
+A Run is Axern's one-shot workload: it executes a command inside an isolated sandbox, streams output, propagates the command's exit code, and leaves a durable control-plane record. Detached Runs also provide the allocation lifecycle used by SDK Sandboxes and interactive tools.
 
 ## Run a command
 
@@ -14,8 +11,7 @@ lifecycle used by SDK Sandboxes and interactive tools.
 axern run python:3.12-slim -- python -c 'print("hello from axern")'
 ```
 
-The CLI attaches to stdout/stderr and exits with the remote command's real
-exit code. Every execution also creates a durable Run record:
+The CLI attaches to stdout/stderr and exits with the remote command's real exit code. Every execution also creates a durable Run record:
 
 ```bash
 axern run list
@@ -24,10 +20,7 @@ axern run logs <run-id> --follow
 axern run cancel <run-id>
 ```
 
-`run list` filters by `--namespace`, `--status` (`queued`, `placed`,
-`starting`, `running`, `succeeded`, `failed`, `cancelled`), and `--label`.
-`run logs` supports `--follow` and resumable `--cursor` output; a single read
-is truncated at 64 MiB.
+`run list` filters by `--namespace`, `--status` (`queued`, `placed`, `starting`, `running`, `succeeded`, `failed`, `cancelled`), and `--label`. `run logs` supports `--follow` and resumable `--cursor` output; a single read is truncated at 64 MiB.
 
 ## Define a Run with a spec
 
@@ -58,37 +51,18 @@ spec:
 axern run --file run.yaml
 ```
 
-`spec.source` selects exactly one of `image`, `template` (with optional
-`template_version`), or `environment` (an existing environment ID). Private
-registries use `registry_credential_id`; credentials are referenced by ID and
-never embedded in the spec. The parser rejects unknown fields and conflicting
-sources.
+`spec.source` selects exactly one of `image`, `template` (with optional `template_version`), or `environment` (an existing environment ID). Private registries use `registry_credential_id`; credentials are referenced by ID and never embedded in the spec. The parser rejects unknown fields and conflicting sources.
 
-The equivalent flags cover the same surface: `--env`, `--secret-env`,
-`--secret-file`, `--image-mount`, `--cwd`, `--runtime-class`, `--label`,
-`--template`, `--environment`, and the four resource flags
-(`--request-cpu`, `--request-memory`, `--limit-cpu`, `--limit-memory`).
-`--file` cannot be combined with definition flags.
+The equivalent flags cover the same surface: `--env`, `--secret-env`, `--secret-file`, `--image-mount`, `--cwd`, `--runtime-class`, `--label`, `--template`, `--environment`, and the four resource flags (`--request-cpu`, `--request-memory`, `--limit-cpu`, `--limit-memory`). `--file` cannot be combined with definition flags.
 
 ## Detached and long-running Runs
 
-`--detach` creates the Run without following output; `--wait-timeout` bounds
-how long the CLI waits for the Run to become active (`0` disables the wait).
-Detaching does not detach the workload from the platform — the Run continues
-to a terminal state under the control plane and remains inspectable.
+`--detach` creates the Run without following output; `--wait-timeout` bounds how long the CLI waits for the Run to become active (`0` disables the wait). Detaching does not detach the workload from the platform — the Run continues to a terminal state under the control plane and remains inspectable.
 
-Run status is durable. Output streaming is currently backed by node-local
-files and is available only while that allocation output is retained; durable
-seven-day output retention is a separate storage capability.
+Run status is durable. Output streaming is currently backed by node-local files and is available only while that allocation output is retained; durable seven-day output retention is a separate storage capability.
 
 ## Isolation and resources
 
-Packaged nodes support `runtime_class: runsc` as the isolation boundary.
-Resource requests and
-limits interact with namespace quota and admission; see
-[Runtime and Resources](/architecture/resources/) for the model and
-[Environments, Namespaces, and Quota](/guides/environments/) for inspecting
-admission rejections.
+Packaged nodes support `runtime_class: runsc` as the isolation boundary. Resource requests and limits interact with namespace quota and admission; see [Runtime and Resources](/architecture/resources/) for the model and [Environments, Namespaces, and Quota](/guides/environments/) for inspecting admission rejections.
 
-The CLI help is authoritative for the complete flag surface:
-`axern run --help`.
+The CLI help is authoritative for the complete flag surface: `axern run --help`.

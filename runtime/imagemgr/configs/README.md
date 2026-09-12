@@ -25,9 +25,7 @@ These files are examples only. They document the expected shape and are also use
 These are the fields most likely to matter when editing or reviewing the templates:
 
 - Registry template: `host` and `repo` define the default registry lookup target for Nydus-backed flows.
-- Registry template: `proxy` controls a conventional forward proxy. Do not put
-  a registry mirror in this field: Nydus v2.4 cannot attach the origin metadata
-  required by Dragonfly's registry-mirror protocol.
+- Registry template: `proxy` controls a conventional forward proxy. Do not put a registry mirror in this field: Nydus v2.4 cannot attach the origin metadata required by Dragonfly's registry-mirror protocol.
 - Registry template: `auth` and `registry_token` are backend-level auth fields inside the Nydus config shape; in the repo workflow, registry credentials are usually sourced from `registry_auths.json.example` instead.
 - Registry template: `blob_url_scheme` and `blob_redirected_host` exist for registries that serve blobs from a redirected host or non-default scheme.
 

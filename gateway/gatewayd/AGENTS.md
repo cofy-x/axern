@@ -1,67 +1,19 @@
-# gatewayd Agent Contract
+# Gateway Agent Contract
 
 ## Purpose
 
-`gatewayd` is Axern's external control and data-plane gateway. It does not own
-placement, lifecycle, or durable state. It proxies public control APIs to
-`controld`, resolves allocation targets and terminal leases through `controld`,
-and forwards allocation-bound data-plane traffic to `axnoded` or `tunneld`.
+`gateway/gatewayd` is Axern's external control and Allocation-bound data-plane gateway. Read the [Gateway README](README.md) for endpoints, configuration, and package routing.
 
-## Layout
+## Ownership Boundaries
 
-- `main.go`: process bootstrap only.
-- `internal/app`: composition root, dependency construction, and lifecycle.
-- `internal/api/http`: HTTP adapter, browser terminal, access logging, and URL
-  path parsing. It must not restore `/svc` routing or a generic Service proxy.
-- `internal/api/control`: mTLS public control edge and raw gRPC proxy.
-- `internal/api/tunnel`: public tunnel relay edge that forwards client peers to
-  session-bound internal `tunneld` targets.
-- `internal/api/ssh`: optional SSH-compatible terminal adapter.
-- `internal/application/artifact`: allocation artifact transfer orchestration.
-- `internal/application/terminal`: allocation terminal resolve/open use case.
-- `internal/kernel`: narrow capability contracts shared across layers.
-- `internal/adapters`: concrete `controld` and `axnoded` gRPC clients.
-- `internal/config`, `internal/auth`, `internal/observability`: small support
-  packages.
+- `controld` owns placement, lifecycle, authorization state, and durable leases. Gatewayd proxies public control APIs and resolves explicit Allocation targets before forwarding terminal, SSH, Tunnel, artifact, process, or file traffic.
+- Preserve `api -> application -> kernel <- adapters`; `internal/app` is the only composition root.
+- Keep protocol and transport concerns in `internal/api`, use-case orchestration in `internal/application`, narrow contracts in `internal/kernel`, and external gRPC clients in `internal/adapters`.
+- Do not place behavioral decisions in app wiring or hide route, lease, cache, or retry ownership in generic utilities.
+- Use the dedicated gateway mTLS identity for control-plane calls; never reuse an external client identity internally.
+- Every data-plane path must honor Allocation identity and attempt-scoped authorization from the [Stable Domain Model](../../docs/product/domain-model.md).
 
-## Rules
+## Validation
 
-- Preserve the dependency direction: `api -> application -> kernel <- adapters`;
-  `internal/app` is the only composition root.
-- Do not make application or kernel packages depend on API packages, app wiring,
-  or concrete adapters.
-- Keep protocol details in `internal/api`; keep use-case orchestration in
-  `internal/application`; keep external gRPC clients in `internal/adapters`.
-- Do not add compatibility layers, transitional aliases, `New...With...`
-  constructor variants, or catch-all helper packages/files.
-- If `internal/app` starts making behavioral decisions beyond construction and
-  lifecycle, move that behavior into an application package.
-- Keep route/lease caching and retry behavior with the owner of the behavior;
-  do not hide it in generic utility packages.
-- Use the dedicated `gatewayd` mTLS identity for internal controld calls; do
-  not reuse the external client certificate for gateway-to-control traffic.
-- Terminal, SSH, tunnel, artifact, process, and file paths must resolve an
-  explicit Allocation and honor its attempt-scoped authorization. Do not infer
-  a target from Service identity, replicas, or a persistent route.
-
-## Verification
-
-From `gateway/gatewayd`:
-
-```bash
-go test ./...
-go vet ./...
-```
-
-From the repo root:
-
-```bash
-make gatewayd-check-architecture
-```
-
-For integration-sensitive changes, also run the relevant smoke:
-
-```bash
-make local-compose-server-base-smoke
-make local-compose-python-sdk-e2e
-```
+- Run `go test ./...` and `go vet ./...` from `gateway/gatewayd`, then `make gatewayd-check-architecture` from the repository root.
+- Run the relevant local Compose or SDK smoke selected by `make verify-changed` for integration-sensitive routing, terminal, SSH, Tunnel, or artifact changes.

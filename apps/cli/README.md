@@ -1,17 +1,12 @@
 # axern CLI
 
-`axern` is the product CLI for Axern platform resources and interactive
-development. It talks to public APIs through gatewayd; node-local operations
-belong to subsystem tools such as `axctl`.
+`axern` is the product CLI for Axern platform resources and interactive development. It talks to public APIs through gatewayd; node-local operations belong to subsystem tools such as `axctl`.
 
 ## Product Boundary
 
-- `axern` manages contexts, namespaces, environments, runs, quotas,
-  secrets, tunnels, SSH sessions, interactive agents, and
-  audited admin workflows.
+- `axern` manages contexts, namespaces, environments, runs, quotas, secrets, tunnels, SSH sessions, interactive agents, and audited admin workflows.
 - SDKs are the explicit programmatic interface.
-- `axrun` owns reproducible agent rollout planning, execution, validation, and
-  trajectory export.
+- `axrun` owns reproducible agent rollout planning, execution, validation, and trajectory export.
 
 The command path is:
 
@@ -21,9 +16,7 @@ cliapp -> commands -> application -> public SDK clients -> gatewayd
 
 ## Contexts
 
-The default context file is `~/.config/axern/config.json`. Override it with
-`--config` or `AXERN_CONFIG`; select a context with `--context` or
-`AXERN_CONTEXT`.
+The default context file is `~/.config/axern/config.json`. Override it with `--config` or `AXERN_CONFIG`; select a context with `--context` or `AXERN_CONTEXT`.
 
 ```json
 {
@@ -45,18 +38,13 @@ The default context file is `~/.config/axern/config.json`. Override it with
 }
 ```
 
-`proxy_mode` is `env` or `direct`. API and tunnel traffic share `endpoint`,
-TLS, and proxy policy. SSH uses the same context but its own endpoint and key.
+`proxy_mode` is `env` or `direct`. API and tunnel traffic share `endpoint`, TLS, and proxy policy. SSH uses the same context but its own endpoint and key.
 
-Direct overrides use `AXERN_ENDPOINT`, `AXERN_SSH_ENDPOINT`,
-`AXERN_SSH_IDENTITY_FILE`, `AXERN_TLS_CA_CERT`,
-`AXERN_TLS_CERT`, `AXERN_TLS_KEY`, `AXERN_TLS_SERVER_NAME`, and
-`AXERN_PROXY_MODE`.
+Direct overrides use `AXERN_ENDPOINT`, `AXERN_SSH_ENDPOINT`, `AXERN_SSH_IDENTITY_FILE`, `AXERN_TLS_CA_CERT`, `AXERN_TLS_CERT`, `AXERN_TLS_KEY`, `AXERN_TLS_SERVER_NAME`, and `AXERN_PROXY_MODE`.
 
 ## Commands
 
-Canonical resource names are used in documentation. Product aliases are
-limited to `ctx` and `ns`.
+Canonical resource names are used in documentation. Product aliases are limited to `ctx` and `ns`.
 
 ```bash
 axern context list
@@ -92,12 +80,7 @@ Generate completion with `axern completion bash|zsh|fish`.
 
 ## Platform Doctor
 
-`axern doctor` is read-only by default. It validates local connection settings,
-mTLS material and certificate lifetime, gateway connectivity, the authenticated
-Principal, authorization for the selected namespace, and the runtime catalog.
-Messages and JSON output use stable codes
-and do not include certificate paths, private keys, raw endpoints, or server
-error text.
+`axern doctor` is read-only by default. It validates local connection settings, mTLS material and certificate lifetime, gateway connectivity, the authenticated Principal, authorization for the selected namespace, and the runtime catalog. Messages and JSON output use stable codes and do not include certificate paths, private keys, raw endpoints, or server error text.
 
 Use `--probe` when a real data-plane check is required:
 
@@ -105,38 +88,21 @@ Use `--probe` when a real data-plane check is required:
 axern doctor --namespace default --probe
 ```
 
-The probe creates a catalog-backed Environment from the `python311` template,
-executes a small `runsc` Run, and deletes the temporary Environment. The Run
-remains as normal control-plane history. Use `--template-id`,
-`--runtime-class`, and `--probe-timeout` only with `--probe`.
+The probe creates a catalog-backed Environment from the `python311` template, executes a small `runsc` Run, and deletes the temporary Environment. The Run remains as normal control-plane history. Use `--template-id`, `--runtime-class`, and `--probe-timeout` only with `--probe`.
 
 ## Local DNS Doctor
 
-`axern local doctor` uses the same `status`, `mode`, and stable check result
-shape as the platform doctor. It validates the resolver configuration actually
-materialized for an initialized stack and, while the stack is running, queries
-those resolvers directly from the Node container. These checks are read-only.
+`axern local doctor` uses the same `status`, `mode`, and stable check result shape as the platform doctor. It validates the resolver configuration actually materialized for an initialized stack and, while the stack is running, queries those resolvers directly from the Node container. These checks are read-only.
 
-Use the explicit probe to verify the normal Environment and Run path in a real
-OCI sandbox:
+Use the explicit probe to verify the normal Environment and Run path in a real OCI sandbox:
 
 ```bash
 axern local doctor --probe
 ```
 
-The default query is `axern.cofy-x.space.`. Use `--dns-query-name` for a
-managed or private domain. The override is stored in a temporary Secret and is
-not included in Run arguments, doctor JSON details, or probe output. The probe
-creates a temporary Namespace, Secret, Environment, and Run. Cleanup cancels
-an active Run, then deletes the Environment, Secret, and Namespace even after
-failure or cancellation; the terminal Run remains as normal control-plane
-history. The probe always uses the product-owned `local` context, regardless
-of the currently selected context.
+The default query is `axern.cofy-x.space.`. Use `--dns-query-name` for a managed or private domain. The override is stored in a temporary Secret and is not included in Run arguments, doctor JSON details, or probe output. The probe creates a temporary Namespace, Secret, Environment, and Run. Cleanup cancels an active Run, then deletes the Environment, Secret, and Namespace even after failure or cancellation; the terminal Run remains as normal control-plane history. The probe always uses the product-owned `local` context, regardless of the currently selected context.
 
-Read-only checks default to 15 seconds (`--check-timeout`); sandbox execution
-defaults to five minutes (`--probe-timeout`). `--template-id` defaults to
-`python311`, and `--runtime-class` defaults to `runsc`; all three sandbox-only
-options require `--probe`.
+Read-only checks default to 15 seconds (`--check-timeout`); sandbox execution defaults to five minutes (`--probe-timeout`). `--template-id` defaults to `python311`, and `--runtime-class` defaults to `runsc`; all three sandbox-only options require `--probe`.
 
 ## Resource Spec
 
@@ -157,27 +123,19 @@ spec:
   resources: {}
 ```
 
-`spec.source` selects exactly one environment, template, or image. Unknown
-fields, conflicting sources, invalid quantities, invalid probes, and a kind
-that does not match the command are rejected.
+`spec.source` selects exactly one environment, template, or image. Unknown fields, conflicting sources, invalid quantities, invalid probes, and a kind that does not match the command are rejected.
 
-When `--file` is used, resource-definition flags cannot be mixed with the
-spec. Context, output, detach, and timeout flags remain operational overrides.
+When `--file` is used, resource-definition flags cannot be mixed with the spec. Context, output, detach, and timeout flags remain operational overrides.
 
 ## Output And Exit Codes
 
-Interactive output defaults to `table`. Automation uses `--output json`; JSON
-is rendered from stable public DTOs rather than generated proto objects. YAML
-is an input format, not an output format.
+Interactive output defaults to `table`. Automation uses `--output json`; JSON is rendered from stable public DTOs rather than generated proto objects. YAML is an input format, not an output format.
 
 - `0`: success.
-- `1`: platform, network, or server operation failure; `doctor` also uses it
-  for a degraded result.
-- `2`: invalid arguments, context, configuration, or spec; `doctor` still
-  renders its structured configuration check before returning this code.
+- `1`: platform, network, or server operation failure; `doctor` also uses it for a degraded result.
+- `2`: invalid arguments, context, configuration, or spec; `doctor` still renders its structured configuration check before returning this code.
 - `3`: `doctor` could not complete a required health check.
-- `run`: a normally terminated workload returns its exit code; the first
-  interrupt requests cancellation and a second exits immediately with `130`.
+- `run`: a normally terminated workload returns its exit code; the first interrupt requests cancellation and a second exits immediately with `130`.
 
 ## Build And Verify
 
@@ -191,6 +149,4 @@ make axern-cli-check-architecture
 make local-compose-refresh-verify
 ```
 
-See [tunnel usage](./docs/tunnel.md) and the
-[resource model](../../docs/architecture/resource-model.md) for deeper product
-contracts.
+See [tunnel usage](./docs/tunnel.md) and the [resource model](../../docs/architecture/resource-model.md) for deeper product contracts.

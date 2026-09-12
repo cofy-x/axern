@@ -5,8 +5,8 @@ export DEBIAN_FRONTEND=noninteractive
 export PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 PLAYWRIGHT_VERSION="${PLAYWRIGHT_VERSION:-1.59.0}"
 
-apt-get update
-apt-get install -y --no-install-recommends \
+apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update
+apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
   dbus-x11 \
   fluxbox \
   fonts-dejavu \

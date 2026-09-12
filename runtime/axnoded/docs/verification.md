@@ -1,64 +1,24 @@
 # Verification
 
-This is the authoritative verification matrix for `runtime/axnoded`. Use
-`README.md` for subsystem overview and `scripts/README.md` for script-level
-knobs. Run commands from `runtime/axnoded` unless you intentionally use root
-wrappers such as `make axnoded-verify-docker`.
+This is the authoritative verification matrix for `runtime/axnoded`. Use `README.md` for subsystem overview and `scripts/README.md` for script-level knobs. Run commands from `runtime/axnoded` unless you intentionally use root wrappers such as `make axnoded-verify-docker`.
 
-Use the repository-wide [verification tiers](../../../docs/verification/local-full-verification.md):
-targeted/host-safe checks are the normal development loop; affected Linux
-integration is the local runtime gate; destructive real-OOM, disk-fill,
-page-cache attribution, repeated concurrency matrices, and reserve calibration
-are external environment qualification owned by the deployment workspace, not
-this repository's local matrix. Do not place qualification workloads in a
-periodic provider or per-allocation audit.
+Use the repository-wide [verification tiers](../../../docs/verification/local-full-verification.md): targeted/host-safe checks are the normal development loop; affected Linux integration is the local runtime gate; destructive real-OOM, disk-fill, page-cache attribution, repeated concurrency matrices, and reserve calibration are external environment qualification owned by the deployment workspace, not this repository's local matrix. Do not place qualification workloads in a periodic provider or per-allocation audit.
 
 ## Quick Check
 
 ### Recovery measurement diagnosis
 
-The network-policy qualification driver measures client-observed restart
-convergence: process start through healthy RPC and a readable recovered policy
-proof. This is not the daemon's internal recovery duration. Health probes use
-a 1 ms retry interval and share the recovery deadline with the final proof RPC;
-the scheduler and RPC transport can still add observation delay. The previous
-25 ms polling method must not be mixed with this method in a performance baseline.
+The network-policy qualification driver measures client-observed restart convergence: process start through healthy RPC and a readable recovered policy proof. This is not the daemon's internal recovery duration. Health probes use a 1 ms retry interval and share the recovery deadline with the final proof RPC; the scheduler and RPC transport can still add observation delay.
 
-Each scenario writes ordered samples and method metadata beside its report as
-`<report>.recovery-observations`, including partial samples on recovery failure.
-Twenty samples make nearest-rank P99 equal to the sample maximum. Recovery
-sampling is independent (`--recovery-samples`, default 200) of workload sampling
-(`--samples`). Performance reports record both counts and the measurement
-method; mismatches and old report schemas are rejected. Minimal correctness
-smoke explicitly retains one recovery observation, not a tail-latency claim.
-Existing release budget thresholds are unchanged.
+Each scenario writes ordered samples and method metadata beside its report as `<report>.recovery-observations`, including partial samples on recovery failure. Twenty samples make nearest-rank P99 equal to the sample maximum. Recovery sampling is independent (`--recovery-samples`, default 200) of workload sampling (`--samples`). Performance reports record both counts and the measurement method; incompatible reports are rejected. Minimal correctness smoke explicitly retains one recovery observation, not a tail-latency claim.
 
-The adjacent `<report>.workload-observations` sidecar preserves ordered DNS,
-policy preparation, and rule-scale preparation/reconciliation timings. It adds
-no queries and does not change the probe's measurement boundary: `dns_deny`
-includes both allowed and refused query checks, whereas unrestricted and domain
-strict modes measure their allowed query. Compare like modes only. The sidecar
-contains numeric measurements, rule counts, and method/completion metadata, not
-destinations or allocation identities. An incomplete sidecar is diagnostic only;
-neither sidecar replaces the aggregate qualification gates.
+The adjacent `<report>.workload-observations` sidecar preserves ordered DNS, policy preparation, and rule-scale preparation/reconciliation timings. It adds no queries and does not change the probe's measurement boundary: `dns_deny` includes both allowed and refused query checks, whereas unrestricted and domain strict modes measure their allowed query. Compare like modes only. The sidecar contains numeric measurements, rule counts, and method/completion metadata, not destinations or allocation identities. An incomplete sidecar is diagnostic only; neither sidecar replaces the aggregate qualification gates.
 
-Use `go test ./cmd/verify-network-policy-qualification -run Recovery` for the
-host-safe waiter and evidence tests. The opt-in
-`TestRecoveryMeasurementLinuxTruth` runs only 200 restart/recovery observations
-when `AXERN_RECOVERY_MEASUREMENT_TRUTH=1` in a privileged Linux verification
-container with egressd installed. It does not certify the full matrix. Reuse
-the existing verification image and compile the changed test binary for its
-architecture to diagnose the measuring tool before rebuilding a release candidate.
+Use `go test ./cmd/verify-network-policy-qualification -run Recovery` for the host-safe waiter and evidence tests. The opt-in `TestRecoveryMeasurementLinuxTruth` runs only 200 restart/recovery observations when `AXERN_RECOVERY_MEASUREMENT_TRUTH=1` in a privileged Linux verification container with egressd installed. It does not certify the full matrix. Reuse the existing verification image and compile the changed test binary for its architecture to diagnose the measuring tool before rebuilding a release candidate.
 
 ### Runtime integration
 
-`TestPrepareMeasurementLinuxTruth` is a separate opt-in diagnostic with
-`AXERN_PREPARE_MEASUREMENT_TRUTH=1`. It runs 200 one-rule CIDR
-Prepare/Reconcile/Delete cycles against an isolated real egressd, preserving
-ordered prepare/reconcile observations in test output. It has no timing
-assertions and does not reproduce sandbox workload contention or the full
-matrix's RSS observation overhead. Use it to investigate rule-scale timing
-before changing any qualification budget or sampling parameter.
+`TestPrepareMeasurementLinuxTruth` is a separate opt-in diagnostic with `AXERN_PREPARE_MEASUREMENT_TRUTH=1`. It runs 200 one-rule CIDR Prepare/Reconcile/Delete cycles against an isolated real egressd, preserving ordered prepare/reconcile observations in test output. It has no timing assertions and does not reproduce sandbox workload contention or the full matrix's RSS observation overhead. Use it to investigate rule-scale timing before changing any qualification budget or sampling parameter.
 
 ```bash
 make verify-docker-runsc-ebpf
@@ -70,13 +30,7 @@ For agent-facing documentation changes from the repository root, also run:
 make agent-doc-check
 ```
 
-`make verify-docker-conformance` is the required Linux truth gate for the
-production memory boundary. It starts axnoded with cgroup enforcement enabled,
-certifies runsc through the global serial lane, validates the
-bounded `conformance` sibling, and then creates a normal workload without
-resource-contention retries. The ordinary runtime profiles retain
-`disabled_dev` to cover the explicit development contract; `make verify-docker`
-runs both contracts. Runtime and product E2E workflows exercise runsc.
+`make verify-docker-conformance` is the required Linux truth gate for the production memory boundary. It starts axnoded with cgroup enforcement enabled, certifies runsc through the global serial lane, validates the bounded `conformance` sibling, and then creates a normal workload without resource-contention retries. The ordinary runtime profiles retain `disabled_dev` to cover the explicit development contract; `make verify-docker` runs both contracts. Runtime and product E2E workflows exercise runsc.
 
 ## Sandboxd Layers
 
@@ -100,19 +54,10 @@ runs both contracts. Runtime and product E2E workflows exercise runsc.
 | `runsc` | sample OCI rootfs | PID 1 injection, bundle socket, lifecycle, file/process/PTY/probe diagnostics | none | `make verify-sandboxd-oci-e2e` |
 | `runsc` | Docker OCI image | node create/wait/kill, network, file/process/terminal through product APIs | browser/computer-use when image supports them | `make verify-docker-runsc-ebpf`, `make local-compose-refresh-verify` |
 | `runsc` | OCI/Nydus rootfs | image manager integration, read-only mount handling, sandboxd runtime mount injection | image-dependent | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e` |
-| `runsc` | `server-base` | SSH terminal semantics, sudo/nosuid expectations, probes, service smoke | none | `make local-compose-server-base-smoke` |
+| `runsc` | `server-base` | SSH terminal semantics, sudo/nosuid expectations, probes, HTTP workload smoke | none | `make local-compose-server-base-smoke` |
 | `runsc` | `desktop-base` | normal sandbox lifecycle plus desktop session readiness | computer-use and browser | `make local-compose-computer-use-e2e` |
 
-`make verify-sandboxd-provider-smoke` is the fast direct daemon/provider
-contract gate. `make verify-sandboxd-provider-e2e` is the broad focused
-sandboxd gate: it runs the direct provider contract, daemon E2E, optional
-desktop provider E2E, and OCI injection E2E.
-`make verify-sandboxd-packaging` is the fast release gate for sandboxd binary
-presence and image path consistency.
-`make verify-sandboxd-release-readiness` is the default pre-release gate for
-sandboxd changes: run it before heavier Docker or compose validation when the
-change touches daemon APIs, provider discovery, packaging, or SDK capability
-models.
+`make verify-sandboxd-provider-smoke` is the fast direct daemon/provider contract gate. `make verify-sandboxd-provider-e2e` is the broad focused sandboxd gate: it runs the direct provider contract, daemon E2E, optional desktop provider E2E, and OCI injection E2E. `make verify-sandboxd-packaging` is the fast release gate for sandboxd binary presence and image path consistency. `make verify-sandboxd-release-readiness` is the default pre-release gate for sandboxd changes: run it before heavier Docker or compose validation when the change touches daemon APIs, provider discovery, packaging, or SDK capability models.
 
 Recommended sandboxd release sequence:
 
@@ -122,89 +67,44 @@ make verify-sandboxd-provider-e2e
 bash ../../scripts/verify-all.sh --from axnoded-verify-node-locality-e2e
 ```
 
-Use `make verify-sandboxd-oci-e2e` directly when the change is narrowly scoped
-to runtime bundle injection or PID 1 wiring.
+Use `make verify-sandboxd-oci-e2e` directly when the change is narrowly scoped to runtime bundle injection or PID 1 wiring.
 
-Use the full root `verify-all` only when a release or broad runtime change needs
-complete confidence. It is not the normal local edit loop and should not be
-restarted from step one after a late failure. The root script prints the failed
-step, raw command, and a copyable `--from <step>` resume command; reproduce the
-exact failed step directly, fix it, then resume from that boundary.
+Use the full root `verify-all` only when a release or broad runtime change needs complete confidence. It is not the normal local edit loop and should not be restarted from step one after a late failure. The root script prints the failed step, raw command, and a copyable `--from <step>` resume command; reproduce the exact failed step directly, fix it, then resume from that boundary.
 
 ## Release Assets
 
-`make release-binary` builds `output/axnoded`,
-`output/axnoded-runtime-runner`, and `output/axern-sandboxd`. Packaged node
-images install `axern-sandboxd` at `/usr/local/libexec/axnoded/axern-sandboxd`.
+`make release-binary` builds `output/axnoded`, `output/axnoded-runtime-runner`, and `output/axern-sandboxd`. Packaged node images install `axern-sandboxd` at `/usr/local/libexec/axnoded/axern-sandboxd`.
 
-Changing binary names, install paths, or node image packaging is a cross-runtime
-packaging change. Update deployment values and runtime docs together, then run
-`make verify-sandboxd-packaging`.
+Changing binary names, install paths, or node image packaging is a cross-runtime packaging change. Update deployment values and runtime docs together, then run `make verify-sandboxd-packaging`.
 
 ## Runtime Layers
 
-| Layer | Contract | Target |
-| --- | --- | --- |
-| broad Docker runtime | Main `axnoded` runtime confidence | `make verify-docker` |
-| runsc network/eBPF | runsc runtime plus eBPF networking path | `make verify-docker-runsc-ebpf` |
-| debug runtime paths | Narrow runtime diagnostics | `make verify-docker-runsc-debug` |
-| bpfnet diagnostics | Pinned program readiness and managed runtime diagnostics | `make verify-bpfnetctl-e2e` |
+| Layer                            | Contract                                                                                                      | Target                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| broad Docker runtime             | Main `axnoded` runtime confidence                                                                             | `make verify-docker`                      |
+| runsc network/eBPF               | runsc runtime plus eBPF networking path                                                                       | `make verify-docker-runsc-ebpf`           |
+| debug runtime paths              | Narrow runtime diagnostics                                                                                    | `make verify-docker-runsc-debug`          |
+| bpfnet diagnostics               | Pinned program readiness and managed runtime diagnostics                                                      | `make verify-bpfnetctl-e2e`               |
 | network-policy Linux correctness | Hermetic 16-cell runsc × bridge/ebpf × IPv4/IPv6 × policy-mode truth with minimal, timing-independent samples | `make verify-network-policy-linux-matrix` |
 
 ## Node And Image Layers
 
-| Layer | Target |
-| --- | --- |
-| CLI and allocation lifecycle | `make verify-node-cli-e2e` |
-| inventory and startup observability | `make verify-node-inventory-e2e`, `make verify-node-startup-metrics-e2e`, `make verify-node-startup-matrix-smoke` |
-| bundle and managed create/start gate | `make verify-node-bundle-template-e2e`, `make verify-node-cli-e2e` |
-| service probes | `make verify-node-service-probes-e2e` |
-| runtime profiles | `make verify-node-python-runtime-e2e`, `make build-python311-runtime-image` |
-| retention/locality/warm pool | `make verify-node-retention-e2e`, `make verify-node-locality-e2e`, `make verify-node-warm-pool-e2e` |
-| rootfs modes | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e` |
+| Layer                                | Target                                                                                                            |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| CLI and allocation lifecycle         | `make verify-node-cli-e2e`                                                                                        |
+| inventory and startup observability  | `make verify-node-inventory-e2e`, `make verify-node-startup-metrics-e2e`, `make verify-node-startup-matrix-smoke` |
+| bundle and managed create/start gate | `make verify-node-bundle-template-e2e`, `make verify-node-cli-e2e`                                                |
+| runtime profiles                     | `make verify-node-python-runtime-e2e`, `make build-python311-runtime-image`                                       |
+| retention/locality/warm pool         | `make verify-node-retention-e2e`, `make verify-node-locality-e2e`, `make verify-node-warm-pool-e2e`               |
+| rootfs modes                         | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e`                                                          |
 
-Node-local network-policy diagnostics are covered by
-`go test ./internal/service ./internal/api ./axctl/commands/sandbox`. The gate
-must exercise `absent`, `dns_deny`, `strict`, capability-unavailable,
-enforcement-unhealthy, and stale-proof results, and must reject destination
-names, Host/SNI, remote addresses, CIDR values, policy digests, and raw daemon
-state from both the private operator response and stable JSON output.
+Node-local network-policy diagnostics are covered by `go test ./internal/service ./internal/api ./axctl/commands/sandbox`. The gate must exercise `absent`, `dns_deny`, `strict`, capability-unavailable, enforcement-unhealthy, and stale-proof results, and must reject destination names, Host/SNI, remote addresses, CIDR values, policy digests, and raw daemon state from both the private operator response and stable JSON output.
 
-`verify-node-locality-e2e` reports explicit phases for initial inventory, OCI
-start, OCI retention, Nydus start, and Nydus heat. If create fails, inspect the
-printed context in this order: image pull and imagemgr mount state, runtime
-create output and sandbox stdout/stderr, sandboxd readiness in the runtime
-stderr, `/readyz` and `/inventoryz`, then locality heat fields in the cached
-inventory snapshot. The create timeout is script-configurable through
-`CREATE_SANDBOX_TIMEOUT`; the default is `300s`, high enough for cold image plus
-Nydus mount paths without relaxing the final locality assertions.
+`verify-node-locality-e2e` reports explicit phases for initial inventory, OCI start, OCI retention, Nydus start, and Nydus heat. If create fails, inspect the printed context in this order: image pull and imagemgr mount state, runtime create output and sandbox stdout/stderr, sandboxd readiness in the runtime stderr, `/readyz` and `/inventoryz`, then locality heat fields in the cached inventory snapshot. The create timeout is script-configurable through `CREATE_SANDBOX_TIMEOUT`; the default is `300s`, high enough for cold image plus Nydus mount paths without relaxing the final locality assertions.
 
-Startup observability uses two axnoded histogram levels. `axern.axnoded_startup_phase_duration_seconds`
-keeps the stable operator view: language runtime lookup, rootfs preparation,
-resource allocation, runtime bundle preparation, runtime launch, and network
-activation. `axern.axnoded_startup_step_duration_seconds` is the attribution
-view for rootfs and runtime internals such as rootfs cache lookup, rootfs wait,
-rootfs mount, writable rootfs view preparation, bundle materialization, runtime
-start, runtime state wait, and sandboxd readiness wait. Image-manager rootfs
-internals are exported by imagemgr as `axern.imagemgr_timed_operation_stage_duration_seconds`;
-use that metric to separate registry fetch, layer/bootstrap extraction, daemon
-creation, overlay or loop mount, and mount-readiness cost.
-For service startup, pair those node-side startup metrics with
-`axern.controld_service_replica_stage_duration_seconds`,
-`axern.controld_node_lifecycle_rpc_duration_seconds`,
-`axern.axnoded_lifecycle_stage_duration_seconds`, and
-`axern.controld_allocation_status_report_stage_duration_seconds`. Use
-`axern.axnoded_allocation_status_queue_wait_duration_seconds` and
-`axern.controld_service_status_batch_stage_duration_seconds` to separate
-node-side coalescing delay from service lock, allocation update, and projection
-cost. Together these metrics distinguish scheduler/placement admission,
-controld-to-node lifecycle RPC, node lifecycle request handling, runtime
-startup, readiness probe execution, queued status delivery, and durable status
-projection.
+Startup observability uses two axnoded histogram levels. `axern.axnoded_startup_phase_duration_seconds` keeps the stable operator view: language runtime lookup, rootfs preparation, resource allocation, runtime bundle preparation, runtime launch, and network activation. `axern.axnoded_startup_step_duration_seconds` is the attribution view for rootfs and runtime internals such as rootfs cache lookup, rootfs wait, rootfs mount, writable rootfs view preparation, bundle materialization, runtime start, runtime state wait, and sandboxd readiness wait. Image-manager rootfs internals are exported by imagemgr as `axern.imagemgr_timed_operation_stage_duration_seconds`; use that metric to separate registry fetch, layer/bootstrap extraction, daemon creation, overlay or loop mount, and mount-readiness cost. Pair those node-side startup metrics with `axern.controld_node_lifecycle_rpc_duration_seconds`, `axern.axnoded_lifecycle_stage_duration_seconds`, and `axern.controld_allocation_status_report_stage_duration_seconds`. Use `axern.axnoded_allocation_status_queue_wait_duration_seconds` to distinguish node-side delivery delay from Allocation persistence and Run projection. Together these metrics distinguish placement admission, controld-to-node lifecycle RPC, node lifecycle request handling, runtime startup, queued status delivery, and durable Run status projection.
 
-Control-plane outage tests must confirm that `/control-planez` exposes a
-bounded retry with retained terminal state, that new observations do not cause
-an early RPC, and that recovery drains the queue and clears active failures.
+Control-plane outage tests must confirm that `/control-planez` exposes a bounded retry with retained terminal state, that new observations do not cause an early RPC, and that recovery drains the queue and clears active failures.
 
 Root-level equivalents exist for common node checks, for example:
 
@@ -229,8 +129,7 @@ KEEP_RUNNING=false NAT_BACKEND=iptables make run-dashboard-nginx-demo
 KEEP_RUNNING=false NAT_BACKEND=ebpf make run-dashboard-nginx-demo
 ```
 
-The dashboard demo uses local rootfs only. `imagemgr` and `imagefsd` should be
-reported as `disabled` in `/inventoryz`.
+The dashboard demo uses local rootfs only. `imagemgr` and `imagefsd` should be reported as `disabled` in `/inventoryz`.
 
 ## Performance
 
@@ -240,18 +139,6 @@ make benchmark-docker-runsc-compare
 BENCHMARK_IMAGE=registry.example.com/axnoded-verify:tag make benchmark-kubernetes-runsc-compare
 ```
 
-`benchmark-startup-matrix` and `benchmark-docker-runsc-compare` are Docker
-regression gates. They are useful before committing script or runtime changes,
-but they are not production bpfnet replacement evidence. The startup matrix
-defaults to `runsc-local` and `runsc-oci`; run
-`STARTUP_MATRIX_SCENARIOS=runsc-nydus make benchmark-startup-matrix` for focused
-Nydus startup validation.
+`benchmark-startup-matrix` and `benchmark-docker-runsc-compare` are Docker regression gates. They are useful before committing script or runtime changes, but they are not production bpfnet replacement evidence. The startup matrix defaults to `runsc-local` and `runsc-oci`; run `STARTUP_MATRIX_SCENARIOS=runsc-nydus make benchmark-startup-matrix` for focused Nydus startup validation.
 
-Use `benchmark-kubernetes-runsc-compare` for bpfnet dataplane validation on a
-real Linux Kubernetes node. The Job image must be the axnoded verify image, not
-the production `node-all-in-one` image, because the benchmark needs the verify
-binaries and sample rootfs. Clear local proxy variables when they would
-intercept the Kubernetes API path, and point `BENCHMARK_IMAGE` at an image
-available to the target namespace. For the production replacement command
-matrix, expected fallback modes, and `snatMap*` diagnostics, use
-[`network/bpfnet/docs/production-regression-runbook.md`](../../../network/bpfnet/docs/production-regression-runbook.md).
+Use `benchmark-kubernetes-runsc-compare` for bpfnet dataplane validation on a real Linux Kubernetes node. The Job image must be the axnoded verify image, not the production `node-all-in-one` image, because the benchmark needs the verify binaries and sample rootfs. Clear local proxy variables when they would intercept the Kubernetes API path, and point `BENCHMARK_IMAGE` at an image available to the target namespace. For the production replacement command matrix, expected fallback modes, and `snatMap*` diagnostics, use [`network/bpfnet/docs/production-regression-runbook.md`](../../../network/bpfnet/docs/production-regression-runbook.md).

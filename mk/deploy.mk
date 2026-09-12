@@ -132,7 +132,7 @@ helm-lint: helm-contract-check ## Lint the Axern Helm chart
 		--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)'
 
 helm-contract-check: ## Verify Helm values preserve runtime argument contracts
-	@for component in postgres minio; do \
+	@for component in postgres; do \
 		rendered="$$($(HELM) template axern-contract-check '$(AXERN_HELM_CHART)' \
 			--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)' \
 			--set "$${component}.enabled=true" \

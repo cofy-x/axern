@@ -11,14 +11,9 @@ Local surface:
 
 Image packaging lives under `deploy/images/`.
 
-The local deploy image flow uses a shared node-runtime base image under
-`deploy/images/lib/`, then produces separate final images for:
+The local deploy image flow uses a shared node-runtime base image under `deploy/images/lib/`, then produces separate final images for:
 
 - local deployment (`axern/local-node-all-in-one:dev`)
 - verification (`axnoded-verify:latest`)
 
-`deploy/` owns image packaging, the local truth environment, and the generic
-Kubernetes Helm chart. Provider-specific values, credentials, cluster paths,
-and cloud resource orchestration live outside this repository. For local
-environment usage, smoke entrypoints, cleanup commands, and CLI bootstrap, use
-[Local Deployment](./local/README.md).
+`deploy/` owns image packaging, the local truth environment, and the generic Kubernetes Helm chart. Provider-specific values, credentials, cluster paths, and cloud resource orchestration live outside this repository. For local environment usage, smoke entrypoints, cleanup commands, and CLI bootstrap, use [Local Deployment](./local/README.md).

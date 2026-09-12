@@ -1,11 +1,8 @@
 # Local Runtime Troubleshooting
 
-Use this runbook for the repo-supported compose and kind development
-environments. It focuses on commands: how to get status, how to collect the
-critical logs, and which command to run for each failure mode.
+Use this runbook for the repo-supported compose and kind development environments. It focuses on commands: how to get status, how to collect the critical logs, and which command to run for each failure mode.
 
-For the environment-neutral meaning of each component log, see
-[Runtime Logs](../../docs/operations/runtime-logs.md).
+For the environment-neutral meaning of each component log, see [Runtime Logs](../../docs/operations/runtime-logs.md).
 
 ## Quick Commands
 
@@ -67,15 +64,14 @@ curl -fsS http://127.0.0.1:25082/healthz
 
 Service logs:
 
-| Component | Command |
-| --- | --- |
-| `controld` | `docker logs --tail=200 axern-local-controld-1` |
+| Component          | Command                                                 |
+| ------------------ | ------------------------------------------------------- |
+| `controld`         | `docker logs --tail=200 axern-local-controld-1`         |
 | `controld-migrate` | `docker logs --tail=200 axern-local-controld-migrate-1` |
-| `tunneld` | `docker logs --tail=200 axern-local-tunneld-1` |
-| `node-all-in-one` | `docker logs --tail=200 axern-local-node-1` |
-| `gatewayd` | `docker logs --tail=200 axern-local-gatewayd-1` |
-| `postgres` | `docker logs --tail=120 axern-local-postgres-1` |
-| `minio` | `docker logs --tail=120 axern-local-minio-1` |
+| `tunneld`          | `docker logs --tail=200 axern-local-tunneld-1`          |
+| `node-all-in-one`  | `docker logs --tail=200 axern-local-node-1`             |
+| `gatewayd`         | `docker logs --tail=200 axern-local-gatewayd-1`         |
+| `postgres`         | `docker logs --tail=120 axern-local-postgres-1`         |
 
 Node-internal logs:
 
@@ -96,15 +92,14 @@ docker exec axern-local-node-1 sed -n '1,220p' /tmp/axnoded-node-config.toml
 
 Service logs:
 
-| Component | Command |
-| --- | --- |
-| `controld` | `kubectl -n axern-local logs deploy/controld --tail=200` |
-| `controld-migrate` | `kubectl -n axern-local logs job/controld-migrate --tail=200` |
-| `tunneld` | `kubectl -n axern-local logs deploy/tunneld --tail=200` |
-| `node-all-in-one` | `kubectl -n axern-local logs -l app=node-all-in-one --tail=200` |
-| `gatewayd` | `kubectl -n axern-local logs deploy/gatewayd --tail=200` |
-| `postgres` | `kubectl -n axern-local logs deploy/postgres --tail=120` |
-| `minio` | `kubectl -n axern-local logs deploy/minio --tail=120` |
+| Component          | Command                                                         |
+| ------------------ | --------------------------------------------------------------- |
+| `controld`         | `kubectl -n axern-local logs deploy/controld --tail=200`        |
+| `controld-migrate` | `kubectl -n axern-local logs job/controld-migrate --tail=200`   |
+| `tunneld`          | `kubectl -n axern-local logs deploy/tunneld --tail=200`         |
+| `node-all-in-one`  | `kubectl -n axern-local logs -l app=node-all-in-one --tail=200` |
+| `gatewayd`         | `kubectl -n axern-local logs deploy/gatewayd --tail=200`        |
+| `postgres`         | `kubectl -n axern-local logs deploy/postgres --tail=120`        |
 
 Node-internal logs:
 

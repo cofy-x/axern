@@ -85,7 +85,7 @@ proto-generated-check: ## Verify committed protobuf outputs match source contrac
 clean: ## Remove root build artifacts
 	rm -rf bin dist target apps/docs/dist sdk/typescript/dist sdk/python/dist
 
-agent-doc-check: ## Verify repository Markdown links and module contract indexing
+agent-doc-check: ## Verify Markdown formatting, links, and module contract indexing
 	bash $(ROOTDIR)/scripts/agent-doc-check.sh
 
 open-source-check: ## Audit the public source tree, credentials, metadata, and dependency licenses

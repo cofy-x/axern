@@ -1,8 +1,6 @@
 # Image Mounts
 
-Image mounts are an Axern runtime composition primitive. A workload keeps its
-task image as the sandbox rootfs while one or more reusable image bundles are
-mounted read-only at explicit paths inside the same sandbox.
+Image mounts are an Axern runtime composition primitive. A workload keeps its task image as the sandbox rootfs while one or more reusable image bundles are mounted read-only at explicit paths inside the same sandbox.
 
 ```text
 task image rootfs
@@ -12,8 +10,7 @@ task image rootfs
   -> one sandbox process environment
 ```
 
-This is generic platform behavior. Agent CLIs, compilers, debuggers, test
-tools, and other reusable tool bundles use the same contract.
+This is generic platform behavior. Agent CLIs, compilers, debuggers, test tools, and other reusable tool bundles use the same contract.
 
 ## Contract
 
@@ -25,19 +22,14 @@ tools, and other reusable tool bundles use the same contract.
 
 Validation rules:
 
-- targets must not be `/` or protected system paths such as `/usr`, `/bin`,
-  `/etc`, `/proc`, `/sys`, `/dev`, or `/run`;
-- image mount targets must not overlap each other or existing sandbox,
-  template, sandboxd-managed, or secret-file mounts;
+- targets must not be `/` or protected system paths such as `/usr`, `/bin`, `/etc`, `/proc`, `/sys`, `/dev`, or `/run`;
+- image mount targets must not overlap each other or existing sandbox, template, sandboxd-managed, or secret-file mounts;
 - missing directory targets are materialized in the final task rootfs view;
 - paths that cross rootfs symlinks are rejected;
-- runtime-managed bundle aliases must be absent from the task rootfs and must
-  not overlap any image, sandbox, template, or secret-file mount;
-- setup failure fails allocation start, and allocation cleanup releases mounted
-  image rootfs references.
+- runtime-managed bundle aliases must be absent from the task rootfs and must not overlap any image, sandbox, template, or secret-file mount;
+- setup failure fails allocation start, and allocation cleanup releases mounted image rootfs references.
 
-Axern does not merge operating system roots. A mounted image contributes files
-only. Tool images should be relocatable bundles, for example:
+Axern does not merge operating system roots. A mounted image contributes files only. Tool images should be relocatable bundles, for example:
 
 ```text
 /opt/axern/agents/codex/
@@ -45,28 +37,15 @@ only. Tool images should be relocatable bundles, for example:
   lib/
 ```
 
-Axern does not merge operating-system ABIs. A generic tool bundle that relies
-on task libraries must document that dependency. Official Axern Claude Code and
-Codex bundles instead carry a complete, pinned Ubuntu ABI and select their own
-loader, so they support both glibc- and musl-based Axrun-compatible task images.
-The task image remains responsible for `/bin/sh`, project commands, and its own
-language and test toolchains.
+Axern does not merge operating-system ABIs. A generic tool bundle that relies on task libraries must document that dependency. Official Axern Claude Code and Codex bundles instead carry a complete, pinned Ubuntu ABI and select their own loader, so they support both glibc- and musl-based Axrun-compatible task images. The task image remains responsible for `/bin/sh`, project commands, and its own language and test toolchains.
 
-Claude Code has a dual-path contract backed by one mount. Its image rootfs is
-bound once at the private ABI path `/__claude_code`; the allocation-private
-rootfs projection creates `/opt/axern/agents/claude-code` as a symlink to that
-mount. The public path remains stable for agent discovery and `PATH`, while the
-short ABI path keeps the Bun executable's in-place `PT_INTERP` fixed at
-`/__claude_code/l`. Both paths are reserved together for overlap validation;
-Axern never bind-mounts the Claude image a second time at the public path.
+Claude Code has a dual-path contract backed by one mount. Its image rootfs is bound once at the private ABI path `/__claude_code`; the allocation-private rootfs projection creates `/opt/axern/agents/claude-code` as a symlink to that mount. The public path remains stable for agent discovery and `PATH`, while the short ABI path keeps the Bun executable's in-place `PT_INTERP` fixed at `/__claude_code/l`. Both paths are reserved together for overlap validation; Axern never bind-mounts the Claude image a second time at the public path.
 
 ## Runtime Ownership
 
 - `controld` persists and propagates normalized image mount specs.
-- `axnoded` validates targets, persists live-container image ownership, restores
-  it after restart, and reconciles its complete desired lease set.
-- `imagemgr` owns durable mount leases, image rootfs resolution, final release
-  retry, and mounted rootfs lifetime.
+- `axnoded` validates targets, persists live-container image ownership, restores it after restart, and reconciles its complete desired lease set.
+- `imagemgr` owns durable mount leases, image rootfs resolution, final release retry, and mounted rootfs lifetime.
 - `imagefsd` remains the read-only image data plane for formats that need it.
 
 The OCI mount shape is:
@@ -78,8 +57,7 @@ target=<target>
 options=["rbind","ro"]
 ```
 
-Stable runtime IDs include image, target, and read-only flag so different mount
-sets do not reuse the wrong runtime template.
+Stable runtime IDs include image, target, and read-only flag so different mount sets do not reuse the wrong runtime template.
 
 ## Axrun Use
 
@@ -92,13 +70,9 @@ native task sandbox image
   -> patch, stdout, trajectory, raw evidence, exports
 ```
 
-Task images and agent bundle images remain separate. Credentials and provider
-endpoints stay in profile-backed managed proxy or local config, not in task
-images or bundle images.
+Task images and agent bundle images remain separate. Credentials and provider endpoints stay in profile-backed managed proxy or local config, not in task images or bundle images.
 
-TaskSet workspaces are also separate from image mounts. They use the dedicated
-`ExecutionConfig.workspace_image` contract and are prepared as writable,
-allocation-local COW overlays. See [Workspace Images](workspace-images.md).
+TaskSet workspaces are also separate from image mounts. They use the dedicated `ExecutionConfig.workspace_image` contract and are prepared as writable, allocation-local COW overlays. See [Workspace Images](workspace-images.md).
 
 ## Verification
 

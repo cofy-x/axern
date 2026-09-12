@@ -15,17 +15,17 @@ description: Local Axern 的环境要求、生命周期、数据、升级与故�
 
 ## 命令
 
-| 命令 | 行为 |
-| --- | --- |
-| `axern local up` | 预检、生成部署、启动、等待健康并配置 `local` Context |
-| `axern local image load IMAGE` | 将宿主 Docker 镜像流式导入本地节点；`--pull` 会先拉取镜像 |
-| `axern local status` | 展示版本、健康端点、数据路径、Context 和磁盘占用 |
-| `axern local logs [component]` | 聚合或指定组件日志，支持 `--follow`、`--tail`、`--since` |
-| `axern local doctor` | 只读检查主机、Docker、端口、版本、健康状态和 Node DNS；`--probe` 额外验证 Sandbox DNS |
-| `axern local down` | 删除容器和网络，保留数据 |
-| `axern local reset` | 永久删除数据和身份材料 |
-| `axern local upgrade` | 备份并显式迁移到 CLI 对应版本 |
-| `axern local path` | 输出实际数据目录 |
+| 命令                           | 行为                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------- |
+| `axern local up`               | 预检、生成部署、启动、等待健康并配置 `local` Context                                  |
+| `axern local image load IMAGE` | 将宿主 Docker 镜像流式导入本地节点；`--pull` 会先拉取镜像                             |
+| `axern local status`           | 展示版本、健康端点、数据路径、Context 和磁盘占用                                      |
+| `axern local logs [component]` | 聚合或指定组件日志，支持 `--follow`、`--tail`、`--since`                              |
+| `axern local doctor`           | 只读检查主机、Docker、端口、版本、健康状态和 Node DNS；`--probe` 额外验证 Sandbox DNS |
+| `axern local down`             | 删除容器和网络，保留数据                                                              |
+| `axern local reset`            | 永久删除数据和身份材料                                                                |
+| `axern local upgrade`          | 备份并显式迁移到 CLI 对应版本                                                         |
+| `axern local path`             | 输出实际数据目录                                                                      |
 
 使用 `axern local up --profile observability` 启用本地可观测组件；使用 `axern local up --profile default` 恢复核心 Profile。不传该参数时保留实例当前 Profile。
 
@@ -33,16 +33,16 @@ description: Local Axern 的环境要求、生命周期、数据、升级与故�
 
 ## 数据路径
 
-| 平台 | 默认路径 |
-| --- | --- |
-| macOS | `~/Library/Application Support/Axern/local` |
+| 平台  | 默认路径                                       |
+| ----- | ---------------------------------------------- |
+| macOS | `~/Library/Application Support/Axern/local`    |
 | Linux | `${XDG_DATA_HOME:-~/.local/share}/axern/local` |
 
 `AXERN_HOME` 可覆盖根目录。CLI 在其中保存证书、SSH 密钥、Compose 部署、Secret、数据库/对象数据、元数据和升级备份；敏感文件使用仅所有者可读写权限。
 
 ## 本地端口
 
-所有宿主机端口仅绑定 `127.0.0.1`：`25000` 为公开 gRPC Gateway，`25080` 为 Gateway HTTP 健康检查和 allocation terminal，`25022` 为 SSH，`24101` 为控制面 HTTP，`25432` 为 PostgreSQL，`29000/29001` 为 MinIO。Observability Profile 额外使用 `4317`、`4318` 和 `13000`。
+所有宿主机端口仅绑定 `127.0.0.1`：`25000` 为公开 gRPC Gateway，`25080` 为 Gateway HTTP 健康检查和 allocation terminal，`25022` 为 SSH，`24101` 为控制面 HTTP，`25432` 为 PostgreSQL。Observability Profile 额外使用 `4317`、`4318` 和 `13000`。
 
 首版不自动分配替代端口；请停止冲突进程后重新运行 `axern local doctor`。
 

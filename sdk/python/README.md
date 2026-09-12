@@ -1,9 +1,6 @@
 # Axern Python SDK
 
-The Axern Python SDK is the first-class programmable interface for Axern
-sandboxes. It exposes both the control plane client and a high-level
-`Sandbox` API for lifecycle, command execution, attached processes, file
-operations, directory transfer, tunnels, capability discovery, and diagnostics.
+The Axern Python SDK is the first-class programmable interface for Axern sandboxes. It exposes both the control plane client and a high-level `Sandbox` API for lifecycle, command execution, attached processes, file operations, directory transfer, tunnels, capability discovery, and diagnostics.
 
 ## Install
 
@@ -13,8 +10,7 @@ Install the published package:
 uv add axern-sdk
 ```
 
-For repository development, build and run examples through the root `uv`
-workspace:
+For repository development, build and run examples through the root `uv` workspace:
 
 ```bash
 uv build --no-sources sdk/python
@@ -40,11 +36,7 @@ client = AxernClient(
 )
 ```
 
-`AsyncAxernClient` provides the same control-plane surface for asyncio code.
-Constructors are explicit and never read the user directory. `from_context()`
-loads a named CLI context from the supplied path; `from_env()` is available for
-environment-driven automation and reads `AXERN_ENDPOINT` plus the gateway TLS
-and proxy variables.
+`AsyncAxernClient` provides the same control-plane surface for asyncio code. Constructors are explicit and never read the user directory. `from_context()` loads a named CLI context from the supplied path; `from_env()` is available for environment-driven automation and reads `AXERN_ENDPOINT` plus the gateway TLS and proxy variables.
 
 ## Sandbox Sources
 
@@ -67,10 +59,7 @@ client.close()
 
 ## Network Policies
 
-Omitting `network_policy` preserves unrestricted v0.5 behavior. Strict
-policies are fail-closed; `deny_dns` only refuses matching traditional UDP/TCP
-DNS queries and does not block direct IP traffic, DoH, DoT, or already-resolved
-addresses.
+Omitting `network_policy` requests unrestricted networking. Strict policies are fail-closed; `deny_dns` only refuses matching traditional UDP/TCP DNS queries and does not block direct IP traffic, DoH, DoT, or already-resolved addresses.
 
 ```python
 from axern_sdk import NetworkPolicy, Sandbox
@@ -92,17 +81,11 @@ with Sandbox(
     print(sandbox.metadata.allocation_id)
 ```
 
-`NetworkPolicy.allow_domains("example.com", "*.example.com")` is strict: only
-HTTP/HTTPS traffic whose controlled DNS result and HTTP Host or TLS SNI match is
-allowed. Use `NetworkPolicy.strict(..., cidr_rules=(CIDRRule(...),))` for
-explicit TCP/UDP CIDR and port grants, and `NetworkPolicy.deny_all()` for no
-egress.
+`NetworkPolicy.allow_domains("example.com", "*.example.com")` is strict: only HTTP/HTTPS traffic whose controlled DNS result and HTTP Host or TLS SNI match is allowed. Use `NetworkPolicy.strict(..., cidr_rules=(CIDRRule(...),))` for explicit TCP/UDP CIDR and port grants, and `NetworkPolicy.deny_all()` for no egress.
 
 ## Allocation-Local Files
 
-Writable files belong to the sandbox allocation and are not preserved across
-replacement or node loss. Use the file APIs while the sandbox is alive and
-explicitly download or publish outputs that must outlive it.
+Writable files belong to the sandbox allocation and are not preserved across replacement or node loss. Use the file APIs while the sandbox is alive and explicitly download or publish outputs that must outlive it.
 
 ```python
 from axern_sdk import Sandbox
@@ -117,8 +100,7 @@ with Sandbox(
 
 ## Exec
 
-Use `exec()` for command-result workflows. Set `text=True` to decode stdout and
-stderr; set `check=True` to raise `SandboxExecError` on non-zero exit.
+Use `exec()` for command-result workflows. Set `text=True` to decode stdout and stderr; set `check=True` to raise `SandboxExecError` on non-zero exit.
 
 ```python
 with Sandbox(client=client, image="docker.io/library/python:3.12-slim") as sandbox:
@@ -136,8 +118,7 @@ for event in sandbox.exec_stream(["python", "-u", "-c", "print('streamed')"]):
 
 ## Attached Process
 
-Use `process()` when your program needs to control stdin, observe output, wait,
-or terminate a running command.
+Use `process()` when your program needs to control stdin, observe output, wait, or terminate a running command.
 
 ```python
 with sandbox.process(["python", "-u", "-c", "import sys; print(sys.stdin.read().upper())"]) as process:
@@ -152,18 +133,11 @@ with sandbox.process(["python", "-u", "-c", "import sys; print(sys.stdin.read().
     print(result.exit_code)
 ```
 
-`AsyncSandbox.process()` returns `AsyncSandboxProcess` with async equivalents of
-`write()`, `close_stdin()`, `events()`, `wait()`, `terminate()`, and `kill()`.
+`AsyncSandbox.process()` returns `AsyncSandboxProcess` with async equivalents of `write()`, `close_stdin()`, `events()`, `wait()`, `terminate()`, and `kill()`.
 
 ## Image-Backed Processes
 
-Use `exec_image()` or `process_image()` to run a tool from a separate image
-against explicit host-backed sandbox paths. OCI and Nydus image refs use the
-same `image` field. When `mounts=None`, the SDK requests `/workspace ->
-/workspace`; pass `mounts=[]` for no shared paths. Use `Sandbox(image=...)`
-when the image should be the sandbox rootfs with normal files, exec, process,
-tunnel, and lifecycle APIs; image-backed processes are temporary side processes
-attached to an existing sandbox.
+Use `exec_image()` or `process_image()` to run a tool from a separate image against explicit host-backed sandbox paths. OCI and Nydus image refs use the same `image` field. When `mounts=None`, the SDK requests `/workspace -> /workspace`; pass `mounts=[]` for no shared paths. Use `Sandbox(image=...)` when the image should be the sandbox rootfs with normal files, exec, process, tunnel, and lifecycle APIs; image-backed processes are temporary side processes attached to an existing sandbox.
 
 ```python
 from axern_sdk import workspace_mount
@@ -180,8 +154,7 @@ print(result.stdout)
 
 ## Files
 
-Single-file APIs are byte-safe. Text helpers only encode/decode at the SDK
-boundary.
+Single-file APIs are byte-safe. Text helpers only encode/decode at the SDK boundary.
 
 ```python
 sandbox.write_text("/tmp/message.txt", "payload\n")
@@ -191,8 +164,7 @@ sandbox.write_bytes("/tmp/blob.bin", b"\x00\x01")
 data = sandbox.read_bytes("/tmp/blob.bin")
 ```
 
-Platform file operations are handled by the node/runtime file service, not by
-SDK-side shell fallbacks:
+Platform file operations are handled by the node/runtime file service, not by SDK-side shell fallbacks:
 
 ```python
 sandbox.copy("/tmp/message.txt", "/tmp/message-copy.txt", overwrite=True)
@@ -207,9 +179,7 @@ exists = sandbox.exists("/tmp/message-final.txt")
 
 ## Directory Transfer
 
-Directory upload/download uses archive streaming. The SDK packages local
-directories with `tarfile` and safely extracts downloaded archives; remote file
-semantics remain owned by the platform file service.
+Directory upload/download uses archive streaming. The SDK packages local directories with `tarfile` and safely extracts downloaded archives; remote file semantics remain owned by the platform file service.
 
 ```python
 from pathlib import Path
@@ -222,14 +192,11 @@ sandbox.upload_dir(source, "/tmp/example-upload", overwrite=True)
 sandbox.download_dir("/tmp/example-upload", "example-download", overwrite=True)
 ```
 
-Local symlinks are rejected during upload. Download extraction rejects absolute
-paths, parent traversal, symlinks, and hardlinks.
+Local symlinks are rejected during upload. Download extraction rejects absolute paths, parent traversal, symlinks, and hardlinks.
 
 ## Tunnel
 
-Pass `upstream` to expose a local TCP service to code running inside the
-sandbox. The SDK owns the tunnel connector and renews finite tunnel TTLs while
-the sandbox is active.
+Pass `upstream` to expose a local TCP service to code running inside the sandbox. The SDK owns the tunnel connector and renews finite tunnel TTLs while the sandbox is active.
 
 ```python
 from axern_sdk import Sandbox
@@ -245,8 +212,7 @@ with Sandbox(
 
 ## Metadata
 
-`Sandbox.state` is the lightweight runtime state. `Sandbox.metadata` is stable
-for logs and diagnostics:
+`Sandbox.state` is the lightweight runtime state. `Sandbox.metadata` is stable for logs and diagnostics:
 
 ```python
 metadata = sandbox.metadata
@@ -256,8 +222,7 @@ print(metadata.node_id, metadata.runtime_class, metadata.tunnel_session_id)
 
 ## Capabilities
 
-Use `capability_status()` to discover baseline and optional sandboxd-backed
-providers before calling desktop or browser APIs:
+Use `capability_status()` to discover baseline and optional sandboxd-backed providers before calling desktop or browser APIs:
 
 ```python
 status = sandbox.capability_status()
@@ -311,11 +276,7 @@ Common error classes:
 - `SandboxRpcError`: gRPC status mapped from node/runtime APIs.
 - `SandboxTimeoutError`: SDK-side timeout.
 
-Sandboxd-backed capability failures keep their normal SDK exception class and
-also expose `exc.capability` when the node returns provider diagnostics. That
-object contains `capability`, `provider`, `provider_state`, `reason`, and
-`missing_dependencies`, so callers can branch on missing browser or
-computer-use dependencies without parsing the full error string.
+Sandboxd-backed capability failures keep their normal SDK exception class and also expose `exc.capability` when the node returns provider diagnostics. That object contains `capability`, `provider`, `provider_state`, `reason`, and `missing_dependencies`, so callers can branch on missing browser or computer-use dependencies without parsing the full error string.
 
 ## Async
 

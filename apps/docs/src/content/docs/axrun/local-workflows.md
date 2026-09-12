@@ -3,14 +3,11 @@ title: TaskSets and Local Workflows
 description: Compile immutable TaskSets, validate run directories, and export trajectories for training and evaluation.
 ---
 
-Axrun compiles TaskSets, executes episodes through a selected backend, records
-portable run directories, and exports derived training or evaluation views.
+Axrun compiles TaskSets, executes episodes through a selected backend, records portable run directories, and exports derived training or evaluation views.
 
 ## Compile a TaskSet
 
-A TaskSetBuild spec is strict `axrun/v1` YAML. The compiler resolves
-instructions and workspace expansion deterministically into immutable
-`TaskInstance` records; it never creates an implicit Cartesian product:
+A TaskSetBuild spec is strict `axrun/v1` YAML. The compiler resolves instructions and workspace expansion deterministically into immutable `TaskInstance` records; it never creates an implicit Cartesian product:
 
 ```bash
 axrun task init --output-dir tasks/demo
@@ -18,13 +15,9 @@ axrun task build --file tasks/demo/taskset.yaml --output .axrun/tasksets/demo
 axrun task inspect .axrun/tasksets/demo
 ```
 
-`task init` writes explicit `250m` CPU and `512Mi` memory requests for its
-starter task. Tune these per-episode requests to the actual agent workload
-instead of relying on the control-plane fallback. `resources.disk` is rejected
-until Axern exposes an enforceable ephemeral disk contract.
+`task init` writes explicit `250m` CPU and `512Mi` memory requests for its starter task. Tune these per-episode requests to the actual agent workload instead of relying on the control-plane fallback. `resources.disk` is rejected until Axern exposes an enforceable ephemeral disk contract.
 
-Publish a TaskSet as an immutable `repository@sha256:...` reference through
-Kova when it must be shared or executed reproducibly across machines:
+Publish a TaskSet as an immutable `repository@sha256:...` reference through Kova when it must be shared or executed reproducibly across machines:
 
 ```bash
 export KOVA_ENDPOINT=https://kova.example.com
@@ -36,8 +29,7 @@ axrun task publish .axrun/tasksets/demo \
 
 ## The run directory
 
-Every rollout writes a portable run directory that is the source of truth for
-validation and exports:
+Every rollout writes a portable run directory that is the source of truth for validation and exports:
 
 ```text
 .axrun/runs/<run_id>/
@@ -54,10 +46,7 @@ validation and exports:
   exports/
 ```
 
-`run.json` and `plan.json` freeze rollout intent; episode sidecars record
-execution, agent behavior, verification, reward, trajectory, and artifact
-references. All references are relative to the run root so the directory can
-move as one unit.
+`run.json` and `plan.json` freeze rollout intent; episode sidecars record execution, agent behavior, verification, reward, trajectory, and artifact references. All references are relative to the run root so the directory can move as one unit.
 
 ## Validate and export
 
@@ -72,14 +61,8 @@ axrun export trace .axrun/runs/<run_id>
 axrun export preference .axrun/runs/<run_id>
 ```
 
-Exports are derived views — SFT prompts and outputs, reward rows, trajectory
-traces, and chosen/rejected preference pairs — reproducible from the run
-directory. Raw LLM telemetry and command logs stay referenced artifacts, never
-inline fields.
+Exports are derived views — SFT prompts and outputs, reward rows, trajectory traces, and chosen/rejected preference pairs — reproducible from the run directory. Raw LLM telemetry and command logs stay referenced artifacts, never inline fields.
 
-Terminal exit codes are stable for automation and distinguish successful,
-task-level, infrastructure, validation, client, and usage outcomes.
+Terminal exit codes are stable for automation and distinguish successful, task-level, infrastructure, validation, client, and usage outcomes.
 
-The [usage contract](https://github.com/cofy-x/axern/blob/main/apps/axrun/docs/usage.md)
-and [domain model](https://github.com/cofy-x/axern/blob/main/apps/axrun/docs/domain-model.md)
-are the authoritative references.
+The [usage contract](https://github.com/cofy-x/axern/blob/main/apps/axrun/docs/usage.md) and [domain model](https://github.com/cofy-x/axern/blob/main/apps/axrun/docs/domain-model.md) are the authoritative references.

@@ -11,25 +11,25 @@ SDK 与控制面契约一起版本化。请使用与 Axern CLI/Chart Release 匹
 
 :::
 
-| SDK | 适用场景 | 开始 |
-| --- | --- | --- |
-| Python | Agent 工具、Notebook、编排 | [Python SDK](/zh-cn/sdk/python/) |
-| Go | 基础设施控制器和 Go Agent | [Go SDK](/zh-cn/sdk/go/) |
-| TypeScript | Node.js 应用和工具 | [TypeScript SDK](/zh-cn/sdk/typescript/) |
+| SDK        | 适用场景                   | 开始                                     |
+| ---------- | -------------------------- | ---------------------------------------- |
+| Python     | Agent 工具、Notebook、编排 | [Python SDK](/zh-cn/sdk/python/)         |
+| Go         | 基础设施控制器和 Go Agent  | [Go SDK](/zh-cn/sdk/go/)                 |
+| TypeScript | Node.js 应用和工具         | [TypeScript SDK](/zh-cn/sdk/typescript/) |
 
 ## 能力矩阵
 
 Sandbox 边界是共享的；各语言的深度差异是刻意设计。
 
-| 能力 | Python | Go | TypeScript |
-| --- | --- | --- | --- |
-| Sandbox 生命周期、exec、进程 | ✓ | ✓ | ✓ |
-| 文件与归档传输 | ✓ | ✓ | ✓ |
-| 反向隧道 | ✓ | ✓ | ✓ |
-| Computer Use | ✓ | ✓ | ✓ |
-| 托管浏览器 | ✓ | — | — |
-| Environment 与 Run | ✓ | ✓ | ✓ |
-| 并发模型 | 同步 + `AsyncSandbox` | `context.Context` | Promise 原生 |
+| 能力                         | Python                | Go                | TypeScript   |
+| ---------------------------- | --------------------- | ----------------- | ------------ |
+| Sandbox 生命周期、exec、进程 | ✓                     | ✓                 | ✓            |
+| 文件与归档传输               | ✓                     | ✓                 | ✓            |
+| 反向隧道                     | ✓                     | ✓                 | ✓            |
+| Computer Use                 | ✓                     | ✓                 | ✓            |
+| 托管浏览器                   | ✓                     | —                 | —            |
+| Environment 与 Run           | ✓                     | ✓                 | ✓            |
+| 并发模型                     | 同步 + `AsyncSandbox` | `context.Context` | Promise 原生 |
 
 Secret、配额、命名空间、SSH 和 admin 授权目前以 CLI 为产品界面；SDK 只在生成的 protobuf 层暴露它们。
 

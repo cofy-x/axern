@@ -199,26 +199,6 @@ postgres:
     size: 20Gi
     storageClassName: ""
 
-minio:
-  enabled: false
-  image:
-    repository: minio/minio
-    tag: RELEASE.2025-02-28T09-55-16Z
-    pullPolicy: ""
-  clientImage:
-    repository: minio/mc
-    tag: RELEASE.2025-02-21T16-00-46Z
-    pullPolicy: ""
-  rootUser: minioadmin
-  rootPassword: minioadmin
-  bucket: axern-system
-  endpoint: ""
-  persistence:
-    enabled: true
-    existingClaim: ""
-    size: 40Gi
-    storageClassName: ""
-
 runtimeCatalog:
   python311Image: ghcr.io/cofy-x/axern/python311-runtime:v0.6.2
   serverBaseImage: ghcr.io/cofy-x/axern/server-base-runtime:v0.6.2

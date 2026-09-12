@@ -99,19 +99,11 @@ for line in (root / "runtime/axnoded/gvisor.lock").read_text().splitlines():
     if line and not line.startswith("#"):
         key, value = line.split("=", 1)
         tool_versions[key] = value
-for line in (root / "runtime/axnoded/runtime-tools.sh").read_text().splitlines():
-    if line and not line.startswith("#"):
-        match = re.fullmatch(r"(AXERN_MC_[A-Z0-9_]+)=(.+)", line)
-        if match:
-            tool_versions[match.group(1)] = match.group(2)
-for key in ("AXERN_GVISOR_RELEASE", "AXERN_MC_RELEASE"):
+for key in ("AXERN_GVISOR_RELEASE",):
     if not tool_versions.get(key):
         raise SystemExit(f"runtime tool version {key} is missing")
-for key in (
-    "AXERN_GVISOR_SHA512_AMD64", "AXERN_GVISOR_SHA512_ARM64",
-    "AXERN_MC_SHA256_AMD64", "AXERN_MC_SHA256_ARM64",
-):
-    if not re.fullmatch(r"[0-9a-f]{128}" if "SHA512" in key else r"[0-9a-f]{64}", tool_versions.get(key, "")):
+for key in ("AXERN_GVISOR_SHA512_AMD64", "AXERN_GVISOR_SHA512_ARM64"):
+    if not re.fullmatch(r"[0-9a-f]{128}", tool_versions.get(key, "")):
         raise SystemExit(f"runtime tool digest {key} is invalid")
 if tool_versions.get("AXERN_GVISOR_TAG") != f"release-{tool_versions.get('AXERN_GVISOR_RELEASE', '')}":
     raise SystemExit("gVisor source tag and artifact release do not match")
@@ -123,7 +115,6 @@ for relative in (
     "runtime/axnoded/docker/benchmark/Dockerfile",
     "docker/devbox/Dockerfile",
     "runtime/axnoded/scripts/cache/cache-runsc.sh",
-    "runtime/axnoded/scripts/cache/cache-minio-mc.sh",
 ):
     if "release/latest" in (root / relative).read_text():
         raise SystemExit(f"{relative} must not download a rolling runtime tool release")
@@ -138,10 +129,7 @@ for relative in (
     text = (root / relative).read_text()
     if "runtime-tools.sh" in text and "runtime/axnoded/gvisor.lock" not in text:
         raise SystemExit(f"{relative} sources runtime-tools.sh without installing gvisor.lock")
-for relative in (
-    "runtime/axnoded/scripts/cache/cache-runsc.sh",
-    "runtime/axnoded/scripts/cache/cache-minio-mc.sh",
-):
+for relative in ("runtime/axnoded/scripts/cache/cache-runsc.sh",):
     text = (root / relative).read_text()
     if "runtime-tools.sh" in text and "AXERN_GVISOR_LOCK=" not in text:
         raise SystemExit(f"{relative} sources runtime-tools.sh without selecting gvisor.lock")

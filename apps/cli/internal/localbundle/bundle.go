@@ -28,7 +28,6 @@ func ImageReferences(version string) map[string]string {
 	registry := "ghcr.io/cofy-x/axern/"
 	values := map[string]string{
 		"POSTGRES_IMAGE":             "postgres:16-alpine",
-		"MINIO_IMAGE":                "minio/minio:RELEASE.2025-02-28T09-55-16Z",
 		"CONTROLD_IMAGE":             registry + "controld:" + tag,
 		"TUNNELD_IMAGE":              registry + "tunneld:" + tag,
 		"GATEWAYD_IMAGE":             registry + "gatewayd:" + tag,

@@ -26,7 +26,7 @@ func TestEmbeddedBundleIsSelfContainedAndLoopbackOnly(t *testing.T) {
 			t.Fatalf("local bundle is missing the local cgroup contract %q", contract)
 		}
 	}
-	for _, port := range []string{"POSTGRES_PORT", "MINIO_API_PORT", "MINIO_CONSOLE_PORT", "CONTROLD_HTTP_PORT", "GATEWAY_CONTROL_PORT", "GATEWAY_HTTP_PORT", "GATEWAY_SSH_PORT", "OTEL_GRPC_PORT", "OTEL_HTTP_PORT", "LGTM_UI_PORT"} {
+	for _, port := range []string{"POSTGRES_PORT", "CONTROLD_HTTP_PORT", "GATEWAY_CONTROL_PORT", "GATEWAY_HTTP_PORT", "GATEWAY_SSH_PORT", "OTEL_GRPC_PORT", "OTEL_HTTP_PORT", "LGTM_UI_PORT"} {
 		mapping := []byte("127.0.0.1:${" + port + "}:")
 		if !bytes.Contains(Compose, mapping) {
 			t.Fatalf("host port %s is not bound explicitly to loopback", port)

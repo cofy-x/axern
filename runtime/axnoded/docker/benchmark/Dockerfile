@@ -93,8 +93,8 @@ RUN APT_SOURCE="${APT_MIRROR_SOURCE}"; \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && \
-    apt-get install -y \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y \
     bash \
     bzip2 \
     busybox-static \
@@ -116,7 +116,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       fi; \
     done && \
     if [ -n "${kernel_tools}" ]; then \
-      apt-get install -y ${kernel_tools}; \
+      apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y ${kernel_tools}; \
     fi && \
     perf_bin="" && \
     if [ -x "/usr/lib/linux-tools/${kernel_release}/perf" ]; then \

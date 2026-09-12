@@ -34,8 +34,8 @@ fingerprint="$(gpg --show-keys --with-colons /etc/apt/keyrings/claude-code.asc |
 test "$fingerprint" = 31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE
 echo "deb [signed-by=/etc/apt/keyrings/claude-code.asc] https://downloads.claude.ai/claude-code/apt/stable stable main" \
   > /etc/apt/sources.list.d/claude-code.list
-apt-get update
-apt-get install -y --no-install-recommends "claude-code=${claude_code_version}-1"
+apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update
+apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends "claude-code=${claude_code_version}-1"
 test "$(claude --version)" = "$claude_code_version (Claude Code)"
 
 test -x "$loader"

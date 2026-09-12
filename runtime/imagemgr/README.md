@@ -1,14 +1,11 @@
 # imagemgr
 
-`imagemgr` is the node-local image orchestration daemon used by `axnoded` for
-image-backed rootfs flows.
+`imagemgr` is the node-local image orchestration daemon used by `axnoded` for image-backed rootfs flows.
 
 It exposes an HTTP-over-Unix-socket API and coordinates two mount families:
 
-- Nydus image: fetch bootstrap metadata from a registry, launch `imagefsd`, and
-  mount the RAFS filesystem.
-- OCI image: pull and extract layers locally, then expose a readonly overlay
-  mount; `/oci_mount` can optionally auto-route to Nydus first.
+- Nydus image: fetch bootstrap metadata from a registry, launch `imagefsd`, and mount the RAFS filesystem.
+- OCI image: pull and extract layers locally, then expose a readonly overlay mount; `/oci_mount` can optionally auto-route to Nydus first.
 
 ## Related Docs
 
@@ -43,16 +40,9 @@ The API surface is:
 - `chunkdb`: retained top-level ChunkDB aggregate summary
 - `locality`: rootfs-identity entries for OCI and Nydus mounts
 
-`/oci_mount` first tries Nydus routing when a registry client is configured.
-If Nydus is not detected, it falls back to the local OCI extract-plus-overlay
-path.
-If the requested image ref has been imported through `/oci_import`, the OCI
-fallback path uses that node-local archive instead of fetching from a registry.
+`/oci_mount` first tries Nydus routing when a registry client is configured. If Nydus is not detected, it falls back to the local OCI extract-plus-overlay path. If the requested image ref has been imported through `/oci_import`, the OCI fallback path uses that node-local archive instead of fetching from a registry.
 
-For private-image flows, `/oci_mount` also accepts optional request-scoped
-Docker config JSON. Inline request auth overrides static auth-file entries for
-that mount request only, which keeps private registry credentials
-allocation-scoped instead of node-global.
+For private-image flows, `/oci_mount` also accepts optional request-scoped Docker config JSON. Inline request auth overrides static auth-file entries for that mount request only, which keeps private registry credentials allocation-scoped instead of node-global.
 
 ## Repository Layout
 
@@ -80,54 +70,25 @@ Common optional flags:
 - `-root`: work directory for daemon state, mount records, and logs
 - `-http_sock`: Unix socket path; defaults to `/var/run/imagemgr.sock`
 - `-nydus_suffix`: suffix appended during Nydus auto-detection in `/oci_mount`
-- `-registry_mirror_url`: dynamic registry mirror origin used by OCI pulls and
-  Nydus bootstrap fetches. Nydus v2.4 lazy blob reads continue to use the
-  source registry because its backend no longer supports mirror headers.
+- `-registry_mirror_url`: dynamic registry mirror origin used by OCI pulls and Nydus bootstrap fetches. Nydus v2.4 lazy blob reads continue to use the source registry because its backend no longer supports mirror headers.
 - `-debug`: enable debug logging
 - `-enable_tracing`: enable timed OpenTelemetry instrumentation
 - `-cgroup_memory_limit`: memory cap for launched `imagefsd` daemons
-- `-nydus_readahead_workers`: bounded workers for demand-triggered Nydus cache
-  readahead; zero keeps fully lazy reads
-- `-nydus_readahead_window_bytes`: maximum range scheduled after a successful
-  foreground read
-- `-nydus_decoded_cache_bytes`: per-mount decoded chunk working-set limit;
-  persisted chunks are released from this cache after ChunkDB confirms storage
+- `-nydus_readahead_workers`: bounded workers for demand-triggered Nydus cache readahead; zero keeps fully lazy reads
+- `-nydus_readahead_window_bytes`: maximum range scheduled after a successful foreground read
+- `-nydus_decoded_cache_bytes`: per-mount decoded chunk working-set limit; persisted chunks are released from this cache after ChunkDB confirms storage
 
-Nydus launch policy is reconciled when imagemgr restores daemon metadata. If a
-recovered daemon is still running with different readahead or decoded-cache
-settings, imagemgr stops it and the next mount starts it with the current
-policy instead of silently retaining stale launch arguments.
+Nydus launch policy is reconciled when imagemgr restores daemon metadata. If a recovered daemon is still running with different readahead or decoded-cache settings, imagemgr stops it and the next mount starts it with the current policy instead of silently retaining stale launch arguments.
 
 Common optional environment variables:
 
-- `IMAGEMGR_INSECURE_REGISTRIES`: comma-separated registry hosts that should be
-  fetched over HTTP instead of HTTPS, used by local truth environments such as
-  `localhost:5001` and `host.docker.internal:5001`
+- `IMAGEMGR_INSECURE_REGISTRIES`: comma-separated registry hosts that should be fetched over HTTP instead of HTTPS, used by local truth environments such as `localhost:5001` and `host.docker.internal:5001`
 
-Registry mirror, forward proxy, and insecure registry are separate transport
-choices. A mirror rewrites requests to a trusted distribution service, a
-forward proxy carries the original HTTPS registry request, and an
-insecure registry explicitly opts selected hosts into plain HTTP. Registry TLS
-certificate verification is enabled by default on every HTTPS path.
+Registry mirror, forward proxy, and insecure registry are separate transport choices. A mirror rewrites requests to a trusted distribution service, a forward proxy carries the original HTTPS registry request, and an insecure registry explicitly opts selected hosts into plain HTTP. Registry TLS certificate verification is enabled by default on every HTTPS path.
 
-The production Nydus backend sends blob reads through the Dragonfly Seed Client
-Service HTTP proxy. Dragonfly owns P2P task scheduling and whole-blob prefetch;
-`imagefsd` owns its sparse cache. Imagemgr still resolves image metadata and the
-RAFS bootstrap through its registry client. Imagefsd bounded readahead is an
-optional experimental mode and stays disabled when Dragonfly prefetch is
-enabled. The spawned mount process inherits standard OpenTelemetry environment
-variables, so no imagemgr-specific metrics endpoint is required.
+The production Nydus backend sends blob reads through the Dragonfly Seed Client Service HTTP proxy. Dragonfly owns P2P task scheduling and whole-blob prefetch; `imagefsd` owns its sparse cache. Imagemgr still resolves image metadata and the RAFS bootstrap through its registry client. Imagefsd bounded readahead is an optional experimental mode and stays disabled when Dragonfly prefetch is enabled. The spawned mount process inherits standard OpenTelemetry environment variables, so no imagemgr-specific metrics endpoint is required.
 
-The generated Nydus registry backend keeps registry metadata, authentication,
-and the initial blob request on HTTPS. HTTPS-intercepting Dragonfly proxies must
-use a stable CA: Seed Client holds the CA key and signs per-origin certificates,
-while imagefsd receives only the public CA certificate through `ca_cert_files`.
-TLS verification remains enabled. `blob_url_scheme` controls only registry blob
-redirects and may be set to HTTP after the target registry has been verified to
-support it. Axern does not generate `proxy.use_http`; proxy endpoint transport
-and origin URL schemes are separate concerns. Performance validation disables
-proxy fallback so a direct-origin read cannot be mistaken for a Dragonfly
-sample.
+The generated Nydus registry backend keeps registry metadata, authentication, and the initial blob request on HTTPS. HTTPS-intercepting Dragonfly proxies must use a stable CA: Seed Client holds the CA key and signs per-origin certificates, while imagefsd receives only the public CA certificate through `ca_cert_files`. TLS verification remains enabled. `blob_url_scheme` controls only registry blob redirects and may be set to HTTP after the target registry has been verified to support it. Axern does not generate `proxy.use_http`; proxy endpoint transport and origin URL schemes are separate concerns. Performance validation disables proxy fallback so a direct-origin read cannot be mistaken for a Dragonfly sample.
 
 ## Run Example
 
@@ -187,37 +148,21 @@ Inspect node-local image inventory:
 curl --unix-socket /tmp/imagemgr.sock http://unix/inventory
 ```
 
-On a node, operators can inspect the same image cache through
-`axctl image list`, `axctl image inspect <image-ref>`, and `axctl image mounts`.
+On a node, operators can inspect the same image cache through `axctl image list`, `axctl image inspect <image-ref>`, and `axctl image mounts`.
 
 The mount endpoints return:
 
 - `mount_path`
 - optional environment values needed by higher-level runtime consumers
-- `immutable_mount`: a bounded source-owned descriptor containing the effective
-  root, opaque identity, filesystem diagnostics, exact ordered lower paths,
-  readonly state, and lease ID
+- `immutable_mount`: a bounded source-owned descriptor containing the effective root, opaque identity, filesystem diagnostics, exact ordered lower paths, readonly state, and lease ID
 
-The descriptor is the only image-representation hand-off to runtime rootfs
-projection. Consumers validate it but do not parse OCI layers, Nydus bootstrap
-state or mountinfo to reconstruct image state.
+The descriptor is the only image-representation hand-off to runtime rootfs projection. Consumers validate it but do not parse OCI layers, Nydus bootstrap state or mountinfo to reconstruct image state.
 
-`GET /list_oci_mount_details` returns the mounted image URL, resolved mount
-path, and mount type (`oci` or `nydus`) for image-backed rootfs mounts.
-It also reports `lease_count`. Mount requests require a stable `lease_id`;
-repeated acquire and release calls are idempotent, and the resource is
-unmounted only after its final lease is released. Failed final releases remain
-durable and are retried by imagemgr reconciliation.
-`POST /reconcile_mount_leases` accepts an `owner` and its complete desired
-`lease_ids` set, then releases stale leases owned by that caller.
+`GET /list_oci_mount_details` returns the mounted image URL, resolved mount path, and mount type (`oci` or `nydus`) for image-backed rootfs mounts. It also reports `lease_count`. Mount requests require a stable `lease_id`; repeated acquire and release calls are idempotent, and the resource is unmounted only after its final lease is released. Failed final releases remain durable and are retried by imagemgr reconciliation. `POST /reconcile_mount_leases` accepts an `owner` and its complete desired `lease_ids` set, then releases stale leases owned by that caller.
 
-When a daemon needs to be removed explicitly, `POST /cleanup_daemon` accepts a
-JSON body with `daemon_id`.
+When a daemon needs to be removed explicitly, `POST /cleanup_daemon` accepts a JSON body with `daemon_id`.
 
-Persisted mount or daemon records with unsupported source types are rejected at
-startup. Operators must resolve legacy mounts explicitly before upgrading;
-imagemgr does not reinterpret or delete those records automatically. S3 artifact
-storage is independent of node rootfs and remains supported by the control plane.
+Persisted mount or daemon records with unsupported source types are rejected at startup and require explicit operator resolution; imagemgr never reinterprets or deletes those records automatically. S3 artifact storage is independent of node rootfs and remains supported by the control plane.
 
 ## Development And Validation
 
@@ -252,6 +197,4 @@ make axnoded-verify-node-oci-e2e
 make axnoded-verify-node-nydus-e2e
 ```
 
-On macOS, treat `make imagemgr-test` and `make imagemgr-build` as the best
-available local checks. FUSE and overlay-mount correctness must be
-validated in a Linux workspace.
+On macOS, treat `make imagemgr-test` and `make imagemgr-build` as the best available local checks. FUSE and overlay-mount correctness must be validated in a Linux workspace.

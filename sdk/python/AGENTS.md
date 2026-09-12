@@ -1,79 +1,20 @@
-# AGENTS.md
+# Python SDK Agent Contract
 
 ## Purpose
 
-Local contract for the Axern Python SDK workspace. Follow the root
-[`../../AGENTS.md`](../../AGENTS.md) first, then apply this file under
-`sdk/python`.
+`sdk/python` owns the public Python SDK. Read the [Python SDK README](README.md) for usage and package commands.
 
-## Workspace Boundaries
+## Ownership Boundaries
 
-- Keep importable code under [`src`](src), generated protobuf modules under
-  [`src/axern`](src/axern), and user-facing SDK code under
-  [`src/axern_sdk`](src/axern_sdk).
-- Keep tests under [`tests`](tests).
-- Do not add product apps, demos, services, or platform entrypoints here.
-
-## API And Structure
-
-- Treat `axern_sdk.__init__`, `client`, `catalog`, `sandbox`, and `tunnel` as
-  public API boundaries; keep exports intentional and small.
-- Do not add compatibility aliases for flawed early API shapes unless a concrete
-  external contract requires them.
-- Prefer explicit source models over inferred defaults. Environment and sandbox
-  callers should provide exactly one source: `template_id`, `image`, or
-  `environment_id`.
-- Keep files cohesive by responsibility. Do not grow orchestration files into
-  mixed client, lifecycle, transport, and model implementations.
-- Put private shared helpers in `axern_sdk._internal` when they are not part of
-  the SDK surface.
-- Do not hand-edit generated `*_pb2.py` or `*_pb2_grpc.py` files.
-
-## Proto Generation
-
-- Regenerate Python protobuf modules with
-  [`scripts/generate_proto.sh`](scripts/generate_proto.sh).
-- When adding proto dependencies, update the generation script, required
-  generated `__init__.py` files, [`pyproject.toml`](pyproject.toml), and
-  [`../../uv.lock`](../../uv.lock) together.
-
-## Sandbox And Tunnel Rules
-
-- `Sandbox` is the SDK facade over an SDK-created Environment, Run, and current
-  Allocation. It may own tunnel sessions, connectors, renewal, cancellation,
-  and cleanup, but it must not create or emulate a Service lifecycle.
-- Process, file, terminal, SSH, and Tunnel operations target the current
-  Allocation explicitly. Replacement attempts must not reuse stale targets or
-  credentials.
-- Long-lived tunnel support must renew finite tunnel TTLs automatically.
-- Cleanup is best-effort and must not mask startup failures or wait too long
-  after an earlier cleanup step failed.
-- Tunnel framing, renewal, cleanup, or readiness changes need focused unit tests
-  and compose SDK e2e validation.
+- Keep generated protobuf modules under `src/axern`, public SDK code under `src/axern_sdk`, private shared helpers under `axern_sdk._internal`, and tests under `tests`.
+- Keep exports intentional and do not hand-edit generated `*_pb2.py` or `*_pb2_grpc.py` files.
+- Model sources explicitly: Environment and Sandbox creation accepts exactly one of `template_id`, `image`, or `environment_id`.
+- `Sandbox` is the SDK facade over an SDK-created Environment, Run, and current Allocation. Process, file, terminal, SSH, and Tunnel operations reject stale Allocation targets.
+- Tunnel sessions use finite TTLs with bounded renewal. Cleanup is best-effort and must not mask the originating failure.
+- Keep lifecycle, transport, models, and client responsibilities in focused modules rather than accumulating them in orchestration files.
 
 ## Validation
 
-- Python SDK code:
-
-  ```bash
-  make test-py
-  make lint-py
-  ```
-
-- Package metadata, generated proto, dependency, or distribution changes:
-
-  ```bash
-  uv build sdk/python
-  ```
-
-- `Sandbox`, Run/Allocation, tunnel, cleanup, or compose workflow changes:
-
-  ```bash
-  make local-compose-python-sdk-e2e
-  ```
-
-- This file or repo-local documentation:
-
-  ```bash
-  make agent-doc-check
-  ```
+- Run `make test-py` and `make lint-py` for SDK changes.
+- Regenerate protos with `sdk/python/scripts/generate_proto.sh` and run repository generated-output checks when protobuf contracts change.
+- Run `uv build sdk/python` for package or dependency changes and the relevant Compose SDK truth selected by `make verify-changed` for lifecycle or Tunnel behavior.

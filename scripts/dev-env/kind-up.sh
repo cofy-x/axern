@@ -21,9 +21,7 @@ ensure_kind_cluster
 export KUBECONFIG="$(k8s_kubeconfig_file)"
 
 ensure_host_image "${POSTGRES_IMAGE}"
-ensure_host_image "${MINIO_IMAGE}"
 load_image_to_cluster "${POSTGRES_IMAGE}"
-load_image_to_cluster "${MINIO_IMAGE}"
 
 bash "${AXERN_ROOT}/scripts/dev-env/k8s-up.sh"
 IMAGE="${PYTHON311_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"

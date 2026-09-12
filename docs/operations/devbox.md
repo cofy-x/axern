@@ -1,12 +1,8 @@
 # Axern Devbox Workflow
 
-Axern's repo-local devbox is the default Linux workspace for source development
-on the node runtime stack. It is started by `scripts/devbox/devbox.sh` through
-root Make targets and does not depend on the private Runx devbox CLI.
+Axern's repo-local devbox is the default Linux workspace for source development on the node runtime stack. It is started by `scripts/devbox/devbox.sh` through root Make targets and does not depend on the private Runx devbox CLI.
 
-The devbox image includes Go, Rust, Node.js, pnpm, Python, uv, Postgres,
-Docker CLI, `runsc`, SSH, and the filesystem/network/debug tools used
-by runtime development.
+The devbox image includes Go, Rust, Node.js, pnpm, Python, uv, Postgres, Docker CLI, `runsc`, SSH, and the filesystem/network/debug tools used by runtime development.
 
 ## Start
 
@@ -22,9 +18,7 @@ Start the devbox container:
 make devbox-up
 ```
 
-`make devbox-up` starts `sshd`, mounts the repository at the same host path,
-mounts the host Docker socket, and writes a managed `Host axern-devbox` block
-to `~/.ssh/config`. It prints a VS Code Remote-SSH command such as:
+`make devbox-up` starts `sshd`, mounts the repository at the same host path, mounts the host Docker socket, and writes a managed `Host axern-devbox` block to `~/.ssh/config`. It prints a VS Code Remote-SSH command such as:
 
 ```bash
 code --remote ssh-remote+axern-devbox /path/to/axern
@@ -45,8 +39,7 @@ make devbox-down
 
 ## Standalone Stack
 
-The recommended daily workflow is to run the Axern services directly inside the
-devbox, without Docker Compose:
+The recommended daily workflow is to run the Axern services directly inside the devbox, without Docker Compose:
 
 ```bash
 make devbox-stack-up
@@ -83,8 +76,7 @@ make devbox-stack-down
 make devbox-stack-reset
 ```
 
-When already attached to the devbox through VS Code Remote-SSH or
-`make devbox-shell`, use the inner equivalents:
+When already attached to the devbox through VS Code Remote-SSH or `make devbox-shell`, use the inner equivalents:
 
 ```bash
 make dev-stack-status
@@ -110,24 +102,19 @@ make devbox-stack-restart SERVICE=controld
 Restart behavior is dependency-aware:
 
 - `gatewayd`: restarts only `gatewayd`.
-- `axnoded`: rebuilds the dev runtime runner, then restarts `axnoded` and
-  `node-tunneld`.
+- `axnoded`: rebuilds the dev runtime runner, then restarts `axnoded` and `node-tunneld`.
 - `egressd`: restarts `egressd`, `axnoded`, and `node-tunneld`.
 - `imagemgr`: restarts `imagemgr`, `axnoded`, and `node-tunneld`.
-- `imagefsd`: rebuilds `imagefsd`, then restarts `imagefsd`, `imagemgr`,
-  `axnoded`, and `node-tunneld`.
-- `tunneld`: rebuilds `tunnel-agent`, then restarts `tunneld` and
-  `node-tunneld`.
-- `controld`: runs migrations, then restarts `controld` plus services that
-  depend on the control plane.
+- `imagefsd`: rebuilds `imagefsd`, then restarts `imagefsd`, `imagemgr`, `axnoded`, and `node-tunneld`.
+- `tunneld`: rebuilds `tunnel-agent`, then restarts `tunneld` and `node-tunneld`.
+- `controld`: runs migrations, then restarts `controld` plus services that depend on the control plane.
 - `postgres`: restarts the full stack while keeping Postgres data.
 
 Inside the devbox, use `make dev-stack-restart SERVICE=<name>`.
 
 ## Single-Service Debugging
 
-For focused debugging, prepare the `.dev` workspace and launch only the service
-you want:
+For focused debugging, prepare the `.dev` workspace and launch only the service you want:
 
 ```bash
 make node-dev-prepare
@@ -140,10 +127,7 @@ make egressd-dev-run
 make axnoded-dev-run
 ```
 
-`node-dev-prepare` also builds `.dev/stack/bin/axnoded-runtime-runner` and
-writes that path into `.dev/axnoded/config.toml`, so `axnoded-dev-run` and VS
-Code's `Axnoded: Debug daemon` use the same one-shot OCI runtime helper as the
-standalone stack.
+`node-dev-prepare` also builds `.dev/stack/bin/axnoded-runtime-runner` and writes that path into `.dev/axnoded/config.toml`, so `axnoded-dev-run` and VS Code's `Axnoded: Debug daemon` use the same one-shot OCI runtime helper as the standalone stack.
 
 Stop the standalone stack before switching to single-service debugging:
 
@@ -151,8 +135,7 @@ Stop the standalone stack before switching to single-service debugging:
 make dev-stack-down
 ```
 
-The full stack and the debug launch targets use the same local ports and
-sockets, so running both at once causes port or socket conflicts.
+The full stack and the debug launch targets use the same local ports and sockets, so running both at once causes port or socket conflicts.
 
 Standalone Delve DAP helpers are also available for terminal-driven debugging:
 
@@ -169,20 +152,11 @@ These start external Delve DAP servers on:
 The checked-in VS Code configuration uses these targets:
 
 - `.vscode/tasks.json` exposes stack up/status/restart and debug preparation.
-- `.vscode/launch.json` has `Controld: Debug daemon`,
-  `Gatewayd: Debug daemon`, `Axnoded: Debug daemon`, `Imagemgr: Debug daemon`,
-  and `Imagefsd: Debug chunk server`.
+- `.vscode/launch.json` has `Controld: Debug daemon`, `Gatewayd: Debug daemon`, `Axnoded: Debug daemon`, `Imagemgr: Debug daemon`, and `Imagefsd: Debug chunk server`.
 
-Use these from a VS Code Remote-SSH window attached to `axern-devbox`, so tasks
-run inside the Linux devbox. `axnoded` and `imagemgr` use the Go
-extension's `asRoot` launch mode, so VS Code starts Delve through passwordless
-`sudo` instead of connecting to a separately launched DAP port.
+Use these from a VS Code Remote-SSH window attached to `axern-devbox`, so tasks run inside the Linux devbox. `axnoded` and `imagemgr` use the Go extension's `asRoot` launch mode, so VS Code starts Delve through passwordless `sudo` instead of connecting to a separately launched DAP port.
 
-Accept the workspace extension recommendations in `.vscode/extensions.json`
-inside the Remote-SSH window. The Go and C/C++ debug configuration schemas are
-contributed by `golang.go` and `ms-vscode.cpptools`; without those extensions
-enabled on the remote side, VS Code reports the `go` and `cppdbg` debug types as
-unknown even though the repository configuration is valid for those extensions.
+Accept the workspace extension recommendations in `.vscode/extensions.json` inside the Remote-SSH window. The Go and C/C++ debug configuration schemas are contributed by `golang.go` and `ms-vscode.cpptools`; without those extensions enabled on the remote side, VS Code reports the `go` and `cppdbg` debug types as unknown even though the repository configuration is valid for those extensions.
 
 A practical manual debug startup order is:
 
@@ -192,13 +166,9 @@ A practical manual debug startup order is:
 4. `Imagemgr: Debug daemon`
 5. `Axnoded: Debug daemon`
 
-`Axnoded: Debug daemon` registers `axern-dev-node` with the standalone
-`controld` at `127.0.0.1:24000` by default. Product CLI commands use
-`gatewayd`'s control edge at `127.0.0.1:25000`, so workloads can be placed after
-the five debug services are running.
+`Axnoded: Debug daemon` registers `axern-dev-node` with the standalone `controld` at `127.0.0.1:24000` by default. Product CLI commands use `gatewayd`'s control edge at `127.0.0.1:25000`, so workloads can be placed after the five debug services are running.
 
-Catalog-backed workloads need their runtime images imported into standalone
-`imagemgr`. This mirrors the compose/kind image load flow:
+Catalog-backed workloads need their runtime images imported into standalone `imagemgr`. This mirrors the compose/kind image load flow:
 
 ```bash
 make dev-runtime-images-load
@@ -218,10 +188,7 @@ make devbox-runtime-images-load
 
 ## Gateway Run Smoke
 
-After the standalone stack is running and the `python311` runtime image is
-loaded, verify the public gateway, control plane, placement, node lifecycle,
-runsc sandbox, and output path with one foreground Run. Run this from a devbox
-shell or VS Code Remote-SSH terminal:
+After the standalone stack is running and the `python311` runtime image is loaded, verify the public gateway, control plane, placement, node lifecycle, runsc sandbox, and output path with one foreground Run. Run this from a devbox shell or VS Code Remote-SSH terminal:
 
 ```bash
 make axern-dev-build
@@ -231,14 +198,11 @@ axern run --template python311 --runtime-class runsc -- \
   python -c 'print("axern gateway run smoke")'
 ```
 
-Use `axern run --detach`, `axern run get`, and `axern run logs --follow` when a
-smoke needs a longer-lived Allocation for terminal, SSH, or Tunnel validation.
-There is no `/svc` gateway route or Service lifecycle.
+Use `axern run --detach`, `axern run get`, and `axern run logs --follow` when a smoke needs a longer-lived Allocation for terminal, SSH, or Tunnel validation. There is no `/svc` gateway route or Service lifecycle.
 
 ## Standalone CLI Helpers
 
-The devbox exports standalone defaults for both `docker exec` and VS Code
-Remote-SSH shells:
+The devbox exports standalone defaults for both `docker exec` and VS Code Remote-SSH shells:
 
 ```bash
 AXERN_ENDPOINT=127.0.0.1:25000
@@ -257,8 +221,7 @@ go -C apps/cli run . catalog list
 go -C runtime/axnoded run ./axctl node check
 ```
 
-When the standalone services are running, repo-local Make wrappers remain
-available as shorter stable aliases:
+When the standalone services are running, repo-local Make wrappers remain available as shorter stable aliases:
 
 ```bash
 make axern-dev ARGS='svc list'
@@ -267,8 +230,7 @@ make axctl-dev ARGS='node check'
 
 `axern-dev` runs `apps/cli`; `axctl-dev` runs `runtime/axnoded/axctl`.
 
-From the host, the matching devbox wrappers execute the same commands inside
-the running container:
+From the host, the matching devbox wrappers execute the same commands inside the running container:
 
 ```bash
 make devbox-axern ARGS='svc list'
@@ -282,13 +244,11 @@ make axern-dev-build
 make axctl-dev-build
 ```
 
-These binaries are written to the repo-local `bin/` directory, which the devbox
-adds to `PATH` as `$AXERN_DEV_WORKSPACE/bin`.
+These binaries are written to the repo-local `bin/` directory, which the devbox adds to `PATH` as `$AXERN_DEV_WORKSPACE/bin`.
 
 ## Image Build Network Defaults
 
-Image builds use upstream Ubuntu and language package sources by default, with
-no automatically detected host proxy:
+Image builds use upstream Ubuntu and language package sources by default, with no automatically detected host proxy:
 
 ```bash
 make devbox-image-build
@@ -304,15 +264,9 @@ NPM_CONFIG_REGISTRY=https://registry.npmmirror.com \
 make devbox-image-build
 ```
 
-`DEVBOX_BUILD_PROXY` must be an explicit URL reachable from the Docker build
-container. The repository does not probe or select a host proxy.
-`GOPROXY` and `NPM_CONFIG_REGISTRY` apply to both the image build and the
-running devbox.
+`DEVBOX_BUILD_PROXY` must be an explicit URL reachable from the Docker build container. The repository does not probe or select a host proxy. `GOPROXY` and `NPM_CONFIG_REGISTRY` apply to both the image build and the running devbox.
 
-The devbox wrapper does not set runtime proxy variables inside the container.
-This keeps VS Code Remote-SSH server downloads, extension installation, and
-normal shell use independent of host proxy latency. If registry or package
-downloads inside the running devbox need a proxy, set it in that shell:
+The devbox wrapper does not set runtime proxy variables inside the container. This keeps VS Code Remote-SSH server downloads, extension installation, and normal shell use independent of host proxy latency. If registry or package downloads inside the running devbox need a proxy, set it in that shell:
 
 ```bash
 export HTTP_PROXY=http://host.docker.internal:8080
@@ -320,8 +274,7 @@ export HTTPS_PROXY=http://host.docker.internal:8080
 export NO_PROXY=localhost,127.0.0.1,::1,host.docker.internal,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
 ```
 
-The standalone stack preserves those proxy variables when it starts root-owned
-runtime daemons through `sudo`.
+The standalone stack preserves those proxy variables when it starts root-owned runtime daemons through `sudo`.
 
 Select another supported mirror explicitly when needed:
 
@@ -343,14 +296,11 @@ Override the SSH alias:
 DEVBOX_SSH_CONFIG_HOST=axern-devbox-arm64 make devbox-up
 ```
 
-The generated SSH config block is managed by the devbox wrapper and does not
-rewrite unrelated entries in `~/.ssh/config`.
+The generated SSH config block is managed by the devbox wrapper and does not rewrite unrelated entries in `~/.ssh/config`.
 
 ## Docker Verification
 
-The standalone stack does not require Docker Compose, but the devbox still
-mounts the host Docker socket for verification flows that intentionally test
-image and container behavior:
+The standalone stack does not require Docker Compose, but the devbox still mounts the host Docker socket for verification flows that intentionally test image and container behavior:
 
 ```bash
 make axnoded-verify-docker

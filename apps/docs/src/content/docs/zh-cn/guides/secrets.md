@@ -46,5 +46,7 @@ Secret 是不可变的。轮换采用替换式工作流：
 轮换 Environment 的仓库凭据时需要创建新 Environment，因为 Environment 本身不可变，然后把工作负载指向新 Environment。`secret-env` 和 `secret-file` 投影则通过提交引用新 Secret 的 Run 完成替换。
 
 :::note
+
 Secret 存放平台凭据材料，如镜像仓库拉取凭据。Agent Provider token 应由评测或训练 harness 的凭据存储管理；只有 Sandbox 明确需要时才投影进工作负载。
+
 :::

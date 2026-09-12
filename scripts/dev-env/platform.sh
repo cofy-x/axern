@@ -29,10 +29,10 @@ local_no_proxy_entries() {
   local common="localhost,127.0.0.1,::1,host.docker.internal,${LOCAL_REGISTRY_NAME},${LOCAL_REGISTRY_HOST},${LOCAL_REGISTRY_CLUSTER_HOST},.svc,.svc.cluster.local,.cluster.local,10.96.0.0/12,10.244.0.0/16,172.16.0.0/12,192.168.0.0/16"
   case "${mode}" in
     k8s)
-      printf '%s\n' "${common},controld,controld.${K8S_NAMESPACE},controld.${K8S_NAMESPACE}.svc,controld.${K8S_NAMESPACE}.svc.cluster.local,gatewayd,gatewayd.${K8S_NAMESPACE},gatewayd.${K8S_NAMESPACE}.svc,gatewayd.${K8S_NAMESPACE}.svc.cluster.local,tunneld,tunneld.${K8S_NAMESPACE},tunneld.${K8S_NAMESPACE}.svc,tunneld.${K8S_NAMESPACE}.svc.cluster.local,node-all-in-one,postgres,minio,otel-collector,otel-collector.${K8S_NAMESPACE},otel-collector.${K8S_NAMESPACE}.svc,otel-collector.${K8S_NAMESPACE}.svc.cluster.local,otel-lgtm"
+      printf '%s\n' "${common},controld,controld.${K8S_NAMESPACE},controld.${K8S_NAMESPACE}.svc,controld.${K8S_NAMESPACE}.svc.cluster.local,gatewayd,gatewayd.${K8S_NAMESPACE},gatewayd.${K8S_NAMESPACE}.svc,gatewayd.${K8S_NAMESPACE}.svc.cluster.local,tunneld,tunneld.${K8S_NAMESPACE},tunneld.${K8S_NAMESPACE}.svc,tunneld.${K8S_NAMESPACE}.svc.cluster.local,node-all-in-one,postgres,otel-collector,otel-collector.${K8S_NAMESPACE},otel-collector.${K8S_NAMESPACE}.svc,otel-collector.${K8S_NAMESPACE}.svc.cluster.local,otel-lgtm"
       ;;
     compose)
-      printf '%s\n' "${common},controld,gatewayd,tunneld,node,postgres,minio,otel-collector,otel-lgtm"
+      printf '%s\n' "${common},controld,gatewayd,tunneld,node,postgres,otel-collector,otel-lgtm"
       ;;
     *)
       printf '%s\n' "${common}"
@@ -111,8 +111,6 @@ GATEWAY_CONTROL_PORT=${COMPOSE_GATEWAY_CONTROL_PORT}
 GATEWAY_HTTP_PORT=${COMPOSE_GATEWAY_HTTP_PORT}
 GATEWAY_SSH_PORT=${COMPOSE_GATEWAY_SSH_PORT}
 POSTGRES_PORT=${COMPOSE_POSTGRES_PORT}
-MINIO_API_PORT=${COMPOSE_MINIO_API_PORT}
-MINIO_CONSOLE_PORT=${COMPOSE_MINIO_CONSOLE_PORT}
 OTEL_ENABLED=${otel_enabled}
 OTEL_EXPORTER_OTLP_ENDPOINT=${otel_endpoint}
 OTEL_RESOURCE_ATTRIBUTES=${otel_resource_attrs}
@@ -270,7 +268,7 @@ compose_project_up() {
   if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
     compose_args+=(--profile otel)
   fi
-  local infra_services=(postgres minio)
+  local infra_services=(postgres)
   if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
     infra_services+=(otel-collector otel-lgtm)
   fi
@@ -288,9 +286,9 @@ compose_project_reset_state() {
     compose_args+=(--profile otel)
   fi
   docker compose "${compose_args[@]}" stop \
-    gatewayd node tunneld controld-retention controld controld-access-bootstrap controld-migrate dns-fixture postgres minio >/dev/null 2>&1 || true
-  docker compose "${compose_args[@]}" rm -sf controld-access-bootstrap controld-migrate dns-fixture postgres minio >/dev/null 2>&1 || true
-  rm -rf "${COMPOSE_STATE_DIR}/postgres" "${COMPOSE_STATE_DIR}/minio" "${COMPOSE_STATE_DIR}/run"
+    gatewayd node tunneld controld-retention controld controld-access-bootstrap controld-migrate dns-fixture postgres >/dev/null 2>&1 || true
+  docker compose "${compose_args[@]}" rm -sf controld-access-bootstrap controld-migrate dns-fixture postgres >/dev/null 2>&1 || true
+  rm -rf "${COMPOSE_STATE_DIR}/postgres" "${COMPOSE_STATE_DIR}/run"
   ensure_state_dirs
 }
 

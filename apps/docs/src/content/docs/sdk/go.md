@@ -9,11 +9,9 @@ Go APIs take `context.Context`, return typed errors, and make cleanup explicit.
 go get github.com/cofy-x/axern/sdk/go@<version>
 ```
 
-Replace `<version>` with the Axern release used by the gateway and runtime;
-the Go SDK is not a floating `latest` dependency.
+Replace `<version>` with the Axern release used by the gateway and runtime; the Go SDK is not a floating `latest` dependency.
 
-The official module is indexed on
-[`pkg.go.dev`](https://pkg.go.dev/github.com/cofy-x/axern/sdk/go).
+The official module is indexed on [`pkg.go.dev`](https://pkg.go.dev/github.com/cofy-x/axern/sdk/go).
 
 ```go
 ctx := context.Background()
@@ -47,9 +45,7 @@ if err != nil {
 fmt.Print(result.StdoutString())
 ```
 
-Prefer `defer sandbox.Close(ctx)` for SDK-owned sandboxes. Branch on helpers
-such as `IsNotFound`, `IsTimeout`, and `IsValidation` rather than parsing error
-text.
+Prefer `defer sandbox.Close(ctx)` for SDK-owned sandboxes. Branch on helpers such as `IsNotFound`, `IsTimeout`, and `IsValidation` rather than parsing error text.
 
 - [Go SDK source and full guide](https://github.com/cofy-x/axern/tree/main/sdk/go)
 - [Runnable Go examples](https://github.com/cofy-x/axern/tree/main/sdk/go/examples)

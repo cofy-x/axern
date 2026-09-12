@@ -1,41 +1,31 @@
 # Configuration
 
-This document explains the operator-facing meaning of
-[`sample_conf.toml`](sample_conf.toml). The sample is a production-shaped
-operator template, not a universal runnable default: required qualification
-values such as `memory_system_reserve_bytes` must be supplied before startup.
-Use this page for context, profiles, and troubleshooting hints.
+This document explains the operator-facing meaning of [`sample_conf.toml`](sample_conf.toml). The sample is a production-shaped operator template, not a universal runnable default: required qualification values such as `memory_system_reserve_bytes` must be supplied before startup. Use this page for context, profiles, and troubleshooting hints.
 
-`axnoded` starts from `config.DefaultConfig()`, then overlays the TOML file
-passed by `-config`. If `-config` is omitted, it reads
-`<root>/config.toml`, where `-root` defaults to `/var/lib/axnoded`.
+`axnoded` starts from `config.DefaultConfig()`, then overlays the TOML file passed by `-config`. If `-config` is omitted, it reads `<root>/config.toml`, where `-root` defaults to `/var/lib/axnoded`.
 
-Daemon flags such as `-socket`, `-grpc-address`, `-http-address`,
-`-log-level`, and `-log-file` are not TOML fields. They control process
-endpoints and logging for the current daemon invocation.
+Daemon flags such as `-socket`, `-grpc-address`, `-http-address`, `-log-level`, and `-log-file` are not TOML fields. They control process endpoints and logging for the current daemon invocation.
 
 ## File Roles
 
-| File | Role |
-| --- | --- |
-| [`sample_conf.toml`](sample_conf.toml) | production-shaped reference template with deliberately unset environment qualification values |
-| [`../config/config.go`](../config/config.go) | TOML schema, normalization helpers, and default overlay behavior |
-| [`../config/defaults.go`](../config/defaults.go) | default values used before TOML overlay |
-| [Resource Handling](resource.md) | cgroup/interface pool behavior behind `[plugin.resource]` and `[plugin.network]` |
-| [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md) | platform observation and structured extension capability contract |
-| [Runtime Logs](../../../docs/operations/runtime-logs.md) | cross-component log locations and meanings |
-| [Local Troubleshooting](../../../deploy/local/troubleshooting.md) | compose/kind troubleshooting commands |
+| File                                                                                         | Role                                                                                          |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| [`sample_conf.toml`](sample_conf.toml)                                                       | production-shaped reference template with deliberately unset environment qualification values |
+| [`../config/config.go`](../config/config.go)                                                 | TOML schema, normalization helpers, and default overlay behavior                              |
+| [`../config/defaults.go`](../config/defaults.go)                                             | default values used before TOML overlay                                                       |
+| [Resource Handling](resource.md)                                                             | cgroup/interface pool behavior behind `[plugin.resource]` and `[plugin.network]`              |
+| [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md) | platform observation and structured extension capability contract                             |
+| [Runtime Logs](../../../docs/operations/runtime-logs.md)                                     | cross-component log locations and meanings                                                    |
+| [Local Troubleshooting](../../../deploy/local/troubleshooting.md)                            | compose/kind troubleshooting commands                                                         |
 
 ## Top-Level Paths
 
-| Key | Meaning | Change When |
-| --- | --- | --- |
-| `rootDir` | Sandbox runtime state, OCI bundles, and container roots. | Moving axnoded state to another disk or mount. |
-| `storeDir` | Persistent metadata store used for restart recovery. | Separating metadata from heavier runtime state. |
+| Key        | Meaning                                                  | Change When                                     |
+| ---------- | -------------------------------------------------------- | ----------------------------------------------- |
+| `rootDir`  | Sandbox runtime state, OCI bundles, and container roots. | Moving axnoded state to another disk or mount.  |
+| `storeDir` | Persistent metadata store used for restart recovery.     | Separating metadata from heavier runtime state. |
 
-If either path is wrong or not writable, startup, restart recovery, and
-container delete cleanup can fail early. In compose/kind, confirm the path is
-inside the mounted dev volume before treating it as a runtime bug.
+If either path is wrong or not writable, startup, restart recovery, and container delete cleanup can fail early. In compose/kind, confirm the path is inside the mounted dev volume before treating it as a runtime bug.
 
 ## Control Plane
 
@@ -57,24 +47,11 @@ inside the mounted dev volume before treating it as a runtime bug.
 | `[[node_extension_capabilities]]` | Exact-match extension facts using `name` and optional `value`. | Names must use `<dns-domain>/<name>`; Axern-owned domains are rejected. Platform capabilities cannot be configured. |
 | `[plugin.control_plane_node_labels]` | Explicit placement labels. | Empty keys are ignored and values are trimmed. Explicit labels override labels collected from the Kubernetes Node object. |
 
-Check the deployment Prometheus/LGTM metrics exported through OTEL, such as
-`axern_axnoded_control_plane_rpc_total` and
-`axern_axnoded_control_plane_report_total`, plus axnoded logs when registration
-or heartbeat behavior looks wrong. For allocation status delivery, inspect
-`/control-planez` and
-`axern_axnoded_allocation_status_oldest_pending_age_seconds`,
-`axern_axnoded_allocation_status_consecutive_failures`, and
-`axern_axnoded_allocation_status_retry_delay_seconds`.
+Check the deployment Prometheus/LGTM metrics exported through OTEL, such as `axern_axnoded_control_plane_rpc_total` and `axern_axnoded_control_plane_report_total`, plus axnoded logs when registration or heartbeat behavior looks wrong. For allocation status delivery, inspect `/control-planez` and `axern_axnoded_allocation_status_oldest_pending_age_seconds`, `axern_axnoded_allocation_status_consecutive_failures`, and `axern_axnoded_allocation_status_retry_delay_seconds`.
 
-Extension capability declarations are config-static facts. Platform facts are
-owned by probes and derived policy, and therefore have no configuration list or
-operator override.
+Extension capability declarations are config-static facts. Platform facts are owned by probes and derived policy, and therefore have no configuration list or operator override.
 
-Failure of the configured node resource source is fail-closed. Axnoded retains
-the last successful values only in its local inventory for diagnosis; it stops
-publishing heartbeats and invalidates node-local memory admission until a new
-authoritative resource sample succeeds. Cached Kubernetes capacity is never
-re-timestamped as current capacity.
+Failure of the configured node resource source is fail-closed. Axnoded retains the last successful values only in its local inventory for diagnosis; it stops publishing heartbeats and invalidates node-local memory admission until a new authoritative resource sample succeeds. Cached Kubernetes capacity is never re-timestamped as current capacity.
 
 ## Network
 
@@ -85,13 +62,7 @@ re-timestamped as current capacity.
 | `ip_range` | IPv4 or IPv6 CIDR used for `sandbox0`, sandbox IPs, and host veth allocation. | Must provide at least `max_instance_num` addresses and must not collide with host, pod, service, or VPC ranges. |
 | `nat_backend` | NAT implementation. | Valid values are `iptables` and `ebpf`. |
 
-`iptables` is the legacy full bridge SNAT/DNAT path. `ebpf` keeps the same
-bridge/veth/netns shape, but uses `bpfnet` for supported tc/cgroup dataplane
-paths and delegates unsupported compatibility work to the iptables backend.
-Because bpfnet's native programs are IPv4-only, an IPv6 `ip_range` with
-`nat_backend = "ebpf"` uses the explicit ip6tables compatibility path and the
-node publishes the effective bridge capability. Qualification reports must not
-describe that path as native bpfnet.
+`iptables` is the full bridge SNAT/DNAT backend. `ebpf` keeps the same bridge/veth/netns shape, uses `bpfnet` for supported tc/cgroup dataplane paths, and delegates unsupported paths to the iptables backend. Because bpfnet's native programs are IPv4-only, an IPv6 `ip_range` with `nat_backend = "ebpf"` uses ip6tables and the node publishes the effective bridge capability. Qualification reports must not describe that path as native bpfnet.
 
 `[plugin.network.ebpf]` is only active when `nat_backend = "ebpf"`.
 
@@ -109,13 +80,11 @@ describe that path as native bpfnet.
 | `local_out_compat` | Enables host-local TCP hostPort compatibility through cgroup sock_addr eBPF. | Keep enabled for localhost hostPort checks. |
 | `iptables_fallback` | Allows fallback to the full iptables path when attach or feature probing fails. | Useful for heterogeneous dev and CI hosts. |
 
-When networking fails, inspect the selected backend, `sandbox0`, host veths,
-DNAT/SNAT rules, and bpfnet attach logs before changing resource sizing.
+When networking fails, inspect the selected backend, `sandbox0`, host veths, DNAT/SNAT rules, and bpfnet attach logs before changing resource sizing.
 
 ## Resource Pool
 
-`[plugin.resource]` controls node-local cgroup and interface warm pools. The
-implementation details are covered in [Resource Handling](resource.md).
+`[plugin.resource]` controls node-local cgroup and interface warm pools. The implementation details are covered in [Resource Handling](resource.md).
 
 | Key | Meaning | Notes |
 | --- | --- | --- |
@@ -128,16 +97,15 @@ implementation details are covered in [Resource Handling](resource.md).
 
 Useful symptoms:
 
-| Symptom | Start With |
-| --- | --- |
-| `ErrResourceExhausted` | `max_instance_num`, `ip_range`, current resource pool metrics. |
+| Symptom                      | Start With                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| `ErrResourceExhausted`       | `max_instance_num`, `ip_range`, current resource pool metrics.                                    |
 | Slow starts after idle drain | `axern_axnoded_resource_pool_allocate_total{axern_result="miss_sync_create"}` and refill metrics. |
-| Cgroup cleanup retries | `axern_axnoded_gc_queue_current` and cgroup process state. |
+| Cgroup cleanup retries       | `axern_axnoded_gc_queue_current` and cgroup process state.                                        |
 
 ## Runtime
 
-`[plugin.runtime]` controls rootfs resolution, OCI runtime handlers, DNS
-materialization and warm idle runtime retention.
+`[plugin.runtime]` controls rootfs resolution, OCI runtime handlers, DNS materialization and warm idle runtime retention.
 
 | Key | Meaning | Notes |
 | --- | --- | --- |
@@ -156,62 +124,35 @@ materialization and warm idle runtime retention.
 | `filestore_system_reserve_bytes` | Capacity unavailable to sandbox reservations. | Admission checks both committed reservations and the live available-space floor. |
 | `ephemeral_storage_default_limit_bytes` | Internal default backing limit for the public `limits.ephemeral_storage_bytes` contract. | Writable runsc roots use this in `root:dir=...,size=...`. |
 
-Runtime retention is keyed by the static execution template, so namespace,
-service, environment, and allocation identity do not duplicate
-the same rootfs/template cache entry. It retains only reusable immutable rootfs
-and bundle-template inputs. OCI create is always allocation-owned because the
-container ID, cgroup, network, storage reservation, evidence, and cleanup
-record cannot be safely rebound to a future allocation.
+Runtime retention is keyed by the static execution template, so namespace, Environment, Run, and Allocation identity do not duplicate the same rootfs/template cache entry. It retains only reusable immutable rootfs and bundle-template inputs. OCI create is always Allocation-owned because the container ID, cgroup, network, storage reservation, evidence, and cleanup record cannot be safely rebound to a future Allocation.
 
 ### Runtime DNS
 
-`[plugin.runtime.dns]` controls resolver files materialized into OCI bundles.
-When `nameservers` is empty, axnoded derives usable resolvers from the node. If
-the node exposes only loopback resolvers or no usable resolver, axnoded owns an
-inert `/etc/resolv.conf` for the sandbox instead of blocking OCI creation or
-inventing a public fallback. Resolver-independent workloads continue to run;
-DNS diagnostics and domain-policy forwarding remain unavailable until the node
-has a verified upstream resolver.
+`[plugin.runtime.dns]` controls resolver files materialized into OCI bundles. When `nameservers` is empty, axnoded derives usable resolvers from the node. If the node exposes only loopback resolvers or no usable resolver, axnoded owns an inert `/etc/resolv.conf` for the sandbox instead of blocking OCI creation or inventing a public fallback. Resolver-independent workloads continue to run; DNS diagnostics and domain-policy forwarding remain unavailable until the node has a verified upstream resolver.
 
-| Key | Meaning |
-| --- | --- |
-| `nameservers` | Explicit resolver IPs. |
+| Key              | Meaning                                      |
+| ---------------- | -------------------------------------------- |
+| `nameservers`    | Explicit resolver IPs.                       |
 | `search_domains` | Search domains written into resolver config. |
-| `options` | Resolver options such as `ndots:5`. |
+| `options`        | Resolver options such as `ndots:5`.          |
 
-Use explicit DNS values on production nodes that require VPC, cluster, or
-corporate resolvers. For local development, deriving from the node is usually
-less brittle.
+Use explicit DNS values on production nodes that require VPC, cluster, or corporate resolvers. For local development, deriving from the node is usually less brittle.
 
 ### Runtime Handlers
 
-The default, sample, packaged, and devbox configurations enable only gVisor
-(`runsc`), the supported runtime. Unsupported runtime classes are rejected.
+The default, sample, packaged, and devbox configurations enable only gVisor (`runsc`), the supported runtime. Unsupported runtime classes are rejected.
 
-`[plugin.runtime.runtimes.<name>]` declares each OCI runtime handler.
-It is the single source for the runtime binary, base spec, and options.
-Configuration decoding rejects unknown keys, including removed
-`runtime_binary` and `basic_spec` tables; settings are never silently merged
-from legacy maps or ignored after a spelling error.
-Axnoded treats this set as one startup contract: every configured handler must
-load before persistent container inventory is reconciled or the node can become
-ready. A transient runtime-state or filestore conflict is retried until startup
-is canceled; axnoded never starts with a partial configured runtime set.
+`[plugin.runtime.runtimes.<name>]` declares each OCI runtime handler. It is the single source for the runtime binary, base spec, and options. Configuration decoding rejects unknown keys and never ignores misspelled settings. Axnoded treats this set as one startup contract: every configured handler must load before persistent container inventory is reconciled or the node can become ready. A transient runtime-state or filestore conflict is retried until startup is canceled; axnoded never starts with a partial configured runtime set.
 
-| Key | Meaning |
-| --- | --- |
-| `binary` | Runtime binary path, such as `/usr/local/bin/runsc`. |
-| `base_spec` | Base OCI spec used by axnoded when building bundles. |
-| `[plugin.runtime.runtimes.<name>.options]` | Runtime-specific options. |
+| Key                                        | Meaning                                              |
+| ------------------------------------------ | ---------------------------------------------------- |
+| `binary`                                   | Runtime binary path, such as `/usr/local/bin/runsc`. |
+| `base_spec`                                | Base OCI spec used by axnoded when building bundles. |
+| `[plugin.runtime.runtimes.<name>.options]` | Runtime-specific options.                            |
 
-There is no per-runtime cgroup fallback. In `required` mode cgroup controller
-writes, limit readback, and runtime host-PID attribution are fail-closed. For
-`runsc`, `options.allow_suid = true` maps to `runsc --allow-suid` so
-setuid tools inside Axern-maintained images, such as `sudo`, can elevate
-privileges within the sandbox.
+There is no per-runtime cgroup fallback. In `required` mode cgroup controller writes, limit readback, and runtime host-PID attribution are fail-closed. For `runsc`, `options.allow_suid = true` maps to `runsc --allow-suid` so setuid tools inside Axern-maintained images, such as `sudo`, can elevate privileges within the sandbox.
 
-See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection,
-EROFS lower, ephemeral-storage backing, quota, and cleanup contract.
+See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection, EROFS lower, ephemeral-storage backing, quota, and cleanup contract.
 
 ## Common Profiles
 
@@ -226,14 +167,13 @@ EROFS lower, ephemeral-storage backing, quota, and cleanup contract.
 
 ## Troubleshooting By Config Area
 
-| Problem Shape | Likely Config Area | Useful Checks |
-| --- | --- | --- |
-| axnoded will not start | top-level paths, runtime binaries, base specs, filestore | axnoded startup logs, path permissions, `runsc --version`. |
-| node never appears in `controld` | control plane | `control_plane_target`, node auth/TLS, heartbeat metrics, controld logs. |
-| image-backed rootfs fails | runtime image manager | `image_manager_enabled`, `image_manager_socket`, imagemgr logs, imagefsd logs. |
-| sandbox has no egress or hostPort | network | `nat_backend`, `ip_range`, `sandbox0`, iptables/bpfnet logs. |
-| start is slow after burst | resource pool | idle gauges, `miss_sync_create`, reconcile interval, cache sizes. |
-| delete leaves resources behind | resource/runtime paths | OCI annotations, storeDir, resource cleanup logs, GC queue metric. |
+| Problem Shape                     | Likely Config Area                                       | Useful Checks                                                                  |
+| --------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| axnoded will not start            | top-level paths, runtime binaries, base specs, filestore | axnoded startup logs, path permissions, `runsc --version`.                     |
+| node never appears in `controld`  | control plane                                            | `control_plane_target`, node auth/TLS, heartbeat metrics, controld logs.       |
+| image-backed rootfs fails         | runtime image manager                                    | `image_manager_enabled`, `image_manager_socket`, imagemgr logs, imagefsd logs. |
+| sandbox has no egress or hostPort | network                                                  | `nat_backend`, `ip_range`, `sandbox0`, iptables/bpfnet logs.                   |
+| start is slow after burst         | resource pool                                            | idle gauges, `miss_sync_create`, reconcile interval, cache sizes.              |
+| delete leaves resources behind    | resource/runtime paths                                   | OCI annotations, storeDir, resource cleanup logs, GC queue metric.             |
 
-For local compose/kind command examples, use
-[Local Troubleshooting](../../../deploy/local/troubleshooting.md).
+For local compose/kind command examples, use [Local Troubleshooting](../../../deploy/local/troubleshooting.md).

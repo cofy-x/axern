@@ -88,7 +88,7 @@ axern context import-kubernetes local \
 内置 PostgreSQL 和单节点默认值仅用于评估。运行共享或生产工作负载前，请审视以下 Chart 配置项：
 
 - **Release 产物：** 统一锁定 Chart、镜像和 CLI 版本，安装 CLI 前校验其 checksum。
-- **集群前提：** 确认所需的 Kubernetes/Helm 版本、`runsc` 运行时可用性、运行时与卷服务所需的节点权限、默认 NAT 数据面所需的 eBPF 内核能力（`node.network.natBackend=iptables` 是显式回退项），以及每个调度节点到镜像仓库的可达性。
+- **集群前提：** 确认所需的 Kubernetes/Helm 版本、`runsc` 运行时可用性、运行时与镜像服务所需的节点权限、默认 NAT 数据面所需的 eBPF 内核能力（`node.network.natBackend=iptables` 是显式回退项），以及每个调度节点到镜像仓库的可达性。
 - **Gateway 暴露：** 用显式管理的 Service 或 Ingress 替换本地 port-forward，配置 TLS 服务器名称和网络策略；除非交互式工作流需要，保持 SSH 关闭。
 - **Secret：** 用 `secrets.existingSecret` 提供 master key 和 gateway token；用 `postgres.existingSecret` 提供数据库凭据。
 - **持久存储：** 设置 `postgres.persistence.enabled=true` 并搭配拓扑感知的 `ReadWriteOnce` StorageClass；不要在 `emptyDir` 回退上运行持久环境。
@@ -96,7 +96,9 @@ axern context import-kubernetes local \
 - **可观测：** 内置的 Prometheus、Tempo、Loki、Grafana 栈是持久的但单副本；在 `observability` 下规划保留周期和存储容量。
 
 :::caution[1.0 前的安全边界]
+
 Axern 不声称默认安装可安全承载不可信的多租户工作负载。TLS、Ingress、镜像信任、网络策略、Secret 存储、配额和持久存储均由运维者负责。
+
 :::
 
 [Helm Chart README](https://github.com/cofy-x/axern/tree/main/deploy/helm/axern) 是 values、节点网络和有状态依赖的权威参考。

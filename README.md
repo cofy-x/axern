@@ -15,12 +15,9 @@
   <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
-Axern is an open-source sandbox platform for AI agents.
-It isolates agent-generated code with gVisor (`runsc`) through one resource and lifecycle model. Runsc is the supported execution runtime, with no runtime fallback.
-The CLI and the Go, Python, and TypeScript SDKs expose the same public APIs for environments, Runs, sandbox processes and files, tunnels, lifecycle state, and task evidence.
+Axern is an open-source environment execution platform for agent evaluation, training, and data synthesis. It isolates agent-generated code with gVisor (`runsc`) through one resource and lifecycle model. Runsc is the supported execution runtime, with no runtime fallback. The CLI and the Go, Python, and TypeScript SDKs expose the same public APIs for Environments, Runs, sandbox processes and files, Tunnels, lifecycle state, and allocation-scoped access.
 
-> **Project status:** Axern is pre-1.0 and under active development.
-> It is suitable for evaluation and contribution, but operators should review the security and production boundaries before deploying multi-tenant workloads.
+> **Project status:** Axern is pre-1.0 and under active development. It is suitable for evaluation and contribution, but operators should review the security and production boundaries before deploying multi-tenant workloads.
 
 <p align="center">
   <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="Terminal recording of the axern CLI: command surface and run creation flags">
@@ -28,8 +25,7 @@ The CLI and the Go, Python, and TypeScript SDKs expose the same public APIs for 
 
 ## Quickstart
 
-The supported local path runs the complete stack with Docker Compose.
-It needs only the `axern` CLI and Docker Compose v2 — no source checkout, Make, Helm, or language toolchains.
+The supported local path runs the complete stack with Docker Compose. It needs only the `axern` CLI and Docker Compose v2 — no source checkout, Make, Helm, or language toolchains.
 
 ```bash
 brew install cofy-x/tap/axern
@@ -49,7 +45,7 @@ axern local image load python:3.12-slim --pull
 axern run python:3.12-slim -- python -c 'print("hello from axern")'
 ```
 
-`local up` starts PostgreSQL, MinIO, the control and node services, waits for readiness, and creates the `local` context. `local image load` streams the selected host Docker image into that local node without a temporary archive:
+`local up` starts PostgreSQL and the Axern control, tunnel, node, and gateway components, waits for readiness, and creates the `local` context. `local image load` streams the selected host Docker image into that local node without a temporary archive:
 
 ```bash
 axern context current
@@ -58,21 +54,15 @@ axern local status
 axern local down
 ```
 
-The local environment uses generated development credentials and loopback listeners.
-Do not reuse them in a shared or production deployment.
+The local environment uses generated development credentials and loopback listeners. Do not reuse them in a shared or production deployment.
 
-Source development is a separate contributor path.
-It builds the current checkout into local `:dev` images and exercises the same public contract:
+Source development is a separate contributor path. It builds the current checkout into local `:dev` images and exercises the same public contract:
 
 ```bash
 make quickstart-source
 ```
 
-For repository development, `make verify-changed` is the normal fast feedback
-entrypoint. Linux correctness, full regression, and release qualification are
-separate tiers. Every `main` commit receives an unattended, commit-bound full
-regression without delaying pull-request feedback; see the
-[verification tiers](./docs/verification/local-full-verification.md).
+For repository development, `make verify-changed` is the normal fast feedback entrypoint. Linux correctness, full regression, and release qualification are separate tiers. Every `main` commit receives an unattended, commit-bound full regression without delaying pull-request feedback; see the [verification tiers](./docs/verification/local-full-verification.md).
 
 ## What You Can Build
 
@@ -83,7 +73,7 @@ regression without delaying pull-request feedback; see the
 ## Why Axern
 
 - **Sandbox as the primitive:** evaluation, training, data synthesis, coding workspaces, and agent tasks compose the same Run execution model.
-- **Durable control plane:** PostgreSQL-backed intent, placement, leases, retries, health, and cleanup state remain authoritative across process or node restarts.
+- **Durable control plane:** PostgreSQL-backed intent, placement, leases, attempt-fenced status, health, and cleanup state remain authoritative across process or node restarts.
 - **One production runtime:** runsc workloads use the same public APIs; OCI and Nydus image paths converge at the node runtime.
 - **Real data-plane access:** process streams, files, archives, SSH-compatible terminals, and reverse TCP tunnels are explicit allocation capabilities.
 - **Local-to-cluster continuity:** Docker Compose, kind, and the cloud-neutral Helm chart exercise the same component boundaries.
@@ -103,29 +93,24 @@ flowchart LR
     Axrun["axrun\nagent tasks and evidence"] --> Gateway
 ```
 
-`controld` is the authority for product state.
-`gatewayd` resolves and forwards public traffic without owning placement.
-Node services own host-local runtime, image, network, and allocation-local writable storage. Persistent outputs use explicit artifact delivery; sandbox files are not reusable persistent volumes.
-See the [runtime architecture](./docs/architecture/runtime-architecture.md) and [resource model](./docs/architecture/resource-model.md) for the detailed contracts.
+`controld` is the authority for product state. `gatewayd` resolves and forwards public traffic without owning placement. Node services own host-local runtime, image, network, and allocation-local writable storage. Persistent outputs use explicit artifact delivery; sandbox files are not reusable persistent volumes. See the [runtime architecture](./docs/architecture/runtime-architecture.md) and [resource model](./docs/architecture/resource-model.md) for the detailed contracts.
 
-| Component | Responsibility |
-| --- | --- |
-| `controld` | Durable control-plane state, placement, leases, lifecycle, rollout, and reconciliation |
-| `gatewayd` | Public gRPC, SSH, terminal, tunnel, and sandbox data edge |
-| `axnoded` | Node-local sandbox lifecycle, execution, files, process streams, and cleanup |
-| `egressd` | Trusted node-local egress policy persistence, recovery, reconciliation, and enforcement |
-| `imagemgr` / `imagefsd` | OCI and Nydus image resolution, mount lifecycle, and read-only data plane |
-| `tunneld` | Internal reverse TCP relay and sandbox-local tunnel binding |
-| `axern` | Product CLI for platform resources and access |
-| `axrun` | Agent task harness, verifier, trajectory, usage, and evidence capture |
+| Component               | Responsibility                                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| `controld`              | Durable control-plane state, placement, leases, Run lifecycle, and reconciliation       |
+| `gatewayd`              | Public gRPC, SSH, terminal, tunnel, and sandbox data edge                               |
+| `axnoded`               | Node-local sandbox lifecycle, execution, files, process streams, and cleanup            |
+| `egressd`               | Trusted node-local egress policy persistence, recovery, reconciliation, and enforcement |
+| `imagemgr` / `imagefsd` | OCI and Nydus image resolution, mount lifecycle, and read-only data plane               |
+| `tunneld`               | Internal reverse TCP relay and sandbox-local tunnel binding                             |
+| `axern`                 | Product CLI for platform resources and access                                           |
+| `axrun`                 | Agent task harness, verifier, trajectory, usage, and evidence capture                   |
 
-Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/README.md).
-Shared wire contracts are defined in [`sdk/proto`](./sdk/proto/README.md).
+Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/README.md). Shared wire contracts are defined in [`sdk/proto`](./sdk/proto/README.md).
 
 ## Kubernetes Install
 
-Axern publishes its cloud-neutral chart as an OCI artifact and the CLI as checksummed release archives.
-Install the chart into the current Kubernetes context:
+Axern publishes its cloud-neutral chart as an OCI artifact and the CLI as checksummed release archives. Install the chart into the current Kubernetes context:
 
 ```bash
 helm install axern oci://ghcr.io/cofy-x/charts/axern \
@@ -148,8 +133,7 @@ axern context import-kubernetes local \
 axern catalog list
 ```
 
-The bundled PostgreSQL and single-node defaults are intended for evaluation.
-Durable or shared deployments must provide persistent storage, externalized secrets, ingress, and scheduling values described by the Helm chart.
+The bundled PostgreSQL and single-node defaults are intended for evaluation. Durable or shared deployments must provide persistent storage, externalized secrets, ingress, and scheduling values described by the Helm chart.
 
 ## Deployment
 
@@ -157,15 +141,11 @@ Durable or shared deployments must provide persistent storage, externalized secr
 - The [Axern Helm chart](./deploy/helm/axern/README.md) is cloud-neutral and accepts operator-owned image registries, certificates, storage classes, and secrets.
 - Provider account setup, cluster creation, credentials, and regional release automation intentionally live outside this repository.
 
-Axern does not claim that a default local or example deployment is safe for an untrusted multi-tenant environment.
-Review authentication, TLS, network policy, runtime isolation, image trust, secret storage, resource limits, and persistent storage before production use.
-Report vulnerabilities according to [SECURITY.md](./SECURITY.md).
+Axern does not claim that a default local or example deployment is safe for an untrusted multi-tenant environment. Review authentication, TLS, network policy, runtime isolation, image trust, secret storage, resource limits, and persistent storage before production use. Report vulnerabilities according to [SECURITY.md](./SECURITY.md).
 
 ## Contributing
 
-Contributions are welcome.
-Read [CONTRIBUTING.md](./CONTRIBUTING.md), follow the [Code of Conduct](./CODE_OF_CONDUCT.md), and sign every commit under the [Developer Certificate of Origin](./DCO).
-Project decisions follow the [governance model](./GOVERNANCE.md).
+Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md), follow the [Code of Conduct](./CODE_OF_CONDUCT.md), and sign every commit under the [Developer Certificate of Origin](./DCO). Project decisions follow the [governance model](./GOVERNANCE.md).
 
 ## License
 

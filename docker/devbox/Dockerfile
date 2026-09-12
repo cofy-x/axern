@@ -38,7 +38,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       -e "s|http://security.ubuntu.com/ubuntu/|http://${security_mirror}/ubuntu/|g" \
       -e "s|http://ports.ubuntu.com/ubuntu-ports/|http://${ports_mirror}/ubuntu-ports/|g" \
       /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true; \
-    apt-get update && apt-get install -y --no-install-recommends \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
     bash \
     bzip2 \
     build-essential \

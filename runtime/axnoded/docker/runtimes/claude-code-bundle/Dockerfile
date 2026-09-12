@@ -34,8 +34,8 @@ RUN set -eux; \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates libgcc-s1 libstdc++6 \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+    && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends ca-certificates libgcc-s1 libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
 FROM bundle_base AS bundle_builder
@@ -46,8 +46,8 @@ ARG UBUNTU_BASE_IMAGE
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update \
-    && apt-get install -y --no-install-recommends binutils ca-certificates curl file gnupg jq patchelf python3-minimal \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
+    && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends binutils ca-certificates curl file gnupg jq patchelf python3-minimal \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --chmod=0755 build-bundle.sh /usr/local/bin/build-claude-code-bundle

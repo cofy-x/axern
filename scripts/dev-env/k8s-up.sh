@@ -50,7 +50,6 @@ kubectl -n "${K8S_NAMESPACE}" create configmap local-proxy-env \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl apply -f "${DEPLOY_ROOT}/k8s/postgres.yaml"
-kubectl apply -f "${DEPLOY_ROOT}/k8s/minio.yaml"
 if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
   kubectl -n "${K8S_NAMESPACE}" create configmap grafana-dashboard-provisioning \
     --from-file=axern.yaml="${DEPLOY_ROOT}/grafana/provisioning/dashboards/axern.yaml" \

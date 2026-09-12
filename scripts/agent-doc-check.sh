@@ -7,6 +7,10 @@ cd "${ROOTDIR}"
 
 status=0
 
+if ! python3 scripts/check-markdown-wrap.py; then
+  status=1
+fi
+
 extract_targets() {
   perl -ne 'while (/\[[^][]+\]\(([^)]+)\)/g) { print "$1\n" }' "$1"
 }
@@ -77,7 +81,7 @@ done < <(
 )
 
 if [[ "${status}" -eq 0 ]]; then
-  echo "agent-doc-check: links resolved and local agent contracts indexed"
+  echo "agent-doc-check: Markdown formatting, links, and local agent contract indexes are valid"
 fi
 
 exit "${status}"

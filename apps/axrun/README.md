@@ -1,8 +1,6 @@
 # axrun
 
-`axrun` compiles immutable TaskSets and executes reproducible agent rollouts.
-Task semantics live in `TaskSetBuild`; rollout specs select an immutable TaskSet,
-agent/model, attempts, placement, and output location.
+`axrun` compiles immutable TaskSets and executes reproducible agent rollouts. Task semantics live in `TaskSetBuild`; rollout specs select an immutable TaskSet, agent/model, attempts, placement, and output location.
 
 ## Commands
 
@@ -19,9 +17,7 @@ axrun export sft|reward|trace|preference <run-dir>
 axrun serve
 ```
 
-`task build` is deterministic and offline. `task publish` is the only TaskSet
-operation that writes to a registry. Kova is the production default and emits
-Nydus plus OCI variants; `local` pushes an OCI variant for development.
+`task build` is deterministic and offline. `task publish` is the only TaskSet operation that writes to a registry. Kova is the production default and emits Nydus plus OCI variants; `local` pushes an OCI variant for development.
 
 ## Rollout
 
@@ -55,12 +51,6 @@ spec:
   output_dir: .axrun/runs
 ```
 
-Remote execution requires immutable task and image references. Planning freezes
-the resolved task selection, payload variants, agent bundle, and episode order
-into the local run directory. Execution then uses the selected local or Axern
-backend, and resume reads the frozen plan instead of re-resolving mutable input.
-Provider profiles remain local client configuration; controld does not own
-provider credentials, rollout queues, or evaluation results.
+Remote execution requires immutable task and image references. Planning freezes the resolved task selection, payload variants, agent bundle, and episode order into the local run directory. Execution then uses the selected local or Axern backend, and resume reads the frozen plan instead of re-resolving mutable input. Provider profiles remain local client configuration; controld does not own provider credentials, rollout queues, or evaluation results.
 
-See [usage](./docs/usage.md), [architecture](./docs/architecture.md), and
-[acceptance](./docs/acceptance.md).
+See [usage](./docs/usage.md), [architecture](./docs/architecture.md), and [acceptance](./docs/acceptance.md).

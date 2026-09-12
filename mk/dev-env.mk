@@ -64,7 +64,7 @@ local-compose-purge: ## Remove the local Docker Compose truth environment and it
 local-compose-reset: ## Recreate the local Docker Compose truth environment from a clean repo-local state
 	bash $(ROOTDIR)/scripts/dev-env/compose-reset.sh
 
-local-compose-refresh: ## Refresh compose images, reset Postgres/MinIO state, and redeploy without purging all state
+local-compose-refresh: ## Refresh compose images, reset PostgreSQL state, and redeploy without purging all state
 	bash $(ROOTDIR)/scripts/dev-env/compose-refresh.sh
 
 local-compose-refresh-verify: ## Run the lightweight compose refresh path and core compose smoke suite

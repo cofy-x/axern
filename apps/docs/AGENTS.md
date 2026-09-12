@@ -2,56 +2,17 @@
 
 ## Purpose
 
-`apps/docs` is Axern's public documentation product. It owns the static
-Starlight site, localized user journeys, generated terminal recordings, and
-Cloudflare Pages build contract.
+`apps/docs` is Axern's public, localized Starlight documentation site. Read the [site README](README.md) for commands and the [visual direction decision](../../docs/decisions/docs-site-visual-direction.md) for durable presentation constraints.
 
-Read this file, `apps/docs/README.md`, and
-`docs/decisions/docs-site-visual-direction.md` before changing the site.
+## Ownership Boundaries
 
-## Ownership Boundary
-
-- English content is normative. Simplified Chinese content is maintained
-  progressively through the `zh-cn` locale and falls back to English with
-  Starlight's untranslated-content notice.
-- This app owns public installation, CLI, SDK, Axrun, and conceptual user
-  documentation.
-- Current product journeys must present `Environment -> Run -> Allocation` as
-  the execution model and `Sandbox` as the SDK facade. Do not publish Service,
-  Function, Agent Profile, or generic Volume workflows; keep SSH and Tunnel as
-  allocation-bound capabilities.
-- Root `docs/` owns detailed engineering architecture, maintainer operations,
-  verification contracts, and durable design documents. Summarize those
-  contracts here; do not copy them into a second source of truth.
-- Runtime API, protobuf, configuration, and deployment semantics remain owned
-  by their product modules. Documentation examples must match those sources.
-- Cloud-provider account setup, credentials, and regional deployment
-  orchestration do not belong in this public app.
-
-## Implementation
-
-- Keep the site fully static. Do not add a server adapter, database, analytics
-  backend, or runtime dependency.
-- Use Starlight's built-in Pagefind search and locale fallback.
-- Keep custom UI small, accessible, responsive, and aligned with Starlight
-  rather than replacing its documentation shell.
-- Pin Wrangler and every GitHub Action used by the deployment workflow.
-- Keep terminal recordings reproducible from the checked-in VHS tapes.
+- English content is normative; Simplified Chinese content is maintained under `zh-cn` with Starlight fallback.
+- Present the execution model and capabilities defined by the [Stable Domain Model](../../docs/product/domain-model.md). Summarize repository architecture and operations rather than creating a second source of truth.
+- Match examples to the owning CLI, SDK, protobuf, configuration, and deployment contracts. Keep provider account setup, credentials, and regional orchestration outside the public site.
+- Keep the site static and use Starlight's navigation, accessibility, localization, and Pagefind capabilities. Keep custom UI small and reproducible assets derived from checked-in sources.
+- Pin deployment tooling and GitHub Actions used by the site.
 
 ## Validation
 
-Run from the repository root:
-
-```bash
-make docs-check
-make docs-build
-make docs-verify
-make agent-doc-check
-```
-
-Run `make docs-assets` when a tape or recorded CLI surface changes.
-Run `make docs-layout-check` when homepage layout, sidebar structure, or
-shared page chrome changes; it requires a local Chrome or Chromium binary
-(`CHROME_BIN` overrides discovery) and is not part of `docs-verify`.
-Run `make docs-social-card` when the social preview SVG source changes; the
-asset check rejects a stale or modified generated PNG.
+- Run `make docs-verify`; it covers content checks, the static build, and built-link validation.
+- Run `make docs-assets` for recording changes, `make docs-layout-check` for shared layout changes, and `make docs-social-card` for social-preview source changes.

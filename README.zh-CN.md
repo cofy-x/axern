@@ -15,7 +15,7 @@
   <a href="./README.md">English</a>
 </p>
 
-Axern 是一个面向 AI agent 的开源沙箱平台。它用 gVisor（runsc）隔离运行 agent 生成的代码，使用统一的资源与生命周期模型。执行运行时统一使用 runsc，不提供运行时回退。CLI 与 Go、Python、TypeScript SDK 暴露相同的公共 API，覆盖环境、进程、文件、服务、存储、隧道、生命周期状态和任务证据。
+Axern 是一个面向 agent 评测、训练与数据合成的开源环境执行平台。它用 gVisor（runsc）隔离运行 agent 生成的代码，使用统一的资源与生命周期模型。执行运行时统一使用 runsc，不提供运行时回退。CLI 与 Go、Python、TypeScript SDK 暴露相同的公共 API，覆盖 Environment、Run、Sandbox 进程与文件、Tunnel、生命周期状态和 allocation 范围的访问能力。
 
 > **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。它适合评估与贡献；在部署多租户工作负载之前，运维人员应先审阅安全与生产边界。
 >
@@ -47,7 +47,7 @@ axern local image load python:3.12-slim --pull
 axern run python:3.12-slim -- python -c 'print("hello from axern")'
 ```
 
-`local up` 会启动 PostgreSQL、MinIO 以及控制与节点服务，等待就绪，并创建 `local` 上下文。`local image load` 会把选定的宿主 Docker 镜像直接流式导入本地节点，不生成中间归档文件：
+`local up` 会启动 PostgreSQL 以及 Axern 的控制、隧道、节点和网关组件，等待就绪，并创建 `local` 上下文。`local image load` 会把选定的宿主 Docker 镜像直接流式导入本地节点，不生成中间归档文件：
 
 ```bash
 axern context current
@@ -69,16 +69,16 @@ make quickstart-source
 ## 可以构建什么
 
 - **Agent 沙箱：** 在 runsc 隔离边界后执行 agent 生成的代码，同时保留进程、文件、终端和输出 API。
-- **常驻服务：** 用 runsc 运行进程，由控制平面管理副本、健康和发布；必须跨 allocation 保留的输出需显式导出。
+- **评测与数据合成批次：** 通过 Run 并发执行隔离工作负载，并显式记录输入、输出和生命周期证据。
 - **可复现的 agent 执行：** 使用 Axrun 编排不可变任务、结果验证、轨迹、用量和类型化产物。
 
 ## 为什么选择 Axern
 
-- **沙箱即原语：** run、服务、函数、编码工作区和 agent 任务都组合自同一套执行与生命周期 API。
-- **持久化控制平面：** 以 PostgreSQL 为后端的意图、放置、租约、重试、健康和清理状态，在进程或节点重启后依然保持权威。
+- **沙箱即原语：** 评测、训练、数据合成、编码工作区和 agent 任务都组合自同一套 Run 执行模型。
+- **持久化控制平面：** 以 PostgreSQL 为后端的意图、放置、租约、attempt-fenced 状态、健康和清理信息，在进程或节点重启后依然保持权威。
 - **单一生产运行时：** runsc 工作负载使用相同的公共 API；OCI 与 Nydus 镜像路径在节点运行时汇聚。
-- **真实的数据面访问：** 进程流、文件、归档、HTTP 服务、SSH 兼容终端和反向 TCP 隧道都是显式能力。
-- **本地到集群的连续性：** Docker Compose、kind 和云中立的 Helm chart 验证相同的服务边界。
+- **真实的数据面访问：** 进程流、文件、归档、SSH 兼容终端和反向 TCP 隧道都是 allocation 的显式能力。
+- **本地到集群的连续性：** Docker Compose、kind 和云中立的 Helm chart 验证相同的组件边界。
 
 ## 架构
 
@@ -97,16 +97,16 @@ flowchart LR
 
 `controld` 是产品状态的权威。`gatewayd` 解析并转发公共流量，不拥有放置决策。节点服务负责宿主机本地的运行时、镜像、网络和 allocation 私有的临时可写存储。持久输出使用显式 artifact 交付；沙箱文件不是可复用的持久卷。详细契约见[运行时架构](./docs/architecture/runtime-architecture.md)和[资源模型](./docs/architecture/resource-model.md)。
 
-| 组件 | 职责 |
-| --- | --- |
-| `controld` | 持久化控制平面状态、放置、租约、生命周期、发布与调和 |
-| `gatewayd` | 公共 gRPC、HTTP、SSH、终端、隧道、服务和沙箱数据边缘 |
-| `axnoded` | 节点本地的沙箱生命周期、执行、文件、进程流和清理 |
-| `egressd` | 可信节点本地出站策略的持久化、恢复、调和与执行 |
-| `imagemgr` / `imagefsd` | OCI 与 Nydus 镜像解析、挂载生命周期和只读数据面 |
-| `tunneld` | 内部反向 TCP 中继和沙箱本地隧道绑定 |
-| `axern` | 面向平台资源与访问的产品 CLI |
-| `axrun` | agent 任务执行器、发布 worker、验证器，以及轨迹、用量和证据采集 |
+| 组件                    | 职责                                                            |
+| ----------------------- | --------------------------------------------------------------- |
+| `controld`              | 持久化控制平面状态、放置、租约、Run 生命周期与调和              |
+| `gatewayd`              | 公共 gRPC、SSH、终端、隧道和沙箱数据边缘                        |
+| `axnoded`               | 节点本地的沙箱生命周期、执行、文件、进程流和清理                |
+| `egressd`               | 可信节点本地出站策略的持久化、恢复、调和与执行                  |
+| `imagemgr` / `imagefsd` | OCI 与 Nydus 镜像解析、挂载生命周期和只读数据面                 |
+| `tunneld`               | 内部反向 TCP 中继和沙箱本地隧道绑定                             |
+| `axern`                 | 面向平台资源与访问的产品 CLI                                    |
+| `axrun`                 | agent 任务执行器、验证器，以及轨迹、用量和证据采集              |
 
 公共客户端提供 Go、Python 和 TypeScript 版本，位于 [`sdk/`](./sdk/README.md)。共享的传输契约定义在 [`sdk/proto`](./sdk/proto/README.md)。
 
