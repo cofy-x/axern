@@ -153,7 +153,6 @@ func newTestLocalNodeVolume(namespace, serviceID, name, target string, readonly 
 			"volume_name": name,
 		},
 		RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{
-			SupportsRunc:  true,
 			SupportsRunsc: true,
 		},
 	}

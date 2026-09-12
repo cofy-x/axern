@@ -68,7 +68,7 @@ type Status struct {
 	Unknown bool `json:"-"`
 	// ResourceSpec keeps the scheduler-facing request/limit contract.
 	ResourceSpec *commonv1.ResourceSpec
-	// LinuxResources has the Linux cgroup constraints applied to runc/runsc.
+	// LinuxResources has the Linux cgroup constraints applied to runsc.
 	LinuxResources *runtime.LinuxContainerResources
 }
 

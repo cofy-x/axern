@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	allocationMemoryMetricRuntimes = []string{"runc", "runsc"}
+	allocationMemoryMetricRuntimes = []string{"runsc"}
 	allocationMemoryMetricKinds    = []string{
 		"current", "peak", "swap_current", "anon", "file", "shmem", "kernel", "file_dirty", "file_writeback",
 		"event_high", "event_max", "event_oom", "event_oom_kill", "event_oom_group_kill",

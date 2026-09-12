@@ -12,7 +12,6 @@ DASHBOARD_HOST="${DASHBOARD_HOST:-127.0.0.1}"
 DASHBOARD_HOST_PORT="${DASHBOARD_HOST_PORT:-$(reserve_host_port 0.0.0.0 23011)}"
 CONTAINER_HTTP_PORT="${CONTAINER_HTTP_PORT:-23001}"
 RUNSC_HOST_PORT="${RUNSC_HOST_PORT:-$(reserve_host_port 0.0.0.0 18080)}"
-RUNC_HOST_PORT="${RUNC_HOST_PORT:-$(reserve_host_port 0.0.0.0 18081)}"
 READY_TIMEOUT="${READY_TIMEOUT:-180}"
 PRESERVE_ON_FAILURE="${PRESERVE_ON_FAILURE:-false}"
 NAT_BACKEND="ebpf"
@@ -88,7 +87,6 @@ wait_for_dashboard_capabilities() {
         | length == 1;
       available("PLATFORM_CAPABILITY_PORT_FORWARDING") and
       available("PLATFORM_CAPABILITY_NETWORK_BPFNET") and
-      available("PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT") and
       available("PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT")
     ' <<<"${inventory}" >/dev/null 2>&1; then
       echo "dashboard_capabilities_ready=true"
@@ -167,8 +165,7 @@ wait_for_instances() {
   deadline=$((SECONDS + READY_TIMEOUT))
   while [ "${SECONDS}" -lt "${deadline}" ]; do
     listing="$(docker exec "${DEMO_CONTAINER_NAME}" axctl sandbox list 2>/dev/null || true)"
-    if printf '%s\n' "${listing}" | grep -q '^dashboard-nginx-runsc[[:space:]].*RUNNING' &&
-      printf '%s\n' "${listing}" | grep -q '^dashboard-nginx-runc[[:space:]].*RUNNING'; then
+    if printf '%s\n' "${listing}" | grep -q '^dashboard-nginx-runsc[[:space:]].*RUNNING'; then
       echo "dashboard_instances_running=true"
       return 0
     fi
@@ -192,7 +189,6 @@ docker run -d \
   -e AXNODED_NETWORK_IP_RANGE \
   -p "${DASHBOARD_HOST}:${DASHBOARD_HOST_PORT}:${CONTAINER_HTTP_PORT}" \
   -p "127.0.0.1:${RUNSC_HOST_PORT}:${RUNSC_HOST_PORT}" \
-  -p "127.0.0.1:${RUNC_HOST_PORT}:${RUNC_HOST_PORT}" \
   "${IMAGE_TAG}" \
   bash /workspace/scripts/demo/run-dashboard-nginx-demo-in-container.sh >/dev/null
 
@@ -209,12 +205,9 @@ fi
 if ! start_demo_instance "runsc"; then
   fail_with_logs "failed to start managed runsc nginx instance"
 fi
-if ! start_demo_instance "runc"; then
-  fail_with_logs "failed to start managed runc nginx instance"
-fi
 
 if ! wait_for_instances; then
-  fail_with_logs "managed runsc/runc nginx instances did not become RUNNING"
+  fail_with_logs "managed runsc nginx instances did not become RUNNING"
 fi
 
 assert_check_json "after_instances"

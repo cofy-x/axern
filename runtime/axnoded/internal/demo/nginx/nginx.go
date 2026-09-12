@@ -38,16 +38,6 @@ func ManagedSpec(runtimeName string) (InstanceSpec, bool) {
 			StderrPath:  filepath.Join(os.TempDir(), "axnoded-dashboard-nginx-runsc.stderr"),
 			HostPort:    18080,
 		}, true
-	case config.RuntimeNameRunc:
-		return InstanceSpec{
-			RuntimeName: runtimeName,
-			SandboxID:   "dashboard-nginx-runc",
-			RootfsPath:  DefaultRootfsPath,
-			ConfigDir:   baseDir,
-			StdoutPath:  filepath.Join(os.TempDir(), "axnoded-dashboard-nginx-runc.stdout"),
-			StderrPath:  filepath.Join(os.TempDir(), "axnoded-dashboard-nginx-runc.stderr"),
-			HostPort:    18081,
-		}, true
 	default:
 		return InstanceSpec{}, false
 	}

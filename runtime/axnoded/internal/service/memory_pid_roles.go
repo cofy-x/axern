@@ -18,8 +18,6 @@ func (h *sandboxService) verifyMemoryPIDRoles(allocationID, runtimeName, workloa
 		return fmt.Errorf("allocation, workload cgroup, and runtime PID are required")
 	}
 	switch runtimeName {
-	case config.RuntimeNameRunc:
-		return hostlinux.VerifyRuncCgroupProcessTree(workloadPath, runtimePID)
 	case config.RuntimeNameRunsc:
 		runtimeConfig, ok := h.config.PluginConfig.RuntimeConfig.Runtimes[config.RuntimeNameRunsc]
 		if !ok || strings.TrimSpace(runtimeConfig.Binary) == "" {

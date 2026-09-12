@@ -21,15 +21,8 @@ func TestManagedSpec(t *testing.T) {
 		t.Fatalf("host port = %d, want %d", runsc.HostPort, 18080)
 	}
 
-	runc, ok := ManagedSpec(config.RuntimeNameRunc)
-	if !ok {
-		t.Fatalf("expected managed spec for runc")
-	}
-	if runc.SandboxID != "dashboard-nginx-runc" {
-		t.Fatalf("sandbox id = %q, want %q", runc.SandboxID, "dashboard-nginx-runc")
-	}
-	if runc.HostPort != 18081 {
-		t.Fatalf("host port = %d, want %d", runc.HostPort, 18081)
+	if _, ok := ManagedSpec("runc"); ok {
+		t.Fatal("removed runtime must not expose a managed demo")
 	}
 }
 

@@ -107,9 +107,7 @@ Example daemon invocation:
 verification container.
 
 `make release-binary` also builds `output/axnoded-runtime-runner`, the host
-lifecycle helper used by OCI runtime handlers. For runc it becomes the
-allocation-specific init subreaper, publishes create readiness, and persists
-the exact kernel wait status; for runsc it persists the runtime wait result.
+lifecycle helper that persists the runsc runtime wait result.
 The build also includes `output/axern-sandboxd`, the sandbox-local PID 1
 supervisor.
 Packaged node images install runtime helpers at `/usr/local/libexec/axnoded/`.

@@ -75,7 +75,6 @@ func ensureDefaultClasses(ctx context.Context, controller *appstorage.Controller
 		DefaultReclaimPolicy: storagev1.VolumeReclaimPolicy_VOLUME_RECLAIM_POLICY_RETAIN,
 		ConsistencyProfile:   storagev1.VolumeConsistencyProfile_VOLUME_CONSISTENCY_PROFILE_POSIX,
 		RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{
-			SupportsRunc:  true,
 			SupportsRunsc: true,
 		},
 	})

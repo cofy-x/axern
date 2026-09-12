@@ -25,7 +25,7 @@ observable runtime behavior.
   Durable Service scenes explain the execution modes. The selected mode may
   replay its internal lifecycle, but the page does not switch modes without
   user input. Both scenes use `runsc`, the sole packaged production runtime;
-  do not present retained diagnostic handlers as production choices.
+    do not present unsupported runtimes as production choices.
 - Represent the Agent Sandbox as a horizontal, nested execution chamber. Keep
   `runsc` attached to the outer isolation boundary while code and process
   activity remain inside the inner execution layer.

@@ -8,7 +8,7 @@ Axern separates workload resource intent into three layers:
 
 This mirrors the common container platform model while keeping Axern's runtime
 boundary explicit: the control plane admits and reserves requests; `axnoded`
-enforces limits through the selected `runsc` or `runc` runtime; namespace quota
+enforces limits through the `runsc` runtime; namespace quota
 caps admitted requests.
 
 ## Requests and Limits
@@ -25,8 +25,8 @@ default request before placement:
 
 `limit` is the runtime hard cap for that resource. A memory limit becomes the
 host cgroup v2 `memory.max` for the complete sandbox domain, with swap disabled
-and group OOM enabled. Ephemeral-storage limits become runsc overlay size or
-runc XFS project-quota enforcement. A workload may set CPU or memory requests
+and group OOM enabled. Ephemeral-storage limits become runsc overlay size
+enforcement. A workload may set CPU or memory requests
 without matching limits; Axern still reserves capacity but does not install the
 omitted hard cap. Writable roots always resolve both an ephemeral-storage
 request and limit.
@@ -108,8 +108,6 @@ values come from the node inventory after the relevant system reserves.
 
 The current charged scope is intentionally narrow and runtime-independent:
 
-- the runc sandbox-private writable rootfs upper, including copy-up, metadata,
-  and whiteouts
 - the runsc file-backed root overlay, including its metadata, copy-up, and
   whiteouts
 

@@ -310,7 +310,7 @@ func TestBuildResolvedExecutionConfigForImageBackedEnvironment(t *testing.T) {
 	cfg := buildResolvedExecutionConfig(createAllocationRequestParams{
 		Config: &commonv1.ExecutionConfig{
 			Argv:         []string{"/bin/sh", "-c", "sleep 60"},
-			RuntimeClass: "runc",
+			RuntimeClass: "other",
 		},
 		Environment:    env,
 		DefaultRuntime: DefaultRuntime,
@@ -324,8 +324,8 @@ func TestBuildResolvedExecutionConfigForImageBackedEnvironment(t *testing.T) {
 	if cfg.GetImageDescriptor() != "index.docker.io/library/nginx:1.27" {
 		t.Fatalf("image descriptor = %q, want index.docker.io/library/nginx:1.27", cfg.GetImageDescriptor())
 	}
-	if cfg.GetRuntimeClass() != "runc" {
-		t.Fatalf("runtime class = %q, want runc", cfg.GetRuntimeClass())
+	if cfg.GetRuntimeClass() != "other" {
+		t.Fatalf("runtime class = %q, want other", cfg.GetRuntimeClass())
 	}
 	if !cfg.GetRootfsReadonly() {
 		t.Fatal("rootfs_readonly = false, want true")

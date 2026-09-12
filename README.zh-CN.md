@@ -15,7 +15,7 @@
   <a href="./README.md">English</a>
 </p>
 
-Axern 是一个面向 AI agent 的开源沙箱平台。它用 gVisor（runsc）隔离运行 agent 生成的代码，使用统一的资源与生命周期模型。打包节点只启用 runsc；收敛期间暂留的 runc 配置仅用于底层诊断，不是生产回退。CLI 与 Go、Python、TypeScript SDK 暴露相同的公共 API，覆盖环境、进程、文件、服务、存储、隧道、生命周期状态和任务证据。
+Axern 是一个面向 AI agent 的开源沙箱平台。它用 gVisor（runsc）隔离运行 agent 生成的代码，使用统一的资源与生命周期模型。执行运行时统一使用 runsc，不提供运行时回退。CLI 与 Go、Python、TypeScript SDK 暴露相同的公共 API，覆盖环境、进程、文件、服务、存储、隧道、生命周期状态和任务证据。
 
 > **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。它适合评估与贡献；在部署多租户工作负载之前，运维人员应先审阅安全与生产边界。
 >

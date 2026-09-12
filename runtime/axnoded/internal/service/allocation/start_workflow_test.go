@@ -97,7 +97,7 @@ func TestStartManagedContainerSerializesDuplicateAllocationStarts(t *testing.T) 
 	releaseCreate := make(chan struct{})
 	runtimeExited := make(chan struct{})
 	handler := &runtimeSpyHandler{
-		name: "runc",
+		name: "runsc",
 		waitFunc: func(ctx context.Context, _ contract.HandlerOptions) (contract.Exit, error) {
 			select {
 			case <-runtimeExited:
@@ -119,7 +119,7 @@ func TestStartManagedContainerSerializesDuplicateAllocationStarts(t *testing.T) 
 			<-releaseCreate
 		})
 	}
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runc": handler}, nil, fakeVolumePublisher{
+	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": handler}, nil, fakeVolumePublisher{
 		published: []*privatestoragev1.PublishedNodeVolume{{
 			ClaimID:   "default/svc/data",
 			BindingID: "binding-1",
@@ -137,7 +137,7 @@ func TestStartManagedContainerSerializesDuplicateAllocationStarts(t *testing.T) 
 		ContainerID: "alloc-duplicate-start",
 		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
 			ID:      "runtime-duplicate-start",
-			Sandbox: "runc",
+			Sandbox: "runsc",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,
 				Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDir},

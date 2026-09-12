@@ -46,7 +46,7 @@ func deriveRequirements(input RequirementInput, deferNetworkBackend bool) ([]*ca
 		return nil, err
 	}
 	runtimeName := strings.ToLower(strings.TrimSpace(input.RuntimeName))
-	if runtimeName != "runc" && runtimeName != "runsc" {
+	if runtimeName != "runsc" {
 		return nil, fmt.Errorf("unsupported sandbox runtime %q", input.RuntimeName)
 	}
 	keys := make([]*capabilityv1.CapabilityKey, 0, len(input.ExtensionCapabilityRequests)+5)
@@ -79,17 +79,11 @@ func deriveRequirements(input RequirementInput, deferNetworkBackend bool) ([]*ca
 		}
 	}
 	if input.MemoryLimitBytes > 0 {
-		capability := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT
-		if runtimeName == "runsc" {
-			capability = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT
-		}
+		capability := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT
 		keys = append(keys, PlatformKey(capability))
 	}
 	if input.RootfsWritable || input.EphemeralStorageLimitBytes > 0 {
-		capability := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT
-		if runtimeName == "runsc" {
-			capability = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT
-		}
+		capability := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT
 		keys = append(keys, PlatformKey(capability))
 	}
 	if input.EROFSBacking {

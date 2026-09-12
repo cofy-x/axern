@@ -266,10 +266,10 @@ func TestTransitionHandlerPanicDoesNotSuppressFollowingHandler(t *testing.T) {
 }
 
 func TestRuntimeProviderSerialLaneHonorsCancellationWhileQueued(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST)
 	called := false
 	provider := testProvider{
-		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST,
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
 		keys:     []*capabilityv1.CapabilityKey{key},
 		observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			called = true
@@ -306,22 +306,22 @@ func TestRuntimeProvidersShareOneGlobalSerialLane(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 		return nil, nil
 	}
-	runcProvider := testProvider{
-		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST,
-		keys:     []*capabilityv1.CapabilityKey{capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)},
+	memoryProvider := testProvider{
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
+		keys:     []*capabilityv1.CapabilityKey{capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST)},
 		observe:  observe,
 	}
-	runscProvider := testProvider{
+	storageProvider := testProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
 		keys:     []*capabilityv1.CapabilityKey{capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST)},
 		observe:  observe,
 	}
-	manager, err := NewManager(runcProvider, runscProvider)
+	manager, err := NewManager(memoryProvider, storageProvider)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var wait sync.WaitGroup
-	for _, provider := range []Provider{runcProvider, runscProvider} {
+	for _, provider := range []Provider{memoryProvider, storageProvider} {
 		provider := provider
 		wait.Add(1)
 		go func() {
@@ -336,14 +336,14 @@ func TestRuntimeProvidersShareOneGlobalSerialLane(t *testing.T) {
 }
 
 func TestSlowRuntimeProviderDoesNotBlockHealthPublication(t *testing.T) {
-	runtimeKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)
+	runtimeKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST)
 	networkKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
 	releaseRuntime := make(chan struct{})
 	networkPublished := make(chan struct{}, 1)
 	manager, err := NewManager(
-		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{runtimeKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{runtimeKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			<-releaseRuntime
-			return []*capabilityv1.CapabilityObservation{{Key: runtimeKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, "runc", digest("b"), digest("c"))}}, nil
+			return []*capabilityv1.CapabilityObservation{{Key: runtimeKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, "runsc", digest("b"), digest("c"))}}, nil
 		}},
 		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{networkKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			select {

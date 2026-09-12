@@ -18,7 +18,7 @@ func TestWaitReturnsWhenPIDFileExists(t *testing.T) {
 	require.NoError(t, os.WriteFile(pidFilePath, []byte("123"), 0644))
 
 	err := Wait(context.Background(), Options{
-		RuntimeName: "runc",
+		RuntimeName: "runsc",
 		ContainerID: "axctl-test",
 		PIDFilePath: pidFilePath,
 	})
@@ -32,14 +32,14 @@ func TestWaitReportsSupervisorExitBeforeReady(t *testing.T) {
 	close(waitCh)
 
 	err := Wait(context.Background(), Options{
-		RuntimeName: "runc",
+		RuntimeName: "runsc",
 		ContainerID: "axctl-test",
 		PIDFilePath: filepath.Join(t.TempDir(), "missing.pid"),
 		WaitCh:      waitCh,
 	})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "runc run exited before container started")
+	assert.Contains(t, err.Error(), "runsc run exited before container started")
 	assert.Contains(t, err.Error(), "exit status 7")
 }
 
@@ -49,14 +49,14 @@ func TestWaitReportsSupervisorCleanExitBeforeReady(t *testing.T) {
 	close(waitCh)
 
 	err := Wait(context.Background(), Options{
-		RuntimeName: "runc",
+		RuntimeName: "runsc",
 		ContainerID: "axctl-test",
 		PIDFilePath: filepath.Join(t.TempDir(), "missing.pid"),
 		WaitCh:      waitCh,
 	})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "runc run exited before startup handshake completed")
+	assert.Contains(t, err.Error(), "runsc run exited before startup handshake completed")
 }
 
 func TestWaitAcceptsPersistedRuntimeExitBeforeReady(t *testing.T) {
@@ -91,7 +91,7 @@ func TestWaitAcceptsReadyStateAfterSupervisorExit(t *testing.T) {
 	close(waitCh)
 
 	err := Wait(context.Background(), Options{
-		RuntimeName: "runc",
+		RuntimeName: "runsc",
 		ContainerID: "axctl-test",
 		PIDFilePath: filepath.Join(t.TempDir(), "missing.pid"),
 		WaitCh:      waitCh,

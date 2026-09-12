@@ -227,7 +227,7 @@ func TestCgroupManagerRecycleIsOneWayIntoRetirement(t *testing.T) {
 	manager.cgroups.Set(id, struct{}{})
 	manager.leases.Set(id, &apipb.CgroupLease{
 		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
-		AllocationID: "alloc-a", AllocationAttempt: 3, RuntimeName: "runc",
+		AllocationID: "alloc-a", AllocationAttempt: 3, RuntimeName: "runsc",
 		MemoryRequestBytes: 1024, MemoryLimitBytes: 2048, AssignedAtUnixNano: 1,
 		CgroupBootID: "boot-a", CgroupMountIdentity: "mount-a", CgroupParentInode: 11, CgroupLeafInode: 12,
 	})
@@ -250,7 +250,7 @@ func TestCgroupManagerRecycleIsOneWayIntoRetirement(t *testing.T) {
 	}
 	retiring := manager.RetiringMemoryLeases()
 	if len(retiring) != 1 || retiring[0].AllocationID != "alloc-a" || retiring[0].AllocationAttempt != 3 ||
-		retiring[0].RuntimeName != "runc" || retiring[0].MemoryRequest != 1024 || retiring[0].MemoryLimit != 2048 ||
+		retiring[0].RuntimeName != "runsc" || retiring[0].MemoryRequest != 1024 || retiring[0].MemoryLimit != 2048 ||
 		retiring[0].BootID != "boot-a" || retiring[0].MountIdentity != "mount-a" ||
 		retiring[0].ParentInode != 11 || retiring[0].LeafInode != 12 {
 		t.Fatalf("RetiringMemoryLeases() = %+v", retiring)
@@ -405,7 +405,7 @@ func TestBindMemoryDomainIsDurableAndIdentityImmutable(t *testing.T) {
 func TestValidateCgroupLeaseRejectsPartialMemoryIdentity(t *testing.T) {
 	err := validateCgroupLease(&apipb.CgroupLease{
 		CgroupID: "/sandbox/assigned", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
-		AllocationID: "alloc-a", RuntimeName: "runc", MemoryLimitBytes: 2048, AssignedAtUnixNano: 1, CgroupBootID: "boot-a",
+		AllocationID: "alloc-a", RuntimeName: "runsc", MemoryLimitBytes: 2048, AssignedAtUnixNano: 1, CgroupBootID: "boot-a",
 		OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD,
 	})
 	if err == nil {
@@ -456,7 +456,7 @@ func TestReconcileCgroupLeasesForRootPreservesStaleOwnership(t *testing.T) {
 	for _, lease := range []*apipb.CgroupLease{
 		{
 			CgroupID: "/old/sandbox/assigned", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
-			AllocationID: "allocation-a", RuntimeName: "runc", AssignedAtUnixNano: 1,
+			AllocationID: "allocation-a", RuntimeName: "runsc", AssignedAtUnixNano: 1,
 			OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD,
 		},
 		{

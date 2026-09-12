@@ -80,7 +80,7 @@ Topology keys:
 - `zone`: zone-bound cloud storage.
 - `cluster`: cluster-wide shared storage.
 
-Every provider must declare runtime compatibility for `runc`, `runsc`, or both.
+Every provider must declare runtime compatibility for `runsc`.
 FUSE, device-backed mounts, mount propagation, and filesystem notification
 behavior can differ under `runsc`, so compatibility is part of the protocol.
 

@@ -31,14 +31,14 @@ cells=()
 case "${matrix_scope}" in
   representative)
     cells=(
-      "runc bridge ipv4 strict_domain"
+      "runsc bridge ipv4 strict_domain"
       "runsc bridge ipv6 dns_deny"
-      "runc ebpf ipv6 strict_cidr"
+      "runsc ebpf ipv6 strict_cidr"
       "runsc ebpf ipv4 unrestricted"
     )
     ;;
   full)
-    for runtime_name in runc runsc; do
+    for runtime_name in runsc; do
       for network_backend in bridge ebpf; do
         for ip_family in ipv4 ipv6; do
           for policy_mode in unrestricted dns_deny strict_domain strict_cidr; do
@@ -65,13 +65,13 @@ docker run --rm --privileged --cgroupns=host \
   /bin/bash -lc '
     set -euo pipefail
     scenario=/workspace/scripts/qualification/network-policy-scenario-in-container.sh
-    common=(--runtime runc --network-backend bridge --ip-family ipv4 --samples 1 --concurrency 1 --payload-bytes 1024 --sustained-seconds 1 --rule-scale-counts 1)
+    common=(--runtime runsc --network-backend bridge --ip-family ipv4 --samples 1 --concurrency 1 --payload-bytes 1024 --sustained-seconds 1 --rule-scale-counts 1)
     "${scenario}" "${common[@]}" --policy-mode unrestricted --output /qualification-output/sequential-unrestricted.json
     "${scenario}" "${common[@]}" --policy-mode dns_deny --output /qualification-output/sequential-dns-deny.json
   '
-jq -e '.runtime == "runc" and .networkBackend == "bridge" and .ipFamily == "ipv4" and .policyMode == "unrestricted" and .metrics.failures == 0' \
+jq -e '.runtime == "runsc" and .networkBackend == "bridge" and .ipFamily == "ipv4" and .policyMode == "unrestricted" and .metrics.failures == 0' \
   "${output_root}/sequential-unrestricted.json" >/dev/null
-jq -e '.runtime == "runc" and .networkBackend == "bridge" and .ipFamily == "ipv4" and .policyMode == "dns_deny" and .metrics.failures == 0' \
+jq -e '.runtime == "runsc" and .networkBackend == "bridge" and .ipFamily == "ipv4" and .policyMode == "dns_deny" and .metrics.failures == 0' \
   "${output_root}/sequential-dns-deny.json" >/dev/null
 
 for cell in "${cells[@]}"; do

@@ -162,8 +162,8 @@ func TestNetworkCapabilityProviderPublishesEffectiveBridgeForIPv6EBPFCompatibili
 
 func TestDerivedCapabilityUsesRecoveryFilteredDependencies(t *testing.T) {
 	cgroupKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_CGROUP_V2_MEMORY_CONTROLLER)
-	selfTestKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)
-	derivedKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT)
+	selfTestKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST)
+	derivedKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT)
 	available := false
 	cgroup := observedProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_HOST_CGROUP,
@@ -176,10 +176,10 @@ func TestDerivedCapabilityUsesRecoveryFilteredDependencies(t *testing.T) {
 		},
 	}
 	selfTest := observedProvider{
-		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST,
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
 		expected: []*capabilityv1.CapabilityKey{selfTestKey},
 		observe: func(context.Context, time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, "runc", sha256Digest([]byte("binary")), sha256Digest([]byte("config")))
+			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, "runsc", sha256Digest([]byte("binary")), sha256Digest([]byte("config")))
 			if !available {
 				return []*capabilityv1.CapabilityObservation{failedObservation(selfTestKey, evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED, "failed")}, nil
 			}

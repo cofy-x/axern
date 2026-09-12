@@ -99,9 +99,9 @@ The providers are:
 - host: a boot-scoped cgroup v2 memory-controller enforcement probe;
 - network health: bridge/iptables or BPF dataplane, port forwarding, and the
   egressd DNS/strict policy self-tests;
-- filestore: mount identity, OverlayFS upper, XFS project quota, and real EROFS
+- filestore: mount identity, OverlayFS upper, and real EROFS
   compatibility;
-- runtime conformance: local, registry-independent runc and runsc sandboxes;
+- runtime conformance: local, registry-independent runsc sandboxes;
 - derived policy: runtime-specific memory and ephemeral-storage hard limits,
   DNS policy enforcement, and strict egress enforcement.
 
@@ -111,9 +111,8 @@ The catalog currently owns this platform set:
 | --- | --- | --- | --- |
 | Port forwarding, bridge, BPF network | network health, refreshable | `DEGRADE` | direct observed health |
 | Cgroup v2 memory controller | host cgroup, boot | `ADMISSION_ONLY` | direct enforcement probe |
-| Runc/runsc memory hard limit | derived, refreshable | `FAIL_STOP` | cgroup fact plus matching runtime self-test |
-| Filestore OverlayFS upper, XFS project quota | filestore, mount | `ADMISSION_ONLY` | direct mount-scoped probe |
-| Runc ephemeral-storage hard limit | derived, refreshable | `FAIL_STOP` | OverlayFS upper, XFS quota, and runc self-test |
+| Runsc memory hard limit | derived, refreshable | `FAIL_STOP` | cgroup fact plus matching runtime self-test |
+| Filestore OverlayFS upper | filestore, mount | `ADMISSION_ONLY` | direct mount-scoped probe |
 | Runsc ephemeral-storage hard limit | derived, refreshable | `FAIL_STOP` | OverlayFS upper and runsc self-test |
 | EROFS lower compatibility | EROFS probe, mount | `ADMISSION_ONLY` | real fixture probe |
 | Runtime memory and ephemeral self-test facts | matching runtime self-test, runtime | `ADMISSION_ONLY` | internal dependencies, not workload requirements |
@@ -149,7 +148,7 @@ become available when every dependency has already completed its own recovery
 policy, because recomputing the same pure expression is not independent host
 evidence.
 
-Runtime conformance providers share one global serial lane across runc, runsc,
+Runtime conformance providers share one global serial lane across runsc,
 memory, and ephemeral-storage probes. The resource manager independently
 enforces the same single-owner rule, so a scheduler regression cannot create a
 second destructive certification sandbox. Certification cgroups live under a
@@ -258,12 +257,10 @@ recovery fails closed instead of
 reconstructing a partial proof from runtime state.
 
 After runtime create, axnoded reads actual `memory.max` and host cgroup
-membership. Runc must reconcile the runtime state init PID with the immutable
-pid-file PID before accepting membership. Runsc verifies Sentry and gofer
+membership. Runsc verifies Sentry and gofer
 roles, executable identity, and cgroup membership; guest workload memory is
-accounted through Sentry rather than a fictional guest host PID. Runc storage
-verification reads project ID and kernel quota and checks the OverlayFS and
-filestore identity. Runsc verifies the immutable `root:dir=...,size=...`
+accounted through Sentry rather than a fictional guest host PID. Runsc storage
+verification checks the immutable `root:dir=...,size=...`
 envelope, runtime process identity, state, backing path plus device/inode
 identity, and filestore mount identity. The authoritative create proof and full
 structured condition set are returned to controld.

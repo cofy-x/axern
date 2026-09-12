@@ -528,7 +528,6 @@ func (p *recordingProvider) Capabilities() ProviderCapabilities {
 			storagev1.VolumeConsistencyProfile_VOLUME_CONSISTENCY_PROFILE_POSIX,
 		},
 		RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{
-			SupportsRunc:  true,
 			SupportsRunsc: true,
 		},
 	}
@@ -582,7 +581,6 @@ func localVolume() *privatestoragev1.ResolvedNodeVolume {
 			LocalParameterVolumeName: "data",
 		},
 		RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{
-			SupportsRunc:  true,
 			SupportsRunsc: true,
 		},
 	}

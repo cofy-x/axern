@@ -46,7 +46,7 @@ Axern V1 separates the durable control plane from node-local execution:
 - Public control-plane API names are `Environment`, `Run`, `Service`, and
   `Function`.
 - Catalog templates and environments are runtime-neutral. Workloads select
-  `runsc` or `runc` through `ExecutionConfig.runtime_class`; omitted values
+  `runsc` through `ExecutionConfig.runtime_class`; omitted values
   default to `runsc` in `controld` before placement and node lifecycle dispatch.
 - Gateway-forwarded sandbox execution is authorized by revocable internal
   execution leases bound to `allocation_id`, `node_id`, `attempt`, and

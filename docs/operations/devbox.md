@@ -5,7 +5,7 @@ on the node runtime stack. It is started by `scripts/devbox/devbox.sh` through
 root Make targets and does not depend on the private Runx devbox CLI.
 
 The devbox image includes Go, Rust, Node.js, pnpm, Python, uv, Postgres,
-Docker CLI, `runc`, `runsc`, SSH, and the filesystem/network/debug tools used
+Docker CLI, `runsc`, SSH, and the filesystem/network/debug tools used
 by runtime development.
 
 ## Start

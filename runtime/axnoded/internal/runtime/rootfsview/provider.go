@@ -23,7 +23,6 @@ import (
 
 const (
 	projectionViewDir = "projections"
-	runcViewDir       = "runc"
 
 	maxImmutableLowerDirs          = 256
 	maxImmutableBackingFilesystems = 32
@@ -186,15 +185,12 @@ func (facts RootfsBackingFacts) HasFilesystem(fsType string) bool {
 }
 
 type Request struct {
-	RootDir                    string
-	Readonly                   bool
-	RuntimeName                string
-	NeedsHostWritableRootfs    bool
-	ImmutableMount             ImmutableMountDescriptor
-	Targets                    []MountTarget
-	Symlinks                   []Symlink
-	EphemeralStorageLimitBytes int64
-	ProjectID                  uint32
+	RootDir        string
+	Readonly       bool
+	RuntimeName    string
+	ImmutableMount ImmutableMountDescriptor
+	Targets        []MountTarget
+	Symlinks       []Symlink
 }
 
 // Provider owns the lifecycle of active sandbox-private rootfs views.
@@ -241,7 +237,7 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 	if err != nil {
 		return View{}, err
 	}
-	if len(missing) == 0 && len(request.Symlinks) == 0 && !request.NeedsHostWritableRootfs {
+	if len(missing) == 0 && len(request.Symlinks) == 0 {
 		return View{}, nil
 	}
 	if p.filestoreDir == "" {
@@ -252,11 +248,7 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 		return View{}, err
 	}
 	lowerDirs := append([]string(nil), request.ImmutableMount.LowerDirs...)
-	viewClass := projectionViewDir
-	if request.NeedsHostWritableRootfs {
-		viewClass = runcViewDir
-	}
-	view := overlayViewForContainer(containerID, p.filestoreDir, viewClass, lowerDirs)
+	view := overlayViewForContainer(containerID, p.filestoreDir, projectionViewDir, lowerDirs)
 	if err := initializeOverlayView(view); err != nil {
 		return View{}, err
 	}
@@ -268,26 +260,18 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 		_ = cleanupOverlayView(filepath.Dir(view.MergedDir))
 		return View{}, err
 	}
-	if request.NeedsHostWritableRootfs {
-		if err := applyProjectQuota(p.filestoreDir, filepath.Dir(view.MergedDir), request.ProjectID, request.EphemeralStorageLimitBytes); err != nil {
-			metrics.RecordEphemeralStorageOperation(request.RuntimeName, "project_quota", "failure")
-			_ = cleanupOverlayViewWithProject(filepath.Dir(view.MergedDir), p.filestoreDir, request.ProjectID)
-			return View{}, err
-		}
-		metrics.RecordEphemeralStorageOperation(request.RuntimeName, "project_quota", "success")
-	}
 	if err := mountOverlayView(view); err != nil {
 		result := "failure"
 		if errors.Is(err, syscall.ENOSPC) {
 			result = "enospc"
 		}
 		metrics.RecordEphemeralStorageOperation(request.RuntimeName, "projection_mount", result)
-		_ = cleanupOverlayViewWithProject(filepath.Dir(view.MergedDir), p.filestoreDir, request.ProjectID)
+		_ = cleanupOverlayView(filepath.Dir(view.MergedDir))
 		return View{}, err
 	}
 	metrics.RecordEphemeralStorageOperation(request.RuntimeName, "projection_mount", "success")
 	if err := writeProjectionManifest(filepath.Dir(view.MergedDir), request); err != nil {
-		_ = cleanupOverlayViewWithProject(filepath.Dir(view.MergedDir), p.filestoreDir, request.ProjectID)
+		_ = cleanupOverlayView(filepath.Dir(view.MergedDir))
 		return View{}, err
 	}
 
@@ -470,13 +454,10 @@ func (p *overlayProvider) Remove(_ context.Context, containerID string) error {
 	if p.filestoreDir == "" {
 		return nil
 	}
-	var result error
-	for _, class := range []string{projectionViewDir, runcViewDir} {
-		if err := cleanupPersistedOverlayView(filepath.Join(p.filestoreDir, class, containerID), p.filestoreDir); err != nil {
-			result = errors.Join(result, fmt.Errorf("cleanup %s rootfs view: %w", class, err))
-		}
+	if err := cleanupPersistedOverlayView(filepath.Join(p.filestoreDir, projectionViewDir, containerID)); err != nil {
+		return fmt.Errorf("cleanup rootfs projection: %w", err)
 	}
-	return result
+	return nil
 }
 
 func validContainerID(value string) bool {
@@ -597,66 +578,51 @@ func (p *overlayProvider) ReconcilePersistentViews(_ context.Context, runtimeNam
 	if p.filestoreDir == "" {
 		return nil
 	}
+	projectionRoot := filepath.Join(p.filestoreDir, projectionViewDir)
+	entries, err := os.ReadDir(projectionRoot)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read rootfs projections: %w", err)
+	}
 	var result error
-	for _, class := range []string{projectionViewDir, runcViewDir} {
-		classRoot := filepath.Join(p.filestoreDir, class)
-		entries, err := os.ReadDir(classRoot)
-		if os.IsNotExist(err) {
+	for _, entry := range entries {
+		if !entry.IsDir() {
 			continue
 		}
+		root := filepath.Join(projectionRoot, entry.Name())
+		manifest, err := readProjectionManifest(root)
 		if err != nil {
-			result = errors.Join(result, fmt.Errorf("read %s views: %w", class, err))
+			result = errors.Join(result, fmt.Errorf("retain unowned projection %s: %w", root, err))
 			continue
 		}
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			root := filepath.Join(classRoot, entry.Name())
-			manifest, err := readProjectionManifest(root)
-			if err != nil {
-				result = errors.Join(result, fmt.Errorf("retain unowned projection %s: %w", root, err))
-				continue
-			}
-			if manifest.RuntimeName != runtimeName {
-				continue
-			}
-			if _, ok := retained[entry.Name()]; ok {
-				// The rootfs source owner and its lease reconcile lower health.
-				// Projection owns only the active overlay and its writable state.
-				continue
-			}
-			if err := cleanupPersistedOverlayView(root, p.filestoreDir); err != nil {
-				result = errors.Join(result, fmt.Errorf("cleanup stale projection %s: %w", root, err))
-			}
+		if manifest.RuntimeName != runtimeName {
+			continue
+		}
+		if _, ok := retained[entry.Name()]; ok {
+			// The rootfs source owner and its lease reconcile lower health.
+			// Projection owns only the active overlay and its writable state.
+			continue
+		}
+		if err := cleanupPersistedOverlayView(root); err != nil {
+			result = errors.Join(result, fmt.Errorf("cleanup stale projection %s: %w", root, err))
 		}
 	}
 	return result
 }
 
-func cleanupOverlayView(rootfsRoot string) error {
-	return cleanupOverlayViewWithProject(rootfsRoot, "", 0)
-}
-
-func cleanupPersistedOverlayView(rootfsRoot, filestoreDir string) error {
-	manifest, err := readProjectionManifest(rootfsRoot)
-	if os.IsNotExist(err) {
-		return cleanupOverlayView(rootfsRoot)
-	}
-	if err != nil {
+func cleanupPersistedOverlayView(rootfsRoot string) error {
+	_, err := readProjectionManifest(rootfsRoot)
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("read projection manifest before cleanup: %w", err)
 	}
-	return cleanupOverlayViewWithProject(rootfsRoot, filestoreDir, manifest.ProjectID)
+	return cleanupOverlayView(rootfsRoot)
 }
 
-func cleanupOverlayViewWithProject(rootfsRoot, filestoreDir string, projectID uint32) error {
+func cleanupOverlayView(rootfsRoot string) error {
 	if err := unmountOverlayView(overlayView{MergedDir: filepath.Join(rootfsRoot, "merged")}); err != nil {
 		return err
-	}
-	if projectID != 0 {
-		if err := clearProjectQuota(filestoreDir, rootfsRoot, projectID); err != nil {
-			return err
-		}
 	}
 	return os.RemoveAll(rootfsRoot)
 }
@@ -674,17 +640,15 @@ func overlayViewForContainer(containerID, filestoreDir, class string, lowerDirs 
 type projectionManifest struct {
 	RuntimeName    string                   `json:"runtime_name"`
 	RootReadonly   bool                     `json:"root_readonly"`
-	HostWritable   bool                     `json:"host_writable"`
 	ImmutableMount ImmutableMountDescriptor `json:"immutable_mount"`
-	ProjectID      uint32                   `json:"project_id,omitempty"`
 	Symlinks       []Symlink                `json:"symlinks,omitempty"`
 }
 
 func writeProjectionManifest(root string, request Request) error {
 	content, err := json.Marshal(projectionManifest{
 		RuntimeName: request.RuntimeName, RootReadonly: request.Readonly,
-		HostWritable: request.NeedsHostWritableRootfs, ImmutableMount: request.ImmutableMount,
-		ProjectID: request.ProjectID, Symlinks: request.Symlinks,
+		ImmutableMount: request.ImmutableMount,
+		Symlinks:       request.Symlinks,
 	})
 	if err != nil {
 		return fmt.Errorf("marshal projection manifest: %w", err)
@@ -738,32 +702,6 @@ func ensureJSONEOF(decoder *json.Decoder) error {
 			return fmt.Errorf("projection manifest contains trailing JSON")
 		}
 		return err
-	}
-	return nil
-}
-
-type PersistentViewExpectation struct {
-	RuntimeName string
-	ProjectID   uint32
-	LimitBytes  int64
-}
-
-// VerifyPersistentView proves that an active runc writable root still has the
-// projection, kernel project assignment, and hard quota established at create.
-func VerifyPersistentView(filestoreDir, containerID string, expected PersistentViewExpectation) error {
-	root := filepath.Join(filestoreDir, runcViewDir, containerID)
-	manifest, err := readProjectionManifest(root)
-	if err != nil {
-		return fmt.Errorf("read active rootfs projection: %w", err)
-	}
-	if manifest.RuntimeName != expected.RuntimeName || !manifest.HostWritable || manifest.ProjectID == 0 || manifest.ProjectID != expected.ProjectID {
-		return fmt.Errorf("active rootfs projection enforcement manifest is inconsistent")
-	}
-	if err := verifyMountedOverlay(filepath.Join(root, "merged")); err != nil {
-		return fmt.Errorf("verify active rootfs projection mount: %w", err)
-	}
-	if err := VerifyProjectQuota(filestoreDir, root, expected.ProjectID, expected.LimitBytes); err != nil {
-		return fmt.Errorf("verify active rootfs project quota: %w", err)
 	}
 	return nil
 }

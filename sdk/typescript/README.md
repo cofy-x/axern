@@ -126,7 +126,7 @@ Common options:
 - `namespace`: control-plane namespace, default `default`
 - `client`: explicit `AxernClient` shared by the sandbox
 - `argv`, `env`, `cwd`: initial sandbox process configuration
-- `runtimeClass`: runtime selector, for example `runsc` or `runc`
+- `runtimeClass`: runtime selector; the supported runtime is `runsc`
 - `requestCpu`, `requestMemory`, `requestEphemeralStorage`: scheduler resource
   requests such as `500m`, `512MiB`, and `1GiB`; numeric CPU values are cores
   and numeric memory/storage values are bytes

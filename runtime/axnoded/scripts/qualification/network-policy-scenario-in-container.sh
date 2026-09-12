@@ -55,7 +55,7 @@ case "${network_backend}" in
 esac
 
 case "${runtime_name}" in
-  runc | runsc) ;;
+  runsc) ;;
   *) echo "unsupported runtime: ${runtime_name}" >&2; exit 1 ;;
 esac
 
@@ -255,15 +255,13 @@ inventory_ready() {
      | length == 4) and
     ([.node.capability_snapshot.observations[]?
       | select(
-          (.key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST" or
-           .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST" or
-           .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST" or
+          (.key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST" or
            .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST") and
           (.state == "CAPABILITY_STATE_AVAILABLE" or
            .state == "CAPABILITY_STATE_UNAVAILABLE"))
       | .key.platform]
      | unique
-     | length == 4)
+     | length == 2)
   ' >/dev/null 2>&1 && conformance_quiescent
 }
 for _ in $(seq 1 180); do
@@ -292,13 +290,9 @@ if ! inventory_ready <<<"${inventory}"; then
          .key.platform == $network_capability or
          .key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or
          .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT" or
-         .key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT" or
          .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT" or
-         .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT" or
          .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT" or
-         .key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST" or
          .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST" or
-         .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST" or
          .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST")
      | {platform: .key.platform, state, reason_code, reason}]
   ' <<<"${inventory}" >&2 || true

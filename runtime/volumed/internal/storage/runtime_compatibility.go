@@ -16,10 +16,6 @@ func validateRuntimeCompatibility(runtimeClass string, compat *storagev1.VolumeR
 		return fmt.Errorf("volume runtime compatibility is required")
 	}
 	switch runtimeClass {
-	case "runc":
-		if !compat.GetSupportsRunc() {
-			return fmt.Errorf("volume does not support runtime class %q", runtimeClass)
-		}
 	case "runsc":
 		if !compat.GetSupportsRunsc() {
 			return fmt.Errorf("volume does not support runtime class %q", runtimeClass)

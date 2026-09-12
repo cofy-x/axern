@@ -16,7 +16,7 @@
 </p>
 
 Axern is an open-source sandbox platform for AI agents.
-It isolates agent-generated code with gVisor (`runsc`) through one resource and lifecycle model. Packaged nodes enable runsc only; retained runc profiles are low-level diagnostics during runtime convergence, not a production fallback.
+It isolates agent-generated code with gVisor (`runsc`) through one resource and lifecycle model. Runsc is the supported execution runtime, with no runtime fallback.
 The CLI and the Go, Python, and TypeScript SDKs expose the same public APIs for environments, processes, files, services, storage, tunnels, lifecycle state, and task evidence.
 
 > **Project status:** Axern is pre-1.0 and under active development.

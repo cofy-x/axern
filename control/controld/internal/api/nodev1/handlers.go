@@ -297,7 +297,7 @@ func validateAllocationMemoryObservationBatch(observations []*controlnodev1.Allo
 			return grpcstatus.Errorf(codes.InvalidArgument, "allocation %q reports memory pressure values without PSI availability", allocationID)
 		}
 		runtimeName := strings.TrimSpace(observation.GetRuntime())
-		if strings.TrimSpace(observation.GetCgroupIdentity()) == "" || (runtimeName != "runc" && runtimeName != "runsc") ||
+		if strings.TrimSpace(observation.GetCgroupIdentity()) == "" || runtimeName != "runsc" ||
 			len(observation.GetCgroupIdentity()) > 1024 || len(observation.GetRuntime()) > 64 {
 			return grpcstatus.Errorf(codes.InvalidArgument, "allocation %q memory identity or cleanup state is invalid", allocationID)
 		}

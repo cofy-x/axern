@@ -174,7 +174,7 @@ diagnostic categories.
   hard quota. Writable roots resolve missing limit to the configured default
   and missing request to the resolved limit; readonly roots reject nonzero
   ephemeral-storage resources.
-- The charged scope is the sandbox-lifetime runc writable upper or runsc
+- The charged scope is the sandbox-lifetime runsc
   file-backed root overlay, including metadata, copy-up, and whiteouts. It does
   not include persistent volumes, immutable lowers or image caches, artifacts,
   projection placeholders, tmpfs, or logs.

@@ -139,7 +139,7 @@ func parseFlags(args []string) (config, error) {
 	flags := flag.NewFlagSet("verify-network-policy-qualification", flag.ContinueOnError)
 	cfg := config{}
 	ruleCounts := ""
-	flags.StringVar(&cfg.runtimeName, "runtime", "", "runc or runsc")
+	flags.StringVar(&cfg.runtimeName, "runtime", "", "runsc")
 	flags.StringVar(&cfg.networkBackend, "network-backend", "", "bridge or ebpf")
 	flags.StringVar(&cfg.ipFamily, "ip-family", "", "ipv4 or ipv6")
 	flags.StringVar(&cfg.policyMode, "policy-mode", "", "unrestricted, dns_deny, strict_domain, or strict_cidr")
@@ -177,7 +177,7 @@ func parseFlags(args []string) (config, error) {
 }
 
 func (cfg *config) validate() error {
-	if cfg.runtimeName != "runc" && cfg.runtimeName != "runsc" {
+	if cfg.runtimeName != "runsc" {
 		return fmt.Errorf("unsupported runtime %q", cfg.runtimeName)
 	}
 	if cfg.networkBackend != "bridge" && cfg.networkBackend != "ebpf" {

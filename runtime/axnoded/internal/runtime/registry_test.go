@@ -33,6 +33,15 @@ func runtimeRegistryTestConfig(t *testing.T, runtimeName string) config.Config {
 	}
 }
 
+func TestBuiltinRuntimeFactoriesSupportOnlyRunsc(t *testing.T) {
+	if _, ok := runtimecore.RuntimeFactoryByName("runsc"); !ok {
+		t.Fatal("runsc factory is missing")
+	}
+	if _, ok := runtimecore.RuntimeFactoryByName("runc"); ok {
+		t.Fatal("removed runc factory remains registered")
+	}
+}
+
 func TestGetRuntimeHandlerUsesRegisteredFactory(t *testing.T) {
 	const runtimeName = "test-runtime-factory"
 

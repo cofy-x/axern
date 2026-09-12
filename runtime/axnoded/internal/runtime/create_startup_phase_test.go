@@ -29,38 +29,6 @@ func TestHandlerOptionsRecordStartupPhaseNilSafe(t *testing.T) {
 	contract.HandlerOptions{}.RecordStartupPhase(contract.StartupPhaseRuntimeLaunch, time.Millisecond)
 }
 
-func TestRuncCreateContainerRecordsStartupPhases(t *testing.T) {
-	rootDir := t.TempDir()
-	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
-	if err != nil {
-		t.Fatalf("NewBundleLoader() error = %v", err)
-	}
-
-	handler, err := NewRuncServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunc, config.RuntimeInstanceConfig{
-		Binary: writeFakeOCIRuntimeBinary(t, rootDir, "runc"),
-	}, loader)
-	if err != nil {
-		t.Fatalf("NewRuncServiceHandler() error = %v", err)
-	}
-	handler.common.SetRuntimeRunnerBinary(writeFakeRuntimeRunnerBinary(t, rootDir))
-	disableSandboxReadyWait(t, handler)
-	handler.ignoreCgroups = true
-
-	recorder := &startupPhaseRecorderSpy{}
-	meta, err := handler.CreateContainer(context.Background(), newLocalCreateRequest(t), contract.HandlerOptions{
-		ContainerID:           "runc-startup-test",
-		StartupPhaseRecorder:  recorder,
-		AdditionalAnnotations: map[string]string{"test": "true"},
-	})
-	if err != nil {
-		t.Fatalf("CreateContainer() error = %v", err)
-	}
-	if meta == nil {
-		t.Fatal("CreateContainer() returned nil metadata")
-	}
-	assertRecordedStartupPhases(t, recorder, contract.StartupPhaseRuntimeBundle, contract.StartupPhaseRuntimeLaunch)
-}
-
 func TestRunscCreateContainerRecordsStartupPhases(t *testing.T) {
 	rootDir := t.TempDir()
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))

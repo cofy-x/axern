@@ -71,7 +71,7 @@ func TestCreateRuntimeContainerSyncsRuntimeStateIntoStatus(t *testing.T) {
 	runtimeExited := make(chan struct{})
 	t.Cleanup(func() { close(runtimeExited) })
 	handler := &runtimeSpyHandler{
-		name: "runc",
+		name: "runsc",
 		waitFunc: func(ctx context.Context, _ contract.HandlerOptions) (contract.Exit, error) {
 			select {
 			case <-runtimeExited:
@@ -89,11 +89,11 @@ func TestCreateRuntimeContainerSyncsRuntimeStateIntoStatus(t *testing.T) {
 			},
 		},
 	}
-	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runc": handler})
+	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
 		ID:      "axctl-create-sync",
-		Runtime: "runc",
+		Runtime: "runsc",
 	}, nil, nil)
 	if err != nil {
 		t.Fatalf("CreateRuntimeContainer() error = %v", err)
@@ -118,12 +118,12 @@ func TestCreateRuntimeContainerSyncsRuntimeStateIntoStatus(t *testing.T) {
 func TestCreateRuntimeContainerIgnoresImageProcessResourceAnnotationOverride(t *testing.T) {
 	const parentNetworkResource = "parent-net-resource"
 	networkKey := resources.ResourceAnnotationKeyPrefix + string(resources.InterfaceResourceName)
-	handler := &runtimeSpyHandler{name: "runc"}
-	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runc": handler})
+	handler := &runtimeSpyHandler{name: "runsc"}
+	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
 
 	_, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
 		ID:      "axctl-create-resource-override",
-		Runtime: "runc",
+		Runtime: "runsc",
 		Labels: map[string]string{
 			"axern.image_process.kind": "image_process",
 			networkKey:                 parentNetworkResource,
@@ -141,12 +141,12 @@ func TestCreateRuntimeContainerIgnoresImageProcessResourceAnnotationOverride(t *
 func TestCreateRuntimeContainerIgnoresUserResourceAnnotationOverride(t *testing.T) {
 	const userNetworkResource = "user-net-resource"
 	networkKey := resources.ResourceAnnotationKeyPrefix + string(resources.InterfaceResourceName)
-	handler := &runtimeSpyHandler{name: "runc"}
-	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runc": handler})
+	handler := &runtimeSpyHandler{name: "runsc"}
+	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
 
 	_, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
 		ID:      "axctl-create-resource-no-override",
-		Runtime: "runc",
+		Runtime: "runsc",
 		Labels:  map[string]string{networkKey: userNetworkResource},
 	}, nil, nil)
 	if err != nil {

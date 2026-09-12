@@ -40,7 +40,7 @@ func TestStartRequestDigestChangesWithSandboxContract(t *testing.T) {
 	for name, mutate := range map[string]func(*apipb.StartRequest){
 		"command": func(candidate *apipb.StartRequest) { candidate.RuntimeTemplate.Command = []string{"/bin/false"} },
 		"memory":  func(candidate *apipb.StartRequest) { candidate.Resources.Limits.MemoryBytes++ },
-		"runtime": func(candidate *apipb.StartRequest) { candidate.RuntimeTemplate.Sandbox = "runc" },
+		"runtime": func(candidate *apipb.StartRequest) { candidate.RuntimeTemplate.Sandbox = "other" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			candidate := proto.Clone(request).(*apipb.StartRequest)

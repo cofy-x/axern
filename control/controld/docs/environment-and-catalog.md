@@ -28,8 +28,8 @@ Agent bundles are mounted read-only into a workspace runtime at
 `/opt/axern/agents/<agent>`. They are not valid Environment templates or task
 root filesystems.
 
-Catalog templates do not declare the OCI runtime implementation. `runsc` and
-`runc` are workload execution choices carried on `ExecutionConfig.runtime_class`;
+Catalog templates do not declare the OCI runtime implementation. The supported
+`runsc` runtime is carried on `ExecutionConfig.runtime_class`;
 when a workload omits that field, `controld` applies its default `runsc`
 placement and node lifecycle policy.
 

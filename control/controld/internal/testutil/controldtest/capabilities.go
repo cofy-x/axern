@@ -2,7 +2,6 @@ package controldtest
 
 import (
 	"sort"
-	"strings"
 	"time"
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
@@ -37,11 +36,7 @@ func AvailableCapabilitySnapshot(observedAt time.Time, platforms ...capabilityv1
 		case capabilitycontract.IdentityMount:
 			evidence = capabilitycontract.MountEvidence(testBootID, "42:/test:xfs")
 		case capabilitycontract.IdentityRuntime:
-			runtimeName := "runc"
-			if strings.Contains(platform.String(), "RUNSC") {
-				runtimeName = "runsc"
-			}
-			evidence = capabilitycontract.RuntimeEvidence(testBootID, runtimeName, testDigest, testDigest)
+			evidence = capabilitycontract.RuntimeEvidence(testBootID, "runsc", testDigest, testDigest)
 		case capabilitycontract.IdentityDerived:
 			// Derived evidence is assigned after its dependency proof set has
 			// been constructed below.

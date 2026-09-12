@@ -23,8 +23,6 @@ func run(args []string, stderr io.Writer) int {
 	runtimeBinary := flags.String("runtime-binary", "", "OCI runtime binary to execute")
 	exitStatePath := flags.String("exit-state", "", "path to persist runtime exit state")
 	pidFilePath := flags.String("pid-file", "", "runtime pid file path")
-	monitorInit := flags.Bool("monitor-init", false, "reap the OCI init process created by the runtime")
-	readyStatePath := flags.String("ready-state", "", "path to publish create-monitor readiness")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
@@ -43,21 +41,6 @@ func run(args []string, stderr io.Writer) int {
 	case len(runtimeArgs) == 0:
 		fmt.Fprintln(stderr, "runtime args are required")
 		return 2
-	case *monitorInit && *readyStatePath == "":
-		fmt.Fprintln(stderr, "ready-state is required in monitor-init mode")
-		return 2
-	case !*monitorInit && *readyStatePath != "":
-		fmt.Fprintln(stderr, "ready-state requires monitor-init mode")
-		return 2
-	}
-	if *monitorInit {
-		return runInitMonitor(initMonitorConfig{
-			runtimeBinary:  *runtimeBinary,
-			runtimeArgs:    runtimeArgs,
-			exitStatePath:  *exitStatePath,
-			pidFilePath:    *pidFilePath,
-			readyStatePath: *readyStatePath,
-		}, stderr)
 	}
 
 	cmd := exec.Command(*runtimeBinary, runtimeArgs...)

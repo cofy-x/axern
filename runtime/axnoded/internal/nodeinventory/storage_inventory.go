@@ -121,7 +121,7 @@ func (s *AxnodedSource) collectStorageInventory(now time.Time, snapshot *NodeInv
 
 func readVisibleWritableUsage(filestore string) int64 {
 	var used int64
-	for _, class := range []string{"projections", "runc", "runsc"} {
+	for _, class := range []string{"projections", "runsc"} {
 		_ = filepath.WalkDir(filepath.Join(filestore, class), func(_ string, entry os.DirEntry, err error) error {
 			if err != nil || entry == nil {
 				return nil

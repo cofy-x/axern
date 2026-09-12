@@ -25,12 +25,6 @@ func newVerifyRuntimeHandlerWithRoot(cfg config, rootDir string) (contract.Runti
 	runtimeCfg := axnodedconfig.RuntimeInstanceConfig{Binary: filepath.Join(rootDir, "missing-runtime-binary")}
 	baseCfg := axnodedconfig.Config{RootDir: rootDir}
 	switch cfg.runtimeName {
-	case "runc":
-		handler, err := runtimecore.NewRuncServiceHandler(baseCfg, axnodedconfig.RuntimeNameRunc, runtimeCfg, loader)
-		if err != nil {
-			return nil, err
-		}
-		return handler, nil
 	case "runsc":
 		handler, err := runtimecore.NewRunscServiceHandler(baseCfg, axnodedconfig.RuntimeNameRunsc, runtimeCfg, loader)
 		if err != nil {

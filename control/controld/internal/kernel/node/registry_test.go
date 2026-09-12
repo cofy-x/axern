@@ -12,14 +12,14 @@ func TestRegisterIdempotentUpsert(t *testing.T) {
 	registry := NewRegistry()
 	now := time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC)
 
-	registry.Register("node-a", "127.0.0.1:25000", []string{"runsc", "runsc", "runc"}, now)
-	registry.Register("node-a", "127.0.0.1:25000", []string{"runc"}, now)
+	registry.Register("node-a", "127.0.0.1:25000", []string{"runsc", "runsc", "other"}, now)
+	registry.Register("node-a", "127.0.0.1:25000", []string{"other"}, now)
 
 	nodes := registry.DebugNodes(now, 15*time.Second, 15*time.Second)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
-	if got := nodes[0].Runtimes; len(got) != 1 || got[0] != "runc" {
+	if got := nodes[0].Runtimes; len(got) != 1 || got[0] != "other" {
 		t.Fatalf("unexpected runtimes after upsert: %#v", got)
 	}
 }
@@ -30,7 +30,7 @@ func TestRegistryRetirementIsMonotonic(t *testing.T) {
 	registry.Register("node-a", "node-a:25000", []string{"runsc"}, now)
 	registry.MarkRetired("node-a", now.Add(time.Minute), "host removed")
 
-	registry.Register("node-a", "node-a:25001", []string{"runc"}, now.Add(2*time.Minute))
+	registry.Register("node-a", "node-a:25001", []string{"other"}, now.Add(2*time.Minute))
 	registry.SyncLifecycle("node-a", LifecycleActive, time.Time{}, "")
 	record, ok := registry.Get("node-a")
 	if !ok || record.Lifecycle != LifecycleRetired || record.RetiredReason != "host removed" {

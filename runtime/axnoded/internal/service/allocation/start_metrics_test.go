@@ -330,7 +330,7 @@ func TestStartMetricsRecorderSuccess(t *testing.T) {
 
 func TestStartMetricsRecorderError(t *testing.T) {
 	sink := &fakeStartMetricSink{}
-	recorder := NewStartMetricsRecorder(sink, "runc", contract.StartupRootfsTypeImage)
+	recorder := NewStartMetricsRecorder(sink, "runsc", contract.StartupRootfsTypeImage)
 
 	recorder.RecordStartupPhase(contract.StartupPhaseLangRuntimeLookup, 3*time.Millisecond)
 	recorder.RecordStartupPhase(contract.StartupPhaseRootfsPrepare, 17*time.Millisecond)

@@ -33,7 +33,7 @@ Delete, housekeeping, and retry paths collect those claims from the spec, not
 from an in-memory-only allocation record. It is not the entire allocation
 recovery contract: nodestate owns the allocation dependency and runtime/image
 record, while the filestore ledger and projection manifest own writable-storage
-reservation, project ID, and mount cleanup state.
+reservation and mount cleanup state.
 
 ## Ownership
 
@@ -176,10 +176,10 @@ settings.
 | `limits.cpu_milli` | cgroup CFS quota/period hard CPU ceiling |
 | `limits.memory_bytes` | total sandbox host-cgroup hard limit; swap is disabled and group OOM is enabled |
 | `requests.ephemeral_storage_bytes` | control-plane and node-local filestore reservation |
-| `limits.ephemeral_storage_bytes` | runsc `size=` or runc XFS project-quota hard limit |
+| `limits.ephemeral_storage_bytes` | runsc `size=` hard limit |
 
 `ephemeral_storage_bytes` is the public sandbox-lifetime resource. Axnoded
-currently charges only the runc writable upper or runsc file-backed root
+currently charges only the runsc file-backed root
 overlay, including metadata, copy-up, and whiteouts. Persistent volumes,
 immutable lower/image cache storage, artifacts, projection placeholders,
 tmpfs, and logs are outside this accounting scope. The runtime implementation
@@ -261,11 +261,10 @@ Key behavior:
   Failure force-deletes the sandbox.
 - Node startup creates a private probe cgroup under `cgroup_root_name`, writes
   and reads back a memory limit, and removes the probe before publishing the
-  typed cgroup-controller fact. Runtime-specific runc/runsc memory-hard-limit
+  typed cgroup-controller fact. Runtime-specific runsc memory-hard-limit
   capability is derived only after a dedicated readonly-root conformance
-  sandbox also verifies the runtime-specific host process boundary. Runc
-  reconciles its state init PID with the immutable pid-file PID and checks
-  membership. Runsc checks Sentry and gofer roles, executable identity, and
+  sandbox also verifies the runtime-specific host process boundary.
+  Runsc checks Sentry and gofer roles, executable identity, and
   membership; guest workload memory is accounted through Sentry, not through a
   separate guest host PID.
   The conformance workload allocates and touches anonymous memory until a real
@@ -276,8 +275,8 @@ Key behavior:
   runtime/config identity change, and deployment qualification—not on a timer.
   Every real allocation is verified again after create, and event-triggered plus
   sharded runtime audits use only cheap control/identity/PID reads.
-- `requests.memory_bytes` is the complete sandbox memcg reservation. Runc init
-  and descendants, runsc Sentry/gofer and guest accounting, anon, shmem, kernel
+- `requests.memory_bytes` is the complete sandbox memcg reservation.
+  Runsc Sentry/gofer and guest accounting, anon, shmem, kernel
   memory, EROFS lower page cache, writable-overlay page cache, dirty pages, and
   writeback all consume it. There is no runsc overhead reservation.
 - `memory_system_reserve_bytes` covers axnoded, lifecycle monitors, imagemgr,
@@ -288,7 +287,7 @@ Key behavior:
   256 MiB hard limit, including runtime processes attributed to that sandbox.
   The aggregate ceiling/reservation does not enlarge that allocation limit.
   Host lifecycle monitors inherit `internal`, not the certification sandbox;
-  their memory is charged to the remaining system reserve. All runc/runsc memory and storage self-tests share one serial lane and
+  their memory is charged to the remaining system reserve. All runsc memory and storage self-tests share one serial lane and
   one resource lease in that domain. Certification
   current usage, commitment, and cleanup debt never reduce workload allocatable
   memory or `max_instance_num`, but insufficient system-reserve headroom fails

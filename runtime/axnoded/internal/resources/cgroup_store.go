@@ -248,7 +248,7 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 		}
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED:
 		if lease.GetAllocationID() == "" || lease.GetAssignedAtUnixNano() <= 0 || lease.GetRetiringAtUnixNano() != 0 ||
-			(lease.GetRuntimeName() != "runc" && lease.GetRuntimeName() != "runsc") || !validAssignedCgroupOwner(lease.GetOwnerKind()) {
+			(lease.GetRuntimeName() != "runsc") || !validAssignedCgroupOwner(lease.GetOwnerKind()) {
 			return fmt.Errorf("assigned cgroup %s has malformed ownership", lease.GetCgroupID())
 		}
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING:
@@ -261,7 +261,7 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 				lease.GetAssignedAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) {
 				return fmt.Errorf("unowned retiring cgroup %s contains allocation ownership", lease.GetCgroupID())
 			}
-		} else if lease.GetAssignedAtUnixNano() <= 0 || (lease.GetRuntimeName() != "runc" && lease.GetRuntimeName() != "runsc") ||
+		} else if lease.GetAssignedAtUnixNano() <= 0 || (lease.GetRuntimeName() != "runsc") ||
 			!validAssignedCgroupOwner(lease.GetOwnerKind()) {
 			return fmt.Errorf("retiring cgroup %s has malformed allocation ownership", lease.GetCgroupID())
 		}

@@ -114,20 +114,22 @@ func TestCapabilityRecordMutationsPreserveConcurrentFields(t *testing.T) {
 }
 
 func TestStoreLaunchVerificationRequiresExactManifestEnforcementKeys(t *testing.T) {
-	controller := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runc": runtimetest.NewFakeRuntimeHandler()}).controller
+	controller := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}).controller
 	const allocationID = "allocation-launch-verification"
 	if _, err := controller.ReplaceCapabilityAdmission(allocationID, 1, testAllocationRequestDigest, nil, nil, time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
 	manifest := &apipb.AllocationEnforcementManifest{
-		RuntimeName: "runc", EphemeralStorageLimitBytes: 64 << 20,
-		FilestoreMountIdentity: "42:/dev/loop0:/var/lib/axnoded/filestore", RuncProjectID: 1234,
-		BundlePath: "/var/lib/axnoded/root/containers/" + allocationID, CreatedAtUnixNano: time.Now().UnixNano(),
+		RuntimeName: "runsc", EphemeralStorageLimitBytes: 64 << 20,
+		FilestoreMountIdentity: "42:/dev/loop0:/var/lib/axnoded/filestore", RunscBackingDirectory: "/var/lib/axnoded/filestore/runsc",
+		RunscBackingDirectoryIdentity: "devino:v1:1:2",
+		RunscOverlayArg:               "root:dir=/var/lib/axnoded/filestore/runsc,size=67108864",
+		BundlePath:                    "/var/lib/axnoded/root/containers/" + allocationID, CreatedAtUnixNano: time.Now().UnixNano(),
 	}
 	if err := controller.StoreLaunchVerification(allocationID, manifest, nil, time.Now().UTC()); err == nil {
 		t.Fatal("StoreLaunchVerification() accepted a missing hard-enforcement proof")
 	}
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT)
 	verifiedAt := time.Now().UTC()
 	if err := controller.StoreLaunchVerification(allocationID, manifest, []*capabilityv1.CapabilityKey{key}, verifiedAt); err != nil {
 		t.Fatal(err)

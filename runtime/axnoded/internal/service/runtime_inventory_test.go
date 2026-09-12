@@ -45,12 +45,12 @@ func runtimeInventoryTestService(t *testing.T, handlers ...contract.RuntimeHandl
 }
 
 func TestCollectRuntimeInventoryRequiresCompleteGeneration(t *testing.T) {
-	runc := runtimetest.NewFakeRuntimeHandler()
-	runc.RuntimeName = "runc"
+	other := runtimetest.NewFakeRuntimeHandler()
+	other.RuntimeName = "other"
 	runsc := runtimetest.NewFakeRuntimeHandler()
 	runsc.RuntimeName = "runsc"
 	service := runtimeInventoryTestService(t,
-		inventoryTestHandler{RuntimeHandler: runc, states: []*contract.UnionContainerState{{ID: "runc-live", Status: contract.ContainerStatusRunning}}},
+		inventoryTestHandler{RuntimeHandler: other, states: []*contract.UnionContainerState{{ID: "other-live", Status: contract.ContainerStatusRunning}}},
 		inventoryTestHandler{RuntimeHandler: runsc, err: errors.New("runsc unavailable")},
 	)
 
@@ -60,12 +60,12 @@ func TestCollectRuntimeInventoryRequiresCompleteGeneration(t *testing.T) {
 }
 
 func TestCollectRuntimeInventoryRejectsDuplicateOwnership(t *testing.T) {
-	runc := runtimetest.NewFakeRuntimeHandler()
-	runc.RuntimeName = "runc"
+	other := runtimetest.NewFakeRuntimeHandler()
+	other.RuntimeName = "other"
 	runsc := runtimetest.NewFakeRuntimeHandler()
 	runsc.RuntimeName = "runsc"
 	service := runtimeInventoryTestService(t,
-		inventoryTestHandler{RuntimeHandler: runc, states: []*contract.UnionContainerState{{ID: "duplicate", Status: contract.ContainerStatusRunning}}},
+		inventoryTestHandler{RuntimeHandler: other, states: []*contract.UnionContainerState{{ID: "duplicate", Status: contract.ContainerStatusRunning}}},
 		inventoryTestHandler{RuntimeHandler: runsc, states: []*contract.UnionContainerState{{ID: "duplicate", Status: contract.ContainerStatusRunning}}},
 	)
 

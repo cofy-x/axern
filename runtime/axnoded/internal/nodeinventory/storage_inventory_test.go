@@ -17,9 +17,9 @@ func TestWritableStorageInventorySeparatesFilesystemAndAllocationUsage(t *testin
 			t.Fatal(err)
 		}
 	}
-	requireDir(filepath.Join(filestore, "runc", "sandbox", "upper"))
+	requireDir(filepath.Join(filestore, "runsc", "sandbox", "upper"))
 	requireDir(filepath.Join(filestore, "reservations"))
-	if err := os.WriteFile(filepath.Join(filestore, "runc", "sandbox", "upper", "data"), make([]byte, 8192), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(filestore, "runsc", "sandbox", "upper", "data"), make([]byte, 8192), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(filestore, "reservations", "sandbox.json"), []byte(`{"runtime_name":"runsc","request_bytes":4096}`), 0600); err != nil {

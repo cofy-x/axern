@@ -274,7 +274,7 @@ sandbox exec, process, files, archives, and tunnels. Set
 volume, including that image-backed writes and overwrites are visible from the
 owning sandbox. Set `AXERN_GO_SDK_E2E_IMAGE_PROCESS_LOOPBACK=1` to also verify
 that image-backed actors can reach a service bound to the owning sandbox's
-`127.0.0.1`; this is currently expected to pass for `runc` and expose the
-`runsc` loopback isolation limitation. This loopback probe is a runtime
+`127.0.0.1`; this is expected to expose the `runsc` loopback isolation
+limitation, not pass as a supported shared-loopback path. This probe is a runtime
 capability check, not an Axrun LLM telemetry requirement. The image must
 provide `/bin/sh`, `cat`, `curl`, and `tr`.

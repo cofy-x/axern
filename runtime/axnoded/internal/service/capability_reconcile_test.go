@@ -89,9 +89,9 @@ func TestCapabilityVerificationRejectsInvalidRetrySchedule(t *testing.T) {
 }
 
 func TestCapabilityReconcileInterruptionRequestsRetryInsteadOfFailStop(t *testing.T) {
-	service := newTestService(t, map[string]contract.RuntimeHandler{"runc": runtimetest.NewFakeRuntimeHandler()})
+	service := newTestService(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()})
 	dependency := &capabilityv1.CapabilityDependency{
-		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT),
+		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT),
 		LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -125,7 +125,7 @@ func TestPeriodicCapabilityAuditCoversOperationalAndFailStopDependencies(t *test
 		LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_DEGRADE,
 	}
 	memory := &capabilityv1.CapabilityDependency{
-		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT),
+		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT),
 		LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP,
 	}
 	erofs := &capabilityv1.CapabilityDependency{
@@ -216,22 +216,21 @@ func TestVerifiedAllocationEnforcementDoesNotRefreshExpiredNodeEvidence(t *testi
 func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.T) {
 	now := time.Now().UTC()
 	overlay := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER)
-	quota := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_XFS_PROJECT_QUOTA)
-	selfTest := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST)
-	hardLimit := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT)
+	selfTest := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST)
+	hardLimit := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT)
 	mountEvidence := capabilitycontract.MountEvidence(testCapabilityBootID, "42:/dev/loop0:/var/lib/axnoded/filestore")
 	filestore := observedProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_FILESTORE,
-		expected: []*capabilityv1.CapabilityKey{overlay, quota},
+		expected: []*capabilityv1.CapabilityKey{overlay},
 		observe: func(context.Context, time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			return []*capabilityv1.CapabilityObservation{availableObservation(overlay, mountEvidence), availableObservation(quota, mountEvidence)}, nil
+			return []*capabilityv1.CapabilityObservation{availableObservation(overlay, mountEvidence)}, nil
 		},
 	}
 	runtimeSelfTest := observedProvider{
-		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST,
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
 		expected: []*capabilityv1.CapabilityKey{selfTest},
 		observe: func(context.Context, time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, "runc", sha256Digest([]byte("runc")), sha256Digest([]byte("config")))
+			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, "runsc", sha256Digest([]byte("runsc")), sha256Digest([]byte("config")))
 			return []*capabilityv1.CapabilityObservation{availableObservation(selfTest, evidence)}, nil
 		},
 	}
@@ -247,7 +246,7 @@ func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := newTestService(t, map[string]contract.RuntimeHandler{"runc": runtimetest.NewFakeRuntimeHandler()})
+	service := newTestService(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()})
 	service.capabilityManager = manager
 	const allocationID = "post-create-fast-exit"
 	conditions := make([]*capabilityv1.CapabilityCondition, 0, len(dependencies))
@@ -262,9 +261,11 @@ func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.
 		t.Fatal(err)
 	}
 	manifest := &apipb.AllocationEnforcementManifest{
-		RuntimeName: "runc", EphemeralStorageLimitBytes: 64 << 20, RuncProjectID: 1234,
-		FilestoreMountIdentity: "42:/dev/loop0:/var/lib/axnoded/filestore",
-		BundlePath:             "/var/lib/axnoded/root/containers/" + allocationID, CreatedAtUnixNano: now.UnixNano(),
+		RuntimeName: "runsc", EphemeralStorageLimitBytes: 64 << 20, RunscBackingDirectory: "/var/lib/axnoded/filestore/runsc",
+		RunscBackingDirectoryIdentity: "devino:v1:1:2",
+		RunscOverlayArg:               "root:dir=/var/lib/axnoded/filestore/runsc,size=67108864",
+		FilestoreMountIdentity:        "42:/dev/loop0:/var/lib/axnoded/filestore",
+		BundlePath:                    "/var/lib/axnoded/root/containers/" + allocationID, CreatedAtUnixNano: now.UnixNano(),
 	}
 	if err := service.allocationController().StoreLaunchVerification(allocationID, manifest, []*capabilityv1.CapabilityKey{hardLimit}, now); err != nil {
 		t.Fatal(err)

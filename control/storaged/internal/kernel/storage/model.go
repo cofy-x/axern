@@ -123,7 +123,7 @@ func ValidateVolumeClassCreate(in VolumeClassCreate) error {
 	if in.ConsistencyProfile == storagev1.VolumeConsistencyProfile_VOLUME_CONSISTENCY_PROFILE_UNSPECIFIED {
 		return fmt.Errorf("volume class consistency profile is required")
 	}
-	if in.RuntimeCompatibility == nil || (!in.RuntimeCompatibility.GetSupportsRunc() && !in.RuntimeCompatibility.GetSupportsRunsc()) {
+	if in.RuntimeCompatibility == nil || (!in.RuntimeCompatibility.GetSupportsRunsc()) {
 		return fmt.Errorf("volume class runtime compatibility must support at least one runtime")
 	}
 	return nil

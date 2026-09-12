@@ -8,10 +8,8 @@ is not selected by an image-product type switch.
 ## Three independent boundaries
 
 1. Host mount-target projection creates only missing bind targets before OCI
-   create. Runsc receives it only when a target is missing. Runc receives it
-   when a target is missing or whenever the OCI root is writable.
-2. Guest writable rootfs is a file-backed gVisor overlay for runsc and a
-   sandbox-private host OverlayFS plus XFS project quota for runc.
+   create. Runsc receives it only when a target is missing.
+2. Guest writable rootfs is a file-backed gVisor overlay.
 3. The cgroup memory boundary accounts workload anonymous memory, shmem,
    runtime processes, kernel memory, EROFS lower page cache, file-backed
    writable-overlay page cache, dirty pages, and writeback. Filestore size and
@@ -20,7 +18,7 @@ is not selected by an image-product type switch.
 ## Runtime-provided system files
 
 `/etc/hostname`, `/etc/hosts`, and `/etc/resolv.conf` form one OCI sandbox
-contract for runc and runsc. Exact destinations, a parent destination, and `/`
+contract for runsc. Exact destinations, a parent destination, and `/`
 own their subtree; `/etc2` does not own `/etc`. An explicit owner suppresses
 the corresponding default source, mount, IP requirement, and resolver work.
 
@@ -46,7 +44,7 @@ adapter using the same contract.
 `projection.json` records this descriptor only for lifecycle correlation.
 Imagemgr and its lease reconciliation own lower health and identity changes;
 projection reconciliation owns the host OverlayFS mount, placeholder upper,
-work directory, and quota state. This prevents projection from becoming a
+and work directory. This prevents projection from becoming a
 second image manager. Unsafe or non-canonical lower paths and mount-option
 encoding are rejected before an OverlayFS mount.
 
@@ -57,7 +55,7 @@ parents copy mode/UID/GID from existing lower parents; genuinely new parents
 are root:root `0755`. Arbitrary xattrs, ACLs, devices, FIFOs, and sockets are
 never copied.
 
-Artifacts are partitioned as `projections/<id>`, `runc/<id>`, and `runsc` under
+Artifacts are partitioned as `projections/<id>` and `runsc` under
 the filestore. The OCI readonly bit is preserved exactly. Imagemgr's active
 rootfs reference and immutable identity remain owned by the lower mount lease;
 projection cleanup must finish before that lease is released.
@@ -71,28 +69,24 @@ Writable runsc roots must launch with exactly:
 ```
 
 There is no `root:memory`, direct-write, self-backing, or representation-based
-fallback. Writable runc roots always use a host OverlayFS and require a durable
-project ID plus an XFS project hard quota. Ext4 can host runsc and target-only
-projections but cannot satisfy the runc ephemeral-storage hard-limit
-capability.
+fallback. Ext4 and XFS can host runsc backing storage and target-only
+projections; neither requires project-quota enforcement.
 
 The immutable runsc launch-enforcement manifest records the exact overlay
 argument, configured backing path, backing directory device/inode identity,
 runtime process identity, and filestore mount identity. Runtime verification
 rejects a symlink, directory replacement, changed immutable launch arguments, or
-identity mismatch even when a path with the same spelling still exists. The
-runc manifest similarly binds the upper project ID, quota limit, OverlayFS
-projection, and filestore mount identity and verifies them through the kernel.
+identity mismatch even when a path with the same spelling still exists.
 
 The node-local reservation ledger is fsync/rename durable and checks both
 committed requests and live `statfs` availability after the system reserve.
-The reservation, limit, runtime, project ID, and OCI annotation are available
+The reservation, limit, runtime, and OCI annotation are available
 to restart reconciliation. Compressed EROFS copy-up is charged by actual upper
 usage; lower compressed size is not a capacity estimate.
 
 ## Readiness, observed capability, and cleanup
 
-Filestore startup performs a real OverlayFS scratch mount and XFS project-quota
+Filestore startup performs a real OverlayFS scratch mount
 probe. If an EROFS fixture is installed, it mounts the real image and exercises
 read, copy-up, create, whiteout, and directory operations using the production
 upper filesystem. Only successful probes can support the corresponding derived
@@ -108,7 +102,7 @@ defined in
 
 Cleanup order is runtime delete plus monitor exit-state barrier, volume and
 rootfs cleanup, projection/host-overlay unmount, upper/work removal, writable
-reservation/project-ID release, image mount lease release, and finally cgroup
+reservation release, image mount lease release, and finally cgroup
 retirement. The retiring cgroup retains its memory commitment until processes
 exit and removal succeeds. Cleanup deliberately avoids the optional,
 synchronously blocking `memory.reclaim` interface and removes the verified-empty
@@ -117,7 +111,7 @@ kernel reparents remaining clean, dirty, and writeback charges to the sandbox
 ancestor memcg. Ancestor usage remains in the node-local admission safety floor
 until those charges converge. If runtime delete fails and the process may still
 live, the
-projection, reservation, project ID, lower lease, and cgroup ownership remain
+projection, reservation, lower lease, and cgroup ownership remain
 for reconciliation.
 For foreground `runsc run` sandboxes, forced deletion is an ordered runtime
 protocol: send `KILL`, wait until the runtime runner has persisted exit state
@@ -126,7 +120,7 @@ delete before that barrier can deadlock teardown between the deleting process
 and the still-converging foreground command.
 
 At daemon startup, one complete generation of successful inventories from all
-enabled runc/runsc handlers is the sole liveness authority for runtime-private
+enabled runsc handlers is the sole liveness authority for runtime-private
 projections, writable reservations, allocation recovery records, and container
 resource claims. Persisted metadata is recovery input, but cannot keep storage
 alive after the owning runtime has disappeared. Inventory collection and

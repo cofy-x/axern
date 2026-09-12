@@ -76,9 +76,7 @@ certifies runsc through the global serial lane, validates the
 bounded `conformance` sibling, and then creates a normal workload without
 resource-contention retries. The ordinary runtime profiles retain
 `disabled_dev` to cover the explicit development contract; `make verify-docker`
-runs both contracts. The explicit runc profiles remain diagnostic coverage
-while their shared OCI helpers and remaining callers are migrated; packaged
-nodes and product E2E workflows enable runsc only.
+runs both contracts. Runtime and product E2E workflows exercise runsc.
 
 ## Sandboxd Layers
 
@@ -88,7 +86,7 @@ nodes and product E2E workflows enable runsc only.
 | provider smoke | Fast direct daemon API contract, capability discovery, diagnostics, structured errors, small file/process loops | `make verify-sandboxd-provider-smoke` |
 | provider full gate | Direct provider contract plus daemon, desktop provider, and OCI injection wrappers | `make verify-sandboxd-provider-e2e` |
 | PID 1 daemon | Health/status API, user exit semantics, signal forwarding, fast-exit reaping | `make verify-sandboxd-e2e` |
-| OCI injection | Sandboxd as PID 1 under `runc` and `runsc`, host bundle socket readiness, file/process/PTY/probe/ports/mounts | `make verify-sandboxd-oci-e2e` |
+| OCI injection | Sandboxd as PID 1 under `runsc`, host bundle socket readiness, file/process/PTY/probe/ports/mounts | `make verify-sandboxd-oci-e2e` |
 | optional desktop | Computer-use and browser provider hooks | `make verify-sandboxd-computer-use-e2e`, `make verify-sandboxd-desktop-e2e` |
 | product broker | Public `NodeSandbox` file/process/desktop/browser behavior and local operator diagnostics through `axnoded` | `make verify-node-cli-e2e`, `make local-compose-refresh-verify`, `make local-compose-computer-use-e2e`, `go test ./internal/api ./axctl/commands/sandbox` |
 | packaging | Release binaries and node image sandboxd libexec path | `make verify-sandboxd-packaging` |
@@ -99,10 +97,8 @@ nodes and product E2E workflows enable runsc only.
 | Runtime | Rootfs / Profile | Baseline Coverage | Optional Coverage | Gate |
 | --- | --- | --- | --- | --- |
 | direct daemon | host/container tmpfs | strict JSON, diagnostics, file/archive, process, PTY, probes, ports, mounts, structured errors | provider discovery hooks | `make verify-sandboxd-provider-e2e` |
-| `runc` | sample OCI rootfs | PID 1 injection, bundle socket, lifecycle, file/process/PTY/probe diagnostics | none | `make verify-sandboxd-oci-e2e` |
 | `runsc` | sample OCI rootfs | PID 1 injection, bundle socket, lifecycle, file/process/PTY/probe diagnostics | none | `make verify-sandboxd-oci-e2e` |
 | `runsc` | Docker OCI image | node create/wait/kill, network, file/process/terminal through product APIs | browser/computer-use when image supports them | `make verify-docker-runsc-ebpf`, `make local-compose-refresh-verify` |
-| `runc` | Docker OCI image | generic runtime confidence and sandboxd baseline behavior | image-dependent | `make verify-docker-runc` |
 | `runsc` | OCI/Nydus rootfs | image manager integration, read-only mount handling, sandboxd runtime mount injection | image-dependent | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e` |
 | `runsc` | `server-base` | SSH terminal semantics, sudo/nosuid expectations, probes, service smoke | none | `make local-compose-server-base-smoke` |
 | `runsc` | `desktop-base` | normal sandbox lifecycle plus desktop session readiness | computer-use and browser | `make local-compose-computer-use-e2e` |
@@ -151,9 +147,9 @@ packaging change. Update deployment values and runtime docs together, then run
 | --- | --- | --- |
 | broad Docker runtime | Main `axnoded` runtime confidence | `make verify-docker` |
 | runsc network/eBPF | runsc runtime plus eBPF networking path | `make verify-docker-runsc-ebpf` |
-| debug runtime paths | Narrow runtime diagnostics | `make verify-docker-runsc-debug`, `make verify-docker-runc-debug` |
+| debug runtime paths | Narrow runtime diagnostics | `make verify-docker-runsc-debug` |
 | bpfnet diagnostics | Pinned program readiness and managed runtime diagnostics | `make verify-bpfnetctl-e2e` |
-| network-policy Linux correctness | Hermetic 32-cell runc/runsc × bridge/ebpf × IPv4/IPv6 × policy-mode truth with minimal, timing-independent samples | `make verify-network-policy-linux-matrix` |
+| network-policy Linux correctness | Hermetic 16-cell runsc × bridge/ebpf × IPv4/IPv6 × policy-mode truth with minimal, timing-independent samples | `make verify-network-policy-linux-matrix` |
 
 ## Node And Image Layers
 

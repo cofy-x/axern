@@ -29,7 +29,7 @@ flowchart TB
 
     Access --> RuntimeClient["internal/runtime/sandboxd"]
     Control --> Container
-    Runtime --> OCI["runc / runsc"]
+    Runtime --> OCI["runsc"]
     Runtime --> RuntimeClient
     OCI --> Sandboxd["axern-sandboxd"]
 ```

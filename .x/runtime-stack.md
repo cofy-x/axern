@@ -76,9 +76,9 @@ direct OCI runtime exec is a debug-level tool.
 
 ## Runtime Contracts
 
-- Packaged nodes and the source-development stack enable only runsc. Runc
-  handlers and explicit diagnostic tests remain during convergence; they are
-  not a production fallback or a packaged workload option.
+- Runsc is the supported execution runtime. Packaged nodes and the
+  source-development stack enable only runsc; unsupported runtime classes are
+  rejected without fallback.
 - Workload execution config carries `runtime_class`; empty values default in
   the control/runtime path before node lifecycle dispatch.
 - Workload network policy is immutable execution config. Strict policy is a
@@ -101,6 +101,10 @@ direct OCI runtime exec is a debug-level tool.
 - Node reports without `runtime_slots` are rejected. Control-plane and node
   releases that introduce a new required node-summary contract must be rebuilt
   together; mixed-version operation is not a supported compatibility path.
+- Capability protobuf numbers belong to the coordinated control-plane, node,
+  and SDK release contract. Renumbered contracts require matching binaries and
+  regenerated evidence; old numeric snapshots or persisted proofs must not be
+  relabeled or reused as current evidence.
 - Node platform capability follows the shared
   [Observation, Policy, And Enforcement Contract](../docs/architecture/observed-capability-providers.md).
   Axnoded publishes one atomic typed observation snapshot, the shared catalog

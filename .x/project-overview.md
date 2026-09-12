@@ -70,7 +70,7 @@ inventories in documentation are explanatory, not authoritative.
   integration and deployment verification; they are not required for every
   source edit.
 - macOS is suitable for host-safe unit, lint, and build checks. FUSE, mount,
-  cgroup, namespace, eBPF, runc, and runsc behavior requires the Linux
+  cgroup, namespace, eBPF, runsc behavior requires the Linux
   validation named by the owning module contract.
 
 See the [Devbox runbook](../docs/operations/devbox.md) and

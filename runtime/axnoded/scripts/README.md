@@ -19,7 +19,6 @@ make verify-docker
 make verify-docker-runsc-ebpf
 make verify-bpfnetctl-e2e
 make verify-docker-runsc-debug
-make verify-docker-runc-debug
 ```
 
 Fast sandboxd contract loop:
@@ -200,7 +199,6 @@ KEEP_RUNNING=true
 DASHBOARD_HOST_PORT=23001
 DEMO_CONTAINER_NAME=axnoded-dashboard-nginx-demo
 RUNSC_HOST_PORT=18080
-RUNC_HOST_PORT=18081
 AXNODED_IDLE_RUNTIME_RETENTION_TTL=5m
 AXNODED_IDLE_RUNTIME_RETENTION_MAX=128
 ```
@@ -209,7 +207,7 @@ AXNODED_IDLE_RUNTIME_RETENTION_MAX=128
 
 - `run-dashboard-nginx-demo.sh` is the supported local demo surface. It starts
   the dashboard container, prints the dashboard URL, and expects the managed
-  `runsc` / `runc` nginx sandboxes to be started or stopped from `/demo/nginx`.
+  `runsc` nginx sandboxes to be started or stopped from `/demo/nginx`.
 - The dashboard demo is local-rootfs-only. `imagemgr` and `imagefsd` remain
   `disabled` in `/inventoryz`.
 - With `NAT_BACKEND=ebpf`, the dashboard remains available and `/demo/nginx`
@@ -217,8 +215,8 @@ AXNODED_IDLE_RUNTIME_RETENTION_MAX=128
 - In an eBPF demo or verify container, use `bpfnetctl check` for a read-only
   readiness check of pinned maps, pinned programs, links, and tc attachment.
 - `make verify-bpfnetctl-e2e` starts an eBPF dashboard demo, validates
-  `bpfnetctl check --json` before and after creating the managed `runsc` and
-  `runc` nginx instances, and explicitly gates pinned program readiness.
+  `bpfnetctl check --json` before and after creating the managed `runsc`
+  nginx instance, and explicitly gates pinned program readiness.
 - For supported verify targets and their semantic intent, use
   [Verification](../docs/verification.md), not this file.
 - Kubernetes benchmark runs use a temporary privileged Job per backend/run and

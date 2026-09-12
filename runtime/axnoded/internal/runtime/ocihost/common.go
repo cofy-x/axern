@@ -22,7 +22,6 @@ type Common struct {
 	exitStateRoot       string
 	executor            Executor
 	ociLoader           runtimeoci.Loader
-	initMonitorStarter  func(context.Context, InitMonitorStartOptions) error
 }
 
 type Config struct {
@@ -51,10 +50,6 @@ func New(cfg Config) (*Common, error) {
 		executor:            &SystemExecutor{},
 		ociLoader:           cfg.Loader,
 	}, nil
-}
-
-func (c *Common) SetInitMonitorStarter(starter func(context.Context, InitMonitorStartOptions) error) {
-	c.initMonitorStarter = starter
 }
 
 func (c *Common) SetExecutor(executor Executor) {

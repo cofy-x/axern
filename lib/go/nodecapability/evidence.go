@@ -143,9 +143,9 @@ func ValidateEvidence(evidence *capabilityv1.CapabilityEvidence, expected Identi
 			return err
 		}
 		switch identity.Runtime.GetRuntimeName() {
-		case "runc", "runsc":
+		case "runsc":
 		default:
-			return fmt.Errorf("runtime_name must be runc or runsc")
+			return fmt.Errorf("runtime_name must be runsc")
 		}
 		if err := validateDigest("runtime_binary_digest", identity.Runtime.GetRuntimeBinaryDigest()); err != nil {
 			return err

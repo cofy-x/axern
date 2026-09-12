@@ -17,6 +17,9 @@ const (
 
 func TestReportValidatesCompleteMatrixAndCanonicalEnvironment(t *testing.T) {
 	report := testReport(t)
+	if len(report.Scenarios) != 16 {
+		t.Fatalf("runsc matrix has %d cells, want 16", len(report.Scenarios))
+	}
 	if err := report.Validate(true); err != nil {
 		t.Fatal(err)
 	}
@@ -47,6 +50,8 @@ func TestIndependentRecoverySampleContract(t *testing.T) {
 func TestRecoveryProvenanceRejectsOldMethodAndSchema(t *testing.T) {
 	for _, mutate := range []func(*Report){
 		func(r *Report) { r.SchemaVersion = 2 },
+		func(r *Report) { r.SchemaVersion = 3 },
+		func(r *Report) { r.Scenarios[0].Runtime = "runc" },
 		func(r *Report) { r.Parameters.RecoveryMethod = "old-25ms" },
 		func(r *Report) { r.Parameters.RecoverySamples = 0 },
 	} {
@@ -171,7 +176,7 @@ func testReport(t *testing.T) Report {
 	environment := EnvironmentProvenance{
 		OS: "linux", Architecture: "amd64", KernelRelease: "6.12.0", CPUModel: "qualification cpu",
 		LogicalCPUs: 8, MemoryBytes: 16 << 30, HostIdentityDigest: testDigest, SystemPackagesDigest: testDigest,
-		RuntimeDigests: map[string]string{"runc": testDigest, "runsc": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+		RuntimeDigests: map[string]string{"runsc": testDigest},
 	}
 	var err error
 	environment.EnvironmentID, err = environment.Fingerprint()

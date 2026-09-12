@@ -18,7 +18,7 @@ for node in nodes:
         for item in observations if item.get("state") == 1
     }
     # Public PlatformCapability values: runsc memory and writable storage.
-    raise SystemExit(0 if {6, 10}.issubset(available) else 1)
+    raise SystemExit(0 if {5, 7}.issubset(available) else 1)
 raise SystemExit(1)
 ' "$1" <<<"$2"
 }

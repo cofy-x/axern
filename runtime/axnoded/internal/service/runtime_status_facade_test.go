@@ -47,15 +47,15 @@ func TestRuntimeStatuses(t *testing.T) {
 			},
 		},
 	})
-	s.config.PluginConfig.RuntimeConfig.Runtimes["runc"] = config.RuntimeInstanceConfig{
-		Binary: "/fake/runc",
+	s.config.PluginConfig.RuntimeConfig.Runtimes["other"] = config.RuntimeInstanceConfig{
+		Binary: "/fake/other",
 	}
 
 	statuses := s.RuntimeStatuses()
 	assert.Len(t, statuses, 2)
-	assert.Equal(t, "runc", statuses[0].Name)
+	assert.Equal(t, "other", statuses[0].Name)
 	assert.False(t, statuses[0].Loaded)
-	assert.Equal(t, "/fake/runc", statuses[0].Binary)
+	assert.Equal(t, "/fake/other", statuses[0].Binary)
 	assert.Equal(t, "runsc", statuses[1].Name)
 	assert.True(t, statuses[1].Loaded)
 	assert.Equal(t, []resourcemanager.ResourceName{resourcemanager.CgroupResourceName}, statuses[1].Requirements.Resources)

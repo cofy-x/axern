@@ -415,7 +415,7 @@ CREATE TABLE allocation_memory_observations (
 	CHECK (COALESCE((observation->>'writeback_bytes')::BIGINT, 0) >= 0),
 	CHECK (COALESCE(observation->>'cgroup_identity', '') <> ''),
 	CHECK (octet_length(COALESCE(observation->>'cgroup_identity', '')) <= 1024),
-	CHECK (COALESCE(observation->>'runtime', '') IN ('runc', 'runsc')),
+	CHECK (COALESCE(observation->>'runtime', '') = 'runsc'),
 	CHECK (
 		(
 			COALESCE((observation->>'limit_bytes')::BIGINT, 0) = 0 AND

@@ -108,17 +108,10 @@ func runtimeConformanceCapabilityProvider(cfg config.Config, registry *handlerre
 	// provider single-keyed: provider ownership and recovery are tracked per
 	// observation, so combining enforcement boundaries would couple their
 	// failure and refresh lifecycles again.
-	provider := capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST
-	fact := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST
+	provider := capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST
+	fact := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST
 	if kind == runtimeConformanceKindEphemeral {
-		fact = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST
-	}
-	if runtimeName == config.RuntimeNameRunsc {
-		provider = capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST
-		fact = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST
-		if kind == runtimeConformanceKindEphemeral {
-			fact = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST
-		}
+		fact = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST
 	}
 	cache := newRuntimeFileDigestCache()
 	if len(caches) > 0 && caches[0] != nil {
@@ -448,7 +441,6 @@ func (h *sandboxService) verifyRuntimeConformanceCleanup(ctx context.Context, al
 	paths := []string{
 		filepath.Join(h.config.RootDir, "containers", allocationID),
 		filepath.Join(h.config.PluginConfig.RuntimeConfig.FilestoreDir, "projections", allocationID),
-		filepath.Join(h.config.PluginConfig.RuntimeConfig.FilestoreDir, "runc", allocationID),
 	}
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -521,12 +513,8 @@ func runtimeConformanceStartRequest(allocationID, runtimeID, runtimeName, rootfs
 
 func runtimeConformancePlatform(runtimeName string, kind runtimeConformanceKind) (capabilityv1.PlatformCapability, error) {
 	switch {
-	case runtimeName == config.RuntimeNameRunc && kind == runtimeConformanceKindMemory:
-		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT, nil
 	case runtimeName == config.RuntimeNameRunsc && kind == runtimeConformanceKindMemory:
 		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT, nil
-	case runtimeName == config.RuntimeNameRunc && kind == runtimeConformanceKindEphemeral:
-		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT, nil
 	case runtimeName == config.RuntimeNameRunsc && kind == runtimeConformanceKindEphemeral:
 		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT, nil
 	default:

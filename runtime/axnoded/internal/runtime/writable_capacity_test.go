@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,21 +24,15 @@ func newTestWritableCapacityManager(t *testing.T, systemReserve int64) *writable
 func TestWritableCapacityReservationIsDurableAndIdempotent(t *testing.T) {
 	manager := newTestWritableCapacityManager(t, 0)
 
-	require.NoError(t, manager.Reserve("sandbox-1", "runc", 4096, 8192))
-	projectID := manager.ProjectID("sandbox-1")
-	assert.NotZero(t, projectID)
-	assert.GreaterOrEqual(t, projectID, hostlinux.AllocationProjectIDMin)
-	assert.LessOrEqual(t, projectID, hostlinux.AllocationProjectIDMax)
-	assert.NotEqual(t, hostlinux.FilestoreProbeProjectID, projectID)
-	require.NoError(t, manager.Reserve("sandbox-1", "runc", 4096, 8192))
-	require.ErrorContains(t, manager.Reserve("sandbox-1", "runc", 4096, 16384), "different writable reservation")
+	require.NoError(t, manager.Reserve("sandbox-1", "runsc", 4096, 8192))
+	require.NoError(t, manager.Reserve("sandbox-1", "runsc", 4096, 8192))
+	require.ErrorContains(t, manager.Reserve("sandbox-1", "runsc", 4096, 16384), "different writable reservation")
 
 	reloaded := &writableCapacityManager{
 		dir:          manager.dir,
 		reservations: make(map[string]writableReservation),
 	}
 	require.NoError(t, reloaded.load())
-	assert.Equal(t, projectID, reloaded.ProjectID("sandbox-1"))
 	assert.Equal(t, int64(4096), reloaded.reservations["sandbox-1"].RequestBytes)
 
 	require.NoError(t, reloaded.Release("sandbox-1"))
@@ -79,17 +72,17 @@ func TestWritableCapacityReservationEnforcesLiveAvailableFloor(t *testing.T) {
 
 func TestWritableCapacityReconcileCleansOnlyStaleRuntimeReservations(t *testing.T) {
 	manager := newTestWritableCapacityManager(t, 0)
-	require.NoError(t, manager.Reserve("active-runc", "runc", 1, 1))
-	require.NoError(t, manager.Reserve("stale-runc", "runc", 1, 1))
+	require.NoError(t, manager.Reserve("active-runsc", "runsc", 1, 1))
 	require.NoError(t, manager.Reserve("stale-runsc", "runsc", 1, 1))
+	require.NoError(t, manager.Reserve("stale-other", "other", 1, 1))
 	cleaned := make([]string, 0)
 
-	require.NoError(t, manager.ReconcileRuntime("runc", map[string]struct{}{"active-runc": {}}, func(id string) error {
+	require.NoError(t, manager.ReconcileRuntime("runsc", map[string]struct{}{"active-runsc": {}}, func(id string) error {
 		cleaned = append(cleaned, id)
 		return nil
 	}))
-	assert.Equal(t, []string{"stale-runc"}, cleaned)
-	assert.Contains(t, manager.reservations, "active-runc")
-	assert.NotContains(t, manager.reservations, "stale-runc")
-	assert.Contains(t, manager.reservations, "stale-runsc")
+	assert.Equal(t, []string{"stale-runsc"}, cleaned)
+	assert.Contains(t, manager.reservations, "active-runsc")
+	assert.NotContains(t, manager.reservations, "stale-runsc")
+	assert.Contains(t, manager.reservations, "stale-other")
 }

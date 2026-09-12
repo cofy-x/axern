@@ -59,7 +59,6 @@ runtime class, or image-manager settings look wrong.
 | `plugin.runtime.image_manager_socket` | socket for image-backed rootfs requests |
 | `plugin.runtime.volume_manager_socket` | socket for resolved node volume publish requests |
 | `plugin.runtime.runtimes.runsc.binary` | gVisor runtime binary path |
-| `plugin.runtime.runtimes.runc.binary` | runc runtime binary path |
 
 ## Symptom Map
 
@@ -67,7 +66,7 @@ runtime class, or image-manager settings look wrong.
 | --- | --- |
 | Environment is not healthy | `controld-migrate`, `postgres`, `controld`, node entrypoint logs |
 | Workload is not scheduled | `controld` -> `axnoded` |
-| Sandbox creation fails | `controld` -> `/var/log/axnoded/axnoded.log` -> `runsc` or `runc` errors |
+| Sandbox creation fails | `controld` -> `/var/log/axnoded/axnoded.log` -> `runsc` errors |
 | Service volume fails | `admin reliability check` -> `admin storage list --status failed` -> `controld` -> `storaged` -> `/var/log/axnoded/axnoded.log` -> `volumed` |
 | Image or rootfs fails | `/var/log/axnoded/axnoded.log` -> `/var/lib/imagemgr/logs/imagemgr.log` -> `/var/lib/imagemgr/daemons/<daemon-id>/daemon.log` |
 | Gateway HTTP or terminal fails | `gatewayd` -> `controld` -> `/var/log/axnoded/axnoded.log` |

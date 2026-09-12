@@ -98,20 +98,13 @@ shared sandbox paths.
 Image-backed processes receive the target allocation network resource and OCI
 network namespace path.
 
-For kernel OCI runtimes such as `runc`, this provides shared allocation
-loopback: services bound on `127.0.0.1` inside the target allocation are
-reachable from the image-backed actor. Raw tunnel loopback probes use this
-behavior, but Axrun LLM telemetry does not depend on it. Axrun uses
-sandboxd managed proxy, which starts the proxy inside the same sandboxd process
-scope as the agent command. Keep loopback probes as runtime capability tests;
-do not use them as the contract for profile-backed LLM capture.
-
 For `runsc`, gVisor keeps loopback inside each Sentry network stack even when
 the OCI spec points at the same host network namespace. Image-backed actors can
 still use explicit mounts and normal external networking, but they must not rely
 on reaching services bound to the target allocation's `127.0.0.1`. Callers that
-require allocation-local loopback must use a runtime class whose image-backed
-actors pass the loopback e2e.
+require allocation-local loopback must execute inside the target sandbox.
+Axrun LLM telemetry uses sandboxd managed proxy in the same sandboxd process
+scope as the agent command, rather than an image-backed actor.
 
 ## Lifecycle
 

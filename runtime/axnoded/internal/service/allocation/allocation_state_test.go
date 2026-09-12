@@ -151,7 +151,7 @@ func TestValidateRecoveredManagedAllocationRequiresDurableCapabilityConditionSet
 func TestNewLaunchVerificationBindsEgressProof(t *testing.T) {
 	now := time.Now().UTC()
 	manifest := &apipb.AllocationEnforcementManifest{
-		RuntimeName: "runc", BundlePath: "/var/lib/axnoded/root/containers/network-policy",
+		RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/network-policy",
 		CreatedAtUnixNano: now.UnixNano(),
 	}
 	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT)

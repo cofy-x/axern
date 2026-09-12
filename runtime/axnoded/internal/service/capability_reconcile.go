@@ -508,7 +508,7 @@ func (h *sandboxService) verifyAllocationCapability(ctx context.Context, allocat
 	if manifest == nil {
 		return contract.LostCapability(fmt.Errorf("durable allocation enforcement manifest is unavailable"))
 	}
-	if platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT || platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT {
+	if platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT {
 		runtimeCgroupPath, err = h.containerManager.RuntimeCgroupPath(allocationID)
 		if err != nil {
 			return contract.InconclusiveCapability(err)
@@ -523,7 +523,7 @@ func (h *sandboxService) verifyAllocationCapability(ctx context.Context, allocat
 			memoryLimit = status.LinuxResources.GetMemoryLimitInBytes()
 		}
 	}
-	if (platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT || platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT) && memoryLimit != manifest.GetMemoryLimitBytes() {
+	if (platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT) && memoryLimit != manifest.GetMemoryLimitBytes() {
 		return contract.LostCapability(fmt.Errorf("container memory limit differs from durable enforcement manifest"))
 	}
 	ephemeralLimit = manifest.GetEphemeralStorageLimitBytes()

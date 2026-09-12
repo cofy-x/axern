@@ -29,13 +29,9 @@ func (c *Common) RuntimeExitStatePath(containerID string) string {
 	return filepath.Join(c.exitStateRoot, containerID+".json")
 }
 
-func (c *Common) InitMonitorReadyStatePath(containerID string) string {
-	return filepath.Join(c.exitStateRoot, containerID+".monitor-ready.json")
-}
-
 func (c *Common) RemoveContainerState(containerID string) error {
 	var errs []error
-	for _, path := range []string{c.RuntimeExitStatePath(containerID), c.InitMonitorReadyStatePath(containerID)} {
+	for _, path := range []string{c.RuntimeExitStatePath(containerID)} {
 		err := os.Remove(path)
 		if err != nil && !os.IsNotExist(err) {
 			errs = append(errs, err)
@@ -48,9 +44,7 @@ func (c *Common) RuntimePIDFilePath(containerID string) string {
 	return filepath.Join(c.ContainerPath(containerID), "runtime.pid")
 }
 
-// RuntimePID returns the init PID recorded by the OCI runtime. Some runc
-// versions omit pid from `runc state` after a kept container changes state,
-// while the --pid-file remains the runtime's authoritative start artifact.
+// RuntimePID returns the PID recorded in the OCI runtime's start artifact.
 func (c *Common) RuntimePID(containerID string) (int, error) {
 	path := c.RuntimePIDFilePath(containerID)
 	payload, err := os.ReadFile(path)

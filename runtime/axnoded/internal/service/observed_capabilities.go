@@ -110,14 +110,10 @@ func (h *sandboxService) newObservedCapabilityManager(cgroupRoot string) (*nodec
 		networkCapabilityProvider(cfg, networkDigest, h.egressClient),
 		cgroupCapabilityProvider(cfg, cgroupRoot, bootID, bootErr),
 		filestoreCapabilityProvider(cfg, bootID, bootErr),
-		runtimeConformanceCapabilityProvider(cfg, h.runtimeHandlers, config.RuntimeNameRunc, runtimeConformanceKindMemory, bootID, h.runRuntimeConformanceSelfTest, runtimeDigestCache),
-		runtimeConformanceCapabilityProvider(cfg, h.runtimeHandlers, config.RuntimeNameRunc, runtimeConformanceKindEphemeral, bootID, h.runRuntimeConformanceSelfTest, runtimeDigestCache),
 		runtimeConformanceCapabilityProvider(cfg, h.runtimeHandlers, config.RuntimeNameRunsc, runtimeConformanceKindMemory, bootID, h.runRuntimeConformanceSelfTest, runtimeDigestCache),
 		runtimeConformanceCapabilityProvider(cfg, h.runtimeHandlers, config.RuntimeNameRunsc, runtimeConformanceKindEphemeral, bootID, h.runRuntimeConformanceSelfTest, runtimeDigestCache),
 		derivedCapabilityProvider{expected: []*capabilityv1.CapabilityKey{
-			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT),
 			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT),
-			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT),
 			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT),
 			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT),
 			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT),
@@ -229,11 +225,10 @@ func cgroupCapabilityProvider(cfg config.Config, rootName, bootID string, bootEr
 }
 
 // filestoreCapabilityProvider reads one mount-scoped artifact and publishes
-// OverlayFS, project-quota, and EROFS observations as one atomic batch.
+// OverlayFS and EROFS observations as one atomic batch.
 func filestoreCapabilityProvider(cfg config.Config, bootID string, bootErr error) nodecapabilitymanager.Provider {
 	keys := []*capabilityv1.CapabilityKey{
 		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER),
-		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_XFS_PROJECT_QUOTA),
 		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS),
 	}
 	return observedProvider{
@@ -254,8 +249,7 @@ func filestoreCapabilityProvider(cfg config.Config, bootID string, bootErr error
 			evidence := capabilitycontract.MountEvidence(bootID, facts.MountIdentity)
 			return []*capabilityv1.CapabilityObservation{
 				boolObservation(keys[0], facts.OverlayReady, evidence, "OverlayFS upper probe failed"),
-				boolObservation(keys[1], facts.ProjectQuotaReady, evidence, "XFS project quota probe failed"),
-				boolObservation(keys[2], facts.EROFSReady, evidence, firstNonEmptyCapabilityReason(facts.EROFSProbeError, "EROFS lower probe failed")),
+				boolObservation(keys[1], facts.EROFSReady, evidence, firstNonEmptyCapabilityReason(facts.EROFSProbeError, "EROFS lower probe failed")),
 			}, nil
 		},
 	}

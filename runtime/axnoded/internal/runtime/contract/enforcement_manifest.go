@@ -18,7 +18,7 @@ func ValidateEnforcementManifest(manifest *apipb.AllocationEnforcementManifest, 
 	if manifest == nil {
 		return fmt.Errorf("allocation enforcement manifest is required")
 	}
-	if manifest.GetRuntimeName() != "runc" && manifest.GetRuntimeName() != "runsc" {
+	if manifest.GetRuntimeName() != "runsc" {
 		return fmt.Errorf("allocation enforcement manifest has unsupported runtime %q", manifest.GetRuntimeName())
 	}
 	if manifest.GetCreatedAtUnixNano() <= 0 {
@@ -61,23 +61,13 @@ func ValidateEnforcementManifest(manifest *apipb.AllocationEnforcementManifest, 
 
 	limit := manifest.GetEphemeralStorageLimitBytes()
 	if limit == 0 {
-		if manifest.GetFilestoreMountIdentity() != "" || manifest.GetRuncProjectID() != 0 || manifest.GetRunscOverlayArg() != "" || manifest.GetRunscBackingDirectory() != "" || manifest.GetRunscBackingDirectoryIdentity() != "" {
+		if manifest.GetFilestoreMountIdentity() != "" || manifest.GetRunscOverlayArg() != "" || manifest.GetRunscBackingDirectory() != "" || manifest.GetRunscBackingDirectoryIdentity() != "" {
 			return fmt.Errorf("readonly allocation enforcement manifest contains ephemeral-storage state")
 		}
 		return nil
 	}
 	if strings.TrimSpace(manifest.GetFilestoreMountIdentity()) == "" || len(manifest.GetFilestoreMountIdentity()) > 1024 {
 		return fmt.Errorf("ephemeral-storage enforcement manifest requires a bounded filestore mount identity")
-	}
-
-	if manifest.GetRuntimeName() == "runc" {
-		if manifest.GetRuncProjectID() == 0 {
-			return fmt.Errorf("runc ephemeral-storage enforcement manifest requires a project ID")
-		}
-		if manifest.GetRunscOverlayArg() != "" || manifest.GetRunscBackingDirectory() != "" || manifest.GetRunscBackingDirectoryIdentity() != "" {
-			return fmt.Errorf("runc enforcement manifest contains runsc state")
-		}
-		return nil
 	}
 
 	backingDirectory := filepath.Clean(strings.TrimSpace(manifest.GetRunscBackingDirectory()))
@@ -90,9 +80,6 @@ func ValidateEnforcementManifest(manifest *apipb.AllocationEnforcementManifest, 
 	expectedOverlay := "root:dir=" + backingDirectory + ",size=" + strconv.FormatInt(limit, 10)
 	if manifest.GetRunscOverlayArg() != expectedOverlay {
 		return fmt.Errorf("runsc enforcement manifest overlay argument does not match its backing and limit")
-	}
-	if manifest.GetRuncProjectID() != 0 {
-		return fmt.Errorf("runsc enforcement manifest contains a runc project ID")
 	}
 	return nil
 }

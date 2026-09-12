@@ -70,7 +70,6 @@ func acquireRuntimeFilestore(cfg config.Config) (string, func(bool), error) {
 	metrics.RecordFilestoreProbe("startup", "success")
 	if capabilities, err := hostlinux.ReadFilestoreCapabilities(filestoreConfig.dir); err == nil {
 		metrics.RecordFilestoreProbe("overlay", probeResult(capabilities.OverlayReady))
-		metrics.RecordFilestoreProbe("xfs_project_quota", probeResult(capabilities.ProjectQuotaReady))
 		if capabilities.EROFSProbeError != "" || capabilities.EROFSReady {
 			metrics.RecordFilestoreProbe("erofs_lower", probeResult(capabilities.EROFSReady))
 		}

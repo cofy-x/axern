@@ -447,14 +447,14 @@ func TestRuntimeConformanceUsesReservedDomainWithoutConsumingWorkloadCapacity(t 
 		t.Fatalf("memory commitment = %+v", commitment)
 	}
 	if _, err := manager.Allocate(AllocateOption{
-		ContainerID: "second-self-test", MemoryRequestBytes: 256 << 20, RuntimeName: "runc",
+		ContainerID: "second-self-test", MemoryRequestBytes: 256 << 20, RuntimeName: "runsc",
 		CgroupOwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE,
 	}); !errors.Is(err, errord.ErrResourceExhausted) {
 		t.Fatalf("second conformance allocation error = %v, want resource exhausted", err)
 	}
 
 	workload, err := manager.Allocate(AllocateOption{
-		ContainerID: "user", MemoryRequestBytes: 1 << 30, MemoryLimitBytes: 1 << 30, RuntimeName: "runc",
+		ContainerID: "user", MemoryRequestBytes: 1 << 30, MemoryLimitBytes: 1 << 30, RuntimeName: "runsc",
 	})
 	if err != nil {
 		t.Fatalf("workload allocation contended with conformance: %v", err)
@@ -525,7 +525,7 @@ func TestConcurrentInventoryRefreshAndWorkloadAdmissionDoNotRaceRuntimeConforman
 		memoryCapacityIdentity: "boot:mount:roots",
 	}
 	if _, err := manager.Allocate(AllocateOption{
-		ContainerID: "self-test", MemoryRequestBytes: 256 << 20, RuntimeName: "runc",
+		ContainerID: "self-test", MemoryRequestBytes: 256 << 20, RuntimeName: "runsc",
 		CgroupOwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE,
 	}); err != nil {
 		t.Fatal(err)
@@ -553,7 +553,7 @@ func TestConcurrentInventoryRefreshAndWorkloadAdmissionDoNotRaceRuntimeConforman
 			defer wait.Done()
 			_, err := manager.Allocate(AllocateOption{
 				ContainerID: fmt.Sprintf("user-%d", index), MemoryRequestBytes: 1 << 20,
-				MemoryLimitBytes: 1 << 20, RuntimeName: "runc",
+				MemoryLimitBytes: 1 << 20, RuntimeName: "runsc",
 			})
 			errs <- err
 		}()

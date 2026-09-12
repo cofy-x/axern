@@ -163,7 +163,6 @@ func TestControllerCreatesClassAndClaim(t *testing.T) {
 		DefaultReclaimPolicy: storagev1.VolumeReclaimPolicy_VOLUME_RECLAIM_POLICY_RETAIN,
 		ConsistencyProfile:   storagev1.VolumeConsistencyProfile_VOLUME_CONSISTENCY_PROFILE_POSIX,
 		RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{
-			SupportsRunc:  true,
 			SupportsRunsc: true,
 		},
 	})
@@ -202,7 +201,7 @@ func TestControllerRejectsUnsupportedAccessMode(t *testing.T) {
 		AccessModes:          []storagev1.VolumeAccessMode{storagev1.VolumeAccessMode_VOLUME_ACCESS_MODE_READ_WRITE_ONCE},
 		DefaultReclaimPolicy: storagev1.VolumeReclaimPolicy_VOLUME_RECLAIM_POLICY_RETAIN,
 		ConsistencyProfile:   storagev1.VolumeConsistencyProfile_VOLUME_CONSISTENCY_PROFILE_POSIX,
-		RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{SupportsRunc: true},
+		RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{SupportsRunsc: true},
 	})
 	if err != nil {
 		t.Fatalf("CreateVolumeClass() error = %v", err)
@@ -748,7 +747,7 @@ func mustCreateLocalClass(t *testing.T, ctx context.Context, controller *Control
 		AccessModes:          []storagev1.VolumeAccessMode{storagev1.VolumeAccessMode_VOLUME_ACCESS_MODE_READ_WRITE_ONCE},
 		DefaultReclaimPolicy: storagev1.VolumeReclaimPolicy_VOLUME_RECLAIM_POLICY_RETAIN,
 		ConsistencyProfile:   storagev1.VolumeConsistencyProfile_VOLUME_CONSISTENCY_PROFILE_POSIX,
-		RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{SupportsRunc: true, SupportsRunsc: true},
+		RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{SupportsRunsc: true},
 	})
 	if err != nil {
 		t.Fatalf("CreateVolumeClass() error = %v", err)

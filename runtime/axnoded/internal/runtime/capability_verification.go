@@ -10,7 +10,6 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -26,51 +25,6 @@ func (e *inconclusiveCapabilityError) Unwrap() error { return e.err }
 
 func inconclusiveCapabilityErrorf(format string, args ...any) error {
 	return &inconclusiveCapabilityError{err: fmt.Errorf(format, args...)}
-}
-
-func (r *RuncServiceHandler) VerifyAllocationCapability(ctx context.Context, dependency *capabilityv1.CapabilityDependency, options contract.HandlerOptions) contract.CapabilityVerification {
-	switch dependency.GetKey().GetPlatform() {
-	case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT:
-		if options.MemoryLimitBytes <= 0 {
-			return contract.LostCapability(fmt.Errorf("runc memory capability requires a positive enforced limit"))
-		}
-		if err := r.verifyMemoryEnforcement(ctx, options); err != nil {
-			return classifyCapabilityVerificationError(err)
-		}
-		return contract.VerifiedCapability()
-	case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT:
-		if r.writableCapacity == nil {
-			return contract.LostCapability(fmt.Errorf("runc writable capacity manager is unavailable"))
-		}
-		manifest, err := r.AllocationEnforcementManifest(ctx, options.ContainerID)
-		if err != nil {
-			return classifyCapabilityVerificationError(fmt.Errorf("read immutable runc enforcement manifest: %w", err))
-		}
-		if err := verifyDurableEnforcementManifest(options.EnforcementManifest, manifest); err != nil {
-			return contract.LostCapability(err)
-		}
-		facts, err := hostlinux.ReadFilestoreCapabilities(filepath.Dir(r.writableCapacity.dir))
-		if err != nil {
-			return contract.InconclusiveCapability(err)
-		}
-		if manifest.GetFilestoreMountIdentity() == "" || manifest.GetFilestoreMountIdentity() != facts.MountIdentity {
-			return contract.LostCapability(fmt.Errorf("runc filestore mount identity changed"))
-		}
-		if expected := dependencyMountIdentity(dependency); expected != "" && facts.MountIdentity != expected {
-			return contract.LostCapability(fmt.Errorf("runc filestore proof identity changed: expected=%s current=%s", expected, facts.MountIdentity))
-		}
-		if options.EphemeralStorageLimitBytes <= 0 || manifest.GetEphemeralStorageLimitBytes() != options.EphemeralStorageLimitBytes {
-			return contract.LostCapability(fmt.Errorf("runc ephemeral limit does not match durable allocation manifest"))
-		}
-		if err := rootfsview.VerifyPersistentView(filepath.Dir(r.writableCapacity.dir), options.ContainerID, rootfsview.PersistentViewExpectation{
-			RuntimeName: r.Name(), ProjectID: manifest.GetRuncProjectID(), LimitBytes: manifest.GetEphemeralStorageLimitBytes(),
-		}); err != nil {
-			return classifyCapabilityVerificationError(err)
-		}
-		return contract.VerifiedCapability()
-	default:
-		return contract.LostCapability(fmt.Errorf("runc has no allocation verifier for %s", dependency.GetKey().GetPlatform()))
-	}
 }
 
 func (r *RunscServiceHandler) VerifyAllocationCapability(ctx context.Context, dependency *capabilityv1.CapabilityDependency, options contract.HandlerOptions) contract.CapabilityVerification {

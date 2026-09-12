@@ -44,5 +44,5 @@ Host, SNI, remote addresses, and full policy values are not dimensions.
 
 Performance and sustained-reliability evidence is produced by the separate
 [sandbox network-policy qualification](docs/qualification.md). Its full
-runc/runsc, bridge/ebpf, and IPv4/IPv6 matrix uses immutable environment
+runsc, bridge/ebpf, and IPv4/IPv6 matrix uses immutable environment
 provenance and relative budgets; correctness tests never depend on host timing.

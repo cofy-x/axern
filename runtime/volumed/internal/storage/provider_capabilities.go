@@ -30,7 +30,7 @@ func validateProviderCapabilities(provider Provider) error {
 			return fmt.Errorf("volume provider %s consistency profile is unspecified", provider.Backend())
 		}
 	}
-	if capabilities.RuntimeCompatibility == nil || (!capabilities.RuntimeCompatibility.GetSupportsRunc() && !capabilities.RuntimeCompatibility.GetSupportsRunsc()) {
+	if capabilities.RuntimeCompatibility == nil || (!capabilities.RuntimeCompatibility.GetSupportsRunsc()) {
 		return fmt.Errorf("volume provider %s must declare runtime compatibility", provider.Backend())
 	}
 	return nil

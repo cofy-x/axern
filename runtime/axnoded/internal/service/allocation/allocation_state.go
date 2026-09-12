@@ -648,17 +648,11 @@ func launchVerificationRequirements(manifest *apipb.AllocationEnforcementManifes
 
 	manifestRequired := make([]*capabilityv1.CapabilityKey, 0, 2)
 	if manifest.GetMemoryLimitBytes() > 0 {
-		platform := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT
-		if manifest.GetRuntimeName() == config.RuntimeNameRunsc {
-			platform = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT
-		}
+		platform := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT
 		manifestRequired = append(manifestRequired, capabilitycontract.PlatformKey(platform))
 	}
 	if manifest.GetEphemeralStorageLimitBytes() > 0 {
-		platform := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT
-		if manifest.GetRuntimeName() == config.RuntimeNameRunsc {
-			platform = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT
-		}
+		platform := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT
 		manifestRequired = append(manifestRequired, capabilitycontract.PlatformKey(platform))
 	}
 	for _, key := range manifestRequired {

@@ -85,7 +85,6 @@ mkdir -p \
 # Axnoded loads every configured runtime before readiness. Materialize the
 # explicit fail-closed base spec for both built-in handlers, not only the
 # runtime selected by this verification profile.
-ensure_node_runtime_base_spec "/usr/bin/runc" "/etc/axnoded/runc-config.json"
 ensure_node_runtime_base_spec "/usr/local/bin/runsc" "/etc/axnoded/runsc-config.json"
 
 AXNODED_PID=""

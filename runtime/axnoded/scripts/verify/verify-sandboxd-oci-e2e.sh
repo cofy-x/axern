@@ -9,7 +9,7 @@ export VERIFY_DOCKER_PLATFORM
 
 ensure_verify_image
 
-for runtime in runc runsc; do
+for runtime in runsc; do
   RUNTIME_UNDER_TEST="${runtime}" \
     run_verify_container \
       /bin/bash -lc \

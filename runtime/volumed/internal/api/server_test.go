@@ -86,7 +86,6 @@ func resolvedVolume() *privatestoragev1.ResolvedNodeVolume {
 			storage.LocalParameterVolumeName: "data",
 		},
 		RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{
-			SupportsRunc:  true,
 			SupportsRunsc: true,
 		},
 	}

@@ -162,8 +162,6 @@ describe_step() {
     axnoded-verify-docker-runsc-ebpf) echo "Run axnoded Docker truth-path verification for runsc with ebpf NAT" ;;
     axnoded-verify-bpfnetctl-e2e) echo "Run bpfnetctl JSON readiness E2E against the axnoded ebpf dashboard demo" ;;
     axnoded-verify-docker-runsc-debug) echo "Run axnoded Docker truth-path verification for runsc with diagnostics" ;;
-    axnoded-verify-docker-runc) echo "Run axnoded Docker truth-path verification for runc" ;;
-    axnoded-verify-docker-runc-debug) echo "Run axnoded Docker truth-path verification for runc with diagnostics" ;;
     axnoded-verify-node-cli-e2e) echo "Run axnoded node all-in-one axctl CLI E2E" ;;
     axnoded-verify-node-inventory-e2e) echo "Run axnoded node inventory E2E" ;;
     axnoded-verify-node-startup-metrics-e2e) echo "Run axnoded startup metrics E2E" ;;
@@ -258,12 +256,6 @@ run_step() {
     axnoded-verify-docker-runsc-debug)
       run_cmd make -C runtime/axnoded verify-docker-runsc-debug
       ;;
-    axnoded-verify-docker-runc)
-      run_cmd make -C runtime/axnoded verify-docker-runc
-      ;;
-    axnoded-verify-docker-runc-debug)
-      run_cmd make -C runtime/axnoded verify-docker-runc-debug
-      ;;
     axnoded-verify-node-cli-e2e)
       run_cmd make -C runtime/axnoded verify-node-cli-e2e
       ;;
@@ -348,8 +340,6 @@ steps+=(
   axnoded-verify-docker-runsc-ebpf
   axnoded-verify-bpfnetctl-e2e
   axnoded-verify-docker-runsc-debug
-  axnoded-verify-docker-runc
-  axnoded-verify-docker-runc-debug
   axnoded-verify-node-cli-e2e
   axnoded-verify-node-inventory-e2e
   axnoded-verify-node-startup-metrics-e2e

@@ -63,7 +63,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     linux-tools-common \
     linux-tools-generic \
     procps \
-    runc \
     util-linux \
     xfsprogs \
     && rm -rf /var/lib/apt/lists/partial

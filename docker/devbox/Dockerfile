@@ -79,7 +79,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     python3-full \
     python3-pip \
     python3-venv \
-    runc \
     sudo \
     supervisor \
     strace \

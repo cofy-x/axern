@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +21,6 @@ type writableReservation struct {
 	RuntimeName  string    `json:"runtime_name"`
 	RequestBytes int64     `json:"request_bytes"`
 	LimitBytes   int64     `json:"limit_bytes"`
-	ProjectID    uint32    `json:"project_id,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -125,15 +123,7 @@ func (m *writableCapacityManager) Reserve(containerID, runtimeName string, reque
 		metrics.RecordEphemeralStorageOperation(runtimeName, "reserve", "insufficient_capacity")
 		return fmt.Errorf("insufficient ephemeral storage capacity: request=%d available=%d system_reserve=%d committed=%d", requestBytes, available, m.systemReserve, committed)
 	}
-	projectID := uint32(0)
-	if runtimeName == "runc" {
-		allocatedProjectID, err := m.allocateProjectID(containerID)
-		if err != nil {
-			return err
-		}
-		projectID = allocatedProjectID
-	}
-	reservation := writableReservation{ContainerID: containerID, RuntimeName: runtimeName, RequestBytes: requestBytes, LimitBytes: limitBytes, ProjectID: projectID, CreatedAt: time.Now().UTC()}
+	reservation := writableReservation{ContainerID: containerID, RuntimeName: runtimeName, RequestBytes: requestBytes, LimitBytes: limitBytes, CreatedAt: time.Now().UTC()}
 	if err := writeJSONAtomic(m.dir, containerID+".json", reservation); err != nil {
 		metrics.RecordEphemeralStorageOperation(runtimeName, "reserve", "persistence_failure")
 		return err
@@ -141,40 +131,6 @@ func (m *writableCapacityManager) Reserve(containerID, runtimeName string, reque
 	m.reservations[containerID] = reservation
 	metrics.RecordEphemeralStorageOperation(runtimeName, "reserve", "success")
 	return nil
-}
-
-func (m *writableCapacityManager) allocateProjectID(containerID string) (uint32, error) {
-	used := make(map[uint32]struct{}, len(m.reservations))
-	for _, reservation := range m.reservations {
-		if reservation.ProjectID != 0 {
-			used[reservation.ProjectID] = struct{}{}
-		}
-	}
-	rangeSize := uint64(hostlinux.AllocationProjectIDMax) - uint64(hostlinux.AllocationProjectIDMin) + 1
-	if uint64(len(used)) >= rangeSize {
-		return 0, fmt.Errorf("XFS project ID range is exhausted")
-	}
-	id := hostlinux.AllocationProjectIDMin + uint32(uint64(crc32.ChecksumIEEE([]byte(containerID)))%rangeSize)
-	for attempts := uint64(0); attempts < rangeSize; attempts++ {
-		if _, exists := used[id]; !exists {
-			return id, nil
-		}
-		if id == hostlinux.AllocationProjectIDMax {
-			id = hostlinux.AllocationProjectIDMin
-		} else {
-			id++
-		}
-	}
-	return 0, fmt.Errorf("XFS project ID range is exhausted")
-}
-
-func (m *writableCapacityManager) ProjectID(containerID string) uint32 {
-	if m == nil {
-		return 0
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.reservations[containerID].ProjectID
 }
 
 func (m *writableCapacityManager) ReconcileRuntime(runtimeName string, retained map[string]struct{}, cleanup func(string) error) error {

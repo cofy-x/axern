@@ -64,7 +64,7 @@ dataset/cache providers should be added only when their runtime contract is
 concrete enough to preserve the same resolved-spec-to-published-volume flow.
 Every provider must declare capabilities before it is registered: backend,
 supported access modes, consistency profiles, and runtime compatibility for
-`runc`, `runsc`, or both. `volumed` validates resolved volume specs against
+`runsc`. `volumed` validates resolved volume specs against
 those capabilities before calling provider publish.
 
 In `node-all-in-one` deployments, `volumed` stores local provider data under

@@ -37,7 +37,7 @@ func TestPlanReturnsRejectedCandidatesWithExplicitReasons(t *testing.T) {
 		Records: []*nodekernel.Record{
 			record("stale-heartbeat", []string{"runsc"}, readySummary(base.Add(10*time.Second)), base),
 			record("stale-summary", []string{"runsc"}, readySummary(base), base.Add(20*time.Second)),
-			record("runtime-mismatch", []string{"runc"}, readySummary(base.Add(20*time.Second)), base.Add(20*time.Second)),
+			record("runtime-mismatch", []string{"unsupported"}, readySummary(base.Add(20*time.Second)), base.Add(20*time.Second)),
 			record("eligible", []string{"runsc"}, readySummary(base.Add(20*time.Second)), base.Add(20*time.Second)),
 		},
 	}
@@ -453,7 +453,7 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 		CapabilitySnapshot: availableCapabilitySnapshot(collectedAt,
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING,
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
-			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT,
+			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
 		),
 		Resources: &nodev1.ResourcesSummary{

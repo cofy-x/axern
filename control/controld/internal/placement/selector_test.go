@@ -77,7 +77,7 @@ func TestSelectCandidatesNoEligibleMixedFailuresAreNodeSelection(t *testing.T) {
 
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
-		record("unsupported-low-capacity", []string{"runc"}, unsupportedLowCapacity, now),
+		record("unsupported-low-capacity", []string{"other"}, unsupportedLowCapacity, now),
 	})
 	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now }, "runsc")
 
@@ -118,7 +118,7 @@ func TestSelectCandidatesNoEligibleCapacityAndSelectionCandidatesAreNodeSelectio
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
 		record("low-capacity", []string{"runsc"}, lowCapacity, now),
-		record("runtime-unsupported", []string{"runc"}, runtimeUnsupported, now),
+		record("runtime-unsupported", []string{"other"}, runtimeUnsupported, now),
 	})
 	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now }, "runsc")
 
@@ -176,7 +176,7 @@ func TestSelectCandidatesDoesNotRetryMixedHardAndTransientRejections(t *testing.
 
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
-		record("node-a", []string{"runc"}, summary, now),
+		record("node-a", []string{"other"}, summary, now),
 	})
 	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now }, "runsc")
 

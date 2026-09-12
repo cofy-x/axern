@@ -11,7 +11,7 @@ It includes:
 - Rust `1.89.0` with `rustfmt`
 - Postgres for the standalone source-development stack
 - Node.js, pnpm, Python, and uv for root workspace development
-- `runsc` and `runc` for runtime validation
+- `runsc` for runtime validation
 - Docker CLI plus `buildx` and `compose` plugins for the mounted host Docker socket
 - network, filesystem, FUSE, and debug tools used by the node verification flow
 - `sshd` managed by `supervisord` for VS Code Remote-SSH

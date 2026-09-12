@@ -26,13 +26,12 @@ import (
 const FilestoreCapabilitiesFile = ".axern-filestore-capabilities.json"
 
 type FilestoreCapabilities struct {
-	OverlayReady      bool      `json:"overlay_ready"`
-	EROFSReady        bool      `json:"erofs_ready"`
-	ProjectQuotaReady bool      `json:"project_quota_ready"`
-	FilesystemType    string    `json:"filesystem_type"`
-	MountIdentity     string    `json:"mount_identity"`
-	EROFSProbeError   string    `json:"erofs_probe_error,omitempty"`
-	ProbedAt          time.Time `json:"probed_at"`
+	OverlayReady    bool      `json:"overlay_ready"`
+	EROFSReady      bool      `json:"erofs_ready"`
+	FilesystemType  string    `json:"filesystem_type"`
+	MountIdentity   string    `json:"mount_identity"`
+	EROFSProbeError string    `json:"erofs_probe_error,omitempty"`
+	ProbedAt        time.Time `json:"probed_at"`
 }
 
 func CurrentBootID() (string, error) {
@@ -117,103 +116,6 @@ func VerifyCgroupPIDs(cgroupPath string, requiredPID, minimum int) error {
 		return fmt.Errorf("cgroup %s has %d attributed host pids, need at least %d", cgroupPath, len(seen), minimum)
 	}
 	return nil
-}
-
-// VerifyRuncCgroupProcessTree proves that the container init process and every
-// currently live descendant discoverable through all thread children lists are
-// still contained by the workload cgroup. Checking only cgroup.procs can prove
-// that some processes are charged, but cannot detect a descendant that was
-// moved out of the enforcement boundary.
-func VerifyRuncCgroupProcessTree(cgroupPath string, initPID int) error {
-	if err := VerifyPIDInCgroup(cgroupPath, initPID); err != nil {
-		return fmt.Errorf("verify runc init attribution: %w", err)
-	}
-	descendants, err := processTreePIDs(initPID)
-	if err != nil {
-		return err
-	}
-	for _, pid := range descendants {
-		if pid == initPID {
-			continue
-		}
-		if err := VerifyPIDInCgroup(cgroupPath, pid); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			return fmt.Errorf("verify runc descendant %d attribution: %w", pid, err)
-		}
-	}
-	return nil
-}
-
-func processTreePIDs(rootPID int) ([]int, error) {
-	const maximumProcesses = 32768
-	if rootPID <= 0 {
-		return nil, fmt.Errorf("root pid must be positive")
-	}
-	seen := map[int]struct{}{rootPID: {}}
-	queue := []int{rootPID}
-	for len(queue) > 0 {
-		pid := queue[0]
-		queue = queue[1:]
-		children, err := processChildren(pid)
-		if err != nil {
-			if pid != rootPID && errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			return nil, fmt.Errorf("read process %d descendants: %w", pid, err)
-		}
-		for _, child := range children {
-			if _, exists := seen[child]; exists {
-				continue
-			}
-			if len(seen) >= maximumProcesses {
-				return nil, fmt.Errorf("process tree rooted at %d exceeds safety limit %d", rootPID, maximumProcesses)
-			}
-			seen[child] = struct{}{}
-			queue = append(queue, child)
-		}
-	}
-	result := make([]int, 0, len(seen))
-	for pid := range seen {
-		result = append(result, pid)
-	}
-	sort.Ints(result)
-	return result, nil
-}
-
-func processChildren(pid int) ([]int, error) {
-	taskDir := filepath.Join("/proc", strconv.Itoa(pid), "task")
-	tasks, err := os.ReadDir(taskDir)
-	if err != nil {
-		return nil, err
-	}
-	seen := make(map[int]struct{})
-	for _, task := range tasks {
-		if !task.IsDir() {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(taskDir, task.Name(), "children"))
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			return nil, err
-		}
-		for _, field := range strings.Fields(string(data)) {
-			child, err := strconv.Atoi(field)
-			if err != nil || child <= 0 {
-				return nil, fmt.Errorf("invalid child pid %q for process %d", field, pid)
-			}
-			seen[child] = struct{}{}
-		}
-	}
-	children := make([]int, 0, len(seen))
-	for child := range seen {
-		children = append(children, child)
-	}
-	sort.Ints(children)
-	return children, nil
 }
 
 func cgroupPIDs(cgroupPath string) (map[int]struct{}, error) {
@@ -609,7 +511,7 @@ func PrepareFilestore(filestoreDir, mode, image string, loopbackSizeBytes, syste
 		if _, mounted, err := mountedFilesystem(filestoreDir); err != nil {
 			return err
 		} else if !mounted {
-			if out, err := exec.Command("mount", "-o", "loop,defaults,discard,prjquota", image, filestoreDir).CombinedOutput(); err != nil {
+			if out, err := exec.Command("mount", "-o", "loop,defaults,discard", image, filestoreDir).CombinedOutput(); err != nil {
 				return fmt.Errorf("mount loopback filestore %s: %s: %w", filestoreDir, out, err)
 			}
 			mountedByCall = true
@@ -643,7 +545,7 @@ func PrepareFilestore(filestoreDir, mode, image string, loopbackSizeBytes, syste
 	if systemReserveBytes < 0 || systemReserveBytes >= capacity || systemReserveBytes >= available {
 		return fmt.Errorf("filestore_system_reserve_bytes %d is invalid for capacity=%d available=%d", systemReserveBytes, capacity, available)
 	}
-	for _, subdir := range []string{"runsc", "runc", "projections"} {
+	for _, subdir := range []string{"runsc", "projections"} {
 		if err := os.MkdirAll(filepath.Join(filestoreDir, subdir), 0755); err != nil {
 			return fmt.Errorf("create filestore partition %s: %w", subdir, err)
 		}
@@ -786,9 +688,6 @@ func probeFilestoreCapabilities(filestoreDir, fsType string) (FilestoreCapabilit
 	}
 	mounted = false
 	result.OverlayReady = true
-	if fsType == "xfs" {
-		result.ProjectQuotaReady = probeXFSProjectQuota(filestoreDir, upper)
-	}
 	if fixture := erofsFixturePath(); fixture != "" {
 		if err := probeEROFSLower(filestoreDir, fixture); err != nil {
 			result.EROFSProbeError = err.Error()
@@ -797,47 +696,6 @@ func probeFilestoreCapabilities(filestoreDir, fsType string) (FilestoreCapabilit
 		}
 	}
 	return result, nil
-}
-
-func probeXFSProjectQuota(filestoreDir, path string) (ready bool) {
-	id := strconv.FormatUint(uint64(FilestoreProbeProjectID), 10)
-	defer func() {
-		for _, command := range []string{"project -C -p " + path + " " + id, "limit -p bhard=0 bsoft=0 " + id} {
-			if _, err := exec.Command("xfs_quota", "-x", "-c", command, filestoreDir).CombinedOutput(); err != nil {
-				ready = false
-			}
-		}
-	}()
-	for _, command := range []string{"project -s -p " + path + " " + id, "limit -p bhard=1048576 bsoft=1048576 " + id} {
-		if _, err := exec.Command("xfs_quota", "-x", "-c", command, filestoreDir).CombinedOutput(); err != nil {
-			return false
-		}
-	}
-	file, err := os.OpenFile(filepath.Join(path, "quota-enforcement-probe"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-	if err != nil {
-		return false
-	}
-	defer func() {
-		_ = file.Close()
-		_ = os.Remove(file.Name())
-	}()
-	payload := make([]byte, 2*1024*1024)
-	written, writeErr := file.Write(payload)
-	if writeErr == nil && written < len(payload) {
-		_, writeErr = file.Write(payload[written:])
-	}
-	syncErr := file.Sync()
-	if writeErr == nil && syncErr == nil {
-		return false
-	}
-	return quotaBoundaryError(writeErr) || quotaBoundaryError(syncErr)
-}
-
-func quotaBoundaryError(err error) bool {
-	// XFS may surface an enforced project hard limit as EDQUOT or ENOSPC,
-	// depending on the kernel and backing device. Both are valid fail-closed
-	// outcomes after the probe has established ample filesystem capacity.
-	return errors.Is(err, unix.EDQUOT) || errors.Is(err, unix.ENOSPC)
 }
 
 func erofsFixturePath() string {

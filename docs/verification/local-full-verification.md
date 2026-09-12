@@ -46,7 +46,7 @@ make -C runtime/axnoded verify-docker-runsc
 make -C runtime/axnoded verify-network-policy-linux-smoke
 ```
 
-Prefer the narrow runc, runsc, sandboxd, rootfs, cgroup, XFS, EROFS, or network
+Prefer the narrow runsc, sandboxd, rootfs, cgroup, XFS, EROFS, or network
 policy target when a change does not cross several boundaries. A broad runtime
 or deployment change may also run:
 
@@ -58,7 +58,7 @@ make kind-refresh-verify
 The repository change planner emits `network_policy_linux` and
 `managed_rollout` scopes. Pull-request CI uses those outputs to keep stable check
 names while avoiding unrelated heavyweight work. Linux CI is authoritative for
-namespace, cgroup, mount, eBPF, runc, and runsc behavior; macOS is not expected
+namespace, cgroup, mount, eBPF, runsc behavior; macOS is not expected
 to duplicate it.
 
 Compose DNS verification uses a repository-owned authoritative fixture over

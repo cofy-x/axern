@@ -66,7 +66,6 @@ message VolumeTopology {
 }
 
 message VolumeRuntimeCompatibility {
-  bool supports_runc = 1;
   bool supports_runsc = 2;
   bool requires_privileged_node_mount = 3;
 }

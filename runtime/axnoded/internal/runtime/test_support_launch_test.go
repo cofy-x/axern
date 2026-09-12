@@ -145,8 +145,6 @@ func disableSandboxReadyWait(t *testing.T, handler any) {
 
 	waiter := func(context.Context, string, *apipb.ContainerMetadata) error { return nil }
 	switch h := handler.(type) {
-	case *RuncServiceHandler:
-		h.waitForSandboxReady = waiter
 	case *RunscServiceHandler:
 		h.waitForSandboxReady = waiter
 	default:

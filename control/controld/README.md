@@ -123,7 +123,9 @@ summary. Individual cgroup and interface pools are diagnostic details.
 required node-summary contract must rebuild controld and axnoded together
 rather than run a mixed-version compatibility path.
 
-Node reports also carry one atomic typed capability snapshot. Controld derives
+Node reports also carry one atomic typed capability snapshot. Runsc memory and
+ephemeral-storage hard limits depend on matching conformance evidence; no
+alternate-runtime evidence can satisfy them. Controld derives
 workload requirements, rechecks current evidence while candidate rows are
 locked, and persists admitted dependencies with the allocation. Capability
 transitions use a queue separate from create/delete lifecycle work. The shared

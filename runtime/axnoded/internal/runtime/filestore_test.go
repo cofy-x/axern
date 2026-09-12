@@ -35,7 +35,7 @@ func TestRuntimeFilestoreHasOneLifecycleOwner(t *testing.T) {
 		FilestoreLoopbackSizeBytes: 1,
 	}}}
 
-	_, releaseRunc, err := acquireRuntimeFilestore(cfg)
+	_, releaseFirst, err := acquireRuntimeFilestore(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestRuntimeFilestoreHasOneLifecycleOwner(t *testing.T) {
 	if prepareCalls != 1 {
 		t.Fatalf("prepare calls = %d, want 1", prepareCalls)
 	}
-	releaseRunc(false)
+	releaseFirst(false)
 	if cleanupCalls != 0 {
 		t.Fatalf("cleanup ran while another runtime retained the filestore")
 	}

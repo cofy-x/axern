@@ -23,7 +23,8 @@ Node capacity admission consumes the aggregate `runtime_slots` contract
 reported by axnoded. The control plane does not infer capacity from individual
 cgroup or interface pools, and it rejects node reports that omit the aggregate.
 Node capability admission consumes the atomic typed observation snapshot in the
-same report. Platform requirements are derived from workload semantics and
+same report. Runsc memory and ephemeral-storage limits require matching
+runtime conformance evidence. Platform requirements are derived from workload semantics and
 rechecked while candidate rows are locked; users may declare only structured
 extension requirements. See
 [Observed Capability Providers](../docs/architecture/observed-capability-providers.md).

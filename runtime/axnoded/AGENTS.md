@@ -43,7 +43,7 @@ README or `docs/`, not here.
   [`internal/runtime/oci`](internal/runtime/oci), and host-side OCI runtime
   command/state helpers live in [`internal/runtime/ocihost`](internal/runtime/ocihost).
 - Keep the root [`internal/runtime`](internal/runtime) package as the runtime
-  facade: handler structs, runtime registration, runc/runsc entry methods, and
+  facade: handler structs, runtime registration, runsc entry methods, and
   tests that must access unexported handler state. Move reusable workflow logic
   into focused internal subpackages such as `bundleflow`, `launchflow`,
   `startupflow`, `execflow`, or `ocicli` instead of adding catch-all root files.
@@ -126,7 +126,7 @@ README or `docs/`, not here.
   affected runtime packages when full runtime tests are unavailable.
 - Runtime, container lifecycle, cgroup, network, or DNAT behavior changes:
   validate in Linux with privileged container access. Prefer `make verify-docker`;
-  use `make verify-docker-runsc-debug`, `make verify-docker-runc-debug`, or
+  use `make verify-docker-runsc-debug` or
   `make verify-docker-runsc-ebpf` when the change needs narrower Linux runtime
   validation.
 - Demo/dashboard changes: run `make run-dashboard-nginx-demo`.

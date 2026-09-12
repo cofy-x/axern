@@ -12,16 +12,16 @@ import (
 )
 
 func TestValidateClaimedCapabilityWorkRequiresExactDurableDependencies(t *testing.T) {
-	runcKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT)
-	runcKeyID, err := capabilitycontract.KeyID(runcKey)
+	storageKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT)
+	storageKeyID, err := capabilitycontract.KeyID(storageKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	dependency := &capabilityv1.CapabilityDependency{Key: runcKey}
+	dependency := &capabilityv1.CapabilityDependency{Key: storageKey}
 	valid := allocationkernel.CapabilityReconcileItem{
 		AllocationID:       "allocation-a",
 		Dependencies:       []*capabilityv1.CapabilityDependency{dependency},
-		PendingGenerations: map[string]int64{runcKeyID: 7},
+		PendingGenerations: map[string]int64{storageKeyID: 7},
 	}
 	if err := validateClaimedCapabilityWork(valid); err != nil {
 		t.Fatalf("valid claimed work rejected: %v", err)
@@ -64,13 +64,13 @@ func TestCapabilityConditionSetDigestCanonicalizesConditionOrder(t *testing.T) {
 }
 
 func TestCapabilityDependencySetDigestCanonicalizesDependencyOrder(t *testing.T) {
-	runc := &capabilityv1.CapabilityDependency{Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT)}
+	storage := &capabilityv1.CapabilityDependency{Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT)}
 	runsc := &capabilityv1.CapabilityDependency{Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT)}
-	left, err := capabilityDependencySetDigest([]*capabilityv1.CapabilityDependency{runc, runsc})
+	left, err := capabilityDependencySetDigest([]*capabilityv1.CapabilityDependency{storage, runsc})
 	if err != nil {
 		t.Fatal(err)
 	}
-	right, err := capabilityDependencySetDigest([]*capabilityv1.CapabilityDependency{runsc, runc})
+	right, err := capabilityDependencySetDigest([]*capabilityv1.CapabilityDependency{runsc, storage})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,15 +109,15 @@ func TestCreateAdmissionConditionMustBindAdmittedObservation(t *testing.T) {
 }
 
 func TestSameDependencyKeysRequiresAnExactSet(t *testing.T) {
-	runc := &capabilityv1.CapabilityDependency{Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT)}
+	storage := &capabilityv1.CapabilityDependency{Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT)}
 	runsc := &capabilityv1.CapabilityDependency{Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT)}
-	if !sameDependencyKeys([]*capabilityv1.CapabilityDependency{runc, runsc}, []*capabilityv1.CapabilityDependency{runsc, runc}) {
+	if !sameDependencyKeys([]*capabilityv1.CapabilityDependency{storage, runsc}, []*capabilityv1.CapabilityDependency{runsc, storage}) {
 		t.Fatal("same dependency keys should ignore ordering")
 	}
-	if sameDependencyKeys([]*capabilityv1.CapabilityDependency{runc}, []*capabilityv1.CapabilityDependency{runsc}) {
+	if sameDependencyKeys([]*capabilityv1.CapabilityDependency{storage}, []*capabilityv1.CapabilityDependency{runsc}) {
 		t.Fatal("different dependency keys were accepted")
 	}
-	if sameDependencyKeys([]*capabilityv1.CapabilityDependency{runc, runc}, []*capabilityv1.CapabilityDependency{runc, runc}) {
+	if sameDependencyKeys([]*capabilityv1.CapabilityDependency{storage, storage}, []*capabilityv1.CapabilityDependency{storage, storage}) {
 		t.Fatal("duplicate dependency keys were accepted")
 	}
 }

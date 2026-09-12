@@ -33,15 +33,9 @@ func TestCLIHarnessCertifiesBeforeImageImport(t *testing.T) {
 	}
 	for unavailable := -1; unavailable < len(platforms); unavailable++ {
 		observations := make([]map[string]any, 0, len(platforms))
-		// Runc is not a production prerequisite. Its available observations must
-		// neither be required nor satisfy a missing runsc proof.
-		for _, platform := range []capabilityv1.PlatformCapability{
-			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT,
-			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT,
-		} {
-			if unavailable >= 0 {
-				observations = append(observations, map[string]any{"key": map[string]any{"Kind": map[string]any{"Platform": platform}}, "state": capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE})
-			}
+		// Unrelated available facts cannot satisfy a missing enforcement proof.
+		if unavailable >= 0 {
+			observations = append(observations, map[string]any{"key": map[string]any{"Kind": map[string]any{"Platform": capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE}}, "state": capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE})
 		}
 		for index, platform := range platforms {
 			state := capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
@@ -81,8 +75,7 @@ func TestConformanceHarnessChecksSelectedRuntime(t *testing.T) {
 		ready                   bool
 	}{
 		{name: "runsc only", runtime: "RUNSC", observed: "RUNSC", ready: true},
-		{name: "explicit runc diagnostic", runtime: "RUNC", observed: "RUNC", ready: true},
-		{name: "no fallback", runtime: "RUNSC", observed: "RUNC"},
+		{name: "no fallback", runtime: "RUNSC", observed: "UNSUPPORTED"},
 		{name: "storage proof required", runtime: "RUNSC", observed: "RUNSC", missingStorage: true},
 		{name: "cleanup must converge", runtime: "RUNSC", observed: "RUNSC", cleanupDebt: 1},
 	} {

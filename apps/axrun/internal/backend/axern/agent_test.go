@@ -278,7 +278,7 @@ func TestAxernAdapterRuntimeForRequestMountsAgentImageBundleIntoTaskSandbox(t *t
 	request := backend.ExecuteRequest{
 		Task: domain.TaskInstance{
 			Sandbox: domain.SandboxSpec{
-				RuntimeClass: "runc",
+				RuntimeClass: "other",
 				RuntimeSource: &domain.SandboxRuntimeSourceSpec{
 					Type:  domain.SandboxRuntimeSourceImage,
 					Image: "example.com/task:latest",
@@ -306,8 +306,8 @@ func TestAxernAdapterRuntimeForRequestMountsAgentImageBundleIntoTaskSandbox(t *t
 	if axernRuntime.Config.Image != "example.com/task:latest" || axernRuntime.Config.TemplateID != "" {
 		t.Fatalf("runtime config = %#v", axernRuntime.Config)
 	}
-	if axernRuntime.Config.RuntimeClass != "runc" {
-		t.Fatalf("runtime class = %q, want runc", axernRuntime.Config.RuntimeClass)
+	if axernRuntime.Config.RuntimeClass != "other" {
+		t.Fatalf("runtime class = %q, want other", axernRuntime.Config.RuntimeClass)
 	}
 	if len(axernRuntime.Config.ImageMounts) != 1 {
 		t.Fatalf("image mounts = %#v", axernRuntime.Config.ImageMounts)

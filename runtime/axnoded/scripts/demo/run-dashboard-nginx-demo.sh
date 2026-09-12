@@ -15,7 +15,6 @@ KEEP_RUNNING="${KEEP_RUNNING:-true}"
 PRESERVE_ON_FAILURE="${PRESERVE_ON_FAILURE:-true}"
 NAT_BACKEND="${NAT_BACKEND:-iptables}"
 RUNSC_HOST_PORT="${RUNSC_HOST_PORT:-18080}"
-RUNC_HOST_PORT="${RUNC_HOST_PORT:-18081}"
 cleanup_on_exit=1
 
 cleanup_demo_container() {
@@ -44,13 +43,10 @@ PY
 }
 
 require_distinct_host_ports() {
-  if [ "${DASHBOARD_HOST_PORT}" = "${RUNSC_HOST_PORT}" ] ||
-    [ "${DASHBOARD_HOST_PORT}" = "${RUNC_HOST_PORT}" ] ||
-    [ "${RUNSC_HOST_PORT}" = "${RUNC_HOST_PORT}" ]; then
+  if [ "${DASHBOARD_HOST_PORT}" = "${RUNSC_HOST_PORT}" ]; then
     echo "dashboard demo host ports must be distinct:" >&2
     echo "  DASHBOARD_HOST_PORT=${DASHBOARD_HOST_PORT}" >&2
     echo "  RUNSC_HOST_PORT=${RUNSC_HOST_PORT}" >&2
-    echo "  RUNC_HOST_PORT=${RUNC_HOST_PORT}" >&2
     exit 1
   fi
 }
@@ -74,7 +70,6 @@ require_demo_host_ports_available() {
   require_distinct_host_ports
   require_host_port_available DASHBOARD_HOST_PORT "${DASHBOARD_HOST_PORT}"
   require_host_port_available RUNSC_HOST_PORT "${RUNSC_HOST_PORT}"
-  require_host_port_available RUNC_HOST_PORT "${RUNC_HOST_PORT}"
 }
 
 trap cleanup_demo EXIT
@@ -91,7 +86,6 @@ docker run -d \
   -e AXNODED_NETWORK_IP_RANGE \
   -p "${DASHBOARD_HOST_PORT}:${CONTAINER_HTTP_PORT}" \
   -p "${RUNSC_HOST_PORT}:${RUNSC_HOST_PORT}" \
-  -p "${RUNC_HOST_PORT}:${RUNC_HOST_PORT}" \
   "${IMAGE_TAG}" \
   bash /workspace/scripts/demo/run-dashboard-nginx-demo-in-container.sh >/dev/null
 
@@ -111,10 +105,8 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
     echo "managed_instances=page_controls"
     if [ "${NAT_BACKEND}" = "iptables" ]; then
       echo "runsc_demo_url=http://127.0.0.1:${RUNSC_HOST_PORT}/"
-      echo "runc_demo_url=http://127.0.0.1:${RUNC_HOST_PORT}/"
     else
       echo "runsc_demo_url_best_effort=http://127.0.0.1:${RUNSC_HOST_PORT}/"
-      echo "runc_demo_url_best_effort=http://127.0.0.1:${RUNC_HOST_PORT}/"
       echo "demo_host_port_note=best_effort_only_for_non_iptables_backend"
     fi
     if [ "${KEEP_RUNNING}" = "true" ]; then

@@ -3,13 +3,8 @@ package runtime
 import (
 	"context"
 	"errors"
-
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
 )
-
-func (r *RuncServiceHandler) ReconcilePersistentStorage(ctx context.Context, runtimeInventory map[string]struct{}) error {
-	return reconcilePersistentStorage(ctx, r.name, r.containerRoot, runtimeInventory, r.rootfsViews, r.writableCapacity)
-}
 
 func (r *RunscServiceHandler) ReconcilePersistentStorage(ctx context.Context, runtimeInventory map[string]struct{}) error {
 	return reconcilePersistentStorage(ctx, r.name, r.containerRoot, runtimeInventory, r.rootfsViews, r.writableCapacity)

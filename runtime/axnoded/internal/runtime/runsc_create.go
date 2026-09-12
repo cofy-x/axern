@@ -49,7 +49,7 @@ func (r *RunscServiceHandler) CreateContainer(ctx context.Context, request *apip
 	}
 	overlayArgs = runscSandboxdArgs(overlayArgs)
 	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeOverlayArgs, time.Since(overlayArgsStart))
-	if err := writeRuntimeEnforcementManifest(bundlePath, r.Name(), r.filestoreDir, effectiveRequest, options, overlayValue, 0); err != nil {
+	if err := writeRuntimeEnforcementManifest(bundlePath, r.Name(), r.filestoreDir, effectiveRequest, options, overlayValue); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (r *RunscServiceHandler) PrepareContainer(ctx context.Context, request *api
 	}
 	overlayArgs = runscSandboxdArgs(overlayArgs)
 	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeOverlayArgs, time.Since(overlayArgsStart))
-	if err := writeRuntimeEnforcementManifest(bundlePath, r.Name(), r.filestoreDir, effectiveRequest, options, overlayValue, 0); err != nil {
+	if err := writeRuntimeEnforcementManifest(bundlePath, r.Name(), r.filestoreDir, effectiveRequest, options, overlayValue); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}

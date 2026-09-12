@@ -3,7 +3,7 @@
 `axern-sandboxd` is Axern's sandbox-local control plane for OCI workloads
 launched by `axnoded`. It runs as sandbox PID 1, supervises the original user
 entrypoint, exposes a private Unix-socket API, and gives Axern a runtime-neutral
-way to operate sandboxes across `runc` and `runsc`.
+way to operate `runsc` sandboxes.
 
 OCI runtimes still own lifecycle, isolation, namespaces, cgroups, mounts, and
 runtime boundaries. Axern-owned sandbox-local operations should converge on
@@ -33,7 +33,7 @@ sandboxd instead of OCI runtime `exec`.
 flowchart LR
   SDK["SDK / CLI"] --> AXNODED["axnoded product APIs"]
 
-  AXNODED --> RUNTIME["runc / runsc"]
+  AXNODED --> RUNTIME["runsc"]
   AXNODED --> CLIENT["internal sandboxd client"]
 
   RUNTIME --> OCI["OCI bundle"]

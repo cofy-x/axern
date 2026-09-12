@@ -103,7 +103,7 @@ local-compose-server-base-smoke: ## Run the local Docker Compose server-base def
 local-compose-quota-smoke: ## Run the local Docker Compose quota admission smoke
 	bash $(ROOTDIR)/scripts/dev-env/compose-quota-smoke.sh
 
-local-compose-tunnel-e2e: ## Verify Axern tunnel end-to-end in compose for runsc and runc
+local-compose-tunnel-e2e: ## Verify Axern tunnel end-to-end in compose for runsc
 	bash $(ROOTDIR)/scripts/dev-env/compose-tunnel-e2e.sh
 
 local-compose-python-sdk-e2e: ## Verify the Python SDK Sandbox tunnel flow in compose
@@ -184,7 +184,7 @@ kind-server-base-smoke: ## Run the repo-managed kind server-base default-entrypo
 kind-quota-smoke: ## Run the repo-managed kind quota admission smoke
 	bash $(ROOTDIR)/scripts/dev-env/kind-quota-smoke.sh
 
-kind-tunnel-e2e: ## Verify Axern tunnel end-to-end in kind for runsc and runc
+kind-tunnel-e2e: ## Verify Axern tunnel end-to-end in kind for runsc
 	bash $(ROOTDIR)/scripts/dev-env/kind-tunnel-e2e.sh
 
 kind-tunnel-relay-e2e: ## Verify kind tunnel relay registry, drain selection, and peer events

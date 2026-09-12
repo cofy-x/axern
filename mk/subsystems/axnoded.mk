@@ -38,8 +38,6 @@ AXNODED_DIR := runtime/axnoded
 	axnoded-build-codex-bundle-image \
 	axnoded-verify-docker-runsc \
 	axnoded-verify-docker-runsc-debug \
-	axnoded-verify-docker-runc \
-	axnoded-verify-docker-runc-debug \
 	axnoded-verify-docker-conformance \
 	axnoded-benchmark-startup-matrix \
 	axnoded-run-nginx-demo \
@@ -157,12 +155,6 @@ axnoded-verify-docker-runsc: ## Run axnoded privileged Docker verification again
 
 axnoded-verify-docker-runsc-debug: ## Run axnoded privileged Docker verification against runsc with diagnostics
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runsc-debug)
-
-axnoded-verify-docker-runc: ## Run axnoded privileged Docker verification against runc
-	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runc)
-
-axnoded-verify-docker-runc-debug: ## Run axnoded privileged Docker verification against runc with diagnostics
-	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runc-debug)
 
 axnoded-verify-docker-conformance: ## Run production cgroup and serialized runtime certification truth
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-conformance)

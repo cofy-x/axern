@@ -428,7 +428,7 @@ func (m *Manager) observeSafely(ctx context.Context, provider Provider, now time
 }
 
 func isRuntimeProvider(provider capabilityv1.CapabilityProvider) bool {
-	return provider == capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST || provider == capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST
+	return provider == capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST
 }
 
 func (m *Manager) normalizeBatch(slot *providerSlot, sampledAt, completedAt time.Time, items []*capabilityv1.CapabilityObservation, probeErr error) (*ObservationBatch, error) {

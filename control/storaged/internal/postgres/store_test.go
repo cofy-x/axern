@@ -533,7 +533,7 @@ func testVolumeClass(name string, now time.Time) *storagev1.VolumeClass {
 		AccessModes:          []storagev1.VolumeAccessMode{storagev1.VolumeAccessMode_VOLUME_ACCESS_MODE_READ_WRITE_ONCE},
 		DefaultReclaimPolicy: storagev1.VolumeReclaimPolicy_VOLUME_RECLAIM_POLICY_RETAIN,
 		ConsistencyProfile:   storagev1.VolumeConsistencyProfile_VOLUME_CONSISTENCY_PROFILE_POSIX,
-		RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{SupportsRunc: true, SupportsRunsc: true},
+		RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{SupportsRunsc: true},
 		CreatedAt:            timestamppb.New(now),
 		UpdatedAt:            timestamppb.New(now),
 	}

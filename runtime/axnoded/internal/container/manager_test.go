@@ -400,7 +400,7 @@ func TestStartMonitorRejectsMissingDurableContainerRecord(t *testing.T) {
 func TestStartMonitorRejectsDurableRuntimeOwnershipMismatch(t *testing.T) {
 	const id = "runtime-mismatch-111111"
 	handlers := cmap.New[contract.RuntimeHandler]()
-	handlers.Set("runc", runtimetest.NewFakeRuntimeHandler())
+	handlers.Set("other", runtimetest.NewFakeRuntimeHandler())
 	m := &Manager{
 		containers:     cmap.New[*Container](),
 		monitors:       cmap.New[*containerMonitor](),
@@ -410,7 +410,7 @@ func TestStartMonitorRejectsDurableRuntimeOwnershipMismatch(t *testing.T) {
 		Metadata: &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"},
 		Status:   &flakyStatusStorage{status: Status{StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)},
 	})
-	require.ErrorContains(t, m.StartMonitor(&apipb.ContainerMetadata{ID: id, RuntimeHandler: "runc"}), "does not match")
+	require.ErrorContains(t, m.StartMonitor(&apipb.ContainerMetadata{ID: id, RuntimeHandler: "other"}), "does not match")
 }
 
 func TestStartMonitorDoesNotRestartDurableTerminalContainer(t *testing.T) {

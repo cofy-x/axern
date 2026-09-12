@@ -48,7 +48,7 @@ func TestRenderSandboxInspectKeepsUnknownExitCodeForExitedSandbox(t *testing.T) 
 	var out bytes.Buffer
 	renderSandboxInspect(&out, &nodeoperatorv1.LocalSandbox{
 		SandboxID:     "demo",
-		RuntimeClass:  "runc",
+		RuntimeClass:  "runsc",
 		State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
 		ExitCodeKnown: false,
 	})
@@ -63,7 +63,7 @@ func TestRenderSandboxInspectFormatsMissingValues(t *testing.T) {
 	var out bytes.Buffer
 	renderSandboxInspect(&out, &nodeoperatorv1.LocalSandbox{
 		SandboxID:     "demo",
-		RuntimeClass:  "runc",
+		RuntimeClass:  "runsc",
 		State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
 		ExitCodeKnown: true,
 		ExitCode:      0,

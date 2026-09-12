@@ -3,7 +3,7 @@ title: 运行时与资源
 description: 用 runsc 隔离工作负载，并用 request、limit 和命名空间配额规划资源。
 ---
 
-Axern 使用 gVisor（`runsc`）作为生产 sandbox 运行时，在工作负载与主机之间加入用户态内核，使用统一的资源与生命周期模型。打包节点只启用 runsc。收敛期间暂留的 runc handler 和显式底层测试仅用于诊断，不是受支持的生产选项或自动回退。
+Axern 使用 gVisor（`runsc`）作为生产 sandbox 运行时，在工作负载与主机之间加入用户态内核，使用统一的资源与生命周期模型。执行运行时统一使用 runsc，不提供运行时自动回退。
 
 ```bash
 axern run --runtime-class runsc docker.io/library/python:3.12-slim -- \

@@ -25,7 +25,6 @@ func TestValidateEnforcementManifestRejectsCrossRuntimeAndMutableBackingState(t 
 			m.RunscOverlayArg = "root:dir=/filestore/runsc,size=4096"
 		},
 		"missing backing identity": func(m *apipb.AllocationEnforcementManifest) { m.RunscBackingDirectoryIdentity = "" },
-		"cross-runtime project":    func(m *apipb.AllocationEnforcementManifest) { m.RuncProjectID = 9 },
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {

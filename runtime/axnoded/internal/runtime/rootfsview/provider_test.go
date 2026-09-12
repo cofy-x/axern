@@ -24,12 +24,12 @@ func TestOverlayProviderRejectsUnsafeContainerID(t *testing.T) {
 }
 
 func TestOverlayViewForContainerUsesFilestore(t *testing.T) {
-	view := overlayViewForContainer("alloc-1", "/var/lib/axnoded/filestore", runcViewDir, []string{"/image/rootfs"})
+	view := overlayViewForContainer("alloc-1", "/var/lib/axnoded/filestore", projectionViewDir, []string{"/image/rootfs"})
 
 	assert.Equal(t, []string{"/image/rootfs"}, view.LowerDirs)
-	assert.Equal(t, "/var/lib/axnoded/filestore/runc/alloc-1/upper", view.UpperDir)
-	assert.Equal(t, "/var/lib/axnoded/filestore/runc/alloc-1/work", view.WorkDir)
-	assert.Equal(t, "/var/lib/axnoded/filestore/runc/alloc-1/merged", view.MergedDir)
+	assert.Equal(t, "/var/lib/axnoded/filestore/projections/alloc-1/upper", view.UpperDir)
+	assert.Equal(t, "/var/lib/axnoded/filestore/projections/alloc-1/work", view.WorkDir)
+	assert.Equal(t, "/var/lib/axnoded/filestore/projections/alloc-1/merged", view.MergedDir)
 }
 
 func TestOverlayViewInitializationNeverReplacesExistingView(t *testing.T) {
@@ -195,9 +195,9 @@ func TestReconcilePersistentViewsRemovesOnlyStaleRuntimeOwnedView(t *testing.T) 
 		id      string
 		runtime string
 	}{
-		{id: "stale-runc", runtime: "runc"},
-		{id: "active-runc", runtime: "runc"},
 		{id: "stale-runsc", runtime: "runsc"},
+		{id: "active-runsc", runtime: "runsc"},
+		{id: "stale-other", runtime: "other"},
 	} {
 		root := filepath.Join(filestore, projectionViewDir, item.id)
 		require.NoError(t, os.MkdirAll(filepath.Join(root, "merged"), 0755))
@@ -205,13 +205,13 @@ func TestReconcilePersistentViewsRemovesOnlyStaleRuntimeOwnedView(t *testing.T) 
 		require.NoError(t, atomicWrite(filepath.Join(root, "projection.json"), content, 0644))
 	}
 
-	err := provider.ReconcilePersistentViews(context.Background(), "runc", map[string]struct{}{"active-runc": {}})
-	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "stale-runc"))
-	assert.ErrorIs(t, err, os.ErrNotExist)
-	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "active-runc"))
+	err := provider.ReconcilePersistentViews(context.Background(), "runsc", map[string]struct{}{"active-runsc": {}})
 	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "stale-runsc"))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "active-runsc"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "stale-other"))
 	require.NoError(t, err)
 }
 
@@ -224,8 +224,8 @@ func TestReadProjectionManifestRejectsUnboundedInput(t *testing.T) {
 
 func TestReadProjectionManifestRejectsUnknownOrTrailingState(t *testing.T) {
 	for name, content := range map[string]string{
-		"unknown":  `{"runtime_name":"runc","unknown":true,"immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/rootfs","filesystem":"overlay","lower_dirs":["/lower"],"readonly":true}}`,
-		"trailing": `{"runtime_name":"runc","immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/rootfs","filesystem":"overlay","lower_dirs":["/lower"],"readonly":true}} {}`,
+		"unknown":  `{"runtime_name":"runsc","unknown":true,"immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/rootfs","filesystem":"overlay","lower_dirs":["/lower"],"readonly":true}}`,
+		"trailing": `{"runtime_name":"runsc","immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/rootfs","filesystem":"overlay","lower_dirs":["/lower"],"readonly":true}} {}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()

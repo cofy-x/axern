@@ -107,14 +107,12 @@ class VolumeTopology(_message.Message):
     def __init__(self, cluster: _Optional[str] = ..., zone: _Optional[str] = ..., node_id: _Optional[str] = ...) -> None: ...
 
 class VolumeRuntimeCompatibility(_message.Message):
-    __slots__ = ("supports_runc", "supports_runsc", "requires_privileged_node_mount")
-    SUPPORTS_RUNC_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("supports_runsc", "requires_privileged_node_mount")
     SUPPORTS_RUNSC_FIELD_NUMBER: _ClassVar[int]
     REQUIRES_PRIVILEGED_NODE_MOUNT_FIELD_NUMBER: _ClassVar[int]
-    supports_runc: bool
     supports_runsc: bool
     requires_privileged_node_mount: bool
-    def __init__(self, supports_runc: _Optional[bool] = ..., supports_runsc: _Optional[bool] = ..., requires_privileged_node_mount: _Optional[bool] = ...) -> None: ...
+    def __init__(self, supports_runsc: _Optional[bool] = ..., requires_privileged_node_mount: _Optional[bool] = ...) -> None: ...
 
 class VolumeClass(_message.Message):
     __slots__ = ("name", "backend", "access_modes", "default_reclaim_policy", "consistency_profile", "runtime_compatibility", "parameters", "created_at", "updated_at")

@@ -6,15 +6,15 @@ correctness remains fail-closed and does not acquire machine-dependent timing
 assertions.
 
 CI runs `make axnoded-verify-network-policy-linux-matrix` on native Linux with
-minimal samples across the same 32 axes and requires zero failures. That gate
+minimal samples across the same 16 combinations and requires zero failures. That gate
 proves correctness only. The stable-host workflow below owns performance
 sampling, comparable provenance, and regression budgets.
 
 ## Matrix and measurements
 
-One accepted report contains all 32 combinations of:
+One accepted report contains all 16 combinations of:
 
-- runtime: `runc`, `runsc`;
+- runtime: `runsc`;
 - node network backend: `bridge`, `ebpf`;
 - address family: `ipv4`, `ipv6`;
 - policy mode: `unrestricted`, `dns_deny`, `strict_domain`, `strict_cidr`.
@@ -39,12 +39,13 @@ latency instead of a pre-subtracted value that would hide baseline variance.
 
 ## Comparable environments
 
-Schema v3 separates `parameters.samples` (workload and policy-operation
+Schema v4 requires the runsc-only 16-cell matrix. Older reports must be
+regenerated, not relabeled or reduced to a subset. It separates
+`parameters.samples` (workload and policy-operation
 sampling) from `parameters.recoverySamples` (daemon recovery observations) and
 records `parameters.recoveryMethod`. Restart distributions must match the
 recovery count; other distributions must match the workload count. Comparisons
-require both counts and the method to match exactly. Schema v2 reports must be
-regenerated, not relabeled or padded. Budget schema advances to v3 without
+require both counts and the method to match exactly. Budget schema is v4 without
 changing any numerical threshold.
 
 The full performance runner defaults to 20 workload samples and 200 recovery
@@ -57,7 +58,7 @@ This increases cheap restart sampling without multiplying real sandbox samples.
 
 The report fingerprints a one-way digest of the Linux host machine identity,
 architecture, kernel, CPU model and count, memory, the sorted system-package
-manifest, and exact runc/runsc binaries. The raw machine identity is never
+manifest, and exact runsc binaries. The raw machine identity is never
 stored. Candidate source and the immutable candidate image identity are
 recorded only as subject provenance, so changing the code under test does not
 make the environment incomparable. Changing the host, kernel, installed
@@ -91,7 +92,7 @@ has no verifier-specific resolver input.
 The inner matrix invokes the scenario driver with this stable contract:
 
 ```text
---runtime <runc|runsc>
+--runtime <runsc>
 --network-backend <bridge|ebpf>
 --ip-family <ipv4|ipv6>
 --policy-mode <unrestricted|dns_deny|strict_domain|strict_cidr>

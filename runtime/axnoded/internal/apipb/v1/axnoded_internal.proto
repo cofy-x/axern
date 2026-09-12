@@ -191,7 +191,6 @@ message AllocationEnforcementManifest {
   string runsc_overlay_arg = 6;
   string filestore_mount_identity = 7;
   int64 created_at_unix_nano = 8;
-  uint32 runc_project_id = 9;
   string bundle_path = 10;
   string runsc_backing_directory = 11;
   string runsc_backing_directory_identity = 12;

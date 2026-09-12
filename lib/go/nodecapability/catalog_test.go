@@ -56,7 +56,7 @@ func TestCatalogRejectsInvalidDerivedAndLossPolicyBoundaries(t *testing.T) {
 	}
 	t.Run("derived consumes derived", func(t *testing.T) {
 		catalog := cloneDefinitions()
-		definition := catalog[capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT]
+		definition := catalog[capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT]
 		definition.Dependencies = []capabilityv1.PlatformCapability{capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT}
 		catalog[definition.Key] = definition
 		if err := validateCatalog(catalog); err == nil {
@@ -194,9 +194,9 @@ func TestDerivedEvidenceIdentityTracksDependencySubjectsNotTTLRefresh(t *testing
 
 func TestResolveDependenciesPersistsSnapshotAndCompleteProof(t *testing.T) {
 	now := time.Now().UTC()
-	key := PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT)
+	key := PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT)
 	cgroup := observation(PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_CGROUP_V2_MEMORY_CONTROLLER), now)
-	selfTest := observation(PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST), now)
+	selfTest := observation(PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST), now)
 	available := derivedObservation(key, now, cgroup, selfTest)
 	snapshot := testSnapshot(now, available, cgroup, selfTest)
 	dependencies, err := ResolveDependencies(snapshot, []*capabilityv1.CapabilityKey{key}, now)
@@ -407,7 +407,7 @@ func TestDeriveRequirementsRejectsInternalInjectionAndUsesRuntimeSpecificCapabil
 	if _, err := DeriveRequirements(RequirementInput{RuntimeName: "runsc", NetworkMode: "default", NetworkBackend: "bridge", RequiresDNSPolicyEnforcement: true, RequiresStrictEgressEnforcement: true}); err == nil {
 		t.Fatal("mutually exclusive policy requirements were accepted")
 	}
-	if err := ValidateRequirementKeys([]*capabilityv1.CapabilityKey{PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_XFS_PROJECT_QUOTA)}); err == nil {
+	if err := ValidateRequirementKeys([]*capabilityv1.CapabilityKey{PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER)}); err == nil {
 		t.Fatal("internal fact injection was accepted")
 	}
 }
@@ -496,7 +496,7 @@ func observation(key *capabilityv1.CapabilityKey, now time.Time) *capabilityv1.C
 	case IdentityMount:
 		evidence = MountEvidence(testBootID, "1:source:/filestore")
 	case IdentityRuntime:
-		runtimeName := "runc"
+		runtimeName := "runsc"
 		if strings.Contains(strings.ToLower(key.GetPlatform().String()), "runsc") {
 			runtimeName = "runsc"
 		}

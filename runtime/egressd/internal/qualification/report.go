@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const SchemaVersion = 3
+const SchemaVersion = 4
 
 const RecoveryMeasurementMethod = "client-health-and-recovered-proof-v2"
 const MinRecoverySamples = 200
@@ -23,7 +23,7 @@ const MinRecoverySamples = 200
 const maxSubjectCommitFileBytes = 1024
 
 var (
-	Runtimes        = []string{"runc", "runsc"}
+	Runtimes        = []string{"runsc"}
 	NetworkBackends = []string{"bridge", "ebpf"}
 	IPFamilies      = []string{"ipv4", "ipv6"}
 	PolicyModes     = []string{"unrestricted", "dns_deny", "strict_domain", "strict_cidr"}

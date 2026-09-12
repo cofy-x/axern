@@ -133,7 +133,7 @@ func (d *NginxDashboard) redirectWithNotice(w http.ResponseWriter, r *http.Reque
 
 func (d *NginxDashboard) listManagedInstances(ctx context.Context) ([]managedInstanceView, error) {
 	views := make([]managedInstanceView, 0, 2)
-	for _, runtimeName := range []string{config.RuntimeNameRunsc, config.RuntimeNameRunc} {
+	for _, runtimeName := range []string{config.RuntimeNameRunsc} {
 		spec, ok := demonginx.ManagedSpec(runtimeName)
 		if !ok {
 			continue

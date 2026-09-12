@@ -9,14 +9,14 @@ import (
 )
 
 func TestCommonWaitParsesExitStatus(t *testing.T) {
-	common, err := New(Config{Root: t.TempDir(), RuntimeName: "runc", RuntimeBinary: "runc"})
+	common, err := New(Config{Root: t.TempDir(), RuntimeName: "runsc", RuntimeBinary: "runsc"})
 	require.NoError(t, err)
 	common.SetExecutor(&mockExecutor{
 		SuccessMap: map[string]bool{
-			"runc --root": true,
+			"runsc --root": true,
 		},
 		OutputMap: map[string]string{
-			"runc --root": `{"exitStatus":7}`,
+			"runsc --root": `{"exitStatus":7}`,
 		},
 	})
 
@@ -29,7 +29,7 @@ func TestCommonWaitParsesExitStatus(t *testing.T) {
 }
 
 func TestCommonWaitReportsRuntimeCommandFailureAsNoStatus(t *testing.T) {
-	common, err := New(Config{Root: t.TempDir(), RuntimeName: "runc", RuntimeBinary: "runc"})
+	common, err := New(Config{Root: t.TempDir(), RuntimeName: "runsc", RuntimeBinary: "runsc"})
 	require.NoError(t, err)
 	common.SetExecutor(&mockExecutor{})
 
@@ -42,14 +42,14 @@ func TestCommonWaitReportsRuntimeCommandFailureAsNoStatus(t *testing.T) {
 }
 
 func TestCommonWaitReportsParseFailureAsStatusUnavailable(t *testing.T) {
-	common, err := New(Config{Root: t.TempDir(), RuntimeName: "runc", RuntimeBinary: "runc"})
+	common, err := New(Config{Root: t.TempDir(), RuntimeName: "runsc", RuntimeBinary: "runsc"})
 	require.NoError(t, err)
 	common.SetExecutor(&mockExecutor{
 		SuccessMap: map[string]bool{
-			"runc --root": true,
+			"runsc --root": true,
 		},
 		OutputMap: map[string]string{
-			"runc --root": "not-an-exit-code",
+			"runsc --root": "not-an-exit-code",
 		},
 	})
 

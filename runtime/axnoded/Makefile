@@ -76,7 +76,7 @@ HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/demo/nginx ./
 	profile-docker-runsc-egress-udp-iptables profile-docker-runsc-egress-udp-ebpf \
 	profile-docker-runsc-external-tcp-iptables profile-docker-runsc-external-tcp-ebpf \
 	verify-ebpf-nat verify-docker-runsc-ebpf \
-	verify-docker-runsc verify-docker-runsc-debug verify-docker-runc verify-docker-runc-debug \
+	verify-docker-runsc verify-docker-runsc-debug \
 	example-bpfnet-udp-ingress example-bpfnet-egress \
 	run-dashboard-nginx-demo stop-dashboard-nginx-demo
 .DEFAULT_GOAL := all
@@ -191,7 +191,7 @@ help: ## show this help
 verify-docker-build: ## build the privileged Docker verification image
 	@bash -lc '. ./scripts/lib/verify-docker-common.sh; ensure_verify_image'
 
-verify-docker: verify-docker-runsc verify-docker-runc verify-docker-conformance ## run privileged Docker verification matrix against runsc, runc, and production cgroup certification
+verify-docker: verify-docker-runsc verify-docker-conformance ## run privileged Docker verification matrix against runsc and production cgroup certification
 
 verify-network-policy-linux-smoke: ## run representative native-Linux network-policy data-plane truth
 	@bash ./scripts/qualification/network-policy-linux-smoke.sh
@@ -199,7 +199,7 @@ verify-network-policy-linux-smoke: ## run representative native-Linux network-po
 verify-network-policy-linux-matrix: ## run the full native-Linux 32-cell network-policy correctness matrix
 	@NETWORK_POLICY_LINUX_MATRIX_SCOPE=full bash ./scripts/qualification/network-policy-linux-smoke.sh
 
-verify-docker-conformance: ## run production cgroup and serialized runc/runsc certification truth
+verify-docker-conformance: ## run production cgroup and serialized runsc certification truth
 	@AXNODED_VERIFY_CGROUP_ENFORCEMENT=required RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker.sh
 
 verify-sandboxd-e2e: ## run focused amd64 Docker e2e for axern-sandboxd
@@ -210,7 +210,7 @@ verify-sandboxd-computer-use-e2e: ## run focused amd64 Docker e2e for sandboxd c
 
 verify-sandboxd-desktop-e2e: verify-sandboxd-computer-use-e2e ## run focused sandboxd desktop provider e2e
 
-verify-sandboxd-oci-e2e: ## run focused runc/runsc OCI injection e2e for axern-sandboxd
+verify-sandboxd-oci-e2e: ## run focused runsc OCI injection e2e for axern-sandboxd
 	@bash ./scripts/verify/verify-sandboxd-oci-e2e.sh
 
 verify-sandboxd-provider-smoke: ## run fast direct sandboxd provider contract smoke
@@ -330,12 +330,6 @@ profile-docker-runsc-external-tcp-ebpf: ## profile runsc external TCP ingress tr
 	@BENCHMARK_PATHS="$${BENCHMARK_PATHS:-external_tcp_ingress}" \
 		NAT_BACKEND=ebpf RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc \
 		bash ./scripts/benchmark/profile-docker.sh
-
-verify-docker-runc: ## run privileged Docker verification against runc (generic core only)
-	@RUNTIME_UNDER_TEST=runc RUNTIME_BINARY=/usr/bin/runc bash ./scripts/verify/verify-docker.sh
-
-verify-docker-runc-debug: ## run privileged Docker verification against runc with extra diagnostics (generic core only)
-	@RUNTIME_UNDER_TEST=runc RUNTIME_BINARY=/usr/bin/runc bash ./scripts/verify/verify-docker-debug.sh
 
 example-bpfnet-udp-ingress: ## run a concise bpfnet UDP ingress example in the Docker truth environment
 	@NAT_BACKEND="$${NAT_BACKEND:-ebpf}" RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/demo/example-bpfnet-udp-ingress.sh

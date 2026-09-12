@@ -9,7 +9,7 @@ func TestRuntimeConfigNormalizedRuntimeConfigs(t *testing.T) {
 	cfg := RuntimeConfig{
 		RuntimeBinary: map[string]string{
 			RuntimeNameRunsc: "/legacy/runsc",
-			"runc":           "/legacy/runc",
+			"other":          "/legacy/other",
 		},
 		BasicSpec: map[string]string{
 			RuntimeNameRunsc: "/legacy/runsc.json",
@@ -41,9 +41,9 @@ func TestRuntimeConfigNormalizedRuntimeConfigs(t *testing.T) {
 		t.Fatalf("expected runsc allow_suid default to remain enabled")
 	}
 
-	runc := runtimes["runc"]
-	if runc.Binary != "/legacy/runc" {
-		t.Fatalf("expected legacy runtime binary, got %q", runc.Binary)
+	other := runtimes["other"]
+	if other.Binary != "/legacy/other" {
+		t.Fatalf("expected legacy runtime binary, got %q", other.Binary)
 	}
 
 	crun := runtimes["crun"]

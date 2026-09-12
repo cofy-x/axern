@@ -329,7 +329,7 @@ func TestMemoryObservationFromKernelPreservesRetiringOwnership(t *testing.T) {
 func TestMemoryObservationFromKernelRepresentsUnlimitedSandboxWithoutHardControlClaim(t *testing.T) {
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	observation := memoryObservationFromKernel(
-		"alloc-unlimited", 2, 512, 0, "runc", nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, 10, now,
+		"alloc-unlimited", 2, 512, 0, "runsc", nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, 10, now,
 		&hostlinux.CgroupMemoryDomain{BootID: "boot", MountIdentity: "mount", ParentInode: 21, LeafInode: 22, LimitBytes: -1, SwapMaxBytes: -1},
 		&hostlinux.CgroupMemoryObservation{CurrentBytes: 700, PeakBytes: 900, PeakAvailable: true, SwapCurrent: 12},
 		false, false,

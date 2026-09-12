@@ -14,7 +14,6 @@ fi
 DRIVER="${NETWORK_POLICY_QUALIFICATION_DRIVER:-/workspace/scripts/qualification/network-policy-scenario-in-container.sh}"
 BUILD_DIGEST="${NETWORK_POLICY_QUALIFICATION_BUILD_DIGEST:?NETWORK_POLICY_QUALIFICATION_BUILD_DIGEST is required}"
 HOST_IDENTITY_DIGEST="${NETWORK_POLICY_QUALIFICATION_HOST_IDENTITY_DIGEST:?NETWORK_POLICY_QUALIFICATION_HOST_IDENTITY_DIGEST is required}"
-RUNC_BINARY="${NETWORK_POLICY_QUALIFICATION_RUNC_BINARY:-/usr/bin/runc}"
 RUNSC_BINARY="${NETWORK_POLICY_QUALIFICATION_RUNSC_BINARY:-/usr/local/bin/runsc}"
 SAMPLES="${NETWORK_POLICY_QUALIFICATION_SAMPLES:-20}"
 RECOVERY_SAMPLES="${NETWORK_POLICY_QUALIFICATION_RECOVERY_SAMPLES:-200}"
@@ -32,8 +31,8 @@ if [ ! -x "${DRIVER}" ]; then
   echo "qualification driver is not executable: ${DRIVER}" >&2
   exit 1
 fi
-if [ ! -x "${RUNC_BINARY}" ] || [ ! -x "${RUNSC_BINARY}" ]; then
-  echo "both runc and runsc qualification binaries must be executable" >&2
+if [ ! -x "${RUNSC_BINARY}" ]; then
+  echo "runsc qualification binary must be executable" >&2
   exit 1
 fi
 
@@ -45,7 +44,7 @@ SUBJECT_COMMIT="$("${EGRESSD_QUALIFY_BIN}" subject -file "${SUBJECT_COMMIT_FILE}
 
 mkdir -p "${SCENARIO_DIR}"
 
-runtimes=(runc runsc)
+runtimes=(runsc)
 backends=(bridge ebpf)
 families=(ipv4 ipv6)
 modes=(unrestricted dns_deny strict_domain strict_cidr)
@@ -83,7 +82,6 @@ done
   -subject-commit "${SUBJECT_COMMIT}" \
   -subject-build-digest "${BUILD_DIGEST}" \
   -host-identity-digest "${HOST_IDENTITY_DIGEST}" \
-  -runc-binary "${RUNC_BINARY}" \
   -runsc-binary "${RUNSC_BINARY}" \
   -samples "${SAMPLES}" \
   -recovery-samples "${RECOVERY_SAMPLES}" \

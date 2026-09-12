@@ -14,14 +14,14 @@ import (
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
-func TestRuncCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
+func TestRunscCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
 	rootDir := t.TempDir()
 	loader := &trackingBundleLoader{rootDir: rootDir}
-	handler, err := NewRuncServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunc, config.RuntimeInstanceConfig{
-		Binary: writeFakeOCIRuntimeBinary(t, rootDir, "runc"),
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{
+		Binary: writeFakeOCIRuntimeBinary(t, rootDir, "runsc"),
 	}, loader)
 	if err != nil {
-		t.Fatalf("NewRuncServiceHandler() error = %v", err)
+		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
 	handler.common.SetRuntimeRunnerBinary(writeFakeRuntimeRunnerBinary(t, rootDir))
 	disableSandboxReadyWait(t, handler)
@@ -33,7 +33,7 @@ func TestRuncCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
 	templateSource := &runtimeoci.TemplateOptions{Request: newLocalCreateRequest(t)}
 	for idx := 0; idx < 2; idx++ {
 		_, err := handler.CreateContainer(context.Background(), newLocalCreateRequest(t), contract.HandlerOptions{
-			ContainerID:           fmt.Sprintf("runc-template-%d", idx),
+			ContainerID:           fmt.Sprintf("runsc-template-%d", idx),
 			RootfsType:            contract.StartupRootfsTypeLocal,
 			BundleTemplateCarrier: carrier,
 			BundleTemplateSource:  templateSource,
@@ -59,46 +59,6 @@ func TestRuncCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
 	}
 	if loader.lastLoadExecutionProfile == nil || loader.lastLoadExecutionProfile.RuntimeBaseline.NoFileLimit != 2097152 {
 		t.Fatalf("load execution profile = %#v, want nofile limit 2097152", loader.lastLoadExecutionProfile)
-	}
-}
-
-func TestRunscCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
-	rootDir := t.TempDir()
-	loader := &trackingBundleLoader{rootDir: rootDir}
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{
-		Binary: writeFakeOCIRuntimeBinary(t, rootDir, "runsc"),
-	}, loader)
-	if err != nil {
-		t.Fatalf("NewRunscServiceHandler() error = %v", err)
-	}
-	handler.filestoreDir = filepath.Join(rootDir, "filestore")
-	handler.common.SetRuntimeRunnerBinary(writeFakeRuntimeRunnerBinary(t, rootDir))
-	disableSandboxReadyWait(t, handler)
-	handler.ignoreCgroups = true
-
-	carrier := &templateCarrierSpy{}
-	templateSource := &runtimeoci.TemplateOptions{Request: newLocalCreateRequest(t)}
-	for idx := 0; idx < 2; idx++ {
-		_, err := handler.CreateContainer(context.Background(), newLocalCreateRequest(t), contract.HandlerOptions{
-			ContainerID:           fmt.Sprintf("runsc-template-%d", idx),
-			RootfsType:            contract.StartupRootfsTypeLocal,
-			BundleTemplateCarrier: carrier,
-			BundleTemplateSource:  templateSource,
-			AdditionalAnnotations: map[string]string{"test": "true"},
-		})
-		if err != nil {
-			t.Fatalf("CreateContainer(%d) error = %v", idx, err)
-		}
-	}
-
-	if loader.prepareCalls != 1 {
-		t.Fatalf("prepare calls = %d, want 1", loader.prepareCalls)
-	}
-	if loader.materializeCalls != 2 {
-		t.Fatalf("materialize calls = %d, want 2", loader.materializeCalls)
-	}
-	if loader.generateCalls != 0 {
-		t.Fatalf("generate calls = %d, want 0", loader.generateCalls)
 	}
 }
 

@@ -108,7 +108,7 @@ func TestRegistryStatuses(t *testing.T) {
 			RuntimeConfig: config.RuntimeConfig{
 				Runtimes: map[string]config.RuntimeInstanceConfig{
 					"runsc": {Binary: "/fake/runsc"},
-					"runc":  {Binary: "/fake/runc"},
+					"other": {Binary: "/fake/other"},
 				},
 			},
 		},
@@ -119,7 +119,7 @@ func TestRegistryStatuses(t *testing.T) {
 	if len(statuses) != 2 {
 		t.Fatalf("Statuses() len = %d, want 2", len(statuses))
 	}
-	if statuses[0].Name != "runc" || statuses[1].Name != "runsc" {
+	if statuses[0].Name != "other" || statuses[1].Name != "runsc" {
 		t.Fatalf("Statuses() names = %+v", statuses)
 	}
 	if statuses[0].Loaded {
@@ -132,7 +132,7 @@ func TestRegistryStatuses(t *testing.T) {
 
 func TestRegistryNamesStableSorted(t *testing.T) {
 	registry := New(config.Config{})
-	registry.Set("runc", &runtimetest.FakeRuntimeHandler{RuntimeName: "runc"})
+	registry.Set("other", &runtimetest.FakeRuntimeHandler{RuntimeName: "other"})
 	registry.Set("runsc", &runtimetest.FakeRuntimeHandler{RuntimeName: "runsc"})
 	registry.Set("crun", &runtimetest.FakeRuntimeHandler{RuntimeName: "crun"})
 
@@ -140,7 +140,7 @@ func TestRegistryNamesStableSorted(t *testing.T) {
 	if !sort.StringsAreSorted(names) {
 		t.Fatalf("Names() returned unsorted names: %v", names)
 	}
-	want := []string{"crun", "runc", "runsc"}
+	want := []string{"crun", "other", "runsc"}
 	for i := range want {
 		if names[i] != want[i] {
 			t.Fatalf("Names()[%d] = %q, want %q (all=%v)", i, names[i], want[i], names)

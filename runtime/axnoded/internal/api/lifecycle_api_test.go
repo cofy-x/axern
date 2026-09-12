@@ -468,7 +468,7 @@ func TestStableRuntimeTemplateIDFingerprintsStaticTemplate(t *testing.T) {
 	}
 
 	tests := map[string]func(*runtimev1.RuntimeTemplate){
-		"runtime": func(template *runtimev1.RuntimeTemplate) { template.Sandbox = "runc" },
+		"runtime": func(template *runtimev1.RuntimeTemplate) { template.Sandbox = "other" },
 		"command": func(template *runtimev1.RuntimeTemplate) { template.Command = []string{"/bin/other"} },
 		"cwd":     func(template *runtimev1.RuntimeTemplate) { template.Cwd = "/app" },
 		"environment": func(template *runtimev1.RuntimeTemplate) {

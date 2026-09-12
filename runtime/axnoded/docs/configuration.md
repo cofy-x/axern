@@ -155,7 +155,7 @@ materialization, volumed integration, and warm idle runtime retention.
 | `filestore_loopback_image` | Persistent image used by `loopback_dev`. | Created only when absent and retained after shutdown. |
 | `filestore_loopback_size_bytes` | Initial size for a newly created loopback image. | Must be positive in `loopback_dev`. |
 | `filestore_system_reserve_bytes` | Capacity unavailable to sandbox reservations. | Admission checks both committed reservations and the live available-space floor. |
-| `ephemeral_storage_default_limit_bytes` | Internal default backing limit for the public `limits.ephemeral_storage_bytes` contract. | Writable runsc roots use this in `root:dir=...,size=...`; writable runc roots require XFS project quota. |
+| `ephemeral_storage_default_limit_bytes` | Internal default backing limit for the public `limits.ephemeral_storage_bytes` contract. | Writable runsc roots use this in `root:dir=...,size=...`. |
 
 Runtime retention is keyed by the static execution template, so namespace,
 service, environment, and allocation-specific volume identity do not duplicate
@@ -187,8 +187,7 @@ less brittle.
 ### Runtime Handlers
 
 The default, sample, packaged, and devbox configurations enable only gVisor
-(`runsc`). Runc binaries and handlers retained during convergence serve
-explicit low-level diagnostics, not production workload selection or fallback.
+(`runsc`), the supported runtime. Unsupported runtime classes are rejected.
 
 `[plugin.runtime.runtimes.<name>]` declares each OCI runtime handler.
 Axnoded treats this set as one startup contract: every configured handler must
@@ -198,15 +197,15 @@ is canceled; axnoded never starts with a partial configured runtime set.
 
 | Key | Meaning |
 | --- | --- |
-| `binary` | Runtime binary path, such as `/usr/local/bin/runsc` or `/usr/bin/runc`. |
+| `binary` | Runtime binary path, such as `/usr/local/bin/runsc`. |
 | `base_spec` | Base OCI spec used by axnoded when building bundles. |
 | `[plugin.runtime.runtimes.<name>.options]` | Runtime-specific options. |
 
 There is no per-runtime cgroup fallback. In `required` mode cgroup controller
 writes, limit readback, and runtime host-PID attribution are fail-closed. For
 `runsc`, `options.allow_suid = true` maps to `runsc --allow-suid` so
-setuid tools inside Axern-maintained images, such as `sudo`, behave the same
-way they do under `runc`.
+setuid tools inside Axern-maintained images, such as `sudo`, can elevate
+privileges within the sandbox.
 
 See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection,
 EROFS lower, ephemeral-storage backing, quota, and cleanup contract.
@@ -226,7 +225,7 @@ EROFS lower, ephemeral-storage backing, quota, and cleanup contract.
 
 | Problem Shape | Likely Config Area | Useful Checks |
 | --- | --- | --- |
-| axnoded will not start | top-level paths, runtime binaries, base specs, filestore | axnoded startup logs, path permissions, `runsc --version`, `runc --version`. |
+| axnoded will not start | top-level paths, runtime binaries, base specs, filestore | axnoded startup logs, path permissions, `runsc --version`. |
 | node never appears in `controld` | control plane | `control_plane_target`, node auth/TLS, heartbeat metrics, controld logs. |
 | image-backed rootfs fails | runtime image manager | `image_manager_enabled`, `image_manager_socket`, imagemgr logs, imagefsd logs. |
 | sandbox has no egress or hostPort | network | `nat_backend`, `ip_range`, `sandbox0`, iptables/bpfnet logs. |
