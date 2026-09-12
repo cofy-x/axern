@@ -141,8 +141,8 @@ func ensurePKI(dir string) error {
 			return err
 		}
 	}
-	clients := []string{"client", "node", "rollout-worker"}
-	commonNames := []string{"axern-local-client", "axern-node", "rollout-worker"}
+	clients := []string{"client", "node"}
+	commonNames := []string{"axern-local-client", "axern-node"}
 	for index, name := range clients {
 		if err := issueClientCertificate(dir, name, commonNames[index], int64(index+10), caTemplate, caKey); err != nil {
 			return err
@@ -152,7 +152,7 @@ func ensurePKI(dir string) error {
 }
 
 func validCertificateSet(dir string) bool {
-	for _, name := range []string{"ca.crt", "controld.crt", "gatewayd.crt", "tunneld.crt", "client.crt", "node.crt", "rollout-worker.crt"} {
+	for _, name := range []string{"ca.crt", "controld.crt", "gatewayd.crt", "tunneld.crt", "client.crt", "node.crt"} {
 		data, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			return false
@@ -166,7 +166,7 @@ func validCertificateSet(dir string) bool {
 			return false
 		}
 	}
-	for _, name := range []string{"controld", "gatewayd", "tunneld", "client", "node", "rollout-worker"} {
+	for _, name := range []string{"controld", "gatewayd", "tunneld", "client", "node"} {
 		if _, err := tls.LoadX509KeyPair(filepath.Join(dir, name+".crt"), filepath.Join(dir, name+".key")); err != nil {
 			return false
 		}

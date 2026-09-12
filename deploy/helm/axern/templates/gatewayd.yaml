@@ -79,14 +79,6 @@ spec:
             - {{ .Values.gatewayd.serviceEndpointRetryAttempts | quote }}
             - -service-endpoint-quarantine-ttl
             - {{ .Values.gatewayd.serviceEndpointQuarantineTTL | quote }}
-            - -artifact-max-concurrent
-            - {{ .Values.gatewayd.artifact.maxConcurrent | quote }}
-            - -artifact-chunk-bytes
-            - {{ .Values.gatewayd.artifact.chunkBytes | quote }}
-            - -artifact-upstream-timeout
-            - {{ .Values.gatewayd.artifact.upstreamTimeout | quote }}
-            - -artifact-max-bytes
-            - {{ .Values.gatewayd.artifact.maxBytes | int64 | quote }}
           env:
             - name: AXERN_GATEWAY_DEV_TOKEN
               valueFrom:

@@ -11,6 +11,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func Command(options *command.Options) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "rollout",
+		Short: "Plan or execute reproducible agent episodes",
+	}
+	cmd.AddCommand(Plan(options), Run(options))
+	return cmd
+}
+
 func Plan(options *command.Options) *cobra.Command {
 	return rolloutCommand(options, rolloutCommandConfig{Use: "plan"})
 }

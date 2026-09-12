@@ -80,18 +80,9 @@ Before adopting this model on an existing installation:
    historical database and filesystem data separately until an operator has
    explicitly approved its retention or disposal.
 
-Controld performs a read-only startup check for
-`storage_volume_claims` and `storage_volume_bindings`. Any row, including a
-terminal tombstone, refuses startup with an inventory/export instruction.
-Missing or empty tables pass that check. Unreadable state fails closed.
-
-That check is not a disk inventory: an empty database does not prove that old
-claim directories or node allocation records are safe to reuse. Existing
-payloads containing removed fields are not migrated by ignoring those fields.
-There is no automatic table drop, row rewrite, physical volume deletion, or
-conversion of historical claim data into disposable runtime storage.
-See the [control-plane retirement guard](../../control/controld/docs/retired-volume-data.md)
-for the exact refusal boundary.
+The current schema contains no persistent-volume tables or compatibility
+checks. Development databases and node state are rebuilt when this execution
+storage contract changes.
 
 ## Validation
 

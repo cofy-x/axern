@@ -3,23 +3,19 @@ package app
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"time"
 
 	apiadminv1 "github.com/cofy-x/axern/control/controld/internal/api/adminv1"
-	artifactaccessv1 "github.com/cofy-x/axern/control/controld/internal/api/artifactaccessv1"
 	apigatewayv1 "github.com/cofy-x/axern/control/controld/internal/api/gatewayv1"
 	apiidentityv1 "github.com/cofy-x/axern/control/controld/internal/api/identityv1"
 	apinodev1 "github.com/cofy-x/axern/control/controld/internal/api/nodev1"
 	publicv1 "github.com/cofy-x/axern/control/controld/internal/api/publicv1"
 	apirelayv1 "github.com/cofy-x/axern/control/controld/internal/api/relayv1"
-	rolloutworkerv1 "github.com/cofy-x/axern/control/controld/internal/api/rolloutworkerv1"
 	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
 	appcapability "github.com/cofy-x/axern/control/controld/internal/application/capability"
 	appnode "github.com/cofy-x/axern/control/controld/internal/application/node"
 	apprun "github.com/cofy-x/axern/control/controld/internal/application/run"
-	"github.com/cofy-x/axern/control/controld/internal/artifactstore"
 	"github.com/cofy-x/axern/control/controld/internal/catalog"
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
@@ -33,11 +29,9 @@ import (
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	pgaccess "github.com/cofy-x/axern/control/controld/internal/postgres/access"
 	pgadmin "github.com/cofy-x/axern/control/controld/internal/postgres/admin"
-	pgagentprofile "github.com/cofy-x/axern/control/controld/internal/postgres/agentprofile"
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
 	pgnamespace "github.com/cofy-x/axern/control/controld/internal/postgres/namespace"
 	pgnodes "github.com/cofy-x/axern/control/controld/internal/postgres/nodes"
-	pgrollout "github.com/cofy-x/axern/control/controld/internal/postgres/rollout"
 	pgrun "github.com/cofy-x/axern/control/controld/internal/postgres/run"
 	pgsecret "github.com/cofy-x/axern/control/controld/internal/postgres/secret"
 	pgservice "github.com/cofy-x/axern/control/controld/internal/postgres/service"
@@ -76,14 +70,6 @@ type Config struct {
 	TunnelEdgeTarget                string
 	TunnelNodeEdgeTarget            string
 	TunnelRelays                    string
-	RolloutWorkerToken              string
-	ArtifactS3Endpoint              string
-	ArtifactS3Region                string
-	ArtifactS3Bucket                string
-	ArtifactS3AccessKey             string
-	ArtifactS3SecretKey             string
-	ArtifactS3UsePathStyle          bool
-	ArtifactTicketSigningKey        string
 	ResourcePolicy                  resourcekernel.AdmissionPolicy
 
 	NodeLifecycle nodebridge.LifecycleClient
@@ -107,17 +93,14 @@ type App struct {
 	serviceAllocationWorkersPerNode int
 	now                             func() time.Time
 	imageResolver                   environmentkernel.ImageResolver
-	rolloutWorkerToken              string
 	resourcePolicy                  resourcekernel.AdmissionPolicy
 
 	db                      *postgres.DB
 	adminPG                 *pgadmin.Store
 	accessPG                *pgaccess.Store
 	accessControl           *appaccess.Service
-	agentProfilePG          *pgagentprofile.Store
 	allocationOwners        *pgallocation.OwnerReader
 	runStore                *pgrun.Store
-	rolloutPG               *pgrollout.Store
 	namespacePG             *pgnamespace.Store
 	secretDB                *pgsecret.Store
 	servicePG               *pgservice.PGStore
@@ -138,14 +121,12 @@ type App struct {
 	allocationReconciler servicekernel.AllocationReconciler
 	capabilityReconciler *appcapability.Reconciler
 
-	adminAPI          *apiadminv1.Server
-	identityAPI       *apiidentityv1.Server
-	publicAPI         *publicv1.Server
-	gatewayAPI        *apigatewayv1.Server
-	nodeAPI           *apinodev1.Server
-	relayAPI          *apirelayv1.Server
-	rolloutWorkerAPI  *rolloutworkerv1.Server
-	artifactAccessAPI *artifactaccessv1.Server
+	adminAPI    *apiadminv1.Server
+	identityAPI *apiidentityv1.Server
+	publicAPI   *publicv1.Server
+	gatewayAPI  *apigatewayv1.Server
+	nodeAPI     *apinodev1.Server
+	relayAPI    *apirelayv1.Server
 }
 
 func New(cfg Config) (*App, error) {
@@ -204,7 +185,6 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 		serviceAllocationGlobalWorkers:  cfg.ServiceAllocationGlobalWorkers,
 		serviceAllocationWorkersPerNode: cfg.ServiceAllocationWorkersPerNode,
 		resourcePolicy:                  cfg.ResourcePolicy,
-		rolloutWorkerToken:              strings.TrimSpace(cfg.RolloutWorkerToken),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -220,7 +200,6 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 			reconcilekernel.ComponentAllocation,
 			reconcilekernel.ComponentCapability,
 			reconcilekernel.ComponentTunnel,
-			reconcilekernel.ComponentRollout,
 		),
 	}
 	if cfg.ImageResolver != nil {
@@ -282,24 +261,6 @@ func (a *App) configureDependencies(cfg Config) error {
 	if err != nil {
 		return err
 	}
-	a.agentProfilePG = pgagentprofile.NewStore(db, a.secretDB)
-	rolloutOptions := []pgrollout.Option{pgrollout.WithNow(a.now)}
-	if strings.TrimSpace(cfg.ArtifactS3Bucket) != "" {
-		store, err := artifactstore.NewS3(context.Background(), artifactstore.S3Config{Endpoint: cfg.ArtifactS3Endpoint, Region: cfg.ArtifactS3Region, Bucket: cfg.ArtifactS3Bucket, AccessKey: cfg.ArtifactS3AccessKey, SecretKey: cfg.ArtifactS3SecretKey, UsePathStyle: cfg.ArtifactS3UsePathStyle})
-		if err != nil {
-			return err
-		}
-		rolloutOptions = append(rolloutOptions, pgrollout.WithArtifactStore(store))
-		ticketKey, err := pgrollout.NormalizeArtifactTicketKey(cfg.ArtifactTicketSigningKey)
-		if err != nil {
-			return err
-		}
-		rolloutOptions = append(rolloutOptions, pgrollout.WithArtifactTicketKey(ticketKey))
-	}
-	a.rolloutPG = pgrollout.NewStore(db, a.agentProfilePG, a.secretDB, rolloutOptions...)
-	if strings.TrimSpace(cfg.ArtifactS3Bucket) != "" {
-		a.artifactAccessAPI = artifactaccessv1.New(a.rolloutPG)
-	}
 	a.servicePG = pgservice.NewPGStore(db, pgservice.WithAdmissionPolicy(a.resourcePolicy), pgservice.WithPlacementEvaluator(a.placement))
 	relays, err := pgtunnel.ParseRelays(cfg.TunnelRelays)
 	if err != nil {
@@ -313,7 +274,6 @@ func (a *App) configureDependencies(cfg Config) error {
 	})
 	a.runReconciler = apprun.NewReconciler(a.runStore, a.nodeBridge)
 	a.capabilityReconciler = appcapability.NewReconciler(pgallocation.NewCapabilityQueue(a.db), a.nodeLifecycle)
-	a.rolloutPG.StartNotifications()
 	return nil
 }
 
@@ -349,9 +309,6 @@ func (a *App) Close() error {
 		}
 		if a.runStore != nil {
 			a.runStore.Close()
-		}
-		if a.rolloutPG != nil {
-			a.rolloutPG.Close()
 		}
 		if a.db != nil {
 			a.db.Close()

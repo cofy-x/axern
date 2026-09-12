@@ -83,10 +83,9 @@ func (s *Store) Create(ctx context.Context, params secretkernel.CreateParams, no
 }
 
 var (
-	_ secretkernel.Control                   = (*Store)(nil)
-	_ secretkernel.MetadataReader            = (*Store)(nil)
-	_ secretkernel.Mutator                   = (*Store)(nil)
-	_ secretkernel.ValueResolver             = (*Store)(nil)
-	_ secretkernel.ProfileCredentialResolver = (*Store)(nil)
-	_ secretkernel.DockerConfigResolver      = (*Store)(nil)
+	_ secretkernel.Control              = (*Store)(nil)
+	_ secretkernel.MetadataReader       = (*Store)(nil)
+	_ secretkernel.Mutator              = (*Store)(nil)
+	_ secretkernel.ValueResolver        = (*Store)(nil)
+	_ secretkernel.DockerConfigResolver = (*Store)(nil)
 )

@@ -12,7 +12,6 @@ The schema is split by durable ownership boundary:
 | --- | --- |
 | `000001_initial.sql` | Nodes, namespaces, environments, secrets, runs, services, desired-spec identity, CPU/memory/ephemeral-storage quota and reservations, allocations, execution leases, reconciliation, and audit state |
 | `000002_tunnel_sessions.sql` | Tunnel sessions, peer events, and the tunnel revision stream |
-| `000003_managed_rollouts.sql` | Agent Profiles, rollout planning and execution, worker leases, metering, evidence, and artifact metadata |
 
 Each migration declares the final shape of its domain. Migrations run in one
 direction under a Postgres advisory lock and are recorded in
@@ -87,14 +86,7 @@ use database foreign keys.
 
 - `data_keys` lists available keys without exposing values.
 - `encrypted_payload` is never returned after creation.
-- `visibility='PUBLIC'` identifies resources visible through the generic
-  Secret API.
-- `visibility='INTERNAL'`, `owner_type`, and `owner_id` identify credentials
-  owned by another domain, including Agent Profiles.
-
-Execution configuration stores secret references, not plaintext. Public Secret
-queries use the partial public index; retention uses the internal ownership
-index.
+Execution configuration stores secret references, not plaintext.
 
 ### Runs, services, and allocations
 
@@ -220,84 +212,6 @@ sessions from claiming the same allocation port.
 `tunnel_session_events` is append-only peer and lifecycle history. The
 `tunnel_sessions` control revision supports incremental node convergence.
 
-## Managed Rollout Model
-
-```mermaid
-erDiagram
-  agent_profiles ||--o{ agent_profile_operations : fences
-  agent_profiles ||--o{ agent_profile_doctor_jobs : checks
-  rollouts ||--|| rollout_plans : freezes
-  rollouts ||--o{ rollout_tasks : selects
-  rollouts ||--o{ rollout_episodes : executes
-  rollouts ||--o{ rollout_work_items : schedules
-  rollouts ||--o{ rollout_events : records
-  rollouts ||--o{ rollout_artifacts : describes
-  rollouts ||--o{ rollout_usage_reservations : meters
-  rollout_episodes ||--o{ rollout_artifacts : produces
-  rollout_episodes ||--o{ rollout_usage_reservations : consumes
-```
-
-### Profiles and credentials
-
-`agent_profiles` owns the provider, wire API, agent contract, concurrency, and
-current immutable credential version. Profile operations store request hashes
-and results by idempotency key.
-
-Profile credentials are internal Secret rows. Generic Secret APIs cannot list
-or fetch them. Rotation creates a new credential version; it does not mutate a
-credential used by an accepted rollout.
-
-### Frozen rollout contract
-
-`rollouts` stores the accepted spec, start policy, status, durable terminal
-failure class, source and descriptor digests, summary, deadline, and preflight
-report. The rollout-level failure class also covers planning failures, where no
-Episode exists, and drives diagnosis and CLI exit status. The row also stores
-the frozen Profile snapshot and credential version.
-
-`rollouts.profile_id` is snapshot metadata, not a foreign key to the current
-Profile. Deleting a Profile therefore cannot invalidate retained or running
-rollouts. The frozen credential Secret remains protected by a direct foreign
-key until no retained rollout references it.
-
-`rollout_plans` stores the immutable resolved plan. `rollout_tasks` stores the
-selected task contracts in deterministic ordinal order. `rollout_episodes`
-stores attempt and execution-generation outcomes, verifier result, reward,
-usage, cost, duration, failure class, and execution facts. Rollout execution
-facts copy the allocation workspace preparation and add verifier materialization,
-allocation identity, runtime class, and frozen agent bundle digest.
-
-### Durable work and doctor jobs
-
-`rollout_work_items` schedules exactly one of three owners:
-
-- planning work owns a rollout and no episode;
-- episode work owns a rollout and episode;
-- Profile doctor work owns a doctor job and no rollout.
-
-Database check constraints enforce this ownership union and require Profile ID,
-version, and concurrency to be either all absent or all valid. Lease hashes,
-expiry, cancellation state, attempts, and retry time make claims recoverable
-across worker restarts.
-
-`agent_profile_doctor_jobs` stores the frozen Profile and credential reference,
-model, typed checks, health result, and completion state. Provider probes are
-executed only by leased workers; controld persists scheduling and results.
-
-### Metering, evidence, and artifacts
-
-`rollout_usage_reservations` persists reserved and actual token/cost usage.
-Planning probes may have no episode, so `episode_id` is nullable; episode usage
-binds to both episode and execution generation.
-
-`rollout_artifacts` stores metadata and object keys, never public object-store
-URLs or credentials. Artifact tickets are validated against artifact ID,
-generation, digest, size, expiry, and audience before gateway streaming.
-
-`rollout_events.sequence` is the reconnect cursor for watch clients. Events and
-notifications accelerate observation; rollout rows, work rows, and usage rows
-remain the authoritative state.
-
 ## Query and Index Intent
 
 Indexes follow server-side access paths:
@@ -305,11 +219,7 @@ Indexes follow server-side access paths:
 - namespace and creation cursors for list APIs;
 - node/status and owner/status for placement and lifecycle projection;
 - partial active indexes for reservations, leases, tunnels, and live services;
-- partial pending/expired claim indexes and leased owner, rollout, and Profile
-  capacity indexes for the rollout work claim predicate;
-- sequence indexes for reconnectable rollout watches;
 - retention indexes on expiry and creation timestamps;
-- public visibility and internal ownership indexes for Secret boundaries.
 
 New indexes require a concrete query, reconciliation, retention, or uniqueness
 contract. Low-cardinality status values are not indexed alone.
@@ -321,14 +231,5 @@ versions, timestamps, budgets, usage totals, and fields used for ordering or
 selection. JSONB owns versioned intent and snapshots that are read and written
 as a whole.
 
-Notifications are wake-up hints only. Rollout work triggers emit only when new
-candidate supply appears or a lease releases capacity; a candidate may have a
-future `next_run_at`, and lease renewal and other non-actionable updates stay
-silent. Unique supply hints wake one compatible
-FIFO waiter per replica, while capacity hints wake at most one waiter per
-capability group. Workers always re-read durable rows after a notification and
-periodic jittered safety sweeps recover missed notifications.
-
 Retention may delete completed history only after checking domain references.
-It must not delete current workloads, active leases, claimed work, frozen
-credentials, or artifact metadata whose object lifecycle is incomplete.
+It must not delete current workloads or active leases.

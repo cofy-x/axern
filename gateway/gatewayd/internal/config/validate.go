@@ -75,17 +75,5 @@ func validate(cfg Config) (Config, error) {
 	if cfg.LeaseRetryBaseDelay <= 0 {
 		cfg.LeaseRetryBaseDelay = 500 * time.Millisecond
 	}
-	if cfg.ArtifactMaxConcurrent <= 0 {
-		cfg.ArtifactMaxConcurrent = 16
-	}
-	if cfg.ArtifactChunkBytes < 32<<10 || cfg.ArtifactChunkBytes > 1<<20 {
-		return Config{}, fmt.Errorf("artifact-chunk-bytes must be between 32 KiB and 1 MiB")
-	}
-	if cfg.ArtifactUpstreamTimeout <= 0 {
-		cfg.ArtifactUpstreamTimeout = 30 * time.Second
-	}
-	if cfg.ArtifactMaxBytes <= 0 {
-		cfg.ArtifactMaxBytes = 8 << 30
-	}
 	return cfg, nil
 }

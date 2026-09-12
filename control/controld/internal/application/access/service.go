@@ -22,7 +22,6 @@ type Store interface {
 	ListBindings(context.Context, string, string, bool) ([]accesskernel.Binding, error)
 	RevokeBinding(context.Context, string, string, time.Time) (accesskernel.Binding, error)
 	ResolveResourceNamespace(context.Context, string, string) (string, error)
-	ValidateRolloutExecutionLease(context.Context, string, string, time.Time) error
 }
 
 type Service struct {
@@ -49,11 +48,7 @@ func (s *Service) ResolveResourceNamespace(ctx context.Context, resourceType, re
 	return s.store.ResolveResourceNamespace(ctx, resourceType, resourceID)
 }
 
-func (s *Service) ValidateRolloutExecutionLease(ctx context.Context, token, namespace string) error {
-	return s.store.ValidateRolloutExecutionLease(ctx, token, namespace, s.now())
-}
-
-func (s *Service) AuthorizeFingerprintResource(ctx context.Context, fingerprintValue, rolloutExecutionLease string, action accesskernel.Action, resourceType, resourceID string) error {
+func (s *Service) AuthorizeFingerprintResource(ctx context.Context, fingerprintValue string, action accesskernel.Action, resourceType, resourceID string) error {
 	fingerprint, err := accesskernel.ParseFingerprint(fingerprintValue)
 	if err != nil {
 		return accesskernel.ErrUnauthenticated
@@ -66,13 +61,10 @@ func (s *Service) AuthorizeFingerprintResource(ctx context.Context, fingerprintV
 	if err != nil {
 		return err
 	}
-	if accesskernel.Authorize(actor, action, namespace) {
-		return nil
-	}
-	if !accesskernel.HasRole(actor, accesskernel.RoleRolloutExecutor) || !accesskernel.IsRolloutDelegatableAction(action) {
+	if !accesskernel.Authorize(actor, action, namespace) {
 		return accesskernel.ErrPermissionDenied
 	}
-	return s.ValidateRolloutExecutionLease(ctx, rolloutExecutionLease, namespace)
+	return nil
 }
 
 func actor(ctx context.Context) (accesskernel.Actor, error) {

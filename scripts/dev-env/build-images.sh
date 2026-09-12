@@ -33,19 +33,12 @@ case "${image_scope}" in
   control)
     build_control_stack=true
     ;;
-  managed-rollout)
-    build_node_runtime_base=true
-    build_runtime_core=true
-    build_control_stack=true
-    build_tunneld=true
-    build_node_image=true
-    ;;
   node)
     build_node_runtime_base=true
     build_node_image=true
     ;;
   *)
-    echo "AXERN_LOCAL_IMAGE_SCOPE must be all, control, managed-rollout, or node" >&2
+    echo "AXERN_LOCAL_IMAGE_SCOPE must be all, control, or node" >&2
     exit 2
     ;;
 esac

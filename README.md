@@ -117,7 +117,7 @@ See the [runtime architecture](./docs/architecture/runtime-architecture.md) and 
 | `imagemgr` / `imagefsd` | OCI and Nydus image resolution, mount lifecycle, and read-only data plane |
 | `tunneld` | Internal reverse TCP relay and sandbox-local tunnel binding |
 | `axern` | Product CLI for platform resources and access |
-| `axrun` | Agent task harness, rollout worker, verifier, trajectory, usage, and evidence capture |
+| `axrun` | Agent task harness, verifier, trajectory, usage, and evidence capture |
 
 Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/README.md).
 Shared wire contracts are defined in [`sdk/proto`](./sdk/proto/README.md).

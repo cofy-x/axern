@@ -3,10 +3,8 @@ title: TaskSets and Local Workflows
 description: Compile immutable TaskSets, validate run directories, and export trajectories for training and evaluation.
 ---
 
-[Managed rollouts](/axrun/) run against the durable control plane. The local
-workflow around them — compiling TaskSets, inspecting run directories, and
-exporting derived views — works the same way for local development and
-production evidence.
+Axrun compiles TaskSets, executes episodes through a selected backend, records
+portable run directories, and exports derived training or evaluation views.
 
 ## Compile a TaskSet
 
@@ -25,8 +23,8 @@ starter task. Tune these per-episode requests to the actual agent workload
 instead of relying on the control-plane fallback. `resources.disk` is rejected
 until Axern exposes an enforceable ephemeral disk contract.
 
-Local bundles support compiler development. Managed rollouts require an
-immutable `repository@sha256:...` reference published through Kova:
+Publish a TaskSet as an immutable `repository@sha256:...` reference through
+Kova when it must be shared or executed reproducibly across machines:
 
 ```bash
 export KOVA_ENDPOINT=https://kova.example.com
@@ -79,10 +77,8 @@ traces, and chosen/rejected preference pairs — reproducible from the run
 directory. Raw LLM telemetry and command logs stay referenced artifacts, never
 inline fields.
 
-Terminal exit codes are stable for automation: `0` passed, `10` task or
-verifier failure, `11` infrastructure failure, `12` budget or metering
-failure, `13` cancelled, `14` planning rejection, `1` client error, `2` usage
-error.
+Terminal exit codes are stable for automation and distinguish successful,
+task-level, infrastructure, validation, client, and usage outcomes.
 
 The [usage contract](https://github.com/cofy-x/axern/blob/main/apps/axrun/docs/usage.md)
 and [domain model](https://github.com/cofy-x/axern/blob/main/apps/axrun/docs/domain-model.md)

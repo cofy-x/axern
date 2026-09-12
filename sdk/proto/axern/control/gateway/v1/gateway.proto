@@ -43,8 +43,7 @@ message ResolveAllocationTerminalRequest {
   string allocation_id = 1;
   int64 ttl_seconds = 2;
   string client_certificate_fingerprint = 3;
-  string rollout_execution_lease = 4;
-  AllocationAccessPurpose purpose = 5;
+  AllocationAccessPurpose purpose = 4;
 }
 
 enum AllocationAccessPurpose {

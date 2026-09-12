@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	agentprofilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/agentprofile"
-	rolloutkernel "github.com/cofy-x/axern/control/controld/internal/kernel/rollout"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 	secretkernel "github.com/cofy-x/axern/control/controld/internal/kernel/secret"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
@@ -40,10 +38,6 @@ type Runs interface {
 
 type Secrets interface{ secretkernel.Control }
 
-type AgentProfiles interface{ agentprofilekernel.Control }
-
-type Rollouts interface{ rolloutkernel.Store }
-
 type Services interface {
 	servicekernel.Reader
 	servicekernel.Mutator
@@ -69,8 +63,6 @@ type Dependencies struct {
 	Catalog        CatalogReader
 	Environments   Environments
 	Secrets        Secrets
-	AgentProfiles  AgentProfiles
-	Rollouts       Rollouts
 	Runs           Runs
 	Services       Services
 	ServiceWatcher servicekernel.Watcher

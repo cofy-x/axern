@@ -16,9 +16,7 @@ forwards public control RPCs to the internal `controld` target with the
 dedicated `gatewayd` certificate. Caller-supplied internal identity metadata is
 discarded; gatewayd injects only the fingerprint of the leaf certificate it
 verified. Controld resolves that fingerprint to a durable Principal and applies
-platform or namespace role bindings on every RPC. That identity is also the only certificate
-authorized to call private `ArtifactAccess`; the generic platform client
-certificate cannot resolve download tickets.
+platform or namespace role bindings on every RPC.
 
 Tunnel foreground clients use the same public control edge. `gatewayd`
 registers `axern.tunnel.v1.TunnelRelay`, resolves the session-bound internal
@@ -27,13 +25,6 @@ client peers to `tunneld`. Peer authentication remains bound to the tunnel
 session token; gatewayd does not bypass it or treat the data stream as a public
 resource-management RPC.
 Node peers continue to connect directly to internal `tunneld` targets.
-
-Rollout artifact downloads also terminate at the control edge. The client
-first obtains a short-lived artifact-bound ticket through the public rollout
-API, then calls `ArtifactData.Download`. Gatewayd resolves the ticket through
-controld's private mTLS `ArtifactAccess` API and streams the internal
-presigned object-store response with offset validation and backpressure. It
-does not hold S3 credentials, expose the internal URL, or log tickets.
 
 ## Run
 
@@ -50,10 +41,6 @@ go run ./gateway/gatewayd \
   -tls-key .dev/certs/gatewayd.key \
   -dev-token axern-local-dev
 ```
-
-Artifact data-plane limits are configured with
-`-artifact-max-concurrent`, `-artifact-chunk-bytes`,
-`-artifact-upstream-timeout`, and `-artifact-max-bytes`.
 
 Enable the optional SSH-compatible terminal listener by also providing a
 persistent host key and an `authorized_keys` file:
@@ -133,8 +120,6 @@ WebSocket path.
 Gateway metrics, traces, and logs use the shared OpenTelemetry pipeline. Domain
 metrics cover service proxy stages, route cache and resolve events, upstream
 failures, lease retries, active HTTP requests, and active terminal sessions.
-Artifact metrics cover active downloads, bytes, duration, ticket resolution,
-resume, and bounded rejection/error classes without artifact IDs or tickets.
 The route cache exports bounded route, endpoint, quarantine, and in-flight
 entry gauges. Standard Go runtime metrics report heap, allocation, GC,
 goroutine, and scheduler behavior for long-running stability analysis.
@@ -145,8 +130,6 @@ Every request emits a structured access log with method, path, route type,
 status, duration, namespace, service id, port, allocation id, node id, and
 error class. Logs and metrics never include plaintext lease tokens,
 Authorization headers, or terminal stdin/stdout content.
-Artifact tickets, internal object-store URLs, query strings, and upstream
-Authorization headers are also excluded from logs, metrics, and traces.
 
 ## Terminal Protocol
 
@@ -183,8 +166,6 @@ Key flags/env:
 - `-ssh-enabled`, `-ssh-address`, `-ssh-host-key`, `-ssh-authorized-keys`
 - `-dashboard-enabled`, `-dashboard-vendor-dir`
 - `-lease-retry-attempts`, `-lease-retry-base-delay`
-- `-artifact-max-concurrent`, `-artifact-chunk-bytes`
-- `-artifact-upstream-timeout`, `-artifact-max-bytes`
 
 Service proxy request bodies are capped, while streaming responses remain
 allowed. Terminal sessions enforce read limits, idle timeout, max duration, and

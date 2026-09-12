@@ -15,8 +15,6 @@ import (
 	"github.com/cofy-x/axern/apps/axrun/internal/backend"
 	axernbackend "github.com/cofy-x/axern/apps/axrun/internal/backend/axern"
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
-	rolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/rollout/v1"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"gopkg.in/yaml.v3"
 	"os"
 )
@@ -182,52 +180,6 @@ func (e *Envelope) Validate() error {
 	return nil
 }
 
-func (e Envelope) ControlRequest(idempotencyKey string) (*rolloutv1.CreateRolloutRequest, error) {
-	if !strings.Contains(e.Spec.TaskSet.Ref, "@sha256:") {
-		return nil, fmt.Errorf("managed rollout requires spec.task_set.ref to use an immutable sha256 digest")
-	}
-	budget := &rolloutv1.RolloutBudget{
-		MaxEpisodes:     int32(e.Spec.Budget.MaxEpisodes),
-		MaxTokens:       e.Spec.Budget.MaxTokens,
-		MaxCostMicrousd: e.Spec.Budget.MaxCostMicrousd,
-	}
-	if e.Spec.Budget.MaxWallTime != "" {
-		duration, _ := time.ParseDuration(e.Spec.Budget.MaxWallTime)
-		budget.MaxWallTime = durationpb.New(duration)
-	}
-	if budget.GetMaxWallTime() == nil && budget.GetMaxEpisodes() == 0 && budget.GetMaxTokens() == 0 && budget.GetMaxCostMicrousd() == 0 {
-		budget = nil
-	}
-	return &rolloutv1.CreateRolloutRequest{
-		Namespace:      first(e.Spec.Execution.Namespace, "default"),
-		IdempotencyKey: strings.TrimSpace(idempotencyKey),
-		Labels:         e.Spec.Labels,
-		Spec: &rolloutv1.RolloutSpec{
-			TaskSetRef: e.Spec.TaskSet.Ref,
-			Agent: &rolloutv1.RolloutAgent{
-				Name:           e.Spec.Agent.Name,
-				Image:          e.Spec.Agent.Runtime.Image,
-				Profile:        e.Spec.Agent.Profile,
-				ApprovalPolicy: e.Spec.Agent.ApprovalPolicy,
-				Command:        e.Spec.Agent.Command,
-			},
-			Model: e.Spec.Model,
-			Execution: &rolloutv1.RolloutExecution{
-				RuntimeClass: e.Spec.Execution.RuntimeClass,
-				Concurrency:  int32(e.Spec.Execution.Concurrency),
-				Attempts:     int32(e.Spec.Execution.Attempts),
-			},
-			Selection: &rolloutv1.TaskSetSelection{
-				TaskIds:    append([]string(nil), e.Spec.Selection.TaskIDs...),
-				Limit:      int32(e.Spec.Selection.Limit),
-				ShardIndex: int32(e.Spec.Selection.ShardIndex),
-				ShardCount: int32(e.Spec.Selection.ShardCount),
-			},
-			Budget: budget,
-		},
-	}, nil
-}
-
 func validateAgent(agent Agent, model, runner string) error {
 	if agent.Runtime.Kind == "agent_image" && strings.TrimSpace(agent.Runtime.Image) == "" {
 		return fmt.Errorf("spec.agent.runtime.image is required for agent_image")
@@ -248,16 +200,16 @@ func validateAgent(agent Agent, model, runner string) error {
 		}
 	case "claude-code", "codex":
 		if agent.Command != "" || strings.TrimSpace(agent.Profile) == "" || strings.TrimSpace(model) == "" {
-			return fmt.Errorf("managed agent %q requires profile and model and does not accept command", agent.Name)
+			return fmt.Errorf("agent %q requires profile and model and does not accept command", agent.Name)
 		}
 		if agent.ApprovalPolicy != "never" && agent.ApprovalPolicy != "on_request" {
-			return fmt.Errorf("managed agent %q requires approval_policy never or on_request", agent.Name)
+			return fmt.Errorf("agent %q requires approval_policy never or on_request", agent.Name)
 		}
 		if runner == string(backend.NameAxern) && agent.ApprovalPolicy != "never" {
-			return fmt.Errorf("Axern runner requires managed agent approval_policy never")
+			return fmt.Errorf("Axern runner requires agent approval_policy never")
 		}
 		if runner == string(backend.NameLocal) && agent.ApprovalPolicy == "never" {
-			return fmt.Errorf("local runner does not allow managed agent approval_policy never")
+			return fmt.Errorf("local runner does not allow agent approval_policy never")
 		}
 	default:
 		if strings.TrimSpace(model) == "" {

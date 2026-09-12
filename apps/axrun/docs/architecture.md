@@ -25,37 +25,14 @@ TaskSetBuild
 The mounted agent image remains an independent read-only `ImageMount`. A task
 rootfs, agent bundle, and TaskSet workspace are three distinct resources.
 
-## Durable rollout control plane
+## Platform boundary
 
-Local TaskSet compilation remains useful for development. Production
-rollouts use `RolloutControl` and an internal leased-work protocol:
-
-```text
-Profile create/rotate -> controld transaction -> hidden credential version
-rollout plan/run      -> controld/PostgreSQL -> leased plan/episode work
-                                             -> axrun worker -> provider/Axern
-artifact download    -> gatewayd -> private ticket resolve -> object store
-```
-
-PostgreSQL is the source of truth for lifecycle, immutable plan data, episode
-generations, leases, events, usage reservations, and artifact metadata. Lease
-tokens and execution generations fence worker mutations. Workers resolve frozen
-credentials only while holding matching work and never persist plaintext in
-rollout records or evidence.
-
-The planning worker resolves the frozen Profile and performs the provider probe
-from worker networking. Controld schedules work, admits usage, and stores typed
-results; it does not call providers or create preflight sandboxes. Manual plans
-remain `READY` with `HELD` episode work until `StartRollout` releases the frozen
-plan.
-
-Managed provider calls use durable reservations even without an explicit
-budget. Evidence is content-addressed and committed before episode completion.
-
-Evidence downloads use artifact-bound tickets and gatewayd streaming; clients
-never receive internal object-store URLs or credentials. The complete state,
-metering, identity, and cleanup invariants are defined in the
-[durable rollout control-plane architecture](../../../docs/architecture/durable-rollout-control-plane.md).
+Axrun is an SDK consumer and reference workflow, not an Axern control-plane
+subsystem. It owns local rollout plans, episode state, trajectories, verifier
+results, rewards, and exports. Axern owns only the secure, rebuildable sandbox
+resources used to execute those episodes. Provider credentials and evaluation
+or training orchestration remain with the caller or a separate upper-layer
+system.
 
 ## Determinism and immutability
 

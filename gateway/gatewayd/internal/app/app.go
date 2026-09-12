@@ -6,10 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	artifactadapter "github.com/cofy-x/axern/gateway/gatewayd/internal/adapters/artifact"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/adapters/controlplane"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/adapters/nodebridge"
-	artifactapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/artifact"
 	controlapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/control"
 	httpapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/http"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/api/http/dashboard"
@@ -17,7 +15,6 @@ import (
 	nodeapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/node"
 	sshapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/ssh"
 	tunnelapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/tunnel"
-	artifactapp "github.com/cofy-x/axern/gateway/gatewayd/internal/application/artifact"
 	appservice "github.com/cofy-x/axern/gateway/gatewayd/internal/application/service"
 	term "github.com/cofy-x/axern/gateway/gatewayd/internal/application/terminal"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/auth"
@@ -80,8 +77,6 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 	}
 	controlServer.RegisterTunnelRelay(tunnelServer)
 	controlServer.RegisterNodeSandbox(nodeapi.New(controlClient, nodes, nodeOptions(cfg), metrics))
-	artifactService := artifactapp.New(controlClient, artifactadapter.New(cfg.ArtifactUpstreamTimeout), artifactapp.Options{MaxConcurrent: cfg.ArtifactMaxConcurrent, ChunkBytes: cfg.ArtifactChunkBytes, MaxBytes: cfg.ArtifactMaxBytes, Observer: metrics})
-	controlServer.RegisterArtifactData(artifactapi.New(artifactService))
 	var dashboardHandler *dashboard.Handler
 	if cfg.DashboardEnabled {
 		dashboardHandler, err = dashboard.New(token, cfg.DashboardVendorDir, dashboard.NewServiceReplicaResolver(controlClient.Gateway))

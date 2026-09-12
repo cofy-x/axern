@@ -10,7 +10,6 @@ import (
 	"time"
 
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
-	rolloutkernel "github.com/cofy-x/axern/control/controld/internal/kernel/rollout"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 )
 
@@ -39,36 +38,6 @@ func TestBootstrapResolveAndLastAdministratorGuard(t *testing.T) {
 	}
 	if _, err := store.RevokeBinding(ctx, actor.Principal.ID, bindings[0].ID, now); err == nil || !strings.Contains(err.Error(), "last active platform administrator") {
 		t.Fatalf("RevokeBinding(last admin)=%v", err)
-	}
-}
-
-func TestValidateRolloutExecutionLeaseIsNamespaceAndExpiryScoped(t *testing.T) {
-	db := newAccessTestDB(t)
-	store := NewStore(db)
-	ctx := context.Background()
-	now := time.Date(2026, 7, 30, 8, 0, 0, 0, time.UTC)
-	statements := []struct {
-		query string
-		args  []any
-	}{
-		{`INSERT INTO namespaces(namespace,version,created_at,updated_at) VALUES ('team-a',1,$1,$1),('team-b',1,$1,$1)`, []any{now}},
-		{`INSERT INTO rollouts(rollout_id,namespace,status,start_policy,spec,spec_hash,labels,version,created_at) VALUES ('rol-access','team-a','ROLLOUT_STATUS_RUNNING','ROLLOUT_START_POLICY_AUTO','{}','hash','{}',1,$1)`, []any{now}},
-		{`INSERT INTO rollout_episodes(episode_id,rollout_id,task_id,task_digest,attempt_index,execution_generation,status,created_at) VALUES ('ep-access','rol-access','task','digest',1,1,'EPISODE_STATUS_LEASED',$1)`, []any{now}},
-		{`INSERT INTO rollout_work_items(work_id,kind,rollout_id,episode_id,execution_generation,status,next_run_at,claim_owner,lease_token_hash,lease_expires_at,created_at,updated_at) VALUES ('wrk-access','WORK_KIND_EPISODE','rol-access','ep-access',1,'LEASED',$1,'worker',$2,$3,$1,$1)`, []any{now, rolloutkernel.HashToken("lease-token"), now.Add(time.Minute)}},
-	}
-	for _, statement := range statements {
-		if _, err := db.Pool().Exec(ctx, statement.query, statement.args...); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := store.ValidateRolloutExecutionLease(ctx, "lease-token", "team-a", now); err != nil {
-		t.Fatalf("valid lease: %v", err)
-	}
-	if err := store.ValidateRolloutExecutionLease(ctx, "lease-token", "team-b", now); err == nil {
-		t.Fatal("cross-namespace lease succeeded")
-	}
-	if err := store.ValidateRolloutExecutionLease(ctx, "lease-token", "team-a", now.Add(2*time.Minute)); err == nil {
-		t.Fatal("expired lease succeeded")
 	}
 }
 

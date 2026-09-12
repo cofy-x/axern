@@ -22,28 +22,12 @@ plane and node state.
   reporting
 - gateway route and terminal target resolution
 - control-plane-managed secret metadata, encryption, and resolution
-- namespace-scoped Agent Profiles with hidden immutable credential versions,
-  optimistic updates, rotation, and frozen rollout snapshots
-- durable rollout planning/READY/start, episode work, usage reservations,
-  diagnosis, artifact inventory, and signed download-ticket authority
 - read-only runtime catalog and debug HTTP surfaces
 
 `controld` does not own realtime exec, terminal streaming, or service HTTP
 proxying. Realtime execution still goes to selected nodes through the current
 SDK path, and `gatewayd` owns external control/data-plane forwarding after
 resolving routes here.
-
-`controld` also never calls an LLM provider. Profile doctor and rollout
-preflight are leased to `axrun worker`, which performs the real provider/model
-probe from worker networking and returns typed checks plus metered usage.
-`controld` owns only durable state, scheduling, frozen Profile/credential
-snapshots, budget admission, and result persistence. Artifact bytes are served
-by gatewayd; controld's private artifact API only resolves validated tickets
-to short-lived internal object-store requests after verifying gatewayd's
-dedicated certificate identity. Generic platform client certificates cannot
-call that resolver. Managed provider usage is committed durably even without an
-explicit budget, and completion is rejected if its usage differs from the
-named reservation.
 
 Service create persists desired state and returns before node startup. A
 bounded, service-ID-keyed in-process queue coalesces create and actionable
@@ -64,7 +48,7 @@ per-node allocation-create ceiling are explicit deployment settings. They let
 control-plane throughput scale with the number of runtime nodes while
 preserving a hard process limit and protecting each axnoded independently.
 
-Periodic rollout, run, node, Service, and tunnel maintenance runs in
+Periodic run, node, Service, and tunnel maintenance runs in
 independent component loops. A slow dependency in one component therefore does
 not block the cadence of unrelated controllers. Each loop is non-overlapping
 and inherits the process lifecycle context. Short maintenance loops have a
@@ -90,32 +74,6 @@ used by `controld` must therefore preserve session semantics for the listener.
 `axern_controld_service_watch_current{axern_state="active|listener_ready"}`
 exposes stream fanout and listener health without service-ID labels.
 
-Managed rollout event watches and worker claim long-polls use one additional
-dedicated PostgreSQL session per `controld` replica. That session listens for
-both rollout event and work changes and fans bounded wakeups out to local
-waiters, so idle workers and event streams do not consume the query pool.
-New candidate work wakes one compatible FIFO waiter per replica. A candidate
-may have a future `next_run_at`, so the authoritative readiness query can still
-decline it until due. Capacity
-release wakes at most one waiter in each distinct capability group, while lease
-renewal and other non-actionable updates emit no work notification. Worker
-sessions and capabilities are re-read before a long-poll, and the same durable
-eligibility predicate is used by both readiness checks and transactional
-claims. Jittered long-poll expiry remains the missed-notification safety path.
-Notifications remain hints: event streams resume from durable sequence numbers,
-and workers claim authoritative rows transactionally after every wakeup or
-timeout. Listener failure ends current waits with a retryable error while the
-shared session reconnects with bounded backoff.
-`axern_controld_rollout_notification_current{axern_state="event_waiters|work_waiters|listener_ready"}`
-exposes local fanout and listener health without rollout or worker labels.
-`axern_controld_rollout_work_notification_total`,
-`axern_controld_rollout_work_wakeup_total`,
-`axern_controld_rollout_work_claim_total`,
-`axern_controld_rollout_work_claim_duration_seconds`, and
-`axern_controld_rollout_work_claim_lag_seconds` expose bounded wake amplification
-and claim-path outcomes. `axern_controld_rollout_work_queue_current` and
-`axern_controld_rollout_work_oldest_due_age_seconds` expose durable queue lag.
-
 Runtime-slot admission consumes only axnoded's aggregate `runtime_slots`
 summary. Individual cgroup and interface pools are diagnostic details.
 `ReportNode` rejects summaries that omit `runtime_slots`; releases that add a
@@ -130,9 +88,8 @@ transitions use a queue separate from create/delete lifecycle work. The shared
 [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md)
 document is the canonical contract for provider evidence and loss policy.
 
-Rootfs locality covers local directories and registry images (OCI/Nydus),
-not raw object-store mounts. S3-compatible rollout artifact storage remains
-independent of rootfs placement.
+Rootfs locality covers local directories and registry images (OCI/Nydus), not
+raw object-store mounts.
 
 Sandbox egress policy is normalized during API validation and contributes a
 derived DNS-policy or strict-egress capability requirement. A node without the
@@ -206,8 +163,7 @@ go run ./control/controld/cmd/migrate \
 
 go run ./control/controld/cmd/access-bootstrap \
   -postgres-dsn "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable" \
-  -certificate .dev/certs/client.crt \
-  -rollout-worker-certificate .dev/certs/rollout-worker.crt
+  -certificate .dev/certs/client.crt
 
 go run ./control/controld/cmd/retention \
   -postgres-dsn "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable"
@@ -254,19 +210,14 @@ Public product APIs:
 - `sdk/proto/axern/control/service/v1/service.proto`
 - `sdk/proto/axern/control/quota/v1/quota.proto`
 - `sdk/proto/axern/control/tunnel/v1/tunnel.proto`
-- `sdk/proto/axern/control/agentprofile/v1/agent_profile.proto`
-- `sdk/proto/axern/control/rollout/v1/rollout.proto`
 
 Control-plane coordination and internal calls:
 
 - `sdk/proto/axern/control/node/v1/node_control.proto`
 - `sdk/proto/axern/private/node/lifecycle/v1/lifecycle.proto`
-- `sdk/proto/axern/private/rollout/worker/v1/worker.proto`
-- `sdk/proto/axern/private/rollout/artifact/v1/artifact.proto`
 
 Persistent-volume product APIs are not supported. Sandbox-lifetime writable
-rootfs and workspace-image preparation stay on the allocation path; durable
-artifact storage is separate.
+rootfs and workspace-image preparation stay on the allocation path.
 
 The HTTP listener exposes diagnostics and internal runtime artifact downloads.
 Diagnostic endpoints are read-only:

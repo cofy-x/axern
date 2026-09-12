@@ -53,10 +53,6 @@ type Config struct {
 	TerminalMaxMessageBytes      int64
 	LeaseRetryAttempts           int
 	LeaseRetryBaseDelay          time.Duration
-	ArtifactMaxConcurrent        int
-	ArtifactChunkBytes           int
-	ArtifactUpstreamTimeout      time.Duration
-	ArtifactMaxBytes             int64
 	LogLevel                     string
 }
 

@@ -69,45 +69,11 @@ resolved task ids, task counts, attempts, selected split/shard metadata,
 episode ids, and execution order. Resume reads the plan instead of resolving a
 mutable tag or reopening build paths.
 
-For a managed rollout, the durable plan also freezes the TaskSet source and
-descriptor digests, ordered OCI/Nydus payload variants, immutable agent bundle
-digest, resolved task IDs, Profile identity/name/version, and credential
-version plus an internal-only credential reference. The public Rollout never
-contains that internal reference.
-
-### AgentProfile
-
-`AgentProfile` is a namespace-scoped, versioned provider configuration. It
-contains agent, provider, wire API, HTTPS base URL, maximum concurrency, labels,
-Profile version, and credential version. Its credential is an owned encrypted,
-immutable internal version: it is neither a generic user Secret nor a public
-Profile field. Rotate changes the Profile and credential version atomically;
-already accepted Rollouts retain their frozen version. Scheduling applies
-`max_concurrency` to the frozen Profile ID/version group, so later Profile
-updates cannot change admission for an existing READY or running Rollout.
-
-### PreflightReport
-
-`PreflightReport` is produced by a leased planning worker and saved by
-controld. It records descriptor/source digests, task and episode counts,
-Profile and credential versions, agent bundle digest, payload variants, typed
-TaskSet/selection/Profile/provider/runtime/worker/budget checks, warnings, and
-probe usage/cost. Provider HTTP execution belongs to the worker; controld only
-schedules the lease, resolves the frozen snapshot, admits usage, and persists
-the report.
-
 ### Episode
 
 `Episode` is one attempt for one task under one rollout. It records task id,
 attempt index, runner, status, exit reason, timing, usage, cost, verifier and
 reward refs, artifact refs, and terminal completion metadata.
-
-Managed episodes also store node-observed execution facts: the selected
-workspace payload format and digest, cache result, image resolution/pull and
-COW preparation durations, verifier materialization duration, allocation and
-node identity, runtime class, and frozen agent bundle digest. These values are
-transported through typed allocation and sandbox contracts rather than inferred
-from logs or descriptor preference order.
 
 An episode is complete only when it has a terminal status and the required
 sidecars are present according to schema validation.
@@ -133,11 +99,6 @@ sources. Refs are run-root-relative inside run records. Large bodies stay in
 files and are not embedded in JSON records. Executed episodes publish
 `artifact_manifest_path` as the stable index for present, missing, or failed
 artifact capture.
-
-Managed artifacts additionally have durable metadata: artifact ID, rollout and
-episode generation, kind/name/media type, exact size, SHA-256, status, and
-object key. The object key is internal. Public downloads use an artifact-bound
-ticket and gatewayd stream; an object-store URL is not part of this model.
 
 ### ExportRecord
 
@@ -211,20 +172,6 @@ The Axern backend sends ordered Nydus/OCI workspace variants to axnoded. It does
 not upload the compiled workspace archive per episode. Local execution copies
 from the local bundle to provide functional equivalence without the production
 performance guarantee.
-
-## Managed Lifecycle Boundary
-
-`rollout plan` creates manual-start durable state. The planning worker may
-produce tasks and a preflight report, after which controld writes `READY` and
-keeps every episode work item `HELD`. `rollout start` atomically changes only
-those held items to claimable work. `rollout run` uses auto-start and waits for
-terminal state unless explicitly detached. Watch event sequence is monotonic
-PostgreSQL state and is the resume cursor after a stream reconnect.
-
-Profile credentials are resolved only for the matching active work lease.
-READY and running Rollouts never re-read the current Profile. A credential
-version can be collected only when no Profile, Rollout snapshot, or doctor job
-references it.
 
 ## Schema Rules
 

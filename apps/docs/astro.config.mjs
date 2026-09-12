@@ -79,7 +79,7 @@ const sidebar = [
     label: 'Axrun',
     translations: { 'zh-CN': 'Axrun' },
     items: [
-      { label: 'Managed Rollouts', translations: { 'zh-CN': '托管 Rollout' }, link: '/axrun/' },
+      { label: 'Agent Workflows', translations: { 'zh-CN': 'Agent 工作流' }, link: '/axrun/' },
       { label: 'TaskSets and Local Workflows', translations: { 'zh-CN': 'TaskSet 与本地工作流' }, link: '/axrun/local-workflows/' },
     ],
   },

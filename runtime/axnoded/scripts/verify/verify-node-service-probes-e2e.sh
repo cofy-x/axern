@@ -194,8 +194,7 @@ export AXERN_TLS_KEY="${cert_dir}/client.key"
   -principal-name local-admin \
   -display-name "Local Administrator" \
   -credential-label local-client \
-  -certificate "${cert_dir}/client.crt" \
-  -rollout-worker-certificate "${cert_dir}/rollout-worker.crt"
+  -certificate "${cert_dir}/client.crt"
 
 AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE="${PYTHON_RUNTIME_IMAGE_REF}" \
   "${CONTROLD_BIN}" \

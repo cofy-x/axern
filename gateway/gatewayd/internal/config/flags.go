@@ -40,10 +40,6 @@ func newFlagSet(cfg *Config) *flag.FlagSet {
 	flags.Int64Var(&cfg.TerminalMaxMessageBytes, "terminal-max-message-bytes", cfg.TerminalMaxMessageBytes, "terminal websocket maximum message bytes")
 	flags.IntVar(&cfg.LeaseRetryAttempts, "lease-retry-attempts", cfg.LeaseRetryAttempts, "terminal and NodeSandbox execution lease attempts")
 	flags.DurationVar(&cfg.LeaseRetryBaseDelay, "lease-retry-base-delay", cfg.LeaseRetryBaseDelay, "transient lease retry base delay")
-	flags.IntVar(&cfg.ArtifactMaxConcurrent, "artifact-max-concurrent", cfg.ArtifactMaxConcurrent, "maximum concurrent artifact downloads")
-	flags.IntVar(&cfg.ArtifactChunkBytes, "artifact-chunk-bytes", cfg.ArtifactChunkBytes, "artifact gRPC stream chunk size")
-	flags.DurationVar(&cfg.ArtifactUpstreamTimeout, "artifact-upstream-timeout", cfg.ArtifactUpstreamTimeout, "artifact object-store response header timeout")
-	flags.Int64Var(&cfg.ArtifactMaxBytes, "artifact-max-bytes", cfg.ArtifactMaxBytes, "maximum artifact size")
 	flags.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "log level: debug|info|warn|error")
 	return flags
 }

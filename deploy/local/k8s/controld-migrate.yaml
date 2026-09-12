@@ -26,8 +26,7 @@ spec:
                 -principal-name local-admin \
                 -display-name 'Local Administrator' \
                 -credential-label local-client \
-                -certificate /certs/client.crt \
-                -rollout-worker-certificate /certs/rollout-worker.crt
+                -certificate /certs/client.crt
           volumeMounts:
             - name: certs
               mountPath: /certs

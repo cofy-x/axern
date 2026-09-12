@@ -34,8 +34,6 @@ func TestMetricsUseUnifiedOTelPipeline(t *testing.T) {
 	metrics.LeaseRetry("service")
 	metrics.ObserveServiceProxyStage("route_resolve", "ok", "", "GET", time.Millisecond)
 	metrics.TerminalEvent("open")
-	finishArtifact := metrics.BeginArtifactDownload(true)
-	finishArtifact(128, "ok", "none")
 	releaseHTTP()
 	releaseTerminal()
 
@@ -58,10 +56,6 @@ func TestMetricsUseUnifiedOTelPipeline(t *testing.T) {
 		MetricLeaseRetryTotal.Name,
 		MetricServiceProxyStageDuration.Name,
 		MetricTerminalEventTotal.Name,
-		MetricArtifactDownloadsCurrent.Name,
-		MetricArtifactDownloadsTotal.Name,
-		MetricArtifactDownloadBytesTotal.Name,
-		MetricArtifactDownloadDuration.Name,
 	} {
 		if !names[want] {
 			t.Fatalf("OTel metrics missing %q: %v", want, names)

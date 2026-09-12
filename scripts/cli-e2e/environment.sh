@@ -78,8 +78,7 @@ setup_e2e_environment() {
     -principal-name cli-e2e-admin \
     -display-name "CLI E2E Administrator" \
     -credential-label cli-e2e-client \
-    -certificate "${cert_dir}/client.crt" \
-    -rollout-worker-certificate "${cert_dir}/rollout-worker.crt"
+    -certificate "${cert_dir}/client.crt"
 
   AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE="${PYTHON_RUNTIME_IMAGE_REF}" \
     "${AXERN_ROOT}/bin/controld" \

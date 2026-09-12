@@ -26,8 +26,6 @@ func (a *App) registerClusterMetrics() error {
 		{ctrlobs.MetricServicesCurrent, a.observeServices},
 		{ctrlobs.MetricServiceReplicasCurrent, a.observeServiceReplicas},
 		{ctrlobs.MetricServiceWatchCurrent, a.observeServiceWatch},
-		{ctrlobs.MetricRolloutNotificationCurrent, a.observeRolloutNotifications},
-		{ctrlobs.MetricRolloutWorkQueueCurrent, a.observeRolloutWorkQueue},
 		{ctrlobs.MetricAllocationsCurrent, a.observeAllocations},
 		{ctrlobs.MetricNodeAllocationsCurrent, a.observeNodeAllocations},
 		{ctrlobs.MetricAllocationReconcileQueueCurrent, a.observeAllocationReconcileQueue},
@@ -55,7 +53,6 @@ func (a *App) registerClusterMetrics() error {
 		callback   sdkobs.Float64GaugeCallback
 	}{
 		{ctrlobs.MetricResourcePolicyCurrent, a.observeResourcePolicy},
-		{ctrlobs.MetricRolloutWorkOldestDueAge, a.observeRolloutWorkOldestDueAge},
 	} {
 		registration, err := sdkobs.RegisterFloat64ObservableGauge(spec.instrument.Name, spec.instrument.Description, spec.callback)
 		if err != nil {

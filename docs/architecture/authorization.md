@@ -53,19 +53,12 @@ resolve the authoritative namespace from PostgreSQL; an unauthorized lookup by
 opaque resource ID returns `NotFound` so the resource cannot be enumerated.
 List operations require or derive a namespace and return only authorized rows.
 
-`rollout_executor` is an internal service role and is not grantable through the
-public AccessAdmin API. A managed worker can execute public resource and sandbox
-operations only while presenting its current durable rollout work lease. The
-lease is stored as a hash, expires with the work claim, and is valid only in the
-owning rollout namespace. The worker's long-lived certificate alone grants no
-namespace resource authority.
-
 ## Bootstrap And Rotation
 
 Database migration does not create an implicit administrator. The separate
 `controld-access-bootstrap` entrypoint creates the first platform Principal,
-its credential, and the managed rollout worker service Principal before
-controld starts. Bootstrap is serialized and exactly idempotent: once access
+its credential before controld starts. Bootstrap is serialized and exactly
+idempotent: once access
 state exists, different identity material is rejected.
 
 After bootstrap, use the public API through gatewayd:

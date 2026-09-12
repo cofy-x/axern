@@ -79,20 +79,4 @@ var (
 		Name:        "axern.gateway_route_cache_entries_current",
 		Description: "Current bounded gateway route cache state.",
 	}
-	MetricArtifactDownloadsCurrent = sdkobs.Instrument{
-		Name:        "axern.gateway_artifact_downloads_current",
-		Description: "Current gateway artifact downloads.",
-	}
-	MetricArtifactDownloadsTotal = sdkobs.Instrument{
-		Name:        "axern.gateway_artifact_downloads_total",
-		Description: "Gateway artifact download results.",
-	}
-	MetricArtifactDownloadBytesTotal = sdkobs.Instrument{
-		Name:        "axern.gateway_artifact_download_bytes_total",
-		Description: "Artifact bytes streamed through the gateway.",
-	}
-	MetricArtifactDownloadDuration = sdkobs.Instrument{
-		Name:        "axern.gateway_artifact_download_duration_seconds",
-		Description: "Gateway artifact download duration.",
-	}
 )

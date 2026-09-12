@@ -61,6 +61,5 @@ Service specification and let its immutable revision roll out.
 :::note
 Secrets hold platform credential material such as registry pulls. Agent
 provider tokens have dedicated stores that keep plaintext out of generic
-APIs: local `axern agent` profiles for interactive workspaces, and versioned
-[Axrun profiles](/axrun/) for managed rollouts.
+APIs: local `axern agent` or Axrun profiles for client-side agent execution.
 :::

@@ -84,13 +84,13 @@ CREATE TABLE role_bindings (
 	principal_id TEXT NOT NULL REFERENCES principals(principal_id),
 	scope_type TEXT NOT NULL CHECK (scope_type IN ('platform', 'namespace')),
 	namespace TEXT,
-	role TEXT NOT NULL CHECK (role IN ('platform_admin', 'namespace_admin', 'namespace_editor', 'namespace_viewer', 'rollout_executor')),
+	role TEXT NOT NULL CHECK (role IN ('platform_admin', 'namespace_admin', 'namespace_editor', 'namespace_viewer')),
 	created_by_principal_id TEXT REFERENCES principals(principal_id),
 	created_at TIMESTAMPTZ NOT NULL,
 	revoked_by_principal_id TEXT REFERENCES principals(principal_id),
 	revoked_at TIMESTAMPTZ,
 	CHECK (
-		(scope_type = 'platform' AND namespace IS NULL AND role IN ('platform_admin', 'rollout_executor')) OR
+		(scope_type = 'platform' AND namespace IS NULL AND role = 'platform_admin') OR
 		(scope_type = 'namespace' AND namespace IS NOT NULL AND role IN ('namespace_admin', 'namespace_editor', 'namespace_viewer'))
 	),
 	CHECK ((revoked_at IS NULL AND revoked_by_principal_id IS NULL) OR (revoked_at IS NOT NULL AND revoked_by_principal_id IS NOT NULL))
@@ -128,10 +128,7 @@ CREATE TABLE secrets (
 	labels JSONB NOT NULL,
 	version BIGINT NOT NULL DEFAULT 1,
 	created_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL,
-	visibility TEXT NOT NULL DEFAULT 'PUBLIC',
-	owner_type TEXT NOT NULL DEFAULT '',
-	owner_id TEXT NOT NULL DEFAULT ''
+	updated_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE runs (

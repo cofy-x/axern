@@ -80,15 +80,6 @@ cliapp -> commands -> application -> rollout/taskset/localstore/domain
   status reads, but it must not become a separate execution engine.
 - Keep SSE phase events, rollout error codes, artifact manifests, and diagnosis
   evidence aligned with `apps/axrun/docs/rollout-evidence.md`.
-- Managed provider probes run in the leased Axrun worker network. Do not move
-  provider clients into controld; it owns state, scheduling, frozen snapshots,
-  metering admission, and typed result persistence.
-- Public artifact download is gatewayd mTLS gRPC streaming. Axrun must not
-  expose or consume internal S3 URLs, object-store credentials, or tickets in
-  logs and stable output.
-- Every managed provider probe and episode is durably metered, including
-  rollouts without an explicit budget. Upload evidence before committing
-  episode usage, and send the committed reservation ID with completion.
 
 ## Design Policy
 
@@ -116,7 +107,6 @@ go test ./apps/axrun/...
 go vet ./apps/axrun/...
 test -z "$(gofmt -l apps/axrun)"
 make axrun-local-smoke
-make axrun-managed-rollout-compose-e2e
 make agent-doc-check
 ```
 

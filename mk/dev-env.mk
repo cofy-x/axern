@@ -1,7 +1,7 @@
 .PHONY: quickstart quickstart-source axern-config-init \
 		local-images-build local-node-images-build nydus-builder-image registry-nydus-image-build \
 		local-compose-up local-compose-down local-compose-status local-compose-purge local-compose-reset local-compose-refresh local-compose-refresh-verify local-compose-image-import local-compose-image-service-smoke local-compose-registry-image-smoke local-compose-image-mount-smoke local-compose-agent-bundle-matrix-smoke local-compose-claude-code-image-mount-smoke local-compose-codex-image-mount-smoke local-compose-nydus-smoke \
-		local-compose-smoke local-compose-doctor-smoke local-compose-dns-doctor-smoke local-compose-gateway-smoke local-compose-gateway-ssh-e2e local-compose-run-smoke local-compose-server-base-smoke local-compose-quota-smoke local-compose-tunnel-e2e local-compose-python-sdk-e2e local-compose-computer-use-e2e local-compose-go-sdk-e2e local-compose-managed-rollout-e2e tunnel-benchmark-compose \
+		local-compose-smoke local-compose-doctor-smoke local-compose-dns-doctor-smoke local-compose-gateway-smoke local-compose-gateway-ssh-e2e local-compose-run-smoke local-compose-server-base-smoke local-compose-quota-smoke local-compose-tunnel-e2e local-compose-python-sdk-e2e local-compose-computer-use-e2e local-compose-go-sdk-e2e tunnel-benchmark-compose \
 		kind-up kind-down kind-status kind-purge kind-reset kind-refresh kind-refresh-verify registry-up registry-status registry-down registry-image-push kind-image-import kind-image-service-smoke kind-axern-registry-image-smoke kind-axern-nydus-smoke kind-smoke kind-gateway-smoke kind-run-smoke kind-server-base-smoke kind-quota-smoke kind-tunnel-e2e kind-tunnel-relay-e2e kind-tunnel-multirelay-e2e kube-env-kind \
 		local-refresh-verify local-truth-verify \
 		sdk-go-examples-smoke
@@ -108,9 +108,6 @@ local-compose-computer-use-e2e: ## Verify desktop-base sandboxd desktop APIs in 
 
 local-compose-go-sdk-e2e: ## Verify the Go SDK programmable Sandbox flow in compose
 	bash $(ROOTDIR)/scripts/dev-env/compose-go-sdk-e2e.sh
-
-local-compose-managed-rollout-e2e: local-compose-up ## Verify managed rollout with the local-only deterministic provider
-	bash $(ROOTDIR)/scripts/dev-env/compose-managed-rollout-e2e.sh
 
 tunnel-benchmark-compose: ## Record tunnel performance baseline in the compose truth environment
 	bash $(ROOTDIR)/scripts/dev-env/compose-tunnel-benchmark.sh

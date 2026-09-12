@@ -8,27 +8,15 @@ import (
 	"os"
 	"time"
 
-	artifactkernel "github.com/cofy-x/axern/gateway/gatewayd/internal/kernel/artifact"
 	"github.com/cofy-x/axern/lib/go/grpcclient"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
-	artifactaccessv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/rollout/artifact/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
 type Client struct {
-	conn           *grpc.ClientConn
-	Gateway        gatewayv1.GatewayControlClient
-	ArtifactAccess artifactaccessv1.ArtifactAccessClient
-}
-
-func (c *Client) ResolveArtifactTicket(ctx context.Context, ticket string, offset int64) (artifactkernel.Resolved, error) {
-	response, err := c.ArtifactAccess.ResolveDownloadTicket(ctx, &artifactaccessv1.ResolveDownloadTicketRequest{Ticket: ticket, Offset: offset})
-	if err != nil {
-		return artifactkernel.Resolved{}, err
-	}
-	artifact := response.GetArtifact()
-	return artifactkernel.Resolved{Size: artifact.GetSizeBytes(), Digest: artifact.GetDigest(), URL: response.GetUrl(), Headers: response.GetHeaders()}, nil
+	conn    *grpc.ClientConn
+	Gateway gatewayv1.GatewayControlClient
 }
 
 func Dial(ctx context.Context, target, caPath, certPath, keyPath string, timeout time.Duration, dialOptions ...grpc.DialOption) (*Client, error) {
@@ -62,9 +50,8 @@ func Dial(ctx context.Context, target, caPath, certPath, keyPath string, timeout
 		return nil, err
 	}
 	return &Client{
-		conn:           conn,
-		Gateway:        gatewayv1.NewGatewayControlClient(conn),
-		ArtifactAccess: artifactaccessv1.NewArtifactAccessClient(conn),
+		conn:    conn,
+		Gateway: gatewayv1.NewGatewayControlClient(conn),
 	}, nil
 }
 

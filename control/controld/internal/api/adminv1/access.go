@@ -116,8 +116,6 @@ func role(value adminv1.AccessRole) accesskernel.Role {
 		return accesskernel.RoleNamespaceEditor
 	case adminv1.AccessRole_ACCESS_ROLE_NAMESPACE_VIEWER:
 		return accesskernel.RoleNamespaceViewer
-	case adminv1.AccessRole_ACCESS_ROLE_ROLLOUT_EXECUTOR:
-		return accesskernel.RoleRolloutExecutor
 	default:
 		return ""
 	}
@@ -133,7 +131,7 @@ func credentialProto(c accesskernel.Credential) *adminv1.PrincipalCredential {
 	return out
 }
 func bindingProto(b accesskernel.Binding) *adminv1.RoleBinding {
-	out := &adminv1.RoleBinding{BindingID: b.ID, PrincipalID: b.PrincipalID, ScopeType: map[accesskernel.ScopeType]adminv1.AccessScopeType{accesskernel.ScopePlatform: adminv1.AccessScopeType_ACCESS_SCOPE_TYPE_PLATFORM, accesskernel.ScopeNamespace: adminv1.AccessScopeType_ACCESS_SCOPE_TYPE_NAMESPACE}[b.Scope], Namespace: b.Namespace, Role: map[accesskernel.Role]adminv1.AccessRole{accesskernel.RolePlatformAdmin: adminv1.AccessRole_ACCESS_ROLE_PLATFORM_ADMIN, accesskernel.RoleNamespaceAdmin: adminv1.AccessRole_ACCESS_ROLE_NAMESPACE_ADMIN, accesskernel.RoleNamespaceEditor: adminv1.AccessRole_ACCESS_ROLE_NAMESPACE_EDITOR, accesskernel.RoleNamespaceViewer: adminv1.AccessRole_ACCESS_ROLE_NAMESPACE_VIEWER, accesskernel.RoleRolloutExecutor: adminv1.AccessRole_ACCESS_ROLE_ROLLOUT_EXECUTOR}[b.Role], CreatedByPrincipalID: b.CreatedByPrincipalID, CreatedAt: timestamppb.New(b.CreatedAt), RevokedByPrincipalID: b.RevokedByPrincipalID}
+	out := &adminv1.RoleBinding{BindingID: b.ID, PrincipalID: b.PrincipalID, ScopeType: map[accesskernel.ScopeType]adminv1.AccessScopeType{accesskernel.ScopePlatform: adminv1.AccessScopeType_ACCESS_SCOPE_TYPE_PLATFORM, accesskernel.ScopeNamespace: adminv1.AccessScopeType_ACCESS_SCOPE_TYPE_NAMESPACE}[b.Scope], Namespace: b.Namespace, Role: map[accesskernel.Role]adminv1.AccessRole{accesskernel.RolePlatformAdmin: adminv1.AccessRole_ACCESS_ROLE_PLATFORM_ADMIN, accesskernel.RoleNamespaceAdmin: adminv1.AccessRole_ACCESS_ROLE_NAMESPACE_ADMIN, accesskernel.RoleNamespaceEditor: adminv1.AccessRole_ACCESS_ROLE_NAMESPACE_EDITOR, accesskernel.RoleNamespaceViewer: adminv1.AccessRole_ACCESS_ROLE_NAMESPACE_VIEWER}[b.Role], CreatedByPrincipalID: b.CreatedByPrincipalID, CreatedAt: timestamppb.New(b.CreatedAt), RevokedByPrincipalID: b.RevokedByPrincipalID}
 	if b.RevokedAt != nil {
 		out.RevokedAt = timestamppb.New(*b.RevokedAt)
 	}

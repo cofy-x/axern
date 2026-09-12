@@ -13,7 +13,7 @@ func TestNewRegistersCoreCommands(t *testing.T) {
 	for _, command := range app.Commands() {
 		commands[command.Name()] = true
 	}
-	for _, name := range []string{"task", "profile", "rollout", "export", "validate", "serve"} {
+	for _, name := range []string{"task", "rollout", "export", "validate", "serve"} {
 		if !commands[name] {
 			t.Fatalf("command %q is not registered", name)
 		}
@@ -28,7 +28,7 @@ func TestHelpIncludesCompletionAndStableRolloutCommands(t *testing.T) {
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"completion", "profile", "rollout", "validate", "export", "serve"} {
+	for _, name := range []string{"completion", "rollout", "validate", "export", "serve"} {
 		if !strings.Contains(out.String(), name) {
 			t.Fatalf("help missing %q:\n%s", name, out.String())
 		}

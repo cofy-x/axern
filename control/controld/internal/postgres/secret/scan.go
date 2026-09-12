@@ -21,21 +21,7 @@ func getRecordTx(ctx context.Context, q rowQuery, id string) (*secretv1.Secret, 
 	row := q.QueryRow(ctx, `
 		SELECT secret_id, namespace, type, data_keys, labels, version, created_at, updated_at, encrypted_payload
 		FROM secrets
-		WHERE secret_id = $1 AND visibility = 'PUBLIC'
-	`, strings.TrimSpace(id))
-	secret, err := scanSecretMetadataWithCiphertext(row, &ciphertext)
-	if err != nil {
-		return nil, nil, err
-	}
-	return secret, ciphertext, nil
-}
-
-func getProfileCredentialRecordTx(ctx context.Context, q rowQuery, id string) (*secretv1.Secret, []byte, error) {
-	var ciphertext []byte
-	row := q.QueryRow(ctx, `
-		SELECT secret_id, namespace, type, data_keys, labels, version, created_at, updated_at, encrypted_payload
-		FROM secrets
-		WHERE secret_id = $1 AND visibility = 'INTERNAL' AND owner_type = 'AGENT_PROFILE'
+		WHERE secret_id = $1
 	`, strings.TrimSpace(id))
 	secret, err := scanSecretMetadataWithCiphertext(row, &ciphertext)
 	if err != nil {

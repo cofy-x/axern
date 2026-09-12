@@ -346,8 +346,7 @@ run_access_bootstrap() {
     -principal-name local-admin \
     -display-name "Local Administrator" \
     -credential-label local-client \
-    -certificate "${DEV_DIR}/certs/client.crt" \
-    -rollout-worker-certificate "${DEV_DIR}/certs/rollout-worker.crt"
+    -certificate "${DEV_DIR}/certs/client.crt"
 }
 
 start_controld() {

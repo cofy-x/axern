@@ -183,38 +183,6 @@ var (
 		Name:        "axern.controld_service_watch_current",
 		Description: "Current service watch streams and PostgreSQL listener readiness by state.",
 	}
-	MetricRolloutNotificationCurrent = sdkobs.Instrument{
-		Name:        "axern.controld_rollout_notification_current",
-		Description: "Current rollout event and work waiters plus PostgreSQL listener readiness by state.",
-	}
-	MetricRolloutWorkNotificationTotal = sdkobs.Instrument{
-		Name:        "axern.controld_rollout_work_notification_total",
-		Description: "Rollout work notifications consumed by action and bounded dispatch result.",
-	}
-	MetricRolloutWorkWakeupTotal = sdkobs.Instrument{
-		Name:        "axern.controld_rollout_work_wakeup_total",
-		Description: "Rollout worker long-poll waiters woken by actionable notification type.",
-	}
-	MetricRolloutWorkClaimTotal = sdkobs.Instrument{
-		Name:        "axern.controld_rollout_work_claim_total",
-		Description: "Rollout work claim attempts by bounded result.",
-	}
-	MetricRolloutWorkClaimDuration = sdkobs.Instrument{
-		Name:        "axern.controld_rollout_work_claim_duration_seconds",
-		Description: "Rollout work claim transaction latency by bounded result.",
-	}
-	MetricRolloutWorkClaimLag = sdkobs.Instrument{
-		Name:        "axern.controld_rollout_work_claim_lag_seconds",
-		Description: "Time claimable rollout work waited past its durable due time.",
-	}
-	MetricRolloutWorkQueueCurrent = sdkobs.Instrument{
-		Name:        "axern.controld_rollout_work_queue_current",
-		Description: "Current rollout work rows by bounded scheduling state.",
-	}
-	MetricRolloutWorkOldestDueAge = sdkobs.Instrument{
-		Name:        "axern.controld_rollout_work_oldest_due_age_seconds",
-		Description: "Age of the oldest due rollout work row by bounded scheduling state.",
-	}
 	MetricAllocationsCurrent = sdkobs.Instrument{
 		Name:        "axern.controld_allocations_current",
 		Description: "Current allocation count by owner, status, and readiness.",
@@ -318,9 +286,5 @@ var (
 	MetricRetentionDuration = sdkobs.Instrument{
 		Name:        "axern.controld_retention_duration_seconds",
 		Description: "controld retention cleanup latency.",
-	}
-	MetricArtifactTicketTotal = sdkobs.Instrument{
-		Name:        "axern.controld_artifact_ticket_total",
-		Description: "Rollout artifact ticket issue and resolve requests by bounded result.",
 	}
 )

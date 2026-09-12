@@ -24,7 +24,6 @@ func (s *Store) List(ctx context.Context, filter *secretv1.SecretListFilter) ([]
 	rows, err := s.db.Pool().Query(ctx, `
 		SELECT secret_id, namespace, type, data_keys, labels, version, created_at, updated_at
 		FROM secrets
-		WHERE visibility = 'PUBLIC'
 		ORDER BY created_at DESC, secret_id DESC
 	`)
 	if err != nil {
@@ -52,7 +51,7 @@ func (s *Store) Delete(ctx context.Context, id string) (*secretv1.Secret, bool, 
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM secrets WHERE secret_id = $1 AND visibility = 'PUBLIC'`, strings.TrimSpace(id)); err != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM secrets WHERE secret_id = $1`, strings.TrimSpace(id)); err != nil {
 			return fmt.Errorf("delete secret: %w", err)
 		}
 		deleted = record

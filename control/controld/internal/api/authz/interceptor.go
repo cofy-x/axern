@@ -23,12 +23,10 @@ import (
 )
 
 const ClientCertificateFingerprintMetadata = "x-axern-internal-client-cert-sha256"
-const RolloutExecutionLeaseMetadata = "x-axern-rollout-work-lease"
 
 type AccessResolver interface {
 	ResolveActor(context.Context, [32]byte) (accesskernel.Actor, error)
 	ResolveResourceNamespace(context.Context, string, string) (string, error)
-	ValidateRolloutExecutionLease(context.Context, string, string) error
 }
 
 type Interceptor struct {
@@ -60,15 +58,6 @@ func (i *Interceptor) Unary(ctx context.Context, req any, info *grpc.UnaryServer
 		}
 		return handler(ctx, req)
 	}
-	if isRolloutWorkerMethod(info.FullMethod) {
-		actorCtx, err := i.authenticateRolloutWorker(ctx)
-		if err != nil {
-			recordDecision(ctx, accesskernel.ActionRolloutWorkExecute, "unauthenticated")
-			return nil, err
-		}
-		recordDecision(actorCtx, accesskernel.ActionRolloutWorkExecute, "allow")
-		return handler(actorCtx, req)
-	}
 	policy, protected := publicPolicy(info.FullMethod)
 	if !protected {
 		if isUnclassifiedControlMethod(info.FullMethod) {
@@ -88,7 +77,7 @@ func (i *Interceptor) Unary(ctx context.Context, req any, info *grpc.UnaryServer
 	}
 	if err := i.authorize(actorCtx, actor, policy.action, namespace); err != nil {
 		if policy.resourceType != "" && errors.Is(err, accesskernel.ErrPermissionDenied) && namespace != "" && !hasExplicitNamespace(req) &&
-			!accesskernel.Authorize(actor, accesskernel.ActionResourceRead, namespace) && !accesskernel.HasRole(actor, accesskernel.RoleRolloutExecutor) {
+			!accesskernel.Authorize(actor, accesskernel.ActionResourceRead, namespace) {
 			recordDecision(actorCtx, policy.action, "deny")
 			return nil, status.Error(codes.NotFound, "resource not found")
 		}
@@ -125,15 +114,6 @@ func (i *Interceptor) Stream(srv any, stream grpc.ServerStream, info *grpc.Strea
 		}
 		return handler(srv, stream)
 	}
-	if isRolloutWorkerMethod(info.FullMethod) {
-		actorCtx, err := i.authenticateRolloutWorker(stream.Context())
-		if err != nil {
-			recordDecision(stream.Context(), accesskernel.ActionRolloutWorkExecute, "unauthenticated")
-			return err
-		}
-		recordDecision(actorCtx, accesskernel.ActionRolloutWorkExecute, "allow")
-		return handler(srv, &contextServerStream{ServerStream: stream, ctx: actorCtx})
-	}
 	policy, protected := publicPolicy(info.FullMethod)
 	if !protected {
 		if isUnclassifiedControlMethod(info.FullMethod) {
@@ -153,17 +133,6 @@ func (i *Interceptor) Stream(srv any, stream grpc.ServerStream, info *grpc.Strea
 	streamCtx, cancel := context.WithCancel(actorCtx)
 	defer cancel()
 	return handler(srv, &actorServerStream{ServerStream: stream, ctx: streamCtx, interceptor: i, policy: policy, actor: actor, cancel: cancel})
-}
-
-type contextServerStream struct {
-	grpc.ServerStream
-	ctx context.Context
-}
-
-func (s *contextServerStream) Context() context.Context { return s.ctx }
-
-func isRolloutWorkerMethod(method string) bool {
-	return strings.HasPrefix(method, "/axern.private.rollout.worker.v1.RolloutWorkerControl/")
 }
 
 func isTunnelRelayControlMethod(method string) bool {
@@ -191,26 +160,6 @@ func isUnclassifiedControlMethod(method string) bool {
 		}
 	}
 	return true
-}
-
-func (i *Interceptor) authenticateRolloutWorker(ctx context.Context) (context.Context, error) {
-	p, ok := peer.FromContext(ctx)
-	if !ok {
-		return ctx, status.Error(codes.Unauthenticated, "rollout worker mTLS identity is required")
-	}
-	info, ok := p.AuthInfo.(credentials.TLSInfo)
-	if !ok || len(info.State.VerifiedChains) == 0 || len(info.State.VerifiedChains[0]) == 0 {
-		return ctx, status.Error(codes.Unauthenticated, "rollout worker mTLS identity is required")
-	}
-	fingerprint, _, err := accesskernel.ParseCertificateDER(info.State.VerifiedChains[0][0].Raw)
-	if err != nil {
-		return ctx, status.Error(codes.Unauthenticated, "rollout worker mTLS identity is invalid")
-	}
-	actor, err := i.access.ResolveActor(ctx, fingerprint)
-	if err != nil || !accesskernel.HasRole(actor, accesskernel.RoleRolloutExecutor) {
-		return ctx, status.Error(codes.Unauthenticated, "rollout worker credential is not active")
-	}
-	return accesskernel.WithActor(ctx, actor), nil
 }
 
 type actorServerStream struct {
@@ -268,21 +217,11 @@ func (s *actorServerStream) recheck(namespace string) {
 	}
 }
 
-func (i *Interceptor) authorize(ctx context.Context, actor accesskernel.Actor, action accesskernel.Action, namespace string) error {
+func (i *Interceptor) authorize(_ context.Context, actor accesskernel.Actor, action accesskernel.Action, namespace string) error {
 	if accesskernel.Authorize(actor, action, namespace) {
 		return nil
 	}
-	if !accesskernel.HasRole(actor, accesskernel.RoleRolloutExecutor) || !accesskernel.IsRolloutDelegatableAction(action) {
-		return accesskernel.ErrPermissionDenied
-	}
-	values := metadata.ValueFromIncomingContext(ctx, RolloutExecutionLeaseMetadata)
-	if len(values) != 1 {
-		return accesskernel.ErrPermissionDenied
-	}
-	if err := i.access.ValidateRolloutExecutionLease(ctx, values[0], namespace); err != nil {
-		return accesskernel.ErrPermissionDenied
-	}
-	return nil
+	return accesskernel.ErrPermissionDenied
 }
 
 func hasExplicitNamespace(req any) bool {
@@ -394,17 +333,6 @@ func publicPolicy(method string) (methodPolicy, bool) {
 		return resourcePolicy(methodName, "tunnel",
 			[]string{"GetTunnelSession", "ListTunnelSessions", "ListTunnelSessionEvents", "InspectTunnelSession"},
 			[]string{"CreateTunnelSession", "RevokeTunnelSession", "RenewTunnelSession"})
-	case "axern.control.agentprofile.v1.AgentProfileControl":
-		return resourcePolicy(methodName, "profile",
-			[]string{"GetAgentProfile", "ListAgentProfiles", "DoctorAgentProfile"},
-			[]string{"CreateAgentProfile", "UpdateAgentProfile", "RotateAgentProfileCredential", "DeleteAgentProfile"})
-	case "axern.control.rollout.v1.RolloutControl":
-		if methodName == "PrepareArtifactDownload" {
-			return methodPolicy{action: accesskernel.ActionResourceRead, resourceType: "rollout_artifact"}, true
-		}
-		return resourcePolicy(methodName, "rollout",
-			[]string{"GetRollout", "ListRollouts", "WatchRolloutEvents", "CompareRollouts", "DiagnoseRollout", "ListArtifacts"},
-			[]string{"CreateRollout", "StartRollout", "CancelRollout", "RetryRollout", "DeleteRollout"})
 	default:
 		return methodPolicy{}, false
 	}
@@ -437,20 +365,6 @@ func (i *Interceptor) namespace(ctx context.Context, policy methodPolicy, req an
 	if namespace := findStringField(message.ProtoReflect(), "namespace"); namespace != "" {
 		return namespace, nil
 	}
-	if rolloutIDs := findRepeatedStringField(message.ProtoReflect(), "rollout_ids"); len(rolloutIDs) > 0 {
-		var namespace string
-		for _, rolloutID := range rolloutIDs {
-			resolved, err := i.resolveResourceNamespace(ctx, "rollout", rolloutID)
-			if err != nil {
-				return "", err
-			}
-			if namespace != "" && namespace != resolved {
-				return "", status.Error(codes.NotFound, "resource not found")
-			}
-			namespace = resolved
-		}
-		return namespace, nil
-	}
 	if policy.resourceType != "" {
 		field := policy.resourceType + "_id"
 		if policy.resourceType == "tunnel" {
@@ -461,16 +375,6 @@ func (i *Interceptor) namespace(ctx context.Context, policy methodPolicy, req an
 		}
 		if allocationID := findStringField(message.ProtoReflect(), "allocation_id"); allocationID != "" {
 			return i.resolveResourceNamespace(ctx, "allocation", allocationID)
-		}
-		for _, candidate := range []struct {
-			field        protoreflect.Name
-			resourceType string
-		}{
-			{field: "artifact_id", resourceType: "rollout_artifact"},
-		} {
-			if id := findStringField(message.ProtoReflect(), candidate.field); id != "" {
-				return i.resolveResourceNamespace(ctx, candidate.resourceType, id)
-			}
 		}
 	}
 	return "", nil

@@ -2,8 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"time"
 
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
@@ -23,7 +21,6 @@ func (a *App) startReconciler() {
 }
 
 func (a *App) startPeriodicReconciler() {
-	a.startPeriodicComponent(reconcilekernel.ComponentRollout, a.rolloutPG != nil, a.reconcileRolloutMaintenance)
 	a.startPeriodicLifecycleComponent(reconcilekernel.ComponentRun, a.runReconciler != nil, func(ctx context.Context, now time.Time) error {
 		return a.runReconciler.ReconcilePending(ctx, now)
 	})
@@ -185,9 +182,6 @@ func (a *App) reconcilePeriodicV1() {
 }
 
 func (a *App) reconcileComponents(serviceRecovery bool) {
-	if a.rolloutPG != nil {
-		a.reconcileComponent(reconcilekernel.ComponentRollout, a.now(), a.reconcileRolloutMaintenance)
-	}
 	if a.runReconciler != nil {
 		a.reconcileComponent(reconcilekernel.ComponentRun, a.now(), func(ctx context.Context, now time.Time) error {
 			return a.runReconciler.ReconcilePending(ctx, now)
@@ -209,26 +203,6 @@ func (a *App) reconcileComponents(serviceRecovery bool) {
 			return a.tunnelPG.ReconcileExpired(ctx, now)
 		})
 	}
-}
-
-func (a *App) reconcileRolloutMaintenance(ctx context.Context, now time.Time) error {
-	if a.rolloutPG == nil {
-		return nil
-	}
-	var result error
-	if _, err := a.rolloutPG.ExpireBudgets(ctx, now); err != nil {
-		result = errors.Join(result, fmt.Errorf("expire budgets: %w", err))
-	}
-	if _, err := a.rolloutPG.ReconcileExpiredLeases(ctx, now, 100); err != nil {
-		result = errors.Join(result, fmt.Errorf("reconcile expired leases: %w", err))
-	}
-	if _, err := a.rolloutPG.ReconcileDoctorJobs(ctx, now, 100); err != nil {
-		result = errors.Join(result, fmt.Errorf("reconcile doctor jobs: %w", err))
-	}
-	if _, err := a.rolloutPG.ReconcileDeletes(ctx, 32); err != nil {
-		result = errors.Join(result, fmt.Errorf("reconcile deletes: %w", err))
-	}
-	return result
 }
 
 func (a *App) reconcileServiceSweep(now time.Time) {

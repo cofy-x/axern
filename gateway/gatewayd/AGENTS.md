@@ -20,11 +20,6 @@ forwards data-plane traffic to `axnoded` nodes.
 - `internal/application/service`: service route resolve cache and endpoint
   rotation.
 - `internal/application/terminal`: allocation terminal resolve/open use case.
-- `internal/application/artifact`: ticket-backed artifact stream orchestration,
-  range validation, limits, and backpressure.
-- `internal/api/artifact`: public `ArtifactData` streaming adapter.
-- `internal/adapters/artifact`: private controld ticket resolver and presigned
-  object-store reader; it never owns object-store credentials.
 - `internal/kernel`: narrow capability contracts shared across layers.
 - `internal/adapters`: concrete `controld` and `axnoded` gRPC clients.
 - `internal/config`, `internal/auth`, `internal/observability`: small support
@@ -44,13 +39,8 @@ forwards data-plane traffic to `axnoded` nodes.
   lifecycle, move that behavior into an application package.
 - Keep route/lease caching and retry behavior with the owner of the behavior;
   do not hide it in generic utility packages.
-- Artifact bytes flow through gatewayd. Never expose a presigned/internal URL,
-  ticket, query, or Authorization value in responses, logs, metrics, or traces.
-  Keep artifact IDs out of metric labels and close every upstream body on all
-  client cancellation, short-read, and rejection paths.
-- Use the dedicated `gatewayd` mTLS identity for internal controld calls. The
-  private artifact resolver rejects the generic client and worker identities;
-  do not weaken that boundary or reuse `client.crt` for gatewayd.
+- Use the dedicated `gatewayd` mTLS identity for internal controld calls; do
+  not reuse the external client certificate for gateway-to-control traffic.
 
 ## Verification
 

@@ -6,14 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	rolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/rollout/v1"
+	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
 
 func TestPrintValueUsesCanonicalProtoJSON(t *testing.T) {
 	var output bytes.Buffer
-	value := &rolloutv1.GetRolloutResponse{Rollout: &rolloutv1.Rollout{
-		ID:     "rol-test",
-		Status: rolloutv1.RolloutStatus_ROLLOUT_STATUS_COMPLETED,
+	value := &runv1.GetRunResponse{Run: &runv1.Run{
+		ID:     "run-test",
+		Status: runv1.RunStatus_RUN_STATUS_SUCCEEDED,
 	}}
 	if err := PrintValue(&output, "json", value, ""); err != nil {
 		t.Fatal(err)
@@ -22,20 +22,20 @@ func TestPrintValueUsesCanonicalProtoJSON(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &decoded); err != nil {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
-	rollout, ok := decoded["rollout"].(map[string]any)
+	run, ok := decoded["run"].(map[string]any)
 	if !ok {
-		t.Fatalf("JSON output missing rollout object: %s", output.String())
+		t.Fatalf("JSON output missing run object: %s", output.String())
 	}
-	if rollout["status"] != "ROLLOUT_STATUS_COMPLETED" {
-		t.Fatalf("expected canonical enum name, got %#v", rollout["status"])
+	if run["status"] != "RUN_STATUS_SUCCEEDED" {
+		t.Fatalf("expected canonical enum name, got %#v", run["status"])
 	}
 }
 
 func TestPrintJSONLineWritesCompactCanonicalProtoJSON(t *testing.T) {
 	var output bytes.Buffer
-	value := &rolloutv1.Rollout{
-		ID:     "rol-test",
-		Status: rolloutv1.RolloutStatus_ROLLOUT_STATUS_COMPLETED,
+	value := &runv1.Run{
+		ID:     "run-test",
+		Status: runv1.RunStatus_RUN_STATUS_SUCCEEDED,
 	}
 	if err := PrintJSONLine(&output, value); err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestPrintJSONLineWritesCompactCanonicalProtoJSON(t *testing.T) {
 	if err := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &decoded); err != nil {
 		t.Fatalf("record is not valid JSON: %v", err)
 	}
-	if decoded["status"] != "ROLLOUT_STATUS_COMPLETED" {
+	if decoded["status"] != "RUN_STATUS_SUCCEEDED" {
 		t.Fatalf("expected canonical enum name, got %#v", decoded["status"])
 	}
 }

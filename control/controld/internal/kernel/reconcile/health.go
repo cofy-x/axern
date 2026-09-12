@@ -15,7 +15,6 @@ const (
 	ComponentAllocation = "allocation"
 	ComponentCapability = "capability"
 	ComponentTunnel     = "tunnel"
-	ComponentRollout    = "rollout"
 )
 
 type ComponentHealth struct {

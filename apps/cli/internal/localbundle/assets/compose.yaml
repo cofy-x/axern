@@ -52,8 +52,6 @@ services:
       - local-client
       - -certificate
       - /certs/client.crt
-      - -rollout-worker-certificate
-      - /certs/rollout-worker.crt
     volumes: ["${AXERN_LOCAL_DIR}/certs:/certs:ro"]
 
   controld:

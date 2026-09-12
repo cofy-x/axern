@@ -33,7 +33,6 @@ func (*resolverStub) ResolveServiceReplicaTargets(context.Context, string) (*gat
 type accessAuthorizerStub struct {
 	calls       int
 	fingerprint string
-	lease       string
 	action      accesskernel.Action
 	resource    string
 	resourceID  string
@@ -51,10 +50,9 @@ func (r *tunnelResolverStub) Get(_ context.Context, sessionID string, _ time.Tim
 	return r.session, r.err
 }
 
-func (a *accessAuthorizerStub) AuthorizeFingerprintResource(_ context.Context, fingerprint, lease string, action accesskernel.Action, resource, resourceID string) error {
+func (a *accessAuthorizerStub) AuthorizeFingerprintResource(_ context.Context, fingerprint string, action accesskernel.Action, resource, resourceID string) error {
 	a.calls++
 	a.fingerprint = fingerprint
-	a.lease = lease
 	a.action = action
 	a.resource = resource
 	a.resourceID = resourceID
@@ -85,14 +83,13 @@ func TestResolveAllocationTerminalPrincipalIdentity(t *testing.T) {
 	req := &gatewaypb.ResolveAllocationTerminalRequest{
 		AllocationID:                 "alloc-1",
 		ClientCertificateFingerprint: "sha256:client",
-		RolloutExecutionLease:        "lease-1",
 	}
 
 	_, err := server.ResolveAllocationTerminal(context.Background(), req)
 	if err != nil {
 		t.Fatalf("ResolveAllocationTerminal() error = %v", err)
 	}
-	if access.calls != 1 || access.fingerprint != req.ClientCertificateFingerprint || access.lease != req.RolloutExecutionLease {
+	if access.calls != 1 || access.fingerprint != req.ClientCertificateFingerprint {
 		t.Fatalf("authorization call = %#v", access)
 	}
 	if access.action != accesskernel.ActionSandboxExecute || access.resource != "allocation" || access.resourceID != req.AllocationID {

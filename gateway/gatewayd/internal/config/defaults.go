@@ -43,10 +43,6 @@ func defaultsFromEnv() Config {
 		TerminalMaxMessageBytes:      int64Env("GATEWAYD_TERMINAL_MAX_MESSAGE_BYTES", 1<<20),
 		LeaseRetryAttempts:           intEnv("GATEWAYD_LEASE_RETRY_ATTEMPTS", 3),
 		LeaseRetryBaseDelay:          durationEnv("GATEWAYD_LEASE_RETRY_BASE_DELAY", 500*time.Millisecond),
-		ArtifactMaxConcurrent:        intEnv("GATEWAYD_ARTIFACT_MAX_CONCURRENT", 16),
-		ArtifactChunkBytes:           intEnv("GATEWAYD_ARTIFACT_CHUNK_BYTES", 256<<10),
-		ArtifactUpstreamTimeout:      durationEnv("GATEWAYD_ARTIFACT_UPSTREAM_TIMEOUT", 30*time.Second),
-		ArtifactMaxBytes:             int64Env("GATEWAYD_ARTIFACT_MAX_BYTES", 8<<30),
 		LogLevel:                     defaultString(os.Getenv("GATEWAYD_LOG_LEVEL"), "info"),
 	}
 }

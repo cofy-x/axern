@@ -53,49 +53,18 @@ Set the chart's `global.imagePullSecrets` value to the corresponding
 `AXERN_REGISTRY_PULL_SECRET` name when private images require it.
 
 When `secrets.existingSecret` is configured, it must contain
-`AXERN_SECRETS_MASTER_KEY`, `CONTROLD_ROLLOUT_WORKER_TOKEN`,
-`CONTROLD_ARTIFACT_TICKET_KEY`, and `GATEWAYD_DEV_TOKEN`. When
+`AXERN_SECRETS_MASTER_KEY` and `GATEWAYD_DEV_TOKEN`. When
 `postgres.existingSecret` is configured, it must contain the keys selected by
 `postgres.passwordKey` and `postgres.dsnKey`.
 
-Durable rollout workers resolve TaskSet descriptors from inside the running
-container, so kubelet image-pull credentials alone are insufficient. Set
-`rolloutWorker.registryAuth.existingSecret` to a Docker config secret that can
-pull TaskSet repositories; the chart mounts only its configured key as the
-worker's read-only Docker config. Runtime-node image credentials remain under
-`node.registryAuth` because the two components may use different repositories.
-
-The chart gives each rollout worker two explicit mTLS contexts. Its control
-context connects directly to controld's private worker API, while its execution
-context connects to gatewayd for allocation and sandbox APIs. Do not collapse
-these endpoints or expose `RolloutWorkerControl` through gatewayd: their
-separate authority and routing responsibilities are intentional.
-
-The bundled MinIO endpoint is cluster-internal and is intended for development
-and in-cluster verification. Clients never connect to MinIO/S3 directly:
-gatewayd streams artifacts after resolving a short-lived ticket through
-controld's private mTLS API. Only rollout workers and gatewayd's resolved
-internal presigned request need object-store network reachability; gatewayd
-does not receive static S3 credentials. Gatewayd uses its dedicated
-`gatewayd.crt` identity for controld calls; generic `client.crt` holders are not
-authorized to resolve artifact tickets.
+Gatewayd uses its dedicated `gatewayd.crt` identity for controld calls.
 When `pki.existingSecret` is used, its `gatewayd.crt` must have both
 `serverAuth` and `clientAuth` extended key usages and the verified subject
 identity `gatewayd`; the chart-generated certificate already has that shape.
-The Secret must also contain `rollout-worker.crt` and
-`rollout-worker.key`. The rollout worker certificate is registered as the
-internal `rollout_executor` Principal during the access bootstrap init
-container; it is intentionally distinct from the chart's operator
-`client.crt`. Configure the initial administrator metadata under
+Configure the initial administrator metadata under
 `auth.bootstrap`. Changing those values after initialization does not rotate
 identity material: use AccessAdmin credential and role-binding operations
 through gatewayd instead.
-
-`secrets.artifactTicketKey` is independent from provider, registry,
-object-store, and worker bootstrap credentials. The chart preserves a generated
-key across upgrades with `lookup`, or consumes the configured existing Secret.
-Configure gateway artifact concurrency, chunk size, upstream timeout, and
-maximum artifact size under `gatewayd.artifact`.
 
 ## Node Resources
 
@@ -136,11 +105,9 @@ Chart-managed PostgreSQL and MinIO use a zero-surge deployment strategy. Their
 single-writer volumes must never be mounted by overlapping old and new Pods
 during an upgrade.
 
-`minio.enabled` deploys in-cluster S3-compatible artifact storage;
-`objectStore.enabled` configures external artifact storage when bundled MinIO
-is disabled. Durable rollout evidence requires one of these stores. Give
-MinIO its own PVC. Node rootfs uses OCI/Nydus registry images and receives no
-object-store credentials.
+`minio.enabled` deploys the in-cluster object store used by the local image
+pipeline. Give MinIO its own PVC. Node rootfs consumes OCI/Nydus registry
+images through the runtime image path.
 
 ## Observability
 

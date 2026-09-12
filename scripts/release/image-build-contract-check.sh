@@ -47,7 +47,6 @@ for image in ("CODEX_BUNDLE_IMAGE", "CLAUDE_CODE_BUNDLE_IMAGE"):
 
 for workflow_path in (
     root / ".github/workflows/ci.yml",
-    root / ".github/workflows/managed-rollout-ci.yml",
     root / ".github/workflows/post-merge-full.yml",
 ):
     if 'APT_MIRROR_SOURCE: "ustc"' not in workflow_path.read_text():

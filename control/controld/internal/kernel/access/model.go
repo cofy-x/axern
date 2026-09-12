@@ -49,25 +49,23 @@ const (
 	RoleNamespaceAdmin  Role = "namespace_admin"
 	RoleNamespaceEditor Role = "namespace_editor"
 	RoleNamespaceViewer Role = "namespace_viewer"
-	RoleRolloutExecutor Role = "rollout_executor"
 )
 
 type Action string
 
 const (
-	ActionIdentityRead       Action = "identity.read"
-	ActionCatalogRead        Action = "catalog.read"
-	ActionNamespaceRead      Action = "namespace.read"
-	ActionNamespaceManage    Action = "namespace.manage"
-	ActionQuotaRead          Action = "quota.read"
-	ActionQuotaManage        Action = "quota.manage"
-	ActionResourceRead       Action = "resource.read"
-	ActionResourceWrite      Action = "resource.write"
-	ActionSandboxExecute     Action = "sandbox.execute"
-	ActionNamespaceAccess    Action = "namespace.access.manage"
-	ActionPlatformAccess     Action = "platform.access.manage"
-	ActionPlatformAdmin      Action = "platform.admin"
-	ActionRolloutWorkExecute Action = "rollout.work.execute"
+	ActionIdentityRead    Action = "identity.read"
+	ActionCatalogRead     Action = "catalog.read"
+	ActionNamespaceRead   Action = "namespace.read"
+	ActionNamespaceManage Action = "namespace.manage"
+	ActionQuotaRead       Action = "quota.read"
+	ActionQuotaManage     Action = "quota.manage"
+	ActionResourceRead    Action = "resource.read"
+	ActionResourceWrite   Action = "resource.write"
+	ActionSandboxExecute  Action = "sandbox.execute"
+	ActionNamespaceAccess Action = "namespace.access.manage"
+	ActionPlatformAccess  Action = "platform.access.manage"
+	ActionPlatformAdmin   Action = "platform.admin"
 )
 
 type Principal struct {

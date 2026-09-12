@@ -2,17 +2,14 @@ package app
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	apiadminv1 "github.com/cofy-x/axern/control/controld/internal/api/adminv1"
-	artifactaccessv1 "github.com/cofy-x/axern/control/controld/internal/api/artifactaccessv1"
 	apigatewayv1 "github.com/cofy-x/axern/control/controld/internal/api/gatewayv1"
 	apiidentityv1 "github.com/cofy-x/axern/control/controld/internal/api/identityv1"
 	apinodev1 "github.com/cofy-x/axern/control/controld/internal/api/nodev1"
 	publicv1 "github.com/cofy-x/axern/control/controld/internal/api/publicv1"
 	apirelayv1 "github.com/cofy-x/axern/control/controld/internal/api/relayv1"
-	rolloutworkerv1 "github.com/cofy-x/axern/control/controld/internal/api/rolloutworkerv1"
 	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
 	appadmin "github.com/cofy-x/axern/control/controld/internal/application/admin"
 	appenvironment "github.com/cofy-x/axern/control/controld/internal/application/environment"
@@ -73,8 +70,6 @@ func (a *App) buildAPIs() {
 		Catalog:        a.catalog,
 		Environments:   profile.public.environments,
 		Secrets:        profile.public.secrets,
-		AgentProfiles:  a.agentProfilePG,
-		Rollouts:       a.rolloutPG,
 		Runs:           profile.public.runs,
 		Services:       profile.public.services,
 		ServiceWatcher: a.servicePG,
@@ -109,9 +104,6 @@ func (a *App) buildAPIs() {
 			Access:     a.accessControl,
 			Tunnels:    a.tunnelPG,
 		})
-	}
-	if a.rolloutPG != nil && strings.TrimSpace(a.rolloutWorkerToken) != "" {
-		a.rolloutWorkerAPI = rolloutworkerv1.New(rolloutworkerv1.Dependencies{Now: func() time.Time { return a.now() }, Store: a.rolloutPG, BootstrapToken: a.rolloutWorkerToken})
 	}
 }
 
@@ -213,6 +205,3 @@ func (a *App) GatewayV1Handler() *apigatewayv1.Server { return a.gatewayAPI }
 func (a *App) NodeV1Handler() *apinodev1.Server { return a.nodeAPI }
 
 func (a *App) RelayV1Handler() *apirelayv1.Server { return a.relayAPI }
-
-func (a *App) RolloutWorkerV1Handler() *rolloutworkerv1.Server   { return a.rolloutWorkerAPI }
-func (a *App) ArtifactAccessV1Handler() *artifactaccessv1.Server { return a.artifactAccessAPI }

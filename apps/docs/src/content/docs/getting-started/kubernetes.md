@@ -122,8 +122,8 @@ Review these chart areas before running shared or production workloads:
   managed Service or Ingress, configure TLS server names and network policy,
   and keep SSH disabled unless an interactive workflow needs it.
 
-- **Secrets:** supply `secrets.existingSecret` with the master key, rollout
-  worker token, artifact ticket key, and gateway token, and
+- **Secrets:** supply `secrets.existingSecret` with the master key and gateway
+  token, and
   `postgres.existingSecret` for database credentials.
 - **Durable storage:** set `postgres.persistence.enabled=true` with a
   topology-aware `ReadWriteOnce` StorageClass; do not run a durable
@@ -131,9 +131,6 @@ Review these chart areas before running shared or production workloads:
 - **Scheduling:** give `scheduling.platform`, `scheduling.observability`, and
   `scheduling.runtime` dedicated node-pool labels and matching `NoSchedule`
   taints.
-- **Rollout workers:** set `rolloutWorker.registryAuth.existingSecret` to a
-  Docker config secret that can pull TaskSet repositories; the chart wires
-  separate control and execution mTLS contexts for the worker.
 - **Observability:** the bundled Prometheus, Tempo, Loki, and Grafana stack is
   durable but single-replica; size retention and storage under
   `observability`.

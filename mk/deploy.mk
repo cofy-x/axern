@@ -133,13 +133,6 @@ helm-lint: helm-contract-check ## Lint the Axern Helm chart
 		--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)'
 
 helm-contract-check: ## Verify Helm values preserve runtime argument contracts
-	@value="$$($(HELM) template axern-contract-check '$(AXERN_HELM_CHART)' \
-		--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)' | \
-		awk '/- -artifact-max-bytes/{getline; gsub(/[- "'"'"']/, ""); print; exit}')"; \
-		test "$$value" = "8589934592" || { \
-			echo "artifact max bytes rendered as invalid integer: $$value" >&2; \
-			exit 1; \
-		}
 	@for component in postgres minio; do \
 		rendered="$$($(HELM) template axern-contract-check '$(AXERN_HELM_CHART)' \
 			--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)' \

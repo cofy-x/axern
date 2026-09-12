@@ -58,8 +58,6 @@ spec:
             - {{ .Values.auth.bootstrap.credentialLabel | quote }}
             - -certificate
             - /certs/client.crt
-            - -rollout-worker-certificate
-            - /certs/rollout-worker.crt
           volumeMounts:
             - name: certs
               mountPath: /certs
@@ -121,41 +119,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "axern.secretsSecretName" . }}
                   key: AXERN_SECRETS_MASTER_KEY
-            - name: CONTROLD_ROLLOUT_WORKER_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "axern.secretsSecretName" . }}
-                  key: CONTROLD_ROLLOUT_WORKER_TOKEN
-            - name: CONTROLD_ARTIFACT_TICKET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "axern.secretsSecretName" . }}
-                  key: CONTROLD_ARTIFACT_TICKET_KEY
-            {{- if .Values.minio.enabled }}
-            - name: CONTROLD_ARTIFACT_S3_ENDPOINT
-              value: {{ printf "http://minio.%s.svc.cluster.local:9000" .Release.Namespace | quote }}
-            - name: CONTROLD_ARTIFACT_S3_REGION
-              value: "us-east-1"
-            - name: CONTROLD_ARTIFACT_S3_BUCKET
-              value: {{ .Values.minio.bucket | quote }}
-            - name: CONTROLD_ARTIFACT_S3_ACCESS_KEY
-              value: {{ .Values.minio.rootUser | quote }}
-            - name: CONTROLD_ARTIFACT_S3_SECRET_KEY
-              value: {{ .Values.minio.rootPassword | quote }}
-            - name: CONTROLD_ARTIFACT_S3_USE_PATH_STYLE
-              value: "true"
-            {{- else if .Values.objectStore.enabled }}
-            - name: CONTROLD_ARTIFACT_S3_ENDPOINT
-              value: {{ printf "%s://%s" .Values.objectStore.scheme .Values.objectStore.endpoint | quote }}
-            - name: CONTROLD_ARTIFACT_S3_REGION
-              value: {{ .Values.objectStore.region | quote }}
-            - name: CONTROLD_ARTIFACT_S3_BUCKET
-              value: {{ .Values.objectStore.bucket | quote }}
-            - name: CONTROLD_ARTIFACT_S3_ACCESS_KEY
-              value: {{ .Values.objectStore.accessKey | quote }}
-            - name: CONTROLD_ARTIFACT_S3_SECRET_KEY
-              value: {{ .Values.objectStore.secretKey | quote }}
-            {{- end }}
             {{- include "axern.otelEnv" . | nindent 12 }}
           ports:
             - containerPort: 24000

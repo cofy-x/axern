@@ -10,10 +10,8 @@ without scraping large inline logs.
 
 ## Scope
 
-This contract applies to local CLI/HTTP rollouts and durable managed rollouts.
-Local entrypoints share the rollout application service. Managed lifecycle,
-diagnosis, event sequence, preflight, and artifact inventory are durable typed
-controld records; the CLI does not infer them from text.
+This contract applies to local CLI/HTTP rollouts. Both entrypoints share the
+same rollout application service and native run-directory records.
 
 It owns lifecycle phase names, SSE shape, product error categories, episode
 evidence, diagnosis read order, and implementation routing. It does not own
@@ -26,7 +24,7 @@ once per run or once per episode depending on where the work happens.
 
 | Phase | Meaning |
 | --- | --- |
-| `planning` | Request normalized, tasks selected, attempts/shards resolved, plan prepared, and a leased worker records real-provider preflight usage/cost and typed checks before episode work is claimable. |
+| `planning` | Request normalized, tasks selected, attempts/shards resolved, and the immutable execution plan prepared. |
 | `preparing_inputs` | Inputs, task records, workspaces, verifier assets, or runtime image sources are captured into the run directory. |
 | `sandbox_creating` | Backend preflight or sandbox creation is in progress for an executing episode. |
 | `agent_running` | Agent launcher is running and trajectory/raw-log evidence may be produced. |
@@ -40,25 +38,6 @@ once per run or once per episode depending on where the work happens.
 episode-scoped when execution is enabled. `verifying` may be absent when a task
 has no verifier, and `exporting` is absent unless export work is requested. A
 terminal event must be emitted exactly once for an accepted HTTP request.
-
-For managed rollouts, `READY` is a non-terminal manual-start boundary. Its
-episode work is `HELD`, so it cannot be claimed before `StartRollout`. Durable
-events use strictly increasing PostgreSQL `sequence`; watchers acknowledge the
-highest rendered sequence, discard duplicates, and reconnect from
-`after_sequence`. Ctrl-C detaches and does not create a cancel event.
-
-## Managed diagnosis and exit status
-
-`DiagnoseRollout` classifies durable facts as planning rejected, queue waiting,
-worker unavailable, Profile/provider failure, capacity wait, task/verifier
-failure, infrastructure failure, budget exhaustion, cancel pending, or
-incomplete evidence, with one stable recommended action. CLI terminal status
-is `0` for all passed, `10` for task/verifier failure, `11` for infrastructure,
-`12` for budget/metering, `13` for cancellation, and `14` for planning or
-preflight rejection. Client/protocol and usage errors remain `1` and `2`.
-The Rollout row carries the durable terminal failure class so planning failures
-remain typed even when no Episode exists; a typed failed preflight check takes
-precedence for diagnosis and exit code `14`.
 
 ## SSE Events
 
@@ -167,25 +146,6 @@ Recommended `kind` values should reuse `domain.ArtifactKind`: `agent_raw_log`,
 `patch`, `runtime_image_build`, `trajectory_export`, `training_data_export`,
 and `verifier_breakdown`.
 
-Managed episode acceptance requires the six evidence families produced by the
-native run: episode, agent, verifier, reward, trajectory, and artifact manifest
-or its committed durable inventory. Every uploaded artifact is `PENDING` until
-the worker upload is verified and committed. Missing or failed objects remain
-explicit evidence states; they are never represented by a successful rollout
-plus an absent file.
-
-## Managed artifact download
-
-`PrepareArtifactDownload` returns public metadata and a short-lived HMAC ticket
-bound to artifact ID, execution generation, digest, size, expiry, and gateway
-audience. The private resolver returns a presigned request only to gatewayd.
-Gatewayd enforces concurrency, maximum size, response-header timeout, exact
-range, bounded chunks, backpressure, and full-stream size/digest checks. Axrun
-resumes a neighboring `.part`, refreshes an expired ticket, verifies exact
-size/SHA-256, and atomically publishes the destination. Tickets, signed query
-strings, authorization headers, and internal URLs are not evidence and must
-not appear in logs, traces, metrics labels, JSON output, or errors.
-
 ## Diagnosis Read Order
 
 When diagnosing a rollout, read evidence in this order:
@@ -221,9 +181,6 @@ preferred retry path for preserving failed attempt evidence.
 | Export consumption of refs | `internal/application/exportdata` |
 | Agent-specific evidence | `internal/agent/*`, `internal/proxy`, and `internal/rollout` |
 | Axern sandbox evidence | `internal/backend/axern` and public Axern SDK/API behavior |
-| Managed watch/outcome/download | `internal/application/managedrollout` |
-| Durable diagnosis/inventory/ticket issue | `control/controld` rollout API/store |
-| Artifact byte streaming | `gateway/gatewayd/internal/{api,application,adapters}/artifact` |
 
 For user-facing command examples, update [Usage](usage.md). For module-boundary
 rules, update [AGENTS.md](../AGENTS.md). For acceptance gates, update

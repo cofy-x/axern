@@ -35,7 +35,6 @@ class AccessRole(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     ACCESS_ROLE_NAMESPACE_ADMIN: _ClassVar[AccessRole]
     ACCESS_ROLE_NAMESPACE_EDITOR: _ClassVar[AccessRole]
     ACCESS_ROLE_NAMESPACE_VIEWER: _ClassVar[AccessRole]
-    ACCESS_ROLE_ROLLOUT_EXECUTOR: _ClassVar[AccessRole]
 PRINCIPAL_KIND_UNSPECIFIED: PrincipalKind
 PRINCIPAL_KIND_HUMAN: PrincipalKind
 PRINCIPAL_KIND_SERVICE: PrincipalKind
@@ -50,7 +49,6 @@ ACCESS_ROLE_PLATFORM_ADMIN: AccessRole
 ACCESS_ROLE_NAMESPACE_ADMIN: AccessRole
 ACCESS_ROLE_NAMESPACE_EDITOR: AccessRole
 ACCESS_ROLE_NAMESPACE_VIEWER: AccessRole
-ACCESS_ROLE_ROLLOUT_EXECUTOR: AccessRole
 
 class Principal(_message.Message):
     __slots__ = ("principal_id", "name", "display_name", "kind", "status", "version", "created_at", "updated_at")

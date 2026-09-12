@@ -75,18 +75,16 @@ class ResolveServiceRouteResponse(_message.Message):
     def __init__(self, service_id: _Optional[str] = ..., namespace: _Optional[str] = ..., service_status: _Optional[_Union[_service_types_pb2.ServiceStatus, str]] = ..., port: _Optional[_Union[ServiceRoutePort, _Mapping]] = ..., endpoints: _Optional[_Iterable[_Union[ServiceRouteEndpoint, _Mapping]]] = ...) -> None: ...
 
 class ResolveAllocationTerminalRequest(_message.Message):
-    __slots__ = ("allocation_id", "ttl_seconds", "client_certificate_fingerprint", "rollout_execution_lease", "purpose")
+    __slots__ = ("allocation_id", "ttl_seconds", "client_certificate_fingerprint", "purpose")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     TTL_SECONDS_FIELD_NUMBER: _ClassVar[int]
     CLIENT_CERTIFICATE_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
-    ROLLOUT_EXECUTION_LEASE_FIELD_NUMBER: _ClassVar[int]
     PURPOSE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
     ttl_seconds: int
     client_certificate_fingerprint: str
-    rollout_execution_lease: str
     purpose: AllocationAccessPurpose
-    def __init__(self, allocation_id: _Optional[str] = ..., ttl_seconds: _Optional[int] = ..., client_certificate_fingerprint: _Optional[str] = ..., rollout_execution_lease: _Optional[str] = ..., purpose: _Optional[_Union[AllocationAccessPurpose, str]] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., ttl_seconds: _Optional[int] = ..., client_certificate_fingerprint: _Optional[str] = ..., purpose: _Optional[_Union[AllocationAccessPurpose, str]] = ...) -> None: ...
 
 class ResolveAllocationTerminalResponse(_message.Message):
     __slots__ = ("allocation_id", "owner_type", "owner_id", "node_id", "node_target", "attempt", "lease")

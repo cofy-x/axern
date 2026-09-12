@@ -134,8 +134,7 @@ docker run --rm \
     -principal-name local-admin \
     -display-name "Local Administrator" \
     -credential-label local-client \
-    -certificate /shared/certs/client.crt \
-    -rollout-worker-certificate /shared/certs/rollout-worker.crt
+    -certificate /shared/certs/client.crt
 
 docker run -d \
   --name "${CONTROLD_CONTAINER_NAME}" \

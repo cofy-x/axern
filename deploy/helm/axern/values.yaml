@@ -178,8 +178,6 @@ secrets:
   existingSecret: ""
   secretName: controld-secrets
   secretsMasterKey: ""
-  rolloutWorkerToken: ""
-  artifactTicketKey: ""
 
 postgres:
   enabled: true
@@ -221,16 +219,6 @@ minio:
     size: 40Gi
     storageClassName: ""
 
-objectStore:
-  # External artifact storage for controld and rollout evidence, not node rootfs.
-  enabled: false
-  scheme: https
-  endpoint: ""
-  region: ""
-  bucket: ""
-  accessKey: ""
-  secretKey: ""
-
 runtimeCatalog:
   python311Image: ghcr.io/cofy-x/axern/python311-runtime:v0.6.2
   serverBaseImage: ghcr.io/cofy-x/axern/server-base-runtime:v0.6.2
@@ -256,15 +244,6 @@ controld:
   retention:
     enabled: true
     replicas: 1
-
-rolloutWorker:
-  enabled: false
-  replicas: 1
-  concurrency: 4
-  outputSizeLimit: 20Gi
-  registryAuth:
-    existingSecret: ""
-    dockerConfigKey: .dockerconfigjson
 
 tunneld:
   replicas: 1
@@ -346,11 +325,6 @@ gatewayd:
   routeCacheMaxEntries: 8192
   serviceEndpointRetryAttempts: 4
   serviceEndpointQuarantineTTL: 30s
-  artifact:
-    maxConcurrent: 16
-    chunkBytes: 262144
-    upstreamTimeout: 30s
-    maxBytes: 8589934592
   controlEdge:
     publicAddress: localhost:25100
   ssh:

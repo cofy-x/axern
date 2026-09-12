@@ -26,18 +26,6 @@ background, API inventory, and the full code-layout map, read
 - Placement stays separate from node-internal execution. Realtime exec and
   terminal traffic still go directly to selected nodes or through the gateway
   data plane after resolution.
-- Real provider probes belong exclusively to leased rollout workers. Controld
-  persists Profile/credential snapshots, schedules work, enforces budgets, and
-  stores typed results; it must not acquire provider HTTP clients.
-- Profile-owned credential IDs remain private, and generic Secret get/list must
-  never expose them. Rollout snapshot references fence rotation and retention.
-- Controld issues artifact tickets and resolves them only on the private mTLS
-  API after verifying the dedicated `gatewayd` certificate identity. It does
-  not stream object bytes or return internal S3 URLs publicly.
-- Managed provider usage is durable even when no explicit budget is configured.
-  Completion usage must match its committed reservation, and rollout totals
-  are derived from committed reservations so retried provider calls remain
-  visible.
 
 ## Layer Rules
 
@@ -87,14 +75,6 @@ background, API inventory, and the full code-layout map, read
   allocation creation with both global and per-node concurrency budgets, and
   preserve fair progress across nodes so service fanout and replica scale cannot
   multiply into unbounded RPCs or let one saturated node block the cluster.
-- Rollout event watches and worker claim long-polls share one dedicated
-  PostgreSQL `LISTEN` session per controld replica. Waiter concurrency must not
-  consume the query pool. Work notifications represent only new candidate
-  supply or released capacity: route supply to one compatible FIFO waiter per
-  replica and bound capacity rescans to one waiter per capability group. Do not
-  wake claimers for lease renewal or other non-actionable row updates.
-  Notifications remain hints; event sequence and work claim state are durable
-  and are always re-read from PostgreSQL with periodic jittered recovery.
 - Do not add transitional alias bridges such as `type X = otherpkg.X` or
   `var X = otherpkg.X` when moving code.
 - Do not create `internal/common` for convenience. Put domain rules in the
@@ -140,11 +120,6 @@ background, API inventory, and the full code-layout map, read
   process-local ownership in `internal/app` and read-only exposure through
   `api/debughttp`.
 - Debug-only `*z` endpoints: `internal/api/debughttp`.
-- Agent Profile and rollout lifecycle: `api/publicv1`, `kernel/agentprofile`,
-  `kernel/rollout`, and their Postgres stores. Provider execution remains in
-  Axrun workers.
-- Artifact ticket resolution: private `api/artifactaccessv1` plus the rollout
-  Postgres store; public byte streaming remains gatewayd-owned.
 
 ## Validation
 

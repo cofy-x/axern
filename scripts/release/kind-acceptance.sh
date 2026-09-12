@@ -94,7 +94,6 @@ if [ -n "${AXERN_REGISTRY_USERNAME:-}" ] && [ -n "${AXERN_REGISTRY_PASSWORD:-}" 
   helm_args+=(
     --set-string 'global.imagePullSecrets[0].name=axern-release-registry'
     --set-string 'node.registryAuth.existingSecret=axern-release-registry'
-    --set-string 'rolloutWorker.registryAuth.existingSecret=axern-release-registry'
   )
 fi
 helm "${helm_args[@]}"

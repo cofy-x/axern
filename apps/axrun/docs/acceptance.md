@@ -1,15 +1,7 @@
 # Axrun Acceptance
 
-`make axrun-verify` runs unit tests, vet, formatting, the local TaskSet smoke,
-and the mandatory managed-rollout Compose E2E.
-
-The Compose gate adds an independent local-only provider. It is not a
-production provider enum, Helm option, or HK workload. Its black-box contract
-covers OpenAI Responses and Anthropic Messages, provider failure classes,
-stream failures, malformed responses, and missing usage. A scripted agent run
-covers workspace mutation, verifier, reward, evidence, preflight metering,
-resumable gateway download, and credential snapshot isolation across rotation.
-Test model pricing is injected only into the test worker process.
+`make axrun-verify` runs unit tests, vet, formatting, and the deterministic
+local TaskSet smoke.
 
 Production acceptance additionally requires a Linux Axern cluster with
 imagemgr/imagefs, a registry, and Kova:
@@ -24,8 +16,8 @@ imagemgr/imagefs, a registry, and Kova:
   materialization time, allocation identity, runtime class, and agent digest;
 - warm client-to-node input bytes improve by at least 95% and workspace-ready
   P95 improves by at least 50% against the tar-upload baseline.
-- `profile doctor` and rollout preflight use a configured real provider/model
-  from the rollout worker network.
+- configured Claude Code and Codex adapters can reach their provider from the
+  sandbox execution network.
 
 Record absolute P50/P95 values per environment; enforce the relative gates
 above instead of a cross-environment millisecond SLO.

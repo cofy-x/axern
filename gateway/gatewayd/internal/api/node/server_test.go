@@ -23,8 +23,7 @@ func TestExecResolvesInjectsLeaseAndForwards(t *testing.T) {
 	h := newHarness(t)
 	defer h.Close()
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-axern-rollout-work-lease", "work-lease"))
-	resp, err := h.edge.Exec(ctx, &nodesandboxv1.ExecRequest{
+	resp, err := h.edge.Exec(context.Background(), &nodesandboxv1.ExecRequest{
 		AllocationID: "alloc-public",
 		Spec:         &nodesandboxv1.ExecSpec{Argv: []string{"echo", "ok"}},
 	})
@@ -36,9 +35,6 @@ func TestExecResolvesInjectsLeaseAndForwards(t *testing.T) {
 	}
 	if got := h.resolver.requests[0].GetAllocationID(); got != "alloc-public" {
 		t.Fatalf("resolved allocation id = %q", got)
-	}
-	if got := h.resolver.requests[0].GetRolloutExecutionLease(); got != "work-lease" {
-		t.Fatalf("rollout execution lease = %q", got)
 	}
 	if got := h.resolver.requests[0].GetPurpose(); got != gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE {
 		t.Fatalf("allocation access purpose = %v, want interactive", got)

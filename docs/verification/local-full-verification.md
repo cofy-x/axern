@@ -56,7 +56,7 @@ make kind-refresh-verify
 ```
 
 The repository change planner emits `network_policy_linux` and
-`managed_rollout` scopes. Pull-request CI uses those outputs to keep stable check
+heavyweight scopes. Pull-request CI uses those outputs to keep stable check
 names while avoiding unrelated heavyweight work. Linux CI is authoritative for
 namespace, cgroup, mount, eBPF, runsc behavior; macOS is not expected
 to duplicate it.

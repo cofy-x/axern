@@ -48,8 +48,6 @@ services:
       - local-client
       - -certificate
       - /certs/client.crt
-      - -rollout-worker-certificate
-      - /certs/rollout-worker.crt
     volumes:
       - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
 

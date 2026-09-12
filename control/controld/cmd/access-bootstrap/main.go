@@ -33,7 +33,6 @@ func run(ctx context.Context, args []string) error {
 	name := flags.String("principal-name", "platform-admin", "initial platform administrator name")
 	displayName := flags.String("display-name", "Platform Administrator", "initial platform administrator display name")
 	certificatePath := flags.String("certificate", "", "initial platform administrator certificate PEM path")
-	rolloutWorkerCertificatePath := flags.String("rollout-worker-certificate", "", "managed rollout worker certificate PEM path")
 	label := flags.String("credential-label", "bootstrap-admin", "initial credential label")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -59,21 +58,7 @@ func run(ctx context.Context, args []string) error {
 	}
 	store := pgaccess.NewStore(db)
 	now := time.Now().UTC()
-	if err := store.BootstrapPlatformAdmin(ctx, strings.TrimSpace(*name), strings.TrimSpace(*displayName), strings.TrimSpace(*label), fingerprint, notAfter, now); err != nil {
-		return err
-	}
-	if strings.TrimSpace(*rolloutWorkerCertificatePath) == "" {
-		return errors.New("rollout worker certificate path is required")
-	}
-	rolloutDER, err := readCertificateDER(*rolloutWorkerCertificatePath)
-	if err != nil {
-		return err
-	}
-	rolloutFingerprint, rolloutNotAfter, err := accesskernel.ParseCertificateDER(rolloutDER)
-	if err != nil {
-		return err
-	}
-	return store.BootstrapRolloutExecutor(ctx, rolloutFingerprint, rolloutNotAfter, now)
+	return store.BootstrapPlatformAdmin(ctx, strings.TrimSpace(*name), strings.TrimSpace(*displayName), strings.TrimSpace(*label), fingerprint, notAfter, now)
 }
 
 func readCertificateDER(path string) ([]byte, error) {

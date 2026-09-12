@@ -44,13 +44,6 @@ type ValueResolver interface {
 	Resolve(ctx context.Context, id string) (*ResolvedSecret, bool, error)
 }
 
-// ProfileCredentialResolver is intentionally separate from ValueResolver.
-// Hidden Profile-owned credentials must never become addressable through a
-// generic workload Secret reference.
-type ProfileCredentialResolver interface {
-	ResolveProfileCredential(ctx context.Context, id string) (*ResolvedSecret, bool, error)
-}
-
 type DockerConfigResolver interface {
 	ResolveDockerConfigJSON(ctx context.Context, id string) (string, bool, error)
 }

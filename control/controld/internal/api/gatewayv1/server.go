@@ -52,7 +52,7 @@ func (s *Server) ResolveServiceReplicaTargets(ctx context.Context, req *gatewayv
 }
 
 type AccessAuthorizer interface {
-	AuthorizeFingerprintResource(context.Context, string, string, accesskernel.Action, string, string) error
+	AuthorizeFingerprintResource(context.Context, string, accesskernel.Action, string, string) error
 }
 
 type Server struct {
@@ -99,7 +99,7 @@ func (s *Server) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.R
 		if s.deps.Access == nil {
 			return nil, status.Error(codes.Unavailable, "authorization is not configured")
 		}
-		if err := s.deps.Access.AuthorizeFingerprintResource(ctx, req.GetClientCertificateFingerprint(), req.GetRolloutExecutionLease(), accesskernel.ActionSandboxExecute, "allocation", req.GetAllocationID()); err != nil {
+		if err := s.deps.Access.AuthorizeFingerprintResource(ctx, req.GetClientCertificateFingerprint(), accesskernel.ActionSandboxExecute, "allocation", req.GetAllocationID()); err != nil {
 			switch {
 			case errors.Is(err, accesskernel.ErrUnauthenticated):
 				return nil, status.Error(codes.Unauthenticated, "client credential is not active")

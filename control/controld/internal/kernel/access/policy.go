@@ -22,8 +22,6 @@ func allows(binding Binding, action Action, namespace string) bool {
 	switch binding.Role {
 	case RolePlatformAdmin:
 		return true
-	case RoleRolloutExecutor:
-		return action == ActionRolloutWorkExecute
 	case RoleNamespaceAdmin:
 		if binding.Namespace != namespace {
 			return false
@@ -70,13 +68,4 @@ func HasRole(actor Actor, role Role) bool {
 		}
 	}
 	return false
-}
-
-func IsRolloutDelegatableAction(action Action) bool {
-	switch action {
-	case ActionResourceRead, ActionResourceWrite, ActionSandboxExecute:
-		return true
-	default:
-		return false
-	}
 }

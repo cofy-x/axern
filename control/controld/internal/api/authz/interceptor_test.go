@@ -11,14 +11,12 @@ import (
 
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
-	agentprofilev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/agentprofile/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
-	rolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/rollout/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
@@ -34,7 +32,6 @@ import (
 type fakeAccess struct {
 	actor     accesskernel.Actor
 	namespace string
-	leaseErr  error
 }
 
 func (f fakeAccess) ResolveActor(context.Context, [32]byte) (accesskernel.Actor, error) {
@@ -42,9 +39,6 @@ func (f fakeAccess) ResolveActor(context.Context, [32]byte) (accesskernel.Actor,
 }
 func (f fakeAccess) ResolveResourceNamespace(context.Context, string, string) (string, error) {
 	return f.namespace, nil
-}
-func (f fakeAccess) ValidateRolloutExecutionLease(context.Context, string, string) error {
-	return f.leaseErr
 }
 
 func TestUnaryRejectsSpoofedOrUnauthorizedIdentity(t *testing.T) {
@@ -72,46 +66,6 @@ func TestUnaryRejectsSpoofedOrUnauthorizedIdentity(t *testing.T) {
 	_, err = i.Unary(ctx, &servicev1.GetServiceRequest{ServiceID: "svc-a"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.service.v1.ServiceControl/GetService"}, handler)
 	if status.Code(err) != codes.Unauthenticated {
 		t.Fatalf("direct peer code=%v", status.Code(err))
-	}
-}
-
-func TestUnaryUsesScopedRolloutExecutionLease(t *testing.T) {
-	actor := accesskernel.Actor{Principal: accesskernel.Principal{Status: accesskernel.PrincipalStatusActive}, Bindings: []accesskernel.Binding{{Role: accesskernel.RoleRolloutExecutor}}}
-	i := &Interceptor{access: fakeAccess{actor: actor, namespace: "team-a"}, gatewayPeer: func(context.Context) bool { return true }}
-	base := metadata.Pairs(
-		ClientCertificateFingerprintMetadata, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		RolloutExecutionLeaseMetadata, "lease",
-	)
-	ctx := metadata.NewIncomingContext(context.Background(), base)
-	called := false
-	_, err := i.Unary(ctx, &servicev1.DeleteServiceRequest{ServiceID: "svc-a"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.service.v1.ServiceControl/DeleteService"}, func(context.Context, any) (any, error) {
-		called = true
-		return nil, nil
-	})
-	if err != nil || !called {
-		t.Fatalf("delegated write called=%v err=%v", called, err)
-	}
-	ctx = metadata.NewIncomingContext(context.Background(), metadata.Pairs(ClientCertificateFingerprintMetadata, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-	_, err = i.Unary(ctx, &servicev1.DeleteServiceRequest{ServiceID: "svc-a"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.service.v1.ServiceControl/DeleteService"}, func(context.Context, any) (any, error) { return nil, nil })
-	if status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("missing delegation code=%v", status.Code(err))
-	}
-}
-
-func TestRolloutExecutionLeaseCannotManageQuota(t *testing.T) {
-	actor := accesskernel.Actor{Principal: accesskernel.Principal{Status: accesskernel.PrincipalStatusActive}, Bindings: []accesskernel.Binding{{Role: accesskernel.RoleRolloutExecutor}}}
-	i := &Interceptor{access: fakeAccess{actor: actor}, gatewayPeer: func(context.Context) bool { return true }}
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(
-		ClientCertificateFingerprintMetadata, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		RolloutExecutionLeaseMetadata, "lease",
-	))
-	called := false
-	_, err := i.Unary(ctx, &quotav1.SetNamespaceQuotaRequest{Namespace: "team-a"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.quota.v1.QuotaControl/SetNamespaceQuota"}, func(context.Context, any) (any, error) {
-		called = true
-		return nil, nil
-	})
-	if status.Code(err) != codes.PermissionDenied || called {
-		t.Fatalf("quota management called=%v code=%v", called, status.Code(err))
 	}
 }
 
@@ -153,10 +107,6 @@ func (f *changingAccess) ResolveActor(context.Context, [32]byte) (accesskernel.A
 func (*changingAccess) ResolveResourceNamespace(context.Context, string, string) (string, error) {
 	return "team-a", nil
 }
-func (*changingAccess) ValidateRolloutExecutionLease(context.Context, string, string) error {
-	return nil
-}
-
 func TestStreamRecheckCancelsAfterRoleRevocation(t *testing.T) {
 	access := &changingAccess{actor: accesskernel.Actor{Principal: accesskernel.Principal{Status: accesskernel.PrincipalStatusActive}, Bindings: []accesskernel.Binding{{Role: accesskernel.RoleNamespaceViewer, Namespace: "team-a"}}}}
 	i := &Interceptor{access: access, recheckInterval: time.Millisecond}
@@ -177,9 +127,9 @@ func TestEveryRegisteredPublicMethodHasExplicitPolicy(t *testing.T) {
 	services := []*grpc.ServiceDesc{
 		&adminv1.AccessAdmin_ServiceDesc, &adminv1.AdminAudit_ServiceDesc, &adminv1.AdminReliability_ServiceDesc,
 		&adminv1.NodeAdmin_ServiceDesc, &adminv1.AllocationLifecycleAdmin_ServiceDesc, &adminv1.ServiceAdmin_ServiceDesc,
-		&agentprofilev1.AgentProfileControl_ServiceDesc, &catalogv1.RuntimeCatalog_ServiceDesc, &environmentv1.EnvironmentControl_ServiceDesc,
+		&catalogv1.RuntimeCatalog_ServiceDesc, &environmentv1.EnvironmentControl_ServiceDesc,
 		&identityv1.IdentityControl_ServiceDesc, &namespacev1.NamespaceControl_ServiceDesc,
-		&quotav1.QuotaControl_ServiceDesc, &rolloutv1.RolloutControl_ServiceDesc, &runv1.RunControl_ServiceDesc,
+		&quotav1.QuotaControl_ServiceDesc, &runv1.RunControl_ServiceDesc,
 		&secretv1.SecretControl_ServiceDesc, &servicev1.ServiceControl_ServiceDesc, &tunnelv1.TunnelControl_ServiceDesc,
 	}
 	for _, service := range services {
@@ -200,10 +150,6 @@ func TestEveryRegisteredPublicMethodHasExplicitPolicy(t *testing.T) {
 
 func TestNonPrefixReadMethodsAreReadOnly(t *testing.T) {
 	methods := []string{
-		"/axern.control.agentprofile.v1.AgentProfileControl/DoctorAgentProfile",
-		"/axern.control.rollout.v1.RolloutControl/CompareRollouts",
-		"/axern.control.rollout.v1.RolloutControl/DiagnoseRollout",
-		"/axern.control.rollout.v1.RolloutControl/PrepareArtifactDownload",
 		"/axern.control.tunnel.v1.TunnelControl/InspectTunnelSession",
 	}
 	for _, method := range methods {

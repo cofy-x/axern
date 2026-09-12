@@ -16,7 +16,7 @@ make verify-changed
 ```
 
 The change planner runs only host-safe checks and prints whether Linux network
-policy, managed rollout, or release-contract verification is affected. GitHub
+policy or release-contract verification is affected. GitHub
 CI is authoritative for selected Linux correctness checks. Integration-sensitive
 changes may also need the narrow Compose, kind, or runtime smoke documented by
 the owning module.

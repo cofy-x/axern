@@ -18,10 +18,6 @@ type Metrics struct {
 	leaseRetries      sdkobs.Counter
 	serviceStages     sdkobs.Histogram
 	terminalEvents    sdkobs.Counter
-	artifactActive    sdkobs.UpDownCounter
-	artifactDownloads sdkobs.Counter
-	artifactBytes     sdkobs.Counter
-	artifactDuration  sdkobs.Histogram
 }
 
 func NewMetrics(obs *sdkobs.Handle) *Metrics {
@@ -38,31 +34,6 @@ func NewMetrics(obs *sdkobs.Handle) *Metrics {
 		leaseRetries:      obs.Int64Counter(MetricLeaseRetryTotal.Name, MetricLeaseRetryTotal.Description),
 		serviceStages:     obs.DurationHistogram(MetricServiceProxyStageDuration.Name, MetricServiceProxyStageDuration.Description),
 		terminalEvents:    obs.Int64Counter(MetricTerminalEventTotal.Name, MetricTerminalEventTotal.Description),
-		artifactActive:    obs.Int64UpDownCounter(MetricArtifactDownloadsCurrent.Name, MetricArtifactDownloadsCurrent.Description),
-		artifactDownloads: obs.Int64Counter(MetricArtifactDownloadsTotal.Name, MetricArtifactDownloadsTotal.Description),
-		artifactBytes:     obs.Int64Counter(MetricArtifactDownloadBytesTotal.Name, MetricArtifactDownloadBytesTotal.Description),
-		artifactDuration:  obs.DurationHistogram(MetricArtifactDownloadDuration.Name, MetricArtifactDownloadDuration.Description),
-	}
-}
-
-func (m *Metrics) BeginArtifactDownload(resumed bool) func(int64, string, string) {
-	if m == nil {
-		return func(int64, string, string) {}
-	}
-	started := time.Now()
-	m.artifactActive.Add(context.Background(), 1)
-	return func(bytes int64, result, errorClass string) {
-		m.artifactActive.Add(context.Background(), -1)
-		attributes := []attribute.KeyValue{
-			attribute.String(sdkobs.AttrResult, normalizeLabel(result, "unknown")),
-			attribute.String(sdkobs.AttrErrorClass, normalizeLabel(errorClass, "none")),
-			attribute.Bool("resume", resumed),
-		}
-		m.artifactDownloads.Add(context.Background(), 1, attributes...)
-		if bytes > 0 {
-			m.artifactBytes.Add(context.Background(), bytes, attribute.Bool("resume", resumed))
-		}
-		m.artifactDuration.RecordDuration(context.Background(), time.Since(started), attributes...)
 	}
 }
 

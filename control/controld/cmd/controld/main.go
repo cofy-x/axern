@@ -25,7 +25,6 @@ import (
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"github.com/cofy-x/axern/lib/go/observability/logrusotel"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
-	agentprofilev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/agentprofile/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
@@ -33,14 +32,11 @@ import (
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
-	rolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/rollout/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	tunnelrelaycontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/tunnel/v1"
-	artifactaccessv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/rollout/artifact/v1"
-	workerrolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/rollout/worker/v1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -58,28 +54,23 @@ const (
 )
 
 type options struct {
-	grpcAddress                                            string
-	httpAddress                                            string
-	logLevel                                               string
-	heartbeatFreshnessWindow                               time.Duration
-	summaryFreshnessWindow                                 time.Duration
-	postgresDSN                                            string
-	postgresMaxConnections                                 int
-	secretsMasterKey                                       string
-	reconcileTimeout                                       time.Duration
-	resourceCPUOvercommitRatio                             float64
-	serviceReconcileWorkers                                int
-	serviceAllocationGlobalWorkers                         int
-	serviceAllocationWorkersPerNode                        int
-	tlsCACert                                              string
-	tlsCert                                                string
-	tlsKey                                                 string
-	tunnelRelays                                           string
-	rolloutWorkerToken                                     string
-	artifactS3Endpoint, artifactS3Region, artifactS3Bucket string
-	artifactS3AccessKey, artifactS3SecretKey               string
-	artifactS3UsePathStyle                                 bool
-	artifactTicketSigningKey                               string
+	grpcAddress                     string
+	httpAddress                     string
+	logLevel                        string
+	heartbeatFreshnessWindow        time.Duration
+	summaryFreshnessWindow          time.Duration
+	postgresDSN                     string
+	postgresMaxConnections          int
+	secretsMasterKey                string
+	reconcileTimeout                time.Duration
+	resourceCPUOvercommitRatio      float64
+	serviceReconcileWorkers         int
+	serviceAllocationGlobalWorkers  int
+	serviceAllocationWorkersPerNode int
+	tlsCACert                       string
+	tlsCert                         string
+	tlsKey                          string
+	tunnelRelays                    string
 }
 
 func main() {
@@ -127,9 +118,6 @@ func run() error {
 		SecretsMasterKey:         opts.secretsMasterKey,
 		ReconcileTimeout:         opts.reconcileTimeout,
 		TunnelRelays:             opts.tunnelRelays,
-		RolloutWorkerToken:       opts.rolloutWorkerToken,
-		ArtifactS3Endpoint:       opts.artifactS3Endpoint, ArtifactS3Region: opts.artifactS3Region, ArtifactS3Bucket: opts.artifactS3Bucket, ArtifactS3AccessKey: opts.artifactS3AccessKey, ArtifactS3SecretKey: opts.artifactS3SecretKey, ArtifactS3UsePathStyle: opts.artifactS3UsePathStyle,
-		ArtifactTicketSigningKey: opts.artifactTicketSigningKey,
 		ResourcePolicy: resourcekernel.AdmissionPolicy{
 			CPUOvercommitRatio: opts.resourceCPUOvercommitRatio,
 		},
@@ -177,14 +165,6 @@ func run() error {
 	tunnelcontrolv1.RegisterTunnelControlServer(grpcServer, svc.PublicV1Handler())
 	namespacev1.RegisterNamespaceControlServer(grpcServer, svc.PublicV1Handler())
 	quotav1.RegisterQuotaControlServer(grpcServer, svc.PublicV1Handler())
-	agentprofilev1.RegisterAgentProfileControlServer(grpcServer, svc.PublicV1Handler())
-	rolloutv1.RegisterRolloutControlServer(grpcServer, svc.PublicV1Handler())
-	if svc.RolloutWorkerV1Handler() != nil {
-		workerrolloutv1.RegisterRolloutWorkerControlServer(grpcServer, svc.RolloutWorkerV1Handler())
-	}
-	if svc.ArtifactAccessV1Handler() != nil {
-		artifactaccessv1.RegisterArtifactAccessServer(grpcServer, svc.ArtifactAccessV1Handler())
-	}
 	tunnelrelaycontrolv1.RegisterTunnelRelayControlServer(grpcServer, svc.RelayV1Handler())
 	if svc.GatewayV1Handler() != nil {
 		gatewayv1.RegisterGatewayControlServer(grpcServer, svc.GatewayV1Handler())
@@ -269,14 +249,6 @@ func parseFlags() (options, error) {
 	flagSet.StringVar(&opts.tlsCert, "tls-cert", defaultString(os.Getenv("CONTROLD_TLS_CERT"), defaultTLSCert), "controld server certificate")
 	flagSet.StringVar(&opts.tlsKey, "tls-key", defaultString(os.Getenv("CONTROLD_TLS_KEY"), defaultTLSKey), "controld server private key")
 	flagSet.StringVar(&opts.tunnelRelays, "tunnel-relays", defaultString(os.Getenv("CONTROLD_TUNNEL_RELAYS"), defaultTunnelRelays), "semicolon-separated tunnel relay registry entries: id,client_target,node_target,weight,drain")
-	flagSet.StringVar(&opts.rolloutWorkerToken, "rollout-worker-token", os.Getenv("CONTROLD_ROLLOUT_WORKER_TOKEN"), "bootstrap credential for durable rollout workers; empty disables the worker API")
-	flagSet.StringVar(&opts.artifactS3Endpoint, "artifact-s3-endpoint", os.Getenv("CONTROLD_ARTIFACT_S3_ENDPOINT"), "S3-compatible endpoint for rollout artifacts")
-	flagSet.StringVar(&opts.artifactS3Region, "artifact-s3-region", os.Getenv("CONTROLD_ARTIFACT_S3_REGION"), "S3 region for rollout artifacts")
-	flagSet.StringVar(&opts.artifactS3Bucket, "artifact-s3-bucket", os.Getenv("CONTROLD_ARTIFACT_S3_BUCKET"), "S3 bucket for rollout artifacts; empty disables artifact upload")
-	flagSet.StringVar(&opts.artifactS3AccessKey, "artifact-s3-access-key", os.Getenv("CONTROLD_ARTIFACT_S3_ACCESS_KEY"), "S3 access key for rollout artifacts")
-	flagSet.StringVar(&opts.artifactS3SecretKey, "artifact-s3-secret-key", os.Getenv("CONTROLD_ARTIFACT_S3_SECRET_KEY"), "S3 secret key for rollout artifacts")
-	flagSet.BoolVar(&opts.artifactS3UsePathStyle, "artifact-s3-use-path-style", strings.EqualFold(os.Getenv("CONTROLD_ARTIFACT_S3_USE_PATH_STYLE"), "true"), "use path-style S3 addressing")
-	flagSet.StringVar(&opts.artifactTicketSigningKey, "artifact-ticket-signing-key", os.Getenv("CONTROLD_ARTIFACT_TICKET_KEY"), "persistent HMAC key for gateway artifact download tickets")
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
 		return options{}, err
 	}
