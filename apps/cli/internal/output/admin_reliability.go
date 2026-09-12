@@ -42,30 +42,6 @@ func RenderAdminReliabilityHealth(w io.Writer, health *adminv1.AdminReliabilityH
 	if consistency := health.GetConsistency(); consistency != nil && consistency.GetCounts() != nil {
 		fmt.Fprintf(w, "Consistency Issues: %d\n", consistency.GetCounts().GetIssues())
 	}
-	if storageBindings := health.GetStorageBindingHealth(); storageBindings != nil {
-		fmt.Fprintf(w, "Storage Binding Failed: %d\n", storageBindings.GetFailedBindings())
-		fmt.Fprintf(w, "Storage Binding Releasing: %d\n", storageBindings.GetReleasingBindings())
-		fmt.Fprintf(w, "Storage Binding Stuck Releasing: %d\n", storageBindings.GetStuckReleasingBindings())
-		fmt.Fprintf(w, "Storage Claims Deleting: %d\n", storageBindings.GetDeletingClaims())
-		fmt.Fprintf(w, "Storage Claims Stuck Deleting: %d\n", storageBindings.GetStuckDeletingClaims())
-		fmt.Fprintf(w, "Storage Inconsistent Claims: %d\n", storageBindings.GetInconsistentClaims())
-		fmt.Fprintf(w, "Storage Invalid Bindings: %d\n", storageBindings.GetInvalidBindings())
-		if storageBindings.GetUnavailable() {
-			fmt.Fprintln(w, "Storage Binding Health Unavailable: true")
-		}
-		if strings.TrimSpace(storageBindings.GetError()) != "" {
-			fmt.Fprintf(w, "Storage Binding Error: %s\n", storageBindings.GetError())
-		}
-	}
-	if nodeVolumes := health.GetNodeVolumeHealth(); nodeVolumes != nil {
-		fmt.Fprintf(w, "Node Volume Unhealthy Nodes: %d\n", nodeVolumes.GetUnhealthyNodes())
-		fmt.Fprintf(w, "Node Volume Published Volumes: %d\n", nodeVolumes.GetPublishedVolumes())
-		fmt.Fprintf(w, "Node Volume Last Reconcile Stale Allocations: %d\n", nodeVolumes.GetLastReconcileStaleAllocations())
-		fmt.Fprintf(w, "Node Volume Last Reconcile Invalid Volumes: %d\n", nodeVolumes.GetLastReconcileInvalidVolumes())
-		if strings.TrimSpace(nodeVolumes.GetError()) != "" {
-			fmt.Fprintf(w, "Node Volume Error: %s\n", nodeVolumes.GetError())
-		}
-	}
 	if nodes := health.GetNodeFleetHealth(); nodes != nil {
 		fmt.Fprintf(w, "Node Fleet Unavailable: %t\n", nodes.GetUnavailable())
 		if nodes.GetError() != "" {
@@ -185,8 +161,6 @@ type AdminReliabilityHealthJSON struct {
 	AllocationLifecycleRetries    int64                           `json:"allocation_lifecycle_retries"`
 	DueAllocationLifecycleRetries int64                           `json:"due_allocation_lifecycle_retries"`
 	ReconcileUnhealthyComponents  int64                           `json:"reconcile_unhealthy_components"`
-	StorageBindingHealth          *AdminStorageBindingHealthJSON  `json:"storage_binding_health,omitempty"`
-	NodeVolumeHealth              *AdminNodeVolumeHealthJSON      `json:"node_volume_health,omitempty"`
 	NodeFleetHealth               *AdminNodeFleetHealthJSON       `json:"node_fleet_health,omitempty"`
 	ReconcileComponents           []*ReconcileComponentHealthJSON `json:"reconcile_components"`
 	Signals                       []*AdminReliabilitySignalJSON   `json:"signals"`
@@ -229,26 +203,6 @@ type ConsistencyIssueJSON struct {
 type AdminReliabilitySignalJSON struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
-}
-
-type AdminStorageBindingHealthJSON struct {
-	Unavailable            bool   `json:"unavailable"`
-	Error                  string `json:"error,omitempty"`
-	FailedBindings         int64  `json:"failed_bindings"`
-	ReleasingBindings      int64  `json:"releasing_bindings"`
-	StuckReleasingBindings int64  `json:"stuck_releasing_bindings"`
-	DeletingClaims         int64  `json:"deleting_claims"`
-	StuckDeletingClaims    int64  `json:"stuck_deleting_claims"`
-	InconsistentClaims     int64  `json:"inconsistent_claims"`
-	InvalidBindings        int64  `json:"invalid_bindings"`
-}
-
-type AdminNodeVolumeHealthJSON struct {
-	UnhealthyNodes                int64  `json:"unhealthy_nodes"`
-	PublishedVolumes              int64  `json:"published_volumes"`
-	LastReconcileStaleAllocations int64  `json:"last_reconcile_stale_allocations"`
-	LastReconcileInvalidVolumes   int64  `json:"last_reconcile_invalid_volumes"`
-	Error                         string `json:"error,omitempty"`
 }
 
 type AdminNodeFleetHealthJSON struct {
@@ -298,8 +252,6 @@ func NewAdminReliabilityHealthJSON(health *adminv1.AdminReliabilityHealth) *Admi
 		AllocationLifecycleRetries:    health.GetAllocationLifecycleRetries(),
 		DueAllocationLifecycleRetries: health.GetDueAllocationLifecycleRetries(),
 		ReconcileUnhealthyComponents:  health.GetReconcileUnhealthyComponents(),
-		StorageBindingHealth:          NewAdminStorageBindingHealthJSON(health.GetStorageBindingHealth()),
-		NodeVolumeHealth:              NewAdminNodeVolumeHealthJSON(health.GetNodeVolumeHealth()),
 		NodeFleetHealth:               NewAdminNodeFleetHealthJSON(health.GetNodeFleetHealth()),
 		ReconcileComponents:           components,
 		Signals:                       signals,
@@ -318,36 +270,6 @@ func NewAdminNodeFleetHealthJSON(health *adminv1.AdminNodeFleetHealth) *AdminNod
 		StaleHeartbeatNodes: health.GetStaleHeartbeatNodes(),
 		StaleSummaryNodes:   health.GetStaleSummaryNodes(),
 		NotReadyNodes:       health.GetNotReadyNodes(),
-	}
-}
-
-func NewAdminStorageBindingHealthJSON(health *adminv1.AdminStorageBindingHealth) *AdminStorageBindingHealthJSON {
-	if health == nil {
-		return nil
-	}
-	return &AdminStorageBindingHealthJSON{
-		Unavailable:            health.GetUnavailable(),
-		Error:                  health.GetError(),
-		FailedBindings:         health.GetFailedBindings(),
-		ReleasingBindings:      health.GetReleasingBindings(),
-		StuckReleasingBindings: health.GetStuckReleasingBindings(),
-		DeletingClaims:         health.GetDeletingClaims(),
-		StuckDeletingClaims:    health.GetStuckDeletingClaims(),
-		InconsistentClaims:     health.GetInconsistentClaims(),
-		InvalidBindings:        health.GetInvalidBindings(),
-	}
-}
-
-func NewAdminNodeVolumeHealthJSON(health *adminv1.AdminNodeVolumeHealth) *AdminNodeVolumeHealthJSON {
-	if health == nil {
-		return nil
-	}
-	return &AdminNodeVolumeHealthJSON{
-		UnhealthyNodes:                health.GetUnhealthyNodes(),
-		PublishedVolumes:              health.GetPublishedVolumes(),
-		LastReconcileStaleAllocations: health.GetLastReconcileStaleAllocations(),
-		LastReconcileInvalidVolumes:   health.GetLastReconcileInvalidVolumes(),
-		Error:                         health.GetError(),
 	}
 }
 

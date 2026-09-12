@@ -115,7 +115,7 @@ Review these chart areas before running shared or production workloads:
   verify the CLI checksum before installing it.
 - **Cluster prerequisites:** confirm the required Kubernetes/Helm versions,
   `runsc` runtime availability, node privileges for the runtime and
-  volume services, an eBPF-capable Linux kernel for the default NAT dataplane
+  image services, an eBPF-capable Linux kernel for the default NAT dataplane
   (`node.network.natBackend=iptables` is the explicit rollback), and
   image-registry reachability from every scheduled node.
 - **Gateway exposure:** replace the local port-forward with an explicitly
@@ -141,7 +141,7 @@ Review these chart areas before running shared or production workloads:
 :::caution[Pre-1.0 security boundary]
 Axern does not claim a default install is safe for untrusted multi-tenant
 workloads. Operators own TLS, ingress, image trust, network policy, secret
-storage, quotas, and persistent storage.
+storage, quotas, and artifact retention.
 :::
 
 The [Helm chart README](https://github.com/cofy-x/axern/tree/main/deploy/helm/axern)

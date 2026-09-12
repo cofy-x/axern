@@ -111,11 +111,15 @@ The current charged scope is intentionally narrow and runtime-independent:
 - the runsc file-backed root overlay, including its metadata, copy-up, and
   whiteouts
 
-Persistent volumes, immutable lower rootfs and image caches, artifacts,
+Immutable lower rootfs and image caches, artifacts,
 mount-target projection placeholders, tmpfs, and logs are not charged to
 `ephemeral_storage_bytes` in the current contract. Adding one of those classes
 later requires an explicit accounting-version change; it must not silently
 consume an existing sandbox reservation.
+
+Allocation-local files are not a persistent volume contract. Applications must
+export data that needs to survive allocation replacement or node loss; see the
+[storage ownership and lifetime model](storage-architecture.md).
 
 Overcommit changes control-plane admission capacity only. It does not change
 container cgroup limits or runtime behavior.

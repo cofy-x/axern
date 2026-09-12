@@ -74,7 +74,7 @@ func TestApplyUpdateRejectsVersionMismatch(t *testing.T) {
 
 func TestMarkDeletedClonesAndStartsDeletion(t *testing.T) {
 	base := NewService("ns", "env", 1, nil, nil, nil, nil, nil, nil, time.Now().UTC())
-	next := MarkDeleted(base, servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_RETAIN, time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC))
+	next := MarkDeleted(base, time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC))
 	if next.GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETING {
 		t.Fatalf("status = %v, want deleting", next.GetStatus())
 	}
@@ -89,7 +89,6 @@ func TestMarkDeletedClonesAndStartsDeletion(t *testing.T) {
 func TestApplyStatusUpdatePreservesDeletingState(t *testing.T) {
 	deleted := MarkDeleted(
 		NewService("ns", "env", 1, nil, nil, nil, nil, nil, nil, time.Now().UTC()),
-		servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_RETAIN,
 		time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC),
 	)
 
@@ -113,25 +112,25 @@ func TestApplyStatusUpdatePreservesDeletingState(t *testing.T) {
 
 func TestApplyDeletionProgressOnlyCompletesAtTerminalPhase(t *testing.T) {
 	now := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
-	service := MarkDeleted(NewService("ns", "env", 0, nil, nil, nil, nil, nil, nil, now), servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE, now)
-	reclaiming := &servicev1.ServiceDeletionStatus{Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES}
-	next := ApplyDeletionProgress(service, reclaiming, now.Add(time.Second))
+	service := MarkDeleted(NewService("ns", "env", 0, nil, nil, nil, nil, nil, nil, now), now)
+	releasing := &servicev1.ServiceDeletionStatus{Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS}
+	next := ApplyDeletionProgress(service, releasing, now.Add(time.Second))
 	if next.GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETING {
-		t.Fatalf("reclaiming status = %s, want deleting", next.GetStatus())
+		t.Fatalf("releasing status = %s, want deleting", next.GetStatus())
 	}
 	complete := &servicev1.ServiceDeletionStatus{Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE}
 	finished := ApplyDeletionProgress(next, complete, now.Add(2*time.Second))
 	if finished.GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETED {
 		t.Fatalf("complete status = %s, want deleted", finished.GetStatus())
 	}
-	if reclaiming.GetPhase() != servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES {
+	if releasing.GetPhase() != servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS {
 		t.Fatal("input deletion status mutated")
 	}
 }
 
 func TestApplyUpdateRejectsDeletingService(t *testing.T) {
 	now := time.Date(2026, 7, 17, 13, 0, 0, 0, time.UTC)
-	service := MarkDeleted(NewService("ns", "env", 0, nil, nil, nil, nil, nil, nil, now), servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE, now)
+	service := MarkDeleted(NewService("ns", "env", 0, nil, nil, nil, nil, nil, nil, now), now)
 	replicas := int32(1)
 	_, err := ApplyUpdate(service, &servicev1.UpdateServiceRequest{ServiceID: service.GetID(), ExpectedVersion: service.GetVersion(), Replicas: &replicas}, now.Add(time.Second))
 	if grpcstatus.Code(err) != codes.FailedPrecondition {

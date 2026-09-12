@@ -6,7 +6,7 @@ mounted read-only at explicit paths inside the same sandbox.
 
 ```text
 task image rootfs
-  + host/volume mounts
+  + runtime-owned bind mounts
   + optional COW TaskSet workspace image
   + read-only image bundle mounts
   -> one sandbox process environment
@@ -27,12 +27,12 @@ Validation rules:
 
 - targets must not be `/` or protected system paths such as `/usr`, `/bin`,
   `/etc`, `/proc`, `/sys`, `/dev`, or `/run`;
-- image mount targets must not overlap each other or existing sandbox, volume,
+- image mount targets must not overlap each other or existing sandbox,
   template, sandboxd-managed, or secret-file mounts;
 - missing directory targets are materialized in the final task rootfs view;
 - paths that cross rootfs symlinks are rejected;
 - runtime-managed bundle aliases must be absent from the task rootfs and must
-  not overlap any image, sandbox, volume, template, or secret-file mount;
+  not overlap any image, sandbox, template, or secret-file mount;
 - setup failure fails allocation start, and allocation cleanup releases mounted
   image rootfs references.
 

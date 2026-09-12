@@ -38,7 +38,7 @@ GO_GCFLAGS=$(shell set -- ${GOPATHS}; echo "-gcflags=-trimpath=$${1}/src")
 
 GOTEST ?= $(GO) test
 TESTFLAGS ?= $(EXTRA_TESTFLAGS)
-HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/demo/nginx ./internal/langruntime ./internal/network/ebpf ./internal/nodestate ./internal/observability/trace ./internal/volume ./pkg/errord ./pkg/truncindex
+HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/demo/nginx ./internal/langruntime ./internal/network/ebpf ./internal/nodestate ./internal/observability/trace ./pkg/errord ./pkg/truncindex
 
 .PHONY: all clean test test-host check-architecture release release-binary release-cli protos protos-docker protos-docker-build tidy vendor fmt vet help \
 	verify-docker verify-docker-build verify-docker-conformance verify-network-policy-linux-smoke verify-network-policy-linux-matrix \
@@ -57,7 +57,6 @@ HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/demo/nginx ./
 	verify-node-startup-metrics-e2e \
 	verify-node-startup-matrix-smoke \
 	verify-node-bundle-template-e2e \
-	verify-node-service-volumes-e2e \
 	verify-node-service-probes-e2e \
 	verify-node-python-runtime-e2e \
 	verify-node-retention-e2e \
@@ -239,9 +238,6 @@ verify-node-startup-matrix-smoke: ## run a focused startup matrix smoke verifica
 
 verify-node-bundle-template-e2e: ## run privileged node all-in-one bundle template reuse end-to-end verification
 	@bash ./scripts/verify/verify-node-bundle-template-e2e.sh
-
-verify-node-service-volumes-e2e: ## run privileged node all-in-one service node-local volume persistence verification
-	@bash ./scripts/verify/verify-node-service-volumes-e2e.sh
 
 verify-node-service-probes-e2e: ## run privileged node all-in-one service readiness+liveness replacement verification
 	@bash ./scripts/verify/verify-node-service-probes-e2e.sh

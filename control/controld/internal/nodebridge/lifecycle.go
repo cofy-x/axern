@@ -15,7 +15,6 @@ import (
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
-	privatestoragev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/storage/v1"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -115,7 +114,6 @@ func (b *Bridge) CreateResolvedAllocation(ctx context.Context, req servicekernel
 		ServiceID:              req.ServiceID,
 		ReadinessProbe:         req.ReadinessProbe,
 		LivenessProbe:          req.LivenessProbe,
-		NodeVolumes:            req.NodeVolumes,
 		CapabilityDependencies: req.CapabilityDependencies,
 	})
 	recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateResolvedAllocation, nodeLifecycleStageResolveCreateRequest, stageStarted, err)
@@ -130,7 +128,6 @@ func (b *Bridge) CreateResolvedAllocation(ctx context.Context, req servicekernel
 	}
 	recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateResolvedAllocation, nodeLifecycleStageNodeCreateRPC, stageStarted, nil)
 	return &servicekernel.CreateResolvedAllocationResult{
-		PublishedVolumes:               clonePublishedNodeVolumes(resp.GetPublishedVolumes()),
 		WorkspacePreparation:           resp.GetWorkspacePreparation(),
 		CapabilityVerification:         cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
 		AdmittedCapabilityDependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
@@ -138,26 +135,22 @@ func (b *Bridge) CreateResolvedAllocation(ctx context.Context, req servicekernel
 }
 
 func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID string, attempt int64, nodeID string) error {
-	_, err := b.DeleteResolvedAllocation(ctx, target, allocationID, attempt, nodeID)
-	return err
+	return b.DeleteResolvedAllocation(ctx, target, allocationID, attempt, nodeID)
 }
 
-func (b *Bridge) DeleteResolvedAllocation(ctx context.Context, target, allocationID string, attempt int64, nodeID string) ([]*privatestoragev1.VolumeReleaseObservation, error) {
+func (b *Bridge) DeleteResolvedAllocation(ctx context.Context, target, allocationID string, attempt int64, nodeID string) error {
 	callCtx, cancel := context.WithTimeout(ctx, b.operationTimeout)
 	defer cancel()
-	resp, err := b.client.DeleteAllocation(callCtx, target, &privatenodev1.DeleteAllocationRequest{
+	_, err := b.client.DeleteAllocation(callCtx, target, &privatenodev1.DeleteAllocationRequest{
 		AllocationID:   allocationID,
 		Attempt:        attempt,
 		NodeID:         nodeID,
 		TimeoutSeconds: 10,
 	})
 	if grpcstatus.Code(err) == codes.NotFound {
-		return nil, nil
+		return nil
 	}
-	if err != nil {
-		return nil, err
-	}
-	return cloneVolumeReleaseObservations(resp.GetVolumeReleaseObservations()), nil
+	return err
 }
 
 func (b *Bridge) AllocationDeleted(ctx context.Context, target, allocationID string, attempt int64, nodeID string) (bool, error) {
@@ -175,15 +168,6 @@ func (b *Bridge) AllocationDeleted(ctx context.Context, target, allocationID str
 		return false, err
 	}
 	return false, nil
-}
-
-func (b *Bridge) DeleteVolume(ctx context.Context, target string, reclaim *privatestoragev1.VolumeReclaim) error {
-	callCtx, cancel := context.WithTimeout(ctx, b.operationTimeout)
-	defer cancel()
-	_, err := b.client.DeleteVolume(callCtx, target, &privatenodev1.DeleteVolumeRequest{
-		ClaimID: reclaim.GetClaimID(), Backend: reclaim.GetBackend(), BackendHandle: reclaim.GetBackendHandle(), NodeID: reclaim.GetNodeID(),
-	})
-	return err
 }
 
 func (b *Bridge) buildCreateAllocationRequest(ctx context.Context, params createAllocationRequestParams) (*privatenodev1.CreateAllocationRequest, error) {

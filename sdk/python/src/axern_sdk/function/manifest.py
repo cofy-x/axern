@@ -11,7 +11,7 @@ import yaml
 
 from axern_sdk._internal.resources import cpu_milli, memory_bytes
 from axern_sdk.function.models import FunctionResources, FunctionScaling, FunctionSource, FunctionSpec, FunctionWorkerSource
-from axern_sdk.models import ImageMount, SecretEnvVar, SecretFile, VolumeMount
+from axern_sdk.models import ImageMount, SecretEnvVar, SecretFile
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$")
 _PYTHON_REF_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+$")
@@ -93,7 +93,6 @@ def load_function_spec(path: str | Path) -> FunctionSpec:
     extension_capabilities = _string_map("spec.extension_capabilities", spec.get("extension_capabilities"))
     secret_env = _secret_env(spec.get("secret_env"))
     secret_files = _secret_files(spec.get("secret_files"))
-    volumes = _volumes(spec.get("volumes"))
     image_mounts = _image_mounts(spec.get("image_mounts"))
 
     return FunctionSpec(
@@ -112,7 +111,6 @@ def load_function_spec(path: str | Path) -> FunctionSpec:
         extension_capabilities=extension_capabilities,
         secret_env=secret_env,
         secret_files=secret_files,
-        volumes=volumes,
         image_mounts=image_mounts,
         root_dir=spec_path.parent,
         manifest_path=spec_path,
@@ -122,7 +120,7 @@ def load_function_spec(path: str | Path) -> FunctionSpec:
 def _reject_unknown(label: str = "spec", data: Mapping[str, Any] | None = None, allowed: set[str] | None = None, *, spec: Mapping[str, Any] | None = None) -> None:
     if spec is not None:
         data = spec
-        allowed = {"source", "command", "runtime_class", "resources", "function", "env", "extension_capabilities", "secret_env", "secret_files", "volumes", "image_mounts"}
+        allowed = {"source", "command", "runtime_class", "resources", "function", "env", "extension_capabilities", "secret_env", "secret_files", "image_mounts"}
     assert data is not None and allowed is not None
     unknown = sorted(set(data) - allowed)
     if unknown:
@@ -191,32 +189,6 @@ def _duration_seconds(label: str, value: str) -> int:
         raise ValueError(f"{label} must use s, m, or h units")
     multiplier = {"s": 1, "m": 60, "h": 3600}[match.group(2)]
     return int(match.group(1)) * multiplier
-
-
-def _volumes(value: Any) -> tuple[VolumeMount, ...]:
-    if value is None:
-        return ()
-    if not isinstance(value, list):
-        raise ValueError("spec.volumes must be a list")
-    result: list[VolumeMount] = []
-    names: set[str] = set()
-    targets: set[str] = set()
-    for index, item in enumerate(value):
-        label = f"spec.volumes[{index}]"
-        data = _object(label, item)
-        _reject_unknown(label, data, {"name", "target", "readonly", "options"})
-        name = _required_string(data, "name", label)
-        target = _required_string(data, "target", label)
-        if name in names or target in targets or not target.startswith("/") or target == "/" or ".." in Path(target).parts:
-            raise ValueError(f"{label} has an invalid or duplicate name/target")
-        readonly = data.get("readonly", False)
-        options = data.get("options", [])
-        if not isinstance(readonly, bool) or not isinstance(options, list) or not all(isinstance(item, str) for item in options):
-            raise ValueError(f"{label} readonly/options are invalid")
-        names.add(name)
-        targets.add(target)
-        result.append(VolumeMount(name=name, target=target, readonly=readonly, options=tuple(options)))
-    return tuple(result)
 
 
 def _secret_env(value: Any) -> tuple[SecretEnvVar, ...]:

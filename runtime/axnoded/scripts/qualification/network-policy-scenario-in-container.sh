@@ -123,14 +123,14 @@ finish() {
 trap finish EXIT
 
 cleanup
-mkdir -p /var/lib/axnoded /var/lib/egressd /var/lib/imagemgr /var/lib/volumed /run/axnoded /run/egressd
+mkdir -p /var/lib/axnoded /var/lib/egressd /var/lib/imagemgr /run/axnoded /run/egressd
 # This script only runs in a disposable qualification image. These exact
 # directories contain state created by the preceding matrix cell in that image.
 while IFS= read -r mount_target; do
   umount "${mount_target}"
 done < <(
   findmnt -rn -o TARGET |
-    awk '$0 ~ "^/var/lib/(axnoded|egressd|imagemgr|volumed)(/|$)" { print length($0), $0 }' |
+    awk '$0 ~ "^/var/lib/(axnoded|egressd|imagemgr)(/|$)" { print length($0), $0 }' |
     sort -rn |
     cut -d ' ' -f 2-
 )
@@ -161,7 +161,7 @@ for cgroup_root in "${workload_cgroup_root}" "${conformance_cgroup_root}"; do
   done < <(find "${cgroup_root}" -mindepth 1 -depth -type d)
 done
 
-find /var/lib/axnoded /var/lib/egressd /var/lib/imagemgr /var/lib/volumed -mindepth 1 -delete
+find /var/lib/axnoded /var/lib/egressd /var/lib/imagemgr -mindepth 1 -delete
 find /run/axnoded /run/egressd -mindepth 1 -delete
 
 default_uplink="$(ip route show default | awk '/default/ {print $5; exit}')"

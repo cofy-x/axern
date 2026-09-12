@@ -14,7 +14,6 @@ RUN_DIR="${DEV_DIR}/run"
 BIN_DIR="${STACK_DIR}/bin"
 AXNODED_DIR="${DEV_DIR}/axnoded"
 IMAGEMGR_DIR="${DEV_DIR}/imagemgr"
-VOLUMED_DIR="${DEV_DIR}/volumed"
 EGRESSD_DIR="${DEV_DIR}/egressd"
 IMAGEFSD_DIR="${DEV_DIR}/imagefsd"
 CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET:-127.0.0.1:24000}"
@@ -39,7 +38,6 @@ mkdir -p \
   "${AXNODED_DIR}/logs" \
   "${AXNODED_DIR}/filestore" \
   "${IMAGEMGR_DIR}" \
-  "${VOLUMED_DIR}/local" \
   "${EGRESSD_DIR}" \
   "${IMAGEFSD_DIR}/chunkdb"
 
@@ -74,7 +72,6 @@ max_instance_num = 8
 [plugin.runtime]
 image_lib_dir = "${AXNODED_DIR}/rootfs"
 image_manager_socket = "${RUN_DIR}/imagemgr.sock"
-volume_manager_socket = "${RUN_DIR}/volumed.sock"
 runtime_runner_binary = "${BIN_DIR}/axnoded-runtime-runner"
 cgroup_enforcement = "disabled_dev"
 filestore_dir = "${AXNODED_DIR}/filestore"

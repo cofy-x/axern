@@ -6,9 +6,7 @@ cd "${ROOT_DIR}"
 . "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 NAT_BACKEND="${NAT_BACKEND:-iptables}"
 AXNODED_NETWORK_IP_RANGE="${AXNODED_NETWORK_IP_RANGE:-172.31.0.1/16}"
-VOLUMED_LOG="${VOLUMED_LOG:-/tmp/volumed-dashboard.log}"
 VERIFY_NGINX_ROOTFS_IMAGE="${VERIFY_NGINX_ROOTFS_IMAGE:-/var/lib/axnoded/verify-dashboard-nginx-rootfs.ext4}"
-setup_node_runtime_volume_defaults
 
 ensure_bpf_fs() {
   if [ "${NAT_BACKEND}" != "ebpf" ]; then
@@ -45,7 +43,6 @@ max_instance_num = 8
 [plugin.runtime]
 image_lib_dir = "/var/lib/axnoded/rootfs"
 image_manager_enabled = false
-volume_manager_socket = "${VOLUMED_SOCKET}"
 cgroup_enforcement = "disabled_dev"
 filestore_mode = "loopback_dev"
 filestore_dir = "/var/lib/axnoded/filestore"
@@ -82,7 +79,6 @@ cleanup() {
     kill "${AXNODED_PID}" >/dev/null 2>&1 || true
     wait "${AXNODED_PID}" >/dev/null 2>&1 || true
   fi
-  stop_node_runtime_volumed
   umount /opt/nginx-rootfs >/dev/null 2>&1 || true
   if [ -n "${rootfs_staging_dir}" ]; then
     umount "${rootfs_staging_dir}" >/dev/null 2>&1 || true
@@ -106,7 +102,6 @@ rmdir "${rootfs_staging_dir}"
 rootfs_staging_dir=""
 mount -o loop,ro "${VERIFY_NGINX_ROOTFS_IMAGE}" /opt/nginx-rootfs
 
-start_node_runtime_volumed
 
 /usr/local/bin/axnoded \
   -root /var/lib/axnoded \

@@ -14,7 +14,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
-	servicevolumes "github.com/cofy-x/axern/runtime/axnoded/internal/service/volumes"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	"google.golang.org/protobuf/proto"
 )
@@ -34,14 +33,14 @@ type testAllocationController struct {
 
 func newTestAllocationController(t *testing.T, handlers map[string]contract.RuntimeHandler) testAllocationController {
 	t.Helper()
-	return newTestAllocationControllerWithStore(t, handlers, storetest.NewMockStore(), fakeVolumePublisher{})
+	return newTestAllocationControllerWithStore(t, handlers, storetest.NewMockStore())
 }
 
-func newTestAllocationControllerWithStore(t *testing.T, handlers map[string]contract.RuntimeHandler, dbStore testStateStore, publisher fakeVolumePublisher) testAllocationController {
-	return newTestAllocationControllerWithResources(t, handlers, dbStore, publisher, newTestResourceManagers()...)
+func newTestAllocationControllerWithStore(t *testing.T, handlers map[string]contract.RuntimeHandler, dbStore testStateStore) testAllocationController {
+	return newTestAllocationControllerWithResources(t, handlers, dbStore, newTestResourceManagers()...)
 }
 
-func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]contract.RuntimeHandler, dbStore testStateStore, publisher fakeVolumePublisher, managers ...resourcemanager.Manager) testAllocationController {
+func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]contract.RuntimeHandler, dbStore testStateStore, managers ...resourcemanager.Manager) testAllocationController {
 	t.Helper()
 
 	if dbStore == nil {
@@ -76,12 +75,6 @@ func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]
 		}
 	})
 	lrtManager := langrtmanager.NewLanguageRuntimeManager()
-	volumes := servicevolumes.NewCoordinator(servicevolumes.Options{
-		Publisher: publisher,
-		ActiveAllocationIDs: func() []string {
-			return activeAllocationIDs(manager.List())
-		},
-	})
 	networking := servicenetworking.NewCoordinator(servicenetworking.Options{
 		NatBackend: cfg.NatBackend,
 		Store:      dbStore,
@@ -113,7 +106,6 @@ func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]
 			return nil, fmt.Errorf("runtime %s is not supported", name)
 		},
 		LangRuntime: lrtManager,
-		Volumes:     volumes,
 		Networking:  networking,
 		PreActivationCapabilityGate: func(context.Context, *runtime.StartRequest, contract.ManagedRuntimeHandler, string) error {
 			return nil

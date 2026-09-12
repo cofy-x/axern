@@ -26,7 +26,6 @@ type SandboxOptions struct {
 	RuntimeClass            string
 	NetworkPolicy           *NetworkPolicy
 	ExtensionCapabilities   []ExtensionCapability
-	Volumes                 []VolumeMount
 	ImageMounts             []ImageMount
 	WorkspaceImage          *WorkspaceImageSource
 	RequestCPU              ResourceQuantity
@@ -111,7 +110,6 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		RuntimeClass:            s.options.RuntimeClass,
 		NetworkPolicy:           s.options.NetworkPolicy,
 		ExtensionCapabilities:   append([]ExtensionCapability(nil), s.options.ExtensionCapabilities...),
-		Volumes:                 s.options.Volumes,
 		ImageMounts:             s.options.ImageMounts,
 		WorkspaceImage:          s.options.WorkspaceImage,
 		RequestCPU:              s.options.RequestCPU,
@@ -368,7 +366,7 @@ func validateSandboxOptions(options SandboxOptions) error {
 	if err := validateWorkspaceImage(options.WorkspaceImage); err != nil {
 		return err
 	}
-	if err := validateWorkspaceImageMounts(options.WorkspaceImage, options.ImageMounts, options.Volumes); err != nil {
+	if err := validateWorkspaceImageMounts(options.WorkspaceImage, options.ImageMounts); err != nil {
 		return err
 	}
 	return nil

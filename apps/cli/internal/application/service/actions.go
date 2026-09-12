@@ -131,8 +131,7 @@ func validateDeletionSnapshot(serviceID string, afterVersion int64, service *ser
 		return fmt.Errorf("service %q does not include deletion status", serviceID)
 	}
 	switch deletion.GetPhase() {
-	case servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
-		servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES:
+	case servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS:
 		if service.GetStatus() != servicev1.ServiceStatus_SERVICE_STATUS_DELETING {
 			return fmt.Errorf("service %q deletion phase %s has status %s", serviceID, deletion.GetPhase(), service.GetStatus())
 		}

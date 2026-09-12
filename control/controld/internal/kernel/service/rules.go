@@ -145,19 +145,15 @@ func computeServiceStatus(service *servicev1.Service) servicev1.ServiceStatus {
 	return servicev1.ServiceStatus_SERVICE_STATUS_RECONCILING
 }
 
-func MarkDeleted(current *servicev1.Service, disposition servicev1.ServiceVolumeDisposition, now time.Time) *servicev1.Service {
+func MarkDeleted(current *servicev1.Service, now time.Time) *servicev1.Service {
 	if current == nil {
 		return nil
 	}
 	next := cloneService(current)
 	next.Status = servicev1.ServiceStatus_SERVICE_STATUS_DELETING
-	if disposition == servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_UNSPECIFIED {
-		disposition = servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_RETAIN
-	}
 	next.DeletionStatus = &servicev1.ServiceDeletionStatus{
-		Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
-		VolumeDisposition: disposition,
-		Message:           "releasing service allocations",
+		Phase:   servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
+		Message: "releasing service allocations",
 	}
 	next.Version++
 	next.UpdatedAt = timestamppb.New(now)

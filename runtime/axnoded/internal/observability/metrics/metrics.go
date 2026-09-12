@@ -67,8 +67,6 @@ const (
 	MetricAllocationStatusRetryDelay             = "axern.axnoded_allocation_status_retry_delay_seconds"
 	MetricReadinessWaitDuration                  = "axern.axnoded_readiness_wait_duration_seconds"
 	MetricProbeAttemptDuration                   = "axern.axnoded_probe_attempt_duration_seconds"
-	MetricVolumeOperationTotal                   = "axern.axnoded_volume_operation_total"
-	MetricVolumeReconcileCurrent                 = "axern.axnoded_volume_reconcile_current"
 	MetricCgroupMemoryCurrent                    = "axern.axnoded_cgroup_memory_current"
 	MetricSandboxMemoryOOMTotal                  = "axern.axnoded_sandbox_memory_oom_total"
 	MetricNodeMemoryBudgetCurrent                = "axern.axnoded_node_memory_budget_current"
@@ -134,8 +132,6 @@ const (
 	descAllocationStatusRetryDelay             = "Axnoded current allocation status retry delay."
 	descReadinessWaitDuration                  = "Axnoded readiness wait duration."
 	descProbeAttemptDuration                   = "Axnoded probe attempt duration."
-	descVolumeOperationTotal                   = "Axnoded node volume operation results."
-	descVolumeReconcileCurrent                 = "Axnoded last node volume reconcile counts."
 	descCgroupMemoryCurrent                    = "Node aggregate sandbox cgroup memory.stat and memory.events values by runtime."
 	descSandboxMemoryOOMTotal                  = "Sandbox exits caused by the host cgroup memory boundary."
 	descNodeMemoryBudgetCurrent                = "Node sandbox memory boundary, commitments, system reserve, and cleanup debt."
@@ -588,19 +584,6 @@ func RecordNetworkNeighborReset(trigger, result string) {
 		attribute.String(sdkobs.AttrTrigger, trigger),
 		attribute.String(sdkobs.AttrResult, result),
 	)
-}
-
-func RecordVolumeOperation(operation, result string) {
-	recordCounter(
-		MetricVolumeOperationTotal,
-		descVolumeOperationTotal,
-		attribute.String(sdkobs.AttrOperation, operation),
-		attribute.String(sdkobs.AttrResult, result),
-	)
-}
-
-func RecordVolumeReconcile(kind string, value float64) {
-	recordGauge(MetricVolumeReconcileCurrent, descVolumeReconcileCurrent, value, attribute.String(sdkobs.AttrState, kind))
 }
 
 func RecordCgroupMemory(runtime, kind string, value float64) {

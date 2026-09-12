@@ -37,7 +37,6 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 	snapshot.Components.Imagemgr = nodeinventory.ImagemgrComponentInventory{Status: nodeinventory.StatusDegraded, Reachable: true, DaemonCount: 2, MountedImageCount: 3, ImportedImageCount: 4}
 	snapshot.Components.Imagefsd = nodeinventory.ImagefsdComponentInventory{Status: nodeinventory.StatusReady, Reachable: true, ChunkDBPresent: true, ChunkCount: 9, ChunkDBUsedBytes: 2048, ChunkDBUsagePercent: 80.5}
 	snapshot.Components.BPFNet = nodeinventory.BPFNetComponentInventory{Status: nodeinventory.StatusDisabled, Enabled: false, Ready: false, Mode: "iptables", NeedsSNATFallback: true, NeedsFullDNATFallback: true, NeedsLocalhostCompat: true}
-	snapshot.Components.Volumed = nodeinventory.VolumedComponentInventory{Status: nodeinventory.StatusError, Reachable: true, PublishedVolumeCount: 2, LastReconcileAt: collectedAt.Add(time.Minute), LastReconcileError: "provider validation failed", LastReconcileRetainedCount: 3, LastReconcileUnpublishedCount: 1, LastReconcileActiveAllocationCount: 2, LastReconcileStaleAllocationCount: 1, LastReconcileInvalidVolumeCount: 1}
 	snapshot.Storage = []nodeinventory.StorageInventoryEntry{
 		{
 			Target:          nodeinventory.StorageTargetAxnodedState,
@@ -125,15 +124,6 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 	}
 	if !summary.GetComponents().GetBpfnet().GetNeedsSnatFallback() || !summary.GetComponents().GetBpfnet().GetNeedsFullDnatFallback() {
 		t.Fatalf("unexpected bpfnet summary: %#v", summary.GetComponents().GetBpfnet())
-	}
-	if summary.GetComponents().GetVolumed().GetState() != nodev1.ComponentState_COMPONENT_STATE_ERROR ||
-		summary.GetComponents().GetVolumed().GetPublishedVolumeCount() != 2 ||
-		summary.GetComponents().GetVolumed().GetLastReconcileError() != "provider validation failed" ||
-		summary.GetComponents().GetVolumed().GetLastReconcileActiveAllocationCount() != 2 ||
-		summary.GetComponents().GetVolumed().GetLastReconcileStaleAllocationCount() != 1 ||
-		summary.GetComponents().GetVolumed().GetLastReconcileInvalidVolumeCount() != 1 ||
-		summary.GetComponents().GetVolumed().GetLastReconcileAt().AsTime() != collectedAt.Add(time.Minute) {
-		t.Fatalf("unexpected volumed summary: %#v", summary.GetComponents().GetVolumed())
 	}
 	if len(summary.GetStorage()) != 2 {
 		t.Fatalf("storage len = %d, want 2", len(summary.GetStorage()))

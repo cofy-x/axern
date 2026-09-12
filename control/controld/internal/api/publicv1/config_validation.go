@@ -118,11 +118,6 @@ func validateExecutionConfigImageMounts(config *commonv1.ExecutionConfig) error 
 				}
 			}
 		}
-		for _, volume := range config.GetVolumeMounts() {
-			if volume != nil && pathsOverlap(workspaceTarget, volume.GetTarget()) {
-				return grpcstatus.Errorf(codes.InvalidArgument, "config.workspace_image target %q overlaps config.volume_mounts target %q", workspaceTarget, volume.GetTarget())
-			}
-		}
 		for _, secretFile := range config.GetSecretFiles() {
 			if secretFile != nil && pathsOverlap(workspaceTarget, secretFile.GetPath()) {
 				return grpcstatus.Errorf(codes.InvalidArgument, "config.workspace_image target %q overlaps config.secret_files path %q", workspaceTarget, secretFile.GetPath())
@@ -157,9 +152,6 @@ func validateExecutionConfigImageMounts(config *commonv1.ExecutionConfig) error 
 			}
 			seenTargets[claimedTarget] = struct{}{}
 		}
-	}
-	if err := validateImageMountNoVolumeOverlap(config); err != nil {
-		return err
 	}
 	if err := validateImageMountNoSecretFileOverlap(config); err != nil {
 		return err
@@ -227,78 +219,6 @@ func immutableWorkspaceImageReference(value string) bool {
 	return true
 }
 
-func validateNoServiceVolumeMounts(config *commonv1.ExecutionConfig, owner string) error {
-	if config == nil || len(config.GetVolumeMounts()) == 0 {
-		return nil
-	}
-	return grpcstatus.Errorf(codes.InvalidArgument, "config.volume_mounts is only supported for service workloads in v1, not %s", owner)
-}
-
-func validateServiceVolumeMounts(config *commonv1.ExecutionConfig) error {
-	if config == nil {
-		return nil
-	}
-	seenNames := map[string]struct{}{}
-	seenTargets := map[string]struct{}{}
-	for _, item := range config.GetVolumeMounts() {
-		if item == nil {
-			continue
-		}
-		name := strings.TrimSpace(item.GetName())
-		if name == "" {
-			return grpcstatus.Error(codes.InvalidArgument, "config.volume_mounts.name is required")
-		}
-		if !isStableVolumeName(name) {
-			return grpcstatus.Errorf(codes.InvalidArgument, "config.volume_mounts %q name may only contain letters, digits, '.', '_', or '-'", name)
-		}
-		if _, exists := seenNames[name]; exists {
-			return grpcstatus.Errorf(codes.InvalidArgument, "config.volume_mounts %q is duplicated", name)
-		}
-		seenNames[name] = struct{}{}
-
-		rawTarget := strings.TrimSpace(item.GetTarget())
-		target := path.Clean(rawTarget)
-		if target == "." || target == "/" || !strings.HasPrefix(target, "/") || pathHasParentReference(rawTarget) {
-			return grpcstatus.Errorf(codes.InvalidArgument, "config.volume_mounts %q target must be an absolute container path below /", name)
-		}
-		if _, exists := seenTargets[target]; exists {
-			return grpcstatus.Errorf(codes.InvalidArgument, "config.volume_mounts target %q is duplicated", target)
-		}
-		seenTargets[target] = struct{}{}
-
-		for _, option := range item.GetOptions() {
-			option = strings.TrimSpace(option)
-			if option == "" {
-				continue
-			}
-			if !allowedServiceVolumeOption(option) {
-				return grpcstatus.Errorf(codes.InvalidArgument, "config.volume_mounts %q option %q is not supported", name, option)
-			}
-		}
-	}
-	return nil
-}
-
-func validateImageMountNoVolumeOverlap(config *commonv1.ExecutionConfig) error {
-	for _, imageMount := range config.GetImageMounts() {
-		if imageMount == nil {
-			continue
-		}
-		for _, imageTarget := range agentbundle.ClaimedMountTargets(path.Clean(strings.TrimSpace(imageMount.GetTarget()))) {
-			for _, volume := range config.GetVolumeMounts() {
-				if volume == nil {
-					continue
-				}
-				volumeTarget := path.Clean(strings.TrimSpace(volume.GetTarget()))
-				if pathsOverlap(imageTarget, volumeTarget) {
-					return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q overlaps config.volume_mounts target %q", imageTarget, volumeTarget)
-				}
-			}
-		}
-	}
-	return nil
-}
-
 func validateImageMountNoSecretFileOverlap(config *commonv1.ExecutionConfig) error {
 	for _, imageMount := range config.GetImageMounts() {
 		if imageMount == nil {
@@ -341,25 +261,6 @@ func pathHasParentReference(value string) bool {
 		}
 	}
 	return false
-}
-
-func isStableVolumeName(value string) bool {
-	for _, r := range value {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' {
-			continue
-		}
-		return false
-	}
-	return true
-}
-
-func allowedServiceVolumeOption(option string) bool {
-	switch option {
-	case "ro", "rw", "rbind", "nosuid", "nodev", "noexec":
-		return true
-	default:
-		return false
-	}
 }
 
 func validateServiceReadinessProbe(probe *servicev1.ServiceProbe) error {

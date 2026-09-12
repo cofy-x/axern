@@ -9,9 +9,7 @@ import (
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	storagev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1"
 	nodelifecyclev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
-	privatestoragev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/storage/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -24,7 +22,6 @@ type fakeNodeLifecycleService struct {
 	deleted              map[string]bool
 	keepDeletedVisible   bool
 	deleteErr            error
-	releaseObservations  []*privatestoragev1.VolumeReleaseObservation
 	workspacePreparation *commonv1.WorkspacePreparationFacts
 	admittedDependencies []*capabilityv1.CapabilityDependency
 	attempts             map[string]int64
@@ -42,10 +39,6 @@ func (f *fakeNodeLifecycleService) ManagedAllocationAttempt(allocationID string)
 
 func (f *fakeNodeLifecycleService) ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error) {
 	return cloneCapabilityDependencies(f.admittedDependencies), nil, nil
-}
-
-func (f *fakeNodeLifecycleService) DeleteVolume(context.Context, string, storagev1.VolumeBackend, string) error {
-	return nil
 }
 
 func (f *fakeNodeLifecycleService) Start(ctx context.Context, req *runtimev1.StartRequest) (*runtimev1.StartResponse, error) {
@@ -76,9 +69,7 @@ func (f *fakeNodeLifecycleService) Delete(ctx context.Context, req *runtimev1.De
 		}
 		f.deleted[req.GetID()] = true
 	}
-	return &runtimev1.DeleteResponse{
-		VolumeReleaseObservations: cloneVolumeReleaseObservations(f.releaseObservations),
-	}, nil
+	return &runtimev1.DeleteResponse{}, nil
 }
 
 func (f *fakeNodeLifecycleService) List(ctx context.Context, req *runtimev1.ListContainersRequest) (*runtimev1.ListContainersResponse, error) {
@@ -206,7 +197,7 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 		t.Fatalf("extra_config = %q, must not duplicate typed allocation attempt", startReq.GetExtraConfig())
 	}
 	if !strings.Contains(startReq.GetExtraConfig(), `"namespace":"default"`) || !strings.Contains(startReq.GetExtraConfig(), `"serviceId":"svc-123"`) {
-		t.Fatalf("extra_config = %q, want service volume identity", startReq.GetExtraConfig())
+		t.Fatalf("extra_config = %q, want service identity", startReq.GetExtraConfig())
 	}
 }
 
@@ -243,11 +234,7 @@ func TestNodeLifecycleDeleteAllocationBridgesRequest(t *testing.T) {
 	fakeService := &fakeNodeLifecycleService{}
 	server := NewNodeLifecycleServer(fakeService, "node-a", NewAllocationTargetRegistry())
 
-	fakeService.releaseObservations = []*privatestoragev1.VolumeReleaseObservation{{
-		BindingID: "binding-1",
-		Status:    storagev1.VolumeStatus_VOLUME_STATUS_DELETED,
-	}}
-	resp, err := server.DeleteAllocation(context.Background(), &nodelifecyclev1.DeleteAllocationRequest{
+	_, err := server.DeleteAllocation(context.Background(), &nodelifecyclev1.DeleteAllocationRequest{
 		AllocationID:   "alloc-123",
 		Attempt:        1,
 		NodeID:         "node-a",
@@ -255,9 +242,6 @@ func TestNodeLifecycleDeleteAllocationBridgesRequest(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("DeleteAllocation() error = %v", err)
-	}
-	if got := resp.GetVolumeReleaseObservations(); len(got) != 1 || got[0].GetBindingID() != "binding-1" {
-		t.Fatalf("release observations = %#v, want binding-1", got)
 	}
 	if len(fakeService.deleteRequests) != 1 {
 		t.Fatalf("delete request count = %d, want 1", len(fakeService.deleteRequests))
@@ -396,12 +380,6 @@ func TestAllocationRuntimeIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 			Argv:            []string{"/bin/app"},
 			Namespace:       "default",
 			ServiceID:       "svc-a",
-			NodeVolumes: []*privatestoragev1.ResolvedNodeVolume{{
-				ClaimID:  "default/svc-a/data",
-				VolumeID: "data",
-				Backend:  storagev1.VolumeBackend_VOLUME_BACKEND_LOCAL,
-				Target:   "/data",
-			}},
 		},
 	}
 	other := &nodelifecyclev1.CreateAllocationRequest{
@@ -412,12 +390,6 @@ func TestAllocationRuntimeIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 			Argv:            []string{"/bin/app"},
 			Namespace:       "default",
 			ServiceID:       "svc-b",
-			NodeVolumes: []*privatestoragev1.ResolvedNodeVolume{{
-				ClaimID:  "default/svc-b/data",
-				VolumeID: "data",
-				Backend:  storagev1.VolumeBackend_VOLUME_BACKEND_LOCAL,
-				Target:   "/data",
-			}},
 		},
 	}
 	baseStart, err := allocationStartRequest(base)
@@ -429,7 +401,7 @@ func TestAllocationRuntimeIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 		t.Fatalf("allocationStartRequest(other) error = %v", err)
 	}
 	if baseStart.GetRuntimeTemplate().GetID() != otherStart.GetRuntimeTemplate().GetID() {
-		t.Fatal("request identity and dynamic volumes must not partition the runtime template cache")
+		t.Fatal("request identity must not partition the runtime template cache")
 	}
 
 	other.GetConfig().Argv = []string{"/bin/other"}

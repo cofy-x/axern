@@ -43,7 +43,6 @@ Once started, a Sandbox supports:
 - reverse [tunnels](/guides/tunnels/) with SDK-owned renewal and cleanup
 - [computer use and browser automation](/guides/computer-use/) on capable
   images
-- persistent [volumes](/guides/storage/) mounted at creation time
 
 ## Lifecycle and cleanup
 

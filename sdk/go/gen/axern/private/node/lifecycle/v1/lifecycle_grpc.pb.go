@@ -22,7 +22,6 @@ const (
 	NodeLifecycle_CreateAllocation_FullMethodName    = "/axern.private.node.lifecycle.v1.NodeLifecycle/CreateAllocation"
 	NodeLifecycle_DeleteAllocation_FullMethodName    = "/axern.private.node.lifecycle.v1.NodeLifecycle/DeleteAllocation"
 	NodeLifecycle_GetAllocationStatus_FullMethodName = "/axern.private.node.lifecycle.v1.NodeLifecycle/GetAllocationStatus"
-	NodeLifecycle_DeleteVolume_FullMethodName        = "/axern.private.node.lifecycle.v1.NodeLifecycle/DeleteVolume"
 )
 
 // NodeLifecycleClient is the client API for NodeLifecycle service.
@@ -32,7 +31,6 @@ type NodeLifecycleClient interface {
 	CreateAllocation(ctx context.Context, in *CreateAllocationRequest, opts ...grpc.CallOption) (*CreateAllocationResponse, error)
 	DeleteAllocation(ctx context.Context, in *DeleteAllocationRequest, opts ...grpc.CallOption) (*DeleteAllocationResponse, error)
 	GetAllocationStatus(ctx context.Context, in *GetAllocationStatusRequest, opts ...grpc.CallOption) (*GetAllocationStatusResponse, error)
-	DeleteVolume(ctx context.Context, in *DeleteVolumeRequest, opts ...grpc.CallOption) (*DeleteVolumeResponse, error)
 }
 
 type nodeLifecycleClient struct {
@@ -70,15 +68,6 @@ func (c *nodeLifecycleClient) GetAllocationStatus(ctx context.Context, in *GetAl
 	return out, nil
 }
 
-func (c *nodeLifecycleClient) DeleteVolume(ctx context.Context, in *DeleteVolumeRequest, opts ...grpc.CallOption) (*DeleteVolumeResponse, error) {
-	out := new(DeleteVolumeResponse)
-	err := c.cc.Invoke(ctx, NodeLifecycle_DeleteVolume_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // NodeLifecycleServer is the server API for NodeLifecycle service.
 // All implementations must embed UnimplementedNodeLifecycleServer
 // for forward compatibility
@@ -86,7 +75,6 @@ type NodeLifecycleServer interface {
 	CreateAllocation(context.Context, *CreateAllocationRequest) (*CreateAllocationResponse, error)
 	DeleteAllocation(context.Context, *DeleteAllocationRequest) (*DeleteAllocationResponse, error)
 	GetAllocationStatus(context.Context, *GetAllocationStatusRequest) (*GetAllocationStatusResponse, error)
-	DeleteVolume(context.Context, *DeleteVolumeRequest) (*DeleteVolumeResponse, error)
 	mustEmbedUnimplementedNodeLifecycleServer()
 }
 
@@ -102,9 +90,6 @@ func (UnimplementedNodeLifecycleServer) DeleteAllocation(context.Context, *Delet
 }
 func (UnimplementedNodeLifecycleServer) GetAllocationStatus(context.Context, *GetAllocationStatusRequest) (*GetAllocationStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAllocationStatus not implemented")
-}
-func (UnimplementedNodeLifecycleServer) DeleteVolume(context.Context, *DeleteVolumeRequest) (*DeleteVolumeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteVolume not implemented")
 }
 func (UnimplementedNodeLifecycleServer) mustEmbedUnimplementedNodeLifecycleServer() {}
 
@@ -173,24 +158,6 @@ func _NodeLifecycle_GetAllocationStatus_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeLifecycle_DeleteVolume_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteVolumeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeLifecycleServer).DeleteVolume(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeLifecycle_DeleteVolume_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeLifecycleServer).DeleteVolume(ctx, req.(*DeleteVolumeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // NodeLifecycle_ServiceDesc is the grpc.ServiceDesc for NodeLifecycle service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -209,10 +176,6 @@ var NodeLifecycle_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAllocationStatus",
 			Handler:    _NodeLifecycle_GetAllocationStatus_Handler,
-		},
-		{
-			MethodName: "DeleteVolume",
-			Handler:    _NodeLifecycle_DeleteVolume_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

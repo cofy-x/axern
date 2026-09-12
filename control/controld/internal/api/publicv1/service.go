@@ -52,10 +52,6 @@ func (s *Server) CreateService(ctx context.Context, req *servicev1.CreateService
 		opErr = err
 		return nil, err
 	}
-	if err := validateServiceVolumeMounts(req.GetConfig()); err != nil {
-		opErr = err
-		return nil, err
-	}
 	if err := validateServiceReadinessProbe(req.GetReadinessProbe()); err != nil {
 		opErr = err
 		return nil, err
@@ -226,10 +222,6 @@ func (s *Server) UpdateService(ctx context.Context, req *servicev1.UpdateService
 		opErr = err
 		return nil, err
 	}
-	if err := validateServiceVolumeMounts(req.GetConfig()); err != nil {
-		opErr = err
-		return nil, err
-	}
 	if err := validateServiceReadinessProbe(req.GetReadinessProbe()); err != nil {
 		opErr = err
 		return nil, err
@@ -271,7 +263,9 @@ func (s *Server) DeleteService(ctx context.Context, req *servicev1.DeleteService
 	var opErr error
 	defer func() { op.End(opErr) }()
 	svc, ok, err := s.deps.Services.Delete(ctx, servicekernel.DeleteParams{
-		ServiceID: serviceID, ExpectedVersion: req.GetExpectedVersion(), RequireSuspended: req.GetRequireSuspended(), VolumeDisposition: req.GetVolumeDisposition(),
+		ServiceID:        serviceID,
+		ExpectedVersion:  req.GetExpectedVersion(),
+		RequireSuspended: req.GetRequireSuspended(),
 	}, s.deps.Now())
 	if err != nil {
 		opErr = err

@@ -100,7 +100,7 @@ membership. Provider ownership, evidence validity, and loss policy are
 defined in
 [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md).
 
-Cleanup order is runtime delete plus monitor exit-state barrier, volume and
+Cleanup order is runtime delete plus monitor exit-state barrier,
 rootfs cleanup, projection/host-overlay unmount, upper/work removal, writable
 reservation release, image mount lease release, and finally cgroup
 retirement. The retiring cgroup retains its memory commitment until processes

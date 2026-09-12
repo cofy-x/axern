@@ -233,24 +233,6 @@ func (c *controller) reconcileAllocationCreate(ctx context.Context, item allocat
 		return err
 	}
 	stageStarted := time.Now()
-	nodeVolumes, err := c.reserveStorage(ctx, service, &servicekernel.AllocationRecord{
-		AllocationID: item.AllocationID,
-		ServiceID:    item.OwnerID,
-		NodeID:       item.NodeID,
-		NodeTarget:   item.NodeTarget,
-		Attempt:      item.Attempt,
-	})
-	c.recordReplicaStage(ctx, serviceReplicaPathReconcileCreate, serviceReplicaStageReserveStorage, stageStarted, err)
-	if err != nil {
-		if req, ok := allocationkernel.ScheduleCreateRetryRequest(item.AllocationID, item.ReconcileAttempts, err.Error(), now); ok {
-			return c.scheduleClaimedAllocationReconcile(ctx, item, req, now)
-		}
-		if _, markErr := c.allocations.MarkAllocationCreateFailed(ctx, service.GetID(), item.AllocationID, err.Error(), now); markErr != nil {
-			return markErr
-		}
-		return c.completeClaimedAllocationCreate(ctx, item, now)
-	}
-	stageStarted = time.Now()
 	createResult, err := c.lifecycle.CreateResolvedAllocation(ctx, servicekernel.CreateResolvedAllocationRequest{
 		Target:                 item.NodeTarget,
 		Namespace:              service.GetNamespace(),
@@ -262,15 +244,11 @@ func (c *controller) reconcileAllocationCreate(ctx context.Context, item allocat
 		NodeID:                 item.NodeID,
 		ReadinessProbe:         service.GetReadinessProbe(),
 		LivenessProbe:          service.GetLivenessProbe(),
-		NodeVolumes:            nodeVolumes,
 		CapabilityDependencies: item.CapabilityDependencies,
 	})
 	c.recordReplicaStage(ctx, serviceReplicaPathReconcileCreate, serviceReplicaStageNodeCreateAllocation, stageStarted, err)
 	if err != nil {
-		message := storagePublishFailureMessage(nodeVolumes, err)
-		if reportErr := c.reportStoragePublishFailed(ctx, item.AllocationID, item.NodeID, nodeVolumes, message); reportErr != nil {
-			return reportErr
-		}
+		message := err.Error()
 		if grpcstatus.Code(err) == codes.ResourceExhausted {
 			if _, markErr := c.allocations.MarkAllocationCreateFailed(ctx, service.GetID(), item.AllocationID, message, now); markErr != nil {
 				return markErr
@@ -285,7 +263,6 @@ func (c *controller) reconcileAllocationCreate(ctx context.Context, item allocat
 		}
 		return c.completeClaimedAllocationCreate(ctx, item, now)
 	}
-	stageStarted = time.Now()
 	if createResult == nil {
 		createResult = &servicekernel.CreateResolvedAllocationResult{}
 	}
@@ -296,11 +273,6 @@ func (c *controller) reconcileAllocationCreate(ctx context.Context, item allocat
 	}, now); err != nil {
 		return err
 	}
-	if err := c.reportStoragePublished(ctx, item.AllocationID, item.NodeID, createResult.PublishedVolumes); err != nil {
-		c.recordReplicaStage(ctx, serviceReplicaPathReconcileCreate, serviceReplicaStageReportStoragePublished, stageStarted, err)
-		return err
-	}
-	c.recordReplicaStage(ctx, serviceReplicaPathReconcileCreate, serviceReplicaStageReportStoragePublished, stageStarted, nil)
 	if err := c.allocations.RecordWorkspacePreparation(ctx, service.GetID(), item.AllocationID, item.Attempt, createResult.WorkspacePreparation, now); err != nil {
 		return err
 	}

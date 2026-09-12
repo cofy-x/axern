@@ -56,7 +56,6 @@ const (
 	defaultTLSCert                  = ".dev/certs/controld.crt"
 	defaultTLSKey                   = ".dev/certs/controld.key"
 	defaultTunnelRelays             = "default,127.0.0.1:25000,127.0.0.1:24100,1,false"
-	defaultStoragedTarget           = "127.0.0.1:24020"
 	defaultFunctionGatewayTimeout   = 30 * time.Second
 )
 
@@ -78,13 +77,10 @@ type options struct {
 	tlsCert                                                string
 	tlsKey                                                 string
 	tunnelRelays                                           string
-	storagedTarget                                         string
 	functionGatewayURL                                     string
 	functionGatewayToken                                   string
 	functionGatewayTimeout                                 time.Duration
 	functionInvocationWorkers                              int
-	volumeReclaimWorkers                                   int
-	volumeReclaimWorkersPerNode                            int
 	functionBundleBaseURL                                  string
 	functionBundleToken                                    string
 	rolloutWorkerToken                                     string
@@ -131,25 +127,22 @@ func run() error {
 	defer stop()
 
 	svc, err := app.New(app.Config{
-		LifecycleContext:            ctx,
-		HeartbeatFreshnessWindow:    opts.heartbeatFreshnessWindow,
-		SummaryFreshnessWindow:      opts.summaryFreshnessWindow,
-		PostgresDSN:                 opts.postgresDSN,
-		PostgresMaxConnections:      int32(opts.postgresMaxConnections),
-		SecretsMasterKey:            opts.secretsMasterKey,
-		ReconcileTimeout:            opts.reconcileTimeout,
-		TunnelRelays:                opts.tunnelRelays,
-		StoragedTarget:              opts.storagedTarget,
-		FunctionGatewayURL:          opts.functionGatewayURL,
-		FunctionGatewayToken:        opts.functionGatewayToken,
-		FunctionGatewayTimeout:      opts.functionGatewayTimeout,
-		FunctionInvocationWorkers:   opts.functionInvocationWorkers,
-		VolumeReclaimWorkers:        opts.volumeReclaimWorkers,
-		VolumeReclaimWorkersPerNode: opts.volumeReclaimWorkersPerNode,
-		FunctionBundleBaseURL:       opts.functionBundleBaseURL,
-		FunctionBundleToken:         opts.functionBundleToken,
-		RolloutWorkerToken:          opts.rolloutWorkerToken,
-		ArtifactS3Endpoint:          opts.artifactS3Endpoint, ArtifactS3Region: opts.artifactS3Region, ArtifactS3Bucket: opts.artifactS3Bucket, ArtifactS3AccessKey: opts.artifactS3AccessKey, ArtifactS3SecretKey: opts.artifactS3SecretKey, ArtifactS3UsePathStyle: opts.artifactS3UsePathStyle,
+		LifecycleContext:          ctx,
+		HeartbeatFreshnessWindow:  opts.heartbeatFreshnessWindow,
+		SummaryFreshnessWindow:    opts.summaryFreshnessWindow,
+		PostgresDSN:               opts.postgresDSN,
+		PostgresMaxConnections:    int32(opts.postgresMaxConnections),
+		SecretsMasterKey:          opts.secretsMasterKey,
+		ReconcileTimeout:          opts.reconcileTimeout,
+		TunnelRelays:              opts.tunnelRelays,
+		FunctionGatewayURL:        opts.functionGatewayURL,
+		FunctionGatewayToken:      opts.functionGatewayToken,
+		FunctionGatewayTimeout:    opts.functionGatewayTimeout,
+		FunctionInvocationWorkers: opts.functionInvocationWorkers,
+		FunctionBundleBaseURL:     opts.functionBundleBaseURL,
+		FunctionBundleToken:       opts.functionBundleToken,
+		RolloutWorkerToken:        opts.rolloutWorkerToken,
+		ArtifactS3Endpoint:        opts.artifactS3Endpoint, ArtifactS3Region: opts.artifactS3Region, ArtifactS3Bucket: opts.artifactS3Bucket, ArtifactS3AccessKey: opts.artifactS3AccessKey, ArtifactS3SecretKey: opts.artifactS3SecretKey, ArtifactS3UsePathStyle: opts.artifactS3UsePathStyle,
 		ArtifactTicketSigningKey: opts.artifactTicketSigningKey,
 		ResourcePolicy: resourcekernel.AdmissionPolicy{
 			CPUOvercommitRatio: opts.resourceCPUOvercommitRatio,
@@ -187,7 +180,6 @@ func run() error {
 	adminv1.RegisterAdminAuditServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterAdminReliabilityServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterNodeAdminServer(grpcServer, svc.AdminV1Handler())
-	adminv1.RegisterStorageAdminServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterServiceAdminServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterAccessAdminServer(grpcServer, svc.AdminV1Handler())
 	identityv1.RegisterIdentityControlServer(grpcServer, svc.IdentityV1Handler())
@@ -296,13 +288,10 @@ func parseFlags() (options, error) {
 	flagSet.StringVar(&opts.tlsCert, "tls-cert", defaultString(os.Getenv("CONTROLD_TLS_CERT"), defaultTLSCert), "controld server certificate")
 	flagSet.StringVar(&opts.tlsKey, "tls-key", defaultString(os.Getenv("CONTROLD_TLS_KEY"), defaultTLSKey), "controld server private key")
 	flagSet.StringVar(&opts.tunnelRelays, "tunnel-relays", defaultString(os.Getenv("CONTROLD_TUNNEL_RELAYS"), defaultTunnelRelays), "semicolon-separated tunnel relay registry entries: id,client_target,node_target,weight,drain")
-	flagSet.StringVar(&opts.storagedTarget, "storaged-target", defaultString(os.Getenv("CONTROLD_STORAGED_TARGET"), defaultStoragedTarget), "storaged gRPC target for service volume coordination")
 	flagSet.StringVar(&opts.functionGatewayURL, "function-gateway-url", os.Getenv("CONTROLD_FUNCTION_GATEWAY_URL"), "gatewayd base HTTP URL used for Function worker dispatch")
 	flagSet.StringVar(&opts.functionGatewayToken, "function-gateway-token", os.Getenv("CONTROLD_FUNCTION_GATEWAY_TOKEN"), "bearer token sent to gatewayd Function dispatch when configured")
 	flagSet.DurationVar(&opts.functionGatewayTimeout, "function-gateway-timeout", functionGatewayTimeout, "timeout for Function worker dispatch through gatewayd")
 	flagSet.IntVar(&opts.functionInvocationWorkers, "function-invocation-workers", 0, "global asynchronous Function invocation workers; 0 uses the application default")
-	flagSet.IntVar(&opts.volumeReclaimWorkers, "volume-reclaim-workers", 0, "global durable volume reclaim workers; 0 uses the application default")
-	flagSet.IntVar(&opts.volumeReclaimWorkersPerNode, "volume-reclaim-workers-per-node", 0, "per-node durable volume reclaim workers; 0 uses the application default")
 	flagSet.StringVar(&opts.functionBundleBaseURL, "function-bundle-base-url", os.Getenv("CONTROLD_FUNCTION_BUNDLE_BASE_URL"), "base HTTP URL advertised to Function workers for uploaded bundle downloads")
 	flagSet.StringVar(&opts.functionBundleToken, "function-bundle-token", os.Getenv("CONTROLD_FUNCTION_BUNDLE_TOKEN"), "bearer token required for Function bundle downloads when configured")
 	flagSet.StringVar(&opts.rolloutWorkerToken, "rollout-worker-token", os.Getenv("CONTROLD_ROLLOUT_WORKER_TOKEN"), "bootstrap credential for durable rollout workers; empty disables the worker API")

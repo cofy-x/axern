@@ -30,7 +30,6 @@ BENCHMARK_PROFILE_RETRIES="${BENCHMARK_PROFILE_RETRIES:-3}"
 DEFAULT_PERF_STAT_EVENTS="task-clock,context-switches,cpu-migrations,page-faults"
 DEFAULT_PERF_RECORD_EVENT="cpu-clock"
 
-setup_node_runtime_volume_defaults
 ensure_bpf_fs "${NAT_BACKEND}"
 
 require_perf_ready() {
@@ -156,7 +155,6 @@ max_instance_num = 8
 [plugin.runtime]
 image_lib_dir = "/var/lib/axnoded/rootfs"
 image_manager_enabled = false
-volume_manager_socket = "${VOLUMED_SOCKET}"
 cgroup_enforcement = "disabled_dev"
 EOF
 
@@ -174,12 +172,10 @@ cleanup() {
     kill "${AXNODED_PID}" >/dev/null 2>&1 || true
     wait "${AXNODED_PID}" >/dev/null 2>&1 || true
   fi
-  stop_node_runtime_volumed
   cleanup_external_probe
 }
 trap cleanup EXIT
 
-start_node_runtime_volumed
 
 "${AXNODED_BIN}" \
   -root /var/lib/axnoded \
@@ -200,8 +196,6 @@ done
 
 if ! [ -S "${SOCKET_ADDRESS}" ] || ! curl -fsS http://127.0.0.1:23001/readyz >/dev/null 2>&1; then
   echo "axnoded did not become ready in time" >&2
-  echo "--- volumed log tail ---" >&2
-  tail_node_runtime_volumed_log 120
   echo "--- axnoded log tail ---" >&2
   tail -n 120 /tmp/axnoded.log >&2 || true
   exit 1

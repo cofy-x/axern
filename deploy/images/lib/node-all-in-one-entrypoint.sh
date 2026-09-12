@@ -2,7 +2,6 @@
 set -euo pipefail
 
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
-VOLUMED_SOCKET="${VOLUMED_SOCKET:-/run/volumed/volumed.sock}"
 EGRESSD_SOCKET="${EGRESSD_SOCKET:-/run/egressd/egressd.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
 AXNODED_GRPC_ADDRESS="${AXNODED_GRPC_ADDRESS:-}"
@@ -67,9 +66,7 @@ NODE_TUNNELD_LOG="${NODE_TUNNELD_LOG:-/var/log/axnoded/node-tunneld.log}"
 
 AXNODED_ROOT="/var/lib/axnoded"
 IMAGEMGR_ROOT="/var/lib/imagemgr"
-VOLUMED_ROOT="/var/lib/volumed"
 EGRESSD_ROOT="/var/lib/egressd"
-VOLUMED_LOCAL_ROOT="${VOLUMED_LOCAL_ROOT:-${VOLUMED_ROOT}/local}"
 AXNODED_CONFIG="/tmp/axnoded-node-config.toml"
 NYDUS_TEMPLATE="/tmp/imagemgr-nydus-template.json"
 REGISTRY_AUTHS="/tmp/imagemgr-registry-auths.json"
@@ -82,7 +79,6 @@ fi
 
 mkdir -p \
   "$(dirname "${IMAGEMGR_SOCKET}")" \
-  "$(dirname "${VOLUMED_SOCKET}")" \
   "$(dirname "${EGRESSD_SOCKET}")" \
   "$(dirname "${AXNODED_SOCKET}")" \
   "$(dirname "${IMAGEFSD_CHUNK_SERVER_SOCK}")" \
@@ -91,9 +87,7 @@ mkdir -p \
   "${AXNODED_ROOT}/rootfs" \
   "${IMAGEMGR_ROOT}" \
   "${IMAGEMGR_ROOT}/logs" \
-  "${VOLUMED_ROOT}" \
   "${EGRESSD_ROOT}" \
-  "${VOLUMED_LOCAL_ROOT}" \
   "$(dirname "${AXNODED_LOG}")" \
   /etc/axnoded \
   /tmp/runsc
@@ -228,7 +222,6 @@ resource_pool_reconcile_interval = "${AXNODED_RESOURCE_POOL_RECONCILE_INTERVAL}"
 [plugin.runtime]
 image_lib_dir = "${AXNODED_ROOT}/rootfs"
 image_manager_socket = "${IMAGEMGR_SOCKET}"
-volume_manager_socket = "${VOLUMED_SOCKET}"
 egress_manager_socket = "${EGRESSD_SOCKET}"
 runtime_runner_binary = "/usr/local/libexec/axnoded/axnoded-runtime-runner"
 cgroup_enforcement = "${AXNODED_CGROUP_ENFORCEMENT}"
@@ -338,12 +331,6 @@ IMAGEFSD_PID=$!
   -debug &
 IMAGEMGR_PID=$!
 
-/usr/local/bin/volumed \
-  -root "${VOLUMED_ROOT}" \
-  -socket "${VOLUMED_SOCKET}" \
-  -local-root "${VOLUMED_LOCAL_ROOT}" &
-VOLUMED_PID=$!
-
 /usr/local/bin/egressd \
   -root "${EGRESSD_ROOT}" \
   -socket "${EGRESSD_SOCKET}" &
@@ -361,7 +348,6 @@ stop_child() {
 cleanup() {
   stop_child "${NODE_TUNNELD_SUPERVISOR_PID:-}"
   stop_child "${AXNODED_PID:-}"
-  stop_child "${VOLUMED_PID:-}"
   stop_child "${EGRESSD_PID:-}"
   stop_child "${IMAGEMGR_PID:-}"
   stop_child "${IMAGEFSD_PID:-}"
@@ -392,16 +378,6 @@ for _ in $(seq 1 40); do
 done
 if [ ! -S "${IMAGEMGR_SOCKET}" ]; then
   echo "imagemgr socket not ready: ${IMAGEMGR_SOCKET}" >&2
-  exit 1
-fi
-for _ in $(seq 1 40); do
-  if [ -S "${VOLUMED_SOCKET}" ]; then
-    break
-  fi
-  sleep 1
-done
-if [ ! -S "${VOLUMED_SOCKET}" ]; then
-  echo "volumed socket not ready: ${VOLUMED_SOCKET}" >&2
   exit 1
 fi
 for _ in $(seq 1 40); do
@@ -460,7 +436,7 @@ for _ in $(seq 1 40); do
       NODE_TUNNELD_SUPERVISOR_PID=""
     fi
     echo "node_all_in_one_ready=true"
-    wait -n "${IMAGEFSD_PID}" "${IMAGEMGR_PID}" "${VOLUMED_PID}" "${EGRESSD_PID}" "${AXNODED_PID}"
+    wait -n "${IMAGEFSD_PID}" "${IMAGEMGR_PID}" "${EGRESSD_PID}" "${AXNODED_PID}"
     exit $?
   fi
   sleep 1

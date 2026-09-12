@@ -6,8 +6,6 @@ source "${AXERN_ROOT}/runtime/axnoded/scripts/lib/verify-docker-common.sh"
 AXERN_BIN="${AXERN_BIN:-${AXERN_ROOT}/bin/axern}"
 CONTROLD_GRPC_ADDRESS="${CONTROLD_GRPC_ADDRESS:-127.0.0.1:24100}"
 CONTROLD_HTTP_ADDRESS="${CONTROLD_HTTP_ADDRESS:-127.0.0.1:24101}"
-STORAGED_GRPC_ADDRESS="${STORAGED_GRPC_ADDRESS:-127.0.0.1:24020}"
-STORAGED_HTTP_ADDRESS="${STORAGED_HTTP_ADDRESS:-127.0.0.1:24021}"
 NODE_GRPC_ADDRESS="${NODE_GRPC_ADDRESS:-127.0.0.1:24010}"
 NODE_HTTP_ADDRESS="${NODE_HTTP_ADDRESS:-0.0.0.0:23001}"
 GATEWAY_HTTP_ADDRESS="${GATEWAY_HTTP_ADDRESS:-127.0.0.1:25080}"
@@ -34,7 +32,6 @@ export VERIFY_DOCKER_PLATFORM
 shared_run_dir="$(mktemp -d)"
 cert_dir="$(mktemp -d)"
 controld_log="$(mktemp)"
-storaged_log="$(mktemp)"
 gatewayd_log="$(mktemp)"
 cli_config_dir="$(mktemp -d)"
 cli_config_file="${cli_config_dir}/config.json"
@@ -46,7 +43,6 @@ cli_error_output="$(mktemp)"
 docker_secret_file="$(mktemp)"
 ssh_dir="$(mktemp -d)"
 CONTROLD_PID=""
-STORAGED_PID=""
 GATEWAYD_PID=""
 AXERN_CLI_E2E_KEEP_ON_FAILURE="${AXERN_CLI_E2E_KEEP_ON_FAILURE:-0}"
 AXERN_CLI_E2E_REBUILD_IMAGES="${AXERN_CLI_E2E_REBUILD_IMAGES:-0}"
@@ -93,13 +89,7 @@ reserve_e2e_ports() {
   CONTROLD_HTTP_PORT="$(reserve_host_port "${CONTROLD_HTTP_HOST}" "${CONTROLD_HTTP_PORT}")"
   CONTROLD_HTTP_ADDRESS="${CONTROLD_HTTP_HOST}:${CONTROLD_HTTP_PORT}"
 
-  split_into_vars "${STORAGED_GRPC_ADDRESS}" STORAGED_GRPC_HOST STORAGED_GRPC_PORT
-  STORAGED_GRPC_PORT="$(reserve_host_port "${STORAGED_GRPC_HOST}" "${STORAGED_GRPC_PORT}")"
-  STORAGED_GRPC_ADDRESS="${STORAGED_GRPC_HOST}:${STORAGED_GRPC_PORT}"
 
-  split_into_vars "${STORAGED_HTTP_ADDRESS}" STORAGED_HTTP_HOST STORAGED_HTTP_PORT
-  STORAGED_HTTP_PORT="$(reserve_host_port "${STORAGED_HTTP_HOST}" "${STORAGED_HTTP_PORT}")"
-  STORAGED_HTTP_ADDRESS="${STORAGED_HTTP_HOST}:${STORAGED_HTTP_PORT}"
 
   split_into_vars "${NODE_GRPC_ADDRESS}" NODE_GRPC_HOST NODE_GRPC_PORT
   NODE_GRPC_PORT="$(reserve_host_port "${NODE_GRPC_HOST}" "${NODE_GRPC_PORT}")"
@@ -136,10 +126,6 @@ cleanup() {
     kill "${CONTROLD_PID}" >/dev/null 2>&1 || true
     wait "${CONTROLD_PID}" >/dev/null 2>&1 || true
   fi
-  if [ -n "${STORAGED_PID}" ]; then
-    kill "${STORAGED_PID}" >/dev/null 2>&1 || true
-    wait "${STORAGED_PID}" >/dev/null 2>&1 || true
-  fi
   if [ -n "${GATEWAYD_PID}" ]; then
     kill "${GATEWAYD_PID}" >/dev/null 2>&1 || true
     wait "${GATEWAYD_PID}" >/dev/null 2>&1 || true
@@ -147,7 +133,7 @@ cleanup() {
   docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${NODE_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker network rm "${POSTGRES_NETWORK_NAME}" >/dev/null 2>&1 || true
-  rm -rf "${shared_run_dir}" "${cert_dir}" "${controld_log}" "${storaged_log}" "${gatewayd_log}" "${cli_config_dir}" "${cli_catalog_output}" "${cli_template_output}" "${cli_object_output}" "${cli_wait_output}" "${cli_error_output}" "${docker_secret_file}" "${ssh_dir}"
+  rm -rf "${shared_run_dir}" "${cert_dir}" "${controld_log}" "${gatewayd_log}" "${cli_config_dir}" "${cli_catalog_output}" "${cli_template_output}" "${cli_object_output}" "${cli_wait_output}" "${cli_error_output}" "${docker_secret_file}" "${ssh_dir}"
 }
 
 dump_logs() {
@@ -162,8 +148,6 @@ dump_logs() {
   cat "${cli_object_output}" >&2 || true
   echo "--- controld log ---" >&2
   cat "${controld_log}" >&2 || true
-  echo "--- storaged log ---" >&2
-  cat "${storaged_log}" >&2 || true
   dump_controld_endpoint "nodesz"
   dump_controld_endpoint "resourcez"
   dump_controld_endpoint "reconcilez"

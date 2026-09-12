@@ -112,26 +112,11 @@ make local-truth-verify
 `local-truth-verify` purges and recreates compose and kind, then runs the full
 local smoke suite.
 
-For storage and volume-only changes, use the narrower cross-environment entry:
-
-```bash
-make local-storage-verify
-```
-
-It runs the compose and kind service-volume truth-path smokes against the
-current environments without resetting them. To include the same local storage
-pass in the full serial repository verifier, use:
-
-```bash
-bash ./scripts/verify-all.sh --include-local-storage
-```
-
 ## Targeted Smoke
 
 ```bash
 make local-compose-smoke
 make local-compose-gateway-smoke
-make local-compose-service-volume-smoke
 make local-compose-run-smoke
 make local-compose-invoke-smoke
 make local-compose-function-smoke
@@ -141,7 +126,6 @@ make local-compose-computer-use-e2e
 
 make kind-smoke
 make kind-gateway-smoke
-make kind-service-volume-smoke
 make kind-run-smoke
 make kind-invoke-smoke
 make kind-server-base-smoke
@@ -159,12 +143,6 @@ make kind-smoke
 make kind-run-smoke
 make kind-quota-smoke
 ```
-
-`*-service-volume-smoke` is intentionally heavier than the basic service and
-run checks: it verifies volume publish, rollout replacement, node-runtime
-restart recovery, and storage failure injection. The scripts print
-`*_service_volume_smoke_phase=...` markers so slow or failing runs show the
-active phase.
 
 Tunnel-specific changes should also run:
 

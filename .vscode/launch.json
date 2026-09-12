@@ -26,28 +26,6 @@
         "${workspaceFolder}/.dev/certs/controld.key",
         "-secrets-master-key",
         "local-only-master-key-32-bytes!!",
-        "-storaged-target",
-        "127.0.0.1:24020",
-        "-postgres-dsn",
-        "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable"
-      ],
-      "env": {
-        "GOTOOLCHAIN": "local"
-      }
-    },
-    {
-      "name": "Storaged: Debug daemon",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "program": "${workspaceFolder}/control/storaged/cmd/storaged",
-      "cwd": "${workspaceFolder}/control/storaged",
-      "preLaunchTask": "Axern: Prepare Storaged Debug",
-      "args": [
-        "-grpc-address",
-        "127.0.0.1:24020",
-        "-http-address",
-        "127.0.0.1:24021",
         "-postgres-dsn",
         "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable"
       ],
@@ -136,28 +114,6 @@
         "${workspaceFolder}/runtime/imagemgr/registry_auths.json.example",
         "-http_sock",
         "${workspaceFolder}/.dev/run/imagemgr.sock"
-      ],
-      "env": {
-        "GOTOOLCHAIN": "local"
-      }
-    },
-    {
-      "name": "Volumed: Debug daemon",
-      "type": "go",
-      "request": "launch",
-      "mode": "debug",
-      "asRoot": true,
-      "console": "integratedTerminal",
-      "program": "${workspaceFolder}/runtime/volumed/cmd/volumed",
-      "cwd": "${workspaceFolder}/runtime/volumed",
-      "preLaunchTask": "Axern: Prepare Volumed Debug",
-      "args": [
-        "-root",
-        "${workspaceFolder}/.dev/volumed",
-        "-socket",
-        "${workspaceFolder}/.dev/run/volumed.sock",
-        "-local-root",
-        "${workspaceFolder}/.dev/volumed/local"
       ],
       "env": {
         "GOTOOLCHAIN": "local"

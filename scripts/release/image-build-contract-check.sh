@@ -114,7 +114,7 @@ stage_contracts = (
     (
         root / "runtime/axnoded/docker/verify/Dockerfile",
         "controld-builder",
-        ("control/controld/go.mod", "control/storaged/go.mod", "gateway/gatewayd/go.mod"),
+        ("control/controld/go.mod", "gateway/gatewayd/go.mod"),
     ),
 )
 for dockerfile_path, stage_name, go_mod_paths in stage_contracts:

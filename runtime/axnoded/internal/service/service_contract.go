@@ -10,7 +10,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	storagev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1"
 )
 
 type SandboxService interface {
@@ -88,7 +87,6 @@ type SandboxCapabilityService interface {
 
 type NodeOperatorService interface {
 	SandboxService
-	DeleteVolume(context.Context, string, storagev1.VolumeBackend, string) error
 	ManagedAllocationAttempt(string) (int64, bool)
 	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error)
 	NetworkForSandbox(containerID string) (*SandboxNetwork, error)

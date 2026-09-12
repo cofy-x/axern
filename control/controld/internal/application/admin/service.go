@@ -14,12 +14,16 @@ type ServicePurger interface {
 	Purge(ctx context.Context, id string, now time.Time) (string, bool, error)
 }
 
-type ServiceControl struct {
-	services ServicePurger
-	audits   StorageAuditRecorder
+type ServiceAuditRecorder interface {
+	RecordAdminAuditEvent(ctx context.Context, event adminkernel.AuditEvent) error
 }
 
-func NewServiceControl(services ServicePurger, audits StorageAuditRecorder) ServiceControl {
+type ServiceControl struct {
+	services ServicePurger
+	audits   ServiceAuditRecorder
+}
+
+func NewServiceControl(services ServicePurger, audits ServiceAuditRecorder) ServiceControl {
 	return ServiceControl{services: services, audits: audits}
 }
 

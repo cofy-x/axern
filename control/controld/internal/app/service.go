@@ -16,7 +16,6 @@ import (
 	apirelayv1 "github.com/cofy-x/axern/control/controld/internal/api/relayv1"
 	rolloutworkerv1 "github.com/cofy-x/axern/control/controld/internal/api/rolloutworkerv1"
 	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
-	appadmin "github.com/cofy-x/axern/control/controld/internal/application/admin"
 	appcapability "github.com/cofy-x/axern/control/controld/internal/application/capability"
 	appfunction "github.com/cofy-x/axern/control/controld/internal/application/function"
 	appnode "github.com/cofy-x/axern/control/controld/internal/application/node"
@@ -46,7 +45,6 @@ import (
 	pgsecret "github.com/cofy-x/axern/control/controld/internal/postgres/secret"
 	pgservice "github.com/cofy-x/axern/control/controld/internal/postgres/service"
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
-	"github.com/cofy-x/axern/control/controld/internal/storagecoord"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 )
@@ -63,8 +61,6 @@ const (
 	defaultPostgresMaxConnections          = 48
 	defaultServiceAllocationGlobalWorkers  = 256
 	defaultServiceAllocationWorkersPerNode = 12
-	defaultVolumeReclaimWorkers            = 8
-	defaultVolumeReclaimWorkersPerNode     = 2
 )
 
 type Config struct {
@@ -83,13 +79,10 @@ type Config struct {
 	TunnelEdgeTarget                string
 	TunnelNodeEdgeTarget            string
 	TunnelRelays                    string
-	StoragedTarget                  string
 	FunctionGatewayURL              string
 	FunctionGatewayToken            string
 	FunctionGatewayTimeout          time.Duration
 	FunctionInvocationWorkers       int
-	VolumeReclaimWorkers            int
-	VolumeReclaimWorkersPerNode     int
 	FunctionBundleBaseURL           string
 	FunctionBundleToken             string
 	RolloutWorkerToken              string
@@ -128,8 +121,6 @@ type App struct {
 	functionBundleBaseURL           string
 	functionBundleToken             string
 	functionInvocationWorkers       int
-	volumeReclaimWorkers            int
-	volumeReclaimWorkersPerNode     int
 	rolloutWorkerToken              string
 	resourcePolicy                  resourcekernel.AdmissionPolicy
 
@@ -146,9 +137,6 @@ type App struct {
 	secretDB                *pgsecret.Store
 	servicePG               *pgservice.PGStore
 	tunnelPG                *pgtunnel.Store
-	storage                 storagecoord.Coordinator
-	storageAdmin            appadmin.StorageBindingStore
-	storageHealth           appadmin.StorageHealthSource
 	reconcileCtx            context.Context
 	cancelReconcile         context.CancelFunc
 	stopCh                  chan struct{}
@@ -164,7 +152,6 @@ type App struct {
 	serviceReconciler    servicekernel.Reconciler
 	allocationReconciler servicekernel.AllocationReconciler
 	capabilityReconciler *appcapability.Reconciler
-	volumeReclaimWorker  servicekernel.VolumeReclaimDispatcher
 	functionController   *appfunction.Controller
 
 	adminAPI          *apiadminv1.Server
@@ -203,15 +190,6 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 	if cfg.FunctionInvocationWorkers <= 0 {
 		cfg.FunctionInvocationWorkers = defaultFunctionInvocationWorkers
 	}
-	if cfg.VolumeReclaimWorkers <= 0 {
-		cfg.VolumeReclaimWorkers = defaultVolumeReclaimWorkers
-	}
-	if cfg.VolumeReclaimWorkersPerNode <= 0 {
-		cfg.VolumeReclaimWorkersPerNode = defaultVolumeReclaimWorkersPerNode
-	}
-	if cfg.VolumeReclaimWorkersPerNode > cfg.VolumeReclaimWorkers {
-		cfg.VolumeReclaimWorkersPerNode = cfg.VolumeReclaimWorkers
-	}
 	if cfg.ServiceAllocationGlobalWorkers <= 0 {
 		cfg.ServiceAllocationGlobalWorkers = defaultServiceAllocationGlobalWorkers
 	}
@@ -248,8 +226,6 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 		functionBundleBaseURL:           strings.TrimSpace(cfg.FunctionBundleBaseURL),
 		functionBundleToken:             strings.TrimSpace(cfg.FunctionBundleToken),
 		functionInvocationWorkers:       cfg.FunctionInvocationWorkers,
-		volumeReclaimWorkers:            cfg.VolumeReclaimWorkers,
-		volumeReclaimWorkersPerNode:     cfg.VolumeReclaimWorkersPerNode,
 		rolloutWorkerToken:              strings.TrimSpace(cfg.RolloutWorkerToken),
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -313,6 +289,10 @@ func (a *App) configureDependencies(cfg Config) error {
 		db.Close()
 		return err
 	}
+	if err := db.CheckRetiredVolumeData(context.Background()); err != nil {
+		db.Close()
+		return err
+	}
 	a.db = db
 	a.adminPG = pgadmin.NewStore(db)
 	a.accessPG = pgaccess.NewStore(db)
@@ -359,15 +339,6 @@ func (a *App) configureDependencies(cfg Config) error {
 		SecretValues:        a.secretDB,
 		RegistryCredentials: a.secretDB,
 	})
-	if cfg.StoragedTarget != "" {
-		storageClient, err := storagecoord.NewClient(cfg.StoragedTarget)
-		if err != nil {
-			return err
-		}
-		a.storage = storageClient
-		a.storageAdmin = storageClient
-		a.storageHealth = storageClient
-	}
 	if cfg.FunctionInvoker != nil {
 		a.functionInvoker = cfg.FunctionInvoker
 	} else if strings.TrimSpace(cfg.FunctionGatewayURL) != "" {
@@ -425,9 +396,6 @@ func (a *App) Close() error {
 		}
 		if a.rolloutPG != nil {
 			a.rolloutPG.Close()
-		}
-		if closer, ok := a.storage.(interface{ Close() error }); ok {
-			_ = closer.Close()
 		}
 		if a.db != nil {
 			a.db.Close()

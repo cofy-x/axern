@@ -118,7 +118,7 @@ func (h *Controller) EgressPolicyManifest(allocationID string) (EgressPolicyMani
 
 // ReplaceCapabilityAdmission atomically persists the admitted dependency
 // proofs and their complete condition projection. The initial admission is the
-// first durable side effect of create, before volumes, rootfs, mounts, cgroups,
+// first durable side effect of create, before rootfs, mounts, cgroups,
 // or runtime processes are touched. Post-create admission replaces both proof
 // sets in the same write so recovery can never observe mismatched generations.
 func (h *Controller) ReplaceCapabilityAdmission(allocationID string, attempt int64, requestDigest string, dependencies []*capabilityv1.CapabilityDependency, conditions []*capabilityv1.CapabilityCondition, observedAt time.Time) (*capabilityv1.CapabilityConditionSet, error) {

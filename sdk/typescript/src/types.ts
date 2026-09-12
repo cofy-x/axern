@@ -36,13 +36,6 @@ export interface ImageProcessMount {
   options?: readonly string[];
 }
 
-export interface VolumeMount {
-  name: string;
-  target: string;
-  readonly?: boolean;
-  options?: readonly string[];
-}
-
 export function workspaceMount(path = "/workspace"): ImageProcessMount {
   return { sandboxPath: path, targetPath: path };
 }

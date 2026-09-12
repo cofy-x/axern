@@ -30,6 +30,7 @@ func TestDecodeRejectsUnknownAndRemovedSettings(t *testing.T) {
 	for _, input := range []string{
 		"[plugin.runtime.runtime_binary]\nrunsc = '/legacy/runsc'",
 		"[plugin.runtime.basic_spec]\nrunsc = '/legacy/runsc.json'",
+		"[plugin.runtime]\nvolume_manager_socket = '/legacy/volumed.sock'",
 		"[plugin.runtime]\ncgroup_enforcment = 'disabled_dev'",
 		"[plugin.runtime.runtimes.runsc]\nbinry = '/custom/runsc'",
 	} {

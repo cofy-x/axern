@@ -16,9 +16,7 @@ import (
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	storagev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1"
 	nodelifecyclev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
-	privatestoragev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/storage/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -36,26 +34,12 @@ type serviceLike interface {
 	Start(context.Context, *runtimev1.StartRequest) (*runtimev1.StartResponse, error)
 	Delete(context.Context, *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error)
 	List(context.Context, *runtimev1.ListContainersRequest) (*runtimev1.ListContainersResponse, error)
-	DeleteVolume(context.Context, string, storagev1.VolumeBackend, string) error
 	ManagedAllocationAttempt(string) (int64, bool)
 	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error)
 }
 
 type workspacePreparationProvider interface {
 	WorkspacePreparation(containerID string) *commonv1.WorkspacePreparationFacts
-}
-
-func (s *nodeLifecycleServer) DeleteVolume(ctx context.Context, req *nodelifecyclev1.DeleteVolumeRequest) (*nodelifecyclev1.DeleteVolumeResponse, error) {
-	if strings.TrimSpace(req.GetClaimID()) == "" || strings.TrimSpace(req.GetBackendHandle()) == "" || req.GetBackend() == storagev1.VolumeBackend_VOLUME_BACKEND_UNSPECIFIED {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "claim_id, backend, and backend_handle are required")
-	}
-	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
-		return nil, grpcstatus.Error(codes.PermissionDenied, "volume node_id does not match this node")
-	}
-	if err := s.svc.DeleteVolume(ctx, req.GetClaimID(), req.GetBackend(), req.GetBackendHandle()); err != nil {
-		return nil, err
-	}
-	return &nodelifecyclev1.DeleteVolumeResponse{}, nil
 }
 
 const (
@@ -143,7 +127,6 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 	return &nodelifecyclev1.CreateAllocationResponse{
 		AllocationID:                   req.GetAllocationID(),
 		Attempt:                        req.GetAttempt(),
-		PublishedVolumes:               clonePublishedNodeVolumes(resp.GetPublishedVolumes()),
 		WorkspacePreparation:           workspacePreparation,
 		CapabilityVerification:         cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
 		AdmittedCapabilityDependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
@@ -216,7 +199,7 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 	targetID := s.targets.resolve(req.GetAllocationID())
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageResolveTarget, "", stageStarted, nil)
 	stageStarted = time.Now()
-	resp, err := s.svc.Delete(ctx, &runtimev1.DeleteRequest{ID: targetID, Timeout: req.GetTimeoutSeconds()})
+	_, err := s.svc.Delete(ctx, &runtimev1.DeleteRequest{ID: targetID, Timeout: req.GetTimeoutSeconds()})
 	if err != nil {
 		if allocationDeleteNotFound(err) {
 			recordLifecycleStage(lifecycleOperationDelete, lifecycleStageServiceDelete, "", stageStarted, nil)
@@ -240,9 +223,7 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 	stageStarted = time.Now()
 	s.targets.markDeleted(req.GetAllocationID())
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageMarkDeleted, "", stageStarted, nil)
-	return &nodelifecyclev1.DeleteAllocationResponse{
-		VolumeReleaseObservations: cloneVolumeReleaseObservations(resp.GetVolumeReleaseObservations()),
-	}, nil
+	return &nodelifecyclev1.DeleteAllocationResponse{}, nil
 }
 
 func allocationDeleteNotFound(err error) bool {
@@ -345,7 +326,6 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		ExtraConfig:            lifecycleExtraConfig(spec),
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
-		NodeVolumes:            cloneResolvedNodeVolumes(spec.GetNodeVolumes()),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
 		WorkspaceImage:         cloneWorkspaceImage(spec.GetWorkspaceImage()),
 		CapabilityDependencies: cloneCapabilityDependencies(spec.GetCapabilityDependencies()),
@@ -392,7 +372,6 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 		ExtraConfig:            lifecycleExtraConfig(spec),
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
-		NodeVolumes:            cloneResolvedNodeVolumes(spec.GetNodeVolumes()),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
 		WorkspaceImage:         cloneWorkspaceImage(spec.GetWorkspaceImage()),
 		CapabilityDependencies: cloneCapabilityDependencies(spec.GetCapabilityDependencies()),
@@ -507,48 +486,6 @@ func cloneWorkspaceImage(in *nodelifecyclev1.WorkspaceImageSource) *runtimev1.Wo
 			continue
 		}
 		out.Variants = append(out.Variants, &runtimev1.WorkspaceImageVariant{Format: strings.TrimSpace(variant.GetFormat()), Image: strings.TrimSpace(variant.GetImage())})
-	}
-	return out
-}
-
-func cloneResolvedNodeVolumes(in []*privatestoragev1.ResolvedNodeVolume) []*privatestoragev1.ResolvedNodeVolume {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*privatestoragev1.ResolvedNodeVolume, 0, len(in))
-	for _, volume := range in {
-		if volume == nil {
-			continue
-		}
-		out = append(out, proto.Clone(volume).(*privatestoragev1.ResolvedNodeVolume))
-	}
-	return out
-}
-
-func clonePublishedNodeVolumes(in []*privatestoragev1.PublishedNodeVolume) []*privatestoragev1.PublishedNodeVolume {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*privatestoragev1.PublishedNodeVolume, 0, len(in))
-	for _, volume := range in {
-		if volume == nil {
-			continue
-		}
-		out = append(out, proto.Clone(volume).(*privatestoragev1.PublishedNodeVolume))
-	}
-	return out
-}
-
-func cloneVolumeReleaseObservations(in []*privatestoragev1.VolumeReleaseObservation) []*privatestoragev1.VolumeReleaseObservation {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*privatestoragev1.VolumeReleaseObservation, 0, len(in))
-	for _, observation := range in {
-		if observation == nil {
-			continue
-		}
-		out = append(out, proto.Clone(observation).(*privatestoragev1.VolumeReleaseObservation))
 	}
 	return out
 }

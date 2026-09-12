@@ -271,30 +271,6 @@ class BpfNetSummary(_message.Message):
     needs_localhost_compat: bool
     def __init__(self, state: _Optional[_Union[ComponentState, str]] = ..., enabled: _Optional[bool] = ..., ready: _Optional[bool] = ..., mode: _Optional[str] = ..., needs_snat_fallback: _Optional[bool] = ..., needs_full_dnat_fallback: _Optional[bool] = ..., needs_localhost_compat: _Optional[bool] = ...) -> None: ...
 
-class VolumedSummary(_message.Message):
-    __slots__ = ("state", "reachable", "published_volume_count", "last_reconcile_at", "last_reconcile_error", "last_reconcile_retained_count", "last_reconcile_unpublished_count", "last_reconcile_active_allocation_count", "last_reconcile_stale_allocation_count", "last_reconcile_invalid_volume_count")
-    STATE_FIELD_NUMBER: _ClassVar[int]
-    REACHABLE_FIELD_NUMBER: _ClassVar[int]
-    PUBLISHED_VOLUME_COUNT_FIELD_NUMBER: _ClassVar[int]
-    LAST_RECONCILE_AT_FIELD_NUMBER: _ClassVar[int]
-    LAST_RECONCILE_ERROR_FIELD_NUMBER: _ClassVar[int]
-    LAST_RECONCILE_RETAINED_COUNT_FIELD_NUMBER: _ClassVar[int]
-    LAST_RECONCILE_UNPUBLISHED_COUNT_FIELD_NUMBER: _ClassVar[int]
-    LAST_RECONCILE_ACTIVE_ALLOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
-    LAST_RECONCILE_STALE_ALLOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
-    LAST_RECONCILE_INVALID_VOLUME_COUNT_FIELD_NUMBER: _ClassVar[int]
-    state: ComponentState
-    reachable: bool
-    published_volume_count: int
-    last_reconcile_at: _timestamp_pb2.Timestamp
-    last_reconcile_error: str
-    last_reconcile_retained_count: int
-    last_reconcile_unpublished_count: int
-    last_reconcile_active_allocation_count: int
-    last_reconcile_stale_allocation_count: int
-    last_reconcile_invalid_volume_count: int
-    def __init__(self, state: _Optional[_Union[ComponentState, str]] = ..., reachable: _Optional[bool] = ..., published_volume_count: _Optional[int] = ..., last_reconcile_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., last_reconcile_error: _Optional[str] = ..., last_reconcile_retained_count: _Optional[int] = ..., last_reconcile_unpublished_count: _Optional[int] = ..., last_reconcile_active_allocation_count: _Optional[int] = ..., last_reconcile_stale_allocation_count: _Optional[int] = ..., last_reconcile_invalid_volume_count: _Optional[int] = ...) -> None: ...
-
 class NodeStorageSummary(_message.Message):
     __slots__ = ("target", "capacity_bytes", "used_bytes", "available_bytes", "inodes_total", "inodes_used", "inodes_available", "collected", "error", "system_reserve_bytes", "reserved_bytes", "allocatable_bytes", "active_reservations", "filesystem_type", "mount_identity", "allocation_used_bytes", "unlinked_backing_usage_unknown")
     TARGET_FIELD_NUMBER: _ClassVar[int]
@@ -334,18 +310,16 @@ class NodeStorageSummary(_message.Message):
     def __init__(self, target: _Optional[str] = ..., capacity_bytes: _Optional[int] = ..., used_bytes: _Optional[int] = ..., available_bytes: _Optional[int] = ..., inodes_total: _Optional[int] = ..., inodes_used: _Optional[int] = ..., inodes_available: _Optional[int] = ..., collected: _Optional[bool] = ..., error: _Optional[str] = ..., system_reserve_bytes: _Optional[int] = ..., reserved_bytes: _Optional[int] = ..., allocatable_bytes: _Optional[int] = ..., active_reservations: _Optional[int] = ..., filesystem_type: _Optional[str] = ..., mount_identity: _Optional[str] = ..., allocation_used_bytes: _Optional[int] = ..., unlinked_backing_usage_unknown: _Optional[bool] = ...) -> None: ...
 
 class ComponentsSummary(_message.Message):
-    __slots__ = ("axnoded", "imagemgr", "imagefsd", "bpfnet", "volumed")
+    __slots__ = ("axnoded", "imagemgr", "imagefsd", "bpfnet")
     AXNODED_FIELD_NUMBER: _ClassVar[int]
     IMAGEMGR_FIELD_NUMBER: _ClassVar[int]
     IMAGEFSD_FIELD_NUMBER: _ClassVar[int]
     BPFNET_FIELD_NUMBER: _ClassVar[int]
-    VOLUMED_FIELD_NUMBER: _ClassVar[int]
     axnoded: AxnodedSummary
     imagemgr: ImagemgrSummary
     imagefsd: ImagefsdSummary
     bpfnet: BpfNetSummary
-    volumed: VolumedSummary
-    def __init__(self, axnoded: _Optional[_Union[AxnodedSummary, _Mapping]] = ..., imagemgr: _Optional[_Union[ImagemgrSummary, _Mapping]] = ..., imagefsd: _Optional[_Union[ImagefsdSummary, _Mapping]] = ..., bpfnet: _Optional[_Union[BpfNetSummary, _Mapping]] = ..., volumed: _Optional[_Union[VolumedSummary, _Mapping]] = ...) -> None: ...
+    def __init__(self, axnoded: _Optional[_Union[AxnodedSummary, _Mapping]] = ..., imagemgr: _Optional[_Union[ImagemgrSummary, _Mapping]] = ..., imagefsd: _Optional[_Union[ImagefsdSummary, _Mapping]] = ..., bpfnet: _Optional[_Union[BpfNetSummary, _Mapping]] = ...) -> None: ...
 
 class LocalitySummary(_message.Message):
     __slots__ = ("key", "rootfs_type", "mount_type", "mounted", "retained_runtime_count", "retained_rootfs_count", "running_container_count", "nydus_daemon_alive", "chunkdb_total_chunks", "chunkdb_used_bytes", "chunkdb_recent_access_age_secs", "peer_healthy_count", "peer_unhealthy_count", "peer_hinted_count", "environment_id")

@@ -1,11 +1,11 @@
 ---
 title: Coding Agents
-description: Run Codex or Claude Code in a persistent Axern workspace while provider credentials stay on your machine.
+description: Run Codex or Claude Code in an ephemeral Axern sandbox while provider credentials stay on your machine.
 ---
 
-`axern agent` manages a persistent remote coding workspace for Codex and
-Claude Code. The workspace keeps one Service for compute, one Volume for
-project data mounted at `/home/axern/workspace`, and a Tunnel for each
+`axern agent` manages remote coding sessions for Codex and Claude Code.
+The workspace keeps one Service for compute, a sandbox-local working directory
+at `/home/axern/workspace`, and a Tunnel for each
 connection session. The agent bundle is resolved from the control-plane
 catalog and mounted read-only; the default `coding-base` template selects the
 workspace rootfs, not the agent executable.
@@ -80,8 +80,8 @@ entering a shell.
 
 ## Suspend, switch, and delete
 
-Ending a session only closes that connection. Suspend compute while retaining
-the workspace data:
+Ending a session only closes that connection. Files remain only while the same
+sandbox allocation exists. Download needed files before stopping compute:
 
 ```bash
 axern agent list
@@ -89,18 +89,18 @@ axern agent stop --workspace project-a
 ```
 
 `stop` scales the Service to zero and is idempotent. The next `shell`, `run`,
-or `connect` resumes the same Service and Volume. A running workspace accepts
+or `connect` starts a new, empty sandbox for the same Service. A running workspace accepts
 only its active profile; to switch agents or models, suspend first and
 reconnect with another profile.
 
-Delete a suspended workspace only when its data is no longer needed:
+Delete a stopped workspace Service when its configuration is no longer needed:
 
 ```bash
 axern agent stop --workspace project-a
 axern agent workspace delete --workspace project-a --yes
 ```
 
-Deletion waits for allocation release and physical volume reclaim. Recreating
+Deletion waits for allocation release and Service deletion. Recreating
 the same workspace name produces new identities and an empty data directory.
 
 :::note

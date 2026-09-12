@@ -339,30 +339,6 @@ var (
 		Name:        "axern.controld_function_invocation_notification_current",
 		Description: "Current asynchronous Function invocation PostgreSQL listener readiness.",
 	}
-	MetricVolumeReclaimTotal = sdkobs.Instrument{
-		Name:        "axern.controld_volume_reclaim_total",
-		Description: "Durable volume reclaim executions by bounded result.",
-	}
-	MetricVolumeReclaimDuration = sdkobs.Instrument{
-		Name:        "axern.controld_volume_reclaim_duration_seconds",
-		Description: "Durable volume reclaim execution latency.",
-	}
-	MetricVolumeReclaimClaimDuration = sdkobs.Instrument{
-		Name:        "axern.controld_volume_reclaim_claim_duration_seconds",
-		Description: "Durable volume reclaim claim latency.",
-	}
-	MetricVolumeReclaimDispatcherCurrent = sdkobs.Instrument{
-		Name:        "axern.controld_volume_reclaim_dispatcher_current",
-		Description: "Current bounded volume reclaim dispatcher work.",
-	}
-	MetricVolumeReclaimQueueCurrent = sdkobs.Instrument{
-		Name:        "axern.controld_volume_reclaim_queue_current",
-		Description: "Current durable volume reclaims by scheduling state.",
-	}
-	MetricVolumeReclaimOldestDueAge = sdkobs.Instrument{
-		Name:        "axern.controld_volume_reclaim_oldest_due_age_seconds",
-		Description: "Age of the oldest due durable volume reclaim.",
-	}
 	MetricRetentionDeletedTotal = sdkobs.Instrument{
 		Name:        "axern.controld_retention_deleted_total",
 		Description: "Rows deleted by controld retention cleanup.",

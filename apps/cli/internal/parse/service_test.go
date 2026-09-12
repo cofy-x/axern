@@ -9,28 +9,6 @@ import (
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 )
 
-func TestServiceVolumeMounts(t *testing.T) {
-	got, err := ServiceVolumeMounts([]string{"data:/var/lib/app:ro,rbind,nodev"})
-	if err != nil {
-		t.Fatalf("ServiceVolumeMounts returned error: %v", err)
-	}
-	want := []*commonv1.ServiceVolumeMount{{
-		Name:     "data",
-		Target:   "/var/lib/app",
-		Readonly: true,
-		Options:  []string{"rbind", "nodev"},
-	}}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %#v, want %#v", got, want)
-	}
-	if _, err := ServiceVolumeMounts([]string{"bad"}); err == nil {
-		t.Fatal("expected invalid volume error")
-	}
-	if _, err := ServiceVolumeMounts([]string{"data:/x:ro,rw"}); err == nil {
-		t.Fatal("expected conflicting mode error")
-	}
-}
-
 func TestImageMounts(t *testing.T) {
 	got, err := ImageMounts([]string{"localhost:5000/tools/codex:latest:/opt/axern/tools/codex:ro"})
 	if err != nil {

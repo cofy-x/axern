@@ -37,7 +37,7 @@ func addTestRuntimeMappingRuntime(t *testing.T, manager *langruntime.LangRTManag
 
 func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	store := storetest.NewMockStore()
-	first := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store, fakeVolumePublisher{})
+	first := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store)
 	template := testRuntimeTemplate(t, "allocation-runtime")
 	runtime := addTestRuntimeMappingRuntime(t, first.lrtManager, template)
 	allocationID := "allocation-runtime-round-trip"
@@ -52,7 +52,7 @@ func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	assert.NoError(t, store.GetRecord(config.AllocationStateBucket, allocationID, &persisted))
 	assert.Equal(t, template.GetID(), persisted.GetRuntimeTemplate().GetID())
 
-	second := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store, fakeVolumePublisher{})
+	second := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store)
 	second.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{ID: allocationID, RuntimeHandler: "runsc"})
 	time.Sleep(200 * time.Millisecond)
 	assert.NoError(t, second.controller.loadAllocationStates(map[string]struct{}{allocationID: {}}))
@@ -67,7 +67,7 @@ func TestLoadAllocationStatesSkipsOrphanContainers(t *testing.T) {
 	assert.NoError(t, store.PutRecord(config.AllocationStateBucket, allocationID, &apipb.AllocationState{
 		AllocationID: allocationID, RuntimeTemplate: testRuntimeTemplate(t, "orphan-runtime"),
 	}))
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store, fakeVolumePublisher{})
+	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store)
 	assert.NoError(t, fixture.controller.loadAllocationStates(map[string]struct{}{}))
 	_, ok := fixture.controller.runtimeMapping(allocationID)
 	assert.False(t, ok)

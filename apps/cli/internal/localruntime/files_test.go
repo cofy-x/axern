@@ -252,7 +252,7 @@ func TestStartupDiagnosticsIncludesBoundedCoreLogs(t *testing.T) {
 	if len(runner.calls) != 2 {
 		t.Fatalf("diagnostic calls = %d, want 2", len(runner.calls))
 	}
-	if got, want := runner.calls[1][len(runner.calls[1])-9:], []string{"logs", "--no-color", "--tail", "80", "storaged", "controld", "tunneld", "node", "gatewayd"}; !reflect.DeepEqual(got, want) {
+	if got, want := runner.calls[1][len(runner.calls[1])-8:], []string{"logs", "--no-color", "--tail", "80", "controld", "tunneld", "node", "gatewayd"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("log diagnostics = %#v, want %#v", got, want)
 	}
 	if !bytes.Contains(stderr.Bytes(), []byte("Recent core service logs follow.")) {

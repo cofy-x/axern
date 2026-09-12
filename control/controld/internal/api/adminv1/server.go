@@ -7,7 +7,6 @@ type Server struct {
 	adminv1.UnimplementedAdminAuditServer
 	adminv1.UnimplementedAdminReliabilityServer
 	adminv1.UnimplementedNodeAdminServer
-	adminv1.UnimplementedStorageAdminServer
 	adminv1.UnimplementedServiceAdminServer
 	adminv1.UnimplementedAccessAdminServer
 

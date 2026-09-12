@@ -1,9 +1,9 @@
 .PHONY: quickstart quickstart-source axern-config-init \
 		local-images-build local-node-images-build nydus-builder-image registry-nydus-image-build \
 		local-compose-up local-compose-down local-compose-status local-compose-purge local-compose-reset local-compose-refresh local-compose-refresh-verify local-compose-image-import local-compose-image-service-smoke local-compose-registry-image-smoke local-compose-image-mount-smoke local-compose-agent-bundle-matrix-smoke local-compose-claude-code-image-mount-smoke local-compose-codex-image-mount-smoke local-compose-nydus-smoke \
-		local-compose-smoke local-compose-doctor-smoke local-compose-dns-doctor-smoke local-compose-gateway-smoke local-compose-gateway-ssh-e2e local-compose-service-volume-smoke local-compose-run-smoke local-compose-function-smoke local-compose-server-base-smoke local-compose-quota-smoke local-compose-tunnel-e2e local-compose-python-sdk-e2e local-compose-computer-use-e2e local-compose-go-sdk-e2e local-compose-managed-rollout-e2e tunnel-benchmark-compose \
-		kind-up kind-down kind-status kind-purge kind-reset kind-refresh kind-refresh-verify registry-up registry-status registry-down registry-image-push kind-image-import kind-image-service-smoke kind-axern-registry-image-smoke kind-axern-nydus-smoke kind-smoke kind-gateway-smoke kind-service-volume-smoke kind-run-smoke kind-server-base-smoke kind-quota-smoke kind-tunnel-e2e kind-tunnel-relay-e2e kind-tunnel-multirelay-e2e kube-env-kind \
-		local-refresh-verify local-truth-verify local-storage-verify \
+		local-compose-smoke local-compose-doctor-smoke local-compose-dns-doctor-smoke local-compose-gateway-smoke local-compose-gateway-ssh-e2e local-compose-run-smoke local-compose-function-smoke local-compose-server-base-smoke local-compose-quota-smoke local-compose-tunnel-e2e local-compose-python-sdk-e2e local-compose-computer-use-e2e local-compose-go-sdk-e2e local-compose-managed-rollout-e2e tunnel-benchmark-compose \
+		kind-up kind-down kind-status kind-purge kind-reset kind-refresh kind-refresh-verify registry-up registry-status registry-down registry-image-push kind-image-import kind-image-service-smoke kind-axern-registry-image-smoke kind-axern-nydus-smoke kind-smoke kind-gateway-smoke kind-run-smoke kind-server-base-smoke kind-quota-smoke kind-tunnel-e2e kind-tunnel-relay-e2e kind-tunnel-multirelay-e2e kube-env-kind \
+		local-refresh-verify local-truth-verify \
 		sdk-go-examples-smoke
 
 quickstart: ## Start and verify Compose with the published Axern release
@@ -88,9 +88,6 @@ local-compose-gateway-smoke: ## Run the local Docker Compose gateway HTTP and te
 local-compose-gateway-ssh-e2e: local-compose-up ## Verify gateway SSH terminal with a real ssh client in compose
 	bash $(ROOTDIR)/scripts/dev-env/compose-gateway-smoke.sh
 
-local-compose-service-volume-smoke: ## Run the local Docker Compose service volume truth-path smoke
-	bash $(ROOTDIR)/scripts/dev-env/compose-service-volume-smoke.sh
-
 local-compose-run-smoke: ## Run the local Docker Compose run truth-path smoke
 	bash $(ROOTDIR)/scripts/dev-env/compose-run-smoke.sh
 
@@ -172,9 +169,6 @@ kind-smoke: ## Run the repo-managed kind truth-environment smoke contract
 kind-gateway-smoke: ## Run the repo-managed kind gateway HTTP and terminal smoke contract
 	bash $(ROOTDIR)/scripts/dev-env/kind-gateway-smoke.sh
 
-kind-service-volume-smoke: ## Run the repo-managed kind service volume truth-path smoke
-	bash $(ROOTDIR)/scripts/dev-env/kind-service-volume-smoke.sh
-
 kind-run-smoke: ## Run the repo-managed kind run truth-path smoke
 	bash $(ROOTDIR)/scripts/dev-env/kind-run-smoke.sh
 
@@ -201,9 +195,6 @@ local-truth-verify: ## Reset kind and compose, then run the full local truth-env
 
 local-refresh-verify: ## Refresh compose and kind without deleting environments, then run core smoke suites
 	bash $(ROOTDIR)/scripts/dev-env/verify-local-refresh.sh
-
-local-storage-verify: ## Run compose and kind service-volume truth-path smokes without resetting environments
-	bash $(ROOTDIR)/scripts/dev-env/verify-local-storage.sh
 
 sdk-go-examples-smoke: ## Run lightweight Go SDK examples against local compose
 	bash $(ROOTDIR)/scripts/dev-env/go-sdk-examples-smoke.sh

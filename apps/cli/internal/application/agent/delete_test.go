@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestDeleteWorkspaceRequiresSuspendedServiceAndDeletesVolumes(t *testing.T) {
+func TestDeleteWorkspaceRequiresSuspendedServiceAndWaitsForCleanup(t *testing.T) {
 	service := &servicev1.Service{
 		ID: "svc-1", Version: 7, Replicas: 0,
 		Status: servicev1.ServiceStatus_SERVICE_STATUS_READY,
@@ -21,8 +21,8 @@ func TestDeleteWorkspaceRequiresSuspendedServiceAndDeletesVolumes(t *testing.T) 
 	complete := &servicev1.Service{
 		ID: "svc-1", Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETED,
 		Labels: service.GetLabels(), DeletionStatus: &servicev1.ServiceDeletionStatus{
-			Phase:    servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE,
-			ClaimIds: []string{"claim-1"}, Message: "workspace data deleted",
+			Phase:       servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE,
+			Message:     "workspace service deleted",
 			CompletedAt: timestamppb.New(time.Unix(10, 0)),
 		},
 	}
@@ -34,10 +34,10 @@ func TestDeleteWorkspaceRequiresSuspendedServiceAndDeletesVolumes(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if client.deleteReq.GetExpectedVersion() != 7 || !client.deleteReq.GetRequireSuspended() || client.deleteReq.GetVolumeDisposition() != servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE {
+	if client.deleteReq.GetExpectedVersion() != 7 || !client.deleteReq.GetRequireSuspended() {
 		t.Fatalf("delete request = %#v", client.deleteReq)
 	}
-	if result.State != LifecycleDeleted || result.ServiceID != "svc-1" || len(result.ClaimIDs) != 1 || result.CompletedAt.IsZero() {
+	if result.State != LifecycleDeleted || result.ServiceID != "svc-1" || result.CompletedAt.IsZero() {
 		t.Fatalf("delete result = %#v", result)
 	}
 }
@@ -105,8 +105,7 @@ func TestDeleteWorkspaceContinuesExistingDeletionAndTimesOutLocally(t *testing.T
 		ID: "svc-1", Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETING,
 		Labels: workspaceLabels("project-a", "codex", "codex"),
 		DeletionStatus: &servicev1.ServiceDeletionStatus{
-			Phase:    servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES,
-			ClaimIds: []string{"claim-1"},
+			Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
 		},
 	}
 	client := &fakeServiceClient{listServicesResp: &servicev1.ListServicesResponse{Services: []*servicev1.Service{deleting}}}
@@ -139,7 +138,7 @@ func TestDeleteWorkspaceRejectsDeletingAndActiveDuplicate(t *testing.T) {
 	deleting := &servicev1.Service{
 		ID: "svc-old", Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETING,
 		Labels:         workspaceLabels("project-a", "codex", "codex"),
-		DeletionStatus: &servicev1.ServiceDeletionStatus{Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES},
+		DeletionStatus: &servicev1.ServiceDeletionStatus{Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS},
 	}
 	active := &servicev1.Service{
 		ID: "svc-new", Status: servicev1.ServiceStatus_SERVICE_STATUS_READY, Replicas: 0,

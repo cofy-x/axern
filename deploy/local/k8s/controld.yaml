@@ -1,60 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: storaged
-  namespace: axern-local
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: storaged
-  template:
-    metadata:
-      labels:
-        app: storaged
-    spec:
-      containers:
-        - name: storaged
-          image: axern/local-controld:dev
-          imagePullPolicy: IfNotPresent
-          command:
-            - /usr/local/bin/storaged
-          args:
-            - -grpc-address
-            - 0.0.0.0:24020
-            - -http-address
-            - 0.0.0.0:24021
-            - -postgres-dsn
-            - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
-          ports:
-            - containerPort: 24020
-            - containerPort: 24021
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 24021
-            initialDelaySeconds: 2
-            periodSeconds: 2
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: storaged
-  namespace: axern-local
-spec:
-  selector:
-    app: storaged
-  ports:
-    - name: grpc
-      port: 24020
-      targetPort: 24020
-    - name: http
-      port: 24021
-      targetPort: 24021
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
   name: controld
   namespace: axern-local
 spec:
@@ -91,8 +37,6 @@ spec:
             - /certs/controld.crt
             - -tls-key
             - /certs/controld.key
-            - -storaged-target
-            - storaged.axern-local.svc.cluster.local:24020
             - -function-gateway-url
             - http://gatewayd.axern-local.svc.cluster.local:25080
             - -function-gateway-token

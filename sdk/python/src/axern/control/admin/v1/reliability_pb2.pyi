@@ -77,8 +77,6 @@ class AdminReliabilitySignalCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapp
     ADMIN_RELIABILITY_SIGNAL_CODE_CONSISTENCY_ISSUES: _ClassVar[AdminReliabilitySignalCode]
     ADMIN_RELIABILITY_SIGNAL_CODE_ALLOCATION_LIFECYCLE_RETRIES: _ClassVar[AdminReliabilitySignalCode]
     ADMIN_RELIABILITY_SIGNAL_CODE_RECONCILE_FAILURES: _ClassVar[AdminReliabilitySignalCode]
-    ADMIN_RELIABILITY_SIGNAL_CODE_STORAGE_BINDINGS: _ClassVar[AdminReliabilitySignalCode]
-    ADMIN_RELIABILITY_SIGNAL_CODE_NODE_VOLUME_MANAGERS: _ClassVar[AdminReliabilitySignalCode]
     ADMIN_RELIABILITY_SIGNAL_CODE_NODE_FLEET: _ClassVar[AdminReliabilitySignalCode]
 ADMIN_RELIABILITY_STATUS_UNSPECIFIED: AdminReliabilityStatus
 ADMIN_RELIABILITY_STATUS_OK: AdminReliabilityStatus
@@ -124,8 +122,6 @@ ADMIN_RELIABILITY_SIGNAL_CODE_UNSPECIFIED: AdminReliabilitySignalCode
 ADMIN_RELIABILITY_SIGNAL_CODE_CONSISTENCY_ISSUES: AdminReliabilitySignalCode
 ADMIN_RELIABILITY_SIGNAL_CODE_ALLOCATION_LIFECYCLE_RETRIES: AdminReliabilitySignalCode
 ADMIN_RELIABILITY_SIGNAL_CODE_RECONCILE_FAILURES: AdminReliabilitySignalCode
-ADMIN_RELIABILITY_SIGNAL_CODE_STORAGE_BINDINGS: AdminReliabilitySignalCode
-ADMIN_RELIABILITY_SIGNAL_CODE_NODE_VOLUME_MANAGERS: AdminReliabilitySignalCode
 ADMIN_RELIABILITY_SIGNAL_CODE_NODE_FLEET: AdminReliabilitySignalCode
 
 class ConsistencyCounts(_message.Message):
@@ -193,15 +189,13 @@ class AdminReliabilitySignal(_message.Message):
     def __init__(self, code: _Optional[_Union[AdminReliabilitySignalCode, str]] = ..., message: _Optional[str] = ...) -> None: ...
 
 class AdminReliabilityHealth(_message.Message):
-    __slots__ = ("status", "consistency", "allocation_lifecycle_retries", "due_allocation_lifecycle_retries", "reconcile_unhealthy_components", "signals", "node_volume_health", "storage_binding_health", "reconcile_components", "node_fleet_health")
+    __slots__ = ("status", "consistency", "allocation_lifecycle_retries", "due_allocation_lifecycle_retries", "reconcile_unhealthy_components", "signals", "reconcile_components", "node_fleet_health")
     STATUS_FIELD_NUMBER: _ClassVar[int]
     CONSISTENCY_FIELD_NUMBER: _ClassVar[int]
     ALLOCATION_LIFECYCLE_RETRIES_FIELD_NUMBER: _ClassVar[int]
     DUE_ALLOCATION_LIFECYCLE_RETRIES_FIELD_NUMBER: _ClassVar[int]
     RECONCILE_UNHEALTHY_COMPONENTS_FIELD_NUMBER: _ClassVar[int]
     SIGNALS_FIELD_NUMBER: _ClassVar[int]
-    NODE_VOLUME_HEALTH_FIELD_NUMBER: _ClassVar[int]
-    STORAGE_BINDING_HEALTH_FIELD_NUMBER: _ClassVar[int]
     RECONCILE_COMPONENTS_FIELD_NUMBER: _ClassVar[int]
     NODE_FLEET_HEALTH_FIELD_NUMBER: _ClassVar[int]
     status: AdminReliabilityStatus
@@ -210,11 +204,9 @@ class AdminReliabilityHealth(_message.Message):
     due_allocation_lifecycle_retries: int
     reconcile_unhealthy_components: int
     signals: _containers.RepeatedCompositeFieldContainer[AdminReliabilitySignal]
-    node_volume_health: AdminNodeVolumeHealth
-    storage_binding_health: AdminStorageBindingHealth
     reconcile_components: _containers.RepeatedCompositeFieldContainer[ReconcileComponentHealth]
     node_fleet_health: AdminNodeFleetHealth
-    def __init__(self, status: _Optional[_Union[AdminReliabilityStatus, str]] = ..., consistency: _Optional[_Union[ConsistencySnapshot, _Mapping]] = ..., allocation_lifecycle_retries: _Optional[int] = ..., due_allocation_lifecycle_retries: _Optional[int] = ..., reconcile_unhealthy_components: _Optional[int] = ..., signals: _Optional[_Iterable[_Union[AdminReliabilitySignal, _Mapping]]] = ..., node_volume_health: _Optional[_Union[AdminNodeVolumeHealth, _Mapping]] = ..., storage_binding_health: _Optional[_Union[AdminStorageBindingHealth, _Mapping]] = ..., reconcile_components: _Optional[_Iterable[_Union[ReconcileComponentHealth, _Mapping]]] = ..., node_fleet_health: _Optional[_Union[AdminNodeFleetHealth, _Mapping]] = ...) -> None: ...
+    def __init__(self, status: _Optional[_Union[AdminReliabilityStatus, str]] = ..., consistency: _Optional[_Union[ConsistencySnapshot, _Mapping]] = ..., allocation_lifecycle_retries: _Optional[int] = ..., due_allocation_lifecycle_retries: _Optional[int] = ..., reconcile_unhealthy_components: _Optional[int] = ..., signals: _Optional[_Iterable[_Union[AdminReliabilitySignal, _Mapping]]] = ..., reconcile_components: _Optional[_Iterable[_Union[ReconcileComponentHealth, _Mapping]]] = ..., node_fleet_health: _Optional[_Union[AdminNodeFleetHealth, _Mapping]] = ...) -> None: ...
 
 class ReconcileComponentHealth(_message.Message):
     __slots__ = ("component", "running", "last_started_at", "last_success_at", "last_error_at", "last_error", "consecutive_failures")
@@ -254,20 +246,6 @@ class GetAdminReliabilityHealthResponse(_message.Message):
     health: AdminReliabilityHealth
     def __init__(self, health: _Optional[_Union[AdminReliabilityHealth, _Mapping]] = ...) -> None: ...
 
-class AdminNodeVolumeHealth(_message.Message):
-    __slots__ = ("unhealthy_nodes", "published_volumes", "last_reconcile_stale_allocations", "last_reconcile_invalid_volumes", "error")
-    UNHEALTHY_NODES_FIELD_NUMBER: _ClassVar[int]
-    PUBLISHED_VOLUMES_FIELD_NUMBER: _ClassVar[int]
-    LAST_RECONCILE_STALE_ALLOCATIONS_FIELD_NUMBER: _ClassVar[int]
-    LAST_RECONCILE_INVALID_VOLUMES_FIELD_NUMBER: _ClassVar[int]
-    ERROR_FIELD_NUMBER: _ClassVar[int]
-    unhealthy_nodes: int
-    published_volumes: int
-    last_reconcile_stale_allocations: int
-    last_reconcile_invalid_volumes: int
-    error: str
-    def __init__(self, unhealthy_nodes: _Optional[int] = ..., published_volumes: _Optional[int] = ..., last_reconcile_stale_allocations: _Optional[int] = ..., last_reconcile_invalid_volumes: _Optional[int] = ..., error: _Optional[str] = ...) -> None: ...
-
 class AdminNodeFleetHealth(_message.Message):
     __slots__ = ("active_nodes", "ready_nodes", "stale_heartbeat_nodes", "stale_summary_nodes", "not_ready_nodes", "unavailable", "error")
     ACTIVE_NODES_FIELD_NUMBER: _ClassVar[int]
@@ -285,25 +263,3 @@ class AdminNodeFleetHealth(_message.Message):
     unavailable: bool
     error: str
     def __init__(self, active_nodes: _Optional[int] = ..., ready_nodes: _Optional[int] = ..., stale_heartbeat_nodes: _Optional[int] = ..., stale_summary_nodes: _Optional[int] = ..., not_ready_nodes: _Optional[int] = ..., unavailable: _Optional[bool] = ..., error: _Optional[str] = ...) -> None: ...
-
-class AdminStorageBindingHealth(_message.Message):
-    __slots__ = ("unavailable", "error", "failed_bindings", "releasing_bindings", "stuck_releasing_bindings", "inconsistent_claims", "invalid_bindings", "deleting_claims", "stuck_deleting_claims")
-    UNAVAILABLE_FIELD_NUMBER: _ClassVar[int]
-    ERROR_FIELD_NUMBER: _ClassVar[int]
-    FAILED_BINDINGS_FIELD_NUMBER: _ClassVar[int]
-    RELEASING_BINDINGS_FIELD_NUMBER: _ClassVar[int]
-    STUCK_RELEASING_BINDINGS_FIELD_NUMBER: _ClassVar[int]
-    INCONSISTENT_CLAIMS_FIELD_NUMBER: _ClassVar[int]
-    INVALID_BINDINGS_FIELD_NUMBER: _ClassVar[int]
-    DELETING_CLAIMS_FIELD_NUMBER: _ClassVar[int]
-    STUCK_DELETING_CLAIMS_FIELD_NUMBER: _ClassVar[int]
-    unavailable: bool
-    error: str
-    failed_bindings: int
-    releasing_bindings: int
-    stuck_releasing_bindings: int
-    inconsistent_claims: int
-    invalid_bindings: int
-    deleting_claims: int
-    stuck_deleting_claims: int
-    def __init__(self, unavailable: _Optional[bool] = ..., error: _Optional[str] = ..., failed_bindings: _Optional[int] = ..., releasing_bindings: _Optional[int] = ..., stuck_releasing_bindings: _Optional[int] = ..., inconsistent_claims: _Optional[int] = ..., invalid_bindings: _Optional[int] = ..., deleting_claims: _Optional[int] = ..., stuck_deleting_claims: _Optional[int] = ...) -> None: ...

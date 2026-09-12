@@ -58,8 +58,6 @@ func auditOperationFromProto(operation adminv1.AdminAuditOperation) string {
 		return adminkernel.AuditOperationFailAllocationLifecycleRetry
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY:
 		return adminkernel.AuditOperationClearAllocationLifecycleRetry
-	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETRY_STORAGE_BINDING:
-		return adminkernel.AuditOperationRetryStorageBinding
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_PURGE_SERVICE:
 		return adminkernel.AuditOperationPurgeService
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETIRE_NODE:
@@ -91,8 +89,6 @@ func auditOperationToProto(operation string) adminv1.AdminAuditOperation {
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_FAIL_ALLOCATION_LIFECYCLE_RETRY
 	case adminkernel.AuditOperationClearAllocationLifecycleRetry:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY
-	case adminkernel.AuditOperationRetryStorageBinding:
-		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETRY_STORAGE_BINDING
 	case adminkernel.AuditOperationPurgeService:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_PURGE_SERVICE
 	case adminkernel.AuditOperationRetireNode:
@@ -120,8 +116,6 @@ func auditTargetTypeFromProto(targetType adminv1.AdminAuditTargetType) string {
 	switch targetType {
 	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_ALLOCATION:
 		return adminkernel.AuditTargetAllocation
-	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_STORAGE_BINDING:
-		return adminkernel.AuditTargetStorageBinding
 	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_SERVICE:
 		return adminkernel.AuditTargetService
 	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_NODE:
@@ -141,8 +135,6 @@ func auditTargetTypeToProto(targetType string) adminv1.AdminAuditTargetType {
 	switch targetType {
 	case adminkernel.AuditTargetAllocation:
 		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_ALLOCATION
-	case adminkernel.AuditTargetStorageBinding:
-		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_STORAGE_BINDING
 	case adminkernel.AuditTargetService:
 		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_SERVICE
 	case adminkernel.AuditTargetNode:

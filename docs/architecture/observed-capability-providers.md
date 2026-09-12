@@ -238,7 +238,7 @@ Before allocation materialization, axnoded atomically persists the locally
 admitted dependency proofs, a canonical digest of the behaviorally relevant
 create request, and a complete healthy condition set at revision 1. Trace IDs
 and replaceable placement observation proofs do not affect that digest; runtime,
-rootfs, resources, command, mounts, volumes, secrets, and extension requirements
+rootfs, resources, command, mounts, secrets, and extension requirements
 do. A same-attempt retry of an active allocation must match the durable digest.
 Capability admission, runtime creation, post-create verification, replay, and
 Delete share one allocation lifecycle lock. Once launch verification exists, an

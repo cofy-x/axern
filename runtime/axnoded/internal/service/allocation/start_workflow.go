@@ -153,9 +153,6 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 			return fmt.Errorf("retire failed-start egress policy: %w", err)
 		}
 	}
-	if _, err := h.nodeVolumes().Unpublish(ctx, containerID); err != nil {
-		return fmt.Errorf("unpublish failed-start volumes: %w", err)
-	}
 	if err := h.releaseAllocationState(containerID); err != nil {
 		return fmt.Errorf("release failed-start allocation state: %w", err)
 	}
@@ -189,13 +186,6 @@ func (h *Controller) existingActiveStartResponse(ctx context.Context, request *r
 		return startErrorResponse(fmt.Sprintf("allocation %s already exists in terminal state", containerID)), true, errord.ErrAlreadyExists
 	}
 	resp := startSuccessResponse(containerID)
-	if len(request.GetNodeVolumes()) > 0 {
-		published, err := h.nodeVolumes().PublishedForAllocation(ctx, containerID)
-		if err != nil {
-			return startErrorResponse(fmt.Sprintf("Failed to list published node volumes: %v", err)), true, err
-		}
-		resp.PublishedVolumes = published
-	}
 	return resp, true, nil
 }
 
@@ -297,16 +287,6 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 			secretCleanup()
 		}
 	}()
-	publishResult, err := h.nodeVolumes().PublishForStart(ctx, request)
-	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to publish node volumes: %v", err)), err
-	}
-	request.Mounts = append(request.Mounts, publishResult.RuntimeMounts...)
-	defer func() {
-		if !succeeded && !stateCommitted {
-			_, _ = h.nodeVolumes().Unpublish(ctx, request.GetContainerID())
-		}
-	}()
 	imageMounts, imageMountCleanup, err := h.resolveImageMounts(request, extraConfig)
 	if err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed to resolve image mounts: %v", err)), err
@@ -389,7 +369,6 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 	h.reportStartRunningStatus(createResponse.ID, request.GetAllocationAttempt(), extraConfig, time.Now().UTC())
 	result = contract.StartupResultOK
 	resp := startSuccessResponse(createResponse.ID)
-	resp.PublishedVolumes = publishResult.Published
 	return resp, nil
 }
 
@@ -426,10 +405,6 @@ func (h *Controller) deleteManagedContainer(ctx context.Context, request *runtim
 			return new(runtime.DeleteResponse), err
 		}
 	}
-	releaseObservations, err := h.nodeVolumes().Unpublish(ctx, request.ID)
-	if err != nil {
-		return new(runtime.DeleteResponse), err
-	}
 	if err := h.releaseAllocationState(request.ID); err != nil {
 		return new(runtime.DeleteResponse), err
 	}
@@ -444,5 +419,5 @@ func (h *Controller) deleteManagedContainer(ctx context.Context, request *runtim
 		return new(runtime.DeleteResponse), err
 	}
 	_ = os.RemoveAll(filepath.Join(os.TempDir(), "axnoded-secrets", request.ID))
-	return &runtime.DeleteResponse{VolumeReleaseObservations: releaseObservations}, nil
+	return &runtime.DeleteResponse{}, nil
 }

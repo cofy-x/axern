@@ -242,8 +242,7 @@ func deletedService(id string) *servicev1.Service {
 		EnvironmentID: "env-a",
 		Status:        servicev1.ServiceStatus_SERVICE_STATUS_DELETED,
 		DeletionStatus: &servicev1.ServiceDeletionStatus{
-			Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE,
-			VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_RETAIN,
+			Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE,
 		},
 	}
 }
@@ -254,8 +253,7 @@ func deletingService(id string) *servicev1.Service {
 		EnvironmentID: "env-a",
 		Status:        servicev1.ServiceStatus_SERVICE_STATUS_DELETING,
 		DeletionStatus: &servicev1.ServiceDeletionStatus{
-			Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
-			VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_RETAIN,
+			Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
 		},
 	}
 }

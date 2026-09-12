@@ -19,13 +19,11 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	runtimevolumev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/volume/v1"
 	"google.golang.org/protobuf/proto"
 )
 
 type runtimeCountFunc func() int
 type readyFunc func() bool
-type volumeHealthFunc func(context.Context) (*runtimevolumev1.VolumeManagerHealth, error)
 type statfsFunc func(string) (StorageInventoryEntry, error)
 type capabilitySnapshotFunc func(context.Context, time.Time) (*capabilityv1.CapabilitySnapshot, error)
 type memoryCommitmentFunc func() (resources.MemoryCommitment, error)
@@ -64,7 +62,6 @@ type AxnodedSourceOptions struct {
 	NodeLabels                map[string]string
 	CapabilitySnapshot        capabilitySnapshotFunc
 	LoadBPFNet                func(string) (bpfnet.Status, error)
-	VolumeHealth              volumeHealthFunc
 	StorageTargets            []StorageTarget
 	StatFS                    statfsFunc
 	RuntimeSlotCapacity       int
@@ -103,7 +100,6 @@ type AxnodedSource struct {
 	nodeLabels                map[string]string
 	capabilitySnapshot        capabilitySnapshotFunc
 	loadBPFNet                func(string) (bpfnet.Status, error)
-	volumeHealth              volumeHealthFunc
 	storageTargets            []StorageTarget
 	statFS                    statfsFunc
 	disabledPools             map[resources.ResourceName]struct{}
@@ -163,7 +159,6 @@ func NewAxnodedSource(opts AxnodedSourceOptions) *AxnodedSource {
 		nodeLabels:                cloneStringMap(opts.NodeLabels),
 		capabilitySnapshot:        opts.CapabilitySnapshot,
 		loadBPFNet:                loadBPFNet,
-		volumeHealth:              opts.VolumeHealth,
 		storageTargets:            normalizeStorageTargets(opts.StorageTargets),
 		statFS:                    defaultStatFS(opts.StatFS),
 		disabledPools:             disabledPools,
@@ -218,7 +213,6 @@ func (s *AxnodedSource) Collect(ctx context.Context) (NodeInventorySnapshot, boo
 
 	localReady := s.collectAxnodedInventory(now, &snapshot)
 	s.collectImagemgrInventory(now, &snapshot)
-	s.collectVolumedInventory(ctx, now, &snapshot)
 	s.collectBPFNetInventory(now, &snapshot)
 	sortLocalityEntries(snapshot.Heat.Locality)
 	// Node collected_at is the completion/publication boundary. Individual

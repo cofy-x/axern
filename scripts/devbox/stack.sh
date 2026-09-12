@@ -41,12 +41,12 @@ Usage:
 Start Axern's standalone dev stack inside the Linux devbox.
 
 Services:
-  postgres, storaged, controld, tunneld, imagefsd, imagemgr, volumed, egressd, axnoded, node-tunneld, gatewayd
+  postgres, controld, tunneld, imagefsd, imagemgr, egressd, axnoded, node-tunneld, gatewayd
 EOF
 }
 
 services() {
-  printf '%s\n' postgres storaged controld tunneld imagefsd imagemgr volumed egressd axnoded node-tunneld gatewayd
+  printf '%s\n' postgres controld tunneld imagefsd imagemgr egressd axnoded node-tunneld gatewayd
 }
 
 ensure_linux() {
@@ -136,9 +136,6 @@ service_health() {
     controld)
       printf '%s %s' "$(tcp_status 127.0.0.1 24000)" "$(tcp_status 127.0.0.1 24001)"
       ;;
-    storaged)
-      printf '%s %s' "$(tcp_status 127.0.0.1 24020)" "$(tcp_status 127.0.0.1 24021)"
-      ;;
     tunneld)
       tcp_status 127.0.0.1 24100
       ;;
@@ -147,9 +144,6 @@ service_health() {
       ;;
     imagemgr)
       unix_socket_status "${RUN_DIR}/imagemgr.sock" "${state}"
-      ;;
-    volumed)
-      unix_socket_status "${RUN_DIR}/volumed.sock" "${state}"
       ;;
     egressd)
       unix_socket_status "${RUN_DIR}/egressd.sock" "${state}"
@@ -230,7 +224,7 @@ stop_matching_processes() {
 
 normalize_service() {
   case "${1:-}" in
-    postgres|storaged|controld|tunneld|imagefsd|imagemgr|axnoded|node-tunneld|gatewayd)
+    postgres|controld|tunneld|imagefsd|imagemgr|egressd|axnoded|node-tunneld|gatewayd)
       printf '%s\n' "$1"
       ;;
     "")
@@ -291,23 +285,18 @@ stop_runtime_services() {
   stop_service imagefsd
   stop_service tunneld
   stop_service controld
-  stop_service storaged
   stop_matching_processes "${ROOT_DIR}/gateway/gatewayd.*go.*run"
   stop_matching_processes "${ROOT_DIR}/runtime/tunneld.*cmd/node-tunneld"
   stop_matching_processes "${ROOT_DIR}/runtime/tunneld.*cmd/tunneld"
   stop_matching_processes "${ROOT_DIR}/runtime/axnoded.*cmd/axnoded"
-  stop_matching_processes "${ROOT_DIR}/runtime/volumed.*cmd/volumed"
   stop_matching_processes "${ROOT_DIR}/runtime/egressd.*cmd/egressd"
   stop_matching_processes "${ROOT_DIR}/runtime/imagemgr.*cmd/imagemgr"
-  stop_matching_processes "${ROOT_DIR}/control/storaged.*cmd/storaged"
   stop_matching_processes "${ROOT_DIR}/control/controld.*cmd/controld"
   stop_matching_processes "${ROOT_DIR}/target/debug/imagefsd.*serve-chunk"
   stop_matching_processes "127.0.0.1:24000"
-  stop_matching_processes "127.0.0.1:24020"
   stop_matching_processes "127.0.0.1:24100"
   stop_matching_processes "127.0.0.1:25080"
   stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded.sock"
-  stop_matching_processes "${ROOT_DIR}/.dev/run/volumed.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/egressd.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/imagemgr.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/imagefsd-chunk.sock"
@@ -315,7 +304,6 @@ stop_runtime_services() {
   stop_matching_processes "${ROOT_DIR}/target/debug/imagefsd"
   rm -f \
     "${RUN_DIR}/axnoded.sock" \
-    "${RUN_DIR}/volumed.sock" \
     "${RUN_DIR}/egressd.sock" \
     "${RUN_DIR}/imagemgr.sock" \
     "${RUN_DIR}/imagefsd-chunk.sock"
@@ -362,14 +350,6 @@ run_access_bootstrap() {
     -rollout-worker-certificate "${DEV_DIR}/certs/rollout-worker.crt"
 }
 
-start_storaged() {
-  start_service storaged "exec go -C '${ROOT_DIR}/control/storaged' run ./cmd/storaged \
-    -grpc-address 127.0.0.1:24020 \
-    -http-address 127.0.0.1:24021 \
-    -postgres-dsn '${POSTGRES_DSN}'"
-  wait_tcp 127.0.0.1 24020 storaged
-}
-
 start_controld() {
   start_service controld "exec go -C '${ROOT_DIR}/control/controld' run ./cmd/controld \
     -grpc-address 127.0.0.1:24000 \
@@ -380,7 +360,6 @@ start_controld() {
     -tls-cert '${DEV_DIR}/certs/controld.crt' \
     -tls-key '${DEV_DIR}/certs/controld.key' \
     -secrets-master-key '${AXERN_SECRETS_MASTER_KEY}' \
-    -storaged-target 127.0.0.1:24020 \
     -function-gateway-url http://127.0.0.1:25080 \
     -function-gateway-token '${AXERN_DEV_TOKEN}' \
     -function-bundle-base-url http://127.0.0.1:24001 \
@@ -422,14 +401,6 @@ start_imagemgr() {
     -registry_auths_path '${ROOT_DIR}/runtime/imagemgr/registry_auths.json.example' \
     -http_sock '${RUN_DIR}/imagemgr.sock'"
   wait_unix_socket "${RUN_DIR}/imagemgr.sock" imagemgr
-}
-
-start_volumed() {
-  start_service volumed "exec go -C '${ROOT_DIR}/runtime/volumed' run ./cmd/volumed \
-    -root '${DEV_DIR}/volumed' \
-    -socket '${RUN_DIR}/volumed.sock' \
-    -local-root '${DEV_DIR}/volumed/local'"
-  wait_unix_socket "${RUN_DIR}/volumed.sock" volumed
 }
 
 start_egressd() {
@@ -508,12 +479,10 @@ start_all() {
   run_migrations
   run_access_bootstrap
 
-  start_storaged
   start_controld
   start_tunneld
   start_imagefsd
   start_imagemgr
-  start_volumed
   start_egressd
   start_axnoded
   start_node_tunneld
@@ -534,10 +503,6 @@ stop_service_deep() {
       stop_matching_processes "127.0.0.1:24000"
       stop_matching_processes "${ROOT_DIR}/control/controld.*cmd/controld"
       ;;
-    storaged)
-      stop_matching_processes "127.0.0.1:24020"
-      stop_matching_processes "${ROOT_DIR}/control/storaged.*cmd/storaged"
-      ;;
     tunneld)
       stop_matching_processes "127.0.0.1:24100"
       stop_matching_processes "${ROOT_DIR}/runtime/tunneld.*cmd/tunneld"
@@ -550,11 +515,6 @@ stop_service_deep() {
       stop_matching_processes "${ROOT_DIR}/runtime/imagemgr.*cmd/imagemgr"
       stop_matching_processes "${ROOT_DIR}/.dev/run/imagemgr.sock"
       stop_matching_processes "${ROOT_DIR}/.dev/imagemgr"
-      ;;
-    volumed)
-      stop_matching_processes "${ROOT_DIR}/runtime/volumed.*cmd/volumed"
-      stop_matching_processes "${ROOT_DIR}/.dev/run/volumed.sock"
-      stop_matching_processes "${ROOT_DIR}/.dev/volumed"
       ;;
     egressd)
       stop_matching_processes "${ROOT_DIR}/runtime/egressd.*cmd/egressd"
@@ -589,12 +549,10 @@ restart_service() {
       stop_postgres
       start_postgres
       run_migrations
-      start_storaged
       start_controld
       start_tunneld
       start_imagefsd
       start_imagemgr
-      start_volumed
       start_egressd
       start_axnoded
       start_node_tunneld
@@ -607,22 +565,8 @@ restart_service() {
       stop_service_deep controld
       start_postgres
       run_migrations
-      start_storaged
       start_controld
       start_tunneld
-      start_node_tunneld
-      start_gatewayd
-      ;;
-    storaged)
-      stop_service_deep gatewayd
-      stop_service_deep node-tunneld
-      stop_service_deep axnoded
-      stop_service_deep controld
-      stop_service_deep storaged
-      start_postgres
-      start_storaged
-      start_controld
-      start_axnoded
       start_node_tunneld
       start_gatewayd
       ;;
@@ -657,14 +601,6 @@ restart_service() {
       stop_service_deep axnoded
       stop_service_deep imagemgr
       start_imagemgr
-      start_axnoded
-      start_node_tunneld
-      ;;
-    volumed)
-      stop_service_deep node-tunneld
-      stop_service_deep axnoded
-      stop_service_deep volumed
-      start_volumed
       start_axnoded
       start_node_tunneld
       ;;

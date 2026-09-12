@@ -81,26 +81,6 @@ setup_e2e_environment() {
     -certificate "${cert_dir}/client.crt" \
     -rollout-worker-certificate "${cert_dir}/rollout-worker.crt"
 
-  "${AXERN_ROOT}/bin/storaged" \
-    -grpc-address "${STORAGED_GRPC_ADDRESS}" \
-    -http-address "${STORAGED_HTTP_ADDRESS}" \
-    -postgres-dsn "${CONTROLD_POSTGRES_DSN}" >"${storaged_log}" 2>&1 &
-  STORAGED_PID=$!
-
-  deadline=$((SECONDS + 60))
-  while [ "${SECONDS}" -lt "${deadline}" ]; do
-    if curl -fsS "http://${STORAGED_HTTP_ADDRESS}/healthz" >/dev/null 2>&1; then
-      break
-    fi
-    sleep 1
-  done
-
-  if ! curl -fsS "http://${STORAGED_HTTP_ADDRESS}/healthz" >/dev/null 2>&1; then
-    echo "storaged did not become ready in time" >&2
-    dump_logs
-    exit 1
-  fi
-
   AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE="${PYTHON_RUNTIME_IMAGE_REF}" \
     "${AXERN_ROOT}/bin/controld" \
     -grpc-address "0.0.0.0:${CONTROLD_GRPC_ADDRESS##*:}" \
@@ -110,7 +90,6 @@ setup_e2e_environment() {
     -tls-key "${cert_dir}/controld.key" \
     -secrets-master-key "test-only-master-key-32-bytes!!!" \
     -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
-    -storaged-target "${STORAGED_GRPC_ADDRESS}" \
     -log-level info >"${controld_log}" 2>&1 &
   CONTROLD_PID=$!
 

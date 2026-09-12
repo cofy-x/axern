@@ -126,16 +126,14 @@ class UpdateServiceResponse(_message.Message):
     def __init__(self, service: _Optional[_Union[_service_types_pb2.Service, _Mapping]] = ...) -> None: ...
 
 class DeleteServiceRequest(_message.Message):
-    __slots__ = ("service_id", "expected_version", "require_suspended", "volume_disposition")
+    __slots__ = ("service_id", "expected_version", "require_suspended")
     SERVICE_ID_FIELD_NUMBER: _ClassVar[int]
     EXPECTED_VERSION_FIELD_NUMBER: _ClassVar[int]
     REQUIRE_SUSPENDED_FIELD_NUMBER: _ClassVar[int]
-    VOLUME_DISPOSITION_FIELD_NUMBER: _ClassVar[int]
     service_id: str
     expected_version: int
     require_suspended: bool
-    volume_disposition: _service_types_pb2.ServiceVolumeDisposition
-    def __init__(self, service_id: _Optional[str] = ..., expected_version: _Optional[int] = ..., require_suspended: _Optional[bool] = ..., volume_disposition: _Optional[_Union[_service_types_pb2.ServiceVolumeDisposition, str]] = ...) -> None: ...
+    def __init__(self, service_id: _Optional[str] = ..., expected_version: _Optional[int] = ..., require_suspended: _Optional[bool] = ...) -> None: ...
 
 class DeleteServiceResponse(_message.Message):
     __slots__ = ("service",)

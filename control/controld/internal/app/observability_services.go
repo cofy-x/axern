@@ -212,33 +212,6 @@ func (a *App) observeFunctionInvocationOldestDueAge(ctx context.Context, observe
 	return nil
 }
 
-func (a *App) observeVolumeReclaimQueue(ctx context.Context, observe sdkobs.Int64GaugeObserver) error {
-	if a.storage == nil {
-		return nil
-	}
-	health, err := a.storage.VolumeReclaimQueueHealth(ctx)
-	if err != nil {
-		return err
-	}
-	observe(health.GetDue(), attribute.String(sdkobs.AttrState, "due"))
-	observe(health.GetScheduled(), attribute.String(sdkobs.AttrState, "scheduled"))
-	observe(health.GetLeasedActive(), attribute.String(sdkobs.AttrState, "leased_active"))
-	observe(health.GetLeasedExpired(), attribute.String(sdkobs.AttrState, "leased_expired"))
-	return nil
-}
-
-func (a *App) observeVolumeReclaimOldestDueAge(ctx context.Context, observe sdkobs.Float64GaugeObserver) error {
-	if a.storage == nil {
-		return nil
-	}
-	health, err := a.storage.VolumeReclaimQueueHealth(ctx)
-	if err != nil {
-		return err
-	}
-	observe(health.GetOldestDueAgeSeconds())
-	return nil
-}
-
 func (a *App) observePostgresPoolConnections(_ context.Context, observe sdkobs.Int64GaugeObserver) error {
 	stats := a.db.Pool().Stat()
 	observe(int64(stats.MaxConns()), attribute.String(sdkobs.AttrState, "max"))

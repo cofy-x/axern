@@ -23,7 +23,7 @@ const testAllocationRequestDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 func TestCapabilityRecordMutationsPreserveConcurrentFields(t *testing.T) {
 	store := storetest.NewMockStore()
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store, fakeVolumePublisher{})
+	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store)
 	controller := fixture.controller
 	allocationID := "allocation-capability-concurrency"
 	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
@@ -141,7 +141,7 @@ func TestStoreLaunchVerificationRequiresExactManifestEnforcementKeys(t *testing.
 
 func TestBeginCapabilityTerminationIsDurableAndAggregatesReasons(t *testing.T) {
 	store := storetest.NewMockStore()
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store, fakeVolumePublisher{})
+	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store)
 	controller := fixture.controller
 	const allocationID = "allocation-capability-termination"
 	if _, err := controller.ReplaceCapabilityAdmission(allocationID, 1, testAllocationRequestDigest, nil, nil, time.Now().UTC()); err != nil {
@@ -187,7 +187,7 @@ func TestCapabilityConditionKeysMustExactlyMatchDependencies(t *testing.T) {
 
 func TestReplaceCapabilityAdmissionAtomicallyAdvancesProofAndConditionGeneration(t *testing.T) {
 	store := storetest.NewMockStore()
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store, fakeVolumePublisher{})
+	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store)
 	controller := fixture.controller
 	const allocationID = "allocation-capability-admission"
 	now := time.Now().UTC()
@@ -247,7 +247,7 @@ func TestReplaceCapabilityAdmissionAtomicallyAdvancesProofAndConditionGeneration
 
 func TestNodeLocalCapabilityAdmissionPersistsWithoutControlPlaneAttempt(t *testing.T) {
 	store := storetest.NewMockStore()
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store, fakeVolumePublisher{})
+	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store)
 	controller := fixture.controller
 	const allocationID = "node-local-capability-admission"
 	now := time.Now().UTC()

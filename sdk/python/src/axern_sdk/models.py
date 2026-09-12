@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Iterable
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,25 +63,6 @@ class ServiceProbe:
             if value < 0:
                 raise ValueError(f"ServiceProbe.{name} must be non-negative")
             object.__setattr__(self, name, value)
-
-
-@dataclass(frozen=True, slots=True)
-class VolumeMount:
-    """Service volume mount intent for workloads and SDK sandboxes."""
-
-    name: str
-    target: str
-    readonly: bool = False
-    options: Iterable[str] = field(default_factory=tuple)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "name", self.name.strip())
-        object.__setattr__(self, "target", self.target.strip())
-        object.__setattr__(
-            self,
-            "options",
-            tuple(option.strip() for option in self.options if option.strip()),
-        )
 
 
 @dataclass(frozen=True, slots=True)

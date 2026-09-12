@@ -15,7 +15,6 @@ const (
 	DefaultLogDir                        = "/var/log/axnoded"
 	DefaultImageLibDir                   = "/var/lib/axnoded/rootfs"
 	DefaultImageManagerSocket            = "/var/run/imagemgr.sock"
-	DefaultVolumeManagerSocket           = "/run/volumed/volumed.sock"
 	DefaultEgressManagerSocket           = "/run/egressd/egressd.sock"
 	DefaultIdleRuntimeRetentionTTL       = "5m"
 	DefaultIdleRuntimeRetentionMax       = 8

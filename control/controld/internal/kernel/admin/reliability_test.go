@@ -14,8 +14,6 @@ func TestBuildReliabilityHealthOK(t *testing.T) {
 		AllocationLifecycleRetryCounts{},
 		reconcilekernel.EmptyHealthSnapshot(),
 		time.Minute,
-		StorageBindingHealth{},
-		NodeVolumeHealth{},
 		NodeFleetHealth{},
 		time.Now(),
 	)
@@ -37,8 +35,6 @@ func TestBuildReliabilityHealthKeepsRecoveredErrorAsDiagnosticOnly(t *testing.T)
 			ConsecutiveFailures: 0,
 		}}},
 		time.Minute,
-		StorageBindingHealth{},
-		NodeVolumeHealth{},
 		NodeFleetHealth{},
 		time.Now(),
 	)
@@ -57,8 +53,6 @@ func TestBuildReliabilityHealthDegradesOnStuckReconcile(t *testing.T) {
 			Component: reconcilekernel.ComponentNode, Running: true, RunningSince: &started,
 		}}},
 		30*time.Second,
-		StorageBindingHealth{},
-		NodeVolumeHealth{},
 		NodeFleetHealth{},
 		now,
 	)
@@ -83,90 +77,19 @@ func TestBuildReliabilityHealthDegraded(t *testing.T) {
 			ConsecutiveFailures: 1,
 		}}},
 		time.Minute,
-		StorageBindingHealth{FailedBindings: 3, ReleasingBindings: 4, StuckReleasingBindings: 2, InconsistentClaims: 5, InvalidBindings: 6},
-		NodeVolumeHealth{},
 		NodeFleetHealth{},
 		time.Now(),
 	)
 	if health.Status != ReliabilityStatusDegraded {
 		t.Fatalf("status = %q, want degraded", health.Status)
 	}
-	if len(health.Signals) != 4 {
-		t.Fatalf("signals = %+v, want 4", health.Signals)
+	if len(health.Signals) != 3 {
+		t.Fatalf("signals = %+v, want 3", health.Signals)
 	}
 	if health.ReconcileUnhealthyComponents != 1 {
 		t.Fatalf("unhealthy reconcile components = %d, want 1", health.ReconcileUnhealthyComponents)
 	}
-	if health.StorageBindingHealth.FailedBindings != 3 || health.StorageBindingHealth.StuckReleasingBindings != 2 || health.StorageBindingHealth.InconsistentClaims != 5 || health.StorageBindingHealth.InvalidBindings != 6 {
-		t.Fatalf("storage binding health = %+v", health.StorageBindingHealth)
-	}
-	if got := health.Signals[3].Message; got != "3 failed storage binding(s), 2 stuck releasing; list failed bindings and retry after fixing the node/storage cause; inspect release observations for stuck bindings; storage consistency has 5 inconsistent claim(s), 6 invalid binding(s)" {
-		t.Fatalf("storage binding signal message = %q", got)
-	}
-}
 
-func TestBuildReliabilityHealthDegradesOnStorageConsistencyOnly(t *testing.T) {
-	health := BuildReliabilityHealth(
-		consistencykernel.NewSnapshot(consistencykernel.Counts{}, nil, false),
-		AllocationLifecycleRetryCounts{},
-		reconcilekernel.EmptyHealthSnapshot(),
-		time.Minute,
-		StorageBindingHealth{InconsistentClaims: 1},
-		NodeVolumeHealth{},
-		NodeFleetHealth{},
-		time.Now(),
-	)
-	if health.Status != ReliabilityStatusDegraded || len(health.Signals) != 1 {
-		t.Fatalf("health = %+v, want degraded storage consistency signal", health)
-	}
-}
-
-func TestBuildReliabilityHealthAllowsTransientReleasingStorageBindings(t *testing.T) {
-	health := BuildReliabilityHealth(
-		consistencykernel.NewSnapshot(consistencykernel.Counts{}, nil, false),
-		AllocationLifecycleRetryCounts{},
-		reconcilekernel.EmptyHealthSnapshot(),
-		time.Minute,
-		StorageBindingHealth{ReleasingBindings: 4},
-		NodeVolumeHealth{},
-		NodeFleetHealth{},
-		time.Now(),
-	)
-	if health.Status != ReliabilityStatusOK {
-		t.Fatalf("status = %q, want ok", health.Status)
-	}
-	if len(health.Signals) != 0 {
-		t.Fatalf("signals = %+v, want empty", health.Signals)
-	}
-}
-
-func TestBuildReliabilityHealthIncludesNodeVolumeFailures(t *testing.T) {
-	health := BuildReliabilityHealth(
-		consistencykernel.NewSnapshot(consistencykernel.Counts{}, nil, false),
-		AllocationLifecycleRetryCounts{},
-		reconcilekernel.EmptyHealthSnapshot(),
-		time.Minute,
-		StorageBindingHealth{},
-		NodeVolumeHealth{UnhealthyNodes: 2, PublishedVolumes: 3, LastReconcileStaleAllocations: 1, LastReconcileInvalidVolumes: 1, Error: "last reconcile failed"},
-		NodeFleetHealth{},
-		time.Now(),
-	)
-	if health.Status != ReliabilityStatusDegraded {
-		t.Fatalf("status = %q, want degraded", health.Status)
-	}
-	if len(health.Signals) != 1 || health.Signals[0].Code != ReliabilitySignalNodeVolumeManagers {
-		t.Fatalf("signals = %+v, want node volume manager signal", health.Signals)
-	}
-	if health.Signals[0].Message != "2 node(s) report unhealthy volume manager (3 published volume(s), last reconcile: 1 stale allocation(s), 1 invalid volume(s)): last reconcile failed; inspect node volumed health before retrying affected bindings" {
-		t.Fatalf("node volume signal message = %q", health.Signals[0].Message)
-	}
-	if health.NodeVolumeHealth.UnhealthyNodes != 2 ||
-		health.NodeVolumeHealth.PublishedVolumes != 3 ||
-		health.NodeVolumeHealth.LastReconcileStaleAllocations != 1 ||
-		health.NodeVolumeHealth.LastReconcileInvalidVolumes != 1 ||
-		health.NodeVolumeHealth.Error != "last reconcile failed" {
-		t.Fatalf("node volume health = %+v", health.NodeVolumeHealth)
-	}
 }
 
 func TestBuildReliabilityHealthIncludesNodeFleetFailures(t *testing.T) {
@@ -175,8 +98,6 @@ func TestBuildReliabilityHealthIncludesNodeFleetFailures(t *testing.T) {
 		AllocationLifecycleRetryCounts{},
 		reconcilekernel.EmptyHealthSnapshot(),
 		time.Minute,
-		StorageBindingHealth{},
-		NodeVolumeHealth{},
 		NodeFleetHealth{Observed: true, ActiveNodes: 3, ReadyNodes: 1, StaleHeartbeatNodes: 1, StaleSummaryNodes: 1, NotReadyNodes: 1},
 		time.Now(),
 	)
@@ -189,7 +110,7 @@ func TestBuildReliabilityHealthIncludesUnavailableNodeFleet(t *testing.T) {
 	health := BuildReliabilityHealth(
 		consistencykernel.NewSnapshot(consistencykernel.Counts{}, nil, false),
 		AllocationLifecycleRetryCounts{}, reconcilekernel.EmptyHealthSnapshot(), time.Minute,
-		StorageBindingHealth{}, NodeVolumeHealth{}, NodeFleetHealth{Observed: true, Unavailable: true, Error: "database unavailable"}, time.Now(),
+		NodeFleetHealth{Observed: true, Unavailable: true, Error: "database unavailable"}, time.Now(),
 	)
 	if health.Status != ReliabilityStatusDegraded || len(health.Signals) != 1 || health.Signals[0].Code != ReliabilitySignalNodeFleet {
 		t.Fatalf("health = %+v", health)

@@ -29,19 +29,6 @@ func (a *App) startReconciler() {
 	a.startServiceReconcileWorkers()
 	a.startAllocationReconciler()
 	a.startFunctionInvocationWorkers()
-	a.startVolumeReclaimDispatcher()
-}
-
-func (a *App) startVolumeReclaimDispatcher() {
-	if a.volumeReclaimWorker == nil || a.storage == nil {
-		return
-	}
-	owner := "controld-volume-reclaim-" + uuid.NewString()
-	a.wg.Add(1)
-	go func() {
-		defer a.wg.Done()
-		a.volumeReclaimWorker.RunVolumeReclaimDispatcher(a.reconcileCtx, owner, a.volumeReclaimWorkers, a.volumeReclaimWorkersPerNode)
-	}()
 }
 
 func (a *App) startFunctionInvocationWorkers() {

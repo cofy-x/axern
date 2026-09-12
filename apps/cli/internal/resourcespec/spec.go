@@ -59,7 +59,6 @@ type Spec struct {
 	Env                   map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
 	SecretEnv             []SecretEnv       `json:"secret_env,omitempty" yaml:"secret_env,omitempty"`
 	SecretFiles           []SecretFile      `json:"secret_files,omitempty" yaml:"secret_files,omitempty"`
-	Volumes               []Volume          `json:"volumes,omitempty" yaml:"volumes,omitempty"`
 	ImageMounts           []ImageMount      `json:"image_mounts,omitempty" yaml:"image_mounts,omitempty"`
 }
 
@@ -123,13 +122,6 @@ type Scaling struct {
 	MaxReplicas int32  `json:"max_replicas,omitempty" yaml:"max_replicas,omitempty"`
 	Concurrency int32  `json:"concurrency,omitempty" yaml:"concurrency,omitempty"`
 	IdleTimeout string `json:"idle_timeout,omitempty" yaml:"idle_timeout,omitempty"`
-}
-
-type Volume struct {
-	Name     string   `json:"name" yaml:"name"`
-	Target   string   `json:"target" yaml:"target"`
-	Readonly bool     `json:"readonly,omitempty" yaml:"readonly,omitempty"`
-	Options  []string `json:"options,omitempty" yaml:"options,omitempty"`
 }
 
 type SecretEnv struct {
@@ -264,9 +256,6 @@ func (e *Envelope) Validate(expected Kind) error {
 			return fmt.Errorf("spec.function.scaling.idle_timeout: %w", err)
 		}
 	}
-	if _, err := e.VolumeMounts(); err != nil {
-		return err
-	}
 	if _, _, _, err := e.secretAndImageMounts(); err != nil {
 		return err
 	}
@@ -319,10 +308,6 @@ func (e Envelope) ExecutionConfig() (*commonv1.ExecutionConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	volumes, err := e.VolumeMounts()
-	if err != nil {
-		return nil, err
-	}
 	secretEnv, secretFiles, imageMounts, err := e.secretAndImageMounts()
 	if err != nil {
 		return nil, err
@@ -343,7 +328,6 @@ func (e Envelope) ExecutionConfig() (*commonv1.ExecutionConfig, error) {
 		RuntimeClass:                    e.Spec.RuntimeClass,
 		ExtensionCapabilityRequirements: extensions,
 		Resources:                       resources,
-		VolumeMounts:                    volumes,
 		SecretEnv:                       secretEnv,
 		SecretFiles:                     secretFiles,
 		ImageMounts:                     imageMounts,
@@ -402,33 +386,6 @@ func (e Envelope) secretAndImageMounts() ([]*commonv1.SecretEnvVar, []*commonv1.
 
 func validTarget(value string) bool {
 	return filepath.IsAbs(value) && filepath.Clean(value) == value && value != string(filepath.Separator)
-}
-
-func (e Envelope) VolumeMounts() ([]*commonv1.ServiceVolumeMount, error) {
-	if len(e.Spec.Volumes) == 0 {
-		return nil, nil
-	}
-	seenNames := make(map[string]struct{}, len(e.Spec.Volumes))
-	seenTargets := make(map[string]struct{}, len(e.Spec.Volumes))
-	out := make([]*commonv1.ServiceVolumeMount, 0, len(e.Spec.Volumes))
-	for index, volume := range e.Spec.Volumes {
-		if strings.TrimSpace(volume.Name) == "" {
-			return nil, fmt.Errorf("spec.volumes[%d].name is required", index)
-		}
-		if !validTarget(volume.Target) {
-			return nil, fmt.Errorf("spec.volumes[%d].target must be an absolute path below /", index)
-		}
-		if _, ok := seenNames[volume.Name]; ok {
-			return nil, fmt.Errorf("spec.volumes[%d].name is duplicated", index)
-		}
-		if _, ok := seenTargets[volume.Target]; ok {
-			return nil, fmt.Errorf("spec.volumes[%d].target is duplicated", index)
-		}
-		seenNames[volume.Name] = struct{}{}
-		seenTargets[volume.Target] = struct{}{}
-		out = append(out, &commonv1.ServiceVolumeMount{Name: volume.Name, Target: volume.Target, Readonly: volume.Readonly, Options: append([]string(nil), volume.Options...)})
-	}
-	return out, nil
 }
 
 func (e Envelope) ResourceSpec() (*commonv1.ResourceSpec, error) {

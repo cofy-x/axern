@@ -1,155 +1,110 @@
 # Storage Architecture
 
-Axern storage is split between control-plane intent and node-local physical
-publish work.
+Axern separates durable control state and delivered artifacts from
+allocation-local writable files. It does not expose a generic Volume
+Class/Claim/Binding product or run separate storage-control and volume-publish
+daemons.
 
-## Ownership
+## Data Ownership And Lifetime
 
-- `control/storaged` owns Storage V1 domain state: volume classes, claims,
-  allocation bindings, backend identity, lifecycle transitions, topology, and
-  resolved node volume specs.
-- `control/controld` owns service lifecycle and placement. It asks `storaged`
-  for storage requirements before placement, reserves bindings after a node is
-  selected, and reports node publish/release observations back to `storaged`.
-- `runtime/axnoded` owns allocation lifecycle on a node. It receives resolved
-  node volume specs from `controld`, calls `volumed`, and injects returned host
-  paths into OCI mounts. It returns publish results in the node lifecycle
-  response; it also reconciles node-local published volume state on startup. It
-  does not write storage control-plane state directly.
-- `runtime/volumed` owns node-local physical implementation: provider
-  selection, path materialization, mount preparation, publish state,
-  unpublish, and reconciliation.
+| Data | Owner and location | Lifetime |
+| --- | --- | --- |
+| Workload intent, allocations, attempts, placement, leases, resource reservations, and result metadata | `controld` and PostgreSQL | Durable control state; not a filesystem or process-output stream |
+| Writable sandbox rootfs and TaskSet workspace | `axnoded` and node-local runtime filestore | One allocation; no persistence promise across allocation replacement or node loss |
+| Immutable rootfs, read-only image bundles, and image caches | `imagemgr` and `imagefsd` where required | Image-owned cache and live mount leases, separate from writable workload data |
+| Allocation ownership, cleanup intent, resource state, and recovery records | `axnoded` and its process-owned embedded database | Node-local recovery; not a second shared control-plane database |
+| Delivered artifacts and rollout evidence | Existing artifact metadata and S3-compatible object storage | Explicit upload/export, ownership, and retention contracts |
 
-`storaged` is not a node runtime path. `volumed` does not call `storaged` or
-make placement decisions.
+PostgreSQL remains the only authoritative central state backend. Object storage
+is a delivery and archive path, not a writable POSIX working directory. Removing
+the generic volume product does not remove artifact object storage, deployment
+database persistence, or node-runtime recovery records.
 
-## Current Scope
+## Allocation-Local Filesystems
 
-The current storage contract covers the control model and the local provider
-truth path. It includes Storage V1 classes,
-claims, allocation bindings, resolved node volume specs, node-local `volumed`
-publish/unpublish/delete, release/reconcile idempotency, durable physical
-reclaim retries, binding health, admin reliability signals, and `admin storage
-list/retry/reclaim` operator workflows.
+`axnoded` resolves an immutable image rootfs, prepares the allocation-private
+writable view, and tracks runtime, image, and workspace ownership. Read-only
+image mounts and runtime-owned bind mounts remain supported. Their target
+validation, mount conflict checks, and cleanup are independent of the retired
+volume API.
 
-Kubernetes PVC, NAS/NFS, and object-store-backed providers are outside the
-current contract. Adding one requires a concrete product contract and must
-reuse the same `storaged -> controld -> axnoded -> volumed` protocol instead of
-adding a direct control-to-node storage path.
+Writable rootfs storage still requires node-local reservation and runsc hard
+enforcement. The current charged scope is the runsc file-backed root overlay,
+including metadata, copy-up, and whiteouts; image caches, artifacts, logs, and
+other uncharged classes do not silently become part of that reservation. See
+[Resource Model](resource-model.md) and the
+[node rootfs storage contract](../../runtime/axnoded/docs/rootfs-storage.md).
 
-## Provider Model
+A replacement allocation starts from its immutable inputs, not from a previous
+allocation's writable directory. A process restart may recover an existing
+allocation when its runtime and ownership records are intact; this is not a
+promise to retain files after node loss or allocation replacement. Export or
+download required outputs before destroying the allocation. A successful file
+download copies bytes to the caller; durable artifact publication remains a
+separate explicit operation.
 
-The current provider is `local`, backed by a managed directory under the
-configured volumed local root. Additional providers must extend the same
-resolved-spec-to-published-volume interface.
+## Recovery And Cleanup
 
-Provider parameters are resolved by `storaged` and validated again by
-`volumed`. Host paths are generated by providers, never accepted directly from
-service specs.
+Allocation attempts, ownership, idempotent lifecycle operations, execution
+leases, and fencing remain required. An expired control-plane lease does not
+prove that a partitioned node's process has stopped.
 
-## Lifecycle
+Node cleanup stops the runtime and crosses the exit-state barrier before
+releasing writable-rootfs and image ownership. Mount cleanup and writable
+reservation release must complete before the associated resource commitment is
+retired. Failed cleanup retains its ownership and retry state; it must not
+advertise still-owned capacity as free. Node restart reconciles these records
+against the runtime inventory without creating a persistent-volume attachment
+workflow.
 
-Claims describe data intent and data lifetime. `Deleted` is the only terminal
-claim state; failed claims remain releasable so cleanup never depends on
-manual database surgery. A failed claim may return to `Bound` only through a
-new reservation attempt.
+The preserved implementation boundaries are `runtime/axnoded/internal/nodestate`,
+`internal/service/allocation`, and `internal/runtime/rootfsview`, with image
+lease coordination in `internal/langruntime`. These are execution safety and
+recovery mechanisms, not generic storage-provider abstractions.
 
-Allocation bindings describe one allocation's node attachment. They are
-idempotent reservations for a selected node and may be created, published,
-failed, and released many times over the lifetime of a single claim. Releasing
-an allocation binding returns the claim to `Bound` when no active binding still
-requires a stronger status. It must be safe to repeat and must not delete
-service-scoped data.
+## Historical Data And Upgrade Boundary
 
-Failed bindings are recovered through an explicit storage-coordinator retry
-operation that moves the binding back to `Bound` and clears stale publish
-observations. Recovery is intentionally operator or controller driven; failed
-node publish results are not hidden by automatic compatibility paths.
+This is a coordinated control-plane, node, SDK, and deployment contract change.
+Mixed-version operation and silent reinterpretation of old protobuf numbers or
+persisted volume fields are unsupported.
 
-Publish and release observations are part of the storage state-machine
-contract, not best-effort log records. Published observations must carry the
-published node volume, failed publish or release observations must carry an
-operator-useful message, and invalid observation statuses are rejected before
-they can mutate claim or binding state.
+Before adopting this model on an existing installation:
 
-Reclaim policy is evaluated when the claim is deleted, not when an allocation
-is released. `Retain` keeps backend data and an auditable tombstone. `Delete`
-moves the Claim to `Deleting`, persists retry and lease state, and reaches
-`Deleted` only after the node observes physical backend removal. Local backend
-identity is the immutable Claim ID and its physical directory is
-`<local-root>/<claim-id>`; callers cannot submit an arbitrary host path.
+1. Use the archived matching release to inventory old claims, bindings,
+   workloads, and physical directories. Export required data and verify the
+   resulting copies separately from the source archive.
+2. Drain the old allocations through that release and verify runtime, mount,
+   and resource cleanup. Do not start the new node runtime over active
+   historical allocation records.
+3. Start matching new components with new clean control and node state. Keep
+   historical database and filesystem data separately until an operator has
+   explicitly approved its retention or disposal.
 
-Service deletion first releases every allocation, then asks `storaged` to
-reclaim Service-owned Claims. Service reconciliation only persists that intent;
-a dedicated bounded `controld` dispatcher leases due reclaim work through
-`storaged` and dispatches structured deletion through the existing
-`controld -> axnoded -> volumed` lifecycle path. Temporary node failures keep
-the Claim and Service deletion intent durable and retry with bounded
-exponential backoff. Claims use PostgreSQL-clock leases, `SKIP LOCKED`, and
-owner, opaque token hash, generation, and expiry fencing. Global and per-node
-dispatcher limits prevent one slow node from blocking unrelated reclaim work.
-A completed Service tombstone remains queryable for audit
-and idempotency but is absent from ordinary Service lists. Claim identity is
-`claim_id`; only non-deleted Claims must have a unique namespace/name, so a
-workspace can be recreated without inheriting old data.
+Controld performs a read-only startup check for
+`storage_volume_claims` and `storage_volume_bindings`. Any row, including a
+terminal tombstone, refuses startup with an inventory/export instruction.
+Missing or empty tables pass that check. Unreadable state fails closed.
 
-Publish and release state flow through the existing node lifecycle path:
-`controld -> axnoded -> volumed -> axnoded -> controld -> storaged`.
-`storaged` stores the binding status, resolved spec, published node volume,
-release observation, timestamps, and failure message as the control-plane
-source of truth. `controld` consumes storaged binding health in the admin
-reliability surface so operators can see failed or stuck releasing storage
-bindings without connecting to storaged directly.
+That check is not a disk inventory: an empty database does not prove that old
+claim directories or node allocation records are safe to reuse. Existing
+payloads containing removed fields are not migrated by ignoring those fields.
+There is no automatic table drop, row rewrite, physical volume deletion, or
+conversion of historical claim data into disposable runtime storage.
+See the [control-plane retirement guard](../../control/controld/docs/retired-volume-data.md)
+for the exact refusal boundary.
 
-Operators should start with `axern admin reliability check`, then use
-`axern admin storage list --status failed` or `--status releasing` to locate
-the binding, claim, workload, allocation, node, and failure message. Failed
-bindings are retried with `axern admin storage retry <binding_id>
---operator-reason <reason>` after the node or storage cause is fixed.
-Use `axern admin storage reclaim list` to inspect pending physical deletion by
-Claim, Service, node, attempt, next retry, and redacted error.
-Useful failure buckets are provider validation, runtime compatibility, node
-publish, node release, reconcile, and stale or inconsistent binding state.
+## Validation
 
-`volumed` persists published volumes by allocation. Reconcile receives the
-active allocation ids from `axnoded`, validates provider state for active
-records, and unpublishes records for stale allocations without involving
-control-plane placement. Cleanup must be idempotent and must not remove a fresh
-publish record created after the reconcile snapshot. `axnoded` includes the
-reconcile result in node summaries; `controld` surfaces unhealthy node volume
-managers as a separate admin reliability signal from control-plane binding
-health.
+- Host-safe checks cover lifecycle adapters, allocation ownership and cleanup,
+  ephemeral reservations, node inventory, and strict configuration decoding.
+- Linux truth checks cover runsc writable-rootfs enforcement, image/workspace
+  mounts, restart recovery, execution, file transfer, and allocation cleanup.
+- Deployment checks prove that the retained stack starts without either retired
+  daemon. They must not invoke a historical volume cleanup workflow.
+- Historical-data tests prove startup refusal is read-only, including
+  tombstones and database read failures.
 
-Validation should cover the product invariants: bindings are `Published` while
-an allocation is running, service-scoped data survives node-runtime restart and
-allocation replacement, and allocation purge leaves no active bindings while
-the claim remains reusable until it is deleted.
-
-Service deletion decides claim ownership, not reclaim policy: a retain
-disposition completes only after `storaged` clears the claim owner
-(`ReleaseWorkloadVolumeClaims`), leaving the claim ownerless and re-attachable
-with its original backend by a future workload; a delete disposition
-tombstones claims and drives physical reclaim for `Delete` policies. Owner
-release and binding reserve serialize on the claim row: release rejects active
-bindings and changes all matching claims atomically, while reserve revalidates
-the durable owner after taking the lock.
-
-## Validation Matrix
-
-Use the narrowest layer that owns the risk, then one local truth environment
-for workflow validation:
-
-- Domain state-machine and observation rules:
-  `go test ./control/storaged/internal/kernel/storage ./control/storaged/internal/application/storage`.
-- Storaged persistence and coordinator behavior: `make -C control/storaged test` and
-  `make -C control/storaged vet`.
-- Service lifecycle, workload diagnostics, and storage coordination:
-  `go test ./control/controld/internal/app ./control/controld/internal/application/service ./control/controld/internal/postgres/service`.
-- Volumed provider contracts and node publish/reconcile behavior:
-  `go test ./runtime/volumed/internal/... ./runtime/axnoded/internal/volume`,
-  the focused axnoded service volume tests, and
-  `make -C runtime/axnoded test-host` on non-Linux hosts.
-- Product workflow smoke: `make local-compose-service-volume-smoke`; use
-  `make local-storage-verify` for the compose plus kind storage truth path.
-  Run `make local-truth-verify` before larger handoffs when environment state
-  itself is part of the risk.
+Use the [verification tiers](../verification/local-full-verification.md) and
+[node verification matrix](../../runtime/axnoded/docs/verification.md) to select
+the required checks. A source or host-safe check alone does not prove Linux
+mount behavior or successful migration of an existing installation.

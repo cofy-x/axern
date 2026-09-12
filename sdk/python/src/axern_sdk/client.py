@@ -32,7 +32,7 @@ from axern_sdk._internal.channel import control_channel
 from axern_sdk._internal.resources import ResourceQuantity, cpu_milli, memory_bytes
 from axern_sdk._internal.specs import environment_spec
 from axern_sdk.context import load_context
-from axern_sdk.models import HTTPProbe, ServiceProbe, TCPProbe, VolumeMount
+from axern_sdk.models import HTTPProbe, ServiceProbe, TCPProbe
 from axern_sdk.network_policy import NetworkPolicy
 from axern_sdk.tunnel.config import _GatewayTransport
 
@@ -41,7 +41,6 @@ DEFAULT_ENDPOINT = "127.0.0.1:25000"
 _SERVICE_WATCH_RETRY_MIN_SECONDS = 0.1
 _SERVICE_WATCH_RETRY_MAX_SECONDS = 2.0
 
-ServiceVolumeMountInput = VolumeMount | common_pb2.ServiceVolumeMount
 ServiceProbeInput = ServiceProbe | service_types_pb2.ServiceProbe
 
 
@@ -88,33 +87,6 @@ def _resource_spec(
     if not resources.HasField("requests") and not resources.HasField("limits"):
         return None
     return resources
-
-
-def _service_volume_mounts(
-    volume_mounts: Iterable[ServiceVolumeMountInput] | None = None,
-) -> list[common_pb2.ServiceVolumeMount]:
-    if volume_mounts is None:
-        return []
-    out: list[common_pb2.ServiceVolumeMount] = []
-    for mount in volume_mounts:
-        if isinstance(mount, common_pb2.ServiceVolumeMount):
-            out.append(common_pb2.ServiceVolumeMount(
-                name=mount.name,
-                target=mount.target,
-                readonly=mount.readonly,
-                options=list(mount.options),
-            ))
-            continue
-        if isinstance(mount, VolumeMount):
-            out.append(common_pb2.ServiceVolumeMount(
-                name=mount.name,
-                target=mount.target,
-                readonly=mount.readonly,
-                options=list(mount.options),
-            ))
-            continue
-        raise TypeError(f"unsupported volume mount type: {type(mount).__name__}")
-    return out
 
 
 def _service_probe(probe: ServiceProbeInput | None = None) -> service_types_pb2.ServiceProbe | None:
@@ -450,7 +422,6 @@ class AxernClient:
         limit_ephemeral_storage: ResourceQuantity = "",
         extension_capabilities: dict[str, str] | None = None,
         node_selector: dict[str, str] | None = None,
-        volume_mounts: Iterable[ServiceVolumeMountInput] | None = None,
         readiness_probe: ServiceProbeInput | None = None,
         liveness_probe: ServiceProbeInput | None = None,
         namespace: str = "default",
@@ -486,7 +457,6 @@ class AxernClient:
                     placement=common_pb2.PlacementConstraints(
                         node_selector=dict(node_selector or {}),
                     ),
-                    volume_mounts=_service_volume_mounts(volume_mounts),
                 ),
                 readiness_probe=readiness,
                 liveness_probe=liveness,

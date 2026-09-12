@@ -32,9 +32,6 @@ controld_log="$(mktemp)"
 python311_stdout="$(mktemp)"
 CONTROLD_CONTAINER_NAME="${CONTROLD_CONTAINER_NAME:-axnoded-python-runtime-e2e-controld}"
 GATEWAYD_CONTAINER_NAME="${GATEWAYD_CONTAINER_NAME:-axnoded-python-runtime-e2e-gatewayd}"
-STORAGED_CONTAINER_NAME="${STORAGED_CONTAINER_NAME:-axnoded-python-runtime-e2e-storaged}"
-STORAGED_GRPC_PORT="${STORAGED_GRPC_PORT:-24020}"
-STORAGED_HTTP_PORT="${STORAGED_HTTP_PORT:-24021}"
 
 CONTROLD_GRPC_HOST="${CONTROLD_GRPC_ADDRESS%:*}"
 CONTROLD_GRPC_PORT="${CONTROLD_GRPC_ADDRESS##*:}"
@@ -53,8 +50,6 @@ NODE_GRPC_ADDRESS="${NODE_GRPC_HOST}:${NODE_GRPC_PORT}"
 dump_logs() {
   echo "--- controld log ---" >&2
   docker logs "${CONTROLD_CONTAINER_NAME}" >&2 || cat "${controld_log}" >&2 || true
-  echo "--- storaged log ---" >&2
-  docker logs "${STORAGED_CONTAINER_NAME}" >&2 || true
   echo "--- gatewayd log ---" >&2
   docker logs "${GATEWAYD_CONTAINER_NAME}" >&2 || true
   echo "--- controld /nodesz ---" >&2
@@ -83,7 +78,6 @@ wait_for_postgres() {
 
 cleanup() {
   docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
-  docker rm -f "${STORAGED_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${CONTROLD_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${GATEWAYD_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${NODE_CONTAINER_NAME}" >/dev/null 2>&1 || true
@@ -95,7 +89,6 @@ trap cleanup EXIT
 ensure_verify_image
 docker rm -f "${CONTROLD_CONTAINER_NAME}" >/dev/null 2>&1 || true
 docker rm -f "${GATEWAYD_CONTAINER_NAME}" >/dev/null 2>&1 || true
-docker rm -f "${STORAGED_CONTAINER_NAME}" >/dev/null 2>&1 || true
 docker rm -f "${NODE_CONTAINER_NAME}" >/dev/null 2>&1 || true
 docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
 docker network rm "${POSTGRES_NETWORK_NAME}" >/dev/null 2>&1 || true
@@ -145,30 +138,6 @@ docker run --rm \
     -rollout-worker-certificate /shared/certs/rollout-worker.crt
 
 docker run -d \
-  --name "${STORAGED_CONTAINER_NAME}" \
-  --network "${POSTGRES_NETWORK_NAME}" \
-  --platform "${VERIFY_DOCKER_PLATFORM}" \
-  "${IMAGE_TAG}" \
-  /usr/local/bin/storaged \
-    -grpc-address "0.0.0.0:${STORAGED_GRPC_PORT}" \
-    -http-address "0.0.0.0:${STORAGED_HTTP_PORT}" \
-    -postgres-dsn "${CONTROLD_POSTGRES_DSN}" >/dev/null
-
-deadline=$((SECONDS + 60))
-while [ "${SECONDS}" -lt "${deadline}" ]; do
-  if docker exec "${STORAGED_CONTAINER_NAME}" curl -fsS "http://127.0.0.1:${STORAGED_HTTP_PORT}/healthz" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 1
-done
-
-if ! docker exec "${STORAGED_CONTAINER_NAME}" curl -fsS "http://127.0.0.1:${STORAGED_HTTP_PORT}/healthz" >/dev/null 2>&1; then
-  echo "storaged did not become ready in time" >&2
-  dump_logs
-  exit 1
-fi
-
-docker run -d \
   --name "${CONTROLD_CONTAINER_NAME}" \
   --network "${POSTGRES_NETWORK_NAME}" \
   --network-alias controld \
@@ -186,7 +155,6 @@ docker run -d \
     -tls-key /shared/certs/controld.key \
     -secrets-master-key "test-only-master-key-32-bytes!!!" \
     -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
-    -storaged-target "${STORAGED_CONTAINER_NAME}:${STORAGED_GRPC_PORT}" \
     -log-level info >"${controld_log}" 2>&1
 
 deadline=$((SECONDS + 60))

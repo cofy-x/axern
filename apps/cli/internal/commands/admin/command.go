@@ -12,7 +12,7 @@ import (
 
 func Command(runtime command.Runtime) *cobra.Command {
 	root := &cobra.Command{Use: "admin", Short: "Operate audited administrative workflows"}
-	root.AddCommand(principalCommand(runtime), credentialCommand(runtime), roleBindingCommand(runtime), serviceCommand(runtime), nodeCommand(runtime), reliabilityCommand(runtime), consistencyCommand(runtime), auditCommand(runtime), storageCommand(runtime), allocationRetryCommand(runtime))
+	root.AddCommand(principalCommand(runtime), credentialCommand(runtime), roleBindingCommand(runtime), serviceCommand(runtime), nodeCommand(runtime), reliabilityCommand(runtime), consistencyCommand(runtime), auditCommand(runtime), allocationRetryCommand(runtime))
 	return root
 }
 
@@ -271,91 +271,6 @@ func auditCommand(runtime command.Runtime) *cobra.Command {
 	f.StringVar(&targetID, "target-id", "", "target id filter")
 	f.IntVar(&limit, "limit", 0, "maximum events")
 	root.AddCommand(list)
-	return root
-}
-
-func storageCommand(runtime command.Runtime) *cobra.Command {
-	root := &cobra.Command{Use: "storage", Short: "Inspect and repair storage bindings"}
-	var statuses []string
-	var namespace, claim, workload, allocation, node string
-	var limit int
-	list := &cobra.Command{Use: "list", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		for _, status := range statuses {
-			if err := appadmin.ValidateVolumeStatus(status); err != nil {
-				return command.Usage(err)
-			}
-		}
-		s, err := runtime.Open(cmd.Context())
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		resp, err := appadmin.NewStorage(s.Clients.AdminStorage).ListBindings(s.Context, appadmin.StorageBindingListOptions{Statuses: statuses, Namespace: namespace, ClaimName: claim, WorkloadID: workload, AllocationID: allocation, NodeID: node, Limit: limit})
-		if err != nil {
-			return err
-		}
-		if runtime.Options.Output == "json" {
-			return output.PrintStorageBindingListJSON(cmd.OutOrStdout(), resp.GetBindings())
-		}
-		output.RenderStorageBindingTable(cmd.OutOrStdout(), resp.GetBindings())
-		return nil
-	}}
-	f := list.Flags()
-	f.StringArrayVar(&statuses, "status", nil, "status filter; may be repeated")
-	f.StringVar(&namespace, "namespace", "", "namespace filter")
-	f.StringVar(&claim, "claim", "", "claim filter")
-	f.StringVar(&workload, "workload", "", "workload filter")
-	f.StringVar(&allocation, "allocation", "", "allocation filter")
-	f.StringVar(&node, "node", "", "node filter")
-	f.IntVar(&limit, "limit", 0, "maximum rows")
-	var reason string
-	retry := &cobra.Command{Use: "retry <binding-id>", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if err := appadmin.ValidateOperatorReason(reason); err != nil {
-			return command.Usage(err)
-		}
-		s, err := runtime.Open(cmd.Context())
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		resp, err := appadmin.NewStorage(s.Clients.AdminStorage).RetryBinding(s.Context, args[0], reason)
-		if err != nil {
-			return err
-		}
-		if runtime.Options.Output == "json" {
-			return output.PrintStorageBindingJSON(cmd.OutOrStdout(), resp.GetBinding())
-		}
-		output.RenderStorageBinding(cmd.OutOrStdout(), resp.GetBinding())
-		return nil
-	}}
-	retry.Flags().StringVar(&reason, "operator-reason", "", "audit reason")
-	var reclaimNamespace, reclaimService, reclaimNode string
-	var reclaimLimit int
-	reclaimList := &cobra.Command{Use: "list", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		s, err := runtime.Open(cmd.Context())
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		resp, err := appadmin.NewStorage(s.Clients.AdminStorage).ListReclaims(s.Context, appadmin.StorageReclaimListOptions{
-			Namespace: reclaimNamespace, ServiceID: reclaimService, NodeID: reclaimNode, Limit: reclaimLimit,
-		})
-		if err != nil {
-			return err
-		}
-		if runtime.Options.Output == "json" {
-			return output.PrintStorageReclaimListJSON(cmd.OutOrStdout(), resp.GetReclaims())
-		}
-		output.RenderStorageReclaimTable(cmd.OutOrStdout(), resp.GetReclaims())
-		return nil
-	}}
-	reclaimList.Flags().StringVar(&reclaimNamespace, "namespace", "", "namespace filter")
-	reclaimList.Flags().StringVar(&reclaimService, "service", "", "service filter")
-	reclaimList.Flags().StringVar(&reclaimNode, "node", "", "node filter")
-	reclaimList.Flags().IntVar(&reclaimLimit, "limit", 0, "maximum rows")
-	reclaim := &cobra.Command{Use: "reclaim", Short: "Inspect pending physical volume reclamation", Args: command.NoArgs}
-	reclaim.AddCommand(reclaimList)
-	root.AddCommand(list, retry, reclaim)
 	return root
 }
 

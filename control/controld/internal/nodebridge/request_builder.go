@@ -10,8 +10,6 @@ import (
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
-	privatestoragev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/storage/v1"
-	"google.golang.org/protobuf/proto"
 )
 
 type createAllocationRequestParams struct {
@@ -25,7 +23,6 @@ type createAllocationRequestParams struct {
 	ServiceID              string
 	ReadinessProbe         *servicev1.ServiceProbe
 	LivenessProbe          *servicev1.ServiceProbe
-	NodeVolumes            []*privatestoragev1.ResolvedNodeVolume
 	ResolvedSecrets        resolvedExecutionSecrets
 	CapabilityDependencies []*capabilityv1.CapabilityDependency
 }
@@ -71,7 +68,6 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 		Namespace:                       strings.TrimSpace(params.Namespace),
 		ServiceID:                       strings.TrimSpace(params.ServiceID),
 		ExecutionProfile:                cloneRuntimeExecutionProfile(template.GetExecutionProfile()),
-		NodeVolumes:                     cloneResolvedNodeVolumes(params.NodeVolumes),
 		ImageMounts:                     cloneImageMounts(cfg.GetImageMounts()),
 		WorkspaceImage:                  cloneWorkspaceImage(cfg.GetWorkspaceImage()),
 		CapabilityDependencies:          cloneCapabilityDependencies(params.CapabilityDependencies),
@@ -146,20 +142,6 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func cloneResolvedNodeVolumes(in []*privatestoragev1.ResolvedNodeVolume) []*privatestoragev1.ResolvedNodeVolume {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*privatestoragev1.ResolvedNodeVolume, 0, len(in))
-	for _, volume := range in {
-		if volume == nil {
-			continue
-		}
-		out = append(out, proto.Clone(volume).(*privatestoragev1.ResolvedNodeVolume))
-	}
-	return out
-}
-
 func cloneImageMounts(in []*commonv1.ImageMount) []*privatenodev1.ImageMount {
 	if len(in) == 0 {
 		return nil
@@ -174,34 +156,6 @@ func cloneImageMounts(in []*commonv1.ImageMount) []*privatenodev1.ImageMount {
 			Target:   strings.TrimSpace(mount.GetTarget()),
 			Readonly: true,
 		})
-	}
-	return out
-}
-
-func clonePublishedNodeVolumes(in []*privatestoragev1.PublishedNodeVolume) []*privatestoragev1.PublishedNodeVolume {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*privatestoragev1.PublishedNodeVolume, 0, len(in))
-	for _, volume := range in {
-		if volume == nil {
-			continue
-		}
-		out = append(out, proto.Clone(volume).(*privatestoragev1.PublishedNodeVolume))
-	}
-	return out
-}
-
-func cloneVolumeReleaseObservations(in []*privatestoragev1.VolumeReleaseObservation) []*privatestoragev1.VolumeReleaseObservation {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*privatestoragev1.VolumeReleaseObservation, 0, len(in))
-	for _, observation := range in {
-		if observation == nil {
-			continue
-		}
-		out = append(out, proto.Clone(observation).(*privatestoragev1.VolumeReleaseObservation))
 	}
 	return out
 }

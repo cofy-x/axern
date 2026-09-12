@@ -25,7 +25,6 @@ const (
 type RuntimeSummary struct {
 	Workspace      string `json:"workspace"`
 	LifecycleState string `json:"lifecycle_state"`
-	Persistent     bool   `json:"persistent"`
 	ServiceID      string `json:"service_id"`
 	Profile        string `json:"profile"`
 	Agent          string `json:"agent"`
@@ -69,7 +68,6 @@ func (Control) ListRuntimes(ctx context.Context, client ServiceClient, workspace
 		result = append(result, RuntimeSummary{
 			Workspace:      service.GetLabels()[LabelWorkspace],
 			LifecycleState: workspaceLifecycleState(service),
-			Persistent:     workspaceConfigShapeMatches(service),
 			ServiceID:      service.GetID(),
 			Profile:        service.GetLabels()[LabelProfile],
 			Agent:          service.GetLabels()[LabelAgent],
@@ -204,22 +202,10 @@ func workspaceConfigMatches(service *servicev1.Service, bundle bundleRuntime) bo
 	if workspace == "" {
 		return false
 	}
-	actual := service.GetConfig().GetVolumeMounts()
-	expectedConfig := workspaceExecutionConfig(workspace, bundle)
-	expected := expectedConfig.GetVolumeMounts()
+	expectedConfig := workspaceExecutionConfig(bundle)
 	actualImages := service.GetConfig().GetImageMounts()
 	expectedImages := expectedConfig.GetImageMounts()
-	return len(actual) == 1 && len(expected) == 1 && proto.Equal(actual[0], expected[0]) &&
-		len(actualImages) == 1 && len(expectedImages) == 1 && proto.Equal(actualImages[0], expectedImages[0])
-}
-
-func workspaceConfigShapeMatches(service *servicev1.Service) bool {
-	if service == nil || service.GetLabels()[LabelWorkspace] == "" {
-		return false
-	}
-	volumes := service.GetConfig().GetVolumeMounts()
-	images := service.GetConfig().GetImageMounts()
-	return len(volumes) == 1 && len(images) == 1 && images[0].GetReadonly()
+	return len(actualImages) == 1 && len(expectedImages) == 1 && proto.Equal(actualImages[0], expectedImages[0])
 }
 
 func listActiveAgentServices(ctx context.Context, client ServiceClient, namespace string, labels map[string]string) ([]*servicev1.Service, error) {

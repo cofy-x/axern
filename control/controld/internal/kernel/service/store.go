@@ -74,7 +74,6 @@ type Controller interface {
 	Store
 	Reconciler
 	AllocationReconciler
-	VolumeReclaimDispatcher
 }
 
 type CreateParams struct {
@@ -90,8 +89,7 @@ type CreateParams struct {
 }
 
 type DeleteParams struct {
-	ServiceID         string
-	ExpectedVersion   int64
-	RequireSuspended  bool
-	VolumeDisposition servicev1.ServiceVolumeDisposition
+	ServiceID        string
+	ExpectedVersion  int64
+	RequireSuspended bool
 }

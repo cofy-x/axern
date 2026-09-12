@@ -17,7 +17,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestRemoteConfigUsesPersistentWorkspaceWithoutProviderToken(t *testing.T) {
+func TestRemoteConfigUsesSandboxWorkspaceWithoutProviderToken(t *testing.T) {
 	upstream, _ := url.Parse("https://api.example.test/v1")
 	script, err := remoteConfigScript(35748, agentprofile.Profile{
 		Agent: agentprofile.AgentCodex, ProviderType: agentprofile.ProviderOpenAI,
@@ -26,12 +26,12 @@ func TestRemoteConfigUsesPersistentWorkspaceWithoutProviderToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{`agent_workspace="/home/axern/workspace"`, `export AXERN_AGENT_WORKSPACE="${agent_workspace}"`, `sudo chown`, `sudo chmod 0777`, `test -w`} {
+	for _, expected := range []string{`agent_workspace="/home/axern/workspace"`, `mkdir -p "${agent_workspace}"`, `export AXERN_AGENT_WORKSPACE="${agent_workspace}"`, `sudo chown`, `sudo chmod 0777`, `test -w`} {
 		if !strings.Contains(script, expected) {
 			t.Fatalf("remote script missing %q:\n%s", expected, script)
 		}
 	}
-	if strings.Contains(script, "provider-secret") || strings.Contains(script, "chown -R") || strings.Contains(script, "chmod -R") || strings.Contains(script, "${HOME}/workspace") || strings.Contains(script, "git init") || strings.Contains(script, "install -d") || strings.Contains(script, `mkdir -p "${agent_workspace}"`) {
+	if strings.Contains(script, "provider-secret") || strings.Contains(script, "chown -R") || strings.Contains(script, "chmod -R") || strings.Contains(script, "${HOME}/workspace") || strings.Contains(script, "git init") || strings.Contains(script, "install -d") {
 		t.Fatalf("remote script contains forbidden data or behavior:\n%s", script)
 	}
 }
@@ -157,7 +157,7 @@ func TestWorkspaceDeleteRejectsNegativeTimeoutBeforeOpeningSession(t *testing.T)
 func TestRuntimeListJSONUsesStableWorkspaceLifecycle(t *testing.T) {
 	var buffer bytes.Buffer
 	err := renderRuntimeList(&buffer, []appagent.RuntimeSummary{{
-		Workspace: "project-a", LifecycleState: appagent.LifecycleSuspended, Persistent: true,
+		Workspace: "project-a", LifecycleState: appagent.LifecycleSuspended,
 		ServiceID: "svc-1", Profile: "dev-codex", Agent: "codex", Namespace: "default",
 		Ready: 0, Desired: 0, EnvironmentID: "env-1",
 	}}, output.FormatJSON)
@@ -168,7 +168,7 @@ func TestRuntimeListJSONUsesStableWorkspaceLifecycle(t *testing.T) {
 	if err := json.Unmarshal(buffer.Bytes(), &items); err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 1 || items[0]["workspace"] != "project-a" || items[0]["lifecycle_state"] != "suspended" || items[0]["persistent"] != true {
+	if len(items) != 1 || items[0]["workspace"] != "project-a" || items[0]["lifecycle_state"] != "suspended" {
 		t.Fatalf("runtime JSON = %#v", items)
 	}
 	if _, ok := items[0]["status"]; ok {
@@ -201,7 +201,7 @@ func TestRenderDoctorJSONIsStableAndContainsNoCredentials(t *testing.T) {
 		ReadyReplicas:       1,
 		DesiredReplicas:     1,
 		LifecycleState:      appagent.LifecycleRunning,
-		Persistent:          true,
+		RuntimeMatches:      true,
 		Recommendation:      "agent workspace is ready",
 		PlatformCheck:       &appagent.DoctorPlatformCheck{Reachable: true, Message: "Axern platform API is reachable"},
 	}
@@ -215,7 +215,7 @@ func TestRenderDoctorJSONIsStableAndContainsNoCredentials(t *testing.T) {
 	if err := json.Unmarshal(buffer.Bytes(), &fields); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"agent", "agent_bundle", "approval_compatible", "axern_approval_policy", "config_ok", "desired_replicas", "lifecycle_state", "local_approval_policy", "persistent", "platform_check", "profile", "provider", "ready_replicas", "recommendation", "service_id", "workspace", "workspace_template"}
+	want := []string{"agent", "agent_bundle", "approval_compatible", "axern_approval_policy", "config_ok", "desired_replicas", "lifecycle_state", "local_approval_policy", "runtime_matches", "platform_check", "profile", "provider", "ready_replicas", "recommendation", "service_id", "workspace", "workspace_template"}
 	if len(fields) != len(want) {
 		t.Fatalf("doctor JSON fields = %#v", fields)
 	}

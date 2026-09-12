@@ -58,17 +58,15 @@ must be removed and any replacement must use a new node ID. Retirement is not a
 temporary disconnect or a reporter recovery mechanism.
 
 Node lifecycle requests may include resolved secret env vars, resolved secret
-files, request-scoped registry auth, service probes, and resolved node volume
-specs. `axnoded` materializes those inputs into the allocation-local runtime
-environment, asks `volumed` to publish resolved storage volumes, and cleans up
-allocation-scoped files on teardown. Published volume results and release
-observations are returned in node lifecycle responses so `controld` can update
-`storaged`; `axnoded` does not call `storaged` directly.
+files, request-scoped registry auth, service probes, and read-only image mounts.
+`axnoded` materializes those inputs into the allocation-local runtime environment
+and cleans up allocation-scoped files on teardown. Writable rootfs and workspace
+data are allocation-local; durable outputs require explicit artifact export.
 
 ## Architecture
 
 Requests enter through `internal/api`, move through `internal/service`, then
-coordinate rootfs resolution, volumes, resources, persisted container state, OCI
+coordinate rootfs resolution, resources, persisted container state, OCI
 runtime handlers, and sandbox-local `axern-sandboxd` operations.
 
 One process-owned BoltDB under the configured store directory persists node-local
@@ -228,11 +226,6 @@ Image-backed rootfs flows depend on the node-local `imagemgr` socket:
 
 - default: `/var/run/imagemgr.sock`
 - repo-local dev: `.dev/run/imagemgr.sock`
-
-Resolved node volume flows depend on the node-local `volumed` socket:
-
-- default: `/run/volumed/volumed.sock`
-- repo-local dev: `.dev/run/volumed.sock`
 
 Cross-subsystem sockets and runtime relationships are tracked in
 [Runtime Stack](../../.x/runtime-stack.md).

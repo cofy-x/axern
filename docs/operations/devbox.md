@@ -56,11 +56,9 @@ make devbox-stack-status
 This starts repo-local Postgres plus:
 
 - `controld`
-- `storaged`
 - `tunneld`
 - `imagefsd`
 - `imagemgr`
-- `volumed`
 - `egressd`
 - `axnoded`
 - `node-tunneld`
@@ -109,12 +107,10 @@ For most source edits, restart only the affected service:
 make devbox-stack-restart SERVICE=gatewayd
 make devbox-stack-restart SERVICE=axnoded
 make devbox-stack-restart SERVICE=imagemgr
-make devbox-stack-restart SERVICE=volumed
 make devbox-stack-restart SERVICE=egressd
 make devbox-stack-restart SERVICE=imagefsd
 make devbox-stack-restart SERVICE=tunneld
 make devbox-stack-restart SERVICE=controld
-make devbox-stack-restart SERVICE=storaged
 ```
 
 Restart behavior is dependency-aware:
@@ -122,7 +118,6 @@ Restart behavior is dependency-aware:
 - `gatewayd`: restarts only `gatewayd`.
 - `axnoded`: rebuilds the dev runtime runner, then restarts `axnoded` and
   `node-tunneld`.
-- `volumed`: restarts `volumed`, `axnoded`, and `node-tunneld`.
 - `egressd`: restarts `egressd`, `axnoded`, and `node-tunneld`.
 - `imagemgr`: restarts `imagemgr`, `axnoded`, and `node-tunneld`.
 - `imagefsd`: rebuilds `imagefsd`, then restarts `imagefsd`, `imagemgr`,
@@ -131,8 +126,6 @@ Restart behavior is dependency-aware:
   `node-tunneld`.
 - `controld`: runs migrations, then restarts `controld` plus services that
   depend on the control plane.
-- `storaged`: restarts `storaged`, `controld`, `axnoded`, `node-tunneld`, and
-  `gatewayd`.
 - `postgres`: restarts the full stack while keeping Postgres data.
 
 Inside the devbox, use `make dev-stack-restart SERVICE=<name>`.
@@ -145,12 +138,10 @@ you want:
 ```bash
 make node-dev-prepare
 make postgres-dev-up
-make storaged-dev-run
 make controld-dev-run
 make gatewayd-dev-run
 make imagefsd-dev-serve-chunk
 make imagemgr-dev-run
-make volumed-dev-run
 make egressd-dev-run
 make axnoded-dev-run
 ```
@@ -185,12 +176,11 @@ The checked-in VS Code configuration uses these targets:
 
 - `.vscode/tasks.json` exposes stack up/status/restart and debug preparation.
 - `.vscode/launch.json` has `Controld: Debug daemon`,
-  `Storaged: Debug daemon`, `Gatewayd: Debug daemon`, `Axnoded: Debug daemon`,
-  `Imagemgr: Debug daemon`, `Volumed: Debug daemon`, and
-  `Imagefsd: Debug chunk server`.
+  `Gatewayd: Debug daemon`, `Axnoded: Debug daemon`, `Imagemgr: Debug daemon`,
+  and `Imagefsd: Debug chunk server`.
 
 Use these from a VS Code Remote-SSH window attached to `axern-devbox`, so tasks
-run inside the Linux devbox. `axnoded`, `imagemgr`, and `volumed` use the Go
+run inside the Linux devbox. `axnoded` and `imagemgr` use the Go
 extension's `asRoot` launch mode, so VS Code starts Delve through passwordless
 `sudo` instead of connecting to a separately launched DAP port.
 
@@ -202,18 +192,16 @@ unknown even though the repository configuration is valid for those extensions.
 
 A practical manual debug startup order is:
 
-1. `Storaged: Debug daemon`
-2. `Controld: Debug daemon`
-3. `Gatewayd: Debug daemon`
-4. `Imagefsd: Debug chunk server`
-5. `Imagemgr: Debug daemon`
-6. `Volumed: Debug daemon`
-7. `Axnoded: Debug daemon`
+1. `Controld: Debug daemon`
+2. `Gatewayd: Debug daemon`
+3. `Imagefsd: Debug chunk server`
+4. `Imagemgr: Debug daemon`
+5. `Axnoded: Debug daemon`
 
 `Axnoded: Debug daemon` registers `axern-dev-node` with the standalone
 `controld` at `127.0.0.1:24000` by default. Product CLI commands use
 `gatewayd`'s control edge at `127.0.0.1:25000`, so workloads can be placed after
-the seven debug services are running.
+the five debug services are running.
 
 Catalog-backed workloads need their runtime images imported into standalone
 `imagemgr`. This mirrors the compose/kind image load flow:

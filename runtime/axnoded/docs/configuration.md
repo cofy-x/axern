@@ -137,7 +137,7 @@ Useful symptoms:
 ## Runtime
 
 `[plugin.runtime]` controls rootfs resolution, OCI runtime handlers, DNS
-materialization, volumed integration, and warm idle runtime retention.
+materialization and warm idle runtime retention.
 
 | Key | Meaning | Notes |
 | --- | --- | --- |
@@ -145,7 +145,6 @@ materialization, volumed integration, and warm idle runtime retention.
 | `image_lib_dir` | Local rootfs/image library directory. | Used by image/rootfs flows under axnoded. |
 | `image_manager_socket` | Unix socket for `imagemgr`. | Ignored when `image_manager_enabled = false`; default is `/var/run/imagemgr.sock`. |
 | `runtime_runner_binary` | Host lifecycle helper used to monitor OCI init/runtime processes and durably persist their exact wait status. | Defaults to `/usr/local/libexec/axnoded/axnoded-runtime-runner`; packaged node images install it there. |
-| `volume_manager_socket` | Local `volumed` Unix socket used to publish resolved node volumes. | Defaults to `/run/volumed/volumed.sock`. |
 | `egress_manager_socket` | Trusted node-local `egressd` Unix socket used for fail-closed sandbox policy lifecycle. | Defaults to `/run/egressd/egressd.sock`; absence keeps policy capabilities unavailable without affecting unrestricted sandboxes. |
 | `idle_runtime_retention_ttl` | How long idle runtime templates/rootfs state remain warm. | Empty falls back to `5m`. |
 | `idle_runtime_retention_max` | Max retained static runtime templates per node. | Defaults to `8`; `<= 0` disables idle retention. Retention keeps rootfs leases and bundle templates, never an allocation-less OCI container. |
@@ -158,7 +157,7 @@ materialization, volumed integration, and warm idle runtime retention.
 | `ephemeral_storage_default_limit_bytes` | Internal default backing limit for the public `limits.ephemeral_storage_bytes` contract. | Writable runsc roots use this in `root:dir=...,size=...`. |
 
 Runtime retention is keyed by the static execution template, so namespace,
-service, environment, and allocation-specific volume identity do not duplicate
+service, environment, and allocation identity do not duplicate
 the same rootfs/template cache entry. It retains only reusable immutable rootfs
 and bundle-template inputs. OCI create is always allocation-owned because the
 container ID, cgroup, network, storage reservation, evidence, and cleanup
@@ -223,7 +222,7 @@ EROFS lower, ephemeral-storage backing, quota, and cleanup contract.
 | eBPF dataplane verification | Set `nat_backend = "ebpf"`; keep `local_out_compat = true` and `iptables_fallback = true`; confirm bpffs and privileged host access. |
 | Control-plane connected node | Set `control_plane_target`, stable `control_plane_node_id`, reachable `control_plane_node_target`, auth token, TLS paths, labels, and optional extension capabilities. Platform capabilities come from observed providers. |
 | Kubernetes production node | Set `control_plane_node_resource_source = "kubernetes"` and pass the Kubernetes Node name; the Helm chart does this by default and grants read-only `nodes/get` RBAC. |
-| Production node | Move `rootDir`, `storeDir`, and `image_lib_dir` to durable host paths; run `volumed` with durable state and local volume roots; set explicit DNS if node resolvers are not suitable for sandboxes; provide the qualified `memory_system_reserve_bytes` receipt value. |
+| Production node | Move `rootDir`, `storeDir`, and `image_lib_dir` to durable host paths for runtime recovery; set explicit DNS if node resolvers are not suitable for sandboxes; provide the qualified `memory_system_reserve_bytes` receipt value. |
 
 ## Troubleshooting By Config Area
 

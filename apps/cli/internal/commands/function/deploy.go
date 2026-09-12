@@ -74,7 +74,6 @@ func deployCommand(runtime command.Runtime) *cobra.Command {
 				TimeoutSeconds: functionSpec.TimeoutSeconds,
 				Env:            execution.Env,
 				Resources:      execution.Resources,
-				VolumeMounts:   execution.VolumeMounts,
 				EnvironmentID:  environmentID,
 				Environment:    environment,
 				BundleURI:      uploadResp.GetBundle().GetStorageUri(),

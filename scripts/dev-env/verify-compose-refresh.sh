@@ -63,7 +63,6 @@ run_with_retry 2 make local-compose-smoke
 run_with_retry 2 make local-compose-doctor-smoke
 run_with_retry 2 make local-compose-dns-doctor-smoke
 run_with_retry 2 make local-compose-gateway-smoke
-run_with_retry 2 make local-compose-service-volume-smoke
 run_with_retry 2 make local-compose-run-smoke
 run_with_retry 2 make local-compose-server-base-smoke
 run_with_retry 2 make local-compose-quota-smoke

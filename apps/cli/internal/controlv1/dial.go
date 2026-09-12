@@ -36,7 +36,6 @@ func dial(ctx context.Context, config Config) (*grpc.ClientConn, Clients, error)
 		Admin:            adminv1.NewAllocationLifecycleAdminClient(conn),
 		AdminAudit:       adminv1.NewAdminAuditClient(conn),
 		AdminReliability: adminv1.NewAdminReliabilityClient(conn),
-		AdminStorage:     adminv1.NewStorageAdminClient(conn),
 		AdminService:     adminv1.NewServiceAdminClient(conn),
 		AdminNode:        adminv1.NewNodeAdminClient(conn),
 		AccessAdmin:      adminv1.NewAccessAdminClient(conn),

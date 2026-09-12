@@ -15,8 +15,7 @@ import (
 
 // The deletion lifecycle is driven from the persisted service row: every
 // reconcile re-reads the row and must see the same deletion status that the
-// previous write recorded. This round trip is what keeps workspace deletion
-// waiting for physical volume reclaim instead of completing silently.
+// previous write recorded. Completion follows confirmed allocation cleanup.
 func TestServiceDeletionStatusRoundTrip(t *testing.T) {
 	dsn := os.Getenv("AXERN_TEST_POSTGRES_DSN")
 	if dsn == "" {
@@ -46,8 +45,7 @@ func TestServiceDeletionStatusRoundTrip(t *testing.T) {
 	serviceID := created.GetID()
 
 	deleted, ok, err := store.Delete(ctx, servicekernel.DeleteParams{
-		ServiceID:         serviceID,
-		VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE,
+		ServiceID: serviceID,
 	}, now.Add(time.Second))
 	if err != nil || !ok {
 		t.Fatalf("Delete() = ok %v, err %v", ok, err)
@@ -64,17 +62,14 @@ func TestServiceDeletionStatusRoundTrip(t *testing.T) {
 	if deletion == nil {
 		t.Fatal("Get() deletion status = nil after Delete(), want persisted RELEASING_ALLOCATIONS")
 	}
-	if deletion.GetPhase() != servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS ||
-		deletion.GetVolumeDisposition() != servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE {
+	if deletion.GetPhase() != servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS {
 		t.Fatalf("Get() deletion status = %#v", deletion)
 	}
 
 	if _, err := store.UpdateDeletionStatus(ctx, serviceID, &servicev1.ServiceDeletionStatus{
-		Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE,
-		VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE,
-		ClaimIds:          []string{"claim-roundtrip"},
-		Message:           "service deletion complete",
-		CompletedAt:       timestamppb.New(now.Add(2 * time.Second)),
+		Phase:       servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE,
+		Message:     "service deletion complete",
+		CompletedAt: timestamppb.New(now.Add(2 * time.Second)),
 	}, now.Add(2*time.Second)); err != nil {
 		t.Fatalf("UpdateDeletionStatus() error = %v", err)
 	}
@@ -88,7 +83,6 @@ func TestServiceDeletionStatusRoundTrip(t *testing.T) {
 		t.Fatalf("Get() status = %v, want DELETED", reloaded.GetStatus())
 	}
 	if deletion.GetPhase() != servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE ||
-		len(deletion.GetClaimIds()) != 1 || deletion.GetClaimIds()[0] != "claim-roundtrip" ||
 		deletion.GetCompletedAt() == nil {
 		t.Fatalf("Get() completed deletion status = %#v", deletion)
 	}

@@ -208,26 +208,11 @@ type BPFNetComponentInventory struct {
 	NeedsLocalhostCompat  bool   `json:"needs_localhost_compat"`
 }
 
-type VolumedComponentInventory struct {
-	Status                             string    `json:"status"`
-	Error                              string    `json:"error,omitempty"`
-	Reachable                          bool      `json:"reachable"`
-	PublishedVolumeCount               int       `json:"published_volume_count"`
-	LastReconcileAt                    time.Time `json:"last_reconcile_at,omitempty"`
-	LastReconcileError                 string    `json:"last_reconcile_error,omitempty"`
-	LastReconcileRetainedCount         int       `json:"last_reconcile_retained_count"`
-	LastReconcileUnpublishedCount      int       `json:"last_reconcile_unpublished_count"`
-	LastReconcileActiveAllocationCount int       `json:"last_reconcile_active_allocation_count"`
-	LastReconcileStaleAllocationCount  int       `json:"last_reconcile_stale_allocation_count"`
-	LastReconcileInvalidVolumeCount    int       `json:"last_reconcile_invalid_volume_count"`
-}
-
 type ComponentsInventory struct {
 	Axnoded  AxnodedComponentInventory  `json:"axnoded"`
 	Imagemgr ImagemgrComponentInventory `json:"imagemgr"`
 	Imagefsd ImagefsdComponentInventory `json:"imagefsd"`
 	BPFNet   BPFNetComponentInventory   `json:"bpfnet"`
-	Volumed  VolumedComponentInventory  `json:"volumed"`
 }
 
 type ChunkDBHeat struct {

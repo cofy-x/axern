@@ -72,9 +72,7 @@ enum AdminReliabilitySignalCode {
   ADMIN_RELIABILITY_SIGNAL_CODE_CONSISTENCY_ISSUES = 1;
   ADMIN_RELIABILITY_SIGNAL_CODE_ALLOCATION_LIFECYCLE_RETRIES = 2;
   ADMIN_RELIABILITY_SIGNAL_CODE_RECONCILE_FAILURES = 3;
-  ADMIN_RELIABILITY_SIGNAL_CODE_STORAGE_BINDINGS = 4;
-  ADMIN_RELIABILITY_SIGNAL_CODE_NODE_VOLUME_MANAGERS = 5;
-  ADMIN_RELIABILITY_SIGNAL_CODE_NODE_FLEET = 6;
+  ADMIN_RELIABILITY_SIGNAL_CODE_NODE_FLEET = 4;
 }
 
 message ConsistencyCounts {
@@ -120,10 +118,8 @@ message AdminReliabilityHealth {
   int64 due_allocation_lifecycle_retries = 4;
   int64 reconcile_unhealthy_components = 5;
   repeated AdminReliabilitySignal signals = 6;
-  AdminNodeVolumeHealth node_volume_health = 7;
-  AdminStorageBindingHealth storage_binding_health = 8;
-  repeated ReconcileComponentHealth reconcile_components = 9;
-  AdminNodeFleetHealth node_fleet_health = 10;
+  repeated ReconcileComponentHealth reconcile_components = 7;
+  AdminNodeFleetHealth node_fleet_health = 8;
 }
 
 message ReconcileComponentHealth {
@@ -148,14 +144,6 @@ message GetAdminReliabilityHealthResponse {
   AdminReliabilityHealth health = 1;
 }
 
-message AdminNodeVolumeHealth {
-  int64 unhealthy_nodes = 1;
-  int64 published_volumes = 2;
-  int64 last_reconcile_stale_allocations = 3;
-  int64 last_reconcile_invalid_volumes = 4;
-  string error = 5;
-}
-
 message AdminNodeFleetHealth {
   int64 active_nodes = 1;
   int64 ready_nodes = 2;
@@ -164,18 +152,6 @@ message AdminNodeFleetHealth {
   int64 not_ready_nodes = 5;
   bool unavailable = 6;
   string error = 7;
-}
-
-message AdminStorageBindingHealth {
-  bool unavailable = 1;
-  string error = 2;
-  int64 failed_bindings = 3;
-  int64 releasing_bindings = 4;
-  int64 stuck_releasing_bindings = 5;
-  int64 inconsistent_claims = 6;
-  int64 invalid_bindings = 7;
-  int64 deleting_claims = 8;
-  int64 stuck_deleting_claims = 9;
 }
 
 service AdminReliability {

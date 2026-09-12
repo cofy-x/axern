@@ -16,7 +16,6 @@ import (
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/probes"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
-	servicevolumes "github.com/cofy-x/axern/runtime/axnoded/internal/service/volumes"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/sirupsen/logrus"
@@ -35,7 +34,6 @@ type Options struct {
 	ContainerManager            func() *container.Manager
 	RuntimeHandler              func(string) (contract.RuntimeHandler, error)
 	LangRuntime                 *langrtmanager.LangRTManager
-	Volumes                     *servicevolumes.Coordinator
 	Networking                  *servicenetworking.Coordinator
 	Probes                      *probes.Coordinator
 	StartMetricSink             StartMetricSink
@@ -53,7 +51,6 @@ type Controller struct {
 	containerManager            func() *container.Manager
 	runtimeHandlerFn            func(string) (contract.RuntimeHandler, error)
 	lrtManager                  *langrtmanager.LangRTManager
-	volumes                     *servicevolumes.Coordinator
 	networking                  *servicenetworking.Coordinator
 	probes                      *probes.Coordinator
 	startMetricSink             StartMetricSink
@@ -107,7 +104,6 @@ func NewController(options Options) *Controller {
 		containerManager:            options.ContainerManager,
 		runtimeHandlerFn:            options.RuntimeHandler,
 		lrtManager:                  options.LangRuntime,
-		volumes:                     options.Volumes,
 		networking:                  options.Networking,
 		probes:                      options.Probes,
 		startMetricSink:             options.StartMetricSink,
@@ -285,13 +281,6 @@ func (c *Controller) runtimeHandlerForContainer(id string) (*container.Container
 		return nil, nil, err
 	}
 	return target, handler, nil
-}
-
-func (c *Controller) nodeVolumes() *servicevolumes.Coordinator {
-	if c == nil {
-		return nil
-	}
-	return c.volumes
 }
 
 func (c *Controller) sandboxNetworking() *servicenetworking.Coordinator {

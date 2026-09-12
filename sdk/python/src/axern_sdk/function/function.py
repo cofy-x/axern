@@ -329,15 +329,6 @@ class Function:
                 common_pb2.SecretFile(path=item.path, secret_id=item.secret_id, key=item.key, mode=item.mode, optional=item.optional)
                 for item in self.spec.secret_files
             ],
-            volume_mounts=[
-                common_pb2.ServiceVolumeMount(
-                    name=mount.name,
-                    target=mount.target,
-                    readonly=mount.readonly,
-                    options=list(mount.options),
-                )
-                for mount in self.spec.volumes
-            ],
             image_mounts=[
                 common_pb2.ImageMount(image=mount.image, target=mount.target, readonly=True)
                 for mount in self.spec.image_mounts

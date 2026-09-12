@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import AsyncIterator, Callable, Iterable
+from collections.abc import AsyncIterator, Callable
 
 from axern.control.tunnel.v1 import tunnel_pb2
 from axern_sdk._internal.resources import ResourceQuantity
 from axern_sdk.async_client import AsyncAxernClient
 from axern_sdk.errors import SandboxNotStartedError, SandboxTimeoutError
-from axern_sdk.models import VolumeMount
 from axern_sdk.node import (
     AsyncNodeSandboxClient,
     AsyncSandboxProcess,
@@ -54,7 +53,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         limit_memory: ResourceQuantity = "",
         limit_ephemeral_storage: ResourceQuantity = "",
         extension_capabilities: dict[str, str] | None = None,
-        volumes: Iterable[VolumeMount] | None = None,
         upstream: str = "",
         remote_port: int | None = None,
         connector: ConnectorConfig | None = None,
@@ -85,7 +83,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         self._limit_memory = limit_memory
         self._limit_ephemeral_storage = limit_ephemeral_storage
         self._extension_capabilities = dict(extension_capabilities or {})
-        self._volumes = tuple(volumes or ())
         self._upstream = upstream
         self._remote_port = remote_port
         self._gateway_transport = client._gateway_transport()
@@ -184,7 +181,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
                 limit_memory=self._limit_memory,
                 limit_ephemeral_storage=self._limit_ephemeral_storage,
                 extension_capabilities=self._extension_capabilities,
-                volume_mounts=self._volumes,
                 namespace=self._namespace,
                 labels=self._labels,
             )

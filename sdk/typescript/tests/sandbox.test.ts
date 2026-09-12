@@ -66,7 +66,6 @@ test("sandbox creates image-backed environment and delegates exec", async () => 
     limitCpu: "1500m",
     limitMemory: "1GiB",
     extensionCapabilities: [{ name: "example.com/accelerator", value: "v1" }],
-    volumes: [{ name: "workspace", target: "/workspace", readonly: true, options: ["rbind"] }],
   });
   await sandbox.start();
   const result = await sandbox.exec("echo ok");
@@ -85,7 +84,6 @@ test("sandbox creates image-backed environment and delegates exec", async () => 
   assert.equal(serviceOptions?.limitCpu, "1500m");
   assert.equal(serviceOptions?.limitMemory, "1GiB");
   assert.deepEqual(serviceOptions?.extensionCapabilities, [{ name: "example.com/accelerator", value: "v1" }]);
-  assert.deepEqual(serviceOptions?.volumes, [{ name: "workspace", target: "/workspace", readonly: true, options: ["rbind"] }]);
   assert.equal(serviceOptions?.networkPolicy, networkPolicy);
 });
 

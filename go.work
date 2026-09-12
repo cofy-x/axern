@@ -4,7 +4,6 @@ use (
 	./apps/axrun
 	./apps/cli
 	./control/controld
-	./control/storaged
 	./gateway/gatewayd
 	./lib/go/agentbundle
 	./lib/go/agentprofile
@@ -20,6 +19,5 @@ use (
 	./runtime/egressd
 	./runtime/imagemgr
 	./runtime/tunneld
-	./runtime/volumed
 	./sdk/go
 )

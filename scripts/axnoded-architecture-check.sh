@@ -56,8 +56,7 @@ runtime/axnoded/internal/resources
 runtime/axnoded/internal/runtime
 runtime/axnoded/internal/sandboxd
 runtime/axnoded/internal/service
-runtime/axnoded/internal/storetest
-runtime/axnoded/internal/volume'
+runtime/axnoded/internal/storetest'
 
 check_equals \
 	"axnoded internal top-level packages must stay intentional" \
@@ -74,8 +73,7 @@ runtime/axnoded/internal/service/process
 runtime/axnoded/internal/service/sandboxaccess
 runtime/axnoded/internal/service/sandboxcontrol
 runtime/axnoded/internal/service/sandboxtarget
-runtime/axnoded/internal/service/startplan
-runtime/axnoded/internal/service/volumes'
+runtime/axnoded/internal/service/startplan'
 
 check_equals \
 	"service subpackages must stay focused domain packages" \

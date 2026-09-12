@@ -92,7 +92,7 @@ Allocation rules:
   resources already allocated for that start attempt.
 
 Delete first collects resource claims, crosses the runtime/monitor exit-state
-barrier, releases rootfs, volume, storage and image leases, and only then moves
+barrier, releases rootfs, writable-storage and image leases, and only then moves
 the allocation cgroup to retiring.
 
 Delete rules:
@@ -180,8 +180,8 @@ settings.
 
 `ephemeral_storage_bytes` is the public sandbox-lifetime resource. Axnoded
 currently charges only the runsc file-backed root
-overlay, including metadata, copy-up, and whiteouts. Persistent volumes,
-immutable lower/image cache storage, artifacts, projection placeholders,
+overlay, including metadata, copy-up, and whiteouts. Immutable lower/image
+cache storage, artifacts, projection placeholders,
 tmpfs, and logs are outside this accounting scope. The runtime implementation
 may call the charged backing writable storage internally; that implementation
 term does not broaden the public resource contract.
@@ -280,7 +280,7 @@ Key behavior:
   memory, EROFS lower page cache, writable-overlay page cache, dirty pages, and
   writeback all consume it. There is no runsc overhead reservation.
 - `memory_system_reserve_bytes` covers axnoded, lifecycle monitors, imagemgr,
-  imagefsd, volumed, Nydus daemons/cache, and other node-local processes outside
+  imagefsd, Nydus daemons/cache, and other node-local processes outside
   sandbox cgroups. It also contains the reserved runtime-certification budget:
   axnoded creates a sibling `conformance` domain with an aggregate 512 MiB hard
   limit, zero swap, and group OOM. The memory workload exercises a nested

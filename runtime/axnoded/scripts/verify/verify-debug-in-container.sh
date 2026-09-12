@@ -58,8 +58,6 @@ echo "--- nginx stdout ---"
 cat /tmp/axnoded-nginx.stdout || true
 echo "--- nginx stderr ---"
 cat /tmp/axnoded-nginx.stderr || true
-echo "--- volumed log tail ---"
-tail -n "${DEBUG_LOG_LINES}" /tmp/volumed.log || true
 echo "--- axnoded log tail ---"
 tail -n "${DEBUG_LOG_LINES}" /tmp/axnoded.log || true
 

@@ -20,7 +20,6 @@ from axern_sdk import (
     SandboxNotStartedError,
     ServiceProbe,
     TCPProbe,
-    VolumeMount,
 )
 import axern_sdk.client as client_module
 from axern_sdk.client import _resource_spec
@@ -91,26 +90,7 @@ class SandboxTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             Sandbox(client=client)
 
-    def test_sandbox_passes_volume_mounts_to_service(self) -> None:
-        client = _FakeClient()
-        volumes = [
-            VolumeMount("data", "/data"),
-            VolumeMount(" cache ", " /cache ", readonly=True, options=("rbind", " nodev ")),
-        ]
-
-        with Sandbox(
-            client=client,
-            image="docker.io/library/python:3.12-slim",
-            volumes=volumes,
-        ):
-            pass
-
-        self.assertEqual(client.created_service["volume_mounts"], tuple(volumes))
-        self.assertEqual(volumes[1].name, "cache")
-        self.assertEqual(volumes[1].target, "/cache")
-        self.assertEqual(volumes[1].options, ("rbind", "nodev"))
-
-    def test_create_service_builds_volume_mount_protos(self) -> None:
+    def test_create_service_builds_extension_capability_protos(self) -> None:
         class ServiceStub:
             request = None
 
@@ -126,26 +106,12 @@ class SandboxTest(unittest.TestCase):
         service = client.create_service(
             environment_id="env-1",
             extension_capabilities={"example.com/accelerator": "v1"},
-            volume_mounts=[
-                VolumeMount("data", "/data"),
-                VolumeMount("cache", "/cache", readonly=True, options=("rbind",)),
-            ],
         )
 
         self.assertEqual(service.id, "svc-1")
         extension = stub.request.config.extension_capability_requirements[0].capability
         self.assertEqual(extension.name, "example.com/accelerator")
         self.assertEqual(extension.value, "v1")
-        mounts = list(stub.request.config.volume_mounts)
-        self.assertEqual(len(mounts), 2)
-        self.assertEqual(mounts[0].name, "data")
-        self.assertEqual(mounts[0].target, "/data")
-        self.assertFalse(mounts[0].readonly)
-        self.assertEqual(mounts[1].name, "cache")
-        self.assertEqual(mounts[1].target, "/cache")
-        self.assertTrue(mounts[1].readonly)
-        self.assertEqual(list(mounts[1].options), ["rbind"])
-
     def test_create_service_builds_node_selector(self) -> None:
         class ServiceStub:
             request = None
@@ -364,19 +330,6 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls[1]["argv"], ["python", "-V"])
         self.assertEqual(client.deleted[0][0], "svc-1")
         self.assertEqual(client.deleted_environments[0][0], "env-1")
-
-    async def test_async_sandbox_passes_volume_mounts_to_service(self) -> None:
-        client = _AsyncFakeClient()
-        volumes = [VolumeMount("data", "/data", readonly=True)]
-
-        async with AsyncSandbox(
-            client=client,
-            image="docker.io/library/python:3.12-slim",
-            volumes=volumes,
-        ):
-            pass
-
-        self.assertEqual(client.created_service["volume_mounts"], tuple(volumes))
 
     async def test_async_capability_status_uses_node_client(self) -> None:
         client = _AsyncFakeClient()

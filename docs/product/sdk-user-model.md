@@ -6,45 +6,35 @@ examples.
 ## Principles
 
 - Keep the first runnable example short.
-- Expose Axern concepts through product nouns: `Sandbox`, `VolumeMount`, and
+- Expose Axern concepts through product nouns: `Sandbox`, `Run`, and
   `Function`.
 - Preserve the platform ownership model. SDK helpers should compile to public
-  control-plane APIs instead of bypassing `controld`, `storaged`, `axnoded`, or
-  `volumed`.
+  control-plane APIs instead of bypassing control-plane admission or node-local
+  execution ownership.
 - Keep low-level clients available for advanced workflows, but make the happy
   path obvious.
 
-## Sandbox Volumes
+## Sandbox Files And Outputs
 
-Sandboxes are service-backed, so they can use Service V1 volume mounts. The
-Python SDK should expose that with a small object rather than making users build
-protobuf messages.
+Sandbox writable files belong to one allocation. Reusable persistent volumes
+are not part of the SDK contract; download required files or publish artifacts
+explicitly before terminating the sandbox.
 
 ```python
-from axern_sdk import AxernClient, Sandbox, VolumeMount
+from axern_sdk import AxernClient, Sandbox
 
 client = AxernClient.from_env()
 
-with Sandbox(
-    client=client,
-    template_id="python311",
-    volumes=[
-        VolumeMount("data", "/data"),
-        VolumeMount("cache", "/cache", readonly=True),
-    ],
-) as sandbox:
-    result = sandbox.exec("ls /data /cache", text=True, check=True)
-    print(result.stdout)
+with Sandbox(client=client, template_id="python311") as sandbox:
+    sandbox.write_text("/tmp/result.txt", "hello from axern\n")
+    sandbox.download_file("/tmp/result.txt", "result.txt", overwrite=False)
 ```
 
-`VolumeMount` is user intent. Storage placement, node publish, runtime mount
-injection, and release continue to flow through the existing
-`storaged -> controld -> axnoded -> volumed` chain.
-
-The first supported source is the Storage V1 local provider truth path. Object
-store datasets, NFS, PVCs, and image-backed data mounts should arrive as
-storage providers when their product contracts are concrete, not as SDK-only
-shortcuts.
+The downloaded file belongs to the caller's filesystem. It is not an automatic
+object-store upload or a persistence guarantee for the sandbox directory.
+Immutable image bundles and allocation-local TaskSet workspaces remain separate
+runtime composition features. See the [storage lifetime contract](../architecture/storage-architecture.md)
+for recovery and the historical-data upgrade boundary.
 
 ## Connections
 

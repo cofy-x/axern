@@ -6,7 +6,6 @@ option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1;
 
 import "google/protobuf/timestamp.proto";
 import "axern/control/capability/v1/capability.proto";
-import "axern/control/storage/v1/storage_types.proto";
 
 message ResourceQuantity {
   int64 cpu_milli = 1;
@@ -17,8 +16,7 @@ message ResourceQuantity {
   int64 memory_bytes = 2;
   // Sandbox-lifetime node-local disposable storage managed by Axern. The
   // current accounting scope is the runtime writable root overlay and its
-  // metadata/copy-up/whiteouts; persistent volumes and immutable image data
-  // are excluded.
+  // metadata/copy-up/whiteouts; immutable image data is excluded.
   int64 ephemeral_storage_bytes = 3;
 }
 
@@ -113,14 +111,6 @@ message SecretFile {
   bool optional = 5;
 }
 
-message ServiceVolumeMount {
-  string name = 1;
-  string target = 2;
-  bool readonly = 3;
-  repeated string options = 4;
-  axern.control.storage.v1.VolumeReclaimPolicy reclaim_policy = 5;
-}
-
 message ImageMount {
   string image = 1;
   string target = 2;
@@ -162,10 +152,9 @@ message ExecutionConfig {
   PlacementConstraints placement = 8;
   repeated SecretEnvVar secret_env = 9;
   repeated SecretFile secret_files = 10;
-  repeated ServiceVolumeMount volume_mounts = 11;
-  string runtime_class = 12;
-  repeated ImageMount image_mounts = 13;
-  WorkspaceImageSource workspace_image = 14;
+  string runtime_class = 11;
+  repeated ImageMount image_mounts = 12;
+  WorkspaceImageSource workspace_image = 13;
 }
 
 enum AllocationStatus {
@@ -190,13 +179,8 @@ enum WorkloadDiagnosticCode {
   WORKLOAD_DIAGNOSTIC_CODE_PROCESS_EXITED = 6;
   WORKLOAD_DIAGNOSTIC_CODE_LIVENESS_PROBE_FAILED = 7;
   WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED = 8;
-  WORKLOAD_DIAGNOSTIC_CODE_STORAGE_TOPOLOGY_UNSATISFIED = 9;
-  WORKLOAD_DIAGNOSTIC_CODE_STORAGE_RESERVE_ERROR = 10;
-  WORKLOAD_DIAGNOSTIC_CODE_VOLUME_PUBLISH_ERROR = 11;
-  WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR = 12;
-  WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT = 13;
-  WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST = 14;
-  WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED = 15;
+  WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST = 9;
+  WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED = 10;
 }
 
 enum LeaseType {

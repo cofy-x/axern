@@ -39,7 +39,6 @@ import type {
   TunnelOptions,
   TouchOptions,
   UploadDirOptions,
-  VolumeMount,
   WriteFileOptions,
 } from "../types.js";
 import { directoryArchiveChunks, extractDirectoryArchive } from "./archive.js";
@@ -57,7 +56,6 @@ export interface SandboxOptions {
   runtimeClass?: string;
   networkPolicy?: NetworkPolicy;
   extensionCapabilities?: readonly ExtensionCapability[];
-  volumes?: readonly VolumeMount[];
   requestCpu?: ResourceQuantity;
   requestMemory?: ResourceQuantity;
   requestEphemeralStorage?: ResourceQuantity;
@@ -146,7 +144,6 @@ export class Sandbox {
         runtimeClass: this.options.runtimeClass,
         networkPolicy: this.options.networkPolicy,
         extensionCapabilities: this.options.extensionCapabilities,
-        volumes: this.options.volumes,
         requestCpu: this.options.requestCpu,
         requestMemory: this.options.requestMemory,
         requestEphemeralStorage: this.options.requestEphemeralStorage,

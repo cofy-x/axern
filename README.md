@@ -17,7 +17,7 @@
 
 Axern is an open-source sandbox platform for AI agents.
 It isolates agent-generated code with gVisor (`runsc`) through one resource and lifecycle model. Runsc is the supported execution runtime, with no runtime fallback.
-The CLI and the Go, Python, and TypeScript SDKs expose the same public APIs for environments, processes, files, services, storage, tunnels, lifecycle state, and task evidence.
+The CLI and the Go, Python, and TypeScript SDKs expose the same public APIs for environments, processes, files, services, tunnels, lifecycle state, and task evidence.
 
 > **Project status:** Axern is pre-1.0 and under active development.
 > It is suitable for evaluation and contribution, but operators should review the security and production boundaries before deploying multi-tenant workloads.
@@ -77,13 +77,13 @@ regression without delaying pull-request feedback; see the
 ## What You Can Build
 
 - **Agent sandboxes:** execute agent-generated code behind a runsc isolation boundary while retaining process, file, terminal, and output APIs.
-- **Durable services:** run processes with runsc while the control plane owns replicas, health, storage, and rollouts.
+- **Durable services:** run processes with runsc while the control plane owns replicas, health, and rollouts; export outputs that must outlive an allocation.
 - **Reproducible agent execution:** use Axrun to coordinate immutable tasks, verification, trajectories, usage, and typed artifacts.
 
 ## Why Axern
 
 - **Sandbox as the primitive:** runs, services, functions, coding workspaces, and agent tasks compose the same execution and lifecycle APIs.
-- **Durable control plane:** PostgreSQL-backed intent, placement, leases, retries, health, cleanup, and storage state remain authoritative across process or node restarts.
+- **Durable control plane:** PostgreSQL-backed intent, placement, leases, retries, health, and cleanup state remain authoritative across process or node restarts.
 - **One production runtime:** runsc workloads use the same public APIs; OCI and Nydus image paths converge at the node runtime.
 - **Real data-plane access:** process streams, files, archives, HTTP services, SSH-compatible terminals, and reverse TCP tunnels are explicit capabilities.
 - **Local-to-cluster continuity:** Docker Compose, kind, and the cloud-neutral Helm chart exercise the same service boundaries.
@@ -96,9 +96,7 @@ flowchart LR
     Gateway --> Control["controld\ndurable intent and placement"]
     Gateway --> Tunnel["tunneld\nreverse TCP relay"]
     Gateway --> Node["axnoded\nsandbox execution"]
-    Control --> Storage["storaged\nstorage control plane"]
     Control --> Node
-    Storage --> Volume["volumed\nnode volume publish"]
     Node --> Egress["egressd\ntrusted egress policy enforcement"]
     Node --> Image["imagemgr + imagefsd\nOCI and Nydus rootfs"]
     Node --> Runtime["runsc sandboxes"]
@@ -107,17 +105,15 @@ flowchart LR
 
 `controld` is the authority for product state.
 `gatewayd` resolves and forwards public traffic without owning placement.
-Node services own host-local runtime, image, network, and volume operations.
+Node services own host-local runtime, image, network, and allocation-local writable storage. Persistent outputs use explicit artifact delivery; sandbox files are not reusable persistent volumes.
 See the [runtime architecture](./docs/architecture/runtime-architecture.md) and [resource model](./docs/architecture/resource-model.md) for the detailed contracts.
 
 | Component | Responsibility |
 | --- | --- |
 | `controld` | Durable control-plane state, placement, leases, lifecycle, rollout, and reconciliation |
-| `storaged` | Storage classes, claims, bindings, and topology-aware resolution |
 | `gatewayd` | Public gRPC, HTTP, SSH, terminal, tunnel, service, and sandbox data edge |
 | `axnoded` | Node-local sandbox lifecycle, execution, files, process streams, and cleanup |
 | `egressd` | Trusted node-local egress policy persistence, recovery, reconciliation, and enforcement |
-| `volumed` | Node-local volume publish, unpublish, and reconciliation |
 | `imagemgr` / `imagefsd` | OCI and Nydus image resolution, mount lifecycle, and read-only data plane |
 | `tunneld` | Internal reverse TCP relay and sandbox-local tunnel binding |
 | `axern` | Product CLI for platform resources and access |

@@ -17,7 +17,6 @@ flowchart TB
     Service --> Access["service/sandboxaccess + process + imageprocess"]
     Service --> Control["service/sandboxcontrol + probes + networking"]
 
-    Allocation --> Volume["internal/volume -> volumed"]
     Allocation --> Egress["internal/egress -> egressd"]
     Allocation --> LangRuntime["internal/langruntime -> imagemgr"]
     Allocation --> Resources["internal/resources + internal/network"]
@@ -43,8 +42,8 @@ Layer ownership:
 - `internal/runtime` owns OCI runtime handlers, bundle creation, runtime state,
   and host-side sandboxd clients.
 - `internal/sandboxd` is the sandbox-local daemon implementation.
-- `internal/langruntime`, `internal/volume`, `internal/egress`, `internal/resources`, and
-  `internal/container` own rootfs/image coordination, node-volume publish,
+- `internal/langruntime`, `internal/egress`, `internal/resources`, and
+  `internal/container` own rootfs/image coordination, egress enforcement,
   cgroup/network resources, and persisted container state.
 - `internal/nodestate` owns the process-wide BoltDB handle and low-level record
   transactions. Allocation orchestration owns the schema and keeps runtime
@@ -74,7 +73,6 @@ sequenceDiagram
     participant API as internal/api
     participant Start as service/allocation
     participant Capability as internal/nodecapability
-    participant Volume as internal/volume
     participant LangRT as internal/langruntime
     participant Resources as internal/resources
     participant Container as internal/container
@@ -85,7 +83,6 @@ sequenceDiagram
     API->>Start: create allocation request
     Start->>Capability: derive request-static requirements and verify exact proofs
     Start->>NodeState: persist request digest + admitted proofs + condition revision 1
-    Start->>Volume: publish resolved node volumes
     Start->>LangRT: resolve runtime rootfs / image rootfs
     Start->>Capability: derive actual-backing requirements and verify exact proofs
     Start->>Resources: allocate cgroup and interface
@@ -131,8 +128,9 @@ Create invariants:
   runsc runtime processes and guest accounting plus lower/upper page cache.
   Axnoded has no cgroup v1, runtime-overhead reservation, or ignored-resource
   fallback for this contract.
-- Resolved volumes are published through `volumed`; `axnoded` does not call
-  `storaged` directly.
+- Writable rootfs and workspace directories are allocation-local. Their runtime
+  ownership, storage reservations, recovery, and cleanup remain node-owned;
+  durable outputs are exported explicitly.
 - Rootfs/image resolution goes through `internal/langruntime` and `imagemgr`.
 - Resource claims must be persisted in OCI annotations so delete and recovery
   can reconstruct cleanup from stored state.

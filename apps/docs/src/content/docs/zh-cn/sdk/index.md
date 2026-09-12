@@ -28,7 +28,6 @@ Sandbox 边界是共享的；各语言的深度差异是刻意设计。
 | 反向隧道 | ✓ | ✓ | ✓ |
 | Computer Use | ✓ | ✓ | ✓ |
 | 托管浏览器 | ✓ | — | — |
-| Volume | ✓ | ✓ | ✓ |
 | Function（打包与调用） | ✓ | — | — |
 | Environment 与 Service（创建、watch） | ✓ | ✓ | — |
 | Rollout 控制与任务资产辅助 | — | ✓ | — |

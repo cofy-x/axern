@@ -10,12 +10,10 @@ subsystem, read that subsystem's `AGENTS.md` and `README.md` instead.
 clients / SDKs / apps
   -> gatewayd          external mTLS identity, control, tunnel, service HTTP, and terminal edge
      -> controld       product API semantics and durable control state
-        -> storaged        storage planning and binding
         -> gatewayd        Function worker dispatch through the data-plane edge
         -> tunneld         internal raw TCP tunnel relay targets
         -> axnoded         node lifecycle and sandbox execution
            -> egressd      trusted egress policy lifecycle and host enforcement
-           -> volumed      node-local volume publish/unpublish
            -> imagemgr     image rootfs resolution and mount references
               -> imagefsd  read-only image data plane
      -> axnoded        service HTTP and terminal data-plane forwarding
@@ -34,8 +32,6 @@ the language SDK workspaces.
     registry, node lifecycle dispatch, route resolution, tunnel session
     control, and durable control-plane state. External product API traffic
     should enter through `gateway/gatewayd`.
-  - `control/storaged` owns Storage V1 semantics: volume classes, claims,
-    bindings, topology, and resolved node volume specs.
 - Gateway and tunnels:
   - `gateway/gatewayd` owns external control API, tunnel client entry, service
     HTTP, and browser terminal entry.
@@ -57,13 +53,13 @@ the language SDK workspaces.
 - Node runtime:
   - `runtime/axnoded` owns node-local sandbox lifecycle, OCI bundle generation,
     runtime handler integration, node operator APIs, gateway-forwarded sandbox
-    operations, and allocation cleanup.
+    operations, allocation-local writable rootfs/workspaces, and allocation
+    cleanup. Its embedded recovery state tracks ownership and reservations,
+    not reusable persistent volumes.
   - `runtime/egressd` owns the trusted host-side sandbox egress policy record,
     allocation-attempt fencing, persistence, recovery, reconciliation, and
     enforcement health. Its private Unix socket and bypass privileges are not
     exposed to workload namespaces.
-  - `runtime/volumed` owns physical node volume publish, unpublish, safe
-    Claim-owned deletion, reconcile, and provider health.
   - `runtime/imagemgr` owns image rootfs resolution, OCI/Nydus image mount
     orchestration, imported image cache state, and mounted rootfs references.
   - `runtime/imagefsd` owns the read-only image data plane used by imagemgr.
@@ -122,6 +118,11 @@ direct OCI runtime exec is a debug-level tool.
   code.
 - Image-backed rootfs flows resolve through `axnoded -> imagemgr -> imagefsd`
   where needed.
+- Writable rootfs/workspace data belongs to one allocation and does not promise
+  persistence across allocation replacement or node loss. Images and runtime
+  recovery records retain their existing owners; durable outputs require
+  explicit artifact delivery. See the [Storage Architecture](../docs/architecture/storage-architecture.md)
+  for the data-lifetime and historical-data upgrade boundary.
 - Agent bundle image mounts remain single bind mounts. Claude Code is bound at
   its private ABI target `/__claude_code`; axnoded's allocation-private rootfs
   projection supplies the public `/opt/axern/agents/claude-code` symlink used by
@@ -138,7 +139,7 @@ direct OCI runtime exec is a debug-level tool.
 | Placement, node registration, allocation lifecycle, runtime catalog | `control/controld`, `runtime/axnoded`, SDKs if user-facing |
 | Node capability observation, catalog policy, admission evidence, or enforcement loss | `sdk/proto`, `lib/go/nodecapability`, `runtime/axnoded`, `control/controld`, CLI/SDK diagnostics |
 | Sandbox DNS or strict egress lifecycle and enforcement | `runtime/egressd`, `runtime/axnoded`, `network/bpfnet`, deployment and verification surfaces |
-| Storage API, volume claims/classes/bindings, node volume specs | `control/storaged`, `control/controld`, `runtime/volumed`, `runtime/axnoded` |
+| Ephemeral filesystem, writable-storage reservation, and node cleanup | `runtime/axnoded`, `control/controld` for resource admission, storage architecture |
 | Gateway control edge, tunnel client entry, service HTTP, browser terminal entry | `gateway/gatewayd`, `control/controld`, `runtime/tunneld`, `runtime/axnoded` |
 | Internal TCP tunnel relay or node-local tunnel binding | `runtime/tunneld`, `control/controld`, `runtime/axnoded` |
 | Sandboxd lifecycle or process/file/PTY/proxy behavior | `runtime/axnoded`, `runtime/axnoded/docs/sandbox-daemon.md`, SDK/proto if API-visible |

@@ -50,7 +50,6 @@ type Clients struct {
 	Admin            adminv1.AllocationLifecycleAdminClient
 	AdminAudit       adminv1.AdminAuditClient
 	AdminReliability adminv1.AdminReliabilityClient
-	AdminStorage     adminv1.StorageAdminClient
 	AdminService     adminv1.ServiceAdminClient
 	AdminNode        adminv1.NodeAdminClient
 	AccessAdmin      adminv1.AccessAdminClient

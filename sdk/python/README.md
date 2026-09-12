@@ -98,26 +98,21 @@ allowed. Use `NetworkPolicy.strict(..., cidr_rules=(CIDRRule(...),))` for
 explicit TCP/UDP CIDR and port grants, and `NetworkPolicy.deny_all()` for no
 egress.
 
-## Volumes
+## Allocation-Local Files
 
-Use `VolumeMount` to attach Service V1 volumes to service-backed sandboxes.
-The SDK passes volume intent through the public control plane; storage
-resolution, node publish, mount injection, and release remain owned by Axern's
-Storage V1 runtime flow.
+Writable files belong to the sandbox allocation and are not preserved across
+replacement or node loss. Use the file APIs while the sandbox is alive and
+explicitly download or publish outputs that must outlive it.
 
 ```python
-from axern_sdk import Sandbox, VolumeMount
+from axern_sdk import Sandbox
 
 with Sandbox(
     client=client,
     image="docker.io/library/python:3.12-slim",
-    volumes=[
-        VolumeMount("data", "/data"),
-        VolumeMount("cache", "/cache", readonly=True, options=("rbind",)),
-    ],
 ) as sandbox:
-    result = sandbox.exec("ls /data /cache", text=True, check=True)
-    print(result.stdout)
+    sandbox.write_text("/tmp/result.txt", "durable output candidate\n")
+    sandbox.download_file("/tmp/result.txt", "result.txt")
 ```
 
 ## Function Manifests
@@ -370,7 +365,6 @@ Runnable examples live in [`examples`](examples):
 
 - [`examples/function_manifest.py`](examples/function_manifest.py)
 - [`examples/sandbox_programming.py`](examples/sandbox_programming.py)
-- [`examples/sandbox_volume.py`](examples/sandbox_volume.py)
 - [`examples/async_sandbox_programming.py`](examples/async_sandbox_programming.py)
 - [`examples/computer_use.py`](examples/computer_use.py)
 - [`examples/service_gateway.py`](examples/service_gateway.py)

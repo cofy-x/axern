@@ -236,7 +236,7 @@ func (h *Controller) prepareContainerCreate(ctx context.Context, traceID string,
 }
 
 // prepareContainerResources is the node-local admission boundary. Managed
-// starts call it before secrets, volumes, image mounts, rootfs preparation, or
+// starts call it before secrets, image mounts, rootfs preparation, or
 // runtime artifacts so a rejected memory commitment has no external side
 // effects to roll back.
 func (h *Controller) prepareContainerResources(ctx context.Context, traceID, runtimeName, containerID string, allocationAttempt int64, envs []*apipb.KeyValue, resourceSpec *commonv1.ResourceSpec) (contract.RuntimeHandler, container.OccupiedResource, error) {

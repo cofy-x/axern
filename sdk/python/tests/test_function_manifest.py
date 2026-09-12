@@ -38,7 +38,6 @@ class FunctionManifestTest(unittest.TestCase):
         self.assertEqual(spec.scaling.concurrency, 2)
         self.assertEqual(spec.scaling.idle_seconds, 300)
         self.assertEqual(spec.env, {"GREETING": "hello"})
-        self.assertEqual(spec.volumes, ())
         self.assertEqual(spec.root_dir, (root / "examples/function-hello").resolve())
         self.assertEqual(spec.manifest_path.name, "function.yaml")
 
@@ -122,7 +121,6 @@ class FunctionManifestTest(unittest.TestCase):
                 "extension_capabilities": {"example.com/accelerator": "v1"},
                 "resources": {"request_cpu": "500m", "limit_memory": "1GiB"},
                 "scaling": {"min_replicas": 1, "max_replicas": 3, "concurrency": 2, "idle_seconds": 90},
-                "volumes": [{"name": "data", "target": "/data", "readonly": True, "options": ["rbind"]}],
                 "secret_env": [{"name": "TOKEN", "secret_id": "secret-a", "key": "token"}],
                 "secret_files": [{"path": "/run/secrets/config", "secret_id": "secret-a", "key": "config", "mode": "0440"}],
                 "image_mounts": [{"image": "example.test/tools:latest", "target": "/opt/tools"}],
@@ -161,10 +159,6 @@ class FunctionManifestTest(unittest.TestCase):
             self.assertEqual(extension.value, "v1")
             self.assertEqual(request.spec.config.resources.requests.cpu_milli, 500)
             self.assertEqual(request.spec.config.resources.limits.memory_bytes, 1024 * 1024 * 1024)
-            self.assertEqual(request.spec.config.volume_mounts[0].name, "data")
-            self.assertEqual(request.spec.config.volume_mounts[0].target, "/data")
-            self.assertTrue(request.spec.config.volume_mounts[0].readonly)
-            self.assertEqual(request.spec.config.volume_mounts[0].options, ["rbind"])
             self.assertEqual(request.spec.config.secret_env[0].secret_id, "secret-a")
             self.assertEqual(request.spec.config.secret_files[0].mode, 0o440)
             self.assertTrue(request.spec.config.image_mounts[0].readonly)
@@ -190,18 +184,6 @@ class FunctionManifestTest(unittest.TestCase):
     def test_rejects_missing_source_root(self) -> None:
         with self._function_dir({"source": {"root": "missing"}}) as path:
             with self.assertRaisesRegex(ValueError, "spec.function.source"):
-                load_function_spec(path)
-
-    def test_rejects_duplicate_volume_targets(self) -> None:
-        with self._function_dir(
-            {
-                "volumes": [
-                    {"name": "data", "target": "/data"},
-                    {"name": "cache", "target": "/data"},
-                ]
-            }
-        ) as path:
-            with self.assertRaisesRegex(ValueError, "invalid or duplicate"):
                 load_function_spec(path)
 
     def test_rejects_invalid_resource_quantity(self) -> None:

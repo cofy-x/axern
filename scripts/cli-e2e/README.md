@@ -8,11 +8,11 @@ This directory owns the product CLI end-to-end verification flow.
   by `make axern-cli-image-ref-e2e`; it keeps registry/proxy coverage separate
   from the hermetic product CLI flow.
 - `lib.sh` owns shared configuration, cleanup, diagnostics, and wait helpers.
-- `environment.sh` starts the hermetic Postgres, storaged, controld, gatewayd,
+- `environment.sh` starts the hermetic Postgres, controld, gatewayd,
   and node runtime environment.
 - `admin_lifecycle.sh`, `catalog_namespace_quota.sh`, `quota_admission.sh`,
   `base_environment.sh`, `ssh_gateway.sh`, `service_rollout.sh`,
-  `service_volume.sh`, `run.sh`, and `image_ref.sh` own scenario checks.
+  `run.sh`, and `image_ref.sh` own scenario checks.
 
 Keep product CLI e2e coverage as focused scenario files in this directory. Wire
 hermetic product coverage from `axern-cli-e2e.sh`; keep external registry or

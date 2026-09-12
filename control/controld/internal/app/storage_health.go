@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	adminkernel "github.com/cofy-x/axern/control/controld/internal/kernel/admin"
@@ -20,16 +19,15 @@ type nodeHealthRecordSource interface {
 	ListNodes(ctx context.Context, filter adminkernel.NodeListFilter) ([]*nodekernel.Record, error)
 }
 
-func (s nodeHealthSource) NodeHealth(ctx context.Context, now time.Time) (adminkernel.NodeFleetHealth, adminkernel.NodeVolumeHealth, error) {
+func (s nodeHealthSource) NodeHealth(ctx context.Context, now time.Time) (adminkernel.NodeFleetHealth, error) {
 	if s.store == nil {
-		return adminkernel.NodeFleetHealth{}, adminkernel.NodeVolumeHealth{}, nil
+		return adminkernel.NodeFleetHealth{}, nil
 	}
 	records, err := s.store.ListNodes(ctx, adminkernel.NodeListFilter{Lifecycle: nodekernel.LifecycleActive})
 	if err != nil {
-		return adminkernel.NodeFleetHealth{}, adminkernel.NodeVolumeHealth{}, err
+		return adminkernel.NodeFleetHealth{}, err
 	}
 	fleet := adminkernel.NodeFleetHealth{Observed: true}
-	var volumes adminkernel.NodeVolumeHealth
 	for _, record := range records {
 		if record == nil || !record.Active() {
 			continue
@@ -49,22 +47,7 @@ func (s nodeHealthSource) NodeHealth(ctx context.Context, now time.Time) (admink
 		} else if heartbeatFresh && summaryFresh {
 			fleet.NotReadyNodes++
 		}
-		if !heartbeatFresh || !summaryFresh || record.Summary == nil {
-			continue
-		}
-		volumed := record.Summary.GetComponents().GetVolumed()
-		if volumed == nil {
-			continue
-		}
-		volumes.PublishedVolumes += int64(volumed.GetPublishedVolumeCount())
-		volumes.LastReconcileStaleAllocations += int64(volumed.GetLastReconcileStaleAllocationCount())
-		volumes.LastReconcileInvalidVolumes += int64(volumed.GetLastReconcileInvalidVolumeCount())
-		if volumed.GetState() == nodev1.ComponentState_COMPONENT_STATE_ERROR {
-			volumes.UnhealthyNodes++
-			if volumes.Error == "" && strings.TrimSpace(volumed.GetLastReconcileError()) != "" {
-				volumes.Error = volumed.GetLastReconcileError()
-			}
-		}
+
 	}
-	return fleet, volumes, nil
+	return fleet, nil
 }

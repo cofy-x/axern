@@ -17,13 +17,11 @@ const (
 	StorageTargetRootFS           = "rootfs"
 	StorageTargetAxnodedState     = "axnoded_state"
 	StorageTargetImageCache       = "image_cache"
-	StorageTargetVolumeData       = "volume_data"
 	StorageTargetRuntimeFilestore = "runtime_filestore"
 
 	DefaultRootFSPath       = "/"
 	DefaultAxnodedStatePath = "/var/lib/axnoded"
 	DefaultImageCachePath   = "/var/lib/imagemgr"
-	DefaultVolumeDataPath   = "/var/lib/volumed"
 )
 
 type StorageTarget struct {
@@ -41,7 +39,6 @@ func DefaultStorageTargets(axnodedStatePath string) []StorageTarget {
 		{Target: StorageTargetRootFS, Path: DefaultRootFSPath},
 		{Target: StorageTargetAxnodedState, Path: axnodedStatePath},
 		{Target: StorageTargetImageCache, Path: DefaultImageCachePath},
-		{Target: StorageTargetVolumeData, Path: DefaultVolumeDataPath},
 	}
 }
 

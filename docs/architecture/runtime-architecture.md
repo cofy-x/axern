@@ -22,8 +22,8 @@ Axern V1 separates the durable control plane from node-local execution:
   [Observed Capability Providers](observed-capability-providers.md) contract;
   these platform capabilities are distinct from sandboxd operation discovery.
 - `controld` persists node identities as active or retired. Retirement is an
-  audited irreversible operation after workload, tunnel, lease, retry, and
-  storage state converges; retired identities are fenced from node auth and
+  audited irreversible operation after workload, tunnel, lease, and retry
+  state converges; retired identities are fenced from node auth and
   placement, and replacement hosts use new node IDs.
 - The node summary includes an axnoded-owned aggregate `runtime_slots`
   contract. Its capacity starts from `max_instance_num`, enabled node-local
@@ -36,6 +36,12 @@ Axern V1 separates the durable control plane from node-local execution:
   currently backs a workload rootfs mount.
   Rootfs sources are local directories or registry images (OCI/Nydus), not
   raw object-store mounts; rollout artifact storage is a separate data path.
+- Writable rootfs and workspace directories are allocation-local, with
+  node-owned reservations and recovery records. They do not survive allocation
+  replacement or node loss by contract. Durable outputs require explicit
+  delivery; there is no generic volume class/claim/binding service. See
+  [Storage Architecture](storage-architecture.md) for ownership and the
+  historical-data upgrade boundary.
 - Service readiness is a control-plane-visible concern: `axnoded` reports
   `ready` and `readiness_message` separately from lifecycle `status`, and
   `controld` gates service `READY` and rollout drain decisions on that

@@ -47,19 +47,6 @@ func (c *controller) admitRolloutReplacement(ctx context.Context, current *servi
 		return true, current, nil
 	}
 	stageStarted = time.Now()
-	candidates, err = c.filterStorageCandidates(ctx, current, candidates)
-	c.recordReplicaStage(ctx, serviceReplicaPathRolloutReplacement, serviceReplicaStageFilterStorageCandidates, stageStarted, err)
-	if err != nil {
-		if !serviceAdmissionBlocked(err) {
-			return true, current, err
-		}
-		current, err = c.reportFailure(ctx, current, "", err.Error(), servicev1.ServiceRolloutPhase_SERVICE_ROLLOUT_PHASE_BLOCKED, true, now)
-		if err != nil {
-			return true, current, err
-		}
-		return true, current, nil
-	}
-	stageStarted = time.Now()
 	next, alloc, err := c.allocations.AdmitAllocation(ctx, current.GetID(), resolvedConfig, candidates, now)
 	c.recordReplicaStage(ctx, serviceReplicaPathRolloutReplacement, serviceReplicaStageAdmitAllocation, stageStarted, err)
 	if err != nil {

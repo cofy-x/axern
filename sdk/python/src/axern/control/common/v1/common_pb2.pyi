@@ -2,7 +2,6 @@ import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from axern.control.capability.v1 import capability_pb2 as _capability_pb2
-from axern.control.storage.v1 import storage_types_pb2 as _storage_types_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -54,11 +53,6 @@ class WorkloadDiagnosticCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     WORKLOAD_DIAGNOSTIC_CODE_PROCESS_EXITED: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_LIVENESS_PROBE_FAILED: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED: _ClassVar[WorkloadDiagnosticCode]
-    WORKLOAD_DIAGNOSTIC_CODE_STORAGE_TOPOLOGY_UNSATISFIED: _ClassVar[WorkloadDiagnosticCode]
-    WORKLOAD_DIAGNOSTIC_CODE_STORAGE_RESERVE_ERROR: _ClassVar[WorkloadDiagnosticCode]
-    WORKLOAD_DIAGNOSTIC_CODE_VOLUME_PUBLISH_ERROR: _ClassVar[WorkloadDiagnosticCode]
-    WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR: _ClassVar[WorkloadDiagnosticCode]
-    WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED: _ClassVar[WorkloadDiagnosticCode]
 
@@ -96,11 +90,6 @@ WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_PROCESS_EXITED: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_LIVENESS_PROBE_FAILED: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED: WorkloadDiagnosticCode
-WORKLOAD_DIAGNOSTIC_CODE_STORAGE_TOPOLOGY_UNSATISFIED: WorkloadDiagnosticCode
-WORKLOAD_DIAGNOSTIC_CODE_STORAGE_RESERVE_ERROR: WorkloadDiagnosticCode
-WORKLOAD_DIAGNOSTIC_CODE_VOLUME_PUBLISH_ERROR: WorkloadDiagnosticCode
-WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR: WorkloadDiagnosticCode
-WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED: WorkloadDiagnosticCode
 LEASE_TYPE_UNSPECIFIED: LeaseType
@@ -225,20 +214,6 @@ class SecretFile(_message.Message):
     optional: bool
     def __init__(self, path: _Optional[str] = ..., secret_id: _Optional[str] = ..., key: _Optional[str] = ..., mode: _Optional[int] = ..., optional: _Optional[bool] = ...) -> None: ...
 
-class ServiceVolumeMount(_message.Message):
-    __slots__ = ("name", "target", "readonly", "options", "reclaim_policy")
-    NAME_FIELD_NUMBER: _ClassVar[int]
-    TARGET_FIELD_NUMBER: _ClassVar[int]
-    READONLY_FIELD_NUMBER: _ClassVar[int]
-    OPTIONS_FIELD_NUMBER: _ClassVar[int]
-    RECLAIM_POLICY_FIELD_NUMBER: _ClassVar[int]
-    name: str
-    target: str
-    readonly: bool
-    options: _containers.RepeatedScalarFieldContainer[str]
-    reclaim_policy: _storage_types_pb2.VolumeReclaimPolicy
-    def __init__(self, name: _Optional[str] = ..., target: _Optional[str] = ..., readonly: _Optional[bool] = ..., options: _Optional[_Iterable[str]] = ..., reclaim_policy: _Optional[_Union[_storage_types_pb2.VolumeReclaimPolicy, str]] = ...) -> None: ...
-
 class ImageMount(_message.Message):
     __slots__ = ("image", "target", "readonly")
     IMAGE_FIELD_NUMBER: _ClassVar[int]
@@ -284,7 +259,7 @@ class WorkspacePreparationFacts(_message.Message):
     def __init__(self, payload_format: _Optional[str] = ..., payload_digest: _Optional[str] = ..., cache_hit: _Optional[bool] = ..., image_resolve_ms: _Optional[int] = ..., image_pull_ms: _Optional[int] = ..., cow_prepare_ms: _Optional[int] = ...) -> None: ...
 
 class ExecutionConfig(_message.Message):
-    __slots__ = ("argv", "env", "cwd", "resources", "ports", "network", "extension_capability_requirements", "placement", "secret_env", "secret_files", "volume_mounts", "runtime_class", "image_mounts", "workspace_image")
+    __slots__ = ("argv", "env", "cwd", "resources", "ports", "network", "extension_capability_requirements", "placement", "secret_env", "secret_files", "runtime_class", "image_mounts", "workspace_image")
     class EnvEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -302,7 +277,6 @@ class ExecutionConfig(_message.Message):
     PLACEMENT_FIELD_NUMBER: _ClassVar[int]
     SECRET_ENV_FIELD_NUMBER: _ClassVar[int]
     SECRET_FILES_FIELD_NUMBER: _ClassVar[int]
-    VOLUME_MOUNTS_FIELD_NUMBER: _ClassVar[int]
     RUNTIME_CLASS_FIELD_NUMBER: _ClassVar[int]
     IMAGE_MOUNTS_FIELD_NUMBER: _ClassVar[int]
     WORKSPACE_IMAGE_FIELD_NUMBER: _ClassVar[int]
@@ -316,11 +290,10 @@ class ExecutionConfig(_message.Message):
     placement: PlacementConstraints
     secret_env: _containers.RepeatedCompositeFieldContainer[SecretEnvVar]
     secret_files: _containers.RepeatedCompositeFieldContainer[SecretFile]
-    volume_mounts: _containers.RepeatedCompositeFieldContainer[ServiceVolumeMount]
     runtime_class: str
     image_mounts: _containers.RepeatedCompositeFieldContainer[ImageMount]
     workspace_image: WorkspaceImageSource
-    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., ports: _Optional[_Iterable[_Union[PortSpec, _Mapping]]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., volume_mounts: _Optional[_Iterable[_Union[ServiceVolumeMount, _Mapping]]] = ..., runtime_class: _Optional[str] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ..., workspace_image: _Optional[_Union[WorkspaceImageSource, _Mapping]] = ...) -> None: ...
+    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., ports: _Optional[_Iterable[_Union[PortSpec, _Mapping]]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., runtime_class: _Optional[str] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ..., workspace_image: _Optional[_Union[WorkspaceImageSource, _Mapping]] = ...) -> None: ...
 
 class ExecutionLease(_message.Message):
     __slots__ = ("lease_id", "allocation_id", "node_id", "attempt", "lease_type", "plaintext_token", "revision", "expires_at", "revoked", "node_target", "validation_token_hash")

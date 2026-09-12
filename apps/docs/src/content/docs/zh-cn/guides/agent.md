@@ -1,9 +1,9 @@
 ---
 title: 编码 Agent
-description: 在持久的 Axern Workspace 中运行 Codex 或 Claude Code，Provider 凭据留在本机。
+description: 在临时 Axern Sandbox 中运行 Codex 或 Claude Code，Provider 凭据留在本机。
 ---
 
-`axern agent` 为 Codex 和 Claude Code 管理持久的远程编码 Workspace。Workspace 维持一个负责计算的 Service、一个挂载在 `/home/axern/workspace` 的项目数据 Volume，以及每个连接会话一个 Tunnel。Agent bundle 从控制面 Catalog 解析并只读挂载；默认的 `coding-base` 模板决定 Workspace rootfs，而不是 Agent 可执行文件。
+`axern agent` 为 Codex 和 Claude Code 管理远程编码会话。Workspace 维持一个负责计算的 Service、Sandbox 内的 `/home/axern/workspace` 临时工作目录，以及每个连接会话一个 Tunnel。文件只在同一次 Sandbox Allocation 存活期间保留，不提供持久卷、快照或跨节点恢复。Agent bundle 从控制面 Catalog 解析并只读挂载；默认的 `coding-base` 模板决定 Workspace rootfs，而不是 Agent 可执行文件。
 
 Provider token 从不离开你的机器。远端运行时只拿到会话级的本地适配器 token 和 loopback base URL；真实上游凭据由本地凭据代理持有。
 
@@ -62,23 +62,23 @@ axern agent run --workspace project-a --profile dev-claude -- -p "reply ok only"
 
 ## 挂起、切换和删除
 
-结束会话只关闭该连接。挂起计算资源但保留 Workspace 数据：
+结束会话只关闭该连接。文件只在同一次 Sandbox Allocation 存活期间保留；停止计算前请先下载需要的文件：
 
 ```bash
 axern agent list
 axern agent stop --workspace project-a
 ```
 
-`stop` 把 Service 缩容到零，且是幂等的。下一次 `shell`、`run` 或 `connect` 会恢复同一个 Service 和 Volume。运行中的 Workspace 只接受其当前 Profile；要切换 Agent 或模型，先挂起再用另一个 Profile 重连。
+`stop` 把 Service 缩容到零并丢弃 Sandbox 文件，且是幂等的。下一次 `shell`、`run` 或 `connect` 会为同一个 Service 启动全新的空 Sandbox。运行中的 Workspace 只接受其当前 Profile；要切换 Agent 或模型，先停止再用另一个 Profile 重连。
 
-仅在不再需要数据时删除已挂起的 Workspace：
+不再需要配置时，删除已停止的 Workspace Service：
 
 ```bash
 axern agent stop --workspace project-a
 axern agent workspace delete --workspace project-a --yes
 ```
 
-删除会等待 Allocation 释放和物理卷回收。用同名重建 Workspace 会得到新的身份和空数据目录。
+删除会等待 Allocation 释放和 Service 删除完成。用同名重建 Workspace 会得到新的身份和空数据目录。
 
 :::note
 `axern agent` 是交互式开发路径。需要轨迹和证据的可复现 Agent 执行请用 [Axrun](/zh-cn/axrun/)。

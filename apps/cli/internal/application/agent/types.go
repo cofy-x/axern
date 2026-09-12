@@ -28,7 +28,6 @@ const (
 	LabelProfile   = "axern.io/agent-profile"
 	LabelWorkspace = "axern.io/agent-workspace"
 
-	WorkspaceVolumePrefix  = "agent-workspace-"
 	WorkspaceNameMaxLength = 48
 )
 
@@ -133,10 +132,6 @@ func ResolveWorkspaceName(value, profileName string) (string, error) {
 		return "", fmt.Errorf("agent workspace name %q must start with a lowercase letter or digit and contain only lowercase letters, digits, '.', '_', or '-'", name)
 	}
 	return name, nil
-}
-
-func workspaceVolumeName(workspace string) string {
-	return WorkspaceVolumePrefix + workspace
 }
 
 func firstNonEmpty(values ...string) string {

@@ -1,9 +1,9 @@
 .PHONY: node-dev-prepare node-dev-clean \
 		node-dev-ensure-dlv axnoded-debug-server imagemgr-debug-server \
-		postgres-dev-up postgres-dev-down storaged-dev-run controld-dev-prepare controld-dev-run gatewayd-dev-run \
+		postgres-dev-up postgres-dev-down controld-dev-prepare controld-dev-run gatewayd-dev-run \
 		axern-dev axern-dev-build axctl-dev axctl-dev-build egressd-dev-run \
 		dev-runtime-images-build dev-runtime-images-load \
-		axnoded-dev-run imagemgr-dev-run volumed-dev-run imagefsd-dev-serve-chunk \
+		axnoded-dev-run imagemgr-dev-run imagefsd-dev-serve-chunk \
 		dev-stack-up dev-stack-status dev-stack-down dev-stack-restart dev-stack-logs dev-stack-reset \
 		devbox-image-build devbox-up devbox-status devbox-down devbox-shell \
 		devbox-stack-up devbox-stack-status devbox-stack-down devbox-stack-restart devbox-stack-logs devbox-stack-reset \
@@ -13,7 +13,6 @@ NODE_DEV_DIR := $(ROOTDIR)/.dev
 NODE_DEV_RUN_DIR := $(NODE_DEV_DIR)/run
 AXNODED_DEV_DIR := $(NODE_DEV_DIR)/axnoded
 IMAGEMGR_DEV_DIR := $(NODE_DEV_DIR)/imagemgr
-VOLUMED_DEV_DIR := $(NODE_DEV_DIR)/volumed
 EGRESSD_DEV_DIR := $(NODE_DEV_DIR)/egressd
 IMAGEFSD_DEV_DIR := $(NODE_DEV_DIR)/imagefsd
 AXNODED_DEV_DAP_PORT ?= 43001
@@ -119,20 +118,12 @@ controld-dev-run: node-dev-prepare postgres-dev-up ## Run controld in the repo-l
 		-tls-cert '$(NODE_DEV_DIR)/certs/controld.crt' \
 		-tls-key '$(NODE_DEV_DIR)/certs/controld.key' \
 		-secrets-master-key '$(AXERN_SECRETS_MASTER_KEY)' \
-		-storaged-target '127.0.0.1:24020' \
 		-tunnel-relays 'default,127.0.0.1:25000,127.0.0.1:24100,1,false' \
 		-postgres-dsn '$(POSTGRES_DSN)'
 
 controld-dev-prepare: node-dev-prepare postgres-dev-up ## Prepare Postgres and migrations for controld debugging
 	$(call ensure_linux_workspace)
 	bash $(ROOTDIR)/scripts/devbox/stack.sh migrate
-
-storaged-dev-run: node-dev-prepare postgres-dev-up ## Run storaged in the repo-local Linux dev workspace
-	$(call ensure_linux_workspace)
-	exec $(GO) -C $(ROOTDIR)/control/storaged run ./cmd/storaged \
-		-grpc-address 127.0.0.1:24020 \
-		-http-address 127.0.0.1:24021 \
-		-postgres-dsn '$(POSTGRES_DSN)'
 
 gatewayd-dev-run: node-dev-prepare ## Run gatewayd in the repo-local Linux dev workspace
 	$(call ensure_linux_workspace)
@@ -228,14 +219,6 @@ imagemgr-dev-run: node-dev-prepare imagefsd-build ## Run imagemgr in the repo-lo
 		echo "imagemgr requires passwordless sudo inside the Linux workspace."; \
 		exit 1; \
 	fi
-
-volumed-dev-run: node-dev-prepare ## Run volumed in the repo-local Linux dev workspace
-	$(call ensure_linux_workspace)
-	rm -f '$(NODE_DEV_RUN_DIR)/volumed.sock'
-	exec $(GO) -C $(ROOTDIR)/runtime/volumed run ./cmd/volumed \
-		-root '$(VOLUMED_DEV_DIR)' \
-		-socket '$(NODE_DEV_RUN_DIR)/volumed.sock' \
-		-local-root '$(VOLUMED_DEV_DIR)/local'
 
 egressd-dev-run: node-dev-prepare ## Run egressd in the repo-local Linux dev workspace
 	$(call ensure_linux_workspace)

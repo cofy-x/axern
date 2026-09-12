@@ -44,14 +44,12 @@ type apiProfile struct {
 	admin                appadmin.AllocationLifecycleControl
 	adminAudit           appadmin.AuditControl
 	adminReliability     appadmin.ReliabilityControl
-	adminStorage         apiadminv1.Storage
 	adminServices        apiadminv1.Services
 	adminNodes           appadmin.NodeControl
 	public               publicProfile
 	node                 nodeProfile
 	serviceReconciler    servicekernel.Reconciler
 	allocationReconciler servicekernel.AllocationReconciler
-	volumeReclaimWorker  servicekernel.VolumeReclaimDispatcher
 	functionController   *appfunction.Controller
 }
 
@@ -60,7 +58,6 @@ func (a *App) buildAPIs() {
 	profile := a.buildAPIProfile(selector)
 	a.serviceReconciler = profile.serviceReconciler
 	a.allocationReconciler = profile.allocationReconciler
-	a.volumeReclaimWorker = profile.volumeReclaimWorker
 	a.functionController = profile.functionController
 
 	a.adminAPI = apiadminv1.New(apiadminv1.Dependencies{
@@ -68,7 +65,6 @@ func (a *App) buildAPIs() {
 		AllocationLifecycleRetries: profile.admin,
 		AdminAuditEvents:           profile.adminAudit,
 		Reliability:                profile.adminReliability,
-		Storage:                    profile.adminStorage,
 		Services:                   profile.adminServices,
 		Nodes:                      profile.adminNodes,
 		CapabilityDiagnostics:      a.adminPG,
@@ -161,24 +157,16 @@ func (a *App) newAuthoritativeNodeProfile() nodeProfile {
 
 func (a *App) newServiceController(selector *placement.Selector) servicekernel.Controller {
 	return appservice.NewController(appservice.ControllerDeps{
-		Store:           a.servicePG,
-		Autoscaling:     a.servicePG,
-		Allocations:     a.servicePG,
-		Reconcile:       a.servicePG,
-		Statuses:        a.servicePG,
-		Events:          a.servicePG,
-		Environments:    a.runStore,
-		Selector:        selector,
-		Lifecycle:       a.nodeBridge,
-		Storage:         a.storage,
-		NotifyReconcile: a.notifyServiceReconcile,
-		NodeTarget: func(nodeID string) (string, bool) {
-			record, ok := a.registry.Get(nodeID)
-			if !ok || record == nil || !record.Active() || strings.TrimSpace(record.NodeTarget) == "" {
-				return "", false
-			}
-			return record.NodeTarget, true
-		},
+		Store:                              a.servicePG,
+		Autoscaling:                        a.servicePG,
+		Allocations:                        a.servicePG,
+		Reconcile:                          a.servicePG,
+		Statuses:                           a.servicePG,
+		Events:                             a.servicePG,
+		Environments:                       a.runStore,
+		Selector:                           selector,
+		Lifecycle:                          a.nodeBridge,
+		NotifyReconcile:                    a.notifyServiceReconcile,
 		ReconcileConcurrency:               a.serviceReconcileWorkers,
 		AllocationCreateGlobalConcurrency:  a.serviceAllocationGlobalWorkers,
 		AllocationCreatePerNodeConcurrency: a.serviceAllocationWorkersPerNode,
@@ -209,7 +197,7 @@ func (a *App) authoritativeProfile(selector *placement.Selector) apiProfile {
 				return reconcilekernel.EmptyHealthSnapshot()
 			}
 			return a.reconcileHealth.Snapshot()
-		}, a.backgroundReconcileTimeout(), a.storageHealth, nodeHealthSource{store: a.adminPG, heartbeatWindow: a.heartbeatFreshnessWindow, summaryWindow: a.summaryFreshnessWindow}),
+		}, a.backgroundReconcileTimeout(), nodeHealthSource{store: a.adminPG, heartbeatWindow: a.heartbeatFreshnessWindow, summaryWindow: a.summaryFreshnessWindow}),
 		public: a.buildPublicProfile(
 			environments,
 			a.secretDB,
@@ -218,14 +206,10 @@ func (a *App) authoritativeProfile(selector *placement.Selector) apiProfile {
 			functions,
 		),
 	}
-	if a.storageAdmin != nil {
-		profile.adminStorage = appadmin.NewStorageControl(a.storageAdmin, a.adminPG, func() time.Time { return a.now() })
-	}
 	profile.serviceReconciler = services
 	profile.adminServices = appadmin.NewServiceControl(services, a.adminPG)
-	profile.adminNodes = appadmin.NewNodeControl(a.adminPG, a.registry, a.storageAdmin, a.heartbeatFreshnessWindow)
+	profile.adminNodes = appadmin.NewNodeControl(a.adminPG, a.registry, a.heartbeatFreshnessWindow)
 	profile.allocationReconciler = services
-	profile.volumeReclaimWorker = services
 	profile.functionController = functions
 	profile.node = a.newAuthoritativeNodeProfile()
 	return profile

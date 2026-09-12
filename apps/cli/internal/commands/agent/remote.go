@@ -169,10 +169,7 @@ func remoteConfigScript(remotePort int32, profile agentprofile.Profile, localTok
 func agentWorkspaceScript() string {
 	return `set -eu
 agent_workspace="/home/axern/workspace"
-if [ ! -d "${agent_workspace}" ]; then
-  printf 'agent workspace volume is not mounted at %s\n' "${agent_workspace}" >&2
-  exit 1
-fi
+mkdir -p "${agent_workspace}"
 if [ ! -w "${agent_workspace}" ]; then
   sudo chown "$(id -u):$(id -g)" "${agent_workspace}"
   if [ ! -w "${agent_workspace}" ]; then

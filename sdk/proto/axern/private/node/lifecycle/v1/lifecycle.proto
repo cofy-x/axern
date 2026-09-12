@@ -7,8 +7,6 @@ option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifec
 import "axern/control/common/v1/common.proto";
 import "axern/control/catalog/v1/catalog.proto";
 import "axern/control/capability/v1/capability.proto";
-import "axern/control/storage/v1/storage_types.proto";
-import "axern/private/storage/v1/storage.proto";
 import "google/protobuf/duration.proto";
 
 message SandboxMount {
@@ -83,17 +81,7 @@ service NodeLifecycle {
   rpc CreateAllocation(CreateAllocationRequest) returns (CreateAllocationResponse) {}
   rpc DeleteAllocation(DeleteAllocationRequest) returns (DeleteAllocationResponse) {}
   rpc GetAllocationStatus(GetAllocationStatusRequest) returns (GetAllocationStatusResponse) {}
-  rpc DeleteVolume(DeleteVolumeRequest) returns (DeleteVolumeResponse) {}
 }
-
-message DeleteVolumeRequest {
-  string claim_id = 1;
-  axern.control.storage.v1.VolumeBackend backend = 2;
-  string backend_handle = 3;
-  string node_id = 4;
-}
-
-message DeleteVolumeResponse {}
 
 message ResolvedExecutionConfig {
   string environment_id = 1;
@@ -111,21 +99,20 @@ message ResolvedExecutionConfig {
   repeated axern.control.common.v1.PortSpec ports = 13;
   axern.control.common.v1.NetworkSpec network = 14;
   string local_rootfs_path = 15;
-  string stdout_path = 17;
-  string stderr_path = 18;
-  repeated string linux_capabilities = 19;
-  repeated ResolvedSecretEnvVar secret_env = 20;
-  repeated ResolvedSecretFile secret_files = 21;
-  RegistryCredential registry_credential = 22;
-  ResolvedProbe readiness_probe = 23;
-  ResolvedProbe liveness_probe = 24;
-  string namespace = 25;
-  string service_id = 26;
-  axern.control.catalog.v1.RuntimeExecutionProfile execution_profile = 27;
-  repeated axern.private.storage.v1.ResolvedNodeVolume node_volumes = 28;
-  repeated ImageMount image_mounts = 29;
-  WorkspaceImageSource workspace_image = 30;
-  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 31;
+  string stdout_path = 16;
+  string stderr_path = 17;
+  repeated string linux_capabilities = 18;
+  repeated ResolvedSecretEnvVar secret_env = 19;
+  repeated ResolvedSecretFile secret_files = 20;
+  RegistryCredential registry_credential = 21;
+  ResolvedProbe readiness_probe = 22;
+  ResolvedProbe liveness_probe = 23;
+  string namespace = 24;
+  string service_id = 25;
+  axern.control.catalog.v1.RuntimeExecutionProfile execution_profile = 26;
+  repeated ImageMount image_mounts = 27;
+  WorkspaceImageSource workspace_image = 28;
+  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 29;
 }
 
 message CreateAllocationRequest {
@@ -138,13 +125,12 @@ message CreateAllocationRequest {
 message CreateAllocationResponse {
   string allocation_id = 1;
   int64 attempt = 2;
-  repeated axern.private.storage.v1.PublishedNodeVolume published_volumes = 3;
-  axern.control.common.v1.WorkspacePreparationFacts workspace_preparation = 4;
-  axern.control.capability.v1.CapabilityConditionSet capability_verification = 5;
+  axern.control.common.v1.WorkspacePreparationFacts workspace_preparation = 3;
+  axern.control.capability.v1.CapabilityConditionSet capability_verification = 4;
   // The concrete dependency/evidence set admitted by axnoded after the
   // runtime-specific post-create verification. This is authoritative; callers
   // must not reconstruct admitted evidence from conditions.
-  repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 6;
+  repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 5;
 }
 
 message DeleteAllocationRequest {
@@ -154,9 +140,7 @@ message DeleteAllocationRequest {
   int64 timeout_seconds = 4;
 }
 
-message DeleteAllocationResponse {
-  repeated axern.private.storage.v1.VolumeReleaseObservation volume_release_observations = 1;
-}
+message DeleteAllocationResponse {}
 
 message GetAllocationStatusRequest {
   string allocation_id = 1;

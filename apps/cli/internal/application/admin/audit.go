@@ -13,7 +13,6 @@ const (
 	AuditOperationForceAllocationLifecycleRetry = "force-allocation-lifecycle-retry"
 	AuditOperationFailAllocationLifecycleRetry  = "fail-allocation-lifecycle-retry"
 	AuditOperationClearAllocationLifecycleRetry = "clear-allocation-lifecycle-retry"
-	AuditOperationRetryStorageBinding           = "retry-storage-binding"
 	AuditOperationPurgeService                  = "purge-service"
 	AuditOperationRetireNode                    = "retire-node"
 	AuditOperationCreatePrincipal               = "create-principal"
@@ -24,13 +23,12 @@ const (
 	AuditOperationRevokeRoleBinding             = "revoke-role-binding"
 	AuditOperationBootstrapAccess               = "bootstrap-access"
 
-	AuditTargetTypeAllocation     = "allocation"
-	AuditTargetTypeStorageBinding = "storage-binding"
-	AuditTargetTypeService        = "service"
-	AuditTargetTypeNode           = "node"
-	AuditTargetTypePrincipal      = "principal"
-	AuditTargetTypeCredential     = "credential"
-	AuditTargetTypeRoleBinding    = "role-binding"
+	AuditTargetTypeAllocation  = "allocation"
+	AuditTargetTypeService     = "service"
+	AuditTargetTypeNode        = "node"
+	AuditTargetTypePrincipal   = "principal"
+	AuditTargetTypeCredential  = "credential"
+	AuditTargetTypeRoleBinding = "role-binding"
 )
 
 type AuditClient interface {
@@ -71,8 +69,6 @@ func ParseAuditOperation(value string) adminv1.AdminAuditOperation {
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_FAIL_ALLOCATION_LIFECYCLE_RETRY
 	case AuditOperationClearAllocationLifecycleRetry:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY
-	case AuditOperationRetryStorageBinding:
-		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETRY_STORAGE_BINDING
 	case AuditOperationPurgeService:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_PURGE_SERVICE
 	case AuditOperationRetireNode:
@@ -111,8 +107,6 @@ func ParseAuditTargetType(value string) adminv1.AdminAuditTargetType {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case AuditTargetTypeAllocation:
 		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_ALLOCATION
-	case AuditTargetTypeStorageBinding:
-		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_STORAGE_BINDING
 	case AuditTargetTypeService:
 		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_SERVICE
 	case AuditTargetTypeNode:

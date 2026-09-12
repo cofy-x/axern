@@ -364,8 +364,6 @@ func publicPolicy(method string) (methodPolicy, bool) {
 		return exactPolicy(methodName, accesskernel.ActionPlatformAdmin, "", "ListAllocationLifecycleRetries", "ForceAllocationLifecycleRetry", "FailAllocationLifecycleRetry", "ClearAllocationLifecycleRetry")
 	case "axern.control.admin.v1.ServiceAdmin":
 		return exactPolicy(methodName, accesskernel.ActionPlatformAdmin, "", "PurgeService")
-	case "axern.control.admin.v1.StorageAdmin":
-		return exactPolicy(methodName, accesskernel.ActionPlatformAdmin, "", "ListStorageBindings", "RetryStorageBinding", "ListStorageReclaims")
 	case "axern.control.namespace.v1.NamespaceControl":
 		if policy, ok := exactPolicy(methodName, accesskernel.ActionNamespaceManage, "", "CreateNamespace", "DeleteNamespace"); ok {
 			return policy, true

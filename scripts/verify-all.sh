@@ -8,7 +8,6 @@ from_step=""
 to_step=""
 include_proto_breaking=false
 include_bpfnet_generate_check=false
-include_local_storage=false
 include_axrun=false
 bootstrap_first=false
 
@@ -23,8 +22,6 @@ Options:
   --bootstrap            Run `make bootstrap` before validation.
   --include-bpfnet-generate-check
                          Include slow `make -C network/bpfnet generate-check`.
-  --include-local-storage
-                         Include compose and kind service-volume truth-path smokes.
   --include-axrun
                          Include Axrun tests, vet, and local acceptance gates.
   --list                 List the ordered validation steps and exit.
@@ -40,8 +37,6 @@ Notes:
   - Proto breaking checks are opt-in during the active V1 control-plane reset.
   - `network/bpfnet generate-check` is opt-in because it is slow and only
     relevant when the committed tc artifacts may have changed.
-  - `local-storage-verify` is opt-in because it requires live compose and kind
-    truth environments.
   - `axrun-verify` is opt-in because local acceptance smoke runs are heavier
     than standard workspace unit tests.
   - It intentionally excludes demos, benchmarks, perf profiles, and optional
@@ -58,10 +53,6 @@ while (($# > 0)); do
       ;;
     --include-bpfnet-generate-check)
       include_bpfnet_generate_check=true
-      shift
-      ;;
-    --include-local-storage)
-      include_local_storage=true
       shift
       ;;
     --include-axrun)
@@ -157,7 +148,6 @@ describe_step() {
       ;;
     axern-cli-e2e) echo "Run product CLI end-to-end verification" ;;
     axrun-verify) echo "Run Axrun package tests, vet, formatting, and local acceptance gates" ;;
-    local-storage-verify) echo "Run compose and kind service-volume truth-path smokes" ;;
     axnoded-verify-docker-runsc) echo "Run axnoded Docker truth-path verification for runsc" ;;
     axnoded-verify-docker-runsc-ebpf) echo "Run axnoded Docker truth-path verification for runsc with ebpf NAT" ;;
     axnoded-verify-bpfnetctl-e2e) echo "Run bpfnetctl JSON readiness E2E against the axnoded ebpf dashboard demo" ;;
@@ -167,7 +157,6 @@ describe_step() {
     axnoded-verify-node-startup-metrics-e2e) echo "Run axnoded startup metrics E2E" ;;
     axnoded-verify-node-startup-matrix-smoke) echo "Run axnoded startup matrix smoke verification" ;;
     axnoded-verify-node-bundle-template-e2e) echo "Run axnoded bundle-template reuse E2E" ;;
-    axnoded-verify-node-service-volumes-e2e) echo "Run axnoded service node-local volume persistence E2E" ;;
     axnoded-verify-node-python-runtime-e2e) echo "Run axnoded programmable Python runtime E2E" ;;
     axnoded-verify-node-retention-e2e) echo "Run axnoded runtime retention E2E" ;;
     axnoded-verify-node-locality-e2e) echo "Run axnoded locality signals E2E" ;;
@@ -241,9 +230,6 @@ run_step() {
     axrun-verify)
       run_cmd make axrun-verify
       ;;
-    local-storage-verify)
-      run_cmd make local-storage-verify
-      ;;
     axnoded-verify-docker-runsc)
       run_cmd make -C runtime/axnoded verify-docker-runsc
       ;;
@@ -270,9 +256,6 @@ run_step() {
       ;;
     axnoded-verify-node-bundle-template-e2e)
       run_cmd make -C runtime/axnoded verify-node-bundle-template-e2e
-      ;;
-    axnoded-verify-node-service-volumes-e2e)
-      run_cmd make -C runtime/axnoded verify-node-service-volumes-e2e
       ;;
     axnoded-verify-node-python-runtime-e2e)
       run_cmd make -C runtime/axnoded verify-node-python-runtime-e2e
@@ -331,10 +314,6 @@ if [ "${include_axrun}" = true ]; then
   steps+=(axrun-verify)
 fi
 
-if [ "${include_local_storage}" = true ]; then
-  steps+=(local-storage-verify)
-fi
-
 steps+=(
   axnoded-verify-docker-runsc
   axnoded-verify-docker-runsc-ebpf
@@ -345,7 +324,6 @@ steps+=(
   axnoded-verify-node-startup-metrics-e2e
   axnoded-verify-node-startup-matrix-smoke
   axnoded-verify-node-bundle-template-e2e
-  axnoded-verify-node-service-volumes-e2e
   axnoded-verify-node-python-runtime-e2e
   axnoded-verify-node-retention-e2e
   axnoded-verify-node-locality-e2e

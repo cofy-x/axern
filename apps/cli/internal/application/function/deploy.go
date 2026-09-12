@@ -22,7 +22,6 @@ type DeployParams struct {
 
 	Env           map[string]string
 	Resources     *commonv1.ResourceSpec
-	VolumeMounts  []*commonv1.ServiceVolumeMount
 	EnvironmentID string
 	Environment   *environmentv1.EnvironmentSpec
 
@@ -67,16 +66,13 @@ func (c Control) Deploy(ctx context.Context, params DeployParams) (*functionv1.D
 			spec.Scaling.IdleTimeout = &durationpb.Duration{Seconds: int64(params.Scaling.IdleSeconds)}
 		}
 	}
-	if len(params.Env) > 0 || params.Resources != nil || len(params.VolumeMounts) > 0 {
+	if len(params.Env) > 0 || params.Resources != nil {
 		config := &commonv1.ExecutionConfig{}
 		if len(params.Env) > 0 {
 			config.Env = params.Env
 		}
 		if params.Resources != nil {
 			config.Resources = params.Resources
-		}
-		if len(params.VolumeMounts) > 0 {
-			config.VolumeMounts = params.VolumeMounts
 		}
 		spec.Config = config
 	}

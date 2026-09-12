@@ -59,7 +59,6 @@ run_with_retry 2 make kind-refresh
 log "running kind smoke suite"
 run_with_retry 2 make kind-smoke
 run_with_retry 2 make kind-gateway-smoke
-run_with_retry 2 make kind-service-volume-smoke
 run_with_retry 2 make kind-run-smoke
 run_with_retry 2 make kind-server-base-smoke
 run_with_retry 2 make kind-quota-smoke

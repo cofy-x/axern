@@ -22,8 +22,6 @@ const (
 	ReliabilitySignalConsistencyIssues          ReliabilitySignalCode = "consistency_issues"
 	ReliabilitySignalAllocationLifecycleRetries ReliabilitySignalCode = "allocation_lifecycle_retries"
 	ReliabilitySignalReconcileFailures          ReliabilitySignalCode = "reconcile_failures"
-	ReliabilitySignalStorageBindings            ReliabilitySignalCode = "storage_bindings"
-	ReliabilitySignalNodeVolumeManagers         ReliabilitySignalCode = "node_volume_managers"
 	ReliabilitySignalNodeFleet                  ReliabilitySignalCode = "node_fleet"
 )
 
@@ -43,31 +41,9 @@ type ReliabilityHealth struct {
 	AllocationLifecycleRetries    int64
 	DueAllocationLifecycleRetries int64
 	ReconcileUnhealthyComponents  int64
-	StorageBindingHealth          StorageBindingHealth
-	NodeVolumeHealth              NodeVolumeHealth
 	NodeFleetHealth               NodeFleetHealth
 	ReconcileComponents           []reconcilekernel.ComponentHealth
 	Signals                       []ReliabilitySignal
-}
-
-type StorageBindingHealth struct {
-	Unavailable            bool
-	Error                  string
-	FailedBindings         int64
-	ReleasingBindings      int64
-	StuckReleasingBindings int64
-	InconsistentClaims     int64
-	InvalidBindings        int64
-	DeletingClaims         int64
-	StuckDeletingClaims    int64
-}
-
-type NodeVolumeHealth struct {
-	UnhealthyNodes                int64
-	PublishedVolumes              int64
-	LastReconcileStaleAllocations int64
-	LastReconcileInvalidVolumes   int64
-	Error                         string
 }
 
 type NodeFleetHealth struct {
@@ -81,7 +57,7 @@ type NodeFleetHealth struct {
 	NotReadyNodes       int64
 }
 
-func BuildReliabilityHealth(consistency consistencykernel.Snapshot, retryCounts AllocationLifecycleRetryCounts, reconcile reconcilekernel.HealthSnapshot, reconcileStuckAfter time.Duration, storage StorageBindingHealth, nodeVolumes NodeVolumeHealth, nodeFleet NodeFleetHealth, now time.Time) ReliabilityHealth {
+func BuildReliabilityHealth(consistency consistencykernel.Snapshot, retryCounts AllocationLifecycleRetryCounts, reconcile reconcilekernel.HealthSnapshot, reconcileStuckAfter time.Duration, nodeFleet NodeFleetHealth, now time.Time) ReliabilityHealth {
 	signals := make([]ReliabilitySignal, 0, 6)
 	if consistency.Status != consistencykernel.StatusOK {
 		signals = append(signals, ReliabilitySignal{
@@ -103,37 +79,6 @@ func BuildReliabilityHealth(consistency consistencykernel.Snapshot, retryCounts 
 		}
 		signals = append(signals, ReliabilitySignal{
 			Code:    ReliabilitySignalReconcileFailures,
-			Message: message,
-		})
-	}
-	if storage.Unavailable {
-		message := strings.TrimSpace(storage.Error)
-		if message == "" {
-			message = "storage binding health is unavailable"
-		}
-		signals = append(signals, ReliabilitySignal{
-			Code:    ReliabilitySignalStorageBindings,
-			Message: message,
-		})
-	} else if storage.FailedBindings > 0 || storage.StuckReleasingBindings > 0 || storage.StuckDeletingClaims > 0 || storage.InconsistentClaims > 0 || storage.InvalidBindings > 0 {
-		signals = append(signals, ReliabilitySignal{
-			Code:    ReliabilitySignalStorageBindings,
-			Message: storageBindingSignalMessage(storage),
-		})
-	}
-	if nodeVolumes.UnhealthyNodes > 0 {
-		message := fmt.Sprintf("%d node(s) report unhealthy volume manager (%d published volume(s), last reconcile: %d stale allocation(s), %d invalid volume(s))",
-			nodeVolumes.UnhealthyNodes,
-			nodeVolumes.PublishedVolumes,
-			nodeVolumes.LastReconcileStaleAllocations,
-			nodeVolumes.LastReconcileInvalidVolumes,
-		)
-		if strings.TrimSpace(nodeVolumes.Error) != "" {
-			message = fmt.Sprintf("%s: %s", message, strings.TrimSpace(nodeVolumes.Error))
-		}
-		message += "; inspect node volumed health before retrying affected bindings"
-		signals = append(signals, ReliabilitySignal{
-			Code:    ReliabilitySignalNodeVolumeManagers,
 			Message: message,
 		})
 	}
@@ -161,27 +106,8 @@ func BuildReliabilityHealth(consistency consistencykernel.Snapshot, retryCounts 
 		AllocationLifecycleRetries:    retryCounts.Total,
 		DueAllocationLifecycleRetries: retryCounts.Due,
 		ReconcileUnhealthyComponents:  unhealthyReconcile,
-		StorageBindingHealth:          storage,
-		NodeVolumeHealth:              nodeVolumes,
 		NodeFleetHealth:               nodeFleet,
 		ReconcileComponents:           append([]reconcilekernel.ComponentHealth(nil), reconcile.Components...),
 		Signals:                       signals,
 	}
-}
-
-func storageBindingSignalMessage(storage StorageBindingHealth) string {
-	message := fmt.Sprintf("%d failed storage binding(s), %d stuck releasing", storage.FailedBindings, storage.StuckReleasingBindings)
-	if storage.FailedBindings > 0 {
-		message += "; list failed bindings and retry after fixing the node/storage cause"
-	}
-	if storage.StuckReleasingBindings > 0 {
-		message += "; inspect release observations for stuck bindings"
-	}
-	if storage.StuckDeletingClaims > 0 {
-		message += fmt.Sprintf(", %d stuck deleting claim(s); inspect node reachability and volume reclaim errors", storage.StuckDeletingClaims)
-	}
-	if storage.InconsistentClaims > 0 || storage.InvalidBindings > 0 {
-		message += fmt.Sprintf("; storage consistency has %d inconsistent claim(s), %d invalid binding(s)", storage.InconsistentClaims, storage.InvalidBindings)
-	}
-	return message
 }

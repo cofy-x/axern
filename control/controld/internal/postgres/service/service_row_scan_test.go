@@ -10,6 +10,7 @@ import (
 )
 
 type cannedServiceRow struct {
+	config         []byte
 	deletionStatus []byte
 }
 
@@ -18,10 +19,14 @@ func (r cannedServiceRow) Scan(dest ...any) error {
 		return fmt.Errorf("unexpected scan destination count: %d", len(dest))
 	}
 	now := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
+	config := r.config
+	if len(config) == 0 {
+		config = []byte("{}")
+	}
 	values := []any{
 		"svc-1", "default", "env-1", int32(0), int32(0), int32(0),
 		[]byte("{}"), []byte("null"), []byte("null"), []byte("null"), []byte("null"),
-		"SERVICE_STATUS_DELETING", []byte("{}"), []byte("[]"), []byte("{}"),
+		"SERVICE_STATUS_DELETING", config, []byte("[]"), []byte("{}"),
 		int64(3), now, now, "releasing", "WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED",
 		r.deletionStatus,
 	}
@@ -50,10 +55,8 @@ func (r cannedServiceRow) Scan(dest ...any) error {
 
 func TestScanServiceRestoresDeletionStatus(t *testing.T) {
 	payload, err := protojson.Marshal(&servicev1.ServiceDeletionStatus{
-		Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES,
-		VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE,
-		ClaimIds:          []string{"claim-1", "claim-2"},
-		Message:           "reclaiming service volumes",
+		Phase:   servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
+		Message: "releasing service allocations",
 	})
 	if err != nil {
 		t.Fatalf("marshal deletion status: %v", err)
@@ -66,10 +69,8 @@ func TestScanServiceRestoresDeletionStatus(t *testing.T) {
 	if deletion == nil {
 		t.Fatal("scanService() deletion status = nil, want restored value")
 	}
-	if deletion.GetPhase() != servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES ||
-		deletion.GetVolumeDisposition() != servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE ||
-		len(deletion.GetClaimIds()) != 2 || deletion.GetClaimIds()[0] != "claim-1" ||
-		deletion.GetMessage() != "reclaiming service volumes" {
+	if deletion.GetPhase() != servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS ||
+		deletion.GetMessage() != "releasing service allocations" {
 		t.Fatalf("scanService() deletion status = %#v", deletion)
 	}
 }
@@ -87,6 +88,21 @@ func TestScanServiceTreatsNullDeletionStatusAsAbsent(t *testing.T) {
 			}
 			if service.GetDeletionStatus() != nil {
 				t.Fatalf("scanService() deletion status = %#v, want nil", service.GetDeletionStatus())
+			}
+		})
+	}
+}
+
+func TestScanServiceRejectsRetiredVolumePayloads(t *testing.T) {
+	for name, row := range map[string]cannedServiceRow{
+		"volume config":      {config: []byte(`{"volumeMounts":[{"name":"data","target":"/data"}]}`)},
+		"volume disposition": {deletionStatus: []byte(`{"volumeDisposition":"SERVICE_VOLUME_DISPOSITION_RETAIN"}`)},
+		"claim identity":     {deletionStatus: []byte(`{"claimIds":["retained-claim"]}`)},
+		"reclaim phase":      {deletionStatus: []byte(`{"phase":"SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES"}`)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if service, err := scanService(row); err == nil || service != nil {
+				t.Fatalf("retired storage payload accepted: service=%v error=%v", service, err)
 			}
 		})
 	}

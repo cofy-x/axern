@@ -19,7 +19,6 @@ func (h *sandboxService) allocationOptions() allocation.Options {
 		},
 		RuntimeHandler:              h.runtimeHandler,
 		LangRuntime:                 h.lrtManager,
-		Volumes:                     h.volumes,
 		Networking:                  h.networking,
 		Probes:                      h.probeCoordinator,
 		ReportStatus:                h.ReportAllocationStatus,

@@ -34,7 +34,6 @@ README or `docs/`, not here.
   | [`internal/service/probes`](internal/service/probes) | readiness/liveness worker state, probe target status mapping, sandboxd probe adapters, liveness failure cleanup/report shaping |
   | [`internal/service/sandboxaccess`](internal/service/sandboxaccess) | sandbox-local file, browser, computer-use, diagnostics, and capability operations |
   | [`internal/service/startplan`](internal/service/startplan) | pure start request normalization and container request builders |
-  | [`internal/service/volumes`](internal/service/volumes) | node-volume publish, unpublish, list, and reconcile orchestration |
 
   Do not add additional `internal/service/*` packages without updating
   `make check-architecture`.

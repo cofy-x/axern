@@ -13,11 +13,9 @@ flowchart LR
     Clients["CLI · SDKs · Axrun"] --> Gateway["gatewayd\npublic control + data edge"]
     Gateway --> Control["controld\ndurable intent + placement"]
     Control --> Postgres[(PostgreSQL)]
-    Control --> Storage["storaged\nvolume intent"]
     Control --> Node["axnoded\nsandbox lifecycle"]
     Gateway --> Node
     Gateway --> Tunnel["tunneld\nreverse TCP relay"]
-    Storage --> Volume["volumed\nnode publish"]
     Node --> Image["imagemgr + imagefsd\nOCI + Nydus"]
     Node --> Runtime["runsc"]
 ```
@@ -27,10 +25,10 @@ flowchart LR
 - **Gateway:** authenticates public clients and forwards control, process,
   file, service, terminal, artifact, and tunnel traffic.
 - **Control plane:** persists resources and coordinates placement, leases,
-  retries, health, cleanup, rollouts, and storage intent.
+  retries, health, cleanup, and rollouts.
 - **Node runtime:** owns sandbox processes, filesystems, images, networking
   (an eBPF NAT dataplane with an explicit iptables rollback; see
-  [Node Networking](/architecture/networking/)), volumes, probes,
+  [Node Networking](/architecture/networking/)), probes,
   and node-local reconciliation.
 - **SDKs and Axrun:** compose public APIs without depending on node-private or
   database internals.

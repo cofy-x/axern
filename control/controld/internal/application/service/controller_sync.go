@@ -279,36 +279,7 @@ func (c *controller) syncDeleted(ctx context.Context, current *servicev1.Service
 	if deletion.GetPhase() == servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE {
 		return next, nil
 	}
-	if c.storage == nil {
-		if len(next.GetConfig().GetVolumeMounts()) == 0 && len(deletion.GetClaimIds()) == 0 {
-			return c.completeServiceDeletion(ctx, next, nil, now)
-		}
-		return current, fmt.Errorf("service storage coordinator is required for volume disposition")
-	}
-	if deletion.GetVolumeDisposition() != servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE {
-		// Retained volumes stay re-attachable: release the owner so a
-		// future workload can claim the same claim and backend.
-		if _, err := c.storage.ReleaseWorkloadVolumeClaims(ctx, next.GetNamespace(), next.GetID()); err != nil {
-			return current, err
-		}
-		return c.completeServiceDeletion(ctx, next, nil, now)
-	}
-	result, err := c.storage.DeleteWorkloadVolumeClaims(ctx, next.GetNamespace(), next.GetID())
-	if err != nil {
-		return current, err
-	}
-	claimIDs := append([]string(nil), deletion.GetClaimIds()...)
-	for _, claimID := range result.GetClaimIds() {
-		claimIDs = appendUniqueString(claimIDs, claimID)
-	}
-	if result.GetComplete() {
-		return c.completeServiceDeletion(ctx, next, claimIDs, now)
-	}
-	return c.statuses.UpdateDeletionStatus(ctx, next.GetID(), &servicev1.ServiceDeletionStatus{
-		Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES,
-		VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE,
-		ClaimIds:          claimIDs, Message: "reclaiming service volumes",
-	}, now)
+	return c.completeServiceDeletion(ctx, next, now)
 }
 
 func hasUnreleasedAllocations(allocations []*servicekernel.AllocationRecord) bool {
@@ -320,51 +291,19 @@ func hasUnreleasedAllocations(allocations []*servicekernel.AllocationRecord) boo
 	return false
 }
 
-func allocationTargetForNode(allocations []*servicekernel.AllocationRecord, nodeID string) string {
-	for i := len(allocations) - 1; i >= 0; i-- {
-		if allocations[i] != nil && allocations[i].NodeID == nodeID && allocations[i].NodeTarget != "" {
-			return allocations[i].NodeTarget
-		}
-	}
-	return ""
-}
-
-func appendUniqueString(values []string, value string) []string {
-	for _, existing := range values {
-		if existing == value {
-			return values
-		}
-	}
-	if value != "" {
-		return append(values, value)
-	}
-	return values
-}
-
-func errorMessage(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
-}
-
-func (c *controller) completeServiceDeletion(ctx context.Context, service *servicev1.Service, claimIDs []string, now time.Time) (*servicev1.Service, error) {
-	disposition := servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_RETAIN
-	if service.GetDeletionStatus() != nil {
-		disposition = service.GetDeletionStatus().GetVolumeDisposition()
-	}
+func (c *controller) completeServiceDeletion(ctx context.Context, service *servicev1.Service, now time.Time) (*servicev1.Service, error) {
 	// Persist the terminal audit event before making the tombstone complete.
 	// A failed status write may produce a duplicate event on retry, but it can
 	// never leave a terminal deletion without its completion audit record.
 	if err := c.recordEvent(ctx, servicekernel.NewServiceEvent(service.GetID(), "",
 		servicev1.ServiceEventType_SERVICE_EVENT_TYPE_DELETION_COMPLETED,
 		servicev1.ServiceRolloutPhase_SERVICE_ROLLOUT_PHASE_UNSPECIFIED,
-		service.GetDiagnosticCode(), "service deletion and volume disposition complete", now)); err != nil {
+		service.GetDiagnosticCode(), "service deletion complete", now)); err != nil {
 		return service, err
 	}
 	return c.statuses.UpdateDeletionStatus(ctx, service.GetID(), &servicev1.ServiceDeletionStatus{
-		Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE,
-		VolumeDisposition: disposition, ClaimIds: claimIDs, Message: "service deletion complete", CompletedAt: timestamppb.New(now),
+		Phase:   servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE,
+		Message: "service deletion complete", CompletedAt: timestamppb.New(now),
 	}, now)
 }
 

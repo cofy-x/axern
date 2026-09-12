@@ -2,7 +2,6 @@ package parse
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -13,46 +12,6 @@ const (
 	validServiceReplicaViews = "all, current, ended, unhealthy, outdated, updated"
 	validServiceStatuses     = "reconciling, ready, degraded, failed, deleting, deleted"
 )
-
-func ServiceVolumeMounts(values []string) ([]*commonv1.ServiceVolumeMount, error) {
-	if len(values) == 0 {
-		return nil, nil
-	}
-	out := make([]*commonv1.ServiceVolumeMount, 0, len(values))
-	for _, value := range values {
-		parts := strings.SplitN(value, ":", 3)
-		if len(parts) < 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
-			return nil, fmt.Errorf("invalid volume %q, want name:/container/path[:options]", value)
-		}
-		mount := &commonv1.ServiceVolumeMount{
-			Name:   strings.TrimSpace(parts[0]),
-			Target: strings.TrimSpace(parts[1]),
-		}
-		explicitRW := false
-		if len(parts) == 3 {
-			for _, option := range splitList([]string{parts[2]}) {
-				switch option {
-				case "ro":
-					if explicitRW {
-						return nil, fmt.Errorf("invalid volume %q, ro and rw cannot be combined", value)
-					}
-					mount.Readonly = true
-				case "rw":
-					if mount.Readonly {
-						return nil, fmt.Errorf("invalid volume %q, ro and rw cannot be combined", value)
-					}
-					explicitRW = true
-				default:
-					if !slices.Contains(mount.Options, option) {
-						mount.Options = append(mount.Options, option)
-					}
-				}
-			}
-		}
-		out = append(out, mount)
-	}
-	return out, nil
-}
 
 func ImageMounts(values []string) ([]*commonv1.ImageMount, error) {
 	if len(values) == 0 {

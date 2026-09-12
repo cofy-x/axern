@@ -72,7 +72,6 @@ run_with_retry 2 env AXERN_SKIP_LOCAL_IMAGES_BUILD=1 make local-compose-reset
 log "running compose smoke suite"
 run_with_retry 2 make local-compose-smoke
 run_with_retry 2 make local-compose-gateway-smoke
-run_with_retry 2 make local-compose-service-volume-smoke
 run_with_retry 2 make local-compose-run-smoke
 run_with_retry 2 make local-compose-server-base-smoke
 run_with_retry 2 make local-compose-quota-smoke
@@ -84,7 +83,6 @@ run_with_retry 2 make local-compose-image-service-smoke
 log "running kind smoke suite"
 run_with_retry 2 make kind-smoke
 run_with_retry 2 make kind-gateway-smoke
-run_with_retry 2 make kind-service-volume-smoke
 run_with_retry 2 make kind-run-smoke
 run_with_retry 2 make kind-server-base-smoke
 run_with_retry 2 make kind-quota-smoke

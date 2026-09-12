@@ -73,7 +73,6 @@ export type {
   TunnelOptions,
   UploadArchiveOptions,
   UploadDirOptions,
-  VolumeMount,
   WriteFileOptions,
 } from "./types.js";
 export { workspaceMount } from "./types.js";

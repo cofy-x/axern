@@ -60,10 +60,8 @@ func newTestService(t *testing.T, handlers map[string]contract.RuntimeHandler) *
 		containerManager: cm,
 		store:            storetest.NewMockStore(),
 		lrtManager:       langrtmanager.NewLanguageRuntimeManager(),
-		volumeClient:     fakeVolumePublisher{},
 	}
 	s.configureProbeCoordinator()
-	s.configureVolumeCoordinator()
 	s.configureSandboxTargets()
 	s.configureSandboxAccess()
 	s.configureNetworking()

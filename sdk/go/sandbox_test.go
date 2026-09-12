@@ -59,12 +59,6 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 		NetworkPolicy:         policy,
 		ReadyTimeout:          time.Second,
 		ExtensionCapabilities: []ExtensionCapability{{Name: "example.com/accelerator", Value: "v1"}},
-		Volumes: []VolumeMount{{
-			Name:     "workspace",
-			Target:   "/workspace",
-			Readonly: true,
-			Options:  []string{"rbind"},
-		}},
 		ImageMounts: []ImageMount{{
 			Image:  "example.com/axern/codex-tool:latest",
 			Target: "/opt/axern/tools/codex",
@@ -103,9 +97,6 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	}
 	if metadata.EnvironmentID != "env-1" || metadata.ServiceID != "svc-1" || metadata.AllocationID != "alloc-1" || metadata.Attempt != 2 || metadata.NodeID != "node-1" {
 		t.Fatalf("unexpected metadata: %+v", metadata)
-	}
-	if got := fake.createServiceRequest.GetConfig().GetVolumeMounts(); len(got) != 1 || got[0].GetName() != "workspace" || got[0].GetTarget() != "/workspace" || !got[0].GetReadonly() || len(got[0].GetOptions()) != 1 || got[0].GetOptions()[0] != "rbind" {
-		t.Fatalf("unexpected service volume mounts: %#v", got)
 	}
 	if got := fake.createServiceRequest.GetConfig().GetImageMounts(); len(got) != 1 || got[0].GetImage() != "example.com/axern/codex-tool:latest" || got[0].GetTarget() != "/opt/axern/tools/codex" || !got[0].GetReadonly() {
 		t.Fatalf("unexpected image mounts: %#v", got)

@@ -94,7 +94,6 @@ func (h *sandboxService) initNodeInventory() error {
 		NodeState:                 h.config.PluginConfig.ControlPlaneNodeStateValue(),
 		NodeLabels:                h.config.PluginConfig.ControlPlaneNodeLabelsValue(),
 		CapabilitySnapshot:        h.currentCapabilitySnapshot,
-		VolumeHealth:              h.volumeClient.Health,
 		StorageTargets:            storageTargets,
 		RuntimeSlotCapacity:       h.config.PluginConfig.ResourceConfig.MaxInstanceNum,
 		MemoryBudgetEnabled:       true,

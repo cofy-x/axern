@@ -46,36 +46,6 @@ func ClassifyDiagnostic(status commonv1.AllocationStatus, message string) common
 	):
 		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_IMAGE_RESOLUTION_ERROR
 	case containsDiagnosticToken(message,
-		"service volume topology",
-		"volume topology",
-		"storage topology",
-	):
-		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_STORAGE_TOPOLOGY_UNSATISFIED
-	case containsDiagnosticToken(message,
-		"volume spec conflict",
-		"different resolved volume",
-		"already exists with a different resolved volume",
-	):
-		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT
-	case containsDiagnosticToken(message,
-		"storage reserve failed",
-		"volume binding reserve",
-		"reserve volume binding",
-	):
-		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_STORAGE_RESERVE_ERROR
-	case containsDiagnosticToken(message,
-		"volume release failed",
-		"release volume",
-		"unpublish volume",
-	):
-		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR
-	case containsDiagnosticToken(message,
-		"volume publish failed",
-		"publish volume",
-		"volumed",
-	):
-		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_VOLUME_PUBLISH_ERROR
-	case containsDiagnosticToken(message,
 		"no eligible node",
 		"no candidates",
 		"candidate selection",

@@ -145,7 +145,7 @@ optional field that an older runtime may ignore. See
 Node rows are durable identities with `active` and `retired` states. Placement
 and node authentication accept only active identities. `axern admin node
 retire` locks the node, requires a stale heartbeat, and rejects retirement
-while control-plane lifecycle or storage work still references it. Successful
+while control-plane lifecycle work still references it. Successful
 retirement and its operator reason are committed with one audit event. `axern
 admin reliability check` evaluates only active nodes and reports stale
 heartbeat, stale summary, and non-ready axnoded counts.
@@ -242,10 +242,6 @@ Common optional environment variables:
   invocation concurrency; `0` uses the application default of 16.
 - `-reconcile-timeout`: maximum duration of one background reconcile operation;
   `0` uses the application default of `30s`.
-- `-volume-reclaim-workers`: global bounded physical Volume reclaim
-  concurrency; `0` uses the application default of 8.
-- `-volume-reclaim-workers-per-node`: per-node physical Volume reclaim
-  concurrency; `0` uses the application default of 2.
 - `CONTROLD_FUNCTION_BUNDLE_BASE_URL`: base HTTP URL advertised to Function
   workers for uploaded bundle downloads.
 - `CONTROLD_FUNCTION_BUNDLE_TOKEN`: bearer token required by the controld
@@ -264,14 +260,6 @@ the reconciler. Delivery is at-least-once and the stable invocation ID is
 forwarded to the worker for application-level deduplication. Active invocations
 prevent Function revision replacement and deletion so execution cannot silently
 cross a revision boundary.
-
-Physical Volume reclaim runs in a dedicated bounded dispatcher rather than the
-Service recovery sweep. Storaged atomically leases one due Claim at a time with
-PostgreSQL `SKIP LOCKED`, database-clock expiry, and owner, token, and generation
-fencing. The dispatcher excludes nodes at their local concurrency ceiling, so a
-slow or unavailable node cannot consume the cluster-wide worker budget. Service
-deletion persists reclaim intent and completes after the dispatcher reports the
-physical result; it never performs a second inline deletion path.
 
 ## API Surface
 
@@ -302,15 +290,14 @@ Control-plane coordination and internal calls:
 
 - `sdk/proto/axern/control/node/v1/node_control.proto`
 - `sdk/proto/axern/private/node/lifecycle/v1/lifecycle.proto`
-- `sdk/proto/axern/private/storage/v1/storage.proto`
 - `sdk/proto/axern/private/rollout/worker/v1/worker.proto`
 - `sdk/proto/axern/private/rollout/artifact/v1/artifact.proto`
 
-Service node-local volume intent is resolved into private storage
-`ResolvedNodeVolume` specs before node lifecycle dispatch. `controld` remains
-the control-plane-to-node transport owner, reports node publish and release
-observations back to `storaged`, and keeps storage class, claim, and binding
-ownership under [`../storaged`](../storaged/README.md).
+Persistent-volume product APIs are not supported. Sandbox-lifetime writable
+rootfs and workspace-image preparation stay on the allocation path; durable
+artifact storage is separate. Startup refuses legacy Claim or Binding rows,
+including tombstones. No automatic export, row deletion, or physical reclaim
+is performed; see [Retired Volume Data](docs/retired-volume-data.md).
 
 The HTTP listener exposes diagnostics and internal runtime artifact downloads.
 Diagnostic endpoints are read-only:
@@ -340,6 +327,7 @@ Internal runtime endpoints:
 - [Resource admission](docs/resource-admission.md)
 - [Resource quota](docs/resource-quota.md)
 - [Postgres schema design](docs/postgres-schema-design.md)
+- [Retired volume data](docs/retired-volume-data.md)
 
 ## Architecture
 

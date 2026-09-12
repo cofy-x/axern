@@ -13,12 +13,12 @@ func TestListRuntimesQueriesAllNamespacesAndDerivesLifecycle(t *testing.T) {
 		Services: []*servicev1.Service{{
 			ID: "svc-b", Namespace: "default", Status: servicev1.ServiceStatus_SERVICE_STATUS_READY,
 			Replicas: 1, ReadyReplicas: 1, EnvironmentID: "env-b",
-			Config: workspaceExecutionConfig("project-b", testBundleRuntime()),
+			Config: workspaceExecutionConfig(testBundleRuntime()),
 			Labels: map[string]string{LabelWorkflow: "agent", LabelWorkspace: "project-b", LabelAgent: "codex", LabelProfile: "b"},
 		}, {
 			ID: "svc-a", Namespace: "agents", Status: servicev1.ServiceStatus_SERVICE_STATUS_READY,
 			Replicas: 0, EnvironmentID: "env-a",
-			Config: workspaceExecutionConfig("project-a", testBundleRuntime()),
+			Config: workspaceExecutionConfig(testBundleRuntime()),
 			Labels: map[string]string{LabelWorkflow: "agent", LabelWorkspace: "project-a", LabelAgent: "claude-code", LabelProfile: "a"},
 		}, {
 			ID: "svc-unrelated", Namespace: "agents", Status: servicev1.ServiceStatus_SERVICE_STATUS_READY,
@@ -31,7 +31,7 @@ func TestListRuntimesQueriesAllNamespacesAndDerivesLifecycle(t *testing.T) {
 		t.Fatalf("ListRuntimes() error = %v", err)
 	}
 	if len(runtimes) != 2 || runtimes[0].Workspace != "project-a" || runtimes[0].LifecycleState != LifecycleSuspended ||
-		runtimes[1].Workspace != "project-b" || runtimes[1].LifecycleState != LifecycleRunning || !runtimes[1].Persistent {
+		runtimes[1].Workspace != "project-b" || runtimes[1].LifecycleState != LifecycleRunning {
 		t.Fatalf("ListRuntimes() = %+v", runtimes)
 	}
 	if client.listServicesCalls != 1 || len(client.listServicesReq.GetFilter().GetStatuses()) == 0 || client.listServicesReq.GetFilter().GetNamespace() != "" {
@@ -99,18 +99,18 @@ func TestStopRejectsUnknownWorkspace(t *testing.T) {
 	}
 }
 
-func TestWorkspaceConfigRequiresCanonicalMountOptions(t *testing.T) {
+func TestWorkspaceConfigRequiresCanonicalImageMount(t *testing.T) {
 	service := &servicev1.Service{
-		Config: workspaceExecutionConfig("project-a", testBundleRuntime()),
+		Config: workspaceExecutionConfig(testBundleRuntime()),
 		Labels: map[string]string{LabelWorkspace: "project-a"},
 	}
 	service.Config.Resources = &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 4 << 30}}
 	if !workspaceConfigMatches(service, testBundleRuntime()) {
-		t.Fatal("canonical workspace mount with server-defaulted resources was not recognized")
+		t.Fatal("canonical agent image mount with server-defaulted resources was not recognized")
 	}
-	service.Config.VolumeMounts[0].Options = []string{"rw"}
+	service.Config.ImageMounts[0].Readonly = false
 	if workspaceConfigMatches(service, testBundleRuntime()) {
-		t.Fatal("workspace config without nosuid,nodev was recognized")
+		t.Fatal("workspace config without a read-only agent bundle was recognized")
 	}
 }
 

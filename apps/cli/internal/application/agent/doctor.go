@@ -40,7 +40,7 @@ type DoctorResult struct {
 	ReadyReplicas       int32                     `json:"ready_replicas,omitempty"`
 	DesiredReplicas     int32                     `json:"desired_replicas,omitempty"`
 	LifecycleState      string                    `json:"lifecycle_state,omitempty"`
-	Persistent          bool                      `json:"persistent"`
+	RuntimeMatches      bool                      `json:"runtime_matches"`
 	Recommendation      string                    `json:"recommendation"`
 	UpstreamCheck       *agentprofile.ProbeResult `json:"upstream_check,omitempty"`
 	PlatformCheck       *DoctorPlatformCheck      `json:"platform_check,omitempty"`
@@ -118,7 +118,7 @@ func (Control) Doctor(ctx context.Context, params DoctorParams) (DoctorResult, e
 		result.ReadyReplicas = service.GetReadyReplicas()
 		result.DesiredReplicas = service.GetReplicas()
 		result.LifecycleState = workspaceLifecycleState(service)
-		result.Persistent = workspaceConfigMatches(service, bundle)
+		result.RuntimeMatches = workspaceConfigMatches(service, bundle)
 	}
 	platformRecommendation := ""
 	switch {
@@ -128,12 +128,12 @@ func (Control) Doctor(ctx context.Context, params DoctorParams) (DoctorResult, e
 		platformRecommendation = "inspect workspace service events before reconnecting"
 	case services[0].GetLabels()[LabelProfile] != result.Profile:
 		platformRecommendation = fmt.Sprintf("stop workspace before switching from profile %q to %q", services[0].GetLabels()[LabelProfile], result.Profile)
-	case !result.Persistent:
-		platformRecommendation = "workspace volume or read-only agent bundle image mount does not match the catalog; stop the workspace before repairing it"
+	case !result.RuntimeMatches:
+		platformRecommendation = "read-only agent bundle image mount does not match the catalog; stop the workspace before repairing it"
 	case !containsString(environmentIDs, services[0].GetEnvironmentID()):
 		platformRecommendation = "workspace base template does not match the catalog; stop the workspace before updating it"
 	case result.LifecycleState == LifecycleSuspended:
-		platformRecommendation = "workspace is suspended and will resume on the next shell, run, or connect"
+		platformRecommendation = "workspace is stopped; the next shell, run, or connect starts a new empty sandbox"
 	default:
 		platformRecommendation = "agent workspace is ready"
 	}

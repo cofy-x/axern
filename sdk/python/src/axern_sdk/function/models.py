@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
-from axern_sdk.models import ImageMount, SecretEnvVar, SecretFile, VolumeMount
+from axern_sdk.models import ImageMount, SecretEnvVar, SecretFile
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,7 +69,6 @@ class FunctionSpec:
     extension_capabilities: Mapping[str, str] = field(default_factory=dict)
     secret_env: tuple[SecretEnvVar, ...] = ()
     secret_files: tuple[SecretFile, ...] = ()
-    volumes: tuple[VolumeMount, ...] = ()
     image_mounts: tuple[ImageMount, ...] = ()
     root_dir: Path = field(default_factory=Path)
     manifest_path: Path = field(default_factory=Path)
@@ -80,7 +79,6 @@ class FunctionSpec:
         object.__setattr__(self, "extension_capabilities", dict(self.extension_capabilities))
         object.__setattr__(self, "secret_env", tuple(self.secret_env))
         object.__setattr__(self, "secret_files", tuple(self.secret_files))
-        object.__setattr__(self, "volumes", tuple(self.volumes))
         object.__setattr__(self, "image_mounts", tuple(self.image_mounts))
 
 

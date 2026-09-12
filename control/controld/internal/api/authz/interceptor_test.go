@@ -177,7 +177,7 @@ func TestStreamRecheckCancelsAfterRoleRevocation(t *testing.T) {
 func TestEveryRegisteredPublicMethodHasExplicitPolicy(t *testing.T) {
 	services := []*grpc.ServiceDesc{
 		&adminv1.AccessAdmin_ServiceDesc, &adminv1.AdminAudit_ServiceDesc, &adminv1.AdminReliability_ServiceDesc,
-		&adminv1.NodeAdmin_ServiceDesc, &adminv1.AllocationLifecycleAdmin_ServiceDesc, &adminv1.ServiceAdmin_ServiceDesc, &adminv1.StorageAdmin_ServiceDesc,
+		&adminv1.NodeAdmin_ServiceDesc, &adminv1.AllocationLifecycleAdmin_ServiceDesc, &adminv1.ServiceAdmin_ServiceDesc,
 		&agentprofilev1.AgentProfileControl_ServiceDesc, &catalogv1.RuntimeCatalog_ServiceDesc, &environmentv1.EnvironmentControl_ServiceDesc,
 		&functionv1.FunctionControl_ServiceDesc, &identityv1.IdentityControl_ServiceDesc, &namespacev1.NamespaceControl_ServiceDesc,
 		&quotav1.QuotaControl_ServiceDesc, &rolloutv1.RolloutControl_ServiceDesc, &runv1.RunControl_ServiceDesc,

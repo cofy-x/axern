@@ -75,7 +75,6 @@ message DeleteServiceRequest {
   string service_id = 1;
   int64 expected_version = 2;
   bool require_suspended = 3;
-  ServiceVolumeDisposition volume_disposition = 4;
 }
 
 message DeleteServiceResponse {

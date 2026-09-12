@@ -42,7 +42,6 @@ var publicControlServices = map[string]struct{}{
 	"axern.control.admin.v1.NodeAdmin":                  {},
 	"axern.control.admin.v1.AllocationLifecycleAdmin":   {},
 	"axern.control.admin.v1.ServiceAdmin":               {},
-	"axern.control.admin.v1.StorageAdmin":               {},
 	"axern.control.agentprofile.v1.AgentProfileControl": {},
 	"axern.control.catalog.v1.RuntimeCatalog":           {},
 	"axern.control.environment.v1.EnvironmentControl":   {},

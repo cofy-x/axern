@@ -55,9 +55,9 @@ func TestEnsureServiceCreatesLabeledAgentService(t *testing.T) {
 	if client.createReq.GetReplicas() != 1 {
 		t.Fatalf("replicas = %d, want 1", client.createReq.GetReplicas())
 	}
-	mounts := client.createReq.GetConfig().GetVolumeMounts()
-	if len(mounts) != 1 || mounts[0].GetName() != "agent-workspace-project-a" || mounts[0].GetTarget() != "/home/axern/workspace" || mounts[0].GetReadonly() || !proto.Equal(mounts[0], workspaceExecutionConfig("project-a", testBundleRuntime()).GetVolumeMounts()[0]) {
-		t.Fatalf("workspace mounts = %#v", mounts)
+	mounts := client.createReq.GetConfig().GetImageMounts()
+	if len(mounts) != 1 || !proto.Equal(mounts[0], workspaceExecutionConfig(testBundleRuntime()).GetImageMounts()[0]) {
+		t.Fatalf("agent image mounts = %#v", mounts)
 	}
 	if envClient.createReq.GetSpec().GetTemplateID() != "coding-base" {
 		t.Fatalf("template = %q, want coding-base", envClient.createReq.GetSpec().GetTemplateID())
@@ -107,7 +107,7 @@ func TestEnsureServiceReusesMatchingEnvironmentAndService(t *testing.T) {
 		Status:        servicev1.ServiceStatus_SERVICE_STATUS_READY,
 		Replicas:      1,
 		ReadyReplicas: 1,
-		Config:        workspaceExecutionConfig("project-a", testBundleRuntime()),
+		Config:        workspaceExecutionConfig(testBundleRuntime()),
 		Labels:        workspaceLabels("project-a", "deepseek-codex", "codex"),
 	}
 	serviceClient := &fakeServiceClient{
@@ -157,9 +157,9 @@ func TestEnsureServiceResumesAndSwitchesProfile(t *testing.T) {
 		environment("env-newer", 2), environment("env-older", 1),
 	}}}
 	service := &servicev1.Service{ID: "svc-existing", Namespace: "dev", EnvironmentID: "env-older", Status: servicev1.ServiceStatus_SERVICE_STATUS_READY,
-		Replicas: 0, Version: 8, Config: workspaceExecutionConfig("project-a", testBundleRuntime()), Labels: workspaceLabels("project-a", "old-profile", "claude-code")}
+		Replicas: 0, Version: 8, Config: workspaceExecutionConfig(testBundleRuntime()), Labels: workspaceLabels("project-a", "old-profile", "claude-code")}
 	updated := &servicev1.Service{ID: "svc-existing", EnvironmentID: "env-newer", Replicas: 1, Version: 9,
-		Config: workspaceExecutionConfig("project-a", testBundleRuntime()), Labels: workspaceLabels("project-a", "deepseek-codex", "codex")}
+		Config: workspaceExecutionConfig(testBundleRuntime()), Labels: workspaceLabels("project-a", "deepseek-codex", "codex")}
 	serviceClient := &fakeServiceClient{
 		listServicesResp: &servicev1.ListServicesResponse{Services: []*servicev1.Service{service}},
 		getResp:          &servicev1.GetServiceResponse{Service: service},
@@ -195,7 +195,7 @@ func TestEnsureServiceResumesAndSwitchesProfile(t *testing.T) {
 func TestEnsureServiceRejectsProfileSwitchWhileRunning(t *testing.T) {
 	template := fakeTemplate()
 	service := &servicev1.Service{ID: "svc-existing", Namespace: "dev", EnvironmentID: "env-ready", Replicas: 1, ReadyReplicas: 1, Version: 3, Status: servicev1.ServiceStatus_SERVICE_STATUS_READY,
-		Config: workspaceExecutionConfig("project-a", testBundleRuntime()), Labels: workspaceLabels("project-a", "old-profile", "codex")}
+		Config: workspaceExecutionConfig(testBundleRuntime()), Labels: workspaceLabels("project-a", "old-profile", "codex")}
 	client := &fakeServiceClient{
 		listServicesResp: &servicev1.ListServicesResponse{Services: []*servicev1.Service{service}},
 		getResp:          &servicev1.GetServiceResponse{Service: service},
@@ -224,7 +224,7 @@ func TestEnsureServiceRetriesOneVersionConflict(t *testing.T) {
 	environment := &environmentv1.Environment{ID: "env-ready", Status: environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_READY,
 		Spec: &environmentv1.EnvironmentSpec{Namespace: "dev", TemplateID: template.GetID(), TemplateVersion: template.GetVersion()}, ResolvedTemplate: template}
 	serviceV1 := &servicev1.Service{ID: "svc-existing", Namespace: "dev", EnvironmentID: "env-ready", Replicas: 0, Version: 3, Status: servicev1.ServiceStatus_SERVICE_STATUS_READY,
-		Config: workspaceExecutionConfig("project-a", testBundleRuntime()), Labels: workspaceLabels("project-a", "profile-a", "codex")}
+		Config: workspaceExecutionConfig(testBundleRuntime()), Labels: workspaceLabels("project-a", "profile-a", "codex")}
 	serviceV2 := proto.Clone(serviceV1).(*servicev1.Service)
 	serviceV2.Version = 4
 	client := &fakeServiceClient{
@@ -370,13 +370,13 @@ func TestDoctorReportsProviderFailureAndPlatformState(t *testing.T) {
 		}}}},
 		ServiceClient: &fakeServiceClient{listServicesResp: &servicev1.ListServicesResponse{Services: []*servicev1.Service{{
 			ID: "svc-ready", EnvironmentID: "env-ready", Status: servicev1.ServiceStatus_SERVICE_STATUS_READY, Replicas: 1, ReadyReplicas: 1,
-			Config: workspaceExecutionConfig("project-a", testBundleRuntime()), Labels: workspaceLabels("project-a", "deepseek-codex", "codex"),
+			Config: workspaceExecutionConfig(testBundleRuntime()), Labels: workspaceLabels("project-a", "deepseek-codex", "codex"),
 		}}}},
 	})
 	if err != nil {
 		t.Fatalf("Doctor returned error: %v", err)
 	}
-	if result.UpstreamCheck == nil || result.UpstreamCheck.ErrorClass != agentprofile.ProbeErrorUnsupportedProtocol || result.ServiceID != "svc-ready" || result.Workspace != "project-a" || result.WorkspaceTemplate != "coding-base" || result.AgentBundle != "codex" || result.LifecycleState != LifecycleRunning || !result.Persistent || result.Recommendation != "unsupported; agent workspace is ready" {
+	if result.UpstreamCheck == nil || result.UpstreamCheck.ErrorClass != agentprofile.ProbeErrorUnsupportedProtocol || result.ServiceID != "svc-ready" || result.Workspace != "project-a" || result.WorkspaceTemplate != "coding-base" || result.AgentBundle != "codex" || result.LifecycleState != LifecycleRunning || !result.RuntimeMatches || result.Recommendation != "unsupported; agent workspace is ready" {
 		t.Fatalf("result = %+v", result)
 	}
 }
@@ -421,7 +421,7 @@ func TestDoctorReportsRunningWorkspaceRuntimeDrift(t *testing.T) {
 		Environment:    envClient,
 		ServiceClient: &fakeServiceClient{listServicesResp: &servicev1.ListServicesResponse{Services: []*servicev1.Service{{
 			ID: "svc-ready", EnvironmentID: "env-stale", Status: servicev1.ServiceStatus_SERVICE_STATUS_READY,
-			Replicas: 1, ReadyReplicas: 1, Config: workspaceExecutionConfig("project-a", testBundleRuntime()),
+			Replicas: 1, ReadyReplicas: 1, Config: workspaceExecutionConfig(testBundleRuntime()),
 			Labels: workspaceLabels("project-a", "codex", "codex"),
 		}}}},
 	})
@@ -463,7 +463,7 @@ func TestDoctorReportsProviderAndPlatformFailuresTogether(t *testing.T) {
 func TestDoctorReportsInvalidBundleMount(t *testing.T) {
 	upstream, _ := url.Parse("https://api.example.test/v1")
 	template := fakeTemplate()
-	config := workspaceExecutionConfig("project-a", testBundleRuntime())
+	config := workspaceExecutionConfig(testBundleRuntime())
 	config.ImageMounts[0].Readonly = false
 	result, err := (Control{}).Doctor(context.Background(), DoctorParams{
 		Workspace: "project-a",
@@ -486,7 +486,7 @@ func TestDoctorReportsInvalidBundleMount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Doctor returned error: %v", err)
 	}
-	if result.Persistent || !strings.Contains(result.Recommendation, "read-only agent bundle image mount") {
+	if result.RuntimeMatches || !strings.Contains(result.Recommendation, "read-only agent bundle image mount") {
 		t.Fatalf("result = %+v", result)
 	}
 }
@@ -656,7 +656,7 @@ func TestWorkspaceExecutionConfigUsesClaudeCodePrivateImageTarget(t *testing.T) 
 		ImageTarget: "/__claude_code",
 	}
 
-	mounts := workspaceExecutionConfig("project-a", bundle).GetImageMounts()
+	mounts := workspaceExecutionConfig(bundle).GetImageMounts()
 	if len(mounts) != 1 || mounts[0].GetTarget() != "/__claude_code" || !mounts[0].GetReadonly() {
 		t.Fatalf("image mounts = %#v", mounts)
 	}

@@ -38,14 +38,9 @@ verify_node_restart="${AXERN_TUNNEL_E2E_VERIFY_NODE_TUNNELD_RESTART:-true}"
 node_restart_check_done=false
 verify_agent="${AXERN_TUNNEL_E2E_VERIFY_AGENT:-true}"
 agent_check_done=false
-node_paused=false
 
 cleanup() {
   local pid service_id
-  if [ "${node_paused}" = "true" ]; then
-    docker unpause "${node_container}" >/dev/null 2>&1 || true
-    node_paused=false
-  fi
   for pid in "${tunnel_pids[@]:-}"; do
     if [ -n "${pid}" ] && kill -0 "${pid}" >/dev/null 2>&1; then
       kill -CONT "${pid}" >/dev/null 2>&1 || true
@@ -482,15 +477,6 @@ assert_agent_workspace_marker_absent() {
     exec "${allocation_id}" sh -lc 'test ! -e /home/axern/workspace/compose-e2e-marker'
 }
 
-assert_agent_claim_directory_absent() {
-  local claim_id="$1"
-  if [ -z "${claim_id}" ]; then
-    echo "agent workspace deletion returned no claim id" >&2
-    return 1
-  fi
-  docker exec "${node_container}" sh -lc 'test ! -e "/var/lib/volumed/local/$1"' sh "${claim_id}"
-}
-
 wait_agent_workspace_suspended() {
   local config_file="$1"
   local service_id="$2"
@@ -695,7 +681,7 @@ verify_agent_product_once() {
 	local runtime_class="$1"
 	local upstream_port="$2"
 	local claude_profile codex_profile workspace namespace agent_config current_config
-	local first_service_id first_allocation_id resumed_allocation_id observed list_json delete_json first_claim_id second_service_id second_claim_id
+	local first_service_id first_allocation_id resumed_allocation_id observed list_json delete_json second_service_id
 	if [ "${verify_agent}" != "true" ] || [ "${agent_check_done}" = "true" ]; then
 		return 0
 	fi
@@ -741,6 +727,17 @@ verify_agent_product_once() {
 	fi
 	write_agent_workspace_marker "${runtime_class}" "${first_allocation_id}"
 	close_agent_connection "${agent_config}"
+	start_agent_connection "${agent_config}" "${claude_profile}" "${workspace}" "${runtime_class}-reconnect"
+	if [ "${agent_service_id}" != "${first_service_id}" ] || [ "${agent_allocation_id}" != "${first_allocation_id}" ]; then
+		echo "agent reconnect replaced a running sandbox" >&2
+		return 1
+	fi
+	observed="$(read_agent_workspace_marker "${runtime_class}" "${first_allocation_id}")"
+	if [ "${observed}" != "${agent_marker}" ]; then
+		echo "agent reconnect lost files from the running sandbox" >&2
+		return 1
+	fi
+	close_agent_connection "${agent_config}"
 	AXERN_CONFIG="${agent_config}" "${AXERN_SMOKE_CMD[@]}" agent stop --workspace "${workspace}" >/dev/null
 	wait_agent_workspace_suspended "${agent_config}" "${first_service_id}" "${workspace}" "${claude_profile}"
 
@@ -750,11 +747,8 @@ verify_agent_product_once() {
 		echo "agent workspace did not preserve service identity or replace allocation" >&2
 		return 1
 	fi
-	observed="$(read_agent_workspace_marker "${runtime_class}" "${resumed_allocation_id}")"
-	if [ "${observed}" != "${agent_marker}" ]; then
-		echo "agent workspace marker was not preserved after resume: ${observed}" >&2
-		return 1
-	fi
+	assert_agent_workspace_marker_absent "${runtime_class}" "${resumed_allocation_id}"
+	write_agent_workspace_marker "${runtime_class}" "${resumed_allocation_id}"
 	close_agent_connection "${agent_config}"
 	AXERN_CONFIG="${agent_config}" "${AXERN_SMOKE_CMD[@]}" agent stop --workspace "${workspace}" >/dev/null
 	wait_agent_workspace_suspended "${agent_config}" "${first_service_id}" "${workspace}" "${claude_profile}"
@@ -764,30 +758,14 @@ verify_agent_product_once() {
 		echo "agent profile switch did not preserve service identity or replace allocation" >&2
 		return 1
 	fi
-	observed="$(read_agent_workspace_marker "${runtime_class}" "${agent_allocation_id}")"
-	if [ "${observed}" != "${agent_marker}" ]; then
-		echo "agent workspace marker was not preserved after profile switch: ${observed}" >&2
-		return 1
-	fi
+	assert_agent_workspace_marker_absent "${runtime_class}" "${agent_allocation_id}"
 	list_json="$(AXERN_CONFIG="${agent_config}" local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" agent list -o json --workspace "${workspace}")"
 	python3 -c 'import json,sys; items=json.load(sys.stdin); expected=(sys.argv[1],sys.argv[2],sys.argv[3]); actual=[(item["service_id"],item["profile"],item["lifecycle_state"]) for item in items]; raise SystemExit(0 if actual == [expected] else 1)' "${first_service_id}" "${codex_profile}" running <<<"${list_json}"
 	close_agent_connection "${agent_config}"
 	AXERN_CONFIG="${agent_config}" "${AXERN_SMOKE_CMD[@]}" agent stop --workspace "${workspace}" >/dev/null
 	wait_agent_workspace_suspended "${agent_config}" "${first_service_id}" "${workspace}" "${codex_profile}"
-	docker pause "${node_container}" >/dev/null
-	node_paused=true
-	if AXERN_CONFIG="${agent_config}" "${AXERN_SMOKE_CMD[@]}" agent workspace delete --workspace "${workspace}" --yes --timeout 3s >/dev/null 2>&1; then
-		echo "agent workspace deletion completed while its storage node was unavailable" >&2
-		return 1
-	fi
-	list_json="$(AXERN_CONFIG="${agent_config}" local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" agent list -o json --workspace "${workspace}")"
-	python3 -c 'import json,sys; items=json.load(sys.stdin); assert len(items) == 1 and items[0]["lifecycle_state"] == "deleting"' <<<"${list_json}"
-	docker unpause "${node_container}" >/dev/null
-	node_paused=false
 	delete_json="$(AXERN_CONFIG="${agent_config}" "${AXERN_SMOKE_CMD[@]}" agent workspace delete -o json --workspace "${workspace}" --yes --timeout 180s)"
-	first_claim_id="$(python3 -c 'import json,sys; data=json.load(sys.stdin); ids=data.get("claim_ids", []); print(ids[0] if ids else "")' <<<"${delete_json}")"
 	python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["state"] == "deleted" and data["service_id"] == sys.argv[1] and data.get("completed_at")' "${first_service_id}" <<<"${delete_json}"
-	assert_agent_claim_directory_absent "${first_claim_id}"
 	list_json="$(AXERN_CONFIG="${agent_config}" local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" agent list -o json --workspace "${workspace}")"
 	python3 -c 'import json,sys; assert json.load(sys.stdin) == []' <<<"${list_json}"
 
@@ -803,12 +781,7 @@ verify_agent_product_once() {
 	AXERN_CONFIG="${agent_config}" "${AXERN_SMOKE_CMD[@]}" agent stop --workspace "${workspace}" >/dev/null
 	wait_agent_workspace_suspended "${agent_config}" "${second_service_id}" "${workspace}" "${codex_profile}"
 	delete_json="$(AXERN_CONFIG="${agent_config}" "${AXERN_SMOKE_CMD[@]}" agent workspace delete -o json --workspace "${workspace}" --yes --timeout 180s)"
-	second_claim_id="$(python3 -c 'import json,sys; data=json.load(sys.stdin); ids=data.get("claim_ids", []); print(ids[0] if ids else "")' <<<"${delete_json}")"
-	if [ "${second_claim_id}" = "${first_claim_id}" ]; then
-		echo "recreated agent workspace reused deleted claim identity" >&2
-		return 1
-	fi
-	assert_agent_claim_directory_absent "${second_claim_id}"
+	python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["state"] == "deleted" and data["service_id"] == sys.argv[1] and data.get("completed_at")' "${second_service_id}" <<<"${delete_json}"
 	echo "tunnel_e2e_runtime=${runtime_class} agent_workspace=ok workspace=${workspace} deleted_service_id=${first_service_id} recreated_service_id=${second_service_id}"
 }
 

@@ -21,7 +21,7 @@ def main() -> None:
         print(f"handler={spec.handler}")
         print(f"source={spec.source.root}")
         print(f"timeout_seconds={spec.timeout_seconds}")
-        print(f"volumes={len(spec.volumes)}")
+        print(f"image_mounts={len(spec.image_mounts)}")
     finally:
         client.close()
 

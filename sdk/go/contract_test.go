@@ -133,8 +133,8 @@ func TestWorkspaceImageContractRejectsAmbiguousOrOverlappingSources(t *testing.T
 	if err := validateWorkspaceImage(&uppercase); !IsValidation(err) {
 		t.Fatalf("non-canonical digest error = %v", err)
 	}
-	if err := validateWorkspaceImageMounts(valid, nil, []VolumeMount{{Name: "workspace", Target: "/workspace/data"}}); !IsValidation(err) {
-		t.Fatalf("overlapping volume error = %v", err)
+	if err := validateWorkspaceImageMounts(valid, []ImageMount{{Image: "tools:latest", Target: "/workspace/data"}}); !IsValidation(err) {
+		t.Fatalf("overlapping image mount error = %v", err)
 	}
 }
 

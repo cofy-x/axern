@@ -29,7 +29,7 @@ func (h *Controller) deleteContainer(ctx context.Context, request *apipb.DeleteC
 // deleteContainerRuntime crosses the runtime exit-state barrier and cleans
 // runtime-owned rootfs/storage plus activation networking, but deliberately
 // retains the node-local resource claims. The managed lifecycle releases
-// volumes and image leases before calling finalizeContainerDelete.
+// rootfs and image leases before calling finalizeContainerDelete.
 func (h *Controller) deleteContainerRuntime(ctx context.Context, request *apipb.DeleteContainerRequest) (response *apipb.DeleteContainerResponse, resource container.OccupiedResource, err error) {
 	traceID, spanID := trace.GetContextID(ctx)
 	start := time.Now()

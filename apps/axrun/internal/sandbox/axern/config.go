@@ -24,7 +24,6 @@ type Config struct {
 	TLSServerName         string
 	ProxyMode             string
 	RolloutExecutionLease string
-	WorkspaceVolume       bool
 	ImageMounts           []axernsdk.ImageMount
 	WorkspaceImage        *axernsdk.WorkspaceImageSource
 }

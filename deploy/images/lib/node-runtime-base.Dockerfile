@@ -131,7 +131,6 @@ WORKDIR /workspace
 COPY runtime/axnoded/go.mod runtime/axnoded/go.sum /workspace/runtime/axnoded/
 COPY runtime/egressd/go.mod runtime/egressd/go.sum /workspace/runtime/egressd/
 COPY runtime/tunneld/go.mod runtime/tunneld/go.sum /workspace/runtime/tunneld/
-COPY runtime/volumed/go.mod runtime/volumed/go.sum /workspace/runtime/volumed/
 COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
 COPY lib/go/agentbundle/go.mod /workspace/lib/go/agentbundle/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
@@ -156,7 +155,6 @@ use (
 	./runtime/axnoded
 	./runtime/egressd
 	./runtime/tunneld
-	./runtime/volumed
 	./sdk/go
 )
 EOF
@@ -168,7 +166,6 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 COPY runtime/axnoded/ /workspace/runtime/axnoded/
 COPY runtime/egressd/ /workspace/runtime/egressd/
 COPY runtime/tunneld/ /workspace/runtime/tunneld/
-COPY runtime/volumed/ /workspace/runtime/volumed/
 COPY network/bpfnet/ /workspace/network/bpfnet/
 COPY lib/go/ /workspace/lib/go/
 COPY sdk/go/ /workspace/sdk/go/
@@ -190,8 +187,6 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     cd /workspace/runtime/tunneld && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/node-tunneld ./cmd/node-tunneld && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/tunnel-agent ./cmd/tunnel-agent && \
-    cd /workspace/runtime/volumed && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/volumed ./cmd/volumed && \
     cd /workspace/network/bpfnet && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/bpfnetctl ./cmd/bpfnetctl
 
@@ -326,7 +321,6 @@ COPY --from=axnoded-builder /out/egressd /usr/local/bin/egressd
 COPY --from=axnoded-builder /out/egressdctl /usr/local/bin/egressdctl
 COPY --from=axnoded-builder /out/node-tunneld /usr/local/bin/node-tunneld
 COPY --from=axnoded-builder /out/tunnel-agent /usr/local/bin/tunnel-agent
-COPY --from=axnoded-builder /out/volumed /usr/local/bin/volumed
 COPY --from=imagemgr-builder /out/imagemgr /usr/local/bin/imagemgr
 COPY --from=imagefsd-builder /out/imagefsd /usr/local/bin/imagefsd
 

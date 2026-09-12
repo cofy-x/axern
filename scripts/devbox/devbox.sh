@@ -310,7 +310,6 @@ case "${command}" in
       --env "AXERN_TLS_KEY=${project_dir}/.dev/certs/client.key"
       --env "AXNODED_SOCKET=${project_dir}/.dev/run/axnoded.sock"
       --env "IMAGEMGR_SOCKET=${project_dir}/.dev/run/imagemgr.sock"
-      --env "VOLUMED_SOCKET=${project_dir}/.dev/run/volumed.sock"
       --publish "127.0.0.1:${ssh_port}:22"
     )
 

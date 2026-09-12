@@ -35,12 +35,10 @@ from axern_sdk.network_policy import NetworkPolicy
 from axern_sdk.client import (
     DEFAULT_ENDPOINT,
     ServiceProbeInput,
-    ServiceVolumeMountInput,
     _extension_capability_requirements,
     _resource_spec,
     _is_transient_service_read_code,
     _service_probe,
-    _service_volume_mounts,
     _SERVICE_WATCH_RETRY_MAX_SECONDS,
     _SERVICE_WATCH_RETRY_MIN_SECONDS,
 )
@@ -373,7 +371,6 @@ class AsyncAxernClient:
         limit_ephemeral_storage: ResourceQuantity = "",
         extension_capabilities: dict[str, str] | None = None,
         node_selector: dict[str, str] | None = None,
-        volume_mounts: Iterable[ServiceVolumeMountInput] | None = None,
         readiness_probe: ServiceProbeInput | None = None,
         liveness_probe: ServiceProbeInput | None = None,
         namespace: str = "default",
@@ -409,7 +406,6 @@ class AsyncAxernClient:
                     placement=common_pb2.PlacementConstraints(
                         node_selector=dict(node_selector or {}),
                     ),
-                    volume_mounts=_service_volume_mounts(volume_mounts),
                 ),
                 readiness_probe=readiness,
                 liveness_probe=liveness,

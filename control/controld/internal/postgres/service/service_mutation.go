@@ -78,7 +78,7 @@ func (s *PGStore) Delete(ctx context.Context, params servicekernel.DeleteParams,
 		if params.RequireSuspended && current.GetReplicas() != 0 {
 			return grpcstatus.Errorf(codes.FailedPrecondition, "service %q must be suspended before deletion", current.GetID())
 		}
-		deleted = servicekernel.MarkDeleted(current, params.VolumeDisposition, now)
+		deleted = servicekernel.MarkDeleted(current, now)
 		if err := s.persistService(ctx, tx, deleted, now); err != nil {
 			return err
 		}

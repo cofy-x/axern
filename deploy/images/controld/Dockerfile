@@ -15,7 +15,6 @@ COPY deploy/images/controld/.build/controld /usr/local/bin/controld
 COPY deploy/images/controld/.build/controld-migrate /usr/local/bin/controld-migrate
 COPY deploy/images/controld/.build/controld-access-bootstrap /usr/local/bin/controld-access-bootstrap
 COPY deploy/images/controld/.build/controld-retention /usr/local/bin/controld-retention
-COPY deploy/images/controld/.build/storaged /usr/local/bin/storaged
 COPY deploy/images/controld/.build/axrun /usr/local/bin/axrun
 
 EXPOSE 24000 24001 24020 24021

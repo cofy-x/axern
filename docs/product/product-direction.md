@@ -7,7 +7,7 @@ design moves the platform toward the intended product.
 ## North Star
 
 Axern is open-source agentic infrastructure for running AI agents and code in
-isolated, stateful sandboxes. Its north star is a high-performance sandbox
+isolated sandboxes. Its north star is a high-performance sandbox
 platform where a user can create an environment, run or serve code, connect to
 it securely, observe its lifecycle, retain the right artifacts, and clean it up
 through consistent APIs and SDKs.
@@ -38,14 +38,15 @@ product decisions prioritize long-running and task-oriented agent execution.
 ## Long-Term Capability Areas
 
 - Programmable sandbox lifecycle and process, file, terminal, and proxy APIs.
-- Persistent agent coding workspaces composed from Service, Environment,
-  Volume, and Tunnel primitives: workspace owns project data, profile owns
-  local agent credentials, Service owns compute, and Tunnel owns one session.
+- Agent coding workspaces with immutable environments, allocation-local files,
+  and explicit output export. Profiles own local agent credentials, Service
+  owns compute, and Tunnel owns one session; project persistence is not a
+  reusable volume primitive.
 - Agent-oriented task execution, verification, trajectory capture, and artifact
   retention through Axrun and related product layers.
 - Services and Functions with readiness, rollout, warm capacity,
   scale-to-zero, invocation history, and explicit handler contracts.
-- Task-scoped secrets, persistent and ephemeral storage, controlled egress,
+- Task-scoped secrets, ephemeral filesystems, durable artifacts, controlled egress,
   service ingress, and reverse tunnels.
 - Runtime templates for coding, browser, research, CI, and data workloads
   without marketplace or template sprawl.

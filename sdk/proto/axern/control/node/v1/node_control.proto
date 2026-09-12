@@ -140,19 +140,6 @@ message BpfNetSummary {
   bool needs_localhost_compat = 7;
 }
 
-message VolumedSummary {
-  ComponentState state = 1;
-  bool reachable = 2;
-  int32 published_volume_count = 3;
-  google.protobuf.Timestamp last_reconcile_at = 4;
-  string last_reconcile_error = 5;
-  int32 last_reconcile_retained_count = 6;
-  int32 last_reconcile_unpublished_count = 7;
-  int32 last_reconcile_active_allocation_count = 8;
-  int32 last_reconcile_stale_allocation_count = 9;
-  int32 last_reconcile_invalid_volume_count = 10;
-}
-
 message NodeStorageSummary {
   string target = 1;
   int64 capacity_bytes = 2;
@@ -178,7 +165,6 @@ message ComponentsSummary {
   ImagemgrSummary imagemgr = 2;
   ImagefsdSummary imagefsd = 3;
   BpfNetSummary bpfnet = 4;
-  VolumedSummary volumed = 5;
 }
 
 message LocalitySummary {

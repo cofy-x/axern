@@ -67,7 +67,6 @@ type CreateServiceOptions struct {
 	RuntimeClass            string
 	NetworkPolicy           *NetworkPolicy
 	ExtensionCapabilities   []ExtensionCapability
-	Volumes                 []VolumeMount
 	ImageMounts             []ImageMount
 	WorkspaceImage          *WorkspaceImageSource
 	RequestCPU              ResourceQuantity
@@ -90,7 +89,7 @@ func (c *Client) CreateService(ctx context.Context, options CreateServiceOptions
 	if err := validateWorkspaceImage(options.WorkspaceImage); err != nil {
 		return nil, err
 	}
-	if err := validateWorkspaceImageMounts(options.WorkspaceImage, options.ImageMounts, options.Volumes); err != nil {
+	if err := validateWorkspaceImageMounts(options.WorkspaceImage, options.ImageMounts); err != nil {
 		return nil, err
 	}
 	resources, err := buildResourceSpec(options.RequestCPU, options.RequestMemory, options.RequestEphemeralStorage, options.LimitCPU, options.LimitMemory, options.LimitEphemeralStorage)
@@ -108,7 +107,6 @@ func (c *Client) CreateService(ctx context.Context, options CreateServiceOptions
 			RuntimeClass:                    options.RuntimeClass,
 			Network:                         networkSpec(options.NetworkPolicy),
 			ExtensionCapabilityRequirements: extensionCapabilityRequirements(options.ExtensionCapabilities),
-			VolumeMounts:                    serviceVolumeMounts(options.Volumes),
 			ImageMounts:                     executionImageMounts(options.ImageMounts),
 			WorkspaceImage:                  executionWorkspaceImage(options.WorkspaceImage),
 			Resources:                       resources,
@@ -141,14 +139,6 @@ func extensionCapabilityRequirements(values []ExtensionCapability) []*capability
 		result = append(result, &capabilityv1.ExtensionCapabilityRequirement{Capability: &capabilityv1.ExtensionCapability{Name: strings.TrimSpace(value.Name), Value: value.Value}})
 	}
 	return result
-}
-
-// VolumeMount describes a service volume claim mounted into a sandbox.
-type VolumeMount struct {
-	Name     string
-	Target   string
-	Readonly bool
-	Options  []string
 }
 
 // ImageMount describes a read-only OCI image mounted into the workload rootfs.
@@ -230,7 +220,7 @@ func isImmutableSHA256Reference(value string) bool {
 	return true
 }
 
-func validateWorkspaceImageMounts(source *WorkspaceImageSource, imageMounts []ImageMount, volumeMounts []VolumeMount) error {
+func validateWorkspaceImageMounts(source *WorkspaceImageSource, imageMounts []ImageMount) error {
 	if source == nil {
 		return nil
 	}
@@ -241,29 +231,7 @@ func validateWorkspaceImageMounts(source *WorkspaceImageSource, imageMounts []Im
 			return validationError("workspace_image.target", "must not overlap image_mounts")
 		}
 	}
-	for _, mount := range volumeMounts {
-		mountTarget := path.Clean(strings.TrimSpace(mount.Target))
-		if target == mountTarget || strings.HasPrefix(target, mountTarget+"/") || strings.HasPrefix(mountTarget, target+"/") {
-			return validationError("workspace_image.target", "must not overlap volume mounts")
-		}
-	}
 	return nil
-}
-
-func serviceVolumeMounts(mounts []VolumeMount) []*commonv1.ServiceVolumeMount {
-	if len(mounts) == 0 {
-		return nil
-	}
-	out := make([]*commonv1.ServiceVolumeMount, 0, len(mounts))
-	for _, mount := range mounts {
-		out = append(out, &commonv1.ServiceVolumeMount{
-			Name:     mount.Name,
-			Target:   mount.Target,
-			Readonly: mount.Readonly,
-			Options:  append([]string(nil), mount.Options...),
-		})
-	}
-	return out
 }
 
 func executionImageMounts(mounts []ImageMount) []*commonv1.ImageMount {

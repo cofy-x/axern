@@ -76,7 +76,6 @@ FROM ${GO_IMAGE} AS controld-builder
 WORKDIR /workspace
 
 COPY control/controld/go.mod control/controld/go.sum /workspace/control/controld/
-COPY control/storaged/go.mod control/storaged/go.sum /workspace/control/storaged/
 COPY gateway/gatewayd/go.mod gateway/gatewayd/go.sum /workspace/gateway/gatewayd/
 COPY lib/go/agentbundle/go.mod /workspace/lib/go/agentbundle/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
@@ -91,7 +90,6 @@ go 1.25.12
 
 use (
 	./control/controld
-	./control/storaged
 	./gateway/gatewayd
 	./lib/go/agentbundle
 	./lib/go/grpcclient
@@ -111,7 +109,6 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= go mod download
 
 COPY control/controld/ /workspace/control/controld/
-COPY control/storaged/ /workspace/control/storaged/
 COPY gateway/gatewayd/ /workspace/gateway/gatewayd/
 COPY lib/go/ /workspace/lib/go/
 COPY sdk/go/ /workspace/sdk/go/
@@ -122,8 +119,6 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/controld ./cmd/controld && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/controld-migrate ./cmd/migrate && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/controld-access-bootstrap ./cmd/access-bootstrap && \
-    cd /workspace/control/storaged && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/storaged ./cmd/storaged && \
     cd /workspace/gateway/gatewayd && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/gatewayd .
 
@@ -192,7 +187,6 @@ COPY --from=axnoded-verify-builder /out/bpfnetctl /usr/local/bin/bpfnetctl
 COPY --from=controld-builder /out/controld /usr/local/bin/controld
 COPY --from=controld-builder /out/controld-migrate /usr/local/bin/controld-migrate
 COPY --from=controld-builder /out/controld-access-bootstrap /usr/local/bin/controld-access-bootstrap
-COPY --from=controld-builder /out/storaged /usr/local/bin/storaged
 COPY --from=controld-builder /out/gatewayd /usr/local/bin/gatewayd
 COPY --from=verify-rootfs /opt/sample-rootfs /opt/sample-rootfs
 COPY --from=verify-rootfs /opt/sample-rootfs /opt/axern/runtime-selftest/rootfs

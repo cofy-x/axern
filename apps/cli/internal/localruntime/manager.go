@@ -299,7 +299,7 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	if err := m.composeRun(ctx, options.Profile, "up", "--force-recreate", "--exit-code-from", "controld-access-bootstrap", "controld-access-bootstrap"); err != nil {
 		return err
 	}
-	services := []string{"storaged", "controld", "controld-retention", "tunneld", "node", "gatewayd"}
+	services := []string{"controld", "controld-retention", "tunneld", "node", "gatewayd"}
 	if options.Profile == "observability" {
 		services = append(services, "otel-lgtm", "otel-collector")
 	}
@@ -336,7 +336,7 @@ func (m *Manager) printStartupDiagnostics(profile string) {
 	fmt.Fprintln(m.Stderr, "Axern did not become ready; recent service status follows.")
 	_ = m.composeRun(context.Background(), profile, "ps")
 	fmt.Fprintln(m.Stderr, "Recent core service logs follow.")
-	_ = m.composeRun(context.Background(), profile, "logs", "--no-color", "--tail", "80", "storaged", "controld", "tunneld", "node", "gatewayd")
+	_ = m.composeRun(context.Background(), profile, "logs", "--no-color", "--tail", "80", "controld", "tunneld", "node", "gatewayd")
 }
 
 func (m *Manager) printReady() {
@@ -898,7 +898,7 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 }
 
 func (m *Manager) materialize(profile string) error {
-	for _, dir := range []string{m.Dir, filepath.Join(m.Dir, "data", "postgres"), filepath.Join(m.Dir, "data", "minio"), filepath.Join(m.Dir, "data", "axnoded"), filepath.Join(m.Dir, "data", "volumed"), filepath.Join(m.Dir, "run"), filepath.Join(m.Dir, "certs"), filepath.Join(m.Dir, "ssh")} {
+	for _, dir := range []string{m.Dir, filepath.Join(m.Dir, "data", "postgres"), filepath.Join(m.Dir, "data", "minio"), filepath.Join(m.Dir, "data", "axnoded"), filepath.Join(m.Dir, "run"), filepath.Join(m.Dir, "certs"), filepath.Join(m.Dir, "ssh")} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
 		}
@@ -949,7 +949,7 @@ func (m *Manager) writeEnv(profile string) error {
 		return err
 	}
 	images := localbundle.ImageReferences(m.Version)
-	noProxy := "localhost,127.0.0.1,::1,host.docker.internal,controld,storaged,gatewayd,tunneld,node,postgres,minio,.svc,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+	noProxy := "localhost,127.0.0.1,::1,host.docker.internal,controld,gatewayd,tunneld,node,postgres,minio,.svc,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 	httpProxy := containerProxy(os.Getenv("HTTP_PROXY"))
 	httpsProxy := containerProxy(os.Getenv("HTTPS_PROXY"))
 	otelEnabled, otelEndpoint := "false", ""

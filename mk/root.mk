@@ -28,13 +28,11 @@ bootstrap-go: ## Download Go module dependencies
 	$(GO) -C apps/axrun mod download
 	$(GO) -C apps/cli mod download
 	$(GO) -C control/controld mod download
-	$(GO) -C control/storaged mod download
 	$(GO) -C gateway/gatewayd mod download
 	$(GO) -C runtime/imagemgr mod download
 	$(GO) -C runtime/egressd mod download
 	$(GO) -C sdk/go mod download
 	$(GO) -C runtime/axnoded mod download
-	$(GO) -C runtime/volumed mod download
 
 bootstrap-rust: ## Download Rust workspace dependencies
 	$(CARGO) fetch --locked
@@ -72,7 +70,7 @@ verify-full: ## Run the serial full repository gate for broad changes or post-me
 	bash $(ROOTDIR)/scripts/verify-all.sh $(ARGS)
 
 verify-release: ## Run the source/deployment release gate; environment qualification remains separate
-	bash $(ROOTDIR)/scripts/verify-all.sh --include-axrun --include-local-storage $(ARGS)
+	bash $(ROOTDIR)/scripts/verify-all.sh --include-axrun $(ARGS)
 
 fmt: fmt-go fmt-rust ## Format root Go and Rust workspaces
 
@@ -133,11 +131,9 @@ build-go: ## Build the root Go binaries
 	$(GO) -C control/controld build -o ../../bin/controld ./cmd/controld
 	$(GO) -C control/controld build -o ../../bin/controld-migrate ./cmd/migrate
 	$(GO) -C control/controld build -o ../../bin/controld-access-bootstrap ./cmd/access-bootstrap
-	$(GO) -C control/storaged build -o ../../bin/storaged ./cmd/storaged
 	$(GO) -C gateway/gatewayd build -o ../../bin/gatewayd ./
 	$(GO) -C runtime/imagemgr build -o ../../bin/imagemgr ./cmd/imagemgr
 	$(GO) -C runtime/egressd build -o ../../bin/egressd ./cmd/egressd
-	$(GO) -C runtime/volumed build -o ../../bin/volumed ./cmd/volumed
 	$(GO) -C runtime/tunneld build -o ../../bin/tunneld ./cmd/tunneld
 	$(GO) -C runtime/tunneld build -o ../../bin/node-tunneld ./cmd/node-tunneld
 	$(GO) -C runtime/tunneld build -o ../../bin/tunnel-agent ./cmd/tunnel-agent
@@ -187,15 +183,13 @@ grafana-assets-check: ## Verify Helm Grafana assets match local Grafana assets
 test-go: ## Run root Go tests
 	$(GO) test -tags=axern_contract ./apps/axrun/... ./apps/cli/... ./lib/go/grpcclient/... ./lib/go/networkpolicy/... ./lib/go/observability/... ./sdk/go/...
 	$(GO) -C control/controld test ./...
-	$(GO) -C control/storaged test ./...
 	$(GO) -C gateway/gatewayd test ./...
 	$(GO) -C runtime/imagemgr test ./...
 	$(GO) -C runtime/egressd test ./...
-	$(GO) -C runtime/volumed test ./...
 	$(GO) -C runtime/tunneld test ./...
 
 fmt-go: ## Format root Go files
-	find apps/axrun apps/cli control/controld control/storaged gateway/gatewayd lib/go runtime/egressd runtime/imagemgr runtime/tunneld runtime/volumed sdk/go -name '*.go' -print | xargs gofmt -w
+	find apps/axrun apps/cli control/controld gateway/gatewayd lib/go runtime/egressd runtime/imagemgr runtime/tunneld sdk/go -name '*.go' -print | xargs gofmt -w
 
 imagemgr-build: ## Build the imagemgr daemon
 	mkdir -p bin
@@ -205,7 +199,7 @@ imagemgr-test: ## Run imagemgr tests
 	$(GO) -C runtime/imagemgr test ./...
 
 lint-go: ## Ensure root Go files are formatted
-	test -z "$$(find apps/axrun apps/cli control/controld control/storaged gateway/gatewayd lib/go runtime/egressd runtime/imagemgr runtime/tunneld runtime/volumed sdk/go -name '*.go' -print | xargs gofmt -l)" || (echo "gofmt reported unformatted files" && exit 1)
+	test -z "$$(find apps/axrun apps/cli control/controld gateway/gatewayd lib/go runtime/egressd runtime/imagemgr runtime/tunneld sdk/go -name '*.go' -print | xargs gofmt -l)" || (echo "gofmt reported unformatted files" && exit 1)
 
 sdk-go-verify: ## Run Go SDK tests, race smoke, vet, and formatting checks
 	$(GO) test -tags=axern_contract ./sdk/go/...

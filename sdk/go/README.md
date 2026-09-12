@@ -270,8 +270,8 @@ make sdk-go-examples-smoke
 With local compose running, `make local-compose-go-sdk-e2e` verifies real
 sandbox exec, process, files, archives, and tunnels. Set
 `AXERN_GO_SDK_E2E_IMAGE_PROCESS_IMAGE=<image-ref>` to additionally verify
-`ExecImage` and `ProcessImage` against a host-backed `/workspace` service
-volume, including that image-backed writes and overwrites are visible from the
+`ExecImage` and `ProcessImage` against the sandbox-lifetime `/workspace`,
+including that image-backed writes and overwrites are visible from the
 owning sandbox. Set `AXERN_GO_SDK_E2E_IMAGE_PROCESS_LOOPBACK=1` to also verify
 that image-backed actors can reach a service bound to the owning sandbox's
 `127.0.0.1`; this is expected to expose the `runsc` loopback isolation

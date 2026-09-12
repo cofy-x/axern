@@ -19,6 +19,12 @@ background, API inventory, and the full code-layout map, read
 - Postgres is the only authoritative state backend. Do not add backend-pluggable
   storage, in-memory app profiles, or fallback state paths unless explicitly
   requested.
+- Generic Volume Class, Claim, Binding, and physical reclaim are outside the
+  execution core. Do not restore a storage daemon or a compatibility bridge.
+  Startup must refuse legacy Claim or Binding rows without changing them;
+  persisted protobuf payloads continue to reject removed fields. Preserve
+  allocation-owned workspace/rootfs cleanup, ephemeral-storage limits, and
+  artifact ownership. See [Retired Volume Data](docs/retired-volume-data.md).
 - Placement stays separate from node-internal execution. Realtime exec and
   terminal traffic still go directly to selected nodes or through the gateway
   data plane after resolution.

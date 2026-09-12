@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
@@ -37,11 +36,6 @@ func (h *sandboxService) Run(ctx context.Context) error {
 	h.startPeriodicCapabilityAudit()
 	h.lrtManager.Start()
 	go h.containerManager.Start()
-	go func() {
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		_ = h.nodeVolumes().Reconcile(ctx)
-	}()
 	return nil
 }
 
@@ -72,7 +66,6 @@ func (h *sandboxService) shutdown(ctx context.Context) error {
 
 	h.lrtManager.DrainRetained(ctx, langrtmanager.RetentionReasonShutdown)
 	h.lrtManager.Close()
-	h.closeVolume()
 	h.closeEgress()
 	if err := h.containerManager.Stop(ctx); err != nil {
 		deleteErr = errors.Join(deleteErr, fmt.Errorf("stop container manager: %w", err))

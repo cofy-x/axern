@@ -70,10 +70,6 @@ func ServiceDeletionPhaseLabel(phase servicev1.ServiceDeletionPhase) string {
 	return trimEnumPrefix(phase.String(), "SERVICE_DELETION_PHASE_")
 }
 
-func ServiceVolumeDispositionLabel(disposition servicev1.ServiceVolumeDisposition) string {
-	return trimEnumPrefix(disposition.String(), "SERVICE_VOLUME_DISPOSITION_")
-}
-
 func AllocationStatusLabel(status commonv1.AllocationStatus) string {
 	return trimEnumPrefix(status.String(), "ALLOCATION_STATUS_")
 }

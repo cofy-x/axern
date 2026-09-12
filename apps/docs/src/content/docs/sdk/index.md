@@ -32,7 +32,6 @@ The sandbox boundary is shared; language depth differs by design.
 | Reverse tunnels | ✓ | ✓ | ✓ |
 | Computer Use | ✓ | ✓ | ✓ |
 | Managed browser | ✓ | — | — |
-| Volumes | ✓ | ✓ | ✓ |
 | Functions (packaging and invocation) | ✓ | — | — |
 | Environments and Services (create, watch) | ✓ | ✓ | — |
 | Rollout control and task-asset helpers | — | ✓ | — |

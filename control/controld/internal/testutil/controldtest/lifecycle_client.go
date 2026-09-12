@@ -92,10 +92,6 @@ func (f *FakeNodeLifecycleClient) DeleteAllocation(ctx context.Context, target s
 	return &privatenodev1.DeleteAllocationResponse{}, nil
 }
 
-func (f *FakeNodeLifecycleClient) DeleteVolume(context.Context, string, *privatenodev1.DeleteVolumeRequest) (*privatenodev1.DeleteVolumeResponse, error) {
-	return &privatenodev1.DeleteVolumeResponse{}, nil
-}
-
 func (f *FakeNodeLifecycleClient) GetAllocationStatus(ctx context.Context, target string, req *privatenodev1.GetAllocationStatusRequest) (*privatenodev1.GetAllocationStatusResponse, error) {
 	_ = ctx
 	_ = target

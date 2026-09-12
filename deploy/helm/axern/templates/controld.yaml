@@ -64,18 +64,6 @@ spec:
             - name: certs
               mountPath: /certs
               readOnly: true
-        - name: wait-storaged
-          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
-          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
-          command:
-            - /bin/sh
-            - -ec
-          args:
-            - |
-              until curl -fsS http://storaged.{{ .Release.Namespace }}.svc.cluster.local:24021/healthz >/dev/null; do
-                echo "waiting for storaged"
-                sleep 2
-              done
       containers:
         - name: controld
           image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
@@ -112,8 +100,6 @@ spec:
             - /certs/controld.crt
             - -tls-key
             - /certs/controld.key
-            - -storaged-target
-            - storaged.{{ .Release.Namespace }}.svc.cluster.local:24020
             - -function-gateway-url
             - http://gatewayd.{{ .Release.Namespace }}.svc.cluster.local:25080
             - -function-gateway-timeout

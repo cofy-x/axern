@@ -14,7 +14,6 @@ import (
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
-	storagev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"google.golang.org/grpc/codes"
@@ -47,9 +46,6 @@ func (f *fakeNodeOperatorService) NetworkPolicyDiagnostics(context.Context, stri
 
 func (f *fakeNodeOperatorService) Run(context.Context) error      { return nil }
 func (f *fakeNodeOperatorService) Shutdown(context.Context) error { return nil }
-func (f *fakeNodeOperatorService) DeleteVolume(context.Context, string, storagev1.VolumeBackend, string) error {
-	return nil
-}
 func (f *fakeNodeOperatorService) ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error) {
 	return nil, nil, nil
 }

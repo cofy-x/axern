@@ -75,17 +75,6 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 				NeedsFullDnatFallback: snapshot.Components.BPFNet.NeedsFullDNATFallback,
 				NeedsLocalhostCompat:  snapshot.Components.BPFNet.NeedsLocalhostCompat,
 			},
-			Volumed: &nodev1.VolumedSummary{
-				State:                              componentStateFromString(snapshot.Components.Volumed.Status),
-				Reachable:                          snapshot.Components.Volumed.Reachable,
-				PublishedVolumeCount:               int32(snapshot.Components.Volumed.PublishedVolumeCount),
-				LastReconcileError:                 snapshot.Components.Volumed.LastReconcileError,
-				LastReconcileRetainedCount:         int32(snapshot.Components.Volumed.LastReconcileRetainedCount),
-				LastReconcileUnpublishedCount:      int32(snapshot.Components.Volumed.LastReconcileUnpublishedCount),
-				LastReconcileActiveAllocationCount: int32(snapshot.Components.Volumed.LastReconcileActiveAllocationCount),
-				LastReconcileStaleAllocationCount:  int32(snapshot.Components.Volumed.LastReconcileStaleAllocationCount),
-				LastReconcileInvalidVolumeCount:    int32(snapshot.Components.Volumed.LastReconcileInvalidVolumeCount),
-			},
 		},
 		Locality:           make([]*nodev1.LocalitySummary, 0, len(snapshot.Heat.Locality)),
 		NodeState:          nodeStateFromString(snapshot.Node.State),
@@ -119,9 +108,6 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 	}
 	if !snapshot.Node.MemoryBudget.SampledAt.IsZero() {
 		summary.MemoryBudget.SampledAt = timestamppb.New(snapshot.Node.MemoryBudget.SampledAt)
-	}
-	if !snapshot.Components.Volumed.LastReconcileAt.IsZero() {
-		summary.Components.Volumed.LastReconcileAt = timestamppb.New(snapshot.Components.Volumed.LastReconcileAt)
 	}
 	for _, entry := range snapshot.Heat.Locality {
 		summary.Locality = append(summary.Locality, &nodev1.LocalitySummary{

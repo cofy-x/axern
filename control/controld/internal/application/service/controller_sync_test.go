@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,19 +13,16 @@ import (
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
-	workloadkernel "github.com/cofy-x/axern/control/controld/internal/kernel/workload"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
-	privatestoragev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/storage/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 func releasingDeletionStatus() *servicev1.ServiceDeletionStatus {
 	return &servicev1.ServiceDeletionStatus{
-		Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
-		VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_RETAIN,
+		Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
 	}
 }
 
@@ -119,160 +115,6 @@ func TestSyncTreatsMissingServiceDuringStatusSyncAsTerminal(t *testing.T) {
 	}
 }
 
-func TestVolumeReclaimDispatcherExecutesGenericTasks(t *testing.T) {
-	reclaim := &privatestoragev1.VolumeReclaim{ClaimID: "claim-direct", NodeID: "node-a", BackendHandle: "claim-direct", LeaseToken: "lease-a"}
-	storage := &fakeStorageCoordinator{claimReclaims: []*privatestoragev1.VolumeReclaim{reclaim}}
-	lifecycle := &fakeServiceAllocationLifecycle{}
-	controller := &controller{
-		storage:    storage,
-		lifecycle:  lifecycle,
-		nodeTarget: func(nodeID string) (string, bool) { return nodeID + ":24010", true },
-	}
-	completed := make(chan volumeReclaimCompletion, 1)
-	controller.executeVolumeReclaim(reclaim, completed)
-	<-completed
-	if lifecycle.volumeDeleteCalls != 1 || len(storage.reports) != 1 || !storage.reports[0].succeeded {
-		t.Fatalf("reclaim calls=%d reports=%#v", lifecycle.volumeDeleteCalls, storage.reports)
-	}
-}
-
-func TestVolumeReclaimDispatcherDoesNotLetSlowNodeBlockAnotherNode(t *testing.T) {
-	storage := &fakeStorageCoordinator{claimReclaims: []*privatestoragev1.VolumeReclaim{
-		{ClaimID: "claim-a", NodeID: "node-a", LeaseOwner: "owner", LeaseToken: "token-a", LeaseGeneration: 1},
-		{ClaimID: "claim-b", NodeID: "node-b", LeaseOwner: "owner", LeaseToken: "token-b", LeaseGeneration: 1},
-	}}
-	lifecycle := &blockingVolumeLifecycle{
-		fakeServiceAllocationLifecycle: &fakeServiceAllocationLifecycle{},
-		started:                        make(chan string, 2),
-		release:                        make(chan struct{}),
-	}
-	controller := &controller{
-		storage: storage, lifecycle: lifecycle,
-		nodeTarget: func(nodeID string) (string, bool) { return nodeID + ":24010", true },
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		controller.RunVolumeReclaimDispatcher(ctx, "owner", 2, 1)
-		close(done)
-	}()
-	seen := map[string]bool{}
-	for range 2 {
-		select {
-		case nodeID := <-lifecycle.started:
-			seen[nodeID] = true
-		case <-time.After(2 * time.Second):
-			t.Fatal("dispatcher did not start independent node reclaim")
-		}
-	}
-	if !seen["node-a"] || !seen["node-b"] {
-		t.Fatalf("started nodes=%v, want node-a and node-b", seen)
-	}
-	cancel()
-	close(lifecycle.release)
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("dispatcher did not drain on cancellation")
-	}
-}
-
-func TestSyncDeletedWaitsForPhysicalVolumeReclaimBeforeComplete(t *testing.T) {
-	now := time.Date(2026, 7, 17, 10, 0, 0, 0, time.UTC)
-	service := &servicev1.Service{
-		ID: "svc-1", Namespace: "default", Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETING,
-		DeletionStatus: &servicev1.ServiceDeletionStatus{
-			Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES,
-			VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE,
-		},
-	}
-	storage := &fakeStorageCoordinator{deleteResponses: []*privatestoragev1.DeleteWorkloadVolumeClaimsResponse{
-		{ClaimIds: []string{"claim-1"}},
-		{Complete: true},
-	}}
-	lifecycle := &fakeServiceAllocationLifecycle{}
-	statuses := &fakeReconcileStatusStore{service: service}
-	controller := &controller{
-		allocations: &fakeReconcileAllocationStore{history: []*servicekernel.AllocationRecord{{
-			AllocationID: "alloc-1", NodeID: "node-a", NodeTarget: "node-a:24010",
-			Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED,
-		}}},
-		statuses: statuses, storage: storage, lifecycle: lifecycle,
-		nodeTarget: func(string) (string, bool) {
-			return "node-a-current:24010", true
-		},
-	}
-	next, err := controller.syncDeleted(context.Background(), service, now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if next.GetDeletionStatus().GetPhase() != servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES || lifecycle.volumeDeleteCalls != 0 || len(storage.reports) != 0 {
-		t.Fatalf("first deletion next=%#v lifecycle=%d reports=%#v", next.GetDeletionStatus(), lifecycle.volumeDeleteCalls, storage.reports)
-	}
-	statuses.service = next
-	next, err = controller.syncDeleted(context.Background(), next, now.Add(time.Second))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if next.GetDeletionStatus().GetPhase() != servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE || next.GetDeletionStatus().GetCompletedAt() == nil {
-		t.Fatalf("completed deletion = %#v", next.GetDeletionStatus())
-	}
-}
-
-func TestSyncDeletedRetainDispositionReleasesClaimOwners(t *testing.T) {
-	now := time.Date(2026, 8, 1, 3, 0, 0, 0, time.UTC)
-	service := &servicev1.Service{
-		ID: "svc-1", Namespace: "default", Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETING,
-		DeletionStatus: &servicev1.ServiceDeletionStatus{
-			Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
-			VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_RETAIN,
-		},
-	}
-	storage := &fakeStorageCoordinator{}
-	controller := &controller{
-		allocations: &fakeReconcileAllocationStore{history: []*servicekernel.AllocationRecord{{
-			AllocationID: "alloc-1", NodeID: "node-a", NodeTarget: "node-a:24010",
-			Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED,
-		}}},
-		statuses: &fakeReconcileStatusStore{service: service}, storage: storage,
-	}
-	next, err := controller.syncDeleted(context.Background(), service, now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if next.GetDeletionStatus().GetPhase() != servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE {
-		t.Fatalf("retained deletion = %#v, want complete", next.GetDeletionStatus())
-	}
-	if storage.releaseCalls != 1 || len(storage.releasedServices) != 1 || storage.releasedServices[0] != "svc-1" {
-		t.Fatalf("release calls=%d services=%v, want one release for svc-1", storage.releaseCalls, storage.releasedServices)
-	}
-}
-
-func TestSyncDeletedRetainDispositionRetriesWhenReleaseFails(t *testing.T) {
-	now := time.Date(2026, 8, 1, 3, 5, 0, 0, time.UTC)
-	service := &servicev1.Service{
-		ID: "svc-1", Namespace: "default", Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETING,
-		DeletionStatus: &servicev1.ServiceDeletionStatus{
-			Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
-			VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_RETAIN,
-		},
-	}
-	storage := &fakeStorageCoordinator{releaseErr: errors.New("storaged unavailable")}
-	controller := &controller{
-		allocations: &fakeReconcileAllocationStore{history: []*servicekernel.AllocationRecord{{
-			AllocationID: "alloc-1", NodeID: "node-a", NodeTarget: "node-a:24010",
-			Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED,
-		}}},
-		statuses: &fakeReconcileStatusStore{service: service}, storage: storage,
-	}
-	if _, err := controller.syncDeleted(context.Background(), service, now); err == nil {
-		t.Fatal("syncDeleted() error = nil, want release failure to block completion")
-	}
-	if storage.releaseCalls != 1 {
-		t.Fatalf("release calls=%d, want 1", storage.releaseCalls)
-	}
-}
-
 func TestSyncDeletedMissingDeletionStatusFails(t *testing.T) {
 	now := time.Date(2026, 7, 17, 11, 0, 0, 0, time.UTC)
 	service := &servicev1.Service{
@@ -287,164 +129,6 @@ func TestSyncDeletedMissingDeletionStatusFails(t *testing.T) {
 	}
 	if _, err := controller.syncDeleted(context.Background(), service, now); err == nil {
 		t.Fatal("syncDeleted() error = nil, want missing deletion status failure")
-	}
-}
-
-func TestReconcileAllocationCreateReservesStorageBeforeRetryingNodeCreate(t *testing.T) {
-	now := time.Date(2026, 5, 9, 13, 15, 0, 0, time.UTC)
-	service := &servicev1.Service{
-		ID:            "svc-a",
-		Namespace:     "default",
-		EnvironmentID: "env-a",
-		Config: &commonv1.ExecutionConfig{
-			VolumeMounts: []*commonv1.ServiceVolumeMount{{
-				Name:   "data",
-				Target: "/data",
-			}},
-		},
-		AllocationIds: []string{"alloc-a"},
-	}
-	reconcile := &fakeServiceAllocationReconcileStore{
-		items: []allocationkernel.ReconcileItem{{
-			AllocationID:  "alloc-a",
-			OwnerID:       "svc-a",
-			EnvironmentID: "env-a",
-			Reason:        allocationkernel.ReconcileReasonCreate,
-			NodeID:        "node-a",
-			NodeTarget:    "node-a:24010",
-		}},
-	}
-	volume := &privatestoragev1.ResolvedNodeVolume{ClaimID: "default/data", BindingID: "alloc-a/data", Target: "/data"}
-	storage := &fakeStorageCoordinator{volumes: []*privatestoragev1.ResolvedNodeVolume{volume}}
-	lifecycle := &fakeServiceAllocationLifecycle{}
-
-	_, err := (&controller{
-		store:        &fakeReconcileServiceStore{getByID: map[string]*servicev1.Service{"svc-a": service}},
-		allocations:  &fakeReconcileAllocationStore{},
-		environments: &fakeReconcileEnvironmentReader{},
-		reconcile:    reconcile,
-		lifecycle:    lifecycle,
-		storage:      storage,
-	}).ReconcileAllocationBatch(context.Background(), now)
-	if err != nil {
-		t.Fatalf("ReconcilePending() error = %v", err)
-	}
-	if len(storage.reserveRequests) != 1 {
-		t.Fatalf("reserve requests = %d, want 1", len(storage.reserveRequests))
-	}
-	if got := storage.reserveRequests[0]; got.AllocationID != "alloc-a" || got.NodeID != "node-a" || got.ServiceID != "svc-a" {
-		t.Fatalf("reserve request = %#v, want alloc-a/node-a/svc-a", got)
-	}
-	if len(lifecycle.createRequests) != 1 || len(lifecycle.createRequests[0].NodeVolumes) != 1 {
-		t.Fatalf("create requests = %#v, want one request with node volume", lifecycle.createRequests)
-	}
-	if lifecycle.createRequests[0].NodeVolumes[0].GetBindingID() != "alloc-a/data" {
-		t.Fatalf("node volume = %#v, want alloc-a/data", lifecycle.createRequests[0].NodeVolumes[0])
-	}
-	if len(reconcile.completedCreates) != 1 || reconcile.completedCreates[0] != "alloc-a" {
-		t.Fatalf("completed creates = %#v, want alloc-a", reconcile.completedCreates)
-	}
-}
-
-func TestReconcileAllocationCreateClassifiesStorageReserveFailure(t *testing.T) {
-	now := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
-	service := &servicev1.Service{
-		ID:            "svc-a",
-		Namespace:     "default",
-		EnvironmentID: "env-a",
-		Config: &commonv1.ExecutionConfig{
-			VolumeMounts: []*commonv1.ServiceVolumeMount{{
-				Name:   "data",
-				Target: "/data",
-			}},
-		},
-		AllocationIds: []string{"alloc-a"},
-	}
-	reconcile := &fakeServiceAllocationReconcileStore{
-		items: []allocationkernel.ReconcileItem{{
-			AllocationID:      "alloc-a",
-			OwnerID:           "svc-a",
-			EnvironmentID:     "env-a",
-			Reason:            allocationkernel.ReconcileReasonCreate,
-			NodeID:            "node-a",
-			NodeTarget:        "node-a:24010",
-			ReconcileAttempts: allocationkernel.CreateRetryMaxAttempts - 1,
-		}},
-	}
-	allocations := &fakeReconcileAllocationStore{}
-
-	_, err := (&controller{
-		store:        &fakeReconcileServiceStore{getByID: map[string]*servicev1.Service{"svc-a": service}},
-		allocations:  allocations,
-		environments: &fakeReconcileEnvironmentReader{},
-		reconcile:    reconcile,
-		lifecycle:    &fakeServiceAllocationLifecycle{},
-		storage:      &fakeStorageCoordinator{reserveErr: errors.New("volume binding reserve requires claim, class, and mount")},
-	}).ReconcileAllocationBatch(context.Background(), now)
-	if err != nil {
-		t.Fatalf("ReconcilePending() error = %v", err)
-	}
-	if len(allocations.failedCreates) != 1 {
-		t.Fatalf("failed creates = %#v, want one", allocations.failedCreates)
-	}
-	failed := allocations.failedCreates[0]
-	if failed.allocationID != "alloc-a" || failed.message != "storage reserve failed: volume binding reserve requires claim, class, and mount" {
-		t.Fatalf("failed create = %#v", failed)
-	}
-	if got := workloadkernel.ClassifyDiagnostic(commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED, failed.message); got != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_STORAGE_RESERVE_ERROR {
-		t.Fatalf("diagnostic = %v, want storage reserve", got)
-	}
-}
-
-func TestReconcileAllocationCreateReportsVolumePublishFailureMessage(t *testing.T) {
-	now := time.Date(2026, 5, 14, 10, 15, 0, 0, time.UTC)
-	service := &servicev1.Service{
-		ID:            "svc-a",
-		Namespace:     "default",
-		EnvironmentID: "env-a",
-		Config: &commonv1.ExecutionConfig{
-			VolumeMounts: []*commonv1.ServiceVolumeMount{{
-				Name:   "data",
-				Target: "/data",
-			}},
-		},
-		AllocationIds: []string{"alloc-a"},
-	}
-	reconcile := &fakeServiceAllocationReconcileStore{
-		items: []allocationkernel.ReconcileItem{{
-			AllocationID:      "alloc-a",
-			OwnerID:           "svc-a",
-			EnvironmentID:     "env-a",
-			Reason:            allocationkernel.ReconcileReasonCreate,
-			NodeID:            "node-a",
-			NodeTarget:        "node-a:24010",
-			ReconcileAttempts: allocationkernel.CreateRetryMaxAttempts - 1,
-		}},
-	}
-	allocations := &fakeReconcileAllocationStore{}
-	volume := &privatestoragev1.ResolvedNodeVolume{ClaimID: "default/data", BindingID: "alloc-a/data", Target: "/data"}
-	storage := &fakeStorageCoordinator{volumes: []*privatestoragev1.ResolvedNodeVolume{volume}}
-
-	_, err := (&controller{
-		store:        &fakeReconcileServiceStore{getByID: map[string]*servicev1.Service{"svc-a": service}},
-		allocations:  allocations,
-		environments: &fakeReconcileEnvironmentReader{},
-		reconcile:    reconcile,
-		lifecycle:    &fakeServiceAllocationLifecycle{createErr: errors.New("volumed: volume does not support runtime class \"runsc\"")},
-		storage:      storage,
-	}).ReconcileAllocationBatch(context.Background(), now)
-	if err != nil {
-		t.Fatalf("ReconcilePending() error = %v", err)
-	}
-	wantMessage := "volume publish failed: volumed: volume does not support runtime class \"runsc\""
-	if len(storage.publishFailures) != 1 || storage.publishFailures[0] != wantMessage {
-		t.Fatalf("publish failures = %#v, want %q", storage.publishFailures, wantMessage)
-	}
-	if len(allocations.failedCreates) != 1 || allocations.failedCreates[0].message != wantMessage {
-		t.Fatalf("failed creates = %#v, want message %q", allocations.failedCreates, wantMessage)
-	}
-	if got := workloadkernel.ClassifyDiagnostic(commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED, allocations.failedCreates[0].message); got != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_VOLUME_PUBLISH_ERROR {
-		t.Fatalf("diagnostic = %v, want volume publish", got)
 	}
 }
 
@@ -485,17 +169,6 @@ func TestReconcileAllocationCreateReplacesResourceExhaustedAllocation(t *testing
 	}
 	if len(reconcile.scheduledRequests) != 0 {
 		t.Fatalf("scheduled retries = %#v, want none", reconcile.scheduledRequests)
-	}
-}
-
-func TestStoragePublishFailureMessagePreservesNonVolumeLifecycleErrors(t *testing.T) {
-	volume := &privatestoragev1.ResolvedNodeVolume{BindingID: "alloc-a/data"}
-	message := storagePublishFailureMessage([]*privatestoragev1.ResolvedNodeVolume{volume}, errors.New("resolve image ref repo/app:missing: image or tag was not found"))
-	if message != "resolve image ref repo/app:missing: image or tag was not found" {
-		t.Fatalf("message = %q", message)
-	}
-	if got := workloadkernel.ClassifyDiagnostic(commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED, message); got != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_IMAGE_RESOLUTION_ERROR {
-		t.Fatalf("diagnostic = %v, want image resolution", got)
 	}
 }
 
@@ -615,15 +288,12 @@ func TestDeleteAndConfirmAllocationRetriesLostDeleteResponseEvenWhenNodeConfirms
 	}
 }
 
-func TestDeleteAndConfirmAllocationReportsReleaseObservationsAfterConfirmedDelete(t *testing.T) {
-	releaseObservations := []*privatestoragev1.VolumeReleaseObservation{{BindingID: "binding-1"}}
+func TestDeleteAndConfirmAllocationCompletesAfterConfirmedDelete(t *testing.T) {
 	lifecycle := &fakeServiceAllocationLifecycle{
-		allocationDeleted:   true,
-		releaseObservations: releaseObservations,
+		allocationDeleted: true,
 	}
-	storage := &fakeStorageCoordinator{}
 
-	deleted, err := (&controller{lifecycle: lifecycle, storage: storage}).deleteAndConfirmAllocation(context.Background(), &servicekernel.AllocationRecord{
+	deleted, err := (&controller{lifecycle: lifecycle}).deleteAndConfirmAllocation(context.Background(), &servicekernel.AllocationRecord{
 		AllocationID: "alloc-a",
 		NodeID:       "node-a",
 		NodeTarget:   "node-a:24010",
@@ -635,8 +305,8 @@ func TestDeleteAndConfirmAllocationReportsReleaseObservationsAfterConfirmedDelet
 	if !deleted {
 		t.Fatal("deleteAndConfirmAllocation() deleted = false, want true")
 	}
-	if len(storage.releaseObservations) != 1 || storage.releaseObservations[0].GetBindingID() != "binding-1" {
-		t.Fatalf("release observations = %#v, want binding-1", storage.releaseObservations)
+	if lifecycle.deleteCalls != 1 || lifecycle.statusCalls != 1 {
+		t.Fatalf("calls delete/status = %d/%d", lifecycle.deleteCalls, lifecycle.statusCalls)
 	}
 }
 
@@ -960,8 +630,7 @@ func (f *fakeReconcileStatusStore) SyncObservedStatus(_ context.Context, service
 	return &servicev1.Service{
 		ID: serviceID, Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETED,
 		DeletionStatus: &servicev1.ServiceDeletionStatus{
-			Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE,
-			VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_RETAIN,
+			Phase: servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE,
 		},
 	}, nil
 }
@@ -1037,20 +706,17 @@ func (f *fakeServiceAllocationReconcileStore) CompleteClaimedAllocationCreate(ct
 }
 
 type fakeServiceAllocationLifecycle struct {
-	mu                  sync.Mutex
-	deleteErr           error
-	allocationDeleted   bool
-	allocationErr       error
-	deleteCalls         int
-	statusCalls         int
-	createErr           error
-	createErrByNode     map[string]error
-	createStarted       chan struct{}
-	createRelease       chan struct{}
-	releaseObservations []*privatestoragev1.VolumeReleaseObservation
-	createRequests      []servicekernel.CreateResolvedAllocationRequest
-	volumeDeleteCalls   int
-	volumeDeleteTargets []string
+	mu                sync.Mutex
+	deleteErr         error
+	allocationDeleted bool
+	allocationErr     error
+	deleteCalls       int
+	statusCalls       int
+	createErr         error
+	createErrByNode   map[string]error
+	createStarted     chan struct{}
+	createRelease     chan struct{}
+	createRequests    []servicekernel.CreateResolvedAllocationRequest
 }
 
 func (f *fakeServiceAllocationLifecycle) CreateResolvedAllocation(_ context.Context, req servicekernel.CreateResolvedAllocationRequest) (*servicekernel.CreateResolvedAllocationResult, error) {
@@ -1074,11 +740,11 @@ func (f *fakeServiceAllocationLifecycle) CreateResolvedAllocation(_ context.Cont
 	return &servicekernel.CreateResolvedAllocationResult{}, err
 }
 
-func (f *fakeServiceAllocationLifecycle) DeleteResolvedAllocation(context.Context, string, string, int64, string) ([]*privatestoragev1.VolumeReleaseObservation, error) {
+func (f *fakeServiceAllocationLifecycle) DeleteResolvedAllocation(context.Context, string, string, int64, string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.deleteCalls++
-	return f.releaseObservations, f.deleteErr
+	return f.deleteErr
 }
 
 func (f *fakeServiceAllocationLifecycle) AllocationDeleted(context.Context, string, string, int64, string) (bool, error) {
@@ -1086,129 +752,4 @@ func (f *fakeServiceAllocationLifecycle) AllocationDeleted(context.Context, stri
 	defer f.mu.Unlock()
 	f.statusCalls++
 	return f.allocationDeleted, f.allocationErr
-}
-
-func (f *fakeServiceAllocationLifecycle) DeleteVolume(_ context.Context, target string, _ *privatestoragev1.VolumeReclaim) error {
-	f.volumeDeleteCalls++
-	f.volumeDeleteTargets = append(f.volumeDeleteTargets, target)
-	return nil
-}
-
-type reclaimReport struct {
-	claimID   string
-	succeeded bool
-	message   string
-}
-
-type fakeStorageCoordinator struct {
-	mu                  sync.Mutex
-	volumes             []*privatestoragev1.ResolvedNodeVolume
-	reserveErr          error
-	reserveRequests     []servicekernel.StorageReserveRequest
-	releaseObservations []*privatestoragev1.VolumeReleaseObservation
-	publishFailures     []string
-	deleteResponses     []*privatestoragev1.DeleteWorkloadVolumeClaimsResponse
-	deleteCalls         int
-	releaseErr          error
-	releaseCalls        int
-	releasedServices    []string
-	claimReclaims       []*privatestoragev1.VolumeReclaim
-	reports             []reclaimReport
-}
-
-func (f *fakeStorageCoordinator) ClaimVolumeReclaims(_ context.Context, _ string, excludedNodeIDs []string) (*privatestoragev1.VolumeReclaim, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if len(f.claimReclaims) == 0 {
-		return nil, nil
-	}
-	excluded := map[string]bool{}
-	for _, nodeID := range excludedNodeIDs {
-		excluded[nodeID] = true
-	}
-	for index, reclaim := range f.claimReclaims {
-		if excluded[reclaim.GetNodeID()] {
-			continue
-		}
-		f.claimReclaims = append(f.claimReclaims[:index], f.claimReclaims[index+1:]...)
-		return reclaim, nil
-	}
-	return nil, nil
-}
-
-func (f *fakeStorageCoordinator) ResolveRequirements(context.Context, string, string, *commonv1.ExecutionConfig) ([]*privatestoragev1.VolumeRequirement, error) {
-	return nil, nil
-}
-
-func (f *fakeStorageCoordinator) ReserveBindings(_ context.Context, req servicekernel.StorageReserveRequest) ([]*privatestoragev1.ResolvedNodeVolume, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.reserveRequests = append(f.reserveRequests, req)
-	return f.volumes, f.reserveErr
-}
-
-func (f *fakeStorageCoordinator) ReportBindingRelease(_ context.Context, _, _ string, observations []*privatestoragev1.VolumeReleaseObservation) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.releaseObservations = observations
-	return nil
-}
-
-func (f *fakeStorageCoordinator) DeleteWorkloadVolumeClaims(context.Context, string, string) (*privatestoragev1.DeleteWorkloadVolumeClaimsResponse, error) {
-	if f.deleteCalls < len(f.deleteResponses) {
-		response := f.deleteResponses[f.deleteCalls]
-		f.deleteCalls++
-		return response, nil
-	}
-	return &privatestoragev1.DeleteWorkloadVolumeClaimsResponse{Complete: true}, nil
-}
-
-func (f *fakeStorageCoordinator) ReleaseWorkloadVolumeClaims(_ context.Context, _ string, serviceID string) (*privatestoragev1.ReleaseWorkloadVolumeClaimsResponse, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.releaseCalls++
-	f.releasedServices = append(f.releasedServices, serviceID)
-	if f.releaseErr != nil {
-		return nil, f.releaseErr
-	}
-	return &privatestoragev1.ReleaseWorkloadVolumeClaimsResponse{}, nil
-}
-
-func (f *fakeStorageCoordinator) ReportVolumeReclaim(_ context.Context, reclaim *privatestoragev1.VolumeReclaim, succeeded bool, message string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.reports = append(f.reports, reclaimReport{claimID: reclaim.GetClaimID(), succeeded: succeeded, message: message})
-	return nil
-}
-
-type blockingVolumeLifecycle struct {
-	*fakeServiceAllocationLifecycle
-	started chan string
-	release chan struct{}
-}
-
-func (f *blockingVolumeLifecycle) DeleteVolume(ctx context.Context, target string, _ *privatestoragev1.VolumeReclaim) error {
-	nodeID := strings.TrimSuffix(target, ":24010")
-	select {
-	case f.started <- nodeID:
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-	select {
-	case <-f.release:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func (f *fakeStorageCoordinator) ReportBindingPublish(context.Context, string, string, []*privatestoragev1.PublishedNodeVolume) error {
-	return nil
-}
-
-func (f *fakeStorageCoordinator) ReportBindingPublishFailed(_ context.Context, _, _ string, _ []*privatestoragev1.ResolvedNodeVolume, message string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.publishFailures = append(f.publishFailures, message)
-	return nil
 }

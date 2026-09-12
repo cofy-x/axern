@@ -68,14 +68,7 @@ func TestRenderServiceIncludesRolloutSummary(t *testing.T) {
 			DiagnosticCode:       commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_REGISTRY_AUTH_ERROR,
 			DiagnosticMessage:    "check the referenced docker-config-json secret",
 		},
-		Config: &commonv1.ExecutionConfig{
-			VolumeMounts: []*commonv1.ServiceVolumeMount{{
-				Name:     "data",
-				Target:   "/var/lib/app",
-				Readonly: true,
-				Options:  []string{"rbind"},
-			}},
-		},
+		Config:  &commonv1.ExecutionConfig{},
 		Message: "rolling update in progress",
 	})
 	out := b.String()
@@ -84,7 +77,6 @@ func TestRenderServiceIncludesRolloutSummary(t *testing.T) {
 		"Status: reconciling",
 		"Readiness Probe: http port=8080 path=/readyz initial_delay=100ms period=750ms timeout=250ms success_threshold=1 failure_threshold=1",
 		"Liveness Probe: tcp port=9090 initial_delay=0s period=10s timeout=2s success_threshold=1 failure_threshold=3",
-		"Volumes: data:/var/lib/app:ro,rbind",
 		"Autoscaling Policy: min=1 max=5 schedules=1",
 		"- business cron=* 9-17 * * 1-5 replicas=3",
 		"Autoscaling: current_desired=3 min=1 max=5 active=business target=3 action=scaled-up",
@@ -255,20 +247,17 @@ func TestRenderServiceDescribeIncludesDeletionLifecycle(t *testing.T) {
 		ID:     "svc-deleting",
 		Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETING,
 		DeletionStatus: &servicev1.ServiceDeletionStatus{
-			Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES,
-			VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE,
-			ClaimIds:          []string{"claim-a", "claim-b"},
-			Message:           "waiting for volume cleanup",
-			CompletedAt:       timestamppb.New(time.Date(2026, time.August, 13, 8, 30, 0, 0, time.UTC)),
+			Phase:       servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
+			Message:     "waiting for allocation cleanup",
+			CompletedAt: timestamppb.New(time.Date(2026, time.August, 13, 8, 30, 0, 0, time.UTC)),
 		},
 	}, nil)
 	out := b.String()
 	for _, want := range []string{
 		"Status: deleting",
-		"Deletion: phase=reclaiming-volumes volume_disposition=delete",
-		"Deletion Claims: claim-a,claim-b",
+		"Deletion: phase=releasing-allocations",
 		"Deletion Completed At: 2026-08-13T08:30:00Z",
-		"Deletion Message: waiting for volume cleanup",
+		"Deletion Message: waiting for allocation cleanup",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output %q does not contain %q", out, want)

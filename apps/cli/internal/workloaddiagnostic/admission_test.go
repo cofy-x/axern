@@ -111,31 +111,6 @@ func TestDiagnosticCode(t *testing.T) {
 			want:    DiagnosticNodeSelectionError,
 		},
 		{
-			name:    "storage topology",
-			message: "service volume topology unsatisfied: no placement candidates satisfy required volume topology",
-			want:    DiagnosticStorageTopologyUnsatisfied,
-		},
-		{
-			name:    "storage reserve",
-			message: "storage reserve failed: volume binding reserve requires claim, class, and mount",
-			want:    DiagnosticStorageReserveError,
-		},
-		{
-			name:    "volume spec conflict",
-			message: "storage reserve failed: volume binding \"alloc-a/data\" already exists with a different resolved volume",
-			want:    DiagnosticVolumeSpecConflict,
-		},
-		{
-			name:    "volume publish",
-			message: "volume publish failed: volumed: volume does not support runtime class \"runsc\"",
-			want:    DiagnosticVolumePublishError,
-		},
-		{
-			name:    "volume release",
-			message: "volume release failed: unpublish volume alloc-a/data: input/output error",
-			want:    DiagnosticVolumeReleaseError,
-		},
-		{
 			name:    "other message",
 			message: "runtime start failed",
 			want:    "",

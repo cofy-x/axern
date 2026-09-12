@@ -44,6 +44,6 @@ Useful flags:
   for shared deployments and review host-key rotation before trusting a new
   gateway.
 
-For a persistent coding workspace with an agent preinstalled, prefer
+For a coding session with an agent bundle mounted, prefer
 [`axern agent shell`](/guides/agent/); for reaching a local TCP service from
 inside the allocation, use a [reverse tunnel](/guides/tunnels/).

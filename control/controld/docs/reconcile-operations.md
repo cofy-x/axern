@@ -16,9 +16,6 @@ convergence issues.
   reservations, leases, tunnel sessions, service references, and allocations.
 - `axern admin consistency check` and `axern admin reliability check` expose the
   typed admin gRPC read models used by smoke tests and operator triage.
-- Storage binding health from `storaged` is folded into `axern admin
-  reliability check`; failed or stuck releasing bindings produce a storage
-  reliability signal.
 - Active-node heartbeat freshness, summary freshness, and axnoded readiness are
   folded into the same reliability response. Retired nodes are excluded.
 - The admin gRPC API, CLI, and dashboard perform audited repair actions.

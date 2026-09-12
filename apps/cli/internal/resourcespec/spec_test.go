@@ -248,11 +248,11 @@ spec:
 	}
 }
 
-func TestLoadRejectsNonCanonicalVolumeTargetAndNegativeProbeThreshold(t *testing.T) {
+func TestLoadRejectsNonCanonicalImageMountTargetAndNegativeProbeThreshold(t *testing.T) {
 	dir := t.TempDir()
 	for name, field := range map[string]string{
-		"volume": "  volumes: [{name: data, target: /srv/../data}]\n",
-		"probe":  "  readiness: {tcp_port: 8080, failure_threshold: -1}\n",
+		"image-mount": "  image_mounts: [{image: tools:latest, target: /srv/../data}]\n",
+		"probe":       "  readiness: {tcp_port: 8080, failure_threshold: -1}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			path := writeSpec(t, dir, name+".yaml", `

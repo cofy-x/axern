@@ -18,27 +18,7 @@ type LifecycleClient interface {
 	CreateAllocation(context.Context, string, *privatenodev1.CreateAllocationRequest) (*privatenodev1.CreateAllocationResponse, error)
 	DeleteAllocation(context.Context, string, *privatenodev1.DeleteAllocationRequest) (*privatenodev1.DeleteAllocationResponse, error)
 	GetAllocationStatus(context.Context, string, *privatenodev1.GetAllocationStatusRequest) (*privatenodev1.GetAllocationStatusResponse, error)
-	DeleteVolume(context.Context, string, *privatenodev1.DeleteVolumeRequest) (*privatenodev1.DeleteVolumeResponse, error)
 	Close() error
-}
-
-func (c *GRPCClient) DeleteVolume(ctx context.Context, target string, req *privatenodev1.DeleteVolumeRequest) (*privatenodev1.DeleteVolumeResponse, error) {
-	var resp *privatenodev1.DeleteVolumeResponse
-	var err error
-	for range idempotentRPCAttempts {
-		var client privatenodev1.NodeLifecycleClient
-		var conn *grpc.ClientConn
-		client, conn, err = c.clientConn(ctx, target)
-		if err != nil {
-			return nil, err
-		}
-		resp, err = client.DeleteVolume(ctx, req)
-		c.discardRecoverableConn(target, conn, err)
-		if !isRecoverableNodeRPCError(err) {
-			return resp, err
-		}
-	}
-	return resp, err
 }
 
 const idempotentRPCAttempts = 2

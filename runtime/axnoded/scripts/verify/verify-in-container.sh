@@ -21,7 +21,6 @@ case "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" in
   disabled_dev) AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES=0 ;;
   *) echo "unsupported AXNODED_VERIFY_CGROUP_ENFORCEMENT=${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" >&2; exit 1 ;;
 esac
-setup_node_runtime_volume_defaults
 ensure_bpf_fs "${NAT_BACKEND}"
 
 if [ "${RUNTIME_UNDER_TEST}" = "runsc" ]; then
@@ -57,7 +56,6 @@ memory_system_reserve_bytes = ${AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES}
 [plugin.runtime]
 image_lib_dir = "/var/lib/axnoded/rootfs"
 image_manager_enabled = false
-volume_manager_socket = "${VOLUMED_SOCKET}"
 cgroup_enforcement = "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}"
 filestore_mode = "loopback_dev"
 filestore_dir = "/var/lib/axnoded/filestore"
@@ -98,7 +96,6 @@ cleanup() {
     kill "${AXNODED_PID}" >/dev/null 2>&1 || true
     wait "${AXNODED_PID}" >/dev/null 2>&1 || true
   fi
-  stop_node_runtime_volumed
   umount /opt/sample-rootfs >/dev/null 2>&1 || true
   umount /opt/nginx-rootfs >/dev/null 2>&1 || true
   if [ -n "${rootfs_staging_dir}" ]; then
@@ -137,7 +134,6 @@ rmdir "${rootfs_staging_dir}"
 rootfs_staging_dir=""
 mount -o loop,ro "${VERIFY_NGINX_ROOTFS_IMAGE}" /opt/nginx-rootfs
 
-start_node_runtime_volumed
 
 "${AXNODED_BIN}" \
   -root /var/lib/axnoded \
@@ -158,8 +154,6 @@ done
 
 if ! [ -S "${SOCKET_ADDRESS}" ] || ! curl -fsS http://127.0.0.1:23001/readyz >/dev/null 2>&1; then
   echo "axnoded did not become ready in time" >&2
-  echo "--- volumed log tail ---" >&2
-  tail_node_runtime_volumed_log 120
   echo "--- axnoded log tail ---" >&2
   tail -n 120 /tmp/axnoded.log >&2 || true
   exit 1

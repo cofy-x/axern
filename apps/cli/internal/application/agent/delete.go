@@ -15,7 +15,6 @@ type DeleteResult struct {
 	Workspace   string    `json:"workspace"`
 	State       string    `json:"state"`
 	ServiceID   string    `json:"service_id"`
-	ClaimIDs    []string  `json:"claim_ids"`
 	Message     string    `json:"message"`
 	CompletedAt time.Time `json:"completed_at,omitempty"`
 }
@@ -60,7 +59,7 @@ func (Control) DeleteWorkspace(ctx context.Context, client ServiceClient, worksp
 	}
 	for {
 		deletion := service.GetDeletionStatus()
-		result := DeleteResult{Workspace: workspace, State: LifecycleDeleting, ServiceID: service.GetID(), ClaimIDs: append([]string(nil), deletion.GetClaimIds()...), Message: deletion.GetMessage()}
+		result := DeleteResult{Workspace: workspace, State: LifecycleDeleting, ServiceID: service.GetID(), Message: deletion.GetMessage()}
 		if deletion.GetPhase() == servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE {
 			result.State = LifecycleDeleted
 			result.CompletedAt = deletion.GetCompletedAt().AsTime()
@@ -68,7 +67,7 @@ func (Control) DeleteWorkspace(ctx context.Context, client ServiceClient, worksp
 		}
 		select {
 		case <-waitCtx.Done():
-			return result, fmt.Errorf("timed out waiting for agent workspace %q physical deletion; deletion continues in the background", workspace)
+			return result, fmt.Errorf("timed out waiting for agent workspace %q deletion; deletion continues in the background", workspace)
 		case <-time.After(500 * time.Millisecond):
 		}
 		resp, err := client.GetService(waitCtx, &servicev1.GetServiceRequest{ServiceID: service.GetID()})
@@ -86,7 +85,6 @@ func deleteWorkspaceService(ctx context.Context, client ServiceClient, workspace
 		}
 		resp, err := client.DeleteService(ctx, &servicev1.DeleteServiceRequest{
 			ServiceID: service.GetID(), ExpectedVersion: service.GetVersion(), RequireSuspended: true,
-			VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE,
 		})
 		if status.Code(err) == codes.Aborted && attempt == 0 {
 			serviceID := service.GetID()

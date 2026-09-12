@@ -69,29 +69,9 @@ func TestGetAdminReliabilityHealthMapsDegradedHealth(t *testing.T) {
 				AllocationLifecycleRetries:    2,
 				DueAllocationLifecycleRetries: 1,
 				ReconcileUnhealthyComponents:  1,
-				StorageBindingHealth: adminkernel.StorageBindingHealth{
-					FailedBindings:         5,
-					ReleasingBindings:      6,
-					StuckReleasingBindings: 7,
-					InconsistentClaims:     8,
-					InvalidBindings:        9,
-				},
-				NodeVolumeHealth: adminkernel.NodeVolumeHealth{
-					UnhealthyNodes:                1,
-					PublishedVolumes:              2,
-					LastReconcileStaleAllocations: 3,
-					LastReconcileInvalidVolumes:   4,
-					Error:                         "volumed reconcile failed",
-				},
 				Signals: []adminkernel.ReliabilitySignal{{
 					Code:    adminkernel.ReliabilitySignalAllocationLifecycleRetries,
 					Message: "2 allocation lifecycle retry item(s), 1 due",
-				}, {
-					Code:    adminkernel.ReliabilitySignalStorageBindings,
-					Message: "1 failed storage binding(s), 0 stuck releasing",
-				}, {
-					Code:    adminkernel.ReliabilitySignalNodeVolumeManagers,
-					Message: "1 node(s) report unhealthy volume manager",
 				}},
 			},
 		},
@@ -108,25 +88,8 @@ func TestGetAdminReliabilityHealthMapsDegradedHealth(t *testing.T) {
 	if got.GetAllocationLifecycleRetries() != 2 || got.GetDueAllocationLifecycleRetries() != 1 || got.GetReconcileUnhealthyComponents() != 1 {
 		t.Fatalf("health counts = %+v", got)
 	}
-	if len(got.GetSignals()) != 3 ||
-		got.GetSignals()[0].GetCode() != adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_ALLOCATION_LIFECYCLE_RETRIES ||
-		got.GetSignals()[1].GetCode() != adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_STORAGE_BINDINGS ||
-		got.GetSignals()[2].GetCode() != adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_NODE_VOLUME_MANAGERS {
+	if len(got.GetSignals()) != 1 || got.GetSignals()[0].GetCode() != adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_ALLOCATION_LIFECYCLE_RETRIES {
 		t.Fatalf("signals = %+v", got.GetSignals())
-	}
-	if got.GetNodeVolumeHealth().GetUnhealthyNodes() != 1 ||
-		got.GetNodeVolumeHealth().GetPublishedVolumes() != 2 ||
-		got.GetNodeVolumeHealth().GetLastReconcileStaleAllocations() != 3 ||
-		got.GetNodeVolumeHealth().GetLastReconcileInvalidVolumes() != 4 ||
-		got.GetNodeVolumeHealth().GetError() != "volumed reconcile failed" {
-		t.Fatalf("node volume health = %+v", got.GetNodeVolumeHealth())
-	}
-	if got.GetStorageBindingHealth().GetFailedBindings() != 5 ||
-		got.GetStorageBindingHealth().GetReleasingBindings() != 6 ||
-		got.GetStorageBindingHealth().GetStuckReleasingBindings() != 7 ||
-		got.GetStorageBindingHealth().GetInconsistentClaims() != 8 ||
-		got.GetStorageBindingHealth().GetInvalidBindings() != 9 {
-		t.Fatalf("storage binding health = %+v", got.GetStorageBindingHealth())
 	}
 }
 

@@ -176,7 +176,7 @@ diagnostic categories.
   ephemeral-storage resources.
 - The charged scope is the sandbox-lifetime runsc
   file-backed root overlay, including metadata, copy-up, and whiteouts. It does
-  not include persistent volumes, immutable lowers or image caches, artifacts,
+  not include immutable lowers or image caches, artifacts,
   projection placeholders, tmpfs, or logs.
 - `requests.memory_bytes` is the sandbox cgroup reservation and namespace-quota
   charge. `limits.memory_bytes` is the sandbox cgroup `memory.max`; runtime

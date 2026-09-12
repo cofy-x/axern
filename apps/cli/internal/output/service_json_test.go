@@ -174,23 +174,14 @@ func TestPrintServiceDescribeJSONUsesNullLatestEvent(t *testing.T) {
 }
 
 func TestPrintServiceResponseJSONIncludesDeletionStatus(t *testing.T) {
-	claimIDs := []string{"claim-a", "claim-b"}
 	service := &servicev1.Service{
 		ID:     "svc-deleting",
 		Status: servicev1.ServiceStatus_SERVICE_STATUS_DELETING,
 		DeletionStatus: &servicev1.ServiceDeletionStatus{
-			Phase:             servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES,
-			VolumeDisposition: servicev1.ServiceVolumeDisposition_SERVICE_VOLUME_DISPOSITION_DELETE,
-			ClaimIds:          claimIDs,
-			Message:           "waiting for volume cleanup",
-			CompletedAt:       timestamppb.New(time.Date(2026, time.August, 13, 8, 30, 0, 0, time.UTC)),
+			Phase:       servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS,
+			Message:     "waiting for allocation cleanup",
+			CompletedAt: timestamppb.New(time.Date(2026, time.August, 13, 8, 30, 0, 0, time.UTC)),
 		},
-	}
-	projected := NewServiceJSON(service)
-	claimIDs[0] = "mutated"
-	service.DeletionStatus.ClaimIds[1] = "also-mutated"
-	if projected.DeletionStatus.ClaimIDs[0] != "claim-a" || projected.DeletionStatus.ClaimIDs[1] != "claim-b" {
-		t.Fatalf("projected claim IDs = %#v, want defensive copy", projected.DeletionStatus.ClaimIDs)
 	}
 
 	var b strings.Builder
@@ -200,11 +191,9 @@ func TestPrintServiceResponseJSONIncludesDeletionStatus(t *testing.T) {
 	var got struct {
 		Service struct {
 			DeletionStatus struct {
-				Phase             string   `json:"phase"`
-				VolumeDisposition string   `json:"volume_disposition"`
-				ClaimIDs          []string `json:"claim_ids"`
-				Message           string   `json:"message"`
-				CompletedAt       string   `json:"completed_at"`
+				Phase       string `json:"phase"`
+				Message     string `json:"message"`
+				CompletedAt string `json:"completed_at"`
 			} `json:"deletion_status"`
 		} `json:"service"`
 	}
@@ -212,10 +201,10 @@ func TestPrintServiceResponseJSONIncludesDeletionStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	deletion := got.Service.DeletionStatus
-	if deletion.Phase != "reclaiming-volumes" || deletion.VolumeDisposition != "delete" || deletion.Message != "waiting for volume cleanup" || deletion.CompletedAt != "2026-08-13T08:30:00Z" {
+	if deletion.Phase != "releasing-allocations" || deletion.Message != "waiting for allocation cleanup" || deletion.CompletedAt != "2026-08-13T08:30:00Z" {
 		t.Fatalf("deletion_status = %#v, want stable deletion projection", deletion)
 	}
-	for _, unexpected := range []string{"SERVICE_DELETION_PHASE", "SERVICE_VOLUME_DISPOSITION"} {
+	for _, unexpected := range []string{"SERVICE_DELETION_PHASE"} {
 		if strings.Contains(b.String(), unexpected) {
 			t.Fatalf("service deletion JSON leaked protobuf enum %q: %s", unexpected, b.String())
 		}

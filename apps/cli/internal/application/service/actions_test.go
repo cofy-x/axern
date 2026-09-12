@@ -45,7 +45,7 @@ func TestDeleteWaitsForAuthoritativeCompletionSnapshot(t *testing.T) {
 		deleteResponse: deleteResponse(deletingService(7, servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS)),
 	}
 	watcher := &fakeServiceWatcher{responses: []*servicev1.Service{
-		deletingService(9, servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES),
+		deletingService(9, servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS),
 		deletingService(12, servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_COMPLETE),
 	}}
 
@@ -150,7 +150,7 @@ func TestDeleteRejectsNonMonotonicWatchSnapshot(t *testing.T) {
 		deleteResponse: deleteResponse(deletingService(7, servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS)),
 	}
 	watcher := &fakeServiceWatcher{responses: []*servicev1.Service{
-		deletingService(7, servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES),
+		deletingService(7, servicev1.ServiceDeletionPhase_SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS),
 	}}
 
 	result, err := NewWithWatcher(client, watcher).Delete(context.Background(), DeleteParams{ServiceID: "svc-1", Wait: true, WaitTimeout: time.Second})

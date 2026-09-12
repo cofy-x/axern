@@ -122,8 +122,8 @@ func TestCollectStorageInventoryReportsErrorWhenAllTargetsFail(t *testing.T) {
 
 func TestNormalizeStorageTargetsDefaultsAndDeduplicates(t *testing.T) {
 	defaults := normalizeStorageTargets(nil)
-	if len(defaults) != 4 {
-		t.Fatalf("default storage targets len = %d, want 4", len(defaults))
+	if len(defaults) != 3 {
+		t.Fatalf("default storage targets len = %d, want 3", len(defaults))
 	}
 	if defaults[0].Target != StorageTargetRootFS || defaults[0].Path != DefaultRootFSPath {
 		t.Fatalf("unexpected first default target: %#v", defaults[0])
@@ -136,7 +136,7 @@ func TestNormalizeStorageTargetsDefaultsAndDeduplicates(t *testing.T) {
 		{Target: " ", Path: "/skip"},
 		{Target: StorageTargetAxnodedState, Path: "/state-a"},
 		{Target: StorageTargetAxnodedState, Path: "/state-b"},
-		{Target: StorageTargetVolumeData, Path: " "},
+		{Target: StorageTargetRuntimeFilestore, Path: " "},
 		{Target: StorageTargetImageCache, Path: "/images"},
 	})
 	if len(targets) != 2 {

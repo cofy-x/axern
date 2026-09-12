@@ -249,11 +249,6 @@ func runImageProcessE2E(ctx context.Context, client *axern.Client, runtimeClass,
 		RuntimeClass: runtimeClass,
 		Argv:         []string{"python", "-c", "import time; time.sleep(600)"},
 		ReadyTimeout: 180 * time.Second,
-		Volumes: []axern.VolumeMount{{
-			Name:    "workspace",
-			Target:  "/workspace",
-			Options: []string{"rbind"},
-		}},
 	})
 	if err != nil {
 		failf("new image process sandbox: %v", err)
@@ -268,7 +263,7 @@ func runImageProcessE2E(ctx context.Context, client *axern.Client, runtimeClass,
 	if err := sandbox.Start(ctx); err != nil {
 		failf("start image process sandbox: %v", err)
 	}
-	if _, err := sandbox.Exec(ctx, []string{"/bin/sh", "-lc", "printf task-input >/workspace/input.txt"}, axern.ExecOptions{Check: true}); err != nil {
+	if _, err := sandbox.Exec(ctx, []string{"/bin/sh", "-lc", "mkdir -p /workspace; printf task-input >/workspace/input.txt"}, axern.ExecOptions{Check: true}); err != nil {
 		failf("seed image process workspace: %v", err)
 	}
 	result, err := sandbox.ExecImage(ctx, image, []string{"/bin/sh", "-lc", "cat /workspace/input.txt; printf image-result >/workspace/output.txt; printf image-mutated >/workspace/input.txt"}, axern.ImageExecOptions{

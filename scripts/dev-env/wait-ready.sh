@@ -5,7 +5,6 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 mode="${1:-}"
 service_smoke="false"
-service_volume_smoke="false"
 run_smoke="false"
 server_base_smoke="false"
 quota_admission_smoke="false"
@@ -14,17 +13,17 @@ function_smoke="false"
 for arg in "$@"; do
   case "${arg}" in
     --smoke) service_smoke="true" ;;
-    --service-volume-smoke) service_volume_smoke="true" ;;
     --run-smoke) run_smoke="true" ;;
     --server-base-smoke) server_base_smoke="true" ;;
     --quota-admission-smoke) quota_admission_smoke="true" ;;
     --function-smoke) function_smoke="true" ;;
+    compose|k8s) ;;
+    *) echo "unknown argument: ${arg}" >&2; exit 1 ;;
   esac
 done
 
 should_check_consistency() {
   [ "${service_smoke}" = "true" ] ||
-    [ "${service_volume_smoke}" = "true" ] ||
     [ "${run_smoke}" = "true" ] ||
     [ "${server_base_smoke}" = "true" ] ||
     [ "${quota_admission_smoke}" = "true" ] ||
@@ -49,7 +48,6 @@ case "${mode}" in
       exit 1
     fi
     [ "${service_smoke}" = "true" ] && run_local_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose"
-    [ "${service_volume_smoke}" = "true" ] && run_local_service_volume_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose"
     [ "${run_smoke}" = "true" ] && run_local_run_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose"
     [ "${server_base_smoke}" = "true" ] && run_local_server_base_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose" "127.0.0.1:${COMPOSE_GATEWAY_HTTP_PORT}"
     [ "${quota_admission_smoke}" = "true" ] && run_local_quota_admission_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose"
@@ -60,7 +58,6 @@ case "${mode}" in
     kubectl -n "${K8S_NAMESPACE}" rollout status deployment/postgres --timeout=180s >/dev/null
     kubectl -n "${K8S_NAMESPACE}" wait --for=condition=complete job/controld-migrate --timeout=180s >/dev/null
     kubectl -n "${K8S_NAMESPACE}" rollout status deployment/minio --timeout=180s >/dev/null
-    kubectl -n "${K8S_NAMESPACE}" rollout status deployment/storaged --timeout=180s >/dev/null
     kubectl -n "${K8S_NAMESPACE}" rollout status deployment/controld --timeout=180s >/dev/null
     kubectl -n "${K8S_NAMESPACE}" rollout status deployment/controld-retention --timeout=180s >/dev/null
     kubectl -n "${K8S_NAMESPACE}" rollout status deployment/gatewayd --timeout=180s >/dev/null
@@ -83,7 +80,6 @@ case "${mode}" in
       exit 1
     fi
     [ "${service_smoke}" = "true" ] && run_local_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}"
-    [ "${service_volume_smoke}" = "true" ] && run_local_service_volume_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}"
     [ "${run_smoke}" = "true" ] && run_local_run_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}"
     [ "${server_base_smoke}" = "true" ] && run_local_server_base_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_HTTP_PORT}"
     [ "${quota_admission_smoke}" = "true" ] && run_local_quota_admission_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}"
@@ -91,7 +87,7 @@ case "${mode}" in
     should_check_consistency && local_smoke_assert_consistency_ok "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}"
     ;;
   *)
-    echo "usage: $0 <compose|k8s> [--smoke] [--service-volume-smoke] [--run-smoke] [--server-base-smoke] [--quota-admission-smoke] [--function-smoke]" >&2
+    echo "usage: $0 <compose|k8s> [--smoke] [--run-smoke] [--server-base-smoke] [--quota-admission-smoke] [--function-smoke]" >&2
     exit 1
     ;;
 esac

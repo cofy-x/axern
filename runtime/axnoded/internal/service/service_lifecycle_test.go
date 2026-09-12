@@ -4,13 +4,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"testing"
 	"time"
 
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
@@ -54,21 +52,6 @@ func TestRunMarksServiceReadyAfterInitialHousekeeping(t *testing.T) {
 	require.NoError(t, s.Run(t.Context()))
 
 	require.Eventually(t, s.Ready, 2*time.Second, 50*time.Millisecond)
-}
-
-func TestActiveAllocationIDsNormalizesForVolumeReconcile(t *testing.T) {
-	got := activeAllocationIDs([]*container.Container{
-		nil,
-		{Metadata: nil},
-		{Metadata: &runtimeapi.ContainerMetadata{ID: " alloc-b "}},
-		{Metadata: &runtimeapi.ContainerMetadata{ID: ""}},
-		{Metadata: &runtimeapi.ContainerMetadata{ID: "alloc-a"}},
-		{Metadata: &runtimeapi.ContainerMetadata{ID: "alloc-b"}},
-	})
-	want := []string{"alloc-a", "alloc-b"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("activeAllocationIDs() = %#v, want %#v", got, want)
-	}
 }
 
 func TestShutdownDrainsRetainedRuntimes(t *testing.T) {

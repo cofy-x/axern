@@ -49,11 +49,9 @@ type ServiceJSON struct {
 }
 
 type ServiceDeletionStatusJSON struct {
-	Phase             string   `json:"phase"`
-	VolumeDisposition string   `json:"volume_disposition"`
-	ClaimIDs          []string `json:"claim_ids,omitempty"`
-	Message           string   `json:"message,omitempty"`
-	CompletedAt       string   `json:"completed_at,omitempty"`
+	Phase       string `json:"phase"`
+	Message     string `json:"message,omitempty"`
+	CompletedAt string `json:"completed_at,omitempty"`
 }
 
 type ServiceRolloutPolicyJSON struct {
@@ -165,11 +163,9 @@ func newServiceDeletionStatusJSON(status *servicev1.ServiceDeletionStatus) *Serv
 		return nil
 	}
 	return &ServiceDeletionStatusJSON{
-		Phase:             ServiceDeletionPhaseLabel(status.GetPhase()),
-		VolumeDisposition: ServiceVolumeDispositionLabel(status.GetVolumeDisposition()),
-		ClaimIDs:          append([]string(nil), status.GetClaimIds()...),
-		Message:           status.GetMessage(),
-		CompletedAt:       FormatProtoTimestamp(status.GetCompletedAt()),
+		Phase:       ServiceDeletionPhaseLabel(status.GetPhase()),
+		Message:     status.GetMessage(),
+		CompletedAt: FormatProtoTimestamp(status.GetCompletedAt()),
 	}
 }
 

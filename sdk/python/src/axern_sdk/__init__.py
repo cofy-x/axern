@@ -46,7 +46,7 @@ from axern_sdk.function import (
     FunctionWorkerSource,
     load_function_spec,
 )
-from axern_sdk.models import HTTPProbe, ImageMount, SecretEnvVar, SecretFile, ServiceProbe, TCPProbe, VolumeMount
+from axern_sdk.models import HTTPProbe, ImageMount, SecretEnvVar, SecretFile, ServiceProbe, TCPProbe
 from axern_sdk.network_policy import CIDRRule, NetworkPolicy, PortRange
 from axern_sdk.node import (
     AsyncNodeSandboxClient,
@@ -154,7 +154,6 @@ __all__ = [
     "SecretFile",
     "TCPProbe",
     "TLSContext",
-    "VolumeMount",
     "workspace_mount",
     "load_function_spec",
     "load_context",

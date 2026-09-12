@@ -22,17 +22,10 @@ class ServiceStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     SERVICE_STATUS_DELETING: _ClassVar[ServiceStatus]
     SERVICE_STATUS_DELETED: _ClassVar[ServiceStatus]
 
-class ServiceVolumeDisposition(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    SERVICE_VOLUME_DISPOSITION_UNSPECIFIED: _ClassVar[ServiceVolumeDisposition]
-    SERVICE_VOLUME_DISPOSITION_RETAIN: _ClassVar[ServiceVolumeDisposition]
-    SERVICE_VOLUME_DISPOSITION_DELETE: _ClassVar[ServiceVolumeDisposition]
-
 class ServiceDeletionPhase(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     SERVICE_DELETION_PHASE_UNSPECIFIED: _ClassVar[ServiceDeletionPhase]
     SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS: _ClassVar[ServiceDeletionPhase]
-    SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES: _ClassVar[ServiceDeletionPhase]
     SERVICE_DELETION_PHASE_COMPLETE: _ClassVar[ServiceDeletionPhase]
 
 class ServiceRolloutPhase(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -62,12 +55,8 @@ SERVICE_STATUS_DEGRADED: ServiceStatus
 SERVICE_STATUS_FAILED: ServiceStatus
 SERVICE_STATUS_DELETING: ServiceStatus
 SERVICE_STATUS_DELETED: ServiceStatus
-SERVICE_VOLUME_DISPOSITION_UNSPECIFIED: ServiceVolumeDisposition
-SERVICE_VOLUME_DISPOSITION_RETAIN: ServiceVolumeDisposition
-SERVICE_VOLUME_DISPOSITION_DELETE: ServiceVolumeDisposition
 SERVICE_DELETION_PHASE_UNSPECIFIED: ServiceDeletionPhase
 SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS: ServiceDeletionPhase
-SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES: ServiceDeletionPhase
 SERVICE_DELETION_PHASE_COMPLETE: ServiceDeletionPhase
 SERVICE_ROLLOUT_PHASE_UNSPECIFIED: ServiceRolloutPhase
 SERVICE_ROLLOUT_PHASE_ADMITTING_REPLACEMENT: ServiceRolloutPhase
@@ -83,18 +72,14 @@ HTTP_PROBE_SCHEME_HTTP: HttpProbeScheme
 HTTP_PROBE_SCHEME_HTTPS: HttpProbeScheme
 
 class ServiceDeletionStatus(_message.Message):
-    __slots__ = ("phase", "volume_disposition", "claim_ids", "message", "completed_at")
+    __slots__ = ("phase", "message", "completed_at")
     PHASE_FIELD_NUMBER: _ClassVar[int]
-    VOLUME_DISPOSITION_FIELD_NUMBER: _ClassVar[int]
-    CLAIM_IDS_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     COMPLETED_AT_FIELD_NUMBER: _ClassVar[int]
     phase: ServiceDeletionPhase
-    volume_disposition: ServiceVolumeDisposition
-    claim_ids: _containers.RepeatedScalarFieldContainer[str]
     message: str
     completed_at: _timestamp_pb2.Timestamp
-    def __init__(self, phase: _Optional[_Union[ServiceDeletionPhase, str]] = ..., volume_disposition: _Optional[_Union[ServiceVolumeDisposition, str]] = ..., claim_ids: _Optional[_Iterable[str]] = ..., message: _Optional[str] = ..., completed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, phase: _Optional[_Union[ServiceDeletionPhase, str]] = ..., message: _Optional[str] = ..., completed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class ServiceProbe(_message.Message):
     __slots__ = ("http", "tcp", "initial_delay", "period", "timeout", "success_threshold", "failure_threshold")

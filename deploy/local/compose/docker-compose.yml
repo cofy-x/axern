@@ -76,21 +76,6 @@ services:
       timeout: 3s
       retries: 20
 
-  storaged:
-    image: ${CONTROLD_IMAGE}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    entrypoint: ["/usr/local/bin/storaged"]
-    command:
-      - -grpc-address
-      - 0.0.0.0:24020
-      - -http-address
-      - 0.0.0.0:24021
-      - -postgres-dsn
-      - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
-
   controld:
     image: ${CONTROLD_IMAGE}
     depends_on:
@@ -98,8 +83,6 @@ services:
         condition: service_completed_successfully
       controld-access-bootstrap:
         condition: service_completed_successfully
-      storaged:
-        condition: service_started
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -115,7 +98,6 @@ services:
       CONTROLD_TLS_CA_CERT: /certs/ca.crt
       CONTROLD_TLS_CERT: /certs/controld.crt
       CONTROLD_TLS_KEY: /certs/controld.key
-      CONTROLD_STORAGED_TARGET: storaged:24020
       CONTROLD_FUNCTION_GATEWAY_URL: http://gatewayd:25080
       CONTROLD_FUNCTION_GATEWAY_TOKEN: axern-local-dev
       CONTROLD_FUNCTION_BUNDLE_BASE_URL: http://host.docker.internal:${CONTROLD_HTTP_PORT}
@@ -150,8 +132,6 @@ services:
       - /certs/controld.key
       - -tunnel-relays
       - default,127.0.0.1:${GATEWAY_CONTROL_PORT},tunneld:24100,1,false
-      - -storaged-target
-      - storaged:24020
     ports:
       - "127.0.0.1:${CONTROLD_HTTP_PORT}:24001"
     volumes:
@@ -217,7 +197,6 @@ services:
     environment:
       AXNODED_SOCKET: /shared/run/axnoded.sock
       IMAGEMGR_SOCKET: /run/imagemgr/imagemgr.sock
-      VOLUMED_SOCKET: /run/volumed/volumed.sock
       EGRESSD_SOCKET: /run/egressd/egressd.sock
       AXERN_SANDBOXD_BINARY: /usr/local/libexec/axnoded/axern-sandboxd
       AXNODED_GRPC_ADDRESS: 0.0.0.0:24010
@@ -252,7 +231,6 @@ services:
       - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
       - "${COMPOSE_STATE_DIR}/axnoded:/var/lib/axnoded"
       - "node-imagemgr-state:/var/lib/imagemgr"
-      - "${COMPOSE_STATE_DIR}/volumed:/var/lib/volumed"
       - "${COMPOSE_STATE_DIR}/egressd:/var/lib/egressd"
 
   gatewayd:

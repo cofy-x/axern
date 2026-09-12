@@ -62,7 +62,6 @@ func (r Runtime) Create(ctx context.Context) (sandbox.Instance, error) {
 		RequestMemory:  axernsdk.ResourceQuantity(r.Config.RequestMemory),
 		LimitCPU:       axernsdk.ResourceQuantity(r.Config.LimitCPU),
 		LimitMemory:    axernsdk.ResourceQuantity(r.Config.LimitMemory),
-		Volumes:        workspaceVolumes(r.Config),
 		ImageMounts:    cloneImageMounts(r.Config.ImageMounts),
 		WorkspaceImage: r.Config.WorkspaceImage,
 	})
@@ -90,17 +89,6 @@ func rolloutExecutionStream(token string) grpc.StreamClientInterceptor {
 	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
 		return streamer(metadata.AppendToOutgoingContext(ctx, rolloutExecutionLeaseMetadata, token), desc, cc, method, opts...)
 	}
-}
-
-func workspaceVolumes(config Config) []axernsdk.VolumeMount {
-	if !config.WorkspaceVolume {
-		return nil
-	}
-	return []axernsdk.VolumeMount{{
-		Name:    "workspace",
-		Target:  "/workspace",
-		Options: []string{"rbind"},
-	}}
 }
 
 func cloneImageMounts(mounts []axernsdk.ImageMount) []axernsdk.ImageMount {

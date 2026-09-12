@@ -2,13 +2,10 @@ package appservice
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
-	privatestoragev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/storage/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -25,50 +22,11 @@ func (c *controller) markAllocationCreateFailed(current *servicev1.Service, allo
 	return current
 }
 
-func (c *controller) reportStoragePublished(ctx context.Context, allocationID, nodeID string, volumes []*privatestoragev1.PublishedNodeVolume) error {
-	if c.storage == nil || len(volumes) == 0 {
-		return nil
-	}
-	return c.storage.ReportBindingPublish(ctx, allocationID, nodeID, volumes)
-}
-
-func (c *controller) reportStoragePublishFailed(ctx context.Context, allocationID, nodeID string, volumes []*privatestoragev1.ResolvedNodeVolume, message string) error {
-	if c.storage == nil || len(volumes) == 0 {
-		return nil
-	}
-	return c.storage.ReportBindingPublishFailed(ctx, allocationID, nodeID, volumes, message)
-}
-
-func (c *controller) reportStorageReleased(ctx context.Context, allocationID, nodeID string, observations []*privatestoragev1.VolumeReleaseObservation) error {
-	if c.storage == nil {
-		return nil
-	}
-	return c.storage.ReportBindingRelease(ctx, allocationID, nodeID, observations)
-}
-
-func storagePublishFailureMessage(volumes []*privatestoragev1.ResolvedNodeVolume, err error) string {
-	if err == nil {
-		return ""
-	}
-	message := strings.TrimSpace(err.Error())
-	if len(volumes) == 0 {
-		return message
-	}
-	lower := strings.ToLower(message)
-	if strings.HasPrefix(lower, "volume publish failed:") {
-		return message
-	}
-	if !strings.Contains(lower, "volume") && !strings.Contains(lower, "volumed") {
-		return message
-	}
-	return fmt.Sprintf("volume publish failed: %s", message)
-}
-
 func (c *controller) deleteAndConfirmAllocation(ctx context.Context, alloc *servicekernel.AllocationRecord) (bool, error) {
 	if alloc == nil {
 		return true, nil
 	}
-	releaseObservations, deleteErr := c.lifecycle.DeleteResolvedAllocation(ctx, alloc.NodeTarget, alloc.AllocationID, alloc.Attempt, alloc.NodeID)
+	deleteErr := c.lifecycle.DeleteResolvedAllocation(ctx, alloc.NodeTarget, alloc.AllocationID, alloc.Attempt, alloc.NodeID)
 	if deleteErr != nil && !allocationDeleteMayHaveSucceeded(deleteErr) {
 		return false, deleteErr
 	}
@@ -87,9 +45,6 @@ func (c *controller) deleteAndConfirmAllocation(ctx context.Context, alloc *serv
 	}
 	if deleteErr != nil {
 		return false, deleteErr
-	}
-	if err := c.reportStorageReleased(ctx, alloc.AllocationID, alloc.NodeID, releaseObservations); err != nil {
-		return false, fmt.Errorf("volume release failed: %w", err)
 	}
 	return true, nil
 }

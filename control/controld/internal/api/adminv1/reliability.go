@@ -60,8 +60,6 @@ func reliabilityHealthToProto(health adminkernel.ReliabilityHealth) *adminv1.Adm
 		AllocationLifecycleRetries:    health.AllocationLifecycleRetries,
 		DueAllocationLifecycleRetries: health.DueAllocationLifecycleRetries,
 		ReconcileUnhealthyComponents:  health.ReconcileUnhealthyComponents,
-		StorageBindingHealth:          storageBindingHealthToProto(health.StorageBindingHealth),
-		NodeVolumeHealth:              nodeVolumeHealthToProto(health.NodeVolumeHealth),
 		NodeFleetHealth:               nodeFleetHealthToProto(health.NodeFleetHealth),
 		Signals:                       signals,
 		ReconcileComponents:           components,
@@ -85,30 +83,6 @@ func optionalTimestamp(value *time.Time) *timestamppb.Timestamp {
 		return nil
 	}
 	return timestamppb.New(*value)
-}
-
-func storageBindingHealthToProto(health adminkernel.StorageBindingHealth) *adminv1.AdminStorageBindingHealth {
-	return &adminv1.AdminStorageBindingHealth{
-		Unavailable:            health.Unavailable,
-		Error:                  health.Error,
-		FailedBindings:         health.FailedBindings,
-		ReleasingBindings:      health.ReleasingBindings,
-		StuckReleasingBindings: health.StuckReleasingBindings,
-		InconsistentClaims:     health.InconsistentClaims,
-		InvalidBindings:        health.InvalidBindings,
-		DeletingClaims:         health.DeletingClaims,
-		StuckDeletingClaims:    health.StuckDeletingClaims,
-	}
-}
-
-func nodeVolumeHealthToProto(health adminkernel.NodeVolumeHealth) *adminv1.AdminNodeVolumeHealth {
-	return &adminv1.AdminNodeVolumeHealth{
-		UnhealthyNodes:                health.UnhealthyNodes,
-		PublishedVolumes:              health.PublishedVolumes,
-		LastReconcileStaleAllocations: health.LastReconcileStaleAllocations,
-		LastReconcileInvalidVolumes:   health.LastReconcileInvalidVolumes,
-		Error:                         health.Error,
-	}
 }
 
 func consistencySnapshotToProto(snapshot consistencykernel.Snapshot) *adminv1.ConsistencySnapshot {
@@ -164,10 +138,6 @@ func reliabilitySignalCodeToProto(code adminkernel.ReliabilitySignalCode) adminv
 		return adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_ALLOCATION_LIFECYCLE_RETRIES
 	case adminkernel.ReliabilitySignalReconcileFailures:
 		return adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_RECONCILE_FAILURES
-	case adminkernel.ReliabilitySignalStorageBindings:
-		return adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_STORAGE_BINDINGS
-	case adminkernel.ReliabilitySignalNodeVolumeManagers:
-		return adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_NODE_VOLUME_MANAGERS
 	case adminkernel.ReliabilitySignalNodeFleet:
 		return adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_NODE_FLEET
 	default:

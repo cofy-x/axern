@@ -270,9 +270,6 @@ rolloutWorker:
     existingSecret: ""
     dockerConfigKey: .dockerconfigjson
 
-storaged:
-  replicas: 1
-
 tunneld:
   replicas: 1
   relayID: default

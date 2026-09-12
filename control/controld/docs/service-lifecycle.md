@@ -86,17 +86,14 @@ manual `replicas` value remains the desired count.
 V1 does not implement CPU, QPS, custom metric autoscaling, cooldown windows, or
 metrics ingestion.
 
-## Volumes
+## Filesystem Lifetime
 
-Service execution configs can declare V1 node-local `volume_mounts`. `controld`
-stores the logical volume intent with the service config and sends it to the
-selected node as resolved local `ResolvedNodeVolume` specs.
+Execution config has no persistent-volume claim or mount product. Writable
+rootfs and workspace-image preparation belong to the allocation lifetime.
+Data that must survive allocation or node loss must be explicitly exported as
+artifacts. Service deletion still waits for confirmed allocation cleanup
+before persisting completion; no physical volume reclaim phase exists.
 
-The field is rejected for run workloads in V1. Node-local volumes
-persist on the selected node only and do not imply cross-node migration,
-replication, backup, quota, or garbage collection behavior.
-
-The next storage phase is tracked in [`../../storaged`](../../storaged/README.md).
-That design moves long-term storage ownership toward `VolumeClass`,
-`VolumeClaim`, and `VolumeBinding` contracts while preserving the current
-node-local volume behavior as the first backend.
+Deployments with historical persistent volumes must follow
+[Retired Volume Data](retired-volume-data.md). This is a code/API retirement,
+not permission to delete existing database records or node directories.

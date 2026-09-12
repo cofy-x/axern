@@ -117,7 +117,7 @@ func runtimeListCommand(runtime command.Runtime) *cobra.Command {
 
 func runtimeStopCommand(runtime command.Runtime) *cobra.Command {
 	var profile, workspace string
-	cmd := &cobra.Command{Use: "stop", Short: "Suspend an agent workspace and retain its data", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+	cmd := &cobra.Command{Use: "stop", Short: "Stop an agent sandbox and discard its files", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		format, err := runtime.Format()
 		if err != nil {
 			return err
@@ -275,7 +275,7 @@ func renderDoctor(cmd *cobra.Command, result appagent.DoctorResult, format outpu
 		fmt.Fprintf(cmd.OutOrStdout(), "Platform reachable: %t\nPlatform status: %s\n", result.PlatformCheck.Reachable, result.PlatformCheck.Message)
 	}
 	if result.LifecycleState != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "Workspace state: %s\nPersistent: %t\n", result.LifecycleState, result.Persistent)
+		fmt.Fprintf(cmd.OutOrStdout(), "Workspace state: %s\nRuntime Matches: %t\n", result.LifecycleState, result.RuntimeMatches)
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Agent profile: %s\nConfig OK: %t\nApproval compatible: %t\nAxern policy: %s\nLocal policy: %s\nRecommendation: %s\n", result.Profile, result.ConfigOK, result.ApprovalCompatible, result.AxernApprovalPolicy, result.LocalApprovalPolicy, result.Recommendation)
 	return nil

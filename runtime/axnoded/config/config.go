@@ -95,9 +95,6 @@ type RuntimeConfig struct {
 	// node's resolver configuration.
 	DNS RuntimeDNSConfig `toml:"dns" json:"dns"`
 
-	// VolumeManagerSocket points to the local volumed Unix socket.
-	VolumeManagerSocket string `toml:"volume_manager_socket" json:"volumeManagerSocket"`
-
 	// EgressManagerSocket points to the trusted node-local egressd Unix socket.
 	// Connectivity is observed as a capability and is not required for legacy
 	// unrestricted workloads.
@@ -175,14 +172,6 @@ func (c RuntimeConfig) IdleRuntimeRetentionTTLDuration() (time.Duration, error) 
 		value = DefaultIdleRuntimeRetentionTTL
 	}
 	return time.ParseDuration(value)
-}
-
-func (c RuntimeConfig) VolumeManagerSocketPath() string {
-	value := strings.TrimSpace(c.VolumeManagerSocket)
-	if value == "" {
-		return DefaultVolumeManagerSocket
-	}
-	return value
 }
 
 func (c RuntimeConfig) EgressManagerSocketPath() string {
@@ -587,7 +576,6 @@ func DefaultConfig() Config {
 				RuntimeRunnerBinary:               DefaultRuntimeRunnerBinary,
 				ImageManagerEnabled:               boolPtr(true),
 				ImageManagerSocket:                DefaultImageManagerSocket,
-				VolumeManagerSocket:               DefaultVolumeManagerSocket,
 				EgressManagerSocket:               DefaultEgressManagerSocket,
 				IdleRuntimeRetentionTTL:           DefaultIdleRuntimeRetentionTTL,
 				IdleRuntimeRetentionMax:           &defaultIdleRuntimeRetentionMax,

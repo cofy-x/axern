@@ -43,10 +43,6 @@ func (s *Server) CreateRun(ctx context.Context, req *runv1.CreateRunRequest) (*r
 		opErr = err
 		return nil, err
 	}
-	if err := validateNoServiceVolumeMounts(req.GetConfig(), "run"); err != nil {
-		opErr = err
-		return nil, err
-	}
 	run, err := s.deps.Runs.CreateRun(ctx, runkernel.CreateParams{
 		Namespace:     req.GetNamespace(),
 		EnvironmentID: req.GetEnvironmentID(),

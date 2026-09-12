@@ -110,9 +110,9 @@ them until an administrator explicitly purges the record.
 
 `agent` requires an explicit `shell`, `run`, `connect`, `doctor`, `list`,
 `stop`, `workspace`, or `profile` subcommand. Agent workspaces keep one Service
-and persistent Volume; `stop` scales compute to zero and the next session
-resumes it. `agent workspace delete` permanently reclaims a suspended
-workspace. `service
+with a sandbox-lifetime working directory. `stop` scales compute to zero and
+discards its files; the next session starts a fresh sandbox for the same
+Service. `agent workspace delete` removes a stopped workspace Service. `service
 get` includes rollout and latest event state. `quota get` includes quota,
 usage, and admission signals.
 

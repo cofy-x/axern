@@ -19,11 +19,8 @@ const (
 	serviceReplicaPathReconcileDelete    = "reconcile_delete"
 
 	serviceReplicaStageSelectCandidates         = "select_candidates"
-	serviceReplicaStageFilterStorageCandidates  = "filter_storage_candidates"
 	serviceReplicaStageAdmitAllocation          = "admit_allocation"
-	serviceReplicaStageReserveStorage           = "reserve_storage"
 	serviceReplicaStageNodeCreateAllocation     = "node_create_allocation"
-	serviceReplicaStageReportStoragePublished   = "report_storage_published"
 	serviceReplicaStageCompleteAllocationCreate = "complete_allocation_create"
 
 	serviceAllocationQueueStageClaimStore     = "claim_store"

@@ -31,8 +31,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxaccess"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxcontrol"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxtarget"
-	servicevolumes "github.com/cofy-x/axern/runtime/axnoded/internal/service/volumes"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/volume"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
@@ -49,11 +47,8 @@ type sandboxService struct {
 	store nodeStateStore
 
 	lrtManager        *langrtmanager.LangRTManager
-	volumeClient      volume.Publisher
-	volumeCloser      io.Closer
 	egressClient      egress.Manager
 	egressCloser      io.Closer
-	volumes           *servicevolumes.Coordinator
 	sandboxAccess     *sandboxaccess.Accessor
 	sandboxTargets    *sandboxtarget.Resolver
 	networking        *servicenetworking.Coordinator
@@ -183,20 +178,12 @@ func newSandboxServiceState(cfg config.Config) (*sandboxService, error) {
 		return nil, err
 	}
 	retentionMax := cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionMaxValue()
-	volumeDialCtx, cancelVolumeDial := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelVolumeDial()
-	volumeClient, err := volume.Dial(volumeDialCtx, cfg.PluginConfig.RuntimeConfig.VolumeManagerSocketPath())
-	if err != nil {
-		return nil, err
-	}
 	egressClient, err := egress.Dial(context.Background(), cfg.PluginConfig.RuntimeConfig.EgressManagerSocketPath())
 	if err != nil {
-		_ = volumeClient.Close()
 		return nil, err
 	}
 	stateDB, err := nodestate.Open(filepath.Join(cfg.StoreDir, "metadata.db"))
 	if err != nil {
-		_ = volumeClient.Close()
 		_ = egressClient.Close()
 		return nil, err
 	}
@@ -206,8 +193,6 @@ func newSandboxServiceState(cfg config.Config) (*sandboxService, error) {
 		store:           stateDB,
 		runtimeHandlers: handlerregistry.New(cfg),
 		lrtManager:      langrtmanager.NewLanguageRuntimeManager(langrtmanager.NewDefaultMounter(imageManagerEnabled, imageManagerSocket)),
-		volumeClient:    volumeClient,
-		volumeCloser:    volumeClient,
 		egressClient:    egressClient,
 		egressCloser:    egressClient,
 	}
@@ -250,7 +235,6 @@ func (h *sandboxService) closeAfterInitializationFailure() {
 	if h.lrtManager != nil {
 		h.lrtManager.Close()
 	}
-	h.closeVolume()
 	h.closeEgress()
 	h.closeNodeState()
 }
@@ -266,7 +250,6 @@ func (h *sandboxService) closeEgress() {
 
 func (h *sandboxService) configureServiceCollaborators() {
 	h.configureProbeCoordinator()
-	h.configureVolumeCoordinator()
 	h.configureSandboxTargets()
 	h.configureSandboxAccess()
 	h.configureNetworking()

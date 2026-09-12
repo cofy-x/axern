@@ -79,7 +79,7 @@ for path in "${paths[@]}"; do
   case "${path}" in apps/docs/*) docs=true; docs_site=true ;; esac
   case "${path}" in sdk/proto/*|scripts/proto-generate.sh|scripts/proto-generated-check.sh) proto=true; root_go=true; axnoded=true ;; esac
   case "${path}" in
-    apps/axrun/*|apps/cli/*|control/*|gateway/*|lib/go/*|runtime/imagemgr/*|runtime/tunneld/*|runtime/volumed/*|sdk/go/*|*/go.mod|*/go.sum|go.work|go.work.sum) root_go=true ;;
+    apps/axrun/*|apps/cli/*|control/*|gateway/*|lib/go/*|runtime/imagemgr/*|runtime/tunneld/*|sdk/go/*|*/go.mod|*/go.sum|go.work|go.work.sum) root_go=true ;;
   esac
   case "${path}" in runtime/axnoded/*) axnoded=true ;; esac
   case "${path}" in runtime/egressd/*) egressd=true ;; esac

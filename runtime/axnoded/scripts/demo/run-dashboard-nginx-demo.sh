@@ -134,8 +134,6 @@ if [ "${PRESERVE_ON_FAILURE}" = "true" ]; then
 fi
 echo "--- docker logs ---" >&2
 docker logs "${DEMO_CONTAINER_NAME}" >&2 || true
-echo "--- volumed log tail ---" >&2
-docker exec "${DEMO_CONTAINER_NAME}" tail -n 120 /tmp/volumed-dashboard.log >&2 || true
 echo "--- axnoded log tail ---" >&2
 docker exec "${DEMO_CONTAINER_NAME}" tail -n 120 /tmp/axnoded-dashboard.log >&2 || true
 exit 1

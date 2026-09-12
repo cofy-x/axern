@@ -16,9 +16,7 @@ import (
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
-	storagev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
-	privatestoragev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/storage/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -214,54 +212,6 @@ func TestBuildResolvedExecutionConfigUsesExplicitCwd(t *testing.T) {
 	})
 	if cfg.GetCwd() != "/tmp" {
 		t.Fatalf("cwd = %q, want explicit cwd", cfg.GetCwd())
-	}
-}
-
-func TestBuildResolvedExecutionConfigIncludesServiceNodeVolumes(t *testing.T) {
-	env := &environmentv1.Environment{
-		ID: "env-volume",
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{
-			ImageDescriptor: &catalogv1.OciImageDescriptor{
-				Digest: "sha256:volume",
-			},
-		},
-	}
-
-	cfg := buildResolvedExecutionConfig(createAllocationRequestParams{
-		AllocationID:   "alloc-volume",
-		Namespace:      "default",
-		ServiceID:      "svc-volume",
-		Config:         &commonv1.ExecutionConfig{},
-		Environment:    env,
-		DefaultRuntime: DefaultRuntime,
-		NodeVolumes: []*privatestoragev1.ResolvedNodeVolume{{
-			ClaimID:       "default/svc-volume/data",
-			BindingID:     "alloc-volume/data",
-			VolumeID:      "data",
-			BackendHandle: "data",
-			Backend:       storagev1.VolumeBackend_VOLUME_BACKEND_LOCAL,
-			AccessMode:    storagev1.VolumeAccessMode_VOLUME_ACCESS_MODE_READ_WRITE_ONCE,
-			Target:        "/var/lib/app",
-			Readonly:      true,
-			Options:       []string{"rbind", "nodev", "ro"},
-			RuntimeCompatibility: &storagev1.VolumeRuntimeCompatibility{
-				SupportsRunsc: true,
-			},
-		}},
-	})
-	volumes := cfg.GetNodeVolumes()
-	if len(volumes) != 1 {
-		t.Fatalf("node volumes = %#v, want one service node volume", volumes)
-	}
-	got := volumes[0]
-	if got.GetBackend() != storagev1.VolumeBackend_VOLUME_BACKEND_LOCAL || got.GetVolumeID() != "data" || got.GetTarget() != "/var/lib/app" {
-		t.Fatalf("node volume = %#v, want local node volume", got)
-	}
-	if got.GetOptions()[0] != "rbind" || got.GetOptions()[len(got.GetOptions())-1] != "ro" {
-		t.Fatalf("node volume options = %#v, want rbind ... ro", got.GetOptions())
-	}
-	if got.GetRuntimeCompatibility() == nil || !got.GetRuntimeCompatibility().GetSupportsRunsc() {
-		t.Fatalf("runtime compatibility = %#v, want runsc support", got.GetRuntimeCompatibility())
 	}
 }
 
@@ -488,25 +438,6 @@ func TestDeleteAllocationUsesGraceTimeout(t *testing.T) {
 	}
 }
 
-func TestDeleteResolvedAllocationReturnsReleaseObservations(t *testing.T) {
-	client := &captureLifecycleClient{
-		deleteResp: &privatenodev1.DeleteAllocationResponse{
-			VolumeReleaseObservations: []*privatestoragev1.VolumeReleaseObservation{{
-				BindingID: "binding-1",
-				Status:    storagev1.VolumeStatus_VOLUME_STATUS_DELETED,
-			}},
-		},
-	}
-	bridge := New(client, Config{})
-	observations, err := bridge.DeleteResolvedAllocation(context.Background(), "node-a:24010", "alloc-a", 2, "node-a")
-	if err != nil {
-		t.Fatalf("DeleteResolvedAllocation() error = %v", err)
-	}
-	if len(observations) != 1 || observations[0].GetBindingID() != "binding-1" {
-		t.Fatalf("observations = %#v, want binding-1", observations)
-	}
-}
-
 func TestAllocationDeletedUsesNodeStatus(t *testing.T) {
 	bridge := New(&captureLifecycleClient{statusErr: grpcstatus.Error(codes.NotFound, "not found")}, Config{})
 	deleted, err := bridge.AllocationDeleted(context.Background(), "node-a:24010", "alloc-a", 1, "node-a")
@@ -562,10 +493,6 @@ func (c *captureLifecycleClient) DeleteAllocation(_ context.Context, _ string, r
 		return proto.Clone(c.deleteResp).(*privatenodev1.DeleteAllocationResponse), nil
 	}
 	return &privatenodev1.DeleteAllocationResponse{}, nil
-}
-
-func (c *captureLifecycleClient) DeleteVolume(context.Context, string, *privatenodev1.DeleteVolumeRequest) (*privatenodev1.DeleteVolumeResponse, error) {
-	return &privatenodev1.DeleteVolumeResponse{}, nil
 }
 
 func (c *captureLifecycleClient) GetAllocationStatus(context.Context, string, *privatenodev1.GetAllocationStatusRequest) (*privatenodev1.GetAllocationStatusResponse, error) {

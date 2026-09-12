@@ -16,7 +16,6 @@ type ExecutionConfigJSON struct {
 	Placement                       *PlacementConstraintsJSON             `json:"placement,omitempty"`
 	SecretEnv                       []*SecretEnvVarJSON                   `json:"secret_env,omitempty"`
 	SecretFiles                     []*SecretFileJSON                     `json:"secret_files,omitempty"`
-	VolumeMounts                    []*ServiceVolumeMountJSON             `json:"volume_mounts,omitempty"`
 	ImageMounts                     []*ImageMountJSON                     `json:"image_mounts,omitempty"`
 }
 
@@ -66,13 +65,6 @@ type SecretFileJSON struct {
 	Optional bool   `json:"optional,omitempty"`
 }
 
-type ServiceVolumeMountJSON struct {
-	Name     string   `json:"name"`
-	Target   string   `json:"target"`
-	Readonly bool     `json:"readonly,omitempty"`
-	Options  []string `json:"options,omitempty"`
-}
-
 type ImageMountJSON struct {
 	Image    string `json:"image"`
 	Target   string `json:"target"`
@@ -94,7 +86,6 @@ func NewExecutionConfigJSON(config *commonv1.ExecutionConfig) *ExecutionConfigJS
 		Placement:                       newPlacementConstraintsJSON(config.GetPlacement()),
 		SecretEnv:                       newSecretEnvVarJSONs(config.GetSecretEnv()),
 		SecretFiles:                     newSecretFileJSONs(config.GetSecretFiles()),
-		VolumeMounts:                    newServiceVolumeMountJSONs(config.GetVolumeMounts()),
 		ImageMounts:                     newImageMountJSONs(config.GetImageMounts()),
 	}
 }
@@ -204,25 +195,6 @@ func newSecretFileJSONs(files []*commonv1.SecretFile) []*SecretFileJSON {
 			Key:      file.GetKey(),
 			Mode:     file.GetMode(),
 			Optional: file.GetOptional(),
-		})
-	}
-	return out
-}
-
-func newServiceVolumeMountJSONs(mounts []*commonv1.ServiceVolumeMount) []*ServiceVolumeMountJSON {
-	if len(mounts) == 0 {
-		return nil
-	}
-	out := make([]*ServiceVolumeMountJSON, 0, len(mounts))
-	for _, mount := range mounts {
-		if mount == nil {
-			continue
-		}
-		out = append(out, &ServiceVolumeMountJSON{
-			Name:     mount.GetName(),
-			Target:   mount.GetTarget(),
-			Readonly: mount.GetReadonly(),
-			Options:  append([]string(nil), mount.GetOptions()...),
 		})
 	}
 	return out

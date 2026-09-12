@@ -20,9 +20,7 @@ type controller struct {
 	environments                 servicekernel.EnvironmentReader
 	selector                     servicekernel.CandidateSelector
 	lifecycle                    servicekernel.AllocationLifecycle
-	storage                      servicekernel.StorageCoordinator
 	notifyReconcile              func(...string)
-	nodeTarget                   func(string) (string, bool)
 	reconcileConcurrency         int
 	allocationGlobalConcurrency  int
 	allocationPerNodeConcurrency int
@@ -39,9 +37,7 @@ type ControllerDeps struct {
 	Environments                       servicekernel.EnvironmentReader
 	Selector                           servicekernel.CandidateSelector
 	Lifecycle                          servicekernel.AllocationLifecycle
-	Storage                            servicekernel.StorageCoordinator
 	NotifyReconcile                    func(...string)
-	NodeTarget                         func(string) (string, bool)
 	ReconcileConcurrency               int
 	AllocationCreateGlobalConcurrency  int
 	AllocationCreatePerNodeConcurrency int
@@ -70,9 +66,7 @@ func NewController(deps ControllerDeps) servicekernel.Controller {
 		environments:                 deps.Environments,
 		selector:                     deps.Selector,
 		lifecycle:                    deps.Lifecycle,
-		storage:                      deps.Storage,
 		notifyReconcile:              deps.NotifyReconcile,
-		nodeTarget:                   deps.NodeTarget,
 		reconcileConcurrency:         reconcileConcurrency,
 		allocationGlobalConcurrency:  allocationGlobalConcurrency,
 		allocationPerNodeConcurrency: allocationPerNodeConcurrency,

@@ -7,12 +7,8 @@ Active services and design surfaces:
 - [Control Plane](./controld/README.md): Postgres-backed daemon for node
   registration, heartbeat ingest, lifecycle control, gateway route resolution,
   execution leases, and the read-only runtime catalog.
-- [Storage Control Plane](./storaged/README.md): Storage V1 module for volume
-  classes, claims, bindings, backend coordination, resolved node volume specs,
-  publish/release observations, binding health, and failed-binding retry.
-
 The control plane owns durable product metadata, placement, admission,
-lifecycle APIs, storage metadata, gateway route resolution, node image
+lifecycle APIs, gateway route resolution, node image
 inventory summaries, and revocable execution leases.
 Rootfs locality describes local directories or registry images (OCI/Nydus);
 object-store artifact storage is separate from workload rootfs placement.
@@ -29,10 +25,12 @@ rechecked while candidate rows are locked; users may declare only structured
 extension requirements. See
 [Observed Capability Providers](../docs/architecture/observed-capability-providers.md).
 Node identity is durable: operators retire permanently removed nodes through
-the audited admin API after allocations, reservations, leases, tunnels, volume
-bindings, reclaims, and lifecycle retries have converged. Retired identities
+the audited admin API after allocations, reservations, leases, tunnels,
+and lifecycle retries have converged. Retired identities
 cannot re-register and are excluded from placement and fleet health.
 
 For implementation details, runtime contracts, and local commands, use the
-owning subsystem README. Cross-service storage ownership is tracked in
-[Storage Architecture](../docs/architecture/storage-architecture.md).
+owning subsystem README. Generic persistent-volume APIs and coordination are
+not part of the execution core. See
+[Retired Volume Data](controld/docs/retired-volume-data.md) before changing a
+deployment that previously used them.

@@ -18,25 +18,16 @@ enum ServiceStatus {
   SERVICE_STATUS_DELETED = 6;
 }
 
-enum ServiceVolumeDisposition {
-  SERVICE_VOLUME_DISPOSITION_UNSPECIFIED = 0;
-  SERVICE_VOLUME_DISPOSITION_RETAIN = 1;
-  SERVICE_VOLUME_DISPOSITION_DELETE = 2;
-}
-
 enum ServiceDeletionPhase {
   SERVICE_DELETION_PHASE_UNSPECIFIED = 0;
   SERVICE_DELETION_PHASE_RELEASING_ALLOCATIONS = 1;
-  SERVICE_DELETION_PHASE_RECLAIMING_VOLUMES = 2;
-  SERVICE_DELETION_PHASE_COMPLETE = 3;
+  SERVICE_DELETION_PHASE_COMPLETE = 2;
 }
 
 message ServiceDeletionStatus {
   ServiceDeletionPhase phase = 1;
-  ServiceVolumeDisposition volume_disposition = 2;
-  repeated string claim_ids = 3;
-  string message = 4;
-  google.protobuf.Timestamp completed_at = 5;
+  string message = 2;
+  google.protobuf.Timestamp completed_at = 3;
 }
 
 enum ServiceRolloutPhase {

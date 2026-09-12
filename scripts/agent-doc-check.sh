@@ -54,6 +54,9 @@ while IFS= read -r file; do
 done < <(git ls-files --cached --others --exclude-standard '*.md')
 
 while IFS= read -r contract; do
+  if [[ ! -e "${contract}" ]]; then
+    continue
+  fi
   if [[ "${contract}" == "AGENTS.md" ]]; then
     continue
   fi

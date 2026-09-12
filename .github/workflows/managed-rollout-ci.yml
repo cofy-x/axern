@@ -104,7 +104,6 @@ jobs:
           cache-dependency-path: |
             apps/axrun/go.sum
             control/controld/go.sum
-            control/storaged/go.sum
             gateway/gatewayd/go.sum
             lib/go/grpcclient/go.sum
             lib/go/observability/go.sum

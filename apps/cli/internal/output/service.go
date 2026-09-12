@@ -3,7 +3,6 @@ package output
 import (
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/cofy-x/axern/apps/cli/internal/workloaddiagnostic"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -41,13 +40,9 @@ func renderServiceDetails(w io.Writer, service *servicev1.Service, latestEvent *
 	if deletion := service.GetDeletionStatus(); deletion != nil {
 		fmt.Fprintf(
 			w,
-			"Deletion: phase=%s volume_disposition=%s\n",
+			"Deletion: phase=%s\n",
 			ServiceDeletionPhaseLabel(deletion.GetPhase()),
-			ServiceVolumeDispositionLabel(deletion.GetVolumeDisposition()),
 		)
-		if claimIDs := deletion.GetClaimIds(); len(claimIDs) > 0 {
-			fmt.Fprintf(w, "Deletion Claims: %s\n", strings.Join(claimIDs, ","))
-		}
 		if completedAt := FormatProtoTimestamp(deletion.GetCompletedAt()); completedAt != "" {
 			fmt.Fprintf(w, "Deletion Completed At: %s\n", completedAt)
 		}
@@ -65,9 +60,6 @@ func renderServiceDetails(w io.Writer, service *servicev1.Service, latestEvent *
 		if updated := FormatProtoTimestamp(service.GetUpdatedAt()); updated != "" {
 			fmt.Fprintf(w, "Updated At: %s\n", updated)
 		}
-	}
-	if mounts := service.GetConfig().GetVolumeMounts(); len(mounts) > 0 {
-		fmt.Fprintf(w, "Volumes: %s\n", formatServiceVolumeMounts(mounts))
 	}
 	if mounts := service.GetConfig().GetImageMounts(); len(mounts) > 0 {
 		fmt.Fprintf(w, "Image Mounts: %s\n", formatImageMounts(mounts))

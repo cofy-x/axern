@@ -28,12 +28,6 @@ type Reliability interface {
 	Health(ctx context.Context, now time.Time) (adminkernel.ReliabilityHealth, error)
 }
 
-type Storage interface {
-	ListStorageBindings(ctx context.Context, filter adminkernel.StorageBindingFilter) ([]adminkernel.StorageBinding, error)
-	ListStorageReclaims(ctx context.Context, filter adminkernel.StorageReclaimFilter) ([]adminkernel.StorageReclaim, error)
-	RetryStorageBinding(ctx context.Context, req adminkernel.RetryStorageBindingRequest) (*adminkernel.StorageBinding, error)
-}
-
 type Services interface {
 	PurgeService(ctx context.Context, serviceID, operatorReason string, now time.Time) (string, error)
 }
@@ -67,7 +61,6 @@ type Dependencies struct {
 	AllocationLifecycleRetries AllocationLifecycleRetries
 	AdminAuditEvents           AdminAuditEvents
 	Reliability                Reliability
-	Storage                    Storage
 	Services                   Services
 	Nodes                      Nodes
 	CapabilityDiagnostics      CapabilityDiagnostics

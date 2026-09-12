@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterator
 
 from axern.control.tunnel.v1 import tunnel_pb2
 from axern_sdk._internal.resources import ResourceQuantity
 from axern_sdk.client import AxernClient
 from axern_sdk.errors import SandboxNotStartedError, SandboxTimeoutError
-from axern_sdk.models import VolumeMount
 from axern_sdk.node import (
     ExecCommand,
     ExecResult,
@@ -53,7 +52,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         limit_memory: ResourceQuantity = "",
         limit_ephemeral_storage: ResourceQuantity = "",
         extension_capabilities: dict[str, str] | None = None,
-        volumes: Iterable[VolumeMount] | None = None,
         upstream: str = "",
         remote_port: int | None = None,
         connector: ConnectorConfig | None = None,
@@ -84,7 +82,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         self._limit_memory = limit_memory
         self._limit_ephemeral_storage = limit_ephemeral_storage
         self._extension_capabilities = dict(extension_capabilities or {})
-        self._volumes = tuple(volumes or ())
         self._upstream = upstream
         self._remote_port = remote_port
         self._gateway_transport = client._gateway_transport()
@@ -184,7 +181,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
                 limit_memory=self._limit_memory,
                 limit_ephemeral_storage=self._limit_ephemeral_storage,
                 extension_capabilities=self._extension_capabilities,
-                volume_mounts=self._volumes,
                 namespace=self._namespace,
                 labels=self._labels,
             )

@@ -14,7 +14,6 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
-	storagev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
@@ -191,7 +190,7 @@ func ensureService(ctx context.Context, params Params, adapter Adapter, bundle b
 				ExpectedVersion: current.GetVersion(),
 				Replicas:        &replicas,
 				EnvironmentID:   &environmentID,
-				Config:          workspaceExecutionConfig(workspace, bundle),
+				Config:          workspaceExecutionConfig(bundle),
 				Labels:          workspaceLabels(workspace, profile, string(params.Profile.Agent)),
 				UpdateMask:      &fieldmaskpb.FieldMask{Paths: []string{"replicas", "environment_id", "config", "labels"}},
 			}, nil
@@ -214,7 +213,7 @@ func ensureService(ctx context.Context, params Params, adapter Adapter, bundle b
 		EnvironmentID: environmentID,
 		Replicas:      DefaultReplicas,
 		Labels:        workspaceLabels(workspace, profile, string(params.Profile.Agent)),
-		Config:        workspaceExecutionConfig(workspace, bundle),
+		Config:        workspaceExecutionConfig(bundle),
 	})
 	if err != nil {
 		return ensureResult{}, err
@@ -254,11 +253,8 @@ func workspaceLabels(workspace, profile, agent string) map[string]string {
 	}
 }
 
-func workspaceExecutionConfig(workspace string, bundle bundleRuntime) *commonv1.ExecutionConfig {
-	return &commonv1.ExecutionConfig{VolumeMounts: []*commonv1.ServiceVolumeMount{{
-		Name: workspaceVolumeName(workspace), Target: DefaultWorkspace, Options: []string{"rw", "nosuid", "nodev"},
-		ReclaimPolicy: storagev1.VolumeReclaimPolicy_VOLUME_RECLAIM_POLICY_DELETE,
-	}}, ImageMounts: []*commonv1.ImageMount{{Image: bundle.Image, Target: firstNonEmpty(bundle.ImageTarget, bundle.MountTarget), Readonly: true}}}
+func workspaceExecutionConfig(bundle bundleRuntime) *commonv1.ExecutionConfig {
+	return &commonv1.ExecutionConfig{ImageMounts: []*commonv1.ImageMount{{Image: bundle.Image, Target: firstNonEmpty(bundle.ImageTarget, bundle.MountTarget), Readonly: true}}}
 }
 
 type serviceUpdateBuilder func(*servicev1.Service) (*servicev1.UpdateServiceRequest, error)

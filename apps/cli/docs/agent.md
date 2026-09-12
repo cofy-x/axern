@@ -1,38 +1,37 @@
 # Axern Agent Workspace
 
-`axern agent` manages a persistent remote coding workspace. Its durable model
-is deliberately small:
+`axern agent` manages remote coding sessions backed by a Service. Workspace
+files are ephemeral and exist only for the current sandbox allocation:
 
-- Workspace is the project and data identity.
+- Workspace is the named session group.
 - Profile is the local agent, model, and provider-credential identity.
 - Service is the workspace's compute identity.
-- Volume is the workspace's persistent data identity.
 - Tunnel is one connection session.
 
 A workspace is identified by `--workspace`. When omitted, the selected profile
 name is used. Names may contain lowercase letters, digits, `.`, `_`, and `-`,
 must start with a letter or digit, and are limited to 48 characters.
 
-Every workspace keeps one Service and mounts `agent-workspace-<workspace>` at
-`/home/axern/workspace`. The local persistent volume pins recovery to its original
-node. A missing node is an explicit storage-topology failure; Axern does not
-replace the workspace with an empty directory.
+Every workspace keeps one Service and uses `/home/axern/workspace` inside its
+current sandbox. Reconnecting to the same allocation keeps those files;
+stopping, replacing, or losing that allocation discards them. Download any
+needed files before stopping. Axern does not provide persistent volumes,
+snapshots, or cross-node workspace recovery.
 
 The selected profile namespace determines the Service namespace when the
 workspace is first created. That namespace then belongs to the workspace and
 does not change during later profile switches; the new profile's Environment
 is resolved in the existing workspace namespace.
 
-Bootstrap makes only the mount root writable by the remote user. It first
-tries to correct ownership and falls back to mount-root permission adjustment
-for filesystems such as 9p that do not preserve `chown`. Existing content is
-never changed recursively. If the expected mount is absent, bootstrap fails
-instead of creating an empty workspace directory.
+Bootstrap creates the sandbox-local directory when needed and makes that
+directory writable by the remote user. Existing content is not changed
+recursively.
 
 Starting `shell`, `run`, or `connect` creates or resumes the Service, waits for
 one ready replica, opens a credential proxy and Tunnel, and writes the remote
 agent configuration. Ending the connection only closes that session. Use
-`stop` to suspend compute while retaining the Service and workspace data.
+`stop` to release compute and discard sandbox files while retaining the Service
+configuration.
 
 ## Profiles
 
@@ -101,8 +100,8 @@ axern agent stop --workspace project-a
 ```
 
 `stop` scales the Service to zero and is idempotent for an already suspended
-workspace. The next `shell`, `run`, or `connect` resumes the same Service and
-Volume with a new Allocation. `agent list` reports the stable lifecycle values
+workspace. The next `shell`, `run`, or `connect` starts a new, empty Allocation
+for the same Service. `agent list` reports the stable lifecycle values
 `starting`, `running`, `suspended`, `deleting`, and `degraded`.
 
 A running workspace only accepts its active profile. To switch agents or
@@ -114,10 +113,10 @@ axern agent shell --workspace project-a --profile dev-claude
 ```
 
 The profile switch updates the suspended Service's Environment and labels. It
-does not replace the Service or Volume.
+does not replace the Service identity. The new allocation has no files from the
+previous session.
 
-Permanently delete a suspended workspace only when its data is no longer
-needed:
+Delete a stopped workspace Service when its configuration is no longer needed:
 
 ```bash
 axern agent stop --workspace project-a
@@ -127,11 +126,11 @@ axern agent workspace delete --workspace project-a --yes --timeout 10m
 ```
 
 Interactive deletion requires typing the complete workspace name. Automation
-must pass `--yes`. The command waits for allocation release and physical volume
-reclaim. A timeout stops only the local wait; repeat the same command to keep
+must pass `--yes`. The command waits for allocation release and Service deletion.
+A timeout stops only the local wait; repeat the same command to keep
 waiting. Completed deletion is idempotent, while a name that never existed is
 reported as not found. Recreating the same workspace produces new Service and
-Claim identities and an empty data directory.
+allocation identities and an empty data directory.
 
 Idle suspend, snapshots, and cross-node recovery are not part of this contract.
 
@@ -174,7 +173,7 @@ Claude CLI arguments.
 
 The remote runtime receives only a session-scoped local adapter token and a
 loopback base URL. The provider token stays in the local profile and local
-proxy. It is never written to the Service, Volume, remote configuration, logs,
+proxy. It is never written to the Service, remote configuration, logs,
 or JSON output.
 
 `axern agent` is for interactive development runtimes. Axrun rollout and

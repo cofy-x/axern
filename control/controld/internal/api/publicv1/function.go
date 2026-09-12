@@ -294,9 +294,6 @@ func validateDeployFunctionRequest(req *functionv1.DeployFunctionRequest) error 
 	if err := validateExecutionConfigImageMounts(spec.GetConfig()); err != nil {
 		return err
 	}
-	if err := validateServiceVolumeMounts(spec.GetConfig()); err != nil {
-		return err
-	}
 	if len(spec.GetConfig().GetArgv()) > 0 {
 		return grpcstatus.Error(codes.InvalidArgument, "spec.config.argv is owned by the function worker")
 	}

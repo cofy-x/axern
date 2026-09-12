@@ -74,7 +74,7 @@ else
   kubectl -n "${K8S_NAMESPACE}" delete deployment/jaeger service/jaeger --ignore-not-found >/dev/null
 fi
 kubectl -n "${K8S_NAMESPACE}" rollout status deployment/postgres --timeout=180s >/dev/null
-for deployment in gatewayd controld-retention controld storaged; do
+for deployment in gatewayd controld-retention controld; do
   if kubectl -n "${K8S_NAMESPACE}" get deployment/"${deployment}" >/dev/null 2>&1; then
     kubectl -n "${K8S_NAMESPACE}" scale deployment/"${deployment}" --replicas=0 >/dev/null
     kubectl -n "${K8S_NAMESPACE}" rollout status deployment/"${deployment}" --timeout=180s >/dev/null

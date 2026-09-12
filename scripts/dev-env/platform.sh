@@ -29,10 +29,10 @@ local_no_proxy_entries() {
   local common="localhost,127.0.0.1,::1,host.docker.internal,${LOCAL_REGISTRY_NAME},${LOCAL_REGISTRY_HOST},${LOCAL_REGISTRY_CLUSTER_HOST},.svc,.svc.cluster.local,.cluster.local,10.96.0.0/12,10.244.0.0/16,172.16.0.0/12,192.168.0.0/16"
   case "${mode}" in
     k8s)
-      printf '%s\n' "${common},controld,controld.${K8S_NAMESPACE},controld.${K8S_NAMESPACE}.svc,controld.${K8S_NAMESPACE}.svc.cluster.local,storaged,storaged.${K8S_NAMESPACE},storaged.${K8S_NAMESPACE}.svc,storaged.${K8S_NAMESPACE}.svc.cluster.local,gatewayd,gatewayd.${K8S_NAMESPACE},gatewayd.${K8S_NAMESPACE}.svc,gatewayd.${K8S_NAMESPACE}.svc.cluster.local,tunneld,tunneld.${K8S_NAMESPACE},tunneld.${K8S_NAMESPACE}.svc,tunneld.${K8S_NAMESPACE}.svc.cluster.local,node-all-in-one,postgres,minio,otel-collector,otel-collector.${K8S_NAMESPACE},otel-collector.${K8S_NAMESPACE}.svc,otel-collector.${K8S_NAMESPACE}.svc.cluster.local,otel-lgtm"
+      printf '%s\n' "${common},controld,controld.${K8S_NAMESPACE},controld.${K8S_NAMESPACE}.svc,controld.${K8S_NAMESPACE}.svc.cluster.local,gatewayd,gatewayd.${K8S_NAMESPACE},gatewayd.${K8S_NAMESPACE}.svc,gatewayd.${K8S_NAMESPACE}.svc.cluster.local,tunneld,tunneld.${K8S_NAMESPACE},tunneld.${K8S_NAMESPACE}.svc,tunneld.${K8S_NAMESPACE}.svc.cluster.local,node-all-in-one,postgres,minio,otel-collector,otel-collector.${K8S_NAMESPACE},otel-collector.${K8S_NAMESPACE}.svc,otel-collector.${K8S_NAMESPACE}.svc.cluster.local,otel-lgtm"
       ;;
     compose)
-      printf '%s\n' "${common},controld,storaged,gatewayd,tunneld,node,postgres,minio,otel-collector,otel-lgtm"
+      printf '%s\n' "${common},controld,gatewayd,tunneld,node,postgres,minio,otel-collector,otel-lgtm"
       ;;
     *)
       printf '%s\n' "${common}"
@@ -274,11 +274,11 @@ compose_project_up() {
   if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
     infra_services+=(otel-collector otel-lgtm)
   fi
-  docker compose "${compose_args[@]}" stop gatewayd node tunneld controld-retention controld storaged >/dev/null 2>&1 || true
+  docker compose "${compose_args[@]}" stop gatewayd node tunneld controld-retention controld >/dev/null 2>&1 || true
   docker compose "${compose_args[@]}" up -d --remove-orphans "${infra_services[@]}"
   docker compose "${compose_args[@]}" rm -sf controld-migrate controld-access-bootstrap >/dev/null 2>&1 || true
   docker compose "${compose_args[@]}" up --force-recreate --exit-code-from controld-access-bootstrap controld-access-bootstrap
-  docker compose "${compose_args[@]}" up -d --force-recreate --no-deps --remove-orphans storaged controld controld-retention tunneld node gatewayd
+  docker compose "${compose_args[@]}" up -d --force-recreate --no-deps --remove-orphans controld controld-retention tunneld node gatewayd
 }
 
 compose_project_reset_state() {
@@ -288,7 +288,7 @@ compose_project_reset_state() {
     compose_args+=(--profile otel)
   fi
   docker compose "${compose_args[@]}" stop \
-    gatewayd node tunneld controld-retention controld storaged controld-access-bootstrap controld-migrate dns-fixture postgres minio >/dev/null 2>&1 || true
+    gatewayd node tunneld controld-retention controld controld-access-bootstrap controld-migrate dns-fixture postgres minio >/dev/null 2>&1 || true
   docker compose "${compose_args[@]}" rm -sf controld-access-bootstrap controld-migrate dns-fixture postgres minio >/dev/null 2>&1 || true
   rm -rf "${COMPOSE_STATE_DIR}/postgres" "${COMPOSE_STATE_DIR}/minio" "${COMPOSE_STATE_DIR}/run"
   ensure_state_dirs
@@ -533,8 +533,6 @@ emit_node_summary_status() {
     echo "mounted_images=0"
     echo "imagemgr_ready_nodes=0"
     echo "imagefsd_ready_nodes=0"
-    echo "volumed_ready_nodes=0"
-    echo "volumed_error_nodes=0"
     return 0
   fi
   printf '%s' "${body}" | python3 -c '
@@ -560,8 +558,6 @@ running_containers = 0
 mounted_images = 0
 imagemgr_ready_nodes = 0
 imagefsd_ready_nodes = 0
-volumed_ready_nodes = 0
-volumed_error_nodes = 0
 
 for node in nodes:
     if node.get("fresh"):
@@ -573,17 +569,12 @@ for node in nodes:
     axnoded = components.get("axnoded") or {}
     imagemgr = components.get("imagemgr") or {}
     imagefsd = components.get("imagefsd") or {}
-    volumed = components.get("volumed") or {}
     if axnoded.get("ready") and axnoded.get("state") == 1:
         axnoded_ready_nodes += 1
     if imagemgr.get("reachable") and imagemgr.get("state") == 1:
         imagemgr_ready_nodes += 1
     if imagefsd.get("reachable") and imagefsd.get("state") == 1:
         imagefsd_ready_nodes += 1
-    if volumed.get("reachable") and volumed.get("state") == 1:
-        volumed_ready_nodes += 1
-    if volumed.get("state") == 4:
-        volumed_error_nodes += 1
     pools = summary.get("pools") or {}
     interface_pool = pools.get("interface") or {}
     cgroup_pool = pools.get("cgroup") or {}
@@ -618,8 +609,6 @@ print(f"running_containers={running_containers}")
 print(f"mounted_images={mounted_images}")
 print(f"imagemgr_ready_nodes={imagemgr_ready_nodes}")
 print(f"imagefsd_ready_nodes={imagefsd_ready_nodes}")
-print(f"volumed_ready_nodes={volumed_ready_nodes}")
-print(f"volumed_error_nodes={volumed_error_nodes}")
 '
 }
 

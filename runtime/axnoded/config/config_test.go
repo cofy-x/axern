@@ -127,19 +127,6 @@ func TestDefaultConfigSetsImageManagerSocket(t *testing.T) {
 	}
 }
 
-func TestDefaultConfigSetsVolumeManagerSocket(t *testing.T) {
-	cfg := DefaultConfig()
-	if cfg.PluginConfig.RuntimeConfig.VolumeManagerSocket != DefaultVolumeManagerSocket {
-		t.Fatalf("expected volume manager socket %q, got %q", DefaultVolumeManagerSocket, cfg.PluginConfig.RuntimeConfig.VolumeManagerSocket)
-	}
-	if cfg.PluginConfig.RuntimeConfig.VolumeManagerSocketPath() != DefaultVolumeManagerSocket {
-		t.Fatalf("expected volume manager socket path %q, got %q", DefaultVolumeManagerSocket, cfg.PluginConfig.RuntimeConfig.VolumeManagerSocketPath())
-	}
-	if cfg.PluginConfig.RuntimeConfig.EgressManagerSocketPath() != DefaultEgressManagerSocket {
-		t.Fatalf("expected egress manager socket path %q, got %q", DefaultEgressManagerSocket, cfg.PluginConfig.RuntimeConfig.EgressManagerSocketPath())
-	}
-}
-
 func TestDefaultConfigSetsRuntimeRunnerBinary(t *testing.T) {
 	cfg := DefaultConfig()
 	if cfg.PluginConfig.RuntimeConfig.RuntimeRunnerBinary != DefaultRuntimeRunnerBinary {

@@ -95,53 +95,6 @@ local_smoke_psql() {
   esac
 }
 
-local_smoke_assert_service_volume_storage_state() {
-  local env_name="$1"
-  local namespace="$2"
-  local claim_status="$3"
-  local binding_status="$4"
-  local rows
-  rows="$(local_smoke_psql "${env_name}" -At \
-    -v "namespace=${namespace}" \
-    -v "claim_status=${claim_status}" \
-    -v "binding_status=${binding_status}" <<'SQL'
-WITH target_claims AS (
-  SELECT claim_id, status
-  FROM storage_volume_claims
-  WHERE namespace = :'namespace'
-), target_bindings AS (
-  SELECT binding_id, status
-  FROM storage_volume_bindings
-  WHERE namespace = :'namespace'
-)
-SELECT
-  (SELECT count(*) FROM target_claims WHERE status = :'claim_status') || '|' ||
-  (SELECT count(*) FROM target_bindings WHERE status = :'binding_status') || '|' ||
-  (SELECT count(*) FROM target_bindings WHERE status <> 'VOLUME_STATUS_DELETED') || '|' ||
-  (SELECT count(*) FROM target_claims);
-SQL
-)"
-  python3 -c '
-import sys
-
-raw = sys.argv[1].strip()
-claim_status = sys.argv[2]
-binding_status = sys.argv[3]
-try:
-    claim_count, binding_count, active_bindings, total_claims = [int(x) for x in raw.split("|")]
-except Exception as exc:
-    raise SystemExit(f"unreadable storage status row {raw!r}: {exc}") from exc
-if total_claims < 1:
-    raise SystemExit("expected at least one volume claim")
-if claim_count < 1:
-    raise SystemExit(f"expected at least one claim in {claim_status}, got {claim_count}")
-if binding_count < 1:
-    raise SystemExit(f"expected at least one binding in {binding_status}, got {binding_count}")
-if binding_status == "VOLUME_STATUS_DELETED" and active_bindings != 0:
-    raise SystemExit(f"expected no active bindings after release, got {active_bindings}")
-' "${rows}" "${claim_status}" "${binding_status}"
-}
-
 local_smoke_assert_compose_admin_repair_actions() {
   local endpoint="$1"
   local namespace="admin-repair-smoke"

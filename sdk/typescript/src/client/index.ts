@@ -15,7 +15,6 @@ import { buildResourceSpec } from "../resources.js";
 import type { ResourceQuantity } from "../resources.js";
 import type { NetworkPolicy } from "../network-policy.js";
 import { TunnelControlClient } from "../tunnel/control.js";
-import type { VolumeMount } from "../types.js";
 import type { GatewayTransportOptions } from "../tunnel/relay.js";
 import { required } from "../validation.js";
 
@@ -47,7 +46,6 @@ export interface CreateServiceOptions {
   runtimeClass?: string;
   networkPolicy?: NetworkPolicy;
   extensionCapabilities?: readonly ExtensionCapability[];
-  volumes?: readonly VolumeMount[];
   requestCpu?: ResourceQuantity;
   requestMemory?: ResourceQuantity;
   requestEphemeralStorage?: ResourceQuantity;
@@ -279,7 +277,6 @@ export class AxernClient {
             extension_capability_requirements: (options.extensionCapabilities ?? []).map((capability) => ({
               capability: { name: capability.name, value: capability.value ?? "" },
             })),
-            volume_mounts: serviceVolumeMounts(options.volumes),
             resources,
           },
           labels: options.labels ?? {},
@@ -331,15 +328,6 @@ export class AxernClient {
   tunnelTransport(): GatewayTransportOptions {
     return { ...this.gatewayTransport };
   }
-}
-
-function serviceVolumeMounts(mounts: readonly VolumeMount[] | undefined): Record<string, unknown>[] {
-  return (mounts ?? []).map((mount) => ({
-    name: mount.name,
-    target: mount.target,
-    readonly: mount.readonly ?? false,
-    options: [...(mount.options ?? [])],
-  }));
 }
 
 function serverStream(client: grpc.Client, method: string, request: Record<string, unknown>): grpc.ClientReadableStream<Record<string, unknown>> {
