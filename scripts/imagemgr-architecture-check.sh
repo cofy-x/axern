@@ -60,8 +60,7 @@ check_equals \
 	"find runtime/imagemgr -mindepth 1 -maxdepth 1 -type d | sort" \
 	"$expected_top_level"
 
-expected_cmd_packages='runtime/imagemgr/cmd/imagemgr
-runtime/imagemgr/cmd/oci-client'
+expected_cmd_packages='runtime/imagemgr/cmd/imagemgr'
 
 check_equals \
 	"cmd packages must stay explicit executable entrypoints" \
