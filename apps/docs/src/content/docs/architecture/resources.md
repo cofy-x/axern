@@ -1,17 +1,13 @@
 ---
 title: Runtime and Resources
-description: Choose between runsc and runc, and size workloads with requests, limits, and namespace quota.
+description: Run isolated workloads with runsc and size them with requests, limits, and namespace quota.
 ---
 
-Axern runs every workload behind one resource and lifecycle model, with the
-runtime class selected per workload. Choose the class by trust, not by
-workload duration:
-
-- **`runsc`** is the recommended isolation boundary for untrusted,
-  agent-generated code. It adds a user-space kernel between the workload and
-  the host.
-- **`runc`** is the performance-oriented choice for trusted, long-running
-  services that need full host-kernel compatibility.
+Axern uses gVisor (`runsc`) as its production sandbox runtime. It adds a
+user-space kernel between the workload and the host, under one resource and
+lifecycle model. Packaged nodes enable only runsc. Runc handlers and explicit
+low-level diagnostic tests remain during convergence, but are not a supported
+production choice or an automatic fallback.
 
 ```bash
 axern run --runtime-class runsc docker.io/library/python:3.12-slim -- \

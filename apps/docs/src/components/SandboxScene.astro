@@ -376,12 +376,12 @@
         cycle: ['01 PROVISION', '02 READY', '03 EXECUTE', '04 CLEAN'],
       },
       SERVICE: {
-        context: 'AXERN / DURABLE SERVICE', id: 'SVC_41C2', runtime: 'RUNC',
+        context: 'AXERN / DURABLE SERVICE', id: 'SVC_41C2', runtime: 'RUNSC',
         command: 'axern service deploy', coreLabel: 'REPLICA SET', coreRuntime: '01 HEALTHY',
         flowFunction: 'request', flowValue: '"/health"', outputLabel: 'HTTP', outputValue: '200 OK',
         resultLabel: 'SERVICE', resultValue: 'READY / 1 REPLICA',
         events: [
-          ['SERVICE DECLARED', 'RUNTIME RUNC'],
+          ['SERVICE DECLARED', 'RUNTIME RUNSC'],
           ['REPLICA READY', 'HEALTHCHECK PASS'],
           ['REQUEST RECEIVED', 'ROUTE /HEALTH'],
           ['ROLLOUT STABLE', 'READY 2 / DESIRED 2'],
@@ -483,7 +483,7 @@
         DENIED: ['ATTEMPT CONTAINED', 'HOST BOUNDARY INTACT'],
       } : {
         INPUT: ['REQUEST RECEIVED', 'ROUTE /HEALTH'],
-        RUN: ['HANDLER RUNNING', 'RUNTIME RUNC'],
+        RUN: ['HANDLER RUNNING', 'RUNTIME RUNSC'],
         OUTPUT: ['RESPONSE STREAMING', 'HTTP 200'],
         RESULT: ['SERVICE HEALTHY', 'READY 2 / DESIRED 2'],
       };

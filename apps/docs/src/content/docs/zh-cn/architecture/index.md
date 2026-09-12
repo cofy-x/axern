@@ -16,7 +16,7 @@ flowchart LR
     Gateway --> Tunnel["tunneld\n反向 TCP 中继"]
     Storage --> Volume["volumed\n节点发布"]
     Node --> Image["imagemgr + imagefsd\nOCI + Nydus"]
-    Node --> Runtime["runc · runsc"]
+    Node --> Runtime["runsc"]
 ```
 
 ## 稳定的职责划分

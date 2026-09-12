@@ -25,7 +25,7 @@ upstream_pid=""
 service_ids=()
 tunnel_pids=()
 marker="axern-kind-tunnel-e2e-ok-$(date +%s)"
-runtime_list="${AXERN_TUNNEL_E2E_RUNTIMES:-runsc runc}"
+runtime_list="${AXERN_TUNNEL_E2E_RUNTIMES:-runsc}"
 
 cleanup() {
   local pid service_id

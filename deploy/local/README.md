@@ -373,6 +373,10 @@ the bring-up and refresh scripts configure it for container or pod access via
 
 ## Defaults
 
+Packaged nodes enable only gVisor (`runsc`). Python/Go SDK, CLI, and tunnel
+E2E entrypoints use runsc by default. The runtime binaries retained for
+explicit low-level diagnostics do not enable additional production runtimes.
+
 Local `node-all-in-one` capacity defaults:
 
 - `AXNODED_MAX_INSTANCE_NUM=64`

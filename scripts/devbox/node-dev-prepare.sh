@@ -90,6 +90,4 @@ binary = "/usr/local/bin/runsc"
 [plugin.runtime.runtimes.runsc.options]
 allow_suid = true
 
-[plugin.runtime.runtimes.runc]
-binary = "/usr/bin/runc"
 EOF

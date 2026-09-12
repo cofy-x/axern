@@ -364,7 +364,7 @@ environment_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["envir
 
 service_create_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service create --output json \
   --environment-id "${environment_id}" \
-  --runtime-class runc \
+  --runtime-class runsc \
   --replicas 1 \
   --volume data:/tmp:rw,rbind \
   --argv /bin/sh --argv -lc --argv "${service_script_initial}")"

@@ -84,8 +84,8 @@ seven-day output retention is a separate storage capability.
 
 ## Isolation and resources
 
-`runtime_class` selects the isolation boundary: `runsc` for untrusted code,
-`runc` for trusted performance-oriented workloads. Resource requests and
+Packaged nodes support `runtime_class: runsc` as the isolation boundary.
+Resource requests and
 limits interact with namespace quota and admission; see
 [Runtime and Resources](/architecture/resources/) for the model and
 [Environments, Namespaces, and Quota](/guides/environments/) for inspecting

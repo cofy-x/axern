@@ -122,7 +122,7 @@ bad_auth_payload="$(jq -cn \
 status="$(post_imagemgr /oss_mount "${bad_auth_payload}" "${bad_auth_body}")"
 [ "${status}" != "200" ] || { echo "bad auth mount unexpectedly succeeded" >&2; exit 1; }
 
-for runtime_name in runsc runc; do
+for runtime_name in runsc; do
   /usr/local/bin/verify-smoke \
     -address "${AXNODED_SOCKET}" \
     -runtime "${runtime_name}" \

@@ -63,6 +63,6 @@ Run 状态是持久的。输出流当前由节点本地文件提供，仅在该 
 
 ## 隔离与资源
 
-`runtime_class` 选择隔离边界：不可信代码用 `runsc`，可信的性能优先工作负载用 `runc`。资源 request/limit 与命名空间配额和准入共同生效；模型见[运行时与资源](/zh-cn/architecture/resources/)，查看准入拒绝见 [环境、命名空间与配额](/zh-cn/guides/environments/)。
+打包节点使用 `runtime_class: runsc` 作为隔离边界。资源 request/limit 与命名空间配额和准入共同生效；模型见[运行时与资源](/zh-cn/architecture/resources/)，查看准入拒绝见 [环境、命名空间与配额](/zh-cn/guides/environments/)。
 
 CLI help 是完整 flag 能力面的权威说明：`axern run --help`。

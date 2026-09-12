@@ -3,7 +3,7 @@
 verify_external_image_ref() {
   local image_ref="${AXERN_CLI_E2E_IMAGE_REF:-docker.io/library/nginx:1.27}"
   local expected_ref="${AXERN_CLI_E2E_EXPECTED_IMAGE_REF:-${image_ref}}"
-  local runtime_classes="${AXERN_CLI_E2E_IMAGE_REF_RUNTIME_CLASSES:-runc runsc}"
+  local runtime_classes="${AXERN_CLI_E2E_IMAGE_REF_RUNTIME_CLASSES:-runsc}"
   local ready_timeout="${AXERN_CLI_E2E_IMAGE_REF_READY_TIMEOUT:-300}"
   local env_output environment_id env_image_ref env_image_digest runtime_class
 

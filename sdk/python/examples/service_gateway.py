@@ -12,7 +12,7 @@ from _context import current_context
 
 NAMESPACE = os.environ.get("AXERN_NAMESPACE", "default")
 IMAGE = os.environ.get("AXERN_IMAGE", "docker.io/library/python:3.12-slim")
-RUNTIME_CLASS = os.environ.get("AXERN_RUNTIME_CLASS", "runc")
+RUNTIME_CLASS = os.environ.get("AXERN_RUNTIME_CLASS", "runsc")
 SERVER_PROGRAM = """\
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 

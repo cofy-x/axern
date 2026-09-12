@@ -19,7 +19,7 @@ if ! docker ps --format '{{.Names}}' | grep -qx "${node_container}"; then
   exit 1
 fi
 
-runtime_list="${AXERN_GO_SDK_E2E_RUNTIMES:-runsc runc}"
+runtime_list="${AXERN_GO_SDK_E2E_RUNTIMES:-runsc}"
 for runtime_class in ${runtime_list}; do
   echo "go_sdk_sandbox_e2e_runtime=${runtime_class} phase=start"
   "${go_bin}" run ./sdk/go/tests/e2e \

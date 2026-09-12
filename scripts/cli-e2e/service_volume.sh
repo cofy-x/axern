@@ -11,7 +11,7 @@ verify_service_volume() {
   volume_service_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service create \
     -o json \
     --environment-id "${volume_environment_id}" \
-    --runtime-class runc \
+    --runtime-class runsc \
     --replicas 1 \
     --volume data:/var/lib/app:rw,rbind \
     --argv /bin/sh \

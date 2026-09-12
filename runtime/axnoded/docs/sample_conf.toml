@@ -91,7 +91,3 @@ base_spec = "/etc/axnoded/runsc-config.json"
 
 [plugin.runtime.runtimes.runsc.options]
 allow_suid = true
-
-[plugin.runtime.runtimes.runc]
-binary = "/usr/bin/runc"
-base_spec = "/etc/axnoded/runc-config.json"

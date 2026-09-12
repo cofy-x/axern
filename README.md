@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.gif" width="100%" alt="Axern — infrastructure for AI agents: untrusted code runs behind a runsc isolation boundary, trusted services run on runc, under one resource and lifecycle model">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Axern — infrastructure for AI agents: runsc isolation with one resource and lifecycle model">
 </p>
 
 <p align="center">
@@ -16,7 +16,7 @@
 </p>
 
 Axern is an open-source sandbox platform for AI agents.
-It isolates untrusted agent-generated code with runsc and runs trusted long-lived services with runc through one resource and lifecycle model.
+It isolates agent-generated code with gVisor (`runsc`) through one resource and lifecycle model. Packaged nodes enable runsc only; retained runc profiles are low-level diagnostics during runtime convergence, not a production fallback.
 The CLI and the Go, Python, and TypeScript SDKs expose the same public APIs for environments, processes, files, services, storage, tunnels, lifecycle state, and task evidence.
 
 > **Project status:** Axern is pre-1.0 and under active development.
@@ -77,14 +77,14 @@ regression without delaying pull-request feedback; see the
 ## What You Can Build
 
 - **Agent sandboxes:** execute agent-generated code behind a runsc isolation boundary while retaining process, file, terminal, and output APIs.
-- **Durable services:** run trusted, performance-sensitive processes with runc while the control plane owns replicas, health, storage, and rollouts.
+- **Durable services:** run processes with runsc while the control plane owns replicas, health, storage, and rollouts.
 - **Reproducible agent execution:** use Axrun to coordinate immutable tasks, verification, trajectories, usage, and typed artifacts.
 
 ## Why Axern
 
 - **Sandbox as the primitive:** runs, services, functions, coding workspaces, and agent tasks compose the same execution and lifecycle APIs.
 - **Durable control plane:** PostgreSQL-backed intent, placement, leases, retries, health, cleanup, and storage state remain authoritative across process or node restarts.
-- **Runtime choice behind one model:** runc and runsc workloads use the same public APIs; OCI and Nydus image paths converge at the node runtime.
+- **One production runtime:** runsc workloads use the same public APIs; OCI and Nydus image paths converge at the node runtime.
 - **Real data-plane access:** process streams, files, archives, HTTP services, SSH-compatible terminals, and reverse TCP tunnels are explicit capabilities.
 - **Local-to-cluster continuity:** Docker Compose, kind, and the cloud-neutral Helm chart exercise the same service boundaries.
 
@@ -101,7 +101,7 @@ flowchart LR
     Storage --> Volume["volumed\nnode volume publish"]
     Node --> Egress["egressd\ntrusted egress policy enforcement"]
     Node --> Image["imagemgr + imagefsd\nOCI and Nydus rootfs"]
-    Node --> Runtime["runc / runsc sandboxes"]
+    Node --> Runtime["runsc sandboxes"]
     Axrun["axrun\nagent tasks and evidence"] --> Gateway
 ```
 

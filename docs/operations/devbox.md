@@ -247,7 +247,7 @@ make dev-runtime-images-load
 SERVICE_ID="$(
   axern svc create \
     --template-id python311 \
-    --runtime-class runc \
+    --runtime-class runsc \
     --replicas 1 \
     --readiness-http-port 8080 \
     --readiness-http-path / \

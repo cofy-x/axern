@@ -52,7 +52,7 @@ trap cleanup EXIT
 
 metrics_before="$(metricsz_fetch)"
 
-for runtime_name in runsc runc; do
+for runtime_name in runsc; do
   runtime_id="bundle-template-${runtime_name}"
 
   cold_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtime_name}.bundle-template.first.stdout" "/tmp/${runtime_name}.bundle-template.first.stderr")"
@@ -85,21 +85,6 @@ metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_sta
   "axern.phase=runtime_bundle_prepare" "axern.start_class=cold" "axern.runtime=runsc" "axern.rootfs_type=local" "axern.result=ok"
 metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
   "axern.phase=runtime_bundle_prepare" "axern.start_class=warm" "axern.runtime=runsc" "axern.rootfs_type=local" "axern.result=ok"
-
-metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
-  "axern.start_class=cold" "axern.runtime=runc" "axern.rootfs_type=local" "axern.result=ok"
-metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
-  "axern.start_class=warm" "axern.runtime=runc" "axern.rootfs_type=local" "axern.result=ok"
-metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_bundle_template_total" "counter" "1" \
-  "axern.runtime=runc" "axern.rootfs_type=local" "axern.result=miss"
-metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_bundle_template_total" "counter" "1" \
-  "axern.runtime=runc" "axern.rootfs_type=local" "axern.result=hit"
-metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_bundle_materialize_duration_seconds" "histogram" "2" \
-  "axern.runtime=runc" "axern.rootfs_type=local" "axern.result=ok"
-metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
-  "axern.phase=runtime_bundle_prepare" "axern.start_class=cold" "axern.runtime=runc" "axern.rootfs_type=local" "axern.result=ok"
-metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
-  "axern.phase=runtime_bundle_prepare" "axern.start_class=warm" "axern.runtime=runc" "axern.rootfs_type=local" "axern.result=ok"
 
 cleanup
 trap - EXIT

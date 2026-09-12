@@ -25,7 +25,7 @@ runtime_results=()
 marker="axern-tunnel-e2e-ok-$(date +%s)"
 agent_marker="axern-agent-e2e-ok-$(date +%s)"
 agent_upstream_token="axern-compose-agent-upstream-token-$(date +%s)"
-runtime_list="${AXERN_TUNNEL_E2E_RUNTIMES:-runsc runc}"
+runtime_list="${AXERN_TUNNEL_E2E_RUNTIMES:-runsc}"
 restart_relay="${AXERN_TUNNEL_E2E_RESTART_RELAY:-true}"
 relay_restart_done=false
 verify_renew="${AXERN_TUNNEL_E2E_VERIFY_RENEW:-true}"
@@ -663,7 +663,7 @@ verify_node_tunneld_restart_once() {
   local tunnel_pid="$5"
   local tunnel_log="$6"
   local before_pid after_pid
-  if [ "${verify_node_restart}" != "true" ] || [ "${node_restart_check_done}" = "true" ] || [ "${runtime_class}" != "runc" ]; then
+  if [ "${verify_node_restart}" != "true" ] || [ "${node_restart_check_done}" = "true" ]; then
     return 0
   fi
   node_restart_check_done=true

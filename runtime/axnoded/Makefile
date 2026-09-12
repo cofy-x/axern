@@ -201,7 +201,7 @@ verify-network-policy-linux-matrix: ## run the full native-Linux 32-cell network
 	@NETWORK_POLICY_LINUX_MATRIX_SCOPE=full bash ./scripts/qualification/network-policy-linux-smoke.sh
 
 verify-docker-conformance: ## run production cgroup and serialized runc/runsc certification truth
-	@AXNODED_VERIFY_CGROUP_ENFORCEMENT=required RUNTIME_UNDER_TEST=runc RUNTIME_BINARY=/usr/bin/runc bash ./scripts/verify/verify-docker.sh
+	@AXNODED_VERIFY_CGROUP_ENFORCEMENT=required RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker.sh
 
 verify-sandboxd-e2e: ## run focused amd64 Docker e2e for axern-sandboxd
 	@bash ./scripts/verify/verify-sandboxd-e2e.sh

@@ -72,11 +72,13 @@ make agent-doc-check
 
 `make verify-docker-conformance` is the required Linux truth gate for the
 production memory boundary. It starts axnoded with cgroup enforcement enabled,
-certifies both runc and runsc through the global serial lane, validates the
+certifies runsc through the global serial lane, validates the
 bounded `conformance` sibling, and then creates a normal workload without
 resource-contention retries. The ordinary runtime profiles retain
 `disabled_dev` to cover the explicit development contract; `make verify-docker`
-runs both contracts.
+runs both contracts. The explicit runc profiles remain diagnostic coverage
+while their shared OCI helpers and remaining callers are migrated; packaged
+nodes and product E2E workflows enable runsc only.
 
 ## Sandboxd Layers
 
@@ -246,7 +248,7 @@ BENCHMARK_IMAGE=registry.example.com/axnoded-verify:tag make benchmark-kubernete
 `benchmark-startup-matrix` and `benchmark-docker-runsc-compare` are Docker
 regression gates. They are useful before committing script or runtime changes,
 but they are not production bpfnet replacement evidence. The startup matrix
-defaults to `runsc-local`, `runc-local`, and `runsc-oci`; run
+defaults to `runsc-local` and `runsc-oci`; run
 `STARTUP_MATRIX_SCENARIOS=runsc-nydus make benchmark-startup-matrix` for focused
 Nydus startup validation.
 

@@ -176,6 +176,7 @@ assert_list_and_inspect "${runsc_id}" /tmp/runsc.list.output /tmp/runsc.inspect.
 assert_diagnostics "${runsc_id}" /tmp/runsc.diagnostics.output /tmp/runsc.diagnostics.json
 assert_unary_exec runsc "${runsc_id}" /tmp/runsc.exec.stdout /tmp/runsc.exec.stderr
 assert_interactive_exec runsc "${runsc_id}" /tmp/runsc.exec.typescript /tmp/runsc.exec.stdin
+assert_resize_exec "${runsc_id}" /tmp/runsc.exec.resize.typescript
 assert_interactive_exec_has_no_default_timeout runsc "${runsc_id}" /tmp/runsc.exec.no-timeout.typescript
 assert_wait_respects_timeout "${runsc_id}" /tmp/runsc.wait.timeout.output
 assert_kill_reports_exit "${runsc_id}" /tmp/runsc.kill.wait.output 99
@@ -188,28 +189,5 @@ runsc_wait_id="${runsc_wait_output}"
 }
 assert_wait_reports_exit "${runsc_wait_id}" /tmp/runsc.wait.output 11
 axctl --address "${AXNODED_SOCKET}" sandbox delete "${runsc_wait_id}"
-
-runc_output="$(start_container runc /tmp/verify-cli-runc.stdout /tmp/verify-cli-runc.stderr)"
-runc_id="${runc_output}"
-[ -n "${runc_id}" ] || {
-  echo "verify-cli did not return a runc sandbox id" >&2
-  exit 1
-}
-
-assert_list_and_inspect "${runc_id}" /tmp/runc.list.output /tmp/runc.inspect.output
-assert_diagnostics "${runc_id}" /tmp/runc.diagnostics.output /tmp/runc.diagnostics.json
-assert_unary_exec runc "${runc_id}" /tmp/runc.exec.stdout /tmp/runc.exec.stderr
-assert_interactive_exec runc "${runc_id}" /tmp/runc.exec.typescript /tmp/runc.exec.stdin
-assert_resize_exec "${runc_id}" /tmp/runc.exec.resize.typescript
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${runc_id}"
-
-runc_wait_output="$(start_container runc /tmp/verify-cli-runc-wait.stdout /tmp/verify-cli-runc-wait.stderr 'sleep 1; exit 13')"
-runc_wait_id="${runc_wait_output}"
-[ -n "${runc_wait_id}" ] || {
-  echo "verify-cli did not return a second runc sandbox id" >&2
-  exit 1
-}
-assert_wait_reports_exit "${runc_wait_id}" /tmp/runc.wait.output 13
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${runc_wait_id}"
 
 echo "verify_node_cli_e2e_ok=true"

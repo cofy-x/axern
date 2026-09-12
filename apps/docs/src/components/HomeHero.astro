@@ -137,8 +137,8 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
     </h1>
     <p class="ax-lede">
       {zh
-        ? '用 runsc 隔离不可信的智能体生成代码，用 runc 运行可信的长期服务——共享一套资源与生命周期模型。'
-        : 'Isolate untrusted agent-generated code with runsc. Run trusted long-lived services with runc. One resource and lifecycle model.'}
+        ? '用 runsc 隔离智能体生成代码——单一生产运行时，统一的资源与生命周期模型。'
+        : 'Isolate agent-generated code with runsc. One production runtime, one resource and lifecycle model.'}
     </p>
     <div class="ax-actions">
       <a class="ax-button ax-button--primary" href={`${base}/getting-started/`}>
@@ -151,7 +151,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
     <div class="ax-signals not-content" aria-label={zh ? '项目信息' : 'Project signals'}>
       <div class="ax-signal"><span>LICENSE</span><strong>Apache-2.0</strong></div>
       <div class="ax-signal"><span>HOSTING</span><strong>{zh ? '可自托管' : 'Self-hosted'}</strong></div>
-      <div class="ax-signal"><span>RUNTIME</span><strong>runc + runsc</strong></div>
+      <div class="ax-signal"><span>RUNTIME</span><strong>runsc</strong></div>
       <div class="ax-signal"><span>SDK</span><strong>Python · Go · TypeScript</strong></div>
     </div>
   </div>
@@ -173,7 +173,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
         data-scene-mode="SERVICE"
       >
         <span>{zh ? '长期服务' : 'Durable Service'}</span>
-        <strong>runc</strong>
+        <strong>runsc</strong>
       </button>
     </div>
     <SandboxScene />

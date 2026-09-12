@@ -19,7 +19,7 @@ flowchart LR
     Gateway --> Tunnel["tunneld\nreverse TCP relay"]
     Storage --> Volume["volumed\nnode publish"]
     Node --> Image["imagemgr + imagefsd\nOCI + Nydus"]
-    Node --> Runtime["runc · runsc"]
+    Node --> Runtime["runsc"]
 ```
 
 ## Stable ownership

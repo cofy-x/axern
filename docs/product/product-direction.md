@@ -26,9 +26,10 @@ product decisions prioritize long-running and task-oriented agent execution.
   tunnels use explicit, revocable, task-scoped authorization.
 - **Observable by default:** lifecycle state, logs, metrics, traces, inventory,
   usage, trajectories, and artifacts have clear owners and stable identities.
-- **Runtime choice behind one model:** runc, runsc, image formats, node
-  implementations, and future microVM backends such as Firecracker may vary
-  without fragmenting the user-facing resource model.
+- **One production sandbox runtime:** gVisor (`runsc`) owns the production
+  execution boundary. Retained runc handlers are migration-time diagnostics,
+  not a fallback. Firecracker and Kata remain research options rather than
+  parallel production backends.
 - **Local-to-production continuity:** daily development environments exercise
   the same contracts used by deployed systems, with deeper Linux or cluster
   validation reserved for behavior that needs it.

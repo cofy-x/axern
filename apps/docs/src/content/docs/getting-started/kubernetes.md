@@ -114,7 +114,7 @@ Review these chart areas before running shared or production workloads:
 - **Release artifacts:** pin the chart, image, and CLI versions together, and
   verify the CLI checksum before installing it.
 - **Cluster prerequisites:** confirm the required Kubernetes/Helm versions,
-  `runsc`/`runc` runtime availability, node privileges for the runtime and
+  `runsc` runtime availability, node privileges for the runtime and
   volume services, an eBPF-capable Linux kernel for the default NAT dataplane
   (`node.network.natBackend=iptables` is the explicit rollback), and
   image-registry reachability from every scheduled node.

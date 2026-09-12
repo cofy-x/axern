@@ -19,7 +19,7 @@ clients / SDKs / apps
            -> imagemgr     image rootfs resolution and mount references
               -> imagefsd  read-only image data plane
      -> axnoded        service HTTP and terminal data-plane forwarding
-        -> runc/runsc   OCI container lifecycle
+        -> runsc        production OCI sandbox lifecycle
            -> sandboxd  sandbox PID 1, process/file/PTY/proxy APIs
         -> bpfnet       optional host networking dataplane
 ```
@@ -76,6 +76,9 @@ direct OCI runtime exec is a debug-level tool.
 
 ## Runtime Contracts
 
+- Packaged nodes and the source-development stack enable only runsc. Runc
+  handlers and explicit diagnostic tests remain during convergence; they are
+  not a production fallback or a packaged workload option.
 - Workload execution config carries `runtime_class`; empty values default in
   the control/runtime path before node lifecycle dispatch.
 - Workload network policy is immutable execution config. Strict policy is a

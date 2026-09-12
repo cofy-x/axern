@@ -23,7 +23,7 @@ spec:
     image: docker.io/library/python:3.12-slim
   command:
     argv: [python, -m, http.server, "8080"]
-  runtime_class: runc
+  runtime_class: runsc
   replicas: 2
   readiness:
     http:
@@ -35,7 +35,7 @@ spec:
       memory: 512Mi
 ```
 
-`spec.source` 在 `image`、`template` 和 `environment` 中严格三选一。`readiness` 和 `liveness` 接受 `http` 探针（`port`、`path`、`scheme`）或 `tcp_port`，以及 `initial_delay`、`period`、`timeout`、`success_threshold`、`failure_threshold` 时长。`autoscaling` 设置 `min_replicas` 和 `max_replicas`。可信的长驻服务用 `runc`，处理不可信输入的工作负载用 `runsc`；见[运行时与资源](/zh-cn/architecture/resources/)。
+`spec.source` 在 `image`、`template` 和 `environment` 中严格三选一。`readiness` 和 `liveness` 接受 `http` 探针（`port`、`path`、`scheme`）或 `tcp_port`，以及 `initial_delay`、`period`、`timeout`、`success_threshold`、`failure_threshold` 时长。`autoscaling` 设置 `min_replicas` 和 `max_replicas`。打包节点使用 `runsc` 运行服务；见[运行时与资源](/zh-cn/architecture/resources/)。
 
 ## 通过 Gateway 访问 Service
 

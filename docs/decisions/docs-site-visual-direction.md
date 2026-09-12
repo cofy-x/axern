@@ -24,10 +24,8 @@ observable runtime behavior.
 - Keep the category headline stable while user-selectable Agent Sandbox and
   Durable Service scenes explain the execution modes. The selected mode may
   replay its internal lifecycle, but the page does not switch modes without
-  user input. Present `runsc` as the recommended isolation boundary for
-  untrusted agent code and `runc` as the performance-oriented choice for
-  trusted long-running services; keep runtime selection driven by trust rather
-  than workload duration alone.
+  user input. Both scenes use `runsc`, the sole packaged production runtime;
+  do not present retained diagnostic handlers as production choices.
 - Represent the Agent Sandbox as a horizontal, nested execution chamber. Keep
   `runsc` attached to the outer isolation boundary while code and process
   activity remain inside the inner execution layer.

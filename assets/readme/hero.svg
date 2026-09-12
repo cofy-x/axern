@@ -18,7 +18,7 @@
 
     <g fill="#9aa0ad" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18">
       <text x="64" y="322">Untrusted agent code runs behind a runsc isolation boundary;</text>
-      <text x="64" y="348">trusted services run on runc. One resource and lifecycle model.</text>
+      <text x="64" y="348">one production runtime, one resource and lifecycle model.</text>
     </g>
 
     <text x="64" y="390" fill="#6d7180" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">Go · Python · TypeScript SDKs</text>

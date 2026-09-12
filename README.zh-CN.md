@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.gif" width="100%" alt="Axern — 面向 AI agent 的基础设施：不可信代码在 runsc 隔离边界后运行，可信服务运行在 runc 上，共享同一套资源与生命周期模型">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Axern — 面向 AI agent 的基础设施：runsc 隔离与统一的资源、生命周期模型">
 </p>
 
 <p align="center">
@@ -15,7 +15,7 @@
   <a href="./README.md">English</a>
 </p>
 
-Axern 是一个面向 AI agent 的开源沙箱平台。它用 runsc 隔离运行不可信的 agent 生成的代码，用 runc 运行可信的常驻服务，两者共享同一套资源与生命周期模型。CLI 与 Go、Python、TypeScript SDK 暴露相同的公共 API，覆盖环境、进程、文件、服务、存储、隧道、生命周期状态和任务证据。
+Axern 是一个面向 AI agent 的开源沙箱平台。它用 gVisor（runsc）隔离运行 agent 生成的代码，使用统一的资源与生命周期模型。打包节点只启用 runsc；收敛期间暂留的 runc 配置仅用于底层诊断，不是生产回退。CLI 与 Go、Python、TypeScript SDK 暴露相同的公共 API，覆盖环境、进程、文件、服务、存储、隧道、生命周期状态和任务证据。
 
 > **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。它适合评估与贡献；在部署多租户工作负载之前，运维人员应先审阅安全与生产边界。
 >
@@ -69,14 +69,14 @@ make quickstart-source
 ## 可以构建什么
 
 - **Agent 沙箱：** 在 runsc 隔离边界后执行 agent 生成的代码，同时保留进程、文件、终端和输出 API。
-- **常驻服务：** 用 runc 运行可信、性能敏感的进程，由控制平面管理副本、健康、存储和发布。
+- **常驻服务：** 用 runsc 运行进程，由控制平面管理副本、健康、存储和发布。
 - **可复现的 agent 执行：** 使用 Axrun 编排不可变任务、结果验证、轨迹、用量和类型化产物。
 
 ## 为什么选择 Axern
 
 - **沙箱即原语：** run、服务、函数、编码工作区和 agent 任务都组合自同一套执行与生命周期 API。
 - **持久化控制平面：** 以 PostgreSQL 为后端的意图、放置、租约、重试、健康、清理和存储状态，在进程或节点重启后依然保持权威。
-- **一个模型背后的运行时选择：** runc 和 runsc 工作负载使用相同的公共 API；OCI 与 Nydus 镜像路径在节点运行时汇聚。
+- **单一生产运行时：** runsc 工作负载使用相同的公共 API；OCI 与 Nydus 镜像路径在节点运行时汇聚。
 - **真实的数据面访问：** 进程流、文件、归档、HTTP 服务、SSH 兼容终端和反向 TCP 隧道都是显式能力。
 - **本地到集群的连续性：** Docker Compose、kind 和云中立的 Helm chart 验证相同的服务边界。
 
@@ -93,7 +93,7 @@ flowchart LR
     Storage --> Volume["volumed\n节点卷发布"]
     Node --> Egress["egressd\n可信出站策略执行"]
     Node --> Image["imagemgr + imagefsd\nOCI 与 Nydus rootfs"]
-    Node --> Runtime["runc / runsc 沙箱"]
+    Node --> Runtime["runsc 沙箱"]
     Axrun["axrun\nagent 任务与证据"] --> Gateway
 ```
 

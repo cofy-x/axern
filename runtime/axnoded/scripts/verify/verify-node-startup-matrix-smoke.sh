@@ -10,7 +10,7 @@ cleanup() {
 trap cleanup EXIT
 
 STARTUP_MATRIX_OUTPUT_DIR="${output_dir}" \
-STARTUP_MATRIX_SCENARIOS="runsc-local,runc-local" \
+STARTUP_MATRIX_SCENARIOS="runsc-local" \
 STARTUP_MATRIX_COLD_SAMPLES=1 \
 STARTUP_MATRIX_WARM_SAMPLES=2 \
 bash "${ROOT_DIR}/scripts/benchmark/startup-matrix-docker.sh" >/dev/null
@@ -21,16 +21,10 @@ scenario_report="${output_dir}/scenarios/runsc-local.json"
   echo "missing scenario report: ${scenario_report}" >&2
   exit 1
 }
-scenario_report_runc="${output_dir}/scenarios/runc-local.json"
-[ -f "${scenario_report_runc}" ] || {
-  echo "missing scenario report: ${scenario_report_runc}" >&2
-  exit 1
-}
 
 jq -e '
-  (.scenarios | length) == 2 and
-  (any(.scenarios[]; .scenario == "runsc-local" and .startup.classes.cold != null and .startup.classes.warm != null and .startup.phases != null and .startup.bundle != null and (.startup.bundle.hitCount // 0) > 0 and (.startup.dominantPhaseP95.warm // "") != "" and (.startup.dominantPhaseP99.warm // "") != "")) and
-  (any(.scenarios[]; .scenario == "runc-local" and .startup.classes.cold != null and .startup.classes.warm != null and .startup.bundle != null and (.startup.bundle.hitCount // 0) > 0))
+  (.scenarios | length) == 1 and
+  (any(.scenarios[]; .scenario == "runsc-local" and .startup.classes.cold != null and .startup.classes.warm != null and .startup.phases != null and .startup.bundle != null and (.startup.bundle.hitCount // 0) > 0 and (.startup.dominantPhaseP95.warm // "") != "" and (.startup.dominantPhaseP99.warm // "") != ""))
 ' <<<"${matrix_json}" >/dev/null
 
 echo "verify_node_startup_matrix_smoke_ok=true"

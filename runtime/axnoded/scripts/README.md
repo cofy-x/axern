@@ -134,7 +134,7 @@ BENCHMARK_PATHS=egress_udp,egress_udp_connected
 BENCHMARK_PROFILE_MODE=stat
 BENCHMARK_PROFILE_EVENTS=task-clock,context-switches,cpu-migrations,page-faults
 BENCHMARK_PROFILE_RETRIES=3
-STARTUP_MATRIX_SCENARIOS=runsc-local,runc-local,runsc-oci
+STARTUP_MATRIX_SCENARIOS=runsc-local,runsc-oci
 BENCHMARK_IMAGE=registry.example.com/axnoded-verify:tag
 KUBE_NAMESPACE=axern-system
 BENCHMARK_IMAGE_PULL_SECRETS=registry-pull
@@ -186,7 +186,7 @@ Use
 as the reusable production replacement comparison point.
 
 The startup matrix default is intentionally limited to stable Docker regression
-scenarios: `runsc-local`, `runc-local`, and `runsc-oci`. Run
+scenarios: `runsc-local` and `runsc-oci`. Run
 `STARTUP_MATRIX_SCENARIOS=runsc-nydus make benchmark-startup-matrix` when
 validating Nydus image startup as a focused image-runtime path.
 

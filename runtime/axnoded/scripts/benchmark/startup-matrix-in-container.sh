@@ -39,13 +39,6 @@ case "${STARTUP_MATRIX_SCENARIO}" in
     rootfs_path="/opt/sample-rootfs"
     argv_json='["/bin/sh","-c","sleep 1"]'
     ;;
-  runc-local)
-    runtime_name="runc"
-    mount_type="local"
-    rootfs_src="local"
-    rootfs_path="/opt/sample-rootfs"
-    argv_json='["/bin/sh","-c","sleep 1"]'
-    ;;
   runsc-oci)
     runtime_name="runsc"
     mount_type="oci"

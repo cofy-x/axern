@@ -24,8 +24,8 @@ For an installed SDK, use `uv add axern-sdk==<version>` and adapt the same
 application.
 
 The example reads the endpoint and mTLS identity from the selected Axern
-context. It starts from a portable Python OCI image, uses `runc` for the trusted
-long-lived workload, serves `Hello from Axern`, verifies the gateway response,
+context. It starts from a portable Python OCI image, uses `runsc` for the
+workload, serves `Hello from Axern`, verifies the gateway response,
 waits for Service deletion, and performs defensive cleanup. Read the complete
 source here:
 [`sdk/python/examples/service_gateway.py`](https://github.com/cofy-x/axern/blob/main/sdk/python/examples/service_gateway.py).

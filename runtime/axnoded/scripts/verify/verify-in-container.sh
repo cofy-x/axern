@@ -181,7 +181,7 @@ if [ "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" = "required" ]; then
   contract_ready=false
   for _ in $(seq 1 160); do
     inventory="$(curl -fsS http://127.0.0.1:23001/inventoryz 2>/dev/null || true)"
-    if jq -e '
+    if jq -e --arg runtime "$(printf '%s' "${RUNTIME_UNDER_TEST}" | tr '[:lower:]' '[:upper:]')" '
       def available($name):
         [.node.capability_snapshot.observations[]?
           | select(.key.platform == $name and .state == "CAPABILITY_STATE_AVAILABLE")]
@@ -191,10 +191,8 @@ if [ "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" = "required" ]; then
       .node.memory_budget.local_commitment_bytes == 0 and
       .node.memory_budget.conformance_commitment_bytes == 0 and
       .node.memory_budget.conformance_cleanup_debt_bytes == 0 and
-      available("PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT") and
-      available("PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT") and
-      available("PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT") and
-      available("PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT")
+      available("PLATFORM_CAPABILITY_" + $runtime + "_MEMORY_HARD_LIMIT") and
+      available("PLATFORM_CAPABILITY_" + $runtime + "_EPHEMERAL_STORAGE_HARD_LIMIT")
     ' <<<"${inventory}" >/dev/null 2>&1; then
       contract_ready=true
       break

@@ -39,7 +39,7 @@ start_container() {
 
 metrics_before="$(metricsz_fetch)"
 
-for runtime_name in runsc runc; do
+for runtime_name in runsc; do
   runtime_id="startup-metrics-${runtime_name}"
 
   cold_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtime_name}.cold.stdout" "/tmp/${runtime_name}.cold.stderr")"
@@ -57,7 +57,7 @@ for runtime_name in runsc runc; do
   axctl --address "${AXNODED_SOCKET}" sandbox delete "${warm_id}"
 done
 
-for runtime_name in runsc runc; do
+for runtime_name in runsc; do
   metricsz_wait_delta "${metrics_before}" "axern.axnoded_bundle_template_total" "counter" "1" \
     "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=hit"
   metricsz_wait_delta "${metrics_before}" "axern.axnoded_bundle_materialize_duration_seconds" "histogram" "2" \

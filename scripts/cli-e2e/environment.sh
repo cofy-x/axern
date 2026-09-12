@@ -17,8 +17,8 @@ for node in nodes:
         ((item.get("key") or {}).get("Kind") or {}).get("Platform")
         for item in observations if item.get("state") == 1
     }
-    # Public PlatformCapability values: runc/runsc memory and writable storage.
-    raise SystemExit(0 if {5, 6, 9, 10}.issubset(available) else 1)
+    # Public PlatformCapability values: runsc memory and writable storage.
+    raise SystemExit(0 if {6, 10}.issubset(available) else 1)
 raise SystemExit(1)
 ' "$1" <<<"$2"
 }
@@ -224,9 +224,8 @@ setup_e2e_environment() {
     exit 1
   fi
 
-  # Capability readiness includes serial runc and runsc conformance probes. Each
-  # runtime has a 60-second fail-closed budget, so the inventory wait must cover
-  # both probes plus the first report round trip.
+  # Capability readiness requires runsc conformance before image import. Keep
+  # enough time for the fail-closed probe and the first report round trip.
   local capability_readiness_timeout="${AXERN_CLI_E2E_CAPABILITY_READINESS_TIMEOUT_SECONDS:-150}"
   if ! [[ "${capability_readiness_timeout}" =~ ^[1-9][0-9]*$ ]]; then
     echo "AXERN_CLI_E2E_CAPABILITY_READINESS_TIMEOUT_SECONDS must be a positive integer" >&2

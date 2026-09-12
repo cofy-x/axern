@@ -90,7 +90,7 @@ jq -e --arg image_url "${IMAGE_URL}" 'any(.mounts[]?; .image_url == $image_url a
 status="$(post_imagemgr /oci_umount "${payload_2}" "${umount_body}")"
 [ "${status}" = "200" ] || { cat "${umount_body}" >&2; exit 1; }
 
-for runtime_name in runsc runc; do
+for runtime_name in runsc; do
   details_before_runtime="$(mktemp)"
   status="$(get_imagemgr /list_oci_mount_details "${details_before_runtime}")"
   [ "${status}" = "200" ] || { cat "${details_before_runtime}" >&2; exit 1; }

@@ -27,7 +27,7 @@ spec:
     image: docker.io/library/python:3.12-slim
   command:
     argv: [python, -m, http.server, "8080"]
-  runtime_class: runc
+  runtime_class: runsc
   replicas: 2
   readiness:
     http:
@@ -43,8 +43,7 @@ spec:
 `readiness` and `liveness` accept an `http` probe (`port`, `path`, `scheme`)
 or a `tcp_port`, plus `initial_delay`, `period`, `timeout`,
 `success_threshold`, and `failure_threshold` durations. `autoscaling` sets
-`min_replicas` and `max_replicas`. Use `runc` for trusted long-running
-services and `runsc` when the workload handles untrusted input; see
+`min_replicas` and `max_replicas`. Packaged nodes run services with `runsc`; see
 [Runtime and Resources](/architecture/resources/).
 
 ## Reach the Service through the gateway

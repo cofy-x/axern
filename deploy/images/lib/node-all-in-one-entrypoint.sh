@@ -145,7 +145,6 @@ ensure_bpf_fs
 
 /usr/local/bin/axern-ensure-loop-devices 8
 ensure_runtime_base_spec /usr/local/bin/runsc /etc/axnoded/runsc-config.json
-ensure_runtime_base_spec /usr/bin/runc /etc/axnoded/runc-config.json
 
 case "${AXNODED_CGROUP_ENFORCEMENT}" in
   required)
@@ -264,11 +263,6 @@ base_spec = "/etc/axnoded/runsc-config.json"
 [plugin.runtime.runtimes.runsc.options]
 allow_suid = true
 
-[plugin.runtime.runtimes.runc]
-binary = "/usr/bin/runc"
-base_spec = "/etc/axnoded/runc-config.json"
-
-[plugin.runtime.runtimes.runc.options]
 EOF
 
 jq -n \

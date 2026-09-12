@@ -1,12 +1,9 @@
 ---
 title: 运行时与资源
-description: 在 runsc 与 runc 之间选择，并用 request、limit 和命名空间配额规划工作负载。
+description: 用 runsc 隔离工作负载，并用 request、limit 和命名空间配额规划资源。
 ---
 
-Axern 的所有工作负载运行在同一套资源和生命周期模型下，运行时类型按工作负载选择。按信任程度而不是运行时长选择类型：
-
-- **`runsc`** 是不可信、Agent 生成代码的推荐隔离边界，在工作负载与主机之间加入用户态内核。
-- **`runc`** 面向性能，适合需要完整主机内核兼容性的可信长驻服务。
+Axern 使用 gVisor（`runsc`）作为生产 sandbox 运行时，在工作负载与主机之间加入用户态内核，使用统一的资源与生命周期模型。打包节点只启用 runsc。收敛期间暂留的 runc handler 和显式底层测试仅用于诊断，不是受支持的生产选项或自动回退。
 
 ```bash
 axern run --runtime-class runsc docker.io/library/python:3.12-slim -- \

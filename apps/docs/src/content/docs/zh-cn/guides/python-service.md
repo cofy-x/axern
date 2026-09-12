@@ -15,7 +15,7 @@ uv run --package axern-sdk \
 
 使用已安装的 SDK 时，执行 `uv add axern-sdk==<version>`，并把同样的 `AxernClient.create_environment()` 和 `create_service()` 调用适配到你的应用。
 
-示例从所选 Axern Context 读取 endpoint 和 mTLS 身份。它以便携的 Python OCI 镜像启动，可信的长驻工作负载使用 `runc`，响应 `Hello from Axern`，验证 Gateway 响应，等待 Service 删除完成，并做防御性清理。完整源码：[`sdk/python/examples/service_gateway.py`](https://github.com/cofy-x/axern/blob/main/sdk/python/examples/service_gateway.py)。
+示例从所选 Axern Context 读取 endpoint 和 mTLS 身份。它以便携的 Python OCI 镜像启动，使用 `runsc` 运行工作负载，响应 `Hello from Axern`，验证 Gateway 响应，等待 Service 删除完成，并做防御性清理。完整源码：[`sdk/python/examples/service_gateway.py`](https://github.com/cofy-x/axern/blob/main/sdk/python/examples/service_gateway.py)。
 
 Gateway URL 的组装方式：
 

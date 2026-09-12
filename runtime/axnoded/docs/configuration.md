@@ -186,6 +186,10 @@ less brittle.
 
 ### Runtime Handlers
 
+The default, sample, packaged, and devbox configurations enable only gVisor
+(`runsc`). Runc binaries and handlers retained during convergence serve
+explicit low-level diagnostics, not production workload selection or fallback.
+
 `[plugin.runtime.runtimes.<name>]` declares each OCI runtime handler.
 Axnoded treats this set as one startup contract: every configured handler must
 load before persistent container inventory is reconciled or the node can become
