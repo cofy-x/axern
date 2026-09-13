@@ -272,7 +272,6 @@ func (f *fakeNodeOperatorService) List(ctx context.Context, req *runtimev1.ListC
 		Containers: []*runtimev1.ContainerStatus{
 			{
 				ID:         req.GetID(),
-				Runtime:    "runsc",
 				State:      runtimev1.ContainerState_CONTAINER_EXITED,
 				ExitCode:   23,
 				Message:    "done",

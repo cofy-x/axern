@@ -28,9 +28,8 @@ const (
 var idleCommand = []string{"/bin/sh", "-lc", "while true; do sleep 3600; done"}
 
 type Target struct {
-	Runtime string
-	Spec    *specs.Spec
-	Labels  map[string]string
+	Spec   *specs.Spec
+	Labels map[string]string
 }
 
 type Options struct {
@@ -63,15 +62,12 @@ func (o Orchestrator) CreateActor(ctx context.Context, parentID string, spec *ru
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(target.Runtime) == "" {
-		return nil, errord.ErrInvalidContainer
-	}
 	actorMounts, err := ResolveMounts(target.Spec, spec.GetMounts())
 	if err != nil {
 		return nil, err
 	}
 
-	lrtTemplate := RuntimeTemplate(target.Runtime, spec.GetImage())
+	lrtTemplate := RuntimeTemplate(spec.GetImage())
 	lrt, err := o.options.EnsureRuntime(ctx, lrtTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("prepare image process runtime: %w", err)
@@ -85,7 +81,6 @@ func (o Orchestrator) CreateActor(ctx context.Context, parentID string, spec *ru
 	actorID := config.SandboxContainerPrefix + "-imageproc-" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	labels := Labels(parentID, spec.GetImage())
 	createRequest := &runtime.CreateContainerRequest{
-		Runtime:      target.Runtime,
 		Command:      append([]string(nil), idleCommand...),
 		Rootfs:       startplan.BuildContainerRootfs(lrt),
 		Resource:     startplan.ResourcesToLinux(nil),
@@ -98,7 +93,6 @@ func (o Orchestrator) CreateActor(ctx context.Context, parentID string, spec *ru
 		RecoveryMode: runtime.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 	}
 	templateRequest := &runtime.CreateContainerRequest{
-		Runtime:      target.Runtime,
 		Command:      append([]string(nil), idleCommand...),
 		Rootfs:       startplan.BuildContainerRootfs(lrt),
 		Mounts:       nil,

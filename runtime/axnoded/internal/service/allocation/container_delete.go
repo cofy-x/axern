@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
@@ -47,15 +48,8 @@ func (h *Controller) deleteContainerRuntime(ctx context.Context, request *apipb.
 		recordAllocationDeleteStage("resolve_runtime", "", stageStarted, err)
 		return response, resource, err
 	}
-	runtimeName := c.Metadata.RuntimeHandler
+	runtimeName := config.RuntimeNameRunsc
 	recordAllocationDeleteStage("resolve_runtime", runtimeName, stageStarted, nil)
-
-	stageStarted = time.Now()
-	if err := h.checkRuntime(runtimeName); err != nil {
-		recordAllocationDeleteStage("validate_runtime", runtimeName, stageStarted, err)
-		return response, resource, errord.ErrNotImplemented
-	}
-	recordAllocationDeleteStage("validate_runtime", runtimeName, stageStarted, nil)
 
 	stageStarted = time.Now()
 	resource, err = h.containers().CollectResourceByID(request.ID)
@@ -111,13 +105,13 @@ func (h *Controller) deleteContainerWithRuntime(
 
 	if request.Timeout == 0 {
 		options.ForceDelete = true
-		return h.callRuntimeDelete(ctx, request, c.Metadata.RuntimeHandler, handler, options, "force delete container")
+		return h.callRuntimeDelete(ctx, request, config.RuntimeNameRunsc, handler, options, "force delete container")
 	}
 
 	delCtx, cancel := context.WithTimeout(ctx, time.Duration(request.Timeout)*time.Second)
 	defer cancel()
 
-	response, err := h.callRuntimeDelete(delCtx, request, c.Metadata.RuntimeHandler, handler, options, "delete container with timeout")
+	response, err := h.callRuntimeDelete(delCtx, request, config.RuntimeNameRunsc, handler, options, "delete container with timeout")
 	if err == nil {
 		return response, nil
 	}
@@ -125,7 +119,7 @@ func (h *Controller) deleteContainerWithRuntime(
 	logrus.WithField(trace.ContextKeyTraceId, traceID).Errorf("runtime handler delete container with timeout %v (seconds) failed: %v, try delete it force", request.Timeout, err)
 	options.ForceDelete = true
 	options.CleanRootDir = ""
-	return h.callRuntimeDelete(ctx, request, c.Metadata.RuntimeHandler, handler, options, "delete container force")
+	return h.callRuntimeDelete(ctx, request, config.RuntimeNameRunsc, handler, options, "delete container force")
 }
 
 func (h *Controller) callRuntimeDelete(

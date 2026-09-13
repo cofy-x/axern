@@ -21,7 +21,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -53,7 +52,7 @@ type runtimeConformanceProbe func(context.Context, string, runtimeConformanceKin
 type runtimeConformanceProvider struct {
 	mu               sync.Mutex
 	cfg              config.Config
-	registry         *handlerregistry.Registry
+	handler          contract.RuntimeHandler
 	runtime          string
 	kind             runtimeConformanceKind
 	provider         capabilityv1.CapabilityProvider
@@ -103,7 +102,7 @@ func (c *runtimeFileDigestCache) Digest(path string) (string, error) {
 	return digest, nil
 }
 
-func runtimeConformanceCapabilityProvider(cfg config.Config, registry *handlerregistry.Registry, runtimeName string, kind runtimeConformanceKind, bootID string, probe runtimeConformanceProbe, caches ...*runtimeFileDigestCache) *runtimeConformanceProvider {
+func runtimeConformanceCapabilityProvider(cfg config.Config, handler contract.RuntimeHandler, runtimeName string, kind runtimeConformanceKind, bootID string, probe runtimeConformanceProbe, caches ...*runtimeFileDigestCache) *runtimeConformanceProvider {
 	// The call sites use the closed runtime/kind matrix below. Keep each
 	// provider single-keyed: provider ownership and recovery are tracked per
 	// observation, so combining enforcement boundaries would couple their
@@ -118,7 +117,7 @@ func runtimeConformanceCapabilityProvider(cfg config.Config, registry *handlerre
 		cache = caches[0]
 	}
 	return &runtimeConformanceProvider{
-		cfg: cfg, registry: registry, runtime: runtimeName, kind: kind, provider: provider, bootID: bootID, probe: probe,
+		cfg: cfg, handler: handler, runtime: runtimeName, kind: kind, provider: provider, bootID: bootID, probe: probe,
 		expected: capabilitycontract.PlatformKey(fact), digestCache: cache,
 	}
 }
@@ -243,7 +242,7 @@ func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, 
 		return "", "", "", fmt.Errorf("runtime %q is not configured", p.runtime)
 	}
 	runtimeCfg := p.cfg.PluginConfig.RuntimeConfig.Runsc
-	if _, loaded := p.registry.Get(p.runtime); !loaded {
+	if p.handler == nil {
 		return "", "", "", fmt.Errorf("runtime %q handler is not loaded", p.runtime)
 	}
 	runtimeBinary, err := exec.LookPath(strings.TrimSpace(runtimeCfg.Binary))
@@ -308,7 +307,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 		return fmt.Errorf("cleanup previous runtime conformance sandbox: %w", err)
 	}
 	preflightCancel()
-	request, err := runtimeConformanceStartRequest(allocationID, runtimeID, runtimeName, rootfs, kind)
+	request, err := runtimeConformanceStartRequest(allocationID, runtimeID, rootfs, kind)
 	if err != nil {
 		return err
 	}
@@ -401,8 +400,8 @@ func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context
 	// ownership record, so complete the same ordered cleanup from the reserved
 	// self-test identity: runtime/storage, network activation, resources/bundle,
 	// and finally allocation state.
-	handler, ok := h.runtimeHandlers.Get(runtimeName)
-	if !ok {
+	handler := h.runscHandler
+	if handler == nil {
 		return fmt.Errorf("runtime handler %s is unavailable", runtimeName)
 	}
 	resource, resourceErr := h.containerManager.CollectResourceByID(allocationID)
@@ -477,12 +476,11 @@ func (h *sandboxService) verifyRuntimeConformanceCleanup(ctx context.Context, al
 	}
 }
 
-func runtimeConformanceStartRequest(allocationID, runtimeID, runtimeName, rootfs string, kind runtimeConformanceKind) (*runtimev1.StartRequest, error) {
+func runtimeConformanceStartRequest(allocationID, runtimeID, rootfs string, kind runtimeConformanceKind) (*runtimev1.StartRequest, error) {
 	request := &runtimev1.StartRequest{
 		ContainerID: allocationID,
 		RuntimeTemplate: &runtimev1.RuntimeTemplate{
-			ID:      runtimeID,
-			Sandbox: runtimeName,
+			ID: runtimeID,
 			Rootfs: &runtimev1.RootfsConfig{
 				Type:     runtimev1.RootfsSrcType_LOCAL,
 				Source:   &runtimev1.RootfsConfig_Path{Path: rootfs},

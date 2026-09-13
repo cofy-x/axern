@@ -12,7 +12,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
@@ -77,7 +76,7 @@ func persistedAllocationState(t *testing.T, store stateStore, allocationID strin
 		RuntimeTemplate:         testRuntimeTemplate(t, "runtime-"+allocationID),
 		ImageMountUrls:          images,
 		EnforcementManifest: &apipb.AllocationEnforcementManifest{
-			BundlePath: "/var/lib/axnoded/root/containers/" + allocationID,
+			BundlePath:        "/var/lib/axnoded/root/containers/" + allocationID,
 			CreatedAtUnixNano: now.UnixNano(),
 		},
 		LaunchVerification: &apipb.AllocationLaunchVerification{VerifiedAtUnixNano: now.UnixNano()},
@@ -93,17 +92,17 @@ func TestLoadAllocationStatesRejectsMissingAtomicLaunchProof(t *testing.T) {
 	record := &apipb.AllocationState{
 		AllocationID: allocationID, RuntimeTemplate: testRuntimeTemplate(t, "runtime-"+allocationID),
 		EnforcementManifest: &apipb.AllocationEnforcementManifest{
-			BundlePath: "/var/lib/axnoded/root/containers/" + allocationID,
+			BundlePath:        "/var/lib/axnoded/root/containers/" + allocationID,
 			CreatedAtUnixNano: time.Now().UnixNano(),
 		},
 	}
 	if err := store.PutRecord(config.AllocationStateBucket, allocationID, record); err != nil {
 		t.Fatal(err)
 	}
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	}, store)
-	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
+	fixture := newTestAllocationControllerWithStore(t,
+		runtimetest.NewFakeRuntimeHandler(),
+		store)
+	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
 	time.Sleep(100 * time.Millisecond)
 	if err := fixture.controller.loadAllocationStates(map[string]struct{}{allocationID: {}}); err == nil {
 		t.Fatal("loadAllocationStates() accepted a live allocation without atomic launch verification")
@@ -113,7 +112,7 @@ func TestLoadAllocationStatesRejectsMissingAtomicLaunchProof(t *testing.T) {
 func TestValidateRecoveredAllocationRebuildsCapabilityConditions(t *testing.T) {
 	now := time.Now().UTC()
 	manifest := &apipb.AllocationEnforcementManifest{
-		BundlePath: "/var/lib/axnoded/root/containers/condition-recovery",
+		BundlePath:        "/var/lib/axnoded/root/containers/condition-recovery",
 		CreatedAtUnixNano: now.UnixNano(),
 	}
 	verification, err := newLaunchVerification(manifest, nil, nil, now, now)
@@ -137,7 +136,7 @@ func TestValidateRecoveredAllocationRebuildsCapabilityConditions(t *testing.T) {
 func TestNewLaunchVerificationBindsVerifiedEgressCapability(t *testing.T) {
 	now := time.Now().UTC()
 	manifest := &apipb.AllocationEnforcementManifest{
-		BundlePath: "/var/lib/axnoded/root/containers/network-policy",
+		BundlePath:        "/var/lib/axnoded/root/containers/network-policy",
 		CreatedAtUnixNano: now.UnixNano(),
 	}
 	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT)
@@ -155,10 +154,10 @@ func TestLoadAllocationStatesRestoresLiveContainerMountOwnership(t *testing.T) {
 	imageURL := "example.local/tools@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	persistedAllocationState(t, store, allocationID, imageURL, imageURL)
 
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	}, store)
-	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
+	fixture := newTestAllocationControllerWithStore(t,
+		runtimetest.NewFakeRuntimeHandler(),
+		store)
+	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
 	time.Sleep(100 * time.Millisecond)
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{imageURL: filepath.Join(t.TempDir(), "rootfs")}}
 	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
@@ -196,9 +195,9 @@ func TestLoadAllocationStatesRestoresLiveContainerMountOwnership(t *testing.T) {
 func TestLoadAllocationStatesDeletesOrphanRecord(t *testing.T) {
 	store := storetest.NewMockStore()
 	persistedAllocationState(t, store, "missing", "example.local/missing:latest")
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	}, store)
+	fixture := newTestAllocationControllerWithStore(t,
+		runtimetest.NewFakeRuntimeHandler(),
+		store)
 	if err := fixture.controller.loadAllocationStates(map[string]struct{}{}); err != nil {
 		t.Fatal(err)
 	}
@@ -213,10 +212,10 @@ func TestRestoreAllocationStateSkipsDestructiveReconcileAfterLiveRecoveryFailure
 	allocationID := "image-resource-recovery-failure"
 	imageURL := "example.local/tools@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	persistedAllocationState(t, store, allocationID, imageURL)
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	}, store)
-	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
+	fixture := newTestAllocationControllerWithStore(t,
+		runtimetest.NewFakeRuntimeHandler(),
+		store)
+	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
 	time.Sleep(100 * time.Millisecond)
 	mounter := &imageMountTestMounter{mountErr: errors.New("imagemgr unavailable")}
 	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
@@ -239,10 +238,10 @@ func TestLoadAllocationStatesRetainsPartialRecoveryForLiveContainer(t *testing.T
 	firstImage := "example.local/first@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 	secondImage := "example.local/second@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	persistedAllocationState(t, store, allocationID, firstImage, secondImage)
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	}, store)
-	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
+	fixture := newTestAllocationControllerWithStore(t,
+		runtimetest.NewFakeRuntimeHandler(),
+		store)
+	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
 	time.Sleep(100 * time.Millisecond)
 	mounter := &imageMountTestMounter{
 		imagePaths: map[string]string{firstImage: filepath.Join(t.TempDir(), "rootfs")},
@@ -267,9 +266,9 @@ func TestLoadAllocationStatesRetainsPartialRecoveryForLiveContainer(t *testing.T
 func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 	imageURL := "example.local/tools@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	handler := &runtimeSpyHandler{name: "runsc"}
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
-		"runsc": handler,
-	}, failingAllocationStateStore{testStateStore: storetest.NewMockStore()})
+	fixture := newTestAllocationControllerWithStore(t,
+		handler,
+		failingAllocationStateStore{testStateStore: storetest.NewMockStore()})
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{imageURL: filepath.Join(t.TempDir(), "rootfs")}}
 	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
 	fixture.controller.lrtManager = fixture.lrtManager
@@ -277,7 +276,6 @@ func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 		ContainerID: allocationIDForTest(t),
 		RuntimeTemplate: &apipb.RuntimeTemplate{
 			ID:      "persistence-failure-runtime",
-			Sandbox: "runsc",
 			Rootfs:  &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
 			Command: []string{"/bin/sh"},
 		},
@@ -302,9 +300,9 @@ func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 
 func TestReleaseAllocationStatePreservesRuntimeWhenDeletePersistenceFails(t *testing.T) {
 	store := failingAllocationStateDeleteStore{testStateStore: storetest.NewMockStore()}
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	}, store)
+	fixture := newTestAllocationControllerWithStore(t,
+		runtimetest.NewFakeRuntimeHandler(),
+		store)
 	runtime := addTestRuntimeMappingRuntime(t, fixture.lrtManager, testRuntimeTemplate(t, "delete-failure-runtime"))
 	runtime.IncRef()
 	if err := fixture.controller.rememberContainerRuntime("delete-failure", runtime); err != nil {
@@ -323,11 +321,11 @@ func TestLoadAllocationStatesIsolatesCorruptRecordAndRestoresValidRecord(t *test
 	allocationID := "valid-allocation"
 	persistedAllocationState(t, base, allocationID)
 	store := corruptAllocationStateStore{testStateStore: base}
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	}, store)
-	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
-	fixture.manager.StoreMetadata("corrupt-allocation", &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
+	fixture := newTestAllocationControllerWithStore(t,
+		runtimetest.NewFakeRuntimeHandler(),
+		store)
+	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
+	fixture.manager.StoreMetadata("corrupt-allocation", &apipb.ContainerMetadata{})
 	time.Sleep(100 * time.Millisecond)
 	if err := fixture.controller.loadAllocationStates(map[string]struct{}{allocationID: {}, "corrupt-allocation": {}}); err == nil {
 		t.Fatal("loadAllocationStates() succeeded with a corrupt record")
@@ -339,9 +337,9 @@ func TestLoadAllocationStatesIsolatesCorruptRecordAndRestoresValidRecord(t *test
 
 func TestAllocationRecordsDeleteIndependently(t *testing.T) {
 	store := storetest.NewMockStore()
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	}, store)
+	fixture := newTestAllocationControllerWithStore(t,
+		runtimetest.NewFakeRuntimeHandler(),
+		store)
 	for _, allocationID := range []string{"allocation-a", "allocation-b"} {
 		runtime := addTestRuntimeMappingRuntime(t, fixture.lrtManager, testRuntimeTemplate(t, "runtime-"+allocationID))
 		runtime.IncRef()
@@ -361,7 +359,7 @@ func TestAllocationRecordsDeleteIndependently(t *testing.T) {
 func TestStartAndDeleteUseOneAllocationTransactionEach(t *testing.T) {
 	store := &countingAllocationStateStore{testStateStore: storetest.NewMockStore()}
 	handler := &runtimeSpyHandler{name: "runsc"}
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": handler}, store)
+	fixture := newTestAllocationControllerWithStore(t, handler, store)
 	imageURL := "example.local/atomic@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{imageURL: t.TempDir()}}
 	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
@@ -371,7 +369,6 @@ func TestStartAndDeleteUseOneAllocationTransactionEach(t *testing.T) {
 		ContainerID: allocationID,
 		RuntimeTemplate: &apipb.RuntimeTemplate{
 			ID:      "atomic-runtime",
-			Sandbox: "runsc",
 			Rootfs:  &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
 			Command: []string{"/bin/sh"},
 		},

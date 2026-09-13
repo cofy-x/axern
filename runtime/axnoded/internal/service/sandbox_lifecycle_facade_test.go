@@ -21,9 +21,9 @@ import (
 )
 
 func TestDelete_NotFound(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	s := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 
 	_, err := s.Delete(context.Background(), &runtime.DeleteRequest{
 		ID: "axctl-nonexistent",
@@ -32,16 +32,15 @@ func TestDelete_NotFound(t *testing.T) {
 }
 
 func TestStart_And_Delete(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	s := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0755))
 
 	fr := &runtime.RuntimeTemplate{
-		ID:      "test-start-del-rt",
-		Sandbox: "runsc",
+		ID: "test-start-del-rt",
 		Rootfs: &runtime.RootfsConfig{
 			Readonly: false,
 			Type:     runtime.RootfsSrcType_LOCAL,
@@ -74,16 +73,15 @@ func TestStart_And_Delete(t *testing.T) {
 
 func TestStart_AddsRuntimeIDLabelForTemporaryRuntime(t *testing.T) {
 	handler := &runtimeSpyHandler{name: "runsc"}
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": handler,
-	})
+	s := newTestService(t,
+		handler,
+	)
 
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0755))
 
 	fr := &runtime.RuntimeTemplate{
-		ID:      "test-explicit-allocation-id",
-		Sandbox: "runsc",
+		ID: "test-explicit-allocation-id",
 		Rootfs: &runtime.RootfsConfig{
 			Readonly: true,
 			Type:     runtime.RootfsSrcType_LOCAL,
@@ -118,7 +116,7 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 		}
 	}}
 	handler.deleteHook = func() { close(runtimeDeleted) }
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	s := newTestService(t, handler)
 	now := time.Now().UTC()
 	extension := capabilitycontract.ExtensionKey("example.com/accelerator", "model-a")
 	manager, err := capabilitymanager.NewManager(configCapabilityProvider(
@@ -135,7 +133,7 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 	request := &runtime.StartRequest{
 		ContainerID: "allocation-retry-contract",
 		RuntimeTemplate: &runtime.RuntimeTemplate{
-			ID: "retry-contract", Sandbox: "runsc",
+			ID:      "retry-contract",
 			Rootfs:  &runtime.RootfsConfig{Readonly: true, Type: runtime.RootfsSrcType_LOCAL, Source: &runtime.RootfsConfig_Path{Path: rootfsDir}},
 			Command: []string{"/bin/sh", "-c", "sleep 60"},
 		},

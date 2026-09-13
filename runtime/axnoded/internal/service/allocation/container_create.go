@@ -16,7 +16,6 @@ import (
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
-	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
@@ -49,7 +48,7 @@ func (h *Controller) createContainer(
 	resourceAllocateStart := time.Now()
 	resourceCtx, resourceSpan := sdkobs.Start(ctx, sandboxobs.SpanResourceAllocate,
 		attribute.String(sdkobs.AttrAllocationID, request.GetID()),
-		attribute.String(sdkobs.AttrRuntime, request.GetRuntime()),
+		attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc),
 	)
 	handler, resource, err := h.prepareContainerCreate(ctx, traceID.String(), request, resourceSpec)
 	if err != nil {
@@ -68,7 +67,7 @@ func (h *Controller) createContainer(
 
 	_, runtimeSpan := sdkobs.Start(resourceCtx, sandboxobs.SpanRuntimeCreate,
 		attribute.String(sdkobs.AttrAllocationID, resource.ID),
-		attribute.String(sdkobs.AttrRuntime, request.GetRuntime()),
+		attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc),
 	)
 	metaData, err := handler.CreateContainer(ctx, request, h.createHandlerOptions(traceID.String(), spanID.String(), lrt, templateRequest, resource, phaseRecorder))
 	if err != nil {
@@ -245,25 +244,19 @@ func (h *Controller) syncCreatedContainerStatus(ctx context.Context, containerID
 }
 
 func (h *Controller) prepareContainerCreate(ctx context.Context, traceID string, request *apipb.CreateContainerRequest, resourceSpec *commonv1.ResourceSpec) (contract.RuntimeHandler, container.OccupiedResource, error) {
-	return h.prepareContainerResources(ctx, traceID, request.GetRuntime(), request.GetID(), request.GetEnvs(), resourceSpec)
+	return h.prepareContainerResources(ctx, traceID, request.GetID(), request.GetEnvs(), resourceSpec)
 }
 
 // prepareContainerResources is the node-local admission boundary. Allocation
 // starts call it before secrets, image mounts, rootfs preparation, or
 // runtime artifacts so a rejected memory commitment has no external side
 // effects to roll back.
-func (h *Controller) prepareContainerResources(ctx context.Context, traceID, runtimeName, containerID string, envs []*apipb.KeyValue, resourceSpec *commonv1.ResourceSpec) (contract.RuntimeHandler, container.OccupiedResource, error) {
+func (h *Controller) prepareContainerResources(ctx context.Context, traceID, containerID string, envs []*apipb.KeyValue, resourceSpec *commonv1.ResourceSpec) (contract.RuntimeHandler, container.OccupiedResource, error) {
 	var empty container.OccupiedResource
-
-	if err := h.checkRuntime(runtimeName); err != nil {
-		logrus.WithField(trace.ContextKeyTraceId, traceID).Debugf("check runtime failed: %v", err)
-		return nil, empty, errord.ErrNotImplemented
+	if h == nil || h.runscHandler == nil {
+		return nil, empty, fmt.Errorf("runsc handler unavailable")
 	}
-
-	handler, err := h.runtimeHandler(runtimeName)
-	if err != nil {
-		return nil, empty, errord.ErrNotImplemented
-	}
+	handler := h.runscHandler
 
 	resourceNames := handler.Requirements().Resources
 	if resourceNames == nil {
@@ -280,7 +273,7 @@ func (h *Controller) prepareContainerResources(ctx context.Context, traceID, run
 		MemoryRequestBytes:       memoryRequest,
 		MemoryLimitBytes:         resourceSpec.GetLimits().GetMemoryBytes(),
 		CapacityReservationBytes: cgroupCapacityReservation(ctx, memoryRequest),
-		RuntimeName:              runtimeName,
+		RuntimeName:              config.RuntimeNameRunsc,
 		CgroupOwnerKind:          ownerKind,
 	}, resourceNames...)
 	if err != nil {

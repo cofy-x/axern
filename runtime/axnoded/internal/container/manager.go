@@ -24,7 +24,7 @@ type Manager struct {
 	recyclePath string
 
 	containers     cmap.ConcurrentMap[string, *Container]
-	serviceHandler cmap.ConcurrentMap[string, contract.RuntimeHandler]
+	runtimeHandler contract.RuntimeHandler
 	// resourceManagers is a map of resource manager, key is resource type
 	resourceManagers cmap.ConcurrentMap[string, resourcemanager.Manager]
 
@@ -52,7 +52,10 @@ type Manager struct {
 	stopped               atomic.Bool
 }
 
-func NewManager(root string, handlers cmap.ConcurrentMap[string, contract.RuntimeHandler], healthChan chan bool, managers ...resourcemanager.Manager) (*Manager, error) {
+func NewManager(root string, handler contract.RuntimeHandler, healthChan chan bool, managers ...resourcemanager.Manager) (*Manager, error) {
+	if handler == nil {
+		return nil, fmt.Errorf("runsc handler is required")
+	}
 	if err := Os().MkdirAll(filepath.Join(root, config.RecycleBin), 0755); err != nil {
 		return nil, err
 	}
@@ -61,7 +64,7 @@ func NewManager(root string, handlers cmap.ConcurrentMap[string, contract.Runtim
 		root:             filepath.Join(root, "containers"),
 		recyclePath:      filepath.Join(root, config.RecycleBin),
 		containers:       cmap.New[*Container](),
-		serviceHandler:   handlers,
+		runtimeHandler:   handler,
 		monitors:         cmap.New[*containerMonitor](),
 		resourceManagers: cmap.New[resourcemanager.Manager](),
 		idGenerator:      truncindex.NewTruncGenerator(config.SandboxContainerPrefix, []string{}),
@@ -103,12 +106,8 @@ func (m *Manager) SetExitClassifier(classifier func(Event) (commonv1.WorkloadDia
 	m.exitClassifier = classifier
 }
 
-func (m *Manager) Handlers() []contract.RuntimeHandler {
-	handlers := make([]contract.RuntimeHandler, 0, m.serviceHandler.Count())
-	for item := range m.serviceHandler.IterBuffered() {
-		handlers = append(handlers, item.Val)
-	}
-	return handlers
+func (m *Manager) RuntimeHandler() contract.RuntimeHandler {
+	return m.runtimeHandler
 }
 
 func (m *Manager) Get(id string) (*Container, error) {

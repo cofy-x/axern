@@ -23,7 +23,7 @@ func TestRunscHandlerWaitReturnsUnavailableWhenRuntimeContainerIsAbsent(t *testi
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
 
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
@@ -61,7 +61,7 @@ func TestRunscHandlerWaitReturnsUnavailableWhenStoppedWithoutExitState(t *testin
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
 
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
@@ -118,7 +118,7 @@ func TestRunscHandlerWaitAcceptsDelayedPersistedExitState(t *testing.T) {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
 
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
@@ -183,7 +183,7 @@ func TestRunscHandlerWaitRetriesOCIWaitAfterStop(t *testing.T) {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
 
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
@@ -204,7 +204,7 @@ func TestRunscHandlerWaitUsesOCIWaitOutput(t *testing.T) {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
 
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
@@ -242,7 +242,7 @@ func TestRunscHandlerWaitIgnoresTransientExitWhileStateStillRunning(t *testing.T
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
 
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
@@ -279,7 +279,7 @@ func TestRunscHandlerExitStatePersisterIgnoresTransientExitWhileStateStillRunnin
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
 
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}

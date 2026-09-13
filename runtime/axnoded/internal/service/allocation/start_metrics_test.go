@@ -120,8 +120,7 @@ func TestEnsureLangRuntimeSummaryWarmAndCold(t *testing.T) {
 	fixture.controller.lrtManager = manager
 	fixture.lrtManager = manager
 	functionRuntime := &runtimeapi.RuntimeTemplate{
-		ID:      "start-metrics-runtime",
-		Sandbox: "runsc",
+		ID: "start-metrics-runtime",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type: runtimeapi.RootfsSrcType_LOCAL,
 			Source: &runtimeapi.RootfsConfig_Path{
@@ -190,8 +189,7 @@ func TestEnsureLangRuntimeDriftedSpecReplacesRetainedRuntime(t *testing.T) {
 	fixture.lrtManager.ConfigureRetention(time.Minute, 8)
 
 	firstRuntime := &runtimeapi.RuntimeTemplate{
-		ID:      "start-metrics-drift-runtime",
-		Sandbox: "runsc",
+		ID: "start-metrics-drift-runtime",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
 			Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDirA},
@@ -207,8 +205,7 @@ func TestEnsureLangRuntimeDriftedSpecReplacesRetainedRuntime(t *testing.T) {
 	lrt.DecRef()
 
 	driftedRuntime := &runtimeapi.RuntimeTemplate{
-		ID:      "start-metrics-drift-runtime",
-		Sandbox: "runsc",
+		ID: "start-metrics-drift-runtime",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
 			Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDirB},
@@ -385,17 +382,16 @@ func TestStartAllocationRecordsSuccessResult(t *testing.T) {
 		bundleDuration: 4 * time.Millisecond,
 		launchDuration: 9 * time.Millisecond,
 	}
-	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{
-		"runsc": handler,
-	})
+	fixture := newTestAllocationController(t,
+		handler,
+	)
 	sink := &fakeStartMetricSink{}
 	fixture.controller.SetStartMetricSink(sink)
 
 	rootfsDir := t.TempDir()
 	request := &runtimeapi.StartRequest{
 		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
-			ID:      "start-metrics-allocation-success",
-			Sandbox: "runsc",
+			ID: "start-metrics-allocation-success",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,
 				Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDir},

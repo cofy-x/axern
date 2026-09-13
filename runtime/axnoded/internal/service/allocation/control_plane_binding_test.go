@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ func TestControlPlaneAllocationBindingIsIndependentDurableAuthority(t *testing.T
 	store := storetest.NewMockStore()
 	handler := runtimetest.NewFakeRuntimeHandler()
 	handler.RuntimeName = "runsc"
-	first := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": handler}, store)
+	first := newTestAllocationControllerWithStore(t, handler, store)
 	digest := "sha256:" + strings.Repeat("a", 64)
 
 	require.NoError(t, first.controller.BindControlPlaneAllocation("alloc-1", "node-a", digest))
@@ -31,7 +30,7 @@ func TestControlPlaneAllocationBindingIsIndependentDurableAuthority(t *testing.T
 	first.controller.stateMu.Unlock()
 	assert.Equal(t, []string{"alloc-1"}, first.controller.ControlPlaneAllocationIDs())
 
-	second := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": handler}, store)
+	second := newTestAllocationControllerWithStore(t, handler, store)
 	ids, err := second.controller.RestoreControlPlaneBindings()
 	require.NoError(t, err)
 	assert.Equal(t, map[string]struct{}{"alloc-1": {}}, ids)
@@ -45,7 +44,7 @@ func TestControlPlaneAllocationBindingIsIndependentDurableAuthority(t *testing.T
 func TestControlPlaneDeleteCannotDeleteUnboundNodeLocalExecution(t *testing.T) {
 	handler := runtimetest.NewFakeRuntimeHandler()
 	handler.RuntimeName = "runsc"
-	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	fixture := newTestAllocationController(t, handler)
 	fixture.controller.stateMu.Lock()
 	fixture.controller.allocationStates["local-1"] = newAllocationState("local-1")
 	fixture.controller.stateMu.Unlock()

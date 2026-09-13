@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxaccess"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,7 @@ import (
 func TestBrowserOperations(t *testing.T) {
 	socketPath, shutdown := startBrowserTestServer(t)
 	defer shutdown()
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": &runtimeSpyHandler{name: "runsc"}})
+	s := newTestService(t, &runtimeSpyHandler{name: "runsc"})
 	storeRunningBrowserContainer(t, s, "axctl-browser", socketPath)
 
 	statusResp, err := s.BrowserStatus(context.Background(), &apipb.BrowserStatusRequest{ID: "axctl-browser"})
@@ -50,7 +49,7 @@ func TestBrowserOperations(t *testing.T) {
 func TestBrowserRequiresLiveProviderCapability(t *testing.T) {
 	socketPath, shutdown := startUnavailableProviderTestServer(t, sandboxaccess.CapabilityBrowser, `browser_command unavailable: no supported browser command found`)
 	defer shutdown()
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": &runtimeSpyHandler{name: "runsc"}})
+	s := newTestService(t, &runtimeSpyHandler{name: "runsc"})
 	storeRunningBrowserContainer(t, s, "axctl-browser-missing", socketPath)
 
 	_, err := s.BrowserStatus(context.Background(), &apipb.BrowserStatusRequest{ID: "axctl-browser-missing"})
@@ -61,7 +60,7 @@ func TestBrowserRequiresLiveProviderCapability(t *testing.T) {
 func TestSandboxdDiagnosticsUsesContainerProviderSnapshot(t *testing.T) {
 	socketPath, shutdown := startBrowserTestServer(t)
 	defer shutdown()
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": &runtimeSpyHandler{name: "runsc"}})
+	s := newTestService(t, &runtimeSpyHandler{name: "runsc"})
 	storeRunningBrowserContainer(t, s, "axctl-diagnostics", socketPath)
 
 	diagnostics, err := s.SandboxdDiagnostics(context.Background(), "axctl-diagnostics", true)
@@ -81,7 +80,7 @@ func TestSandboxdDiagnosticsUsesContainerProviderSnapshot(t *testing.T) {
 func TestBrowserOperationErrorIncludesDiagnosticsDetail(t *testing.T) {
 	socketPath, shutdown := startProviderOperationErrorTestServer(t, sandboxaccess.CapabilityBrowser, "/browser/status", `browser crashed`)
 	defer shutdown()
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": &runtimeSpyHandler{name: "runsc"}})
+	s := newTestService(t, &runtimeSpyHandler{name: "runsc"})
 	storeRunningBrowserContainer(t, s, "axctl-browser-error", socketPath)
 
 	_, err := s.BrowserStatus(context.Background(), &apipb.BrowserStatusRequest{ID: "axctl-browser-error"})

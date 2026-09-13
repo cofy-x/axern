@@ -81,13 +81,12 @@ message ImageMount {
 
 message RuntimeTemplate {
   string ID = 1;
-  string sandbox = 2;
-  RootfsConfig rootfs = 3;
-  repeated string command = 4;
-  map<string, string> runtimeEnvs = 5;
-  string cwd = 6;
-  repeated Mount mounts = 7;
-  axern.control.catalog.v1.RuntimeExecutionProfile execution_profile = 8;
+  RootfsConfig rootfs = 2;
+  repeated string command = 3;
+  map<string, string> runtimeEnvs = 4;
+  string cwd = 5;
+  repeated Mount mounts = 6;
+  axern.control.catalog.v1.RuntimeExecutionProfile execution_profile = 7;
 }
 
 message AllocationState {
@@ -218,11 +217,10 @@ enum ContainerRecoveryMode {
 }
 
 message ContainerMetadata {
-  string runtime_handler = 1;
-  map<string, string> labels = 2;
-  string stdout = 3;
-  string stderr = 4;
-  ContainerRecoveryMode recovery_mode = 5;
+  map<string, string> labels = 1;
+  string stdout = 2;
+  string stderr = 3;
+  ContainerRecoveryMode recovery_mode = 4;
 }
 
 message Slice {

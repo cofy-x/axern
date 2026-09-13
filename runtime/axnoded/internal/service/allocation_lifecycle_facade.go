@@ -9,6 +9,7 @@ import (
 	"github.com/cofy-x/axern/lib/go/networkpolicy"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	sandboxobs "github.com/cofy-x/axern/runtime/axnoded/internal/observability"
@@ -30,12 +31,12 @@ func (h *sandboxService) Start(ctx context.Context, request *runtime.StartReques
 func (h *sandboxService) start(ctx context.Context, request *runtime.StartRequest, controlPlaneNodeID string) (*runtime.StartResponse, error) {
 	spanAttrs := []attribute.KeyValue{
 		attribute.String(sdkobs.AttrAllocationID, request.GetContainerID()),
-		attribute.String(sdkobs.AttrRuntime, request.GetRuntimeTemplate().GetSandbox()),
+		attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc),
 	}
 	ctx, op := sdkobs.StartOperation(ctx, sdkobs.OperationConfig{
 		Name:        sandboxobs.SpanAllocationStart,
 		SpanAttrs:   spanAttrs,
-		MetricAttrs: []attribute.KeyValue{attribute.String(sdkobs.AttrRuntime, request.GetRuntimeTemplate().GetSandbox())},
+		MetricAttrs: []attribute.KeyValue{attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc)},
 		Counter:     sandboxobs.MetricAllocationStartTotal,
 		Duration:    sandboxobs.MetricAllocationStartDuration,
 	})
@@ -64,7 +65,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		if !active {
 			return nil, errord.ToGRPC(fmt.Errorf("durably verified allocation has no active runtime: %w", errord.ErrFailedPrecondition))
 		}
-		metrics.RecordCapabilityAllocationVerification(request.GetRuntimeTemplate().GetSandbox(), "replayed")
+		metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "replayed")
 		return resp, nil
 	}
 	// A live replay is defined by the immutable request digest and
@@ -73,14 +74,14 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 	// break idempotency. New creates still derive and verify the complete current
 	// requirement contract before any allocation side effect.
 	if err = h.verifyRequestCapabilityRequirements(request); err != nil {
-		metrics.RecordCapabilityAllocationVerification(request.GetRuntimeTemplate().GetSandbox(), "requirement_mismatch")
+		metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "requirement_mismatch")
 		op.SetErrorStatus("allocation capability requirements do not match request")
 		return nil, fmt.Errorf("derive allocation capability requirements: %w", err)
 	}
 	preCreateObservedAt := time.Now().UTC()
 	admitted, verification, err := h.admitCapabilityRequirements(request.GetCapabilityRequirements(), preCreateObservedAt)
 	if err != nil {
-		metrics.RecordCapabilityAllocationVerification(request.GetRuntimeTemplate().GetSandbox(), "pre_create_failed")
+		metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "pre_create_failed")
 		op.SetErrorStatus("allocation capability gate failed")
 		return nil, fmt.Errorf("verify allocation capabilities before create: %w", err)
 	}
@@ -103,7 +104,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 	}
 	admitted, verification, err = h.verifyPostCreateCapabilityRequirements(ctx, request.GetContainerID(), request.GetCapabilityRequirements(), time.Now())
 	if err != nil {
-		metrics.RecordCapabilityAllocationVerification(request.GetRuntimeTemplate().GetSandbox(), "post_create_failed")
+		metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "post_create_failed")
 		err = h.scheduleCapabilityTermination(request.GetContainerID(), fmt.Errorf("verify allocation capabilities after create: %w", err))
 		op.SetErrorStatus("post-create capability enforcement failed")
 		return nil, err
@@ -115,7 +116,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 	}
 	resp.CapabilityVerification = conditionSet
 	h.controlPlaneReports.ReportCapabilityConditions(request.GetContainerID(), conditionSet)
-	metrics.RecordCapabilityAllocationVerification(request.GetRuntimeTemplate().GetSandbox(), "verified")
+	metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "verified")
 	return resp, nil
 }
 

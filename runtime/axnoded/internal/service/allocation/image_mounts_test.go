@@ -71,7 +71,7 @@ func TestStartResolvesImageMountIntoReadonlyBindMount(t *testing.T) {
 	}
 
 	handler := &runtimeSpyHandler{name: "runsc", capabilities: contract.RuntimeCapabilities{CanExecDirect: true}}
-	tc := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	tc := newTestAllocationController(t, handler)
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{
 		"example.com/axern/codex-tool:latest": imageDir,
 	}}
@@ -81,8 +81,7 @@ func TestStartResolvesImageMountIntoReadonlyBindMount(t *testing.T) {
 	resp, err := tc.controller.Start(context.Background(), &runtime.StartRequest{
 		ContainerID: "alloc-image-mount",
 		RuntimeTemplate: &runtime.RuntimeTemplate{
-			ID:      "task-runtime",
-			Sandbox: "runsc",
+			ID: "task-runtime",
 			Rootfs: &runtime.RootfsConfig{
 				Type:   runtime.RootfsSrcType_LOCAL,
 				Source: &runtime.RootfsConfig_Path{Path: rootfsDir},
@@ -133,7 +132,7 @@ func TestStartReleasesImageMountWhenRuntimeCreateFails(t *testing.T) {
 		capabilities: contract.RuntimeCapabilities{CanExecDirect: true},
 		createError:  errors.New("create failed"),
 	}
-	tc := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	tc := newTestAllocationController(t, handler)
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{
 		"example.com/axern/tool:latest": imageDir,
 	}}
@@ -143,8 +142,7 @@ func TestStartReleasesImageMountWhenRuntimeCreateFails(t *testing.T) {
 	_, err := tc.controller.Start(context.Background(), &runtime.StartRequest{
 		ContainerID: "alloc-image-mount-fail",
 		RuntimeTemplate: &runtime.RuntimeTemplate{
-			ID:      "task-runtime",
-			Sandbox: "runsc",
+			ID: "task-runtime",
 			Rootfs: &runtime.RootfsConfig{
 				Type:   runtime.RootfsSrcType_LOCAL,
 				Source: &runtime.RootfsConfig_Path{Path: rootfsDir},

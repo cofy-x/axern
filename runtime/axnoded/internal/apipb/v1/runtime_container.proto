@@ -8,22 +8,21 @@ import "internal/apipb/v1/axnoded_internal.proto";
 import "internal/apipb/v1/process.proto";
 
 message CreateContainerRequest {
-  string runtime = 1;
-  repeated string command = 2;
-  repeated Mount mounts = 3;
-  Rootfs rootfs = 4;
-  LinuxContainerResources resource = 5;
-  repeated KeyValue envs = 6;
-  string stdout = 7;
-  string stderr = 8;
-  string network = 9;
-  map<string, string> labels = 10;
-  string ckptDir = 11;
-  string cwd = 12;
-  string ID = 13;
-  int64 ephemeral_storage_request_bytes = 14;
-  int64 ephemeral_storage_limit_bytes = 15;
-  ContainerRecoveryMode recovery_mode = 16;
+  repeated string command = 1;
+  repeated Mount mounts = 2;
+  Rootfs rootfs = 3;
+  LinuxContainerResources resource = 4;
+  repeated KeyValue envs = 5;
+  string stdout = 6;
+  string stderr = 7;
+  string network = 8;
+  map<string, string> labels = 9;
+  string ckptDir = 10;
+  string cwd = 11;
+  string ID = 12;
+  int64 ephemeral_storage_request_bytes = 13;
+  int64 ephemeral_storage_limit_bytes = 14;
+  ContainerRecoveryMode recovery_mode = 15;
 }
 
 message CreateContainerResponse {

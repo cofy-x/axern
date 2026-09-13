@@ -10,6 +10,7 @@ import (
 	"time"
 
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
@@ -34,7 +35,7 @@ func (h *Controller) ensureLangRuntime(ctx context.Context, fr *runtime.RuntimeT
 func (h *Controller) ensureLangRuntimeFromRequest(ctx context.Context, request *runtime.StartRequest) (*langrtmanager.LanguageRuntime, LangRuntimePrepareSummary, error) {
 	_, span := sdkobs.Start(ctx, sandboxobs.SpanRootFSPrepare,
 		attribute.String(sdkobs.AttrAllocationID, request.GetContainerID()),
-		attribute.String(sdkobs.AttrRuntime, request.GetRuntimeTemplate().GetSandbox()),
+		attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc),
 		attribute.String(sdkobs.AttrRootFSType, RootfsTypeFromRuntimeTemplate(request.GetRuntimeTemplate())),
 	)
 	defer span.End()
@@ -121,13 +122,13 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 			return fmt.Errorf("delete failed-start runtime: %w", deleteErr)
 		}
 		resourceKnown = true
-	} else if runtime, ok := h.runtimeMapping(containerID); ok {
+	} else if _, ok := h.runtimeMapping(containerID); ok {
 		// OCI create may succeed before container metadata is durably indexed.
 		// Recover ownership from the allocation record and bundle so a metadata
 		// persistence failure cannot strand runtime, network, or resource state.
-		handler, handlerErr := h.runtimeHandler(runtime.Sandbox)
-		if handlerErr != nil {
-			return fmt.Errorf("resolve partial failed-start runtime: %w", handlerErr)
+		handler := h.runscHandler
+		if handler == nil {
+			return errors.New("resolve partial failed-start runtime: runsc handler unavailable")
 		} else {
 			var resourceErr error
 			resource, resourceErr = h.containers().CollectResourceByID(containerID)
@@ -212,7 +213,7 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 		return resp, err
 	}
 
-	recorder := NewStartMetricsRecorder(h.startMetricSink, request.RuntimeTemplate.Sandbox, RootfsTypeFromRuntimeTemplate(request.RuntimeTemplate))
+	recorder := NewStartMetricsRecorder(h.startMetricSink, config.RuntimeNameRunsc, RootfsTypeFromRuntimeTemplate(request.RuntimeTemplate))
 	result := contract.StartupResultError
 	succeeded := false
 	stateCommitted := false
@@ -255,7 +256,6 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 	handler, resource, err := h.prepareContainerResources(
 		ctx,
 		traceID.String(),
-		request.GetRuntimeTemplate().GetSandbox(),
 		request.GetContainerID(),
 		nil,
 		request.GetResources(),

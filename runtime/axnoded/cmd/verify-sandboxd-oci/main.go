@@ -18,7 +18,6 @@ import (
 )
 
 type config struct {
-	runtimeName    string
 	runtimeBinary  string
 	rootfs         string
 	sandboxdBinary string
@@ -54,7 +53,6 @@ func main() {
 
 func parseFlags() config {
 	cfg := config{}
-	flag.StringVar(&cfg.runtimeName, "runtime", "runsc", "runtime name under test")
 	flag.StringVar(&cfg.runtimeBinary, "runtime-binary", "", "OCI runtime binary path")
 	flag.StringVar(&cfg.rootfs, "rootfs", "/opt/sample-rootfs", "rootfs path")
 	flag.StringVar(&cfg.sandboxdBinary, "sandboxd-binary", "/usr/local/libexec/axnoded/axern-sandboxd", "host axern-sandboxd binary path")
@@ -67,7 +65,7 @@ func parseFlags() config {
 	flag.BoolVar(&cfg.noCopyRootfs, "no-copy-rootfs", false, "use the supplied rootfs path directly")
 	flag.Parse()
 	if cfg.runtimeBinary == "" {
-		cfg.runtimeBinary = "/usr/local/bin/" + cfg.runtimeName
+		cfg.runtimeBinary = "/usr/local/bin/runsc"
 	}
 	return cfg
 }
@@ -135,7 +133,7 @@ func run(cfg config) error {
 }
 
 func runOne(workDir string, cfg config, tc runCase) error {
-	caseDir := filepath.Join(workDir, safeName(cfg.runtimeName+"-"+tc.name))
+	caseDir := filepath.Join(workDir, safeName("runsc-"+tc.name))
 	if err := os.RemoveAll(caseDir); err != nil {
 		return err
 	}
@@ -163,7 +161,7 @@ func runOne(workDir string, cfg config, tc runCase) error {
 	if err != nil {
 		return err
 	}
-	containerID := safeName("axern-sandboxd-" + cfg.runtimeName + "-" + tc.name)
+	containerID := safeName("axern-sandboxd-runsc-" + tc.name)
 	stdoutPath := filepath.Join(caseDir, "stdout.log")
 	stderrPath := filepath.Join(caseDir, "stderr.log")
 	cwd := tc.cwd

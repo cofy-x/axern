@@ -18,7 +18,6 @@ type LanguageRuntime struct {
 	Mounts           []*api.Mount
 	ExecutionProfile *catalogv1.RuntimeExecutionProfile
 	Readonly         bool
-	Sandbox          string
 	RootFS           *RootFS
 	manager          *LangRTManager
 

@@ -38,7 +38,6 @@ func TestStartRequestDigestChangesWithSandboxContract(t *testing.T) {
 	for name, mutate := range map[string]func(*apipb.StartRequest){
 		"command": func(candidate *apipb.StartRequest) { candidate.RuntimeTemplate.Command = []string{"/bin/false"} },
 		"memory":  func(candidate *apipb.StartRequest) { candidate.Resources.Limits.MemoryBytes++ },
-		"runtime": func(candidate *apipb.StartRequest) { candidate.RuntimeTemplate.Sandbox = "other" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			candidate := proto.Clone(request).(*apipb.StartRequest)
@@ -66,7 +65,7 @@ func testDigestStartRequest() *apipb.StartRequest {
 	return &apipb.StartRequest{
 		ContainerID: "allocation-digest",
 		RuntimeTemplate: &apipb.RuntimeTemplate{
-			ID: "runtime-digest", Sandbox: "runsc",
+			ID:      "runtime-digest",
 			Rootfs:  &apipb.RootfsConfig{Readonly: true, Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: "/rootfs"}},
 			Command: []string{"/bin/true"},
 		},

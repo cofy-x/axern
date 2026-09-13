@@ -36,12 +36,10 @@ func (m *Manager) housekeeping() {
 	defer cancel()
 	cstates := make(map[string]*contract.UnionContainerState)
 
-	for r, handler := range m.serviceHandler.Items() {
-		states, err := handler.ListContainers(ctx, contract.HandlerOptions{})
-		if err != nil {
-			logrus.Errorf("list %s containers failed: %v", r, err)
-			continue
-		}
+	states, err := m.runtimeHandler.ListContainers(ctx, contract.HandlerOptions{})
+	if err != nil {
+		logrus.Errorf("list runsc containers failed: %v", err)
+	} else {
 		for idx := range states {
 			cstates[states[idx].ID] = states[idx]
 		}

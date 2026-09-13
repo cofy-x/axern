@@ -74,10 +74,9 @@ func (h *runtimeSpyHandler) CreateContainer(_ context.Context, request *apipb.Cr
 		labels[k] = v
 	}
 	return &apipb.ContainerMetadata{
-		RuntimeHandler: h.name,
-		Labels:         labels,
-		Stdout:         request.Stdout,
-		Stderr:         request.Stderr,
+		Labels: labels,
+		Stdout: request.Stdout,
+		Stderr: request.Stderr,
 	}, nil
 }
 

@@ -202,7 +202,6 @@ func newTestFR(id, path string) *api.RuntimeTemplate {
 				Path: path,
 			},
 		},
-		Sandbox: "runsc",
 		Command: []string{"/bin/sh"},
 	}
 }

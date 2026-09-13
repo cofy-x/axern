@@ -9,7 +9,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
-	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,56 +32,30 @@ func (h inventoryTestHandler) DeleteContainer(_ context.Context, _ *runtimeapi.D
 	return &runtimeapi.DeleteContainerResponse{}, h.deleteErr
 }
 
-func runtimeInventoryTestService(t *testing.T, handlers ...contract.RuntimeHandler) *sandboxService {
+func runtimeInventoryTestService(t *testing.T, handler contract.RuntimeHandler) *sandboxService {
 	t.Helper()
-	registered := cmap.New[contract.RuntimeHandler]()
-	for _, handler := range handlers {
-		registered.Set(handler.Name(), handler)
-	}
-	manager, err := container.NewManager(t.TempDir(), registered, make(chan bool, 1))
+	manager, err := container.NewManager(t.TempDir(), handler, make(chan bool, 1))
 	require.NoError(t, err)
-	return &sandboxService{containerManager: manager}
+	return &sandboxService{containerManager: manager, runscHandler: handler}
 }
 
 func TestCollectRuntimeInventoryRequiresCompleteGeneration(t *testing.T) {
-	other := runtimetest.NewFakeRuntimeHandler()
-	other.RuntimeName = "other"
 	runsc := runtimetest.NewFakeRuntimeHandler()
 	runsc.RuntimeName = "runsc"
-	service := runtimeInventoryTestService(t,
-		inventoryTestHandler{RuntimeHandler: other, states: []*contract.UnionContainerState{{ID: "other-live", Status: contract.ContainerStatusRunning}}},
-		inventoryTestHandler{RuntimeHandler: runsc, err: errors.New("runsc unavailable")},
-	)
+	service := runtimeInventoryTestService(t, inventoryTestHandler{RuntimeHandler: runsc, err: errors.New("runsc unavailable")})
 
 	inventory, err := service.collectRuntimeInventory(context.Background())
 	require.ErrorContains(t, err, "list runsc containers")
 	assert.Nil(t, inventory)
 }
 
-func TestCollectRuntimeInventoryRejectsDuplicateOwnership(t *testing.T) {
-	other := runtimetest.NewFakeRuntimeHandler()
-	other.RuntimeName = "other"
+func TestCollectRuntimeInventoryReturnsAllocationView(t *testing.T) {
 	runsc := runtimetest.NewFakeRuntimeHandler()
 	runsc.RuntimeName = "runsc"
-	service := runtimeInventoryTestService(t,
-		inventoryTestHandler{RuntimeHandler: other, states: []*contract.UnionContainerState{{ID: "duplicate", Status: contract.ContainerStatusRunning}}},
-		inventoryTestHandler{RuntimeHandler: runsc, states: []*contract.UnionContainerState{{ID: "duplicate", Status: contract.ContainerStatusRunning}}},
-	)
-
-	_, err := service.collectRuntimeInventory(context.Background())
-	require.ErrorContains(t, err, "reported by both")
-}
-
-func TestCollectRuntimeInventoryReturnsRuntimeScopedAndGlobalViews(t *testing.T) {
-	runsc := runtimetest.NewFakeRuntimeHandler()
-	runsc.RuntimeName = "runsc"
-	service := runtimeInventoryTestService(t,
-		inventoryTestHandler{RuntimeHandler: runsc, states: []*contract.UnionContainerState{{ID: "live", Status: contract.ContainerStatusRunning}}},
-	)
+	service := runtimeInventoryTestService(t, inventoryTestHandler{RuntimeHandler: runsc, states: []*contract.UnionContainerState{{ID: "live", Status: contract.ContainerStatusRunning}}})
 
 	inventory, err := service.collectRuntimeInventory(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, map[string]struct{}{"live": {}}, inventory.forRuntime("runsc"))
 	assert.Equal(t, map[string]struct{}{"live": {}}, inventory.allIDs())
 }
 
@@ -103,7 +76,7 @@ func TestRuntimeInventoryRetainsUnknownAndExcludesTerminalAfterRuntimeDelete(t *
 
 	require.NoError(t, service.cleanupTerminalRuntimeContainers(context.Background(), inventory))
 	assert.Equal(t, []string{"terminal"}, deleted)
-	assert.Equal(t, map[string]struct{}{"unknown": {}}, inventory.retained().forRuntime("runsc"))
+	assert.Equal(t, map[string]struct{}{"unknown": {}}, inventory.retained().allIDs())
 }
 
 func TestCollectRuntimeInventoryRejectsInvalidStatus(t *testing.T) {
@@ -123,17 +96,15 @@ func TestPartitionRuntimeInventoryRequiresExplicitConsistentRecoveryAuthority(t 
 	runsc.RuntimeName = "runsc"
 	service := runtimeInventoryTestService(t, runsc)
 	require.NoError(t, service.containerManager.StoreMetadata("durable", &runtimeapi.ContainerMetadata{
-		RuntimeHandler: "runsc",
-		RecoveryMode:   runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DURABLE,
+		RecoveryMode: runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DURABLE,
 	}))
 	require.NoError(t, service.containerManager.StoreMetadata("session", &runtimeapi.ContainerMetadata{
-		RuntimeHandler: "runsc",
-		RecoveryMode:   runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
+		RecoveryMode: runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 	}))
-	inventory := runtimeInventory{"runsc": {
+	inventory := runtimeInventory{
 		"durable": contract.ContainerStatusRunning,
 		"session": contract.ContainerStatusRunning,
-	}}
+	}
 
 	durable, discard, err := service.partitionRuntimeInventory(
 		inventory,
@@ -154,10 +125,10 @@ func TestPartitionRuntimeInventoryRejectsImplicitRecoveryMode(t *testing.T) {
 	runsc := runtimetest.NewFakeRuntimeHandler()
 	runsc.RuntimeName = "runsc"
 	service := runtimeInventoryTestService(t, runsc)
-	require.NoError(t, service.containerManager.StoreMetadata("ambiguous", &runtimeapi.ContainerMetadata{RuntimeHandler: "runsc"}))
+	require.NoError(t, service.containerManager.StoreMetadata("ambiguous", &runtimeapi.ContainerMetadata{}))
 
 	_, _, err := service.partitionRuntimeInventory(
-		runtimeInventory{"runsc": {"ambiguous": contract.ContainerStatusRunning}},
+		runtimeInventory{"ambiguous": contract.ContainerStatusRunning},
 		map[string]struct{}{"ambiguous": {}},
 		map[string]struct{}{"ambiguous": {}},
 	)

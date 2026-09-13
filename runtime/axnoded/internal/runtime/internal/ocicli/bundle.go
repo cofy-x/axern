@@ -65,11 +65,10 @@ func PrepareBundle(options PrepareBundleOptions) (string, *apipb.ContainerMetada
 	}
 
 	return bundlePath, &apipb.ContainerMetadata{
-		RuntimeHandler: options.RuntimeName,
-		Labels:         specConf.Annotations,
-		Stdout:         options.Request.Stdout,
-		Stderr:         options.Request.Stderr,
-		RecoveryMode:   options.Request.GetRecoveryMode(),
+		Labels:       specConf.Annotations,
+		Stdout:       options.Request.Stdout,
+		Stderr:       options.Request.Stderr,
+		RecoveryMode: options.Request.GetRecoveryMode(),
 	}, nil
 }
 

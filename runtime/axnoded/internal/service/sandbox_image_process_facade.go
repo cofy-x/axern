@@ -61,9 +61,8 @@ func (h *sandboxService) inspectImageProcessTarget(ctx context.Context, parentID
 		return imageprocess.Target{}, nil, fmt.Errorf("inspect target sandbox mounts: %w", err)
 	}
 	return imageprocess.Target{
-		Runtime: "runsc",
-		Spec:    targetSpec,
-		Labels:  target.Labels(),
+		Spec:   targetSpec,
+		Labels: target.Labels(),
 	}, target.Handler, nil
 }
 

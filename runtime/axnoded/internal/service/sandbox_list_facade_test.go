@@ -7,15 +7,14 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestList_Empty(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	s := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 
 	resp, err := s.List(context.Background(), &runtime.ListContainersRequest{})
 	assert.NoError(t, err)
@@ -23,9 +22,9 @@ func TestList_Empty(t *testing.T) {
 }
 
 func TestList_ById_NotFound(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	s := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 
 	_, err := s.List(context.Background(), &runtime.ListContainersRequest{
 		ID: "axctl-nonexistent",
@@ -34,16 +33,15 @@ func TestList_ById_NotFound(t *testing.T) {
 }
 
 func TestList_WithStoredContainer(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	s := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 
 	containerID := "axctl-test-list-001"
 	meta := &apipb.ContainerMetadata{
-		RuntimeHandler: "runsc",
-		Labels:         map[string]string{"env": "test"},
-		Stdout:         "/tmp/stdout.log",
-		Stderr:         "/tmp/stderr.log",
+		Labels: map[string]string{"env": "test"},
+		Stdout: "/tmp/stdout.log",
+		Stderr: "/tmp/stderr.log",
 	}
 
 	s.containerManager.StoreMetadata(containerID, meta)
@@ -57,7 +55,6 @@ func TestList_WithStoredContainer(t *testing.T) {
 	for _, c := range resp.Containers {
 		if c.ID == containerID {
 			found = true
-			assert.Equal(t, "runsc", c.Runtime)
 			break
 		}
 	}
@@ -65,13 +62,11 @@ func TestList_WithStoredContainer(t *testing.T) {
 }
 
 func TestConfigureSandboxControlDefersContainerManagerLookup(t *testing.T) {
-	base := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	base := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 	containerID := "axctl-sandbox-control-deferred"
-	base.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		RuntimeHandler: "runsc",
-	})
+	base.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
 	time.Sleep(200 * time.Millisecond)
 
 	early := &sandboxService{}
@@ -86,14 +81,13 @@ func TestConfigureSandboxControlDefersContainerManagerLookup(t *testing.T) {
 }
 
 func TestList_ByLabel(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	s := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 
 	containerID := "axctl-test-label-001"
 	meta := &apipb.ContainerMetadata{
-		RuntimeHandler: "runsc",
-		Labels:         map[string]string{"app": "myapp"},
+		Labels: map[string]string{"app": "myapp"},
 	}
 	s.containerManager.StoreMetadata(containerID, meta)
 	time.Sleep(200 * time.Millisecond)

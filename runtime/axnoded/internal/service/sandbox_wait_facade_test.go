@@ -16,17 +16,13 @@ import (
 )
 
 func TestWait(t *testing.T) {
-	runscHandler := &runtimeSpyHandler{name: "runsc", waitExitCode: 1}
-	altHandler := &runtimeSpyHandler{name: "alt-runtime", waitExitCode: 7}
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc":       runscHandler,
-		"alt-runtime": altHandler,
-	})
+	runscHandler := &runtimeSpyHandler{name: "runsc", waitExitCode: 7}
+	s := newTestService(t,
+		runscHandler,
+	)
 
 	containerID := "axctl-test-wait"
-	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		RuntimeHandler: "alt-runtime",
-	})
+	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
 	time.Sleep(200 * time.Millisecond)
 
 	resp, err := s.Wait(context.Background(), &runtime.WaitRequest{
@@ -41,14 +37,12 @@ func TestWaitReturnsUnavailableWhenExitCodeUnknown(t *testing.T) {
 	handler.waitFunc = func(context.Context, contract.HandlerOptions) (contract.Exit, error) {
 		return contract.Exit{}, fmt.Errorf("container exited but runtime exit status is unavailable: %w", contract.ErrExitStatusUnavailable)
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": handler,
-	})
+	s := newTestService(t,
+		handler,
+	)
 
 	containerID := "axctl-test-wait-unknown"
-	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		RuntimeHandler: "runsc",
-	})
+	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
 	time.Sleep(200 * time.Millisecond)
 
 	c, err := s.containerManager.Get(containerID)
@@ -75,14 +69,12 @@ func TestWaitContinuesWhenStatusExitedButExitCodeUnknown(t *testing.T) {
 		<-waitReady
 		return contract.Exit{Status: 9}, nil
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": handler,
-	})
+	s := newTestService(t,
+		handler,
+	)
 
 	containerID := "axctl-test-wait-unknown-recover"
-	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		RuntimeHandler: "runsc",
-	})
+	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
 	time.Sleep(200 * time.Millisecond)
 
 	c, err := s.containerManager.Get(containerID)

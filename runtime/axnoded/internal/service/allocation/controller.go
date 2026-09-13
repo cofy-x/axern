@@ -31,7 +31,7 @@ type Options struct {
 	Config                      config.Config
 	Store                       stateStore
 	ContainerManager            func() *container.Manager
-	RuntimeHandler              func(string) (contract.RuntimeHandler, error)
+	RunscHandler                contract.RuntimeHandler
 	LangRuntime                 *langrtmanager.LangRTManager
 	Networking                  *servicenetworking.Coordinator
 	StartMetricSink             StartMetricSink
@@ -47,7 +47,7 @@ type Controller struct {
 	store  stateStore
 
 	containerManager            func() *container.Manager
-	runtimeHandlerFn            func(string) (contract.RuntimeHandler, error)
+	runscHandler                contract.RuntimeHandler
 	lrtManager                  *langrtmanager.LangRTManager
 	networking                  *servicenetworking.Coordinator
 	startMetricSink             StartMetricSink
@@ -85,7 +85,7 @@ func NewController(options Options) *Controller {
 		config:                      options.Config,
 		store:                       options.Store,
 		containerManager:            options.ContainerManager,
-		runtimeHandlerFn:            options.RuntimeHandler,
+		runscHandler:                options.RunscHandler,
 		lrtManager:                  options.LangRuntime,
 		networking:                  options.Networking,
 		startMetricSink:             options.StartMetricSink,
@@ -254,18 +254,6 @@ func (c *Controller) containers() *container.Manager {
 	return c.containerManager()
 }
 
-func (c *Controller) runtimeHandler(runtimeName string) (contract.RuntimeHandler, error) {
-	if c == nil || c.runtimeHandlerFn == nil {
-		return nil, fmt.Errorf("runtime %s is not supported", runtimeName)
-	}
-	return c.runtimeHandlerFn(runtimeName)
-}
-
-func (c *Controller) checkRuntime(requestRuntime string) error {
-	_, err := c.runtimeHandler(requestRuntime)
-	return err
-}
-
 func (c *Controller) runtimeHandlerForContainer(id string) (*container.Container, contract.RuntimeHandler, error) {
 	manager := c.containers()
 	if manager == nil {
@@ -278,11 +266,10 @@ func (c *Controller) runtimeHandlerForContainer(id string) (*container.Container
 	if target.Metadata == nil {
 		return nil, nil, errord.ErrInvalidContainer
 	}
-	handler, err := c.runtimeHandler(target.Metadata.RuntimeHandler)
-	if err != nil {
-		return nil, nil, err
+	if c.runscHandler == nil {
+		return nil, nil, fmt.Errorf("runsc handler unavailable")
 	}
-	return target, handler, nil
+	return target, c.runscHandler, nil
 }
 
 func (c *Controller) sandboxNetworking() *servicenetworking.Coordinator {

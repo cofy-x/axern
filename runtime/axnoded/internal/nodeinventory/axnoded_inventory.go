@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
@@ -315,7 +316,7 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 			if s.memoryPIDRolesVerifier != nil {
 				observation.PidRolesVerified = s.memoryPIDRolesVerifier(
 					c.ID,
-					c.Metadata.GetRuntimeHandler(),
+					config.RuntimeNameRunsc,
 					cgroupPath,
 					statusValue.Pid,
 				) == nil

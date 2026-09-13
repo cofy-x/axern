@@ -11,6 +11,7 @@ import (
 	"time"
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/network"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
@@ -412,9 +413,9 @@ func (h *sandboxService) verifyAllocationCapability(ctx context.Context, allocat
 		}
 		return contract.InconclusiveCapability(fmt.Errorf("load active allocation: %w", err))
 	}
-	handler, ok := h.runtimeHandlers.Get(ct.Metadata.GetRuntimeHandler())
-	if !ok {
-		return contract.InconclusiveCapability(fmt.Errorf("runtime handler %q is unavailable", ct.Metadata.GetRuntimeHandler()))
+	handler := h.runscHandler
+	if handler == nil {
+		return contract.InconclusiveCapability(fmt.Errorf("runsc handler is unavailable"))
 	}
 	verifier, ok := handler.(contract.AllocationCapabilityVerifier)
 	if !ok {
@@ -461,10 +462,7 @@ func verificationMessage(verification contract.CapabilityVerification) string {
 }
 
 func (h *sandboxService) failStopAllocation(ctx context.Context, allocationID string, verifyErr error) {
-	runtimeName := "unknown"
-	if ct, err := h.containerManager.Get(allocationID); err == nil && ct != nil && ct.Metadata != nil {
-		runtimeName = ct.Metadata.GetRuntimeHandler()
-	}
+	runtimeName := config.RuntimeNameRunsc
 	metrics.RecordCapabilityAllocationVerification(runtimeName, "fail_stop")
 	// Emit before Delete removes allocation state. A successful fail-stop must
 	// remain distinguishable from a workload-originated exit or kernel OOM.

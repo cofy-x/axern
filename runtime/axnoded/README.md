@@ -29,7 +29,9 @@ Node lifecycle requests may include resolved secret env vars, resolved secret fi
 
 ## Architecture
 
-Requests enter through `internal/api`, move through `internal/service`, then coordinate rootfs resolution, resources, persisted container state, OCI runtime handlers, and sandbox-local `axern-sandboxd` operations.
+Requests enter through `internal/api`, move through `internal/service`, then coordinate rootfs resolution, resources, persisted container state, the process-owned runsc executor, and sandbox-local `axern-sandboxd` operations. One axnoded process owns exactly one execution backend; Allocation requests and node-local metadata contain no runtime selector.
+
+Firecracker is not a dormant plugin in this process. If it is qualified later, it will be a separate node implementation and node pool with its own guest image, networking, snapshot, agent, recovery, and capability evidence contracts. Placement selects a node whose isolation capabilities satisfy the immutable Allocation requirements; users do not select a backend name.
 
 One process-owned BoltDB under the configured store directory persists node-local resource snapshots and one atomic runtime/image ownership record per allocation. The database is opened once during service construction and closed only after resource writers stop during shutdown.
 

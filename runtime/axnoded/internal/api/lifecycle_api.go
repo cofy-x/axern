@@ -230,7 +230,6 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		return nil, err
 	}
 	runtimeTemplate := &runtimev1.RuntimeTemplate{
-		Sandbox:     "runsc",
 		Command:     append([]string(nil), spec.GetArgv()...),
 		Cwd:         cwd,
 		RuntimeEnvs: cloneStringMap(spec.GetEnv()),
@@ -271,7 +270,6 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 	}
 
 	runtimeTemplate := &runtimev1.RuntimeTemplate{
-		Sandbox:     "runsc",
 		Command:     append([]string(nil), spec.GetArgv()...),
 		Cwd:         cwd,
 		RuntimeEnvs: cloneStringMap(spec.GetEnv()),

@@ -59,7 +59,6 @@ func (lr *LanguageRuntime) RuntimeTemplate() *api.RuntimeTemplate {
 	}
 	return &api.RuntimeTemplate{
 		ID:               lr.ID,
-		Sandbox:          lr.Sandbox,
 		Rootfs:           rootfsConfigMessageFromRuntime(lr),
 		Command:          append([]string(nil), lr.Command...),
 		RuntimeEnvs:      cloneStringMap(lr.RuntimeEnvs),

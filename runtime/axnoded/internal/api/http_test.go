@@ -41,16 +41,15 @@ func (f *fakeSandboxService) Shutdown(context.Context) error { return nil }
 func (f *fakeSandboxService) Start(_ context.Context, req *runtimeapi.StartRequest) (*runtimeapi.StartResponse, error) {
 	f.startRequests = append(f.startRequests, proto.Clone(req).(*runtimeapi.StartRequest))
 	f.containers = append(f.containers, &runtimeapi.ContainerStatus{
-		ID:      req.GetContainerID(),
-		Runtime: req.GetRuntimeTemplate().GetSandbox(),
-		State:   runtimeapi.ContainerState_CONTAINER_RUNNING,
+		ID:    req.GetContainerID(),
+		State: runtimeapi.ContainerState_CONTAINER_RUNNING,
 	})
 	return &runtimeapi.StartResponse{Code: 0, ID: req.GetContainerID(), Message: "ok"}, nil
 }
 func (f *fakeSandboxService) StartNodeLocalSandbox(_ context.Context, req *runtimeapi.StartRequest) (*runtimeapi.StartResponse, error) {
 	f.nodeLocalStarts = append(f.nodeLocalStarts, proto.Clone(req).(*runtimeapi.StartRequest))
 	f.containers = append(f.containers, &runtimeapi.ContainerStatus{
-		ID: req.GetContainerID(), Runtime: req.GetRuntimeTemplate().GetSandbox(), State: runtimeapi.ContainerState_CONTAINER_RUNNING,
+		ID: req.GetContainerID(), State: runtimeapi.ContainerState_CONTAINER_RUNNING,
 	})
 	return &runtimeapi.StartResponse{Code: 0, ID: req.GetContainerID(), Message: "ok"}, nil
 }
@@ -283,9 +282,6 @@ func TestDashboardStartActionCreatesManagedSandbox(t *testing.T) {
 	startReq := svc.nodeLocalStarts[0]
 	if startReq.GetContainerID() != spec.SandboxID {
 		t.Fatalf("container id = %q, want %q", startReq.GetContainerID(), spec.SandboxID)
-	}
-	if startReq.GetRuntimeTemplate().GetSandbox() != spec.RuntimeName {
-		t.Fatalf("runtime = %q, want %q", startReq.GetRuntimeTemplate().GetSandbox(), spec.RuntimeName)
 	}
 	if startReq.GetRuntimeTemplate().GetRootfs().GetPath() != spec.RootfsPath {
 		t.Fatalf("rootfs path = %q, want %q", startReq.GetRuntimeTemplate().GetRootfs().GetPath(), spec.RootfsPath)

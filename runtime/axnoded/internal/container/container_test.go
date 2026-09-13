@@ -86,7 +86,6 @@ func TestContainer_ApiStatus(t *testing.T) {
 			fields: fields{
 				ID: "123",
 				Metadata: &apipb.ContainerMetadata{
-					RuntimeHandler: "runsc",
 					Labels: map[string]string{
 						"test": "test",
 					},
@@ -110,7 +109,6 @@ func TestContainer_ApiStatus(t *testing.T) {
 			want: &runtime.ContainerStatus{
 				ID:        "123",
 				Command:   []string{"a", "b"},
-				Runtime:   "runsc",
 				Stdout:    "/root/stdout",
 				Stderr:    "/root/stderr",
 				ExitCode:  0,
@@ -137,7 +135,6 @@ func TestContainer_ApiStatus(t *testing.T) {
 			name: "test for empty status",
 			fields: fields{
 				Metadata: &apipb.ContainerMetadata{
-					RuntimeHandler: "runsc",
 					Labels: map[string]string{
 						"test": "test",
 					},

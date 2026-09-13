@@ -19,9 +19,7 @@ func storeRunningBrowserContainer(t *testing.T, s *sandboxService, id string, so
 	derivedSocket := runtimeoci.SandboxdBundleSocketPath(filepath.Join(s.config.RootDir, "containers", id))
 	require.NoError(t, os.MkdirAll(filepath.Dir(derivedSocket), 0o755))
 	require.NoError(t, os.Symlink(socketPath, derivedSocket))
-	s.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{
-		RuntimeHandler: "runsc",
-	})
+	s.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{})
 	time.Sleep(200 * time.Millisecond)
 }
 

@@ -13,11 +13,10 @@ func ValidSpec(spec *runtime.ImageProcessSpec) bool {
 	return spec != nil && strings.TrimSpace(spec.GetImage()) != "" && len(spec.GetCommand()) > 0
 }
 
-func RuntimeTemplate(runtimeName, image string) *runtime.RuntimeTemplate {
-	sum := sha256.Sum256([]byte(runtimeName + "\x00" + image))
+func RuntimeTemplate(image string) *runtime.RuntimeTemplate {
+	sum := sha256.Sum256([]byte(image))
 	return &runtime.RuntimeTemplate{
-		ID:      "image-process-" + hex.EncodeToString(sum[:12]),
-		Sandbox: runtimeName,
+		ID: "image-process-" + hex.EncodeToString(sum[:12]),
 		Rootfs: &runtime.RootfsConfig{
 			Type:     runtime.RootfsSrcType_IMAGE,
 			Readonly: false,

@@ -36,7 +36,6 @@ func TestControllerExecImageCreatesActorAndCollectsOutput(t *testing.T) {
 	controller := NewController(Options{
 		InspectTarget: func(context.Context, string) (Target, contract.RuntimeHandler, error) {
 			return Target{
-				Runtime: "runsc",
 				Spec: &specs.Spec{
 					Annotations: map[string]string{parentNetworkKey: "parent-spec-net-resource"},
 					Mounts: []specs.Mount{{
@@ -54,7 +53,6 @@ func TestControllerExecImageCreatesActorAndCollectsOutput(t *testing.T) {
 		},
 		CreateContainer: func(_ context.Context, _ *langrtmanager.LanguageRuntime, _, createRequest *runtime.CreateContainerRequest) error {
 			createdID = createRequest.GetID()
-			assert.Equal(t, "runsc", createRequest.GetRuntime())
 			assert.Equal(t, rootfsDir, createRequest.GetRootfs().GetRootDir())
 			require.Len(t, createRequest.GetMounts(), 1)
 			assert.Equal(t, filepath.Join(hostDir, "project"), createRequest.GetMounts()[0].GetSource())
@@ -115,7 +113,7 @@ func TestControllerProcessImageSendsReadyAndExit(t *testing.T) {
 	}
 	controller := NewController(Options{
 		InspectTarget: func(context.Context, string) (Target, contract.RuntimeHandler, error) {
-			return Target{Runtime: "runsc", Spec: &specs.Spec{}}, handler, nil
+			return Target{Spec: &specs.Spec{}}, handler, nil
 		},
 		EnsureRuntime: func(context.Context, *runtime.RuntimeTemplate) (*langrtmanager.LanguageRuntime, error) {
 			return testLanguageRuntime(t, t.TempDir()), nil
@@ -262,9 +260,8 @@ func testLanguageRuntime(t *testing.T, rootfsDir string) *langrtmanager.Language
 	rootfs, err := langrtmanager.NewRootFS(langrtmanager.RootfsConfig{}, controllerMounter{path: rootfsDir}, nil)
 	require.NoError(t, err)
 	return &langrtmanager.LanguageRuntime{
-		ID:      "image-process-runtime",
-		Sandbox: "runsc",
-		RootFS:  rootfs,
-		Cwd:     "/workspace",
+		ID:     "image-process-runtime",
+		RootFS: rootfs,
+		Cwd:    "/workspace",
 	}
 }

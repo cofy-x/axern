@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,9 +14,9 @@ func TestFileOperationsBridgeToRuntimeFileService(t *testing.T) {
 	handler := &runtimeSpyHandler{
 		name: "runsc",
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": handler,
-	})
+	s := newTestService(t,
+		handler,
+	)
 	storeRunningExecContainer(t, s, "runsc", "axctl-file-bridge")
 
 	readResp, err := s.ReadFile(context.Background(), &runtime.ReadFileRequest{
@@ -108,7 +107,7 @@ func TestFileOperationsBridgeToRuntimeFileService(t *testing.T) {
 
 func TestArchiveOperationsBridgeToRuntimeFileService(t *testing.T) {
 	handler := &runtimeSpyHandler{name: "runsc"}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	s := newTestService(t, handler)
 	storeRunningExecContainer(t, s, "runsc", "axctl-archive-bridge")
 
 	_, err := s.UploadArchive(context.Background(), &runtime.UploadArchiveRequest{

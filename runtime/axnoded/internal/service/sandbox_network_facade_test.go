@@ -5,14 +5,13 @@ import (
 	"testing"
 
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/stretchr/testify/require"
 )
 
 func TestConfigureNetworkingDefersContainerManagerLookup(t *testing.T) {
-	base := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": &runtimeSpyHandler{name: "runsc"},
-	})
+	base := newTestService(t,
+		&runtimeSpyHandler{name: "runsc"},
+	)
 	containerID := "axctl-networking-deferred-lookup"
 	netResource := &resourcemanager.NetResource{
 		Ip:        net.ParseIP("10.0.0.20"),

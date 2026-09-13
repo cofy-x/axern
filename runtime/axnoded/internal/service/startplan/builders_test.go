@@ -66,7 +66,7 @@ func TestBuildCreateContainerRequestUsesImageDefaultsWhenCommandEmpty(t *testing
 	})
 
 	req := &apipb.StartRequest{
-		RuntimeTemplate: &apipb.RuntimeTemplate{Sandbox: "runsc"},
+		RuntimeTemplate: &apipb.RuntimeTemplate{},
 	}
 	containerReq := BuildCreateContainerRequest(lrt, req, nil, nil, "")
 	if got := containerReq.GetCommand(); !reflect.DeepEqual(got, []string{"/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"}) {
@@ -88,7 +88,6 @@ func TestBuildCreateContainerRequestExplicitCommandOverridesImageDefaults(t *tes
 
 	req := &apipb.StartRequest{
 		RuntimeTemplate: &apipb.RuntimeTemplate{
-			Sandbox: "runsc",
 			Command: []string{"/bin/sh", "-lc", "sleep 60"},
 			Cwd:     "/workspace",
 		},

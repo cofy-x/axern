@@ -13,7 +13,6 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	capabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -46,8 +45,7 @@ func TestRootfsCapabilityGateRebindsCurrentObservationBeforeRuntimeSideEffects(t
 	request := &apipb.StartRequest{
 		ContainerID: "rootfs-gate-rebind",
 		RuntimeTemplate: &apipb.RuntimeTemplate{
-			Sandbox: config.RuntimeNameRunsc,
-			Rootfs:  &apipb.RootfsConfig{Readonly: true, Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: rootfs}},
+			Rootfs: &apipb.RootfsConfig{Readonly: true, Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: rootfs}},
 		},
 		Network:                         "host",
 		ExtensionCapabilityRequirements: []*capabilityv1.ExtensionCapabilityRequirement{{Capability: extension}},
@@ -89,7 +87,7 @@ func TestPreActivationGateRebindsCurrentObservationBeforeWorkloadStart(t *testin
 	}
 
 	handler := &runtimeSpyHandler{name: config.RuntimeNameRunsc}
-	service := newTestService(t, map[string]contract.RuntimeHandler{config.RuntimeNameRunsc: handler})
+	service := newTestService(t, handler)
 	service.capabilityManager = manager
 	const allocationID = "pre-activation-rebind"
 	const requestDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -156,8 +154,7 @@ func TestPrepareNodeLocalStartRequestBindsCurrentExactProofs(t *testing.T) {
 	request := &apipb.StartRequest{
 		ContainerID: "node-local-test",
 		RuntimeTemplate: &apipb.RuntimeTemplate{
-			Sandbox: config.RuntimeNameRunsc,
-			Rootfs:  &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
+			Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
 		},
 		Ports: []string{"tcp:18080:80"},
 	}
@@ -185,8 +182,7 @@ func TestPrepareNodeLocalStartRequestRejectsInjectedOrUnobservedProofs(t *testin
 	service := &sandboxService{}
 	request := &apipb.StartRequest{
 		RuntimeTemplate: &apipb.RuntimeTemplate{
-			Sandbox: config.RuntimeNameRunsc,
-			Rootfs:  &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
+			Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
 		},
 		CapabilityRequirements: []*capabilityv1.CapabilityRequirement{{Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)}},
 	}

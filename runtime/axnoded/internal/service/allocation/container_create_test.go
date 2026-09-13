@@ -40,11 +40,10 @@ func TestCreateRuntimeContainerPreservesFastExitStatus(t *testing.T) {
 			}
 		},
 	}
-	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	fixture := newTestAllocationController(t, handler)
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
 		ID:           containerID,
-		Runtime:      "runsc",
 		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 	}, nil, nil)
 	if err != nil {
@@ -90,11 +89,10 @@ func TestCreateRuntimeContainerSyncsRuntimeStateIntoStatus(t *testing.T) {
 			},
 		},
 	}
-	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	fixture := newTestAllocationController(t, handler)
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
 		ID:           "axctl-create-sync",
-		Runtime:      "runsc",
 		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 	}, nil, nil)
 	if err != nil {
@@ -121,11 +119,10 @@ func TestCreateRuntimeContainerIgnoresImageProcessResourceAnnotationOverride(t *
 	const parentNetworkResource = "parent-net-resource"
 	networkKey := resources.ResourceAnnotationKeyPrefix + string(resources.InterfaceResourceName)
 	handler := &runtimeSpyHandler{name: "runsc"}
-	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	fixture := newTestAllocationController(t, handler)
 
 	_, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
 		ID:           "axctl-create-resource-override",
-		Runtime:      "runsc",
 		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 		Labels: map[string]string{
 			"axern.image_process.kind": "image_process",
@@ -145,11 +142,10 @@ func TestCreateRuntimeContainerIgnoresUserResourceAnnotationOverride(t *testing.
 	const userNetworkResource = "user-net-resource"
 	networkKey := resources.ResourceAnnotationKeyPrefix + string(resources.InterfaceResourceName)
 	handler := &runtimeSpyHandler{name: "runsc"}
-	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	fixture := newTestAllocationController(t, handler)
 
 	_, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
 		ID:           "axctl-create-resource-no-override",
-		Runtime:      "runsc",
 		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 		Labels:       map[string]string{networkKey: userNetworkResource},
 	}, nil, nil)

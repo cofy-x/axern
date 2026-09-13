@@ -18,7 +18,6 @@ import (
 func TestRuntimeDeleteAbsentStillCompletesOwnedCleanup(t *testing.T) {
 	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: t.TempDir()},
-		config.RuntimeNameRunsc,
 		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
 		nil,
 	)
@@ -35,7 +34,6 @@ func TestRuntimeDeleteAbsentStillCompletesOwnedCleanup(t *testing.T) {
 func TestRunscDeleteRemovesPersistedExitState(t *testing.T) {
 	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: t.TempDir()},
-		config.RuntimeNameRunsc,
 		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
 		nil,
 	)
@@ -53,7 +51,6 @@ func TestRunscForceDeleteStopsForegroundRunBeforeDeletingState(t *testing.T) {
 	rootDir := t.TempDir()
 	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: rootDir},
-		config.RuntimeNameRunsc,
 		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
 		nil,
 	)
@@ -82,7 +79,6 @@ func TestRunscForceDeleteStopsForegroundRunBeforeDeletingState(t *testing.T) {
 func TestRunscForceDeleteWaitsForForegroundExitState(t *testing.T) {
 	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: t.TempDir()},
-		config.RuntimeNameRunsc,
 		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
 		nil,
 	)
@@ -128,7 +124,6 @@ func TestRunscForceDeleteWaitsForForegroundExitState(t *testing.T) {
 func TestRunscForceDeleteDoesNotDeleteBeforeForegroundExit(t *testing.T) {
 	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: t.TempDir()},
-		config.RuntimeNameRunsc,
 		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
 		nil,
 	)
@@ -153,7 +148,6 @@ func TestDeleteReleasesWritableReservationWhenExitStateRemovalFails(t *testing.T
 	rootDir := t.TempDir()
 	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: rootDir},
-		config.RuntimeNameRunsc,
 		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
 		nil,
 	)

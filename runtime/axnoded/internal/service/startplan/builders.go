@@ -186,7 +186,6 @@ func BuildBundleTemplateRequest(
 	request *runtime.StartRequest,
 ) *apipb.CreateContainerRequest {
 	return &apipb.CreateContainerRequest{
-		Runtime: request.RuntimeTemplate.Sandbox,
 		Command: BuildStartCommand(lrt, request),
 		Rootfs:  BuildContainerRootfs(lrt),
 		Mounts:  BuildStaticStartMounts(request),
@@ -198,7 +197,6 @@ func BuildBundleTemplateRequest(
 
 func BuildBundleTemplateRequestFromLanguageRuntime(lrt *langrtmanager.LanguageRuntime) *apipb.CreateContainerRequest {
 	return &apipb.CreateContainerRequest{
-		Runtime: lrt.Sandbox,
 		Command: append([]string(nil), lrt.Command...),
 		Rootfs:  BuildContainerRootfs(lrt),
 		Mounts:  CloneRuntimeMounts(lrt.Mounts),
@@ -217,7 +215,6 @@ func BuildCreateContainerRequest(
 ) *apipb.CreateContainerRequest {
 	resources := request.GetResources()
 	return &apipb.CreateContainerRequest{
-		Runtime:                      request.RuntimeTemplate.Sandbox,
 		Command:                      BuildStartCommand(lrt, request),
 		Rootfs:                       BuildContainerRootfs(lrt),
 		Resource:                     ResourcesToLinux(request.Resources),

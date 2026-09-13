@@ -74,7 +74,7 @@ func TestExecImageCreatesTransientImageContainerAndCleansUp(t *testing.T) {
 			Destination: "/workspace",
 		}}},
 	}
-	s := newTestServiceWithLanguageRuntimeManager(t, map[string]contract.RuntimeHandler{"runsc": handler}, langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir}))
+	s := newTestServiceWithLanguageRuntimeManager(t, handler, langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir}))
 	storeRunningExecContainer(t, s, "runsc", "axctl-task-image")
 
 	resp, err := s.ExecImage(context.Background(), &apipb.ExecImageRequest{
@@ -98,7 +98,6 @@ func TestExecImageCreatesTransientImageContainerAndCleansUp(t *testing.T) {
 	assert.Equal(t, 1, handler.deleteCalls)
 	assert.Nil(t, handler.lastExecRequest, "ExecImage must not call sandbox ExecContainer")
 	assert.True(t, strings.HasPrefix(handler.lastRequest.GetID(), "axctl-imageproc-"))
-	assert.Equal(t, "runsc", handler.lastRequest.GetRuntime())
 	assert.Equal(t, rootfsDir, handler.lastRequest.GetRootfs().GetRootDir())
 	assert.Equal(t, "ghcr.io/cofy-x/agent:latest", handler.lastRequest.GetLabels()[imageprocess.ImageLabel])
 	assert.Equal(t, "axctl-task-image", handler.lastRequest.GetLabels()[imageprocess.ParentAllocationLabel])
@@ -129,7 +128,7 @@ func TestExecImageCleansUpTransientContainerWhenProcessOpenFails(t *testing.T) {
 			Destination: "/workspace",
 		}}},
 	}
-	s := newTestServiceWithLanguageRuntimeManager(t, map[string]contract.RuntimeHandler{"runsc": handler}, langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir}))
+	s := newTestServiceWithLanguageRuntimeManager(t, handler, langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir}))
 	storeRunningExecContainer(t, s, "runsc", "axctl-task-open-fails")
 
 	_, err := s.ExecImage(context.Background(), &apipb.ExecImageRequest{
@@ -163,7 +162,7 @@ func TestExecImageCleansUpTransientContainerWhenCloseStdinFails(t *testing.T) {
 			Destination: "/workspace",
 		}}},
 	}
-	s := newTestServiceWithLanguageRuntimeManager(t, map[string]contract.RuntimeHandler{"runsc": handler}, langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir}))
+	s := newTestServiceWithLanguageRuntimeManager(t, handler, langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir}))
 	storeRunningExecContainer(t, s, "runsc", "axctl-task-stdin-fails")
 
 	_, err := s.ExecImage(context.Background(), &apipb.ExecImageRequest{
@@ -199,7 +198,7 @@ func TestProcessImageCleansUpTransientContainerAndRootfsWhenStreamCloses(t *test
 			Destination: "/workspace",
 		}}},
 	}
-	s := newTestServiceWithLanguageRuntimeManager(t, map[string]contract.RuntimeHandler{"runsc": handler}, langrtmanager.NewLanguageRuntimeManager(mounter))
+	s := newTestServiceWithLanguageRuntimeManager(t, handler, langrtmanager.NewLanguageRuntimeManager(mounter))
 	storeRunningExecContainer(t, s, "runsc", "axctl-task-stream-close")
 
 	stream := &imageProcessStreamStub{requests: []*apipb.ProcessImageRequest{{
@@ -228,9 +227,9 @@ func TestProcessImageCleansUpTransientContainerAndRootfsWhenStreamCloses(t *test
 }
 
 func TestExecImageRejectsInvalidSpecAndStoppedAllocation(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": &runtimeSpyHandler{name: "runsc"},
-	})
+	s := newTestService(t,
+		&runtimeSpyHandler{name: "runsc"},
+	)
 
 	_, err := s.ExecImage(context.Background(), &apipb.ExecImageRequest{
 		ID: "axctl-task",

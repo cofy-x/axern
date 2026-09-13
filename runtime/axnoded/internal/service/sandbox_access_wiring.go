@@ -18,7 +18,7 @@ func (h *sandboxService) configureSandboxTargets() {
 			}
 			return h.containerManager.Get(id)
 		},
-		RuntimeHandler: h.runtimeHandler,
+		RunscHandler: h.runscHandler,
 	})
 }
 

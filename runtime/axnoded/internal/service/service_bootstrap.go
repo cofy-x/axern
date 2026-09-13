@@ -21,7 +21,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodestate"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
 	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/imageprocess"
@@ -38,8 +37,8 @@ var _ NodeService = &sandboxService{}
 
 // sandboxService is the NodeSandbox-facing facade assembled by NewSandboxService.
 type sandboxService struct {
-	config          config.Config
-	runtimeHandlers *handlerregistry.Registry
+	config       config.Config
+	runscHandler contract.RuntimeHandler
 
 	containerManager *container.Manager
 
@@ -109,6 +108,10 @@ func NewSandboxService(ctx context.Context, cfg config.Config) (NodeService, err
 
 	healthChan, err := s.initContainerRuntime(ctx)
 	if err != nil {
+		s.closeAfterInitializationFailure()
+		return nil, err
+	}
+	if err := s.configureServiceCollaborators(); err != nil {
 		s.closeAfterInitializationFailure()
 		return nil, err
 	}
@@ -182,18 +185,16 @@ func newSandboxServiceState(cfg config.Config) (*sandboxService, error) {
 	}
 
 	s := &sandboxService{
-		config:          cfg,
-		store:           stateDB,
-		runtimeHandlers: handlerregistry.New(cfg),
-		lrtManager:      langrtmanager.NewLanguageRuntimeManager(langrtmanager.NewDefaultMounter(imageManagerEnabled, imageManagerSocket)),
-		egressClient:    egressClient,
-		egressCloser:    egressClient,
+		config:       cfg,
+		store:        stateDB,
+		lrtManager:   langrtmanager.NewLanguageRuntimeManager(langrtmanager.NewDefaultMounter(imageManagerEnabled, imageManagerSocket)),
+		egressClient: egressClient,
+		egressCloser: egressClient,
 	}
 	if cfg.PluginConfig.ControlPlaneTargetValue() != "" {
 		s.allocationLifecycleOutbox = nodecontrol.NewAllocationLifecycleOutbox(stateDB)
 	}
 	s.capabilityReconcileCtx, s.capabilityReconcileCancel = context.WithCancel(context.Background())
-	s.configureServiceCollaborators()
 	s.lrtManager.ConfigureRetention(retentionTTL, retentionMax)
 	return s, nil
 }
@@ -220,10 +221,8 @@ func (h *sandboxService) closeAfterInitializationFailure() {
 		}
 		cancel()
 	}
-	if h.runtimeHandlers != nil {
-		for item := range h.runtimeHandlers.Map().IterBuffered() {
-			item.Val.ShutDown()
-		}
+	if h.runscHandler != nil {
+		h.runscHandler.ShutDown()
 	}
 	if h.lrtManager != nil {
 		h.lrtManager.Close()
@@ -241,7 +240,25 @@ func (h *sandboxService) closeEgress() {
 	}
 }
 
-func (h *sandboxService) configureServiceCollaborators() {
+func (h *sandboxService) configureServiceCollaborators() error {
+	if h == nil {
+		return fmt.Errorf("configure service collaborators: sandbox service is required")
+	}
+	if h.runscHandler == nil {
+		return fmt.Errorf("configure service collaborators: runsc handler is required")
+	}
+	if h.containerManager == nil {
+		return fmt.Errorf("configure service collaborators: container manager is required")
+	}
+	if h.store == nil {
+		return fmt.Errorf("configure service collaborators: node state store is required")
+	}
+	if h.lrtManager == nil {
+		return fmt.Errorf("configure service collaborators: language runtime manager is required")
+	}
+	if h.egressClient == nil {
+		return fmt.Errorf("configure service collaborators: egress manager is required")
+	}
 	h.configureSandboxTargets()
 	h.configureSandboxAccess()
 	h.configureNetworking()
@@ -250,6 +267,7 @@ func (h *sandboxService) configureServiceCollaborators() {
 	h.configureAllocationController()
 	h.configureControlPlaneReports()
 	h.configureImageProcesses()
+	return nil
 }
 
 func (h *sandboxService) restorePersistentState() error {
@@ -257,7 +275,7 @@ func (h *sandboxService) restorePersistentState() error {
 	if err != nil {
 		return err
 	}
-	if err := h.containerManager.ValidateRuntimeInventory(inventory.allByRuntime()); err != nil {
+	if err := h.containerManager.ValidateRuntimeInventory(inventory.allIDs()); err != nil {
 		return fmt.Errorf("validate persisted container inventory: %w", err)
 	}
 	boundAllocations, err := h.allocationController().RestoreControlPlaneBindings()
@@ -288,16 +306,12 @@ func (h *sandboxService) restorePersistentState() error {
 	if err := h.reconcileEgressPolicies(context.Background()); err != nil {
 		return err
 	}
-	for _, handler := range h.containerManager.Handlers() {
-		reconciler, ok := handler.(contract.PersistentStorageReconciler)
-		if !ok {
-			continue
-		}
-		if err := reconciler.ReconcilePersistentStorage(context.Background(), retained.forRuntime(handler.Name())); err != nil {
-			return fmt.Errorf("reconcile %s persistent runtime storage: %w", handler.Name(), err)
+	if reconciler, ok := h.runscHandler.(contract.PersistentStorageReconciler); ok {
+		if err := reconciler.ReconcilePersistentStorage(context.Background(), retained.allIDs()); err != nil {
+			return fmt.Errorf("reconcile runsc persistent storage: %w", err)
 		}
 	}
-	if err := h.containerManager.ReconcileRuntimeInventory(retained.allByRuntime()); err != nil {
+	if err := h.containerManager.ReconcileRuntimeInventory(retained.allIDs()); err != nil {
 		return fmt.Errorf("reconcile persisted container inventory: %w", err)
 	}
 	if err := h.containerManager.ReconcileResourceClaims(); err != nil {
@@ -314,103 +328,84 @@ func (h *sandboxService) restorePersistentState() error {
 func (h *sandboxService) partitionRuntimeInventory(inventory runtimeInventory, persistedAllocations, boundAllocations map[string]struct{}) (runtimeInventory, runtimeInventory, error) {
 	durable := make(runtimeInventory, len(inventory))
 	discard := make(runtimeInventory, len(inventory))
-	for runtimeName, states := range inventory {
-		durable[runtimeName] = make(map[string]contract.ContainerStatus)
-		discard[runtimeName] = make(map[string]contract.ContainerStatus)
-		for id, status := range states {
-			item, err := h.containerManager.Get(id)
-			if err != nil || item == nil || item.Metadata == nil {
-				return nil, nil, fmt.Errorf("read recovery contract for runtime %s container %s", runtimeName, id)
+	for id, status := range inventory {
+		item, err := h.containerManager.Get(id)
+		if err != nil || item == nil || item.Metadata == nil {
+			return nil, nil, fmt.Errorf("read recovery contract for runsc container %s", id)
+		}
+		_, hasState := persistedAllocations[id]
+		_, bound := boundAllocations[id]
+		switch item.Metadata.GetRecoveryMode() {
+		case runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DURABLE:
+			if !hasState || !bound {
+				return nil, nil, fmt.Errorf("durable runtime container %s is missing AllocationState or control-plane admission binding", id)
 			}
-			_, hasState := persistedAllocations[id]
-			_, bound := boundAllocations[id]
-			switch item.Metadata.GetRecoveryMode() {
-			case runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DURABLE:
-				if !hasState || !bound {
-					return nil, nil, fmt.Errorf("durable runtime container %s is missing AllocationState or control-plane admission binding", id)
-				}
-				durable[runtimeName][id] = status
-			case runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART:
-				if bound {
-					return nil, nil, fmt.Errorf("discard-on-restart container %s has a control-plane admission binding", id)
-				}
-				discard[runtimeName][id] = status
-			default:
-				return nil, nil, fmt.Errorf("runtime container %s has no explicit recovery mode", id)
+			durable[id] = status
+		case runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART:
+			if bound {
+				return nil, nil, fmt.Errorf("discard-on-restart container %s has a control-plane admission binding", id)
 			}
+			discard[id] = status
+		default:
+			return nil, nil, fmt.Errorf("runtime container %s has no explicit recovery mode", id)
 		}
 	}
 	return durable, discard, nil
 }
 
 func (h *sandboxService) cleanupDiscardOnRestartContainers(ctx context.Context, inventory runtimeInventory) error {
-	handlers := h.containerManager.Handlers()
-	sort.Slice(handlers, func(i, j int) bool { return handlers[i].Name() < handlers[j].Name() })
-	for _, handler := range handlers {
-		ids := make([]string, 0, len(inventory[handler.Name()]))
-		for id := range inventory[handler.Name()] {
-			ids = append(ids, id)
-		}
-		sort.Strings(ids)
-		for _, id := range ids {
-			if _, err := handler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{ID: id, Timeout: 0}, contract.HandlerOptions{ContainerID: id, ForceDelete: true}); err != nil && !allocation.IsDeleteNotFound(err) {
-				return fmt.Errorf("delete discard-on-restart %s container %s: %w", handler.Name(), id, err)
-			}
+	ids := make([]string, 0, len(inventory))
+	for id := range inventory {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if _, err := h.runscHandler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{ID: id, Timeout: 0}, contract.HandlerOptions{ContainerID: id, ForceDelete: true}); err != nil && !allocation.IsDeleteNotFound(err) {
+			return fmt.Errorf("delete discard-on-restart runsc container %s: %w", id, err)
 		}
 	}
 	return nil
 }
 
-type runtimeInventory map[string]map[string]contract.ContainerStatus
+type runtimeInventory map[string]contract.ContainerStatus
 
 func (h *sandboxService) collectRuntimeInventory(ctx context.Context) (runtimeInventory, error) {
-	inventory := make(runtimeInventory, len(h.containerManager.Handlers()))
-	owners := make(map[string]string)
-	for _, handler := range h.containerManager.Handlers() {
-		runtimeName := handler.Name()
-		states, err := handler.ListContainers(ctx, contract.HandlerOptions{})
-		if err != nil {
-			return nil, fmt.Errorf("list %s containers before persistent-state reconciliation: %w", runtimeName, err)
+	states, err := h.runscHandler.ListContainers(ctx, contract.HandlerOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list runsc containers before persistent-state reconciliation: %w", err)
+	}
+	inventory := make(runtimeInventory, len(states))
+	for _, state := range states {
+		if state == nil || state.ID == "" {
+			return nil, fmt.Errorf("runsc returned an invalid container inventory entry")
 		}
-		ids := make(map[string]contract.ContainerStatus, len(states))
-		for _, state := range states {
-			if state == nil || state.ID == "" {
-				return nil, fmt.Errorf("runtime %s returned an invalid container inventory entry", runtimeName)
-			}
-			if owner, duplicate := owners[state.ID]; duplicate {
-				return nil, fmt.Errorf("container %s is reported by both %s and %s", state.ID, owner, runtimeName)
-			}
-			switch state.Status {
-			case contract.ContainerStatusCreated, contract.ContainerStatusRunning, contract.ContainerStatusExited, contract.ContainerStatusUnknown:
-			default:
-				return nil, fmt.Errorf("runtime %s container %s returned invalid status %q", runtimeName, state.ID, state.Status)
-			}
-			owners[state.ID] = runtimeName
-			ids[state.ID] = state.Status
+		switch state.Status {
+		case contract.ContainerStatusCreated, contract.ContainerStatusRunning, contract.ContainerStatusExited, contract.ContainerStatusUnknown:
+		default:
+			return nil, fmt.Errorf("runsc container %s returned invalid status %q", state.ID, state.Status)
 		}
-		inventory[runtimeName] = ids
+		if _, duplicate := inventory[state.ID]; duplicate {
+			return nil, fmt.Errorf("runsc returned duplicate container %s", state.ID)
+		}
+		inventory[state.ID] = state.Status
 	}
 	return inventory, nil
 }
 
 func (h *sandboxService) cleanupTerminalRuntimeContainers(ctx context.Context, inventory runtimeInventory) error {
-	handlers := h.containerManager.Handlers()
-	sort.Slice(handlers, func(i, j int) bool { return handlers[i].Name() < handlers[j].Name() })
-	for _, handler := range handlers {
-		ids := make([]string, 0)
-		for id, status := range inventory[handler.Name()] {
-			if status == contract.ContainerStatusExited {
-				ids = append(ids, id)
-			}
+	ids := make([]string, 0)
+	for id, status := range inventory {
+		if status == contract.ContainerStatusExited {
+			ids = append(ids, id)
 		}
-		sort.Strings(ids)
-		for _, id := range ids {
-			if _, err := handler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{
-				ContainerID: id,
-				ForceDelete: true,
-			}); err != nil {
-				return fmt.Errorf("delete terminal %s container %s before persistent-state reconciliation: %w", handler.Name(), id, err)
-			}
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if _, err := h.runscHandler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{
+			ContainerID: id,
+			ForceDelete: true,
+		}); err != nil {
+			return fmt.Errorf("delete terminal runsc container %s before persistent-state reconciliation: %w", id, err)
 		}
 	}
 	return nil
@@ -418,39 +413,18 @@ func (h *sandboxService) cleanupTerminalRuntimeContainers(ctx context.Context, i
 
 func (i runtimeInventory) retained() runtimeInventory {
 	result := make(runtimeInventory, len(i))
-	for runtimeName, states := range i {
-		result[runtimeName] = make(map[string]contract.ContainerStatus)
-		for id, status := range states {
-			if status != contract.ContainerStatusExited {
-				result[runtimeName][id] = status
-			}
+	for id, status := range i {
+		if status != contract.ContainerStatusExited {
+			result[id] = status
 		}
-	}
-	return result
-}
-
-func (i runtimeInventory) forRuntime(runtimeName string) map[string]struct{} {
-	result := make(map[string]struct{}, len(i[runtimeName]))
-	for id := range i[runtimeName] {
-		result[id] = struct{}{}
-	}
-	return result
-}
-
-func (i runtimeInventory) allByRuntime() map[string]map[string]struct{} {
-	result := make(map[string]map[string]struct{}, len(i))
-	for runtimeName := range i {
-		result[runtimeName] = i.forRuntime(runtimeName)
 	}
 	return result
 }
 
 func (i runtimeInventory) allIDs() map[string]struct{} {
-	result := make(map[string]struct{})
-	for _, ids := range i {
-		for id := range ids {
-			result[id] = struct{}{}
-		}
+	result := make(map[string]struct{}, len(i))
+	for id := range i {
+		result[id] = struct{}{}
 	}
 	return result
 }

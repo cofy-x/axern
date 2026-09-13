@@ -54,8 +54,8 @@ func (h *sandboxService) shutdown(ctx context.Context) error {
 	containers := h.containerManager.List()
 	deleteErr := h.deleteAllocationsForShutdown(ctx, containers)
 
-	for _, handler := range h.containerManager.Handlers() {
-		handler.ShutDown()
+	if h.runscHandler != nil {
+		h.runscHandler.ShutDown()
 	}
 
 	h.lrtManager.DrainRetained(ctx, langrtmanager.RetentionReasonShutdown)

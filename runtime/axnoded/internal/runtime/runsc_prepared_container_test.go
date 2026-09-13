@@ -21,7 +21,7 @@ func TestRunscHandlerKillContainerUsesOCIKill(t *testing.T) {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
 
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
@@ -46,7 +46,7 @@ func TestRunscPrepareContainerUsesCreate(t *testing.T) {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
 
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
@@ -55,7 +55,6 @@ func TestRunscPrepareContainerUsesCreate(t *testing.T) {
 	handler.common.SetExecutor(recorder)
 
 	request := newLocalCreateRequest(t)
-	request.Runtime = "runsc"
 	request.Command = []string{"/bin/sh"}
 	prepared, err := handler.PrepareContainer(context.Background(), request, contract.HandlerOptions{ContainerID: "allocation-prepared"})
 	assert.NoError(t, err)
@@ -81,7 +80,7 @@ func TestRunscStartPreparedContainerUsesStart(t *testing.T) {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
 
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
@@ -95,13 +94,10 @@ func TestRunscStartPreparedContainerUsesStart(t *testing.T) {
 
 	meta, err := handler.StartPreparedContainer(context.Background(), &contract.PreparedContainer{
 		ContainerID: "allocation-prepared",
-		Metadata: &apipb.ContainerMetadata{
-			RuntimeHandler: "runsc",
-		},
+		Metadata:    &apipb.ContainerMetadata{},
 	}, contract.HandlerOptions{ContainerID: "allocation-prepared"})
 	assert.NoError(t, err)
 	if assert.NotNil(t, meta) {
-		assert.Equal(t, "runsc", meta.GetRuntimeHandler())
 	}
 
 	deadline := time.Now().Add(time.Second)

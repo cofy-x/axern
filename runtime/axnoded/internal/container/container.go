@@ -116,7 +116,6 @@ func (c *Container) ApiStatus() *runtimeapi.ContainerStatus {
 	return &runtimeapi.ContainerStatus{
 		ID:             c.ID,
 		Command:        c.Spec.Process.Args,
-		Runtime:        c.Metadata.RuntimeHandler,
 		State:          c.Status.Get().State(),
 		StartedAt:      ParseTimestamp(c.Status.Get().StartedAt),
 		FinishedAt:     ParseTimestamp(c.Status.Get().FinishedAt),

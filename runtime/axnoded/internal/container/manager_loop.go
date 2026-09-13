@@ -169,19 +169,19 @@ func (m *Manager) StartMonitor(id string, metaData *apipb.ContainerMetadata) err
 	if m.stopped.Load() {
 		return errors.New("container manager is stopped")
 	}
-	if id == "" || metaData == nil || metaData.GetRuntimeHandler() == "" {
-		return errors.New("container monitor requires an explicit id and runtime metadata")
+	if id == "" || metaData == nil {
+		return errors.New("container monitor requires an explicit id and metadata")
 	}
-	handler, ok := m.serviceHandler.Get(metaData.RuntimeHandler)
-	if !ok {
-		return fmt.Errorf("runtime handler %s for container %s not found", metaData.RuntimeHandler, id)
+	handler := m.runtimeHandler
+	if handler == nil {
+		return fmt.Errorf("runsc handler for container %s is unavailable", id)
 	}
 	container, ok := m.containers.Get(id)
 	if !ok || container == nil || container.Status == nil {
 		return fmt.Errorf("container %s monitor requires a durable status record", id)
 	}
-	if container.ID != id || container.Metadata == nil || container.Metadata.GetRuntimeHandler() != metaData.RuntimeHandler {
-		return fmt.Errorf("container %s monitor metadata does not match its durable runtime ownership", id)
+	if container.ID != id || container.Metadata == nil {
+		return fmt.Errorf("container %s monitor metadata does not match its durable record", id)
 	}
 	if container.Status.Get().State() == apipb.ContainerState_CONTAINER_EXITED {
 		m.stopMonitor(id)

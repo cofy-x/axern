@@ -57,7 +57,7 @@ func TestProcessForwardsStdinSignalAndExit(t *testing.T) {
 		capabilities: contract.RuntimeCapabilities{CanExecDirect: true},
 		execSession:  session,
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	s := newTestService(t, handler)
 	storeRunningExecContainer(t, s, "runsc", "axctl-process")
 
 	stream := &processStreamServerStub{recvEOF: func() { close(inputDone) }, requests: []*runtime.ProcessRequest{
@@ -95,7 +95,7 @@ func TestProcessSendsOutputBeforeExit(t *testing.T) {
 		capabilities: contract.RuntimeCapabilities{CanExecDirect: true},
 		execSession:  session,
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	s := newTestService(t, handler)
 	storeRunningExecContainer(t, s, "runsc", "axctl-process-order")
 
 	stream := &processStreamServerStub{requests: []*runtime.ProcessRequest{

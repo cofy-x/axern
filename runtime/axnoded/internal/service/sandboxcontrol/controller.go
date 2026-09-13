@@ -53,7 +53,6 @@ func (c *Controller) List(_ context.Context, request *runtime.ListContainersRequ
 		status := item.Status.Get()
 		response.Containers = append(response.Containers, &runtime.ContainerStatus{
 			ID:             item.ID,
-			Runtime:        item.Metadata.RuntimeHandler,
 			State:          status.State(),
 			StartedAt:      container.ParseTimestamp(status.StartedAt),
 			FinishedAt:     container.ParseTimestamp(status.FinishedAt),

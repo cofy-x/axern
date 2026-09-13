@@ -11,17 +11,14 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 )
 
 func TestRuntimeConformanceProvidersKeepMemoryAndEphemeralIndependent(t *testing.T) {
 	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementDisabledDev)
-	registry := handlerregistry.New(cfg)
 	handler := runtimetest.NewFakeRuntimeHandler()
 	handler.RuntimeName = config.RuntimeNameRunsc
-	registry.Set(config.RuntimeNameRunsc, handler)
 
 	calls := make(map[runtimeConformanceKind]int)
 	probe := func(_ context.Context, runtimeName string, kind runtimeConformanceKind) error {
@@ -32,7 +29,7 @@ func TestRuntimeConformanceProvidersKeepMemoryAndEphemeralIndependent(t *testing
 		return nil
 	}
 	now := time.Now().UTC()
-	memory := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, probe)
+	memory := runtimeConformanceCapabilityProvider(cfg, handler, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, probe)
 	memoryObservations, err := memory.Observe(context.Background(), now)
 	if err != nil {
 		t.Fatalf("memory Observe() error = %v", err)
@@ -47,7 +44,7 @@ func TestRuntimeConformanceProvidersKeepMemoryAndEphemeralIndependent(t *testing
 		t.Fatalf("disabled memory probe calls = %d, want 0", calls[runtimeConformanceKindMemory])
 	}
 
-	ephemeral := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindEphemeral, testCapabilityBootID, probe)
+	ephemeral := runtimeConformanceCapabilityProvider(cfg, handler, config.RuntimeNameRunsc, runtimeConformanceKindEphemeral, testCapabilityBootID, probe)
 	ephemeralObservations, err := ephemeral.Observe(context.Background(), now)
 	if err != nil {
 		t.Fatalf("ephemeral Observe() error = %v", err)
@@ -62,12 +59,10 @@ func TestRuntimeConformanceProvidersKeepMemoryAndEphemeralIndependent(t *testing
 
 func TestRuntimeConformanceIdentityChangeInvalidatesBeforeExpensiveReprobe(t *testing.T) {
 	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
-	registry := handlerregistry.New(cfg)
 	handler := runtimetest.NewFakeRuntimeHandler()
 	handler.RuntimeName = config.RuntimeNameRunsc
-	registry.Set(config.RuntimeNameRunsc, handler)
 	probeCalls := 0
-	provider := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, func(context.Context, string, runtimeConformanceKind) error {
+	provider := runtimeConformanceCapabilityProvider(cfg, handler, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, func(context.Context, string, runtimeConformanceKind) error {
 		probeCalls++
 		return nil
 	})
@@ -106,11 +101,9 @@ func TestRuntimeConformanceIdentityChangeInvalidatesBeforeExpensiveReprobe(t *te
 
 func TestRuntimeConformanceObservationUsesProbeCompletionTime(t *testing.T) {
 	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
-	registry := handlerregistry.New(cfg)
 	handler := runtimetest.NewFakeRuntimeHandler()
 	handler.RuntimeName = config.RuntimeNameRunsc
-	registry.Set(config.RuntimeNameRunsc, handler)
-	provider := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, func(context.Context, string, runtimeConformanceKind) error {
+	provider := runtimeConformanceCapabilityProvider(cfg, handler, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, func(context.Context, string, runtimeConformanceKind) error {
 		time.Sleep(10 * time.Millisecond)
 		return nil
 	})
@@ -126,12 +119,10 @@ func TestRuntimeConformanceObservationUsesProbeCompletionTime(t *testing.T) {
 
 func TestRuntimeConformanceDoesNotPeriodicallyRepeatDestructiveProbe(t *testing.T) {
 	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
-	registry := handlerregistry.New(cfg)
 	handler := runtimetest.NewFakeRuntimeHandler()
 	handler.RuntimeName = config.RuntimeNameRunsc
-	registry.Set(config.RuntimeNameRunsc, handler)
 	probeCalls := 0
-	provider := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, func(context.Context, string, runtimeConformanceKind) error {
+	provider := runtimeConformanceCapabilityProvider(cfg, handler, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, func(context.Context, string, runtimeConformanceKind) error {
 		probeCalls++
 		return nil
 	})
@@ -152,16 +143,14 @@ func TestRuntimeConformanceDoesNotPeriodicallyRepeatDestructiveProbe(t *testing.
 
 func TestFailedRuntimeConformanceRemainsLatchedUntilRestart(t *testing.T) {
 	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
-	registry := handlerregistry.New(cfg)
 	handler := runtimetest.NewFakeRuntimeHandler()
 	handler.RuntimeName = config.RuntimeNameRunsc
-	registry.Set(config.RuntimeNameRunsc, handler)
 	calls := 0
 	probe := func(context.Context, string, runtimeConformanceKind) error {
 		calls++
 		return errors.New("certification failed")
 	}
-	p := runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, probe)
+	p := runtimeConformanceCapabilityProvider(cfg, handler, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, probe)
 	now := time.Now()
 	for _, delay := range []time.Duration{0, time.Minute, time.Hour, 24 * time.Hour} {
 		observations, err := p.Observe(context.Background(), now.Add(delay))
@@ -172,7 +161,7 @@ func TestFailedRuntimeConformanceRemainsLatchedUntilRestart(t *testing.T) {
 	if calls != 1 {
 		t.Fatalf("destructive calls = %d, want 1", calls)
 	}
-	p = runtimeConformanceCapabilityProvider(cfg, registry, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, probe)
+	p = runtimeConformanceCapabilityProvider(cfg, handler, config.RuntimeNameRunsc, runtimeConformanceKindMemory, testCapabilityBootID, probe)
 	_, _ = p.Observe(context.Background(), now)
 	if calls != 2 {
 		t.Fatalf("restart did not recertify: %d", calls)
@@ -202,7 +191,7 @@ func TestRuntimeConformanceStartRequestsIsolateEnforcementBoundaries(t *testing.
 	if config.RuntimeConformanceMemoryMaxBytes <= runtimeConformanceMemoryLimit {
 		t.Fatalf("aggregate conformance ceiling %d must exceed workload limit %d", config.RuntimeConformanceMemoryMaxBytes, runtimeConformanceMemoryLimit)
 	}
-	memory, err := runtimeConformanceStartRequest("memory-allocation", "memory-runtime", config.RuntimeNameRunsc, "/rootfs", runtimeConformanceKindMemory)
+	memory, err := runtimeConformanceStartRequest("memory-allocation", "memory-runtime", "/rootfs", runtimeConformanceKindMemory)
 	if err != nil {
 		t.Fatalf("memory request error = %v", err)
 	}
@@ -213,7 +202,7 @@ func TestRuntimeConformanceStartRequestsIsolateEnforcementBoundaries(t *testing.
 		t.Fatalf("memory limits = %+v", memory.GetResources().GetLimits())
 	}
 
-	ephemeral, err := runtimeConformanceStartRequest("storage-allocation", "storage-runtime", config.RuntimeNameRunsc, "/rootfs", runtimeConformanceKindEphemeral)
+	ephemeral, err := runtimeConformanceStartRequest("storage-allocation", "storage-runtime", "/rootfs", runtimeConformanceKindEphemeral)
 	if err != nil {
 		t.Fatalf("ephemeral request error = %v", err)
 	}

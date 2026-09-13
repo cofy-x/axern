@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
@@ -23,7 +22,6 @@ func newLocalCreateRequest(t *testing.T) *apipb.CreateContainerRequest {
 	immutable := facts.ImmutableMountDescriptor("")
 
 	return &apipb.CreateContainerRequest{
-		Runtime: config.RuntimeNameRunsc,
 		Rootfs: &apipb.Rootfs{
 			Type:     "local",
 			RootDir:  rootfs,

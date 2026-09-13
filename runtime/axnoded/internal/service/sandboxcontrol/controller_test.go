@@ -57,8 +57,7 @@ func testContainer(id string, labels map[string]string) *container.Container {
 	return &container.Container{
 		ID: id,
 		Metadata: &runtime.ContainerMetadata{
-			RuntimeHandler: "runsc",
-			Labels:         labels,
+			Labels: labels,
 		},
 		Status: fixedStatus{status: container.Status{
 			StartedAt:     time.Now().Format(time.RFC3339Nano),

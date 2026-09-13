@@ -25,14 +25,14 @@ func TestStartAllocationReservesMemoryBeforeImageOrRootfsSideEffects(t *testing.
 	}
 	fixture := newTestAllocationControllerWithResources(
 		t,
-		map[string]contract.RuntimeHandler{"runsc": handler},
+		handler,
 		nil,
 		newRejectingTestResourceManager(resourcemanager.CgroupResourceName),
 	)
 	request := &runtimeapi.StartRequest{
 		ContainerID: "alloc-rejected-before-side-effects",
 		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
-			ID: "runtime-rejected", Sandbox: "runsc",
+			ID:     "runtime-rejected",
 			Rootfs: &runtimeapi.RootfsConfig{Type: runtimeapi.RootfsSrcType_LOCAL, Source: &runtimeapi.RootfsConfig_Path{Path: t.TempDir()}},
 		},
 		Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{MemoryBytes: 256 << 20}},
@@ -64,13 +64,12 @@ func TestStartAllocationPreservesFastExitStatus(t *testing.T) {
 		}},
 		listHook: func() { close(releaseExit) },
 	}
-	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	fixture := newTestAllocationController(t, handler)
 
 	response, err := fixture.controller.startAllocation(context.Background(), &runtimeapi.StartRequest{
 		ContainerID: containerID,
 		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
-			ID:      "runtime-fast-exit",
-			Sandbox: "runsc",
+			ID: "runtime-fast-exit",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,
 				Source: &runtimeapi.RootfsConfig_Path{Path: t.TempDir()},
@@ -115,12 +114,11 @@ func TestStartAllocationSerializesDuplicateAllocationStarts(t *testing.T) {
 			<-releaseCreate
 		})
 	}
-	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	fixture := newTestAllocationController(t, handler)
 	request := &runtimeapi.StartRequest{
 		ContainerID: "alloc-duplicate-start",
 		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
-			ID:      "runtime-duplicate-start",
-			Sandbox: "runsc",
+			ID: "runtime-duplicate-start",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,
 				Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDir},

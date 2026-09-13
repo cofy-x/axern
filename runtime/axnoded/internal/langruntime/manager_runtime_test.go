@@ -170,8 +170,7 @@ func TestAddLangRuntime_ImageCacheKeyDriftSupersedesActiveRuntime(t *testing.T) 
 	}
 	lm := NewLanguageRuntimeManager(mock)
 	fr := &api.RuntimeTemplate{
-		ID:      "agent",
-		Sandbox: "runsc",
+		ID: "agent",
 		Rootfs: &api.RootfsConfig{
 			Type:   api.RootfsSrcType_IMAGE,
 			Source: &api.RootfsConfig_ImageUrl{ImageUrl: "example.local/agent:dev"},
@@ -216,8 +215,7 @@ func TestFindReusableLangRuntimeRequiresResolvedImageGeneration(t *testing.T) {
 		},
 	})
 	fr := &api.RuntimeTemplate{
-		ID:      "agent",
-		Sandbox: "runsc",
+		ID: "agent",
 		Rootfs: &api.RootfsConfig{
 			Type:   api.RootfsSrcType_IMAGE,
 			Source: &api.RootfsConfig_ImageUrl{ImageUrl: "example.local/agent:dev"},

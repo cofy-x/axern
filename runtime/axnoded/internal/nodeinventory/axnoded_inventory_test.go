@@ -29,8 +29,7 @@ func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
 	manager := langruntime.NewLanguageRuntimeManager()
 	manager.ConfigureRetention(time.Minute, 1)
 	fr := &runtimeapi.RuntimeTemplate{
-		ID:      "inventory-retained",
-		Sandbox: "runsc",
+		ID: "inventory-retained",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
 			Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDir},

@@ -92,7 +92,6 @@ func (lm *LangRTManager) AddLangRuntime(ctx context.Context, fr *api.RuntimeTemp
 		Cwd:              fr.Cwd,
 		Mounts:           cloneMounts(fr.Mounts),
 		ExecutionProfile: cloneRuntimeExecutionProfile(fr.ExecutionProfile),
-		Sandbox:          fr.Sandbox,
 		Readonly:         fr.Rootfs.Readonly,
 		RootFS:           rootfs,
 		temporary:        temporary,

@@ -76,9 +76,14 @@ func (h *sandboxService) initNodeInventory() error {
 	}
 	hostname, _ := os.Hostname()
 	h.nodeInventorySource = nodeinventory.NewAxnodedSource(nodeinventory.AxnodedSourceOptions{
-		NodeID:                   h.config.PluginConfig.ControlPlaneNodeIDValue(hostname),
-		Ready:                    h.Ready,
-		RuntimeCount:             h.runtimeHandlers.Count,
+		NodeID: h.config.PluginConfig.ControlPlaneNodeIDValue(hostname),
+		Ready:  h.Ready,
+		RuntimeCount: func() int {
+			if h.runscHandler == nil {
+				return 0
+			}
+			return 1
+		},
 		Container:                h.containerManager,
 		LangRuntime:              h.lrtManager,
 		ImageManager:             nodeinventory.NewImageManagerClient(imageManagerEnabled, imageManagerSocket),

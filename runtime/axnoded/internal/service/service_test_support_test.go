@@ -9,23 +9,23 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	"github.com/stretchr/testify/assert"
 )
 
 // newTestService creates a sandboxService with a real container.Manager backed by a temp dir.
-func newTestService(t *testing.T, handlers map[string]contract.RuntimeHandler) *sandboxService {
+func newTestService(t *testing.T, runscHandler contract.RuntimeHandler) *sandboxService {
 	lrtManager := langrtmanager.NewLanguageRuntimeManager()
 	retentionTTL, err := time.ParseDuration(config.DefaultIdleRuntimeRetentionTTL)
 	if !assert.NoError(t, err) {
 		t.FailNow()
 	}
 	lrtManager.ConfigureRetention(retentionTTL, config.DefaultIdleRuntimeRetentionMax)
-	return newTestServiceWithLanguageRuntimeManager(t, handlers, lrtManager)
+	return newTestServiceWithLanguageRuntimeManager(t, runscHandler, lrtManager)
 }
 
-func newTestServiceWithLanguageRuntimeManager(t *testing.T, handlers map[string]contract.RuntimeHandler, lrtManager *langrtmanager.LangRTManager) *sandboxService {
+func newTestServiceWithLanguageRuntimeManager(t *testing.T, runscHandler contract.RuntimeHandler, lrtManager *langrtmanager.LangRTManager) *sandboxService {
 	t.Helper()
 	if lrtManager == nil {
 		t.Fatal("language runtime manager is required")
@@ -33,18 +33,14 @@ func newTestServiceWithLanguageRuntimeManager(t *testing.T, handlers map[string]
 
 	tmpDir := t.TempDir()
 
-	registry := handlerregistry.New(config.Config{
-		PluginConfig: config.PluginConfig{
-			RuntimeConfig: config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/fake/runsc"}},
-		},
-	})
-	for name, h := range handlers {
-		registry.Set(name, h)
+	managerHandler := runscHandler
+	if managerHandler == nil {
+		managerHandler = runtimetest.NewFakeRuntimeHandler()
 	}
 
 	healthChan := make(chan bool, 10)
 
-	cm, err := container.NewManager(tmpDir, registry.Map(), healthChan, newTestResourceManagers()...)
+	cm, err := container.NewManager(tmpDir, managerHandler, healthChan, newTestResourceManagers()...)
 	if !assert.NoError(t, err) {
 		t.FailNow()
 	}
@@ -61,7 +57,7 @@ func newTestServiceWithLanguageRuntimeManager(t *testing.T, handlers map[string]
 				RuntimeConfig: config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/fake/runsc"}},
 			},
 		},
-		runtimeHandlers:  registry,
+		runscHandler:     runscHandler,
 		containerManager: cm,
 		store:            storetest.NewMockStore(),
 		lrtManager:       lrtManager,

@@ -8,7 +8,6 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
@@ -17,14 +16,12 @@ import (
 
 func TestKill(t *testing.T) {
 	handler := &runtimeSpyHandler{name: "runsc"}
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": handler,
-	})
+	s := newTestService(t,
+		handler,
+	)
 
 	containerID := "axctl-test-kill"
-	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		RuntimeHandler: "runsc",
-	})
+	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
 	time.Sleep(200 * time.Millisecond)
 
 	resp, err := s.Kill(context.Background(), &runtime.KillRequest{
@@ -43,14 +40,12 @@ func TestKill(t *testing.T) {
 
 func TestKillRejectsExitedContainer(t *testing.T) {
 	handler := &runtimeSpyHandler{name: "runsc"}
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": handler,
-	})
+	s := newTestService(t,
+		handler,
+	)
 
 	containerID := "axctl-test-kill-exited"
-	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		RuntimeHandler: "runsc",
-	})
+	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
 	time.Sleep(200 * time.Millisecond)
 
 	c, err := s.containerManager.Get(containerID)
@@ -71,9 +66,9 @@ func TestKillRejectsExitedContainer(t *testing.T) {
 }
 
 func TestCheckpoint_ContainerNotFound(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	s := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 
 	resp, err := s.Checkpoint(context.Background(), &runtime.CheckpointRequest{
 		ID:      "axctl-nonexistent",

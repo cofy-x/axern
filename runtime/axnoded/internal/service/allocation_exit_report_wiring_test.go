@@ -7,12 +7,11 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	controlplane "github.com/cofy-x/axern/runtime/axnoded/internal/controlplane"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
 	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
 type fakeAllocationLifecycleReporter struct {
@@ -73,7 +72,7 @@ func TestConfigureAllocationControllerKeepsSingleAdmissionAuthority(t *testing.T
 
 func TestContainerExitObserverReportsAllocationLifecycleState(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := container.NewManager(tmpDir, cmap.New[contract.RuntimeHandler](), make(chan bool, 1))
+	manager, err := container.NewManager(tmpDir, runtimetest.NewFakeRuntimeHandler(), make(chan bool, 1))
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
@@ -112,7 +111,7 @@ func TestContainerExitObserverReportsAllocationLifecycleState(t *testing.T) {
 
 func TestTerminalCheckpointSeedsDurableOutboxBeforeContainerCleanup(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := container.NewManager(tmpDir, cmap.New[contract.RuntimeHandler](), make(chan bool, 1))
+	manager, err := container.NewManager(tmpDir, runtimetest.NewFakeRuntimeHandler(), make(chan bool, 1))
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}

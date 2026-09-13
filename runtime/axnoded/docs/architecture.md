@@ -36,7 +36,7 @@ Layer ownership:
 - `internal/app` wires config, dependencies, servers, and lifecycle startup.
 - `internal/api` maps gRPC/HTTP requests to service interfaces.
 - `internal/service` owns API-facing orchestration and delegates to focused subdomains.
-- `internal/runtime` owns OCI runtime handlers, bundle creation, runtime state, and host-side sandboxd clients.
+- `internal/runtime` owns the single runsc executor, bundle creation, runtime state, and host-side sandboxd clients. Its interface is a narrow execution/test boundary, not a plugin registry or Allocation-selectable backend.
 - `internal/sandboxd` is the sandbox-local daemon implementation.
 - `internal/langruntime`, `internal/egress`, `internal/resources`, and `internal/container` own rootfs/image coordination, egress enforcement, cgroup/network resources, and persisted container state.
 - `internal/nodestate` owns the process-wide BoltDB handle and low-level record transactions. Allocation orchestration owns the schema and keeps runtime template identity plus image/workspace ownership in one record per allocation.
@@ -57,7 +57,7 @@ The globally unique Allocation ID is the only execution identity. There is no Al
 | Cgroup ledger | Resource ownership, admission commitment, `RETIRING` cleanup debt, and boot/mount/inode fencing; required across restart | Re-read kernel state and retain conservative charges until the exact fenced cgroup is clean |
 | Egressd policy record | Complete normalized policy and sandbox IP for one Allocation; required across restart | Rebuild nftables/DNS/L7 projections from this record, then delete records whose durable Allocation execution is absent |
 | Terminal lifecycle outbox | First immutable terminal observation awaiting controld acknowledgement; required only until acknowledgement | Seed it from a terminal runtime checkpoint only for an exact control-plane binding; retry exact observation and delete by compare-and-swap after acknowledgement |
-| Node inventory, locality, sandboxd diagnostics, runtime and kernel observations | Rebuildable projections, never admission facts | Recompute after all runtime handlers and durable owners have recovered; do not persist another cache |
+| Node inventory, locality, sandboxd diagnostics, runtime and kernel observations | Rebuildable projections, never admission facts | Recompute after the runsc executor and durable owners have recovered; do not persist another cache |
 
 The immutable launch-verification fields and cgroup ledger deliberately have different ownership even where observations overlap: the former records what the runtime verified at creation and is never rewritten; the latter is the mutable resource/retirement authority. The terminal outbox is likewise not a lifecycle database—it exists only because runtime cleanup may remove the terminal checkpoint before the control-plane RPC is acknowledged.
 
@@ -113,7 +113,7 @@ Create invariants:
 - Immutable requirements, enforcement manifest, launch verification, and the latest pending Node observation sequence share the Allocation record. Per-Allocation mutation serialization prevents concurrent updates from reverting newer intent. Capability fail-stop termination has one durable node-local owner.
 - Reconcile acknowledgement failures retain pending work for retry. Event-triggered reconciliation plus the bounded sharded audit covers both `DEGRADE` and `FAIL_STOP`; each pass rebuilds one complete condition projection. There is no control-plane capability reconcile queue.
 - Recovery scans records independently, removes records with no live container, and suppresses destructive image-lease reconciliation whenever any live allocation cannot be reconstructed completely. Incomplete live recovery fails node startup instead of advertising a partially recovered runtime.
-- Persistent-state recovery starts only after every configured runtime handler has loaded. Transient host cleanup, filestore, or runtime-state contention keeps the process NotReady and retries with bounded exponential backoff until the process context is canceled; there is no timeout path that exposes a partial handler registry.
+- Persistent-state recovery starts only after the configured runsc executor has loaded. Transient host cleanup, filestore, or runtime-state contention keeps the process NotReady and retries with bounded exponential backoff until the process context is canceled; there is no partial execution stack.
 - Sandboxd readiness and baseline capabilities fail closed for normal sandboxd-backed OCI workloads, except for the documented short-lived clean runtime exit before readiness.
 
 ## Sandbox Operation Flow

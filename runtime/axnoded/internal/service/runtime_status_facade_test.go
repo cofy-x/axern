@@ -4,19 +4,17 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestVersion(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	s := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 
 	resp, err := s.Version(context.Background(), &runtime.VersionRequest{Version: "0.0.1"})
 	assert.NoError(t, err)
@@ -25,7 +23,7 @@ func TestVersion(t *testing.T) {
 }
 
 func TestVersion_NoRunsc(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{})
+	s := newTestService(t, nil)
 
 	resp, err := s.Version(context.Background(), &runtime.VersionRequest{Version: "0.0.1"})
 	assert.NoError(t, err)
@@ -34,8 +32,8 @@ func TestVersion_NoRunsc(t *testing.T) {
 }
 
 func TestRuntimeStatuses(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": &runtimeSpyHandler{
+	s := newTestService(t,
+		&runtimeSpyHandler{
 			name: "runsc",
 			capabilities: contract.RuntimeCapabilities{
 				CanCheckpoint: true,
@@ -46,7 +44,7 @@ func TestRuntimeStatuses(t *testing.T) {
 				},
 			},
 		},
-	})
+	)
 	statuses := s.RuntimeStatuses()
 	assert.Len(t, statuses, 1)
 	assert.Equal(t, "runsc", statuses[0].Name)
@@ -56,78 +54,11 @@ func TestRuntimeStatuses(t *testing.T) {
 }
 
 func TestVersionReportsRunsc(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	s := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 
 	resp, err := s.Version(context.Background(), &runtime.VersionRequest{})
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Runsc)
-}
-
-func TestCheckRuntime(t *testing.T) {
-	tests := []struct {
-		name           string
-		requestRuntime string
-		options        []runtimeStatusFacadeServiceOption
-		wantErr        bool
-	}{
-		{
-			name:           "runtime not configured",
-			requestRuntime: "nonexistent",
-			options: []runtimeStatusFacadeServiceOption{
-				setRuntimeConfig(config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}}),
-			},
-			wantErr: true,
-		},
-		{
-			name:           "runtime handler missing",
-			requestRuntime: "runsc",
-			options: []runtimeStatusFacadeServiceOption{
-				setRuntimeConfig(config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}}),
-			},
-			wantErr: true,
-		},
-		{
-			name:           "runtime handler configured",
-			requestRuntime: "runsc",
-			options: []runtimeStatusFacadeServiceOption{
-				setRuntimeConfig(config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}}),
-				addRuntimeHandler("runsc", runtimetest.NewFakeRuntimeHandler()),
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := buildRuntimeStatusFacadeService(tt.options...)
-			err := s.checkRuntime(tt.requestRuntime)
-			assert.Equal(t, tt.wantErr, err != nil)
-		})
-	}
-}
-
-type runtimeStatusFacadeServiceOption func(*sandboxService)
-
-func buildRuntimeStatusFacadeService(options ...runtimeStatusFacadeServiceOption) *sandboxService {
-	s := &sandboxService{
-		config:          config.Config{},
-		runtimeHandlers: handlerregistry.New(config.Config{}),
-	}
-	for _, option := range options {
-		option(s)
-	}
-	return s
-}
-
-func setRuntimeConfig(runtimeConfig config.RuntimeConfig) runtimeStatusFacadeServiceOption {
-	return func(service *sandboxService) {
-		service.config.PluginConfig.RuntimeConfig = runtimeConfig
-	}
-}
-
-func addRuntimeHandler(runtimeName string, handler contract.RuntimeHandler) runtimeStatusFacadeServiceOption {
-	return func(service *sandboxService) {
-		service.runtimeHandlers.Set(runtimeName, handler)
-	}
 }

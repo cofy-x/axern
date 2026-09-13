@@ -103,7 +103,7 @@ Useful symptoms:
 
 ## Runtime
 
-`[plugin.runtime]` controls rootfs resolution, OCI runtime handlers, DNS materialization and warm idle runtime retention.
+`[plugin.runtime]` controls rootfs resolution, the runsc executor, DNS materialization and warm idle runtime retention.
 
 | Key | Meaning | Notes |
 | --- | --- | --- |
@@ -136,11 +136,11 @@ Runtime retention is keyed by the static execution template, so namespace, Envir
 
 Use explicit DNS values on production nodes that require VPC, cluster, or corporate resolvers. For local development, deriving from the node is usually less brittle.
 
-### Runtime Handlers
+### Runsc Executor
 
-The default, sample, packaged, and devbox configurations use gVisor (`runsc`) as the single execution implementation. Runtime selection is not part of the product contract.
+The default, sample, packaged, and devbox configurations use gVisor (`runsc`) as the single execution implementation. Runtime selection is not part of the product or node-local protocol contract, and axnoded does not maintain a backend registry.
 
-`[plugin.runtime.runsc]` declares the single OCI execution implementation. It is the source for the runsc binary, base spec, and options. Configuration decoding rejects unknown keys and never ignores misspelled settings. Axnoded must load this runtime before persistent container inventory is reconciled or the node can become ready. A transient runtime-state or filestore conflict is retried until startup is canceled; axnoded never starts with a partial execution stack.
+`[plugin.runtime.runsc]` declares the process-owned OCI execution implementation. It is the source for the runsc binary, base spec, and options. Configuration decoding rejects unknown keys and never ignores misspelled settings. Axnoded must load runsc before persistent container inventory is reconciled or the node can become ready. A transient runtime-state or filestore conflict is retried until startup is canceled; axnoded never starts with a partial execution stack.
 
 | Key                            | Meaning                                              |
 | ------------------------------ | ---------------------------------------------------- |

@@ -7,7 +7,6 @@ import (
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	"github.com/stretchr/testify/assert"
@@ -18,12 +17,9 @@ func TestResolverRunningTarget(t *testing.T) {
 	handler := runtimetest.NewFakeRuntimeHandler()
 	resolver := NewResolver(Options{
 		GetContainer: func(id string) (*container.Container, error) {
-			return testContainer(id, "runsc", container.Status{StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
+			return testContainer(id, container.Status{StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
 		},
-		RuntimeHandler: func(runtimeName string) (contract.RuntimeHandler, error) {
-			require.Equal(t, "runsc", runtimeName)
-			return handler, nil
-		},
+		RunscHandler: handler,
 	})
 
 	target, err := resolver.Running("alloc-1")
@@ -39,9 +35,7 @@ func TestResolverRejectsInvalidContainer(t *testing.T) {
 		GetContainer: func(string) (*container.Container, error) {
 			return &container.Container{}, nil
 		},
-		RuntimeHandler: func(string) (contract.RuntimeHandler, error) {
-			return runtimetest.NewFakeRuntimeHandler(), nil
-		},
+		RunscHandler: runtimetest.NewFakeRuntimeHandler(),
 	})
 
 	_, err := resolver.Container("alloc-1")
@@ -52,11 +46,9 @@ func TestResolverRejectsInvalidContainer(t *testing.T) {
 func TestResolverRejectsStoppedContainer(t *testing.T) {
 	resolver := NewResolver(Options{
 		GetContainer: func(id string) (*container.Container, error) {
-			return testContainer(id, "runsc", container.Status{StartedAt: "0"}), nil
+			return testContainer(id, container.Status{StartedAt: "0"}), nil
 		},
-		RuntimeHandler: func(string) (contract.RuntimeHandler, error) {
-			return runtimetest.NewFakeRuntimeHandler(), nil
-		},
+		RunscHandler: runtimetest.NewFakeRuntimeHandler(),
 	})
 
 	_, err := resolver.Running("alloc-1")
@@ -67,10 +59,7 @@ func TestResolverRejectsStoppedContainer(t *testing.T) {
 func TestResolverRejectsNilRuntimeHandler(t *testing.T) {
 	resolver := NewResolver(Options{
 		GetContainer: func(id string) (*container.Container, error) {
-			return testContainer(id, "runsc", container.Status{StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
-		},
-		RuntimeHandler: func(string) (contract.RuntimeHandler, error) {
-			return nil, nil
+			return testContainer(id, container.Status{StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
 		},
 	})
 
@@ -82,13 +71,13 @@ func TestResolverRejectsNilRuntimeHandler(t *testing.T) {
 func TestResolverExecDirectCapability(t *testing.T) {
 	resolver := NewResolver(Options{
 		GetContainer: func(id string) (*container.Container, error) {
-			return testContainer(id, "runsc", container.Status{StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
+			return testContainer(id, container.Status{StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
 		},
-		RuntimeHandler: func(string) (contract.RuntimeHandler, error) {
+		RunscHandler: func() *runtimetest.FakeRuntimeHandler {
 			handler := runtimetest.NewFakeRuntimeHandler()
 			handler.RuntimeCapabilities.CanExecDirect = false
-			return handler, nil
-		},
+			return handler
+		}(),
 	})
 
 	_, err := resolver.ExecDirect("alloc-1")
@@ -102,9 +91,7 @@ func TestResolverPropagatesLookupErrors(t *testing.T) {
 		GetContainer: func(string) (*container.Container, error) {
 			return nil, lookupErr
 		},
-		RuntimeHandler: func(string) (contract.RuntimeHandler, error) {
-			return runtimetest.NewFakeRuntimeHandler(), nil
-		},
+		RunscHandler: runtimetest.NewFakeRuntimeHandler(),
 	})
 
 	_, err := resolver.Container("alloc-1")
@@ -112,11 +99,10 @@ func TestResolverPropagatesLookupErrors(t *testing.T) {
 	assert.ErrorIs(t, err, lookupErr)
 }
 
-func testContainer(id string, runtimeName string, status container.Status) *container.Container {
+func testContainer(id string, status container.Status) *container.Container {
 	return &container.Container{
 		Metadata: &runtime.ContainerMetadata{
-			RuntimeHandler: runtimeName,
-			Labels:         map[string]string{"ready": "true"},
+			Labels: map[string]string{"ready": "true"},
 		},
 		Status: fixedStatus{status: status},
 	}

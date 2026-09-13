@@ -2,7 +2,6 @@ package allocation
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -12,7 +11,7 @@ import (
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	"google.golang.org/protobuf/proto"
@@ -31,16 +30,16 @@ type testAllocationController struct {
 	lrtManager *langrtmanager.LangRTManager
 }
 
-func newTestAllocationController(t *testing.T, handlers map[string]contract.RuntimeHandler) testAllocationController {
+func newTestAllocationController(t *testing.T, runscHandler contract.RuntimeHandler) testAllocationController {
 	t.Helper()
-	return newTestAllocationControllerWithStore(t, handlers, storetest.NewMockStore())
+	return newTestAllocationControllerWithStore(t, runscHandler, storetest.NewMockStore())
 }
 
-func newTestAllocationControllerWithStore(t *testing.T, handlers map[string]contract.RuntimeHandler, dbStore testStateStore) testAllocationController {
-	return newTestAllocationControllerWithResources(t, handlers, dbStore, newTestResourceManagers()...)
+func newTestAllocationControllerWithStore(t *testing.T, runscHandler contract.RuntimeHandler, dbStore testStateStore) testAllocationController {
+	return newTestAllocationControllerWithResources(t, runscHandler, dbStore, newTestResourceManagers()...)
 }
 
-func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]contract.RuntimeHandler, dbStore testStateStore, managers ...resourcemanager.Manager) testAllocationController {
+func newTestAllocationControllerWithResources(t *testing.T, runscHandler contract.RuntimeHandler, dbStore testStateStore, managers ...resourcemanager.Manager) testAllocationController {
 	t.Helper()
 
 	if dbStore == nil {
@@ -53,11 +52,10 @@ func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]
 			RuntimeConfig: config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/fake/runsc"}},
 		},
 	}
-	registry := handlerregistry.New(cfg)
-	for name, h := range handlers {
-		registry.Set(name, h)
+	if runscHandler == nil {
+		runscHandler = runtimetest.NewFakeRuntimeHandler()
 	}
-	manager, err := container.NewManager(tmpDir, registry.Map(), make(chan bool, 10), managers...)
+	manager, err := container.NewManager(tmpDir, runscHandler, make(chan bool, 10), managers...)
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
@@ -86,14 +84,9 @@ func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]
 		ContainerManager: func() *container.Manager {
 			return manager
 		},
-		RuntimeHandler: func(name string) (contract.RuntimeHandler, error) {
-			if handler, ok := handlers[name]; ok {
-				return handler, nil
-			}
-			return nil, fmt.Errorf("runtime %s is not supported", name)
-		},
-		LangRuntime: lrtManager,
-		Networking:  networking,
+		RunscHandler: runscHandler,
+		LangRuntime:  lrtManager,
+		Networking:   networking,
 		PreActivationCapabilityGate: func(context.Context, *runtime.StartRequest, contract.AllocationRuntimeHandler, string) error {
 			return nil
 		},

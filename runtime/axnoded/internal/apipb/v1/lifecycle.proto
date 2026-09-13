@@ -92,20 +92,19 @@ enum ContainerState {
 message ContainerStatus {
   string ID = 1;
   repeated string command = 2;
-  string runtime = 3;
-  ContainerState state = 4;
-  int64 started_at = 5;
-  int64 finished_at = 6;
-  int32 exit_code = 7;
-  string message = 8;
-  map<string, string> labels = 9;
-  repeated Mount mounts = 10;
-  repeated KeyValue envs = 11;
-  string stdout = 12;
-  string stderr = 13;
-  LinuxContainerResources linux_resources = 14;
-  int32 pid = 15;
-  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 16;
+  ContainerState state = 3;
+  int64 started_at = 4;
+  int64 finished_at = 5;
+  int32 exit_code = 6;
+  string message = 7;
+  map<string, string> labels = 8;
+  repeated Mount mounts = 9;
+  repeated KeyValue envs = 10;
+  string stdout = 11;
+  string stderr = 12;
+  LinuxContainerResources linux_resources = 13;
+  int32 pid = 14;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 15;
 }
 
 message VersionRequest {

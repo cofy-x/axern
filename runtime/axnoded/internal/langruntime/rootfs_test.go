@@ -158,8 +158,7 @@ func TestDefaultMounterDelegatesRemoteSources(t *testing.T) {
 	lm := NewLanguageRuntimeManager(&defaultMounter{client: client})
 
 	imgRuntime, err := addTestLangRuntime(lm, &api.RuntimeTemplate{
-		ID:      "img-runtime",
-		Sandbox: "runsc",
+		ID: "img-runtime",
 		Rootfs: &api.RootfsConfig{
 			Type: api.RootfsSrcType_IMAGE,
 			Source: &api.RootfsConfig_ImageUrl{

@@ -10,15 +10,14 @@ import (
 
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRunReturnsWithoutBlocking(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	s := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
@@ -39,9 +38,9 @@ func TestRunReturnsWithoutBlocking(t *testing.T) {
 }
 
 func TestRunMarksServiceReadyAfterInitialHousekeeping(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	s := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 	s.ready.Store(false)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -59,16 +58,15 @@ func TestShutdownDrainsRetainedRuntimes(t *testing.T) {
 		t.Skip("requires linux resource manager setup")
 	}
 
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
+	s := newTestService(t,
+		runtimetest.NewFakeRuntimeHandler(),
+	)
 
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	require.NoError(t, os.MkdirAll(rootfsDir, 0o755))
 
 	fr := &runtimeapi.RuntimeTemplate{
-		ID:      "retained-on-close",
-		Sandbox: "runsc",
+		ID: "retained-on-close",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
 			Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDir},

@@ -36,7 +36,7 @@ func TestRunscCreateContainerRecordsStartupPhases(t *testing.T) {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
 
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{
 		Binary: writeFakeOCIRuntimeBinary(t, rootDir, "runsc"),
 	}, loader)
 	if err != nil {
