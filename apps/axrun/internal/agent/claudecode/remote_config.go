@@ -37,8 +37,8 @@ func claudeCodeConfigSnippets(profile Profile) (configSnippets, error) {
 
 func claudeCodeSettingsEnv(profile Profile) map[string]string {
 	env := map[string]string{
-		"ANTHROPIC_BASE_URL":                       "${AXERN_MANAGED_PROXY_BASE_URL}",
-		"ANTHROPIC_API_KEY":                        "${AXERN_MANAGED_PROXY_TOKEN}",
+		"ANTHROPIC_BASE_URL":                       profile.Upstream.String(),
+		"ANTHROPIC_API_KEY":                        "${ANTHROPIC_API_KEY}",
 		"CLAUDE_CODE_SIMPLE":                       "1",
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
 	}
@@ -59,8 +59,6 @@ func claudeCodeSettingsEnv(profile Profile) map[string]string {
 
 func remoteConfigScript(snippets configSnippets) string {
 	return fmt.Sprintf(`set -eu
-: "${AXERN_MANAGED_PROXY_BASE_URL:?}"
-: "${AXERN_MANAGED_PROXY_TOKEN:?}"
 mkdir -p "${HOME}/.claude"
 stamp="$(date +%%Y%%m%%d%%H%%M%%S)"
 if [ -f "${HOME}/.claude/settings.json" ]; then

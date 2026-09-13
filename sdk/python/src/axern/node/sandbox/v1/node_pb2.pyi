@@ -29,7 +29,7 @@ OUTPUT_STREAM_STDOUT: OutputStream
 OUTPUT_STREAM_STDERR: OutputStream
 
 class ExecSpec(_message.Message):
-    __slots__ = ("argv", "env", "cwd", "timeout_seconds", "tty", "user", "managed_proxy")
+    __slots__ = ("argv", "env", "cwd", "timeout_seconds", "tty", "user")
     class EnvEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -43,39 +43,13 @@ class ExecSpec(_message.Message):
     TIMEOUT_SECONDS_FIELD_NUMBER: _ClassVar[int]
     TTY_FIELD_NUMBER: _ClassVar[int]
     USER_FIELD_NUMBER: _ClassVar[int]
-    MANAGED_PROXY_FIELD_NUMBER: _ClassVar[int]
     argv: _containers.RepeatedScalarFieldContainer[str]
     env: _containers.ScalarMap[str, str]
     cwd: str
     timeout_seconds: int
     tty: bool
     user: str
-    managed_proxy: ManagedProxySpec
-    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., timeout_seconds: _Optional[int] = ..., tty: _Optional[bool] = ..., user: _Optional[str] = ..., managed_proxy: _Optional[_Union[ManagedProxySpec, _Mapping]] = ...) -> None: ...
-
-class ManagedProxySpec(_message.Message):
-    __slots__ = ("provider", "upstream_base_url", "upstream_bearer_token")
-    PROVIDER_FIELD_NUMBER: _ClassVar[int]
-    UPSTREAM_BASE_URL_FIELD_NUMBER: _ClassVar[int]
-    UPSTREAM_BEARER_TOKEN_FIELD_NUMBER: _ClassVar[int]
-    provider: str
-    upstream_base_url: str
-    upstream_bearer_token: str
-    def __init__(self, provider: _Optional[str] = ..., upstream_base_url: _Optional[str] = ..., upstream_bearer_token: _Optional[str] = ...) -> None: ...
-
-class ManagedProxyReport(_message.Message):
-    __slots__ = ("provider", "request_count", "response_count", "error_count", "report_json")
-    PROVIDER_FIELD_NUMBER: _ClassVar[int]
-    REQUEST_COUNT_FIELD_NUMBER: _ClassVar[int]
-    RESPONSE_COUNT_FIELD_NUMBER: _ClassVar[int]
-    ERROR_COUNT_FIELD_NUMBER: _ClassVar[int]
-    REPORT_JSON_FIELD_NUMBER: _ClassVar[int]
-    provider: str
-    request_count: int
-    response_count: int
-    error_count: int
-    report_json: bytes
-    def __init__(self, provider: _Optional[str] = ..., request_count: _Optional[int] = ..., response_count: _Optional[int] = ..., error_count: _Optional[int] = ..., report_json: _Optional[bytes] = ...) -> None: ...
+    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., timeout_seconds: _Optional[int] = ..., tty: _Optional[bool] = ..., user: _Optional[str] = ...) -> None: ...
 
 class ExecRequest(_message.Message):
     __slots__ = ("spec", "allocation_id", "execution_lease_token")
@@ -88,20 +62,18 @@ class ExecRequest(_message.Message):
     def __init__(self, spec: _Optional[_Union[ExecSpec, _Mapping]] = ..., allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
 
 class ExecResponse(_message.Message):
-    __slots__ = ("exit_code", "stdout", "stderr", "stdout_truncated", "stderr_truncated", "managed_proxy_report")
+    __slots__ = ("exit_code", "stdout", "stderr", "stdout_truncated", "stderr_truncated")
     EXIT_CODE_FIELD_NUMBER: _ClassVar[int]
     STDOUT_FIELD_NUMBER: _ClassVar[int]
     STDERR_FIELD_NUMBER: _ClassVar[int]
     STDOUT_TRUNCATED_FIELD_NUMBER: _ClassVar[int]
     STDERR_TRUNCATED_FIELD_NUMBER: _ClassVar[int]
-    MANAGED_PROXY_REPORT_FIELD_NUMBER: _ClassVar[int]
     exit_code: int
     stdout: bytes
     stderr: bytes
     stdout_truncated: bool
     stderr_truncated: bool
-    managed_proxy_report: ManagedProxyReport
-    def __init__(self, exit_code: _Optional[int] = ..., stdout: _Optional[bytes] = ..., stderr: _Optional[bytes] = ..., stdout_truncated: _Optional[bool] = ..., stderr_truncated: _Optional[bool] = ..., managed_proxy_report: _Optional[_Union[ManagedProxyReport, _Mapping]] = ...) -> None: ...
+    def __init__(self, exit_code: _Optional[int] = ..., stdout: _Optional[bytes] = ..., stderr: _Optional[bytes] = ..., stdout_truncated: _Optional[bool] = ..., stderr_truncated: _Optional[bool] = ...) -> None: ...
 
 class ExecStreamOpen(_message.Message):
     __slots__ = ("spec", "allocation_id", "execution_lease_token", "initial_size")
@@ -136,14 +108,12 @@ class ExecStreamRequest(_message.Message):
     def __init__(self, open: _Optional[_Union[ExecStreamOpen, _Mapping]] = ..., stdin: _Optional[bytes] = ..., resize: _Optional[_Union[TerminalResize, _Mapping]] = ..., close_stdin: _Optional[bool] = ...) -> None: ...
 
 class ExecExit(_message.Message):
-    __slots__ = ("exit_code", "message", "managed_proxy_report")
+    __slots__ = ("exit_code", "message")
     EXIT_CODE_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
-    MANAGED_PROXY_REPORT_FIELD_NUMBER: _ClassVar[int]
     exit_code: int
     message: str
-    managed_proxy_report: ManagedProxyReport
-    def __init__(self, exit_code: _Optional[int] = ..., message: _Optional[str] = ..., managed_proxy_report: _Optional[_Union[ManagedProxyReport, _Mapping]] = ...) -> None: ...
+    def __init__(self, exit_code: _Optional[int] = ..., message: _Optional[str] = ...) -> None: ...
 
 class ExecStreamResponse(_message.Message):
     __slots__ = ("stdout", "stderr", "exit")
@@ -190,109 +160,6 @@ class ProcessRequest(_message.Message):
     def __init__(self, open: _Optional[_Union[ProcessOpen, _Mapping]] = ..., stdin: _Optional[bytes] = ..., resize: _Optional[_Union[TerminalResize, _Mapping]] = ..., close_stdin: _Optional[bool] = ..., signal: _Optional[_Union[ProcessSignal, _Mapping]] = ...) -> None: ...
 
 class ProcessResponse(_message.Message):
-    __slots__ = ("stdout", "stderr", "exit", "ready")
-    STDOUT_FIELD_NUMBER: _ClassVar[int]
-    STDERR_FIELD_NUMBER: _ClassVar[int]
-    EXIT_FIELD_NUMBER: _ClassVar[int]
-    READY_FIELD_NUMBER: _ClassVar[int]
-    stdout: bytes
-    stderr: bytes
-    exit: ExecExit
-    ready: ProcessReady
-    def __init__(self, stdout: _Optional[bytes] = ..., stderr: _Optional[bytes] = ..., exit: _Optional[_Union[ExecExit, _Mapping]] = ..., ready: _Optional[_Union[ProcessReady, _Mapping]] = ...) -> None: ...
-
-class ImageProcessMount(_message.Message):
-    __slots__ = ("sandbox_path", "target_path", "readonly", "options")
-    SANDBOX_PATH_FIELD_NUMBER: _ClassVar[int]
-    TARGET_PATH_FIELD_NUMBER: _ClassVar[int]
-    READONLY_FIELD_NUMBER: _ClassVar[int]
-    OPTIONS_FIELD_NUMBER: _ClassVar[int]
-    sandbox_path: str
-    target_path: str
-    readonly: bool
-    options: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, sandbox_path: _Optional[str] = ..., target_path: _Optional[str] = ..., readonly: _Optional[bool] = ..., options: _Optional[_Iterable[str]] = ...) -> None: ...
-
-class ImageProcessSpec(_message.Message):
-    __slots__ = ("image", "argv", "env", "cwd", "timeout_seconds", "tty", "user", "mounts", "managed_proxy")
-    class EnvEntry(_message.Message):
-        __slots__ = ("key", "value")
-        KEY_FIELD_NUMBER: _ClassVar[int]
-        VALUE_FIELD_NUMBER: _ClassVar[int]
-        key: str
-        value: str
-        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
-    IMAGE_FIELD_NUMBER: _ClassVar[int]
-    ARGV_FIELD_NUMBER: _ClassVar[int]
-    ENV_FIELD_NUMBER: _ClassVar[int]
-    CWD_FIELD_NUMBER: _ClassVar[int]
-    TIMEOUT_SECONDS_FIELD_NUMBER: _ClassVar[int]
-    TTY_FIELD_NUMBER: _ClassVar[int]
-    USER_FIELD_NUMBER: _ClassVar[int]
-    MOUNTS_FIELD_NUMBER: _ClassVar[int]
-    MANAGED_PROXY_FIELD_NUMBER: _ClassVar[int]
-    image: str
-    argv: _containers.RepeatedScalarFieldContainer[str]
-    env: _containers.ScalarMap[str, str]
-    cwd: str
-    timeout_seconds: int
-    tty: bool
-    user: str
-    mounts: _containers.RepeatedCompositeFieldContainer[ImageProcessMount]
-    managed_proxy: ManagedProxySpec
-    def __init__(self, image: _Optional[str] = ..., argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., timeout_seconds: _Optional[int] = ..., tty: _Optional[bool] = ..., user: _Optional[str] = ..., mounts: _Optional[_Iterable[_Union[ImageProcessMount, _Mapping]]] = ..., managed_proxy: _Optional[_Union[ManagedProxySpec, _Mapping]] = ...) -> None: ...
-
-class ExecImageRequest(_message.Message):
-    __slots__ = ("spec", "allocation_id", "execution_lease_token")
-    SPEC_FIELD_NUMBER: _ClassVar[int]
-    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
-    spec: ImageProcessSpec
-    allocation_id: str
-    execution_lease_token: str
-    def __init__(self, spec: _Optional[_Union[ImageProcessSpec, _Mapping]] = ..., allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
-
-class ExecImageResponse(_message.Message):
-    __slots__ = ("exit_code", "stdout", "stderr", "stdout_truncated", "stderr_truncated", "managed_proxy_report")
-    EXIT_CODE_FIELD_NUMBER: _ClassVar[int]
-    STDOUT_FIELD_NUMBER: _ClassVar[int]
-    STDERR_FIELD_NUMBER: _ClassVar[int]
-    STDOUT_TRUNCATED_FIELD_NUMBER: _ClassVar[int]
-    STDERR_TRUNCATED_FIELD_NUMBER: _ClassVar[int]
-    MANAGED_PROXY_REPORT_FIELD_NUMBER: _ClassVar[int]
-    exit_code: int
-    stdout: bytes
-    stderr: bytes
-    stdout_truncated: bool
-    stderr_truncated: bool
-    managed_proxy_report: ManagedProxyReport
-    def __init__(self, exit_code: _Optional[int] = ..., stdout: _Optional[bytes] = ..., stderr: _Optional[bytes] = ..., stdout_truncated: _Optional[bool] = ..., stderr_truncated: _Optional[bool] = ..., managed_proxy_report: _Optional[_Union[ManagedProxyReport, _Mapping]] = ...) -> None: ...
-
-class ProcessImageOpen(_message.Message):
-    __slots__ = ("spec", "allocation_id", "execution_lease_token")
-    SPEC_FIELD_NUMBER: _ClassVar[int]
-    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
-    spec: ImageProcessSpec
-    allocation_id: str
-    execution_lease_token: str
-    def __init__(self, spec: _Optional[_Union[ImageProcessSpec, _Mapping]] = ..., allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
-
-class ProcessImageRequest(_message.Message):
-    __slots__ = ("open", "stdin", "resize", "close_stdin", "signal")
-    OPEN_FIELD_NUMBER: _ClassVar[int]
-    STDIN_FIELD_NUMBER: _ClassVar[int]
-    RESIZE_FIELD_NUMBER: _ClassVar[int]
-    CLOSE_STDIN_FIELD_NUMBER: _ClassVar[int]
-    SIGNAL_FIELD_NUMBER: _ClassVar[int]
-    open: ProcessImageOpen
-    stdin: bytes
-    resize: TerminalResize
-    close_stdin: bool
-    signal: ProcessSignal
-    def __init__(self, open: _Optional[_Union[ProcessImageOpen, _Mapping]] = ..., stdin: _Optional[bytes] = ..., resize: _Optional[_Union[TerminalResize, _Mapping]] = ..., close_stdin: _Optional[bool] = ..., signal: _Optional[_Union[ProcessSignal, _Mapping]] = ...) -> None: ...
-
-class ProcessImageResponse(_message.Message):
     __slots__ = ("stdout", "stderr", "exit", "ready")
     STDOUT_FIELD_NUMBER: _ClassVar[int]
     STDERR_FIELD_NUMBER: _ClassVar[int]

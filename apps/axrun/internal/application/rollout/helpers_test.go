@@ -1,7 +1,6 @@
 package rollout
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -26,28 +25,6 @@ func readJSON(t *testing.T, path string, value any) {
 
 type fakeBackend struct {
 	status domain.EpisodeStatus
-}
-
-type providerPreflightBackend struct {
-	profileCalls int
-	probeCalls   int
-	probeErr     error
-}
-
-func (b *providerPreflightBackend) Preflight() error { return nil }
-
-func (b *providerPreflightBackend) PreflightProviderProfile(domain.AgentSpec) error {
-	b.profileCalls++
-	return nil
-}
-
-func (b *providerPreflightBackend) PreflightProvider(context.Context, domain.AgentSpec, domain.ModelSpec) error {
-	b.probeCalls++
-	return b.probeErr
-}
-
-func (b *providerPreflightBackend) Execute(request backend.ExecuteRequest) (domain.Episode, error) {
-	return fakeBackend{status: domain.EpisodeStatusCompleted}.Execute(request)
 }
 
 func (f fakeBackend) Preflight() error {

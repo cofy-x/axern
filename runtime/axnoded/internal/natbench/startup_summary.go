@@ -223,12 +223,12 @@ func dominantPhase(phaseEntries map[string]StartupPhaseBreakdown, value func(Sta
 }
 
 var startupPhaseOrder = map[string]int{
-	"langruntime_lookup":     0,
-	"rootfs_prepare":         1,
-	"resource_allocate":      2,
-	"runtime_bundle_prepare": 3,
-	"runtime_launch":         4,
-	"network_activate":       5,
+	"environmentcache_lookup": 0,
+	"rootfs_prepare":          1,
+	"resource_allocate":       2,
+	"runtime_bundle_prepare":  3,
+	"runtime_launch":          4,
+	"network_activate":        5,
 }
 
 func comparePhaseOrder(left, right string) bool {

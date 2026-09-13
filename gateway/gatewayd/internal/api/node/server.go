@@ -63,16 +63,6 @@ func (s *Server) Exec(ctx context.Context, req *nodesandboxv1.ExecRequest) (*nod
 	return response, err
 }
 
-func (s *Server) ExecImage(ctx context.Context, req *nodesandboxv1.ExecImageRequest) (*nodesandboxv1.ExecImageResponse, error) {
-	var response *nodesandboxv1.ExecImageResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
-		var err error
-		response, err = client.ExecImage(ctx, req)
-		return err
-	})
-	return response, err
-}
-
 func (s *Server) WaitSandbox(ctx context.Context, req *nodesandboxv1.WaitSandboxRequest) (*nodesandboxv1.WaitSandboxResponse, error) {
 	var response *nodesandboxv1.WaitSandboxResponse
 	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
@@ -398,42 +388,6 @@ func (s *Server) Process(stream nodesandboxv1.NodeSandbox_ProcessServer) error {
 			return err
 		}
 		return bridgeProcess(stream, up)
-	})
-}
-
-func (s *Server) ProcessImage(stream nodesandboxv1.NodeSandbox_ProcessImageServer) error {
-	first, err := stream.Recv()
-	if err != nil {
-		return streamOpenError(err, "image process")
-	}
-	open := first.GetOpen()
-	if open == nil {
-		return grpcstatus.Error(codes.InvalidArgument, "image process stream must start with open")
-	}
-	return bidi(s, stream.Context(), open, isLeaseOpenRejection, func(client nodesandboxv1.NodeSandboxClient) (processImageClient, error) {
-		return client.ProcessImage(stream.Context())
-	}, func(up processImageClient) error {
-		if err := up.Send(first); err != nil {
-			return markLeaseOpenRejection(err)
-		}
-		header, err := acceptedExecutionLeaseHeader(up, "image process", func() error {
-			_, err := up.Recv()
-			return err
-		})
-		if err != nil {
-			return err
-		}
-		if err := stream.SendHeader(header); err != nil {
-			return err
-		}
-		initial, err := up.Recv()
-		if err != nil {
-			return err
-		}
-		if err := stream.Send(initial); err != nil {
-			return err
-		}
-		return bridgeProcessImage(stream, up)
 	})
 }
 

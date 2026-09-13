@@ -31,19 +31,17 @@ cells=()
 case "${matrix_scope}" in
   representative)
     cells=(
-      "runsc bridge ipv4 strict_domain"
-      "runsc bridge ipv6 dns_deny"
-      "runsc ebpf ipv6 strict_cidr"
-      "runsc ebpf ipv4 unrestricted"
+      "bridge ipv4 strict_domain"
+      "bridge ipv6 dns_deny"
+      "ebpf ipv6 strict_cidr"
+      "ebpf ipv4 unrestricted"
     )
     ;;
   full)
-    for runtime_name in runsc; do
-      for network_backend in bridge ebpf; do
-        for ip_family in ipv4 ipv6; do
-          for policy_mode in unrestricted dns_deny strict_domain strict_cidr; do
-            cells+=("${runtime_name} ${network_backend} ${ip_family} ${policy_mode}")
-          done
+    for network_backend in bridge ebpf; do
+      for ip_family in ipv4 ipv6; do
+        for policy_mode in unrestricted dns_deny strict_domain strict_cidr; do
+          cells+=("${network_backend} ${ip_family} ${policy_mode}")
         done
       done
     done
@@ -65,7 +63,7 @@ docker run --rm --privileged --cgroupns=host \
   /bin/bash -lc '
     set -euo pipefail
     scenario=/workspace/scripts/qualification/network-policy-scenario-in-container.sh
-    common=(--runtime runsc --network-backend bridge --ip-family ipv4 --samples 1 --concurrency 1 --payload-bytes 1024 --sustained-seconds 1 --rule-scale-counts 1)
+    common=(--network-backend bridge --ip-family ipv4 --samples 1 --concurrency 1 --payload-bytes 1024 --sustained-seconds 1 --rule-scale-counts 1)
     "${scenario}" "${common[@]}" --policy-mode unrestricted --output /qualification-output/sequential-unrestricted.json
     "${scenario}" "${common[@]}" --policy-mode dns_deny --output /qualification-output/sequential-dns-deny.json
   '
@@ -75,14 +73,13 @@ jq -e '.runtime == "runsc" and .networkBackend == "bridge" and .ipFamily == "ipv
   "${output_root}/sequential-dns-deny.json" >/dev/null
 
 for cell in "${cells[@]}"; do
-  read -r runtime_name network_backend ip_family policy_mode <<<"${cell}"
-  output="${output_root}/${runtime_name}-${network_backend}-${ip_family}-${policy_mode}.json"
+  read -r network_backend ip_family policy_mode <<<"${cell}"
+  output="${output_root}/runsc-${network_backend}-${ip_family}-${policy_mode}.json"
   docker run --rm --privileged --cgroupns=host \
     --platform "${VERIFY_DOCKER_PLATFORM}" \
     --mount "type=bind,src=${output_root},dst=/qualification-output" \
     "${runner_image_digest}" \
     /workspace/scripts/qualification/network-policy-scenario-in-container.sh \
-      --runtime "${runtime_name}" \
       --network-backend "${network_backend}" \
       --ip-family "${ip_family}" \
       --policy-mode "${policy_mode}" \
@@ -94,11 +91,10 @@ for cell in "${cells[@]}"; do
       --output "/qualification-output/$(basename "${output}")"
 
   jq -e \
-    --arg runtime "${runtime_name}" \
     --arg backend "${network_backend}" \
     --arg family "${ip_family}" \
     --arg mode "${policy_mode}" '
-      .runtime == $runtime and
+      .runtime == "runsc" and
       .networkBackend == $backend and
       .ipFamily == $family and
       .policyMode == $mode and

@@ -193,7 +193,7 @@ func TestMaterializeSandboxdInjectionAllowsWorkloadRuntimeStateMounts(t *testing
 	}
 }
 
-func TestMaterializeSandboxdInjectionDoesNotCreateMissingRuntimeMountpoint(t *testing.T) {
+func TestMaterializeSandboxdInjectionDoesNotCreateMissingEnvironmentMountpoint(t *testing.T) {
 	bundleDir := t.TempDir()
 	rootfsDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
@@ -213,7 +213,7 @@ func TestMaterializeSandboxdInjectionDoesNotCreateMissingRuntimeMountpoint(t *te
 	}
 }
 
-func TestMaterializeSandboxdInjectionDefersRuntimeMountpointTypeValidation(t *testing.T) {
+func TestMaterializeSandboxdInjectionDefersEnvironmentMountpointTypeValidation(t *testing.T) {
 	bundleDir := t.TempDir()
 	rootfsDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
@@ -233,7 +233,7 @@ func TestMaterializeSandboxdInjectionDefersRuntimeMountpointTypeValidation(t *te
 	}
 }
 
-func TestMaterializeSandboxdInjectionUsesExistingReadonlyRuntimeMountpoint(t *testing.T) {
+func TestMaterializeSandboxdInjectionUsesExistingReadonlyEnvironmentMountpoint(t *testing.T) {
 	bundleDir := t.TempDir()
 	rootfsDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")

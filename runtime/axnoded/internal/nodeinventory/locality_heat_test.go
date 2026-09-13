@@ -5,12 +5,12 @@ import "testing"
 func TestMergeImagemgrLocalityPreservesAxnodedCounts(t *testing.T) {
 	snapshot := NewSnapshot()
 	snapshot.Heat.Locality = []LocalityHeatEntry{{
-		Key:                   "image:docker.io/library/nginx:latest",
-		RootfsType:            "image",
-		MountType:             "oci",
-		RetainedRuntimeCount:  2,
-		RetainedRootfsCount:   1,
-		RunningContainerCount: 3,
+		Key:                      "image:docker.io/library/nginx:latest",
+		RootfsType:               "image",
+		MountType:                "oci",
+		RetainedEnvironmentCount: 2,
+		RetainedRootfsCount:      1,
+		RunningContainerCount:    3,
 	}}
 
 	mergeImagemgrLocality(&snapshot, []ImageLocalityEntry{{
@@ -36,7 +36,7 @@ func TestMergeImagemgrLocalityPreservesAxnodedCounts(t *testing.T) {
 	if !entry.Mounted || !entry.NydusDaemonAlive {
 		t.Fatalf("merged mounted/daemon flags = %+v", entry)
 	}
-	if entry.RetainedRuntimeCount != 2 || entry.RetainedRootfsCount != 1 || entry.RunningContainerCount != 3 {
+	if entry.RetainedEnvironmentCount != 2 || entry.RetainedRootfsCount != 1 || entry.RunningContainerCount != 3 {
 		t.Fatalf("axnoded counts lost after merge: %+v", entry)
 	}
 	if entry.PeerHintedCount != 4 || entry.ChunkDBTotalChunks != 5 {

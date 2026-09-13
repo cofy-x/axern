@@ -17,10 +17,8 @@ from axern_sdk.node.models import (
     ExecCommand,
     ExecResult,
     ExecStreamEvent,
-    ImageProcessMount,
     SandboxFileInfo,
     SandboxFileKind,
-    workspace_mount,
 )
 from axern_sdk.node.process import ProcessResult, SandboxProcess
 
@@ -41,11 +39,9 @@ __all__ = [
     "ExecCommand",
     "ExecResult",
     "ExecStreamEvent",
-    "ImageProcessMount",
     "NodeSandboxClient",
     "ProcessResult",
     "SandboxFileInfo",
     "SandboxFileKind",
     "SandboxProcess",
-    "workspace_mount",
 ]

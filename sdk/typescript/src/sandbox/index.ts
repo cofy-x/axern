@@ -27,8 +27,6 @@ import type {
   DownloadDirOptions,
   ExecOptions,
   ExecResult,
-  ImageExecOptions,
-  ImageProcessOptions,
   MkdirOptions,
   MoveOptions,
   NodeCallOptions,
@@ -210,13 +208,7 @@ export class Sandbox {
     return this.nodeClient().process(command, options);
   }
 
-  async execImage(image: string, command: Command, options: ImageExecOptions = {}): Promise<ExecResult> {
-    return this.nodeClient().execImage(image, command, options);
-  }
 
-  async processImage(image: string, command: Command, options: ImageProcessOptions = {}): Promise<SandboxProcess> {
-    return this.nodeClient().processImage(image, command, options);
-  }
 
   async capabilityStatus(options: NodeCallOptions = {}): Promise<CapabilityStatus> {
     return this.nodeClient().capabilityStatus(options);

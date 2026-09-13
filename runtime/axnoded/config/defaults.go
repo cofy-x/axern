@@ -16,8 +16,8 @@ const (
 	DefaultImageLibDir                   = "/var/lib/axnoded/rootfs"
 	DefaultImageManagerSocket            = "/var/run/imagemgr.sock"
 	DefaultEgressManagerSocket           = "/run/egressd/egressd.sock"
-	DefaultIdleRuntimeRetentionTTL       = "5m"
-	DefaultIdleRuntimeRetentionMax       = 8
+	DefaultIdleEnvironmentRetentionTTL   = "5m"
+	DefaultIdleEnvironmentRetentionMax   = 8
 	DefaultResourcePoolReconcileInterval = "1s"
 	DefaultControlPlaneHeartbeatInterval = "5s"
 	DefaultControlPlaneNodeState         = "ready"

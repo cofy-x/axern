@@ -4,21 +4,21 @@ import spec "github.com/opencontainers/runtime-spec/specs-go"
 
 const defaultNoFileLimit uint64 = 1048576
 
-// RuntimeBaselinePolicy defines Axern's managed process defaults for generated OCI specs.
-type RuntimeBaselinePolicy struct {
+// OciBaselinePolicy defines Axern's managed process defaults for generated OCI specs.
+type OciBaselinePolicy struct {
 	Capabilities []string
 	NoFileLimit  uint64
 }
 
-// DefaultRuntimeBaselinePolicy returns the default managed process baseline.
-func DefaultRuntimeBaselinePolicy() RuntimeBaselinePolicy {
-	return RuntimeBaselinePolicy{
+// DefaultBaselinePolicy returns the default managed process baseline.
+func DefaultBaselinePolicy() OciBaselinePolicy {
+	return OciBaselinePolicy{
 		Capabilities: append([]string(nil), defaultLinuxCapabilities...),
 		NoFileLimit:  defaultNoFileLimit,
 	}
 }
 
-func (p RuntimeBaselinePolicy) apply(ociSpec *spec.Spec) {
+func (p OciBaselinePolicy) apply(ociSpec *spec.Spec) {
 	if ociSpec == nil || ociSpec.Process == nil {
 		return
 	}
@@ -26,7 +26,7 @@ func (p RuntimeBaselinePolicy) apply(ociSpec *spec.Spec) {
 	p.ensureNoFileLimit(ociSpec.Process)
 }
 
-func (p RuntimeBaselinePolicy) ensureCapabilities(process *spec.Process) {
+func (p OciBaselinePolicy) ensureCapabilities(process *spec.Process) {
 	if process.Capabilities == nil {
 		process.Capabilities = &spec.LinuxCapabilities{}
 	}
@@ -43,7 +43,7 @@ func (p RuntimeBaselinePolicy) ensureCapabilities(process *spec.Process) {
 	}
 }
 
-func (p RuntimeBaselinePolicy) ensureNoFileLimit(process *spec.Process) {
+func (p OciBaselinePolicy) ensureNoFileLimit(process *spec.Process) {
 	if p.NoFileLimit == 0 {
 		return
 	}

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST:-runsc}"
 SOCKET_ADDRESS="${SOCKET_ADDRESS:-/run/axnoded/axnoded.sock}"
 VERIFY_NGINX_BIN="${VERIFY_NGINX_BIN:-/usr/local/bin/verify-nginx}"
 VERIFY_EGRESS_BIN="${VERIFY_EGRESS_BIN:-/usr/local/bin/verify-egress}"
@@ -19,12 +18,6 @@ EBPF_INGRESS_PROBE_NETNS="${EBPF_INGRESS_PROBE_NETNS:-}"
 EBPF_INGRESS_PROBE_ADDR="${EBPF_INGRESS_PROBE_ADDR:-}"
 EBPF_INGRESS_PROBE_CLIENT_ADDR="${EBPF_INGRESS_PROBE_CLIENT_ADDR:-}"
 VERIFY_SKIP_LOCALHOST="${VERIFY_SKIP_LOCALHOST:-false}"
-
-if [ "${RUNTIME_UNDER_TEST}" != "runsc" ]; then
-  echo "runsc_benchmark_skipped=true runtime=${RUNTIME_UNDER_TEST}" >&2
-  jq -n --arg runtime "${RUNTIME_UNDER_TEST}" --arg nat "${NAT_BACKEND}" '{runtime:$runtime,natBackend:$nat,paths:[]}'
-  exit 0
-fi
 
 started_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
@@ -64,14 +57,13 @@ egress_path_suffix() {
 write_empty_report() {
   local path="$1"
   jq -n \
-    --arg runtime "${RUNTIME_UNDER_TEST}" \
+    --arg runtime "runsc" \
     --arg nat "${NAT_BACKEND}" \
     '{runtime:$runtime,natBackend:$nat,paths:[]}' >"${path}"
 }
 
 common_args=(
   -address "${SOCKET_ADDRESS}"
-  -runtime "${RUNTIME_UNDER_TEST}"
   -nat-backend "${NAT_BACKEND}"
   -benchmark-requests "${BENCHMARK_REQUESTS}"
   -benchmark-concurrency "${BENCHMARK_CONCURRENCY}"
@@ -179,7 +171,7 @@ fi
 completed_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 jq -n \
-  --arg runtime "${RUNTIME_UNDER_TEST}" \
+  --arg runtime "runsc" \
   --arg nat "${NAT_BACKEND}" \
   --arg started "${started_at}" \
   --arg completed "${completed_at}" \

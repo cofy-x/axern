@@ -62,9 +62,9 @@ func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInv
 	if s.runtimeCount != nil {
 		snapshot.Components.Axnoded.RegisteredRuntimes = s.runtimeCount()
 	}
-	if s.langRuntime != nil {
-		retentionStats := s.langRuntime.RetentionStats()
-		snapshot.Heat.RetainedRuntimeCount = retentionStats.RetainedRuntimeCount
+	if s.preparedEnvironment != nil {
+		retentionStats := s.preparedEnvironment.RetentionStats()
+		snapshot.Heat.RetainedEnvironmentCount = retentionStats.RetainedEnvironmentCount
 		snapshot.Heat.RetainedRootfsCount = retentionStats.RetainedRootfsCount
 		s.collectAxnodedLocality(snapshot, runningContainers)
 	}

@@ -57,12 +57,8 @@ func (f *fakeNodeOperatorService) Delete(ctx context.Context, req *runtimev1.Del
 }
 func (f *fakeNodeOperatorService) ExecStream(service.ExecStreamServer) error { return nil }
 func (f *fakeNodeOperatorService) Process(service.ProcessStreamServer) error { return nil }
-func (f *fakeNodeOperatorService) ProcessImage(service.ProcessImageStreamServer) error {
-	return nil
-}
-func (f *fakeNodeOperatorService) ProxyHTTP(service.HTTPProxyServer) error  { return nil }
-func (f *fakeNodeOperatorService) Ready() bool                              { return true }
-func (f *fakeNodeOperatorService) RuntimeStatuses() []service.RuntimeStatus { return nil }
+func (f *fakeNodeOperatorService) ProxyHTTP(service.HTTPProxyServer) error   { return nil }
+func (f *fakeNodeOperatorService) Ready() bool                               { return true }
 func (f *fakeNodeOperatorService) NodeInventory() (nodeinventory.NodeInventorySnapshot, bool) {
 	return f.inventory, f.inventoryReady
 }
@@ -118,9 +114,6 @@ func (f *fakeNodeOperatorService) Kill(ctx context.Context, req *runtimev1.KillR
 	f.killRequests = append(f.killRequests, req)
 	return &runtimev1.KillResponse{}, nil
 }
-func (f *fakeNodeOperatorService) Checkpoint(context.Context, *runtimev1.CheckpointRequest) (*runtimev1.CheckpointResponse, error) {
-	return nil, nil
-}
 func (f *fakeNodeOperatorService) Version(context.Context, *runtimev1.VersionRequest) (*runtimev1.VersionResponse, error) {
 	return nil, nil
 }
@@ -139,10 +132,6 @@ func (f *fakeNodeOperatorService) Exec(ctx context.Context, req *runtimev1.ExecR
 	_ = ctx
 	f.execRequests = append(f.execRequests, req)
 	return &runtimev1.ExecResponse{ExitCode: 0, Stdout: []byte("ok\n")}, nil
-}
-
-func (f *fakeNodeOperatorService) ExecImage(context.Context, *runtimev1.ExecImageRequest) (*runtimev1.ExecImageResponse, error) {
-	return &runtimev1.ExecImageResponse{}, nil
 }
 
 func (f *fakeNodeOperatorService) StatFile(ctx context.Context, req *runtimev1.StatFileRequest) (*runtimev1.StatFileResponse, error) {

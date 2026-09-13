@@ -88,7 +88,7 @@ func TestCapabilityVerificationRejectsInvalidRetrySchedule(t *testing.T) {
 }
 
 func TestCapabilityReconcileInterruptionRequestsRetryInsteadOfFailStop(t *testing.T) {
-	service := newTestService(t, runtimetest.NewFakeRuntimeHandler())
+	service := newTestService(t, runtimetest.NewFakeSandboxRuntime())
 	dependency := &capabilityv1.CapabilityRequirement{
 		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT),
 		LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP,
@@ -200,7 +200,7 @@ func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := newTestService(t, runtimetest.NewFakeRuntimeHandler())
+	service := newTestService(t, runtimetest.NewFakeSandboxRuntime())
 	service.capabilityManager = manager
 	const allocationID = "post-create-fast-exit"
 	conditions := make([]*capabilityv1.CapabilityCondition, 0, len(dependencies))

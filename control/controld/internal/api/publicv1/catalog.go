@@ -9,14 +9,14 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (s *Server) ListRuntimeTemplates(ctx context.Context, req *catalogv1.ListRuntimeTemplatesRequest) (*catalogv1.ListRuntimeTemplatesResponse, error) {
+func (s *Server) ListEnvironmentTemplates(ctx context.Context, req *catalogv1.ListEnvironmentTemplatesRequest) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
 	_ = ctx
-	return &catalogv1.ListRuntimeTemplatesResponse{
-		RuntimeTemplates: s.deps.Catalog.List(req),
+	return &catalogv1.ListEnvironmentTemplatesResponse{
+		EnvironmentTemplates: s.deps.Catalog.List(req),
 	}, nil
 }
 
-func (s *Server) GetRuntimeTemplate(ctx context.Context, req *catalogv1.GetRuntimeTemplateRequest) (*catalogv1.GetRuntimeTemplateResponse, error) {
+func (s *Server) GetEnvironmentTemplate(ctx context.Context, req *catalogv1.GetEnvironmentTemplateRequest) (*catalogv1.GetEnvironmentTemplateResponse, error) {
 	_ = ctx
 	id := strings.TrimSpace(req.GetID())
 	if id == "" {
@@ -24,7 +24,7 @@ func (s *Server) GetRuntimeTemplate(ctx context.Context, req *catalogv1.GetRunti
 	}
 	template, ok := s.deps.Catalog.Get(id, req.GetVersion())
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "runtime template %q not found", id)
+		return nil, status.Errorf(codes.NotFound, "environment template %q not found", id)
 	}
-	return &catalogv1.GetRuntimeTemplateResponse{RuntimeTemplate: template}, nil
+	return &catalogv1.GetEnvironmentTemplateResponse{EnvironmentTemplate: template}, nil
 }

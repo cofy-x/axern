@@ -13,22 +13,6 @@ ExecOutput: TypeAlias = bytes | str
 
 
 @dataclass(frozen=True, slots=True)
-class ImageProcessMount:
-    """Host-backed sandbox path shared into an image-backed process."""
-
-    sandbox_path: str
-    target_path: str
-    readonly: bool = False
-    options: tuple[str, ...] = ()
-
-
-def workspace_mount(path: str = "/workspace") -> ImageProcessMount:
-    """Share a sandbox workspace path at the same path in an image process."""
-
-    return ImageProcessMount(sandbox_path=path, target_path=path)
-
-
-@dataclass(frozen=True, slots=True)
 class ExecResult:
     """Collected result from a sandbox process execution."""
 

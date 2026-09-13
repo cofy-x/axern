@@ -77,7 +77,7 @@ func Command(runtime command.Runtime) *cobra.Command {
 	flags := cmd.Flags()
 	flags.StringVar(&values.namespace, "namespace", values.namespace, "namespace to validate and use for the optional probe")
 	flags.BoolVar(&values.probe, "probe", false, "create a temporary Environment and execute a catalog-backed Run")
-	flags.StringVar(&values.templateID, "template-id", values.templateID, "runtime template used by --probe")
+	flags.StringVar(&values.templateID, "template-id", values.templateID, "environment template used by --probe")
 	flags.DurationVar(&values.checkTimeout, "check-timeout", values.checkTimeout, "timeout for each read-only API check")
 	flags.DurationVar(&values.probeTimeout, "probe-timeout", values.probeTimeout, "timeout for data-plane execution")
 	return cmd

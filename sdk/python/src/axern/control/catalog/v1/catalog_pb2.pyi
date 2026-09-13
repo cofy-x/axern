@@ -6,7 +6,7 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class RuntimeMount(_message.Message):
+class EnvironmentMount(_message.Message):
     __slots__ = ("type", "source", "target", "options")
     TYPE_FIELD_NUMBER: _ClassVar[int]
     SOURCE_FIELD_NUMBER: _ClassVar[int]
@@ -18,7 +18,7 @@ class RuntimeMount(_message.Message):
     options: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, type: _Optional[str] = ..., source: _Optional[str] = ..., target: _Optional[str] = ..., options: _Optional[_Iterable[str]] = ...) -> None: ...
 
-class RuntimeTemplateCapabilities(_message.Message):
+class EnvironmentTemplateCapabilities(_message.Message):
     __slots__ = ("supports_exec", "supports_exec_stream", "supports_long_lived_process", "supports_ports", "supports_computer_use")
     SUPPORTS_EXEC_FIELD_NUMBER: _ClassVar[int]
     SUPPORTS_EXEC_STREAM_FIELD_NUMBER: _ClassVar[int]
@@ -51,7 +51,7 @@ class OciImageDescriptor(_message.Message):
     annotations: _containers.ScalarMap[str, str]
     def __init__(self, digest: _Optional[str] = ..., media_type: _Optional[str] = ..., size_bytes: _Optional[int] = ..., annotations: _Optional[_Mapping[str, str]] = ...) -> None: ...
 
-class RuntimeBaselinePolicy(_message.Message):
+class OciBaselinePolicy(_message.Message):
     __slots__ = ("capabilities", "no_file_limit")
     CAPABILITIES_FIELD_NUMBER: _ClassVar[int]
     NO_FILE_LIMIT_FIELD_NUMBER: _ClassVar[int]
@@ -59,7 +59,7 @@ class RuntimeBaselinePolicy(_message.Message):
     no_file_limit: int
     def __init__(self, capabilities: _Optional[_Iterable[str]] = ..., no_file_limit: _Optional[int] = ...) -> None: ...
 
-class RuntimeCapabilityPolicy(_message.Message):
+class OciCapabilityPolicy(_message.Message):
     __slots__ = ("annotation_key", "include_ambient")
     ANNOTATION_KEY_FIELD_NUMBER: _ClassVar[int]
     INCLUDE_AMBIENT_FIELD_NUMBER: _ClassVar[int]
@@ -67,31 +67,31 @@ class RuntimeCapabilityPolicy(_message.Message):
     include_ambient: bool
     def __init__(self, annotation_key: _Optional[str] = ..., include_ambient: _Optional[bool] = ...) -> None: ...
 
-class RuntimeNetworkNamespacePolicy(_message.Message):
+class OciNetworkNamespacePolicy(_message.Message):
     __slots__ = ("annotation_key",)
     ANNOTATION_KEY_FIELD_NUMBER: _ClassVar[int]
     annotation_key: str
     def __init__(self, annotation_key: _Optional[str] = ...) -> None: ...
 
-class RuntimeResourcePolicy(_message.Message):
+class OciResourcePolicy(_message.Message):
     __slots__ = ("ignore_annotation_keys",)
     IGNORE_ANNOTATION_KEYS_FIELD_NUMBER: _ClassVar[int]
     ignore_annotation_keys: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, ignore_annotation_keys: _Optional[_Iterable[str]] = ...) -> None: ...
 
-class RuntimeExecutionProfile(_message.Message):
-    __slots__ = ("runtime_baseline", "capabilities", "network_namespace", "resources")
-    RUNTIME_BASELINE_FIELD_NUMBER: _ClassVar[int]
+class OciExecutionProfile(_message.Message):
+    __slots__ = ("baseline", "capabilities", "network_namespace", "resources")
+    BASELINE_FIELD_NUMBER: _ClassVar[int]
     CAPABILITIES_FIELD_NUMBER: _ClassVar[int]
     NETWORK_NAMESPACE_FIELD_NUMBER: _ClassVar[int]
     RESOURCES_FIELD_NUMBER: _ClassVar[int]
-    runtime_baseline: RuntimeBaselinePolicy
-    capabilities: RuntimeCapabilityPolicy
-    network_namespace: RuntimeNetworkNamespacePolicy
-    resources: RuntimeResourcePolicy
-    def __init__(self, runtime_baseline: _Optional[_Union[RuntimeBaselinePolicy, _Mapping]] = ..., capabilities: _Optional[_Union[RuntimeCapabilityPolicy, _Mapping]] = ..., network_namespace: _Optional[_Union[RuntimeNetworkNamespacePolicy, _Mapping]] = ..., resources: _Optional[_Union[RuntimeResourcePolicy, _Mapping]] = ...) -> None: ...
+    baseline: OciBaselinePolicy
+    capabilities: OciCapabilityPolicy
+    network_namespace: OciNetworkNamespacePolicy
+    resources: OciResourcePolicy
+    def __init__(self, baseline: _Optional[_Union[OciBaselinePolicy, _Mapping]] = ..., capabilities: _Optional[_Union[OciCapabilityPolicy, _Mapping]] = ..., network_namespace: _Optional[_Union[OciNetworkNamespacePolicy, _Mapping]] = ..., resources: _Optional[_Union[OciResourcePolicy, _Mapping]] = ...) -> None: ...
 
-class RuntimeTemplate(_message.Message):
+class EnvironmentTemplate(_message.Message):
     __slots__ = ("id", "rootfs_readonly", "image_default_argv", "default_cwd", "default_env", "mounts", "capabilities", "language", "language_version", "description", "version", "image_descriptor", "warm_policy", "cache_policy", "execution_profile")
     class DefaultEnvEntry(_message.Message):
         __slots__ = ("key", "value")
@@ -120,8 +120,8 @@ class RuntimeTemplate(_message.Message):
     image_default_argv: _containers.RepeatedScalarFieldContainer[str]
     default_cwd: str
     default_env: _containers.ScalarMap[str, str]
-    mounts: _containers.RepeatedCompositeFieldContainer[RuntimeMount]
-    capabilities: RuntimeTemplateCapabilities
+    mounts: _containers.RepeatedCompositeFieldContainer[EnvironmentMount]
+    capabilities: EnvironmentTemplateCapabilities
     language: str
     language_version: str
     description: str
@@ -129,10 +129,10 @@ class RuntimeTemplate(_message.Message):
     image_descriptor: OciImageDescriptor
     warm_policy: str
     cache_policy: str
-    execution_profile: RuntimeExecutionProfile
-    def __init__(self, id: _Optional[str] = ..., rootfs_readonly: _Optional[bool] = ..., image_default_argv: _Optional[_Iterable[str]] = ..., default_cwd: _Optional[str] = ..., default_env: _Optional[_Mapping[str, str]] = ..., mounts: _Optional[_Iterable[_Union[RuntimeMount, _Mapping]]] = ..., capabilities: _Optional[_Union[RuntimeTemplateCapabilities, _Mapping]] = ..., language: _Optional[str] = ..., language_version: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., image_descriptor: _Optional[_Union[OciImageDescriptor, _Mapping]] = ..., warm_policy: _Optional[str] = ..., cache_policy: _Optional[str] = ..., execution_profile: _Optional[_Union[RuntimeExecutionProfile, _Mapping]] = ...) -> None: ...
+    execution_profile: OciExecutionProfile
+    def __init__(self, id: _Optional[str] = ..., rootfs_readonly: _Optional[bool] = ..., image_default_argv: _Optional[_Iterable[str]] = ..., default_cwd: _Optional[str] = ..., default_env: _Optional[_Mapping[str, str]] = ..., mounts: _Optional[_Iterable[_Union[EnvironmentMount, _Mapping]]] = ..., capabilities: _Optional[_Union[EnvironmentTemplateCapabilities, _Mapping]] = ..., language: _Optional[str] = ..., language_version: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., image_descriptor: _Optional[_Union[OciImageDescriptor, _Mapping]] = ..., warm_policy: _Optional[str] = ..., cache_policy: _Optional[str] = ..., execution_profile: _Optional[_Union[OciExecutionProfile, _Mapping]] = ...) -> None: ...
 
-class ListRuntimeTemplatesRequest(_message.Message):
+class ListEnvironmentTemplatesRequest(_message.Message):
     __slots__ = ("namespace", "version", "language")
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -142,13 +142,13 @@ class ListRuntimeTemplatesRequest(_message.Message):
     language: str
     def __init__(self, namespace: _Optional[str] = ..., version: _Optional[str] = ..., language: _Optional[str] = ...) -> None: ...
 
-class ListRuntimeTemplatesResponse(_message.Message):
-    __slots__ = ("runtime_templates",)
-    RUNTIME_TEMPLATES_FIELD_NUMBER: _ClassVar[int]
-    runtime_templates: _containers.RepeatedCompositeFieldContainer[RuntimeTemplate]
-    def __init__(self, runtime_templates: _Optional[_Iterable[_Union[RuntimeTemplate, _Mapping]]] = ...) -> None: ...
+class ListEnvironmentTemplatesResponse(_message.Message):
+    __slots__ = ("environment_templates",)
+    ENVIRONMENT_TEMPLATES_FIELD_NUMBER: _ClassVar[int]
+    environment_templates: _containers.RepeatedCompositeFieldContainer[EnvironmentTemplate]
+    def __init__(self, environment_templates: _Optional[_Iterable[_Union[EnvironmentTemplate, _Mapping]]] = ...) -> None: ...
 
-class GetRuntimeTemplateRequest(_message.Message):
+class GetEnvironmentTemplateRequest(_message.Message):
     __slots__ = ("id", "version")
     ID_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -156,8 +156,8 @@ class GetRuntimeTemplateRequest(_message.Message):
     version: str
     def __init__(self, id: _Optional[str] = ..., version: _Optional[str] = ...) -> None: ...
 
-class GetRuntimeTemplateResponse(_message.Message):
-    __slots__ = ("runtime_template",)
-    RUNTIME_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
-    runtime_template: RuntimeTemplate
-    def __init__(self, runtime_template: _Optional[_Union[RuntimeTemplate, _Mapping]] = ...) -> None: ...
+class GetEnvironmentTemplateResponse(_message.Message):
+    __slots__ = ("environment_template",)
+    ENVIRONMENT_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
+    environment_template: EnvironmentTemplate
+    def __init__(self, environment_template: _Optional[_Union[EnvironmentTemplate, _Mapping]] = ...) -> None: ...

@@ -10,7 +10,7 @@ type StartupPhase string
 type StartupStep string
 
 const (
-	StartupPhaseLangRuntimeLookup   StartupPhase = "langruntime_lookup"
+	StartupPhaseEnvironmentLookup   StartupPhase = "environmentcache_lookup"
 	StartupPhaseRootfsPrepare       StartupPhase = "rootfs_prepare"
 	StartupPhaseResourceAllocate    StartupPhase = "resource_allocate"
 	StartupPhaseEgressPolicyPrepare StartupPhase = "egress_policy_prepare"

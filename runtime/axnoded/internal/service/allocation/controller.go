@@ -11,7 +11,7 @@ import (
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
@@ -31,14 +31,14 @@ type Options struct {
 	Config                      config.Config
 	Store                       stateStore
 	ContainerManager            func() *container.Manager
-	RunscHandler                contract.RuntimeHandler
-	LangRuntime                 *langrtmanager.LangRTManager
+	RunscHandler                contract.SandboxRuntime
+	EnvironmentCache            *environmentcache.EnvironmentCache
 	Networking                  *servicenetworking.Coordinator
 	StartMetricSink             StartMetricSink
 	ReportStatus                func(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
 	InventoryChanged            func()
-	RootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *langrtmanager.RootFS) error
-	PreActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.AllocationRuntimeHandler, string) error
+	RootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *environmentcache.RootFS) error
+	PreActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.AllocationRuntime, string) error
 	Egress                      egress.Manager
 }
 
@@ -47,14 +47,14 @@ type Controller struct {
 	store  stateStore
 
 	containerManager            func() *container.Manager
-	runscHandler                contract.RuntimeHandler
-	lrtManager                  *langrtmanager.LangRTManager
+	runscHandler                contract.SandboxRuntime
+	environmentCache            *environmentcache.EnvironmentCache
 	networking                  *servicenetworking.Coordinator
 	startMetricSink             StartMetricSink
 	reportStatus                func(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
 	inventoryChanged            func()
-	rootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *langrtmanager.RootFS) error
-	preActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.AllocationRuntimeHandler, string) error
+	rootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *environmentcache.RootFS) error
+	preActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.AllocationRuntime, string) error
 	egress                      egress.Manager
 
 	stateMu              sync.RWMutex
@@ -86,7 +86,7 @@ func NewController(options Options) *Controller {
 		store:                       options.Store,
 		containerManager:            options.ContainerManager,
 		runscHandler:                options.RunscHandler,
-		lrtManager:                  options.LangRuntime,
+		environmentCache:            options.EnvironmentCache,
 		networking:                  options.Networking,
 		startMetricSink:             options.StartMetricSink,
 		reportStatus:                options.ReportStatus,
@@ -178,22 +178,22 @@ func (c *Controller) RestoreAllocationState(runtimeInventory map[string]struct{}
 		logrus.WithError(err).Warn("restore allocation state; skip mount lease reconciliation")
 		return err
 	}
-	if err := c.lrtManager.ReconcileMountLeases(); err != nil {
+	if err := c.environmentCache.ReconcileMountLeases(); err != nil {
 		return fmt.Errorf("reconcile imagemgr mount leases: %w", err)
 	}
 	return nil
 }
 
-func (c *Controller) PrepareRuntimeTemplate(ctx context.Context, fr *runtime.RuntimeTemplate) (*langrtmanager.LanguageRuntime, error) {
-	lrt, _, err := c.ensureLangRuntime(ctx, fr)
+func (c *Controller) PrepareEnvironmentTemplate(ctx context.Context, fr *runtime.EnvironmentTemplate) (*environmentcache.PreparedEnvironment, error) {
+	lrt, _, err := c.ensurePreparedEnvironment(ctx, fr)
 	return lrt, err
 }
 
-func (c *Controller) PrepareRuntimeTemplateWithSummary(ctx context.Context, fr *runtime.RuntimeTemplate) (*langrtmanager.LanguageRuntime, LangRuntimePrepareSummary, error) {
-	return c.ensureLangRuntime(ctx, fr)
+func (c *Controller) PrepareEnvironmentTemplateWithSummary(ctx context.Context, fr *runtime.EnvironmentTemplate) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
+	return c.ensurePreparedEnvironment(ctx, fr)
 }
 
-func (c *Controller) CreateRuntimeContainer(ctx context.Context, lrt *langrtmanager.LanguageRuntime, templateRequest, createRequest *runtime.CreateContainerRequest, resourceSpec *commonv1.ResourceSpec, recorder contract.StartupPhaseRecorder) (*runtime.CreateContainerResponse, string, error) {
+func (c *Controller) CreateRuntimeContainer(ctx context.Context, lrt *environmentcache.PreparedEnvironment, templateRequest, createRequest *runtime.CreateContainerRequest, resourceSpec *commonv1.ResourceSpec, recorder contract.StartupPhaseRecorder) (*runtime.CreateContainerResponse, string, error) {
 	return c.createContainer(ctx, lrt, templateRequest, createRequest, resourceSpec, recorder)
 }
 
@@ -202,7 +202,7 @@ func (c *Controller) DeleteRuntimeContainer(ctx context.Context, containerID str
 	return err
 }
 
-func (c *Controller) DeleteRuntimeContainerWithHandler(ctx context.Context, request *runtime.DeleteContainerRequest, target *container.Container, handler contract.RuntimeHandler, traceID, spanID string) (*runtime.DeleteContainerResponse, error) {
+func (c *Controller) DeleteRuntimeContainerWithHandler(ctx context.Context, request *runtime.DeleteContainerRequest, target *container.Container, handler contract.SandboxRuntime, traceID, spanID string) (*runtime.DeleteContainerResponse, error) {
 	return c.deleteContainerWithRuntime(ctx, request, target, handler, traceID, spanID)
 }
 
@@ -221,7 +221,7 @@ func (c *Controller) ContainerIP(containerID string) string {
 	return containerIPFromResource(resource)
 }
 
-func (c *Controller) runtimeMapping(containerID string) (*langrtmanager.LanguageRuntime, bool) {
+func (c *Controller) runtimeMapping(containerID string) (*environmentcache.PreparedEnvironment, bool) {
 	c.stateMu.RLock()
 	defer c.stateMu.RUnlock()
 	state := c.allocationStates[containerID]
@@ -254,7 +254,7 @@ func (c *Controller) containers() *container.Manager {
 	return c.containerManager()
 }
 
-func (c *Controller) runtimeHandlerForContainer(id string) (*container.Container, contract.RuntimeHandler, error) {
+func (c *Controller) runtimeHandlerForContainer(id string) (*container.Container, contract.SandboxRuntime, error) {
 	manager := c.containers()
 	if manager == nil {
 		return nil, nil, fmt.Errorf("container manager unavailable")

@@ -112,7 +112,7 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 			RootfsType:                 rootfsTypeToProto(entry.RootfsType),
 			MountType:                  mountTypeToProto(entry.MountType),
 			Mounted:                    entry.Mounted,
-			RetainedRuntimeCount:       int32(entry.RetainedRuntimeCount),
+			RetainedEnvironmentCount:   int32(entry.RetainedEnvironmentCount),
 			RetainedRootfsCount:        int32(entry.RetainedRootfsCount),
 			RunningContainerCount:      int32(entry.RunningContainerCount),
 			NydusDaemonAlive:           entry.NydusDaemonAlive,

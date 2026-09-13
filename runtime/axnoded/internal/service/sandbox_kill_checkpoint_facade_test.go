@@ -8,7 +8,6 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -63,17 +62,4 @@ func TestKillRejectsExitedContainer(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
 	assert.Equal(t, 0, handler.killCalls)
-}
-
-func TestCheckpoint_ContainerNotFound(t *testing.T) {
-	s := newTestService(t,
-		runtimetest.NewFakeRuntimeHandler(),
-	)
-
-	resp, err := s.Checkpoint(context.Background(), &runtime.CheckpointRequest{
-		ID:      "axctl-nonexistent",
-		CkptDir: "/tmp/ckpt",
-	})
-	assert.Nil(t, err)
-	assert.False(t, resp.Success)
 }

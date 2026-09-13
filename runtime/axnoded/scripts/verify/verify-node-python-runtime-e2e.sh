@@ -284,7 +284,7 @@ if ! docker run --rm \
   "${PYTHON_RUNTIME_IMAGE_REF}" \
   python /tmp/python_runtime_e2e.py \
     --endpoint "${GATEWAYD_CONTAINER_NAME}:${GATEWAY_CONTROL_PORT}" \
-    --runtime-id python311 \
+    --environment-id python311 \
     --expected-image-ref "${PYTHON_RUNTIME_IMAGE_REF}"; then
   dump_logs
   exit 1

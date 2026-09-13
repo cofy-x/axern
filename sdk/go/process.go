@@ -13,12 +13,11 @@ import (
 
 // ProcessOptions configures an attached sandbox process.
 type ProcessOptions struct {
-	Env          map[string]string
-	Cwd          string
-	Timeout      time.Duration
-	User         string
-	TTY          bool
-	ManagedProxy *ManagedProxyOptions
+	Env     map[string]string
+	Cwd     string
+	Timeout time.Duration
+	User    string
+	TTY     bool
 }
 
 // ProcessEventKind identifies a process stream event.
@@ -32,18 +31,16 @@ const (
 
 // ProcessEvent is a stdout, stderr, or exit event from an attached process.
 type ProcessEvent struct {
-	Kind               ProcessEventKind
-	Data               []byte
-	ExitCode           int32
-	Message            string
-	ManagedProxyReport *ManagedProxyReport
+	Kind     ProcessEventKind
+	Data     []byte
+	ExitCode int32
+	Message  string
 }
 
 // ProcessResult is the exit status for a sandbox process.
 type ProcessResult struct {
-	ExitCode           int32
-	Message            string
-	ManagedProxyReport *ManagedProxyReport
+	ExitCode int32
+	Message  string
 }
 
 // ProcessOutput contains collected stdout, stderr, and exit status.
@@ -101,12 +98,11 @@ func (n *NodeSandboxClient) Process(ctx context.Context, command any, options Pr
 		return nil, err
 	}
 	process, err := n.rpcClient().Process(ctx, argv, nodeclient.Options{
-		Env:          options.Env,
-		Cwd:          options.Cwd,
-		Timeout:      options.Timeout,
-		User:         options.User,
-		TTY:          options.TTY,
-		ManagedProxy: nodeManagedProxyOptions(options.ManagedProxy),
+		Env:     options.Env,
+		Cwd:     options.Cwd,
+		Timeout: options.Timeout,
+		User:    options.User,
+		TTY:     options.TTY,
 	})
 	if err != nil {
 		return nil, mapRPCError(err, "sandbox process", n.allocationID)
@@ -183,17 +179,15 @@ func (p *SandboxProcess) Recv() (ProcessEvent, error) {
 		return ProcessEvent{}, mapProcessError(err, "sandbox process recv", p.allocationID)
 	}
 	sdkEvent := ProcessEvent{
-		Kind:               ProcessEventKind(event.Kind),
-		Data:               event.Data,
-		ExitCode:           event.ExitCode,
-		Message:            event.Message,
-		ManagedProxyReport: sdkManagedProxyReport(event.ManagedProxyReport),
+		Kind:     ProcessEventKind(event.Kind),
+		Data:     event.Data,
+		ExitCode: event.ExitCode,
+		Message:  event.Message,
 	}
 	if sdkEvent.Kind == ProcessEventExit {
 		p.rememberExit(ProcessResult{
-			ExitCode:           sdkEvent.ExitCode,
-			Message:            sdkEvent.Message,
-			ManagedProxyReport: sdkEvent.ManagedProxyReport,
+			ExitCode: sdkEvent.ExitCode,
+			Message:  sdkEvent.Message,
 		})
 		_ = p.closeProcess()
 	}
@@ -242,9 +236,8 @@ func (p *SandboxProcess) Wait() (ProcessResult, error) {
 		}
 		if event.Kind == ProcessEventExit {
 			return ProcessResult{
-				ExitCode:           event.ExitCode,
-				Message:            event.Message,
-				ManagedProxyReport: event.ManagedProxyReport,
+				ExitCode: event.ExitCode,
+				Message:  event.Message,
 			}, nil
 		}
 	}
@@ -264,9 +257,8 @@ func (p *SandboxProcess) Output() (ProcessOutput, error) {
 			output.Stderr = append(output.Stderr, event.Data...)
 		case ProcessEventExit:
 			output.ProcessResult = ProcessResult{
-				ExitCode:           event.ExitCode,
-				Message:            event.Message,
-				ManagedProxyReport: event.ManagedProxyReport,
+				ExitCode: event.ExitCode,
+				Message:  event.Message,
 			}
 			return output, nil
 		}

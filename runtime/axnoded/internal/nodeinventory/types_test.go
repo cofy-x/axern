@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -55,13 +55,13 @@ func TestNodeInfoJSONRoundTripsCapabilityOneof(t *testing.T) {
 func TestLocalityKeyFromRootfsConfig(t *testing.T) {
 	tests := []struct {
 		name string
-		cfg  langruntime.RootfsConfig
+		cfg  environmentcache.RootfsConfig
 		want string
 		ok   bool
 	}{
 		{
 			name: "local",
-			cfg: langruntime.RootfsConfig{
+			cfg: environmentcache.RootfsConfig{
 				SrcType: runtimeapi.RootfsSrcType_LOCAL,
 				Path:    "/tmp/../opt/rootfs",
 			},
@@ -70,7 +70,7 @@ func TestLocalityKeyFromRootfsConfig(t *testing.T) {
 		},
 		{
 			name: "image",
-			cfg: langruntime.RootfsConfig{
+			cfg: environmentcache.RootfsConfig{
 				SrcType:  runtimeapi.RootfsSrcType_IMAGE,
 				ImageUrl: "docker.io/library/nginx:latest",
 			},

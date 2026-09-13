@@ -7,7 +7,7 @@ import (
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
@@ -15,27 +15,27 @@ import (
 )
 
 // newTestService creates a sandboxService with a real container.Manager backed by a temp dir.
-func newTestService(t *testing.T, runscHandler contract.RuntimeHandler) *sandboxService {
-	lrtManager := langrtmanager.NewLanguageRuntimeManager()
-	retentionTTL, err := time.ParseDuration(config.DefaultIdleRuntimeRetentionTTL)
+func newTestService(t *testing.T, runscHandler contract.SandboxRuntime) *sandboxService {
+	environmentCache := environmentcache.NewEnvironmentCache()
+	retentionTTL, err := time.ParseDuration(config.DefaultIdleEnvironmentRetentionTTL)
 	if !assert.NoError(t, err) {
 		t.FailNow()
 	}
-	lrtManager.ConfigureRetention(retentionTTL, config.DefaultIdleRuntimeRetentionMax)
-	return newTestServiceWithLanguageRuntimeManager(t, runscHandler, lrtManager)
+	environmentCache.ConfigureRetention(retentionTTL, config.DefaultIdleEnvironmentRetentionMax)
+	return newTestServiceWithPreparedEnvironmentManager(t, runscHandler, environmentCache)
 }
 
-func newTestServiceWithLanguageRuntimeManager(t *testing.T, runscHandler contract.RuntimeHandler, lrtManager *langrtmanager.LangRTManager) *sandboxService {
+func newTestServiceWithPreparedEnvironmentManager(t *testing.T, runscHandler contract.SandboxRuntime, environmentCache *environmentcache.EnvironmentCache) *sandboxService {
 	t.Helper()
-	if lrtManager == nil {
-		t.Fatal("language runtime manager is required")
+	if environmentCache == nil {
+		t.Fatal("environment cache is required")
 	}
 
 	tmpDir := t.TempDir()
 
 	managerHandler := runscHandler
 	if managerHandler == nil {
-		managerHandler = runtimetest.NewFakeRuntimeHandler()
+		managerHandler = runtimetest.NewFakeSandboxRuntime()
 	}
 
 	healthChan := make(chan bool, 10)
@@ -60,7 +60,7 @@ func newTestServiceWithLanguageRuntimeManager(t *testing.T, runscHandler contrac
 		runscHandler:     runscHandler,
 		containerManager: cm,
 		store:            storetest.NewMockStore(),
-		lrtManager:       lrtManager,
+		environmentCache: environmentCache,
 	}
 	s.configureSandboxTargets()
 	s.configureSandboxAccess()

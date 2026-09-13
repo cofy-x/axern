@@ -356,8 +356,8 @@ func (f *fakeSecretClient) DeleteSecret(context.Context, *secretv1.DeleteSecretR
 
 type fakeCatalogClient struct{}
 
-func (*fakeCatalogClient) ListRuntimeTemplates(context.Context, *catalogv1.ListRuntimeTemplatesRequest, ...grpc.CallOption) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-	return &catalogv1.ListRuntimeTemplatesResponse{}, nil
+func (*fakeCatalogClient) ListEnvironmentTemplates(context.Context, *catalogv1.ListEnvironmentTemplatesRequest, ...grpc.CallOption) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
+	return &catalogv1.ListEnvironmentTemplatesResponse{}, nil
 }
 
 type fakeEnvironmentClient struct {

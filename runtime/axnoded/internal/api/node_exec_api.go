@@ -21,24 +21,22 @@ func (s *nodeSandboxServer) Exec(ctx context.Context, req *nodesandboxv1.ExecReq
 	}
 
 	resp, err := s.svc.Exec(ctx, &runtimev1.ExecRequest{
-		ID:           target.targetID,
-		Command:      append([]string(nil), req.GetSpec().GetArgv()...),
-		Timeout:      req.GetSpec().GetTimeoutSeconds(),
-		Env:          cloneStringMap(req.GetSpec().GetEnv()),
-		Cwd:          req.GetSpec().GetCwd(),
-		User:         req.GetSpec().GetUser(),
-		ManagedProxy: convertManagedProxySpec(req.GetSpec().GetManagedProxy()),
+		ID:      target.targetID,
+		Command: append([]string(nil), req.GetSpec().GetArgv()...),
+		Timeout: req.GetSpec().GetTimeoutSeconds(),
+		Env:     cloneStringMap(req.GetSpec().GetEnv()),
+		Cwd:     req.GetSpec().GetCwd(),
+		User:    req.GetSpec().GetUser(),
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &nodesandboxv1.ExecResponse{
-		ExitCode:           resp.GetExitCode(),
-		Stdout:             resp.GetStdout(),
-		Stderr:             resp.GetStderr(),
-		StdoutTruncated:    resp.GetStdoutTruncated(),
-		StderrTruncated:    resp.GetStderrTruncated(),
-		ManagedProxyReport: convertManagedProxyReport(resp.GetManagedProxyReport()),
+		ExitCode:        resp.GetExitCode(),
+		Stdout:          resp.GetStdout(),
+		Stderr:          resp.GetStderr(),
+		StdoutTruncated: resp.GetStdoutTruncated(),
+		StderrTruncated: resp.GetStderrTruncated(),
 	}, nil
 }
 
@@ -111,15 +109,14 @@ func convertExecStreamRequest(in *nodesandboxv1.ExecStreamRequest, targetID stri
 		return &runtimev1.ExecStreamRequest{
 			Payload: &runtimev1.ExecStreamRequest_Open{
 				Open: &runtimev1.ExecStreamOpen{
-					ID:           targetID,
-					Command:      append([]string(nil), payload.Open.GetSpec().GetArgv()...),
-					Tty:          payload.Open.GetSpec().GetTty(),
-					Timeout:      payload.Open.GetSpec().GetTimeoutSeconds(),
-					Env:          cloneStringMap(payload.Open.GetSpec().GetEnv()),
-					Cwd:          payload.Open.GetSpec().GetCwd(),
-					User:         payload.Open.GetSpec().GetUser(),
-					InitialSize:  convertNodeTerminalResize(payload.Open.GetInitialSize()),
-					ManagedProxy: convertManagedProxySpec(payload.Open.GetSpec().GetManagedProxy()),
+					ID:          targetID,
+					Command:     append([]string(nil), payload.Open.GetSpec().GetArgv()...),
+					Tty:         payload.Open.GetSpec().GetTty(),
+					Timeout:     payload.Open.GetSpec().GetTimeoutSeconds(),
+					Env:         cloneStringMap(payload.Open.GetSpec().GetEnv()),
+					Cwd:         payload.Open.GetSpec().GetCwd(),
+					User:        payload.Open.GetSpec().GetUser(),
+					InitialSize: convertNodeTerminalResize(payload.Open.GetInitialSize()),
 				},
 			},
 		}, nil
@@ -153,37 +150,12 @@ func convertExecStreamResponse(in *runtimev1.ExecStreamResponse) (*nodesandboxv1
 		return &nodesandboxv1.ExecStreamResponse{Payload: &nodesandboxv1.ExecStreamResponse_Stderr{Stderr: payload.Stderr}}, nil
 	case *runtimev1.ExecStreamResponse_Exit:
 		exit := &nodesandboxv1.ExecExit{
-			ExitCode:           payload.Exit.GetExitCode(),
-			Message:            payload.Exit.GetMessage(),
-			ManagedProxyReport: convertManagedProxyReport(payload.Exit.GetManagedProxyReport()),
+			ExitCode: payload.Exit.GetExitCode(),
+			Message:  payload.Exit.GetMessage(),
 		}
 		return &nodesandboxv1.ExecStreamResponse{Payload: &nodesandboxv1.ExecStreamResponse_Exit{Exit: exit}}, exit
 	default:
 		return &nodesandboxv1.ExecStreamResponse{}, nil
-	}
-}
-
-func convertManagedProxySpec(in *nodesandboxv1.ManagedProxySpec) *runtimev1.ManagedProxySpec {
-	if in == nil {
-		return nil
-	}
-	return &runtimev1.ManagedProxySpec{
-		Provider:            in.GetProvider(),
-		UpstreamBaseUrl:     in.GetUpstreamBaseUrl(),
-		UpstreamBearerToken: in.GetUpstreamBearerToken(),
-	}
-}
-
-func convertManagedProxyReport(in *runtimev1.ManagedProxyReport) *nodesandboxv1.ManagedProxyReport {
-	if in == nil {
-		return nil
-	}
-	return &nodesandboxv1.ManagedProxyReport{
-		Provider:      in.GetProvider(),
-		RequestCount:  in.GetRequestCount(),
-		ResponseCount: in.GetResponseCount(),
-		ErrorCount:    in.GetErrorCount(),
-		ReportJson:    append([]byte(nil), in.GetReportJson()...),
 	}
 }
 

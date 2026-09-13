@@ -15,7 +15,6 @@ COPY runtime/egressd/go.mod runtime/egressd/go.sum /workspace/runtime/egressd/
 COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
-COPY lib/go/llmproxy/go.mod /workspace/lib/go/llmproxy/go.mod
 COPY lib/go/networkpolicy/go.mod lib/go/networkpolicy/go.sum /workspace/lib/go/networkpolicy/
 COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
@@ -26,7 +25,6 @@ go 1.25.12
 use (
 	./lib/go/grpcclient
 	./lib/go/imageref
-	./lib/go/llmproxy
 	./lib/go/networkpolicy
 	./lib/go/nodecapability
 	./lib/go/observability

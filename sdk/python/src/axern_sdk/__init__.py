@@ -1,6 +1,6 @@
 """Python SDK for the Axern control plane."""
 
-from axern_sdk.catalog import CatalogClient
+from axern_sdk.catalog import EnvironmentCatalogClient
 from axern_sdk.async_client import AsyncAxernClient
 from axern_sdk.client import AxernClient
 from axern_sdk.context import AxernContext, TLSContext, load_context
@@ -26,13 +26,13 @@ from axern_sdk.errors import (
 from axern_sdk.catalog.models import (
     MountSpec,
     OciImageDescriptor,
-    RuntimeBaselinePolicy,
-    RuntimeCapabilities,
-    RuntimeCapabilityPolicy,
-    RuntimeExecutionProfile,
-    RuntimeNetworkNamespacePolicy,
-    RuntimeResourcePolicy,
-    RuntimeTemplate,
+    OciBaselinePolicy,
+    EnvironmentTemplateCapabilities,
+    OciCapabilityPolicy,
+    OciExecutionProfile,
+    OciNetworkNamespacePolicy,
+    OciResourcePolicy,
+    EnvironmentTemplate,
 )
 from axern_sdk.models import ImageMount, SecretEnvVar, SecretFile
 from axern_sdk.network_policy import CIDRRule, NetworkPolicy, PortRange
@@ -53,11 +53,9 @@ from axern_sdk.node import (
     ExecCommand,
     ExecResult,
     ExecStreamEvent,
-    ImageProcessMount,
     NodeSandboxClient,
     ProcessResult,
     SandboxProcess,
-    workspace_mount,
 )
 from axern_sdk.sandbox import AsyncSandbox, Sandbox, SandboxFileInfo, SandboxFileKind, SandboxMetadata, SandboxState
 from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
@@ -85,7 +83,7 @@ __all__ = [
     "AsyncAxernClient",
     "AxernClient",
     "AxernContext",
-    "CatalogClient",
+    "EnvironmentCatalogClient",
     "CIDRRule",
     "AsyncNodeSandboxClient",
     "AsyncProcessResult",
@@ -104,7 +102,6 @@ __all__ = [
     "ExecCommand",
     "ExecResult",
     "ExecStreamEvent",
-    "ImageProcessMount",
     "ImageMount",
     "NodeSandboxClient",
     "NetworkPolicy",
@@ -120,17 +117,16 @@ __all__ = [
     "TunnelConnector",
     "MountSpec",
     "OciImageDescriptor",
-    "RuntimeBaselinePolicy",
-    "RuntimeCapabilities",
-    "RuntimeCapabilityPolicy",
-    "RuntimeExecutionProfile",
-    "RuntimeNetworkNamespacePolicy",
-    "RuntimeResourcePolicy",
-    "RuntimeTemplate",
+    "OciBaselinePolicy",
+    "EnvironmentTemplateCapabilities",
+    "OciCapabilityPolicy",
+    "OciExecutionProfile",
+    "OciNetworkNamespacePolicy",
+    "OciResourcePolicy",
+    "EnvironmentTemplate",
     "SecretEnvVar",
     "SecretFile",
     "TLSContext",
-    "workspace_mount",
     "load_context",
 ]
 

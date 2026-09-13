@@ -48,7 +48,7 @@ func TestNodeResourceProviderRejectsUnknownSource(t *testing.T) {
 func TestValidateRuntimeResourceConfigurationRejectsRequiredDisabledPool(t *testing.T) {
 	handler := &runtimeSpyHandler{
 		name: "runsc",
-		requirements: contract.RuntimeRequirements{
+		requirements: contract.HostRequirements{
 			Resources: []resources.ResourceName{resources.InterfaceResourceName},
 		},
 	}
@@ -66,7 +66,7 @@ func TestValidateRuntimeResourceConfigurationRejectsRequiredDisabledPool(t *test
 func TestValidateRuntimeResourceConfigurationAllowsUnusedDisabledPool(t *testing.T) {
 	handler := &runtimeSpyHandler{
 		name: "runsc",
-		requirements: contract.RuntimeRequirements{
+		requirements: contract.HostRequirements{
 			Resources: []resources.ResourceName{resources.InterfaceResourceName},
 		},
 	}
@@ -83,7 +83,7 @@ func TestValidateRuntimeResourceConfigurationAllowsUnusedDisabledPool(t *testing
 func TestValidateRuntimeResourceConfigurationAllowsRequiredCgroupWithoutPrewarming(t *testing.T) {
 	handler := &runtimeSpyHandler{
 		name: "runsc",
-		requirements: contract.RuntimeRequirements{
+		requirements: contract.HostRequirements{
 			Resources: []resources.ResourceName{resources.CgroupResourceName, resources.InterfaceResourceName},
 		},
 	}
@@ -98,7 +98,7 @@ func TestValidateRuntimeResourceConfigurationAllowsRequiredCgroupWithoutPrewarmi
 }
 
 func TestValidateRuntimeResourceConfigurationRejectsCapacityAboveContainerLimit(t *testing.T) {
-	err := validateRuntimeResourceConfiguration(runtimetest.NewFakeRuntimeHandler(), config.ResourceConfig{
+	err := validateRuntimeResourceConfiguration(runtimetest.NewFakeSandboxRuntime(), config.ResourceConfig{
 		MaxInstanceNum: container.MaxContainerNum + 1,
 	})
 	if err == nil || !strings.Contains(err.Error(), "exceeds container hard limit") {
@@ -130,7 +130,7 @@ func TestValidateRuntimeResourceConfigurationRejectsInvalidPoolSizes(t *testing.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateRuntimeResourceConfiguration(runtimetest.NewFakeRuntimeHandler(), tt.cfg)
+			err := validateRuntimeResourceConfiguration(runtimetest.NewFakeSandboxRuntime(), tt.cfg)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("validateRuntimeResourceConfiguration() error = %v, want %q", err, tt.want)
 			}

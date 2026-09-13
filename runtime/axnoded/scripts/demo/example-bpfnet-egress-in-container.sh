@@ -6,8 +6,7 @@ cd "${ROOT_DIR}"
 . "${ROOT_DIR}/scripts/lib/ebpf-ingress-probe.sh"
 . "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 
-RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST:-runsc}"
-RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/${RUNTIME_UNDER_TEST}}"
+RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/runsc}"
 SOCKET_ADDRESS="${SOCKET_ADDRESS:-/run/axnoded/axnoded.sock}"
 AXNODED_BIN="${AXNODED_BIN:-/usr/local/bin/axnoded}"
 VERIFY_EGRESS_BIN="${VERIFY_EGRESS_BIN:-/usr/local/bin/verify-egress}"
@@ -95,7 +94,6 @@ fi
 egress_args=(
   -address "${SOCKET_ADDRESS}"
   -rootfs "${VERIFY_ROOTFS}"
-  -runtime "${RUNTIME_UNDER_TEST}"
   -stdout "${VERIFY_STDOUT}"
   -stderr "${VERIFY_STDERR}"
   -nat-backend "${NAT_BACKEND}"
@@ -117,7 +115,7 @@ egress_output="$("${VERIFY_EGRESS_BIN}" "${egress_args[@]}" 2>&1)" || {
 
 printf '%s\n' "example_ok=true"
 printf '%s\n' "example=bpfnet_egress"
-printf '%s\n' "runtime=${RUNTIME_UNDER_TEST}"
+printf '%s\n' "runtime=runsc"
 printf '%s\n' "nat_backend=${NAT_BACKEND}"
 printf '%s\n' "tcp_target=${EBPF_INGRESS_PROBE_CLIENT_ADDR}:${TCP_PORT}"
 printf '%s\n' "udp_target=${EBPF_INGRESS_PROBE_CLIENT_ADDR}:${UDP_PORT}"

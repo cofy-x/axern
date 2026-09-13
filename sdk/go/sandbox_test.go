@@ -239,48 +239,6 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 		t.Fatalf("unexpected process output=%+v result=%+v", processOutput, processResult)
 	}
 	_ = process.Close()
-	imageResult, err := sandbox.ExecImage(ctx, "ghcr.io/cofy-x/agent:latest", "tool run", ImageExecOptions{Check: true})
-	if err != nil {
-		t.Fatalf("exec image: %v", err)
-	}
-	if imageResult.StdoutString() != "image\n" {
-		t.Fatalf("exec image stdout = %q", imageResult.StdoutString())
-	}
-	if len(fake.execImageSpecs) != 1 {
-		t.Fatalf("exec image specs count = %d, want 1", len(fake.execImageSpecs))
-	}
-	if got := fake.execImageSpecs[0]; got.GetImage() != "ghcr.io/cofy-x/agent:latest" || len(got.GetMounts()) != 1 || got.GetMounts()[0].GetSandboxPath() != "/workspace" {
-		t.Fatalf("unexpected default exec image spec = %#v", got)
-	}
-	_, err = sandbox.ExecImage(ctx, "ghcr.io/cofy-x/agent:latest", Args("tool", "isolated"), ImageExecOptions{Mounts: []ImageProcessMount{}})
-	if err != nil {
-		t.Fatalf("exec image isolated: %v", err)
-	}
-	if got := fake.execImageSpecs[1]; len(got.GetMounts()) != 0 {
-		t.Fatalf("isolated exec image mounts = %#v, want empty", got.GetMounts())
-	}
-	imageProcess, err := sandbox.ProcessImage(ctx, "ghcr.io/cofy-x/agent:latest", []string{"cat"}, ImageProcessOptions{
-		Mounts: []ImageProcessMount{WorkspaceMount("/workspace")},
-	})
-	if err != nil {
-		t.Fatalf("process image: %v", err)
-	}
-	if err := imageProcess.WriteString("image-process-ok\n"); err != nil {
-		t.Fatalf("image process write: %v", err)
-	}
-	if err := imageProcess.CloseStdin(); err != nil {
-		t.Fatalf("image process close stdin: %v", err)
-	}
-	imageProcessOutput, err := imageProcess.Output()
-	if err != nil {
-		t.Fatalf("image process output: %v", err)
-	}
-	if imageProcessOutput.ExitCode != 0 || string(imageProcessOutput.Stdout) != "image-process-ok\n" {
-		t.Fatalf("unexpected image process output=%+v", imageProcessOutput)
-	}
-	if got := fake.processImageSpec; got == nil || got.GetImage() != "ghcr.io/cofy-x/agent:latest" || len(got.GetMounts()) != 1 {
-		t.Fatalf("unexpected process image spec = %#v", got)
-	}
 	root := t.TempDir()
 	source := filepath.Join(root, "upload")
 	target := filepath.Join(root, "download")
@@ -616,8 +574,6 @@ type fakeAxernServer struct {
 	files                  map[string][]byte
 	createRunRequest       *runv1.CreateRunRequest
 	execArgv               []string
-	execImageSpecs         []*nodesandboxv1.ImageProcessSpec
-	processImageSpec       *nodesandboxv1.ImageProcessSpec
 	mkdirPath              string
 	mkdirParents           bool
 	removePath             string
@@ -780,14 +736,6 @@ func (f *fakeAxernServer) Exec(_ context.Context, request *nodesandboxv1.ExecReq
 	}, nil
 }
 
-func (f *fakeAxernServer) ExecImage(_ context.Context, request *nodesandboxv1.ExecImageRequest) (*nodesandboxv1.ExecImageResponse, error) {
-	f.execImageSpecs = append(f.execImageSpecs, request.GetSpec())
-	return &nodesandboxv1.ExecImageResponse{
-		ExitCode: 0,
-		Stdout:   []byte("image\n"),
-	}, nil
-}
-
 func (f *fakeAxernServer) Process(stream nodesandboxv1.NodeSandbox_ProcessServer) error {
 	if f.processClosed != nil {
 		defer f.processClosedOnce.Do(func() { close(f.processClosed) })
@@ -853,45 +801,6 @@ func (f *fakeAxernServer) Process(stream nodesandboxv1.NodeSandbox_ProcessServer
 			}
 			return stream.Send(&nodesandboxv1.ProcessResponse{
 				Payload: &nodesandboxv1.ProcessResponse_Exit{Exit: &nodesandboxv1.ExecExit{ExitCode: 0}},
-			})
-		}
-	}
-}
-
-func (f *fakeAxernServer) ProcessImage(stream nodesandboxv1.NodeSandbox_ProcessImageServer) error {
-	request, err := stream.Recv()
-	if err != nil {
-		return err
-	}
-	if request.GetOpen() == nil {
-		return nil
-	}
-	f.processImageSpec = request.GetOpen().GetSpec()
-	if err := stream.Send(&nodesandboxv1.ProcessImageResponse{
-		Payload: &nodesandboxv1.ProcessImageResponse_Ready{Ready: &nodesandboxv1.ProcessReady{}},
-	}); err != nil {
-		return err
-	}
-	var stdin []byte
-	for {
-		request, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		switch payload := request.GetPayload().(type) {
-		case *nodesandboxv1.ProcessImageRequest_Stdin:
-			stdin = append(stdin, payload.Stdin...)
-		case *nodesandboxv1.ProcessImageRequest_CloseStdin:
-			if err := stream.Send(&nodesandboxv1.ProcessImageResponse{
-				Payload: &nodesandboxv1.ProcessImageResponse_Stdout{Stdout: append([]byte(nil), stdin...)},
-			}); err != nil {
-				return err
-			}
-			return stream.Send(&nodesandboxv1.ProcessImageResponse{
-				Payload: &nodesandboxv1.ProcessImageResponse_Exit{Exit: &nodesandboxv1.ExecExit{ExitCode: 0}},
 			})
 		}
 	}

@@ -15,21 +15,6 @@ message ExecSpec {
   int64 timeout_seconds = 4;
   bool tty = 5;
   string user = 6;
-  ManagedProxySpec managed_proxy = 7;
-}
-
-message ManagedProxySpec {
-  string provider = 1;
-  string upstream_base_url = 2;
-  string upstream_bearer_token = 3;
-}
-
-message ManagedProxyReport {
-  string provider = 1;
-  int32 request_count = 2;
-  int32 response_count = 3;
-  int32 error_count = 4;
-  bytes report_json = 5;
 }
 
 message ExecRequest {
@@ -44,7 +29,6 @@ message ExecResponse {
   bytes stderr = 3;
   bool stdout_truncated = 4;
   bool stderr_truncated = 5;
-  ManagedProxyReport managed_proxy_report = 6;
 }
 
 message ExecStreamOpen {
@@ -71,7 +55,6 @@ message ExecStreamRequest {
 message ExecExit {
   int32 exit_code = 1;
   string message = 2;
-  ManagedProxyReport managed_proxy_report = 3;
 }
 
 message ExecStreamResponse {
@@ -105,65 +88,6 @@ message ProcessRequest {
 }
 
 message ProcessResponse {
-  oneof payload {
-    bytes stdout = 1;
-    bytes stderr = 2;
-    ExecExit exit = 3;
-    ProcessReady ready = 4;
-  }
-}
-
-message ImageProcessMount {
-  string sandbox_path = 1;
-  string target_path = 2;
-  bool readonly = 3;
-  repeated string options = 4;
-}
-
-message ImageProcessSpec {
-  string image = 1;
-  repeated string argv = 2;
-  map<string, string> env = 3;
-  string cwd = 4;
-  int64 timeout_seconds = 5;
-  bool tty = 6;
-  string user = 7;
-  repeated ImageProcessMount mounts = 8;
-  ManagedProxySpec managed_proxy = 9;
-}
-
-message ExecImageRequest {
-  ImageProcessSpec spec = 1;
-  string allocation_id = 2;
-  string execution_lease_token = 3;
-}
-
-message ExecImageResponse {
-  int32 exit_code = 1;
-  bytes stdout = 2;
-  bytes stderr = 3;
-  bool stdout_truncated = 4;
-  bool stderr_truncated = 5;
-  ManagedProxyReport managed_proxy_report = 6;
-}
-
-message ProcessImageOpen {
-  ImageProcessSpec spec = 1;
-  string allocation_id = 2;
-  string execution_lease_token = 3;
-}
-
-message ProcessImageRequest {
-  oneof payload {
-    ProcessImageOpen open = 1;
-    bytes stdin = 2;
-    TerminalResize resize = 3;
-    bool close_stdin = 4;
-    ProcessSignal signal = 5;
-  }
-}
-
-message ProcessImageResponse {
   oneof payload {
     bytes stdout = 1;
     bytes stderr = 2;
@@ -586,8 +510,6 @@ service NodeSandbox {
   rpc Exec(ExecRequest) returns (ExecResponse) {}
   rpc ExecStream(stream ExecStreamRequest) returns (stream ExecStreamResponse) {}
   rpc Process(stream ProcessRequest) returns (stream ProcessResponse) {}
-  rpc ExecImage(ExecImageRequest) returns (ExecImageResponse) {}
-  rpc ProcessImage(stream ProcessImageRequest) returns (stream ProcessImageResponse) {}
   rpc WaitSandbox(WaitSandboxRequest) returns (WaitSandboxResponse) {}
   rpc ReadOutput(ReadOutputRequest) returns (stream ReadOutputResponse) {}
   rpc CapabilityStatus(CapabilityStatusRequest) returns (CapabilityStatusResponse) {}

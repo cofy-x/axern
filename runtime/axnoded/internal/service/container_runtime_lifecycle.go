@@ -51,7 +51,7 @@ func (h *sandboxService) initContainerRuntime(ctx context.Context) (chan bool, e
 	return healthChan, nil
 }
 
-func loadRunscHandler(ctx context.Context, cfg config.Config) (contract.RuntimeHandler, error) {
+func loadRunscHandler(ctx context.Context, cfg config.Config) (contract.SandboxRuntime, error) {
 	backoff := 100 * time.Millisecond
 	for {
 		handler, err := runtimecore.NewRunscHandler(cfg)
@@ -84,7 +84,7 @@ func shutdownResourceManagers(managers []resourcemanager.Manager) {
 	}
 }
 
-func validateRuntimeResourceConfiguration(handler contract.RuntimeHandler, cfg config.ResourceConfig) error {
+func validateRuntimeResourceConfiguration(handler contract.SandboxRuntime, cfg config.ResourceConfig) error {
 	if cfg.MaxInstanceNum <= 0 {
 		return fmt.Errorf("invalid runtime resource configuration: max_instance_num must be positive")
 	}
@@ -121,7 +121,7 @@ func validateRuntimeResourceConfiguration(handler contract.RuntimeHandler, cfg c
 	for _, name := range disabled {
 		disabledSet[name] = struct{}{}
 	}
-	for _, resourceName := range handler.Requirements().Resources {
+	for _, resourceName := range handler.HostRequirements().Resources {
 		if _, disabled := disabledSet[resourceName]; disabled {
 			return fmt.Errorf("invalid runtime resource configuration: runsc requires disabled resource pool %q", resourceName)
 		}
@@ -129,8 +129,8 @@ func validateRuntimeResourceConfiguration(handler contract.RuntimeHandler, cfg c
 	return nil
 }
 
-func runtimeRequiresResource(handler contract.RuntimeHandler, want resourcemanager.ResourceName) bool {
-	for _, resourceName := range handler.Requirements().Resources {
+func runtimeRequiresResource(handler contract.SandboxRuntime, want resourcemanager.ResourceName) bool {
+	for _, resourceName := range handler.HostRequirements().Resources {
 		if resourceName == want {
 			return true
 		}

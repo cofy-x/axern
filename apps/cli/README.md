@@ -80,7 +80,7 @@ Generate completion with `axern completion bash|zsh|fish`.
 
 ## Platform Doctor
 
-`axern doctor` is read-only by default. It validates local connection settings, mTLS material and certificate lifetime, gateway connectivity, the authenticated Principal, authorization for the selected namespace, and the runtime catalog. Messages and JSON output use stable codes and do not include certificate paths, private keys, raw endpoints, or server error text.
+`axern doctor` is read-only by default. It validates local connection settings, mTLS material and certificate lifetime, gateway connectivity, the authenticated Principal, authorization for the selected namespace, and the environment catalog. Messages and JSON output use stable codes and do not include certificate paths, private keys, raw endpoints, or server error text.
 
 Use `--probe` when a real data-plane check is required:
 

@@ -19,22 +19,6 @@ type ProviderPreflight interface {
 	PreflightProvider(context.Context, domain.AgentSpec, domain.ModelSpec) error
 }
 
-type ProviderProfilePreflight interface {
-	PreflightProviderProfile(domain.AgentSpec) error
-}
-
-func PreflightHarnessProfile(harness agent.Harness, agentSpec domain.AgentSpec) error {
-	if harness == nil {
-		return nil
-	}
-	configurer, ok := harness.(agent.ManagedProxyConfigurer)
-	if !ok {
-		return nil
-	}
-	_, err := configurer.ManagedProxyConfig(agentSpec)
-	return err
-}
-
 func PreflightHarnessProvider(ctx context.Context, harness agent.Harness, agentSpec domain.AgentSpec, model domain.ModelSpec) error {
 	if harness == nil {
 		return nil

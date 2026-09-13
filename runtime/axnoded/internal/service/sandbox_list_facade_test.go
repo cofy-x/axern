@@ -13,7 +13,7 @@ import (
 
 func TestList_Empty(t *testing.T) {
 	s := newTestService(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 	)
 
 	resp, err := s.List(context.Background(), &runtime.ListContainersRequest{})
@@ -23,7 +23,7 @@ func TestList_Empty(t *testing.T) {
 
 func TestList_ById_NotFound(t *testing.T) {
 	s := newTestService(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 	)
 
 	_, err := s.List(context.Background(), &runtime.ListContainersRequest{
@@ -34,7 +34,7 @@ func TestList_ById_NotFound(t *testing.T) {
 
 func TestList_WithStoredContainer(t *testing.T) {
 	s := newTestService(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 	)
 
 	containerID := "axctl-test-list-001"
@@ -63,7 +63,7 @@ func TestList_WithStoredContainer(t *testing.T) {
 
 func TestConfigureSandboxControlDefersContainerManagerLookup(t *testing.T) {
 	base := newTestService(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 	)
 	containerID := "axctl-sandbox-control-deferred"
 	base.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
@@ -77,38 +77,5 @@ func TestConfigureSandboxControlDefersContainerManagerLookup(t *testing.T) {
 	assert.NoError(t, err)
 	if assert.Len(t, resp.GetContainers(), 1) {
 		assert.Equal(t, containerID, resp.GetContainers()[0].GetID())
-	}
-}
-
-func TestList_ByLabel(t *testing.T) {
-	s := newTestService(t,
-		runtimetest.NewFakeRuntimeHandler(),
-	)
-
-	containerID := "axctl-test-label-001"
-	meta := &apipb.ContainerMetadata{
-		Labels: map[string]string{"app": "myapp"},
-	}
-	s.containerManager.StoreMetadata(containerID, meta)
-	time.Sleep(200 * time.Millisecond)
-
-	resp, err := s.List(context.Background(), &runtime.ListContainersRequest{
-		Selector: map[string]string{"app": "myapp"},
-	})
-	assert.NoError(t, err)
-	found := false
-	for _, c := range resp.Containers {
-		if c.ID == containerID {
-			found = true
-		}
-	}
-	assert.True(t, found)
-
-	resp, err = s.List(context.Background(), &runtime.ListContainersRequest{
-		Selector: map[string]string{"app": "other"},
-	})
-	assert.NoError(t, err)
-	for _, c := range resp.Containers {
-		assert.NotEqual(t, containerID, c.ID)
 	}
 }

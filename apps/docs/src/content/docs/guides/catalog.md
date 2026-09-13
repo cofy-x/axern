@@ -1,9 +1,9 @@
 ---
 title: Catalog
-description: Discover runtime templates curated by the platform.
+description: Discover environment templates curated by the platform.
 ---
 
-The catalog is the control plane's registry of runtime templates. A template defines a reproducible sandbox rootfs and its execution policy.
+The catalog is the control plane's registry of environment templates. A template defines a reproducible sandbox rootfs and its execution policy.
 
 ```bash
 axern catalog list

@@ -21,7 +21,6 @@ type LaunchPlan struct {
 	User             string
 	Timeout          time.Duration
 	Env              map[string]string
-	ManagedProxy     *sandbox.ManagedProxyOptions
 	Profile          string
 	SessionMode      domain.AgentSessionMode
 	SessionID        string
@@ -82,22 +81,10 @@ func (SandboxCommandLauncher) Launch(ctx context.Context, instance sandbox.Insta
 
 func (p LaunchPlan) ExecOptions() sandbox.ExecOptions {
 	return sandbox.ExecOptions{
-		CWD:          p.CWD,
-		User:         p.User,
-		Timeout:      p.Timeout,
-		Env:          cloneEnv(p.Env),
-		ManagedProxy: cloneManagedProxyOptions(p.ManagedProxy),
-	}
-}
-
-func cloneManagedProxyOptions(options *sandbox.ManagedProxyOptions) *sandbox.ManagedProxyOptions {
-	if options == nil {
-		return nil
-	}
-	return &sandbox.ManagedProxyOptions{
-		Provider:            options.Provider,
-		UpstreamBaseURL:     options.UpstreamBaseURL,
-		UpstreamBearerToken: options.UpstreamBearerToken,
+		CWD:     p.CWD,
+		User:    p.User,
+		Timeout: p.Timeout,
+		Env:     cloneEnv(p.Env),
 	}
 }
 

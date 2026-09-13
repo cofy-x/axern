@@ -41,10 +41,10 @@ func TestValidateStartRequest(t *testing.T) {
 	assert.Error(t, ValidateStartRequest(nil))
 	assert.Error(t, ValidateStartRequest(&runtime.StartRequest{}))
 	assert.Error(t, ValidateStartRequest(&runtime.StartRequest{
-		RuntimeTemplate: &runtime.RuntimeTemplate{},
+		EnvironmentTemplate: &runtime.EnvironmentTemplate{},
 	}))
 	assert.NoError(t, ValidateStartRequest(&runtime.StartRequest{
-		RuntimeTemplate: &runtime.RuntimeTemplate{
+		EnvironmentTemplate: &runtime.EnvironmentTemplate{
 			Rootfs: &runtime.RootfsConfig{},
 		},
 	}))
@@ -52,7 +52,7 @@ func TestValidateStartRequest(t *testing.T) {
 
 func TestBuildStartLabels(t *testing.T) {
 	request := &runtime.StartRequest{
-		RuntimeTemplate: &runtime.RuntimeTemplate{ID: "rt-1"},
+		EnvironmentTemplate: &runtime.EnvironmentTemplate{ID: "rt-1"},
 	}
 
 	t.Run("default has no identity labels", func(t *testing.T) {
@@ -62,8 +62,8 @@ func TestBuildStartLabels(t *testing.T) {
 
 	t.Run("allocation identity is not copied into annotations", func(t *testing.T) {
 		req := &runtime.StartRequest{
-			RuntimeTemplate: &runtime.RuntimeTemplate{ID: "rt-1"},
-			ContainerID:     "alloc-1234567890abcdef",
+			EnvironmentTemplate: &runtime.EnvironmentTemplate{ID: "rt-1"},
+			ContainerID:         "alloc-1234567890abcdef",
 		}
 		labels := BuildStartLabels(req)
 		assert.Empty(t, labels)
@@ -71,8 +71,8 @@ func TestBuildStartLabels(t *testing.T) {
 
 	t.Run("block network", func(t *testing.T) {
 		req := &runtime.StartRequest{
-			RuntimeTemplate: &runtime.RuntimeTemplate{ID: "rt-1"},
-			ExtraConfig:     `{"blockNetwork":true}`,
+			EnvironmentTemplate: &runtime.EnvironmentTemplate{ID: "rt-1"},
+			ExtraConfig:         `{"blockNetwork":true}`,
 		}
 		labels := BuildStartLabels(req)
 		assert.Equal(t, config.NetAcBlockAll, labels["netac-rules"])
@@ -80,8 +80,8 @@ func TestBuildStartLabels(t *testing.T) {
 
 	t.Run("cidr allowlist", func(t *testing.T) {
 		req := &runtime.StartRequest{
-			RuntimeTemplate: &runtime.RuntimeTemplate{ID: "rt-1"},
-			ExtraConfig:     `{"cidrAllowlist":"10.0.0.0/8"}`,
+			EnvironmentTemplate: &runtime.EnvironmentTemplate{ID: "rt-1"},
+			ExtraConfig:         `{"cidrAllowlist":"10.0.0.0/8"}`,
 		}
 		labels := BuildStartLabels(req)
 		assert.Equal(t, "10.0.0.0/8", labels["netac-rules"])
@@ -89,8 +89,8 @@ func TestBuildStartLabels(t *testing.T) {
 
 	t.Run("invalid extra config falls back", func(t *testing.T) {
 		req := &runtime.StartRequest{
-			RuntimeTemplate: &runtime.RuntimeTemplate{ID: "rt-1"},
-			ExtraConfig:     `{"blockNetwork":`,
+			EnvironmentTemplate: &runtime.EnvironmentTemplate{ID: "rt-1"},
+			ExtraConfig:         `{"blockNetwork":`,
 		}
 		labels := BuildStartLabels(req)
 		assert.Empty(t, labels)
@@ -98,8 +98,8 @@ func TestBuildStartLabels(t *testing.T) {
 
 	t.Run("linux capabilities normalized and deduplicated", func(t *testing.T) {
 		req := &runtime.StartRequest{
-			RuntimeTemplate: &runtime.RuntimeTemplate{ID: "rt-1"},
-			ExtraConfig:     `{"linuxCapabilities":["cap_net_raw"," CAP_NET_BIND_SERVICE ","cap_net_raw",""]}`,
+			EnvironmentTemplate: &runtime.EnvironmentTemplate{ID: "rt-1"},
+			ExtraConfig:         `{"linuxCapabilities":["cap_net_raw"," CAP_NET_BIND_SERVICE ","cap_net_raw",""]}`,
 		}
 		labels := BuildStartLabels(req)
 		assert.Equal(t, "CAP_NET_RAW,CAP_NET_BIND_SERVICE", labels[runtimecore.LabelKeyLinuxCapabilities])

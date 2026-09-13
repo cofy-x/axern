@@ -36,10 +36,9 @@ make profile-docker-runsc-external-tcp-iptables
 make profile-docker-runsc-external-tcp-ebpf
 ```
 
-Local demo and tooling:
+Examples and tooling:
 
 ```bash
-make run-dashboard-nginx-demo
 make example-bpfnet-udp-ingress
 make example-bpfnet-egress
 make verify-docker-build
@@ -55,7 +54,7 @@ make protos-docker
 - `benchmark/`
   - Docker benchmark wrappers and focused `perf` entrypoints
 - `demo/`
-  - supported local dashboard demo workflow
+  - focused dataplane examples that use the normal Allocation execution path
 - `cache/`
   - reusable host-side caches for heavy external artifacts
 - `tools/`
@@ -82,7 +81,6 @@ CARGO_REGISTRY_SOURCE=crates-io
 GOPROXY=https://proxy.golang.org,direct
 GOSUMDB=sum.golang.org
 BASE_IMAGE=ubuntu:24.04
-RUNTIME_UNDER_TEST=runsc
 RUNTIME_BINARY=/usr/local/bin/runsc
 NAT_BACKEND=iptables
 ```
@@ -123,27 +121,18 @@ For bpfnet TCP short-connection churn, prefer the coherent `snatMapPeak` snapsho
 
 The startup matrix default is intentionally limited to stable Docker regression scenarios: `runsc-local` and `runsc-oci`. Run `STARTUP_MATRIX_SCENARIOS=runsc-nydus make benchmark-startup-matrix` when validating Nydus image startup as a focused image-runtime path.
 
-Demo and workflow-specific knobs:
+Workflow-specific knobs:
 
 ```bash
 PROTO_IMAGE_TAG=axnoded-proto-tools:latest
-HOST_PORT=18080
-READY_TIMEOUT=60
-KEEP_RUNNING=true
-DASHBOARD_HOST_PORT=23001
-DEMO_CONTAINER_NAME=axnoded-dashboard-nginx-demo
-RUNSC_HOST_PORT=18080
-AXNODED_IDLE_RUNTIME_RETENTION_TTL=5m
-AXNODED_IDLE_RUNTIME_RETENTION_MAX=128
+AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL=5m
+AXNODED_IDLE_ENVIRONMENT_RETENTION_MAX=128
 ```
 
 ## Behavior Notes
 
-- `run-dashboard-nginx-demo.sh` is the supported local demo surface. It starts the dashboard container, prints the dashboard URL, and expects the managed `runsc` nginx sandboxes to be started or stopped from `/demo/nginx`.
-- The dashboard demo is local-rootfs-only. `imagemgr` and `imagefsd` remain `disabled` in `/inventoryz`.
-- With `NAT_BACKEND=ebpf`, the dashboard remains available and `/demo/nginx` still works, but managed nginx host URLs are best-effort only.
 - In an eBPF demo or verify container, use `bpfnetctl check` for a read-only readiness check of pinned maps, pinned programs, links, and tc attachment.
-- `make verify-bpfnetctl-e2e` starts an eBPF dashboard demo, validates `bpfnetctl check --json` before and after creating the managed `runsc` nginx instance, and explicitly gates pinned program readiness.
+- `make verify-bpfnetctl-e2e` validates `bpfnetctl check --json` before and after allocations execute through the same runsc lifecycle used by production.
 - For supported verify targets and their semantic intent, use [Verification](../docs/verification.md), not this file.
 - Kubernetes benchmark runs use a temporary privileged Job per backend/run and require the axnoded verify image. They are intended for real Linux node dataplane validation before switching a deployed `node-all-in-one` DaemonSet to `NAT_BACKEND=ebpf`.
 

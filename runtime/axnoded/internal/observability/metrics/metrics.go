@@ -40,7 +40,7 @@ const (
 	MetricAllocationDeleteStageDuration             = "axern.axnoded_allocation_delete_stage_duration_seconds"
 	MetricHTTPProxyStageDuration                    = "axern.axnoded_http_proxy_stage_duration_seconds"
 	MetricExecutionLeaseVisibilityDuration          = "axern.axnoded_execution_lease_visibility_duration_seconds"
-	MetricRetainedRuntimeCurrent                    = "axern.axnoded_retained_runtime_current"
+	MetricRetainedEnvironmentCurrent                = "axern.axnoded_retained_environment_current"
 	MetricRetainedRootfsCurrent                     = "axern.axnoded_retained_rootfs_current"
 	MetricRetentionReuseTotal                       = "axern.axnoded_retention_reuse_total"
 	MetricRetentionEvictionTotal                    = "axern.axnoded_retention_eviction_total"
@@ -100,7 +100,7 @@ const (
 	descAllocationDeleteStageDuration             = "Axnoded allocation delete stage duration."
 	descHTTPProxyStageDuration                    = "Axnoded HTTP proxy stage duration."
 	descExecutionLeaseVisibilityDuration          = "Axnoded execution lease cache visibility duration."
-	descRetainedRuntimeCurrent                    = "Axnoded retained idle runtime count."
+	descRetainedEnvironmentCurrent                = "Axnoded retained idle runtime count."
 	descRetainedRootfsCurrent                     = "Axnoded retained rootfs count."
 	descRetentionReuseTotal                       = "Axnoded retention reuse events."
 	descRetentionEvictionTotal                    = "Axnoded retention eviction events."
@@ -351,8 +351,8 @@ func RecordHTTPProxyStageDuration(stage, result, errorClass string, seconds floa
 	)
 }
 
-func RecordRetainedRuntimeGauge(rootfsType string, value float64) {
-	recordGauge(MetricRetainedRuntimeCurrent, descRetainedRuntimeCurrent, value, attribute.String(sdkobs.AttrRootFSType, rootfsType))
+func RecordRetainedEnvironmentGauge(rootfsType string, value float64) {
+	recordGauge(MetricRetainedEnvironmentCurrent, descRetainedEnvironmentCurrent, value, attribute.String(sdkobs.AttrRootFSType, rootfsType))
 }
 
 func RecordRetainedRootfsGauge(rootfsType string, value float64) {

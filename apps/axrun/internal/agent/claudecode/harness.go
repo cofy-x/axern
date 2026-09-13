@@ -84,23 +84,22 @@ func (h *Harness) Run(ctx context.Context, request agent.Request) (agent.Result,
 		exitReason = domain.AgentExitReasonCommandNonzero
 	}
 	result := agent.Result{
-		Status:                 status,
-		Summary:                summary,
-		Error:                  errorText,
-		ExitReason:             exitReason,
-		LauncherKind:           plan.LauncherKind,
-		RuntimeType:            plan.RuntimeType,
-		RuntimeImage:           plan.Image,
-		RuntimeMountTarget:     plan.ImageMountTarget,
-		RuntimeBinDir:          agent.AgentImageBinDir(plan.ImageMountTarget),
-		RuntimeProfile:         plan.Profile,
-		ExitCode:               &exitCode,
-		Stdout:                 execResult.Stdout,
-		Stderr:                 execResult.Stderr,
-		StartedAt:              &startedAt,
-		FinishedAt:             &finishedAt,
-		DurationMS:             finishedAt.Sub(startedAt).Milliseconds(),
-		ManagedProxyReportJSON: managedProxyReportJSON(execResult.ManagedProxyReport),
+		Status:             status,
+		Summary:            summary,
+		Error:              errorText,
+		ExitReason:         exitReason,
+		LauncherKind:       plan.LauncherKind,
+		RuntimeType:        plan.RuntimeType,
+		RuntimeImage:       plan.Image,
+		RuntimeMountTarget: plan.ImageMountTarget,
+		RuntimeBinDir:      agent.AgentImageBinDir(plan.ImageMountTarget),
+		RuntimeProfile:     plan.Profile,
+		ExitCode:           &exitCode,
+		Stdout:             execResult.Stdout,
+		Stderr:             execResult.Stderr,
+		StartedAt:          &startedAt,
+		FinishedAt:         &finishedAt,
+		DurationMS:         finishedAt.Sub(startedAt).Milliseconds(),
 	}
 	return result, nil
 }
@@ -121,7 +120,6 @@ func (h *Harness) launchPlan(request agent.Request) agent.LaunchPlan {
 		OutputFormat:   h.outputFormat(request.Agent),
 		AllowedTools:   h.allowedTools(request.Agent),
 		IdleTimeoutSec: h.idleTimeoutSec(request),
-		ManagedProxy:   request.ManagedProxy,
 	}
 	if runtime := request.Agent.Runtime; runtime != nil {
 		plan.RuntimeType = runtime.Type
@@ -347,11 +345,4 @@ func (h *Harness) profileName(spec domain.AgentSpec) string {
 		return strings.TrimSpace(runtime.Profile)
 	}
 	return strings.TrimSpace(spec.Profile)
-}
-
-func managedProxyReportJSON(report *sandbox.ManagedProxyReport) []byte {
-	if report == nil {
-		return nil
-	}
-	return append([]byte(nil), report.ReportJSON...)
 }

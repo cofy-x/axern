@@ -6,39 +6,39 @@ import (
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 )
 
-type RuntimeTemplateListJSON struct {
-	RuntimeTemplates []*RuntimeTemplateJSON `json:"runtime_templates"`
+type EnvironmentTemplateListJSON struct {
+	EnvironmentTemplates []*EnvironmentTemplateJSON `json:"environment_templates"`
 }
 
-type RuntimeTemplateResponseJSON struct {
-	RuntimeTemplate *RuntimeTemplateJSON `json:"runtime_template"`
+type EnvironmentTemplateResponseJSON struct {
+	EnvironmentTemplate *EnvironmentTemplateJSON `json:"environment_template"`
 }
 
-type RuntimeTemplateJSON struct {
-	ID               string                           `json:"id"`
-	RootfsReadonly   bool                             `json:"rootfs_readonly,omitempty"`
-	ImageDefaultArgv []string                         `json:"image_default_argv,omitempty"`
-	DefaultCwd       string                           `json:"default_cwd,omitempty"`
-	DefaultEnv       map[string]string                `json:"default_env,omitempty"`
-	Mounts           []*RuntimeMountJSON              `json:"mounts,omitempty"`
-	Capabilities     *RuntimeTemplateCapabilitiesJSON `json:"capabilities,omitempty"`
-	Language         string                           `json:"language,omitempty"`
-	LanguageVersion  string                           `json:"language_version,omitempty"`
-	Description      string                           `json:"description,omitempty"`
-	Version          string                           `json:"version,omitempty"`
-	ImageDescriptor  *OciImageDescriptorJSON          `json:"image_descriptor,omitempty"`
-	WarmPolicy       string                           `json:"warm_policy,omitempty"`
-	CachePolicy      string                           `json:"cache_policy,omitempty"`
+type EnvironmentTemplateJSON struct {
+	ID               string                               `json:"id"`
+	RootfsReadonly   bool                                 `json:"rootfs_readonly,omitempty"`
+	ImageDefaultArgv []string                             `json:"image_default_argv,omitempty"`
+	DefaultCwd       string                               `json:"default_cwd,omitempty"`
+	DefaultEnv       map[string]string                    `json:"default_env,omitempty"`
+	Mounts           []*EnvironmentMountJSON              `json:"mounts,omitempty"`
+	Capabilities     *EnvironmentTemplateCapabilitiesJSON `json:"capabilities,omitempty"`
+	Language         string                               `json:"language,omitempty"`
+	LanguageVersion  string                               `json:"language_version,omitempty"`
+	Description      string                               `json:"description,omitempty"`
+	Version          string                               `json:"version,omitempty"`
+	ImageDescriptor  *OciImageDescriptorJSON              `json:"image_descriptor,omitempty"`
+	WarmPolicy       string                               `json:"warm_policy,omitempty"`
+	CachePolicy      string                               `json:"cache_policy,omitempty"`
 }
 
-type RuntimeMountJSON struct {
+type EnvironmentMountJSON struct {
 	Type    string   `json:"type,omitempty"`
 	Source  string   `json:"source,omitempty"`
 	Target  string   `json:"target,omitempty"`
 	Options []string `json:"options,omitempty"`
 }
 
-type RuntimeTemplateCapabilitiesJSON struct {
+type EnvironmentTemplateCapabilitiesJSON struct {
 	SupportsExec             bool `json:"supports_exec,omitempty"`
 	SupportsExecStream       bool `json:"supports_exec_stream,omitempty"`
 	SupportsLongLivedProcess bool `json:"supports_long_lived_process,omitempty"`
@@ -52,37 +52,37 @@ type OciImageDescriptorJSON struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
-func PrintRuntimeTemplateListJSON(w io.Writer, resp *catalogv1.ListRuntimeTemplatesResponse) error {
-	out := RuntimeTemplateListJSON{}
+func PrintEnvironmentTemplateListJSON(w io.Writer, resp *catalogv1.ListEnvironmentTemplatesResponse) error {
+	out := EnvironmentTemplateListJSON{}
 	if resp != nil {
-		out.RuntimeTemplates = make([]*RuntimeTemplateJSON, 0, len(resp.GetRuntimeTemplates()))
-		for _, template := range resp.GetRuntimeTemplates() {
-			out.RuntimeTemplates = append(out.RuntimeTemplates, NewRuntimeTemplateJSON(template))
+		out.EnvironmentTemplates = make([]*EnvironmentTemplateJSON, 0, len(resp.GetEnvironmentTemplates()))
+		for _, template := range resp.GetEnvironmentTemplates() {
+			out.EnvironmentTemplates = append(out.EnvironmentTemplates, NewEnvironmentTemplateJSON(template))
 		}
 	}
 	return PrintJSON(w, out)
 }
 
-func PrintRuntimeTemplateResponseJSON(w io.Writer, resp *catalogv1.GetRuntimeTemplateResponse) error {
-	var template *catalogv1.RuntimeTemplate
+func PrintEnvironmentTemplateResponseJSON(w io.Writer, resp *catalogv1.GetEnvironmentTemplateResponse) error {
+	var template *catalogv1.EnvironmentTemplate
 	if resp != nil {
-		template = resp.GetRuntimeTemplate()
+		template = resp.GetEnvironmentTemplate()
 	}
-	return PrintJSON(w, RuntimeTemplateResponseJSON{RuntimeTemplate: NewRuntimeTemplateJSON(template)})
+	return PrintJSON(w, EnvironmentTemplateResponseJSON{EnvironmentTemplate: NewEnvironmentTemplateJSON(template)})
 }
 
-func NewRuntimeTemplateJSON(template *catalogv1.RuntimeTemplate) *RuntimeTemplateJSON {
+func NewEnvironmentTemplateJSON(template *catalogv1.EnvironmentTemplate) *EnvironmentTemplateJSON {
 	if template == nil {
 		return nil
 	}
-	return &RuntimeTemplateJSON{
+	return &EnvironmentTemplateJSON{
 		ID:               template.GetID(),
 		RootfsReadonly:   template.GetRootfsReadonly(),
 		ImageDefaultArgv: append([]string(nil), template.GetImageDefaultArgv()...),
 		DefaultCwd:       template.GetDefaultCwd(),
 		DefaultEnv:       cloneStringMap(template.GetDefaultEnv()),
-		Mounts:           newRuntimeMountJSONs(template.GetMounts()),
-		Capabilities:     newRuntimeTemplateCapabilitiesJSON(template.GetCapabilities()),
+		Mounts:           newEnvironmentMountJSONs(template.GetMounts()),
+		Capabilities:     newEnvironmentTemplateCapabilitiesJSON(template.GetCapabilities()),
 		Language:         template.GetLanguage(),
 		LanguageVersion:  template.GetLanguageVersion(),
 		Description:      template.GetDescription(),
@@ -93,16 +93,16 @@ func NewRuntimeTemplateJSON(template *catalogv1.RuntimeTemplate) *RuntimeTemplat
 	}
 }
 
-func newRuntimeMountJSONs(mounts []*catalogv1.RuntimeMount) []*RuntimeMountJSON {
+func newEnvironmentMountJSONs(mounts []*catalogv1.EnvironmentMount) []*EnvironmentMountJSON {
 	if len(mounts) == 0 {
 		return nil
 	}
-	out := make([]*RuntimeMountJSON, 0, len(mounts))
+	out := make([]*EnvironmentMountJSON, 0, len(mounts))
 	for _, mount := range mounts {
 		if mount == nil {
 			continue
 		}
-		out = append(out, &RuntimeMountJSON{
+		out = append(out, &EnvironmentMountJSON{
 			Type:    mount.GetType(),
 			Source:  mount.GetSource(),
 			Target:  mount.GetTarget(),
@@ -112,11 +112,11 @@ func newRuntimeMountJSONs(mounts []*catalogv1.RuntimeMount) []*RuntimeMountJSON 
 	return out
 }
 
-func newRuntimeTemplateCapabilitiesJSON(capabilities *catalogv1.RuntimeTemplateCapabilities) *RuntimeTemplateCapabilitiesJSON {
+func newEnvironmentTemplateCapabilitiesJSON(capabilities *catalogv1.EnvironmentTemplateCapabilities) *EnvironmentTemplateCapabilitiesJSON {
 	if capabilities == nil {
 		return nil
 	}
-	return &RuntimeTemplateCapabilitiesJSON{
+	return &EnvironmentTemplateCapabilitiesJSON{
 		SupportsExec:             capabilities.GetSupportsExec(),
 		SupportsExecStream:       capabilities.GetSupportsExecStream(),
 		SupportsLongLivedProcess: capabilities.GetSupportsLongLivedProcess(),

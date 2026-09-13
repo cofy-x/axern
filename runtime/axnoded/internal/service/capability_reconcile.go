@@ -419,7 +419,7 @@ func (h *sandboxService) verifyAllocationCapability(ctx context.Context, allocat
 	}
 	verifier, ok := handler.(contract.AllocationCapabilityVerifier)
 	if !ok {
-		return contract.LostCapability(fmt.Errorf("runtime %q has no allocation capability verifier", handler.Name()))
+		return contract.LostCapability(fmt.Errorf("runsc has no allocation capability verifier"))
 	}
 	runtimeCgroupPath := ""
 	memoryLimit := int64(0)

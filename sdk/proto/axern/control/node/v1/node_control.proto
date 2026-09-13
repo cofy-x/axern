@@ -169,7 +169,7 @@ message LocalitySummary {
   RootfsType rootfs_type = 2;
   MountType mount_type = 3;
   bool mounted = 4;
-  int32 retained_runtime_count = 5;
+  int32 retained_environment_count = 5;
   int32 retained_rootfs_count = 6;
   int32 running_container_count = 7;
   bool nydus_daemon_alive = 8;
@@ -375,7 +375,7 @@ enum PlacementRejectionReason {
 message PlacementRank {
   bool mounted_match = 1;
   int32 retained_rootfs_count = 2;
-  int32 retained_runtime_count = 3;
+  int32 retained_environment_count = 3;
   bool nydus_daemon_alive = 4;
   int64 chunkdb_recent_access_age_secs = 5;
   int64 peer_healthy_count = 6;

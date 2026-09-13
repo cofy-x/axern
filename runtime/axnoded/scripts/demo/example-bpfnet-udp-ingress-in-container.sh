@@ -6,8 +6,7 @@ cd "${ROOT_DIR}"
 . "${ROOT_DIR}/scripts/lib/ebpf-ingress-probe.sh"
 . "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 
-RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST:-runsc}"
-RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/${RUNTIME_UNDER_TEST}}"
+RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/runsc}"
 SOCKET_ADDRESS="${SOCKET_ADDRESS:-/run/axnoded/axnoded.sock}"
 AXNODED_BIN="${AXNODED_BIN:-/usr/local/bin/axnoded}"
 VERIFY_UDP_BIN="${VERIFY_UDP_BIN:-/usr/local/bin/verify-udp}"
@@ -95,7 +94,6 @@ fi
 udp_args=(
   -address "${SOCKET_ADDRESS}"
   -rootfs "${VERIFY_ROOTFS}"
-  -runtime "${RUNTIME_UNDER_TEST}"
   -stdout "${VERIFY_STDOUT}"
   -stderr "${VERIFY_STDERR}"
   -listen-port "${LISTEN_PORT}"
@@ -116,7 +114,7 @@ udp_output="$("${VERIFY_UDP_BIN}" "${udp_args[@]}" 2>&1)" || {
 
 printf '%s\n' "example_ok=true"
 printf '%s\n' "example=bpfnet_udp_ingress"
-printf '%s\n' "runtime=${RUNTIME_UNDER_TEST}"
+printf '%s\n' "runtime=runsc"
 printf '%s\n' "nat_backend=${NAT_BACKEND}"
 printf '%s\n' "host_port=${LISTEN_PORT}"
 printf '%s\n' "sandbox_port=${TARGET_PORT}"

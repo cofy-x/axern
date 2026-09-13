@@ -10,7 +10,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	sandboxobs "github.com/cofy-x/axern/runtime/axnoded/internal/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/trace"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
@@ -26,7 +26,7 @@ var errRuntimeCleanupPending = errors.New("runtime cleanup remains pending")
 
 func (h *Controller) createContainer(
 	ctx context.Context,
-	lrt *langrtmanager.LanguageRuntime,
+	lrt *environmentcache.PreparedEnvironment,
 	templateRequest *apipb.CreateContainerRequest,
 	request *apipb.CreateContainerRequest,
 	resourceSpec *commonv1.ResourceSpec,
@@ -108,11 +108,11 @@ func (h *Controller) createContainer(
 // short-lived command against create-time enforcement verification.
 func (h *Controller) createAllocation(
 	ctx context.Context,
-	lrt *langrtmanager.LanguageRuntime,
+	lrt *environmentcache.PreparedEnvironment,
 	startRequest *apipb.StartRequest,
 	templateRequest *apipb.CreateContainerRequest,
 	request *apipb.CreateContainerRequest,
-	handler contract.RuntimeHandler,
+	handler contract.SandboxRuntime,
 	resource container.OccupiedResource,
 	phaseRecorder contract.StartupPhaseRecorder,
 ) (*apipb.CreateContainerResponse, string, error) {
@@ -121,9 +121,9 @@ func (h *Controller) createAllocation(
 	if handler == nil || resource.ID == "" || resource.ID != request.GetID() {
 		return response, "", errors.Join(errors.New("allocation resources are missing or inconsistent"), errRuntimeCleanupPending)
 	}
-	allocationRuntime, ok := handler.(contract.AllocationRuntimeHandler)
+	allocationRuntime, ok := handler.(contract.AllocationRuntime)
 	if !ok {
-		err := fmt.Errorf("runtime %q does not implement the allocation create/start contract", handler.Name())
+		err := fmt.Errorf("runsc does not implement the allocation create/start contract")
 		return response, "", errors.Join(err, errRuntimeCleanupPending)
 	}
 
@@ -192,7 +192,7 @@ func (h *Controller) registerCreatedContainerLifecycle(
 	ctx context.Context,
 	containerID string,
 	metaData *apipb.ContainerMetadata,
-	handler contract.RuntimeHandler,
+	handler contract.SandboxRuntime,
 ) error {
 	if err := h.containers().StartMonitor(containerID, metaData); err != nil {
 		return err
@@ -201,7 +201,7 @@ func (h *Controller) registerCreatedContainerLifecycle(
 	return nil
 }
 
-func (h *Controller) cleanupCreatedRuntime(handler contract.RuntimeHandler, resource container.OccupiedResource, cause error) error {
+func (h *Controller) cleanupCreatedRuntime(handler contract.SandboxRuntime, resource container.OccupiedResource, cause error) error {
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, deleteErr := handler.DeleteContainer(cleanupCtx, &apipb.DeleteContainerRequest{ID: resource.ID, Timeout: 0}, contract.HandlerOptions{ContainerID: resource.ID, ForceDelete: true})
@@ -226,7 +226,7 @@ func preparedContainerMetadata(prepared *contract.PreparedContainer) *apipb.Cont
 	return prepared.Metadata
 }
 
-func (h *Controller) syncCreatedContainerStatus(ctx context.Context, containerID string, handler contract.RuntimeHandler) {
+func (h *Controller) syncCreatedContainerStatus(ctx context.Context, containerID string, handler contract.SandboxRuntime) {
 	states, err := handler.ListContainers(ctx, contract.HandlerOptions{})
 	if err != nil {
 		logrus.Warnf("sync created container %s status skipped: list runtime state failed: %v", containerID, err)
@@ -243,7 +243,7 @@ func (h *Controller) syncCreatedContainerStatus(ctx context.Context, containerID
 	}
 }
 
-func (h *Controller) prepareContainerCreate(ctx context.Context, traceID string, request *apipb.CreateContainerRequest, resourceSpec *commonv1.ResourceSpec) (contract.RuntimeHandler, container.OccupiedResource, error) {
+func (h *Controller) prepareContainerCreate(ctx context.Context, traceID string, request *apipb.CreateContainerRequest, resourceSpec *commonv1.ResourceSpec) (contract.SandboxRuntime, container.OccupiedResource, error) {
 	return h.prepareContainerResources(ctx, traceID, request.GetID(), request.GetEnvs(), resourceSpec)
 }
 
@@ -251,14 +251,14 @@ func (h *Controller) prepareContainerCreate(ctx context.Context, traceID string,
 // starts call it before secrets, image mounts, rootfs preparation, or
 // runtime artifacts so a rejected memory commitment has no external side
 // effects to roll back.
-func (h *Controller) prepareContainerResources(ctx context.Context, traceID, containerID string, envs []*apipb.KeyValue, resourceSpec *commonv1.ResourceSpec) (contract.RuntimeHandler, container.OccupiedResource, error) {
+func (h *Controller) prepareContainerResources(ctx context.Context, traceID, containerID string, envs []*apipb.KeyValue, resourceSpec *commonv1.ResourceSpec) (contract.SandboxRuntime, container.OccupiedResource, error) {
 	var empty container.OccupiedResource
 	if h == nil || h.runscHandler == nil {
 		return nil, empty, fmt.Errorf("runsc handler unavailable")
 	}
 	handler := h.runscHandler
 
-	resourceNames := handler.Requirements().Resources
+	resourceNames := handler.HostRequirements().Resources
 	if resourceNames == nil {
 		resourceNames = []resourcemanager.ResourceName{}
 	}
@@ -313,7 +313,7 @@ func envValue(envs []*apipb.KeyValue, key string) string {
 
 func (h *Controller) createHandlerOptions(
 	traceID, spanID string,
-	lrt *langrtmanager.LanguageRuntime,
+	lrt *environmentcache.PreparedEnvironment,
 	templateRequest *apipb.CreateContainerRequest,
 	resource container.OccupiedResource,
 	phaseRecorder contract.StartupPhaseRecorder,
@@ -330,11 +330,11 @@ func (h *Controller) createHandlerOptions(
 		StartupPhaseRecorder:  phaseRecorder,
 		AllocatedResources:    resource.Resources,
 		CgroupPath:            resource.Resources[resourcemanager.CgroupResourceName],
-		RootfsType:            rootfsTypeFromLanguageRuntime(lrt),
+		RootfsType:            rootfsTypeFromPreparedEnvironment(lrt),
 		BundleTemplateCarrier: lrt,
 		BundleTemplateSource:  templateSource,
 		AdditionalAnnotations: resource.ToLabels(),
-		ExecutionProfile:      executionProfileFromLanguageRuntime(lrt),
+		ExecutionProfile:      executionProfileFromPreparedEnvironment(lrt),
 	}
 }
 
@@ -364,7 +364,7 @@ func containerIPFromResource(resource container.OccupiedResource) string {
 	return netDevice.Ip.String()
 }
 
-func rootfsTypeFromLanguageRuntime(lrt *langrtmanager.LanguageRuntime) string {
+func rootfsTypeFromPreparedEnvironment(lrt *environmentcache.PreparedEnvironment) string {
 	if lrt == nil || lrt.RootFS == nil {
 		return contract.StartupRootfsTypeUnknown
 	}

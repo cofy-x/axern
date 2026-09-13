@@ -6,7 +6,7 @@ import (
 
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
@@ -67,21 +67,21 @@ func (s *fakeStatusStorage) Delete() error {
 	return nil
 }
 
-type fakeLangRuntimeManager struct {
-	lrt   []*langruntime.LanguageRuntime
-	byID  map[string]*langruntime.LanguageRuntime
-	stats langruntime.RetentionStats
+type fakeEnvironmentCacheManager struct {
+	lrt   []*environmentcache.PreparedEnvironment
+	byID  map[string]*environmentcache.PreparedEnvironment
+	stats environmentcache.RetentionStats
 }
 
-func (m *fakeLangRuntimeManager) GetLangRuntime(id string) *langruntime.LanguageRuntime {
+func (m *fakeEnvironmentCacheManager) GetPreparedEnvironment(id string) *environmentcache.PreparedEnvironment {
 	return m.byID[id]
 }
 
-func (m *fakeLangRuntimeManager) List() []*langruntime.LanguageRuntime {
+func (m *fakeEnvironmentCacheManager) List() []*environmentcache.PreparedEnvironment {
 	return m.lrt
 }
 
-func (m *fakeLangRuntimeManager) RetentionStats() langruntime.RetentionStats {
+func (m *fakeEnvironmentCacheManager) RetentionStats() environmentcache.RetentionStats {
 	return m.stats
 }
 

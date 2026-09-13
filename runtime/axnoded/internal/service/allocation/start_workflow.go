@@ -14,7 +14,7 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	sandboxobs "github.com/cofy-x/axern/runtime/axnoded/internal/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/trace"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -24,32 +24,32 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
-func (h *Controller) ensureLangRuntime(ctx context.Context, fr *runtime.RuntimeTemplate) (*langrtmanager.LanguageRuntime, LangRuntimePrepareSummary, error) {
-	rootfsCfg, err := langrtmanager.RootfsConfigFromRuntimeTemplate(fr)
+func (h *Controller) ensurePreparedEnvironment(ctx context.Context, fr *runtime.EnvironmentTemplate) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
+	rootfsCfg, err := environmentcache.RootfsConfigFromEnvironmentTemplate(fr)
 	if err != nil {
-		return nil, LangRuntimePrepareSummary{RootfsType: RootfsTypeFromRuntimeTemplate(fr)}, err
+		return nil, EnvironmentPrepareSummary{RootfsType: RootfsTypeFromEnvironmentTemplate(fr)}, err
 	}
-	return h.prepareLangRuntime(ctx, fr, rootfsCfg)
+	return h.prepareEnvironment(ctx, fr, rootfsCfg)
 }
 
-func (h *Controller) ensureLangRuntimeFromRequest(ctx context.Context, request *runtime.StartRequest) (*langrtmanager.LanguageRuntime, LangRuntimePrepareSummary, error) {
+func (h *Controller) ensurePreparedEnvironmentFromRequest(ctx context.Context, request *runtime.StartRequest) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
 	_, span := sdkobs.Start(ctx, sandboxobs.SpanRootFSPrepare,
 		attribute.String(sdkobs.AttrAllocationID, request.GetContainerID()),
 		attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc),
-		attribute.String(sdkobs.AttrRootFSType, RootfsTypeFromRuntimeTemplate(request.GetRuntimeTemplate())),
+		attribute.String(sdkobs.AttrRootFSType, RootfsTypeFromEnvironmentTemplate(request.GetEnvironmentTemplate())),
 	)
 	defer span.End()
 	rootfsCfg, err := startplan.RootfsConfigFromStartRequest(request)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "rootfs config")
-		return nil, LangRuntimePrepareSummary{RootfsType: RootfsTypeFromRuntimeTemplate(request.GetRuntimeTemplate())}, err
+		return nil, EnvironmentPrepareSummary{RootfsType: RootfsTypeFromEnvironmentTemplate(request.GetEnvironmentTemplate())}, err
 	}
-	fr := request.GetRuntimeTemplate()
-	lrt, summary, err := h.prepareLangRuntime(ctx, fr, rootfsCfg)
+	fr := request.GetEnvironmentTemplate()
+	lrt, summary, err := h.prepareEnvironment(ctx, fr, rootfsCfg)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare language runtime")
+		span.SetStatus(codes.Error, "prepare environment")
 		span.SetAttributes(attribute.String(sdkobs.AttrResult, "error"))
 	} else {
 		span.SetAttributes(attribute.String(sdkobs.AttrResult, "ok"), attribute.Bool("axern.runtime_reused", summary.RuntimeReused))
@@ -57,12 +57,12 @@ func (h *Controller) ensureLangRuntimeFromRequest(ctx context.Context, request *
 	return lrt, summary, err
 }
 
-func (h *Controller) prepareLangRuntime(ctx context.Context, fr *runtime.RuntimeTemplate, rootfsCfg langrtmanager.RootfsConfig) (*langrtmanager.LanguageRuntime, LangRuntimePrepareSummary, error) {
-	summary := LangRuntimePrepareSummary{
-		RootfsType: RootfsTypeFromRuntimeTemplate(fr),
+func (h *Controller) prepareEnvironment(ctx context.Context, fr *runtime.EnvironmentTemplate, rootfsCfg environmentcache.RootfsConfig) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
+	summary := EnvironmentPrepareSummary{
+		RootfsType: RootfsTypeFromEnvironmentTemplate(fr),
 	}
 	resolveStart := time.Now()
-	resolvedRootfsCfg, err := h.lrtManager.ResolveRootfsConfig(rootfsCfg)
+	resolvedRootfsCfg, err := h.environmentCache.ResolveRootfsConfig(rootfsCfg)
 	if err != nil {
 		return nil, summary, err
 	}
@@ -72,21 +72,21 @@ func (h *Controller) prepareLangRuntime(ctx context.Context, fr *runtime.Runtime
 		Duration: startupObservationDurationSince(resolveStart),
 	})
 	lookupStart := time.Now()
-	lrt := h.lrtManager.FindReusableLangRuntime(fr, resolvedRootfsCfg)
-	summary.LangRuntimeLookupTime = time.Since(lookupStart)
+	lrt := h.environmentCache.FindReusableEnvironment(fr, resolvedRootfsCfg)
+	summary.EnvironmentLookupTime = time.Since(lookupStart)
 	if lrt != nil {
 		summary.RuntimeReused = true
 		return lrt, summary, nil
 	}
 	prepareStart := time.Now()
-	result, err := h.lrtManager.AddLangRuntime(ctx, fr, resolvedRootfsCfg, true)
+	result, err := h.environmentCache.PrepareEnvironment(ctx, fr, resolvedRootfsCfg)
 	summary.RootfsPrepareTime = time.Since(prepareStart)
 	summary.Steps = append(summary.Steps, startupStepSamplesFromRootfsReport(result.RootfsReport)...)
 	summary.RuntimeReused = !result.Created
-	return result.Runtime, summary, err
+	return result.Environment, summary, err
 }
 
-func startupStepSamplesFromRootfsReport(report langrtmanager.RootfsPrepareReport) []StartupStepSample {
+func startupStepSamplesFromRootfsReport(report environmentcache.RootfsPrepareReport) []StartupStepSample {
 	out := make([]StartupStepSample, 0, len(report.Steps))
 	for _, sample := range report.Steps {
 		out = append(out, StartupStepSample{
@@ -213,7 +213,7 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 		return resp, err
 	}
 
-	recorder := NewStartMetricsRecorder(h.startMetricSink, config.RuntimeNameRunsc, RootfsTypeFromRuntimeTemplate(request.RuntimeTemplate))
+	recorder := NewStartMetricsRecorder(h.startMetricSink, config.RuntimeNameRunsc, RootfsTypeFromEnvironmentTemplate(request.EnvironmentTemplate))
 	result := contract.StartupResultError
 	succeeded := false
 	stateCommitted := false
@@ -296,16 +296,16 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 			imageMountCleanup()
 		}
 	}()
-	lrt, prepareSummary, err := h.ensureLangRuntimeFromRequest(ctx, request)
+	lrt, prepareSummary, err := h.ensurePreparedEnvironmentFromRequest(ctx, request)
 	recorder.SetStartClass(prepareSummary.StartClass())
 	recorder.SetRootfsType(prepareSummary.RootfsType)
-	recorder.RecordStartupPhase(contract.StartupPhaseLangRuntimeLookup, prepareSummary.LangRuntimeLookupTime)
+	recorder.RecordStartupPhase(contract.StartupPhaseEnvironmentLookup, prepareSummary.EnvironmentLookupTime)
 	recorder.RecordStartupPhase(contract.StartupPhaseRootfsPrepare, prepareSummary.RootfsPrepareTime)
 	for _, sample := range prepareSummary.Steps {
 		recorder.RecordStartupStep(sample.Phase, sample.Step, sample.Duration)
 	}
 	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to add new runtime: %v", request.RuntimeTemplate)), err
+		return startErrorResponse(fmt.Sprintf("Failed to add new runtime: %v", request.EnvironmentTemplate)), err
 	}
 	if h.rootfsCapabilityGate != nil {
 		if err := h.rootfsCapabilityGate(ctx, request, lrt.RootFS); err != nil {

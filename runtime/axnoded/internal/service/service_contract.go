@@ -25,8 +25,6 @@ type SandboxService interface {
 	Exec(context.Context, *runtime.ExecRequest) (*runtime.ExecResponse, error)
 	ExecStream(ExecStreamServer) error
 	Process(ProcessStreamServer) error
-	ExecImage(context.Context, *runtime.ExecImageRequest) (*runtime.ExecImageResponse, error)
-	ProcessImage(ProcessImageStreamServer) error
 	ProxyHTTP(HTTPProxyServer) error
 	Wait(context.Context, *runtime.WaitRequest) (*runtime.WaitResponse, error)
 
@@ -34,7 +32,6 @@ type SandboxService interface {
 	List(context.Context, *runtime.ListContainersRequest) (*runtime.ListContainersResponse, error)
 	Stats(context.Context, *runtime.StatsRequest) (*runtime.StatsResponse, error)
 	Kill(context.Context, *runtime.KillRequest) (*runtime.KillResponse, error)
-	Checkpoint(context.Context, *runtime.CheckpointRequest) (*runtime.CheckpointResponse, error)
 	Version(context.Context, *runtime.VersionRequest) (*runtime.VersionResponse, error)
 
 	// Node daemon lifecycle and status reporting.
@@ -42,7 +39,6 @@ type SandboxService interface {
 	Shutdown(context.Context) error
 	Ready() bool
 	ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
-	RuntimeStatuses() []RuntimeStatus
 	NodeInventory() (nodeinventory.NodeInventorySnapshot, bool)
 }
 
@@ -164,12 +160,6 @@ type ExecStreamServer interface {
 type ProcessStreamServer interface {
 	Recv() (*runtime.ProcessRequest, error)
 	Send(*runtime.ProcessResponse) error
-	Context() context.Context
-}
-
-type ProcessImageStreamServer interface {
-	Recv() (*runtime.ProcessImageRequest, error)
-	Send(*runtime.ProcessImageResponse) error
 	Context() context.Context
 }
 

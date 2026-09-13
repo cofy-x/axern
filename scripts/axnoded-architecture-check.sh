@@ -44,8 +44,8 @@ runtime/axnoded/internal/container
 runtime/axnoded/internal/controlplane
 runtime/axnoded/internal/demo
 runtime/axnoded/internal/egress
+runtime/axnoded/internal/environmentcache
 runtime/axnoded/internal/hostlinux
-runtime/axnoded/internal/langruntime
 runtime/axnoded/internal/natbench
 runtime/axnoded/internal/network
 runtime/axnoded/internal/nodecapability
@@ -140,7 +140,7 @@ check_empty \
 
 check_empty \
 	"cmd/axnoded must remain a thin entrypoint over internal/app" \
-	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(api|service|container|resources|langruntime|controlplane)(/|\")' runtime/axnoded/cmd/axnoded ${production_go} || true"
+	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(api|service|container|resources|environmentcache|controlplane)(/|\")' runtime/axnoded/cmd/axnoded ${production_go} || true"
 
 check_empty \
 	"internal/app must not implement API handlers or sandbox lifecycle behavior" \
@@ -148,7 +148,7 @@ check_empty \
 
 check_empty \
 	"API adapters must not import app or concrete low-level runtime packages" \
-	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(app|container|resources|langruntime)(/|\")' runtime/axnoded/internal/api ${production_go} || true"
+	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(app|container|resources|environmentcache)(/|\")' runtime/axnoded/internal/api ${production_go} || true"
 
 check_empty \
 	"service layer must not import app or API adapters" \
@@ -160,7 +160,7 @@ check_empty \
 
 check_empty \
 	"observability must not depend on daemon composition, adapters, or lifecycle orchestration" \
-	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(app|api|service|container|resources|langruntime|runtime|controlplane)(/|\")' runtime/axnoded/internal/observability ${production_go} || true"
+	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(app|api|service|container|resources|environmentcache|runtime|controlplane)(/|\")' runtime/axnoded/internal/observability ${production_go} || true"
 
 check_empty \
 	"maintained runtime code must not use cross-package type aliases" \

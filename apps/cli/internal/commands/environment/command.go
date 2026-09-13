@@ -50,8 +50,8 @@ func createCommand(runtime command.Runtime) *cobra.Command {
 	}}
 	f := cmd.Flags()
 	f.StringVar(&namespace, "namespace", "default", "namespace")
-	f.StringVar(&templateID, "template-id", "", "runtime template id")
-	f.StringVar(&templateVersion, "template-version", "", "runtime template version")
+	f.StringVar(&templateID, "template-id", "", "environment template id")
+	f.StringVar(&templateVersion, "template-version", "", "environment template version")
 	f.StringVar(&imageRef, "image-ref", "", "OCI image reference")
 	f.StringVar(&credentialID, "registry-credential-id", "", "registry credential secret id")
 	f.BoolVar(&readonly, "rootfs-readonly", false, "mount rootfs read-only")

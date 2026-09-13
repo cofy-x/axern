@@ -49,7 +49,7 @@ func scanEnvironment(row scanner) (*environmentv1.Environment, error) {
 	if err := protojson.Unmarshal(specJSON, env.Spec); err != nil {
 		return nil, fmt.Errorf("unmarshal environment spec: %w", err)
 	}
-	env.ResolvedTemplate = &catalogv1.RuntimeTemplate{}
+	env.ResolvedTemplate = &catalogv1.EnvironmentTemplate{}
 	if err := protojson.Unmarshal(templateJSON, env.ResolvedTemplate); err != nil {
 		return nil, fmt.Errorf("unmarshal resolved template: %w", err)
 	}

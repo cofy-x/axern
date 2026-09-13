@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST:-runsc}"
 SOCKET_ADDRESS="${SOCKET_ADDRESS:-/run/axnoded/axnoded.sock}"
 VERIFY_NGINX_BIN="${VERIFY_NGINX_BIN:-/usr/local/bin/verify-nginx}"
 VERIFY_EGRESS_BIN="${VERIFY_EGRESS_BIN:-/usr/local/bin/verify-egress}"
@@ -15,15 +14,9 @@ VERIFY_SKIP_LOCALHOST="${VERIFY_SKIP_LOCALHOST:-false}"
 AXNODED_IP_RANGE="${AXNODED_IP_RANGE:-172.31.0.1/16}"
 AXNODED_SNAT_CIDR="${AXNODED_SNAT_CIDR:-172.31.0.0/16}"
 
-if [ "${RUNTIME_UNDER_TEST}" != "runsc" ]; then
-  echo "runsc_profile_skipped=true runtime=${RUNTIME_UNDER_TEST}"
-  exit 0
-fi
-
 verify_args=(
   -address "${SOCKET_ADDRESS}"
   -rootfs /opt/nginx-rootfs
-  -runtime "${RUNTIME_UNDER_TEST}"
   -stdout /tmp/axnoded-nginx.stdout
   -stderr /tmp/axnoded-nginx.stderr
   -listen-port 18080
@@ -45,7 +38,6 @@ fi
 udp_args=(
   -address "${SOCKET_ADDRESS}"
   -rootfs /opt/sample-rootfs
-  -runtime "${RUNTIME_UNDER_TEST}"
   -stdout /tmp/axnoded-udp.stdout
   -stderr /tmp/axnoded-udp.stderr
   -listen-port 15353
@@ -62,7 +54,6 @@ fi
 egress_args=(
   -address "${SOCKET_ADDRESS}"
   -rootfs /opt/sample-rootfs
-  -runtime "${RUNTIME_UNDER_TEST}"
   -stdout /tmp/axnoded-egress.stdout
   -stderr /tmp/axnoded-egress.stderr
   -nat-backend "${NAT_BACKEND}"

@@ -20,8 +20,7 @@ type verifyEgressConfig struct {
 	listenAddress        string
 	address              string
 	rootfs               string
-	runtimeName          string
-	runtimeID            string
+	environmentID        string
 	stdoutPath           string
 	stderrPath           string
 	natBackend           string
@@ -72,8 +71,7 @@ func parseFlags() verifyEgressConfig {
 	flag.StringVar(&cfg.listenAddress, "listen-address", "", "listen address for responder modes")
 	flag.StringVar(&cfg.address, "address", config.DefaultSocketAddress, "axnoded unix socket path")
 	flag.StringVar(&cfg.rootfs, "rootfs", "/opt/sample-rootfs", "LOCAL sample rootfs path")
-	flag.StringVar(&cfg.runtimeName, "runtime", config.RuntimeNameRunsc, "sandbox runtime name under test")
-	flag.StringVar(&cfg.runtimeID, "runtime-id", "verify-egress-runtime", "runtime id")
+	flag.StringVar(&cfg.environmentID, "environment-id", "verify-egress-runtime", "runtime id")
 	flag.StringVar(&cfg.stdoutPath, "stdout", "/tmp/axnoded-egress.stdout", "container stdout path")
 	flag.StringVar(&cfg.stderrPath, "stderr", "/tmp/axnoded-egress.stderr", "container stderr path")
 	flag.StringVar(&cfg.natBackend, "nat-backend", config.NatBackendIptables, "nat backend under test")

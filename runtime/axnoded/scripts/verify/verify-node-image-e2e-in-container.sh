@@ -101,8 +101,7 @@ for runtime_name in runsc; do
 
   /usr/local/bin/verify-smoke \
     -address "${AXNODED_SOCKET}" \
-    -runtime "${runtime_name}" \
-    -runtime-id "${EXPECT_MOUNT_TYPE}-e2e-${runtime_name}" \
+    -environment-id "${EXPECT_MOUNT_TYPE}-e2e-${runtime_name}" \
     -rootfs-src image \
     -image-url "${IMAGE_URL}" \
     -stdout "/tmp/${runtime_name}-${EXPECT_MOUNT_TYPE}.stdout" \
@@ -116,7 +115,7 @@ for runtime_name in runsc; do
   metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
     "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
   metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
-    "axern.phase=langruntime_lookup" "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
+    "axern.phase=environmentcache_lookup" "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
   metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
     "axern.phase=runtime_launch" "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
 

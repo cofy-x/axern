@@ -74,8 +74,8 @@ func RankLocalityEntries(entries []nodeinventory.LocalityHeatEntry) []nodeinvent
 			return a.Mounted
 		case a.RetainedRootfsCount != b.RetainedRootfsCount:
 			return a.RetainedRootfsCount > b.RetainedRootfsCount
-		case a.RetainedRuntimeCount != b.RetainedRuntimeCount:
-			return a.RetainedRuntimeCount > b.RetainedRuntimeCount
+		case a.RetainedEnvironmentCount != b.RetainedEnvironmentCount:
+			return a.RetainedEnvironmentCount > b.RetainedEnvironmentCount
 		case a.NydusDaemonAlive != b.NydusDaemonAlive:
 			return a.NydusDaemonAlive
 		case localityAgeSortValue(a.ChunkDBRecentAccessAgeSecs) != localityAgeSortValue(b.ChunkDBRecentAccessAgeSecs):

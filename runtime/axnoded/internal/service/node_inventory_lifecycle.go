@@ -85,7 +85,7 @@ func (h *sandboxService) initNodeInventory() error {
 			return 1
 		},
 		Container:                h.containerManager,
-		LangRuntime:              h.lrtManager,
+		EnvironmentCache:         h.environmentCache,
 		ImageManager:             nodeinventory.NewImageManagerClient(imageManagerEnabled, imageManagerSocket),
 		NodeResources:            nodeResources,
 		CgroupDriver:             inventoryCgroupDriver,
@@ -105,7 +105,7 @@ func (h *sandboxService) initNodeInventory() error {
 		MemoryPIDRolesVerifier:   h.verifyMemoryPIDRoles,
 		RetiringMemoryLeases:     h.containerManager.RetiringMemoryLeases,
 		AllocationIDs:            h.allocationController().ControlPlaneAllocationIDs,
-		AllocationRuntimeID:      h.allocationController().RuntimeTemplateID,
+		AllocationEnvironmentID:  h.allocationController().EnvironmentTemplateID,
 		UnackedStatusIDs:         h.controlPlaneReports.UnacknowledgedAllocationLifecycleIDs,
 		DisabledResourcePools:    disabledPools,
 	})

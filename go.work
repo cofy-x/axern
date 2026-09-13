@@ -7,7 +7,6 @@ use (
 	./gateway/gatewayd
 	./lib/go/grpcclient
 	./lib/go/imageref
-	./lib/go/llmproxy
 	./lib/go/memorybudget
 	./lib/go/networkpolicy
 	./lib/go/nodecapability

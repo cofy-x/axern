@@ -75,13 +75,13 @@ class Environment(_message.Message):
     status: EnvironmentStatus
     spec: EnvironmentSpec
     spec_hash: str
-    resolved_template: _catalog_pb2.RuntimeTemplate
+    resolved_template: _catalog_pb2.EnvironmentTemplate
     labels: _containers.ScalarMap[str, str]
     version: int
     created_at: _timestamp_pb2.Timestamp
     updated_at: _timestamp_pb2.Timestamp
     message: str
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., status: _Optional[_Union[EnvironmentStatus, str]] = ..., spec: _Optional[_Union[EnvironmentSpec, _Mapping]] = ..., spec_hash: _Optional[str] = ..., resolved_template: _Optional[_Union[_catalog_pb2.RuntimeTemplate, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[str] = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., status: _Optional[_Union[EnvironmentStatus, str]] = ..., spec: _Optional[_Union[EnvironmentSpec, _Mapping]] = ..., spec_hash: _Optional[str] = ..., resolved_template: _Optional[_Union[_catalog_pb2.EnvironmentTemplate, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[str] = ...) -> None: ...
 
 class ListFilter(_message.Message):
     __slots__ = ("namespace", "statuses", "labels", "cursor", "page_size")

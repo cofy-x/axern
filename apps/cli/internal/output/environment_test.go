@@ -22,7 +22,7 @@ func TestRenderEnvironmentImageBacked(t *testing.T) {
 				RootfsReadonly:       true,
 			},
 		},
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{
+		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest:      "sha256:abc",
 				Annotations: map[string]string{"org.opencontainers.image.ref.name": "index.docker.io/library/nginx:1.27"},

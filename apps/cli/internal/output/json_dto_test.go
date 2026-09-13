@@ -25,7 +25,7 @@ func TestEnvironmentJSONUsesStableShape(t *testing.T) {
 		CreatedAt: timestamppb.New(time.Date(
 			2026, time.April, 29, 12, 0, 0, 0, time.UTC,
 		)),
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{ID: "python311", ImageDefaultArgv: []string{"python3"}},
+		ResolvedTemplate: &catalogv1.EnvironmentTemplate{ID: "python311", ImageDefaultArgv: []string{"python3"}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -112,11 +112,11 @@ func TestRunJSONUsesStableShape(t *testing.T) {
 
 func TestCatalogJSONUsesStableShape(t *testing.T) {
 	var b strings.Builder
-	err := PrintRuntimeTemplateListJSON(&b, &catalogv1.ListRuntimeTemplatesResponse{
-		RuntimeTemplates: []*catalogv1.RuntimeTemplate{{
+	err := PrintEnvironmentTemplateListJSON(&b, &catalogv1.ListEnvironmentTemplatesResponse{
+		EnvironmentTemplates: []*catalogv1.EnvironmentTemplate{{
 			ID:               "python311",
 			ImageDefaultArgv: []string{"python3"},
-			Capabilities: &catalogv1.RuntimeTemplateCapabilities{
+			Capabilities: &catalogv1.EnvironmentTemplateCapabilities{
 				SupportsExecStream: true,
 			},
 			ImageDescriptor: &catalogv1.OciImageDescriptor{MediaType: "application/vnd.oci.image.manifest.v1+json"},
@@ -126,19 +126,19 @@ func TestCatalogJSONUsesStableShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got struct {
-		RuntimeTemplates []struct {
+		EnvironmentTemplates []struct {
 			ID               string   `json:"id"`
 			ImageDefaultArgv []string `json:"image_default_argv"`
 			Capabilities     struct {
 				SupportsExecStream bool `json:"supports_exec_stream"`
 			} `json:"capabilities"`
-		} `json:"runtime_templates"`
+		} `json:"environment_templates"`
 	}
 	if err := json.Unmarshal([]byte(b.String()), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.RuntimeTemplates[0].ID != "python311" || got.RuntimeTemplates[0].ImageDefaultArgv[0] != "python3" || !got.RuntimeTemplates[0].Capabilities.SupportsExecStream {
-		t.Fatalf("catalog JSON = %#v, want stable DTO", got.RuntimeTemplates[0])
+	if got.EnvironmentTemplates[0].ID != "python311" || got.EnvironmentTemplates[0].ImageDefaultArgv[0] != "python3" || !got.EnvironmentTemplates[0].Capabilities.SupportsExecStream {
+		t.Fatalf("catalog JSON = %#v, want stable DTO", got.EnvironmentTemplates[0])
 	}
 }
 

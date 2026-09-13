@@ -10,8 +10,8 @@ import (
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
-	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
@@ -26,26 +26,26 @@ func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
 	if err := os.MkdirAll(rootfsDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
-	manager := langruntime.NewLanguageRuntimeManager()
+	manager := environmentcache.NewEnvironmentCache()
 	manager.ConfigureRetention(time.Minute, 1)
-	fr := &runtimeapi.RuntimeTemplate{
+	fr := &runtimeapi.EnvironmentTemplate{
 		ID: "inventory-retained",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
 			Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDir},
 		},
-		Command: []string{"/bin/sh"},
+		Argv: []string{"/bin/sh"},
 	}
 
-	rootfsCfg, err := langruntime.RootfsConfigFromRuntimeTemplate(fr)
+	rootfsCfg, err := environmentcache.RootfsConfigFromEnvironmentTemplate(fr)
 	if err != nil {
-		t.Fatalf("RootfsConfigFromRuntimeTemplate() error = %v", err)
+		t.Fatalf("RootfsConfigFromEnvironmentTemplate() error = %v", err)
 	}
-	result, err := manager.AddLangRuntime(t.Context(), fr, rootfsCfg, true)
+	result, err := manager.PrepareEnvironment(t.Context(), fr, rootfsCfg)
 	if err != nil {
-		t.Fatalf("AddLangRuntime() error = %v", err)
+		t.Fatalf("PrepareEnvironment() error = %v", err)
 	}
-	lr := result.Runtime
+	lr := result.Environment
 	lr.IncRef()
 	lr.DecRef()
 
@@ -58,14 +58,14 @@ func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
 				"interface": {Capacity: 8},
 			},
 		},
-		LangRuntime: manager,
+		EnvironmentCache: manager,
 	})
 
 	snapshot := NewSnapshot()
 	source.collectAxnodedInventory(time.Now().UTC(), &snapshot)
 
-	if got := snapshot.Heat.RetainedRuntimeCount; got != 1 {
-		t.Fatalf("retained_runtime_count = %d, want 1", got)
+	if got := snapshot.Heat.RetainedEnvironmentCount; got != 1 {
+		t.Fatalf("retained_environment_count = %d, want 1", got)
 	}
 	if got := snapshot.Heat.RetainedRootfsCount; got != 1 {
 		t.Fatalf("retained_rootfs_count = %d, want 1", got)
@@ -76,8 +76,8 @@ func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
 	if snapshot.Heat.Locality[0].Key != "local:"+rootfsDir {
 		t.Fatalf("locality key = %q, want %q", snapshot.Heat.Locality[0].Key, "local:"+rootfsDir)
 	}
-	if snapshot.Heat.Locality[0].RetainedRuntimeCount != 1 {
-		t.Fatalf("retained_runtime_count = %d, want 1", snapshot.Heat.Locality[0].RetainedRuntimeCount)
+	if snapshot.Heat.Locality[0].RetainedEnvironmentCount != 1 {
+		t.Fatalf("retained_environment_count = %d, want 1", snapshot.Heat.Locality[0].RetainedEnvironmentCount)
 	}
 	if snapshot.Heat.Locality[0].RetainedRootfsCount != 1 {
 		t.Fatalf("retained_rootfs_count = %d, want 1", snapshot.Heat.Locality[0].RetainedRootfsCount)

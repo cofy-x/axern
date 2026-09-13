@@ -4,10 +4,7 @@ go 1.25.12
 
 replace github.com/cofy-x/axern/sdk/go => ../../sdk/go
 
-replace github.com/cofy-x/axern/lib/go/llmproxy => ../../lib/go/llmproxy
-
 require (
-	github.com/cofy-x/axern/lib/go/llmproxy v0.0.0
 	github.com/cofy-x/axern/sdk/go v0.0.0
 	github.com/google/go-containerregistry v0.20.7
 	github.com/spf13/cobra v1.10.2

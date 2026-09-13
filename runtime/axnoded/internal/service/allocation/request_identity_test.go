@@ -36,7 +36,7 @@ func TestStartRequestDigestChangesWithSandboxContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, mutate := range map[string]func(*apipb.StartRequest){
-		"command": func(candidate *apipb.StartRequest) { candidate.RuntimeTemplate.Command = []string{"/bin/false"} },
+		"command": func(candidate *apipb.StartRequest) { candidate.EnvironmentTemplate.Argv = []string{"/bin/false"} },
 		"memory":  func(candidate *apipb.StartRequest) { candidate.Resources.Limits.MemoryBytes++ },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -64,10 +64,10 @@ func TestStartRequestDigestRejectsCatalogPolicyMismatch(t *testing.T) {
 func testDigestStartRequest() *apipb.StartRequest {
 	return &apipb.StartRequest{
 		ContainerID: "allocation-digest",
-		RuntimeTemplate: &apipb.RuntimeTemplate{
-			ID:      "runtime-digest",
-			Rootfs:  &apipb.RootfsConfig{Readonly: true, Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: "/rootfs"}},
-			Command: []string{"/bin/true"},
+		EnvironmentTemplate: &apipb.EnvironmentTemplate{
+			ID:     "runtime-digest",
+			Rootfs: &apipb.RootfsConfig{Readonly: true, Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: "/rootfs"}},
+			Argv:   []string{"/bin/true"},
 		},
 		Resources: &commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{MemoryBytes: 64 << 20}},
 		CapabilityRequirements: []*capabilityv1.CapabilityRequirement{{

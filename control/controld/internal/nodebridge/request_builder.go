@@ -54,7 +54,7 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 		Network:                         cloneNetworkSpec(cfg.GetNetwork()),
 		SecretEnv:                       cloneResolvedSecretEnvVars(params.ResolvedSecrets.EnvSecrets),
 		SecretFiles:                     cloneResolvedSecretFiles(params.ResolvedSecrets.FileSecrets),
-		ExecutionProfile:                cloneRuntimeExecutionProfile(template.GetExecutionProfile()),
+		ExecutionProfile:                cloneOciExecutionProfile(template.GetExecutionProfile()),
 		ImageMounts:                     cloneImageMounts(cfg.GetImageMounts()),
 		CapabilityRequirements:          cloneCapabilityRequirements(params.CapabilityRequirements),
 	}

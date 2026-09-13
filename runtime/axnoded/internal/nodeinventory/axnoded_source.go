@@ -14,8 +14,8 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/bpfnetstatus"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
-	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
@@ -32,7 +32,7 @@ type memoryPIDRolesVerifierFunc func(allocationID, runtimeName, workloadPath str
 type retiringMemoryLeasesFunc func() []resources.RetiringMemoryLease
 type unackedStatusIDsFunc func() []string
 type allocationIDsFunc func() []string
-type allocationRuntimeIDFunc func(string) string
+type allocationEnvironmentIDFunc func(string) string
 
 var ErrCapabilitySnapshotWarming = errors.New("capability manager is warming")
 
@@ -42,10 +42,10 @@ type containerManagerView interface {
 	RuntimeCgroupPath(string) (string, error)
 }
 
-type langRuntimeManagerView interface {
-	GetLangRuntime(string) *langruntime.LanguageRuntime
-	List() []*langruntime.LanguageRuntime
-	RetentionStats() langruntime.RetentionStats
+type preparedEnvironmentManagerView interface {
+	GetPreparedEnvironment(string) *environmentcache.PreparedEnvironment
+	List() []*environmentcache.PreparedEnvironment
+	RetentionStats() environmentcache.RetentionStats
 }
 
 type AxnodedSourceOptions struct {
@@ -53,7 +53,7 @@ type AxnodedSourceOptions struct {
 	Ready                    readyFunc
 	RuntimeCount             runtimeCountFunc
 	Container                containerManagerView
-	LangRuntime              langRuntimeManagerView
+	EnvironmentCache         preparedEnvironmentManagerView
 	ImageManager             *ImageManagerClient
 	NodeResources            NodeResourceProvider
 	CgroupDriver             os2.CgroupDriver
@@ -75,7 +75,7 @@ type AxnodedSourceOptions struct {
 	MemoryPIDRolesVerifier   memoryPIDRolesVerifierFunc
 	RetiringMemoryLeases     retiringMemoryLeasesFunc
 	AllocationIDs            allocationIDsFunc
-	AllocationRuntimeID      allocationRuntimeIDFunc
+	AllocationEnvironmentID  allocationEnvironmentIDFunc
 	// UnackedStatusIDs extends active allocation ownership
 	// through the control-plane status-report acknowledgement boundary. This
 	// prevents a short-lived allocation from disappearing from node inventory
@@ -92,7 +92,7 @@ type AxnodedSource struct {
 	ready                    readyFunc
 	runtimeCount             runtimeCountFunc
 	container                containerManagerView
-	langRuntime              langRuntimeManagerView
+	preparedEnvironment      preparedEnvironmentManagerView
 	imageManager             *ImageManagerClient
 	nodeResources            NodeResourceProvider
 	cgroupDriver             os2.CgroupDriver
@@ -116,7 +116,7 @@ type AxnodedSource struct {
 	retiringMemoryLeases     retiringMemoryLeasesFunc
 	unackedStatusIDs         unackedStatusIDsFunc
 	allocationIDs            allocationIDsFunc
-	allocationRuntimeID      allocationRuntimeIDFunc
+	allocationEnvironmentID  allocationEnvironmentIDFunc
 
 	sampleMu       sync.Mutex
 	prevCPUSamples map[string]cpuUsageSample
@@ -152,7 +152,7 @@ func NewAxnodedSource(opts AxnodedSourceOptions) *AxnodedSource {
 		ready:                    opts.Ready,
 		runtimeCount:             opts.RuntimeCount,
 		container:                opts.Container,
-		langRuntime:              opts.LangRuntime,
+		preparedEnvironment:      opts.EnvironmentCache,
 		imageManager:             opts.ImageManager,
 		nodeResources:            defaultNodeResourceProvider(opts.NodeResources),
 		cgroupDriver:             opts.CgroupDriver,
@@ -176,7 +176,7 @@ func NewAxnodedSource(opts AxnodedSourceOptions) *AxnodedSource {
 		retiringMemoryLeases:     opts.RetiringMemoryLeases,
 		unackedStatusIDs:         opts.UnackedStatusIDs,
 		allocationIDs:            opts.AllocationIDs,
-		allocationRuntimeID:      opts.AllocationRuntimeID,
+		allocationEnvironmentID:  opts.AllocationEnvironmentID,
 		prevCPUSamples:           make(map[string]cpuUsageSample),
 	}
 }

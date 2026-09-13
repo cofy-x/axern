@@ -28,10 +28,10 @@ import (
 const (
 	allowedFixtureDomain = "allowed.fixture.axern.test"
 	deniedFixtureDomain  = "denied.fixture.axern.test"
+	runscRuntimeName     = "runsc"
 )
 
 type config struct {
-	runtimeName       string
 	networkBackend    string
 	ipFamily          string
 	policyMode        string
@@ -139,7 +139,6 @@ func parseFlags(args []string) (config, error) {
 	flags := flag.NewFlagSet("verify-network-policy-qualification", flag.ContinueOnError)
 	cfg := config{}
 	ruleCounts := ""
-	flags.StringVar(&cfg.runtimeName, "runtime", "", "runsc")
 	flags.StringVar(&cfg.networkBackend, "network-backend", "", "bridge or ebpf")
 	flags.StringVar(&cfg.ipFamily, "ip-family", "", "ipv4 or ipv6")
 	flags.StringVar(&cfg.policyMode, "policy-mode", "", "unrestricted, dns_deny, strict_domain, or strict_cidr")
@@ -177,9 +176,6 @@ func parseFlags(args []string) (config, error) {
 }
 
 func (cfg *config) validate() error {
-	if cfg.runtimeName != "runsc" {
-		return fmt.Errorf("unsupported runtime %q", cfg.runtimeName)
-	}
 	if cfg.networkBackend != "bridge" && cfg.networkBackend != "ebpf" {
 		return fmt.Errorf("unsupported network backend %q", cfg.networkBackend)
 	}
@@ -298,12 +294,12 @@ func qualify(cfg config) (result scenarioResult, resultErr error) {
 	if len(dnsValues) > 0 {
 		metrics.DNSLatencyMS = makeDistribution(dnsValues)
 	}
-	return scenarioResult{Runtime: cfg.runtimeName, NetworkBackend: cfg.networkBackend, IPFamily: cfg.ipFamily, PolicyMode: cfg.policyMode, Metrics: metrics}, nil
+	return scenarioResult{Runtime: runscRuntimeName, NetworkBackend: cfg.networkBackend, IPFamily: cfg.ipFamily, PolicyMode: cfg.policyMode, Metrics: metrics}, nil
 }
 
 func runSandboxSample(cfg config, clients *verifyutil.NodeClients, policy *commonv1.NetworkEgressPolicy, sample int, sustained time.Duration) (result probeResult, latency float64, resultErr error) {
 	dumpMemoryDiagnostics(sample, "before_create")
-	id := verifyutil.NewSandboxID(fmt.Sprintf("netpol-qual-%s-%s-%s-%d", cfg.runtimeName, cfg.ipFamily, cfg.policyMode, sample))
+	id := verifyutil.NewSandboxID(fmt.Sprintf("netpol-qual-%s-%s-%s-%d", runscRuntimeName, cfg.ipFamily, cfg.policyMode, sample))
 	stdoutPath := filepath.Join("/tmp", id+".stdout")
 	stderrPath := filepath.Join("/tmp", id+".stderr")
 	defer os.Remove(stdoutPath)

@@ -20,10 +20,10 @@ func NormalizeNamespace(namespace string) string {
 	return namespace
 }
 
-func SpecHash(spec *environmentv1.EnvironmentSpec, template *catalogv1.RuntimeTemplate) string {
+func SpecHash(spec *environmentv1.EnvironmentSpec, template *catalogv1.EnvironmentTemplate) string {
 	payload, _ := json.Marshal(struct {
 		Spec     *environmentv1.EnvironmentSpec `json:"spec"`
-		Template *catalogv1.RuntimeTemplate     `json:"template"`
+		Template *catalogv1.EnvironmentTemplate `json:"template"`
 	}{
 		Spec:     spec,
 		Template: template,

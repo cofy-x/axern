@@ -22,8 +22,6 @@ const (
 	NodeSandbox_Exec_FullMethodName                  = "/axern.node.sandbox.v1.NodeSandbox/Exec"
 	NodeSandbox_ExecStream_FullMethodName            = "/axern.node.sandbox.v1.NodeSandbox/ExecStream"
 	NodeSandbox_Process_FullMethodName               = "/axern.node.sandbox.v1.NodeSandbox/Process"
-	NodeSandbox_ExecImage_FullMethodName             = "/axern.node.sandbox.v1.NodeSandbox/ExecImage"
-	NodeSandbox_ProcessImage_FullMethodName          = "/axern.node.sandbox.v1.NodeSandbox/ProcessImage"
 	NodeSandbox_WaitSandbox_FullMethodName           = "/axern.node.sandbox.v1.NodeSandbox/WaitSandbox"
 	NodeSandbox_ReadOutput_FullMethodName            = "/axern.node.sandbox.v1.NodeSandbox/ReadOutput"
 	NodeSandbox_CapabilityStatus_FullMethodName      = "/axern.node.sandbox.v1.NodeSandbox/CapabilityStatus"
@@ -63,8 +61,6 @@ type NodeSandboxClient interface {
 	Exec(ctx context.Context, in *ExecRequest, opts ...grpc.CallOption) (*ExecResponse, error)
 	ExecStream(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ExecStreamClient, error)
 	Process(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessClient, error)
-	ExecImage(ctx context.Context, in *ExecImageRequest, opts ...grpc.CallOption) (*ExecImageResponse, error)
-	ProcessImage(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessImageClient, error)
 	WaitSandbox(ctx context.Context, in *WaitSandboxRequest, opts ...grpc.CallOption) (*WaitSandboxResponse, error)
 	ReadOutput(ctx context.Context, in *ReadOutputRequest, opts ...grpc.CallOption) (NodeSandbox_ReadOutputClient, error)
 	CapabilityStatus(ctx context.Context, in *CapabilityStatusRequest, opts ...grpc.CallOption) (*CapabilityStatusResponse, error)
@@ -176,46 +172,6 @@ func (x *nodeSandboxProcessClient) Recv() (*ProcessResponse, error) {
 	return m, nil
 }
 
-func (c *nodeSandboxClient) ExecImage(ctx context.Context, in *ExecImageRequest, opts ...grpc.CallOption) (*ExecImageResponse, error) {
-	out := new(ExecImageResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_ExecImage_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeSandboxClient) ProcessImage(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessImageClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[2], NodeSandbox_ProcessImage_FullMethodName, opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &nodeSandboxProcessImageClient{stream}
-	return x, nil
-}
-
-type NodeSandbox_ProcessImageClient interface {
-	Send(*ProcessImageRequest) error
-	Recv() (*ProcessImageResponse, error)
-	grpc.ClientStream
-}
-
-type nodeSandboxProcessImageClient struct {
-	grpc.ClientStream
-}
-
-func (x *nodeSandboxProcessImageClient) Send(m *ProcessImageRequest) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *nodeSandboxProcessImageClient) Recv() (*ProcessImageResponse, error) {
-	m := new(ProcessImageResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *nodeSandboxClient) WaitSandbox(ctx context.Context, in *WaitSandboxRequest, opts ...grpc.CallOption) (*WaitSandboxResponse, error) {
 	out := new(WaitSandboxResponse)
 	err := c.cc.Invoke(ctx, NodeSandbox_WaitSandbox_FullMethodName, in, out, opts...)
@@ -226,7 +182,7 @@ func (c *nodeSandboxClient) WaitSandbox(ctx context.Context, in *WaitSandboxRequ
 }
 
 func (c *nodeSandboxClient) ReadOutput(ctx context.Context, in *ReadOutputRequest, opts ...grpc.CallOption) (NodeSandbox_ReadOutputClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[3], NodeSandbox_ReadOutput_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[2], NodeSandbox_ReadOutput_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +223,7 @@ func (c *nodeSandboxClient) CapabilityStatus(ctx context.Context, in *Capability
 }
 
 func (c *nodeSandboxClient) ProxyHTTP(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProxyHTTPClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[4], NodeSandbox_ProxyHTTP_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[3], NodeSandbox_ProxyHTTP_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +353,7 @@ func (c *nodeSandboxClient) Touch(ctx context.Context, in *TouchRequest, opts ..
 }
 
 func (c *nodeSandboxClient) UploadArchive(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_UploadArchiveClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[5], NodeSandbox_UploadArchive_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[4], NodeSandbox_UploadArchive_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +387,7 @@ func (x *nodeSandboxUploadArchiveClient) CloseAndRecv() (*UploadArchiveResponse,
 }
 
 func (c *nodeSandboxClient) DownloadArchive(ctx context.Context, in *DownloadArchiveRequest, opts ...grpc.CallOption) (NodeSandbox_DownloadArchiveClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[6], NodeSandbox_DownloadArchive_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[5], NodeSandbox_DownloadArchive_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -586,8 +542,6 @@ type NodeSandboxServer interface {
 	Exec(context.Context, *ExecRequest) (*ExecResponse, error)
 	ExecStream(NodeSandbox_ExecStreamServer) error
 	Process(NodeSandbox_ProcessServer) error
-	ExecImage(context.Context, *ExecImageRequest) (*ExecImageResponse, error)
-	ProcessImage(NodeSandbox_ProcessImageServer) error
 	WaitSandbox(context.Context, *WaitSandboxRequest) (*WaitSandboxResponse, error)
 	ReadOutput(*ReadOutputRequest, NodeSandbox_ReadOutputServer) error
 	CapabilityStatus(context.Context, *CapabilityStatusRequest) (*CapabilityStatusResponse, error)
@@ -633,12 +587,6 @@ func (UnimplementedNodeSandboxServer) ExecStream(NodeSandbox_ExecStreamServer) e
 }
 func (UnimplementedNodeSandboxServer) Process(NodeSandbox_ProcessServer) error {
 	return status.Errorf(codes.Unimplemented, "method Process not implemented")
-}
-func (UnimplementedNodeSandboxServer) ExecImage(context.Context, *ExecImageRequest) (*ExecImageResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ExecImage not implemented")
-}
-func (UnimplementedNodeSandboxServer) ProcessImage(NodeSandbox_ProcessImageServer) error {
-	return status.Errorf(codes.Unimplemented, "method ProcessImage not implemented")
 }
 func (UnimplementedNodeSandboxServer) WaitSandbox(context.Context, *WaitSandboxRequest) (*WaitSandboxResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WaitSandbox not implemented")
@@ -807,50 +755,6 @@ func (x *nodeSandboxProcessServer) Send(m *ProcessResponse) error {
 
 func (x *nodeSandboxProcessServer) Recv() (*ProcessRequest, error) {
 	m := new(ProcessRequest)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func _NodeSandbox_ExecImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ExecImageRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).ExecImage(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_ExecImage_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).ExecImage(ctx, req.(*ExecImageRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeSandbox_ProcessImage_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(NodeSandboxServer).ProcessImage(&nodeSandboxProcessImageServer{stream})
-}
-
-type NodeSandbox_ProcessImageServer interface {
-	Send(*ProcessImageResponse) error
-	Recv() (*ProcessImageRequest, error)
-	grpc.ServerStream
-}
-
-type nodeSandboxProcessImageServer struct {
-	grpc.ServerStream
-}
-
-func (x *nodeSandboxProcessImageServer) Send(m *ProcessImageResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *nodeSandboxProcessImageServer) Recv() (*ProcessImageRequest, error) {
-	m := new(ProcessImageRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -1431,10 +1335,6 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NodeSandbox_Exec_Handler,
 		},
 		{
-			MethodName: "ExecImage",
-			Handler:    _NodeSandbox_ExecImage_Handler,
-		},
-		{
 			MethodName: "WaitSandbox",
 			Handler:    _NodeSandbox_WaitSandbox_Handler,
 		},
@@ -1549,12 +1449,6 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Process",
 			Handler:       _NodeSandbox_Process_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
-		},
-		{
-			StreamName:    "ProcessImage",
-			Handler:       _NodeSandbox_ProcessImage_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

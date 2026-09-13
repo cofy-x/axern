@@ -99,7 +99,7 @@ func TestNewManagerRegistersResourceManagers(t *testing.T) {
 	healthChan := make(chan bool)
 	resourceManager := &stopTestResourceManager{}
 
-	mgr, err := NewManager(t.TempDir(), runtimetest.NewFakeRuntimeHandler(), healthChan, resourceManager)
+	mgr, err := NewManager(t.TempDir(), runtimetest.NewFakeSandboxRuntime(), healthChan, resourceManager)
 	require.NoError(t, err)
 	require.NotNil(t, mgr)
 	registered, ok := mgr.resourceManagers.Get(string(resourceManager.ResourceName()))
@@ -129,7 +129,7 @@ func TestSyncRuntimeIdentityFromStateDoesNotReviveTerminalProcessIdentity(t *tes
 		recyclePath: t.TempDir(),
 		containers:  cmap.New[*Container](),
 	}
-	const id = "test-runtime-identity-111111"
+	const id = "test-allocation-identity-111111"
 	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{}))
 	before, err := m.Get(id)
 	require.NoError(t, err)
@@ -345,7 +345,7 @@ func TestStartMonitorGoroutine(t *testing.T) {
 	container.Status, _ = LoadStatus(container.PATH)
 	containers.Set(id, container)
 
-	r := runtimetest.NewFakeRuntimeHandler()
+	r := runtimetest.NewFakeSandboxRuntime()
 
 	m := &Manager{
 		root:             t.TempDir(),
@@ -374,7 +374,7 @@ func TestStartMonitorRejectsMissingDurableContainerRecord(t *testing.T) {
 	m := &Manager{
 		containers:     cmap.New[*Container](),
 		monitors:       cmap.New[*containerMonitor](),
-		runtimeHandler: runtimetest.NewFakeRuntimeHandler(),
+		runtimeHandler: runtimetest.NewFakeSandboxRuntime(),
 	}
 	require.ErrorContains(t, m.StartMonitor("missing-record", &apipb.ContainerMetadata{}), "durable status record")
 }
@@ -384,7 +384,7 @@ func TestStartMonitorDoesNotRestartDurableTerminalContainer(t *testing.T) {
 	m := &Manager{
 		containers:     cmap.New[*Container](),
 		monitors:       cmap.New[*containerMonitor](),
-		runtimeHandler: runtimetest.NewFakeRuntimeHandler(),
+		runtimeHandler: runtimetest.NewFakeSandboxRuntime(),
 	}
 	m.containers.Set(id, &Container{
 		ID:       id,
@@ -415,7 +415,7 @@ func TestStartRecoveredMonitorsAfterInventoryReconciliation(t *testing.T) {
 
 	m := &Manager{
 		containers:     containers,
-		runtimeHandler: runtimetest.NewFakeRuntimeHandler(),
+		runtimeHandler: runtimetest.NewFakeSandboxRuntime(),
 		monitors:       cmap.New[*containerMonitor](),
 		syncEventChan:  make(chan Event, 8),
 	}
@@ -437,7 +437,7 @@ func TestHousekeeping(t *testing.T) {
 		root:           t.TempDir(),
 		recyclePath:    t.TempDir(),
 		containers:     cmap.New[*Container](),
-		runtimeHandler: runtimetest.NewFakeRuntimeHandler(),
+		runtimeHandler: runtimetest.NewFakeSandboxRuntime(),
 		monitors:       cmap.New[*containerMonitor](),
 		healthChan:     healthChan,
 	}
@@ -474,7 +474,7 @@ func TestManagerStopIsIdempotent(t *testing.T) {
 }
 
 func TestManagerStopHonorsDeadlineAndCanResumeMonitorJoin(t *testing.T) {
-	m, err := NewManager(t.TempDir(), runtimetest.NewFakeRuntimeHandler(), make(chan bool, 1))
+	m, err := NewManager(t.TempDir(), runtimetest.NewFakeSandboxRuntime(), make(chan bool, 1))
 	require.NoError(t, err)
 
 	const id = "stop-monitor-join-111111"

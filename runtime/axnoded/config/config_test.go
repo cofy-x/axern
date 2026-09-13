@@ -179,25 +179,25 @@ func TestRuntimeConfigImageManagerEnabledValue(t *testing.T) {
 	})
 }
 
-func TestDefaultConfigSetsIdleRuntimeRetentionDefaults(t *testing.T) {
+func TestDefaultConfigSetsIdleEnvironmentRetentionDefaults(t *testing.T) {
 	cfg := DefaultConfig()
-	if cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionTTL != DefaultIdleRuntimeRetentionTTL {
-		t.Fatalf("expected idle runtime retention ttl %q, got %q",
-			DefaultIdleRuntimeRetentionTTL, cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionTTL)
+	if cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionTTL != DefaultIdleEnvironmentRetentionTTL {
+		t.Fatalf("expected idle environment retention ttl %q, got %q",
+			DefaultIdleEnvironmentRetentionTTL, cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionTTL)
 	}
-	if cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionMax == nil {
-		t.Fatal("expected default idle runtime retention max pointer to be populated")
+	if cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionMax == nil {
+		t.Fatal("expected default idle environment retention max pointer to be populated")
 	}
-	if *cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionMax != DefaultIdleRuntimeRetentionMax {
-		t.Fatalf("expected idle runtime retention max %d, got %d",
-			DefaultIdleRuntimeRetentionMax, *cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionMax)
+	if *cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionMax != DefaultIdleEnvironmentRetentionMax {
+		t.Fatalf("expected idle environment retention max %d, got %d",
+			DefaultIdleEnvironmentRetentionMax, *cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionMax)
 	}
-	ttl, err := cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionTTLDuration()
+	ttl, err := cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionTTLDuration()
 	if err != nil {
-		t.Fatalf("parse default idle runtime retention ttl: %v", err)
+		t.Fatalf("parse default idle environment retention ttl: %v", err)
 	}
 	if ttl <= 0 {
-		t.Fatalf("expected positive idle runtime retention ttl, got %v", ttl)
+		t.Fatalf("expected positive idle environment retention ttl, got %v", ttl)
 	}
 }
 
@@ -314,11 +314,11 @@ func TestResourcePoolReconcileIntervalDurationSupportsExplicitZero(t *testing.T)
 	}
 }
 
-func TestRuntimeConfigIdleRuntimeRetentionMaxValueSupportsExplicitZero(t *testing.T) {
+func TestRuntimeConfigIdleEnvironmentRetentionMaxValueSupportsExplicitZero(t *testing.T) {
 	disabled := 0
-	cfg := RuntimeConfig{IdleRuntimeRetentionMax: &disabled}
-	if got := cfg.IdleRuntimeRetentionMaxValue(); got != 0 {
-		t.Fatalf("IdleRuntimeRetentionMaxValue() = %d, want 0", got)
+	cfg := RuntimeConfig{IdleEnvironmentRetentionMax: &disabled}
+	if got := cfg.IdleEnvironmentRetentionMaxValue(); got != 0 {
+		t.Fatalf("IdleEnvironmentRetentionMaxValue() = %d, want 0", got)
 	}
 }
 

@@ -23,7 +23,6 @@ import (
 
 type fakeNodeSandboxService struct {
 	execRequests            []*runtimev1.ExecRequest
-	execImageRequests       []*runtimev1.ExecImageRequest
 	statFileRequests        []*runtimev1.StatFileRequest
 	listDirRequests         []*runtimev1.ListDirRequest
 	readFileRequests        []*runtimev1.ReadFileRequest
@@ -59,7 +58,6 @@ type fakeNodeSandboxService struct {
 	reportedMessage         string
 	execStreamFunc          func(service.ExecStreamServer) error
 	processFunc             func(service.ProcessStreamServer) error
-	processImageFunc        func(service.ProcessImageStreamServer) error
 }
 
 func (f *fakeNodeSandboxService) Run(context.Context) error      { return nil }
@@ -82,15 +80,8 @@ func (f *fakeNodeSandboxService) Process(stream service.ProcessStreamServer) err
 	}
 	return nil
 }
-func (f *fakeNodeSandboxService) ProcessImage(stream service.ProcessImageStreamServer) error {
-	if f.processImageFunc != nil {
-		return f.processImageFunc(stream)
-	}
-	return nil
-}
-func (f *fakeNodeSandboxService) ProxyHTTP(service.HTTPProxyServer) error  { return nil }
-func (f *fakeNodeSandboxService) Ready() bool                              { return true }
-func (f *fakeNodeSandboxService) RuntimeStatuses() []service.RuntimeStatus { return nil }
+func (f *fakeNodeSandboxService) ProxyHTTP(service.HTTPProxyServer) error { return nil }
+func (f *fakeNodeSandboxService) Ready() bool                             { return true }
 func (f *fakeNodeSandboxService) NodeInventory() (nodeinventory.NodeInventorySnapshot, bool) {
 	return nodeinventory.NewSnapshot(), false
 }
@@ -101,9 +92,6 @@ func (f *fakeNodeSandboxService) Stats(context.Context, *runtimev1.StatsRequest)
 	return nil, nil
 }
 func (f *fakeNodeSandboxService) Kill(context.Context, *runtimev1.KillRequest) (*runtimev1.KillResponse, error) {
-	return nil, nil
-}
-func (f *fakeNodeSandboxService) Checkpoint(context.Context, *runtimev1.CheckpointRequest) (*runtimev1.CheckpointResponse, error) {
 	return nil, nil
 }
 func (f *fakeNodeSandboxService) Version(context.Context, *runtimev1.VersionRequest) (*runtimev1.VersionResponse, error) {
@@ -124,12 +112,6 @@ func (f *fakeNodeSandboxService) Exec(ctx context.Context, req *runtimev1.ExecRe
 	_ = ctx
 	f.execRequests = append(f.execRequests, req)
 	return &runtimev1.ExecResponse{ExitCode: 0, Stdout: []byte("ok\n")}, nil
-}
-
-func (f *fakeNodeSandboxService) ExecImage(ctx context.Context, req *runtimev1.ExecImageRequest) (*runtimev1.ExecImageResponse, error) {
-	_ = ctx
-	f.execImageRequests = append(f.execImageRequests, req)
-	return &runtimev1.ExecImageResponse{ExitCode: 0, Stdout: []byte("image-ok\n")}, nil
 }
 
 func (f *fakeNodeSandboxService) SandboxCapabilityStatus(ctx context.Context, containerID string) (service.SandboxCapabilityStatus, error) {
@@ -411,45 +393,6 @@ func (f *fakeNodeSandboxProcessStream) Context() context.Context {
 func (f *fakeNodeSandboxProcessStream) SendMsg(any) error { return nil }
 func (f *fakeNodeSandboxProcessStream) RecvMsg(any) error { return io.EOF }
 
-type fakeNodeSandboxProcessImageStream struct {
-	ctx      context.Context
-	requests []*nodesandboxv1.ProcessImageRequest
-	sent     []*nodesandboxv1.ProcessImageResponse
-	header   metadata.MD
-}
-
-func (f *fakeNodeSandboxProcessImageStream) Send(resp *nodesandboxv1.ProcessImageResponse) error {
-	f.sent = append(f.sent, resp)
-	return nil
-}
-
-func (f *fakeNodeSandboxProcessImageStream) Recv() (*nodesandboxv1.ProcessImageRequest, error) {
-	if len(f.requests) == 0 {
-		return nil, io.EOF
-	}
-	req := f.requests[0]
-	f.requests = f.requests[1:]
-	return req, nil
-}
-
-func (f *fakeNodeSandboxProcessImageStream) SetHeader(md metadata.MD) error {
-	f.header = metadata.Join(f.header, md)
-	return nil
-}
-func (f *fakeNodeSandboxProcessImageStream) SendHeader(md metadata.MD) error {
-	f.header = metadata.Join(f.header, md)
-	return nil
-}
-func (f *fakeNodeSandboxProcessImageStream) SetTrailer(metadata.MD) {}
-func (f *fakeNodeSandboxProcessImageStream) Context() context.Context {
-	if f.ctx != nil {
-		return f.ctx
-	}
-	return context.Background()
-}
-func (f *fakeNodeSandboxProcessImageStream) SendMsg(any) error { return nil }
-func (f *fakeNodeSandboxProcessImageStream) RecvMsg(any) error { return io.EOF }
-
 type fakeNodeSandboxUploadArchiveStream struct {
 	ctx      context.Context
 	requests []*nodesandboxv1.UploadArchiveRequest
@@ -559,58 +502,6 @@ func TestNodeSandboxExecBridgesRequest(t *testing.T) {
 	}
 	if got.GetUser() != "axern" {
 		t.Fatalf("exec request user = %q, want axern", got.GetUser())
-	}
-}
-
-func TestNodeSandboxExecImageBridgesRequest(t *testing.T) {
-	t.Parallel()
-
-	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a")
-
-	resp, err := server.ExecImage(context.Background(), &nodesandboxv1.ExecImageRequest{
-		AllocationID:        "alloc-123",
-		ExecutionLeaseToken: "lease-token",
-		Spec: &nodesandboxv1.ImageProcessSpec{
-			Image:          "ghcr.io/cofy-x/agent:latest",
-			Argv:           []string{"tool", "run"},
-			Env:            map[string]string{"A": "B"},
-			Cwd:            "/workspace",
-			User:           "axern",
-			TimeoutSeconds: 9,
-			Mounts: []*nodesandboxv1.ImageProcessMount{{
-				SandboxPath: "/workspace",
-				TargetPath:  "/workspace",
-				Readonly:    true,
-				Options:     []string{"rshared"},
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("ExecImage() error = %v", err)
-	}
-	if resp.GetExitCode() != 0 || string(resp.GetStdout()) != "image-ok\n" {
-		t.Fatalf("unexpected exec image response = %#v", resp)
-	}
-	if len(fakeService.execImageRequests) != 1 {
-		t.Fatalf("exec image request count = %d, want 1", len(fakeService.execImageRequests))
-	}
-	got := fakeService.execImageRequests[0]
-	if got.GetID() != "alloc-123" {
-		t.Fatalf("exec image request id = %q, want alloc-123", got.GetID())
-	}
-	if got.GetSpec().GetImage() != "ghcr.io/cofy-x/agent:latest" {
-		t.Fatalf("exec image image = %q", got.GetSpec().GetImage())
-	}
-	if got.GetSpec().GetCommand()[0] != "tool" || got.GetSpec().GetCwd() != "/workspace" || got.GetSpec().GetTimeout() != 9 {
-		t.Fatalf("unexpected exec image spec = %#v", got.GetSpec())
-	}
-	if got.GetSpec().GetEnv()["A"] != "B" || got.GetSpec().GetUser() != "axern" {
-		t.Fatalf("unexpected exec image env/user = %#v", got.GetSpec())
-	}
-	mount := got.GetSpec().GetMounts()[0]
-	if mount.GetSandboxPath() != "/workspace" || mount.GetTargetPath() != "/workspace" || !mount.GetReadonly() || mount.GetOptions()[0] != "rshared" {
-		t.Fatalf("unexpected exec image mount = %#v", mount)
 	}
 }
 
@@ -737,35 +628,6 @@ func TestNodeSandboxArchiveStreamsAcknowledgeLease(t *testing.T) {
 	assertExecutionLeaseAccepted(t, download.header)
 	if len(download.sent) != 1 || string(download.sent[0].GetChunk()) != "archive" {
 		t.Fatalf("download responses = %#v", download.sent)
-	}
-}
-
-func TestNodeSandboxProcessImageAcknowledgesLease(t *testing.T) {
-	t.Parallel()
-
-	fakeService := &fakeNodeSandboxService{processImageFunc: func(stream service.ProcessImageStreamServer) error {
-		open, err := stream.Recv()
-		if err != nil {
-			return err
-		}
-		if open.GetOpen().GetID() != "alloc-123" {
-			t.Fatalf("image process open = %#v", open.GetOpen())
-		}
-		return stream.Send(&runtimev1.ProcessImageResponse{Payload: &runtimev1.ProcessImageResponse_Ready{Ready: &runtimev1.ProcessReady{}}})
-	}}
-	server := NewNodeSandboxServer(fakeService, "node-a")
-	stream := &fakeNodeSandboxProcessImageStream{requests: []*nodesandboxv1.ProcessImageRequest{{
-		Payload: &nodesandboxv1.ProcessImageRequest_Open{Open: &nodesandboxv1.ProcessImageOpen{
-			AllocationID: "alloc-123", ExecutionLeaseToken: "lease-token",
-			Spec: &nodesandboxv1.ImageProcessSpec{Image: "example.invalid/runtime@sha256:abc", Argv: []string{"true"}},
-		}},
-	}}}
-	if err := server.ProcessImage(stream); err != nil {
-		t.Fatalf("ProcessImage() error = %v", err)
-	}
-	assertExecutionLeaseAccepted(t, stream.header)
-	if len(stream.sent) != 1 || stream.sent[0].GetReady() == nil {
-		t.Fatalf("image process responses = %#v", stream.sent)
 	}
 }
 

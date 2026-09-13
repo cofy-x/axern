@@ -16,7 +16,6 @@ from axern_sdk.node import (
     ExecCommand,
     ExecResult,
     ExecStreamEvent,
-    ImageProcessMount,
 )
 from axern_sdk.sandbox.async_browser import AsyncSandboxBrowserMixin
 from axern_sdk.sandbox.async_capabilities import AsyncSandboxCapabilityMixin
@@ -353,71 +352,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
             rpc_timeout=rpc_timeout,
         )
 
-    async def exec_image(
-        self,
-        image: str,
-        command: ExecCommand,
-        *,
-        env: dict[str, str] | None = None,
-        cwd: str = "",
-        timeout_seconds: int = 0,
-        user: str = "",
-        tty: bool = False,
-        check: bool = False,
-        text: bool = False,
-        encoding: str = "utf-8",
-        errors: str = "strict",
-        shell: bool | None = None,
-        mounts: list[ImageProcessMount] | tuple[ImageProcessMount, ...] | None = None,
-        lease_ttl_seconds: int = 60,
-        rpc_timeout: float | None = None,
-    ) -> ExecResult:
-        return await self._node_client().exec_image(
-            image,
-            command,
-            env=env,
-            cwd=cwd,
-            timeout_seconds=timeout_seconds,
-            user=user,
-            tty=tty,
-            check=check,
-            text=text,
-            encoding=encoding,
-            errors=errors,
-            shell=shell,
-            mounts=mounts,
-            lease_ttl_seconds=lease_ttl_seconds,
-            rpc_timeout=rpc_timeout,
-        )
 
-    async def process_image(
-        self,
-        image: str,
-        command: ExecCommand,
-        *,
-        env: dict[str, str] | None = None,
-        cwd: str = "",
-        timeout_seconds: int = 0,
-        user: str = "",
-        tty: bool = False,
-        shell: bool | None = None,
-        mounts: list[ImageProcessMount] | tuple[ImageProcessMount, ...] | None = None,
-        lease_ttl_seconds: int = 60,
-        rpc_timeout: float | None = None,
-    ) -> AsyncSandboxProcess:
-        return await self._node_client().process_image(
-            image,
-            command,
-            env=env,
-            cwd=cwd,
-            timeout_seconds=timeout_seconds,
-            user=user,
-            tty=tty,
-            shell=shell,
-            mounts=mounts,
-            lease_ttl_seconds=lease_ttl_seconds,
-            rpc_timeout=rpc_timeout,
-        )
 
     async def _resolve_environment(self) -> str:
         if self._environment_id:

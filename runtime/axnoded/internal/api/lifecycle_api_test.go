@@ -131,9 +131,9 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 				Image:  "example.com/axern/codex-tool:latest",
 				Target: "/opt/axern/tools/codex",
 			}},
-			ExecutionProfile: &catalogv1.RuntimeExecutionProfile{
-				RuntimeBaseline: &catalogv1.RuntimeBaselinePolicy{NoFileLimit: 2097152},
-				Capabilities: &catalogv1.RuntimeCapabilityPolicy{
+			ExecutionProfile: &catalogv1.OciExecutionProfile{
+				Baseline: &catalogv1.OciBaselinePolicy{NoFileLimit: 2097152},
+				Capabilities: &catalogv1.OciCapabilityPolicy{
 					AnnotationKey:  "custom-capabilities",
 					IncludeAmbient: proto.Bool(false),
 				},
@@ -156,11 +156,11 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	if got := startReq.GetEgressPolicy().GetDnsDeny().GetDeniedDomains(); len(got) != 1 || got[0] != "github.com" {
 		t.Fatalf("egress policy was not preserved: %#v", startReq.GetEgressPolicy())
 	}
-	if startReq.GetRuntimeTemplate().GetRootfs().GetImageUrl() != imageRef {
-		t.Fatalf("image_ref = %q", startReq.GetRuntimeTemplate().GetRootfs().GetImageUrl())
+	if startReq.GetEnvironmentTemplate().GetRootfs().GetImageUrl() != imageRef {
+		t.Fatalf("image_ref = %q", startReq.GetEnvironmentTemplate().GetRootfs().GetImageUrl())
 	}
-	if startReq.GetRuntimeTemplate().GetRuntimeEnvs()["A"] != "B" {
-		t.Fatalf("runtime env = %#v, want key A", startReq.GetRuntimeTemplate().GetRuntimeEnvs())
+	if startReq.GetEnvironmentTemplate().GetEnv()["A"] != "B" {
+		t.Fatalf("runtime env = %#v, want key A", startReq.GetEnvironmentTemplate().GetEnv())
 	}
 	if got := startReq.GetPorts(); len(got) != 1 || got[0] != "tcp:8080:8080" {
 		t.Fatalf("ports = %#v, want tcp:8080:8080", got)
@@ -174,10 +174,10 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	if got := startReq.GetImageMounts(); len(got) != 1 || got[0].GetImage() != "example.com/axern/codex-tool:latest" || got[0].GetTarget() != "/opt/axern/tools/codex" || !got[0].GetReadonly() {
 		t.Fatalf("image mounts = %#v, want readonly codex tool mount", got)
 	}
-	if startReq.GetRuntimeTemplate().GetExecutionProfile().GetRuntimeBaseline().GetNoFileLimit() != 2097152 {
-		t.Fatalf("execution profile nofile = %d, want 2097152", startReq.GetRuntimeTemplate().GetExecutionProfile().GetRuntimeBaseline().GetNoFileLimit())
+	if startReq.GetEnvironmentTemplate().GetExecutionProfile().GetBaseline().GetNoFileLimit() != 2097152 {
+		t.Fatalf("execution profile nofile = %d, want 2097152", startReq.GetEnvironmentTemplate().GetExecutionProfile().GetBaseline().GetNoFileLimit())
 	}
-	if startReq.GetRuntimeTemplate().GetExecutionProfile().GetCapabilities().GetIncludeAmbient() {
+	if startReq.GetEnvironmentTemplate().GetExecutionProfile().GetCapabilities().GetIncludeAmbient() {
 		t.Fatal("execution profile include_ambient = true, want false")
 	}
 	if strings.Contains(startReq.GetExtraConfig(), `"namespace"`) || strings.Contains(startReq.GetExtraConfig(), `"serviceId"`) {
@@ -205,7 +205,7 @@ func TestNodeLifecycleCreateAllocationAllowsImageDefaultCommand(t *testing.T) {
 	if len(fakeService.startRequests) != 1 {
 		t.Fatalf("start request count = %d, want 1", len(fakeService.startRequests))
 	}
-	if got := fakeService.startRequests[0].GetRuntimeTemplate().GetCommand(); len(got) != 0 {
+	if got := fakeService.startRequests[0].GetEnvironmentTemplate().GetArgv(); len(got) != 0 {
 		t.Fatalf("command = %#v, want empty so OCI image default command is preserved", got)
 	}
 }
@@ -334,7 +334,7 @@ func TestNodeLifecycleGetAllocationLifecycleReturnsNotFoundWhenRuntimeAllocation
 	}
 }
 
-func TestAllocationRuntimeIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
+func TestAllocationEnvironmentIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 	base := &nodelifecyclev1.CreateAllocationRequest{
 		Config: &nodelifecyclev1.ResolvedExecutionConfig{
 			EnvironmentID:   "env-a",
@@ -357,8 +357,8 @@ func TestAllocationRuntimeIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("allocationStartRequest(other) error = %v", err)
 	}
-	if baseStart.GetRuntimeTemplate().GetID() != otherStart.GetRuntimeTemplate().GetID() {
-		t.Fatal("request identity must not partition the runtime template cache")
+	if baseStart.GetEnvironmentTemplate().GetID() != otherStart.GetEnvironmentTemplate().GetID() {
+		t.Fatal("request identity must not partition the environment template cache")
 	}
 
 	other.GetConfig().Argv = []string{"/bin/other"}
@@ -366,51 +366,51 @@ func TestAllocationRuntimeIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("allocationStartRequest(other static config) error = %v", err)
 	}
-	if baseStart.GetRuntimeTemplate().GetID() == otherStart.GetRuntimeTemplate().GetID() {
-		t.Fatal("static execution config must partition the runtime template cache")
+	if baseStart.GetEnvironmentTemplate().GetID() == otherStart.GetEnvironmentTemplate().GetID() {
+		t.Fatal("static execution config must partition the environment template cache")
 	}
 }
 
-func TestStableRuntimeTemplateIDFingerprintsStaticTemplate(t *testing.T) {
-	base := &runtimev1.RuntimeTemplate{
-		ID:          "ignored",
-		Command:     []string{"/bin/app"},
-		Cwd:         "/workspace",
-		RuntimeEnvs: map[string]string{"B": "2", "A": "1"},
+func TestStableEnvironmentTemplateIDFingerprintsStaticTemplate(t *testing.T) {
+	base := &runtimev1.EnvironmentTemplate{
+		ID:   "ignored",
+		Argv: []string{"/bin/app"},
+		Cwd:  "/workspace",
+		Env:  map[string]string{"B": "2", "A": "1"},
 		Rootfs: &runtimev1.RootfsConfig{
 			Type:     runtimev1.RootfsSrcType_IMAGE,
 			Source:   &runtimev1.RootfsConfig_ImageUrl{ImageUrl: "registry/app@sha256:abc"},
 			Readonly: true,
 		},
 	}
-	baseID := stableRuntimeTemplateID(base)
+	baseID := stableEnvironmentTemplateID(base)
 	if baseID == "" {
-		t.Fatal("stable runtime template id must not be empty")
+		t.Fatal("stable environment template id must not be empty")
 	}
 
-	reordered := proto.Clone(base).(*runtimev1.RuntimeTemplate)
+	reordered := proto.Clone(base).(*runtimev1.EnvironmentTemplate)
 	reordered.ID = "another-id"
-	reordered.RuntimeEnvs = map[string]string{"A": "1", "B": "2"}
-	if got := stableRuntimeTemplateID(reordered); got != baseID {
+	reordered.Env = map[string]string{"A": "1", "B": "2"}
+	if got := stableEnvironmentTemplateID(reordered); got != baseID {
 		t.Fatalf("map order and existing id must not affect fingerprint: got %q, want %q", got, baseID)
 	}
 
-	tests := map[string]func(*runtimev1.RuntimeTemplate){
-		"command": func(template *runtimev1.RuntimeTemplate) { template.Command = []string{"/bin/other"} },
-		"cwd":     func(template *runtimev1.RuntimeTemplate) { template.Cwd = "/app" },
-		"environment": func(template *runtimev1.RuntimeTemplate) {
-			template.RuntimeEnvs["A"] = "changed"
+	tests := map[string]func(*runtimev1.EnvironmentTemplate){
+		"command": func(template *runtimev1.EnvironmentTemplate) { template.Argv = []string{"/bin/other"} },
+		"cwd":     func(template *runtimev1.EnvironmentTemplate) { template.Cwd = "/app" },
+		"environment": func(template *runtimev1.EnvironmentTemplate) {
+			template.Env["A"] = "changed"
 		},
-		"rootfs": func(template *runtimev1.RuntimeTemplate) {
+		"rootfs": func(template *runtimev1.EnvironmentTemplate) {
 			template.Rootfs.Source = &runtimev1.RootfsConfig_ImageUrl{ImageUrl: "registry/app@sha256:def"}
 		},
-		"rootfs readonly": func(template *runtimev1.RuntimeTemplate) { template.Rootfs.Readonly = false },
+		"rootfs readonly": func(template *runtimev1.EnvironmentTemplate) { template.Rootfs.Readonly = false },
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
-			candidate := proto.Clone(base).(*runtimev1.RuntimeTemplate)
+			candidate := proto.Clone(base).(*runtimev1.EnvironmentTemplate)
 			mutate(candidate)
-			if got := stableRuntimeTemplateID(candidate); got == baseID {
+			if got := stableEnvironmentTemplateID(candidate); got == baseID {
 				t.Fatalf("static template change must alter fingerprint: %q", got)
 			}
 		})

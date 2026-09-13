@@ -112,7 +112,7 @@ func TestHarnessOnRequestEnforcesDefaultPermissionMode(t *testing.T) {
 	}
 }
 
-func TestHarnessRunWritesRemoteConfigWithManagedProxyConfig(t *testing.T) {
+func TestHarnessRunWritesDirectProviderConfig(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	if err := os.WriteFile(configPath, []byte(`{
   "agent_profiles": {
@@ -137,11 +137,6 @@ func TestHarnessRunWritesRemoteConfigWithManagedProxyConfig(t *testing.T) {
 		Task:        domain.TaskInstance{ID: "task-1"},
 		Sandbox:     sb,
 		Instruction: "Do it",
-		ManagedProxy: &sandbox.ManagedProxyOptions{
-			Provider:            "anthropic",
-			UpstreamBaseURL:     "https://api.deepseek.com/anthropic",
-			UpstreamBearerToken: "sk-test",
-		},
 	})
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
@@ -153,13 +148,13 @@ func TestHarnessRunWritesRemoteConfigWithManagedProxyConfig(t *testing.T) {
 		t.Fatalf("commands = %d, want 1", len(sb.commands))
 	}
 	configScript := sb.commands[0].Shell()
-	if !strings.Contains(configScript, "ANTHROPIC_BASE_URL") || !strings.Contains(configScript, "${AXERN_MANAGED_PROXY_BASE_URL}") {
+	if !strings.Contains(configScript, "ANTHROPIC_BASE_URL") || !strings.Contains(configScript, "https://api.deepseek.com/anthropic") {
 		t.Fatalf("config command = %#v", sb.commands[0])
 	}
 	if !strings.Contains(configScript, "claude -p") {
 		t.Fatalf("agent command missing: %#v", sb.commands[0])
 	}
-	if sb.options.Env["ANTHROPIC_API_KEY"] != "axern-local-adapter" {
+	if sb.options.Env["ANTHROPIC_API_KEY"] != "sk-test" {
 		t.Fatalf("env = %#v", sb.options.Env)
 	}
 	if sb.options.User != "" {
@@ -248,9 +243,6 @@ func TestHarnessRunWrapsAgentImageCommandWithRemoteConfig(t *testing.T) {
 	}
 	h := New(Config{ConfigPath: configPath})
 	h.Launcher = launcher
-	if _, err := h.ManagedProxyConfig(domain.AgentSpec{Name: "claude-code", Profile: "deepseek"}); err != nil {
-		t.Fatalf("ManagedProxyConfig returned error: %v", err)
-	}
 	result, err := h.Run(context.Background(), agent.Request{
 		Agent: domain.AgentSpec{
 			Name: "claude-code",
@@ -267,11 +259,6 @@ func TestHarnessRunWrapsAgentImageCommandWithRemoteConfig(t *testing.T) {
 		Task:        domain.TaskInstance{ID: "task-1"},
 		Sandbox:     &fakeSandbox{},
 		Instruction: "Do it",
-		ManagedProxy: &sandbox.ManagedProxyOptions{
-			Provider:            "anthropic",
-			UpstreamBaseURL:     "https://api.deepseek.com/anthropic",
-			UpstreamBearerToken: "sk-test",
-		},
 	})
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
@@ -280,51 +267,10 @@ func TestHarnessRunWrapsAgentImageCommandWithRemoteConfig(t *testing.T) {
 		t.Fatalf("result = %#v", result)
 	}
 	command := launcher.plan.Command.Shell()
-	for _, expected := range []string{"ANTHROPIC_BASE_URL", "${AXERN_MANAGED_PROXY_BASE_URL}", "claude -p"} {
+	for _, expected := range []string{"ANTHROPIC_BASE_URL", "https://api.deepseek.com/anthropic", "claude -p"} {
 		if !strings.Contains(command, expected) {
 			t.Fatalf("wrapped command missing %q: %s", expected, command)
 		}
-	}
-}
-
-func TestHarnessManagedProxyConfigReturnsSetupFromProfile(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "config.json")
-	if err := os.WriteFile(configPath, []byte(`{
-  "agent_profiles": {
-    "profiles": {
-      "deepseek": {
-        "agent": "claude-code",
-        "provider": "anthropic",
-        "wire_api": "anthropic_messages",
-        "upstream": "https://api.deepseek.com/anthropic",
-        "token": "sk-test"
-      }
-    }
-  }
-}`), 0o600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-	h := New(Config{ConfigPath: configPath})
-	setup, err := h.ManagedProxyConfig(domain.AgentSpec{Name: "claude-code", Profile: "deepseek"})
-	if err != nil {
-		t.Fatalf("ManagedProxyConfig returned error: %v", err)
-	}
-	if setup == nil {
-		t.Fatal("ManagedProxyConfig returned nil")
-	}
-	if setup.Upstream == nil || setup.Upstream.String() != "https://api.deepseek.com/anthropic" || setup.Token != "sk-test" || setup.ProviderType != agent.ProviderAnthropic {
-		t.Fatalf("setup = %#v", setup)
-	}
-}
-
-func TestHarnessManagedProxyConfigReturnsNilWithoutProfile(t *testing.T) {
-	h := New(Config{})
-	setup, err := h.ManagedProxyConfig(domain.AgentSpec{Name: "claude-code"})
-	if err != nil {
-		t.Fatalf("ManagedProxyConfig returned error: %v", err)
-	}
-	if setup != nil {
-		t.Fatalf("ManagedProxyConfig should return nil without profile, got %#v", setup)
 	}
 }
 

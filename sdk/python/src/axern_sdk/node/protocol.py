@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 
 from axern.common.file.v1 import file_pb2
 from axern.node.sandbox.v1 import node_pb2
-from axern_sdk.node.models import BrowserStatus, ExecResult, ImageProcessMount, SandboxFileInfo, SandboxFileKind, workspace_mount
+from axern_sdk.node.models import BrowserStatus, ExecResult, SandboxFileInfo, SandboxFileKind
 
 
 def exec_spec(
@@ -28,41 +28,6 @@ def exec_spec(
     )
 
 
-def image_process_spec(
-    image: str,
-    argv: list[str],
-    *,
-    env: dict[str, str] | None,
-    cwd: str,
-    timeout_seconds: int,
-    user: str,
-    tty: bool,
-    mounts: Iterable[ImageProcessMount] | None,
-) -> node_pb2.ImageProcessSpec:
-    return node_pb2.ImageProcessSpec(
-        image=image,
-        argv=list(argv),
-        env=dict(env or {}),
-        cwd=cwd,
-        timeout_seconds=timeout_seconds,
-        user=user,
-        tty=tty,
-        mounts=image_process_mounts(mounts),
-    )
-
-
-def image_process_mounts(mounts: Iterable[ImageProcessMount] | None) -> list[node_pb2.ImageProcessMount]:
-    if mounts is None:
-        mounts = (workspace_mount(),)
-    return [
-        node_pb2.ImageProcessMount(
-            sandbox_path=mount.sandbox_path,
-            target_path=mount.target_path,
-            readonly=mount.readonly,
-            options=list(mount.options),
-        )
-        for mount in mounts
-    ]
 
 
 def exec_stream_requests(

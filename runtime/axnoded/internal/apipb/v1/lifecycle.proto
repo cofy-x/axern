@@ -9,7 +9,7 @@ import "axern/control/common/v1/common.proto";
 import "axern/control/capability/v1/capability.proto";
 
 message StartRequest {
-  RuntimeTemplate runtime_template = 1;
+  EnvironmentTemplate environment_template = 1;
   repeated Mount mounts = 2;
   axern.control.common.v1.ResourceSpec resources = 3;
   map<string, string> userEnvs = 4;
@@ -17,17 +17,16 @@ message StartRequest {
   string stderr = 6;
   string extra_config = 7;
   string network = 8;
-  string ckptDir = 9;
-  string trace_id = 10;
-  repeated string ports = 11;
-  string containerID = 12;
-  repeated ImageMount image_mounts = 13;
-  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 14;
-  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 15;
+  string trace_id = 9;
+  repeated string ports = 10;
+  string containerID = 11;
+  repeated ImageMount image_mounts = 12;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 13;
+  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 14;
   // The normalized public policy is carried intact to the node-local
   // enforcement boundary. The string network field is the OCI network-mode
   // selector and must never be used as a policy surrogate.
-  axern.control.common.v1.NetworkEgressPolicy egress_policy = 16;
+  axern.control.common.v1.NetworkEgressPolicy egress_policy = 15;
 }
 
 message StartResponse {
@@ -61,22 +60,8 @@ message WaitResponse {
   string message = 3;
 }
 
-message CheckpointRequest {
-  string ID = 1;
-  string ckptDir = 2;
-  int64 timeout = 3;
-  bool compress = 4;
-  string trace_id = 5;
-}
-
-message CheckpointResponse {
-  bool success = 1;
-  string message = 2;
-}
-
 message ListContainersRequest {
   string ID = 1;
-  map<string, string> selector = 2;
 }
 
 message ListContainersResponse {

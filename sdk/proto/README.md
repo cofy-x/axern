@@ -4,7 +4,7 @@ Shared cross-module protobuf contracts live here.
 
 Layout:
 
-- `axern/control/catalog/v1`: public control-plane runtime catalog API
+- `axern/control/catalog/v1`: public control-plane environment catalog API
 - `axern/control/identity/v1`: public authenticated Principal identity API
 - `axern/control/admin/v1`: platform administration, Principal, credential, and namespace authorization APIs
 - `axern/control/environment/v1`: public immutable environment API

@@ -68,10 +68,10 @@ func runVerifyEgress(cfg verifyEgressConfig) error {
 		report, err := runBenchmarkReport(
 			clients,
 			baseSpec,
-			cfg.runtimeID,
+			cfg.environmentID,
 			cfg.stdoutPath,
 			cfg.stderrPath,
-			cfg.runtimeName,
+			config.RuntimeNameRunsc,
 			cfg.natBackend,
 			cfg.bpfnetPinPath,
 			cfg.rootfs,
@@ -99,7 +99,7 @@ func runVerifyEgress(cfg verifyEgressConfig) error {
 		stdoutData, stderrData, err := runProbeContainer(
 			clients,
 			baseSpec,
-			cfg.runtimeID,
+			cfg.environmentID,
 			cfg.stdoutPath,
 			cfg.stderrPath,
 			buildProbeCommand("verify", "", "", tcpAddress, udpAddress, cfg.externalAddress, cfg.expectedSourceIP, cfg.timeout, 0, 0, 0, 0),

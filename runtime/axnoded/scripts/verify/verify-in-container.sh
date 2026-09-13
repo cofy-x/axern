@@ -6,11 +6,11 @@ cd "${ROOT_DIR}"
 . "${ROOT_DIR}/scripts/lib/ebpf-ingress-probe.sh"
 . "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 
-RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST:-runsc}"
-RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/${RUNTIME_UNDER_TEST}}"
+RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/runsc}"
 SOCKET_ADDRESS="${SOCKET_ADDRESS:-/run/axnoded/axnoded.sock}"
 AXNODED_BIN="${AXNODED_BIN:-/usr/local/bin/axnoded}"
 NAT_BACKEND="${NAT_BACKEND:-iptables}"
+READY_TIMEOUT="${READY_TIMEOUT:-180}"
 DEFAULT_UPLINK="${DEFAULT_UPLINK:-$(ip route show default | awk '/default/ {print $5; exit}')}"
 AXNODED_IP_RANGE="${AXNODED_IP_RANGE:-172.31.0.1/16}"
 VERIFY_ROOTFS_IMAGE="${VERIFY_ROOTFS_IMAGE:-/var/lib/axnoded/verify-rootfs.ext4}"
@@ -23,9 +23,7 @@ case "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" in
 esac
 ensure_bpf_fs "${NAT_BACKEND}"
 
-if [ "${RUNTIME_UNDER_TEST}" = "runsc" ]; then
-  setup_external_probe
-fi
+setup_external_probe
 
 BPFNET_UPLINKS_CONFIG=""
 if [ "${NAT_BACKEND}" = "ebpf" ]; then
@@ -67,7 +65,7 @@ cat >> /tmp/axnoded-config.toml <<EOF
 
 [plugin.runtime.runsc]
 binary = "${RUNTIME_BINARY}"
-base_spec = "/etc/axnoded/${RUNTIME_UNDER_TEST}-config.json"
+base_spec = "/etc/axnoded/runsc-config.json"
 EOF
 
 mkdir -p \
@@ -172,7 +170,7 @@ if [ "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" = "required" ]; then
   contract_ready=false
   for _ in $(seq 1 160); do
     inventory="$(curl -fsS http://127.0.0.1:23001/inventoryz 2>/dev/null || true)"
-    if jq -e --arg runtime "$(printf '%s' "${RUNTIME_UNDER_TEST}" | tr '[:lower:]' '[:upper:]')" '
+    if jq -e --arg runtime "$(printf '%s' "runsc" | tr '[:lower:]' '[:upper:]')" '
       def available($name):
         [.node.capability_snapshot.observations[]?
           | select(.key.platform == $name and .state == "CAPABILITY_STATE_AVAILABLE")]
@@ -199,14 +197,47 @@ if [ "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" = "required" ]; then
   echo "cgroup_conformance_contract_ok=true"
 fi
 
-ROOT_DIR="${ROOT_DIR}" SOCKET_ADDRESS="${SOCKET_ADDRESS}" RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST}" \
+assert_bpfnetctl_ready() {
+  local phase="$1"
+  local output
+  local deadline
+  output="$(mktemp)"
+  deadline=$((SECONDS + READY_TIMEOUT))
+  while [ "${SECONDS}" -lt "${deadline}" ]; do
+    if bpfnetctl check --json >"${output}" 2>&1 && jq -e '
+      .ok == true and
+      ([.checks[] | select(.name == "pinned_programs" and .ok == true)] | length == 1) and
+      ([.checks[] | select(.name | startswith("program:"))] | length > 0) and
+      ([.checks[] | select(.name == "pinned_programs" or (.name | startswith("program:"))) | select(.ok != true)] | length == 0)
+    ' "${output}" >/dev/null 2>&1; then
+      rm -f "${output}"
+      echo "bpfnetctl_check_${phase}_ok=true"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "bpfnetctl did not become ready during ${phase}" >&2
+  cat "${output}" >&2
+  rm -f "${output}"
+  return 1
+}
+
+if [ "${VERIFY_BPFNETCTL:-false}" = "true" ]; then
+  assert_bpfnetctl_ready before_allocation
+fi
+
+ROOT_DIR="${ROOT_DIR}" SOCKET_ADDRESS="${SOCKET_ADDRESS}" \
   NAT_BACKEND="${NAT_BACKEND}" \
   bash "${ROOT_DIR}/scripts/verify/verify-generic-core.sh"
-ROOT_DIR="${ROOT_DIR}" SOCKET_ADDRESS="${SOCKET_ADDRESS}" RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST}" \
+ROOT_DIR="${ROOT_DIR}" SOCKET_ADDRESS="${SOCKET_ADDRESS}" \
   NAT_BACKEND="${NAT_BACKEND}" \
   EBPF_INGRESS_PROBE_NETNS="${EBPF_INGRESS_PROBE_NETNS}" \
   EBPF_INGRESS_PROBE_ADDR="${EBPF_INGRESS_PROBE_HOST_ADDR}" \
   EBPF_INGRESS_PROBE_CLIENT_ADDR="${EBPF_INGRESS_PROBE_CLIENT_ADDR}" \
   bash "${ROOT_DIR}/scripts/verify/verify-runsc-profile.sh"
+
+if [ "${VERIFY_BPFNETCTL:-false}" = "true" ]; then
+  assert_bpfnetctl_ready after_allocation
+fi
 
 echo "verify_in_container_ok=true"

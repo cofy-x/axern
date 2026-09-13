@@ -27,7 +27,7 @@ Allocation ownership, globally unique identities, idempotent lifecycle operation
 
 Node cleanup stops the runtime and crosses the exit-state barrier before releasing writable-rootfs and image ownership. Mount cleanup and writable reservation release must complete before the associated resource commitment is released. Failed cleanup retains its ownership and retry state; it must not advertise still-owned capacity as free. Node restart reconciles these records against runtime inventory.
 
-The preserved implementation boundaries are `runtime/axnoded/internal/nodestate`, `internal/service/allocation`, and `internal/runtime/rootfsview`, with image lease coordination in `internal/langruntime`. These are execution safety and recovery mechanisms, not generic storage-provider abstractions.
+The preserved implementation boundaries are `runtime/axnoded/internal/nodestate`, `internal/service/allocation`, and `internal/runtime/rootfsview`, with image lease coordination in `internal/environmentcache`. These are execution safety and recovery mechanisms, not generic storage-provider abstractions.
 
 ## Rebuild Boundary
 

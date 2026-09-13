@@ -214,7 +214,7 @@ func TestGenerateOverridesBaseProcessArgsWhenCommandProvided(t *testing.T) {
 	}
 }
 
-func TestGenerateRaisesManagedProcessRuntimeBaseline(t *testing.T) {
+func TestGenerateRaisesManagedProcessBaseline(t *testing.T) {
 	baseFile := filepath.Join(t.TempDir(), "config.json")
 	base := defaultBundleSpec()
 	base.Process.Args = []string{"/custom"}
@@ -265,7 +265,7 @@ func TestSpecBuilderUsesExecutionProfile(t *testing.T) {
 	base.Process.Args = []string{"/custom"}
 	base.Process.Rlimits = []spec.POSIXRlimit{{Type: "RLIMIT_NOFILE", Soft: 1024, Hard: 1024}}
 	builder := newSpecBuilder(ExecutionProfile{
-		RuntimeBaseline: RuntimeBaselinePolicy{
+		Baseline: OciBaselinePolicy{
 			Capabilities: []string{"CAP_SYS_PTRACE"},
 			NoFileLimit:  4096,
 		},
@@ -304,7 +304,7 @@ func TestSpecBuilderUsesExecutionProfile(t *testing.T) {
 
 func TestBundleLoaderUsesExecutionProfileOption(t *testing.T) {
 	loader, err := newTestBundleLoader(t, "", t.TempDir(), WithExecutionProfile(ExecutionProfile{
-		RuntimeBaseline: RuntimeBaselinePolicy{
+		Baseline: OciBaselinePolicy{
 			Capabilities: []string{"CAP_SYS_PTRACE"},
 			NoFileLimit:  2097152,
 		},

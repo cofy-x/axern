@@ -17,7 +17,7 @@ trap 'end_named_lock "images-build"' EXIT
 image_scope="${AXERN_LOCAL_IMAGE_SCOPE:-all}"
 build_node_runtime_base=false
 build_runtime_core=false
-build_full_runtime_catalog=false
+build_full_environment_catalog=false
 build_control_stack=false
 build_tunneld=false
 build_node_image=false
@@ -25,7 +25,7 @@ case "${image_scope}" in
   all)
     build_node_runtime_base=true
     build_runtime_core=true
-    build_full_runtime_catalog=true
+    build_full_environment_catalog=true
     build_control_stack=true
     build_tunneld=true
     build_node_image=true
@@ -83,11 +83,11 @@ if [ "${build_runtime_core}" = "true" ]; then
   report_image_build_phase "runtime-core" "${phase_started_at}"
 fi
 
-if [ "${build_full_runtime_catalog}" = "true" ]; then
+if [ "${build_full_environment_catalog}" = "true" ]; then
   phase_started_at="$(date +%s)"
   IMAGE_REF="${DESKTOP_BASE_RUNTIME_IMAGE}" SERVER_BASE_RUNTIME_IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-desktop-base-runtime-image.sh" >/dev/null
   push_image_after_build "${DESKTOP_BASE_RUNTIME_IMAGE}"
-  report_image_build_phase "runtime-catalog" "${phase_started_at}"
+  report_image_build_phase "environment-catalog" "${phase_started_at}"
 fi
 
 if [ "${build_control_stack}" = "true" ] || [ "${build_tunneld}" = "true" ]; then
@@ -190,7 +190,7 @@ if [ "${build_runtime_core}" = "true" ]; then
 	  "${SERVER_BASE_RUNTIME_IMAGE}" \
 	  "${CODING_BASE_RUNTIME_IMAGE}" >/dev/null
 fi
-if [ "${build_full_runtime_catalog}" = "true" ]; then
+if [ "${build_full_environment_catalog}" = "true" ]; then
   docker image inspect \
     "${DESKTOP_BASE_RUNTIME_IMAGE}" >/dev/null
 fi

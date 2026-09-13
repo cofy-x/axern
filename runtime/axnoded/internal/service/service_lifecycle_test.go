@@ -9,14 +9,14 @@ import (
 	"time"
 
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRunReturnsWithoutBlocking(t *testing.T) {
 	s := newTestService(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 	)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -39,7 +39,7 @@ func TestRunReturnsWithoutBlocking(t *testing.T) {
 
 func TestRunMarksServiceReadyAfterInitialHousekeeping(t *testing.T) {
 	s := newTestService(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 	)
 	s.ready.Store(false)
 	t.Cleanup(func() {
@@ -53,37 +53,37 @@ func TestRunMarksServiceReadyAfterInitialHousekeeping(t *testing.T) {
 	require.Eventually(t, s.Ready, 2*time.Second, 50*time.Millisecond)
 }
 
-func TestShutdownDrainsRetainedRuntimes(t *testing.T) {
+func TestShutdownDrainsRetainedEnvironments(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("requires linux resource manager setup")
 	}
 
 	s := newTestService(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 	)
 
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	require.NoError(t, os.MkdirAll(rootfsDir, 0o755))
 
-	fr := &runtimeapi.RuntimeTemplate{
+	fr := &runtimeapi.EnvironmentTemplate{
 		ID: "retained-on-close",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
 			Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDir},
 		},
-		Command: []string{"/bin/sh"},
+		Argv: []string{"/bin/sh"},
 	}
-	rootfsCfg, err := langruntime.RootfsConfigFromRuntimeTemplate(fr)
+	rootfsCfg, err := environmentcache.RootfsConfigFromEnvironmentTemplate(fr)
 	require.NoError(t, err)
-	result, err := s.lrtManager.AddLangRuntime(t.Context(), fr, rootfsCfg, true)
+	result, err := s.environmentCache.PrepareEnvironment(t.Context(), fr, rootfsCfg)
 	require.NoError(t, err)
-	lr := result.Runtime
+	lr := result.Environment
 
 	lr.IncRef()
 	lr.DecRef()
 	require.True(t, lr.Retained())
 
 	require.NoError(t, s.Shutdown(t.Context()))
-	require.Nil(t, s.lrtManager.GetLangRuntime("retained-on-close"))
+	require.Nil(t, s.environmentCache.GetPreparedEnvironment("retained-on-close"))
 	require.True(t, lr.Released())
 }

@@ -134,21 +134,6 @@ sandbox, err := axern.NewSandbox(axern.SandboxOptions{
 
 `AllowDomainNetworkPolicy` allows only strict HTTP/HTTPS destinations validated by DNS plus HTTP Host or TLS SNI. `NewStrictNetworkPolicy` also accepts explicit TCP/UDP CIDR and port grants; `DenyAllNetworkPolicy` allows no egress.
 
-Run a tool from a separate image against a host-backed sandbox workspace with `ExecImage` or `ProcessImage`. The image ref may point to an OCI or Nydus image; Axern resolves both through the same runtime image path. When `Mounts` is nil, the SDK requests a writable `/workspace -> /workspace` mount. Use an empty slice for an isolated image process. The actor image must contain the mount target path, or the node must be able to create it before launch; official Axern server, desktop, and Claude Code runtime images include `/workspace`. Use `SandboxOptions.Image` when the image should be the sandbox rootfs with normal files, exec, process, tunnel, and lifecycle APIs; image-backed processes are temporary side processes attached to an existing sandbox.
-
-```go
-result, err := sandbox.ExecImage(ctx,
-	"ghcr.io/cofy-x/agent:latest",
-	axern.Shell("tool run"),
-	axern.ImageExecOptions{
-		Check: true,
-		Mounts: []axern.ImageProcessMount{
-			axern.WorkspaceMount("/workspace"),
-		},
-	},
-)
-```
-
 Mount a reusable read-only image bundle into the primary sandbox with `SandboxOptions.ImageMounts` when the task image should remain the rootfs and the mounted image only contributes files:
 
 ```go
@@ -198,7 +183,7 @@ make sdk-go-examples-smoke
 - Use `ExecOptions{Check: true}` for command-style failures that should return `ExecError`.
 - Branch on helpers such as `IsNotFound`, `IsTimeout`, `IsUnavailable`, and `IsValidation` instead of parsing error text.
 - Sandboxd-backed capability failures remain `RPCError` values. When provider diagnostics are present, `RPCError.Capability` contains structured capability, provider, provider state, reason, and missing dependency details.
-- Use tunnels when a sandbox must reach a caller-local upstream such as a mock HTTP service or development server. Do not use tunnels for Axrun profile-backed LLM telemetry; that path uses sandboxd managed proxy through exec/process managed-proxy options.
+- Use tunnels when a sandbox must reach a caller-local upstream such as a mock HTTP service or development server. Provider credentials and agent-specific configuration are owned by Axrun or another caller, not by the Axern sandbox lifecycle.
 
 ```go
 result, err := sandbox.Exec(ctx, axern.Args("python", "-c", "import sys; sys.exit(7)"), axern.ExecOptions{Check: true})
@@ -225,4 +210,4 @@ make sdk-go-verify
 make sdk-go-examples-smoke
 ```
 
-With local compose running, `make local-compose-go-sdk-e2e` verifies real sandbox exec, process, files, archives, and tunnels. Set `AXERN_GO_SDK_E2E_IMAGE_PROCESS_IMAGE=<image-ref>` to additionally verify `ExecImage` and `ProcessImage` against the sandbox-lifetime `/workspace`, including that image-backed writes and overwrites are visible from the owning sandbox. Set `AXERN_GO_SDK_E2E_IMAGE_PROCESS_LOOPBACK=1` to also verify that image-backed actors can reach a service bound to the owning sandbox's `127.0.0.1`; this is expected to expose the `runsc` loopback isolation limitation, not pass as a supported shared-loopback path. This probe is a runtime capability check, not an Axrun LLM telemetry requirement. The image must provide `/bin/sh`, `cat`, `curl`, and `tr`.
+With local compose running, `make local-compose-go-sdk-e2e` verifies real sandbox exec, process, files, archives, and tunnels through one Allocation-scoped lifecycle.

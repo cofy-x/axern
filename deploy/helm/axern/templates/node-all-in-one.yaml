@@ -83,9 +83,9 @@ spec:
               value: {{ include "axern.controldTarget" . | quote }}
             - name: AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL
               value: {{ .Values.node.heartbeatInterval | quote }}
-            - name: AXNODED_IDLE_RUNTIME_RETENTION_TTL
+            - name: AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL
               value: {{ .Values.node.runtime.idleRetentionTTL | quote }}
-            - name: AXNODED_IDLE_RUNTIME_RETENTION_MAX
+            - name: AXNODED_IDLE_ENVIRONMENT_RETENTION_MAX
               value: {{ .Values.node.runtime.idleRetentionMax | quote }}
             - name: AXNODED_MEMORY_SYSTEM_RESERVE_BYTES
               value: {{ $memorySystemReserve | quote }}

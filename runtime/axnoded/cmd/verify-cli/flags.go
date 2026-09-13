@@ -12,8 +12,7 @@ import (
 
 type verifyCLIConfig struct {
 	address          string
-	runtime          string
-	runtimeID        string
+	environmentID    string
 	rootfsSrc        string
 	rootfsPath       string
 	imageURL         string
@@ -32,8 +31,7 @@ type verifyCLIConfig struct {
 func parseFlags() verifyCLIConfig {
 	cfg := verifyCLIConfig{}
 	flag.StringVar(&cfg.address, "address", config.DefaultSocketAddress, "axnoded unix socket path")
-	flag.StringVar(&cfg.runtime, "runtime", config.RuntimeNameRunsc, "sandbox runtime name under test")
-	flag.StringVar(&cfg.runtimeID, "runtime-id", "", "runtime id")
+	flag.StringVar(&cfg.environmentID, "environment-id", "", "runtime id")
 	flag.StringVar(&cfg.rootfsSrc, "rootfs-src", "local", "rootfs source: local or image")
 	flag.StringVar(&cfg.rootfsPath, "rootfs", "/opt/sample-rootfs", "LOCAL rootfs path")
 	flag.StringVar(&cfg.imageURL, "image-url", "", "OCI/Nydus image URL for rootfs-src=image")
@@ -49,8 +47,8 @@ func parseFlags() verifyCLIConfig {
 	flag.Var(&cfg.mountFlags, "mount", "dynamic bind mount in SOURCE:TARGET[:options] form (repeatable)")
 	flag.Parse()
 
-	if cfg.runtimeID == "" {
-		cfg.runtimeID = fmt.Sprintf("verify-cli-%s", uuid.NewString())
+	if cfg.environmentID == "" {
+		cfg.environmentID = fmt.Sprintf("verify-cli-%s", uuid.NewString())
 	}
 	return cfg
 }

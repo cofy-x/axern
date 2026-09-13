@@ -225,7 +225,7 @@ type LocalityHeatEntry struct {
 	RootfsType                 string `json:"rootfs_type"`
 	MountType                  string `json:"mount_type"`
 	Mounted                    bool   `json:"mounted"`
-	RetainedRuntimeCount       int    `json:"retained_runtime_count"`
+	RetainedEnvironmentCount   int    `json:"retained_environment_count"`
 	RetainedRootfsCount        int    `json:"retained_rootfs_count"`
 	RunningContainerCount      int    `json:"running_container_count"`
 	NydusDaemonAlive           bool   `json:"nydus_daemon_alive"`
@@ -238,13 +238,13 @@ type LocalityHeatEntry struct {
 }
 
 type HeatInventory struct {
-	MountedImageURLs     []string            `json:"mounted_image_urls"`
-	MountedRootfsCount   int                 `json:"mounted_rootfs_count"`
-	NydusDaemonCount     int                 `json:"nydus_daemon_count"`
-	RetainedRuntimeCount int                 `json:"retained_runtime_count"`
-	RetainedRootfsCount  int                 `json:"retained_rootfs_count"`
-	Locality             []LocalityHeatEntry `json:"locality"`
-	ChunkDB              ChunkDBHeat         `json:"chunkdb"`
+	MountedImageURLs         []string            `json:"mounted_image_urls"`
+	MountedRootfsCount       int                 `json:"mounted_rootfs_count"`
+	NydusDaemonCount         int                 `json:"nydus_daemon_count"`
+	RetainedEnvironmentCount int                 `json:"retained_environment_count"`
+	RetainedRootfsCount      int                 `json:"retained_rootfs_count"`
+	Locality                 []LocalityHeatEntry `json:"locality"`
+	ChunkDB                  ChunkDBHeat         `json:"chunkdb"`
 }
 
 type NodeInventorySnapshot struct {

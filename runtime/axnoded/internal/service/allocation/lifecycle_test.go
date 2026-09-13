@@ -17,10 +17,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestCreateRuntimeContainerUsesRuntimeRequirements(t *testing.T) {
+func TestCreateRuntimeContainerUsesHostRequirements(t *testing.T) {
 	handler := &runtimeSpyHandler{
 		name:         "runsc",
-		requirements: contract.RuntimeRequirements{},
+		requirements: contract.HostRequirements{},
 	}
 	fixture := newTestAllocationController(t,
 		handler,
@@ -108,7 +108,7 @@ func TestDeleteAllocationRemovesRuntimeReferenceOnSuccess(t *testing.T) {
 	fixture := newTestAllocationController(t, handler)
 	containerID := "axctl-delete-allocation-success"
 	storeTestContainer(t, fixture, containerID, "runsc")
-	lrt := addTestRuntimeMappingRuntime(t, fixture.lrtManager, testRuntimeTemplate(t, "rt-1"))
+	lrt := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testEnvironmentTemplate(t, "rt-1"))
 	lrt.IncRef()
 	assert.NoError(t, fixture.controller.rememberContainerRuntime(containerID, lrt))
 
@@ -131,7 +131,7 @@ func TestDeleteAllocationPreservesRuntimeReferenceOnFailure(t *testing.T) {
 	fixture := newTestAllocationController(t, handler)
 	containerID := "axctl-delete-allocation-failure"
 	storeTestContainer(t, fixture, containerID, "runsc")
-	lrt := addTestRuntimeMappingRuntime(t, fixture.lrtManager, testRuntimeTemplate(t, "rt-1"))
+	lrt := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testEnvironmentTemplate(t, "rt-1"))
 	lrt.IncRef()
 	assert.NoError(t, fixture.controller.rememberContainerRuntime(containerID, lrt))
 

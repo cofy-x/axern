@@ -15,8 +15,8 @@ import (
 )
 
 type CatalogReader interface {
-	Get(id, version string) (*catalogv1.RuntimeTemplate, bool)
-	List(req *catalogv1.ListRuntimeTemplatesRequest) []*catalogv1.RuntimeTemplate
+	Get(id, version string) (*catalogv1.EnvironmentTemplate, bool)
+	List(req *catalogv1.ListEnvironmentTemplatesRequest) []*catalogv1.EnvironmentTemplate
 }
 
 type Environments interface {

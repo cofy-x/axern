@@ -11,7 +11,7 @@ import (
 )
 
 type Server struct {
-	catalogv1.UnimplementedRuntimeCatalogServer
+	catalogv1.UnimplementedEnvironmentCatalogServer
 	environmentv1.UnimplementedEnvironmentControlServer
 	runv1.UnimplementedRunControlServer
 	secretv1.UnimplementedSecretControlServer

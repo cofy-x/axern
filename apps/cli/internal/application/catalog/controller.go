@@ -7,23 +7,23 @@ import (
 	"google.golang.org/grpc"
 )
 
-type RuntimeCatalogClient interface {
-	ListRuntimeTemplates(context.Context, *catalogv1.ListRuntimeTemplatesRequest, ...grpc.CallOption) (*catalogv1.ListRuntimeTemplatesResponse, error)
-	GetRuntimeTemplate(context.Context, *catalogv1.GetRuntimeTemplateRequest, ...grpc.CallOption) (*catalogv1.GetRuntimeTemplateResponse, error)
+type EnvironmentCatalogClient interface {
+	ListEnvironmentTemplates(context.Context, *catalogv1.ListEnvironmentTemplatesRequest, ...grpc.CallOption) (*catalogv1.ListEnvironmentTemplatesResponse, error)
+	GetEnvironmentTemplate(context.Context, *catalogv1.GetEnvironmentTemplateRequest, ...grpc.CallOption) (*catalogv1.GetEnvironmentTemplateResponse, error)
 }
 
 type Control struct {
-	client RuntimeCatalogClient
+	client EnvironmentCatalogClient
 }
 
-func New(client RuntimeCatalogClient) Control {
+func New(client EnvironmentCatalogClient) Control {
 	return Control{client: client}
 }
 
-func (c Control) ListRuntimeTemplates(ctx context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-	return c.client.ListRuntimeTemplates(ctx, &catalogv1.ListRuntimeTemplatesRequest{})
+func (c Control) ListEnvironmentTemplates(ctx context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
+	return c.client.ListEnvironmentTemplates(ctx, &catalogv1.ListEnvironmentTemplatesRequest{})
 }
 
-func (c Control) GetRuntimeTemplate(ctx context.Context, id string) (*catalogv1.GetRuntimeTemplateResponse, error) {
-	return c.client.GetRuntimeTemplate(ctx, &catalogv1.GetRuntimeTemplateRequest{ID: id})
+func (c Control) GetEnvironmentTemplate(ctx context.Context, id string) (*catalogv1.GetEnvironmentTemplateResponse, error) {
+	return c.client.GetEnvironmentTemplate(ctx, &catalogv1.GetEnvironmentTemplateRequest{ID: id})
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 )
 
-var _ contract.RuntimeHandler = &RunscServiceHandler{}
+var _ contract.SandboxRuntime = &RunscServiceHandler{}
 var _ contract.AllocationCapabilityVerifier = &RunscServiceHandler{}
 
 type RunscServiceHandler struct {

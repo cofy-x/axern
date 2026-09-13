@@ -9,16 +9,16 @@ import (
 func TestRankLocalityEntries(t *testing.T) {
 	ranked := RankLocalityEntries([]nodeinventory.LocalityHeatEntry{
 		{
-			Key:                  "image:cold",
-			Mounted:              false,
-			RetainedRootfsCount:  0,
-			RetainedRuntimeCount: 0,
+			Key:                      "image:cold",
+			Mounted:                  false,
+			RetainedRootfsCount:      0,
+			RetainedEnvironmentCount: 0,
 		},
 		{
 			Key:                        "image:warm",
 			Mounted:                    true,
 			RetainedRootfsCount:        1,
-			RetainedRuntimeCount:       1,
+			RetainedEnvironmentCount:   1,
 			ChunkDBRecentAccessAgeSecs: 9,
 			PeerHealthyCount:           1,
 		},
@@ -26,7 +26,7 @@ func TestRankLocalityEntries(t *testing.T) {
 			Key:                        "image:hotter",
 			Mounted:                    true,
 			RetainedRootfsCount:        1,
-			RetainedRuntimeCount:       1,
+			RetainedEnvironmentCount:   1,
 			NydusDaemonAlive:           true,
 			ChunkDBRecentAccessAgeSecs: 5,
 			PeerHealthyCount:           2,

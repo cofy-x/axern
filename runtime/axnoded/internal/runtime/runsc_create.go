@@ -54,9 +54,6 @@ func (r *RunscServiceHandler) CreateContainer(ctx context.Context, request *apip
 		return nil, err
 	}
 
-	if request.CkptDir != "" {
-		return r.launchRestore(ctx, request, options, bundlePath, metaData)
-	}
 	return r.launchRun(ctx, options, bundlePath, metaData, overlayArgs)
 }
 

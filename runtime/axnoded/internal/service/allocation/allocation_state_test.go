@@ -11,7 +11,7 @@ import (
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
@@ -73,7 +73,7 @@ func persistedAllocationState(t *testing.T, store stateStore, allocationID strin
 	record := &apipb.AllocationState{
 		AllocationID:            allocationID,
 		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		RuntimeTemplate:         testRuntimeTemplate(t, "runtime-"+allocationID),
+		EnvironmentTemplate:     testEnvironmentTemplate(t, "runtime-"+allocationID),
 		ImageMountUrls:          images,
 		EnforcementManifest: &apipb.AllocationEnforcementManifest{
 			BundlePath:        "/var/lib/axnoded/root/containers/" + allocationID,
@@ -90,7 +90,7 @@ func TestLoadAllocationStatesRejectsMissingAtomicLaunchProof(t *testing.T) {
 	store := storetest.NewMockStore()
 	const allocationID = "missing-launch-proof"
 	record := &apipb.AllocationState{
-		AllocationID: allocationID, RuntimeTemplate: testRuntimeTemplate(t, "runtime-"+allocationID),
+		AllocationID: allocationID, EnvironmentTemplate: testEnvironmentTemplate(t, "runtime-"+allocationID),
 		EnforcementManifest: &apipb.AllocationEnforcementManifest{
 			BundlePath:        "/var/lib/axnoded/root/containers/" + allocationID,
 			CreatedAtUnixNano: time.Now().UnixNano(),
@@ -100,7 +100,7 @@ func TestLoadAllocationStatesRejectsMissingAtomicLaunchProof(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixture := newTestAllocationControllerWithStore(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 		store)
 	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
 	time.Sleep(100 * time.Millisecond)
@@ -155,13 +155,13 @@ func TestLoadAllocationStatesRestoresLiveContainerMountOwnership(t *testing.T) {
 	persistedAllocationState(t, store, allocationID, imageURL, imageURL)
 
 	fixture := newTestAllocationControllerWithStore(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 		store)
 	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
 	time.Sleep(100 * time.Millisecond)
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{imageURL: filepath.Join(t.TempDir(), "rootfs")}}
-	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
-	fixture.controller.lrtManager = fixture.lrtManager
+	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
+	fixture.controller.environmentCache = fixture.environmentCache
 	if err := fixture.controller.loadAllocationStates(map[string]struct{}{allocationID: {}}); err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestLoadAllocationStatesRestoresLiveContainerMountOwnership(t *testing.T) {
 	if state == nil || len(state.imageMountRoots) != 2 || len(state.record.GetImageMountUrls()) != 2 {
 		t.Fatalf("restored state = %+v", state)
 	}
-	if err := fixture.lrtManager.ReconcileMountLeases(); err != nil {
+	if err := fixture.environmentCache.ReconcileMountLeases(); err != nil {
 		t.Fatal(err)
 	}
 	if len(mounter.reconciled) != 1 || mounter.reconciled[0] != "test-lease:"+imageURL {
@@ -196,7 +196,7 @@ func TestLoadAllocationStatesDeletesOrphanRecord(t *testing.T) {
 	store := storetest.NewMockStore()
 	persistedAllocationState(t, store, "missing", "example.local/missing:latest")
 	fixture := newTestAllocationControllerWithStore(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 		store)
 	if err := fixture.controller.loadAllocationStates(map[string]struct{}{}); err != nil {
 		t.Fatal(err)
@@ -213,13 +213,13 @@ func TestRestoreAllocationStateSkipsDestructiveReconcileAfterLiveRecoveryFailure
 	imageURL := "example.local/tools@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	persistedAllocationState(t, store, allocationID, imageURL)
 	fixture := newTestAllocationControllerWithStore(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 		store)
 	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
 	time.Sleep(100 * time.Millisecond)
 	mounter := &imageMountTestMounter{mountErr: errors.New("imagemgr unavailable")}
-	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
-	fixture.controller.lrtManager = fixture.lrtManager
+	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
+	fixture.controller.environmentCache = fixture.environmentCache
 	if err := fixture.controller.RestoreAllocationState(map[string]struct{}{allocationID: {}}); err == nil {
 		t.Fatal("RestoreAllocationState() succeeded with incomplete live state")
 	}
@@ -239,7 +239,7 @@ func TestLoadAllocationStatesRetainsPartialRecoveryForLiveContainer(t *testing.T
 	secondImage := "example.local/second@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	persistedAllocationState(t, store, allocationID, firstImage, secondImage)
 	fixture := newTestAllocationControllerWithStore(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 		store)
 	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
 	time.Sleep(100 * time.Millisecond)
@@ -247,8 +247,8 @@ func TestLoadAllocationStatesRetainsPartialRecoveryForLiveContainer(t *testing.T
 		imagePaths: map[string]string{firstImage: filepath.Join(t.TempDir(), "rootfs")},
 		mountErrs:  map[string]error{secondImage: errors.New("second image unavailable")},
 	}
-	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
-	fixture.controller.lrtManager = fixture.lrtManager
+	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
+	fixture.controller.environmentCache = fixture.environmentCache
 	if err := fixture.controller.loadAllocationStates(map[string]struct{}{allocationID: {}}); err == nil {
 		t.Fatal("loadAllocationStates() succeeded with an incomplete live recovery")
 	}
@@ -270,14 +270,14 @@ func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 		handler,
 		failingAllocationStateStore{testStateStore: storetest.NewMockStore()})
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{imageURL: filepath.Join(t.TempDir(), "rootfs")}}
-	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
-	fixture.controller.lrtManager = fixture.lrtManager
+	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
+	fixture.controller.environmentCache = fixture.environmentCache
 	_, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
 		ContainerID: allocationIDForTest(t),
-		RuntimeTemplate: &apipb.RuntimeTemplate{
-			ID:      "persistence-failure-runtime",
-			Rootfs:  &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
-			Command: []string{"/bin/sh"},
+		EnvironmentTemplate: &apipb.EnvironmentTemplate{
+			ID:     "persistence-failure-runtime",
+			Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
+			Argv:   []string{"/bin/sh"},
 		},
 		ImageMounts: []*apipb.ImageMount{{Image: imageURL, Target: "/opt/tool"}},
 	})
@@ -301,9 +301,9 @@ func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 func TestReleaseAllocationStatePreservesRuntimeWhenDeletePersistenceFails(t *testing.T) {
 	store := failingAllocationStateDeleteStore{testStateStore: storetest.NewMockStore()}
 	fixture := newTestAllocationControllerWithStore(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 		store)
-	runtime := addTestRuntimeMappingRuntime(t, fixture.lrtManager, testRuntimeTemplate(t, "delete-failure-runtime"))
+	runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testEnvironmentTemplate(t, "delete-failure-runtime"))
 	runtime.IncRef()
 	if err := fixture.controller.rememberContainerRuntime("delete-failure", runtime); err != nil {
 		t.Fatal(err)
@@ -322,7 +322,7 @@ func TestLoadAllocationStatesIsolatesCorruptRecordAndRestoresValidRecord(t *test
 	persistedAllocationState(t, base, allocationID)
 	store := corruptAllocationStateStore{testStateStore: base}
 	fixture := newTestAllocationControllerWithStore(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 		store)
 	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
 	fixture.manager.StoreMetadata("corrupt-allocation", &apipb.ContainerMetadata{})
@@ -338,10 +338,10 @@ func TestLoadAllocationStatesIsolatesCorruptRecordAndRestoresValidRecord(t *test
 func TestAllocationRecordsDeleteIndependently(t *testing.T) {
 	store := storetest.NewMockStore()
 	fixture := newTestAllocationControllerWithStore(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 		store)
 	for _, allocationID := range []string{"allocation-a", "allocation-b"} {
-		runtime := addTestRuntimeMappingRuntime(t, fixture.lrtManager, testRuntimeTemplate(t, "runtime-"+allocationID))
+		runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testEnvironmentTemplate(t, "runtime-"+allocationID))
 		runtime.IncRef()
 		if err := fixture.controller.rememberContainerRuntime(allocationID, runtime); err != nil {
 			t.Fatal(err)
@@ -362,15 +362,15 @@ func TestStartAndDeleteUseOneAllocationTransactionEach(t *testing.T) {
 	fixture := newTestAllocationControllerWithStore(t, handler, store)
 	imageURL := "example.local/atomic@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{imageURL: t.TempDir()}}
-	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
-	fixture.controller.lrtManager = fixture.lrtManager
+	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
+	fixture.controller.environmentCache = fixture.environmentCache
 	allocationID := "atomic-allocation-state"
 	if _, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
 		ContainerID: allocationID,
-		RuntimeTemplate: &apipb.RuntimeTemplate{
-			ID:      "atomic-runtime",
-			Rootfs:  &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
-			Command: []string{"/bin/sh"},
+		EnvironmentTemplate: &apipb.EnvironmentTemplate{
+			ID:     "atomic-runtime",
+			Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
+			Argv:   []string{"/bin/sh"},
 		},
 		ImageMounts: []*apipb.ImageMount{{Image: imageURL, Target: "/opt/tool"}},
 	}); err != nil {
@@ -383,7 +383,7 @@ func TestStartAndDeleteUseOneAllocationTransactionEach(t *testing.T) {
 	if err := store.GetRecord(config.AllocationStateBucket, allocationID, &record); err != nil {
 		t.Fatal(err)
 	}
-	if record.GetRuntimeTemplate() == nil || len(record.GetImageMountUrls()) != 1 {
+	if record.GetEnvironmentTemplate() == nil || len(record.GetImageMountUrls()) != 1 {
 		t.Fatalf("persisted aggregate state = %+v", &record)
 	}
 	if _, err := fixture.controller.Delete(context.Background(), &apipb.DeleteRequest{ID: allocationID}); err != nil {

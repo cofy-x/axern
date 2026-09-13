@@ -126,7 +126,7 @@ wait_for_status_file() {
 
 axnoded_inventory="/tmp/axnoded.inventory.json"
 imagemgr_inventory="/tmp/imagemgr.inventory.json"
-runtime_id="verify-inventory-runsc-$$"
+environment_id="verify-inventory-runsc-$$"
 
 fetch_axnoded_inventory "${axnoded_inventory}"
 wait_for_jq \
@@ -144,8 +144,7 @@ metricsz_wait_platform_capability_available "PLATFORM_CAPABILITY_RUNSC_MEMORY_HA
 container_id="$(
   verify-cli \
     -address "${AXNODED_SOCKET}" \
-    -runtime runsc \
-    -runtime-id "${runtime_id}" \
+    -environment-id "${environment_id}" \
     -request-cpu-milli 250 \
     -request-memory-mib 128 \
     -limit-cpu-milli 500 \
@@ -181,8 +180,7 @@ request_only_id="verify-inventory-request-only-$$"
 container_id="$(
   verify-cli \
     -address "${AXNODED_SOCKET}" \
-    -runtime runsc \
-    -runtime-id "${request_only_id}" \
+    -environment-id "${request_only_id}" \
     -request-cpu-milli 250 \
     -request-memory-mib 128 \
     -stdout /tmp/verify-inventory-request-only.stdout \

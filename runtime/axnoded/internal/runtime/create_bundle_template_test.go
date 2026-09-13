@@ -29,7 +29,7 @@ func TestRunscCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
 
 	carrier := &templateCarrierSpy{}
 	profile := runtimeoci.DefaultExecutionProfile()
-	profile.RuntimeBaseline.NoFileLimit = 2097152
+	profile.Baseline.NoFileLimit = 2097152
 	templateSource := &runtimeoci.TemplateOptions{Request: newLocalCreateRequest(t)}
 	for idx := 0; idx < 2; idx++ {
 		_, err := handler.CreateContainer(context.Background(), newLocalCreateRequest(t), contract.HandlerOptions{
@@ -54,10 +54,10 @@ func TestRunscCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
 	if loader.generateCalls != 0 {
 		t.Fatalf("generate calls = %d, want 0", loader.generateCalls)
 	}
-	if loader.lastTemplateExecutionProfile == nil || loader.lastTemplateExecutionProfile.RuntimeBaseline.NoFileLimit != 2097152 {
+	if loader.lastTemplateExecutionProfile == nil || loader.lastTemplateExecutionProfile.Baseline.NoFileLimit != 2097152 {
 		t.Fatalf("template execution profile = %#v, want nofile limit 2097152", loader.lastTemplateExecutionProfile)
 	}
-	if loader.lastLoadExecutionProfile == nil || loader.lastLoadExecutionProfile.RuntimeBaseline.NoFileLimit != 2097152 {
+	if loader.lastLoadExecutionProfile == nil || loader.lastLoadExecutionProfile.Baseline.NoFileLimit != 2097152 {
 		t.Fatalf("load execution profile = %#v, want nofile limit 2097152", loader.lastLoadExecutionProfile)
 	}
 }

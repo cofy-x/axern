@@ -85,62 +85,6 @@ func TestSandboxdExecContainerForwardsUser(t *testing.T) {
 	}
 }
 
-func TestSandboxdExecContainerForwardsManagedProxy(t *testing.T) {
-	client := &fakeSandboxdProcessClient{
-		start: ProcessStatus{ID: "proc-1", State: "running"},
-		wait: ProcessStatus{
-			ID:       "proc-1",
-			State:    "exited",
-			ExitCode: intPtr(0),
-			ManagedProxyReport: &ManagedProxyReport{
-				Provider:      "openai",
-				RequestCount:  1,
-				ResponseCount: 1,
-				ReportJSON:    []byte(`{"provider":"openai"}`),
-			},
-		},
-	}
-	restore := replaceSandboxdProcessClient(t, client)
-	defer restore()
-
-	response, err := ExecContainer(context.Background(), &apipb.ExecContainerRequest{
-		Command: []string{"true"},
-		ManagedProxy: &apipb.ManagedProxySpec{
-			Provider:            "openai",
-			UpstreamBaseUrl:     "https://api.example.test/v1",
-			UpstreamBearerToken: "secret-token",
-		},
-	}, processTestOptionsWithCapabilities("exec-managed-proxy-test", "process,pty,managed_proxy"), t.TempDir())
-	if err != nil {
-		t.Fatalf("ExecContainer() error = %v", err)
-	}
-	if client.startRequest.ManagedProxy == nil ||
-		client.startRequest.ManagedProxy.Provider != "openai" ||
-		client.startRequest.ManagedProxy.UpstreamBaseURL != "https://api.example.test/v1" ||
-		client.startRequest.ManagedProxy.UpstreamBearerToken != "secret-token" {
-		t.Fatalf("managed proxy start request = %#v", client.startRequest.ManagedProxy)
-	}
-	if response.GetManagedProxyReport().GetProvider() != "openai" ||
-		response.GetManagedProxyReport().GetRequestCount() != 1 ||
-		response.GetManagedProxyReport().GetResponseCount() != 1 ||
-		string(response.GetManagedProxyReport().GetReportJson()) != `{"provider":"openai"}` {
-		t.Fatalf("managed proxy response = %#v", response.GetManagedProxyReport())
-	}
-}
-
-func TestSandboxdExecContainerRequiresManagedProxyCapability(t *testing.T) {
-	response, err := ExecContainer(context.Background(), &apipb.ExecContainerRequest{
-		Command: []string{"true"},
-		ManagedProxy: &apipb.ManagedProxySpec{
-			Provider:        "openai",
-			UpstreamBaseUrl: "https://api.example.test/v1",
-		},
-	}, processTestOptions("exec-managed-proxy-missing-capability"), t.TempDir())
-	if response != nil || !errors.Is(err, errord.ErrFailedPrecondition) {
-		t.Fatalf("response = %#v, err = %v, want failed precondition", response, err)
-	}
-}
-
 func TestSandboxdExecContainerStartsTerminal(t *testing.T) {
 	client := &fakeSandboxdProcessClient{
 		start: ProcessStatus{ID: "proc-1", State: "running"},

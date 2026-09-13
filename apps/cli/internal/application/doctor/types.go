@@ -94,7 +94,7 @@ type SecretClient interface {
 }
 
 type CatalogClient interface {
-	ListRuntimeTemplates(context.Context, *catalogv1.ListRuntimeTemplatesRequest, ...grpc.CallOption) (*catalogv1.ListRuntimeTemplatesResponse, error)
+	ListEnvironmentTemplates(context.Context, *catalogv1.ListEnvironmentTemplatesRequest, ...grpc.CallOption) (*catalogv1.ListEnvironmentTemplatesResponse, error)
 }
 
 type IdentityClient interface {

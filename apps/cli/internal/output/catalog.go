@@ -8,7 +8,7 @@ import (
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 )
 
-func RenderRuntimeTemplateTable(w io.Writer, templates []*catalogv1.RuntimeTemplate) {
+func RenderEnvironmentTemplateTable(w io.Writer, templates []*catalogv1.EnvironmentTemplate) {
 	rows := make([][]string, 0, len(templates))
 	for _, template := range templates {
 		if template == nil {
@@ -25,7 +25,7 @@ func RenderRuntimeTemplateTable(w io.Writer, templates []*catalogv1.RuntimeTempl
 	RenderTable(w, []string{"ID", "VERSION", "LANGUAGE", "LANG_VERSION", "IMAGE"}, rows)
 }
 
-func RenderRuntimeTemplate(w io.Writer, template *catalogv1.RuntimeTemplate) {
+func RenderEnvironmentTemplate(w io.Writer, template *catalogv1.EnvironmentTemplate) {
 	if template == nil {
 		return
 	}

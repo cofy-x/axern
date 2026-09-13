@@ -22,7 +22,7 @@ import (
 
 func TestDelete_NotFound(t *testing.T) {
 	s := newTestService(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 	)
 
 	_, err := s.Delete(context.Background(), &runtime.DeleteRequest{
@@ -33,26 +33,26 @@ func TestDelete_NotFound(t *testing.T) {
 
 func TestStart_And_Delete(t *testing.T) {
 	s := newTestService(t,
-		runtimetest.NewFakeRuntimeHandler(),
+		runtimetest.NewFakeSandboxRuntime(),
 	)
 
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0755))
 
-	fr := &runtime.RuntimeTemplate{
+	fr := &runtime.EnvironmentTemplate{
 		ID: "test-start-del-rt",
 		Rootfs: &runtime.RootfsConfig{
 			Readonly: false,
 			Type:     runtime.RootfsSrcType_LOCAL,
 			Source:   &runtime.RootfsConfig_Path{Path: rootfsDir},
 		},
-		Command: []string{"/bin/sleep", "infinity"},
+		Argv: []string{"/bin/sleep", "infinity"},
 	}
 	startResp, err := s.Start(context.Background(), &runtime.StartRequest{
-		ContainerID:     "test-start-delete-allocation",
-		RuntimeTemplate: fr,
-		Stdout:          "/tmp/stdout.log",
-		Stderr:          "/tmp/stderr.log",
+		ContainerID:         "test-start-delete-allocation",
+		EnvironmentTemplate: fr,
+		Stdout:              "/tmp/stdout.log",
+		Stderr:              "/tmp/stderr.log",
 	})
 	if err != nil {
 		t.Logf("Start failed (expected in test env): %v", err)
@@ -80,29 +80,29 @@ func TestStart_AddsRuntimeIDLabelForTemporaryRuntime(t *testing.T) {
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0755))
 
-	fr := &runtime.RuntimeTemplate{
+	fr := &runtime.EnvironmentTemplate{
 		ID: "test-explicit-allocation-id",
 		Rootfs: &runtime.RootfsConfig{
 			Readonly: true,
 			Type:     runtime.RootfsSrcType_LOCAL,
 			Source:   &runtime.RootfsConfig_Path{Path: rootfsDir},
 		},
-		Command: []string{"/bin/sh", "-c", "echo ok"},
+		Argv: []string{"/bin/sh", "-c", "echo ok"},
 	}
 
 	resp, err := s.Start(context.Background(), &runtime.StartRequest{
-		ContainerID:     "test-explicit-allocation-id",
-		RuntimeTemplate: fr,
-		Network:         "host",
-		Stdout:          "/tmp/explicit-allocation-id.stdout",
-		Stderr:          "/tmp/explicit-allocation-id.stderr",
+		ContainerID:         "test-explicit-allocation-id",
+		EnvironmentTemplate: fr,
+		Network:             "host",
+		Stdout:              "/tmp/explicit-allocation-id.stdout",
+		Stderr:              "/tmp/explicit-allocation-id.stderr",
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, int32(0), resp.GetCode())
 	if handler.lastRequest == nil {
 		t.Fatalf("expected create request to be captured")
 	}
-	assert.NotContains(t, handler.lastRequest.GetLabels(), "runtime-id")
+	assert.Empty(t, handler.lastRequest.GetLabels())
 }
 
 func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
@@ -132,10 +132,10 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0o755))
 	request := &runtime.StartRequest{
 		ContainerID: "allocation-retry-contract",
-		RuntimeTemplate: &runtime.RuntimeTemplate{
-			ID:      "retry-contract",
-			Rootfs:  &runtime.RootfsConfig{Readonly: true, Type: runtime.RootfsSrcType_LOCAL, Source: &runtime.RootfsConfig_Path{Path: rootfsDir}},
-			Command: []string{"/bin/sh", "-c", "sleep 60"},
+		EnvironmentTemplate: &runtime.EnvironmentTemplate{
+			ID:     "retry-contract",
+			Rootfs: &runtime.RootfsConfig{Readonly: true, Type: runtime.RootfsSrcType_LOCAL, Source: &runtime.RootfsConfig_Path{Path: rootfsDir}},
+			Argv:   []string{"/bin/sh", "-c", "sleep 60"},
 		},
 		Network: "host",
 		ExtensionCapabilityRequirements: []*capabilityv1.ExtensionCapabilityRequirement{{
@@ -159,7 +159,7 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 	assert.Nil(t, second.GetCapabilityVerification())
 
 	changed := proto.Clone(request).(*runtime.StartRequest)
-	changed.RuntimeTemplate.Command = []string{"/bin/false"}
+	changed.EnvironmentTemplate.Argv = []string{"/bin/false"}
 	_, err = s.Start(context.Background(), changed)
 	assert.ErrorContains(t, err, "differs from the durable contract")
 	assert.Equal(t, codes.FailedPrecondition, grpcstatus.Code(err))

@@ -38,7 +38,7 @@ GO_GCFLAGS=$(shell set -- ${GOPATHS}; echo "-gcflags=-trimpath=$${1}/src")
 
 GOTEST ?= $(GO) test
 TESTFLAGS ?= $(EXTRA_TESTFLAGS)
-HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/demo/nginx ./internal/langruntime ./internal/network/ebpf ./internal/nodestate ./internal/observability/trace ./pkg/errord ./pkg/truncindex
+HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/environmentcache ./internal/network/ebpf ./internal/nodestate ./internal/observability/trace ./pkg/errord ./pkg/truncindex
 
 .PHONY: all clean test test-host check-architecture release release-binary release-cli protos protos-docker protos-docker-build tidy vendor fmt vet help \
 	verify-docker verify-docker-build verify-docker-conformance verify-network-policy-linux-smoke verify-network-policy-linux-matrix \
@@ -73,8 +73,7 @@ HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/demo/nginx ./
 	profile-docker-runsc-external-tcp-iptables profile-docker-runsc-external-tcp-ebpf \
 	verify-ebpf-nat verify-docker-runsc-ebpf \
 	verify-docker-runsc verify-docker-runsc-debug \
-	example-bpfnet-udp-ingress example-bpfnet-egress \
-	run-dashboard-nginx-demo stop-dashboard-nginx-demo
+	example-bpfnet-udp-ingress example-bpfnet-egress
 .DEFAULT_GOAL := all
 
 all: release ## build binaries
@@ -196,7 +195,7 @@ verify-network-policy-linux-matrix: ## run the full native-Linux 32-cell network
 	@NETWORK_POLICY_LINUX_MATRIX_SCOPE=full bash ./scripts/qualification/network-policy-linux-smoke.sh
 
 verify-docker-conformance: ## run production cgroup and serialized runsc certification truth
-	@AXNODED_VERIFY_CGROUP_ENFORCEMENT=required RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker.sh
+	@AXNODED_VERIFY_CGROUP_ENFORCEMENT=required RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker.sh
 
 verify-sandboxd-e2e: ## run focused amd64 Docker e2e for axern-sandboxd
 	@bash ./scripts/verify/verify-sandboxd-e2e.sh
@@ -239,7 +238,7 @@ verify-node-bundle-template-e2e: ## run privileged node all-in-one bundle templa
 verify-node-python-runtime-e2e: ## run privileged node all-in-one programmable Python runtime end-to-end verification
 	@bash ./scripts/verify/verify-node-python-runtime-e2e.sh
 
-verify-node-retention-e2e: ## run privileged node all-in-one runtime retention end-to-end verification
+verify-node-retention-e2e: ## run privileged node all-in-one environment retention end-to-end verification
 	@bash ./scripts/verify/verify-node-retention-e2e.sh
 
 verify-node-locality-e2e: ## run privileged node all-in-one locality signals end-to-end verification
@@ -267,62 +266,56 @@ build-desktop-base-runtime-image: ## build the optional desktop computer-use run
 	@bash ./scripts/runtime/build-desktop-base-runtime-image.sh
 
 verify-docker-runsc: ## run privileged Docker verification against runsc
-	@RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker.sh
+	@RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker.sh
 
 verify-docker-runsc-debug: ## run privileged Docker verification against runsc with extra diagnostics
-	@RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker-debug.sh
+	@RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker-debug.sh
 
 verify-docker-runsc-ebpf: ## run privileged Docker verification against runsc with nat_backend=ebpf
-	@NAT_BACKEND=ebpf RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker.sh
+	@NAT_BACKEND=ebpf RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker.sh
 
 verify-ebpf-nat: verify-docker-runsc-ebpf ## run the ebpf NAT verification profile
 
-verify-bpfnetctl-e2e: ## run bpfnetctl JSON readiness e2e against the eBPF dashboard demo
+verify-bpfnetctl-e2e: ## run bpfnetctl JSON readiness e2e through the production allocation path
 	@bash ./scripts/verify/verify-bpfnetctl-e2e.sh
 
 benchmark-docker-runsc-iptables: ## benchmark runsc NAT truth-path with the iptables backend
-	@NAT_BACKEND=iptables RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/benchmark/benchmark-docker.sh
+	@NAT_BACKEND=iptables RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/benchmark/benchmark-docker.sh
 
 benchmark-docker-runsc-ebpf: ## benchmark runsc NAT truth-path with the ebpf backend
-	@NAT_BACKEND=ebpf RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/benchmark/benchmark-docker.sh
+	@NAT_BACKEND=ebpf RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/benchmark/benchmark-docker.sh
 
 benchmark-docker-runsc-compare: ## benchmark and compare runsc iptables vs ebpf NAT truth-path
-	@RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/benchmark/benchmark-docker-compare.sh
+	@RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/benchmark/benchmark-docker-compare.sh
 
 benchmark-kubernetes-runsc-compare: ## benchmark and compare runsc iptables vs ebpf NAT truth-path in Kubernetes Jobs
-	@RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/benchmark/benchmark-kubernetes-compare.sh
+	@RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/benchmark/benchmark-kubernetes-compare.sh
 
 benchmark-startup-matrix: ## benchmark startup quantiles and gate summary across fixed startup scenarios
 	@bash ./scripts/benchmark/startup-matrix-docker.sh
 
 profile-docker-runsc-egress-udp-iptables: ## profile runsc UDP egress truth-path with the iptables backend (real Linux perf only)
 	@BENCHMARK_PATHS="$${BENCHMARK_PATHS:-egress_udp,egress_udp_connected}" \
-		NAT_BACKEND=iptables RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc \
+		NAT_BACKEND=iptables RUNTIME_BINARY=/usr/local/bin/runsc \
 		bash ./scripts/benchmark/profile-docker.sh
 
 profile-docker-runsc-egress-udp-ebpf: ## profile runsc UDP egress truth-path with the ebpf backend (real Linux perf only)
 	@BENCHMARK_PATHS="$${BENCHMARK_PATHS:-egress_udp,egress_udp_connected}" \
-		NAT_BACKEND=ebpf RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc \
+		NAT_BACKEND=ebpf RUNTIME_BINARY=/usr/local/bin/runsc \
 		bash ./scripts/benchmark/profile-docker.sh
 
 profile-docker-runsc-external-tcp-iptables: ## profile runsc external TCP ingress truth-path with the iptables backend (real Linux perf only)
 	@BENCHMARK_PATHS="$${BENCHMARK_PATHS:-external_tcp_ingress}" \
-		NAT_BACKEND=iptables RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc \
+		NAT_BACKEND=iptables RUNTIME_BINARY=/usr/local/bin/runsc \
 		bash ./scripts/benchmark/profile-docker.sh
 
 profile-docker-runsc-external-tcp-ebpf: ## profile runsc external TCP ingress truth-path with the ebpf backend (real Linux perf only)
 	@BENCHMARK_PATHS="$${BENCHMARK_PATHS:-external_tcp_ingress}" \
-		NAT_BACKEND=ebpf RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc \
+		NAT_BACKEND=ebpf RUNTIME_BINARY=/usr/local/bin/runsc \
 		bash ./scripts/benchmark/profile-docker.sh
 
 example-bpfnet-udp-ingress: ## run a concise bpfnet UDP ingress example in the Docker truth environment
-	@NAT_BACKEND="$${NAT_BACKEND:-ebpf}" RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/demo/example-bpfnet-udp-ingress.sh
+	@NAT_BACKEND="$${NAT_BACKEND:-ebpf}" RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/demo/example-bpfnet-udp-ingress.sh
 
 example-bpfnet-egress: ## run a concise bpfnet egress example in the Docker truth environment
-	@NAT_BACKEND="$${NAT_BACKEND:-ebpf}" RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/demo/example-bpfnet-egress.sh
-
-run-dashboard-nginx-demo: ## run the privileged dashboard demo with /demo/nginx exposed on the host (preferred local demo)
-	@bash ./scripts/demo/run-dashboard-nginx-demo.sh
-
-stop-dashboard-nginx-demo: ## stop the long-running privileged dashboard demo container
-	@bash ./scripts/demo/stop-dashboard-nginx-demo.sh
+	@NAT_BACKEND="$${NAT_BACKEND:-ebpf}" RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/demo/example-bpfnet-egress.sh

@@ -6,7 +6,7 @@ IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
 IMAGE_URL="${IMAGE_URL:?IMAGE_URL is required}"
 METRICS_URL="${METRICS_URL:-http://127.0.0.1:23001/debug/metricsz}"
-AXNODED_IDLE_RUNTIME_RETENTION_TTL="${AXNODED_IDLE_RUNTIME_RETENTION_TTL:-15s}"
+AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL="${AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL:-15s}"
 # shellcheck source-path=SCRIPTDIR/..
 source "${SCRIPT_DIR}/../lib/metricsz.sh"
 
@@ -79,14 +79,13 @@ wait_for_jq() {
 
 start_container() {
   local runtime_name="$1"
-  local runtime_id="$2"
+  local environment_id="$2"
   local stdout_path="$3"
   local stderr_path="$4"
 
   verify-cli \
     -address "${AXNODED_SOCKET}" \
-    -runtime "${runtime_name}" \
-    -runtime-id "${runtime_id}" \
+    -environment-id "${environment_id}" \
     -rootfs-src image \
     -image-url "${IMAGE_URL}" \
     -stdout "${stdout_path}" \
@@ -98,25 +97,25 @@ start_container() {
 inventory_file="/tmp/axnoded.inventory.json"
 details_file="/tmp/imagemgr.details.json"
 runtime_name="runsc"
-runtime_id="retention-${runtime_name}"
-case "${AXNODED_IDLE_RUNTIME_RETENTION_TTL}" in
+environment_id="retention-${runtime_name}"
+case "${AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL}" in
   *ms)
-    ttl_ms="${AXNODED_IDLE_RUNTIME_RETENTION_TTL%ms}"
+    ttl_ms="${AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL%ms}"
     ttl_seconds=$(( (ttl_ms + 999) / 1000 ))
     ;;
   *s)
-    ttl_seconds="${AXNODED_IDLE_RUNTIME_RETENTION_TTL%s}"
+    ttl_seconds="${AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL%s}"
     ;;
   *m)
-    ttl_minutes="${AXNODED_IDLE_RUNTIME_RETENTION_TTL%m}"
+    ttl_minutes="${AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL%m}"
     ttl_seconds=$(( ttl_minutes * 60 ))
     ;;
   *h)
-    ttl_hours="${AXNODED_IDLE_RUNTIME_RETENTION_TTL%h}"
+    ttl_hours="${AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL%h}"
     ttl_seconds=$(( ttl_hours * 3600 ))
     ;;
   *)
-    echo "unsupported retention ttl for test: ${AXNODED_IDLE_RUNTIME_RETENTION_TTL}" >&2
+    echo "unsupported retention ttl for test: ${AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL}" >&2
     exit 1
     ;;
 esac
@@ -129,9 +128,9 @@ wait_for_jq \
   "initial empty inventory snapshot" \
   "${inventory_file}" \
   20 \
-  '.version == "v1alpha2" and (.heat.locality | type == "array") and .components.axnoded.running_containers == 0 and .heat.retained_runtime_count == 0 and .heat.retained_rootfs_count == 0'
+  '.version == "v1alpha2" and (.heat.locality | type == "array") and .components.axnoded.running_containers == 0 and .heat.retained_environment_count == 0 and .heat.retained_rootfs_count == 0'
 
-container_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtime_name}.retention.first.stdout" "/tmp/${runtime_name}.retention.first.stderr")"
+container_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${runtime_name}.retention.first.stdout" "/tmp/${runtime_name}.retention.first.stderr")"
 [ -n "${container_id}" ] || {
   echo "first start did not return a container id" >&2
   exit 1
@@ -158,11 +157,11 @@ wait_for_jq \
   "inventory retained counts after first delete" \
   "${inventory_file}" \
   30 \
-  '.heat.retained_runtime_count == 1 and .heat.retained_rootfs_count == 1 and .components.imagemgr.mounted_image_count >= 1 and (.heat.mounted_image_urls | index($image_url) != null) and any(.heat.locality[]?; .key == $locality_key and .retained_runtime_count >= 1 and .retained_rootfs_count >= 1 and .mounted == true)' \
+  '.heat.retained_environment_count == 1 and .heat.retained_rootfs_count == 1 and .components.imagemgr.mounted_image_count >= 1 and (.heat.mounted_image_urls | index($image_url) != null) and any(.heat.locality[]?; .key == $locality_key and .retained_environment_count >= 1 and .retained_rootfs_count >= 1 and .mounted == true)' \
   --arg image_url "${IMAGE_URL}" \
   --arg locality_key "${locality_key}"
 
-container_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtime_name}.retention.second.stdout" "/tmp/${runtime_name}.retention.second.stderr")"
+container_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${runtime_name}.retention.second.stdout" "/tmp/${runtime_name}.retention.second.stderr")"
 [ -n "${container_id}" ] || {
   echo "second start did not return a container id" >&2
   exit 1
@@ -175,7 +174,7 @@ wait_for_jq \
   "inventory retained counts after second delete" \
   "${inventory_file}" \
   30 \
-  '.heat.retained_runtime_count == 1 and .heat.retained_rootfs_count == 1 and any(.heat.locality[]?; .key == $locality_key and .retained_runtime_count >= 1 and .retained_rootfs_count >= 1)' \
+  '.heat.retained_environment_count == 1 and .heat.retained_rootfs_count == 1 and any(.heat.locality[]?; .key == $locality_key and .retained_environment_count >= 1 and .retained_rootfs_count >= 1)' \
   --arg locality_key "${locality_key}"
 
 metrics_output="$(fetch_metrics)"
@@ -184,15 +183,15 @@ metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_sta
 metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
   "axern.start_class=warm" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
 metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_retention_reuse_total" "counter" "1" \
-  "axern.kind=runtime" "axern.rootfs_type=image"
+  "axern.kind=environment" "axern.rootfs_type=image"
 metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_retention_reuse_total" "counter" "1" \
   "axern.kind=rootfs" "axern.rootfs_type=image"
 
 wait_for_jq \
-  "inventory to drop retained runtime after ttl" \
+  "inventory to drop retained environment after ttl" \
   "${inventory_file}" \
   "$((ttl_seconds + 10))" \
-  '.heat.retained_runtime_count == 0 and .heat.retained_rootfs_count == 0 and .components.imagemgr.mounted_image_count == 0 and (.heat.mounted_image_urls | index($image_url) == null) and all(.heat.locality[]?; .key != $locality_key or (.retained_runtime_count == 0 and .retained_rootfs_count == 0))' \
+  '.heat.retained_environment_count == 0 and .heat.retained_rootfs_count == 0 and .components.imagemgr.mounted_image_count == 0 and (.heat.mounted_image_urls | index($image_url) == null) and all(.heat.locality[]?; .key != $locality_key or (.retained_environment_count == 0 and .retained_rootfs_count == 0))' \
   --arg image_url "${IMAGE_URL}" \
   --arg locality_key "${locality_key}"
 
@@ -206,11 +205,11 @@ wait_for_jq \
 
 metrics_output="$(fetch_metrics)"
 metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_retention_eviction_total" "counter" "1" \
-  "axern.kind=runtime" "axern.rootfs_type=image" "axern.reason=ttl_expired"
+  "axern.kind=environment" "axern.rootfs_type=image" "axern.reason=ttl_expired"
 metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_retention_eviction_total" "counter" "1" \
   "axern.kind=rootfs" "axern.rootfs_type=image" "axern.reason=ttl_expired"
 
-container_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtime_name}.retention.third.stdout" "/tmp/${runtime_name}.retention.third.stderr")"
+container_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${runtime_name}.retention.third.stdout" "/tmp/${runtime_name}.retention.third.stderr")"
 [ -n "${container_id}" ] || {
   echo "third start did not return a container id" >&2
   exit 1

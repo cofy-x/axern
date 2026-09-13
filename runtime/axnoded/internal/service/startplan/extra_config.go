@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/sirupsen/logrus"
 )
 
@@ -41,8 +41,8 @@ func ParseExtraConfig(raw string) (ExtraConfig, bool) {
 	return extraConfig, true
 }
 
-func RootfsConfigFromStartRequest(request *runtime.StartRequest) (langrtmanager.RootfsConfig, error) {
-	cfg, err := langrtmanager.RootfsConfigFromRuntimeTemplate(request.GetRuntimeTemplate())
+func RootfsConfigFromStartRequest(request *runtime.StartRequest) (environmentcache.RootfsConfig, error) {
+	cfg, err := environmentcache.RootfsConfigFromEnvironmentTemplate(request.GetEnvironmentTemplate())
 	if err != nil {
 		return cfg, err
 	}

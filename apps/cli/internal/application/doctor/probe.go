@@ -41,7 +41,7 @@ func (c Control) probe(ctx context.Context, session *Session) Check {
 		Labels: map[string]string{"axern.doctor": "probe"},
 	})
 	if err != nil || strings.TrimSpace(environment.GetEnvironment().GetID()) == "" {
-		return failedCheck("data_plane", "probe_environment_create_failed", "probe environment could not be created", "check runtime template availability, image access, namespace quota, and control-plane health", started)
+		return failedCheck("data_plane", "probe_environment_create_failed", "probe environment could not be created", "check environment template availability, image access, namespace quota, and control-plane health", started)
 	}
 	environmentID := environment.GetEnvironment().GetID()
 	runID := ""
@@ -80,7 +80,7 @@ func (c Control) probe(ctx context.Context, session *Session) Check {
 		return failedCheck("data_plane", "probe_cleanup_failed", "probe resource cleanup did not complete", "inspect the probe-labeled Run and Environment resources", started)
 	}
 	if probeErr != nil {
-		return failedCheck("data_plane", "probe_run_failed", "data-plane probe did not complete successfully", "check node readiness, runtime template availability, image access, and namespace quota", started)
+		return failedCheck("data_plane", "probe_run_failed", "data-plane probe did not complete successfully", "check node readiness, environment template availability, image access, and namespace quota", started)
 	}
 	return passedCheck("data_plane", "probe_succeeded", "catalog-backed Run completed and its temporary Environment was deleted", started)
 }

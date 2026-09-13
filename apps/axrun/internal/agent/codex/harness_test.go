@@ -2,6 +2,7 @@ package codex
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,12 +84,21 @@ func TestCommandOnRequestEnforcesApprovalAndSandboxPolicy(t *testing.T) {
 	}
 }
 
-func TestHarnessBuildsManagedCommandForAgentImageProfile(t *testing.T) {
+func TestHarnessBuildsProfiledCommandForAgentImage(t *testing.T) {
 	launcher := &recordingLauncher{
 		kind:   domain.AgentLauncherKindAgentImage,
 		result: sandbox.ExecResult{Stdout: "done"},
 	}
-	h := New()
+	h := NewWithConfig(Config{Profiles: map[string]agent.Profile{
+		"codex-smoke": {
+			Name:         "codex-smoke",
+			Agent:        agentprofile.AgentCodex,
+			ProviderType: agent.ProviderOpenAI,
+			WireAPI:      agentprofile.WireAPIResponses,
+			Upstream:     urlMustParse("https://api.example.test/v1"),
+			Token:        "sk-test",
+		},
+	}})
 	h.Launcher = launcher
 	result, err := h.Run(context.Background(), agent.Request{
 		Agent: domain.AgentSpec{
@@ -150,38 +160,7 @@ func TestHarnessBuildsManagedCommandForAgentImageProfile(t *testing.T) {
 	}
 }
 
-func TestHarnessManagedProxyConfigReturnsSetupFromGenericProfile(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "config.json")
-	if err := os.WriteFile(configPath, []byte(`{
-  "agent_profiles": {
-    "profiles": {
-      "codex-smoke": {
-        "agent": "codex",
-        "provider": "openai",
-        "wire_api": "responses",
-        "upstream": "https://api.example.test/v1",
-        "token": "sk-test",
-        "env": {"OPENAI_ORGANIZATION": "org-test", "OPENAI_PROJECT": "project-test"},
-        "config": {}
-      }
-    }
-  }
-}`), 0o600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-	setup, err := NewWithConfig(Config{ConfigPath: configPath}).ManagedProxyConfig(domain.AgentSpec{Name: "codex", Profile: "codex-smoke"})
-	if err != nil {
-		t.Fatalf("ManagedProxyConfig returned error: %v", err)
-	}
-	if setup == nil ||
-		setup.Upstream.String() != "https://api.example.test/v1" ||
-		setup.Token != "sk-test" ||
-		setup.ProviderType != agent.ProviderOpenAI {
-		t.Fatalf("setup = %#v", setup)
-	}
-}
-
-func TestHarnessRunWritesRemoteCodexConfigWithManagedProxyConfig(t *testing.T) {
+func TestHarnessRunWritesDirectProviderConfig(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	if err := os.WriteFile(configPath, []byte(`{
   "agent_profiles": {
@@ -206,9 +185,6 @@ func TestHarnessRunWritesRemoteCodexConfigWithManagedProxyConfig(t *testing.T) {
 	}
 	h := NewWithConfig(Config{ConfigPath: configPath})
 	h.Launcher = launcher
-	if _, err := h.ManagedProxyConfig(domain.AgentSpec{Name: "codex", Profile: "codex-smoke"}); err != nil {
-		t.Fatalf("ManagedProxyConfig returned error: %v", err)
-	}
 	result, err := h.Run(context.Background(), agent.Request{
 		Agent: domain.AgentSpec{
 			Name: "codex",
@@ -226,11 +202,6 @@ func TestHarnessRunWritesRemoteCodexConfigWithManagedProxyConfig(t *testing.T) {
 		Task:        domain.TaskInstance{ID: "task-1"},
 		Sandbox:     &fakeSandbox{},
 		Instruction: "Do it",
-		ManagedProxy: &sandbox.ManagedProxyOptions{
-			Provider:            "openai",
-			UpstreamBaseURL:     "https://api.example.test/v1",
-			UpstreamBearerToken: "sk-test",
-		},
 	})
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
@@ -239,16 +210,13 @@ func TestHarnessRunWritesRemoteCodexConfigWithManagedProxyConfig(t *testing.T) {
 		t.Fatalf("result = %#v", result)
 	}
 	configScript := launcher.plan.Command.Shell()
-	for _, expected := range []string{"model_providers.axern", `base_url = "${AXERN_MANAGED_PROXY_BASE_URL}"`, `wire_api = "responses"`, `OPENAI_API_KEY="${AXERN_MANAGED_PROXY_TOKEN}"`} {
+	for _, expected := range []string{"model_providers.axern", `base_url = "https://api.example.test/v1"`, `wire_api = "responses"`, `env_key = "OPENAI_API_KEY"`} {
 		if !strings.Contains(configScript, expected) {
 			t.Fatalf("config script missing %q: %s", expected, configScript)
 		}
 	}
 	if !strings.Contains(configScript, "codex exec") || strings.Contains(configScript, "printf ok") {
-		t.Fatalf("config script missing managed Codex command: %s", configScript)
-	}
-	if launcher.plan.ManagedProxy == nil || launcher.plan.ManagedProxy.Provider != "openai" {
-		t.Fatalf("managed proxy = %#v", launcher.plan.ManagedProxy)
+		t.Fatalf("config script missing Codex command: %s", configScript)
 	}
 	if got := launcher.plan.Env["OPENAI_ORGANIZATION"]; got != "runtime-org" {
 		t.Fatalf("OPENAI_ORGANIZATION = %q", got)
@@ -263,7 +231,8 @@ func TestHarnessRunWritesRemoteCodexConfigWithManagedProxyConfig(t *testing.T) {
 
 func TestCodexConfigTOMLQuotesProviderKeyWhenNeeded(t *testing.T) {
 	config, err := codexConfigTOML(agent.Profile{
-		WireAPI: agentprofile.WireAPIResponses,
+		WireAPI:  agentprofile.WireAPIResponses,
+		Upstream: urlMustParse("https://api.example.test/v1"),
 		Config: map[string]string{
 			"codex_provider": "openai.compat",
 		},
@@ -274,6 +243,14 @@ func TestCodexConfigTOMLQuotesProviderKeyWhenNeeded(t *testing.T) {
 	if !strings.Contains(config, `[model_providers."openai.compat"]`) {
 		t.Fatalf("config = %s", config)
 	}
+}
+
+func urlMustParse(raw string) *url.URL {
+	value, err := url.Parse(raw)
+	if err != nil {
+		panic(err)
+	}
+	return value
 }
 
 func TestCodexConfigTOMLRejectsUnsupportedWireAPI(t *testing.T) {

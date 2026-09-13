@@ -53,7 +53,7 @@ target=<target>
 options=["rbind","ro"]
 ```
 
-Stable runtime IDs include image, target, and read-only flag so different mount sets do not reuse the wrong runtime template.
+Stable runtime IDs include image, target, and read-only flag so different mount sets do not reuse the wrong environment template.
 
 ## Axrun Use
 

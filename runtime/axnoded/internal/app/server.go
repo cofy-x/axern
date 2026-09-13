@@ -112,14 +112,9 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	defer stopHealth()
 	go publishHealth(healthCtx, svc, localHealthServer, nodeHealthServer)
 
-	natBackend := strings.TrimSpace(strings.ToLower(os.Getenv("NAT_BACKEND")))
-	if natBackend == "" {
-		natBackend = "iptables"
-	}
-	dashboard := api.NewNginxDashboard(svc, natBackend)
 	httpServer := &http.Server{
 		Addr:              opts.httpAddress,
-		Handler:           obs.HTTPHandler(api.NewHTTPMux(svc, dashboard), sandboxobs.SpanHTTP),
+		Handler:           obs.HTTPHandler(api.NewHTTPMux(svc), sandboxobs.SpanHTTP),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

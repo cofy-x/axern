@@ -5,7 +5,6 @@ package axnoded.internal.apipb.v1;
 option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;apipb";
 
 import "internal/apipb/v1/axnoded_internal.proto";
-import "internal/apipb/v1/process.proto";
 
 message CreateContainerRequest {
   repeated string command = 1;
@@ -17,12 +16,11 @@ message CreateContainerRequest {
   string stderr = 7;
   string network = 8;
   map<string, string> labels = 9;
-  string ckptDir = 10;
-  string cwd = 11;
-  string ID = 12;
-  int64 ephemeral_storage_request_bytes = 13;
-  int64 ephemeral_storage_limit_bytes = 14;
-  ContainerRecoveryMode recovery_mode = 15;
+  string cwd = 10;
+  string ID = 11;
+  int64 ephemeral_storage_request_bytes = 12;
+  int64 ephemeral_storage_limit_bytes = 13;
+  ContainerRecoveryMode recovery_mode = 14;
 }
 
 message CreateContainerResponse {
@@ -50,7 +48,6 @@ message ExecContainerRequest {
   repeated KeyValue envs = 4;
   string cwd = 5;
   string user = 6;
-  ManagedProxySpec managed_proxy = 7;
 }
 
 message ExecContainerResponse {
@@ -59,7 +56,6 @@ message ExecContainerResponse {
   bytes stderr = 3;
   bool stdout_truncated = 4;
   bool stderr_truncated = 5;
-  ManagedProxyReport managed_proxy_report = 6;
 }
 
 message ExecSessionOpen {
@@ -70,7 +66,6 @@ message ExecSessionOpen {
   string cwd = 5;
   string user = 6;
   TerminalResize initial_size = 7;
-  ManagedProxySpec managed_proxy = 8;
 }
 
 message StartContainerRequest {

@@ -11,7 +11,7 @@ type Target struct {
 	ID                 string
 	Labels             map[string]string
 	SandboxdSocketPath string
-	Handler            contract.RuntimeHandler
+	Handler            contract.SandboxRuntime
 }
 
 type Options struct {

@@ -36,7 +36,7 @@ func New(cfg Config) http.Handler {
 		})
 	})
 	mux.HandleFunc("/catalogz", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := cfg.ListRuntimeTemplates(r.Context())
+		resp, err := cfg.ListEnvironmentTemplates(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

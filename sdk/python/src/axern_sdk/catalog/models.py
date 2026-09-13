@@ -20,8 +20,8 @@ class MountSpec:
 
 
 @dataclass(frozen=True, slots=True)
-class RuntimeCapabilities:
-    """Capability flags exported by the runtime catalog."""
+class EnvironmentTemplateCapabilities:
+    """Capability flags exported by the environment catalog."""
 
     supports_exec: bool = False
     supports_exec_stream: bool = False
@@ -31,7 +31,7 @@ class RuntimeCapabilities:
 
 
 @dataclass(frozen=True, slots=True)
-class RuntimeBaselinePolicy:
+class OciBaselinePolicy:
     """Managed process baseline for generated runtime specs."""
 
     capabilities: tuple[str, ...] = ()
@@ -42,7 +42,7 @@ class RuntimeBaselinePolicy:
 
 
 @dataclass(frozen=True, slots=True)
-class RuntimeCapabilityPolicy:
+class OciCapabilityPolicy:
     """Annotation-driven Linux capability policy."""
 
     annotation_key: str = ""
@@ -50,14 +50,14 @@ class RuntimeCapabilityPolicy:
 
 
 @dataclass(frozen=True, slots=True)
-class RuntimeNetworkNamespacePolicy:
+class OciNetworkNamespacePolicy:
     """Annotation-driven network namespace policy."""
 
     annotation_key: str = ""
 
 
 @dataclass(frozen=True, slots=True)
-class RuntimeResourcePolicy:
+class OciResourcePolicy:
     """Resource policy for generated runtime specs."""
 
     ignore_annotation_keys: tuple[str, ...] = ()
@@ -67,13 +67,13 @@ class RuntimeResourcePolicy:
 
 
 @dataclass(frozen=True, slots=True)
-class RuntimeExecutionProfile:
+class OciExecutionProfile:
     """Runtime execution policy profile exported by the catalog."""
 
-    runtime_baseline: RuntimeBaselinePolicy = field(default_factory=RuntimeBaselinePolicy)
-    capabilities: RuntimeCapabilityPolicy = field(default_factory=RuntimeCapabilityPolicy)
-    network_namespace: RuntimeNetworkNamespacePolicy = field(default_factory=RuntimeNetworkNamespacePolicy)
-    resources: RuntimeResourcePolicy = field(default_factory=RuntimeResourcePolicy)
+    baseline: OciBaselinePolicy = field(default_factory=OciBaselinePolicy)
+    capabilities: OciCapabilityPolicy = field(default_factory=OciCapabilityPolicy)
+    network_namespace: OciNetworkNamespacePolicy = field(default_factory=OciNetworkNamespacePolicy)
+    resources: OciResourcePolicy = field(default_factory=OciResourcePolicy)
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,8 +90,8 @@ class OciImageDescriptor:
 
 
 @dataclass(frozen=True, slots=True)
-class RuntimeTemplate:
-    """Catalog metadata for an official Axern runtime."""
+class EnvironmentTemplate:
+    """Catalog metadata for an Axern environment."""
 
     id: str
     rootfs_readonly: bool = False
@@ -99,7 +99,7 @@ class RuntimeTemplate:
     default_cwd: str = "/"
     default_env: Mapping[str, str] = field(default_factory=dict)
     mounts: tuple[MountSpec, ...] = ()
-    capabilities: RuntimeCapabilities = field(default_factory=RuntimeCapabilities)
+    capabilities: EnvironmentTemplateCapabilities = field(default_factory=EnvironmentTemplateCapabilities)
     language: str = ""
     language_version: str = ""
     description: str = ""
@@ -107,7 +107,7 @@ class RuntimeTemplate:
     image_descriptor: OciImageDescriptor = field(default_factory=OciImageDescriptor)
     warm_policy: str = ""
     cache_policy: str = ""
-    execution_profile: RuntimeExecutionProfile = field(default_factory=RuntimeExecutionProfile)
+    execution_profile: OciExecutionProfile = field(default_factory=OciExecutionProfile)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "image_default_argv", tuple(self.image_default_argv))

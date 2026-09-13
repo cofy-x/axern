@@ -214,7 +214,7 @@ func doctorCommand(runtime command.Runtime, version string) *cobra.Command {
 	cmd.Flags().StringVar(&options.QueryName, "dns-query-name", options.QueryName, "absolute DNS name to query")
 	cmd.Flags().DurationVar(&options.CheckTimeout, "check-timeout", options.CheckTimeout, "timeout for each read-only DNS check")
 	cmd.Flags().DurationVar(&probeTimeout, "probe-timeout", probeTimeout, "timeout for sandbox execution; requires --probe")
-	cmd.Flags().StringVar(&templateID, "template-id", templateID, "runtime template used by --probe")
+	cmd.Flags().StringVar(&templateID, "template-id", templateID, "environment template used by --probe")
 	return cmd
 }
 

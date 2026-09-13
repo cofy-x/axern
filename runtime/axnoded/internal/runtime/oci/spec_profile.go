@@ -2,7 +2,7 @@ package oci
 
 // ExecutionProfile groups the policies used to build a final OCI spec.
 type ExecutionProfile struct {
-	RuntimeBaseline  RuntimeBaselinePolicy
+	Baseline         OciBaselinePolicy
 	Capabilities     CapabilityPolicy
 	NetworkNamespace NetworkNamespacePolicy
 	Resources        ResourcePolicy
@@ -11,7 +11,7 @@ type ExecutionProfile struct {
 // DefaultExecutionProfile returns the standard Axern OCI execution policy profile.
 func DefaultExecutionProfile() ExecutionProfile {
 	return ExecutionProfile{
-		RuntimeBaseline:  DefaultRuntimeBaselinePolicy(),
+		Baseline:         DefaultBaselinePolicy(),
 		Capabilities:     DefaultCapabilityPolicy(),
 		NetworkNamespace: DefaultNetworkNamespacePolicy(),
 		Resources:        DefaultResourcePolicy(),
@@ -20,11 +20,11 @@ func DefaultExecutionProfile() ExecutionProfile {
 
 func (p ExecutionProfile) withDefaults() ExecutionProfile {
 	defaults := DefaultExecutionProfile()
-	if p.RuntimeBaseline.Capabilities == nil {
-		p.RuntimeBaseline.Capabilities = defaults.RuntimeBaseline.Capabilities
+	if p.Baseline.Capabilities == nil {
+		p.Baseline.Capabilities = defaults.Baseline.Capabilities
 	}
-	if p.RuntimeBaseline.NoFileLimit == 0 {
-		p.RuntimeBaseline.NoFileLimit = defaults.RuntimeBaseline.NoFileLimit
+	if p.Baseline.NoFileLimit == 0 {
+		p.Baseline.NoFileLimit = defaults.Baseline.NoFileLimit
 	}
 	if p.Capabilities.AnnotationKey == "" {
 		p.Capabilities = defaults.Capabilities

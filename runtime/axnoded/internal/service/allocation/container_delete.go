@@ -92,7 +92,7 @@ func (h *Controller) deleteContainerWithRuntime(
 	ctx context.Context,
 	request *apipb.DeleteContainerRequest,
 	c *container.Container,
-	handler contract.RuntimeHandler,
+	handler contract.SandboxRuntime,
 	traceID, spanID string,
 ) (*apipb.DeleteContainerResponse, error) {
 	options := contract.HandlerOptions{
@@ -126,7 +126,7 @@ func (h *Controller) callRuntimeDelete(
 	ctx context.Context,
 	request *apipb.DeleteContainerRequest,
 	runtimeName string,
-	handler contract.RuntimeHandler,
+	handler contract.SandboxRuntime,
 	options contract.HandlerOptions,
 	operation string,
 ) (*apipb.DeleteContainerResponse, error) {

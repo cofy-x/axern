@@ -6,8 +6,7 @@ cd "${ROOT_DIR}"
 . "${ROOT_DIR}/scripts/lib/ebpf-ingress-probe.sh"
 . "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 
-RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST:-runsc}"
-RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/${RUNTIME_UNDER_TEST}}"
+RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/runsc}"
 SOCKET_ADDRESS="${SOCKET_ADDRESS:-/run/axnoded/axnoded.sock}"
 AXNODED_BIN="${AXNODED_BIN:-/usr/local/bin/axnoded}"
 NAT_BACKEND="${NAT_BACKEND:-iptables}"
@@ -22,9 +21,7 @@ BPFNET_SNAT_DATAGRAM_IDLE_TIMEOUT="${BPFNET_SNAT_DATAGRAM_IDLE_TIMEOUT:-10s}"
 AXNODED_IP_RANGE="${AXNODED_IP_RANGE:-172.31.0.1/16}"
 ensure_bpf_fs "${NAT_BACKEND}"
 
-if [ "${RUNTIME_UNDER_TEST}" = "runsc" ]; then
-  setup_external_probe
-fi
+setup_external_probe
 
 BPFNET_UPLINKS_CONFIG=""
 if [ "${NAT_BACKEND}" = "ebpf" ]; then
@@ -105,7 +102,6 @@ fi
 
 ROOT_DIR="${ROOT_DIR}" \
 SOCKET_ADDRESS="${SOCKET_ADDRESS}" \
-RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST}" \
 NAT_BACKEND="${NAT_BACKEND}" \
 EBPF_INGRESS_PROBE_NETNS="${EBPF_INGRESS_PROBE_NETNS}" \
 EBPF_INGRESS_PROBE_ADDR="${EBPF_INGRESS_PROBE_HOST_ADDR}" \

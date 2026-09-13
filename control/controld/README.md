@@ -11,7 +11,7 @@
 - namespace lifecycle, resource quota policy, quota admission, and quota usage reporting
 - allocation terminal and tunnel relay target resolution
 - controld-managed secret metadata, encryption, and resolution
-- read-only runtime catalog and debug HTTP surfaces
+- read-only environment catalog and debug HTTP surfaces
 
 `controld` does not own realtime exec or terminal streaming. Realtime execution goes to selected nodes through the current SDK path, and `gatewayd` owns external control/data-plane forwarding after resolving routes here.
 
@@ -157,7 +157,7 @@ flowchart LR
   nodebridge["internal/nodebridge\nnode lifecycle bridge"]
   observability["internal/observability\nmetrics + spans"]
   ociimage["internal/ociimage\nOCI resolution"]
-  catalog["internal/catalog\nruntime templates"]
+  catalog["internal/catalog\nenvironment templates"]
   node["axnoded / node APIs"]
   db[("Postgres")]
 
@@ -192,7 +192,7 @@ flowchart LR
 - `internal/postgres/*` owns SQL-backed stores, row scanners, transaction helpers, migrations, Postgres-specific persistence details, and transactional reservation admission.
 - `internal/placement` owns candidate filtering, eligibility evaluation, candidate-plan construction, and placement request shaping.
 - `internal/nodebridge` owns control-plane-to-node lifecycle request construction and RPC bridging.
-- `internal/observability`, `internal/ociimage`, and `internal/catalog` own metrics/span names, OCI descriptor resolution, and embedded runtime templates.
+- `internal/observability`, `internal/ociimage`, and `internal/catalog` own metrics/span names, OCI descriptor resolution, and embedded environment templates.
 - `internal/testutil/controldtest` owns focused test doubles and Postgres test harness helpers.
 
 Before changing package boundaries or feature placement rules, read [Agent Contract](AGENTS.md). `make -C control/controld check-architecture` enforces the main direction rules: API/application/kernel packages must not import Postgres adapters, Postgres adapters must not reintroduce alias bridges, and catch-all helper files should not return under `internal/postgres`.

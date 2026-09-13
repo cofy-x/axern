@@ -67,14 +67,13 @@ func convertProcessRequest(in *nodesandboxv1.ProcessRequest, targetID string) (*
 		return &runtimev1.ProcessRequest{
 			Payload: &runtimev1.ProcessRequest_Open{
 				Open: &runtimev1.ProcessOpen{
-					ID:           targetID,
-					Command:      append([]string(nil), payload.Open.GetSpec().GetArgv()...),
-					Tty:          payload.Open.GetSpec().GetTty(),
-					Timeout:      payload.Open.GetSpec().GetTimeoutSeconds(),
-					Env:          cloneStringMap(payload.Open.GetSpec().GetEnv()),
-					Cwd:          payload.Open.GetSpec().GetCwd(),
-					User:         payload.Open.GetSpec().GetUser(),
-					ManagedProxy: convertManagedProxySpec(payload.Open.GetSpec().GetManagedProxy()),
+					ID:      targetID,
+					Command: append([]string(nil), payload.Open.GetSpec().GetArgv()...),
+					Tty:     payload.Open.GetSpec().GetTty(),
+					Timeout: payload.Open.GetSpec().GetTimeoutSeconds(),
+					Env:     cloneStringMap(payload.Open.GetSpec().GetEnv()),
+					Cwd:     payload.Open.GetSpec().GetCwd(),
+					User:    payload.Open.GetSpec().GetUser(),
 				},
 			},
 		}, nil
@@ -99,9 +98,8 @@ func convertProcessResponse(in *runtimev1.ProcessResponse) *nodesandboxv1.Proces
 		return &nodesandboxv1.ProcessResponse{Payload: &nodesandboxv1.ProcessResponse_Stderr{Stderr: payload.Stderr}}
 	case *runtimev1.ProcessResponse_Exit:
 		return &nodesandboxv1.ProcessResponse{Payload: &nodesandboxv1.ProcessResponse_Exit{Exit: &nodesandboxv1.ExecExit{
-			ExitCode:           payload.Exit.GetExitCode(),
-			Message:            payload.Exit.GetMessage(),
-			ManagedProxyReport: convertManagedProxyReport(payload.Exit.GetManagedProxyReport()),
+			ExitCode: payload.Exit.GetExitCode(),
+			Message:  payload.Exit.GetMessage(),
 		}}}
 	case *runtimev1.ProcessResponse_Ready:
 		return &nodesandboxv1.ProcessResponse{Payload: &nodesandboxv1.ProcessResponse_Ready{Ready: &nodesandboxv1.ProcessReady{}}}

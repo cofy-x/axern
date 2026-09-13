@@ -11,7 +11,7 @@ import (
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	runtimecontract "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"github.com/sirupsen/logrus"
@@ -21,8 +21,8 @@ import (
 
 type allocationState struct {
 	record          *apipb.AllocationState
-	runtime         *langruntime.LanguageRuntime
-	imageMountRoots []*langruntime.RootFS
+	runtime         *environmentcache.PreparedEnvironment
+	imageMountRoots []*environmentcache.RootFS
 }
 
 func newAllocationState(allocationID string) *allocationState {
@@ -46,7 +46,7 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
+	return record == nil || (record.GetEnvironmentTemplate() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
 }
 
 func (h *Controller) HasAllocation(allocationID string) bool {
@@ -69,20 +69,20 @@ func (h *Controller) AllocationIDs() []string {
 	return ids
 }
 
-// RuntimeTemplateID returns the template referenced by the admitted Allocation
+// EnvironmentTemplateID returns the template referenced by the admitted Allocation
 // record. It feeds rebuildable locality observations without consulting OCI
 // metadata or labels.
-func (h *Controller) RuntimeTemplateID(allocationID string) string {
+func (h *Controller) EnvironmentTemplateID(allocationID string) string {
 	if h == nil {
 		return ""
 	}
 	h.stateMu.RLock()
 	defer h.stateMu.RUnlock()
 	state := h.allocationStates[strings.TrimSpace(allocationID)]
-	if state == nil || state.record == nil || state.record.GetRuntimeTemplate() == nil {
+	if state == nil || state.record == nil || state.record.GetEnvironmentTemplate() == nil {
 		return ""
 	}
-	return strings.TrimSpace(state.record.GetRuntimeTemplate().GetID())
+	return strings.TrimSpace(state.record.GetEnvironmentTemplate().GetID())
 }
 
 // PersistedAllocationIDs validates the durable admission records without
@@ -559,13 +559,13 @@ func (h *Controller) persistAllocationRecord(record *apipb.AllocationState) erro
 	return h.store.PutRecord(config.AllocationStateBucket, record.GetAllocationID(), record)
 }
 
-func (h *Controller) rememberContainerRuntime(allocationID string, runtime *langruntime.LanguageRuntime) error {
+func (h *Controller) rememberContainerRuntime(allocationID string, runtime *environmentcache.PreparedEnvironment) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" {
 		return errors.New("allocation id is required")
 	}
-	if runtime == nil || runtime.RuntimeTemplate() == nil {
-		return errors.New("allocation runtime template is required")
+	if runtime == nil || runtime.EnvironmentTemplate() == nil {
+		return errors.New("allocation environment template is required")
 	}
 	unlock := h.recordMutationLocks.Lock(allocationID)
 	defer unlock()
@@ -582,7 +582,7 @@ func (h *Controller) rememberContainerRuntime(allocationID string, runtime *lang
 		desired = cloneAllocationRecord(current.record)
 	}
 	h.stateMu.RUnlock()
-	desired.RuntimeTemplate = proto.Clone(runtime.RuntimeTemplate()).(*apipb.RuntimeTemplate)
+	desired.EnvironmentTemplate = proto.Clone(runtime.EnvironmentTemplate()).(*apipb.EnvironmentTemplate)
 	if err := h.persistAllocationRecord(desired); err != nil {
 		return fmt.Errorf("persist allocation runtime: %w", err)
 	}
@@ -594,7 +594,7 @@ func (h *Controller) rememberContainerRuntime(allocationID string, runtime *lang
 	return nil
 }
 
-func (h *Controller) rememberImageMountRoots(allocationID string, roots []*langruntime.RootFS, mounts []*apipb.ImageMount) error {
+func (h *Controller) rememberImageMountRoots(allocationID string, roots []*environmentcache.RootFS, mounts []*apipb.ImageMount) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if h == nil || allocationID == "" || len(roots) == 0 {
 		return nil
@@ -631,7 +631,7 @@ func (h *Controller) forgetImageMountRoots(allocationID string) {
 		return
 	}
 	desired := cloneAllocationRecord(state.record)
-	roots := append([]*langruntime.RootFS(nil), state.imageMountRoots...)
+	roots := append([]*environmentcache.RootFS(nil), state.imageMountRoots...)
 	committed := state.runtime != nil
 	h.stateMu.RUnlock()
 	desired.ImageMountUrls = nil
@@ -734,18 +734,18 @@ func (h *Controller) restoreAllocationState(record *apipb.AllocationState) (*all
 	if err := validateRecoveredCapabilityState(record, time.Now().UTC()); err != nil {
 		recoveryErr = errors.Join(recoveryErr, err)
 	}
-	if record.GetRuntimeTemplate() == nil {
-		recoveryErr = errors.Join(recoveryErr, errors.New("active allocation has no runtime template"))
+	if record.GetEnvironmentTemplate() == nil {
+		recoveryErr = errors.Join(recoveryErr, errors.New("active allocation has no environment template"))
 	} else {
-		rootfsConfig, err := langruntime.RootfsConfigFromRuntimeTemplate(record.GetRuntimeTemplate())
+		rootfsConfig, err := environmentcache.RootfsConfigFromEnvironmentTemplate(record.GetEnvironmentTemplate())
 		if err != nil {
 			recoveryErr = errors.Join(recoveryErr, err)
 		} else {
-			result, err := h.lrtManager.AddLangRuntime(context.Background(), record.GetRuntimeTemplate(), rootfsConfig, true)
+			result, err := h.environmentCache.PrepareEnvironment(context.Background(), record.GetEnvironmentTemplate(), rootfsConfig)
 			if err != nil {
 				recoveryErr = errors.Join(recoveryErr, err)
 			} else {
-				state.runtime = result.Runtime
+				state.runtime = result.Environment
 				state.runtime.IncRef()
 			}
 		}
@@ -813,12 +813,12 @@ func (h *Controller) restoreAllocationImages(record *apipb.AllocationState, stat
 	return nil
 }
 
-func (h *Controller) acquireRecoveredImageRoot(imageURL string) (*langruntime.RootFS, error) {
-	config, err := h.lrtManager.ResolveRootfsConfig(langruntime.RootfsConfig{SrcType: apipb.RootfsSrcType_IMAGE, ImageUrl: imageURL})
+func (h *Controller) acquireRecoveredImageRoot(imageURL string) (*environmentcache.RootFS, error) {
+	config, err := h.environmentCache.ResolveRootfsConfig(environmentcache.RootfsConfig{SrcType: apipb.RootfsSrcType_IMAGE, ImageUrl: imageURL})
 	if err != nil {
 		return nil, err
 	}
-	rootfs, err := h.lrtManager.GetRootfs(config)
+	rootfs, err := h.environmentCache.GetRootfs(config)
 	if err != nil {
 		return nil, err
 	}

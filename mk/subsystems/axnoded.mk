@@ -39,9 +39,7 @@ AXNODED_DIR := runtime/axnoded
 	axnoded-verify-docker-conformance \
 	axnoded-benchmark-startup-matrix \
 	axnoded-run-nginx-demo \
-	axnoded-stop-nginx-demo \
-	axnoded-run-dashboard-nginx-demo \
-	axnoded-stop-dashboard-nginx-demo
+	axnoded-stop-nginx-demo
 
 axnoded-help: ## Show axnoded targets
 	@$(call run_subsystem_make,$(AXNODED_DIR),help)
@@ -118,7 +116,7 @@ axnoded-verify-node-bundle-template-e2e: ## Run the axnoded node all-in-one bund
 axnoded-verify-node-python-runtime-e2e: ## Run the axnoded node all-in-one programmable Python runtime verification
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-python-runtime-e2e)
 
-axnoded-verify-node-retention-e2e: ## Run the axnoded node all-in-one runtime retention end-to-end verification
+axnoded-verify-node-retention-e2e: ## Run the axnoded node all-in-one environment retention end-to-end verification
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-retention-e2e)
 
 axnoded-verify-node-locality-e2e: ## Run the axnoded node all-in-one locality signals end-to-end verification
@@ -159,9 +157,3 @@ axnoded-run-nginx-demo: ## Run the axnoded nginx demo
 
 axnoded-stop-nginx-demo: ## Stop the axnoded nginx demo
 	@$(call run_subsystem_make,$(AXNODED_DIR),stop-nginx-demo)
-
-axnoded-run-dashboard-nginx-demo: ## Run the axnoded dashboard nginx demo
-	@$(call run_subsystem_make,$(AXNODED_DIR),run-dashboard-nginx-demo)
-
-axnoded-stop-dashboard-nginx-demo: ## Stop the axnoded dashboard nginx demo
-	@$(call run_subsystem_make,$(AXNODED_DIR),stop-dashboard-nginx-demo)

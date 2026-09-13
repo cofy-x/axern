@@ -1,4 +1,4 @@
-"""Catalog client for official Axern runtime templates."""
+"""Catalog client for Axern environment templates."""
 
 from __future__ import annotations
 
@@ -10,18 +10,18 @@ from axern_sdk._internal.channel import control_channel
 from axern_sdk.catalog.models import (
     MountSpec,
     OciImageDescriptor,
-    RuntimeBaselinePolicy,
-    RuntimeCapabilities,
-    RuntimeCapabilityPolicy,
-    RuntimeExecutionProfile,
-    RuntimeNetworkNamespacePolicy,
-    RuntimeResourcePolicy,
-    RuntimeTemplate,
+    OciBaselinePolicy,
+    EnvironmentTemplateCapabilities,
+    OciCapabilityPolicy,
+    OciExecutionProfile,
+    OciNetworkNamespacePolicy,
+    OciResourcePolicy,
+    EnvironmentTemplate,
 )
 
 
-class CatalogClient:
-    """Read-only client for runtime catalog lookups."""
+class EnvironmentCatalogClient:
+    """Read-only client for environment catalog lookups."""
 
     def __init__(
         self,
@@ -43,35 +43,35 @@ class CatalogClient:
             tls_server_name=tls_server_name,
             proxy_mode=proxy_mode,
         )
-        self._client = catalog_pb2_grpc.RuntimeCatalogStub(self._channel)
+        self._client = catalog_pb2_grpc.EnvironmentCatalogStub(self._channel)
 
     def close(self) -> None:
         if self._owns_channel:
             self._channel.close()
 
-    def list_runtime_templates(
+    def list_environment_templates(
         self,
         *,
         namespace: str = "",
         version: str = "",
         language: str = "",
-    ) -> list[RuntimeTemplate]:
-        response = self._client.ListRuntimeTemplates(
-            catalog_pb2.ListRuntimeTemplatesRequest(
+    ) -> list[EnvironmentTemplate]:
+        response = self._client.ListEnvironmentTemplates(
+            catalog_pb2.ListEnvironmentTemplatesRequest(
                 namespace=namespace,
                 version=version,
                 language=language,
             )
         )
-        return [_runtime_template_from_proto(template) for template in response.runtime_templates]
+        return [_environment_template_from_proto(template) for template in response.environment_templates]
 
-    def get_runtime_template(self, runtime_id: str, *, version: str = "") -> RuntimeTemplate:
-        response = self._client.GetRuntimeTemplate(catalog_pb2.GetRuntimeTemplateRequest(id=runtime_id, version=version))
-        return _runtime_template_from_proto(response.runtime_template)
+    def get_environment_template(self, environment_id: str, *, version: str = "") -> EnvironmentTemplate:
+        response = self._client.GetEnvironmentTemplate(catalog_pb2.GetEnvironmentTemplateRequest(id=environment_id, version=version))
+        return _environment_template_from_proto(response.environment_template)
 
 
-def _runtime_template_from_proto(template: catalog_pb2.RuntimeTemplate) -> RuntimeTemplate:
-    capabilities = RuntimeCapabilities(
+def _environment_template_from_proto(template: catalog_pb2.EnvironmentTemplate) -> EnvironmentTemplate:
+    capabilities = EnvironmentTemplateCapabilities(
         supports_exec=template.capabilities.supports_exec,
         supports_exec_stream=template.capabilities.supports_exec_stream,
         supports_long_lived_process=template.capabilities.supports_long_lived_process,
@@ -87,7 +87,7 @@ def _runtime_template_from_proto(template: catalog_pb2.RuntimeTemplate) -> Runti
         )
         for mount in template.mounts
     )
-    return RuntimeTemplate(
+    return EnvironmentTemplate(
         id=template.id,
         rootfs_readonly=template.rootfs_readonly,
         image_default_argv=tuple(template.image_default_argv),
@@ -107,26 +107,26 @@ def _runtime_template_from_proto(template: catalog_pb2.RuntimeTemplate) -> Runti
         ),
         warm_policy=template.warm_policy,
         cache_policy=template.cache_policy,
-        execution_profile=_runtime_execution_profile_from_proto(template.execution_profile),
+        execution_profile=_oci_execution_profile_from_proto(template.execution_profile),
     )
 
 
-def _runtime_execution_profile_from_proto(profile: catalog_pb2.RuntimeExecutionProfile) -> RuntimeExecutionProfile:
-    return RuntimeExecutionProfile(
-        runtime_baseline=RuntimeBaselinePolicy(
-            capabilities=tuple(profile.runtime_baseline.capabilities),
-            no_file_limit=profile.runtime_baseline.no_file_limit,
+def _oci_execution_profile_from_proto(profile: catalog_pb2.OciExecutionProfile) -> OciExecutionProfile:
+    return OciExecutionProfile(
+        baseline=OciBaselinePolicy(
+            capabilities=tuple(profile.baseline.capabilities),
+            no_file_limit=profile.baseline.no_file_limit,
         ),
-        capabilities=RuntimeCapabilityPolicy(
+        capabilities=OciCapabilityPolicy(
             annotation_key=profile.capabilities.annotation_key,
             include_ambient=profile.capabilities.include_ambient
             if profile.capabilities.HasField("include_ambient")
             else None,
         ),
-        network_namespace=RuntimeNetworkNamespacePolicy(
+        network_namespace=OciNetworkNamespacePolicy(
             annotation_key=profile.network_namespace.annotation_key,
         ),
-        resources=RuntimeResourcePolicy(
+        resources=OciResourcePolicy(
             ignore_annotation_keys=tuple(profile.resources.ignore_annotation_keys),
         ),
     )

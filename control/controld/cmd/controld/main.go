@@ -149,7 +149,7 @@ func run() error {
 	adminv1.RegisterNodeAdminServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterAccessAdminServer(grpcServer, svc.AdminV1Handler())
 	identityv1.RegisterIdentityControlServer(grpcServer, svc.IdentityV1Handler())
-	catalogv1.RegisterRuntimeCatalogServer(grpcServer, svc.PublicV1Handler())
+	catalogv1.RegisterEnvironmentCatalogServer(grpcServer, svc.PublicV1Handler())
 	environmentv1.RegisterEnvironmentControlServer(grpcServer, svc.PublicV1Handler())
 	runv1.RegisterRunControlServer(grpcServer, svc.PublicV1Handler())
 	secretv1.RegisterSecretControlServer(grpcServer, svc.PublicV1Handler())

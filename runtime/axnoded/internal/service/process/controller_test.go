@@ -24,7 +24,7 @@ func TestControllerExecRejectsInvalidArgument(t *testing.T) {
 }
 
 func TestControllerExecMapsTargetToRuntimeExec(t *testing.T) {
-	handler := &controllerHandler{FakeRuntimeHandler: runtimetest.NewFakeRuntimeHandler()}
+	handler := &controllerHandler{FakeSandboxRuntime: runtimetest.NewFakeSandboxRuntime()}
 	controller := NewController(Options{
 		ExecTarget: func(id string) (sandboxtarget.Target, error) {
 			assert.Equal(t, "alloc-1", id)
@@ -51,7 +51,7 @@ func TestControllerProcessSendsReadyAndExit(t *testing.T) {
 	session := newSessionStub()
 	session.exit = contract.Exit{Status: 3}
 	handler := &controllerHandler{
-		FakeRuntimeHandler: runtimetest.NewFakeRuntimeHandler(),
+		FakeSandboxRuntime: runtimetest.NewFakeSandboxRuntime(),
 		session:            session,
 	}
 	controller := NewController(Options{
@@ -83,7 +83,7 @@ func TestControllerExecStreamRecordsTimeoutResult(t *testing.T) {
 	session := newSessionStub()
 	session.blockWaitCh = unblockWait
 	handler := &controllerHandler{
-		FakeRuntimeHandler: runtimetest.NewFakeRuntimeHandler(),
+		FakeSandboxRuntime: runtimetest.NewFakeSandboxRuntime(),
 		session:            session,
 	}
 	controller := NewController(Options{
@@ -110,7 +110,7 @@ func TestControllerExecStreamRecordsTimeoutResult(t *testing.T) {
 }
 
 type controllerHandler struct {
-	*runtimetest.FakeRuntimeHandler
+	*runtimetest.FakeSandboxRuntime
 	session            contract.Session
 	lastExecRequest    *runtime.ExecContainerRequest
 	lastExecOptions    contract.HandlerOptions
@@ -147,7 +147,7 @@ func (s controllerProcessService) OpenProcess(_ context.Context, _ *apipb.Proces
 	return newSessionStub(), nil
 }
 
-func testTarget(id string, handler contract.RuntimeHandler) sandboxtarget.Target {
+func testTarget(id string, handler contract.SandboxRuntime) sandboxtarget.Target {
 	return sandboxtarget.Target{
 		ID: id,
 		Metadata: &runtime.ContainerMetadata{

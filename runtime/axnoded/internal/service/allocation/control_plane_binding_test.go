@@ -14,7 +14,7 @@ import (
 
 func TestControlPlaneAllocationBindingIsIndependentDurableAuthority(t *testing.T) {
 	store := storetest.NewMockStore()
-	handler := runtimetest.NewFakeRuntimeHandler()
+	handler := runtimetest.NewFakeSandboxRuntime()
 	handler.RuntimeName = "runsc"
 	first := newTestAllocationControllerWithStore(t, handler, store)
 	digest := "sha256:" + strings.Repeat("a", 64)
@@ -42,7 +42,7 @@ func TestControlPlaneAllocationBindingIsIndependentDurableAuthority(t *testing.T
 }
 
 func TestControlPlaneDeleteCannotDeleteUnboundNodeLocalExecution(t *testing.T) {
-	handler := runtimetest.NewFakeRuntimeHandler()
+	handler := runtimetest.NewFakeSandboxRuntime()
 	handler.RuntimeName = "runsc"
 	fixture := newTestAllocationController(t, handler)
 	fixture.controller.stateMu.Lock()

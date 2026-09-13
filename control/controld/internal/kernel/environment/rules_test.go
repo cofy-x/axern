@@ -15,7 +15,7 @@ import (
 func TestSpecHashIgnoresLabelsOutsideSpec(t *testing.T) {
 	first := &environmentv1.EnvironmentSpec{Namespace: NormalizeNamespace(""), TemplateID: "python311", TemplateVersion: "v1"}
 	second := &environmentv1.EnvironmentSpec{Namespace: "default", TemplateID: "python311", TemplateVersion: "v1"}
-	template := &catalogv1.RuntimeTemplate{ID: "python311", Version: "v1"}
+	template := &catalogv1.EnvironmentTemplate{ID: "python311", Version: "v1"}
 	if SpecHash(first, template) != SpecHash(second, template) {
 		t.Fatalf("spec hashes differ for equivalent normalized specs")
 	}
@@ -23,14 +23,14 @@ func TestSpecHashIgnoresLabelsOutsideSpec(t *testing.T) {
 
 func TestSpecHashIncludesResolvedTemplateSnapshot(t *testing.T) {
 	spec := &environmentv1.EnvironmentSpec{Namespace: "default", TemplateID: "claude-code", TemplateVersion: "24.04.0"}
-	first := &catalogv1.RuntimeTemplate{
+	first := &catalogv1.EnvironmentTemplate{
 		ID:      "claude-code",
 		Version: "24.04.0",
 		ImageDescriptor: &catalogv1.OciImageDescriptor{Annotations: map[string]string{
 			"org.opencontainers.image.ref.name": "example.com/axern/coding-base-runtime:v0.0.1-alpha.1",
 		}},
 	}
-	second := &catalogv1.RuntimeTemplate{
+	second := &catalogv1.EnvironmentTemplate{
 		ID:      "claude-code",
 		Version: "24.04.0",
 		ImageDescriptor: &catalogv1.OciImageDescriptor{Annotations: map[string]string{
@@ -38,7 +38,7 @@ func TestSpecHashIncludesResolvedTemplateSnapshot(t *testing.T) {
 		}},
 	}
 	if SpecHash(spec, first) == SpecHash(spec, second) {
-		t.Fatal("spec hash did not change when the resolved runtime template image changed")
+		t.Fatal("spec hash did not change when the resolved environment template image changed")
 	}
 }
 

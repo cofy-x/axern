@@ -16,17 +16,17 @@ type EnvironmentResponseJSON struct {
 }
 
 type EnvironmentJSON struct {
-	ID               string               `json:"id"`
-	Namespace        string               `json:"namespace"`
-	Status           string               `json:"status"`
-	Spec             *EnvironmentSpecJSON `json:"spec,omitempty"`
-	SpecHash         string               `json:"spec_hash,omitempty"`
-	ResolvedTemplate *RuntimeTemplateJSON `json:"resolved_template,omitempty"`
-	Labels           map[string]string    `json:"labels,omitempty"`
-	Version          int64                `json:"version"`
-	CreatedAt        string               `json:"created_at,omitempty"`
-	UpdatedAt        string               `json:"updated_at,omitempty"`
-	Message          string               `json:"message,omitempty"`
+	ID               string                   `json:"id"`
+	Namespace        string                   `json:"namespace"`
+	Status           string                   `json:"status"`
+	Spec             *EnvironmentSpecJSON     `json:"spec,omitempty"`
+	SpecHash         string                   `json:"spec_hash,omitempty"`
+	ResolvedTemplate *EnvironmentTemplateJSON `json:"resolved_template,omitempty"`
+	Labels           map[string]string        `json:"labels,omitempty"`
+	Version          int64                    `json:"version"`
+	CreatedAt        string                   `json:"created_at,omitempty"`
+	UpdatedAt        string                   `json:"updated_at,omitempty"`
+	Message          string                   `json:"message,omitempty"`
 }
 
 type EnvironmentSpecJSON struct {
@@ -69,7 +69,7 @@ func NewEnvironmentJSON(environment *environmentv1.Environment) *EnvironmentJSON
 		Status:           EnvironmentStatusLabel(environment.GetStatus()),
 		Spec:             newEnvironmentSpecJSON(environment.GetSpec()),
 		SpecHash:         environment.GetSpecHash(),
-		ResolvedTemplate: NewRuntimeTemplateJSON(environment.GetResolvedTemplate()),
+		ResolvedTemplate: NewEnvironmentTemplateJSON(environment.GetResolvedTemplate()),
 		Labels:           cloneStringMap(environment.GetLabels()),
 		Version:          environment.GetVersion(),
 		CreatedAt:        FormatProtoTimestamp(environment.GetCreatedAt()),

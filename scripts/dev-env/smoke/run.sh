@@ -40,7 +40,7 @@ run_local_run_smoke() {
   trap cleanup_local_run_smoke RETURN
 
   catalog_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" catalog list -o json)"
-  local_smoke_assert_default_runtime_templates "${catalog_json}"
+  local_smoke_assert_default_environment_templates "${catalog_json}"
 
   env_json="$(local_smoke_create_environment "${namespace}")"
   environment_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["environment"]["id"])' <<<"${env_json}")"

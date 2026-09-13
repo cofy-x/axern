@@ -84,12 +84,6 @@ func (s Service) create(params Params) (Result, error) {
 		reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 		return Result{}, err
 	}
-	if providerProfilePreflight, ok := adapter.(backend.ProviderProfilePreflight); ok {
-		if err := providerProfilePreflight.PreflightProviderProfile(rolloutRun.Agent); err != nil {
-			reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
-			return Result{}, err
-		}
-	}
 	if params.Execute {
 		if err := s.validateRunAgentForBackend(rolloutRun, params.BackendName); err != nil {
 			reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)

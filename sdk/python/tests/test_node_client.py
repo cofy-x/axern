@@ -150,36 +150,6 @@ class SandboxTest(unittest.TestCase):
         self.assertEqual(open_requests[0].execution_lease_token, "")
         self.assertEqual(list(open_requests[0].spec.argv), ["/bin/echo", "hello"])
 
-    def test_sync_exec_image_uses_gateway_unary_rpc(self) -> None:
-        from axern_sdk.node import ImageProcessMount, NodeSandboxClient
-        from axern_sdk.node import client as node_client_module
-
-        calls = []
-
-        class FakeStub:
-            def __init__(self, channel) -> None:
-                del channel
-
-            def ExecImage(self, request, timeout=None):
-                calls.append((request, timeout))
-                return node_pb2.ExecImageResponse(exit_code=0, stdout=b"ok")
-
-        client = NodeSandboxClient(client=_GatewayClient(), allocation_id="alloc-1")
-        with patch.object(node_client_module.node_pb2_grpc, "NodeSandboxStub", FakeStub):
-            result = client.exec_image(
-                "alpine:latest",
-                ["echo", "ok"],
-                mounts=[ImageProcessMount(sandbox_path="/workspace", target_path="/mnt", readonly=True)],
-                rpc_timeout=5,
-            )
-
-        self.assertEqual(result.stdout, b"ok")
-        request, timeout = calls[0]
-        self.assertEqual(timeout, 5)
-        self.assertEqual(request.allocation_id, "alloc-1")
-        self.assertEqual(request.execution_lease_token, "")
-        self.assertEqual(request.spec.mounts[0].target_path, "/mnt")
-
     def test_sync_archive_methods_use_gateway_streams(self) -> None:
         from axern_sdk.node import NodeSandboxClient
         from axern_sdk.node import client as node_client_module

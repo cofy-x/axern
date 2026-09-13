@@ -8,8 +8,8 @@ import (
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/sirupsen/logrus"
 )
 
@@ -31,7 +31,7 @@ func (h *sandboxService) Run(ctx context.Context) error {
 	h.controlPlaneReports.Start()
 	h.startCapabilityRefresh(ctx)
 	h.startPeriodicCapabilityAudit()
-	h.lrtManager.Start()
+	h.environmentCache.Start()
 	go h.containerManager.Start()
 	return nil
 }
@@ -58,8 +58,8 @@ func (h *sandboxService) shutdown(ctx context.Context) error {
 		h.runscHandler.ShutDown()
 	}
 
-	h.lrtManager.DrainRetained(ctx, langrtmanager.RetentionReasonShutdown)
-	h.lrtManager.Close()
+	h.environmentCache.DrainRetained(ctx, environmentcache.RetentionReasonShutdown)
+	h.environmentCache.Close()
 	h.closeEgress()
 	if err := h.containerManager.Stop(ctx); err != nil {
 		deleteErr = errors.Join(deleteErr, fmt.Errorf("stop container manager: %w", err))

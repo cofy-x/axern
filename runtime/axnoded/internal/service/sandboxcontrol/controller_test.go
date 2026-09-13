@@ -18,7 +18,7 @@ func TestNormalizeKillSignal(t *testing.T) {
 	assert.Equal(t, "9", normalizeKillSignal("9"))
 }
 
-func TestListFiltersByIDAndLabels(t *testing.T) {
+func TestListFiltersByID(t *testing.T) {
 	containers := []*container.Container{
 		testContainer("ctr-a", map[string]string{"app": "api"}),
 		testContainer("ctr-b", map[string]string{"app": "worker"}),
@@ -47,10 +47,9 @@ func TestListFiltersByIDAndLabels(t *testing.T) {
 	require.Len(t, byID.GetContainers(), 1)
 	assert.Equal(t, "ctr-a", byID.GetContainers()[0].GetID())
 
-	byLabel, err := controller.List(context.Background(), &runtime.ListContainersRequest{Selector: map[string]string{"app": "worker"}})
+	all, err := controller.List(context.Background(), &runtime.ListContainersRequest{})
 	require.NoError(t, err)
-	require.Len(t, byLabel.GetContainers(), 1)
-	assert.Equal(t, "ctr-b", byLabel.GetContainers()[0].GetID())
+	require.Len(t, all.GetContainers(), 2)
 }
 
 func testContainer(id string, labels map[string]string) *container.Container {

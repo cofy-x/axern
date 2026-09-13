@@ -151,7 +151,7 @@ func assertSandboxdBackedExecContainer(ctx context.Context, cfg config, bundlePa
 	}
 	containerRoot := filepath.Dir(bundlePath)
 	runtimeRoot := filepath.Dir(containerRoot)
-	handler, err := newVerifyRuntimeHandlerWithRoot(cfg, runtimeRoot)
+	handler, err := newVerifySandboxRuntimeWithRoot(cfg, runtimeRoot)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func assertSandboxdBackedExecSession(ctx context.Context, cfg config, bundlePath
 	}
 	containerRoot := filepath.Dir(bundlePath)
 	runtimeRoot := filepath.Dir(containerRoot)
-	handler, err := newVerifyRuntimeHandlerWithRoot(cfg, runtimeRoot)
+	handler, err := newVerifySandboxRuntimeWithRoot(cfg, runtimeRoot)
 	if err != nil {
 		return err
 	}

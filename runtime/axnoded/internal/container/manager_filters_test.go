@@ -58,15 +58,3 @@ func TestListFilterById(t *testing.T) {
 	assert.Equal(t, 1, len(hitContainers))
 	assert.Equal(t, hitContainers[0].ID, hitId)
 }
-
-func TestListFilterByLabels(t *testing.T) {
-	hitLabel := map[string]string{
-		"hitKey": "hitValue",
-	}
-	containers := newTestContainers("", hitLabel)
-
-	hitContainers := callFilter(containers, ListFilterByLabels(hitLabel))
-
-	assert.Equal(t, 1, len(hitContainers))
-	assert.Equal(t, hitContainers[0].Metadata.Labels["hitKey"], "hitValue")
-}

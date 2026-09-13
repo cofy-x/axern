@@ -25,7 +25,7 @@ if _version_not_supported:
     )
 
 
-class RuntimeCatalogStub:
+class EnvironmentCatalogStub:
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -34,59 +34,59 @@ class RuntimeCatalogStub:
         Args:
             channel: A grpc.Channel.
         """
-        self.ListRuntimeTemplates = channel.unary_unary(
-                '/axern.control.catalog.v1.RuntimeCatalog/ListRuntimeTemplates',
-                request_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListRuntimeTemplatesRequest.SerializeToString,
-                response_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListRuntimeTemplatesResponse.FromString,
+        self.ListEnvironmentTemplates = channel.unary_unary(
+                '/axern.control.catalog.v1.EnvironmentCatalog/ListEnvironmentTemplates',
+                request_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListEnvironmentTemplatesRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListEnvironmentTemplatesResponse.FromString,
                 _registered_method=True)
-        self.GetRuntimeTemplate = channel.unary_unary(
-                '/axern.control.catalog.v1.RuntimeCatalog/GetRuntimeTemplate',
-                request_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetRuntimeTemplateRequest.SerializeToString,
-                response_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetRuntimeTemplateResponse.FromString,
+        self.GetEnvironmentTemplate = channel.unary_unary(
+                '/axern.control.catalog.v1.EnvironmentCatalog/GetEnvironmentTemplate',
+                request_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetEnvironmentTemplateRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetEnvironmentTemplateResponse.FromString,
                 _registered_method=True)
 
 
-class RuntimeCatalogServicer:
+class EnvironmentCatalogServicer:
     """Missing associated documentation comment in .proto file."""
 
-    def ListRuntimeTemplates(self, request, context):
+    def ListEnvironmentTemplates(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetRuntimeTemplate(self, request, context):
+    def GetEnvironmentTemplate(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
 
-def add_RuntimeCatalogServicer_to_server(servicer, server):
+def add_EnvironmentCatalogServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'ListRuntimeTemplates': grpc.unary_unary_rpc_method_handler(
-                    servicer.ListRuntimeTemplates,
-                    request_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListRuntimeTemplatesRequest.FromString,
-                    response_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListRuntimeTemplatesResponse.SerializeToString,
+            'ListEnvironmentTemplates': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListEnvironmentTemplates,
+                    request_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListEnvironmentTemplatesRequest.FromString,
+                    response_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListEnvironmentTemplatesResponse.SerializeToString,
             ),
-            'GetRuntimeTemplate': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetRuntimeTemplate,
-                    request_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetRuntimeTemplateRequest.FromString,
-                    response_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetRuntimeTemplateResponse.SerializeToString,
+            'GetEnvironmentTemplate': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetEnvironmentTemplate,
+                    request_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetEnvironmentTemplateRequest.FromString,
+                    response_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetEnvironmentTemplateResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'axern.control.catalog.v1.RuntimeCatalog', rpc_method_handlers)
+            'axern.control.catalog.v1.EnvironmentCatalog', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('axern.control.catalog.v1.RuntimeCatalog', rpc_method_handlers)
+    server.add_registered_method_handlers('axern.control.catalog.v1.EnvironmentCatalog', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class RuntimeCatalog:
+class EnvironmentCatalog:
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def ListRuntimeTemplates(request,
+    def ListEnvironmentTemplates(request,
             target,
             options=(),
             channel_credentials=None,
@@ -99,9 +99,9 @@ class RuntimeCatalog:
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/axern.control.catalog.v1.RuntimeCatalog/ListRuntimeTemplates',
-            axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListRuntimeTemplatesRequest.SerializeToString,
-            axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListRuntimeTemplatesResponse.FromString,
+            '/axern.control.catalog.v1.EnvironmentCatalog/ListEnvironmentTemplates',
+            axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListEnvironmentTemplatesRequest.SerializeToString,
+            axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListEnvironmentTemplatesResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -113,7 +113,7 @@ class RuntimeCatalog:
             _registered_method=True)
 
     @staticmethod
-    def GetRuntimeTemplate(request,
+    def GetEnvironmentTemplate(request,
             target,
             options=(),
             channel_credentials=None,
@@ -126,9 +126,9 @@ class RuntimeCatalog:
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/axern.control.catalog.v1.RuntimeCatalog/GetRuntimeTemplate',
-            axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetRuntimeTemplateRequest.SerializeToString,
-            axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetRuntimeTemplateResponse.FromString,
+            '/axern.control.catalog.v1.EnvironmentCatalog/GetEnvironmentTemplate',
+            axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetEnvironmentTemplateRequest.SerializeToString,
+            axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetEnvironmentTemplateResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -54,7 +54,7 @@ type Clients struct {
 	Environment      environmentv1.EnvironmentControlClient
 	Run              runv1.RunControlClient
 	Secret           secretv1.SecretControlClient
-	Catalog          catalogv1.RuntimeCatalogClient
+	Catalog          catalogv1.EnvironmentCatalogClient
 	Tunnel           tunnelv1.TunnelControlClient
 	Namespace        namespacev1.NamespaceControlClient
 	Quota            quotav1.QuotaControlClient

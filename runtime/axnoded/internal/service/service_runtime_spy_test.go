@@ -11,8 +11,7 @@ import (
 
 type runtimeSpyHandler struct {
 	name                 string
-	capabilities         contract.RuntimeCapabilities
-	requirements         contract.RuntimeRequirements
+	requirements         contract.HostRequirements
 	waitExitCode         int
 	waitFunc             func(context.Context, contract.HandlerOptions) (contract.Exit, error)
 	createCalls          int
@@ -53,9 +52,7 @@ type runtimeSpyHandler struct {
 
 func (h *runtimeSpyHandler) Name() string { return h.name }
 
-func (h *runtimeSpyHandler) Capabilities() contract.RuntimeCapabilities { return h.capabilities }
-
-func (h *runtimeSpyHandler) Requirements() contract.RuntimeRequirements { return h.requirements }
+func (h *runtimeSpyHandler) HostRequirements() contract.HostRequirements { return h.requirements }
 
 func (h *runtimeSpyHandler) Version(_ context.Context) (*apipb.RuntimeVersion, error) {
 	return &apipb.RuntimeVersion{Version: "test"}, nil
@@ -153,8 +150,6 @@ func (h *runtimeSpyHandler) ProcessService() contract.ProcessService {
 func (h *runtimeSpyHandler) FileService() contract.FileService {
 	return runtimeSpyFileService{handler: h}
 }
-
-func (h *runtimeSpyHandler) CheckpointContainer(*apipb.CheckpointRequest) error { return nil }
 
 func (h *runtimeSpyHandler) Wait(ctx context.Context, options contract.HandlerOptions) (contract.Exit, error) {
 	if h.waitFunc != nil {

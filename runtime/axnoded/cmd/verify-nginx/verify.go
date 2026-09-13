@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -12,8 +13,9 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/cmd/internal/verifyutil"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/bpfnetstatus"
-	demonginx "github.com/cofy-x/axern/runtime/axnoded/internal/demo/nginx"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/natbench"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 )
 
 func runVerifyNginx(cfg verifyNginxConfig) error {
@@ -30,31 +32,22 @@ func runVerifyNginx(cfg verifyNginxConfig) error {
 	if err != nil {
 		return fmt.Errorf("create nginx config dir: %w", err)
 	}
-	if _, err := demonginx.WriteConfig(configDir); err != nil {
+	if err := writeNginxConfig(configDir); err != nil {
 		return fmt.Errorf("prepare nginx config: %w", err)
 	}
 	defer os.RemoveAll(configDir)
 
-	spec := demonginx.InstanceSpec{
-		RuntimeName: cfg.runtimeName,
-		SandboxID:   cfg.runtimeID,
-		RootfsPath:  cfg.rootfs,
-		ConfigDir:   configDir,
-		StdoutPath:  cfg.stdoutPath,
-		StderrPath:  cfg.stderrPath,
-		HostPort:    cfg.listenPort,
-	}
-	resolvedSpec := demonginx.BuildResolvedExecutionConfig(spec)
+	resolvedSpec := nginxExecutionConfig(cfg, configDir)
 
-	startupBefore, err := natbench.CaptureStartupSnapshot("http://127.0.0.1:23001/debug/metricsz", cfg.runtimeName, "local")
+	startupBefore, err := natbench.CaptureStartupSnapshot("http://127.0.0.1:23001/debug/metricsz", config.RuntimeNameRunsc, "local")
 	if err != nil {
 		return fmt.Errorf("capture startup metrics before nginx start: %w", err)
 	}
-	handle, err := verifyutil.CreateAllocation(ctx, clients, verifyutil.NewSandboxID(cfg.runtimeID), resolvedSpec)
+	handle, err := verifyutil.CreateAllocation(ctx, clients, verifyutil.NewSandboxID(cfg.environmentID), resolvedSpec)
 	if err != nil {
 		return fmt.Errorf("create nginx sandbox: %w", err)
 	}
-	startupAfter, err := natbench.CaptureStartupSnapshot("http://127.0.0.1:23001/debug/metricsz", cfg.runtimeName, "local")
+	startupAfter, err := natbench.CaptureStartupSnapshot("http://127.0.0.1:23001/debug/metricsz", config.RuntimeNameRunsc, "local")
 	if err != nil {
 		return fmt.Errorf("capture startup metrics after nginx start: %w", err)
 	}
@@ -150,7 +143,7 @@ func runVerifyNginx(cfg verifyNginxConfig) error {
 			return fmt.Errorf("benchmark requires -external-probe-netns and -external-probe-address")
 		}
 		target := fmt.Sprintf("http://%s:%d/", cfg.externalAddr, cfg.listenPort)
-		report, err := runExternalTCPIngressBenchmark(cfg.natBackend, cfg.runtimeName, cfg.bpfnetPin, cfg.externalNetNS, target, cfg.requests, cfg.concurrency, cfg.warmupRequests, cfg.timeout, startupSummary, localitySummary)
+		report, err := runExternalTCPIngressBenchmark(cfg.natBackend, config.RuntimeNameRunsc, cfg.bpfnetPin, cfg.externalNetNS, target, cfg.requests, cfg.concurrency, cfg.warmupRequests, cfg.timeout, startupSummary, localitySummary)
 		if err != nil {
 			return fmt.Errorf("benchmark external tcp ingress: %w", err)
 		}
@@ -177,6 +170,44 @@ func runVerifyNginx(cfg verifyNginxConfig) error {
 	}
 	return nil
 }
+
+func writeNginxConfig(configDir string) error {
+	return os.WriteFile(filepath.Join(configDir, "nginx.conf"), []byte(nginxConfig), 0644)
+}
+
+func nginxExecutionConfig(cfg verifyNginxConfig, configDir string) *privatenodev1.ResolvedExecutionConfig {
+	return &privatenodev1.ResolvedExecutionConfig{
+		Argv: []string{"/usr/sbin/nginx", "-c", "/axnoded-conf/nginx.conf", "-g", "daemon off;"},
+		Cwd:  "/",
+		Env:  map[string]string{"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"},
+		Mounts: []*privatenodev1.SandboxMount{
+			{Type: "bind", Source: configDir, Target: "/axnoded-conf", Options: []string{"rbind", "ro"}},
+			{Type: "tmpfs", Source: "tmpfs", Target: "/tmp", Options: []string{"nosuid", "nodev", "mode=1777"}},
+			{Type: "tmpfs", Source: "tmpfs", Target: "/var/run", Options: []string{"nosuid", "nodev", "mode=0755"}},
+			{Type: "tmpfs", Source: "tmpfs", Target: "/var/cache/nginx", Options: []string{"nosuid", "nodev", "mode=0755"}},
+		},
+		LocalityKey: cfg.rootfs, LocalRootfsPath: cfg.rootfs,
+		Ports:      []*commonv1.PortSpec{{Protocol: commonv1.PortProtocol_PORT_PROTOCOL_TCP, HostPort: int32(cfg.listenPort), ContainerPort: 80}},
+		StdoutPath: cfg.stdoutPath, StderrPath: cfg.stderrPath,
+	}
+}
+
+const nginxConfig = `user root;
+master_process off;
+worker_processes 1;
+error_log /dev/stderr info;
+pid /var/run/nginx.pid;
+events { worker_connections 1024; }
+http {
+  access_log /dev/stdout;
+  client_body_temp_path /var/cache/nginx/client_temp;
+  proxy_temp_path /var/cache/nginx/proxy_temp;
+  fastcgi_temp_path /var/cache/nginx/fastcgi_temp;
+  uwsgi_temp_path /var/cache/nginx/uwsgi_temp;
+  scgi_temp_path /var/cache/nginx/scgi_temp;
+  server { listen 80; server_name _; location / { root /usr/share/nginx/html; index index.html; } }
+}
+`
 
 func isExpectedTCPBPFNetMode(mode string) bool {
 	switch mode {

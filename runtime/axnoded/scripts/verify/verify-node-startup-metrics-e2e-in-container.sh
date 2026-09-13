@@ -23,14 +23,13 @@ metricsz_wait_capability_snapshot
 
 start_container() {
   local runtime_name="$1"
-  local runtime_id="$2"
+  local environment_id="$2"
   local stdout_path="$3"
   local stderr_path="$4"
 
   verify-cli \
     -address "${AXNODED_SOCKET}" \
-    -runtime "${runtime_name}" \
-    -runtime-id "${runtime_id}" \
+    -environment-id "${environment_id}" \
     -stdout "${stdout_path}" \
     -stderr "${stderr_path}" \
     -shell-command "sleep 300" \
@@ -40,16 +39,16 @@ start_container() {
 metrics_before="$(metricsz_fetch)"
 
 for runtime_name in runsc; do
-  runtime_id="startup-metrics-${runtime_name}"
+  environment_id="startup-metrics-${runtime_name}"
 
-  cold_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtime_name}.cold.stdout" "/tmp/${runtime_name}.cold.stderr")"
+  cold_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${runtime_name}.cold.stdout" "/tmp/${runtime_name}.cold.stderr")"
   [ -n "${cold_id}" ] || {
     echo "cold start did not return a container id for ${runtime_name}" >&2
     exit 1
   }
   axctl --address "${AXNODED_SOCKET}" sandbox delete "${cold_id}"
 
-  warm_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtime_name}.warm.stdout" "/tmp/${runtime_name}.warm.stderr")"
+  warm_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${runtime_name}.warm.stdout" "/tmp/${runtime_name}.warm.stderr")"
   [ -n "${warm_id}" ] || {
     echo "warm start did not return a container id for ${runtime_name}" >&2
     exit 1
@@ -69,7 +68,7 @@ for runtime_name in runsc; do
   metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
     "axern.start_class=warm" "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
   metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
-    "axern.phase=langruntime_lookup" "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
+    "axern.phase=environmentcache_lookup" "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
   metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
     "axern.phase=rootfs_prepare" "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=local" "axern.result=ok"
   metricsz_assert_delta "${metrics_before}" "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
@@ -94,12 +93,12 @@ done
 
 # The final delete leaves the reused runsc runtime and its shared local rootfs
 # retained. A warm start must not create an additional idle runtime.
-metricsz_wait_value "axern.axnoded_retained_runtime_current" "gauge" "1" \
+metricsz_wait_value "axern.axnoded_retained_environment_current" "gauge" "1" \
   "axern.rootfs_type=local"
 metricsz_wait_value "axern.axnoded_retained_rootfs_current" "gauge" "1" \
   "axern.rootfs_type=local"
 metrics_output="$(metricsz_fetch)"
-metricsz_assert_value "${metrics_output}" "axern.axnoded_retained_runtime_current" "gauge" "1" \
+metricsz_assert_value "${metrics_output}" "axern.axnoded_retained_environment_current" "gauge" "1" \
   "axern.rootfs_type=local"
 metricsz_assert_value "${metrics_output}" "axern.axnoded_retained_rootfs_current" "gauge" "1" \
   "axern.rootfs_type=local"

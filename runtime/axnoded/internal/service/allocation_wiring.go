@@ -20,7 +20,7 @@ func (h *sandboxService) allocationOptions() allocation.Options {
 			return h.containerManager
 		},
 		RunscHandler:                h.runscHandler,
-		LangRuntime:                 h.lrtManager,
+		EnvironmentCache:            h.environmentCache,
 		Networking:                  h.networking,
 		ReportStatus:                h.ReportAllocationLifecycle,
 		InventoryChanged:            h.notifyNodeInventoryChanged,

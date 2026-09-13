@@ -36,7 +36,7 @@ message Environment {
   EnvironmentStatus status = 3;
   EnvironmentSpec spec = 4;
   string spec_hash = 5;
-  axern.control.catalog.v1.RuntimeTemplate resolved_template = 6;
+  axern.control.catalog.v1.EnvironmentTemplate resolved_template = 6;
   map<string, string> labels = 7;
   int64 version = 8;
   google.protobuf.Timestamp created_at = 9;

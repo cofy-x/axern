@@ -1,27 +1,27 @@
-"""Runtime catalog client and models."""
+"""Environment catalog client and models."""
 
-from axern_sdk.catalog.client import CatalogClient
+from axern_sdk.catalog.client import EnvironmentCatalogClient
 from axern_sdk.catalog.models import (
     MountSpec,
     OciImageDescriptor,
-    RuntimeBaselinePolicy,
-    RuntimeCapabilities,
-    RuntimeCapabilityPolicy,
-    RuntimeExecutionProfile,
-    RuntimeNetworkNamespacePolicy,
-    RuntimeResourcePolicy,
-    RuntimeTemplate,
+    OciBaselinePolicy,
+    EnvironmentTemplateCapabilities,
+    OciCapabilityPolicy,
+    OciExecutionProfile,
+    OciNetworkNamespacePolicy,
+    OciResourcePolicy,
+    EnvironmentTemplate,
 )
 
 __all__ = [
-    "CatalogClient",
+    "EnvironmentCatalogClient",
     "MountSpec",
     "OciImageDescriptor",
-    "RuntimeBaselinePolicy",
-    "RuntimeCapabilities",
-    "RuntimeCapabilityPolicy",
-    "RuntimeExecutionProfile",
-    "RuntimeNetworkNamespacePolicy",
-    "RuntimeResourcePolicy",
-    "RuntimeTemplate",
+    "OciBaselinePolicy",
+    "EnvironmentTemplateCapabilities",
+    "OciCapabilityPolicy",
+    "OciExecutionProfile",
+    "OciNetworkNamespacePolicy",
+    "OciResourcePolicy",
+    "EnvironmentTemplate",
 ]

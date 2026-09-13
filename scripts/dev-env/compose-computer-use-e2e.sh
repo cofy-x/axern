@@ -21,7 +21,7 @@ import sys
 
 expected_ref = sys.argv[1]
 payload = json.loads(sys.argv[2])
-template = payload.get("runtime_template") or payload.get("runtimeTemplate") or {}
+template = payload.get("environment_template") or payload.get("environmentTemplate") or {}
 descriptor = template.get("image_descriptor") or template.get("imageDescriptor") or {}
 annotations = descriptor.get("annotations") or {}
 actual_ref = annotations.get("org.opencontainers.image.ref.name", "")

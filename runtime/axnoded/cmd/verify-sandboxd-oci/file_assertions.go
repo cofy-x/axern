@@ -133,7 +133,7 @@ func assertSandboxdBackedFileService(ctx context.Context, cfg config, bundlePath
 	}
 	containerRoot := filepath.Dir(bundlePath)
 	runtimeRoot := filepath.Dir(containerRoot)
-	handler, err := newVerifyRuntimeHandlerWithRoot(cfg, runtimeRoot)
+	handler, err := newVerifySandboxRuntimeWithRoot(cfg, runtimeRoot)
 	if err != nil {
 		return err
 	}

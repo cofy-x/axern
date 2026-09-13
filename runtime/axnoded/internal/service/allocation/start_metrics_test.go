@@ -8,7 +8,7 @@ import (
 	"time"
 
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 )
 
@@ -16,19 +16,19 @@ type countingRootfsMounter struct {
 	resolveCalls int
 }
 
-func (m *countingRootfsMounter) Resolve(cfg langrtmanager.RootfsConfig) (langrtmanager.RootfsConfig, error) {
+func (m *countingRootfsMounter) Resolve(cfg environmentcache.RootfsConfig) (environmentcache.RootfsConfig, error) {
 	m.resolveCalls++
 	return cfg, nil
 }
 
 func (m *countingRootfsMounter) Reconcile([]string) error { return nil }
 
-func (m *countingRootfsMounter) Mount(cfg langrtmanager.RootfsConfig) (*langrtmanager.MountResult, error) {
-	mount, err := langrtmanager.DescribeLocalRootfs(cfg.Path)
-	return &langrtmanager.MountResult{Path: cfg.Path, ImmutableMount: mount}, err
+func (m *countingRootfsMounter) Mount(cfg environmentcache.RootfsConfig) (*environmentcache.MountResult, error) {
+	mount, err := environmentcache.DescribeLocalRootfs(cfg.Path)
+	return &environmentcache.MountResult{Path: cfg.Path, ImmutableMount: mount}, err
 }
 
-func (m *countingRootfsMounter) Umount(langrtmanager.RootfsConfig) error {
+func (m *countingRootfsMounter) Umount(environmentcache.RootfsConfig) error {
 	return nil
 }
 
@@ -112,14 +112,14 @@ func (f *fakeStartMetricSink) RecordStartResult(startClass, runtime, rootfsType,
 	})
 }
 
-func TestEnsureLangRuntimeSummaryWarmAndCold(t *testing.T) {
+func TestEnsureEnvironmentCacheSummaryWarmAndCold(t *testing.T) {
 	rootfsDir := t.TempDir()
 	fixture := newTestAllocationController(t, nil)
 	mounter := &countingRootfsMounter{}
-	manager := langrtmanager.NewLanguageRuntimeManager(mounter)
-	fixture.controller.lrtManager = manager
-	fixture.lrtManager = manager
-	functionRuntime := &runtimeapi.RuntimeTemplate{
+	manager := environmentcache.NewEnvironmentCache(mounter)
+	fixture.controller.environmentCache = manager
+	fixture.environmentCache = manager
+	functionRuntime := &runtimeapi.EnvironmentTemplate{
 		ID: "start-metrics-runtime",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type: runtimeapi.RootfsSrcType_LOCAL,
@@ -127,18 +127,18 @@ func TestEnsureLangRuntimeSummaryWarmAndCold(t *testing.T) {
 				Path: rootfsDir,
 			},
 		},
-		Command: []string{"/bin/sh"},
+		Argv: []string{"/bin/sh"},
 	}
 
-	lrt, first, err := fixture.controller.ensureLangRuntime(t.Context(), functionRuntime)
+	lrt, first, err := fixture.controller.ensurePreparedEnvironment(t.Context(), functionRuntime)
 	if err != nil {
-		t.Fatalf("ensureLangRuntime() first call error = %v", err)
+		t.Fatalf("ensurePreparedEnvironment() first call error = %v", err)
 	}
 	if lrt == nil {
-		t.Fatal("ensureLangRuntime() first call returned nil runtime")
+		t.Fatal("ensurePreparedEnvironment() first call returned nil runtime")
 	}
 	if first.RuntimeReused {
-		t.Fatalf("first ensureLangRuntime() reused = true, want false")
+		t.Fatalf("first ensurePreparedEnvironment() reused = true, want false")
 	}
 	if first.StartClass() != contract.StartupClassCold {
 		t.Fatalf("first start class = %q, want %q", first.StartClass(), contract.StartupClassCold)
@@ -160,15 +160,15 @@ func TestEnsureLangRuntimeSummaryWarmAndCold(t *testing.T) {
 		t.Fatal("cold start did not resolve rootfs config")
 	}
 
-	lrtAgain, second, err := fixture.controller.ensureLangRuntime(t.Context(), functionRuntime)
+	lrtAgain, second, err := fixture.controller.ensurePreparedEnvironment(t.Context(), functionRuntime)
 	if err != nil {
-		t.Fatalf("ensureLangRuntime() second call error = %v", err)
+		t.Fatalf("ensurePreparedEnvironment() second call error = %v", err)
 	}
 	if lrtAgain != lrt {
-		t.Fatal("ensureLangRuntime() second call returned different runtime")
+		t.Fatal("ensurePreparedEnvironment() second call returned different runtime")
 	}
 	if !second.RuntimeReused {
-		t.Fatalf("second ensureLangRuntime() reused = false, want true")
+		t.Fatalf("second ensurePreparedEnvironment() reused = false, want true")
 	}
 	if second.StartClass() != contract.StartupClassWarm {
 		t.Fatalf("second start class = %q, want %q", second.StartClass(), contract.StartupClassWarm)
@@ -182,64 +182,64 @@ func TestEnsureLangRuntimeSummaryWarmAndCold(t *testing.T) {
 	}
 }
 
-func TestEnsureLangRuntimeDriftedSpecReplacesRetainedRuntime(t *testing.T) {
+func TestEnsureEnvironmentCacheDriftedSpecReplacesRetainedEnvironment(t *testing.T) {
 	rootfsDirA := t.TempDir()
 	rootfsDirB := t.TempDir()
 	fixture := newTestAllocationController(t, nil)
-	fixture.lrtManager.ConfigureRetention(time.Minute, 8)
+	fixture.environmentCache.ConfigureRetention(time.Minute, 8)
 
-	firstRuntime := &runtimeapi.RuntimeTemplate{
+	firstRuntime := &runtimeapi.EnvironmentTemplate{
 		ID: "start-metrics-drift-runtime",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
 			Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDirA},
 		},
-		Command: []string{"/bin/sh"},
-		Cwd:     "/workspace-a",
+		Argv: []string{"/bin/sh"},
+		Cwd:  "/workspace-a",
 	}
-	lrt, first, err := fixture.controller.ensureLangRuntime(t.Context(), firstRuntime)
+	lrt, first, err := fixture.controller.ensurePreparedEnvironment(t.Context(), firstRuntime)
 	if err != nil {
-		t.Fatalf("ensureLangRuntime(first) error = %v", err)
+		t.Fatalf("ensurePreparedEnvironment(first) error = %v", err)
 	}
 	lrt.IncRef()
 	lrt.DecRef()
 
-	driftedRuntime := &runtimeapi.RuntimeTemplate{
+	driftedRuntime := &runtimeapi.EnvironmentTemplate{
 		ID: "start-metrics-drift-runtime",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
 			Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDirB},
 		},
-		Command: []string{"/bin/bash"},
-		Cwd:     "/workspace-b",
+		Argv: []string{"/bin/bash"},
+		Cwd:  "/workspace-b",
 	}
-	replaced, second, err := fixture.controller.ensureLangRuntime(t.Context(), driftedRuntime)
+	replaced, second, err := fixture.controller.ensurePreparedEnvironment(t.Context(), driftedRuntime)
 	if err != nil {
-		t.Fatalf("ensureLangRuntime(drifted) error = %v", err)
+		t.Fatalf("ensurePreparedEnvironment(drifted) error = %v", err)
 	}
 	if replaced == lrt {
-		t.Fatal("expected drifted spec to replace retained runtime")
+		t.Fatal("expected drifted spec to replace retained environment")
 	}
 	if first.RuntimeReused {
-		t.Fatalf("first ensureLangRuntime() reused = true, want false")
+		t.Fatalf("first ensurePreparedEnvironment() reused = true, want false")
 	}
 	if second.RuntimeReused {
-		t.Fatalf("drifted ensureLangRuntime() reused = true, want false")
+		t.Fatalf("drifted ensurePreparedEnvironment() reused = true, want false")
 	}
 	if second.StartClass() != contract.StartupClassCold {
 		t.Fatalf("drifted start class = %q, want %q", second.StartClass(), contract.StartupClassCold)
 	}
 }
 
-func TestRootfsTypeFromRuntimeTemplate(t *testing.T) {
+func TestRootfsTypeFromEnvironmentTemplate(t *testing.T) {
 	tests := []struct {
 		name string
-		fr   *runtimeapi.RuntimeTemplate
+		fr   *runtimeapi.EnvironmentTemplate
 		want string
 	}{
 		{
 			name: "local",
-			fr: &runtimeapi.RuntimeTemplate{
+			fr: &runtimeapi.EnvironmentTemplate{
 				Rootfs: &runtimeapi.RootfsConfig{
 					Type:   runtimeapi.RootfsSrcType_LOCAL,
 					Source: &runtimeapi.RootfsConfig_Path{Path: "/tmp/rootfs"},
@@ -249,7 +249,7 @@ func TestRootfsTypeFromRuntimeTemplate(t *testing.T) {
 		},
 		{
 			name: "image",
-			fr: &runtimeapi.RuntimeTemplate{
+			fr: &runtimeapi.EnvironmentTemplate{
 				Rootfs: &runtimeapi.RootfsConfig{
 					Type:   runtimeapi.RootfsSrcType_IMAGE,
 					Source: &runtimeapi.RootfsConfig_ImageUrl{ImageUrl: "docker.io/library/alpine:latest"},
@@ -259,15 +259,15 @@ func TestRootfsTypeFromRuntimeTemplate(t *testing.T) {
 		},
 		{
 			name: "removed source",
-			fr:   &runtimeapi.RuntimeTemplate{Rootfs: &runtimeapi.RootfsConfig{Type: runtimeapi.RootfsSrcType_UNSPECIFIED}},
+			fr:   &runtimeapi.EnvironmentTemplate{Rootfs: &runtimeapi.RootfsConfig{Type: runtimeapi.RootfsSrcType_UNSPECIFIED}},
 			want: contract.StartupRootfsTypeUnknown,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := RootfsTypeFromRuntimeTemplate(tt.fr); got != tt.want {
-				t.Fatalf("RootfsTypeFromRuntimeTemplate() = %q, want %q", got, tt.want)
+			if got := RootfsTypeFromEnvironmentTemplate(tt.fr); got != tt.want {
+				t.Fatalf("RootfsTypeFromEnvironmentTemplate() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -294,7 +294,7 @@ func TestStartMetricsRecorderSuccess(t *testing.T) {
 	recorder := NewStartMetricsRecorder(sink, "runsc", contract.StartupRootfsTypeLocal)
 
 	recorder.SetStartClass(contract.StartupClassWarm)
-	recorder.RecordStartupPhase(contract.StartupPhaseLangRuntimeLookup, 5*time.Millisecond)
+	recorder.RecordStartupPhase(contract.StartupPhaseEnvironmentLookup, 5*time.Millisecond)
 	recorder.RecordStartupPhase(contract.StartupPhaseRuntimeLaunch, 25*time.Millisecond)
 	recorder.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, contract.StartupStepSandboxdWaitReady, 7*time.Millisecond)
 	recorder.Finish(contract.StartupResultOK)
@@ -329,7 +329,7 @@ func TestStartMetricsRecorderError(t *testing.T) {
 	sink := &fakeStartMetricSink{}
 	recorder := NewStartMetricsRecorder(sink, "runsc", contract.StartupRootfsTypeImage)
 
-	recorder.RecordStartupPhase(contract.StartupPhaseLangRuntimeLookup, 3*time.Millisecond)
+	recorder.RecordStartupPhase(contract.StartupPhaseEnvironmentLookup, 3*time.Millisecond)
 	recorder.RecordStartupPhase(contract.StartupPhaseRootfsPrepare, 17*time.Millisecond)
 	recorder.Finish(contract.StartupResultError)
 
@@ -390,14 +390,14 @@ func TestStartAllocationRecordsSuccessResult(t *testing.T) {
 
 	rootfsDir := t.TempDir()
 	request := &runtimeapi.StartRequest{
-		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
+		EnvironmentTemplate: &runtimeapi.EnvironmentTemplate{
 			ID: "start-metrics-allocation-success",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,
 				Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDir},
 			},
-			Command: []string{"/bin/true"},
-			Cwd:     "/",
+			Argv: []string{"/bin/true"},
+			Cwd:  "/",
 		},
 		Stdout: filepath.Join(t.TempDir(), "stdout.log"),
 		Stderr: filepath.Join(t.TempDir(), "stderr.log"),

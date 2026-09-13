@@ -36,8 +36,7 @@ start_container() {
   local index="$1"
   verify-cli \
     -address "${AXNODED_SOCKET}" \
-    -runtime runsc \
-    -runtime-id "warm-pool-runsc-${index}" \
+    -environment-id "warm-pool-runsc-${index}" \
     -stdout "/tmp/warm-pool.${index}.stdout" \
     -stderr "/tmp/warm-pool.${index}.stderr" \
     -shell-command "sleep 300" \

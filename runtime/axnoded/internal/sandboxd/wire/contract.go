@@ -21,7 +21,6 @@ func FileCapabilities() []string {
 
 func ProcessCapabilities() []string {
 	return []string{
-		CapabilityManagedProxy,
 		CapabilityProcess,
 		CapabilityPTY,
 	}
@@ -33,7 +32,6 @@ func BaselineCapabilities() []string {
 		CapabilityDiagnostics,
 		CapabilityFile,
 		CapabilityHealth,
-		CapabilityManagedProxy,
 		CapabilityMounts,
 		CapabilityPorts,
 		CapabilityProbe,

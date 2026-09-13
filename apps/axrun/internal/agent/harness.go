@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"time"
 
 	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
@@ -18,31 +17,18 @@ type Harness interface {
 }
 
 type Request struct {
-	Agent        domain.AgentSpec
-	Model        domain.ModelSpec
-	Task         domain.TaskInstance
-	Episode      domain.Episode
-	Sandbox      sandbox.Instance
-	Instruction  string
-	ArtifactDir  string
-	ManagedProxy *sandbox.ManagedProxyOptions
-	Recorder     *proxy.Recorder
-}
-
-// ManagedProxyConfigurer is implemented by harnesses that require sandboxd to
-// run a provider-backed recording proxy alongside the agent process.
-type ManagedProxyConfigurer interface {
-	ManagedProxyConfig(agentSpec domain.AgentSpec) (*ManagedProxyConfig, error)
+	Agent       domain.AgentSpec
+	Model       domain.ModelSpec
+	Task        domain.TaskInstance
+	Episode     domain.Episode
+	Sandbox     sandbox.Instance
+	Instruction string
+	ArtifactDir string
+	Recorder    *proxy.Recorder
 }
 
 type ProviderCapabilityProber interface {
 	ProbeProvider(context.Context, domain.AgentSpec, domain.ModelSpec) (agentprofile.ProbeResult, error)
-}
-
-type ManagedProxyConfig struct {
-	Upstream     *url.URL
-	Token        string
-	ProviderType ProviderType
 }
 
 type Result = domain.AgentResult

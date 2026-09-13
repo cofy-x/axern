@@ -45,7 +45,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cilium/ebpf v0.9.3 // indirect
 	github.com/cofy-x/axern/lib/go/grpcclient v0.0.0
-	github.com/cofy-x/axern/lib/go/llmproxy v0.0.0
 	github.com/cofy-x/axern/lib/go/observability v0.0.0
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
@@ -78,7 +77,5 @@ require (
 )
 
 replace github.com/cofy-x/axern/lib/go/grpcclient => ../../lib/go/grpcclient
-
-replace github.com/cofy-x/axern/lib/go/llmproxy => ../../lib/go/llmproxy
 
 replace github.com/cofy-x/axern/lib/go/observability => ../../lib/go/observability

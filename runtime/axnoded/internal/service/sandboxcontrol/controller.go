@@ -43,7 +43,7 @@ func (c *Controller) List(_ context.Context, request *runtime.ListContainersRequ
 			return response, errord.ErrNotFound
 		}
 	} else {
-		containers = c.options.ListContainers(container.ListFilterByLabels(request.GetSelector()))
+		containers = c.options.ListContainers()
 	}
 
 	for _, item := range containers {
@@ -191,21 +191,4 @@ func normalizeKillSignal(signal string) string {
 	}
 	normalized = strings.ToUpper(normalized)
 	return strings.TrimPrefix(normalized, "SIG")
-}
-
-func (c *Controller) Checkpoint(_ context.Context, request *runtime.CheckpointRequest) (*runtime.CheckpointResponse, error) {
-	target, err := c.options.ContainerTarget(request.GetID())
-	if err != nil {
-		return &runtime.CheckpointResponse{
-			Success: false,
-			Message: fmt.Sprintf("Failed to get container %v: %v", request.GetID(), err),
-		}, nil
-	}
-	if err := target.Handler.CheckpointContainer(request); err != nil {
-		return &runtime.CheckpointResponse{
-			Success: false,
-			Message: fmt.Sprintf("Failed to checkpoint container %v: %v", request.GetID(), err),
-		}, nil
-	}
-	return &runtime.CheckpointResponse{Success: true}, nil
 }

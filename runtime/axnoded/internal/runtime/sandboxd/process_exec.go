@@ -37,7 +37,6 @@ func ExecContainer(ctx context.Context, request *apipb.ExecContainerRequest, opt
 		User:          request.GetUser(),
 		CaptureOutput: true,
 		Terminal:      request.GetTty(),
-		ManagedProxy:  managedProxySpec(request.GetManagedProxy()),
 	})
 	if err != nil {
 		return nil, processOperationError("start exec process", err)
@@ -51,12 +50,11 @@ func ExecContainer(ctx context.Context, request *apipb.ExecContainerRequest, opt
 		return nil, err
 	}
 	return &apipb.ExecContainerResponse{
-		ExitCode:           int32(exitCode),
-		Stdout:             []byte(status.Stdout),
-		Stderr:             []byte(status.Stderr),
-		StdoutTruncated:    status.StdoutTruncated,
-		StderrTruncated:    status.StderrTruncated,
-		ManagedProxyReport: managedProxyReport(status.ManagedProxyReport),
+		ExitCode:        int32(exitCode),
+		Stdout:          []byte(status.Stdout),
+		Stderr:          []byte(status.Stderr),
+		StdoutTruncated: status.StdoutTruncated,
+		StderrTruncated: status.StderrTruncated,
 	}, nil
 }
 

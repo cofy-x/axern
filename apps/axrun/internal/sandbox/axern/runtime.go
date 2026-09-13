@@ -86,18 +86,16 @@ func (i instance) Exec(ctx context.Context, command sandbox.ExecCommand, options
 		return sandbox.ExecResult{}, err
 	}
 	result, err := i.sandbox.Exec(ctx, value, axernsdk.ExecOptions{
-		Env:          options.Env,
-		Cwd:          options.CWD,
-		Timeout:      options.Timeout,
-		User:         options.User,
-		Check:        false,
-		ManagedProxy: axernManagedProxyOptions(options.ManagedProxy),
+		Env:     options.Env,
+		Cwd:     options.CWD,
+		Timeout: options.Timeout,
+		User:    options.User,
+		Check:   false,
 	})
 	execResult := sandbox.ExecResult{
-		ExitCode:           int(result.ExitCode),
-		Stdout:             result.StdoutString(),
-		Stderr:             result.StderrString(),
-		ManagedProxyReport: sandboxManagedProxyReport(result.ManagedProxyReport),
+		ExitCode: int(result.ExitCode),
+		Stdout:   result.StdoutString(),
+		Stderr:   result.StderrString(),
 	}
 	if err != nil && sandbox.IsFatalSandboxError(err) {
 		return execResult, &sandbox.SandboxDeathError{
@@ -106,30 +104,6 @@ func (i instance) Exec(ctx context.Context, command sandbox.ExecCommand, options
 		}
 	}
 	return execResult, err
-}
-
-func axernManagedProxyOptions(options *sandbox.ManagedProxyOptions) *axernsdk.ManagedProxyOptions {
-	if options == nil {
-		return nil
-	}
-	return &axernsdk.ManagedProxyOptions{
-		Provider:            options.Provider,
-		UpstreamBaseURL:     options.UpstreamBaseURL,
-		UpstreamBearerToken: options.UpstreamBearerToken,
-	}
-}
-
-func sandboxManagedProxyReport(report *axernsdk.ManagedProxyReport) *sandbox.ManagedProxyReport {
-	if report == nil {
-		return nil
-	}
-	return &sandbox.ManagedProxyReport{
-		Provider:      report.Provider,
-		RequestCount:  report.RequestCount,
-		ResponseCount: report.ResponseCount,
-		ErrorCount:    report.ErrorCount,
-		ReportJSON:    append([]byte(nil), report.ReportJSON...),
-	}
 }
 
 func execCommandValue(command sandbox.ExecCommand) (any, error) {

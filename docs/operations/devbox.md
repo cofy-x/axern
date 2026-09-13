@@ -174,7 +174,7 @@ Catalog-backed workloads need their runtime images imported into standalone `ima
 make dev-runtime-images-load
 ```
 
-The default imports `python311`. Pass additional runtime templates when needed:
+The default imports `python311`. Pass additional environment templates when needed:
 
 ```bash
 make dev-runtime-images-load DEV_RUNTIME_IMAGES='python311 server-base coding-base desktop-base'

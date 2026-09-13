@@ -59,8 +59,8 @@ func EvaluationLess(left, right *nodev1.PlacementCandidate) bool {
 	if leftRank.GetRetainedRootfsCount() != rightRank.GetRetainedRootfsCount() {
 		return leftRank.GetRetainedRootfsCount() > rightRank.GetRetainedRootfsCount()
 	}
-	if leftRank.GetRetainedRuntimeCount() != rightRank.GetRetainedRuntimeCount() {
-		return leftRank.GetRetainedRuntimeCount() > rightRank.GetRetainedRuntimeCount()
+	if leftRank.GetRetainedEnvironmentCount() != rightRank.GetRetainedEnvironmentCount() {
+		return leftRank.GetRetainedEnvironmentCount() > rightRank.GetRetainedEnvironmentCount()
 	}
 	if leftRank.GetNydusDaemonAlive() != rightRank.GetNydusDaemonAlive() {
 		return leftRank.GetNydusDaemonAlive()

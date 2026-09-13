@@ -123,8 +123,7 @@ cmd=(
   -argv-json "${argv_json}"
   -wait-before-delete=true
   -expected-exit 0
-  -runtime "${runtime_name}"
-  -runtime-id "startup-matrix-${STARTUP_MATRIX_SCENARIO}"
+  -environment-id "startup-matrix-${STARTUP_MATRIX_SCENARIO}"
   -mount-type "${mount_type}"
 )
 

@@ -15,7 +15,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	nodecontrol "github.com/cofy-x/axern/runtime/axnoded/internal/controlplane"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	ebpfnetwork "github.com/cofy-x/axern/runtime/axnoded/internal/network/ebpf"
 	nodecapabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
@@ -23,7 +23,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
 	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/service/imageprocess"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/process"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxaccess"
@@ -38,20 +37,19 @@ var _ NodeService = &sandboxService{}
 // sandboxService is the NodeSandbox-facing facade assembled by NewSandboxService.
 type sandboxService struct {
 	config       config.Config
-	runscHandler contract.RuntimeHandler
+	runscHandler contract.SandboxRuntime
 
 	containerManager *container.Manager
 
 	store nodeStateStore
 
-	lrtManager        *langrtmanager.LangRTManager
+	environmentCache  *environmentcache.EnvironmentCache
 	egressClient      egress.Manager
 	egressCloser      io.Closer
 	sandboxAccess     *sandboxaccess.Accessor
 	sandboxTargets    *sandboxtarget.Resolver
 	networking        *servicenetworking.Coordinator
 	processController *process.Controller
-	imageProcesses    *imageprocess.Controller
 	sandboxController *sandboxcontrol.Controller
 	allocations       *allocation.Controller
 
@@ -169,11 +167,11 @@ func configureNodeNetwork(cfg config.Config) error {
 func newSandboxServiceState(cfg config.Config) (*sandboxService, error) {
 	imageManagerEnabled := cfg.PluginConfig.RuntimeConfig.ImageManagerEnabledValue()
 	imageManagerSocket := cfg.PluginConfig.RuntimeConfig.ImageManagerSocketPath()
-	retentionTTL, err := cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionTTLDuration()
+	retentionTTL, err := cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionTTLDuration()
 	if err != nil {
 		return nil, err
 	}
-	retentionMax := cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionMaxValue()
+	retentionMax := cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionMaxValue()
 	egressClient, err := egress.Dial(context.Background(), cfg.PluginConfig.RuntimeConfig.EgressManagerSocketPath())
 	if err != nil {
 		return nil, err
@@ -185,17 +183,17 @@ func newSandboxServiceState(cfg config.Config) (*sandboxService, error) {
 	}
 
 	s := &sandboxService{
-		config:       cfg,
-		store:        stateDB,
-		lrtManager:   langrtmanager.NewLanguageRuntimeManager(langrtmanager.NewDefaultMounter(imageManagerEnabled, imageManagerSocket)),
-		egressClient: egressClient,
-		egressCloser: egressClient,
+		config:           cfg,
+		store:            stateDB,
+		environmentCache: environmentcache.NewEnvironmentCache(environmentcache.NewDefaultMounter(imageManagerEnabled, imageManagerSocket)),
+		egressClient:     egressClient,
+		egressCloser:     egressClient,
 	}
 	if cfg.PluginConfig.ControlPlaneTargetValue() != "" {
 		s.allocationLifecycleOutbox = nodecontrol.NewAllocationLifecycleOutbox(stateDB)
 	}
 	s.capabilityReconcileCtx, s.capabilityReconcileCancel = context.WithCancel(context.Background())
-	s.lrtManager.ConfigureRetention(retentionTTL, retentionMax)
+	s.environmentCache.ConfigureRetention(retentionTTL, retentionMax)
 	return s, nil
 }
 
@@ -224,8 +222,8 @@ func (h *sandboxService) closeAfterInitializationFailure() {
 	if h.runscHandler != nil {
 		h.runscHandler.ShutDown()
 	}
-	if h.lrtManager != nil {
-		h.lrtManager.Close()
+	if h.environmentCache != nil {
+		h.environmentCache.Close()
 	}
 	h.closeEgress()
 	h.closeNodeState()
@@ -253,8 +251,8 @@ func (h *sandboxService) configureServiceCollaborators() error {
 	if h.store == nil {
 		return fmt.Errorf("configure service collaborators: node state store is required")
 	}
-	if h.lrtManager == nil {
-		return fmt.Errorf("configure service collaborators: language runtime manager is required")
+	if h.environmentCache == nil {
+		return fmt.Errorf("configure service collaborators: environment cache is required")
 	}
 	if h.egressClient == nil {
 		return fmt.Errorf("configure service collaborators: egress manager is required")
@@ -266,7 +264,6 @@ func (h *sandboxService) configureServiceCollaborators() error {
 	h.configureSandboxControl()
 	h.configureAllocationController()
 	h.configureControlPlaneReports()
-	h.configureImageProcesses()
 	return nil
 }
 

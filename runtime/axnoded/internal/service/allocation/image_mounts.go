@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	"github.com/sirupsen/logrus"
@@ -31,7 +31,7 @@ func (h *Controller) resolveImageMounts(request *runtime.StartRequest, extraConf
 	if request == nil || len(request.GetImageMounts()) == 0 {
 		return nil, func() {}, nil
 	}
-	if h == nil || h.lrtManager == nil {
+	if h == nil || h.environmentCache == nil {
 		return nil, nil, fmt.Errorf("image mount runtime manager is unavailable: %w", errord.ErrFailedPrecondition)
 	}
 	if err := validateImageMountTargets(request); err != nil {
@@ -39,7 +39,7 @@ func (h *Controller) resolveImageMounts(request *runtime.StartRequest, extraConf
 	}
 
 	mounts := make([]*runtime.Mount, 0, len(request.GetImageMounts()))
-	roots := make([]*langrtmanager.RootFS, 0, len(request.GetImageMounts()))
+	roots := make([]*environmentcache.RootFS, 0, len(request.GetImageMounts()))
 	cleanup := func() {
 		releaseImageMountRoots(roots)
 	}
@@ -48,17 +48,17 @@ func (h *Controller) resolveImageMounts(request *runtime.StartRequest, extraConf
 		if imageMount == nil {
 			continue
 		}
-		cfg := langrtmanager.RootfsConfig{
+		cfg := environmentcache.RootfsConfig{
 			SrcType:          runtime.RootfsSrcType_IMAGE,
 			ImageUrl:         strings.TrimSpace(imageMount.GetImage()),
 			DockerConfigJSON: strings.TrimSpace(extraConfig.DockerConfigJSON),
 		}
-		resolved, err := h.lrtManager.ResolveRootfsConfig(cfg)
+		resolved, err := h.environmentCache.ResolveRootfsConfig(cfg)
 		if err != nil {
 			cleanup()
 			return nil, nil, fmt.Errorf("resolve image mount %q: %w", cfg.ImageUrl, err)
 		}
-		rootfs, err := h.lrtManager.GetRootfs(resolved)
+		rootfs, err := h.environmentCache.GetRootfs(resolved)
 		if err != nil {
 			cleanup()
 			return nil, nil, fmt.Errorf("mount image %q: %w", cfg.ImageUrl, err)
@@ -108,7 +108,7 @@ func validateImageMountTargets(request *runtime.StartRequest) error {
 				return fmt.Errorf("image mount target %q overlaps image mount target %q: %w", target, existing, errord.ErrInvalidArgument)
 			}
 		}
-		if err := validateImageMountTargetDoesNotOverlapMounts(target, request.GetRuntimeTemplate().GetMounts()); err != nil {
+		if err := validateImageMountTargetDoesNotOverlapMounts(target, request.GetEnvironmentTemplate().GetMounts()); err != nil {
 			return err
 		}
 		if err := validateImageMountTargetDoesNotOverlapMounts(target, request.GetMounts()); err != nil {
@@ -150,7 +150,7 @@ func containerPathsOverlap(a, b string) bool {
 	return a == b || strings.HasPrefix(a, b+"/") || strings.HasPrefix(b, a+"/")
 }
 
-func releaseImageMountRoots(roots []*langrtmanager.RootFS) {
+func releaseImageMountRoots(roots []*environmentcache.RootFS) {
 	for _, rootfs := range roots {
 		if rootfs == nil {
 			continue

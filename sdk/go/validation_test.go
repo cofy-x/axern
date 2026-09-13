@@ -39,18 +39,6 @@ func TestExecAndProcessOptionValidation(t *testing.T) {
 	if _, err := node.Process(context.Background(), "true", ProcessOptions{Timeout: -time.Second}); !IsValidation(err) {
 		t.Fatalf("Process negative timeout error = %v, want validation", err)
 	}
-	if _, err := node.ExecImage(context.Background(), "", "true", ImageExecOptions{}); !IsValidation(err) {
-		t.Fatalf("ExecImage empty image error = %v, want validation", err)
-	}
-	if _, err := node.ExecImage(context.Background(), "image", "true", ImageExecOptions{Mounts: []ImageProcessMount{{SandboxPath: "workspace", TargetPath: "/workspace"}}}); !IsValidation(err) {
-		t.Fatalf("ExecImage relative sandbox mount error = %v, want validation", err)
-	}
-	if _, err := node.ProcessImage(context.Background(), "image", []string{}, ImageProcessOptions{}); !IsValidation(err) {
-		t.Fatalf("ProcessImage empty argv error = %v, want validation", err)
-	}
-	if _, err := node.ProcessImage(context.Background(), "image", "true", ImageProcessOptions{Timeout: -time.Second}); !IsValidation(err) {
-		t.Fatalf("ProcessImage negative timeout error = %v, want validation", err)
-	}
 }
 
 func TestNodeSandboxClientValidation(t *testing.T) {

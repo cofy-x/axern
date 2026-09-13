@@ -14,7 +14,7 @@ import (
 	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 )
 
-func NewRunscHandler(cfg config.Config) (contract.RuntimeHandler, error) {
+func NewRunscHandler(cfg config.Config) (contract.SandboxRuntime, error) {
 	runtimeCfg := cfg.RuntimeConfig.Runsc
 	if runtimeCfg.Binary == "" {
 		return nil, fmt.Errorf("runsc binary is not configured")
@@ -29,15 +29,10 @@ func NewRunscHandler(cfg config.Config) (contract.RuntimeHandler, error) {
 	if handler == nil {
 		return nil, fmt.Errorf("runsc constructor returned a nil handler")
 	}
-	if handler.Name() != config.RuntimeNameRunsc {
-		actualName := handler.Name()
-		handler.ShutDown()
-		return nil, fmt.Errorf("runsc constructor returned handler named %s", actualName)
-	}
 	return handler, nil
 }
 
-func newRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstanceConfig) (contract.RuntimeHandler, error) {
+func newRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstanceConfig) (contract.SandboxRuntime, error) {
 	containerRoot := filepath.Join(cfg.RootDir, "containers")
 	loader, err := runtimeoci.NewBundleLoader(
 		runtimeCfg.BaseSpec,

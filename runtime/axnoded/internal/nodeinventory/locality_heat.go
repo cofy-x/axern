@@ -5,12 +5,12 @@ import (
 	"strings"
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 )
 
 func (s *AxnodedSource) collectAxnodedLocality(snapshot *NodeInventorySnapshot, runningContainers []*container.Container) {
-	rootfsSeen := make(map[*langruntime.RootFS]struct{})
-	for _, lr := range s.langRuntime.List() {
+	rootfsSeen := make(map[*environmentcache.RootFS]struct{})
+	for _, lr := range s.preparedEnvironment.List() {
 		if lr == nil || lr.RootFS == nil {
 			continue
 		}
@@ -26,7 +26,7 @@ func (s *AxnodedSource) collectAxnodedLocality(snapshot *NodeInventorySnapshot, 
 		)
 		entry.Mounted = entry.Mounted || lr.RootFS.Path() != ""
 		if lr.Retained() {
-			entry.RetainedRuntimeCount++
+			entry.RetainedEnvironmentCount++
 		}
 		if lr.RootFS.RetainedRefCount() > 0 {
 			if _, ok := rootfsSeen[lr.RootFS]; !ok {
@@ -37,14 +37,14 @@ func (s *AxnodedSource) collectAxnodedLocality(snapshot *NodeInventorySnapshot, 
 	}
 
 	for _, c := range runningContainers {
-		if c == nil || s.allocationRuntimeID == nil {
+		if c == nil || s.allocationEnvironmentID == nil {
 			continue
 		}
-		runtimeID := s.allocationRuntimeID(c.ID)
+		runtimeID := s.allocationEnvironmentID(c.ID)
 		if runtimeID == "" {
 			continue
 		}
-		lr := s.langRuntime.GetLangRuntime(runtimeID)
+		lr := s.preparedEnvironment.GetPreparedEnvironment(runtimeID)
 		if lr == nil || lr.RootFS == nil {
 			continue
 		}

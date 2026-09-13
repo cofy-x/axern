@@ -31,8 +31,7 @@ const (
 const (
 	RecycleBin = "_recycle"
 
-	CheckpointSuffix = "_checkpoint.img"
-	NotifyFile       = "/ready.signal"
+	NotifyFile = "/ready.signal"
 )
 
 const (

@@ -115,29 +115,6 @@ func TestCreateRuntimeContainerSyncsRuntimeStateIntoStatus(t *testing.T) {
 	}
 }
 
-func TestCreateRuntimeContainerIgnoresImageProcessResourceAnnotationOverride(t *testing.T) {
-	const parentNetworkResource = "parent-net-resource"
-	networkKey := resources.ResourceAnnotationKeyPrefix + string(resources.InterfaceResourceName)
-	handler := &runtimeSpyHandler{name: "runsc"}
-	fixture := newTestAllocationController(t, handler)
-
-	_, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
-		ID:           "axctl-create-resource-override",
-		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
-		Labels: map[string]string{
-			"axern.image_process.kind": "image_process",
-			networkKey:                 parentNetworkResource,
-		},
-	}, nil, nil)
-	if err != nil {
-		t.Fatalf("CreateRuntimeContainer() error = %v", err)
-	}
-
-	if got := handler.lastOptions.AdditionalAnnotations[networkKey]; got == parentNetworkResource {
-		t.Fatalf("network annotation unexpectedly accepted image process override %q", got)
-	}
-}
-
 func TestCreateRuntimeContainerIgnoresUserResourceAnnotationOverride(t *testing.T) {
 	const userNetworkResource = "user-net-resource"
 	networkKey := resources.ResourceAnnotationKeyPrefix + string(resources.InterfaceResourceName)

@@ -61,7 +61,7 @@ func (b specBuilder) applyRequestToSpec(ociSpec *spec.Spec, options buildOptions
 	explicitHostname := requestedHostnameAnnotation(request, options.additionalAnnotations)
 	delete(ociSpec.Annotations, runtimeHostnameAnnotationKey())
 	applyHostname(ociSpec, request, options.containerID, explicitHostname)
-	b.profile.RuntimeBaseline.apply(ociSpec)
+	b.profile.Baseline.apply(ociSpec)
 	b.profile.NetworkNamespace.apply(ociSpec, options.additionalAnnotations)
 	b.profile.Capabilities.apply(ociSpec, ociSpec.Annotations)
 	b.profile.Resources.apply(ociSpec)

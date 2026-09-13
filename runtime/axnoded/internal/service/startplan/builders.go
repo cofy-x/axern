@@ -6,7 +6,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	runtimecore "github.com/cofy-x/axern/runtime/axnoded/internal/runtime"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -47,8 +47,8 @@ func ResourcesToLinux(resources *commonv1.ResourceSpec) *runtime.LinuxContainerR
 	return res
 }
 
-func BuildStaticStartEnv(lrt *langrtmanager.LanguageRuntime, request *runtime.StartRequest) []*runtime.KeyValue {
-	env := make([]*runtime.KeyValue, 0, len(lrt.RootFS.Env())+len(request.RuntimeTemplate.RuntimeEnvs))
+func BuildStaticStartEnv(lrt *environmentcache.PreparedEnvironment, request *runtime.StartRequest) []*runtime.KeyValue {
+	env := make([]*runtime.KeyValue, 0, len(lrt.RootFS.Env())+len(request.EnvironmentTemplate.Env))
 
 	logrus.WithField("image_env_count", len(lrt.RootFS.Env())).Debug("loaded image envs")
 	for _, e := range lrt.RootFS.Env() {
@@ -56,7 +56,7 @@ func BuildStaticStartEnv(lrt *langrtmanager.LanguageRuntime, request *runtime.St
 			env = append(env, &runtime.KeyValue{Key: parts[0], Value: parts[1]})
 		}
 	}
-	for k, v := range request.RuntimeTemplate.RuntimeEnvs {
+	for k, v := range request.EnvironmentTemplate.Env {
 		env = append(env, &runtime.KeyValue{Key: k, Value: v})
 	}
 	return env
@@ -70,15 +70,15 @@ func BuildDynamicStartEnv(request *runtime.StartRequest) []*runtime.KeyValue {
 	return env
 }
 
-func BuildStartEnv(lrt *langrtmanager.LanguageRuntime, request *runtime.StartRequest) []*runtime.KeyValue {
+func BuildStartEnv(lrt *environmentcache.PreparedEnvironment, request *runtime.StartRequest) []*runtime.KeyValue {
 	env := BuildStaticStartEnv(lrt, request)
 	env = append(env, BuildDynamicStartEnv(request)...)
 	return env
 }
 
-func BuildStartCommand(lrt *langrtmanager.LanguageRuntime, request *runtime.StartRequest) []string {
-	if request != nil && request.RuntimeTemplate != nil && len(request.RuntimeTemplate.Command) > 0 {
-		return append([]string(nil), request.RuntimeTemplate.Command...)
+func BuildStartCommand(lrt *environmentcache.PreparedEnvironment, request *runtime.StartRequest) []string {
+	if request != nil && request.EnvironmentTemplate != nil && len(request.EnvironmentTemplate.Argv) > 0 {
+		return append([]string(nil), request.EnvironmentTemplate.Argv...)
 	}
 	if lrt == nil || lrt.RootFS == nil {
 		return nil
@@ -86,9 +86,9 @@ func BuildStartCommand(lrt *langrtmanager.LanguageRuntime, request *runtime.Star
 	return lrt.RootFS.DefaultCommand()
 }
 
-func BuildStartCwd(lrt *langrtmanager.LanguageRuntime, request *runtime.StartRequest) string {
-	if request != nil && request.RuntimeTemplate != nil && request.RuntimeTemplate.Cwd != "" {
-		return request.RuntimeTemplate.Cwd
+func BuildStartCwd(lrt *environmentcache.PreparedEnvironment, request *runtime.StartRequest) string {
+	if request != nil && request.EnvironmentTemplate != nil && request.EnvironmentTemplate.Cwd != "" {
+		return request.EnvironmentTemplate.Cwd
 	}
 	if lrt == nil || lrt.RootFS == nil {
 		return ""
@@ -100,9 +100,9 @@ func ValidateStartRequest(request *runtime.StartRequest) error {
 	switch {
 	case request == nil:
 		return errord.ErrInvalidArgument
-	case request.RuntimeTemplate == nil:
+	case request.EnvironmentTemplate == nil:
 		return errord.ErrInvalidArgument
-	case request.RuntimeTemplate.Rootfs == nil:
+	case request.EnvironmentTemplate.Rootfs == nil:
 		return errord.ErrInvalidArgument
 	default:
 		return nil
@@ -146,8 +146,8 @@ func BuildStartLabels(request *runtime.StartRequest) map[string]string {
 }
 
 func BuildStaticStartMounts(request *runtime.StartRequest) []*runtime.Mount {
-	mounts := make([]*runtime.Mount, 0, len(request.RuntimeTemplate.Mounts))
-	mounts = append(mounts, request.RuntimeTemplate.Mounts...)
+	mounts := make([]*runtime.Mount, 0, len(request.EnvironmentTemplate.Mounts))
+	mounts = append(mounts, request.EnvironmentTemplate.Mounts...)
 	return mounts
 }
 
@@ -158,7 +158,7 @@ func BuildDynamicStartMounts(request *runtime.StartRequest) []*runtime.Mount {
 }
 
 func BuildStartMounts(request *runtime.StartRequest) []*runtime.Mount {
-	mounts := make([]*runtime.Mount, 0, len(request.RuntimeTemplate.Mounts)+len(request.Mounts))
+	mounts := make([]*runtime.Mount, 0, len(request.EnvironmentTemplate.Mounts)+len(request.Mounts))
 	mounts = append(mounts, BuildStaticStartMounts(request)...)
 	mounts = append(mounts, BuildDynamicStartMounts(request)...)
 	return mounts
@@ -171,7 +171,7 @@ func EffectiveNetworkMode(defaultMode string, request *runtime.StartRequest) str
 	return defaultMode
 }
 
-func BuildContainerRootfs(lrt *langrtmanager.LanguageRuntime) *apipb.Rootfs {
+func BuildContainerRootfs(lrt *environmentcache.PreparedEnvironment) *apipb.Rootfs {
 	return &apipb.Rootfs{
 		Type:           "none",
 		LowerDir:       "",
@@ -182,7 +182,7 @@ func BuildContainerRootfs(lrt *langrtmanager.LanguageRuntime) *apipb.Rootfs {
 }
 
 func BuildBundleTemplateRequest(
-	lrt *langrtmanager.LanguageRuntime,
+	lrt *environmentcache.PreparedEnvironment,
 	request *runtime.StartRequest,
 ) *apipb.CreateContainerRequest {
 	return &apipb.CreateContainerRequest{
@@ -195,11 +195,11 @@ func BuildBundleTemplateRequest(
 	}
 }
 
-func BuildBundleTemplateRequestFromLanguageRuntime(lrt *langrtmanager.LanguageRuntime) *apipb.CreateContainerRequest {
+func BuildBundleTemplateRequestFromPreparedEnvironment(lrt *environmentcache.PreparedEnvironment) *apipb.CreateContainerRequest {
 	return &apipb.CreateContainerRequest{
-		Command: append([]string(nil), lrt.Command...),
+		Command: append([]string(nil), lrt.Argv...),
 		Rootfs:  BuildContainerRootfs(lrt),
-		Mounts:  CloneRuntimeMounts(lrt.Mounts),
+		Mounts:  CloneEnvironmentMounts(lrt.Mounts),
 		Envs:    BuildStaticRuntimeEnv(lrt),
 		Labels:  map[string]string{},
 		Cwd:     lrt.Cwd,
@@ -207,7 +207,7 @@ func BuildBundleTemplateRequestFromLanguageRuntime(lrt *langrtmanager.LanguageRu
 }
 
 func BuildCreateContainerRequest(
-	lrt *langrtmanager.LanguageRuntime,
+	lrt *environmentcache.PreparedEnvironment,
 	request *runtime.StartRequest,
 	labels map[string]string,
 	env []*runtime.KeyValue,
@@ -224,7 +224,6 @@ func BuildCreateContainerRequest(
 		Labels:                       labels,
 		Stdout:                       request.Stdout,
 		Stderr:                       request.Stderr,
-		CkptDir:                      request.CkptDir,
 		Cwd:                          BuildStartCwd(lrt, request),
 		ID:                           request.ContainerID,
 		EphemeralStorageRequestBytes: resources.GetRequests().GetEphemeralStorageBytes(),
@@ -232,14 +231,14 @@ func BuildCreateContainerRequest(
 	}
 }
 
-func BuildStaticRuntimeEnv(lrt *langrtmanager.LanguageRuntime) []*runtime.KeyValue {
-	env := make([]*runtime.KeyValue, 0, len(lrt.RootFS.Env())+len(lrt.RuntimeEnvs))
+func BuildStaticRuntimeEnv(lrt *environmentcache.PreparedEnvironment) []*runtime.KeyValue {
+	env := make([]*runtime.KeyValue, 0, len(lrt.RootFS.Env())+len(lrt.Env))
 	for _, e := range lrt.RootFS.Env() {
 		if parts := strings.SplitN(e, "=", 2); len(parts) == 2 {
 			env = append(env, &runtime.KeyValue{Key: parts[0], Value: parts[1]})
 		}
 	}
-	for k, v := range lrt.RuntimeEnvs {
+	for k, v := range lrt.Env {
 		env = append(env, &runtime.KeyValue{Key: k, Value: v})
 	}
 	return env
@@ -256,7 +255,7 @@ func KeyValuesFromStringMap(values map[string]string) []*runtime.KeyValue {
 	return env
 }
 
-func CloneRuntimeMounts(input []*runtime.Mount) []*runtime.Mount {
+func CloneEnvironmentMounts(input []*runtime.Mount) []*runtime.Mount {
 	if len(input) == 0 {
 		return nil
 	}

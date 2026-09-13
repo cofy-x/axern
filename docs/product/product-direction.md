@@ -24,7 +24,7 @@ The platform remains general enough for non-agent sandbox workloads, while produ
 - Agent evaluation, training, and synthetic-data workloads built from immutable environments, Run-backed sandboxes, allocation-local files, and explicit file/archive output transfer.
 - Run status, output, and resource usage needed by upper-layer verification, trajectory, replay, dataset, and result systems.
 - Task-scoped secrets, ephemeral filesystems, controlled egress, reverse tunnels, and optional SSH access.
-- Runtime templates for coding, browser, research, CI, and data workloads without marketplace or template sprawl.
+- Environment templates for coding, browser, research, CI, and data workloads without marketplace or template sprawl.
 - Low-cardinality usage and capacity measurements based on time, resources, execution, network, and retained control state.
 - Purpose-built batch, training, RL, or experiment orchestration may be added only after its queueing, retry, checkpoint, concurrency, and budget semantics are defined; it must compose Runs and Sandboxes instead of creating a second execution substrate.
 

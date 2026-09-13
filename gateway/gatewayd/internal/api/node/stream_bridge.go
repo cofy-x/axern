@@ -31,13 +31,6 @@ type processClient interface {
 	CloseSend() error
 }
 
-type processImageClient interface {
-	Send(*nodesandboxv1.ProcessImageRequest) error
-	Recv() (*nodesandboxv1.ProcessImageResponse, error)
-	Header() (metadata.MD, error)
-	CloseSend() error
-}
-
 type proxyHTTPClient interface {
 	Send(*nodesandboxv1.ProxyHTTPRequest) error
 	Recv() (*nodesandboxv1.ProxyHTTPResponse, error)
@@ -101,49 +94,6 @@ func bridgeExecStream(down nodesandboxv1.NodeSandbox_ExecStreamServer, up execSt
 }
 
 func bridgeProcess(down nodesandboxv1.NodeSandbox_ProcessServer, up processClient) error {
-	errCh := make(chan bridgeResult, 2)
-	go func() {
-		for {
-			req, err := down.Recv()
-			if errors.Is(err, io.EOF) {
-				errCh <- bridgeResult{direction: bridgeDownstream, err: up.CloseSend()}
-				return
-			}
-			if err != nil {
-				errCh <- bridgeResult{direction: bridgeDownstream, err: err}
-				return
-			}
-			if err := up.Send(req); err != nil {
-				errCh <- bridgeResult{direction: bridgeDownstream, err: err}
-				return
-			}
-		}
-	}()
-	go func() {
-		for {
-			resp, err := up.Recv()
-			if errors.Is(err, io.EOF) {
-				errCh <- bridgeResult{direction: bridgeUpstream}
-				return
-			}
-			if err != nil {
-				errCh <- bridgeResult{direction: bridgeUpstream, err: err}
-				return
-			}
-			if err := down.Send(resp); err != nil {
-				errCh <- bridgeResult{direction: bridgeUpstream, err: err}
-				return
-			}
-			if resp.GetExit() != nil {
-				errCh <- bridgeResult{direction: bridgeUpstream}
-				return
-			}
-		}
-	}()
-	return firstBridgeResult(errCh)
-}
-
-func bridgeProcessImage(down nodesandboxv1.NodeSandbox_ProcessImageServer, up processImageClient) error {
 	errCh := make(chan bridgeResult, 2)
 	go func() {
 		for {

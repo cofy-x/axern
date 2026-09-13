@@ -561,25 +561,6 @@ func TestExecuteFailedAgentEpisodeHasCompletedAt(t *testing.T) {
 	}
 }
 
-func TestExecuteRejectsManagedProxyOnLocalRuntime(t *testing.T) {
-	store, layout := createLayout(t, domain.VerifierSpec{Type: "none"})
-	layout.Episode.Agent.Profile = "deepseek"
-	harness := &managedProxyAgent{profile: "deepseek"}
-	_, err := Execute(Request{
-		Store:          store,
-		Task:           layout.TaskInstance,
-		Episode:        layout.Episode,
-		Paths:          paths(layout),
-		SandboxRuntime: fakeRuntime{sandbox: &fakeSandbox{}},
-		AgentHarness:   harness,
-		Now:            fixedNow,
-		RuntimeName:    "local",
-	})
-	if err == nil {
-		t.Fatal("Execute should fail when agent requires managed proxy telemetry on local runtime")
-	}
-}
-
 func TestExecutePersistsAgentImageRuntimeMetadataFromHarnessResult(t *testing.T) {
 	store, layout := createLayout(t, domain.VerifierSpec{Type: "none"})
 	layout.Episode.Agent = domain.AgentSpec{
@@ -649,24 +630,6 @@ func TestExecutePersistsAgentImageRuntimeMetadataFromHarnessResult(t *testing.T)
 	}
 }
 
-func TestExecuteAllowsAgentWithoutManagedProxyOnLocalRuntime(t *testing.T) {
-	store, layout := createLayout(t, domain.VerifierSpec{Type: "none"})
-	harness := &managedProxyAgent{profile: ""}
-	_, err := Execute(Request{
-		Store:          store,
-		Task:           layout.TaskInstance,
-		Episode:        layout.Episode,
-		Paths:          paths(layout),
-		SandboxRuntime: fakeRuntime{sandbox: &fakeSandbox{}},
-		AgentHarness:   harness,
-		Now:            fixedNow,
-		RuntimeName:    "local",
-	})
-	if err != nil {
-		t.Fatalf("Execute returned error: %v", err)
-	}
-}
-
 type slowRecordingAgent struct {
 	delay time.Duration
 }
@@ -684,40 +647,15 @@ func (a *slowRecordingAgent) Run(ctx context.Context, _ agent.Request) (agent.Re
 	}
 }
 
-type managedProxyAgent struct {
-	profile string
-}
-
 type sandboxDeathAgent struct{}
 
-func (sandboxDeathAgent) Preflight() error {
-	return nil
-}
+func (sandboxDeathAgent) Preflight() error { return nil }
 
 func (sandboxDeathAgent) Run(context.Context, agent.Request) (agent.Result, error) {
 	return agent.Result{}, &sandbox.SandboxDeathError{
 		Reason: "allocation not found",
 		Cause:  errors.New("not found"),
 	}
-}
-
-func (a *managedProxyAgent) Preflight() error {
-	return nil
-}
-
-func (a *managedProxyAgent) Run(_ context.Context, _ agent.Request) (agent.Result, error) {
-	return agent.Result{Status: domain.AgentStatusCompleted, Summary: "done"}, nil
-}
-
-func (a *managedProxyAgent) ManagedProxyConfig(_ domain.AgentSpec) (*agent.ManagedProxyConfig, error) {
-	if a.profile == "" {
-		return nil, nil
-	}
-	return &agent.ManagedProxyConfig{
-		Upstream:     mustURL("https://api.example.test/v1"),
-		Token:        "test-token",
-		ProviderType: agent.ProviderAnthropic,
-	}, nil
 }
 
 func hasStepType(steps []domain.TrajectoryStep, stepType domain.TrajectoryEventType) bool {

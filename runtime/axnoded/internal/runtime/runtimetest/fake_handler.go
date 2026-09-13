@@ -3,7 +3,6 @@ package runtimetest
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"time"
 
@@ -14,45 +13,36 @@ import (
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
-func NewFakeRuntimeHandler() *FakeRuntimeHandler {
-	return &FakeRuntimeHandler{
-		RuntimeName: config.RuntimeNameRunsc,
-		RuntimeCapabilities: contract.RuntimeCapabilities{
-			CanCheckpoint: true,
-			CanExecDirect: true,
-		},
-		RuntimeRequirements: contract.RuntimeRequirements{},
+func NewFakeSandboxRuntime() *FakeSandboxRuntime {
+	return &FakeSandboxRuntime{
+		RuntimeName:  config.RuntimeNameRunsc,
+		Requirements: contract.HostRequirements{},
 	}
 }
 
-type FakeRuntimeHandler struct {
-	RuntimeName         string
-	RuntimeCapabilities contract.RuntimeCapabilities
-	RuntimeRequirements contract.RuntimeRequirements
+type FakeSandboxRuntime struct {
+	RuntimeName  string
+	Requirements contract.HostRequirements
 }
 
-func (f *FakeRuntimeHandler) Name() string {
+func (f *FakeSandboxRuntime) Name() string {
 	if f.RuntimeName == "" {
 		return config.RuntimeNameRunsc
 	}
 	return f.RuntimeName
 }
 
-func (f *FakeRuntimeHandler) Capabilities() contract.RuntimeCapabilities {
-	return f.RuntimeCapabilities
+func (f *FakeSandboxRuntime) HostRequirements() contract.HostRequirements {
+	return f.Requirements
 }
 
-func (f *FakeRuntimeHandler) Requirements() contract.RuntimeRequirements {
-	return f.RuntimeRequirements
-}
-
-func (f *FakeRuntimeHandler) Version(ctx context.Context) (*runtimeapi.RuntimeVersion, error) {
+func (f *FakeSandboxRuntime) Version(ctx context.Context) (*runtimeapi.RuntimeVersion, error) {
 	return &runtimeapi.RuntimeVersion{
 		Version: config.UnknownVersion,
 	}, getErrorFromContext(ctx)
 }
 
-func (f *FakeRuntimeHandler) CreateContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
+func (f *FakeSandboxRuntime) CreateContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
 	return &apipb.ContainerMetadata{
 		Labels: options.AdditionalAnnotations,
 		Stdout: request.GetStdout(),
@@ -60,30 +50,30 @@ func (f *FakeRuntimeHandler) CreateContainer(ctx context.Context, request *apipb
 	}, getErrorFromContext(ctx)
 }
 
-func (f *FakeRuntimeHandler) AllocationEnforcementManifest(_ context.Context, containerID string) (*apipb.AllocationEnforcementManifest, error) {
+func (f *FakeSandboxRuntime) AllocationEnforcementManifest(_ context.Context, containerID string) (*apipb.AllocationEnforcementManifest, error) {
 	return &apipb.AllocationEnforcementManifest{
 		BundlePath:        "/fake/" + containerID,
 		CreatedAtUnixNano: time.Now().UTC().UnixNano(),
 	}, nil
 }
 
-func (f *FakeRuntimeHandler) DeleteContainer(ctx context.Context, request *apipb.DeleteContainerRequest, options contract.HandlerOptions) (*apipb.DeleteContainerResponse, error) {
+func (f *FakeSandboxRuntime) DeleteContainer(ctx context.Context, request *apipb.DeleteContainerRequest, options contract.HandlerOptions) (*apipb.DeleteContainerResponse, error) {
 	return &apipb.DeleteContainerResponse{}, getErrorFromContext(ctx)
 }
 
-func (f *FakeRuntimeHandler) KillContainer(ctx context.Context, request *apipb.SignalContainerRequest, options contract.HandlerOptions) (*apipb.SignalContainerResponse, error) {
+func (f *FakeSandboxRuntime) KillContainer(ctx context.Context, request *apipb.SignalContainerRequest, options contract.HandlerOptions) (*apipb.SignalContainerResponse, error) {
 	return &apipb.SignalContainerResponse{}, getErrorFromContext(ctx)
 }
 
-func (f *FakeRuntimeHandler) ListContainers(ctx context.Context, options contract.HandlerOptions) ([]*contract.UnionContainerState, error) {
+func (f *FakeSandboxRuntime) ListContainers(ctx context.Context, options contract.HandlerOptions) ([]*contract.UnionContainerState, error) {
 	return []*contract.UnionContainerState{}, getErrorFromContext(ctx)
 }
 
-func (f *FakeRuntimeHandler) ContainerSpec(ctx context.Context, options contract.HandlerOptions) (*spec.Spec, error) {
+func (f *FakeSandboxRuntime) ContainerSpec(ctx context.Context, options contract.HandlerOptions) (*spec.Spec, error) {
 	return &spec.Spec{}, getErrorFromContext(ctx)
 }
 
-func (f *FakeRuntimeHandler) ExecContainer(ctx context.Context, request *apipb.ExecContainerRequest, options contract.HandlerOptions) (*apipb.ExecContainerResponse, error) {
+func (f *FakeSandboxRuntime) ExecContainer(ctx context.Context, request *apipb.ExecContainerRequest, options contract.HandlerOptions) (*apipb.ExecContainerResponse, error) {
 	return &apipb.ExecContainerResponse{}, getErrorFromContext(ctx)
 }
 
@@ -101,14 +91,14 @@ func (f *fakeExecSession) Wait() (contract.Exit, error) {
 }
 func (f *fakeExecSession) Close() error { return nil }
 
-func (f *FakeRuntimeHandler) OpenExecSession(ctx context.Context, request *apipb.ExecSessionOpen, options contract.HandlerOptions) (contract.Session, error) {
+func (f *FakeSandboxRuntime) OpenExecSession(ctx context.Context, request *apipb.ExecSessionOpen, options contract.HandlerOptions) (contract.Session, error) {
 	if err := getErrorFromContext(ctx); err != nil {
 		return nil, err
 	}
 	return &fakeExecSession{}, nil
 }
 
-func (f *FakeRuntimeHandler) ProcessService() contract.ProcessService {
+func (f *FakeSandboxRuntime) ProcessService() contract.ProcessService {
 	return fakeProcessService{}
 }
 
@@ -121,7 +111,7 @@ func (fakeProcessService) OpenProcess(ctx context.Context, request *apipb.Proces
 	return &fakeExecSession{}, nil
 }
 
-func (f *FakeRuntimeHandler) FileService() contract.FileService {
+func (f *FakeSandboxRuntime) FileService() contract.FileService {
 	return fakeFileService{}
 }
 
@@ -181,18 +171,14 @@ func (fakeFileService) DownloadArchive(ctx context.Context, request *apipb.Downl
 	return &apipb.DownloadArchiveResponse{}, getErrorFromContext(ctx)
 }
 
-func (f *FakeRuntimeHandler) Wait(ctx context.Context, options contract.HandlerOptions) (contract.Exit, error) {
+func (f *FakeSandboxRuntime) Wait(ctx context.Context, options contract.HandlerOptions) (contract.Exit, error) {
 	return contract.Exit{
 		Timestamp: time.Time{},
 		Status:    0,
 	}, getErrorFromContext(ctx)
 }
 
-func (r *FakeRuntimeHandler) ShutDown() {}
-
-func (r *FakeRuntimeHandler) CheckpointContainer(*runtimeapi.CheckpointRequest) error {
-	return fmt.Errorf("Not implemented")
-}
+func (r *FakeSandboxRuntime) ShutDown() {}
 
 func getErrorFromContext(ctx context.Context) error {
 	if errStr, ok := ctx.Value("ERROR").(string); ok {
@@ -201,4 +187,4 @@ func getErrorFromContext(ctx context.Context) error {
 	return nil
 }
 
-var _ contract.RuntimeHandler = &FakeRuntimeHandler{}
+var _ contract.SandboxRuntime = &FakeSandboxRuntime{}

@@ -3,10 +3,10 @@ package nodeinventory
 import (
 	"path/filepath"
 
-	"github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 )
 
-func LocalityKeyFromRootfsConfig(cfg langruntime.RootfsConfig) (string, bool) {
+func LocalityKeyFromRootfsConfig(cfg environmentcache.RootfsConfig) (string, bool) {
 	switch cfg.SrcType.String() {
 	case "LOCAL":
 		if cfg.Path == "" {
@@ -26,7 +26,7 @@ func LocalityKeyFromRootfsConfig(cfg langruntime.RootfsConfig) (string, bool) {
 	}
 }
 
-func RootfsTypeFromConfig(cfg langruntime.RootfsConfig) string {
+func RootfsTypeFromConfig(cfg environmentcache.RootfsConfig) string {
 	switch cfg.SrcType.String() {
 	case "LOCAL":
 		return "local"
@@ -37,7 +37,7 @@ func RootfsTypeFromConfig(cfg langruntime.RootfsConfig) string {
 	}
 }
 
-func MountTypeFromConfig(cfg langruntime.RootfsConfig) string {
+func MountTypeFromConfig(cfg environmentcache.RootfsConfig) string {
 	switch cfg.SrcType.String() {
 	case "LOCAL":
 		return "local"

@@ -50,7 +50,7 @@ type Config struct {
 	LifecycleContext         context.Context
 	HeartbeatFreshnessWindow time.Duration
 	SummaryFreshnessWindow   time.Duration
-	RuntimeTemplates         []*catalogv1.RuntimeTemplate
+	EnvironmentTemplates     []*catalogv1.EnvironmentTemplate
 	PostgresDSN              string
 	PostgresMaxConnections   int32
 	SecretsMasterKey         string
@@ -144,7 +144,7 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 			SummaryFreshnessWindow:   cfg.SummaryFreshnessWindow,
 			ResourcePolicy:           cfg.ResourcePolicy,
 		}),
-		catalog:                  catalog.NewStore(cfg.RuntimeTemplates),
+		catalog:                  catalog.NewStore(cfg.EnvironmentTemplates),
 		heartbeatFreshnessWindow: cfg.HeartbeatFreshnessWindow,
 		summaryFreshnessWindow:   cfg.SummaryFreshnessWindow,
 		reconcileInterval:        cfg.ReconcileInterval,

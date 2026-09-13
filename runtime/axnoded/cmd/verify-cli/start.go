@@ -51,7 +51,7 @@ func runVerifyCLI(cfg verifyCLIConfig) error {
 	}
 	rootfsSpec.Apply(spec)
 
-	handle, err := verifyutil.CreateAllocation(ctx, clients, verifyutil.NewSandboxID(cfg.runtimeID), spec)
+	handle, err := verifyutil.CreateAllocation(ctx, clients, verifyutil.NewSandboxID(cfg.environmentID), spec)
 	if err != nil {
 		return fmt.Errorf("create sandbox: %w", err)
 	}

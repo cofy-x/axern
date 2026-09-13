@@ -157,7 +157,7 @@ describe_step() {
     axnoded-verify-node-startup-matrix-smoke) echo "Run axnoded startup matrix smoke verification" ;;
     axnoded-verify-node-bundle-template-e2e) echo "Run axnoded bundle-template reuse E2E" ;;
     axnoded-verify-node-python-runtime-e2e) echo "Run axnoded programmable Python runtime E2E" ;;
-    axnoded-verify-node-retention-e2e) echo "Run axnoded runtime retention E2E" ;;
+    axnoded-verify-node-retention-e2e) echo "Run axnoded environment retention E2E" ;;
     axnoded-verify-node-locality-e2e) echo "Run axnoded locality signals E2E" ;;
     axnoded-verify-node-warm-pool-e2e) echo "Run axnoded warm-pool E2E" ;;
     axnoded-verify-node-oci-e2e) echo "Run axnoded OCI image E2E" ;;

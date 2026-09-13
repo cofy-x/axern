@@ -8,9 +8,9 @@ import (
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 )
 
-func TestRenderRuntimeTemplateTableShowsTemplateAndLanguageVersions(t *testing.T) {
+func TestRenderEnvironmentTemplateTableShowsTemplateAndLanguageVersions(t *testing.T) {
 	var b bytes.Buffer
-	RenderRuntimeTemplateTable(&b, []*catalogv1.RuntimeTemplate{
+	RenderEnvironmentTemplateTable(&b, []*catalogv1.EnvironmentTemplate{
 		{
 			ID:              "python311",
 			Version:         "3.11.0",
@@ -43,9 +43,9 @@ func TestRenderRuntimeTemplateTableShowsTemplateAndLanguageVersions(t *testing.T
 	}
 }
 
-func TestRenderRuntimeTemplateUsesDashForEmptyOptionalFields(t *testing.T) {
+func TestRenderEnvironmentTemplateUsesDashForEmptyOptionalFields(t *testing.T) {
 	var b bytes.Buffer
-	RenderRuntimeTemplate(&b, &catalogv1.RuntimeTemplate{
+	RenderEnvironmentTemplate(&b, &catalogv1.EnvironmentTemplate{
 		ID:               "server-base",
 		Version:          "24.04.0",
 		ImageDefaultArgv: []string{"/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"},

@@ -29,21 +29,6 @@ export interface ExecResult {
   stderrText(encoding?: BufferEncoding): string;
 }
 
-export interface ImageProcessMount {
-  sandboxPath: string;
-  targetPath: string;
-  readonly?: boolean;
-  options?: readonly string[];
-}
-
-export function workspaceMount(path = "/workspace"): ImageProcessMount {
-  return { sandboxPath: path, targetPath: path };
-}
-
-export interface ImageExecOptions extends ExecOptions {
-  mounts?: readonly ImageProcessMount[];
-}
-
 export type ProcessEvent =
   | { kind: "ready" }
   | { kind: "stdout"; data: Buffer }
@@ -52,9 +37,6 @@ export type ProcessEvent =
 
 export interface ProcessOptions extends Omit<ExecOptions, "check"> {}
 
-export interface ImageProcessOptions extends ProcessOptions {
-  mounts?: readonly ImageProcessMount[];
-}
 
 export interface ProcessResult {
   exitCode: number;

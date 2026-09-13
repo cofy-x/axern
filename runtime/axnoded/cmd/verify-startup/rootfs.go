@@ -17,8 +17,7 @@ type verifyStartupConfig struct {
 	scenario         string
 	mode             string
 	samples          int
-	runtimeName      string
-	runtimeID        string
+	environmentID    string
 	mountType        string
 	rootfsSrc        string
 	rootfsPath       string
@@ -39,8 +38,7 @@ func parseFlags() verifyStartupConfig {
 	flag.StringVar(&cfg.scenario, "scenario", "", "startup matrix scenario name")
 	flag.StringVar(&cfg.mode, "mode", "cold", "sample mode: cold or warm")
 	flag.IntVar(&cfg.samples, "samples", 1, "number of start/delete samples to execute")
-	flag.StringVar(&cfg.runtimeName, "runtime", config.RuntimeNameRunsc, "sandbox runtime name under test")
-	flag.StringVar(&cfg.runtimeID, "runtime-id", "", "runtime id")
+	flag.StringVar(&cfg.environmentID, "environment-id", "", "runtime id")
 	flag.StringVar(&cfg.mountType, "mount-type", "local", "mount type label for the scenario")
 	flag.StringVar(&cfg.rootfsSrc, "rootfs-src", "local", "rootfs source: local or image")
 	flag.StringVar(&cfg.rootfsPath, "rootfs", "/opt/sample-rootfs", "LOCAL rootfs path")

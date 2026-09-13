@@ -23,14 +23,13 @@ metricsz_wait_capability_snapshot
 
 start_container() {
   local runtime_name="$1"
-  local runtime_id="$2"
+  local environment_id="$2"
   local stdout_path="$3"
   local stderr_path="$4"
 
   verify-cli \
     -address "${AXNODED_SOCKET}" \
-    -runtime "${runtime_name}" \
-    -runtime-id "${runtime_id}" \
+    -environment-id "${environment_id}" \
     -stdout "${stdout_path}" \
     -stderr "${stderr_path}" \
     -shell-command "sleep 300" \
@@ -53,16 +52,16 @@ trap cleanup EXIT
 metrics_before="$(metricsz_fetch)"
 
 for runtime_name in runsc; do
-  runtime_id="bundle-template-${runtime_name}"
+  environment_id="bundle-template-${runtime_name}"
 
-  cold_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtime_name}.bundle-template.first.stdout" "/tmp/${runtime_name}.bundle-template.first.stderr")"
+  cold_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${runtime_name}.bundle-template.first.stdout" "/tmp/${runtime_name}.bundle-template.first.stderr")"
   [ -n "${cold_id}" ] || {
     echo "first start did not return a container id for ${runtime_name}" >&2
     exit 1
   }
   axctl --address "${AXNODED_SOCKET}" sandbox delete "${cold_id}"
 
-  warm_id="$(start_container "${runtime_name}" "${runtime_id}" "/tmp/${runtime_name}.bundle-template.second.stdout" "/tmp/${runtime_name}.bundle-template.second.stderr")"
+  warm_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${runtime_name}.bundle-template.second.stdout" "/tmp/${runtime_name}.bundle-template.second.stderr")"
   [ -n "${warm_id}" ] || {
     echo "second start did not return a container id for ${runtime_name}" >&2
     exit 1

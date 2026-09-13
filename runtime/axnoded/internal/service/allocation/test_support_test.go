@@ -8,7 +8,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
@@ -25,21 +25,21 @@ type testStateStore interface {
 }
 
 type testAllocationController struct {
-	controller *Controller
-	manager    *container.Manager
-	lrtManager *langrtmanager.LangRTManager
+	controller       *Controller
+	manager          *container.Manager
+	environmentCache *environmentcache.EnvironmentCache
 }
 
-func newTestAllocationController(t *testing.T, runscHandler contract.RuntimeHandler) testAllocationController {
+func newTestAllocationController(t *testing.T, runscHandler contract.SandboxRuntime) testAllocationController {
 	t.Helper()
 	return newTestAllocationControllerWithStore(t, runscHandler, storetest.NewMockStore())
 }
 
-func newTestAllocationControllerWithStore(t *testing.T, runscHandler contract.RuntimeHandler, dbStore testStateStore) testAllocationController {
+func newTestAllocationControllerWithStore(t *testing.T, runscHandler contract.SandboxRuntime, dbStore testStateStore) testAllocationController {
 	return newTestAllocationControllerWithResources(t, runscHandler, dbStore, newTestResourceManagers()...)
 }
 
-func newTestAllocationControllerWithResources(t *testing.T, runscHandler contract.RuntimeHandler, dbStore testStateStore, managers ...resourcemanager.Manager) testAllocationController {
+func newTestAllocationControllerWithResources(t *testing.T, runscHandler contract.SandboxRuntime, dbStore testStateStore, managers ...resourcemanager.Manager) testAllocationController {
 	t.Helper()
 
 	if dbStore == nil {
@@ -53,7 +53,7 @@ func newTestAllocationControllerWithResources(t *testing.T, runscHandler contrac
 		},
 	}
 	if runscHandler == nil {
-		runscHandler = runtimetest.NewFakeRuntimeHandler()
+		runscHandler = runtimetest.NewFakeSandboxRuntime()
 	}
 	manager, err := container.NewManager(tmpDir, runscHandler, make(chan bool, 10), managers...)
 	if err != nil {
@@ -66,7 +66,7 @@ func newTestAllocationControllerWithResources(t *testing.T, runscHandler contrac
 			t.Errorf("stop test container manager: %v", err)
 		}
 	})
-	lrtManager := langrtmanager.NewLanguageRuntimeManager()
+	environmentCache := environmentcache.NewEnvironmentCache()
 	networking := servicenetworking.NewCoordinator(servicenetworking.Options{
 		NatBackend: cfg.NatBackend,
 		Store:      dbStore,
@@ -84,17 +84,17 @@ func newTestAllocationControllerWithResources(t *testing.T, runscHandler contrac
 		ContainerManager: func() *container.Manager {
 			return manager
 		},
-		RunscHandler: runscHandler,
-		LangRuntime:  lrtManager,
-		Networking:   networking,
-		PreActivationCapabilityGate: func(context.Context, *runtime.StartRequest, contract.AllocationRuntimeHandler, string) error {
+		RunscHandler:     runscHandler,
+		EnvironmentCache: environmentCache,
+		Networking:       networking,
+		PreActivationCapabilityGate: func(context.Context, *runtime.StartRequest, contract.AllocationRuntime, string) error {
 			return nil
 		},
 	})
-	retentionTTL, err := time.ParseDuration(config.DefaultIdleRuntimeRetentionTTL)
+	retentionTTL, err := time.ParseDuration(config.DefaultIdleEnvironmentRetentionTTL)
 	if err != nil {
 		t.Fatalf("ParseDuration() error = %v", err)
 	}
-	lrtManager.ConfigureRetention(retentionTTL, config.DefaultIdleRuntimeRetentionMax)
-	return testAllocationController{controller: controller, manager: manager, lrtManager: lrtManager}
+	environmentCache.ConfigureRetention(retentionTTL, config.DefaultIdleEnvironmentRetentionMax)
+	return testAllocationController{controller: controller, manager: manager, environmentCache: environmentCache}
 }

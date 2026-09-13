@@ -3,9 +3,6 @@ package process
 import (
 	"context"
 	"errors"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -17,93 +14,6 @@ import (
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/proc"
 )
-
-func TestManagedProxySessionRecordsAndInjectsAuth(t *testing.T) {
-	var upstreamAuth string
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		upstreamAuth = r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7}}`))
-	}))
-	defer upstream.Close()
-
-	session, env, err := startManagedProxy(&ManagedProxySpec{
-		Provider:            "openai",
-		UpstreamBaseURL:     upstream.URL + "/v1",
-		UpstreamBearerToken: "real-token",
-	})
-	if err != nil {
-		t.Fatalf("startManagedProxy() error = %v", err)
-	}
-	defer session.closeAndReport()
-	if strings.Contains(strings.Join(env, "\n"), "real-token") {
-		t.Fatalf("managed proxy env leaked upstream token: %#v", env)
-	}
-	localToken := envValue(env, managedProxyTokenEnv)
-	resp, err := httpPost(session.proxy.BaseURL()+"/responses", localToken)
-	if err != nil {
-		t.Fatalf("proxy request: %v", err)
-	}
-	_ = resp.Body.Close()
-	if upstreamAuth != "Bearer real-token" {
-		t.Fatalf("upstream auth = %q", upstreamAuth)
-	}
-	report := session.closeAndReport()
-	if report == nil || report.RequestCount != 1 || report.ResponseCount != 1 || report.ErrorCount != 0 || len(report.ReportJSON) == 0 {
-		t.Fatalf("report = %#v", report)
-	}
-}
-
-func TestRegistryManagedProxyInjectsOnlyLocalEnv(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{}`))
-	}))
-	defer upstream.Close()
-
-	waiter := proc.NewWaiter(context.Background())
-	defer waiter.Stop()
-	registry := NewRegistry(waiter, nil, "")
-	status, err := registry.Start(StartRequest{
-		Args:          []string{"/bin/sh", "-c", "env | sort"},
-		CaptureOutput: true,
-		ManagedProxy: &ManagedProxySpec{
-			Provider:            "openai",
-			UpstreamBaseURL:     upstream.URL,
-			UpstreamBearerToken: "real-token",
-		},
-	})
-	if err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	status, ok, err := registry.Wait(context.Background(), status.ID)
-	if err != nil || !ok {
-		t.Fatalf("Wait() status=%#v ok=%v err=%v", status, ok, err)
-	}
-	if !strings.Contains(status.Stdout, managedProxyBaseURLEnv+"=http://127.0.0.1:") ||
-		!strings.Contains(status.Stdout, managedProxyTokenEnv+"=") ||
-		!strings.Contains(status.Stdout, "NO_PROXY=") ||
-		strings.Contains(status.Stdout, "real-token") {
-		t.Fatalf("stdout = %s", status.Stdout)
-	}
-	if status.ManagedProxyReport == nil {
-		t.Fatalf("managed proxy report missing: %#v", status)
-	}
-}
-
-func httpPost(url string, token string) (*http.Response, error) {
-	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(`{"model":"test"}`))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	return resp, nil
-}
 
 func TestRegistryStartWaitCapturesOutput(t *testing.T) {
 	waiter := proc.NewWaiter(context.Background())

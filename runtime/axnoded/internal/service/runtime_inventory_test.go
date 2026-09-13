@@ -14,7 +14,7 @@ import (
 )
 
 type inventoryTestHandler struct {
-	contract.RuntimeHandler
+	contract.SandboxRuntime
 	states    []*contract.UnionContainerState
 	err       error
 	deleted   *[]string
@@ -32,7 +32,7 @@ func (h inventoryTestHandler) DeleteContainer(_ context.Context, _ *runtimeapi.D
 	return &runtimeapi.DeleteContainerResponse{}, h.deleteErr
 }
 
-func runtimeInventoryTestService(t *testing.T, handler contract.RuntimeHandler) *sandboxService {
+func runtimeInventoryTestService(t *testing.T, handler contract.SandboxRuntime) *sandboxService {
 	t.Helper()
 	manager, err := container.NewManager(t.TempDir(), handler, make(chan bool, 1))
 	require.NoError(t, err)
@@ -40,9 +40,9 @@ func runtimeInventoryTestService(t *testing.T, handler contract.RuntimeHandler) 
 }
 
 func TestCollectRuntimeInventoryRequiresCompleteGeneration(t *testing.T) {
-	runsc := runtimetest.NewFakeRuntimeHandler()
+	runsc := runtimetest.NewFakeSandboxRuntime()
 	runsc.RuntimeName = "runsc"
-	service := runtimeInventoryTestService(t, inventoryTestHandler{RuntimeHandler: runsc, err: errors.New("runsc unavailable")})
+	service := runtimeInventoryTestService(t, inventoryTestHandler{SandboxRuntime: runsc, err: errors.New("runsc unavailable")})
 
 	inventory, err := service.collectRuntimeInventory(context.Background())
 	require.ErrorContains(t, err, "list runsc containers")
@@ -50,9 +50,9 @@ func TestCollectRuntimeInventoryRequiresCompleteGeneration(t *testing.T) {
 }
 
 func TestCollectRuntimeInventoryReturnsAllocationView(t *testing.T) {
-	runsc := runtimetest.NewFakeRuntimeHandler()
+	runsc := runtimetest.NewFakeSandboxRuntime()
 	runsc.RuntimeName = "runsc"
-	service := runtimeInventoryTestService(t, inventoryTestHandler{RuntimeHandler: runsc, states: []*contract.UnionContainerState{{ID: "live", Status: contract.ContainerStatusRunning}}})
+	service := runtimeInventoryTestService(t, inventoryTestHandler{SandboxRuntime: runsc, states: []*contract.UnionContainerState{{ID: "live", Status: contract.ContainerStatusRunning}}})
 
 	inventory, err := service.collectRuntimeInventory(context.Background())
 	require.NoError(t, err)
@@ -60,11 +60,11 @@ func TestCollectRuntimeInventoryReturnsAllocationView(t *testing.T) {
 }
 
 func TestRuntimeInventoryRetainsUnknownAndExcludesTerminalAfterRuntimeDelete(t *testing.T) {
-	runsc := runtimetest.NewFakeRuntimeHandler()
+	runsc := runtimetest.NewFakeSandboxRuntime()
 	runsc.RuntimeName = "runsc"
 	deleted := make([]string, 0)
 	service := runtimeInventoryTestService(t, inventoryTestHandler{
-		RuntimeHandler: runsc,
+		SandboxRuntime: runsc,
 		states: []*contract.UnionContainerState{
 			{ID: "terminal", Status: contract.ContainerStatusExited},
 			{ID: "unknown", Status: contract.ContainerStatusUnknown},
@@ -80,10 +80,10 @@ func TestRuntimeInventoryRetainsUnknownAndExcludesTerminalAfterRuntimeDelete(t *
 }
 
 func TestCollectRuntimeInventoryRejectsInvalidStatus(t *testing.T) {
-	runsc := runtimetest.NewFakeRuntimeHandler()
+	runsc := runtimetest.NewFakeSandboxRuntime()
 	runsc.RuntimeName = "runsc"
 	service := runtimeInventoryTestService(t, inventoryTestHandler{
-		RuntimeHandler: runsc,
+		SandboxRuntime: runsc,
 		states:         []*contract.UnionContainerState{{ID: "bad", Status: "paused"}},
 	})
 
@@ -92,7 +92,7 @@ func TestCollectRuntimeInventoryRejectsInvalidStatus(t *testing.T) {
 }
 
 func TestPartitionRuntimeInventoryRequiresExplicitConsistentRecoveryAuthority(t *testing.T) {
-	runsc := runtimetest.NewFakeRuntimeHandler()
+	runsc := runtimetest.NewFakeSandboxRuntime()
 	runsc.RuntimeName = "runsc"
 	service := runtimeInventoryTestService(t, runsc)
 	require.NoError(t, service.containerManager.StoreMetadata("durable", &runtimeapi.ContainerMetadata{
@@ -122,7 +122,7 @@ func TestPartitionRuntimeInventoryRequiresExplicitConsistentRecoveryAuthority(t 
 }
 
 func TestPartitionRuntimeInventoryRejectsImplicitRecoveryMode(t *testing.T) {
-	runsc := runtimetest.NewFakeRuntimeHandler()
+	runsc := runtimetest.NewFakeSandboxRuntime()
 	runsc.RuntimeName = "runsc"
 	service := runtimeInventoryTestService(t, runsc)
 	require.NoError(t, service.containerManager.StoreMetadata("ambiguous", &runtimeapi.ContainerMetadata{}))

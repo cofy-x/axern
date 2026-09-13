@@ -30,8 +30,8 @@ func TestNodesHandlerReturnsJSONDebugShape(t *testing.T) {
 		ResourcePolicy: func() ResourcePolicySnapshot {
 			return ResourcePolicySnapshot{CPUOvercommitRatio: 2, MemoryOvercommitPolicy: "disabled"}
 		},
-		ListRuntimeTemplates: func(context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-			return &catalogv1.ListRuntimeTemplatesResponse{}, nil
+		ListEnvironmentTemplates: func(context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
+			return &catalogv1.ListEnvironmentTemplatesResponse{}, nil
 		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{}, nil
@@ -59,8 +59,8 @@ func TestResourceHandlerReturnsJSONPolicyShape(t *testing.T) {
 		ResourcePolicy: func() ResourcePolicySnapshot {
 			return ResourcePolicySnapshot{CPUOvercommitRatio: 2.5, MemoryOvercommitPolicy: "disabled"}
 		},
-		ListRuntimeTemplates: func(context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-			return &catalogv1.ListRuntimeTemplatesResponse{}, nil
+		ListEnvironmentTemplates: func(context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
+			return &catalogv1.ListEnvironmentTemplatesResponse{}, nil
 		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{}, nil
@@ -90,8 +90,8 @@ func TestQuotaHandlerReturnsProtoJSON(t *testing.T) {
 		ResourcePolicy: func() ResourcePolicySnapshot {
 			return ResourcePolicySnapshot{}
 		},
-		ListRuntimeTemplates: func(context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-			return &catalogv1.ListRuntimeTemplatesResponse{}, nil
+		ListEnvironmentTemplates: func(context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
+			return &catalogv1.ListEnvironmentTemplatesResponse{}, nil
 		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{Quotas: []*quotav1.NamespaceQuota{{Namespace: "default"}}}, nil
@@ -117,8 +117,8 @@ func TestAllocationReconcileHandlerReturnsJSONQueue(t *testing.T) {
 	handler := New(Config{
 		DebugNodes:     func() []nodekernel.DebugNode { return nil },
 		ResourcePolicy: func() ResourcePolicySnapshot { return ResourcePolicySnapshot{} },
-		ListRuntimeTemplates: func(context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-			return &catalogv1.ListRuntimeTemplatesResponse{}, nil
+		ListEnvironmentTemplates: func(context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
+			return &catalogv1.ListEnvironmentTemplatesResponse{}, nil
 		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{}, nil
@@ -155,8 +155,8 @@ func TestReconcileHealthHandlerReturnsJSONSnapshot(t *testing.T) {
 	handler := New(Config{
 		DebugNodes:     func() []nodekernel.DebugNode { return nil },
 		ResourcePolicy: func() ResourcePolicySnapshot { return ResourcePolicySnapshot{} },
-		ListRuntimeTemplates: func(context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-			return &catalogv1.ListRuntimeTemplatesResponse{}, nil
+		ListEnvironmentTemplates: func(context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
+			return &catalogv1.ListEnvironmentTemplatesResponse{}, nil
 		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{}, nil

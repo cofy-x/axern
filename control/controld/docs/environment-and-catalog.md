@@ -1,6 +1,6 @@
 # Environment and Catalog
 
-The runtime catalog is curated and read-only. It is initialized from embedded declarative runtime-template JSON and ships official runtime templates:
+The environment catalog is curated and read-only. It is initialized from embedded declarative runtime-template JSON and ships official environment templates:
 
 - `python311`
 - `server-base`
@@ -28,7 +28,7 @@ Environments contain immutable workload inputs and remain independent from node 
 
 ## Execution Profile
 
-Runtime templates carry an `execution_profile` that describes node-side OCI execution policy for that template, including runtime baseline capabilities, `RLIMIT_NOFILE`, capability-annotation behavior, network namespace annotation keys, and resource-field ignore annotations.
+Environment templates carry an `execution_profile` that describes node-side OCI execution policy for that template, including runtime baseline capabilities, `RLIMIT_NOFILE`, capability-annotation behavior, network namespace annotation keys, and resource-field ignore annotations.
 
 `desktop-base` is the desktop-capable runtime profile. It advertises `supports_computer_use` and sets the sandbox environment required for sandboxd's `computer_use` provider. Headless templates keep that capability unset.
 

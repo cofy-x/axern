@@ -339,7 +339,7 @@ func TestAxernAdapterRuntimeForRequestAppliesTaskResources(t *testing.T) {
 	}
 }
 
-func TestAxernAdapterRuntimeForRequestUsesAgentRuntimeMountTarget(t *testing.T) {
+func TestAxernAdapterRuntimeForRequestUsesAgentEnvironmentMountTarget(t *testing.T) {
 	adapter := Adapter{Config: Config{Endpoint: "127.0.0.1:24000"}}
 	request := backend.ExecuteRequest{
 		Task: domain.TaskInstance{

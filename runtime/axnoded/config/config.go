@@ -100,13 +100,13 @@ type RuntimeConfig struct {
 	// declares an enforced egress policy.
 	EgressManagerSocket string `toml:"egress_manager_socket" json:"egressManagerSocket"`
 
-	// IdleRuntimeRetentionTTL controls how long temporary idle runtimes and
-	// their rootfs should remain retained after the last container exits.
-	IdleRuntimeRetentionTTL string `toml:"idle_runtime_retention_ttl" json:"idleRuntimeRetentionTtl"`
+	// IdleEnvironmentRetentionTTL controls how long prepared environments and
+	// their rootfs remain retained after the last Allocation exits.
+	IdleEnvironmentRetentionTTL string `toml:"idle_environment_retention_ttl" json:"idleEnvironmentRetentionTtl"`
 
-	// IdleRuntimeRetentionMax limits the number of retained idle runtimes kept
+	// IdleEnvironmentRetentionMax limits the number of prepared environments kept
 	// warm at once. When <= 0, idle retention is disabled.
-	IdleRuntimeRetentionMax *int `toml:"idle_runtime_retention_max" json:"idleRuntimeRetentionMax"`
+	IdleEnvironmentRetentionMax *int `toml:"idle_environment_retention_max" json:"idleEnvironmentRetentionMax"`
 }
 
 type RuntimeInstanceConfig struct {
@@ -166,10 +166,10 @@ func (c RuntimeConfig) RuntimeRunnerBinaryPath() string {
 	return value
 }
 
-func (c RuntimeConfig) IdleRuntimeRetentionTTLDuration() (time.Duration, error) {
-	value := strings.TrimSpace(c.IdleRuntimeRetentionTTL)
+func (c RuntimeConfig) IdleEnvironmentRetentionTTLDuration() (time.Duration, error) {
+	value := strings.TrimSpace(c.IdleEnvironmentRetentionTTL)
 	if value == "" {
-		value = DefaultIdleRuntimeRetentionTTL
+		value = DefaultIdleEnvironmentRetentionTTL
 	}
 	return time.ParseDuration(value)
 }
@@ -182,11 +182,11 @@ func (c RuntimeConfig) EgressManagerSocketPath() string {
 	return value
 }
 
-func (c RuntimeConfig) IdleRuntimeRetentionMaxValue() int {
-	if c.IdleRuntimeRetentionMax == nil {
-		return DefaultIdleRuntimeRetentionMax
+func (c RuntimeConfig) IdleEnvironmentRetentionMaxValue() int {
+	if c.IdleEnvironmentRetentionMax == nil {
+		return DefaultIdleEnvironmentRetentionMax
 	}
-	return *c.IdleRuntimeRetentionMax
+	return *c.IdleEnvironmentRetentionMax
 }
 
 func (c PluginConfig) ControlPlaneTargetValue() string {
@@ -537,7 +537,7 @@ func normalizeCIDRs(values []string) ([]string, error) {
 
 // DefaultConfig returns default configurations of cri plugin.
 func DefaultConfig() Config {
-	defaultIdleRuntimeRetentionMax := DefaultIdleRuntimeRetentionMax
+	defaultIdleEnvironmentRetentionMax := DefaultIdleEnvironmentRetentionMax
 	return Config{
 		PluginConfig: PluginConfig{
 			NetworkConfig: NetworkConfig{
@@ -567,8 +567,8 @@ func DefaultConfig() Config {
 				ImageManagerEnabled:               boolPtr(true),
 				ImageManagerSocket:                DefaultImageManagerSocket,
 				EgressManagerSocket:               DefaultEgressManagerSocket,
-				IdleRuntimeRetentionTTL:           DefaultIdleRuntimeRetentionTTL,
-				IdleRuntimeRetentionMax:           &defaultIdleRuntimeRetentionMax,
+				IdleEnvironmentRetentionTTL:       DefaultIdleEnvironmentRetentionTTL,
+				IdleEnvironmentRetentionMax:       &defaultIdleEnvironmentRetentionMax,
 				FilestoreMode:                     FilestoreModeExisting,
 				EphemeralStorageDefaultLimitBytes: 256 << 20,
 			},

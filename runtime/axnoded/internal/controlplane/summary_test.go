@@ -61,7 +61,7 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 		RootfsType:                 "image",
 		MountType:                  "oci",
 		Mounted:                    true,
-		RetainedRuntimeCount:       2,
+		RetainedEnvironmentCount:   2,
 		RetainedRootfsCount:        3,
 		RunningContainerCount:      4,
 		NydusDaemonAlive:           true,

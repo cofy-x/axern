@@ -7,14 +7,14 @@ import os
 import sys
 import time
 
-from axern_sdk import AxernClient, CatalogClient, Sandbox
+from axern_sdk import AxernClient, EnvironmentCatalogClient, Sandbox
 from axern.control.run.v1 import run_pb2
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--endpoint", required=True, help="controld gRPC address")
-    parser.add_argument("--runtime-id", default="python311", help="catalog runtime id")
+    parser.add_argument("--environment-id", default="python311", help="environment template id")
     parser.add_argument("--expected-image-ref", required=True, help="expected catalog image ref")
     return parser.parse_args()
 
@@ -28,17 +28,17 @@ def main() -> int:
         "tls_server_name": os.getenv("AXERN_TLS_SERVER_NAME") or None,
         "proxy_mode": os.getenv("AXERN_PROXY_MODE", "env"),
     }
-    catalog = CatalogClient(args.endpoint, **tls)
+    catalog = EnvironmentCatalogClient(args.endpoint, **tls)
     client = AxernClient(args.endpoint, **tls)
     try:
-        template = catalog.get_runtime_template(args.runtime_id)
-        if template.id != args.runtime_id:
+        template = catalog.get_environment_template(args.environment_id)
+        if template.id != args.environment_id:
             raise SystemExit(f"catalog returned unexpected runtime id: {template.id}")
         image_ref = template.image_descriptor.annotations.get("org.opencontainers.image.ref.name", "")
         if image_ref != args.expected_image_ref:
             raise SystemExit(f"catalog returned image ref {image_ref!r}, want {args.expected_image_ref!r}")
 
-        environment = client.create_environment(template_id=args.runtime_id)
+        environment = client.create_environment(template_id=args.environment_id)
         if not environment.id:
             raise SystemExit("create_environment returned empty id")
 

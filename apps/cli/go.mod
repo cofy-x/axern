@@ -33,5 +33,3 @@ replace github.com/cofy-x/axern/sdk/go => ../../sdk/go
 replace github.com/cofy-x/axern/lib/go/grpcclient => ../../lib/go/grpcclient
 
 replace github.com/cofy-x/axern/lib/go/nodecapability => ../../lib/go/nodecapability
-
-replace github.com/cofy-x/axern/lib/go/llmproxy => ../../lib/go/llmproxy

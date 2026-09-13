@@ -49,16 +49,6 @@ class NodeSandboxStub:
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessRequest.SerializeToString,
                 response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessResponse.FromString,
                 _registered_method=True)
-        self.ExecImage = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/ExecImage',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecImageRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecImageResponse.FromString,
-                _registered_method=True)
-        self.ProcessImage = channel.stream_stream(
-                '/axern.node.sandbox.v1.NodeSandbox/ProcessImage',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessImageRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessImageResponse.FromString,
-                _registered_method=True)
         self.WaitSandbox = channel.unary_unary(
                 '/axern.node.sandbox.v1.NodeSandbox/WaitSandbox',
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxRequest.SerializeToString,
@@ -227,18 +217,6 @@ class NodeSandboxServicer:
         raise NotImplementedError('Method not implemented!')
 
     def Process(self, request_iterator, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ExecImage(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ProcessImage(self, request_iterator, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -441,16 +419,6 @@ def add_NodeSandboxServicer_to_server(servicer, server):
                     servicer.Process,
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessRequest.FromString,
                     response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessResponse.SerializeToString,
-            ),
-            'ExecImage': grpc.unary_unary_rpc_method_handler(
-                    servicer.ExecImage,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecImageRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecImageResponse.SerializeToString,
-            ),
-            'ProcessImage': grpc.stream_stream_rpc_method_handler(
-                    servicer.ProcessImage,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessImageRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessImageResponse.SerializeToString,
             ),
             'WaitSandbox': grpc.unary_unary_rpc_method_handler(
                     servicer.WaitSandbox,
@@ -684,60 +652,6 @@ class NodeSandbox:
             '/axern.node.sandbox.v1.NodeSandbox/Process',
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessRequest.SerializeToString,
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ExecImage(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/ExecImage',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecImageRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecImageResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ProcessImage(request_iterator,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.stream_stream(
-            request_iterator,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/ProcessImage',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessImageRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessImageResponse.FromString,
             options,
             channel_credentials,
             insecure,

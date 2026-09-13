@@ -18,19 +18,18 @@ const (
 )
 
 type verifySmokeConfig struct {
-	address      string
-	rootfsSrc    string
-	rootfs       string
-	imageURL     string
-	runtimeName  string
-	runtimeID    string
-	stdoutPath   string
-	stderrPath   string
-	command      string
-	argvJSON     string
-	expectStdout string
-	expectStderr string
-	expectedExit int
+	address       string
+	rootfsSrc     string
+	rootfs        string
+	imageURL      string
+	environmentID string
+	stdoutPath    string
+	stderrPath    string
+	command       string
+	argvJSON      string
+	expectStdout  string
+	expectStderr  string
+	expectedExit  int
 }
 
 func parseFlags() verifySmokeConfig {
@@ -39,8 +38,7 @@ func parseFlags() verifySmokeConfig {
 	flag.StringVar(&cfg.rootfsSrc, "rootfs-src", "local", "rootfs source: local or image")
 	flag.StringVar(&cfg.rootfs, "rootfs", "/opt/sample-rootfs", "LOCAL rootfs path")
 	flag.StringVar(&cfg.imageURL, "image-url", "", "OCI/Nydus image URL for rootfs-src=image")
-	flag.StringVar(&cfg.runtimeName, "runtime", config.RuntimeNameRunsc, "sandbox runtime name under test")
-	flag.StringVar(&cfg.runtimeID, "runtime-id", "verify-runtime", "runtime id")
+	flag.StringVar(&cfg.environmentID, "environment-id", "verify-runtime", "runtime id")
 	flag.StringVar(&cfg.stdoutPath, "stdout", "/tmp/axnoded-verify.stdout", "container stdout path")
 	flag.StringVar(&cfg.stderrPath, "stderr", "/tmp/axnoded-verify.stderr", "container stderr path")
 	flag.StringVar(&cfg.command, "command", "echo generic-axnoded-ok; echo generic-axnoded-err 1>&2; sleep 1", "shell snippet executed as /bin/sh -c ...")

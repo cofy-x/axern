@@ -32,7 +32,7 @@ func buildPlacementRank(req *placementkernel.Request, summary *nodev1.NodeSummar
 	rank := &nodev1.PlacementRank{
 		MountedMatch:               localityMounted(locality, req.GetRootfsKey()),
 		RetainedRootfsCount:        locality.GetRetainedRootfsCount(),
-		RetainedRuntimeCount:       locality.GetRetainedRuntimeCount(),
+		RetainedEnvironmentCount:   locality.GetRetainedEnvironmentCount(),
 		NydusDaemonAlive:           locality.GetNydusDaemonAlive(),
 		ChunkdbRecentAccessAgeSecs: localityAge(locality),
 		PeerHealthyCount:           locality.GetPeerHealthyCount(),

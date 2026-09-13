@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cofy-x/axern/apps/axrun/internal/agent"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 	"github.com/cofy-x/axern/apps/axrun/internal/sandbox"
 )
@@ -166,33 +165,24 @@ func (s *executionSession) prepareWorkspace(ctx context.Context, instance sandbo
 }
 
 func (s *executionSession) runAgentPhase(ctx context.Context, instance sandbox.Instance, baseline *WorkspaceBaseline) (bool, error) {
-	var managedProxy *sandbox.ManagedProxyOptions
 	recorder, err := createAgentRecorder(s.request)
 	if err != nil {
 		return false, err
 	}
-	if pc, ok := s.request.AgentHarness.(agent.ManagedProxyConfigurer); ok {
-		managedProxy, err = resolveManagedProxy(pc, s.episode.Agent, recorder)
-		if err != nil {
-			return false, err
-		}
-	}
-
 	agentCtx, monitor, cleanup := s.buildPhaseContext(ctx, instance, "agent", s.agentTimeoutSec())
 	defer cleanup()
 
 	result, err := runAgentFlow(agentCtx, agentFlowRequest{
-		store:        s.store,
-		paths:        s.paths,
-		task:         s.task,
-		episode:      s.episode,
-		sandbox:      instance,
-		harness:      s.request.AgentHarness,
-		trajectory:   s.trajectory,
-		now:          s.request.Now,
-		managedProxy: managedProxy,
-		recorder:     recorder,
-		baseline:     baseline,
+		store:      s.store,
+		paths:      s.paths,
+		task:       s.task,
+		episode:    s.episode,
+		sandbox:    instance,
+		harness:    s.request.AgentHarness,
+		trajectory: s.trajectory,
+		now:        s.request.Now,
+		recorder:   recorder,
+		baseline:   baseline,
 	})
 	if err != nil {
 		if isSandboxDeathErr(monitor, err) {

@@ -17,7 +17,7 @@ import (
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 )
 
-func newVerifyRuntimeHandlerWithRoot(cfg config, rootDir string) (contract.RuntimeHandler, error) {
+func newVerifySandboxRuntimeWithRoot(cfg config, rootDir string) (contract.SandboxRuntime, error) {
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
 	if err != nil {
 		return nil, err

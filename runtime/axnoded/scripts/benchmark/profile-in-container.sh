@@ -6,8 +6,7 @@ cd "${ROOT_DIR}"
 . "${ROOT_DIR}/scripts/lib/ebpf-ingress-probe.sh"
 . "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 
-RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST:-runsc}"
-RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/${RUNTIME_UNDER_TEST}}"
+RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/runsc}"
 SOCKET_ADDRESS="${SOCKET_ADDRESS:-/run/axnoded/axnoded.sock}"
 AXNODED_BIN="${AXNODED_BIN:-/usr/local/bin/axnoded}"
 NAT_BACKEND="${NAT_BACKEND:-iptables}"
@@ -113,12 +112,6 @@ run_profile_with_retries() {
   return 1
 }
 
-if [ "${RUNTIME_UNDER_TEST}" != "runsc" ]; then
-  echo "runsc_profile_skipped=true runtime=${RUNTIME_UNDER_TEST}" >&2
-  jq -n --arg runtime "${RUNTIME_UNDER_TEST}" --arg nat "${NAT_BACKEND}" '{runtime:$runtime,natBackend:$nat,profileSkipped:true}'
-  exit 0
-fi
-
 require_perf_ready
 setup_external_probe
 
@@ -205,7 +198,6 @@ perf_output="/tmp/profile-perf-output"
 
 ROOT_DIR="${ROOT_DIR}" \
 SOCKET_ADDRESS="${SOCKET_ADDRESS}" \
-RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST}" \
 NAT_BACKEND="${NAT_BACKEND}" \
 BENCHMARK_REQUESTS="${BENCHMARK_REQUESTS}" \
 BENCHMARK_CONCURRENCY="${BENCHMARK_CONCURRENCY}" \
@@ -220,7 +212,7 @@ completed_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 if [ "${BENCHMARK_PROFILE_MODE}" = "record" ]; then
   jq -n \
-    --arg runtime "${RUNTIME_UNDER_TEST}" \
+    --arg runtime "runsc" \
     --arg nat "${NAT_BACKEND}" \
     --arg mode "${BENCHMARK_PROFILE_MODE}" \
     --arg events "${BENCHMARK_PROFILE_EVENTS:-${DEFAULT_PERF_RECORD_EVENT}}" \
@@ -240,7 +232,7 @@ if [ "${BENCHMARK_PROFILE_MODE}" = "record" ]; then
     }'
 else
   jq -n \
-    --arg runtime "${RUNTIME_UNDER_TEST}" \
+    --arg runtime "runsc" \
     --arg nat "${NAT_BACKEND}" \
     --arg mode "${BENCHMARK_PROFILE_MODE}" \
     --arg events "${BENCHMARK_PROFILE_EVENTS:-${DEFAULT_PERF_STAT_EVENTS}}" \

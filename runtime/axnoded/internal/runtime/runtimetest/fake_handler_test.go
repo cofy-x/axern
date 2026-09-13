@@ -6,15 +6,12 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 )
 
-func TestFakeRuntimeHandlerDefaultShape(t *testing.T) {
-	handler := NewFakeRuntimeHandler()
+func TestFakeSandboxRuntimeDefaultShape(t *testing.T) {
+	handler := NewFakeSandboxRuntime()
 	if handler.Name() != config.RuntimeNameRunsc {
 		t.Fatalf("expected default fake runtime name %q, got %q", config.RuntimeNameRunsc, handler.Name())
 	}
-	if !handler.Capabilities().CanCheckpoint {
-		t.Fatalf("expected fake handler to advertise checkpoint support")
-	}
-	if len(handler.Requirements().Resources) != 0 {
-		t.Fatalf("expected fake handler default resources to be empty, got %+v", handler.Requirements())
+	if len(handler.HostRequirements().Resources) != 0 {
+		t.Fatalf("expected fake handler default resources to be empty, got %+v", handler.HostRequirements())
 	}
 }

@@ -135,23 +135,6 @@ with sandbox.process(["python", "-u", "-c", "import sys; print(sys.stdin.read().
 
 `AsyncSandbox.process()` returns `AsyncSandboxProcess` with async equivalents of `write()`, `close_stdin()`, `events()`, `wait()`, `terminate()`, and `kill()`.
 
-## Image-Backed Processes
-
-Use `exec_image()` or `process_image()` to run a tool from a separate image against explicit host-backed sandbox paths. OCI and Nydus image refs use the same `image` field. When `mounts=None`, the SDK requests `/workspace -> /workspace`; pass `mounts=[]` for no shared paths. Use `Sandbox(image=...)` when the image should be the sandbox rootfs with normal files, exec, process, tunnel, and lifecycle APIs; image-backed processes are temporary side processes attached to an existing sandbox.
-
-```python
-from axern_sdk import workspace_mount
-
-result = sandbox.exec_image(
-    "ghcr.io/cofy-x/agent:latest",
-    "tool run",
-    mounts=[workspace_mount("/workspace")],
-    check=True,
-    text=True,
-)
-print(result.stdout)
-```
-
 ## Files
 
 Single-file APIs are byte-safe. Text helpers only encode/decode at the SDK boundary.

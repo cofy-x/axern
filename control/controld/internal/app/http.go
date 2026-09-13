@@ -29,8 +29,8 @@ func (a *App) HTTPHandler() http.Handler {
 				MemoryOvercommitPolicy: "disabled",
 			}
 		},
-		ListRuntimeTemplates: func(ctx context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-			return a.PublicV1Handler().ListRuntimeTemplates(ctx, &catalogv1.ListRuntimeTemplatesRequest{})
+		ListEnvironmentTemplates: func(ctx context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
+			return a.PublicV1Handler().ListEnvironmentTemplates(ctx, &catalogv1.ListEnvironmentTemplatesRequest{})
 		},
 		ListNamespaceQuotas: func(ctx context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return a.PublicV1Handler().ListNamespaceQuotas(ctx, &quotav1.ListNamespaceQuotasRequest{})

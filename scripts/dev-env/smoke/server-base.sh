@@ -24,7 +24,7 @@ run_local_server_base_smoke() {
   trap cleanup_server_base_run RETURN
 
   catalog_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" catalog list -o json)"
-  python3 -c 'import json,sys; data=json.load(sys.stdin); server=next(item for item in data["runtime_templates"] if item["id"] == "server-base"); assert server["image_default_argv"][0].endswith("supervisord")' <<<"${catalog_json}" >/dev/null
+  python3 -c 'import json,sys; data=json.load(sys.stdin); server=next(item for item in data["environment_templates"] if item["id"] == "server-base"); assert server["image_default_argv"][0].endswith("supervisord")' <<<"${catalog_json}" >/dev/null
 
   env_json="$(local_smoke_json_once_or_recover_by_namespace environment environments environment "${namespace}" \
     "${AXERN_SMOKE_CMD[@]}" environment create -o json --namespace "${namespace}" --template-id server-base)"

@@ -102,7 +102,7 @@ Node-local network-policy diagnostics are covered by `go test ./internal/service
 
 `verify-node-locality-e2e` reports explicit phases for initial inventory, OCI start, OCI retention, Nydus start, and Nydus heat. If create fails, inspect the printed context in this order: image pull and imagemgr mount state, runtime create output and sandbox stdout/stderr, sandboxd readiness in the runtime stderr, `/readyz` and `/inventoryz`, then locality heat fields in the cached inventory snapshot. The create timeout is script-configurable through `CREATE_SANDBOX_TIMEOUT`; the default is `300s`, high enough for cold image plus Nydus mount paths without relaxing the final locality assertions.
 
-Startup observability uses two axnoded histogram levels. `axern.axnoded_startup_phase_duration_seconds` keeps the stable operator view: language runtime lookup, rootfs preparation, resource allocation, runtime bundle preparation, runtime launch, and network activation. `axern.axnoded_startup_step_duration_seconds` is the attribution view for rootfs and runtime internals such as rootfs cache lookup, rootfs wait, rootfs mount, writable rootfs view preparation, bundle materialization, runtime start, runtime state wait, and sandboxd readiness wait. Image-manager rootfs internals are exported by imagemgr as `axern.imagemgr_timed_operation_stage_duration_seconds`; use that metric to separate registry fetch, layer/bootstrap extraction, daemon creation, overlay or loop mount, and mount-readiness cost. Pair those node-side startup metrics with `axern.controld_node_lifecycle_rpc_duration_seconds`, `axern.axnoded_lifecycle_stage_duration_seconds`, and `axern.controld_allocation_lifecycle_report_stage_duration_seconds`. Use `axern.axnoded_allocation_lifecycle_queue_wait_duration_seconds` to distinguish node-side delivery delay from Allocation persistence and Run projection. Together these metrics distinguish placement admission, controld-to-node lifecycle RPC, node lifecycle request handling, runtime startup, queued lifecycle-observation delivery, and durable Run status projection.
+Startup observability uses two axnoded histogram levels. `axern.axnoded_startup_phase_duration_seconds` keeps the stable operator view: environment lookup, rootfs preparation, resource allocation, runtime bundle preparation, runtime launch, and network activation. `axern.axnoded_startup_step_duration_seconds` is the attribution view for rootfs and runtime internals such as rootfs cache lookup, rootfs wait, rootfs mount, writable rootfs view preparation, bundle materialization, runtime start, runtime state wait, and sandboxd readiness wait. Image-manager rootfs internals are exported by imagemgr as `axern.imagemgr_timed_operation_stage_duration_seconds`; use that metric to separate registry fetch, layer/bootstrap extraction, daemon creation, overlay or loop mount, and mount-readiness cost. Pair those node-side startup metrics with `axern.controld_node_lifecycle_rpc_duration_seconds`, `axern.axnoded_lifecycle_stage_duration_seconds`, and `axern.controld_allocation_lifecycle_report_stage_duration_seconds`. Use `axern.axnoded_allocation_lifecycle_queue_wait_duration_seconds` to distinguish node-side delivery delay from Allocation persistence and Run projection. Together these metrics distinguish placement admission, controld-to-node lifecycle RPC, node lifecycle request handling, runtime startup, queued lifecycle-observation delivery, and durable Run status projection.
 
 Control-plane outage tests must confirm that `/control-planez` exposes a bounded retry with retained terminal state, that new observations do not cause an early RPC, and that recovery drains the queue and clears active failures.
 
@@ -117,19 +117,9 @@ make axnoded-verify-node-nydus-e2e
 ## Local Demos
 
 ```bash
-make run-dashboard-nginx-demo
 make example-bpfnet-udp-ingress
 make example-bpfnet-egress
 ```
-
-To exit the dashboard demo after startup:
-
-```bash
-KEEP_RUNNING=false NAT_BACKEND=iptables make run-dashboard-nginx-demo
-KEEP_RUNNING=false NAT_BACKEND=ebpf make run-dashboard-nginx-demo
-```
-
-The dashboard demo uses local rootfs only. `imagemgr` and `imagefsd` should be reported as `disabled` in `/inventoryz`.
 
 ## Performance
 

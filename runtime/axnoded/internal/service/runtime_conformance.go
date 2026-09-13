@@ -18,8 +18,8 @@ import (
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
@@ -52,7 +52,7 @@ type runtimeConformanceProbe func(context.Context, string, runtimeConformanceKin
 type runtimeConformanceProvider struct {
 	mu               sync.Mutex
 	cfg              config.Config
-	handler          contract.RuntimeHandler
+	handler          contract.SandboxRuntime
 	runtime          string
 	kind             runtimeConformanceKind
 	provider         capabilityv1.CapabilityProvider
@@ -102,7 +102,7 @@ func (c *runtimeFileDigestCache) Digest(path string) (string, error) {
 	return digest, nil
 }
 
-func runtimeConformanceCapabilityProvider(cfg config.Config, handler contract.RuntimeHandler, runtimeName string, kind runtimeConformanceKind, bootID string, probe runtimeConformanceProbe, caches ...*runtimeFileDigestCache) *runtimeConformanceProvider {
+func runtimeConformanceCapabilityProvider(cfg config.Config, handler contract.SandboxRuntime, runtimeName string, kind runtimeConformanceKind, bootID string, probe runtimeConformanceProbe, caches ...*runtimeFileDigestCache) *runtimeConformanceProvider {
 	// The call sites use the closed runtime/kind matrix below. Keep each
 	// provider single-keyed: provider ownership and recovery are tracked per
 	// observation, so combining enforcement boundaries would couple their
@@ -239,11 +239,11 @@ func setObservationTime(observations []*capabilityv1.CapabilityObservation, obse
 
 func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, configDigest string, err error) {
 	if p.runtime != config.RuntimeNameRunsc {
-		return "", "", "", fmt.Errorf("runtime %q is not configured", p.runtime)
+		return "", "", "", fmt.Errorf("prepared environment %q is not configured", p.runtime)
 	}
 	runtimeCfg := p.cfg.PluginConfig.RuntimeConfig.Runsc
 	if p.handler == nil {
-		return "", "", "", fmt.Errorf("runtime %q handler is not loaded", p.runtime)
+		return "", "", "", fmt.Errorf("prepared environment %q handler is not loaded", p.runtime)
 	}
 	runtimeBinary, err := exec.LookPath(strings.TrimSpace(runtimeCfg.Binary))
 	if err != nil {
@@ -296,18 +296,18 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 	if err != nil {
 		return err
 	}
-	runtimeID := "capability-selftest-" + runtimeName + "-" + string(kind)
+	environmentID := "capability-selftest-" + runtimeName + "-" + string(kind)
 	// Providers are serialized per runtime/kind. A deterministic allocation ID
 	// makes interrupted probes reconcilable and prevents retries from creating
 	// an unbounded series of orphan bundles.
-	allocationID := runtimeID + "-allocation"
+	allocationID := environmentID + "-allocation"
 	preflightCtx, preflightCancel := context.WithTimeout(ctx, runtimeConformanceCleanup)
 	if err := h.cleanupRuntimeConformanceAllocation(preflightCtx, runtimeName, allocationID); err != nil {
 		preflightCancel()
 		return fmt.Errorf("cleanup previous runtime conformance sandbox: %w", err)
 	}
 	preflightCancel()
-	request, err := runtimeConformanceStartRequest(allocationID, runtimeID, rootfs, kind)
+	request, err := runtimeConformanceStartRequest(allocationID, environmentID, rootfs, kind)
 	if err != nil {
 		return err
 	}
@@ -334,7 +334,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 			}
 			return
 		}
-		if err := h.lrtManager.EvictIdleRuntime(deleteCtx, runtimeID, langrtmanager.RetentionReasonSelfTest); err != nil {
+		if err := h.environmentCache.EvictIdleEnvironment(deleteCtx, environmentID, environmentcache.RetentionReasonSelfTest); err != nil {
 			if retErr == nil {
 				retErr = fmt.Errorf("cleanup self-test runtime: %w", err)
 			} else {
@@ -476,29 +476,29 @@ func (h *sandboxService) verifyRuntimeConformanceCleanup(ctx context.Context, al
 	}
 }
 
-func runtimeConformanceStartRequest(allocationID, runtimeID, rootfs string, kind runtimeConformanceKind) (*runtimev1.StartRequest, error) {
+func runtimeConformanceStartRequest(allocationID, environmentID, rootfs string, kind runtimeConformanceKind) (*runtimev1.StartRequest, error) {
 	request := &runtimev1.StartRequest{
 		ContainerID: allocationID,
-		RuntimeTemplate: &runtimev1.RuntimeTemplate{
-			ID: runtimeID,
+		EnvironmentTemplate: &runtimev1.EnvironmentTemplate{
+			ID: environmentID,
 			Rootfs: &runtimev1.RootfsConfig{
 				Type:     runtimev1.RootfsSrcType_LOCAL,
 				Source:   &runtimev1.RootfsConfig_Path{Path: rootfs},
 				Readonly: kind == runtimeConformanceKindMemory,
 			},
-			Command: []string{"/bin/busybox", "sleep", "120"},
-			Cwd:     "/",
+			Argv: []string{"/bin/busybox", "sleep", "120"},
+			Cwd:  "/",
 		},
 	}
 	switch kind {
 	case runtimeConformanceKindMemory:
-		request.RuntimeTemplate.Command = []string{"/bin/memory-hog"}
+		request.EnvironmentTemplate.Argv = []string{"/bin/memory-hog"}
 		request.Resources = &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{MemoryBytes: runtimeConformanceMemoryLimit},
 			Limits:   &commonv1.ResourceQuantity{MemoryBytes: runtimeConformanceMemoryLimit},
 		}
 	case runtimeConformanceKindEphemeral:
-		request.RuntimeTemplate.Command = []string{"/bin/sh", "-c", "printf 'pending\\n' > /.axern-quota-result; if /bin/busybox dd if=/dev/zero of=/.axern-quota-probe bs=1M count=96 conv=fsync; then result=not_enforced; else result=enforced; fi; rm -f /.axern-quota-probe; printf '%s\\n' \"$result\" > /.axern-quota-result; exec /bin/busybox sleep 120"}
+		request.EnvironmentTemplate.Argv = []string{"/bin/sh", "-c", "printf 'pending\\n' > /.axern-quota-result; if /bin/busybox dd if=/dev/zero of=/.axern-quota-probe bs=1M count=96 conv=fsync; then result=not_enforced; else result=enforced; fi; rm -f /.axern-quota-probe; printf '%s\\n' \"$result\" > /.axern-quota-result; exec /bin/busybox sleep 120"}
 		request.Resources = &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{EphemeralStorageBytes: runtimeConformanceStorage},
 			Limits:   &commonv1.ResourceQuantity{EphemeralStorageBytes: runtimeConformanceStorage},

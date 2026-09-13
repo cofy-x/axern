@@ -14,7 +14,7 @@ import (
 )
 
 func TestResolverRunningTarget(t *testing.T) {
-	handler := runtimetest.NewFakeRuntimeHandler()
+	handler := runtimetest.NewFakeSandboxRuntime()
 	resolver := NewResolver(Options{
 		GetContainer: func(id string) (*container.Container, error) {
 			return testContainer(id, container.Status{StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
@@ -35,7 +35,7 @@ func TestResolverRejectsInvalidContainer(t *testing.T) {
 		GetContainer: func(string) (*container.Container, error) {
 			return &container.Container{}, nil
 		},
-		RunscHandler: runtimetest.NewFakeRuntimeHandler(),
+		RunscHandler: runtimetest.NewFakeSandboxRuntime(),
 	})
 
 	_, err := resolver.Container("alloc-1")
@@ -48,7 +48,7 @@ func TestResolverRejectsStoppedContainer(t *testing.T) {
 		GetContainer: func(id string) (*container.Container, error) {
 			return testContainer(id, container.Status{StartedAt: "0"}), nil
 		},
-		RunscHandler: runtimetest.NewFakeRuntimeHandler(),
+		RunscHandler: runtimetest.NewFakeSandboxRuntime(),
 	})
 
 	_, err := resolver.Running("alloc-1")
@@ -56,7 +56,7 @@ func TestResolverRejectsStoppedContainer(t *testing.T) {
 	assert.ErrorIs(t, err, errord.ErrFailedPrecondition)
 }
 
-func TestResolverRejectsNilRuntimeHandler(t *testing.T) {
+func TestResolverRejectsNilSandboxRuntime(t *testing.T) {
 	resolver := NewResolver(Options{
 		GetContainer: func(id string) (*container.Container, error) {
 			return testContainer(id, container.Status{StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
@@ -68,30 +68,13 @@ func TestResolverRejectsNilRuntimeHandler(t *testing.T) {
 	assert.ErrorIs(t, err, errord.ErrInvalidContainer)
 }
 
-func TestResolverExecDirectCapability(t *testing.T) {
-	resolver := NewResolver(Options{
-		GetContainer: func(id string) (*container.Container, error) {
-			return testContainer(id, container.Status{StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
-		},
-		RunscHandler: func() *runtimetest.FakeRuntimeHandler {
-			handler := runtimetest.NewFakeRuntimeHandler()
-			handler.RuntimeCapabilities.CanExecDirect = false
-			return handler
-		}(),
-	})
-
-	_, err := resolver.ExecDirect("alloc-1")
-
-	assert.ErrorIs(t, err, errord.ErrNotImplemented)
-}
-
 func TestResolverPropagatesLookupErrors(t *testing.T) {
 	lookupErr := errors.New("lookup failed")
 	resolver := NewResolver(Options{
 		GetContainer: func(string) (*container.Container, error) {
 			return nil, lookupErr
 		},
-		RunscHandler: runtimetest.NewFakeRuntimeHandler(),
+		RunscHandler: runtimetest.NewFakeSandboxRuntime(),
 	})
 
 	_, err := resolver.Container("alloc-1")

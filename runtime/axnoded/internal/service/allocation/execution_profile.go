@@ -1,29 +1,29 @@
 package allocation
 
 import (
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 )
 
-func executionProfileFromLanguageRuntime(lrt *langrtmanager.LanguageRuntime) *runtimeoci.ExecutionProfile {
+func executionProfileFromPreparedEnvironment(lrt *environmentcache.PreparedEnvironment) *runtimeoci.ExecutionProfile {
 	if lrt == nil {
 		return nil
 	}
 	return ExecutionProfileFromProto(lrt.ExecutionProfile)
 }
 
-func ExecutionProfileFromProto(in *catalogv1.RuntimeExecutionProfile) *runtimeoci.ExecutionProfile {
+func ExecutionProfileFromProto(in *catalogv1.OciExecutionProfile) *runtimeoci.ExecutionProfile {
 	if in == nil {
 		return nil
 	}
 	out := runtimeoci.DefaultExecutionProfile()
-	if baseline := in.GetRuntimeBaseline(); baseline != nil {
+	if baseline := in.GetBaseline(); baseline != nil {
 		if len(baseline.GetCapabilities()) > 0 {
-			out.RuntimeBaseline.Capabilities = append([]string(nil), baseline.GetCapabilities()...)
+			out.Baseline.Capabilities = append([]string(nil), baseline.GetCapabilities()...)
 		}
 		if baseline.GetNoFileLimit() > 0 {
-			out.RuntimeBaseline.NoFileLimit = baseline.GetNoFileLimit()
+			out.Baseline.NoFileLimit = baseline.GetNoFileLimit()
 		}
 	}
 	if capability := in.GetCapabilities(); capability != nil {

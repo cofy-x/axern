@@ -314,12 +314,12 @@ class ComponentsSummary(_message.Message):
     def __init__(self, axnoded: _Optional[_Union[AxnodedSummary, _Mapping]] = ..., imagemgr: _Optional[_Union[ImagemgrSummary, _Mapping]] = ..., imagefsd: _Optional[_Union[ImagefsdSummary, _Mapping]] = ..., bpfnet: _Optional[_Union[BpfNetSummary, _Mapping]] = ...) -> None: ...
 
 class LocalitySummary(_message.Message):
-    __slots__ = ("key", "rootfs_type", "mount_type", "mounted", "retained_runtime_count", "retained_rootfs_count", "running_container_count", "nydus_daemon_alive", "chunkdb_total_chunks", "chunkdb_used_bytes", "chunkdb_recent_access_age_secs", "peer_healthy_count", "peer_unhealthy_count", "peer_hinted_count", "environment_id")
+    __slots__ = ("key", "rootfs_type", "mount_type", "mounted", "retained_environment_count", "retained_rootfs_count", "running_container_count", "nydus_daemon_alive", "chunkdb_total_chunks", "chunkdb_used_bytes", "chunkdb_recent_access_age_secs", "peer_healthy_count", "peer_unhealthy_count", "peer_hinted_count", "environment_id")
     KEY_FIELD_NUMBER: _ClassVar[int]
     ROOTFS_TYPE_FIELD_NUMBER: _ClassVar[int]
     MOUNT_TYPE_FIELD_NUMBER: _ClassVar[int]
     MOUNTED_FIELD_NUMBER: _ClassVar[int]
-    RETAINED_RUNTIME_COUNT_FIELD_NUMBER: _ClassVar[int]
+    RETAINED_ENVIRONMENT_COUNT_FIELD_NUMBER: _ClassVar[int]
     RETAINED_ROOTFS_COUNT_FIELD_NUMBER: _ClassVar[int]
     RUNNING_CONTAINER_COUNT_FIELD_NUMBER: _ClassVar[int]
     NYDUS_DAEMON_ALIVE_FIELD_NUMBER: _ClassVar[int]
@@ -334,7 +334,7 @@ class LocalitySummary(_message.Message):
     rootfs_type: RootfsType
     mount_type: MountType
     mounted: bool
-    retained_runtime_count: int
+    retained_environment_count: int
     retained_rootfs_count: int
     running_container_count: int
     nydus_daemon_alive: bool
@@ -345,7 +345,7 @@ class LocalitySummary(_message.Message):
     peer_unhealthy_count: int
     peer_hinted_count: int
     environment_id: str
-    def __init__(self, key: _Optional[str] = ..., rootfs_type: _Optional[_Union[RootfsType, str]] = ..., mount_type: _Optional[_Union[MountType, str]] = ..., mounted: _Optional[bool] = ..., retained_runtime_count: _Optional[int] = ..., retained_rootfs_count: _Optional[int] = ..., running_container_count: _Optional[int] = ..., nydus_daemon_alive: _Optional[bool] = ..., chunkdb_total_chunks: _Optional[int] = ..., chunkdb_used_bytes: _Optional[int] = ..., chunkdb_recent_access_age_secs: _Optional[int] = ..., peer_healthy_count: _Optional[int] = ..., peer_unhealthy_count: _Optional[int] = ..., peer_hinted_count: _Optional[int] = ..., environment_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, key: _Optional[str] = ..., rootfs_type: _Optional[_Union[RootfsType, str]] = ..., mount_type: _Optional[_Union[MountType, str]] = ..., mounted: _Optional[bool] = ..., retained_environment_count: _Optional[int] = ..., retained_rootfs_count: _Optional[int] = ..., running_container_count: _Optional[int] = ..., nydus_daemon_alive: _Optional[bool] = ..., chunkdb_total_chunks: _Optional[int] = ..., chunkdb_used_bytes: _Optional[int] = ..., chunkdb_recent_access_age_secs: _Optional[int] = ..., peer_healthy_count: _Optional[int] = ..., peer_unhealthy_count: _Optional[int] = ..., peer_hinted_count: _Optional[int] = ..., environment_id: _Optional[str] = ...) -> None: ...
 
 class NodeSummary(_message.Message):
     __slots__ = ("collected_at", "resources", "pools", "components", "locality", "node_state", "labels", "capability_snapshot", "capacity", "allocatable", "storage", "memory_budget")
@@ -597,10 +597,10 @@ class ReportTunnelSessionStatusResponse(_message.Message):
     def __init__(self) -> None: ...
 
 class PlacementRank(_message.Message):
-    __slots__ = ("mounted_match", "retained_rootfs_count", "retained_runtime_count", "nydus_daemon_alive", "chunkdb_recent_access_age_secs", "peer_healthy_count", "peer_hinted_count", "bpfnet_preferred", "idle_pool_ready", "axnoded_used_milli", "axnoded_used_bytes", "axnoded_active_instances")
+    __slots__ = ("mounted_match", "retained_rootfs_count", "retained_environment_count", "nydus_daemon_alive", "chunkdb_recent_access_age_secs", "peer_healthy_count", "peer_hinted_count", "bpfnet_preferred", "idle_pool_ready", "axnoded_used_milli", "axnoded_used_bytes", "axnoded_active_instances")
     MOUNTED_MATCH_FIELD_NUMBER: _ClassVar[int]
     RETAINED_ROOTFS_COUNT_FIELD_NUMBER: _ClassVar[int]
-    RETAINED_RUNTIME_COUNT_FIELD_NUMBER: _ClassVar[int]
+    RETAINED_ENVIRONMENT_COUNT_FIELD_NUMBER: _ClassVar[int]
     NYDUS_DAEMON_ALIVE_FIELD_NUMBER: _ClassVar[int]
     CHUNKDB_RECENT_ACCESS_AGE_SECS_FIELD_NUMBER: _ClassVar[int]
     PEER_HEALTHY_COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -612,7 +612,7 @@ class PlacementRank(_message.Message):
     AXNODED_ACTIVE_INSTANCES_FIELD_NUMBER: _ClassVar[int]
     mounted_match: bool
     retained_rootfs_count: int
-    retained_runtime_count: int
+    retained_environment_count: int
     nydus_daemon_alive: bool
     chunkdb_recent_access_age_secs: int
     peer_healthy_count: int
@@ -622,7 +622,7 @@ class PlacementRank(_message.Message):
     axnoded_used_milli: int
     axnoded_used_bytes: int
     axnoded_active_instances: int
-    def __init__(self, mounted_match: _Optional[bool] = ..., retained_rootfs_count: _Optional[int] = ..., retained_runtime_count: _Optional[int] = ..., nydus_daemon_alive: _Optional[bool] = ..., chunkdb_recent_access_age_secs: _Optional[int] = ..., peer_healthy_count: _Optional[int] = ..., peer_hinted_count: _Optional[int] = ..., bpfnet_preferred: _Optional[bool] = ..., idle_pool_ready: _Optional[bool] = ..., axnoded_used_milli: _Optional[int] = ..., axnoded_used_bytes: _Optional[int] = ..., axnoded_active_instances: _Optional[int] = ...) -> None: ...
+    def __init__(self, mounted_match: _Optional[bool] = ..., retained_rootfs_count: _Optional[int] = ..., retained_environment_count: _Optional[int] = ..., nydus_daemon_alive: _Optional[bool] = ..., chunkdb_recent_access_age_secs: _Optional[int] = ..., peer_healthy_count: _Optional[int] = ..., peer_hinted_count: _Optional[int] = ..., bpfnet_preferred: _Optional[bool] = ..., idle_pool_ready: _Optional[bool] = ..., axnoded_used_milli: _Optional[int] = ..., axnoded_used_bytes: _Optional[int] = ..., axnoded_active_instances: _Optional[int] = ...) -> None: ...
 
 class PlacementCandidate(_message.Message):
     __slots__ = ("node_id", "state", "rejection_reasons", "heartbeat_age_secs", "summary_age_secs", "pools", "resources", "locality", "rank")

@@ -182,32 +182,18 @@ func wireProcessList(list process.ListResponse) wire.ProcessListResponse {
 
 func wireProcessStatus(status process.Status) wire.ProcessStatus {
 	return wire.ProcessStatus{
-		ID:                 status.ID,
-		State:              status.State,
-		PID:                status.PID,
-		ExitCode:           status.ExitCode,
-		Signal:             status.Signal,
-		StartedAt:          status.StartedAt,
-		FinishedAt:         status.FinishedAt,
-		LastError:          status.LastError,
-		Stdout:             status.Stdout,
-		Stderr:             status.Stderr,
-		StdoutTruncated:    status.StdoutTruncated,
-		StderrTruncated:    status.StderrTruncated,
-		ManagedProxyReport: wireManagedProxyReport(status.ManagedProxyReport),
-	}
-}
-
-func wireManagedProxyReport(report *process.ManagedProxyReport) *wire.ManagedProxyReport {
-	if report == nil {
-		return nil
-	}
-	return &wire.ManagedProxyReport{
-		Provider:      report.Provider,
-		RequestCount:  report.RequestCount,
-		ResponseCount: report.ResponseCount,
-		ErrorCount:    report.ErrorCount,
-		ReportJSON:    append([]byte(nil), report.ReportJSON...),
+		ID:              status.ID,
+		State:           status.State,
+		PID:             status.PID,
+		ExitCode:        status.ExitCode,
+		Signal:          status.Signal,
+		StartedAt:       status.StartedAt,
+		FinishedAt:      status.FinishedAt,
+		LastError:       status.LastError,
+		Stdout:          status.Stdout,
+		Stderr:          status.Stderr,
+		StdoutTruncated: status.StdoutTruncated,
+		StderrTruncated: status.StderrTruncated,
 	}
 }
 

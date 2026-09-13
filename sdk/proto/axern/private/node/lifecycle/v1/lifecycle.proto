@@ -63,7 +63,7 @@ message ResolvedExecutionConfig {
   repeated ResolvedSecretEnvVar secret_env = 18;
   repeated ResolvedSecretFile secret_files = 19;
   RegistryCredential registry_credential = 20;
-  axern.control.catalog.v1.RuntimeExecutionProfile execution_profile = 21;
+  axern.control.catalog.v1.OciExecutionProfile execution_profile = 21;
   repeated ImageMount image_mounts = 22;
   repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 23;
 }

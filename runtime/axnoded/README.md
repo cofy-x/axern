@@ -72,7 +72,6 @@ Example daemon invocation:
 - [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md): cross-system observation, policy, admission evidence, and enforcement loss.
 - [Resource Handling](docs/resource.md): resource claims, pools, accounting, and network backend invariants.
 - [Sandbox Daemon](docs/sandbox-daemon.md): Axern sandbox daemon architecture for PID 1 supervision and daemon-backed sandbox operations.
-- [Image-Backed Process](docs/image-backed-process.md): `ExecImage` / `ProcessImage` execution model, mount rules, and lifecycle contract.
 - [Image Mounts](docs/image-mounts.md): read-only image mount primitive for composing task sandboxes with reusable bundles.
 - [Sandboxd Capabilities](docs/sandboxd-capabilities.md): current sandboxd capability matrix, ownership rules, and provider semantics.
 - [Verification](docs/verification.md): validation matrix and recommended gates.
@@ -116,7 +115,7 @@ axctl image drop-page-cache \
 
 Network-policy diagnostics are read-only and intentionally bounded. They show the effective mode, stable health category, Allocation ID, live enforcement revision, exact-binding state, and normalized rule counts. They do not return DNS names, HTTP Host, TLS SNI, destination IP/CIDR values, policy digests, or raw egressd records. `doctor` exits non-zero for unavailable capability, unhealthy enforcement, or a binding mismatch; a sandbox with no policy is reported as `absent` and is not considered degraded.
 
-The daemon HTTP surface exposes a read-only dashboard, cached inventory at `/inventoryz`, control-plane reporter health at `/control-planez`, local metrics at `/debug/metricsz`, pprof, and the nginx demo. Production metrics use the shared OTEL pipeline.
+The daemon HTTP surface is operator-only: readiness and liveness, cached inventory at `/inventoryz`, control-plane reporter health at `/control-planez`, and local metrics at `/debug/metricsz`. It does not expose workload creation or interactive application endpoints. Production metrics use the shared OTEL pipeline.
 
 Allocation lifecycle delivery uses a bounded, Allocation-keyed queue. The first terminal observation is persisted in a narrow outbox before delivery and survives runtime cleanup and process restart until controld acknowledges the exact observation. Failed batches retry with jittered exponential backoff from 100 milliseconds to 5 seconds; newer non-terminal observations may coalesce, while immutable terminal evidence is never replaced.
 

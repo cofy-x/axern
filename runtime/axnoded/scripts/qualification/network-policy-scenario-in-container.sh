@@ -6,7 +6,6 @@ if [ "$(uname -s)" != "Linux" ] || [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-runtime_name=""
 network_backend=""
 ip_family=""
 policy_mode=""
@@ -20,7 +19,6 @@ output=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --runtime) runtime_name="${2:?}"; shift 2 ;;
     --network-backend) network_backend="${2:?}"; shift 2 ;;
     --ip-family) ip_family="${2:?}"; shift 2 ;;
     --policy-mode) policy_mode="${2:?}"; shift 2 ;;
@@ -35,7 +33,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-for required in runtime_name network_backend ip_family policy_mode samples concurrency payload_bytes sustained_seconds rule_scale_counts output; do
+for required in network_backend ip_family policy_mode samples concurrency payload_bytes sustained_seconds rule_scale_counts output; do
   if [ -z "${!required}" ]; then
     echo "missing qualification argument: ${required}" >&2
     exit 1
@@ -52,11 +50,6 @@ case "${network_backend}" in
     network_capability=PLATFORM_CAPABILITY_NETWORK_BPFNET
     ;;
   *) echo "unsupported network backend: ${network_backend}" >&2; exit 1 ;;
-esac
-
-case "${runtime_name}" in
-  runsc) ;;
-  *) echo "unsupported runtime: ${runtime_name}" >&2; exit 1 ;;
 esac
 
 fixture_ns="axern-qual-fixture"
@@ -227,7 +220,7 @@ export AXNODED_CGROUP_CACHE_SIZE=0
 # ensuring each matrix cell does not manufacture a full 16-interface warm pool.
 export AXNODED_INTERFACE_CACHE_SIZE=1
 
-node_log="/tmp/network-policy-node-${runtime_name}-${network_backend}-${ip_family}-${policy_mode}.log"
+node_log="/tmp/network-policy-node-runsc-${network_backend}-${ip_family}-${policy_mode}.log"
 /bin/bash /workspace/scripts/verify/node-all-in-one-entrypoint.sh >"${node_log}" 2>&1 &
 node_pid=$!
 conformance_quiescent() {
@@ -306,7 +299,6 @@ cgroup_children_converged() {
 }
 
 if ! verify-network-policy-qualification \
-  --runtime "${runtime_name}" \
   --network-backend "${network_backend}" \
   --ip-family "${ip_family}" \
   --policy-mode "${policy_mode}" \
@@ -352,4 +344,4 @@ if [ "${retirement_converged}" != "true" ]; then
   exit 1
 fi
 
-echo "network_policy_qualification_scenario_ok=${runtime_name}/${network_backend}/${ip_family}/${policy_mode}" >&2
+echo "network_policy_qualification_scenario_ok=runsc/${network_backend}/${ip_family}/${policy_mode}" >&2

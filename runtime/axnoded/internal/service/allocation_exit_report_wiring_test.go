@@ -72,7 +72,7 @@ func TestConfigureAllocationControllerKeepsSingleAdmissionAuthority(t *testing.T
 
 func TestContainerExitObserverReportsAllocationLifecycleState(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := container.NewManager(tmpDir, runtimetest.NewFakeRuntimeHandler(), make(chan bool, 1))
+	manager, err := container.NewManager(tmpDir, runtimetest.NewFakeSandboxRuntime(), make(chan bool, 1))
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
@@ -111,7 +111,7 @@ func TestContainerExitObserverReportsAllocationLifecycleState(t *testing.T) {
 
 func TestTerminalCheckpointSeedsDurableOutboxBeforeContainerCleanup(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := container.NewManager(tmpDir, runtimetest.NewFakeRuntimeHandler(), make(chan bool, 1))
+	manager, err := container.NewManager(tmpDir, runtimetest.NewFakeSandboxRuntime(), make(chan bool, 1))
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}

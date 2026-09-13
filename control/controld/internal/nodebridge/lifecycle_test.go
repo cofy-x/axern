@@ -51,7 +51,7 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 	}
 	env := &environmentv1.Environment{
 		ID: "env-a",
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{
+		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest:      "sha256:abc",
 				Annotations: map[string]string{"org.opencontainers.image.ref.name": "docker.io/library/python@sha256:abc"},
@@ -82,7 +82,7 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-b",
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{
+		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
 			ImageDefaultArgv: []string{"/bin/image-default"},
 			DefaultCwd:       "/workspace",
 			RootfsReadonly:   true,
@@ -90,15 +90,15 @@ func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest: "sha256:def",
 			},
-			Mounts: []*catalogv1.RuntimeMount{{
+			Mounts: []*catalogv1.EnvironmentMount{{
 				Type:    "bind",
 				Source:  "/data",
 				Target:  "/mnt/data",
 				Options: []string{"ro"},
 			}},
-			ExecutionProfile: &catalogv1.RuntimeExecutionProfile{
-				RuntimeBaseline: &catalogv1.RuntimeBaselinePolicy{NoFileLimit: 2097152},
-				Capabilities: &catalogv1.RuntimeCapabilityPolicy{
+			ExecutionProfile: &catalogv1.OciExecutionProfile{
+				Baseline: &catalogv1.OciBaselinePolicy{NoFileLimit: 2097152},
+				Capabilities: &catalogv1.OciCapabilityPolicy{
 					AnnotationKey:  "custom-capabilities",
 					IncludeAmbient: proto.Bool(false),
 				},
@@ -122,8 +122,8 @@ func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 	if len(cfg.GetMounts()) != 1 || cfg.GetMounts()[0].GetTarget() != "/mnt/data" {
 		t.Fatalf("mounts = %#v, want template mount propagated", cfg.GetMounts())
 	}
-	if cfg.GetExecutionProfile().GetRuntimeBaseline().GetNoFileLimit() != 2097152 {
-		t.Fatalf("execution profile nofile = %d, want 2097152", cfg.GetExecutionProfile().GetRuntimeBaseline().GetNoFileLimit())
+	if cfg.GetExecutionProfile().GetBaseline().GetNoFileLimit() != 2097152 {
+		t.Fatalf("execution profile nofile = %d, want 2097152", cfg.GetExecutionProfile().GetBaseline().GetNoFileLimit())
 	}
 	if cfg.GetExecutionProfile().GetCapabilities().GetIncludeAmbient() {
 		t.Fatal("execution profile include_ambient = true, want false")
@@ -133,7 +133,7 @@ func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 func TestBuildResolvedExecutionConfigLeavesImageArgvEmpty(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-service-entrypoint",
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{
+		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
 			ImageDefaultArgv: []string{"/bin/image-default"},
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest: "sha256:entrypoint",
@@ -156,7 +156,7 @@ func TestBuildResolvedExecutionConfigLeavesImageArgvEmpty(t *testing.T) {
 func TestBuildResolvedExecutionConfigPreservesImageCwdWithExplicitArgv(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-image-cwd",
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{
+		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
 			DefaultCwd: "/workspace",
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest: "sha256:cwd",
@@ -181,7 +181,7 @@ func TestBuildResolvedExecutionConfigPreservesImageCwdWithExplicitArgv(t *testin
 func TestBuildResolvedExecutionConfigUsesExplicitCwd(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-explicit-cwd",
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{
+		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
 			DefaultCwd: "/workspace",
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest: "sha256:cwd-explicit",
@@ -204,7 +204,7 @@ func TestBuildResolvedExecutionConfigUsesExplicitCwd(t *testing.T) {
 func TestBuildResolvedExecutionConfigIncludesImageMounts(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-image-mount",
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{
+		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest: "sha256:image-mount",
 			},
@@ -233,7 +233,7 @@ func TestBuildResolvedExecutionConfigIncludesImageMounts(t *testing.T) {
 func TestBuildResolvedExecutionConfigForImageBackedEnvironment(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-image",
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{
+		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
 			RootfsReadonly: true,
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest:      "sha256:image",

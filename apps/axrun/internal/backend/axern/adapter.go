@@ -29,7 +29,6 @@ type Adapter struct {
 
 var _ backend.AgentPreflight = Adapter{}
 var _ backend.ProviderPreflight = Adapter{}
-var _ backend.ProviderProfilePreflight = Adapter{}
 var _ backend.TaskPreflight = Adapter{}
 
 type Option func(*Adapter)
@@ -135,14 +134,6 @@ func (a Adapter) PreflightProvider(ctx context.Context, agentSpec domain.AgentSp
 		return err
 	}
 	return backend.PreflightHarnessProvider(ctx, harness, agentSpec, model)
-}
-
-func (a Adapter) PreflightProviderProfile(agentSpec domain.AgentSpec) error {
-	harness, err := a.agentHarness(agentSpec)
-	if err != nil {
-		return err
-	}
-	return backend.PreflightHarnessProfile(harness, agentSpec)
 }
 
 func (a Adapter) Execute(request backend.ExecuteRequest) (episode domain.Episode, runErr error) {

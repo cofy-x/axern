@@ -19,126 +19,126 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	RuntimeCatalog_ListRuntimeTemplates_FullMethodName = "/axern.control.catalog.v1.RuntimeCatalog/ListRuntimeTemplates"
-	RuntimeCatalog_GetRuntimeTemplate_FullMethodName   = "/axern.control.catalog.v1.RuntimeCatalog/GetRuntimeTemplate"
+	EnvironmentCatalog_ListEnvironmentTemplates_FullMethodName = "/axern.control.catalog.v1.EnvironmentCatalog/ListEnvironmentTemplates"
+	EnvironmentCatalog_GetEnvironmentTemplate_FullMethodName   = "/axern.control.catalog.v1.EnvironmentCatalog/GetEnvironmentTemplate"
 )
 
-// RuntimeCatalogClient is the client API for RuntimeCatalog service.
+// EnvironmentCatalogClient is the client API for EnvironmentCatalog service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type RuntimeCatalogClient interface {
-	ListRuntimeTemplates(ctx context.Context, in *ListRuntimeTemplatesRequest, opts ...grpc.CallOption) (*ListRuntimeTemplatesResponse, error)
-	GetRuntimeTemplate(ctx context.Context, in *GetRuntimeTemplateRequest, opts ...grpc.CallOption) (*GetRuntimeTemplateResponse, error)
+type EnvironmentCatalogClient interface {
+	ListEnvironmentTemplates(ctx context.Context, in *ListEnvironmentTemplatesRequest, opts ...grpc.CallOption) (*ListEnvironmentTemplatesResponse, error)
+	GetEnvironmentTemplate(ctx context.Context, in *GetEnvironmentTemplateRequest, opts ...grpc.CallOption) (*GetEnvironmentTemplateResponse, error)
 }
 
-type runtimeCatalogClient struct {
+type environmentCatalogClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewRuntimeCatalogClient(cc grpc.ClientConnInterface) RuntimeCatalogClient {
-	return &runtimeCatalogClient{cc}
+func NewEnvironmentCatalogClient(cc grpc.ClientConnInterface) EnvironmentCatalogClient {
+	return &environmentCatalogClient{cc}
 }
 
-func (c *runtimeCatalogClient) ListRuntimeTemplates(ctx context.Context, in *ListRuntimeTemplatesRequest, opts ...grpc.CallOption) (*ListRuntimeTemplatesResponse, error) {
-	out := new(ListRuntimeTemplatesResponse)
-	err := c.cc.Invoke(ctx, RuntimeCatalog_ListRuntimeTemplates_FullMethodName, in, out, opts...)
+func (c *environmentCatalogClient) ListEnvironmentTemplates(ctx context.Context, in *ListEnvironmentTemplatesRequest, opts ...grpc.CallOption) (*ListEnvironmentTemplatesResponse, error) {
+	out := new(ListEnvironmentTemplatesResponse)
+	err := c.cc.Invoke(ctx, EnvironmentCatalog_ListEnvironmentTemplates_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *runtimeCatalogClient) GetRuntimeTemplate(ctx context.Context, in *GetRuntimeTemplateRequest, opts ...grpc.CallOption) (*GetRuntimeTemplateResponse, error) {
-	out := new(GetRuntimeTemplateResponse)
-	err := c.cc.Invoke(ctx, RuntimeCatalog_GetRuntimeTemplate_FullMethodName, in, out, opts...)
+func (c *environmentCatalogClient) GetEnvironmentTemplate(ctx context.Context, in *GetEnvironmentTemplateRequest, opts ...grpc.CallOption) (*GetEnvironmentTemplateResponse, error) {
+	out := new(GetEnvironmentTemplateResponse)
+	err := c.cc.Invoke(ctx, EnvironmentCatalog_GetEnvironmentTemplate_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// RuntimeCatalogServer is the server API for RuntimeCatalog service.
-// All implementations must embed UnimplementedRuntimeCatalogServer
+// EnvironmentCatalogServer is the server API for EnvironmentCatalog service.
+// All implementations must embed UnimplementedEnvironmentCatalogServer
 // for forward compatibility
-type RuntimeCatalogServer interface {
-	ListRuntimeTemplates(context.Context, *ListRuntimeTemplatesRequest) (*ListRuntimeTemplatesResponse, error)
-	GetRuntimeTemplate(context.Context, *GetRuntimeTemplateRequest) (*GetRuntimeTemplateResponse, error)
-	mustEmbedUnimplementedRuntimeCatalogServer()
+type EnvironmentCatalogServer interface {
+	ListEnvironmentTemplates(context.Context, *ListEnvironmentTemplatesRequest) (*ListEnvironmentTemplatesResponse, error)
+	GetEnvironmentTemplate(context.Context, *GetEnvironmentTemplateRequest) (*GetEnvironmentTemplateResponse, error)
+	mustEmbedUnimplementedEnvironmentCatalogServer()
 }
 
-// UnimplementedRuntimeCatalogServer must be embedded to have forward compatible implementations.
-type UnimplementedRuntimeCatalogServer struct {
+// UnimplementedEnvironmentCatalogServer must be embedded to have forward compatible implementations.
+type UnimplementedEnvironmentCatalogServer struct {
 }
 
-func (UnimplementedRuntimeCatalogServer) ListRuntimeTemplates(context.Context, *ListRuntimeTemplatesRequest) (*ListRuntimeTemplatesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListRuntimeTemplates not implemented")
+func (UnimplementedEnvironmentCatalogServer) ListEnvironmentTemplates(context.Context, *ListEnvironmentTemplatesRequest) (*ListEnvironmentTemplatesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListEnvironmentTemplates not implemented")
 }
-func (UnimplementedRuntimeCatalogServer) GetRuntimeTemplate(context.Context, *GetRuntimeTemplateRequest) (*GetRuntimeTemplateResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetRuntimeTemplate not implemented")
+func (UnimplementedEnvironmentCatalogServer) GetEnvironmentTemplate(context.Context, *GetEnvironmentTemplateRequest) (*GetEnvironmentTemplateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetEnvironmentTemplate not implemented")
 }
-func (UnimplementedRuntimeCatalogServer) mustEmbedUnimplementedRuntimeCatalogServer() {}
+func (UnimplementedEnvironmentCatalogServer) mustEmbedUnimplementedEnvironmentCatalogServer() {}
 
-// UnsafeRuntimeCatalogServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to RuntimeCatalogServer will
+// UnsafeEnvironmentCatalogServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to EnvironmentCatalogServer will
 // result in compilation errors.
-type UnsafeRuntimeCatalogServer interface {
-	mustEmbedUnimplementedRuntimeCatalogServer()
+type UnsafeEnvironmentCatalogServer interface {
+	mustEmbedUnimplementedEnvironmentCatalogServer()
 }
 
-func RegisterRuntimeCatalogServer(s grpc.ServiceRegistrar, srv RuntimeCatalogServer) {
-	s.RegisterService(&RuntimeCatalog_ServiceDesc, srv)
+func RegisterEnvironmentCatalogServer(s grpc.ServiceRegistrar, srv EnvironmentCatalogServer) {
+	s.RegisterService(&EnvironmentCatalog_ServiceDesc, srv)
 }
 
-func _RuntimeCatalog_ListRuntimeTemplates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListRuntimeTemplatesRequest)
+func _EnvironmentCatalog_ListEnvironmentTemplates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEnvironmentTemplatesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(RuntimeCatalogServer).ListRuntimeTemplates(ctx, in)
+		return srv.(EnvironmentCatalogServer).ListEnvironmentTemplates(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: RuntimeCatalog_ListRuntimeTemplates_FullMethodName,
+		FullMethod: EnvironmentCatalog_ListEnvironmentTemplates_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RuntimeCatalogServer).ListRuntimeTemplates(ctx, req.(*ListRuntimeTemplatesRequest))
+		return srv.(EnvironmentCatalogServer).ListEnvironmentTemplates(ctx, req.(*ListEnvironmentTemplatesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _RuntimeCatalog_GetRuntimeTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetRuntimeTemplateRequest)
+func _EnvironmentCatalog_GetEnvironmentTemplate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetEnvironmentTemplateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(RuntimeCatalogServer).GetRuntimeTemplate(ctx, in)
+		return srv.(EnvironmentCatalogServer).GetEnvironmentTemplate(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: RuntimeCatalog_GetRuntimeTemplate_FullMethodName,
+		FullMethod: EnvironmentCatalog_GetEnvironmentTemplate_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RuntimeCatalogServer).GetRuntimeTemplate(ctx, req.(*GetRuntimeTemplateRequest))
+		return srv.(EnvironmentCatalogServer).GetEnvironmentTemplate(ctx, req.(*GetEnvironmentTemplateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// RuntimeCatalog_ServiceDesc is the grpc.ServiceDesc for RuntimeCatalog service.
+// EnvironmentCatalog_ServiceDesc is the grpc.ServiceDesc for EnvironmentCatalog service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var RuntimeCatalog_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "axern.control.catalog.v1.RuntimeCatalog",
-	HandlerType: (*RuntimeCatalogServer)(nil),
+var EnvironmentCatalog_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "axern.control.catalog.v1.EnvironmentCatalog",
+	HandlerType: (*EnvironmentCatalogServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "ListRuntimeTemplates",
-			Handler:    _RuntimeCatalog_ListRuntimeTemplates_Handler,
+			MethodName: "ListEnvironmentTemplates",
+			Handler:    _EnvironmentCatalog_ListEnvironmentTemplates_Handler,
 		},
 		{
-			MethodName: "GetRuntimeTemplate",
-			Handler:    _RuntimeCatalog_GetRuntimeTemplate_Handler,
+			MethodName: "GetEnvironmentTemplate",
+			Handler:    _EnvironmentCatalog_GetEnvironmentTemplate_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -4,9 +4,6 @@ set -euo pipefail
 AXNODED_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 python3 - \
-  "${AXNODED_DIR}/scripts/demo/run-dashboard-nginx-demo-in-container.sh" \
-  "${AXNODED_DIR}/scripts/demo/run-dashboard-nginx-demo.sh" \
-  "${AXNODED_DIR}/scripts/verify/verify-bpfnetctl-e2e.sh" \
   "${AXNODED_DIR}/scripts/verify/node-all-in-one-entrypoint.sh" \
   "${AXNODED_DIR}/scripts/verify/verify-node-python-runtime-e2e.sh" \
   "${AXNODED_DIR}/scripts/lib/verify-docker-common.sh" <<'PY'
@@ -31,18 +28,9 @@ def assert_isolated_default(path):
         raise SystemExit(f"{path.name} node sandbox network must not overlap Docker's default bridge")
 
 
-dashboard_inner = pathlib.Path(sys.argv[1])
-assert_isolated_default(dashboard_inner)
-if 'ip_range = "${AXNODED_NETWORK_IP_RANGE}"' not in dashboard_inner.read_text():
-    raise SystemExit("dashboard axnoded config must use AXNODED_NETWORK_IP_RANGE")
+assert_isolated_default(pathlib.Path(sys.argv[1]))
 
-for path in map(pathlib.Path, sys.argv[2:4]):
-    if '-e AXNODED_NETWORK_IP_RANGE' not in path.read_text():
-        raise SystemExit(f"{path.name} must pass the dashboard node network override")
-
-assert_isolated_default(pathlib.Path(sys.argv[4]))
-
-python_runtime = pathlib.Path(sys.argv[5])
+python_runtime = pathlib.Path(sys.argv[2])
 python_runtime_text = python_runtime.read_text()
 for fragment in (
     '--network "${POSTGRES_NETWORK_NAME}"',
@@ -52,7 +40,7 @@ for fragment in (
     if fragment not in python_runtime_text:
         raise SystemExit(f"{python_runtime.name} must use its shared Docker network: {fragment}")
 
-docker_common = pathlib.Path(sys.argv[6]).read_text()
+docker_common = pathlib.Path(sys.argv[3]).read_text()
 for fragment in (
     'registry_runtime_host="${registry_ip}:5000"',
     'LOCAL_REGISTRY_CLUSTER_HOST="${registry_runtime_host}"',

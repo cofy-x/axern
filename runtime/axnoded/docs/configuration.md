@@ -103,7 +103,7 @@ Useful symptoms:
 
 ## Runtime
 
-`[plugin.runtime]` controls rootfs resolution, the runsc executor, DNS materialization and warm idle runtime retention.
+`[plugin.runtime]` controls rootfs resolution, the runsc executor, DNS materialization and warm idle environment retention.
 
 | Key | Meaning | Notes |
 | --- | --- | --- |
@@ -112,8 +112,8 @@ Useful symptoms:
 | `image_manager_socket` | Unix socket for `imagemgr`. | Ignored when `image_manager_enabled = false`; default is `/var/run/imagemgr.sock`. |
 | `runtime_runner_binary` | Host lifecycle helper used to monitor OCI init/runtime processes and durably persist their exact wait status. | Defaults to `/usr/local/libexec/axnoded/axnoded-runtime-runner`; packaged node images install it there. |
 | `egress_manager_socket` | Trusted node-local `egressd` Unix socket used for fail-closed sandbox policy lifecycle. | Defaults to `/run/egressd/egressd.sock`; absence keeps policy capabilities unavailable without affecting unrestricted sandboxes. |
-| `idle_runtime_retention_ttl` | How long idle runtime templates/rootfs state remain warm. | Empty falls back to `5m`. |
-| `idle_runtime_retention_max` | Max retained static runtime templates per node. | Defaults to `8`; `<= 0` disables idle retention. Retention keeps rootfs leases and bundle templates, never an allocation-less OCI container. |
+| `idle_environment_retention_ttl` | How long idle environment templates/rootfs state remain warm. | Empty falls back to `5m`. |
+| `idle_environment_retention_max` | Max retained static environment templates per node. | Defaults to `8`; `<= 0` disables idle retention. Retention keeps rootfs leases and bundle templates, never an allocation-less OCI container. |
 | `cgroup_enforcement` | `required` or explicit local-only `disabled_dev`. | Defaults to `required`. `disabled_dev` rejects any workload declaring a memory hard limit. |
 | `filestore_mode` | `existing` or `loopback_dev`. | Production uses an existing data-disk mount. Loopback mode is development-only and never reformats an existing image. |
 | `filestore_dir` | Runtime writable-storage mount. | Must be a writable independent XFS or ext4 mount; startup performs a real OverlayFS scratch probe. |
@@ -122,7 +122,7 @@ Useful symptoms:
 | `filestore_system_reserve_bytes` | Capacity unavailable to sandbox reservations. | Admission checks both committed reservations and the live available-space floor. |
 | `ephemeral_storage_default_limit_bytes` | Internal default backing limit for the public `limits.ephemeral_storage_bytes` contract. | Writable runsc roots use this in `root:dir=...,size=...`. |
 
-Runtime retention is keyed by the static execution template, so namespace, Environment, Run, and Allocation identity do not duplicate the same rootfs/template cache entry. It retains only reusable immutable rootfs and bundle-template inputs. OCI create is always Allocation-owned because the container ID, cgroup, network, storage reservation, evidence, and cleanup record cannot be safely rebound to a future Allocation.
+Environment retention is keyed by the static execution template, so namespace, Environment, Run, and Allocation identity do not duplicate the same rootfs/template cache entry. It retains only reusable immutable rootfs and bundle-template inputs. OCI create is always Allocation-owned because the container ID, cgroup, network, storage reservation, evidence, and cleanup record cannot be safely rebound to a future Allocation.
 
 ### Runtime DNS
 

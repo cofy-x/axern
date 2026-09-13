@@ -8,37 +8,37 @@ import (
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	"github.com/stretchr/testify/assert"
 )
 
-func testRuntimeTemplate(t *testing.T, id string) *apipb.RuntimeTemplate {
+func testEnvironmentTemplate(t *testing.T, id string) *apipb.EnvironmentTemplate {
 	t.Helper()
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0o755))
-	return &apipb.RuntimeTemplate{
-		ID:      id,
-		Rootfs:  &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: rootfsDir}},
-		Command: []string{"/bin/sh"},
+	return &apipb.EnvironmentTemplate{
+		ID:     id,
+		Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: rootfsDir}},
+		Argv:   []string{"/bin/sh"},
 	}
 }
 
-func addTestRuntimeMappingRuntime(t *testing.T, manager *langruntime.LangRTManager, template *apipb.RuntimeTemplate) *langruntime.LanguageRuntime {
+func addTestRuntimeMappingRuntime(t *testing.T, manager *environmentcache.EnvironmentCache, template *apipb.EnvironmentTemplate) *environmentcache.PreparedEnvironment {
 	t.Helper()
-	config, err := langruntime.RootfsConfigFromRuntimeTemplate(template)
+	config, err := environmentcache.RootfsConfigFromEnvironmentTemplate(template)
 	assert.NoError(t, err)
-	result, err := manager.AddLangRuntime(t.Context(), template, config, true)
+	result, err := manager.PrepareEnvironment(t.Context(), template, config)
 	assert.NoError(t, err)
-	return result.Runtime
+	return result.Environment
 }
 
 func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	store := storetest.NewMockStore()
-	first := newTestAllocationControllerWithStore(t, runtimetest.NewFakeRuntimeHandler(), store)
-	template := testRuntimeTemplate(t, "allocation-runtime")
-	runtime := addTestRuntimeMappingRuntime(t, first.lrtManager, template)
+	first := newTestAllocationControllerWithStore(t, runtimetest.NewFakeSandboxRuntime(), store)
+	template := testEnvironmentTemplate(t, "allocation-runtime")
+	runtime := addTestRuntimeMappingRuntime(t, first.environmentCache, template)
 	allocationID := "allocation-runtime-round-trip"
 	err := first.controller.StoreCapabilityRequirements(allocationID, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil)
 	assert.NoError(t, err)
@@ -51,9 +51,9 @@ func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	}, nil, now))
 	var persisted apipb.AllocationState
 	assert.NoError(t, store.GetRecord(config.AllocationStateBucket, allocationID, &persisted))
-	assert.Equal(t, template.GetID(), persisted.GetRuntimeTemplate().GetID())
+	assert.Equal(t, template.GetID(), persisted.GetEnvironmentTemplate().GetID())
 
-	second := newTestAllocationControllerWithStore(t, runtimetest.NewFakeRuntimeHandler(), store)
+	second := newTestAllocationControllerWithStore(t, runtimetest.NewFakeSandboxRuntime(), store)
 	second.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
 	time.Sleep(200 * time.Millisecond)
 	assert.NoError(t, second.controller.loadAllocationStates(map[string]struct{}{allocationID: {}}))
@@ -66,9 +66,9 @@ func TestLoadAllocationStatesSkipsOrphanContainers(t *testing.T) {
 	store := storetest.NewMockStore()
 	allocationID := "orphan-allocation"
 	assert.NoError(t, store.PutRecord(config.AllocationStateBucket, allocationID, &apipb.AllocationState{
-		AllocationID: allocationID, RuntimeTemplate: testRuntimeTemplate(t, "orphan-runtime"),
+		AllocationID: allocationID, EnvironmentTemplate: testEnvironmentTemplate(t, "orphan-runtime"),
 	}))
-	fixture := newTestAllocationControllerWithStore(t, runtimetest.NewFakeRuntimeHandler(), store)
+	fixture := newTestAllocationControllerWithStore(t, runtimetest.NewFakeSandboxRuntime(), store)
 	assert.NoError(t, fixture.controller.loadAllocationStates(map[string]struct{}{}))
 	_, ok := fixture.controller.runtimeMapping(allocationID)
 	assert.False(t, ok)
@@ -77,13 +77,13 @@ func TestLoadAllocationStatesSkipsOrphanContainers(t *testing.T) {
 }
 
 func TestLoadAllocationStatesEmptyStore(t *testing.T) {
-	fixture := newTestAllocationController(t, runtimetest.NewFakeRuntimeHandler())
+	fixture := newTestAllocationController(t, runtimetest.NewFakeSandboxRuntime())
 	assert.NoError(t, fixture.controller.loadAllocationStates(map[string]struct{}{}))
 	assert.Zero(t, fixture.controller.runtimeMappingCount())
 }
 
 func TestLoadAllocationStatesRejectsLiveRuntimeWithoutRecoveryRecord(t *testing.T) {
-	fixture := newTestAllocationController(t, runtimetest.NewFakeRuntimeHandler())
+	fixture := newTestAllocationController(t, runtimetest.NewFakeSandboxRuntime())
 	err := fixture.controller.loadAllocationStates(map[string]struct{}{"missing-live-record": {}})
 	assert.ErrorContains(t, err, "has no allocation recovery record")
 	assert.Zero(t, fixture.controller.runtimeMappingCount())

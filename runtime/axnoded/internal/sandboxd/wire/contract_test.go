@@ -14,7 +14,6 @@ func TestCapabilityContract(t *testing.T) {
 		CapabilityDiagnostics,
 		CapabilityFile,
 		CapabilityHealth,
-		CapabilityManagedProxy,
 		CapabilityMounts,
 		CapabilityPorts,
 		CapabilityProbe,
@@ -54,7 +53,7 @@ func TestProviderGroupContract(t *testing.T) {
 		{
 			name: "process",
 			got:  ProcessCapabilities(),
-			want: []string{CapabilityManagedProxy, CapabilityProcess, CapabilityPTY},
+			want: []string{CapabilityProcess, CapabilityPTY},
 		},
 	}
 	for _, tc := range cases {

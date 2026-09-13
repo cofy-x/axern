@@ -12,13 +12,13 @@ import (
 )
 
 type Config struct {
-	DebugNodes           func() []nodekernel.DebugNode
-	ResourcePolicy       func() ResourcePolicySnapshot
-	ListRuntimeTemplates func(rctx context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error)
-	ListNamespaceQuotas  func(rctx context.Context) (*quotav1.ListNamespaceQuotasResponse, error)
-	ListReconcileQueue   func(rctx context.Context) ([]allocationkernel.LifecycleRetryItem, error)
-	ReconcileHealth      func() reconcilekernel.HealthSnapshot
-	ConsistencySnapshot  func(rctx context.Context) (consistencykernel.Snapshot, error)
+	DebugNodes               func() []nodekernel.DebugNode
+	ResourcePolicy           func() ResourcePolicySnapshot
+	ListEnvironmentTemplates func(rctx context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error)
+	ListNamespaceQuotas      func(rctx context.Context) (*quotav1.ListNamespaceQuotasResponse, error)
+	ListReconcileQueue       func(rctx context.Context) ([]allocationkernel.LifecycleRetryItem, error)
+	ReconcileHealth          func() reconcilekernel.HealthSnapshot
+	ConsistencySnapshot      func(rctx context.Context) (consistencykernel.Snapshot, error)
 }
 
 type ResourcePolicySnapshot struct {

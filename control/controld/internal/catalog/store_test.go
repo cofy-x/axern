@@ -12,9 +12,9 @@ func TestListIncludesPython311(t *testing.T) {
 
 	templates := store.List(nil)
 	if len(templates) != 4 {
-		t.Fatalf("runtime template count = %d, want 4", len(templates))
+		t.Fatalf("environment template count = %d, want 4", len(templates))
 	}
-	var got *catalogv1.RuntimeTemplate
+	var got *catalogv1.EnvironmentTemplate
 	for _, template := range templates {
 		if template.GetID() == "python311" {
 			got = template
@@ -22,13 +22,13 @@ func TestListIncludesPython311(t *testing.T) {
 		}
 	}
 	if got == nil {
-		t.Fatal("runtime template python311 is missing")
+		t.Fatal("environment template python311 is missing")
 	}
 	if got.GetID() != "python311" {
-		t.Fatalf("runtime template id = %q, want python311", got.GetID())
+		t.Fatalf("environment template id = %q, want python311", got.GetID())
 	}
 	if got.GetImageDescriptor().GetDigest() == "" {
-		t.Fatal("runtime template image_descriptor is empty")
+		t.Fatal("environment template image_descriptor is empty")
 	}
 	if len(got.GetImageDefaultArgv()) != 1 || got.GetImageDefaultArgv()[0] != "python3" {
 		t.Fatalf("python311 image_default_argv = %#v, want python3", got.GetImageDefaultArgv())
@@ -36,8 +36,8 @@ func TestListIncludesPython311(t *testing.T) {
 	if got.GetDefaultCwd() != "/workspace" {
 		t.Fatalf("python311 default_cwd = %q, want /workspace", got.GetDefaultCwd())
 	}
-	if got.GetExecutionProfile().GetRuntimeBaseline().GetNoFileLimit() != 1048576 {
-		t.Fatalf("python311 execution profile nofile = %d, want 1048576", got.GetExecutionProfile().GetRuntimeBaseline().GetNoFileLimit())
+	if got.GetExecutionProfile().GetBaseline().GetNoFileLimit() != 1048576 {
+		t.Fatalf("python311 execution profile nofile = %d, want 1048576", got.GetExecutionProfile().GetBaseline().GetNoFileLimit())
 	}
 }
 
@@ -121,8 +121,8 @@ func TestGetReturnsNotFoundForUnknownID(t *testing.T) {
 	}
 }
 
-func TestGetRuntimeTemplateHonorsVersion(t *testing.T) {
-	store := NewStore([]*catalogv1.RuntimeTemplate{
+func TestGetEnvironmentTemplateHonorsVersion(t *testing.T) {
+	store := NewStore([]*catalogv1.EnvironmentTemplate{
 		{ID: "python311", Version: "3.11.0", ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:old"}},
 		{ID: "python311", Version: "3.11.1", ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:new"}},
 	})
@@ -139,7 +139,7 @@ func TestGetRuntimeTemplateHonorsVersion(t *testing.T) {
 	}
 }
 
-func TestDefaultPythonRuntimeTemplateImageCanBeOverriddenByEnv(t *testing.T) {
+func TestDefaultPythonEnvironmentTemplateImageCanBeOverriddenByEnv(t *testing.T) {
 	const override = "host.docker.internal:35000/axern/python311-runtime:dev"
 
 	t.Setenv("AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE", override)
@@ -150,11 +150,11 @@ func TestDefaultPythonRuntimeTemplateImageCanBeOverriddenByEnv(t *testing.T) {
 		t.Fatal("Get() ok = false, want true")
 	}
 	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
-		t.Fatalf("runtime template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
+		t.Fatalf("environment template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
 	}
 }
 
-func TestDefaultServerBaseRuntimeTemplateImageCanBeOverriddenByEnv(t *testing.T) {
+func TestDefaultServerBaseEnvironmentTemplateImageCanBeOverriddenByEnv(t *testing.T) {
 	const override = "host.docker.internal:35000/axern/server-base-runtime:dev"
 
 	t.Setenv("AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE", override)
@@ -165,11 +165,11 @@ func TestDefaultServerBaseRuntimeTemplateImageCanBeOverriddenByEnv(t *testing.T)
 		t.Fatal("Get() ok = false, want true")
 	}
 	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
-		t.Fatalf("runtime template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
+		t.Fatalf("environment template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
 	}
 }
 
-func TestDefaultDesktopBaseRuntimeTemplateImageCanBeOverriddenByEnv(t *testing.T) {
+func TestDefaultDesktopBaseEnvironmentTemplateImageCanBeOverriddenByEnv(t *testing.T) {
 	const override = "host.docker.internal:35000/axern/desktop-base-runtime:dev"
 
 	t.Setenv("AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE", override)
@@ -180,7 +180,7 @@ func TestDefaultDesktopBaseRuntimeTemplateImageCanBeOverriddenByEnv(t *testing.T
 		t.Fatal("Get() ok = false, want true")
 	}
 	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
-		t.Fatalf("runtime template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
+		t.Fatalf("environment template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
 	}
 }
 
@@ -193,7 +193,7 @@ func TestParseDefaultTemplatesRejectsInvalidFixture(t *testing.T) {
 		{
 			name:    "invalid-json",
 			raw:     `{`,
-			wantErr: "parse templates/runtime_templates.json",
+			wantErr: "parse templates/environment_templates.json",
 		},
 		{
 			name: "missing-id",
@@ -248,7 +248,7 @@ func TestParseDefaultTemplatesRejectsInvalidFixture(t *testing.T) {
 	}
 }
 
-func TestDefaultRuntimeTemplateImageOverrideDigestUpdatesDescriptorDigest(t *testing.T) {
+func TestDefaultEnvironmentTemplateImageOverrideDigestUpdatesDescriptorDigest(t *testing.T) {
 	const override = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 
 	t.Setenv("AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE", override)
@@ -259,9 +259,9 @@ func TestDefaultRuntimeTemplateImageOverrideDigestUpdatesDescriptorDigest(t *tes
 		t.Fatal("Get() ok = false, want true")
 	}
 	if got.GetImageDescriptor().GetDigest() != override {
-		t.Fatalf("runtime template digest = %q, want %q", got.GetImageDescriptor().GetDigest(), override)
+		t.Fatalf("environment template digest = %q, want %q", got.GetImageDescriptor().GetDigest(), override)
 	}
 	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
-		t.Fatalf("runtime template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
+		t.Fatalf("environment template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
 	}
 }

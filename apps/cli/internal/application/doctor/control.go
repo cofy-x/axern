@@ -194,17 +194,17 @@ func (c Control) checkNamespace(ctx context.Context, report *Report, client Name
 func (c Control) checkCatalog(ctx context.Context, report *Report, client CatalogClient) {
 	started := time.Now()
 	if client == nil {
-		report.add(failedCheck("catalog", "catalog_client_missing", "runtime catalog API is unavailable", "inspect the CLI installation", started))
+		report.add(failedCheck("environment_catalog", "catalog_client_missing", "environment catalog API is unavailable", "inspect the CLI installation", started))
 		return
 	}
 	checkCtx, cancel := context.WithTimeout(ctx, c.options.CheckTimeout)
 	defer cancel()
-	resp, err := client.ListRuntimeTemplates(checkCtx, &catalogv1.ListRuntimeTemplatesRequest{})
+	resp, err := client.ListEnvironmentTemplates(checkCtx, &catalogv1.ListEnvironmentTemplatesRequest{})
 	if err != nil {
-		report.add(failedCheck("catalog", "catalog_unavailable", "runtime catalog API request failed", "check gateway authorization and control-plane health", started))
+		report.add(failedCheck("catalog", "catalog_unavailable", "environment catalog API request failed", "check gateway authorization and control-plane health", started))
 		return
 	}
-	report.add(passedCheck("catalog", "catalog_reachable", fmt.Sprintf("runtime catalog is accessible (%d templates)", len(resp.GetRuntimeTemplates())), started))
+	report.add(passedCheck("catalog", "catalog_reachable", fmt.Sprintf("environment catalog is accessible (%d templates)", len(resp.GetEnvironmentTemplates())), started))
 }
 
 func connectionFailure(err error) (string, string, string) {

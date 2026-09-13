@@ -15,7 +15,6 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
 )
 
 type Manager struct {
@@ -24,7 +23,7 @@ type Manager struct {
 	recyclePath string
 
 	containers     cmap.ConcurrentMap[string, *Container]
-	runtimeHandler contract.RuntimeHandler
+	runtimeHandler contract.SandboxRuntime
 	// resourceManagers is a map of resource manager, key is resource type
 	resourceManagers cmap.ConcurrentMap[string, resourcemanager.Manager]
 
@@ -52,7 +51,7 @@ type Manager struct {
 	stopped               atomic.Bool
 }
 
-func NewManager(root string, handler contract.RuntimeHandler, healthChan chan bool, managers ...resourcemanager.Manager) (*Manager, error) {
+func NewManager(root string, handler contract.SandboxRuntime, healthChan chan bool, managers ...resourcemanager.Manager) (*Manager, error) {
 	if handler == nil {
 		return nil, fmt.Errorf("runsc handler is required")
 	}
@@ -106,7 +105,7 @@ func (m *Manager) SetExitClassifier(classifier func(Event) (commonv1.WorkloadDia
 	m.exitClassifier = classifier
 }
 
-func (m *Manager) RuntimeHandler() contract.RuntimeHandler {
+func (m *Manager) SandboxRuntime() contract.SandboxRuntime {
 	return m.runtimeHandler
 }
 
@@ -128,31 +127,6 @@ func (m *Manager) SetResources(id string, resources *runtimeapi.LinuxContainerRe
 		status.ResourceSpec = copy.ResourceSpec
 		return status, nil
 	})
-}
-
-func (m *Manager) UpdateLabels(id string, labels map[string]string) error {
-	c, ok := m.containers.Get(id)
-	if !ok {
-		return errord.ErrNotFound
-	}
-	if len(labels) == 0 {
-		return nil
-	}
-	metadata := proto.Clone(c.Metadata).(*runtimeapi.ContainerMetadata)
-	needUpdate := false
-	for k, v := range labels {
-		if metadata.Labels == nil {
-			metadata.Labels = make(map[string]string)
-		}
-		if metadata.Labels[k] != v {
-			metadata.Labels[k] = v
-			needUpdate = true
-		}
-	}
-	if !needUpdate {
-		return nil
-	}
-	return m.StoreMetadata(id, metadata)
 }
 
 func (m *Manager) List(option ...ListOption) []*Container {
@@ -187,30 +161,6 @@ func ListFilterById(id string) ListOption {
 			return false
 		}
 		return c.ID == id
-	}
-}
-
-func ListFilterByLabels(labels map[string]string) ListOption {
-	return func(c *Container) bool {
-		if c == nil || c.Metadata == nil {
-			logrus.Errorf("ListFilterByLabels: Got invalid container %+v", c)
-			return false
-		}
-
-		if len(labels) == 0 {
-			return true
-		}
-
-		if c.Metadata.Labels == nil {
-			return false
-		}
-
-		for k, v := range labels {
-			if c.Metadata.Labels[k] != v && v != "" {
-				return false
-			}
-		}
-		return true
 	}
 }
 

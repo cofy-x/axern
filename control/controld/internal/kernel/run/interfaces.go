@@ -38,7 +38,7 @@ type RunStore interface {
 
 type CreateEnvironmentParams struct {
 	Spec     *environmentv1.EnvironmentSpec
-	Template *catalogv1.RuntimeTemplate
+	Template *catalogv1.EnvironmentTemplate
 	Labels   map[string]string
 }
 

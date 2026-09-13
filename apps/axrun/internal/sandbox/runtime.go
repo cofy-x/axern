@@ -65,32 +65,16 @@ type State struct {
 }
 
 type ExecOptions struct {
-	CWD          string
-	Timeout      time.Duration
-	User         string
-	Env          map[string]string
-	ManagedProxy *ManagedProxyOptions
+	CWD     string
+	Timeout time.Duration
+	User    string
+	Env     map[string]string
 }
 
 type ExecResult struct {
-	ExitCode           int
-	Stdout             string
-	Stderr             string
-	ManagedProxyReport *ManagedProxyReport
-}
-
-type ManagedProxyOptions struct {
-	Provider            string
-	UpstreamBaseURL     string
-	UpstreamBearerToken string
-}
-
-type ManagedProxyReport struct {
-	Provider      string
-	RequestCount  int32
-	ResponseCount int32
-	ErrorCount    int32
-	ReportJSON    []byte
+	ExitCode int
+	Stdout   string
+	Stderr   string
 }
 
 type UploadDirOptions struct {

@@ -11,7 +11,7 @@ import (
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	sandboxobs "github.com/cofy-x/axern/runtime/axnoded/internal/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -21,7 +21,6 @@ import (
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"go.opentelemetry.io/otel/attribute"
-	"google.golang.org/protobuf/proto"
 )
 
 func (h *sandboxService) Start(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
@@ -120,53 +119,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 	return resp, nil
 }
 
-// StartNodeLocalSandbox is the in-process operator path used by node-owned
-// diagnostics. It accepts only a materialized local rootfs, derives the exact
-// workload requirements from node configuration and actual backing facts, and
-// checks them against the manager's current observations before entering the
-// ordinary Start gates. There is deliberately no protobuf/RPC switch for this
-// path.
-func (h *sandboxService) StartNodeLocalSandbox(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
-	prepared, err := h.prepareNodeLocalStartRequest(request, time.Now().UTC())
-	if err != nil {
-		return nil, fmt.Errorf("prepare node-local capability admission: %w", err)
-	}
-	return h.Start(ctx, prepared)
-}
-
-func (h *sandboxService) prepareNodeLocalStartRequest(request *runtime.StartRequest, now time.Time) (*runtime.StartRequest, error) {
-	if request == nil || request.GetRuntimeTemplate() == nil || request.GetRuntimeTemplate().GetRootfs() == nil {
-		return nil, fmt.Errorf("runtime template and rootfs are required")
-	}
-	if len(request.GetCapabilityRequirements()) != 0 {
-		return nil, fmt.Errorf("node-local sandbox cannot supply capability dependencies")
-	}
-	rootfs := request.GetRuntimeTemplate().GetRootfs()
-	if rootfs.GetType() != runtime.RootfsSrcType_LOCAL || strings.TrimSpace(rootfs.GetPath()) == "" {
-		return nil, fmt.Errorf("node-local sandbox requires a materialized local rootfs")
-	}
-	if h.capabilityManager == nil || !h.capabilityManager.Ready() {
-		return nil, fmt.Errorf("capability manager is warming")
-	}
-	immutableMount, err := langrtmanager.DescribeLocalRootfs(rootfs.GetPath())
-	if err != nil {
-		return nil, fmt.Errorf("inspect node-local rootfs backing: %w", err)
-	}
-	keys, err := capabilitycontract.DeriveRequirements(h.requirementInput(request, rootfsview.ImmutableMountFromProto(immutableMount).HasFilesystem("erofs")))
-	if err != nil {
-		return nil, fmt.Errorf("derive node-local capability requirements: %w", err)
-	}
-	snapshot := h.capabilityManager.Snapshot()
-	dependencies, err := capabilitycontract.ResolveRequirements(snapshot, keys, now)
-	if err != nil {
-		return nil, fmt.Errorf("resolve node-local capability requirements: %w", err)
-	}
-	prepared := proto.Clone(request).(*runtime.StartRequest)
-	prepared.CapabilityRequirements = dependencies
-	return prepared, nil
-}
-
-func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Context, request *runtime.StartRequest, handler contract.AllocationRuntimeHandler, containerID string) error {
+func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Context, request *runtime.StartRequest, handler contract.AllocationRuntime, containerID string) error {
 	if request == nil || handler == nil {
 		return fmt.Errorf("allocation request and runtime handler are required")
 	}
@@ -239,7 +192,7 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 			var ok bool
 			verifier, ok = handler.(contract.AllocationCapabilityVerifier)
 			if !ok {
-				return fmt.Errorf("runtime %q has no allocation capability verifier", handler.Name())
+				return fmt.Errorf("runsc has no allocation capability verifier")
 			}
 		}
 		verification := verifier.VerifyAllocationCapability(ctx, dependency, contract.HandlerOptions{
@@ -258,7 +211,7 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 
 func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs bool) capabilitycontract.RequirementInput {
 	resources := request.GetResources()
-	template := request.GetRuntimeTemplate()
+	template := request.GetEnvironmentTemplate()
 	policySpec := &commonv1.NetworkSpec{EgressPolicy: request.GetEgressPolicy()}
 	policyMode := networkpolicy.Mode(policySpec)
 	return capabilitycontract.RequirementInput{
@@ -293,8 +246,8 @@ func dependencyKeys(dependencies []*capabilityv1.CapabilityRequirement, excludeE
 }
 
 func (h *sandboxService) verifyRequestCapabilityRequirements(request *runtime.StartRequest) error {
-	if request == nil || request.GetRuntimeTemplate() == nil || request.GetRuntimeTemplate().GetRootfs() == nil {
-		return fmt.Errorf("runtime template and rootfs are required")
+	if request == nil || request.GetEnvironmentTemplate() == nil || request.GetEnvironmentTemplate().GetRootfs() == nil {
+		return fmt.Errorf("environment template and rootfs are required")
 	}
 	if strings.TrimSpace(request.GetContainerID()) == "" {
 		return fmt.Errorf("allocation id is required")
@@ -313,7 +266,7 @@ func (h *sandboxService) verifyRequestCapabilityRequirements(request *runtime.St
 	return nil
 }
 
-func (h *sandboxService) verifyRootfsCapabilityRequirements(ctx context.Context, request *runtime.StartRequest, rootfs *langrtmanager.RootFS) error {
+func (h *sandboxService) verifyRootfsCapabilityRequirements(ctx context.Context, request *runtime.StartRequest, rootfs *environmentcache.RootFS) error {
 	if allocation.IsInternalConformance(ctx) {
 		return nil
 	}

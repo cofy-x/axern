@@ -55,9 +55,6 @@ export type {
   DownloadDirOptions,
   ExecOptions,
   ExecResult,
-  ImageExecOptions,
-  ImageProcessMount,
-  ImageProcessOptions,
   MkdirOptions,
   MoveOptions,
   NodeCallOptions,
@@ -75,5 +72,4 @@ export type {
   UploadDirOptions,
   WriteFileOptions,
 } from "./types.js";
-export { workspaceMount } from "./types.js";
 export { AXERN_VERSION, platformName } from "./version.js";

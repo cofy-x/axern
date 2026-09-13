@@ -21,7 +21,7 @@ func TestStartupObservationDurationSinceClampsNonPositiveDuration(t *testing.T) 
 func TestStartAllocationReservesMemoryBeforeImageOrRootfsSideEffects(t *testing.T) {
 	handler := &runtimeSpyHandler{
 		name:         "runsc",
-		requirements: contract.RuntimeRequirements{Resources: []resourcemanager.ResourceName{resourcemanager.CgroupResourceName}},
+		requirements: contract.HostRequirements{Resources: []resourcemanager.ResourceName{resourcemanager.CgroupResourceName}},
 	}
 	fixture := newTestAllocationControllerWithResources(
 		t,
@@ -31,7 +31,7 @@ func TestStartAllocationReservesMemoryBeforeImageOrRootfsSideEffects(t *testing.
 	)
 	request := &runtimeapi.StartRequest{
 		ContainerID: "alloc-rejected-before-side-effects",
-		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
+		EnvironmentTemplate: &runtimeapi.EnvironmentTemplate{
 			ID:     "runtime-rejected",
 			Rootfs: &runtimeapi.RootfsConfig{Type: runtimeapi.RootfsSrcType_LOCAL, Source: &runtimeapi.RootfsConfig_Path{Path: t.TempDir()}},
 		},
@@ -40,8 +40,8 @@ func TestStartAllocationReservesMemoryBeforeImageOrRootfsSideEffects(t *testing.
 	if _, err := fixture.controller.startAllocation(context.Background(), request); err == nil {
 		t.Fatal("startAllocation() accepted rejected node-local admission")
 	}
-	if handler.createCalls != 0 || len(fixture.lrtManager.List()) != 0 {
-		t.Fatalf("side effects after rejected admission: runtime=%d rootfs=%d", handler.createCalls, len(fixture.lrtManager.List()))
+	if handler.createCalls != 0 || len(fixture.environmentCache.List()) != 0 {
+		t.Fatalf("side effects after rejected admission: runtime=%d rootfs=%d", handler.createCalls, len(fixture.environmentCache.List()))
 	}
 }
 
@@ -68,13 +68,13 @@ func TestStartAllocationPreservesFastExitStatus(t *testing.T) {
 
 	response, err := fixture.controller.startAllocation(context.Background(), &runtimeapi.StartRequest{
 		ContainerID: containerID,
-		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
+		EnvironmentTemplate: &runtimeapi.EnvironmentTemplate{
 			ID: "runtime-fast-exit",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,
 				Source: &runtimeapi.RootfsConfig_Path{Path: t.TempDir()},
 			},
-			Command: []string{"/bin/sh", "-c", "exit 42"},
+			Argv: []string{"/bin/sh", "-c", "exit 42"},
 		},
 	})
 	if err != nil {
@@ -117,13 +117,13 @@ func TestStartAllocationSerializesDuplicateAllocationStarts(t *testing.T) {
 	fixture := newTestAllocationController(t, handler)
 	request := &runtimeapi.StartRequest{
 		ContainerID: "alloc-duplicate-start",
-		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
+		EnvironmentTemplate: &runtimeapi.EnvironmentTemplate{
 			ID: "runtime-duplicate-start",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,
 				Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDir},
 			},
-			Command: []string{"/bin/sh"},
+			Argv: []string{"/bin/sh"},
 		},
 		Mounts: []*runtimeapi.Mount{{Type: "bind", Source: rootfsDir, Target: "/data"}},
 	}

@@ -229,22 +229,22 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 	if err != nil {
 		return nil, err
 	}
-	runtimeTemplate := &runtimev1.RuntimeTemplate{
-		Command:     append([]string(nil), spec.GetArgv()...),
-		Cwd:         cwd,
-		RuntimeEnvs: cloneStringMap(spec.GetEnv()),
-		Mounts:      toRuntimeLifecycleMountsFromAllocation(spec.GetMounts()),
-		Rootfs:      rootfsConfig,
-		ExecutionProfile: cloneRuntimeExecutionProfile(
+	environmentTemplate := &runtimev1.EnvironmentTemplate{
+		Argv:   append([]string(nil), spec.GetArgv()...),
+		Cwd:    cwd,
+		Env:    cloneStringMap(spec.GetEnv()),
+		Mounts: toRuntimeLifecycleMountsFromAllocation(spec.GetMounts()),
+		Rootfs: rootfsConfig,
+		ExecutionProfile: cloneOciExecutionProfile(
 			spec.GetExecutionProfile(),
 		),
 	}
-	runtimeTemplate.ID = stableRuntimeTemplateID(runtimeTemplate)
-	if runtimeTemplate.ID == "" {
-		return nil, grpcstatus.Error(codes.Internal, "build stable runtime template id")
+	environmentTemplate.ID = stableEnvironmentTemplateID(environmentTemplate)
+	if environmentTemplate.ID == "" {
+		return nil, grpcstatus.Error(codes.Internal, "build stable environment template id")
 	}
 	return &runtimev1.StartRequest{
-		RuntimeTemplate:        runtimeTemplate,
+		EnvironmentTemplate:    environmentTemplate,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
 		ContainerID:            req.GetAllocationID(),
 		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
@@ -269,22 +269,22 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 		return nil, err
 	}
 
-	runtimeTemplate := &runtimev1.RuntimeTemplate{
-		Command:     append([]string(nil), spec.GetArgv()...),
-		Cwd:         cwd,
-		RuntimeEnvs: cloneStringMap(spec.GetEnv()),
-		Mounts:      toRuntimeLifecycleMounts(spec.GetMounts()),
-		Rootfs:      rootfsConfig,
-		ExecutionProfile: cloneRuntimeExecutionProfile(
+	environmentTemplate := &runtimev1.EnvironmentTemplate{
+		Argv:   append([]string(nil), spec.GetArgv()...),
+		Cwd:    cwd,
+		Env:    cloneStringMap(spec.GetEnv()),
+		Mounts: toRuntimeLifecycleMounts(spec.GetMounts()),
+		Rootfs: rootfsConfig,
+		ExecutionProfile: cloneOciExecutionProfile(
 			spec.GetExecutionProfile(),
 		),
 	}
-	runtimeTemplate.ID = stableRuntimeTemplateID(runtimeTemplate)
-	if runtimeTemplate.ID == "" {
-		return nil, grpcstatus.Error(codes.Internal, "build stable runtime template id")
+	environmentTemplate.ID = stableEnvironmentTemplateID(environmentTemplate)
+	if environmentTemplate.ID == "" {
+		return nil, grpcstatus.Error(codes.Internal, "build stable environment template id")
 	}
 	return &runtimev1.StartRequest{
-		RuntimeTemplate:        runtimeTemplate,
+		EnvironmentTemplate:    environmentTemplate,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
 		ContainerID:            containerID,
 		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
@@ -301,11 +301,11 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 	}, nil
 }
 
-func cloneRuntimeExecutionProfile(in *catalogv1.RuntimeExecutionProfile) *catalogv1.RuntimeExecutionProfile {
+func cloneOciExecutionProfile(in *catalogv1.OciExecutionProfile) *catalogv1.OciExecutionProfile {
 	if in == nil {
 		return nil
 	}
-	return proto.Clone(in).(*catalogv1.RuntimeExecutionProfile)
+	return proto.Clone(in).(*catalogv1.OciExecutionProfile)
 }
 
 func cloneCapabilityRequirements(in []*capabilityv1.CapabilityRequirement) []*capabilityv1.CapabilityRequirement {
@@ -364,11 +364,11 @@ func allocationLifecycleStateFromContainerState(state runtimev1.ContainerState) 
 	}
 }
 
-func stableRuntimeTemplateID(template *runtimev1.RuntimeTemplate) string {
+func stableEnvironmentTemplateID(template *runtimev1.EnvironmentTemplate) string {
 	if template == nil {
 		return ""
 	}
-	staticTemplate := proto.Clone(template).(*runtimev1.RuntimeTemplate)
+	staticTemplate := proto.Clone(template).(*runtimev1.EnvironmentTemplate)
 	staticTemplate.ID = ""
 	data, err := proto.MarshalOptions{Deterministic: true}.Marshal(staticTemplate)
 	if err != nil {

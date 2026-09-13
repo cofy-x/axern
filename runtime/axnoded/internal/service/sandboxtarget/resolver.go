@@ -11,19 +11,19 @@ import (
 
 type Options struct {
 	GetContainer func(id string) (*container.Container, error)
-	RunscHandler contract.RuntimeHandler
+	RunscHandler contract.SandboxRuntime
 }
 
 type Resolver struct {
 	getContainer func(id string) (*container.Container, error)
-	runscHandler contract.RuntimeHandler
+	runscHandler contract.SandboxRuntime
 }
 
 type Target struct {
 	ID        string
 	Metadata  *runtime.ContainerMetadata
 	Container *container.Container
-	Handler   contract.RuntimeHandler
+	Handler   contract.SandboxRuntime
 }
 
 func NewResolver(options Options) *Resolver {
@@ -73,9 +73,6 @@ func (r *Resolver) ExecDirect(id string) (Target, error) {
 	target, err := r.Running(id)
 	if err != nil {
 		return Target{}, err
-	}
-	if !target.Handler.Capabilities().CanExecDirect {
-		return Target{}, errord.ErrNotImplemented
 	}
 	return target, nil
 }

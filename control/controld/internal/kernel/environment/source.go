@@ -11,7 +11,7 @@ import (
 )
 
 type CatalogReader interface {
-	Get(id, version string) (*catalogv1.RuntimeTemplate, bool)
+	Get(id, version string) (*catalogv1.EnvironmentTemplate, bool)
 }
 
 type ImageResolver interface {
@@ -31,7 +31,7 @@ type RegistryCredentialResolver interface {
 	ResolveDockerConfigJSON(ctx context.Context, id string) (string, bool, error)
 }
 
-func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, catalog CatalogReader, images ImageResolver, credentials RegistryCredentialResolver) (*environmentv1.EnvironmentSpec, *catalogv1.RuntimeTemplate, error) {
+func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, catalog CatalogReader, images ImageResolver, credentials RegistryCredentialResolver) (*environmentv1.EnvironmentSpec, *catalogv1.EnvironmentTemplate, error) {
 	if spec == nil {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "spec is required")
 	}
@@ -49,7 +49,7 @@ func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, catal
 	return resolveImageSpec(ctx, images, credentials, spec)
 }
 
-func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *catalogv1.RuntimeTemplate, error) {
+func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *catalogv1.EnvironmentTemplate, error) {
 	templateID := strings.TrimSpace(spec.GetTemplateID())
 	if strings.TrimSpace(spec.GetImage().GetRegistryCredentialID()) != "" {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "image.registry_credential_id is only valid with image.ref")
@@ -59,10 +59,10 @@ func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentS
 	}
 	template, ok := catalog.Get(templateID, spec.GetTemplateVersion())
 	if !ok {
-		return nil, nil, grpcstatus.Errorf(codes.NotFound, "runtime template %q not found", templateID)
+		return nil, nil, grpcstatus.Errorf(codes.NotFound, "environment template %q not found", templateID)
 	}
 	if strings.TrimSpace(template.GetImageDescriptor().GetDigest()) == "" {
-		return nil, nil, grpcstatus.Errorf(codes.FailedPrecondition, "runtime template %q is not digest pinned", templateID)
+		return nil, nil, grpcstatus.Errorf(codes.FailedPrecondition, "environment template %q is not digest pinned", templateID)
 	}
 	normalized := &environmentv1.EnvironmentSpec{
 		Namespace:       NormalizeNamespace(spec.GetNamespace()),
@@ -72,7 +72,7 @@ func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentS
 	return normalized, template, nil
 }
 
-func resolveImageSpec(ctx context.Context, images ImageResolver, credentials RegistryCredentialResolver, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *catalogv1.RuntimeTemplate, error) {
+func resolveImageSpec(ctx context.Context, images ImageResolver, credentials RegistryCredentialResolver, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *catalogv1.EnvironmentTemplate, error) {
 	if images == nil {
 		return nil, nil, grpcstatus.Error(codes.FailedPrecondition, "image resolution is not configured")
 	}
@@ -116,14 +116,14 @@ func resolveImageSpec(ctx context.Context, images ImageResolver, credentials Reg
 	return normalized, synthesizeImageTemplate(normalized, resolved.Descriptor), nil
 }
 
-func synthesizeImageTemplate(spec *environmentv1.EnvironmentSpec, descriptor *catalogv1.OciImageDescriptor) *catalogv1.RuntimeTemplate {
+func synthesizeImageTemplate(spec *environmentv1.EnvironmentSpec, descriptor *catalogv1.OciImageDescriptor) *catalogv1.EnvironmentTemplate {
 	image := spec.GetImage()
-	return &catalogv1.RuntimeTemplate{
+	return &catalogv1.EnvironmentTemplate{
 		ID:              image.GetRef(),
 		Version:         image.GetDigest(),
 		ImageDescriptor: descriptor,
 		RootfsReadonly:  image.GetRootfsReadonly(),
-		Capabilities: &catalogv1.RuntimeTemplateCapabilities{
+		Capabilities: &catalogv1.EnvironmentTemplateCapabilities{
 			SupportsExec:             true,
 			SupportsExecStream:       true,
 			SupportsLongLivedProcess: true,

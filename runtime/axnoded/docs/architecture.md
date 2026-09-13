@@ -16,7 +16,7 @@ flowchart TB
     Service --> Control["service/sandboxcontrol + probes + networking"]
 
     Allocation --> Egress["internal/egress -> egressd"]
-    Allocation --> LangRuntime["internal/langruntime -> imagemgr"]
+    Allocation --> EnvironmentCache["internal/environmentcache -> imagemgr"]
     Allocation --> Resources["internal/resources + internal/network"]
     Allocation --> Container["internal/container"]
     Allocation --> NodeState["internal/nodestate"]
@@ -38,8 +38,8 @@ Layer ownership:
 - `internal/service` owns API-facing orchestration and delegates to focused subdomains.
 - `internal/runtime` owns the single runsc executor, bundle creation, runtime state, and host-side sandboxd clients. Its interface is a narrow execution/test boundary, not a plugin registry or Allocation-selectable backend.
 - `internal/sandboxd` is the sandbox-local daemon implementation.
-- `internal/langruntime`, `internal/egress`, `internal/resources`, and `internal/container` own rootfs/image coordination, egress enforcement, cgroup/network resources, and persisted container state.
-- `internal/nodestate` owns the process-wide BoltDB handle and low-level record transactions. Allocation orchestration owns the schema and keeps runtime template identity plus image/workspace ownership in one record per allocation.
+- `internal/environmentcache`, `internal/egress`, `internal/resources`, and `internal/container` own rootfs/image coordination, egress enforcement, cgroup/network resources, and persisted container state.
+- `internal/nodestate` owns the process-wide BoltDB handle and low-level record transactions. Allocation orchestration owns the schema and keeps environment template identity plus image/workspace ownership in one record per allocation.
 - `internal/nodecapability` owns provider registration, atomic snapshots, recovery hysteresis, and the node-local admission view. The shared catalog owns derivation and loss policy; providers do not write node summaries directly. Production startup verifies that every catalog key has exactly one registered provider matching the catalog owner.
 
 The cross-system capability contract is documented in [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md). It is distinct from sandboxd operation discovery described later in this document.
@@ -63,7 +63,7 @@ The immutable launch-verification fields and cgroup ledger deliberately have dif
 
 Recovery ordering is strict: load every runtime inventory and container checkpoint, load the independent binding and execution records, classify the complete inventory without deletion, seed bound terminal observations, remove explicitly discard-on-restart sessions, restore durable Allocation state, then reconcile cgroup, egress, runtime storage, and resource ownership. A durable live execution missing either authority—or any container with an unspecified or contradictory recovery mode—keeps the node NotReady before destructive orphan cleanup.
 
-Inventory active IDs come from the intersection of `ControlPlaneAllocationBinding` and `AllocationState`, plus unacknowledged bound terminal outbox entries. Running IDs and locality are live joins against runtime state and the runtime template already held by `AllocationState`; arbitrary internal containers and container labels cannot enter the control-plane Allocation inventory.
+Inventory active IDs come from the intersection of `ControlPlaneAllocationBinding` and `AllocationState`, plus unacknowledged bound terminal outbox entries. Running IDs and locality are live joins against runtime state and the environment template already held by `AllocationState`; arbitrary internal containers and container labels cannot enter the control-plane Allocation inventory.
 
 Rootfs handling follows the three-boundary contract in [rootfs-storage.md](rootfs-storage.md): host target projection, runtime-specific guest writable storage, and cgroup memory enforcement are independent. The input lower rootfs is immutable across create, start, failure rollback, and delete.
 
@@ -75,7 +75,7 @@ sequenceDiagram
     participant API as internal/api
     participant Start as service/allocation
     participant Capability as internal/nodecapability
-    participant LangRT as internal/langruntime
+    participant EnvironmentCache as internal/environmentcache
     participant Resources as internal/resources
     participant Container as internal/container
     participant Runtime as internal/runtime
@@ -85,7 +85,7 @@ sequenceDiagram
     API->>Start: create allocation request
     Start->>Capability: derive requirements and verify current Node observation
     Start->>NodeState: persist request digest + immutable requirements
-    Start->>LangRT: resolve runtime rootfs / image rootfs
+    Start->>EnvironmentCache: resolve prepared environment / image rootfs
     Start->>Capability: verify requirements after actual backing resolution
     Start->>Resources: allocate cgroup and interface
     Start->>Runtime: create OCI bundle and container
@@ -107,9 +107,9 @@ Create invariants:
 - Runtime handlers must publish an immutable launch-enforcement manifest. Runtime-specific hard enforcement is checked after create, immediately after relevant events, and by a bounded sharded audit of cheap controls, identities, and PID membership. Destructive conformance is not a runtime audit. Failure uses the durable, detached allocation termination path rather than the caller's cancelable context.
 - The allocation parent is the authoritative memory safety boundary and requires cgroup v2 `memory.max`, `memory.swap.max=0`, and `memory.oom.group=1` readback. The workload leaf is the OCI/runtime contract and attribution boundary; its runtime-created limit/swap controls, stable cgroup identity, and PID membership are verified without installing a second authoritative Axern limit. The host memcg is the total sandbox budget, including runsc runtime processes and guest accounting plus lower/upper page cache. Axnoded has no cgroup v1, runtime-overhead reservation, or ignored-resource fallback for this contract.
 - Writable rootfs and workspace directories are allocation-local. Their runtime ownership, storage reservations, recovery, and cleanup remain node-owned; durable outputs are exported explicitly.
-- Rootfs/image resolution goes through `internal/langruntime` and `imagemgr`.
+- Rootfs/image resolution goes through `internal/environmentcache` and `imagemgr`.
 - Runtime cleanup inputs may be checkpointed in container metadata, but OCI annotations are never resource ownership or Allocation identity. Durable `AllocationState`, the cgroup ledger, and egressd records own their respective cleanup obligations.
-- Runtime template identity and image/workspace ownership are committed in one allocation record. Durable deletion precedes releasing in-memory handles, so a failed state write cannot silently discard cleanup ownership.
+- Environment template identity and image/workspace ownership are committed in one allocation record. Durable deletion precedes releasing in-memory handles, so a failed state write cannot silently discard cleanup ownership.
 - Immutable requirements, enforcement manifest, launch verification, and the latest pending Node observation sequence share the Allocation record. Per-Allocation mutation serialization prevents concurrent updates from reverting newer intent. Capability fail-stop termination has one durable node-local owner.
 - Reconcile acknowledgement failures retain pending work for retry. Event-triggered reconciliation plus the bounded sharded audit covers both `DEGRADE` and `FAIL_STOP`; each pass rebuilds one complete condition projection. There is no control-plane capability reconcile queue.
 - Recovery scans records independently, removes records with no live container, and suppresses destructive image-lease reconciliation whenever any live allocation cannot be reconstructed completely. Incomplete live recovery fails node startup instead of advertising a partially recovered runtime.

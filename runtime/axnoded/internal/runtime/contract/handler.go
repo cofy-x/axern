@@ -9,12 +9,7 @@ import (
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
-type RuntimeCapabilities struct {
-	CanCheckpoint bool
-	CanExecDirect bool
-}
-
-type RuntimeRequirements struct {
+type HostRequirements struct {
 	NeedsCgroup           bool
 	NeedsNetworkNamespace bool
 	Resources             []resourcemanager.ResourceName
@@ -29,13 +24,13 @@ type PreparedContainer struct {
 	Metadata    *apipb.ContainerMetadata
 }
 
-// AllocationRuntimeHandler is the fail-closed lifecycle contract for workload
+// AllocationRuntime is the fail-closed lifecycle contract for workload
 // allocations. Allocation starts must be split into OCI create and start so
 // allocation-specific enforcement can be verified before user code executes.
-// RuntimeHandler.CreateContainer remains available to node-owned auxiliary
+// SandboxRuntime.CreateContainer remains available to node-owned auxiliary
 // containers whose lifecycle is not an allocation lifecycle.
-type AllocationRuntimeHandler interface {
-	RuntimeHandler
+type AllocationRuntime interface {
+	SandboxRuntime
 	PrepareContainer(context.Context, *apipb.CreateContainerRequest, HandlerOptions) (*PreparedContainer, error)
 	StartPreparedContainer(context.Context, *PreparedContainer, HandlerOptions) (*apipb.ContainerMetadata, error)
 }
@@ -87,11 +82,9 @@ func InconclusiveCapability(err error) CapabilityVerification {
 	return CapabilityVerification{State: CapabilityVerificationInconclusive, Err: err}
 }
 
-type RuntimeHandler interface {
+type SandboxRuntime interface {
 	AllocationEnforcementManifestProvider
-	Name() string
-	Capabilities() RuntimeCapabilities
-	Requirements() RuntimeRequirements
+	HostRequirements() HostRequirements
 	Version(context.Context) (*apipb.RuntimeVersion, error)
 	CreateContainer(context.Context, *apipb.CreateContainerRequest, HandlerOptions) (*apipb.ContainerMetadata, error)
 	DeleteContainer(context.Context, *apipb.DeleteContainerRequest, HandlerOptions) (*apipb.DeleteContainerResponse, error)
@@ -102,7 +95,6 @@ type RuntimeHandler interface {
 	OpenExecSession(context.Context, *apipb.ExecSessionOpen, HandlerOptions) (Session, error)
 	ProcessService() ProcessService
 	FileService() FileService
-	CheckpointContainer(*apipb.CheckpointRequest) error
 	Wait(context.Context, HandlerOptions) (Exit, error)
 	ShutDown()
 }

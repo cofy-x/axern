@@ -26,7 +26,6 @@ start_container() {
   local output
   output="$(verify-cli \
     -address "${AXNODED_SOCKET}" \
-    -runtime "${runtime_name}" \
     -stdout "${stdout_path}" \
     -stderr "${stderr_path}" \
     -shell-command "${shell_command}")"

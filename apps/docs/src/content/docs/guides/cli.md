@@ -36,7 +36,7 @@ Use the [Kubernetes install guide](/getting-started/kubernetes/) when an interac
 
 ## Diagnose the platform
 
-Start with the read-only platform doctor. It validates the selected context, mTLS certificate lifetime and key permissions, gateway connectivity, namespace access, and the runtime catalog without creating resources:
+Start with the read-only platform doctor. It validates the selected context, mTLS certificate lifetime and key permissions, gateway connectivity, namespace access, and the environment catalog without creating resources:
 
 ```bash
 axern doctor --namespace default

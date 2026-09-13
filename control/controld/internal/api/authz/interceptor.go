@@ -284,8 +284,8 @@ func publicPolicy(method string) (methodPolicy, bool) {
 	switch service {
 	case "axern.control.identity.v1.IdentityControl":
 		return exactPolicy(methodName, accesskernel.ActionIdentityRead, "", "WhoAmI")
-	case "axern.control.catalog.v1.RuntimeCatalog":
-		return exactPolicy(methodName, accesskernel.ActionCatalogRead, "", "ListRuntimeTemplates", "GetRuntimeTemplate")
+	case "axern.control.catalog.v1.EnvironmentCatalog":
+		return exactPolicy(methodName, accesskernel.ActionCatalogRead, "", "ListEnvironmentTemplates", "GetEnvironmentTemplate")
 	case "axern.control.admin.v1.AccessAdmin":
 		return exactPolicy(methodName, accesskernel.ActionIdentityRead, "",
 			"CreatePrincipal", "ListPrincipals", "DisablePrincipal", "AddPrincipalCredential", "ListPrincipalCredentials",

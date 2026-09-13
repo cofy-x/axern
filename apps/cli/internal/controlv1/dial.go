@@ -40,7 +40,7 @@ func dial(ctx context.Context, config Config) (*grpc.ClientConn, Clients, error)
 		Environment:      environmentv1.NewEnvironmentControlClient(conn),
 		Run:              runv1.NewRunControlClient(conn),
 		Secret:           secretv1.NewSecretControlClient(conn),
-		Catalog:          catalogv1.NewRuntimeCatalogClient(conn),
+		Catalog:          catalogv1.NewEnvironmentCatalogClient(conn),
 		Tunnel:           tunnelv1.NewTunnelControlClient(conn),
 		Namespace:        namespacev1.NewNamespaceControlClient(conn),
 		Quota:            quotav1.NewQuotaControlClient(conn),

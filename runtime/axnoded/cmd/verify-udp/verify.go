@@ -54,17 +54,17 @@ func runVerifyUDP(cfg verifyUDPConfig) error {
 		}},
 	}
 
-	startupBefore, err := natbench.CaptureStartupSnapshot("http://127.0.0.1:23001/debug/metricsz", cfg.runtimeName, "local")
+	startupBefore, err := natbench.CaptureStartupSnapshot("http://127.0.0.1:23001/debug/metricsz", config.RuntimeNameRunsc, "local")
 	if err != nil {
 		return fmt.Errorf("capture startup metrics before udp start: %w", err)
 	}
 	startCtx, cancelStart := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancelStart()
-	handle, err := verifyutil.CreateAllocation(startCtx, clients, verifyutil.NewSandboxID(cfg.runtimeID), resolvedSpec)
+	handle, err := verifyutil.CreateAllocation(startCtx, clients, verifyutil.NewSandboxID(cfg.environmentID), resolvedSpec)
 	if err != nil {
 		return fmt.Errorf("create udp responder sandbox: %w", err)
 	}
-	startupAfter, err := natbench.CaptureStartupSnapshot("http://127.0.0.1:23001/debug/metricsz", cfg.runtimeName, "local")
+	startupAfter, err := natbench.CaptureStartupSnapshot("http://127.0.0.1:23001/debug/metricsz", config.RuntimeNameRunsc, "local")
 	if err != nil {
 		return fmt.Errorf("capture startup metrics after udp start: %w", err)
 	}
@@ -127,7 +127,7 @@ func runVerifyUDP(cfg verifyUDPConfig) error {
 		return err
 	}
 	if cfg.requests > 0 {
-		report, err := runExternalUDPIngressBenchmark(cfg.natBackend, cfg.runtimeName, cfg.bpfnetPin, cfg.externalNetNS, cfg.externalAddress, cfg.listenPort, cfg.requests, cfg.concurrency, cfg.warmupRequests, cfg.timeout, startupSummary, localitySummary)
+		report, err := runExternalUDPIngressBenchmark(cfg.natBackend, config.RuntimeNameRunsc, cfg.bpfnetPin, cfg.externalNetNS, cfg.externalAddress, cfg.listenPort, cfg.requests, cfg.concurrency, cfg.warmupRequests, cfg.timeout, startupSummary, localitySummary)
 		if err != nil {
 			return err
 		}
