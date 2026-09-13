@@ -64,22 +64,10 @@ func TestRunJSONUsesStableShape(t *testing.T) {
 			Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT},
 		},
 		CreatedAt: createdAt,
-		CapabilityConditions: &capabilityv1.CapabilityConditionSet{Revision: 1, ObservedAt: createdAt, Conditions: []*capabilityv1.CapabilityCondition{{
+		CapabilityConditions: &capabilityv1.CapabilityConditionSet{ObservedAt: createdAt, Conditions: []*capabilityv1.CapabilityCondition{{
 			Key:        &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT}},
 			State:      capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-			Proof: &capabilityv1.CapabilityObservationProof{
-				ObservationID: "runtime-observation",
-				Provider:      capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
-				ObservedAt:    createdAt,
-				Evidence: &capabilityv1.CapabilityEvidence{
-					EvidenceID: "runtime-proof",
-					Identity: &capabilityv1.CapabilityEvidence_Runtime{Runtime: &capabilityv1.RuntimeEvidenceIdentity{
-						RuntimeName: "runsc",
-					}},
-				},
-			},
-			ObservedAt: createdAt,
 		}}},
 		ExitCode:      0,
 		ExitCodeKnown: true,
@@ -94,7 +82,7 @@ func TestRunJSONUsesStableShape(t *testing.T) {
 	if !strings.Contains(runJSON.String(), `"exit_code": 0`) {
 		t.Fatalf("run JSON should preserve known zero exit code: %s", runJSON.String())
 	}
-	if !strings.Contains(runJSON.String(), `"platform": "runsc_memory_hard_limit"`) || !strings.Contains(runJSON.String(), `"evidence_id": "runtime-proof"`) {
+	if !strings.Contains(runJSON.String(), `"platform": "runsc_memory_hard_limit"`) || !strings.Contains(runJSON.String(), `"observed_at": "2026-04-29T12:00:00Z"`) {
 		t.Fatalf("run JSON omitted structured capability condition: %s", runJSON.String())
 	}
 

@@ -2,11 +2,7 @@ package service
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -85,10 +81,6 @@ func (h *sandboxService) newObservedCapabilityManager(cgroupRoot string) (*nodec
 		return nil, fmt.Errorf("normalize network capability config: %w", err)
 	}
 	cfg.PluginConfig.NetworkConfig = networkConfig
-	networkDigest, err := networkConfigDigest(networkConfig)
-	if err != nil {
-		return nil, err
-	}
 	extensions, err := cfg.PluginConfig.NodeExtensionCapabilitiesValue()
 	if err != nil {
 		return nil, fmt.Errorf("node extension capabilities: %w", err)
@@ -104,10 +96,10 @@ func (h *sandboxService) newObservedCapabilityManager(cgroupRoot string) (*nodec
 	runtimeDigestCache := newRuntimeFileDigestCache()
 	providers := make([]nodecapabilitymanager.Provider, 0, 9)
 	if len(extensions) > 0 {
-		providers = append(providers, configCapabilityProvider(extensions, extensionConfigDigest(extensions)))
+		providers = append(providers, configCapabilityProvider(extensions))
 	}
 	providers = append(providers,
-		networkCapabilityProvider(cfg, networkDigest, h.egressClient),
+		networkCapabilityProvider(cfg, h.egressClient),
 		cgroupCapabilityProvider(cfg, cgroupRoot, bootID, bootErr),
 		filestoreCapabilityProvider(cfg, bootID, bootErr),
 		runtimeConformanceCapabilityProvider(cfg, h.runtimeHandlers, config.RuntimeNameRunsc, runtimeConformanceKindMemory, bootID, h.runRuntimeConformanceSelfTest, runtimeDigestCache),
@@ -125,7 +117,7 @@ func (h *sandboxService) newObservedCapabilityManager(cgroupRoot string) (*nodec
 	return nodecapabilitymanager.NewManager(providers...)
 }
 
-func configCapabilityProvider(extensions []*capabilityv1.ExtensionCapability, digest string) nodecapabilitymanager.Provider {
+func configCapabilityProvider(extensions []*capabilityv1.ExtensionCapability) nodecapabilitymanager.Provider {
 	expected := make([]*capabilityv1.CapabilityKey, 0, len(extensions))
 	for _, extension := range extensions {
 		expected = append(expected, capabilitycontract.ExtensionKey(extension.GetName(), extension.GetValue()))
@@ -136,14 +128,14 @@ func configCapabilityProvider(extensions []*capabilityv1.ExtensionCapability, di
 		observe: func(context.Context, time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			out := make([]*capabilityv1.CapabilityObservation, 0, len(expected))
 			for _, key := range expected {
-				out = append(out, availableObservation(key, capabilitycontract.ConfigEvidence(digest)))
+				out = append(out, availableObservation(key, nil))
 			}
 			return out, nil
 		},
 	}
 }
 
-func networkCapabilityProvider(cfg config.Config, digest string, managers ...egress.Manager) nodecapabilitymanager.Provider {
+func networkCapabilityProvider(cfg config.Config, managers ...egress.Manager) nodecapabilitymanager.Provider {
 	var egressManager egress.Manager
 	if len(managers) > 0 {
 		egressManager = managers[0]
@@ -161,7 +153,7 @@ func networkCapabilityProvider(cfg config.Config, digest string, managers ...egr
 		observe: func(ctx context.Context, _ time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			manager := networkmanager.NetworkManagers[cfg.PluginConfig.NetworkConfig.NatBackend]
 			probe, ok := manager.(networkmanager.HealthProber)
-			evidence := capabilitycontract.ConfigEvidence(digest)
+			var evidence *capabilityv1.CapabilityEvidence
 			activeIndex := 1
 			inactiveIndex := 2
 			if cfg.PluginConfig.NetworkConfig.CapabilityBackend() == config.NatBackendEBPF {
@@ -305,38 +297,6 @@ func cloneCapabilityKeys(keys []*capabilityv1.CapabilityKey) []*capabilityv1.Cap
 		out = append(out, capabilitycontract.CloneKey(key))
 	}
 	return out
-}
-
-func networkConfigDigest(network config.NetworkConfig) (string, error) {
-	normalized, err := network.Normalized()
-	if err != nil {
-		return "", fmt.Errorf("normalize network evidence config: %w", err)
-	}
-	payload, err := json.Marshal(normalized)
-	if err != nil {
-		return "", fmt.Errorf("marshal network evidence config: %w", err)
-	}
-	return sha256Digest(payload), nil
-}
-
-func extensionConfigDigest(extensions []*capabilityv1.ExtensionCapability) string {
-	normalized := make([]*capabilityv1.ExtensionCapability, 0, len(extensions))
-	for _, extension := range extensions {
-		normalized = append(normalized, capabilitycontract.NormalizeExtension(extension))
-	}
-	sort.Slice(normalized, func(i, j int) bool {
-		if normalized[i].GetName() == normalized[j].GetName() {
-			return normalized[i].GetValue() < normalized[j].GetValue()
-		}
-		return normalized[i].GetName() < normalized[j].GetName()
-	})
-	payload, _ := json.Marshal(normalized)
-	return sha256Digest(payload)
-}
-
-func sha256Digest(payload []byte) string {
-	digest := sha256.Sum256(payload)
-	return "sha256:" + hex.EncodeToString(digest[:])
 }
 
 func firstNonEmptyCapabilityReason(values ...string) string {

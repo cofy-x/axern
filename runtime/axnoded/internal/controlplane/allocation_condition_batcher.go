@@ -197,5 +197,10 @@ func conditionReportSupersedes(next, current *nodev1.AllocationCapabilityConditi
 	if current == nil {
 		return true
 	}
-	return next.GetConditionSet().GetRevision() > current.GetConditionSet().GetRevision()
+	nextAt := next.GetConditionSet().GetObservedAt()
+	currentAt := current.GetConditionSet().GetObservedAt()
+	if nextAt == nil {
+		return false
+	}
+	return currentAt == nil || nextAt.AsTime().After(currentAt.AsTime())
 }

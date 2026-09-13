@@ -410,7 +410,7 @@ func (r *Reporter) ReplayDurableAllocationLifecycles() error {
 
 func (r *Reporter) ReportAllocationCapabilityConditions(report AllocationCapabilityConditionReport) {
 	allocationID := strings.TrimSpace(report.AllocationID)
-	if r == nil || allocationID == "" || report.ConditionSet == nil || report.ConditionSet.GetRevision() <= 0 {
+	if r == nil || allocationID == "" || report.ConditionSet == nil || report.ConditionSet.GetObservedAt() == nil {
 		return
 	}
 	r.ensureConditionBatcher().Enqueue(&nodev1.AllocationCapabilityConditionReport{

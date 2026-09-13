@@ -402,7 +402,7 @@ func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, requ
 	if runtimeAbsent {
 		// A missing manager/runtime record is the explicit idempotent-delete
 		// path. Runtime absence, rather than a monitor that never existed, is
-		// the proof used to retire any remaining local claims.
+		// the fact used to retire any remaining local claims.
 		finalize = h.finalizeFailedContainerDelete
 	}
 	if err := finalize(request.ID, resource); err != nil {

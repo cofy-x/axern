@@ -44,7 +44,7 @@ func (f *fakeNodeOperatorService) NetworkPolicyDiagnostics(context.Context, stri
 
 func (f *fakeNodeOperatorService) Run(context.Context) error      { return nil }
 func (f *fakeNodeOperatorService) Shutdown(context.Context) error { return nil }
-func (f *fakeNodeOperatorService) ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error) {
+func (f *fakeNodeOperatorService) ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error) {
 	return nil, nil, nil
 }
 func (f *fakeNodeOperatorService) Start(context.Context, *runtimev1.StartRequest) (*runtimev1.StartResponse, error) {

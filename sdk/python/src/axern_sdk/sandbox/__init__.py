@@ -3,7 +3,7 @@
 from axern_sdk.node import (
     AsyncSandboxProcess,
     BrowserStatus,
-    CapabilityDependencyStatus,
+    CapabilityProviderDependencyStatus,
     CapabilityProviderStatus,
     CapabilityProviderSummary,
     CapabilityStatus,
@@ -29,7 +29,7 @@ __all__ = [
     "AsyncSandboxProcess",
     "BrowserStatus",
     "CIDRRule",
-    "CapabilityDependencyStatus",
+    "CapabilityProviderDependencyStatus",
     "CapabilityProviderStatus",
     "CapabilityProviderSummary",
     "CapabilityStatus",

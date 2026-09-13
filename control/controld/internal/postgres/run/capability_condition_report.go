@@ -31,7 +31,7 @@ func (s *Store) BatchReportAllocationCapabilityConditions(ctx context.Context, n
 				FOR UPDATE
 			`, allocationID).Scan(&admittedNodeID)
 			if errors.Is(err, pgx.ErrNoRows) {
-				// The allocation may have reached terminal cleanup while a durable
+				// The allocation may have reached terminal cleanup while a
 				// node-side condition report was in flight. It is already fenced.
 				continue
 			}

@@ -140,69 +140,10 @@ func (a *App) observeAllocationReconcileAttempts(ctx context.Context, observe sd
 	return nil
 }
 
-type capabilityReconcileQueueMetric struct {
-	pendingDue          int64
-	pendingScheduled    int64
-	leasedActive        int64
-	leasedExpired       int64
-	oldestDueAgeSeconds int64
-	maxAttempts         int64
-}
-
-func (a *App) capabilityReconcileQueueMetrics(ctx context.Context) (capabilityReconcileQueueMetric, error) {
-	var metric capabilityReconcileQueueMetric
-	err := a.db.Pool().QueryRow(ctx, `
-		SELECT
-			count(*) FILTER (WHERE next_run_at <= $1 AND lease_expires_at IS NULL),
-			count(*) FILTER (WHERE next_run_at > $1 AND lease_expires_at IS NULL),
-			count(*) FILTER (WHERE lease_expires_at > $1),
-			count(*) FILTER (WHERE lease_expires_at IS NOT NULL AND lease_expires_at <= $1),
-			COALESCE(FLOOR(GREATEST(0, EXTRACT(EPOCH FROM ($1::timestamptz - min(next_run_at) FILTER (
-				WHERE next_run_at <= $1 AND lease_expires_at IS NULL
-			))))), 0)::bigint,
-			COALESCE(max(reconcile_attempts), 0)
-		FROM allocation_capability_reconcile_queue
-	`, a.now().UTC()).Scan(&metric.pendingDue, &metric.pendingScheduled, &metric.leasedActive, &metric.leasedExpired, &metric.oldestDueAgeSeconds, &metric.maxAttempts)
-	if err != nil {
-		return capabilityReconcileQueueMetric{}, fmt.Errorf("query capability reconcile queue metrics: %w", err)
-	}
-	return metric, nil
-}
-
-func (a *App) observeCapabilityReconcileQueue(ctx context.Context, observe sdkobs.Int64GaugeObserver) error {
-	metric, err := a.capabilityReconcileQueueMetrics(ctx)
-	if err != nil {
-		return err
-	}
-	observe(metric.pendingDue, attribute.String(sdkobs.AttrState, "pending_due"))
-	observe(metric.pendingScheduled, attribute.String(sdkobs.AttrState, "pending_scheduled"))
-	observe(metric.leasedActive, attribute.String(sdkobs.AttrState, "leased_active"))
-	observe(metric.leasedExpired, attribute.String(sdkobs.AttrState, "leased_expired"))
-	return nil
-}
-
-func (a *App) observeCapabilityReconcileQueueOldestAge(ctx context.Context, observe sdkobs.Int64GaugeObserver) error {
-	metric, err := a.capabilityReconcileQueueMetrics(ctx)
-	if err != nil {
-		return err
-	}
-	observe(metric.oldestDueAgeSeconds)
-	return nil
-}
-
-func (a *App) observeCapabilityReconcileAttempts(ctx context.Context, observe sdkobs.Int64GaugeObserver) error {
-	metric, err := a.capabilityReconcileQueueMetrics(ctx)
-	if err != nil {
-		return err
-	}
-	observe(metric.maxAttempts)
-	return nil
-}
-
 func (a *App) observeCapabilityConditionAllocations(ctx context.Context, observe sdkobs.Int64GaugeObserver) error {
 	rows, err := a.db.Pool().Query(ctx, `
 		SELECT condition->>'state', count(DISTINCT allocation_id)
-		FROM allocation_capability_conditions
+		FROM allocation_capability_conditions, LATERAL jsonb_array_elements(conditions->'conditions') condition
 		WHERE condition->>'state' IN (
 			'CAPABILITY_CONDITION_STATE_DEGRADED',
 			'CAPABILITY_CONDITION_STATE_FAILED',

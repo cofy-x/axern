@@ -38,16 +38,16 @@ func apiCapabilityProviders(items []service.SandboxCapabilityProvider) []*nodesa
 			Capabilities: append([]string(nil), item.Capabilities...),
 			Backend:      item.Backend,
 			Reason:       item.Reason,
-			Dependencies: apiCapabilityDependencies(item.Dependencies),
+			Dependencies: apiCapabilityRequirements(item.Dependencies),
 		})
 	}
 	return out
 }
 
-func apiCapabilityDependencies(items []service.SandboxCapabilityDependency) []*nodesandboxv1.CapabilityDependencyStatus {
-	out := make([]*nodesandboxv1.CapabilityDependencyStatus, 0, len(items))
+func apiCapabilityRequirements(items []service.SandboxCapabilityRequirement) []*nodesandboxv1.CapabilityProviderDependencyStatus {
+	out := make([]*nodesandboxv1.CapabilityProviderDependencyStatus, 0, len(items))
 	for _, item := range items {
-		out = append(out, &nodesandboxv1.CapabilityDependencyStatus{
+		out = append(out, &nodesandboxv1.CapabilityProviderDependencyStatus{
 			Name:      item.Name,
 			Available: item.Available,
 			Reason:    item.Reason,

@@ -116,7 +116,7 @@ func CreateAllocation(ctx context.Context, clients *NodeClients, sandboxID strin
 	if sandboxID == "" {
 		sandboxID = NewSandboxID("verify")
 	}
-	preparedSpec, err := prepareCapabilityDependencies(ctx, clients, spec)
+	preparedSpec, err := prepareCapabilityRequirements(ctx, clients, spec)
 	if err != nil {
 		return nil, fmt.Errorf("prepare capability dependencies: %w", err)
 	}

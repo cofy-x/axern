@@ -20,10 +20,10 @@ type CapabilityProviderStatus struct {
 	Capabilities []string
 	Backend      string
 	Reason       string
-	Dependencies []CapabilityDependencyStatus
+	Dependencies []CapabilityProviderDependencyStatus
 }
 
-type CapabilityDependencyStatus struct {
+type CapabilityProviderDependencyStatus struct {
 	Name      string
 	Available bool
 	Reason    string
@@ -70,16 +70,16 @@ func sdkCapabilityProviders(items []nodeclient.CapabilityProviderStatus) []Capab
 			Capabilities: append([]string(nil), item.Capabilities...),
 			Backend:      item.Backend,
 			Reason:       item.Reason,
-			Dependencies: sdkCapabilityDependencies(item.Dependencies),
+			Dependencies: sdkCapabilityRequirements(item.Dependencies),
 		})
 	}
 	return out
 }
 
-func sdkCapabilityDependencies(items []nodeclient.CapabilityDependencyStatus) []CapabilityDependencyStatus {
-	out := make([]CapabilityDependencyStatus, 0, len(items))
+func sdkCapabilityRequirements(items []nodeclient.CapabilityProviderDependencyStatus) []CapabilityProviderDependencyStatus {
+	out := make([]CapabilityProviderDependencyStatus, 0, len(items))
 	for _, item := range items {
-		out = append(out, CapabilityDependencyStatus{
+		out = append(out, CapabilityProviderDependencyStatus{
 			Name:      item.Name,
 			Available: item.Available,
 			Reason:    item.Reason,

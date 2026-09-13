@@ -33,7 +33,7 @@ type serviceLike interface {
 	DeleteControlPlaneAllocation(context.Context, string, *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error)
 	HasControlPlaneAllocation(string, string) bool
 	List(context.Context, *runtimev1.ListContainersRequest) (*runtimev1.ListContainersResponse, error)
-	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error)
+	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error)
 }
 
 const (
@@ -100,9 +100,8 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 		return nil, resultErr
 	}
 	return &nodelifecyclev1.CreateAllocationResponse{
-		AllocationID:                   req.GetAllocationID(),
-		CapabilityVerification:         cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
-		AdmittedCapabilityDependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
+		AllocationID:           req.GetAllocationID(),
+		CapabilityVerification: cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
 	}, nil
 }
 
@@ -213,18 +212,17 @@ func (s *nodeLifecycleServer) GetAllocationLifecycle(ctx context.Context, req *n
 		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q not found", req.GetAllocationID())
 	}
 	container := resp.GetContainers()[0]
-	admittedDependencies, capabilityVerification, err := s.svc.ReconcileAllocationCapabilities(ctx, req.GetAllocationID())
+	_, capabilityVerification, err := s.svc.ReconcileAllocationCapabilities(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, err
 	}
 	return &nodelifecyclev1.GetAllocationLifecycleResponse{
-		State:                          allocationLifecycleStateFromContainerState(container.GetState()),
-		ExitCode:                       container.GetExitCode(),
-		ExitCodeKnown:                  container.GetState() == runtimev1.ContainerState_CONTAINER_EXITED,
-		Message:                        container.GetMessage(),
-		DiagnosticCode:                 container.GetDiagnosticCode(),
-		CapabilityVerification:         cloneCapabilityConditionSet(capabilityVerification),
-		AdmittedCapabilityDependencies: cloneCapabilityDependencies(admittedDependencies),
+		State:                  allocationLifecycleStateFromContainerState(container.GetState()),
+		ExitCode:               container.GetExitCode(),
+		ExitCodeKnown:          container.GetState() == runtimev1.ContainerState_CONTAINER_EXITED,
+		Message:                container.GetMessage(),
+		DiagnosticCode:         container.GetDiagnosticCode(),
+		CapabilityVerification: cloneCapabilityConditionSet(capabilityVerification),
 	}, nil
 }
 
@@ -268,7 +266,7 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
-		CapabilityDependencies: cloneCapabilityDependencies(spec.GetCapabilityDependencies()),
+		CapabilityRequirements: cloneCapabilityRequirements(spec.GetCapabilityRequirements()),
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
 			spec.GetExtensionCapabilityRequirements(),
 		),
@@ -313,7 +311,7 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
-		CapabilityDependencies: cloneCapabilityDependencies(spec.GetCapabilityDependencies()),
+		CapabilityRequirements: cloneCapabilityRequirements(spec.GetCapabilityRequirements()),
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
 			spec.GetExtensionCapabilityRequirements(),
 		),
@@ -327,11 +325,11 @@ func cloneRuntimeExecutionProfile(in *catalogv1.RuntimeExecutionProfile) *catalo
 	return proto.Clone(in).(*catalogv1.RuntimeExecutionProfile)
 }
 
-func cloneCapabilityDependencies(in []*capabilityv1.CapabilityDependency) []*capabilityv1.CapabilityDependency {
-	out := make([]*capabilityv1.CapabilityDependency, 0, len(in))
+func cloneCapabilityRequirements(in []*capabilityv1.CapabilityRequirement) []*capabilityv1.CapabilityRequirement {
+	out := make([]*capabilityv1.CapabilityRequirement, 0, len(in))
 	for _, dependency := range in {
 		if dependency != nil {
-			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityDependency))
+			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityRequirement))
 		}
 	}
 	return out

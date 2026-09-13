@@ -19,10 +19,10 @@ type SandboxCapabilityProvider struct {
 	Capabilities []string
 	Backend      string
 	Reason       string
-	Dependencies []SandboxCapabilityDependency
+	Dependencies []SandboxCapabilityRequirement
 }
 
-type SandboxCapabilityDependency struct {
+type SandboxCapabilityRequirement struct {
 	Name      string
 	Available bool
 	Reason    string
@@ -65,16 +65,16 @@ func sandboxCapabilityProvidersFromDiagnostics(items []SandboxdProvider) []Sandb
 			Capabilities: append([]string(nil), item.Capabilities...),
 			Backend:      item.Backend,
 			Reason:       item.Reason,
-			Dependencies: sandboxCapabilityDependenciesFromDiagnostics(item.Dependencies),
+			Dependencies: sandboxCapabilityRequirementsFromDiagnostics(item.Dependencies),
 		})
 	}
 	return out
 }
 
-func sandboxCapabilityDependenciesFromDiagnostics(items []SandboxdProviderDependency) []SandboxCapabilityDependency {
-	out := make([]SandboxCapabilityDependency, 0, len(items))
+func sandboxCapabilityRequirementsFromDiagnostics(items []SandboxdProviderDependency) []SandboxCapabilityRequirement {
+	out := make([]SandboxCapabilityRequirement, 0, len(items))
 	for _, item := range items {
-		out = append(out, SandboxCapabilityDependency{
+		out = append(out, SandboxCapabilityRequirement{
 			Name:      item.Name,
 			Available: item.Available,
 			Reason:    item.Reason,

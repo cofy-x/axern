@@ -9,10 +9,9 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestStartRequestDigestCanonicalizesTelemetryAndCapabilityProofs(t *testing.T) {
+func TestStartRequestDigestCanonicalizesTelemetryAndRequirementOrder(t *testing.T) {
 	request := testDigestStartRequest()
 	request.TraceID = "trace-one"
-	request.CapabilityDependencies[0].SelectedObservation = &capabilityv1.CapabilityObservationProof{ObservationID: "placement-proof-one"}
 	first, err := StartRequestDigest(request)
 	if err != nil {
 		t.Fatal(err)
@@ -20,7 +19,6 @@ func TestStartRequestDigestCanonicalizesTelemetryAndCapabilityProofs(t *testing.
 
 	retry := proto.Clone(request).(*apipb.StartRequest)
 	retry.TraceID = "trace-two"
-	retry.CapabilityDependencies[0].SelectedObservation = &capabilityv1.CapabilityObservationProof{ObservationID: "placement-proof-two"}
 	retry.ExtensionCapabilityRequirements[0], retry.ExtensionCapabilityRequirements[1] = retry.ExtensionCapabilityRequirements[1], retry.ExtensionCapabilityRequirements[0]
 	second, err := StartRequestDigest(retry)
 	if err != nil {
@@ -58,7 +56,7 @@ func TestStartRequestDigestChangesWithSandboxContract(t *testing.T) {
 
 func TestStartRequestDigestRejectsCatalogPolicyMismatch(t *testing.T) {
 	request := testDigestStartRequest()
-	request.CapabilityDependencies[0].LossPolicy = capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP
+	request.CapabilityRequirements[0].LossPolicy = capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP
 	if _, err := StartRequestDigest(request); err == nil {
 		t.Fatal("StartRequestDigest() accepted a non-catalog loss policy")
 	}
@@ -73,7 +71,7 @@ func testDigestStartRequest() *apipb.StartRequest {
 			Command: []string{"/bin/true"},
 		},
 		Resources: &commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{MemoryBytes: 64 << 20}},
-		CapabilityDependencies: []*capabilityv1.CapabilityDependency{{
+		CapabilityRequirements: []*capabilityv1.CapabilityRequirement{{
 			Key:        &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING}},
 			LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_DEGRADE,
 		}},

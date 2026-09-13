@@ -10,8 +10,7 @@ import (
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
-	"google.golang.org/grpc/codes"
-	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestListAdminNodesMapsLifecycleAndHealth(t *testing.T) {
@@ -45,23 +44,12 @@ func TestRetireAdminNodeForwardsNormalizedRequest(t *testing.T) {
 	}
 }
 
-func TestGetAllocationCapabilityDiagnosticsPreservesAttemptFence(t *testing.T) {
+func TestGetAllocationCapabilityDiagnostics(t *testing.T) {
 	admittedAt := time.Date(2026, 7, 26, 12, 1, 0, 0, time.UTC)
 	diagnostics := &fakeCapabilityDiagnostics{allocation: &adminkernel.AllocationCapabilityDiagnostics{
-		AllocationID:              "allocation-a",
-		NodeID:                    "node-a",
-		CreateAdmissionRecorded:   true,
-		CreateDependencySetDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		CreateAdmittedAt:          &admittedAt,
-		ConditionSet:              &capabilityv1.CapabilityConditionSet{Revision: 3},
-		MemoryAdmission: &adminkernel.AllocationMemoryAdmission{
-			SandboxMemoryRequestBytes: 128 << 20,
-			SandboxMemoryLimitBytes:   256 << 20,
-			NodeMemoryBudget:          &nodev1.NodeMemoryBudget{EffectiveAllocatableBytes: 8 << 30},
-			SummaryCollectedAt:        admittedAt.Add(-time.Second),
-			NodeLocalCommitmentBytes:  512 << 20,
-			AdmittedAt:                admittedAt,
-		},
+		AllocationID:            "allocation-a",
+		NodeID:                  "node-a",
+		ConditionSet:            &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(admittedAt)},
 		LatestMemoryObservation: &nodev1.AllocationMemoryObservation{Revision: 9, CurrentBytes: 64 << 20},
 	}}
 	srv := New(Dependencies{CapabilityDiagnostics: diagnostics})
@@ -70,42 +58,9 @@ func TestGetAllocationCapabilityDiagnosticsPreservesAttemptFence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAllocationCapabilityDiagnostics() error = %v", err)
 	}
-	if diagnostics.allocationID != "allocation-a" || resp.GetConditionSet().GetRevision() != 3 ||
-		!resp.GetCreateAdmissionRecorded() || resp.GetCreateDependencySetDigest() != diagnostics.allocation.CreateDependencySetDigest ||
-		!resp.GetCreateAdmittedAt().AsTime().Equal(admittedAt) ||
-		resp.GetMemoryAdmission().GetSandboxMemoryRequestBytes() != 128<<20 ||
+	if diagnostics.allocationID != "allocation-a" || !resp.GetConditionSet().GetObservedAt().AsTime().Equal(admittedAt) ||
 		resp.GetLatestMemoryObservation().GetRevision() != 9 {
 		t.Fatalf("allocationID = %q, response = %+v", diagnostics.allocationID, resp)
-	}
-}
-
-func TestCapabilityDiagnosticListsRejectNegativeLimit(t *testing.T) {
-	srv := New(Dependencies{CapabilityDiagnostics: &fakeCapabilityDiagnostics{}})
-	tests := []struct {
-		name string
-		call func() error
-	}{
-		{
-			name: "transitions",
-			call: func() error {
-				_, err := srv.ListNodeCapabilityTransitions(context.Background(), &adminv1.ListNodeCapabilityTransitionsRequest{Limit: -1})
-				return err
-			},
-		},
-		{
-			name: "backlog",
-			call: func() error {
-				_, err := srv.ListCapabilityReconcileQueue(context.Background(), &adminv1.ListCapabilityReconcileQueueRequest{Limit: -1})
-				return err
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.call(); grpcstatus.Code(err) != codes.InvalidArgument {
-				t.Fatalf("error = %v, want InvalidArgument", err)
-			}
-		})
 	}
 }
 
@@ -134,14 +89,6 @@ type fakeCapabilityDiagnostics struct {
 }
 
 func (*fakeCapabilityDiagnostics) GetNodeCapabilitySnapshot(context.Context, string) (*capabilityv1.CapabilitySnapshot, error) {
-	return nil, nil
-}
-
-func (*fakeCapabilityDiagnostics) ListNodeCapabilityTransitions(context.Context, string, int32) ([]adminkernel.CapabilityTransition, error) {
-	return nil, nil
-}
-
-func (*fakeCapabilityDiagnostics) ListCapabilityReconcileQueue(context.Context, string, int32) ([]adminkernel.CapabilityReconcileItem, error) {
 	return nil, nil
 }
 

@@ -9,7 +9,6 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	secretkernel "github.com/cofy-x/axern/control/controld/internal/kernel/secret"
-	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
@@ -351,12 +350,6 @@ func (c *captureLifecycleClient) CreateAllocation(_ context.Context, _ string, r
 	c.lastCreate = protoCloneCreateAllocationRequest(req)
 	return &privatenodev1.CreateAllocationResponse{
 		AllocationID: req.GetAllocationID(),
-		AdmittedCapabilityDependencies: []*capabilityv1.CapabilityDependency{{
-			Key: &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT}},
-			SelectedObservation: &capabilityv1.CapabilityObservationProof{
-				Evidence: &capabilityv1.CapabilityEvidence{EvidenceID: "create-evidence"},
-			},
-		}},
 	}, nil
 }
 

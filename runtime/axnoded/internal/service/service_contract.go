@@ -97,7 +97,7 @@ type SandboxCapabilityService interface {
 
 type NodeOperatorService interface {
 	SandboxService
-	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error)
+	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error)
 	NetworkForSandbox(containerID string) (*SandboxNetwork, error)
 	SandboxdDiagnostics(ctx context.Context, containerID string, full bool) (SandboxdDiagnostics, error)
 	NetworkPolicyDiagnostics(context.Context, string) NetworkPolicyDiagnostics

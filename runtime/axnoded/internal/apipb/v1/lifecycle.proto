@@ -22,7 +22,7 @@ message StartRequest {
   repeated string ports = 11;
   string containerID = 12;
   repeated ImageMount image_mounts = 13;
-  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 14;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 14;
   repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 15;
   // The normalized public policy is carried intact to the node-local
   // enforcement boundary. The string network field is the OCI network-mode
@@ -35,7 +35,6 @@ message StartResponse {
   string message = 2;
   string ID = 3;
   axern.control.capability.v1.CapabilityConditionSet capability_verification = 4;
-  repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 5;
 }
 
 message DeleteRequest {

@@ -82,14 +82,14 @@ func cloneExtensionCapabilityRequirements(in []*capabilityv1.ExtensionCapability
 	return out
 }
 
-func cloneCapabilityDependencies(in []*capabilityv1.CapabilityDependency) []*capabilityv1.CapabilityDependency {
+func cloneCapabilityRequirements(in []*capabilityv1.CapabilityRequirement) []*capabilityv1.CapabilityRequirement {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]*capabilityv1.CapabilityDependency, 0, len(in))
+	out := make([]*capabilityv1.CapabilityRequirement, 0, len(in))
 	for _, dependency := range in {
 		if dependency != nil {
-			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityDependency))
+			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityRequirement))
 		}
 	}
 	return out

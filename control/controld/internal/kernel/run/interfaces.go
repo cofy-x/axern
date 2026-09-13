@@ -18,7 +18,7 @@ type AllocationRecord struct {
 	AllocationID           string
 	NodeID                 string
 	NodeTarget             string
-	CapabilityDependencies []*capabilityv1.CapabilityDependency
+	CapabilityRequirements []*capabilityv1.CapabilityRequirement
 }
 
 type EnvironmentStore interface {
@@ -74,7 +74,7 @@ type AllocationReporter interface {
 type ReconcileStore interface {
 	LoadStartAllocation(ctx context.Context, allocationID string) (*StartAllocation, error)
 	CompleteAllocationStart(ctx context.Context, allocationID string, now time.Time) error
-	RecordAllocationCapabilityAdmission(ctx context.Context, allocationID string, admission *allocationkernel.CapabilityAdmission, now time.Time) error
+	RecordAllocationCapabilityConditions(ctx context.Context, allocationID string, conditions *capabilityv1.CapabilityConditionSet, now time.Time) error
 	CompleteAllocationRelease(ctx context.Context, allocationID string, now time.Time) error
 	MarkAllocationCreateFailed(ctx context.Context, allocationID string, message string, now time.Time) (*runv1.Run, error)
 	DueReconcileItems(ctx context.Context, limit int, now time.Time) ([]allocationkernel.ReconcileItem, error)

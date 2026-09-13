@@ -145,7 +145,7 @@ func (f *fakeNodeSandboxService) SandboxCapabilityStatus(ctx context.Context, co
 			Capabilities: []string{"browser"},
 			Backend:      "chromium",
 			Reason:       "window manager degraded",
-			Dependencies: []service.SandboxCapabilityDependency{{
+			Dependencies: []service.SandboxCapabilityRequirement{{
 				Name:      "chromium",
 				Available: true,
 			}},

@@ -12,7 +12,6 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
-	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -26,12 +25,7 @@ func runSelectSQL() string {
 	return `SELECT r.run_id, r.namespace, r.environment_id, a.allocation_id, r.status,
 		r.config, r.labels, r.version, r.created_at, r.updated_at, r.exit_code, r.exit_code_known, r.diagnostic_code, r.message,
 		a.node_id,
-		COALESCE((SELECT revision FROM allocation_capability_condition_sets s WHERE s.allocation_id = a.allocation_id), 0),
-		(SELECT observed_at FROM allocation_capability_condition_sets s WHERE s.allocation_id = a.allocation_id),
-		COALESCE((
-			SELECT jsonb_build_object('conditions', COALESCE(jsonb_agg(c.condition ORDER BY c.capability_key_id), '[]'::jsonb))
-			FROM allocation_capability_conditions c WHERE c.allocation_id = a.allocation_id
-		), '{"conditions":[]}'::jsonb)
+		COALESCE((SELECT conditions FROM allocation_capability_conditions c WHERE c.allocation_id = a.allocation_id), '{}'::jsonb)
 		FROM runs r JOIN allocations a ON a.run_id = r.run_id`
 }
 
@@ -72,10 +66,8 @@ func scanRun(row scanner) (*runv1.Run, error) {
 		diagnosticCodeText                               string
 		configJSON, labelsJSON, capabilityConditionsJSON []byte
 		createdAt, updatedAt                             time.Time
-		capabilityRevision                               int64
-		capabilityObservedAt                             pgtype.Timestamptz
 	)
-	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &run.ExitCode, &run.ExitCodeKnown, &diagnosticCodeText, &run.Message, &run.NodeID, &capabilityRevision, &capabilityObservedAt, &capabilityConditionsJSON); err != nil {
+	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &run.ExitCode, &run.ExitCodeKnown, &diagnosticCodeText, &run.Message, &run.NodeID, &capabilityConditionsJSON); err != nil {
 		return nil, err
 	}
 	run.Status = parseRunStatus(statusText)
@@ -89,9 +81,7 @@ func scanRun(row scanner) (*runv1.Run, error) {
 	if err := protojson.Unmarshal(capabilityConditionsJSON, conditionSet); err != nil {
 		return nil, fmt.Errorf("unmarshal run capability conditions: %w", err)
 	}
-	if capabilityRevision > 0 && capabilityObservedAt.Valid {
-		conditionSet.Revision = capabilityRevision
-		conditionSet.ObservedAt = timestamppb.New(capabilityObservedAt.Time)
+	if conditionSet.GetObservedAt() != nil {
 		run.CapabilityConditions = conditionSet
 	}
 	run.CreatedAt = timestamppb.New(createdAt)

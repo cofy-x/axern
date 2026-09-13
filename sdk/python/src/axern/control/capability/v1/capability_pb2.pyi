@@ -136,12 +136,6 @@ class CapabilityKey(_message.Message):
     extension: ExtensionCapability
     def __init__(self, platform: _Optional[_Union[PlatformCapability, str]] = ..., extension: _Optional[_Union[ExtensionCapability, _Mapping]] = ...) -> None: ...
 
-class ConfigEvidenceIdentity(_message.Message):
-    __slots__ = ("config_digest",)
-    CONFIG_DIGEST_FIELD_NUMBER: _ClassVar[int]
-    config_digest: str
-    def __init__(self, config_digest: _Optional[str] = ...) -> None: ...
-
 class BootEvidenceIdentity(_message.Message):
     __slots__ = ("boot_id",)
     BOOT_ID_FIELD_NUMBER: _ClassVar[int]
@@ -168,95 +162,47 @@ class RuntimeEvidenceIdentity(_message.Message):
     runtime_config_digest: str
     def __init__(self, boot_id: _Optional[str] = ..., runtime_name: _Optional[str] = ..., runtime_binary_digest: _Optional[str] = ..., runtime_config_digest: _Optional[str] = ...) -> None: ...
 
-class DerivedEvidenceIdentity(_message.Message):
-    __slots__ = ("catalog_digest", "dependency_evidence_digest")
-    CATALOG_DIGEST_FIELD_NUMBER: _ClassVar[int]
-    DEPENDENCY_EVIDENCE_DIGEST_FIELD_NUMBER: _ClassVar[int]
-    catalog_digest: str
-    dependency_evidence_digest: str
-    def __init__(self, catalog_digest: _Optional[str] = ..., dependency_evidence_digest: _Optional[str] = ...) -> None: ...
-
 class CapabilityEvidence(_message.Message):
-    __slots__ = ("evidence_id", "config", "boot", "mount", "runtime", "derived")
-    EVIDENCE_ID_FIELD_NUMBER: _ClassVar[int]
-    CONFIG_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("boot", "mount", "runtime")
     BOOT_FIELD_NUMBER: _ClassVar[int]
     MOUNT_FIELD_NUMBER: _ClassVar[int]
     RUNTIME_FIELD_NUMBER: _ClassVar[int]
-    DERIVED_FIELD_NUMBER: _ClassVar[int]
-    evidence_id: str
-    config: ConfigEvidenceIdentity
     boot: BootEvidenceIdentity
     mount: MountEvidenceIdentity
     runtime: RuntimeEvidenceIdentity
-    derived: DerivedEvidenceIdentity
-    def __init__(self, evidence_id: _Optional[str] = ..., config: _Optional[_Union[ConfigEvidenceIdentity, _Mapping]] = ..., boot: _Optional[_Union[BootEvidenceIdentity, _Mapping]] = ..., mount: _Optional[_Union[MountEvidenceIdentity, _Mapping]] = ..., runtime: _Optional[_Union[RuntimeEvidenceIdentity, _Mapping]] = ..., derived: _Optional[_Union[DerivedEvidenceIdentity, _Mapping]] = ...) -> None: ...
-
-class CapabilityObservationProof(_message.Message):
-    __slots__ = ("key", "observation_id", "provider", "observed_at", "valid_until", "evidence")
-    KEY_FIELD_NUMBER: _ClassVar[int]
-    OBSERVATION_ID_FIELD_NUMBER: _ClassVar[int]
-    PROVIDER_FIELD_NUMBER: _ClassVar[int]
-    OBSERVED_AT_FIELD_NUMBER: _ClassVar[int]
-    VALID_UNTIL_FIELD_NUMBER: _ClassVar[int]
-    EVIDENCE_FIELD_NUMBER: _ClassVar[int]
-    key: CapabilityKey
-    observation_id: str
-    provider: CapabilityProvider
-    observed_at: _timestamp_pb2.Timestamp
-    valid_until: _timestamp_pb2.Timestamp
-    evidence: CapabilityEvidence
-    def __init__(self, key: _Optional[_Union[CapabilityKey, _Mapping]] = ..., observation_id: _Optional[str] = ..., provider: _Optional[_Union[CapabilityProvider, str]] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., valid_until: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., evidence: _Optional[_Union[CapabilityEvidence, _Mapping]] = ...) -> None: ...
+    def __init__(self, boot: _Optional[_Union[BootEvidenceIdentity, _Mapping]] = ..., mount: _Optional[_Union[MountEvidenceIdentity, _Mapping]] = ..., runtime: _Optional[_Union[RuntimeEvidenceIdentity, _Mapping]] = ...) -> None: ...
 
 class CapabilityObservation(_message.Message):
-    __slots__ = ("key", "state", "provider", "observation_id", "observed_at", "valid_until", "evidence", "dependencies", "reason_code", "reason")
+    __slots__ = ("key", "state", "provider", "observed_at", "valid_until", "evidence", "reason_code", "reason")
     KEY_FIELD_NUMBER: _ClassVar[int]
     STATE_FIELD_NUMBER: _ClassVar[int]
     PROVIDER_FIELD_NUMBER: _ClassVar[int]
-    OBSERVATION_ID_FIELD_NUMBER: _ClassVar[int]
     OBSERVED_AT_FIELD_NUMBER: _ClassVar[int]
     VALID_UNTIL_FIELD_NUMBER: _ClassVar[int]
     EVIDENCE_FIELD_NUMBER: _ClassVar[int]
-    DEPENDENCIES_FIELD_NUMBER: _ClassVar[int]
     REASON_CODE_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     key: CapabilityKey
     state: CapabilityState
     provider: CapabilityProvider
-    observation_id: str
     observed_at: _timestamp_pb2.Timestamp
     valid_until: _timestamp_pb2.Timestamp
     evidence: CapabilityEvidence
-    dependencies: _containers.RepeatedCompositeFieldContainer[CapabilityObservationProof]
     reason_code: CapabilityReasonCode
     reason: str
-    def __init__(self, key: _Optional[_Union[CapabilityKey, _Mapping]] = ..., state: _Optional[_Union[CapabilityState, str]] = ..., provider: _Optional[_Union[CapabilityProvider, str]] = ..., observation_id: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., valid_until: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., evidence: _Optional[_Union[CapabilityEvidence, _Mapping]] = ..., dependencies: _Optional[_Iterable[_Union[CapabilityObservationProof, _Mapping]]] = ..., reason_code: _Optional[_Union[CapabilityReasonCode, str]] = ..., reason: _Optional[str] = ...) -> None: ...
+    def __init__(self, key: _Optional[_Union[CapabilityKey, _Mapping]] = ..., state: _Optional[_Union[CapabilityState, str]] = ..., provider: _Optional[_Union[CapabilityProvider, str]] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., valid_until: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., evidence: _Optional[_Union[CapabilityEvidence, _Mapping]] = ..., reason_code: _Optional[_Union[CapabilityReasonCode, str]] = ..., reason: _Optional[str] = ...) -> None: ...
 
 class CapabilitySnapshot(_message.Message):
-    __slots__ = ("node_instance_id", "sequence", "snapshot_id", "collected_at", "observations")
+    __slots__ = ("node_instance_id", "sequence", "collected_at", "observations")
     NODE_INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
     SEQUENCE_FIELD_NUMBER: _ClassVar[int]
-    SNAPSHOT_ID_FIELD_NUMBER: _ClassVar[int]
     COLLECTED_AT_FIELD_NUMBER: _ClassVar[int]
     OBSERVATIONS_FIELD_NUMBER: _ClassVar[int]
     node_instance_id: str
     sequence: int
-    snapshot_id: str
     collected_at: _timestamp_pb2.Timestamp
     observations: _containers.RepeatedCompositeFieldContainer[CapabilityObservation]
-    def __init__(self, node_instance_id: _Optional[str] = ..., sequence: _Optional[int] = ..., snapshot_id: _Optional[str] = ..., collected_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., observations: _Optional[_Iterable[_Union[CapabilityObservation, _Mapping]]] = ...) -> None: ...
-
-class CapabilitySnapshotReference(_message.Message):
-    __slots__ = ("node_instance_id", "sequence", "snapshot_id", "collected_at")
-    NODE_INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
-    SEQUENCE_FIELD_NUMBER: _ClassVar[int]
-    SNAPSHOT_ID_FIELD_NUMBER: _ClassVar[int]
-    COLLECTED_AT_FIELD_NUMBER: _ClassVar[int]
-    node_instance_id: str
-    sequence: int
-    snapshot_id: str
-    collected_at: _timestamp_pb2.Timestamp
-    def __init__(self, node_instance_id: _Optional[str] = ..., sequence: _Optional[int] = ..., snapshot_id: _Optional[str] = ..., collected_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, node_instance_id: _Optional[str] = ..., sequence: _Optional[int] = ..., collected_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., observations: _Optional[_Iterable[_Union[CapabilityObservation, _Mapping]]] = ...) -> None: ...
 
 class ExtensionCapabilityRequirement(_message.Message):
     __slots__ = ("capability",)
@@ -264,48 +210,30 @@ class ExtensionCapabilityRequirement(_message.Message):
     capability: ExtensionCapability
     def __init__(self, capability: _Optional[_Union[ExtensionCapability, _Mapping]] = ...) -> None: ...
 
-class CapabilityDependency(_message.Message):
-    __slots__ = ("key", "loss_policy", "selected_snapshot", "selected_observation", "dependency_observations")
+class CapabilityRequirement(_message.Message):
+    __slots__ = ("key", "loss_policy")
     KEY_FIELD_NUMBER: _ClassVar[int]
     LOSS_POLICY_FIELD_NUMBER: _ClassVar[int]
-    SELECTED_SNAPSHOT_FIELD_NUMBER: _ClassVar[int]
-    SELECTED_OBSERVATION_FIELD_NUMBER: _ClassVar[int]
-    DEPENDENCY_OBSERVATIONS_FIELD_NUMBER: _ClassVar[int]
     key: CapabilityKey
     loss_policy: CapabilityLossPolicy
-    selected_snapshot: CapabilitySnapshotReference
-    selected_observation: CapabilityObservationProof
-    dependency_observations: _containers.RepeatedCompositeFieldContainer[CapabilityObservationProof]
-    def __init__(self, key: _Optional[_Union[CapabilityKey, _Mapping]] = ..., loss_policy: _Optional[_Union[CapabilityLossPolicy, str]] = ..., selected_snapshot: _Optional[_Union[CapabilitySnapshotReference, _Mapping]] = ..., selected_observation: _Optional[_Union[CapabilityObservationProof, _Mapping]] = ..., dependency_observations: _Optional[_Iterable[_Union[CapabilityObservationProof, _Mapping]]] = ...) -> None: ...
-
-class CapabilityDependencySet(_message.Message):
-    __slots__ = ("dependencies",)
-    DEPENDENCIES_FIELD_NUMBER: _ClassVar[int]
-    dependencies: _containers.RepeatedCompositeFieldContainer[CapabilityDependency]
-    def __init__(self, dependencies: _Optional[_Iterable[_Union[CapabilityDependency, _Mapping]]] = ...) -> None: ...
+    def __init__(self, key: _Optional[_Union[CapabilityKey, _Mapping]] = ..., loss_policy: _Optional[_Union[CapabilityLossPolicy, str]] = ...) -> None: ...
 
 class CapabilityCondition(_message.Message):
-    __slots__ = ("key", "state", "reason_code", "message", "observed_at", "proof")
+    __slots__ = ("key", "state", "reason_code", "message")
     KEY_FIELD_NUMBER: _ClassVar[int]
     STATE_FIELD_NUMBER: _ClassVar[int]
     REASON_CODE_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
-    OBSERVED_AT_FIELD_NUMBER: _ClassVar[int]
-    PROOF_FIELD_NUMBER: _ClassVar[int]
     key: CapabilityKey
     state: CapabilityConditionState
     reason_code: CapabilityReasonCode
     message: str
-    observed_at: _timestamp_pb2.Timestamp
-    proof: CapabilityObservationProof
-    def __init__(self, key: _Optional[_Union[CapabilityKey, _Mapping]] = ..., state: _Optional[_Union[CapabilityConditionState, str]] = ..., reason_code: _Optional[_Union[CapabilityReasonCode, str]] = ..., message: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., proof: _Optional[_Union[CapabilityObservationProof, _Mapping]] = ...) -> None: ...
+    def __init__(self, key: _Optional[_Union[CapabilityKey, _Mapping]] = ..., state: _Optional[_Union[CapabilityConditionState, str]] = ..., reason_code: _Optional[_Union[CapabilityReasonCode, str]] = ..., message: _Optional[str] = ...) -> None: ...
 
 class CapabilityConditionSet(_message.Message):
-    __slots__ = ("revision", "observed_at", "conditions")
-    REVISION_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("observed_at", "conditions")
     OBSERVED_AT_FIELD_NUMBER: _ClassVar[int]
     CONDITIONS_FIELD_NUMBER: _ClassVar[int]
-    revision: int
     observed_at: _timestamp_pb2.Timestamp
     conditions: _containers.RepeatedCompositeFieldContainer[CapabilityCondition]
-    def __init__(self, revision: _Optional[int] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., conditions: _Optional[_Iterable[_Union[CapabilityCondition, _Mapping]]] = ...) -> None: ...
+    def __init__(self, observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., conditions: _Optional[_Iterable[_Union[CapabilityCondition, _Mapping]]] = ...) -> None: ...

@@ -20,11 +20,11 @@ func (s *Store) currentAllocation(ctx context.Context, tx pgx.Tx, allocationID s
 	`, strings.TrimSpace(allocationID)).Scan(&alloc.AllocationID, &alloc.NodeID, &alloc.NodeTarget); err != nil {
 		return nil, err
 	}
-	dependencies, err := pgallocation.LoadCapabilityDependencies(ctx, tx, allocationID)
+	dependencies, err := pgallocation.LoadCapabilityRequirements(ctx, tx, allocationID)
 	if err != nil {
 		return nil, err
 	}
-	alloc.CapabilityDependencies = dependencies
+	alloc.CapabilityRequirements = dependencies
 	return &alloc, nil
 }
 

@@ -37,7 +37,7 @@ export { NetworkPolicy, cidrRule, portRange } from "./network-policy.js";
 export type { CIDRRule, PortRange, StrictNetworkPolicyOptions } from "./network-policy.js";
 export type {
   ChmodOptions,
-  CapabilityDependencyStatus,
+  CapabilityProviderDependencyStatus,
   CapabilityProviderStatus,
   CapabilityProviderSummary,
   CapabilityStatus,

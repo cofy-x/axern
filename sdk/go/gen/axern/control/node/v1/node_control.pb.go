@@ -2162,8 +2162,8 @@ func (*BatchReportAllocationLifecycleResponse) Descriptor() ([]byte, []int) {
 	return file_axern_control_node_v1_node_control_proto_rawDescGZIP(), []int{18}
 }
 
-// AllocationCapabilityConditionReport is deliberately independent from
-// lifecycle status. Updating capability conditions cannot make an allocation
+// AllocationCapabilityConditionReport is an observed_at-ordered diagnostic
+// projection independent from lifecycle status. It cannot make an allocation
 // RUNNING, READY, terminal, or alter its exit status/message.
 type AllocationCapabilityConditionReport struct {
 	state         protoimpl.MessageState     `protogen:"open.v1"`

@@ -21,16 +21,16 @@ func sandboxCapabilityProvidersFromSandboxAccess(items []sandboxaccess.SandboxCa
 			Capabilities: append([]string(nil), item.Capabilities...),
 			Backend:      item.Backend,
 			Reason:       item.Reason,
-			Dependencies: sandboxCapabilityDependenciesFromSandboxAccess(item.Dependencies),
+			Dependencies: sandboxCapabilityRequirementsFromSandboxAccess(item.Dependencies),
 		})
 	}
 	return out
 }
 
-func sandboxCapabilityDependenciesFromSandboxAccess(items []sandboxaccess.SandboxCapabilityDependency) []SandboxCapabilityDependency {
-	out := make([]SandboxCapabilityDependency, 0, len(items))
+func sandboxCapabilityRequirementsFromSandboxAccess(items []sandboxaccess.SandboxCapabilityRequirement) []SandboxCapabilityRequirement {
+	out := make([]SandboxCapabilityRequirement, 0, len(items))
 	for _, item := range items {
-		out = append(out, SandboxCapabilityDependency{
+		out = append(out, SandboxCapabilityRequirement{
 			Name:      item.Name,
 			Available: item.Available,
 			Reason:    item.Reason,

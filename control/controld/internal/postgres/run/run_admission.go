@@ -75,7 +75,7 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 			AllocationID:           run.GetAllocationID(),
 			NodeID:                 selected.Record.NodeID,
 			NodeTarget:             selected.Record.NodeTarget,
-			CapabilityDependencies: selected.CapabilityDependencies,
+			CapabilityRequirements: selected.CapabilityRequirements,
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO runs (
@@ -92,7 +92,7 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		`, alloc.AllocationID, run.GetID(), alloc.NodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(), now.UTC(), now.UTC()); err != nil {
 			return fmt.Errorf("insert allocation: %w", err)
 		}
-		if err := pgallocation.InsertCapabilityDependencies(ctx, tx, alloc.AllocationID, alloc.NodeID, selected.CapabilityDependencies, now); err != nil {
+		if err := pgallocation.InsertCapabilityRequirements(ctx, tx, alloc.AllocationID, selected.CapabilityRequirements, now); err != nil {
 			return err
 		}
 		res := normalizedConfig.GetResources().GetRequests()
@@ -101,12 +101,6 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 			NodeID:       alloc.NodeID,
 			Requests:     res,
 			CreatedAt:    now,
-		}); err != nil {
-			return err
-		}
-		if err := pgreservation.InsertMemoryAdmissionEvidence(ctx, tx, pgreservation.MemoryAdmissionEvidence{
-			AllocationID: alloc.AllocationID, NodeID: alloc.NodeID,
-			Resources: normalizedConfig.GetResources(), Summary: selected.Record.Summary, AdmittedAt: now,
 		}); err != nil {
 			return err
 		}

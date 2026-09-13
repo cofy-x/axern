@@ -222,7 +222,7 @@ message CapabilityStatusRequest {
   string execution_lease_token = 2;
 }
 
-message CapabilityDependencyStatus {
+message CapabilityProviderDependencyStatus {
   string name = 1;
   bool available = 2;
   string reason = 3;
@@ -235,7 +235,7 @@ message CapabilityProviderStatus {
   repeated string capabilities = 4;
   string backend = 5;
   string reason = 6;
-  repeated CapabilityDependencyStatus dependencies = 7;
+  repeated CapabilityProviderDependencyStatus dependencies = 7;
 }
 
 message CapabilityProviderSummary {

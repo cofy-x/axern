@@ -13,8 +13,6 @@ type NodeClient interface {
 	ListAdminNodes(context.Context, *adminv1.ListAdminNodesRequest, ...grpc.CallOption) (*adminv1.ListAdminNodesResponse, error)
 	RetireAdminNode(context.Context, *adminv1.RetireAdminNodeRequest, ...grpc.CallOption) (*adminv1.RetireAdminNodeResponse, error)
 	GetNodeCapabilitySnapshot(context.Context, *adminv1.GetNodeCapabilitySnapshotRequest, ...grpc.CallOption) (*adminv1.GetNodeCapabilitySnapshotResponse, error)
-	ListNodeCapabilityTransitions(context.Context, *adminv1.ListNodeCapabilityTransitionsRequest, ...grpc.CallOption) (*adminv1.ListNodeCapabilityTransitionsResponse, error)
-	ListCapabilityReconcileQueue(context.Context, *adminv1.ListCapabilityReconcileQueueRequest, ...grpc.CallOption) (*adminv1.ListCapabilityReconcileQueueResponse, error)
 	GetAllocationCapabilityDiagnostics(context.Context, *adminv1.GetAllocationCapabilityDiagnosticsRequest, ...grpc.CallOption) (*adminv1.GetAllocationCapabilityDiagnosticsResponse, error)
 }
 
@@ -32,14 +30,6 @@ func (c NodeControl) Retire(ctx context.Context, nodeID, operatorReason string) 
 
 func (c NodeControl) CapabilitySnapshot(ctx context.Context, nodeID string) (*adminv1.GetNodeCapabilitySnapshotResponse, error) {
 	return c.client.GetNodeCapabilitySnapshot(ctx, &adminv1.GetNodeCapabilitySnapshotRequest{NodeID: strings.TrimSpace(nodeID)})
-}
-
-func (c NodeControl) CapabilityTransitions(ctx context.Context, nodeID string, limit int) (*adminv1.ListNodeCapabilityTransitionsResponse, error) {
-	return c.client.ListNodeCapabilityTransitions(ctx, &adminv1.ListNodeCapabilityTransitionsRequest{NodeID: strings.TrimSpace(nodeID), Limit: int32(limit)})
-}
-
-func (c NodeControl) CapabilityBacklog(ctx context.Context, nodeID string, limit int) (*adminv1.ListCapabilityReconcileQueueResponse, error) {
-	return c.client.ListCapabilityReconcileQueue(ctx, &adminv1.ListCapabilityReconcileQueueRequest{NodeID: strings.TrimSpace(nodeID), Limit: int32(limit)})
 }
 
 func (c NodeControl) AllocationCapability(ctx context.Context, allocationID string) (*adminv1.GetAllocationCapabilityDiagnosticsResponse, error) {

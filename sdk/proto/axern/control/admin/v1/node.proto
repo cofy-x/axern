@@ -53,52 +53,6 @@ message GetNodeCapabilitySnapshotResponse {
   axern.control.capability.v1.CapabilitySnapshot snapshot = 1;
 }
 
-message AdminCapabilityTransition {
-  string transition_id = 1;
-  string node_id = 2;
-  string snapshot_id = 3;
-  int64 snapshot_sequence = 4;
-  axern.control.capability.v1.CapabilityKey key = 5;
-  axern.control.capability.v1.CapabilityState old_state = 6;
-  axern.control.capability.v1.CapabilityState new_state = 7;
-  axern.control.capability.v1.CapabilityEvidence old_evidence = 8;
-  axern.control.capability.v1.CapabilityEvidence new_evidence = 9;
-  axern.control.capability.v1.CapabilityReasonCode old_reason_code = 10;
-  axern.control.capability.v1.CapabilityReasonCode new_reason_code = 11;
-  string reason = 12;
-  google.protobuf.Timestamp observed_at = 13;
-  google.protobuf.Timestamp reported_at = 14;
-}
-
-message ListNodeCapabilityTransitionsRequest {
-  string node_id = 1;
-  int32 limit = 2;
-}
-
-message ListNodeCapabilityTransitionsResponse {
-  repeated AdminCapabilityTransition transitions = 1;
-}
-
-message AdminCapabilityReconcileItem {
-  string allocation_id = 1;
-  string node_id = 2;
-  repeated axern.control.capability.v1.CapabilityDependency pending_dependencies = 3;
-  int32 attempts = 4;
-  google.protobuf.Timestamp next_run_at = 5;
-  google.protobuf.Timestamp lease_expires_at = 6;
-  string last_error = 7;
-  google.protobuf.Timestamp updated_at = 8;
-}
-
-message ListCapabilityReconcileQueueRequest {
-  string node_id = 1;
-  int32 limit = 2;
-}
-
-message ListCapabilityReconcileQueueResponse {
-  repeated AdminCapabilityReconcileItem items = 1;
-}
-
 message GetAllocationCapabilityDiagnosticsRequest {
   string allocation_id = 1;
 }
@@ -106,31 +60,14 @@ message GetAllocationCapabilityDiagnosticsRequest {
 message GetAllocationCapabilityDiagnosticsResponse {
   string allocation_id = 1;
   string node_id = 2;
-  repeated axern.control.capability.v1.CapabilityDependency required_dependencies = 3;
-  repeated axern.control.capability.v1.CapabilityDependency admitted_dependencies = 4;
-  axern.control.capability.v1.CapabilityConditionSet condition_set = 5;
-  AdminCapabilityReconcileItem reconcile = 6;
-  bool create_admission_recorded = 7;
-  string create_dependency_set_digest = 8;
-  google.protobuf.Timestamp create_admitted_at = 9;
-  AllocationMemoryAdmissionEvidence memory_admission = 10;
-  axern.control.node.v1.AllocationMemoryObservation latest_memory_observation = 11;
-}
-
-message AllocationMemoryAdmissionEvidence {
-  int64 sandbox_memory_request_bytes = 1;
-  int64 sandbox_memory_limit_bytes = 2;
-  axern.control.node.v1.NodeMemoryBudget node_memory_budget = 3;
-  google.protobuf.Timestamp summary_collected_at = 4;
-  int64 node_local_commitment_bytes = 5;
-  google.protobuf.Timestamp admitted_at = 6;
+  repeated axern.control.capability.v1.CapabilityRequirement requirements = 3;
+  axern.control.capability.v1.CapabilityConditionSet condition_set = 4;
+  axern.control.node.v1.AllocationMemoryObservation latest_memory_observation = 5;
 }
 
 service NodeAdmin {
   rpc ListAdminNodes(ListAdminNodesRequest) returns (ListAdminNodesResponse) {}
   rpc RetireAdminNode(RetireAdminNodeRequest) returns (RetireAdminNodeResponse) {}
   rpc GetNodeCapabilitySnapshot(GetNodeCapabilitySnapshotRequest) returns (GetNodeCapabilitySnapshotResponse) {}
-  rpc ListNodeCapabilityTransitions(ListNodeCapabilityTransitionsRequest) returns (ListNodeCapabilityTransitionsResponse) {}
-  rpc ListCapabilityReconcileQueue(ListCapabilityReconcileQueueRequest) returns (ListCapabilityReconcileQueueResponse) {}
   rpc GetAllocationCapabilityDiagnostics(GetAllocationCapabilityDiagnosticsRequest) returns (GetAllocationCapabilityDiagnosticsResponse) {}
 }

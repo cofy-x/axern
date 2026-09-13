@@ -13,7 +13,7 @@ func (h *sandboxService) NetworkPolicyDiagnostics(ctx context.Context, allocatio
 		Status:          NetworkPolicyStatusAbsent,
 		CapabilityState: NetworkPolicyCapabilityNotRequired,
 	}
-	dependencyMode := allocationNetworkPolicyMode(h.allocationController().CapabilityDependencies(allocationID))
+	dependencyMode := allocationNetworkPolicyMode(h.allocationController().CapabilityRequirements(allocationID))
 	if dependencyMode == NetworkPolicyModeUnrestricted {
 		return diagnostics
 	}
@@ -79,7 +79,7 @@ func networkPolicyDiagnosticStatus(diagnostics NetworkPolicyDiagnostics, healthE
 	}
 }
 
-func allocationNetworkPolicyMode(dependencies []*capabilityv1.CapabilityDependency) NetworkPolicyMode {
+func allocationNetworkPolicyMode(dependencies []*capabilityv1.CapabilityRequirement) NetworkPolicyMode {
 	for _, dependency := range dependencies {
 		switch dependency.GetKey().GetPlatform() {
 		case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT:

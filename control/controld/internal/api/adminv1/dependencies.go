@@ -35,8 +35,6 @@ type Nodes interface {
 
 type CapabilityDiagnostics interface {
 	GetNodeCapabilitySnapshot(context.Context, string) (*capabilityv1.CapabilitySnapshot, error)
-	ListNodeCapabilityTransitions(context.Context, string, int32) ([]adminkernel.CapabilityTransition, error)
-	ListCapabilityReconcileQueue(context.Context, string, int32) ([]adminkernel.CapabilityReconcileItem, error)
 	GetAllocationCapabilityDiagnostics(context.Context, string) (*adminkernel.AllocationCapabilityDiagnostics, error)
 }
 

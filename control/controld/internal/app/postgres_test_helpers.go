@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -61,7 +60,6 @@ func reportReadyNodeSnapshot(t *testing.T, app *App, nodeID string, now time.Tim
 	node := app.NodeV1Handler()
 	summary := controldtest.ReadySummary(now)
 	summary.CapabilitySnapshot.Sequence = sequence
-	summary.CapabilitySnapshot.SnapshotID = fmt.Sprintf("test-snapshot-%d", sequence)
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
 		NodeID:        nodeID,
 		Runtimes:      []string{"runsc"},

@@ -33,8 +33,8 @@ message Run {
   bool exit_code_known = 12;
   string message = 13;
   axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 14;
-  // Full, monotonically revised allocation capability condition projection.
-  // It is independent from Run lifecycle status and message.
+  // Latest allocation capability condition projection. It is independent
+  // from Run lifecycle status and message.
   axern.control.capability.v1.CapabilityConditionSet capability_conditions = 15;
   string node_id = 16;
 }

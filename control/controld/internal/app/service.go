@@ -13,7 +13,6 @@ import (
 	publicv1 "github.com/cofy-x/axern/control/controld/internal/api/publicv1"
 	apirelayv1 "github.com/cofy-x/axern/control/controld/internal/api/relayv1"
 	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
-	appcapability "github.com/cofy-x/axern/control/controld/internal/application/capability"
 	appnode "github.com/cofy-x/axern/control/controld/internal/application/node"
 	apprun "github.com/cofy-x/axern/control/controld/internal/application/run"
 	"github.com/cofy-x/axern/control/controld/internal/catalog"
@@ -28,7 +27,6 @@ import (
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	pgaccess "github.com/cofy-x/axern/control/controld/internal/postgres/access"
 	pgadmin "github.com/cofy-x/axern/control/controld/internal/postgres/admin"
-	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
 	pgnamespace "github.com/cofy-x/axern/control/controld/internal/postgres/namespace"
 	pgnodes "github.com/cofy-x/axern/control/controld/internal/postgres/nodes"
 	pgrun "github.com/cofy-x/axern/control/controld/internal/postgres/run"
@@ -97,10 +95,9 @@ type App struct {
 	wg              sync.WaitGroup
 	metrics         []sdkobs.ObservableRegistration
 
-	reconcileHealth      *reconcilekernel.HealthTracker
-	runReconciler        apprun.Reconciler
-	nodeReconciler       appnode.AvailabilityReconciler
-	capabilityReconciler *appcapability.Reconciler
+	reconcileHealth *reconcilekernel.HealthTracker
+	runReconciler   apprun.Reconciler
+	nodeReconciler  appnode.AvailabilityReconciler
 
 	adminAPI    *apiadminv1.Server
 	identityAPI *apiidentityv1.Server
@@ -235,7 +232,6 @@ func (a *App) configureDependencies(cfg Config) error {
 		RegistryCredentials: a.secretDB,
 	})
 	a.runReconciler = apprun.NewReconciler(a.runStore, a.nodeBridge)
-	a.capabilityReconciler = appcapability.NewReconciler(pgallocation.NewCapabilityQueue(a.db), a.nodeLifecycle)
 	return nil
 }
 

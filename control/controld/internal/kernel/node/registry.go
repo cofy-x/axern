@@ -26,13 +26,13 @@ type Record struct {
 	UpdatedAt     time.Time
 	RetiredAt     time.Time
 	RetiredReason string
-	// ReportedCapabilityTransitions contains only transitions committed by the
+	// ReportedCapabilityChanges contains only changes committed by the
 	// report operation that returned this record. It is transient observability
 	// data and is never part of the registry's durable node state.
-	ReportedCapabilityTransitions []CapabilityTransition
+	ReportedCapabilityChanges []CapabilityChange
 }
 
-type CapabilityTransition struct {
+type CapabilityChange struct {
 	Key        *capabilityv1.CapabilityKey
 	NewState   capabilityv1.CapabilityState
 	ReasonCode capabilityv1.CapabilityReasonCode

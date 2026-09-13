@@ -2,7 +2,6 @@ package nodev1
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -301,22 +300,11 @@ func TestBatchReportAllocationCapabilityConditionsIsAuthenticatedAndConditionOnl
 
 func validCapabilityConditionReport(now time.Time) *controlnodev1.AllocationCapabilityConditionReport {
 	key := capabilitycontract.ExtensionKey("example.com/accelerator", "v1")
-	evidence := capabilitycontract.ConfigEvidence("sha256:" + strings.Repeat("a", 64))
-	observation := &capabilityv1.CapabilityObservation{
-		Key:        capabilitycontract.CloneKey(key),
-		State:      capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
-		Provider:   capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_CONFIG,
-		ObservedAt: timestamppb.New(now),
-		Evidence:   evidence,
-		ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-	}
-	capabilitycontract.NormalizeObservation(observation)
 	return &controlnodev1.AllocationCapabilityConditionReport{
 		AllocationID: "allocation-a",
-		ConditionSet: &capabilityv1.CapabilityConditionSet{Revision: 1, ObservedAt: timestamppb.New(now), Conditions: []*capabilityv1.CapabilityCondition{{
+		ConditionSet: &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(now), Conditions: []*capabilityv1.CapabilityCondition{{
 			Key: key, State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
-			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, ObservedAt: timestamppb.New(now),
-			Proof: capabilitycontract.NewObservationProof(observation),
+			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
 		}}},
 	}
 }

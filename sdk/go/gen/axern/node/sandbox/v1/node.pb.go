@@ -2218,7 +2218,7 @@ func (x *CapabilityStatusRequest) GetExecutionLeaseToken() string {
 	return ""
 }
 
-type CapabilityDependencyStatus struct {
+type CapabilityProviderDependencyStatus struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Available     bool                   `protobuf:"varint,2,opt,name=available,proto3" json:"available,omitempty"`
@@ -2227,20 +2227,20 @@ type CapabilityDependencyStatus struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CapabilityDependencyStatus) Reset() {
-	*x = CapabilityDependencyStatus{}
+func (x *CapabilityProviderDependencyStatus) Reset() {
+	*x = CapabilityProviderDependencyStatus{}
 	mi := &file_axern_node_sandbox_v1_node_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CapabilityDependencyStatus) String() string {
+func (x *CapabilityProviderDependencyStatus) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CapabilityDependencyStatus) ProtoMessage() {}
+func (*CapabilityProviderDependencyStatus) ProtoMessage() {}
 
-func (x *CapabilityDependencyStatus) ProtoReflect() protoreflect.Message {
+func (x *CapabilityProviderDependencyStatus) ProtoReflect() protoreflect.Message {
 	mi := &file_axern_node_sandbox_v1_node_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2252,26 +2252,26 @@ func (x *CapabilityDependencyStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CapabilityDependencyStatus.ProtoReflect.Descriptor instead.
-func (*CapabilityDependencyStatus) Descriptor() ([]byte, []int) {
+// Deprecated: Use CapabilityProviderDependencyStatus.ProtoReflect.Descriptor instead.
+func (*CapabilityProviderDependencyStatus) Descriptor() ([]byte, []int) {
 	return file_axern_node_sandbox_v1_node_proto_rawDescGZIP(), []int{27}
 }
 
-func (x *CapabilityDependencyStatus) GetName() string {
+func (x *CapabilityProviderDependencyStatus) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *CapabilityDependencyStatus) GetAvailable() bool {
+func (x *CapabilityProviderDependencyStatus) GetAvailable() bool {
 	if x != nil {
 		return x.Available
 	}
 	return false
 }
 
-func (x *CapabilityDependencyStatus) GetReason() string {
+func (x *CapabilityProviderDependencyStatus) GetReason() string {
 	if x != nil {
 		return x.Reason
 	}
@@ -2279,14 +2279,14 @@ func (x *CapabilityDependencyStatus) GetReason() string {
 }
 
 type CapabilityProviderStatus struct {
-	state         protoimpl.MessageState        `protogen:"open.v1"`
-	Name          string                        `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	State         string                        `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
-	Available     bool                          `protobuf:"varint,3,opt,name=available,proto3" json:"available,omitempty"`
-	Capabilities  []string                      `protobuf:"bytes,4,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
-	Backend       string                        `protobuf:"bytes,5,opt,name=backend,proto3" json:"backend,omitempty"`
-	Reason        string                        `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
-	Dependencies  []*CapabilityDependencyStatus `protobuf:"bytes,7,rep,name=dependencies,proto3" json:"dependencies,omitempty"`
+	state         protoimpl.MessageState                `protogen:"open.v1"`
+	Name          string                                `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	State         string                                `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	Available     bool                                  `protobuf:"varint,3,opt,name=available,proto3" json:"available,omitempty"`
+	Capabilities  []string                              `protobuf:"bytes,4,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+	Backend       string                                `protobuf:"bytes,5,opt,name=backend,proto3" json:"backend,omitempty"`
+	Reason        string                                `protobuf:"bytes,6,opt,name=reason,proto3" json:"reason,omitempty"`
+	Dependencies  []*CapabilityProviderDependencyStatus `protobuf:"bytes,7,rep,name=dependencies,proto3" json:"dependencies,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2363,7 +2363,7 @@ func (x *CapabilityProviderStatus) GetReason() string {
 	return ""
 }
 
-func (x *CapabilityProviderStatus) GetDependencies() []*CapabilityDependencyStatus {
+func (x *CapabilityProviderStatus) GetDependencies() []*CapabilityProviderDependencyStatus {
 	if x != nil {
 		return x.Dependencies
 	}
@@ -6203,28 +6203,29 @@ var file_axern_node_sandbox_v1_node_proto_rawDesc = []byte{
 	0x32, 0x0a, 0x15, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x6c, 0x65, 0x61,
 	0x73, 0x65, 0x5f, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x13,
 	0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x4c, 0x65, 0x61, 0x73, 0x65, 0x54, 0x6f,
-	0x6b, 0x65, 0x6e, 0x22, 0x66, 0x0a, 0x1a, 0x43, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74,
-	0x79, 0x44, 0x65, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x6e, 0x63, 0x79, 0x53, 0x74, 0x61, 0x74, 0x75,
-	0x73, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x1c, 0x0a, 0x09, 0x61, 0x76, 0x61, 0x69, 0x6c, 0x61, 0x62,
-	0x6c, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x09, 0x61, 0x76, 0x61, 0x69, 0x6c, 0x61,
-	0x62, 0x6c, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x72, 0x65, 0x61, 0x73, 0x6f, 0x6e, 0x18, 0x03, 0x20,
-	0x01, 0x28, 0x09, 0x52, 0x06, 0x72, 0x65, 0x61, 0x73, 0x6f, 0x6e, 0x22, 0x8f, 0x02, 0x0a, 0x18,
-	0x43, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64,
-	0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x14, 0x0a, 0x05,
-	0x73, 0x74, 0x61, 0x74, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x73, 0x74, 0x61,
-	0x74, 0x65, 0x12, 0x1c, 0x0a, 0x09, 0x61, 0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65, 0x18,
-	0x03, 0x20, 0x01, 0x28, 0x08, 0x52, 0x09, 0x61, 0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65,
-	0x12, 0x22, 0x0a, 0x0c, 0x63, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x69, 0x65, 0x73,
-	0x18, 0x04, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0c, 0x63, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69,
-	0x74, 0x69, 0x65, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x62, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x18,
-	0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x62, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x12, 0x16,
-	0x0a, 0x06, 0x72, 0x65, 0x61, 0x73, 0x6f, 0x6e, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06,
-	0x72, 0x65, 0x61, 0x73, 0x6f, 0x6e, 0x12, 0x55, 0x0a, 0x0c, 0x64, 0x65, 0x70, 0x65, 0x6e, 0x64,
-	0x65, 0x6e, 0x63, 0x69, 0x65, 0x73, 0x18, 0x07, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x31, 0x2e, 0x61,
-	0x78, 0x65, 0x72, 0x6e, 0x2e, 0x6e, 0x6f, 0x64, 0x65, 0x2e, 0x73, 0x61, 0x6e, 0x64, 0x62, 0x6f,
-	0x78, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x44,
+	0x6b, 0x65, 0x6e, 0x22, 0x6e, 0x0a, 0x22, 0x43, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74,
+	0x79, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x44, 0x65, 0x70, 0x65, 0x6e, 0x64, 0x65,
+	0x6e, 0x63, 0x79, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d,
+	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x1c, 0x0a,
+	0x09, 0x61, 0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08,
+	0x52, 0x09, 0x61, 0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x72,
+	0x65, 0x61, 0x73, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x72, 0x65, 0x61,
+	0x73, 0x6f, 0x6e, 0x22, 0x97, 0x02, 0x0a, 0x18, 0x43, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69,
+	0x74, 0x79, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73,
+	0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04,
+	0x6e, 0x61, 0x6d, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x12, 0x1c, 0x0a, 0x09, 0x61, 0x76,
+	0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x08, 0x52, 0x09, 0x61,
+	0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65, 0x12, 0x22, 0x0a, 0x0c, 0x63, 0x61, 0x70, 0x61,
+	0x62, 0x69, 0x6c, 0x69, 0x74, 0x69, 0x65, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0c,
+	0x63, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x69, 0x65, 0x73, 0x12, 0x18, 0x0a, 0x07,
+	0x62, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x62,
+	0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x72, 0x65, 0x61, 0x73, 0x6f, 0x6e,
+	0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x72, 0x65, 0x61, 0x73, 0x6f, 0x6e, 0x12, 0x5d,
+	0x0a, 0x0c, 0x64, 0x65, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x6e, 0x63, 0x69, 0x65, 0x73, 0x18, 0x07,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x39, 0x2e, 0x61, 0x78, 0x65, 0x72, 0x6e, 0x2e, 0x6e, 0x6f, 0x64,
+	0x65, 0x2e, 0x73, 0x61, 0x6e, 0x64, 0x62, 0x6f, 0x78, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x61, 0x70,
+	0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x50, 0x72, 0x6f, 0x76, 0x69, 0x64, 0x65, 0x72, 0x44,
 	0x65, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x6e, 0x63, 0x79, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52,
 	0x0c, 0x64, 0x65, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x6e, 0x63, 0x69, 0x65, 0x73, 0x22, 0x8d, 0x01,
 	0x0a, 0x19, 0x43, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x50, 0x72, 0x6f, 0x76,
@@ -6955,98 +6956,98 @@ func file_axern_node_sandbox_v1_node_proto_rawDescGZIP() []byte {
 var file_axern_node_sandbox_v1_node_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_axern_node_sandbox_v1_node_proto_msgTypes = make([]protoimpl.MessageInfo, 87)
 var file_axern_node_sandbox_v1_node_proto_goTypes = []any{
-	(SandboxProcessState)(0),              // 0: axern.node.sandbox.v1.SandboxProcessState
-	(OutputStream)(0),                     // 1: axern.node.sandbox.v1.OutputStream
-	(*ExecSpec)(nil),                      // 2: axern.node.sandbox.v1.ExecSpec
-	(*ManagedProxySpec)(nil),              // 3: axern.node.sandbox.v1.ManagedProxySpec
-	(*ManagedProxyReport)(nil),            // 4: axern.node.sandbox.v1.ManagedProxyReport
-	(*ExecRequest)(nil),                   // 5: axern.node.sandbox.v1.ExecRequest
-	(*ExecResponse)(nil),                  // 6: axern.node.sandbox.v1.ExecResponse
-	(*ExecStreamOpen)(nil),                // 7: axern.node.sandbox.v1.ExecStreamOpen
-	(*TerminalResize)(nil),                // 8: axern.node.sandbox.v1.TerminalResize
-	(*ExecStreamRequest)(nil),             // 9: axern.node.sandbox.v1.ExecStreamRequest
-	(*ExecExit)(nil),                      // 10: axern.node.sandbox.v1.ExecExit
-	(*ExecStreamResponse)(nil),            // 11: axern.node.sandbox.v1.ExecStreamResponse
-	(*ProcessOpen)(nil),                   // 12: axern.node.sandbox.v1.ProcessOpen
-	(*ProcessSignal)(nil),                 // 13: axern.node.sandbox.v1.ProcessSignal
-	(*ProcessReady)(nil),                  // 14: axern.node.sandbox.v1.ProcessReady
-	(*ProcessRequest)(nil),                // 15: axern.node.sandbox.v1.ProcessRequest
-	(*ProcessResponse)(nil),               // 16: axern.node.sandbox.v1.ProcessResponse
-	(*ImageProcessMount)(nil),             // 17: axern.node.sandbox.v1.ImageProcessMount
-	(*ImageProcessSpec)(nil),              // 18: axern.node.sandbox.v1.ImageProcessSpec
-	(*ExecImageRequest)(nil),              // 19: axern.node.sandbox.v1.ExecImageRequest
-	(*ExecImageResponse)(nil),             // 20: axern.node.sandbox.v1.ExecImageResponse
-	(*ProcessImageOpen)(nil),              // 21: axern.node.sandbox.v1.ProcessImageOpen
-	(*ProcessImageRequest)(nil),           // 22: axern.node.sandbox.v1.ProcessImageRequest
-	(*ProcessImageResponse)(nil),          // 23: axern.node.sandbox.v1.ProcessImageResponse
-	(*WaitSandboxRequest)(nil),            // 24: axern.node.sandbox.v1.WaitSandboxRequest
-	(*WaitSandboxResponse)(nil),           // 25: axern.node.sandbox.v1.WaitSandboxResponse
-	(*ReadOutputRequest)(nil),             // 26: axern.node.sandbox.v1.ReadOutputRequest
-	(*ReadOutputResponse)(nil),            // 27: axern.node.sandbox.v1.ReadOutputResponse
-	(*CapabilityStatusRequest)(nil),       // 28: axern.node.sandbox.v1.CapabilityStatusRequest
-	(*CapabilityDependencyStatus)(nil),    // 29: axern.node.sandbox.v1.CapabilityDependencyStatus
-	(*CapabilityProviderStatus)(nil),      // 30: axern.node.sandbox.v1.CapabilityProviderStatus
-	(*CapabilityProviderSummary)(nil),     // 31: axern.node.sandbox.v1.CapabilityProviderSummary
-	(*CapabilityStatusResponse)(nil),      // 32: axern.node.sandbox.v1.CapabilityStatusResponse
-	(*ProxyHTTPHeader)(nil),               // 33: axern.node.sandbox.v1.ProxyHTTPHeader
-	(*ProxyHTTPOpen)(nil),                 // 34: axern.node.sandbox.v1.ProxyHTTPOpen
-	(*ProxyHTTPResponseHead)(nil),         // 35: axern.node.sandbox.v1.ProxyHTTPResponseHead
-	(*ProxyHTTPTrailers)(nil),             // 36: axern.node.sandbox.v1.ProxyHTTPTrailers
-	(*ProxyHTTPRequest)(nil),              // 37: axern.node.sandbox.v1.ProxyHTTPRequest
-	(*ProxyHTTPResponse)(nil),             // 38: axern.node.sandbox.v1.ProxyHTTPResponse
-	(*StatFileRequest)(nil),               // 39: axern.node.sandbox.v1.StatFileRequest
-	(*StatFileResponse)(nil),              // 40: axern.node.sandbox.v1.StatFileResponse
-	(*ListDirRequest)(nil),                // 41: axern.node.sandbox.v1.ListDirRequest
-	(*ListDirResponse)(nil),               // 42: axern.node.sandbox.v1.ListDirResponse
-	(*ReadFileRequest)(nil),               // 43: axern.node.sandbox.v1.ReadFileRequest
-	(*ReadFileResponse)(nil),              // 44: axern.node.sandbox.v1.ReadFileResponse
-	(*WriteFileRequest)(nil),              // 45: axern.node.sandbox.v1.WriteFileRequest
-	(*WriteFileResponse)(nil),             // 46: axern.node.sandbox.v1.WriteFileResponse
-	(*MkdirRequest)(nil),                  // 47: axern.node.sandbox.v1.MkdirRequest
-	(*MkdirResponse)(nil),                 // 48: axern.node.sandbox.v1.MkdirResponse
-	(*RemoveRequest)(nil),                 // 49: axern.node.sandbox.v1.RemoveRequest
-	(*RemoveResponse)(nil),                // 50: axern.node.sandbox.v1.RemoveResponse
-	(*ExistsRequest)(nil),                 // 51: axern.node.sandbox.v1.ExistsRequest
-	(*ExistsResponse)(nil),                // 52: axern.node.sandbox.v1.ExistsResponse
-	(*CopyRequest)(nil),                   // 53: axern.node.sandbox.v1.CopyRequest
-	(*CopyResponse)(nil),                  // 54: axern.node.sandbox.v1.CopyResponse
-	(*MoveRequest)(nil),                   // 55: axern.node.sandbox.v1.MoveRequest
-	(*MoveResponse)(nil),                  // 56: axern.node.sandbox.v1.MoveResponse
-	(*ChmodRequest)(nil),                  // 57: axern.node.sandbox.v1.ChmodRequest
-	(*ChmodResponse)(nil),                 // 58: axern.node.sandbox.v1.ChmodResponse
-	(*TouchRequest)(nil),                  // 59: axern.node.sandbox.v1.TouchRequest
-	(*TouchResponse)(nil),                 // 60: axern.node.sandbox.v1.TouchResponse
-	(*UploadArchiveOpen)(nil),             // 61: axern.node.sandbox.v1.UploadArchiveOpen
-	(*UploadArchiveRequest)(nil),          // 62: axern.node.sandbox.v1.UploadArchiveRequest
-	(*UploadArchiveResponse)(nil),         // 63: axern.node.sandbox.v1.UploadArchiveResponse
-	(*DownloadArchiveRequest)(nil),        // 64: axern.node.sandbox.v1.DownloadArchiveRequest
-	(*DownloadArchiveResponse)(nil),       // 65: axern.node.sandbox.v1.DownloadArchiveResponse
-	(*ComputerUseStatusRequest)(nil),      // 66: axern.node.sandbox.v1.ComputerUseStatusRequest
-	(*ComputerUseStatusResponse)(nil),     // 67: axern.node.sandbox.v1.ComputerUseStatusResponse
-	(*ComputerUseDependencyStatus)(nil),   // 68: axern.node.sandbox.v1.ComputerUseDependencyStatus
-	(*ComputerUseRegion)(nil),             // 69: axern.node.sandbox.v1.ComputerUseRegion
-	(*ComputerUseScreenshotRequest)(nil),  // 70: axern.node.sandbox.v1.ComputerUseScreenshotRequest
-	(*ComputerUseScreenshotResponse)(nil), // 71: axern.node.sandbox.v1.ComputerUseScreenshotResponse
-	(*ComputerUseDisplayRequest)(nil),     // 72: axern.node.sandbox.v1.ComputerUseDisplayRequest
-	(*ComputerUseDisplayResponse)(nil),    // 73: axern.node.sandbox.v1.ComputerUseDisplayResponse
-	(*ComputerUseMouseRequest)(nil),       // 74: axern.node.sandbox.v1.ComputerUseMouseRequest
-	(*ComputerUseMouseResponse)(nil),      // 75: axern.node.sandbox.v1.ComputerUseMouseResponse
-	(*ComputerUseKeyboardRequest)(nil),    // 76: axern.node.sandbox.v1.ComputerUseKeyboardRequest
-	(*ComputerUseKeyboardResponse)(nil),   // 77: axern.node.sandbox.v1.ComputerUseKeyboardResponse
-	(*BrowserStatusRequest)(nil),          // 78: axern.node.sandbox.v1.BrowserStatusRequest
-	(*BrowserStatusResponse)(nil),         // 79: axern.node.sandbox.v1.BrowserStatusResponse
-	(*BrowserOpenRequest)(nil),            // 80: axern.node.sandbox.v1.BrowserOpenRequest
-	(*BrowserCloseRequest)(nil),           // 81: axern.node.sandbox.v1.BrowserCloseRequest
-	(*BrowserNavigateRequest)(nil),        // 82: axern.node.sandbox.v1.BrowserNavigateRequest
-	(*BrowserResizeRequest)(nil),          // 83: axern.node.sandbox.v1.BrowserResizeRequest
-	(*BrowserClickRequest)(nil),           // 84: axern.node.sandbox.v1.BrowserClickRequest
-	(*BrowserTypeRequest)(nil),            // 85: axern.node.sandbox.v1.BrowserTypeRequest
-	(*BrowserWaitRequest)(nil),            // 86: axern.node.sandbox.v1.BrowserWaitRequest
-	nil,                                   // 87: axern.node.sandbox.v1.ExecSpec.EnvEntry
-	nil,                                   // 88: axern.node.sandbox.v1.ImageProcessSpec.EnvEntry
-	(*v1.SandboxFileInfo)(nil),            // 89: axern.common.file.v1.SandboxFileInfo
-	(v1.SandboxArchiveFormat)(0),          // 90: axern.common.file.v1.SandboxArchiveFormat
-	(v1.SandboxArchiveSymlinkPolicy)(0),   // 91: axern.common.file.v1.SandboxArchiveSymlinkPolicy
+	(SandboxProcessState)(0),                   // 0: axern.node.sandbox.v1.SandboxProcessState
+	(OutputStream)(0),                          // 1: axern.node.sandbox.v1.OutputStream
+	(*ExecSpec)(nil),                           // 2: axern.node.sandbox.v1.ExecSpec
+	(*ManagedProxySpec)(nil),                   // 3: axern.node.sandbox.v1.ManagedProxySpec
+	(*ManagedProxyReport)(nil),                 // 4: axern.node.sandbox.v1.ManagedProxyReport
+	(*ExecRequest)(nil),                        // 5: axern.node.sandbox.v1.ExecRequest
+	(*ExecResponse)(nil),                       // 6: axern.node.sandbox.v1.ExecResponse
+	(*ExecStreamOpen)(nil),                     // 7: axern.node.sandbox.v1.ExecStreamOpen
+	(*TerminalResize)(nil),                     // 8: axern.node.sandbox.v1.TerminalResize
+	(*ExecStreamRequest)(nil),                  // 9: axern.node.sandbox.v1.ExecStreamRequest
+	(*ExecExit)(nil),                           // 10: axern.node.sandbox.v1.ExecExit
+	(*ExecStreamResponse)(nil),                 // 11: axern.node.sandbox.v1.ExecStreamResponse
+	(*ProcessOpen)(nil),                        // 12: axern.node.sandbox.v1.ProcessOpen
+	(*ProcessSignal)(nil),                      // 13: axern.node.sandbox.v1.ProcessSignal
+	(*ProcessReady)(nil),                       // 14: axern.node.sandbox.v1.ProcessReady
+	(*ProcessRequest)(nil),                     // 15: axern.node.sandbox.v1.ProcessRequest
+	(*ProcessResponse)(nil),                    // 16: axern.node.sandbox.v1.ProcessResponse
+	(*ImageProcessMount)(nil),                  // 17: axern.node.sandbox.v1.ImageProcessMount
+	(*ImageProcessSpec)(nil),                   // 18: axern.node.sandbox.v1.ImageProcessSpec
+	(*ExecImageRequest)(nil),                   // 19: axern.node.sandbox.v1.ExecImageRequest
+	(*ExecImageResponse)(nil),                  // 20: axern.node.sandbox.v1.ExecImageResponse
+	(*ProcessImageOpen)(nil),                   // 21: axern.node.sandbox.v1.ProcessImageOpen
+	(*ProcessImageRequest)(nil),                // 22: axern.node.sandbox.v1.ProcessImageRequest
+	(*ProcessImageResponse)(nil),               // 23: axern.node.sandbox.v1.ProcessImageResponse
+	(*WaitSandboxRequest)(nil),                 // 24: axern.node.sandbox.v1.WaitSandboxRequest
+	(*WaitSandboxResponse)(nil),                // 25: axern.node.sandbox.v1.WaitSandboxResponse
+	(*ReadOutputRequest)(nil),                  // 26: axern.node.sandbox.v1.ReadOutputRequest
+	(*ReadOutputResponse)(nil),                 // 27: axern.node.sandbox.v1.ReadOutputResponse
+	(*CapabilityStatusRequest)(nil),            // 28: axern.node.sandbox.v1.CapabilityStatusRequest
+	(*CapabilityProviderDependencyStatus)(nil), // 29: axern.node.sandbox.v1.CapabilityProviderDependencyStatus
+	(*CapabilityProviderStatus)(nil),           // 30: axern.node.sandbox.v1.CapabilityProviderStatus
+	(*CapabilityProviderSummary)(nil),          // 31: axern.node.sandbox.v1.CapabilityProviderSummary
+	(*CapabilityStatusResponse)(nil),           // 32: axern.node.sandbox.v1.CapabilityStatusResponse
+	(*ProxyHTTPHeader)(nil),                    // 33: axern.node.sandbox.v1.ProxyHTTPHeader
+	(*ProxyHTTPOpen)(nil),                      // 34: axern.node.sandbox.v1.ProxyHTTPOpen
+	(*ProxyHTTPResponseHead)(nil),              // 35: axern.node.sandbox.v1.ProxyHTTPResponseHead
+	(*ProxyHTTPTrailers)(nil),                  // 36: axern.node.sandbox.v1.ProxyHTTPTrailers
+	(*ProxyHTTPRequest)(nil),                   // 37: axern.node.sandbox.v1.ProxyHTTPRequest
+	(*ProxyHTTPResponse)(nil),                  // 38: axern.node.sandbox.v1.ProxyHTTPResponse
+	(*StatFileRequest)(nil),                    // 39: axern.node.sandbox.v1.StatFileRequest
+	(*StatFileResponse)(nil),                   // 40: axern.node.sandbox.v1.StatFileResponse
+	(*ListDirRequest)(nil),                     // 41: axern.node.sandbox.v1.ListDirRequest
+	(*ListDirResponse)(nil),                    // 42: axern.node.sandbox.v1.ListDirResponse
+	(*ReadFileRequest)(nil),                    // 43: axern.node.sandbox.v1.ReadFileRequest
+	(*ReadFileResponse)(nil),                   // 44: axern.node.sandbox.v1.ReadFileResponse
+	(*WriteFileRequest)(nil),                   // 45: axern.node.sandbox.v1.WriteFileRequest
+	(*WriteFileResponse)(nil),                  // 46: axern.node.sandbox.v1.WriteFileResponse
+	(*MkdirRequest)(nil),                       // 47: axern.node.sandbox.v1.MkdirRequest
+	(*MkdirResponse)(nil),                      // 48: axern.node.sandbox.v1.MkdirResponse
+	(*RemoveRequest)(nil),                      // 49: axern.node.sandbox.v1.RemoveRequest
+	(*RemoveResponse)(nil),                     // 50: axern.node.sandbox.v1.RemoveResponse
+	(*ExistsRequest)(nil),                      // 51: axern.node.sandbox.v1.ExistsRequest
+	(*ExistsResponse)(nil),                     // 52: axern.node.sandbox.v1.ExistsResponse
+	(*CopyRequest)(nil),                        // 53: axern.node.sandbox.v1.CopyRequest
+	(*CopyResponse)(nil),                       // 54: axern.node.sandbox.v1.CopyResponse
+	(*MoveRequest)(nil),                        // 55: axern.node.sandbox.v1.MoveRequest
+	(*MoveResponse)(nil),                       // 56: axern.node.sandbox.v1.MoveResponse
+	(*ChmodRequest)(nil),                       // 57: axern.node.sandbox.v1.ChmodRequest
+	(*ChmodResponse)(nil),                      // 58: axern.node.sandbox.v1.ChmodResponse
+	(*TouchRequest)(nil),                       // 59: axern.node.sandbox.v1.TouchRequest
+	(*TouchResponse)(nil),                      // 60: axern.node.sandbox.v1.TouchResponse
+	(*UploadArchiveOpen)(nil),                  // 61: axern.node.sandbox.v1.UploadArchiveOpen
+	(*UploadArchiveRequest)(nil),               // 62: axern.node.sandbox.v1.UploadArchiveRequest
+	(*UploadArchiveResponse)(nil),              // 63: axern.node.sandbox.v1.UploadArchiveResponse
+	(*DownloadArchiveRequest)(nil),             // 64: axern.node.sandbox.v1.DownloadArchiveRequest
+	(*DownloadArchiveResponse)(nil),            // 65: axern.node.sandbox.v1.DownloadArchiveResponse
+	(*ComputerUseStatusRequest)(nil),           // 66: axern.node.sandbox.v1.ComputerUseStatusRequest
+	(*ComputerUseStatusResponse)(nil),          // 67: axern.node.sandbox.v1.ComputerUseStatusResponse
+	(*ComputerUseDependencyStatus)(nil),        // 68: axern.node.sandbox.v1.ComputerUseDependencyStatus
+	(*ComputerUseRegion)(nil),                  // 69: axern.node.sandbox.v1.ComputerUseRegion
+	(*ComputerUseScreenshotRequest)(nil),       // 70: axern.node.sandbox.v1.ComputerUseScreenshotRequest
+	(*ComputerUseScreenshotResponse)(nil),      // 71: axern.node.sandbox.v1.ComputerUseScreenshotResponse
+	(*ComputerUseDisplayRequest)(nil),          // 72: axern.node.sandbox.v1.ComputerUseDisplayRequest
+	(*ComputerUseDisplayResponse)(nil),         // 73: axern.node.sandbox.v1.ComputerUseDisplayResponse
+	(*ComputerUseMouseRequest)(nil),            // 74: axern.node.sandbox.v1.ComputerUseMouseRequest
+	(*ComputerUseMouseResponse)(nil),           // 75: axern.node.sandbox.v1.ComputerUseMouseResponse
+	(*ComputerUseKeyboardRequest)(nil),         // 76: axern.node.sandbox.v1.ComputerUseKeyboardRequest
+	(*ComputerUseKeyboardResponse)(nil),        // 77: axern.node.sandbox.v1.ComputerUseKeyboardResponse
+	(*BrowserStatusRequest)(nil),               // 78: axern.node.sandbox.v1.BrowserStatusRequest
+	(*BrowserStatusResponse)(nil),              // 79: axern.node.sandbox.v1.BrowserStatusResponse
+	(*BrowserOpenRequest)(nil),                 // 80: axern.node.sandbox.v1.BrowserOpenRequest
+	(*BrowserCloseRequest)(nil),                // 81: axern.node.sandbox.v1.BrowserCloseRequest
+	(*BrowserNavigateRequest)(nil),             // 82: axern.node.sandbox.v1.BrowserNavigateRequest
+	(*BrowserResizeRequest)(nil),               // 83: axern.node.sandbox.v1.BrowserResizeRequest
+	(*BrowserClickRequest)(nil),                // 84: axern.node.sandbox.v1.BrowserClickRequest
+	(*BrowserTypeRequest)(nil),                 // 85: axern.node.sandbox.v1.BrowserTypeRequest
+	(*BrowserWaitRequest)(nil),                 // 86: axern.node.sandbox.v1.BrowserWaitRequest
+	nil,                                        // 87: axern.node.sandbox.v1.ExecSpec.EnvEntry
+	nil,                                        // 88: axern.node.sandbox.v1.ImageProcessSpec.EnvEntry
+	(*v1.SandboxFileInfo)(nil),                 // 89: axern.common.file.v1.SandboxFileInfo
+	(v1.SandboxArchiveFormat)(0),               // 90: axern.common.file.v1.SandboxArchiveFormat
+	(v1.SandboxArchiveSymlinkPolicy)(0),        // 91: axern.common.file.v1.SandboxArchiveSymlinkPolicy
 }
 var file_axern_node_sandbox_v1_node_proto_depIdxs = []int32{
 	87, // 0: axern.node.sandbox.v1.ExecSpec.env:type_name -> axern.node.sandbox.v1.ExecSpec.EnvEntry
@@ -7078,7 +7079,7 @@ var file_axern_node_sandbox_v1_node_proto_depIdxs = []int32{
 	14, // 26: axern.node.sandbox.v1.ProcessImageResponse.ready:type_name -> axern.node.sandbox.v1.ProcessReady
 	0,  // 27: axern.node.sandbox.v1.WaitSandboxResponse.state:type_name -> axern.node.sandbox.v1.SandboxProcessState
 	1,  // 28: axern.node.sandbox.v1.ReadOutputResponse.stream:type_name -> axern.node.sandbox.v1.OutputStream
-	29, // 29: axern.node.sandbox.v1.CapabilityProviderStatus.dependencies:type_name -> axern.node.sandbox.v1.CapabilityDependencyStatus
+	29, // 29: axern.node.sandbox.v1.CapabilityProviderStatus.dependencies:type_name -> axern.node.sandbox.v1.CapabilityProviderDependencyStatus
 	30, // 30: axern.node.sandbox.v1.CapabilityStatusResponse.providers:type_name -> axern.node.sandbox.v1.CapabilityProviderStatus
 	31, // 31: axern.node.sandbox.v1.CapabilityStatusResponse.provider_summary:type_name -> axern.node.sandbox.v1.CapabilityProviderSummary
 	33, // 32: axern.node.sandbox.v1.ProxyHTTPOpen.headers:type_name -> axern.node.sandbox.v1.ProxyHTTPHeader

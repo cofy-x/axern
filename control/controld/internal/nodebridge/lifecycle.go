@@ -66,7 +66,7 @@ func New(client LifecycleClient, cfg Config) *Bridge {
 	}
 }
 
-func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, dependencies []*capabilityv1.CapabilityDependency) (*allocationkernel.CapabilityAdmission, error) {
+func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, requirements []*capabilityv1.CapabilityRequirement) (*capabilityv1.CapabilityConditionSet, error) {
 	callCtx, cancel := context.WithTimeout(ctx, b.createTimeout)
 	defer cancel()
 	stageStarted := time.Now()
@@ -76,7 +76,7 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 		Environment:            env,
 		NodeID:                 nodeID,
 		DefaultRuntime:         b.defaultRuntime,
-		CapabilityDependencies: dependencies,
+		CapabilityRequirements: requirements,
 	})
 	recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateAllocation, nodeLifecycleStageResolveCreateRequest, stageStarted, err)
 	if err != nil {
@@ -89,10 +89,7 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 		return nil, formatCreateAllocationError(err)
 	}
 	recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateAllocation, nodeLifecycleStageNodeCreateRPC, stageStarted, nil)
-	return &allocationkernel.CapabilityAdmission{
-		Dependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
-		ConditionSet: cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
-	}, nil
+	return cloneCapabilityConditionSet(resp.GetCapabilityVerification()), nil
 }
 
 func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string) error {

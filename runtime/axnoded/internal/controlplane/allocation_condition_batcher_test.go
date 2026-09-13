@@ -3,7 +3,6 @@ package controlplane
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,7 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestAllocationConditionBatcherCoalescesRevision(t *testing.T) {
+func TestAllocationConditionBatcherCoalescesObservedAt(t *testing.T) {
 	batches := make(chan []*nodev1.AllocationCapabilityConditionReport, 1)
 	batcher := newAllocationConditionBatcher(func(_ context.Context, reports []*nodev1.AllocationCapabilityConditionReport) error {
 		batches <- reports
@@ -30,8 +29,8 @@ func TestAllocationConditionBatcherCoalescesRevision(t *testing.T) {
 	batcher.Enqueue(conditionReport("allocation-a", 3))
 
 	batch := awaitConditionBatch(t, batches)
-	if len(batch) != 1 || batch[0].GetConditionSet().GetRevision() != 3 {
-		t.Fatalf("batch = %#v, want newest revision", batch)
+	if len(batch) != 1 || batch[0].GetConditionSet().GetObservedAt().AsTime().UnixNano() != 3 {
+		t.Fatalf("batch = %#v, want newest observation", batch)
 	}
 }
 
@@ -71,33 +70,21 @@ func TestAllocationConditionBatcherRetryDoesNotOverwriteNewerRevision(t *testing
 	close(releaseFirst)
 
 	batch := awaitConditionBatch(t, batches)
-	if len(batch) != 1 || batch[0].GetConditionSet().GetRevision() != 2 {
-		t.Fatalf("retried batch = %#v, want concurrent newer revision", batch)
+	if len(batch) != 1 || batch[0].GetConditionSet().GetObservedAt().AsTime().UnixNano() != 2 {
+		t.Fatalf("retried batch = %#v, want concurrent newer observation", batch)
 	}
 }
 
-func conditionReport(allocationID string, revision int64) *nodev1.AllocationCapabilityConditionReport {
-	now := time.Now().UTC()
+func conditionReport(allocationID string, observedAtUnixNano int64) *nodev1.AllocationCapabilityConditionReport {
+	now := time.Unix(0, observedAtUnixNano).UTC()
 	key := capabilitycontract.ExtensionKey("example.com/accelerator", "v1")
-	evidence := capabilitycontract.ConfigEvidence("sha256:" + strings.Repeat("a", 64))
-	observation := &capabilityv1.CapabilityObservation{
-		Key:        capabilitycontract.CloneKey(key),
-		State:      capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
-		Provider:   capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_CONFIG,
-		ObservedAt: timestamppb.New(now),
-		Evidence:   evidence,
-		ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-	}
-	capabilitycontract.NormalizeObservation(observation)
 	return &nodev1.AllocationCapabilityConditionReport{
 		AllocationID: allocationID,
 		ConditionSet: &capabilityv1.CapabilityConditionSet{
-			Revision: revision, ObservedAt: timestamppb.New(now),
+			ObservedAt: timestamppb.New(now),
 			Conditions: []*capabilityv1.CapabilityCondition{{
 				Key: key, State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
 				ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-				ObservedAt: timestamppb.New(now),
-				Proof:      capabilitycontract.NewObservationProof(observation),
 			}},
 		},
 	}

@@ -8,7 +8,6 @@ import (
 	"unicode/utf8"
 
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -25,7 +24,6 @@ const (
 	MaxExtensionCapabilities = 64
 	MaxExtensionValueBytes   = 256
 	MaxReasonBytes           = 1024
-	MaxObservationProofs     = 32
 	MaxSnapshotObservations  = 128
 	MaxIdentityBytes         = 512
 )
@@ -148,13 +146,11 @@ func BoundedReason(reason string) string {
 	return reason[:end]
 }
 
-// ValidateConditionSet validates the full allocation-owned projection. A
-// degraded or failed condition may retain an expired proof for diagnosis; a
-// healthy condition must prove that its observation was current when the
-// condition was observed.
+// ValidateConditionSet validates the latest allocation diagnostic projection.
+// The set timestamp supplies ordering; conditions do not copy Node evidence.
 func ValidateConditionSet(set *capabilityv1.CapabilityConditionSet, now time.Time) error {
-	if set == nil || set.GetRevision() <= 0 || set.GetObservedAt() == nil {
-		return fmt.Errorf("capability condition set, positive revision, and observed_at are required")
+	if set == nil || set.GetObservedAt() == nil {
+		return fmt.Errorf("capability condition set and observed_at are required")
 	}
 	if err := set.GetObservedAt().CheckValid(); err != nil {
 		return fmt.Errorf("capability condition set observed_at: %w", err)
@@ -168,15 +164,12 @@ func ValidateConditionSet(set *capabilityv1.CapabilityConditionSet, now time.Tim
 	}
 	seen := make(map[string]struct{}, len(set.GetConditions()))
 	for _, condition := range set.GetConditions() {
-		if condition == nil || condition.GetObservedAt() == nil {
-			return fmt.Errorf("capability condition and observed_at are required")
+		if condition == nil {
+			return fmt.Errorf("capability condition is required")
 		}
 		id, err := KeyID(condition.GetKey())
 		if err != nil {
 			return err
-		}
-		if err := condition.GetObservedAt().CheckValid(); err != nil {
-			return fmt.Errorf("capability condition %q observed_at: %w", id, err)
 		}
 		if !IsWorkloadRequirement(condition.GetKey()) {
 			return fmt.Errorf("internal capability %q cannot be an allocation condition", id)
@@ -198,30 +191,6 @@ func ValidateConditionSet(set *capabilityv1.CapabilityConditionSet, now time.Tim
 		}
 		if !utf8.ValidString(condition.GetMessage()) || len(condition.GetMessage()) > MaxReasonBytes {
 			return fmt.Errorf("capability condition %q message exceeds %d bytes", id, MaxReasonBytes)
-		}
-		conditionAt := condition.GetObservedAt().AsTime()
-		if conditionAt.After(setObservedAt) {
-			return fmt.Errorf("capability condition %q was observed after its condition set was published", id)
-		}
-		if conditionAt.After(now.Add(time.Minute)) {
-			return fmt.Errorf("capability condition %q observed_at is in the future", id)
-		}
-		proof := condition.GetProof()
-		if proof == nil {
-			if condition.GetState() == capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY {
-				return fmt.Errorf("healthy capability condition %q is missing proof", id)
-			}
-			continue
-		}
-		if !proto.Equal(condition.GetKey(), proof.GetKey()) {
-			return fmt.Errorf("capability condition %q proof key mismatch", id)
-		}
-		if proof.GetObservedAt() != nil && proof.GetObservedAt().AsTime().After(conditionAt) {
-			return fmt.Errorf("capability condition %q proof was observed after the condition", id)
-		}
-		requireCurrent := condition.GetState() == capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY
-		if err := validateObservationProof(proof, conditionAt, requireCurrent); err != nil {
-			return fmt.Errorf("capability condition %q proof: %w", id, err)
 		}
 	}
 	return nil

@@ -243,8 +243,8 @@ message BatchReportAllocationLifecycleRequest {
 
 message BatchReportAllocationLifecycleResponse {}
 
-// AllocationCapabilityConditionReport is deliberately independent from
-// lifecycle status. Updating capability conditions cannot make an allocation
+// AllocationCapabilityConditionReport is an observed_at-ordered diagnostic
+// projection independent from lifecycle status. It cannot make an allocation
 // RUNNING, READY, terminal, or alter its exit status/message.
 message AllocationCapabilityConditionReport {
   string allocation_id = 1;

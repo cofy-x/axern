@@ -41,6 +41,8 @@ func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	template := testRuntimeTemplate(t, "allocation-runtime")
 	runtime := addTestRuntimeMappingRuntime(t, first.lrtManager, template)
 	allocationID := "allocation-runtime-round-trip"
+	err := first.controller.StoreCapabilityRequirements(allocationID, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil)
+	assert.NoError(t, err)
 	runtime.IncRef()
 	assert.NoError(t, first.controller.rememberContainerRuntime(allocationID, runtime))
 	now := time.Now().UTC()

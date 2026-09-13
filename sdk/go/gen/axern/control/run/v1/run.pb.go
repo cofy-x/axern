@@ -100,8 +100,8 @@ type Run struct {
 	ExitCodeKnown  bool                      `protobuf:"varint,12,opt,name=exit_code_known,json=exitCodeKnown,proto3" json:"exit_code_known,omitempty"`
 	Message        string                    `protobuf:"bytes,13,opt,name=message,proto3" json:"message,omitempty"`
 	DiagnosticCode v1.WorkloadDiagnosticCode `protobuf:"varint,14,opt,name=diagnostic_code,json=diagnosticCode,proto3,enum=axern.control.common.v1.WorkloadDiagnosticCode" json:"diagnostic_code,omitempty"`
-	// Full, monotonically revised allocation capability condition projection.
-	// It is independent from Run lifecycle status and message.
+	// Latest allocation capability condition projection. It is independent
+	// from Run lifecycle status and message.
 	CapabilityConditions *v11.CapabilityConditionSet `protobuf:"bytes,15,opt,name=capability_conditions,json=capabilityConditions,proto3" json:"capability_conditions,omitempty"`
 	NodeID               string                      `protobuf:"bytes,16,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
 	unknownFields        protoimpl.UnknownFields

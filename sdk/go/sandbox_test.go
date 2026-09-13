@@ -992,7 +992,7 @@ func (f *fakeAxernServer) CapabilityStatus(context.Context, *nodesandboxv1.Capab
 				Available:    true,
 				Capabilities: []string{"computer_use"},
 				Backend:      "x11",
-				Dependencies: []*nodesandboxv1.CapabilityDependencyStatus{{
+				Dependencies: []*nodesandboxv1.CapabilityProviderDependencyStatus{{
 					Name:      "xdotool",
 					Available: true,
 				}},

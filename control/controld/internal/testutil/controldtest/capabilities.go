@@ -30,7 +30,7 @@ func AvailableCapabilitySnapshot(observedAt time.Time, platforms ...capabilityv1
 		var evidence *capabilityv1.CapabilityEvidence
 		switch definition.Identity {
 		case capabilitycontract.IdentityConfig:
-			evidence = capabilitycontract.ConfigEvidence(testDigest)
+			evidence = nil
 		case capabilitycontract.IdentityBoot:
 			evidence = capabilitycontract.BootEvidence(testBootID)
 		case capabilitycontract.IdentityMount:
@@ -38,8 +38,6 @@ func AvailableCapabilitySnapshot(observedAt time.Time, platforms ...capabilityv1
 		case capabilitycontract.IdentityRuntime:
 			evidence = capabilitycontract.RuntimeEvidence(testBootID, "runsc", testDigest, testDigest)
 		case capabilitycontract.IdentityDerived:
-			// Derived evidence is assigned after its dependency proof set has
-			// been constructed below.
 		default:
 			panic("unsupported test capability identity")
 		}
@@ -49,22 +47,11 @@ func AvailableCapabilitySnapshot(observedAt time.Time, platforms ...capabilityv1
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
 		}
 		byPlatform[platform] = observation
-		var earliest time.Time
 		for _, dependencyPlatform := range definition.Dependencies {
-			dependency := add(dependencyPlatform)
-			proof := capabilitycontract.NewObservationProof(dependency)
-			observation.Dependencies = append(observation.Dependencies, proof)
-			if proof.GetValidUntil() != nil && (earliest.IsZero() || proof.GetValidUntil().AsTime().Before(earliest)) {
-				earliest = proof.GetValidUntil().AsTime()
-			}
-		}
-		if definition.Identity == capabilitycontract.IdentityDerived {
-			observation.Evidence = capabilitycontract.DerivedEvidence(observation.GetDependencies()...)
+			add(dependencyPlatform)
 		}
 		if definition.Freshness.MaxValidity > 0 {
 			observation.ValidUntil = timestamppb.New(observedAt.Add(definition.Freshness.MaxValidity))
-		} else if definition.Identity == capabilitycontract.IdentityDerived && !earliest.IsZero() {
-			observation.ValidUntil = timestamppb.New(earliest)
 		}
 		capabilitycontract.NormalizeObservation(observation)
 		return observation
@@ -82,7 +69,7 @@ func AvailableCapabilitySnapshot(observedAt time.Time, platforms ...capabilityv1
 		return left < right
 	})
 	return &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "test-node-instance", Sequence: 1, SnapshotID: "test-snapshot",
+		NodeInstanceID: "test-node-instance", Sequence: 1,
 		CollectedAt: timestamppb.New(observedAt), Observations: observations,
 	}
 }

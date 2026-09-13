@@ -18,7 +18,6 @@ import (
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestDelete_NotFound(t *testing.T) {
@@ -124,12 +123,11 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 	extension := capabilitycontract.ExtensionKey("example.com/accelerator", "model-a")
 	manager, err := capabilitymanager.NewManager(configCapabilityProvider(
 		[]*capabilityv1.ExtensionCapability{extension.GetExtension()},
-		extensionConfigDigest([]*capabilityv1.ExtensionCapability{extension.GetExtension()}),
 	))
 	assert.NoError(t, err)
 	snapshot, err := manager.Refresh(context.Background(), now)
 	assert.NoError(t, err)
-	dependencies, err := capabilitycontract.ResolveDependencies(snapshot, []*capabilityv1.CapabilityKey{extension}, now)
+	dependencies, err := capabilitycontract.ResolveRequirements(snapshot, []*capabilityv1.CapabilityKey{extension}, now)
 	assert.NoError(t, err)
 	s.capabilityManager = manager
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
@@ -145,33 +143,22 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 		ExtensionCapabilityRequirements: []*capabilityv1.ExtensionCapabilityRequirement{{
 			Capability: proto.Clone(extension.GetExtension()).(*capabilityv1.ExtensionCapability),
 		}},
-		CapabilityDependencies: dependencies,
+		CapabilityRequirements: dependencies,
 	}
 
 	first, err := s.Start(context.Background(), proto.Clone(request).(*runtime.StartRequest))
 	assert.NoError(t, err)
 	assert.Equal(t, int32(0), first.GetCode())
 	assert.Equal(t, 1, handler.createCalls)
-	assert.Equal(t, int64(2), s.allocationController().CapabilityConditions(request.GetContainerID()).GetRevision())
 
 	retry := proto.Clone(request).(*runtime.StartRequest)
 	retry.TraceID = "new-retry-trace"
 	s.capabilityManager = nil
-	degradedAt := now.Add(time.Second)
-	_, err = s.allocationController().ReplaceCapabilityConditions(request.GetContainerID(), []*capabilityv1.CapabilityCondition{{
-		Key: extension, State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_DEGRADED,
-		ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED,
-		Message:    "node observation unavailable after create", ObservedAt: timestamppb.New(degradedAt),
-		Proof: proto.Clone(first.GetAdmittedCapabilityDependencies()[0].GetSelectedObservation()).(*capabilityv1.CapabilityObservationProof),
-	}}, degradedAt)
-	assert.NoError(t, err)
 	second, err := s.Start(context.Background(), retry)
 	assert.NoError(t, err)
 	assert.Equal(t, int32(0), second.GetCode())
 	assert.Equal(t, 1, handler.createCalls)
-	assert.Equal(t, int64(3), s.allocationController().CapabilityConditions(request.GetContainerID()).GetRevision())
-	assert.Len(t, second.GetAdmittedCapabilityDependencies(), len(first.GetAdmittedCapabilityDependencies()))
-	assert.True(t, proto.Equal(first.GetCapabilityVerification(), second.GetCapabilityVerification()))
+	assert.Nil(t, second.GetCapabilityVerification())
 
 	changed := proto.Clone(request).(*runtime.StartRequest)
 	changed.RuntimeTemplate.Command = []string{"/bin/false"}
@@ -179,7 +166,6 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 	assert.ErrorContains(t, err, "differs from the durable contract")
 	assert.Equal(t, codes.FailedPrecondition, grpcstatus.Code(err))
 	assert.Equal(t, 1, handler.createCalls)
-	assert.Equal(t, int64(3), s.allocationController().CapabilityConditions(request.GetContainerID()).GetRevision())
 
 	_, err = s.Delete(context.Background(), &runtime.DeleteRequest{ID: request.GetContainerID()})
 	assert.NoError(t, err)

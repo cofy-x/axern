@@ -40,7 +40,7 @@ func TestEgressReconcileRoutesToPolicyOwner(t *testing.T) {
 		t.Run(platform.String(), func(t *testing.T) {
 			// No OCI handler or container is installed: neither owns this proof.
 			s := newTestService(t, nil)
-			dependency := &capabilityv1.CapabilityDependency{Key: capabilitycontract.PlatformKey(platform), LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP}
+			dependency := &capabilityv1.CapabilityRequirement{Key: capabilitycontract.PlatformKey(platform), LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP}
 			policy := &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{}}}
 			if platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT {
 				policy.Policy = &commonv1.NetworkEgressPolicy_DnsDeny{DnsDeny: &commonv1.DnsDenyPolicy{}}
@@ -52,7 +52,7 @@ func TestEgressReconcileRoutesToPolicyOwner(t *testing.T) {
 			s.egressClient = fake
 			check := func(want contract.CapabilityVerificationState) {
 				t.Helper()
-				got := verifyActiveEgressPolicy(context.Background(), fake, "policy-allocation", "192.0.2.10", allocationNetworkPolicyMode([]*capabilityv1.CapabilityDependency{dependency}))
+				got := verifyActiveEgressPolicy(context.Background(), fake, "policy-allocation", "192.0.2.10", allocationNetworkPolicyMode([]*capabilityv1.CapabilityRequirement{dependency}))
 				if got.State != want {
 					t.Fatalf("verification = %+v, want %v", got, want)
 				}

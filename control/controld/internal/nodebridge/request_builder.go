@@ -18,7 +18,7 @@ type createAllocationRequestParams struct {
 	NodeID                 string
 	DefaultRuntime         string
 	ResolvedSecrets        resolvedExecutionSecrets
-	CapabilityDependencies []*capabilityv1.CapabilityDependency
+	CapabilityRequirements []*capabilityv1.CapabilityRequirement
 }
 
 func buildCreateAllocationRequestFromParams(params createAllocationRequestParams) *privatenodev1.CreateAllocationRequest {
@@ -58,7 +58,7 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 		SecretFiles:                     cloneResolvedSecretFiles(params.ResolvedSecrets.FileSecrets),
 		ExecutionProfile:                cloneRuntimeExecutionProfile(template.GetExecutionProfile()),
 		ImageMounts:                     cloneImageMounts(cfg.GetImageMounts()),
-		CapabilityDependencies:          cloneCapabilityDependencies(params.CapabilityDependencies),
+		CapabilityRequirements:          cloneCapabilityRequirements(params.CapabilityRequirements),
 	}
 	if strings.TrimSpace(params.ResolvedSecrets.DockerConfigJSON) != "" {
 		out.RegistryCredential = &privatenodev1.RegistryCredential{DockerConfigJson: params.ResolvedSecrets.DockerConfigJSON}

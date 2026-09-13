@@ -27,7 +27,7 @@ func inconclusiveCapabilityErrorf(format string, args ...any) error {
 	return &inconclusiveCapabilityError{err: fmt.Errorf(format, args...)}
 }
 
-func (r *RunscServiceHandler) VerifyAllocationCapability(ctx context.Context, dependency *capabilityv1.CapabilityDependency, options contract.HandlerOptions) contract.CapabilityVerification {
+func (r *RunscServiceHandler) VerifyAllocationCapability(ctx context.Context, dependency *capabilityv1.CapabilityRequirement, options contract.HandlerOptions) contract.CapabilityVerification {
 	switch dependency.GetKey().GetPlatform() {
 	case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT:
 		if options.MemoryLimitBytes <= 0 {
@@ -55,9 +55,6 @@ func (r *RunscServiceHandler) VerifyAllocationCapability(ctx context.Context, de
 		facts, err := hostlinux.ReadFilestoreCapabilities(r.filestoreDir)
 		if err != nil {
 			return contract.InconclusiveCapability(err)
-		}
-		if expected := dependencyMountIdentity(dependency); expected != "" && facts.MountIdentity != expected {
-			return contract.LostCapability(fmt.Errorf("runsc filestore mount identity changed: expected=%s current=%s", expected, facts.MountIdentity))
 		}
 		if manifest.GetFilestoreMountIdentity() == "" || manifest.GetFilestoreMountIdentity() != facts.MountIdentity {
 			return contract.LostCapability(fmt.Errorf("runsc immutable launch filestore identity changed"))
@@ -137,13 +134,4 @@ func classifyCapabilityVerificationError(err error) contract.CapabilityVerificat
 		return contract.InconclusiveCapability(err)
 	}
 	return contract.LostCapability(err)
-}
-
-func dependencyMountIdentity(dependency *capabilityv1.CapabilityDependency) string {
-	for _, reference := range dependency.GetDependencyObservations() {
-		if identity := reference.GetEvidence().GetMount(); identity != nil && identity.GetMountIdentity() != "" {
-			return identity.GetMountIdentity()
-		}
-	}
-	return ""
 }

@@ -83,7 +83,7 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 		}
 	}
 
-	var reportedTransitions []nodekernel.CapabilityTransition
+	var reportedTransitions []nodekernel.CapabilityChange
 	if params.Summary != nil {
 		var previous *nodev1.NodeSummary
 		var previousJSON []byte
@@ -105,10 +105,10 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 			return nil, err
 		}
 		for _, transition := range transitions {
-			reportedTransitions = append(reportedTransitions, nodekernel.CapabilityTransition{
+			reportedTransitions = append(reportedTransitions, nodekernel.CapabilityChange{
 				Key:        capabilityKeyClone(transition.key),
 				NewState:   transition.newState,
-				ReasonCode: transition.newReasonCode,
+				ReasonCode: transition.reasonCode,
 			})
 		}
 		payload, err := protojson.Marshal(params.Summary)
@@ -135,7 +135,7 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit node tx: %w", err)
 	}
-	record.ReportedCapabilityTransitions = reportedTransitions
+	record.ReportedCapabilityChanges = reportedTransitions
 	return record, nil
 }
 

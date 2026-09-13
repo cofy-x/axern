@@ -15,7 +15,7 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 	snapshot.Node.CollectedAt = collectedAt
 	snapshot.Node.State = "draining"
 	snapshot.Node.Labels = map[string]string{"zone": "us-east-1"}
-	snapshot.Node.CapabilitySnapshot = &capabilityv1.CapabilitySnapshot{NodeInstanceID: "node-instance", Sequence: 7, SnapshotID: "snapshot-7"}
+	snapshot.Node.CapabilitySnapshot = &capabilityv1.CapabilitySnapshot{NodeInstanceID: "node-instance", Sequence: 7}
 	snapshot.Node.Capacity = nodeinventory.NodeResourceQuantity{CpuMilli: 8000, MemoryBytes: 16 << 30}
 	snapshot.Node.Allocatable = nodeinventory.NodeResourceQuantity{CpuMilli: 6000, MemoryBytes: 12 << 30}
 	snapshot.Resources.CPU.AxnodedCommittedMilli = 1200
@@ -83,7 +83,7 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 	if summary.GetLabels()["zone"] != "us-east-1" {
 		t.Fatalf("labels = %#v, want zone=us-east-1", summary.GetLabels())
 	}
-	if summary.GetCapabilitySnapshot().GetSnapshotID() != "snapshot-7" || summary.GetCapabilitySnapshot().GetSequence() != 7 {
+	if summary.GetCapabilitySnapshot().GetNodeInstanceID() != "node-instance" || summary.GetCapabilitySnapshot().GetSequence() != 7 {
 		t.Fatalf("capability snapshot = %#v", summary.GetCapabilitySnapshot())
 	}
 	if summary.GetCapacity().GetCpuMilli() != 8000 || summary.GetAllocatable().GetMemoryBytes() != 12<<30 {

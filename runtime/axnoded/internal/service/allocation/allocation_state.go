@@ -25,10 +25,6 @@ type allocationState struct {
 	imageMountRoots []*langruntime.RootFS
 }
 
-type CapabilityConditionManifest struct {
-	Set *capabilityv1.CapabilityConditionSet
-}
-
 func newAllocationState(allocationID string) *allocationState {
 	return &allocationState{record: &apipb.AllocationState{AllocationID: allocationID}}
 }
@@ -50,7 +46,7 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityDependencies()) == 0 && record.GetCapabilityConditions() == nil && record.GetCapabilityAdmissionConditions() == nil && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
+	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
 }
 
 func (h *Controller) HasAllocation(allocationID string) bool {
@@ -115,30 +111,16 @@ func (h *Controller) PersistedAllocationIDs() (map[string]struct{}, error) {
 	return result, err
 }
 
-// ReplaceCapabilityAdmission atomically persists the admitted dependency
-// proofs and their complete condition projection. The initial admission is the
-// first durable side effect of create, before rootfs, mounts, cgroups,
-// or runtime processes are touched. Post-create admission replaces both proof
-// sets in the same write so recovery can never observe mismatched generations.
-func (h *Controller) ReplaceCapabilityAdmission(allocationID string, requestDigest string, dependencies []*capabilityv1.CapabilityDependency, conditions []*capabilityv1.CapabilityCondition, observedAt time.Time) (*capabilityv1.CapabilityConditionSet, error) {
+// StoreCapabilityRequirements persists the immutable Allocation requirement
+// contract as the first create side effect. Node observations and conditions
+// remain rebuildable projections and are never copied into this record.
+func (h *Controller) StoreCapabilityRequirements(allocationID string, requestDigest string, requirements []*capabilityv1.CapabilityRequirement) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" || !validStartRequestDigest(requestDigest) {
-		return nil, errors.New("allocation id and canonical request digest are required")
+		return errors.New("allocation id and canonical request digest are required")
 	}
-	return h.replaceCapabilityAdmission(allocationID, requestDigest, dependencies, conditions, observedAt)
-}
-
-func (h *Controller) replaceCapabilityAdmission(allocationID string, requestDigest string, dependencies []*capabilityv1.CapabilityDependency, conditions []*capabilityv1.CapabilityCondition, observedAt time.Time) (*capabilityv1.CapabilityConditionSet, error) {
-	validationTime := time.Now().UTC()
-	if err := capabilitycontract.ValidateDependencySet(dependencies, validationTime); err != nil {
-		return nil, fmt.Errorf("validate allocation capability dependencies: %w", err)
-	}
-	canonical, err := canonicalCapabilityConditions(conditions)
-	if err != nil {
-		return nil, fmt.Errorf("canonicalize allocation capability conditions: %w", err)
-	}
-	if !capabilityConditionKeysEqualDependencies(dependencies, canonical) {
-		return nil, fmt.Errorf("capability condition keys do not exactly match allocation dependencies")
+	if err := capabilitycontract.ValidateRequirements(requirements); err != nil {
+		return fmt.Errorf("validate allocation capability requirements: %w", err)
 	}
 	unlock := h.recordMutationLocks.Lock(allocationID)
 	defer unlock()
@@ -149,37 +131,18 @@ func (h *Controller) replaceCapabilityAdmission(allocationID string, requestDige
 	}
 	h.stateMu.RUnlock()
 	if currentDigest := desired.GetAllocationRequestDigest(); currentDigest != "" && currentDigest != requestDigest {
-		return nil, fmt.Errorf("allocation request digest conflicts with durable contract")
+		return fmt.Errorf("allocation request digest conflicts with durable contract")
 	}
-	if desired.GetLaunchVerification() != nil && desired.GetCapabilityAdmissionConditions() != nil {
-		return nil, fmt.Errorf("allocation capability admission is already sealed")
-	}
-	revision := int64(1)
-	if desired.GetCapabilityConditions() != nil {
-		revision = desired.GetCapabilityConditions().GetRevision() + 1
-	}
-	set := &capabilityv1.CapabilityConditionSet{
-		Revision:   revision,
-		ObservedAt: timestamppb.New(observedAt.UTC()),
-		Conditions: canonical,
-	}
-	if err := capabilitycontract.ValidateConditionSet(set, validationTime); err != nil {
-		return nil, fmt.Errorf("validate allocation capability conditions: %w", err)
-	}
-	desired.CapabilityDependencies = cloneCapabilityDependencies(dependencies)
-	desired.CapabilityConditions = set
-	if desired.GetLaunchVerification() != nil {
-		desired.CapabilityAdmissionConditions = proto.Clone(set).(*capabilityv1.CapabilityConditionSet)
-	}
+	desired.CapabilityRequirements = cloneCapabilityRequirements(requirements)
 	desired.AllocationRequestDigest = requestDigest
 	if err := h.persistAllocationRecord(desired); err != nil {
-		return nil, fmt.Errorf("persist allocation capability admission: %w", err)
+		return fmt.Errorf("persist allocation capability requirements: %w", err)
 	}
 	h.stateMu.Lock()
 	state := h.stateLocked(allocationID)
 	state.record = desired
 	h.stateMu.Unlock()
-	return proto.Clone(set).(*capabilityv1.CapabilityConditionSet), nil
+	return nil
 }
 
 func (h *Controller) AllocationRequestDigest(allocationID string) string {
@@ -191,31 +154,30 @@ func (h *Controller) AllocationRequestDigest(allocationID string) string {
 	return ""
 }
 
-func (h *Controller) CapabilityDependencyManifests() map[string][]*capabilityv1.CapabilityDependency {
-	result := make(map[string][]*capabilityv1.CapabilityDependency)
+func (h *Controller) CapabilityRequirementManifests() map[string][]*capabilityv1.CapabilityRequirement {
+	result := make(map[string][]*capabilityv1.CapabilityRequirement)
 	h.stateMu.RLock()
 	defer h.stateMu.RUnlock()
 	for allocationID, state := range h.allocationStates {
-		if state != nil && len(state.record.GetCapabilityDependencies()) > 0 {
-			result[allocationID] = cloneCapabilityDependencies(state.record.GetCapabilityDependencies())
+		if state != nil && len(state.record.GetCapabilityRequirements()) > 0 {
+			result[allocationID] = cloneCapabilityRequirements(state.record.GetCapabilityRequirements())
 		}
 	}
 	return result
 }
 
-func (h *Controller) CapabilityDependencies(allocationID string) []*capabilityv1.CapabilityDependency {
+func (h *Controller) CapabilityRequirements(allocationID string) []*capabilityv1.CapabilityRequirement {
 	h.stateMu.RLock()
 	defer h.stateMu.RUnlock()
 	state := h.allocationStates[strings.TrimSpace(allocationID)]
 	if state == nil {
 		return nil
 	}
-	return cloneCapabilityDependencies(state.record.GetCapabilityDependencies())
+	return cloneCapabilityRequirements(state.record.GetCapabilityRequirements())
 }
 
-// ReplaceCapabilityConditions persists and returns one complete, monotonically
-// revised condition projection. Capability state never mutates allocation
-// lifecycle state.
+// ReplaceCapabilityConditions validates and returns a rebuildable diagnostic
+// projection. Conditions are not node-local durable facts.
 func (h *Controller) ReplaceCapabilityConditions(allocationID string, conditions []*capabilityv1.CapabilityCondition, observedAt time.Time) (*capabilityv1.CapabilityConditionSet, error) {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" {
@@ -232,37 +194,26 @@ func (h *Controller) replaceCapabilityConditionsLocked(allocationID string, cond
 		return nil, err
 	}
 	h.stateMu.RLock()
-	current := h.allocationStates[allocationID]
-	desired := &apipb.AllocationState{AllocationID: allocationID}
-	if current != nil {
-		desired = cloneAllocationRecord(current.record)
+	state := h.allocationStates[allocationID]
+	var requirements []*capabilityv1.CapabilityRequirement
+	if state != nil {
+		requirements = cloneCapabilityRequirements(state.record.GetCapabilityRequirements())
 	}
 	h.stateMu.RUnlock()
-	if !capabilityConditionKeysEqualDependencies(desired.GetCapabilityDependencies(), canonical) {
+	if !capabilityConditionKeysEqualDependencies(requirements, canonical) {
 		return nil, fmt.Errorf("capability condition keys do not exactly match allocation dependencies")
 	}
-	revision := int64(1)
-	if desired.GetCapabilityConditions() != nil {
-		revision = desired.GetCapabilityConditions().GetRevision() + 1
-	}
-	set := &capabilityv1.CapabilityConditionSet{Revision: revision, ObservedAt: timestamppb.New(observedAt.UTC()), Conditions: canonical}
+	set := &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(observedAt.UTC()), Conditions: canonical}
 	if err := capabilitycontract.ValidateConditionSet(set, time.Now().UTC()); err != nil {
 		return nil, fmt.Errorf("validate allocation capability conditions: %w", err)
 	}
-	desired.CapabilityConditions = set
-	if err := h.persistAllocationRecord(desired); err != nil {
-		return nil, fmt.Errorf("persist allocation capability conditions: %w", err)
-	}
-	h.stateMu.Lock()
-	h.stateLocked(allocationID).record = desired
-	h.stateMu.Unlock()
 	return proto.Clone(set).(*capabilityv1.CapabilityConditionSet), nil
 }
 
-func (h *Controller) MergeCapabilityReconcile(allocationID string, generation int64, keys []*capabilityv1.CapabilityKey) error {
+func (h *Controller) MergeCapabilityReconcile(allocationID string, sequence int64) error {
 	allocationID = strings.TrimSpace(allocationID)
-	if allocationID == "" || generation <= 0 {
-		return errors.New("allocation id and positive reconcile generation are required")
+	if allocationID == "" || sequence <= 0 {
+		return errors.New("allocation id and positive observation sequence are required")
 	}
 	unlock := h.recordMutationLocks.Lock(allocationID)
 	defer unlock()
@@ -280,36 +231,12 @@ func (h *Controller) MergeCapabilityReconcile(allocationID string, generation in
 	} else {
 		reconcile = proto.Clone(reconcile).(*apipb.AllocationCapabilityReconcileState)
 	}
-	byKey := make(map[string]*apipb.PendingCapabilityReconcile, len(reconcile.GetPending())+len(keys))
-	for _, pending := range reconcile.GetPending() {
-		id, err := capabilitycontract.KeyID(pending.GetKey())
-		if err != nil {
-			return fmt.Errorf("stored capability reconcile key: %w", err)
-		}
-		byKey[id] = proto.Clone(pending).(*apipb.PendingCapabilityReconcile)
+	if sequence > reconcile.GetPendingObservationSequence() {
+		reconcile.PendingObservationSequence = sequence
 	}
-	for _, key := range keys {
-		id, err := capabilitycontract.KeyID(key)
-		if err != nil {
-			return err
-		}
-		if pending := byKey[id]; pending == nil || pending.GetGeneration() < generation {
-			byKey[id] = &apipb.PendingCapabilityReconcile{Key: capabilitycontract.CloneKey(key), Generation: generation}
-		}
-	}
-	reconcile.Pending = reconcile.Pending[:0]
-	for _, pending := range byKey {
-		reconcile.Pending = append(reconcile.Pending, pending)
-	}
-	sort.Slice(reconcile.Pending, func(i, j int) bool {
-		left, _ := capabilitycontract.KeyID(reconcile.Pending[i].GetKey())
-		right, _ := capabilitycontract.KeyID(reconcile.Pending[j].GetKey())
-		return left < right
-	})
-	reconcile.UpdatedAtUnixNano = time.Now().UTC().UnixNano()
 	desired.CapabilityReconcile = reconcile
 	if err := h.persistAllocationRecord(desired); err != nil {
-		return fmt.Errorf("persist capability reconcile queue: %w", err)
+		return fmt.Errorf("persist capability reconcile intent: %w", err)
 	}
 	h.stateMu.Lock()
 	h.stateLocked(allocationID).record = desired
@@ -327,7 +254,7 @@ func (h *Controller) CapabilityReconcileState(allocationID string) *apipb.Alloca
 	return proto.Clone(state.record.GetCapabilityReconcile()).(*apipb.AllocationCapabilityReconcileState)
 }
 
-func (h *Controller) AckCapabilityReconcile(allocationID string, processed []*apipb.PendingCapabilityReconcile, terminating bool, lastErr error) error {
+func (h *Controller) AckCapabilityReconcile(allocationID string, processedSequence int64, terminating bool, lastErr error) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" {
 		return errors.New("allocation id is required")
@@ -347,36 +274,21 @@ func (h *Controller) AckCapabilityReconcile(allocationID string, processed []*ap
 		return nil
 	}
 	reconcile = proto.Clone(reconcile).(*apipb.AllocationCapabilityReconcileState)
-	acked := make(map[string]int64, len(processed))
-	for _, pending := range processed {
-		id, err := capabilitycontract.KeyID(pending.GetKey())
-		if err != nil {
-			return err
-		}
-		acked[id] = pending.GetGeneration()
+	if processedSequence >= reconcile.GetPendingObservationSequence() {
+		reconcile.PendingObservationSequence = 0
 	}
-	remaining := reconcile.Pending[:0]
-	for _, pending := range reconcile.GetPending() {
-		id, _ := capabilitycontract.KeyID(pending.GetKey())
-		if generation, ok := acked[id]; ok && pending.GetGeneration() <= generation {
-			continue
-		}
-		remaining = append(remaining, pending)
-	}
-	reconcile.Pending = remaining
 	reconcile.Terminating = terminating
 	reconcile.LastError = ""
 	if lastErr != nil {
 		reconcile.LastError = capabilitycontract.BoundedReason(lastErr.Error())
 	}
-	reconcile.UpdatedAtUnixNano = time.Now().UTC().UnixNano()
-	if len(reconcile.GetPending()) == 0 && !reconcile.GetTerminating() && reconcile.GetLastError() == "" {
+	if reconcile.GetPendingObservationSequence() == 0 && !reconcile.GetTerminating() && reconcile.GetLastError() == "" {
 		desired.CapabilityReconcile = nil
 	} else {
 		desired.CapabilityReconcile = reconcile
 	}
 	if err := h.persistAllocationRecord(desired); err != nil {
-		return fmt.Errorf("ack capability reconcile queue: %w", err)
+		return fmt.Errorf("ack capability reconcile intent: %w", err)
 	}
 	h.stateMu.Lock()
 	h.stateLocked(allocationID).record = desired
@@ -415,7 +327,6 @@ func (h *Controller) BeginCapabilityTermination(allocationID string, cause error
 		combined = errors.Join(errors.New(previous), cause)
 	}
 	reconcile.LastError = capabilitycontract.BoundedReason(combined.Error())
-	reconcile.UpdatedAtUnixNano = time.Now().UTC().UnixNano()
 	desired.CapabilityReconcile = reconcile
 	if err := h.persistAllocationRecord(desired); err != nil {
 		return fmt.Errorf("persist capability termination ownership: %w", err)
@@ -424,76 +335,6 @@ func (h *Controller) BeginCapabilityTermination(allocationID string, cause error
 	h.stateLocked(allocationID).record = desired
 	h.stateMu.Unlock()
 	return nil
-}
-
-func (h *Controller) UpdateCapabilityCondition(allocationID string, condition *capabilityv1.CapabilityCondition, observedAt time.Time) (*capabilityv1.CapabilityConditionSet, error) {
-	if condition == nil {
-		return nil, errors.New("capability condition is required")
-	}
-	id, err := capabilitycontract.KeyID(condition.GetKey())
-	if err != nil {
-		return nil, err
-	}
-	allocationID = strings.TrimSpace(allocationID)
-	if allocationID == "" {
-		return nil, errors.New("allocation id is required")
-	}
-	unlock := h.recordMutationLocks.Lock(allocationID)
-	defer unlock()
-	h.stateMu.RLock()
-	var conditions []*capabilityv1.CapabilityCondition
-	if state := h.allocationStates[allocationID]; state != nil && state.record.GetCapabilityConditions() != nil {
-		conditions = cloneCapabilityConditions(state.record.GetCapabilityConditions().GetConditions())
-	}
-	h.stateMu.RUnlock()
-	replaced := false
-	for index, existing := range conditions {
-		existingID, keyErr := capabilitycontract.KeyID(existing.GetKey())
-		if keyErr == nil && existingID == id {
-			conditions[index] = proto.Clone(condition).(*capabilityv1.CapabilityCondition)
-			replaced = true
-			break
-		}
-	}
-	if !replaced {
-		conditions = append(conditions, proto.Clone(condition).(*capabilityv1.CapabilityCondition))
-	}
-	return h.replaceCapabilityConditionsLocked(allocationID, conditions, observedAt)
-}
-
-func (h *Controller) CapabilityConditions(allocationID string) *capabilityv1.CapabilityConditionSet {
-	h.stateMu.RLock()
-	defer h.stateMu.RUnlock()
-	state := h.allocationStates[strings.TrimSpace(allocationID)]
-	if state == nil || state.record.GetCapabilityConditions() == nil {
-		return nil
-	}
-	return proto.Clone(state.record.GetCapabilityConditions()).(*capabilityv1.CapabilityConditionSet)
-}
-
-func (h *Controller) CapabilityAdmissionConditions(allocationID string) *capabilityv1.CapabilityConditionSet {
-	h.stateMu.RLock()
-	defer h.stateMu.RUnlock()
-	state := h.allocationStates[strings.TrimSpace(allocationID)]
-	if state == nil || state.record.GetCapabilityAdmissionConditions() == nil {
-		return nil
-	}
-	return proto.Clone(state.record.GetCapabilityAdmissionConditions()).(*capabilityv1.CapabilityConditionSet)
-}
-
-func (h *Controller) CapabilityConditionManifests() map[string]CapabilityConditionManifest {
-	h.stateMu.RLock()
-	defer h.stateMu.RUnlock()
-	result := make(map[string]CapabilityConditionManifest)
-	for allocationID, state := range h.allocationStates {
-		if state == nil || state.record.GetCapabilityConditions() == nil {
-			continue
-		}
-		result[allocationID] = CapabilityConditionManifest{
-			Set: proto.Clone(state.record.GetCapabilityConditions()).(*capabilityv1.CapabilityConditionSet),
-		}
-	}
-	return result
 }
 
 // StoreLaunchVerification atomically persists the immutable runtime launch
@@ -518,7 +359,7 @@ func (h *Controller) StoreLaunchVerification(allocationID string, manifest *apip
 	verification, err := newLaunchVerification(
 		manifest,
 		verified,
-		desired.GetCapabilityDependencies(),
+		desired.GetCapabilityRequirements(),
 		observedAt,
 		time.Now().UTC(),
 	)
@@ -542,7 +383,7 @@ func (h *Controller) StoreLaunchVerification(allocationID string, manifest *apip
 	return nil
 }
 
-func newLaunchVerification(manifest *apipb.AllocationEnforcementManifest, verified []*capabilityv1.CapabilityKey, dependencies []*capabilityv1.CapabilityDependency, observedAt, now time.Time) (*apipb.AllocationLaunchVerification, error) {
+func newLaunchVerification(manifest *apipb.AllocationEnforcementManifest, verified []*capabilityv1.CapabilityKey, dependencies []*capabilityv1.CapabilityRequirement, observedAt, now time.Time) (*apipb.AllocationLaunchVerification, error) {
 	if err := runtimecontract.ValidateEnforcementManifest(manifest, ""); err != nil {
 		return nil, err
 	}
@@ -581,7 +422,7 @@ func newLaunchVerification(manifest *apipb.AllocationEnforcementManifest, verifi
 	return &apipb.AllocationLaunchVerification{VerifiedCapabilities: canonical, VerifiedAtUnixNano: observedAt.UTC().UnixNano()}, nil
 }
 
-func launchVerificationRequirements(manifest *apipb.AllocationEnforcementManifest, dependencies []*capabilityv1.CapabilityDependency) ([]*capabilityv1.CapabilityKey, error) {
+func launchVerificationRequirements(manifest *apipb.AllocationEnforcementManifest, dependencies []*capabilityv1.CapabilityRequirement) ([]*capabilityv1.CapabilityKey, error) {
 	required := make([]*capabilityv1.CapabilityKey, 0, len(dependencies))
 	for _, dependency := range dependencies {
 		if dependency == nil || dependency.GetLossPolicy() != capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP {
@@ -651,9 +492,6 @@ func canonicalCapabilityConditions(in []*capabilityv1.CapabilityCondition) ([]*c
 		}
 		seen[id] = struct{}{}
 		condition.Message = capabilitycontract.BoundedReason(strings.TrimSpace(condition.GetMessage()))
-		if condition.GetObservedAt() == nil {
-			return nil, fmt.Errorf("capability condition %q is missing observed_at", id)
-		}
 	}
 	sort.Slice(out, func(i, j int) bool {
 		left, _ := capabilitycontract.KeyID(out[i].GetKey())
@@ -663,7 +501,7 @@ func canonicalCapabilityConditions(in []*capabilityv1.CapabilityCondition) ([]*c
 	return out, nil
 }
 
-func capabilityConditionKeysEqualDependencies(dependencies []*capabilityv1.CapabilityDependency, conditions []*capabilityv1.CapabilityCondition) bool {
+func capabilityConditionKeysEqualDependencies(dependencies []*capabilityv1.CapabilityRequirement, conditions []*capabilityv1.CapabilityCondition) bool {
 	if len(dependencies) != len(conditions) {
 		return false
 	}
@@ -701,11 +539,11 @@ func cloneCapabilityConditions(in []*capabilityv1.CapabilityCondition) []*capabi
 	return out
 }
 
-func cloneCapabilityDependencies(in []*capabilityv1.CapabilityDependency) []*capabilityv1.CapabilityDependency {
-	out := make([]*capabilityv1.CapabilityDependency, 0, len(in))
+func cloneCapabilityRequirements(in []*capabilityv1.CapabilityRequirement) []*capabilityv1.CapabilityRequirement {
+	out := make([]*capabilityv1.CapabilityRequirement, 0, len(in))
 	for _, dependency := range in {
 		if dependency != nil {
-			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityDependency))
+			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityRequirement))
 		}
 	}
 	return out
@@ -922,50 +760,28 @@ func validateRecoveredCapabilityState(record *apipb.AllocationState, now time.Ti
 	if record == nil {
 		return errors.New("allocation recovery record is required")
 	}
-	dependencies := record.GetCapabilityDependencies()
-	if err := capabilitycontract.ValidateDependencySet(dependencies, now); err != nil {
+	dependencies := record.GetCapabilityRequirements()
+	if err := capabilitycontract.ValidateRequirements(dependencies); err != nil {
 		return fmt.Errorf("validate recovered capability dependencies: %w", err)
 	}
-	conditions := record.GetCapabilityConditions()
-	admissionConditions := record.GetCapabilityAdmissionConditions()
-	governed := len(dependencies) > 0 || record.GetAllocationRequestDigest() != "" || conditions != nil || admissionConditions != nil
-	if governed && conditions == nil {
-		return errors.New("active capability-governed allocation is missing its durable capability condition set")
-	}
-	if governed && !validStartRequestDigest(record.GetAllocationRequestDigest()) {
-		return errors.New("active capability-governed allocation is missing its canonical request digest")
-	}
-	if conditions != nil {
-		if err := capabilitycontract.ValidateConditionSet(conditions, now); err != nil {
-			return fmt.Errorf("validate recovered capability conditions: %w", err)
-		}
-		if !capabilityConditionKeysEqualDependencies(dependencies, conditions.GetConditions()) {
-			return errors.New("recovered capability conditions do not exactly match dependencies")
-		}
-	}
-	if governed && admissionConditions == nil {
-		return errors.New("active capability-governed allocation is missing its sealed create condition proof")
-	}
-	if admissionConditions != nil {
-		if err := validateSealedCapabilityAdmission(dependencies, admissionConditions, now); err != nil {
-			return fmt.Errorf("validate sealed create capability admission: %w", err)
-		}
+	if !validStartRequestDigest(record.GetAllocationRequestDigest()) {
+		return errors.New("active allocation is missing its canonical request digest")
 	}
 	manifest := record.GetEnforcementManifest()
 	verification := record.GetLaunchVerification()
 	if manifest == nil || verification == nil {
-		return errors.New("active allocation is missing its atomic launch enforcement proof")
+		return errors.New("active allocation is missing its atomic launch verification")
 	}
 	if verification.GetVerifiedAtUnixNano() <= 0 {
-		return errors.New("recovered launch enforcement proof has no verified time")
+		return errors.New("recovered launch verification has no verified time")
 	}
 	verifiedAt := time.Unix(0, verification.GetVerifiedAtUnixNano()).UTC()
-	expected, err := newLaunchVerification(manifest, verification.GetVerifiedCapabilities(), record.GetCapabilityDependencies(), verifiedAt, now)
+	expected, err := newLaunchVerification(manifest, verification.GetVerifiedCapabilities(), record.GetCapabilityRequirements(), verifiedAt, now)
 	if err != nil {
-		return fmt.Errorf("validate recovered launch enforcement proof: %w", err)
+		return fmt.Errorf("validate recovered launch verification: %w", err)
 	}
 	if !proto.Equal(expected, verification) {
-		return errors.New("recovered launch enforcement proof is not canonical")
+		return errors.New("recovered launch verification is not canonical")
 	}
 	if err := validateCapabilityReconcileState(record.GetCapabilityReconcile(), dependencies, now); err != nil {
 		return fmt.Errorf("validate recovered capability reconcile state: %w", err)
@@ -973,65 +789,15 @@ func validateRecoveredCapabilityState(record *apipb.AllocationState, now time.Ti
 	return nil
 }
 
-func validateSealedCapabilityAdmission(dependencies []*capabilityv1.CapabilityDependency, set *capabilityv1.CapabilityConditionSet, now time.Time) error {
-	if set == nil || set.GetRevision() != 2 {
-		return errors.New("sealed create capability condition proof must be revision 2")
-	}
-	if err := capabilitycontract.ValidateConditionSet(set, now); err != nil {
-		return err
-	}
-	if !capabilityConditionKeysEqualDependencies(dependencies, set.GetConditions()) {
-		return errors.New("sealed create capability conditions do not exactly match dependencies")
-	}
-	byKey := make(map[string]*capabilityv1.CapabilityDependency, len(dependencies))
-	for _, dependency := range dependencies {
-		id, _ := capabilitycontract.KeyID(dependency.GetKey())
-		byKey[id] = dependency
-	}
-	for _, condition := range set.GetConditions() {
-		id, _ := capabilitycontract.KeyID(condition.GetKey())
-		dependency := byKey[id]
-		if condition.GetState() != capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY || condition.GetReasonCode() != capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE {
-			return fmt.Errorf("sealed create capability condition %q is not healthy", id)
-		}
-		if dependency == nil || !proto.Equal(condition.GetProof(), dependency.GetSelectedObservation()) {
-			return fmt.Errorf("sealed create capability condition %q does not bind admitted proof", id)
-		}
-	}
-	return nil
-}
-
-func validateCapabilityReconcileState(state *apipb.AllocationCapabilityReconcileState, dependencies []*capabilityv1.CapabilityDependency, now time.Time) error {
+func validateCapabilityReconcileState(state *apipb.AllocationCapabilityReconcileState, _ []*capabilityv1.CapabilityRequirement, _ time.Time) error {
 	if state == nil {
 		return nil
-	}
-	if state.GetUpdatedAtUnixNano() <= 0 || time.Unix(0, state.GetUpdatedAtUnixNano()).After(now.Add(time.Minute)) {
-		return errors.New("capability reconcile updated time is invalid")
 	}
 	if len(state.GetLastError()) > capabilitycontract.MaxReasonBytes {
 		return errors.New("capability reconcile error exceeds its bounded payload")
 	}
-	allowed := make(map[string]struct{}, len(dependencies))
-	for _, dependency := range dependencies {
-		id, _ := capabilitycontract.KeyID(dependency.GetKey())
-		allowed[id] = struct{}{}
-	}
-	seen := make(map[string]struct{}, len(state.GetPending()))
-	for _, pending := range state.GetPending() {
-		if pending == nil || pending.GetGeneration() <= 0 {
-			return errors.New("pending capability reconcile requires a positive generation")
-		}
-		id, err := capabilitycontract.KeyID(pending.GetKey())
-		if err != nil {
-			return err
-		}
-		if _, ok := allowed[id]; !ok {
-			return fmt.Errorf("pending capability %q is not an allocation dependency", id)
-		}
-		if _, duplicate := seen[id]; duplicate {
-			return fmt.Errorf("duplicate pending capability %q", id)
-		}
-		seen[id] = struct{}{}
+	if state.GetPendingObservationSequence() < 0 {
+		return errors.New("pending capability observation sequence cannot be negative")
 	}
 	return nil
 }

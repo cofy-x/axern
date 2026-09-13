@@ -17,7 +17,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type failingAllocationStateStore struct{ testStateStore }
@@ -73,9 +72,10 @@ func persistedAllocationState(t *testing.T, store stateStore, allocationID strin
 	t.Helper()
 	now := time.Now().UTC()
 	record := &apipb.AllocationState{
-		AllocationID:    allocationID,
-		RuntimeTemplate: testRuntimeTemplate(t, "runtime-"+allocationID),
-		ImageMountUrls:  images,
+		AllocationID:            allocationID,
+		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RuntimeTemplate:         testRuntimeTemplate(t, "runtime-"+allocationID),
+		ImageMountUrls:          images,
 		EnforcementManifest: &apipb.AllocationEnforcementManifest{
 			RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/" + allocationID,
 			CreatedAtUnixNano: now.UnixNano(),
@@ -110,7 +110,7 @@ func TestLoadAllocationStatesRejectsMissingAtomicLaunchProof(t *testing.T) {
 	}
 }
 
-func TestValidateRecoveredAllocationRequiresDurableCapabilityConditionSet(t *testing.T) {
+func TestValidateRecoveredAllocationRebuildsCapabilityConditions(t *testing.T) {
 	now := time.Now().UTC()
 	manifest := &apipb.AllocationEnforcementManifest{
 		RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/condition-recovery",
@@ -122,29 +122,15 @@ func TestValidateRecoveredAllocationRequiresDurableCapabilityConditionSet(t *tes
 	}
 	record := &apipb.AllocationState{
 		AllocationID:            "condition-recovery",
-		AllocationRequestDigest: testAllocationRequestDigest,
+		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		EnforcementManifest:     manifest, LaunchVerification: verification,
 	}
-	if err := validateRecoveredCapabilityState(record, now); err == nil {
-		t.Fatal("validateRecoveredCapabilityState() accepted an allocation without a condition set")
-	}
-	record.CapabilityConditions = &capabilityv1.CapabilityConditionSet{
-		Revision: 1, ObservedAt: timestamppb.New(now),
-	}
-	record.CapabilityAdmissionConditions = &capabilityv1.CapabilityConditionSet{
-		Revision: 2, ObservedAt: timestamppb.New(now),
+	if err := validateRecoveredCapabilityState(record, now); err != nil {
+		t.Fatalf("validateRecoveredCapabilityState() rejected rebuildable conditions: %v", err)
 	}
 	record.AllocationRequestDigest = ""
 	if err := validateRecoveredCapabilityState(record, now); err == nil {
 		t.Fatal("validateRecoveredCapabilityState() accepted an allocation without a request digest")
-	}
-	record.AllocationRequestDigest = testAllocationRequestDigest
-	if err := validateRecoveredCapabilityState(record, now); err != nil {
-		t.Fatalf("validateRecoveredCapabilityState() rejected an atomic empty admission: %v", err)
-	}
-	record.CapabilityAdmissionConditions = nil
-	if err := validateRecoveredCapabilityState(record, now); err == nil {
-		t.Fatal("validateRecoveredCapabilityState() accepted an allocation without sealed create proof")
 	}
 }
 
@@ -155,7 +141,7 @@ func TestNewLaunchVerificationBindsVerifiedEgressCapability(t *testing.T) {
 		CreatedAtUnixNano: now.UnixNano(),
 	}
 	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT)
-	dependencies := []*capabilityv1.CapabilityDependency{{
+	dependencies := []*capabilityv1.CapabilityRequirement{{
 		Key: key, LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP,
 	}}
 	if _, err := newLaunchVerification(manifest, []*capabilityv1.CapabilityKey{key}, dependencies, now, now); err != nil {

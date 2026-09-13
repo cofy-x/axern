@@ -3,9 +3,7 @@
 package nodecapability
 
 import (
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -193,20 +191,6 @@ func PlatformDefinitions() []Definition {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out
-}
-
-// CatalogDigest binds derived evidence to the exact static catalog semantics
-// used to evaluate its bounded direct dependency set.
-func CatalogDigest() string {
-	hash := sha256.New()
-	for _, definition := range PlatformDefinitions() {
-		_, _ = fmt.Fprintf(hash, "%d|%d|%d|%d|%d|%d|%d", definition.Key, definition.Provider, definition.Identity, definition.Freshness.MaxValidity, definition.LossPolicy, definition.Audience, definition.Verifier)
-		for _, dependency := range definition.Dependencies {
-			_, _ = fmt.Fprintf(hash, "|%d", dependency)
-		}
-		_, _ = hash.Write([]byte{'\n'})
-	}
-	return "sha256:" + hex.EncodeToString(hash.Sum(nil))
 }
 
 func PlatformDependencyKeys(key capabilityv1.PlatformCapability) ([]*capabilityv1.CapabilityKey, error) {

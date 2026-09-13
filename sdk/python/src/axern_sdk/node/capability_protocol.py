@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from axern.node.sandbox.v1 import node_pb2
 from axern_sdk.node.models import (
-    CapabilityDependencyStatus,
+    CapabilityProviderDependencyStatus,
     CapabilityProviderStatus,
     CapabilityProviderSummary,
     CapabilityStatus,
@@ -32,8 +32,8 @@ def capability_provider(response: node_pb2.CapabilityProviderStatus) -> Capabili
     )
 
 
-def capability_dependency(response: node_pb2.CapabilityDependencyStatus) -> CapabilityDependencyStatus:
-    return CapabilityDependencyStatus(
+def capability_dependency(response: node_pb2.CapabilityProviderDependencyStatus) -> CapabilityProviderDependencyStatus:
+    return CapabilityProviderDependencyStatus(
         name=response.name,
         available=bool(response.available),
         reason=response.reason,

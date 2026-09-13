@@ -66,7 +66,7 @@ message ResolvedExecutionConfig {
   RegistryCredential registry_credential = 21;
   axern.control.catalog.v1.RuntimeExecutionProfile execution_profile = 22;
   repeated ImageMount image_mounts = 23;
-  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 24;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 24;
 }
 
 message CreateAllocationRequest {
@@ -78,10 +78,6 @@ message CreateAllocationRequest {
 message CreateAllocationResponse {
   string allocation_id = 1;
   axern.control.capability.v1.CapabilityConditionSet capability_verification = 2;
-  // The concrete dependency/evidence set admitted by axnoded after the
-  // runtime-specific post-create verification. This is authoritative; callers
-  // must not reconstruct admitted evidence from conditions.
-  repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 3;
 }
 
 message DeleteAllocationRequest {
@@ -103,6 +99,5 @@ message GetAllocationLifecycleResponse {
   bool exit_code_known = 3;
   string message = 4;
   axern.control.capability.v1.CapabilityConditionSet capability_verification = 5;
-  repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 6;
-  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 7;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 6;
 }

@@ -99,21 +99,17 @@ message AllocationState {
   string allocationID = 1;
   RuntimeTemplate runtime_template = 2;
   repeated string image_mount_urls = 3;
-  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 4;
-  axern.control.capability.v1.CapabilityConditionSet capability_conditions = 5;
-  AllocationEnforcementManifest enforcement_manifest = 6;
-  AllocationCapabilityReconcileState capability_reconcile = 7;
-  AllocationLaunchVerification launch_verification = 8;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 4;
+  AllocationEnforcementManifest enforcement_manifest = 5;
+  AllocationCapabilityReconcileState capability_reconcile = 6;
+  AllocationLaunchVerification launch_verification = 7;
   // Canonical digest of the behaviorally relevant StartRequest. It fences
   // idempotent retries from mutating a running allocation's contract.
-  string allocation_request_digest = 9;
-  // Immutable post-create condition proof returned by idempotent Create
-  // replays. capability_conditions remains the current runtime projection.
-  axern.control.capability.v1.CapabilityConditionSet capability_admission_conditions = 10;
+  string allocation_request_digest = 8;
 }
 
-// ControlPlaneAllocationBinding is the sole node-local proof that controld
-// admitted an Allocation to this node. Runtime state, OCI metadata, cgroup
+// ControlPlaneAllocationBinding is the sole authoritative node-local record
+// that controld admitted an Allocation to this node. Runtime state, OCI metadata, cgroup
 // ownership, and AllocationState existence never substitute for this relation.
 message ControlPlaneAllocationBinding {
   string allocation_id = 1;
@@ -121,7 +117,7 @@ message ControlPlaneAllocationBinding {
   string request_digest = 3;
 }
 
-// AllocationLaunchVerification is the durable create-time proof that the
+// AllocationLaunchVerification is the durable create-time record that the
 // runtime-specific hard-enforcement contract was inspected while the OCI
 // container was created but before the workload process was started. The
 // immutable enforcement_manifest records what was launched; this record
@@ -131,19 +127,13 @@ message AllocationLaunchVerification {
   int64 verified_at_unix_nano = 2;
 }
 
-message PendingCapabilityReconcile {
-  axern.control.capability.v1.CapabilityKey key = 1;
-  int64 generation = 2;
-}
-
-// AllocationCapabilityReconcileState is a durable, allocation-scoped queue.
-// Per-key generations make acknowledgement safe when a newer transition is
-// merged while verification or termination is already running.
+// AllocationCapabilityReconcileState is the durable node-local intent to
+// re-evaluate an Allocation against the latest node observation. The sequence
+// is the CapabilitySnapshot order; there is no second capability generation.
 message AllocationCapabilityReconcileState {
-  repeated PendingCapabilityReconcile pending = 1;
+  int64 pending_observation_sequence = 1;
   bool terminating = 2;
   string last_error = 3;
-  int64 updated_at_unix_nano = 4;
 }
 
 // AllocationEnforcementManifest is the immutable create-time contract used by

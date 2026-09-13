@@ -8,11 +8,15 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
+	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestCapabilitySchemaEnforcesAllocationNodeAndDependencyOwnership(t *testing.T) {
+func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T) {
 	dsn := os.Getenv("AXERN_TEST_POSTGRES_DSN")
 	if dsn == "" {
 		t.Skip("AXERN_TEST_POSTGRES_DSN is not set")
@@ -54,11 +58,10 @@ func TestCapabilitySchemaEnforcesAllocationNodeAndDependencyOwnership(t *testing
 	suffix := uuid.NewString()
 	allocationID := "allocation-capability-schema-" + suffix
 	nodeID := "node-capability-schema-" + suffix
-	otherNodeID := "node-capability-schema-other-" + suffix
 	if _, err := db.Pool().Exec(ctx, `
 		INSERT INTO nodes (node_id, node_target, registered_at, updated_at, last_heartbeat_at, lifecycle_status)
-		VALUES ($1, '127.0.0.1:1', $3, $3, $3, 'active'), ($2, '127.0.0.1:2', $3, $3, $3, 'active')
-	`, nodeID, otherNodeID, now); err != nil {
+		VALUES ($1, '127.0.0.1:1', $2, $2, $2, 'active')
+	`, nodeID, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
@@ -95,37 +98,60 @@ func TestCapabilitySchemaEnforcesAllocationNodeAndDependencyOwnership(t *testing
 	}
 	t.Cleanup(func() {
 		_, _ = db.Pool().Exec(context.Background(), `DELETE FROM runs WHERE run_id = $1`, allocationID)
-		_, _ = db.Pool().Exec(context.Background(), `DELETE FROM nodes WHERE node_id = ANY($1::text[])`, []string{nodeID, otherNodeID})
+		_, _ = db.Pool().Exec(context.Background(), `DELETE FROM nodes WHERE node_id = $1`, nodeID)
 	})
 
-	insertDependency := func(node, key string) error {
+	insertRequirement := func(key string) error {
 		_, execErr := db.Pool().Exec(ctx, `
-			INSERT INTO allocation_capability_dependencies (
-				allocation_id, node_id, capability_key_id, capability_key, loss_policy,
-				placement_dependency, created_at, updated_at
-			) VALUES ($1, $2, $3, '{}'::jsonb, 'CAPABILITY_LOSS_POLICY_DEGRADE', '{}'::jsonb, $4, $4)
-		`, allocationID, node, key, now)
+			INSERT INTO allocation_capability_requirements (
+				allocation_id, capability_key_id, capability_key, loss_policy, created_at
+			) VALUES ($1, $2, '{}'::jsonb, 'CAPABILITY_LOSS_POLICY_DEGRADE', $3)
+		`, allocationID, key, now)
 		return execErr
 	}
-	if err := insertDependency(otherNodeID, "platform/1"); err == nil {
-		t.Fatal("capability dependency accepted a node different from its allocation")
-	}
-	if err := insertDependency(nodeID, "platform/1"); err != nil {
+	if err := insertRequirement("platform/1"); err != nil {
 		t.Fatal(err)
 	}
-	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO allocation_capability_condition_sets (
-			allocation_id, revision, payload_digest, observed_at, updated_at
-		) VALUES ($1, 1, $2, $3, $3)
-	`, allocationID, digest, now); err != nil {
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	conditionAt := now.Add(time.Second)
+	set := &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(conditionAt), Conditions: []*capabilityv1.CapabilityCondition{{
+		Key: key, State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
+		ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
+	}}}
+	replaceConditions := func(set *capabilityv1.CapabilityConditionSet, at time.Time) error {
+		tx, beginErr := db.Pool().BeginTx(ctx, pgx.TxOptions{})
+		if beginErr != nil {
+			return beginErr
+		}
+		defer tx.Rollback(ctx)
+		if replaceErr := ReplaceCapabilityConditions(ctx, tx, allocationID, set, at); replaceErr != nil {
+			return replaceErr
+		}
+		return tx.Commit(ctx)
+	}
+	if err := replaceConditions(set, conditionAt); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO allocation_capability_conditions (
-			allocation_id, capability_key_id, condition_revision, observed_at, condition, updated_at
-		) VALUES ($1, 'platform/2', 1, $2, '{}'::jsonb, $2)
-	`, allocationID, now); err == nil {
-		t.Fatal("capability condition accepted a key outside the allocation dependency set")
+	older := &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(now), Conditions: set.GetConditions()}
+	if err := replaceConditions(older, conditionAt); err != nil {
+		t.Fatalf("older projection was not ignored: %v", err)
+	}
+	conflict := &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(conditionAt), Conditions: []*capabilityv1.CapabilityCondition{{
+		Key: key, State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_DEGRADED,
+		ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED,
+	}}}
+	if err := replaceConditions(conflict, conditionAt); err == nil {
+		t.Fatal("equal-time conflicting condition projection was accepted")
+	}
+	if _, err := db.Pool().Exec(ctx, `UPDATE allocations SET lifecycle_state = $2 WHERE allocation_id = $1`, allocationID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String()); err != nil {
+		t.Fatal(err)
+	}
+	late := &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(conditionAt.Add(time.Second)), Conditions: conflict.GetConditions()}
+	if err := replaceConditions(late, conditionAt.Add(time.Second)); err != nil {
+		t.Fatalf("late terminal projection was not safely ignored: %v", err)
+	}
+	var storedAt time.Time
+	if err := db.Pool().QueryRow(ctx, `SELECT observed_at FROM allocation_capability_conditions WHERE allocation_id = $1`, allocationID).Scan(&storedAt); err != nil || !storedAt.Equal(conditionAt) {
+		t.Fatalf("terminal projection changed stored ordering: observed_at=%s err=%v", storedAt, err)
 	}
 }

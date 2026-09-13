@@ -368,7 +368,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 	if err != nil {
 		return err
 	}
-	verification := h.verifyAllocationCapability(operationCtx, allocationID, &capabilityv1.CapabilityDependency{Key: key, LossPolicy: lossPolicy})
+	verification := h.verifyAllocationCapability(operationCtx, allocationID, &capabilityv1.CapabilityRequirement{Key: key, LossPolicy: lossPolicy})
 	if verification.State != contract.CapabilityVerificationVerified {
 		return fmt.Errorf("verify %s conformance: %s", platform, verificationMessage(verification))
 	}

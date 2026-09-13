@@ -138,8 +138,8 @@ func (c *Controller) StartWithLifecycleHeld(ctx context.Context, request *runtim
 
 // ExistingActiveStartResponseWithLifecycleHeld resolves an idempotent replay
 // while the caller owns LockAllocationLifecycle. The durable capability launch
-// proof is checked by the facade; this method proves the runtime inventory is
-// still active before that proof is replayed.
+// verification is checked by the facade; this method confirms the runtime
+// inventory is still active before that verification is replayed.
 func (c *Controller) ExistingActiveStartResponseWithLifecycleHeld(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, bool, error) {
 	return c.existingActiveStartResponse(ctx, request)
 }

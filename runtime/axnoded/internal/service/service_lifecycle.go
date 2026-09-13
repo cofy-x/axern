@@ -29,9 +29,6 @@ func (h *sandboxService) Run(ctx context.Context) error {
 	}
 	h.inventoryCollector.Start()
 	h.controlPlaneReports.Start()
-	for allocationID, manifest := range h.allocationController().CapabilityConditionManifests() {
-		h.controlPlaneReports.ReportCapabilityConditions(allocationID, manifest.Set)
-	}
 	h.startCapabilityRefresh(ctx)
 	h.startPeriodicCapabilityAudit()
 	h.lrtManager.Start()

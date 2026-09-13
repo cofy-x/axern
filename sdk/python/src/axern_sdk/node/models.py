@@ -167,7 +167,7 @@ class BrowserStatus:
 
 
 @dataclass(frozen=True, slots=True)
-class CapabilityDependencyStatus:
+class CapabilityProviderDependencyStatus:
     """One dependency check reported by a sandbox capability provider."""
 
     name: str
@@ -185,7 +185,7 @@ class CapabilityProviderStatus:
     capabilities: tuple[str, ...] = ()
     backend: str = ""
     reason: str = ""
-    dependencies: tuple[CapabilityDependencyStatus, ...] = ()
+    dependencies: tuple[CapabilityProviderDependencyStatus, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

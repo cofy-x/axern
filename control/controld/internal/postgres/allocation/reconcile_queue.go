@@ -2,6 +2,7 @@ package pgallocation
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -23,10 +24,10 @@ type reconcileExecutor interface {
 }
 
 const capabilityDependenciesProjectionSQL = `COALESCE((
-	SELECT jsonb_build_object('dependencies', COALESCE(jsonb_agg(COALESCE(cd.admitted_dependency, cd.placement_dependency) ORDER BY cd.capability_key_id), '[]'::jsonb))
-	FROM allocation_capability_dependencies cd
+	SELECT COALESCE(jsonb_agg(jsonb_build_object('key', cd.capability_key, 'lossPolicy', cd.loss_policy) ORDER BY cd.capability_key_id), '[]'::jsonb)
+	FROM allocation_capability_requirements cd
 	WHERE cd.allocation_id = a.allocation_id
-), '{"dependencies":[]}'::jsonb)`
+), '[]'::jsonb)`
 
 func DueReconcileItems(ctx context.Context, queryer reconcileQueryer, limit int, now time.Time) ([]allocationkernel.ReconcileItem, error) {
 	if limit <= 0 {
@@ -55,7 +56,7 @@ func DueReconcileItems(ctx context.Context, queryer reconcileQueryer, limit int,
 		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &item.Reason, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt); err != nil {
 			return nil, err
 		}
-		if err := decodeCapabilityDependencies(dependenciesJSON, &item); err != nil {
+		if err := decodeCapabilityRequirements(dependenciesJSON, &item); err != nil {
 			return nil, err
 		}
 		out = append(out, item)
@@ -79,7 +80,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 		WITH ranked AS (
 			SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target,
 				q.reconcile_attempts, q.last_error, q.next_run_at,
-				`+capabilityDependenciesProjectionSQL+` AS capability_dependencies,
+				`+capabilityDependenciesProjectionSQL+` AS capability_requirements,
 				GREATEST(q.next_run_at, q.updated_at, COALESCE(q.lease_expires_at, '-infinity'::timestamptz)) AS eligible_at,
 				ROW_NUMBER() OVER (PARTITION BY a.node_id ORDER BY q.next_run_at ASC, q.allocation_id ASC) AS node_rank
 			FROM allocation_reconcile_queue q
@@ -90,7 +91,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			  AND (q.lease_expires_at IS NULL OR q.lease_expires_at <= $1)
 		), candidates AS (
 			SELECT r.allocation_id, r.run_id, r.environment_id, r.reason, r.node_id, r.node_target,
-				r.reconcile_attempts, r.last_error, r.next_run_at, r.capability_dependencies, r.eligible_at
+				r.reconcile_attempts, r.last_error, r.next_run_at, r.capability_requirements, r.eligible_at
 			FROM ranked r
 			JOIN allocation_reconcile_queue q ON q.allocation_id = r.allocation_id
 			ORDER BY r.node_rank ASC, r.next_run_at ASC, r.allocation_id ASC
@@ -105,7 +106,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			RETURNING q.allocation_id
 		)
 		SELECT c.allocation_id, c.run_id, c.environment_id, c.reason, c.node_id, c.node_target,
-			c.reconcile_attempts, c.last_error, c.next_run_at, c.capability_dependencies, c.eligible_at
+			c.reconcile_attempts, c.last_error, c.next_run_at, c.capability_requirements, c.eligible_at
 		FROM candidates c
 		JOIN claimed USING (allocation_id)
 		ORDER BY c.allocation_id ASC
@@ -121,7 +122,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &item.Reason, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt); err != nil {
 			return nil, err
 		}
-		if err := decodeCapabilityDependencies(dependenciesJSON, &item); err != nil {
+		if err := decodeCapabilityRequirements(dependenciesJSON, &item); err != nil {
 			return nil, err
 		}
 		out = append(out, item)
@@ -129,14 +130,20 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 	return out, rows.Err()
 }
 
-func decodeCapabilityDependencies(payload []byte, item *allocationkernel.ReconcileItem) error {
-	set := &capabilityv1.CapabilityDependencySet{}
-	if len(payload) > 0 {
-		if err := protojson.Unmarshal(payload, set); err != nil {
-			return fmt.Errorf("unmarshal allocation capability dependencies: %w", err)
+func decodeCapabilityRequirements(payload []byte, item *allocationkernel.ReconcileItem) error {
+	var raw []json.RawMessage
+	if len(payload) > 0 && string(payload) != "null" {
+		if err := json.Unmarshal(payload, &raw); err != nil {
+			return fmt.Errorf("unmarshal allocation capability requirements: %w", err)
 		}
 	}
-	item.CapabilityDependencies = set.GetDependencies()
+	for _, entry := range raw {
+		requirement := &capabilityv1.CapabilityRequirement{}
+		if err := protojson.Unmarshal(entry, requirement); err != nil {
+			return fmt.Errorf("unmarshal allocation capability requirement: %w", err)
+		}
+		item.CapabilityRequirements = append(item.CapabilityRequirements, requirement)
+	}
 	return nil
 }
 

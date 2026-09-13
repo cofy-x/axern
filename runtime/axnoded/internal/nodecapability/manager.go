@@ -44,10 +44,10 @@ type ObservationBatch struct {
 }
 
 type recoveryState struct {
-	hadFailure       bool
-	firstSuccess     time.Time
-	lastSuccessProof string
-	successes        int
+	hadFailure            bool
+	firstSuccess          time.Time
+	lastSuccessObservedAt time.Time
+	successes             int
 }
 
 type providerSlot struct {
@@ -58,10 +58,10 @@ type providerSlot struct {
 }
 
 type Transition struct {
-	Generation int64
-	Key        *capabilityv1.CapabilityKey
-	Previous   *capabilityv1.CapabilityObservation
-	Current    *capabilityv1.CapabilityObservation
+	Sequence int64
+	Key      *capabilityv1.CapabilityKey
+	Previous *capabilityv1.CapabilityObservation
+	Current  *capabilityv1.CapabilityObservation
 }
 
 type TransitionHandler func(context.Context, []*Transition)
@@ -492,7 +492,7 @@ func (m *Manager) normalizeBatch(slot *providerSlot, sampledAt, completedAt time
 }
 
 func validateBatch(provider capabilityv1.CapabilityProvider, observations []*capabilityv1.CapabilityObservation, now time.Time) error {
-	snapshot := &capabilityv1.CapabilitySnapshot{NodeInstanceID: "batch", Sequence: 1, SnapshotID: "batch", CollectedAt: timestamppb.New(now), Observations: observations}
+	snapshot := &capabilityv1.CapabilitySnapshot{NodeInstanceID: "batch", Sequence: 1, CollectedAt: timestamppb.New(now), Observations: observations}
 	if err := capabilitycontract.ValidateSnapshot(snapshot, now); err != nil {
 		return fmt.Errorf("malformed %s batch: %w", provider, err)
 	}
@@ -527,7 +527,6 @@ func (m *Manager) publish(ctx context.Context, now time.Time) (*capabilityv1.Cap
 				state := m.recoveryByKey[id]
 				state.hadFailure = true
 				state.firstSuccess = time.Time{}
-				state.lastSuccessProof = ""
 				state.successes = 0
 				m.recoveryByKey[id] = state
 				observation = unknownObservation(observation.GetKey(), observation.GetProvider(), now, "capability observation expired before its provider refreshed")
@@ -584,7 +583,7 @@ func (m *Manager) publish(ctx context.Context, now time.Time) (*capabilityv1.Cap
 		return nil, fmt.Errorf("snapshot publication time moved backwards")
 	}
 	m.sequence++
-	candidate := &capabilityv1.CapabilitySnapshot{NodeInstanceID: m.nodeInstanceID, Sequence: m.sequence, SnapshotID: uuid.NewString(), CollectedAt: timestamppb.New(now), Observations: ordered}
+	candidate := &capabilityv1.CapabilitySnapshot{NodeInstanceID: m.nodeInstanceID, Sequence: m.sequence, CollectedAt: timestamppb.New(now), Observations: ordered}
 	if err := capabilitycontract.ValidateSnapshot(candidate, now); err != nil {
 		m.sequence--
 		m.mu.Unlock()
@@ -698,9 +697,8 @@ func normalizeDerivedBatch(deriver Deriver, items []*capabilityv1.CapabilityObse
 		}
 		observation := normalizeObservation(item, deriver.Provider(), now)
 		if observation.GetState() == capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
-			observation.Dependencies = dependencyProofs(observation.GetKey(), base)
-			observation.ValidUntil = earliestProofExpiry(observation.GetDependencies())
-			observation.Evidence = capabilitycontract.DerivedEvidence(observation.GetDependencies()...)
+			observation.ValidUntil = nil
+			observation.Evidence = nil
 			capabilitycontract.NormalizeObservation(observation)
 		}
 		byKey[id] = observation
@@ -726,93 +724,39 @@ func unknownDerived(expected map[string]*capabilityv1.CapabilityKey, provider ca
 	return out
 }
 
-func dependencyProofs(key *capabilityv1.CapabilityKey, observations map[string]*capabilityv1.CapabilityObservation) []*capabilityv1.CapabilityObservationProof {
-	keys, err := capabilitycontract.PlatformDependencyKeys(key.GetPlatform())
-	if err != nil {
-		return nil
-	}
-	proofs := make([]*capabilityv1.CapabilityObservationProof, 0, len(keys))
-	for _, dependencyKey := range keys {
-		id, _ := capabilitycontract.KeyID(dependencyKey)
-		observation := observations[id]
-		if observation == nil || observation.GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
-			return nil
-		}
-		proofs = append(proofs, capabilitycontract.NewObservationProof(observation))
-	}
-	return proofs
-}
-
-func earliestProofExpiry(proofs []*capabilityv1.CapabilityObservationProof) *timestamppb.Timestamp {
-	var earliest time.Time
-	for _, proof := range proofs {
-		if proof.GetValidUntil() == nil {
-			continue
-		}
-		value := proof.GetValidUntil().AsTime()
-		if earliest.IsZero() || value.Before(earliest) {
-			earliest = value
-		}
-	}
-	if earliest.IsZero() {
-		return nil
-	}
-	return timestamppb.New(earliest)
-}
-
-// AdmitDependencies validates the placement proof structurally, then binds
-// the allocation to the latest valid proof for the exact same requirement set.
-func (m *Manager) AdmitDependencies(dependencies []*capabilityv1.CapabilityDependency, now time.Time) ([]*capabilityv1.CapabilityDependency, []*capabilityv1.CapabilityCondition, error) {
-	if err := capabilitycontract.ValidateDependencySet(dependencies, now); err != nil {
-		return nil, nil, fmt.Errorf("invalid placement capability proof: %w", err)
+// AdmitDependencies verifies immutable requirements against the latest Node
+// observation. The returned requirements are an exact clone, never an
+// admission-time copy of Node evidence.
+func (m *Manager) AdmitDependencies(requirements []*capabilityv1.CapabilityRequirement, now time.Time) ([]*capabilityv1.CapabilityRequirement, []*capabilityv1.CapabilityCondition, error) {
+	if err := capabilitycontract.ValidateRequirements(requirements); err != nil {
+		return nil, nil, fmt.Errorf("invalid capability requirements: %w", err)
 	}
 	snapshot := m.Snapshot()
 	if snapshot == nil || !m.Ready() {
 		return nil, nil, fmt.Errorf("capability manager is warming")
 	}
-	keys := make([]*capabilityv1.CapabilityKey, 0, len(dependencies))
-	selectedByKey := make(map[string]*capabilityv1.CapabilityObservationProof, len(dependencies))
-	for _, dependency := range dependencies {
-		id, _ := capabilitycontract.KeyID(dependency.GetKey())
-		keys = append(keys, capabilitycontract.CloneKey(dependency.GetKey()))
-		selectedByKey[id] = dependency.GetSelectedObservation()
+	keys := make([]*capabilityv1.CapabilityKey, 0, len(requirements))
+	for _, requirement := range requirements {
+		keys = append(keys, capabilitycontract.CloneKey(requirement.GetKey()))
 	}
-	admitted, err := capabilitycontract.ResolveDependencies(snapshot, keys, now)
+	admitted, err := capabilitycontract.ResolveRequirements(snapshot, keys, now)
 	if err != nil {
-		return nil, nil, fmt.Errorf("resolve dependencies from snapshot %q: %w", snapshot.GetSnapshotID(), err)
+		return nil, nil, fmt.Errorf("verify requirements against node observation %s/%d: %w", snapshot.GetNodeInstanceID(), snapshot.GetSequence(), err)
 	}
 	conditions := make([]*capabilityv1.CapabilityCondition, 0, len(admitted))
 	for _, dependency := range admitted {
-		id, _ := capabilitycontract.KeyID(dependency.GetKey())
-		proof := dependency.GetSelectedObservation()
 		conditions = append(conditions, &capabilityv1.CapabilityCondition{
 			Key: capabilitycontract.CloneKey(dependency.GetKey()), State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-			Message:    evidenceReplacementMessage(selectedByKey[id], proof), ObservedAt: timestamppb.New(now.UTC()),
-			Proof: proto.Clone(proof).(*capabilityv1.CapabilityObservationProof),
+			Message:    "capability is available on the bound node",
 		})
 	}
 	return admitted, conditions, nil
 }
 
-func (m *Manager) VerifyDependencies(dependencies []*capabilityv1.CapabilityDependency, now time.Time) ([]*capabilityv1.CapabilityCondition, error) {
+func (m *Manager) VerifyDependencies(dependencies []*capabilityv1.CapabilityRequirement, now time.Time) ([]*capabilityv1.CapabilityCondition, error) {
 	_, conditions, err := m.AdmitDependencies(dependencies, now)
 	return conditions, err
-}
-
-func evidenceReplacementMessage(selected, admitted *capabilityv1.CapabilityObservationProof) string {
-	if selected != nil && admitted != nil && selected.GetObservationID() == admitted.GetObservationID() {
-		return "placement observation remains valid"
-	}
-	selectedID := "<missing>"
-	if selected != nil {
-		selectedID = selected.GetObservationID()
-	}
-	admittedID := "<missing>"
-	if admitted != nil {
-		admittedID = admitted.GetObservationID()
-	}
-	return fmt.Sprintf("placement observation %s replaced by current observation %s", selectedID, admittedID)
 }
 
 func normalizeObservation(in *capabilityv1.CapabilityObservation, provider capabilityv1.CapabilityProvider, completedAt time.Time) *capabilityv1.CapabilityObservation {
@@ -860,7 +804,6 @@ func applyRecoveryPolicy(state *recoveryState, observation *capabilityv1.Capabil
 	if observation.GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
 		state.hadFailure = true
 		state.firstSuccess = time.Time{}
-		state.lastSuccessProof = ""
 		state.successes = 0
 		return
 	}
@@ -871,13 +814,12 @@ func applyRecoveryPolicy(state *recoveryState, observation *capabilityv1.Capabil
 		*state = recoveryState{}
 		return
 	}
-	proof := recoverySampleProof(observation)
 	if state.successes == 0 {
 		state.firstSuccess = completedAt
-		state.lastSuccessProof = proof
+		state.lastSuccessObservedAt = observation.GetObservedAt().AsTime()
 		state.successes = 1
-	} else if completedAt.Sub(state.firstSuccess) >= recoveryConfirmationDelay && proof != "" && proof != state.lastSuccessProof {
-		state.lastSuccessProof = proof
+	} else if observedAt := observation.GetObservedAt().AsTime(); observedAt.After(state.lastSuccessObservedAt) && completedAt.Sub(state.firstSuccess) >= recoveryConfirmationDelay {
+		state.lastSuccessObservedAt = observedAt
 		state.successes++
 	}
 	if state.successes < required {
@@ -887,13 +829,6 @@ func applyRecoveryPolicy(state *recoveryState, observation *capabilityv1.Capabil
 		return
 	}
 	*state = recoveryState{}
-}
-
-func recoverySampleProof(observation *capabilityv1.CapabilityObservation) string {
-	if observation == nil {
-		return ""
-	}
-	return observation.GetObservationID()
 }
 
 func snapshotTransitions(previous, current *capabilityv1.CapabilitySnapshot) []*Transition {
@@ -920,7 +855,7 @@ func snapshotTransitions(previous, current *capabilityv1.CapabilitySnapshot) []*
 		if !changed {
 			continue
 		}
-		transitions = append(transitions, &Transition{Generation: current.GetSequence(), Key: capabilitycontract.CloneKey(observation.GetKey()), Previous: cloneObservation(old[id]), Current: cloneObservation(observation)})
+		transitions = append(transitions, &Transition{Sequence: current.GetSequence(), Key: capabilitycontract.CloneKey(observation.GetKey()), Previous: cloneObservation(old[id]), Current: cloneObservation(observation)})
 	}
 	return transitions
 }

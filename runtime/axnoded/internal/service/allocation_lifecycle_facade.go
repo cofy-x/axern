@@ -64,16 +64,11 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		if !active {
 			return nil, errord.ToGRPC(fmt.Errorf("durably verified allocation has no active runtime: %w", errord.ErrFailedPrecondition))
 		}
-		resp.AdmittedCapabilityDependencies = controller.CapabilityDependencies(request.GetContainerID())
-		resp.CapabilityVerification = controller.CapabilityAdmissionConditions(request.GetContainerID())
-		if resp.CapabilityVerification == nil {
-			return nil, errord.ToGRPC(fmt.Errorf("durably verified allocation is missing its sealed create proof: %w", errord.ErrFailedPrecondition))
-		}
 		metrics.RecordCapabilityAllocationVerification(request.GetRuntimeTemplate().GetSandbox(), "replayed")
 		return resp, nil
 	}
 	// A live replay is defined by the immutable request digest and
-	// sealed create proof above. Current node policy may legitimately differ
+	// durable launch verification above. Current node policy may legitimately differ
 	// after a config or runtime identity change; applying it retroactively would
 	// break idempotency. New creates still derive and verify the complete current
 	// requirement contract before any allocation side effect.
@@ -83,15 +78,15 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		return nil, fmt.Errorf("derive allocation capability requirements: %w", err)
 	}
 	preCreateObservedAt := time.Now().UTC()
-	admitted, verification, err := h.admitCapabilityDependencies(request.GetCapabilityDependencies(), preCreateObservedAt)
+	admitted, verification, err := h.admitCapabilityRequirements(request.GetCapabilityRequirements(), preCreateObservedAt)
 	if err != nil {
 		metrics.RecordCapabilityAllocationVerification(request.GetRuntimeTemplate().GetSandbox(), "pre_create_failed")
 		op.SetErrorStatus("allocation capability gate failed")
 		return nil, fmt.Errorf("verify allocation capabilities before create: %w", err)
 	}
-	_, err = controller.ReplaceCapabilityAdmission(request.GetContainerID(), requestDigest, admitted, verification, preCreateObservedAt)
+	err = controller.StoreCapabilityRequirements(request.GetContainerID(), requestDigest, admitted)
 	if err != nil {
-		op.SetErrorStatus("persist allocation capability admission failed")
+		op.SetErrorStatus("persist allocation capability requirements failed")
 		return nil, err
 	}
 	resp, err := controller.StartWithLifecycleHeld(ctx, request)
@@ -106,7 +101,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		op.SetErrorStatus("allocation start failed")
 		return resp, errord.ToGRPC(err)
 	}
-	admitted, verification, err = h.verifyPostCreateCapabilityDependencies(ctx, request.GetContainerID(), request.GetCapabilityDependencies(), time.Now())
+	admitted, verification, err = h.verifyPostCreateCapabilityRequirements(ctx, request.GetContainerID(), request.GetCapabilityRequirements(), time.Now())
 	if err != nil {
 		metrics.RecordCapabilityAllocationVerification(request.GetRuntimeTemplate().GetSandbox(), "post_create_failed")
 		err = h.scheduleCapabilityTermination(request.GetContainerID(), fmt.Errorf("verify allocation capabilities after create: %w", err))
@@ -114,12 +109,11 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		return nil, err
 	}
 	var conditionSet *capabilityv1.CapabilityConditionSet
-	conditionSet, err = h.allocationController().ReplaceCapabilityAdmission(request.GetContainerID(), requestDigest, admitted, verification, time.Now().UTC())
+	conditionSet, err = h.allocationController().ReplaceCapabilityConditions(request.GetContainerID(), verification, time.Now().UTC())
 	if err != nil {
-		return nil, h.scheduleCapabilityTermination(request.GetContainerID(), fmt.Errorf("persist post-create capability admission: %w", err))
+		return nil, h.scheduleCapabilityTermination(request.GetContainerID(), fmt.Errorf("build post-create capability conditions: %w", err))
 	}
 	resp.CapabilityVerification = conditionSet
-	resp.AdmittedCapabilityDependencies = admitted
 	h.controlPlaneReports.ReportCapabilityConditions(request.GetContainerID(), conditionSet)
 	metrics.RecordCapabilityAllocationVerification(request.GetRuntimeTemplate().GetSandbox(), "verified")
 	return resp, nil
@@ -128,7 +122,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 // StartNodeLocalSandbox is the in-process operator path used by node-owned
 // diagnostics. It accepts only a materialized local rootfs, derives the exact
 // workload requirements from node configuration and actual backing facts, and
-// binds them to the manager's current observation proofs before entering the
+// checks them against the manager's current observations before entering the
 // ordinary Start gates. There is deliberately no protobuf/RPC switch for this
 // path.
 func (h *sandboxService) StartNodeLocalSandbox(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
@@ -143,7 +137,7 @@ func (h *sandboxService) prepareNodeLocalStartRequest(request *runtime.StartRequ
 	if request == nil || request.GetRuntimeTemplate() == nil || request.GetRuntimeTemplate().GetRootfs() == nil {
 		return nil, fmt.Errorf("runtime template and rootfs are required")
 	}
-	if len(request.GetCapabilityDependencies()) != 0 {
+	if len(request.GetCapabilityRequirements()) != 0 {
 		return nil, fmt.Errorf("node-local sandbox cannot supply capability dependencies")
 	}
 	rootfs := request.GetRuntimeTemplate().GetRootfs()
@@ -162,12 +156,12 @@ func (h *sandboxService) prepareNodeLocalStartRequest(request *runtime.StartRequ
 		return nil, fmt.Errorf("derive node-local capability requirements: %w", err)
 	}
 	snapshot := h.capabilityManager.Snapshot()
-	dependencies, err := capabilitycontract.ResolveDependencies(snapshot, keys, now)
+	dependencies, err := capabilitycontract.ResolveRequirements(snapshot, keys, now)
 	if err != nil {
 		return nil, fmt.Errorf("resolve node-local capability requirements: %w", err)
 	}
 	prepared := proto.Clone(request).(*runtime.StartRequest)
-	prepared.CapabilityDependencies = dependencies
+	prepared.CapabilityRequirements = dependencies
 	return prepared, nil
 }
 
@@ -191,25 +185,25 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 			return fmt.Errorf("persist allocation cgroup memory identity: %w", err)
 		}
 	}
-	durableDependencies := h.allocationController().CapabilityDependencies(containerID)
-	dependencies := request.GetCapabilityDependencies()
+	durableDependencies := h.allocationController().CapabilityRequirements(containerID)
+	dependencies := request.GetCapabilityRequirements()
 	if allocation.IsInternalConformance(ctx) {
 		keys, deriveErr := capabilitycontract.DeriveRequirements(h.requirementInput(request, false))
 		if deriveErr != nil {
 			return fmt.Errorf("derive internal conformance requirements: %w", deriveErr)
 		}
-		dependencies = make([]*capabilityv1.CapabilityDependency, 0, len(keys))
+		dependencies = make([]*capabilityv1.CapabilityRequirement, 0, len(keys))
 		for _, key := range keys {
 			definition, ok := capabilitycontract.PlatformDefinition(key.GetPlatform())
 			if key.GetExtension() != nil || !ok || definition.LossPolicy != capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP {
 				continue
 			}
-			dependencies = append(dependencies, &capabilityv1.CapabilityDependency{Key: capabilitycontract.CloneKey(key), LossPolicy: definition.LossPolicy})
+			dependencies = append(dependencies, &capabilityv1.CapabilityRequirement{Key: capabilitycontract.CloneKey(key), LossPolicy: definition.LossPolicy})
 		}
 	} else {
-		currentDependencies, _, admitErr := h.admitCapabilityDependencies(dependencies, time.Now().UTC())
+		currentDependencies, _, admitErr := h.admitCapabilityRequirements(dependencies, time.Now().UTC())
 		if admitErr != nil {
-			return fmt.Errorf("revalidate current pre-activation capability proof: %w", admitErr)
+			return fmt.Errorf("revalidate current pre-activation capability observation: %w", admitErr)
 		}
 		durableKeys, durableErr := dependencyKeys(durableDependencies, false)
 		if durableErr != nil {
@@ -222,7 +216,7 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 		if !capabilitycontract.RequirementKeysEqual(durableKeys, currentKeys) {
 			return fmt.Errorf("rootfs-gated capability requirements differ from durable pre-create admission")
 		}
-		request.CapabilityDependencies = currentDependencies
+		request.CapabilityRequirements = currentDependencies
 		dependencies = currentDependencies
 	}
 
@@ -281,7 +275,7 @@ func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs b
 	}
 }
 
-func dependencyKeys(dependencies []*capabilityv1.CapabilityDependency, excludeEROFS bool) ([]*capabilityv1.CapabilityKey, error) {
+func dependencyKeys(dependencies []*capabilityv1.CapabilityRequirement, excludeEROFS bool) ([]*capabilityv1.CapabilityKey, error) {
 	keys := make([]*capabilityv1.CapabilityKey, 0, len(dependencies))
 	for _, dependency := range dependencies {
 		if dependency == nil {
@@ -309,7 +303,7 @@ func (h *sandboxService) verifyRequestCapabilityRequirements(request *runtime.St
 	if err != nil {
 		return err
 	}
-	supplied, err := dependencyKeys(request.GetCapabilityDependencies(), true)
+	supplied, err := dependencyKeys(request.GetCapabilityRequirements(), true)
 	if err != nil {
 		return fmt.Errorf("validate supplied dependencies: %w", err)
 	}
@@ -334,7 +328,7 @@ func (h *sandboxService) verifyRootfsCapabilityRequirements(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	supplied, err := dependencyKeys(request.GetCapabilityDependencies(), false)
+	supplied, err := dependencyKeys(request.GetCapabilityRequirements(), false)
 	if err != nil {
 		return fmt.Errorf("validate supplied dependencies: %w", err)
 	}
@@ -346,16 +340,16 @@ func (h *sandboxService) verifyRootfsCapabilityRequirements(ctx context.Context,
 	// bundle, filestore, cgroup, or runtime state is created. The request digest
 	// intentionally excludes observation identity, so replacing placement
 	// evidence here does not change the allocation's immutable workload contract.
-	admitted, _, err := h.admitCapabilityDependencies(request.GetCapabilityDependencies(), time.Now().UTC())
+	admitted, _, err := h.admitCapabilityRequirements(request.GetCapabilityRequirements(), time.Now().UTC())
 	if err != nil {
 		return fmt.Errorf("revalidate capabilities after rootfs materialization: %w", err)
 	}
-	request.CapabilityDependencies = admitted
+	request.CapabilityRequirements = admitted
 	return nil
 }
 
-func (h *sandboxService) verifyPostCreateCapabilityDependencies(ctx context.Context, containerID string, dependencies []*capabilityv1.CapabilityDependency, now time.Time) ([]*capabilityv1.CapabilityDependency, []*capabilityv1.CapabilityCondition, error) {
-	admitted, conditions, err := h.admitCapabilityDependencies(dependencies, now)
+func (h *sandboxService) verifyPostCreateCapabilityRequirements(ctx context.Context, containerID string, dependencies []*capabilityv1.CapabilityRequirement, now time.Time) ([]*capabilityv1.CapabilityRequirement, []*capabilityv1.CapabilityCondition, error) {
+	admitted, conditions, err := h.admitCapabilityRequirements(dependencies, now)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -398,12 +392,12 @@ func (h *sandboxService) verifyPostCreateCapabilityDependencies(ctx context.Cont
 		}
 	}
 	if len(verifiedAtLaunch) != 0 {
-		return nil, nil, fmt.Errorf("launch verification contains capabilities outside the admitted dependency set")
+		return nil, nil, fmt.Errorf("launch verification contains capabilities outside the immutable requirement set")
 	}
 	return admitted, conditions, nil
 }
 
-func (h *sandboxService) admitCapabilityDependencies(dependencies []*capabilityv1.CapabilityDependency, now time.Time) ([]*capabilityv1.CapabilityDependency, []*capabilityv1.CapabilityCondition, error) {
+func (h *sandboxService) admitCapabilityRequirements(dependencies []*capabilityv1.CapabilityRequirement, now time.Time) ([]*capabilityv1.CapabilityRequirement, []*capabilityv1.CapabilityCondition, error) {
 	if len(dependencies) == 0 {
 		return nil, nil, nil
 	}

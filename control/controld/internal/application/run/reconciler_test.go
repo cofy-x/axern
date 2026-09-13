@@ -232,7 +232,7 @@ func (f *fakeReconcileStore) CompleteAllocationStart(_ context.Context, allocati
 	return nil
 }
 
-func (f *fakeReconcileStore) RecordAllocationCapabilityAdmission(context.Context, string, *allocationkernel.CapabilityAdmission, time.Time) error {
+func (f *fakeReconcileStore) RecordAllocationCapabilityConditions(context.Context, string, *capabilityv1.CapabilityConditionSet, time.Time) error {
 	return nil
 }
 
@@ -281,10 +281,10 @@ type fakeReconcileLifecycle struct {
 	createHasDeadline bool
 }
 
-func (f *fakeReconcileLifecycle) CreateAllocation(ctx context.Context, _ string, _ *runv1.Run, _ *environmentv1.Environment, _ string, _ []*capabilityv1.CapabilityDependency) (*allocationkernel.CapabilityAdmission, error) {
+func (f *fakeReconcileLifecycle) CreateAllocation(ctx context.Context, _ string, _ *runv1.Run, _ *environmentv1.Environment, _ string, _ []*capabilityv1.CapabilityRequirement) (*capabilityv1.CapabilityConditionSet, error) {
 	f.created++
 	f.createDeadline, f.createHasDeadline = ctx.Deadline()
-	return &allocationkernel.CapabilityAdmission{}, f.createErr
+	return &capabilityv1.CapabilityConditionSet{}, f.createErr
 }
 
 func (f *fakeReconcileLifecycle) DeleteAllocation(context.Context, string, string, string) error {

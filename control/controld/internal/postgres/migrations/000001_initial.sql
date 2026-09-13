@@ -165,147 +165,21 @@ CREATE TABLE allocations (
 	UNIQUE (allocation_id, node_id)
 );
 
-CREATE TABLE node_capability_transitions (
-	transition_id TEXT PRIMARY KEY,
-	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
-	snapshot_id TEXT NOT NULL,
-	snapshot_sequence BIGINT NOT NULL,
-	capability_key JSONB NOT NULL,
-	capability_key_id TEXT NOT NULL,
-	old_state TEXT NOT NULL,
-	new_state TEXT NOT NULL,
-	old_evidence JSONB NOT NULL DEFAULT 'null'::jsonb,
-	new_evidence JSONB NOT NULL DEFAULT 'null'::jsonb,
-	old_reason_code TEXT NOT NULL,
-	new_reason_code TEXT NOT NULL,
-	reason TEXT NOT NULL DEFAULT '',
-	observed_at TIMESTAMPTZ NOT NULL,
-	reported_at TIMESTAMPTZ NOT NULL,
-	UNIQUE (node_id, snapshot_id, capability_key_id)
-);
-
-CREATE TABLE allocation_capability_dependencies (
-	allocation_id TEXT NOT NULL,
-	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+CREATE TABLE allocation_capability_requirements (
+	allocation_id TEXT NOT NULL REFERENCES allocations(allocation_id) ON DELETE CASCADE,
 	capability_key_id TEXT NOT NULL,
 	capability_key JSONB NOT NULL,
 	loss_policy TEXT NOT NULL,
-	placement_dependency JSONB NOT NULL,
-	admitted_dependency JSONB,
 	created_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL,
-	PRIMARY KEY (allocation_id, capability_key_id),
-	FOREIGN KEY (allocation_id, node_id)
-			REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE
-);
-
-CREATE TABLE allocation_capability_admissions (
-	allocation_id TEXT PRIMARY KEY,
-	dependency_set_digest TEXT NOT NULL,
-	admitted_at TIMESTAMPTZ NOT NULL,
-	FOREIGN KEY (allocation_id)
-		REFERENCES allocations(allocation_id) ON DELETE CASCADE,
-	CHECK (dependency_set_digest ~ '^sha256:[0-9a-f]{64}$')
-);
-
-CREATE TABLE allocation_capability_condition_sets (
-	allocation_id TEXT PRIMARY KEY,
-	revision BIGINT NOT NULL,
-	payload_digest TEXT NOT NULL,
-	observed_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL,
-	UNIQUE (allocation_id, revision),
-	FOREIGN KEY (allocation_id)
-		REFERENCES allocations(allocation_id) ON DELETE CASCADE,
-	CHECK (revision > 0),
-	CHECK (payload_digest ~ '^sha256:[0-9a-f]{64}$')
+	PRIMARY KEY (allocation_id, capability_key_id)
 );
 
 CREATE TABLE allocation_capability_conditions (
-	allocation_id TEXT NOT NULL,
-	capability_key_id TEXT NOT NULL,
-	condition_revision BIGINT NOT NULL,
+	allocation_id TEXT PRIMARY KEY REFERENCES allocations(allocation_id) ON DELETE CASCADE,
 	observed_at TIMESTAMPTZ NOT NULL,
-	condition JSONB NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL,
-	PRIMARY KEY (allocation_id, capability_key_id),
-	FOREIGN KEY (allocation_id, capability_key_id)
-		REFERENCES allocation_capability_dependencies(allocation_id, capability_key_id) ON DELETE CASCADE,
-	FOREIGN KEY (allocation_id, condition_revision)
-		REFERENCES allocation_capability_condition_sets(allocation_id, revision) ON DELETE CASCADE,
-	CHECK (condition_revision > 0)
+	conditions JSONB NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL
 );
-
-CREATE TABLE allocation_memory_admission_evidence (
-	allocation_id TEXT PRIMARY KEY,
-	node_id TEXT NOT NULL,
-	sandbox_memory_request_bytes BIGINT NOT NULL,
-	sandbox_memory_limit_bytes BIGINT NOT NULL,
-	node_memory_budget JSONB NOT NULL,
-	summary_collected_at TIMESTAMPTZ NOT NULL,
-	node_local_commitment_bytes BIGINT NOT NULL,
-	admitted_at TIMESTAMPTZ NOT NULL,
-	FOREIGN KEY (allocation_id)
-		REFERENCES allocations(allocation_id) ON DELETE CASCADE,
-	FOREIGN KEY (allocation_id, node_id)
-		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE,
-	CHECK (sandbox_memory_request_bytes >= 0),
-	CHECK (sandbox_memory_limit_bytes >= 0),
-	CHECK (sandbox_memory_limit_bytes = 0 OR sandbox_memory_request_bytes <= sandbox_memory_limit_bytes),
-	CHECK (node_local_commitment_bytes >= 0),
-	-- Node summaries are sampled on the node while admission is committed on the
-	-- control plane. Match the publication contract's bounded clock-skew window
-	-- instead of rejecting valid evidence from a node whose clock is slightly ahead.
-	CHECK (summary_collected_at <= admitted_at + INTERVAL '1 minute'),
-	CHECK (jsonb_typeof(node_memory_budget) = 'object'),
-	CHECK (
-		COALESCE((node_memory_budget->>'physical_capacity_bytes')::BIGINT, -1) > 0
-			AND COALESCE((node_memory_budget->>'source_allocatable_bytes')::BIGINT, -1) > 0
-			AND (node_memory_budget->>'source_allocatable_bytes')::BIGINT <=
-				(node_memory_budget->>'physical_capacity_bytes')::BIGINT
-			AND COALESCE(node_memory_budget->>'mode', '') IN (
-				'NODE_MEMORY_BUDGET_MODE_CGROUP_V2',
-				'NODE_MEMORY_BUDGET_MODE_DISABLED_DEV'
-			)
-			AND (
-				(node_memory_budget->>'mode' = 'NODE_MEMORY_BUDGET_MODE_CGROUP_V2'
-				 AND COALESCE((node_memory_budget->>'system_reserve_bytes')::BIGINT, -1) > 0)
-				OR
-				(node_memory_budget->>'mode' = 'NODE_MEMORY_BUDGET_MODE_DISABLED_DEV'
-				 AND COALESCE((node_memory_budget->>'system_reserve_bytes')::BIGINT, 0) = 0
-				 AND COALESCE((node_memory_budget->>'internal_current_bytes')::BIGINT, 0) = 0
-				 AND NOT COALESCE((node_memory_budget->>'delegated_root_limit_finite')::BOOLEAN, FALSE)
-				 AND COALESCE((node_memory_budget->>'delegated_root_limit_bytes')::BIGINT, 0) = 0)
-			)
-			AND COALESCE((node_memory_budget->>'effective_allocatable_bytes')::BIGINT, -1) > 0
-			AND COALESCE((node_memory_budget->>'local_commitment_bytes')::BIGINT, 0) = node_local_commitment_bytes
-			AND COALESCE((node_memory_budget->>'cleanup_debt_bytes')::BIGINT, 0) >= 0
-			AND COALESCE((node_memory_budget->>'cleanup_debt_bytes')::BIGINT, 0) <=
-				COALESCE((node_memory_budget->>'local_commitment_bytes')::BIGINT, 0)
-			AND COALESCE((node_memory_budget->>'internal_current_bytes')::BIGINT, 0) >= 0
-			AND COALESCE(node_memory_budget->>'capacity_identity', '') <> ''
-			AND COALESCE(node_memory_budget->>'sampled_at', '') <> ''
-			AND (node_memory_budget->>'sampled_at')::TIMESTAMPTZ <= summary_collected_at
-			AND COALESCE((node_memory_budget->>'system_reserve_exhausted')::BOOLEAN, FALSE) = FALSE
-			AND (
-				(COALESCE((node_memory_budget->>'delegated_root_limit_finite')::BOOLEAN, FALSE)
-				 AND COALESCE((node_memory_budget->>'delegated_root_limit_bytes')::BIGINT, -1) > 0)
-				OR
-				(NOT COALESCE((node_memory_budget->>'delegated_root_limit_finite')::BOOLEAN, FALSE)
-				 AND COALESCE((node_memory_budget->>'delegated_root_limit_bytes')::BIGINT, 0) = 0)
-			)
-			AND COALESCE((node_memory_budget->>'effective_allocatable_bytes')::BIGINT, -1) =
-				CASE
-					WHEN COALESCE((node_memory_budget->>'delegated_root_limit_finite')::BOOLEAN, FALSE)
-					THEN LEAST(
-						(node_memory_budget->>'source_allocatable_bytes')::BIGINT,
-						(node_memory_budget->>'delegated_root_limit_bytes')::BIGINT
-					) - COALESCE((node_memory_budget->>'system_reserve_bytes')::BIGINT, 0)
-					ELSE (node_memory_budget->>'source_allocatable_bytes')::BIGINT -
-						COALESCE((node_memory_budget->>'system_reserve_bytes')::BIGINT, 0)
-				END
-		)
-	);
 
 CREATE TABLE allocation_memory_observations (
 	allocation_id TEXT PRIMARY KEY,
@@ -390,35 +264,11 @@ CREATE TABLE allocation_memory_observations (
 CREATE TABLE node_capability_instances (
 	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
 	node_instance_id TEXT NOT NULL,
-	first_snapshot_id TEXT NOT NULL,
-	last_snapshot_id TEXT NOT NULL,
 	last_sequence BIGINT NOT NULL,
 	first_seen_at TIMESTAMPTZ NOT NULL,
 	last_seen_at TIMESTAMPTZ NOT NULL,
 	PRIMARY KEY (node_id, node_instance_id),
 	CHECK (last_sequence > 0)
-);
-
-CREATE TABLE allocation_capability_reconcile_queue (
-	allocation_id TEXT PRIMARY KEY REFERENCES allocations(allocation_id) ON DELETE CASCADE,
-	reconcile_attempts INTEGER NOT NULL DEFAULT 0,
-	next_run_at TIMESTAMPTZ NOT NULL,
-	lease_owner TEXT NOT NULL DEFAULT '',
-	lease_expires_at TIMESTAMPTZ,
-	last_error TEXT NOT NULL DEFAULT '',
-	created_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL
-);
-
-CREATE TABLE allocation_capability_reconcile_pending_keys (
-	allocation_id TEXT NOT NULL REFERENCES allocation_capability_reconcile_queue(allocation_id) ON DELETE CASCADE,
-	capability_key_id TEXT NOT NULL,
-	snapshot_sequence BIGINT NOT NULL,
-	created_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL,
-	PRIMARY KEY (allocation_id, capability_key_id),
-	FOREIGN KEY (allocation_id, capability_key_id)
-		REFERENCES allocation_capability_dependencies(allocation_id, capability_key_id) ON DELETE CASCADE
 );
 
 CREATE TABLE reservations (
@@ -577,16 +427,8 @@ CREATE INDEX idx_runs_namespace_created ON runs(namespace, created_at DESC);
 CREATE INDEX idx_runs_namespace_id ON runs(namespace, run_id);
 CREATE INDEX idx_allocations_node_lifecycle ON allocations(node_id, lifecycle_state);
 CREATE INDEX idx_allocations_run_lifecycle_updated ON allocations(run_id, lifecycle_state, updated_at);
-CREATE INDEX idx_node_capability_transitions_node_reported
-	ON node_capability_transitions(node_id, reported_at DESC, transition_id DESC);
-CREATE INDEX idx_allocation_capability_dependencies_node_key
-	ON allocation_capability_dependencies(node_id, capability_key_id, allocation_id);
-CREATE INDEX idx_allocation_capability_conditions_allocation_revision
-	ON allocation_capability_conditions(allocation_id, condition_revision);
 CREATE INDEX idx_allocation_memory_observations_node_updated
 	ON allocation_memory_observations(node_id, updated_at DESC);
-CREATE INDEX idx_allocation_capability_reconcile_claimable
-	ON allocation_capability_reconcile_queue(next_run_at, lease_expires_at, allocation_id);
 CREATE INDEX idx_admin_audit_events_created ON admin_audit_events(created_at DESC, event_id DESC);
 CREATE INDEX idx_admin_audit_events_operation_created ON admin_audit_events(operation, created_at DESC, event_id DESC);
 CREATE INDEX idx_admin_audit_events_target_created ON admin_audit_events(target_type, target_id, created_at DESC, event_id DESC);

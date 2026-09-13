@@ -49,7 +49,7 @@ func (h *Controller) prepareEgressPolicy(ctx context.Context, request *runtime.S
 }
 
 func (h *Controller) allocationHasEgressPolicy(allocationID string) bool {
-	for _, dependency := range h.CapabilityDependencies(allocationID) {
+	for _, dependency := range h.CapabilityRequirements(allocationID) {
 		switch dependency.GetKey().GetPlatform() {
 		case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT,
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT:

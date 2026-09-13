@@ -29,7 +29,7 @@ type CandidateSelector interface {
 }
 
 type AllocationLifecycle interface {
-	CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, dependencies []*capabilityv1.CapabilityDependency) (*allocationkernel.CapabilityAdmission, error)
+	CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, requirements []*capabilityv1.CapabilityRequirement) (*capabilityv1.CapabilityConditionSet, error)
 	DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string) error
 }
 

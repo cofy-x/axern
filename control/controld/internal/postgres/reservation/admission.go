@@ -11,6 +11,7 @@ import (
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	pgnamespace "github.com/cofy-x/axern/control/controld/internal/postgres/namespace"
 	"github.com/cofy-x/axern/lib/go/nodecapability"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"github.com/jackc/pgx/v5"
@@ -143,8 +144,8 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 				}
 			}
 			if len(freshRequest.GetCapabilityRequirements()) > 0 &&
-				candidate.Record.Summary.GetCapabilitySnapshot().GetSnapshotID() != record.Summary.GetCapabilitySnapshot().GetSnapshotID() {
-				recordCapabilityAdmissionEvidence(ctx, "invalidated")
+				!sameCapabilityObservationOrder(candidate.Record.Summary.GetCapabilitySnapshot(), record.Summary.GetCapabilitySnapshot()) {
+				recordCapabilityAdmission(ctx, "invalidated")
 			}
 			continue
 		}
@@ -164,16 +165,16 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 	}
 	if selected != nil {
 		if len(selected.Request.GetCapabilityRequirements()) > 0 {
-			evidenceResult := "unchanged"
-			if selected.Record.Summary.GetCapabilitySnapshot().GetSnapshotID() != candidateSnapshotID(req.Candidates, selected.NodeID) {
-				evidenceResult = "refreshed"
+			observationResult := "unchanged"
+			if !sameCapabilityObservationOrder(selected.Record.Summary.GetCapabilitySnapshot(), candidateSnapshot(req.Candidates, selected.NodeID)) {
+				observationResult = "refreshed"
 			}
-			recordCapabilityAdmissionEvidence(ctx, evidenceResult)
+			recordCapabilityAdmission(ctx, observationResult)
 		}
-		dependencies, err := nodecapability.ResolveDependencies(selected.Record.Summary.GetCapabilitySnapshot(), selected.Request.GetCapabilityRequirements(), lockedEvaluationTime)
+		requirements, err := nodecapability.ResolveRequirements(selected.Record.Summary.GetCapabilitySnapshot(), selected.Request.GetCapabilityRequirements(), lockedEvaluationTime)
 		if err != nil {
 			recordResourceAdmissionStage(ctx, resourceAdmissionStageSelectCandidate, stageStarted, err)
-			return nil, fmt.Errorf("resolve admitted capability evidence: %w", err)
+			return nil, fmt.Errorf("resolve capability requirements: %w", err)
 		}
 		recordResourceAdmissionStage(ctx, resourceAdmissionStageSelectCandidate, stageStarted, nil)
 		recordResourceAdmission(ctx, namespace, resourceAdmissionScopeNodeReservation, string(quotaAdmissionAllowed), "fits")
@@ -181,7 +182,7 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 			Record:                 selected.Record,
 			Evaluation:             selected.Evaluation,
 			Request:                selected.Request,
-			CapabilityDependencies: dependencies,
+			CapabilityRequirements: requirements,
 		}, nil
 	}
 	if rejection := lockedAdmissionEligibilityError(reservationEvaluated, lockedRejectionRequest, lockedEligibilityRejections); rejection != nil {
@@ -201,13 +202,17 @@ func lockedAdmissionEligibilityError(reservationEvaluated int, request *placemen
 	return placementkernel.NoEligibleNodeError(request, rejected)
 }
 
-func candidateSnapshotID(candidates []*placementkernel.Candidate, nodeID string) string {
+func candidateSnapshot(candidates []*placementkernel.Candidate, nodeID string) *capabilityv1.CapabilitySnapshot {
 	for _, candidate := range candidates {
 		if candidate != nil && candidate.Record != nil && candidate.NodeID == nodeID {
-			return candidate.Record.Summary.GetCapabilitySnapshot().GetSnapshotID()
+			return candidate.Record.Summary.GetCapabilitySnapshot()
 		}
 	}
-	return ""
+	return nil
+}
+
+func sameCapabilityObservationOrder(left, right *capabilityv1.CapabilitySnapshot) bool {
+	return left != nil && right != nil && left.GetNodeInstanceID() == right.GetNodeInstanceID() && left.GetSequence() == right.GetSequence()
 }
 
 func reservationRejectionError(diagnostics reservationRejectionDiagnostics) error {

@@ -21,7 +21,7 @@ type AdmissionDecision struct {
 	Record                 *nodekernel.Record
 	Evaluation             *nodev1.PlacementCandidate
 	Request                *Request
-	CapabilityDependencies []*capabilityv1.CapabilityDependency
+	CapabilityRequirements []*capabilityv1.CapabilityRequirement
 }
 
 // Candidate carries a request-specific placement evaluation together with the

@@ -25,7 +25,7 @@ type ReportRegistry interface {
 }
 
 // Reporter is the application-level node-report use case. The store commits
-// summary, transitions, and durable reconcile work atomically; only then does
+// summary and durable reconcile work atomically; only then does
 // this use case expose the new state through the in-process registry.
 type Reporter struct {
 	store       ReportStore
@@ -46,7 +46,7 @@ func (r *Reporter) Report(ctx context.Context, params nodekernel.ReportParams) e
 	if err != nil {
 		return err
 	}
-	recordCapabilityTransitions(ctx, record.ReportedCapabilityTransitions)
+	recordCapabilityChanges(ctx, record.ReportedCapabilityChanges)
 	r.registry.Report(record.NodeID, record.NodeTarget, record.Runtimes, record.Summary, record.UpdatedAt)
 	if !reportedAxnodedReady(record.Summary) || r.allocations == nil {
 		return nil
@@ -61,13 +61,13 @@ func (r *Reporter) Report(ctx context.Context, params nodekernel.ReportParams) e
 	}, now)
 }
 
-func recordCapabilityTransitions(ctx context.Context, transitions []nodekernel.CapabilityTransition) {
-	counter := sdkobs.Int64Counter(ctrlobs.MetricNodeCapabilityTransitionTotal.Name, ctrlobs.MetricNodeCapabilityTransitionTotal.Description)
-	for _, transition := range transitions {
+func recordCapabilityChanges(ctx context.Context, changes []nodekernel.CapabilityChange) {
+	counter := sdkobs.Int64Counter(ctrlobs.MetricNodeCapabilityChangeTotal.Name, ctrlobs.MetricNodeCapabilityChangeTotal.Description)
+	for _, change := range changes {
 		counter.Add(ctx, 1,
-			attribute.String(sdkobs.AttrCapability, capabilitycontract.MetricKey(transition.Key)),
-			attribute.String(sdkobs.AttrState, transition.NewState.String()),
-			attribute.String(sdkobs.AttrReason, transition.ReasonCode.String()),
+			attribute.String(sdkobs.AttrCapability, capabilitycontract.MetricKey(change.Key)),
+			attribute.String(sdkobs.AttrState, change.NewState.String()),
+			attribute.String(sdkobs.AttrReason, change.ReasonCode.String()),
 		)
 	}
 }

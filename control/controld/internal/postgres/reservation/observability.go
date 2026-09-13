@@ -111,8 +111,8 @@ func recordNodeReservationRejected(ctx context.Context, namespace string, diagno
 	}
 }
 
-func recordCapabilityAdmissionEvidence(ctx context.Context, result string) {
-	sdkobs.Int64Counter(ctrlobs.MetricCapabilityAdmissionEvidenceTotal.Name, ctrlobs.MetricCapabilityAdmissionEvidenceTotal.Description).Add(ctx, 1,
+func recordCapabilityAdmission(ctx context.Context, result string) {
+	sdkobs.Int64Counter(ctrlobs.MetricCapabilityAdmissionTotal.Name, ctrlobs.MetricCapabilityAdmissionTotal.Description).Add(ctx, 1,
 		attribute.String(sdkobs.AttrResult, result),
 	)
 }

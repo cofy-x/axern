@@ -22,12 +22,12 @@ type fakeNodeLifecycleService struct {
 	deleted              map[string]bool
 	keepDeletedVisible   bool
 	deleteErr            error
-	admittedDependencies []*capabilityv1.CapabilityDependency
+	admittedDependencies []*capabilityv1.CapabilityRequirement
 	startResponseID      string
 }
 
-func (f *fakeNodeLifecycleService) ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error) {
-	return cloneCapabilityDependencies(f.admittedDependencies), nil, nil
+func (f *fakeNodeLifecycleService) ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error) {
+	return cloneCapabilityRequirements(f.admittedDependencies), nil, nil
 }
 
 func (f *fakeNodeLifecycleService) StartControlPlaneAllocation(ctx context.Context, _ string, req *runtimev1.StartRequest) (*runtimev1.StartResponse, error) {
@@ -39,7 +39,6 @@ func (f *fakeNodeLifecycleService) StartControlPlaneAllocation(ctx context.Conte
 	}
 	return &runtimev1.StartResponse{
 		Code: 0, ID: responseID, Message: "ok",
-		AdmittedCapabilityDependencies: cloneCapabilityDependencies(f.admittedDependencies),
 	}, nil
 }
 
@@ -103,11 +102,10 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 
 	const imageRef = "axern/python311-runtime:dev"
 	fakeService := &fakeNodeLifecycleService{
-		admittedDependencies: []*capabilityv1.CapabilityDependency{{
+		admittedDependencies: []*capabilityv1.CapabilityRequirement{{
 			Key: &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{
 				Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT,
 			}},
-			SelectedObservation: &capabilityv1.CapabilityObservationProof{Evidence: &capabilityv1.CapabilityEvidence{EvidenceID: "create-evidence"}},
 		}},
 	}
 	server := NewNodeLifecycleServer(fakeService, "node-a")
@@ -149,9 +147,6 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	}
 	if resp.GetAllocationID() != "alloc-123" {
 		t.Fatalf("allocation response = %#v", resp)
-	}
-	if len(resp.GetAdmittedCapabilityDependencies()) != 1 || resp.GetAdmittedCapabilityDependencies()[0].GetSelectedObservation().GetEvidence().GetEvidenceID() != "create-evidence" {
-		t.Fatalf("admitted capability dependencies = %#v", resp.GetAdmittedCapabilityDependencies())
 	}
 	if len(fakeService.startRequests) != 1 {
 		t.Fatalf("start request count = %d, want 1", len(fakeService.startRequests))

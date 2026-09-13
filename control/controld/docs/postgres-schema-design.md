@@ -44,13 +44,8 @@ erDiagram
   allocations ||--o| reservations : reserves
   allocations ||--o{ execution_leases : authorizes
   allocations ||--o| allocation_reconcile_queue : retries
-  allocations ||--o{ allocation_capability_dependencies : requires
-  allocations ||--o| allocation_capability_admissions : admits
-  allocations ||--o| allocation_capability_condition_sets : owns
-  allocation_capability_condition_sets ||--o{ allocation_capability_conditions : projects
-  allocations ||--o| allocation_capability_reconcile_queue : verifies
-  allocation_capability_reconcile_queue ||--o{ allocation_capability_reconcile_pending_keys : merges
-  nodes ||--o{ node_capability_transitions : records
+  allocations ||--o{ allocation_capability_requirements : requires
+  allocations ||--o| allocation_capability_conditions : projects
 ```
 
 ### Catalog and namespace state
@@ -78,19 +73,17 @@ Namespace names are stored on scoped resources for filtering and ownership. Only
 
 `reservations` records admitted CPU, sandbox-memory, and ephemeral-storage requests. `sandbox_memory_request_bytes` is the public request without a runtime overhead side channel. A non-null `released_at` closes the control-plane reservation without erasing accounting history; node admission still honors a larger axnoded local commitment until host cleanup completes.
 
-`allocation_memory_admission_evidence` freezes the node memory budget used by the admission transaction, including distinct physical capacity, source allocatable, delegated-root limit, system reserve, and node-local commitment facts. `allocation_memory_observations` keeps only the latest revisioned host memcg sample for an Allocation; it is not a second reservation ledger.
+`allocation_memory_observations` keeps only the latest ordered host memcg sample for an Allocation; it is not a second reservation ledger. The memory budget used during placement is validated inside the reservation transaction and is not copied into a historical admission table.
 
-`allocation_capability_dependencies` stores one typed key per allocation with catalog loss policy, placement proof, and create-time admitted proof. `allocation_capability_admissions` is the immutable per-Allocation commit marker and stores the canonical admitted dependency-set digest, including the zero-dependency case. The first post-create admission transaction binds the proof rows, projects conditions, and inserts this marker atomically. A retried Create may only replay the exact digest and proof set; it never refreshes the historical create proof. Runtime capability reconciliation is condition-only. The `(node_id, capability_key_id, allocation_id)` index is the authoritative path from a node transition to affected allocations; report processing never scans allocation configuration JSON.
+`allocation_capability_requirements` stores only the immutable typed key and catalog loss policy. It is owned through the Allocation foreign key and does not repeat Node binding or preserve placement observations. The Allocation binding, requirement rows, reservation, and create intent commit in one transaction; that transaction is the admission decision.
 
-`allocation_capability_condition_sets` owns the latest full-set revision, observation time, and canonical protobuf SHA-256 payload digest for an Allocation. `allocation_capability_conditions` stores the normalized per-key projection under the same `(allocation_id, revision)`, so readers cannot observe a partially replaced generation. A new Run creates a new Allocation ID and starts its own revision stream. An exact revision replay is idempotent only when the digest matches; a different payload at the same revision is rejected. Conditions are independent of Allocation lifecycle and cannot update Run status, readiness, exit information, or the primary message.
+`allocation_capability_conditions` stores one complete latest diagnostic projection and its `observed_at`. Older reports are ignored, exact equal-time replay is idempotent, and conflicting equal-time data is rejected. Terminal Allocations ignore late reports. Conditions cannot update Run or Allocation lifecycle, readiness, exit information, or the primary message.
 
 ### Reconciliation and audit
 
 `allocation_reconcile_queue` is the durable retry queue. `next_run_at`, `reconcile_attempts`, and `last_error` describe retry state; `lease_owner` and `lease_expires_at` provide bounded multi-worker claims.
 
-`node_capability_transitions` records idempotent effective state, evidence, and bounded reason-code changes. Ordinary TTL refresh without one of those changes does not create history. `allocation_capability_reconcile_queue` owns claim and retry state; `allocation_capability_reconcile_pending_keys` merges the latest snapshot sequence per key. This capability-loss queue is separate from create/delete lifecycle intent.
-
-A node report replaces the latest summary, evaluates effective transitions, inserts idempotent transition rows, and merges pending keys for directly indexed active `DEGRADE` or `FAIL_STOP` dependencies in one transaction. `ADMISSION_ONLY` rows remain durable admission evidence but are never runtime reconcile work. Rollback leaves all four projections unchanged. Capability condition reporting likewise replaces the allocation-scoped set header and normalized rows in one transaction; it has no write path to the allocation lifecycle columns.
+Capability loss has no controld queue or transition-history table. Axnoded owns the crash-safe Allocation-scoped verification/termination intent. Controld persists only the latest ordered Node summary and condition projection; its lifecycle queue remains limited to create/delete convergence.
 
 `admin_audit_events` records operator mutations before lifecycle coordination state changes. It is distinct from quota decisions and workload event history.
 

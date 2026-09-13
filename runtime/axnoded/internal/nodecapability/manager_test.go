@@ -11,6 +11,7 @@ import (
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -64,7 +65,7 @@ func networkObservation(key *capabilityv1.CapabilityKey, now time.Time, state ca
 	return &capabilityv1.CapabilityObservation{
 		Key: key, State: state, ObservedAt: timestamppb.New(now),
 		ValidUntil: timestamppb.New(now.Add(capabilitycontract.HealthObservationValidity)),
-		ReasonCode: reason, Evidence: capabilitycontract.ConfigEvidence(digest("a")),
+		ReasonCode: reason, Evidence: nil,
 	}
 }
 
@@ -617,7 +618,7 @@ func TestManagerAdmitsCurrentCompleteProof(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	placement, err := capabilitycontract.ResolveDependencies(first, []*capabilityv1.CapabilityKey{derivedKey}, now)
+	placement, err := capabilitycontract.ResolveRequirements(first, []*capabilityv1.CapabilityKey{derivedKey}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -629,10 +630,7 @@ func TestManagerAdmitsCurrentCompleteProof(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if admitted[0].GetSelectedObservation().GetObservationID() == placement[0].GetSelectedObservation().GetObservationID() {
-		t.Fatal("admission did not bind the current observation")
-	}
-	if len(admitted[0].GetDependencyObservations()) != 2 || conditions[0].GetProof().GetObservationID() != admitted[0].GetSelectedObservation().GetObservationID() {
-		t.Fatalf("admitted proof is incomplete: admitted=%#v conditions=%#v", admitted, conditions)
+	if !proto.Equal(admitted[0], placement[0]) || conditions[0].GetState() != capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY {
+		t.Fatalf("requirements or conditions changed: admitted=%#v conditions=%#v", admitted, conditions)
 	}
 }

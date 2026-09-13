@@ -5,7 +5,7 @@ from axern_sdk.node.async_process import AsyncProcessResult, AsyncSandboxProcess
 from axern_sdk.node.client import NodeSandboxClient
 from axern_sdk.node.models import (
     BrowserStatus,
-    CapabilityDependencyStatus,
+    CapabilityProviderDependencyStatus,
     CapabilityProviderStatus,
     CapabilityProviderSummary,
     CapabilityStatus,
@@ -29,7 +29,7 @@ __all__ = [
     "AsyncNodeSandboxClient",
     "AsyncSandboxProcess",
     "BrowserStatus",
-    "CapabilityDependencyStatus",
+    "CapabilityProviderDependencyStatus",
     "CapabilityProviderStatus",
     "CapabilityProviderSummary",
     "CapabilityStatus",

@@ -360,7 +360,7 @@ class CapabilityStatusRequest(_message.Message):
     execution_lease_token: str
     def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
 
-class CapabilityDependencyStatus(_message.Message):
+class CapabilityProviderDependencyStatus(_message.Message):
     __slots__ = ("name", "available", "reason")
     NAME_FIELD_NUMBER: _ClassVar[int]
     AVAILABLE_FIELD_NUMBER: _ClassVar[int]
@@ -385,8 +385,8 @@ class CapabilityProviderStatus(_message.Message):
     capabilities: _containers.RepeatedScalarFieldContainer[str]
     backend: str
     reason: str
-    dependencies: _containers.RepeatedCompositeFieldContainer[CapabilityDependencyStatus]
-    def __init__(self, name: _Optional[str] = ..., state: _Optional[str] = ..., available: _Optional[bool] = ..., capabilities: _Optional[_Iterable[str]] = ..., backend: _Optional[str] = ..., reason: _Optional[str] = ..., dependencies: _Optional[_Iterable[_Union[CapabilityDependencyStatus, _Mapping]]] = ...) -> None: ...
+    dependencies: _containers.RepeatedCompositeFieldContainer[CapabilityProviderDependencyStatus]
+    def __init__(self, name: _Optional[str] = ..., state: _Optional[str] = ..., available: _Optional[bool] = ..., capabilities: _Optional[_Iterable[str]] = ..., backend: _Optional[str] = ..., reason: _Optional[str] = ..., dependencies: _Optional[_Iterable[_Union[CapabilityProviderDependencyStatus, _Mapping]]] = ...) -> None: ...
 
 class CapabilityProviderSummary(_message.Message):
     __slots__ = ("total", "available", "degraded", "unavailable")

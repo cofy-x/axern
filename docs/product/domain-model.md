@@ -102,8 +102,8 @@ These records need durable identity and state, but users cannot create them inde
 | `Reservation`          | Allocation              | Committed namespace and node resource usage                          |
 | `ExecutionLease`       | Allocation              | Short-lived internal gateway authority for the selected node         |
 | `TunnelSession`        | Allocation              | Revocable reverse-TCP session and relay convergence state            |
-| `CapabilityDependency` | Allocation              | Capability and loss-policy proof frozen at admission                 |
-| `CapabilityCondition`  | Allocation              | Current revisioned satisfaction or enforcement state                 |
+| `CapabilityRequirement` | Allocation              | Immutable capability key and catalog-owned loss policy               |
+| `CapabilityCondition`   | Allocation              | Latest rebuildable satisfaction or enforcement diagnosis             |
 | `QuotaPolicy`          | Namespace               | Optional CPU, memory, and ephemeral-storage admission ceilings       |
 | `AuditEvent`           | Administrative mutation | Actor, reason, target, and result for security-sensitive writes      |
 | `OperationalEvent`     | Owning domain           | Bounded lifecycle or rejection history, distinct from operator audit |
@@ -136,7 +136,7 @@ TunnelSession does not accept Service identity, choose a replica, or recreate a 
 
 ### Capability Evidence
 
-Node capability observations are typed, time-bounded platform facts. Allocation dependencies freeze the exact requirement and loss policy admitted for one execution. Conditions are complete, monotonically revisioned projections scoped to the immutable Allocation ID.
+Node capability observations are typed, ordered, and time-bounded platform facts. Allocation requirements freeze only the exact key and catalog loss policy for one execution. Conditions are complete projections ordered by `observed_at`; they copy neither requirements nor Node evidence and never own lifecycle.
 
 Capability data is security and placement evidence, not a free-form user label. Missing required evidence fails closed. Axern never silently falls back from runsc to a weaker runtime.
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"sync"
 	"time"
 
@@ -148,7 +147,6 @@ func readyCapabilitySnapshot(collectedAt time.Time) *capabilityv1.CapabilitySnap
 		sequence = 1
 	}
 	snapshot.Sequence = sequence
-	snapshot.SnapshotID = fmt.Sprintf("test-snapshot-%d", sequence)
 	return snapshot
 }
 

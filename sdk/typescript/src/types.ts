@@ -149,7 +149,7 @@ export interface TunnelMetadata {
   proxyPort: number;
 }
 
-export interface CapabilityDependencyStatus {
+export interface CapabilityProviderDependencyStatus {
   name: string;
   available: boolean;
   reason: string;
@@ -162,7 +162,7 @@ export interface CapabilityProviderStatus {
   capabilities: string[];
   backend: string;
   reason: string;
-  dependencies: CapabilityDependencyStatus[];
+  dependencies: CapabilityProviderDependencyStatus[];
 }
 
 export interface CapabilityProviderSummary {

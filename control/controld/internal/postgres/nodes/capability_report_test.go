@@ -32,14 +32,14 @@ func TestValidateSummaryPublicationFencesFreshnessClock(t *testing.T) {
 
 func TestValidateSnapshotAdvanceAllowsOnlyExactReplay(t *testing.T) {
 	now := timestamppb.New(time.Now().UTC())
-	previous := &capabilityv1.CapabilitySnapshot{NodeInstanceID: "instance-1", Sequence: 7, SnapshotID: "snapshot-7", CollectedAt: now}
+	previous := &capabilityv1.CapabilitySnapshot{NodeInstanceID: "instance-1", Sequence: 7, CollectedAt: now}
 	replay := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
 	idempotent, err := validateSnapshotAdvance(previous, replay)
 	if err != nil || !idempotent {
 		t.Fatalf("exact replay = (%t, %v), want idempotent", idempotent, err)
 	}
 	changed := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
-	changed.SnapshotID = "different"
+	changed.CollectedAt = timestamppb.New(now.AsTime().Add(time.Second))
 	if _, err := validateSnapshotAdvance(previous, changed); err == nil {
 		t.Fatal("same sequence with different snapshot was accepted")
 	}
@@ -50,20 +50,17 @@ func TestValidateSnapshotAdvanceAllowsOnlyExactReplay(t *testing.T) {
 	}
 	next := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
 	next.Sequence++
-	next.SnapshotID = "snapshot-8"
 	if idempotent, err := validateSnapshotAdvance(previous, next); err != nil || idempotent {
 		t.Fatalf("next sequence = (%t, %v), want accepted advance", idempotent, err)
 	}
 	restarted := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
 	restarted.NodeInstanceID = "instance-2"
 	restarted.Sequence = 1
-	restarted.SnapshotID = "instance-2-snapshot-1"
 	if idempotent, err := validateSnapshotAdvance(previous, restarted); err != nil || idempotent {
 		t.Fatalf("new instance = (%t, %v), want accepted reset", idempotent, err)
 	}
 	regressed := proto.Clone(next).(*capabilityv1.CapabilitySnapshot)
 	regressed.Sequence++
-	regressed.SnapshotID = "snapshot-9"
 	regressed.CollectedAt = timestamppb.New(previous.GetCollectedAt().AsTime().Add(-time.Second))
 	if _, err := validateSnapshotAdvance(next, regressed); err == nil {
 		t.Fatal("snapshot with regressed collected_at was accepted")
@@ -75,12 +72,11 @@ func TestValidateSnapshotAdvanceRejectsOwnershipChangeWithinNodeInstance(t *test
 	firstKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
 	secondKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	previous := &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "instance-1", Sequence: 1, SnapshotID: "snapshot-1", CollectedAt: now,
+		NodeInstanceID: "instance-1", Sequence: 1, CollectedAt: now,
 		Observations: []*capabilityv1.CapabilityObservation{{Key: firstKey}, {Key: secondKey}},
 	}
 	next := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
 	next.Sequence = 2
-	next.SnapshotID = "snapshot-2"
 	next.Observations = next.Observations[:1]
 	if _, err := validateSnapshotAdvance(previous, next); err == nil {
 		t.Fatal("same node instance removed an owned capability observation")
@@ -100,12 +96,12 @@ func TestCapabilityTransitionPreservesPreviouslyPublishedAvailableState(t *testi
 		Key: key, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
 		Provider:   capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
 		ObservedAt: timestamppb.New(observedAt), ValidUntil: timestamppb.New(observedAt.Add(capabilitycontract.HealthObservationValidity)),
-		Evidence:   capabilitycontract.ConfigEvidence("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+		Evidence:   nil,
 		ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
 	}
 	capabilitycontract.NormalizeObservation(available)
 	previous := &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "instance-1", Sequence: 1, SnapshotID: "snapshot-1",
+		NodeInstanceID: "instance-1", Sequence: 1,
 		CollectedAt: timestamppb.New(observedAt), Observations: []*capabilityv1.CapabilityObservation{available},
 	}
 	unknown := &capabilityv1.CapabilityObservation{
@@ -117,7 +113,7 @@ func TestCapabilityTransitionPreservesPreviouslyPublishedAvailableState(t *testi
 	}
 	capabilitycontract.NormalizeObservation(unknown)
 	next := &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "instance-1", Sequence: 2, SnapshotID: "snapshot-2",
+		NodeInstanceID: "instance-1", Sequence: 2,
 		CollectedAt: timestamppb.New(observedAt.Add(16 * time.Second)), Observations: []*capabilityv1.CapabilityObservation{unknown},
 	}
 
@@ -140,17 +136,16 @@ func TestCapabilityTransitionRecordsEffectiveExpiryWithoutRawStateChange(t *test
 		Key: key, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
 		Provider:   capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
 		ObservedAt: timestamppb.New(observedAt), ValidUntil: timestamppb.New(observedAt.Add(capabilitycontract.HealthObservationValidity)),
-		Evidence:   capabilitycontract.ConfigEvidence("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+		Evidence:   nil,
 		ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
 	}
 	capabilitycontract.NormalizeObservation(available)
 	previous := &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "instance-1", Sequence: 1, SnapshotID: "snapshot-1",
+		NodeInstanceID: "instance-1", Sequence: 1,
 		CollectedAt: timestamppb.New(observedAt), Observations: []*capabilityv1.CapabilityObservation{available},
 	}
 	next := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
 	next.Sequence = 2
-	next.SnapshotID = "snapshot-2"
 	next.CollectedAt = timestamppb.New(observedAt.Add(capabilitycontract.HealthObservationValidity + time.Second))
 
 	transitions, err := capabilityTransitions(previous, next, next.GetCollectedAt().AsTime())
@@ -160,7 +155,7 @@ func TestCapabilityTransitionRecordsEffectiveExpiryWithoutRawStateChange(t *test
 	if len(transitions) != 1 || transitions[0].oldState != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE || transitions[0].newState != capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN {
 		t.Fatalf("effective expiry transitions = %#v, want AVAILABLE -> UNKNOWN", transitions)
 	}
-	if transitions[0].newReasonCode != capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_EXPIRED {
-		t.Fatalf("effective expiry reason = %s, want EXPIRED", transitions[0].newReasonCode)
+	if transitions[0].reasonCode != capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_EXPIRED {
+		t.Fatalf("effective expiry reason = %s, want EXPIRED", transitions[0].reasonCode)
 	}
 }

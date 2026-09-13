@@ -76,10 +76,6 @@ enum CapabilityReasonCode {
   CAPABILITY_REASON_CODE_ENFORCEMENT_LOST = 9;
 }
 
-message ConfigEvidenceIdentity {
-  string config_digest = 1;
-}
-
 message BootEvidenceIdentity {
   string boot_id = 1;
 }
@@ -96,67 +92,33 @@ message RuntimeEvidenceIdentity {
   string runtime_config_digest = 4;
 }
 
-message DerivedEvidenceIdentity {
-  string catalog_digest = 1;
-  // Canonical digest of the typed evidence identities for every catalog
-  // dependency. This makes the derived subject change when its mount,
-  // runtime, boot, or config subjects change without treating a normal TTL
-  // refresh as a new identity.
-  string dependency_evidence_digest = 2;
-}
-
-// CapabilityEvidence identifies the concrete subject that was probed. Its
-// identity is orthogonal to observation freshness: a mount or runtime proof
-// may still require valid_until even though its subject identity is stable.
+// CapabilityEvidence identifies the concrete host subject that was inspected.
+// It is descriptive evidence, not an identity, version, or cryptographic
+// proof. Derived and configuration capabilities need no additional evidence.
 message CapabilityEvidence {
-  string evidence_id = 1;
   oneof identity {
-    ConfigEvidenceIdentity config = 2;
-    BootEvidenceIdentity boot = 3;
-    MountEvidenceIdentity mount = 4;
-    RuntimeEvidenceIdentity runtime = 5;
-    DerivedEvidenceIdentity derived = 6;
+    BootEvidenceIdentity boot = 1;
+    MountEvidenceIdentity mount = 2;
+    RuntimeEvidenceIdentity runtime = 3;
   }
-}
-
-// CapabilityObservationProof is the durable, non-recursive proof selected
-// from a snapshot. Dependencies are represented as one bounded flat proof set
-// so persistence and validation remain bounded.
-message CapabilityObservationProof {
-  CapabilityKey key = 1;
-  string observation_id = 2;
-  CapabilityProvider provider = 3;
-  google.protobuf.Timestamp observed_at = 4;
-  google.protobuf.Timestamp valid_until = 5;
-  CapabilityEvidence evidence = 6;
 }
 
 message CapabilityObservation {
   CapabilityKey key = 1;
   CapabilityState state = 2;
   CapabilityProvider provider = 3;
-  string observation_id = 4;
-  google.protobuf.Timestamp observed_at = 5;
-  google.protobuf.Timestamp valid_until = 6;
-  CapabilityEvidence evidence = 7;
-  repeated CapabilityObservationProof dependencies = 8;
-  CapabilityReasonCode reason_code = 9;
-  string reason = 10;
+  google.protobuf.Timestamp observed_at = 4;
+  google.protobuf.Timestamp valid_until = 5;
+  CapabilityEvidence evidence = 6;
+  CapabilityReasonCode reason_code = 7;
+  string reason = 8;
 }
 
 message CapabilitySnapshot {
   string node_instance_id = 1;
   int64 sequence = 2;
-  string snapshot_id = 3;
-  google.protobuf.Timestamp collected_at = 4;
-  repeated CapabilityObservation observations = 5;
-}
-
-message CapabilitySnapshotReference {
-  string node_instance_id = 1;
-  int64 sequence = 2;
-  string snapshot_id = 3;
-  google.protobuf.Timestamp collected_at = 4;
+  google.protobuf.Timestamp collected_at = 3;
+  repeated CapabilityObservation observations = 4;
 }
 
 message ExtensionCapabilityRequirement {
@@ -170,18 +132,9 @@ enum CapabilityLossPolicy {
   CAPABILITY_LOSS_POLICY_FAIL_STOP = 3;
 }
 
-message CapabilityDependency {
+message CapabilityRequirement {
   CapabilityKey key = 1;
   CapabilityLossPolicy loss_policy = 2;
-  CapabilitySnapshotReference selected_snapshot = 3;
-  CapabilityObservationProof selected_observation = 4;
-  repeated CapabilityObservationProof dependency_observations = 5;
-}
-
-// CapabilityDependencySet is the durable representation stored with an
-// allocation. A wrapper keeps JSON persistence on the canonical proto shape.
-message CapabilityDependencySet {
-  repeated CapabilityDependency dependencies = 1;
 }
 
 enum CapabilityConditionState {
@@ -197,12 +150,9 @@ message CapabilityCondition {
   CapabilityConditionState state = 2;
   CapabilityReasonCode reason_code = 3;
   string message = 4;
-  google.protobuf.Timestamp observed_at = 5;
-  CapabilityObservationProof proof = 6;
 }
 
 message CapabilityConditionSet {
-  int64 revision = 1;
-  google.protobuf.Timestamp observed_at = 2;
-  repeated CapabilityCondition conditions = 3;
+  google.protobuf.Timestamp observed_at = 1;
+  repeated CapabilityCondition conditions = 2;
 }

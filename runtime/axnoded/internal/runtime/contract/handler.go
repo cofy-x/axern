@@ -50,7 +50,7 @@ type PersistentStorageReconciler interface {
 }
 
 type AllocationCapabilityVerifier interface {
-	VerifyAllocationCapability(context.Context, *capabilityv1.CapabilityDependency, HandlerOptions) CapabilityVerification
+	VerifyAllocationCapability(context.Context, *capabilityv1.CapabilityRequirement, HandlerOptions) CapabilityVerification
 }
 
 // AllocationEnforcementManifestProvider returns the immutable launch contract

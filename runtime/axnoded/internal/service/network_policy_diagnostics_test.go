@@ -49,7 +49,7 @@ func TestNetworkPolicyDiagnosticsDistinguishesAbsentPolicy(t *testing.T) {
 }
 
 func TestAllocationNetworkPolicyModeRecognizesDurablePolicyDependency(t *testing.T) {
-	dependencies := []*capabilityv1.CapabilityDependency{{
+	dependencies := []*capabilityv1.CapabilityRequirement{{
 		Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT),
 	}}
 	if mode := allocationNetworkPolicyMode(dependencies); mode != NetworkPolicyModeStrict {
