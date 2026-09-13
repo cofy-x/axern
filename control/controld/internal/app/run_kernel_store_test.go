@@ -204,7 +204,7 @@ func TestPostgresRunCreateRetryExhaustionReleasesAllocation(t *testing.T) {
 	assertAllocationRetryCleanup(t, app, allocationID, "")
 }
 
-func TestPostgresRunCancelDeleteRetryResetsStartAttemptsAndRecordsError(t *testing.T) {
+func TestPostgresRunCancelAtomicallyReplacesCreateIntentWithDeleteIntent(t *testing.T) {
 	app, lifecycle := newPostgresTestServiceWithConfig(t, Config{
 		HeartbeatFreshnessWindow: time.Hour,
 		ReconcileInterval:        time.Hour,
@@ -228,7 +228,6 @@ func TestPostgresRunCancelDeleteRetryResetsStartAttemptsAndRecordsError(t *testi
 	lifecycle.CreateErr = errors.New("node create temporarily unavailable")
 	app.reconcileV1()
 
-	lifecycle.DeleteErr = errors.New("node delete temporarily unavailable")
 	if _, err := public.CancelRun(context.Background(), &runv1.CancelRunRequest{RunID: runResp.GetRun().GetID()}); err != nil {
 		t.Fatalf("CancelRun() error = %v", err)
 	}
@@ -248,8 +247,81 @@ func TestPostgresRunCancelDeleteRetryResetsStartAttemptsAndRecordsError(t *testi
 	if attempts != 0 {
 		t.Fatalf("delete retry inherited start attempts = %d, want 0", attempts)
 	}
-	if lastError != "node delete temporarily unavailable" {
-		t.Fatalf("last error = %q, want node delete temporarily unavailable", lastError)
+	if lastError != "" {
+		t.Fatalf("new delete intent inherited a create error: %q", lastError)
+	}
+	if len(lifecycle.DeleteRequests) != 0 {
+		t.Fatalf("cancel request called node delete directly: %d calls", len(lifecycle.DeleteRequests))
+	}
+}
+
+func TestPostgresAllocationReconcileClaimHasSingleOwnerAndExpires(t *testing.T) {
+	app, _ := newPostgresTestService(t)
+	defer app.Close()
+	now := time.Date(2026, 5, 9, 15, 0, 0, 0, time.UTC)
+	app.now = func() time.Time { return now }
+	registerReadyNode(t, app, "node-a", now)
+	env := createDefaultEnvironment(t, app)
+	runResp, err := app.PublicV1Handler().CreateRun(context.Background(), &runv1.CreateRunRequest{
+		EnvironmentID: env.GetID(),
+		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/true"}},
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	allocationID := runResp.GetRun().GetAllocationID()
+	first, err := app.runStore.ClaimDueReconcileItems(context.Background(), "worker-a", 1, now, allocationkernel.ReconcileClaimTTL)
+	if err != nil {
+		t.Fatalf("ClaimDueReconcileItems(worker-a) error = %v", err)
+	}
+	if len(first) != 1 || first[0].AllocationID != allocationID || first[0].ClaimOwner != "worker-a" {
+		t.Fatalf("worker-a claim = %+v", first)
+	}
+	second, err := app.runStore.ClaimDueReconcileItems(context.Background(), "worker-b", 1, now, allocationkernel.ReconcileClaimTTL)
+	if err != nil {
+		t.Fatalf("ClaimDueReconcileItems(worker-b) error = %v", err)
+	}
+	if len(second) != 0 {
+		t.Fatalf("worker-b claimed live worker-a work: %+v", second)
+	}
+	if held, err := app.runStore.RenewReconcileClaim(context.Background(), allocationID, "worker-b", now, allocationkernel.ReconcileClaimTTL); err != nil || held {
+		t.Fatalf("RenewReconcileClaim(wrong owner) = %v, %v", held, err)
+	}
+	afterExpiry := now.Add(allocationkernel.ReconcileClaimTTL + time.Nanosecond)
+	if held, err := app.runStore.RenewReconcileClaim(context.Background(), allocationID, "worker-a", afterExpiry, allocationkernel.ReconcileClaimTTL); err != nil || held {
+		t.Fatalf("RenewReconcileClaim(expired owner) = %v, %v", held, err)
+	}
+	updated, err := app.runStore.ScheduleClaimedReconcile(context.Background(), allocationkernel.ScheduleReconcileRequest{
+		AllocationID: allocationID,
+		Reason:       allocationkernel.ReconcileReasonCreate,
+		NextRunAt:    afterExpiry,
+	}, "worker-a", afterExpiry)
+	if err != nil {
+		t.Fatalf("ScheduleClaimedReconcile(expired owner) error = %v", err)
+	}
+	if updated {
+		t.Fatal("expired worker mutated an unclaimed intent")
+	}
+	if err := app.runStore.CompleteAllocationStart(context.Background(), allocationID, "worker-a", nil, afterExpiry); !errors.Is(err, allocationkernel.ErrReconcileClaimLost) {
+		t.Fatalf("CompleteAllocationStart(expired owner) error = %v, want claim lost", err)
+	}
+	second, err = app.runStore.ClaimDueReconcileItems(context.Background(), "worker-b", 1, afterExpiry, allocationkernel.ReconcileClaimTTL)
+	if err != nil {
+		t.Fatalf("ClaimDueReconcileItems(worker-b after expiry) error = %v", err)
+	}
+	if len(second) != 1 || second[0].ClaimOwner != "worker-b" {
+		t.Fatalf("worker-b expired-claim takeover = %+v", second)
+	}
+	updated, err = app.runStore.ScheduleClaimedReconcile(context.Background(), allocationkernel.ScheduleReconcileRequest{
+		AllocationID: allocationID,
+		Reason:       allocationkernel.ReconcileReasonCreate,
+		NextRunAt:    afterExpiry,
+	}, "worker-a", afterExpiry)
+	if err != nil {
+		t.Fatalf("ScheduleClaimedReconcile(stale owner) error = %v", err)
+	}
+	if updated {
+		t.Fatal("stale worker mutated a reclaimed intent")
 	}
 }
 
@@ -280,7 +352,6 @@ func TestPostgresRunCancelDeleteRetryEventuallyReleasesReservation(t *testing.T)
 	}
 	allocationID := runResp.GetRun().GetAllocationID()
 
-	lifecycle.DeleteErr = errors.New("node delete temporarily unavailable")
 	if _, err := public.CancelRun(context.Background(), &runv1.CancelRunRequest{RunID: runResp.GetRun().GetID()}); err != nil {
 		t.Fatalf("CancelRun() error = %v", err)
 	}
@@ -298,10 +369,10 @@ func TestPostgresRunCancelDeleteRetryEventuallyReleasesReservation(t *testing.T)
 	if err := app.runReconciler.ReconcilePending(context.Background(), now); err != nil {
 		t.Fatalf("ReconcilePending() error = %v", err)
 	}
-	if len(lifecycle.DeleteRequests) != 2 {
-		t.Fatalf("delete requests = %d, want initial request plus retry", len(lifecycle.DeleteRequests))
+	if len(lifecycle.DeleteRequests) != 1 {
+		t.Fatalf("delete requests = %d, want one durable-intent delivery", len(lifecycle.DeleteRequests))
 	}
-	if got := lifecycle.DeleteRequests[1].GetAllocationID(); got != allocationID {
+	if got := lifecycle.DeleteRequests[0].GetAllocationID(); got != allocationID {
 		t.Fatalf("retry delete allocation = %q, want %q", got, allocationID)
 	}
 	if err := app.db.Pool().QueryRow(context.Background(), `
@@ -355,8 +426,8 @@ func TestPostgresRunKernelCancelRevokesLeaseAndReleasesReservation(t *testing.T)
 	if _, err := public.CancelRun(context.Background(), &runv1.CancelRunRequest{RunID: runResp.GetRun().GetID()}); err != nil {
 		t.Fatalf("CancelRun() error = %v", err)
 	}
-	if len(lifecycle.DeleteRequests) != 1 {
-		t.Fatalf("delete requests = %d, want 1", len(lifecycle.DeleteRequests))
+	if len(lifecycle.DeleteRequests) != 0 {
+		t.Fatalf("cancel request called node delete directly: %d calls", len(lifecycle.DeleteRequests))
 	}
 	leases, revision, err := app.runStore.WatchExecutionLeases(context.Background(), "node-a", 0, now)
 	if err != nil {
@@ -386,8 +457,22 @@ func TestPostgresRunKernelCancelRevokesLeaseAndReleasesReservation(t *testing.T)
 	`, runResp.GetRun().GetAllocationID()).Scan(&activeReservations); err != nil {
 		t.Fatalf("count active reservations: %v", err)
 	}
+	if activeReservations != 1 {
+		t.Fatalf("active reservations before durable delete delivery = %d, want 1", activeReservations)
+	}
+	if err := app.runReconciler.ReconcilePending(context.Background(), now); err != nil {
+		t.Fatalf("ReconcilePending(delete intent) error = %v", err)
+	}
+	if len(lifecycle.DeleteRequests) != 1 {
+		t.Fatalf("delete requests after reconcile = %d, want 1", len(lifecycle.DeleteRequests))
+	}
+	if err := app.db.Pool().QueryRow(context.Background(), `
+		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
+	`, runResp.GetRun().GetAllocationID()).Scan(&activeReservations); err != nil {
+		t.Fatalf("count active reservations after reconcile: %v", err)
+	}
 	if activeReservations != 0 {
-		t.Fatalf("active reservations = %d, want 0", activeReservations)
+		t.Fatalf("active reservations after durable delete delivery = %d, want 0", activeReservations)
 	}
 	assertPostgresConsistencyOK(t, app)
 }

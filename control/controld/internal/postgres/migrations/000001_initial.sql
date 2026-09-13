@@ -263,7 +263,12 @@ CREATE TABLE allocation_reconcile_queue (
 	lease_owner TEXT NOT NULL DEFAULT '',
 	lease_expires_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL
+	updated_at TIMESTAMPTZ NOT NULL,
+	CHECK (reason IN ('create', 'delete')),
+	CHECK (
+		(lease_owner = '' AND lease_expires_at IS NULL) OR
+		(length(btrim(lease_owner)) > 0 AND lease_expires_at IS NOT NULL)
+	)
 );
 
 CREATE TABLE admin_audit_events (
@@ -282,7 +287,7 @@ CREATE TABLE control_revisions (
 );
 
 INSERT INTO control_revisions(name, revision)
-VALUES ('execution_leases', 0), ('access', 0), ('tunnel_sessions', 0);
+VALUES ('execution_leases', 0), ('tunnel_sessions', 0);
 
 CREATE TABLE tunnel_sessions (
 	session_id TEXT PRIMARY KEY,

@@ -113,5 +113,8 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		}
 		return nil
 	})
+	if err == nil {
+		s.signalReconcileWork()
+	}
 	return run, err
 }

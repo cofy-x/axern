@@ -13,9 +13,7 @@ func (a *App) startReconciler() {
 }
 
 func (a *App) startPeriodicReconciler() {
-	a.startPeriodicLifecycleComponent(reconcilekernel.ComponentRun, a.runReconciler != nil, func(ctx context.Context, now time.Time) error {
-		return a.runReconciler.ReconcilePending(ctx, now)
-	})
+	a.startRunReconciler()
 	a.startPeriodicComponent(reconcilekernel.ComponentNode, a.nodeReconciler != nil, func(ctx context.Context, now time.Time) error {
 		return a.nodeReconciler.ReconcileUnavailableNodes(ctx, now)
 	})
@@ -24,14 +22,29 @@ func (a *App) startPeriodicReconciler() {
 	})
 }
 
-func (a *App) startPeriodicComponent(component string, enabled bool, reconcile func(context.Context, time.Time) error) {
-	a.startPeriodicComponentLoop(component, enabled, reconcile, a.reconcileComponent)
+func (a *App) startRunReconciler() {
+	if a.runReconciler == nil {
+		return
+	}
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		for {
+			if a.backgroundReconcileContext().Err() != nil {
+				return
+			}
+			a.reconcileComponentWithContext(a.backgroundReconcileContext(), reconcilekernel.ComponentRun, a.now(), func(ctx context.Context, now time.Time) error {
+				return a.runReconciler.ReconcilePending(ctx, now)
+			})
+			waitCtx, cancel := context.WithTimeout(a.backgroundReconcileContext(), a.reconcileInterval)
+			_ = a.runReconciler.WaitForWork(waitCtx)
+			cancel()
+		}
+	}()
 }
 
-func (a *App) startPeriodicLifecycleComponent(component string, enabled bool, reconcile func(context.Context, time.Time) error) {
-	a.startPeriodicComponentLoop(component, enabled, reconcile, func(component string, now time.Time, reconcile func(context.Context, time.Time) error) error {
-		return a.reconcileComponentWithContext(a.backgroundReconcileContext(), component, now, reconcile)
-	})
+func (a *App) startPeriodicComponent(component string, enabled bool, reconcile func(context.Context, time.Time) error) {
+	a.startPeriodicComponentLoop(component, enabled, reconcile, a.reconcileComponent)
 }
 
 func (a *App) startPeriodicComponentLoop(component string, enabled bool, reconcile func(context.Context, time.Time) error, run func(string, time.Time, func(context.Context, time.Time) error) error) {

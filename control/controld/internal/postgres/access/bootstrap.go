@@ -54,9 +54,6 @@ func (s *Store) BootstrapPlatformAdmin(ctx context.Context, name, displayName, l
 	if _, err := tx.Exec(ctx, `INSERT INTO admin_audit_events(event_id,operation,target_type,target_id,operator_reason,actor_principal_id,created_at) VALUES($1,'access.bootstrap','principal',$2,'initial platform administrator',$2,$3)`, `admaudit-`+uuid.NewString(), principalID, now); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE control_revisions SET revision=revision+1 WHERE name='access'`); err != nil {
-		return err
-	}
 	return tx.Commit(ctx)
 }
 

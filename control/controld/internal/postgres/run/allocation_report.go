@@ -20,7 +20,7 @@ import (
 )
 
 func (s *Store) BatchReportAllocationLifecycle(ctx context.Context, nodeID string, observations []*nodev1.AllocationLifecycleObservation, now time.Time) error {
-	return s.withTx(ctx, func(tx pgx.Tx) error {
+	err := s.withTx(ctx, func(tx pgx.Tx) error {
 		allocations, err := lockReportedAllocations(ctx, tx, allocationIDsFromRunObservations(observations))
 		if err != nil {
 			return err
@@ -93,6 +93,19 @@ func (s *Store) BatchReportAllocationLifecycle(ctx context.Context, nodeID strin
 		}
 		return nil
 	})
+	if err == nil && hasTerminalAllocationObservation(observations) {
+		s.signalReconcileWork()
+	}
+	return err
+}
+
+func hasTerminalAllocationObservation(observations []*nodev1.AllocationLifecycleObservation) bool {
+	for _, observation := range observations {
+		if observation.GetState() == commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED {
+			return true
+		}
+	}
+	return false
 }
 
 type reportedAllocation struct {

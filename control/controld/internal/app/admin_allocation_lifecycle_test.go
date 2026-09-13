@@ -79,19 +79,15 @@ func TestPostgresAdminFailRunCreateLifecycleRetry(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a stale retry request")
 	}
-	rescheduled, err := app.runStore.RescheduleReconcile(context.Background(), req, now.Add(time.Second))
+	rescheduled, err := app.runStore.ScheduleClaimedReconcile(context.Background(), req, "stale-worker", now.Add(time.Second))
 	if err != nil {
-		t.Fatalf("RescheduleReconcile(after admin fail) error = %v", err)
+		t.Fatalf("ScheduleClaimedReconcile(after admin fail) error = %v", err)
 	}
 	if rescheduled {
 		t.Fatal("stale run reconciler recreated an operator-failed lifecycle retry")
 	}
-	lateRun, err := app.runStore.MarkAllocationCreateFailed(context.Background(), allocationID, "late retry exhaustion", now.Add(time.Second))
-	if err != nil {
-		t.Fatalf("MarkAllocationCreateFailed(after admin fail) error = %v", err)
-	}
-	if lateRun.GetMessage() != "operator confirmed create cannot recover" {
-		t.Fatalf("late reconciliation replaced operator terminal message: %q", lateRun.GetMessage())
+	if _, err := app.runStore.MarkAllocationCreateFailed(context.Background(), allocationID, "stale-worker", "late retry exhaustion", now.Add(time.Second)); !errors.Is(err, allocationkernel.ErrReconcileClaimLost) {
+		t.Fatalf("MarkAllocationCreateFailed(after admin fail) error = %v, want claim lost", err)
 	}
 	assertAllocationReleasePending(t, app, allocationID)
 	now = now.Add(time.Second)

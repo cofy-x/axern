@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
@@ -36,17 +35,15 @@ type AllocationLifecycle interface {
 type AuthoritativeStore interface {
 	runkernel.EnvironmentStore
 	runkernel.RunStore
-	runkernel.ReconcileStore
 }
 
-func NewAuthoritative(store AuthoritativeStore, selector CandidateSelector, lifecycle AllocationLifecycle) Control {
-	return authoritativeRunAccess{store: store, selector: selector, lifecycle: lifecycle}
+func NewAuthoritative(store AuthoritativeStore, selector CandidateSelector) Control {
+	return authoritativeRunAccess{store: store, selector: selector}
 }
 
 type authoritativeRunAccess struct {
-	store     AuthoritativeStore
-	selector  CandidateSelector
-	lifecycle AllocationLifecycle
+	store    AuthoritativeStore
+	selector CandidateSelector
 }
 
 func (p authoritativeRunAccess) CreateRun(ctx context.Context, params runkernel.CreateParams, now time.Time) (*runv1.Run, error) {
@@ -88,17 +85,5 @@ func (p authoritativeRunAccess) ListRuns(ctx context.Context, filter *runv1.RunL
 }
 
 func (p authoritativeRunAccess) CancelRun(ctx context.Context, runID string, now time.Time) (*runv1.Run, error) {
-	run, alloc, err := p.store.CancelRun(ctx, runID, now)
-	if err != nil {
-		return nil, err
-	}
-	if alloc != nil && strings.TrimSpace(alloc.NodeTarget) != "" {
-		err := p.lifecycle.DeleteAllocation(ctx, alloc.NodeTarget, alloc.AllocationID, alloc.NodeID)
-		if err != nil {
-			_ = p.store.ScheduleReconcile(context.Background(), allocationkernel.ScheduleImmediateDeleteRetryRequest(alloc.AllocationID, err.Error(), now), now)
-		} else {
-			_ = p.store.CompleteAllocationRelease(context.Background(), alloc.AllocationID, now)
-		}
-	}
-	return run, nil
+	return p.store.CancelRun(ctx, runID, now)
 }

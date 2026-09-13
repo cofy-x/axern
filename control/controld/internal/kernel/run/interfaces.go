@@ -30,10 +30,9 @@ type EnvironmentStore interface {
 
 type RunStore interface {
 	AdmitRun(ctx context.Context, params AdmitRunParams, now time.Time) (*runv1.Run, error)
-	MarkAllocationCreateFailed(ctx context.Context, allocationID string, message string, now time.Time) (*runv1.Run, error)
 	GetRun(ctx context.Context, id string) (*runv1.Run, error)
 	ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, error)
-	CancelRun(ctx context.Context, runID string, now time.Time) (*runv1.Run, *AllocationRecord, error)
+	CancelRun(ctx context.Context, runID string, now time.Time) (*runv1.Run, error)
 }
 
 type CreateEnvironmentParams struct {
@@ -73,13 +72,13 @@ type AllocationReporter interface {
 
 type ReconcileStore interface {
 	LoadStartAllocation(ctx context.Context, allocationID string) (*StartAllocation, error)
-	CompleteAllocationStart(ctx context.Context, allocationID string, now time.Time) error
-	RecordAllocationCapabilityConditions(ctx context.Context, allocationID string, conditions *capabilityv1.CapabilityConditionSet, now time.Time) error
-	CompleteAllocationRelease(ctx context.Context, allocationID string, now time.Time) error
-	MarkAllocationCreateFailed(ctx context.Context, allocationID string, message string, now time.Time) (*runv1.Run, error)
-	DueReconcileItems(ctx context.Context, limit int, now time.Time) ([]allocationkernel.ReconcileItem, error)
-	ScheduleReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, now time.Time) error
-	RescheduleReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, now time.Time) (bool, error)
+	CompleteAllocationStart(ctx context.Context, allocationID, claimOwner string, conditions *capabilityv1.CapabilityConditionSet, now time.Time) error
+	CompleteAllocationRelease(ctx context.Context, allocationID, claimOwner string, now time.Time) error
+	MarkAllocationCreateFailed(ctx context.Context, allocationID, claimOwner string, message string, now time.Time) (*runv1.Run, error)
+	ClaimDueReconcileItems(ctx context.Context, owner string, limit int, now time.Time, leaseTTL time.Duration) ([]allocationkernel.ReconcileItem, error)
+	RenewReconcileClaim(ctx context.Context, allocationID, owner string, now time.Time, leaseTTL time.Duration) (bool, error)
+	ScheduleClaimedReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, owner string, now time.Time) (bool, error)
+	WaitReconcileWork(ctx context.Context) error
 }
 
 type StartAllocation struct {

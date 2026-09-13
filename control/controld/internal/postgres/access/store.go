@@ -335,9 +335,6 @@ func (s *Store) withAudit(ctx context.Context, actorID, operation, targetType, t
 	if _, err := tx.Exec(ctx, `INSERT INTO admin_audit_events(event_id,operation,target_type,target_id,operator_reason,actor_principal_id,created_at) VALUES($1,$2,$3,$4,$5,NULLIF($6,''),$7)`, `admaudit-`+uuid.NewString(), operation, targetType, targetID, "access policy change", actorID, now.UTC()); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE control_revisions SET revision=revision+1 WHERE name='access'`); err != nil {
-		return err
-	}
 	return tx.Commit(ctx)
 }
 

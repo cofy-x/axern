@@ -30,11 +30,11 @@ The selector returns a request-scoped candidate plan rather than a bare node lis
 
 Durable admission locks candidate node rows in stable node-id order and reruns the complete eligibility evaluator against the locked row: lifecycle, heartbeat and summary freshness, runtime, component health, labels, typed capability observations, capacity, and slots. A candidate that changed after the initial plan is skipped and the transaction tries the next candidate. The immutable capability requirements commit with the Allocation binding and reservation; selected observations are not copied into a second admission record. Admission also loads the latest active reservations and refreshes the dynamic load rank. It adds only reservations not yet reflected in the latest node `committed` summary, so running allocations are not counted twice while concurrent `STARTING` allocations still influence placement. Run admission is the only workload admission path. Every Allocation is durably admitted before its node create RPC is dispatched; no process-local placement ledger or Service replica path exists.
 
-Pending lifecycle recovery runs once at process startup and then on a separate low-frequency safety sweep. Recovery is not part of the normal startup latency path. The durable Allocation queue coalesces repeated intent, and independent Allocations run through a bounded worker pool and share controller-wide plus per-node concurrency budgets. This preserves fair parallel progress without turning status events into repeated table scans or letting one saturated node block unrelated work.
+Pending lifecycle recovery runs immediately at process startup and after an in-process commit signal, with a periodic scan as the lost-wakeup safety net. The durable Allocation queue coalesces repeated intent. Workers claim rows with a unique controld owner and a renewable lease; independent Allocations run through a bounded worker pool. This preserves parallel progress without allowing two controld instances to own the same delivery concurrently.
 
-`CreateRun` creates a run, allocation, and node reservation in the authoritative store, then calls the node allocation lifecycle API after the database transaction commits.
+`CreateRun` transactionally creates the Run, Allocation, reservation, immutable capability requirements, and create intent. Cancellation and terminal observation transactionally replace any create intent with delete intent while changing the Run and Allocation states and revoking leases. Public request handlers never call node Create/Delete directly.
 
-Run-owned node lifecycle calls are repaired through the durable `allocation_reconcile_queue` when post-commit create or delete calls fail. That queue keeps reservation and lease cleanup tied to confirmed node lifecycle state instead of best-effort RPC success. The queue is Allocation-scoped; the Run controller applies terminal workload state after queue convergence.
+The durable `allocation_reconcile_queue` is the sole dispatcher for Run-owned node lifecycle calls. A claimed worker renews ownership during long operations; completion, retry, and create-to-delete transitions are fenced by that owner. A failed or stale worker therefore cannot acknowledge or rewrite work after another controld instance takes over. The queue is Allocation-scoped; the Run controller applies terminal workload state independently from infrastructure cleanup convergence.
 
 Capability loss is owned entirely by axnoded's Allocation-scoped durable intent. Controld does not maintain a parallel capability queue or issue a competing delete. Provider observation, catalog loss policy, and bounded verification are defined by the canonical [Capability Admission and Observation](../../../docs/architecture/observed-capability-providers.md) contract.
 
@@ -82,13 +82,13 @@ Create retry is bounded because the allocation has not reached confirmed node ow
 
 ```mermaid
 flowchart TD
-  A["post-commit create RPC fails"] --> B["queue reason=create"]
+  A["Run admission commits"] --> B["queue reason=create"]
   B --> C{"retry budget left?"}
   C -- yes --> D["next_run_at = exponential backoff"]
   D --> B
   C -- no --> E["mark allocation failed; release reservation; complete retry"]
 
-  F["delete RPC fails"] --> G["queue reason=delete"]
+  F["cancel or terminal result commits"] --> G["queue reason=delete"]
   G --> H{"node deletion confirmed?"}
   H -- no --> I["next_run_at = DeleteRetryDelay"]
   I --> G
@@ -105,7 +105,7 @@ Timing rules:
 
 - Initial create failure schedules `create` at `now + CreateRetryDelay(1)` and increments attempts.
 - Queued create failure schedules exponential backoff capped by `CreateRetryMaxDelay` and increments attempts until exhaustion.
-- Run cancel delete failure schedules an immediate `delete` retry without incrementing attempts, preserving cancel responsiveness.
+- Run cancellation atomically replaces any create work with a fresh immediate `delete` intent and resets the create retry history.
 - Queued delete failures schedule `delete` at `now + DeleteRetryDelay` and increment attempts.
 
 ## Resource Admission Policy

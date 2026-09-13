@@ -80,7 +80,7 @@ Allocation memory usage is live node-local diagnostic data rebuilt from the auth
 
 ### Reconciliation and audit
 
-`allocation_reconcile_queue` is the durable retry queue. `next_run_at`, `reconcile_attempts`, and `last_error` describe retry state; `lease_owner` and `lease_expires_at` provide bounded multi-worker claims.
+`allocation_reconcile_queue` is the sole durable dispatcher for node Create/Delete operations. `next_run_at`, `reconcile_attempts`, and `last_error` describe delivery state; `lease_owner` and `lease_expires_at` provide renewable multi-worker claims. Run admission, cancellation, terminal observation, and create exhaustion write or replace this intent in the same transaction as their authoritative lifecycle changes. Completion and rescheduling require the current claim owner, so an expired worker cannot acknowledge newer work.
 
 Capability loss has no controld queue or transition-history table. Axnoded owns the crash-safe Allocation-scoped verification/termination intent. Controld persists only the latest ordered Node summary and condition projection; its lifecycle queue remains limited to create/delete convergence.
 

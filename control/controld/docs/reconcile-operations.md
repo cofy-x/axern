@@ -48,7 +48,7 @@ axern admin audit list --operation retire-node --target-type node --target-id <n
 
 ## Allocation Retry Triage
 
-Use the allocation lifecycle queue when a workload is stuck after a node lifecycle call failed after the database transaction committed.
+Use the allocation lifecycle queue when a durable node Create/Delete intent is retrying or cannot converge. Request paths commit intent but do not call the node directly, so a controld crash between the product-state transaction and delivery cannot strand unrecorded work.
 
 ```bash
 axern admin allocation-retry list

@@ -1,10 +1,13 @@
 package allocationkernel
 
 import (
+	"errors"
 	"time"
 
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 )
+
+var ErrReconcileClaimLost = errors.New("allocation reconcile claim lost")
 
 const (
 	ReconcileReasonCreate     = "create"
@@ -16,6 +19,9 @@ const (
 	CreateRetryMaxAttempts    = 5
 	CreateExecutionTimeout    = 10 * time.Minute
 	LifecycleOperationTimeout = 60 * time.Second
+	ReconcileClaimTTL         = 30 * time.Second
+	ReconcileClaimRenewal     = 10 * time.Second
+	ReconcileWorkerCount      = 8
 )
 
 type ReconcileItem struct {
@@ -146,10 +152,4 @@ func ScheduleDeleteRequest(allocationID string, now time.Time) ScheduleReconcile
 		Reason:       ReconcileReasonDelete,
 		NextRunAt:    now,
 	}
-}
-
-func ScheduleImmediateDeleteRetryRequest(allocationID string, lastError string, now time.Time) ScheduleReconcileRequest {
-	request := ScheduleDeleteRequest(allocationID, now)
-	request.LastReconcileError = lastError
-	return request
 }

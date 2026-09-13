@@ -3,6 +3,7 @@ package pgallocation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -19,6 +20,10 @@ type reconcileQueryer interface {
 	Query(context.Context, string, ...any) (pgx.Rows, error)
 }
 
+type reconcileClaimQueryer interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
 type reconcileExecutor interface {
 	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 }
@@ -28,41 +33,6 @@ const capabilityDependenciesProjectionSQL = `COALESCE((
 	FROM allocation_capability_requirements cd
 	WHERE cd.allocation_id = a.allocation_id
 ), '[]'::jsonb)`
-
-func DueReconcileItems(ctx context.Context, queryer reconcileQueryer, limit int, now time.Time) ([]allocationkernel.ReconcileItem, error) {
-	if limit <= 0 {
-		limit = allocationkernel.DefaultReconcileLimit
-	}
-	rows, err := queryer.Query(ctx, `
-		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target, q.reconcile_attempts, q.last_error, q.next_run_at,
-			`+capabilityDependenciesProjectionSQL+`,
-			GREATEST(q.next_run_at, q.updated_at, COALESCE(q.lease_expires_at, '-infinity'::timestamptz)) AS eligible_at
-		FROM allocation_reconcile_queue q
-		JOIN allocations a ON a.allocation_id = q.allocation_id
-		JOIN runs r ON r.run_id = a.run_id
-		JOIN nodes n ON n.node_id = a.node_id
-		WHERE q.next_run_at <= $1
-		ORDER BY q.next_run_at ASC, q.allocation_id ASC
-		LIMIT $2
-	`, now.UTC(), limit)
-	if err != nil {
-		return nil, fmt.Errorf("query reconcile queue: %w", err)
-	}
-	defer rows.Close()
-	out := make([]allocationkernel.ReconcileItem, 0)
-	for rows.Next() {
-		var item allocationkernel.ReconcileItem
-		var dependenciesJSON []byte
-		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &item.Reason, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt); err != nil {
-			return nil, err
-		}
-		if err := decodeCapabilityRequirements(dependenciesJSON, &item); err != nil {
-			return nil, err
-		}
-		out = append(out, item)
-	}
-	return out, rows.Err()
-}
 
 func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner string, limit int, now time.Time, leaseTTL time.Duration) ([]allocationkernel.ReconcileItem, error) {
 	owner = strings.TrimSpace(owner)
@@ -130,6 +100,26 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 	return out, rows.Err()
 }
 
+func RequireReconcileClaim(ctx context.Context, queryer reconcileClaimQueryer, allocationID, reason, owner string, now time.Time) error {
+	var held bool
+	err := queryer.QueryRow(ctx, `
+		SELECT TRUE FROM allocation_reconcile_queue
+		WHERE allocation_id = $1 AND reason = $2 AND lease_owner = $3
+		  AND lease_expires_at > $4
+		FOR UPDATE
+	`, strings.TrimSpace(allocationID), strings.TrimSpace(reason), strings.TrimSpace(owner), now.UTC()).Scan(&held)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return allocationkernel.ErrReconcileClaimLost
+	}
+	if err != nil {
+		return fmt.Errorf("verify allocation reconcile claim: %w", err)
+	}
+	if !held {
+		return allocationkernel.ErrReconcileClaimLost
+	}
+	return nil
+}
+
 func decodeCapabilityRequirements(payload []byte, item *allocationkernel.ReconcileItem) error {
 	var raw []json.RawMessage
 	if len(payload) > 0 && string(payload) != "null" {
@@ -155,6 +145,7 @@ func RenewReconcileClaim(ctx context.Context, executor reconcileExecutor, alloca
 		UPDATE allocation_reconcile_queue
 		SET lease_expires_at = $3, updated_at = $2
 		WHERE allocation_id = $1 AND lease_owner = $4
+		  AND lease_expires_at > $2
 	`, strings.TrimSpace(allocationID), now.UTC(), now.Add(leaseTTL).UTC(), strings.TrimSpace(owner))
 	if err != nil {
 		return false, fmt.Errorf("renew allocation reconcile claim: %w", err)
@@ -195,28 +186,9 @@ func ScheduleReconcile(ctx context.Context, executor reconcileExecutor, req allo
 	return nil
 }
 
-// RescheduleReconcile only updates an existing lifecycle item. A reconciler
-// must not recreate work that an operator or a concurrent terminal transition
-// already removed.
-func RescheduleReconcile(ctx context.Context, executor reconcileExecutor, req allocationkernel.ScheduleReconcileRequest, now time.Time) (bool, error) {
-	nextRunAt := req.NextRunAt
-	if nextRunAt.IsZero() {
-		nextRunAt = now
-	}
-	tag, err := executor.Exec(ctx, `
-		UPDATE allocation_reconcile_queue
-		SET next_run_at = $3,
-			reconcile_attempts = CASE WHEN $4 THEN reconcile_attempts + 1 ELSE reconcile_attempts END,
-			last_error = $5,
-			updated_at = clock_timestamp()
-		WHERE allocation_id = $1 AND reason = $2
-	`, strings.TrimSpace(req.AllocationID), strings.TrimSpace(req.Reason), nextRunAt.UTC(), req.IncrementAttempts, strings.TrimSpace(req.LastReconcileError))
-	if err != nil {
-		return false, fmt.Errorf("reschedule allocation reconcile: %w", err)
-	}
-	return tag.RowsAffected() == 1, nil
-}
-
+// ScheduleClaimedReconcile updates or replaces only work still owned by the
+// calling worker. A stale worker cannot recreate work that another worker or
+// an operator has already replaced or removed.
 func ScheduleClaimedReconcile(ctx context.Context, executor reconcileExecutor, req allocationkernel.ScheduleReconcileRequest, owner string, now time.Time) (bool, error) {
 	nextRunAt := req.NextRunAt
 	if nextRunAt.IsZero() {
@@ -232,7 +204,8 @@ func ScheduleClaimedReconcile(ctx context.Context, executor reconcileExecutor, r
 			lease_expires_at = NULL,
 			updated_at = clock_timestamp()
 		WHERE allocation_id = $1 AND lease_owner = $6
-	`, strings.TrimSpace(req.AllocationID), strings.TrimSpace(req.Reason), nextRunAt.UTC(), req.IncrementAttempts, strings.TrimSpace(req.LastReconcileError), strings.TrimSpace(owner))
+		  AND lease_expires_at > $7
+	`, strings.TrimSpace(req.AllocationID), strings.TrimSpace(req.Reason), nextRunAt.UTC(), req.IncrementAttempts, strings.TrimSpace(req.LastReconcileError), strings.TrimSpace(owner), now.UTC())
 	if err != nil {
 		return false, fmt.Errorf("schedule claimed allocation reconcile: %w", err)
 	}

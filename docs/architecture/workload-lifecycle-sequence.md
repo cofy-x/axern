@@ -49,4 +49,4 @@ sequenceDiagram
     Gateway-->>Client: "Result or stream"
 ```
 
-Cancellation revokes internal execution leases and reconciles allocation deletion. Node-control identity is mTLS based; node lifecycle APIs and lease replication are private implementation contracts.
+Cancellation atomically commits the Run terminal state, Allocation releasing state, lease revocation, and Allocation delete intent. A claimed background worker performs the node deletion; the request path never creates a best-effort second dispatch path. Node-control identity is mTLS based; node lifecycle APIs and lease replication are private implementation contracts.

@@ -1,10 +1,12 @@
 package pgrun
 
 import (
+	"context"
+	"time"
+
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
-	"time"
 
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	pgreservation "github.com/cofy-x/axern/control/controld/internal/postgres/reservation"
@@ -17,9 +19,10 @@ const (
 )
 
 type Store struct {
-	db           *postgres.DB
-	reservations pgreservation.Admission
-	leaseWatches *leaseWatchHub
+	db            *postgres.DB
+	reservations  pgreservation.Admission
+	leaseWatches  *leaseWatchHub
+	reconcileWake chan struct{}
 }
 
 type Option func(*Store)
@@ -36,14 +39,37 @@ func WithPlacementEvaluator(evaluator placementkernel.Evaluator) Option {
 
 func NewStore(db *postgres.DB, options ...Option) *Store {
 	store := &Store{
-		db:           db,
-		reservations: pgreservation.NewAdmission(resourcekernel.AdmissionPolicy{}, nil),
-		leaseWatches: newLeaseWatchHub(db.Pool()),
+		db:            db,
+		reservations:  pgreservation.NewAdmission(resourcekernel.AdmissionPolicy{}, nil),
+		leaseWatches:  newLeaseWatchHub(db.Pool()),
+		reconcileWake: make(chan struct{}, 1),
 	}
 	for _, option := range options {
 		option(store)
 	}
 	return store
+}
+
+func (s *Store) signalReconcileWork() {
+	if s == nil {
+		return
+	}
+	select {
+	case s.reconcileWake <- struct{}{}:
+	default:
+	}
+}
+
+func (s *Store) WaitReconcileWork(ctx context.Context) error {
+	if s == nil {
+		return context.Canceled
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.reconcileWake:
+		return nil
+	}
 }
 
 func (s *Store) Close() {

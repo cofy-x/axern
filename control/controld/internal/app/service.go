@@ -34,6 +34,7 @@ import (
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
+	"github.com/google/uuid"
 )
 
 const (
@@ -230,7 +231,7 @@ func (a *App) configureDependencies(cfg Config) error {
 		SecretValues:        a.secretDB,
 		RegistryCredentials: a.secretDB,
 	})
-	a.runReconciler = apprun.NewReconciler(a.runStore, a.nodeBridge)
+	a.runReconciler = apprun.NewReconciler(a.runStore, a.nodeBridge, "controld-"+uuid.NewString(), func() time.Time { return a.now() })
 	return nil
 }
 

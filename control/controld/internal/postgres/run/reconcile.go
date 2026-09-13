@@ -11,13 +11,14 @@ import (
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
 	pgreservation "github.com/cofy-x/axern/control/controld/internal/postgres/reservation"
+	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID string, now time.Time) error {
+func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID, claimOwner string, now time.Time) error {
 	allocationID = strings.TrimSpace(allocationID)
 	return s.withTx(ctx, func(tx pgx.Tx) error {
 		var stateText string
@@ -27,6 +28,9 @@ func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID stri
 			return grpcstatus.Errorf(codes.NotFound, "allocation %q not found", allocationID)
 		} else if err != nil {
 			return fmt.Errorf("lock allocation release: %w", err)
+		}
+		if err := pgallocation.RequireReconcileClaim(ctx, tx, allocationID, allocationkernel.ReconcileReasonDelete, claimOwner, now); err != nil {
+			return err
 		}
 		state := allocationkernel.ParseLifecycleState(stateText)
 		if state != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING &&
@@ -48,22 +52,37 @@ func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID stri
 		if err := pgreservation.ReleaseAllocation(ctx, tx, allocationID, now); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM allocation_reconcile_queue WHERE allocation_id = $1`, allocationID); err != nil {
+		tag, err := tx.Exec(ctx, `DELETE FROM allocation_reconcile_queue WHERE allocation_id = $1 AND lease_owner = $2`, allocationID, strings.TrimSpace(claimOwner))
+		if err != nil {
 			return fmt.Errorf("delete reconcile item: %w", err)
+		}
+		if tag.RowsAffected() != 1 {
+			return allocationkernel.ErrReconcileClaimLost
 		}
 		return nil
 	})
 }
 
-func (s *Store) CompleteAllocationStart(ctx context.Context, allocationID string, now time.Time) error {
+func (s *Store) CompleteAllocationStart(ctx context.Context, allocationID, claimOwner string, conditions *capabilityv1.CapabilityConditionSet, now time.Time) error {
 	return s.withTx(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `
+		if err := pgallocation.RequireReconcileClaim(ctx, tx, allocationID, allocationkernel.ReconcileReasonCreate, claimOwner, now); err != nil {
+			return err
+		}
+		if conditions != nil {
+			if err := pgallocation.ReplaceCapabilityConditions(ctx, tx, allocationID, conditions, now); err != nil {
+				return err
+			}
+		}
+		tag, err := tx.Exec(ctx, `
 			DELETE FROM allocation_reconcile_queue
-			WHERE allocation_id = $1 AND reason = $2
-		`, strings.TrimSpace(allocationID), allocationkernel.ReconcileReasonCreate); err != nil {
+			WHERE allocation_id = $1 AND reason = $2 AND lease_owner = $3
+		`, strings.TrimSpace(allocationID), allocationkernel.ReconcileReasonCreate, strings.TrimSpace(claimOwner))
+		if err != nil {
 			return fmt.Errorf("delete start reconcile item: %w", err)
 		}
-		_ = now
+		if tag.RowsAffected() != 1 {
+			return allocationkernel.ErrReconcileClaimLost
+		}
 		return nil
 	})
 }
@@ -154,14 +173,18 @@ func (s *Store) revokeAllocationLeases(ctx context.Context, tx pgx.Tx, allocatio
 	return nil
 }
 
-func (s *Store) DueReconcileItems(ctx context.Context, limit int, now time.Time) ([]allocationkernel.ReconcileItem, error) {
-	return pgallocation.DueReconcileItems(ctx, s.db.Pool(), limit, now)
+func (s *Store) ClaimDueReconcileItems(ctx context.Context, owner string, limit int, now time.Time, leaseTTL time.Duration) ([]allocationkernel.ReconcileItem, error) {
+	return pgallocation.ClaimDueReconcileItems(ctx, s.db.Pool(), owner, limit, now, leaseTTL)
 }
 
-func (s *Store) ScheduleReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, now time.Time) error {
-	return pgallocation.ScheduleReconcile(ctx, s.db.Pool(), req, now)
+func (s *Store) RenewReconcileClaim(ctx context.Context, allocationID, owner string, now time.Time, leaseTTL time.Duration) (bool, error) {
+	return pgallocation.RenewReconcileClaim(ctx, s.db.Pool(), allocationID, owner, now, leaseTTL)
 }
 
-func (s *Store) RescheduleReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, now time.Time) (bool, error) {
-	return pgallocation.RescheduleReconcile(ctx, s.db.Pool(), req, now)
+func (s *Store) ScheduleClaimedReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, owner string, now time.Time) (bool, error) {
+	updated, err := pgallocation.ScheduleClaimedReconcile(ctx, s.db.Pool(), req, owner, now)
+	if err == nil && updated {
+		s.signalReconcileWork()
+	}
+	return updated, err
 }

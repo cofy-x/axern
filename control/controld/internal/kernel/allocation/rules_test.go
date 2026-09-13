@@ -188,11 +188,8 @@ func TestScheduleDeleteRetryRequest(t *testing.T) {
 		t.Fatalf("NextRunAt = %v, want %v", req.NextRunAt, want)
 	}
 
-	req = ScheduleImmediateDeleteRetryRequest("alloc-a", "node unavailable", now)
-	if req.AllocationID != "alloc-a" || req.Reason != ReconcileReasonDelete || req.LastReconcileError != "node unavailable" || req.IncrementAttempts {
-		t.Fatalf("immediate request = %#v, want non-incrementing delete retry request for alloc-a", req)
-	}
-	if !req.NextRunAt.Equal(now) {
-		t.Fatalf("immediate NextRunAt = %v, want %v", req.NextRunAt, now)
+	immediate := ScheduleDeleteRequest("alloc-a", now)
+	if immediate.AllocationID != "alloc-a" || immediate.Reason != ReconcileReasonDelete || immediate.LastReconcileError != "" || immediate.IncrementAttempts {
+		t.Fatalf("immediate request = %#v, want fresh delete intent for alloc-a", immediate)
 	}
 }

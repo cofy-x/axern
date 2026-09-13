@@ -17,9 +17,24 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func (s *Store) MarkAllocationCreateFailed(ctx context.Context, allocationID string, message string, now time.Time) (*runv1.Run, error) {
+func (s *Store) MarkAllocationCreateFailed(ctx context.Context, allocationID, claimOwner string, message string, now time.Time) (*runv1.Run, error) {
 	var run *runv1.Run
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
+		var exists bool
+		if err := tx.QueryRow(ctx, `
+			SELECT TRUE
+			FROM allocations a
+			JOIN runs r ON r.run_id = a.run_id
+			WHERE a.allocation_id = $1
+			FOR UPDATE OF a, r
+		`, strings.TrimSpace(allocationID)).Scan(&exists); errors.Is(err, pgx.ErrNoRows) {
+			return grpcstatus.Errorf(codes.NotFound, "allocation %q not found", allocationID)
+		} else if err != nil {
+			return fmt.Errorf("lock allocation after create failure: %w", err)
+		}
+		if err := pgallocation.RequireReconcileClaim(ctx, tx, allocationID, allocationkernel.ReconcileReasonCreate, claimOwner, now); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE allocations
 			SET lifecycle_state = $2, updated_at = $3
@@ -35,25 +50,28 @@ func (s *Store) MarkAllocationCreateFailed(ctx context.Context, allocationID str
 		`, allocationID, runv1.RunStatus_RUN_STATUS_FAILED.String(), commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR.String(), message, now.UTC(), runv1.RunStatus_RUN_STATUS_SUCCEEDED.String(), runv1.RunStatus_RUN_STATUS_FAILED.String(), runv1.RunStatus_RUN_STATUS_CANCELLED.String()); err != nil {
 			return fmt.Errorf("mark run failed: %w", err)
 		}
-		if err := pgallocation.ScheduleReconcile(ctx, tx, allocationkernel.ScheduleReconcileRequest{
+		updated, err := pgallocation.ScheduleClaimedReconcile(ctx, tx, allocationkernel.ScheduleReconcileRequest{
 			AllocationID: allocationID,
 			Reason:       allocationkernel.ReconcileReasonDelete,
 			NextRunAt:    now,
-		}, now); err != nil {
+		}, claimOwner, now)
+		if err != nil {
 			return err
 		}
-		var err error
+		if !updated {
+			return allocationkernel.ErrReconcileClaimLost
+		}
 		run, err = s.runByAllocation(ctx, tx, allocationID)
 		return err
 	})
+	if err == nil {
+		s.signalReconcileWork()
+	}
 	return run, err
 }
 
-func (s *Store) CancelRun(ctx context.Context, runID string, now time.Time) (*runv1.Run, *runkernel.AllocationRecord, error) {
-	var (
-		run   *runv1.Run
-		alloc *runkernel.AllocationRecord
-	)
+func (s *Store) CancelRun(ctx context.Context, runID string, now time.Time) (*runv1.Run, error) {
+	var run *runv1.Run
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
 		var err error
 		run, err = scanRun(tx.QueryRow(ctx, runSelectSQL()+` WHERE r.run_id = $1 FOR UPDATE OF r, a`, strings.TrimSpace(runID)))
@@ -81,13 +99,15 @@ func (s *Store) CancelRun(ctx context.Context, runID string, now time.Time) (*ru
 			if err := s.revokeAllocationLeases(ctx, tx, run.GetAllocationID(), now); err != nil {
 				return err
 			}
-		}
-		alloc, err = s.currentAllocation(ctx, tx, run.GetAllocationID())
-		if err != nil {
-			return err
+			if err := pgallocation.ScheduleReconcile(ctx, tx, allocationkernel.ScheduleDeleteRequest(run.GetAllocationID(), now), now); err != nil {
+				return err
+			}
 		}
 		run, err = scanRun(tx.QueryRow(ctx, runSelectSQL()+` WHERE r.run_id = $1`, strings.TrimSpace(runID)))
 		return err
 	})
-	return run, alloc, err
+	if err == nil {
+		s.signalReconcileWork()
+	}
+	return run, err
 }
