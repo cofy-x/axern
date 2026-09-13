@@ -436,15 +436,7 @@ func (h *sandboxService) verifyAllocationCapability(ctx context.Context, allocat
 		if runtimeCgroupPath != manifest.GetRuntimeCgroupPath() {
 			return contract.LostCapability(fmt.Errorf("runtime cgroup path differs from durable enforcement manifest"))
 		}
-	}
-	if ct.Status != nil {
-		status := ct.Status.Get()
-		if status.LinuxResources != nil {
-			memoryLimit = status.LinuxResources.GetMemoryLimitInBytes()
-		}
-	}
-	if (platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT) && memoryLimit != manifest.GetMemoryLimitBytes() {
-		return contract.LostCapability(fmt.Errorf("container memory limit differs from durable enforcement manifest"))
+		memoryLimit = manifest.GetMemoryLimitBytes()
 	}
 	ephemeralLimit = manifest.GetEphemeralStorageLimitBytes()
 	return verifier.VerifyAllocationCapability(ctx, dependency, contract.HandlerOptions{

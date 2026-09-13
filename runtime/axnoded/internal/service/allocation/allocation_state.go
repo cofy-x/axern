@@ -14,6 +14,7 @@ import (
 	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	runtimecontract "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -46,7 +47,7 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetAllocationRequestDigest() == "" && record.GetEnvironmentTemplate() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
+	return record == nil || (record.GetAllocationRequestDigest() == "" && record.GetEnvironmentTemplate() == nil && record.GetResources() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
 }
 
 func (h *Controller) HasAllocation(allocationID string) bool {
@@ -134,10 +135,10 @@ func (h *Controller) InspectRecoveryRecords() (RecoveryRecords, error) {
 	return result, err
 }
 
-// StoreCapabilityRequirements persists the immutable Allocation requirement
-// contract as the first create side effect. Node observations and conditions
-// remain rebuildable projections and are never copied into this record.
-func (h *Controller) StoreCapabilityRequirements(allocationID string, requestDigest string, requirements []*capabilityv1.CapabilityRequirement) error {
+// StoreAllocationIntent persists the immutable node execution contract as the
+// first create side effect. Node observations, effective runtime projection,
+// and conditions are rebuildable and are never copied into this record.
+func (h *Controller) StoreAllocationIntent(allocationID string, requestDigest string, resourceSpec *commonv1.ResourceSpec, requirements []*capabilityv1.CapabilityRequirement) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" || !validStartRequestDigest(requestDigest) {
 		return errors.New("allocation id and canonical request digest are required")
@@ -157,15 +158,33 @@ func (h *Controller) StoreCapabilityRequirements(allocationID string, requestDig
 		return fmt.Errorf("allocation request digest conflicts with durable contract")
 	}
 	desired.CapabilityRequirements = cloneCapabilityRequirements(requirements)
+	if resourceSpec != nil {
+		desired.Resources = proto.Clone(resourceSpec).(*commonv1.ResourceSpec)
+	} else {
+		desired.Resources = nil
+	}
 	desired.AllocationRequestDigest = requestDigest
 	if err := h.persistAllocationRecord(desired); err != nil {
-		return fmt.Errorf("persist allocation capability requirements: %w", err)
+		return fmt.Errorf("persist allocation intent: %w", err)
 	}
 	h.stateMu.Lock()
 	state := h.stateLocked(allocationID)
 	state.record = desired
 	h.stateMu.Unlock()
 	return nil
+}
+
+// ResourceSpec returns the immutable scheduler and enforcement inputs for an
+// admitted Allocation. Runtime status and OCI metadata are not specification
+// authorities.
+func (h *Controller) ResourceSpec(allocationID string) *commonv1.ResourceSpec {
+	h.stateMu.RLock()
+	defer h.stateMu.RUnlock()
+	state := h.allocationStates[strings.TrimSpace(allocationID)]
+	if state == nil || state.record == nil || state.record.GetResources() == nil {
+		return nil
+	}
+	return proto.Clone(state.record.GetResources()).(*commonv1.ResourceSpec)
 }
 
 func (h *Controller) AllocationRequestDigest(allocationID string) string {
@@ -493,13 +512,23 @@ func (h *Controller) LaunchVerification(allocationID string) *apipb.AllocationLa
 }
 
 func (h *Controller) EnforcementManifest(allocationID string) *apipb.AllocationEnforcementManifest {
+	allocationID = strings.TrimSpace(allocationID)
 	h.stateMu.RLock()
-	defer h.stateMu.RUnlock()
-	state := h.allocationStates[strings.TrimSpace(allocationID)]
-	if state == nil || state.record.GetEnforcementManifest() == nil {
+	state := h.allocationStates[allocationID]
+	if state != nil && state.record != nil && state.record.GetEnforcementManifest() != nil {
+		manifest := proto.Clone(state.record.GetEnforcementManifest()).(*apipb.AllocationEnforcementManifest)
+		h.stateMu.RUnlock()
+		return manifest
+	}
+	h.stateMu.RUnlock()
+	if allocationID == "" || h.store == nil {
 		return nil
 	}
-	return proto.Clone(state.record.GetEnforcementManifest()).(*apipb.AllocationEnforcementManifest)
+	var record apipb.AllocationState
+	if err := h.store.GetRecord(config.AllocationStateBucket, allocationID, &record); err != nil || record.GetAllocationID() != allocationID || record.GetEnforcementManifest() == nil {
+		return nil
+	}
+	return proto.Clone(record.GetEnforcementManifest()).(*apipb.AllocationEnforcementManifest)
 }
 
 func canonicalCapabilityConditions(in []*capabilityv1.CapabilityCondition) ([]*capabilityv1.CapabilityCondition, error) {

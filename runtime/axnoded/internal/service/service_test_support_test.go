@@ -12,6 +12,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // newTestService creates a sandboxService with a real container.Manager backed by a temp dir.
@@ -23,6 +24,14 @@ func newTestService(t *testing.T, runscHandler contract.SandboxRuntime) *sandbox
 	}
 	environmentCache.ConfigureRetention(retentionTTL, config.DefaultIdleEnvironmentRetentionMax)
 	return newTestServiceWithPreparedEnvironmentManager(t, runscHandler, environmentCache)
+}
+
+func markTestContainerRunning(t *testing.T, s *sandboxService, allocationID string) {
+	t.Helper()
+	require.NoError(t, s.containerManager.SyncRuntimeIdentityFromState(allocationID, &contract.UnionContainerState{
+		ID: allocationID, Status: contract.ContainerStatusRunning, InitProcessPid: 101,
+		Created: time.Now().UTC().Format(time.RFC3339Nano),
+	}))
 }
 
 func newTestServiceWithPreparedEnvironmentManager(t *testing.T, runscHandler contract.SandboxRuntime, environmentCache *environmentcache.EnvironmentCache) *sandboxService {

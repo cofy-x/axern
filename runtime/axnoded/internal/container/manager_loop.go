@@ -332,6 +332,13 @@ func (m *Manager) persistMonitorExit(event Event) (Event, error) {
 	return event, nil
 }
 
+// CheckpointRuntimeExit persists exact terminal evidence recovered from the
+// runsc wait checkpoint before startup is allowed to delete terminal runtime
+// state. Delivery remains owned by the lifecycle outbox seeding step.
+func (m *Manager) CheckpointRuntimeExit(event Event) (Event, error) {
+	return m.persistMonitorExit(event)
+}
+
 func (m *Manager) notifyMonitorExitWithRetry(ctx context.Context, event Event) error {
 	if m.exitObserver == nil {
 		return nil
@@ -480,6 +487,7 @@ func (m *Manager) SetExit(id string, exitCode int32, exitCodeKnown bool, finishe
 	}
 
 	if err := container.Status.UpdateSync(func(status Status) (Status, error) {
+		status.RuntimeState = apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED
 		status.Pid = -1
 		status.ExitCode = exitCode
 		status.ExitCodeKnown = exitCodeKnown

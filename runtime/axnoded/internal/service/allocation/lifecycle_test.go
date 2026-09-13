@@ -17,6 +17,7 @@ import (
 )
 
 func TestCreateRuntimeContainerUsesHostRequirements(t *testing.T) {
+	const allocationID = "allocation-host-requirements"
 	handler := &runtimeSpyHandler{
 		name:         "runsc",
 		requirements: contract.HostRequirements{},
@@ -26,6 +27,7 @@ func TestCreateRuntimeContainerUsesHostRequirements(t *testing.T) {
 	)
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
+		ID:           allocationID,
 		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 		Rootfs: &apipb.Rootfs{
 			RootDir:  t.TempDir(),
@@ -35,7 +37,7 @@ func TestCreateRuntimeContainerUsesHostRequirements(t *testing.T) {
 	}, nil, nil)
 
 	assert.NoError(t, err)
-	assert.NotEmpty(t, resp.GetID())
+	assert.Equal(t, allocationID, resp.GetID())
 	assert.Equal(t, 1, handler.createCalls)
 	assert.Empty(t, handler.lastOptions.AllocatedResources)
 }

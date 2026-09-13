@@ -12,7 +12,6 @@ import (
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/jsonutil"
-	"github.com/cofy-x/axern/runtime/axnoded/pkg/truncindex"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/orcaman/concurrent-map/v2"
 	"github.com/stretchr/testify/assert"
@@ -90,6 +89,12 @@ func TestOccupyPreservesResourceExhaustedClass(t *testing.T) {
 	assert.ErrorIs(t, err, errord.ErrResourceExhausted)
 }
 
+func TestOccupyRequiresExplicitAllocationID(t *testing.T) {
+	manager := &Manager{containers: cmap.New[*Container](), resourceManagers: cmap.New[resourcemanager.Manager]()}
+	_, err := manager.Occupy(resourcemanager.AllocateOption{})
+	require.ErrorContains(t, err, "explicit allocation id")
+}
+
 func TestReleaseResourceKeepsCgroupAssignedUntilOtherResourcesRetire(t *testing.T) {
 	cgroupManager := &releaseTrackingResourceManager{name: resourcemanager.CgroupResourceName}
 	interfaceManager := &releaseTrackingResourceManager{
@@ -123,7 +128,6 @@ func TestDeletePreservesContainerClaimsUntilResourceReleaseSucceeds(t *testing.T
 		root:             root,
 		containers:       cmap.New[*Container](),
 		resourceManagers: cmap.New[resourcemanager.Manager](),
-		idGenerator:      truncindex.NewTruncGenerator("sandbox", []string{containerID}),
 		monitors:         cmap.New[*containerMonitor](),
 	}
 	m.resourceManagers.Set(string(resourceManager.ResourceName()), resourceManager)
@@ -142,6 +146,7 @@ func TestDeletePreservesContainerClaimsUntilResourceReleaseSucceeds(t *testing.T
 	m.containers.Set(containerID, &Container{
 		Metadata: &apipb.ContainerMetadata{},
 		Status: &statusStorage{status: Status{
+			RuntimeState:  apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED,
 			FinishedAt:    time.Now().UTC().Format(time.RFC3339Nano),
 			ExitCodeKnown: true,
 		}},

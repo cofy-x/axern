@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -20,6 +21,12 @@ type inventoryTestHandler struct {
 	err       error
 	deleted   *[]string
 	deleteErr error
+	waitExit  contract.Exit
+	waitErr   error
+}
+
+func (h inventoryTestHandler) Wait(context.Context, contract.HandlerOptions) (contract.Exit, error) {
+	return h.waitExit, h.waitErr
 }
 
 func (h inventoryTestHandler) ListContainers(context.Context, contract.HandlerOptions) ([]*contract.UnionContainerState, error) {
@@ -80,6 +87,40 @@ func TestRuntimeInventoryRetainsUnknownAndExcludesTerminalAfterRuntimeDelete(t *
 	assert.Equal(t, map[string]struct{}{"unknown": {}}, inventory.retained().allIDs())
 }
 
+func TestRecoverTerminalRuntimeCheckpointBeforeCleanup(t *testing.T) {
+	exitedAt := time.Date(2026, 9, 13, 12, 0, 0, 123, time.UTC)
+	runsc := runtimetest.NewFakeSandboxRuntime()
+	handler := inventoryTestHandler{SandboxRuntime: runsc, waitExit: contract.Exit{Status: 23, Timestamp: exitedAt}}
+	service := runtimeInventoryTestService(t, handler)
+	require.NoError(t, service.containerManager.StoreMetadata("terminal", &runtimeapi.ContainerMetadata{}))
+
+	require.NoError(t, service.recoverTerminalRuntimeCheckpoints(context.Background(), runtimeInventory{
+		"terminal": {ID: "terminal", Status: contract.ContainerStatusExited},
+	}))
+	item, err := service.containerManager.Get("terminal")
+	require.NoError(t, err)
+	status := item.Status.Get()
+	assert.Equal(t, runtimeapi.ContainerState_CONTAINER_EXITED, status.State())
+	assert.Equal(t, int32(23), status.ExitCode)
+	assert.True(t, status.ExitCodeKnown)
+	assert.Equal(t, exitedAt, container.ParseTimestampTime(status.FinishedAt))
+}
+
+func TestRecoverTerminalRuntimeCheckpointFailsClosedWithoutExactExit(t *testing.T) {
+	runsc := runtimetest.NewFakeSandboxRuntime()
+	handler := inventoryTestHandler{SandboxRuntime: runsc, waitErr: contract.ErrExitStatusUnavailable}
+	service := runtimeInventoryTestService(t, handler)
+	require.NoError(t, service.containerManager.StoreMetadata("terminal", &runtimeapi.ContainerMetadata{}))
+
+	err := service.recoverTerminalRuntimeCheckpoints(context.Background(), runtimeInventory{
+		"terminal": {ID: "terminal", Status: contract.ContainerStatusExited},
+	})
+	require.ErrorIs(t, err, contract.ErrExitStatusUnavailable)
+	item, getErr := service.containerManager.Get("terminal")
+	require.NoError(t, getErr)
+	assert.Equal(t, runtimeapi.ContainerState_CONTAINER_UNKNOWN, item.Status.Get().State())
+}
+
 func TestCollectRuntimeInventoryRejectsInvalidStatus(t *testing.T) {
 	runsc := runtimetest.NewFakeSandboxRuntime()
 	runsc.RuntimeName = "runsc"
@@ -130,7 +171,7 @@ func TestCleanupInterruptedAllocationStartWithoutRuntime(t *testing.T) {
 	const allocationID = "interrupted-before-oci-create"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	require.NoError(t, controller.BindControlPlaneAllocation(allocationID, "node-a", digest))
-	require.NoError(t, controller.StoreCapabilityRequirements(allocationID, digest, nil))
+	require.NoError(t, controller.StoreAllocationIntent(allocationID, digest, nil, nil))
 	recovery, err := controller.InspectRecoveryRecords()
 	require.NoError(t, err)
 
@@ -175,8 +216,8 @@ func TestPartitionRuntimeInventoryRequiresExplicitConsistentRecoveryAuthority(t 
 		RecoveryMode: runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 	}))
 	inventory := runtimeInventory{
-		"durable": contract.ContainerStatusRunning,
-		"session": contract.ContainerStatusRunning,
+		"durable": {ID: "durable", Status: contract.ContainerStatusRunning},
+		"session": {ID: "session", Status: contract.ContainerStatusRunning},
 	}
 
 	durable, discard, err := service.partitionRuntimeInventory(
@@ -201,7 +242,7 @@ func TestPartitionRuntimeInventoryRejectsImplicitRecoveryMode(t *testing.T) {
 	require.NoError(t, service.containerManager.StoreMetadata("ambiguous", &runtimeapi.ContainerMetadata{}))
 
 	_, _, err := service.partitionRuntimeInventory(
-		runtimeInventory{"ambiguous": contract.ContainerStatusRunning},
+		runtimeInventory{"ambiguous": {ID: "ambiguous", Status: contract.ContainerStatusRunning}},
 		map[string]struct{}{"ambiguous": {}},
 		map[string]struct{}{"ambiguous": {}},
 	)

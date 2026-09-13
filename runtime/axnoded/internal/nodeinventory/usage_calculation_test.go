@@ -5,25 +5,24 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/network/bpfnet"
-	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
 func TestCPUCommitmentMilli(t *testing.T) {
 	tests := []struct {
 		name string
-		res  *runtimeapi.LinuxContainerResources
+		spec *commonv1.ResourceSpec
 		want int64
 		ok   bool
 	}{
-		{name: "quota period", res: &runtimeapi.LinuxContainerResources{CpuQuota: 50000, CpuPeriod: 100000}, want: 500, ok: true},
-		{name: "shares fallback", res: &runtimeapi.LinuxContainerResources{CpuShares: 2048}, want: 2000, ok: true},
-		{name: "unbounded", res: &runtimeapi.LinuxContainerResources{}, want: 0, ok: false},
+		{name: "request", spec: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 500}}, want: 500, ok: true},
+		{name: "limit fallback", spec: &commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{CpuMilli: 2000}}, want: 2000, ok: true},
+		{name: "unbounded", spec: &commonv1.ResourceSpec{}, want: 0, ok: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := cpuCommitmentMilli(nil, tt.res)
+			got, ok := cpuCommitmentMilli(tt.spec)
 			if got != tt.want || ok != tt.ok {
 				t.Fatalf("cpuCommitmentMilli() = (%d, %v), want (%d, %v)", got, ok, tt.want, tt.ok)
 			}
@@ -32,17 +31,17 @@ func TestCPUCommitmentMilli(t *testing.T) {
 }
 
 func TestMemoryCommitmentBytes(t *testing.T) {
-	got, ok := memoryCommitmentBytes(nil, &runtimeapi.LinuxContainerResources{MemoryLimitInBytes: 512})
+	got, ok := memoryCommitmentBytes(&commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{MemoryBytes: 512}})
 	if !ok || got != 512 {
 		t.Fatalf("memoryCommitmentBytes() = (%d, %v), want (512, true)", got, ok)
 	}
 
-	got, ok = memoryCommitmentBytes(&commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{MemoryBytes: 256}}, &runtimeapi.LinuxContainerResources{})
+	got, ok = memoryCommitmentBytes(&commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{MemoryBytes: 256}})
 	if !ok || got != 256 {
 		t.Fatalf("memoryCommitmentBytes(request) = (%d, %v), want (256, true)", got, ok)
 	}
 
-	if _, ok := memoryCommitmentBytes(nil, &runtimeapi.LinuxContainerResources{}); ok {
+	if _, ok := memoryCommitmentBytes(nil); ok {
 		t.Fatal("expected zero memory limit to be unbounded")
 	}
 }

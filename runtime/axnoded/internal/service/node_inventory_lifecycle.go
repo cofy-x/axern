@@ -106,6 +106,7 @@ func (h *sandboxService) initNodeInventory() error {
 		RetiringMemoryLeases:     h.containerManager.RetiringMemoryLeases,
 		AllocationIDs:            h.allocationController().ControlPlaneAllocationIDs,
 		AllocationEnvironmentID:  h.allocationController().EnvironmentTemplateID,
+		AllocationResourceSpec:   h.allocationController().ResourceSpec,
 		UnackedStatusIDs:         h.controlPlaneReports.UnacknowledgedAllocationLifecycleIDs,
 		DisabledResourcePools:    disabledPools,
 	})

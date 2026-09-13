@@ -7,6 +7,7 @@ option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;a
 import "axern/control/catalog/v1/catalog.proto";
 import "axern/control/capability/v1/capability.proto";
 import "axern/control/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
 
 enum RootfsSrcType {
   UNSPECIFIED = 0;
@@ -97,14 +98,15 @@ message EnvironmentTemplate {
 message AllocationState {
   string allocationID = 1;
   EnvironmentTemplate environment_template = 2;
-  repeated string image_mount_urls = 3;
-  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 4;
-  AllocationEnforcementManifest enforcement_manifest = 5;
-  AllocationCapabilityReconcileState capability_reconcile = 6;
-  AllocationLaunchVerification launch_verification = 7;
+  axern.control.common.v1.ResourceSpec resources = 3;
+  repeated string image_mount_urls = 4;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 5;
+  AllocationEnforcementManifest enforcement_manifest = 6;
+  AllocationCapabilityReconcileState capability_reconcile = 7;
+  AllocationLaunchVerification launch_verification = 8;
   // Canonical digest of the behaviorally relevant StartRequest. It fences
   // idempotent retries from mutating a running allocation's contract.
-  string allocation_request_digest = 8;
+  string allocation_request_digest = 9;
 }
 
 // ControlPlaneAllocationBinding is the sole authoritative node-local record
@@ -183,6 +185,26 @@ message LinuxContainerResources {
   repeated HugepageLimit hugepage_limits = 8;
   map<string, string> unified = 9;
   int64 memory_swap_limit_in_bytes = 10;
+}
+
+// RuntimeCheckpoint is the minimal durable lifecycle barrier for one runsc
+// container. Live identity is refreshed from runsc inventory; resource and
+// admission facts belong to AllocationState and the resource ledgers.
+enum RuntimeCheckpointState {
+  RUNTIME_CHECKPOINT_STATE_UNKNOWN = 0;
+  RUNTIME_CHECKPOINT_STATE_RUNNING = 1;
+  RUNTIME_CHECKPOINT_STATE_EXITED = 2;
+}
+
+message RuntimeCheckpoint {
+  RuntimeCheckpointState state = 1;
+  int32 init_process_pid = 2;
+  google.protobuf.Timestamp started_at = 3;
+  google.protobuf.Timestamp finished_at = 4;
+  int32 exit_code = 5;
+  bool exit_code_known = 6;
+  string message = 7;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 8;
 }
 
 message HugepageLimit {

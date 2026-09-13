@@ -1,14 +1,13 @@
 package container
 
 import (
-	"encoding/json"
-	"errors"
+	"fmt"
 	"time"
 
-	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // The container state machine in the sandbox service:
@@ -35,18 +34,11 @@ import (
 //                         v
 //                      DELETED
 
-// statusVersion is current version of container status.
-const statusVersion = "v2"
-
-// versionedStatus is the internal used versioned container status.
-type versionedStatus struct {
-	// Version indicates the version of the versioned container status.
-	Version string
-	Status
-}
-
 // Status is the status of a container.
 type Status struct {
+	// RuntimeState is the explicit local lifecycle fact. Timestamps describe
+	// the transition when available; their absence never changes the state.
+	RuntimeState apipb.RuntimeCheckpointState
 	// Pid is the init process id of the container.
 	Pid int
 	// StartedAt is the started timestamp.
@@ -63,100 +55,101 @@ type Status struct {
 	// DiagnosticCode is the structured terminal reason proven before the exit
 	// checkpoint is published. It survives reporter retries and node restart.
 	DiagnosticCode commonv1.WorkloadDiagnosticCode
-	// Unknown indicates that the container status is not fully loaded.
-	// This field doesn't need to be checkpointed.
-	Unknown bool `json:"-"`
-	// ResourceSpec keeps the scheduler-facing request/limit contract.
-	ResourceSpec *commonv1.ResourceSpec
-	// LinuxResources has the Linux cgroup constraints applied to runsc.
-	LinuxResources *runtime.LinuxContainerResources
 }
 
 // Equal compares two Status values for equality without reflection.
 func (s Status) Equal(other Status) bool {
-	if s.Pid != other.Pid || s.StartedAt != other.StartedAt ||
+	if s.RuntimeState != other.RuntimeState || s.Pid != other.Pid || s.StartedAt != other.StartedAt ||
 		s.FinishedAt != other.FinishedAt || s.ExitCode != other.ExitCode ||
 		s.ExitCodeKnown != other.ExitCodeKnown || s.Message != other.Message ||
-		s.DiagnosticCode != other.DiagnosticCode ||
-		s.Unknown != other.Unknown {
+		s.DiagnosticCode != other.DiagnosticCode {
 		return false
 	}
-	if !proto.Equal(s.ResourceSpec, other.ResourceSpec) {
-		return false
-	}
-	if s.LinuxResources == nil && other.LinuxResources == nil {
-		return true
-	}
-	if s.LinuxResources == nil || other.LinuxResources == nil {
-		return false
-	}
-	return s.LinuxResources.CpuPeriod == other.LinuxResources.CpuPeriod &&
-		s.LinuxResources.CpuQuota == other.LinuxResources.CpuQuota &&
-		s.LinuxResources.CpuShares == other.LinuxResources.CpuShares &&
-		s.LinuxResources.CpusetCpus == other.LinuxResources.CpusetCpus &&
-		s.LinuxResources.CpusetMems == other.LinuxResources.CpusetMems &&
-		s.LinuxResources.MemoryLimitInBytes == other.LinuxResources.MemoryLimitInBytes &&
-		s.LinuxResources.MemorySwapLimitInBytes == other.LinuxResources.MemorySwapLimitInBytes &&
-		s.LinuxResources.OomScoreAdj == other.LinuxResources.OomScoreAdj
+	return true
 }
 
 // State returns current state of the container based on the container status.
-func (s Status) State() runtime.ContainerState {
-	if s.Unknown {
-		return runtime.ContainerState_CONTAINER_UNKNOWN
+func (s Status) State() apipb.ContainerState {
+	switch s.RuntimeState {
+	case apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING:
+		return apipb.ContainerState_CONTAINER_RUNNING
+	case apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED:
+		return apipb.ContainerState_CONTAINER_EXITED
+	default:
+		return apipb.ContainerState_CONTAINER_UNKNOWN
 	}
-	if s.FinishedAt != "" {
-		return runtime.ContainerState_CONTAINER_EXITED
-	}
-	if s.StartedAt != "0" {
-		return runtime.ContainerState_CONTAINER_RUNNING
-	}
-	return runtime.ContainerState_CONTAINER_UNKNOWN
 }
 
-// encode encodes Status into bytes in json format.
+// encode persists only the lifecycle checkpoint. Allocation specification,
+// admission, and resource enforcement have separate authoritative records.
 func (s *Status) encode() ([]byte, error) {
-	return json.Marshal(&versionedStatus{
-		Version: statusVersion,
-		Status:  *s,
+	startedAt, err := checkpointTimestamp(s.StartedAt)
+	if err != nil {
+		return nil, fmt.Errorf("invalid started timestamp: %w", err)
+	}
+	finishedAt, err := checkpointTimestamp(s.FinishedAt)
+	if err != nil {
+		return nil, fmt.Errorf("invalid finished timestamp: %w", err)
+	}
+	return proto.Marshal(&apipb.RuntimeCheckpoint{
+		State:          s.RuntimeState,
+		InitProcessPid: int32(s.Pid),
+		StartedAt:      startedAt,
+		FinishedAt:     finishedAt,
+		ExitCode:       s.ExitCode,
+		ExitCodeKnown:  s.ExitCodeKnown,
+		Message:        s.Message,
+		DiagnosticCode: s.DiagnosticCode,
 	})
 }
 
 // decode decodes Status from bytes.
 func (s *Status) decode(data []byte) error {
-	versioned := &versionedStatus{}
-	if err := json.Unmarshal(data, versioned); err != nil {
+	checkpoint := &apipb.RuntimeCheckpoint{}
+	if err := proto.Unmarshal(data, checkpoint); err != nil {
 		return err
 	}
-	// Handle old version after upgrade.
-	switch versioned.Version {
-	case statusVersion:
-		*s = versioned.Status
-		return nil
+	if checkpoint.GetStartedAt() != nil {
+		if err := checkpoint.GetStartedAt().CheckValid(); err != nil {
+			return fmt.Errorf("invalid started timestamp: %w", err)
+		}
 	}
-	return errors.New("unsupported version")
+	if checkpoint.GetFinishedAt() != nil {
+		if err := checkpoint.GetFinishedAt().CheckValid(); err != nil {
+			return fmt.Errorf("invalid finished timestamp: %w", err)
+		}
+	}
+	*s = Status{
+		RuntimeState:   checkpoint.GetState(),
+		Pid:            int(checkpoint.GetInitProcessPid()),
+		StartedAt:      checkpointTimestampString(checkpoint.GetStartedAt()),
+		FinishedAt:     checkpointTimestampString(checkpoint.GetFinishedAt()),
+		ExitCode:       checkpoint.GetExitCode(),
+		ExitCodeKnown:  checkpoint.GetExitCodeKnown(),
+		Message:        checkpoint.GetMessage(),
+		DiagnosticCode: checkpoint.GetDiagnosticCode(),
+	}
+	return nil
 }
 
-func GenerateStatusFromState(state *contract.UnionContainerState, path string) StatusStorage {
-	startedAt := state.Created
-	if startedAt == "" {
-		startedAt = time.Now().Format(time.RFC3339)
+func checkpointTimestamp(value string) (*timestamppb.Timestamp, error) {
+	if value == "" || value == "0" {
+		return nil, nil
 	}
-
-	s := &statusStorage{
-		status: Status{
-			Pid:            state.InitProcessPid,
-			StartedAt:      startedAt,
-			FinishedAt:     "",
-			ExitCode:       0,
-			ExitCodeKnown:  false,
-			Message:        "",
-			DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED,
-			Unknown:        false,
-			LinuxResources: nil,
-		},
-		path: path,
+	parsed := ParseTimestampTime(value)
+	if parsed.IsZero() {
+		return nil, fmt.Errorf("cannot parse %q", value)
 	}
+	timestamp := timestamppb.New(parsed)
+	if err := timestamp.CheckValid(); err != nil {
+		return nil, err
+	}
+	return timestamp, nil
+}
 
-	return s
+func checkpointTimestampString(value *timestamppb.Timestamp) string {
+	if value == nil {
+		return ""
+	}
+	return value.AsTime().UTC().Format(time.RFC3339Nano)
 }

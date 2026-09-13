@@ -48,6 +48,7 @@ func TestWaitReturnsUnavailableWhenExitCodeUnknown(t *testing.T) {
 	c, err := s.containerManager.Get(containerID)
 	assert.NoError(t, err)
 	err = c.Status.UpdateSync(func(st container.Status) (container.Status, error) {
+		st.RuntimeState = apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED
 		st.FinishedAt = time.Now().Format(time.RFC3339Nano)
 		st.ExitCode = -1
 		st.ExitCodeKnown = false
@@ -80,6 +81,7 @@ func TestWaitContinuesWhenStatusExitedButExitCodeUnknown(t *testing.T) {
 	c, err := s.containerManager.Get(containerID)
 	assert.NoError(t, err)
 	err = c.Status.UpdateSync(func(st container.Status) (container.Status, error) {
+		st.RuntimeState = apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED
 		st.FinishedAt = time.Now().Format(time.RFC3339Nano)
 		st.ExitCode = -1
 		st.ExitCodeKnown = false

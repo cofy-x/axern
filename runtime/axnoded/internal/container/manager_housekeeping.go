@@ -67,10 +67,6 @@ func (m *Manager) housekeeping() {
 			}
 		}
 
-		if container.Status == nil && cstates[id] != nil {
-			container.Status = GenerateStatusFromState(cstates[id], filepath.Join(container.PATH, config.ContainerStatusFile))
-		}
-
 		if container.Status == nil {
 			logrus.Errorf("container %s status is nil", id)
 			m.containers.Remove(id)

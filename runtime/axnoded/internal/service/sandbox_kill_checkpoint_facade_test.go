@@ -21,6 +21,7 @@ func TestKill(t *testing.T) {
 
 	containerID := "axctl-test-kill"
 	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
+	markTestContainerRunning(t, s, containerID)
 	time.Sleep(200 * time.Millisecond)
 
 	resp, err := s.Kill(context.Background(), &runtime.KillRequest{
@@ -45,11 +46,13 @@ func TestKillRejectsExitedContainer(t *testing.T) {
 
 	containerID := "axctl-test-kill-exited"
 	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
+	markTestContainerRunning(t, s, containerID)
 	time.Sleep(200 * time.Millisecond)
 
 	c, err := s.containerManager.Get(containerID)
 	assert.NoError(t, err)
 	err = c.Status.UpdateSync(func(st container.Status) (container.Status, error) {
+		st.RuntimeState = apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED
 		st.FinishedAt = time.Now().Format(time.RFC3339Nano)
 		st.ExitCode = 0
 		st.ExitCodeKnown = true

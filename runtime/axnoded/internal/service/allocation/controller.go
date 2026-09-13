@@ -23,6 +23,7 @@ import (
 
 type stateStore interface {
 	PutRecord(bucket, key string, value proto.Message) error
+	GetRecord(bucket, key string, value proto.Message) error
 	DeleteRecord(bucket, key string) error
 	ForEachRecord(bucket string, visit func(key string, value []byte) error) error
 }

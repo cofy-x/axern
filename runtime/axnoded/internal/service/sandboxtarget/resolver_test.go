@@ -17,7 +17,7 @@ func TestResolverRunningTarget(t *testing.T) {
 	handler := runtimetest.NewFakeSandboxRuntime()
 	resolver := NewResolver(Options{
 		GetContainer: func(id string) (*container.Container, error) {
-			return testContainer(id, container.Status{StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
+			return testContainer(id, container.Status{RuntimeState: runtime.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING, StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
 		},
 		RunscHandler: handler,
 	})
@@ -45,7 +45,7 @@ func TestResolverRejectsInvalidContainer(t *testing.T) {
 func TestResolverRejectsStoppedContainer(t *testing.T) {
 	resolver := NewResolver(Options{
 		GetContainer: func(id string) (*container.Container, error) {
-			return testContainer(id, container.Status{StartedAt: "0"}), nil
+			return testContainer(id, container.Status{RuntimeState: runtime.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED}), nil
 		},
 		RunscHandler: runtimetest.NewFakeSandboxRuntime(),
 	})
@@ -58,7 +58,7 @@ func TestResolverRejectsStoppedContainer(t *testing.T) {
 func TestResolverRejectsNilSandboxRuntime(t *testing.T) {
 	resolver := NewResolver(Options{
 		GetContainer: func(id string) (*container.Container, error) {
-			return testContainer(id, container.Status{StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
+			return testContainer(id, container.Status{RuntimeState: runtime.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING, StartedAt: time.Now().Format(time.RFC3339Nano)}), nil
 		},
 	})
 

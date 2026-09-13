@@ -5,16 +5,8 @@ SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
 IMAGE_URL="${IMAGE_URL:?IMAGE_URL is required}"
-AXNODED_CONTAINER_ROOT="${AXNODED_CONTAINER_ROOT:-/var/lib/axnoded/root/containers}"
 # shellcheck source-path=SCRIPTDIR/..
 source "${SCRIPT_DIR}/../lib/metricsz.sh"
-REQUEST_ONLY_STATUS_FILTER='
-  .ResourceSpec.requests.cpu_milli == 250 and
-  .ResourceSpec.requests.memory_bytes == 134217728 and
-  (.ResourceSpec.limits == null or (.ResourceSpec.limits.cpu_milli == 0 and .ResourceSpec.limits.memory_bytes == 0)) and
-  .LinuxResources.cpu_shares > 0 and
-  (.LinuxResources.memory_limit_in_bytes == null or .LinuxResources.memory_limit_in_bytes == 0)
-'
 
 container_id=""
 mounted_image=""
@@ -104,26 +96,6 @@ wait_for_jq() {
   return 1
 }
 
-wait_for_status_file() {
-  local container_id="$1"
-  local max_wait="$2"
-  local status_file="${AXNODED_CONTAINER_ROOT}/${container_id}/status"
-  local started_at="${SECONDS}"
-
-  while [ $((SECONDS - started_at)) -lt "${max_wait}" ]; do
-    if [ -f "${status_file}" ]; then
-      printf '%s\n' "${status_file}"
-      return 0
-    fi
-    sleep 1
-  done
-
-  echo "request-only container status file not found: ${status_file}" >&2
-  echo "--- container root entries ---" >&2
-  find "${AXNODED_CONTAINER_ROOT}" -maxdepth 2 -type f -name status -print >&2 2>/dev/null || true
-  return 1
-}
-
 axnoded_inventory="/tmp/axnoded.inventory.json"
 imagemgr_inventory="/tmp/imagemgr.inventory.json"
 environment_id="verify-inventory-runsc-$$"
@@ -192,14 +164,6 @@ container_id="$(
   echo "verify-cli did not return a request-only container id" >&2
   exit 1
 }
-
-status_file="$(wait_for_status_file "${container_id}" 20)"
-if ! jq -e "${REQUEST_ONLY_STATUS_FILTER}" "${status_file}" >/dev/null; then
-  echo "request-only container status did not match expected resources: ${status_file}" >&2
-  cat "${status_file}" >&2 || true
-  echo >&2
-  exit 1
-fi
 
 fetch_axnoded_inventory "${axnoded_inventory}"
 wait_for_jq \

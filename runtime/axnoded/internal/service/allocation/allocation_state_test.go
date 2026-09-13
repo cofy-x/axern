@@ -15,10 +15,31 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
 
 type failingAllocationStateStore struct{ testStateStore }
+
+func TestStoreAllocationIntentOwnsImmutableResourceSpec(t *testing.T) {
+	store := storetest.NewMockStore()
+	fixture := newTestAllocationControllerWithStore(t, &runtimeSpyHandler{name: "runsc"}, store)
+	const allocationID = "allocation-resource-intent"
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	require.NoError(t, fixture.controller.BindControlPlaneAllocation(allocationID, "node-a", digest))
+	resources := &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 64 << 20}, Limits: &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 128 << 20}}
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, digest, resources, nil))
+
+	resources.Requests.MemoryBytes = 1
+	got := fixture.controller.ResourceSpec(allocationID)
+	require.NotNil(t, got)
+	assert.Equal(t, int64(64<<20), got.GetRequests().GetMemoryBytes())
+	var persisted apipb.AllocationState
+	require.NoError(t, store.GetRecord(config.AllocationStateBucket, allocationID, &persisted))
+	assert.True(t, proto.Equal(got, persisted.GetResources()))
+}
 
 func (s failingAllocationStateStore) PutRecord(bucket, key string, value proto.Message) error {
 	if bucket == config.AllocationStateBucket {

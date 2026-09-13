@@ -19,6 +19,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -33,6 +34,7 @@ type retiringMemoryLeasesFunc func() []resources.RetiringMemoryLease
 type unackedStatusIDsFunc func() []string
 type allocationIDsFunc func() []string
 type allocationEnvironmentIDFunc func(string) string
+type allocationResourceSpecFunc func(string) *commonv1.ResourceSpec
 
 var ErrCapabilitySnapshotWarming = errors.New("capability manager is warming")
 
@@ -76,6 +78,7 @@ type AxnodedSourceOptions struct {
 	RetiringMemoryLeases     retiringMemoryLeasesFunc
 	AllocationIDs            allocationIDsFunc
 	AllocationEnvironmentID  allocationEnvironmentIDFunc
+	AllocationResourceSpec   allocationResourceSpecFunc
 	// UnackedStatusIDs extends active allocation ownership
 	// through the control-plane status-report acknowledgement boundary. This
 	// prevents a short-lived allocation from disappearing from node inventory
@@ -117,6 +120,7 @@ type AxnodedSource struct {
 	unackedStatusIDs         unackedStatusIDsFunc
 	allocationIDs            allocationIDsFunc
 	allocationEnvironmentID  allocationEnvironmentIDFunc
+	allocationResourceSpec   allocationResourceSpecFunc
 
 	sampleMu       sync.Mutex
 	prevCPUSamples map[string]cpuUsageSample
@@ -177,6 +181,7 @@ func NewAxnodedSource(opts AxnodedSourceOptions) *AxnodedSource {
 		unackedStatusIDs:         opts.UnackedStatusIDs,
 		allocationIDs:            opts.AllocationIDs,
 		allocationEnvironmentID:  opts.AllocationEnvironmentID,
+		allocationResourceSpec:   opts.AllocationResourceSpec,
 		prevCPUSamples:           make(map[string]cpuUsageSample),
 	}
 }

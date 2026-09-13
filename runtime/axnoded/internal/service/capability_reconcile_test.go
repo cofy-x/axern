@@ -210,7 +210,7 @@ func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Message: "available",
 		})
 	}
-	if err := service.allocationController().StoreCapabilityRequirements(allocationID, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", dependencies); err != nil {
+	if err := service.allocationController().StoreAllocationIntent(allocationID, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, dependencies); err != nil {
 		t.Fatal(err)
 	}
 	manifest := &apipb.AllocationEnforcementManifest{

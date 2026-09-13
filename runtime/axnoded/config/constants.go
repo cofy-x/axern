@@ -22,10 +22,9 @@ const (
 )
 
 const (
-	SandboxContainerPrefix = "axctl"
-	ContainerSpecFile      = "config.json"
-	ContainerMetaFile      = "meta.pb"
-	ContainerStatusFile    = "status"
+	ContainerSpecFile   = "config.json"
+	ContainerMetaFile   = "meta.pb"
+	ContainerStatusFile = "status.pb"
 )
 
 const (

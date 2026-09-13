@@ -133,8 +133,8 @@ func TestTerminalCheckpointSeedsDurableOutboxBeforeContainerCleanup(t *testing.T
 	stateStore := storetest.NewMockStore()
 	outbox := controlplane.NewAllocationLifecycleOutbox(stateStore)
 	allocationController := allocation.NewController(allocation.Options{Store: stateStore})
-	if err := allocationController.StoreCapabilityRequirements("alloc-recovered", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil); err != nil {
-		t.Fatalf("StoreCapabilityRequirements() error = %v", err)
+	if err := allocationController.StoreAllocationIntent("alloc-recovered", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
+		t.Fatalf("StoreAllocationIntent() error = %v", err)
 	}
 	service := &sandboxService{
 		containerManager:          manager,

@@ -56,6 +56,7 @@ func (s *execStreamServerStub) Recv() (*runtime.ExecStreamRequest, error) {
 func storeRunningExecContainer(t *testing.T, s *sandboxService, runtimeName string, id string) {
 	t.Helper()
 	s.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{})
+	markTestContainerRunning(t, s, id)
 	time.Sleep(200 * time.Millisecond)
 }
 

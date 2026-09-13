@@ -77,6 +77,7 @@ type nodeStateStore interface {
 	SaveSnapshot(bucket string, value proto.Message) error
 	LoadSnapshot(bucket string, value proto.Message) error
 	PutRecord(bucket, key string, value proto.Message) error
+	GetRecord(bucket, key string, value proto.Message) error
 	DeleteRecord(bucket, key string) error
 	ForEachRecord(bucket string, visit func(key string, value []byte) error) error
 	Close() error
@@ -291,6 +292,9 @@ func (h *sandboxService) restorePersistentState() error {
 	if err != nil {
 		return err
 	}
+	if err := h.recoverTerminalRuntimeCheckpoints(context.Background(), durableInventory); err != nil {
+		return err
+	}
 	if err := h.seedTerminalAllocationLifecycleOutbox(boundAllocations); err != nil {
 		return err
 	}
@@ -315,6 +319,13 @@ func (h *sandboxService) restorePersistentState() error {
 	if err := h.containerManager.ReconcileRuntimeInventory(retained.allIDs()); err != nil {
 		return fmt.Errorf("reconcile persisted container inventory: %w", err)
 	}
+	for id, state := range retained {
+		if state != nil && state.Status == contract.ContainerStatusRunning {
+			if err := h.containerManager.SyncRuntimeIdentityFromState(id, state); err != nil {
+				return fmt.Errorf("restore runtime identity for allocation %s: %w", id, err)
+			}
+		}
+	}
 	if err := h.containerManager.ReconcileResourceClaims(); err != nil {
 		return fmt.Errorf("reconcile persisted resource claims: %w", err)
 	}
@@ -338,7 +349,11 @@ func (h *sandboxService) cleanupInterruptedAllocationStarts(ctx context.Context,
 	}
 	sort.Strings(ids)
 	for _, id := range ids {
-		status, live := inventory[id]
+		state, live := inventory[id]
+		status := contract.ContainerStatusUnknown
+		if state != nil {
+			status = state.Status
+		}
 		_, launchVerified := records.LaunchVerified[id]
 		cleanup, err := interruptedStartRecoveryAction(live, status, launchVerified)
 		if err != nil {
@@ -377,7 +392,7 @@ func interruptedStartRecoveryAction(live bool, status contract.ContainerStatus, 
 func (h *sandboxService) partitionRuntimeInventory(inventory runtimeInventory, persistedAllocations, boundAllocations map[string]struct{}) (runtimeInventory, runtimeInventory, error) {
 	durable := make(runtimeInventory, len(inventory))
 	discard := make(runtimeInventory, len(inventory))
-	for id, status := range inventory {
+	for id, state := range inventory {
 		item, err := h.containerManager.Get(id)
 		if err != nil || item == nil || item.Metadata == nil {
 			return nil, nil, fmt.Errorf("read recovery contract for runsc container %s", id)
@@ -389,12 +404,12 @@ func (h *sandboxService) partitionRuntimeInventory(inventory runtimeInventory, p
 			if !hasState || !bound {
 				return nil, nil, fmt.Errorf("durable runtime container %s is missing AllocationState or control-plane admission binding", id)
 			}
-			durable[id] = status
+			durable[id] = state
 		case runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART:
 			if bound {
 				return nil, nil, fmt.Errorf("discard-on-restart container %s has a control-plane admission binding", id)
 			}
-			discard[id] = status
+			discard[id] = state
 		default:
 			return nil, nil, fmt.Errorf("runtime container %s has no explicit recovery mode", id)
 		}
@@ -416,7 +431,7 @@ func (h *sandboxService) cleanupDiscardOnRestartContainers(ctx context.Context, 
 	return nil
 }
 
-type runtimeInventory map[string]contract.ContainerStatus
+type runtimeInventory map[string]*contract.UnionContainerState
 
 func (h *sandboxService) collectRuntimeInventory(ctx context.Context) (runtimeInventory, error) {
 	states, err := h.runscHandler.ListContainers(ctx, contract.HandlerOptions{})
@@ -436,15 +451,51 @@ func (h *sandboxService) collectRuntimeInventory(ctx context.Context) (runtimeIn
 		if _, duplicate := inventory[state.ID]; duplicate {
 			return nil, fmt.Errorf("runsc returned duplicate container %s", state.ID)
 		}
-		inventory[state.ID] = state.Status
+		inventory[state.ID] = state
 	}
 	return inventory, nil
 }
 
+// recoverTerminalRuntimeCheckpoints closes the crash window where runsc has
+// durably recorded an exit but axnoded stopped before writing its lifecycle
+// checkpoint. Terminal runtime state must never be deleted until the exact
+// wait result has crossed this local barrier.
+func (h *sandboxService) recoverTerminalRuntimeCheckpoints(ctx context.Context, inventory runtimeInventory) error {
+	ids := make([]string, 0)
+	for id, state := range inventory {
+		if state != nil && state.Status == contract.ContainerStatusExited {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		item, err := h.containerManager.Get(id)
+		if err != nil {
+			return fmt.Errorf("load terminal runtime checkpoint for %s: %w", id, err)
+		}
+		if item == nil || item.Status == nil {
+			return fmt.Errorf("load terminal runtime checkpoint for %s: checkpoint unavailable", id)
+		}
+		if item.Status.Get().State() == runtimeapi.ContainerState_CONTAINER_EXITED {
+			continue
+		}
+		exit, err := h.runscHandler.Wait(ctx, contract.HandlerOptions{ContainerID: id})
+		if err != nil {
+			return fmt.Errorf("recover exact runtime exit for %s: %w", id, err)
+		}
+		if _, err := h.containerManager.CheckpointRuntimeExit(container.Event{
+			Type: container.EventTypeExit, ContainerID: id, ExitCode: int32(exit.Status), ExitCodeKnown: true, ExitedAt: exit.Timestamp,
+		}); err != nil {
+			return fmt.Errorf("checkpoint recovered runtime exit for %s: %w", id, err)
+		}
+	}
+	return nil
+}
+
 func (h *sandboxService) cleanupTerminalRuntimeContainers(ctx context.Context, inventory runtimeInventory) error {
 	ids := make([]string, 0)
-	for id, status := range inventory {
-		if status == contract.ContainerStatusExited {
+	for id, state := range inventory {
+		if state != nil && state.Status == contract.ContainerStatusExited {
 			ids = append(ids, id)
 		}
 	}
@@ -462,9 +513,9 @@ func (h *sandboxService) cleanupTerminalRuntimeContainers(ctx context.Context, i
 
 func (i runtimeInventory) retained() runtimeInventory {
 	result := make(runtimeInventory, len(i))
-	for id, status := range i {
-		if status != contract.ContainerStatusExited {
-			result[id] = status
+	for id, state := range i {
+		if state != nil && state.Status != contract.ContainerStatusExited {
+			result[id] = state
 		}
 	}
 	return result

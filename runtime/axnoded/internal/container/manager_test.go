@@ -14,11 +14,9 @@ import (
 	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
-	"github.com/cofy-x/axern/runtime/axnoded/pkg/truncindex"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	cmap "github.com/orcaman/concurrent-map/v2"
@@ -186,6 +184,39 @@ func TestSyncRuntimeIdentityFromRunningStateEnrichesLocalIdentity(t *testing.T) 
 	assert.Empty(t, status.FinishedAt)
 }
 
+func TestSyncRuntimeIdentityDoesNotReviveExitedCheckpointWithoutTimestamp(t *testing.T) {
+	m := &Manager{
+		root:        t.TempDir(),
+		recyclePath: t.TempDir(),
+		containers:  cmap.New[*Container](),
+	}
+	const id = "test-exited-checkpoint-111111"
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{}))
+	container, err := m.Get(id)
+	require.NoError(t, err)
+	require.NoError(t, container.Status.UpdateSync(func(status Status) (Status, error) {
+		status.RuntimeState = apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED
+		status.ExitCode = 17
+		status.ExitCodeKnown = true
+		return status, nil
+	}))
+
+	require.NoError(t, m.SyncRuntimeIdentityFromState(id, &contract.UnionContainerState{
+		ID:             id,
+		InitProcessPid: 321,
+		Status:         contract.ContainerStatusRunning,
+		Created:        "2026-08-11T15:59:37Z",
+	}))
+
+	status := container.Status.Get()
+	assert.Equal(t, apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED, status.RuntimeState)
+	assert.Zero(t, status.Pid)
+	assert.Empty(t, status.StartedAt)
+	assert.Empty(t, status.FinishedAt)
+	assert.Equal(t, int32(17), status.ExitCode)
+	assert.True(t, status.ExitCodeKnown)
+}
+
 func TestPersistMonitorExitClassifiesBeforeCheckpoint(t *testing.T) {
 	m := &Manager{
 		root:        t.TempDir(),
@@ -270,31 +301,6 @@ func TestPersistMonitorExitRetriesTransientCheckpointFailure(t *testing.T) {
 	assert.True(t, storage.Get().ExitCodeKnown)
 }
 
-func TestSetResources(t *testing.T) {
-	const id = "test-set-resources"
-	m := &Manager{
-		root:        t.TempDir(),
-		recyclePath: t.TempDir(),
-		containers:  cmap.New[*Container](),
-	}
-
-	metadata := &apipb.ContainerMetadata{}
-	m.StoreMetadata(id, metadata)
-
-	err := m.SetResources(id, &runtimeapi.LinuxContainerResources{
-		CpuShares:          256,
-		MemoryLimitInBytes: 128 * 1024 * 1024,
-	}, &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 64 * 1024 * 1024}})
-	assert.NoError(t, err)
-
-	container, err := m.Get(id)
-	assert.NoError(t, err)
-	assert.NotNil(t, container.Status.Get().LinuxResources)
-	assert.Equal(t, uint64(256), container.Status.Get().LinuxResources.CpuShares)
-	assert.Equal(t, int64(128*1024*1024), container.Status.Get().LinuxResources.MemoryLimitInBytes)
-	assert.Equal(t, int64(64*1024*1024), container.Status.Get().ResourceSpec.GetRequests().GetMemoryBytes())
-}
-
 func TestLoadContainer(t *testing.T) {
 	m := &Manager{
 		root:        t.TempDir(),
@@ -354,7 +360,6 @@ func TestStartMonitorGoroutine(t *testing.T) {
 		monitors:         cmap.New[*containerMonitor](),
 		runtimeHandler:   r,
 		resourceManagers: cmap.New[resourcemanager.Manager](),
-		idGenerator:      truncindex.NewTruncGenerator("sandbox", []string{id}),
 	}
 
 	require.NoError(t, m.StartMonitor(container.ID, container.Metadata))
@@ -389,7 +394,7 @@ func TestStartMonitorDoesNotRestartDurableTerminalContainer(t *testing.T) {
 	m.containers.Set(id, &Container{
 		ID:       id,
 		Metadata: &apipb.ContainerMetadata{},
-		Status:   &statusStorage{status: Status{FinishedAt: time.Now().UTC().Format(time.RFC3339Nano)}},
+		Status:   &statusStorage{status: Status{RuntimeState: apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED, FinishedAt: time.Now().UTC().Format(time.RFC3339Nano)}},
 	})
 	require.NoError(t, m.StartMonitor(id, m.containers.Items()[id].Metadata))
 	assert.False(t, m.monitors.Has(id))
@@ -410,8 +415,8 @@ func TestMonitorExitBarrierRequiresMonitorOrDurableTerminalCheckpoint(t *testing
 
 func TestStartRecoveredMonitorsAfterInventoryReconciliation(t *testing.T) {
 	containers := cmap.New[*Container]()
-	containers.Set("live", &Container{ID: "live", Metadata: &apipb.ContainerMetadata{}, Status: &flakyStatusStorage{status: Status{StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)}})
-	containers.Set("orphan", &Container{ID: "orphan", Metadata: &apipb.ContainerMetadata{}, Status: &flakyStatusStorage{status: Status{StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)}})
+	containers.Set("live", &Container{ID: "live", Metadata: &apipb.ContainerMetadata{}, Status: &flakyStatusStorage{status: Status{RuntimeState: apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING, StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)}})
+	containers.Set("orphan", &Container{ID: "orphan", Metadata: &apipb.ContainerMetadata{}, Status: &flakyStatusStorage{status: Status{RuntimeState: apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING, StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)}})
 
 	m := &Manager{
 		containers:     containers,

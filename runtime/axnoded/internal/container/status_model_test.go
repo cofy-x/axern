@@ -1,85 +1,46 @@
 package container
 
 import (
-	"reflect"
 	"testing"
 
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 )
 
-func TestGenerateStatusFromState(t *testing.T) {
-	type args struct {
-		state *contract.UnionContainerState
-		path  string
-	}
-	tests := []struct {
-		name string
-		args args
-		want Status
-	}{
-		{
-			name: "test",
-			args: args{
-				state: &contract.UnionContainerState{
-					ID:             "",
-					InitProcessPid: 100,
-					Status:         "running",
-					Bundle:         "",
-					Created:        "2023-08-28 16:34:07.878055688 +0800 CST m=+0.008551102",
-				},
-				path: "/tmp",
-			},
-			want: Status{
-				Pid:            100,
-				StartedAt:      "2023-08-28 16:34:07.878055688 +0800 CST m=+0.008551102",
-				FinishedAt:     "",
-				ExitCode:       0,
-				ExitCodeKnown:  false,
-				Message:        "",
-				Unknown:        false,
-				LinuxResources: nil,
-			},
-		},
-		{
-			name: "exited inventory state is not terminal evidence",
-			args: args{
-				state: &contract.UnionContainerState{
-					InitProcessPid: 100,
-					Status:         contract.ContainerStatusExited,
-					Created:        "2023-08-28 16:34:07.878055688 +0800 CST m=+0.008551102",
-				},
-				path: "/tmp",
-			},
-			want: Status{
-				Pid:            100,
-				StartedAt:      "2023-08-28 16:34:07.878055688 +0800 CST m=+0.008551102",
-				FinishedAt:     "",
-				ExitCode:       0,
-				ExitCodeKnown:  false,
-				Message:        "",
-				Unknown:        false,
-				LinuxResources: nil,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := GenerateStatusFromState(tt.args.state, tt.args.path).Get()
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GenerateStatusFromState() = %v, want %v", got, tt.want)
-			}
-		})
+func TestEmptyStatusIsUnknown(t *testing.T) {
+	if got := (Status{}).State(); got != apipb.ContainerState_CONTAINER_UNKNOWN {
+		t.Fatalf("empty status state = %s, want UNKNOWN", got)
 	}
 }
 
-func TestGenerateStatusFromStateExitedDoesNotInventFinishedAt(t *testing.T) {
-	got := GenerateStatusFromState(&contract.UnionContainerState{
-		InitProcessPid: 100,
-		Status:         contract.ContainerStatusExited,
-		Created:        "2023-08-28 16:34:07.878055688 +0800 CST m=+0.008551102",
-	}, "/tmp").Get()
+func TestRuntimeStateDoesNotDependOnOptionalTimestamp(t *testing.T) {
+	status := Status{RuntimeState: apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING, Pid: 42}
+	if got := status.State(); got != apipb.ContainerState_CONTAINER_RUNNING {
+		t.Fatalf("explicit runtime state = %s, want RUNNING", got)
+	}
+}
 
-	if got.FinishedAt != "" || got.ExitCodeKnown || got.Message != "" {
-		t.Fatalf("inventory state invented terminal evidence: %+v", got)
+func TestRuntimeCheckpointRoundTrip(t *testing.T) {
+	want := Status{
+		RuntimeState: apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED,
+		Pid:          42, StartedAt: "2026-09-13T12:00:00.123456789Z", FinishedAt: "2026-09-13T12:00:01.987654321Z",
+		ExitCode: 23, ExitCodeKnown: true, Message: "exited",
+	}
+	data, err := want.encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got Status
+	if err := got.decode(data); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Equal(want) {
+		t.Fatalf("decoded checkpoint = %+v, want %+v", got, want)
+	}
+}
+
+func TestRuntimeCheckpointRejectsLegacyJSON(t *testing.T) {
+	var status Status
+	if err := status.decode([]byte(`{"Version":"v2","Status":{"Pid":42}}`)); err == nil {
+		t.Fatal("legacy JSON status was accepted")
 	}
 }

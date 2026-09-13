@@ -26,9 +26,6 @@ func (m *Manager) Delete(id string) error {
 			if err := m.CleanContainerRoot(id); err != nil {
 				return err
 			}
-			if m.idGenerator != nil {
-				m.idGenerator.ReleaseId(id)
-			}
 			return nil
 		}
 		return fmt.Errorf("collect resource for %s: %w", id, err)
@@ -46,9 +43,6 @@ func (m *Manager) DeleteAfterConfirmedRuntimeAbsence(id string) error {
 		if errors.Is(err, os.ErrNotExist) && !m.containers.Has(id) {
 			if err := m.CleanContainerRoot(id); err != nil {
 				return err
-			}
-			if m.idGenerator != nil {
-				m.idGenerator.ReleaseId(id)
 			}
 			return nil
 		}

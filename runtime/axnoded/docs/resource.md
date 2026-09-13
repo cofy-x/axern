@@ -78,7 +78,7 @@ Node inventory reports `runtime_slots` as the admission contract consumed by con
 
 The aggregate `idle` count is the number of runtime slots whose enabled pool resources are already materialized. It is the minimum idle count across enabled pools, capped by effective available capacity. When no resource pool is enabled, all available runtime slots are immediately reusable.
 
-Workload resources arrive from the control plane as `ResourceSpec`, with separate request and limit semantics. `axnoded` preserves that model in container status and converts only the runtime-enforced parts into Linux cgroup settings.
+Workload resources arrive from the control plane as `ResourceSpec`, with separate request and limit semantics. `axnoded` preserves that immutable specification in `AllocationState` and converts only the runtime-enforced parts into Linux cgroup settings. Runtime lifecycle checkpoints do not duplicate resource facts.
 
 | Field                              | Local behavior                                                                  |
 | ---------------------------------- | ------------------------------------------------------------------------------- |
@@ -91,12 +91,12 @@ Workload resources arrive from the control plane as `ResourceSpec`, with separat
 
 `ephemeral_storage_bytes` is the public sandbox-lifetime resource. Axnoded currently charges only the runsc file-backed root overlay, including metadata, copy-up, and whiteouts. Immutable lower/image cache storage, artifacts, projection placeholders, tmpfs, and logs are outside this accounting scope. The runtime implementation may call the charged backing writable storage internally; that implementation term does not broaden the public resource contract.
 
-Container status stores both scheduler-facing `ResourceSpec` and local `LinuxResources`. Inventory commitment uses running containers only:
+Node inventory joins admitted Allocation identity with its immutable `ResourceSpec`; it does not infer scheduling commitment from an OCI projection or runtime checkpoint. Inventory commitment uses running admitted Allocations only:
 
 | Resource | Primary source                       | Fallback                               |
 | -------- | ------------------------------------ | -------------------------------------- |
-| CPU      | `ResourceSpec.requests.cpu_milli`    | CFS quota/period, then CPU shares      |
-| Memory   | `ResourceSpec.requests.memory_bytes` | `LinuxResources.memory_limit_in_bytes` |
+| CPU      | `ResourceSpec.requests.cpu_milli`    | `ResourceSpec.limits.cpu_milli`        |
+| Memory   | `ResourceSpec.requests.memory_bytes` | `ResourceSpec.limits.memory_bytes`     |
 
 A running container with neither request nor applicable runtime limit increments the matching unbounded counter.
 

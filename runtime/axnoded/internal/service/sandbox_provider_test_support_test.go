@@ -20,6 +20,7 @@ func storeRunningBrowserContainer(t *testing.T, s *sandboxService, id string, so
 	require.NoError(t, os.MkdirAll(filepath.Dir(derivedSocket), 0o755))
 	require.NoError(t, os.Symlink(socketPath, derivedSocket))
 	s.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{})
+	markTestContainerRunning(t, s, id)
 	time.Sleep(200 * time.Millisecond)
 }
 

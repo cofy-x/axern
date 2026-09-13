@@ -91,9 +91,6 @@ func (h *Controller) createContainer(
 	if err := h.containers().StoreMetadata(resource.ID, metaData); err != nil {
 		return response, "", h.cleanupCreatedRuntime(handler, resource, fmt.Errorf("persist created container metadata: %w", err))
 	}
-	if err := h.containers().SetResources(resource.ID, request.Resource, resourceSpec); err != nil {
-		return response, "", h.cleanupCreatedRuntime(handler, resource, fmt.Errorf("persist created container resources: %w", err))
-	}
 	if err := h.registerCreatedContainerLifecycle(ctx, resource.ID, metaData, handler); err != nil {
 		return response, "", h.cleanupCreatedRuntime(handler, resource, fmt.Errorf("register created container monitor: %w", err))
 	}
@@ -167,9 +164,6 @@ func (h *Controller) createAllocation(
 	response.ID = resource.ID
 	if err := h.containers().StoreMetadata(resource.ID, metaData); err != nil {
 		return response, "", cleanupPrepared(fmt.Errorf("persist activated container metadata: %w", err))
-	}
-	if err := h.containers().SetResources(resource.ID, request.Resource, startRequest.GetResources()); err != nil {
-		return response, "", cleanupPrepared(fmt.Errorf("persist activated container resources: %w", err))
 	}
 	if err := h.registerCreatedContainerLifecycle(ctx, resource.ID, metaData, allocationRuntime); err != nil {
 		return response, "", cleanupPrepared(fmt.Errorf("register activated container monitor: %w", err))

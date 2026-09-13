@@ -8,7 +8,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
-	"github.com/cofy-x/axern/runtime/axnoded/pkg/truncindex"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +22,6 @@ func newRuntimeInventoryTestManager(t *testing.T) *Manager {
 		containers:       cmap.New[*Container](),
 		monitors:         cmap.New[*containerMonitor](),
 		resourceManagers: cmap.New[resources.Manager](),
-		idGenerator:      truncindex.NewTruncGenerator(config.SandboxContainerPrefix, nil),
 	}
 }
 

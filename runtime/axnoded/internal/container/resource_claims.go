@@ -23,7 +23,7 @@ type OccupiedResource struct {
 	Resources map[resourcemanager.ResourceName]string
 }
 
-// Occupy Generate a new unique container ID.
+// Occupy reserves node-local resources for an explicit Allocation identity.
 func (m *Manager) Occupy(opts resourcemanager.AllocateOption, resources ...resourcemanager.ResourceName) (resource OccupiedResource, err error) {
 	start := time.Now()
 	defer func() {
@@ -35,11 +35,8 @@ func (m *Manager) Occupy(opts resourcemanager.AllocateOption, resources ...resou
 		return resource, fmt.Errorf("container limit %d reached: %w", MaxContainerNum, errord.ErrResourceExhausted)
 	}
 
-	if opts.ContainerID == "" {
-		opts.ContainerID, err = m.idGenerator.GetID()
-		if err != nil {
-			return resource, err
-		}
+	if strings.TrimSpace(opts.ContainerID) == "" {
+		return resource, fmt.Errorf("resource allocation requires an explicit allocation id")
 	}
 	resource.ID = opts.ContainerID
 	resource.Resources = make(map[resourcemanager.ResourceName]string)
@@ -85,11 +82,7 @@ func (or OccupiedResource) RuntimeAnnotations() map[string]string {
 }
 
 func (m *Manager) Release(resource OccupiedResource) error {
-	if err := m.ReleaseResource(resource.Resources); err != nil {
-		return err
-	}
-	m.idGenerator.ReleaseId(resource.ID)
-	return nil
+	return m.ReleaseResource(resource.Resources)
 }
 
 func (m *Manager) ReleaseResource(resources map[resourcemanager.ResourceName]string) error {

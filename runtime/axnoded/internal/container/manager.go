@@ -11,7 +11,6 @@ import (
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
-	"github.com/cofy-x/axern/runtime/axnoded/pkg/truncindex"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/sirupsen/logrus"
@@ -32,10 +31,7 @@ type Manager struct {
 	workerMu  sync.Mutex
 	workers   sync.WaitGroup
 	// handle container event asynchronously, largest 200 events
-	syncEventChan chan Event
-	// check id is valid
-	idGenerator truncindex.UniqueIdGenerator
-
+	syncEventChan    chan Event
 	stopChan         chan struct{}
 	stopOnce         sync.Once
 	loopDone         chan struct{}
@@ -66,7 +62,6 @@ func NewManager(root string, handler contract.SandboxRuntime, healthChan chan bo
 		runtimeHandler:   handler,
 		monitors:         cmap.New[*containerMonitor](),
 		resourceManagers: cmap.New[resourcemanager.Manager](),
-		idGenerator:      truncindex.NewTruncGenerator(config.SandboxContainerPrefix, []string{}),
 		syncEventChan:    make(chan Event, 4096),
 		stopChan:         make(chan struct{}),
 		loopDone:         make(chan struct{}),
@@ -114,19 +109,6 @@ func (m *Manager) Get(id string) (*Container, error) {
 		return c, nil
 	}
 	return nil, errord.ErrNotFound
-}
-
-func (m *Manager) SetResources(id string, resources *runtimeapi.LinuxContainerResources, spec *commonv1.ResourceSpec) error {
-	c, ok := m.containers.Get(id)
-	if !ok || c == nil || c.Status == nil {
-		return errord.ErrNotFound
-	}
-	return c.Status.UpdateSync(func(status Status) (Status, error) {
-		copy := deepCopyOf(Status{LinuxResources: resources, ResourceSpec: spec})
-		status.LinuxResources = copy.LinuxResources
-		status.ResourceSpec = copy.ResourceSpec
-		return status, nil
-	})
 }
 
 func (m *Manager) List(option ...ListOption) []*Container {

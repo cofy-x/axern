@@ -17,6 +17,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -94,15 +95,27 @@ func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInv
 			s.unackedStatusIDs()...,
 		)
 	}
-	for _, c := range runningContainers {
-		status := c.Status.Get()
-		res := status.LinuxResources
-		if committedMilli, bounded := cpuCommitmentMilli(status.ResourceSpec, res); bounded {
+	allocationContainers := make([]*container.Container, 0, len(allContainers))
+	runningAllocations := make([]*container.Container, 0, len(runningContainers))
+	for _, c := range allContainers {
+		if c == nil {
+			continue
+		}
+		if _, admitted := admittedAllocations[strings.TrimSpace(c.ID)]; admitted {
+			allocationContainers = append(allocationContainers, c)
+			if c.Status != nil && c.Status.Get().State() == runtimeapi.ContainerState_CONTAINER_RUNNING {
+				runningAllocations = append(runningAllocations, c)
+			}
+		}
+	}
+	for _, c := range runningAllocations {
+		spec := s.allocationResourceSpecFor(c.ID)
+		if committedMilli, bounded := cpuCommitmentMilli(spec); bounded {
 			snapshot.Resources.CPU.AxnodedCommittedMilli += committedMilli
 		} else {
 			snapshot.Resources.CPU.AxnodedUnboundedCount++
 		}
-		if committedBytes, bounded := memoryCommitmentBytes(status.ResourceSpec, res); bounded {
+		if committedBytes, bounded := memoryCommitmentBytes(spec); bounded {
 			snapshot.Resources.Memory.AxnodedCommittedBytes += committedBytes
 		} else {
 			snapshot.Resources.Memory.AxnodedUnboundedCount++
@@ -134,7 +147,7 @@ func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInv
 	}
 	snapshot.Pools.RuntimeSlots = s.runtimeSlotInventory(len(allContainers), snapshot.Pools)
 
-	status, componentStatus, componentError := s.collectAxnodedActualUsage(now, runningContainers, allContainers, snapshot)
+	status, componentStatus, componentError := s.collectAxnodedActualUsage(now, runningAllocations, allocationContainers, snapshot)
 	snapshot.Sources["axnoded"] = status
 	snapshot.Components.Axnoded.Status = componentStatus
 	snapshot.Components.Axnoded.Error = componentError
@@ -306,9 +319,10 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 			continue
 		}
 		statusValue := c.Status.Get()
-		memoryLimit := statusValue.ResourceSpec.GetLimits().GetMemoryBytes()
+		resourceSpec := s.allocationResourceSpecFor(c.ID)
+		memoryLimit := resourceSpec.GetLimits().GetMemoryBytes()
 		if s.memoryBudgetEnabled {
-			observation, observationErr := allocationMemoryObservation(c, cgroupPath, memoryLimit, now)
+			observation, observationErr := allocationMemoryObservation(c, cgroupPath, resourceSpec.GetRequests().GetMemoryBytes(), memoryLimit, now)
 			if observationErr != nil {
 				errs = append(errs, fmt.Sprintf("%s memory: %v", c.ID, observationErr))
 				continue
@@ -373,8 +387,8 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 			// removed. The retiring ledger is authoritative in that window.
 			continue
 		}
-		statusValue := c.Status.Get()
-		memoryLimit := statusValue.ResourceSpec.GetLimits().GetMemoryBytes()
+		resourceSpec := s.allocationResourceSpecFor(c.ID)
+		memoryLimit := resourceSpec.GetLimits().GetMemoryBytes()
 		if !s.memoryBudgetEnabled {
 			continue
 		}
@@ -383,7 +397,7 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.ID, err))
 			continue
 		}
-		observation, observationErr := allocationMemoryObservation(c, cgroupPath, memoryLimit, now)
+		observation, observationErr := allocationMemoryObservation(c, cgroupPath, resourceSpec.GetRequests().GetMemoryBytes(), memoryLimit, now)
 		if observationErr != nil {
 			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.ID, observationErr))
 			continue
@@ -515,7 +529,7 @@ func retiringMemoryObservation(driver os2.CgroupDriver, lease resources.Retiring
 	), nil
 }
 
-func allocationMemoryObservation(c *container.Container, workloadPath string, limitBytes int64, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
+func allocationMemoryObservation(c *container.Container, workloadPath string, requestBytes, limitBytes int64, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
 	if c == nil || c.Metadata == nil || c.Status == nil || limitBytes < 0 {
 		return nil, fmt.Errorf("allocation memory metadata is incomplete")
 	}
@@ -541,13 +555,19 @@ func allocationMemoryObservation(c *container.Container, workloadPath string, li
 	if err != nil {
 		return nil, err
 	}
-	requestBytes := c.Status.Get().ResourceSpec.GetRequests().GetMemoryBytes()
 	if requestBytes < 0 || (bounded && requestBytes > limitBytes) {
 		return nil, fmt.Errorf("allocation memory request is inconsistent with its limit")
 	}
 	return memoryObservationFromKernel(
 		c.ID, requestBytes, limitBytes, nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, now, domain, usage, bounded, bounded,
 	), nil
+}
+
+func (s *AxnodedSource) allocationResourceSpecFor(allocationID string) *commonv1.ResourceSpec {
+	if s == nil || s.allocationResourceSpec == nil {
+		return nil
+	}
+	return s.allocationResourceSpec(allocationID)
 }
 
 func memoryObservationFromKernel(
