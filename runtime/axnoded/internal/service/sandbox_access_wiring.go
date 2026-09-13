@@ -55,7 +55,6 @@ func (h *sandboxService) resolveSandboxAccessTarget(id string) (sandboxaccess.Ta
 	}
 	return sandboxaccess.Target{
 		ID:                 id,
-		Labels:             target.Labels(),
 		SandboxdSocketPath: runtimeoci.SandboxdBundleSocketPath(filepath.Join(h.config.RootDir, "containers", id)),
 		Handler:            target.Handler,
 	}, nil

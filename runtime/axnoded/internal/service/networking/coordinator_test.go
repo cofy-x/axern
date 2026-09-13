@@ -3,10 +3,13 @@ package networking
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -17,15 +20,29 @@ import (
 	networkmanager "github.com/cofy-x/axern/runtime/axnoded/internal/network"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
+
+type failingSnapshotStore struct {
+	*storetest.MockStore
+	fail bool
+}
+
+func (s *failingSnapshotStore) SaveSnapshot(bucket string, message proto.Message) error {
+	if s.fail {
+		return errors.New("injected snapshot failure")
+	}
+	return s.MockStore.SaveSnapshot(bucket, message)
+}
 
 func TestSetupDnatRulesBasic(t *testing.T) {
 	fake := &fakeNetworkManager{}
 	c := newTestCoordinator(t, fake)
 
-	err := c.SetupDnatRules("ctr-1", []string{"tcp:8080:80", "udp:5353:53"}, "10.0.0.2")
+	err := c.SetupDnatRules("ctr-1", testPortSpecs("tcp:8080:80", "udp:5353:53"), "10.0.0.2")
 	require.NoError(t, err)
 	assert.Equal(t, []dnatCall{
 		{"tcp", 8080, "10.0.0.2", 80},
@@ -40,13 +57,10 @@ func TestSetupDnatRulesBasic(t *testing.T) {
 	assert.Equal(t, uint16(80), rules[0].TargetPort)
 }
 
-func TestParseDnatRulesSkipsEmptyEntries(t *testing.T) {
-	rules, err := ParseDnatRules("ctr-1", []string{"", "tcp:8080:80"}, "10.0.0.2")
-	require.NoError(t, err)
-	require.Len(t, rules, 1)
-	assert.Equal(t, "tcp", rules[0].Protocol)
-	assert.Equal(t, uint16(8080), rules[0].DstPort)
-	assert.Equal(t, uint16(80), rules[0].TargetPort)
+func TestDnatRulesFromPortSpecsRejectsNilEntries(t *testing.T) {
+	ports := append([]*commonv1.PortSpec{nil}, testPortSpecs("tcp:8080:80")...)
+	_, err := DnatRulesFromPortSpecs("ctr-1", ports, "10.0.0.2")
+	assert.ErrorContains(t, err, "port specification is required")
 }
 
 func TestSetupDnatRulesEmptyPorts(t *testing.T) {
@@ -58,24 +72,42 @@ func TestSetupDnatRulesEmptyPorts(t *testing.T) {
 	assert.Empty(t, fake.added)
 }
 
-func TestSetupDnatRulesInvalidFormat(t *testing.T) {
+func TestSetupDnatRulesRejectsInvalidPortSpecs(t *testing.T) {
 	c := newTestCoordinator(t, &fakeNetworkManager{})
 
-	err := c.SetupDnatRules("ctr-1", []string{"tcp:8080"}, "10.0.0.2")
-	assert.ErrorContains(t, err, "invalid port format")
+	err := c.SetupDnatRules("ctr-1", []*commonv1.PortSpec{{ContainerPort: 0}}, "10.0.0.2")
+	assert.ErrorContains(t, err, "container port")
 
-	err = c.SetupDnatRules("ctr-1", []string{"tcp:notanumber:80"}, "10.0.0.2")
-	assert.ErrorContains(t, err, "invalid dstPort")
+	err = c.SetupDnatRules("ctr-1", []*commonv1.PortSpec{{ContainerPort: 80, HostPort: 70000}}, "10.0.0.2")
+	assert.ErrorContains(t, err, "host port")
 
-	err = c.SetupDnatRules("ctr-1", []string{"tcp:8080:notanumber"}, "10.0.0.2")
-	assert.ErrorContains(t, err, "invalid targetPort")
+	err = c.SetupDnatRules("ctr-1", []*commonv1.PortSpec{{Protocol: 99, ContainerPort: 80}}, "10.0.0.2")
+	assert.ErrorContains(t, err, "unsupported port protocol")
+}
+
+func testPortSpecs(encoded ...string) []*commonv1.PortSpec {
+	out := make([]*commonv1.PortSpec, 0, len(encoded))
+	for _, value := range encoded {
+		if value == "" {
+			continue
+		}
+		parts := strings.Split(value, ":")
+		hostPort, _ := strconv.Atoi(parts[1])
+		containerPort, _ := strconv.Atoi(parts[2])
+		protocol := commonv1.PortProtocol_PORT_PROTOCOL_TCP
+		if parts[0] == "udp" {
+			protocol = commonv1.PortProtocol_PORT_PROTOCOL_UDP
+		}
+		out = append(out, &commonv1.PortSpec{Protocol: protocol, HostPort: int32(hostPort), ContainerPort: int32(containerPort)})
+	}
+	return out
 }
 
 func TestSetupDnatRulesNetworkManagerErrorDoesNotRecordState(t *testing.T) {
 	fake := &fakeNetworkManager{failNext: true}
 	c := newTestCoordinator(t, fake)
 
-	err := c.SetupDnatRules("ctr-1", []string{"tcp:8080:80"}, "10.0.0.2")
+	err := c.SetupDnatRules("ctr-1", testPortSpecs("tcp:8080:80"), "10.0.0.2")
 	assert.ErrorContains(t, err, "failed to add DNAT rule")
 	assert.Empty(t, c.DnatRules("ctr-1"))
 }
@@ -84,11 +116,21 @@ func TestSetupDnatRulesRollsBackPartialInstall(t *testing.T) {
 	fake := &fakeNetworkManager{failSetupCall: 2}
 	c := newTestCoordinator(t, fake)
 
-	err := c.SetupDnatRules("ctr-1", []string{"tcp:8080:80", "tcp:9090:90"}, "10.0.0.2")
+	err := c.SetupDnatRules("ctr-1", testPortSpecs("tcp:8080:80", "tcp:9090:90"), "10.0.0.2")
 	require.Error(t, err)
 	assert.Equal(t, []dnatCall{{"tcp", 8080, "10.0.0.2", 80}}, fake.added)
 	assert.Equal(t, []dnatCall{{"tcp", 8080, "10.0.0.2", 80}}, fake.removed)
 	assert.Empty(t, c.DnatRules("ctr-1"))
+}
+
+func TestSetupDnatRulesRollsBackWhenDurableIntentCannotBeStored(t *testing.T) {
+	fake := &fakeNetworkManager{}
+	c := newTestCoordinatorWithStore(t, fake, &failingSnapshotStore{MockStore: storetest.NewMockStore(), fail: true})
+
+	err := c.SetupDnatRules("ctr-persist-failure", testPortSpecs("tcp:8080:80"), "10.0.0.2")
+	require.ErrorContains(t, err, "persist DNAT rules")
+	assert.Equal(t, []dnatCall{{"tcp", 8080, "10.0.0.2", 80}}, fake.removed)
+	assert.Empty(t, c.DnatRules("ctr-persist-failure"))
 }
 
 func TestSetupDnatRulesNoNetworkManager(t *testing.T) {
@@ -97,16 +139,16 @@ func TestSetupDnatRulesNoNetworkManager(t *testing.T) {
 		NetworkManager: func(string) (networkmanager.NetworkManager, bool) { return nil, false },
 	})
 
-	err := c.SetupDnatRules("ctr-1", []string{"tcp:8080:80"}, "10.0.0.2")
+	err := c.SetupDnatRules("ctr-1", testPortSpecs("tcp:8080:80"), "10.0.0.2")
 	assert.ErrorContains(t, err, "network manager not found")
 }
 
 func TestCleanupDnatRulesBasic(t *testing.T) {
 	fake := &fakeNetworkManager{}
 	c := newTestCoordinator(t, fake)
-	require.NoError(t, c.SetupDnatRules("ctr-1", []string{"tcp:8080:80", "udp:5353:53"}, "10.0.0.2"))
+	require.NoError(t, c.SetupDnatRules("ctr-1", testPortSpecs("tcp:8080:80", "udp:5353:53"), "10.0.0.2"))
 
-	c.CleanupDnatRules("ctr-1")
+	require.NoError(t, c.CleanupDnatRules("ctr-1"))
 
 	assert.Equal(t, []dnatCall{
 		{"tcp", 8080, "10.0.0.2", 80},
@@ -118,21 +160,38 @@ func TestCleanupDnatRulesBasic(t *testing.T) {
 func TestCleanupDnatRulesRetainsFailedRulesForRetry(t *testing.T) {
 	fake := &fakeNetworkManager{}
 	c := newTestCoordinator(t, fake)
-	require.NoError(t, c.SetupDnatRules("ctr-1", []string{"tcp:8080:80"}, "10.0.0.2"))
+	require.NoError(t, c.SetupDnatRules("ctr-1", testPortSpecs("tcp:8080:80"), "10.0.0.2"))
 	fake.failNext = true
 
-	c.CleanupDnatRules("ctr-1")
+	require.NoError(t, c.CleanupDnatRules("ctr-1"))
 	require.Len(t, c.DnatRules("ctr-1"), 1)
 
-	c.CleanupDnatRules("ctr-1")
+	require.NoError(t, c.CleanupDnatRules("ctr-1"))
 	assert.Empty(t, c.DnatRules("ctr-1"))
+}
+
+func TestCleanupDnatRulesRetainsDurableDesiredStateWhenStoreFails(t *testing.T) {
+	fake := &fakeNetworkManager{}
+	store := &failingSnapshotStore{MockStore: storetest.NewMockStore()}
+	c := newTestCoordinatorWithStore(t, fake, store)
+	require.NoError(t, c.SetupDnatRules("ctr-1", testPortSpecs("tcp:8080:80"), "10.0.0.2"))
+	store.fail = true
+
+	err := c.CleanupDnatRules("ctr-1")
+	require.ErrorContains(t, err, "persist DNAT cleanup")
+	require.Len(t, c.DnatRules("ctr-1"), 1)
+
+	var stored runtime.DnatRuleSnapshot
+	require.NoError(t, store.MockStore.LoadSnapshot(config.DNATRulesBucket, &stored))
+	require.Len(t, stored.GetBindings(), 1)
+	assert.Equal(t, "ctr-1", stored.GetBindings()[0].GetAllocationID())
 }
 
 func TestCleanupDnatRulesNonexistentContainer(t *testing.T) {
 	fake := &fakeNetworkManager{}
 	c := newTestCoordinator(t, fake)
 
-	c.CleanupDnatRules("ctr-nonexistent")
+	require.NoError(t, c.CleanupDnatRules("ctr-nonexistent"))
 	assert.Empty(t, fake.removed)
 }
 
@@ -140,24 +199,26 @@ func TestStoreDnatRulesPersists(t *testing.T) {
 	mockStore := storetest.NewMockStore()
 	c := newTestCoordinatorWithStore(t, &fakeNetworkManager{}, mockStore)
 
-	require.NoError(t, c.SetupDnatRules("ctr-persist-1", []string{"tcp:9090:90", "udp:5353:53"}, "10.0.0.5"))
+	require.NoError(t, c.SetupDnatRules("ctr-persist-1", testPortSpecs("tcp:9090:90", "udp:5353:53"), "10.0.0.5"))
 
-	var stored runtime.Map
+	var stored runtime.DnatRuleSnapshot
 	require.NoError(t, mockStore.LoadSnapshot(config.DNATRulesBucket, &stored))
-	require.Contains(t, stored.GetItems(), "ctr-persist-1")
+	require.Len(t, stored.GetBindings(), 1)
+	assert.Equal(t, "ctr-persist-1", stored.GetBindings()[0].GetAllocationID())
+	assert.Equal(t, testPortSpecs("tcp:9090:90", "udp:5353:53"), stored.GetBindings()[0].GetPorts())
 
-	c.CleanupDnatRules("ctr-persist-1")
+	require.NoError(t, c.CleanupDnatRules("ctr-persist-1"))
 	assert.Zero(t, c.DnatRuleCount())
 }
 
 func TestSetupDnatRulesMultipleContainers(t *testing.T) {
 	c := newTestCoordinator(t, &fakeNetworkManager{})
 
-	require.NoError(t, c.SetupDnatRules("ctr-1", []string{"tcp:8080:80"}, "10.0.0.2"))
-	require.NoError(t, c.SetupDnatRules("ctr-2", []string{"tcp:9090:90"}, "10.0.0.3"))
+	require.NoError(t, c.SetupDnatRules("ctr-1", testPortSpecs("tcp:8080:80"), "10.0.0.2"))
+	require.NoError(t, c.SetupDnatRules("ctr-2", testPortSpecs("tcp:9090:90"), "10.0.0.3"))
 
 	assert.Equal(t, 2, c.DnatRuleCount())
-	c.CleanupDnatRules("ctr-1")
+	require.NoError(t, c.CleanupDnatRules("ctr-1"))
 	assert.Empty(t, c.DnatRules("ctr-1"))
 	assert.NotEmpty(t, c.DnatRules("ctr-2"))
 }
@@ -190,7 +251,7 @@ func TestLoadDnatRulesRestoresActiveResourceBackedRules(t *testing.T) {
 		"active": newNetworkResource("active", "10.0.0.8", "/var/run/netns/active"),
 	}
 	c := newTestCoordinatorWithStore(t, &fakeNetworkManager{}, mockStore)
-	require.NoError(t, c.SetupDnatRules("active", []string{"tcp:18080:80"}, "10.0.0.8"))
+	require.NoError(t, c.SetupDnatRules("active", testPortSpecs("tcp:18080:80"), "10.0.0.8"))
 
 	reloaded := NewCoordinator(Options{
 		NatBackend: "test",
@@ -215,8 +276,8 @@ func TestLoadDnatRulesRestoresActiveResourceBackedRules(t *testing.T) {
 func TestLoadDnatRulesReconcilesOnlyLiveContainerRules(t *testing.T) {
 	mockStore := storetest.NewMockStore()
 	writer := newTestCoordinatorWithStore(t, &fakeNetworkManager{}, mockStore)
-	require.NoError(t, writer.SetupDnatRules("active", []string{"tcp:18080:80"}, "10.0.0.8"))
-	require.NoError(t, writer.SetupDnatRules("stale", []string{"tcp:19090:90"}, "10.0.0.9"))
+	require.NoError(t, writer.SetupDnatRules("active", testPortSpecs("tcp:18080:80"), "10.0.0.8"))
+	require.NoError(t, writer.SetupDnatRules("stale", testPortSpecs("tcp:19090:90"), "10.0.0.9"))
 
 	fake := &reconcilingNetworkManager{fakeNetworkManager: &fakeNetworkManager{}}
 	reloaded := NewCoordinator(Options{
@@ -235,10 +296,10 @@ func TestLoadDnatRulesReconcilesOnlyLiveContainerRules(t *testing.T) {
 		Protocol: "tcp", HostPort: 18080, TargetIP: "10.0.0.8", TargetPort: 80,
 	}}, fake.desired)
 	assert.Empty(t, reloaded.DnatRules("stale"))
-	var stored runtime.Map
+	var stored runtime.DnatRuleSnapshot
 	require.NoError(t, mockStore.LoadSnapshot(config.DNATRulesBucket, &stored))
-	assert.Contains(t, stored.Items, "active")
-	assert.NotContains(t, stored.Items, "stale")
+	require.Len(t, stored.GetBindings(), 1)
+	assert.Equal(t, "active", stored.GetBindings()[0].GetAllocationID())
 }
 
 func TestNetworkForSandboxReturnsResource(t *testing.T) {
@@ -503,7 +564,7 @@ func newTestCoordinator(t *testing.T, fake *fakeNetworkManager) *Coordinator {
 	return newTestCoordinatorWithStore(t, fake, storetest.NewMockStore())
 }
 
-func newTestCoordinatorWithStore(t *testing.T, fake *fakeNetworkManager, dbStore *storetest.MockStore) *Coordinator {
+func newTestCoordinatorWithStore(t *testing.T, fake *fakeNetworkManager, dbStore stateStore) *Coordinator {
 	t.Helper()
 	return NewCoordinator(Options{
 		NatBackend: "test",

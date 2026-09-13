@@ -20,8 +20,8 @@ func TestNormalizeKillSignal(t *testing.T) {
 
 func TestListFiltersByID(t *testing.T) {
 	containers := []*container.Container{
-		testContainer("ctr-a", map[string]string{"app": "api"}),
-		testContainer("ctr-b", map[string]string{"app": "worker"}),
+		testContainer("ctr-a"),
+		testContainer("ctr-b"),
 	}
 	controller := NewController(Options{
 		ListContainers: func(filters ...container.ListOption) []*container.Container {
@@ -52,12 +52,10 @@ func TestListFiltersByID(t *testing.T) {
 	require.Len(t, all.GetContainers(), 2)
 }
 
-func testContainer(id string, labels map[string]string) *container.Container {
+func testContainer(id string) *container.Container {
 	return &container.Container{
-		ID: id,
-		Metadata: &runtime.ContainerMetadata{
-			Labels: labels,
-		},
+		ID:       id,
+		Metadata: &runtime.ContainerMetadata{},
 		Status: fixedStatus{status: container.Status{
 			StartedAt:     time.Now().Format(time.RFC3339Nano),
 			ExitCodeKnown: true,

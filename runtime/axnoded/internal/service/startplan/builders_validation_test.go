@@ -3,11 +3,10 @@ package startplan
 import (
 	"testing"
 
-	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	runtimecore "github.com/cofy-x/axern/runtime/axnoded/internal/runtime"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestResourcesToLinux(t *testing.T) {
@@ -43,73 +42,36 @@ func TestValidateStartRequest(t *testing.T) {
 	assert.Error(t, ValidateStartRequest(&runtime.StartRequest{
 		EnvironmentTemplate: &runtime.EnvironmentTemplate{},
 	}))
-	assert.NoError(t, ValidateStartRequest(&runtime.StartRequest{
+	valid := &runtime.StartRequest{
+		AllocationID: "alloc-valid",
 		EnvironmentTemplate: &runtime.EnvironmentTemplate{
 			Rootfs: &runtime.RootfsConfig{},
 		},
-	}))
-}
-
-func TestBuildStartLabels(t *testing.T) {
-	request := &runtime.StartRequest{
-		EnvironmentTemplate: &runtime.EnvironmentTemplate{ID: "rt-1"},
 	}
-
-	t.Run("default has no identity labels", func(t *testing.T) {
-		labels := BuildStartLabels(request)
-		assert.Empty(t, labels)
-	})
-
-	t.Run("allocation identity is not copied into annotations", func(t *testing.T) {
-		req := &runtime.StartRequest{
-			EnvironmentTemplate: &runtime.EnvironmentTemplate{ID: "rt-1"},
-			ContainerID:         "alloc-1234567890abcdef",
-		}
-		labels := BuildStartLabels(req)
-		assert.Empty(t, labels)
-	})
-
-	t.Run("block network", func(t *testing.T) {
-		req := &runtime.StartRequest{
-			EnvironmentTemplate: &runtime.EnvironmentTemplate{ID: "rt-1"},
-			ExtraConfig:         `{"blockNetwork":true}`,
-		}
-		labels := BuildStartLabels(req)
-		assert.Equal(t, config.NetAcBlockAll, labels["netac-rules"])
-	})
-
-	t.Run("cidr allowlist", func(t *testing.T) {
-		req := &runtime.StartRequest{
-			EnvironmentTemplate: &runtime.EnvironmentTemplate{ID: "rt-1"},
-			ExtraConfig:         `{"cidrAllowlist":"10.0.0.0/8"}`,
-		}
-		labels := BuildStartLabels(req)
-		assert.Equal(t, "10.0.0.0/8", labels["netac-rules"])
-	})
-
-	t.Run("invalid extra config falls back", func(t *testing.T) {
-		req := &runtime.StartRequest{
-			EnvironmentTemplate: &runtime.EnvironmentTemplate{ID: "rt-1"},
-			ExtraConfig:         `{"blockNetwork":`,
-		}
-		labels := BuildStartLabels(req)
-		assert.Empty(t, labels)
-	})
-
-	t.Run("linux capabilities normalized and deduplicated", func(t *testing.T) {
-		req := &runtime.StartRequest{
-			EnvironmentTemplate: &runtime.EnvironmentTemplate{ID: "rt-1"},
-			ExtraConfig:         `{"linuxCapabilities":["cap_net_raw"," CAP_NET_BIND_SERVICE ","cap_net_raw",""]}`,
-		}
-		labels := BuildStartLabels(req)
-		assert.Equal(t, "CAP_NET_RAW,CAP_NET_BIND_SERVICE", labels[runtimecore.LabelKeyLinuxCapabilities])
-	})
-
+	assert.NoError(t, ValidateStartRequest(valid))
+	invalidRegistry := proto.Clone(valid).(*runtime.StartRequest)
+	invalidRegistry.RegistryCredential = &runtime.RegistryCredential{DockerConfigJson: "{"}
+	assert.Error(t, ValidateStartRequest(invalidRegistry))
+	nonObjectRegistry := proto.Clone(valid).(*runtime.StartRequest)
+	nonObjectRegistry.RegistryCredential = &runtime.RegistryCredential{DockerConfigJson: "[]"}
+	assert.Error(t, ValidateStartRequest(nonObjectRegistry))
+	invalidSecret := proto.Clone(valid).(*runtime.StartRequest)
+	invalidSecret.SecretFiles = []*runtime.ResolvedSecretFile{{Path: "../secret"}}
+	assert.Error(t, ValidateStartRequest(invalidSecret))
+	invalidPort := proto.Clone(valid).(*runtime.StartRequest)
+	invalidPort.Ports = []*commonv1.PortSpec{{ContainerPort: 70000}}
+	assert.Error(t, ValidateStartRequest(invalidPort))
+	invalidMount := proto.Clone(valid).(*runtime.StartRequest)
+	invalidMount.Mounts = []*runtime.Mount{{Target: "../workspace"}}
+	assert.Error(t, ValidateStartRequest(invalidMount))
+	invalidImageMount := proto.Clone(valid).(*runtime.StartRequest)
+	invalidImageMount.ImageMounts = []*runtime.ImageMount{nil}
+	assert.Error(t, ValidateStartRequest(invalidImageMount))
 }
 
 func TestEffectiveNetworkMode(t *testing.T) {
 	assert.Equal(t, "bridge", EffectiveNetworkMode("bridge", &runtime.StartRequest{}))
 	assert.Equal(t, "host", EffectiveNetworkMode("bridge", &runtime.StartRequest{
-		Network: "host",
+		Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_HOST},
 	}))
 }

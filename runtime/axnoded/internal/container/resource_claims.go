@@ -23,16 +23,6 @@ type OccupiedResource struct {
 	Resources map[resourcemanager.ResourceName]string
 }
 
-func (m *Manager) ReserveContainerID() (string, error) {
-	return m.idGenerator.GetID()
-}
-
-func (m *Manager) ReleaseContainerID(id string) {
-	if id != "" {
-		m.idGenerator.ReleaseId(id)
-	}
-}
-
 // Occupy Generate a new unique container ID.
 func (m *Manager) Occupy(opts resourcemanager.AllocateOption, resources ...resourcemanager.ResourceName) (resource OccupiedResource, err error) {
 	start := time.Now()
@@ -86,7 +76,7 @@ func (m *Manager) Occupy(opts resourcemanager.AllocateOption, resources ...resou
 	return resource, nil
 }
 
-func (or OccupiedResource) ToLabels() map[string]string {
+func (or OccupiedResource) RuntimeAnnotations() map[string]string {
 	annotations := make(map[string]string)
 	for r, key := range or.Resources {
 		annotations[resourcemanager.ResourceAnnotationKeyPrefix+string(r)] = key

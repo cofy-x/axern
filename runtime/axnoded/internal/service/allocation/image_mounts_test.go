@@ -78,7 +78,7 @@ func TestStartResolvesImageMountIntoReadonlyBindMount(t *testing.T) {
 	tc.controller.environmentCache = tc.environmentCache
 
 	resp, err := tc.controller.Start(context.Background(), &runtime.StartRequest{
-		ContainerID: "alloc-image-mount",
+		AllocationID: "alloc-image-mount",
 		EnvironmentTemplate: &runtime.EnvironmentTemplate{
 			ID: "task-runtime",
 			Rootfs: &runtime.RootfsConfig{
@@ -138,7 +138,7 @@ func TestStartReleasesImageMountWhenRuntimeCreateFails(t *testing.T) {
 	tc.controller.environmentCache = tc.environmentCache
 
 	_, err := tc.controller.Start(context.Background(), &runtime.StartRequest{
-		ContainerID: "alloc-image-mount-fail",
+		AllocationID: "alloc-image-mount-fail",
 		EnvironmentTemplate: &runtime.EnvironmentTemplate{
 			ID: "task-runtime",
 			Rootfs: &runtime.RootfsConfig{
@@ -188,7 +188,7 @@ func TestValidateImageMountTargetsRejectsProtectedAndOverlappingTargets(t *testi
 			name: "overlapping secret file mount",
 			request: &runtime.StartRequest{
 				ImageMounts: []*runtime.ImageMount{{Image: "image", Target: "/opt/axern/tools"}},
-				Mounts:      []*runtime.Mount{{Target: "/opt/axern/tools/secret/token"}},
+				SecretFiles: []*runtime.ResolvedSecretFile{{Path: "/opt/axern/tools/secret/token"}},
 			},
 		},
 		{

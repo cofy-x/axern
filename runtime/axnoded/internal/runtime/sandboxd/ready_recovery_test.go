@@ -30,9 +30,6 @@ func TestWaitReadyOrExitReturnsReadySuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WaitReadyOrExit() error = %v", err)
 	}
-	if len(meta.GetLabels()) != 0 {
-		t.Fatalf("readiness leaked into metadata labels: %#v", meta.GetLabels())
-	}
 }
 
 func TestWaitReadyOrExitReturnsExitWithoutWaitingForReadyTimeout(t *testing.T) {
@@ -59,9 +56,6 @@ func TestWaitReadyOrExitReturnsExitWithoutWaitingForReadyTimeout(t *testing.T) {
 	if elapsed := time.Since(start); elapsed >= time.Second {
 		t.Fatalf("WaitReadyOrExit() elapsed = %v, want fast exit recovery", elapsed)
 	}
-	if len(meta.GetLabels()) != 0 {
-		t.Fatalf("terminal projection leaked into metadata labels: %#v", meta.GetLabels())
-	}
 }
 
 func TestWaitReadyOrExitAcceptsNonZeroExitBeforeReady(t *testing.T) {
@@ -82,9 +76,6 @@ func TestWaitReadyOrExitAcceptsNonZeroExitBeforeReady(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("WaitReadyOrExit() error = %v", err)
-	}
-	if len(meta.GetLabels()) != 0 {
-		t.Fatalf("terminal projection leaked into metadata labels: %#v", meta.GetLabels())
 	}
 }
 

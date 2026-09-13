@@ -36,7 +36,6 @@ func startProbeContainer(clients *verifyutil.NodeClients, baseSpec *privatenodev
 	spec.Argv = append([]string(nil), command...)
 	spec.StdoutPath = stdoutPath
 	spec.StderrPath = stderrPath
-	spec.LinuxCapabilities = []string{"CAP_NET_RAW"}
 	startCtx, cancelStart := context.WithTimeout(context.Background(), startTimeout)
 	defer cancelStart()
 	handle, err := verifyutil.CreateAllocation(startCtx, clients, verifyutil.NewSandboxID(environmentID), spec)

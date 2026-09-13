@@ -42,14 +42,6 @@ class OciBaselinePolicy:
 
 
 @dataclass(frozen=True, slots=True)
-class OciCapabilityPolicy:
-    """Annotation-driven Linux capability policy."""
-
-    annotation_key: str = ""
-    include_ambient: bool | None = None
-
-
-@dataclass(frozen=True, slots=True)
 class OciNetworkNamespacePolicy:
     """Annotation-driven network namespace policy."""
 
@@ -71,7 +63,6 @@ class OciExecutionProfile:
     """Runtime execution policy profile exported by the catalog."""
 
     baseline: OciBaselinePolicy = field(default_factory=OciBaselinePolicy)
-    capabilities: OciCapabilityPolicy = field(default_factory=OciCapabilityPolicy)
     network_namespace: OciNetworkNamespacePolicy = field(default_factory=OciNetworkNamespacePolicy)
     resources: OciResourcePolicy = field(default_factory=OciResourcePolicy)
 

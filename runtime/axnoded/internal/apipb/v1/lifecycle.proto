@@ -12,21 +12,34 @@ message StartRequest {
   EnvironmentTemplate environment_template = 1;
   repeated Mount mounts = 2;
   axern.control.common.v1.ResourceSpec resources = 3;
-  map<string, string> userEnvs = 4;
+  map<string, string> env = 4;
   string stdout = 5;
   string stderr = 6;
-  string extra_config = 7;
-  string network = 8;
-  string trace_id = 9;
-  repeated string ports = 10;
-  string containerID = 11;
-  repeated ImageMount image_mounts = 12;
-  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 13;
-  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 14;
-  // The normalized public policy is carried intact to the node-local
-  // enforcement boundary. The string network field is the OCI network-mode
-  // selector and must never be used as a policy surrogate.
-  axern.control.common.v1.NetworkEgressPolicy egress_policy = 15;
+  RegistryCredential registry_credential = 7;
+  repeated ResolvedSecretEnvVar secret_env = 8;
+  repeated ResolvedSecretFile secret_files = 9;
+  axern.control.common.v1.NetworkSpec network = 10;
+  string trace_id = 11;
+  repeated axern.control.common.v1.PortSpec ports = 12;
+  string allocation_id = 13;
+  repeated ImageMount image_mounts = 14;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 15;
+  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 16;
+}
+
+message RegistryCredential {
+  string docker_config_json = 1;
+}
+
+message ResolvedSecretEnvVar {
+  string name = 1;
+  string value = 2;
+}
+
+message ResolvedSecretFile {
+  string path = 1;
+  bytes content = 2;
+  uint32 mode = 3;
 }
 
 message StartResponse {
@@ -76,20 +89,15 @@ enum ContainerState {
 
 message ContainerStatus {
   string ID = 1;
-  repeated string command = 2;
-  ContainerState state = 3;
-  int64 started_at = 4;
-  int64 finished_at = 5;
-  int32 exit_code = 6;
-  string message = 7;
-  map<string, string> labels = 8;
-  repeated Mount mounts = 9;
-  repeated KeyValue envs = 10;
-  string stdout = 11;
-  string stderr = 12;
-  LinuxContainerResources linux_resources = 13;
-  int32 pid = 14;
-  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 15;
+  ContainerState state = 2;
+  int64 started_at = 3;
+  int64 finished_at = 4;
+  int32 exit_code = 5;
+  string message = 6;
+  string stdout = 7;
+  string stderr = 8;
+  int32 pid = 9;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 10;
 }
 
 message VersionRequest {

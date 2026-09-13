@@ -102,7 +102,6 @@ func TestFileOperationsBridgeToRuntimeFileService(t *testing.T) {
 	assert.Equal(t, int64(7), handler.touchRequests[0].GetMtimeNs())
 	require.NotEmpty(t, handler.fileOptions)
 	assert.Equal(t, "axctl-file-bridge", handler.fileOptions[0].ContainerID)
-	assert.Empty(t, handler.fileOptions[0].ContainerLabels)
 }
 
 func TestArchiveOperationsBridgeToRuntimeFileService(t *testing.T) {
@@ -132,5 +131,4 @@ func TestArchiveOperationsBridgeToRuntimeFileService(t *testing.T) {
 	assert.Equal(t, "archive", output.String())
 	require.Len(t, handler.fileOptions, 2)
 	assert.Equal(t, "axctl-archive-bridge", handler.fileOptions[0].ContainerID)
-	assert.Empty(t, handler.fileOptions[0].ContainerLabels)
 }

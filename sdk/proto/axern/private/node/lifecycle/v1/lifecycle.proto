@@ -59,13 +59,12 @@ message ResolvedExecutionConfig {
   string local_rootfs_path = 14;
   string stdout_path = 15;
   string stderr_path = 16;
-  repeated string linux_capabilities = 17;
-  repeated ResolvedSecretEnvVar secret_env = 18;
-  repeated ResolvedSecretFile secret_files = 19;
-  RegistryCredential registry_credential = 20;
-  axern.control.catalog.v1.OciExecutionProfile execution_profile = 21;
-  repeated ImageMount image_mounts = 22;
-  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 23;
+  repeated ResolvedSecretEnvVar secret_env = 17;
+  repeated ResolvedSecretFile secret_files = 18;
+  RegistryCredential registry_credential = 19;
+  axern.control.catalog.v1.OciExecutionProfile execution_profile = 20;
+  repeated ImageMount image_mounts = 21;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 22;
 }
 
 message CreateAllocationRequest {

@@ -48,7 +48,7 @@ func TestRequirementInputIncludesEgressPolicyCapabilities(t *testing.T) {
 	service := &sandboxService{config: config.DefaultConfig()}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			input := service.requirementInput(&runtime.StartRequest{EgressPolicy: test.policy}, false)
+			input := service.requirementInput(&runtime.StartRequest{Network: &commonv1.NetworkSpec{EgressPolicy: test.policy}}, false)
 			if input.RequiresDNSPolicyEnforcement != test.wantDNS || input.RequiresStrictEgressEnforcement != test.wantStrict {
 				t.Fatalf("policy requirements = (dns=%t, strict=%t), want (dns=%t, strict=%t)",
 					input.RequiresDNSPolicyEnforcement, input.RequiresStrictEgressEnforcement, test.wantDNS, test.wantStrict)

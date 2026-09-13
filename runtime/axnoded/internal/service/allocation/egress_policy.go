@@ -14,7 +14,8 @@ import (
 )
 
 func (h *Controller) prepareEgressPolicy(ctx context.Context, request *runtime.StartRequest, resource container.OccupiedResource) (bool, error) {
-	if request == nil || request.GetEgressPolicy() == nil {
+	policy := request.GetNetwork().GetEgressPolicy()
+	if request == nil || policy == nil {
 		return false, nil
 	}
 	if h.egress == nil {
@@ -25,7 +26,7 @@ func (h *Controller) prepareEgressPolicy(ctx context.Context, request *runtime.S
 		return false, fmt.Errorf("sandbox network policy requires an allocated interface IP")
 	}
 	var upstreams []string
-	if networkpolicy.RequiresDNSUpstreams(request.GetEgressPolicy()) {
+	if networkpolicy.RequiresDNSUpstreams(policy) {
 		dnsConfig := h.config.PluginConfig.RuntimeConfig.DNS
 		var err error
 		upstreams, err = runtimeoci.ResolveRuntimeDNSNameservers(runtimeoci.RuntimeDNSConfig{
@@ -35,14 +36,14 @@ func (h *Controller) prepareEgressPolicy(ctx context.Context, request *runtime.S
 			return false, fmt.Errorf("resolve trusted egress DNS upstreams: %w", err)
 		}
 	}
-	prepared, err := h.egress.Prepare(ctx, request.GetContainerID(), sandboxIP, request.GetEgressPolicy(), upstreams)
+	prepared, err := h.egress.Prepare(ctx, request.GetAllocationID(), sandboxIP, policy, upstreams)
 	if err != nil {
 		// The RPC may have crossed the dataplane boundary before transport or
 		// persistence failure became visible. Treat ownership as uncertain and
 		// require Delete before releasing this source IP.
 		return true, fmt.Errorf("prepare egress policy: %w", err)
 	}
-	if prepared == nil || prepared.GetAllocationID() != request.GetContainerID() || prepared.GetSandboxIp() != sandboxIP || !proto.Equal(prepared.GetPolicy(), request.GetEgressPolicy()) {
+	if prepared == nil || prepared.GetAllocationID() != request.GetAllocationID() || prepared.GetSandboxIp() != sandboxIP || !proto.Equal(prepared.GetPolicy(), policy) {
 		return true, fmt.Errorf("egressd returned a policy outside the allocation binding")
 	}
 	return true, nil

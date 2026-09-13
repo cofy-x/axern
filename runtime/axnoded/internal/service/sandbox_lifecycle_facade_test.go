@@ -14,6 +14,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -49,7 +50,7 @@ func TestStart_And_Delete(t *testing.T) {
 		Argv: []string{"/bin/sleep", "infinity"},
 	}
 	startResp, err := s.Start(context.Background(), &runtime.StartRequest{
-		ContainerID:         "test-start-delete-allocation",
+		AllocationID:        "test-start-delete-allocation",
 		EnvironmentTemplate: fr,
 		Stdout:              "/tmp/stdout.log",
 		Stderr:              "/tmp/stderr.log",
@@ -71,7 +72,7 @@ func TestStart_And_Delete(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestStart_AddsRuntimeIDLabelForTemporaryRuntime(t *testing.T) {
+func TestStartUsesExplicitAllocationIdentity(t *testing.T) {
 	handler := &runtimeSpyHandler{name: "runsc"}
 	s := newTestService(t,
 		handler,
@@ -91,9 +92,9 @@ func TestStart_AddsRuntimeIDLabelForTemporaryRuntime(t *testing.T) {
 	}
 
 	resp, err := s.Start(context.Background(), &runtime.StartRequest{
-		ContainerID:         "test-explicit-allocation-id",
+		AllocationID:        "test-explicit-allocation-id",
 		EnvironmentTemplate: fr,
-		Network:             "host",
+		Network:             &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_HOST},
 		Stdout:              "/tmp/explicit-allocation-id.stdout",
 		Stderr:              "/tmp/explicit-allocation-id.stderr",
 	})
@@ -102,7 +103,6 @@ func TestStart_AddsRuntimeIDLabelForTemporaryRuntime(t *testing.T) {
 	if handler.lastRequest == nil {
 		t.Fatalf("expected create request to be captured")
 	}
-	assert.Empty(t, handler.lastRequest.GetLabels())
 }
 
 func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
@@ -131,28 +131,33 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0o755))
 	request := &runtime.StartRequest{
-		ContainerID: "allocation-retry-contract",
+		AllocationID: "allocation-retry-contract",
 		EnvironmentTemplate: &runtime.EnvironmentTemplate{
 			ID:     "retry-contract",
 			Rootfs: &runtime.RootfsConfig{Readonly: true, Type: runtime.RootfsSrcType_LOCAL, Source: &runtime.RootfsConfig_Path{Path: rootfsDir}},
 			Argv:   []string{"/bin/sh", "-c", "sleep 60"},
 		},
-		Network: "host",
+		Network:   &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_HOST},
+		SecretEnv: []*runtime.ResolvedSecretEnvVar{{Name: "TOKEN", Value: "secret-value"}},
+		SecretFiles: []*runtime.ResolvedSecretFile{{
+			Path: "/run/secrets/token", Content: []byte("secret-file"), Mode: 0o400,
+		}},
 		ExtensionCapabilityRequirements: []*capabilityv1.ExtensionCapabilityRequirement{{
 			Capability: proto.Clone(extension.GetExtension()).(*capabilityv1.ExtensionCapability),
 		}},
 		CapabilityRequirements: dependencies,
 	}
 
-	first, err := s.Start(context.Background(), proto.Clone(request).(*runtime.StartRequest))
+	first, err := s.Start(context.Background(), request)
 	assert.NoError(t, err)
 	assert.Equal(t, int32(0), first.GetCode())
 	assert.Equal(t, 1, handler.createCalls)
+	assert.Empty(t, request.GetEnv())
+	assert.Empty(t, request.GetMounts())
 
-	retry := proto.Clone(request).(*runtime.StartRequest)
-	retry.TraceID = "new-retry-trace"
+	request.TraceID = "new-retry-trace"
 	s.capabilityManager = nil
-	second, err := s.Start(context.Background(), retry)
+	second, err := s.Start(context.Background(), request)
 	assert.NoError(t, err)
 	assert.Equal(t, int32(0), second.GetCode())
 	assert.Equal(t, 1, handler.createCalls)
@@ -165,6 +170,6 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 	assert.Equal(t, codes.FailedPrecondition, grpcstatus.Code(err))
 	assert.Equal(t, 1, handler.createCalls)
 
-	_, err = s.Delete(context.Background(), &runtime.DeleteRequest{ID: request.GetContainerID()})
+	_, err = s.Delete(context.Background(), &runtime.DeleteRequest{ID: request.GetAllocationID()})
 	assert.NoError(t, err)
 }

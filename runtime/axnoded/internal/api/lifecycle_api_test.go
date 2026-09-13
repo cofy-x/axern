@@ -33,7 +33,7 @@ func (f *fakeNodeLifecycleService) ReconcileAllocationCapabilities(context.Conte
 func (f *fakeNodeLifecycleService) StartControlPlaneAllocation(ctx context.Context, _ string, req *runtimev1.StartRequest) (*runtimev1.StartResponse, error) {
 	_ = ctx
 	f.startRequests = append(f.startRequests, req)
-	responseID := req.GetContainerID()
+	responseID := req.GetAllocationID()
 	if f.startResponseID != "" {
 		responseID = f.startResponseID
 	}
@@ -131,12 +131,13 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 				Image:  "example.com/axern/codex-tool:latest",
 				Target: "/opt/axern/tools/codex",
 			}},
+			SecretEnv: []*nodelifecyclev1.ResolvedSecretEnvVar{{Name: "TOKEN", Value: "secret-value"}},
+			SecretFiles: []*nodelifecyclev1.ResolvedSecretFile{{
+				Path: "/run/secrets/key", Content: []byte("secret-content"), Mode: 0o400,
+			}},
+			RegistryCredential: &nodelifecyclev1.RegistryCredential{DockerConfigJson: `{"auths":{}}`},
 			ExecutionProfile: &catalogv1.OciExecutionProfile{
 				Baseline: &catalogv1.OciBaselinePolicy{NoFileLimit: 2097152},
-				Capabilities: &catalogv1.OciCapabilityPolicy{
-					AnnotationKey:  "custom-capabilities",
-					IncludeAmbient: proto.Bool(false),
-				},
 			},
 		},
 	})
@@ -150,11 +151,11 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 		t.Fatalf("start request count = %d, want 1", len(fakeService.startRequests))
 	}
 	startReq := fakeService.startRequests[0]
-	if startReq.GetContainerID() != "alloc-123" {
-		t.Fatalf("container id = %q, want alloc-123", startReq.GetContainerID())
+	if startReq.GetAllocationID() != "alloc-123" {
+		t.Fatalf("container id = %q, want alloc-123", startReq.GetAllocationID())
 	}
-	if got := startReq.GetEgressPolicy().GetDnsDeny().GetDeniedDomains(); len(got) != 1 || got[0] != "github.com" {
-		t.Fatalf("egress policy was not preserved: %#v", startReq.GetEgressPolicy())
+	if got := startReq.GetNetwork().GetEgressPolicy().GetDnsDeny().GetDeniedDomains(); len(got) != 1 || got[0] != "github.com" {
+		t.Fatalf("egress policy was not preserved: %#v", startReq.GetNetwork().GetEgressPolicy())
 	}
 	if startReq.GetEnvironmentTemplate().GetRootfs().GetImageUrl() != imageRef {
 		t.Fatalf("image_ref = %q", startReq.GetEnvironmentTemplate().GetRootfs().GetImageUrl())
@@ -162,8 +163,8 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	if startReq.GetEnvironmentTemplate().GetEnv()["A"] != "B" {
 		t.Fatalf("runtime env = %#v, want key A", startReq.GetEnvironmentTemplate().GetEnv())
 	}
-	if got := startReq.GetPorts(); len(got) != 1 || got[0] != "tcp:8080:8080" {
-		t.Fatalf("ports = %#v, want tcp:8080:8080", got)
+	if got := startReq.GetPorts(); len(got) != 1 || got[0].GetContainerPort() != 8080 {
+		t.Fatalf("ports = %#v, want typed container port 8080", got)
 	}
 	if startReq.GetResources().GetRequests().GetCpuMilli() != 250 {
 		t.Fatalf("resources = %#v, want request CPU 250", startReq.GetResources())
@@ -174,14 +175,17 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	if got := startReq.GetImageMounts(); len(got) != 1 || got[0].GetImage() != "example.com/axern/codex-tool:latest" || got[0].GetTarget() != "/opt/axern/tools/codex" || !got[0].GetReadonly() {
 		t.Fatalf("image mounts = %#v, want readonly codex tool mount", got)
 	}
+	if got := startReq.GetSecretEnv(); len(got) != 1 || got[0].GetName() != "TOKEN" || got[0].GetValue() != "secret-value" {
+		t.Fatalf("resolved secret env was not preserved: %#v", got)
+	}
+	if got := startReq.GetSecretFiles(); len(got) != 1 || got[0].GetPath() != "/run/secrets/key" || string(got[0].GetContent()) != "secret-content" || got[0].GetMode() != 0o400 {
+		t.Fatalf("resolved secret file was not preserved: %#v", got)
+	}
+	if got := startReq.GetRegistryCredential().GetDockerConfigJson(); got != `{"auths":{}}` {
+		t.Fatalf("registry credential was not preserved")
+	}
 	if startReq.GetEnvironmentTemplate().GetExecutionProfile().GetBaseline().GetNoFileLimit() != 2097152 {
 		t.Fatalf("execution profile nofile = %d, want 2097152", startReq.GetEnvironmentTemplate().GetExecutionProfile().GetBaseline().GetNoFileLimit())
-	}
-	if startReq.GetEnvironmentTemplate().GetExecutionProfile().GetCapabilities().GetIncludeAmbient() {
-		t.Fatal("execution profile include_ambient = true, want false")
-	}
-	if strings.Contains(startReq.GetExtraConfig(), `"namespace"`) || strings.Contains(startReq.GetExtraConfig(), `"serviceId"`) {
-		t.Fatalf("extra_config = %q, must not contain retired service identity", startReq.GetExtraConfig())
 	}
 }
 

@@ -76,10 +76,3 @@ func (r *Resolver) ExecDirect(id string) (Target, error) {
 	}
 	return target, nil
 }
-
-func (t Target) Labels() map[string]string {
-	if t.Metadata == nil {
-		return nil
-	}
-	return t.Metadata.GetLabels()
-}

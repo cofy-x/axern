@@ -59,7 +59,6 @@ func (c *Controller) List(_ context.Context, request *runtime.ListContainersRequ
 			ExitCode:       status.ExitCode,
 			Message:        status.Message,
 			DiagnosticCode: status.DiagnosticCode,
-			Labels:         item.Metadata.Labels,
 			Stdout:         item.Metadata.Stdout,
 			Stderr:         item.Metadata.Stderr,
 			Pid:            int32(status.Pid),

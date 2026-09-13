@@ -49,7 +49,7 @@ func PrepareBundle(
 		ContainerID:           options.ContainerID,
 		CgroupPath:            options.CgroupPath,
 		RuntimeCgroupPath:     options.RuntimeCgroupPath,
-		AdditionalAnnotations: options.AdditionalAnnotations,
+		ResourceAnnotations:   options.ResourceAnnotations,
 		ExecutionProfile:      options.ExecutionProfile,
 		RootfsType:            options.RootfsType,
 		BundleTemplateCarrier: options.BundleTemplateCarrier,

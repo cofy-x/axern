@@ -44,10 +44,6 @@
         ],
         "noFileLimit": 1048576
       },
-      "capabilities": {
-        "annotationKey": "linux-capabilities",
-        "includeAmbient": true
-      },
       "networkNamespace": {
         "annotationKey": "io.axnoded.resource/interface"
       },
@@ -103,10 +99,6 @@
           "CAP_SETFCAP"
         ],
         "noFileLimit": 1048576
-      },
-      "capabilities": {
-        "annotationKey": "linux-capabilities",
-        "includeAmbient": true
       },
       "networkNamespace": {
         "annotationKey": "io.axnoded.resource/interface"
@@ -167,10 +159,6 @@
         ],
         "noFileLimit": 1048576
       },
-      "capabilities": {
-        "annotationKey": "linux-capabilities",
-        "includeAmbient": true
-      },
       "networkNamespace": {
         "annotationKey": "io.axnoded.resource/interface"
       },
@@ -224,10 +212,6 @@
           "CAP_SETFCAP"
         ],
         "noFileLimit": 1048576
-      },
-      "capabilities": {
-        "annotationKey": "linux-capabilities",
-        "includeAmbient": true
       },
       "networkNamespace": {
         "annotationKey": "io.axnoded.resource/interface"

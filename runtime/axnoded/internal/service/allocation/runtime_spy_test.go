@@ -15,27 +15,26 @@ import (
 )
 
 type runtimeSpyHandler struct {
-	name                 string
-	requirements         contract.HostRequirements
-	waitExitCode         int
-	waitFunc             func(context.Context, contract.HandlerOptions) (contract.Exit, error)
-	createCalls          int
-	deleteCalls          int
-	lastOptions          contract.HandlerOptions
-	lastDeleteOptions    contract.HandlerOptions
-	lastRequest          *apipb.CreateContainerRequest
-	deleteOptionCalls    []contract.HandlerOptions
-	deleteErrors         []error
-	createError          error
-	bundleDuration       time.Duration
-	launchDuration       time.Duration
-	listStates           []*contract.UnionContainerState
-	listError            error
-	listHook             func()
-	containerSpec        *specs.Spec
-	containerSpecError   error
-	createMetadataLabels map[string]string
-	createHook           func()
+	name               string
+	requirements       contract.HostRequirements
+	waitExitCode       int
+	waitFunc           func(context.Context, contract.HandlerOptions) (contract.Exit, error)
+	createCalls        int
+	deleteCalls        int
+	lastOptions        contract.HandlerOptions
+	lastDeleteOptions  contract.HandlerOptions
+	lastRequest        *apipb.CreateContainerRequest
+	deleteOptionCalls  []contract.HandlerOptions
+	deleteErrors       []error
+	createError        error
+	bundleDuration     time.Duration
+	launchDuration     time.Duration
+	listStates         []*contract.UnionContainerState
+	listError          error
+	listHook           func()
+	containerSpec      *specs.Spec
+	containerSpecError error
+	createHook         func()
 }
 
 var _ contract.SandboxRuntime = (*runtimeSpyHandler)(nil)
@@ -60,18 +59,7 @@ func (h *runtimeSpyHandler) CreateContainer(_ context.Context, request *apipb.Cr
 	if h.createError != nil {
 		return nil, h.createError
 	}
-	labels := map[string]string{}
-	for k, v := range request.GetLabels() {
-		labels[k] = v
-	}
-	for k, v := range options.AdditionalAnnotations {
-		labels[k] = v
-	}
-	for k, v := range h.createMetadataLabels {
-		labels[k] = v
-	}
 	return &apipb.ContainerMetadata{
-		Labels: labels,
 		Stdout: request.Stdout,
 		Stderr: request.Stderr,
 	}, nil

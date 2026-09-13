@@ -53,7 +53,8 @@ func verifyActiveEgressPolicy(ctx context.Context, manager egress.Manager, alloc
 // before activation. Health alone is insufficient: Allocation ID, normalized
 // policy, and allocated source IP must all match.
 func (h *sandboxService) verifyPreparedEgressPolicy(ctx context.Context, request *runtime.StartRequest, allocationID string) error {
-	if request.GetEgressPolicy() == nil {
+	policy := request.GetNetwork().GetEgressPolicy()
+	if policy == nil {
 		return fmt.Errorf("egress capability is required without a policy contract")
 	}
 	if h.egressClient == nil {
@@ -72,7 +73,7 @@ func (h *sandboxService) verifyPreparedEgressPolicy(ctx context.Context, request
 	}
 	if record == nil || record.GetAllocationID() != allocationID ||
 		strings.TrimSpace(record.GetSandboxIp()) != h.allocationController().ContainerIP(allocationID) ||
-		!proto.Equal(record.GetPolicy(), request.GetEgressPolicy()) {
+		!proto.Equal(record.GetPolicy(), policy) {
 		return fmt.Errorf("prepared egress policy does not exactly match the allocation")
 	}
 	return nil

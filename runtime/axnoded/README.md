@@ -25,7 +25,7 @@ Sandbox interface pools may be IPv4 or IPv6. Bpfnet's native packet programs rem
 
 The reporter uses a durable node identity. If an operator retires that identity, `controld` rejects registration, reports, status batches, and watches; the host must be removed and any replacement must use a new node ID. Retirement is not a temporary disconnect or a reporter recovery mechanism.
 
-Node lifecycle requests may include resolved secret env vars, resolved secret files, request-scoped registry auth, and read-only image mounts. `axnoded` materializes those inputs into the allocation-local runtime environment and cleans up allocation-scoped files on teardown. Writable rootfs and workspace data are allocation-local; durable outputs require explicit artifact export.
+Node lifecycle requests carry resolved secret env vars, resolved secret files, request-scoped registry auth, ports, network mode, egress policy, and read-only image mounts as typed fields. `axnoded` validates that contract before computing its request digest or creating side effects, materializes inputs into the Allocation-local runtime environment, and cleans up Allocation-scoped files on teardown. It does not pack execution behavior into JSON or OCI labels. Writable rootfs and workspace data are Allocation-local; durable outputs require explicit output delivery.
 
 ## Architecture
 

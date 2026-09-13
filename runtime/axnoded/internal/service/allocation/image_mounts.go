@@ -7,7 +7,6 @@ import (
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	"github.com/sirupsen/logrus"
 )
@@ -27,7 +26,7 @@ var protectedImageMountTargets = map[string]struct{}{
 	"/usr":   {},
 }
 
-func (h *Controller) resolveImageMounts(request *runtime.StartRequest, extraConfig startplan.ExtraConfig) ([]*runtime.Mount, func(), error) {
+func (h *Controller) resolveImageMounts(request *runtime.StartRequest) ([]*runtime.Mount, func(), error) {
 	if request == nil || len(request.GetImageMounts()) == 0 {
 		return nil, func() {}, nil
 	}
@@ -51,7 +50,7 @@ func (h *Controller) resolveImageMounts(request *runtime.StartRequest, extraConf
 		cfg := environmentcache.RootfsConfig{
 			SrcType:          runtime.RootfsSrcType_IMAGE,
 			ImageUrl:         strings.TrimSpace(imageMount.GetImage()),
-			DockerConfigJSON: strings.TrimSpace(extraConfig.DockerConfigJSON),
+			DockerConfigJSON: strings.TrimSpace(request.GetRegistryCredential().GetDockerConfigJson()),
 		}
 		resolved, err := h.environmentCache.ResolveRootfsConfig(cfg)
 		if err != nil {
@@ -76,12 +75,12 @@ func (h *Controller) resolveImageMounts(request *runtime.StartRequest, extraConf
 		})
 	}
 
-	if err := h.rememberImageMountRoots(request.GetContainerID(), roots, request.GetImageMounts()); err != nil {
+	if err := h.rememberImageMountRoots(request.GetAllocationID(), roots, request.GetImageMounts()); err != nil {
 		releaseImageMountRoots(roots)
 		return nil, nil, fmt.Errorf("persist image mount ownership: %w", err)
 	}
 	return mounts, func() {
-		h.forgetImageMountRoots(request.GetContainerID())
+		h.forgetImageMountRoots(request.GetAllocationID())
 	}, nil
 }
 
@@ -89,7 +88,7 @@ func validateImageMountTargets(request *runtime.StartRequest) error {
 	seen := map[string]struct{}{}
 	for _, imageMount := range request.GetImageMounts() {
 		if imageMount == nil {
-			continue
+			return fmt.Errorf("image mount is required: %w", errord.ErrInvalidArgument)
 		}
 		image := strings.TrimSpace(imageMount.GetImage())
 		if image == "" {
@@ -113,6 +112,15 @@ func validateImageMountTargets(request *runtime.StartRequest) error {
 		}
 		if err := validateImageMountTargetDoesNotOverlapMounts(target, request.GetMounts()); err != nil {
 			return err
+		}
+		for _, secretFile := range request.GetSecretFiles() {
+			if secretFile == nil {
+				continue
+			}
+			secretTarget := path.Clean(strings.TrimSpace(secretFile.GetPath()))
+			if containerPathsOverlap(target, secretTarget) {
+				return fmt.Errorf("image mount target %q overlaps secret file target %q: %w", target, secretTarget, errord.ErrInvalidArgument)
+			}
 		}
 		seen[target] = struct{}{}
 	}

@@ -3,13 +3,13 @@ package networking
 import (
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
+	"sort"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	networkmanager "github.com/cofy-x/axern/runtime/axnoded/internal/network"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
 type DnatRule struct {
@@ -20,7 +20,7 @@ type DnatRule struct {
 	ContainerID string
 }
 
-func (c *Coordinator) SetupDnatRules(containerID string, ports []string, targetIP string) error {
+func (c *Coordinator) SetupDnatRules(containerID string, ports []*commonv1.PortSpec, targetIP string) error {
 	if len(ports) == 0 {
 		return nil
 	}
@@ -28,7 +28,7 @@ func (c *Coordinator) SetupDnatRules(containerID string, ports []string, targetI
 	if !ok {
 		return fmt.Errorf("network manager not found for type: %s", c.natBackend)
 	}
-	rules, err := ParseDnatRules(containerID, ports, targetIP)
+	rules, err := DnatRulesFromPortSpecs(containerID, ports, targetIP)
 	if err != nil {
 		return err
 	}
@@ -43,8 +43,12 @@ func (c *Coordinator) SetupDnatRules(containerID string, ports []string, targetI
 	}
 	c.dnatMu.Lock()
 	c.dnatRules[containerID] = rules
+	if err := c.storeDnatRulesLocked(); err != nil {
+		delete(c.dnatRules, containerID)
+		c.dnatMu.Unlock()
+		return errors.Join(fmt.Errorf("persist DNAT rules: %w", err), c.rollbackDnatRules(containerID, m, installed))
+	}
 	c.dnatMu.Unlock()
-	c.StoreDnatRules()
 	return nil
 }
 
@@ -61,48 +65,57 @@ func (c *Coordinator) rollbackDnatRules(containerID string, m networkmanager.Net
 	if len(remaining) > 0 {
 		c.dnatMu.Lock()
 		c.dnatRules[containerID] = remaining
+		err := c.storeDnatRulesLocked()
 		c.dnatMu.Unlock()
-		c.StoreDnatRules()
+		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }
 
-func ParseDnatRules(containerID string, ports []string, targetIP string) ([]*DnatRule, error) {
+func DnatRulesFromPortSpecs(containerID string, ports []*commonv1.PortSpec, targetIP string) ([]*DnatRule, error) {
 	rules := make([]*DnatRule, 0, len(ports))
 	for _, port := range ports {
-		if port == "" {
-			continue
+		if port == nil {
+			return nil, errors.New("port specification is required")
 		}
-		parts := strings.Split(port, ":")
-		if len(parts) != 3 {
-			return nil, fmt.Errorf("invalid port format: %s, expected format: protocol:dstPort:targetPort", port)
+		protocol := "tcp"
+		switch port.GetProtocol() {
+		case commonv1.PortProtocol_PORT_PROTOCOL_UNSPECIFIED, commonv1.PortProtocol_PORT_PROTOCOL_TCP:
+		case commonv1.PortProtocol_PORT_PROTOCOL_UDP:
+			protocol = "udp"
+		default:
+			return nil, fmt.Errorf("unsupported port protocol: %s", port.GetProtocol())
 		}
-		dstPort, err := strconv.ParseUint(parts[1], 10, 16)
-		if err != nil {
-			return nil, fmt.Errorf("invalid dstPort: %s, err: %v", parts[1], err)
+		containerPort := port.GetContainerPort()
+		if containerPort < 1 || containerPort > 65535 {
+			return nil, fmt.Errorf("container port %d is outside 1..65535", containerPort)
 		}
-		targetPort, err := strconv.ParseUint(parts[2], 10, 16)
-		if err != nil {
-			return nil, fmt.Errorf("invalid targetPort: %s, err: %v", parts[2], err)
+		hostPort := port.GetHostPort()
+		if hostPort == 0 {
+			hostPort = containerPort
+		}
+		if hostPort < 1 || hostPort > 65535 {
+			return nil, fmt.Errorf("host port %d is outside 1..65535", hostPort)
 		}
 		rules = append(rules, &DnatRule{
-			Protocol:    parts[0],
-			DstPort:     uint16(dstPort),
+			Protocol:    protocol,
+			DstPort:     uint16(hostPort),
 			TargetIP:    targetIP,
-			TargetPort:  uint16(targetPort),
+			TargetPort:  uint16(containerPort),
 			ContainerID: containerID,
 		})
 	}
 	return rules, nil
 }
 
-func (c *Coordinator) CleanupDnatRules(containerID string) {
+func (c *Coordinator) CleanupDnatRules(containerID string) error {
 	c.dnatMu.Lock()
 	rules, ok := c.dnatRules[containerID]
 	if !ok {
 		c.dnatMu.Unlock()
-		return
+		return nil
 	}
+	rules = append([]*DnatRule(nil), rules...)
 	c.dnatMu.Unlock()
 
 	m, mOk := c.networkManager(c.natBackend)
@@ -126,27 +139,46 @@ func (c *Coordinator) CleanupDnatRules(containerID string) {
 	} else {
 		c.dnatRules[containerID] = remaining
 	}
+	if err := c.storeDnatRulesLocked(); err != nil {
+		// Keep memory aligned with the durable desired state so a retry can
+		// complete the cleanup after a transient store failure.
+		c.dnatRules[containerID] = rules
+		c.dnatMu.Unlock()
+		return fmt.Errorf("persist DNAT cleanup: %w", err)
+	}
 	c.dnatMu.Unlock()
-	c.StoreDnatRules()
+	return nil
 }
 
-func (c *Coordinator) StoreDnatRules() {
-	if c.store == nil {
-		return
-	}
+func (c *Coordinator) StoreDnatRules() error {
 	c.dnatMu.Lock()
-	m := make(map[string]string, len(c.dnatRules))
-	for cid, rules := range c.dnatRules {
-		var ports []string
+	defer c.dnatMu.Unlock()
+	return c.storeDnatRulesLocked()
+}
+
+func (c *Coordinator) storeDnatRulesLocked() error {
+	if c.store == nil {
+		return nil
+	}
+	snapshot := &runtime.DnatRuleSnapshot{Bindings: make([]*runtime.DnatRuleBinding, 0, len(c.dnatRules))}
+	allocationIDs := make([]string, 0, len(c.dnatRules))
+	for allocationID := range c.dnatRules {
+		allocationIDs = append(allocationIDs, allocationID)
+	}
+	sort.Strings(allocationIDs)
+	for _, allocationID := range allocationIDs {
+		rules := c.dnatRules[allocationID]
+		binding := &runtime.DnatRuleBinding{AllocationID: allocationID, Ports: make([]*commonv1.PortSpec, 0, len(rules))}
 		for _, r := range rules {
-			ports = append(ports, fmt.Sprintf("%s:%d:%d", r.Protocol, r.DstPort, r.TargetPort))
+			protocol := commonv1.PortProtocol_PORT_PROTOCOL_TCP
+			if r.Protocol == "udp" {
+				protocol = commonv1.PortProtocol_PORT_PROTOCOL_UDP
+			}
+			binding.Ports = append(binding.Ports, &commonv1.PortSpec{Protocol: protocol, HostPort: int32(r.DstPort), ContainerPort: int32(r.TargetPort)})
 		}
-		m[cid] = strings.Join(ports, ",")
+		snapshot.Bindings = append(snapshot.Bindings, binding)
 	}
-	c.dnatMu.Unlock()
-	if err := c.store.SaveSnapshot(config.DNATRulesBucket, &runtime.Map{Items: m}); err != nil {
-		c.logger.Warnf("store dnat rules failed: %v", err)
-	}
+	return c.store.SaveSnapshot(config.DNATRulesBucket, snapshot)
 }
 
 func (c *Coordinator) LoadDnatRules() {
@@ -154,8 +186,8 @@ func (c *Coordinator) LoadDnatRules() {
 		c.reconcileDnatRules()
 		return
 	}
-	var m runtime.Map
-	err := c.store.LoadSnapshot(config.DNATRulesBucket, &m)
+	var snapshot runtime.DnatRuleSnapshot
+	err := c.store.LoadSnapshot(config.DNATRulesBucket, &snapshot)
 	if err != nil {
 		if errord.IsNotFound(err) {
 			c.reconcileDnatRules()
@@ -166,7 +198,8 @@ func (c *Coordinator) LoadDnatRules() {
 	}
 	restored := 0
 	c.dnatMu.Lock()
-	for cid, portsStr := range m.Items {
+	for _, binding := range snapshot.GetBindings() {
+		cid := binding.GetAllocationID()
 		if c.containerExists != nil && !c.containerExists(cid) {
 			c.logger.Debugf("dnat: container %s no longer exists, skip", cid)
 			continue
@@ -181,7 +214,7 @@ func (c *Coordinator) LoadDnatRules() {
 			c.logger.Warnf("dnat: failed to parse network device for container %s: %v", cid, err)
 			continue
 		}
-		rules, err := ParseDnatRules(cid, strings.Split(portsStr, ","), netDevice.Ip.String())
+		rules, err := DnatRulesFromPortSpecs(cid, binding.GetPorts(), netDevice.Ip.String())
 		if err != nil {
 			c.logger.Warnf("dnat: failed to parse stored rules for container %s: %v", cid, err)
 			continue
@@ -191,7 +224,9 @@ func (c *Coordinator) LoadDnatRules() {
 	}
 	c.dnatMu.Unlock()
 	c.reconcileDnatRules()
-	c.StoreDnatRules()
+	if err := c.StoreDnatRules(); err != nil {
+		c.logger.Warnf("store reconciled dnat rules failed: %v", err)
+	}
 	if restored > 0 {
 		c.logger.Infof("restored DNAT rules for %d containers", restored)
 	}

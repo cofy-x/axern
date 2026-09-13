@@ -341,7 +341,7 @@ func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
-		ContainerID: allocationIDForTest(t),
+		AllocationID: allocationIDForTest(t),
 		EnvironmentTemplate: &apipb.EnvironmentTemplate{
 			ID:     "persistence-failure-runtime",
 			Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
@@ -443,7 +443,7 @@ func TestStartAndDeleteUseOneAllocationTransactionEach(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
-		ContainerID: allocationID,
+		AllocationID: allocationID,
 		EnvironmentTemplate: &apipb.EnvironmentTemplate{
 			ID:     "atomic-runtime",
 			Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
@@ -477,7 +477,7 @@ func TestTransientAllocationStateIsMemoryOnly(t *testing.T) {
 	fixture := newTestAllocationControllerWithStore(t, handler, store)
 	allocationID := "transient-allocation"
 	if _, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
-		ContainerID: allocationID,
+		AllocationID: allocationID,
 		EnvironmentTemplate: &apipb.EnvironmentTemplate{
 			ID:     "transient-environment",
 			Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},

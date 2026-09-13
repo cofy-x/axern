@@ -3,7 +3,6 @@ package oci
 // ExecutionProfile groups the policies used to build a final OCI spec.
 type ExecutionProfile struct {
 	Baseline         OciBaselinePolicy
-	Capabilities     CapabilityPolicy
 	NetworkNamespace NetworkNamespacePolicy
 	Resources        ResourcePolicy
 }
@@ -12,7 +11,6 @@ type ExecutionProfile struct {
 func DefaultExecutionProfile() ExecutionProfile {
 	return ExecutionProfile{
 		Baseline:         DefaultBaselinePolicy(),
-		Capabilities:     DefaultCapabilityPolicy(),
 		NetworkNamespace: DefaultNetworkNamespacePolicy(),
 		Resources:        DefaultResourcePolicy(),
 	}
@@ -25,9 +23,6 @@ func (p ExecutionProfile) withDefaults() ExecutionProfile {
 	}
 	if p.Baseline.NoFileLimit == 0 {
 		p.Baseline.NoFileLimit = defaults.Baseline.NoFileLimit
-	}
-	if p.Capabilities.AnnotationKey == "" {
-		p.Capabilities = defaults.Capabilities
 	}
 	if p.NetworkNamespace.AnnotationKey == "" {
 		p.NetworkNamespace.AnnotationKey = defaults.NetworkNamespace.AnnotationKey

@@ -18,7 +18,6 @@ func NewExecutor() *Executor {
 
 type Target struct {
 	ID      string
-	Labels  map[string]string
 	Handler contract.SandboxRuntime
 }
 
@@ -52,8 +51,7 @@ func (e *Executor) Exec(ctx context.Context, target Target, request *runtime.Exe
 		Cwd:     request.GetCwd(),
 		User:    request.GetUser(),
 	}, contract.HandlerOptions{
-		ContainerID:     target.ID,
-		ContainerLabels: target.Labels,
+		ContainerID: target.ID,
 	})
 	if err != nil {
 		return nil, err
@@ -80,8 +78,7 @@ func (e *Executor) OpenExec(ctx context.Context, target Target, open *runtime.Ex
 		User:        open.GetUser(),
 		InitialSize: open.GetInitialSize(),
 	}, contract.HandlerOptions{
-		ContainerID:     target.ID,
-		ContainerLabels: target.Labels,
+		ContainerID: target.ID,
 	})
 }
 
@@ -98,7 +95,6 @@ func (e *Executor) OpenProcess(ctx context.Context, target Target, open *runtime
 		Cwd:     open.GetCwd(),
 		User:    open.GetUser(),
 	}, contract.HandlerOptions{
-		ContainerID:     target.ID,
-		ContainerLabels: target.Labels,
+		ContainerID: target.ID,
 	})
 }

@@ -51,7 +51,7 @@ func (c *Coordinator) ContainerIP(containerID string) (string, error) {
 }
 
 func (c *Coordinator) CleanupActivationNetwork(resource container.OccupiedResource) error {
-	device, ok := resource.ToLabels()[resourcemanager.ResourceAnnotationKeyPrefix+string(resourcemanager.InterfaceResourceName)]
+	device, ok := resource.RuntimeAnnotations()[resourcemanager.ResourceAnnotationKeyPrefix+string(resourcemanager.InterfaceResourceName)]
 	if !ok {
 		return nil
 	}

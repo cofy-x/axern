@@ -39,12 +39,12 @@ type LoadOptions struct {
 	ContainerID string
 	Request     *apipb.CreateContainerRequest
 
-	CgroupPath            string
-	OverrideBundleDir     string
-	OverrideRootPath      string
-	AdditionalAnnotations map[string]string
-	ExecutionProfile      *ExecutionProfile
-	SandboxdInjection     *SandboxdInjectionOptions
+	CgroupPath          string
+	OverrideBundleDir   string
+	OverrideRootPath    string
+	ResourceAnnotations map[string]string
+	ExecutionProfile    *ExecutionProfile
+	SandboxdInjection   *SandboxdInjectionOptions
 }
 
 type BundleLoader struct {
@@ -143,11 +143,11 @@ func (r *BundleLoader) MaterializeBundle(template *BundleTemplate, options LoadO
 		profile = template.profile.withDefaults()
 	}
 	ociSpec, err := r.specBuilder.withProfile(profile).build(template.spec, buildOptions{
-		request:               options.Request,
-		containerID:           options.ContainerID,
-		cgroupPath:            options.CgroupPath,
-		additionalAnnotations: options.AdditionalAnnotations,
-		overrideRootPath:      options.OverrideRootPath,
+		request:             options.Request,
+		containerID:         options.ContainerID,
+		cgroupPath:          options.CgroupPath,
+		resourceAnnotations: options.ResourceAnnotations,
+		overrideRootPath:    options.OverrideRootPath,
 	})
 	if err != nil {
 		return "", ociSpec, err

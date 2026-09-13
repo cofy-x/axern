@@ -44,7 +44,6 @@ func (f *FakeSandboxRuntime) Version(ctx context.Context) (*runtimeapi.RuntimeVe
 
 func (f *FakeSandboxRuntime) CreateContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
 	return &apipb.ContainerMetadata{
-		Labels: options.AdditionalAnnotations,
 		Stdout: request.GetStdout(),
 		Stderr: request.GetStderr(),
 	}, getErrorFromContext(ctx)

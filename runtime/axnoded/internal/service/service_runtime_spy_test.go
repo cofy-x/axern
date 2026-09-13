@@ -10,44 +10,43 @@ import (
 )
 
 type runtimeSpyHandler struct {
-	name                 string
-	requirements         contract.HostRequirements
-	waitExitCode         int
-	waitFunc             func(context.Context, contract.HandlerOptions) (contract.Exit, error)
-	createCalls          int
-	deleteCalls          int
-	deleteHook           func()
-	killCalls            int
-	lastOptions          contract.HandlerOptions
-	lastExecOptions      contract.HandlerOptions
-	lastSessionOptions   contract.HandlerOptions
-	lastProcessOptions   contract.HandlerOptions
-	lastRequest          *apipb.CreateContainerRequest
-	lastExecRequest      *apipb.ExecContainerRequest
-	lastSessionOpen      *apipb.ExecSessionOpen
-	lastKillRequest      *apipb.SignalContainerRequest
-	killError            error
-	execResponse         *apipb.ExecContainerResponse
-	execError            error
-	execSession          contract.Session
-	execSessionErr       error
-	statFileResponse     *apipb.StatFileResponse
-	listDirResponse      *apipb.ListDirResponse
-	readFileRequests     []*apipb.ReadFileRequest
-	writeFileRequests    []*apipb.WriteFileRequest
-	mkdirRequests        []*apipb.MkdirRequest
-	removeRequests       []*apipb.RemoveRequest
-	existsRequests       []*apipb.ExistsRequest
-	copyRequests         []*apipb.CopyRequest
-	moveRequests         []*apipb.MoveRequest
-	chmodRequests        []*apipb.ChmodRequest
-	touchRequests        []*apipb.TouchRequest
-	uploadRequests       []*apipb.UploadArchiveRequest
-	downloadRequests     []*apipb.DownloadArchiveRequest
-	fileOptions          []contract.HandlerOptions
-	containerSpec        *specs.Spec
-	containerSpecError   error
-	createMetadataLabels map[string]string
+	name               string
+	requirements       contract.HostRequirements
+	waitExitCode       int
+	waitFunc           func(context.Context, contract.HandlerOptions) (contract.Exit, error)
+	createCalls        int
+	deleteCalls        int
+	deleteHook         func()
+	killCalls          int
+	lastOptions        contract.HandlerOptions
+	lastExecOptions    contract.HandlerOptions
+	lastSessionOptions contract.HandlerOptions
+	lastProcessOptions contract.HandlerOptions
+	lastRequest        *apipb.CreateContainerRequest
+	lastExecRequest    *apipb.ExecContainerRequest
+	lastSessionOpen    *apipb.ExecSessionOpen
+	lastKillRequest    *apipb.SignalContainerRequest
+	killError          error
+	execResponse       *apipb.ExecContainerResponse
+	execError          error
+	execSession        contract.Session
+	execSessionErr     error
+	statFileResponse   *apipb.StatFileResponse
+	listDirResponse    *apipb.ListDirResponse
+	readFileRequests   []*apipb.ReadFileRequest
+	writeFileRequests  []*apipb.WriteFileRequest
+	mkdirRequests      []*apipb.MkdirRequest
+	removeRequests     []*apipb.RemoveRequest
+	existsRequests     []*apipb.ExistsRequest
+	copyRequests       []*apipb.CopyRequest
+	moveRequests       []*apipb.MoveRequest
+	chmodRequests      []*apipb.ChmodRequest
+	touchRequests      []*apipb.TouchRequest
+	uploadRequests     []*apipb.UploadArchiveRequest
+	downloadRequests   []*apipb.DownloadArchiveRequest
+	fileOptions        []contract.HandlerOptions
+	containerSpec      *specs.Spec
+	containerSpecError error
 }
 
 func (h *runtimeSpyHandler) Name() string { return h.name }
@@ -62,19 +61,7 @@ func (h *runtimeSpyHandler) CreateContainer(_ context.Context, request *apipb.Cr
 	h.createCalls++
 	h.lastOptions = options
 	h.lastRequest = request
-	labels := map[string]string{}
-	for k, v := range request.GetLabels() {
-		labels[k] = v
-	}
-	for k, v := range options.AdditionalAnnotations {
-		labels[k] = v
-	}
-	for k, v := range h.createMetadataLabels {
-		labels[k] = v
-	}
-	return &apipb.ContainerMetadata{
-		Labels: labels,
-	}, nil
+	return &apipb.ContainerMetadata{}, nil
 }
 
 func (h *runtimeSpyHandler) PrepareContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*contract.PreparedContainer, error) {

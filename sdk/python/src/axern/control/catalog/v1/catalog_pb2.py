@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&axern/control/catalog/v1/catalog.proto\x12\x18\x61xern.control.catalog.v1\"Q\n\x10\x45nvironmentMount\x12\x0c\n\x04type\x18\x01 \x01(\t\x12\x0e\n\x06source\x18\x02 \x01(\t\x12\x0e\n\x06target\x18\x03 \x01(\t\x12\x0f\n\x07options\x18\x04 \x03(\t\"\xb2\x01\n\x1f\x45nvironmentTemplateCapabilities\x12\x15\n\rsupports_exec\x18\x01 \x01(\x08\x12\x1c\n\x14supports_exec_stream\x18\x02 \x01(\x08\x12#\n\x1bsupports_long_lived_process\x18\x03 \x01(\x08\x12\x16\n\x0esupports_ports\x18\x04 \x01(\x08\x12\x1d\n\x15supports_computer_use\x18\x05 \x01(\x08\"\xd4\x01\n\x12OciImageDescriptor\x12\x0e\n\x06\x64igest\x18\x01 \x01(\t\x12\x12\n\nmedia_type\x18\x02 \x01(\t\x12\x12\n\nsize_bytes\x18\x03 \x01(\x03\x12R\n\x0b\x61nnotations\x18\x04 \x03(\x0b\x32=.axern.control.catalog.v1.OciImageDescriptor.AnnotationsEntry\x1a\x32\n\x10\x41nnotationsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"@\n\x11OciBaselinePolicy\x12\x14\n\x0c\x63\x61pabilities\x18\x01 \x03(\t\x12\x15\n\rno_file_limit\x18\x02 \x01(\x04\"_\n\x13OciCapabilityPolicy\x12\x16\n\x0e\x61nnotation_key\x18\x01 \x01(\t\x12\x1c\n\x0finclude_ambient\x18\x02 \x01(\x08H\x00\x88\x01\x01\x42\x12\n\x10_include_ambient\"3\n\x19OciNetworkNamespacePolicy\x12\x16\n\x0e\x61nnotation_key\x18\x01 \x01(\t\"3\n\x11OciResourcePolicy\x12\x1e\n\x16ignore_annotation_keys\x18\x01 \x03(\t\"\xa9\x02\n\x13OciExecutionProfile\x12=\n\x08\x62\x61seline\x18\x01 \x01(\x0b\x32+.axern.control.catalog.v1.OciBaselinePolicy\x12\x43\n\x0c\x63\x61pabilities\x18\x02 \x01(\x0b\x32-.axern.control.catalog.v1.OciCapabilityPolicy\x12N\n\x11network_namespace\x18\x03 \x01(\x0b\x32\x33.axern.control.catalog.v1.OciNetworkNamespacePolicy\x12>\n\tresources\x18\x04 \x01(\x0b\x32+.axern.control.catalog.v1.OciResourcePolicy\"\x8e\x05\n\x13\x45nvironmentTemplate\x12\n\n\x02id\x18\x01 \x01(\t\x12\x17\n\x0frootfs_readonly\x18\x02 \x01(\x08\x12\x1a\n\x12image_default_argv\x18\x03 \x03(\t\x12\x13\n\x0b\x64\x65\x66\x61ult_cwd\x18\x04 \x01(\t\x12R\n\x0b\x64\x65\x66\x61ult_env\x18\x05 \x03(\x0b\x32=.axern.control.catalog.v1.EnvironmentTemplate.DefaultEnvEntry\x12:\n\x06mounts\x18\x06 \x03(\x0b\x32*.axern.control.catalog.v1.EnvironmentMount\x12O\n\x0c\x63\x61pabilities\x18\x07 \x01(\x0b\x32\x39.axern.control.catalog.v1.EnvironmentTemplateCapabilities\x12\x10\n\x08language\x18\x08 \x01(\t\x12\x18\n\x10language_version\x18\t \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\n \x01(\t\x12\x0f\n\x07version\x18\x0b \x01(\t\x12\x46\n\x10image_descriptor\x18\x0c \x01(\x0b\x32,.axern.control.catalog.v1.OciImageDescriptor\x12\x13\n\x0bwarm_policy\x18\r \x01(\t\x12\x14\n\x0c\x63\x61\x63he_policy\x18\x0e \x01(\t\x12H\n\x11\x65xecution_profile\x18\x0f \x01(\x0b\x32-.axern.control.catalog.v1.OciExecutionProfile\x1a\x31\n\x0f\x44\x65\x66\x61ultEnvEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"W\n\x1fListEnvironmentTemplatesRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\x12\x10\n\x08language\x18\x03 \x01(\t\"p\n ListEnvironmentTemplatesResponse\x12L\n\x15\x65nvironment_templates\x18\x01 \x03(\x0b\x32-.axern.control.catalog.v1.EnvironmentTemplate\"<\n\x1dGetEnvironmentTemplateRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\"m\n\x1eGetEnvironmentTemplateResponse\x12K\n\x14\x65nvironment_template\x18\x01 \x01(\x0b\x32-.axern.control.catalog.v1.EnvironmentTemplate2\xba\x02\n\x12\x45nvironmentCatalog\x12\x93\x01\n\x18ListEnvironmentTemplates\x12\x39.axern.control.catalog.v1.ListEnvironmentTemplatesRequest\x1a:.axern.control.catalog.v1.ListEnvironmentTemplatesResponse\"\x00\x12\x8d\x01\n\x16GetEnvironmentTemplate\x12\x37.axern.control.catalog.v1.GetEnvironmentTemplateRequest\x1a\x38.axern.control.catalog.v1.GetEnvironmentTemplateResponse\"\x00\x42GZEgithub.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1;catalogv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&axern/control/catalog/v1/catalog.proto\x12\x18\x61xern.control.catalog.v1\"Q\n\x10\x45nvironmentMount\x12\x0c\n\x04type\x18\x01 \x01(\t\x12\x0e\n\x06source\x18\x02 \x01(\t\x12\x0e\n\x06target\x18\x03 \x01(\t\x12\x0f\n\x07options\x18\x04 \x03(\t\"\xb2\x01\n\x1f\x45nvironmentTemplateCapabilities\x12\x15\n\rsupports_exec\x18\x01 \x01(\x08\x12\x1c\n\x14supports_exec_stream\x18\x02 \x01(\x08\x12#\n\x1bsupports_long_lived_process\x18\x03 \x01(\x08\x12\x16\n\x0esupports_ports\x18\x04 \x01(\x08\x12\x1d\n\x15supports_computer_use\x18\x05 \x01(\x08\"\xd4\x01\n\x12OciImageDescriptor\x12\x0e\n\x06\x64igest\x18\x01 \x01(\t\x12\x12\n\nmedia_type\x18\x02 \x01(\t\x12\x12\n\nsize_bytes\x18\x03 \x01(\x03\x12R\n\x0b\x61nnotations\x18\x04 \x03(\x0b\x32=.axern.control.catalog.v1.OciImageDescriptor.AnnotationsEntry\x1a\x32\n\x10\x41nnotationsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"@\n\x11OciBaselinePolicy\x12\x14\n\x0c\x63\x61pabilities\x18\x01 \x03(\t\x12\x15\n\rno_file_limit\x18\x02 \x01(\x04\"3\n\x19OciNetworkNamespacePolicy\x12\x16\n\x0e\x61nnotation_key\x18\x01 \x01(\t\"3\n\x11OciResourcePolicy\x12\x1e\n\x16ignore_annotation_keys\x18\x01 \x03(\t\"\xe4\x01\n\x13OciExecutionProfile\x12=\n\x08\x62\x61seline\x18\x01 \x01(\x0b\x32+.axern.control.catalog.v1.OciBaselinePolicy\x12N\n\x11network_namespace\x18\x02 \x01(\x0b\x32\x33.axern.control.catalog.v1.OciNetworkNamespacePolicy\x12>\n\tresources\x18\x03 \x01(\x0b\x32+.axern.control.catalog.v1.OciResourcePolicy\"\x8e\x05\n\x13\x45nvironmentTemplate\x12\n\n\x02id\x18\x01 \x01(\t\x12\x17\n\x0frootfs_readonly\x18\x02 \x01(\x08\x12\x1a\n\x12image_default_argv\x18\x03 \x03(\t\x12\x13\n\x0b\x64\x65\x66\x61ult_cwd\x18\x04 \x01(\t\x12R\n\x0b\x64\x65\x66\x61ult_env\x18\x05 \x03(\x0b\x32=.axern.control.catalog.v1.EnvironmentTemplate.DefaultEnvEntry\x12:\n\x06mounts\x18\x06 \x03(\x0b\x32*.axern.control.catalog.v1.EnvironmentMount\x12O\n\x0c\x63\x61pabilities\x18\x07 \x01(\x0b\x32\x39.axern.control.catalog.v1.EnvironmentTemplateCapabilities\x12\x10\n\x08language\x18\x08 \x01(\t\x12\x18\n\x10language_version\x18\t \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\n \x01(\t\x12\x0f\n\x07version\x18\x0b \x01(\t\x12\x46\n\x10image_descriptor\x18\x0c \x01(\x0b\x32,.axern.control.catalog.v1.OciImageDescriptor\x12\x13\n\x0bwarm_policy\x18\r \x01(\t\x12\x14\n\x0c\x63\x61\x63he_policy\x18\x0e \x01(\t\x12H\n\x11\x65xecution_profile\x18\x0f \x01(\x0b\x32-.axern.control.catalog.v1.OciExecutionProfile\x1a\x31\n\x0f\x44\x65\x66\x61ultEnvEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"W\n\x1fListEnvironmentTemplatesRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\x12\x10\n\x08language\x18\x03 \x01(\t\"p\n ListEnvironmentTemplatesResponse\x12L\n\x15\x65nvironment_templates\x18\x01 \x03(\x0b\x32-.axern.control.catalog.v1.EnvironmentTemplate\"<\n\x1dGetEnvironmentTemplateRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\"m\n\x1eGetEnvironmentTemplateResponse\x12K\n\x14\x65nvironment_template\x18\x01 \x01(\x0b\x32-.axern.control.catalog.v1.EnvironmentTemplate2\xba\x02\n\x12\x45nvironmentCatalog\x12\x93\x01\n\x18ListEnvironmentTemplates\x12\x39.axern.control.catalog.v1.ListEnvironmentTemplatesRequest\x1a:.axern.control.catalog.v1.ListEnvironmentTemplatesResponse\"\x00\x12\x8d\x01\n\x16GetEnvironmentTemplate\x12\x37.axern.control.catalog.v1.GetEnvironmentTemplateRequest\x1a\x38.axern.control.catalog.v1.GetEnvironmentTemplateResponse\"\x00\x42GZEgithub.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1;catalogv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -46,26 +46,24 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_OCIIMAGEDESCRIPTOR_ANNOTATIONSENTRY']._serialized_end=545
   _globals['_OCIBASELINEPOLICY']._serialized_start=547
   _globals['_OCIBASELINEPOLICY']._serialized_end=611
-  _globals['_OCICAPABILITYPOLICY']._serialized_start=613
-  _globals['_OCICAPABILITYPOLICY']._serialized_end=708
-  _globals['_OCINETWORKNAMESPACEPOLICY']._serialized_start=710
-  _globals['_OCINETWORKNAMESPACEPOLICY']._serialized_end=761
-  _globals['_OCIRESOURCEPOLICY']._serialized_start=763
-  _globals['_OCIRESOURCEPOLICY']._serialized_end=814
-  _globals['_OCIEXECUTIONPROFILE']._serialized_start=817
-  _globals['_OCIEXECUTIONPROFILE']._serialized_end=1114
-  _globals['_ENVIRONMENTTEMPLATE']._serialized_start=1117
-  _globals['_ENVIRONMENTTEMPLATE']._serialized_end=1771
-  _globals['_ENVIRONMENTTEMPLATE_DEFAULTENVENTRY']._serialized_start=1722
-  _globals['_ENVIRONMENTTEMPLATE_DEFAULTENVENTRY']._serialized_end=1771
-  _globals['_LISTENVIRONMENTTEMPLATESREQUEST']._serialized_start=1773
-  _globals['_LISTENVIRONMENTTEMPLATESREQUEST']._serialized_end=1860
-  _globals['_LISTENVIRONMENTTEMPLATESRESPONSE']._serialized_start=1862
-  _globals['_LISTENVIRONMENTTEMPLATESRESPONSE']._serialized_end=1974
-  _globals['_GETENVIRONMENTTEMPLATEREQUEST']._serialized_start=1976
-  _globals['_GETENVIRONMENTTEMPLATEREQUEST']._serialized_end=2036
-  _globals['_GETENVIRONMENTTEMPLATERESPONSE']._serialized_start=2038
-  _globals['_GETENVIRONMENTTEMPLATERESPONSE']._serialized_end=2147
-  _globals['_ENVIRONMENTCATALOG']._serialized_start=2150
-  _globals['_ENVIRONMENTCATALOG']._serialized_end=2464
+  _globals['_OCINETWORKNAMESPACEPOLICY']._serialized_start=613
+  _globals['_OCINETWORKNAMESPACEPOLICY']._serialized_end=664
+  _globals['_OCIRESOURCEPOLICY']._serialized_start=666
+  _globals['_OCIRESOURCEPOLICY']._serialized_end=717
+  _globals['_OCIEXECUTIONPROFILE']._serialized_start=720
+  _globals['_OCIEXECUTIONPROFILE']._serialized_end=948
+  _globals['_ENVIRONMENTTEMPLATE']._serialized_start=951
+  _globals['_ENVIRONMENTTEMPLATE']._serialized_end=1605
+  _globals['_ENVIRONMENTTEMPLATE_DEFAULTENVENTRY']._serialized_start=1556
+  _globals['_ENVIRONMENTTEMPLATE_DEFAULTENVENTRY']._serialized_end=1605
+  _globals['_LISTENVIRONMENTTEMPLATESREQUEST']._serialized_start=1607
+  _globals['_LISTENVIRONMENTTEMPLATESREQUEST']._serialized_end=1694
+  _globals['_LISTENVIRONMENTTEMPLATESRESPONSE']._serialized_start=1696
+  _globals['_LISTENVIRONMENTTEMPLATESRESPONSE']._serialized_end=1808
+  _globals['_GETENVIRONMENTTEMPLATEREQUEST']._serialized_start=1810
+  _globals['_GETENVIRONMENTTEMPLATEREQUEST']._serialized_end=1870
+  _globals['_GETENVIRONMENTTEMPLATERESPONSE']._serialized_start=1872
+  _globals['_GETENVIRONMENTTEMPLATERESPONSE']._serialized_end=1981
+  _globals['_ENVIRONMENTCATALOG']._serialized_start=1984
+  _globals['_ENVIRONMENTCATALOG']._serialized_end=2298
 # @@protoc_insertion_point(module_scope)

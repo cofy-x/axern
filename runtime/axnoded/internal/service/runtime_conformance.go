@@ -478,7 +478,7 @@ func (h *sandboxService) verifyRuntimeConformanceCleanup(ctx context.Context, al
 
 func runtimeConformanceStartRequest(allocationID, environmentID, rootfs string, kind runtimeConformanceKind) (*runtimev1.StartRequest, error) {
 	request := &runtimev1.StartRequest{
-		ContainerID: allocationID,
+		AllocationID: allocationID,
 		EnvironmentTemplate: &runtimev1.EnvironmentTemplate{
 			ID: environmentID,
 			Rootfs: &runtimev1.RootfsConfig{

@@ -3,9 +3,6 @@ package container
 import (
 	"testing"
 	"time"
-
-	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
 func TestParseTimestamp(t *testing.T) {
@@ -39,21 +36,5 @@ func TestParseTimestampTimePreservesNanoseconds(t *testing.T) {
 	}
 	if got := ParseTimestampTime("malformed"); !got.IsZero() {
 		t.Fatalf("ParseTimestampTime(malformed) = %s, want zero", got)
-	}
-}
-
-func TestMountsToAPI(t *testing.T) {
-	got := MountsToAPI([]spec.Mount{{
-		Source:      "/host",
-		Destination: "/data",
-		Type:        "bind",
-		Options:     []string{"ro"},
-	}})
-	if len(got) != 1 {
-		t.Fatalf("len(MountsToAPI()) = %d, want 1", len(got))
-	}
-	want := &runtime.Mount{Source: "/host", Target: "/data", Type: "bind", Options: []string{"ro"}}
-	if got[0].GetSource() != want.GetSource() || got[0].GetTarget() != want.GetTarget() || got[0].GetType() != want.GetType() || got[0].GetOptions()[0] != want.GetOptions()[0] {
-		t.Fatalf("MountsToAPI()[0] = %#v, want %#v", got[0], want)
 	}
 }

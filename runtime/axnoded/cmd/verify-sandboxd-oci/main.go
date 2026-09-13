@@ -168,7 +168,7 @@ func runOne(workDir string, cfg config, tc runCase) error {
 	if cwd == "" {
 		cwd = "/"
 	}
-	labels := map[string]string{
+	resourceAnnotations := map[string]string{
 		resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName): (&resourcemanager.NetResource{
 			Ip: net.ParseIP("10.88.0.2"), NetNSPath: cfg.netnsPath,
 		}).ToString(),
@@ -177,7 +177,6 @@ func runOne(workDir string, cfg config, tc runCase) error {
 		Command: tc.argv,
 		Cwd:     cwd,
 		Envs:    tc.env,
-		Labels:  labels,
 		Stdout:  stdoutPath,
 		Stderr:  stderrPath,
 		Rootfs: &apipb.Rootfs{
@@ -192,9 +191,10 @@ func runOne(workDir string, cfg config, tc runCase) error {
 		}
 	}
 	loadOptions := runtimeoci.LoadOptions{
-		ContainerID:       containerID,
-		Request:           request,
-		SandboxdInjection: &runtimeoci.SandboxdInjectionOptions{HostBinaryPath: cfg.sandboxdBinary},
+		ContainerID:         containerID,
+		Request:             request,
+		ResourceAnnotations: resourceAnnotations,
+		SandboxdInjection:   &runtimeoci.SandboxdInjectionOptions{HostBinaryPath: cfg.sandboxdBinary},
 	}
 	var bundlePath string
 	var ociSpec *spec.Spec

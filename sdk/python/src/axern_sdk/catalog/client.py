@@ -12,7 +12,6 @@ from axern_sdk.catalog.models import (
     OciImageDescriptor,
     OciBaselinePolicy,
     EnvironmentTemplateCapabilities,
-    OciCapabilityPolicy,
     OciExecutionProfile,
     OciNetworkNamespacePolicy,
     OciResourcePolicy,
@@ -116,12 +115,6 @@ def _oci_execution_profile_from_proto(profile: catalog_pb2.OciExecutionProfile) 
         baseline=OciBaselinePolicy(
             capabilities=tuple(profile.baseline.capabilities),
             no_file_limit=profile.baseline.no_file_limit,
-        ),
-        capabilities=OciCapabilityPolicy(
-            annotation_key=profile.capabilities.annotation_key,
-            include_ambient=profile.capabilities.include_ambient
-            if profile.capabilities.HasField("include_ambient")
-            else None,
         ),
         network_namespace=OciNetworkNamespacePolicy(
             annotation_key=profile.network_namespace.annotation_key,

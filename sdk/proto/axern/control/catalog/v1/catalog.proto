@@ -31,11 +31,6 @@ message OciBaselinePolicy {
   uint64 no_file_limit = 2;
 }
 
-message OciCapabilityPolicy {
-  string annotation_key = 1;
-  optional bool include_ambient = 2;
-}
-
 message OciNetworkNamespacePolicy {
   string annotation_key = 1;
 }
@@ -46,9 +41,8 @@ message OciResourcePolicy {
 
 message OciExecutionProfile {
   OciBaselinePolicy baseline = 1;
-  OciCapabilityPolicy capabilities = 2;
-  OciNetworkNamespacePolicy network_namespace = 3;
-  OciResourcePolicy resources = 4;
+  OciNetworkNamespacePolicy network_namespace = 2;
+  OciResourcePolicy resources = 3;
 }
 
 message EnvironmentTemplate {

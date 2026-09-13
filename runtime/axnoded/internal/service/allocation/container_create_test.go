@@ -7,7 +7,6 @@ import (
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 )
 
@@ -112,26 +111,6 @@ func TestCreateRuntimeContainerSyncsRuntimeStateIntoStatus(t *testing.T) {
 	}
 	if status.StartedAt != "2026-04-23T10:58:52.096323739Z" {
 		t.Fatalf("StartedAt = %q, want runtime-created timestamp", status.StartedAt)
-	}
-}
-
-func TestCreateRuntimeContainerIgnoresUserResourceAnnotationOverride(t *testing.T) {
-	const userNetworkResource = "user-net-resource"
-	networkKey := resources.ResourceAnnotationKeyPrefix + string(resources.InterfaceResourceName)
-	handler := &runtimeSpyHandler{name: "runsc"}
-	fixture := newTestAllocationController(t, handler)
-
-	_, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
-		ID:           "axctl-create-resource-no-override",
-		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
-		Labels:       map[string]string{networkKey: userNetworkResource},
-	}, nil, nil)
-	if err != nil {
-		t.Fatalf("CreateRuntimeContainer() error = %v", err)
-	}
-
-	if got := handler.lastOptions.AdditionalAnnotations[networkKey]; got == userNetworkResource {
-		t.Fatalf("network annotation unexpectedly accepted user override %q", got)
 	}
 }
 

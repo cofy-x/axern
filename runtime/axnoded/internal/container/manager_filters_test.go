@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newTestContainers(hitId string, hitLabel map[string]string) []*Container {
+func newTestContainers(hitId string) []*Container {
 	var containers []*Container
 
 	containers = append(containers, nil)
@@ -24,18 +24,6 @@ func newTestContainers(hitId string, hitLabel map[string]string) []*Container {
 		})
 	}
 
-	containers = append(containers, &Container{
-		ID:       "label-not-hit",
-		Metadata: &apipb.ContainerMetadata{Labels: hitLabel},
-	})
-
-	containers = append(containers, &Container{
-		ID: "label-hit",
-		Metadata: &apipb.ContainerMetadata{Labels: map[string]string{
-			"test-999": "666",
-		}},
-	})
-
 	return containers
 }
 
@@ -51,7 +39,7 @@ func callFilter(containers []*Container, opt ListOption) []*Container {
 
 func TestListFilterById(t *testing.T) {
 	hitId := "hitid"
-	containers := newTestContainers(hitId, nil)
+	containers := newTestContainers(hitId)
 
 	hitContainers := callFilter(containers, ListFilterById(hitId))
 

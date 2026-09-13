@@ -11,10 +11,10 @@ import (
 type buildOptions struct {
 	request *apipb.CreateContainerRequest
 
-	containerID           string
-	cgroupPath            string
-	overrideRootPath      string
-	additionalAnnotations map[string]string
+	containerID         string
+	cgroupPath          string
+	overrideRootPath    string
+	resourceAnnotations map[string]string
 }
 
 type specBuilder struct {
@@ -52,18 +52,14 @@ func (b specBuilder) applyRequestToSpec(ociSpec *spec.Spec, options buildOptions
 		applyProcessOverrides(ociSpec, request)
 		applyMountOverrides(ociSpec, request)
 		applyRootfsOverride(ociSpec, request)
-		ociSpec.Annotations = combineAnnotations(ociSpec.Annotations, request.Labels)
 		applyEphemeralStorageAnnotation(ociSpec, request)
 		setSpecResource(ociSpec, request.Resource)
 	}
 
-	ociSpec.Annotations = combineAnnotations(ociSpec.Annotations, options.additionalAnnotations)
-	explicitHostname := requestedHostnameAnnotation(request, options.additionalAnnotations)
-	delete(ociSpec.Annotations, runtimeHostnameAnnotationKey())
-	applyHostname(ociSpec, request, options.containerID, explicitHostname)
+	ociSpec.Annotations = combineAnnotations(ociSpec.Annotations, options.resourceAnnotations)
+	applyHostname(ociSpec, request, options.containerID)
 	b.profile.Baseline.apply(ociSpec)
-	b.profile.NetworkNamespace.apply(ociSpec, options.additionalAnnotations)
-	b.profile.Capabilities.apply(ociSpec, ociSpec.Annotations)
+	b.profile.NetworkNamespace.apply(ociSpec, options.resourceAnnotations)
 	b.profile.Resources.apply(ociSpec)
 
 	if options.overrideRootPath != "" && ociSpec.Root != nil {

@@ -4,9 +4,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
 var timestampLayouts = []string{
@@ -48,17 +45,4 @@ func ParseTimestampTime(timestamp string) time.Time {
 		return time.Time{}
 	}
 	return time.Unix(seconds, 0).UTC()
-}
-
-func MountsToAPI(mounts []spec.Mount) []*runtime.Mount {
-	out := make([]*runtime.Mount, 0, len(mounts))
-	for _, mount := range mounts {
-		out = append(out, &runtime.Mount{
-			Source:  mount.Source,
-			Target:  mount.Destination,
-			Type:    mount.Type,
-			Options: mount.Options,
-		})
-	}
-	return out
 }

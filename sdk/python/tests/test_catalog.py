@@ -30,10 +30,6 @@ class _CatalogServicer(catalog_pb2_grpc.EnvironmentCatalogServicer):
                         capabilities=["CAP_CHOWN", "CAP_SETUID"],
                         no_file_limit=1048576,
                     ),
-                    capabilities=catalog_pb2.OciCapabilityPolicy(
-                        annotation_key="linux-capabilities",
-                        include_ambient=True,
-                    ),
                 ),
             ),
             catalog_pb2.EnvironmentTemplate(
@@ -49,7 +45,6 @@ class _CatalogServicer(catalog_pb2_grpc.EnvironmentCatalogServicer):
                 description="Official server base runtime",
                 execution_profile=catalog_pb2.OciExecutionProfile(
                     baseline=catalog_pb2.OciBaselinePolicy(no_file_limit=1048576),
-                    capabilities=catalog_pb2.OciCapabilityPolicy(annotation_key="linux-capabilities"),
                 ),
             ),
         ]
@@ -86,7 +81,6 @@ class CatalogClientTest(unittest.TestCase):
         self.assertEqual(templates[0].default_cwd, "/workspace")
         self.assertEqual(templates[0].default_env["PYTHONUNBUFFERED"], "1")
         self.assertEqual(templates[0].execution_profile.baseline.no_file_limit, 1048576)
-        self.assertTrue(templates[0].execution_profile.capabilities.include_ambient)
         self.assertEqual(templates[1].id, "server-base")
         self.assertEqual(templates[1].default_cwd, "/home/axern")
 
@@ -102,8 +96,6 @@ class CatalogClientTest(unittest.TestCase):
         self.assertEqual(template.image_descriptor.annotations["org.opencontainers.image.ref.name"], "ghcr.io/cofy-x/axern/server-base-runtime:24.04")
         self.assertEqual(template.default_cwd, "/home/axern")
         self.assertEqual(template.image_default_argv, ("/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"))
-        self.assertEqual(template.execution_profile.capabilities.annotation_key, "linux-capabilities")
-        self.assertIsNone(template.execution_profile.capabilities.include_ambient)
         self.assertEqual(template.language, "")
 
 

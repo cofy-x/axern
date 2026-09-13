@@ -48,9 +48,9 @@ func TestRunscCreateContainerRecordsStartupPhases(t *testing.T) {
 
 	recorder := &startupPhaseRecorderSpy{}
 	meta, err := handler.CreateContainer(context.Background(), newLocalCreateRequest(t), contract.HandlerOptions{
-		ContainerID:           "runsc-startup-test",
-		StartupPhaseRecorder:  recorder,
-		AdditionalAnnotations: map[string]string{"test": "true"},
+		ContainerID:          "runsc-startup-test",
+		StartupPhaseRecorder: recorder,
+		ResourceAnnotations:  map[string]string{"io.axnoded.resource/test": "true"},
 	})
 	if err != nil {
 		t.Fatalf("CreateContainer() error = %v", err)

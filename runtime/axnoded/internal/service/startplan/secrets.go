@@ -1,67 +1,80 @@
 package startplan
 
 import (
-	"encoding/base64"
+	"crypto/sha256"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 )
 
-func ApplyResolvedSecretEnv(request *runtime.StartRequest, extraConfig ExtraConfig) {
-	if request == nil || len(extraConfig.SecretEnv) == 0 {
-		return
+func MaterializeResolvedSecretFiles(request *runtime.StartRequest) ([]*runtime.Mount, func(), error) {
+	if request == nil || len(request.GetSecretFiles()) == 0 {
+		return nil, func() {}, nil
 	}
-	if request.UserEnvs == nil {
-		request.UserEnvs = map[string]string{}
+	if strings.TrimSpace(request.GetAllocationID()) == "" {
+		return nil, nil, fmt.Errorf("allocation ID is required for secret files")
 	}
-	for _, item := range extraConfig.SecretEnv {
-		if strings.TrimSpace(item.Name) == "" {
-			continue
-		}
-		request.UserEnvs[strings.TrimSpace(item.Name)] = item.Value
-	}
-}
-
-func MaterializeResolvedSecretFiles(request *runtime.StartRequest, extraConfig ExtraConfig) (func(), error) {
-	if request == nil || len(extraConfig.SecretFiles) == 0 {
-		return func() {}, nil
-	}
-	secretRoot := filepath.Join(os.TempDir(), "axnoded-secrets", request.GetContainerID())
+	secretRoot := resolvedSecretRoot(request.GetAllocationID())
 	if err := os.RemoveAll(secretRoot); err != nil {
-		return nil, fmt.Errorf("cleanup previous secret root: %w", err)
+		return nil, nil, fmt.Errorf("cleanup previous secret root: %w", err)
 	}
-	for _, item := range extraConfig.SecretFiles {
-		target := strings.TrimSpace(item.Path)
-		if target == "" {
-			continue
+	cleanup := func() { _ = os.RemoveAll(secretRoot) }
+	mounts := make([]*runtime.Mount, 0, len(request.GetSecretFiles()))
+	seenTargets := make(map[string]struct{}, len(request.GetSecretFiles()))
+	for _, item := range request.GetSecretFiles() {
+		if item == nil {
+			cleanup()
+			return nil, nil, fmt.Errorf("resolved secret file is required")
 		}
+		rawTarget := strings.TrimSpace(item.Path)
+		target := path.Clean(rawTarget)
+		if rawTarget == "" || target == "/" || !strings.HasPrefix(target, "/") || hasParentPathElement(rawTarget) {
+			cleanup()
+			return nil, nil, fmt.Errorf("resolved secret file path %q must be an absolute container path below /", rawTarget)
+		}
+		if _, exists := seenTargets[target]; exists {
+			cleanup()
+			return nil, nil, fmt.Errorf("resolved secret file %q is duplicated", target)
+		}
+		seenTargets[target] = struct{}{}
 		rel := strings.TrimPrefix(target, "/")
 		hostPath := filepath.Join(secretRoot, rel)
 		if err := os.MkdirAll(filepath.Dir(hostPath), 0o700); err != nil {
-			return nil, fmt.Errorf("create secret dir: %w", err)
-		}
-		content, err := base64.StdEncoding.DecodeString(item.Content)
-		if err != nil {
-			return nil, fmt.Errorf("decode secret file content for %s: %w", target, err)
+			cleanup()
+			return nil, nil, fmt.Errorf("create secret dir: %w", err)
 		}
 		mode := os.FileMode(item.Mode)
 		if mode == 0 {
 			mode = 0o400
 		}
-		if err := os.WriteFile(hostPath, content, mode); err != nil {
-			return nil, fmt.Errorf("write secret file %s: %w", target, err)
+		if err := os.WriteFile(hostPath, item.GetContent(), mode); err != nil {
+			cleanup()
+			return nil, nil, fmt.Errorf("write secret file %s: %w", target, err)
 		}
-		request.Mounts = append(request.Mounts, &runtime.Mount{
+		mounts = append(mounts, &runtime.Mount{
 			Type:    "bind",
 			Source:  hostPath,
 			Target:  target,
 			Options: []string{"ro"},
 		})
 	}
-	return func() {
-		_ = os.RemoveAll(secretRoot)
-	}, nil
+	return mounts, cleanup, nil
+}
+
+// CleanupResolvedSecretFiles removes the allocation-owned host files backing
+// secret bind mounts. Call it only after the runtime has released those mounts.
+func CleanupResolvedSecretFiles(allocationID string) error {
+	if strings.TrimSpace(allocationID) == "" {
+		return nil
+	}
+	return os.RemoveAll(resolvedSecretRoot(allocationID))
+}
+
+func resolvedSecretRoot(allocationID string) string {
+	allocationKey := fmt.Sprintf("%x", sha256.Sum256([]byte(allocationID)))
+	return filepath.Join(os.TempDir(), "axnoded-secrets", allocationKey)
 }

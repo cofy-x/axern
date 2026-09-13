@@ -44,7 +44,6 @@ func TestControllerExecMapsTargetToRuntimeExec(t *testing.T) {
 	assert.Equal(t, "alloc-1", handler.lastExecRequest.GetID())
 	assert.Equal(t, []string{"echo", "ok"}, handler.lastExecRequest.GetCommand())
 	assert.Equal(t, "alloc-1", handler.lastExecOptions.ContainerID)
-	assert.Equal(t, map[string]string{"ready": "true"}, handler.lastExecOptions.ContainerLabels)
 }
 
 func TestControllerProcessSendsReadyAndExit(t *testing.T) {
@@ -149,10 +148,8 @@ func (s controllerProcessService) OpenProcess(_ context.Context, _ *apipb.Proces
 
 func testTarget(id string, handler contract.SandboxRuntime) sandboxtarget.Target {
 	return sandboxtarget.Target{
-		ID: id,
-		Metadata: &runtime.ContainerMetadata{
-			Labels: map[string]string{"ready": "true"},
-		},
-		Handler: handler,
+		ID:       id,
+		Metadata: &runtime.ContainerMetadata{},
+		Handler:  handler,
 	}
 }

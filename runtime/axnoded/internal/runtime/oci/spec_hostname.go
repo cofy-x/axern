@@ -5,7 +5,6 @@ import (
 	"unicode"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -14,37 +13,14 @@ const (
 	maxDNSLabelLength      = 63
 )
 
-func runtimeHostnameAnnotationKey() string {
-	return workloadidentity.LabelKeyHostname
-}
-
-func requestedHostnameAnnotation(request *apipb.CreateContainerRequest, additionalAnnotations map[string]string) string {
-	hostname := ""
-	if request != nil {
-		hostname = strings.TrimSpace(request.GetLabels()[workloadidentity.LabelKeyHostname])
-	}
-	if value := strings.TrimSpace(additionalAnnotations[workloadidentity.LabelKeyHostname]); value != "" {
-		hostname = value
-	}
-	return hostname
-}
-
-func applyHostname(ociSpec *spec.Spec, request *apipb.CreateContainerRequest, containerID string, explicitHostname string) {
+func applyHostname(ociSpec *spec.Spec, request *apipb.CreateContainerRequest, containerID string) {
 	if ociSpec == nil {
 		return
 	}
-	hostname := workloadHostname(ociSpec.Annotations, request, containerID, explicitHostname)
-	ociSpec.Hostname = hostname
-	ociSpec.Annotations = combineAnnotations(ociSpec.Annotations, map[string]string{
-		workloadidentity.LabelKeyHostname: hostname,
-	})
+	ociSpec.Hostname = workloadHostname(request, containerID)
 }
 
-func workloadHostname(annotations map[string]string, request *apipb.CreateContainerRequest, containerID string, explicitHostname string) string {
-	if explicit := sanitizeDNSLabel(explicitHostname); explicit != "" {
-		return explicit
-	}
-
+func workloadHostname(request *apipb.CreateContainerRequest, containerID string) string {
 	allocationID := ""
 	if request != nil {
 		allocationID = strings.TrimSpace(request.GetID())

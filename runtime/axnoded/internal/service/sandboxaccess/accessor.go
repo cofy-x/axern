@@ -9,7 +9,6 @@ import (
 
 type Target struct {
 	ID                 string
-	Labels             map[string]string
 	SandboxdSocketPath string
 	Handler            contract.SandboxRuntime
 }
@@ -48,7 +47,6 @@ func (a *Accessor) runningTarget(id string) (Target, error) {
 
 func handlerOptions(target Target) contract.HandlerOptions {
 	return contract.HandlerOptions{
-		ContainerID:     target.ID,
-		ContainerLabels: target.Labels,
+		ContainerID: target.ID,
 	}
 }

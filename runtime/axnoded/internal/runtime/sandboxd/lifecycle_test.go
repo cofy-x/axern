@@ -35,9 +35,6 @@ func TestWaitForSandboxdReadyDoesNotPersistRuntimeProjection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WaitReadyForContainer() error = %v", err)
 	}
-	if len(meta.GetLabels()) != 0 {
-		t.Fatalf("runtime readiness leaked into persisted labels: %#v", meta.GetLabels())
-	}
 }
 
 func TestWaitForSandboxdReadyFailsClosed(t *testing.T) {

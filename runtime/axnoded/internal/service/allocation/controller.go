@@ -130,10 +130,10 @@ func (c *Controller) StartWithLifecycleHeld(ctx context.Context, request *runtim
 	if err := startplan.ValidateStartRequest(request); err != nil {
 		return startErrorResponse(err.Error()), err
 	}
-	if strings.TrimSpace(request.GetContainerID()) == "" {
+	if strings.TrimSpace(request.GetAllocationID()) == "" {
 		return startErrorResponse("allocation id is required"), errord.ErrInvalidArgument
 	}
-	return c.startAllocationWithLifecycleHeld(ctx, request, false)
+	return c.startAllocationWithLifecycleHeld(ctx, request)
 }
 
 // ExistingActiveStartResponseWithLifecycleHeld resolves an idempotent replay
@@ -206,11 +206,11 @@ func (c *Controller) DeleteRuntimeContainer(ctx context.Context, containerID str
 	return err
 }
 
-func (c *Controller) DeleteRuntimeContainerWithHandler(ctx context.Context, request *runtime.DeleteContainerRequest, target *container.Container, handler contract.SandboxRuntime, traceID, spanID string) (*runtime.DeleteContainerResponse, error) {
-	return c.deleteContainerWithRuntime(ctx, request, target, handler, traceID, spanID)
+func (c *Controller) DeleteRuntimeContainerWithHandler(ctx context.Context, request *runtime.DeleteContainerRequest, handler contract.SandboxRuntime, traceID, spanID string) (*runtime.DeleteContainerResponse, error) {
+	return c.deleteContainerWithRuntime(ctx, request, handler, traceID, spanID)
 }
 
-func (c *Controller) ConfigureStartPorts(ctx context.Context, containerID, containerIP string, ports []string) error {
+func (c *Controller) ConfigureStartPorts(ctx context.Context, containerID, containerIP string, ports []*commonv1.PortSpec) error {
 	return c.configureStartPorts(ctx, containerID, containerIP, ports)
 }
 

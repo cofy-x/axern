@@ -39,7 +39,6 @@ func TestList_WithStoredContainer(t *testing.T) {
 
 	containerID := "axctl-test-list-001"
 	meta := &apipb.ContainerMetadata{
-		Labels: map[string]string{"env": "test"},
 		Stdout: "/tmp/stdout.log",
 		Stderr: "/tmp/stderr.log",
 	}

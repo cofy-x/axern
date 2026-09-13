@@ -109,7 +109,6 @@ func TestExecReturnsRuntimeExitCodeAndOutput(t *testing.T) {
 	assert.Equal(t, []byte("ok\n"), resp.GetStdout())
 	assert.Equal(t, []byte("warn\n"), resp.GetStderr())
 	assert.Equal(t, "axctl-exec-ok", handler.lastExecOptions.ContainerID)
-	assert.Empty(t, handler.lastExecOptions.ContainerLabels)
 }
 
 func TestExecStreamRequiresOpenFrame(t *testing.T) {
@@ -166,7 +165,6 @@ func TestExecStreamForwardsNonTTYStdinAndExit(t *testing.T) {
 		assert.False(t, handler.lastSessionOpen.GetTty())
 	}
 	assert.Equal(t, "axctl-exec-stream", handler.lastSessionOptions.ContainerID)
-	assert.Empty(t, handler.lastSessionOptions.ContainerLabels)
 	assert.Equal(t, [][]byte{[]byte("payload")}, session.writesSnapshot())
 	assert.True(t, session.isStdinClosed())
 }

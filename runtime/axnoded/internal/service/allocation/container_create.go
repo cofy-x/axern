@@ -333,7 +333,7 @@ func (h *Controller) createHandlerOptions(
 		RootfsType:            rootfsTypeFromPreparedEnvironment(lrt),
 		BundleTemplateCarrier: lrt,
 		BundleTemplateSource:  templateSource,
-		AdditionalAnnotations: resource.ToLabels(),
+		ResourceAnnotations:   resource.RuntimeAnnotations(),
 		ExecutionProfile:      executionProfileFromPreparedEnvironment(lrt),
 	}
 }

@@ -17,9 +17,9 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -28,8 +28,11 @@ func (h *sandboxService) Start(ctx context.Context, request *runtime.StartReques
 }
 
 func (h *sandboxService) start(ctx context.Context, request *runtime.StartRequest, controlPlaneNodeID string) (*runtime.StartResponse, error) {
+	if err := startplan.ValidateStartRequest(request); err != nil {
+		return nil, errord.ToGRPC(err)
+	}
 	spanAttrs := []attribute.KeyValue{
-		attribute.String(sdkobs.AttrAllocationID, request.GetContainerID()),
+		attribute.String(sdkobs.AttrAllocationID, request.GetAllocationID()),
 		attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc),
 	}
 	ctx, op := sdkobs.StartOperation(ctx, sdkobs.OperationConfig{
@@ -46,15 +49,15 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		return nil, fmt.Errorf("identify allocation request: %w", err)
 	}
 	controller := h.allocationController()
-	unlockLifecycle := controller.LockAllocationLifecycle(request.GetContainerID())
+	unlockLifecycle := controller.LockAllocationLifecycle(request.GetAllocationID())
 	defer unlockLifecycle()
 	if controlPlaneNodeID != "" {
-		if err = controller.BindControlPlaneAllocation(request.GetContainerID(), controlPlaneNodeID, requestDigest); err != nil {
+		if err = controller.BindControlPlaneAllocation(request.GetAllocationID(), controlPlaneNodeID, requestDigest); err != nil {
 			return nil, err
 		}
 	}
-	if controller.LaunchVerification(request.GetContainerID()) != nil {
-		if controller.AllocationRequestDigest(request.GetContainerID()) != requestDigest {
+	if controller.LaunchVerification(request.GetAllocationID()) != nil {
+		if controller.AllocationRequestDigest(request.GetAllocationID()) != requestDigest {
 			return nil, errord.ToGRPC(fmt.Errorf("allocation request differs from the durable contract: %w", errord.ErrFailedPrecondition))
 		}
 		resp, active, replayErr := controller.ExistingActiveStartResponseWithLifecycleHeld(ctx, request)
@@ -84,7 +87,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		op.SetErrorStatus("allocation capability gate failed")
 		return nil, fmt.Errorf("verify allocation capabilities before create: %w", err)
 	}
-	err = controller.StoreCapabilityRequirements(request.GetContainerID(), requestDigest, admitted)
+	err = controller.StoreCapabilityRequirements(request.GetAllocationID(), requestDigest, admitted)
 	if err != nil {
 		op.SetErrorStatus("persist allocation capability requirements failed")
 		return nil, err
@@ -101,20 +104,20 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		op.SetErrorStatus("allocation start failed")
 		return resp, errord.ToGRPC(err)
 	}
-	admitted, verification, err = h.verifyPostCreateCapabilityRequirements(ctx, request.GetContainerID(), request.GetCapabilityRequirements(), time.Now())
+	admitted, verification, err = h.verifyPostCreateCapabilityRequirements(ctx, request.GetAllocationID(), request.GetCapabilityRequirements(), time.Now())
 	if err != nil {
 		metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "post_create_failed")
-		err = h.scheduleCapabilityTermination(request.GetContainerID(), fmt.Errorf("verify allocation capabilities after create: %w", err))
+		err = h.scheduleCapabilityTermination(request.GetAllocationID(), fmt.Errorf("verify allocation capabilities after create: %w", err))
 		op.SetErrorStatus("post-create capability enforcement failed")
 		return nil, err
 	}
 	var conditionSet *capabilityv1.CapabilityConditionSet
-	conditionSet, err = h.allocationController().ReplaceCapabilityConditions(request.GetContainerID(), verification, time.Now().UTC())
+	conditionSet, err = h.allocationController().ReplaceCapabilityConditions(request.GetAllocationID(), verification, time.Now().UTC())
 	if err != nil {
-		return nil, h.scheduleCapabilityTermination(request.GetContainerID(), fmt.Errorf("build post-create capability conditions: %w", err))
+		return nil, h.scheduleCapabilityTermination(request.GetAllocationID(), fmt.Errorf("build post-create capability conditions: %w", err))
 	}
 	resp.CapabilityVerification = conditionSet
-	h.controlPlaneReports.ReportCapabilityConditions(request.GetContainerID(), conditionSet)
+	h.controlPlaneReports.ReportCapabilityConditions(request.GetAllocationID(), conditionSet)
 	metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "verified")
 	return resp, nil
 }
@@ -123,8 +126,8 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 	if request == nil || handler == nil {
 		return fmt.Errorf("allocation request and runtime handler are required")
 	}
-	if request.GetContainerID() != "" && request.GetContainerID() != containerID {
-		return fmt.Errorf("prepared runtime identity %q differs from allocation identity %q", containerID, request.GetContainerID())
+	if request.GetAllocationID() != "" && request.GetAllocationID() != containerID {
+		return fmt.Errorf("prepared runtime identity %q differs from allocation identity %q", containerID, request.GetAllocationID())
 	}
 	manifest, err := handler.AllocationEnforcementManifest(ctx, containerID)
 	if err != nil {
@@ -212,11 +215,11 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs bool) capabilitycontract.RequirementInput {
 	resources := request.GetResources()
 	template := request.GetEnvironmentTemplate()
-	policySpec := &commonv1.NetworkSpec{EgressPolicy: request.GetEgressPolicy()}
+	policySpec := request.GetNetwork()
 	policyMode := networkpolicy.Mode(policySpec)
 	return capabilitycontract.RequirementInput{
 		HasPorts:                        len(request.GetPorts()) > 0,
-		NetworkMode:                     request.GetNetwork(),
+		NetworkMode:                     startplan.EffectiveNetworkMode(h.config.NatBackend, request),
 		NetworkBackend:                  h.config.PluginConfig.NetworkConfig.CapabilityBackend(),
 		RequiresDNSPolicyEnforcement:    policyMode == networkpolicy.EnforcementDNSDeny,
 		RequiresStrictEgressEnforcement: policyMode == networkpolicy.EnforcementStrict && networkpolicy.StrictNeedsEgressd(policySpec),
@@ -249,7 +252,7 @@ func (h *sandboxService) verifyRequestCapabilityRequirements(request *runtime.St
 	if request == nil || request.GetEnvironmentTemplate() == nil || request.GetEnvironmentTemplate().GetRootfs() == nil {
 		return fmt.Errorf("environment template and rootfs are required")
 	}
-	if strings.TrimSpace(request.GetContainerID()) == "" {
+	if strings.TrimSpace(request.GetAllocationID()) == "" {
 		return fmt.Errorf("allocation id is required")
 	}
 	derived, err := capabilitycontract.DeriveRequirements(h.requirementInput(request, false))

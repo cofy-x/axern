@@ -3,10 +3,7 @@ package api
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
-	"strconv"
 	"strings"
 	"time"
 
@@ -246,11 +243,12 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 	return &runtimev1.StartRequest{
 		EnvironmentTemplate:    environmentTemplate,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
-		ContainerID:            req.GetAllocationID(),
-		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
-		Network:                lifecycleNetworkToRuntime(spec.GetNetwork()),
-		EgressPolicy:           cloneNetworkEgressPolicy(spec.GetNetwork().GetEgressPolicy()),
-		ExtraConfig:            lifecycleExtraConfig(spec),
+		AllocationID:           req.GetAllocationID(),
+		Ports:                  clonePortSpecs(spec.GetPorts()),
+		Network:                cloneNetworkSpec(spec.GetNetwork()),
+		RegistryCredential:     cloneRegistryCredential(spec.GetRegistryCredential()),
+		SecretEnv:              cloneResolvedSecretEnv(spec.GetSecretEnv()),
+		SecretFiles:            cloneResolvedSecretFiles(spec.GetSecretFiles()),
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
@@ -286,11 +284,12 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 	return &runtimev1.StartRequest{
 		EnvironmentTemplate:    environmentTemplate,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
-		ContainerID:            containerID,
-		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
-		Network:                lifecycleNetworkToRuntime(spec.GetNetwork()),
-		EgressPolicy:           cloneNetworkEgressPolicy(spec.GetNetwork().GetEgressPolicy()),
-		ExtraConfig:            lifecycleExtraConfig(spec),
+		AllocationID:           containerID,
+		Ports:                  clonePortSpecs(spec.GetPorts()),
+		Network:                cloneNetworkSpec(spec.GetNetwork()),
+		RegistryCredential:     cloneRegistryCredential(spec.GetRegistryCredential()),
+		SecretEnv:              cloneResolvedSecretEnv(spec.GetSecretEnv()),
+		SecretFiles:            cloneResolvedSecretFiles(spec.GetSecretFiles()),
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
@@ -385,6 +384,7 @@ func cloneImageMounts(in []*nodelifecyclev1.ImageMount) []*runtimev1.ImageMount 
 	out := make([]*runtimev1.ImageMount, 0, len(in))
 	for _, mount := range in {
 		if mount == nil {
+			out = append(out, nil)
 			continue
 		}
 		out = append(out, &runtimev1.ImageMount{
@@ -403,6 +403,7 @@ func toRuntimeLifecycleMounts(in []*nodelifecyclev1.SandboxMount) []*runtimev1.M
 	out := make([]*runtimev1.Mount, 0, len(in))
 	for _, mount := range in {
 		if mount == nil {
+			out = append(out, nil)
 			continue
 		}
 		out = append(out, &runtimev1.Mount{
@@ -419,46 +420,26 @@ func toRuntimeLifecycleMountsFromAllocation(in []*nodelifecyclev1.SandboxMount) 
 	return toRuntimeLifecycleMounts(in)
 }
 
-func lifecyclePortsToRuntime(in []*commonv1.PortSpec) []string {
+func clonePortSpecs(in []*commonv1.PortSpec) []*commonv1.PortSpec {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(in))
+	out := make([]*commonv1.PortSpec, 0, len(in))
 	for _, port := range in {
 		if port == nil {
+			out = append(out, nil)
 			continue
 		}
-		protocol := strings.ToLower(strings.TrimPrefix(port.GetProtocol().String(), "PORT_PROTOCOL_"))
-		if protocol == "" || protocol == "unspecified" {
-			protocol = "tcp"
-		}
-		if port.GetHostPort() > 0 {
-			out = append(out, protocol+":"+itoa32(port.GetHostPort())+":"+itoa32(port.GetContainerPort()))
-			continue
-		}
-		if port.GetContainerPort() > 0 {
-			out = append(out, protocol+":"+itoa32(port.GetContainerPort())+":"+itoa32(port.GetContainerPort()))
-		}
+		out = append(out, proto.Clone(port).(*commonv1.PortSpec))
 	}
 	return out
 }
 
-func lifecycleNetworkToRuntime(in *commonv1.NetworkSpec) string {
-	if in == nil || in.GetMode() == commonv1.NetworkMode_NETWORK_MODE_UNSPECIFIED {
-		return ""
-	}
-	return strings.ToLower(strings.TrimPrefix(in.GetMode().String(), "NETWORK_MODE_"))
-}
-
-func cloneNetworkEgressPolicy(in *commonv1.NetworkEgressPolicy) *commonv1.NetworkEgressPolicy {
+func cloneNetworkSpec(in *commonv1.NetworkSpec) *commonv1.NetworkSpec {
 	if in == nil {
 		return nil
 	}
-	return proto.Clone(in).(*commonv1.NetworkEgressPolicy)
-}
-
-func itoa32(value int32) string {
-	return strconv.Itoa(int(value))
+	return proto.Clone(in).(*commonv1.NetworkSpec)
 }
 
 func toRuntimeLifecycleResources(in *commonv1.ResourceSpec) *commonv1.ResourceSpec {
@@ -468,55 +449,33 @@ func toRuntimeLifecycleResources(in *commonv1.ResourceSpec) *commonv1.ResourceSp
 	return proto.Clone(in).(*commonv1.ResourceSpec)
 }
 
-func lifecycleExtraConfig(spec *nodelifecyclev1.ResolvedExecutionConfig) string {
-	if len(spec.GetLinuxCapabilities()) == 0 &&
-		len(spec.GetSecretEnv()) == 0 &&
-		len(spec.GetSecretFiles()) == 0 &&
-		strings.TrimSpace(spec.GetRegistryCredential().GetDockerConfigJson()) == "" {
-		return ""
+func cloneRegistryCredential(in *nodelifecyclev1.RegistryCredential) *runtimev1.RegistryCredential {
+	if in == nil {
+		return nil
 	}
-	payload := struct {
-		LinuxCapabilities []string `json:"linuxCapabilities,omitempty"`
-		DockerConfigJSON  string   `json:"dockerConfigJson,omitempty"`
-		SecretEnv         []struct {
-			Name  string `json:"name,omitempty"`
-			Value string `json:"value,omitempty"`
-		} `json:"secretEnv,omitempty"`
-		SecretFiles []struct {
-			Path    string `json:"path,omitempty"`
-			Content string `json:"content,omitempty"`
-			Mode    uint32 `json:"mode,omitempty"`
-		} `json:"secretFiles,omitempty"`
-	}{
-		LinuxCapabilities: append([]string(nil), spec.GetLinuxCapabilities()...),
-		DockerConfigJSON:  strings.TrimSpace(spec.GetRegistryCredential().GetDockerConfigJson()),
-	}
-	for _, item := range spec.GetSecretEnv() {
+	return &runtimev1.RegistryCredential{DockerConfigJson: strings.TrimSpace(in.GetDockerConfigJson())}
+}
+
+func cloneResolvedSecretEnv(in []*nodelifecyclev1.ResolvedSecretEnvVar) []*runtimev1.ResolvedSecretEnvVar {
+	out := make([]*runtimev1.ResolvedSecretEnvVar, 0, len(in))
+	for _, item := range in {
 		if item == nil {
+			out = append(out, nil)
 			continue
 		}
-		payload.SecretEnv = append(payload.SecretEnv, struct {
-			Name  string `json:"name,omitempty"`
-			Value string `json:"value,omitempty"`
-		}{Name: item.GetName(), Value: item.GetValue()})
+		out = append(out, &runtimev1.ResolvedSecretEnvVar{Name: item.GetName(), Value: item.GetValue()})
 	}
-	for _, item := range spec.GetSecretFiles() {
+	return out
+}
+
+func cloneResolvedSecretFiles(in []*nodelifecyclev1.ResolvedSecretFile) []*runtimev1.ResolvedSecretFile {
+	out := make([]*runtimev1.ResolvedSecretFile, 0, len(in))
+	for _, item := range in {
 		if item == nil {
+			out = append(out, nil)
 			continue
 		}
-		payload.SecretFiles = append(payload.SecretFiles, struct {
-			Path    string `json:"path,omitempty"`
-			Content string `json:"content,omitempty"`
-			Mode    uint32 `json:"mode,omitempty"`
-		}{
-			Path:    item.GetPath(),
-			Content: base64.StdEncoding.EncodeToString(item.GetContent()),
-			Mode:    item.GetMode(),
-		})
+		out = append(out, &runtimev1.ResolvedSecretFile{Path: item.GetPath(), Content: append([]byte(nil), item.GetContent()...), Mode: item.GetMode()})
 	}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return ""
-	}
-	return string(encoded)
+	return out
 }

@@ -14,7 +14,6 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -100,46 +99,6 @@ func TestGenerateAllowsEmptyCgroupPath(t *testing.T) {
 	if spec.Linux.CgroupsPath != "" {
 		t.Fatalf("Generate() cgroupsPath = %q, want empty", spec.Linux.CgroupsPath)
 	}
-}
-
-func TestGenerateAddsRequestedLinuxCapabilities(t *testing.T) {
-	loader, err := newTestBundleLoader(t, "", t.TempDir())
-	if err != nil {
-		t.Fatalf("NewBundleLoader() error = %v", err)
-	}
-
-	_, spec, err := loader.Generate(LoadOptions{
-		ContainerID: "test-capabilities",
-		Request: &apipb.CreateContainerRequest{
-			Command: []string{"/bin/true"},
-			Rootfs:  &apipb.Rootfs{RootDir: t.TempDir()},
-			Labels: map[string]string{
-				linuxCapabilitiesAnnoKey: "CAP_NET_RAW,CAP_NET_BIND_SERVICE,CAP_NET_RAW",
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("Generate() error = %v", err)
-	}
-	if spec == nil || spec.Process == nil || spec.Process.Capabilities == nil {
-		t.Fatalf("Generate() returned nil process capabilities")
-	}
-
-	assertHas := func(name string, values []string) {
-		t.Helper()
-		for _, value := range values {
-			if value == name {
-				return
-			}
-		}
-		t.Fatalf("capability %q missing from %v", name, values)
-	}
-
-	assertHas("CAP_NET_RAW", spec.Process.Capabilities.Bounding)
-	assertHas("CAP_NET_RAW", spec.Process.Capabilities.Effective)
-	assertHas("CAP_NET_RAW", spec.Process.Capabilities.Inheritable)
-	assertHas("CAP_NET_RAW", spec.Process.Capabilities.Permitted)
-	assertHas("CAP_NET_RAW", spec.Process.Capabilities.Ambient)
 }
 
 func TestGenerateRejectsMissingProcessArgs(t *testing.T) {
@@ -269,28 +228,17 @@ func TestSpecBuilderUsesExecutionProfile(t *testing.T) {
 			Capabilities: []string{"CAP_SYS_PTRACE"},
 			NoFileLimit:  4096,
 		},
-		Capabilities: CapabilityPolicy{
-			AnnotationKey:  "custom-capabilities",
-			IncludeAmbient: false,
-		},
 		NetworkNamespace: DefaultNetworkNamespacePolicy(),
 		Resources:        DefaultResourcePolicy(),
 	})
 
 	generated, err := builder.build(base, buildOptions{
-		request: &apipb.CreateContainerRequest{
-			Rootfs: &apipb.Rootfs{RootDir: t.TempDir()},
-			Labels: map[string]string{
-				"custom-capabilities": "CAP_SYS_ADMIN",
-			},
-		},
+		request: &apipb.CreateContainerRequest{Rootfs: &apipb.Rootfs{RootDir: t.TempDir()}},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)
 	}
 	assertHasCapability(t, generated.Process.Capabilities, "CAP_SYS_PTRACE")
-	assertHasCapability(t, generated.Process.Capabilities, "CAP_SYS_ADMIN")
-	assertMissingCapabilityValue(t, generated.Process.Capabilities.Ambient, "CAP_SYS_ADMIN")
 	for _, limit := range generated.Process.Rlimits {
 		if limit.Type == "RLIMIT_NOFILE" {
 			if limit.Soft != 4096 || limit.Hard != 4096 {
@@ -318,18 +266,13 @@ func TestBundleLoaderUsesExecutionProfileOption(t *testing.T) {
 		Request: &apipb.CreateContainerRequest{
 			Command: []string{"/bin/true"},
 			Rootfs:  &apipb.Rootfs{RootDir: t.TempDir()},
-			Labels: map[string]string{
-				linuxCapabilitiesAnnoKey: "CAP_SYS_ADMIN",
-			},
 		},
 	})
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
 	assertHasCapability(t, generated.Process.Capabilities, "CAP_SYS_PTRACE")
-	assertHasCapability(t, generated.Process.Capabilities, "CAP_SYS_ADMIN")
 	assertMissingCapabilityValue(t, generated.Process.Capabilities.Ambient, "CAP_SYS_PTRACE")
-	assertHasCapabilityValue(t, generated.Process.Capabilities.Ambient, "CAP_SYS_ADMIN")
 	for _, limit := range generated.Process.Rlimits {
 		if limit.Type == "RLIMIT_NOFILE" {
 			if limit.Soft != 2097152 || limit.Hard != 2097152 {
@@ -359,9 +302,6 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 			Mounts: []*runtimeapi.Mount{
 				{Target: "/static", Type: "bind", Source: "/host/static", Options: []string{"ro"}},
 			},
-			Labels: map[string]string{
-				"template-label": "template-test",
-			},
 		},
 	})
 	if err != nil {
@@ -382,13 +322,9 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 				{Target: "/static", Type: "bind", Source: "/host/static", Options: []string{"ro"}},
 				{Target: "/dynamic-first", Type: "bind", Source: "/host/first", Options: []string{"rw"}},
 			},
-			Labels: map[string]string{
-				"template-label": "template-test",
-				"netac-rules":    "10.0.0.0/24",
-			},
 		},
-		CgroupPath:            "/sandbox/test/first",
-		AdditionalAnnotations: map[string]string{"extra-annotation": "first"},
+		CgroupPath:          "/sandbox/test/first",
+		ResourceAnnotations: map[string]string{"io.axnoded.resource/test": "first"},
 	})
 	if err != nil {
 		t.Fatalf("MaterializeBundle(first) error = %v", err)
@@ -411,13 +347,9 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 				{Target: "/static", Type: "bind", Source: "/host/static", Options: []string{"ro"}},
 				{Target: "/dynamic-second", Type: "bind", Source: "/host/second", Options: []string{"rw"}},
 			},
-			Labels: map[string]string{
-				"template-label": "template-test",
-				"netac-rules":    "0.0.0.0/0",
-			},
 		},
-		CgroupPath:            "/sandbox/test/second",
-		AdditionalAnnotations: map[string]string{"extra-annotation": "second"},
+		CgroupPath:          "/sandbox/test/second",
+		ResourceAnnotations: map[string]string{"io.axnoded.resource/test": "second"},
 	})
 	if err != nil {
 		t.Fatalf("MaterializeBundle(second) error = %v", err)
@@ -445,7 +377,7 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 	if got := secondSpec.Linux.CgroupsPath; got != "/sandbox/test/second" {
 		t.Fatalf("second cgroupsPath = %q, want /sandbox/test/second", got)
 	}
-	if got := secondSpec.Annotations["extra-annotation"]; got != "second" {
+	if got := secondSpec.Annotations["io.axnoded.resource/test"]; got != "second" {
 		t.Fatalf("second extra annotation = %q, want second", got)
 	}
 	if got := firstSpec.Hostname; got != "alloc-bundle-first" {
@@ -453,9 +385,6 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 	}
 	if got := secondSpec.Hostname; got != "alloc-bundle-secon" {
 		t.Fatalf("second hostname = %q, want alloc-bundle-secon", got)
-	}
-	if got := secondSpec.Annotations[workloadidentity.LabelKeyHostname]; got != secondSpec.Hostname {
-		t.Fatalf("second hostname annotation = %q, want %q", got, secondSpec.Hostname)
 	}
 
 	firstOnDisk, err := LoadSpec(filepath.Join(firstBundleDir, "config.json"))
@@ -495,9 +424,6 @@ func TestGenerateSetsWorkloadHostnameAndRuntimeEtcFiles(t *testing.T) {
 	}
 	if got := generated.Hostname; got != "alloc-abcdef123456" {
 		t.Fatalf("hostname = %q, want alloc-abcdef123456", got)
-	}
-	if got := generated.Annotations[workloadidentity.LabelKeyHostname]; got != generated.Hostname {
-		t.Fatalf("hostname annotation = %q, want %q", got, generated.Hostname)
 	}
 	hostnameFile, err := os.ReadFile(filepath.Join(bundleDir, "sandbox-files", "hostname"))
 	if err != nil {

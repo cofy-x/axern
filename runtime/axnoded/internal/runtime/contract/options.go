@@ -12,14 +12,10 @@ type HandlerOptions struct {
 	TraceID     string
 	SpanID      string
 	ContainerID string
-	// ContainerLabels are descriptive runtime metadata. They never establish
-	// Allocation ownership, sandboxd readiness, or capability authority.
-	ContainerLabels map[string]string
 
 	StartupPhaseRecorder StartupPhaseRecorder
 
-	ForceDelete  bool
-	CleanRootDir string
+	ForceDelete bool
 
 	CgroupPath                 string
 	RuntimeCgroupPath          string
@@ -32,8 +28,8 @@ type HandlerOptions struct {
 	BundleTemplateCarrier runtimeoci.TemplateCarrier
 	BundleTemplateSource  *runtimeoci.TemplateOptions
 
-	AdditionalAnnotations map[string]string
-	ExecutionProfile      *runtimeoci.ExecutionProfile
+	ResourceAnnotations map[string]string
+	ExecutionProfile    *runtimeoci.ExecutionProfile
 }
 
 func (o HandlerOptions) RecordStartupPhase(phase StartupPhase, duration time.Duration) {

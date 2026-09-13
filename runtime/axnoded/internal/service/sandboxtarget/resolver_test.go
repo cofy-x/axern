@@ -27,7 +27,6 @@ func TestResolverRunningTarget(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "alloc-1", target.ID)
 	assert.Same(t, handler, target.Handler)
-	assert.Equal(t, map[string]string{"ready": "true"}, target.Labels())
 }
 
 func TestResolverRejectsInvalidContainer(t *testing.T) {
@@ -84,10 +83,8 @@ func TestResolverPropagatesLookupErrors(t *testing.T) {
 
 func testContainer(id string, status container.Status) *container.Container {
 	return &container.Container{
-		Metadata: &runtime.ContainerMetadata{
-			Labels: map[string]string{"ready": "true"},
-		},
-		Status: fixedStatus{status: status},
+		Metadata: &runtime.ContainerMetadata{},
+		Status:   fixedStatus{status: status},
 	}
 }
 

@@ -30,7 +30,7 @@ func TestStartAllocationReservesMemoryBeforeImageOrRootfsSideEffects(t *testing.
 		newRejectingTestResourceManager(resourcemanager.CgroupResourceName),
 	)
 	request := &runtimeapi.StartRequest{
-		ContainerID: "alloc-rejected-before-side-effects",
+		AllocationID: "alloc-rejected-before-side-effects",
 		EnvironmentTemplate: &runtimeapi.EnvironmentTemplate{
 			ID:     "runtime-rejected",
 			Rootfs: &runtimeapi.RootfsConfig{Type: runtimeapi.RootfsSrcType_LOCAL, Source: &runtimeapi.RootfsConfig_Path{Path: t.TempDir()}},
@@ -67,7 +67,7 @@ func TestStartAllocationPreservesFastExitStatus(t *testing.T) {
 	fixture := newTestAllocationController(t, handler)
 
 	response, err := fixture.controller.startAllocation(context.Background(), &runtimeapi.StartRequest{
-		ContainerID: containerID,
+		AllocationID: containerID,
 		EnvironmentTemplate: &runtimeapi.EnvironmentTemplate{
 			ID: "runtime-fast-exit",
 			Rootfs: &runtimeapi.RootfsConfig{
@@ -116,7 +116,7 @@ func TestStartAllocationSerializesDuplicateAllocationStarts(t *testing.T) {
 	}
 	fixture := newTestAllocationController(t, handler)
 	request := &runtimeapi.StartRequest{
-		ContainerID: "alloc-duplicate-start",
+		AllocationID: "alloc-duplicate-start",
 		EnvironmentTemplate: &runtimeapi.EnvironmentTemplate{
 			ID: "runtime-duplicate-start",
 			Rootfs: &runtimeapi.RootfsConfig{
@@ -167,8 +167,8 @@ func TestStartAllocationSerializesDuplicateAllocationStarts(t *testing.T) {
 	if secondResult.err != nil {
 		t.Fatalf("duplicate start error = %v", secondResult.err)
 	}
-	if got := secondResult.resp.GetID(); got != request.GetContainerID() {
-		t.Fatalf("duplicate start allocation id = %q, want %q", got, request.GetContainerID())
+	if got := secondResult.resp.GetID(); got != request.GetAllocationID() {
+		t.Fatalf("duplicate start allocation id = %q, want %q", got, request.GetAllocationID())
 	}
 	if handler.createCalls != 1 {
 		t.Fatalf("runtime create calls = %d, want 1", handler.createCalls)

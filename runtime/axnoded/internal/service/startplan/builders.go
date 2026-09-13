@@ -1,13 +1,14 @@
 package startplan
 
 import (
+	"encoding/json"
+	"fmt"
+	"path"
 	"strings"
 
-	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
-	runtimecore "github.com/cofy-x/axern/runtime/axnoded/internal/runtime"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/sirupsen/logrus"
@@ -63,9 +64,14 @@ func BuildStaticStartEnv(lrt *environmentcache.PreparedEnvironment, request *run
 }
 
 func BuildDynamicStartEnv(request *runtime.StartRequest) []*runtime.KeyValue {
-	env := make([]*runtime.KeyValue, 0, len(request.UserEnvs))
-	for k, v := range request.UserEnvs {
+	env := make([]*runtime.KeyValue, 0, len(request.Env)+len(request.GetSecretEnv()))
+	for k, v := range request.Env {
 		env = append(env, &runtime.KeyValue{Key: k, Value: v})
+	}
+	for _, item := range request.GetSecretEnv() {
+		if item != nil {
+			env = append(env, &runtime.KeyValue{Key: strings.TrimSpace(item.GetName()), Value: item.GetValue()})
+		}
 	}
 	return env
 }
@@ -100,49 +106,90 @@ func ValidateStartRequest(request *runtime.StartRequest) error {
 	switch {
 	case request == nil:
 		return errord.ErrInvalidArgument
+	case strings.TrimSpace(request.GetAllocationID()) == "":
+		return fmt.Errorf("allocation ID is required: %w", errord.ErrInvalidArgument)
 	case request.EnvironmentTemplate == nil:
 		return errord.ErrInvalidArgument
 	case request.EnvironmentTemplate.Rootfs == nil:
 		return errord.ErrInvalidArgument
+	}
+	if credential := strings.TrimSpace(request.GetRegistryCredential().GetDockerConfigJson()); credential != "" {
+		var dockerConfig map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(credential), &dockerConfig); err != nil || dockerConfig == nil {
+			return fmt.Errorf("registry credential must be a JSON object: %w", errord.ErrInvalidArgument)
+		}
+	}
+	for _, mounts := range [][]*runtime.Mount{request.GetEnvironmentTemplate().GetMounts(), request.GetMounts()} {
+		for _, mount := range mounts {
+			if mount == nil {
+				return fmt.Errorf("sandbox mount is required: %w", errord.ErrInvalidArgument)
+			}
+			rawTarget := strings.TrimSpace(mount.GetTarget())
+			cleanTarget := path.Clean(rawTarget)
+			if rawTarget == "" || cleanTarget == "/" || !strings.HasPrefix(cleanTarget, "/") || hasParentPathElement(rawTarget) {
+				return fmt.Errorf("sandbox mount target %q must be an absolute container path below /: %w", rawTarget, errord.ErrInvalidArgument)
+			}
+		}
+	}
+	for _, imageMount := range request.GetImageMounts() {
+		if imageMount == nil {
+			return fmt.Errorf("image mount is required: %w", errord.ErrInvalidArgument)
+		}
+	}
+	seenEnv := make(map[string]struct{}, len(request.GetSecretEnv()))
+	for _, item := range request.GetSecretEnv() {
+		if item == nil || strings.TrimSpace(item.GetName()) == "" {
+			return fmt.Errorf("resolved secret environment name is required: %w", errord.ErrInvalidArgument)
+		}
+		name := strings.TrimSpace(item.GetName())
+		if _, ok := seenEnv[name]; ok {
+			return fmt.Errorf("resolved secret environment %q is duplicated: %w", name, errord.ErrInvalidArgument)
+		}
+		seenEnv[name] = struct{}{}
+	}
+	seenFiles := make(map[string]struct{}, len(request.GetSecretFiles()))
+	for _, item := range request.GetSecretFiles() {
+		if item == nil {
+			return fmt.Errorf("resolved secret file is required: %w", errord.ErrInvalidArgument)
+		}
+		rawPath := strings.TrimSpace(item.GetPath())
+		cleanPath := path.Clean(rawPath)
+		if rawPath == "" || cleanPath == "/" || !strings.HasPrefix(cleanPath, "/") || hasParentPathElement(rawPath) {
+			return fmt.Errorf("resolved secret file path %q must be an absolute container path below /: %w", rawPath, errord.ErrInvalidArgument)
+		}
+		if _, ok := seenFiles[cleanPath]; ok {
+			return fmt.Errorf("resolved secret file %q is duplicated: %w", cleanPath, errord.ErrInvalidArgument)
+		}
+		if item.GetMode() > 0o777 {
+			return fmt.Errorf("resolved secret file %q mode exceeds 0777: %w", cleanPath, errord.ErrInvalidArgument)
+		}
+		seenFiles[cleanPath] = struct{}{}
+	}
+	for _, port := range request.GetPorts() {
+		if port == nil || port.GetContainerPort() < 1 || port.GetContainerPort() > 65535 || port.GetHostPort() < 0 || port.GetHostPort() > 65535 {
+			return fmt.Errorf("port specification is outside 1..65535: %w", errord.ErrInvalidArgument)
+		}
+		switch port.GetProtocol() {
+		case commonv1.PortProtocol_PORT_PROTOCOL_UNSPECIFIED, commonv1.PortProtocol_PORT_PROTOCOL_TCP, commonv1.PortProtocol_PORT_PROTOCOL_UDP:
+		default:
+			return fmt.Errorf("unsupported port protocol %s: %w", port.GetProtocol(), errord.ErrInvalidArgument)
+		}
+	}
+	switch request.GetNetwork().GetMode() {
+	case commonv1.NetworkMode_NETWORK_MODE_UNSPECIFIED, commonv1.NetworkMode_NETWORK_MODE_DEFAULT, commonv1.NetworkMode_NETWORK_MODE_ISOLATED, commonv1.NetworkMode_NETWORK_MODE_HOST:
 	default:
-		return nil
+		return fmt.Errorf("unsupported network mode %s: %w", request.GetNetwork().GetMode(), errord.ErrInvalidArgument)
 	}
+	return nil
 }
 
-func BuildDynamicStartLabels(request *runtime.StartRequest) map[string]string {
-	labels := map[string]string{}
-	extraConfig, ok := ParseExtraConfig(request.ExtraConfig)
-	if !ok {
-		return labels
-	}
-	if extraConfig.BlockNetwork {
-		labels["netac-rules"] = config.NetAcBlockAll
-	} else if extraConfig.CIDRAllowlist != "" {
-		labels["netac-rules"] = extraConfig.CIDRAllowlist
-	}
-	if len(extraConfig.LinuxCapabilities) > 0 {
-		caps := make([]string, 0, len(extraConfig.LinuxCapabilities))
-		seen := make(map[string]struct{}, len(extraConfig.LinuxCapabilities))
-		for _, capName := range extraConfig.LinuxCapabilities {
-			normalized := strings.ToUpper(strings.TrimSpace(capName))
-			if normalized == "" {
-				continue
-			}
-			if _, ok := seen[normalized]; ok {
-				continue
-			}
-			seen[normalized] = struct{}{}
-			caps = append(caps, normalized)
-		}
-		if len(caps) > 0 {
-			labels[runtimecore.LabelKeyLinuxCapabilities] = strings.Join(caps, ",")
+func hasParentPathElement(value string) bool {
+	for _, element := range strings.Split(value, "/") {
+		if element == ".." {
+			return true
 		}
 	}
-	return labels
-}
-
-func BuildStartLabels(request *runtime.StartRequest) map[string]string {
-	return BuildDynamicStartLabels(request)
+	return false
 }
 
 func BuildStaticStartMounts(request *runtime.StartRequest) []*runtime.Mount {
@@ -165,8 +212,8 @@ func BuildStartMounts(request *runtime.StartRequest) []*runtime.Mount {
 }
 
 func EffectiveNetworkMode(defaultMode string, request *runtime.StartRequest) string {
-	if request.Network != "" {
-		return request.Network
+	if mode := request.GetNetwork().GetMode(); mode != commonv1.NetworkMode_NETWORK_MODE_UNSPECIFIED && mode != commonv1.NetworkMode_NETWORK_MODE_DEFAULT {
+		return strings.ToLower(strings.TrimPrefix(mode.String(), "NETWORK_MODE_"))
 	}
 	return defaultMode
 }
@@ -190,7 +237,6 @@ func BuildBundleTemplateRequest(
 		Rootfs:  BuildContainerRootfs(lrt),
 		Mounts:  BuildStaticStartMounts(request),
 		Envs:    BuildStaticStartEnv(lrt, request),
-		Labels:  map[string]string{},
 		Cwd:     BuildStartCwd(lrt, request),
 	}
 }
@@ -201,7 +247,6 @@ func BuildBundleTemplateRequestFromPreparedEnvironment(lrt *environmentcache.Pre
 		Rootfs:  BuildContainerRootfs(lrt),
 		Mounts:  CloneEnvironmentMounts(lrt.Mounts),
 		Envs:    BuildStaticRuntimeEnv(lrt),
-		Labels:  map[string]string{},
 		Cwd:     lrt.Cwd,
 	}
 }
@@ -209,9 +254,7 @@ func BuildBundleTemplateRequestFromPreparedEnvironment(lrt *environmentcache.Pre
 func BuildCreateContainerRequest(
 	lrt *environmentcache.PreparedEnvironment,
 	request *runtime.StartRequest,
-	labels map[string]string,
 	env []*runtime.KeyValue,
-	networkMode string,
 ) *apipb.CreateContainerRequest {
 	resources := request.GetResources()
 	return &apipb.CreateContainerRequest{
@@ -220,12 +263,10 @@ func BuildCreateContainerRequest(
 		Resource:                     ResourcesToLinux(request.Resources),
 		Mounts:                       BuildStartMounts(request),
 		Envs:                         env,
-		Network:                      networkMode,
-		Labels:                       labels,
 		Stdout:                       request.Stdout,
 		Stderr:                       request.Stderr,
 		Cwd:                          BuildStartCwd(lrt, request),
-		ID:                           request.ContainerID,
+		ID:                           request.AllocationID,
 		EphemeralStorageRequestBytes: resources.GetRequests().GetEphemeralStorageBytes(),
 		EphemeralStorageLimitBytes:   resources.GetLimits().GetEphemeralStorageBytes(),
 	}

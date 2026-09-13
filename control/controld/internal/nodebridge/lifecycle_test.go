@@ -98,10 +98,6 @@ func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 			}},
 			ExecutionProfile: &catalogv1.OciExecutionProfile{
 				Baseline: &catalogv1.OciBaselinePolicy{NoFileLimit: 2097152},
-				Capabilities: &catalogv1.OciCapabilityPolicy{
-					AnnotationKey:  "custom-capabilities",
-					IncludeAmbient: proto.Bool(false),
-				},
 			},
 		},
 	}
@@ -124,9 +120,6 @@ func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 	}
 	if cfg.GetExecutionProfile().GetBaseline().GetNoFileLimit() != 2097152 {
 		t.Fatalf("execution profile nofile = %d, want 2097152", cfg.GetExecutionProfile().GetBaseline().GetNoFileLimit())
-	}
-	if cfg.GetExecutionProfile().GetCapabilities().GetIncludeAmbient() {
-		t.Fatal("execution profile include_ambient = true, want false")
 	}
 }
 

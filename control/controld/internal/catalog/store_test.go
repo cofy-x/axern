@@ -66,9 +66,6 @@ func TestListIncludesServerBase(t *testing.T) {
 	if !got.GetCapabilities().GetSupportsExec() || !got.GetCapabilities().GetSupportsExecStream() || !got.GetCapabilities().GetSupportsLongLivedProcess() || !got.GetCapabilities().GetSupportsPorts() {
 		t.Fatal("server-base capabilities are incomplete")
 	}
-	if got.GetExecutionProfile().GetCapabilities().GetAnnotationKey() != "linux-capabilities" {
-		t.Fatalf("server-base execution profile capability annotation = %q, want linux-capabilities", got.GetExecutionProfile().GetCapabilities().GetAnnotationKey())
-	}
 }
 
 func TestListIncludesCodingBase(t *testing.T) {

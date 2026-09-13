@@ -200,7 +200,6 @@ func timeoutContext(parent context.Context, timeout int64) (context.Context, con
 func processTarget(target sandboxtarget.Target) Target {
 	return Target{
 		ID:      target.ID,
-		Labels:  target.Labels(),
 		Handler: target.Handler,
 	}
 }

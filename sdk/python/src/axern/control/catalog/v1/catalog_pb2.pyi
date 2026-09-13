@@ -59,14 +59,6 @@ class OciBaselinePolicy(_message.Message):
     no_file_limit: int
     def __init__(self, capabilities: _Optional[_Iterable[str]] = ..., no_file_limit: _Optional[int] = ...) -> None: ...
 
-class OciCapabilityPolicy(_message.Message):
-    __slots__ = ("annotation_key", "include_ambient")
-    ANNOTATION_KEY_FIELD_NUMBER: _ClassVar[int]
-    INCLUDE_AMBIENT_FIELD_NUMBER: _ClassVar[int]
-    annotation_key: str
-    include_ambient: bool
-    def __init__(self, annotation_key: _Optional[str] = ..., include_ambient: _Optional[bool] = ...) -> None: ...
-
 class OciNetworkNamespacePolicy(_message.Message):
     __slots__ = ("annotation_key",)
     ANNOTATION_KEY_FIELD_NUMBER: _ClassVar[int]
@@ -80,16 +72,14 @@ class OciResourcePolicy(_message.Message):
     def __init__(self, ignore_annotation_keys: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class OciExecutionProfile(_message.Message):
-    __slots__ = ("baseline", "capabilities", "network_namespace", "resources")
+    __slots__ = ("baseline", "network_namespace", "resources")
     BASELINE_FIELD_NUMBER: _ClassVar[int]
-    CAPABILITIES_FIELD_NUMBER: _ClassVar[int]
     NETWORK_NAMESPACE_FIELD_NUMBER: _ClassVar[int]
     RESOURCES_FIELD_NUMBER: _ClassVar[int]
     baseline: OciBaselinePolicy
-    capabilities: OciCapabilityPolicy
     network_namespace: OciNetworkNamespacePolicy
     resources: OciResourcePolicy
-    def __init__(self, baseline: _Optional[_Union[OciBaselinePolicy, _Mapping]] = ..., capabilities: _Optional[_Union[OciCapabilityPolicy, _Mapping]] = ..., network_namespace: _Optional[_Union[OciNetworkNamespacePolicy, _Mapping]] = ..., resources: _Optional[_Union[OciResourcePolicy, _Mapping]] = ...) -> None: ...
+    def __init__(self, baseline: _Optional[_Union[OciBaselinePolicy, _Mapping]] = ..., network_namespace: _Optional[_Union[OciNetworkNamespacePolicy, _Mapping]] = ..., resources: _Optional[_Union[OciResourcePolicy, _Mapping]] = ...) -> None: ...
 
 class EnvironmentTemplate(_message.Message):
     __slots__ = ("id", "rootfs_readonly", "image_default_argv", "default_cwd", "default_env", "mounts", "capabilities", "language", "language_version", "description", "version", "image_descriptor", "warm_policy", "cache_policy", "execution_profile")

@@ -68,7 +68,7 @@ func TestBuildCreateContainerRequestUsesImageDefaultsWhenCommandEmpty(t *testing
 	req := &apipb.StartRequest{
 		EnvironmentTemplate: &apipb.EnvironmentTemplate{},
 	}
-	containerReq := BuildCreateContainerRequest(lrt, req, nil, nil, "")
+	containerReq := BuildCreateContainerRequest(lrt, req, nil)
 	if got := containerReq.GetCommand(); !reflect.DeepEqual(got, []string{"/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"}) {
 		t.Fatalf("command = %#v, want image entrypoint plus cmd", got)
 	}
@@ -92,7 +92,7 @@ func TestBuildCreateContainerRequestExplicitCommandOverridesImageDefaults(t *tes
 			Cwd:  "/workspace",
 		},
 	}
-	containerReq := BuildCreateContainerRequest(lrt, req, nil, nil, "")
+	containerReq := BuildCreateContainerRequest(lrt, req, nil)
 	if got := containerReq.GetCommand(); !reflect.DeepEqual(got, []string{"/bin/sh", "-lc", "sleep 60"}) {
 		t.Fatalf("command = %#v, want explicit request command", got)
 	}

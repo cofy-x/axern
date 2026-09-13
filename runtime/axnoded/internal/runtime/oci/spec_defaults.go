@@ -4,7 +4,6 @@ import spec "github.com/opencontainers/runtime-spec/specs-go"
 
 const (
 	ignoreResourceFieldAnnoKey = "io.axnoded/ignore-resource-field"
-	linuxCapabilitiesAnnoKey   = "linux-capabilities"
 )
 
 var defaultLinuxCapabilities = []string{

@@ -6,6 +6,7 @@ option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;a
 
 import "axern/control/catalog/v1/catalog.proto";
 import "axern/control/capability/v1/capability.proto";
+import "axern/control/common/v1/common.proto";
 
 enum RootfsSrcType {
   UNSPECIFIED = 0;
@@ -221,10 +222,18 @@ enum ContainerRecoveryMode {
 }
 
 message ContainerMetadata {
-  map<string, string> labels = 1;
-  string stdout = 2;
-  string stderr = 3;
-  ContainerRecoveryMode recovery_mode = 4;
+  string stdout = 1;
+  string stderr = 2;
+  ContainerRecoveryMode recovery_mode = 3;
+}
+
+message DnatRuleBinding {
+  string allocation_id = 1;
+  repeated axern.control.common.v1.PortSpec ports = 2;
+}
+
+message DnatRuleSnapshot {
+  repeated DnatRuleBinding bindings = 1;
 }
 
 message Slice {
