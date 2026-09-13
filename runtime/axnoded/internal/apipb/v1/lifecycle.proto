@@ -114,12 +114,11 @@ message VersionRequest {
 
 message VersionResponse {
   string version = 1;
-  repeated RuntimeVersion runtimes = 2;
+  RuntimeVersion runsc = 2;
 }
 
 message RuntimeVersion {
-  string runtime_name = 1;
-  string runtime_version = 2;
+  string version = 1;
 }
 
 message StatsRequest {

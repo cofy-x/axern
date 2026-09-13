@@ -22,7 +22,6 @@ type SandboxOptions struct {
 	Argv                    []string
 	Env                     map[string]string
 	Cwd                     string
-	RuntimeClass            string
 	NetworkPolicy           *NetworkPolicy
 	ExtensionCapabilities   []ExtensionCapability
 	ImageMounts             []ImageMount
@@ -102,7 +101,6 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		Argv:                    sandboxArgv(s.options.Argv),
 		Env:                     s.options.Env,
 		Cwd:                     s.options.Cwd,
-		RuntimeClass:            s.options.RuntimeClass,
 		NetworkPolicy:           s.options.NetworkPolicy,
 		ExtensionCapabilities:   append([]ExtensionCapability(nil), s.options.ExtensionCapabilities...),
 		ImageMounts:             s.options.ImageMounts,

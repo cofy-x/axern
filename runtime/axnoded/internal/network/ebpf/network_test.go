@@ -19,7 +19,6 @@ type fakeController struct {
 	deleteErr   error
 	cleanupErr  error
 	gcErr       error
-	localCompat map[string]bool
 	upserts     int
 	deletes     int
 	ensureCalls int
@@ -48,10 +47,6 @@ func (f *fakeController) DeleteService(string, uint16, string, uint16) error {
 	return f.deleteErr
 }
 
-func (f *fakeController) NeedsLocalhostCompat(protocol string) bool {
-	return f.localCompat[protocol]
-}
-
 func (f *fakeController) CleanupStaleSNATMappings(policy bpfnet.SNATGCPolicy) (bpfnet.SNATGCResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -70,10 +65,9 @@ func (f *fakeController) gcSnapshot() (int, bpfnet.SNATGCPolicy) {
 	return f.gcCalls, f.gcPolicy
 }
 
-func TestProbeHealthAcceptsLocalhostCompatibilityFallback(t *testing.T) {
+func TestProbeHealthRejectsMissingLocalhostPath(t *testing.T) {
 	manager := &BPFNetworkManager{controller: &fakeController{status: bpfnet.Status{State: bpfnet.DataplaneState{
 		TCReady:            true,
-		LocalhostCompat:    true,
 		LastLocalhostError: "read host netns cookie: protocol not available",
 	}}}}
 
@@ -81,8 +75,8 @@ func TestProbeHealthAcceptsLocalhostCompatibilityFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ProbeHealth() error = %v", err)
 	}
-	if !health.PortForwardingReady || !health.NativeDataplaneReady {
-		t.Fatalf("ProbeHealth() = %#v, want port forwarding and native dataplane ready", health)
+	if health.PortForwardingReady || health.NativeDataplaneReady {
+		t.Fatalf("ProbeHealth() = %#v, want incomplete dataplane unavailable", health)
 	}
 }
 
@@ -110,15 +104,12 @@ func TestProbeHealthReturnsStatusReadError(t *testing.T) {
 }
 
 type fakeFallback struct {
-	setupSNATCalls     int
-	cleanupSNATCalls   int
-	setupDNATCalls     int
-	setupCompatCalls   int
-	cleanupDNATCalls   int
-	cleanupCompatCalls int
-	setupDNATErr       error
-	setupCompatErr     error
-	health             networkmanager.Health
+	setupSNATCalls   int
+	cleanupSNATCalls int
+	setupDNATCalls   int
+	cleanupDNATCalls int
+	setupDNATErr     error
+	health           networkmanager.Health
 }
 
 func (f *fakeFallback) SetupSNATRules(string) error {
@@ -139,18 +130,8 @@ func (f *fakeFallback) SetupDNATRule(string, uint16, string, uint16) error {
 	return f.setupDNATErr
 }
 
-func (f *fakeFallback) SetupDNATCompatRule(string, uint16, string, uint16) error {
-	f.setupCompatCalls++
-	return f.setupCompatErr
-}
-
 func (f *fakeFallback) CleanupDNATRule(string, uint16, string, uint16) error {
 	f.cleanupDNATCalls++
-	return nil
-}
-
-func (f *fakeFallback) CleanupDNATCompatRule(string, uint16, string, uint16) error {
-	f.cleanupCompatCalls++
 	return nil
 }
 
@@ -261,26 +242,8 @@ func TestSNATGCSettingsParsesDurations(t *testing.T) {
 	}
 }
 
-func TestSetupDNATRuleUsesCompatOnlyWhenIngressDatapathIsReady(t *testing.T) {
-	ctrl := &fakeController{localCompat: map[string]bool{"tcp": true}}
-	fallback := &fakeFallback{}
-	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
-
-	if err := manager.SetupDNATRule("tcp", 18080, "172.17.0.2", 80); err != nil {
-		t.Fatalf("setup dnat rule: %v", err)
-	}
-	if fallback.setupDNATCalls != 0 {
-		t.Fatalf("expected PREROUTING/FORWARD fallback to stay disabled, got %d calls", fallback.setupDNATCalls)
-	}
-	if fallback.setupCompatCalls != 1 {
-		t.Fatalf("expected localhost compat helper to be called once, got %d", fallback.setupCompatCalls)
-	}
-}
-
-func TestSetupDNATRuleSkipsCompatWhenLocalhostEBPFPathIsReady(t *testing.T) {
-	ctrl := &fakeController{
-		localCompat: map[string]bool{},
-	}
+func TestSetupDNATRuleUsesOnlyBPFDataplane(t *testing.T) {
+	ctrl := &fakeController{}
 	fallback := &fakeFallback{}
 	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
 
@@ -290,15 +253,10 @@ func TestSetupDNATRuleSkipsCompatWhenLocalhostEBPFPathIsReady(t *testing.T) {
 	if fallback.setupDNATCalls != 0 {
 		t.Fatalf("expected tcp PREROUTING/FORWARD fallback to stay disabled, got %d calls", fallback.setupDNATCalls)
 	}
-	if fallback.setupCompatCalls != 0 {
-		t.Fatalf("expected tcp localhost compat helper to stay disabled, got %d calls", fallback.setupCompatCalls)
-	}
 }
 
 func TestSetupDNATRuleSkipsFallbackForUDPWhenDatapathIsReady(t *testing.T) {
-	ctrl := &fakeController{
-		localCompat: map[string]bool{},
-	}
+	ctrl := &fakeController{}
 	fallback := &fakeFallback{}
 	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
 
@@ -308,14 +266,10 @@ func TestSetupDNATRuleSkipsFallbackForUDPWhenDatapathIsReady(t *testing.T) {
 	if fallback.setupDNATCalls != 0 {
 		t.Fatalf("expected udp PREROUTING/FORWARD fallback to stay disabled, got %d calls", fallback.setupDNATCalls)
 	}
-	if fallback.setupCompatCalls != 0 {
-		t.Fatalf("expected udp localhost compat helper to stay disabled, got %d calls", fallback.setupCompatCalls)
-	}
 }
 
 func TestReconcileDNATRulesRemovesOrphansAndEnsuresDesiredState(t *testing.T) {
 	ctrl := &fakeController{
-		localCompat: map[string]bool{"tcp": true},
 		status: bpfnet.Status{Services: []bpfnet.Service{
 			{Protocol: "tcp", HostPort: 18080, TargetIP: "172.17.0.2", TargetPort: 80},
 			{Protocol: "tcp", HostPort: 19090, TargetIP: "172.17.0.9", TargetPort: 90},
@@ -331,18 +285,17 @@ func TestReconcileDNATRulesRemovesOrphansAndEnsuresDesiredState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reconcile dnat rules: %v", err)
 	}
-	if ctrl.deletes != 1 || fallback.cleanupCompatCalls != 1 {
-		t.Fatalf("expected one orphan cleanup, deletes=%d compat_cleanups=%d", ctrl.deletes, fallback.cleanupCompatCalls)
+	if ctrl.deletes != 1 {
+		t.Fatalf("expected one orphan cleanup, deletes=%d", ctrl.deletes)
 	}
-	if ctrl.upserts != 1 || fallback.setupCompatCalls != 1 {
-		t.Fatalf("expected one desired rule setup, upserts=%d compat_setups=%d", ctrl.upserts, fallback.setupCompatCalls)
+	if ctrl.upserts != 1 {
+		t.Fatalf("expected one desired rule setup, upserts=%d", ctrl.upserts)
 	}
 }
 
 func TestReconcileDNATRulesDoesNotUpsertOverFailedCleanup(t *testing.T) {
 	ctrl := &fakeController{
-		deleteErr:   errors.New("delete failed"),
-		localCompat: map[string]bool{"tcp": true},
+		deleteErr: errors.New("delete failed"),
 		status: bpfnet.Status{Services: []bpfnet.Service{{
 			Protocol: "tcp", HostPort: 18080, TargetIP: "172.17.0.2", TargetPort: 80,
 		}}},

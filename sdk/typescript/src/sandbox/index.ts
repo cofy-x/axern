@@ -53,7 +53,6 @@ export interface SandboxOptions {
   argv?: string[];
   env?: Record<string, string>;
   cwd?: string;
-  runtimeClass?: string;
   networkPolicy?: NetworkPolicy;
   extensionCapabilities?: readonly ExtensionCapability[];
   requestCpu?: ResourceQuantity;
@@ -79,7 +78,6 @@ export interface SandboxState {
 
 export interface SandboxMetadata extends SandboxState {
   namespace: string;
-  runtimeClass: string;
   labels: Record<string, string>;
   source: "template" | "image" | "environment";
   tunnel?: TunnelMetadata;
@@ -140,7 +138,6 @@ export class Sandbox {
         argv: this.options.argv ?? defaultSandboxArgv,
         env: this.options.env,
         cwd: this.options.cwd,
-        runtimeClass: this.options.runtimeClass,
         networkPolicy: this.options.networkPolicy,
         extensionCapabilities: this.options.extensionCapabilities,
         requestCpu: this.options.requestCpu,

@@ -41,6 +41,14 @@ func (m *Manager) getOrCreateChainLowerDir(chainID string, layerPath string) (st
 	if err != nil {
 		return "", fmt.Errorf("failed to query chain metadata %s: %w", chainID, err)
 	}
+	chainDir, err := m.store.getOrCreateChainDir(chainID)
+	if err != nil {
+		return "", fmt.Errorf("derive lowerdir for chain %s: %w", chainID, err)
+	}
+	targetPath := filepath.Join(m.chainsDir, chainDir, "fs")
+	if record != nil && record.Path != "" && filepath.Clean(record.Path) != filepath.Clean(targetPath) {
+		return "", fmt.Errorf("chain metadata path %q differs from content path %q", record.Path, targetPath)
+	}
 	if record != nil && record.Path != "" && pathExists(record.Path) {
 		record, err = m.store.incrementChainRef(chainID, m.now().Unix())
 		if err != nil {
@@ -49,11 +57,6 @@ func (m *Manager) getOrCreateChainLowerDir(chainID string, layerPath string) (st
 		return record.Path, nil
 	}
 
-	chainDir, err := m.store.getOrCreateChainDir(chainID)
-	if err != nil {
-		return "", fmt.Errorf("failed to allocate lowerdir for chain %s: %w", chainID, err)
-	}
-	targetPath := filepath.Join(m.chainsDir, chainDir, "fs")
 	if pathExists(targetPath) {
 		recoveredRefCount := 1
 		if record == nil {

@@ -60,9 +60,8 @@ func WriteConfig(configDir string) (string, error) {
 
 func BuildResolvedExecutionConfig(spec InstanceSpec) *privatenodev1.ResolvedExecutionConfig {
 	return &privatenodev1.ResolvedExecutionConfig{
-		RuntimeClass: spec.RuntimeName,
-		Argv:         []string{"/usr/sbin/nginx", "-c", "/axnoded-conf/nginx.conf", "-g", "daemon off;"},
-		Cwd:          "/",
+		Argv: []string{"/usr/sbin/nginx", "-c", "/axnoded-conf/nginx.conf", "-g", "daemon off;"},
+		Cwd:  "/",
 		Env: map[string]string{
 			"PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 		},

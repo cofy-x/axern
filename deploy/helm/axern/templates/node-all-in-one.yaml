@@ -115,8 +115,6 @@ spec:
               value: {{ .Values.node.network.ebpf.snatDatagramIdleTimeout | quote }}
             - name: BPFNET_UPLINK_DEVICES
               value: {{ join "," .Values.node.network.ebpf.uplinkDevices | quote }}
-            - name: BPFNET_LOCAL_OUT_COMPAT
-              value: {{ .Values.node.network.ebpf.localOutCompat | quote }}
             - name: AXNODED_CONTROL_PLANE_TLS_CA_CERT
               value: /certs/ca.crt
             - name: AXNODED_CONTROL_PLANE_TLS_CERT

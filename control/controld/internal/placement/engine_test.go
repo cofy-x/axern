@@ -37,7 +37,6 @@ func TestPlanReturnsRejectedCandidatesWithExplicitReasons(t *testing.T) {
 		Records: []*nodekernel.Record{
 			record("stale-heartbeat", []string{"runsc"}, readySummary(base.Add(10*time.Second)), base),
 			record("stale-summary", []string{"runsc"}, readySummary(base), base.Add(20*time.Second)),
-			record("runtime-mismatch", []string{"unsupported"}, readySummary(base.Add(20*time.Second)), base.Add(20*time.Second)),
 			record("eligible", []string{"runsc"}, readySummary(base.Add(20*time.Second)), base.Add(20*time.Second)),
 		},
 	}
@@ -46,17 +45,15 @@ func TestPlanReturnsRejectedCandidatesWithExplicitReasons(t *testing.T) {
 		RootfsKey:  "local:/tmp/rootfs",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:  nodev1.MountType_MOUNT_TYPE_LOCAL,
-		Runtime:    "runsc",
 	}, base.Add(20*time.Second))
 	if len(eligible) != 1 || eligible[0].GetNodeID() != "eligible" {
 		t.Fatalf("unexpected eligible candidates: %#v", eligible)
 	}
-	if len(rejected) != 3 {
-		t.Fatalf("expected 3 rejected candidates, got %d", len(rejected))
+	if len(rejected) != 2 {
+		t.Fatalf("expected 2 rejected candidates, got %d", len(rejected))
 	}
-	assertRejectedReasons(t, rejected[0], "runtime-mismatch", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_RUNTIME_UNSUPPORTED)
-	assertRejectedReasons(t, rejected[1], "stale-heartbeat", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_HEARTBEAT)
-	assertRejectedReasons(t, rejected[2], "stale-summary",
+	assertRejectedReasons(t, rejected[0], "stale-heartbeat", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_HEARTBEAT)
+	assertRejectedReasons(t, rejected[1], "stale-summary",
 		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_SUMMARY,
 		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED,
 		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_MEMORY_BUDGET_UNAVAILABLE,
@@ -84,7 +81,6 @@ func TestPlanComponentGatingByMountType(t *testing.T) {
 		RootfsKey:  "image:repo/app:oci",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:  nodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:    "runsc",
 	}, now)
 	if len(eligible) != 1 || eligible[0].GetNodeID() != "remote-node" {
 		t.Fatalf("expected only remote node to be eligible for oci: %#v %#v", eligible, rejected)
@@ -95,7 +91,6 @@ func TestPlanComponentGatingByMountType(t *testing.T) {
 		RootfsKey:  "image:repo/app:nydus",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:  nodev1.MountType_MOUNT_TYPE_NYDUS,
-		Runtime:    "runsc",
 	}, now)
 	if len(eligible) != 1 || eligible[0].GetNodeID() != "remote-node" {
 		t.Fatalf("expected only remote node to be eligible for nydus: %#v %#v", eligible, rejected)
@@ -112,7 +107,7 @@ func TestEROFSLocalityRequiresObservedCompatibility(t *testing.T) {
 	summary := readySummary(now)
 	summary.Locality = []*nodev1.LocalitySummary{{Key: rootfsKey, RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE, MountType: nodev1.MountType_MOUNT_TYPE_EROFS, Mounted: true}}
 	record := record("node-erofs", []string{"runsc"}, summary, now)
-	request := &placementkernel.Request{RootfsKey: rootfsKey, RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE, MountType: nodev1.MountType_MOUNT_TYPE_OCI, Runtime: "runsc"}
+	request := &placementkernel.Request{RootfsKey: rootfsKey, RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE, MountType: nodev1.MountType_MOUNT_TYPE_OCI}
 
 	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{record}}, request, now)
 	if len(eligible) != 0 || len(rejected) != 1 {
@@ -165,7 +160,6 @@ func TestPlanPrefersBetterBpfnetWhenPortsAreRequested(t *testing.T) {
 		RootfsKey:  "image:repo/app:latest",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:  nodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:    "runsc",
 		Ports:      []string{"8080/tcp"},
 	}, now)
 	if len(eligible) != 2 || eligible[0].GetNodeID() != "node-preferred" {
@@ -218,7 +212,6 @@ func TestPlanSortsByFixedTuple(t *testing.T) {
 		RootfsKey:  "image:repo/app:latest",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:  nodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:    "runsc",
 	}, now)
 	if len(eligible) != 2 || eligible[0].GetNodeID() != "node-hot" || eligible[1].GetNodeID() != "node-warm" {
 		t.Fatalf("unexpected candidate order: %#v", eligible)
@@ -253,7 +246,6 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 		RootfsKey:                       "image:repo/app:latest",
 		RootfsType:                      nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:                       nodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:                         "runsc",
 		RequestedCpuMilli:               200,
 		RequestedMemoryBytes:            256,
 		Ports:                           []string{"tcp:8080:80"},
@@ -296,7 +288,6 @@ func TestPlanRejectsInsufficientMemory(t *testing.T) {
 		RootfsKey:            "image:repo/app:latest",
 		RootfsType:           nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:            nodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:              "runsc",
 		RequestedMemoryBytes: 512,
 	}, now)
 	if len(eligible) != 0 {
@@ -319,7 +310,7 @@ func TestPlanIgnoresDiagnosticMemoryAggregateWhenLocalLedgerHasCapacity(t *testi
 		record("node-memory-ledger", []string{"runsc"}, summary, now),
 	}}, &placementkernel.Request{
 		RootfsKey: "local:/tmp/rootfs", RootfsType: nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
-		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, Runtime: "runsc", RequestedMemoryBytes: 512,
+		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, RequestedMemoryBytes: 512,
 	}, now)
 	if len(eligible) != 1 || len(rejected) != 0 {
 		t.Fatalf("eligible=%#v rejected=%#v, want node admitted from local commitment ledger", eligible, rejected)
@@ -336,7 +327,7 @@ func TestPlanCountsNodeLocalRetiringMemoryCommitment(t *testing.T) {
 		record("node-retiring", []string{"runsc"}, summary, now),
 	}}, &placementkernel.Request{
 		RootfsKey: "local:/tmp/rootfs", RootfsType: nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
-		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, Runtime: "runsc", RequestedMemoryBytes: 2 << 30,
+		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, RequestedMemoryBytes: 2 << 30,
 	}, now)
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("eligible=%#v rejected=%#v", eligible, rejected)
@@ -359,7 +350,6 @@ func TestPlanCPUOvercommitPolicy(t *testing.T) {
 		RootfsKey:         "local:/tmp/rootfs",
 		RootfsType:        nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:         nodev1.MountType_MOUNT_TYPE_LOCAL,
-		Runtime:           "runsc",
 		RequestedCpuMilli: 400,
 	}, now)
 	if len(eligible) != 1 || eligible[0].GetNodeID() != "node-cpu" || len(rejected) != 0 {
@@ -370,7 +360,6 @@ func TestPlanCPUOvercommitPolicy(t *testing.T) {
 		RootfsKey:         "local:/tmp/rootfs",
 		RootfsType:        nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:         nodev1.MountType_MOUNT_TYPE_LOCAL,
-		Runtime:           "runsc",
 		RequestedCpuMilli: 600,
 	}, now)
 	if len(eligible) != 0 || len(rejected) != 1 {
@@ -395,7 +384,6 @@ func TestPlanMemoryDoesNotOvercommit(t *testing.T) {
 		RootfsKey:            "local:/tmp/rootfs",
 		RootfsType:           nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:            nodev1.MountType_MOUNT_TYPE_LOCAL,
-		Runtime:              "runsc",
 		RequestedMemoryBytes: 200 << 20,
 	}, now)
 	if len(eligible) != 0 || len(rejected) != 1 {
@@ -408,7 +396,7 @@ func TestPlanRejectsRetiredNodeAsNonRetryable(t *testing.T) {
 	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 	retired := record("node-retired", []string{"runsc"}, readySummary(now), now)
 	retired.Lifecycle = nodekernel.LifecycleRetired
-	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{retired}}, &placementkernel.Request{Runtime: "runsc", MountType: nodev1.MountType_MOUNT_TYPE_LOCAL}, now)
+	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{retired}}, &placementkernel.Request{MountType: nodev1.MountType_MOUNT_TYPE_LOCAL}, now)
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("eligible=%#v rejected=%#v", eligible, rejected)
 	}
@@ -419,7 +407,6 @@ func record(nodeID string, runtimes []string, summary *nodev1.NodeSummary, updat
 	return &nodekernel.Record{
 		NodeID:       nodeID,
 		Lifecycle:    nodekernel.LifecycleActive,
-		Runtimes:     append([]string(nil), runtimes...),
 		Summary:      summary,
 		RegisteredAt: updatedAt,
 		UpdatedAt:    updatedAt,
@@ -495,10 +482,9 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 				Reachable: true,
 			},
 			Bpfnet: &nodev1.BpfNetSummary{
-				State:                nodev1.ComponentState_COMPONENT_STATE_READY,
-				Enabled:              true,
-				Ready:                true,
-				NeedsLocalhostCompat: false,
+				State:   nodev1.ComponentState_COMPONENT_STATE_READY,
+				Enabled: true,
+				Ready:   true,
 			},
 		},
 	}

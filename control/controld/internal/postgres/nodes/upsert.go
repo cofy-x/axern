@@ -20,7 +20,6 @@ import (
 type nodeUpsertParams struct {
 	NodeID        string
 	NodeTarget    string
-	Runtimes      []string
 	Summary       *nodev1.NodeSummary
 	NodeAuthToken string
 	Now           time.Time
@@ -72,15 +71,6 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 			version = nodes.version + 1
 	`, nodeID, params.NodeTarget, params.Now.UTC(), collectedAt(params.Summary), tokenHash); err != nil {
 		return nil, fmt.Errorf("upsert node: %w", err)
-	}
-
-	if _, err := tx.Exec(ctx, `DELETE FROM node_runtime_sets WHERE node_id = $1`, nodeID); err != nil {
-		return nil, fmt.Errorf("clear node runtimes: %w", err)
-	}
-	for _, runtimeName := range normalizeRuntimes(params.Runtimes) {
-		if _, err := tx.Exec(ctx, `INSERT INTO node_runtime_sets(node_id, runtime_name) VALUES ($1, $2)`, nodeID, runtimeName); err != nil {
-			return nil, fmt.Errorf("insert node runtime %q: %w", runtimeName, err)
-		}
 	}
 
 	var reportedTransitions []nodekernel.CapabilityChange

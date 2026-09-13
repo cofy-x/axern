@@ -43,7 +43,7 @@ func imageCommand(runtime command.Runtime, version string) *cobra.Command {
 			return output.PrintJSON(cmd.OutOrStdout(), result)
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Loaded %s as %s\n", result.SourceRef, result.ImmutableRef)
-		fmt.Fprintf(cmd.OutOrStdout(), "  generation: %s\n  archive: %s\n  platform: %s\n  size: %d bytes\n  reused: %t\n", result.GenerationDigest, result.ArchiveDigest, result.Platform, result.SizeBytes, result.Reused)
+		fmt.Fprintf(cmd.OutOrStdout(), "  content: %s\n  archive: %s\n  platform: %s\n  size: %d bytes\n  reused: %t\n", result.ContentDigest, result.ArchiveDigest, result.Platform, result.SizeBytes, result.Reused)
 		return nil
 	}}
 	load.Flags().BoolVar(&pull, "pull", false, "pull IMAGE before loading it")
@@ -148,7 +148,6 @@ func doctorCommand(runtime command.Runtime, version string) *cobra.Command {
 	options := applocal.DoctorOptions{QueryName: "axern.cofy-x.space.", CheckTimeout: 15 * time.Second}
 	probeTimeout := 5 * time.Minute
 	templateID := "python311"
-	runtimeClass := "runsc"
 	cmd := &cobra.Command{Use: "doctor", Short: "Diagnose local prerequisites and runtime DNS", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		queryName, err := applocal.NormalizeDNSQueryName(options.QueryName)
 		if err != nil {
@@ -158,7 +157,7 @@ func doctorCommand(runtime command.Runtime, version string) *cobra.Command {
 		if options.CheckTimeout <= 0 {
 			return command.Usage(fmt.Errorf("--check-timeout must be positive"))
 		}
-		for _, name := range []string{"probe-timeout", "template-id", "runtime-class"} {
+		for _, name := range []string{"probe-timeout", "template-id"} {
 			if cmd.Flags().Changed(name) && !options.Probe {
 				return command.Usage(fmt.Errorf("--%s requires --probe", name))
 			}
@@ -167,8 +166,8 @@ func doctorCommand(runtime command.Runtime, version string) *cobra.Command {
 			if probeTimeout <= 0 {
 				return command.Usage(fmt.Errorf("--probe-timeout must be positive"))
 			}
-			if strings.TrimSpace(templateID) == "" || strings.TrimSpace(runtimeClass) == "" {
-				return command.Usage(fmt.Errorf("--template-id and --runtime-class are required with --probe"))
+			if strings.TrimSpace(templateID) == "" {
+				return command.Usage(fmt.Errorf("--template-id is required with --probe"))
 			}
 			if runtime.HasExplicitConnectionOverride() {
 				return command.Usage(fmt.Errorf("explicit remote connection options cannot be used with local doctor --probe"))
@@ -186,7 +185,7 @@ func doctorCommand(runtime command.Runtime, version string) *cobra.Command {
 				check := appdoctor.DNSProbe(ctx, &appdoctor.Session{
 					Context: session.Context, Namespace: session.Clients.Namespace, Secret: session.Clients.Secret,
 					Environment: session.Clients.Environment, Run: session.Clients.Run,
-				}, appdoctor.DNSProbeOptions{QueryName: queryName, TemplateID: templateID, RuntimeClass: runtimeClass, Timeout: probeTimeout})
+				}, appdoctor.DNSProbeOptions{QueryName: queryName, TemplateID: templateID, Timeout: probeTimeout})
 				return applocal.Check{Name: check.Name, Status: string(check.Status), Code: check.Code, DurationMS: check.DurationMS, Message: check.Message, Remediation: check.Remediation, Details: check.Details}
 			}
 		}
@@ -216,7 +215,6 @@ func doctorCommand(runtime command.Runtime, version string) *cobra.Command {
 	cmd.Flags().DurationVar(&options.CheckTimeout, "check-timeout", options.CheckTimeout, "timeout for each read-only DNS check")
 	cmd.Flags().DurationVar(&probeTimeout, "probe-timeout", probeTimeout, "timeout for sandbox execution; requires --probe")
 	cmd.Flags().StringVar(&templateID, "template-id", templateID, "runtime template used by --probe")
-	cmd.Flags().StringVar(&runtimeClass, "runtime-class", runtimeClass, "runtime class used by --probe")
 	return cmd
 }
 

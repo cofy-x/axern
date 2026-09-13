@@ -18,8 +18,8 @@ type NodeStore interface {
 }
 
 type NodeRegistry interface {
-	Register(nodeID, nodeTarget string, runtimes []string, now time.Time)
-	Report(nodeID, nodeTarget string, runtimes []string, summary *controlnodev1.NodeSummary, now time.Time)
+	Register(nodeID, nodeTarget string, now time.Time)
+	Report(nodeID, nodeTarget string, summary *controlnodev1.NodeSummary, now time.Time)
 }
 
 type NodeReporter interface {
@@ -29,7 +29,6 @@ type NodeReporter interface {
 type AllocationControl interface {
 	BatchReportAllocationLifecycle(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationLifecycleObservation, now time.Time) ([]string, error)
 	BatchReportAllocationCapabilityConditions(ctx context.Context, nodeID string, reports []*controlnodev1.AllocationCapabilityConditionReport, now time.Time) error
-	BatchReportAllocationMemoryObservations(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationMemoryObservation, now time.Time) error
 	ReconcileNodeInventory(ctx context.Context, snapshot allocationkernel.NodeInventorySnapshot, now time.Time) error
 	WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*commonv1.ExecutionLease, int64, error)
 }

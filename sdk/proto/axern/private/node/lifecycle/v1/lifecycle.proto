@@ -46,27 +46,26 @@ message ResolvedExecutionConfig {
   string environment_id = 1;
   string image_digest = 2;
   string image_descriptor = 3;
-  string runtime_class = 4;
-  repeated string argv = 5;
-  string cwd = 6;
-  map<string, string> env = 7;
-  repeated SandboxMount mounts = 8;
-  axern.control.common.v1.ResourceSpec resources = 9;
-  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 10;
-  string locality_key = 11;
-  bool rootfs_readonly = 12;
-  repeated axern.control.common.v1.PortSpec ports = 13;
-  axern.control.common.v1.NetworkSpec network = 14;
-  string local_rootfs_path = 15;
-  string stdout_path = 16;
-  string stderr_path = 17;
-  repeated string linux_capabilities = 18;
-  repeated ResolvedSecretEnvVar secret_env = 19;
-  repeated ResolvedSecretFile secret_files = 20;
-  RegistryCredential registry_credential = 21;
-  axern.control.catalog.v1.RuntimeExecutionProfile execution_profile = 22;
-  repeated ImageMount image_mounts = 23;
-  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 24;
+  repeated string argv = 4;
+  string cwd = 5;
+  map<string, string> env = 6;
+  repeated SandboxMount mounts = 7;
+  axern.control.common.v1.ResourceSpec resources = 8;
+  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 9;
+  string locality_key = 10;
+  bool rootfs_readonly = 11;
+  repeated axern.control.common.v1.PortSpec ports = 12;
+  axern.control.common.v1.NetworkSpec network = 13;
+  string local_rootfs_path = 14;
+  string stdout_path = 15;
+  string stderr_path = 16;
+  repeated string linux_capabilities = 17;
+  repeated ResolvedSecretEnvVar secret_env = 18;
+  repeated ResolvedSecretFile secret_files = 19;
+  RegistryCredential registry_credential = 20;
+  axern.control.catalog.v1.RuntimeExecutionProfile execution_profile = 21;
+  repeated ImageMount image_mounts = 22;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 23;
 }
 
 message CreateAllocationRequest {

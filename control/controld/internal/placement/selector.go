@@ -15,19 +15,17 @@ import (
 )
 
 type Selector struct {
-	registry              *nodekernel.Registry
-	engine                *Engine
-	observer              Observer
-	now                   func() time.Time
-	defaultSandboxRuntime string
+	registry *nodekernel.Registry
+	engine   *Engine
+	observer Observer
+	now      func() time.Time
 }
 
-func NewSelector(registry *nodekernel.Registry, engine *Engine, now func() time.Time, defaultSandboxRuntime string) *Selector {
+func NewSelector(registry *nodekernel.Registry, engine *Engine, now func() time.Time) *Selector {
 	return &Selector{
-		registry:              registry,
-		engine:                engine,
-		now:                   now,
-		defaultSandboxRuntime: defaultSandboxRuntime,
+		registry: registry,
+		engine:   engine,
+		now:      now,
 	}
 }
 
@@ -95,7 +93,6 @@ func (p *Selector) observeSelection(ctx context.Context, req *placementkernel.Re
 	p.observer.RecordSelection(ctx, SelectionObservation{
 		Mode:                           mode,
 		Result:                         result,
-		Runtime:                        req.GetRuntime(),
 		MountType:                      req.GetMountType(),
 		RequestedCPUMilli:              req.GetRequestedCpuMilli(),
 		RequestedMemoryBytes:           req.GetRequestedMemoryBytes(),

@@ -274,11 +274,10 @@ func (s *nodeOperatorServer) ResolveSandboxNetwork(ctx context.Context, req *nod
 		return nil, err
 	}
 	return &nodeoperatorv1.ResolveSandboxNetworkResponse{
-		SandboxID:    req.GetSandboxID(),
-		Ip:           network.IP,
-		NetnsPath:    network.NetNSPath,
-		State:        nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_RUNNING,
-		RuntimeClass: network.RuntimeClass,
+		SandboxID: req.GetSandboxID(),
+		Ip:        network.IP,
+		NetnsPath: network.NetNSPath,
+		State:     nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_RUNNING,
 	}, nil
 }
 
@@ -377,7 +376,6 @@ func localSandboxFromContainer(container *runtimev1.ContainerStatus) *nodeoperat
 	}
 	return &nodeoperatorv1.LocalSandbox{
 		SandboxID:     container.GetID(),
-		RuntimeClass:  container.GetRuntime(),
 		State:         localSandboxStateFromContainer(container.GetState()),
 		ExitCode:      container.GetExitCode(),
 		ExitCodeKnown: container.GetState() == runtimev1.ContainerState_CONTAINER_EXITED,

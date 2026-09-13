@@ -53,13 +53,8 @@ func (r *Registry) Load(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("load configured runtime handlers: %w", err)
 	}
-	runtimeConfigs := r.config.PluginConfig.RuntimeConfig.Runtimes
-	runtimeNames := make([]string, 0, len(runtimeConfigs))
-	for runtimeName := range runtimeConfigs {
-		runtimeNames = append(runtimeNames, runtimeName)
-	}
-	sort.Strings(runtimeNames)
-	logrus.Debugf("loading runtime handlers: %v", runtimeConfigs)
+	runtimeNames := []string{config.RuntimeNameRunsc}
+	logrus.Debug("loading runsc runtime handler")
 
 	containersRoot := filepath.Join(r.config.RootDir, "containers")
 	if err := os.MkdirAll(containersRoot, 0o755); err != nil {
@@ -157,11 +152,8 @@ func (r *Registry) Statuses() []Status {
 		return nil
 	}
 
-	configured := r.config.PluginConfig.RuntimeConfig.Runtimes
-	names := make([]string, 0, len(configured))
-	for name := range configured {
-		names = append(names, name)
-	}
+	configured := map[string]config.RuntimeInstanceConfig{config.RuntimeNameRunsc: r.config.PluginConfig.RuntimeConfig.Runsc}
+	names := []string{config.RuntimeNameRunsc}
 	for name := range r.handlers.Items() {
 		if _, ok := configured[name]; !ok {
 			names = append(names, name)
@@ -191,27 +183,20 @@ func (r *Registry) Statuses() []Status {
 	return statuses
 }
 
-func (r *Registry) Version(ctx context.Context) ([]*runtimeapi.RuntimeVersion, error) {
+func (r *Registry) Version(ctx context.Context) (*runtimeapi.RuntimeVersion, error) {
 	if r == nil {
 		return nil, nil
 	}
-	versions := make([]*runtimeapi.RuntimeVersion, 0, r.handlers.Count())
-	for runtimeName, handler := range r.handlers.Items() {
-		v, err := handler.Version(ctx)
-		if err != nil {
-			logrus.Warnf("get runtime %s version failed: %v", runtimeName, err)
-			versions = append(versions, &runtimeapi.RuntimeVersion{
-				RuntimeName:    runtimeName,
-				RuntimeVersion: config.UnknownVersion,
-			})
-			continue
-		}
-		versions = append(versions, v)
+	handler, ok := r.handlers.Get(config.RuntimeNameRunsc)
+	if !ok {
+		return nil, nil
 	}
-	sort.Slice(versions, func(i, j int) bool {
-		return versions[i].RuntimeName < versions[j].RuntimeName
-	})
-	return versions, nil
+	version, err := handler.Version(ctx)
+	if err != nil {
+		logrus.Warnf("get runsc version failed: %v", err)
+		return &runtimeapi.RuntimeVersion{Version: config.UnknownVersion}, nil
+	}
+	return version, nil
 }
 
 func Lookup(runtimeName string, registry *Registry) (contract.RuntimeHandler, error) {

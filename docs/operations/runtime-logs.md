@@ -37,7 +37,7 @@ These paths are inside the node runtime environment, such as the compose `node` 
 
 ## Config Fields To Check
 
-Inspect `/tmp/axnoded-node-config.toml` when socket paths, node identity, runtime class, or image-manager settings look wrong.
+Inspect `/tmp/axnoded-node-config.toml` when socket paths, node identity, runsc configuration, or image-manager settings look wrong.
 
 | Field                                  | Why it matters                                              |
 | -------------------------------------- | ----------------------------------------------------------- |
@@ -46,7 +46,7 @@ Inspect `/tmp/axnoded-node-config.toml` when socket paths, node identity, runtim
 | `plugin.control_plane_node_target`     | internal node address used by gateway/control-plane routing |
 | `plugin.network.nat_backend`           | `iptables` or `ebpf` network path                           |
 | `plugin.runtime.image_manager_socket`  | socket for image-backed rootfs requests                     |
-| `plugin.runtime.runtimes.runsc.binary` | gVisor runtime binary path                                  |
+| `plugin.runtime.runsc.binary`         | gVisor runtime binary path                                  |
 
 ## Symptom Map
 

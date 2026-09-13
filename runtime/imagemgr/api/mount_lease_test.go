@@ -119,10 +119,10 @@ func TestNydusRoutesShareCanonicalResourceIdentity(t *testing.T) {
 	}
 }
 
-func TestOCIInventoryRejectsUnsupportedLeaseResources(t *testing.T) {
+func TestOCIInventoryRejectsInvalidLeaseResources(t *testing.T) {
 	worker := mustNewHttpWorker(t, newMockManager())
-	record := &mountstore.Record{CacheKey: "legacy:a", MountType: "oss", MountPoint: "/mnt/legacy"}
-	if _, err := worker.mountStore.Acquire(record, "legacy-lease", "test"); err != nil {
+	record := &mountstore.Record{CacheKey: "invalid:a", MountType: "invalid", MountPoint: "/mnt/invalid"}
+	if _, err := worker.mountStore.Acquire(record, "invalid-lease", "test"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := worker.ListMountedOCIDetails(); err == nil {

@@ -48,8 +48,7 @@ func (f *FakeRuntimeHandler) Requirements() contract.RuntimeRequirements {
 
 func (f *FakeRuntimeHandler) Version(ctx context.Context) (*runtimeapi.RuntimeVersion, error) {
 	return &runtimeapi.RuntimeVersion{
-		RuntimeName:    f.Name(),
-		RuntimeVersion: config.UnknownVersion,
+		Version: config.UnknownVersion,
 	}, getErrorFromContext(ctx)
 }
 
@@ -64,7 +63,6 @@ func (f *FakeRuntimeHandler) CreateContainer(ctx context.Context, request *apipb
 
 func (f *FakeRuntimeHandler) AllocationEnforcementManifest(_ context.Context, containerID string) (*apipb.AllocationEnforcementManifest, error) {
 	return &apipb.AllocationEnforcementManifest{
-		RuntimeName:       f.Name(),
 		BundlePath:        "/fake/" + containerID,
 		CreatedAtUnixNano: time.Now().UTC().UnixNano(),
 	}, nil

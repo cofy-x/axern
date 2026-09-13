@@ -22,13 +22,6 @@ func (h *sandboxService) configureNetworking() {
 			_, err := h.containerManager.Get(id)
 			return err == nil
 		},
-		RuntimeClass: func(id string) (string, error) {
-			target, err := h.sandboxTargetResolver().Running(id)
-			if err != nil {
-				return "", err
-			}
-			return target.RuntimeClass(), nil
-		},
 	})
 }
 
@@ -37,7 +30,7 @@ func (h *sandboxService) NetworkForSandbox(containerID string) (*SandboxNetwork,
 	if err != nil {
 		return nil, err
 	}
-	return &SandboxNetwork{IP: network.IP, NetNSPath: network.NetNSPath, RuntimeClass: network.RuntimeClass}, nil
+	return &SandboxNetwork{IP: network.IP, NetNSPath: network.NetNSPath}, nil
 }
 
 func (h *sandboxService) ProxyHTTP(stream HTTPProxyServer) error {
@@ -60,14 +53,12 @@ func (h *sandboxService) ProxyHTTP(stream HTTPProxyServer) error {
 		opErr = errord.ToGRPC(errord.ErrInvalidArgument)
 		return opErr
 	}
-	target, err := h.sandboxTargetResolver().Running(stream.TargetID())
+	_, err := h.sandboxTargetResolver().Running(stream.TargetID())
 	if err != nil {
 		opErr = errord.ToGRPC(err)
 		return opErr
 	}
-	if runtimeClass := target.RuntimeClass(); runtimeClass != "" {
-		op.AddMetricAttributes(attribute.String(sdkobs.AttrRuntime, runtimeClass))
-	}
+	op.AddMetricAttributes(attribute.String(sdkobs.AttrRuntime, "runsc"))
 	err = h.sandboxNetworking().ProxyHTTP(stream)
 	if err != nil && ctx.Err() != nil {
 		op.SetResult(sdkobs.ResultTimeout)

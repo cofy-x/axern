@@ -169,7 +169,7 @@ func TestValidateEvidenceRejectsMalformedHostIdentity(t *testing.T) {
 	if err := ValidateEvidence(BootEvidence("not-a-boot-id"), IdentityBoot); err == nil {
 		t.Fatal("malformed boot identity was accepted")
 	}
-	if err := ValidateEvidence(RuntimeEvidence(testBootID, "runsc", strings.Repeat("a", 64), testDigest("config")), IdentityRuntime); err == nil {
+	if err := ValidateEvidence(RuntimeEvidence(testBootID, strings.Repeat("a", 64), testDigest("config")), IdentityRuntime); err == nil {
 		t.Fatal("runtime digest without sha256 prefix was accepted")
 	}
 	if err := ValidateEvidence(nil, IdentityConfig); err != nil {
@@ -199,9 +199,9 @@ func TestValidateConditionSetUsesOneProjectionTimestamp(t *testing.T) {
 	}
 }
 
-func TestDeriveRequirementsUsesRuntimeSpecificCapabilities(t *testing.T) {
+func TestDeriveRequirementsUsesExecutionCapabilities(t *testing.T) {
 	keys, err := DeriveRequirements(RequirementInput{
-		RuntimeName: "runsc", HasPorts: true, NetworkMode: "default", NetworkBackend: "ebpf",
+		HasPorts: true, NetworkMode: "default", NetworkBackend: "ebpf",
 		MemoryLimitBytes: 1, RootfsWritable: true, EROFSBacking: true,
 		ExtensionCapabilityRequests: []*capabilityv1.ExtensionCapabilityRequirement{{Capability: &capabilityv1.ExtensionCapability{Name: "example.com/gpu", Value: "a100"}}},
 	})
@@ -219,7 +219,7 @@ func TestDeriveRequirementsUsesRuntimeSpecificCapabilities(t *testing.T) {
 			t.Fatalf("requirements do not contain %s", required)
 		}
 	}
-	if _, err := DeriveRequirements(RequirementInput{RuntimeName: "runsc", NetworkMode: "default"}); err == nil {
+	if _, err := DeriveRequirements(RequirementInput{NetworkMode: "default"}); err == nil {
 		t.Fatal("non-host network without an observed backend was accepted")
 	}
 }
@@ -254,7 +254,7 @@ func testObservation(key *capabilityv1.CapabilityKey, now time.Time) *capability
 	case IdentityMount:
 		evidence = MountEvidence(testBootID, "1:source:/filestore")
 	case IdentityRuntime:
-		evidence = RuntimeEvidence(testBootID, "runsc", testDigest("binary"), testDigest("runtime-config"))
+		evidence = RuntimeEvidence(testBootID, testDigest("binary"), testDigest("runtime-config"))
 	default:
 		panic("unsupported identity")
 	}

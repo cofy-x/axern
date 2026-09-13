@@ -28,9 +28,8 @@ func runVerifyUDP(cfg verifyUDPConfig) error {
 
 	listenAddress := net.JoinHostPort("0.0.0.0", fmt.Sprintf("%d", cfg.targetPort))
 	resolvedSpec := &privatenodev1.ResolvedExecutionConfig{
-		RuntimeClass: cfg.runtimeName,
-		Argv:         []string{"/axnoded-bin/verify-udp", "-mode", "responder", "-listen-address", listenAddress},
-		Cwd:          "/",
+		Argv: []string{"/axnoded-bin/verify-udp", "-mode", "responder", "-listen-address", listenAddress},
+		Cwd:  "/",
 		Mounts: []*privatenodev1.SandboxMount{
 			{
 				Type:    "bind",
@@ -153,8 +152,7 @@ func runVerifyUDP(cfg verifyUDPConfig) error {
 func isExpectedEBPFMode(mode string) bool {
 	switch mode {
 	case bpfnet.ModeIngressTCPUDPDNATEgressSNAT,
-		bpfnet.ModeIngressTCPUDPDNATEgressSNATLocalhostTCP,
-		bpfnet.ModeIngressTCPUDPDNATEgressSNATLocalCompat:
+		bpfnet.ModeIngressTCPUDPDNATEgressSNATLocalhostTCP:
 		return true
 	default:
 		return false

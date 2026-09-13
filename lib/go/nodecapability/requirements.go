@@ -13,7 +13,6 @@ import (
 // axnoded. Facts unavailable before image preparation (for example EROFS) are
 // left false during the request-static gate and supplied at the backing gate.
 type RequirementInput struct {
-	RuntimeName                     string
 	HasPorts                        bool
 	NetworkMode                     string
 	NetworkBackend                  string
@@ -44,10 +43,6 @@ func deriveRequirements(input RequirementInput, deferNetworkBackend bool) ([]*ca
 	}
 	if err := ValidateExtensionRequirements(input.ExtensionCapabilityRequests); err != nil {
 		return nil, err
-	}
-	runtimeName := strings.ToLower(strings.TrimSpace(input.RuntimeName))
-	if runtimeName != "runsc" {
-		return nil, fmt.Errorf("unsupported sandbox runtime %q", input.RuntimeName)
 	}
 	keys := make([]*capabilityv1.CapabilityKey, 0, len(input.ExtensionCapabilityRequests)+5)
 	if input.HasPorts {

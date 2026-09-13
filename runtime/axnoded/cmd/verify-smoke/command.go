@@ -62,11 +62,10 @@ func buildExecutionConfig(cfg verifySmokeConfig) (*privatenodev1.ResolvedExecuti
 		return nil, err
 	}
 	spec := &privatenodev1.ResolvedExecutionConfig{
-		RuntimeClass: cfg.runtimeName,
-		Argv:         commandToRun,
-		Cwd:          "/",
-		StdoutPath:   cfg.stdoutPath,
-		StderrPath:   cfg.stderrPath,
+		Argv:       commandToRun,
+		Cwd:        "/",
+		StdoutPath: cfg.stdoutPath,
+		StderrPath: cfg.stderrPath,
 	}
 	rootfsSpec.Apply(spec)
 	return spec, nil

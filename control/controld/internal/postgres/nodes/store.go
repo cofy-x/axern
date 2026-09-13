@@ -19,7 +19,6 @@ func (s *PGStore) Register(ctx context.Context, params nodekernel.RegisterParams
 	return s.upsert(ctx, nodeUpsertParams{
 		NodeID:        params.NodeID,
 		NodeTarget:    params.NodeTarget,
-		Runtimes:      params.Runtimes,
 		NodeAuthToken: params.NodeAuthToken,
 		Now:           params.Now,
 	})
@@ -29,7 +28,6 @@ func (s *PGStore) Report(ctx context.Context, params nodekernel.ReportParams) (*
 	return s.upsert(ctx, nodeUpsertParams{
 		NodeID:        params.NodeID,
 		NodeTarget:    params.NodeTarget,
-		Runtimes:      params.Runtimes,
 		Summary:       params.Summary,
 		NodeAuthToken: params.NodeAuthToken,
 		Now:           params.Now,

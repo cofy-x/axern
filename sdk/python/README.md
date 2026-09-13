@@ -217,7 +217,7 @@ with Sandbox(
 ```python
 metadata = sandbox.metadata
 print(metadata.environment_id, metadata.run_id, metadata.allocation_id)
-print(metadata.node_id, metadata.runtime_class, metadata.tunnel_session_id)
+print(metadata.node_id, metadata.run_id, metadata.tunnel_session_id)
 ```
 
 ## Capabilities

@@ -44,7 +44,6 @@ snat_tcp_closing_timeout = "2s"
 snat_datagram_idle_timeout = "10s"
 # enable host-local TCP hostPort access; prefer eBPF localhost path and
 # fall back to iptables compat only when the cgroup attach path is unavailable
-local_out_compat = true
 
 [plugin.resource]
 cgroup_cache_size = 800
@@ -83,9 +82,9 @@ cgroup_enforcement = "required"
 # search_domains = ["svc.cluster.local", "cluster.local"]
 # options = ["ndots:5"]
 
-[plugin.runtime.runtimes.runsc]
+[plugin.runtime.runsc]
 binary = "/usr/local/bin/runsc"
 base_spec = "/etc/axnoded/runsc-config.json"
 
-[plugin.runtime.runtimes.runsc.options]
+[plugin.runtime.runsc.options]
 allow_suid = true

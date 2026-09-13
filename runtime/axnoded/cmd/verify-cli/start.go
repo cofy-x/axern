@@ -41,14 +41,13 @@ func runVerifyCLI(cfg verifyCLIConfig) error {
 	defer cancel()
 
 	spec := &privatenodev1.ResolvedExecutionConfig{
-		RuntimeClass: cfg.runtime,
-		Argv:         []string{"/bin/sh", "-c", cfg.shellCommand},
-		Cwd:          "/",
-		Env:          userEnvs,
-		Mounts:       mounts,
-		Resources:    startResources,
-		StdoutPath:   cfg.stdoutPath,
-		StderrPath:   cfg.stderrPath,
+		Argv:       []string{"/bin/sh", "-c", cfg.shellCommand},
+		Cwd:        "/",
+		Env:        userEnvs,
+		Mounts:     mounts,
+		Resources:  startResources,
+		StdoutPath: cfg.stdoutPath,
+		StderrPath: cfg.stderrPath,
 	}
 	rootfsSpec.Apply(spec)
 

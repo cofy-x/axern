@@ -52,7 +52,6 @@ type RetiringMemoryLease struct {
 	AllocationID  string
 	MemoryRequest int64
 	MemoryLimit   int64
-	RuntimeName   string
 	BootID        string
 	MountIdentity string
 	ParentInode   uint64

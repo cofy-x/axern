@@ -16,7 +16,6 @@ type createAllocationRequestParams struct {
 	Config                 *commonv1.ExecutionConfig
 	Environment            *environmentv1.Environment
 	NodeID                 string
-	DefaultRuntime         string
 	ResolvedSecrets        resolvedExecutionSecrets
 	CapabilityRequirements []*capabilityv1.CapabilityRequirement
 }
@@ -44,7 +43,6 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 		EnvironmentID:                   params.Environment.GetID(),
 		ImageDigest:                     template.GetImageDescriptor().GetDigest(),
 		ImageDescriptor:                 imageDescriptorRef(template.GetImageDescriptor()),
-		RuntimeClass:                    firstNonEmpty(cfg.GetRuntimeClass(), params.DefaultRuntime),
 		Argv:                            resolveExecutionArgv(cfg.GetArgv()),
 		Cwd:                             resolveExecutionCwd(cfg.GetCwd()),
 		Env:                             mergeStringMaps(template.GetDefaultEnv(), cfg.GetEnv()),

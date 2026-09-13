@@ -62,7 +62,7 @@ Failure of the configured node resource source is fail-closed. Axnoded retains t
 | `ip_range` | IPv4 or IPv6 CIDR used for `sandbox0`, sandbox IPs, and host veth allocation. | Must provide at least `max_instance_num` addresses and must not collide with host, pod, service, or VPC ranges. |
 | `nat_backend` | NAT implementation. | Valid values are `iptables` and `ebpf`. |
 
-`iptables` is the full bridge SNAT/DNAT backend. `ebpf` keeps the same bridge/veth/netns shape, uses `bpfnet` for supported tc/cgroup dataplane paths, and delegates unsupported paths to the iptables backend. Because bpfnet's native programs are IPv4-only, an IPv6 `ip_range` with `nat_backend = "ebpf"` uses ip6tables and the node publishes the effective bridge capability. Qualification reports must not describe that path as native bpfnet.
+`iptables` is the full bridge SNAT/DNAT backend. For IPv4, `ebpf` keeps the same bridge/veth/netns shape and requires every supported tc/cgroup dataplane path to be ready; it never mixes iptables rules into an active eBPF dataplane. Because bpfnet's native programs are IPv4-only, an IPv6 `ip_range` with `nat_backend = "ebpf"` uses the complete ip6tables backend and the node publishes the effective bridge capability.
 
 `[plugin.network.ebpf]` is only active when `nat_backend = "ebpf"`.
 
@@ -77,7 +77,6 @@ Failure of the configured node resource source is fail-closed. Axnoded retains t
 | `snat_datagram_idle_timeout` | Idle timeout for UDP and ICMP SNAT mappings. | Default is `10s`; increase for long-idle UDP or QUIC-like traffic. |
 | `uplink_devices` | Optional uplink device allowlist. | Leave empty for auto/default behavior. |
 | `native_routing_cidrs` | CIDRs that should use native routing behavior. | Deployment-specific; keep empty unless the dataplane requires it. |
-| `local_out_compat` | Enables host-local TCP hostPort compatibility through cgroup sock_addr eBPF. | Keep enabled for localhost hostPort checks. |
 
 When networking fails, inspect the selected backend, `sandbox0`, host veths, DNAT/SNAT rules, and bpfnet attach logs before changing resource sizing.
 
@@ -139,15 +138,15 @@ Use explicit DNS values on production nodes that require VPC, cluster, or corpor
 
 ### Runtime Handlers
 
-The default, sample, packaged, and devbox configurations enable only gVisor (`runsc`), the supported runtime. Unsupported runtime classes are rejected.
+The default, sample, packaged, and devbox configurations use gVisor (`runsc`) as the single execution implementation. Runtime selection is not part of the product contract.
 
-`[plugin.runtime.runtimes.<name>]` declares each OCI runtime handler. It is the single source for the runtime binary, base spec, and options. Configuration decoding rejects unknown keys and never ignores misspelled settings. Axnoded treats this set as one startup contract: every configured handler must load before persistent container inventory is reconciled or the node can become ready. A transient runtime-state or filestore conflict is retried until startup is canceled; axnoded never starts with a partial configured runtime set.
+`[plugin.runtime.runsc]` declares the single OCI execution implementation. It is the source for the runsc binary, base spec, and options. Configuration decoding rejects unknown keys and never ignores misspelled settings. Axnoded must load this runtime before persistent container inventory is reconciled or the node can become ready. A transient runtime-state or filestore conflict is retried until startup is canceled; axnoded never starts with a partial execution stack.
 
-| Key                                        | Meaning                                              |
-| ------------------------------------------ | ---------------------------------------------------- |
-| `binary`                                   | Runtime binary path, such as `/usr/local/bin/runsc`. |
-| `base_spec`                                | Base OCI spec used by axnoded when building bundles. |
-| `[plugin.runtime.runtimes.<name>.options]` | Runtime-specific options.                            |
+| Key                            | Meaning                                              |
+| ------------------------------ | ---------------------------------------------------- |
+| `binary`                       | Runtime binary path, such as `/usr/local/bin/runsc`. |
+| `base_spec`                    | Base OCI spec used by axnoded when building bundles. |
+| `[plugin.runtime.runsc.options]` | runsc-specific options.                              |
 
 There is no per-runtime cgroup fallback. In `required` mode cgroup controller writes, limit readback, and runtime host-PID attribution are fail-closed. For `runsc`, `options.allow_suid = true` maps to `runsc --allow-suid` so setuid tools inside Axern-maintained images, such as `sudo`, can elevate privileges within the sandbox.
 
@@ -159,7 +158,7 @@ See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection, EROF
 | --- | --- |
 | Local compose/kind with imagemgr | Keep `image_manager_enabled = true`; point `image_manager_socket` at the dev socket mounted into axnoded; keep `nat_backend = "iptables"` unless testing bpfnet. |
 | Local rootfs only | Set `image_manager_enabled = false`; make sure requests use local rootfs paths; keep `image_lib_dir` harmless. |
-| eBPF dataplane verification | Set `nat_backend = "ebpf"`; keep `local_out_compat = true`; confirm bpffs and privileged host access. Main TC failure is fail-closed. |
+| eBPF dataplane verification | Set `nat_backend = "ebpf"`; confirm bpffs, privileged host access, TC filters, and localhost cgroup links. Every required path is fail-closed. |
 | Control-plane connected node | Set `control_plane_target`, stable `control_plane_node_id`, reachable `control_plane_node_target`, auth token, TLS paths, labels, and optional extension capabilities. Platform capabilities come from observed providers. |
 | Kubernetes production node | Set `control_plane_node_resource_source = "kubernetes"` and pass the Kubernetes Node name; the Helm chart does this by default and grants read-only `nodes/get` RBAC. |
 | Production node | Move `rootDir`, `storeDir`, and `image_lib_dir` to durable host paths for runtime recovery; set explicit DNS if node resolvers are not suitable for sandboxes; provide the qualified `memory_system_reserve_bytes` receipt value. |

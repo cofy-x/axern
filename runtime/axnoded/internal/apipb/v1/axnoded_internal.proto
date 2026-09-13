@@ -36,17 +36,16 @@ message CgroupLease {
   string last_cleanup_error = 7;
   int64 current_charged_bytes = 8;
   int64 memory_limit_bytes = 9;
-  string runtime_name = 10;
-  string cgroup_boot_id = 11;
-  string cgroup_mount_identity = 12;
-  uint64 cgroup_parent_inode = 13;
-  uint64 cgroup_leaf_inode = 14;
-  string last_identity_verification_error = 15;
-  CgroupLeaseOwnerKind owner_kind = 16;
+  string cgroup_boot_id = 10;
+  string cgroup_mount_identity = 11;
+  uint64 cgroup_parent_inode = 12;
+  uint64 cgroup_leaf_inode = 13;
+  string last_identity_verification_error = 14;
+  CgroupLeaseOwnerKind owner_kind = 15;
   // Node admission charge, separated from the OCI workload request/limit so
   // trusted runtime monitor overhead can be reserved without weakening the
   // workload's cgroup boundary.
-  int64 capacity_reservation_bytes = 17;
+  int64 capacity_reservation_bytes = 16;
 }
 
 message CgroupLedger {
@@ -55,10 +54,6 @@ message CgroupLedger {
   // durable even when the current sample is invalidated so an axnoded restart
   // cannot make commitments from an older boot or cgroup mount admissible.
   string memory_capacity_identity = 2;
-}
-
-message DurableSequence {
-  int64 reserved_through = 1;
 }
 
 message RootfsConfig {
@@ -140,28 +135,27 @@ message AllocationCapabilityReconcileState {
 // runtime audits. Runtime-observed identities may be filled after create, but
 // the requested limits and immutable launch contract never change.
 message AllocationEnforcementManifest {
-  string runtime_name = 1;
-  int64 memory_limit_bytes = 2;
-  int64 ephemeral_storage_limit_bytes = 3;
-  string cgroup_path = 4;
-  string runtime_cgroup_path = 5;
-  string runsc_overlay_arg = 6;
-  string filestore_mount_identity = 7;
-  int64 created_at_unix_nano = 8;
-  string bundle_path = 9;
-  string runsc_backing_directory = 10;
-  string runsc_backing_directory_identity = 11;
-  string cgroup_boot_id = 12;
-  string cgroup_mount_identity = 13;
-  uint64 cgroup_parent_inode = 14;
-  uint64 cgroup_leaf_inode = 15;
-  int64 memory_swap_max_bytes = 16;
-  bool memory_oom_group = 17;
-  uint64 initial_memory_event_high = 18;
-  uint64 initial_memory_event_max = 19;
-  uint64 initial_memory_event_oom = 20;
-  uint64 initial_memory_event_oom_kill = 21;
-  uint64 initial_memory_event_oom_group_kill = 22;
+  int64 memory_limit_bytes = 1;
+  int64 ephemeral_storage_limit_bytes = 2;
+  string cgroup_path = 3;
+  string runtime_cgroup_path = 4;
+  string runsc_overlay_arg = 5;
+  string filestore_mount_identity = 6;
+  int64 created_at_unix_nano = 7;
+  string bundle_path = 8;
+  string runsc_backing_directory = 9;
+  string runsc_backing_directory_identity = 10;
+  string cgroup_boot_id = 11;
+  string cgroup_mount_identity = 12;
+  uint64 cgroup_parent_inode = 13;
+  uint64 cgroup_leaf_inode = 14;
+  int64 memory_swap_max_bytes = 15;
+  bool memory_oom_group = 16;
+  uint64 initial_memory_event_high = 17;
+  uint64 initial_memory_event_max = 18;
+  uint64 initial_memory_event_oom = 19;
+  uint64 initial_memory_event_oom_kill = 20;
+  uint64 initial_memory_event_oom_group_kill = 21;
 }
 
 message TerminalResize {

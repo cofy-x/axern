@@ -69,9 +69,6 @@ type sandboxService struct {
 	capabilityReconcileWG     sync.WaitGroup
 	controlPlaneReports       *servicecontrolplane.Coordinator
 	allocationLifecycleOutbox *nodecontrol.AllocationLifecycleOutbox
-	memoryObservationMu       sync.Mutex
-	memoryObservationNext     int64
-	memoryObservationReserved int64
 
 	ready atomic.Bool
 

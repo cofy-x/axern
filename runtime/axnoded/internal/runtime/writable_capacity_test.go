@@ -55,7 +55,6 @@ func TestWritableCapacityReservationRejectsFilenameMismatch(t *testing.T) {
 	require.NoError(t, os.MkdirAll(dir, 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "safe.json"), []byte(`{
   "container_id": "../escape",
-  "runtime_name": "runsc",
   "request_bytes": 1,
   "limit_bytes": 1
 }`), 0600))
@@ -64,25 +63,39 @@ func TestWritableCapacityReservationRejectsFilenameMismatch(t *testing.T) {
 	require.ErrorContains(t, manager.load(), "invalid writable reservation")
 }
 
+func TestWritableCapacityReservationRejectsRemovedRuntimeIdentity(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "reservations")
+	require.NoError(t, os.MkdirAll(dir, 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "sandbox.json"), []byte(`{
+  "container_id": "sandbox",
+  "runtime_name": "runsc",
+  "request_bytes": 1,
+  "limit_bytes": 1
+}`), 0600))
+
+	manager := &writableCapacityManager{dir: dir, reservations: make(map[string]writableReservation)}
+	require.ErrorContains(t, manager.load(), `unknown field "runtime_name"`)
+}
+
 func TestWritableCapacityReservationEnforcesLiveAvailableFloor(t *testing.T) {
 	manager := newTestWritableCapacityManager(t, 1<<62)
 
 	require.ErrorContains(t, manager.Reserve("sandbox-1", "runsc", 1, 1), "insufficient ephemeral storage capacity")
 }
 
-func TestWritableCapacityReconcileCleansOnlyStaleRuntimeReservations(t *testing.T) {
+func TestWritableCapacityReconcileCleansAllStaleReservations(t *testing.T) {
 	manager := newTestWritableCapacityManager(t, 0)
 	require.NoError(t, manager.Reserve("active-runsc", "runsc", 1, 1))
 	require.NoError(t, manager.Reserve("stale-runsc", "runsc", 1, 1))
-	require.NoError(t, manager.Reserve("stale-other", "other", 1, 1))
+	require.NoError(t, manager.Reserve("stale-second", "runsc", 1, 1))
 	cleaned := make([]string, 0)
 
-	require.NoError(t, manager.ReconcileRuntime("runsc", map[string]struct{}{"active-runsc": {}}, func(id string) error {
+	require.NoError(t, manager.Reconcile(map[string]struct{}{"active-runsc": {}}, func(id string) error {
 		cleaned = append(cleaned, id)
 		return nil
 	}))
-	assert.Equal(t, []string{"stale-runsc"}, cleaned)
+	assert.Equal(t, []string{"stale-runsc", "stale-second"}, cleaned)
 	assert.Contains(t, manager.reservations, "active-runsc")
 	assert.NotContains(t, manager.reservations, "stale-runsc")
-	assert.Contains(t, manager.reservations, "stale-other")
+	assert.NotContains(t, manager.reservations, "stale-second")
 }

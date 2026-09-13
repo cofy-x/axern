@@ -39,7 +39,6 @@ nat_backend = "${NAT_BACKEND}"
 [plugin.network.ebpf]
 pin_path = "/sys/fs/bpf/axern/bpfnet"
 map_size = 16384
-local_out_compat = true
 ${BPFNET_UPLINKS_CONFIG}
 [plugin.resource]
 cgroup_cache_size = 4
@@ -52,7 +51,7 @@ image_lib_dir = "/var/lib/axnoded/rootfs"
 image_manager_enabled = false
 cgroup_enforcement = "disabled_dev"
 
-[plugin.runtime.runtimes.${RUNTIME_UNDER_TEST}]
+[plugin.runtime.runsc]
 binary = "${RUNTIME_BINARY}"
 EOF
 

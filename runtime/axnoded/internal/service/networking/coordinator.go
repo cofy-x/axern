@@ -23,7 +23,6 @@ type Options struct {
 	Store               stateStore
 	CollectResourceByID func(id string) (container.OccupiedResource, error)
 	ContainerExists     func(id string) bool
-	RuntimeClass        func(id string) (string, error)
 	NetworkManager      func(name string) (networkmanager.NetworkManager, bool)
 	DialContext         func(ctx context.Context, network, address string) (net.Conn, error)
 	ConnectTimeout      time.Duration
@@ -36,7 +35,6 @@ type Coordinator struct {
 	store               stateStore
 	collectResourceByID func(id string) (container.OccupiedResource, error)
 	containerExists     func(id string) bool
-	runtimeClass        func(id string) (string, error)
 	networkManager      func(name string) (networkmanager.NetworkManager, bool)
 	dialContext         func(ctx context.Context, network, address string) (net.Conn, error)
 	connectTimeout      time.Duration
@@ -85,7 +83,6 @@ func NewCoordinator(options Options) *Coordinator {
 		store:               options.Store,
 		collectResourceByID: options.CollectResourceByID,
 		containerExists:     options.ContainerExists,
-		runtimeClass:        options.RuntimeClass,
 		networkManager:      manager,
 		dialContext:         dialContext,
 		connectTimeout:      connectTimeout,

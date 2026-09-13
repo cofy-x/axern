@@ -25,7 +25,6 @@ type fakeNodeControlServer struct {
 	registerCalls []*nodev1.RegisterNodeRequest
 	reportCalls   []*nodev1.ReportNodeRequest
 	statusCalls   []*nodev1.BatchReportAllocationLifecycleRequest
-	memoryCalls   []*nodev1.BatchReportAllocationMemoryObservationsRequest
 }
 
 type fakeNodeControlProvider struct {
@@ -64,23 +63,15 @@ func (s *fakeNodeControlServer) BatchReportAllocationLifecycle(ctx context.Conte
 	return &nodev1.BatchReportAllocationLifecycleResponse{}, nil
 }
 
-func (s *fakeNodeControlServer) BatchReportAllocationMemoryObservations(_ context.Context, req *nodev1.BatchReportAllocationMemoryObservationsRequest) (*nodev1.BatchReportAllocationMemoryObservationsResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.memoryCalls = append(s.memoryCalls, req)
-	return &nodev1.BatchReportAllocationMemoryObservationsResponse{}, nil
-}
-
 func TestReporterSkipsHeartbeatUntilInventoryReady(t *testing.T) {
 	client, fake, cleanup := newFakeNodeControlClient(t)
 	defer cleanup()
 
 	var ready atomic.Bool
 	r := &Reporter{
-		target:       "unused",
-		nodeID:       "node-a",
-		interval:     10 * time.Millisecond,
-		runtimeNames: func() []string { return []string{"runsc"} },
+		target:   "unused",
+		nodeID:   "node-a",
+		interval: 10 * time.Millisecond,
 		snapshot: func() (nodeinventory.NodeInventorySnapshot, bool) {
 			if !ready.Load() {
 				return nodeinventory.NewSnapshot(), false
@@ -116,48 +107,15 @@ func TestReporterSkipsHeartbeatUntilInventoryReady(t *testing.T) {
 	}
 }
 
-func TestReporterSendsMemoryObservationsWhileInventoryIsNotReady(t *testing.T) {
-	client, fake, cleanup := newFakeNodeControlClient(t)
-	defer cleanup()
-
-	r := &Reporter{
-		nodeID:       "node-a",
-		runtimeNames: func() []string { return []string{"runsc"} },
-		snapshot: func() (nodeinventory.NodeInventorySnapshot, bool) {
-			snapshot := nodeinventory.NewSnapshot()
-			snapshot.AllocationMemoryObservations = []*nodev1.AllocationMemoryObservation{{
-				AllocationID: "allocation-a",
-			}}
-			return snapshot, false
-		},
-		summaryBuilder: func(nodeinventory.NodeInventorySnapshot) *nodev1.NodeSummary {
-			t.Fatal("summary must not be built while inventory is unavailable")
-			return nil
-		},
-		control: fakeNodeControlProvider{client: client},
-	}
-	r.report()
-
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	if len(fake.reportCalls) != 0 {
-		t.Fatalf("node report calls = %d, want 0", len(fake.reportCalls))
-	}
-	if len(fake.memoryCalls) != 1 || len(fake.memoryCalls[0].GetObservations()) != 1 {
-		t.Fatalf("memory report calls = %#v, want one observation batch", fake.memoryCalls)
-	}
-}
-
 func TestReporterCoalescesInventoryChangeReports(t *testing.T) {
 	client, fake, cleanup := newFakeNodeControlClient(t)
 	defer cleanup()
 
 	var refreshes atomic.Int32
 	r := &Reporter{
-		target:       "unused",
-		nodeID:       "node-a",
-		interval:     time.Hour,
-		runtimeNames: func() []string { return []string{"runsc"} },
+		target:   "unused",
+		nodeID:   "node-a",
+		interval: time.Hour,
 		snapshot: func() (nodeinventory.NodeInventorySnapshot, bool) {
 			snapshot := nodeinventory.NewSnapshot()
 			snapshot.Node.CollectedAt = time.Now().UTC()
@@ -212,7 +170,6 @@ func TestReporterCanUseRealGRPCClient(t *testing.T) {
 		"",
 		"",
 		10*time.Millisecond,
-		func() []string { return []string{"runsc"} },
 		func() (nodeinventory.NodeInventorySnapshot, bool) {
 			snapshot := nodeinventory.NewSnapshot()
 			snapshot.Node.CollectedAt = time.Now().UTC()

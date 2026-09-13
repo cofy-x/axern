@@ -111,7 +111,7 @@ func TestDerivedCapabilityUsesRecoveryFilteredDependencies(t *testing.T) {
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
 		expected: []*capabilityv1.CapabilityKey{selfTestKey},
 		observe: func(context.Context, time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, "runsc", sha256Digest([]byte("binary")), sha256Digest([]byte("config")))
+			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, sha256Digest([]byte("binary")), sha256Digest([]byte("config")))
 			if !available {
 				return []*capabilityv1.CapabilityObservation{failedObservation(selfTestKey, evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED, "failed")}, nil
 			}

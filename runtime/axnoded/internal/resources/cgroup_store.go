@@ -241,14 +241,14 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE:
 		if lease.GetAllocationID() != "" || lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 ||
 			lease.GetCapacityReservationBytes() != 0 ||
-			lease.GetRuntimeName() != "" || lease.GetAssignedAtUnixNano() != 0 ||
+			lease.GetAssignedAtUnixNano() != 0 ||
 			lease.GetRetiringAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) ||
 			lease.GetOwnerKind() != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED {
 			return fmt.Errorf("idle cgroup %s contains allocation ownership", lease.GetCgroupID())
 		}
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED:
 		if lease.GetAllocationID() == "" || lease.GetAssignedAtUnixNano() <= 0 || lease.GetRetiringAtUnixNano() != 0 ||
-			(lease.GetRuntimeName() != "runsc") || !validAssignedCgroupOwner(lease.GetOwnerKind()) {
+			!validAssignedCgroupOwner(lease.GetOwnerKind()) {
 			return fmt.Errorf("assigned cgroup %s has malformed ownership", lease.GetCgroupID())
 		}
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING:
@@ -257,12 +257,11 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 		}
 		if lease.GetAllocationID() == "" {
 			if lease.GetOwnerKind() != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED ||
-				lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 || lease.GetCapacityReservationBytes() != 0 || lease.GetRuntimeName() != "" ||
+				lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 || lease.GetCapacityReservationBytes() != 0 ||
 				lease.GetAssignedAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) {
 				return fmt.Errorf("unowned retiring cgroup %s contains allocation ownership", lease.GetCgroupID())
 			}
-		} else if lease.GetAssignedAtUnixNano() <= 0 || (lease.GetRuntimeName() != "runsc") ||
-			!validAssignedCgroupOwner(lease.GetOwnerKind()) {
+		} else if lease.GetAssignedAtUnixNano() <= 0 || !validAssignedCgroupOwner(lease.GetOwnerKind()) {
 			return fmt.Errorf("retiring cgroup %s has malformed allocation ownership", lease.GetCgroupID())
 		}
 	default:
@@ -436,7 +435,7 @@ func (c *CgroupManager) RetiringMemoryLeases() []RetiringMemoryLease {
 		}
 		result = append(result, RetiringMemoryLease{
 			CgroupID: lease.GetCgroupID(), AllocationID: lease.GetAllocationID(),
-			MemoryRequest: lease.GetMemoryRequestBytes(), MemoryLimit: lease.GetMemoryLimitBytes(), RuntimeName: lease.GetRuntimeName(),
+			MemoryRequest: lease.GetMemoryRequestBytes(), MemoryLimit: lease.GetMemoryLimitBytes(),
 			BootID: lease.GetCgroupBootID(), MountIdentity: lease.GetCgroupMountIdentity(),
 			ParentInode: lease.GetCgroupParentInode(), LeafInode: lease.GetCgroupLeafInode(),
 		})

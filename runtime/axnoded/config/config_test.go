@@ -141,10 +141,7 @@ func TestDefaultConfigSetsRuntimeRunnerBinary(t *testing.T) {
 
 func TestDefaultConfigEnablesRunscSUID(t *testing.T) {
 	cfg := DefaultConfig()
-	runsc, ok := cfg.PluginConfig.RuntimeConfig.Runtimes[RuntimeNameRunsc]
-	if !ok {
-		t.Fatal("expected default runsc runtime")
-	}
+	runsc := cfg.PluginConfig.RuntimeConfig.Runsc
 	if !runsc.Options.AllowSUIDEnabled(false) {
 		t.Fatal("expected default runsc runtime to enable setuid binaries")
 	}
@@ -354,9 +351,6 @@ func TestDefaultConfigSetsBPFNetDefaults(t *testing.T) {
 	if cfg.PluginConfig.NetworkConfig.BPFNet.SNATDatagramIdleTimeout != DefaultBPFNetSNATDatagramIdleTimeout {
 		t.Fatalf("expected default bpfnet snat datagram idle timeout %q, got %q",
 			DefaultBPFNetSNATDatagramIdleTimeout, cfg.PluginConfig.NetworkConfig.BPFNet.SNATDatagramIdleTimeout)
-	}
-	if !cfg.PluginConfig.NetworkConfig.BPFNet.LocalOutCompat {
-		t.Fatalf("expected local_out_compat to default to true")
 	}
 	if interval, err := cfg.PluginConfig.NetworkConfig.BPFNet.SNATGCIntervalDuration(); err != nil || interval.String() != DefaultBPFNetSNATGCInterval {
 		t.Fatalf("SNATGCIntervalDuration() = %v, %v; want %s", interval, err, DefaultBPFNetSNATGCInterval)

@@ -1,6 +1,8 @@
 package oci
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -8,14 +10,12 @@ import (
 )
 
 var (
-	layerRecordsBucket      = []byte("layer_records")
-	mountRecordsBucket      = []byte("mount_records")
-	mountTxnBucket          = []byte("mount_txn_records")
-	layerDirMapBucket       = []byte("layer_dir_map")
-	chainRecordsBucket      = []byte("chain_records")
-	chainDirMapBucket       = []byte("chain_dir_map")
-	importRefsBucket        = []byte("import_refs")
-	importGenerationsBucket = []byte("import_generations")
+	layerRecordsBucket   = []byte("layer_records")
+	mountRecordsBucket   = []byte("mount_records")
+	mountTxnBucket       = []byte("mount_txn_records")
+	chainRecordsBucket   = []byte("chain_records")
+	importRefsBucket     = []byte("import_refs")
+	importContentsBucket = []byte("import_contents")
 
 	ErrLayerNotFound = errors.New("layer not found")
 	ErrChainNotFound = errors.New("chain not found")
@@ -66,33 +66,33 @@ type OciMountTxnRecord struct {
 	CreatedAtUnix int64    `json:"created_at_unix"`
 }
 
-// ImportedImageRecord is the current immutable generation selected by a mutable ref.
+// ImportedImageRecord is the current immutable content selected by a mutable ref.
 type ImportedImageRecord struct {
-	ImageURL         string `json:"image_url"`
-	GenerationDigest string `json:"generation_digest"`
-	ArchivePath      string `json:"archive_path"`
-	ArchiveDigest    string `json:"archive_digest"`
-	PlatformOS       string `json:"platform_os"`
-	PlatformArch     string `json:"platform_arch"`
-	PlatformVariant  string `json:"platform_variant,omitempty"`
-	SizeBytes        int64  `json:"size_bytes"`
-	ImportedAtUnix   int64  `json:"imported_at_unix"`
+	ImageURL        string `json:"image_url"`
+	ContentDigest   string `json:"content_digest"`
+	ArchivePath     string `json:"archive_path"`
+	ArchiveDigest   string `json:"archive_digest"`
+	PlatformOS      string `json:"platform_os"`
+	PlatformArch    string `json:"platform_arch"`
+	PlatformVariant string `json:"platform_variant,omitempty"`
+	SizeBytes       int64  `json:"size_bytes"`
+	ImportedAtUnix  int64  `json:"imported_at_unix"`
 }
 
 type importedRefRecord struct {
-	ImageURL         string `json:"image_url"`
-	GenerationDigest string `json:"generation_digest"`
+	ImageURL      string `json:"image_url"`
+	ContentDigest string `json:"content_digest"`
 }
 
-type importedGenerationRecord struct {
-	GenerationDigest string `json:"generation_digest"`
-	ArchivePath      string `json:"archive_path"`
-	ArchiveDigest    string `json:"archive_digest"`
-	PlatformOS       string `json:"platform_os"`
-	PlatformArch     string `json:"platform_arch"`
-	PlatformVariant  string `json:"platform_variant,omitempty"`
-	SizeBytes        int64  `json:"size_bytes"`
-	ImportedAtUnix   int64  `json:"imported_at_unix"`
+type importedContentRecord struct {
+	ContentDigest   string `json:"content_digest"`
+	ArchivePath     string `json:"archive_path"`
+	ArchiveDigest   string `json:"archive_digest"`
+	PlatformOS      string `json:"platform_os"`
+	PlatformArch    string `json:"platform_arch"`
+	PlatformVariant string `json:"platform_variant,omitempty"`
+	SizeBytes       int64  `json:"size_bytes"`
+	ImportedAtUnix  int64  `json:"imported_at_unix"`
 }
 
 type metadataStore struct {
@@ -109,13 +109,7 @@ func openMetadataStore(dbPath string) (*metadataStore, error) {
 		if _, err := tx.CreateBucketIfNotExists(layerRecordsBucket); err != nil {
 			return err
 		}
-		if _, err := tx.CreateBucketIfNotExists(layerDirMapBucket); err != nil {
-			return err
-		}
 		if _, err := tx.CreateBucketIfNotExists(chainRecordsBucket); err != nil {
-			return err
-		}
-		if _, err := tx.CreateBucketIfNotExists(chainDirMapBucket); err != nil {
 			return err
 		}
 		if _, err := tx.CreateBucketIfNotExists(mountRecordsBucket); err != nil {
@@ -127,7 +121,7 @@ func openMetadataStore(dbPath string) (*metadataStore, error) {
 		if _, err := tx.CreateBucketIfNotExists(importRefsBucket); err != nil {
 			return err
 		}
-		if _, err := tx.CreateBucketIfNotExists(importGenerationsBucket); err != nil {
+		if _, err := tx.CreateBucketIfNotExists(importContentsBucket); err != nil {
 			return err
 		}
 		return nil
@@ -138,6 +132,14 @@ func openMetadataStore(dbPath string) (*metadataStore, error) {
 	}
 
 	return &metadataStore{db: db}, nil
+}
+
+func contentDirectory(prefix, identity string) (string, error) {
+	if identity == "" {
+		return "", fmt.Errorf("content identity is required")
+	}
+	digest := sha256.Sum256([]byte(identity))
+	return prefix + hex.EncodeToString(digest[:]), nil
 }
 
 func (s *metadataStore) close() error {

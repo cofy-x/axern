@@ -135,7 +135,6 @@ message BpfNetSummary {
   bool enabled = 2;
   bool ready = 3;
   string mode = 4;
-  bool needs_localhost_compat = 5;
 }
 
 message NodeStorageSummary {
@@ -200,19 +199,17 @@ message NodeSummary {
 
 message RegisterNodeRequest {
   string node_id = 1;
-  repeated string runtimes = 2;
-  string node_target = 3;
-  string node_auth_token = 4;
+  string node_target = 2;
+  string node_auth_token = 3;
 }
 
 message RegisterNodeResponse {}
 
 message ReportNodeRequest {
   string node_id = 1;
-  repeated string runtimes = 2;
-  NodeSummary summary = 3;
-  string node_target = 4;
-  string node_auth_token = 5;
+  NodeSummary summary = 2;
+  string node_target = 3;
+  string node_auth_token = 4;
 }
 
 message ReportNodeResponse {}
@@ -270,55 +267,45 @@ enum AllocationMemoryCleanupState {
 
 message AllocationMemoryObservation {
   string allocation_id = 1;
-  int64 revision = 2;
-  google.protobuf.Timestamp observed_at = 3;
-  int64 request_bytes = 4;
+  google.protobuf.Timestamp observed_at = 2;
+  int64 request_bytes = 3;
   // Zero means the sandbox has no per-allocation hard limit. Usage and cgroup
   // identity remain observable, while the control-verification fields must be
   // false and swap_current_bytes is informational rather than constrained.
-  int64 limit_bytes = 5;
-  int64 current_bytes = 6;
-  int64 peak_bytes = 7;
-  int64 swap_current_bytes = 8;
-  int64 anon_bytes = 9;
-  int64 file_bytes = 10;
-  int64 shmem_bytes = 11;
-  int64 kernel_bytes = 12;
-  int64 dirty_bytes = 13;
-  int64 writeback_bytes = 14;
-  uint64 event_high = 15;
-  uint64 event_max = 16;
-  uint64 event_oom = 17;
-  uint64 event_oom_kill = 18;
-  uint64 event_oom_group_kill = 19;
-  double psi_some_avg10 = 20;
-  double psi_full_avg10 = 21;
-  uint64 psi_some_total_usec = 22;
-  uint64 psi_full_total_usec = 23;
-  string cgroup_identity = 24;
-  string runtime = 25;
-  bool parent_controls_verified = 26;
-  bool leaf_controls_verified = 27;
-  bool pid_roles_verified = 28;
-  AllocationMemoryCleanupState cleanup_state = 29;
+  int64 limit_bytes = 4;
+  int64 current_bytes = 5;
+  int64 peak_bytes = 6;
+  int64 swap_current_bytes = 7;
+  int64 anon_bytes = 8;
+  int64 file_bytes = 9;
+  int64 shmem_bytes = 10;
+  int64 kernel_bytes = 11;
+  int64 dirty_bytes = 12;
+  int64 writeback_bytes = 13;
+  uint64 event_high = 14;
+  uint64 event_max = 15;
+  uint64 event_oom = 16;
+  uint64 event_oom_kill = 17;
+  uint64 event_oom_group_kill = 18;
+  double psi_some_avg10 = 19;
+  double psi_full_avg10 = 20;
+  uint64 psi_some_total_usec = 21;
+  uint64 psi_full_total_usec = 22;
+  string cgroup_identity = 23;
+  bool parent_controls_verified = 24;
+  bool leaf_controls_verified = 25;
+  bool pid_roles_verified = 26;
+  AllocationMemoryCleanupState cleanup_state = 27;
   // psi_available distinguishes an unsupported per-cgroup PSI interface from
   // a supported interface that currently reports zero pressure. When false,
   // all PSI values above must be zero.
-  bool psi_available = 30;
+  bool psi_available = 28;
   // peak_available reports whether peak_bytes came from the kernel
   // memory.peak interface. Older cgroup v2 kernels may omit that optional
   // file; in that case peak_bytes equals current_bytes and is only a sampled
   // lower bound. Hard-limit evidence never depends on this observability bit.
-  bool peak_available = 31;
+  bool peak_available = 29;
 }
-
-message BatchReportAllocationMemoryObservationsRequest {
-  string node_id = 1;
-  string node_auth_token = 2;
-  repeated AllocationMemoryObservation observations = 3;
-}
-
-message BatchReportAllocationMemoryObservationsResponse {}
 
 message WatchExecutionLeasesRequest {
   string node_id = 1;
@@ -368,22 +355,21 @@ enum PlacementRejectionReason {
   PLACEMENT_REJECTION_REASON_UNSPECIFIED = 0;
   PLACEMENT_REJECTION_REASON_STALE_HEARTBEAT = 1;
   PLACEMENT_REJECTION_REASON_STALE_SUMMARY = 2;
-  PLACEMENT_REJECTION_REASON_RUNTIME_UNSUPPORTED = 3;
-  PLACEMENT_REJECTION_REASON_AXNODED_NOT_READY = 4;
-  PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE = 5;
-  PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE = 6;
-  PLACEMENT_REJECTION_REASON_NODE_DRAINING = 7;
-  PLACEMENT_REJECTION_REASON_NODE_DISABLED = 8;
-  PLACEMENT_REJECTION_REASON_NODE_SELECTOR_MISMATCH = 9;
-  PLACEMENT_REJECTION_REASON_INSUFFICIENT_CPU = 10;
-  PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY = 11;
-  PLACEMENT_REJECTION_REASON_PORTS_UNSUPPORTED = 12;
-  PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED = 13;
-  PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED = 14;
-  PLACEMENT_REJECTION_REASON_NODE_RETIRED = 15;
-  PLACEMENT_REJECTION_REASON_INSUFFICIENT_EPHEMERAL_STORAGE = 16;
-  PLACEMENT_REJECTION_REASON_NODE_MEMORY_SYSTEM_RESERVE_EXHAUSTED = 17;
-  PLACEMENT_REJECTION_REASON_NODE_MEMORY_BUDGET_UNAVAILABLE = 18;
+  PLACEMENT_REJECTION_REASON_AXNODED_NOT_READY = 3;
+  PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE = 4;
+  PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE = 5;
+  PLACEMENT_REJECTION_REASON_NODE_DRAINING = 6;
+  PLACEMENT_REJECTION_REASON_NODE_DISABLED = 7;
+  PLACEMENT_REJECTION_REASON_NODE_SELECTOR_MISMATCH = 8;
+  PLACEMENT_REJECTION_REASON_INSUFFICIENT_CPU = 9;
+  PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY = 10;
+  PLACEMENT_REJECTION_REASON_PORTS_UNSUPPORTED = 11;
+  PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED = 12;
+  PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED = 13;
+  PLACEMENT_REJECTION_REASON_NODE_RETIRED = 14;
+  PLACEMENT_REJECTION_REASON_INSUFFICIENT_EPHEMERAL_STORAGE = 15;
+  PLACEMENT_REJECTION_REASON_NODE_MEMORY_SYSTEM_RESERVE_EXHAUSTED = 16;
+  PLACEMENT_REJECTION_REASON_NODE_MEMORY_BUDGET_UNAVAILABLE = 17;
 }
 
 message PlacementRank {
@@ -418,7 +404,6 @@ service NodeControl {
   rpc ReportNode(ReportNodeRequest) returns (ReportNodeResponse) {}
   rpc BatchReportAllocationLifecycle(BatchReportAllocationLifecycleRequest) returns (BatchReportAllocationLifecycleResponse) {}
   rpc BatchReportAllocationCapabilityConditions(BatchReportAllocationCapabilityConditionsRequest) returns (BatchReportAllocationCapabilityConditionsResponse) {}
-  rpc BatchReportAllocationMemoryObservations(BatchReportAllocationMemoryObservationsRequest) returns (BatchReportAllocationMemoryObservationsResponse) {}
   rpc WatchExecutionLeases(WatchExecutionLeasesRequest) returns (stream WatchExecutionLeasesResponse) {}
   rpc WatchTunnelSessions(WatchTunnelSessionsRequest) returns (stream WatchTunnelSessionsResponse) {}
   rpc ReportTunnelSessionStatus(ReportTunnelSessionStatusRequest) returns (ReportTunnelSessionStatusResponse) {}

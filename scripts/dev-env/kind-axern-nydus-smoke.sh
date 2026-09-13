@@ -26,7 +26,6 @@ else
   fi
 fi
 namespace="kind-axern-nydus-smoke-$(date +%s)"
-runtime_class="${NYDUS_SMOKE_RUNTIME_CLASS:-runsc}"
 run_id=""
 run_json=""
 environment_id=""
@@ -81,7 +80,6 @@ create_output="$(
   local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" \
     "${AXERN_SMOKE_CMD[@]}" run --detach -o json \
       --namespace "${namespace}" \
-      --runtime-class "${runtime_class}" \
       "${nydus_image}" -- /bin/sh -lc 'python -c "print(\"nydus-rootfs-ok\")" && sleep 600'
 )"
 run_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["run"]["id"])' <<<"${create_output}")"
@@ -159,6 +157,5 @@ local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" namespace delete "${namespace}" -
 
 echo "kind_axern_nydus_smoke_ok=true"
 echo "nydus_image=${nydus_image}"
-echo "runtime_class=${runtime_class}"
 echo "allocation_id=${allocation_id}"
 echo "imagemgr_pod=${inventory_match}"

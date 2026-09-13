@@ -42,7 +42,6 @@ type AllocationCapabilityConditionReport struct {
 	ConditionSet *capabilityv1.CapabilityConditionSet
 }
 
-type RuntimeNamesFunc func() []string
 type SnapshotFunc func() (nodeinventory.NodeInventorySnapshot, bool)
 type SummaryBuilder func(nodeinventory.NodeInventorySnapshot) *nodev1.NodeSummary
 
@@ -52,7 +51,6 @@ type Reporter struct {
 	nodeTarget           string
 	nodeAuthToken        string
 	interval             time.Duration
-	runtimeNames         RuntimeNamesFunc
 	snapshot             SnapshotFunc
 	summaryBuilder       SummaryBuilder
 	refreshInventory     func()
@@ -79,14 +77,13 @@ func NewReporter(
 	tlsCert string,
 	tlsKey string,
 	interval time.Duration,
-	runtimeNames RuntimeNamesFunc,
 	snapshot SnapshotFunc,
 	summaryBuilder SummaryBuilder,
 	lifecycleOutbox *AllocationLifecycleOutbox,
 ) *Reporter {
 	target = strings.TrimSpace(target)
 	nodeID = strings.TrimSpace(nodeID)
-	if target == "" || nodeID == "" || runtimeNames == nil || snapshot == nil || summaryBuilder == nil {
+	if target == "" || nodeID == "" || snapshot == nil || summaryBuilder == nil {
 		return nil
 	}
 	control, err := newNodeControlClientProvider(target, tlsCACert, tlsCert, tlsKey)
@@ -100,7 +97,6 @@ func NewReporter(
 		nodeTarget:      strings.TrimSpace(nodeTarget),
 		nodeAuthToken:   strings.TrimSpace(nodeAuthToken),
 		interval:        interval,
-		runtimeNames:    runtimeNames,
 		snapshot:        snapshot,
 		summaryBuilder:  summaryBuilder,
 		lifecycleOutbox: lifecycleOutbox,
@@ -215,7 +211,6 @@ func (r *Reporter) register() {
 	defer func() { op.End(opErr) }()
 	req := &nodev1.RegisterNodeRequest{
 		NodeID:        r.nodeID,
-		Runtimes:      r.runtimeNames(),
 		NodeTarget:    r.nodeTarget,
 		NodeAuthToken: r.nodeAuthToken,
 	}
@@ -247,14 +242,6 @@ func (r *Reporter) report() {
 	defer func() { op.End(opErr) }()
 	snapshot, ready := r.snapshot()
 	if !ready {
-		// Node-summary readiness gates placement, but it must not suppress
-		// allocation-owned memory evidence that was collected successfully in
-		// the same round. Existing sandbox OOM and cleanup-debt diagnostics remain
-		// reportable while an unrelated node resource or capability provider is
-		// unavailable.
-		if err := r.sendAllocationMemoryBatch(ctx, snapshot.AllocationMemoryObservations); err != nil {
-			logrus.WithError(err).Warn("control-plane allocation memory batch failed while node inventory was unavailable")
-		}
 		op.SetResult(sdkobs.ResultSkipped)
 		metrics.RecordControlPlaneRPC("report", "skipped")
 		return
@@ -265,7 +252,6 @@ func (r *Reporter) report() {
 	}
 	req := &nodev1.ReportNodeRequest{
 		NodeID:        r.nodeID,
-		Runtimes:      r.runtimeNames(),
 		Summary:       summary,
 		NodeTarget:    r.nodeTarget,
 		NodeAuthToken: r.nodeAuthToken,
@@ -284,40 +270,6 @@ func (r *Reporter) report() {
 	}
 	metrics.RecordControlPlaneRPC("report", "ok")
 	metrics.RecordControlPlaneRPCDuration("report", "ok", time.Since(started).Seconds())
-	if err := r.sendAllocationMemoryBatch(ctx, snapshot.AllocationMemoryObservations); err != nil {
-		// The latest observations remain in the inventory snapshot and are retried
-		// on the next report. Node heartbeat success is independent from this
-		// diagnostic stream.
-		logrus.WithError(err).Warn("control-plane allocation memory batch failed")
-	}
-}
-
-func (r *Reporter) sendAllocationMemoryBatch(ctx context.Context, observations []*nodev1.AllocationMemoryObservation) error {
-	if len(observations) == 0 {
-		return nil
-	}
-	cloned := make([]*nodev1.AllocationMemoryObservation, 0, len(observations))
-	for _, observation := range observations {
-		if observation != nil {
-			cloned = append(cloned, proto.Clone(observation).(*nodev1.AllocationMemoryObservation))
-		}
-	}
-	if len(cloned) == 0 {
-		return nil
-	}
-	request := &nodev1.BatchReportAllocationMemoryObservationsRequest{
-		NodeID: r.nodeID, NodeAuthToken: r.nodeAuthToken, Observations: cloned,
-	}
-	err := r.withClient(ctx, func(ctx context.Context, client nodev1.NodeControlClient) error {
-		_, err := client.BatchReportAllocationMemoryObservations(ctx, request)
-		return err
-	})
-	result := "ok"
-	if err != nil {
-		result = "error"
-	}
-	metrics.RecordControlPlaneRPC("batch_report_allocation_memory", result)
-	return err
 }
 
 func (r *Reporter) ReportAllocationLifecycle(report AllocationLifecycleReport) error {

@@ -31,25 +31,7 @@ func (s *metadataStore) getChain(chainID string) (*ChainRecord, error) {
 }
 
 func (s *metadataStore) getOrCreateChainDir(chainID string) (string, error) {
-	var dir string
-	err := s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(chainDirMapBucket)
-		if v := b.Get([]byte(chainID)); v != nil {
-			dir = string(v)
-			return nil
-		}
-
-		seq, err := b.NextSequence()
-		if err != nil {
-			return fmt.Errorf("failed to allocate chain dir sequence: %w", err)
-		}
-		dir = fmt.Sprintf("c%d", seq)
-		return b.Put([]byte(chainID), []byte(dir))
-	})
-	if err != nil {
-		return "", err
-	}
-	return dir, nil
+	return contentDirectory("c-", chainID)
 }
 
 func (s *metadataStore) incrementChainRef(chainID string, lastUsedUnix int64) (*ChainRecord, error) {

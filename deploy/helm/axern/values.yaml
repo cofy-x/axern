@@ -259,7 +259,6 @@ node:
       snatTcpClosingTimeout: 2s
       snatDatagramIdleTimeout: 10s
       uplinkDevices: []
-      localOutCompat: true
   serviceAccount:
     create: true
     name: ""

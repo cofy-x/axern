@@ -93,10 +93,3 @@ func (t Target) Labels() map[string]string {
 	}
 	return t.Metadata.GetLabels()
 }
-
-func (t Target) RuntimeClass() string {
-	if t.Metadata == nil {
-		return ""
-	}
-	return t.Metadata.GetRuntimeHandler()
-}

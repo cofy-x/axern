@@ -21,17 +21,17 @@ const importedCacheKeyPrefix = "local-import@"
 
 // ImportResult describes a completed node-local image import.
 type ImportResult struct {
-	SourceRef        string
-	ImageURL         string
-	GenerationDigest string
-	ArchivePath      string
-	ArchiveDigest    string
-	PlatformOS       string
-	PlatformArch     string
-	PlatformVariant  string
-	SizeBytes        int64
-	ImportedAtUnix   int64
-	Reused           bool
+	SourceRef       string
+	ImageURL        string
+	ContentDigest   string
+	ArchivePath     string
+	ArchiveDigest   string
+	PlatformOS      string
+	PlatformArch    string
+	PlatformVariant string
+	SizeBytes       int64
+	ImportedAtUnix  int64
+	Reused          bool
 }
 
 // ImportImage streams one Docker archive into the content-addressed local OCI
@@ -110,28 +110,28 @@ func (m *Manager) ImportImage(ctx context.Context, sourceRef string, archive io.
 		return nil, err
 	}
 
-	generationDigest := digest.String()
-	archivePath, err := m.importBlobPath(generationDigest)
+	contentDigest := digest.String()
+	archivePath, err := m.importBlobPath(contentDigest)
 	if err != nil {
 		return nil, err
 	}
 	reused := false
-	var generation *importedGenerationRecord
-	if existing, err := m.store.getImportGeneration(generationDigest); err != nil {
-		return nil, fmt.Errorf("query imported generation %s: %w", generationDigest, err)
+	var content *importedContentRecord
+	if existing, err := m.store.getImportContent(contentDigest); err != nil {
+		return nil, fmt.Errorf("query imported content %s: %w", contentDigest, err)
 	} else if existing != nil {
 		if filepath.Clean(existing.ArchivePath) != filepath.Clean(archivePath) {
-			return nil, fmt.Errorf("imported generation %s has invalid archive path %q", generationDigest, existing.ArchivePath)
+			return nil, fmt.Errorf("imported content %s has invalid archive path %q", contentDigest, existing.ArchivePath)
 		}
 		if info, statErr := os.Stat(archivePath); statErr == nil && info.Mode().IsRegular() {
 			reused = true
-			generation = existing
+			content = existing
 		} else {
 			if err := os.MkdirAll(filepath.Dir(archivePath), 0755); err != nil {
 				return nil, fmt.Errorf("recreate import blob directory: %w", err)
 			}
 			if err := os.Rename(tmpPath, archivePath); err != nil {
-				return nil, fmt.Errorf("restore imported generation %s: %w", generationDigest, err)
+				return nil, fmt.Errorf("restore imported content %s: %w", contentDigest, err)
 			}
 			removeTmp = false
 			if err := syncDirectory(filepath.Dir(archivePath)); err != nil {
@@ -143,7 +143,7 @@ func (m *Manager) ImportImage(ctx context.Context, sourceRef string, archive io.
 			return nil, fmt.Errorf("create import blob directory: %w", err)
 		}
 		if err := os.Rename(tmpPath, archivePath); err != nil {
-			return nil, fmt.Errorf("publish imported generation %s: %w", generationDigest, err)
+			return nil, fmt.Errorf("publish imported content %s: %w", contentDigest, err)
 		}
 		removeTmp = false
 		if err := syncDirectory(filepath.Dir(archivePath)); err != nil {
@@ -152,22 +152,22 @@ func (m *Manager) ImportImage(ctx context.Context, sourceRef string, archive io.
 	}
 
 	importedAt := m.now().Unix()
-	if generation == nil {
-		generation = &importedGenerationRecord{
-			GenerationDigest: generationDigest, ArchivePath: archivePath, ArchiveDigest: archiveDigest,
+	if content == nil {
+		content = &importedContentRecord{
+			ContentDigest: contentDigest, ArchivePath: archivePath, ArchiveDigest: archiveDigest,
 			PlatformOS: platform.OS, PlatformArch: platform.Architecture, PlatformVariant: platform.Variant,
 			SizeBytes: size, ImportedAtUnix: importedAt,
 		}
 	}
-	ref := &importedRefRecord{ImageURL: canonicalRef, GenerationDigest: generationDigest}
-	if err := m.store.putImport(ref, generation); err != nil {
+	ref := &importedRefRecord{ImageURL: canonicalRef, ContentDigest: contentDigest}
+	if err := m.store.putImport(ref, content); err != nil {
 		return nil, fmt.Errorf("publish imported ref %s: %w", canonicalRef, err)
 	}
-	if err := m.pruneImportedGenerations(); err != nil {
-		logrus.WithError(err).Warn("prune unreferenced imported generations")
+	if err := m.pruneImportedContents(); err != nil {
+		logrus.WithError(err).Warn("prune unreferenced imported contents")
 	}
-	logrus.Infof("OCI image import success: ref=%s generation=%s size_bytes=%d archive_digest=%s reused=%t", canonicalRef, generationDigest, size, archiveDigest, reused)
-	result := importResult(sourceRef, canonicalRef, generation, reused)
+	logrus.Infof("OCI image import success: ref=%s content=%s size_bytes=%d archive_digest=%s reused=%t", canonicalRef, contentDigest, size, archiveDigest, reused)
+	result := importResult(sourceRef, canonicalRef, content, reused)
 	result.ArchiveDigest, result.SizeBytes = archiveDigest, size
 	return result, nil
 }
@@ -201,11 +201,11 @@ func (m *Manager) ResolveImportedImageCacheKey(imageURL string) (string, bool, e
 	if err != nil || rec == nil {
 		return "", false, err
 	}
-	return importedCacheKey(rec.GenerationDigest), true, nil
+	return importedCacheKey(rec.ContentDigest), true, nil
 }
 
 // ResolveImageCacheKey canonicalizes imageURL and returns the current immutable
-// generation key when the ref is backed by a local import.
+// content key when the ref is backed by a local import.
 func (m *Manager) ResolveImageCacheKey(imageURL string) (string, string, bool, error) {
 	canonicalRef, err := canonicalImageRef(imageURL)
 	if err != nil {
@@ -216,29 +216,29 @@ func (m *Manager) ResolveImageCacheKey(imageURL string) (string, string, bool, e
 		return "", "", false, err
 	}
 	if record != nil {
-		return canonicalRef, importedCacheKey(record.GenerationDigest), true, nil
+		return canonicalRef, importedCacheKey(record.ContentDigest), true, nil
 	}
 	if at := strings.LastIndex(canonicalRef, "@"); at >= 0 {
 		digest := canonicalRef[at+1:]
-		generation, err := m.store.getImportGeneration(digest)
+		content, err := m.store.getImportContent(digest)
 		if err != nil {
 			return "", "", false, err
 		}
-		if generation != nil {
+		if content != nil {
 			return canonicalRef, importedCacheKey(digest), true, nil
 		}
 	}
 	return canonicalRef, canonicalRef, false, nil
 }
 
-// HasImportedGeneration reports whether cacheKey names a retained immutable
-// imported generation. It does not require that any mutable ref still selects it.
-func (m *Manager) HasImportedGeneration(cacheKey string) (bool, error) {
+// HasImportedContent reports whether cacheKey names a retained immutable
+// imported content. It does not require that any mutable ref still selects it.
+func (m *Manager) HasImportedContent(cacheKey string) (bool, error) {
 	digest, ok := importedDigestFromCacheKey(cacheKey)
 	if !ok {
 		return false, nil
 	}
-	record, err := m.store.getImportGeneration(digest)
+	record, err := m.store.getImportContent(digest)
 	return record != nil, err
 }
 
@@ -258,10 +258,10 @@ func (m *Manager) ListImportedImages() ([]ImportedImageRecord, error) {
 }
 
 func (m *Manager) importedImage(ctx context.Context, imageURL, cacheKey string) (v1.Image, bool, error) {
-	var generation *importedGenerationRecord
+	var content *importedContentRecord
 	var err error
 	if digest, ok := importedDigestFromCacheKey(cacheKey); ok {
-		generation, err = m.store.getImportGeneration(digest)
+		content, err = m.store.getImportContent(digest)
 	} else {
 		canonicalRef, canonicalErr := canonicalImageRef(imageURL)
 		if canonicalErr != nil {
@@ -270,27 +270,27 @@ func (m *Manager) importedImage(ctx context.Context, imageURL, cacheKey string) 
 		var rec *ImportedImageRecord
 		rec, err = m.store.getImport(canonicalRef)
 		if rec != nil {
-			generation = &importedGenerationRecord{GenerationDigest: rec.GenerationDigest, ArchivePath: rec.ArchivePath}
+			content = &importedContentRecord{ContentDigest: rec.ContentDigest, ArchivePath: rec.ArchivePath}
 		}
 	}
-	if err != nil || generation == nil {
+	if err != nil || content == nil {
 		return nil, false, err
 	}
-	expectedPath, err := m.importBlobPath(generation.GenerationDigest)
-	if err != nil || filepath.Clean(generation.ArchivePath) != filepath.Clean(expectedPath) {
+	expectedPath, err := m.importBlobPath(content.ContentDigest)
+	if err != nil || filepath.Clean(content.ArchivePath) != filepath.Clean(expectedPath) {
 		if err == nil {
-			err = fmt.Errorf("generation archive path %q differs from %q", generation.ArchivePath, expectedPath)
+			err = fmt.Errorf("content archive path %q differs from %q", content.ArchivePath, expectedPath)
 		}
-		return nil, true, fmt.Errorf("invalid imported generation %s: %w", generation.GenerationDigest, err)
+		return nil, true, fmt.Errorf("invalid imported content %s: %w", content.ContentDigest, err)
 	}
 	select {
 	case <-ctx.Done():
 		return nil, true, ctx.Err()
 	default:
 	}
-	img, err := tarball.ImageFromPath(generation.ArchivePath, nil)
+	img, err := tarball.ImageFromPath(content.ArchivePath, nil)
 	if err != nil {
-		return nil, true, fmt.Errorf("load imported generation %s: %w", generation.GenerationDigest, err)
+		return nil, true, fmt.Errorf("load imported content %s: %w", content.ContentDigest, err)
 	}
 	return img, true, nil
 }
@@ -304,17 +304,17 @@ func canonicalImageRef(raw string) (string, error) {
 }
 
 // ImmutableImageRef returns the repository-scoped digest reference for an
-// imported generation. The mutable tag remains a convenience pointer; callers
+// imported content. The mutable tag remains a convenience pointer; callers
 // that cross the control-plane boundary must use this immutable identity so
 // resolution never requires a registry lookup.
-func ImmutableImageRef(canonicalRef, generationDigest string) (string, error) {
+func ImmutableImageRef(canonicalRef, contentDigest string) (string, error) {
 	ref, err := name.ParseReference(strings.TrimSpace(canonicalRef), name.WeakValidation)
 	if err != nil {
 		return "", fmt.Errorf("invalid canonical image ref %q: %w", canonicalRef, err)
 	}
-	digestValue, err := v1.NewHash(strings.TrimSpace(generationDigest))
+	digestValue, err := v1.NewHash(strings.TrimSpace(contentDigest))
 	if err != nil {
-		return "", fmt.Errorf("invalid imported generation digest %q: %w", generationDigest, err)
+		return "", fmt.Errorf("invalid imported content digest %q: %w", contentDigest, err)
 	}
 	return ref.Context().Digest(digestValue.String()).Name(), nil
 }
@@ -329,7 +329,7 @@ func importedDigestFromCacheKey(cacheKey string) (string, bool) {
 func (m *Manager) importBlobPath(digest string) (string, error) {
 	algorithm, value, ok := strings.Cut(digest, ":")
 	if !ok || algorithm != "sha256" || len(value) != 64 {
-		return "", fmt.Errorf("invalid imported generation digest %q", digest)
+		return "", fmt.Errorf("invalid imported content digest %q", digest)
 	}
 	return filepath.Join(m.importsDir, "blobs", algorithm, value+".tar"), nil
 }
@@ -355,12 +355,12 @@ func formatVariant(variant string) string {
 	return "/" + variant
 }
 
-func importResult(sourceRef, canonicalRef string, generation *importedGenerationRecord, reused bool) *ImportResult {
+func importResult(sourceRef, canonicalRef string, content *importedContentRecord, reused bool) *ImportResult {
 	return &ImportResult{
-		SourceRef: sourceRef, ImageURL: canonicalRef, GenerationDigest: generation.GenerationDigest,
-		ArchivePath: generation.ArchivePath, ArchiveDigest: generation.ArchiveDigest,
-		PlatformOS: generation.PlatformOS, PlatformArch: generation.PlatformArch, PlatformVariant: generation.PlatformVariant,
-		SizeBytes: generation.SizeBytes, ImportedAtUnix: generation.ImportedAtUnix, Reused: reused,
+		SourceRef: sourceRef, ImageURL: canonicalRef, ContentDigest: content.ContentDigest,
+		ArchivePath: content.ArchivePath, ArchiveDigest: content.ArchiveDigest,
+		PlatformOS: content.PlatformOS, PlatformArch: content.PlatformArch, PlatformVariant: content.PlatformVariant,
+		SizeBytes: content.SizeBytes, ImportedAtUnix: content.ImportedAtUnix, Reused: reused,
 	}
 }
 
@@ -403,22 +403,22 @@ func syncDirectory(path string) error {
 	return nil
 }
 
-func (m *Manager) pruneImportedGenerations() error {
-	generations, err := m.store.listImportGenerations()
+func (m *Manager) pruneImportedContents() error {
+	contents, err := m.store.listImportContents()
 	if err != nil {
 		return err
 	}
-	for _, generation := range generations {
-		expectedPath, pathErr := m.importBlobPath(generation.GenerationDigest)
-		if pathErr != nil || filepath.Clean(generation.ArchivePath) != filepath.Clean(expectedPath) {
+	for _, content := range contents {
+		expectedPath, pathErr := m.importBlobPath(content.ContentDigest)
+		if pathErr != nil || filepath.Clean(content.ArchivePath) != filepath.Clean(expectedPath) {
 			if pathErr == nil {
-				pathErr = fmt.Errorf("archive path %q differs from %q", generation.ArchivePath, expectedPath)
+				pathErr = fmt.Errorf("archive path %q differs from %q", content.ArchivePath, expectedPath)
 			}
-			return fmt.Errorf("invalid imported generation %s: %w", generation.GenerationDigest, pathErr)
+			return fmt.Errorf("invalid imported content %s: %w", content.ContentDigest, pathErr)
 		}
-		cacheKey := importedCacheKey(generation.GenerationDigest)
+		cacheKey := importedCacheKey(content.ContentDigest)
 		unlock := m.acquireImageLock(cacheKey)
-		referenced, err := m.store.importGenerationReferenced(generation.GenerationDigest)
+		referenced, err := m.store.importContentReferenced(content.ContentDigest)
 		if err != nil {
 			unlock()
 			return err
@@ -438,13 +438,13 @@ func (m *Manager) pruneImportedGenerations() error {
 			unlock()
 			continue
 		}
-		if err := m.store.deleteImportGeneration(generation.GenerationDigest); err != nil {
+		if err := m.store.deleteImportContent(content.ContentDigest); err != nil {
 			unlock()
 			return err
 		}
-		if err := os.Remove(generation.ArchivePath); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(content.ArchivePath); err != nil && !os.IsNotExist(err) {
 			unlock()
-			return fmt.Errorf("remove unreferenced imported generation %s: %w", generation.GenerationDigest, err)
+			return fmt.Errorf("remove unreferenced imported content %s: %w", content.ContentDigest, err)
 		}
 		unlock()
 	}
@@ -459,23 +459,23 @@ func (m *Manager) reconcileImportedState() error {
 	if err := os.MkdirAll(stagingDir, 0755); err != nil {
 		return fmt.Errorf("recreate import staging: %w", err)
 	}
-	if err := m.pruneImportedGenerations(); err != nil {
+	if err := m.pruneImportedContents(); err != nil {
 		return err
 	}
-	generations, err := m.store.listImportGenerations()
+	contents, err := m.store.listImportContents()
 	if err != nil {
 		return err
 	}
-	known := make(map[string]struct{}, len(generations))
-	for _, generation := range generations {
-		expectedPath, pathErr := m.importBlobPath(generation.GenerationDigest)
-		if pathErr != nil || filepath.Clean(generation.ArchivePath) != filepath.Clean(expectedPath) {
+	known := make(map[string]struct{}, len(contents))
+	for _, content := range contents {
+		expectedPath, pathErr := m.importBlobPath(content.ContentDigest)
+		if pathErr != nil || filepath.Clean(content.ArchivePath) != filepath.Clean(expectedPath) {
 			if pathErr == nil {
-				pathErr = fmt.Errorf("archive path %q differs from %q", generation.ArchivePath, expectedPath)
+				pathErr = fmt.Errorf("archive path %q differs from %q", content.ArchivePath, expectedPath)
 			}
-			return fmt.Errorf("invalid imported generation %s: %w", generation.GenerationDigest, pathErr)
+			return fmt.Errorf("invalid imported content %s: %w", content.ContentDigest, pathErr)
 		}
-		known[filepath.Clean(generation.ArchivePath)] = struct{}{}
+		known[filepath.Clean(content.ArchivePath)] = struct{}{}
 	}
 	blobsDir := filepath.Join(m.importsDir, "blobs")
 	return filepath.WalkDir(blobsDir, func(path string, entry os.DirEntry, walkErr error) error {

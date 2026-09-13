@@ -1,9 +1,7 @@
 package output
 
 import (
-	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
@@ -59,47 +57,6 @@ func RenderAllocationCapabilityDiagnostics(w io.Writer, diagnostics *adminv1.Get
 		})
 	}
 	RenderTable(w, []string{"CAPABILITY", "CONDITION", "REASON", "MESSAGE"}, conditionRows)
-	if observation := diagnostics.GetLatestMemoryObservation(); observation != nil {
-		peakSource := "sampled current"
-		if observation.GetPeakAvailable() {
-			peakSource = "kernel memory.peak"
-		}
-		RenderTable(w, []string{"MEMORY CURRENT", "PEAK", "PEAK SOURCE", "ANON", "FILE", "SHMEM", "KERNEL", "DIRTY", "WRITEBACK", "OOM KILL", "CGROUP", "CLEANUP", "OBSERVED"}, [][]string{{
-			formatBytes(observation.GetCurrentBytes()),
-			formatBytes(observation.GetPeakBytes()),
-			peakSource,
-			formatBytes(observation.GetAnonBytes()),
-			formatBytes(observation.GetFileBytes()),
-			formatBytes(observation.GetShmemBytes()),
-			formatBytes(observation.GetKernelBytes()),
-			formatBytes(observation.GetDirtyBytes()),
-			formatBytes(observation.GetWritebackBytes()),
-			fmt.Sprintf("%d", observation.GetEventOomKill()),
-			ShortMessage(observation.GetCgroupIdentity(), 18),
-			strings.ToLower(strings.TrimPrefix(observation.GetCleanupState().String(), "ALLOCATION_MEMORY_CLEANUP_STATE_")),
-			FormatProtoTimestamp(observation.GetObservedAt()),
-		}})
-	}
-}
-
-func formatBytes(value int64) string {
-	if value == 0 {
-		return "0 B"
-	}
-	const unit = int64(1024)
-	if value < unit {
-		return fmt.Sprintf("%d B", value)
-	}
-	divisor := unit
-	suffix := "KiB"
-	for _, next := range []string{"MiB", "GiB", "TiB"} {
-		if value < divisor*unit {
-			break
-		}
-		divisor *= unit
-		suffix = next
-	}
-	return fmt.Sprintf("%.1f %s", float64(value)/float64(divisor), suffix)
 }
 
 func capabilityKeyLabel(key *capabilityv1.CapabilityKey) string {
@@ -125,7 +82,7 @@ func capabilityEvidenceIdentityLabel(evidence *capabilityv1.CapabilityEvidence) 
 	case *capabilityv1.CapabilityEvidence_Mount:
 		return "mount:" + ShortMessage(identity.Mount.GetMountIdentity(), 18)
 	case *capabilityv1.CapabilityEvidence_Runtime:
-		return "runtime:" + identity.Runtime.GetRuntimeName() + ":" + ShortMessage(identity.Runtime.GetRuntimeBinaryDigest(), 12)
+		return "runsc:" + ShortMessage(identity.Runtime.GetRuntimeBinaryDigest(), 12)
 	default:
 		return ""
 	}

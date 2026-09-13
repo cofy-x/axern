@@ -65,7 +65,6 @@ func prepareCapabilityRequirements(ctx context.Context, clients *NodeClients, sp
 	resources := prepared.GetResources()
 	requiresDNSPolicy, requiresStrictPolicy := policyCapabilityRequirements(normalizedNetwork)
 	requirements, err := capabilitycontract.DeriveRequirements(capabilitycontract.RequirementInput{
-		RuntimeName:                     prepared.GetRuntimeClass(),
 		HasPorts:                        len(prepared.GetPorts()) > 0,
 		NetworkMode:                     networkMode(normalizedNetwork),
 		NetworkBackend:                  backend,

@@ -133,8 +133,8 @@ func (m *Manager) unmountImageLocked(timing *OCITimedOperation, imageURL, cacheK
 
 	m.deleteContainer(cacheKey)
 	_ = os.RemoveAll(filepath.Dir(info.MountPath))
-	if err := m.pruneImportedGenerations(); err != nil {
-		logrus.WithError(err).Warn("prune unreferenced imported generations after unmount")
+	if err := m.pruneImportedContents(); err != nil {
+		logrus.WithError(err).Warn("prune unreferenced imported content after unmount")
 	}
 	logrus.Infof("OCI unmount success: image=%s cache_key=%s mount_path=%s layers=%d cost=%s", imageURL, cacheKey, info.MountPath, len(info.LayerDigests), time.Since(opStart))
 

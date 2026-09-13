@@ -21,16 +21,16 @@ func TestVersion(t *testing.T) {
 	resp, err := s.Version(context.Background(), &runtime.VersionRequest{Version: "0.0.1"})
 	assert.NoError(t, err)
 	assert.NotEmpty(t, resp.Version)
-	assert.Len(t, resp.Runtimes, 1)
+	assert.NotNil(t, resp.Runsc)
 }
 
-func TestVersion_NoRuntimes(t *testing.T) {
+func TestVersion_NoRunsc(t *testing.T) {
 	s := newTestService(t, map[string]contract.RuntimeHandler{})
 
 	resp, err := s.Version(context.Background(), &runtime.VersionRequest{Version: "0.0.1"})
 	assert.NoError(t, err)
 	assert.NotEmpty(t, resp.Version)
-	assert.Empty(t, resp.Runtimes)
+	assert.Nil(t, resp.Runsc)
 }
 
 func TestRuntimeStatuses(t *testing.T) {
@@ -47,30 +47,22 @@ func TestRuntimeStatuses(t *testing.T) {
 			},
 		},
 	})
-	s.config.PluginConfig.RuntimeConfig.Runtimes["other"] = config.RuntimeInstanceConfig{
-		Binary: "/fake/other",
-	}
-
 	statuses := s.RuntimeStatuses()
-	assert.Len(t, statuses, 2)
-	assert.Equal(t, "other", statuses[0].Name)
-	assert.False(t, statuses[0].Loaded)
-	assert.Equal(t, "/fake/other", statuses[0].Binary)
-	assert.Equal(t, "runsc", statuses[1].Name)
-	assert.True(t, statuses[1].Loaded)
-	assert.Equal(t, []resourcemanager.ResourceName{resourcemanager.CgroupResourceName}, statuses[1].Requirements.Resources)
-	assert.True(t, statuses[1].Capabilities.CanCheckpoint)
+	assert.Len(t, statuses, 1)
+	assert.Equal(t, "runsc", statuses[0].Name)
+	assert.True(t, statuses[0].Loaded)
+	assert.Equal(t, []resourcemanager.ResourceName{resourcemanager.CgroupResourceName}, statuses[0].Requirements.Resources)
+	assert.True(t, statuses[0].Capabilities.CanCheckpoint)
 }
 
-func TestVersion_MultipleRuntimes(t *testing.T) {
+func TestVersionReportsRunsc(t *testing.T) {
 	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc":  runtimetest.NewFakeRuntimeHandler(),
-		"runsc2": runtimetest.NewFakeRuntimeHandler(),
+		"runsc": runtimetest.NewFakeRuntimeHandler(),
 	})
 
 	resp, err := s.Version(context.Background(), &runtime.VersionRequest{})
 	assert.NoError(t, err)
-	assert.Len(t, resp.Runtimes, 2)
+	assert.NotNil(t, resp.Runsc)
 }
 
 func TestCheckRuntime(t *testing.T) {
@@ -84,11 +76,7 @@ func TestCheckRuntime(t *testing.T) {
 			name:           "runtime not configured",
 			requestRuntime: "nonexistent",
 			options: []runtimeStatusFacadeServiceOption{
-				setRuntimeConfig(config.RuntimeConfig{
-					Runtimes: map[string]config.RuntimeInstanceConfig{
-						"runsc": {Binary: "/usr/local/bin/runsc"},
-					},
-				}),
+				setRuntimeConfig(config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}}),
 			},
 			wantErr: true,
 		},
@@ -96,11 +84,7 @@ func TestCheckRuntime(t *testing.T) {
 			name:           "runtime handler missing",
 			requestRuntime: "runsc",
 			options: []runtimeStatusFacadeServiceOption{
-				setRuntimeConfig(config.RuntimeConfig{
-					Runtimes: map[string]config.RuntimeInstanceConfig{
-						"runsc": {Binary: "/usr/local/bin/runsc"},
-					},
-				}),
+				setRuntimeConfig(config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}}),
 			},
 			wantErr: true,
 		},
@@ -108,11 +92,7 @@ func TestCheckRuntime(t *testing.T) {
 			name:           "runtime handler configured",
 			requestRuntime: "runsc",
 			options: []runtimeStatusFacadeServiceOption{
-				setRuntimeConfig(config.RuntimeConfig{
-					Runtimes: map[string]config.RuntimeInstanceConfig{
-						"runsc": {Binary: "/usr/local/bin/runsc"},
-					},
-				}),
+				setRuntimeConfig(config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}}),
 				addRuntimeHandler("runsc", runtimetest.NewFakeRuntimeHandler()),
 			},
 			wantErr: false,

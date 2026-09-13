@@ -53,9 +53,6 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 	if !summaryFresh {
 		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_SUMMARY)
 	}
-	if !containsRuntime(record.Runtimes, input.Request.GetRuntime()) {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_RUNTIME_UNSUPPORTED)
-	}
 	switch effectiveNodeState(summary, heartbeatFresh) {
 	case nodev1.NodeState_NODE_STATE_DRAINING:
 		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_DRAINING)

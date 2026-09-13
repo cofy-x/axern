@@ -43,9 +43,6 @@ func (h *sandboxService) initNodeInventory() error {
 		if err != nil {
 			return fmt.Errorf("resolve delegated sandbox cgroup root: %w", err)
 		}
-		if err := h.initializeMemoryObservationSequence(); err != nil {
-			return err
-		}
 		logrus.Debug("cgroup memory capability will be evaluated by observed-capability provider")
 	}
 	h.capabilityManager, err = h.newObservedCapabilityManager(rootName)
@@ -65,11 +62,9 @@ func (h *sandboxService) initNodeInventory() error {
 			SystemReserveBytes: h.config.PluginConfig.RuntimeConfig.FilestoreSystemReserveBytes,
 		})
 	}
-	var nextMemoryObservationRevision func() (int64, error)
 	memoryCommitment := h.containerManager.MemoryCommitment
 	memoryCapacityObserver := h.containerManager.UpdateMemoryCapacity
 	if cgroupMode == config.CgroupEnforcementRequired {
-		nextMemoryObservationRevision = h.nextMemoryObservationRevision
 	} else {
 		// disabled_dev has no cgroup resource manager by construction. It still
 		// publishes resource-source scheduling capacity, but must not pretend to
@@ -81,34 +76,33 @@ func (h *sandboxService) initNodeInventory() error {
 	}
 	hostname, _ := os.Hostname()
 	h.nodeInventorySource = nodeinventory.NewAxnodedSource(nodeinventory.AxnodedSourceOptions{
-		NodeID:                    h.config.PluginConfig.ControlPlaneNodeIDValue(hostname),
-		Ready:                     h.Ready,
-		RuntimeCount:              h.runtimeHandlers.Count,
-		Container:                 h.containerManager,
-		LangRuntime:               h.lrtManager,
-		ImageManager:              nodeinventory.NewImageManagerClient(imageManagerEnabled, imageManagerSocket),
-		NodeResources:             nodeResources,
-		CgroupDriver:              inventoryCgroupDriver,
-		NatBackend:                h.config.PluginConfig.NetworkConfig.NatBackend,
-		BPFNetPinPath:             h.config.PluginConfig.NetworkConfig.BPFNet.PinPath,
-		NodeState:                 h.config.PluginConfig.ControlPlaneNodeStateValue(),
-		NodeLabels:                h.config.PluginConfig.ControlPlaneNodeLabelsValue(),
-		CapabilitySnapshot:        h.currentCapabilitySnapshot,
-		StorageTargets:            storageTargets,
-		RuntimeSlotCapacity:       h.config.PluginConfig.ResourceConfig.MaxInstanceNum,
-		MemoryBudgetEnabled:       true,
-		MemoryCgroupEnforced:      cgroupMode == config.CgroupEnforcementRequired,
-		CgroupRootName:            rootName,
-		MemorySystemReserveBytes:  h.config.PluginConfig.ResourceConfig.MemorySystemReserveBytes,
-		MemoryCommitment:          memoryCommitment,
-		MemoryCapacityObserver:    memoryCapacityObserver,
-		MemoryObservationRevision: nextMemoryObservationRevision,
-		MemoryPIDRolesVerifier:    h.verifyMemoryPIDRoles,
-		RetiringMemoryLeases:      h.containerManager.RetiringMemoryLeases,
-		AllocationIDs:             h.allocationController().ControlPlaneAllocationIDs,
-		AllocationRuntimeID:       h.allocationController().RuntimeTemplateID,
-		UnackedStatusIDs:          h.controlPlaneReports.UnacknowledgedAllocationLifecycleIDs,
-		DisabledResourcePools:     disabledPools,
+		NodeID:                   h.config.PluginConfig.ControlPlaneNodeIDValue(hostname),
+		Ready:                    h.Ready,
+		RuntimeCount:             h.runtimeHandlers.Count,
+		Container:                h.containerManager,
+		LangRuntime:              h.lrtManager,
+		ImageManager:             nodeinventory.NewImageManagerClient(imageManagerEnabled, imageManagerSocket),
+		NodeResources:            nodeResources,
+		CgroupDriver:             inventoryCgroupDriver,
+		NatBackend:               h.config.PluginConfig.NetworkConfig.NatBackend,
+		BPFNetPinPath:            h.config.PluginConfig.NetworkConfig.BPFNet.PinPath,
+		NodeState:                h.config.PluginConfig.ControlPlaneNodeStateValue(),
+		NodeLabels:               h.config.PluginConfig.ControlPlaneNodeLabelsValue(),
+		CapabilitySnapshot:       h.currentCapabilitySnapshot,
+		StorageTargets:           storageTargets,
+		RuntimeSlotCapacity:      h.config.PluginConfig.ResourceConfig.MaxInstanceNum,
+		MemoryBudgetEnabled:      true,
+		MemoryCgroupEnforced:     cgroupMode == config.CgroupEnforcementRequired,
+		CgroupRootName:           rootName,
+		MemorySystemReserveBytes: h.config.PluginConfig.ResourceConfig.MemorySystemReserveBytes,
+		MemoryCommitment:         memoryCommitment,
+		MemoryCapacityObserver:   memoryCapacityObserver,
+		MemoryPIDRolesVerifier:   h.verifyMemoryPIDRoles,
+		RetiringMemoryLeases:     h.containerManager.RetiringMemoryLeases,
+		AllocationIDs:            h.allocationController().ControlPlaneAllocationIDs,
+		AllocationRuntimeID:      h.allocationController().RuntimeTemplateID,
+		UnackedStatusIDs:         h.controlPlaneReports.UnacknowledgedAllocationLifecycleIDs,
+		DisabledResourcePools:    disabledPools,
 	})
 	h.inventoryCollector = nodeinventory.NewCollector(5*time.Second, h.nodeInventorySource.Collect)
 	return nil

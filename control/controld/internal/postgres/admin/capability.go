@@ -58,24 +58,5 @@ func (s *Store) GetAllocationCapabilityDiagnostics(ctx context.Context, allocati
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("load allocation capability conditions: %w", err)
 	}
-	if err := s.loadAllocationMemoryDiagnostics(ctx, allocationID, result); err != nil {
-		return nil, err
-	}
 	return result, nil
-}
-
-func (s *Store) loadAllocationMemoryDiagnostics(ctx context.Context, allocationID string, result *adminkernel.AllocationCapabilityDiagnostics) error {
-	var observationJSON []byte
-	err := s.db.Pool().QueryRow(ctx, `SELECT observation FROM allocation_memory_observations WHERE allocation_id = $1`, allocationID).Scan(&observationJSON)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("load latest allocation memory observation: %w", err)
-	}
-	result.LatestMemoryObservation = &nodev1.AllocationMemoryObservation{}
-	if err := protojson.Unmarshal(observationJSON, result.LatestMemoryObservation); err != nil {
-		return fmt.Errorf("unmarshal latest allocation memory observation: %w", err)
-	}
-	return nil
 }

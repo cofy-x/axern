@@ -177,6 +177,9 @@ func (m *Manager) ensureLayerExtracted(layer v1.Layer) (*LayerRecord, error) {
 	}
 	layerRoot := filepath.Join(m.layersDir, layerDir)
 	layerPath := filepath.Join(layerRoot, "fs")
+	if rec != nil && rec.Path != "" && filepath.Clean(rec.Path) != filepath.Clean(layerPath) {
+		return nil, fmt.Errorf("layer metadata path %q differs from content path %q", rec.Path, layerPath)
+	}
 
 	if rec != nil && rec.Path != "" && pathExists(rec.Path) {
 		rec, err = m.store.incrementLayerRef(digestStr, m.now().Unix())

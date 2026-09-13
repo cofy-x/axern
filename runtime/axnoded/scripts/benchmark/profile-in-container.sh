@@ -143,7 +143,6 @@ snat_gc_interval = "${BPFNET_SNAT_GC_INTERVAL}"
 snat_tcp_idle_timeout = "${BPFNET_SNAT_TCP_IDLE_TIMEOUT}"
 snat_tcp_closing_timeout = "${BPFNET_SNAT_TCP_CLOSING_TIMEOUT}"
 snat_datagram_idle_timeout = "${BPFNET_SNAT_DATAGRAM_IDLE_TIMEOUT}"
-local_out_compat = true
 ${BPFNET_UPLINKS_CONFIG}
 [plugin.resource]
 cgroup_cache_size = 4
@@ -159,7 +158,7 @@ EOF
 
 cat >> /tmp/axnoded-config.toml <<EOF
 
-[plugin.runtime.runtimes.${RUNTIME_UNDER_TEST}]
+[plugin.runtime.runsc]
 binary = "${RUNTIME_BINARY}"
 EOF
 

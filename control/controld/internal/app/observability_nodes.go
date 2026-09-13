@@ -252,7 +252,6 @@ func observeNodeBPFNet(observe sdkobs.Int64GaugeObserver, nodeID string, bpfnet 
 	}
 	observe(boolToInt64(bpfnet.GetEnabled()), nodeBPFNetAttrs(nodeID, "enabled")...)
 	observe(boolToInt64(bpfnet.GetReady()), nodeBPFNetAttrs(nodeID, "ready")...)
-	observe(boolToInt64(bpfnet.GetNeedsLocalhostCompat()), nodeBPFNetAttrs(nodeID, "localhost_compat")...)
 }
 
 func nodeResourceAttrs(nodeID, resource, state string) []attribute.KeyValue {

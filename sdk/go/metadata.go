@@ -8,7 +8,6 @@ type SandboxMetadata struct {
 	RunID           string
 	AllocationID    string
 	NodeID          string
-	RuntimeClass    string
 	StartedAt       time.Time
 	TunnelSessionID string
 	BoundAddr       string
@@ -25,7 +24,6 @@ func (s *Sandbox) Metadata() (SandboxMetadata, error) {
 		RunID:           s.state.RunID,
 		AllocationID:    s.state.AllocationID,
 		NodeID:          s.state.NodeID,
-		RuntimeClass:    s.options.RuntimeClass,
 		StartedAt:       s.state.StartedAt,
 		TunnelSessionID: s.state.TunnelSessionID,
 		BoundAddr:       s.state.BoundAddr,

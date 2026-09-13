@@ -74,7 +74,6 @@ spec:
     image: docker.io/library/python:3.12-slim
   command:
     argv: [python, -c, "print('ok')"]
-  runtime_class: runsc
   resources: {}
 ```
 

@@ -574,7 +574,7 @@ func validateImmutableDirectory(name, candidate string) error {
 	return nil
 }
 
-func (p *overlayProvider) ReconcilePersistentViews(_ context.Context, runtimeName string, retained map[string]struct{}) error {
+func (p *overlayProvider) ReconcilePersistentViews(_ context.Context, _ string, retained map[string]struct{}) error {
 	if p.filestoreDir == "" {
 		return nil
 	}
@@ -592,12 +592,9 @@ func (p *overlayProvider) ReconcilePersistentViews(_ context.Context, runtimeNam
 			continue
 		}
 		root := filepath.Join(projectionRoot, entry.Name())
-		manifest, err := readProjectionManifest(root)
+		_, err := readProjectionManifest(root)
 		if err != nil {
 			result = errors.Join(result, fmt.Errorf("retain unowned projection %s: %w", root, err))
-			continue
-		}
-		if manifest.RuntimeName != runtimeName {
 			continue
 		}
 		if _, ok := retained[entry.Name()]; ok {
@@ -638,7 +635,6 @@ func overlayViewForContainer(containerID, filestoreDir, class string, lowerDirs 
 }
 
 type projectionManifest struct {
-	RuntimeName    string                   `json:"runtime_name"`
 	RootReadonly   bool                     `json:"root_readonly"`
 	ImmutableMount ImmutableMountDescriptor `json:"immutable_mount"`
 	Symlinks       []Symlink                `json:"symlinks,omitempty"`
@@ -646,7 +642,7 @@ type projectionManifest struct {
 
 func writeProjectionManifest(root string, request Request) error {
 	content, err := json.Marshal(projectionManifest{
-		RuntimeName: request.RuntimeName, RootReadonly: request.Readonly,
+		RootReadonly:   request.Readonly,
 		ImmutableMount: request.ImmutableMount,
 		Symlinks:       request.Symlinks,
 	})
@@ -686,7 +682,7 @@ func readProjectionManifest(root string) (projectionManifest, error) {
 	if err := ensureJSONEOF(decoder); err != nil {
 		return projectionManifest{}, err
 	}
-	if !immutableFilesystemPattern.MatchString(manifest.RuntimeName) || manifest.ImmutableMount.EffectiveRoot == "" || manifest.ImmutableMount.Identity == "" {
+	if manifest.ImmutableMount.EffectiveRoot == "" || manifest.ImmutableMount.Identity == "" {
 		return projectionManifest{}, fmt.Errorf("projection manifest is incomplete")
 	}
 	if err := ValidateImmutableMountDescriptorContract(manifest.ImmutableMount, manifest.ImmutableMount.EffectiveRoot); err != nil {

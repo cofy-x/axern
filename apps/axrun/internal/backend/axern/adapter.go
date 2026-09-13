@@ -212,9 +212,6 @@ func (a Adapter) configForTask(task domain.TaskInstance) (Config, error) {
 		config.LimitCPU = strings.TrimSpace(resources.LimitCPU)
 		config.LimitMemory = strings.TrimSpace(resources.LimitMemory)
 	}
-	if runtimeClass := strings.TrimSpace(task.Sandbox.RuntimeClass); runtimeClass != "" {
-		config.RuntimeClass = runtimeClass
-	}
 	if task.Sandbox.RuntimeSource != nil {
 		switch task.Sandbox.RuntimeSource.Type {
 		case domain.SandboxRuntimeSourceTemplate:

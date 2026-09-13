@@ -20,7 +20,6 @@ type CapabilityEvidenceJSON struct {
 	IdentityType        string `json:"identity_type"`
 	BootID              string `json:"boot_id,omitempty"`
 	MountIdentity       string `json:"mount_identity,omitempty"`
-	RuntimeName         string `json:"runtime_name,omitempty"`
 	RuntimeBinaryDigest string `json:"runtime_binary_digest,omitempty"`
 	RuntimeConfigDigest string `json:"runtime_config_digest,omitempty"`
 }
@@ -99,7 +98,6 @@ func newCapabilityEvidenceJSON(evidence *capabilityv1.CapabilityEvidence) *Capab
 	case *capabilityv1.CapabilityEvidence_Runtime:
 		out.IdentityType = "runtime"
 		out.BootID = identity.Runtime.GetBootID()
-		out.RuntimeName = identity.Runtime.GetRuntimeName()
 		out.RuntimeBinaryDigest = identity.Runtime.GetRuntimeBinaryDigest()
 		out.RuntimeConfigDigest = identity.Runtime.GetRuntimeConfigDigest()
 	}

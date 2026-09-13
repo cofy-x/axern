@@ -71,7 +71,7 @@ axern local doctor --probe
 
 Sandbox 检查（`runtime_dns_sandbox`）会通过公共 API 创建临时 Namespace、Secret、Environment 和 Run。成功、失败、超时或取消后，清理逻辑会先取消仍在运行的 Run，再按依赖顺序删除 Environment、Secret 和 Namespace；已终止的 Run 仍作为正常控制面历史保留。默认查询项目控制的绝对域名 `axern.cofy-x.space.`；企业网络可通过 `--dns-query-name` 改为私有域名。查询目标通过临时 Secret 注入，不会出现在 Run 参数、doctor JSON details 或 probe 输出中。
 
-Probe 始终连接产品管理的 `local` Context，忽略当前选中的远程 Context，并拒绝显式远程 Endpoint 或 TLS 覆盖。Sandbox 默认超时为 5 分钟，可用 `--probe-timeout` 调整；默认 Template 为 `python311`，Runtime Class 为 `runsc`，这些 Sandbox 专用参数只能与 `--probe` 一起使用。清理失败属于 required failure，应先检查带 doctor probe 标签的本地资源再重试。
+Probe 始终连接产品管理的 `local` Context，忽略当前选中的远程 Context，并拒绝显式远程 Endpoint 或 TLS 覆盖。Sandbox 默认超时为 5 分钟，可用 `--probe-timeout` 调整；默认 Template 为 `python311`，这些 Sandbox 专用参数只能与 `--probe` 一起使用。清理失败属于 required failure，应先检查带 doctor probe 标签的本地资源再重试。
 
 VPN 或企业网络有时要求使用 Node 容器实际配置中不可见的 DNS。可在启动或重建本地栈前显式设置逗号分隔的 Resolver IP：
 

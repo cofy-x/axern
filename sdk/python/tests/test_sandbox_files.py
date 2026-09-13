@@ -88,7 +88,6 @@ class SandboxTest(unittest.TestCase):
         with Sandbox(
             client=client,
             image="docker.io/library/python:3.12-slim",
-            runtime_class="runsc",
             _node_client_factory=FakeNodeClient,
         ) as sandbox:
             metadata = sandbox.metadata
@@ -97,7 +96,6 @@ class SandboxTest(unittest.TestCase):
             sandbox.chmod("/tmp/c", 0o600, recursive=True)
             sandbox.touch("/tmp/c", create=False, mtime_ns=7)
 
-        self.assertEqual(metadata.runtime_class, "runsc")
         self.assertEqual(metadata.allocation_id, "alloc-1")
         self.assertGreater(metadata.started_at_ns, 0)
         self.assertEqual(calls[0], ("copy", ("/tmp/a", "/tmp/b"), {"recursive": True, "overwrite": False, "rpc_timeout": 30}))

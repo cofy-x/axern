@@ -42,10 +42,10 @@ func RegisteredRuntimeFactories() map[string]RuntimeFactory {
 }
 
 func GetRuntimeHandler(cfg config.Config, runtimeName string) (contract.RuntimeHandler, error) {
-	runtimeCfg, ok := cfg.RuntimeConfig.Runtimes[runtimeName]
-	if !ok {
+	if runtimeName != config.RuntimeNameRunsc {
 		return nil, errord.ErrNotFound
 	}
+	runtimeCfg := cfg.RuntimeConfig.Runsc
 	if runtimeCfg.Binary == "" {
 		return nil, fmt.Errorf("runtime %s binary is not configured", runtimeName)
 	}

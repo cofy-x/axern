@@ -2,7 +2,6 @@ import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from axern.control.capability.v1 import capability_pb2 as _capability_pb2
-from axern.control.node.v1 import node_control_pb2 as _node_control_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -92,15 +91,13 @@ class GetAllocationCapabilityDiagnosticsRequest(_message.Message):
     def __init__(self, allocation_id: _Optional[str] = ...) -> None: ...
 
 class GetAllocationCapabilityDiagnosticsResponse(_message.Message):
-    __slots__ = ("allocation_id", "node_id", "requirements", "condition_set", "latest_memory_observation")
+    __slots__ = ("allocation_id", "node_id", "requirements", "condition_set")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     REQUIREMENTS_FIELD_NUMBER: _ClassVar[int]
     CONDITION_SET_FIELD_NUMBER: _ClassVar[int]
-    LATEST_MEMORY_OBSERVATION_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
     node_id: str
     requirements: _containers.RepeatedCompositeFieldContainer[_capability_pb2.CapabilityRequirement]
     condition_set: _capability_pb2.CapabilityConditionSet
-    latest_memory_observation: _node_control_pb2.AllocationMemoryObservation
-    def __init__(self, allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., requirements: _Optional[_Iterable[_Union[_capability_pb2.CapabilityRequirement, _Mapping]]] = ..., condition_set: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ..., latest_memory_observation: _Optional[_Union[_node_control_pb2.AllocationMemoryObservation, _Mapping]] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., requirements: _Optional[_Iterable[_Union[_capability_pb2.CapabilityRequirement, _Mapping]]] = ..., condition_set: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ...) -> None: ...

@@ -29,9 +29,8 @@ func (s *AxnodedSource) collectBPFNetInventory(now time.Time, snapshot *NodeInve
 
 func bpfnetComponentInventory(status bpfnet.Status) BPFNetComponentInventory {
 	return BPFNetComponentInventory{
-		Enabled:              true,
-		Ready:                status.State.TCReady,
-		Mode:                 status.State.Mode,
-		NeedsLocalhostCompat: status.State.LocalhostCompat,
+		Enabled: true,
+		Ready:   status.State.TCReady,
+		Mode:    status.State.Mode,
 	}
 }

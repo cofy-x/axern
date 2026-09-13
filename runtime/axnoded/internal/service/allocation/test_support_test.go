@@ -47,16 +47,10 @@ func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]
 		dbStore = storetest.NewMockStore()
 	}
 	tmpDir := t.TempDir()
-	runtimes := make(map[string]config.RuntimeInstanceConfig)
-	for name := range handlers {
-		runtimes[name] = config.RuntimeInstanceConfig{Binary: "/fake/" + name}
-	}
 	cfg := config.Config{
 		RootDir: tmpDir,
 		PluginConfig: config.PluginConfig{
-			RuntimeConfig: config.RuntimeConfig{
-				Runtimes: runtimes,
-			},
+			RuntimeConfig: config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/fake/runsc"}},
 		},
 	}
 	registry := handlerregistry.New(cfg)
@@ -84,13 +78,6 @@ func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]
 		ContainerExists: func(id string) bool {
 			_, err := manager.Get(id)
 			return err == nil
-		},
-		RuntimeClass: func(id string) (string, error) {
-			c, err := manager.Get(id)
-			if err != nil || c == nil || c.Metadata == nil {
-				return "", err
-			}
-			return c.Metadata.GetRuntimeHandler(), nil
 		},
 	})
 	controller := NewController(Options{

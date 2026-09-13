@@ -80,7 +80,7 @@ func TestRuntimeConformanceIdentityChangeInvalidatesBeforeExpensiveReprobe(t *te
 		t.Fatalf("initial observation=%s probes=%d", initial[0].GetState(), probeCalls)
 	}
 
-	runtimePath := cfg.PluginConfig.RuntimeConfig.Runtimes[config.RuntimeNameRunsc].Binary
+	runtimePath := cfg.PluginConfig.RuntimeConfig.Runsc.Binary
 	if err := os.WriteFile(runtimePath, []byte("changed-runtime"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -239,9 +239,7 @@ func runtimeConformanceTestConfig(t *testing.T, cgroupMode string) config.Config
 	return config.Config{PluginConfig: config.PluginConfig{RuntimeConfig: config.RuntimeConfig{
 		CgroupEnforcement:   cgroupMode,
 		RuntimeRunnerBinary: runner,
-		Runtimes: map[string]config.RuntimeInstanceConfig{
-			config.RuntimeNameRunsc: {Binary: binary, BaseSpec: baseSpec},
-		},
+		Runsc:               config.RuntimeInstanceConfig{Binary: binary, BaseSpec: baseSpec},
 	}}}
 }
 

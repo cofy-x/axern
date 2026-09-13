@@ -40,7 +40,6 @@ erDiagram
   runs ||--|| allocations : executes
   nodes ||--o{ allocations : hosts
   nodes ||--|| node_summaries : reports
-  nodes ||--o{ node_runtime_sets : supports
   allocations ||--o| reservations : reserves
   allocations ||--o{ execution_leases : authorizes
   allocations ||--o| allocation_reconcile_queue : retries
@@ -73,7 +72,7 @@ Namespace names are stored on scoped resources for filtering and ownership. Only
 
 `reservations` records admitted CPU, sandbox-memory, and ephemeral-storage requests. `sandbox_memory_request_bytes` is the public request without a runtime overhead side channel. A non-null `released_at` closes the control-plane reservation without erasing accounting history; node admission still honors a larger axnoded local commitment until host cleanup completes.
 
-`allocation_memory_observations` keeps only the latest ordered host memcg sample for an Allocation; it is not a second reservation ledger. The memory budget used during placement is validated inside the reservation transaction and is not copied into a historical admission table.
+Allocation memory usage is live node-local diagnostic data rebuilt from the authoritative cgroup. It is not persisted by controld and does not participate in reservation or lifecycle decisions. The memory budget used during placement is validated inside the reservation transaction.
 
 `allocation_capability_requirements` stores only the immutable typed key and catalog loss policy. It is owned through the Allocation foreign key and does not repeat Node binding or preserve placement observations. The Allocation binding, requirement rows, reservation, and create intent commit in one transaction; that transaction is the admission decision.
 
@@ -89,7 +88,7 @@ Capability loss has no controld queue or transition-history table. Axnoded owns 
 
 ## Nodes and Execution Leases
 
-`nodes` stores identity, control target, authentication hash, heartbeat freshness, lifecycle status, retirement reason, and version. Active identities may report and participate in placement. Retirement is irreversible, retains historical references, and commits with an admin audit event after lifecycle and storage blockers are clear. `node_summaries` stores rich reported capacity and inventory, while `node_runtime_sets` keeps runtime eligibility cheap to query.
+`nodes` stores identity, control target, authentication hash, heartbeat freshness, lifecycle status, retirement reason, and version. Active identities may report and participate in placement. Retirement is irreversible, retains historical references, and commits with an admin audit event after lifecycle and storage blockers are clear. `node_summaries` stores rich reported capacity and inventory. Runtime eligibility is not stored because Axern has one production execution boundary.
 
 ```mermaid
 sequenceDiagram

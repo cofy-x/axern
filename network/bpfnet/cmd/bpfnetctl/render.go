@@ -22,10 +22,8 @@ func writeStatus(w io.Writer, status bpfnet.Status) error {
 	fmt.Fprintf(w, "  snat_port_attempts: %d\n", state.SNATPortAttempts)
 	fmt.Fprintf(w, "  native_routes: %s\n", joinOrDash(state.NativeRoutingCIDRs))
 	fmt.Fprintf(w, "  tc_ready: %s\n", boolWord(state.TCReady))
-	fmt.Fprintf(w, "  local_out_compat: %s\n", boolWord(state.LocalOutCompat))
 	fmt.Fprintf(w, "  localhost_tcp_dnat: %s\n", boolWord(state.LocalhostTCPDNAT))
 	fmt.Fprintf(w, "  localhost_path_ready: %s\n", boolWord(state.LocalhostPathReady))
-	fmt.Fprintf(w, "  localhost_compat_fallback: %s\n", boolWord(state.LocalhostCompat))
 	if state.LastAttachError != "" {
 		fmt.Fprintf(w, "  last_attach_error: %s\n", state.LastAttachError)
 	}

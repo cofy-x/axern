@@ -47,7 +47,7 @@ func (h *sandboxService) configureControlPlaneReports() {
 }
 
 func (h *sandboxService) initControlPlaneReporter() error {
-	reporter, err := servicecontrolplane.NewNodeReporter(h.config, h.runtimeHandlers.Names, h.NodeInventory, h.allocationLifecycleOutbox)
+	reporter, err := servicecontrolplane.NewNodeReporter(h.config, h.NodeInventory, h.allocationLifecycleOutbox)
 	if err != nil {
 		return err
 	}
@@ -124,8 +124,7 @@ func (h *sandboxService) classifyContainerExit(event container.Event) (commonv1.
 	if !h.allocationExitWasMemoryOOM(event.ContainerID) {
 		return event.DiagnosticCode, event.Reason
 	}
-	manifest := h.allocations.EnforcementManifest(event.ContainerID)
-	metrics.RecordSandboxMemoryOOM(manifest.GetRuntimeName())
+	metrics.RecordSandboxMemoryOOM("runsc")
 	return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED, "sandbox memory limit exceeded"
 }
 

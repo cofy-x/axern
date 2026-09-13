@@ -11,7 +11,7 @@ Embedded template metadata uses release-facing image refs. Local compose and kin
 
 The catalog does not own agent or tool images. Callers may attach an explicit immutable image through the generic read-only `image_mounts` execution input; no separate catalog identity or lifecycle is created.
 
-Catalog templates do not declare the OCI runtime implementation. The supported `runsc` runtime is carried on `ExecutionConfig.runtime_class`; when a workload omits that field, `controld` applies its default `runsc` placement and node lifecycle policy.
+Catalog templates do not declare or select an OCI runtime implementation. Axern's execution boundary is `runsc`; it is platform implementation policy rather than workload input or a placement dimension.
 
 ## Environment Sources
 
@@ -24,7 +24,7 @@ Image-backed environments can optionally reference a controld-managed registry c
 
 `resolved_template` remains the normalized runtime snapshot for both modes, so Run admission and node lifecycle paths consume a single Environment model. An Environment is immutable execution input; changing the source creates another Environment and a new Run.
 
-Environments are runtime-neutral. The same digest-pinned template or image environment can be executed with different runtime classes by different workloads.
+Environments contain immutable workload inputs and remain independent from node implementation details.
 
 ## Execution Profile
 

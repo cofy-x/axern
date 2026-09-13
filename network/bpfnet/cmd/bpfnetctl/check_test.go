@@ -35,7 +35,6 @@ func TestEvaluateReadinessAcceptsReadyObjects(t *testing.T) {
 	result := evaluateReadiness(bpfnet.Status{
 		State: bpfnet.DataplaneState{
 			TCReady:            true,
-			LocalOutCompat:     true,
 			LocalhostTCPDNAT:   true,
 			LocalhostPathReady: true,
 		},
@@ -57,12 +56,10 @@ func TestEvaluateReadinessAcceptsReadyObjects(t *testing.T) {
 	}
 }
 
-func TestEvaluateReadinessAcceptsLocalhostCompatFallback(t *testing.T) {
+func TestEvaluateReadinessRejectsMissingLocalhostPath(t *testing.T) {
 	result := evaluateReadiness(bpfnet.Status{
 		State: bpfnet.DataplaneState{
-			TCReady:         true,
-			LocalOutCompat:  true,
-			LocalhostCompat: true,
+			TCReady: true,
 		},
 		Attachment: bpfnet.AttachmentReadiness{
 			IngressTCAttached:   true,
@@ -76,22 +73,22 @@ func TestEvaluateReadinessAcceptsLocalhostCompatFallback(t *testing.T) {
 		{Kind: "link", Name: "localhost-connect4", Present: false, Openable: false},
 	})
 
-	if !result.OK {
-		t.Fatalf("expected localhost compat fallback to pass readiness: %#v", result)
+	if result.OK {
+		t.Fatalf("expected missing localhost path to fail readiness: %#v", result)
 	}
 	var buf bytes.Buffer
 	writeCheckResult(&buf, result)
-	if !strings.Contains(buf.String(), "ok   localhost_compat") {
-		t.Fatalf("expected localhost compat readiness in output:\n%s", buf.String())
+	if !strings.Contains(buf.String(), "fail localhost_path") {
+		t.Fatalf("expected localhost path failure in output:\n%s", buf.String())
 	}
 }
 
-func TestEvaluateReadinessDoesNotSkipNonLocalhostLinksInCompatFallback(t *testing.T) {
+func TestEvaluateReadinessReportsBrokenLinks(t *testing.T) {
 	result := evaluateReadiness(bpfnet.Status{
 		State: bpfnet.DataplaneState{
-			TCReady:         true,
-			LocalOutCompat:  true,
-			LocalhostCompat: true,
+			TCReady:            true,
+			LocalhostTCPDNAT:   true,
+			LocalhostPathReady: true,
 		},
 		Attachment: bpfnet.AttachmentReadiness{
 			IngressTCAttached:   true,

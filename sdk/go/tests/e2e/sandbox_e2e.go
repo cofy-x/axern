@@ -29,13 +29,11 @@ func main() {
 	var tlsCert string
 	var tlsKey string
 	var tlsServerName string
-	var runtimeClass string
 	flag.StringVar(&endpoint, "endpoint", "", "gateway gRPC endpoint")
 	flag.StringVar(&tlsCACert, "tls-ca-cert", "", "control plane TLS CA certificate")
 	flag.StringVar(&tlsCert, "tls-cert", "", "control plane TLS client certificate")
 	flag.StringVar(&tlsKey, "tls-key", "", "control plane TLS client key")
 	flag.StringVar(&tlsServerName, "tls-server-name", "", "gateway TLS server name")
-	flag.StringVar(&runtimeClass, "runtime-class", "runsc", "sandbox runtime class")
 	flag.Parse()
 	if endpoint == "" {
 		failf("--endpoint is required")
@@ -53,7 +51,6 @@ func main() {
 	sandbox, err := axern.NewSandbox(axern.SandboxOptions{
 		Client:       client,
 		TemplateID:   "python311",
-		RuntimeClass: runtimeClass,
 		Argv:         []string{"python", "-c", "import time; time.sleep(600)"},
 		ReadyTimeout: 180 * time.Second,
 	})
@@ -113,51 +110,48 @@ func main() {
 	if strings.TrimSpace(result.StdoutString()) != "go-sdk-ok" {
 		failf("unexpected exec stdout: %q", result.StdoutString())
 	}
-	if runtimeClass == "runsc" {
-		if err := sandbox.WriteFile(ctx, "/tmp/axern-go-sdk.txt", []byte("file-ok\n"), axern.WriteFileOptions{CreateParents: true}); err != nil {
-			failf("write file: %v", err)
-		}
-		data, err := sandbox.ReadFile(ctx, "/tmp/axern-go-sdk.txt")
-		if err != nil {
-			failf("read file: %v", err)
-		}
-		if string(data) != "file-ok\n" {
-			failf("read file = %q", data)
-		}
-		exists, err := sandbox.Exists(ctx, "/tmp/axern-go-sdk.txt")
-		if err != nil {
-			failf("exists: %v", err)
-		}
-		if !exists {
-			failf("exists returned false for written file")
-		}
-		info, err := sandbox.Stat(ctx, "/tmp/axern-go-sdk.txt")
-		if err != nil {
-			failf("stat: %v", err)
-		}
-		if info.Size != int64(len("file-ok\n")) {
-			failf("stat size = %d", info.Size)
-		}
-		if err := sandbox.Copy(ctx, "/tmp/axern-go-sdk.txt", "/tmp/axern-go-sdk-copy.txt", axern.CopyOptions{Overwrite: true}); err != nil {
-			failf("copy: %v", err)
-		}
-		if err := sandbox.Move(ctx, "/tmp/axern-go-sdk-copy.txt", "/tmp/axern-go-sdk-moved.txt", axern.MoveOptions{Overwrite: true}); err != nil {
-			failf("move: %v", err)
-		}
-		if err := sandbox.Chmod(ctx, "/tmp/axern-go-sdk-moved.txt", 0o600, axern.ChmodOptions{}); err != nil {
-			failf("chmod: %v", err)
-		}
-		if err := sandbox.Touch(ctx, "/tmp/axern-go-sdk-moved.txt", axern.TouchOptions{}); err != nil {
-			failf("touch: %v", err)
-		}
-		if err := sandbox.Mkdir(ctx, "/tmp/axern-go-sdk-dir", axern.MkdirOptions{Parents: true}); err != nil {
-			failf("mkdir: %v", err)
-		}
-		if err := sandbox.Remove(ctx, "/tmp/axern-go-sdk-dir", axern.RemoveOptions{Recursive: true, Force: true}); err != nil {
-			failf("remove: %v", err)
-		}
+	if err := sandbox.WriteFile(ctx, "/tmp/axern-go-sdk.txt", []byte("file-ok\n"), axern.WriteFileOptions{CreateParents: true}); err != nil {
+		failf("write file: %v", err)
 	}
-
+	data, err := sandbox.ReadFile(ctx, "/tmp/axern-go-sdk.txt")
+	if err != nil {
+		failf("read file: %v", err)
+	}
+	if string(data) != "file-ok\n" {
+		failf("read file = %q", data)
+	}
+	exists, err := sandbox.Exists(ctx, "/tmp/axern-go-sdk.txt")
+	if err != nil {
+		failf("exists: %v", err)
+	}
+	if !exists {
+		failf("exists returned false for written file")
+	}
+	info, err := sandbox.Stat(ctx, "/tmp/axern-go-sdk.txt")
+	if err != nil {
+		failf("stat: %v", err)
+	}
+	if info.Size != int64(len("file-ok\n")) {
+		failf("stat size = %d", info.Size)
+	}
+	if err := sandbox.Copy(ctx, "/tmp/axern-go-sdk.txt", "/tmp/axern-go-sdk-copy.txt", axern.CopyOptions{Overwrite: true}); err != nil {
+		failf("copy: %v", err)
+	}
+	if err := sandbox.Move(ctx, "/tmp/axern-go-sdk-copy.txt", "/tmp/axern-go-sdk-moved.txt", axern.MoveOptions{Overwrite: true}); err != nil {
+		failf("move: %v", err)
+	}
+	if err := sandbox.Chmod(ctx, "/tmp/axern-go-sdk-moved.txt", 0o600, axern.ChmodOptions{}); err != nil {
+		failf("chmod: %v", err)
+	}
+	if err := sandbox.Touch(ctx, "/tmp/axern-go-sdk-moved.txt", axern.TouchOptions{}); err != nil {
+		failf("touch: %v", err)
+	}
+	if err := sandbox.Mkdir(ctx, "/tmp/axern-go-sdk-dir", axern.MkdirOptions{Parents: true}); err != nil {
+		failf("mkdir: %v", err)
+	}
+	if err := sandbox.Remove(ctx, "/tmp/axern-go-sdk-dir", axern.RemoveOptions{Recursive: true, Force: true}); err != nil {
+		failf("remove: %v", err)
+	}
 	process, err := sandbox.Process(ctx, []string{"python", "-u", "-c", "import sys; print(sys.stdin.read().upper())"}, axern.ProcessOptions{Timeout: 15 * time.Second})
 	if err != nil {
 		failf("process: %v", err)
@@ -180,73 +174,69 @@ func main() {
 		failf("process stdout = %q", processOutput.Stdout)
 	}
 	if imageProcessImage := os.Getenv("AXERN_GO_SDK_E2E_IMAGE_PROCESS_IMAGE"); imageProcessImage != "" {
-		runImageProcessE2E(ctx, client, runtimeClass, imageProcessImage)
+		runImageProcessE2E(ctx, client, imageProcessImage)
 	}
 
-	if runtimeClass == "runsc" {
-		root, err := os.MkdirTemp("", "axern-go-sdk-e2e-*")
-		if err != nil {
-			failf("tempdir: %v", err)
-		}
-		defer os.RemoveAll(root)
-		upload := filepath.Join(root, "upload")
-		download := filepath.Join(root, "download")
-		if err := os.MkdirAll(filepath.Join(upload, "nested"), 0o755); err != nil {
-			failf("mkdir upload: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(upload, "nested", "data.txt"), []byte("archive-ok\n"), 0o644); err != nil {
-			failf("write upload: %v", err)
-		}
-		if err := sandbox.UploadDir(ctx, upload, "/tmp/axern-go-sdk-tree", axern.UploadDirOptions{}); err != nil {
-			failf("upload dir: %v", err)
-		}
-		process, err := sandbox.Process(ctx, []string{"python", "-u", "-c", strings.Join([]string{
-			"from pathlib import Path",
-			"p = Path('/tmp/axern-go-sdk-tree/nested/data.txt')",
-			"data = p.read_text()",
-			"print(data.strip())",
-			"p.write_text(data + 'process-archive-ok\\n')",
-		}, "; ")}, axern.ProcessOptions{Timeout: 15 * time.Second})
-		if err != nil {
-			failf("archive process: %v", err)
-		}
-		archiveProcessOutput, err := process.Output()
-		if closeErr := process.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-		if err != nil {
-			failf("archive process output: %v", err)
-		}
-		if archiveProcessOutput.ExitCode != 0 {
-			failf("archive process exit = %d: %s stderr=%q", archiveProcessOutput.ExitCode, archiveProcessOutput.Message, archiveProcessOutput.Stderr)
-		}
-		if strings.TrimSpace(string(archiveProcessOutput.Stdout)) != "archive-ok" {
-			failf("archive process stdout = %q", archiveProcessOutput.Stdout)
-		}
-		if err := sandbox.DownloadDir(ctx, "/tmp/axern-go-sdk-tree", download, axern.DownloadDirOptions{}); err != nil {
-			failf("download dir: %v", err)
-		}
-		downloaded, err := os.ReadFile(filepath.Join(download, "nested", "data.txt"))
-		if err != nil {
-			failf("read downloaded archive file: %v", err)
-		}
-		if string(downloaded) != "archive-ok\nprocess-archive-ok\n" {
-			failf("downloaded archive content = %q", downloaded)
-		}
+	root, err := os.MkdirTemp("", "axern-go-sdk-e2e-*")
+	if err != nil {
+		failf("tempdir: %v", err)
 	}
-
-	if _, err := io.WriteString(os.Stdout, fmt.Sprintf("go_sdk_sandbox_e2e_ok=true runtime_class=%s run_id=%s allocation_id=%s\n", runtimeClass, metadata.RunID, metadata.AllocationID)); err != nil {
+	defer os.RemoveAll(root)
+	upload := filepath.Join(root, "upload")
+	download := filepath.Join(root, "download")
+	if err := os.MkdirAll(filepath.Join(upload, "nested"), 0o755); err != nil {
+		failf("mkdir upload: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(upload, "nested", "data.txt"), []byte("archive-ok\n"), 0o644); err != nil {
+		failf("write upload: %v", err)
+	}
+	if err := sandbox.UploadDir(ctx, upload, "/tmp/axern-go-sdk-tree", axern.UploadDirOptions{}); err != nil {
+		failf("upload dir: %v", err)
+	}
+	process, err = sandbox.Process(ctx, []string{"python", "-u", "-c", strings.Join([]string{
+		"from pathlib import Path",
+		"p = Path('/tmp/axern-go-sdk-tree/nested/data.txt')",
+		"data = p.read_text()",
+		"print(data.strip())",
+		"p.write_text(data + 'process-archive-ok\\n')",
+	}, "; ")}, axern.ProcessOptions{Timeout: 15 * time.Second})
+	if err != nil {
+		failf("archive process: %v", err)
+	}
+	archiveProcessOutput, err := process.Output()
+	if closeErr := process.Close(); closeErr != nil && err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		failf("archive process output: %v", err)
+	}
+	if archiveProcessOutput.ExitCode != 0 {
+		failf("archive process exit = %d: %s stderr=%q", archiveProcessOutput.ExitCode, archiveProcessOutput.Message, archiveProcessOutput.Stderr)
+	}
+	if strings.TrimSpace(string(archiveProcessOutput.Stdout)) != "archive-ok" {
+		failf("archive process stdout = %q", archiveProcessOutput.Stdout)
+	}
+	if err := sandbox.DownloadDir(ctx, "/tmp/axern-go-sdk-tree", download, axern.DownloadDirOptions{}); err != nil {
+		failf("download dir: %v", err)
+	}
+	downloaded, err := os.ReadFile(filepath.Join(download, "nested", "data.txt"))
+	if err != nil {
+		failf("read downloaded archive file: %v", err)
+	}
+	if string(downloaded) != "archive-ok\nprocess-archive-ok\n" {
+		failf("downloaded archive content = %q", downloaded)
+	}
+	if _, err := io.WriteString(os.Stdout, fmt.Sprintf("go_sdk_sandbox_e2e_ok=true run_id=%s allocation_id=%s\n", metadata.RunID, metadata.AllocationID)); err != nil {
 		failf("%v", err)
 	}
 }
 
-func runImageProcessE2E(ctx context.Context, client *axern.Client, runtimeClass, image string) {
+func runImageProcessE2E(ctx context.Context, client *axern.Client, image string) {
 	namespace := fmt.Sprintf("go-sdk-image-process-%d", time.Now().UnixNano())
 	sandbox, err := axern.NewSandbox(axern.SandboxOptions{
 		Client:       client,
 		TemplateID:   "python311",
 		Namespace:    namespace,
-		RuntimeClass: runtimeClass,
 		Argv:         []string{"python", "-c", "import time; time.sleep(600)"},
 		ReadyTimeout: 180 * time.Second,
 	})
@@ -313,10 +303,10 @@ func runImageProcessE2E(ctx context.Context, client *axern.Client, runtimeClass,
 		failf("process image stdout = %q", output.Stdout)
 	}
 	if imageProcessLoopbackEnabled() {
-		runImageProcessLoopbackE2E(ctx, sandbox, runtimeClass, image)
+		runImageProcessLoopbackE2E(ctx, sandbox, image)
 	}
-	fmt.Printf("go_sdk_image_process_e2e_ok=true runtime_class=%s image=%s\n", runtimeClass, image)
-	runImageProcessNegativeE2E(ctx, client, runtimeClass, image)
+	fmt.Printf("go_sdk_image_process_e2e_ok=true image=%s\n", image)
+	runImageProcessNegativeE2E(ctx, client, image)
 }
 
 func imageProcessLoopbackEnabled() bool {
@@ -324,7 +314,7 @@ func imageProcessLoopbackEnabled() bool {
 	return value == "1" || value == "true" || value == "yes"
 }
 
-func runImageProcessLoopbackE2E(ctx context.Context, sandbox *axern.Sandbox, runtimeClass, image string) {
+func runImageProcessLoopbackE2E(ctx context.Context, sandbox *axern.Sandbox, image string) {
 	const loopbackAddr = "127.0.0.1:17653"
 	server, err := sandbox.Process(ctx, []string{"python", "-u", "-c", strings.Join([]string{
 		"import http.server",
@@ -375,7 +365,7 @@ func runImageProcessLoopbackE2E(ctx context.Context, sandbox *axern.Sandbox, run
 	if strings.TrimSpace(string(output.Stdout)) != "image-process-loopback-ok" {
 		failf("process image loopback stdout = %q", output.Stdout)
 	}
-	fmt.Printf("go_sdk_image_process_loopback_e2e_ok=true runtime_class=%s image=%s\n", runtimeClass, image)
+	fmt.Printf("go_sdk_image_process_loopback_e2e_ok=true image=%s\n", image)
 }
 
 func waitForSandboxHTTP(ctx context.Context, sandbox *axern.Sandbox, addr string) {
@@ -396,13 +386,12 @@ func waitForSandboxHTTP(ctx context.Context, sandbox *axern.Sandbox, addr string
 	failf("wait for sandbox loopback http at %s: %v", addr, lastErr)
 }
 
-func runImageProcessNegativeE2E(ctx context.Context, client *axern.Client, runtimeClass, image string) {
+func runImageProcessNegativeE2E(ctx context.Context, client *axern.Client, image string) {
 	namespace := fmt.Sprintf("go-sdk-image-process-negative-%d", time.Now().UnixNano())
 	sandbox, err := axern.NewSandbox(axern.SandboxOptions{
 		Client:       client,
 		TemplateID:   "python311",
 		Namespace:    namespace,
-		RuntimeClass: runtimeClass,
 		Argv:         []string{"python", "-c", "import time; time.sleep(600)"},
 		ReadyTimeout: 180 * time.Second,
 	})
@@ -426,7 +415,7 @@ func runImageProcessNegativeE2E(ctx context.Context, client *axern.Client, runti
 	if !imageProcessHostBackedMountError(err) {
 		failf("negative image process error = %v, want host-backed mount failed precondition", err)
 	}
-	fmt.Printf("go_sdk_image_process_negative_e2e_ok=true runtime_class=%s image=%s\n", runtimeClass, image)
+	fmt.Printf("go_sdk_image_process_negative_e2e_ok=true image=%s\n", image)
 }
 
 func imageProcessHostBackedMountError(err error) bool {

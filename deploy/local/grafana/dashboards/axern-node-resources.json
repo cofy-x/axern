@@ -1570,18 +1570,11 @@
           "legendFormat": "Ready",
           "instant": true,
           "format": "table"
-        },
-        {
-          "expr": "label_replace(max by (axern_node_id) (axern_controld_node_bpfnet_current{axern_state=\"localhost_compat\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
-          "refId": "C",
-          "legendFormat": "Localhost Compat",
-          "instant": true,
-          "format": "table"
         }
       ],
       "title": "Node BPFNet State",
       "type": "table",
-      "description": "Current BPFNet readiness and localhost compatibility state by node.",
+      "description": "Current complete BPFNet readiness by node.",
       "transformations": [
         {
           "id": "joinByField",
@@ -1598,10 +1591,7 @@
               "axern_node_id": true,
               "Time 1": true,
               "axern_node_id 1": true,
-              "axern_node_display 1": true,
-              "Time 2": true,
-              "axern_node_id 2": true,
-              "axern_node_display 2": true
+              "axern_node_display 1": true
             },
             "indexByName": {
               "axern_node_display": 0,

@@ -10,7 +10,6 @@ import (
 type RegisterParams struct {
 	NodeID        string
 	NodeTarget    string
-	Runtimes      []string
 	NodeAuthToken string
 	Now           time.Time
 }
@@ -18,7 +17,6 @@ type RegisterParams struct {
 type ReportParams struct {
 	NodeID        string
 	NodeTarget    string
-	Runtimes      []string
 	Summary       *nodev1.NodeSummary
 	NodeAuthToken string
 	Now           time.Time

@@ -51,8 +51,7 @@ func (c Control) probe(ctx context.Context, session *Session) Check {
 		Namespace:     c.options.Namespace,
 		EnvironmentID: environmentID,
 		Config: &commonv1.ExecutionConfig{
-			Argv:         []string{"python", "-c", "print('axern-doctor-ok')"},
-			RuntimeClass: options.RuntimeClass,
+			Argv: []string{"python", "-c", "print('axern-doctor-ok')"},
 			Resources: &commonv1.ResourceSpec{
 				Requests: &commonv1.ResourceQuantity{CpuMilli: 50, MemoryBytes: 64 * 1024 * 1024},
 				// Doctor verifies catalog-backed data-plane reachability. Memory

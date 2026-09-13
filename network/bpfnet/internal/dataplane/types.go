@@ -1,10 +1,9 @@
 package dataplane
 
 type Config struct {
-	PinPath        string
-	MapSize        int
-	SNATMapSize    int
-	LocalOutCompat bool
+	PinPath     string
+	MapSize     int
+	SNATMapSize int
 }
 
 type Service struct {

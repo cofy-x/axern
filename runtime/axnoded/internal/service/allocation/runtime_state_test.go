@@ -47,7 +47,7 @@ func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	assert.NoError(t, first.controller.rememberContainerRuntime(allocationID, runtime))
 	now := time.Now().UTC()
 	assert.NoError(t, first.controller.StoreLaunchVerification(allocationID, &apipb.AllocationEnforcementManifest{
-		RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/" + allocationID,
+		BundlePath: "/var/lib/axnoded/root/containers/" + allocationID,
 		CreatedAtUnixNano: now.UnixNano(),
 	}, nil, now))
 	var persisted apipb.AllocationState

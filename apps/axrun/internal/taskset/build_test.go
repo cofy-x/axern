@@ -35,7 +35,6 @@ spec:
       task:
         sandbox:
           backend: axern
-          runtime_class: runsc
           workdir: /workspace
           runtime_source:
             type: image
@@ -128,7 +127,7 @@ spec:
       instruction: {text: x}
       workspace: {paths: [%s], expand: aggregate}
       task:
-        sandbox: {backend: local, runtime_class: runsc, workdir: /workspace}
+        sandbox: {backend: local, workdir: /workspace}
         verifier: {type: none}
 %s`
 	for name, test := range map[string][3]string{
@@ -161,7 +160,7 @@ spec:
       instruction: {text: x}
       workspace: {paths: [%s], expand: per_match}
       task:
-        sandbox: {backend: local, runtime_class: runsc, workdir: /workspace}
+        sandbox: {backend: local, workdir: /workspace}
         verifier: {type: none}
 `
 	badSpec := fmt.Sprintf(base, "../escape", longName)
@@ -364,7 +363,7 @@ spec:
       instruction: {text: x}
       workspace: {paths: [link.txt], expand: aggregate}
       task:
-        sandbox: {backend: local, runtime_class: runsc, workdir: /workspace}
+        sandbox: {backend: local, workdir: /workspace}
         verifier: {type: none}
 `
 	mustWrite(t, filepath.Join(root, "taskset.yaml"), spec, 0o644)
@@ -387,7 +386,7 @@ spec:
       workspace: {paths: [.], expand: aggregate}
       exclude_paths: [taskset.yaml, out]
       task:
-        sandbox: {backend: local, runtime_class: runsc, workdir: /workspace}
+        sandbox: {backend: local, workdir: /workspace}
         verifier: {type: none}
 `
 	mustWrite(t, filepath.Join(root, "taskset.yaml"), spec, 0o644)
@@ -419,7 +418,7 @@ spec:
       workspace: {paths: [%s], expand: aggregate}
       exclude_paths: [%s]
       task:
-        sandbox: {backend: local, runtime_class: runsc, workdir: /workspace}
+        sandbox: {backend: local, workdir: /workspace}
         verifier: {type: none}
 `
 	for name, tc := range map[string]struct{ path, exclude, want string }{
@@ -450,7 +449,7 @@ spec:
       instruction: {text: x}
       workspace: {paths: [input.txt], expand: aggregate}
       task:
-        sandbox: {backend: local, runtime_class: runsc, workdir: /workspace}
+        sandbox: {backend: local, workdir: /workspace}
         verifier: {type: none}
 `
 	mustWrite(t, filepath.Join(root, "taskset.yaml"), spec, 0o644)
@@ -477,7 +476,7 @@ spec:
       instruction: {text: x}
       workspace: {paths: [input.txt], expand: per_match}
       task:
-        sandbox: {backend: local, runtime_class: runsc, workdir: /workspace}
+        sandbox: {backend: local, workdir: /workspace}
         verifier: {type: none}
 `
 	mustWrite(t, filepath.Join(root, "taskset.yaml"), spec, 0o644)
@@ -508,7 +507,7 @@ spec:
       instruction: {text: ` + instruction + `}
       workspace: {paths: [input.txt], expand: aggregate}
       task:
-        sandbox: {backend: local, runtime_class: runsc, workdir: /workspace}
+        sandbox: {backend: local, workdir: /workspace}
         verifier: {type: none}
 `
 		path := filepath.Join(root, name+".yaml")
@@ -545,7 +544,7 @@ spec:
       instruction: {text: x}
       workspace: {paths: [linked.txt], expand: aggregate}
       task:
-        sandbox: {backend: local, runtime_class: runsc, workdir: /workspace}
+        sandbox: {backend: local, workdir: /workspace}
         verifier: {type: none}
 `
 	mustWrite(t, filepath.Join(root, "taskset.yaml"), spec, 0o644)

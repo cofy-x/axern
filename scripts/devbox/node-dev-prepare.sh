@@ -81,10 +81,10 @@ filestore_loopback_size_bytes = 536870912
 filestore_system_reserve_bytes = 67108864
 ephemeral_storage_default_limit_bytes = 268435456
 
-[plugin.runtime.runtimes.runsc]
+[plugin.runtime.runsc]
 binary = "/usr/local/bin/runsc"
 
-[plugin.runtime.runtimes.runsc.options]
+[plugin.runtime.runsc.options]
 allow_suid = true
 
 EOF

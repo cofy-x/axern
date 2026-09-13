@@ -36,7 +36,7 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 	}
 	snapshot.Components.Imagemgr = nodeinventory.ImagemgrComponentInventory{Status: nodeinventory.StatusDegraded, Reachable: true, DaemonCount: 2, MountedImageCount: 3, ImportedImageCount: 4}
 	snapshot.Components.Imagefsd = nodeinventory.ImagefsdComponentInventory{Status: nodeinventory.StatusReady, Reachable: true, ChunkDBPresent: true, ChunkCount: 9, ChunkDBUsedBytes: 2048, ChunkDBUsagePercent: 80.5}
-	snapshot.Components.BPFNet = nodeinventory.BPFNetComponentInventory{Status: nodeinventory.StatusDisabled, Enabled: false, Ready: false, Mode: "iptables", NeedsLocalhostCompat: true}
+	snapshot.Components.BPFNet = nodeinventory.BPFNetComponentInventory{Status: nodeinventory.StatusDisabled, Enabled: false, Ready: false, Mode: "iptables"}
 	snapshot.Storage = []nodeinventory.StorageInventoryEntry{
 		{
 			Target:          nodeinventory.StorageTargetAxnodedState,
@@ -121,9 +121,6 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 	}
 	if !summary.GetComponents().GetImagefsd().GetChunkdbPresent() || summary.GetComponents().GetImagefsd().GetChunkdbUsedBytes() != 2048 {
 		t.Fatalf("unexpected imagefsd summary: %#v", summary.GetComponents().GetImagefsd())
-	}
-	if !summary.GetComponents().GetBpfnet().GetNeedsLocalhostCompat() {
-		t.Fatalf("unexpected bpfnet summary: %#v", summary.GetComponents().GetBpfnet())
 	}
 	if len(summary.GetStorage()) != 2 {
 		t.Fatalf("storage len = %d, want 2", len(summary.GetStorage()))

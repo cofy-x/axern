@@ -18,7 +18,6 @@ func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1
 	template := env.GetResolvedTemplate()
 	requests := config.GetResources().GetRequests()
 	limits := config.GetResources().GetLimits()
-	runtimeName := firstNonEmpty(config.GetRuntimeClass(), p.defaultSandboxRuntime)
 	ports := portSpecsToPlacementPorts(config.GetPorts())
 	normalizedNetwork, err := networkpolicy.Normalize(config.GetNetwork())
 	if err != nil {
@@ -27,7 +26,6 @@ func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1
 	network := networkSpecToPlacementNetwork(normalizedNetwork)
 	policyMode := networkpolicy.Mode(normalizedNetwork)
 	capabilities, err := capabilitycontract.DeriveRequestStaticRequirements(capabilitycontract.RequirementInput{
-		RuntimeName:                     runtimeName,
 		HasPorts:                        len(ports) > 0,
 		NetworkMode:                     network,
 		RequiresDNSPolicyEnforcement:    policyMode == networkpolicy.EnforcementDNSDeny,
@@ -44,7 +42,6 @@ func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1
 		RootfsKey:                      firstNonEmpty(env.GetID(), template.GetImageDescriptor().GetDigest()),
 		RootfsType:                     controlnodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:                      controlnodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:                        runtimeName,
 		MemoryLimitBytes:               limits.GetMemoryBytes(),
 		RootfsWritable:                 !template.GetRootfsReadonly(),
 		EphemeralStorageLimitBytes:     limits.GetEphemeralStorageBytes(),

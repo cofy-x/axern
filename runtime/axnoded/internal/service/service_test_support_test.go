@@ -33,15 +33,9 @@ func newTestServiceWithLanguageRuntimeManager(t *testing.T, handlers map[string]
 
 	tmpDir := t.TempDir()
 
-	runtimes := make(map[string]config.RuntimeInstanceConfig)
-	for name := range handlers {
-		runtimes[name] = config.RuntimeInstanceConfig{Binary: "/fake/" + name}
-	}
 	registry := handlerregistry.New(config.Config{
 		PluginConfig: config.PluginConfig{
-			RuntimeConfig: config.RuntimeConfig{
-				Runtimes: runtimes,
-			},
+			RuntimeConfig: config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/fake/runsc"}},
 		},
 	})
 	for name, h := range handlers {
@@ -64,9 +58,7 @@ func newTestServiceWithLanguageRuntimeManager(t *testing.T, handlers map[string]
 		config: config.Config{
 			RootDir: tmpDir,
 			PluginConfig: config.PluginConfig{
-				RuntimeConfig: config.RuntimeConfig{
-					Runtimes: runtimes,
-				},
+				RuntimeConfig: config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/fake/runsc"}},
 			},
 		},
 		runtimeHandlers:  registry,

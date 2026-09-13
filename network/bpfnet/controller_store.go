@@ -79,12 +79,10 @@ func (c *Controller) failedState(uplinks []string, attachErr error) DataplaneSta
 		SNATPortMin:        SNATAllocatorPortMin,
 		SNATPortMax:        SNATAllocatorPortMax,
 		SNATPortAttempts:   SNATAllocatorPortAttempts,
-		LocalOutCompat:     c.cfg.LocalOutCompat,
 		NativeRoutingCIDRs: append([]string(nil), c.cfg.NativeRoutingCIDRs...),
 		TCReady:            false,
 		LocalhostTCPDNAT:   false,
 		LocalhostPathReady: false,
-		LocalhostCompat:    false,
 		LastAttachError:    attachErr.Error(),
 		LastTCProbeError:   tcProbeErr,
 		LastReconcileError: reconcileErr,
@@ -94,14 +92,8 @@ func (c *Controller) failedState(uplinks []string, attachErr error) DataplaneSta
 
 func (c *Controller) readyState(uplinks []string, attachment dataplaneAttachment) DataplaneState {
 	mode := ModeIngressTCPUDPDNATEgressSNAT
-	localhostCompat := false
-	if c.cfg.LocalOutCompat {
-		if attachment.LocalhostTCPDNAT {
-			mode = ModeIngressTCPUDPDNATEgressSNATLocalhostTCP
-		} else {
-			mode = ModeIngressTCPUDPDNATEgressSNATLocalCompat
-			localhostCompat = attachment.LocalhostAttachError != ""
-		}
+	if attachment.LocalhostTCPDNAT {
+		mode = ModeIngressTCPUDPDNATEgressSNATLocalhostTCP
 	}
 
 	return DataplaneState{
@@ -115,7 +107,6 @@ func (c *Controller) readyState(uplinks []string, attachment dataplaneAttachment
 		SNATPortMin:        SNATAllocatorPortMin,
 		SNATPortMax:        SNATAllocatorPortMax,
 		SNATPortAttempts:   SNATAllocatorPortAttempts,
-		LocalOutCompat:     c.cfg.LocalOutCompat,
 		NativeRoutingCIDRs: append([]string(nil), c.cfg.NativeRoutingCIDRs...),
 		IngressTCPDNAT:     true,
 		IngressUDPDNAT:     true,
@@ -123,7 +114,6 @@ func (c *Controller) readyState(uplinks []string, attachment dataplaneAttachment
 		TCReady:            true,
 		LocalhostTCPDNAT:   attachment.LocalhostTCPDNAT,
 		LocalhostPathReady: attachment.LocalhostTCPDNAT,
-		LocalhostCompat:    localhostCompat,
 		LastLocalhostError: attachment.LocalhostAttachError,
 		UpdatedAt:          time.Now().UTC(),
 	}

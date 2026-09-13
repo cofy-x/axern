@@ -128,8 +128,7 @@ message ExecutionConfig {
   PlacementConstraints placement = 8;
   repeated SecretEnvVar secret_env = 9;
   repeated SecretFile secret_files = 10;
-  string runtime_class = 11;
-  repeated ImageMount image_mounts = 12;
+  repeated ImageMount image_mounts = 11;
 }
 
 // AllocationLifecycleState tracks only placement and infrastructure cleanup.

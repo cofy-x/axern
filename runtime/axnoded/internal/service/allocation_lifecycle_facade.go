@@ -261,7 +261,6 @@ func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs b
 	policySpec := &commonv1.NetworkSpec{EgressPolicy: request.GetEgressPolicy()}
 	policyMode := networkpolicy.Mode(policySpec)
 	return capabilitycontract.RequirementInput{
-		RuntimeName:                     template.GetSandbox(),
 		HasPorts:                        len(request.GetPorts()) > 0,
 		NetworkMode:                     request.GetNetwork(),
 		NetworkBackend:                  h.config.PluginConfig.NetworkConfig.CapabilityBackend(),

@@ -41,14 +41,13 @@ enum SandboxNetworkPolicyCapabilityState {
 
 message LocalSandbox {
   string sandbox_id = 1;
-  string runtime_class = 2;
-  LocalSandboxState state = 3;
-  int32 exit_code = 4;
-  bool exit_code_known = 5;
-  string message = 6;
-  int32 pid = 7;
-  google.protobuf.Timestamp started_at = 8;
-  google.protobuf.Timestamp finished_at = 9;
+  LocalSandboxState state = 2;
+  int32 exit_code = 3;
+  bool exit_code_known = 4;
+  string message = 5;
+  int32 pid = 6;
+  google.protobuf.Timestamp started_at = 7;
+  google.protobuf.Timestamp finished_at = 8;
 }
 
 message ListSandboxesRequest {}
@@ -226,7 +225,6 @@ message ResolveSandboxNetworkResponse {
   string ip = 2;
   string netns_path = 3;
   LocalSandboxState state = 4;
-  string runtime_class = 5;
 }
 
 service NodeOperator {

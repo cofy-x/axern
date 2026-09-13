@@ -15,7 +15,6 @@ import (
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -56,77 +55,6 @@ func TestValidateNodeMemoryBudgetRequiresCanonicalFreshSummary(t *testing.T) {
 	summary.MemoryBudget.SampledAt = timestamppb.New(now.Add(-time.Minute))
 	if err := validateNodeMemoryBudget(summary, now); err == nil {
 		t.Fatal("validateNodeMemoryBudget() accepted stale sample")
-	}
-}
-
-func TestValidateAllocationMemoryObservationBatchRejectsAmbiguousEnforcementData(t *testing.T) {
-	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
-	valid := &controlnodev1.AllocationMemoryObservation{
-		AllocationID: "alloc-a", Revision: 1, ObservedAt: timestamppb.New(now),
-		RequestBytes: 128, LimitBytes: 256, CurrentBytes: 64, PeakBytes: 96, PeakAvailable: true,
-		CgroupIdentity: "boot:mount:parent:leaf", Runtime: "runsc", ParentControlsVerified: true, LeafControlsVerified: true,
-		CleanupState: controlnodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED,
-	}
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{valid}, now); err != nil {
-		t.Fatalf("validateAllocationMemoryObservationBatch() error = %v", err)
-	}
-	withPSI := proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
-	withPSI.PsiAvailable = true
-	withPSI.PsiSomeAvg10 = 0.25
-	withPSI.PsiSomeTotalUsec = 10
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{withPSI}, now); err != nil {
-		t.Fatalf("available PSI observation validation error = %v", err)
-	}
-	sampledPeak := proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
-	sampledPeak.PeakAvailable = false
-	sampledPeak.PeakBytes = sampledPeak.CurrentBytes
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{sampledPeak}, now); err != nil {
-		t.Fatalf("sampled peak observation validation error = %v", err)
-	}
-	invalidSampledPeak := proto.Clone(sampledPeak).(*controlnodev1.AllocationMemoryObservation)
-	invalidSampledPeak.PeakBytes++
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalidSampledPeak}, now); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("inconsistent sampled peak observation validation error = %v, want InvalidArgument", err)
-	}
-	invalidPSI := proto.Clone(withPSI).(*controlnodev1.AllocationMemoryObservation)
-	invalidPSI.PsiAvailable = false
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalidPSI}, now); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("unavailable PSI observation validation error = %v, want InvalidArgument", err)
-	}
-	retiring := proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
-	retiring.CleanupState = controlnodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING
-	retiring.LeafControlsVerified = false
-	retiring.PidRolesVerified = false
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{retiring}, now); err != nil {
-		t.Fatalf("retiring observation validation error = %v", err)
-	}
-	invalidRetiring := proto.Clone(retiring).(*controlnodev1.AllocationMemoryObservation)
-	invalidRetiring.ParentControlsVerified = false
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalidRetiring}, now); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("retiring parent validation error = %v, want InvalidArgument", err)
-	}
-	invalid := proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
-	invalid.SwapCurrentBytes = 1
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalid}, now); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("swap validation error = %v, want InvalidArgument", err)
-	}
-	unlimited := proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
-	unlimited.LimitBytes = 0
-	unlimited.SwapCurrentBytes = 32
-	unlimited.ParentControlsVerified = false
-	unlimited.LeafControlsVerified = false
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{unlimited}, now); err != nil {
-		t.Fatalf("unlimited observation validation error = %v", err)
-	}
-	invalid = proto.Clone(unlimited).(*controlnodev1.AllocationMemoryObservation)
-	invalid.ParentControlsVerified = true
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalid}, now); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("unlimited control validation error = %v, want InvalidArgument", err)
-	}
-	invalid = proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
-	invalid.CleanupState = controlnodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_UNSPECIFIED
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalid}, now); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("cleanup state validation error = %v, want InvalidArgument", err)
 	}
 }
 
@@ -315,7 +243,6 @@ func TestReportTunnelSessionStatusRequiresNodeAuth(t *testing.T) {
 	if _, err := nodeStore.Register(context.Background(), nodekernel.RegisterParams{
 		NodeID:        "node-a",
 		NodeTarget:    "127.0.0.1:25000",
-		Runtimes:      []string{"runsc"},
 		NodeAuthToken: "token-a",
 		Now:           now,
 	}); err != nil {
@@ -380,11 +307,6 @@ func (f *fakeAllocationControl) BatchReportAllocationCapabilityConditions(_ cont
 	f.conditionCalls++
 	f.conditionNodeID = nodeID
 	f.conditionReports = append([]*controlnodev1.AllocationCapabilityConditionReport(nil), reports...)
-	return nil
-}
-
-func (f *fakeAllocationControl) BatchReportAllocationMemoryObservations(_ context.Context, nodeID string, observations []*controlnodev1.AllocationMemoryObservation, _ time.Time) error {
-	f.nodeID = nodeID
 	return nil
 }
 

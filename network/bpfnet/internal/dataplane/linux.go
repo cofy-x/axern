@@ -116,19 +116,16 @@ func (d *linuxDataplane) reconcileTCPrograms(uplinks []string) error {
 }
 
 func (d *linuxDataplane) reconcileLocalhostPath(attachment *Attachment) error {
-	if !d.cfg.LocalOutCompat {
-		return nil
-	}
 	if err := d.syncHostNetnsCookie(); err != nil {
 		_ = d.bumpKernelStat(KernelStatLocalhostFallbackHit)
 		attachment.LocalhostAttachError = err.Error()
-		return nil
+		return err
 	}
 	localhostReady, err := d.ensureLocalhostLinks()
 	if err != nil {
 		_ = d.bumpKernelStat(KernelStatLocalhostFallbackHit)
 		attachment.LocalhostAttachError = err.Error()
-		return nil
+		return err
 	}
 	attachment.LocalhostTCPDNAT = localhostReady
 	return nil

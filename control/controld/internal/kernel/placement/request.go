@@ -17,7 +17,6 @@ type Request struct {
 	RootfsKey                       string
 	RootfsType                      nodev1.RootfsType
 	MountType                       nodev1.MountType
-	Runtime                         string
 	MemoryLimitBytes                int64
 	RootfsWritable                  bool
 	EphemeralStorageLimitBytes      int64
@@ -61,7 +60,6 @@ func ResolveRequestForNode(base *Request, summary *nodev1.NodeSummary, now time.
 		}
 	}
 	input := capabilitycontract.RequirementInput{
-		RuntimeName:                 out.Runtime,
 		HasPorts:                    len(out.Ports) > 0 || out.RequiresHostPort,
 		NetworkMode:                 out.Network,
 		NetworkBackend:              out.NetworkBackend,
@@ -123,12 +121,6 @@ func (r *Request) GetMountType() nodev1.MountType {
 		return nodev1.MountType_MOUNT_TYPE_UNSPECIFIED
 	}
 	return r.MountType
-}
-func (r *Request) GetRuntime() string {
-	if r == nil {
-		return ""
-	}
-	return r.Runtime
 }
 func (r *Request) GetRequiresHostPort() bool { return r != nil && r.RequiresHostPort }
 func (r *Request) GetRequestedCpuMilli() int64 {

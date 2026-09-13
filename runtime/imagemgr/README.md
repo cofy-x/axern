@@ -162,7 +162,7 @@ The descriptor is the only image-representation hand-off to runtime rootfs proje
 
 When a daemon needs to be removed explicitly, `POST /cleanup_daemon` accepts a JSON body with `daemon_id`.
 
-Persisted mount or daemon records with unsupported source types are rejected at startup and require explicit operator resolution; imagemgr never reinterprets or deletes those records automatically. S3 artifact storage is independent of node rootfs and remains supported by the control plane.
+Persisted mount or daemon records with unsupported source types are rejected at startup and require explicit operator resolution; imagemgr never reinterprets or deletes those records automatically. Imagemgr owns only execution rootfs content and mounts; durable artifact or dataset storage belongs to an upper-layer system.
 
 ## Development And Validation
 

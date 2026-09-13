@@ -12,7 +12,7 @@ func TestRemovedSourcesRejectedBeforeCacheReuse(t *testing.T) {
 	d := newTestDaemon("existing")
 	d.mountFailed.Store(true)
 	mgr := newTestManager(map[string]*Daemon{"existing": d})
-	for _, source := range []string{"", "oss", "s3", "unknown"} {
+	for _, source := range []string{"", "invalid"} {
 		if err := mgr.CreateDaemon(&DaemonCreateOpt{ID: "existing", SourceType: source}); err == nil {
 			t.Fatalf("accepted unsupported source %q", source)
 		}
@@ -26,30 +26,30 @@ func TestRemovedSourcesRejectedBeforeCacheReuse(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsLegacyDaemonWithoutModifyingRecord(t *testing.T) {
-	for _, source := range []string{"", "oss", "s3"} {
+func TestLoadRejectsInvalidDaemonWithoutModifyingRecord(t *testing.T) {
+	for _, source := range []string{"", "invalid"} {
 		t.Run(source, func(t *testing.T) {
 			root := t.TempDir()
 			configDir := filepath.Join(root, "daemon_configs")
 			if err := os.MkdirAll(configDir, 0755); err != nil {
 				t.Fatal(err)
 			}
-			path := filepath.Join(configDir, "legacy.json")
-			data := []byte(`{"id":"legacy","source_type":"` + source + `"}`)
+			path := filepath.Join(configDir, "invalid.json")
+			data := []byte(`{"id":"invalid","source_type":"` + source + `"}`)
 			if err := os.WriteFile(path, data, 0600); err != nil {
 				t.Fatal(err)
 			}
 			mgr := &manager{ctx: context.Background(), root: root, daemons: map[string]*Daemon{}}
 			err := mgr.loadExistedDaemons()
 			if err == nil || !strings.Contains(err.Error(), "unsupported persisted daemon source") {
-				t.Fatalf("legacy source error = %v", err)
+				t.Fatalf("invalid source error = %v", err)
 			}
 			got, err := os.ReadFile(path)
 			if err != nil || string(got) != string(data) {
-				t.Fatalf("legacy metadata changed: %v", err)
+				t.Fatalf("invalid metadata changed: %v", err)
 			}
 			if len(mgr.daemons) != 0 {
-				t.Fatal("legacy daemon was registered")
+				t.Fatal("invalid daemon was registered")
 			}
 		})
 	}

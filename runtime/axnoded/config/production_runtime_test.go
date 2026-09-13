@@ -7,15 +7,15 @@ import (
 	"testing"
 )
 
-func TestProductionRuntimeDefaultsEnableOnlyRunsc(t *testing.T) {
-	runtimes := DefaultConfig().PluginConfig.RuntimeConfig.Runtimes
-	if len(runtimes) != 1 || runtimes[RuntimeNameRunsc].Binary == "" {
-		t.Fatalf("production defaults must enable only runsc: %v", runtimes)
+func TestProductionRuntimeDefaultsConfigureRunsc(t *testing.T) {
+	runsc := DefaultConfig().PluginConfig.RuntimeConfig.Runsc
+	if runsc.Binary == "" {
+		t.Fatalf("production defaults must configure runsc: %v", runsc)
 	}
 
 	// These generators configure the packaged node and the source-development
 	// stack. An installed diagnostic binary must not re-enable its handler.
-	header := regexp.MustCompile(`(?m)^\[plugin\.runtime\.runtimes\.([^.\]]+)\]$`)
+	header := regexp.MustCompile(`(?m)^\[plugin\.runtime\.(runsc)\]$`)
 	for _, relative := range []string{
 		"deploy/images/lib/node-all-in-one-entrypoint.sh",
 		"scripts/devbox/node-dev-prepare.sh",

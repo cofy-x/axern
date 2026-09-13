@@ -6,7 +6,7 @@ description: 用 runsc 隔离工作负载，并用 request、limit 和命名空�
 Axern 使用 gVisor（`runsc`）作为生产 sandbox 运行时，在工作负载与主机之间加入用户态内核，使用统一的资源与生命周期模型。执行运行时统一使用 runsc，不提供运行时自动回退。
 
 ```bash
-axern run --runtime-class runsc docker.io/library/python:3.12-slim -- \
+axern run docker.io/library/python:3.12-slim -- \
   python -c 'print("hello")'
 ```
 

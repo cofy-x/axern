@@ -319,7 +319,7 @@ func runSandboxSample(cfg config, clients *verifyutil.NodeClients, policy *commo
 		"-timeout", cfg.operationTimeout.String(),
 	}
 	spec := &privatenodev1.ResolvedExecutionConfig{
-		RuntimeClass: cfg.runtimeName, Cwd: "/", LocalRootfsPath: cfg.rootfs, Argv: arguments,
+		Cwd: "/", LocalRootfsPath: cfg.rootfs, Argv: arguments,
 		RootfsReadonly: true,
 		Resources: &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{MemoryBytes: 256 << 20},

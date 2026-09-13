@@ -40,7 +40,6 @@ spec:
   execution:
     runner: axern
     namespace: default
-    runtime_class: runsc
     concurrency: 32
     attempts: 4
   selection:

@@ -115,25 +115,6 @@ verify_quota_admission() {
     exit 1
   fi
 
-  if "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run \
-    -o json \
-    --namespace "${namespace}" \
-    --environment "${quota_environment_id}" \
-    --runtime-class unsupported-e2e-runtime \
-    -- /bin/sh -lc 'sleep 1' >"${cli_object_output}" 2>"${cli_error_output}"; then
-    echo "unsupported-runtime run unexpectedly succeeded" >&2
-    cat "${cli_object_output}" >&2 || true
-    dump_logs
-    exit 1
-  fi
-
-  if ! grep -Eiq "no eligible node|runtime_unsupported|unsupported" "${cli_error_output}" || grep -Eiq "insufficient_cpu|insufficient_memory|effective_allocatable|namespace quota" "${cli_error_output}"; then
-    echo "unsupported-runtime run returned an unexpected node-selection error" >&2
-    cat "${cli_error_output}" >&2 || true
-    dump_logs
-    exit 1
-  fi
-
   quota_run_output=""
   deadline=$((SECONDS + 60))
   while [ "${SECONDS}" -lt "${deadline}" ]; do

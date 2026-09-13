@@ -72,11 +72,10 @@ type AgentRuntime struct {
 }
 
 type Execution struct {
-	Runner       string `json:"runner,omitempty" yaml:"runner,omitempty"`
-	Namespace    string `json:"namespace,omitempty" yaml:"namespace,omitempty"`
-	RuntimeClass string `json:"runtime_class,omitempty" yaml:"runtime_class,omitempty"`
-	Concurrency  int    `json:"concurrency,omitempty" yaml:"concurrency,omitempty"`
-	Attempts     int    `json:"attempts,omitempty" yaml:"attempts,omitempty"`
+	Runner      string `json:"runner,omitempty" yaml:"runner,omitempty"`
+	Namespace   string `json:"namespace,omitempty" yaml:"namespace,omitempty"`
+	Concurrency int    `json:"concurrency,omitempty" yaml:"concurrency,omitempty"`
+	Attempts    int    `json:"attempts,omitempty" yaml:"attempts,omitempty"`
 }
 
 type Selection struct {
@@ -254,7 +253,6 @@ func (e Envelope) Params(execute bool, overrides Overrides) (approllout.Params, 
 		AgentPatchRequired:  e.Spec.Agent.PatchRequired,
 		AgentEnv:            envFlags(e.Spec.Agent.Env),
 		Model:               e.Spec.Model,
-		RuntimeClass:        e.Spec.Execution.RuntimeClass,
 		RunID:               e.Metadata.Name,
 		SelectedTaskIDs:     append([]string(nil), e.Spec.Selection.TaskIDs...),
 		TaskLimit:           e.Spec.Selection.Limit,
@@ -273,7 +271,6 @@ func (e Envelope) Params(execute bool, overrides Overrides) (approllout.Params, 
 		params.AxernConfig = &axernbackend.Config{
 			Endpoint:      overrides.Context.Endpoint,
 			Namespace:     e.Spec.Execution.Namespace,
-			RuntimeClass:  params.RuntimeClass,
 			TLSCACert:     overrides.Context.TLS.CACert,
 			TLSCert:       overrides.Context.TLS.Cert,
 			TLSKey:        overrides.Context.TLS.Key,

@@ -227,7 +227,6 @@ func (a *App) configureDependencies(cfg Config) error {
 	}
 	a.tunnelPG = pgtunnel.NewStore(db, cfg.TunnelEdgeTarget, cfg.TunnelNodeEdgeTarget, pgtunnel.WithRelays(relays), pgtunnel.WithMasterKey(masterKey))
 	a.nodeBridge = nodebridge.New(a.nodeLifecycle, nodebridge.Config{
-		DefaultRuntime:      defaultSandboxRuntime,
 		SecretValues:        a.secretDB,
 		RegistryCredentials: a.secretDB,
 	})

@@ -38,7 +38,6 @@ spec:
     image: docker.io/library/python:3.12-slim
   command:
     argv: [python, -c, "print('ok')"]
-  runtime_class: runsc
   resources:
     requests:
       cpu: 500m
@@ -53,7 +52,7 @@ axern run --file run.yaml
 
 `spec.source` selects exactly one of `image`, `template` (with optional `template_version`), or `environment` (an existing environment ID). Private registries use `registry_credential_id`; credentials are referenced by ID and never embedded in the spec. The parser rejects unknown fields and conflicting sources.
 
-The equivalent flags cover the same surface: `--env`, `--secret-env`, `--secret-file`, `--image-mount`, `--cwd`, `--runtime-class`, `--label`, `--template`, `--environment`, and the four resource flags (`--request-cpu`, `--request-memory`, `--limit-cpu`, `--limit-memory`). `--file` cannot be combined with definition flags.
+The equivalent flags cover the same surface: `--env`, `--secret-env`, `--secret-file`, `--image-mount`, `--cwd`, `--label`, `--template`, `--environment`, and the four resource flags (`--request-cpu`, `--request-memory`, `--limit-cpu`, `--limit-memory`). `--file` cannot be combined with definition flags.
 
 ## Detached and long-running Runs
 
@@ -63,6 +62,6 @@ Run status is durable. Output streaming is currently backed by node-local files 
 
 ## Isolation and resources
 
-Packaged nodes support `runtime_class: runsc` as the isolation boundary. Resource requests and limits interact with namespace quota and admission; see [Runtime and Resources](/architecture/resources/) for the model and [Environments, Namespaces, and Quota](/guides/environments/) for inspecting admission rejections.
+Packaged nodes use `runsc` as the fixed isolation boundary. Resource requests and limits interact with namespace quota and admission; see [Runtime and Resources](/architecture/resources/) for the model and [Environments, Namespaces, and Quota](/guides/environments/) for inspecting admission rejections.
 
 The CLI help is authoritative for the complete flag surface: `axern run --help`.

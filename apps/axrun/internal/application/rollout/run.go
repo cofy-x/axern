@@ -29,7 +29,6 @@ type Params struct {
 	AgentPatchRequired  bool
 	AgentEnv            []string
 	Model               string
-	RuntimeClass        string
 	RunID               string
 	TaskSetRef          string
 	SelectedTaskIDs     []string

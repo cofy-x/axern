@@ -12,25 +12,22 @@ func TestRegisterIdempotentUpsert(t *testing.T) {
 	registry := NewRegistry()
 	now := time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC)
 
-	registry.Register("node-a", "127.0.0.1:25000", []string{"runsc", "runsc", "other"}, now)
-	registry.Register("node-a", "127.0.0.1:25000", []string{"other"}, now)
+	registry.Register("node-a", "127.0.0.1:25000", now)
+	registry.Register("node-a", "127.0.0.1:25000", now)
 
 	nodes := registry.DebugNodes(now, 15*time.Second, 15*time.Second)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
-	}
-	if got := nodes[0].Runtimes; len(got) != 1 || got[0] != "other" {
-		t.Fatalf("unexpected runtimes after upsert: %#v", got)
 	}
 }
 
 func TestRegistryRetirementIsMonotonic(t *testing.T) {
 	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 	registry := NewRegistry()
-	registry.Register("node-a", "node-a:25000", []string{"runsc"}, now)
+	registry.Register("node-a", "node-a:25000", now)
 	registry.MarkRetired("node-a", now.Add(time.Minute), "host removed")
 
-	registry.Register("node-a", "node-a:25001", []string{"other"}, now.Add(2*time.Minute))
+	registry.Register("node-a", "node-a:25001", now.Add(2*time.Minute))
 	registry.SyncLifecycle("node-a", LifecycleActive, time.Time{}, "")
 	record, ok := registry.Get("node-a")
 	if !ok || record.Lifecycle != LifecycleRetired || record.RetiredReason != "host removed" {
@@ -43,7 +40,7 @@ func TestReportUsesSummaryCollectedAtAsSingleTimestamp(t *testing.T) {
 	now := time.Date(2026, 4, 21, 11, 0, 0, 0, time.UTC)
 	collectedAt := now.Add(-7 * time.Second)
 
-	registry.Report("node-b", "127.0.0.1:25001", []string{"runsc"}, readySummary(collectedAt), now)
+	registry.Report("node-b", "127.0.0.1:25001", readySummary(collectedAt), now)
 
 	nodes := registry.DebugNodes(now, 15*time.Second, 15*time.Second)
 	if len(nodes) != 1 {
@@ -61,8 +58,8 @@ func TestDebugNodesClassifiesFreshness(t *testing.T) {
 	registry := NewRegistry()
 	base := time.Date(2026, 4, 21, 12, 0, 0, 0, time.UTC)
 
-	registry.Report("fresh-node", "127.0.0.1:25002", []string{"runsc"}, readySummary(base.Add(20*time.Second)), base.Add(20*time.Second))
-	registry.Report("stale-summary", "127.0.0.1:25003", []string{"runsc"}, readySummary(base), base.Add(20*time.Second))
+	registry.Report("fresh-node", "127.0.0.1:25002", readySummary(base.Add(20*time.Second)), base.Add(20*time.Second))
+	registry.Report("stale-summary", "127.0.0.1:25003", readySummary(base), base.Add(20*time.Second))
 
 	nodes := registry.DebugNodes(base.Add(20*time.Second), 15*time.Second, 15*time.Second)
 	if len(nodes) != 2 {

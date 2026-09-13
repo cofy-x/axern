@@ -15,7 +15,6 @@ func TestRenderSandboxTableFormatsMissingValues(t *testing.T) {
 	renderSandboxTable(&out, []*nodeoperatorv1.LocalSandbox{
 		{
 			SandboxID:     "demo",
-			RuntimeClass:  "runsc",
 			State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_RUNNING,
 			ExitCodeKnown: false,
 			Pid:           0,
@@ -33,7 +32,7 @@ func TestRenderSandboxTableFormatsMissingValues(t *testing.T) {
 		}
 	}
 	fields := strings.Fields(lines[1])
-	wantFields := []string{"demo", "runsc", "RUNNING", "-", "-", "-", "-"}
+	wantFields := []string{"demo", "RUNNING", "-", "-", "-", "-"}
 	if len(fields) != len(wantFields) {
 		t.Fatalf("renderSandboxTable() fields = %v, want %v", fields, wantFields)
 	}
@@ -48,7 +47,6 @@ func TestRenderSandboxInspectKeepsUnknownExitCodeForExitedSandbox(t *testing.T) 
 	var out bytes.Buffer
 	renderSandboxInspect(&out, &nodeoperatorv1.LocalSandbox{
 		SandboxID:     "demo",
-		RuntimeClass:  "runsc",
 		State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
 		ExitCodeKnown: false,
 	})
@@ -63,7 +61,6 @@ func TestRenderSandboxInspectFormatsMissingValues(t *testing.T) {
 	var out bytes.Buffer
 	renderSandboxInspect(&out, &nodeoperatorv1.LocalSandbox{
 		SandboxID:     "demo",
-		RuntimeClass:  "runsc",
 		State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
 		ExitCodeKnown: true,
 		ExitCode:      0,

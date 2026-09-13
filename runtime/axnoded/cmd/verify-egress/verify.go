@@ -46,7 +46,6 @@ func runVerifyEgress(cfg verifyEgressConfig) error {
 
 	benchmarkRequested := cfg.requests > 0
 	baseSpec := &privatenodev1.ResolvedExecutionConfig{
-		RuntimeClass:    cfg.runtimeName,
 		Cwd:             "/",
 		LocalRootfsPath: cfg.rootfs,
 		Mounts: []*privatenodev1.SandboxMount{

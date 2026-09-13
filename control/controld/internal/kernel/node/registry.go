@@ -19,7 +19,6 @@ type Registry struct {
 type Record struct {
 	NodeID        string
 	NodeTarget    string
-	Runtimes      []string
 	Summary       *nodev1.NodeSummary
 	Lifecycle     LifecycleStatus
 	RegisteredAt  time.Time
@@ -59,22 +58,20 @@ func NewRegistry() *Registry {
 	}
 }
 
-func (r *Registry) Register(nodeID string, nodeTarget string, runtimes []string, now time.Time) {
+func (r *Registry) Register(nodeID string, nodeTarget string, now time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	record := r.upsertLocked(nodeID, now)
 	record.NodeTarget = strings.TrimSpace(nodeTarget)
-	record.Runtimes = normalizeRuntimes(runtimes)
 }
 
-func (r *Registry) Report(nodeID string, nodeTarget string, runtimes []string, summary *nodev1.NodeSummary, now time.Time) {
+func (r *Registry) Report(nodeID string, nodeTarget string, summary *nodev1.NodeSummary, now time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	record := r.upsertLocked(nodeID, now)
 	record.NodeTarget = strings.TrimSpace(nodeTarget)
-	record.Runtimes = normalizeRuntimes(runtimes)
 	record.Summary = CloneNodeSummary(summary)
 	record.UpdatedAt = now
 }
@@ -178,7 +175,6 @@ func (r *Registry) DebugNodes(now time.Time, heartbeatWindow, summaryWindow time
 		out = append(out, DebugNode{
 			NodeID:           record.NodeID,
 			NodeTarget:       record.NodeTarget,
-			Runtimes:         append([]string(nil), record.Runtimes...),
 			Fresh:            heartbeatFresh && summaryFresh,
 			HeartbeatFresh:   heartbeatFresh,
 			SummaryFresh:     summaryFresh,
@@ -218,27 +214,6 @@ func (r *Registry) upsertLocked(nodeID string, now time.Time) *Record {
 	return record
 }
 
-func normalizeRuntimes(in []string) []string {
-	if len(in) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(in))
-	out := make([]string, 0, len(in))
-	for _, name := range in {
-		name = strings.TrimSpace(name)
-		if name == "" {
-			continue
-		}
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out
-}
-
 func cloneRecord(in *Record) *Record {
 	if in == nil {
 		return nil
@@ -246,7 +221,6 @@ func cloneRecord(in *Record) *Record {
 	return &Record{
 		NodeID:        in.NodeID,
 		NodeTarget:    in.NodeTarget,
-		Runtimes:      append([]string(nil), in.Runtimes...),
 		Summary:       CloneNodeSummary(in.Summary),
 		Lifecycle:     in.Lifecycle,
 		RegisteredAt:  in.RegisteredAt,

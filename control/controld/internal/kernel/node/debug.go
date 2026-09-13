@@ -9,7 +9,6 @@ import (
 type DebugNode struct {
 	NodeID           string              `json:"node_id"`
 	NodeTarget       string              `json:"node_target"`
-	Runtimes         []string            `json:"runtimes"`
 	Fresh            bool                `json:"fresh"`
 	HeartbeatFresh   bool                `json:"heartbeat_fresh"`
 	SummaryFresh     bool                `json:"summary_fresh"`

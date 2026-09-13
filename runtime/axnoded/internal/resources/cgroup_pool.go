@@ -229,7 +229,6 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 	lease.MemoryRequestBytes = opt.MemoryRequestBytes
 	lease.MemoryLimitBytes = opt.MemoryLimitBytes
 	lease.CapacityReservationBytes = capacityReservation
-	lease.RuntimeName = opt.RuntimeName
 	lease.OwnerKind = opt.CgroupOwnerKind
 	lease.AssignedAtUnixNano = time.Now().UTC().UnixNano()
 	c.leases.Set(id, lease)
@@ -245,7 +244,6 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 			lease.MemoryRequestBytes = 0
 			lease.MemoryLimitBytes = 0
 			lease.CapacityReservationBytes = 0
-			lease.RuntimeName = ""
 			lease.OwnerKind = apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED
 			lease.AssignedAtUnixNano = 0
 			lease.RetiringAtUnixNano = time.Now().UTC().UnixNano()
@@ -259,7 +257,6 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 		lease.MemoryRequestBytes = 0
 		lease.MemoryLimitBytes = 0
 		lease.CapacityReservationBytes = 0
-		lease.RuntimeName = ""
 		lease.OwnerKind = apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED
 		lease.AssignedAtUnixNano = 0
 		c.leases.Set(id, lease)

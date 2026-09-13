@@ -30,21 +30,6 @@ func loadNodeRecord(ctx context.Context, tx pgx.Tx, nodeID string) (*nodekernel.
 		record.RetiredAt = *retiredAt
 	}
 
-	rows, err := tx.Query(ctx, `SELECT runtime_name FROM node_runtime_sets WHERE node_id = $1 ORDER BY runtime_name`, nodeID)
-	if err != nil {
-		return nil, fmt.Errorf("load node runtimes: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var runtimeName string
-		if err := rows.Scan(&runtimeName); err != nil {
-			return nil, fmt.Errorf("scan node runtime: %w", err)
-		}
-		record.Runtimes = append(record.Runtimes, runtimeName)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate node runtimes: %w", err)
-	}
 	if len(summaryJSON) > 0 {
 		record.Summary = &nodev1.NodeSummary{}
 		if err := protojson.Unmarshal(summaryJSON, record.Summary); err != nil {
@@ -61,7 +46,6 @@ func cloneRecord(in *nodekernel.Record) *nodekernel.Record {
 	return &nodekernel.Record{
 		NodeID:        in.NodeID,
 		NodeTarget:    in.NodeTarget,
-		Runtimes:      append([]string(nil), in.Runtimes...),
 		Summary:       nodekernel.CloneNodeSummary(in.Summary),
 		Lifecycle:     in.Lifecycle,
 		RegisteredAt:  in.RegisteredAt,

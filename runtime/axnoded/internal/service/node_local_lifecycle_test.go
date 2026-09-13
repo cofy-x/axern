@@ -138,7 +138,7 @@ func TestPrepareNodeLocalStartRequestBindsCurrentExactProofs(t *testing.T) {
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
 		expected: []*capabilityv1.CapabilityKey{selfTest},
 		observe: func(context.Context, time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, config.RuntimeNameRunsc, sha256Digest([]byte("runsc")), sha256Digest([]byte("config")))
+			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, sha256Digest([]byte("runsc")), sha256Digest([]byte("config")))
 			return []*capabilityv1.CapabilityObservation{availableObservation(selfTest, evidence)}, nil
 		},
 	}

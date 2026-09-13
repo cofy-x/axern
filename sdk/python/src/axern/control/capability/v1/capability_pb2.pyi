@@ -151,16 +151,14 @@ class MountEvidenceIdentity(_message.Message):
     def __init__(self, boot_id: _Optional[str] = ..., mount_identity: _Optional[str] = ...) -> None: ...
 
 class RuntimeEvidenceIdentity(_message.Message):
-    __slots__ = ("boot_id", "runtime_name", "runtime_binary_digest", "runtime_config_digest")
+    __slots__ = ("boot_id", "runtime_binary_digest", "runtime_config_digest")
     BOOT_ID_FIELD_NUMBER: _ClassVar[int]
-    RUNTIME_NAME_FIELD_NUMBER: _ClassVar[int]
     RUNTIME_BINARY_DIGEST_FIELD_NUMBER: _ClassVar[int]
     RUNTIME_CONFIG_DIGEST_FIELD_NUMBER: _ClassVar[int]
     boot_id: str
-    runtime_name: str
     runtime_binary_digest: str
     runtime_config_digest: str
-    def __init__(self, boot_id: _Optional[str] = ..., runtime_name: _Optional[str] = ..., runtime_binary_digest: _Optional[str] = ..., runtime_config_digest: _Optional[str] = ...) -> None: ...
+    def __init__(self, boot_id: _Optional[str] = ..., runtime_binary_digest: _Optional[str] = ..., runtime_config_digest: _Optional[str] = ...) -> None: ...
 
 class CapabilityEvidence(_message.Message):
     __slots__ = ("boot", "mount", "runtime")

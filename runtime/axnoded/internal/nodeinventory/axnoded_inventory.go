@@ -248,21 +248,6 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 	warming := false
 	successes := 0
 	memoryByRuntime := newAllocationMemoryMetricSet()
-	var memoryObservationRevision int64
-	nextMemoryRevision := func() (int64, error) {
-		if memoryObservationRevision > 0 {
-			return memoryObservationRevision, nil
-		}
-		if s.memoryObservationRevision == nil {
-			return 0, fmt.Errorf("durable observation revision provider is unavailable")
-		}
-		revision, err := s.memoryObservationRevision()
-		if err != nil {
-			return 0, fmt.Errorf("allocate durable observation revision: %w", err)
-		}
-		memoryObservationRevision = revision
-		return revision, nil
-	}
 	memoryObservationIDs := make(map[string]struct{})
 	appendMemoryObservation := func(observation *nodev1.AllocationMemoryObservation) {
 		allocationID := strings.TrimSpace(observation.GetAllocationID())
@@ -273,7 +258,7 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 		memoryObservationIDs[allocationID] = struct{}{}
 		snapshot.AllocationMemoryObservations = append(snapshot.AllocationMemoryObservations, observation)
 		snapshot.Resources.Memory.AxnodedUsedBytes = saturatingInt64Add(snapshot.Resources.Memory.AxnodedUsedBytes, observation.GetCurrentBytes())
-		runtimeName := observation.GetRuntime()
+		runtimeName := "runsc"
 		if memoryByRuntime[runtimeName] == nil {
 			memoryByRuntime[runtimeName] = make(map[string]float64)
 		}
@@ -322,12 +307,7 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 		statusValue := c.Status.Get()
 		memoryLimit := statusValue.ResourceSpec.GetLimits().GetMemoryBytes()
 		if s.memoryBudgetEnabled {
-			revision, revisionErr := nextMemoryRevision()
-			if revisionErr != nil {
-				errs = append(errs, fmt.Sprintf("%s memory: %v", c.ID, revisionErr))
-				continue
-			}
-			observation, observationErr := allocationMemoryObservation(c, cgroupPath, memoryLimit, revision, now)
+			observation, observationErr := allocationMemoryObservation(c, cgroupPath, memoryLimit, now)
 			if observationErr != nil {
 				errs = append(errs, fmt.Sprintf("%s memory: %v", c.ID, observationErr))
 				continue
@@ -402,12 +382,7 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.ID, err))
 			continue
 		}
-		revision, revisionErr := nextMemoryRevision()
-		if revisionErr != nil {
-			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.ID, revisionErr))
-			continue
-		}
-		observation, observationErr := allocationMemoryObservation(c, cgroupPath, memoryLimit, revision, now)
+		observation, observationErr := allocationMemoryObservation(c, cgroupPath, memoryLimit, now)
 		if observationErr != nil {
 			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.ID, observationErr))
 			continue
@@ -421,12 +396,7 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 	}
 
 	for _, lease := range retiringLeases {
-		revision, revisionErr := nextMemoryRevision()
-		if revisionErr != nil {
-			errs = append(errs, fmt.Sprintf("%s retiring memory: %v", lease.AllocationID, revisionErr))
-			continue
-		}
-		observation, observationErr := retiringMemoryObservation(s.cgroupDriver, lease, revision, now)
+		observation, observationErr := retiringMemoryObservation(s.cgroupDriver, lease, now)
 		if observationErr != nil {
 			if errors.Is(observationErr, os.ErrNotExist) {
 				continue
@@ -496,8 +466,8 @@ func saturatingInt64Add(current, delta int64) int64 {
 	return current + delta
 }
 
-func retiringMemoryObservation(driver os2.CgroupDriver, lease resources.RetiringMemoryLease, revision int64, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
-	if driver == nil || lease.CgroupID == "" || lease.AllocationID == "" || lease.MemoryRequest < 0 || lease.MemoryLimit < 0 || revision <= 0 {
+func retiringMemoryObservation(driver os2.CgroupDriver, lease resources.RetiringMemoryLease, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
+	if driver == nil || lease.CgroupID == "" || lease.AllocationID == "" || lease.MemoryRequest < 0 || lease.MemoryLimit < 0 {
 		return nil, fmt.Errorf("retiring allocation memory metadata is incomplete")
 	}
 	if lease.MemoryLimit > 0 && lease.MemoryRequest > lease.MemoryLimit {
@@ -539,13 +509,13 @@ func retiringMemoryObservation(driver os2.CgroupDriver, lease resources.Retiring
 		return nil, err
 	}
 	return memoryObservationFromKernel(
-		lease.AllocationID, lease.MemoryRequest, lease.MemoryLimit, lease.RuntimeName,
-		nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING, revision, now, domain, usage, bounded, leafControlsVerified,
+		lease.AllocationID, lease.MemoryRequest, lease.MemoryLimit,
+		nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING, now, domain, usage, bounded, leafControlsVerified,
 	), nil
 }
 
-func allocationMemoryObservation(c *container.Container, workloadPath string, limitBytes, revision int64, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
-	if c == nil || c.Metadata == nil || c.Status == nil || limitBytes < 0 || revision <= 0 {
+func allocationMemoryObservation(c *container.Container, workloadPath string, limitBytes int64, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
+	if c == nil || c.Metadata == nil || c.Status == nil || limitBytes < 0 {
 		return nil, fmt.Errorf("allocation memory metadata is incomplete")
 	}
 	parentPath := ""
@@ -575,23 +545,21 @@ func allocationMemoryObservation(c *container.Container, workloadPath string, li
 		return nil, fmt.Errorf("allocation memory request is inconsistent with its limit")
 	}
 	return memoryObservationFromKernel(
-		c.ID, requestBytes, limitBytes, c.Metadata.GetRuntimeHandler(), nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, revision, now, domain, usage, bounded, bounded,
+		c.ID, requestBytes, limitBytes, nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, now, domain, usage, bounded, bounded,
 	), nil
 }
 
 func memoryObservationFromKernel(
 	allocationID string,
 	requestBytes, limitBytes int64,
-	runtimeName string,
 	cleanupState nodev1.AllocationMemoryCleanupState,
-	revision int64,
 	now time.Time,
 	domain *hostlinux.CgroupMemoryDomain,
 	usage *hostlinux.CgroupMemoryObservation,
 	parentControlsVerified, leafControlsVerified bool,
 ) *nodev1.AllocationMemoryObservation {
 	return &nodev1.AllocationMemoryObservation{
-		AllocationID: allocationID, Revision: revision, ObservedAt: timestamppb.New(now),
+		AllocationID: allocationID, ObservedAt: timestamppb.New(now),
 		RequestBytes: requestBytes, LimitBytes: limitBytes, CurrentBytes: usage.CurrentBytes, PeakBytes: usage.PeakBytes, PeakAvailable: usage.PeakAvailable,
 		SwapCurrentBytes: usage.SwapCurrent, AnonBytes: usage.Stat["anon"], FileBytes: usage.Stat["file"],
 		ShmemBytes: usage.Stat["shmem"], KernelBytes: usage.Stat["kernel"], DirtyBytes: usage.Stat["file_dirty"],
@@ -599,9 +567,9 @@ func memoryObservationFromKernel(
 		EventOom: usage.Events["oom"], EventOomKill: usage.Events["oom_kill"], EventOomGroupKill: usage.Events["oom_group_kill"],
 		PsiSomeAvg10: usage.PSISomeAvg10, PsiFullAvg10: usage.PSIFullAvg10,
 		PsiSomeTotalUsec: usage.PSISomeTotal, PsiFullTotalUsec: usage.PSIFullTotal,
-		PsiAvailable:   usage.PSIAvailable,
-		CgroupIdentity: fmt.Sprintf("boot=%s:%s:%d:%d", domain.BootID, domain.MountIdentity, domain.ParentInode, domain.LeafInode),
-		Runtime:        runtimeName, ParentControlsVerified: parentControlsVerified, LeafControlsVerified: leafControlsVerified,
+		PsiAvailable:           usage.PSIAvailable,
+		CgroupIdentity:         fmt.Sprintf("boot=%s:%s:%d:%d", domain.BootID, domain.MountIdentity, domain.ParentInode, domain.LeafInode),
+		ParentControlsVerified: parentControlsVerified, LeafControlsVerified: leafControlsVerified,
 		CleanupState: cleanupState,
 	}
 }

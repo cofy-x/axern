@@ -79,7 +79,7 @@ axern local doctor --probe
 
 The sandbox check (`runtime_dns_sandbox`) uses the public Namespace, Secret, Environment, and Run APIs. Cleanup cancels an active Run, then deletes the Environment, Secret, and Namespace in dependency order after success, failure, timeout, or cancellation. The terminal Run remains as normal control-plane history. The default query is the project-controlled absolute name `axern.cofy-x.space.`. Managed-network users can select a private name with `--dns-query-name`; the value is injected through the temporary Secret and is not returned in doctor JSON details or Run arguments.
 
-The probe always connects to the product-owned `local` context and ignores a currently selected remote context. Explicit remote endpoint or TLS overrides are rejected. Sandbox execution defaults to five minutes; adjust it with `--probe-timeout`. The defaults are template `python311` and runtime class `runsc`; sandbox-only options require `--probe`. A cleanup failure is a required failure and should be remediated by inspecting probe-labeled local resources before retrying.
+The probe always connects to the product-owned `local` context and ignores a currently selected remote context. Explicit remote endpoint or TLS overrides are rejected. Sandbox execution defaults to five minutes; adjust it with `--probe-timeout`. The default template is `python311`; sandbox-only options require `--probe`. A cleanup failure is a required failure and should be remediated by inspecting probe-labeled local resources before retrying.
 
 VPNs and managed networks sometimes require a resolver that is not visible in the Node container's effective configuration. Set an explicit comma-separated list before starting or recreating the local stack:
 

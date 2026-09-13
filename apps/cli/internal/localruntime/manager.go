@@ -106,14 +106,14 @@ func (ExecRunner) Pipe(ctx context.Context, stdout, stderr io.Writer, source str
 type ImageLoadOptions struct{ Pull bool }
 
 type ImageLoadResult struct {
-	SourceRef        string `json:"source_ref"`
-	CanonicalRef     string `json:"canonical_ref"`
-	ImmutableRef     string `json:"immutable_ref"`
-	GenerationDigest string `json:"generation_digest"`
-	ArchiveDigest    string `json:"archive_digest"`
-	Platform         string `json:"platform"`
-	SizeBytes        int64  `json:"size_bytes"`
-	Reused           bool   `json:"reused"`
+	SourceRef     string `json:"source_ref"`
+	CanonicalRef  string `json:"canonical_ref"`
+	ImmutableRef  string `json:"immutable_ref"`
+	ContentDigest string `json:"content_digest"`
+	ArchiveDigest string `json:"archive_digest"`
+	Platform      string `json:"platform"`
+	SizeBytes     int64  `json:"size_bytes"`
+	Reused        bool   `json:"reused"`
 }
 
 type dockerImageInspect struct {
@@ -165,11 +165,11 @@ func (m *Manager) ImageLoad(ctx context.Context, imageRef string, options ImageL
 	if err := json.Unmarshal(response.Bytes(), &result); err != nil {
 		return nil, fmt.Errorf("decode local image import result: %w", err)
 	}
-	if result.CanonicalRef == "" || result.ImmutableRef == "" || result.GenerationDigest == "" {
-		return nil, fmt.Errorf("local image import returned incomplete generation identity")
+	if result.CanonicalRef == "" || result.ImmutableRef == "" || result.ContentDigest == "" {
+		return nil, fmt.Errorf("local image import returned incomplete content identity")
 	}
-	if err := saveLocalImageReference(m.Dir, result.SourceRef, result.CanonicalRef, result.ImmutableRef, result.GenerationDigest); err != nil {
-		return nil, fmt.Errorf("save local image generation pointer: %w", err)
+	if err := saveLocalImageReference(m.Dir, result.SourceRef, result.CanonicalRef, result.ImmutableRef, result.ContentDigest); err != nil {
+		return nil, fmt.Errorf("save local image content pointer: %w", err)
 	}
 	return &result, nil
 }

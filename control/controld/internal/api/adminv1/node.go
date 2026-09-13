@@ -44,7 +44,6 @@ func (s *Server) GetAllocationCapabilityDiagnostics(ctx context.Context, req *ad
 	response := &adminv1.GetAllocationCapabilityDiagnosticsResponse{
 		AllocationID: diagnostics.AllocationID, NodeID: diagnostics.NodeID,
 		Requirements: diagnostics.Requirements, ConditionSet: diagnostics.ConditionSet,
-		LatestMemoryObservation: diagnostics.LatestMemoryObservation,
 	}
 	return response, nil
 }

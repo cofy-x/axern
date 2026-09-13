@@ -36,7 +36,7 @@ func AvailableCapabilitySnapshot(observedAt time.Time, platforms ...capabilityv1
 		case capabilitycontract.IdentityMount:
 			evidence = capabilitycontract.MountEvidence(testBootID, "42:/test:xfs")
 		case capabilitycontract.IdentityRuntime:
-			evidence = capabilitycontract.RuntimeEvidence(testBootID, "runsc", testDigest, testDigest)
+			evidence = capabilitycontract.RuntimeEvidence(testBootID, testDigest, testDigest)
 		case capabilitycontract.IdentityDerived:
 		default:
 			panic("unsupported test capability identity")

@@ -50,7 +50,6 @@ func TestNodeLifecycleCreateAllocationRejectsDifferentExecutionIdentity(t *testi
 		AllocationID: "alloc-123",
 		NodeID:       "node-a",
 		Config: &nodelifecyclev1.ResolvedExecutionConfig{
-			RuntimeClass:    "runsc",
 			ImageDescriptor: "example.com/runtime:latest",
 		},
 	})
@@ -115,7 +114,6 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 		NodeID:       "node-a",
 		Config: &nodelifecyclev1.ResolvedExecutionConfig{
 			ImageDescriptor: imageRef,
-			RuntimeClass:    "runsc",
 			Argv:            []string{"/bin/sh", "-lc", "sleep 3600"},
 			Cwd:             "/workspace",
 			Env:             map[string]string{"A": "B"},
@@ -198,7 +196,6 @@ func TestNodeLifecycleCreateAllocationAllowsImageDefaultCommand(t *testing.T) {
 		NodeID:       "node-a",
 		Config: &nodelifecyclev1.ResolvedExecutionConfig{
 			ImageDescriptor: "docker.io/library/nginx:1.27",
-			RuntimeClass:    "runsc",
 			Cwd:             "/",
 		},
 	})
@@ -342,7 +339,6 @@ func TestAllocationRuntimeIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 		Config: &nodelifecyclev1.ResolvedExecutionConfig{
 			EnvironmentID:   "env-a",
 			ImageDescriptor: "image-a",
-			RuntimeClass:    "runsc",
 			Argv:            []string{"/bin/app"},
 		},
 	}
@@ -350,7 +346,6 @@ func TestAllocationRuntimeIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 		Config: &nodelifecyclev1.ResolvedExecutionConfig{
 			EnvironmentID:   "env-a",
 			ImageDescriptor: "image-a",
-			RuntimeClass:    "runsc",
 			Argv:            []string{"/bin/app"},
 		},
 	}

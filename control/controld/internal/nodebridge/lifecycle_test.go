@@ -60,11 +60,10 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 		},
 	}
 	req := buildCreateAllocationRequestFromParams(createAllocationRequestParams{
-		AllocationID:   run.GetAllocationID(),
-		Config:         run.GetConfig(),
-		Environment:    env,
-		NodeID:         "node-a",
-		DefaultRuntime: DefaultRuntime,
+		AllocationID: run.GetAllocationID(),
+		Config:       run.GetConfig(),
+		Environment:  env,
+		NodeID:       "node-a",
 	})
 	if req.GetAllocationID() != "alloc-a" || req.GetNodeID() != "node-a" {
 		t.Fatalf("unexpected allocation identity: %+v", req)
@@ -108,13 +107,9 @@ func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 	}
 
 	cfg := buildResolvedExecutionConfig(createAllocationRequestParams{
-		Config:         &commonv1.ExecutionConfig{},
-		Environment:    env,
-		DefaultRuntime: DefaultRuntime,
+		Config:      &commonv1.ExecutionConfig{},
+		Environment: env,
 	})
-	if cfg.GetRuntimeClass() != "runsc" {
-		t.Fatalf("runtime class = %q, want runsc", cfg.GetRuntimeClass())
-	}
 	if len(cfg.GetArgv()) != 0 {
 		t.Fatalf("argv = %#v, want empty so image entrypoint/cmd is preserved", cfg.GetArgv())
 	}
@@ -147,9 +142,8 @@ func TestBuildResolvedExecutionConfigLeavesImageArgvEmpty(t *testing.T) {
 	}
 
 	cfg := buildResolvedExecutionConfig(createAllocationRequestParams{
-		Config:         &commonv1.ExecutionConfig{},
-		Environment:    env,
-		DefaultRuntime: DefaultRuntime,
+		Config:      &commonv1.ExecutionConfig{},
+		Environment: env,
 	})
 	if len(cfg.GetArgv()) != 0 {
 		t.Fatalf("argv = %#v, want empty so image entrypoint/cmd is preserved", cfg.GetArgv())
@@ -174,8 +168,7 @@ func TestBuildResolvedExecutionConfigPreservesImageCwdWithExplicitArgv(t *testin
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"python3"},
 		},
-		Environment:    env,
-		DefaultRuntime: DefaultRuntime,
+		Environment: env,
 	})
 	if got := cfg.GetArgv(); len(got) != 1 || got[0] != "python3" {
 		t.Fatalf("argv = %#v, want explicit command", got)
@@ -201,8 +194,7 @@ func TestBuildResolvedExecutionConfigUsesExplicitCwd(t *testing.T) {
 			Argv: []string{"python3"},
 			Cwd:  " /tmp ",
 		},
-		Environment:    env,
-		DefaultRuntime: DefaultRuntime,
+		Environment: env,
 	})
 	if cfg.GetCwd() != "/tmp" {
 		t.Fatalf("cwd = %q, want explicit cwd", cfg.GetCwd())
@@ -226,8 +218,7 @@ func TestBuildResolvedExecutionConfigIncludesImageMounts(t *testing.T) {
 				Target: "/opt/axern/tools/codex",
 			}},
 		},
-		Environment:    env,
-		DefaultRuntime: DefaultRuntime,
+		Environment: env,
 	})
 	mounts := cfg.GetImageMounts()
 	if len(mounts) != 1 {
@@ -253,11 +244,9 @@ func TestBuildResolvedExecutionConfigForImageBackedEnvironment(t *testing.T) {
 
 	cfg := buildResolvedExecutionConfig(createAllocationRequestParams{
 		Config: &commonv1.ExecutionConfig{
-			Argv:         []string{"/bin/sh", "-c", "sleep 60"},
-			RuntimeClass: "other",
+			Argv: []string{"/bin/sh", "-c", "sleep 60"},
 		},
-		Environment:    env,
-		DefaultRuntime: DefaultRuntime,
+		Environment: env,
 	})
 	if cfg.GetEnvironmentID() != "env-image" {
 		t.Fatalf("environment id = %q, want env-image", cfg.GetEnvironmentID())
@@ -267,9 +256,6 @@ func TestBuildResolvedExecutionConfigForImageBackedEnvironment(t *testing.T) {
 	}
 	if cfg.GetImageDescriptor() != "index.docker.io/library/nginx:1.27" {
 		t.Fatalf("image descriptor = %q, want index.docker.io/library/nginx:1.27", cfg.GetImageDescriptor())
-	}
-	if cfg.GetRuntimeClass() != "other" {
-		t.Fatalf("runtime class = %q, want other", cfg.GetRuntimeClass())
 	}
 	if !cfg.GetRootfsReadonly() {
 		t.Fatal("rootfs_readonly = false, want true")

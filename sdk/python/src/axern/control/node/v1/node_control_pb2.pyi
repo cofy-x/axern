@@ -67,7 +67,6 @@ class PlacementRejectionReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     PLACEMENT_REJECTION_REASON_UNSPECIFIED: _ClassVar[PlacementRejectionReason]
     PLACEMENT_REJECTION_REASON_STALE_HEARTBEAT: _ClassVar[PlacementRejectionReason]
     PLACEMENT_REJECTION_REASON_STALE_SUMMARY: _ClassVar[PlacementRejectionReason]
-    PLACEMENT_REJECTION_REASON_RUNTIME_UNSUPPORTED: _ClassVar[PlacementRejectionReason]
     PLACEMENT_REJECTION_REASON_AXNODED_NOT_READY: _ClassVar[PlacementRejectionReason]
     PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE: _ClassVar[PlacementRejectionReason]
     PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE: _ClassVar[PlacementRejectionReason]
@@ -114,7 +113,6 @@ PLACEMENT_CANDIDATE_STATE_REJECTED: PlacementCandidateState
 PLACEMENT_REJECTION_REASON_UNSPECIFIED: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_STALE_HEARTBEAT: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_STALE_SUMMARY: PlacementRejectionReason
-PLACEMENT_REJECTION_REASON_RUNTIME_UNSUPPORTED: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_AXNODED_NOT_READY: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE: PlacementRejectionReason
 PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE: PlacementRejectionReason
@@ -254,18 +252,16 @@ class ImagefsdSummary(_message.Message):
     def __init__(self, state: _Optional[_Union[ComponentState, str]] = ..., reachable: _Optional[bool] = ..., chunkdb_present: _Optional[bool] = ..., chunk_count: _Optional[int] = ..., chunkdb_used_bytes: _Optional[int] = ..., chunkdb_usage_percent: _Optional[float] = ...) -> None: ...
 
 class BpfNetSummary(_message.Message):
-    __slots__ = ("state", "enabled", "ready", "mode", "needs_localhost_compat")
+    __slots__ = ("state", "enabled", "ready", "mode")
     STATE_FIELD_NUMBER: _ClassVar[int]
     ENABLED_FIELD_NUMBER: _ClassVar[int]
     READY_FIELD_NUMBER: _ClassVar[int]
     MODE_FIELD_NUMBER: _ClassVar[int]
-    NEEDS_LOCALHOST_COMPAT_FIELD_NUMBER: _ClassVar[int]
     state: ComponentState
     enabled: bool
     ready: bool
     mode: str
-    needs_localhost_compat: bool
-    def __init__(self, state: _Optional[_Union[ComponentState, str]] = ..., enabled: _Optional[bool] = ..., ready: _Optional[bool] = ..., mode: _Optional[str] = ..., needs_localhost_compat: _Optional[bool] = ...) -> None: ...
+    def __init__(self, state: _Optional[_Union[ComponentState, str]] = ..., enabled: _Optional[bool] = ..., ready: _Optional[bool] = ..., mode: _Optional[str] = ...) -> None: ...
 
 class NodeStorageSummary(_message.Message):
     __slots__ = ("target", "capacity_bytes", "used_bytes", "available_bytes", "inodes_total", "inodes_used", "inodes_available", "collected", "error", "system_reserve_bytes", "reserved_bytes", "allocatable_bytes", "active_reservations", "filesystem_type", "mount_identity", "allocation_used_bytes", "unlinked_backing_usage_unknown")
@@ -387,34 +383,30 @@ class NodeSummary(_message.Message):
     def __init__(self, collected_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., resources: _Optional[_Union[ResourcesSummary, _Mapping]] = ..., pools: _Optional[_Union[PoolsSummary, _Mapping]] = ..., components: _Optional[_Union[ComponentsSummary, _Mapping]] = ..., locality: _Optional[_Iterable[_Union[LocalitySummary, _Mapping]]] = ..., node_state: _Optional[_Union[NodeState, str]] = ..., labels: _Optional[_Mapping[str, str]] = ..., capability_snapshot: _Optional[_Union[_capability_pb2.CapabilitySnapshot, _Mapping]] = ..., capacity: _Optional[_Union[_common_pb2.ResourceQuantity, _Mapping]] = ..., allocatable: _Optional[_Union[_common_pb2.ResourceQuantity, _Mapping]] = ..., storage: _Optional[_Iterable[_Union[NodeStorageSummary, _Mapping]]] = ..., memory_budget: _Optional[_Union[NodeMemoryBudget, _Mapping]] = ...) -> None: ...
 
 class RegisterNodeRequest(_message.Message):
-    __slots__ = ("node_id", "runtimes", "node_target", "node_auth_token")
+    __slots__ = ("node_id", "node_target", "node_auth_token")
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
-    RUNTIMES_FIELD_NUMBER: _ClassVar[int]
     NODE_TARGET_FIELD_NUMBER: _ClassVar[int]
     NODE_AUTH_TOKEN_FIELD_NUMBER: _ClassVar[int]
     node_id: str
-    runtimes: _containers.RepeatedScalarFieldContainer[str]
     node_target: str
     node_auth_token: str
-    def __init__(self, node_id: _Optional[str] = ..., runtimes: _Optional[_Iterable[str]] = ..., node_target: _Optional[str] = ..., node_auth_token: _Optional[str] = ...) -> None: ...
+    def __init__(self, node_id: _Optional[str] = ..., node_target: _Optional[str] = ..., node_auth_token: _Optional[str] = ...) -> None: ...
 
 class RegisterNodeResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class ReportNodeRequest(_message.Message):
-    __slots__ = ("node_id", "runtimes", "summary", "node_target", "node_auth_token")
+    __slots__ = ("node_id", "summary", "node_target", "node_auth_token")
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
-    RUNTIMES_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
     NODE_TARGET_FIELD_NUMBER: _ClassVar[int]
     NODE_AUTH_TOKEN_FIELD_NUMBER: _ClassVar[int]
     node_id: str
-    runtimes: _containers.RepeatedScalarFieldContainer[str]
     summary: NodeSummary
     node_target: str
     node_auth_token: str
-    def __init__(self, node_id: _Optional[str] = ..., runtimes: _Optional[_Iterable[str]] = ..., summary: _Optional[_Union[NodeSummary, _Mapping]] = ..., node_target: _Optional[str] = ..., node_auth_token: _Optional[str] = ...) -> None: ...
+    def __init__(self, node_id: _Optional[str] = ..., summary: _Optional[_Union[NodeSummary, _Mapping]] = ..., node_target: _Optional[str] = ..., node_auth_token: _Optional[str] = ...) -> None: ...
 
 class ReportNodeResponse(_message.Message):
     __slots__ = ()
@@ -479,9 +471,8 @@ class BatchReportAllocationCapabilityConditionsResponse(_message.Message):
     def __init__(self) -> None: ...
 
 class AllocationMemoryObservation(_message.Message):
-    __slots__ = ("allocation_id", "revision", "observed_at", "request_bytes", "limit_bytes", "current_bytes", "peak_bytes", "swap_current_bytes", "anon_bytes", "file_bytes", "shmem_bytes", "kernel_bytes", "dirty_bytes", "writeback_bytes", "event_high", "event_max", "event_oom", "event_oom_kill", "event_oom_group_kill", "psi_some_avg10", "psi_full_avg10", "psi_some_total_usec", "psi_full_total_usec", "cgroup_identity", "runtime", "parent_controls_verified", "leaf_controls_verified", "pid_roles_verified", "cleanup_state", "psi_available", "peak_available")
+    __slots__ = ("allocation_id", "observed_at", "request_bytes", "limit_bytes", "current_bytes", "peak_bytes", "swap_current_bytes", "anon_bytes", "file_bytes", "shmem_bytes", "kernel_bytes", "dirty_bytes", "writeback_bytes", "event_high", "event_max", "event_oom", "event_oom_kill", "event_oom_group_kill", "psi_some_avg10", "psi_full_avg10", "psi_some_total_usec", "psi_full_total_usec", "cgroup_identity", "parent_controls_verified", "leaf_controls_verified", "pid_roles_verified", "cleanup_state", "psi_available", "peak_available")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    REVISION_FIELD_NUMBER: _ClassVar[int]
     OBSERVED_AT_FIELD_NUMBER: _ClassVar[int]
     REQUEST_BYTES_FIELD_NUMBER: _ClassVar[int]
     LIMIT_BYTES_FIELD_NUMBER: _ClassVar[int]
@@ -504,7 +495,6 @@ class AllocationMemoryObservation(_message.Message):
     PSI_SOME_TOTAL_USEC_FIELD_NUMBER: _ClassVar[int]
     PSI_FULL_TOTAL_USEC_FIELD_NUMBER: _ClassVar[int]
     CGROUP_IDENTITY_FIELD_NUMBER: _ClassVar[int]
-    RUNTIME_FIELD_NUMBER: _ClassVar[int]
     PARENT_CONTROLS_VERIFIED_FIELD_NUMBER: _ClassVar[int]
     LEAF_CONTROLS_VERIFIED_FIELD_NUMBER: _ClassVar[int]
     PID_ROLES_VERIFIED_FIELD_NUMBER: _ClassVar[int]
@@ -512,7 +502,6 @@ class AllocationMemoryObservation(_message.Message):
     PSI_AVAILABLE_FIELD_NUMBER: _ClassVar[int]
     PEAK_AVAILABLE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    revision: int
     observed_at: _timestamp_pb2.Timestamp
     request_bytes: int
     limit_bytes: int
@@ -535,28 +524,13 @@ class AllocationMemoryObservation(_message.Message):
     psi_some_total_usec: int
     psi_full_total_usec: int
     cgroup_identity: str
-    runtime: str
     parent_controls_verified: bool
     leaf_controls_verified: bool
     pid_roles_verified: bool
     cleanup_state: AllocationMemoryCleanupState
     psi_available: bool
     peak_available: bool
-    def __init__(self, allocation_id: _Optional[str] = ..., revision: _Optional[int] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., request_bytes: _Optional[int] = ..., limit_bytes: _Optional[int] = ..., current_bytes: _Optional[int] = ..., peak_bytes: _Optional[int] = ..., swap_current_bytes: _Optional[int] = ..., anon_bytes: _Optional[int] = ..., file_bytes: _Optional[int] = ..., shmem_bytes: _Optional[int] = ..., kernel_bytes: _Optional[int] = ..., dirty_bytes: _Optional[int] = ..., writeback_bytes: _Optional[int] = ..., event_high: _Optional[int] = ..., event_max: _Optional[int] = ..., event_oom: _Optional[int] = ..., event_oom_kill: _Optional[int] = ..., event_oom_group_kill: _Optional[int] = ..., psi_some_avg10: _Optional[float] = ..., psi_full_avg10: _Optional[float] = ..., psi_some_total_usec: _Optional[int] = ..., psi_full_total_usec: _Optional[int] = ..., cgroup_identity: _Optional[str] = ..., runtime: _Optional[str] = ..., parent_controls_verified: _Optional[bool] = ..., leaf_controls_verified: _Optional[bool] = ..., pid_roles_verified: _Optional[bool] = ..., cleanup_state: _Optional[_Union[AllocationMemoryCleanupState, str]] = ..., psi_available: _Optional[bool] = ..., peak_available: _Optional[bool] = ...) -> None: ...
-
-class BatchReportAllocationMemoryObservationsRequest(_message.Message):
-    __slots__ = ("node_id", "node_auth_token", "observations")
-    NODE_ID_FIELD_NUMBER: _ClassVar[int]
-    NODE_AUTH_TOKEN_FIELD_NUMBER: _ClassVar[int]
-    OBSERVATIONS_FIELD_NUMBER: _ClassVar[int]
-    node_id: str
-    node_auth_token: str
-    observations: _containers.RepeatedCompositeFieldContainer[AllocationMemoryObservation]
-    def __init__(self, node_id: _Optional[str] = ..., node_auth_token: _Optional[str] = ..., observations: _Optional[_Iterable[_Union[AllocationMemoryObservation, _Mapping]]] = ...) -> None: ...
-
-class BatchReportAllocationMemoryObservationsResponse(_message.Message):
-    __slots__ = ()
-    def __init__(self) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., request_bytes: _Optional[int] = ..., limit_bytes: _Optional[int] = ..., current_bytes: _Optional[int] = ..., peak_bytes: _Optional[int] = ..., swap_current_bytes: _Optional[int] = ..., anon_bytes: _Optional[int] = ..., file_bytes: _Optional[int] = ..., shmem_bytes: _Optional[int] = ..., kernel_bytes: _Optional[int] = ..., dirty_bytes: _Optional[int] = ..., writeback_bytes: _Optional[int] = ..., event_high: _Optional[int] = ..., event_max: _Optional[int] = ..., event_oom: _Optional[int] = ..., event_oom_kill: _Optional[int] = ..., event_oom_group_kill: _Optional[int] = ..., psi_some_avg10: _Optional[float] = ..., psi_full_avg10: _Optional[float] = ..., psi_some_total_usec: _Optional[int] = ..., psi_full_total_usec: _Optional[int] = ..., cgroup_identity: _Optional[str] = ..., parent_controls_verified: _Optional[bool] = ..., leaf_controls_verified: _Optional[bool] = ..., pid_roles_verified: _Optional[bool] = ..., cleanup_state: _Optional[_Union[AllocationMemoryCleanupState, str]] = ..., psi_available: _Optional[bool] = ..., peak_available: _Optional[bool] = ...) -> None: ...
 
 class WatchExecutionLeasesRequest(_message.Message):
     __slots__ = ("node_id", "after_revision", "node_auth_token")

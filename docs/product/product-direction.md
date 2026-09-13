@@ -13,7 +13,7 @@ The platform remains general enough for non-agent sandbox workloads, while produ
 - **Control-plane first:** durable intent, identity, placement, policy, and lifecycle state belong in product APIs rather than client-side orchestration.
 - **One execution model:** the only durable chain is `Environment -> Run -> Allocation`. `Sandbox` is the SDK primitive backed by that chain, so agent harnesses, evaluators, trainers, and data generators do not introduce special runtime lifecycles.
 - **Secure remote access:** files, processes, terminals, SSH, and tunnels use explicit, revocable, task-scoped authorization.
-- **Observable by default:** lifecycle state, logs, metrics, traces, inventory, usage, trajectories, and artifacts have clear owners and stable identities.
+- **Observable by default:** lifecycle state, logs, metrics, traces, inventory, and usage have clear owners and stable identities.
 - **One production sandbox runtime:** gVisor (`runsc`) owns the production execution boundary without runtime fallback. Firecracker and Kata remain research options rather than parallel production backends.
 - **Local-to-production continuity:** daily development environments exercise the same contracts used by deployed systems, with deeper Linux or cluster validation reserved for behavior that needs it.
 - **Composable SDKs:** CLIs and agent products build on public APIs and SDKs; they do not become alternate control planes.
@@ -21,9 +21,9 @@ The platform remains general enough for non-agent sandbox workloads, while produ
 ## Long-Term Capability Areas
 
 - Programmable sandbox lifecycle and process, file, terminal, and proxy APIs.
-- Agent evaluation, training, and synthetic-data workloads built from immutable environments, Run-backed sandboxes, allocation-local files, and explicit output or artifact export.
-- Run status, output, resource usage, and explicit artifact delivery needed by upper-layer verification, trajectory, replay, and result systems.
-- Task-scoped secrets, ephemeral filesystems, durable artifacts, controlled egress, reverse tunnels, and optional SSH access.
+- Agent evaluation, training, and synthetic-data workloads built from immutable environments, Run-backed sandboxes, allocation-local files, and explicit file/archive output transfer.
+- Run status, output, and resource usage needed by upper-layer verification, trajectory, replay, dataset, and result systems.
+- Task-scoped secrets, ephemeral filesystems, controlled egress, reverse tunnels, and optional SSH access.
 - Runtime templates for coding, browser, research, CI, and data workloads without marketplace or template sprawl.
 - Low-cardinality usage and capacity measurements based on time, resources, execution, network, and retained control state.
 - Purpose-built batch, training, RL, or experiment orchestration may be added only after its queueing, retry, checkpoint, concurrency, and budget semantics are defined; it must compose Runs and Sandboxes instead of creating a second execution substrate.

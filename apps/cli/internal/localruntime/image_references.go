@@ -18,10 +18,10 @@ const (
 )
 
 type localImageReference struct {
-	CanonicalRef     string    `json:"canonical_ref"`
-	ImmutableRef     string    `json:"immutable_ref"`
-	GenerationDigest string    `json:"generation_digest"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	CanonicalRef  string    `json:"canonical_ref"`
+	ImmutableRef  string    `json:"immutable_ref"`
+	ContentDigest string    `json:"content_digest"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type localImageReferenceIndex struct {
@@ -29,16 +29,16 @@ type localImageReferenceIndex struct {
 	References map[string]localImageReference `json:"references"`
 }
 
-func saveLocalImageReference(dir, sourceRef, canonicalRef, immutableRef, generationDigest string) error {
+func saveLocalImageReference(dir, sourceRef, canonicalRef, immutableRef, contentDigest string) error {
 	sourceRef = strings.TrimSpace(sourceRef)
 	canonicalRef = strings.TrimSpace(canonicalRef)
 	immutableRef = strings.TrimSpace(immutableRef)
-	generationDigest = strings.TrimSpace(generationDigest)
-	if sourceRef == "" || canonicalRef == "" || immutableRef == "" || generationDigest == "" {
-		return fmt.Errorf("source, canonical, immutable, and generation image identities are required")
+	contentDigest = strings.TrimSpace(contentDigest)
+	if sourceRef == "" || canonicalRef == "" || immutableRef == "" || contentDigest == "" {
+		return fmt.Errorf("source, canonical, immutable, and content image identities are required")
 	}
-	if !validLocalGeneration(generationDigest) || !strings.HasSuffix(immutableRef, "@"+generationDigest) {
-		return fmt.Errorf("immutable image ref %q does not match generation %q", immutableRef, generationDigest)
+	if !validLocalContentDigest(contentDigest) || !strings.HasSuffix(immutableRef, "@"+contentDigest) {
+		return fmt.Errorf("immutable image ref %q does not match content digest %q", immutableRef, contentDigest)
 	}
 
 	path := filepath.Join(dir, "image-references.json")
@@ -62,7 +62,7 @@ func saveLocalImageReference(dir, sourceRef, canonicalRef, immutableRef, generat
 	}
 	record := localImageReference{
 		CanonicalRef: canonicalRef, ImmutableRef: immutableRef,
-		GenerationDigest: generationDigest, UpdatedAt: time.Now().UTC(),
+		ContentDigest: contentDigest, UpdatedAt: time.Now().UTC(),
 	}
 	index.References[sourceRef] = record
 	index.References[canonicalRef] = record
@@ -76,7 +76,7 @@ func saveLocalImageReference(dir, sourceRef, canonicalRef, immutableRef, generat
 
 // ResolveLocalImageReference resolves a mutable image ref to the immutable
 // generation selected by the latest successful local image load. The node's
-// imported generation store remains authoritative; this index is only the
+// imported content store remains authoritative; this index is only the
 // local CLI pointer used to avoid a registry lookup at the control plane.
 func ResolveLocalImageReference(dir, imageRef string) (string, bool, error) {
 	imageRef = strings.TrimSpace(imageRef)
@@ -122,15 +122,15 @@ func loadLocalImageReferences(path string) (*localImageReferenceIndex, error) {
 	}
 	for alias, record := range index.References {
 		if strings.TrimSpace(alias) == "" || strings.TrimSpace(record.CanonicalRef) == "" ||
-			strings.TrimSpace(record.ImmutableRef) == "" || !validLocalGeneration(record.GenerationDigest) ||
-			!strings.HasSuffix(record.ImmutableRef, "@"+record.GenerationDigest) || record.UpdatedAt.IsZero() {
+			strings.TrimSpace(record.ImmutableRef) == "" || !validLocalContentDigest(record.ContentDigest) ||
+			!strings.HasSuffix(record.ImmutableRef, "@"+record.ContentDigest) || record.UpdatedAt.IsZero() {
 			return nil, fmt.Errorf("local image reference index contains an invalid record for %q", alias)
 		}
 	}
 	return &index, nil
 }
 
-func validLocalGeneration(value string) bool {
+func validLocalContentDigest(value string) bool {
 	if len(value) != len("sha256:")+64 || !strings.HasPrefix(value, "sha256:") {
 		return false
 	}

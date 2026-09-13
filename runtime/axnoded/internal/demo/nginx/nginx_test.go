@@ -47,9 +47,6 @@ func TestBuildResolvedExecutionConfig(t *testing.T) {
 	if len(resolved.GetPorts()) != 1 || resolved.GetPorts()[0].GetHostPort() != 18080 || resolved.GetPorts()[0].GetContainerPort() != 80 {
 		t.Fatalf("ports = %v, want [tcp:18080:80]", resolved.GetPorts())
 	}
-	if resolved.GetRuntimeClass() != config.RuntimeNameRunsc {
-		t.Fatalf("runtime class = %q, want %q", resolved.GetRuntimeClass(), config.RuntimeNameRunsc)
-	}
 	if resolved.GetLocalRootfsPath() != spec.RootfsPath {
 		t.Fatalf("rootfs path = %q, want %q", resolved.GetLocalRootfsPath(), spec.RootfsPath)
 	}

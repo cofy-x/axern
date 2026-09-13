@@ -13,16 +13,15 @@ import (
 
 func renderSandboxTable(w io.Writer, sandboxes []*nodeoperatorv1.LocalSandbox) {
 	tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', 0)
-	fmt.Fprintln(tw, "SANDBOX ID\tRUNTIME\tSTATE\tEXIT CODE\tPID\tSTARTED AT\tFINISHED AT")
+	fmt.Fprintln(tw, "SANDBOX ID\tSTATE\tEXIT CODE\tPID\tSTARTED AT\tFINISHED AT")
 	for _, sandbox := range sandboxes {
 		if sandbox == nil {
 			continue
 		}
 		fmt.Fprintf(
 			tw,
-			"%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\n",
 			sandbox.GetSandboxID(),
-			sandbox.GetRuntimeClass(),
 			localStateString(sandbox.GetState()),
 			localExitCodeString(sandbox.GetState(), sandbox.GetExitCode(), sandbox.GetExitCodeKnown()),
 			formatPID(sandbox.GetPid()),
@@ -38,7 +37,6 @@ func renderSandboxInspect(w io.Writer, sandbox *nodeoperatorv1.LocalSandbox) {
 		return
 	}
 	fmt.Fprintf(w, "Sandbox: %s\n", sandbox.GetSandboxID())
-	fmt.Fprintf(w, "Runtime: %s\n", sandbox.GetRuntimeClass())
 	fmt.Fprintf(w, "State: %s\n", localStateString(sandbox.GetState()))
 	fmt.Fprintf(w, "Exit Code: %s\n", localExitCodeString(sandbox.GetState(), sandbox.GetExitCode(), sandbox.GetExitCodeKnown()))
 	fmt.Fprintf(w, "PID: %s\n", formatPID(sandbox.GetPid()))

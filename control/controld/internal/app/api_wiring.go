@@ -103,7 +103,6 @@ func (a *App) newPlacementSelector() *placement.Selector {
 		a.registry,
 		a.placement,
 		func() time.Time { return a.now() },
-		defaultSandboxRuntime,
 	).WithObserver(placementMetricsObserver{})
 }
 

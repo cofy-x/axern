@@ -38,7 +38,6 @@ spec:
     image: docker.io/library/python:3.12-slim
   command:
     argv: [python, -c, "print('ok')"]
-  runtime_class: runsc
   resources:
     requests:
       cpu: 500m
@@ -53,7 +52,7 @@ axern run --file run.yaml
 
 `spec.source` 在 `image`、`template`（可配 `template_version`）和 `environment`（已有环境 ID）中严格三选一。私有仓库通过 `registry_credential_id` 引用凭据；凭据只按 ID 引用，绝不写入 Spec。解析器会拒绝未知字段和冲突的 source。
 
-等价的 flag 覆盖同一能力面：`--env`、`--secret-env`、`--secret-file`、`--image-mount`、`--cwd`、`--runtime-class`、`--label`、`--template`、`--environment`，以及四个资源 flag（`--request-cpu`、`--request-memory`、`--limit-cpu`、`--limit-memory`）。`--file` 不能与定义类 flag 混用。
+等价的 flag 覆盖同一能力面：`--env`、`--secret-env`、`--secret-file`、`--image-mount`、`--cwd`、`--label`、`--template`、`--environment`，以及四个资源 flag（`--request-cpu`、`--request-memory`、`--limit-cpu`、`--limit-memory`）。`--file` 不能与定义类 flag 混用。
 
 ## 后台与长时间运行的 Run
 
@@ -63,6 +62,6 @@ Run 状态是持久的。输出流当前由节点本地文件提供，仅在该 
 
 ## 隔离与资源
 
-打包节点使用 `runtime_class: runsc` 作为隔离边界。资源 request/limit 与命名空间配额和准入共同生效；模型见[运行时与资源](/zh-cn/architecture/resources/)，查看准入拒绝见 [环境、命名空间与配额](/zh-cn/guides/environments/)。
+打包节点固定使用 `runsc` 作为隔离边界。资源 request/limit 与命名空间配额和准入共同生效；模型见[运行时与资源](/zh-cn/architecture/resources/)，查看准入拒绝见 [环境、命名空间与配额](/zh-cn/guides/environments/)。
 
 CLI help 是完整 flag 能力面的权威说明：`axern run --help`。

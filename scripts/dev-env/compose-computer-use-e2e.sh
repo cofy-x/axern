@@ -46,16 +46,11 @@ if ! docker image inspect "${DESKTOP_BASE_RUNTIME_IMAGE}" >/dev/null 2>&1; then
 fi
 IMAGE="${DESKTOP_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
 
-runtime_list="${AXERN_COMPUTER_USE_E2E_RUNTIMES:-runsc}"
-for runtime_class in ${runtime_list}; do
-  echo "node_computer_use_e2e_runtime=${runtime_class} phase=start"
-  uv run --package axern-sdk python "${AXERN_ROOT}/sdk/python/tests/e2e/computer_use_e2e.py" \
-    --endpoint "${AXERN_ENDPOINT}" \
-    --tls-ca-cert "${AXERN_TLS_CA_CERT}" \
-	    --tls-cert "${AXERN_TLS_CERT}" \
-	    --tls-key "${AXERN_TLS_KEY}" \
-	    --runtime-class "${runtime_class}" \
-	    --node-container "${node_container}"
-done
+uv run --package axern-sdk python "${AXERN_ROOT}/sdk/python/tests/e2e/computer_use_e2e.py" \
+  --endpoint "${AXERN_ENDPOINT}" \
+  --tls-ca-cert "${AXERN_TLS_CA_CERT}" \
+  --tls-cert "${AXERN_TLS_CERT}" \
+  --tls-key "${AXERN_TLS_KEY}" \
+  --node-container "${node_container}"
 
 echo "compose_computer_use_e2e_ok=true"

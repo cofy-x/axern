@@ -40,7 +40,6 @@ func (s *MemoryNodeStore) Register(ctx context.Context, params nodekernel.Regist
 		s.records[params.NodeID] = record
 	}
 	record.NodeTarget = params.NodeTarget
-	record.Runtimes = append([]string(nil), params.Runtimes...)
 	record.UpdatedAt = params.Now
 	return cloneNodeRecord(record), nil
 }
@@ -58,7 +57,6 @@ func (s *MemoryNodeStore) Report(ctx context.Context, params nodekernel.ReportPa
 		s.records[params.NodeID] = record
 	}
 	record.NodeTarget = params.NodeTarget
-	record.Runtimes = append([]string(nil), params.Runtimes...)
 	record.UpdatedAt = params.Now
 	record.Summary = cloneNodeSummary(params.Summary)
 	return cloneNodeRecord(record), nil
@@ -187,7 +185,6 @@ func cloneNodeRecord(in *nodekernel.Record) *nodekernel.Record {
 	return &nodekernel.Record{
 		NodeID:        in.NodeID,
 		NodeTarget:    in.NodeTarget,
-		Runtimes:      append([]string(nil), in.Runtimes...),
 		Summary:       cloneNodeSummary(in.Summary),
 		Lifecycle:     in.Lifecycle,
 		RegisteredAt:  in.RegisteredAt,

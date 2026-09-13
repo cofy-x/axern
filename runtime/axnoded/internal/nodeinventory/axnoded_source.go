@@ -28,7 +28,6 @@ type statfsFunc func(string) (StorageInventoryEntry, error)
 type capabilitySnapshotFunc func(context.Context, time.Time) (*capabilityv1.CapabilitySnapshot, error)
 type memoryCommitmentFunc func() (resources.MemoryCommitment, error)
 type memoryCapacityObserverFunc func(resources.MemoryCapacitySnapshot) error
-type memoryObservationRevisionFunc func() (int64, error)
 type memoryPIDRolesVerifierFunc func(allocationID, runtimeName, workloadPath string, runtimePID int) error
 type retiringMemoryLeasesFunc func() []resources.RetiringMemoryLease
 type unackedStatusIDsFunc func() []string
@@ -50,34 +49,33 @@ type langRuntimeManagerView interface {
 }
 
 type AxnodedSourceOptions struct {
-	NodeID                    string
-	Ready                     readyFunc
-	RuntimeCount              runtimeCountFunc
-	Container                 containerManagerView
-	LangRuntime               langRuntimeManagerView
-	ImageManager              *ImageManagerClient
-	NodeResources             NodeResourceProvider
-	CgroupDriver              os2.CgroupDriver
-	NatBackend                string
-	BPFNetPinPath             string
-	NodeState                 string
-	NodeLabels                map[string]string
-	CapabilitySnapshot        capabilitySnapshotFunc
-	LoadBPFNet                func(string) (bpfnet.Status, error)
-	StorageTargets            []StorageTarget
-	StatFS                    statfsFunc
-	RuntimeSlotCapacity       int
-	MemoryBudgetEnabled       bool
-	MemoryCgroupEnforced      bool
-	CgroupRootName            string
-	MemorySystemReserveBytes  int64
-	MemoryCommitment          memoryCommitmentFunc
-	MemoryCapacityObserver    memoryCapacityObserverFunc
-	MemoryObservationRevision memoryObservationRevisionFunc
-	MemoryPIDRolesVerifier    memoryPIDRolesVerifierFunc
-	RetiringMemoryLeases      retiringMemoryLeasesFunc
-	AllocationIDs             allocationIDsFunc
-	AllocationRuntimeID       allocationRuntimeIDFunc
+	NodeID                   string
+	Ready                    readyFunc
+	RuntimeCount             runtimeCountFunc
+	Container                containerManagerView
+	LangRuntime              langRuntimeManagerView
+	ImageManager             *ImageManagerClient
+	NodeResources            NodeResourceProvider
+	CgroupDriver             os2.CgroupDriver
+	NatBackend               string
+	BPFNetPinPath            string
+	NodeState                string
+	NodeLabels               map[string]string
+	CapabilitySnapshot       capabilitySnapshotFunc
+	LoadBPFNet               func(string) (bpfnet.Status, error)
+	StorageTargets           []StorageTarget
+	StatFS                   statfsFunc
+	RuntimeSlotCapacity      int
+	MemoryBudgetEnabled      bool
+	MemoryCgroupEnforced     bool
+	CgroupRootName           string
+	MemorySystemReserveBytes int64
+	MemoryCommitment         memoryCommitmentFunc
+	MemoryCapacityObserver   memoryCapacityObserverFunc
+	MemoryPIDRolesVerifier   memoryPIDRolesVerifierFunc
+	RetiringMemoryLeases     retiringMemoryLeasesFunc
+	AllocationIDs            allocationIDsFunc
+	AllocationRuntimeID      allocationRuntimeIDFunc
 	// UnackedStatusIDs extends active allocation ownership
 	// through the control-plane status-report acknowledgement boundary. This
 	// prevents a short-lived allocation from disappearing from node inventory
@@ -90,36 +88,35 @@ type AxnodedSourceOptions struct {
 }
 
 type AxnodedSource struct {
-	nodeID                    string
-	ready                     readyFunc
-	runtimeCount              runtimeCountFunc
-	container                 containerManagerView
-	langRuntime               langRuntimeManagerView
-	imageManager              *ImageManagerClient
-	nodeResources             NodeResourceProvider
-	cgroupDriver              os2.CgroupDriver
-	natBackend                string
-	bpfnetPin                 string
-	nodeState                 string
-	nodeLabels                map[string]string
-	capabilitySnapshot        capabilitySnapshotFunc
-	loadBPFNet                func(string) (bpfnet.Status, error)
-	storageTargets            []StorageTarget
-	statFS                    statfsFunc
-	disabledPools             map[resources.ResourceName]struct{}
-	runtimeSlotCapacity       int
-	memoryBudgetEnabled       bool
-	memoryCgroupEnforced      bool
-	cgroupRootName            string
-	memorySystemReserveBytes  int64
-	memoryCommitment          memoryCommitmentFunc
-	memoryCapacityObserver    memoryCapacityObserverFunc
-	memoryObservationRevision memoryObservationRevisionFunc
-	memoryPIDRolesVerifier    memoryPIDRolesVerifierFunc
-	retiringMemoryLeases      retiringMemoryLeasesFunc
-	unackedStatusIDs          unackedStatusIDsFunc
-	allocationIDs             allocationIDsFunc
-	allocationRuntimeID       allocationRuntimeIDFunc
+	nodeID                   string
+	ready                    readyFunc
+	runtimeCount             runtimeCountFunc
+	container                containerManagerView
+	langRuntime              langRuntimeManagerView
+	imageManager             *ImageManagerClient
+	nodeResources            NodeResourceProvider
+	cgroupDriver             os2.CgroupDriver
+	natBackend               string
+	bpfnetPin                string
+	nodeState                string
+	nodeLabels               map[string]string
+	capabilitySnapshot       capabilitySnapshotFunc
+	loadBPFNet               func(string) (bpfnet.Status, error)
+	storageTargets           []StorageTarget
+	statFS                   statfsFunc
+	disabledPools            map[resources.ResourceName]struct{}
+	runtimeSlotCapacity      int
+	memoryBudgetEnabled      bool
+	memoryCgroupEnforced     bool
+	cgroupRootName           string
+	memorySystemReserveBytes int64
+	memoryCommitment         memoryCommitmentFunc
+	memoryCapacityObserver   memoryCapacityObserverFunc
+	memoryPIDRolesVerifier   memoryPIDRolesVerifierFunc
+	retiringMemoryLeases     retiringMemoryLeasesFunc
+	unackedStatusIDs         unackedStatusIDsFunc
+	allocationIDs            allocationIDsFunc
+	allocationRuntimeID      allocationRuntimeIDFunc
 
 	sampleMu       sync.Mutex
 	prevCPUSamples map[string]cpuUsageSample
@@ -151,37 +148,36 @@ func NewAxnodedSource(opts AxnodedSourceOptions) *AxnodedSource {
 	}
 	runtimeSlotCapacity = min(runtimeSlotCapacity, container.MaxContainerNum)
 	return &AxnodedSource{
-		nodeID:                    strings.TrimSpace(opts.NodeID),
-		ready:                     opts.Ready,
-		runtimeCount:              opts.RuntimeCount,
-		container:                 opts.Container,
-		langRuntime:               opts.LangRuntime,
-		imageManager:              opts.ImageManager,
-		nodeResources:             defaultNodeResourceProvider(opts.NodeResources),
-		cgroupDriver:              opts.CgroupDriver,
-		natBackend:                opts.NatBackend,
-		bpfnetPin:                 opts.BPFNetPinPath,
-		nodeState:                 opts.NodeState,
-		nodeLabels:                cloneStringMap(opts.NodeLabels),
-		capabilitySnapshot:        opts.CapabilitySnapshot,
-		loadBPFNet:                loadBPFNet,
-		storageTargets:            normalizeStorageTargets(opts.StorageTargets),
-		statFS:                    defaultStatFS(opts.StatFS),
-		disabledPools:             disabledPools,
-		runtimeSlotCapacity:       runtimeSlotCapacity,
-		memoryBudgetEnabled:       opts.MemoryBudgetEnabled,
-		memoryCgroupEnforced:      opts.MemoryCgroupEnforced,
-		cgroupRootName:            opts.CgroupRootName,
-		memorySystemReserveBytes:  opts.MemorySystemReserveBytes,
-		memoryCommitment:          opts.MemoryCommitment,
-		memoryCapacityObserver:    opts.MemoryCapacityObserver,
-		memoryObservationRevision: opts.MemoryObservationRevision,
-		memoryPIDRolesVerifier:    opts.MemoryPIDRolesVerifier,
-		retiringMemoryLeases:      opts.RetiringMemoryLeases,
-		unackedStatusIDs:          opts.UnackedStatusIDs,
-		allocationIDs:             opts.AllocationIDs,
-		allocationRuntimeID:       opts.AllocationRuntimeID,
-		prevCPUSamples:            make(map[string]cpuUsageSample),
+		nodeID:                   strings.TrimSpace(opts.NodeID),
+		ready:                    opts.Ready,
+		runtimeCount:             opts.RuntimeCount,
+		container:                opts.Container,
+		langRuntime:              opts.LangRuntime,
+		imageManager:             opts.ImageManager,
+		nodeResources:            defaultNodeResourceProvider(opts.NodeResources),
+		cgroupDriver:             opts.CgroupDriver,
+		natBackend:               opts.NatBackend,
+		bpfnetPin:                opts.BPFNetPinPath,
+		nodeState:                opts.NodeState,
+		nodeLabels:               cloneStringMap(opts.NodeLabels),
+		capabilitySnapshot:       opts.CapabilitySnapshot,
+		loadBPFNet:               loadBPFNet,
+		storageTargets:           normalizeStorageTargets(opts.StorageTargets),
+		statFS:                   defaultStatFS(opts.StatFS),
+		disabledPools:            disabledPools,
+		runtimeSlotCapacity:      runtimeSlotCapacity,
+		memoryBudgetEnabled:      opts.MemoryBudgetEnabled,
+		memoryCgroupEnforced:     opts.MemoryCgroupEnforced,
+		cgroupRootName:           opts.CgroupRootName,
+		memorySystemReserveBytes: opts.MemorySystemReserveBytes,
+		memoryCommitment:         opts.MemoryCommitment,
+		memoryCapacityObserver:   opts.MemoryCapacityObserver,
+		memoryPIDRolesVerifier:   opts.MemoryPIDRolesVerifier,
+		retiringMemoryLeases:     opts.RetiringMemoryLeases,
+		unackedStatusIDs:         opts.UnackedStatusIDs,
+		allocationIDs:            opts.AllocationIDs,
+		allocationRuntimeID:      opts.AllocationRuntimeID,
+		prevCPUSamples:           make(map[string]cpuUsageSample),
 	}
 }
 

@@ -4,7 +4,7 @@ Public clients connect to gatewayd. Gatewayd exposes product APIs, resolves allo
 
 `Run` is the single public workload model: one execution owns one allocation and eventually records a terminal exit status. SDK Sandboxes use a detached Run while their client-managed session is active.
 
-Runs use `Environment` as the execution source. A resource spec selects exactly one existing environment, catalog template, or OCI image. Template and image sources are resolved into an immutable environment before admission. Runtime class belongs to execution config, not the environment.
+Runs use `Environment` as the execution source. A resource spec selects exactly one existing environment, catalog template, or OCI image. Template and image sources are resolved into an immutable environment before admission. `runsc` is the platform execution boundary and is not a workload-selectable field.
 
 ## Submit And Observe
 

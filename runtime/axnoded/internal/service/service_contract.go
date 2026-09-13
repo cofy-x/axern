@@ -151,9 +151,8 @@ type NetworkPolicyDiagnostics struct {
 }
 
 type SandboxNetwork struct {
-	IP           string
-	NetNSPath    string
-	RuntimeClass string
+	IP        string
+	NetNSPath string
 }
 
 type ExecStreamServer interface {

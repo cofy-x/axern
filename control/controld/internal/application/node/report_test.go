@@ -25,7 +25,7 @@ type reportRegistrySpy struct {
 	summary *nodev1.NodeSummary
 }
 
-func (r *reportRegistrySpy) Report(nodeID, _ string, _ []string, summary *nodev1.NodeSummary, _ time.Time) {
+func (r *reportRegistrySpy) Report(nodeID, _ string, summary *nodev1.NodeSummary, _ time.Time) {
 	r.calls++
 	r.nodeID = nodeID
 	r.summary = summary

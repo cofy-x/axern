@@ -38,7 +38,6 @@ func TestAuthoritativeProfileBuildsCompleteAPIs(t *testing.T) {
 		app.registry,
 		app.placement,
 		func() time.Time { return app.now() },
-		defaultSandboxRuntime,
 	)
 	profile := app.authoritativeProfile(selector)
 	if profile.public.environments == nil || profile.public.runs == nil {

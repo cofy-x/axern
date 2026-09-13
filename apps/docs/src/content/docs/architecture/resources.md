@@ -6,7 +6,7 @@ description: Run isolated workloads with runsc and size them with requests, limi
 Axern uses gVisor (`runsc`) as its production sandbox runtime. It adds a user-space kernel between the workload and the host, under one resource and lifecycle model. Runsc is the supported execution runtime, with no automatic runtime fallback.
 
 ```bash
-axern run --runtime-class runsc docker.io/library/python:3.12-slim -- \
+axern run docker.io/library/python:3.12-slim -- \
   python -c 'print("hello")'
 ```
 

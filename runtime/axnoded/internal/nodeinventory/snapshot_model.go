@@ -198,12 +198,11 @@ type ImagefsdComponentInventory struct {
 }
 
 type BPFNetComponentInventory struct {
-	Status               string `json:"status"`
-	Error                string `json:"error,omitempty"`
-	Enabled              bool   `json:"enabled"`
-	Ready                bool   `json:"ready"`
-	Mode                 string `json:"mode,omitempty"`
-	NeedsLocalhostCompat bool   `json:"needs_localhost_compat"`
+	Status  string `json:"status"`
+	Error   string `json:"error,omitempty"`
+	Enabled bool   `json:"enabled"`
+	Ready   bool   `json:"ready"`
+	Mode    string `json:"mode,omitempty"`
 }
 
 type ComponentsInventory struct {
@@ -257,8 +256,8 @@ type NodeInventorySnapshot struct {
 	Components ComponentsInventory     `json:"components"`
 	Heat       HeatInventory           `json:"heat"`
 	Sources    map[string]SourceStatus `json:"sources"`
-	// AllocationMemoryObservations are a bounded control-plane report payload,
-	// not part of the operator-facing aggregate inventory JSON.
+	// AllocationMemoryObservations are live node-local diagnostics. They are
+	// rebuilt from cgroup state and are never persisted as control-plane facts.
 	AllocationMemoryObservations []*nodev1.AllocationMemoryObservation `json:"-"`
 }
 

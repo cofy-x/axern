@@ -44,7 +44,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         argv: list[str] | None = None,
         env: dict[str, str] | None = None,
         cwd: str = "",
-        runtime_class: str = "",
         network_policy: NetworkPolicy | None = None,
         request_cpu: ResourceQuantity = "",
         request_memory: ResourceQuantity = "",
@@ -74,7 +73,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         self._argv = list(argv or DEFAULT_SANDBOX_ARGV)
         self._env = dict(env or {})
         self._cwd = cwd
-        self._runtime_class = runtime_class
         self._network_policy = network_policy
         self._request_cpu = request_cpu
         self._request_memory = request_memory
@@ -142,7 +140,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
             run_id=state.run_id,
             allocation_id=state.allocation_id,
             node_id=state.node_id,
-            runtime_class=self._runtime_class,
             tunnel_session_id=state.tunnel_session_id,
             bound_addr=state.bound_addr,
             started_at_ns=self._started_at_ns,
@@ -166,7 +163,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
                 argv=self._argv,
                 env=self._env,
                 cwd=self._cwd,
-                runtime_class=self._runtime_class,
                 network_policy=self._network_policy,
                 request_cpu=self._request_cpu,
                 request_memory=self._request_memory,

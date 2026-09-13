@@ -43,7 +43,6 @@ type Metadata struct {
 type Spec struct {
 	Source                Source            `json:"source" yaml:"source"`
 	Command               Command           `json:"command,omitempty" yaml:"command,omitempty"`
-	RuntimeClass          string            `json:"runtime_class,omitempty" yaml:"runtime_class,omitempty"`
 	ExtensionCapabilities map[string]string `json:"extension_capabilities,omitempty" yaml:"extension_capabilities,omitempty"`
 	Resources             Resources         `json:"resources,omitempty" yaml:"resources,omitempty"`
 	Env                   map[string]string `json:"env,omitempty" yaml:"env,omitempty"`
@@ -198,7 +197,6 @@ func (e Envelope) ExecutionConfig() (*commonv1.ExecutionConfig, error) {
 		Argv:                            append([]string(nil), e.Spec.Command.Argv...),
 		Cwd:                             e.Spec.Command.Cwd,
 		Env:                             cloneMap(e.Spec.Env),
-		RuntimeClass:                    e.Spec.RuntimeClass,
 		ExtensionCapabilityRequirements: extensions,
 		Resources:                       resources,
 		SecretEnv:                       secretEnv,

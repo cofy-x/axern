@@ -32,7 +32,6 @@ func ResetPostgresControlTables(t *testing.T, dsn string) {
 			environments,
 			namespace_resource_quotas,
 			namespaces,
-			node_runtime_sets,
 			node_summaries,
 			nodes
 		CASCADE

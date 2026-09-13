@@ -22,7 +22,7 @@ func TestWritableStorageInventorySeparatesFilesystemAndAllocationUsage(t *testin
 	if err := os.WriteFile(filepath.Join(filestore, "runsc", "sandbox", "upper", "data"), make([]byte, 8192), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(filestore, "reservations", "sandbox.json"), []byte(`{"runtime_name":"runsc","request_bytes":4096}`), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(filestore, "reservations", "sandbox.json"), []byte(`{"container_id":"sandbox","request_bytes":4096,"limit_bytes":8192}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	source := NewAxnodedSource(AxnodedSourceOptions{

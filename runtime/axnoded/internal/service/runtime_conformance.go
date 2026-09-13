@@ -194,7 +194,7 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 	}
 	var evidence *capabilityv1.CapabilityEvidence
 	if binaryDigest != "" && configDigest != "" {
-		evidence = capabilitycontract.RuntimeEvidence(p.bootID, p.runtime, binaryDigest, configDigest)
+		evidence = capabilitycontract.RuntimeEvidence(p.bootID, binaryDigest, configDigest)
 	}
 	if p.lastErr != nil {
 		observation := failedObservation(p.expected, evidence, p.lastReasonCode, p.lastErr.Error())
@@ -239,10 +239,10 @@ func setObservationTime(observations []*capabilityv1.CapabilityObservation, obse
 }
 
 func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, configDigest string, err error) {
-	runtimeCfg, configured := p.cfg.PluginConfig.RuntimeConfig.Runtimes[p.runtime]
-	if !configured {
+	if p.runtime != config.RuntimeNameRunsc {
 		return "", "", "", fmt.Errorf("runtime %q is not configured", p.runtime)
 	}
+	runtimeCfg := p.cfg.PluginConfig.RuntimeConfig.Runsc
 	if _, loaded := p.registry.Get(p.runtime); !loaded {
 		return "", "", "", fmt.Errorf("runtime %q handler is not loaded", p.runtime)
 	}

@@ -31,7 +31,7 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 	if cacheKey == imageURL {
 		resolved, imported, err := m.ResolveImportedImageCacheKey(imageURL)
 		if err != nil {
-			return nil, fmt.Errorf("resolve imported image generation: %w", err)
+			return nil, fmt.Errorf("resolve imported image content: %w", err)
 		}
 		if imported {
 			cacheKey = resolved
@@ -58,7 +58,7 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 	}
 	unlockImage := m.acquireImageLock(lockIdentity)
 	defer unlockImage()
-	if err := m.validateRequestedImportedGeneration(imageURL, cacheKey); err != nil {
+	if err := m.validateRequestedImportedContent(imageURL, cacheKey); err != nil {
 		timing.RecordError(err)
 		return nil, err
 	}
@@ -256,17 +256,17 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 	return &MountResult{MountPath: mountPath, Env: envVars, ImageConfig: cloneImageConfig(imageConfig), MountID: mountID, LowerDirs: append([]string(nil), lowerDirs...)}, nil
 }
 
-func (m *Manager) validateRequestedImportedGeneration(imageURL, cacheKey string) error {
+func (m *Manager) validateRequestedImportedContent(imageURL, cacheKey string) error {
 	wantDigest, ok := importedDigestFromCacheKey(cacheKey)
 	if !ok {
 		return nil
 	}
-	rec, err := m.store.getImportGeneration(wantDigest)
+	rec, err := m.store.getImportContent(wantDigest)
 	if err != nil {
-		return fmt.Errorf("query imported generation %s: %w", wantDigest, err)
+		return fmt.Errorf("query imported content %s: %w", wantDigest, err)
 	}
 	if rec == nil {
-		return fmt.Errorf("requested imported image generation %s is unavailable", wantDigest)
+		return fmt.Errorf("requested imported image content %s is unavailable", wantDigest)
 	}
 	return nil
 }

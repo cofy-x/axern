@@ -23,8 +23,8 @@ func MountEvidence(bootID, mountIdentity string) *capabilityv1.CapabilityEvidenc
 	return &capabilityv1.CapabilityEvidence{Identity: &capabilityv1.CapabilityEvidence_Mount{Mount: &capabilityv1.MountEvidenceIdentity{BootID: bootID, MountIdentity: mountIdentity}}}
 }
 
-func RuntimeEvidence(bootID, runtimeName, binaryDigest, configDigest string) *capabilityv1.CapabilityEvidence {
-	return &capabilityv1.CapabilityEvidence{Identity: &capabilityv1.CapabilityEvidence_Runtime{Runtime: &capabilityv1.RuntimeEvidenceIdentity{BootID: bootID, RuntimeName: runtimeName, RuntimeBinaryDigest: binaryDigest, RuntimeConfigDigest: configDigest}}}
+func RuntimeEvidence(bootID, binaryDigest, configDigest string) *capabilityv1.CapabilityEvidence {
+	return &capabilityv1.CapabilityEvidence{Identity: &capabilityv1.CapabilityEvidence_Runtime{Runtime: &capabilityv1.RuntimeEvidenceIdentity{BootID: bootID, RuntimeBinaryDigest: binaryDigest, RuntimeConfigDigest: configDigest}}}
 }
 
 func EvidenceIdentityKind(evidence *capabilityv1.CapabilityEvidence) IdentityKind {
@@ -67,9 +67,6 @@ func ValidateEvidence(evidence *capabilityv1.CapabilityEvidence, expected Identi
 	case *capabilityv1.CapabilityEvidence_Runtime:
 		if err := validateBootID(identity.Runtime.GetBootID()); err != nil {
 			return err
-		}
-		if identity.Runtime.GetRuntimeName() != "runsc" {
-			return fmt.Errorf("runtime_name must be runsc")
 		}
 		if !digestPattern.MatchString(identity.Runtime.GetRuntimeBinaryDigest()) {
 			return fmt.Errorf("runtime_binary_digest must be a sha256 digest")

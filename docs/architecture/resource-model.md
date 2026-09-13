@@ -124,7 +124,7 @@ Namespace deletion is lifecycle cleanup, not quota reset. It rejects live operat
 
 Resource admission failures are surfaced in CLI and SDK responses with stable diagnostic labels.
 
-Plain `no eligible node` failures that do not contain capacity rejection details are node-selection failures, not resource admission failures. Examples include unsupported runtime classes, stale node state, or missing node capabilities.
+Plain `no eligible node` failures that do not contain capacity rejection details are node-selection failures, not resource admission failures. Examples include stale node state or missing node capabilities.
 
 For machine-readable troubleshooting, use JSON output:
 

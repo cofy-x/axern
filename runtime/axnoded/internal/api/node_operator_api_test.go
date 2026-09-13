@@ -433,7 +433,7 @@ func TestNodeOperatorSandboxMemoryReturnsLatestResolvedObservation(t *testing.T)
 
 	inventory := nodeinventory.NewSnapshot()
 	inventory.AllocationMemoryObservations = []*controlnodev1.AllocationMemoryObservation{{
-		AllocationID: "allocation-123", Revision: 7, LimitBytes: 512 << 20,
+		AllocationID: "allocation-123", LimitBytes: 512 << 20,
 	}}
 	fakeService := &fakeNodeOperatorService{inventory: inventory, inventoryReady: true}
 	server := NewNodeOperatorServer(fakeService)
@@ -442,7 +442,7 @@ func TestNodeOperatorSandboxMemoryReturnsLatestResolvedObservation(t *testing.T)
 	if err != nil {
 		t.Fatalf("GetSandboxMemory() error = %v", err)
 	}
-	if got := resp.GetObservation(); got.GetAllocationID() != "allocation-123" || got.GetRevision() != 7 || got.GetLimitBytes() != 512<<20 {
+	if got := resp.GetObservation(); got.GetAllocationID() != "allocation-123" || got.GetLimitBytes() != 512<<20 {
 		t.Fatalf("GetSandboxMemory() = %#v", got)
 	}
 }

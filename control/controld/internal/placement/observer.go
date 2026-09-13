@@ -22,7 +22,6 @@ type Observer interface {
 type SelectionObservation struct {
 	Mode                           string
 	Result                         string
-	Runtime                        string
 	MountType                      nodev1.MountType
 	RequestedCPUMilli              int64
 	RequestedMemoryBytes           int64

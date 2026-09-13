@@ -73,8 +73,7 @@ func (r *RunscServiceHandler) Version(ctx context.Context) (*runtimeapi.RuntimeV
 		return nil, err
 	}
 	return &runtimeapi.RuntimeVersion{
-		RuntimeName:    r.Name(),
-		RuntimeVersion: version,
+		Version: version,
 	}, nil
 }
 

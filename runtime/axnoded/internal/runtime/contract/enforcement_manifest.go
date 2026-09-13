@@ -18,9 +18,6 @@ func ValidateEnforcementManifest(manifest *apipb.AllocationEnforcementManifest, 
 	if manifest == nil {
 		return fmt.Errorf("allocation enforcement manifest is required")
 	}
-	if manifest.GetRuntimeName() != "runsc" {
-		return fmt.Errorf("allocation enforcement manifest has unsupported runtime %q", manifest.GetRuntimeName())
-	}
 	if manifest.GetCreatedAtUnixNano() <= 0 {
 		return fmt.Errorf("allocation enforcement manifest created_at is required")
 	}

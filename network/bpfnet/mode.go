@@ -4,7 +4,6 @@ const (
 	ModeAttachFailed                            = "attach-failed"
 	ModeIngressTCPUDPDNATEgressSNAT             = "ingress-tcp-udp-dnat+egress-snat"
 	ModeIngressTCPUDPDNATEgressSNATLocalhostTCP = "ingress-tcp-udp-dnat+egress-snat+localhost-tcp-dnat"
-	ModeIngressTCPUDPDNATEgressSNATLocalCompat  = "ingress-tcp-udp-dnat+egress-snat+localhost-tcp-iptables-compat"
 )
 
 const (

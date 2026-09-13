@@ -29,7 +29,6 @@ export function sandboxMetadata(options: SandboxOptions, state: SandboxState): S
   return {
     ...state,
     namespace: options.namespace ?? "default",
-    runtimeClass: options.runtimeClass ?? "",
     labels: sandboxLabels(options.labels),
     source: sandboxSource(options),
   };

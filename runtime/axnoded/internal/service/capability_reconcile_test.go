@@ -184,7 +184,7 @@ func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
 		expected: []*capabilityv1.CapabilityKey{selfTest},
 		observe: func(context.Context, time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, "runsc", sha256Digest([]byte("runsc")), sha256Digest([]byte("config")))
+			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, sha256Digest([]byte("runsc")), sha256Digest([]byte("config")))
 			return []*capabilityv1.CapabilityObservation{availableObservation(selfTest, evidence)}, nil
 		},
 	}
@@ -214,7 +214,7 @@ func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.
 		t.Fatal(err)
 	}
 	manifest := &apipb.AllocationEnforcementManifest{
-		RuntimeName: "runsc", EphemeralStorageLimitBytes: 64 << 20, RunscBackingDirectory: "/var/lib/axnoded/filestore/runsc",
+		EphemeralStorageLimitBytes: 64 << 20, RunscBackingDirectory: "/var/lib/axnoded/filestore/runsc",
 		RunscBackingDirectoryIdentity: "devino:v1:1:2",
 		RunscOverlayArg:               "root:dir=/var/lib/axnoded/filestore/runsc,size=67108864",
 		FilestoreMountIdentity:        "42:/dev/loop0:/var/lib/axnoded/filestore",

@@ -49,7 +49,6 @@ BPFNET_SNAT_TCP_IDLE_TIMEOUT="${BPFNET_SNAT_TCP_IDLE_TIMEOUT:-5m}"
 BPFNET_SNAT_TCP_CLOSING_TIMEOUT="${BPFNET_SNAT_TCP_CLOSING_TIMEOUT:-2s}"
 BPFNET_SNAT_DATAGRAM_IDLE_TIMEOUT="${BPFNET_SNAT_DATAGRAM_IDLE_TIMEOUT:-10s}"
 BPFNET_UPLINK_DEVICES="${BPFNET_UPLINK_DEVICES:-}"
-BPFNET_LOCAL_OUT_COMPAT="${BPFNET_LOCAL_OUT_COMPAT:-true}"
 AXNODED_CONTROL_PLANE_TARGET="${AXNODED_CONTROL_PLANE_TARGET:-}"
 AXNODED_CONTROL_PLANE_NODE_ID="${AXNODED_CONTROL_PLANE_NODE_ID:-}"
 AXNODED_CONTROL_PLANE_NODE_TARGET="${AXNODED_CONTROL_PLANE_NODE_TARGET:-}"
@@ -207,7 +206,6 @@ snat_tcp_idle_timeout = "${BPFNET_SNAT_TCP_IDLE_TIMEOUT}"
 snat_tcp_closing_timeout = "${BPFNET_SNAT_TCP_CLOSING_TIMEOUT}"
 snat_datagram_idle_timeout = "${BPFNET_SNAT_DATAGRAM_IDLE_TIMEOUT}"
 uplink_devices = $(toml_array_from_csv "${BPFNET_UPLINK_DEVICES}")
-local_out_compat = ${BPFNET_LOCAL_OUT_COMPAT}
 
 [plugin.resource]
 cgroup_cache_size = ${AXNODED_CGROUP_CACHE_SIZE}
@@ -237,11 +235,11 @@ nameservers = $(toml_array_from_csv "${AXNODED_DNS_NAMESERVERS}")
 search_domains = $(toml_array_from_csv "${AXNODED_DNS_SEARCH_DOMAINS}")
 options = $(toml_array_from_csv "${AXNODED_DNS_OPTIONS}")
 
-[plugin.runtime.runtimes.runsc]
+[plugin.runtime.runsc]
 binary = "/usr/local/bin/runsc"
 base_spec = "/etc/axnoded/runsc-config.json"
 
-[plugin.runtime.runtimes.runsc.options]
+[plugin.runtime.runsc.options]
 allow_suid = true
 
 EOF

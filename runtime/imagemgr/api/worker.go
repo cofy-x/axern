@@ -44,7 +44,7 @@ func NewHttpWorker(cfg *HttpWorkerConfig) (*HttpWorker, error) {
 		}
 		for _, record := range records {
 			if MountType(record.MountType) != MountTypeOCI && MountType(record.MountType) != MountTypeNydus {
-				return nil, fmt.Errorf("unsupported persisted mount type %q; resolve legacy mounts before starting imagemgr", record.MountType)
+				return nil, fmt.Errorf("invalid persisted mount type %q", record.MountType)
 			}
 		}
 	}

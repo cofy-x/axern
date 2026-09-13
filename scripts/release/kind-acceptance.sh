@@ -224,7 +224,6 @@ spec:
     template: python311
   command:
     argv: [python, -c, "print('axern-release-ok')"]
-  runtime_class: runsc
   resources:
     requests:
       cpu: 100m

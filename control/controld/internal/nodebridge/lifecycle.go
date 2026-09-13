@@ -20,10 +20,6 @@ import (
 )
 
 const (
-	DefaultRuntime = "runsc"
-)
-
-const (
 	nodeLifecycleOperationCreateAllocation = "create_allocation"
 	nodeLifecycleStageResolveCreateRequest = "resolve_create_request"
 	nodeLifecycleStageNodeCreateRPC        = "node_create_rpc"
@@ -33,13 +29,11 @@ type Bridge struct {
 	client              LifecycleClient
 	secretValues        secretkernel.ValueResolver
 	registryCredentials environmentkernel.RegistryCredentialResolver
-	defaultRuntime      string
 	createTimeout       time.Duration
 	operationTimeout    time.Duration
 }
 
 type Config struct {
-	DefaultRuntime      string
 	CreateTimeout       time.Duration
 	OperationTimeout    time.Duration
 	SecretValues        secretkernel.ValueResolver
@@ -47,9 +41,6 @@ type Config struct {
 }
 
 func New(client LifecycleClient, cfg Config) *Bridge {
-	if cfg.DefaultRuntime == "" {
-		cfg.DefaultRuntime = DefaultRuntime
-	}
 	if cfg.CreateTimeout <= 0 {
 		cfg.CreateTimeout = allocationkernel.CreateExecutionTimeout
 	}
@@ -60,7 +51,6 @@ func New(client LifecycleClient, cfg Config) *Bridge {
 		client:              client,
 		secretValues:        cfg.SecretValues,
 		registryCredentials: cfg.RegistryCredentials,
-		defaultRuntime:      cfg.DefaultRuntime,
 		createTimeout:       cfg.CreateTimeout,
 		operationTimeout:    cfg.OperationTimeout,
 	}
@@ -75,7 +65,6 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 		Config:                 run.GetConfig(),
 		Environment:            env,
 		NodeID:                 nodeID,
-		DefaultRuntime:         b.defaultRuntime,
 		CapabilityRequirements: requirements,
 	})
 	recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateAllocation, nodeLifecycleStageResolveCreateRequest, stageStarted, err)

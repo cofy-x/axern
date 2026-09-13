@@ -344,7 +344,7 @@ func TestSlowRuntimeProviderDoesNotBlockHealthPublication(t *testing.T) {
 	manager, err := NewManager(
 		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{runtimeKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			<-releaseRuntime
-			return []*capabilityv1.CapabilityObservation{{Key: runtimeKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, "runsc", digest("b"), digest("c"))}}, nil
+			return []*capabilityv1.CapabilityObservation{{Key: runtimeKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, digest("b"), digest("c"))}}, nil
 		}},
 		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{networkKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			select {
@@ -391,7 +391,7 @@ func TestDerivedCapabilityDoesNotEnterRecoveryDuringInitialWarming(t *testing.T)
 		}},
 		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{selfTestKey}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			<-releaseSelfTest
-			return []*capabilityv1.CapabilityObservation{{Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampledAt), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, "runsc", digest("b"), digest("c"))}}, nil
+			return []*capabilityv1.CapabilityObservation{{Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampledAt), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, digest("b"), digest("c"))}}, nil
 		}},
 		testDeriver{testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_DERIVED, keys: []*capabilityv1.CapabilityKey{derivedKey}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			return []*capabilityv1.CapabilityObservation{{Key: derivedKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampledAt), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE}}, nil
@@ -494,7 +494,7 @@ func TestDerivedCapabilityRecoversWithConfirmedBaseObservations(t *testing.T) {
 				Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
 				ObservedAt: timestamppb.New(now),
 				ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-				Evidence:   capabilitycontract.RuntimeEvidence(testBootID, "runsc", digest("b"), digest("c")),
+				Evidence:   capabilitycontract.RuntimeEvidence(testBootID, digest("b"), digest("c")),
 			}}, nil
 		}},
 		testDeriver{testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_DERIVED, keys: []*capabilityv1.CapabilityKey{derivedKey}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
@@ -605,7 +605,7 @@ func TestManagerAdmitsCurrentCompleteProof(t *testing.T) {
 			return []*capabilityv1.CapabilityObservation{{Key: baseKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampleTime), ValidUntil: timestamppb.New(sampleTime.Add(capabilitycontract.HealthObservationValidity)), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.MountEvidence(testBootID, "42:/filestore:xfs")}}, nil
 		}},
 		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{selfTestKey}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			return []*capabilityv1.CapabilityObservation{{Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampleTime), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, "runsc", digest("b"), digest("c"))}}, nil
+			return []*capabilityv1.CapabilityObservation{{Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampleTime), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, digest("b"), digest("c"))}}, nil
 		}},
 		testDeriver{testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_DERIVED, keys: []*capabilityv1.CapabilityKey{derivedKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			return []*capabilityv1.CapabilityObservation{{Key: derivedKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE}}, nil

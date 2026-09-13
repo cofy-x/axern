@@ -241,12 +241,11 @@ func TestLoadDnatRulesReconcilesOnlyLiveContainerRules(t *testing.T) {
 	assert.NotContains(t, stored.Items, "stale")
 }
 
-func TestNetworkForSandboxReturnsResourceAndRuntimeClass(t *testing.T) {
+func TestNetworkForSandboxReturnsResource(t *testing.T) {
 	c := NewCoordinator(Options{
 		CollectResourceByID: func(id string) (container.OccupiedResource, error) {
 			return newNetworkResource(id, "10.0.0.9", "/var/run/netns/ctr"), nil
 		},
-		RuntimeClass: func(string) (string, error) { return "runsc", nil },
 		NetworkManager: func(string) (networkmanager.NetworkManager, bool) {
 			return &fakeNetworkManager{}, true
 		},
@@ -256,7 +255,6 @@ func TestNetworkForSandboxReturnsResourceAndRuntimeClass(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "10.0.0.9", network.IP)
 	assert.Equal(t, "/var/run/netns/ctr", network.NetNSPath)
-	assert.Equal(t, "runsc", network.RuntimeClass)
 }
 
 func TestCleanupActivationNetwork(t *testing.T) {
@@ -514,7 +512,6 @@ func newTestCoordinatorWithStore(t *testing.T, fake *fakeNetworkManager, dbStore
 			return newNetworkResource(id, "10.0.0.2", "/var/run/netns/"+id), nil
 		},
 		ContainerExists: func(string) bool { return true },
-		RuntimeClass:    func(string) (string, error) { return "runsc", nil },
 		NetworkManager:  func(string) (networkmanager.NetworkManager, bool) { return fake, true },
 	})
 }

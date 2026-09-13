@@ -163,7 +163,7 @@ func TestHttpWorker_MountOCI_ImportedImageSkipsNydusDetection(t *testing.T) {
 	if err == nil {
 		t.Fatal("MountOCI() error = nil, want missing imported archive error")
 	}
-	if !strings.Contains(err.Error(), "load imported generation") {
+	if !strings.Contains(err.Error(), "load imported content") {
 		t.Fatalf("MountOCI() error = %q, want imported archive load error", err.Error())
 	}
 }

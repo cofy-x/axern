@@ -237,18 +237,17 @@ flowchart TB
     D --> S["SNATGCResult and map-count diagnostics"]
 ```
 
-## Compatibility And Failure Model
+## Address-Family And Failure Model
 
-The main dataplane is fail-closed. Compatibility paths are narrow and explicit.
+The selected dataplane is fail-closed. There is no mixed eBPF/iptables mode.
 
-| State                           | Meaning                                                                            | Production replacement interpretation |
-| ------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------- |
-| TC ingress and egress attached  | Main service and sandbox NAT paths run through bpfnet                              | Required                              |
-| `localhost-tcp-iptables-compat` | Localhost TCP hostPort uses iptables compatibility, TC remains eBPF                | Acceptable                            |
-| Unsupported protocol fallback   | Non-TCP/UDP service intent is handled outside bpfnet                               | Expected                              |
-| IPv6 bridge compatibility       | An IPv6 sandbox pool uses axnoded's ip6tables path and publishes bridge capability | Expected; not a native bpfnet result  |
+| State                          | Meaning                                                                            | Production replacement interpretation |
+| ------------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------- |
+| TC and localhost paths attached | All supported IPv4 service and sandbox NAT paths run through bpfnet                | Required                              |
+| Unsupported protocol           | The eBPF backend rejects service intent outside TCP/UDP                            | Fail closed                           |
+| IPv6 bridge backend            | An IPv6 sandbox pool uses axnoded's ip6tables path and publishes bridge capability | Expected; not a native bpfnet result  |
 
-`NeedsLocalhostCompat` reads persisted dataplane state instead of a transient in-memory boolean. Main TC failure is represented by `ready=false` and an attach/reconcile error, never by a second active dataplane.
+Any required attach or reconcile failure is represented by `ready=false` and an attach/reconcile error. A node changes backend only through explicit configuration and restart.
 
 ## Observability And Debugging
 

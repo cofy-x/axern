@@ -108,9 +108,8 @@ func startAndDelete(clients *verifyutil.NodeClients, rootfsConfig *verifyutil.Ro
 	startCtx, cancelStart := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancelStart()
 	spec := &privatenodev1.ResolvedExecutionConfig{
-		RuntimeClass: runtimeName,
-		Argv:         append([]string(nil), command...),
-		Cwd:          "/",
+		Argv: append([]string(nil), command...),
+		Cwd:  "/",
 	}
 	if !omitStdio {
 		spec.StdoutPath = stdoutPath

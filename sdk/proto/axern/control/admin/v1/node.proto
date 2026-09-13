@@ -6,7 +6,6 @@ option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;a
 
 import "google/protobuf/timestamp.proto";
 import "axern/control/capability/v1/capability.proto";
-import "axern/control/node/v1/node_control.proto";
 
 enum AdminNodeLifecycleStatus {
   ADMIN_NODE_LIFECYCLE_STATUS_UNSPECIFIED = 0;
@@ -62,7 +61,6 @@ message GetAllocationCapabilityDiagnosticsResponse {
   string node_id = 2;
   repeated axern.control.capability.v1.CapabilityRequirement requirements = 3;
   axern.control.capability.v1.CapabilityConditionSet condition_set = 4;
-  axern.control.node.v1.AllocationMemoryObservation latest_memory_observation = 5;
 }
 
 service NodeAdmin {

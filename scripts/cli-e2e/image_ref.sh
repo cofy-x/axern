@@ -3,9 +3,8 @@
 verify_external_image_ref() {
   local image_ref="${AXERN_CLI_E2E_IMAGE_REF:-docker.io/library/nginx:1.27}"
   local expected_ref="${AXERN_CLI_E2E_EXPECTED_IMAGE_REF:-${image_ref}}"
-  local runtime_classes="${AXERN_CLI_E2E_IMAGE_REF_RUNTIME_CLASSES:-runsc}"
   local ready_timeout="${AXERN_CLI_E2E_IMAGE_REF_READY_TIMEOUT:-300}"
-  local env_output environment_id env_image_ref env_image_digest runtime_class
+  local env_output environment_id env_image_ref env_image_digest
 
   if [[ "${expected_ref}" == docker.io/* ]]; then
     expected_ref="index.${expected_ref}"
@@ -13,16 +12,9 @@ verify_external_image_ref() {
 
   echo "axern_cli_image_ref_e2e_image_ref=${image_ref}" >&2
   echo "axern_cli_image_ref_e2e_expected_image_ref=${expected_ref}" >&2
-  echo "axern_cli_image_ref_e2e_runtime_classes=${runtime_classes}" >&2
   echo "axern_cli_image_ref_e2e_ready_timeout=${ready_timeout}" >&2
   echo "axern_cli_image_ref_e2e_registry_proxy_url=${REGISTRY_PROXY_URL:-}" >&2
   echo "axern_cli_image_ref_e2e_registry_no_proxy=${REGISTRY_NO_PROXY:-}" >&2
-
-  if [[ -z "${runtime_classes//[[:space:]]/}" ]]; then
-    echo "AXERN_CLI_E2E_IMAGE_REF_RUNTIME_CLASSES must include at least one runtime class" >&2
-    dump_logs
-    exit 1
-  fi
 
   env_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" environment create -o json --image-ref "${image_ref}")"
   environment_id="$(json_query "environment create external image-ref" 'json.load(sys.stdin)["environment"]["id"]' "${env_output}")"
@@ -46,21 +38,16 @@ verify_external_image_ref() {
     exit 1
   }
 
-  for runtime_class in ${runtime_classes}; do
-    verify_external_image_ref_runtime "${environment_id}" "${runtime_class}" "${ready_timeout}"
-  done
+  verify_external_image_ref_run "${environment_id}" "${ready_timeout}"
 }
 
-verify_external_image_ref_runtime() {
+verify_external_image_ref_run() {
   local environment_id="$1"
-  local runtime_class="$2"
-  local ready_timeout="$3"
+  local ready_timeout="$2"
   local run_output run_id allocation_id cancelled_run_id
 
-  echo "axern_cli_image_ref_e2e_runtime_class=${runtime_class}" >&2
   run_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run --detach \
     -o json --environment "${environment_id}" \
-    --runtime-class "${runtime_class}" \
     -- /bin/sh -lc 'sleep 120')"
   run_id="$(json_query "run create external image-ref" 'json.load(sys.stdin)["run"]["id"]' "${run_output}")"
   [ -n "${run_id}" ] || {

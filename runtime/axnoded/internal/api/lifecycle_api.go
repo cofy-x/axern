@@ -57,7 +57,7 @@ func NewNodeLifecycleServer(svc serviceLike, nodeID string) nodelifecyclev1.Node
 
 func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelifecyclev1.CreateAllocationRequest) (*nodelifecyclev1.CreateAllocationResponse, error) {
 	totalStarted := time.Now()
-	runtimeClass := lifecycleRuntimeClass(req)
+	runtimeClass := "runsc"
 	var resultErr error
 	defer func() {
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageTotal, runtimeClass, totalStarted, resultErr)
@@ -103,13 +103,6 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 		AllocationID:           req.GetAllocationID(),
 		CapabilityVerification: cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
 	}, nil
-}
-
-func lifecycleRuntimeClass(req *nodelifecyclev1.CreateAllocationRequest) string {
-	if req == nil {
-		return ""
-	}
-	return strings.TrimSpace(req.GetConfig().GetRuntimeClass())
 }
 
 func recordLifecycleStage(operation, stage, runtimeClass string, started time.Time, err error) {
@@ -231,17 +224,13 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 	if spec == nil {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "config is required")
 	}
-	runtimeClass := strings.TrimSpace(spec.GetRuntimeClass())
-	if runtimeClass == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "config.runtime_class is required")
-	}
 	cwd := strings.TrimSpace(spec.GetCwd())
 	rootfsConfig, err := lifecycleRootfsConfig(spec)
 	if err != nil {
 		return nil, err
 	}
 	runtimeTemplate := &runtimev1.RuntimeTemplate{
-		Sandbox:     runtimeClass,
+		Sandbox:     "runsc",
 		Command:     append([]string(nil), spec.GetArgv()...),
 		Cwd:         cwd,
 		RuntimeEnvs: cloneStringMap(spec.GetEnv()),
@@ -274,10 +263,6 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 }
 
 func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.ResolvedExecutionConfig) (*runtimev1.StartRequest, error) {
-	sandboxRuntime := strings.TrimSpace(spec.GetRuntimeClass())
-	if sandboxRuntime == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "config.runtime_class is required")
-	}
 	cwd := strings.TrimSpace(spec.GetCwd())
 
 	rootfsConfig, err := lifecycleRootfsConfig(spec)
@@ -286,7 +271,7 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 	}
 
 	runtimeTemplate := &runtimev1.RuntimeTemplate{
-		Sandbox:     sandboxRuntime,
+		Sandbox:     "runsc",
 		Command:     append([]string(nil), spec.GetArgv()...),
 		Cwd:         cwd,
 		RuntimeEnvs: cloneStringMap(spec.GetEnv()),

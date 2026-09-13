@@ -140,9 +140,9 @@ func TestStaleDelegationRetirementOnRealCgroupV2(t *testing.T) {
 		t.Fatal(err)
 	}
 	lease := &apipb.CgroupLease{
-		CgroupID:     parentPath,
-		State:        apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
-		AllocationID: "allocation-a", RuntimeName: "runsc",
+		CgroupID:           parentPath,
+		State:              apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+		AllocationID:       "allocation-a",
 		MemoryRequestBytes: limit, MemoryLimitBytes: limit,
 		AssignedAtUnixNano: time.Now().Add(-time.Minute).UnixNano(),
 		RetiringAtUnixNano: time.Now().Add(-time.Second).UnixNano(),

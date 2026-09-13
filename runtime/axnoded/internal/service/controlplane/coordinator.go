@@ -221,7 +221,6 @@ func (c *Coordinator) ReplayDurableAllocationLifecycles() error {
 
 func NewNodeReporter(
 	cfg config.Config,
-	runtimeNames func() []string,
 	inventory func() (nodeinventory.NodeInventorySnapshot, bool),
 	lifecycleOutbox *nodecontrol.AllocationLifecycleOutbox,
 ) (*nodecontrol.Reporter, error) {
@@ -244,7 +243,6 @@ func NewNodeReporter(
 		cfg.PluginConfig.ControlPlaneTLSCertValue(),
 		cfg.PluginConfig.ControlPlaneTLSKeyValue(),
 		heartbeatInterval,
-		runtimeNames,
 		inventory,
 		nodecontrol.BuildNodeSummary,
 		lifecycleOutbox,

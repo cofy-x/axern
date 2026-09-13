@@ -21,7 +21,7 @@ type ReportStore interface {
 }
 
 type ReportRegistry interface {
-	Report(nodeID, nodeTarget string, runtimes []string, summary *nodev1.NodeSummary, now time.Time)
+	Report(nodeID, nodeTarget string, summary *nodev1.NodeSummary, now time.Time)
 }
 
 // Reporter is the application-level node-report use case. The store commits
@@ -47,7 +47,7 @@ func (r *Reporter) Report(ctx context.Context, params nodekernel.ReportParams) e
 		return err
 	}
 	recordCapabilityChanges(ctx, record.ReportedCapabilityChanges)
-	r.registry.Report(record.NodeID, record.NodeTarget, record.Runtimes, record.Summary, record.UpdatedAt)
+	r.registry.Report(record.NodeID, record.NodeTarget, record.Summary, record.UpdatedAt)
 	if !reportedAxnodedReady(record.Summary) || r.allocations == nil {
 		return nil
 	}

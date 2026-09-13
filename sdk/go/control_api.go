@@ -31,7 +31,6 @@ type CreateRunOptions struct {
 	Argv                    []string
 	Env                     map[string]string
 	Cwd                     string
-	RuntimeClass            string
 	NetworkPolicy           *NetworkPolicy
 	ExtensionCapabilities   []ExtensionCapability
 	ImageMounts             []ImageMount
@@ -63,7 +62,6 @@ func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv
 			Argv:                            append([]string(nil), options.Argv...),
 			Env:                             cloneMap(options.Env),
 			Cwd:                             options.Cwd,
-			RuntimeClass:                    options.RuntimeClass,
 			Network:                         networkSpec(options.NetworkPolicy),
 			ExtensionCapabilityRequirements: extensionCapabilityRequirements(options.ExtensionCapabilities),
 			ImageMounts:                     executionImageMounts(options.ImageMounts),

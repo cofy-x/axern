@@ -11,7 +11,7 @@ import (
 )
 
 func TestBuildRequestRequiresCgroupMemoryReadinessForHardLimit(t *testing.T) {
-	selector := &Selector{defaultSandboxRuntime: "runsc"}
+	selector := &Selector{}
 	request, err := selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{
 		Resources: &commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{MemoryBytes: 1 << 30}},
 	})
@@ -34,7 +34,7 @@ func TestBuildRequestRequiresCgroupMemoryReadinessForHardLimit(t *testing.T) {
 }
 
 func TestBuildRequestUsesEphemeralStorageContract(t *testing.T) {
-	selector := &Selector{defaultSandboxRuntime: "runsc"}
+	selector := &Selector{}
 	request, err := selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{
 		Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{EphemeralStorageBytes: 512 << 20}},
 	})
@@ -50,7 +50,7 @@ func TestBuildRequestUsesEphemeralStorageContract(t *testing.T) {
 }
 
 func TestBuildRequestPersistsNetworkAndPortDependencies(t *testing.T) {
-	selector := &Selector{defaultSandboxRuntime: "runsc"}
+	selector := &Selector{}
 	request, err := selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{
 		Ports:   []*commonv1.PortSpec{{ContainerPort: 8080}},
 		Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT},
@@ -72,7 +72,7 @@ func TestBuildRequestPersistsNetworkAndPortDependencies(t *testing.T) {
 }
 
 func TestBuildRequestDerivesNetworkPolicyCapabilities(t *testing.T) {
-	selector := &Selector{defaultSandboxRuntime: "runsc"}
+	selector := &Selector{}
 	tests := []struct {
 		name      string
 		network   *commonv1.NetworkSpec

@@ -52,9 +52,9 @@ type ExtensionCapabilityConfig struct {
 	Value string `toml:"value" json:"value"`
 }
 
-// RuntimeConfig defines runtime instances and shared node execution policy.
+// RuntimeConfig defines runsc and shared node execution policy.
 type RuntimeConfig struct {
-	Runtimes map[string]RuntimeInstanceConfig `toml:"runtimes" json:"runtimes"`
+	Runsc RuntimeInstanceConfig `toml:"runsc" json:"runsc"`
 
 	// CgroupEnforcement is "required" in production. "disabled_dev" is an
 	// explicit development mode and rejects hard memory limits.
@@ -426,8 +426,6 @@ type BPFNetConfig struct {
 
 	SNATDatagramIdleTimeout string `toml:"snat_datagram_idle_timeout" json:"snatDatagramIdleTimeout"`
 
-	LocalOutCompat bool `toml:"local_out_compat" json:"localOutCompat"`
-
 	NativeRoutingCIDRs []string `toml:"native_routing_cidrs" json:"nativeRoutingCidrs"`
 }
 
@@ -553,17 +551,14 @@ func DefaultConfig() Config {
 					SNATTCPIdleTimeout:      DefaultBPFNetSNATTCPIdleTimeout,
 					SNATTCPClosingTimeout:   DefaultBPFNetSNATTCPClosingTimeout,
 					SNATDatagramIdleTimeout: DefaultBPFNetSNATDatagramIdleTimeout,
-					LocalOutCompat:          true,
 				},
 			},
 			RuntimeConfig: RuntimeConfig{
-				Runtimes: map[string]RuntimeInstanceConfig{
-					RuntimeNameRunsc: {
-						Binary:   DefaultRunscBinary,
-						BaseSpec: "/etc/axnoded/runsc-config.json",
-						Options: RuntimeOptions{
-							AllowSUID: boolPtr(true),
-						},
+				Runsc: RuntimeInstanceConfig{
+					Binary:   DefaultRunscBinary,
+					BaseSpec: "/etc/axnoded/runsc-config.json",
+					Options: RuntimeOptions{
+						AllowSUID: boolPtr(true),
 					},
 				},
 				CgroupEnforcement:                 CgroupEnforcementRequired,

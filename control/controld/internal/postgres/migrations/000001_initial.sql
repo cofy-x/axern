@@ -49,12 +49,6 @@ CREATE TABLE node_summaries (
 	updated_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE TABLE node_runtime_sets (
-	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
-	runtime_name TEXT NOT NULL,
-	PRIMARY KEY (node_id, runtime_name)
-);
-
 CREATE INDEX idx_nodes_last_heartbeat_at ON nodes(last_heartbeat_at);
 CREATE INDEX idx_nodes_last_summary_at ON nodes(last_summary_at);
 CREATE INDEX idx_nodes_lifecycle ON nodes(lifecycle_status, node_id);
@@ -181,86 +175,10 @@ CREATE TABLE allocation_capability_conditions (
 	updated_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE TABLE allocation_memory_observations (
-	allocation_id TEXT PRIMARY KEY,
-	node_id TEXT NOT NULL,
-	revision BIGINT NOT NULL,
-	observed_at TIMESTAMPTZ NOT NULL,
-	observation JSONB NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL,
-	FOREIGN KEY (allocation_id)
-		REFERENCES allocations(allocation_id) ON DELETE CASCADE,
-	FOREIGN KEY (allocation_id, node_id)
-		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE,
-	CHECK (revision > 0),
-	CHECK (jsonb_typeof(observation) = 'object'),
-	CHECK (COALESCE(observation->>'allocation_id', '') = allocation_id),
-	CHECK (COALESCE((observation->>'revision')::BIGINT, -1) = revision),
-	CHECK (COALESCE(observation->>'observed_at', '') <> ''),
-	CHECK ((observation->>'observed_at')::TIMESTAMPTZ = observed_at),
-	CHECK (COALESCE((observation->>'request_bytes')::BIGINT, 0) >= 0),
-	CHECK (COALESCE((observation->>'limit_bytes')::BIGINT, 0) >= 0),
-	CHECK (
-		COALESCE((observation->>'limit_bytes')::BIGINT, 0) = 0 OR
-		COALESCE((observation->>'request_bytes')::BIGINT, 0) <= (observation->>'limit_bytes')::BIGINT
-	),
-	CHECK (COALESCE((observation->>'current_bytes')::BIGINT, 0) >= 0),
-	CHECK (COALESCE((observation->>'peak_bytes')::BIGINT, 0) >= 0),
-	CHECK (
-		COALESCE((observation->>'peak_bytes')::BIGINT, 0) >=
-		COALESCE((observation->>'current_bytes')::BIGINT, 0)
-	),
-	CHECK (
-		COALESCE((observation->>'peak_available')::BOOLEAN, FALSE) = TRUE OR
-		COALESCE((observation->>'peak_bytes')::BIGINT, 0) =
-		COALESCE((observation->>'current_bytes')::BIGINT, 0)
-	),
-	CHECK (COALESCE((observation->>'swap_current_bytes')::BIGINT, 0) >= 0),
-	CHECK (
-		COALESCE((observation->>'limit_bytes')::BIGINT, 0) = 0 OR
-		COALESCE((observation->>'swap_current_bytes')::BIGINT, 0) = 0
-	),
-	CHECK (COALESCE((observation->>'anon_bytes')::BIGINT, 0) >= 0),
-	CHECK (COALESCE((observation->>'file_bytes')::BIGINT, 0) >= 0),
-	CHECK (COALESCE((observation->>'shmem_bytes')::BIGINT, 0) >= 0),
-	CHECK (COALESCE((observation->>'kernel_bytes')::BIGINT, 0) >= 0),
-	CHECK (COALESCE((observation->>'dirty_bytes')::BIGINT, 0) >= 0),
-	CHECK (COALESCE((observation->>'writeback_bytes')::BIGINT, 0) >= 0),
-	CHECK (COALESCE(observation->>'cgroup_identity', '') <> ''),
-	CHECK (octet_length(COALESCE(observation->>'cgroup_identity', '')) <= 1024),
-	CHECK (COALESCE(observation->>'runtime', '') = 'runsc'),
-	CHECK (
-		(
-			COALESCE((observation->>'limit_bytes')::BIGINT, 0) = 0 AND
-			COALESCE((observation->>'parent_controls_verified')::BOOLEAN, FALSE) = FALSE AND
-			COALESCE((observation->>'leaf_controls_verified')::BOOLEAN, FALSE) = FALSE
-		) OR (
-			COALESCE((observation->>'limit_bytes')::BIGINT, 0) > 0 AND
-			COALESCE((observation->>'parent_controls_verified')::BOOLEAN, FALSE) = TRUE AND
-			(
-				COALESCE(observation->>'cleanup_state', '') = 'ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING' OR
-				COALESCE((observation->>'leaf_controls_verified')::BOOLEAN, FALSE) = TRUE
-			)
-		)
-	),
-	CHECK (COALESCE(observation->>'cleanup_state', '') IN (
-		'ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED',
-		'ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING'
-	)),
-	CHECK (
-		COALESCE(observation->>'cleanup_state', '') <> 'ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING' OR
-		COALESCE((observation->>'pid_roles_verified')::BOOLEAN, FALSE) = FALSE
-	),
-	CHECK (
-		COALESCE((observation->>'psi_available')::BOOLEAN, FALSE) = TRUE OR (
-			COALESCE((observation->>'psi_some_avg10')::DOUBLE PRECISION, 0) = 0 AND
-			COALESCE((observation->>'psi_full_avg10')::DOUBLE PRECISION, 0) = 0 AND
-			COALESCE((observation->>'psi_some_total_usec')::BIGINT, 0) = 0 AND
-			COALESCE((observation->>'psi_full_total_usec')::BIGINT, 0) = 0
-		)
-	)
-);
-
+-- Durable ordering fence for capability observations from a concrete node
+-- process. This is not an observation cache: only the greatest accepted
+-- sequence is retained so duplicate or delayed reports cannot replace newer
+-- facts after a controld restart.
 CREATE TABLE node_capability_instances (
 	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
 	node_instance_id TEXT NOT NULL,
@@ -427,8 +345,6 @@ CREATE INDEX idx_runs_namespace_created ON runs(namespace, created_at DESC);
 CREATE INDEX idx_runs_namespace_id ON runs(namespace, run_id);
 CREATE INDEX idx_allocations_node_lifecycle ON allocations(node_id, lifecycle_state);
 CREATE INDEX idx_allocations_run_lifecycle_updated ON allocations(run_id, lifecycle_state, updated_at);
-CREATE INDEX idx_allocation_memory_observations_node_updated
-	ON allocation_memory_observations(node_id, updated_at DESC);
 CREATE INDEX idx_admin_audit_events_created ON admin_audit_events(created_at DESC, event_id DESC);
 CREATE INDEX idx_admin_audit_events_operation_created ON admin_audit_events(operation, created_at DESC, event_id DESC);
 CREATE INDEX idx_admin_audit_events_target_created ON admin_audit_events(target_type, target_id, created_at DESC, event_id DESC);

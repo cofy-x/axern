@@ -265,7 +265,7 @@ func TestEnsureLayerExtracted_RecoversMetadataFromExistingPath(t *testing.T) {
 	}
 }
 
-func TestEnsureLayerExtracted_KeepLegacyLayerPathNoMigration(t *testing.T) {
+func TestEnsureLayerExtractedRejectsNonContentPath(t *testing.T) {
 	mgr := newTestManager(t)
 	defer mgr.store.close()
 
@@ -282,12 +282,6 @@ func TestEnsureLayerExtracted_KeepLegacyLayerPathNoMigration(t *testing.T) {
 		t.Fatalf("write legacy file: %v", err)
 	}
 
-	layerDir, err := mgr.store.getOrCreateLayerDir(hash.String())
-	if err != nil {
-		t.Fatalf("getOrCreateLayerDir: %v", err)
-	}
-	mappedPath := filepath.Join(mgr.layersDir, layerDir, "fs")
-
 	if err := mgr.store.putLayer(&LayerRecord{
 		Digest:        hash.String(),
 		Path:          legacyPath,
@@ -298,23 +292,7 @@ func TestEnsureLayerExtracted_KeepLegacyLayerPathNoMigration(t *testing.T) {
 		t.Fatalf("put legacy layer: %v", err)
 	}
 
-	rec, err := mgr.ensureLayerExtracted(panicUncompressedLayer{digest: hash})
-	if err != nil {
-		t.Fatalf("ensureLayerExtracted() error: %v", err)
-	}
-	if rec.Path != legacyPath {
-		t.Fatalf("legacy layer path should be kept, got %s want %s", rec.Path, legacyPath)
-	}
-	if _, err := os.Stat(legacyPath); err != nil {
-		t.Fatalf("legacy path should still exist, err=%v", err)
-	}
-	if _, err := os.Stat(mappedPath); !os.IsNotExist(err) {
-		t.Fatalf("mapped path should not be created by online migration, err=%v", err)
-	}
-	if rec.RefCount != 1 {
-		t.Fatalf("expected reserved layer refcount = 1, got %d", rec.RefCount)
-	}
-	if rec.RefZeroAtUnix != 0 {
-		t.Fatalf("expected ref-zero timestamp to be cleared while reserved, got %d", rec.RefZeroAtUnix)
+	if _, err := mgr.ensureLayerExtracted(panicUncompressedLayer{digest: hash}); err == nil {
+		t.Fatal("non-content-addressed layer metadata was accepted")
 	}
 }

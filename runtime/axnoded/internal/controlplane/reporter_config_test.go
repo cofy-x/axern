@@ -18,7 +18,6 @@ func TestNewReporterReturnsNilWhenControlPlaneDisabled(t *testing.T) {
 		"",
 		"",
 		5*time.Second,
-		func() []string { return []string{"runsc"} },
 		func() (nodeinventory.NodeInventorySnapshot, bool) { return nodeinventory.NewSnapshot(), true },
 		func(nodeinventory.NodeInventorySnapshot) *nodev1.NodeSummary { return &nodev1.NodeSummary{} },
 		nil,

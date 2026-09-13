@@ -30,7 +30,6 @@ class SandboxMetadata:
     run_id: str
     allocation_id: str
     node_id: str
-    runtime_class: str
     tunnel_session_id: str
     bound_addr: str
     started_at_ns: int

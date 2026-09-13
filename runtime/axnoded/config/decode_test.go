@@ -6,20 +6,20 @@ import (
 	"testing"
 )
 
-func TestDecodeRuntimeInstances(t *testing.T) {
+func TestDecodeRunsc(t *testing.T) {
 	cfg, err := Decode([]byte(`
-[plugin.runtime.runtimes.runsc]
+[plugin.runtime.runsc]
 binary = "/custom/runsc"
 base_spec = "/custom/runsc.json"
-[plugin.runtime.runtimes.runsc.options]
+[plugin.runtime.runsc.options]
 allow_suid = false
 `))
 	if err != nil {
 		t.Fatal(err)
 	}
-	runsc := cfg.RuntimeConfig.Runtimes[RuntimeNameRunsc]
-	if len(cfg.RuntimeConfig.Runtimes) != 1 || runsc.Binary != "/custom/runsc" || runsc.BaseSpec != "/custom/runsc.json" || runsc.Options.AllowSUIDEnabled(true) {
-		t.Fatalf("runtime configuration = %+v", cfg.RuntimeConfig.Runtimes)
+	runsc := cfg.RuntimeConfig.Runsc
+	if runsc.Binary != "/custom/runsc" || runsc.BaseSpec != "/custom/runsc.json" || runsc.Options.AllowSUIDEnabled(true) {
+		t.Fatalf("runsc configuration = %+v", runsc)
 	}
 	if cfg.RuntimeConfig.CgroupEnforcement != CgroupEnforcementRequired {
 		t.Fatal("omitted enforcement policy lost its production default")
@@ -32,7 +32,7 @@ func TestDecodeRejectsUnknownAndRemovedSettings(t *testing.T) {
 		"[plugin.runtime.basic_spec]\nrunsc = '/legacy/runsc.json'",
 		"[plugin.runtime]\nvolume_manager_socket = '/legacy/volumed.sock'",
 		"[plugin.runtime]\ncgroup_enforcment = 'disabled_dev'",
-		"[plugin.runtime.runtimes.runsc]\nbinry = '/custom/runsc'",
+		"[plugin.runtime.runsc]\nbinry = '/custom/runsc'",
 	} {
 		if _, err := Decode([]byte(input)); err == nil || !strings.Contains(err.Error(), "undecoded keys") {
 			t.Fatalf("invalid configuration %q: %v", input, err)

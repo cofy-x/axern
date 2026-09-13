@@ -172,7 +172,7 @@ Runnable examples live under `sdk/go/examples`:
 - `computer-use`: inspect a desktop-capable sandbox and capture a screenshot
 - `programmable`: combine upload, process control, download, tunnel, and cleanup
 
-Each example defaults to the current Axern context from the local CLI config file. Use `--context` or `AXERN_CONTEXT` to select a named context, and `--config` or `AXERN_CONFIG` to select a config file. Explicit flags and env vars still take precedence, including `AXERN_ENDPOINT`, `AXERN_TLS_CA_CERT`, `AXERN_TLS_CERT`, `AXERN_TLS_KEY`, `AXERN_TEMPLATE_ID`, `AXERN_RUNTIME_CLASS`, `AXERN_PROXY_MODE`, and `AXERN_TLS_SERVER_NAME`. Tunnel traffic reuses the gateway endpoint and TLS identity.
+Each example defaults to the current Axern context from the local CLI config file. Use `--context` or `AXERN_CONTEXT` to select a named context, and `--config` or `AXERN_CONFIG` to select a config file. Explicit flags and env vars still take precedence, including `AXERN_ENDPOINT`, `AXERN_TLS_CA_CERT`, `AXERN_TLS_CERT`, `AXERN_TLS_KEY`, `AXERN_TEMPLATE_ID`, `AXERN_PROXY_MODE`, and `AXERN_TLS_SERVER_NAME`. Tunnel traffic reuses the gateway endpoint and TLS identity.
 
 ```bash
 go run ./sdk/go/examples/basic

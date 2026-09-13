@@ -62,7 +62,6 @@ type State struct {
 	RunID         string
 	AllocationID  string
 	NodeID        string
-	RuntimeClass  string
 }
 
 type ExecOptions struct {

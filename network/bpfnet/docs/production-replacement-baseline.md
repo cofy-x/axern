@@ -11,7 +11,6 @@ bpfnet is production-usable as the default Axern NAT dataplane on real Linux Kub
 Use these Helm values:
 
 - `node.network.natBackend = ebpf`
-- `node.network.ebpf.localOutCompat = true`
 - `node.network.ebpf.snatGcInterval = 1s`
 - `node.network.ebpf.snatTcpClosingTimeout = 2s`
 - `node.network.ebpf.snatDatagramIdleTimeout = 10s`
@@ -19,12 +18,11 @@ Use these Helm values:
 The equivalent axnoded config shape is:
 
 - `nat_backend = "ebpf"`
-- `local_out_compat = true`
 - `snat_gc_interval = "1s"`
 - `snat_tcp_closing_timeout = "2s"`
 - `snat_datagram_idle_timeout = "10s"`
 
-`iptables` remains an explicitly selected rollback backend. A mode that includes `localhost-tcp-iptables-compat` is acceptable on kernels where the localhost TCP cgroup path is unavailable. Main TC attach or reconciliation failure fails the `ebpf` backend instead of switching it to iptables.
+`iptables` remains a complete, explicitly selected backend. The eBPF backend is accepted only when TC and localhost cgroup paths are all ready; attach or reconciliation failure is fail-closed and never switches a running node to iptables.
 
 ## Validation Envelope
 

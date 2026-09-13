@@ -31,7 +31,6 @@ nat_backend = "${NAT_BACKEND}"
 [plugin.network.ebpf]
 pin_path = "/sys/fs/bpf/axern/bpfnet"
 map_size = 16384
-local_out_compat = true
 
 [plugin.resource]
 cgroup_cache_size = 4
@@ -50,11 +49,11 @@ filestore_loopback_size_bytes = 1073741824
 filestore_system_reserve_bytes = 67108864
 ephemeral_storage_default_limit_bytes = 268435456
 
-[plugin.runtime.runtimes.runsc]
+[plugin.runtime.runsc]
 binary = "/usr/local/bin/runsc"
 base_spec = "/etc/axnoded/runsc-config.json"
 
-[plugin.runtime.runtimes.runsc.options]
+[plugin.runtime.runsc.options]
 
 EOF
 

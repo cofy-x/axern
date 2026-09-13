@@ -20,8 +20,6 @@ if ! docker ps --format '{{.Names}}' | grep -qx "${node_container}"; then
 fi
 
 export AXERN_CONTEXT=compose
-export AXERN_RUNTIME_CLASS="${AXERN_GO_SDK_EXAMPLES_RUNTIME:-runsc}"
-
 for example in basic process files; do
   echo "go_sdk_example=${example} phase=start"
   "${go_bin}" run "./sdk/go/examples/${example}"

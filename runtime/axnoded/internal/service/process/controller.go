@@ -206,9 +206,7 @@ func processTarget(target sandboxtarget.Target) Target {
 }
 
 func addRuntimeMetric(op *sdkobs.Operation, target sandboxtarget.Target) {
-	if runtimeClass := target.RuntimeClass(); runtimeClass != "" {
-		op.AddMetricAttributes(attribute.String(sdkobs.AttrRuntime, runtimeClass))
-	}
+	op.AddMetricAttributes(attribute.String(sdkobs.AttrRuntime, "runsc"))
 }
 
 func recordStreamResult(op *sdkobs.Operation, result StreamResult) {

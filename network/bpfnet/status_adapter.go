@@ -84,7 +84,6 @@ func defaultCollectAttachmentReadiness(cfg Config, state DataplaneState) Attachm
 		toInternalConfig(cfg),
 		state.UplinkDevices,
 		state.LocalAddresses,
-		state.LocalOutCompat,
 	)
 	return AttachmentReadiness{
 		UplinkDevices:          append([]string(nil), attachment.UplinkDevices...),

@@ -30,7 +30,6 @@ func TestResolverRunningTarget(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "alloc-1", target.ID)
-	assert.Equal(t, "runsc", target.RuntimeClass())
 	assert.Same(t, handler, target.Handler)
 	assert.Equal(t, map[string]string{"ready": "true"}, target.Labels())
 }

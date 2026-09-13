@@ -209,7 +209,6 @@ class AxernClient:
         namespace: str = "default",
         env: dict[str, str] | None = None,
         cwd: str = "",
-        runtime_class: str = "",
         network_policy: NetworkPolicy | None = None,
         request_cpu: ResourceQuantity = "",
         request_memory: ResourceQuantity = "",
@@ -229,7 +228,6 @@ class AxernClient:
                     argv=list(argv or []),
                     env=dict(env or {}),
                     cwd=cwd,
-                    runtime_class=runtime_class,
                     network=(
                         common_pb2.NetworkSpec(egress_policy=network_policy._to_proto())
                         if network_policy is not None

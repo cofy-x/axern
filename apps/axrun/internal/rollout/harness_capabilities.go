@@ -13,8 +13,7 @@ func sandboxRuntimeState(state sandbox.State) *domain.SandboxRuntimeState {
 	if state.EnvironmentID == "" &&
 		state.RunID == "" &&
 		state.AllocationID == "" &&
-		state.NodeID == "" &&
-		state.RuntimeClass == "" {
+		state.NodeID == "" {
 		return nil
 	}
 	return &domain.SandboxRuntimeState{
@@ -22,7 +21,6 @@ func sandboxRuntimeState(state sandbox.State) *domain.SandboxRuntimeState {
 		RunID:         state.RunID,
 		AllocationID:  state.AllocationID,
 		NodeID:        state.NodeID,
-		RuntimeClass:  state.RuntimeClass,
 	}
 }
 

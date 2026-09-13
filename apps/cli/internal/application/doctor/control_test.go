@@ -100,7 +100,7 @@ func TestDiagnoseProbeCompletesAndDeletesEnvironment(t *testing.T) {
 	runs := &fakeRunClient{}
 	control := New(Options{
 		Namespace: "default", TLS: writeTLSFixture(t, now, 90*24*time.Hour), Now: func() time.Time { return now },
-		Probe: &ProbeOptions{TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Second},
+		Probe: &ProbeOptions{TemplateID: "python311", Timeout: time.Second},
 		Open:  successfulOpener(environments, runs),
 	})
 
@@ -118,7 +118,7 @@ func TestDiagnoseProbeCompletesAndDeletesEnvironment(t *testing.T) {
 	if environments.createRequest.GetSpec().GetTemplateID() != "python311" || environments.createRequest.GetSpec().GetImage() != nil {
 		t.Fatalf("probe environment request = %#v", environments.createRequest)
 	}
-	if runs.createRequest.GetConfig().GetRuntimeClass() != "runsc" || runs.createRequest.GetEnvironmentID() != "env-probe" {
+	if runs.createRequest.GetEnvironmentID() != "env-probe" {
 		t.Fatalf("probe run request = %#v", runs.createRequest)
 	}
 	resources := runs.createRequest.GetConfig().GetResources()
@@ -133,7 +133,7 @@ func TestDiagnoseProbeFailureStillCancelsRunAndDeletesEnvironment(t *testing.T) 
 	runs := &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_RUNNING}
 	control := New(Options{
 		Namespace: "default", TLS: writeTLSFixture(t, now, 90*24*time.Hour), Now: func() time.Time { return now },
-		Probe: &ProbeOptions{TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Millisecond},
+		Probe: &ProbeOptions{TemplateID: "python311", Timeout: time.Millisecond},
 		Open:  successfulOpener(environments, runs),
 	})
 
@@ -153,7 +153,7 @@ func TestDNSProbeUsesSecretEnvAndCleansResources(t *testing.T) {
 	environment := &fakeEnvironmentClient{}
 	runs := &fakeRunClient{}
 	check := DNSProbe(context.Background(), &Session{Namespace: namespace, Secret: secret, Environment: environment, Run: runs}, DNSProbeOptions{
-		QueryName: "private.corp.example.", TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Second,
+		QueryName: "private.corp.example.", TemplateID: "python311", Timeout: time.Second,
 	})
 	if check.Status != CheckPass || check.Code != "runtime_dns_sandbox_resolved" {
 		t.Fatalf("DNSProbe() = %#v", check)
@@ -179,7 +179,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 		check := DNSProbe(context.Background(), &Session{
 			Namespace: namespace, Secret: &fakeSecretClient{createErr: errors.New("create secret")},
 			Environment: &fakeEnvironmentClient{}, Run: &fakeRunClient{},
-		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Second})
+		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Second})
 		if check.Code != "runtime_dns_sandbox_probe_failed" || namespace.deleteCalls != 1 {
 			t.Fatalf("DNSProbe() = %#v, namespace deletes = %d", check, namespace.deleteCalls)
 		}
@@ -190,7 +190,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 				check := DNSProbe(context.Background(), &Session{
 					Namespace: &fakeNamespaceClient{}, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{},
 					Run: &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_FAILED, exitCodeKnown: true, exitCode: exitCode},
-				}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Second})
+				}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Second})
 				if check.Code != "runtime_dns_sandbox_query_failed" {
 					t.Fatalf("DNSProbe() = %#v", check)
 				}
@@ -201,7 +201,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 		check := DNSProbe(context.Background(), &Session{
 			Namespace: &fakeNamespaceClient{}, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{},
 			Run: &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_FAILED, exitCodeKnown: true, exitCode: 2},
-		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Second})
+		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Second})
 		if check.Code != "runtime_dns_sandbox_probe_failed" {
 			t.Fatalf("DNSProbe() = %#v", check)
 		}
@@ -210,7 +210,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 		runs := &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_RUNNING}
 		check := DNSProbe(context.Background(), &Session{
 			Namespace: &fakeNamespaceClient{}, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{}, Run: runs,
-		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Millisecond})
+		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Millisecond})
 		if check.Code != "runtime_dns_sandbox_probe_failed" || runs.cancelCalls != 1 {
 			t.Fatalf("DNSProbe() = %#v, run cancels = %d", check, runs.cancelCalls)
 		}
@@ -219,7 +219,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 		check := DNSProbe(context.Background(), &Session{
 			Namespace: &fakeNamespaceClient{deleteErr: errors.New("delete namespace")}, Secret: &fakeSecretClient{},
 			Environment: &fakeEnvironmentClient{}, Run: &fakeRunClient{},
-		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", RuntimeClass: "runsc", Timeout: time.Second})
+		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Second})
 		if check.Code != "runtime_dns_sandbox_cleanup_failed" {
 			t.Fatalf("DNSProbe() = %#v", check)
 		}

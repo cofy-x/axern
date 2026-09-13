@@ -102,33 +102,25 @@ func runVerifyNginx(cfg verifyNginxConfig) error {
 		if err := verifyutil.AssertIptablesRuleAbsent("nat", "PREROUTING", fmt.Sprintf("--dport %d -j DNAT", cfg.listenPort)); err != nil {
 			return err
 		}
-		if status.State.LocalhostCompat {
-			if err := verifyutil.AssertIptablesRule("nat", "OUTPUT", fmt.Sprintf("--dport %d -j DNAT", cfg.listenPort)); err != nil {
-				return err
-			}
-		} else {
-			if err := bpfnetstatus.RequireLocalhostTCPReady(status); err != nil {
-				return err
-			}
-			if err := verifyutil.AssertIptablesRuleAbsent("nat", "OUTPUT", fmt.Sprintf("--dport %d -j DNAT", cfg.listenPort)); err != nil {
-				return err
-			}
-			if err := assertIptablesRuleAbsentAll("nat", "POSTROUTING",
-				"-s 127.0.0.1/32",
-				fmt.Sprintf("-d %s/32", service.TargetIP),
-				fmt.Sprintf("--dport %d", service.TargetPort),
-				"-j MASQUERADE",
-			); err != nil {
-				return err
-			}
+		if err := bpfnetstatus.RequireLocalhostTCPReady(status); err != nil {
+			return err
+		}
+		if err := verifyutil.AssertIptablesRuleAbsent("nat", "OUTPUT", fmt.Sprintf("--dport %d -j DNAT", cfg.listenPort)); err != nil {
+			return err
+		}
+		if err := assertIptablesRuleAbsentAll("nat", "POSTROUTING",
+			"-s 127.0.0.1/32",
+			fmt.Sprintf("-d %s/32", service.TargetIP),
+			fmt.Sprintf("--dport %d", service.TargetPort),
+			"-j MASQUERADE",
+		); err != nil {
+			return err
 		}
 		if err := verifyutil.AssertTCFiltersAttached(status.Attachment.UplinkDevices); err != nil {
 			return err
 		}
-		if !status.State.LocalhostCompat {
-			if err := assertPinnedLocalhostLinks(cfg.bpfnetPin); err != nil {
-				return err
-			}
+		if err := assertPinnedLocalhostLinks(cfg.bpfnetPin); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("unsupported nat backend %q", cfg.natBackend)
@@ -138,7 +130,7 @@ func runVerifyNginx(cfg verifyNginxConfig) error {
 		if err := assertReachable(cfg.listenPort); err != nil {
 			return err
 		}
-		if cfg.natBackend == config.NatBackendEBPF && !status.State.LocalhostCompat {
+		if cfg.natBackend == config.NatBackendEBPF {
 			if err := assertGetpeernameAlias(cfg.listenPort); err != nil {
 				return err
 			}
@@ -188,8 +180,7 @@ func runVerifyNginx(cfg verifyNginxConfig) error {
 
 func isExpectedTCPBPFNetMode(mode string) bool {
 	switch mode {
-	case bpfnet.ModeIngressTCPUDPDNATEgressSNATLocalhostTCP,
-		bpfnet.ModeIngressTCPUDPDNATEgressSNATLocalCompat:
+	case bpfnet.ModeIngressTCPUDPDNATEgressSNATLocalhostTCP:
 		return true
 	default:
 		return false

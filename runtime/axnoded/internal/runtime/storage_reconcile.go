@@ -33,10 +33,10 @@ func reconcilePersistentStorage(
 			result = errors.Join(result, err)
 		}
 	}
-	if err := capacity.ValidateRuntimeReservations(runtimeName, containerRoot, retained); err != nil {
+	if err := capacity.ValidateReservations(containerRoot, retained); err != nil {
 		result = errors.Join(result, err)
 	}
-	if err := capacity.ReconcileRuntime(runtimeName, retained, func(id string) error {
+	if err := capacity.Reconcile(retained, func(id string) error {
 		return views.Remove(ctx, id)
 	}); err != nil {
 		result = errors.Join(result, err)

@@ -57,7 +57,7 @@ func TestHttpHandler_OCIImport(t *testing.T) {
 	if resp.CanonicalRef != imageRef {
 		t.Fatalf("CanonicalRef = %q, want %q", resp.CanonicalRef, imageRef)
 	}
-	if resp.ImmutableRef != "example.local/myapp@"+resp.GenerationDigest {
+	if resp.ImmutableRef != "example.local/myapp@"+resp.ContentDigest {
 		t.Fatalf("ImmutableRef = %q, want digest-pinned ref", resp.ImmutableRef)
 	}
 	if resp.SizeBytes == 0 {
@@ -90,7 +90,7 @@ func TestHttpHandler_OCIImport(t *testing.T) {
 	if err := json.NewDecoder(resolveWriter.Body).Decode(&resolved); err != nil {
 		t.Fatal(err)
 	}
-	if !resolved.Imported || resolved.CacheKey != "local-import@"+resp.GenerationDigest {
+	if !resolved.Imported || resolved.CacheKey != "local-import@"+resp.ContentDigest {
 		t.Fatalf("resolved import = %+v", resolved)
 	}
 }

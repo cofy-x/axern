@@ -366,7 +366,7 @@ func inventoryContainer(id string, status container.Status) *container.Container
 func TestMemoryObservationFromKernelPreservesRetiringOwnership(t *testing.T) {
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	observation := memoryObservationFromKernel(
-		"alloc-retiring", 512, 1024, "runsc", nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING, 9, now,
+		"alloc-retiring", 512, 1024, nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING, now,
 		&hostlinux.CgroupMemoryDomain{BootID: "boot", MountIdentity: "mount", ParentInode: 11, LeafInode: 12},
 		&hostlinux.CgroupMemoryObservation{
 			CurrentBytes: 700, PeakBytes: 900, PeakAvailable: true, Stat: map[string]int64{"anon": 100, "file": 500},
@@ -374,8 +374,8 @@ func TestMemoryObservationFromKernelPreservesRetiringOwnership(t *testing.T) {
 		},
 		true, false,
 	)
-	if observation.GetAllocationID() != "alloc-retiring" || observation.GetRevision() != 9 ||
-		observation.GetCleanupState() != nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING || observation.GetCurrentBytes() != 700 || observation.GetRuntime() != "runsc" ||
+	if observation.GetAllocationID() != "alloc-retiring" ||
+		observation.GetCleanupState() != nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING || observation.GetCurrentBytes() != 700 ||
 		observation.GetCgroupIdentity() != "boot=boot:mount:11:12" || !observation.GetParentControlsVerified() || observation.GetLeafControlsVerified() ||
 		!observation.GetPsiAvailable() || observation.GetPsiSomeAvg10() != 0.5 || observation.GetPsiSomeTotalUsec() != 42 {
 		t.Fatalf("memoryObservationFromKernel() = %+v", observation)
@@ -385,7 +385,7 @@ func TestMemoryObservationFromKernelPreservesRetiringOwnership(t *testing.T) {
 func TestMemoryObservationFromKernelRepresentsUnlimitedSandboxWithoutHardControlClaim(t *testing.T) {
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	observation := memoryObservationFromKernel(
-		"alloc-unlimited", 512, 0, "runsc", nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, 10, now,
+		"alloc-unlimited", 512, 0, nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, now,
 		&hostlinux.CgroupMemoryDomain{BootID: "boot", MountIdentity: "mount", ParentInode: 21, LeafInode: 22, LimitBytes: -1, SwapMaxBytes: -1},
 		&hostlinux.CgroupMemoryObservation{CurrentBytes: 700, PeakBytes: 900, PeakAvailable: true, SwapCurrent: 12},
 		false, false,

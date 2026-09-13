@@ -27,7 +27,6 @@ type RolloutRequest struct {
 	AgentPatchRequired  bool     `json:"agent_patch_required,omitempty"`
 	AgentEnv            []string `json:"agent_env,omitempty"`
 	Model               string   `json:"model,omitempty"`
-	RuntimeClass        string   `json:"runtime_class,omitempty"`
 	RunID               string   `json:"run_id,omitempty"`
 	ResumeRunDir        string   `json:"resume_run_dir,omitempty"`
 	BackendName         string   `json:"backend,omitempty"`
@@ -81,7 +80,6 @@ func (r RolloutRequest) toParams() rolloutapp.Params {
 		AgentPatchRequired:  r.AgentPatchRequired,
 		AgentEnv:            r.AgentEnv,
 		Model:               r.Model,
-		RuntimeClass:        r.RuntimeClass,
 		RunID:               r.RunID,
 		ResumeRunDir:        r.ResumeRunDir,
 		BackendName:         r.BackendName,

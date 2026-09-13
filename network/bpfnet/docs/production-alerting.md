@@ -12,13 +12,10 @@ axern_controld_node_bpfnet_current{axern_node_id, axern_state}
 
 `axern_state` is one of:
 
-| State              | Meaning                                        | Healthy value |
-| ------------------ | ---------------------------------------------- | ------------: |
-| `enabled`          | node reports bpfnet component enabled          |           `1` |
-| `ready`            | TC dataplane is ready                          |           `1` |
-| `localhost_compat` | localhost TCP path uses iptables compatibility |       allowed |
-
-`localhost_compat=1` is not a page by itself. It is acceptable on kernels where the localhost cgroup path is unavailable, as long as `ready=1`.
+| State     | Meaning                               | Healthy value |
+| --------- | ------------------------------------- | ------------: |
+| `enabled` | node reports bpfnet component enabled |           `1` |
+| `ready`   | complete eBPF dataplane is ready      |           `1` |
 
 The existing node count metric remains the cluster-level availability gate:
 
@@ -56,24 +53,6 @@ groups:
         annotations:
           summary: "Axern node readiness is degraded"
           description: "At least one node is not ready or has stale reports. Check node-all-in-one rollout and control-plane heartbeat/summary freshness."
-```
-
-## Ticket Alerts
-
-Use these for capacity/stability work queues rather than immediate pages:
-
-```yaml
-groups:
-  - name: axern-bpfnet-production-tickets
-    rules:
-      - alert: AxernBPFNetLocalhostCompat
-        expr: axern_controld_node_bpfnet_current{axern_state="localhost_compat"} > 0
-        for: 30m
-        labels:
-          severity: ticket
-        annotations:
-          summary: "bpfnet localhost TCP compatibility fallback on {{ $labels.axern_node_id }}"
-          description: "This is acceptable when TC ingress/egress are ready. Track kernel capability coverage separately from main dataplane replacement."
 ```
 
 ## Node-Local Checks

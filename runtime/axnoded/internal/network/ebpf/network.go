@@ -21,17 +21,11 @@ type dataplaneController interface {
 	Cleanup() error
 	UpsertService(protocol string, hostPort uint16, targetIP string, targetPort uint16) error
 	DeleteService(protocol string, hostPort uint16, targetIP string, targetPort uint16) error
-	NeedsLocalhostCompat(protocol string) bool
 	CleanupStaleSNATMappings(policy bpfnet.SNATGCPolicy) (bpfnet.SNATGCResult, error)
 	Status() (bpfnet.Status, error)
 }
 
 type controllerFactory func(cfg config.BPFNetConfig) (dataplaneController, error)
-
-type dnatCompatFallback interface {
-	SetupDNATCompatRule(protocol string, dstPort uint16, targetIP string, targetPort uint16) error
-	CleanupDNATCompatRule(protocol string, dstPort uint16, targetIP string, targetPort uint16) error
-}
 
 var (
 	managerMu        sync.Mutex
@@ -62,12 +56,9 @@ func (m *BPFNetworkManager) ProbeHealth(ipRange string) (networkmanager.Health, 
 	if err != nil {
 		return networkmanager.Health{}, fmt.Errorf("read bpfnet dataplane status: %w", err)
 	}
-	// Persisted readiness is authoritative. In particular, failure of the
-	// optional localhost cgroup path records LastLocalhostError while TC ingress
-	// and egress remain healthy.
 	return networkmanager.Health{
-		PortForwardingReady:  status.State.TCReady,
-		NativeDataplaneReady: status.State.TCReady,
+		PortForwardingReady:  status.State.TCReady && status.State.LocalhostPathReady,
+		NativeDataplaneReady: status.State.TCReady && status.State.LocalhostPathReady,
 	}, nil
 }
 
@@ -77,7 +68,6 @@ func defaultControllerFactory(cfg config.BPFNetConfig) (dataplaneController, err
 		PinPath:            cfg.PinPath,
 		MapSize:            cfg.MapSize,
 		SNATMapSize:        cfg.SNATMapSize,
-		LocalOutCompat:     cfg.LocalOutCompat,
 		NativeRoutingCIDRs: append([]string(nil), cfg.NativeRoutingCIDRs...),
 	})
 	return controller, nil
@@ -219,17 +209,6 @@ func (m *BPFNetworkManager) SetupDNATRule(protocol string, dstPort uint16, targe
 	if err := m.controller.UpsertService(protocol, dstPort, targetIP, targetPort); err != nil {
 		return fmt.Errorf("bpfnet upsert service: %w", err)
 	}
-	if m.controller.NeedsLocalhostCompat(protocol) {
-		compat, ok := m.fallback.(dnatCompatFallback)
-		if !ok {
-			_ = m.controller.DeleteService(protocol, dstPort, targetIP, targetPort)
-			return fmt.Errorf("fallback network manager does not support localhost DNAT compatibility")
-		}
-		if err := compat.SetupDNATCompatRule(protocol, dstPort, targetIP, targetPort); err != nil {
-			_ = m.controller.DeleteService(protocol, dstPort, targetIP, targetPort)
-			return err
-		}
-	}
 	return nil
 }
 
@@ -237,19 +216,7 @@ func (m *BPFNetworkManager) CleanupDNATRule(protocol string, dstPort uint16, tar
 	if m.ipv6Compat.Load() || isIPv6Address(targetIP) {
 		return m.fallback.CleanupDNATRule(protocol, dstPort, targetIP, targetPort)
 	}
-	var firstErr error
-	if m.controller.NeedsLocalhostCompat(protocol) {
-		compat, ok := m.fallback.(dnatCompatFallback)
-		if !ok {
-			firstErr = fmt.Errorf("fallback network manager does not support localhost DNAT compatibility")
-		} else if err := compat.CleanupDNATCompatRule(protocol, dstPort, targetIP, targetPort); err != nil {
-			firstErr = err
-		}
-	}
-	if err := m.controller.DeleteService(protocol, dstPort, targetIP, targetPort); err != nil && firstErr == nil {
-		firstErr = err
-	}
-	return firstErr
+	return m.controller.DeleteService(protocol, dstPort, targetIP, targetPort)
 }
 
 func (m *BPFNetworkManager) ReconcileDNATRules(desired []networkmanager.DNATRule) error {

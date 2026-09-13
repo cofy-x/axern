@@ -21,7 +21,6 @@ type Config struct {
 	StatePath          string
 	MapSize            int
 	SNATMapSize        int
-	LocalOutCompat     bool
 	NativeRoutingCIDRs []string
 }
 

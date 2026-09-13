@@ -112,15 +112,7 @@ func TestMetadataStore_GetOrCreateLayerDir(t *testing.T) {
 	if dir1 == dir2 {
 		t.Fatalf("different digests should map to different dirs")
 	}
-	if !strings.HasPrefix(dir1, "l") || !strings.HasPrefix(dir2, "l") {
-		t.Fatalf("expected compact layer dir names, got %s and %s", dir1, dir2)
-	}
-
-	got, err := store.getLayerDir("sha256:bbb")
-	if err != nil {
-		t.Fatalf("getLayerDir() error: %v", err)
-	}
-	if got != dir2 {
-		t.Fatalf("expected getLayerDir=%s, got %s", dir2, got)
+	if !strings.HasPrefix(dir1, "l-") || !strings.HasPrefix(dir2, "l-") {
+		t.Fatalf("expected content-addressed layer dir names, got %s and %s", dir1, dir2)
 	}
 }

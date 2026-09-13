@@ -77,7 +77,7 @@ func persistedAllocationState(t *testing.T, store stateStore, allocationID strin
 		RuntimeTemplate:         testRuntimeTemplate(t, "runtime-"+allocationID),
 		ImageMountUrls:          images,
 		EnforcementManifest: &apipb.AllocationEnforcementManifest{
-			RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/" + allocationID,
+			BundlePath: "/var/lib/axnoded/root/containers/" + allocationID,
 			CreatedAtUnixNano: now.UnixNano(),
 		},
 		LaunchVerification: &apipb.AllocationLaunchVerification{VerifiedAtUnixNano: now.UnixNano()},
@@ -93,7 +93,7 @@ func TestLoadAllocationStatesRejectsMissingAtomicLaunchProof(t *testing.T) {
 	record := &apipb.AllocationState{
 		AllocationID: allocationID, RuntimeTemplate: testRuntimeTemplate(t, "runtime-"+allocationID),
 		EnforcementManifest: &apipb.AllocationEnforcementManifest{
-			RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/" + allocationID,
+			BundlePath: "/var/lib/axnoded/root/containers/" + allocationID,
 			CreatedAtUnixNano: time.Now().UnixNano(),
 		},
 	}
@@ -113,7 +113,7 @@ func TestLoadAllocationStatesRejectsMissingAtomicLaunchProof(t *testing.T) {
 func TestValidateRecoveredAllocationRebuildsCapabilityConditions(t *testing.T) {
 	now := time.Now().UTC()
 	manifest := &apipb.AllocationEnforcementManifest{
-		RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/condition-recovery",
+		BundlePath: "/var/lib/axnoded/root/containers/condition-recovery",
 		CreatedAtUnixNano: now.UnixNano(),
 	}
 	verification, err := newLaunchVerification(manifest, nil, nil, now, now)
@@ -137,7 +137,7 @@ func TestValidateRecoveredAllocationRebuildsCapabilityConditions(t *testing.T) {
 func TestNewLaunchVerificationBindsVerifiedEgressCapability(t *testing.T) {
 	now := time.Now().UTC()
 	manifest := &apipb.AllocationEnforcementManifest{
-		RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/network-policy",
+		BundlePath: "/var/lib/axnoded/root/containers/network-policy",
 		CreatedAtUnixNano: now.UnixNano(),
 	}
 	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT)

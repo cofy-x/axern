@@ -110,13 +110,12 @@ func TestRequireTCReady(t *testing.T) {
 	}
 }
 
-func TestRequireLocalhostTCPReadyRejectsCompatFallback(t *testing.T) {
+func TestRequireLocalhostTCPReadyRejectsMissingPath(t *testing.T) {
 	status := bpfnet.Status{
 		State: bpfnet.DataplaneState{
 			TCReady:            true,
 			LocalhostTCPDNAT:   false,
 			LocalhostPathReady: false,
-			LocalhostCompat:    true,
 		},
 		Attachment: bpfnet.AttachmentReadiness{
 			IngressTCAttached:   true,
@@ -126,6 +125,6 @@ func TestRequireLocalhostTCPReadyRejectsCompatFallback(t *testing.T) {
 		},
 	}
 	if err := RequireLocalhostTCPReady(status); err == nil {
-		t.Fatalf("expected localhost compat fallback to be rejected")
+		t.Fatal("expected missing localhost path to be rejected")
 	}
 }

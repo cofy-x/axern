@@ -79,9 +79,8 @@ func TestControllerUpsertAndDeleteService(t *testing.T) {
 	})
 
 	ctrl := NewController(Config{
-		PinPath:        t.TempDir(),
-		UplinkDevices:  []string{"eth0"},
-		LocalOutCompat: true,
+		PinPath:       t.TempDir(),
+		UplinkDevices: []string{"eth0"},
 	})
 	ctrl.run = func(name string, args ...string) ([]byte, error) {
 		return []byte("ok"), nil
@@ -119,12 +118,6 @@ func TestControllerUpsertAndDeleteService(t *testing.T) {
 	if !status.State.LocalhostPathReady {
 		t.Fatalf("expected localhost path to be recorded as ready")
 	}
-	if ctrl.NeedsLocalhostCompat("udp") {
-		t.Fatalf("expected udp localhost compat to stay disabled")
-	}
-	if ctrl.NeedsLocalhostCompat("tcp") {
-		t.Fatalf("expected localhost tcp compat to stay disabled when localhost ebpf path is ready")
-	}
 	if len(dp.upserts) != 2 {
 		t.Fatalf("expected tcp+udp services to be synced into dataplane, got %d upserts", len(dp.upserts))
 	}
@@ -148,15 +141,14 @@ func TestControllerUpsertAndDeleteService(t *testing.T) {
 }
 
 func TestControllerDetectsServiceConflict(t *testing.T) {
-	dp := &fakeDataplane{attachment: dataplaneAttachment{LocalAddresses: []string{"127.0.0.1"}}}
+	dp := &fakeDataplane{attachment: dataplaneAttachment{LocalAddresses: []string{"127.0.0.1"}, LocalhostTCPDNAT: true}}
 	newDataplane = func(Config, commandRunner) dataplane { return dp }
 	t.Cleanup(func() {
 		newDataplane = defaultDataplaneFactory
 	})
 	ctrl := NewController(Config{
-		PinPath:        t.TempDir(),
-		UplinkDevices:  []string{"eth0"},
-		LocalOutCompat: true,
+		PinPath:       t.TempDir(),
+		UplinkDevices: []string{"eth0"},
 	})
 	ctrl.run = func(name string, args ...string) ([]byte, error) {
 		return []byte("ok"), nil
@@ -301,7 +293,7 @@ func TestControllerCleanupStaleSNATMappingsDelegatesToDataplane(t *testing.T) {
 	}
 }
 
-func TestControllerFallsBackToLocalCompatWhenLocalhostAttachIsUnavailable(t *testing.T) {
+func TestControllerFailsClosedWhenLocalhostAttachIsUnavailable(t *testing.T) {
 	dp := &fakeDataplane{
 		attachment: dataplaneAttachment{
 			LocalAddresses:       []string{"127.0.0.1", "192.168.1.9"},
@@ -315,42 +307,32 @@ func TestControllerFallsBackToLocalCompatWhenLocalhostAttachIsUnavailable(t *tes
 	})
 
 	ctrl := NewController(Config{
-		PinPath:        t.TempDir(),
-		UplinkDevices:  []string{"eth0"},
-		LocalOutCompat: true,
+		PinPath:       t.TempDir(),
+		UplinkDevices: []string{"eth0"},
 	})
 	ctrl.run = func(name string, args ...string) ([]byte, error) {
 		return []byte("ok"), nil
 	}
 
-	if err := ctrl.EnsureAttached("172.17.0.1/16"); err != nil {
-		t.Fatalf("ensure attached: %v", err)
-	}
-	if !ctrl.NeedsLocalhostCompat("tcp") {
-		t.Fatalf("expected localhost compat to stay enabled when localhost ebpf attach is unavailable")
+	if err := ctrl.EnsureAttached("172.17.0.1/16"); err == nil {
+		t.Fatal("expected localhost attach failure")
 	}
 
 	status, err := ctrl.Status()
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
-	if status.State.Mode != ModeIngressTCPUDPDNATEgressSNATLocalCompat {
-		t.Fatalf("unexpected compat mode %q", status.State.Mode)
+	if status.State.Mode != ModeAttachFailed {
+		t.Fatalf("unexpected failed mode %q", status.State.Mode)
 	}
-	if !status.State.TCReady {
-		t.Fatalf("expected tc dataplane to stay ready during localhost compat fallback")
+	if status.State.TCReady {
+		t.Fatal("expected incomplete dataplane to remain unavailable")
 	}
 	if status.State.LocalhostTCPDNAT {
 		t.Fatalf("expected localhost tcp dnat to be recorded as disabled")
 	}
-	if !status.State.LocalhostCompat {
-		t.Fatalf("expected localhost compat fallback to be recorded")
-	}
-	if status.State.LastLocalhostError == "" {
-		t.Fatalf("expected localhost attach error to be recorded")
-	}
-	if status.State.LastAttachError != "" {
-		t.Fatalf("localhost compatibility error was also recorded as a dataplane attach failure: %q", status.State.LastAttachError)
+	if status.State.LastAttachError == "" {
+		t.Fatal("expected localhost attach error to be the dataplane failure")
 	}
 }
 

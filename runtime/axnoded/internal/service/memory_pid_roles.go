@@ -19,8 +19,8 @@ func (h *sandboxService) verifyMemoryPIDRoles(allocationID, runtimeName, workloa
 	}
 	switch runtimeName {
 	case config.RuntimeNameRunsc:
-		runtimeConfig, ok := h.config.PluginConfig.RuntimeConfig.Runtimes[config.RuntimeNameRunsc]
-		if !ok || strings.TrimSpace(runtimeConfig.Binary) == "" {
+		runtimeConfig := h.config.PluginConfig.RuntimeConfig.Runsc
+		if strings.TrimSpace(runtimeConfig.Binary) == "" {
 			return fmt.Errorf("configured runsc binary is unavailable")
 		}
 		return hostlinux.VerifyRunscCgroupProcesses(workloadPath, runtimePID, runtimeConfig.Binary)

@@ -13,7 +13,6 @@ import (
 type AllocationControl interface {
 	BatchReportAllocationLifecycle(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationLifecycleObservation, now time.Time) ([]string, error)
 	BatchReportAllocationCapabilityConditions(ctx context.Context, nodeID string, reports []*controlnodev1.AllocationCapabilityConditionReport, now time.Time) error
-	BatchReportAllocationMemoryObservations(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationMemoryObservation, now time.Time) error
 	ReconcileNodeInventory(ctx context.Context, snapshot allocationkernel.NodeInventorySnapshot, now time.Time) error
 	ReconcileNodeUnavailable(ctx context.Context, nodeID string, now time.Time) error
 	WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*commonv1.ExecutionLease, int64, error)
@@ -22,16 +21,11 @@ type AllocationControl interface {
 type RunAllocationStore interface {
 	runkernel.AllocationReporter
 	BatchReportAllocationCapabilityConditions(ctx context.Context, nodeID string, reports []*controlnodev1.AllocationCapabilityConditionReport, now time.Time) error
-	BatchReportAllocationMemoryObservations(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationMemoryObservation, now time.Time) error
 	WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*commonv1.ExecutionLease, int64, error)
 }
 
 func (n authoritativeAllocationAccess) BatchReportAllocationCapabilityConditions(ctx context.Context, nodeID string, reports []*controlnodev1.AllocationCapabilityConditionReport, now time.Time) error {
 	return n.runStore.BatchReportAllocationCapabilityConditions(ctx, nodeID, reports, now)
-}
-
-func (n authoritativeAllocationAccess) BatchReportAllocationMemoryObservations(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationMemoryObservation, now time.Time) error {
-	return n.runStore.BatchReportAllocationMemoryObservations(ctx, nodeID, observations, now)
 }
 
 func NewAuthoritative(runStore RunAllocationStore) AllocationControl {

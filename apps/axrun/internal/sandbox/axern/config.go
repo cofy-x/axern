@@ -13,7 +13,6 @@ type Config struct {
 	TemplateID    string
 	Image         string
 	Namespace     string
-	RuntimeClass  string
 	RequestCPU    string
 	RequestMemory string
 	LimitCPU      string
@@ -34,7 +33,6 @@ func ConfigFromEnv() Config {
 		TemplateID:    strings.TrimSpace(os.Getenv("AXERN_TEMPLATE_ID")),
 		Image:         strings.TrimSpace(os.Getenv("AXERN_IMAGE")),
 		Namespace:     strings.TrimSpace(os.Getenv("AXERN_NAMESPACE")),
-		RuntimeClass:  strings.TrimSpace(os.Getenv("AXERN_RUNTIME_CLASS")),
 		RequestCPU:    strings.TrimSpace(os.Getenv("AXERN_REQUEST_CPU")),
 		RequestMemory: strings.TrimSpace(os.Getenv("AXERN_REQUEST_MEMORY")),
 		LimitCPU:      strings.TrimSpace(os.Getenv("AXERN_LIMIT_CPU")),

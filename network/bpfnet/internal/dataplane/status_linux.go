@@ -156,7 +156,7 @@ func recordSNATFlowState(state uint8, active, closing, origClosing, replyClosing
 	}
 }
 
-func CollectAttachmentReadiness(cfg Config, uplinks []string, localAddresses []string, localOutCompat bool) AttachmentReadiness {
+func CollectAttachmentReadiness(cfg Config, uplinks []string, localAddresses []string) AttachmentReadiness {
 	attachment := AttachmentReadiness{
 		UplinkDevices:       append([]string(nil), uplinks...),
 		LocalAddresses:      append([]string(nil), localAddresses...),
@@ -172,9 +172,7 @@ func CollectAttachmentReadiness(cfg Config, uplinks []string, localAddresses []s
 		attachment.EgressTCAttached = tcFiltersAttached(uplinks, netlink.HANDLE_MIN_EGRESS)
 	}
 
-	if localOutCompat {
-		attachment.LocalhostLinksAttached = localhostLinksAttached(cfg.PinPath)
-	}
+	attachment.LocalhostLinksAttached = localhostLinksAttached(cfg.PinPath)
 
 	return attachment
 }

@@ -2,12 +2,10 @@ package runtime_test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
@@ -16,7 +14,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 )
 
-func runtimeRegistryTestConfig(t *testing.T, runtimeName string) config.Config {
+func runtimeRegistryTestConfig(t *testing.T, _ string) config.Config {
 	t.Helper()
 	rootDir := t.TempDir()
 	binPath := filepath.Join(rootDir, "fake-runtime")
@@ -24,12 +22,8 @@ func runtimeRegistryTestConfig(t *testing.T, runtimeName string) config.Config {
 		t.Fatalf("write fake runtime binary: %v", err)
 	}
 	return config.Config{
-		RootDir: rootDir,
-		PluginConfig: config.PluginConfig{RuntimeConfig: config.RuntimeConfig{
-			Runtimes: map[string]config.RuntimeInstanceConfig{
-				runtimeName: {Binary: binPath},
-			},
-		}},
+		RootDir:      rootDir,
+		PluginConfig: config.PluginConfig{RuntimeConfig: config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: binPath}}},
 	}
 }
 
@@ -43,7 +37,7 @@ func TestBuiltinRuntimeFactoriesSupportOnlyRunsc(t *testing.T) {
 }
 
 func TestGetRuntimeHandlerUsesRegisteredFactory(t *testing.T) {
-	const runtimeName = "test-runtime-factory"
+	const runtimeName = config.RuntimeNameRunsc
 
 	runtimecore.RegisterRuntimeFactory(runtimeName, runtimecore.RuntimeFactoryFunc(func(cfg config.Config, configuredName string, runtimeCfg config.RuntimeInstanceConfig) (contract.RuntimeHandler, error) {
 		return &runtimetest.FakeRuntimeHandler{
@@ -66,13 +60,7 @@ func TestGetRuntimeHandlerUsesRegisteredFactory(t *testing.T) {
 	cfg := config.Config{
 		RootDir: rootDir,
 		PluginConfig: config.PluginConfig{
-			RuntimeConfig: config.RuntimeConfig{
-				Runtimes: map[string]config.RuntimeInstanceConfig{
-					runtimeName: {
-						Binary: binPath,
-					},
-				},
-			},
+			RuntimeConfig: config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: binPath}},
 		},
 	}
 
@@ -100,7 +88,7 @@ func TestGetRuntimeHandlerUsesRegisteredFactory(t *testing.T) {
 }
 
 func TestGetRuntimeHandlerRejectsNilFactoryResult(t *testing.T) {
-	runtimeName := fmt.Sprintf("nil-runtime-%d", time.Now().UnixNano())
+	runtimeName := config.RuntimeNameRunsc
 	runtimecore.RegisterRuntimeFactory(runtimeName, runtimecore.RuntimeFactoryFunc(func(config.Config, string, config.RuntimeInstanceConfig) (contract.RuntimeHandler, error) {
 		return nil, nil
 	}))
@@ -116,7 +104,7 @@ func TestGetRuntimeHandlerRejectsNilFactoryResult(t *testing.T) {
 }
 
 func TestGetRuntimeHandlerRejectsMismatchedHandlerName(t *testing.T) {
-	runtimeName := fmt.Sprintf("mismatched-runtime-%d", time.Now().UnixNano())
+	runtimeName := config.RuntimeNameRunsc
 	runtimecore.RegisterRuntimeFactory(runtimeName, runtimecore.RuntimeFactoryFunc(func(config.Config, string, config.RuntimeInstanceConfig) (contract.RuntimeHandler, error) {
 		return &runtimetest.FakeRuntimeHandler{RuntimeName: "different-runtime"}, nil
 	}))

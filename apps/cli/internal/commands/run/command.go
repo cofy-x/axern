@@ -64,11 +64,11 @@ func Command(runtime command.Runtime) *cobra.Command {
 }
 
 type createOptions struct {
-	file, namespace, environmentID, templateID, templateVersion, imageRef, credentialID, cwd, runtimeClass, requestCPU, requestMemory, requestEphemeralStorage, limitCPU, limitMemory, limitEphemeralStorage string
-	argv, env, secretEnv, secretFile, imageMount, labels, extensionCapabilities                                                                                                                              []string
-	rootfsReadonly                                                                                                                                                                                           bool
-	detach                                                                                                                                                                                                   bool
-	waitTimeout                                                                                                                                                                                              time.Duration
+	file, namespace, environmentID, templateID, templateVersion, imageRef, credentialID, cwd, requestCPU, requestMemory, requestEphemeralStorage, limitCPU, limitMemory, limitEphemeralStorage string
+	argv, env, secretEnv, secretFile, imageMount, labels, extensionCapabilities                                                                                                                []string
+	rootfsReadonly                                                                                                                                                                             bool
+	detach                                                                                                                                                                                     bool
+	waitTimeout                                                                                                                                                                                time.Duration
 }
 
 func execute(runtime command.Runtime, cmd *cobra.Command, options *createOptions) error {
@@ -180,7 +180,6 @@ func (o *createOptions) bind(cmd *cobra.Command) {
 	f.StringArrayVar(&o.secretFile, "secret-file", nil, "secret file mapping; may be repeated")
 	f.StringArrayVar(&o.imageMount, "image-mount", nil, "read-only image mount; may be repeated")
 	f.StringVar(&o.cwd, "cwd", "", "working directory")
-	f.StringVar(&o.runtimeClass, "runtime-class", "", "runtime class")
 	f.StringArrayVar(&o.extensionCapabilities, "extension-capability", nil, "exact-match extension <dns-domain>/<name>[=value]; may be repeated")
 	f.StringArrayVar(&o.labels, "label", nil, "label key=value; may be repeated")
 	f.StringVar(&o.environmentID, "environment", "", "existing environment id")
@@ -258,7 +257,7 @@ func executionConfig(o createOptions) (*commonv1.ExecutionConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &commonv1.ExecutionConfig{Argv: o.argv, Env: env, SecretEnv: secretEnv, SecretFiles: secretFiles, ImageMounts: imageMounts, Cwd: o.cwd, RuntimeClass: o.runtimeClass, ExtensionCapabilityRequirements: extensions, Resources: resources}, nil
+	return &commonv1.ExecutionConfig{Argv: o.argv, Env: env, SecretEnv: secretEnv, SecretFiles: secretFiles, ImageMounts: imageMounts, Cwd: o.cwd, ExtensionCapabilityRequirements: extensions, Resources: resources}, nil
 }
 
 func environmentSpec(o createOptions) (*environmentv1.EnvironmentSpec, error) {
@@ -288,7 +287,7 @@ func environmentSpec(o createOptions) (*environmentv1.EnvironmentSpec, error) {
 	return value, nil
 }
 
-var runDefinitionFlags = []string{"namespace", "env", "secret-env", "secret-file", "image-mount", "cwd", "runtime-class", "extension-capability", "label", "environment", "template", "template-version", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
+var runDefinitionFlags = []string{"namespace", "env", "secret-env", "secret-file", "image-mount", "cwd", "extension-capability", "label", "environment", "template", "template-version", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
 
 func logsCommand(runtime command.Runtime) *cobra.Command {
 	var follow bool

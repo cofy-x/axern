@@ -48,7 +48,7 @@ func (h *runtimeSpyHandler) Capabilities() contract.RuntimeCapabilities { return
 func (h *runtimeSpyHandler) Requirements() contract.RuntimeRequirements { return h.requirements }
 
 func (h *runtimeSpyHandler) Version(context.Context) (*apipb.RuntimeVersion, error) {
-	return &apipb.RuntimeVersion{RuntimeName: h.name, RuntimeVersion: "test"}, nil
+	return &apipb.RuntimeVersion{Version: "test"}, nil
 }
 
 func (h *runtimeSpyHandler) CreateContainer(_ context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
@@ -95,7 +95,6 @@ func (h *runtimeSpyHandler) StartPreparedContainer(_ context.Context, prepared *
 
 func (h *runtimeSpyHandler) AllocationEnforcementManifest(_ context.Context, containerID string) (*apipb.AllocationEnforcementManifest, error) {
 	return &apipb.AllocationEnforcementManifest{
-		RuntimeName:       h.Name(),
 		BundlePath:        "/fake/" + containerID,
 		CreatedAtUnixNano: time.Now().UTC().UnixNano(),
 	}, nil

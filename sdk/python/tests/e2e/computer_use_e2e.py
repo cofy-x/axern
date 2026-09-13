@@ -35,7 +35,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tls-ca-cert", required=True)
     parser.add_argument("--tls-cert", required=True)
     parser.add_argument("--tls-key", required=True)
-    parser.add_argument("--runtime-class", default="runsc")
     parser.add_argument("--node-container", required=True)
     parser.add_argument("--desktop-template-id", default="desktop-base")
     parser.add_argument("--headless-template-id", default="server-base")
@@ -58,7 +57,6 @@ def main() -> int:
         with Sandbox(
             client=client,
             template_id=args.desktop_template_id,
-            runtime_class=args.runtime_class,
             argv=SUPERVISORD_ARGV,
             ready_timeout_seconds=180,
         ) as sandbox:
@@ -225,7 +223,6 @@ def main() -> int:
         with Sandbox(
             client=client,
             template_id=args.headless_template_id,
-            runtime_class=args.runtime_class,
             argv=SUPERVISORD_ARGV,
             ready_timeout_seconds=180,
         ) as sandbox:
@@ -249,7 +246,6 @@ def main() -> int:
 
         print(
             "node_computer_use_e2e_ok=true "
-            f"runtime_class={args.runtime_class} "
             f"desktop_service_id={desktop_service_id} headless_service_id={headless_service_id}"
         )
         return 0
@@ -388,7 +384,7 @@ def log_e2e_failure(
 ) -> None:
     print(
         "node_computer_use_e2e_failed=true "
-        f"runtime_class={args.runtime_class} phase={phase} "
+		f"phase={phase} "
         f"desktop_service_id={desktop_service_id or '-'} headless_service_id={headless_service_id or '-'} "
         f"node_container={args.node_container} "
         f"error_type={type(exc).__name__} error={exc}",

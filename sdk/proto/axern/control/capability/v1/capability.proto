@@ -87,9 +87,8 @@ message MountEvidenceIdentity {
 
 message RuntimeEvidenceIdentity {
   string boot_id = 1;
-  string runtime_name = 2;
-  string runtime_binary_digest = 3;
-  string runtime_config_digest = 4;
+  string runtime_binary_digest = 2;
+  string runtime_config_digest = 3;
 }
 
 // CapabilityEvidence identifies the concrete host subject that was inspected.

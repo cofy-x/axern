@@ -198,7 +198,7 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 		logrus.Warnf("failed to reconcile OCI metadata at startup: %v", err)
 	}
 	if err := mgr.reconcileImportedState(); err != nil {
-		logrus.Warnf("failed to reconcile imported OCI generations at startup: %v", err)
+		logrus.Warnf("failed to reconcile imported OCI content at startup: %v", err)
 	}
 
 	go mgr.pruneImagesLoop()

@@ -43,7 +43,6 @@ export interface CreateRunOptions {
   argv?: string[];
   env?: Record<string, string>;
   cwd?: string;
-  runtimeClass?: string;
   networkPolicy?: NetworkPolicy;
   extensionCapabilities?: readonly ExtensionCapability[];
   requestCpu?: ResourceQuantity;
@@ -190,7 +189,6 @@ export class AxernClient {
             argv: options.argv ?? [],
             env: options.env ?? {},
             cwd: options.cwd ?? "",
-            runtime_class: options.runtimeClass ?? "",
             ...(options.networkPolicy === undefined
               ? {}
               : { network: { egress_policy: options.networkPolicy.toWire() } }),

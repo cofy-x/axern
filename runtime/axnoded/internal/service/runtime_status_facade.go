@@ -50,16 +50,15 @@ func (h *sandboxService) RuntimeStatuses() []RuntimeStatus {
 
 func (h *sandboxService) Version(ctx context.Context, request *runtime.VersionRequest) (*runtime.VersionResponse, error) {
 	resp := &runtime.VersionResponse{
-		Version:  version.Version,
-		Runtimes: make([]*runtime.RuntimeVersion, 0),
+		Version: version.Version,
 	}
 	if h.runtimeHandlers == nil {
 		return resp, nil
 	}
-	versions, err := h.runtimeHandlers.Version(ctx)
+	runsc, err := h.runtimeHandlers.Version(ctx)
 	if err != nil {
 		return nil, err
 	}
-	resp.Runtimes = append(resp.Runtimes, versions...)
+	resp.Runsc = runsc
 	return resp, nil
 }

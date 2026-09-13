@@ -10,7 +10,7 @@ func CollectSNATMapStats(Config) SNATMapStats {
 	return SNATMapStats{}
 }
 
-func CollectAttachmentReadiness(_ Config, uplinks []string, localAddresses []string, _ bool) AttachmentReadiness {
+func CollectAttachmentReadiness(_ Config, uplinks []string, localAddresses []string) AttachmentReadiness {
 	return AttachmentReadiness{
 		UplinkDevices:  append([]string(nil), uplinks...),
 		LocalAddresses: append([]string(nil), localAddresses...),

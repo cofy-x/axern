@@ -88,7 +88,7 @@ spec:
       instruction: {text: hello}
       workspace: {paths: [workspace], expand: aggregate}
       task:
-        sandbox: {backend: local, runtime_class: "", workdir: /workspace}
+        sandbox: {backend: local, workdir: /workspace}
         verifier: {type: shell, command: "true"}
 `
 	file := filepath.Join(root, "taskset.yaml")

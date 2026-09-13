@@ -30,11 +30,10 @@ if not any(item[0] in (socket.AF_INET, socket.AF_INET6) for item in results):
 `
 
 type DNSProbeOptions struct {
-	QueryName    string
-	TemplateID   string
-	RuntimeClass string
-	Timeout      time.Duration
-	CleanupWait  time.Duration
+	QueryName   string
+	TemplateID  string
+	Timeout     time.Duration
+	CleanupWait time.Duration
 }
 
 func DNSProbe(ctx context.Context, session *Session, options DNSProbeOptions) Check {
@@ -100,8 +99,7 @@ func DNSProbe(ctx context.Context, session *Session, options DNSProbeOptions) Ch
 			Namespace:     namespace,
 			EnvironmentID: environmentID,
 			Config: &commonv1.ExecutionConfig{
-				Argv:         []string{"python", "-c", dnsProbeScript},
-				RuntimeClass: strings.TrimSpace(options.RuntimeClass),
+				Argv: []string{"python", "-c", dnsProbeScript},
 				Resources: &commonv1.ResourceSpec{
 					Requests: &commonv1.ResourceQuantity{CpuMilli: 50, MemoryBytes: 64 * 1024 * 1024},
 					Limits:   &commonv1.ResourceQuantity{CpuMilli: 250},

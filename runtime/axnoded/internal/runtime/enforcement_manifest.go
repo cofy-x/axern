@@ -21,7 +21,7 @@ func writeRuntimeEnforcementManifest(bundlePath, runtimeName, filestoreDir strin
 		return fmt.Errorf("runtime enforcement manifest requires bundle, runtime, and request")
 	}
 	manifest := &apipb.AllocationEnforcementManifest{
-		RuntimeName: runtimeName, MemoryLimitBytes: options.MemoryLimitBytes,
+		MemoryLimitBytes:           options.MemoryLimitBytes,
 		EphemeralStorageLimitBytes: request.GetEphemeralStorageLimitBytes(),
 		CgroupPath:                 options.CgroupPath, RuntimeCgroupPath: options.RuntimeCgroupPath,
 		RunscOverlayArg: overlayArg,

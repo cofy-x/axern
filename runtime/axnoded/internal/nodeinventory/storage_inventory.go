@@ -92,7 +92,7 @@ func (s *AxnodedSource) collectStorageInventory(now time.Time, snapshot *NodeInv
 			if target.Target == StorageTargetRuntimeFilestore {
 				entry.ReservedBytes, entry.ActiveReservations = readWritableReservations(filepath.Join(target.Path, "reservations"))
 				entry.AllocationUsedBytes = readVisibleWritableUsage(target.Path)
-				entry.UnlinkedBackingUsageUnknown = hasRunscReservations(filepath.Join(target.Path, "reservations"))
+				entry.UnlinkedBackingUsageUnknown = hasWritableReservations(filepath.Join(target.Path, "reservations"))
 				entry.FilesystemType, entry.MountIdentity = storageMountFacts(target.Path)
 				snapshot.Resources.EphemeralStorage.AxnodedCommittedBytes = entry.ReservedBytes
 				snapshot.Resources.EphemeralStorage.AxnodedUsedBytes = entry.AllocationUsedBytes
@@ -136,7 +136,7 @@ func readVisibleWritableUsage(filestore string) int64 {
 	return used
 }
 
-func hasRunscReservations(dir string) bool {
+func hasWritableReservations(dir string) bool {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return false
@@ -145,16 +145,7 @@ func hasRunscReservations(dir string) bool {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
-		if err != nil {
-			continue
-		}
-		var value struct {
-			RuntimeName string `json:"runtime_name"`
-		}
-		if json.Unmarshal(data, &value) == nil && value.RuntimeName == "runsc" {
-			return true
-		}
+		return true
 	}
 	return false
 }

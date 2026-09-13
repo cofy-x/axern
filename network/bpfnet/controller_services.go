@@ -35,7 +35,7 @@ func (c *Controller) UpsertService(protocol string, hostPort uint16, targetIP st
 	}
 
 	state := c.currentStateLocked()
-	if !state.TCReady {
+	if !state.TCReady || !state.LocalhostPathReady {
 		return fmt.Errorf("bpfnet dataplane is not ready")
 	}
 	if err := c.dataplaneLocked().UpsertService(next); err != nil {

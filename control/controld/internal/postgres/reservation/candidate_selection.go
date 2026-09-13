@@ -24,8 +24,7 @@ func lockCandidateNodes(ctx context.Context, tx pgx.Tx, candidates []*placementk
 	}
 	rows, err := tx.Query(ctx, `
 		SELECT n.node_id, n.node_target, n.lifecycle_status, n.registered_at, n.updated_at,
-		       n.retired_at, n.retired_reason, s.summary,
-		       COALESCE((SELECT ARRAY_AGG(r.runtime_name ORDER BY r.runtime_name) FROM node_runtime_sets r WHERE r.node_id = n.node_id), ARRAY[]::text[])
+		       n.retired_at, n.retired_reason, s.summary
 		FROM nodes n
 		LEFT JOIN node_summaries s ON s.node_id = n.node_id
 		WHERE n.node_id = ANY($1::text[])
@@ -42,7 +41,7 @@ func lockCandidateNodes(ctx context.Context, tx pgx.Tx, candidates []*placementk
 		var record nodekernel.Record
 		var summaryJSON []byte
 		var retiredAt *time.Time
-		if err := rows.Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.RegisteredAt, &record.UpdatedAt, &retiredAt, &record.RetiredReason, &summaryJSON, &record.Runtimes); err != nil {
+		if err := rows.Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.RegisteredAt, &record.UpdatedAt, &retiredAt, &record.RetiredReason, &summaryJSON); err != nil {
 			return nil, fmt.Errorf("scan locked placement candidate: %w", err)
 		}
 		if retiredAt != nil {

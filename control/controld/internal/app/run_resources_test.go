@@ -412,7 +412,6 @@ func reportReadyNodeSummary(t *testing.T, app *App, nodeID string, _ time.Time, 
 	node := app.NodeV1Handler()
 	if _, err := node.RegisterNode(context.Background(), &nodev1.RegisterNodeRequest{
 		NodeID:        nodeID,
-		Runtimes:      []string{"runsc"},
 		NodeTarget:    "127.0.0.1:25000",
 		NodeAuthToken: "test-node-token",
 	}); err != nil {
@@ -420,7 +419,6 @@ func reportReadyNodeSummary(t *testing.T, app *App, nodeID string, _ time.Time, 
 	}
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
 		NodeID:        nodeID,
-		Runtimes:      []string{"runsc"},
 		NodeTarget:    "127.0.0.1:25000",
 		NodeAuthToken: "test-node-token",
 		Summary:       summary,

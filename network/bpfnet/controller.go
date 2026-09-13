@@ -50,7 +50,6 @@ type DataplaneState struct {
 	SNATPortMin        int       `json:"snatPortMin"`
 	SNATPortMax        int       `json:"snatPortMax"`
 	SNATPortAttempts   int       `json:"snatPortAttempts"`
-	LocalOutCompat     bool      `json:"localOutCompat"`
 	NativeRoutingCIDRs []string  `json:"nativeRoutingCIDRs"`
 	IngressTCPDNAT     bool      `json:"ingressTcpDnat"`
 	IngressUDPDNAT     bool      `json:"ingressUdpDnat"`
@@ -58,7 +57,6 @@ type DataplaneState struct {
 	TCReady            bool      `json:"tcReady"`
 	LocalhostTCPDNAT   bool      `json:"localhostTcpDnat"`
 	LocalhostPathReady bool      `json:"localhostPathReady"`
-	LocalhostCompat    bool      `json:"localhostCompat"`
 	LastAttachError    string    `json:"lastAttachError,omitempty"`
 	LastTCProbeError   string    `json:"lastTcProbeError,omitempty"`
 	LastLocalhostError string    `json:"lastLocalhostAttachError,omitempty"`
@@ -197,13 +195,6 @@ func defaultRunner(name string, args ...string) ([]byte, error) {
 	return exec.Command(name, args...).CombinedOutput()
 }
 
-func (c *Controller) NeedsLocalhostCompat(protocol string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return strings.ToLower(protocol) == "tcp" && c.currentStateLocked().LocalhostCompat
-}
-
 func (c *Controller) EnsureAttached(ipRange string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -244,6 +235,13 @@ func (c *Controller) EnsureAttached(ipRange string) error {
 		append([]string(nil), c.cfg.NativeRoutingCIDRs...),
 		flattenServices(services),
 	)
+	if err == nil && !attachment.LocalhostTCPDNAT {
+		if attachment.LocalhostAttachError != "" {
+			err = fmt.Errorf("attach localhost TCP dataplane: %s", attachment.LocalhostAttachError)
+		} else {
+			err = fmt.Errorf("attach localhost TCP dataplane: path is not ready")
+		}
+	}
 	if err != nil {
 		c.bumpStats(func(s *Stats) {
 			s.AttachErrors++

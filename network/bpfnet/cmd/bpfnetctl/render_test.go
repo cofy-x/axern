@@ -82,7 +82,6 @@ func TestWriteStatusHumanIncludesFailureAndServices(t *testing.T) {
 	out := buf.String()
 	for _, want := range []string{
 		"mode: attach-failed",
-		"localhost_compat_fallback: no",
 		"snat_port_range: 10000-65535",
 		"snat_port_attempts: 256",
 		"last_attach_error: attach failed",

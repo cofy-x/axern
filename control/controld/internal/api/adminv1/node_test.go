@@ -9,7 +9,6 @@ import (
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -47,10 +46,9 @@ func TestRetireAdminNodeForwardsNormalizedRequest(t *testing.T) {
 func TestGetAllocationCapabilityDiagnostics(t *testing.T) {
 	admittedAt := time.Date(2026, 7, 26, 12, 1, 0, 0, time.UTC)
 	diagnostics := &fakeCapabilityDiagnostics{allocation: &adminkernel.AllocationCapabilityDiagnostics{
-		AllocationID:            "allocation-a",
-		NodeID:                  "node-a",
-		ConditionSet:            &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(admittedAt)},
-		LatestMemoryObservation: &nodev1.AllocationMemoryObservation{Revision: 9, CurrentBytes: 64 << 20},
+		AllocationID: "allocation-a",
+		NodeID:       "node-a",
+		ConditionSet: &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(admittedAt)},
 	}}
 	srv := New(Dependencies{CapabilityDiagnostics: diagnostics})
 
@@ -58,8 +56,7 @@ func TestGetAllocationCapabilityDiagnostics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAllocationCapabilityDiagnostics() error = %v", err)
 	}
-	if diagnostics.allocationID != "allocation-a" || !resp.GetConditionSet().GetObservedAt().AsTime().Equal(admittedAt) ||
-		resp.GetLatestMemoryObservation().GetRevision() != 9 {
+	if diagnostics.allocationID != "allocation-a" || !resp.GetConditionSet().GetObservedAt().AsTime().Equal(admittedAt) {
 		t.Fatalf("allocationID = %q, response = %+v", diagnostics.allocationID, resp)
 	}
 }

@@ -1,11 +1,14 @@
 package runtime
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +21,6 @@ import (
 
 type writableReservation struct {
 	ContainerID  string    `json:"container_id"`
-	RuntimeName  string    `json:"runtime_name"`
 	RequestBytes int64     `json:"request_bytes"`
 	LimitBytes   int64     `json:"limit_bytes"`
 	CreatedAt    time.Time `json:"created_at"`
@@ -76,8 +78,13 @@ func (m *writableCapacityManager) load() error {
 			return fmt.Errorf("read writable reservation %s: %w", entry.Name(), err)
 		}
 		var reservation writableReservation
-		if err := json.Unmarshal(data, &reservation); err != nil {
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&reservation); err != nil {
 			return fmt.Errorf("decode writable reservation %s: %w", entry.Name(), err)
+		}
+		if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+			return fmt.Errorf("decode writable reservation %s: trailing JSON", entry.Name())
 		}
 		expectedName := reservation.ContainerID + ".json"
 		if !validPersistentContainerID(reservation.ContainerID) || entry.Name() != expectedName || reservation.RequestBytes <= 0 || reservation.LimitBytes < reservation.RequestBytes {
@@ -104,7 +111,7 @@ func (m *writableCapacityManager) Reserve(containerID, runtimeName string, reque
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if existing, ok := m.reservations[containerID]; ok {
-		if existing.RequestBytes == requestBytes && existing.LimitBytes == limitBytes && existing.RuntimeName == runtimeName {
+		if existing.RequestBytes == requestBytes && existing.LimitBytes == limitBytes {
 			return nil
 		}
 		return fmt.Errorf("container %s already has a different writable reservation", containerID)
@@ -123,7 +130,7 @@ func (m *writableCapacityManager) Reserve(containerID, runtimeName string, reque
 		metrics.RecordEphemeralStorageOperation(runtimeName, "reserve", "insufficient_capacity")
 		return fmt.Errorf("insufficient ephemeral storage capacity: request=%d available=%d system_reserve=%d committed=%d", requestBytes, available, m.systemReserve, committed)
 	}
-	reservation := writableReservation{ContainerID: containerID, RuntimeName: runtimeName, RequestBytes: requestBytes, LimitBytes: limitBytes, CreatedAt: time.Now().UTC()}
+	reservation := writableReservation{ContainerID: containerID, RequestBytes: requestBytes, LimitBytes: limitBytes, CreatedAt: time.Now().UTC()}
 	if err := writeJSONAtomic(m.dir, containerID+".json", reservation); err != nil {
 		metrics.RecordEphemeralStorageOperation(runtimeName, "reserve", "persistence_failure")
 		return err
@@ -133,21 +140,19 @@ func (m *writableCapacityManager) Reserve(containerID, runtimeName string, reque
 	return nil
 }
 
-func (m *writableCapacityManager) ReconcileRuntime(runtimeName string, retained map[string]struct{}, cleanup func(string) error) error {
+func (m *writableCapacityManager) Reconcile(retained map[string]struct{}, cleanup func(string) error) error {
 	if m == nil {
 		return nil
 	}
 	m.mu.Lock()
 	stale := make([]string, 0)
-	for id, reservation := range m.reservations {
-		if reservation.RuntimeName != runtimeName {
-			continue
-		}
+	for id := range m.reservations {
 		if _, ok := retained[id]; !ok {
 			stale = append(stale, id)
 		}
 	}
 	m.mu.Unlock()
+	sort.Strings(stale)
 
 	var result error
 	for _, id := range stale {
@@ -164,17 +169,15 @@ func (m *writableCapacityManager) ReconcileRuntime(runtimeName string, retained 
 	return result
 }
 
-func (m *writableCapacityManager) ValidateRuntimeReservations(runtimeName, containerRoot string, retained map[string]struct{}) error {
+func (m *writableCapacityManager) ValidateReservations(containerRoot string, retained map[string]struct{}) error {
 	if m == nil {
 		return nil
 	}
 	m.mu.Lock()
 	expected := make([]writableReservation, 0)
 	for id, reservation := range m.reservations {
-		if reservation.RuntimeName == runtimeName {
-			if _, ok := retained[id]; ok {
-				expected = append(expected, reservation)
-			}
+		if _, ok := retained[id]; ok {
+			expected = append(expected, reservation)
 		}
 	}
 	m.mu.Unlock()
@@ -214,20 +217,20 @@ func (m *writableCapacityManager) Release(containerID string) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	reservation, ok := m.reservations[containerID]
+	_, ok := m.reservations[containerID]
 	if !ok {
 		return nil
 	}
 	if err := os.Remove(filepath.Join(m.dir, containerID+".json")); err != nil && !os.IsNotExist(err) {
-		metrics.RecordEphemeralStorageOperation(reservation.RuntimeName, "release", "failure")
+		metrics.RecordEphemeralStorageOperation("runsc", "release", "failure")
 		return fmt.Errorf("remove writable reservation: %w", err)
 	}
 	delete(m.reservations, containerID)
 	if err := durablefile.SyncDir(m.dir); err != nil {
-		metrics.RecordEphemeralStorageOperation(reservation.RuntimeName, "release", "failure")
+		metrics.RecordEphemeralStorageOperation("runsc", "release", "failure")
 		return err
 	}
-	metrics.RecordEphemeralStorageOperation(reservation.RuntimeName, "release", "success")
+	metrics.RecordEphemeralStorageOperation("runsc", "release", "success")
 	return nil
 }
 

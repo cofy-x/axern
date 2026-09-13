@@ -85,8 +85,8 @@ func RequireLocalhostTCPReady(status bpfnet.Status) error {
 		return err
 	}
 	state := status.State
-	if !state.LocalhostTCPDNAT || !state.LocalhostPathReady || state.LocalhostCompat {
-		return fmt.Errorf("expected localhost tcp path to be active without compat fallback: %#v", state)
+	if !state.LocalhostTCPDNAT || !state.LocalhostPathReady {
+		return fmt.Errorf("expected localhost tcp path to be active: %#v", state)
 	}
 	if !status.Attachment.LocalhostLinksAttached {
 		return fmt.Errorf("expected localhost cgroup links to be attached: %#v", status.Attachment)

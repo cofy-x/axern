@@ -59,16 +59,12 @@ func TestCPUUsedMilli(t *testing.T) {
 func TestBPFNetComponentInventory(t *testing.T) {
 	component := bpfnetComponentInventory(bpfnet.Status{
 		State: bpfnet.DataplaneState{
-			Mode:            "tc",
-			TCReady:         false,
-			LocalhostCompat: true,
+			Mode:    "tc",
+			TCReady: false,
 		},
 	})
 
 	if component.Ready {
 		t.Fatal("expected non-ready bpfnet component")
-	}
-	if !component.NeedsLocalhostCompat {
-		t.Fatalf("unexpected compatibility mapping: %+v", component)
 	}
 }

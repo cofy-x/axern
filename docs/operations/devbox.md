@@ -194,7 +194,7 @@ After the standalone stack is running and the `python311` runtime image is loade
 make axern-dev-build
 make dev-runtime-images-load
 
-axern run --template python311 --runtime-class runsc -- \
+axern run --template python311 -- \
   python -c 'print("axern gateway run smoke")'
 ```
 

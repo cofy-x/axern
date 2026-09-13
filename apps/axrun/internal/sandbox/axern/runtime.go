@@ -50,7 +50,6 @@ func (r Runtime) Create(ctx context.Context) (sandbox.Instance, error) {
 		TemplateID:    r.Config.TemplateID,
 		Image:         r.Config.Image,
 		Namespace:     r.Config.NamespaceOrDefault(),
-		RuntimeClass:  r.Config.RuntimeClass,
 		RequestCPU:    axernsdk.ResourceQuantity(r.Config.RequestCPU),
 		RequestMemory: axernsdk.ResourceQuantity(r.Config.RequestMemory),
 		LimitCPU:      axernsdk.ResourceQuantity(r.Config.LimitCPU),
@@ -66,7 +65,7 @@ func (r Runtime) Create(ctx context.Context) (sandbox.Instance, error) {
 		_ = client.Close()
 		return nil, err
 	}
-	return instance{client: client, sandbox: sb, runtimeClass: r.Config.RuntimeClass}, nil
+	return instance{client: client, sandbox: sb}, nil
 }
 
 func cloneImageMounts(mounts []axernsdk.ImageMount) []axernsdk.ImageMount {
@@ -77,9 +76,8 @@ func cloneImageMounts(mounts []axernsdk.ImageMount) []axernsdk.ImageMount {
 }
 
 type instance struct {
-	client       *axernsdk.Client
-	sandbox      *axernsdk.Sandbox
-	runtimeClass string
+	client  *axernsdk.Client
+	sandbox *axernsdk.Sandbox
 }
 
 func (i instance) Exec(ctx context.Context, command sandbox.ExecCommand, options sandbox.ExecOptions) (sandbox.ExecResult, error) {
@@ -224,7 +222,6 @@ func (i instance) State() (sandbox.State, error) {
 		RunID:         state.RunID,
 		AllocationID:  state.AllocationID,
 		NodeID:        state.NodeID,
-		RuntimeClass:  i.runtimeClass,
 	}, nil
 }
 

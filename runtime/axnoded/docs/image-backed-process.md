@@ -47,7 +47,7 @@ NodeSandbox ExecImage/ProcessImage
   -> cleanup
 ```
 
-The transient container uses the target allocation's runtime handler and runtime class, but it has its own image rootfs and its own sandboxd process service. It does not call sandbox `Exec`, and it does not replace or mutate the target allocation rootfs.
+The transient container uses the target allocation's runsc execution boundary, but it has its own image rootfs and its own sandboxd process service. It does not call sandbox `Exec`, and it does not replace or mutate the target allocation rootfs.
 
 Image refs are passed through as ordinary image refs. OCI and Nydus images use the same field; `imagemgr` and the rootfs mounting layer decide how to resolve and mount the image.
 

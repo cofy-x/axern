@@ -7,12 +7,12 @@
 - Library-only dataplane control plane.
 - Default bpffs pin root: `/sys/fs/bpf/axern/bpfnet`.
 - Axnoded integration point: `plugin.network.nat_backend = "ebpf"`.
-- Main packet paths: external TCP/UDP hostPort ingress, sandbox TCP/UDP/ICMP egress SNAT, TCP localhost hostPort compatibility.
+- Main packet paths: external TCP/UDP hostPort ingress, sandbox TCP/UDP/ICMP egress SNAT, and TCP localhost hostPort translation.
 - Native eBPF scope is IPv4. Linux localhost UDP is outside the supported design. When an axnoded node is configured with an IPv6 sandbox range and `nat_backend = "ebpf"`, axnoded deliberately uses the bridge ip6tables path and advertises the effective bridge capability; it does not claim native bpfnet enforcement for that address family.
 
 ## Ownership Contract
 
-`runtime/axnoded` owns sandbox lifecycle, bridge/veth/netns resources, service hostPort intent, backend selection, rollback policy, and SNAT GC scheduling.
+`runtime/axnoded` owns sandbox lifecycle, bridge/veth/netns resources, service hostPort intent, explicit backend selection, and SNAT GC scheduling.
 
 `bpfnet` owns dataplane attach and reconciliation, service-map programming, pinned maps and programs, TC ingress/egress links, localhost TCP cgroup links, and persisted status collection.
 
@@ -29,7 +29,7 @@
 | Host-local TCP hostPort compatibility             | cgroup `connect4`, `getpeername4`, `sock_release` |
 | Native-routing CIDR skip                          | TC egress                                         |
 
-If the localhost TCP cgroup path is unavailable, axnoded may use narrowly scoped `iptables` localhost TCP compatibility while TC ingress and egress remain on eBPF. A main TC attach or reconciliation failure fails the `ebpf` backend; switching the whole node to iptables requires explicitly selecting `nat_backend = "iptables"`.
+The eBPF backend is ready only when TC ingress/egress and the localhost TCP cgroup path are all attached. Any required attach or reconciliation failure fails closed. The complete iptables backend is used only when explicitly selected, or as the truthful effective backend for an IPv6 pool that bpfnet does not implement.
 
 ## Public Go Surface
 
@@ -40,7 +40,6 @@ If the localhost TCP cgroup path is unavailable, axnoded may use narrowly scoped
   - `UpsertService`
   - `DeleteService`
   - `Status`
-  - `NeedsLocalhostCompat`
 
 ## Layout
 
@@ -50,7 +49,7 @@ If the localhost TCP cgroup path is unavailable, axnoded may use narrowly scoped
 | `internal/dataplane`                      | Linux object reconciliation, map sync, TC attach, localhost cgroup attach, status collection |
 | `internal/tcprog`                         | eBPF C source, generated loaders, committed `.o` artifacts                                   |
 | `cmd/bpfnetctl`                           | read-only node-local diagnostic CLI                                                          |
-| `docs/architecture.md`                    | long-term ownership, packet-flow, state, fallback, and observability design                  |
+| `docs/architecture.md`                    | long-term ownership, packet-flow, state, failure, and observability design                   |
 | `docs/production-replacement-baseline.md` | production replacement benchmark baseline and acceptance gates                               |
 | `docs/production-regression-runbook.md`   | reusable Kubernetes production-regression command matrix                                     |
 | `docs/production-alerting.md`             | production alert signals and PromQL policy                                                   |

@@ -88,9 +88,8 @@ func TestObserveNodeBPFNetReportsReadyNodeState(t *testing.T) {
 			Lifecycle: nodekernel.LifecycleActive,
 			UpdatedAt: now,
 			Summary: readyNodeSummaryWithBPFNet(now, &nodev1.BpfNetSummary{
-				Enabled:              true,
-				Ready:                true,
-				NeedsLocalhostCompat: true,
+				Enabled: true,
+				Ready:   true,
 			}),
 		},
 		{
@@ -116,9 +115,6 @@ func TestObserveNodeBPFNetReportsReadyNodeState(t *testing.T) {
 	}
 	if value, ok := got[stateMetricKey{nodeID: "node-a", state: "ready"}]; !ok || value != 1 {
 		t.Fatalf("ready metric = %d/%v, want 1/true", value, ok)
-	}
-	if value, ok := got[stateMetricKey{nodeID: "node-a", state: "localhost_compat"}]; !ok || value != 1 {
-		t.Fatalf("localhost compat metric = %d/%v, want 1/true", value, ok)
 	}
 	if _, ok := got[stateMetricKey{nodeID: "node-stale", state: "enabled"}]; ok {
 		t.Fatalf("stale node bpfnet metric was reported: %#v", got)

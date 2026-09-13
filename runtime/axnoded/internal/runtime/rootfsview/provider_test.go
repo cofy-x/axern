@@ -188,31 +188,30 @@ func TestSeedSymlinksRejectsOccupiedPublicPath(t *testing.T) {
 	require.ErrorContains(t, err, "already occupied")
 }
 
-func TestReconcilePersistentViewsRemovesOnlyStaleRuntimeOwnedView(t *testing.T) {
+func TestReconcilePersistentViewsRemovesAllStaleViews(t *testing.T) {
 	filestore := t.TempDir()
 	provider := NewOverlayProvider(filestore).(*overlayProvider)
 	for _, item := range []struct {
-		id      string
-		runtime string
+		id string
 	}{
-		{id: "stale-runsc", runtime: "runsc"},
-		{id: "active-runsc", runtime: "runsc"},
-		{id: "stale-other", runtime: "other"},
+		{id: "stale-first"},
+		{id: "active"},
+		{id: "stale-second"},
 	} {
 		root := filepath.Join(filestore, projectionViewDir, item.id)
 		require.NoError(t, os.MkdirAll(filepath.Join(root, "merged"), 0755))
-		content := []byte(`{"runtime_name":"` + item.runtime + `","immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/imagemgr/rootfs","filesystem":"overlay","lower_dirs":["/imagemgr/lower"],"readonly":true}}`)
+		content := []byte(`{"immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/imagemgr/rootfs","filesystem":"overlay","lower_dirs":["/imagemgr/lower"],"readonly":true}}`)
 		require.NoError(t, atomicWrite(filepath.Join(root, "projection.json"), content, 0644))
 	}
 
-	err := provider.ReconcilePersistentViews(context.Background(), "runsc", map[string]struct{}{"active-runsc": {}})
+	err := provider.ReconcilePersistentViews(context.Background(), "runsc", map[string]struct{}{"active": {}})
 	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "stale-runsc"))
+	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "stale-first"))
 	assert.ErrorIs(t, err, os.ErrNotExist)
-	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "active-runsc"))
+	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "active"))
 	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "stale-other"))
-	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "stale-second"))
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestReadProjectionManifestRejectsUnboundedInput(t *testing.T) {
@@ -224,8 +223,9 @@ func TestReadProjectionManifestRejectsUnboundedInput(t *testing.T) {
 
 func TestReadProjectionManifestRejectsUnknownOrTrailingState(t *testing.T) {
 	for name, content := range map[string]string{
-		"unknown":  `{"runtime_name":"runsc","unknown":true,"immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/rootfs","filesystem":"overlay","lower_dirs":["/lower"],"readonly":true}}`,
-		"trailing": `{"runtime_name":"runsc","immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/rootfs","filesystem":"overlay","lower_dirs":["/lower"],"readonly":true}} {}`,
+		"unknown":                  `{"unknown":true,"immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/rootfs","filesystem":"overlay","lower_dirs":["/lower"],"readonly":true}}`,
+		"removed runtime identity": `{"runtime_name":"runsc","immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/rootfs","filesystem":"overlay","lower_dirs":["/lower"],"readonly":true}}`,
+		"trailing":                 `{"immutable_mount":{"identity":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","effective_root":"/rootfs","filesystem":"overlay","lower_dirs":["/lower"],"readonly":true}} {}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()

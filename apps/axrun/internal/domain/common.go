@@ -161,5 +161,4 @@ type SandboxRuntimeState struct {
 	RunID         string `json:"run_id,omitempty"`
 	AllocationID  string `json:"allocation_id,omitempty"`
 	NodeID        string `json:"node_id,omitempty"`
-	RuntimeClass  string `json:"runtime_class,omitempty"`
 }

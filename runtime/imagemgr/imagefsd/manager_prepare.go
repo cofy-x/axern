@@ -24,7 +24,7 @@ func (mgr *manager) loadExistedDaemons() error {
 		d := &Daemon{ctx: mgr.ctx, binPath: mgr.binPath, nodeID: mgr.nodeID, cgroupCtrl: mgr.cgroupCtrl}
 		metaFilePath := filepath.Join(daemonConfigDir, entry.Name())
 		if err = d.LoadExisted(metaFilePath); err != nil {
-			return fmt.Errorf("failed to load daemon from meta file %s: %w; resolve unsupported legacy mounts before starting imagemgr", metaFilePath, err)
+			return fmt.Errorf("failed to load daemon from meta file %s: %w", metaFilePath, err)
 		}
 		d.savedPath = filepath.Join(daemonConfigDir, d.meta.ID+".json")
 		if err = mgr.reconcileNydusRuntimePolicy(d); err != nil {

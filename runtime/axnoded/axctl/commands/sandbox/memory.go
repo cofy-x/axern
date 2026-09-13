@@ -64,8 +64,7 @@ func renderSandboxMemory(w io.Writer, memory *controlnodev1.AllocationMemoryObse
 		return
 	}
 	fmt.Fprintf(w, "  Allocation: %s\n", memory.GetAllocationID())
-	fmt.Fprintf(w, "  Runtime: %s\n", fallbackString(memory.GetRuntime(), "-"))
-	fmt.Fprintf(w, "  Observed At: %s (revision %d)\n", formatTimestamp(memory.GetObservedAt()), memory.GetRevision())
+	fmt.Fprintf(w, "  Observed At: %s\n", formatTimestamp(memory.GetObservedAt()))
 	fmt.Fprintf(w, "  Request / Limit: %d / %d bytes\n", memory.GetRequestBytes(), memory.GetLimitBytes())
 	peakSource := "sampled current"
 	if memory.GetPeakAvailable() {
