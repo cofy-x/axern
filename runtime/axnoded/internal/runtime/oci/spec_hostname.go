@@ -45,8 +45,8 @@ func workloadHostname(annotations map[string]string, request *apipb.CreateContai
 		return explicit
 	}
 
-	allocationID := strings.TrimSpace(annotations[workloadidentity.LabelKeyAllocationID])
-	if allocationID == "" && request != nil {
+	allocationID := ""
+	if request != nil {
 		allocationID = strings.TrimSpace(request.GetID())
 	}
 	if allocationID == "" {
@@ -55,9 +55,6 @@ func workloadHostname(annotations map[string]string, request *apipb.CreateContai
 
 	if suffix := shortAllocationIdentity(allocationID); suffix != "" {
 		return joinHostnameParts("alloc", suffix)
-	}
-	if runtimeID := sanitizeDNSLabel(annotations[workloadidentity.LabelKeyRuntimeID]); runtimeID != "" {
-		return runtimeID
 	}
 	return defaultSandboxHostname
 }

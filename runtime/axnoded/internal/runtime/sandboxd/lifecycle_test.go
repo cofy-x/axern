@@ -13,7 +13,7 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 )
 
-func TestWaitForSandboxdReadyEnrichesMetadata(t *testing.T) {
+func TestWaitForSandboxdReadyDoesNotPersistRuntimeProjection(t *testing.T) {
 	bundlePath, err := os.MkdirTemp("/tmp", "axsd-bundle-*")
 	if err != nil {
 		t.Fatal(err)
@@ -35,11 +35,8 @@ func TestWaitForSandboxdReadyEnrichesMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WaitReadyForContainer() error = %v", err)
 	}
-	if meta.Labels[LabelReady] != "true" || meta.Labels[LabelSocket] != socketPath {
-		t.Fatalf("labels = %#v", meta.Labels)
-	}
-	if meta.Labels[LabelCapabilities] != "health,status,supervisor" || meta.Labels[LabelUserState] != "running" {
-		t.Fatalf("labels = %#v", meta.Labels)
+	if len(meta.GetLabels()) != 0 {
+		t.Fatalf("runtime readiness leaked into persisted labels: %#v", meta.GetLabels())
 	}
 }
 

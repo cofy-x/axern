@@ -17,7 +17,6 @@ func TestRenderAllocationLifecycleRetryTableHandlesMissingNextRunAt(t *testing.T
 		RunID:             "run-a",
 		Reason:            adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE,
 		NodeID:            "node-a",
-		Attempt:           1,
 		ReconcileAttempts: 2,
 		LastError:         "node unavailable",
 	}})
@@ -86,7 +85,7 @@ func TestNewConsistencySnapshotJSON(t *testing.T) {
 			Issues:                     1,
 		},
 		Issues: []*adminv1.ConsistencyIssue{{
-			Code:             adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_ENDED_ALLOCATION,
+			Code:             adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_RELEASED_ALLOCATION,
 			Severity:         adminv1.ConsistencyIssueSeverity_CONSISTENCY_ISSUE_SEVERITY_ERROR,
 			AllocationID:     "alloc-a",
 			RepairOwner:      adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_RUN_CONTROLLER,
@@ -97,7 +96,7 @@ func TestNewConsistencySnapshotJSON(t *testing.T) {
 		}},
 		Truncated: true,
 	})
-	if got == nil || got.Status != "inconsistent" || got.Counts.Issues != 1 || len(got.Issues) != 1 || got.Issues[0].Code != "active-reservation-on-ended-allocation" || got.Issues[0].RepairOwner != "run-controller" || got.Issues[0].RepairAction != "run-cleanup" || got.Issues[0].RepairTargetType != "allocation" || got.Issues[0].RepairTargetID != "alloc-a" || !got.Truncated {
+	if got == nil || got.Status != "inconsistent" || got.Counts.Issues != 1 || len(got.Issues) != 1 || got.Issues[0].Code != "active-reservation-on-released-allocation" || got.Issues[0].RepairOwner != "run-controller" || got.Issues[0].RepairAction != "run-cleanup" || got.Issues[0].RepairTargetType != "allocation" || got.Issues[0].RepairTargetID != "alloc-a" || !got.Truncated {
 		t.Fatalf("NewConsistencySnapshotJSON() = %+v", got)
 	}
 }

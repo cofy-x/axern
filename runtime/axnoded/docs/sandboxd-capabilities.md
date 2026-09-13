@@ -12,7 +12,7 @@ The public discovery surface is `NodeSandbox.CapabilityStatus` and SDK helpers s
 | --------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | OCI lifecycle         | `runsc` via `axnoded`     | Runtime create, wait, kill, delete, isolation, namespaces, cgroups, and mounts.                                               |
 | Sandbox-local control | `axern-sandboxd`          | PID 1 supervision, process execution, terminal sessions, files, probes, diagnostics, and optional desktop/browser operations. |
-| Product access        | `axnoded` / control plane | Authorization, allocation identity, attempts, leases, routing, and gRPC error mapping.                                        |
+| Product access        | `axnoded` / control plane | Authorization, exact Allocation identity, leases, routing, and gRPC error mapping.                                             |
 | Public SDKs           | SDK packages              | Language-native sandbox APIs only; no raw daemon transport or endpoint exposure.                                              |
 
 ## Baseline Capabilities

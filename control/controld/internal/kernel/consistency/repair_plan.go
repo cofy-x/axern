@@ -43,7 +43,7 @@ func RepairPlanForIssue(issue Issue) RepairPlan {
 
 func repairPlanForCode(code IssueCode) RepairPlan {
 	switch code {
-	case IssueActiveReservationOnEndedAllocation:
+	case IssueActiveReservationOnReleasedAllocation:
 		return RepairPlan{
 			Owner:  RepairOwnerRunController,
 			Action: RepairActionRunCleanup,
@@ -65,7 +65,7 @@ func repairPlanForCode(code IssueCode) RepairPlan {
 
 func repairTargetForIssue(issue Issue) (RepairTargetType, string) {
 	switch issue.Code {
-	case IssueActiveReservationOnEndedAllocation:
+	case IssueActiveReservationOnReleasedAllocation:
 		if issue.RunID != "" {
 			return RepairTargetTypeRun, issue.RunID
 		}

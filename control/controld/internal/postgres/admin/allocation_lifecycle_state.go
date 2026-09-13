@@ -9,7 +9,6 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
-	pgreservation "github.com/cofy-x/axern/control/controld/internal/postgres/reservation"
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
@@ -20,16 +19,16 @@ import (
 )
 
 type lockedLifecycleRetry struct {
-	Item             allocationkernel.LifecycleRetryItem
-	AllocationStatus string
+	Item            allocationkernel.LifecycleRetryItem
+	AllocationState string
 }
 
 func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, reason string, now time.Time) (*lockedLifecycleRetry, error) {
 	var out lockedLifecycleRetry
 	clearanceInput := allocationkernel.LifecycleRetryClearanceInput{}
 	err := tx.QueryRow(ctx, `
-		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target, a.attempt,
-			q.reconcile_attempts, q.last_error, q.next_run_at, q.created_at, q.updated_at, a.status,
+		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target,
+			q.reconcile_attempts, q.last_error, q.next_run_at, q.created_at, q.updated_at, a.lifecycle_state,
 			EXISTS (
 				SELECT 1 FROM reservations res
 				WHERE res.allocation_id = q.allocation_id AND res.released_at IS NULL
@@ -65,13 +64,12 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 		&out.Item.Reason,
 		&out.Item.NodeID,
 		&out.Item.NodeTarget,
-		&out.Item.Attempt,
 		&out.Item.ReconcileAttempts,
 		&out.Item.LastReconcileError,
 		&out.Item.NextRunAt,
 		&out.Item.CreatedAt,
 		&out.Item.UpdatedAt,
-		&out.AllocationStatus,
+		&out.AllocationState,
 		&clearanceInput.HasActiveReservation,
 		&clearanceInput.HasActiveLease,
 		&clearanceInput.HasActiveTunnelSession,
@@ -90,7 +88,7 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 	out.Item.AgeSeconds = int64(now.Sub(out.Item.CreatedAt).Seconds())
 	out.Item.Due = !out.Item.NextRunAt.After(now)
 	clearanceInput.AllocationID = out.Item.AllocationID
-	clearanceInput.AllocationStatus = out.AllocationStatus
+	clearanceInput.AllocationState = out.AllocationState
 	clearance := allocationkernel.EvaluateLifecycleRetryClearance(clearanceInput)
 	out.Item.Clearable = clearance.Clearable
 	out.Item.ClearBlockedReason = clearance.BlockedReason
@@ -121,9 +119,9 @@ func loadLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 func failRunLifecycleRetry(ctx context.Context, tx pgx.Tx, item allocationkernel.LifecycleRetryItem, message string, now time.Time) error {
 	if _, err := tx.Exec(ctx, `
 		UPDATE allocations
-		SET status = $2, diagnostic_code = $3, message = $4, version = version + 1, updated_at = $5
-		WHERE allocation_id = $1 AND run_id = $6
-	`, item.AllocationID, commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(), commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR.String(), strings.TrimSpace(message), now.UTC(), item.RunID); err != nil {
+		SET lifecycle_state = $2, updated_at = $3
+		WHERE allocation_id = $1 AND run_id = $4
+	`, item.AllocationID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String(), now.UTC(), item.RunID); err != nil {
 		return fmt.Errorf("fail run allocation: %w", err)
 	}
 	tag, err := tx.Exec(ctx, `
@@ -148,7 +146,15 @@ func failRunLifecycleRetry(ctx context.Context, tx pgx.Tx, item allocationkernel
 	}); err != nil {
 		return err
 	}
-	return pgreservation.ReleaseAllocation(ctx, tx, item.AllocationID, now)
+	if _, err := tx.Exec(ctx, `
+		UPDATE allocation_reconcile_queue
+		SET reason = $2, reconcile_attempts = 0, next_run_at = $3,
+			last_error = '', lease_owner = '', lease_expires_at = NULL, updated_at = $3
+		WHERE allocation_id = $1
+	`, item.AllocationID, allocationkernel.ReconcileReasonDelete, now.UTC()); err != nil {
+		return fmt.Errorf("schedule cleanup after failed allocation create: %w", err)
+	}
+	return nil
 }
 
 func revokeActiveAllocationLeases(ctx context.Context, tx pgx.Tx, allocationID string) error {

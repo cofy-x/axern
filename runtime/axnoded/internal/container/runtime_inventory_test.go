@@ -29,7 +29,7 @@ func newRuntimeInventoryTestManager(t *testing.T) *Manager {
 
 func TestReconcileRuntimeInventoryRemovesPersistedOrphan(t *testing.T) {
 	manager := newRuntimeInventoryTestManager(t)
-	require.NoError(t, manager.StoreMetadata("orphan", &apipb.ContainerMetadata{ID: "orphan", RuntimeHandler: "runsc"}))
+	require.NoError(t, manager.StoreMetadata("orphan", &apipb.ContainerMetadata{RuntimeHandler: "runsc"}))
 
 	require.NoError(t, manager.ReconcileRuntimeInventory(map[string]map[string]struct{}{
 		"runsc": {},
@@ -69,7 +69,7 @@ func TestReconcileRuntimeInventoryRemovesProvenEmptyDiskOrphan(t *testing.T) {
 func TestReconcileRuntimeInventoryValidatesBeforeCleanup(t *testing.T) {
 	manager := newRuntimeInventoryTestManager(t)
 	manager.containers.Set("orphan", &Container{
-		Metadata: &apipb.ContainerMetadata{ID: "orphan", RuntimeHandler: "runsc"},
+		Metadata: &apipb.ContainerMetadata{RuntimeHandler: "runsc"},
 		Spec:     &spec.Spec{},
 	})
 
@@ -83,7 +83,7 @@ func TestReconcileRuntimeInventoryValidatesBeforeCleanup(t *testing.T) {
 func TestReconcileRuntimeInventoryRejectsUnavailableRuntimeOwnership(t *testing.T) {
 	manager := newRuntimeInventoryTestManager(t)
 	manager.containers.Set("ambiguous", &Container{
-		Metadata: &apipb.ContainerMetadata{ID: "ambiguous", RuntimeHandler: "disabled-runtime"},
+		Metadata: &apipb.ContainerMetadata{RuntimeHandler: "disabled-runtime"},
 		Spec:     &spec.Spec{},
 	})
 

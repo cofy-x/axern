@@ -20,22 +20,22 @@ func (a *App) observePostgresPoolConnections(_ context.Context, observe sdkobs.I
 
 func (a *App) observeAllocations(ctx context.Context, observe sdkobs.Int64GaugeObserver) error {
 	rows, err := a.db.Pool().Query(ctx, `
-		SELECT status, count(*)
+		SELECT lifecycle_state, count(*)
 		FROM allocations
-		GROUP BY status
+		GROUP BY lifecycle_state
 	`)
 	if err != nil {
 		return fmt.Errorf("query allocation metrics: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var status string
+		var lifecycleState string
 		var count int64
-		if err := rows.Scan(&status, &count); err != nil {
+		if err := rows.Scan(&lifecycleState, &count); err != nil {
 			return err
 		}
 		observe(count,
-			attribute.String(sdkobs.AttrStatus, status),
+			attribute.String(sdkobs.AttrState, lifecycleState),
 		)
 	}
 	return rows.Err()
@@ -43,23 +43,23 @@ func (a *App) observeAllocations(ctx context.Context, observe sdkobs.Int64GaugeO
 
 func (a *App) observeNodeAllocations(ctx context.Context, observe sdkobs.Int64GaugeObserver) error {
 	rows, err := a.db.Pool().Query(ctx, `
-		SELECT node_id, status, count(*)
+		SELECT node_id, lifecycle_state, count(*)
 		FROM allocations
-		GROUP BY node_id, status
+		GROUP BY node_id, lifecycle_state
 	`)
 	if err != nil {
 		return fmt.Errorf("query node allocation metrics: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var nodeID, status string
+		var nodeID, lifecycleState string
 		var count int64
-		if err := rows.Scan(&nodeID, &status, &count); err != nil {
+		if err := rows.Scan(&nodeID, &lifecycleState, &count); err != nil {
 			return err
 		}
 		observe(count,
 			attribute.String(sdkobs.AttrNodeID, nodeID),
-			attribute.String(sdkobs.AttrStatus, status),
+			attribute.String(sdkobs.AttrState, lifecycleState),
 		)
 	}
 	return rows.Err()

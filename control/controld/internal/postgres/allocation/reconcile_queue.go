@@ -33,7 +33,7 @@ func DueReconcileItems(ctx context.Context, queryer reconcileQueryer, limit int,
 		limit = allocationkernel.DefaultReconcileLimit
 	}
 	rows, err := queryer.Query(ctx, `
-		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target, a.attempt, q.reconcile_attempts, q.last_error, q.next_run_at,
+		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target, q.reconcile_attempts, q.last_error, q.next_run_at,
 			`+capabilityDependenciesProjectionSQL+`,
 			GREATEST(q.next_run_at, q.updated_at, COALESCE(q.lease_expires_at, '-infinity'::timestamptz)) AS eligible_at
 		FROM allocation_reconcile_queue q
@@ -52,7 +52,7 @@ func DueReconcileItems(ctx context.Context, queryer reconcileQueryer, limit int,
 	for rows.Next() {
 		var item allocationkernel.ReconcileItem
 		var dependenciesJSON []byte
-		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &item.Reason, &item.NodeID, &item.NodeTarget, &item.Attempt, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt); err != nil {
+		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &item.Reason, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt); err != nil {
 			return nil, err
 		}
 		if err := decodeCapabilityDependencies(dependenciesJSON, &item); err != nil {
@@ -78,7 +78,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 	rows, err := queryer.Query(ctx, `
 		WITH ranked AS (
 			SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target,
-				a.attempt, q.reconcile_attempts, q.last_error, q.next_run_at,
+				q.reconcile_attempts, q.last_error, q.next_run_at,
 				`+capabilityDependenciesProjectionSQL+` AS capability_dependencies,
 				GREATEST(q.next_run_at, q.updated_at, COALESCE(q.lease_expires_at, '-infinity'::timestamptz)) AS eligible_at,
 				ROW_NUMBER() OVER (PARTITION BY a.node_id ORDER BY q.next_run_at ASC, q.allocation_id ASC) AS node_rank
@@ -90,7 +90,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			  AND (q.lease_expires_at IS NULL OR q.lease_expires_at <= $1)
 		), candidates AS (
 			SELECT r.allocation_id, r.run_id, r.environment_id, r.reason, r.node_id, r.node_target,
-				r.attempt, r.reconcile_attempts, r.last_error, r.next_run_at, r.capability_dependencies, r.eligible_at
+				r.reconcile_attempts, r.last_error, r.next_run_at, r.capability_dependencies, r.eligible_at
 			FROM ranked r
 			JOIN allocation_reconcile_queue q ON q.allocation_id = r.allocation_id
 			ORDER BY r.node_rank ASC, r.next_run_at ASC, r.allocation_id ASC
@@ -105,7 +105,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			RETURNING q.allocation_id
 		)
 		SELECT c.allocation_id, c.run_id, c.environment_id, c.reason, c.node_id, c.node_target,
-			c.attempt, c.reconcile_attempts, c.last_error, c.next_run_at, c.capability_dependencies, c.eligible_at
+			c.reconcile_attempts, c.last_error, c.next_run_at, c.capability_dependencies, c.eligible_at
 		FROM candidates c
 		JOIN claimed USING (allocation_id)
 		ORDER BY c.allocation_id ASC
@@ -118,7 +118,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 	for rows.Next() {
 		item := allocationkernel.ReconcileItem{ClaimOwner: owner}
 		var dependenciesJSON []byte
-		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &item.Reason, &item.NodeID, &item.NodeTarget, &item.Attempt, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt); err != nil {
+		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &item.Reason, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt); err != nil {
 			return nil, err
 		}
 		if err := decodeCapabilityDependencies(dependenciesJSON, &item); err != nil {
@@ -238,9 +238,9 @@ func ListLifecycleRetries(ctx context.Context, queryer reconcileQueryer, filter 
 		return nil, err
 	}
 	rows, err := queryer.Query(ctx, `
-		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target, a.attempt,
+		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target,
 			q.reconcile_attempts, q.last_error, q.next_run_at, q.created_at, q.updated_at,
-			a.status,
+			a.lifecycle_state,
 			EXISTS (
 				SELECT 1 FROM reservations res
 				WHERE res.allocation_id = q.allocation_id AND res.released_at IS NULL
@@ -287,9 +287,9 @@ func DebugReconcileItems(ctx context.Context, queryer reconcileQueryer, now time
 
 func LoadLifecycleRetry(ctx context.Context, queryer reconcileQueryer, allocationID string, reason string, now time.Time) (*allocationkernel.LifecycleRetryItem, bool, error) {
 	rows, err := queryer.Query(ctx, `
-		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target, a.attempt,
+		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target,
 			q.reconcile_attempts, q.last_error, q.next_run_at, q.created_at, q.updated_at,
-			a.status,
+			a.lifecycle_state,
 			EXISTS (
 				SELECT 1 FROM reservations res
 				WHERE res.allocation_id = q.allocation_id AND res.released_at IS NULL
@@ -346,13 +346,12 @@ func scanLifecycleRetryRows(rows pgx.Rows, now time.Time) ([]allocationkernel.Li
 			&item.Reason,
 			&item.NodeID,
 			&item.NodeTarget,
-			&item.Attempt,
 			&item.ReconcileAttempts,
 			&item.LastReconcileError,
 			&item.NextRunAt,
 			&item.CreatedAt,
 			&item.UpdatedAt,
-			&clearanceInput.AllocationStatus,
+			&clearanceInput.AllocationState,
 			&clearanceInput.HasActiveReservation,
 			&clearanceInput.HasActiveLease,
 			&clearanceInput.HasActiveTunnelSession,

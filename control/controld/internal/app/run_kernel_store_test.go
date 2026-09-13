@@ -44,8 +44,8 @@ func TestPostgresRunKernelEnvironmentLabelsDoNotChangeSpecIdentity(t *testing.T)
 	}
 }
 
-func TestPostgresRunStaleNodeHeartbeatFailsRunAndReleasesReservation(t *testing.T) {
-	app, _ := newPostgresTestService(t)
+func TestPostgresRunStaleNodeHeartbeatFailsRunThenReleasesAllocation(t *testing.T) {
+	app, lifecycle := newPostgresTestService(t)
 	defer app.Close()
 	now := time.Date(2026, 5, 9, 13, 30, 0, 0, time.UTC)
 	app.now = func() time.Time { return now }
@@ -80,15 +80,12 @@ func TestPostgresRunStaleNodeHeartbeatFailsRunAndReleasesReservation(t *testing.
 	if gotResp.GetRun().GetDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR {
 		t.Fatalf("run diagnostic_code = %v, want runtime start error", gotResp.GetRun().GetDiagnosticCode())
 	}
-	var activeReservations int
-	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, allocationID).Scan(&activeReservations); err != nil {
-		t.Fatalf("count active reservations: %v", err)
+	assertAllocationReleasePending(t, app, allocationID)
+	app.reconcileV1()
+	if len(lifecycle.DeleteRequests) != 1 {
+		t.Fatalf("delete requests for unavailable node allocation = %d, want 1", len(lifecycle.DeleteRequests))
 	}
-	if activeReservations != 0 {
-		t.Fatalf("active reservations for unavailable node run = %d, want 0", activeReservations)
-	}
+	assertAllocationRetryCleanup(t, app, allocationID, "")
 }
 
 func TestPostgresRunStartCreateFailureRetriesBeforeFailing(t *testing.T) {
@@ -162,7 +159,7 @@ func TestPostgresRunStartCreateFailureRetriesBeforeFailing(t *testing.T) {
 	}
 }
 
-func TestPostgresRunCreateRetryExhaustionReleasesReservation(t *testing.T) {
+func TestPostgresRunCreateRetryExhaustionReleasesAllocation(t *testing.T) {
 	app, lifecycle := newPostgresTestServiceWithConfig(t, Config{
 		HeartbeatFreshnessWindow: time.Hour,
 		ReconcileInterval:        time.Hour,
@@ -199,24 +196,12 @@ func TestPostgresRunCreateRetryExhaustionReleasesReservation(t *testing.T) {
 	if gotResp.GetRun().GetDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR {
 		t.Fatalf("run diagnostic_code after create retry exhaustion = %v, want runtime start error", gotResp.GetRun().GetDiagnosticCode())
 	}
-	var activeReservations int
-	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, allocationID).Scan(&activeReservations); err != nil {
-		t.Fatalf("count active reservations for failed run: %v", err)
+	assertAllocationReleasePending(t, app, allocationID)
+	app.reconcileV1()
+	if len(lifecycle.DeleteRequests) != 1 {
+		t.Fatalf("delete requests after run create retry exhaustion = %d, want 1", len(lifecycle.DeleteRequests))
 	}
-	if activeReservations != 0 {
-		t.Fatalf("active reservations for exhausted run create retry = %d, want 0", activeReservations)
-	}
-	var queueItems int
-	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM allocation_reconcile_queue WHERE allocation_id = $1
-	`, allocationID).Scan(&queueItems); err != nil {
-		t.Fatalf("count reconcile queue after run create retry exhaustion: %v", err)
-	}
-	if queueItems != 0 {
-		t.Fatalf("reconcile queue items after run create retry exhaustion = %d, want 0", queueItems)
-	}
+	assertAllocationRetryCleanup(t, app, allocationID, "")
 }
 
 func TestPostgresRunCancelDeleteRetryResetsStartAttemptsAndRecordsError(t *testing.T) {
@@ -359,7 +344,7 @@ func TestPostgresRunKernelCancelRevokesLeaseAndReleasesReservation(t *testing.T)
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
 	}
-	leaseResp, err := app.runStore.IssueExecutionLease(context.Background(), runResp.GetRun().GetAllocationID(), runResp.GetRun().GetAttempt(), commonv1.LeaseType_LEASE_TYPE_RUN, 30*time.Second, now)
+	leaseResp, err := app.runStore.IssueExecutionLease(context.Background(), runResp.GetRun().GetAllocationID(), commonv1.LeaseType_LEASE_TYPE_RUN, 30*time.Second, now)
 	if err != nil {
 		t.Fatalf("AcquireRunLease() error = %v", err)
 	}

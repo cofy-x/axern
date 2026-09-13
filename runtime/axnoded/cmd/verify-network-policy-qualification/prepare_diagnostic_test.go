@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 )
 
 // Isolates the same one-rule Prepare/Reconcile/Delete sequence as the scale
@@ -44,25 +42,22 @@ func TestPrepareMeasurementLinuxTruth(t *testing.T) {
 		policy := scalePolicy(1, "ipv4")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		started := time.Now()
-		prepared, err := client.Prepare(ctx, id, 1, qualificationSourceIP("ipv4"), policy, 1, nil)
+		_, err := client.Prepare(ctx, id, qualificationSourceIP("ipv4"), policy, nil)
 		prepareValues = append(prepareValues, milliseconds(time.Since(started)))
 		cancel()
 		if err != nil {
 			t.Fatalf("prepare sample %d: %v", sample, err)
 		}
-		active := []*runtimeegressv1.ActiveEgressPolicy{{AllocationID: id, Attempt: 1,
-			SandboxIp: prepared.GetSandboxIp(), PolicyDigest: prepared.GetPolicyDigest(),
-			ExecutionRevision: prepared.GetExecutionRevision()}}
 		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 		started = time.Now()
-		_, err = client.Reconcile(ctx, active)
+		_, err = client.Reconcile(ctx, []string{id})
 		reconcileValues = append(reconcileValues, milliseconds(time.Since(started)))
 		cancel()
 		if err != nil {
 			t.Fatalf("reconcile sample %d: %v", sample, err)
 		}
 		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-		err = client.Delete(ctx, id, 1)
+		err = client.Delete(ctx, id)
 		cancel()
 		if err != nil {
 			t.Fatalf("delete sample %d: %v", sample, err)

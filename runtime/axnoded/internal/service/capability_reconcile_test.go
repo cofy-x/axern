@@ -257,7 +257,7 @@ func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.
 			ObservedAt: timestamppb.New(now), Proof: dependency.GetSelectedObservation(),
 		})
 	}
-	if _, err := service.allocationController().ReplaceCapabilityAdmission(allocationID, 1, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", dependencies, conditions, now); err != nil {
+	if _, err := service.allocationController().ReplaceCapabilityAdmission(allocationID, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", dependencies, conditions, now); err != nil {
 		t.Fatal(err)
 	}
 	manifest := &apipb.AllocationEnforcementManifest{

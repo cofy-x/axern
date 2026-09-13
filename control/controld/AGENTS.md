@@ -10,8 +10,8 @@
 - Keep public contracts in `sdk/proto`. The HTTP listener is limited to diagnostics and internal artifact delivery; realtime terminal and execution traffic belongs to the data plane.
 - Keep RPC validation and mapping in `internal/api`, use-case orchestration in `internal/application`, domain contracts and pure rules in `internal/kernel`, SQL and transaction mechanics in `internal/postgres`, and construction/lifecycle in `internal/app`.
 - `internal/application` and `internal/kernel` must not depend on Postgres implementations. API and composition packages depend on narrow capabilities rather than concrete stores.
-- Keep placement separate from node execution. Gateway resolution returns an explicit Allocation target and attempt-scoped lease.
-- Allocation status ingest authenticates and resolves owners in batches, locks deterministically, and persists each affected Allocation and Run once per batch.
+- Keep placement separate from node execution. Gateway resolution returns an explicit Allocation target and lease bound to that exact Allocation ID.
+- Allocation lifecycle ingest authenticates and resolves owners in batches, locks deterministically, and persists each affected Allocation and Run once per batch.
 - Node lifecycle and capability reconciliation use durable bounded queues; event paths must not trigger unbounded scans, and dispatch must enforce global and per-node concurrency limits.
 - Shared platform capability keys and provider/loss policy belong to `lib/go/nodecapability`; controld owns durable observation, placement admission, dependency conditions, and reconciliation.
 - Keep debug HTTP read-only. Durable retry operations and audit/reliability models belong to the admin application and Postgres boundaries.

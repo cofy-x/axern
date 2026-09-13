@@ -169,11 +169,11 @@ func runVerifyNginx(cfg verifyNginxConfig) error {
 		}
 	}
 
-	statusResp, err := verifyutil.GetAllocationStatus(ctx, clients, containerID)
+	statusResp, err := verifyutil.GetAllocationLifecycle(ctx, clients, containerID)
 	if err != nil {
 		return fmt.Errorf("get nginx sandbox status: %w", err)
 	}
-	if statusResp.GetStatus().String() == "" {
+	if statusResp.GetState().String() == "" {
 		return fmt.Errorf("nginx sandbox %s returned empty status", containerID)
 	}
 

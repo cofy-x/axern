@@ -24,10 +24,10 @@ sequenceDiagram
     Control->>Queue: "Persist allocation reconcile work"
     Control-->>Client: "Accepted workload state"
     Queue->>Node: "CreateAllocation"
-    Node-->>Control: "BatchReportAllocationStatus"
+    Node-->>Control: "BatchReportAllocationLifecycle"
     Client->>Gateway: "Get workload / events"
     Gateway->>Control: "Read public state"
-    Control-->>Client: "Queued, running, or terminal state"
+    Control-->>Client: "Placed, running, or terminal Run state"
 ```
 
 Foreground `axern run` returns the workload exit code after normal termination.

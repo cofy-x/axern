@@ -26,7 +26,6 @@ type ReconcileItem struct {
 	Reason                 string
 	NodeID                 string
 	NodeTarget             string
-	Attempt                int64
 	ReconcileAttempts      int
 	LastReconcileError     string
 	ClaimOwner             string
@@ -39,7 +38,6 @@ type CapabilityReconcileItem struct {
 	AllocationID       string
 	NodeID             string
 	NodeTarget         string
-	Attempt            int64
 	Dependencies       []*capabilityv1.CapabilityDependency
 	PendingGenerations map[string]int64
 	Attempts           int
@@ -49,7 +47,6 @@ type CapabilityReconcileItem struct {
 // capability gate. Dependencies retain the exact selected and transitive
 // evidence; Conditions describe the resulting allocation state.
 type CapabilityAdmission struct {
-	Attempt              int64
 	Dependencies         []*capabilityv1.CapabilityDependency
 	ConditionSet         *capabilityv1.CapabilityConditionSet
 	WorkspacePreparation *commonv1.WorkspacePreparationFacts
@@ -59,7 +56,6 @@ type CapabilityAdmission struct {
 // dependencies must equal the immutable create admission; only ConditionSet
 // may advance.
 type CapabilityReconciliation struct {
-	Attempt      int64
 	Dependencies []*capabilityv1.CapabilityDependency
 	ConditionSet *capabilityv1.CapabilityConditionSet
 }
@@ -110,7 +106,6 @@ type LifecycleRetryItem struct {
 	Reason             string    `json:"reason"`
 	NodeID             string    `json:"node_id"`
 	NodeTarget         string    `json:"node_target,omitempty"`
-	Attempt            int64     `json:"attempt"`
 	ReconcileAttempts  int       `json:"reconcile_attempts"`
 	LastReconcileError string    `json:"last_error,omitempty"`
 	NextRunAt          time.Time `json:"next_run_at"`

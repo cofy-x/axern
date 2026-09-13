@@ -21,7 +21,6 @@ type RunJSON struct {
 	Namespace            string                      `json:"namespace"`
 	EnvironmentID        string                      `json:"environment_id"`
 	AllocationID         string                      `json:"allocation_id,omitempty"`
-	Attempt              int64                       `json:"attempt,omitempty"`
 	Status               string                      `json:"status"`
 	Config               *ExecutionConfigJSON        `json:"config,omitempty"`
 	Labels               map[string]string           `json:"labels,omitempty"`
@@ -65,7 +64,6 @@ func NewRunJSON(run *runv1.Run) *RunJSON {
 		Namespace:            run.GetNamespace(),
 		EnvironmentID:        run.GetEnvironmentID(),
 		AllocationID:         run.GetAllocationID(),
-		Attempt:              run.GetAttempt(),
 		Status:               RunStatusLabel(run.GetStatus()),
 		Config:               NewExecutionConfigJSON(run.GetConfig()),
 		Labels:               cloneStringMap(run.GetLabels()),

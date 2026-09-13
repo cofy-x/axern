@@ -73,7 +73,7 @@ For repository development, `make verify-changed` is the normal fast feedback en
 ## Why Axern
 
 - **Sandbox as the primitive:** evaluation, training, data synthesis, coding workspaces, and agent tasks compose the same Run execution model.
-- **Durable control plane:** PostgreSQL-backed intent, placement, leases, attempt-fenced status, health, and cleanup state remain authoritative across process or node restarts.
+- **Durable control plane:** PostgreSQL-backed intent, placement, leases, allocation-scoped status, health, and cleanup state remain authoritative across process or node restarts.
 - **One production runtime:** runsc workloads use the same public APIs; OCI and Nydus image paths converge at the node runtime.
 - **Real data-plane access:** process streams, files, archives, SSH-compatible terminals, and reverse TCP tunnels are explicit allocation capabilities.
 - **Local-to-cluster continuity:** Docker Compose, kind, and the cloud-neutral Helm chart exercise the same component boundaries.

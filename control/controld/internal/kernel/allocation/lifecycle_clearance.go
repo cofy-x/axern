@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
 
 type LifecycleRetryClearanceInput struct {
 	AllocationID           string
-	AllocationStatus       string
+	AllocationState        string
 	RunStatus              string
 	HasActiveReservation   bool
 	HasActiveLease         bool
@@ -22,9 +23,9 @@ type LifecycleRetryClearance struct {
 }
 
 func EvaluateLifecycleRetryClearance(in LifecycleRetryClearanceInput) LifecycleRetryClearance {
-	allocationStatus := strings.TrimSpace(in.AllocationStatus)
-	if !IsEnded(ParseStatus(allocationStatus)) {
-		return blockedLifecycleRetryClearance("allocation status is %s", statusOrUnknown(allocationStatus))
+	allocationState := strings.TrimSpace(in.AllocationState)
+	if ParseLifecycleState(allocationState) != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED {
+		return blockedLifecycleRetryClearance("allocation lifecycle state is %s", statusOrUnknown(allocationState))
 	}
 	if in.HasActiveReservation {
 		return blockedLifecycleRetryClearance("active reservations")

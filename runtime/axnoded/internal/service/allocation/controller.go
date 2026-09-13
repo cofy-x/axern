@@ -35,10 +35,10 @@ type Options struct {
 	LangRuntime                 *langrtmanager.LangRTManager
 	Networking                  *servicenetworking.Coordinator
 	StartMetricSink             StartMetricSink
-	ReportStatus                func(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
+	ReportStatus                func(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
 	InventoryChanged            func()
 	RootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *langrtmanager.RootFS) error
-	PreActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.ManagedRuntimeHandler, string) error
+	PreActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.AllocationRuntimeHandler, string) error
 	Egress                      egress.Manager
 }
 
@@ -51,21 +51,21 @@ type Controller struct {
 	lrtManager                  *langrtmanager.LangRTManager
 	networking                  *servicenetworking.Coordinator
 	startMetricSink             StartMetricSink
-	reportStatus                func(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
+	reportStatus                func(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
 	inventoryChanged            func()
 	rootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *langrtmanager.RootFS) error
-	preActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.ManagedRuntimeHandler, string) error
+	preActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.AllocationRuntimeHandler, string) error
 	egress                      egress.Manager
 
-	stateMu          sync.RWMutex
-	allocationStates map[string]*allocationState
+	stateMu              sync.RWMutex
+	allocationStates     map[string]*allocationState
+	controlPlaneBindings map[string]*runtime.ControlPlaneAllocationBinding
 
 	allocationLifecycleLocks allocationKeyedLocks
 	recordMutationLocks      allocationKeyedLocks
 }
 
 type internalConformanceContextKey struct{}
-type nodeLocalStartContextKey struct{}
 
 // StartInternalConformance runs the node-owned runtime self-test through the
 // normal allocation workflow while carrying an unforgeable in-process marker.
@@ -77,20 +77,6 @@ func (h *Controller) StartInternalConformance(ctx context.Context, request *runt
 
 func IsInternalConformance(ctx context.Context) bool {
 	value, _ := ctx.Value(internalConformanceContextKey{}).(bool)
-	return value
-}
-
-// WithNodeLocalStart marks an in-process operator-owned sandbox start. The
-// marker is never represented in the lifecycle protobuf and therefore cannot
-// cross a gRPC boundary. Node-local starts still use the ordinary capability
-// admission and enforcement gates; the marker only selects their separate
-// durable reporting ownership.
-func WithNodeLocalStart(ctx context.Context) context.Context {
-	return context.WithValue(ctx, nodeLocalStartContextKey{}, true)
-}
-
-func IsNodeLocalStart(ctx context.Context) bool {
-	value, _ := ctx.Value(nodeLocalStartContextKey{}).(bool)
 	return value
 }
 
@@ -109,6 +95,7 @@ func NewController(options Options) *Controller {
 		preActivationCapabilityGate: options.PreActivationCapabilityGate,
 		egress:                      options.Egress,
 		allocationStates:            make(map[string]*allocationState),
+		controlPlaneBindings:        make(map[string]*runtime.ControlPlaneAllocationBinding),
 	}
 	if c.startMetricSink == nil {
 		c.startMetricSink = DefaultStartMetricSink{}
@@ -123,7 +110,7 @@ func (c *Controller) notifyInventoryChanged() {
 }
 
 func (c *Controller) Start(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
-	return c.startManagedContainer(ctx, request)
+	return c.startAllocation(ctx, request)
 }
 
 // LockAllocationLifecycle serializes the complete lifecycle contract for one
@@ -146,7 +133,7 @@ func (c *Controller) StartWithLifecycleHeld(ctx context.Context, request *runtim
 	if strings.TrimSpace(request.GetContainerID()) == "" {
 		return startErrorResponse("allocation id is required"), errord.ErrInvalidArgument
 	}
-	return c.startManagedContainerWithLifecycleHeld(ctx, request, false)
+	return c.startAllocationWithLifecycleHeld(ctx, request, false)
 }
 
 // ExistingActiveStartResponseWithLifecycleHeld resolves an idempotent replay
@@ -158,7 +145,26 @@ func (c *Controller) ExistingActiveStartResponseWithLifecycleHeld(ctx context.Co
 }
 
 func (c *Controller) Delete(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
-	return c.deleteManagedContainer(ctx, request)
+	return c.deleteAllocation(ctx, request)
+}
+
+func (c *Controller) DeleteControlPlane(ctx context.Context, request *runtime.DeleteRequest, nodeID string) (*runtime.DeleteResponse, error) {
+	unlockLifecycle := c.allocationLifecycleLocks.Lock(request.GetID())
+	defer unlockLifecycle()
+	if c.HasAllocation(request.GetID()) && !c.HasControlPlaneBinding(request.GetID()) {
+		return nil, fmt.Errorf("allocation %q has no control-plane binding", request.GetID())
+	}
+	if c.HasControlPlaneBinding(request.GetID()) && !c.ControlPlaneBindingMatches(request.GetID(), nodeID) {
+		return nil, fmt.Errorf("allocation %q is not bound to node %q", request.GetID(), strings.TrimSpace(nodeID))
+	}
+	response, err := c.deleteAllocationWithLifecycleHeld(ctx, request)
+	if err != nil {
+		return response, err
+	}
+	if err := c.ReleaseControlPlaneAllocation(request.GetID(), nodeID); err != nil {
+		return response, err
+	}
+	return response, nil
 }
 
 func (c *Controller) CleanupFailedStart(ctx context.Context, allocationID string) error {
@@ -286,9 +292,9 @@ func (c *Controller) sandboxNetworking() *servicenetworking.Coordinator {
 	return c.networking
 }
 
-func (c *Controller) reportStartRunningStatus(containerID string, attempt int64, observedAt time.Time) {
-	if c == nil || c.reportStatus == nil || attempt <= 0 || strings.TrimSpace(containerID) == "" {
+func (c *Controller) reportStartRunningStatus(containerID string, observedAt time.Time) {
+	if c == nil || c.reportStatus == nil || strings.TrimSpace(containerID) == "" {
 		return
 	}
-	c.reportStatus(containerID, attempt, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, 0, false, true, "", "", observedAt)
+	c.reportStatus(containerID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, 0, false, true, "", "", observedAt)
 }

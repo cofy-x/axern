@@ -52,7 +52,7 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_STATUS_RUNNING\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
+          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_LIFECYCLE_STATE_ACTIVE\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
           "refId": "A",
           "legendFormat": "running"
         }
@@ -129,7 +129,7 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_STATUS_RUNNING\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
+          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_LIFECYCLE_STATE_ACTIVE\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
           "refId": "A",
           "legendFormat": "cluster total"
         }

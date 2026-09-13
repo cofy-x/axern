@@ -48,7 +48,7 @@ func (q *CapabilityQueue) Claim(ctx context.Context, owner string, limit int, no
 			FROM candidates c WHERE q.allocation_id = c.allocation_id
 			RETURNING q.allocation_id, q.reconcile_attempts
 		)
-		SELECT c.allocation_id, a.node_id, n.node_target, a.attempt,
+		SELECT c.allocation_id, a.node_id, n.node_target,
 			jsonb_build_object('dependencies', COALESCE((
 				SELECT jsonb_agg(COALESCE(d.admitted_dependency, d.placement_dependency) ORDER BY p.capability_key_id)
 				FROM allocation_capability_reconcile_pending_keys p
@@ -75,7 +75,7 @@ func (q *CapabilityQueue) Claim(ctx context.Context, owner string, limit int, no
 	for rows.Next() {
 		var item allocationkernel.CapabilityReconcileItem
 		var dependencyPayload, generationPayload []byte
-		if err := rows.Scan(&item.AllocationID, &item.NodeID, &item.NodeTarget, &item.Attempt, &dependencyPayload, &generationPayload, &item.Attempts); err != nil {
+		if err := rows.Scan(&item.AllocationID, &item.NodeID, &item.NodeTarget, &dependencyPayload, &generationPayload, &item.Attempts); err != nil {
 			return nil, err
 		}
 		set := &capabilityv1.CapabilityDependencySet{}
@@ -220,8 +220,8 @@ func (q *CapabilityQueue) RecordConditions(ctx context.Context, item allocationk
 	if !leased {
 		return fmt.Errorf("record capability reconciliation for %q: invalid lease", item.AllocationID)
 	}
-	if reconciliation == nil || reconciliation.Attempt != item.Attempt || reconciliation.ConditionSet == nil {
-		return fmt.Errorf("record capability reconciliation for %q: attempt and full condition set are required", item.AllocationID)
+	if reconciliation == nil || reconciliation.ConditionSet == nil {
+		return fmt.Errorf("record capability reconciliation for %q: full condition set is required", item.AllocationID)
 	}
 	durableDependencies, err := LoadCapabilityDependencies(ctx, tx, item.AllocationID)
 	if err != nil {

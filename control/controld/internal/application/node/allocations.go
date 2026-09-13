@@ -11,7 +11,7 @@ import (
 )
 
 type AllocationControl interface {
-	BatchReportAllocationStatus(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationStatusObservation, now time.Time) ([]string, error)
+	BatchReportAllocationLifecycle(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationLifecycleObservation, now time.Time) ([]string, error)
 	BatchReportAllocationCapabilityConditions(ctx context.Context, nodeID string, reports []*controlnodev1.AllocationCapabilityConditionReport, now time.Time) error
 	BatchReportAllocationMemoryObservations(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationMemoryObservation, now time.Time) error
 	ReconcileNodeInventory(ctx context.Context, snapshot allocationkernel.NodeInventorySnapshot, now time.Time) error
@@ -42,8 +42,8 @@ type authoritativeAllocationAccess struct {
 	runStore RunAllocationStore
 }
 
-func (n authoritativeAllocationAccess) BatchReportAllocationStatus(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationStatusObservation, now time.Time) ([]string, error) {
-	if err := n.runStore.BatchReportAllocationStatus(ctx, nodeID, observations, now); err != nil {
+func (n authoritativeAllocationAccess) BatchReportAllocationLifecycle(ctx context.Context, nodeID string, observations []*controlnodev1.AllocationLifecycleObservation, now time.Time) ([]string, error) {
+	if err := n.runStore.BatchReportAllocationLifecycle(ctx, nodeID, observations, now); err != nil {
 		return nil, err
 	}
 	return nil, nil

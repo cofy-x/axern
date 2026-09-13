@@ -31,7 +31,7 @@ These paths are inside the node runtime environment, such as the compose `node` 
 | `/run/egressd/egressd.sock`         | axnoded-to-egressd policy lifecycle API socket               |
 | `/var/lib/axnoded`                  | axnoded runtime state, store, rootfs, filestore              |
 | `/var/lib/imagemgr`                 | imagemgr state, logs, mount records, imagefsd daemon dirs    |
-| `/var/lib/egressd`                  | egressd prepared policy records and recovery state           |
+| `/var/lib/egressd`                  | egressd authoritative prepared policy records                |
 | `/var/log/axnoded/axnoded.log`      | axnoded daemon log                                           |
 | `/var/log/axnoded/node-tunneld.log` | node-tunneld supervisor log                                  |
 

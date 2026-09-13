@@ -107,7 +107,7 @@ func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]
 		},
 		LangRuntime: lrtManager,
 		Networking:  networking,
-		PreActivationCapabilityGate: func(context.Context, *runtime.StartRequest, contract.ManagedRuntimeHandler, string) error {
+		PreActivationCapabilityGate: func(context.Context, *runtime.StartRequest, contract.AllocationRuntimeHandler, string) error {
 			return nil
 		},
 	})

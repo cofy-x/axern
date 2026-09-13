@@ -4,7 +4,7 @@ import "testing"
 
 func TestNewSnapshotStatusAndTruncation(t *testing.T) {
 	snapshot := NewSnapshot(Counts{ActiveReservations: 3}, []Issue{{
-		Code:     IssueActiveReservationOnEndedAllocation,
+		Code:     IssueActiveReservationOnReleasedAllocation,
 		Severity: SeverityError,
 	}}, true)
 

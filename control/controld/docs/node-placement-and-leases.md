@@ -38,7 +38,7 @@ Run-owned node lifecycle calls are repaired through the durable `allocation_reco
 
 Capability loss uses a separate `allocation_capability_reconcile_queue`, so a capability transition cannot overwrite create/delete lifecycle intent. Axnoded first performs allocation-specific verification and is the only component that owns fail-stop deletion for capability loss. Controld's durable worker is a restart and missed-report safety net: it requests reconciliation and polls until normal lifecycle reporting confirms deletion, but does not race axnoded with a second delete. `ADMISSION_ONLY` dependencies never enter this runtime queue; the indexed transition transaction queues only `DEGRADE` and `FAIL_STOP` dependencies. Provider evidence, catalog loss policy, and the bounded verification sequence are defined by the canonical [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md) contract rather than duplicated here.
 
-Allocation capability conditions use a separate full-set report with a monotonic revision fenced by allocation attempt. Controld ignores reports for a different attempt and stale or duplicate revisions, then atomically projects accepted exact-key sets from normalized condition rows. The report cannot mutate allocation lifecycle state, exit code, Run status, or the primary message; only normal lifecycle and exit reports own those fields.
+Allocation capability conditions use a separate full-set report with a monotonic revision scoped to the exact Allocation ID. Controld ignores reports for unknown Allocations, the wrong node, and stale or duplicate revisions, then atomically projects accepted exact-key sets from normalized condition rows. The report cannot mutate allocation lifecycle state, exit code, Run status, or the primary message; only normal lifecycle and exit reports own those fields.
 
 ## Reconciler Health
 
@@ -65,7 +65,7 @@ The debug `/consistencyz` endpoint is also read-only. It scans durable Postgres 
 
 The product-facing admin read model exposes the same consistency snapshot through `axern admin consistency check` and folds it with allocation lifecycle retry counts, active-node fleet health, and reconcile health in `axern admin reliability check`. Smoke tests use the typed admin gRPC path rather than debug HTTP.
 
-Lifecycle retry writes are admin operations, not debug HTTP operations. The queue coordinates node lifecycle convergence with allocation status, reservations, and lease cleanup, so every write must go through the owning Run controller or an audited admin operation and its state-transition rules.
+Lifecycle retry writes are admin operations, not debug HTTP operations. The queue coordinates node lifecycle convergence with allocation lifecycle, reservations, and lease cleanup, so every write must go through the owning Run controller or an audited admin operation and its state-transition rules.
 
 The typed gRPC admin surface is:
 
@@ -124,7 +124,7 @@ The debug `/resourcez` endpoint also reports the current global resource admissi
 
 ## Inventory Reconciliation
 
-`BatchReportAllocationStatus` closes the control-plane state loop when nodes report start, exit, or failure observations. Axnoded coalesces the latest observation per Allocation before sending; controld authenticates the node once, resolves ownership once, and projects each affected Run once per batch.
+`BatchReportAllocationLifecycle` closes the control-plane state loop when nodes report start, exit, or failure observations. Axnoded coalesces the latest observation per Allocation before sending; controld authenticates the node once, resolves ownership once, and projects each affected Run once per batch.
 
 `ReportNode` closes the complementary inventory loop. Axnoded summaries carry both running allocation ids and the broader set of active locally known allocation ids. `controld` uses the active set to detect allocations that disappeared from a node without racing legitimate `STARTING` allocations that have not reached `RUNNING` yet.
 

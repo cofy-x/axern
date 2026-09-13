@@ -97,7 +97,7 @@ func (f *fakeSandboxService) Version(context.Context, *runtimeapi.VersionRequest
 	return nil, nil
 }
 func (f *fakeSandboxService) Ready() bool { return f.ready }
-func (f *fakeSandboxService) ReportAllocationStatus(string, int64, commonv1.AllocationStatus, int32, bool, bool, string, string, time.Time) {
+func (f *fakeSandboxService) ReportAllocationLifecycle(string, int64, commonv1.AllocationLifecycleState, int32, bool, bool, string, string, time.Time) {
 }
 func (f *fakeSandboxService) RuntimeStatuses() []service.RuntimeStatus { return f.runtimeStatuses }
 func (f *fakeSandboxService) NodeInventory() (nodeinventory.NodeInventorySnapshot, bool) {
@@ -206,7 +206,7 @@ func TestHTTPControlPlaneReporterHealth(t *testing.T) {
 	svc := &fakeSandboxService{
 		controlPlaneHealth: service.ControlPlaneReporterHealth{
 			Enabled: true,
-			AllocationStatus: service.AllocationStatusReporterHealth{
+			AllocationLifecycle: service.AllocationLifecycleReporterHealth{
 				Status:              "retrying",
 				Pending:             3,
 				ConsecutiveFailures: 2,
@@ -227,7 +227,7 @@ func TestHTTPControlPlaneReporterHealth(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&health); err != nil {
 		t.Fatalf("decode health: %v", err)
 	}
-	if !health.Enabled || health.AllocationStatus.Status != "retrying" || health.AllocationStatus.Pending != 3 {
+	if !health.Enabled || health.AllocationLifecycle.Status != "retrying" || health.AllocationLifecycle.Pending != 3 {
 		t.Fatalf("control-plane health = %#v", health)
 	}
 

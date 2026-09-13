@@ -25,10 +25,9 @@ const (
 	inventoryChangeDebounce = 25 * time.Millisecond
 )
 
-type AllocationStatusReport struct {
+type AllocationLifecycleReport struct {
 	AllocationID     string
-	Attempt          int64
-	Status           commonv1.AllocationStatus
+	State            commonv1.AllocationLifecycleState
 	ExitCode         int32
 	ExitCodeKnown    bool
 	Ready            bool
@@ -40,7 +39,6 @@ type AllocationStatusReport struct {
 
 type AllocationCapabilityConditionReport struct {
 	AllocationID string
-	Attempt      int64
 	ConditionSet *capabilityv1.CapabilityConditionSet
 }
 
@@ -59,11 +57,11 @@ type Reporter struct {
 	summaryBuilder       SummaryBuilder
 	refreshInventory     func()
 	control              NodeControlClientProvider
-	statusBatcher        *allocationStatusBatcher
-	statusBatcherOnce    sync.Once
+	lifecycleBatcher     *allocationLifecycleBatcher
+	lifecycleBatcherOnce sync.Once
 	conditionBatcher     *allocationConditionBatcher
 	conditionBatcherOnce sync.Once
-	statusOutbox         *AllocationStatusOutbox
+	lifecycleOutbox      *AllocationLifecycleOutbox
 
 	stopCh    chan struct{}
 	changeCh  chan struct{}
@@ -84,7 +82,7 @@ func NewReporter(
 	runtimeNames RuntimeNamesFunc,
 	snapshot SnapshotFunc,
 	summaryBuilder SummaryBuilder,
-	statusOutbox *AllocationStatusOutbox,
+	lifecycleOutbox *AllocationLifecycleOutbox,
 ) *Reporter {
 	target = strings.TrimSpace(target)
 	nodeID = strings.TrimSpace(nodeID)
@@ -97,20 +95,20 @@ func NewReporter(
 		return nil
 	}
 	reporter := &Reporter{
-		target:         target,
-		nodeID:         nodeID,
-		nodeTarget:     strings.TrimSpace(nodeTarget),
-		nodeAuthToken:  strings.TrimSpace(nodeAuthToken),
-		interval:       interval,
-		runtimeNames:   runtimeNames,
-		snapshot:       snapshot,
-		summaryBuilder: summaryBuilder,
-		statusOutbox:   statusOutbox,
-		control:        control,
-		stopCh:         make(chan struct{}),
-		changeCh:       make(chan struct{}, 1),
+		target:          target,
+		nodeID:          nodeID,
+		nodeTarget:      strings.TrimSpace(nodeTarget),
+		nodeAuthToken:   strings.TrimSpace(nodeAuthToken),
+		interval:        interval,
+		runtimeNames:    runtimeNames,
+		snapshot:        snapshot,
+		summaryBuilder:  summaryBuilder,
+		lifecycleOutbox: lifecycleOutbox,
+		control:         control,
+		stopCh:          make(chan struct{}),
+		changeCh:        make(chan struct{}, 1),
 	}
-	reporter.statusBatcher = newAllocationStatusBatcher(reporter.sendAllocationStatusBatch)
+	reporter.lifecycleBatcher = newAllocationLifecycleBatcher(reporter.sendAllocationLifecycleBatch)
 	reporter.conditionBatcher = newAllocationConditionBatcher(reporter.sendAllocationConditionBatch)
 	return reporter
 }
@@ -123,7 +121,7 @@ func (r *Reporter) Start() {
 		if r.changeCh == nil {
 			r.changeCh = make(chan struct{}, 1)
 		}
-		r.ensureStatusBatcher().Start()
+		r.ensureLifecycleBatcher().Start()
 		r.ensureConditionBatcher().Start()
 		r.wg.Add(1)
 		go func() {
@@ -195,7 +193,7 @@ func (r *Reporter) Stop() {
 	r.stopOnce.Do(func() {
 		close(r.stopCh)
 		r.wg.Wait()
-		r.ensureStatusBatcher().Stop()
+		r.ensureLifecycleBatcher().Stop()
 		r.ensureConditionBatcher().Stop()
 		if r.control != nil {
 			if err := r.control.Close(); err != nil {
@@ -322,17 +320,17 @@ func (r *Reporter) sendAllocationMemoryBatch(ctx context.Context, observations [
 	return err
 }
 
-func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) error {
+func (r *Reporter) ReportAllocationLifecycle(report AllocationLifecycleReport) error {
 	if r == nil {
-		return fmt.Errorf("allocation status reporter is required")
+		return fmt.Errorf("allocation lifecycle reporter is required")
 	}
-	observation, err := AllocationStatusObservationFromReport(report)
+	observation, err := AllocationLifecycleObservationFromReport(report)
 	if err != nil {
 		return err
 	}
-	terminal := allocationStatusEnded(observation.GetStatus())
+	terminal := allocationLifecycleStopped(observation.GetState())
 	if terminal {
-		current, err := r.statusOutbox.Persist(observation)
+		current, err := r.lifecycleOutbox.Persist(observation)
 		if err != nil {
 			return err
 		}
@@ -340,29 +338,28 @@ func (r *Reporter) ReportAllocationStatus(report AllocationStatusReport) error {
 			return nil
 		}
 	}
-	accepted, err := r.ensureStatusBatcher().Enqueue(observation)
+	accepted, err := r.ensureLifecycleBatcher().Enqueue(observation)
 	if err != nil {
 		return err
 	}
 	if terminal && !accepted {
-		// A newer attempt already owns both the queue and its own durable proof.
-		// The obsolete record must not survive forever merely because it was
-		// correctly rejected by the coalescing policy.
-		return r.statusOutbox.Acknowledge([]*nodev1.AllocationStatusObservation{observation})
+		// Another immutable terminal proof already owns the queue. The rejected
+		// record must not survive forever.
+		return r.lifecycleOutbox.Acknowledge([]*nodev1.AllocationLifecycleObservation{observation})
 	}
 	return nil
 }
 
-// AllocationStatusObservationFromReport is the single shaping contract for
+// AllocationLifecycleObservationFromReport is the single shaping contract for
 // live reports and terminal outbox recovery.
-func AllocationStatusObservationFromReport(report AllocationStatusReport) (*nodev1.AllocationStatusObservation, error) {
+func AllocationLifecycleObservationFromReport(report AllocationLifecycleReport) (*nodev1.AllocationLifecycleObservation, error) {
 	allocationID := strings.TrimSpace(report.AllocationID)
-	if allocationID == "" || report.Attempt <= 0 || !allocationStatusValid(report.Status) {
-		return nil, fmt.Errorf("allocation status report identity is invalid")
+	if allocationID == "" || !allocationLifecycleObservationValid(report.State) {
+		return nil, fmt.Errorf("allocation lifecycle report identity is invalid")
 	}
 	ready := report.Ready
 	readinessMessage := validProtocolString(strings.TrimSpace(report.ReadinessMessage))
-	if report.Status != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING {
+	if report.State != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE {
 		ready = false
 		readinessMessage = ""
 	}
@@ -372,12 +369,11 @@ func AllocationStatusObservationFromReport(report AllocationStatusReport) (*node
 	}
 	observedAtProto := timestamppb.New(observedAt)
 	if err := observedAtProto.CheckValid(); err != nil {
-		return nil, fmt.Errorf("allocation status observation time is invalid: %w", err)
+		return nil, fmt.Errorf("allocation lifecycle observation time is invalid: %w", err)
 	}
-	return &nodev1.AllocationStatusObservation{
+	return &nodev1.AllocationLifecycleObservation{
 		AllocationID:     allocationID,
-		Attempt:          report.Attempt,
-		Status:           report.Status,
+		State:            report.State,
 		ExitCode:         report.ExitCode,
 		ExitCodeKnown:    report.ExitCodeKnown,
 		Ready:            ready,
@@ -388,23 +384,23 @@ func AllocationStatusObservationFromReport(report AllocationStatusReport) (*node
 	}, nil
 }
 
-// ReplayDurableAllocationStatuses restores the process-local batching queue
+// ReplayDurableAllocationLifecycles restores the process-local batching queue
 // from the node-state outbox before inventory publication begins.
-func (r *Reporter) ReplayDurableAllocationStatuses() error {
-	if r == nil || r.statusOutbox == nil {
+func (r *Reporter) ReplayDurableAllocationLifecycles() error {
+	if r == nil || r.lifecycleOutbox == nil {
 		return nil
 	}
-	observations, err := r.statusOutbox.Replay()
+	observations, err := r.lifecycleOutbox.Replay()
 	if err != nil {
 		return err
 	}
 	for _, observation := range observations {
-		accepted, err := r.ensureStatusBatcher().Enqueue(observation)
+		accepted, err := r.ensureLifecycleBatcher().Enqueue(observation)
 		if err != nil {
-			return fmt.Errorf("replay terminal allocation status %s: %w", observation.GetAllocationID(), err)
+			return fmt.Errorf("replay terminal allocation lifecycle %s: %w", observation.GetAllocationID(), err)
 		}
 		if !accepted {
-			if err := r.statusOutbox.Acknowledge([]*nodev1.AllocationStatusObservation{observation}); err != nil {
+			if err := r.lifecycleOutbox.Acknowledge([]*nodev1.AllocationLifecycleObservation{observation}); err != nil {
 				return err
 			}
 		}
@@ -414,43 +410,43 @@ func (r *Reporter) ReplayDurableAllocationStatuses() error {
 
 func (r *Reporter) ReportAllocationCapabilityConditions(report AllocationCapabilityConditionReport) {
 	allocationID := strings.TrimSpace(report.AllocationID)
-	if r == nil || allocationID == "" || report.Attempt <= 0 || report.ConditionSet == nil || report.ConditionSet.GetRevision() <= 0 {
+	if r == nil || allocationID == "" || report.ConditionSet == nil || report.ConditionSet.GetRevision() <= 0 {
 		return
 	}
 	r.ensureConditionBatcher().Enqueue(&nodev1.AllocationCapabilityConditionReport{
-		AllocationID: allocationID, Attempt: report.Attempt,
+		AllocationID: allocationID,
 		ConditionSet: proto.Clone(report.ConditionSet).(*capabilityv1.CapabilityConditionSet),
 	})
 }
 
-func (r *Reporter) AllocationStatusHealth() AllocationStatusReporterHealth {
+func (r *Reporter) AllocationLifecycleHealth() AllocationLifecycleReporterHealth {
 	if r == nil {
-		return AllocationStatusReporterHealth{Status: "disabled"}
+		return AllocationLifecycleReporterHealth{Status: "disabled"}
 	}
-	return r.ensureStatusBatcher().Health()
+	return r.ensureLifecycleBatcher().Health()
 }
 
-// UnacknowledgedAllocationStatusIDs exposes the causal reporting barrier used
+// UnacknowledgedAllocationLifecycleIDs exposes the causal reporting barrier used
 // by node inventory. An allocation remains locally active until controld has
 // acknowledged every queued or in-flight lifecycle observation for it.
-func (r *Reporter) UnacknowledgedAllocationStatusIDs() []string {
+func (r *Reporter) UnacknowledgedAllocationLifecycleIDs() []string {
 	if r == nil {
 		return nil
 	}
-	return r.ensureStatusBatcher().UnacknowledgedAllocationIDs()
+	return r.ensureLifecycleBatcher().UnacknowledgedAllocationIDs()
 }
 
 func validProtocolString(value string) string {
 	return strings.ToValidUTF8(value, "\uFFFD")
 }
 
-func (r *Reporter) ensureStatusBatcher() *allocationStatusBatcher {
-	r.statusBatcherOnce.Do(func() {
-		if r.statusBatcher == nil {
-			r.statusBatcher = newAllocationStatusBatcher(r.sendAllocationStatusBatch)
+func (r *Reporter) ensureLifecycleBatcher() *allocationLifecycleBatcher {
+	r.lifecycleBatcherOnce.Do(func() {
+		if r.lifecycleBatcher == nil {
+			r.lifecycleBatcher = newAllocationLifecycleBatcher(r.sendAllocationLifecycleBatch)
 		}
 	})
-	return r.statusBatcher
+	return r.lifecycleBatcher
 }
 
 func (r *Reporter) ensureConditionBatcher() *allocationConditionBatcher {
@@ -479,11 +475,11 @@ func (r *Reporter) sendAllocationConditionBatch(ctx context.Context, reports []*
 	return err
 }
 
-func (r *Reporter) sendAllocationStatusBatch(ctx context.Context, observations []*nodev1.AllocationStatusObservation) error {
+func (r *Reporter) sendAllocationLifecycleBatch(ctx context.Context, observations []*nodev1.AllocationLifecycleObservation) error {
 	if len(observations) == 0 {
 		return nil
 	}
-	req := &nodev1.BatchReportAllocationStatusRequest{
+	req := &nodev1.BatchReportAllocationLifecycleRequest{
 		NodeID:        r.nodeID,
 		NodeAuthToken: r.nodeAuthToken,
 		Observations:  observations,
@@ -495,7 +491,7 @@ func (r *Reporter) sendAllocationStatusBatch(ctx context.Context, observations [
 			attribute.Int("axern.batch_size", len(observations)),
 		},
 		MetricAttrs: []attribute.KeyValue{
-			attribute.String(sdkobs.AttrOperation, "batch_report_allocation_status"),
+			attribute.String(sdkobs.AttrOperation, "batch_report_allocation_lifecycle"),
 		},
 		Counter:  sandboxobs.MetricControlPlaneReportTotal,
 		Duration: sandboxobs.MetricControlPlaneReportDuration,
@@ -504,26 +500,26 @@ func (r *Reporter) sendAllocationStatusBatch(ctx context.Context, observations [
 	defer func() { op.End(opErr) }()
 	started := time.Now()
 	if err := r.withClient(ctx, func(ctx context.Context, client nodev1.NodeControlClient) error {
-		_, err := client.BatchReportAllocationStatus(ctx, req)
+		_, err := client.BatchReportAllocationLifecycle(ctx, req)
 		return err
 	}); err != nil {
-		op.SetErrorStatus("batch report allocation status")
+		op.SetErrorStatus("batch report allocation lifecycle")
 		opErr = err
-		metrics.RecordControlPlaneRPC("batch_report_allocation_status", "error")
-		metrics.RecordControlPlaneRPCDuration("batch_report_allocation_status", "error", time.Since(started).Seconds())
-		logrus.WithError(err).Warn("control-plane allocation status batch failed")
+		metrics.RecordControlPlaneRPC("batch_report_allocation_lifecycle", "error")
+		metrics.RecordControlPlaneRPCDuration("batch_report_allocation_lifecycle", "error", time.Since(started).Seconds())
+		logrus.WithError(err).Warn("control-plane allocation lifecycle batch failed")
 		return err
 	}
-	if err := r.statusOutbox.Acknowledge(observations); err != nil {
-		op.SetErrorStatus("acknowledge allocation status outbox")
+	if err := r.lifecycleOutbox.Acknowledge(observations); err != nil {
+		op.SetErrorStatus("acknowledge allocation lifecycle outbox")
 		opErr = err
-		metrics.RecordControlPlaneRPC("batch_report_allocation_status", "error")
-		metrics.RecordControlPlaneRPCDuration("batch_report_allocation_status", "error", time.Since(started).Seconds())
-		logrus.WithError(err).Warn("control-plane allocation status outbox acknowledgement failed")
+		metrics.RecordControlPlaneRPC("batch_report_allocation_lifecycle", "error")
+		metrics.RecordControlPlaneRPCDuration("batch_report_allocation_lifecycle", "error", time.Since(started).Seconds())
+		logrus.WithError(err).Warn("control-plane allocation lifecycle outbox acknowledgement failed")
 		return err
 	}
-	metrics.RecordControlPlaneRPC("batch_report_allocation_status", "ok")
-	metrics.RecordControlPlaneRPCDuration("batch_report_allocation_status", "ok", time.Since(started).Seconds())
+	metrics.RecordControlPlaneRPC("batch_report_allocation_lifecycle", "ok")
+	metrics.RecordControlPlaneRPCDuration("batch_report_allocation_lifecycle", "ok", time.Since(started).Seconds())
 	return nil
 }
 

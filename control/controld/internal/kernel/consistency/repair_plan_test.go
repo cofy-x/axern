@@ -12,9 +12,9 @@ func TestRepairPlanForIssue(t *testing.T) {
 		wantTargetID   string
 	}{
 		{
-			name: "reservation ended allocation",
+			name: "reservation released allocation",
 			issue: Issue{
-				Code:         IssueActiveReservationOnEndedAllocation,
+				Code:         IssueActiveReservationOnReleasedAllocation,
 				AllocationID: "alloc-b",
 				RunID:        "run-ended",
 			},

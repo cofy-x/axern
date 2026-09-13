@@ -103,30 +103,30 @@ func TestLoadAllocationStatesRejectsMissingAtomicLaunchProof(t *testing.T) {
 	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
 		"runsc": runtimetest.NewFakeRuntimeHandler(),
 	}, store)
-	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{ID: allocationID, RuntimeHandler: "runsc"})
+	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
 	time.Sleep(100 * time.Millisecond)
 	if err := fixture.controller.loadAllocationStates(map[string]struct{}{allocationID: {}}); err == nil {
 		t.Fatal("loadAllocationStates() accepted a live allocation without atomic launch verification")
 	}
 }
 
-func TestValidateRecoveredManagedAllocationRequiresDurableCapabilityConditionSet(t *testing.T) {
+func TestValidateRecoveredAllocationRequiresDurableCapabilityConditionSet(t *testing.T) {
 	now := time.Now().UTC()
 	manifest := &apipb.AllocationEnforcementManifest{
-		RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/managed-condition-recovery",
+		RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/condition-recovery",
 		CreatedAtUnixNano: now.UnixNano(),
 	}
-	verification, err := newLaunchVerification(manifest, nil, nil, nil, now, now)
+	verification, err := newLaunchVerification(manifest, nil, nil, now, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	record := &apipb.AllocationState{
-		AllocationID: "managed-condition-recovery", AllocationAttempt: 1,
+		AllocationID:            "condition-recovery",
 		AllocationRequestDigest: testAllocationRequestDigest,
 		EnforcementManifest:     manifest, LaunchVerification: verification,
 	}
 	if err := validateRecoveredCapabilityState(record, now); err == nil {
-		t.Fatal("validateRecoveredCapabilityState() accepted a managed allocation without a condition set")
+		t.Fatal("validateRecoveredCapabilityState() accepted an allocation without a condition set")
 	}
 	record.CapabilityConditions = &capabilityv1.CapabilityConditionSet{
 		Revision: 1, ObservedAt: timestamppb.New(now),
@@ -136,7 +136,7 @@ func TestValidateRecoveredManagedAllocationRequiresDurableCapabilityConditionSet
 	}
 	record.AllocationRequestDigest = ""
 	if err := validateRecoveredCapabilityState(record, now); err == nil {
-		t.Fatal("validateRecoveredCapabilityState() accepted a managed allocation without a request digest")
+		t.Fatal("validateRecoveredCapabilityState() accepted an allocation without a request digest")
 	}
 	record.AllocationRequestDigest = testAllocationRequestDigest
 	if err := validateRecoveredCapabilityState(record, now); err != nil {
@@ -144,11 +144,11 @@ func TestValidateRecoveredManagedAllocationRequiresDurableCapabilityConditionSet
 	}
 	record.CapabilityAdmissionConditions = nil
 	if err := validateRecoveredCapabilityState(record, now); err == nil {
-		t.Fatal("validateRecoveredCapabilityState() accepted a managed allocation without sealed create proof")
+		t.Fatal("validateRecoveredCapabilityState() accepted an allocation without sealed create proof")
 	}
 }
 
-func TestNewLaunchVerificationBindsEgressProof(t *testing.T) {
+func TestNewLaunchVerificationBindsVerifiedEgressCapability(t *testing.T) {
 	now := time.Now().UTC()
 	manifest := &apipb.AllocationEnforcementManifest{
 		RuntimeName: "runsc", BundlePath: "/var/lib/axnoded/root/containers/network-policy",
@@ -158,14 +158,8 @@ func TestNewLaunchVerificationBindsEgressProof(t *testing.T) {
 	dependencies := []*capabilityv1.CapabilityDependency{{
 		Key: key, LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP,
 	}}
-	if _, err := newLaunchVerification(manifest, []*capabilityv1.CapabilityKey{key}, dependencies, nil, now, now); err == nil {
-		t.Fatal("newLaunchVerification() accepted strict egress without a prepared policy proof")
-	}
-	proof := &apipb.AllocationEgressPolicyProof{
-		SandboxIp: "198.19.0.2", PolicyDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ExecutionRevision: 1,
-	}
-	if _, err := newLaunchVerification(manifest, []*capabilityv1.CapabilityKey{key}, dependencies, proof, now, now); err != nil {
-		t.Fatalf("newLaunchVerification() rejected bound strict egress proof: %v", err)
+	if _, err := newLaunchVerification(manifest, []*capabilityv1.CapabilityKey{key}, dependencies, now, now); err != nil {
+		t.Fatalf("newLaunchVerification() rejected verified strict egress capability: %v", err)
 	}
 }
 
@@ -178,7 +172,7 @@ func TestLoadAllocationStatesRestoresLiveContainerMountOwnership(t *testing.T) {
 	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
 		"runsc": runtimetest.NewFakeRuntimeHandler(),
 	}, store)
-	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{ID: allocationID, RuntimeHandler: "runsc"})
+	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
 	time.Sleep(100 * time.Millisecond)
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{imageURL: filepath.Join(t.TempDir(), "rootfs")}}
 	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
@@ -236,7 +230,7 @@ func TestRestoreAllocationStateSkipsDestructiveReconcileAfterLiveRecoveryFailure
 	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
 		"runsc": runtimetest.NewFakeRuntimeHandler(),
 	}, store)
-	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{ID: allocationID, RuntimeHandler: "runsc"})
+	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
 	time.Sleep(100 * time.Millisecond)
 	mounter := &imageMountTestMounter{mountErr: errors.New("imagemgr unavailable")}
 	fixture.lrtManager = langruntime.NewLanguageRuntimeManager(mounter)
@@ -262,7 +256,7 @@ func TestLoadAllocationStatesRetainsPartialRecoveryForLiveContainer(t *testing.T
 	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
 		"runsc": runtimetest.NewFakeRuntimeHandler(),
 	}, store)
-	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{ID: allocationID, RuntimeHandler: "runsc"})
+	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
 	time.Sleep(100 * time.Millisecond)
 	mounter := &imageMountTestMounter{
 		imagePaths: map[string]string{firstImage: filepath.Join(t.TempDir(), "rootfs")},
@@ -346,8 +340,8 @@ func TestLoadAllocationStatesIsolatesCorruptRecordAndRestoresValidRecord(t *test
 	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{
 		"runsc": runtimetest.NewFakeRuntimeHandler(),
 	}, store)
-	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{ID: allocationID, RuntimeHandler: "runsc"})
-	fixture.manager.StoreMetadata("corrupt-allocation", &apipb.ContainerMetadata{ID: "corrupt-allocation", RuntimeHandler: "runsc"})
+	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
+	fixture.manager.StoreMetadata("corrupt-allocation", &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
 	time.Sleep(100 * time.Millisecond)
 	if err := fixture.controller.loadAllocationStates(map[string]struct{}{allocationID: {}, "corrupt-allocation": {}}); err == nil {
 		t.Fatal("loadAllocationStates() succeeded with a corrupt record")

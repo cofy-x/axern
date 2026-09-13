@@ -151,21 +151,19 @@ CREATE TABLE allocations (
 	allocation_id TEXT PRIMARY KEY,
 	run_id TEXT NOT NULL UNIQUE REFERENCES runs(run_id) ON DELETE CASCADE,
 	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE RESTRICT,
-	attempt BIGINT NOT NULL DEFAULT 1,
-	status TEXT NOT NULL,
-	config JSONB NOT NULL,
+	lifecycle_state TEXT NOT NULL,
 	workspace_preparation JSONB NOT NULL DEFAULT 'null'::jsonb,
-	version BIGINT NOT NULL DEFAULT 1,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
 	node_active_at TIMESTAMPTZ,
-	exit_code INTEGER NOT NULL DEFAULT 0,
-	exit_code_known BOOLEAN NOT NULL DEFAULT FALSE,
-	diagnostic_code TEXT NOT NULL DEFAULT 'WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED',
-	message TEXT NOT NULL DEFAULT '',
-	UNIQUE (allocation_id, node_id),
-	UNIQUE (allocation_id, attempt),
-	CHECK (attempt > 0)
+	CHECK (lifecycle_state IN (
+		'ALLOCATION_LIFECYCLE_STATE_BOUND',
+		'ALLOCATION_LIFECYCLE_STATE_STARTING',
+		'ALLOCATION_LIFECYCLE_STATE_ACTIVE',
+		'ALLOCATION_LIFECYCLE_STATE_RELEASING',
+		'ALLOCATION_LIFECYCLE_STATE_RELEASED'
+	)),
+	UNIQUE (allocation_id, node_id)
 );
 
 CREATE TABLE node_capability_transitions (
@@ -204,26 +202,22 @@ CREATE TABLE allocation_capability_dependencies (
 
 CREATE TABLE allocation_capability_admissions (
 	allocation_id TEXT PRIMARY KEY,
-	allocation_attempt BIGINT NOT NULL,
 	dependency_set_digest TEXT NOT NULL,
 	admitted_at TIMESTAMPTZ NOT NULL,
-	FOREIGN KEY (allocation_id, allocation_attempt)
-		REFERENCES allocations(allocation_id, attempt) ON DELETE CASCADE,
-	CHECK (allocation_attempt > 0),
+	FOREIGN KEY (allocation_id)
+		REFERENCES allocations(allocation_id) ON DELETE CASCADE,
 	CHECK (dependency_set_digest ~ '^sha256:[0-9a-f]{64}$')
 );
 
 CREATE TABLE allocation_capability_condition_sets (
 	allocation_id TEXT PRIMARY KEY,
-	allocation_attempt BIGINT NOT NULL,
 	revision BIGINT NOT NULL,
 	payload_digest TEXT NOT NULL,
 	observed_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
-	UNIQUE (allocation_id, allocation_attempt, revision),
-	FOREIGN KEY (allocation_id, allocation_attempt)
-		REFERENCES allocations(allocation_id, attempt) ON DELETE CASCADE,
-	CHECK (allocation_attempt > 0),
+	UNIQUE (allocation_id, revision),
+	FOREIGN KEY (allocation_id)
+		REFERENCES allocations(allocation_id) ON DELETE CASCADE,
 	CHECK (revision > 0),
 	CHECK (payload_digest ~ '^sha256:[0-9a-f]{64}$')
 );
@@ -231,7 +225,6 @@ CREATE TABLE allocation_capability_condition_sets (
 CREATE TABLE allocation_capability_conditions (
 	allocation_id TEXT NOT NULL,
 	capability_key_id TEXT NOT NULL,
-	allocation_attempt BIGINT NOT NULL,
 	condition_revision BIGINT NOT NULL,
 	observed_at TIMESTAMPTZ NOT NULL,
 	condition JSONB NOT NULL,
@@ -239,15 +232,13 @@ CREATE TABLE allocation_capability_conditions (
 	PRIMARY KEY (allocation_id, capability_key_id),
 	FOREIGN KEY (allocation_id, capability_key_id)
 		REFERENCES allocation_capability_dependencies(allocation_id, capability_key_id) ON DELETE CASCADE,
-	FOREIGN KEY (allocation_id, allocation_attempt, condition_revision)
-		REFERENCES allocation_capability_condition_sets(allocation_id, allocation_attempt, revision) ON DELETE CASCADE,
-	CHECK (allocation_attempt > 0),
+	FOREIGN KEY (allocation_id, condition_revision)
+		REFERENCES allocation_capability_condition_sets(allocation_id, revision) ON DELETE CASCADE,
 	CHECK (condition_revision > 0)
 );
 
 CREATE TABLE allocation_memory_admission_evidence (
 	allocation_id TEXT PRIMARY KEY,
-	allocation_attempt BIGINT NOT NULL,
 	node_id TEXT NOT NULL,
 	sandbox_memory_request_bytes BIGINT NOT NULL,
 	sandbox_memory_limit_bytes BIGINT NOT NULL,
@@ -255,11 +246,10 @@ CREATE TABLE allocation_memory_admission_evidence (
 	summary_collected_at TIMESTAMPTZ NOT NULL,
 	node_local_commitment_bytes BIGINT NOT NULL,
 	admitted_at TIMESTAMPTZ NOT NULL,
-	FOREIGN KEY (allocation_id, allocation_attempt)
-		REFERENCES allocations(allocation_id, attempt) ON DELETE CASCADE,
+	FOREIGN KEY (allocation_id)
+		REFERENCES allocations(allocation_id) ON DELETE CASCADE,
 	FOREIGN KEY (allocation_id, node_id)
 		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE,
-	CHECK (allocation_attempt > 0),
 	CHECK (sandbox_memory_request_bytes >= 0),
 	CHECK (sandbox_memory_limit_bytes >= 0),
 	CHECK (sandbox_memory_limit_bytes = 0 OR sandbox_memory_request_bytes <= sandbox_memory_limit_bytes),
@@ -320,21 +310,18 @@ CREATE TABLE allocation_memory_admission_evidence (
 
 CREATE TABLE allocation_memory_observations (
 	allocation_id TEXT PRIMARY KEY,
-	allocation_attempt BIGINT NOT NULL,
 	node_id TEXT NOT NULL,
 	revision BIGINT NOT NULL,
 	observed_at TIMESTAMPTZ NOT NULL,
 	observation JSONB NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
-	FOREIGN KEY (allocation_id, allocation_attempt)
-		REFERENCES allocations(allocation_id, attempt) ON DELETE CASCADE,
+	FOREIGN KEY (allocation_id)
+		REFERENCES allocations(allocation_id) ON DELETE CASCADE,
 	FOREIGN KEY (allocation_id, node_id)
 		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE,
-	CHECK (allocation_attempt > 0),
 	CHECK (revision > 0),
 	CHECK (jsonb_typeof(observation) = 'object'),
 	CHECK (COALESCE(observation->>'allocation_id', '') = allocation_id),
-	CHECK (COALESCE((observation->>'attempt')::BIGINT, -1) = allocation_attempt),
 	CHECK (COALESCE((observation->>'revision')::BIGINT, -1) = revision),
 	CHECK (COALESCE(observation->>'observed_at', '') <> ''),
 	CHECK ((observation->>'observed_at')::TIMESTAMPTZ = observed_at),
@@ -490,7 +477,6 @@ CREATE TABLE execution_leases (
 	allocation_id TEXT NOT NULL,
 	node_id TEXT NOT NULL,
 	node_target TEXT NOT NULL DEFAULT '',
-	attempt BIGINT NOT NULL,
 	lease_type TEXT NOT NULL,
 	expires_at TIMESTAMPTZ NOT NULL,
 	revision BIGINT NOT NULL,
@@ -498,9 +484,7 @@ CREATE TABLE execution_leases (
 	token_hash TEXT NOT NULL,
 	created_at TIMESTAMPTZ NOT NULL,
 	FOREIGN KEY (allocation_id, node_id)
-		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE,
-	FOREIGN KEY (allocation_id, attempt)
-		REFERENCES allocations(allocation_id, attempt) ON DELETE CASCADE
+		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE
 );
 
 CREATE TABLE allocation_reconcile_queue (
@@ -540,7 +524,6 @@ CREATE TABLE tunnel_sessions (
 	creator_principal_id TEXT NOT NULL REFERENCES principals(principal_id) ON DELETE RESTRICT,
 	node_id TEXT NOT NULL,
 	node_target TEXT NOT NULL DEFAULT '',
-	attempt BIGINT NOT NULL,
 	remote_port INTEGER NOT NULL,
 	local_target TEXT NOT NULL DEFAULT '',
 	edge_target TEXT NOT NULL DEFAULT '',
@@ -563,9 +546,7 @@ CREATE TABLE tunnel_sessions (
 	bytes_in BIGINT NOT NULL DEFAULT 0,
 	bytes_out BIGINT NOT NULL DEFAULT 0,
 	FOREIGN KEY (allocation_id, node_id)
-		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE,
-	FOREIGN KEY (allocation_id, attempt)
-		REFERENCES allocations(allocation_id, attempt) ON DELETE CASCADE
+		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE
 );
 
 CREATE TABLE tunnel_session_events (
@@ -595,8 +576,8 @@ CREATE INDEX idx_environments_namespace_created ON environments(namespace, creat
 CREATE INDEX idx_secrets_namespace_created ON secrets(namespace, created_at DESC);
 CREATE INDEX idx_runs_namespace_created ON runs(namespace, created_at DESC);
 CREATE INDEX idx_runs_namespace_id ON runs(namespace, run_id);
-CREATE INDEX idx_allocations_node_status ON allocations(node_id, status);
-CREATE INDEX idx_allocations_run_status_updated ON allocations(run_id, status, updated_at);
+CREATE INDEX idx_allocations_node_lifecycle ON allocations(node_id, lifecycle_state);
+CREATE INDEX idx_allocations_run_lifecycle_updated ON allocations(run_id, lifecycle_state, updated_at);
 CREATE INDEX idx_node_capability_transitions_node_reported
 	ON node_capability_transitions(node_id, reported_at DESC, transition_id DESC);
 CREATE INDEX idx_allocation_capability_dependencies_node_key

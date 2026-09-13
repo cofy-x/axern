@@ -43,7 +43,7 @@ Auto repair can be added only as owner-scoped commands, not as checker writes. F
 An auto repair operation must satisfy all of these rules:
 
 - lock the durable owner row before writing dependent state;
-- verify the owner, allocation attempt, node, and terminal state inside the same transaction;
+- verify the owner, exact Allocation ID, node, and terminal state inside the same transaction;
 - emit an admin audit event when triggered by an operator;
 - be idempotent when the reconciler already completed the cleanup;
 - leave a typed event or diagnostic when it refuses to repair.

@@ -24,4 +24,4 @@ The shared node-capability catalog derives `DNS_POLICY_ENFORCEMENT` for `dns_den
 
 Nodes without egressd publish the corresponding self-test facts as `UNAVAILABLE/DISABLED`; policy workloads therefore remain unschedulable rather than running without enforcement. Changes to this contract deploy matching control-plane and node binaries together.
 
-Policies are immutable for a Run attempt. Changing policy requires a new Run; there is no live policy mutation API.
+Policies are immutable for a Run. Changing policy requires a new Run; there is no live policy mutation API.

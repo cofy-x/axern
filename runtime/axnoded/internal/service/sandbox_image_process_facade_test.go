@@ -13,7 +13,6 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/imageprocess"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
@@ -69,21 +68,13 @@ func TestExecImageCreatesTransientImageContainerAndCleansUp(t *testing.T) {
 	handler := &runtimeSpyHandler{
 		name:        "runsc",
 		execSession: session,
-		createMetadataLabels: map[string]string{
-			runtimesandboxd.LabelReady:        "true",
-			runtimesandboxd.LabelSocket:       "/tmp/sandboxd.sock",
-			runtimesandboxd.LabelCapabilities: "process,pty",
-			runtimesandboxd.LabelUserState:    "running",
-		},
 		containerSpec: &specs.Spec{Mounts: []specs.Mount{{
 			Type:        "bind",
 			Source:      hostDir,
 			Destination: "/workspace",
 		}}},
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
-	s.lrtManager = langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir})
-	s.configureAllocationController()
+	s := newTestServiceWithLanguageRuntimeManager(t, map[string]contract.RuntimeHandler{"runsc": handler}, langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir}))
 	storeRunningExecContainer(t, s, "runsc", "axctl-task-image")
 
 	resp, err := s.ExecImage(context.Background(), &apipb.ExecImageRequest{
@@ -117,8 +108,7 @@ func TestExecImageCreatesTransientImageContainerAndCleansUp(t *testing.T) {
 	assert.Equal(t, "/workspace", handler.lastRequest.GetMounts()[0].GetTarget())
 	assert.DirExists(t, filepath.Join(rootfsDir, "workspace"))
 	assert.Equal(t, handler.lastRequest.GetID(), handler.lastProcessOptions.ContainerID)
-	assert.Equal(t, "/tmp/sandboxd.sock", handler.lastProcessOptions.ContainerLabels[runtimesandboxd.LabelSocket])
-	assert.Contains(t, handler.lastProcessOptions.ContainerLabels[runtimesandboxd.LabelCapabilities], "process")
+	assert.Equal(t, imageprocess.Kind, handler.lastProcessOptions.ContainerLabels[imageprocess.KindLabel])
 	assert.Equal(t, []string{"tool", "run"}, handler.lastSessionOpen.GetCommand())
 	assert.Equal(t, "/workspace", handler.lastSessionOpen.GetCwd())
 	assert.Equal(t, "B", handler.lastSessionOpen.GetEnvs()[0].GetValue())
@@ -139,9 +129,7 @@ func TestExecImageCleansUpTransientContainerWhenProcessOpenFails(t *testing.T) {
 			Destination: "/workspace",
 		}}},
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
-	s.lrtManager = langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir})
-	s.configureAllocationController()
+	s := newTestServiceWithLanguageRuntimeManager(t, map[string]contract.RuntimeHandler{"runsc": handler}, langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir}))
 	storeRunningExecContainer(t, s, "runsc", "axctl-task-open-fails")
 
 	_, err := s.ExecImage(context.Background(), &apipb.ExecImageRequest{
@@ -175,9 +163,7 @@ func TestExecImageCleansUpTransientContainerWhenCloseStdinFails(t *testing.T) {
 			Destination: "/workspace",
 		}}},
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
-	s.lrtManager = langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir})
-	s.configureAllocationController()
+	s := newTestServiceWithLanguageRuntimeManager(t, map[string]contract.RuntimeHandler{"runsc": handler}, langrtmanager.NewLanguageRuntimeManager(&imageProcessTestMounter{path: rootfsDir}))
 	storeRunningExecContainer(t, s, "runsc", "axctl-task-stdin-fails")
 
 	_, err := s.ExecImage(context.Background(), &apipb.ExecImageRequest{
@@ -207,21 +193,13 @@ func TestProcessImageCleansUpTransientContainerAndRootfsWhenStreamCloses(t *test
 	handler := &runtimeSpyHandler{
 		name:        "runsc",
 		execSession: session,
-		createMetadataLabels: map[string]string{
-			runtimesandboxd.LabelReady:        "true",
-			runtimesandboxd.LabelSocket:       "/tmp/sandboxd.sock",
-			runtimesandboxd.LabelCapabilities: "process",
-			runtimesandboxd.LabelUserState:    "running",
-		},
 		containerSpec: &specs.Spec{Mounts: []specs.Mount{{
 			Type:        "bind",
 			Source:      hostDir,
 			Destination: "/workspace",
 		}}},
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
-	s.lrtManager = langrtmanager.NewLanguageRuntimeManager(mounter)
-	s.configureAllocationController()
+	s := newTestServiceWithLanguageRuntimeManager(t, map[string]contract.RuntimeHandler{"runsc": handler}, langrtmanager.NewLanguageRuntimeManager(mounter))
 	storeRunningExecContainer(t, s, "runsc", "axctl-task-stream-close")
 
 	stream := &imageProcessStreamStub{requests: []*apipb.ProcessImageRequest{{

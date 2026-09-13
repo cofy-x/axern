@@ -22,7 +22,7 @@ flowchart LR
 ## Stable ownership
 
 - **Gateway:** authenticates public clients and forwards control, process, file, archive, terminal, SSH, and Tunnel traffic without owning durable state.
-- **Control plane:** persists resources and coordinates placement, leases, health, attempt-fenced status, and cleanup.
+- **Control plane:** persists resources and coordinates placement, leases, health, allocation-scoped status, and cleanup.
 - **Node runtime:** owns sandbox processes, filesystems, images, networking (an eBPF NAT dataplane with an explicit iptables rollback; see [Node Networking](/architecture/networking/)), probes, and node-local reconciliation.
 - **SDKs:** expose Sandbox ergonomics over the durable `Environment -> Run -> Allocation` chain without creating another workload model.
 - **Axrun and higher layers:** own agent tasks, verification, trajectories, rewards, evaluation, and data-synthesis workflows above the execution platform.

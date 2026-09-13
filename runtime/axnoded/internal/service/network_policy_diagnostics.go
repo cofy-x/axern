@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 
-	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 )
@@ -15,29 +14,10 @@ func (h *sandboxService) NetworkPolicyDiagnostics(ctx context.Context, allocatio
 		CapabilityState: NetworkPolicyCapabilityNotRequired,
 	}
 	dependencyMode := allocationNetworkPolicyMode(h.allocationController().CapabilityDependencies(allocationID))
-	manifest, exists := h.allocationController().EgressPolicyManifest(allocationID)
-	if !exists {
-		if dependencyMode == NetworkPolicyModeUnrestricted {
-			return diagnostics
-		}
-		diagnostics.Mode = dependencyMode
-		if h.egressClient == nil {
-			diagnostics.Status = NetworkPolicyStatusCapabilityUnavailable
-			diagnostics.CapabilityState = NetworkPolicyCapabilityUnavailable
-			return diagnostics
-		}
-		health, healthErr := h.egressClient.Health(ctx)
-		if health != nil {
-			diagnostics.EnforcementRevision = health.GetEnforcementRevision()
-		}
-		diagnostics.CapabilityState = h.networkPolicyCapabilityState(dependencyMode)
-		diagnostics.EnforcementHealthy = networkPolicyEnforcementHealthy(health, dependencyMode)
-		diagnostics.Status = networkPolicyDiagnosticStatus(diagnostics, healthErr, nil, false)
+	if dependencyMode == NetworkPolicyModeUnrestricted {
 		return diagnostics
 	}
-	diagnostics.AllocationAttempt = manifest.Attempt
-	diagnostics.ExecutionRevision = manifest.Proof.GetExecutionRevision()
-	diagnostics.ExactProof = false
+	diagnostics.ExactBinding = false
 	diagnostics.Mode = dependencyMode
 
 	if h.egressClient == nil {
@@ -49,9 +29,9 @@ func (h *sandboxService) NetworkPolicyDiagnostics(ctx context.Context, allocatio
 	if health != nil {
 		diagnostics.EnforcementRevision = health.GetEnforcementRevision()
 	}
-	record, recordErr := h.egressClient.Get(ctx, allocationID, manifest.Attempt)
+	record, recordErr := h.egressClient.Get(ctx, allocationID)
 	if record != nil {
-		applyNetworkPolicyRecord(&diagnostics, record, manifest, dependencyMode, allocationID)
+		applyNetworkPolicyRecord(&diagnostics, record, dependencyMode, allocationID, h.allocationController().ContainerIP(allocationID))
 	}
 	diagnostics.CapabilityState = h.networkPolicyCapabilityState(diagnostics.Mode)
 	diagnostics.EnforcementHealthy = networkPolicyEnforcementHealthy(health, diagnostics.Mode)
@@ -60,19 +40,15 @@ func (h *sandboxService) NetworkPolicyDiagnostics(ctx context.Context, allocatio
 	return diagnostics
 }
 
-func applyNetworkPolicyRecord(diagnostics *NetworkPolicyDiagnostics, record *runtimeegressv1.PreparedEgressPolicy, manifest allocation.EgressPolicyManifest, dependencyMode NetworkPolicyMode, allocationID string) {
+func applyNetworkPolicyRecord(diagnostics *NetworkPolicyDiagnostics, record *runtimeegressv1.PreparedEgressPolicy, dependencyMode NetworkPolicyMode, allocationID, sandboxIP string) {
 	recordMode, domainRules, cidrRules, portRanges := summarizeNetworkPolicy(record)
 	diagnostics.Mode = recordMode
 	diagnostics.DomainRuleCount = domainRules
 	diagnostics.CIDRRuleCount = cidrRules
 	diagnostics.PortRangeCount = portRanges
 	diagnostics.TotalRuleCount = domainRules + cidrRules
-	diagnostics.RecoveredAfterRestart = record.GetRecoveryState() == runtimeegressv1.EgressPolicyRecoveryState_EGRESS_POLICY_RECOVERY_STATE_RECOVERED
-	diagnostics.ExactProof = record.GetAllocationID() == allocationID &&
-		record.GetAttempt() == manifest.Attempt &&
-		record.GetSandboxIp() == manifest.Proof.GetSandboxIp() &&
-		record.GetPolicyDigest() == manifest.Proof.GetPolicyDigest() &&
-		record.GetExecutionRevision() == manifest.Proof.GetExecutionRevision() &&
+	diagnostics.ExactBinding = record.GetAllocationID() == allocationID &&
+		record.GetSandboxIp() == sandboxIP &&
 		dependencyMode == recordMode
 }
 
@@ -96,8 +72,8 @@ func networkPolicyDiagnosticStatus(diagnostics NetworkPolicyDiagnostics, healthE
 		return NetworkPolicyStatusCapabilityUnavailable
 	case healthErr != nil || !diagnostics.EnforcementHealthy:
 		return NetworkPolicyStatusEnforcementUnhealthy
-	case recordErr != nil || !recordPresent || !diagnostics.ExactProof:
-		return NetworkPolicyStatusProofStale
+	case recordErr != nil || !recordPresent || !diagnostics.ExactBinding:
+		return NetworkPolicyStatusBindingMismatch
 	default:
 		return NetworkPolicyStatusOK
 	}

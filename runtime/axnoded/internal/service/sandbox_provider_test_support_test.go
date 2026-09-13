@@ -10,20 +10,17 @@ import (
 	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
+	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/stretchr/testify/require"
 )
 
-func storeRunningBrowserContainer(t *testing.T, s *sandboxService, id string, socketPath string, capabilities string) {
+func storeRunningBrowserContainer(t *testing.T, s *sandboxService, id string, socketPath string) {
 	t.Helper()
+	derivedSocket := runtimeoci.SandboxdBundleSocketPath(filepath.Join(s.config.RootDir, "containers", id))
+	require.NoError(t, os.MkdirAll(filepath.Dir(derivedSocket), 0o755))
+	require.NoError(t, os.Symlink(socketPath, derivedSocket))
 	s.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{
-		ID:             id,
 		RuntimeHandler: "runsc",
-		Labels: map[string]string{
-			runtimesandboxd.LabelReady:        "true",
-			runtimesandboxd.LabelSocket:       socketPath,
-			runtimesandboxd.LabelCapabilities: capabilities,
-		},
 	})
 	time.Sleep(200 * time.Millisecond)
 }

@@ -13,7 +13,6 @@ import (
 
 type createAllocationRequestParams struct {
 	AllocationID           string
-	Attempt                int64
 	Config                 *commonv1.ExecutionConfig
 	Environment            *environmentv1.Environment
 	NodeID                 string
@@ -25,7 +24,6 @@ type createAllocationRequestParams struct {
 func buildCreateAllocationRequestFromParams(params createAllocationRequestParams) *privatenodev1.CreateAllocationRequest {
 	return &privatenodev1.CreateAllocationRequest{
 		AllocationID: params.AllocationID,
-		Attempt:      params.Attempt,
 		NodeID:       params.NodeID,
 		Config:       buildResolvedExecutionConfig(params),
 	}

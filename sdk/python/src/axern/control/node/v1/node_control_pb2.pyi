@@ -420,11 +420,10 @@ class ReportNodeResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
-class AllocationStatusObservation(_message.Message):
-    __slots__ = ("allocation_id", "attempt", "status", "exit_code", "exit_code_known", "message", "observed_at", "ready", "readiness_message", "diagnostic_code")
+class AllocationLifecycleObservation(_message.Message):
+    __slots__ = ("allocation_id", "state", "exit_code", "exit_code_known", "message", "observed_at", "ready", "readiness_message", "diagnostic_code")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    ATTEMPT_FIELD_NUMBER: _ClassVar[int]
-    STATUS_FIELD_NUMBER: _ClassVar[int]
+    STATE_FIELD_NUMBER: _ClassVar[int]
     EXIT_CODE_FIELD_NUMBER: _ClassVar[int]
     EXIT_CODE_KNOWN_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
@@ -433,8 +432,7 @@ class AllocationStatusObservation(_message.Message):
     READINESS_MESSAGE_FIELD_NUMBER: _ClassVar[int]
     DIAGNOSTIC_CODE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    attempt: int
-    status: _common_pb2.AllocationStatus
+    state: _common_pb2.AllocationLifecycleState
     exit_code: int
     exit_code_known: bool
     message: str
@@ -442,31 +440,29 @@ class AllocationStatusObservation(_message.Message):
     ready: bool
     readiness_message: str
     diagnostic_code: _common_pb2.WorkloadDiagnosticCode
-    def __init__(self, allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[_common_pb2.AllocationStatus, str]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ready: _Optional[bool] = ..., readiness_message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., state: _Optional[_Union[_common_pb2.AllocationLifecycleState, str]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ready: _Optional[bool] = ..., readiness_message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ...) -> None: ...
 
-class BatchReportAllocationStatusRequest(_message.Message):
+class BatchReportAllocationLifecycleRequest(_message.Message):
     __slots__ = ("node_id", "node_auth_token", "observations")
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_AUTH_TOKEN_FIELD_NUMBER: _ClassVar[int]
     OBSERVATIONS_FIELD_NUMBER: _ClassVar[int]
     node_id: str
     node_auth_token: str
-    observations: _containers.RepeatedCompositeFieldContainer[AllocationStatusObservation]
-    def __init__(self, node_id: _Optional[str] = ..., node_auth_token: _Optional[str] = ..., observations: _Optional[_Iterable[_Union[AllocationStatusObservation, _Mapping]]] = ...) -> None: ...
+    observations: _containers.RepeatedCompositeFieldContainer[AllocationLifecycleObservation]
+    def __init__(self, node_id: _Optional[str] = ..., node_auth_token: _Optional[str] = ..., observations: _Optional[_Iterable[_Union[AllocationLifecycleObservation, _Mapping]]] = ...) -> None: ...
 
-class BatchReportAllocationStatusResponse(_message.Message):
+class BatchReportAllocationLifecycleResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class AllocationCapabilityConditionReport(_message.Message):
-    __slots__ = ("allocation_id", "attempt", "condition_set")
+    __slots__ = ("allocation_id", "condition_set")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    ATTEMPT_FIELD_NUMBER: _ClassVar[int]
     CONDITION_SET_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    attempt: int
     condition_set: _capability_pb2.CapabilityConditionSet
-    def __init__(self, allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., condition_set: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., condition_set: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ...) -> None: ...
 
 class BatchReportAllocationCapabilityConditionsRequest(_message.Message):
     __slots__ = ("node_id", "node_auth_token", "reports")
@@ -483,9 +479,8 @@ class BatchReportAllocationCapabilityConditionsResponse(_message.Message):
     def __init__(self) -> None: ...
 
 class AllocationMemoryObservation(_message.Message):
-    __slots__ = ("allocation_id", "attempt", "revision", "observed_at", "request_bytes", "limit_bytes", "current_bytes", "peak_bytes", "swap_current_bytes", "anon_bytes", "file_bytes", "shmem_bytes", "kernel_bytes", "dirty_bytes", "writeback_bytes", "event_high", "event_max", "event_oom", "event_oom_kill", "event_oom_group_kill", "psi_some_avg10", "psi_full_avg10", "psi_some_total_usec", "psi_full_total_usec", "cgroup_identity", "runtime", "parent_controls_verified", "leaf_controls_verified", "pid_roles_verified", "cleanup_state", "psi_available", "peak_available")
+    __slots__ = ("allocation_id", "revision", "observed_at", "request_bytes", "limit_bytes", "current_bytes", "peak_bytes", "swap_current_bytes", "anon_bytes", "file_bytes", "shmem_bytes", "kernel_bytes", "dirty_bytes", "writeback_bytes", "event_high", "event_max", "event_oom", "event_oom_kill", "event_oom_group_kill", "psi_some_avg10", "psi_full_avg10", "psi_some_total_usec", "psi_full_total_usec", "cgroup_identity", "runtime", "parent_controls_verified", "leaf_controls_verified", "pid_roles_verified", "cleanup_state", "psi_available", "peak_available")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    ATTEMPT_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
     OBSERVED_AT_FIELD_NUMBER: _ClassVar[int]
     REQUEST_BYTES_FIELD_NUMBER: _ClassVar[int]
@@ -517,7 +512,6 @@ class AllocationMemoryObservation(_message.Message):
     PSI_AVAILABLE_FIELD_NUMBER: _ClassVar[int]
     PEAK_AVAILABLE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    attempt: int
     revision: int
     observed_at: _timestamp_pb2.Timestamp
     request_bytes: int
@@ -548,7 +542,7 @@ class AllocationMemoryObservation(_message.Message):
     cleanup_state: AllocationMemoryCleanupState
     psi_available: bool
     peak_available: bool
-    def __init__(self, allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., revision: _Optional[int] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., request_bytes: _Optional[int] = ..., limit_bytes: _Optional[int] = ..., current_bytes: _Optional[int] = ..., peak_bytes: _Optional[int] = ..., swap_current_bytes: _Optional[int] = ..., anon_bytes: _Optional[int] = ..., file_bytes: _Optional[int] = ..., shmem_bytes: _Optional[int] = ..., kernel_bytes: _Optional[int] = ..., dirty_bytes: _Optional[int] = ..., writeback_bytes: _Optional[int] = ..., event_high: _Optional[int] = ..., event_max: _Optional[int] = ..., event_oom: _Optional[int] = ..., event_oom_kill: _Optional[int] = ..., event_oom_group_kill: _Optional[int] = ..., psi_some_avg10: _Optional[float] = ..., psi_full_avg10: _Optional[float] = ..., psi_some_total_usec: _Optional[int] = ..., psi_full_total_usec: _Optional[int] = ..., cgroup_identity: _Optional[str] = ..., runtime: _Optional[str] = ..., parent_controls_verified: _Optional[bool] = ..., leaf_controls_verified: _Optional[bool] = ..., pid_roles_verified: _Optional[bool] = ..., cleanup_state: _Optional[_Union[AllocationMemoryCleanupState, str]] = ..., psi_available: _Optional[bool] = ..., peak_available: _Optional[bool] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., revision: _Optional[int] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., request_bytes: _Optional[int] = ..., limit_bytes: _Optional[int] = ..., current_bytes: _Optional[int] = ..., peak_bytes: _Optional[int] = ..., swap_current_bytes: _Optional[int] = ..., anon_bytes: _Optional[int] = ..., file_bytes: _Optional[int] = ..., shmem_bytes: _Optional[int] = ..., kernel_bytes: _Optional[int] = ..., dirty_bytes: _Optional[int] = ..., writeback_bytes: _Optional[int] = ..., event_high: _Optional[int] = ..., event_max: _Optional[int] = ..., event_oom: _Optional[int] = ..., event_oom_kill: _Optional[int] = ..., event_oom_group_kill: _Optional[int] = ..., psi_some_avg10: _Optional[float] = ..., psi_full_avg10: _Optional[float] = ..., psi_some_total_usec: _Optional[int] = ..., psi_full_total_usec: _Optional[int] = ..., cgroup_identity: _Optional[str] = ..., runtime: _Optional[str] = ..., parent_controls_verified: _Optional[bool] = ..., leaf_controls_verified: _Optional[bool] = ..., pid_roles_verified: _Optional[bool] = ..., cleanup_state: _Optional[_Union[AllocationMemoryCleanupState, str]] = ..., psi_available: _Optional[bool] = ..., peak_available: _Optional[bool] = ...) -> None: ...
 
 class BatchReportAllocationMemoryObservationsRequest(_message.Message):
     __slots__ = ("node_id", "node_auth_token", "observations")

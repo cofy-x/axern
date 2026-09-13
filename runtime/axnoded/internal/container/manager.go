@@ -187,7 +187,7 @@ func ListFilterById(id string) ListOption {
 			logrus.Errorf("ListFilterByID: Got invalid container %+v", c)
 			return false
 		}
-		return c.Metadata.ID == id
+		return c.ID == id
 	}
 }
 

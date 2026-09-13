@@ -140,7 +140,7 @@ func TestDeletePreservesContainerClaimsUntilResourceReleaseSucceeds(t *testing.T
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(containerDir, config.ContainerSpecFile), buf, 0644))
 	m.containers.Set(containerID, &Container{
-		Metadata: &apipb.ContainerMetadata{ID: containerID, RuntimeHandler: "runsc"},
+		Metadata: &apipb.ContainerMetadata{RuntimeHandler: "runsc"},
 		Status: &statusStorage{status: Status{
 			FinishedAt:    time.Now().UTC().Format(time.RFC3339Nano),
 			ExitCodeKnown: true,

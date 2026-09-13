@@ -27,8 +27,6 @@ enum CgroupLeaseOwnerKind {
 }
 
 message CgroupLease {
-  reserved 9;
-  reserved "reclaim_requested_at_unix_nano";
   string cgroup_id = 1;
   CgroupLifecycleState state = 2;
   string allocation_id = 3;
@@ -37,19 +35,18 @@ message CgroupLease {
   int64 retiring_at_unix_nano = 6;
   string last_cleanup_error = 7;
   int64 current_charged_bytes = 8;
-  int64 allocation_attempt = 10;
-  int64 memory_limit_bytes = 11;
-  string runtime_name = 12;
-  string cgroup_boot_id = 13;
-  string cgroup_mount_identity = 14;
-  uint64 cgroup_parent_inode = 15;
-  uint64 cgroup_leaf_inode = 16;
-  string last_identity_verification_error = 17;
-  CgroupLeaseOwnerKind owner_kind = 18;
+  int64 memory_limit_bytes = 9;
+  string runtime_name = 10;
+  string cgroup_boot_id = 11;
+  string cgroup_mount_identity = 12;
+  uint64 cgroup_parent_inode = 13;
+  uint64 cgroup_leaf_inode = 14;
+  string last_identity_verification_error = 15;
+  CgroupLeaseOwnerKind owner_kind = 16;
   // Node admission charge, separated from the OCI workload request/limit so
   // trusted runtime monitor overhead can be reserved without weakening the
   // workload's cgroup boundary.
-  int64 capacity_reservation_bytes = 19;
+  int64 capacity_reservation_bytes = 17;
 }
 
 message CgroupLedger {
@@ -70,7 +67,7 @@ message RootfsConfig {
 
   oneof source {
     string image_url = 3;
-    string path = 5;
+    string path = 4;
   }
 }
 
@@ -137,21 +134,22 @@ message AllocationState {
   axern.control.capability.v1.CapabilityConditionSet capability_conditions = 8;
   AllocationEnforcementManifest enforcement_manifest = 9;
   AllocationCapabilityReconcileState capability_reconcile = 10;
-  int64 allocation_attempt = 11;
-  AllocationLaunchVerification launch_verification = 12;
+  AllocationLaunchVerification launch_verification = 11;
   // Canonical digest of the behaviorally relevant StartRequest. It fences
-  // same-attempt retries from mutating a running allocation's contract.
-  string allocation_request_digest = 13;
+  // idempotent retries from mutating a running allocation's contract.
+  string allocation_request_digest = 12;
   // Immutable post-create condition proof returned by idempotent Create
   // replays. capability_conditions remains the current runtime projection.
-  axern.control.capability.v1.CapabilityConditionSet capability_admission_conditions = 14;
-  AllocationEgressPolicyProof egress_policy_proof = 15;
+  axern.control.capability.v1.CapabilityConditionSet capability_admission_conditions = 13;
 }
 
-message AllocationEgressPolicyProof {
-  string sandbox_ip = 1;
-  string policy_digest = 2;
-  int64 execution_revision = 3;
+// ControlPlaneAllocationBinding is the sole node-local proof that controld
+// admitted an Allocation to this node. Runtime state, OCI metadata, cgroup
+// ownership, and AllocationState existence never substitute for this relation.
+message ControlPlaneAllocationBinding {
+  string allocation_id = 1;
+  string node_id = 2;
+  string request_digest = 3;
 }
 
 // AllocationLaunchVerification is the durable create-time proof that the
@@ -191,20 +189,20 @@ message AllocationEnforcementManifest {
   string runsc_overlay_arg = 6;
   string filestore_mount_identity = 7;
   int64 created_at_unix_nano = 8;
-  string bundle_path = 10;
-  string runsc_backing_directory = 11;
-  string runsc_backing_directory_identity = 12;
-  string cgroup_boot_id = 13;
-  string cgroup_mount_identity = 14;
-  uint64 cgroup_parent_inode = 15;
-  uint64 cgroup_leaf_inode = 16;
-  int64 memory_swap_max_bytes = 17;
-  bool memory_oom_group = 18;
-  uint64 initial_memory_event_high = 19;
-  uint64 initial_memory_event_max = 20;
-  uint64 initial_memory_event_oom = 21;
-  uint64 initial_memory_event_oom_kill = 22;
-  uint64 initial_memory_event_oom_group_kill = 23;
+  string bundle_path = 9;
+  string runsc_backing_directory = 10;
+  string runsc_backing_directory_identity = 11;
+  string cgroup_boot_id = 12;
+  string cgroup_mount_identity = 13;
+  uint64 cgroup_parent_inode = 14;
+  uint64 cgroup_leaf_inode = 15;
+  int64 memory_swap_max_bytes = 16;
+  bool memory_oom_group = 17;
+  uint64 initial_memory_event_high = 18;
+  uint64 initial_memory_event_max = 19;
+  uint64 initial_memory_event_oom = 20;
+  uint64 initial_memory_event_oom_kill = 21;
+  uint64 initial_memory_event_oom_group_kill = 22;
 }
 
 message TerminalResize {
@@ -240,8 +238,7 @@ message Rootfs {
   string lower_dir = 2;
   string root_dir = 3;
   bool readonly = 4;
-  reserved 5;
-  ImmutableRootfsMount immutable_mount = 6;
+  ImmutableRootfsMount immutable_mount = 5;
 }
 
 // ImmutableRootfsMount is emitted by the rootfs source owner. OCI runtime
@@ -257,16 +254,22 @@ message ImmutableRootfsMount {
   string effective_root = 7;
 }
 
-message ContainerMetadata {
-  string ID = 1;
-  string runtime_handler = 3;
-  map<string, string> labels = 4;
-  string stdout = 6;
-  string stderr = 7;
+enum ContainerRecoveryMode {
+  CONTAINER_RECOVERY_MODE_UNSPECIFIED = 0;
+  // The runtime container may survive axnoded restart, but only an independent
+  // admitted owner is allowed to restore it.
+  CONTAINER_RECOVERY_MODE_DURABLE = 1;
+  // The runtime container belongs to an in-process session or self-test and
+  // must be removed after a process restart because its owner no longer exists.
+  CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART = 2;
 }
 
-message ContainerMetadataList {
-  map<string, ContainerMetadata> containers = 1;
+message ContainerMetadata {
+  string runtime_handler = 1;
+  map<string, string> labels = 2;
+  string stdout = 3;
+  string stderr = 4;
+  ContainerRecoveryMode recovery_mode = 5;
 }
 
 message Slice {

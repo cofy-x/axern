@@ -116,7 +116,10 @@ verify_admin_lifecycle() {
     dump_logs
     exit 1
   fi
-  assert_allocation_reconcilez_absent "${admin_allocation_id}"
+  # Failing the unrecoverable create retry terminates the Run, but the
+  # Allocation keeps its reservation and durable delete debt until the missing
+  # node can confirm cleanup.
+  assert_allocation_reconcilez_contains "${admin_allocation_id}" "delete"
 
   "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run get "${admin_run_id}" -o json >"${cli_object_output}" 2>"${cli_error_output}" || {
     dump_logs
@@ -176,30 +179,6 @@ for item in payload.get("items", []):
 raise SystemExit(f"allocation-reconcilez missing {allocation_id} reason={reason}")
 ' "${allocation_id}" "${reason}" <<<"${body}" 2>"${cli_error_output}" || {
     echo "allocation-reconcilez did not expose the queued retry" >&2
-    dump_logs
-    exit 1
-  }
-}
-
-assert_allocation_reconcilez_absent() {
-  local allocation_id="$1"
-  local body
-  body="$(curl -fsS "http://${CONTROLD_HTTP_ADDRESS}/allocation-reconcilez" 2>"${cli_error_output}")" || {
-    echo "allocation-reconcilez debug endpoint is not reachable" >&2
-    dump_logs
-    exit 1
-  }
-  python3 -c '
-import json
-import sys
-
-allocation_id = sys.argv[1]
-payload = json.load(sys.stdin)
-for item in payload.get("items", []):
-    if item.get("allocation_id") == allocation_id:
-        raise SystemExit(f"allocation-reconcilez still includes {allocation_id}")
-' "${allocation_id}" <<<"${body}" 2>"${cli_error_output}" || {
-    echo "allocation-reconcilez still exposed a completed retry" >&2
     dump_logs
     exit 1
   }

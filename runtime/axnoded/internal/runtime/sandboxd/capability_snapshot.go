@@ -26,25 +26,6 @@ func SnapshotFromDiagnostics(socketPath string, diagnostics wire.DiagnosticsResp
 	return newCapabilitySnapshot(diagnostics.Ready, socketPath, diagnostics.Status.UserProcess.State, diagnostics.Capabilities, diagnostics.Providers)
 }
 
-func SnapshotFromLabels(labels map[string]string) (CapabilitySnapshot, error) {
-	if labels == nil {
-		return CapabilitySnapshot{}, fmt.Errorf("sandboxd metadata labels are missing: %w", errord.ErrFailedPrecondition)
-	}
-	socketPath := strings.TrimSpace(labels[LabelSocket])
-	if socketPath == "" {
-		return CapabilitySnapshot{}, fmt.Errorf("sandboxd socket is empty: %w", errord.ErrFailedPrecondition)
-	}
-	return newCapabilitySnapshot(labels[LabelReady] == "true", socketPath, labels[LabelUserState], splitCapabilityLabel(labels[LabelCapabilities]), nil), nil
-}
-
-func requireCapabilityFromLabels(labels map[string]string, capability string) error {
-	snapshot, err := SnapshotFromLabels(labels)
-	if err != nil {
-		return err
-	}
-	return snapshot.RequireCapability(capability)
-}
-
 func newCapabilitySnapshot(ready bool, socketPath string, userState string, capabilities []string, providers []wire.CapabilityProvider) CapabilitySnapshot {
 	snapshot := CapabilitySnapshot{
 		Ready:        ready,
@@ -117,21 +98,6 @@ func (s CapabilitySnapshot) CapabilityList() []string {
 		out = append(out, capability)
 	}
 	sort.Strings(out)
-	return out
-}
-
-func splitCapabilityLabel(value string) []string {
-	if strings.TrimSpace(value) == "" {
-		return nil
-	}
-	parts := strings.Split(value, ",")
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part != "" {
-			out = append(out, part)
-		}
-	}
 	return out
 }
 

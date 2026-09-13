@@ -22,7 +22,7 @@ axern run --detach python:3.12-slim -- python -c 'import time; time.sleep(3600)'
 axern tunnel open --allocation-id <allocation-id> --local 127.0.0.1:8080
 ```
 
-The command targets the named Allocation, creates an attempt-bound tunnel session, waits for the allocation-local bind, and prints the session and bind addresses:
+The command targets the named Allocation, creates a tunnel session bound to that exact Allocation ID, waits for the allocation-local bind, and prints the session and bind addresses:
 
 ```text
 Tunnel session: tun-...

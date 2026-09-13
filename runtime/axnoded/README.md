@@ -21,7 +21,7 @@ Sandbox interface pools may be IPv4 or IPv6. Bpfnet's native packet programs rem
 - `axern.node.sandbox.v1.NodeSandbox`: gateway-forwarded `exec`, `exec_stream`, `process`, `exec_image`, `process_image`, `wait`, archive transfer, and allocation HTTP proxy. Streaming operations acknowledge a validated execution lease before consuming request data or producing sandbox output.
 - `axern.private.node.lifecycle.v1.NodeLifecycle`: repo-internal control-plane-to-node allocation create, delete, and status.
 - `axern.private.node.operator.v1.NodeOperator`: local Unix-socket operator workflows for `axctl`.
-- `axern.control.node.v1.NodeControl`: outbound registration, node reports, coalesced allocation status batches, and execution lease replication with `controld`.
+- `axern.control.node.v1.NodeControl`: outbound registration, node reports, coalesced allocation lifecycle batches, and execution lease replication with `controld`.
 
 The reporter uses a durable node identity. If an operator retires that identity, `controld` rejects registration, reports, status batches, and watches; the host must be removed and any replacement must use a new node ID. Retirement is not a temporary disconnect or a reporter recovery mechanism.
 
@@ -113,11 +113,11 @@ axctl image drop-page-cache \
   --length 33554432
 ```
 
-Network-policy diagnostics are read-only and intentionally bounded. They show the effective mode, stable health category, allocation attempt, execution and enforcement revisions, exact-proof state, and normalized rule counts. They do not return DNS names, HTTP Host, TLS SNI, destination IP/CIDR values, policy digests, or raw egressd records. `doctor` exits non-zero for unavailable capability, unhealthy enforcement, or stale proof; a sandbox with no policy is reported as `absent` and is not considered degraded.
+Network-policy diagnostics are read-only and intentionally bounded. They show the effective mode, stable health category, Allocation ID, live enforcement revision, exact-binding state, and normalized rule counts. They do not return DNS names, HTTP Host, TLS SNI, destination IP/CIDR values, policy digests, or raw egressd records. `doctor` exits non-zero for unavailable capability, unhealthy enforcement, or a binding mismatch; a sandbox with no policy is reported as `absent` and is not considered degraded.
 
 The daemon HTTP surface exposes a read-only dashboard, cached inventory at `/inventoryz`, control-plane reporter health at `/control-planez`, local metrics at `/debug/metricsz`, pprof, and the nginx demo. Production metrics use the shared OTEL pipeline.
 
-Allocation status delivery uses a bounded, allocation-keyed in-process queue. Failed batches preserve terminal observations and retry with jittered exponential backoff from 100 milliseconds to 5 seconds. New observations coalesce without bypassing an active retry. The queue is not durable; `controld` and node inventory remain responsible for convergence.
+Allocation lifecycle delivery uses a bounded, Allocation-keyed queue. The first terminal observation is persisted in a narrow outbox before delivery and survives runtime cleanup and process restart until controld acknowledges the exact observation. Failed batches retry with jittered exponential backoff from 100 milliseconds to 5 seconds; newer non-terminal observations may coalesce, while immutable terminal evidence is never replaced.
 
 `/control-planez` reports queue, in-flight, retry, and recent result state. The same backlog and retry signals are exported through OTEL.
 

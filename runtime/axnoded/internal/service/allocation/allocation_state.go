@@ -29,13 +29,7 @@ type allocationState struct {
 }
 
 type CapabilityConditionManifest struct {
-	Attempt int64
-	Set     *capabilityv1.CapabilityConditionSet
-}
-
-type EgressPolicyManifest struct {
-	Attempt int64
-	Proof   *apipb.AllocationEgressPolicyProof
+	Set *capabilityv1.CapabilityConditionSet
 }
 
 func newAllocationState(allocationID string) *allocationState {
@@ -59,61 +53,69 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && record.GetWorkspaceImageUrl() == "" && len(record.GetCapabilityDependencies()) == 0 && record.GetCapabilityConditions() == nil && record.GetCapabilityAdmissionConditions() == nil && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil && record.GetEgressPolicyProof() == nil)
+	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && record.GetWorkspaceImageUrl() == "" && len(record.GetCapabilityDependencies()) == 0 && record.GetCapabilityConditions() == nil && record.GetCapabilityAdmissionConditions() == nil && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
 }
 
-func (h *Controller) StoreEgressPolicyProof(allocationID, sandboxIP, digest string, revision int64) error {
-	allocationID, sandboxIP, digest = strings.TrimSpace(allocationID), strings.TrimSpace(sandboxIP), strings.TrimSpace(digest)
-	if allocationID == "" || sandboxIP == "" || digest == "" || revision <= 0 {
-		return errors.New("complete egress policy proof is required")
-	}
-	unlock := h.recordMutationLocks.Lock(allocationID)
-	defer unlock()
-	h.stateMu.RLock()
-	current := h.allocationStates[allocationID]
-	if current == nil {
-		h.stateMu.RUnlock()
-		return fmt.Errorf("allocation %q has no durable state", allocationID)
-	}
-	desired := cloneAllocationRecord(current.record)
-	h.stateMu.RUnlock()
-	proof := &apipb.AllocationEgressPolicyProof{SandboxIp: sandboxIP, PolicyDigest: digest, ExecutionRevision: revision}
-	if existing := desired.GetEgressPolicyProof(); existing != nil && !proto.Equal(existing, proof) {
-		return fmt.Errorf("allocation egress policy proof conflicts with durable state")
-	}
-	desired.EgressPolicyProof = proof
-	if err := h.persistAllocationRecord(desired); err != nil {
-		return fmt.Errorf("persist allocation egress policy proof: %w", err)
-	}
-	h.stateMu.Lock()
-	h.stateLocked(allocationID).record = desired
-	h.stateMu.Unlock()
-	return nil
-}
-
-func (h *Controller) EgressPolicyProofs() map[string]EgressPolicyManifest {
-	h.stateMu.RLock()
-	defer h.stateMu.RUnlock()
-	out := map[string]EgressPolicyManifest{}
-	for id, state := range h.allocationStates {
-		if state != nil && state.record.GetAllocationAttempt() > 0 && state.record.GetEgressPolicyProof() != nil {
-			out[id] = EgressPolicyManifest{state.record.GetAllocationAttempt(), proto.Clone(state.record.GetEgressPolicyProof()).(*apipb.AllocationEgressPolicyProof)}
-		}
-	}
-	return out
-}
-
-func (h *Controller) EgressPolicyManifest(allocationID string) (EgressPolicyManifest, bool) {
+func (h *Controller) HasAllocation(allocationID string) bool {
 	h.stateMu.RLock()
 	defer h.stateMu.RUnlock()
 	state := h.allocationStates[strings.TrimSpace(allocationID)]
-	if state == nil || state.record.GetAllocationAttempt() <= 0 || state.record.GetEgressPolicyProof() == nil {
-		return EgressPolicyManifest{}, false
+	return state != nil && state.record != nil && state.record.GetAllocationID() == strings.TrimSpace(allocationID)
+}
+
+func (h *Controller) AllocationIDs() []string {
+	h.stateMu.RLock()
+	defer h.stateMu.RUnlock()
+	ids := make([]string, 0, len(h.allocationStates))
+	for allocationID, state := range h.allocationStates {
+		if state != nil && state.record != nil && state.record.GetAllocationID() == allocationID {
+			ids = append(ids, allocationID)
+		}
 	}
-	return EgressPolicyManifest{
-		Attempt: state.record.GetAllocationAttempt(),
-		Proof:   proto.Clone(state.record.GetEgressPolicyProof()).(*apipb.AllocationEgressPolicyProof),
-	}, true
+	sort.Strings(ids)
+	return ids
+}
+
+// RuntimeTemplateID returns the template referenced by the admitted Allocation
+// record. It feeds rebuildable locality observations without consulting OCI
+// metadata or labels.
+func (h *Controller) RuntimeTemplateID(allocationID string) string {
+	if h == nil {
+		return ""
+	}
+	h.stateMu.RLock()
+	defer h.stateMu.RUnlock()
+	state := h.allocationStates[strings.TrimSpace(allocationID)]
+	if state == nil || state.record == nil || state.record.GetRuntimeTemplate() == nil {
+		return ""
+	}
+	return strings.TrimSpace(state.record.GetRuntimeTemplate().GetID())
+}
+
+// PersistedAllocationIDs validates the durable admission records without
+// acquiring runtime/image ownership. Startup uses this read-only view to seed
+// terminal delivery before terminal runtime cleanup.
+func (h *Controller) PersistedAllocationIDs() (map[string]struct{}, error) {
+	result := make(map[string]struct{})
+	if h == nil || h.store == nil {
+		return result, nil
+	}
+	now := time.Now().UTC()
+	err := h.store.ForEachRecord(config.AllocationStateBucket, func(key string, value []byte) error {
+		var record apipb.AllocationState
+		if err := proto.Unmarshal(value, &record); err != nil {
+			return fmt.Errorf("decode allocation state %s: %w", key, err)
+		}
+		if record.GetAllocationID() == "" || record.GetAllocationID() != key {
+			return fmt.Errorf("allocation state key %s does not match record id %s", key, record.GetAllocationID())
+		}
+		if err := validateRecoveredCapabilityState(&record, now); err != nil {
+			return fmt.Errorf("validate allocation state %s: %w", key, err)
+		}
+		result[key] = struct{}{}
+		return nil
+	})
+	return result, err
 }
 
 // ReplaceCapabilityAdmission atomically persists the admitted dependency
@@ -121,28 +123,15 @@ func (h *Controller) EgressPolicyManifest(allocationID string) (EgressPolicyMani
 // first durable side effect of create, before rootfs, mounts, cgroups,
 // or runtime processes are touched. Post-create admission replaces both proof
 // sets in the same write so recovery can never observe mismatched generations.
-func (h *Controller) ReplaceCapabilityAdmission(allocationID string, attempt int64, requestDigest string, dependencies []*capabilityv1.CapabilityDependency, conditions []*capabilityv1.CapabilityCondition, observedAt time.Time) (*capabilityv1.CapabilityConditionSet, error) {
-	allocationID = strings.TrimSpace(allocationID)
-	if allocationID == "" || attempt <= 0 || !validStartRequestDigest(requestDigest) {
-		return nil, errors.New("allocation id, positive attempt, and canonical request digest are required")
-	}
-	return h.replaceCapabilityAdmission(allocationID, attempt, requestDigest, dependencies, conditions, observedAt, true)
-}
-
-// ReplaceNodeLocalCapabilityAdmission persists the same proof and condition
-// contract as a control-plane allocation without inventing a control-plane
-// attempt. Node-local sandboxes are therefore covered by restart recovery,
-// transition reconciliation, and periodic enforcement audits, while their
-// conditions are never reported as an unknown controld allocation.
-func (h *Controller) ReplaceNodeLocalCapabilityAdmission(allocationID, requestDigest string, dependencies []*capabilityv1.CapabilityDependency, conditions []*capabilityv1.CapabilityCondition, observedAt time.Time) (*capabilityv1.CapabilityConditionSet, error) {
+func (h *Controller) ReplaceCapabilityAdmission(allocationID string, requestDigest string, dependencies []*capabilityv1.CapabilityDependency, conditions []*capabilityv1.CapabilityCondition, observedAt time.Time) (*capabilityv1.CapabilityConditionSet, error) {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" || !validStartRequestDigest(requestDigest) {
 		return nil, errors.New("allocation id and canonical request digest are required")
 	}
-	return h.replaceCapabilityAdmission(allocationID, 0, requestDigest, dependencies, conditions, observedAt, false)
+	return h.replaceCapabilityAdmission(allocationID, requestDigest, dependencies, conditions, observedAt)
 }
 
-func (h *Controller) replaceCapabilityAdmission(allocationID string, attempt int64, requestDigest string, dependencies []*capabilityv1.CapabilityDependency, conditions []*capabilityv1.CapabilityCondition, observedAt time.Time, managed bool) (*capabilityv1.CapabilityConditionSet, error) {
+func (h *Controller) replaceCapabilityAdmission(allocationID string, requestDigest string, dependencies []*capabilityv1.CapabilityDependency, conditions []*capabilityv1.CapabilityCondition, observedAt time.Time) (*capabilityv1.CapabilityConditionSet, error) {
 	validationTime := time.Now().UTC()
 	if err := capabilitycontract.ValidateDependencySet(dependencies, validationTime); err != nil {
 		return nil, fmt.Errorf("validate allocation capability dependencies: %w", err)
@@ -162,19 +151,8 @@ func (h *Controller) replaceCapabilityAdmission(allocationID string, attempt int
 		desired = cloneAllocationRecord(current.record)
 	}
 	h.stateMu.RUnlock()
-	currentAttempt := desired.GetAllocationAttempt()
-	if managed {
-		if currentAttempt > 0 && currentAttempt != attempt {
-			return nil, fmt.Errorf("allocation capability admission attempt %d conflicts with durable attempt %d", attempt, currentAttempt)
-		}
-		if currentAttempt == 0 && validStartRequestDigest(desired.GetAllocationRequestDigest()) {
-			return nil, fmt.Errorf("managed capability admission conflicts with a durable node-local sandbox")
-		}
-	} else if currentAttempt > 0 {
-		return nil, fmt.Errorf("node-local capability admission conflicts with durable managed attempt %d", currentAttempt)
-	}
 	if currentDigest := desired.GetAllocationRequestDigest(); currentDigest != "" && currentDigest != requestDigest {
-		return nil, fmt.Errorf("allocation request digest conflicts with durable attempt contract")
+		return nil, fmt.Errorf("allocation request digest conflicts with durable contract")
 	}
 	if desired.GetLaunchVerification() != nil && desired.GetCapabilityAdmissionConditions() != nil {
 		return nil, fmt.Errorf("allocation capability admission is already sealed")
@@ -196,9 +174,6 @@ func (h *Controller) replaceCapabilityAdmission(allocationID string, attempt int
 	if desired.GetLaunchVerification() != nil {
 		desired.CapabilityAdmissionConditions = proto.Clone(set).(*capabilityv1.CapabilityConditionSet)
 	}
-	if managed {
-		desired.AllocationAttempt = attempt
-	}
 	desired.AllocationRequestDigest = requestDigest
 	if err := h.persistAllocationRecord(desired); err != nil {
 		return nil, fmt.Errorf("persist allocation capability admission: %w", err)
@@ -208,21 +183,6 @@ func (h *Controller) replaceCapabilityAdmission(allocationID string, attempt int
 	state.record = desired
 	h.stateMu.Unlock()
 	return proto.Clone(set).(*capabilityv1.CapabilityConditionSet), nil
-}
-
-// ManagedAllocationAttempt returns the durable control-plane generation for an
-// allocation. Absence is distinct from attempt zero: managed attempts are
-// always positive, while an absent record means the runtime has no generation
-// to fence (for example, after an already-deleted sandbox is reconciled across
-// a node restart).
-func (h *Controller) ManagedAllocationAttempt(allocationID string) (int64, bool) {
-	h.stateMu.RLock()
-	defer h.stateMu.RUnlock()
-	if state := h.allocationStates[strings.TrimSpace(allocationID)]; state != nil {
-		attempt := state.record.GetAllocationAttempt()
-		return attempt, attempt > 0
-	}
-	return 0, false
 }
 
 func (h *Controller) AllocationRequestDigest(allocationID string) string {
@@ -529,12 +489,11 @@ func (h *Controller) CapabilityConditionManifests() map[string]CapabilityConditi
 	defer h.stateMu.RUnlock()
 	result := make(map[string]CapabilityConditionManifest)
 	for allocationID, state := range h.allocationStates {
-		if state == nil || state.record.GetAllocationAttempt() <= 0 || state.record.GetCapabilityConditions() == nil {
+		if state == nil || state.record.GetCapabilityConditions() == nil {
 			continue
 		}
 		result[allocationID] = CapabilityConditionManifest{
-			Attempt: state.record.GetAllocationAttempt(),
-			Set:     proto.Clone(state.record.GetCapabilityConditions()).(*capabilityv1.CapabilityConditionSet),
+			Set: proto.Clone(state.record.GetCapabilityConditions()).(*capabilityv1.CapabilityConditionSet),
 		}
 	}
 	return result
@@ -563,7 +522,6 @@ func (h *Controller) StoreLaunchVerification(allocationID string, manifest *apip
 		manifest,
 		verified,
 		desired.GetCapabilityDependencies(),
-		desired.GetEgressPolicyProof(),
 		observedAt,
 		time.Now().UTC(),
 	)
@@ -587,7 +545,7 @@ func (h *Controller) StoreLaunchVerification(allocationID string, manifest *apip
 	return nil
 }
 
-func newLaunchVerification(manifest *apipb.AllocationEnforcementManifest, verified []*capabilityv1.CapabilityKey, dependencies []*capabilityv1.CapabilityDependency, egressProof *apipb.AllocationEgressPolicyProof, observedAt, now time.Time) (*apipb.AllocationLaunchVerification, error) {
+func newLaunchVerification(manifest *apipb.AllocationEnforcementManifest, verified []*capabilityv1.CapabilityKey, dependencies []*capabilityv1.CapabilityDependency, observedAt, now time.Time) (*apipb.AllocationLaunchVerification, error) {
 	if err := runtimecontract.ValidateEnforcementManifest(manifest, ""); err != nil {
 		return nil, err
 	}
@@ -616,7 +574,7 @@ func newLaunchVerification(manifest *apipb.AllocationEnforcementManifest, verifi
 		right, _ := capabilitycontract.KeyID(canonical[j])
 		return left < right
 	})
-	expected, err := launchVerificationRequirements(manifest, dependencies, egressProof)
+	expected, err := launchVerificationRequirements(manifest, dependencies)
 	if err != nil {
 		return nil, err
 	}
@@ -626,7 +584,7 @@ func newLaunchVerification(manifest *apipb.AllocationEnforcementManifest, verifi
 	return &apipb.AllocationLaunchVerification{VerifiedCapabilities: canonical, VerifiedAtUnixNano: observedAt.UTC().UnixNano()}, nil
 }
 
-func launchVerificationRequirements(manifest *apipb.AllocationEnforcementManifest, dependencies []*capabilityv1.CapabilityDependency, egressProof *apipb.AllocationEgressPolicyProof) ([]*capabilityv1.CapabilityKey, error) {
+func launchVerificationRequirements(manifest *apipb.AllocationEnforcementManifest, dependencies []*capabilityv1.CapabilityDependency) ([]*capabilityv1.CapabilityKey, error) {
 	required := make([]*capabilityv1.CapabilityKey, 0, len(dependencies))
 	for _, dependency := range dependencies {
 		if dependency == nil || dependency.GetLossPolicy() != capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP {
@@ -635,13 +593,6 @@ func launchVerificationRequirements(manifest *apipb.AllocationEnforcementManifes
 		key := dependency.GetKey()
 		if _, err := capabilitycontract.KeyID(key); err != nil {
 			return nil, fmt.Errorf("validate immutable fail-stop dependency: %w", err)
-		}
-		switch key.GetPlatform() {
-		case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT,
-			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT:
-			if egressProof == nil {
-				return nil, fmt.Errorf("egress fail-stop dependency has no prepared policy proof")
-			}
 		}
 		required = append(required, capabilitycontract.CloneKey(key))
 	}
@@ -1050,11 +1001,12 @@ func validateRecoveredCapabilityState(record *apipb.AllocationState, now time.Ti
 		return fmt.Errorf("validate recovered capability dependencies: %w", err)
 	}
 	conditions := record.GetCapabilityConditions()
-	governed := record.GetAllocationAttempt() > 0 || len(dependencies) > 0 || record.GetAllocationRequestDigest() != ""
-	if record.GetAllocationAttempt() > 0 && conditions == nil {
-		return errors.New("active managed allocation is missing its durable capability condition set")
+	admissionConditions := record.GetCapabilityAdmissionConditions()
+	governed := len(dependencies) > 0 || record.GetAllocationRequestDigest() != "" || conditions != nil || admissionConditions != nil
+	if governed && conditions == nil {
+		return errors.New("active capability-governed allocation is missing its durable capability condition set")
 	}
-	if (record.GetAllocationAttempt() > 0 || len(dependencies) > 0) && !validStartRequestDigest(record.GetAllocationRequestDigest()) {
+	if governed && !validStartRequestDigest(record.GetAllocationRequestDigest()) {
 		return errors.New("active capability-governed allocation is missing its canonical request digest")
 	}
 	if conditions != nil {
@@ -1065,7 +1017,6 @@ func validateRecoveredCapabilityState(record *apipb.AllocationState, now time.Ti
 			return errors.New("recovered capability conditions do not exactly match dependencies")
 		}
 	}
-	admissionConditions := record.GetCapabilityAdmissionConditions()
 	if governed && admissionConditions == nil {
 		return errors.New("active capability-governed allocation is missing its sealed create condition proof")
 	}
@@ -1083,7 +1034,7 @@ func validateRecoveredCapabilityState(record *apipb.AllocationState, now time.Ti
 		return errors.New("recovered launch enforcement proof has no verified time")
 	}
 	verifiedAt := time.Unix(0, verification.GetVerifiedAtUnixNano()).UTC()
-	expected, err := newLaunchVerification(manifest, verification.GetVerifiedCapabilities(), record.GetCapabilityDependencies(), record.GetEgressPolicyProof(), verifiedAt, now)
+	expected, err := newLaunchVerification(manifest, verification.GetVerifiedCapabilities(), record.GetCapabilityDependencies(), verifiedAt, now)
 	if err != nil {
 		return fmt.Errorf("validate recovered launch enforcement proof: %w", err)
 	}

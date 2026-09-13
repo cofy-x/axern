@@ -8,7 +8,7 @@ import (
 )
 
 func (s *nodeSandboxServer) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream nodesandboxv1.NodeSandbox_ReadOutputServer) error {
-	target, err := s.validateDirectAuth(stream.Context(), req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(stream.Context(), req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return err
 	}

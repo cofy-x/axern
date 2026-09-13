@@ -8,7 +8,7 @@ import (
 )
 
 func (s *nodeSandboxServer) ComputerUseStatus(ctx context.Context, req *nodesandboxv1.ComputerUseStatusRequest) (*nodesandboxv1.ComputerUseStatusResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +26,7 @@ func (s *nodeSandboxServer) ComputerUseStatus(ctx context.Context, req *nodesand
 }
 
 func (s *nodeSandboxServer) ComputerUseScreenshot(ctx context.Context, req *nodesandboxv1.ComputerUseScreenshotRequest) (*nodesandboxv1.ComputerUseScreenshotResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (s *nodeSandboxServer) ComputerUseScreenshot(ctx context.Context, req *node
 }
 
 func (s *nodeSandboxServer) ComputerUseDisplay(ctx context.Context, req *nodesandboxv1.ComputerUseDisplayRequest) (*nodesandboxv1.ComputerUseDisplayResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (s *nodeSandboxServer) ComputerUseDisplay(ctx context.Context, req *nodesan
 }
 
 func (s *nodeSandboxServer) ComputerUseMouse(ctx context.Context, req *nodesandboxv1.ComputerUseMouseRequest) (*nodesandboxv1.ComputerUseMouseResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (s *nodeSandboxServer) ComputerUseMouse(ctx context.Context, req *nodesandb
 }
 
 func (s *nodeSandboxServer) ComputerUseKeyboard(ctx context.Context, req *nodesandboxv1.ComputerUseKeyboardRequest) (*nodesandboxv1.ComputerUseKeyboardResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}

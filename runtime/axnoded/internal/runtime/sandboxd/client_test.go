@@ -592,19 +592,6 @@ func TestClientWaitReadySocketMissingAndContextCancel(t *testing.T) {
 	}
 }
 
-func TestEnrichLabels(t *testing.T) {
-	labels := EnrichLabels(map[string]string{"existing": "true"}, "/tmp/sandboxd.sock", wire.ReadySnapshot{
-		Capabilities: wire.CapabilitiesResponse{Capabilities: []string{"health", "status"}},
-		Status:       wire.StatusResponse{UserProcess: wire.UserProcessStatus{State: "running"}},
-	})
-	if labels["existing"] != "true" || labels[LabelReady] != "true" || labels[LabelSocket] != "/tmp/sandboxd.sock" {
-		t.Fatalf("labels = %#v", labels)
-	}
-	if labels[LabelCapabilities] != "health,status" || labels[LabelUserState] != "running" {
-		t.Fatalf("labels = %#v", labels)
-	}
-}
-
 func TestShortUnixSocketPathUsesSymlinkForLongPath(t *testing.T) {
 	longPath := "/" + strings.Repeat("very-long/", 16) + "sandboxd.sock"
 	dialPath, cleanup, err := shortUnixSocketPath(longPath)

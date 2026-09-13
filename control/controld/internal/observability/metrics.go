@@ -43,17 +43,17 @@ var (
 		Name:        "axern.controld_reconcile_running_age_seconds",
 		Description: "Seconds since background reconcile work became continuously active by component.",
 	}
-	MetricAllocationStatusReportTotal = sdkobs.Instrument{
-		Name:        "axern.controld_allocation_status_report_total",
-		Description: "Allocation status reports received by controld.",
+	MetricAllocationLifecycleReportTotal = sdkobs.Instrument{
+		Name:        "axern.controld_allocation_lifecycle_report_total",
+		Description: "Allocation lifecycle reports received by controld.",
 	}
-	MetricAllocationStatusReportDuration = sdkobs.Instrument{
-		Name:        "axern.controld_allocation_status_report_duration_seconds",
-		Description: "Allocation status report handling latency.",
+	MetricAllocationLifecycleReportDuration = sdkobs.Instrument{
+		Name:        "axern.controld_allocation_lifecycle_report_duration_seconds",
+		Description: "Allocation lifecycle report handling latency.",
 	}
-	MetricAllocationStatusReportStageDuration = sdkobs.Instrument{
-		Name:        "axern.controld_allocation_status_report_stage_duration_seconds",
-		Description: "Allocation status report validation, authentication, and persistence stage duration.",
+	MetricAllocationLifecycleReportStageDuration = sdkobs.Instrument{
+		Name:        "axern.controld_allocation_lifecycle_report_stage_duration_seconds",
+		Description: "Allocation lifecycle report validation, authentication, and persistence stage duration.",
 	}
 	MetricEnvironmentOperationTotal = sdkobs.Instrument{
 		Name:        "axern.controld_environment_operation_total",

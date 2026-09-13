@@ -17,7 +17,6 @@ class SandboxState:
     environment_id: str
     run_id: str
     allocation_id: str
-    attempt: int
     node_id: str
     tunnel_session_id: str
     bound_addr: str
@@ -30,7 +29,6 @@ class SandboxMetadata:
     environment_id: str
     run_id: str
     allocation_id: str
-    attempt: int
     node_id: str
     runtime_class: str
     tunnel_session_id: str

@@ -67,7 +67,7 @@ func TestCapabilityReportUsesDependencyIndexAndRollsBackTransitionQueueAtomicall
 		t.Fatal(err)
 	}
 
-	insertAllocation := func(allocationID string, status commonv1.AllocationStatus) {
+	insertAllocation := func(allocationID string, status commonv1.AllocationLifecycleState) {
 		t.Helper()
 		if _, err := db.Pool().Exec(ctx, `
 			INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
@@ -77,17 +77,17 @@ func TestCapabilityReportUsesDependencyIndexAndRollsBackTransitionQueueAtomicall
 		}
 		if _, err := db.Pool().Exec(ctx, `
 			INSERT INTO allocations (
-				allocation_id, run_id, node_id, attempt, status, config, created_at, updated_at
-			) VALUES ($1, $1, $2, 1, $3, '{}'::jsonb, $4, $4)
+				allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at
+			) VALUES ($1, $1, $2, $3, $4, $4)
 		`, allocationID, nodeID, status.String(), now); err != nil {
 			t.Fatal(err)
 		}
 	}
-	insertAllocation(affectedID, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING)
-	insertAllocation(admissionOnlyID, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING)
-	insertAllocation(unrelatedID, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING)
-	insertAllocation(terminalID, commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED)
-	insertAllocation(releasingID, commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASING)
+	insertAllocation(affectedID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE)
+	insertAllocation(admissionOnlyID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE)
+	insertAllocation(unrelatedID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE)
+	insertAllocation(terminalID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING)
+	insertAllocation(releasingID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING)
 	for allocationID, key := range map[string]*capabilityv1.CapabilityKey{
 		affectedID: affectedKey, admissionOnlyID: admissionOnlyKey, unrelatedID: unrelatedKey,
 		terminalID: affectedKey, releasingID: affectedKey,

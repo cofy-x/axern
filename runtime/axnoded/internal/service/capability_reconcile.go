@@ -448,11 +448,7 @@ func verifyCapabilityBatchWithDelays(ctx context.Context, delays []time.Duration
 func (h *sandboxService) verifyAllocationCapability(ctx context.Context, allocationID string, dependency *capabilityv1.CapabilityDependency) contract.CapabilityVerification {
 	platform := dependency.GetKey().GetPlatform()
 	if platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT || platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT {
-		manifest, exists := h.allocationController().EgressPolicyManifest(allocationID)
-		if !exists {
-			return contract.LostCapability(fmt.Errorf("durable egress policy proof is unavailable"))
-		}
-		return verifyActiveEgressPolicy(ctx, h.egressClient, allocationID, manifest, allocationNetworkPolicyMode([]*capabilityv1.CapabilityDependency{dependency}))
+		return verifyActiveEgressPolicy(ctx, h.egressClient, allocationID, h.allocationController().ContainerIP(allocationID), allocationNetworkPolicyMode([]*capabilityv1.CapabilityDependency{dependency}))
 	}
 	if platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING || platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE || platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET {
 		manager := network.NetworkManagers[h.config.PluginConfig.NetworkConfig.NatBackend]
@@ -588,7 +584,6 @@ func (h *sandboxService) scheduleCapabilityTermination(allocationID string, caus
 }
 
 func (h *sandboxService) reportCapabilityCondition(allocationID string, dependency *capabilityv1.CapabilityDependency, state capabilityv1.CapabilityConditionState, reasonCode capabilityv1.CapabilityReasonCode, message string) error {
-	attempt, found := h.allocationController().ManagedAllocationAttempt(allocationID)
 	now := time.Now().UTC()
 	proof := dependency.GetSelectedObservation()
 	if snapshot := h.capabilityManager.Snapshot(); snapshot != nil {
@@ -607,9 +602,7 @@ func (h *sandboxService) reportCapabilityCondition(allocationID string, dependen
 	if err != nil {
 		return fmt.Errorf("persist allocation capability condition: %w", err)
 	}
-	if found {
-		h.controlPlaneReports.ReportCapabilityConditions(allocationID, attempt, conditionSet)
-	}
+	h.controlPlaneReports.ReportCapabilityConditions(allocationID, conditionSet)
 	return nil
 }
 
@@ -653,10 +646,6 @@ func (h *sandboxService) ReconcileAllocationCapabilities(ctx context.Context, al
 	dependencies := h.allocationController().CapabilityDependencyManifests()[strings.TrimSpace(allocationID)]
 	if len(dependencies) == 0 {
 		return nil, h.allocationController().CapabilityConditions(allocationID), nil
-	}
-	attempt, found := h.allocationController().ManagedAllocationAttempt(allocationID)
-	if !found {
-		return nil, nil, fmt.Errorf("managed allocation %q has capability dependencies but no durable attempt", allocationID)
 	}
 	conditions := make([]*capabilityv1.CapabilityCondition, 0, len(dependencies))
 	now := time.Now().UTC()
@@ -731,7 +720,7 @@ func (h *sandboxService) ReconcileAllocationCapabilities(ctx context.Context, al
 	if err != nil {
 		return nil, nil, err
 	}
-	h.controlPlaneReports.ReportCapabilityConditions(allocationID, attempt, set)
+	h.controlPlaneReports.ReportCapabilityConditions(allocationID, set)
 	var terminationReasons []error
 	for _, condition := range conditions {
 		if condition.GetState() != capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_FAILED {

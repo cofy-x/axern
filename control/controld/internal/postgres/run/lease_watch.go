@@ -40,7 +40,7 @@ func (s *Store) loadExecutionLeases(ctx context.Context, nodeID string, afterRev
 		return nil, 0, fmt.Errorf("load lease revision: %w", err)
 	}
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT lease_id, allocation_id, node_id, node_target, attempt, lease_type,
+		SELECT lease_id, allocation_id, node_id, node_target, lease_type,
 			expires_at, revision, revoked, token_hash
 		FROM execution_leases
 		WHERE node_id = $1 AND revision > $2 AND revision <= $3

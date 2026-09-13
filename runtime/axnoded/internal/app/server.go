@@ -53,7 +53,6 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	hostname, _ := os.Hostname()
 	nodeID := cfg.PluginConfig.ControlPlaneNodeIDValue(hostname)
 	controlPlaneConfig := cfg.PluginConfig
-	allocationTargets := api.NewAllocationTargetRegistry()
 	leaseCache := controlplane.NewLeaseCache()
 	var leaseValidator api.DirectLeaseValidator
 	leaseWatcher := controlplane.NewLeaseWatcher(
@@ -85,9 +84,9 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 			localOptions = append(localOptions, grpc.StatsHandler(handler))
 		}
 		localGRPCServer = grpc.NewServer(localOptions...)
-		nodesandboxv1.RegisterNodeSandboxServer(localGRPCServer, api.NewNodeSandboxServer(svc, nodeID, allocationTargets, leaseValidator))
-		nodelifecyclev1.RegisterNodeLifecycleServer(localGRPCServer, api.NewNodeLifecycleServer(svc, nodeID, allocationTargets))
-		nodeoperatorv1.RegisterNodeOperatorServer(localGRPCServer, api.NewNodeOperatorServer(svc, allocationTargets))
+		nodesandboxv1.RegisterNodeSandboxServer(localGRPCServer, api.NewNodeSandboxServer(svc, nodeID, leaseValidator))
+		nodelifecyclev1.RegisterNodeLifecycleServer(localGRPCServer, api.NewNodeLifecycleServer(svc, nodeID))
+		nodeoperatorv1.RegisterNodeOperatorServer(localGRPCServer, api.NewNodeOperatorServer(svc))
 		healthpb.RegisterHealthServer(localGRPCServer, localHealthServer)
 	}
 
@@ -104,8 +103,8 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 			nodeOptions = append(nodeOptions, grpc.StatsHandler(handler))
 		}
 		nodeGRPCServer = grpc.NewServer(nodeOptions...)
-		nodesandboxv1.RegisterNodeSandboxServer(nodeGRPCServer, api.NewNodeSandboxServer(svc, nodeID, allocationTargets, leaseValidator))
-		nodelifecyclev1.RegisterNodeLifecycleServer(nodeGRPCServer, api.NewNodeLifecycleServer(svc, nodeID, allocationTargets))
+		nodesandboxv1.RegisterNodeSandboxServer(nodeGRPCServer, api.NewNodeSandboxServer(svc, nodeID, leaseValidator))
+		nodelifecyclev1.RegisterNodeLifecycleServer(nodeGRPCServer, api.NewNodeLifecycleServer(svc, nodeID))
 		healthpb.RegisterHealthServer(nodeGRPCServer, nodeHealthServer)
 	}
 

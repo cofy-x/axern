@@ -61,10 +61,6 @@ func FormatRelativeAge(from, to time.Time) string {
 	}
 }
 
-func AllocationStatusLabel(status commonv1.AllocationStatus) string {
-	return trimEnumPrefix(status.String(), "ALLOCATION_STATUS_")
-}
-
 func RunStatusLabel(status runv1.RunStatus) string {
 	return trimEnumPrefix(status.String(), "RUN_STATUS_")
 }

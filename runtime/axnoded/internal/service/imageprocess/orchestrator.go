@@ -83,27 +83,29 @@ func (o Orchestrator) CreateActor(ctx context.Context, parentID string, spec *ru
 	}
 
 	actorID := config.SandboxContainerPrefix + "-imageproc-" + strings.ReplaceAll(uuid.NewString(), "-", "")
-	labels := Labels(lrtTemplate.GetID(), parentID, spec.GetImage())
+	labels := Labels(parentID, spec.GetImage())
 	createRequest := &runtime.CreateContainerRequest{
-		Runtime:  target.Runtime,
-		Command:  append([]string(nil), idleCommand...),
-		Rootfs:   startplan.BuildContainerRootfs(lrt),
-		Resource: startplan.ResourcesToLinux(nil),
-		Mounts:   actorMounts,
-		Envs:     startplan.BuildStaticRuntimeEnv(lrt),
-		Network:  o.options.Network,
-		Labels:   labels,
-		Cwd:      lrt.Cwd,
-		ID:       actorID,
+		Runtime:      target.Runtime,
+		Command:      append([]string(nil), idleCommand...),
+		Rootfs:       startplan.BuildContainerRootfs(lrt),
+		Resource:     startplan.ResourcesToLinux(nil),
+		Mounts:       actorMounts,
+		Envs:         startplan.BuildStaticRuntimeEnv(lrt),
+		Network:      o.options.Network,
+		Labels:       labels,
+		Cwd:          lrt.Cwd,
+		ID:           actorID,
+		RecoveryMode: runtime.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 	}
 	templateRequest := &runtime.CreateContainerRequest{
-		Runtime: target.Runtime,
-		Command: append([]string(nil), idleCommand...),
-		Rootfs:  startplan.BuildContainerRootfs(lrt),
-		Mounts:  nil,
-		Envs:    startplan.BuildStaticRuntimeEnv(lrt),
-		Labels:  labels,
-		Cwd:     lrt.Cwd,
+		Runtime:      target.Runtime,
+		Command:      append([]string(nil), idleCommand...),
+		Rootfs:       startplan.BuildContainerRootfs(lrt),
+		Mounts:       nil,
+		Envs:         startplan.BuildStaticRuntimeEnv(lrt),
+		Labels:       labels,
+		Cwd:          lrt.Cwd,
+		RecoveryMode: runtime.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 	}
 
 	if err := o.options.CreateContainer(ctx, lrt, templateRequest, createRequest); err != nil {

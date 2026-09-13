@@ -29,7 +29,6 @@ type fakeNodeOperatorService struct {
 	deleteRequests       []*runtimev1.DeleteRequest
 	killRequests         []*runtimev1.KillRequest
 	reportedAllocationID string
-	reportedAttempt      int64
 	reportedExitCode     int32
 	reportedKnown        bool
 	diagnosticsID        string
@@ -39,7 +38,6 @@ type fakeNodeOperatorService struct {
 	networkPolicy        service.NetworkPolicyDiagnostics
 }
 
-func (f *fakeNodeOperatorService) ManagedAllocationAttempt(string) (int64, bool) { return 1, true }
 func (f *fakeNodeOperatorService) NetworkPolicyDiagnostics(context.Context, string) service.NetworkPolicyDiagnostics {
 	return f.networkPolicy
 }
@@ -126,14 +124,13 @@ func (f *fakeNodeOperatorService) Checkpoint(context.Context, *runtimev1.Checkpo
 func (f *fakeNodeOperatorService) Version(context.Context, *runtimev1.VersionRequest) (*runtimev1.VersionResponse, error) {
 	return nil, nil
 }
-func (f *fakeNodeOperatorService) ReportAllocationStatus(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time) {
+func (f *fakeNodeOperatorService) ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time) {
 	_ = status
 	_ = ready
 	_ = readinessMessage
 	_ = message
 	_ = observedAt
 	f.reportedAllocationID = allocationID
-	f.reportedAttempt = attempt
 	f.reportedExitCode = exitCode
 	f.reportedKnown = exitCodeKnown
 }
@@ -290,7 +287,7 @@ func (f *fakeNodeOperatorService) List(ctx context.Context, req *runtimev1.ListC
 func TestNodeOperatorListSandboxesBridgesList(t *testing.T) {
 	t.Parallel()
 
-	server := NewNodeOperatorServer(&fakeNodeOperatorService{}, NewAllocationTargetRegistry())
+	server := NewNodeOperatorServer(&fakeNodeOperatorService{})
 	resp, err := server.ListSandboxes(context.Background(), &nodeoperatorv1.ListSandboxesRequest{})
 	if err != nil {
 		t.Fatalf("ListSandboxes() error = %v", err)
@@ -307,7 +304,7 @@ func TestNodeOperatorExecBridgesRequest(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeOperatorService{}
-	server := NewNodeOperatorServer(fakeService, NewAllocationTargetRegistry())
+	server := NewNodeOperatorServer(fakeService)
 
 	resp, err := server.Exec(context.Background(), &nodeoperatorv1.ExecRequest{
 		SandboxID: "sandbox-123",
@@ -341,7 +338,7 @@ func TestNodeOperatorKillBridgesRequest(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeOperatorService{}
-	server := NewNodeOperatorServer(fakeService, NewAllocationTargetRegistry())
+	server := NewNodeOperatorServer(fakeService)
 
 	_, err := server.KillSandbox(context.Background(), &nodeoperatorv1.KillSandboxRequest{
 		SandboxID: "sandbox-123",
@@ -363,7 +360,7 @@ func TestNodeOperatorWaitReturnsExit(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeOperatorService{}
-	server := NewNodeOperatorServer(fakeService, NewAllocationTargetRegistry())
+	server := NewNodeOperatorServer(fakeService)
 
 	resp, err := server.WaitSandbox(context.Background(), &nodeoperatorv1.WaitSandboxRequest{SandboxID: "sandbox-123"})
 	if err != nil {
@@ -381,7 +378,7 @@ func TestNodeOperatorSandboxDiagnosticsBridgesSandboxdSnapshot(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeOperatorService{}
-	server := NewNodeOperatorServer(fakeService, NewAllocationTargetRegistry())
+	server := NewNodeOperatorServer(fakeService)
 	resp, err := server.GetSandboxDiagnostics(context.Background(), &nodeoperatorv1.GetSandboxDiagnosticsRequest{SandboxID: "sandbox-123", Full: true})
 	if err != nil {
 		t.Fatalf("GetSandboxDiagnostics() error = %v", err)
@@ -407,18 +404,18 @@ func TestNodeOperatorNetworkPolicyDiagnosticsAreBoundedAndPrivacySafe(t *testing
 	t.Parallel()
 	fakeService := &fakeNodeOperatorService{networkPolicy: service.NetworkPolicyDiagnostics{
 		Mode: service.NetworkPolicyModeStrict, Status: service.NetworkPolicyStatusOK,
-		CapabilityState: service.NetworkPolicyCapabilityAvailable, EnforcementHealthy: true, ExactProof: true,
-		AllocationAttempt: 2, ExecutionRevision: 7, EnforcementRevision: 11,
-		DomainRuleCount: 3, CIDRRuleCount: 2, PortRangeCount: 4, TotalRuleCount: 5, RecoveredAfterRestart: true,
+		CapabilityState: service.NetworkPolicyCapabilityAvailable, EnforcementHealthy: true, ExactBinding: true,
+		EnforcementRevision: 11,
+		DomainRuleCount:     3, CIDRRuleCount: 2, PortRangeCount: 4, TotalRuleCount: 5,
 	}}
-	server := NewNodeOperatorServer(fakeService, NewAllocationTargetRegistry())
+	server := NewNodeOperatorServer(fakeService)
 	response, err := server.ExplainSandboxNetworkPolicy(context.Background(), &nodeoperatorv1.ExplainSandboxNetworkPolicyRequest{SandboxID: "sandbox-123"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if response.GetMode() != nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_STRICT ||
 		response.GetStatus() != nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_OK ||
-		!response.GetExactProof() || response.GetTotalRuleCount() != 5 || !response.GetRecoveredAfterRestart() {
+		!response.GetExactBinding() || response.GetTotalRuleCount() != 5 {
 		t.Fatalf("network policy diagnostics = %#v", response)
 	}
 	for index := range response.ProtoReflect().Descriptor().Fields().Len() {
@@ -436,18 +433,16 @@ func TestNodeOperatorSandboxMemoryReturnsLatestResolvedObservation(t *testing.T)
 
 	inventory := nodeinventory.NewSnapshot()
 	inventory.AllocationMemoryObservations = []*controlnodev1.AllocationMemoryObservation{{
-		AllocationID: "container-123", Attempt: 2, Revision: 7, LimitBytes: 512 << 20,
+		AllocationID: "allocation-123", Revision: 7, LimitBytes: 512 << 20,
 	}}
 	fakeService := &fakeNodeOperatorService{inventory: inventory, inventoryReady: true}
-	targets := NewAllocationTargetRegistry()
-	targets.bind("allocation-123", "container-123")
-	server := NewNodeOperatorServer(fakeService, targets)
+	server := NewNodeOperatorServer(fakeService)
 
 	resp, err := server.GetSandboxMemory(context.Background(), &nodeoperatorv1.GetSandboxMemoryRequest{SandboxID: "allocation-123"})
 	if err != nil {
 		t.Fatalf("GetSandboxMemory() error = %v", err)
 	}
-	if got := resp.GetObservation(); got.GetAllocationID() != "container-123" || got.GetRevision() != 7 || got.GetLimitBytes() != 512<<20 {
+	if got := resp.GetObservation(); got.GetAllocationID() != "allocation-123" || got.GetRevision() != 7 || got.GetLimitBytes() != 512<<20 {
 		t.Fatalf("GetSandboxMemory() = %#v", got)
 	}
 }
@@ -455,7 +450,7 @@ func TestNodeOperatorSandboxMemoryReturnsLatestResolvedObservation(t *testing.T)
 func TestNodeOperatorSandboxMemoryFailsClosedWithoutFreshObservation(t *testing.T) {
 	t.Parallel()
 
-	server := NewNodeOperatorServer(&fakeNodeOperatorService{}, NewAllocationTargetRegistry())
+	server := NewNodeOperatorServer(&fakeNodeOperatorService{})
 	_, err := server.GetSandboxMemory(context.Background(), &nodeoperatorv1.GetSandboxMemoryRequest{SandboxID: "sandbox-123"})
 	if grpcstatus.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("GetSandboxMemory() code = %v, want %v", grpcstatus.Code(err), codes.FailedPrecondition)
@@ -465,7 +460,7 @@ func TestNodeOperatorSandboxMemoryFailsClosedWithoutFreshObservation(t *testing.
 func TestNodeOperatorSandboxDiagnosticsRequiresID(t *testing.T) {
 	t.Parallel()
 
-	server := NewNodeOperatorServer(&fakeNodeOperatorService{}, NewAllocationTargetRegistry())
+	server := NewNodeOperatorServer(&fakeNodeOperatorService{})
 	_, err := server.GetSandboxDiagnostics(context.Background(), &nodeoperatorv1.GetSandboxDiagnosticsRequest{})
 	if grpcstatus.Code(err) != codes.InvalidArgument {
 		t.Fatalf("GetSandboxDiagnostics() code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
@@ -475,7 +470,7 @@ func TestNodeOperatorSandboxDiagnosticsRequiresID(t *testing.T) {
 func TestNodeOperatorGetSandboxRequiresID(t *testing.T) {
 	t.Parallel()
 
-	server := NewNodeOperatorServer(&fakeNodeOperatorService{}, NewAllocationTargetRegistry())
+	server := NewNodeOperatorServer(&fakeNodeOperatorService{})
 	_, err := server.GetSandbox(context.Background(), &nodeoperatorv1.GetSandboxRequest{})
 	if grpcstatus.Code(err) != codes.InvalidArgument {
 		t.Fatalf("GetSandbox() code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)

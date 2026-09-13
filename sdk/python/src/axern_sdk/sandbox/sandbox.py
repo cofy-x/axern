@@ -127,10 +127,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         return self.state.node_id
 
     @property
-    def attempt(self) -> int:
-        return self.state.attempt
-
-    @property
     def tunnel_session_id(self) -> str:
         return self.state.tunnel_session_id
 
@@ -145,7 +141,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
             environment_id=state.environment_id,
             run_id=state.run_id,
             allocation_id=state.allocation_id,
-            attempt=state.attempt,
             node_id=state.node_id,
             runtime_class=self._runtime_class,
             tunnel_session_id=state.tunnel_session_id,
@@ -229,7 +224,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
                 environment_id=environment_id,
                 run_id=run.id,
                 allocation_id=run.allocation_id,
-                attempt=run.attempt,
                 node_id=run.node_id,
                 tunnel_session_id=tunnel_session_id,
                 bound_addr=bound_addr,

@@ -55,7 +55,7 @@ func TestValidateMemoryAdmissionEvidenceAppliesPublishedBudgetToZeroRequest(t *t
 		MemoryBudget: budget, CollectedAt: timestamppb.New(now),
 	}
 	evidence := MemoryAdmissionEvidence{
-		AllocationID: "alloc-a", Attempt: 1, NodeID: "node-a", Resources: &commonv1.ResourceSpec{}, Summary: summary, AdmittedAt: now,
+		AllocationID: "alloc-a", NodeID: "node-a", Resources: &commonv1.ResourceSpec{}, Summary: summary, AdmittedAt: now,
 	}
 	if err := validateMemoryAdmissionEvidence(evidence); err != nil {
 		t.Fatalf("validateMemoryAdmissionEvidence() error = %v", err)
@@ -68,7 +68,7 @@ func TestValidateMemoryAdmissionEvidenceAppliesPublishedBudgetToZeroRequest(t *t
 
 func TestValidateMemoryAdmissionEvidenceRequiresBudgetForPositiveRequest(t *testing.T) {
 	err := validateMemoryAdmissionEvidence(MemoryAdmissionEvidence{
-		AllocationID: "alloc-a", Attempt: 1, NodeID: "node-a", AdmittedAt: time.Now().UTC(),
+		AllocationID: "alloc-a", NodeID: "node-a", AdmittedAt: time.Now().UTC(),
 		Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{MemoryBytes: 1}},
 	})
 	if err == nil {
@@ -78,7 +78,7 @@ func TestValidateMemoryAdmissionEvidenceRequiresBudgetForPositiveRequest(t *test
 
 func TestValidateMemoryAdmissionEvidenceRequiresBudgetForZeroRequest(t *testing.T) {
 	err := validateMemoryAdmissionEvidence(MemoryAdmissionEvidence{
-		AllocationID: "alloc-a", Attempt: 1, NodeID: "node-a", AdmittedAt: time.Now().UTC(),
+		AllocationID: "alloc-a", NodeID: "node-a", AdmittedAt: time.Now().UTC(),
 		Resources: &commonv1.ResourceSpec{},
 	})
 	if err == nil {

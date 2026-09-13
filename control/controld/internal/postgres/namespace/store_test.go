@@ -383,8 +383,8 @@ func insertReservation(t *testing.T, db *postgres.DB, reservationID, allocationI
 		t.Fatalf("insert reservation run: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO allocations (allocation_id, run_id, node_id, status, config, created_at, updated_at)
-		VALUES ($1, $1, 'node-a', 'ALLOCATION_STATUS_RUNNING', '{}'::jsonb, $2, $2)
+		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
+		VALUES ($1, $1, 'node-a', 'ALLOCATION_LIFECYCLE_STATE_ACTIVE', $2, $2)
 	`, allocationID, now); err != nil {
 		t.Fatalf("insert reservation allocation: %v", err)
 	}

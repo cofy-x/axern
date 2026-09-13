@@ -168,8 +168,8 @@ func consistencyIssueSeverityToProto(severity consistencykernel.Severity) adminv
 
 func consistencyIssueCodeToProto(code consistencykernel.IssueCode) adminv1.ConsistencyIssueCode {
 	switch code {
-	case consistencykernel.IssueActiveReservationOnEndedAllocation:
-		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_ENDED_ALLOCATION
+	case consistencykernel.IssueActiveReservationOnReleasedAllocation:
+		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_RELEASED_ALLOCATION
 	case consistencykernel.IssueActiveLeaseOnEndedAllocation:
 		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ON_ENDED_ALLOCATION
 	case consistencykernel.IssueActiveTunnelOnEndedAllocation:

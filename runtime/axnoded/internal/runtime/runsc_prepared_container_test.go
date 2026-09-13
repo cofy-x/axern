@@ -96,13 +96,12 @@ func TestRunscStartPreparedContainerUsesStart(t *testing.T) {
 	meta, err := handler.StartPreparedContainer(context.Background(), &contract.PreparedContainer{
 		ContainerID: "allocation-prepared",
 		Metadata: &apipb.ContainerMetadata{
-			ID:             "allocation-prepared",
 			RuntimeHandler: "runsc",
 		},
 	}, contract.HandlerOptions{ContainerID: "allocation-prepared"})
 	assert.NoError(t, err)
 	if assert.NotNil(t, meta) {
-		assert.Equal(t, "allocation-prepared", meta.ID)
+		assert.Equal(t, "runsc", meta.GetRuntimeHandler())
 	}
 
 	deadline := time.Now().Add(time.Second)

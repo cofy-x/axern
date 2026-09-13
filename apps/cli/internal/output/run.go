@@ -20,7 +20,6 @@ func RenderRun(w io.Writer, run *runv1.Run) {
 	if run.GetAllocationID() != "" {
 		fmt.Fprintf(w, "Allocation ID: %s\n", run.GetAllocationID())
 	}
-	fmt.Fprintf(w, "Attempt: %d\n", run.GetAttempt())
 	if len(run.GetConfig().GetArgv()) > 0 {
 		fmt.Fprintf(w, "Argv: %v\n", run.GetConfig().GetArgv())
 	}
@@ -48,12 +47,11 @@ func RenderRunTable(w io.Writer, runs []*runv1.Run) {
 			run.GetID(),
 			firstNonEmpty(run.GetNamespace(), "-"),
 			RunStatusLabel(run.GetStatus()),
-			fmt.Sprintf("%d", run.GetAttempt()),
 			firstNonEmpty(run.GetAllocationID(), "-"),
 			formatRunAge(run),
 		})
 	}
-	RenderTable(w, []string{"ID", "NAMESPACE", "STATUS", "ATTEMPT", "ALLOCATION", "AGE"}, rows)
+	RenderTable(w, []string{"ID", "NAMESPACE", "STATUS", "ALLOCATION", "AGE"}, rows)
 }
 
 func formatRunAge(run *runv1.Run) string {

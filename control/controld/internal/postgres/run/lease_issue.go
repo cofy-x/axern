@@ -15,7 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (s *Store) IssueExecutionLease(ctx context.Context, allocationID string, attempt int64, leaseType commonv1.LeaseType, ttl time.Duration, now time.Time) (*commonv1.ExecutionLease, error) {
+func (s *Store) IssueExecutionLease(ctx context.Context, allocationID string, leaseType commonv1.LeaseType, ttl time.Duration, now time.Time) (*commonv1.ExecutionLease, error) {
 	if ttl <= 0 {
 		ttl = defaultExecutionLeaseTTL
 	}
@@ -28,9 +28,6 @@ func (s *Store) IssueExecutionLease(ctx context.Context, allocationID string, at
 		if err != nil {
 			return err
 		}
-		if alloc.Attempt != attempt {
-			return grpcstatus.Error(codes.FailedPrecondition, "allocation attempt is not current")
-		}
 		token := leasekernel.NewPlaintextToken()
 		hash := leasekernel.HashToken(token)
 		revision, err := s.nextLeaseRevision(ctx, tx)
@@ -41,7 +38,6 @@ func (s *Store) IssueExecutionLease(ctx context.Context, allocationID string, at
 			LeaseID:             "lease-" + uuid.NewString(),
 			AllocationID:        alloc.AllocationID,
 			NodeID:              alloc.NodeID,
-			Attempt:             alloc.Attempt,
 			LeaseType:           leaseType,
 			PlaintextToken:      token,
 			ValidationTokenHash: hash,
@@ -51,10 +47,10 @@ func (s *Store) IssueExecutionLease(ctx context.Context, allocationID string, at
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO execution_leases (
-				lease_id, allocation_id, node_id, node_target, attempt, lease_type,
+				lease_id, allocation_id, node_id, node_target, lease_type,
 				expires_at, revision, revoked, token_hash, created_at
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, $9, $10)
-		`, lease.GetLeaseID(), lease.GetAllocationID(), lease.GetNodeID(), lease.GetNodeTarget(), lease.GetAttempt(), lease.GetLeaseType().String(), lease.GetExpiresAt().AsTime().UTC(), revision, hash, now.UTC()); err != nil {
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9)
+		`, lease.GetLeaseID(), lease.GetAllocationID(), lease.GetNodeID(), lease.GetNodeTarget(), lease.GetLeaseType().String(), lease.GetExpiresAt().AsTime().UTC(), revision, hash, now.UTC()); err != nil {
 			return fmt.Errorf("insert execution lease: %w", err)
 		}
 		return nil

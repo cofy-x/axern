@@ -17,28 +17,28 @@ import (
 )
 
 const (
-	allocationStatusBatchDelay        = 10 * time.Millisecond
-	allocationStatusBatchLimit        = 256
-	allocationStatusQueueLimit        = 4096
-	allocationStatusRetryInitialDelay = 100 * time.Millisecond
-	allocationStatusRetryMaxDelay     = 5 * time.Second
-	allocationStatusLastErrorMaxBytes = 512
+	allocationLifecycleBatchDelay        = 10 * time.Millisecond
+	allocationLifecycleBatchLimit        = 256
+	allocationLifecycleQueueLimit        = 4096
+	allocationLifecycleRetryInitialDelay = 100 * time.Millisecond
+	allocationLifecycleRetryMaxDelay     = 5 * time.Second
+	allocationLifecycleLastErrorMaxBytes = 512
 )
 
-type allocationStatusBatchSender func(context.Context, []*nodev1.AllocationStatusObservation) error
+type allocationLifecycleBatchSender func(context.Context, []*nodev1.AllocationLifecycleObservation) error
 
-type queuedAllocationStatus struct {
-	observation *nodev1.AllocationStatusObservation
+type queuedAllocationLifecycleState struct {
+	observation *nodev1.AllocationLifecycleObservation
 	enqueuedAt  time.Time
 	sequence    uint64
 }
 
-// AllocationStatusReporterHealth is the bounded process-local status reporter
+// AllocationLifecycleReporterHealth is the bounded process-local status reporter
 // read model exposed through axnoded diagnostics. It is not durable workload
 // state; controld owns admitted lifecycle state and axnoded reconstructs
 // unacknowledged terminal reports from its durable node-state outbox after a
 // process restart.
-type AllocationStatusReporterHealth struct {
+type AllocationLifecycleReporterHealth struct {
 	Status              string     `json:"status"`
 	Pending             int        `json:"pending"`
 	OldestPendingAt     *time.Time `json:"oldestPendingAt,omitempty"`
@@ -54,8 +54,8 @@ type AllocationStatusReporterHealth struct {
 	Stopped             bool       `json:"stopped"`
 }
 
-type allocationStatusBatcher struct {
-	send              allocationStatusBatchSender
+type allocationLifecycleBatcher struct {
+	send              allocationLifecycleBatchSender
 	now               func() time.Time
 	jitter            func(time.Duration) time.Duration
 	batchDelay        time.Duration
@@ -63,8 +63,8 @@ type allocationStatusBatcher struct {
 	retryMaxDelay     time.Duration
 
 	mu                  sync.Mutex
-	pending             map[string]queuedAllocationStatus
-	inFlightBatch       map[string]queuedAllocationStatus
+	pending             map[string]queuedAllocationLifecycleState
+	inFlightBatch       map[string]queuedAllocationLifecycleState
 	oldestPendingAt     time.Time
 	sequence            uint64
 	stopped             bool
@@ -83,22 +83,22 @@ type allocationStatusBatcher struct {
 	wg                  sync.WaitGroup
 }
 
-func newAllocationStatusBatcher(send allocationStatusBatchSender) *allocationStatusBatcher {
-	return &allocationStatusBatcher{
+func newAllocationLifecycleBatcher(send allocationLifecycleBatchSender) *allocationLifecycleBatcher {
+	return &allocationLifecycleBatcher{
 		send:              send,
 		now:               func() time.Time { return time.Now().UTC() },
-		jitter:            allocationStatusRetryJitter,
-		batchDelay:        allocationStatusBatchDelay,
-		retryInitialDelay: allocationStatusRetryInitialDelay,
-		retryMaxDelay:     allocationStatusRetryMaxDelay,
-		pending:           make(map[string]queuedAllocationStatus),
-		inFlightBatch:     make(map[string]queuedAllocationStatus),
+		jitter:            allocationLifecycleRetryJitter,
+		batchDelay:        allocationLifecycleBatchDelay,
+		retryInitialDelay: allocationLifecycleRetryInitialDelay,
+		retryMaxDelay:     allocationLifecycleRetryMaxDelay,
+		pending:           make(map[string]queuedAllocationLifecycleState),
+		inFlightBatch:     make(map[string]queuedAllocationLifecycleState),
 		wake:              make(chan struct{}, 1),
 		stop:              make(chan struct{}),
 	}
 }
 
-func (b *allocationStatusBatcher) Start() {
+func (b *allocationLifecycleBatcher) Start() {
 	if b == nil || b.send == nil {
 		return
 	}
@@ -114,7 +114,7 @@ func (b *allocationStatusBatcher) Start() {
 	})
 }
 
-func (b *allocationStatusBatcher) Stop() {
+func (b *allocationLifecycleBatcher) Stop() {
 	if b == nil {
 		return
 	}
@@ -131,24 +131,24 @@ func (b *allocationStatusBatcher) Stop() {
 // Enqueue returns whether this observation became the current queued proof.
 // A durable terminal producer uses the result to discard an obsolete outbox
 // record or retry a queue-capacity failure without crossing its exit barrier.
-func (b *allocationStatusBatcher) Enqueue(observation *nodev1.AllocationStatusObservation) (bool, error) {
+func (b *allocationLifecycleBatcher) Enqueue(observation *nodev1.AllocationLifecycleObservation) (bool, error) {
 	if b == nil || observation == nil {
-		return false, errors.New("allocation status batcher and observation are required")
+		return false, errors.New("allocation lifecycle batcher and observation are required")
 	}
 	allocationID := strings.TrimSpace(observation.GetAllocationID())
-	if allocationID == "" || observation.GetAttempt() <= 0 || !allocationStatusValid(observation.GetStatus()) {
-		metrics.RecordAllocationStatusQueueEvent("invalid")
-		return false, errors.New("allocation status observation is invalid")
+	if allocationID == "" || !allocationLifecycleObservationValid(observation.GetState()) {
+		metrics.RecordAllocationLifecycleQueueEvent("invalid")
+		return false, errors.New("allocation lifecycle observation is invalid")
 	}
 	b.mu.Lock()
 	if b.stopped {
 		b.mu.Unlock()
-		metrics.RecordAllocationStatusQueueEvent("stopped")
-		return false, errors.New("allocation status batcher is stopped")
+		metrics.RecordAllocationLifecycleQueueEvent("stopped")
+		return false, errors.New("allocation lifecycle batcher is stopped")
 	}
 	b.sequence++
-	next := queuedAllocationStatus{
-		observation: proto.Clone(observation).(*nodev1.AllocationStatusObservation),
+	next := queuedAllocationLifecycleState{
+		observation: proto.Clone(observation).(*nodev1.AllocationLifecycleObservation),
 		enqueuedAt:  b.now(),
 		sequence:    b.sequence,
 	}
@@ -157,35 +157,35 @@ func (b *allocationStatusBatcher) Enqueue(observation *nodev1.AllocationStatusOb
 	inFlightCurrent, inFlight := b.inFlightBatch[allocationID]
 	if exists && sameTerminalProof(next.observation, current.observation) {
 		b.mu.Unlock()
-		metrics.RecordAllocationStatusQueueEvent("retained")
+		metrics.RecordAllocationLifecycleQueueEvent("retained")
 		return true, nil
 	}
 	if exists && conflictingTerminalProof(next.observation, current.observation) {
 		b.mu.Unlock()
-		metrics.RecordAllocationStatusQueueEvent("ignored")
+		metrics.RecordAllocationLifecycleQueueEvent("ignored")
 		return false, nil
 	}
 	if !exists && inFlight && sameTerminalProof(next.observation, inFlightCurrent.observation) {
 		b.mu.Unlock()
-		metrics.RecordAllocationStatusQueueEvent("retained")
+		metrics.RecordAllocationLifecycleQueueEvent("retained")
 		return true, nil
 	}
 	if !exists && inFlight && conflictingTerminalProof(next.observation, inFlightCurrent.observation) {
 		b.mu.Unlock()
-		metrics.RecordAllocationStatusQueueEvent("ignored")
+		metrics.RecordAllocationLifecycleQueueEvent("ignored")
 		return false, nil
 	}
 	evictedNonterminal := false
-	if !exists && !inFlight && b.unacknowledgedCountLocked() >= allocationStatusQueueLimit {
-		if !allocationStatusEnded(next.observation.GetStatus()) || !b.evictOldestNonterminalLocked() {
+	if !exists && !inFlight && b.unacknowledgedCountLocked() >= allocationLifecycleQueueLimit {
+		if !allocationLifecycleStopped(next.observation.GetState()) || !b.evictOldestNonterminalLocked() {
 			b.mu.Unlock()
-			metrics.RecordAllocationStatusQueueEvent("dropped")
-			return false, errors.New("allocation status queue is full")
+			metrics.RecordAllocationLifecycleQueueEvent("dropped")
+			return false, errors.New("allocation lifecycle queue is full")
 		}
 		evictedNonterminal = true
 	}
 	result := "ignored"
-	if !exists || allocationStatusSupersedes(next, current) {
+	if !exists || allocationLifecycleSupersedes(next, current) {
 		if exists && current.enqueuedAt.Before(next.enqueuedAt) {
 			next.enqueuedAt = current.enqueuedAt
 		}
@@ -199,10 +199,10 @@ func (b *allocationStatusBatcher) Enqueue(observation *nodev1.AllocationStatusOb
 	pending := b.unacknowledgedCountLocked()
 	b.mu.Unlock()
 	if evictedNonterminal {
-		metrics.RecordAllocationStatusQueueEvent("evicted_nonterminal")
+		metrics.RecordAllocationLifecycleQueueEvent("evicted_nonterminal")
 	}
-	metrics.RecordAllocationStatusQueueEvent(result)
-	metrics.RecordAllocationStatusQueueCurrent(pending)
+	metrics.RecordAllocationLifecycleQueueEvent(result)
+	metrics.RecordAllocationLifecycleQueueCurrent(pending)
 	b.recordHealthMetrics()
 	if result == "ignored" {
 		return false, nil
@@ -211,11 +211,11 @@ func (b *allocationStatusBatcher) Enqueue(observation *nodev1.AllocationStatusOb
 	return true, nil
 }
 
-func (b *allocationStatusBatcher) evictOldestNonterminalLocked() bool {
+func (b *allocationLifecycleBatcher) evictOldestNonterminalLocked() bool {
 	var oldestID string
-	var oldest queuedAllocationStatus
+	var oldest queuedAllocationLifecycleState
 	for allocationID, item := range b.pending {
-		if allocationStatusEnded(item.observation.GetStatus()) {
+		if allocationLifecycleStopped(item.observation.GetState()) {
 			continue
 		}
 		if oldestID == "" || item.sequence < oldest.sequence {
@@ -231,7 +231,7 @@ func (b *allocationStatusBatcher) evictOldestNonterminalLocked() bool {
 	return true
 }
 
-func (b *allocationStatusBatcher) run() {
+func (b *allocationLifecycleBatcher) run() {
 	for {
 		select {
 		case <-b.wake:
@@ -250,7 +250,7 @@ func (b *allocationStatusBatcher) run() {
 					b.clearRetry()
 					continue
 				}
-				retryBase = nextAllocationStatusRetryDelay(retryBase, b.retryInitialDelay, b.retryMaxDelay)
+				retryBase = nextAllocationLifecycleStateRetryDelay(retryBase, b.retryInitialDelay, b.retryMaxDelay)
 				delay := retryBase
 				if b.jitter != nil {
 					delay = b.jitter(retryBase)
@@ -270,12 +270,12 @@ func (b *allocationStatusBatcher) run() {
 	}
 }
 
-func (b *allocationStatusBatcher) flushOne() (bool, error) {
-	batch := b.drain(allocationStatusBatchLimit)
+func (b *allocationLifecycleBatcher) flushOne() (bool, error) {
+	batch := b.drain(allocationLifecycleBatchLimit)
 	if len(batch) == 0 {
 		return false, nil
 	}
-	observations := make([]*nodev1.AllocationStatusObservation, 0, len(batch))
+	observations := make([]*nodev1.AllocationLifecycleObservation, 0, len(batch))
 	for _, item := range batch {
 		observations = append(observations, item.observation)
 	}
@@ -289,13 +289,13 @@ func (b *allocationStatusBatcher) flushOne() (bool, error) {
 	return true, err
 }
 
-func (b *allocationStatusBatcher) flushOnStop() {
+func (b *allocationLifecycleBatcher) flushOnStop() {
 	for {
-		batch := b.drain(allocationStatusBatchLimit)
+		batch := b.drain(allocationLifecycleBatchLimit)
 		if len(batch) == 0 {
 			return
 		}
-		observations := make([]*nodev1.AllocationStatusObservation, 0, len(batch))
+		observations := make([]*nodev1.AllocationLifecycleObservation, 0, len(batch))
 		for _, item := range batch {
 			observations = append(observations, item.observation)
 		}
@@ -309,7 +309,7 @@ func (b *allocationStatusBatcher) flushOnStop() {
 	}
 }
 
-func (b *allocationStatusBatcher) sendBatch(observations []*nodev1.AllocationStatusObservation) error {
+func (b *allocationLifecycleBatcher) sendBatch(observations []*nodev1.AllocationLifecycleObservation) error {
 	startedAt := b.now()
 	b.mu.Lock()
 	b.inFlight = true
@@ -336,7 +336,7 @@ func (b *allocationStatusBatcher) sendBatch(observations []*nodev1.AllocationSta
 	return err
 }
 
-func (b *allocationStatusBatcher) drain(limit int) []queuedAllocationStatus {
+func (b *allocationLifecycleBatcher) drain(limit int) []queuedAllocationLifecycleState {
 	b.mu.Lock()
 	if len(b.pending) == 0 || len(b.inFlightBatch) != 0 {
 		b.mu.Unlock()
@@ -350,7 +350,7 @@ func (b *allocationStatusBatcher) drain(limit int) []queuedAllocationStatus {
 	if len(ids) > limit {
 		ids = ids[:limit]
 	}
-	out := make([]queuedAllocationStatus, 0, len(ids))
+	out := make([]queuedAllocationLifecycleState, 0, len(ids))
 	for _, allocationID := range ids {
 		item := b.pending[allocationID]
 		out = append(out, item)
@@ -360,17 +360,17 @@ func (b *allocationStatusBatcher) drain(limit int) []queuedAllocationStatus {
 	b.recomputeOldestPendingAtLocked()
 	pending := b.unacknowledgedCountLocked()
 	b.mu.Unlock()
-	metrics.RecordAllocationStatusQueueCurrent(pending)
+	metrics.RecordAllocationLifecycleQueueCurrent(pending)
 	return out
 }
 
-func (b *allocationStatusBatcher) requeue(batch []queuedAllocationStatus) {
+func (b *allocationLifecycleBatcher) requeue(batch []queuedAllocationLifecycleState) {
 	b.mu.Lock()
 	for _, failed := range batch {
 		allocationID := failed.observation.GetAllocationID()
 		b.removeInFlightLocked(allocationID, failed.sequence)
 		current, ok := b.pending[allocationID]
-		if !ok || allocationStatusSupersedes(failed, current) {
+		if !ok || allocationLifecycleSupersedes(failed, current) {
 			b.pending[allocationID] = failed
 			b.updateOldestPendingAtLocked(failed.enqueuedAt)
 			continue
@@ -384,16 +384,16 @@ func (b *allocationStatusBatcher) requeue(batch []queuedAllocationStatus) {
 	b.recomputeOldestPendingAtLocked()
 	pending := b.unacknowledgedCountLocked()
 	b.mu.Unlock()
-	metrics.RecordAllocationStatusQueueCurrent(pending)
+	metrics.RecordAllocationLifecycleQueueCurrent(pending)
 	b.recordHealthMetrics()
 }
 
-func (b *allocationStatusBatcher) acknowledge(batch []queuedAllocationStatus) {
+func (b *allocationLifecycleBatcher) acknowledge(batch []queuedAllocationLifecycleState) {
 	b.mu.Lock()
 	for _, sent := range batch {
 		allocationID := sent.observation.GetAllocationID()
 		current, ok := b.pending[allocationID]
-		if ok && allocationStatusSupersedes(sent, current) {
+		if ok && allocationLifecycleSupersedes(sent, current) {
 			delete(b.pending, allocationID)
 		}
 		b.removeInFlightLocked(allocationID, sent.sequence)
@@ -401,11 +401,11 @@ func (b *allocationStatusBatcher) acknowledge(batch []queuedAllocationStatus) {
 	b.recomputeOldestPendingAtLocked()
 	pending := b.unacknowledgedCountLocked()
 	b.mu.Unlock()
-	metrics.RecordAllocationStatusQueueCurrent(pending)
+	metrics.RecordAllocationLifecycleQueueCurrent(pending)
 	b.recordHealthMetrics()
 }
 
-func (b *allocationStatusBatcher) recordBatchResult(batch []queuedAllocationStatus, err error) {
+func (b *allocationLifecycleBatcher) recordBatchResult(batch []queuedAllocationLifecycleState, err error) {
 	if len(batch) == 0 {
 		return
 	}
@@ -419,11 +419,11 @@ func (b *allocationStatusBatcher) recordBatchResult(batch []queuedAllocationStat
 			oldest = item.enqueuedAt
 		}
 	}
-	metrics.RecordAllocationStatusBatch(result, len(batch))
-	metrics.RecordAllocationStatusQueueWait(result, b.now().Sub(oldest).Seconds())
+	metrics.RecordAllocationLifecycleBatch(result, len(batch))
+	metrics.RecordAllocationLifecycleQueueWait(result, b.now().Sub(oldest).Seconds())
 }
 
-func (b *allocationStatusBatcher) pendingCount() int {
+func (b *allocationLifecycleBatcher) pendingCount() int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.unacknowledgedCountLocked()
@@ -434,7 +434,7 @@ func (b *allocationStatusBatcher) pendingCount() int {
 // acknowledgement. Node inventory keeps these identities active so a
 // short-lived allocation cannot disappear before its terminal evidence is
 // durably visible to controld.
-func (b *allocationStatusBatcher) UnacknowledgedAllocationIDs() []string {
+func (b *allocationLifecycleBatcher) UnacknowledgedAllocationIDs() []string {
 	if b == nil {
 		return nil
 	}
@@ -455,14 +455,14 @@ func (b *allocationStatusBatcher) UnacknowledgedAllocationIDs() []string {
 	return ids
 }
 
-func (b *allocationStatusBatcher) Health() AllocationStatusReporterHealth {
+func (b *allocationLifecycleBatcher) Health() AllocationLifecycleReporterHealth {
 	if b == nil {
-		return AllocationStatusReporterHealth{Status: "disabled"}
+		return AllocationLifecycleReporterHealth{Status: "disabled"}
 	}
 	now := b.now()
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	health := AllocationStatusReporterHealth{
+	health := AllocationLifecycleReporterHealth{
 		Pending:             b.unacknowledgedCountLocked(),
 		InFlight:            b.inFlight,
 		LastAttemptAt:       timePointer(b.lastAttemptAt),
@@ -493,7 +493,7 @@ func (b *allocationStatusBatcher) Health() AllocationStatusReporterHealth {
 	return health
 }
 
-func (b *allocationStatusBatcher) scheduleRetry(delay time.Duration) {
+func (b *allocationLifecycleBatcher) scheduleRetry(delay time.Duration) {
 	if delay < 0 {
 		delay = 0
 	}
@@ -504,7 +504,7 @@ func (b *allocationStatusBatcher) scheduleRetry(delay time.Duration) {
 	b.recordHealthMetrics()
 }
 
-func (b *allocationStatusBatcher) clearRetry() {
+func (b *allocationLifecycleBatcher) clearRetry() {
 	b.mu.Lock()
 	b.retryDelay = 0
 	b.nextRetryAt = time.Time{}
@@ -512,16 +512,16 @@ func (b *allocationStatusBatcher) clearRetry() {
 	b.recordHealthMetrics()
 }
 
-func (b *allocationStatusBatcher) recordHealthMetrics() {
+func (b *allocationLifecycleBatcher) recordHealthMetrics() {
 	health := b.Health()
-	metrics.RecordAllocationStatusReporterHealth(
+	metrics.RecordAllocationLifecycleReporterHealth(
 		health.OldestPendingAgeSec,
 		health.ConsecutiveFailures,
 		health.RetryDelaySec,
 	)
 }
 
-func (b *allocationStatusBatcher) updateOldestPendingAtLocked(candidate time.Time) {
+func (b *allocationLifecycleBatcher) updateOldestPendingAtLocked(candidate time.Time) {
 	if candidate.IsZero() {
 		return
 	}
@@ -530,7 +530,7 @@ func (b *allocationStatusBatcher) updateOldestPendingAtLocked(candidate time.Tim
 	}
 }
 
-func (b *allocationStatusBatcher) recomputeOldestPendingAtLocked() {
+func (b *allocationLifecycleBatcher) recomputeOldestPendingAtLocked() {
 	b.oldestPendingAt = time.Time{}
 	for _, item := range b.pending {
 		b.updateOldestPendingAtLocked(item.enqueuedAt)
@@ -540,7 +540,7 @@ func (b *allocationStatusBatcher) recomputeOldestPendingAtLocked() {
 	}
 }
 
-func (b *allocationStatusBatcher) unacknowledgedCountLocked() int {
+func (b *allocationLifecycleBatcher) unacknowledgedCountLocked() int {
 	count := len(b.inFlightBatch)
 	for allocationID := range b.pending {
 		if _, exists := b.inFlightBatch[allocationID]; !exists {
@@ -550,21 +550,21 @@ func (b *allocationStatusBatcher) unacknowledgedCountLocked() int {
 	return count
 }
 
-func (b *allocationStatusBatcher) removeInFlightLocked(allocationID string, sequence uint64) {
+func (b *allocationLifecycleBatcher) removeInFlightLocked(allocationID string, sequence uint64) {
 	current, exists := b.inFlightBatch[allocationID]
 	if exists && current.sequence == sequence {
 		delete(b.inFlightBatch, allocationID)
 	}
 }
 
-func (b *allocationStatusBatcher) signal() {
+func (b *allocationLifecycleBatcher) signal() {
 	select {
 	case b.wake <- struct{}{}:
 	default:
 	}
 }
 
-func (b *allocationStatusBatcher) wait(delay time.Duration) bool {
+func (b *allocationLifecycleBatcher) wait(delay time.Duration) bool {
 	if delay <= 0 {
 		select {
 		case <-b.stop:
@@ -583,9 +583,9 @@ func (b *allocationStatusBatcher) wait(delay time.Duration) bool {
 	}
 }
 
-func nextAllocationStatusRetryDelay(previous, initial, maximum time.Duration) time.Duration {
+func nextAllocationLifecycleStateRetryDelay(previous, initial, maximum time.Duration) time.Duration {
 	if initial <= 0 {
-		initial = allocationStatusRetryInitialDelay
+		initial = allocationLifecycleRetryInitialDelay
 	}
 	if maximum < initial {
 		maximum = initial
@@ -599,7 +599,7 @@ func nextAllocationStatusRetryDelay(previous, initial, maximum time.Duration) ti
 	return previous * 2
 }
 
-func allocationStatusRetryJitter(base time.Duration) time.Duration {
+func allocationLifecycleRetryJitter(base time.Duration) time.Duration {
 	if base <= 0 {
 		return 0
 	}
@@ -615,10 +615,10 @@ func boundedReporterError(err error) string {
 		return ""
 	}
 	message := strings.ToValidUTF8(strings.TrimSpace(err.Error()), "\uFFFD")
-	if len(message) <= allocationStatusLastErrorMaxBytes {
+	if len(message) <= allocationLifecycleLastErrorMaxBytes {
 		return message
 	}
-	limit := allocationStatusLastErrorMaxBytes
+	limit := allocationLifecycleLastErrorMaxBytes
 	for limit > 0 && !utf8.ValidString(message[:limit]) {
 		limit--
 	}
@@ -633,49 +633,40 @@ func timePointer(value time.Time) *time.Time {
 	return &copy
 }
 
-func allocationStatusSupersedes(next, current queuedAllocationStatus) bool {
-	if next.observation.GetAttempt() != current.observation.GetAttempt() {
-		return next.observation.GetAttempt() > current.observation.GetAttempt()
-	}
-	nextEnded := allocationStatusEnded(next.observation.GetStatus())
-	currentEnded := allocationStatusEnded(current.observation.GetStatus())
+func allocationLifecycleSupersedes(next, current queuedAllocationLifecycleState) bool {
+	nextEnded := allocationLifecycleStopped(next.observation.GetState())
+	currentEnded := allocationLifecycleStopped(current.observation.GetState())
 	if nextEnded != currentEnded {
 		return nextEnded
 	}
 	return next.sequence > current.sequence
 }
 
-func sameTerminalProof(left, right *nodev1.AllocationStatusObservation) bool {
+func sameTerminalProof(left, right *nodev1.AllocationLifecycleObservation) bool {
 	return left != nil && right != nil &&
-		left.GetAttempt() == right.GetAttempt() &&
-		allocationStatusEnded(left.GetStatus()) &&
-		allocationStatusEnded(right.GetStatus()) &&
+		allocationLifecycleStopped(left.GetState()) &&
+		allocationLifecycleStopped(right.GetState()) &&
 		proto.Equal(left, right)
 }
 
-func conflictingTerminalProof(left, right *nodev1.AllocationStatusObservation) bool {
+func conflictingTerminalProof(left, right *nodev1.AllocationLifecycleObservation) bool {
 	return left != nil && right != nil &&
-		left.GetAttempt() == right.GetAttempt() &&
-		allocationStatusEnded(left.GetStatus()) &&
-		allocationStatusEnded(right.GetStatus()) &&
+		allocationLifecycleStopped(left.GetState()) &&
+		allocationLifecycleStopped(right.GetState()) &&
 		!proto.Equal(left, right)
 }
 
-func allocationStatusEnded(status commonv1.AllocationStatus) bool {
-	switch status {
-	case commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED,
-		commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED,
-		commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED:
+func allocationLifecycleStopped(state commonv1.AllocationLifecycleState) bool {
+	return state == commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED
+}
+
+func allocationLifecycleObservationValid(state commonv1.AllocationLifecycleState) bool {
+	switch state {
+	case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING,
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED:
 		return true
 	default:
 		return false
 	}
-}
-
-func allocationStatusValid(status commonv1.AllocationStatus) bool {
-	if status == commonv1.AllocationStatus_ALLOCATION_STATUS_UNSPECIFIED {
-		return false
-	}
-	_, known := commonv1.AllocationStatus_name[int32(status)]
-	return known
 }

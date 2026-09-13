@@ -6,7 +6,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtimecore "github.com/cofy-x/axern/runtime/axnoded/internal/runtime"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/assert"
 )
@@ -56,20 +55,18 @@ func TestBuildStartLabels(t *testing.T) {
 		RuntimeTemplate: &runtime.RuntimeTemplate{ID: "rt-1"},
 	}
 
-	t.Run("default label only", func(t *testing.T) {
+	t.Run("default has no identity labels", func(t *testing.T) {
 		labels := BuildStartLabels(request)
-		assert.Equal(t, map[string]string{
-			workloadidentity.LabelKeyRuntimeID: "rt-1",
-		}, labels)
+		assert.Empty(t, labels)
 	})
 
-	t.Run("allocation identity", func(t *testing.T) {
+	t.Run("allocation identity is not copied into annotations", func(t *testing.T) {
 		req := &runtime.StartRequest{
 			RuntimeTemplate: &runtime.RuntimeTemplate{ID: "rt-1"},
 			ContainerID:     "alloc-1234567890abcdef",
 		}
 		labels := BuildStartLabels(req)
-		assert.Equal(t, "alloc-1234567890abcdef", labels[workloadidentity.LabelKeyAllocationID])
+		assert.Empty(t, labels)
 	})
 
 	t.Run("block network", func(t *testing.T) {
@@ -78,7 +75,6 @@ func TestBuildStartLabels(t *testing.T) {
 			ExtraConfig:     `{"blockNetwork":true}`,
 		}
 		labels := BuildStartLabels(req)
-		assert.Equal(t, "rt-1", labels[workloadidentity.LabelKeyRuntimeID])
 		assert.Equal(t, config.NetAcBlockAll, labels["netac-rules"])
 	})
 
@@ -97,9 +93,7 @@ func TestBuildStartLabels(t *testing.T) {
 			ExtraConfig:     `{"blockNetwork":`,
 		}
 		labels := BuildStartLabels(req)
-		assert.Equal(t, map[string]string{
-			workloadidentity.LabelKeyRuntimeID: "rt-1",
-		}, labels)
+		assert.Empty(t, labels)
 	})
 
 	t.Run("linux capabilities normalized and deduplicated", func(t *testing.T) {

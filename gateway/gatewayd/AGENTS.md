@@ -11,7 +11,7 @@
 - Keep protocol and transport concerns in `internal/api`, use-case orchestration in `internal/application`, narrow contracts in `internal/kernel`, and external gRPC clients in `internal/adapters`.
 - Do not place behavioral decisions in app wiring or hide route, lease, cache, or retry ownership in generic utilities.
 - Use the dedicated gateway mTLS identity for control-plane calls; never reuse an external client identity internally.
-- Every data-plane path must honor Allocation identity and attempt-scoped authorization from the [Stable Domain Model](../../docs/product/domain-model.md).
+- Every data-plane path must honor exact Allocation identity and allocation-scoped authorization from the [Stable Domain Model](../../docs/product/domain-model.md).
 
 ## Validation
 

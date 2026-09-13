@@ -28,7 +28,7 @@ enum SandboxNetworkPolicyStatus {
   SANDBOX_NETWORK_POLICY_STATUS_ABSENT = 2;
   SANDBOX_NETWORK_POLICY_STATUS_CAPABILITY_UNAVAILABLE = 3;
   SANDBOX_NETWORK_POLICY_STATUS_ENFORCEMENT_UNHEALTHY = 4;
-  SANDBOX_NETWORK_POLICY_STATUS_PROOF_STALE = 5;
+  SANDBOX_NETWORK_POLICY_STATUS_BINDING_MISMATCH = 5;
 }
 
 enum SandboxNetworkPolicyCapabilityState {
@@ -138,15 +138,12 @@ message ExplainSandboxNetworkPolicyResponse {
   SandboxNetworkPolicyStatus status = 3;
   SandboxNetworkPolicyCapabilityState capability_state = 4;
   bool enforcement_healthy = 5;
-  bool exact_proof = 6;
-  int64 allocation_attempt = 7;
-  int64 execution_revision = 8;
-  int64 enforcement_revision = 9;
-  uint32 domain_rule_count = 10;
-  uint32 cidr_rule_count = 11;
-  uint32 port_range_count = 12;
-  uint32 total_rule_count = 13;
-  bool recovered_after_restart = 14;
+  bool exact_binding = 6;
+  int64 enforcement_revision = 7;
+  uint32 domain_rule_count = 8;
+  uint32 cidr_rule_count = 9;
+  uint32 port_range_count = 10;
+  uint32 total_rule_count = 11;
 }
 
 message DeleteSandboxRequest {

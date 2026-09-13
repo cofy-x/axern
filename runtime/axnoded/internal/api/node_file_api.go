@@ -10,7 +10,7 @@ import (
 )
 
 func (s *nodeSandboxServer) StatFile(ctx context.Context, req *nodesandboxv1.StatFileRequest) (*nodesandboxv1.StatFileResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func (s *nodeSandboxServer) StatFile(ctx context.Context, req *nodesandboxv1.Sta
 }
 
 func (s *nodeSandboxServer) ListDir(ctx context.Context, req *nodesandboxv1.ListDirRequest) (*nodesandboxv1.ListDirResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (s *nodeSandboxServer) ListDir(ctx context.Context, req *nodesandboxv1.List
 }
 
 func (s *nodeSandboxServer) ReadFile(ctx context.Context, req *nodesandboxv1.ReadFileRequest) (*nodesandboxv1.ReadFileResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (s *nodeSandboxServer) ReadFile(ctx context.Context, req *nodesandboxv1.Rea
 }
 
 func (s *nodeSandboxServer) WriteFile(ctx context.Context, req *nodesandboxv1.WriteFileRequest) (*nodesandboxv1.WriteFileResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (s *nodeSandboxServer) WriteFile(ctx context.Context, req *nodesandboxv1.Wr
 }
 
 func (s *nodeSandboxServer) MaterializeTaskAssets(ctx context.Context, req *nodesandboxv1.MaterializeTaskAssetsRequest) (*nodesandboxv1.MaterializeTaskAssetsResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (s *nodeSandboxServer) MaterializeTaskAssets(ctx context.Context, req *node
 }
 
 func (s *nodeSandboxServer) Mkdir(ctx context.Context, req *nodesandboxv1.MkdirRequest) (*nodesandboxv1.MkdirResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (s *nodeSandboxServer) Mkdir(ctx context.Context, req *nodesandboxv1.MkdirR
 }
 
 func (s *nodeSandboxServer) Remove(ctx context.Context, req *nodesandboxv1.RemoveRequest) (*nodesandboxv1.RemoveResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (s *nodeSandboxServer) Remove(ctx context.Context, req *nodesandboxv1.Remov
 }
 
 func (s *nodeSandboxServer) Exists(ctx context.Context, req *nodesandboxv1.ExistsRequest) (*nodesandboxv1.ExistsResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func (s *nodeSandboxServer) Exists(ctx context.Context, req *nodesandboxv1.Exist
 }
 
 func (s *nodeSandboxServer) Copy(ctx context.Context, req *nodesandboxv1.CopyRequest) (*nodesandboxv1.CopyResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (s *nodeSandboxServer) Copy(ctx context.Context, req *nodesandboxv1.CopyReq
 }
 
 func (s *nodeSandboxServer) Move(ctx context.Context, req *nodesandboxv1.MoveRequest) (*nodesandboxv1.MoveResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func (s *nodeSandboxServer) Move(ctx context.Context, req *nodesandboxv1.MoveReq
 }
 
 func (s *nodeSandboxServer) Chmod(ctx context.Context, req *nodesandboxv1.ChmodRequest) (*nodesandboxv1.ChmodResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +195,7 @@ func (s *nodeSandboxServer) Chmod(ctx context.Context, req *nodesandboxv1.ChmodR
 }
 
 func (s *nodeSandboxServer) Touch(ctx context.Context, req *nodesandboxv1.TouchRequest) (*nodesandboxv1.TouchResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}

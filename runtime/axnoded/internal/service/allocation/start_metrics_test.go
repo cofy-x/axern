@@ -375,7 +375,7 @@ func TestStartMetricsRecorderDeferredResultUsesFinalValue(t *testing.T) {
 	}
 }
 
-func TestStartManagedContainerRecordsSuccessResult(t *testing.T) {
+func TestStartAllocationRecordsSuccessResult(t *testing.T) {
 	if goruntime.GOOS != "linux" {
 		t.Skip("requires Linux cgroup support")
 	}
@@ -394,7 +394,7 @@ func TestStartManagedContainerRecordsSuccessResult(t *testing.T) {
 	rootfsDir := t.TempDir()
 	request := &runtimeapi.StartRequest{
 		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
-			ID:      "start-metrics-managed-success",
+			ID:      "start-metrics-allocation-success",
 			Sandbox: "runsc",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,
@@ -407,12 +407,12 @@ func TestStartManagedContainerRecordsSuccessResult(t *testing.T) {
 		Stderr: filepath.Join(t.TempDir(), "stderr.log"),
 	}
 
-	resp, err := fixture.controller.startManagedContainer(context.Background(), request)
+	resp, err := fixture.controller.startAllocation(context.Background(), request)
 	if err != nil {
-		t.Fatalf("startManagedContainer() error = %v", err)
+		t.Fatalf("startAllocation() error = %v", err)
 	}
 	if resp.GetCode() != 0 || resp.GetID() == "" {
-		t.Fatalf("startManagedContainer() response = %+v, want successful container id", resp)
+		t.Fatalf("startAllocation() response = %+v, want successful container id", resp)
 	}
 	if len(sink.results) != 1 {
 		t.Fatalf("result samples = %d, want 1", len(sink.results))

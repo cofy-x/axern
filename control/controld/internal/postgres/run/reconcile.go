@@ -17,14 +17,30 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID string, attempt int64, now time.Time) error {
+func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID string, now time.Time) error {
+	allocationID = strings.TrimSpace(allocationID)
 	return s.withTx(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `
+		var stateText string
+		if err := tx.QueryRow(ctx, `
+			SELECT lifecycle_state FROM allocations WHERE allocation_id = $1 FOR UPDATE
+		`, allocationID).Scan(&stateText); errors.Is(err, pgx.ErrNoRows) {
+			return grpcstatus.Errorf(codes.NotFound, "allocation %q not found", allocationID)
+		} else if err != nil {
+			return fmt.Errorf("lock allocation release: %w", err)
+		}
+		state := allocationkernel.ParseLifecycleState(stateText)
+		if state != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING &&
+			state != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED {
+			return grpcstatus.Errorf(codes.FailedPrecondition, "allocation %q cannot be released from lifecycle state %s", allocationID, stateText)
+		}
+		if state == commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING {
+			if _, err := tx.Exec(ctx, `
 			UPDATE allocations
-			SET status = $3, version = version + 1, updated_at = $4
-			WHERE allocation_id = $1 AND attempt = $2
-		`, strings.TrimSpace(allocationID), attempt, commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String(), now.UTC()); err != nil {
-			return fmt.Errorf("complete allocation release: %w", err)
+			SET lifecycle_state = $2, updated_at = $3
+			WHERE allocation_id = $1
+			`, allocationID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(), now.UTC()); err != nil {
+				return fmt.Errorf("complete allocation release: %w", err)
+			}
 		}
 		if err := s.revokeAllocationLeases(ctx, tx, allocationID, now); err != nil {
 			return err
@@ -32,7 +48,7 @@ func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID stri
 		if err := pgreservation.ReleaseAllocation(ctx, tx, allocationID, now); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM allocation_reconcile_queue WHERE allocation_id = $1`, strings.TrimSpace(allocationID)); err != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM allocation_reconcile_queue WHERE allocation_id = $1`, allocationID); err != nil {
 			return fmt.Errorf("delete reconcile item: %w", err)
 		}
 		return nil

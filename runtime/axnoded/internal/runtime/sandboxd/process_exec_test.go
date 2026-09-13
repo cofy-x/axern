@@ -65,22 +65,6 @@ func TestSandboxdExecContainerRequiresContainerID(t *testing.T) {
 	}
 }
 
-func TestSandboxdExecContainerRequiresProcessCapability(t *testing.T) {
-	response, err := ExecContainer(context.Background(), &apipb.ExecContainerRequest{
-		Command: []string{"true"},
-	}, contract.HandlerOptions{
-		ContainerID: "exec-test",
-		ContainerLabels: map[string]string{
-			LabelReady:        "true",
-			LabelSocket:       "/tmp/sandboxd.sock",
-			LabelCapabilities: "file",
-		},
-	}, t.TempDir())
-	if response != nil || !errors.Is(err, errord.ErrFailedPrecondition) {
-		t.Fatalf("response = %#v, err = %v, want failed precondition", response, err)
-	}
-}
-
 func TestSandboxdExecContainerForwardsUser(t *testing.T) {
 	client := &fakeSandboxdProcessClient{
 		start: ProcessStatus{ID: "proc-1", State: "running"},
@@ -189,14 +173,8 @@ func processTestOptions(containerID string) contract.HandlerOptions {
 }
 
 func processTestOptionsWithCapabilities(containerID string, capabilities string) contract.HandlerOptions {
-	return contract.HandlerOptions{
-		ContainerID: containerID,
-		ContainerLabels: map[string]string{
-			LabelReady:        "true",
-			LabelSocket:       "/tmp/sandboxd.sock",
-			LabelCapabilities: capabilities,
-		},
-	}
+	_ = capabilities
+	return contract.HandlerOptions{ContainerID: containerID}
 }
 
 type fakeSandboxdProcessClient struct {

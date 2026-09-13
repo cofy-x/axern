@@ -129,10 +129,7 @@ WHERE allocation_id IN (:'force_allocation_id', :'fail_allocation_id', :'clear_a
 DELETE FROM admin_audit_events
 WHERE target_id IN (:'force_allocation_id', :'fail_allocation_id', :'clear_allocation_id');
 DELETE FROM runs
-WHERE run_id IN (:'force_run_id', :'fail_run_id', :'clear_run_id')
-   OR allocation_id IN (:'force_allocation_id', :'fail_allocation_id', :'clear_allocation_id');
-DELETE FROM allocations
-WHERE allocation_id IN (:'force_allocation_id', :'fail_allocation_id', :'clear_allocation_id');
+WHERE run_id IN (:'force_run_id', :'fail_run_id', :'clear_run_id');
 SQL
     return "${rc}"
   }
@@ -156,11 +153,11 @@ INSERT INTO runs (
   'RUN_STATUS_PLACED', '{}'::jsonb, '{}'::jsonb, now(), now()
 );
 INSERT INTO allocations (
-  allocation_id, run_id, node_id, attempt,
-  status, config, created_at, updated_at
+  allocation_id, run_id, node_id,
+  lifecycle_state, created_at, updated_at
 ) VALUES (
-  :'allocation_id', :'run_id', :'node_id', 1,
-  'ALLOCATION_STATUS_RESERVED', '{}'::jsonb, now(), now()
+  :'allocation_id', :'run_id', :'node_id',
+  'ALLOCATION_LIFECYCLE_STATE_BOUND', now(), now()
 );
 INSERT INTO allocation_reconcile_queue (
   allocation_id, reason, next_run_at, reconcile_attempts, last_error, created_at, updated_at
@@ -182,14 +179,14 @@ SQL
 
   seed_local_smoke_admin_repair_retry "${fail_allocation_id}" "${fail_run_id}" false
   fail_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" admin allocation-retry fail "${fail_allocation_id}" --operator-reason "compose smoke fail retry" -o json)"
-  python3 -c 'import json,sys; retry=json.load(sys.stdin)["retry"]; assert retry["allocation_id"] == sys.argv[1] and retry["reason"] == "create", retry' "${fail_allocation_id}" <<<"${fail_json}" >/dev/null
+  python3 -c 'import json,sys; retry=json.load(sys.stdin)["retry"]; assert retry["allocation_id"] == sys.argv[1] and retry["reason"] == "delete", retry' "${fail_allocation_id}" <<<"${fail_json}" >/dev/null
 
   seed_local_smoke_admin_repair_retry "${clear_allocation_id}" "${clear_run_id}" false
   local_smoke_compose_psql \
     -v "allocation_id=${clear_allocation_id}" \
     -v "run_id=${clear_run_id}" <<'SQL' >/dev/null
 UPDATE allocations
-SET status = 'ALLOCATION_STATUS_FAILED', updated_at = now()
+SET lifecycle_state = 'ALLOCATION_LIFECYCLE_STATE_RELEASED', updated_at = now()
 WHERE allocation_id = :'allocation_id';
 UPDATE runs
 SET status = 'RUN_STATUS_FAILED', updated_at = now()

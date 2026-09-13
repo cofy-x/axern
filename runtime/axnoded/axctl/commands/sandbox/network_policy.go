@@ -67,20 +67,17 @@ func networkPolicySubcommand(name, usage string, doctor bool) cli.Command {
 }
 
 type networkPolicyJSON struct {
-	SandboxID             string `json:"sandbox_id"`
-	Mode                  string `json:"mode"`
-	Status                string `json:"status"`
-	CapabilityState       string `json:"capability_state"`
-	EnforcementHealthy    bool   `json:"enforcement_healthy"`
-	ExactProof            bool   `json:"exact_proof"`
-	AllocationAttempt     int64  `json:"allocation_attempt"`
-	ExecutionRevision     int64  `json:"execution_revision"`
-	EnforcementRevision   int64  `json:"enforcement_revision"`
-	DomainRuleCount       uint32 `json:"domain_rule_count"`
-	CIDRRuleCount         uint32 `json:"cidr_rule_count"`
-	PortRangeCount        uint32 `json:"port_range_count"`
-	TotalRuleCount        uint32 `json:"total_rule_count"`
-	RecoveredAfterRestart bool   `json:"recovered_after_restart"`
+	SandboxID           string `json:"sandbox_id"`
+	Mode                string `json:"mode"`
+	Status              string `json:"status"`
+	CapabilityState     string `json:"capability_state"`
+	EnforcementHealthy  bool   `json:"enforcement_healthy"`
+	ExactBinding        bool   `json:"exact_binding"`
+	EnforcementRevision int64  `json:"enforcement_revision"`
+	DomainRuleCount     uint32 `json:"domain_rule_count"`
+	CIDRRuleCount       uint32 `json:"cidr_rule_count"`
+	PortRangeCount      uint32 `json:"port_range_count"`
+	TotalRuleCount      uint32 `json:"total_rule_count"`
 }
 
 func renderNetworkPolicyJSON(w io.Writer, response *nodeoperatorv1.ExplainSandboxNetworkPolicyResponse) error {
@@ -90,9 +87,9 @@ func renderNetworkPolicyJSON(w io.Writer, response *nodeoperatorv1.ExplainSandbo
 	output := networkPolicyJSON{
 		SandboxID: response.GetSandboxID(), Mode: networkPolicyMode(response.GetMode()), Status: networkPolicyStatus(response.GetStatus()),
 		CapabilityState: networkPolicyCapabilityState(response.GetCapabilityState()), EnforcementHealthy: response.GetEnforcementHealthy(),
-		ExactProof: response.GetExactProof(), AllocationAttempt: response.GetAllocationAttempt(), ExecutionRevision: response.GetExecutionRevision(),
+		ExactBinding:        response.GetExactBinding(),
 		EnforcementRevision: response.GetEnforcementRevision(), DomainRuleCount: response.GetDomainRuleCount(), CIDRRuleCount: response.GetCidrRuleCount(),
-		PortRangeCount: response.GetPortRangeCount(), TotalRuleCount: response.GetTotalRuleCount(), RecoveredAfterRestart: response.GetRecoveredAfterRestart(),
+		PortRangeCount: response.GetPortRangeCount(), TotalRuleCount: response.GetTotalRuleCount(),
 	}
 	encoder := json.NewEncoder(w)
 	encoder.SetEscapeHTML(false)
@@ -108,12 +105,9 @@ func renderNetworkPolicy(w io.Writer, response *nodeoperatorv1.ExplainSandboxNet
 	fmt.Fprintf(w, "Status: %s\n", networkPolicyStatus(response.GetStatus()))
 	fmt.Fprintf(w, "Capability: %s\n", networkPolicyCapabilityState(response.GetCapabilityState()))
 	fmt.Fprintf(w, "Enforcement Healthy: %t\n", response.GetEnforcementHealthy())
-	fmt.Fprintf(w, "Exact Proof: %t\n", response.GetExactProof())
-	fmt.Fprintf(w, "Allocation Attempt: %d\n", response.GetAllocationAttempt())
-	fmt.Fprintf(w, "Execution Revision: %d\n", response.GetExecutionRevision())
+	fmt.Fprintf(w, "Exact Allocation Binding: %t\n", response.GetExactBinding())
 	fmt.Fprintf(w, "Enforcement Revision: %d\n", response.GetEnforcementRevision())
 	fmt.Fprintf(w, "Rules: %d total, %d domain, %d CIDR, %d port range\n", response.GetTotalRuleCount(), response.GetDomainRuleCount(), response.GetCidrRuleCount(), response.GetPortRangeCount())
-	fmt.Fprintf(w, "Recovered After Restart: %t\n", response.GetRecoveredAfterRestart())
 }
 
 func networkPolicyMode(value nodeoperatorv1.SandboxNetworkPolicyMode) string {
@@ -139,8 +133,8 @@ func networkPolicyStatus(value nodeoperatorv1.SandboxNetworkPolicyStatus) string
 		return "capability_unavailable"
 	case nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_ENFORCEMENT_UNHEALTHY:
 		return "enforcement_unhealthy"
-	case nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_PROOF_STALE:
-		return "proof_stale"
+	case nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_BINDING_MISMATCH:
+		return "binding_mismatch"
 	default:
 		return "unspecified"
 	}

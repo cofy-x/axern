@@ -85,7 +85,7 @@ func (s *Server) GetAllocationCapabilityDiagnostics(ctx context.Context, req *ad
 		return nil, err
 	}
 	response := &adminv1.GetAllocationCapabilityDiagnosticsResponse{
-		AllocationID: diagnostics.AllocationID, NodeID: diagnostics.NodeID, AllocationAttempt: diagnostics.Attempt,
+		AllocationID: diagnostics.AllocationID, NodeID: diagnostics.NodeID,
 		RequiredDependencies: diagnostics.Dependencies, AdmittedDependencies: diagnostics.AdmittedDependencies,
 		ConditionSet: diagnostics.ConditionSet, Reconcile: capabilityReconcileItemToProto(diagnostics.Reconcile),
 		CreateAdmissionRecorded: diagnostics.CreateAdmissionRecorded, CreateDependencySetDigest: diagnostics.CreateDependencySetDigest,

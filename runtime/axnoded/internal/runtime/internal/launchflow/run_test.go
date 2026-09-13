@@ -31,7 +31,7 @@ func TestRunRecordsLaunchPhaseOnSuccess(t *testing.T) {
 			StartupPhaseRecorder: recorder,
 		},
 		BundlePath: "/bundle",
-		Metadata:   &apipb.ContainerMetadata{ID: "container-success"},
+		Metadata:   &apipb.ContainerMetadata{},
 		Start: func() (<-chan error, error) {
 			ch := make(chan error)
 			close(ch)
@@ -47,8 +47,8 @@ func TestRunRecordsLaunchPhaseOnSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
-	if meta.GetID() != "container-success" {
-		t.Fatalf("metadata id = %q, want container-success", meta.GetID())
+	if meta == nil {
+		t.Fatal("metadata = nil")
 	}
 	if recorder.recorded[contract.StartupPhaseRuntimeLaunch] <= 0 {
 		t.Fatalf("runtime launch phase was not recorded")
@@ -66,7 +66,7 @@ func TestRunCleansUpOnReadyFailure(t *testing.T) {
 			StartupPhaseRecorder: recorder,
 		},
 		BundlePath: "/bundle",
-		Metadata:   &apipb.ContainerMetadata{ID: "container-fail"},
+		Metadata:   &apipb.ContainerMetadata{},
 		Start: func() (<-chan error, error) {
 			ch := make(chan error)
 			close(ch)
@@ -102,7 +102,7 @@ func TestRunReportsAfterStartErrorWithoutFailing(t *testing.T) {
 			ContainerID: "container-after-start",
 		},
 		BundlePath: "/bundle",
-		Metadata:   &apipb.ContainerMetadata{ID: "container-after-start"},
+		Metadata:   &apipb.ContainerMetadata{},
 		Start: func() (<-chan error, error) {
 			ch := make(chan error)
 			close(ch)

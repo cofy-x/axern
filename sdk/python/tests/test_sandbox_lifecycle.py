@@ -52,7 +52,6 @@ class SandboxTest(unittest.TestCase):
             self.assertEqual(sandbox.environment_id, "env-1")
             self.assertEqual(sandbox.run_id, "run-1")
             self.assertEqual(sandbox.allocation_id, "alloc-1")
-            self.assertEqual(sandbox.attempt, 7)
             self.assertEqual(sandbox.bound_addr, "127.0.0.1:8786")
             self.assertEqual(client.created_environment["image_ref"], "docker.io/library/python:3.12-slim")
             self.assertEqual(client.created_environment["registry_credential_id"], "sec-regcred")
@@ -225,7 +224,6 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
         ) as sandbox:
             result = await sandbox.exec(["python", "-V"], check=True)
             self.assertEqual(sandbox.allocation_id, "alloc-1")
-            self.assertEqual(sandbox.attempt, 7)
 
         self.assertEqual(result.stdout_text(), "async-ok\n")
         self.assertEqual(client.created_environment["registry_credential_id"], "sec-regcred")

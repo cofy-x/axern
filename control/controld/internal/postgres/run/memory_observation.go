@@ -26,19 +26,18 @@ func (s *Store) BatchReportAllocationMemoryObservations(ctx context.Context, nod
 		for _, observation := range ordered {
 			allocationID := strings.TrimSpace(observation.GetAllocationID())
 			var admittedNodeID string
-			var attempt int64
 			err := tx.QueryRow(ctx, `
-				SELECT node_id, attempt FROM allocations
+				SELECT node_id FROM allocations
 				WHERE allocation_id = $1
 				FOR UPDATE
-			`, allocationID).Scan(&admittedNodeID, &attempt)
+			`, allocationID).Scan(&admittedNodeID)
 			if errors.Is(err, pgx.ErrNoRows) {
 				continue
 			}
 			if err != nil {
 				return fmt.Errorf("lock allocation %q memory observation: %w", allocationID, err)
 			}
-			if admittedNodeID != strings.TrimSpace(nodeID) || attempt != observation.GetAttempt() {
+			if admittedNodeID != strings.TrimSpace(nodeID) {
 				continue
 			}
 			// PostgreSQL stores TIMESTAMPTZ with microsecond precision. Normalize
@@ -54,19 +53,16 @@ func (s *Store) BatchReportAllocationMemoryObservations(ctx context.Context, nod
 			}
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO allocation_memory_observations (
-					allocation_id, allocation_attempt, node_id, revision, observed_at, observation, updated_at
-				) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+					allocation_id, node_id, revision, observed_at, observation, updated_at
+				) VALUES ($1, $2, $3, $4, $5::jsonb, $6)
 				ON CONFLICT (allocation_id) DO UPDATE SET
-					allocation_attempt = EXCLUDED.allocation_attempt,
 					node_id = EXCLUDED.node_id,
 					revision = EXCLUDED.revision,
 					observed_at = EXCLUDED.observed_at,
 					observation = EXCLUDED.observation,
 					updated_at = EXCLUDED.updated_at
-				WHERE allocation_memory_observations.allocation_attempt < EXCLUDED.allocation_attempt
-				   OR (allocation_memory_observations.allocation_attempt = EXCLUDED.allocation_attempt
-				       AND allocation_memory_observations.revision < EXCLUDED.revision)
-			`, allocationID, attempt, admittedNodeID, observation.GetRevision(), observedAt, payload, now); err != nil {
+				WHERE allocation_memory_observations.revision < EXCLUDED.revision
+			`, allocationID, admittedNodeID, observation.GetRevision(), observedAt, payload, now); err != nil {
 				return fmt.Errorf("upsert allocation %q memory observation: %w", allocationID, err)
 			}
 		}

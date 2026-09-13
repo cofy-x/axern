@@ -3,6 +3,7 @@ package pgallocation
 import (
 	"context"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestCapabilitySchemaEnforcesAllocationNodeAttemptAndDependencyOwnership(t *testing.T) {
+func TestCapabilitySchemaEnforcesAllocationNodeAndDependencyOwnership(t *testing.T) {
 	dsn := os.Getenv("AXERN_TEST_POSTGRES_DSN")
 	if dsn == "" {
 		t.Skip("AXERN_TEST_POSTGRES_DSN is not set")
@@ -24,6 +25,29 @@ func TestCapabilitySchemaEnforcesAllocationNodeAttemptAndDependencyOwnership(t *
 	t.Cleanup(db.Close)
 	if _, err := db.ApplyMigrations(ctx); err != nil {
 		t.Fatal(err)
+	}
+	rows, err := db.Pool().Query(ctx, `
+		SELECT column_name
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'allocations'
+		ORDER BY ordinal_position
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var allocationColumns []string
+	for rows.Next() {
+		var column string
+		if err := rows.Scan(&column); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		allocationColumns = append(allocationColumns, column)
+	}
+	rows.Close()
+	wantColumns := []string{"allocation_id", "run_id", "node_id", "lifecycle_state", "workspace_preparation", "created_at", "updated_at", "node_active_at"}
+	if !slices.Equal(allocationColumns, wantColumns) {
+		t.Fatalf("allocation columns = %v, want %v", allocationColumns, wantColumns)
 	}
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -44,10 +68,30 @@ func TestCapabilitySchemaEnforcesAllocationNodeAttemptAndDependencyOwnership(t *
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO allocations (allocation_id, run_id, node_id, attempt, status, config, created_at, updated_at)
-		VALUES ($1, $1, $2, 2, $3, '{}'::jsonb, $4, $4)
-	`, allocationID, nodeID, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(), now); err != nil {
+		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
+		VALUES ($1, $1, $2, $3, $4, $4)
+	`, allocationID, nodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String(), now); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := db.Pool().Exec(ctx, `
+		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $5)
+	`, allocationID+"-replacement", allocationID, nodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(), now); err == nil {
+		t.Fatal("one Run accepted a replacement Allocation")
+	}
+	stoppedRunID := allocationID + "-stopped"
+	if _, err := db.Pool().Exec(ctx, `
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
+		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_FAILED', '{}'::jsonb, '{}'::jsonb, $2, $2)
+	`, stoppedRunID, now); err != nil {
+		t.Fatal(err)
+	}
+	defer db.Pool().Exec(context.Background(), `DELETE FROM runs WHERE run_id = $1`, stoppedRunID)
+	if _, err := db.Pool().Exec(ctx, `
+		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $5)
+	`, allocationID+"-stopped", stoppedRunID, nodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED.String(), now); err == nil {
+		t.Fatal("node-only STOPPED observation was accepted as durable Allocation state")
 	}
 	t.Cleanup(func() {
 		_, _ = db.Pool().Exec(context.Background(), `DELETE FROM runs WHERE run_id = $1`, allocationID)
@@ -72,22 +116,15 @@ func TestCapabilitySchemaEnforcesAllocationNodeAttemptAndDependencyOwnership(t *
 	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	if _, err := db.Pool().Exec(ctx, `
 		INSERT INTO allocation_capability_condition_sets (
-			allocation_id, allocation_attempt, revision, payload_digest, observed_at, updated_at
-		) VALUES ($1, 1, 1, $2, $3, $3)
-	`, allocationID, digest, now); err == nil {
-		t.Fatal("capability condition set accepted an attempt different from its allocation")
-	}
-	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO allocation_capability_condition_sets (
-			allocation_id, allocation_attempt, revision, payload_digest, observed_at, updated_at
-		) VALUES ($1, 2, 1, $2, $3, $3)
+			allocation_id, revision, payload_digest, observed_at, updated_at
+		) VALUES ($1, 1, $2, $3, $3)
 	`, allocationID, digest, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
 		INSERT INTO allocation_capability_conditions (
-			allocation_id, capability_key_id, allocation_attempt, condition_revision, observed_at, condition, updated_at
-		) VALUES ($1, 'platform/2', 2, 1, $2, '{}'::jsonb, $2)
+			allocation_id, capability_key_id, condition_revision, observed_at, condition, updated_at
+		) VALUES ($1, 'platform/2', 1, $2, '{}'::jsonb, $2)
 	`, allocationID, now); err == nil {
 		t.Fatal("capability condition accepted a key outside the allocation dependency set")
 	}

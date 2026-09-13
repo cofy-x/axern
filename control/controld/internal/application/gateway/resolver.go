@@ -13,7 +13,7 @@ import (
 )
 
 type LeaseIssuer interface {
-	IssueExecutionLease(ctx context.Context, allocationID string, attempt int64, leaseType commonv1.LeaseType, ttl time.Duration, now time.Time) (*commonv1.ExecutionLease, error)
+	IssueExecutionLease(ctx context.Context, allocationID string, leaseType commonv1.LeaseType, ttl time.Duration, now time.Time) (*commonv1.ExecutionLease, error)
 }
 
 type RouteReader interface {
@@ -21,12 +21,11 @@ type RouteReader interface {
 }
 
 type Allocation struct {
-	AllocationID string
-	RunID        string
-	NodeID       string
-	NodeTarget   string
-	Attempt      int64
-	Status       commonv1.AllocationStatus
+	AllocationID   string
+	RunID          string
+	NodeID         string
+	NodeTarget     string
+	LifecycleState commonv1.AllocationLifecycleState
 }
 
 type Resolver struct {
@@ -58,11 +57,11 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation access purpose is invalid")
 	}
 	terminalRunOutput := purpose == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT &&
-		(allocationkernel.IsEnded(alloc.Status) || alloc.Status == commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASING)
-	if alloc.Status != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING && !terminalRunOutput {
-		return nil, grpcstatus.Error(codes.FailedPrecondition, "allocation is not running")
+		allocationkernel.IsCleanupState(alloc.LifecycleState)
+	if alloc.LifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE && !terminalRunOutput {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "allocation is not active")
 	}
-	lease, err := r.leases.IssueExecutionLease(ctx, alloc.AllocationID, alloc.Attempt, commonv1.LeaseType_LEASE_TYPE_RUN, ttl, now)
+	lease, err := r.leases.IssueExecutionLease(ctx, alloc.AllocationID, commonv1.LeaseType_LEASE_TYPE_RUN, ttl, now)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +70,6 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 		RunID:        alloc.RunID,
 		NodeID:       alloc.NodeID,
 		NodeTarget:   alloc.NodeTarget,
-		Attempt:      alloc.Attempt,
 		Lease:        lease,
 	}, nil
 }

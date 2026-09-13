@@ -1,4 +1,4 @@
-// Package secretkernel owns control-plane-managed secret storage and secret
+// Package secretkernel owns controld-managed secret storage and secret
 // value resolution in controld.
 //
 // Put secret metadata CRUD, encrypted-at-rest payload persistence, secret value

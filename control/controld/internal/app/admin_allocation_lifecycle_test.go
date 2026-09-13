@@ -93,6 +93,12 @@ func TestPostgresAdminFailRunCreateLifecycleRetry(t *testing.T) {
 	if lateRun.GetMessage() != "operator confirmed create cannot recover" {
 		t.Fatalf("late reconciliation replaced operator terminal message: %q", lateRun.GetMessage())
 	}
+	assertAllocationReleasePending(t, app, allocationID)
+	now = now.Add(time.Second)
+	app.reconcileV1()
+	if len(lifecycle.DeleteRequests) != 1 {
+		t.Fatalf("delete requests after admin fail = %d, want 1", len(lifecycle.DeleteRequests))
+	}
 	assertAllocationRetryCleanup(t, app, allocationID, "fail_allocation_lifecycle_retry")
 }
 
@@ -164,10 +170,10 @@ func TestPostgresAdminClearAllocationLifecycleRetryRequiresTerminalCleanup(t *te
 
 	if _, err := app.db.Pool().Exec(context.Background(), `
 		UPDATE allocations
-		SET status = $2, updated_at = $3
+		SET lifecycle_state = $2, updated_at = $3
 		WHERE allocation_id = $1
-	`, allocationID, commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(), now.UTC()); err != nil {
-		t.Fatalf("mark allocation failed for clear precondition: %v", err)
+	`, allocationID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(), now.UTC()); err != nil {
+		t.Fatalf("mark allocation released for clear precondition: %v", err)
 	}
 	if _, err := app.db.Pool().Exec(context.Background(), `
 		UPDATE runs
@@ -229,6 +235,9 @@ func assertAllocationRetryCleanup(t *testing.T, app *App, allocationID string, a
 		t.Fatalf("active reservations after admin operation = %d, want 0", activeReservations)
 	}
 	assertPostgresConsistencyOK(t, app)
+	if auditOperation == "" {
+		return
+	}
 	var auditEvents int
 	if err := app.db.Pool().QueryRow(context.Background(), `
 		SELECT COUNT(*)
@@ -239,5 +248,29 @@ func assertAllocationRetryCleanup(t *testing.T, app *App, allocationID string, a
 	}
 	if auditEvents != 1 {
 		t.Fatalf("admin audit events for %s = %d, want 1", auditOperation, auditEvents)
+	}
+}
+
+func assertAllocationReleasePending(t *testing.T, app *App, allocationID string) {
+	t.Helper()
+	var queueItems int
+	if err := app.db.Pool().QueryRow(context.Background(), `
+		SELECT COUNT(*)
+		FROM allocation_reconcile_queue
+		WHERE allocation_id = $1 AND reason = $2
+	`, allocationID, allocationkernel.ReconcileReasonDelete).Scan(&queueItems); err != nil {
+		t.Fatalf("count pending allocation delete: %v", err)
+	}
+	if queueItems != 1 {
+		t.Fatalf("pending allocation deletes = %d, want 1", queueItems)
+	}
+	var activeReservations int
+	if err := app.db.Pool().QueryRow(context.Background(), `
+		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
+	`, allocationID).Scan(&activeReservations); err != nil {
+		t.Fatalf("count reservations pending allocation release: %v", err)
+	}
+	if activeReservations != 1 {
+		t.Fatalf("active reservations pending allocation release = %d, want 1", activeReservations)
 	}
 }

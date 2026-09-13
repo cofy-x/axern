@@ -78,8 +78,7 @@ func RenderAllocationCapabilityDiagnostics(w io.Writer, diagnostics *adminv1.Get
 	if diagnostics == nil {
 		return
 	}
-	RenderTable(w, []string{"ATTEMPT", "CREATE ADMISSION", "DEPENDENCY DIGEST", "ADMITTED AT"}, [][]string{{
-		fmt.Sprintf("%d", diagnostics.GetAllocationAttempt()),
+	RenderTable(w, []string{"CREATE ADMISSION", "DEPENDENCY DIGEST", "ADMITTED AT"}, [][]string{{
 		fmt.Sprintf("%t", diagnostics.GetCreateAdmissionRecorded()),
 		diagnostics.GetCreateDependencySetDigest(),
 		FormatProtoTimestamp(diagnostics.GetCreateAdmittedAt()),
@@ -139,7 +138,6 @@ func RenderAllocationCapabilityDiagnostics(w io.Writer, diagnostics *adminv1.Get
 			continue
 		}
 		conditionRows = append(conditionRows, []string{
-			fmt.Sprintf("%d", diagnostics.GetAllocationAttempt()),
 			capabilityKeyLabel(condition.GetKey()),
 			capabilityEnumLabel(condition.GetState().String(), "CAPABILITY_CONDITION_STATE_"),
 			capabilityEnumLabel(condition.GetReasonCode().String(), "CAPABILITY_REASON_CODE_"),
@@ -151,7 +149,7 @@ func RenderAllocationCapabilityDiagnostics(w io.Writer, diagnostics *adminv1.Get
 			ShortMessage(condition.GetMessage(), 80),
 		})
 	}
-	RenderTable(w, []string{"ATTEMPT", "CAPABILITY", "CONDITION", "REASON", "REVISION", "PROVIDER", "IDENTITY", "PROOF AGE", "PROOF EXPIRES", "MESSAGE"}, conditionRows)
+	RenderTable(w, []string{"CAPABILITY", "CONDITION", "REASON", "REVISION", "PROVIDER", "IDENTITY", "PROOF AGE", "PROOF EXPIRES", "MESSAGE"}, conditionRows)
 	if diagnostics.GetReconcile() != nil {
 		RenderCapabilityBacklog(w, []*adminv1.AdminCapabilityReconcileItem{diagnostics.GetReconcile()})
 	}

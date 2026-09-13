@@ -25,7 +25,6 @@ func TestOpenResolvedRefreshesRejectedLeaseBeforeReturningSession(t *testing.T) 
 		AllocationID: "alloc-1",
 		NodeID:       "node-new",
 		NodeTarget:   "node-new:24010",
-		Attempt:      2,
 		Lease:        &commonv1.ExecutionLease{PlaintextToken: "fresh-token"},
 	}}}
 	manager := NewManager(resolver, nodes, Options{LeaseRetryAttempts: 2, LeaseRetryDelay: time.Nanosecond}, nil, nil)
@@ -34,7 +33,6 @@ func TestOpenResolvedRefreshesRejectedLeaseBeforeReturningSession(t *testing.T) 
 		AllocationID: "alloc-1",
 		NodeID:       "node-old",
 		NodeTarget:   "node-old:24010",
-		Attempt:      1,
 		Lease:        &commonv1.ExecutionLease{PlaintextToken: "stale-token"},
 	})
 	if err != nil {
@@ -48,10 +46,10 @@ func TestOpenResolvedRefreshesRejectedLeaseBeforeReturningSession(t *testing.T) 
 		t.Fatalf("resolve requests = %#v, want one alloc-1 refresh", resolver.requests)
 	}
 	if got := stale.sent[0].GetOpen().GetExecutionLeaseToken(); got != "stale-token" {
-		t.Fatalf("stale attempt token = %q", got)
+		t.Fatalf("stale lease token = %q", got)
 	}
 	if got := fresh.sent[0].GetOpen().GetExecutionLeaseToken(); got != "fresh-token" {
-		t.Fatalf("fresh attempt token = %q", got)
+		t.Fatalf("fresh lease token = %q", got)
 	}
 	if stale.closeCalls != 1 {
 		t.Fatalf("stale stream close calls = %d, want 1", stale.closeCalls)
@@ -69,7 +67,6 @@ func TestOpenResolvedLeaseBackoffHonorsCancellation(t *testing.T) {
 	_, err := manager.OpenResolved(ctx, &gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
 		NodeTarget:   "node-old:24010",
-		Attempt:      1,
 		Lease:        &commonv1.ExecutionLease{PlaintextToken: "stale-token"},
 	})
 	if !errors.Is(err, context.Canceled) {
@@ -84,13 +81,12 @@ func TestExecStreamOpenRequestUsesShellTTYAndLease(t *testing.T) {
 	t.Parallel()
 	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
-		Attempt:      2,
 		Lease: &commonv1.ExecutionLease{
 			PlaintextToken: "lease-token",
 		},
 	}, OpenOptions{})
 	open := req.GetOpen()
-	if open.GetAllocationID() != "alloc-1" || open.GetAttempt() != 2 || open.GetExecutionLeaseToken() != "lease-token" {
+	if open.GetAllocationID() != "alloc-1" || open.GetExecutionLeaseToken() != "lease-token" {
 		t.Fatalf("open auth = %#v", open)
 	}
 	if got := open.GetSpec().GetArgv(); len(got) != 1 || got[0] != "/bin/sh" || !open.GetSpec().GetTty() {
@@ -102,7 +98,6 @@ func TestExecStreamOpenRequestUsesCustomArgv(t *testing.T) {
 	t.Parallel()
 	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
-		Attempt:      2,
 		Lease: &commonv1.ExecutionLease{
 			PlaintextToken: "lease-token",
 		},
@@ -117,7 +112,6 @@ func TestExecStreamOpenRequestUsesCustomArgvTTY(t *testing.T) {
 	t.Parallel()
 	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
-		Attempt:      2,
 		Lease: &commonv1.ExecutionLease{
 			PlaintextToken: "lease-token",
 		},
@@ -131,7 +125,6 @@ func TestExecStreamOpenRequestUsesEnv(t *testing.T) {
 	t.Parallel()
 	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
-		Attempt:      2,
 		Lease: &commonv1.ExecutionLease{
 			PlaintextToken: "lease-token",
 		},
@@ -146,7 +139,6 @@ func TestExecStreamOpenRequestUsesUser(t *testing.T) {
 	t.Parallel()
 	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
-		Attempt:      2,
 		Lease: &commonv1.ExecutionLease{
 			PlaintextToken: "lease-token",
 		},

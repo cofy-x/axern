@@ -63,7 +63,7 @@ func TestValidateNodeMemoryBudgetRequiresCanonicalFreshSummary(t *testing.T) {
 func TestValidateAllocationMemoryObservationBatchRejectsAmbiguousEnforcementData(t *testing.T) {
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	valid := &controlnodev1.AllocationMemoryObservation{
-		AllocationID: "alloc-a", Attempt: 1, Revision: 1, ObservedAt: timestamppb.New(now),
+		AllocationID: "alloc-a", Revision: 1, ObservedAt: timestamppb.New(now),
 		RequestBytes: 128, LimitBytes: 256, CurrentBytes: 64, PeakBytes: 96, PeakAvailable: true,
 		CgroupIdentity: "boot:mount:parent:leaf", Runtime: "runsc", ParentControlsVerified: true, LeafControlsVerified: true,
 		CleanupState: controlnodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED,
@@ -131,7 +131,7 @@ func TestValidateAllocationMemoryObservationBatchRejectsAmbiguousEnforcementData
 	}
 }
 
-func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) {
+func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.T) {
 	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 	nodeStore := controldtest.NewMemoryNodeStore()
 	if _, err := nodeStore.Register(context.Background(), nodekernel.RegisterParams{
@@ -147,28 +147,28 @@ func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) 
 		NodeStore:   nodeStore,
 		Allocations: allocations,
 	})
-	observations := []*controlnodev1.AllocationStatusObservation{
-		{AllocationID: "alloc-1", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING},
-		{AllocationID: "alloc-2", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
+	observations := []*controlnodev1.AllocationLifecycleObservation{
+		{AllocationID: "alloc-1", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING, ObservedAt: timestamppb.New(now)},
+		{AllocationID: "alloc-2", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, ObservedAt: timestamppb.New(now)},
 	}
 
-	if _, err := server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
+	if _, err := server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
 		NodeID:        "node-a",
 		NodeAuthToken: "token-a",
 		Observations:  observations,
 	}); err != nil {
-		t.Fatalf("BatchReportAllocationStatus() error = %v", err)
+		t.Fatalf("BatchReportAllocationLifecycle() error = %v", err)
 	}
 	if allocations.calls != 1 || allocations.nodeID != "node-a" || len(allocations.observations) != 2 {
 		t.Fatalf("allocation control call = calls:%d node:%q observations:%d", allocations.calls, allocations.nodeID, len(allocations.observations))
 	}
 
-	_, err := server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
+	_, err := server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
 		NodeID:        "node-a",
 		NodeAuthToken: "token-a",
-		Observations: []*controlnodev1.AllocationStatusObservation{
-			{AllocationID: "alloc-1", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
-			{AllocationID: "alloc-1", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
+		Observations: []*controlnodev1.AllocationLifecycleObservation{
+			{AllocationID: "alloc-1", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, ObservedAt: timestamppb.New(now)},
+			{AllocationID: "alloc-1", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, ObservedAt: timestamppb.New(now)},
 		},
 	})
 	if grpcstatus.Code(err) != codes.InvalidArgument {
@@ -178,29 +178,42 @@ func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) 
 		t.Fatalf("allocation control calls after invalid batch = %d, want 1", allocations.calls)
 	}
 
-	_, err = server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
+	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
 		NodeID:        "node-a",
 		NodeAuthToken: "token-a",
-		Observations: []*controlnodev1.AllocationStatusObservation{{
+		Observations: []*controlnodev1.AllocationLifecycleObservation{{
 			AllocationID: "alloc-1",
-			Attempt:      1,
-			Status:       commonv1.AllocationStatus(999),
+			State:        commonv1.AllocationLifecycleState(999),
 		}},
 	})
 	if grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("unknown allocation status error = %v, want InvalidArgument", err)
+		t.Fatalf("unknown allocation lifecycle error = %v, want InvalidArgument", err)
 	}
 	if allocations.calls != 1 {
-		t.Fatalf("allocation control calls after unknown status = %d, want 1", allocations.calls)
+		t.Fatalf("allocation control calls after unknown lifecycle state = %d, want 1", allocations.calls)
 	}
 
-	_, err = server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
+	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
 		NodeID:        "node-a",
 		NodeAuthToken: "token-a",
-		Observations: []*controlnodev1.AllocationStatusObservation{{
+		Observations: []*controlnodev1.AllocationLifecycleObservation{{
+			AllocationID: "alloc-1",
+			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
+		}},
+	})
+	if grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("control-plane allocation lifecycle state error = %v, want InvalidArgument", err)
+	}
+	if allocations.calls != 1 {
+		t.Fatalf("allocation control calls after control-plane state = %d, want 1", allocations.calls)
+	}
+
+	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
+		NodeID:        "node-a",
+		NodeAuthToken: "token-a",
+		Observations: []*controlnodev1.AllocationLifecycleObservation{{
 			AllocationID:   "alloc-1",
-			Attempt:        1,
-			Status:         commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED,
+			State:          commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
 			DiagnosticCode: commonv1.WorkloadDiagnosticCode(999),
 		}},
 	})
@@ -211,7 +224,33 @@ func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) 
 		t.Fatalf("allocation control calls after unknown diagnostic code = %d, want 1", allocations.calls)
 	}
 
-	_, err = server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
+	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
+		NodeID:        "node-a",
+		NodeAuthToken: "token-a",
+		Observations: []*controlnodev1.AllocationLifecycleObservation{{
+			AllocationID: "alloc-1",
+			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
+		}},
+	})
+	if grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("missing observed_at error = %v, want InvalidArgument", err)
+	}
+
+	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
+		NodeID:        "node-a",
+		NodeAuthToken: "token-a",
+		Observations: []*controlnodev1.AllocationLifecycleObservation{{
+			AllocationID:  "alloc-1",
+			State:         commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
+			ObservedAt:    timestamppb.New(now),
+			ExitCodeKnown: true,
+		}},
+	})
+	if grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("active terminal facts error = %v, want InvalidArgument", err)
+	}
+
+	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
 		NodeID:        "node-a",
 		NodeAuthToken: "wrong-token",
 		Observations:  observations,
@@ -242,7 +281,7 @@ func TestBatchReportAllocationCapabilityConditionsIsAuthenticatedAndConditionOnl
 		t.Fatalf("condition forwarding = calls:%d node:%q reports:%d", allocations.conditionCalls, allocations.conditionNodeID, len(allocations.conditionReports))
 	}
 	if allocations.calls != 0 {
-		t.Fatalf("condition reporting invoked lifecycle status path %d time(s)", allocations.calls)
+		t.Fatalf("condition reporting invoked lifecycle observation path %d time(s)", allocations.calls)
 	}
 
 	duplicate := []*controlnodev1.AllocationCapabilityConditionReport{report, report}
@@ -273,7 +312,7 @@ func validCapabilityConditionReport(now time.Time) *controlnodev1.AllocationCapa
 	}
 	capabilitycontract.NormalizeObservation(observation)
 	return &controlnodev1.AllocationCapabilityConditionReport{
-		AllocationID: "allocation-a", Attempt: 1,
+		AllocationID: "allocation-a",
 		ConditionSet: &capabilityv1.CapabilityConditionSet{Revision: 1, ObservedAt: timestamppb.New(now), Conditions: []*capabilityv1.CapabilityCondition{{
 			Key: key, State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, ObservedAt: timestamppb.New(now),
@@ -336,16 +375,16 @@ type fakeTunnelControl struct {
 type fakeAllocationControl struct {
 	calls            int
 	nodeID           string
-	observations     []*controlnodev1.AllocationStatusObservation
+	observations     []*controlnodev1.AllocationLifecycleObservation
 	conditionCalls   int
 	conditionNodeID  string
 	conditionReports []*controlnodev1.AllocationCapabilityConditionReport
 }
 
-func (f *fakeAllocationControl) BatchReportAllocationStatus(_ context.Context, nodeID string, observations []*controlnodev1.AllocationStatusObservation, _ time.Time) ([]string, error) {
+func (f *fakeAllocationControl) BatchReportAllocationLifecycle(_ context.Context, nodeID string, observations []*controlnodev1.AllocationLifecycleObservation, _ time.Time) ([]string, error) {
 	f.calls++
 	f.nodeID = nodeID
-	f.observations = append([]*controlnodev1.AllocationStatusObservation(nil), observations...)
+	f.observations = append([]*controlnodev1.AllocationLifecycleObservation(nil), observations...)
 	return nil, nil
 }
 

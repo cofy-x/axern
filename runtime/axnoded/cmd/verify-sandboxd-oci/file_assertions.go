@@ -127,12 +127,10 @@ func assertSandboxdFileMutations(ctx context.Context, client *runtimesandboxd.Cl
 
 func assertSandboxdBackedFileService(ctx context.Context, cfg config, bundlePath string) error {
 	socketPath := runtimeoci.SandboxdBundleSocketPath(bundlePath)
-	snapshot, err := runtimesandboxd.NewClient(socketPath).WaitReady(ctx, runtimesandboxd.DefaultReadyTimeout, runtimesandboxd.DefaultPollInterval)
+	_, err := runtimesandboxd.NewClient(socketPath).WaitReady(ctx, runtimesandboxd.DefaultReadyTimeout, runtimesandboxd.DefaultPollInterval)
 	if err != nil {
 		return fmt.Errorf("wait sandboxd ready for runtime file service: %w", err)
 	}
-	labels := runtimesandboxd.EnrichLabels(nil, socketPath, snapshot)
-
 	containerRoot := filepath.Dir(bundlePath)
 	runtimeRoot := filepath.Dir(containerRoot)
 	handler, err := newVerifyRuntimeHandlerWithRoot(cfg, runtimeRoot)
@@ -140,10 +138,7 @@ func assertSandboxdBackedFileService(ctx context.Context, cfg config, bundlePath
 		return err
 	}
 	service := handler.FileService()
-	options := contract.HandlerOptions{
-		ContainerID:     filepath.Base(bundlePath),
-		ContainerLabels: labels,
-	}
+	options := contract.HandlerOptions{ContainerID: filepath.Base(bundlePath)}
 	if err := assertRuntimeFileReadOnly(ctx, service, options); err != nil {
 		return err
 	}

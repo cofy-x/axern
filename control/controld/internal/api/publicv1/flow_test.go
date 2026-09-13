@@ -164,7 +164,7 @@ func TestCreateImageEnvironmentMutableTagCreatesNewEnvironmentWhenDigestChanges(
 	}
 }
 
-func TestRunLeaseAndAllocationStatusFlow(t *testing.T) {
+func TestRunLeaseAndAllocationLifecycleStateFlow(t *testing.T) {
 	app := newTestService(t)
 	defer app.Close()
 	now := time.Now().UTC()
@@ -190,17 +190,17 @@ func TestRunLeaseAndAllocationStatusFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
 	}
-	if _, err := node.BatchReportAllocationStatus(context.Background(), &nodev1.BatchReportAllocationStatusRequest{
+	if _, err := node.BatchReportAllocationLifecycle(context.Background(), &nodev1.BatchReportAllocationLifecycleRequest{
 		NodeID:        "node-a",
 		NodeAuthToken: "test-node-token",
-		Observations: []*nodev1.AllocationStatusObservation{{
-			AllocationID: runResp.GetRun().GetAllocationID(),
-			Attempt:      runResp.GetRun().GetAttempt(),
-			Status:       commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED,
-			ExitCode:     0,
+		Observations: []*nodev1.AllocationLifecycleObservation{{
+			AllocationID:  runResp.GetRun().GetAllocationID(),
+			State:         commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,
+			ExitCode:      0,
+			ExitCodeKnown: true,
 		}},
 	}); err != nil {
-		t.Fatalf("BatchReportAllocationStatus() error = %v", err)
+		t.Fatalf("BatchReportAllocationLifecycle() error = %v", err)
 	}
 	got, err := public.GetRun(context.Background(), &runv1.GetRunRequest{RunID: runResp.GetRun().GetID()})
 	if err != nil {

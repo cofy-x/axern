@@ -17,7 +17,7 @@ import (
 )
 
 type LifecycleClient interface {
-	GetAllocationStatus(context.Context, string, *privatenodev1.GetAllocationStatusRequest) (*privatenodev1.GetAllocationStatusResponse, error)
+	GetAllocationLifecycle(context.Context, string, *privatenodev1.GetAllocationLifecycleRequest) (*privatenodev1.GetAllocationLifecycleResponse, error)
 }
 
 type Queue interface {
@@ -60,8 +60,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, now time.Time) error {
 }
 
 func (r *Reconciler) reconcileOne(ctx context.Context, item allocationkernel.CapabilityReconcileItem, now time.Time) error {
-	response, err := r.client.GetAllocationStatus(ctx, item.NodeTarget, &privatenodev1.GetAllocationStatusRequest{
-		AllocationID: item.AllocationID, Attempt: item.Attempt, NodeID: item.NodeID,
+	response, err := r.client.GetAllocationLifecycle(ctx, item.NodeTarget, &privatenodev1.GetAllocationLifecycleRequest{
+		AllocationID: item.AllocationID, NodeID: item.NodeID,
 	})
 	if status.Code(err) == codes.NotFound {
 		return r.queue.Complete(ctx, item, r.owner, now)
@@ -71,7 +71,6 @@ func (r *Reconciler) reconcileOne(ctx context.Context, item allocationkernel.Cap
 	}
 	conditionSet := response.GetCapabilityVerification()
 	reconciliation := &allocationkernel.CapabilityReconciliation{
-		Attempt:      item.Attempt,
 		Dependencies: response.GetAdmittedCapabilityDependencies(),
 		ConditionSet: conditionSet,
 	}
@@ -82,7 +81,7 @@ func (r *Reconciler) reconcileOne(ctx context.Context, item allocationkernel.Cap
 		sdkobs.Int64Counter(ctrlobs.MetricCapabilityFailStopTotal.Name, ctrlobs.MetricCapabilityFailStopTotal.Description).Add(ctx, 1,
 			attribute.String(sdkobs.AttrReason, "enforcement_lost"),
 		)
-		// GetAllocationStatus persists node-local termination ownership before it
+		// GetAllocationLifecycle persists node-local termination ownership before it
 		// returns a failed condition. Controld deliberately does not become a
 		// second Delete initiator; the durable queue remains the restart and
 		// missed-report safety net until the node proves the allocation is gone.

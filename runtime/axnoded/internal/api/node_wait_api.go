@@ -10,7 +10,7 @@ import (
 )
 
 func (s *nodeSandboxServer) WaitSandbox(ctx context.Context, req *nodesandboxv1.WaitSandboxRequest) (*nodesandboxv1.WaitSandboxResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -19,7 +19,6 @@ func (s *nodeSandboxServer) WaitSandbox(ctx context.Context, req *nodesandboxv1.
 	if err == nil {
 		s.reportExit(allocationExitReport{
 			allocationID:  target.allocationID,
-			attempt:       target.attempt,
 			exitCode:      int32(resp.GetExitCode()),
 			exitCodeKnown: true,
 			message:       resp.GetMessage(),
@@ -35,7 +34,6 @@ func (s *nodeSandboxServer) WaitSandbox(ctx context.Context, req *nodesandboxv1.
 	if grpcstatus.Code(err) == codes.Unavailable && resp != nil {
 		s.reportExit(allocationExitReport{
 			allocationID:  target.allocationID,
-			attempt:       target.attempt,
 			exitCode:      resp.GetExitCode(),
 			exitCodeKnown: false,
 			message:       resp.GetMessage(),

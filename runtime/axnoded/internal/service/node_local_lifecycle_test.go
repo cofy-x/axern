@@ -97,7 +97,7 @@ func TestPreActivationGateRebindsCurrentObservationBeforeWorkloadStart(t *testin
 	service.capabilityManager = manager
 	const allocationID = "pre-activation-rebind"
 	const requestDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	if _, err := service.allocationController().ReplaceCapabilityAdmission(allocationID, 1, requestDigest, admitted, conditions, firstAt); err != nil {
+	if _, err := service.allocationController().ReplaceCapabilityAdmission(allocationID, requestDigest, admitted, conditions, firstAt); err != nil {
 		t.Fatal(err)
 	}
 	current, err := manager.Refresh(context.Background(), time.Now().UTC())
@@ -108,7 +108,7 @@ func TestPreActivationGateRebindsCurrentObservationBeforeWorkloadStart(t *testin
 	if !available {
 		t.Fatal("current extension observation is unavailable")
 	}
-	request := &apipb.StartRequest{ContainerID: allocationID, AllocationAttempt: 1, CapabilityDependencies: placement}
+	request := &apipb.StartRequest{ContainerID: allocationID, CapabilityDependencies: placement}
 	if err := service.verifyPreparedAllocationCapabilities(context.Background(), request, handler, allocationID); err != nil {
 		t.Fatal(err)
 	}
@@ -204,9 +204,5 @@ func TestPrepareNodeLocalStartRequestRejectsInjectedOrUnobservedProofs(t *testin
 	request.CapabilityDependencies = nil
 	if _, err := service.prepareNodeLocalStartRequest(request, time.Now().UTC()); err == nil || !strings.Contains(err.Error(), "warming") {
 		t.Fatalf("warming manager error = %v", err)
-	}
-	request.AllocationAttempt = 1
-	if _, err := service.prepareNodeLocalStartRequest(request, time.Now().UTC()); err == nil || !strings.Contains(err.Error(), "control-plane") {
-		t.Fatalf("control-plane attempt error = %v", err)
 	}
 }

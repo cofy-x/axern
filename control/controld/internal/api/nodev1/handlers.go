@@ -20,10 +20,10 @@ import (
 )
 
 const (
-	maxAllocationStatusBatch                    = 256
-	allocationStatusReportStageValidateRequest  = "validate_request"
-	allocationStatusReportStageAuthenticateNode = "authenticate_node"
-	allocationStatusReportStagePersistStatus    = "persist_status"
+	maxAllocationLifecycleStateBatch               = 256
+	allocationLifecycleReportStageValidateRequest  = "validate_request"
+	allocationLifecycleReportStageAuthenticateNode = "authenticate_node"
+	allocationLifecycleReportStagePersistStatus    = "persist_status"
 )
 
 func (s *Server) RegisterNode(ctx context.Context, req *controlnodev1.RegisterNodeRequest) (*controlnodev1.RegisterNodeResponse, error) {
@@ -99,72 +99,89 @@ func validateNodeMemoryBudget(summary *controlnodev1.NodeSummary, now time.Time)
 	return memorybudget.ValidateSummary(summary, now)
 }
 
-func (s *Server) BatchReportAllocationStatus(ctx context.Context, req *controlnodev1.BatchReportAllocationStatusRequest) (*controlnodev1.BatchReportAllocationStatusResponse, error) {
+func (s *Server) BatchReportAllocationLifecycle(ctx context.Context, req *controlnodev1.BatchReportAllocationLifecycleRequest) (*controlnodev1.BatchReportAllocationLifecycleResponse, error) {
 	stageStarted := time.Now()
 	nodeID := strings.TrimSpace(req.GetNodeID())
 	observations := req.GetObservations()
 	ctx, op := sdkobs.StartOperation(ctx, sdkobs.OperationConfig{
-		Name: ctrlobs.SpanAllocationReportStatus,
+		Name: ctrlobs.SpanAllocationReportLifecycle,
 		SpanAttrs: []attribute.KeyValue{
 			attribute.String(sdkobs.AttrNodeID, nodeID),
 			attribute.Int("axern.batch_size", len(observations)),
 		},
-		Counter:  ctrlobs.MetricAllocationStatusReportTotal,
-		Duration: ctrlobs.MetricAllocationStatusReportDuration,
+		Counter:  ctrlobs.MetricAllocationLifecycleReportTotal,
+		Duration: ctrlobs.MetricAllocationLifecycleReportDuration,
 	})
 	var opErr error
 	defer func() { op.End(opErr) }()
 	if nodeID == "" {
 		op.SetErrorStatus("node_id is required")
 		opErr = grpcstatus.Error(codes.InvalidArgument, "node_id is required")
-		recordAllocationStatusReportStage(ctx, allocationStatusReportStageValidateRequest, stageStarted, opErr)
+		recordAllocationLifecycleStateReportStage(ctx, allocationLifecycleReportStageValidateRequest, stageStarted, opErr)
 		return nil, opErr
 	}
-	if err := validateAllocationStatusBatch(observations); err != nil {
-		op.SetErrorStatus("invalid allocation status batch")
+	if err := validateAllocationLifecycleBatch(observations, s.deps.Now()); err != nil {
+		op.SetErrorStatus("invalid allocation lifecycle batch")
 		opErr = err
-		recordAllocationStatusReportStage(ctx, allocationStatusReportStageValidateRequest, stageStarted, err)
+		recordAllocationLifecycleStateReportStage(ctx, allocationLifecycleReportStageValidateRequest, stageStarted, err)
 		return nil, opErr
 	}
-	recordAllocationStatusReportStage(ctx, allocationStatusReportStageValidateRequest, stageStarted, nil)
+	recordAllocationLifecycleStateReportStage(ctx, allocationLifecycleReportStageValidateRequest, stageStarted, nil)
 	stageStarted = time.Now()
 	if err := s.deps.NodeStore.Authenticate(ctx, nodeID, req.GetNodeAuthToken()); err != nil {
 		op.SetErrorStatus("authenticate node")
 		opErr = err
-		recordAllocationStatusReportStage(ctx, allocationStatusReportStageAuthenticateNode, stageStarted, err)
+		recordAllocationLifecycleStateReportStage(ctx, allocationLifecycleReportStageAuthenticateNode, stageStarted, err)
 		return nil, err
 	}
-	recordAllocationStatusReportStage(ctx, allocationStatusReportStageAuthenticateNode, stageStarted, nil)
+	recordAllocationLifecycleStateReportStage(ctx, allocationLifecycleReportStageAuthenticateNode, stageStarted, nil)
 	stageStarted = time.Now()
-	_, err := s.deps.Allocations.BatchReportAllocationStatus(ctx, nodeID, observations, s.deps.Now())
+	_, err := s.deps.Allocations.BatchReportAllocationLifecycle(ctx, nodeID, observations, s.deps.Now())
 	if err != nil {
-		op.SetErrorStatus("report allocation status batch")
+		op.SetErrorStatus("report allocation lifecycle batch")
 		opErr = err
-		recordAllocationStatusReportStage(ctx, allocationStatusReportStagePersistStatus, stageStarted, err)
+		recordAllocationLifecycleStateReportStage(ctx, allocationLifecycleReportStagePersistStatus, stageStarted, err)
 		return nil, err
 	}
-	recordAllocationStatusReportStage(ctx, allocationStatusReportStagePersistStatus, stageStarted, nil)
-	return &controlnodev1.BatchReportAllocationStatusResponse{}, nil
+	recordAllocationLifecycleStateReportStage(ctx, allocationLifecycleReportStagePersistStatus, stageStarted, nil)
+	return &controlnodev1.BatchReportAllocationLifecycleResponse{}, nil
 }
 
-func validateAllocationStatusBatch(observations []*controlnodev1.AllocationStatusObservation) error {
+func validateAllocationLifecycleBatch(observations []*controlnodev1.AllocationLifecycleObservation, now time.Time) error {
 	if len(observations) == 0 {
-		return grpcstatus.Error(codes.InvalidArgument, "at least one allocation status observation is required")
+		return grpcstatus.Error(codes.InvalidArgument, "at least one allocation lifecycle observation is required")
 	}
-	if len(observations) > maxAllocationStatusBatch {
-		return grpcstatus.Errorf(codes.InvalidArgument, "allocation status batch exceeds limit %d", maxAllocationStatusBatch)
+	if len(observations) > maxAllocationLifecycleStateBatch {
+		return grpcstatus.Errorf(codes.InvalidArgument, "allocation lifecycle batch exceeds limit %d", maxAllocationLifecycleStateBatch)
 	}
 	seen := make(map[string]struct{}, len(observations))
 	for _, observation := range observations {
 		allocationID := strings.TrimSpace(observation.GetAllocationID())
-		if allocationID == "" || observation.GetAttempt() <= 0 || !allocationStatusValid(observation.GetStatus()) {
-			return grpcstatus.Error(codes.InvalidArgument, "allocation status observation requires allocation_id, attempt, and status")
+		if allocationID == "" || !allocationLifecycleStateValid(observation.GetState()) || observation.GetObservedAt() == nil {
+			return grpcstatus.Error(codes.InvalidArgument, "allocation lifecycle observation requires allocation_id, state, and observed_at")
+		}
+		if err := observation.GetObservedAt().CheckValid(); err != nil || observation.GetObservedAt().AsTime().After(now.Add(time.Minute)) {
+			return grpcstatus.Errorf(codes.InvalidArgument, "allocation lifecycle observation %q has invalid observed_at", allocationID)
 		}
 		if _, ok := commonv1.WorkloadDiagnosticCode_name[int32(observation.GetDiagnosticCode())]; !ok {
-			return grpcstatus.Errorf(codes.InvalidArgument, "allocation status observation %q has invalid diagnostic_code", allocationID)
+			return grpcstatus.Errorf(codes.InvalidArgument, "allocation lifecycle observation %q has invalid diagnostic_code", allocationID)
 		}
 		if _, ok := seen[allocationID]; ok {
-			return grpcstatus.Errorf(codes.InvalidArgument, "duplicate allocation status observation %q", allocationID)
+			return grpcstatus.Errorf(codes.InvalidArgument, "duplicate allocation lifecycle observation %q", allocationID)
+		}
+		switch observation.GetState() {
+		case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING:
+			if observation.GetExitCodeKnown() || observation.GetExitCode() != 0 || observation.GetReady() {
+				return grpcstatus.Errorf(codes.InvalidArgument, "starting allocation %q carries terminal or readiness facts", allocationID)
+			}
+		case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE:
+			if observation.GetExitCodeKnown() || observation.GetExitCode() != 0 {
+				return grpcstatus.Errorf(codes.InvalidArgument, "active allocation %q carries terminal exit facts", allocationID)
+			}
+		case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED:
+			if observation.GetReady() {
+				return grpcstatus.Errorf(codes.InvalidArgument, "stopped allocation %q cannot be ready", allocationID)
+			}
 		}
 		seen[allocationID] = struct{}{}
 	}
@@ -192,14 +209,14 @@ func validateAllocationCapabilityConditionBatch(reports []*controlnodev1.Allocat
 	if len(reports) == 0 {
 		return grpcstatus.Error(codes.InvalidArgument, "at least one allocation capability condition report is required")
 	}
-	if len(reports) > maxAllocationStatusBatch {
-		return grpcstatus.Errorf(codes.InvalidArgument, "allocation capability condition batch exceeds limit %d", maxAllocationStatusBatch)
+	if len(reports) > maxAllocationLifecycleStateBatch {
+		return grpcstatus.Errorf(codes.InvalidArgument, "allocation capability condition batch exceeds limit %d", maxAllocationLifecycleStateBatch)
 	}
 	seen := make(map[string]struct{}, len(reports))
 	for _, report := range reports {
 		allocationID := strings.TrimSpace(report.GetAllocationID())
-		if allocationID == "" || report.GetAttempt() <= 0 {
-			return grpcstatus.Error(codes.InvalidArgument, "allocation capability condition report requires allocation_id and attempt")
+		if allocationID == "" {
+			return grpcstatus.Error(codes.InvalidArgument, "allocation capability condition report requires allocation_id")
 		}
 		if _, duplicate := seen[allocationID]; duplicate {
 			return grpcstatus.Errorf(codes.InvalidArgument, "duplicate allocation capability condition report %q", allocationID)
@@ -233,14 +250,14 @@ func validateAllocationMemoryObservationBatch(observations []*controlnodev1.Allo
 	if len(observations) == 0 {
 		return grpcstatus.Error(codes.InvalidArgument, "at least one allocation memory observation is required")
 	}
-	if len(observations) > maxAllocationStatusBatch {
-		return grpcstatus.Errorf(codes.InvalidArgument, "allocation memory observation batch exceeds limit %d", maxAllocationStatusBatch)
+	if len(observations) > maxAllocationLifecycleStateBatch {
+		return grpcstatus.Errorf(codes.InvalidArgument, "allocation memory observation batch exceeds limit %d", maxAllocationLifecycleStateBatch)
 	}
 	seen := make(map[string]struct{}, len(observations))
 	for _, observation := range observations {
 		allocationID := strings.TrimSpace(observation.GetAllocationID())
-		if allocationID == "" || observation.GetAttempt() <= 0 || observation.GetRevision() <= 0 || observation.GetObservedAt() == nil {
-			return grpcstatus.Error(codes.InvalidArgument, "allocation memory observation requires allocation_id, attempt, revision, and observed_at")
+		if allocationID == "" || observation.GetRevision() <= 0 || observation.GetObservedAt() == nil {
+			return grpcstatus.Error(codes.InvalidArgument, "allocation memory observation requires allocation_id, revision, and observed_at")
 		}
 		if err := observation.GetObservedAt().CheckValid(); err != nil || observation.GetObservedAt().AsTime().After(now.Add(time.Minute)) {
 			return grpcstatus.Errorf(codes.InvalidArgument, "allocation %q has invalid observed_at", allocationID)
@@ -302,15 +319,18 @@ func validateAllocationMemoryObservationBatch(observations []*controlnodev1.Allo
 	return nil
 }
 
-func allocationStatusValid(status commonv1.AllocationStatus) bool {
-	if status == commonv1.AllocationStatus_ALLOCATION_STATUS_UNSPECIFIED {
+func allocationLifecycleStateValid(state commonv1.AllocationLifecycleState) bool {
+	switch state {
+	case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING,
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED:
+		return true
+	default:
 		return false
 	}
-	_, known := commonv1.AllocationStatus_name[int32(status)]
-	return known
 }
 
-func recordAllocationStatusReportStage(ctx context.Context, stage string, started time.Time, err error) {
+func recordAllocationLifecycleStateReportStage(ctx context.Context, stage string, started time.Time, err error) {
 	if started.IsZero() {
 		return
 	}
@@ -320,7 +340,7 @@ func recordAllocationStatusReportStage(ctx context.Context, stage string, starte
 		result = sdkobs.ResultError
 		errorClass = allocationReportErrorClass(err)
 	}
-	sdkobs.DurationHistogram(ctrlobs.MetricAllocationStatusReportStageDuration.Name, ctrlobs.MetricAllocationStatusReportStageDuration.Description).RecordDuration(ctx, time.Since(started),
+	sdkobs.DurationHistogram(ctrlobs.MetricAllocationLifecycleReportStageDuration.Name, ctrlobs.MetricAllocationLifecycleReportStageDuration.Description).RecordDuration(ctx, time.Since(started),
 		attribute.String(sdkobs.AttrStage, stage),
 		attribute.String(sdkobs.AttrResult, result),
 		attribute.String(sdkobs.AttrErrorClass, errorClass),

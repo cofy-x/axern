@@ -2,7 +2,6 @@ package allocation
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func (h *Controller) prepareEgressPolicy(ctx context.Context, request *runtime.StartRequest, resource container.OccupiedResource) (bool, error) {
@@ -20,16 +20,9 @@ func (h *Controller) prepareEgressPolicy(ctx context.Context, request *runtime.S
 	if h.egress == nil {
 		return false, fmt.Errorf("egressd is required for a sandbox network policy")
 	}
-	if request.GetAllocationAttempt() <= 0 {
-		return false, fmt.Errorf("a positive allocation attempt is required for a sandbox network policy")
-	}
 	sandboxIP := strings.TrimSpace(containerIPFromResource(resource))
 	if sandboxIP == "" {
 		return false, fmt.Errorf("sandbox network policy requires an allocated interface IP")
-	}
-	revision := int64(1)
-	if conditions := h.CapabilityConditions(request.GetContainerID()); conditions != nil && conditions.GetRevision() > 0 {
-		revision = conditions.GetRevision()
 	}
 	var upstreams []string
 	if networkpolicy.RequiresDNSUpstreams(request.GetEgressPolicy()) {
@@ -42,21 +35,15 @@ func (h *Controller) prepareEgressPolicy(ctx context.Context, request *runtime.S
 			return false, fmt.Errorf("resolve trusted egress DNS upstreams: %w", err)
 		}
 	}
-	prepared, err := h.egress.Prepare(ctx, request.GetContainerID(), request.GetAllocationAttempt(), sandboxIP, request.GetEgressPolicy(), revision, upstreams)
+	prepared, err := h.egress.Prepare(ctx, request.GetContainerID(), sandboxIP, request.GetEgressPolicy(), upstreams)
 	if err != nil {
 		// The RPC may have crossed the dataplane boundary before transport or
 		// persistence failure became visible. Treat ownership as uncertain and
-		// require an attempt-fenced Delete before releasing this source IP.
+		// require Delete before releasing this source IP.
 		return true, fmt.Errorf("prepare egress policy: %w", err)
 	}
-	if prepared == nil || prepared.GetAllocationID() != request.GetContainerID() || prepared.GetAttempt() != request.GetAllocationAttempt() || prepared.GetSandboxIp() != sandboxIP || prepared.GetExecutionRevision() != revision {
-		return true, fmt.Errorf("egressd returned an invalid exact policy proof")
-	}
-	if err := h.StoreEgressPolicyProof(request.GetContainerID(), sandboxIP, prepared.GetPolicyDigest(), revision); err != nil {
-		if deleteErr := h.egress.Delete(context.Background(), request.GetContainerID(), request.GetAllocationAttempt()); deleteErr != nil {
-			return true, errors.Join(err, fmt.Errorf("rollback unpersisted egress policy: %w", deleteErr))
-		}
-		return false, err
+	if prepared == nil || prepared.GetAllocationID() != request.GetContainerID() || prepared.GetSandboxIp() != sandboxIP || !proto.Equal(prepared.GetPolicy(), request.GetEgressPolicy()) {
+		return true, fmt.Errorf("egressd returned a policy outside the allocation binding")
 	}
 	return true, nil
 }
@@ -72,11 +59,11 @@ func (h *Controller) allocationHasEgressPolicy(allocationID string) bool {
 	return false
 }
 
-func (h *Controller) deleteEgressPolicy(ctx context.Context, allocationID string, attempt int64) error {
-	if h.egress == nil || attempt <= 0 {
+func (h *Controller) deleteEgressPolicy(ctx context.Context, allocationID string) error {
+	if h.egress == nil {
 		return nil
 	}
-	if err := h.egress.Delete(ctx, allocationID, attempt); err != nil {
+	if err := h.egress.Delete(ctx, allocationID); err != nil {
 		return fmt.Errorf("delete egress policy: %w", err)
 	}
 	return nil

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -48,7 +46,18 @@ func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInv
 	}
 	snapshot.Components.Axnoded.RunningContainers = len(runningContainers)
 	snapshot.Components.Axnoded.RunningAllocationIDs = make([]string, 0, len(runningContainers))
-	snapshot.Components.Axnoded.ActiveAllocationIDs = make([]string, 0, len(allContainers))
+	snapshot.Components.Axnoded.ActiveAllocationIDs = make([]string, 0)
+	admittedAllocations := make(map[string]struct{})
+	if s.allocationIDs != nil {
+		for _, allocationID := range s.allocationIDs() {
+			allocationID = strings.TrimSpace(allocationID)
+			if allocationID == "" {
+				continue
+			}
+			admittedAllocations[allocationID] = struct{}{}
+			snapshot.Components.Axnoded.ActiveAllocationIDs = append(snapshot.Components.Axnoded.ActiveAllocationIDs, allocationID)
+		}
+	}
 	if s.runtimeCount != nil {
 		snapshot.Components.Axnoded.RegisteredRuntimes = s.runtimeCount()
 	}
@@ -63,14 +72,13 @@ func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInv
 		if c == nil || c.Metadata == nil {
 			continue
 		}
-		allocationID := strings.TrimSpace(c.Metadata.ID)
+		allocationID := strings.TrimSpace(c.ID)
 		if allocationID == "" {
 			continue
 		}
-		// Active means axnoded still owns lifecycle or resource state, not that
-		// the runtime process is currently running. An exited allocation remains
-		// active until ordered Delete removes its durable local record.
-		snapshot.Components.Axnoded.ActiveAllocationIDs = append(snapshot.Components.Axnoded.ActiveAllocationIDs, allocationID)
+		if _, admitted := admittedAllocations[allocationID]; !admitted {
+			continue
+		}
 		if c.Status == nil {
 			continue
 		}
@@ -297,36 +305,36 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 		if c == nil || c.Metadata == nil {
 			continue
 		}
-		if _, retiring := retiringAllocations[strings.TrimSpace(c.Metadata.ID)]; retiring {
-			errs = append(errs, fmt.Sprintf("%s memory: running container also has retiring cgroup ownership", c.Metadata.ID))
+		if _, retiring := retiringAllocations[strings.TrimSpace(c.ID)]; retiring {
+			errs = append(errs, fmt.Sprintf("%s memory: running container also has retiring cgroup ownership", c.ID))
 			continue
 		}
-		cgroupPath, err := s.container.RuntimeCgroupPath(c.Metadata.ID)
+		cgroupPath, err := s.container.RuntimeCgroupPath(c.ID)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", c.Metadata.ID, err))
+			errs = append(errs, fmt.Sprintf("%s: %v", c.ID, err))
 			continue
 		}
 		stats, err := s.loadCgroupStats(cgroupPath)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", c.Metadata.ID, err))
+			errs = append(errs, fmt.Sprintf("%s: %v", c.ID, err))
 			continue
 		}
 		statusValue := c.Status.Get()
 		memoryLimit := statusValue.ResourceSpec.GetLimits().GetMemoryBytes()
-		if s.memoryBudgetEnabled && allocationAttempt(c) > 0 {
+		if s.memoryBudgetEnabled {
 			revision, revisionErr := nextMemoryRevision()
 			if revisionErr != nil {
-				errs = append(errs, fmt.Sprintf("%s memory: %v", c.Metadata.ID, revisionErr))
+				errs = append(errs, fmt.Sprintf("%s memory: %v", c.ID, revisionErr))
 				continue
 			}
 			observation, observationErr := allocationMemoryObservation(c, cgroupPath, memoryLimit, revision, now)
 			if observationErr != nil {
-				errs = append(errs, fmt.Sprintf("%s memory: %v", c.Metadata.ID, observationErr))
+				errs = append(errs, fmt.Sprintf("%s memory: %v", c.ID, observationErr))
 				continue
 			}
 			if s.memoryPIDRolesVerifier != nil {
 				observation.PidRolesVerified = s.memoryPIDRolesVerifier(
-					c.Metadata.ID,
+					c.ID,
 					c.Metadata.GetRuntimeHandler(),
 					cgroupPath,
 					statusValue.Pid,
@@ -334,9 +342,8 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 			}
 			appendMemoryObservation(observation)
 		} else {
-			// Node-local and development containers are included in aggregate
-			// host usage, but only control-plane allocations carry the durable
-			// attempt identity required by the public observation contract.
+			// Containers are included in aggregate host usage when detailed
+			// allocation memory reporting is disabled.
 			memoryUsage := int64(stats.MemoryUsage)
 			if stats.MemoryUsage > math.MaxInt64 {
 				memoryUsage = math.MaxInt64
@@ -344,10 +351,10 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 			snapshot.Resources.Memory.AxnodedUsedBytes = saturatingInt64Add(snapshot.Resources.Memory.AxnodedUsedBytes, memoryUsage)
 		}
 		successes++
-		currentSamples[c.Metadata.ID] = cpuUsageSample{UsageNs: stats.CPUUsageTotal, CollectedAt: now}
+		currentSamples[c.ID] = cpuUsageSample{UsageNs: stats.CPUUsageTotal, CollectedAt: now}
 
 		s.sampleMu.Lock()
-		prev, ok := s.prevCPUSamples[c.Metadata.ID]
+		prev, ok := s.prevCPUSamples[c.ID]
 		s.sampleMu.Unlock()
 		if !ok || !prev.CollectedAt.Before(now) {
 			warming = true
@@ -370,39 +377,39 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 	runningIDs := make(map[string]struct{}, len(runningContainers))
 	for _, c := range runningContainers {
 		if c != nil && c.Metadata != nil {
-			runningIDs[c.Metadata.ID] = struct{}{}
+			runningIDs[c.ID] = struct{}{}
 		}
 	}
 	for _, c := range allocationContainers {
 		if c == nil || c.Metadata == nil || c.Status == nil {
 			continue
 		}
-		if _, running := runningIDs[c.Metadata.ID]; running {
+		if _, running := runningIDs[c.ID]; running {
 			continue
 		}
-		if _, retiring := retiringAllocations[strings.TrimSpace(c.Metadata.ID)]; retiring {
+		if _, retiring := retiringAllocations[strings.TrimSpace(c.ID)]; retiring {
 			// Recycle durably changes ownership before the container record is
 			// removed. The retiring ledger is authoritative in that window.
 			continue
 		}
 		statusValue := c.Status.Get()
 		memoryLimit := statusValue.ResourceSpec.GetLimits().GetMemoryBytes()
-		if !s.memoryBudgetEnabled || allocationAttempt(c) <= 0 {
+		if !s.memoryBudgetEnabled {
 			continue
 		}
-		cgroupPath, err := s.container.RuntimeCgroupPath(c.Metadata.ID)
+		cgroupPath, err := s.container.RuntimeCgroupPath(c.ID)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.Metadata.ID, err))
+			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.ID, err))
 			continue
 		}
 		revision, revisionErr := nextMemoryRevision()
 		if revisionErr != nil {
-			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.Metadata.ID, revisionErr))
+			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.ID, revisionErr))
 			continue
 		}
 		observation, observationErr := allocationMemoryObservation(c, cgroupPath, memoryLimit, revision, now)
 		if observationErr != nil {
-			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.Metadata.ID, observationErr))
+			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.ID, observationErr))
 			continue
 		}
 		// No live runtime PID role is expected after terminal exit. Control and
@@ -490,7 +497,7 @@ func saturatingInt64Add(current, delta int64) int64 {
 }
 
 func retiringMemoryObservation(driver os2.CgroupDriver, lease resources.RetiringMemoryLease, revision int64, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
-	if driver == nil || lease.CgroupID == "" || lease.AllocationID == "" || lease.AllocationAttempt <= 0 || lease.MemoryRequest < 0 || lease.MemoryLimit < 0 || revision <= 0 {
+	if driver == nil || lease.CgroupID == "" || lease.AllocationID == "" || lease.MemoryRequest < 0 || lease.MemoryLimit < 0 || revision <= 0 {
 		return nil, fmt.Errorf("retiring allocation memory metadata is incomplete")
 	}
 	if lease.MemoryLimit > 0 && lease.MemoryRequest > lease.MemoryLimit {
@@ -532,7 +539,7 @@ func retiringMemoryObservation(driver os2.CgroupDriver, lease resources.Retiring
 		return nil, err
 	}
 	return memoryObservationFromKernel(
-		lease.AllocationID, lease.AllocationAttempt, lease.MemoryRequest, lease.MemoryLimit, lease.RuntimeName,
+		lease.AllocationID, lease.MemoryRequest, lease.MemoryLimit, lease.RuntimeName,
 		nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING, revision, now, domain, usage, bounded, leafControlsVerified,
 	), nil
 }
@@ -563,33 +570,18 @@ func allocationMemoryObservation(c *container.Container, workloadPath string, li
 	if err != nil {
 		return nil, err
 	}
-	attempt := allocationAttempt(c)
-	if attempt <= 0 {
-		return nil, fmt.Errorf("allocation attempt is unavailable")
-	}
 	requestBytes := c.Status.Get().ResourceSpec.GetRequests().GetMemoryBytes()
 	if requestBytes < 0 || (bounded && requestBytes > limitBytes) {
 		return nil, fmt.Errorf("allocation memory request is inconsistent with its limit")
 	}
 	return memoryObservationFromKernel(
-		c.Metadata.ID, attempt, requestBytes, limitBytes, c.Metadata.GetRuntimeHandler(), nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, revision, now, domain, usage, bounded, bounded,
+		c.ID, requestBytes, limitBytes, c.Metadata.GetRuntimeHandler(), nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, revision, now, domain, usage, bounded, bounded,
 	), nil
-}
-
-func allocationAttempt(c *container.Container) int64 {
-	if c == nil || c.Metadata == nil {
-		return 0
-	}
-	attempt, err := strconv.ParseInt(strings.TrimSpace(c.Metadata.Labels[workloadidentity.LabelKeyAllocationAttempt]), 10, 64)
-	if err != nil || attempt <= 0 {
-		return 0
-	}
-	return attempt
 }
 
 func memoryObservationFromKernel(
 	allocationID string,
-	attempt, requestBytes, limitBytes int64,
+	requestBytes, limitBytes int64,
 	runtimeName string,
 	cleanupState nodev1.AllocationMemoryCleanupState,
 	revision int64,
@@ -599,7 +591,7 @@ func memoryObservationFromKernel(
 	parentControlsVerified, leafControlsVerified bool,
 ) *nodev1.AllocationMemoryObservation {
 	return &nodev1.AllocationMemoryObservation{
-		AllocationID: allocationID, Attempt: attempt, Revision: revision, ObservedAt: timestamppb.New(now),
+		AllocationID: allocationID, Revision: revision, ObservedAt: timestamppb.New(now),
 		RequestBytes: requestBytes, LimitBytes: limitBytes, CurrentBytes: usage.CurrentBytes, PeakBytes: usage.PeakBytes, PeakAvailable: usage.PeakAvailable,
 		SwapCurrentBytes: usage.SwapCurrent, AnonBytes: usage.Stat["anon"], FileBytes: usage.Stat["file"],
 		ShmemBytes: usage.Stat["shmem"], KernelBytes: usage.Stat["kernel"], DirtyBytes: usage.Stat["file_dirty"],

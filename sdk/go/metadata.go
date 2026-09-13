@@ -7,7 +7,6 @@ type SandboxMetadata struct {
 	EnvironmentID   string
 	RunID           string
 	AllocationID    string
-	Attempt         int64
 	NodeID          string
 	RuntimeClass    string
 	StartedAt       time.Time
@@ -25,7 +24,6 @@ func (s *Sandbox) Metadata() (SandboxMetadata, error) {
 		EnvironmentID:   s.state.EnvironmentID,
 		RunID:           s.state.RunID,
 		AllocationID:    s.state.AllocationID,
-		Attempt:         s.state.Attempt,
 		NodeID:          s.state.NodeID,
 		RuntimeClass:    s.options.RuntimeClass,
 		StartedAt:       s.state.StartedAt,

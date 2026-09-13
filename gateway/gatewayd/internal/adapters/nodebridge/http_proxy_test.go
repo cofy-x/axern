@@ -35,7 +35,7 @@ func TestProxyHTTPWaitsForLeaseAcceptanceBeforeReadingBody(t *testing.T) {
 	t.Cleanup(func() { _ = dialer.Close() })
 	staleBody := &countingReader{Reader: strings.NewReader("must-not-be-read")}
 	_, err = dialer.ProxyHTTP(context.Background(), nodekernel.HTTPProxySpec{
-		NodeTarget: listener.Addr().String(), AllocationID: "alloc-1", Attempt: 1,
+		NodeTarget: listener.Addr().String(), AllocationID: "alloc-1",
 		Token: "stale-token", Port: 8080, Method: "POST", Path: "/", Body: staleBody,
 		HasBody: true, ContentLength: int64(len("must-not-be-read")), Timeout: time.Second,
 	})
@@ -48,7 +48,7 @@ func TestProxyHTTPWaitsForLeaseAcceptanceBeforeReadingBody(t *testing.T) {
 
 	freshBody := &countingReader{Reader: strings.NewReader("payload")}
 	resp, err := dialer.ProxyHTTP(context.Background(), nodekernel.HTTPProxySpec{
-		NodeTarget: listener.Addr().String(), AllocationID: "alloc-1", Attempt: 2,
+		NodeTarget: listener.Addr().String(), AllocationID: "alloc-1",
 		Token: "fresh-token", Port: 8080, Method: "POST", Path: "/", Body: freshBody,
 		HasBody: true, ContentLength: int64(len("payload")), Timeout: time.Second,
 	})

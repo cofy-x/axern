@@ -20,7 +20,7 @@ enum MountType {
   MOUNT_TYPE_LOCAL = 1;
   MOUNT_TYPE_OCI = 2;
   MOUNT_TYPE_NYDUS = 3;
-  MOUNT_TYPE_EROFS = 5;
+  MOUNT_TYPE_EROFS = 4;
 }
 
 enum ComponentState {
@@ -217,37 +217,38 @@ message ReportNodeRequest {
 
 message ReportNodeResponse {}
 
-message AllocationStatusObservation {
+// AllocationLifecycleObservation reports concrete node lifecycle plus a
+// candidate Run result. Controld stores the lifecycle state on Allocation and
+// stores result fields only on the owning Run.
+message AllocationLifecycleObservation {
   string allocation_id = 1;
-  int64 attempt = 2;
-  axern.control.common.v1.AllocationStatus status = 3;
-  int32 exit_code = 4;
-  bool exit_code_known = 5;
-  string message = 6;
-  google.protobuf.Timestamp observed_at = 7;
-  bool ready = 8;
-  string readiness_message = 9;
+  axern.control.common.v1.AllocationLifecycleState state = 2;
+  int32 exit_code = 3;
+  bool exit_code_known = 4;
+  string message = 5;
+  google.protobuf.Timestamp observed_at = 6;
+  bool ready = 7;
+  string readiness_message = 8;
   // diagnostic_code is the bounded, machine-readable terminal or degraded
   // cause observed by the node. The message remains operator context and is
   // never parsed to recover this code.
-  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 10;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 9;
 }
 
-message BatchReportAllocationStatusRequest {
+message BatchReportAllocationLifecycleRequest {
   string node_id = 1;
   string node_auth_token = 2;
-  repeated AllocationStatusObservation observations = 3;
+  repeated AllocationLifecycleObservation observations = 3;
 }
 
-message BatchReportAllocationStatusResponse {}
+message BatchReportAllocationLifecycleResponse {}
 
 // AllocationCapabilityConditionReport is deliberately independent from
 // lifecycle status. Updating capability conditions cannot make an allocation
 // RUNNING, READY, terminal, or alter its exit status/message.
 message AllocationCapabilityConditionReport {
   string allocation_id = 1;
-  int64 attempt = 2;
-  axern.control.capability.v1.CapabilityConditionSet condition_set = 3;
+  axern.control.capability.v1.CapabilityConditionSet condition_set = 2;
 }
 
 message BatchReportAllocationCapabilityConditionsRequest {
@@ -269,47 +270,46 @@ enum AllocationMemoryCleanupState {
 
 message AllocationMemoryObservation {
   string allocation_id = 1;
-  int64 attempt = 2;
-  int64 revision = 3;
-  google.protobuf.Timestamp observed_at = 4;
-  int64 request_bytes = 5;
+  int64 revision = 2;
+  google.protobuf.Timestamp observed_at = 3;
+  int64 request_bytes = 4;
   // Zero means the sandbox has no per-allocation hard limit. Usage and cgroup
   // identity remain observable, while the control-verification fields must be
   // false and swap_current_bytes is informational rather than constrained.
-  int64 limit_bytes = 6;
-  int64 current_bytes = 7;
-  int64 peak_bytes = 8;
-  int64 swap_current_bytes = 9;
-  int64 anon_bytes = 10;
-  int64 file_bytes = 11;
-  int64 shmem_bytes = 12;
-  int64 kernel_bytes = 13;
-  int64 dirty_bytes = 14;
-  int64 writeback_bytes = 15;
-  uint64 event_high = 16;
-  uint64 event_max = 17;
-  uint64 event_oom = 18;
-  uint64 event_oom_kill = 19;
-  uint64 event_oom_group_kill = 20;
-  double psi_some_avg10 = 21;
-  double psi_full_avg10 = 22;
-  uint64 psi_some_total_usec = 23;
-  uint64 psi_full_total_usec = 24;
-  string cgroup_identity = 25;
-  string runtime = 26;
-  bool parent_controls_verified = 27;
-  bool leaf_controls_verified = 28;
-  bool pid_roles_verified = 29;
-  AllocationMemoryCleanupState cleanup_state = 30;
+  int64 limit_bytes = 5;
+  int64 current_bytes = 6;
+  int64 peak_bytes = 7;
+  int64 swap_current_bytes = 8;
+  int64 anon_bytes = 9;
+  int64 file_bytes = 10;
+  int64 shmem_bytes = 11;
+  int64 kernel_bytes = 12;
+  int64 dirty_bytes = 13;
+  int64 writeback_bytes = 14;
+  uint64 event_high = 15;
+  uint64 event_max = 16;
+  uint64 event_oom = 17;
+  uint64 event_oom_kill = 18;
+  uint64 event_oom_group_kill = 19;
+  double psi_some_avg10 = 20;
+  double psi_full_avg10 = 21;
+  uint64 psi_some_total_usec = 22;
+  uint64 psi_full_total_usec = 23;
+  string cgroup_identity = 24;
+  string runtime = 25;
+  bool parent_controls_verified = 26;
+  bool leaf_controls_verified = 27;
+  bool pid_roles_verified = 28;
+  AllocationMemoryCleanupState cleanup_state = 29;
   // psi_available distinguishes an unsupported per-cgroup PSI interface from
   // a supported interface that currently reports zero pressure. When false,
   // all PSI values above must be zero.
-  bool psi_available = 31;
+  bool psi_available = 30;
   // peak_available reports whether peak_bytes came from the kernel
   // memory.peak interface. Older cgroup v2 kernels may omit that optional
   // file; in that case peak_bytes equals current_bytes and is only a sampled
   // lower bound. Hard-limit evidence never depends on this observability bit.
-  bool peak_available = 32;
+  bool peak_available = 31;
 }
 
 message BatchReportAllocationMemoryObservationsRequest {
@@ -416,7 +416,7 @@ message PlacementCandidate {
 service NodeControl {
   rpc RegisterNode(RegisterNodeRequest) returns (RegisterNodeResponse) {}
   rpc ReportNode(ReportNodeRequest) returns (ReportNodeResponse) {}
-  rpc BatchReportAllocationStatus(BatchReportAllocationStatusRequest) returns (BatchReportAllocationStatusResponse) {}
+  rpc BatchReportAllocationLifecycle(BatchReportAllocationLifecycleRequest) returns (BatchReportAllocationLifecycleResponse) {}
   rpc BatchReportAllocationCapabilityConditions(BatchReportAllocationCapabilityConditionsRequest) returns (BatchReportAllocationCapabilityConditionsResponse) {}
   rpc BatchReportAllocationMemoryObservations(BatchReportAllocationMemoryObservationsRequest) returns (BatchReportAllocationMemoryObservationsResponse) {}
   rpc WatchExecutionLeases(WatchExecutionLeasesRequest) returns (stream WatchExecutionLeasesResponse) {}

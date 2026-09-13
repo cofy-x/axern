@@ -15,6 +15,9 @@ const MaxContainerNum = 1000
 // Container contains all resources associated with the container. All methods to
 // mutate the internal state are thread-safe.
 type Container struct {
+	// ID is supplied by the container directory/map key. It is never decoded
+	// from runtime metadata, OCI labels, or annotations.
+	ID string
 	// metadata stores the metadata of the container. Can not be modified.
 	Metadata *apipb.ContainerMetadata
 	// Status stores the status of the container.
@@ -111,7 +114,7 @@ func (c *Container) ApiStatus() *runtimeapi.ContainerStatus {
 	}
 
 	return &runtimeapi.ContainerStatus{
-		ID:             c.Metadata.ID,
+		ID:             c.ID,
 		Command:        c.Spec.Process.Args,
 		Runtime:        c.Metadata.RuntimeHandler,
 		State:          c.Status.Get().State(),

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
@@ -18,7 +16,6 @@ import (
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/sirupsen/logrus"
@@ -36,6 +33,9 @@ func (h *Controller) createContainer(
 	resourceSpec *commonv1.ResourceSpec,
 	phaseRecorder contract.StartupPhaseRecorder,
 ) (*apipb.CreateContainerResponse, string, error) {
+	if !validContainerRecoveryMode(request.GetRecoveryMode()) {
+		return nil, "", errors.New("container recovery mode is required")
+	}
 	traceID, spanID := trace.GetContextID(ctx)
 	response := new(apipb.CreateContainerResponse)
 	start := time.Now()
@@ -83,6 +83,10 @@ func (h *Controller) createContainer(
 		h.cleanupFailedContainerCreate(traceID.String(), resource.ID, metaData)
 		return response, "", h.cleanupCreatedRuntime(handler, resource, err)
 	}
+	if metaData == nil {
+		return response, "", h.cleanupCreatedRuntime(handler, resource, errors.New("runtime returned no container metadata"))
+	}
+	metaData.RecoveryMode = request.GetRecoveryMode()
 
 	response.ID = resource.ID
 	if err := h.containers().StoreMetadata(resource.ID, metaData); err != nil {
@@ -99,11 +103,11 @@ func (h *Controller) createContainer(
 	return response, containerIPFromResource(resource), nil
 }
 
-// createManagedContainer deliberately uses the OCI create/start split. The
+// createAllocation deliberately uses the OCI create/start split. The
 // created runtime and all host-side storage/cgroup state exist at the gate,
 // while the workload process has not started and therefore cannot race a
 // short-lived command against create-time enforcement verification.
-func (h *Controller) createManagedContainer(
+func (h *Controller) createAllocation(
 	ctx context.Context,
 	lrt *langrtmanager.LanguageRuntime,
 	startRequest *apipb.StartRequest,
@@ -116,16 +120,16 @@ func (h *Controller) createManagedContainer(
 	traceID, spanID := trace.GetContextID(ctx)
 	response := new(apipb.CreateContainerResponse)
 	if handler == nil || resource.ID == "" || resource.ID != request.GetID() {
-		return response, "", errors.Join(errors.New("managed allocation resources are missing or inconsistent"), errRuntimeCleanupPending)
+		return response, "", errors.Join(errors.New("allocation resources are missing or inconsistent"), errRuntimeCleanupPending)
 	}
-	managed, ok := handler.(contract.ManagedRuntimeHandler)
+	allocationRuntime, ok := handler.(contract.AllocationRuntimeHandler)
 	if !ok {
-		err := fmt.Errorf("runtime %q does not implement the managed create/start contract", handler.Name())
+		err := fmt.Errorf("runtime %q does not implement the allocation create/start contract", handler.Name())
 		return response, "", errors.Join(err, errRuntimeCleanupPending)
 	}
 
 	options := h.createHandlerOptions(traceID.String(), spanID.String(), lrt, templateRequest, resource, phaseRecorder)
-	prepared, err := managed.PrepareContainer(ctx, request, options)
+	prepared, err := allocationRuntime.PrepareContainer(ctx, request, options)
 	if err != nil {
 		h.cleanupFailedContainerCreate(traceID.String(), resource.ID, preparedContainerMetadata(prepared))
 		return response, "", errors.Join(err, errRuntimeCleanupPending)
@@ -136,9 +140,10 @@ func (h *Controller) createManagedContainer(
 		// leases durable until runtime deletion has crossed the exit-state barrier.
 		return errors.Join(cause, errRuntimeCleanupPending)
 	}
-	if prepared == nil || prepared.Metadata == nil || prepared.Metadata.GetID() != resource.ID || prepared.ContainerID != resource.ID {
-		return response, "", cleanupPrepared(errors.New("managed runtime returned an invalid prepared container"))
+	if prepared == nil || prepared.Metadata == nil || prepared.ContainerID != resource.ID {
+		return response, "", cleanupPrepared(errors.New("runtime returned an invalid prepared container"))
 	}
+	prepared.Metadata.RecoveryMode = request.GetRecoveryMode()
 	// Persist ownership before running the gate. A crash or failed cleanup in
 	// the create-before-start window must remain discoverable by normal runtime
 	// inventory and the ordered Delete path.
@@ -146,16 +151,20 @@ func (h *Controller) createManagedContainer(
 		return response, "", cleanupPrepared(fmt.Errorf("persist prepared container metadata: %w", err))
 	}
 	if h.preActivationCapabilityGate == nil {
-		return response, "", cleanupPrepared(errors.New("managed allocation pre-activation capability gate is unavailable"))
+		return response, "", cleanupPrepared(errors.New("allocation pre-activation capability gate is unavailable"))
 	}
-	if err := h.preActivationCapabilityGate(ctx, startRequest, managed, resource.ID); err != nil {
-		return response, "", cleanupPrepared(fmt.Errorf("verify managed allocation before activation: %w", err))
+	if err := h.preActivationCapabilityGate(ctx, startRequest, allocationRuntime, resource.ID); err != nil {
+		return response, "", cleanupPrepared(fmt.Errorf("verify allocation before activation: %w", err))
 	}
 
-	metaData, err := managed.StartPreparedContainer(ctx, prepared, options)
+	metaData, err := allocationRuntime.StartPreparedContainer(ctx, prepared, options)
 	if err != nil {
 		return response, "", cleanupPrepared(err)
 	}
+	if metaData == nil {
+		return response, "", cleanupPrepared(errors.New("runtime returned no activated container metadata"))
+	}
+	metaData.RecoveryMode = request.GetRecoveryMode()
 	response.ID = resource.ID
 	if err := h.containers().StoreMetadata(resource.ID, metaData); err != nil {
 		return response, "", cleanupPrepared(fmt.Errorf("persist activated container metadata: %w", err))
@@ -163,10 +172,15 @@ func (h *Controller) createManagedContainer(
 	if err := h.containers().SetResources(resource.ID, request.Resource, startRequest.GetResources()); err != nil {
 		return response, "", cleanupPrepared(fmt.Errorf("persist activated container resources: %w", err))
 	}
-	if err := h.registerCreatedContainerLifecycle(ctx, resource.ID, metaData, managed); err != nil {
+	if err := h.registerCreatedContainerLifecycle(ctx, resource.ID, metaData, allocationRuntime); err != nil {
 		return response, "", cleanupPrepared(fmt.Errorf("register activated container monitor: %w", err))
 	}
 	return response, containerIPFromResource(resource), nil
+}
+
+func validContainerRecoveryMode(mode apipb.ContainerRecoveryMode) bool {
+	return mode == apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DURABLE ||
+		mode == apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART
 }
 
 // registerCreatedContainerLifecycle establishes the runtime Wait observer before
@@ -181,7 +195,7 @@ func (h *Controller) registerCreatedContainerLifecycle(
 	metaData *apipb.ContainerMetadata,
 	handler contract.RuntimeHandler,
 ) error {
-	if err := h.containers().StartMonitor(metaData); err != nil {
+	if err := h.containers().StartMonitor(containerID, metaData); err != nil {
 		return err
 	}
 	h.syncCreatedContainerStatus(ctx, containerID, handler)
@@ -231,15 +245,14 @@ func (h *Controller) syncCreatedContainerStatus(ctx context.Context, containerID
 }
 
 func (h *Controller) prepareContainerCreate(ctx context.Context, traceID string, request *apipb.CreateContainerRequest, resourceSpec *commonv1.ResourceSpec) (contract.RuntimeHandler, container.OccupiedResource, error) {
-	attempt, _ := strconv.ParseInt(strings.TrimSpace(request.GetLabels()[workloadidentity.LabelKeyAllocationAttempt]), 10, 64)
-	return h.prepareContainerResources(ctx, traceID, request.GetRuntime(), request.GetID(), attempt, request.GetEnvs(), resourceSpec)
+	return h.prepareContainerResources(ctx, traceID, request.GetRuntime(), request.GetID(), request.GetEnvs(), resourceSpec)
 }
 
-// prepareContainerResources is the node-local admission boundary. Managed
+// prepareContainerResources is the node-local admission boundary. Allocation
 // starts call it before secrets, image mounts, rootfs preparation, or
 // runtime artifacts so a rejected memory commitment has no external side
 // effects to roll back.
-func (h *Controller) prepareContainerResources(ctx context.Context, traceID, runtimeName, containerID string, allocationAttempt int64, envs []*apipb.KeyValue, resourceSpec *commonv1.ResourceSpec) (contract.RuntimeHandler, container.OccupiedResource, error) {
+func (h *Controller) prepareContainerResources(ctx context.Context, traceID, runtimeName, containerID string, envs []*apipb.KeyValue, resourceSpec *commonv1.ResourceSpec) (contract.RuntimeHandler, container.OccupiedResource, error) {
 	var empty container.OccupiedResource
 
 	if err := h.checkRuntime(runtimeName); err != nil {
@@ -267,7 +280,6 @@ func (h *Controller) prepareContainerResources(ctx context.Context, traceID, run
 		MemoryRequestBytes:       memoryRequest,
 		MemoryLimitBytes:         resourceSpec.GetLimits().GetMemoryBytes(),
 		CapacityReservationBytes: cgroupCapacityReservation(ctx, memoryRequest),
-		AllocationAttempt:        allocationAttempt,
 		RuntimeName:              runtimeName,
 		CgroupOwnerKind:          ownerKind,
 	}, resourceNames...)

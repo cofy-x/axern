@@ -9,7 +9,6 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/assert"
@@ -57,19 +56,9 @@ func (s *execStreamServerStub) Recv() (*runtime.ExecStreamRequest, error) {
 func storeRunningExecContainer(t *testing.T, s *sandboxService, runtimeName string, id string) {
 	t.Helper()
 	s.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{
-		ID:             id,
 		RuntimeHandler: runtimeName,
-		Labels:         sandboxdReadyTestLabels(),
 	})
 	time.Sleep(200 * time.Millisecond)
-}
-
-func sandboxdReadyTestLabels() map[string]string {
-	return map[string]string{
-		runtimesandboxd.LabelReady:        "true",
-		runtimesandboxd.LabelSocket:       "/tmp/sandboxd.sock",
-		runtimesandboxd.LabelCapabilities: "archive,browser,computer_use,desktop,file,probe,process,pty",
-	}
 }
 
 func storeExitedExecContainer(t *testing.T, s *sandboxService, runtimeName string, id string) {
@@ -137,7 +126,7 @@ func TestExecReturnsRuntimeExitCodeAndOutput(t *testing.T) {
 	assert.Equal(t, []byte("ok\n"), resp.GetStdout())
 	assert.Equal(t, []byte("warn\n"), resp.GetStderr())
 	assert.Equal(t, "axctl-exec-ok", handler.lastExecOptions.ContainerID)
-	assert.Equal(t, "true", handler.lastExecOptions.ContainerLabels[runtimesandboxd.LabelReady])
+	assert.Empty(t, handler.lastExecOptions.ContainerLabels)
 }
 
 func TestExecStreamRequiresOpenFrame(t *testing.T) {
@@ -195,7 +184,7 @@ func TestExecStreamForwardsNonTTYStdinAndExit(t *testing.T) {
 		assert.False(t, handler.lastSessionOpen.GetTty())
 	}
 	assert.Equal(t, "axctl-exec-stream", handler.lastSessionOptions.ContainerID)
-	assert.Equal(t, "true", handler.lastSessionOptions.ContainerLabels[runtimesandboxd.LabelReady])
+	assert.Empty(t, handler.lastSessionOptions.ContainerLabels)
 	assert.Equal(t, [][]byte{[]byte("payload")}, session.writesSnapshot())
 	assert.True(t, session.isStdinClosed())
 }

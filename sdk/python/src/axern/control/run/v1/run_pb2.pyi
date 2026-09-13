@@ -15,7 +15,6 @@ DESCRIPTOR: _descriptor.FileDescriptor
 class RunStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     RUN_STATUS_UNSPECIFIED: _ClassVar[RunStatus]
-    RUN_STATUS_QUEUED: _ClassVar[RunStatus]
     RUN_STATUS_PLACED: _ClassVar[RunStatus]
     RUN_STATUS_STARTING: _ClassVar[RunStatus]
     RUN_STATUS_RUNNING: _ClassVar[RunStatus]
@@ -23,7 +22,6 @@ class RunStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     RUN_STATUS_FAILED: _ClassVar[RunStatus]
     RUN_STATUS_CANCELLED: _ClassVar[RunStatus]
 RUN_STATUS_UNSPECIFIED: RunStatus
-RUN_STATUS_QUEUED: RunStatus
 RUN_STATUS_PLACED: RunStatus
 RUN_STATUS_STARTING: RunStatus
 RUN_STATUS_RUNNING: RunStatus
@@ -32,7 +30,7 @@ RUN_STATUS_FAILED: RunStatus
 RUN_STATUS_CANCELLED: RunStatus
 
 class Run(_message.Message):
-    __slots__ = ("id", "namespace", "environment_id", "allocation_id", "attempt", "status", "config", "labels", "version", "created_at", "updated_at", "exit_code", "exit_code_known", "message", "diagnostic_code", "capability_conditions", "node_id", "workspace_preparation")
+    __slots__ = ("id", "namespace", "environment_id", "allocation_id", "status", "config", "labels", "version", "created_at", "updated_at", "exit_code", "exit_code_known", "message", "diagnostic_code", "capability_conditions", "node_id", "workspace_preparation")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -44,7 +42,6 @@ class Run(_message.Message):
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
     ENVIRONMENT_ID_FIELD_NUMBER: _ClassVar[int]
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    ATTEMPT_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     CONFIG_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
@@ -62,7 +59,6 @@ class Run(_message.Message):
     namespace: str
     environment_id: str
     allocation_id: str
-    attempt: int
     status: RunStatus
     config: _common_pb2.ExecutionConfig
     labels: _containers.ScalarMap[str, str]
@@ -76,7 +72,7 @@ class Run(_message.Message):
     capability_conditions: _capability_pb2.CapabilityConditionSet
     node_id: str
     workspace_preparation: _common_pb2.WorkspacePreparationFacts
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[RunStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., capability_conditions: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ..., node_id: _Optional[str] = ..., workspace_preparation: _Optional[_Union[_common_pb2.WorkspacePreparationFacts, _Mapping]] = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., capability_conditions: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ..., node_id: _Optional[str] = ..., workspace_preparation: _Optional[_Union[_common_pb2.WorkspacePreparationFacts, _Mapping]] = ...) -> None: ...
 
 class RunListFilter(_message.Message):
     __slots__ = ("namespace", "statuses", "labels", "cursor", "page_size")

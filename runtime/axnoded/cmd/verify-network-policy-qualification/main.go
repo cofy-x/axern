@@ -22,7 +22,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
-	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -441,14 +441,14 @@ func measurePrepare(cfg config, client *egress.Client, policy *commonv1.NetworkE
 		allocationID := fmt.Sprintf("qualification-prepare-%d-%d", os.Getpid(), sample)
 		ctx, cancel := context.WithTimeout(context.Background(), cfg.operationTimeout)
 		started := time.Now()
-		_, err := client.Prepare(ctx, allocationID, 1, qualificationSourceIP(cfg.ipFamily), policy, 1, upstreams)
+		_, err := client.Prepare(ctx, allocationID, qualificationSourceIP(cfg.ipFamily), policy, upstreams)
 		values[sample] = milliseconds(time.Since(started))
 		cancel()
 		if err != nil {
 			return nil, fmt.Errorf("measure policy prepare: %w", err)
 		}
 		deleteCtx, cancelDelete := context.WithTimeout(context.Background(), cfg.operationTimeout)
-		err = client.Delete(deleteCtx, allocationID, 1)
+		err = client.Delete(deleteCtx, allocationID)
 		cancelDelete()
 		if err != nil {
 			return nil, fmt.Errorf("delete measured policy: %w", err)
@@ -470,17 +470,16 @@ func measureRuleScale(cfg config, client *egress.Client, observations *workloadO
 			policy := scalePolicy(count, cfg.ipFamily)
 			ctx, cancel := context.WithTimeout(context.Background(), cfg.operationTimeout)
 			started := time.Now()
-			prepared, err := client.Prepare(ctx, allocationID, 1, qualificationSourceIP(cfg.ipFamily), policy, 1, nil)
+			_, err := client.Prepare(ctx, allocationID, qualificationSourceIP(cfg.ipFamily), policy, nil)
 			prepareValues = append(prepareValues, milliseconds(time.Since(started)))
 			raw.Prepare = prepareValues
 			cancel()
 			if err != nil {
 				return nil, 0, fmt.Errorf("prepare %d-rule policy: %w", count, err)
 			}
-			active := []*runtimeegressv1.ActiveEgressPolicy{{AllocationID: allocationID, Attempt: 1, SandboxIp: prepared.GetSandboxIp(), PolicyDigest: prepared.GetPolicyDigest(), ExecutionRevision: prepared.GetExecutionRevision()}}
 			reconcileCtx, cancelReconcile := context.WithTimeout(context.Background(), cfg.operationTimeout)
 			started = time.Now()
-			_, err = client.Reconcile(reconcileCtx, active)
+			_, err = client.Reconcile(reconcileCtx, []string{allocationID})
 			reconcileValues = append(reconcileValues, milliseconds(time.Since(started)))
 			raw.Reconcile = reconcileValues
 			cancelReconcile()
@@ -491,7 +490,7 @@ func measureRuleScale(cfg config, client *egress.Client, observations *workloadO
 				maxRSS = rss
 			}
 			deleteCtx, cancelDelete := context.WithTimeout(context.Background(), cfg.operationTimeout)
-			err = client.Delete(deleteCtx, allocationID, 1)
+			err = client.Delete(deleteCtx, allocationID)
 			cancelDelete()
 			if err != nil {
 				return nil, 0, err
@@ -580,7 +579,7 @@ func oneRestartConvergence(cfg config, sample int) (float64, error) {
 	}
 	policy := scalePolicy(1, cfg.ipFamily)
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.operationTimeout)
-	prepared, err := client.Prepare(ctx, "recovery", 1, qualificationSourceIP(cfg.ipFamily), policy, 1, nil)
+	prepared, err := client.Prepare(ctx, "recovery", qualificationSourceIP(cfg.ipFamily), policy, nil)
 	cancel()
 	_ = client.Close()
 	if err != nil {
@@ -601,9 +600,9 @@ func oneRestartConvergence(cfg config, sample int) (float64, error) {
 		return 0, err
 	}
 	defer client.Close()
-	recovered, err := client.Get(recoveryCtx, prepared.GetAllocationID(), prepared.GetAttempt())
-	if err != nil || recovered.GetRecoveryState() != runtimeegressv1.EgressPolicyRecoveryState_EGRESS_POLICY_RECOVERY_STATE_RECOVERED {
-		return 0, fmt.Errorf("recovered policy proof unavailable: state=%s err=%v", recovered.GetRecoveryState(), err)
+	recovered, err := client.Get(recoveryCtx, prepared.GetAllocationID())
+	if err != nil || !proto.Equal(recovered, prepared) {
+		return 0, fmt.Errorf("recovered policy record differs from prepared state: err=%v", err)
 	}
 	return milliseconds(time.Since(started)), nil
 }

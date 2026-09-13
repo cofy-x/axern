@@ -17,12 +17,11 @@ import (
 
 type nodeOperatorServer struct {
 	nodeoperatorv1.UnimplementedNodeOperatorServer
-	svc     service.NodeOperatorService
-	targets *AllocationTargetRegistry
+	svc service.NodeOperatorService
 }
 
-func NewNodeOperatorServer(svc service.NodeOperatorService, targets *AllocationTargetRegistry) nodeoperatorv1.NodeOperatorServer {
-	return &nodeOperatorServer{svc: svc, targets: targets}
+func NewNodeOperatorServer(svc service.NodeOperatorService) nodeoperatorv1.NodeOperatorServer {
+	return &nodeOperatorServer{svc: svc}
 }
 
 func (s *nodeOperatorServer) ListSandboxes(ctx context.Context, req *nodeoperatorv1.ListSandboxesRequest) (*nodeoperatorv1.ListSandboxesResponse, error) {
@@ -42,7 +41,7 @@ func (s *nodeOperatorServer) GetSandbox(ctx context.Context, req *nodeoperatorv1
 	if req.GetSandboxID() == "" {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
 	}
-	resp, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: s.targets.resolve(req.GetSandboxID())})
+	resp, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: req.GetSandboxID()})
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +55,7 @@ func (s *nodeOperatorServer) GetSandboxDiagnostics(ctx context.Context, req *nod
 	if req.GetSandboxID() == "" {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
 	}
-	targetID := s.targets.resolve(req.GetSandboxID())
+	targetID := req.GetSandboxID()
 	diagnostics, err := s.svc.SandboxdDiagnostics(ctx, targetID, req.GetFull())
 	if err != nil {
 		return nil, err
@@ -70,7 +69,7 @@ func (s *nodeOperatorServer) GetSandboxMemory(_ context.Context, req *nodeoperat
 	if req.GetSandboxID() == "" {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
 	}
-	observation := s.latestAllocationMemoryObservation(s.targets.resolve(req.GetSandboxID()))
+	observation := s.latestAllocationMemoryObservation(req.GetSandboxID())
 	if observation == nil {
 		return nil, grpcstatus.Errorf(codes.FailedPrecondition, "bounded memory observation for sandbox %q is unavailable", req.GetSandboxID())
 	}
@@ -81,7 +80,7 @@ func (s *nodeOperatorServer) ExplainSandboxNetworkPolicy(ctx context.Context, re
 	if req.GetSandboxID() == "" {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
 	}
-	targetID := s.targets.resolve(req.GetSandboxID())
+	targetID := req.GetSandboxID()
 	listed, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: targetID})
 	if err != nil {
 		return nil, err
@@ -94,20 +93,17 @@ func (s *nodeOperatorServer) ExplainSandboxNetworkPolicy(ctx context.Context, re
 
 func localNetworkPolicyDiagnostics(sandboxID string, diagnostics service.NetworkPolicyDiagnostics) *nodeoperatorv1.ExplainSandboxNetworkPolicyResponse {
 	return &nodeoperatorv1.ExplainSandboxNetworkPolicyResponse{
-		SandboxID:             sandboxID,
-		Mode:                  localNetworkPolicyMode(diagnostics.Mode),
-		Status:                localNetworkPolicyStatus(diagnostics.Status),
-		CapabilityState:       localNetworkPolicyCapabilityState(diagnostics.CapabilityState),
-		EnforcementHealthy:    diagnostics.EnforcementHealthy,
-		ExactProof:            diagnostics.ExactProof,
-		AllocationAttempt:     diagnostics.AllocationAttempt,
-		ExecutionRevision:     diagnostics.ExecutionRevision,
-		EnforcementRevision:   diagnostics.EnforcementRevision,
-		DomainRuleCount:       diagnostics.DomainRuleCount,
-		CidrRuleCount:         diagnostics.CIDRRuleCount,
-		PortRangeCount:        diagnostics.PortRangeCount,
-		TotalRuleCount:        diagnostics.TotalRuleCount,
-		RecoveredAfterRestart: diagnostics.RecoveredAfterRestart,
+		SandboxID:           sandboxID,
+		Mode:                localNetworkPolicyMode(diagnostics.Mode),
+		Status:              localNetworkPolicyStatus(diagnostics.Status),
+		CapabilityState:     localNetworkPolicyCapabilityState(diagnostics.CapabilityState),
+		EnforcementHealthy:  diagnostics.EnforcementHealthy,
+		ExactBinding:        diagnostics.ExactBinding,
+		EnforcementRevision: diagnostics.EnforcementRevision,
+		DomainRuleCount:     diagnostics.DomainRuleCount,
+		CidrRuleCount:       diagnostics.CIDRRuleCount,
+		PortRangeCount:      diagnostics.PortRangeCount,
+		TotalRuleCount:      diagnostics.TotalRuleCount,
 	}
 }
 
@@ -134,8 +130,8 @@ func localNetworkPolicyStatus(status service.NetworkPolicyStatus) nodeoperatorv1
 		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_CAPABILITY_UNAVAILABLE
 	case service.NetworkPolicyStatusEnforcementUnhealthy:
 		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_ENFORCEMENT_UNHEALTHY
-	case service.NetworkPolicyStatusProofStale:
-		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_PROOF_STALE
+	case service.NetworkPolicyStatusBindingMismatch:
+		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_BINDING_MISMATCH
 	default:
 		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_UNSPECIFIED
 	}
@@ -173,10 +169,9 @@ func (s *nodeOperatorServer) DeleteSandbox(ctx context.Context, req *nodeoperato
 	if req.GetSandboxID() == "" {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
 	}
-	if _, err := s.svc.Delete(ctx, &runtimev1.DeleteRequest{ID: s.targets.resolve(req.GetSandboxID()), Timeout: req.GetTimeoutSeconds()}); err != nil {
+	if _, err := s.svc.Delete(ctx, &runtimev1.DeleteRequest{ID: req.GetSandboxID(), Timeout: req.GetTimeoutSeconds()}); err != nil {
 		return nil, err
 	}
-	s.targets.unbind(req.GetSandboxID())
 	return &nodeoperatorv1.DeleteSandboxResponse{}, nil
 }
 
@@ -184,7 +179,7 @@ func (s *nodeOperatorServer) KillSandbox(ctx context.Context, req *nodeoperatorv
 	if req.GetSandboxID() == "" {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
 	}
-	if _, err := s.svc.Kill(ctx, &runtimev1.KillRequest{ID: s.targets.resolve(req.GetSandboxID()), Signal: req.GetSignal()}); err != nil {
+	if _, err := s.svc.Kill(ctx, &runtimev1.KillRequest{ID: req.GetSandboxID(), Signal: req.GetSignal()}); err != nil {
 		return nil, err
 	}
 	return &nodeoperatorv1.KillSandboxResponse{}, nil
@@ -199,7 +194,7 @@ func (s *nodeOperatorServer) Exec(ctx context.Context, req *nodeoperatorv1.ExecR
 	}
 
 	resp, err := s.svc.Exec(ctx, &runtimev1.ExecRequest{
-		ID:      s.targets.resolve(req.GetSandboxID()),
+		ID:      req.GetSandboxID(),
 		Command: append([]string(nil), req.GetSpec().GetArgv()...),
 		Timeout: req.GetSpec().GetTimeoutSeconds(),
 		Env:     cloneStringMap(req.GetSpec().GetEnv()),
@@ -238,7 +233,7 @@ func (s *nodeOperatorServer) ExecStream(stream nodeoperatorv1.NodeOperator_ExecS
 		stream:    stream,
 		first:     first,
 		firstSent: false,
-		targetID:  s.targets.resolve(open.GetSandboxID()),
+		targetID:  open.GetSandboxID(),
 	}
 	return s.svc.ExecStream(adapter)
 }
@@ -248,7 +243,7 @@ func (s *nodeOperatorServer) WaitSandbox(ctx context.Context, req *nodeoperatorv
 		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
 	}
 
-	resp, err := s.svc.Wait(ctx, &runtimev1.WaitRequest{ID: s.targets.resolve(req.GetSandboxID())})
+	resp, err := s.svc.Wait(ctx, &runtimev1.WaitRequest{ID: req.GetSandboxID()})
 	if err == nil {
 		return &nodeoperatorv1.WaitSandboxResponse{
 			State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
@@ -273,7 +268,7 @@ func (s *nodeOperatorServer) ResolveSandboxNetwork(ctx context.Context, req *nod
 	if req.GetSandboxID() == "" {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
 	}
-	targetID := s.targets.resolve(req.GetSandboxID())
+	targetID := req.GetSandboxID()
 	network, err := s.svc.NetworkForSandbox(targetID)
 	if err != nil {
 		return nil, err

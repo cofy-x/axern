@@ -15,9 +15,9 @@ const (
 )
 
 const (
-	IssueActiveReservationOnEndedAllocation IssueCode = "active_reservation_on_ended_allocation"
-	IssueActiveLeaseOnEndedAllocation       IssueCode = "active_lease_on_ended_allocation"
-	IssueActiveTunnelOnEndedAllocation      IssueCode = "active_tunnel_on_ended_allocation"
+	IssueActiveReservationOnReleasedAllocation IssueCode = "active_reservation_on_released_allocation"
+	IssueActiveLeaseOnEndedAllocation          IssueCode = "active_lease_on_ended_allocation"
+	IssueActiveTunnelOnEndedAllocation         IssueCode = "active_tunnel_on_ended_allocation"
 )
 
 type Snapshot struct {

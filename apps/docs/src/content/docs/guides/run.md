@@ -20,7 +20,7 @@ axern run logs <run-id> --follow
 axern run cancel <run-id>
 ```
 
-`run list` filters by `--namespace`, `--status` (`queued`, `placed`, `starting`, `running`, `succeeded`, `failed`, `cancelled`), and `--label`. `run logs` supports `--follow` and resumable `--cursor` output; a single read is truncated at 64 MiB.
+`run list` filters by `--namespace`, `--status` (`placed`, `starting`, `running`, `succeeded`, `failed`, `cancelled`), and `--label`. `run logs` supports `--follow` and resumable `--cursor` output; a single read is truncated at 64 MiB.
 
 ## Define a Run with a spec
 

@@ -20,7 +20,6 @@ func RenderAllocationLifecycleRetry(w io.Writer, retry *adminv1.AllocationLifecy
 	if retry.GetNodeTarget() != "" {
 		fmt.Fprintf(w, "Node Target: %s\n", retry.GetNodeTarget())
 	}
-	fmt.Fprintf(w, "Attempt: %d\n", retry.GetAttempt())
 	fmt.Fprintf(w, "Reconcile Attempts: %d\n", retry.GetReconcileAttempts())
 	if retry.GetLastError() != "" {
 		fmt.Fprintf(w, "Last Error: %s\n", retry.GetLastError())
@@ -43,14 +42,13 @@ func RenderAllocationLifecycleRetryTable(w io.Writer, retries []*adminv1.Allocat
 			retry.GetRunID(),
 			allocationLifecycleRetryReasonLabel(retry.GetReason()),
 			retry.GetNodeID(),
-			fmt.Sprintf("%d", retry.GetAttempt()),
 			fmt.Sprintf("%d", retry.GetReconcileAttempts()),
 			formatAllocationLifecycleRetryNextRun(retry, now),
 			fmt.Sprintf("%t", retry.GetDue()),
 			ShortMessage(retry.GetLastError(), 48),
 		})
 	}
-	RenderTable(w, []string{"ALLOCATION", "RUN", "REASON", "NODE", "ATTEMPT", "RETRIES", "NEXT", "DUE", "LAST_ERROR"}, rows)
+	RenderTable(w, []string{"ALLOCATION", "RUN", "REASON", "NODE", "RETRIES", "NEXT", "DUE", "LAST_ERROR"}, rows)
 }
 
 func formatAllocationLifecycleRetryNextRun(retry *adminv1.AllocationLifecycleRetry, now time.Time) string {

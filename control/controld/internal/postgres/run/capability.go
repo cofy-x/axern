@@ -26,10 +26,10 @@ func (s *Store) RecordAllocationCapabilityAdmission(ctx context.Context, allocat
 		}
 		_, err := tx.Exec(ctx, `
 			UPDATE allocations
-			SET workspace_preparation = $2::jsonb, updated_at = $3, version = version + 1
-			WHERE allocation_id = $1 AND attempt = $4
+			SET workspace_preparation = $2::jsonb, updated_at = $3
+			WHERE allocation_id = $1
 			  AND workspace_preparation IS DISTINCT FROM $2::jsonb
-		`, allocationID, workspaceJSON, now.UTC(), admission.Attempt)
+		`, allocationID, workspaceJSON, now.UTC())
 		if err != nil {
 			return fmt.Errorf("record run workspace preparation: %w", err)
 		}

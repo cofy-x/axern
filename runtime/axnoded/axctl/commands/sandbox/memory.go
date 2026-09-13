@@ -63,7 +63,7 @@ func renderSandboxMemory(w io.Writer, memory *controlnodev1.AllocationMemoryObse
 	if memory == nil {
 		return
 	}
-	fmt.Fprintf(w, "  Allocation: %s (attempt %d)\n", memory.GetAllocationID(), memory.GetAttempt())
+	fmt.Fprintf(w, "  Allocation: %s\n", memory.GetAllocationID())
 	fmt.Fprintf(w, "  Runtime: %s\n", fallbackString(memory.GetRuntime(), "-"))
 	fmt.Fprintf(w, "  Observed At: %s (revision %d)\n", formatTimestamp(memory.GetObservedAt()), memory.GetRevision())
 	fmt.Fprintf(w, "  Request / Limit: %d / %d bytes\n", memory.GetRequestBytes(), memory.GetLimitBytes())

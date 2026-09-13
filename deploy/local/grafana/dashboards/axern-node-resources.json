@@ -104,7 +104,7 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_STATUS_RUNNING\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
+          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_LIFECYCLE_STATE_ACTIVE\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
           "refId": "A",
           "legendFormat": "running"
         }
@@ -1100,7 +1100,7 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_allocations_current{axern_node_id=~\".+\", axern_status=\"ALLOCATION_STATUS_RUNNING\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_allocations_current{axern_node_id=~\".+\", axern_status=\"ALLOCATION_LIFECYCLE_STATE_ACTIVE\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
           "refId": "A",
           "legendFormat": "{{axern_node_display}}"
         }

@@ -10,18 +10,18 @@ import (
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
 
-func TestBatchReportAllocationStatusUsesRunStore(t *testing.T) {
+func TestBatchReportAllocationLifecycleUsesRunStore(t *testing.T) {
 	runs := &fakeRunAllocationStore{}
 	control := NewAuthoritative(runs)
-	observations := []*nodev1.AllocationStatusObservation{
-		{AllocationID: " run-1 ", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
-		{AllocationID: "unknown-owner", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
-		{AllocationID: "missing", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
+	observations := []*nodev1.AllocationLifecycleObservation{
+		{AllocationID: " run-1 ", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE},
+		{AllocationID: "unknown-owner", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE},
+		{AllocationID: "missing", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE},
 	}
 
-	reconcileIDs, err := control.BatchReportAllocationStatus(context.Background(), "node-a", observations, time.Now().UTC())
+	reconcileIDs, err := control.BatchReportAllocationLifecycle(context.Background(), "node-a", observations, time.Now().UTC())
 	if err != nil {
-		t.Fatalf("BatchReportAllocationStatus() error = %v", err)
+		t.Fatalf("BatchReportAllocationLifecycle() error = %v", err)
 	}
 	if len(reconcileIDs) != 0 {
 		t.Fatalf("reconcile IDs = %#v, want empty", reconcileIDs)
@@ -32,10 +32,10 @@ func TestBatchReportAllocationStatusUsesRunStore(t *testing.T) {
 }
 
 type fakeRunAllocationStore struct {
-	observations []*nodev1.AllocationStatusObservation
+	observations []*nodev1.AllocationLifecycleObservation
 }
 
-func (f *fakeRunAllocationStore) BatchReportAllocationStatus(_ context.Context, _ string, observations []*nodev1.AllocationStatusObservation, _ time.Time) error {
+func (f *fakeRunAllocationStore) BatchReportAllocationLifecycle(_ context.Context, _ string, observations []*nodev1.AllocationLifecycleObservation, _ time.Time) error {
 	f.observations = append(f.observations, observations...)
 	return nil
 }
@@ -60,7 +60,7 @@ func (f *fakeRunAllocationStore) WatchExecutionLeases(context.Context, string, i
 	return nil, 0, nil
 }
 
-func allocationIDs(observations []*nodev1.AllocationStatusObservation) []string {
+func allocationIDs(observations []*nodev1.AllocationLifecycleObservation) []string {
 	ids := make([]string, 0, len(observations))
 	for _, observation := range observations {
 		ids = append(ids, observation.GetAllocationID())

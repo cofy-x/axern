@@ -18,12 +18,11 @@ type nodeSandboxServer struct {
 	nodesandboxv1.UnimplementedNodeSandboxServer
 	svc       service.SandboxService
 	nodeID    string
-	targets   *AllocationTargetRegistry
 	leaseAuth DirectLeaseValidator
 }
 
 type DirectLeaseValidator interface {
-	WaitValidate(ctx context.Context, allocationID string, attempt int64, token string, now func() time.Time) (valid, waited bool)
+	WaitValidate(ctx context.Context, allocationID string, token string, now func() time.Time) (valid, waited bool)
 }
 
 const (
@@ -42,18 +41,16 @@ func acknowledgeExecutionLease(stream executionLeaseHeaderSender) error {
 type directAuthTarget struct {
 	allocationID string
 	targetID     string
-	attempt      int64
 }
 
 type allocationExitReport struct {
 	allocationID  string
-	attempt       int64
 	exitCode      int32
 	exitCodeKnown bool
 	message       string
 }
 
-func NewNodeSandboxServer(svc service.SandboxService, nodeID string, targets *AllocationTargetRegistry, leaseAuth ...DirectLeaseValidator) nodesandboxv1.NodeSandboxServer {
+func NewNodeSandboxServer(svc service.SandboxService, nodeID string, leaseAuth ...DirectLeaseValidator) nodesandboxv1.NodeSandboxServer {
 	var validator DirectLeaseValidator
 	if len(leaseAuth) > 0 {
 		validator = leaseAuth[0]
@@ -61,14 +58,13 @@ func NewNodeSandboxServer(svc service.SandboxService, nodeID string, targets *Al
 	return &nodeSandboxServer{
 		svc:       svc,
 		nodeID:    nodeID,
-		targets:   targets,
 		leaseAuth: validator,
 	}
 }
 
-func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID string, attempt int64, leaseToken string) (directAuthTarget, error) {
-	if strings.TrimSpace(allocationID) == "" || attempt <= 0 || strings.TrimSpace(leaseToken) == "" {
-		return directAuthTarget{}, grpcstatus.Error(codes.Unauthenticated, "allocation_id, attempt, and execution_lease_token are required")
+func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID string, leaseToken string) (directAuthTarget, error) {
+	if strings.TrimSpace(allocationID) == "" || strings.TrimSpace(leaseToken) == "" {
+		return directAuthTarget{}, grpcstatus.Error(codes.Unauthenticated, "allocation_id and execution_lease_token are required")
 	}
 	allocationID = strings.TrimSpace(allocationID)
 	visibilityCtx, cancel := context.WithTimeout(ctx, leaseVisibilityWaitTimeout)
@@ -76,7 +72,7 @@ func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID
 	visibilityStart := time.Now()
 	valid, waited := true, false
 	if s.leaseAuth != nil {
-		valid, waited = s.leaseAuth.WaitValidate(visibilityCtx, allocationID, attempt, leaseToken, func() time.Time { return time.Now().UTC() })
+		valid, waited = s.leaseAuth.WaitValidate(visibilityCtx, allocationID, leaseToken, func() time.Time { return time.Now().UTC() })
 	}
 	result := "cache_hit"
 	if waited {
@@ -97,16 +93,14 @@ func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID
 	}
 	return directAuthTarget{
 		allocationID: allocationID,
-		targetID:     s.targets.resolve(allocationID),
-		attempt:      attempt,
+		targetID:     allocationID,
 	}, nil
 }
 
 func (s *nodeSandboxServer) reportExit(report allocationExitReport) {
-	s.svc.ReportAllocationStatus(
+	s.svc.ReportAllocationLifecycle(
 		report.allocationID,
-		report.attempt,
-		commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED,
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
 		report.exitCode,
 		report.exitCodeKnown,
 		false,

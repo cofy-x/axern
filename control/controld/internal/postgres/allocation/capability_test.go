@@ -122,22 +122,21 @@ func TestSameDependencyKeysRequiresAnExactSet(t *testing.T) {
 	}
 }
 
-func TestShouldReplaceCapabilityConditionsFencesAttemptAndRevision(t *testing.T) {
+func TestShouldReplaceCapabilityConditionsUsesRevision(t *testing.T) {
 	tests := []struct {
-		name                                string
-		storedAttempt, storedRevision       int64
-		allocationAttempt, incomingRevision int64
-		wantReplace, wantError              bool
+		name                   string
+		storedRevision         int64
+		incomingRevision       int64
+		wantReplace, wantError bool
 	}{
-		{name: "new attempt restarts revision", storedAttempt: 1, storedRevision: 9, allocationAttempt: 2, incomingRevision: 1, wantReplace: true},
-		{name: "newer revision in same attempt", storedAttempt: 2, storedRevision: 1, allocationAttempt: 2, incomingRevision: 2, wantReplace: true},
-		{name: "duplicate revision", storedAttempt: 2, storedRevision: 2, allocationAttempt: 2, incomingRevision: 2},
-		{name: "stale revision", storedAttempt: 2, storedRevision: 3, allocationAttempt: 2, incomingRevision: 2},
-		{name: "stored future attempt is corruption", storedAttempt: 3, storedRevision: 1, allocationAttempt: 2, incomingRevision: 2, wantError: true},
+		{name: "newer revision", storedRevision: 1, incomingRevision: 2, wantReplace: true},
+		{name: "duplicate revision", storedRevision: 2, incomingRevision: 2},
+		{name: "stale revision", storedRevision: 3, incomingRevision: 2},
+		{name: "invalid incoming revision", storedRevision: 0, incomingRevision: 0, wantError: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			replace, err := shouldReplaceCapabilityConditions(test.storedAttempt, test.storedRevision, test.allocationAttempt, test.incomingRevision)
+			replace, err := shouldReplaceCapabilityConditions(test.storedRevision, test.incomingRevision)
 			if (err != nil) != test.wantError || replace != test.wantReplace {
 				t.Fatalf("replace=%v error=%v, want replace=%v error=%v", replace, err, test.wantReplace, test.wantError)
 			}

@@ -88,7 +88,7 @@ func TestCgroupManagerAllocateLazilyCreatesWhenPoolIsEmpty(t *testing.T) {
 	}
 
 	resource, err := manager.Allocate(AllocateOption{
-		ContainerID: "lazy-create", AllocationAttempt: 7, RuntimeName: "runsc",
+		ContainerID: "lazy-create", RuntimeName: "runsc",
 		MemoryRequestBytes: 512, MemoryLimitBytes: 1024,
 	})
 	assert.NoError(t, err)
@@ -96,7 +96,6 @@ func TestCgroupManagerAllocateLazilyCreatesWhenPoolIsEmpty(t *testing.T) {
 	assert.Equal(t, 1, driver.createCalls)
 	assert.Equal(t, 1, manager.UsingNum())
 	lease, _ := manager.leases.Get(resource.ToString())
-	assert.Equal(t, int64(7), lease.GetAllocationAttempt())
 	assert.Equal(t, int64(512), lease.GetCapacityReservationBytes())
 	assert.Equal(t, int64(1024), lease.GetMemoryLimitBytes())
 	assert.Equal(t, "runsc", lease.GetRuntimeName())
@@ -227,7 +226,7 @@ func TestCgroupManagerRecycleIsOneWayIntoRetirement(t *testing.T) {
 	manager.cgroups.Set(id, struct{}{})
 	manager.leases.Set(id, &apipb.CgroupLease{
 		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
-		AllocationID: "alloc-a", AllocationAttempt: 3, RuntimeName: "runsc",
+		AllocationID: "alloc-a", RuntimeName: "runsc",
 		MemoryRequestBytes: 1024, MemoryLimitBytes: 2048, AssignedAtUnixNano: 1,
 		CgroupBootID: "boot-a", CgroupMountIdentity: "mount-a", CgroupParentInode: 11, CgroupLeafInode: 12,
 	})
@@ -249,7 +248,7 @@ func TestCgroupManagerRecycleIsOneWayIntoRetirement(t *testing.T) {
 		t.Fatalf("idempotent Recycle() error = %v", err)
 	}
 	retiring := manager.RetiringMemoryLeases()
-	if len(retiring) != 1 || retiring[0].AllocationID != "alloc-a" || retiring[0].AllocationAttempt != 3 ||
+	if len(retiring) != 1 || retiring[0].AllocationID != "alloc-a" ||
 		retiring[0].RuntimeName != "runsc" || retiring[0].MemoryRequest != 1024 || retiring[0].MemoryLimit != 2048 ||
 		retiring[0].BootID != "boot-a" || retiring[0].MountIdentity != "mount-a" ||
 		retiring[0].ParentInode != 11 || retiring[0].LeafInode != 12 {
@@ -357,7 +356,7 @@ func TestCgroupManagerRecycleChargesRequestOnlyAllocationCurrentMemory(t *testin
 	manager.cgroups.Set(id, struct{}{})
 	manager.leases.Set(id, &apipb.CgroupLease{
 		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
-		AllocationID: "alloc-request-only", AllocationAttempt: 5, RuntimeName: "runsc",
+		AllocationID: "alloc-request-only", RuntimeName: "runsc",
 		MemoryRequestBytes: 1024, AssignedAtUnixNano: 1,
 	})
 

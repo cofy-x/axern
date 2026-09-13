@@ -11,23 +11,22 @@ import (
 )
 
 type verifyCLIConfig struct {
-	address           string
-	runtime           string
-	runtimeID         string
-	rootfsSrc         string
-	rootfsPath        string
-	imageURL          string
-	stdoutPath        string
-	stderrPath        string
-	shellCommand      string
-	requestCPUMilli   float64
-	requestMemoryMiB  float64
-	limitCPUMilli     float64
-	limitMemoryMiB    float64
-	createTimeout     time.Duration
-	allocationAttempt int64
-	userEnvFlags      verifyutil.StringSliceFlag
-	mountFlags        verifyutil.StringSliceFlag
+	address          string
+	runtime          string
+	runtimeID        string
+	rootfsSrc        string
+	rootfsPath       string
+	imageURL         string
+	stdoutPath       string
+	stderrPath       string
+	shellCommand     string
+	requestCPUMilli  float64
+	requestMemoryMiB float64
+	limitCPUMilli    float64
+	limitMemoryMiB   float64
+	createTimeout    time.Duration
+	userEnvFlags     verifyutil.StringSliceFlag
+	mountFlags       verifyutil.StringSliceFlag
 }
 
 func parseFlags() verifyCLIConfig {
@@ -46,7 +45,6 @@ func parseFlags() verifyCLIConfig {
 	flag.Float64Var(&cfg.limitCPUMilli, "limit-cpu-milli", 0, "CPU limit in milli-CPU units for StartRequest resources")
 	flag.Float64Var(&cfg.limitMemoryMiB, "limit-memory-mib", 0, "memory limit in MiB for StartRequest resources")
 	flag.DurationVar(&cfg.createTimeout, "create-timeout", defaultCreateSandboxTimeout, "timeout for CreateAllocation")
-	flag.Int64Var(&cfg.allocationAttempt, "allocation-attempt", 1, "positive immutable allocation attempt")
 	flag.Var(&cfg.userEnvFlags, "user-env", "dynamic user env in KEY=VALUE form (repeatable)")
 	flag.Var(&cfg.mountFlags, "mount", "dynamic bind mount in SOURCE:TARGET[:options] form (repeatable)")
 	flag.Parse()

@@ -55,7 +55,6 @@ func (f *FakeRuntimeHandler) Version(ctx context.Context) (*runtimeapi.RuntimeVe
 
 func (f *FakeRuntimeHandler) CreateContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
 	return &apipb.ContainerMetadata{
-		ID:             options.ContainerID,
 		RuntimeHandler: f.Name(),
 		Labels:         options.AdditionalAnnotations,
 		Stdout:         request.GetStdout(),

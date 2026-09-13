@@ -23,8 +23,7 @@ message ResolveAllocationTerminalResponse {
   string run_id = 2;
   string node_id = 3;
   string node_target = 4;
-  int64 attempt = 5;
-  axern.control.common.v1.ExecutionLease lease = 6;
+  axern.control.common.v1.ExecutionLease lease = 5;
 }
 
 message ResolveTunnelRelayTargetRequest {

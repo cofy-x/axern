@@ -25,7 +25,7 @@ var newProcessClient = func(socketPath string) processClient {
 }
 
 func ExecContainer(ctx context.Context, request *apipb.ExecContainerRequest, options contract.HandlerOptions, containerRoot string) (*apipb.ExecContainerResponse, error) {
-	socketPath, err := processSocketPath(containerRoot, options, request.GetTty(), request.GetManagedProxy() != nil)
+	socketPath, err := processSocketPath(containerRoot, options)
 	if err != nil {
 		return nil, err
 	}
@@ -72,26 +72,13 @@ func processEnvList(values map[string]string) []string {
 	return out
 }
 
-func processSocketPath(containerRoot string, options contract.HandlerOptions, terminal bool, managedProxy bool) (string, error) {
+func processSocketPath(containerRoot string, options contract.HandlerOptions) (string, error) {
 	containerID := options.ContainerID
 	if strings.TrimSpace(containerID) == "" {
 		return "", fmt.Errorf("sandboxd process requires container id: %w", errord.ErrInvalidArgument)
 	}
 	if strings.TrimSpace(containerRoot) == "" {
 		return "", fmt.Errorf("sandboxd process requires container root: %w", errord.ErrFailedPrecondition)
-	}
-	if err := requireCapabilityFromLabels(options.ContainerLabels, wire.CapabilityProcess); err != nil {
-		return "", err
-	}
-	if terminal {
-		if err := requireCapabilityFromLabels(options.ContainerLabels, wire.CapabilityPTY); err != nil {
-			return "", err
-		}
-	}
-	if managedProxy {
-		if err := requireCapabilityFromLabels(options.ContainerLabels, wire.CapabilityManagedProxy); err != nil {
-			return "", err
-		}
 	}
 	return runtimeoci.SandboxdBundleSocketPath(filepath.Join(containerRoot, containerID)), nil
 }

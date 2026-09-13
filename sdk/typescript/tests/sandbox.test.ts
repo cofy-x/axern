@@ -26,7 +26,7 @@ test("sandbox creates image-backed environment and delegates exec", async () => 
       return { id: "run-1" };
     },
     async *watchRun() {
-      yield { id: "run-1", allocation_id: "alloc-1", node_id: "node-1", attempt: 1, status: 4 };
+      yield { id: "run-1", allocation_id: "alloc-1", node_id: "node-1", status: 4 };
     },
     nodeSandbox(allocationId: string) {
       return {

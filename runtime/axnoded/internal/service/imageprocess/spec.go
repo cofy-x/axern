@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
 )
 
 func ValidSpec(spec *runtime.ImageProcessSpec) bool {
@@ -28,12 +27,11 @@ func RuntimeTemplate(runtimeName, image string) *runtime.RuntimeTemplate {
 	}
 }
 
-func Labels(runtimeID, parentID, image string) map[string]string {
+func Labels(parentID, image string) map[string]string {
 	return map[string]string{
-		workloadidentity.LabelKeyRuntimeID: runtimeID,
-		KindLabel:                          Kind,
-		ParentAllocationLabel:              parentID,
-		ImageLabel:                         image,
+		KindLabel:             Kind,
+		ParentAllocationLabel: parentID,
+		ImageLabel:            image,
 	}
 }
 

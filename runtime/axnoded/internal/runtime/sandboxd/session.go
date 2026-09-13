@@ -34,7 +34,7 @@ var NewSessionClient = func(socketPath string) SessionClient {
 }
 
 func OpenExecSession(ctx context.Context, request *apipb.ExecSessionOpen, options contract.HandlerOptions, containerRoot string) (contract.Session, error) {
-	socketPath, err := processSocketPath(containerRoot, options, request.GetTty(), request.GetManagedProxy() != nil)
+	socketPath, err := processSocketPath(containerRoot, options)
 	if err != nil {
 		return nil, err
 	}

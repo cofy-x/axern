@@ -18,8 +18,8 @@ import (
 )
 
 func (m *Manager) StoreMetadata(id string, data *apipb.ContainerMetadata) error {
-	if data == nil || data.GetID() == "" || id == "" || data.GetID() != id {
-		return fmt.Errorf("container metadata id %q does not match storage id %q", data.GetID(), id)
+	if data == nil || id == "" {
+		return fmt.Errorf("container metadata and storage id are required")
 	}
 	containerRoot := filepath.Join(m.root, id)
 	start := time.Now()
@@ -34,11 +34,11 @@ func (m *Manager) StoreMetadata(id string, data *apipb.ContainerMetadata) error 
 	dataFile := filepath.Join(containerRoot, config.ContainerMetaFile)
 	bytes, err := proto.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("marshal container %s metadata: %w", data.ID, err)
+		return fmt.Errorf("marshal container %s metadata: %w", id, err)
 	}
 
 	if err := fileutil.AtomicWriteFile(dataFile, bytes, 0600); err != nil {
-		return fmt.Errorf("save container %s metadata: %w", data.ID, err)
+		return fmt.Errorf("save container %s metadata: %w", id, err)
 	}
 	if current, ok := m.containers.Get(id); ok && current != nil {
 		replacement := *current
@@ -51,7 +51,7 @@ func (m *Manager) StoreMetadata(id string, data *apipb.ContainerMetadata) error 
 		}
 		m.containers.Set(id, container)
 	}
-	logrus.Debugf("store container %s metadata success, cost %v", data.ID, time.Since(start).String())
+	logrus.Debugf("store container %s metadata success, cost %v", id, time.Since(start).String())
 	return nil
 }
 
@@ -66,27 +66,24 @@ func (m *Manager) loadContainer(containerRoot string) (*Container, error) {
 		return nil, err
 	}
 	directoryID := filepath.Base(containerRoot)
-	if meta.GetID() == "" || meta.GetID() != directoryID {
-		return nil, fmt.Errorf("container metadata id %q does not match directory %q", meta.GetID(), directoryID)
-	}
 
-	container := new(Container)
+	container := &Container{ID: directoryID}
 	container.Metadata = &meta
 	container.PATH = containerRoot
 	container.Status, err = LoadStatus(containerRoot)
 	if err != nil {
-		logrus.Warnf("load status for container %s failed: %v", container.Metadata.ID, err)
+		logrus.Warnf("load status for container %s failed: %v", container.ID, err)
 		return nil, err
 	}
 
 	container.Spec = new(spec.Spec)
 	specByte, err := os.ReadFile(filepath.Join(containerRoot, config.ContainerSpecFile))
 	if err != nil {
-		logrus.Warnf("load spec for container %s failed: %v", container.Metadata.ID, err)
+		logrus.Warnf("load spec for container %s failed: %v", container.ID, err)
 		return container, nil
 	}
 	if err = json.Unmarshal(specByte, container.Spec); err != nil {
-		logrus.Warnf("load spec for container %s failed: %v", container.Metadata.ID, err)
+		logrus.Warnf("load spec for container %s failed: %v", container.ID, err)
 		return container, nil
 	}
 

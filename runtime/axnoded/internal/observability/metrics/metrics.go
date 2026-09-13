@@ -27,111 +27,111 @@ const (
 )
 
 const (
-	MetricSandboxActionDuration                  = "axern.axnoded_sandbox_action_duration_seconds"
-	MetricSandboxActionTotal                     = "axern.axnoded_sandbox_action_total"
-	MetricSandboxResourceCurrent                 = "axern.axnoded_sandbox_resource_current"
-	MetricRuntimeCallTotal                       = "axern.axnoded_runtime_call_total"
-	MetricGCQueueCurrent                         = "axern.axnoded_gc_queue_current"
-	MetricStartupTotal                           = "axern.axnoded_startup_total"
-	MetricStartupDuration                        = "axern.axnoded_startup_duration_seconds"
-	MetricStartupPhaseDuration                   = "axern.axnoded_startup_phase_duration_seconds"
-	MetricStartupStepDuration                    = "axern.axnoded_startup_step_duration_seconds"
-	MetricLifecycleStageDuration                 = "axern.axnoded_lifecycle_stage_duration_seconds"
-	MetricAllocationDeleteStageDuration          = "axern.axnoded_allocation_delete_stage_duration_seconds"
-	MetricHTTPProxyStageDuration                 = "axern.axnoded_http_proxy_stage_duration_seconds"
-	MetricExecutionLeaseVisibilityDuration       = "axern.axnoded_execution_lease_visibility_duration_seconds"
-	MetricRetainedRuntimeCurrent                 = "axern.axnoded_retained_runtime_current"
-	MetricRetainedRootfsCurrent                  = "axern.axnoded_retained_rootfs_current"
-	MetricRetentionReuseTotal                    = "axern.axnoded_retention_reuse_total"
-	MetricRetentionEvictionTotal                 = "axern.axnoded_retention_eviction_total"
-	MetricResourcePoolIdleCurrent                = "axern.axnoded_resource_pool_idle_current"
-	MetricResourcePoolUsingCurrent               = "axern.axnoded_resource_pool_using_current"
-	MetricResourcePoolTargetCurrent              = "axern.axnoded_resource_pool_target_current"
-	MetricResourcePoolAllocateTotal              = "axern.axnoded_resource_pool_allocate_total"
-	MetricResourceAllocateStageDuration          = "axern.axnoded_resource_allocate_stage_duration_seconds"
-	MetricResourceAllocateObservationDropped     = "axern.axnoded_resource_allocate_observation_dropped_total"
-	MetricResourcePoolRefillTotal                = "axern.axnoded_resource_pool_refill_total"
-	MetricResourcePoolRefillDuration             = "axern.axnoded_resource_pool_refill_duration_seconds"
-	MetricBundleTemplateTotal                    = "axern.axnoded_bundle_template_total"
-	MetricBundleMaterializeDuration              = "axern.axnoded_bundle_materialize_duration_seconds"
-	MetricRuntimeWaitGraceTotal                  = "axern.axnoded_runtime_wait_grace_total"
-	MetricControlPlaneRPCTotal                   = "axern.axnoded_control_plane_rpc_total"
-	MetricControlPlaneRPCDuration                = "axern.axnoded_control_plane_rpc_duration_seconds"
-	MetricAllocationStatusQueueTotal             = "axern.axnoded_allocation_status_queue_total"
-	MetricAllocationStatusQueueCurrent           = "axern.axnoded_allocation_status_queue_current"
-	MetricAllocationStatusQueueWait              = "axern.axnoded_allocation_status_queue_wait_duration_seconds"
-	MetricAllocationStatusBatchTotal             = "axern.axnoded_allocation_status_batch_total"
-	MetricAllocationStatusBatchObservationsTotal = "axern.axnoded_allocation_status_batch_observations_total"
-	MetricAllocationStatusOldestPendingAge       = "axern.axnoded_allocation_status_oldest_pending_age_seconds"
-	MetricAllocationStatusConsecutiveFailures    = "axern.axnoded_allocation_status_consecutive_failures"
-	MetricAllocationStatusRetryDelay             = "axern.axnoded_allocation_status_retry_delay_seconds"
-	MetricCgroupMemoryCurrent                    = "axern.axnoded_cgroup_memory_current"
-	MetricSandboxMemoryOOMTotal                  = "axern.axnoded_sandbox_memory_oom_total"
-	MetricNodeMemoryBudgetCurrent                = "axern.axnoded_node_memory_budget_current"
-	MetricMemoryAdmissionTotal                   = "axern.axnoded_memory_admission_total"
-	MetricCgroupRetirementTotal                  = "axern.axnoded_cgroup_retirement_total"
-	MetricEphemeralStorageOperationTotal         = "axern.axnoded_ephemeral_storage_operation_total"
-	MetricFilestoreProbe                         = "axern.axnoded_filestore_probe_total"
-	MetricCapabilityStateCurrent                 = "axern.axnoded_capability_state_current"
-	MetricCapabilityProbeTotal                   = "axern.axnoded_capability_probe_total"
-	MetricCapabilityProbeDuration                = "axern.axnoded_capability_probe_duration_seconds"
-	MetricCapabilityObservationAge               = "axern.axnoded_capability_observation_age_seconds"
-	MetricCapabilityObservationExpiry            = "axern.axnoded_capability_observation_expiry_seconds"
-	MetricCapabilityTransitionTotal              = "axern.axnoded_capability_transition_total"
-	MetricCapabilityRecoveryDebounceTotal        = "axern.axnoded_capability_recovery_debounce_total"
-	MetricCapabilitySnapshotSequence             = "axern.axnoded_capability_snapshot_sequence"
-	MetricCapabilityAllocationVerificationTotal  = "axern.axnoded_capability_allocation_verification_total"
-	MetricCapabilityFailStopCleanupTotal         = "axern.axnoded_capability_fail_stop_cleanup_total"
+	MetricSandboxActionDuration                     = "axern.axnoded_sandbox_action_duration_seconds"
+	MetricSandboxActionTotal                        = "axern.axnoded_sandbox_action_total"
+	MetricSandboxResourceCurrent                    = "axern.axnoded_sandbox_resource_current"
+	MetricRuntimeCallTotal                          = "axern.axnoded_runtime_call_total"
+	MetricGCQueueCurrent                            = "axern.axnoded_gc_queue_current"
+	MetricStartupTotal                              = "axern.axnoded_startup_total"
+	MetricStartupDuration                           = "axern.axnoded_startup_duration_seconds"
+	MetricStartupPhaseDuration                      = "axern.axnoded_startup_phase_duration_seconds"
+	MetricStartupStepDuration                       = "axern.axnoded_startup_step_duration_seconds"
+	MetricLifecycleStageDuration                    = "axern.axnoded_lifecycle_stage_duration_seconds"
+	MetricAllocationDeleteStageDuration             = "axern.axnoded_allocation_delete_stage_duration_seconds"
+	MetricHTTPProxyStageDuration                    = "axern.axnoded_http_proxy_stage_duration_seconds"
+	MetricExecutionLeaseVisibilityDuration          = "axern.axnoded_execution_lease_visibility_duration_seconds"
+	MetricRetainedRuntimeCurrent                    = "axern.axnoded_retained_runtime_current"
+	MetricRetainedRootfsCurrent                     = "axern.axnoded_retained_rootfs_current"
+	MetricRetentionReuseTotal                       = "axern.axnoded_retention_reuse_total"
+	MetricRetentionEvictionTotal                    = "axern.axnoded_retention_eviction_total"
+	MetricResourcePoolIdleCurrent                   = "axern.axnoded_resource_pool_idle_current"
+	MetricResourcePoolUsingCurrent                  = "axern.axnoded_resource_pool_using_current"
+	MetricResourcePoolTargetCurrent                 = "axern.axnoded_resource_pool_target_current"
+	MetricResourcePoolAllocateTotal                 = "axern.axnoded_resource_pool_allocate_total"
+	MetricResourceAllocateStageDuration             = "axern.axnoded_resource_allocate_stage_duration_seconds"
+	MetricResourceAllocateObservationDropped        = "axern.axnoded_resource_allocate_observation_dropped_total"
+	MetricResourcePoolRefillTotal                   = "axern.axnoded_resource_pool_refill_total"
+	MetricResourcePoolRefillDuration                = "axern.axnoded_resource_pool_refill_duration_seconds"
+	MetricBundleTemplateTotal                       = "axern.axnoded_bundle_template_total"
+	MetricBundleMaterializeDuration                 = "axern.axnoded_bundle_materialize_duration_seconds"
+	MetricRuntimeWaitGraceTotal                     = "axern.axnoded_runtime_wait_grace_total"
+	MetricControlPlaneRPCTotal                      = "axern.axnoded_control_plane_rpc_total"
+	MetricControlPlaneRPCDuration                   = "axern.axnoded_control_plane_rpc_duration_seconds"
+	MetricAllocationLifecycleQueueTotal             = "axern.axnoded_allocation_lifecycle_queue_total"
+	MetricAllocationLifecycleQueueCurrent           = "axern.axnoded_allocation_lifecycle_queue_current"
+	MetricAllocationLifecycleQueueWait              = "axern.axnoded_allocation_lifecycle_queue_wait_duration_seconds"
+	MetricAllocationLifecycleBatchTotal             = "axern.axnoded_allocation_lifecycle_batch_total"
+	MetricAllocationLifecycleBatchObservationsTotal = "axern.axnoded_allocation_lifecycle_batch_observations_total"
+	MetricAllocationLifecycleOldestPendingAge       = "axern.axnoded_allocation_lifecycle_oldest_pending_age_seconds"
+	MetricAllocationLifecycleConsecutiveFailures    = "axern.axnoded_allocation_lifecycle_consecutive_failures"
+	MetricAllocationLifecycleRetryDelay             = "axern.axnoded_allocation_lifecycle_retry_delay_seconds"
+	MetricCgroupMemoryCurrent                       = "axern.axnoded_cgroup_memory_current"
+	MetricSandboxMemoryOOMTotal                     = "axern.axnoded_sandbox_memory_oom_total"
+	MetricNodeMemoryBudgetCurrent                   = "axern.axnoded_node_memory_budget_current"
+	MetricMemoryAdmissionTotal                      = "axern.axnoded_memory_admission_total"
+	MetricCgroupRetirementTotal                     = "axern.axnoded_cgroup_retirement_total"
+	MetricEphemeralStorageOperationTotal            = "axern.axnoded_ephemeral_storage_operation_total"
+	MetricFilestoreProbe                            = "axern.axnoded_filestore_probe_total"
+	MetricCapabilityStateCurrent                    = "axern.axnoded_capability_state_current"
+	MetricCapabilityProbeTotal                      = "axern.axnoded_capability_probe_total"
+	MetricCapabilityProbeDuration                   = "axern.axnoded_capability_probe_duration_seconds"
+	MetricCapabilityObservationAge                  = "axern.axnoded_capability_observation_age_seconds"
+	MetricCapabilityObservationExpiry               = "axern.axnoded_capability_observation_expiry_seconds"
+	MetricCapabilityTransitionTotal                 = "axern.axnoded_capability_transition_total"
+	MetricCapabilityRecoveryDebounceTotal           = "axern.axnoded_capability_recovery_debounce_total"
+	MetricCapabilitySnapshotSequence                = "axern.axnoded_capability_snapshot_sequence"
+	MetricCapabilityAllocationVerificationTotal     = "axern.axnoded_capability_allocation_verification_total"
+	MetricCapabilityFailStopCleanupTotal            = "axern.axnoded_capability_fail_stop_cleanup_total"
 )
 
 const MetricNetworkNeighborResetTotal = "axern.axnoded_network_neighbor_reset_total"
 
 const (
-	descSandboxActionDuration                  = "Axnoded sandbox API action duration."
-	descSandboxActionTotal                     = "Axnoded sandbox API action results."
-	descSandboxResourceCurrent                 = "Axnoded sandbox resource current value."
-	descRuntimeCallTotal                       = "Axnoded runtime call results."
-	descGCQueueCurrent                         = "Axnoded GC queue current length."
-	descStartupTotal                           = "Axnoded sandbox start requests."
-	descStartupDuration                        = "Axnoded sandbox start duration."
-	descStartupPhaseDuration                   = "Axnoded sandbox start phase duration."
-	descStartupStepDuration                    = "Axnoded sandbox start step duration."
-	descLifecycleStageDuration                 = "Axnoded node lifecycle RPC handling stage duration."
-	descAllocationDeleteStageDuration          = "Axnoded allocation delete stage duration."
-	descHTTPProxyStageDuration                 = "Axnoded HTTP proxy stage duration."
-	descExecutionLeaseVisibilityDuration       = "Axnoded execution lease cache visibility duration."
-	descRetainedRuntimeCurrent                 = "Axnoded retained idle runtime count."
-	descRetainedRootfsCurrent                  = "Axnoded retained rootfs count."
-	descRetentionReuseTotal                    = "Axnoded retention reuse events."
-	descRetentionEvictionTotal                 = "Axnoded retention eviction events."
-	descResourcePoolIdleCurrent                = "Axnoded resource pool idle count."
-	descResourcePoolUsingCurrent               = "Axnoded resource pool in-use count."
-	descResourcePoolTargetCurrent              = "Axnoded resource pool configured idle target."
-	descResourcePoolAllocateTotal              = "Axnoded resource pool allocation results."
-	descResourceAllocateStageDuration          = "Axnoded resource allocation stage duration."
-	descResourceAllocateObservationDropped     = "Axnoded resource allocation observations dropped by the bounded metrics queue."
-	descResourcePoolRefillTotal                = "Axnoded resource pool refill attempts."
-	descResourcePoolRefillDuration             = "Axnoded resource pool refill duration."
-	descBundleTemplateTotal                    = "Axnoded bundle template results."
-	descBundleMaterializeDuration              = "Axnoded bundle materialization duration."
-	descRuntimeWaitGraceTotal                  = "Axnoded runtime wait grace-path resolutions."
-	descControlPlaneRPCTotal                   = "Axnoded control-plane reporter RPC attempts."
-	descControlPlaneRPCDuration                = "Axnoded control-plane reporter RPC duration."
-	descAllocationStatusQueueTotal             = "Axnoded allocation status queue events."
-	descAllocationStatusQueueCurrent           = "Axnoded pending allocation status observations."
-	descAllocationStatusQueueWait              = "Axnoded allocation status observation queue wait duration."
-	descAllocationStatusBatchTotal             = "Axnoded allocation status batches by result."
-	descAllocationStatusBatchObservationsTotal = "Axnoded allocation status observations sent in batches by result."
-	descAllocationStatusOldestPendingAge       = "Axnoded oldest pending allocation status observation age."
-	descAllocationStatusConsecutiveFailures    = "Axnoded consecutive allocation status batch failures."
-	descAllocationStatusRetryDelay             = "Axnoded current allocation status retry delay."
-	descCgroupMemoryCurrent                    = "Node aggregate sandbox cgroup memory.stat and memory.events values by runtime."
-	descSandboxMemoryOOMTotal                  = "Sandbox exits caused by the host cgroup memory boundary."
-	descNodeMemoryBudgetCurrent                = "Node sandbox memory boundary, commitments, system reserve, and cleanup debt."
-	descMemoryAdmissionTotal                   = "Node-local sandbox memory admission decisions."
-	descCgroupRetirementTotal                  = "Allocation-owned cgroup retirement and reclaim outcomes."
-	descEphemeralStorageOperationTotal         = "Ephemeral-storage reservation, quota, ENOSPC, and cleanup operations."
-	descFilestoreProbe                         = "Runtime filestore capability probe results."
+	descSandboxActionDuration                     = "Axnoded sandbox API action duration."
+	descSandboxActionTotal                        = "Axnoded sandbox API action results."
+	descSandboxResourceCurrent                    = "Axnoded sandbox resource current value."
+	descRuntimeCallTotal                          = "Axnoded runtime call results."
+	descGCQueueCurrent                            = "Axnoded GC queue current length."
+	descStartupTotal                              = "Axnoded sandbox start requests."
+	descStartupDuration                           = "Axnoded sandbox start duration."
+	descStartupPhaseDuration                      = "Axnoded sandbox start phase duration."
+	descStartupStepDuration                       = "Axnoded sandbox start step duration."
+	descLifecycleStageDuration                    = "Axnoded node lifecycle RPC handling stage duration."
+	descAllocationDeleteStageDuration             = "Axnoded allocation delete stage duration."
+	descHTTPProxyStageDuration                    = "Axnoded HTTP proxy stage duration."
+	descExecutionLeaseVisibilityDuration          = "Axnoded execution lease cache visibility duration."
+	descRetainedRuntimeCurrent                    = "Axnoded retained idle runtime count."
+	descRetainedRootfsCurrent                     = "Axnoded retained rootfs count."
+	descRetentionReuseTotal                       = "Axnoded retention reuse events."
+	descRetentionEvictionTotal                    = "Axnoded retention eviction events."
+	descResourcePoolIdleCurrent                   = "Axnoded resource pool idle count."
+	descResourcePoolUsingCurrent                  = "Axnoded resource pool in-use count."
+	descResourcePoolTargetCurrent                 = "Axnoded resource pool configured idle target."
+	descResourcePoolAllocateTotal                 = "Axnoded resource pool allocation results."
+	descResourceAllocateStageDuration             = "Axnoded resource allocation stage duration."
+	descResourceAllocateObservationDropped        = "Axnoded resource allocation observations dropped by the bounded metrics queue."
+	descResourcePoolRefillTotal                   = "Axnoded resource pool refill attempts."
+	descResourcePoolRefillDuration                = "Axnoded resource pool refill duration."
+	descBundleTemplateTotal                       = "Axnoded bundle template results."
+	descBundleMaterializeDuration                 = "Axnoded bundle materialization duration."
+	descRuntimeWaitGraceTotal                     = "Axnoded runtime wait grace-path resolutions."
+	descControlPlaneRPCTotal                      = "Axnoded control-plane reporter RPC attempts."
+	descControlPlaneRPCDuration                   = "Axnoded control-plane reporter RPC duration."
+	descAllocationLifecycleQueueTotal             = "Axnoded allocation lifecycle queue events."
+	descAllocationLifecycleQueueCurrent           = "Axnoded pending allocation lifecycle observations."
+	descAllocationLifecycleQueueWait              = "Axnoded allocation lifecycle observation queue wait duration."
+	descAllocationLifecycleBatchTotal             = "Axnoded allocation lifecycle batches by result."
+	descAllocationLifecycleBatchObservationsTotal = "Axnoded allocation lifecycle observations sent in batches by result."
+	descAllocationLifecycleOldestPendingAge       = "Axnoded oldest pending allocation lifecycle observation age."
+	descAllocationLifecycleConsecutiveFailures    = "Axnoded consecutive allocation lifecycle batch failures."
+	descAllocationLifecycleRetryDelay             = "Axnoded current allocation lifecycle retry delay."
+	descCgroupMemoryCurrent                       = "Node aggregate sandbox cgroup memory.stat and memory.events values by runtime."
+	descSandboxMemoryOOMTotal                     = "Sandbox exits caused by the host cgroup memory boundary."
+	descNodeMemoryBudgetCurrent                   = "Node sandbox memory boundary, commitments, system reserve, and cleanup debt."
+	descMemoryAdmissionTotal                      = "Node-local sandbox memory admission decisions."
+	descCgroupRetirementTotal                     = "Allocation-owned cgroup retirement and reclaim outcomes."
+	descEphemeralStorageOperationTotal            = "Ephemeral-storage reservation, quota, ENOSPC, and cleanup operations."
+	descFilestoreProbe                            = "Runtime filestore capability probe results."
 )
 
 const descNetworkNeighborResetTotal = "Axnoded bridge neighbor reset attempts."
@@ -479,57 +479,57 @@ func RecordControlPlaneRPCDuration(rpc, result string, seconds float64) {
 	)
 }
 
-func RecordAllocationStatusQueueEvent(result string) {
+func RecordAllocationLifecycleQueueEvent(result string) {
 	recordCounter(
-		MetricAllocationStatusQueueTotal,
-		descAllocationStatusQueueTotal,
+		MetricAllocationLifecycleQueueTotal,
+		descAllocationLifecycleQueueTotal,
 		attribute.String(sdkobs.AttrResult, result),
 	)
 }
 
-func RecordAllocationStatusQueueCurrent(value int) {
-	recordGauge(MetricAllocationStatusQueueCurrent, descAllocationStatusQueueCurrent, float64(value))
+func RecordAllocationLifecycleQueueCurrent(value int) {
+	recordGauge(MetricAllocationLifecycleQueueCurrent, descAllocationLifecycleQueueCurrent, float64(value))
 }
 
-func RecordAllocationStatusQueueWait(result string, seconds float64) {
+func RecordAllocationLifecycleQueueWait(result string, seconds float64) {
 	recordDurationSeconds(
-		MetricAllocationStatusQueueWait,
-		descAllocationStatusQueueWait,
+		MetricAllocationLifecycleQueueWait,
+		descAllocationLifecycleQueueWait,
 		seconds,
 		attribute.String(sdkobs.AttrResult, result),
 	)
 }
 
-func RecordAllocationStatusBatch(result string, observations int) {
+func RecordAllocationLifecycleBatch(result string, observations int) {
 	recordCounter(
-		MetricAllocationStatusBatchTotal,
-		descAllocationStatusBatchTotal,
+		MetricAllocationLifecycleBatchTotal,
+		descAllocationLifecycleBatchTotal,
 		attribute.String(sdkobs.AttrResult, result),
 	)
 	if observations > 0 {
 		recordCounterValue(
-			MetricAllocationStatusBatchObservationsTotal,
-			descAllocationStatusBatchObservationsTotal,
+			MetricAllocationLifecycleBatchObservationsTotal,
+			descAllocationLifecycleBatchObservationsTotal,
 			int64(observations),
 			attribute.String(sdkobs.AttrResult, result),
 		)
 	}
 }
 
-func RecordAllocationStatusReporterHealth(oldestPendingAgeSeconds float64, consecutiveFailures int, retryDelaySeconds float64) {
+func RecordAllocationLifecycleReporterHealth(oldestPendingAgeSeconds float64, consecutiveFailures int, retryDelaySeconds float64) {
 	recordGauge(
-		MetricAllocationStatusOldestPendingAge,
-		descAllocationStatusOldestPendingAge,
+		MetricAllocationLifecycleOldestPendingAge,
+		descAllocationLifecycleOldestPendingAge,
 		max(0, oldestPendingAgeSeconds),
 	)
 	recordGauge(
-		MetricAllocationStatusConsecutiveFailures,
-		descAllocationStatusConsecutiveFailures,
+		MetricAllocationLifecycleConsecutiveFailures,
+		descAllocationLifecycleConsecutiveFailures,
 		float64(max(0, consecutiveFailures)),
 	)
 	recordGauge(
-		MetricAllocationStatusRetryDelay,
-		descAllocationStatusRetryDelay,
+		MetricAllocationLifecycleRetryDelay,
+		descAllocationLifecycleRetryDelay,
 		max(0, retryDelaySeconds),
 	)
 }

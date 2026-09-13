@@ -139,11 +139,11 @@ func runVerifyUDP(cfg verifyUDPConfig) error {
 		}
 	}
 
-	statusResp, err := verifyutil.GetAllocationStatus(context.Background(), clients, containerID)
+	statusResp, err := verifyutil.GetAllocationLifecycle(context.Background(), clients, containerID)
 	if err != nil {
 		return fmt.Errorf("get udp sandbox status: %w", err)
 	}
-	if statusResp.GetStatus().String() != "" {
+	if statusResp.GetState().String() != "" {
 		fmt.Println("udp_ingress_smoke_ok=true")
 		return nil
 	}

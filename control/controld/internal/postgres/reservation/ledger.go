@@ -21,7 +21,6 @@ type Reservation struct {
 
 type MemoryAdmissionEvidence struct {
 	AllocationID string
-	Attempt      int64
 	NodeID       string
 	Resources    *commonv1.ResourceSpec
 	Summary      *nodev1.NodeSummary
@@ -45,11 +44,11 @@ func InsertMemoryAdmissionEvidence(ctx context.Context, tx pgx.Tx, evidence Memo
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO allocation_memory_admission_evidence (
-			allocation_id, allocation_attempt, node_id,
+			allocation_id, node_id,
 			sandbox_memory_request_bytes, sandbox_memory_limit_bytes,
 			node_memory_budget, summary_collected_at, node_local_commitment_bytes, admitted_at
-		) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)
-	`, evidence.AllocationID, evidence.Attempt, evidence.NodeID,
+		) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)
+	`, evidence.AllocationID, evidence.NodeID,
 		requests.GetMemoryBytes(), limits.GetMemoryBytes(), payload, summaryTime,
 		budget.GetLocalCommitmentBytes(), evidence.AdmittedAt.UTC()); err != nil {
 		return fmt.Errorf("insert allocation memory admission evidence: %w", err)
@@ -60,9 +59,6 @@ func InsertMemoryAdmissionEvidence(ctx context.Context, tx pgx.Tx, evidence Memo
 func validateMemoryAdmissionEvidence(evidence MemoryAdmissionEvidence) error {
 	if evidence.AllocationID == "" || evidence.NodeID == "" {
 		return fmt.Errorf("memory admission evidence allocation and node identity are required")
-	}
-	if evidence.Attempt <= 0 {
-		return fmt.Errorf("memory admission evidence attempt must be positive")
 	}
 	if evidence.AdmittedAt.IsZero() {
 		return fmt.Errorf("memory admission evidence time is required")

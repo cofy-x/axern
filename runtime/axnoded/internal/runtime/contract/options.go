@@ -12,9 +12,8 @@ type HandlerOptions struct {
 	TraceID     string
 	SpanID      string
 	ContainerID string
-	// ContainerLabels carries persisted metadata labels for runtime paths that
-	// validate sandboxd create-time readiness and baseline capabilities before
-	// dispatching to the daemon socket derived from ContainerID.
+	// ContainerLabels are descriptive runtime metadata. They never establish
+	// Allocation ownership, sandboxd readiness, or capability authority.
 	ContainerLabels map[string]string
 
 	StartupPhaseRecorder StartupPhaseRecorder

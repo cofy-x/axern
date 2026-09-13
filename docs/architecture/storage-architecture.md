@@ -6,7 +6,7 @@ Axern separates durable control state from Allocation-local writable files. Pers
 
 | Data | Owner and location | Lifetime |
 | --- | --- | --- |
-| Workload intent, allocations, attempts, placement, leases, resource reservations, and result metadata | `controld` and PostgreSQL | Durable control state; not a filesystem or process-output stream |
+| Workload intent, allocations, placement, leases, resource reservations, and result metadata | `controld` and PostgreSQL | Durable control state; not a filesystem or process-output stream |
 | Writable sandbox rootfs and Allocation-local workspace | `axnoded` and node-local runtime filestore | One Allocation; no persistence promise across Allocation replacement or node loss |
 | Immutable rootfs, read-only image bundles, and image caches | `imagemgr` and `imagefsd` where required | Image-owned cache and live mount leases, separate from writable workload data |
 | Allocation ownership, cleanup intent, resource state, and recovery records | `axnoded` and its process-owned embedded database | Node-local recovery; not a second shared control-plane database |
@@ -23,7 +23,7 @@ A replacement Allocation starts from immutable inputs, not from a previous writa
 
 ## Recovery And Cleanup
 
-Allocation attempts, ownership, idempotent lifecycle operations, execution leases, and fencing remain required. An expired control-plane lease does not prove that a partitioned node's process has stopped.
+Allocation ownership, globally unique identities, idempotent lifecycle operations, execution leases, and exact-ID fencing remain required. An expired control-plane lease does not prove that a partitioned node's process has stopped.
 
 Node cleanup stops the runtime and crosses the exit-state barrier before releasing writable-rootfs and image ownership. Mount cleanup and writable reservation release must complete before the associated resource commitment is released. Failed cleanup retains its ownership and retry state; it must not advertise still-owned capacity as free. Node restart reconciles these records against runtime inventory.
 

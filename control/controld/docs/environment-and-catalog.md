@@ -22,7 +22,7 @@ Environments support two execution-source modes:
 - template-backed via `template_id` / `template_version`
 - image-backed via public OCI `image.ref`, resolved by `controld` to a digest
 
-Image-backed environments can optionally reference a control-plane-managed registry credential secret via `image.registry_credential_id`. The referenced secret must be type `DOCKER_CONFIG_JSON`.
+Image-backed environments can optionally reference a controld-managed registry credential secret via `image.registry_credential_id`. The referenced secret must be type `DOCKER_CONFIG_JSON`.
 
 `resolved_template` remains the normalized runtime snapshot for both modes, so Run admission and node lifecycle paths consume a single Environment model. An Environment is immutable execution input; changing the source creates another Environment and a new Run.
 
@@ -44,4 +44,4 @@ The catalog's `image_default_argv` is informational metadata for built-in images
 
 ## Secrets
 
-Execution configs can project immutable control-plane-managed secrets into workloads through `secret_env` and `secret_files`. Secret values are encrypted at rest in Postgres and are never returned in plaintext after create.
+Execution configs can project immutable controld-managed secrets into workloads through `secret_env` and `secret_files`. Secret values are encrypted at rest in Postgres and are never returned in plaintext after create.

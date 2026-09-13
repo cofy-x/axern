@@ -30,7 +30,6 @@ func (d *Dialer) ProxyHTTP(ctx context.Context, spec nodekernel.HTTPProxySpec) (
 	if err := stream.Send(&nodesandboxv1.ProxyHTTPRequest{
 		Payload: &nodesandboxv1.ProxyHTTPRequest_Open{Open: &nodesandboxv1.ProxyHTTPOpen{
 			AllocationID:        spec.AllocationID,
-			Attempt:             spec.Attempt,
 			ExecutionLeaseToken: spec.Token,
 			Port:                spec.Port,
 			Method:              spec.Method,

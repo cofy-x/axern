@@ -7,6 +7,9 @@ import (
 )
 
 func (h *sandboxService) configureAllocationController() {
+	if h == nil || h.allocations != nil {
+		return
+	}
 	h.allocations = allocation.NewController(h.allocationOptions())
 }
 
@@ -20,7 +23,7 @@ func (h *sandboxService) allocationOptions() allocation.Options {
 		RuntimeHandler:              h.runtimeHandler,
 		LangRuntime:                 h.lrtManager,
 		Networking:                  h.networking,
-		ReportStatus:                h.ReportAllocationStatus,
+		ReportStatus:                h.ReportAllocationLifecycle,
 		InventoryChanged:            h.notifyNodeInventoryChanged,
 		RootfsCapabilityGate:        h.verifyRootfsCapabilityRequirements,
 		PreActivationCapabilityGate: h.verifyPreparedAllocationCapabilities,

@@ -30,17 +30,15 @@ class EgressProtocol(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     EGRESS_PROTOCOL_TCP: _ClassVar[EgressProtocol]
     EGRESS_PROTOCOL_UDP: _ClassVar[EgressProtocol]
 
-class AllocationStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+class AllocationLifecycleState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
-    ALLOCATION_STATUS_UNSPECIFIED: _ClassVar[AllocationStatus]
-    ALLOCATION_STATUS_RESERVED: _ClassVar[AllocationStatus]
-    ALLOCATION_STATUS_BOUND: _ClassVar[AllocationStatus]
-    ALLOCATION_STATUS_STARTING: _ClassVar[AllocationStatus]
-    ALLOCATION_STATUS_RUNNING: _ClassVar[AllocationStatus]
-    ALLOCATION_STATUS_EXITED: _ClassVar[AllocationStatus]
-    ALLOCATION_STATUS_FAILED: _ClassVar[AllocationStatus]
-    ALLOCATION_STATUS_RELEASING: _ClassVar[AllocationStatus]
-    ALLOCATION_STATUS_RELEASED: _ClassVar[AllocationStatus]
+    ALLOCATION_LIFECYCLE_STATE_UNSPECIFIED: _ClassVar[AllocationLifecycleState]
+    ALLOCATION_LIFECYCLE_STATE_BOUND: _ClassVar[AllocationLifecycleState]
+    ALLOCATION_LIFECYCLE_STATE_STARTING: _ClassVar[AllocationLifecycleState]
+    ALLOCATION_LIFECYCLE_STATE_ACTIVE: _ClassVar[AllocationLifecycleState]
+    ALLOCATION_LIFECYCLE_STATE_STOPPED: _ClassVar[AllocationLifecycleState]
+    ALLOCATION_LIFECYCLE_STATE_RELEASING: _ClassVar[AllocationLifecycleState]
+    ALLOCATION_LIFECYCLE_STATE_RELEASED: _ClassVar[AllocationLifecycleState]
 
 class WorkloadDiagnosticCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -69,15 +67,13 @@ NETWORK_MODE_HOST: NetworkMode
 EGRESS_PROTOCOL_UNSPECIFIED: EgressProtocol
 EGRESS_PROTOCOL_TCP: EgressProtocol
 EGRESS_PROTOCOL_UDP: EgressProtocol
-ALLOCATION_STATUS_UNSPECIFIED: AllocationStatus
-ALLOCATION_STATUS_RESERVED: AllocationStatus
-ALLOCATION_STATUS_BOUND: AllocationStatus
-ALLOCATION_STATUS_STARTING: AllocationStatus
-ALLOCATION_STATUS_RUNNING: AllocationStatus
-ALLOCATION_STATUS_EXITED: AllocationStatus
-ALLOCATION_STATUS_FAILED: AllocationStatus
-ALLOCATION_STATUS_RELEASING: AllocationStatus
-ALLOCATION_STATUS_RELEASED: AllocationStatus
+ALLOCATION_LIFECYCLE_STATE_UNSPECIFIED: AllocationLifecycleState
+ALLOCATION_LIFECYCLE_STATE_BOUND: AllocationLifecycleState
+ALLOCATION_LIFECYCLE_STATE_STARTING: AllocationLifecycleState
+ALLOCATION_LIFECYCLE_STATE_ACTIVE: AllocationLifecycleState
+ALLOCATION_LIFECYCLE_STATE_STOPPED: AllocationLifecycleState
+ALLOCATION_LIFECYCLE_STATE_RELEASING: AllocationLifecycleState
+ALLOCATION_LIFECYCLE_STATE_RELEASED: AllocationLifecycleState
 WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_SECRET_PROJECTION_ERROR: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_REGISTRY_AUTH_ERROR: WorkloadDiagnosticCode
@@ -290,11 +286,10 @@ class ExecutionConfig(_message.Message):
     def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., ports: _Optional[_Iterable[_Union[PortSpec, _Mapping]]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., runtime_class: _Optional[str] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ..., workspace_image: _Optional[_Union[WorkspaceImageSource, _Mapping]] = ...) -> None: ...
 
 class ExecutionLease(_message.Message):
-    __slots__ = ("lease_id", "allocation_id", "node_id", "attempt", "lease_type", "plaintext_token", "revision", "expires_at", "revoked", "node_target", "validation_token_hash")
+    __slots__ = ("lease_id", "allocation_id", "node_id", "lease_type", "plaintext_token", "revision", "expires_at", "revoked", "node_target", "validation_token_hash")
     LEASE_ID_FIELD_NUMBER: _ClassVar[int]
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
-    ATTEMPT_FIELD_NUMBER: _ClassVar[int]
     LEASE_TYPE_FIELD_NUMBER: _ClassVar[int]
     PLAINTEXT_TOKEN_FIELD_NUMBER: _ClassVar[int]
     REVISION_FIELD_NUMBER: _ClassVar[int]
@@ -305,7 +300,6 @@ class ExecutionLease(_message.Message):
     lease_id: str
     allocation_id: str
     node_id: str
-    attempt: int
     lease_type: LeaseType
     plaintext_token: str
     revision: int
@@ -313,4 +307,4 @@ class ExecutionLease(_message.Message):
     revoked: bool
     node_target: str
     validation_token_hash: str
-    def __init__(self, lease_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., attempt: _Optional[int] = ..., lease_type: _Optional[_Union[LeaseType, str]] = ..., plaintext_token: _Optional[str] = ..., revision: _Optional[int] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., revoked: _Optional[bool] = ..., node_target: _Optional[str] = ..., validation_token_hash: _Optional[str] = ...) -> None: ...
+    def __init__(self, lease_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., lease_type: _Optional[_Union[LeaseType, str]] = ..., plaintext_token: _Optional[str] = ..., revision: _Optional[int] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., revoked: _Optional[bool] = ..., node_target: _Optional[str] = ..., validation_token_hash: _Optional[str] = ...) -> None: ...

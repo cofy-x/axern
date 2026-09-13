@@ -43,8 +43,8 @@ func TestExecResolvesInjectsLeaseAndForwards(t *testing.T) {
 		t.Fatalf("dial target = %q", got)
 	}
 	req := h.backend.exec
-	if req.GetAllocationID() != "alloc-public" || req.GetAttempt() != 7 || req.GetExecutionLeaseToken() != "lease-token" {
-		t.Fatalf("backend exec auth fields = allocation %q attempt %d token %q", req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	if req.GetAllocationID() != "alloc-public" || req.GetExecutionLeaseToken() != "lease-token" {
+		t.Fatalf("backend exec auth fields = allocation %q token %q", req.GetAllocationID(), req.GetExecutionLeaseToken())
 	}
 }
 
@@ -85,8 +85,8 @@ func TestMaterializeTaskAssetsResolvesInjectsLeaseAndForwards(t *testing.T) {
 	if req == nil {
 		t.Fatal("backend did not receive materialize request")
 	}
-	if req.GetAllocationID() != "alloc-public" || req.GetAttempt() != 7 || req.GetExecutionLeaseToken() != "lease-token" {
-		t.Fatalf("backend auth fields = allocation %q attempt %d token %q", req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	if req.GetAllocationID() != "alloc-public" || req.GetExecutionLeaseToken() != "lease-token" {
+		t.Fatalf("backend auth fields = allocation %q token %q", req.GetAllocationID(), req.GetExecutionLeaseToken())
 	}
 	if req.GetSourcePath() != "tasks/example/verifier/check.sh" || req.GetTarget() != "/workspace/.axrun/verifier/check.sh" {
 		t.Fatalf("backend materialize request = %#v", req)
@@ -129,8 +129,8 @@ func TestProcessBridgesFirstOpenWithInjectedLease(t *testing.T) {
 		t.Fatal("process stream did not relay stdout")
 	}
 	open := h.backend.processOpen
-	if open.GetAllocationID() != "alloc-public" || open.GetAttempt() != 7 || open.GetExecutionLeaseToken() != "lease-token" {
-		t.Fatalf("backend process auth fields = allocation %q attempt %d token %q", open.GetAllocationID(), open.GetAttempt(), open.GetExecutionLeaseToken())
+	if open.GetAllocationID() != "alloc-public" || open.GetExecutionLeaseToken() != "lease-token" {
+		t.Fatalf("backend process auth fields = allocation %q token %q", open.GetAllocationID(), open.GetExecutionLeaseToken())
 	}
 }
 
@@ -547,7 +547,6 @@ func (r *fakeResolver) ResolveAllocationTerminal(_ context.Context, req *gateway
 	return &gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: req.GetAllocationID(),
 		NodeTarget:   "node.internal:24010",
-		Attempt:      7,
 		Lease: &commonv1.ExecutionLease{
 			PlaintextToken: token,
 		},

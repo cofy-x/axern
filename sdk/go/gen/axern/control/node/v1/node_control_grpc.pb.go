@@ -21,7 +21,7 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	NodeControl_RegisterNode_FullMethodName                              = "/axern.control.node.v1.NodeControl/RegisterNode"
 	NodeControl_ReportNode_FullMethodName                                = "/axern.control.node.v1.NodeControl/ReportNode"
-	NodeControl_BatchReportAllocationStatus_FullMethodName               = "/axern.control.node.v1.NodeControl/BatchReportAllocationStatus"
+	NodeControl_BatchReportAllocationLifecycle_FullMethodName            = "/axern.control.node.v1.NodeControl/BatchReportAllocationLifecycle"
 	NodeControl_BatchReportAllocationCapabilityConditions_FullMethodName = "/axern.control.node.v1.NodeControl/BatchReportAllocationCapabilityConditions"
 	NodeControl_BatchReportAllocationMemoryObservations_FullMethodName   = "/axern.control.node.v1.NodeControl/BatchReportAllocationMemoryObservations"
 	NodeControl_WatchExecutionLeases_FullMethodName                      = "/axern.control.node.v1.NodeControl/WatchExecutionLeases"
@@ -35,7 +35,7 @@ const (
 type NodeControlClient interface {
 	RegisterNode(ctx context.Context, in *RegisterNodeRequest, opts ...grpc.CallOption) (*RegisterNodeResponse, error)
 	ReportNode(ctx context.Context, in *ReportNodeRequest, opts ...grpc.CallOption) (*ReportNodeResponse, error)
-	BatchReportAllocationStatus(ctx context.Context, in *BatchReportAllocationStatusRequest, opts ...grpc.CallOption) (*BatchReportAllocationStatusResponse, error)
+	BatchReportAllocationLifecycle(ctx context.Context, in *BatchReportAllocationLifecycleRequest, opts ...grpc.CallOption) (*BatchReportAllocationLifecycleResponse, error)
 	BatchReportAllocationCapabilityConditions(ctx context.Context, in *BatchReportAllocationCapabilityConditionsRequest, opts ...grpc.CallOption) (*BatchReportAllocationCapabilityConditionsResponse, error)
 	BatchReportAllocationMemoryObservations(ctx context.Context, in *BatchReportAllocationMemoryObservationsRequest, opts ...grpc.CallOption) (*BatchReportAllocationMemoryObservationsResponse, error)
 	WatchExecutionLeases(ctx context.Context, in *WatchExecutionLeasesRequest, opts ...grpc.CallOption) (NodeControl_WatchExecutionLeasesClient, error)
@@ -69,9 +69,9 @@ func (c *nodeControlClient) ReportNode(ctx context.Context, in *ReportNodeReques
 	return out, nil
 }
 
-func (c *nodeControlClient) BatchReportAllocationStatus(ctx context.Context, in *BatchReportAllocationStatusRequest, opts ...grpc.CallOption) (*BatchReportAllocationStatusResponse, error) {
-	out := new(BatchReportAllocationStatusResponse)
-	err := c.cc.Invoke(ctx, NodeControl_BatchReportAllocationStatus_FullMethodName, in, out, opts...)
+func (c *nodeControlClient) BatchReportAllocationLifecycle(ctx context.Context, in *BatchReportAllocationLifecycleRequest, opts ...grpc.CallOption) (*BatchReportAllocationLifecycleResponse, error) {
+	out := new(BatchReportAllocationLifecycleResponse)
+	err := c.cc.Invoke(ctx, NodeControl_BatchReportAllocationLifecycle_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func (c *nodeControlClient) ReportTunnelSessionStatus(ctx context.Context, in *R
 type NodeControlServer interface {
 	RegisterNode(context.Context, *RegisterNodeRequest) (*RegisterNodeResponse, error)
 	ReportNode(context.Context, *ReportNodeRequest) (*ReportNodeResponse, error)
-	BatchReportAllocationStatus(context.Context, *BatchReportAllocationStatusRequest) (*BatchReportAllocationStatusResponse, error)
+	BatchReportAllocationLifecycle(context.Context, *BatchReportAllocationLifecycleRequest) (*BatchReportAllocationLifecycleResponse, error)
 	BatchReportAllocationCapabilityConditions(context.Context, *BatchReportAllocationCapabilityConditionsRequest) (*BatchReportAllocationCapabilityConditionsResponse, error)
 	BatchReportAllocationMemoryObservations(context.Context, *BatchReportAllocationMemoryObservationsRequest) (*BatchReportAllocationMemoryObservationsResponse, error)
 	WatchExecutionLeases(*WatchExecutionLeasesRequest, NodeControl_WatchExecutionLeasesServer) error
@@ -194,8 +194,8 @@ func (UnimplementedNodeControlServer) RegisterNode(context.Context, *RegisterNod
 func (UnimplementedNodeControlServer) ReportNode(context.Context, *ReportNodeRequest) (*ReportNodeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReportNode not implemented")
 }
-func (UnimplementedNodeControlServer) BatchReportAllocationStatus(context.Context, *BatchReportAllocationStatusRequest) (*BatchReportAllocationStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BatchReportAllocationStatus not implemented")
+func (UnimplementedNodeControlServer) BatchReportAllocationLifecycle(context.Context, *BatchReportAllocationLifecycleRequest) (*BatchReportAllocationLifecycleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchReportAllocationLifecycle not implemented")
 }
 func (UnimplementedNodeControlServer) BatchReportAllocationCapabilityConditions(context.Context, *BatchReportAllocationCapabilityConditionsRequest) (*BatchReportAllocationCapabilityConditionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchReportAllocationCapabilityConditions not implemented")
@@ -261,20 +261,20 @@ func _NodeControl_ReportNode_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeControl_BatchReportAllocationStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BatchReportAllocationStatusRequest)
+func _NodeControl_BatchReportAllocationLifecycle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchReportAllocationLifecycleRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeControlServer).BatchReportAllocationStatus(ctx, in)
+		return srv.(NodeControlServer).BatchReportAllocationLifecycle(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: NodeControl_BatchReportAllocationStatus_FullMethodName,
+		FullMethod: NodeControl_BatchReportAllocationLifecycle_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeControlServer).BatchReportAllocationStatus(ctx, req.(*BatchReportAllocationStatusRequest))
+		return srv.(NodeControlServer).BatchReportAllocationLifecycle(ctx, req.(*BatchReportAllocationLifecycleRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -391,8 +391,8 @@ var NodeControl_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NodeControl_ReportNode_Handler,
 		},
 		{
-			MethodName: "BatchReportAllocationStatus",
-			Handler:    _NodeControl_BatchReportAllocationStatus_Handler,
+			MethodName: "BatchReportAllocationLifecycle",
+			Handler:    _NodeControl_BatchReportAllocationLifecycle_Handler,
 		},
 		{
 			MethodName: "BatchReportAllocationCapabilityConditions",

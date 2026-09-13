@@ -32,6 +32,8 @@ type memoryObservationRevisionFunc func() (int64, error)
 type memoryPIDRolesVerifierFunc func(allocationID, runtimeName, workloadPath string, runtimePID int) error
 type retiringMemoryLeasesFunc func() []resources.RetiringMemoryLease
 type unackedStatusIDsFunc func() []string
+type allocationIDsFunc func() []string
+type allocationRuntimeIDFunc func(string) string
 
 var ErrCapabilitySnapshotWarming = errors.New("capability manager is warming")
 
@@ -74,6 +76,8 @@ type AxnodedSourceOptions struct {
 	MemoryObservationRevision memoryObservationRevisionFunc
 	MemoryPIDRolesVerifier    memoryPIDRolesVerifierFunc
 	RetiringMemoryLeases      retiringMemoryLeasesFunc
+	AllocationIDs             allocationIDsFunc
+	AllocationRuntimeID       allocationRuntimeIDFunc
 	// UnackedStatusIDs extends active allocation ownership
 	// through the control-plane status-report acknowledgement boundary. This
 	// prevents a short-lived allocation from disappearing from node inventory
@@ -114,6 +118,8 @@ type AxnodedSource struct {
 	memoryPIDRolesVerifier    memoryPIDRolesVerifierFunc
 	retiringMemoryLeases      retiringMemoryLeasesFunc
 	unackedStatusIDs          unackedStatusIDsFunc
+	allocationIDs             allocationIDsFunc
+	allocationRuntimeID       allocationRuntimeIDFunc
 
 	sampleMu       sync.Mutex
 	prevCPUSamples map[string]cpuUsageSample
@@ -173,6 +179,8 @@ func NewAxnodedSource(opts AxnodedSourceOptions) *AxnodedSource {
 		memoryPIDRolesVerifier:    opts.MemoryPIDRolesVerifier,
 		retiringMemoryLeases:      opts.RetiringMemoryLeases,
 		unackedStatusIDs:          opts.UnackedStatusIDs,
+		allocationIDs:             opts.AllocationIDs,
+		allocationRuntimeID:       opts.AllocationRuntimeID,
 		prevCPUSamples:            make(map[string]cpuUsageSample),
 	}
 }

@@ -41,7 +41,6 @@ func WithInventoryURL(url string) NodeClientOption {
 type SandboxHandle struct {
 	clients    *NodeClients
 	SandboxID  string
-	Attempt    int64
 	LeaseToken string
 }
 
@@ -114,10 +113,6 @@ func NewSandboxID(prefix string) string {
 }
 
 func CreateAllocation(ctx context.Context, clients *NodeClients, sandboxID string, spec *privatenodev1.ResolvedExecutionConfig) (*SandboxHandle, error) {
-	return CreateAllocationWithAttempt(ctx, clients, sandboxID, 1, spec)
-}
-
-func CreateAllocationWithAttempt(ctx context.Context, clients *NodeClients, sandboxID string, attempt int64, spec *privatenodev1.ResolvedExecutionConfig) (*SandboxHandle, error) {
 	if sandboxID == "" {
 		sandboxID = NewSandboxID("verify")
 	}
@@ -127,7 +122,6 @@ func CreateAllocationWithAttempt(ctx context.Context, clients *NodeClients, sand
 	}
 	req := &privatenodev1.CreateAllocationRequest{
 		AllocationID: sandboxID,
-		Attempt:      attempt,
 		NodeID:       "",
 		Config:       preparedSpec,
 	}
@@ -138,7 +132,6 @@ func CreateAllocationWithAttempt(ctx context.Context, clients *NodeClients, sand
 	return &SandboxHandle{
 		clients:    clients,
 		SandboxID:  resp.GetAllocationID(),
-		Attempt:    resp.GetAttempt(),
 		LeaseToken: "verify-local-lease",
 	}, nil
 }
@@ -152,17 +145,15 @@ func firstNonEmptyString(values ...string) string {
 	return ""
 }
 
-func GetAllocationStatus(ctx context.Context, clients *NodeClients, sandboxID string) (*privatenodev1.GetAllocationStatusResponse, error) {
-	return clients.Lifecycle.GetAllocationStatus(ctx, &privatenodev1.GetAllocationStatusRequest{
+func GetAllocationLifecycle(ctx context.Context, clients *NodeClients, sandboxID string) (*privatenodev1.GetAllocationLifecycleResponse, error) {
+	return clients.Lifecycle.GetAllocationLifecycle(ctx, &privatenodev1.GetAllocationLifecycleRequest{
 		AllocationID: sandboxID,
-		Attempt:      1,
 	})
 }
 
 func (h *SandboxHandle) Exec(ctx context.Context, spec *nodesandboxv1.ExecSpec) (*nodesandboxv1.ExecResponse, error) {
 	return h.clients.Node.Exec(ctx, &nodesandboxv1.ExecRequest{
 		AllocationID:        h.SandboxID,
-		Attempt:             h.Attempt,
 		ExecutionLeaseToken: h.LeaseToken,
 		Spec:                spec,
 	})
@@ -171,7 +162,6 @@ func (h *SandboxHandle) Exec(ctx context.Context, spec *nodesandboxv1.ExecSpec) 
 func (h *SandboxHandle) Wait(ctx context.Context) (*nodesandboxv1.WaitSandboxResponse, error) {
 	return h.clients.Node.WaitSandbox(ctx, &nodesandboxv1.WaitSandboxRequest{
 		AllocationID:        h.SandboxID,
-		Attempt:             h.Attempt,
 		ExecutionLeaseToken: h.LeaseToken,
 	})
 }
@@ -179,7 +169,6 @@ func (h *SandboxHandle) Wait(ctx context.Context) (*nodesandboxv1.WaitSandboxRes
 func (h *SandboxHandle) Delete(ctx context.Context, timeoutSeconds int64) error {
 	_, err := h.clients.Lifecycle.DeleteAllocation(ctx, &privatenodev1.DeleteAllocationRequest{
 		AllocationID:   h.SandboxID,
-		Attempt:        h.Attempt,
 		TimeoutSeconds: timeoutSeconds,
 	})
 	return err

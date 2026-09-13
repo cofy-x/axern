@@ -68,7 +68,7 @@ func (m *Manager) Start() {
 func (m *Manager) startRecoveredMonitors() {
 	for item := range m.containers.IterBuffered() {
 		if item.Val != nil && item.Val.Metadata != nil {
-			if err := m.StartMonitor(item.Val.Metadata); err != nil {
+			if err := m.StartMonitor(item.Key, item.Val.Metadata); err != nil {
 				logrus.WithError(err).WithField("container_id", item.Key).Error("start recovered container monitor")
 			}
 		}
@@ -165,26 +165,26 @@ func (m *Manager) syncEvent(event Event) {
 // StartMonitor synchronously registers the runtime-exit observer before a
 // successful create is exposed to callers. Registration is the lifecycle
 // barrier; only the runtime Wait itself runs asynchronously.
-func (m *Manager) StartMonitor(metaData *apipb.ContainerMetadata) error {
+func (m *Manager) StartMonitor(id string, metaData *apipb.ContainerMetadata) error {
 	if m.stopped.Load() {
 		return errors.New("container manager is stopped")
 	}
-	if metaData == nil || metaData.GetID() == "" || metaData.GetRuntimeHandler() == "" {
-		return errors.New("container monitor requires complete metadata identity")
+	if id == "" || metaData == nil || metaData.GetRuntimeHandler() == "" {
+		return errors.New("container monitor requires an explicit id and runtime metadata")
 	}
 	handler, ok := m.serviceHandler.Get(metaData.RuntimeHandler)
 	if !ok {
-		return fmt.Errorf("runtime handler %s for container %s not found", metaData.RuntimeHandler, metaData.ID)
+		return fmt.Errorf("runtime handler %s for container %s not found", metaData.RuntimeHandler, id)
 	}
-	container, ok := m.containers.Get(metaData.ID)
+	container, ok := m.containers.Get(id)
 	if !ok || container == nil || container.Status == nil {
-		return fmt.Errorf("container %s monitor requires a durable status record", metaData.ID)
+		return fmt.Errorf("container %s monitor requires a durable status record", id)
 	}
-	if container.Metadata == nil || container.Metadata.GetID() != metaData.ID || container.Metadata.GetRuntimeHandler() != metaData.RuntimeHandler {
-		return fmt.Errorf("container %s monitor metadata does not match its durable runtime ownership", metaData.ID)
+	if container.ID != id || container.Metadata == nil || container.Metadata.GetRuntimeHandler() != metaData.RuntimeHandler {
+		return fmt.Errorf("container %s monitor metadata does not match its durable runtime ownership", id)
 	}
 	if container.Status.Get().State() == apipb.ContainerState_CONTAINER_EXITED {
-		m.stopMonitor(metaData.ID)
+		m.stopMonitor(id)
 		return nil
 	}
 
@@ -196,10 +196,10 @@ func (m *Manager) StartMonitor(metaData *apipb.ContainerMetadata) error {
 		cancel()
 		return errors.New("container manager is stopped")
 	}
-	if existing, ok := m.monitors.Get(metaData.ID); ok && existing != nil {
+	if existing, ok := m.monitors.Get(id); ok && existing != nil {
 		select {
 		case <-existing.done:
-			m.monitors.Remove(metaData.ID)
+			m.monitors.Remove(id)
 			if container.Status.Get().State() == apipb.ContainerState_CONTAINER_EXITED {
 				m.monitorMu.Unlock()
 				cancel()
@@ -211,35 +211,35 @@ func (m *Manager) StartMonitor(metaData *apipb.ContainerMetadata) error {
 			return nil
 		}
 	}
-	absent := m.monitors.SetIfAbsent(metaData.ID, monitor)
+	absent := m.monitors.SetIfAbsent(id, monitor)
 	m.monitorMu.Unlock()
 	if !absent {
 		cancel()
 		return nil
 	}
 
-	go m.monitorContainer(ctx, metaData, monitor, handler)
+	go m.monitorContainer(ctx, id, monitor, handler)
 	return nil
 }
 
-func (m *Manager) monitorContainer(ctx context.Context, metaData *apipb.ContainerMetadata, monitor *containerMonitor, handler contract.RuntimeHandler) {
-	logrus.Infof("start monitor container %s", metaData.ID)
-	defer logrus.Infof("stop monitor container %s", metaData.ID)
+func (m *Manager) monitorContainer(ctx context.Context, id string, monitor *containerMonitor, handler contract.RuntimeHandler) {
+	logrus.Infof("start monitor container %s", id)
+	defer logrus.Infof("stop monitor container %s", id)
 
 	for {
-		exit, err := handler.Wait(ctx, contract.HandlerOptions{ContainerID: metaData.ID})
+		exit, err := handler.Wait(ctx, contract.HandlerOptions{ContainerID: id})
 		if ctx.Err() != nil {
 			monitor.finish(ctx.Err())
 			return
 		}
 
-		logrus.Infof("wait container %s finished, err: %v, exit: %+v", metaData.ID, err, exit)
+		logrus.Infof("wait container %s finished, err: %v, exit: %+v", id, err, exit)
 
 		if err != nil {
 			if contract.IsExitStatusUnavailable(err) {
 				event := Event{
 					Type:          EventTypeExit,
-					ContainerID:   metaData.ID,
+					ContainerID:   id,
 					Pid:           -1,
 					ExitCode:      -1,
 					ExitCodeKnown: false,
@@ -258,7 +258,7 @@ func (m *Manager) monitorContainer(ctx context.Context, metaData *apipb.Containe
 				monitor.finish(nil)
 				return
 			}
-			logrus.Warnf("wait container %s failed without exit status: %v", metaData.ID, err)
+			logrus.Warnf("wait container %s failed without exit status: %v", id, err)
 			timer := time.NewTimer(time.Second)
 			select {
 			case <-ctx.Done():
@@ -273,7 +273,7 @@ func (m *Manager) monitorContainer(ctx context.Context, metaData *apipb.Containe
 		}
 		event := Event{
 			Type:          EventTypeExit,
-			ContainerID:   metaData.ID,
+			ContainerID:   id,
 			Pid:           -1,
 			ExitCode:      int32(exit.Status),
 			ExitCodeKnown: true,

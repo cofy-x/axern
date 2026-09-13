@@ -14,7 +14,7 @@ This file defines repository-wide rules for Axern. Read the nearest subtree `AGE
 ## Platform Boundaries
 
 - Axern is an open-source environment execution platform for agent evaluation, training, and executable data synthesis, not a general PaaS or an all-in-one benchmark, agent, or training product.
-- The durable execution model is `Environment -> Run -> Allocation`. `Sandbox` is an SDK facade over that chain; terminal, process, file, SSH, and Tunnel capabilities bind to an explicit Allocation and attempt.
+- The durable execution model is `Environment -> Run -> Allocation`. `Sandbox` is an SDK facade over that chain; terminal, process, file, SSH, and Tunnel capabilities bind to an explicit, never-reused Allocation ID.
 - Higher-level evaluation, rollout, verifier, provider, budget, and training orchestration belongs above the execution platform in Axrun, Openbench, or another caller.
 - Runsc is the supported production sandbox backend. Missing required isolation or platform capability must fail closed.
 - PostgreSQL is the only authoritative central state backend. Before the public model stabilizes, update the initial schema and rebuild local databases instead of preserving obsolete internal schemas, protobuf gaps, aliases, or dual paths.

@@ -23,7 +23,6 @@ func TestKill(t *testing.T) {
 
 	containerID := "axctl-test-kill"
 	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		ID:             containerID,
 		RuntimeHandler: "runsc",
 	})
 	time.Sleep(200 * time.Millisecond)
@@ -50,7 +49,6 @@ func TestKillRejectsExitedContainer(t *testing.T) {
 
 	containerID := "axctl-test-kill-exited"
 	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		ID:             containerID,
 		RuntimeHandler: "runsc",
 	})
 	time.Sleep(200 * time.Millisecond)

@@ -107,8 +107,8 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 	if opt.MemoryRequestBytes < 0 {
 		return EmptyStringResource, fmt.Errorf("cgroup memory request cannot be negative")
 	}
-	if opt.MemoryLimitBytes < 0 || opt.CapacityReservationBytes < 0 || opt.AllocationAttempt < 0 {
-		return EmptyStringResource, fmt.Errorf("cgroup memory limit, capacity reservation, and allocation attempt cannot be negative")
+	if opt.MemoryLimitBytes < 0 || opt.CapacityReservationBytes < 0 {
+		return EmptyStringResource, fmt.Errorf("cgroup memory limit and capacity reservation cannot be negative")
 	}
 	if opt.MemoryLimitBytes > 0 && opt.MemoryRequestBytes > opt.MemoryLimitBytes {
 		return EmptyStringResource, fmt.Errorf("cgroup memory request cannot exceed its hard limit")
@@ -229,7 +229,6 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 	lease.MemoryRequestBytes = opt.MemoryRequestBytes
 	lease.MemoryLimitBytes = opt.MemoryLimitBytes
 	lease.CapacityReservationBytes = capacityReservation
-	lease.AllocationAttempt = opt.AllocationAttempt
 	lease.RuntimeName = opt.RuntimeName
 	lease.OwnerKind = opt.CgroupOwnerKind
 	lease.AssignedAtUnixNano = time.Now().UTC().UnixNano()
@@ -246,7 +245,6 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 			lease.MemoryRequestBytes = 0
 			lease.MemoryLimitBytes = 0
 			lease.CapacityReservationBytes = 0
-			lease.AllocationAttempt = 0
 			lease.RuntimeName = ""
 			lease.OwnerKind = apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED
 			lease.AssignedAtUnixNano = 0
@@ -261,7 +259,6 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 		lease.MemoryRequestBytes = 0
 		lease.MemoryLimitBytes = 0
 		lease.CapacityReservationBytes = 0
-		lease.AllocationAttempt = 0
 		lease.RuntimeName = ""
 		lease.OwnerKind = apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED
 		lease.AssignedAtUnixNano = 0

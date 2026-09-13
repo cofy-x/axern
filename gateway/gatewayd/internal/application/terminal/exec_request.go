@@ -22,7 +22,6 @@ func execStreamOpenRequest(resolved *gatewayv1.ResolveAllocationTerminalResponse
 			User: strings.TrimSpace(opts.User),
 		},
 		AllocationID:        resolved.GetAllocationID(),
-		Attempt:             resolved.GetAttempt(),
 		ExecutionLeaseToken: resolved.GetLease().GetPlaintextToken(),
 	}}}
 }

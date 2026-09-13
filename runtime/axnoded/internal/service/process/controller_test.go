@@ -151,7 +151,6 @@ func testTarget(id string, handler contract.RuntimeHandler) sandboxtarget.Target
 	return sandboxtarget.Target{
 		ID: id,
 		Metadata: &runtime.ContainerMetadata{
-			ID:             id,
 			RuntimeHandler: "runsc",
 			Labels:         map[string]string{"ready": "true"},
 		},

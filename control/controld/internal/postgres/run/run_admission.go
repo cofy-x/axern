@@ -64,7 +64,6 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 			Namespace:     namespace,
 			EnvironmentID: params.Environment.GetID(),
 			AllocationID:  allocationID,
-			Attempt:       1,
 			Status:        runv1.RunStatus_RUN_STATUS_PLACED,
 			Config:        runkernel.CloneConfig(normalizedConfig),
 			Labels:        runkernel.CloneLabels(params.Labels),
@@ -76,7 +75,6 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 			AllocationID:           run.GetAllocationID(),
 			NodeID:                 selected.Record.NodeID,
 			NodeTarget:             selected.Record.NodeTarget,
-			Attempt:                run.GetAttempt(),
 			CapabilityDependencies: selected.CapabilityDependencies,
 		}
 		if _, err := tx.Exec(ctx, `
@@ -89,10 +87,9 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO allocations (
-				allocation_id, run_id, node_id, attempt, status,
-				config, version, created_at, updated_at, exit_code, exit_code_known, message
-			) VALUES ($1, $2, $3, $4, $5, $6::jsonb, 1, $7, $8, 0, false, '')
-		`, alloc.AllocationID, run.GetID(), alloc.NodeID, alloc.Attempt, commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND.String(), cfgJSON, now.UTC(), now.UTC()); err != nil {
+				allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6)
+		`, alloc.AllocationID, run.GetID(), alloc.NodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(), now.UTC(), now.UTC()); err != nil {
 			return fmt.Errorf("insert allocation: %w", err)
 		}
 		if err := pgallocation.InsertCapabilityDependencies(ctx, tx, alloc.AllocationID, alloc.NodeID, selected.CapabilityDependencies, now); err != nil {
@@ -108,7 +105,7 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 			return err
 		}
 		if err := pgreservation.InsertMemoryAdmissionEvidence(ctx, tx, pgreservation.MemoryAdmissionEvidence{
-			AllocationID: alloc.AllocationID, Attempt: alloc.Attempt, NodeID: alloc.NodeID,
+			AllocationID: alloc.AllocationID, NodeID: alloc.NodeID,
 			Resources: normalizedConfig.GetResources(), Summary: selected.Record.Summary, AdmittedAt: now,
 		}); err != nil {
 			return err

@@ -45,7 +45,7 @@ func TestCapabilityRecordMutationsPreserveConcurrentFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	initialConditions := healthyTestConditions(dependencies, baseTime)
-	if _, err := controller.ReplaceCapabilityAdmission(allocationID, 1, testAllocationRequestDigest, dependencies, initialConditions, baseTime); err != nil {
+	if _, err := controller.ReplaceCapabilityAdmission(allocationID, testAllocationRequestDigest, dependencies, initialConditions, baseTime); err != nil {
 		t.Fatal(err)
 	}
 	manifest := &apipb.AllocationEnforcementManifest{RuntimeName: "runsc", BundlePath: "/fake/" + allocationID, CreatedAtUnixNano: baseTime.UnixNano()}
@@ -116,7 +116,7 @@ func TestCapabilityRecordMutationsPreserveConcurrentFields(t *testing.T) {
 func TestStoreLaunchVerificationRequiresExactManifestEnforcementKeys(t *testing.T) {
 	controller := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}).controller
 	const allocationID = "allocation-launch-verification"
-	if _, err := controller.ReplaceCapabilityAdmission(allocationID, 1, testAllocationRequestDigest, nil, nil, time.Now().UTC()); err != nil {
+	if _, err := controller.ReplaceCapabilityAdmission(allocationID, testAllocationRequestDigest, nil, nil, time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
 	manifest := &apipb.AllocationEnforcementManifest{
@@ -144,7 +144,7 @@ func TestBeginCapabilityTerminationIsDurableAndAggregatesReasons(t *testing.T) {
 	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store)
 	controller := fixture.controller
 	const allocationID = "allocation-capability-termination"
-	if _, err := controller.ReplaceCapabilityAdmission(allocationID, 1, testAllocationRequestDigest, nil, nil, time.Now().UTC()); err != nil {
+	if _, err := controller.ReplaceCapabilityAdmission(allocationID, testAllocationRequestDigest, nil, nil, time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
 	if err := controller.BeginCapabilityTermination(allocationID, errors.New("memory enforcement lost")); err != nil {
@@ -208,7 +208,7 @@ func TestReplaceCapabilityAdmissionAtomicallyAdvancesProofAndConditionGeneration
 		t.Fatal(err)
 	}
 	conditions := healthyTestConditions(dependencies, now)
-	first, err := controller.ReplaceCapabilityAdmission(allocationID, 1, testAllocationRequestDigest, dependencies, conditions, now)
+	first, err := controller.ReplaceCapabilityAdmission(allocationID, testAllocationRequestDigest, dependencies, conditions, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,74 +222,23 @@ func TestReplaceCapabilityAdmissionAtomicallyAdvancesProofAndConditionGeneration
 	if err := controller.StoreLaunchVerification(allocationID, manifest, nil, now); err != nil {
 		t.Fatal(err)
 	}
-	second, err := controller.ReplaceCapabilityAdmission(allocationID, 1, testAllocationRequestDigest, dependencies, conditions, now.Add(time.Millisecond))
+	second, err := controller.ReplaceCapabilityAdmission(allocationID, testAllocationRequestDigest, dependencies, conditions, now.Add(time.Millisecond))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if second.GetRevision() != 2 {
 		t.Fatalf("post-create revision = %d, want 2", second.GetRevision())
 	}
-	if _, err := controller.ReplaceCapabilityAdmission(allocationID, 2, testAllocationRequestDigest, dependencies, conditions, now.Add(2*time.Millisecond)); err == nil {
-		t.Fatal("ReplaceCapabilityAdmission() accepted a conflicting allocation attempt")
-	}
 	conflictingDigest := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	if _, err := controller.ReplaceCapabilityAdmission(allocationID, 1, conflictingDigest, dependencies, conditions, now.Add(2*time.Millisecond)); err == nil {
+	if _, err := controller.ReplaceCapabilityAdmission(allocationID, conflictingDigest, dependencies, conditions, now.Add(2*time.Millisecond)); err == nil {
 		t.Fatal("ReplaceCapabilityAdmission() accepted a conflicting request digest")
 	}
 	var persisted apipb.AllocationState
 	if err := store.GetRecord(config.AllocationStateBucket, allocationID, &persisted); err != nil {
 		t.Fatal(err)
 	}
-	if persisted.GetAllocationAttempt() != 1 || persisted.GetAllocationRequestDigest() != testAllocationRequestDigest || persisted.GetCapabilityConditions().GetRevision() != 2 || persisted.GetCapabilityAdmissionConditions().GetRevision() != 2 || len(persisted.GetCapabilityDependencies()) != 1 {
+	if persisted.GetAllocationRequestDigest() != testAllocationRequestDigest || persisted.GetCapabilityConditions().GetRevision() != 2 || persisted.GetCapabilityAdmissionConditions().GetRevision() != 2 || len(persisted.GetCapabilityDependencies()) != 1 {
 		t.Fatalf("persisted admission is not atomic: %#v", &persisted)
-	}
-}
-
-func TestNodeLocalCapabilityAdmissionPersistsWithoutControlPlaneAttempt(t *testing.T) {
-	store := storetest.NewMockStore()
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store)
-	controller := fixture.controller
-	const allocationID = "node-local-capability-admission"
-	now := time.Now().UTC()
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
-	observation := &capabilityv1.CapabilityObservation{
-		Key: key, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
-		Provider:   capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
-		ObservedAt: timestamppb.New(now), ValidUntil: timestamppb.New(now.Add(capabilitycontract.HealthObservationValidity)),
-		Evidence: capabilitycontract.ConfigEvidence("sha256:" + strings.Repeat("c", 64)), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-	}
-	capabilitycontract.NormalizeObservation(observation)
-	snapshot := &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "instance-node-local", Sequence: 1, SnapshotID: "snapshot-node-local",
-		CollectedAt: timestamppb.New(now), Observations: []*capabilityv1.CapabilityObservation{observation},
-	}
-	dependencies, err := capabilitycontract.ResolveDependencies(snapshot, []*capabilityv1.CapabilityKey{key}, now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	conditions := healthyTestConditions(dependencies, now)
-	set, err := controller.ReplaceNodeLocalCapabilityAdmission(allocationID, testAllocationRequestDigest, dependencies, conditions, now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if set.GetRevision() != 1 {
-		t.Fatalf("condition revision = %d, want 1", set.GetRevision())
-	}
-	if attempt, managed := controller.ManagedAllocationAttempt(allocationID); attempt != 0 || managed {
-		t.Fatalf("managed attempt = %d/%t, want 0/false", attempt, managed)
-	}
-	if len(controller.CapabilityDependencyManifests()[allocationID]) != 1 {
-		t.Fatal("node-local dependency was not included in runtime reconciliation inventory")
-	}
-	var persisted apipb.AllocationState
-	if err := store.GetRecord(config.AllocationStateBucket, allocationID, &persisted); err != nil {
-		t.Fatal(err)
-	}
-	if persisted.GetAllocationAttempt() != 0 || persisted.GetAllocationRequestDigest() != testAllocationRequestDigest || len(persisted.GetCapabilityDependencies()) != 1 {
-		t.Fatalf("persisted node-local admission = %#v", &persisted)
-	}
-	if _, err := controller.ReplaceCapabilityAdmission(allocationID, 1, testAllocationRequestDigest, dependencies, conditions, now.Add(time.Millisecond)); err == nil {
-		t.Fatal("managed admission took ownership of a node-local sandbox")
 	}
 }
 

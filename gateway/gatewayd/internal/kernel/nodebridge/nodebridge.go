@@ -12,7 +12,6 @@ import (
 type HTTPProxySpec struct {
 	NodeTarget    string
 	AllocationID  string
-	Attempt       int64
 	Token         string
 	Port          int32
 	Method        string

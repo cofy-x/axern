@@ -44,8 +44,8 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 		t.Fatalf("insert lease run: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO allocations (allocation_id, run_id, node_id, attempt, status, config, created_at, updated_at)
-		VALUES ('alloc-watch', 'run-watch', 'node-a', 1, 'ALLOCATION_STATUS_RUNNING', '{}'::jsonb, $1, $1)
+		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
+		VALUES ('alloc-watch', 'run-watch', 'node-a', 'ALLOCATION_LIFECYCLE_STATE_ACTIVE', $1, $1)
 	`, now); err != nil {
 		t.Fatalf("insert lease allocation: %v", err)
 	}
@@ -79,9 +79,9 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO execution_leases (
-			lease_id, allocation_id, node_id, node_target, attempt, lease_type,
+			lease_id, allocation_id, node_id, node_target, lease_type,
 			expires_at, revision, revoked, token_hash, created_at
-		) VALUES ('lease-watch', 'alloc-watch', 'node-a', 'node-a:24010', 1,
+		) VALUES ('lease-watch', 'alloc-watch', 'node-a', 'node-a:24010',
 			'LEASE_TYPE_RUN', $1, $2, false, 'token-hash', $3)
 	`, time.Now().Add(time.Minute).UTC(), revision, time.Now().UTC()); err != nil {
 		t.Fatalf("insert lease: %v", err)

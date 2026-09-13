@@ -14,7 +14,7 @@ import (
 )
 
 // StartRequestDigest identifies the immutable behavioral contract of one
-// managed allocation attempt. Placement evidence is deliberately reduced to
+// allocation. Placement evidence is deliberately reduced to
 // key plus catalog loss policy: a later current observation may replace the
 // selected placement proof without changing the requested sandbox. Trace IDs
 // are request telemetry and likewise do not define runtime behavior.

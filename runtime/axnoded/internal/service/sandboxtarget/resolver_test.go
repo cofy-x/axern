@@ -116,7 +116,6 @@ func TestResolverPropagatesLookupErrors(t *testing.T) {
 func testContainer(id string, runtimeName string, status container.Status) *container.Container {
 	return &container.Container{
 		Metadata: &runtime.ContainerMetadata{
-			ID:             id,
 			RuntimeHandler: runtimeName,
 			Labels:         map[string]string{"ready": "true"},
 		},

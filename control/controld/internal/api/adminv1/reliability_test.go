@@ -24,13 +24,13 @@ func TestCheckConsistencyMapsSnapshot(t *testing.T) {
 				ActiveTunnels:      1,
 				ReconcileQueue:     4,
 			}, []consistencykernel.Issue{{
-				Code:         consistencykernel.IssueActiveReservationOnEndedAllocation,
+				Code:         consistencykernel.IssueActiveReservationOnReleasedAllocation,
 				Severity:     consistencykernel.SeverityError,
 				AllocationID: "alloc-a",
 				RunID:        "run-a",
 				NodeID:       "node-a",
-				Status:       "ALLOCATION_STATUS_RELEASED",
-				Detail:       "active reservation remains after allocation ended",
+				Status:       "ALLOCATION_LIFECYCLE_STATE_RELEASED",
+				Detail:       "active reservation remains after allocation release completed",
 			}}, true),
 		},
 	})
@@ -46,7 +46,7 @@ func TestCheckConsistencyMapsSnapshot(t *testing.T) {
 	if got.GetCounts().GetActiveReservations() != 3 || got.GetCounts().GetAllocationLifecycleRetries() != 4 || got.GetCounts().GetIssues() != 1 {
 		t.Fatalf("counts = %+v", got.GetCounts())
 	}
-	if len(got.GetIssues()) != 1 || got.GetIssues()[0].GetCode() != adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_ENDED_ALLOCATION {
+	if len(got.GetIssues()) != 1 || got.GetIssues()[0].GetCode() != adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_RELEASED_ALLOCATION {
 		t.Fatalf("issues = %+v", got.GetIssues())
 	}
 	issue := got.GetIssues()[0]

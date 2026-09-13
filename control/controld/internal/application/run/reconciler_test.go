@@ -20,7 +20,6 @@ func TestReconcilerCompletesDeleteRetry(t *testing.T) {
 		Reason:       allocationkernel.ReconcileReasonDelete,
 		NodeID:       "node-a",
 		NodeTarget:   "node-a:24010",
-		Attempt:      2,
 	}}}
 	lifecycle := &fakeReconcileLifecycle{}
 
@@ -30,8 +29,8 @@ func TestReconcilerCompletesDeleteRetry(t *testing.T) {
 	if lifecycle.deleted != 1 {
 		t.Fatalf("delete calls = %d, want 1", lifecycle.deleted)
 	}
-	if store.completedAllocationID != "alloc-a" || store.completedAttempt != 2 {
-		t.Fatalf("completed = %q/%d, want alloc-a/2", store.completedAllocationID, store.completedAttempt)
+	if store.completedAllocationID != "alloc-a" {
+		t.Fatalf("completed = %q, want alloc-a", store.completedAllocationID)
 	}
 	if store.scheduledAllocationID != "" {
 		t.Fatalf("scheduled retry for successful delete: %q", store.scheduledAllocationID)
@@ -45,7 +44,6 @@ func TestReconcilerReschedulesDeleteRetryFailure(t *testing.T) {
 		Reason:       allocationkernel.ReconcileReasonDelete,
 		NodeID:       "node-a",
 		NodeTarget:   "node-a:24010",
-		Attempt:      2,
 	}}}
 	lifecycle := &fakeReconcileLifecycle{deleteErr: errors.New("node unavailable")}
 
@@ -80,7 +78,6 @@ func TestReconcilerReturnsRetryScheduleError(t *testing.T) {
 			Reason:       allocationkernel.ReconcileReasonDelete,
 			NodeID:       "node-a",
 			NodeTarget:   "node-a:24010",
-			Attempt:      2,
 		}},
 		scheduleErr: errors.New("database unavailable"),
 	}
@@ -103,12 +100,11 @@ func TestReconcilerStartsQueuedAllocation(t *testing.T) {
 			Reason:       allocationkernel.ReconcileReasonCreate,
 			NodeID:       "node-a",
 			NodeTarget:   "node-a:24010",
-			Attempt:      1,
 		}},
 		start: &runkernel.StartAllocation{
-			Run:         &runv1.Run{ID: "run-a", AllocationID: "alloc-a", Attempt: 1},
+			Run:         &runv1.Run{ID: "run-a", AllocationID: "alloc-a"},
 			Environment: &environmentv1.Environment{ID: "env-a"},
-			Allocation:  &runkernel.AllocationRecord{AllocationID: "alloc-a", NodeID: "node-a", NodeTarget: "node-a:24010", Attempt: 1},
+			Allocation:  &runkernel.AllocationRecord{AllocationID: "alloc-a", NodeID: "node-a", NodeTarget: "node-a:24010"},
 		},
 	}
 	lifecycle := &fakeReconcileLifecycle{}
@@ -142,13 +138,12 @@ func TestReconcilerReschedulesStartFailure(t *testing.T) {
 			Reason:            allocationkernel.ReconcileReasonCreate,
 			NodeID:            "node-a",
 			NodeTarget:        "node-a:24010",
-			Attempt:           1,
 			ReconcileAttempts: 1,
 		}},
 		start: &runkernel.StartAllocation{
-			Run:         &runv1.Run{ID: "run-a", AllocationID: "alloc-a", Attempt: 1},
+			Run:         &runv1.Run{ID: "run-a", AllocationID: "alloc-a"},
 			Environment: &environmentv1.Environment{ID: "env-a"},
-			Allocation:  &runkernel.AllocationRecord{AllocationID: "alloc-a", NodeID: "node-a", NodeTarget: "node-a:24010", Attempt: 1},
+			Allocation:  &runkernel.AllocationRecord{AllocationID: "alloc-a", NodeID: "node-a", NodeTarget: "node-a:24010"},
 		},
 	}
 	lifecycle := &fakeReconcileLifecycle{createErr: errors.New("node unavailable")}
@@ -187,13 +182,12 @@ func TestReconcilerMarksStartFailureAfterRetryExhaustion(t *testing.T) {
 			Reason:            allocationkernel.ReconcileReasonCreate,
 			NodeID:            "node-a",
 			NodeTarget:        "node-a:24010",
-			Attempt:           1,
 			ReconcileAttempts: allocationkernel.CreateRetryMaxAttempts - 1,
 		}},
 		start: &runkernel.StartAllocation{
-			Run:         &runv1.Run{ID: "run-a", AllocationID: "alloc-a", Attempt: 1},
+			Run:         &runv1.Run{ID: "run-a", AllocationID: "alloc-a"},
 			Environment: &environmentv1.Environment{ID: "env-a"},
-			Allocation:  &runkernel.AllocationRecord{AllocationID: "alloc-a", NodeID: "node-a", NodeTarget: "node-a:24010", Attempt: 1},
+			Allocation:  &runkernel.AllocationRecord{AllocationID: "alloc-a", NodeID: "node-a", NodeTarget: "node-a:24010"},
 		},
 	}
 	lifecycle := &fakeReconcileLifecycle{createErr: errors.New("node unavailable")}
@@ -217,7 +211,6 @@ type fakeReconcileStore struct {
 	start                      *runkernel.StartAllocation
 	completedStartAllocationID string
 	completedAllocationID      string
-	completedAttempt           int64
 	failedAllocationID         string
 	failedMessage              string
 	markErr                    error
@@ -243,9 +236,8 @@ func (f *fakeReconcileStore) RecordAllocationCapabilityAdmission(context.Context
 	return nil
 }
 
-func (f *fakeReconcileStore) CompleteAllocationRelease(_ context.Context, allocationID string, attempt int64, _ time.Time) error {
+func (f *fakeReconcileStore) CompleteAllocationRelease(_ context.Context, allocationID string, _ time.Time) error {
 	f.completedAllocationID = allocationID
-	f.completedAttempt = attempt
 	return nil
 }
 
@@ -295,7 +287,7 @@ func (f *fakeReconcileLifecycle) CreateAllocation(ctx context.Context, _ string,
 	return &allocationkernel.CapabilityAdmission{}, f.createErr
 }
 
-func (f *fakeReconcileLifecycle) DeleteAllocation(context.Context, string, string, int64, string) error {
+func (f *fakeReconcileLifecycle) DeleteAllocation(context.Context, string, string, string) error {
 	f.deleted++
 	return f.deleteErr
 }

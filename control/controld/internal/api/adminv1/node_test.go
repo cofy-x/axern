@@ -50,7 +50,6 @@ func TestGetAllocationCapabilityDiagnosticsPreservesAttemptFence(t *testing.T) {
 	diagnostics := &fakeCapabilityDiagnostics{allocation: &adminkernel.AllocationCapabilityDiagnostics{
 		AllocationID:              "allocation-a",
 		NodeID:                    "node-a",
-		Attempt:                   7,
 		CreateAdmissionRecorded:   true,
 		CreateDependencySetDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		CreateAdmittedAt:          &admittedAt,
@@ -71,7 +70,7 @@ func TestGetAllocationCapabilityDiagnosticsPreservesAttemptFence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAllocationCapabilityDiagnostics() error = %v", err)
 	}
-	if diagnostics.allocationID != "allocation-a" || resp.GetAllocationAttempt() != 7 || resp.GetConditionSet().GetRevision() != 3 ||
+	if diagnostics.allocationID != "allocation-a" || resp.GetConditionSet().GetRevision() != 3 ||
 		!resp.GetCreateAdmissionRecorded() || resp.GetCreateDependencySetDigest() != diagnostics.allocation.CreateDependencySetDigest ||
 		!resp.GetCreateAdmittedAt().AsTime().Equal(admittedAt) ||
 		resp.GetMemoryAdmission().GetSandboxMemoryRequestBytes() != 128<<20 ||

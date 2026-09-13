@@ -41,9 +41,19 @@ type SandboxService interface {
 	Run(context.Context) error
 	Shutdown(context.Context) error
 	Ready() bool
-	ReportAllocationStatus(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
+	ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
 	RuntimeStatuses() []RuntimeStatus
 	NodeInventory() (nodeinventory.NodeInventorySnapshot, bool)
+}
+
+// ControlPlaneAllocationService owns the durable admission relationship
+// between a controld node binding and one allocation. It is deliberately
+// separate from SandboxService: node-local sandbox operations must not be
+// able to create control-plane authority implicitly.
+type ControlPlaneAllocationService interface {
+	StartControlPlaneAllocation(context.Context, string, *runtime.StartRequest) (*runtime.StartResponse, error)
+	DeleteControlPlaneAllocation(context.Context, string, *runtime.DeleteRequest) (*runtime.DeleteResponse, error)
+	HasControlPlaneAllocation(string, string) bool
 }
 
 type SandboxFileService interface {
@@ -87,11 +97,17 @@ type SandboxCapabilityService interface {
 
 type NodeOperatorService interface {
 	SandboxService
-	ManagedAllocationAttempt(string) (int64, bool)
 	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error)
 	NetworkForSandbox(containerID string) (*SandboxNetwork, error)
 	SandboxdDiagnostics(ctx context.Context, containerID string, full bool) (SandboxdDiagnostics, error)
 	NetworkPolicyDiagnostics(context.Context, string) NetworkPolicyDiagnostics
+}
+
+// NodeService is the daemon's assembled service surface. Protocol servers
+// receive only the narrower interface they own.
+type NodeService interface {
+	NodeOperatorService
+	ControlPlaneAllocationService
 }
 
 type NetworkPolicyMode string
@@ -109,7 +125,7 @@ const (
 	NetworkPolicyStatusAbsent                NetworkPolicyStatus = "absent"
 	NetworkPolicyStatusCapabilityUnavailable NetworkPolicyStatus = "capability_unavailable"
 	NetworkPolicyStatusEnforcementUnhealthy  NetworkPolicyStatus = "enforcement_unhealthy"
-	NetworkPolicyStatusProofStale            NetworkPolicyStatus = "proof_stale"
+	NetworkPolicyStatusBindingMismatch       NetworkPolicyStatus = "binding_mismatch"
 )
 
 type NetworkPolicyCapabilityState string
@@ -122,19 +138,16 @@ const (
 )
 
 type NetworkPolicyDiagnostics struct {
-	Mode                  NetworkPolicyMode
-	Status                NetworkPolicyStatus
-	CapabilityState       NetworkPolicyCapabilityState
-	EnforcementHealthy    bool
-	ExactProof            bool
-	AllocationAttempt     int64
-	ExecutionRevision     int64
-	EnforcementRevision   int64
-	DomainRuleCount       uint32
-	CIDRRuleCount         uint32
-	PortRangeCount        uint32
-	TotalRuleCount        uint32
-	RecoveredAfterRestart bool
+	Mode                NetworkPolicyMode
+	Status              NetworkPolicyStatus
+	CapabilityState     NetworkPolicyCapabilityState
+	EnforcementHealthy  bool
+	ExactBinding        bool
+	EnforcementRevision int64
+	DomainRuleCount     uint32
+	CIDRRuleCount       uint32
+	PortRangeCount      uint32
+	TotalRuleCount      uint32
 }
 
 type SandboxNetwork struct {

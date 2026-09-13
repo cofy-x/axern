@@ -27,7 +27,8 @@ func TestCreateRuntimeContainerUsesRuntimeRequirements(t *testing.T) {
 	})
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
-		Runtime: "runtime-requirements-test",
+		Runtime:      "runtime-requirements-test",
+		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 		Rootfs: &apipb.Rootfs{
 			RootDir:  t.TempDir(),
 			Readonly: false,
@@ -90,7 +91,6 @@ func TestDeleteRuntimeContainerWithHandlerRuntimeNotFoundIsIdempotent(t *testing
 	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
 	target := &container.Container{
 		Metadata: &apipb.ContainerMetadata{
-			ID:             "axctl-delete-runtime-not-found",
 			RuntimeHandler: "runsc",
 		},
 		Spec: &specs.Spec{Annotations: map[string]string{}},
@@ -106,10 +106,10 @@ func TestDeleteRuntimeContainerWithHandlerRuntimeNotFoundIsIdempotent(t *testing
 	assert.Equal(t, 1, handler.deleteCalls)
 }
 
-func TestDeleteManagedContainerRemovesRuntimeReferenceOnSuccess(t *testing.T) {
+func TestDeleteAllocationRemovesRuntimeReferenceOnSuccess(t *testing.T) {
 	handler := &runtimeSpyHandler{name: "runsc"}
 	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
-	containerID := "axctl-delete-managed-success"
+	containerID := "axctl-delete-allocation-success"
 	storeTestContainer(t, fixture, containerID, "runsc")
 	lrt := addTestRuntimeMappingRuntime(t, fixture.lrtManager, testRuntimeTemplate(t, "rt-1"))
 	lrt.IncRef()
@@ -126,13 +126,13 @@ func TestDeleteManagedContainerRemovesRuntimeReferenceOnSuccess(t *testing.T) {
 	assert.Error(t, getErr)
 }
 
-func TestDeleteManagedContainerPreservesRuntimeReferenceOnFailure(t *testing.T) {
+func TestDeleteAllocationPreservesRuntimeReferenceOnFailure(t *testing.T) {
 	handler := &runtimeSpyHandler{
 		name:         "runsc",
 		deleteErrors: []error{fmt.Errorf("boom")},
 	}
 	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
-	containerID := "axctl-delete-managed-failure"
+	containerID := "axctl-delete-allocation-failure"
 	storeTestContainer(t, fixture, containerID, "runsc")
 	lrt := addTestRuntimeMappingRuntime(t, fixture.lrtManager, testRuntimeTemplate(t, "rt-1"))
 	lrt.IncRef()
@@ -185,7 +185,6 @@ func TestConfigureStartPortsDnatFailureLeavesRollbackToLifecycle(t *testing.T) {
 func testDeleteTarget(id string, cwd string, env string, annotations map[string]string) *container.Container {
 	return &container.Container{
 		Metadata: &apipb.ContainerMetadata{
-			ID:             id,
 			RuntimeHandler: "runsc",
 		},
 		Spec: &specs.Spec{
@@ -202,11 +201,10 @@ func storeTestContainer(t *testing.T, fixture testAllocationController, containe
 	t.Helper()
 	writeContainerSpecFile(t, fixture.controller.config.RootDir, containerID, nil)
 	metadata := &apipb.ContainerMetadata{
-		ID:             containerID,
 		RuntimeHandler: runtimeName,
 	}
 	assert.NoError(t, fixture.manager.StoreMetadata(containerID, metadata))
-	assert.NoError(t, fixture.manager.StartMonitor(metadata))
+	assert.NoError(t, fixture.manager.StartMonitor(containerID, metadata))
 	assert.Eventually(t, func() bool {
 		stored, err := fixture.manager.Get(containerID)
 		return err == nil && stored.Status.Get().State() == apipb.ContainerState_CONTAINER_EXITED

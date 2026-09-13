@@ -284,15 +284,14 @@ func enqueueAffectedAllocations(ctx context.Context, tx pgx.Tx, nodeID string, t
 		FROM allocation_capability_dependencies d
 		JOIN allocations a ON a.allocation_id = d.allocation_id
 		WHERE d.node_id = $1 AND d.capability_key_id = ANY($2::text[])
-		  AND a.status IN ($3, $4, $5, $6)
-		  AND d.loss_policy <> $7
+		  AND a.lifecycle_state IN ($3, $4, $5)
+		  AND d.loss_policy <> $6
 		ORDER BY d.allocation_id, d.capability_key_id
 		FOR UPDATE OF d
 	`, nodeID, keyIDs,
-		commonv1.AllocationStatus_ALLOCATION_STATUS_RESERVED.String(),
-		commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND.String(),
-		commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING.String(),
-		commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String(),
 		capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_ADMISSION_ONLY.String())
 	if err != nil {
 		return fmt.Errorf("load allocations affected by capability transitions: %w", err)

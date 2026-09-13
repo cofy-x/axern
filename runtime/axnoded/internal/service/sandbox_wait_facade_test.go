@@ -25,7 +25,6 @@ func TestWait(t *testing.T) {
 
 	containerID := "axctl-test-wait"
 	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		ID:             containerID,
 		RuntimeHandler: "alt-runtime",
 	})
 	time.Sleep(200 * time.Millisecond)
@@ -48,7 +47,6 @@ func TestWaitReturnsUnavailableWhenExitCodeUnknown(t *testing.T) {
 
 	containerID := "axctl-test-wait-unknown"
 	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		ID:             containerID,
 		RuntimeHandler: "runsc",
 	})
 	time.Sleep(200 * time.Millisecond)
@@ -83,7 +81,6 @@ func TestWaitContinuesWhenStatusExitedButExitCodeUnknown(t *testing.T) {
 
 	containerID := "axctl-test-wait-unknown-recover"
 	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		ID:             containerID,
 		RuntimeHandler: "runsc",
 	})
 	time.Sleep(200 * time.Millisecond)

@@ -45,16 +45,16 @@ func (q *fakeQueue) RecordConditions(_ context.Context, item allocationkernel.Ca
 }
 
 type fakeLifecycle struct {
-	statusResponse *privatenodev1.GetAllocationStatusResponse
+	statusResponse *privatenodev1.GetAllocationLifecycleResponse
 	statusErr      error
 }
 
-func (f *fakeLifecycle) GetAllocationStatus(context.Context, string, *privatenodev1.GetAllocationStatusRequest) (*privatenodev1.GetAllocationStatusResponse, error) {
+func (f *fakeLifecycle) GetAllocationLifecycle(context.Context, string, *privatenodev1.GetAllocationLifecycleRequest) (*privatenodev1.GetAllocationLifecycleResponse, error) {
 	return f.statusResponse, f.statusErr
 }
 func TestReconcilerCompletesHealthyVerification(t *testing.T) {
 	queue := &fakeQueue{items: []allocationkernel.CapabilityReconcileItem{{AllocationID: "alloc-1"}}}
-	client := &fakeLifecycle{statusResponse: &privatenodev1.GetAllocationStatusResponse{
+	client := &fakeLifecycle{statusResponse: &privatenodev1.GetAllocationLifecycleResponse{
 		AdmittedCapabilityDependencies: []*capabilityv1.CapabilityDependency{{
 			SelectedObservation: &capabilityv1.CapabilityObservationProof{Evidence: &capabilityv1.CapabilityEvidence{EvidenceID: "reconciled-evidence"}},
 		}},
@@ -77,8 +77,8 @@ func TestReconcilerCompletesHealthyVerification(t *testing.T) {
 }
 
 func TestReconcilerRetainsFailedAllocationUntilNotFound(t *testing.T) {
-	queue := &fakeQueue{items: []allocationkernel.CapabilityReconcileItem{{AllocationID: "alloc-1", NodeID: "node-1", NodeTarget: "node:25001", Attempt: 2}}}
-	client := &fakeLifecycle{statusResponse: &privatenodev1.GetAllocationStatusResponse{CapabilityVerification: &capabilityv1.CapabilityConditionSet{Revision: 1, Conditions: []*capabilityv1.CapabilityCondition{{
+	queue := &fakeQueue{items: []allocationkernel.CapabilityReconcileItem{{AllocationID: "alloc-1", NodeID: "node-1", NodeTarget: "node:25001"}}}
+	client := &fakeLifecycle{statusResponse: &privatenodev1.GetAllocationLifecycleResponse{CapabilityVerification: &capabilityv1.CapabilityConditionSet{Revision: 1, Conditions: []*capabilityv1.CapabilityCondition{{
 		State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_FAILED,
 	}}}}}
 	reconciler := newReconciler(queue, client, "test-owner")

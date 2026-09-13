@@ -13,21 +13,25 @@ func newTestContainers(hitId string, hitLabel map[string]string) []*Container {
 	containers = append(containers, nil)
 	containers = append(containers, &Container{})
 	containers = append(containers, &Container{
-		Metadata: &apipb.ContainerMetadata{ID: "test-1"},
+		ID:       "test-1",
+		Metadata: &apipb.ContainerMetadata{},
 	})
 
 	if len(hitId) != 0 {
 		containers = append(containers, &Container{
-			Metadata: &apipb.ContainerMetadata{ID: hitId},
+			ID:       hitId,
+			Metadata: &apipb.ContainerMetadata{},
 		})
 	}
 
 	containers = append(containers, &Container{
-		Metadata: &apipb.ContainerMetadata{ID: "label-not-hit", Labels: hitLabel},
+		ID:       "label-not-hit",
+		Metadata: &apipb.ContainerMetadata{Labels: hitLabel},
 	})
 
 	containers = append(containers, &Container{
-		Metadata: &apipb.ContainerMetadata{ID: "label-hit", Labels: map[string]string{
+		ID: "label-hit",
+		Metadata: &apipb.ContainerMetadata{Labels: map[string]string{
 			"test-999": "666",
 		}},
 	})
@@ -52,7 +56,7 @@ func TestListFilterById(t *testing.T) {
 	hitContainers := callFilter(containers, ListFilterById(hitId))
 
 	assert.Equal(t, 1, len(hitContainers))
-	assert.Equal(t, hitContainers[0].Metadata.ID, hitId)
+	assert.Equal(t, hitContainers[0].ID, hitId)
 }
 
 func TestListFilterByLabels(t *testing.T) {

@@ -34,7 +34,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var _ NodeOperatorService = &sandboxService{}
+var _ NodeService = &sandboxService{}
 
 // sandboxService is the NodeSandbox-facing facade assembled by NewSandboxService.
 type sandboxService struct {
@@ -68,7 +68,7 @@ type sandboxService struct {
 	capabilityReconcileCancel context.CancelFunc
 	capabilityReconcileWG     sync.WaitGroup
 	controlPlaneReports       *servicecontrolplane.Coordinator
-	allocationStatusOutbox    *nodecontrol.AllocationStatusOutbox
+	allocationLifecycleOutbox *nodecontrol.AllocationLifecycleOutbox
 	memoryObservationMu       sync.Mutex
 	memoryObservationNext     int64
 	memoryObservationReserved int64
@@ -89,7 +89,7 @@ type nodeStateStore interface {
 }
 
 // NewSandboxService creates a new sandbox service from an already parsed config.
-func NewSandboxService(ctx context.Context, cfg config.Config) (NodeOperatorService, error) {
+func NewSandboxService(ctx context.Context, cfg config.Config) (NodeService, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("sandbox service context is required")
 	}
@@ -193,7 +193,7 @@ func newSandboxServiceState(cfg config.Config) (*sandboxService, error) {
 		egressCloser:    egressClient,
 	}
 	if cfg.PluginConfig.ControlPlaneTargetValue() != "" {
-		s.allocationStatusOutbox = nodecontrol.NewAllocationStatusOutbox(stateDB)
+		s.allocationLifecycleOutbox = nodecontrol.NewAllocationLifecycleOutbox(stateDB)
 	}
 	s.capabilityReconcileCtx, s.capabilityReconcileCancel = context.WithCancel(context.Background())
 	s.configureServiceCollaborators()
@@ -250,8 +250,8 @@ func (h *sandboxService) configureServiceCollaborators() {
 	h.configureNetworking()
 	h.configureProcessController()
 	h.configureSandboxControl()
-	h.configureControlPlaneReports()
 	h.configureAllocationController()
+	h.configureControlPlaneReports()
 	h.configureImageProcesses()
 }
 
@@ -260,16 +260,31 @@ func (h *sandboxService) restorePersistentState() error {
 	if err != nil {
 		return err
 	}
-	retained := inventory.retained()
-	if err := h.containerManager.ValidateRuntimeInventory(retained.allByRuntime()); err != nil {
+	if err := h.containerManager.ValidateRuntimeInventory(inventory.allByRuntime()); err != nil {
 		return fmt.Errorf("validate persisted container inventory: %w", err)
 	}
-	if err := h.seedTerminalAllocationStatusOutbox(); err != nil {
+	boundAllocations, err := h.allocationController().RestoreControlPlaneBindings()
+	if err != nil {
+		return fmt.Errorf("validate persisted control-plane allocation bindings: %w", err)
+	}
+	persistedAllocations, err := h.allocationController().PersistedAllocationIDs()
+	if err != nil {
+		return fmt.Errorf("validate persisted allocation authority: %w", err)
+	}
+	durableInventory, discardInventory, err := h.partitionRuntimeInventory(inventory, persistedAllocations, boundAllocations)
+	if err != nil {
+		return err
+	}
+	if err := h.seedTerminalAllocationLifecycleOutbox(boundAllocations); err != nil {
 		return err
 	}
 	if err := h.cleanupTerminalRuntimeContainers(context.Background(), inventory); err != nil {
 		return err
 	}
+	if err := h.cleanupDiscardOnRestartContainers(context.Background(), discardInventory.retained()); err != nil {
+		return err
+	}
+	retained := durableInventory.retained()
 	if err := h.allocationController().RestoreAllocationState(retained.allIDs()); err != nil {
 		return err
 	}
@@ -292,6 +307,60 @@ func (h *sandboxService) restorePersistentState() error {
 		return fmt.Errorf("reconcile persisted resource claims: %w", err)
 	}
 	h.sandboxNetworking().LoadDnatRules()
+	return nil
+}
+
+// partitionRuntimeInventory applies the explicit checkpoint recovery contract
+// before any destructive action. Durable containers require both AllocationState
+// and the independent controld admission binding. Session/self-test containers
+// must be explicitly discardable and may never carry a control-plane binding.
+func (h *sandboxService) partitionRuntimeInventory(inventory runtimeInventory, persistedAllocations, boundAllocations map[string]struct{}) (runtimeInventory, runtimeInventory, error) {
+	durable := make(runtimeInventory, len(inventory))
+	discard := make(runtimeInventory, len(inventory))
+	for runtimeName, states := range inventory {
+		durable[runtimeName] = make(map[string]contract.ContainerStatus)
+		discard[runtimeName] = make(map[string]contract.ContainerStatus)
+		for id, status := range states {
+			item, err := h.containerManager.Get(id)
+			if err != nil || item == nil || item.Metadata == nil {
+				return nil, nil, fmt.Errorf("read recovery contract for runtime %s container %s", runtimeName, id)
+			}
+			_, hasState := persistedAllocations[id]
+			_, bound := boundAllocations[id]
+			switch item.Metadata.GetRecoveryMode() {
+			case runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DURABLE:
+				if !hasState || !bound {
+					return nil, nil, fmt.Errorf("durable runtime container %s is missing AllocationState or control-plane admission binding", id)
+				}
+				durable[runtimeName][id] = status
+			case runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART:
+				if bound {
+					return nil, nil, fmt.Errorf("discard-on-restart container %s has a control-plane admission binding", id)
+				}
+				discard[runtimeName][id] = status
+			default:
+				return nil, nil, fmt.Errorf("runtime container %s has no explicit recovery mode", id)
+			}
+		}
+	}
+	return durable, discard, nil
+}
+
+func (h *sandboxService) cleanupDiscardOnRestartContainers(ctx context.Context, inventory runtimeInventory) error {
+	handlers := h.containerManager.Handlers()
+	sort.Slice(handlers, func(i, j int) bool { return handlers[i].Name() < handlers[j].Name() })
+	for _, handler := range handlers {
+		ids := make([]string, 0, len(inventory[handler.Name()]))
+		for id := range inventory[handler.Name()] {
+			ids = append(ids, id)
+		}
+		sort.Strings(ids)
+		for _, id := range ids {
+			if _, err := handler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{ID: id, Timeout: 0}, contract.HandlerOptions{ContainerID: id, ForceDelete: true}); err != nil && !allocation.IsDeleteNotFound(err) {
+				return fmt.Errorf("delete discard-on-restart %s container %s: %w", handler.Name(), id, err)
+			}
+		}
+	}
 	return nil
 }
 

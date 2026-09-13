@@ -12,7 +12,7 @@ import (
 )
 
 func (s *nodeSandboxServer) Exec(ctx context.Context, req *nodesandboxv1.ExecRequest) (*nodesandboxv1.ExecResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (s *nodeSandboxServer) ExecStream(stream nodesandboxv1.NodeSandbox_ExecStre
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "initial open payload is required")
 	}
-	target, err := s.validateDirectAuth(stream.Context(), open.GetAllocationID(), open.GetAttempt(), open.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(stream.Context(), open.GetAllocationID(), open.GetExecutionLeaseToken())
 	if err != nil {
 		return err
 	}

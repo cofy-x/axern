@@ -30,7 +30,7 @@ type CandidateSelector interface {
 
 type AllocationLifecycle interface {
 	CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, dependencies []*capabilityv1.CapabilityDependency) (*allocationkernel.CapabilityAdmission, error)
-	DeleteAllocation(ctx context.Context, target, allocationID string, attempt int64, nodeID string) error
+	DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string) error
 }
 
 type AuthoritativeStore interface {
@@ -93,11 +93,11 @@ func (p authoritativeRunAccess) CancelRun(ctx context.Context, runID string, now
 		return nil, err
 	}
 	if alloc != nil && strings.TrimSpace(alloc.NodeTarget) != "" {
-		err := p.lifecycle.DeleteAllocation(ctx, alloc.NodeTarget, alloc.AllocationID, alloc.Attempt, alloc.NodeID)
+		err := p.lifecycle.DeleteAllocation(ctx, alloc.NodeTarget, alloc.AllocationID, alloc.NodeID)
 		if err != nil {
 			_ = p.store.ScheduleReconcile(context.Background(), allocationkernel.ScheduleImmediateDeleteRetryRequest(alloc.AllocationID, err.Error(), now), now)
 		} else {
-			_ = p.store.CompleteAllocationRelease(context.Background(), alloc.AllocationID, alloc.Attempt, now)
+			_ = p.store.CompleteAllocationRelease(context.Background(), alloc.AllocationID, now)
 		}
 	}
 	return run, nil

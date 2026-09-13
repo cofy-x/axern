@@ -6,7 +6,7 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
 
-const validRunStatuses = "queued, placed, starting, running, succeeded, failed, cancelled"
+const validRunStatuses = "placed, starting, running, succeeded, failed, cancelled"
 
 func RunStatuses(values []string) ([]runv1.RunStatus, error) {
 	if len(values) == 0 {
@@ -15,8 +15,6 @@ func RunStatuses(values []string) ([]runv1.RunStatus, error) {
 	out := make([]runv1.RunStatus, 0, len(values))
 	for _, value := range splitList(values) {
 		switch normalizeToken(value) {
-		case "queued":
-			out = append(out, runv1.RunStatus_RUN_STATUS_QUEUED)
 		case "placed":
 			out = append(out, runv1.RunStatus_RUN_STATUS_PLACED)
 		case "starting":

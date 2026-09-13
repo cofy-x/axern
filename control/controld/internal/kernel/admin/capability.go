@@ -30,7 +30,6 @@ type CapabilityReconcileItem struct {
 
 type AllocationCapabilityDiagnostics struct {
 	AllocationID, NodeID      string
-	Attempt                   int64
 	CreateAdmissionRecorded   bool
 	CreateDependencySetDigest string
 	CreateAdmittedAt          *time.Time

@@ -4,7 +4,7 @@ const (
 	SpanHTTP                             = "controld.http"
 	SpanGatewayResolveAllocationTerminal = "controld.gateway.resolve_allocation_terminal"
 	SpanNodeReport                       = "controld.node.report"
-	SpanAllocationReportStatus           = "controld.allocation.report_status"
+	SpanAllocationReportLifecycle        = "controld.allocation.report_status"
 	SpanEnvironmentCreate                = "controld.environment.create"
 	SpanEnvironmentDelete                = "controld.environment.delete"
 	SpanRunCreate                        = "controld.run.create"

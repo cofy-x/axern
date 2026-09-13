@@ -24,16 +24,15 @@ import (
 
 type nodeLifecycleServer struct {
 	nodelifecyclev1.UnimplementedNodeLifecycleServer
-	svc     serviceLike
-	nodeID  string
-	targets *AllocationTargetRegistry
+	svc    serviceLike
+	nodeID string
 }
 
 type serviceLike interface {
-	Start(context.Context, *runtimev1.StartRequest) (*runtimev1.StartResponse, error)
-	Delete(context.Context, *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error)
+	StartControlPlaneAllocation(context.Context, string, *runtimev1.StartRequest) (*runtimev1.StartResponse, error)
+	DeleteControlPlaneAllocation(context.Context, string, *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error)
+	HasControlPlaneAllocation(string, string) bool
 	List(context.Context, *runtimev1.ListContainersRequest) (*runtimev1.ListContainersResponse, error)
-	ManagedAllocationAttempt(string) (int64, bool)
 	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error)
 }
 
@@ -48,19 +47,15 @@ const (
 	lifecycleStageValidateRequest   = "validate_request"
 	lifecycleStageBuildStartRequest = "build_start_request"
 	lifecycleStageServiceStart      = "service_start"
-	lifecycleStageBindTarget        = "bind_target"
-	lifecycleStageResolveTarget     = "resolve_target"
 	lifecycleStageServiceDelete     = "service_delete"
 	lifecycleStageConfirmDeleted    = "confirm_deleted"
-	lifecycleStageMarkDeleted       = "mark_deleted"
 	lifecycleStageTotal             = "total"
 )
 
-func NewNodeLifecycleServer(svc serviceLike, nodeID string, targets *AllocationTargetRegistry) nodelifecyclev1.NodeLifecycleServer {
+func NewNodeLifecycleServer(svc serviceLike, nodeID string) nodelifecyclev1.NodeLifecycleServer {
 	return &nodeLifecycleServer{
-		svc:     svc,
-		nodeID:  nodeID,
-		targets: targets,
+		svc:    svc,
+		nodeID: nodeID,
 	}
 }
 
@@ -77,18 +72,8 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
 		return nil, resultErr
 	}
-	if req.GetAttempt() <= 0 {
-		resultErr = grpcstatus.Error(codes.InvalidArgument, "positive allocation attempt is required")
-		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
-		return nil, resultErr
-	}
 	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
 		resultErr = grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
-		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
-		return nil, resultErr
-	}
-	if current, found := s.svc.ManagedAllocationAttempt(req.GetAllocationID()); found && current != req.GetAttempt() {
-		resultErr = grpcstatus.Errorf(codes.FailedPrecondition, "allocation attempt %d does not match current attempt %d", req.GetAttempt(), current)
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
 		return nil, resultErr
 	}
@@ -102,7 +87,7 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 	}
 	recordLifecycleStage(lifecycleOperationCreate, lifecycleStageBuildStartRequest, runtimeClass, stageStarted, nil)
 	stageStarted = time.Now()
-	resp, err := s.svc.Start(ctx, startReq)
+	resp, err := s.svc.StartControlPlaneAllocation(ctx, s.nodeID, startReq)
 	if err != nil {
 		resultErr = err
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageServiceStart, runtimeClass, stageStarted, err)
@@ -114,18 +99,16 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 		return nil, resultErr
 	}
 	recordLifecycleStage(lifecycleOperationCreate, lifecycleStageServiceStart, runtimeClass, stageStarted, nil)
-	stageStarted = time.Now()
-	if resp.GetID() != "" {
-		s.targets.bind(req.GetAllocationID(), resp.GetID())
+	if resp.GetID() != req.GetAllocationID() {
+		resultErr = grpcstatus.Errorf(codes.Internal, "node start returned execution id %q for allocation %q", resp.GetID(), req.GetAllocationID())
+		return nil, resultErr
 	}
-	recordLifecycleStage(lifecycleOperationCreate, lifecycleStageBindTarget, runtimeClass, stageStarted, nil)
 	var workspacePreparation *commonv1.WorkspacePreparationFacts
 	if provider, ok := s.svc.(workspacePreparationProvider); ok {
 		workspacePreparation = provider.WorkspacePreparation(resp.GetID())
 	}
 	return &nodelifecyclev1.CreateAllocationResponse{
 		AllocationID:                   req.GetAllocationID(),
-		Attempt:                        req.GetAttempt(),
 		WorkspacePreparation:           workspacePreparation,
 		CapabilityVerification:         cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
 		AdmittedCapabilityDependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
@@ -175,36 +158,17 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
 		return nil, resultErr
 	}
-	if req.GetAttempt() <= 0 {
-		resultErr = grpcstatus.Error(codes.InvalidArgument, "positive allocation attempt is required")
-		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
-		return nil, resultErr
-	}
 	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
 		resultErr = grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
 		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
 		return nil, resultErr
 	}
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, nil)
-	if s.targets.isDeleted(req.GetAllocationID()) {
-		return &nodelifecyclev1.DeleteAllocationResponse{}, nil
-	}
-	if current, found := s.svc.ManagedAllocationAttempt(req.GetAllocationID()); found && current != req.GetAttempt() {
-		resultErr = grpcstatus.Errorf(codes.FailedPrecondition, "allocation attempt %d does not match current attempt %d", req.GetAttempt(), current)
-		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
-		return nil, resultErr
-	}
 	stageStarted = time.Now()
-	targetID := s.targets.resolve(req.GetAllocationID())
-	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageResolveTarget, "", stageStarted, nil)
-	stageStarted = time.Now()
-	_, err := s.svc.Delete(ctx, &runtimev1.DeleteRequest{ID: targetID, Timeout: req.GetTimeoutSeconds()})
+	_, err := s.svc.DeleteControlPlaneAllocation(ctx, s.nodeID, &runtimev1.DeleteRequest{ID: req.GetAllocationID(), Timeout: req.GetTimeoutSeconds()})
 	if err != nil {
 		if allocationDeleteNotFound(err) {
 			recordLifecycleStage(lifecycleOperationDelete, lifecycleStageServiceDelete, "", stageStarted, nil)
-			stageStarted = time.Now()
-			s.targets.markDeleted(req.GetAllocationID())
-			recordLifecycleStage(lifecycleOperationDelete, lifecycleStageMarkDeleted, "", stageStarted, nil)
 			return &nodelifecyclev1.DeleteAllocationResponse{}, nil
 		}
 		resultErr = err
@@ -213,15 +177,12 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 	}
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageServiceDelete, "", stageStarted, nil)
 	stageStarted = time.Now()
-	if err := s.confirmAllocationDeleted(ctx, targetID); err != nil {
+	if err := s.confirmAllocationDeleted(ctx, req.GetAllocationID()); err != nil {
 		resultErr = err
 		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageConfirmDeleted, "", stageStarted, err)
 		return nil, err
 	}
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageConfirmDeleted, "", stageStarted, nil)
-	stageStarted = time.Now()
-	s.targets.markDeleted(req.GetAllocationID())
-	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageMarkDeleted, "", stageStarted, nil)
 	return &nodelifecyclev1.DeleteAllocationResponse{}, nil
 }
 
@@ -243,27 +204,17 @@ func (s *nodeLifecycleServer) confirmAllocationDeleted(ctx context.Context, targ
 	return grpcstatus.Errorf(codes.Unavailable, "allocation %q still exists after delete", targetID)
 }
 
-func (s *nodeLifecycleServer) GetAllocationStatus(ctx context.Context, req *nodelifecyclev1.GetAllocationStatusRequest) (*nodelifecyclev1.GetAllocationStatusResponse, error) {
+func (s *nodeLifecycleServer) GetAllocationLifecycle(ctx context.Context, req *nodelifecyclev1.GetAllocationLifecycleRequest) (*nodelifecyclev1.GetAllocationLifecycleResponse, error) {
 	if strings.TrimSpace(req.GetAllocationID()) == "" {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
-	}
-	if req.GetAttempt() <= 0 {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "positive allocation attempt is required")
 	}
 	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
 		return nil, grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
 	}
-	if s.targets.isDeleted(req.GetAllocationID()) {
-		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q not found", req.GetAllocationID())
+	if !s.svc.HasControlPlaneAllocation(req.GetAllocationID(), s.nodeID) {
+		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q is not admitted to this node", req.GetAllocationID())
 	}
-	current, found := s.svc.ManagedAllocationAttempt(req.GetAllocationID())
-	if !found {
-		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q not found", req.GetAllocationID())
-	}
-	if current != req.GetAttempt() {
-		return nil, grpcstatus.Errorf(codes.FailedPrecondition, "allocation attempt %d does not match current attempt %d", req.GetAttempt(), current)
-	}
-	resp, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: s.targets.resolve(req.GetAllocationID())})
+	resp, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: req.GetAllocationID()})
 	if err != nil {
 		return nil, err
 	}
@@ -275,11 +226,12 @@ func (s *nodeLifecycleServer) GetAllocationStatus(ctx context.Context, req *node
 	if err != nil {
 		return nil, err
 	}
-	return &nodelifecyclev1.GetAllocationStatusResponse{
-		Status:                         allocationStatusFromContainerState(container.GetState()),
+	return &nodelifecyclev1.GetAllocationLifecycleResponse{
+		State:                          allocationLifecycleStateFromContainerState(container.GetState()),
 		ExitCode:                       container.GetExitCode(),
 		ExitCodeKnown:                  container.GetState() == runtimev1.ContainerState_CONTAINER_EXITED,
 		Message:                        container.GetMessage(),
+		DiagnosticCode:                 container.GetDiagnosticCode(),
 		CapabilityVerification:         cloneCapabilityConditionSet(capabilityVerification),
 		AdmittedCapabilityDependencies: cloneCapabilityDependencies(admittedDependencies),
 	}, nil
@@ -318,7 +270,6 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		RuntimeTemplate:        runtimeTemplate,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
 		ContainerID:            req.GetAllocationID(),
-		AllocationAttempt:      req.GetAttempt(),
 		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
 		Network:                lifecycleNetworkToRuntime(spec.GetNetwork()),
 		EgressPolicy:           cloneNetworkEgressPolicy(spec.GetNetwork().GetEgressPolicy()),
@@ -432,14 +383,14 @@ func lifecycleRootfsConfig(spec *nodelifecyclev1.ResolvedExecutionConfig) (*runt
 	return rootfsConfig, nil
 }
 
-func allocationStatusFromContainerState(state runtimev1.ContainerState) commonv1.AllocationStatus {
+func allocationLifecycleStateFromContainerState(state runtimev1.ContainerState) commonv1.AllocationLifecycleState {
 	switch state {
 	case runtimev1.ContainerState_CONTAINER_RUNNING:
-		return commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING
+		return commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE
 	case runtimev1.ContainerState_CONTAINER_EXITED:
-		return commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED
+		return commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED
 	default:
-		return commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED
+		return commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED
 	}
 }
 

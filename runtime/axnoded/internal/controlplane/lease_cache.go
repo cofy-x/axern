@@ -72,39 +72,39 @@ func (c *LeaseCache) Apply(leases []*commonv1.ExecutionLease) {
 	}
 }
 
-func (c *LeaseCache) Validate(allocationID string, attempt int64, token string, now time.Time) bool {
-	valid, _ := c.validationState(allocationID, attempt, token, now)
+func (c *LeaseCache) Validate(allocationID string, token string, now time.Time) bool {
+	valid, _ := c.validationState(allocationID, token, now)
 	return valid
 }
 
-func (c *LeaseCache) validationState(allocationID string, attempt int64, token string, now time.Time) (valid, known bool) {
-	if c == nil || strings.TrimSpace(allocationID) == "" || attempt <= 0 || strings.TrimSpace(token) == "" {
+func (c *LeaseCache) validationState(allocationID string, token string, now time.Time) (valid, known bool) {
+	if c == nil || strings.TrimSpace(allocationID) == "" || strings.TrimSpace(token) == "" {
 		return false, false
 	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	hash := leaseTokenHash(token)
 	lease, known := c.byToken[hash]
-	if !known || lease == nil || lease.GetAttempt() != attempt || lease.GetAllocationID() != strings.TrimSpace(allocationID) {
+	if !known || lease == nil || lease.GetAllocationID() != strings.TrimSpace(allocationID) {
 		return false, false
 	}
 	return !lease.GetRevoked() && lease.GetExpiresAt() != nil && lease.GetExpiresAt().AsTime().After(now), true
 }
 
-func (c *LeaseCache) WaitValidate(ctx context.Context, allocationID string, attempt int64, token string, now func() time.Time) (bool, bool) {
+func (c *LeaseCache) WaitValidate(ctx context.Context, allocationID string, token string, now func() time.Time) (bool, bool) {
 	if c == nil || now == nil {
 		return false, false
 	}
 	waited := false
 	for {
-		valid, known := c.validationState(allocationID, attempt, token, now())
+		valid, known := c.validationState(allocationID, token, now())
 		if valid || known {
 			return valid, waited
 		}
 		c.mu.RLock()
 		changed := c.changed
 		c.mu.RUnlock()
-		valid, known = c.validationState(allocationID, attempt, token, now())
+		valid, known = c.validationState(allocationID, token, now())
 		if valid || known {
 			return valid, waited
 		}

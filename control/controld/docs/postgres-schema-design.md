@@ -72,17 +72,17 @@ Namespace names are stored on scoped resources for filtering and ownership. Only
 
 ### Runs and allocations
 
-`runs` models one user-visible execution lifecycle. Every Run owns exactly one Allocation through the unique, non-null `allocations.run_id` foreign key. Run rows do not duplicate Allocation identity or attempt state. There is no Service, replica, rollout, or readiness table in the canonical schema.
+`runs` models one user-visible execution lifecycle and is the only durable owner of immutable execution config, public status, result, diagnostics, message, optimistic version, and user-visible timestamps. Every Run owns exactly one Allocation through the unique, non-null `allocations.run_id` foreign key. The uniqueness constraint is intentional: the product does not reschedule one Run onto multiple or replacement Allocations. A retry of execution is a new Run.
 
-`allocations` is the concrete execution unit. Its `run_id` is the only ownership relation; `node_id`, `attempt`, status, and exit fields describe the current concrete execution attempt. For a TaskSet workspace, `workspace_preparation` stores the typed node-observed payload format/digest, cache result, image resolution/pull time, and COW preparation time. Allocation and Run diagnostics expose this fact without parsing node logs.
+`allocations` is the concrete execution unit and infrastructure-convergence record. Its globally unique, never-reused `allocation_id` is the data-plane and cleanup identity; `run_id` is its sole owner and `node_id` is its immutable execution binding. `lifecycle_state` contains only `BOUND`, `STARTING`, `ACTIVE`, `RELEASING`, or `RELEASED`. A node `STOPPED` observation atomically commits result fields to the Run and persists the Allocation as `RELEASING`; it is never stored as an Allocation state. For a workspace image, `workspace_preparation` stores typed node-observed preparation facts. Allocation has no config, public status, exit result, diagnostic, message, or version columns.
 
 `reservations` records admitted CPU, sandbox-memory, and ephemeral-storage requests. `sandbox_memory_request_bytes` is the public request without a runtime overhead side channel. A non-null `released_at` closes the control-plane reservation without erasing accounting history; node admission still honors a larger axnoded local commitment until host cleanup completes.
 
-`allocation_memory_admission_evidence` freezes the node memory budget used by the admission transaction, including distinct physical capacity, source allocatable, delegated-root limit, system reserve, and node-local commitment facts. `allocation_memory_observations` keeps only the latest attempt- and revision-fenced host memcg sample for diagnostics; it is not a second reservation ledger.
+`allocation_memory_admission_evidence` freezes the node memory budget used by the admission transaction, including distinct physical capacity, source allocatable, delegated-root limit, system reserve, and node-local commitment facts. `allocation_memory_observations` keeps only the latest revisioned host memcg sample for an Allocation; it is not a second reservation ledger.
 
-`allocation_capability_dependencies` stores one typed key per allocation with catalog loss policy, placement proof, and create-time admitted proof. `allocation_capability_admissions` is the immutable per-attempt commit marker and stores the canonical admitted dependency-set digest, including the zero-dependency case. The first post-create admission transaction binds the proof rows, projects conditions, and inserts this marker atomically. A retried Create may only replay the exact digest and proof set; it never refreshes the historical create proof. Runtime capability reconciliation is condition-only. The `(node_id, capability_key_id, allocation_id)` index is the authoritative path from a node transition to affected allocations; report processing never scans allocation configuration JSON.
+`allocation_capability_dependencies` stores one typed key per allocation with catalog loss policy, placement proof, and create-time admitted proof. `allocation_capability_admissions` is the immutable per-Allocation commit marker and stores the canonical admitted dependency-set digest, including the zero-dependency case. The first post-create admission transaction binds the proof rows, projects conditions, and inserts this marker atomically. A retried Create may only replay the exact digest and proof set; it never refreshes the historical create proof. Runtime capability reconciliation is condition-only. The `(node_id, capability_key_id, allocation_id)` index is the authoritative path from a node transition to affected allocations; report processing never scans allocation configuration JSON.
 
-`allocation_capability_condition_sets` owns the latest attempt, full-set revision, observation time, and canonical protobuf SHA-256 payload digest. `allocation_capability_conditions` stores the normalized per-key projection and references the same `(allocation_id, attempt, revision)`, so a new allocation attempt can restart its node-local revision while an old attempt remains fenced, and readers cannot observe a partially replaced generation. An exact revision replay is idempotent only when the digest matches; a different payload at the same revision is rejected. Conditions are independent of allocation lifecycle columns and cannot update status, readiness, exit information, or the primary message.
+`allocation_capability_condition_sets` owns the latest full-set revision, observation time, and canonical protobuf SHA-256 payload digest for an Allocation. `allocation_capability_conditions` stores the normalized per-key projection under the same `(allocation_id, revision)`, so readers cannot observe a partially replaced generation. A new Run creates a new Allocation ID and starts its own revision stream. An exact revision replay is idempotent only when the digest matches; a different payload at the same revision is rejected. Conditions are independent of Allocation lifecycle and cannot update Run status, readiness, exit information, or the primary message.
 
 ### Reconciliation and audit
 
@@ -90,7 +90,7 @@ Namespace names are stored on scoped resources for filtering and ownership. Only
 
 `node_capability_transitions` records idempotent effective state, evidence, and bounded reason-code changes. Ordinary TTL refresh without one of those changes does not create history. `allocation_capability_reconcile_queue` owns claim and retry state; `allocation_capability_reconcile_pending_keys` merges the latest snapshot sequence per key. This capability-loss queue is separate from create/delete lifecycle intent.
 
-A node report replaces the latest summary, evaluates effective transitions, inserts idempotent transition rows, and merges pending keys for directly indexed active `DEGRADE` or `FAIL_STOP` dependencies in one transaction. `ADMISSION_ONLY` rows remain durable admission evidence but are never runtime reconcile work. Rollback leaves all four projections unchanged. Capability condition reporting likewise replaces the attempt-fenced set header and normalized rows in one transaction; it has no write path to the allocation lifecycle columns.
+A node report replaces the latest summary, evaluates effective transitions, inserts idempotent transition rows, and merges pending keys for directly indexed active `DEGRADE` or `FAIL_STOP` dependencies in one transaction. `ADMISSION_ONLY` rows remain durable admission evidence but are never runtime reconcile work. Rollback leaves all four projections unchanged. Capability condition reporting likewise replaces the allocation-scoped set header and normalized rows in one transaction; it has no write path to the allocation lifecycle columns.
 
 `admin_audit_events` records operator mutations before lifecycle coordination state changes. It is distinct from quota decisions and workload event history.
 
@@ -106,14 +106,14 @@ sequenceDiagram
   participant Node as "axnoded"
 
   Gateway->>Control: acquire execution lease
-  Control->>DB: persist token hash, attempt, expiry, revision
+  Control->>DB: persist token hash, allocation and node identity, expiry, revision
   Control-->>Gateway: return plaintext token once
   DB-->>Node: notify lease stream changed
   Node->>Control: watch from last revision
   Control-->>Node: hashes, revocations, and expiries
 ```
 
-`execution_leases` binds authorization to an allocation, node, and attempt. Only token hashes are stored. `control_revisions` owns the monotonic revision stream, and the execution-lease trigger wakes watchers without making notifications authoritative state.
+`execution_leases` binds authorization to an exact Allocation ID and Node ID. Only token hashes are stored. `control_revisions` owns the monotonic revision stream, and the execution-lease trigger wakes watchers without making notifications authoritative state.
 
 ## Tunnel Model
 
@@ -124,7 +124,7 @@ erDiagram
   tunnel_sessions ||--o{ tunnel_session_events : records
 ```
 
-`tunnel_sessions` stores the selected allocation attempt, remote port, edge and relay targets, encrypted node token, token hashes, revision, traffic counters, expiry, and revocation state. A partial unique index prevents two active sessions from claiming the same allocation port.
+`tunnel_sessions` stores the selected Allocation ID, remote port, edge and relay targets, encrypted node token, token hashes, revision, traffic counters, expiry, and revocation state. A partial unique index prevents two active sessions from claiming the same allocation port.
 
 `tunnel_session_events` is append-only peer and lifecycle history. The `tunnel_sessions` control revision supports incremental node convergence.
 
@@ -133,7 +133,7 @@ erDiagram
 Indexes follow server-side access paths:
 
 - namespace and creation cursors for list APIs;
-- node/status and run/status for placement and lifecycle projection;
+- node/lifecycle and namespace/run-status indexes for placement and lifecycle projection;
 - partial active indexes for reservations, leases, tunnels, and live Allocations;
 - retention indexes on expiry and creation timestamps;
 

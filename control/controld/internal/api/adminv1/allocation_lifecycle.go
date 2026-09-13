@@ -103,7 +103,6 @@ func lifecycleRetryToProto(item allocationkernel.LifecycleRetryItem) *adminv1.Al
 		Reason:             retryReasonToProto(item.Reason),
 		NodeID:             item.NodeID,
 		NodeTarget:         item.NodeTarget,
-		Attempt:            item.Attempt,
 		ReconcileAttempts:  int32(item.ReconcileAttempts),
 		LastError:          item.LastReconcileError,
 		NextRunAt:          timestamppb.New(item.NextRunAt),

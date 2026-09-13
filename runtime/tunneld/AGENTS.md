@@ -7,7 +7,7 @@
 ## Ownership Boundaries
 
 - `controld` owns tunnel lifecycle, authorization, leases, events, and status; tunneld owns only in-memory relay and peer state.
-- Bind every session to an explicit Allocation and attempt-scoped authorization from the [Stable Domain Model](../../docs/product/domain-model.md).
+- Bind every session to an explicit Allocation and authorization scoped to its exact ID from the [Stable Domain Model](../../docs/product/domain-model.md).
 - Keep relay validation, pairing, revalidation, forwarding, limits, and metrics in `internal/relay`; keep runsc/netns and node lifecycle concepts in the node-side command.
 - Keep the tunnel agent small and static-build-friendly, and keep application protocols above this raw TCP module.
 - Preserve restart tolerance while controld remains authoritative. Keep metrics low-cardinality and never expose session tokens.

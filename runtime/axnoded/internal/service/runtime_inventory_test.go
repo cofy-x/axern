@@ -117,3 +117,49 @@ func TestCollectRuntimeInventoryRejectsInvalidStatus(t *testing.T) {
 	_, err := service.collectRuntimeInventory(context.Background())
 	require.ErrorContains(t, err, "invalid status")
 }
+
+func TestPartitionRuntimeInventoryRequiresExplicitConsistentRecoveryAuthority(t *testing.T) {
+	runsc := runtimetest.NewFakeRuntimeHandler()
+	runsc.RuntimeName = "runsc"
+	service := runtimeInventoryTestService(t, runsc)
+	require.NoError(t, service.containerManager.StoreMetadata("durable", &runtimeapi.ContainerMetadata{
+		RuntimeHandler: "runsc",
+		RecoveryMode:   runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DURABLE,
+	}))
+	require.NoError(t, service.containerManager.StoreMetadata("session", &runtimeapi.ContainerMetadata{
+		RuntimeHandler: "runsc",
+		RecoveryMode:   runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
+	}))
+	inventory := runtimeInventory{"runsc": {
+		"durable": contract.ContainerStatusRunning,
+		"session": contract.ContainerStatusRunning,
+	}}
+
+	durable, discard, err := service.partitionRuntimeInventory(
+		inventory,
+		map[string]struct{}{"durable": {}},
+		map[string]struct{}{"durable": {}},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]struct{}{"durable": {}}, durable.allIDs())
+	assert.Equal(t, map[string]struct{}{"session": {}}, discard.allIDs())
+
+	_, _, err = service.partitionRuntimeInventory(inventory, map[string]struct{}{"durable": {}}, nil)
+	require.ErrorContains(t, err, "missing AllocationState or control-plane admission binding")
+	_, _, err = service.partitionRuntimeInventory(inventory, map[string]struct{}{"durable": {}}, map[string]struct{}{"durable": {}, "session": {}})
+	require.ErrorContains(t, err, "discard-on-restart container session has a control-plane admission binding")
+}
+
+func TestPartitionRuntimeInventoryRejectsImplicitRecoveryMode(t *testing.T) {
+	runsc := runtimetest.NewFakeRuntimeHandler()
+	runsc.RuntimeName = "runsc"
+	service := runtimeInventoryTestService(t, runsc)
+	require.NoError(t, service.containerManager.StoreMetadata("ambiguous", &runtimeapi.ContainerMetadata{RuntimeHandler: "runsc"}))
+
+	_, _, err := service.partitionRuntimeInventory(
+		runtimeInventory{"runsc": {"ambiguous": contract.ContainerStatusRunning}},
+		map[string]struct{}{"ambiguous": {}},
+		map[string]struct{}{"ambiguous": {}},
+	)
+	require.ErrorContains(t, err, "no explicit recovery mode")
+}

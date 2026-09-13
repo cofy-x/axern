@@ -16,12 +16,12 @@ const DefaultSocket = "/run/egressd/egressd.sock"
 
 // Manager is the fail-closed node-local policy lifecycle used by allocation.
 // An implementation must not report Prepare success until its dataplane is
-// active for the exact allocation attempt and sandbox IP.
+// active for the exact allocation and sandbox IP.
 type Manager interface {
-	Prepare(context.Context, string, int64, string, *commonv1.NetworkEgressPolicy, int64, []string) (*runtimeegressv1.PreparedEgressPolicy, error)
-	Delete(context.Context, string, int64) error
-	Get(context.Context, string, int64) (*runtimeegressv1.PreparedEgressPolicy, error)
-	Reconcile(context.Context, []*runtimeegressv1.ActiveEgressPolicy) (*runtimeegressv1.ReconcilePoliciesResponse, error)
+	Prepare(context.Context, string, string, *commonv1.NetworkEgressPolicy, []string) (*runtimeegressv1.PreparedEgressPolicy, error)
+	Delete(context.Context, string) error
+	Get(context.Context, string) (*runtimeegressv1.PreparedEgressPolicy, error)
+	Reconcile(context.Context, []string) (*runtimeegressv1.ReconcilePoliciesResponse, error)
 	Health(context.Context) (*runtimeegressv1.EgressManagerHealth, error)
 }
 
@@ -57,11 +57,11 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Client) Prepare(ctx context.Context, allocationID string, attempt int64, sandboxIP string, policy *commonv1.NetworkEgressPolicy, revision int64, upstreams []string) (*runtimeegressv1.PreparedEgressPolicy, error) {
+func (c *Client) Prepare(ctx context.Context, allocationID string, sandboxIP string, policy *commonv1.NetworkEgressPolicy, upstreams []string) (*runtimeegressv1.PreparedEgressPolicy, error) {
 	if c == nil || c.client == nil {
 		return nil, fmt.Errorf("egressd client is not configured")
 	}
-	resp, err := c.client.PreparePolicy(ctx, &runtimeegressv1.PreparePolicyRequest{AllocationID: allocationID, Attempt: attempt, SandboxIp: sandboxIP, Policy: policy, ExecutionRevision: revision, UpstreamNameservers: append([]string(nil), upstreams...)})
+	resp, err := c.client.PreparePolicy(ctx, &runtimeegressv1.PreparePolicyRequest{AllocationID: allocationID, SandboxIp: sandboxIP, Policy: policy, UpstreamNameservers: append([]string(nil), upstreams...)})
 	if err != nil {
 		return nil, err
 	}
@@ -71,30 +71,30 @@ func (c *Client) Prepare(ctx context.Context, allocationID string, attempt int64
 	return resp.GetPolicy(), nil
 }
 
-func (c *Client) Delete(ctx context.Context, allocationID string, attempt int64) error {
+func (c *Client) Delete(ctx context.Context, allocationID string) error {
 	if c == nil || c.client == nil {
 		return fmt.Errorf("egressd client is not configured")
 	}
-	_, err := c.client.DeletePolicy(ctx, &runtimeegressv1.DeletePolicyRequest{AllocationID: allocationID, Attempt: attempt})
+	_, err := c.client.DeletePolicy(ctx, &runtimeegressv1.DeletePolicyRequest{AllocationID: allocationID})
 	return err
 }
 
-func (c *Client) Get(ctx context.Context, allocationID string, attempt int64) (*runtimeegressv1.PreparedEgressPolicy, error) {
+func (c *Client) Get(ctx context.Context, allocationID string) (*runtimeegressv1.PreparedEgressPolicy, error) {
 	if c == nil || c.client == nil {
 		return nil, fmt.Errorf("egressd client is not configured")
 	}
-	resp, err := c.client.GetPolicy(ctx, &runtimeegressv1.GetPolicyRequest{AllocationID: allocationID, Attempt: attempt})
+	resp, err := c.client.GetPolicy(ctx, &runtimeegressv1.GetPolicyRequest{AllocationID: allocationID})
 	if err != nil {
 		return nil, err
 	}
 	return resp.GetPolicy(), nil
 }
 
-func (c *Client) Reconcile(ctx context.Context, active []*runtimeegressv1.ActiveEgressPolicy) (*runtimeegressv1.ReconcilePoliciesResponse, error) {
+func (c *Client) Reconcile(ctx context.Context, allocationIDs []string) (*runtimeegressv1.ReconcilePoliciesResponse, error) {
 	if c == nil || c.client == nil {
 		return nil, fmt.Errorf("egressd client is not configured")
 	}
-	return c.client.ReconcilePolicies(ctx, &runtimeegressv1.ReconcilePoliciesRequest{ActivePolicies: active})
+	return c.client.ReconcilePolicies(ctx, &runtimeegressv1.ReconcilePoliciesRequest{AllocationIds: append([]string(nil), allocationIDs...)})
 }
 
 func (c *Client) Health(ctx context.Context) (*runtimeegressv1.EgressManagerHealth, error) {

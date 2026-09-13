@@ -7,7 +7,6 @@ import (
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,8 +103,7 @@ func TestFileOperationsBridgeToRuntimeFileService(t *testing.T) {
 	assert.Equal(t, int64(7), handler.touchRequests[0].GetMtimeNs())
 	require.NotEmpty(t, handler.fileOptions)
 	assert.Equal(t, "axctl-file-bridge", handler.fileOptions[0].ContainerID)
-	assert.Equal(t, "true", handler.fileOptions[0].ContainerLabels[runtimesandboxd.LabelReady])
-	assert.Contains(t, handler.fileOptions[0].ContainerLabels[runtimesandboxd.LabelCapabilities], "file")
+	assert.Empty(t, handler.fileOptions[0].ContainerLabels)
 }
 
 func TestArchiveOperationsBridgeToRuntimeFileService(t *testing.T) {
@@ -135,5 +133,5 @@ func TestArchiveOperationsBridgeToRuntimeFileService(t *testing.T) {
 	assert.Equal(t, "archive", output.String())
 	require.Len(t, handler.fileOptions, 2)
 	assert.Equal(t, "axctl-archive-bridge", handler.fileOptions[0].ContainerID)
-	assert.Contains(t, handler.fileOptions[0].ContainerLabels[runtimesandboxd.LabelCapabilities], "archive")
+	assert.Empty(t, handler.fileOptions[0].ContainerLabels)
 }

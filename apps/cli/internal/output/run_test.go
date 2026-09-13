@@ -16,12 +16,11 @@ func TestRenderRun(t *testing.T) {
 		Namespace:     "default",
 		EnvironmentID: "env-1",
 		AllocationID:  "alloc-1",
-		Attempt:       2,
 		Status:        runv1.RunStatus_RUN_STATUS_RUNNING,
 		Message:       "starting workload",
 	})
 	out := b.String()
-	for _, want := range []string{"ID: run-1", "Namespace: default", "Status: running", "Allocation ID: alloc-1", "Attempt: 2", "Message: starting workload"} {
+	for _, want := range []string{"ID: run-1", "Namespace: default", "Status: running", "Allocation ID: alloc-1", "Message: starting workload"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output %q does not contain %q", out, want)
 		}
@@ -56,12 +55,11 @@ func TestRenderRunTable(t *testing.T) {
 		ID:        "run-1",
 		Namespace: "team-a",
 		Status:    runv1.RunStatus_RUN_STATUS_FAILED,
-		Attempt:   3,
 		CreatedAt: timestamppb.Now(),
 		UpdatedAt: timestamppb.Now(),
 	}})
 	out := b.String()
-	for _, want := range []string{"ID", "NAMESPACE", "AGE", "run-1", "team-a", "failed", "3"} {
+	for _, want := range []string{"ID", "NAMESPACE", "AGE", "run-1", "team-a", "failed"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output %q does not contain %q", out, want)
 		}

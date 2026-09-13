@@ -123,10 +123,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         return self.state.allocation_id
 
     @property
-    def attempt(self) -> int:
-        return self.state.attempt
-
-    @property
     def node_id(self) -> str:
         return self.state.node_id
 
@@ -145,7 +141,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
             environment_id=state.environment_id,
             run_id=state.run_id,
             allocation_id=state.allocation_id,
-            attempt=state.attempt,
             node_id=state.node_id,
             runtime_class=self._runtime_class,
             tunnel_session_id=state.tunnel_session_id,
@@ -228,7 +223,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
                 environment_id=environment_id,
                 run_id=run.id,
                 allocation_id=run.allocation_id,
-                attempt=run.attempt,
                 node_id=run.node_id,
                 tunnel_session_id=tunnel_session_id,
                 bound_addr=bound_addr,

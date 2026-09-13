@@ -75,7 +75,7 @@ make quickstart-source
 ## 为什么选择 Axern
 
 - **沙箱即原语：** 评测、训练、数据合成、编码工作区和 agent 任务都组合自同一套 Run 执行模型。
-- **持久化控制平面：** 以 PostgreSQL 为后端的意图、放置、租约、attempt-fenced 状态、健康和清理信息，在进程或节点重启后依然保持权威。
+- **持久化控制平面：** 以 PostgreSQL 为后端的意图、放置、租约、Allocation 级状态、健康和清理信息，在进程或节点重启后依然保持权威。
 - **单一生产运行时：** runsc 工作负载使用相同的公共 API；OCI 与 Nydus 镜像路径在节点运行时汇聚。
 - **真实的数据面访问：** 进程流、文件、归档、SSH 兼容终端和反向 TCP 隧道都是 allocation 的显式能力。
 - **本地到集群的连续性：** Docker Compose、kind 和云中立的 Helm chart 验证相同的组件边界。

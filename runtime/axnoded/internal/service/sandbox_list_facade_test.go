@@ -40,7 +40,6 @@ func TestList_WithStoredContainer(t *testing.T) {
 
 	containerID := "axctl-test-list-001"
 	meta := &apipb.ContainerMetadata{
-		ID:             containerID,
 		RuntimeHandler: "runsc",
 		Labels:         map[string]string{"env": "test"},
 		Stdout:         "/tmp/stdout.log",
@@ -71,7 +70,6 @@ func TestConfigureSandboxControlDefersContainerManagerLookup(t *testing.T) {
 	})
 	containerID := "axctl-sandbox-control-deferred"
 	base.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		ID:             containerID,
 		RuntimeHandler: "runsc",
 	})
 	time.Sleep(200 * time.Millisecond)
@@ -94,7 +92,6 @@ func TestList_ByLabel(t *testing.T) {
 
 	containerID := "axctl-test-label-001"
 	meta := &apipb.ContainerMetadata{
-		ID:             containerID,
 		RuntimeHandler: "runsc",
 		Labels:         map[string]string{"app": "myapp"},
 	}

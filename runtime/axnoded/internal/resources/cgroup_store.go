@@ -241,7 +241,7 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE:
 		if lease.GetAllocationID() != "" || lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 ||
 			lease.GetCapacityReservationBytes() != 0 ||
-			lease.GetAllocationAttempt() != 0 || lease.GetRuntimeName() != "" || lease.GetAssignedAtUnixNano() != 0 ||
+			lease.GetRuntimeName() != "" || lease.GetAssignedAtUnixNano() != 0 ||
 			lease.GetRetiringAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) ||
 			lease.GetOwnerKind() != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED {
 			return fmt.Errorf("idle cgroup %s contains allocation ownership", lease.GetCgroupID())
@@ -268,7 +268,7 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 	default:
 		return fmt.Errorf("cgroup %s has invalid lifecycle state %s", lease.GetCgroupID(), lease.GetState())
 	}
-	if lease.GetMemoryRequestBytes() < 0 || lease.GetMemoryLimitBytes() < 0 || lease.GetCapacityReservationBytes() < 0 || lease.GetAllocationAttempt() < 0 || lease.GetCurrentChargedBytes() < 0 {
+	if lease.GetMemoryRequestBytes() < 0 || lease.GetMemoryLimitBytes() < 0 || lease.GetCapacityReservationBytes() < 0 || lease.GetCurrentChargedBytes() < 0 {
 		return fmt.Errorf("cgroup %s has negative memory accounting", lease.GetCgroupID())
 	}
 	if lease.GetMemoryLimitBytes() > 0 && lease.GetMemoryRequestBytes() > lease.GetMemoryLimitBytes() {
@@ -431,11 +431,11 @@ func (c *CgroupManager) RetiringMemoryLeases() []RetiringMemoryLease {
 	for item := range c.leases.IterBuffered() {
 		lease := item.Val
 		if lease == nil || lease.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING ||
-			lease.GetAllocationID() == "" || lease.GetAllocationAttempt() <= 0 {
+			lease.GetAllocationID() == "" {
 			continue
 		}
 		result = append(result, RetiringMemoryLease{
-			CgroupID: lease.GetCgroupID(), AllocationID: lease.GetAllocationID(), AllocationAttempt: lease.GetAllocationAttempt(),
+			CgroupID: lease.GetCgroupID(), AllocationID: lease.GetAllocationID(),
 			MemoryRequest: lease.GetMemoryRequestBytes(), MemoryLimit: lease.GetMemoryLimitBytes(), RuntimeName: lease.GetRuntimeName(),
 			BootID: lease.GetCgroupBootID(), MountIdentity: lease.GetCgroupMountIdentity(),
 			ParentInode: lease.GetCgroupParentInode(), LeafInode: lease.GetCgroupLeafInode(),

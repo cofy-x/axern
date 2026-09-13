@@ -18,7 +18,7 @@ func TestStartupObservationDurationSinceClampsNonPositiveDuration(t *testing.T) 
 	}
 }
 
-func TestStartManagedContainerReservesMemoryBeforeImageOrRootfsSideEffects(t *testing.T) {
+func TestStartAllocationReservesMemoryBeforeImageOrRootfsSideEffects(t *testing.T) {
 	handler := &runtimeSpyHandler{
 		name:         "runsc",
 		requirements: contract.RuntimeRequirements{Resources: []resourcemanager.ResourceName{resourcemanager.CgroupResourceName}},
@@ -37,16 +37,16 @@ func TestStartManagedContainerReservesMemoryBeforeImageOrRootfsSideEffects(t *te
 		},
 		Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{MemoryBytes: 256 << 20}},
 	}
-	if _, err := fixture.controller.startManagedContainer(context.Background(), request); err == nil {
-		t.Fatal("startManagedContainer() accepted rejected node-local admission")
+	if _, err := fixture.controller.startAllocation(context.Background(), request); err == nil {
+		t.Fatal("startAllocation() accepted rejected node-local admission")
 	}
 	if handler.createCalls != 0 || len(fixture.lrtManager.List()) != 0 {
 		t.Fatalf("side effects after rejected admission: runtime=%d rootfs=%d", handler.createCalls, len(fixture.lrtManager.List()))
 	}
 }
 
-func TestStartManagedContainerPreservesFastExitStatus(t *testing.T) {
-	const containerID = "alloc-managed-fast-exit"
+func TestStartAllocationPreservesFastExitStatus(t *testing.T) {
+	const containerID = "alloc-fast-exit"
 	releaseExit := make(chan struct{})
 	handler := &runtimeSpyHandler{
 		name: "runsc",
@@ -66,10 +66,10 @@ func TestStartManagedContainerPreservesFastExitStatus(t *testing.T) {
 	}
 	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
 
-	response, err := fixture.controller.startManagedContainer(context.Background(), &runtimeapi.StartRequest{
+	response, err := fixture.controller.startAllocation(context.Background(), &runtimeapi.StartRequest{
 		ContainerID: containerID,
 		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
-			ID:      "runtime-managed-fast-exit",
+			ID:      "runtime-fast-exit",
 			Sandbox: "runsc",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,
@@ -79,7 +79,7 @@ func TestStartManagedContainerPreservesFastExitStatus(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("startManagedContainer() error = %v", err)
+		t.Fatalf("startAllocation() error = %v", err)
 	}
 	if response.GetID() != containerID {
 		t.Fatalf("container id = %q, want %q", response.GetID(), containerID)
@@ -87,7 +87,7 @@ func TestStartManagedContainerPreservesFastExitStatus(t *testing.T) {
 	assertExactContainerExit(t, fixture, containerID, 42)
 }
 
-func TestStartManagedContainerSerializesDuplicateAllocationStarts(t *testing.T) {
+func TestStartAllocationSerializesDuplicateAllocationStarts(t *testing.T) {
 	rootfsDir := t.TempDir()
 	createEntered := make(chan struct{})
 	releaseCreate := make(chan struct{})
@@ -132,7 +132,7 @@ func TestStartManagedContainerSerializesDuplicateAllocationStarts(t *testing.T) 
 
 	firstDone := make(chan error, 1)
 	go func() {
-		_, err := fixture.controller.startManagedContainer(context.Background(), request)
+		_, err := fixture.controller.startAllocation(context.Background(), request)
 		firstDone <- err
 	}()
 
@@ -148,7 +148,7 @@ func TestStartManagedContainerSerializesDuplicateAllocationStarts(t *testing.T) 
 	}
 	secondDone := make(chan startResult, 1)
 	go func() {
-		resp, err := fixture.controller.startManagedContainer(context.Background(), request)
+		resp, err := fixture.controller.startAllocation(context.Background(), request)
 		secondDone <- startResult{resp: resp, err: err}
 	}()
 

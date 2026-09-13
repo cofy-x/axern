@@ -108,7 +108,7 @@ func requireNodeRetirementClear(ctx context.Context, tx pgx.Tx, req adminkernel.
 		query string
 		args  []any
 	}{
-		{"active allocation(s)", `SELECT COUNT(*) FROM allocations WHERE node_id = $1 AND status NOT IN ($2, $3, $4)`, []any{req.NodeID, commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(), commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String()}},
+		{"unreleased allocation(s)", `SELECT COUNT(*) FROM allocations WHERE node_id = $1 AND lifecycle_state <> $2`, []any{req.NodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()}},
 		{"active reservation(s)", `SELECT COUNT(*) FROM reservations WHERE node_id = $1 AND released_at IS NULL`, []any{req.NodeID}},
 		{"active execution lease(s)", `SELECT COUNT(*) FROM execution_leases WHERE node_id = $1 AND revoked = FALSE AND expires_at > $2`, []any{req.NodeID, req.Now}},
 		{"active tunnel session(s)", `SELECT COUNT(*) FROM tunnel_sessions WHERE node_id = $1 AND revoked = FALSE AND status IN ($2, $3, $4)`, []any{req.NodeID, tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_PENDING.String(), tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(), tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_DEGRADED.String()}},

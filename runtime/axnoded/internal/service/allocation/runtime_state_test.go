@@ -53,7 +53,7 @@ func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	assert.Equal(t, template.GetID(), persisted.GetRuntimeTemplate().GetID())
 
 	second := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()}, store)
-	second.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{ID: allocationID, RuntimeHandler: "runsc"})
+	second.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
 	time.Sleep(200 * time.Millisecond)
 	assert.NoError(t, second.controller.loadAllocationStates(map[string]struct{}{allocationID: {}}))
 	restored, ok := second.controller.runtimeMapping(allocationID)

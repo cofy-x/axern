@@ -11,6 +11,7 @@ import (
 
 func TestContainer_EnvValue(t *testing.T) {
 	type fields struct {
+		ID       string
 		Metadata *apipb.ContainerMetadata
 		Status   StatusStorage
 		Spec     *spec.Spec
@@ -28,6 +29,7 @@ func TestContainer_EnvValue(t *testing.T) {
 		{
 			name: "test",
 			fields: fields{
+				ID: "123",
 				Spec: &spec.Spec{
 					Process: &spec.Process{
 						Env: []string{"a=1", "b=2"},
@@ -53,6 +55,7 @@ func TestContainer_EnvValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &Container{
+				ID:       tt.fields.ID,
 				Metadata: tt.fields.Metadata,
 				Status:   tt.fields.Status,
 				Spec:     tt.fields.Spec,
@@ -67,6 +70,7 @@ func TestContainer_EnvValue(t *testing.T) {
 
 func TestContainer_ApiStatus(t *testing.T) {
 	type fields struct {
+		ID       string
 		Metadata *apipb.ContainerMetadata
 		Status   StatusStorage
 		Spec     *spec.Spec
@@ -80,8 +84,8 @@ func TestContainer_ApiStatus(t *testing.T) {
 		{
 			name: "test",
 			fields: fields{
+				ID: "123",
 				Metadata: &apipb.ContainerMetadata{
-					ID:             "123",
 					RuntimeHandler: "runsc",
 					Labels: map[string]string{
 						"test": "test",
@@ -133,7 +137,6 @@ func TestContainer_ApiStatus(t *testing.T) {
 			name: "test for empty status",
 			fields: fields{
 				Metadata: &apipb.ContainerMetadata{
-					ID:             "123",
 					RuntimeHandler: "runsc",
 					Labels: map[string]string{
 						"test": "test",
@@ -156,6 +159,7 @@ func TestContainer_ApiStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &Container{
+				ID:       tt.fields.ID,
 				Metadata: tt.fields.Metadata,
 				Status:   tt.fields.Status,
 				Spec:     tt.fields.Spec,

@@ -15,17 +15,17 @@ import (
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
 
-func TestAllocationStatusBatcherCoalescesLatestObservation(t *testing.T) {
-	batches := make(chan []*nodev1.AllocationStatusObservation, 1)
-	batcher := newAllocationStatusBatcher(func(_ context.Context, observations []*nodev1.AllocationStatusObservation) error {
+func TestAllocationLifecycleStateBatcherCoalescesLatestObservation(t *testing.T) {
+	batches := make(chan []*nodev1.AllocationLifecycleObservation, 1)
+	batcher := newAllocationLifecycleBatcher(func(_ context.Context, observations []*nodev1.AllocationLifecycleObservation) error {
 		batches <- observations
 		return nil
 	})
 	batcher.Start()
 	defer batcher.Stop()
 
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, false))
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, true))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, false))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, true))
 
 	batch := awaitStatusBatch(t, batches)
 	if len(batch) != 1 || !batch[0].GetReady() {
@@ -33,29 +33,29 @@ func TestAllocationStatusBatcherCoalescesLatestObservation(t *testing.T) {
 	}
 }
 
-func TestAllocationStatusBatcherPreservesTerminalObservation(t *testing.T) {
-	batches := make(chan []*nodev1.AllocationStatusObservation, 1)
-	batcher := newAllocationStatusBatcher(func(_ context.Context, observations []*nodev1.AllocationStatusObservation) error {
+func TestAllocationLifecycleStateBatcherPreservesTerminalObservation(t *testing.T) {
+	batches := make(chan []*nodev1.AllocationLifecycleObservation, 1)
+	batcher := newAllocationLifecycleBatcher(func(_ context.Context, observations []*nodev1.AllocationLifecycleObservation) error {
 		batches <- observations
 		return nil
 	})
 	batcher.Start()
 	defer batcher.Stop()
 
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, false))
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, true))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, false))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, true))
 
 	batch := awaitStatusBatch(t, batches)
-	if len(batch) != 1 || batch[0].GetStatus() != commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED {
+	if len(batch) != 1 || batch[0].GetState() != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED {
 		t.Fatalf("batch = %#v, want terminal observation", batch)
 	}
 }
 
-func TestAllocationStatusBatcherRetriesFailedBatch(t *testing.T) {
+func TestAllocationLifecycleStateBatcherRetriesFailedBatch(t *testing.T) {
 	var mu sync.Mutex
 	calls := 0
-	batches := make(chan []*nodev1.AllocationStatusObservation, 1)
-	batcher := newAllocationStatusBatcher(func(_ context.Context, observations []*nodev1.AllocationStatusObservation) error {
+	batches := make(chan []*nodev1.AllocationLifecycleObservation, 1)
+	batcher := newAllocationLifecycleBatcher(func(_ context.Context, observations []*nodev1.AllocationLifecycleObservation) error {
 		mu.Lock()
 		defer mu.Unlock()
 		calls++
@@ -68,7 +68,7 @@ func TestAllocationStatusBatcherRetriesFailedBatch(t *testing.T) {
 	batcher.Start()
 	defer batcher.Stop()
 
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, true))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, true))
 	batch := awaitStatusBatch(t, batches)
 	if len(batch) != 1 || batch[0].GetAllocationID() != "alloc-1" {
 		t.Fatalf("batch = %#v, want retried observation", batch)
@@ -90,13 +90,13 @@ func TestAllocationStatusBatcherRetriesFailedBatch(t *testing.T) {
 	t.Fatalf("reporter did not recover: %#v", batcher.Health())
 }
 
-func TestAllocationStatusBatcherRetryKeepsTerminalOverConcurrentNonterminal(t *testing.T) {
+func TestAllocationLifecycleStateBatcherRetryKeepsTerminalOverConcurrentNonterminal(t *testing.T) {
 	firstSend := make(chan struct{})
 	releaseFirstSend := make(chan struct{})
-	batches := make(chan []*nodev1.AllocationStatusObservation, 1)
+	batches := make(chan []*nodev1.AllocationLifecycleObservation, 1)
 	var calls int
 	var mu sync.Mutex
-	batcher := newAllocationStatusBatcher(func(_ context.Context, observations []*nodev1.AllocationStatusObservation) error {
+	batcher := newAllocationLifecycleBatcher(func(_ context.Context, observations []*nodev1.AllocationLifecycleObservation) error {
 		mu.Lock()
 		calls++
 		call := calls
@@ -112,26 +112,26 @@ func TestAllocationStatusBatcherRetryKeepsTerminalOverConcurrentNonterminal(t *t
 	batcher.Start()
 	defer batcher.Stop()
 
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, false))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, false))
 	select {
 	case <-firstSend:
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for first send")
 	}
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, true))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, true))
 	close(releaseFirstSend)
 
 	batch := awaitStatusBatch(t, batches)
-	if len(batch) != 1 || batch[0].GetStatus() != commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED {
+	if len(batch) != 1 || batch[0].GetState() != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED {
 		t.Fatalf("retried batch = %#v, want terminal observation", batch)
 	}
 }
 
-func TestAllocationStatusBatcherSuccessKeepsTerminalOverConcurrentNonterminal(t *testing.T) {
+func TestAllocationLifecycleStateBatcherSuccessKeepsTerminalOverConcurrentNonterminal(t *testing.T) {
 	firstSend := make(chan struct{})
 	releaseFirstSend := make(chan struct{})
-	batches := make(chan []*nodev1.AllocationStatusObservation, 2)
-	batcher := newAllocationStatusBatcher(func(_ context.Context, observations []*nodev1.AllocationStatusObservation) error {
+	batches := make(chan []*nodev1.AllocationLifecycleObservation, 2)
+	batcher := newAllocationLifecycleBatcher(func(_ context.Context, observations []*nodev1.AllocationLifecycleObservation) error {
 		batches <- observations
 		select {
 		case <-firstSend:
@@ -144,17 +144,17 @@ func TestAllocationStatusBatcherSuccessKeepsTerminalOverConcurrentNonterminal(t 
 	batcher.Start()
 	defer batcher.Stop()
 
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, false))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, false))
 	select {
 	case <-firstSend:
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for first send")
 	}
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, true))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, true))
 	close(releaseFirstSend)
 
 	first := awaitStatusBatch(t, batches)
-	if len(first) != 1 || first[0].GetStatus() != commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED {
+	if len(first) != 1 || first[0].GetState() != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED {
 		t.Fatalf("first batch = %#v, want terminal observation", first)
 	}
 	select {
@@ -167,18 +167,18 @@ func TestAllocationStatusBatcherSuccessKeepsTerminalOverConcurrentNonterminal(t 
 	}
 }
 
-func TestAllocationStatusBatcherStartPublishesIdleHealthMetrics(t *testing.T) {
+func TestAllocationLifecycleStateBatcherStartPublishesIdleHealthMetrics(t *testing.T) {
 	metrics.ResetForTest()
-	batcher := newAllocationStatusBatcher(func(context.Context, []*nodev1.AllocationStatusObservation) error {
+	batcher := newAllocationLifecycleBatcher(func(context.Context, []*nodev1.AllocationLifecycleObservation) error {
 		return nil
 	})
 	batcher.Start()
 	defer batcher.Stop()
 
 	want := map[string]bool{
-		metrics.MetricAllocationStatusOldestPendingAge:    false,
-		metrics.MetricAllocationStatusConsecutiveFailures: false,
-		metrics.MetricAllocationStatusRetryDelay:          false,
+		metrics.MetricAllocationLifecycleOldestPendingAge:    false,
+		metrics.MetricAllocationLifecycleConsecutiveFailures: false,
+		metrics.MetricAllocationLifecycleRetryDelay:          false,
 	}
 	for _, point := range metrics.SnapshotCurrent().Points {
 		if _, ok := want[point.Name]; ok {
@@ -195,10 +195,10 @@ func TestAllocationStatusBatcherStartPublishesIdleHealthMetrics(t *testing.T) {
 	}
 }
 
-func TestAllocationStatusBatcherBacksOffWithoutNewEventBypass(t *testing.T) {
+func TestAllocationLifecycleStateBatcherBacksOffWithoutNewEventBypass(t *testing.T) {
 	metrics.ResetForTest()
 	calls := make(chan time.Time, 8)
-	batcher := newAllocationStatusBatcher(func(_ context.Context, _ []*nodev1.AllocationStatusObservation) error {
+	batcher := newAllocationLifecycleBatcher(func(_ context.Context, _ []*nodev1.AllocationLifecycleObservation) error {
 		calls <- time.Now()
 		return errors.New("control plane unavailable")
 	})
@@ -208,12 +208,12 @@ func TestAllocationStatusBatcherBacksOffWithoutNewEventBypass(t *testing.T) {
 	batcher.jitter = func(delay time.Duration) time.Duration { return delay }
 	batcher.Start()
 
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, true))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, true))
 	first := <-calls
-	batcher.Enqueue(statusObservation("alloc-2", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, false))
+	batcher.Enqueue(statusObservation("alloc-2", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, false))
 
 	deadline := time.Now().Add(time.Second)
-	var health AllocationStatusReporterHealth
+	var health AllocationLifecycleReporterHealth
 	for time.Now().Before(deadline) {
 		health = batcher.Health()
 		if health.Status == "retrying" {
@@ -230,7 +230,7 @@ func TestAllocationStatusBatcherBacksOffWithoutNewEventBypass(t *testing.T) {
 	if health.RetryDelaySec != 0.12 || health.NextRetryAt == nil || health.LastError == "" {
 		t.Fatalf("retry diagnostics = %#v", health)
 	}
-	if got := metrics.GaugeValueForTest(metrics.MetricAllocationStatusConsecutiveFailures, nil); got != 1 {
+	if got := metrics.GaugeValueForTest(metrics.MetricAllocationLifecycleConsecutiveFailures, nil); got != 1 {
 		t.Fatalf("consecutive failure gauge = %v, want 1", got)
 	}
 
@@ -249,13 +249,13 @@ func TestAllocationStatusBatcherBacksOffWithoutNewEventBypass(t *testing.T) {
 	}
 }
 
-func TestNextAllocationStatusRetryDelayIsBounded(t *testing.T) {
+func TestNextAllocationLifecycleStateRetryDelayIsBounded(t *testing.T) {
 	initial := 100 * time.Millisecond
 	maximum := 800 * time.Millisecond
 	got := make([]time.Duration, 0, 6)
 	var previous time.Duration
 	for range 6 {
-		previous = nextAllocationStatusRetryDelay(previous, initial, maximum)
+		previous = nextAllocationLifecycleStateRetryDelay(previous, initial, maximum)
 		got = append(got, previous)
 	}
 	want := []time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond, 800 * time.Millisecond, 800 * time.Millisecond}
@@ -266,10 +266,10 @@ func TestNextAllocationStatusRetryDelayIsBounded(t *testing.T) {
 	}
 }
 
-func TestAllocationStatusRetryJitterIsBounded(t *testing.T) {
+func TestAllocationLifecycleStateRetryJitterIsBounded(t *testing.T) {
 	base := time.Second
 	for range 1000 {
-		got := allocationStatusRetryJitter(base)
+		got := allocationLifecycleRetryJitter(base)
 		if got < 800*time.Millisecond || got > 1200*time.Millisecond {
 			t.Fatalf("jittered delay = %s, want [800ms, 1.2s]", got)
 		}
@@ -277,9 +277,9 @@ func TestAllocationStatusRetryJitterIsBounded(t *testing.T) {
 }
 
 func TestBoundedReporterErrorLimitsUTF8Bytes(t *testing.T) {
-	got := boundedReporterError(errors.New(strings.Repeat("错", allocationStatusLastErrorMaxBytes)))
-	if len(got) > allocationStatusLastErrorMaxBytes {
-		t.Fatalf("last error bytes = %d, want <= %d", len(got), allocationStatusLastErrorMaxBytes)
+	got := boundedReporterError(errors.New(strings.Repeat("错", allocationLifecycleLastErrorMaxBytes)))
+	if len(got) > allocationLifecycleLastErrorMaxBytes {
+		t.Fatalf("last error bytes = %d, want <= %d", len(got), allocationLifecycleLastErrorMaxBytes)
 	}
 	if !utf8.ValidString(got) {
 		t.Fatalf("last error is not valid UTF-8: %q", got)
@@ -291,18 +291,18 @@ func TestBoundedReporterErrorLimitsUTF8Bytes(t *testing.T) {
 	}
 }
 
-func TestAllocationStatusBatcherDoesNotBlockProducer(t *testing.T) {
+func TestAllocationLifecycleStateBatcherDoesNotBlockProducer(t *testing.T) {
 	sendStarted := make(chan struct{})
 	releaseSend := make(chan struct{})
 	var sendStartedOnce sync.Once
-	batcher := newAllocationStatusBatcher(func(_ context.Context, _ []*nodev1.AllocationStatusObservation) error {
+	batcher := newAllocationLifecycleBatcher(func(_ context.Context, _ []*nodev1.AllocationLifecycleObservation) error {
 		sendStartedOnce.Do(func() { close(sendStarted) })
 		<-releaseSend
 		return nil
 	})
 	batcher.Start()
 
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, false))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, false))
 	select {
 	case <-sendStarted:
 	case <-time.After(time.Second):
@@ -316,7 +316,7 @@ func TestAllocationStatusBatcherDoesNotBlockProducer(t *testing.T) {
 	}
 	done := make(chan struct{})
 	go func() {
-		batcher.Enqueue(statusObservation("alloc-2", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, false))
+		batcher.Enqueue(statusObservation("alloc-2", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, false))
 		close(done)
 	}()
 	select {
@@ -334,17 +334,17 @@ func TestAllocationStatusBatcherDoesNotBlockProducer(t *testing.T) {
 	}
 }
 
-func TestAllocationStatusBatcherAcknowledgementDoesNotDropNewerPendingStatus(t *testing.T) {
-	batcher := newAllocationStatusBatcher(func(context.Context, []*nodev1.AllocationStatusObservation) error {
+func TestAllocationLifecycleStateBatcherAcknowledgementDoesNotDropNewerPendingStatus(t *testing.T) {
+	batcher := newAllocationLifecycleBatcher(func(context.Context, []*nodev1.AllocationLifecycleObservation) error {
 		return nil
 	})
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, false))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, false))
 	first := batcher.drain(1)
 	if len(first) != 1 {
 		t.Fatalf("first batch length = %d, want 1", len(first))
 	}
 
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, true))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, true))
 	batcher.acknowledge(first)
 
 	if got := batcher.UnacknowledgedAllocationIDs(); len(got) != 1 || got[0] != "alloc-1" {
@@ -354,16 +354,16 @@ func TestAllocationStatusBatcherAcknowledgementDoesNotDropNewerPendingStatus(t *
 		t.Fatalf("pending after old acknowledgement = %d, want 1", pending)
 	}
 	latest := batcher.drain(1)
-	if len(latest) != 1 || latest[0].observation.GetStatus() != commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED {
+	if len(latest) != 1 || latest[0].observation.GetState() != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED {
 		t.Fatalf("latest batch = %#v, want terminal observation", latest)
 	}
 }
 
-func TestAllocationStatusBatcherRetainsFirstTerminalProofForAttempt(t *testing.T) {
-	batcher := newAllocationStatusBatcher(func(context.Context, []*nodev1.AllocationStatusObservation) error {
+func TestAllocationLifecycleStateBatcherRetainsFirstTerminalProofForAllocation(t *testing.T) {
+	batcher := newAllocationLifecycleBatcher(func(context.Context, []*nodev1.AllocationLifecycleObservation) error {
 		return nil
 	})
-	terminal := statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, false)
+	terminal := statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, false)
 	accepted, err := batcher.Enqueue(terminal)
 	if err != nil || !accepted {
 		t.Fatalf("Enqueue(terminal) = accepted %v, error %v", accepted, err)
@@ -372,7 +372,8 @@ func TestAllocationStatusBatcherRetainsFirstTerminalProofForAttempt(t *testing.T
 	if err != nil || !accepted {
 		t.Fatalf("Enqueue(duplicate) = accepted %v, error %v", accepted, err)
 	}
-	conflict := statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED, false)
+	conflict := statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, false)
+	conflict.Message = "conflicting terminal proof"
 	if accepted, err = batcher.Enqueue(conflict); err != nil || accepted {
 		t.Fatalf("Enqueue(conflict) = accepted %v, error %v; want ignored", accepted, err)
 	}
@@ -381,38 +382,38 @@ func TestAllocationStatusBatcherRetainsFirstTerminalProofForAttempt(t *testing.T
 	}
 }
 
-func TestAllocationStatusBatcherBoundsDistinctPendingAllocations(t *testing.T) {
-	batcher := newAllocationStatusBatcher(func(context.Context, []*nodev1.AllocationStatusObservation) error {
+func TestAllocationLifecycleStateBatcherBoundsDistinctPendingAllocations(t *testing.T) {
+	batcher := newAllocationLifecycleBatcher(func(context.Context, []*nodev1.AllocationLifecycleObservation) error {
 		return nil
 	})
-	for i := 0; i < allocationStatusQueueLimit+1; i++ {
+	for i := 0; i < allocationLifecycleQueueLimit+1; i++ {
 		batcher.Enqueue(statusObservation(
 			fmt.Sprintf("alloc-%d", i),
 			1,
-			commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING,
+			commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
 			false,
 		))
 	}
-	if got := batcher.pendingCount(); got != allocationStatusQueueLimit {
-		t.Fatalf("pending count = %d, want %d", got, allocationStatusQueueLimit)
+	if got := batcher.pendingCount(); got != allocationLifecycleQueueLimit {
+		t.Fatalf("pending count = %d, want %d", got, allocationLifecycleQueueLimit)
 	}
 	batcher.Stop()
 }
 
-func TestAllocationStatusBatcherPreservesNewTerminalAtQueueLimit(t *testing.T) {
-	batcher := newAllocationStatusBatcher(func(context.Context, []*nodev1.AllocationStatusObservation) error {
+func TestAllocationLifecycleStateBatcherPreservesNewTerminalAtQueueLimit(t *testing.T) {
+	batcher := newAllocationLifecycleBatcher(func(context.Context, []*nodev1.AllocationLifecycleObservation) error {
 		return nil
 	})
-	for i := range allocationStatusQueueLimit {
+	for i := range allocationLifecycleQueueLimit {
 		batcher.Enqueue(statusObservation(
 			fmt.Sprintf("alloc-%d", i),
 			1,
-			commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING,
+			commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
 			false,
 		))
 	}
 
-	batcher.Enqueue(statusObservation("terminal", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, false))
+	batcher.Enqueue(statusObservation("terminal", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, false))
 
 	batcher.mu.Lock()
 	_, terminalPresent := batcher.pending["terminal"]
@@ -421,58 +422,58 @@ func TestAllocationStatusBatcherPreservesNewTerminalAtQueueLimit(t *testing.T) {
 	if !terminalPresent {
 		t.Fatal("terminal observation was dropped at queue limit")
 	}
-	if pending != allocationStatusQueueLimit {
-		t.Fatalf("pending count = %d, want %d", pending, allocationStatusQueueLimit)
+	if pending != allocationLifecycleQueueLimit {
+		t.Fatalf("pending count = %d, want %d", pending, allocationLifecycleQueueLimit)
 	}
 	batcher.Stop()
 }
 
-func TestAllocationStatusBatcherCopiesEnqueuedObservation(t *testing.T) {
-	batches := make(chan []*nodev1.AllocationStatusObservation, 1)
-	batcher := newAllocationStatusBatcher(func(_ context.Context, observations []*nodev1.AllocationStatusObservation) error {
+func TestAllocationLifecycleStateBatcherCopiesEnqueuedObservation(t *testing.T) {
+	batches := make(chan []*nodev1.AllocationLifecycleObservation, 1)
+	batcher := newAllocationLifecycleBatcher(func(_ context.Context, observations []*nodev1.AllocationLifecycleObservation) error {
 		batches <- observations
 		return nil
 	})
-	observation := statusObservation("alloc-1", 1, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING, false)
+	observation := statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, false)
 	batcher.Enqueue(observation)
-	observation.Status = commonv1.AllocationStatus_ALLOCATION_STATUS_UNSPECIFIED
+	observation.State = commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_UNSPECIFIED
 	batcher.Start()
 	defer batcher.Stop()
 
 	batch := awaitStatusBatch(t, batches)
-	if got := batch[0].GetStatus(); got != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING {
-		t.Fatalf("queued status = %v, want running", got)
+	if got := batch[0].GetState(); got != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE {
+		t.Fatalf("queued lifecycle observation = %v, want active", got)
 	}
 }
 
-func TestAllocationStatusBatcherRejectsUnknownStatus(t *testing.T) {
-	batcher := newAllocationStatusBatcher(func(context.Context, []*nodev1.AllocationStatusObservation) error {
-		t.Fatal("invalid allocation status was sent")
+func TestAllocationLifecycleStateBatcherRejectsUnknownStatus(t *testing.T) {
+	batcher := newAllocationLifecycleBatcher(func(context.Context, []*nodev1.AllocationLifecycleObservation) error {
+		t.Fatal("invalid allocation lifecycle was sent")
 		return nil
 	})
-	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationStatus(999), false))
+	batcher.Enqueue(statusObservation("alloc-1", 1, commonv1.AllocationLifecycleState(999), false))
 	if got := batcher.pendingCount(); got != 0 {
 		t.Fatalf("pending count = %d, want 0", got)
 	}
 	batcher.Stop()
 }
 
-func statusObservation(allocationID string, attempt int64, status commonv1.AllocationStatus, ready bool) *nodev1.AllocationStatusObservation {
-	return &nodev1.AllocationStatusObservation{
+func statusObservation(allocationID string, attempt int64, status commonv1.AllocationLifecycleState, ready bool) *nodev1.AllocationLifecycleObservation {
+	_ = attempt
+	return &nodev1.AllocationLifecycleObservation{
 		AllocationID: allocationID,
-		Attempt:      attempt,
-		Status:       status,
+		State:        status,
 		Ready:        ready,
 	}
 }
 
-func awaitStatusBatch(t *testing.T, batches <-chan []*nodev1.AllocationStatusObservation) []*nodev1.AllocationStatusObservation {
+func awaitStatusBatch(t *testing.T, batches <-chan []*nodev1.AllocationLifecycleObservation) []*nodev1.AllocationLifecycleObservation {
 	t.Helper()
 	select {
 	case batch := <-batches:
 		return batch
 	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for allocation status batch")
+		t.Fatal("timed out waiting for allocation lifecycle batch")
 		return nil
 	}
 }

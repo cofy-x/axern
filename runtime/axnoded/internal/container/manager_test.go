@@ -109,6 +109,7 @@ func TestNewManagerRegistersResourceManagers(t *testing.T) {
 }
 
 func TestStoreMetadata(t *testing.T) {
+	const id = "test-store-metadata"
 	m := &Manager{
 		root:        t.TempDir(),
 		recyclePath: t.TempDir(),
@@ -116,14 +117,13 @@ func TestStoreMetadata(t *testing.T) {
 	}
 
 	metadata := &apipb.ContainerMetadata{
-		ID:             "test-store-metadata-111111",
 		RuntimeHandler: "runsc",
 	}
 
-	m.StoreMetadata(metadata.ID, metadata)
+	m.StoreMetadata(id, metadata)
 
 	assert.Equal(t, 1, m.containers.Count())
-	assert.True(t, m.containers.Has(metadata.ID))
+	assert.True(t, m.containers.Has(id))
 }
 
 func TestSyncRuntimeIdentityFromStateDoesNotReviveTerminalProcessIdentity(t *testing.T) {
@@ -133,7 +133,7 @@ func TestSyncRuntimeIdentityFromStateDoesNotReviveTerminalProcessIdentity(t *tes
 		containers:  cmap.New[*Container](),
 	}
 	const id = "test-runtime-identity-111111"
-	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}))
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{RuntimeHandler: "runsc"}))
 	before, err := m.Get(id)
 	require.NoError(t, err)
 	originalStartedAt := before.Status.Get().StartedAt
@@ -173,7 +173,7 @@ func TestSyncRuntimeIdentityFromRunningStateEnrichesLocalIdentity(t *testing.T) 
 		containers:  cmap.New[*Container](),
 	}
 	const id = "test-running-identity-111111"
-	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}))
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{RuntimeHandler: "runsc"}))
 	require.NoError(t, m.SyncRuntimeIdentityFromState(id, &contract.UnionContainerState{
 		ID:             id,
 		InitProcessPid: 321,
@@ -196,7 +196,7 @@ func TestPersistMonitorExitClassifiesBeforeCheckpoint(t *testing.T) {
 		containers:  cmap.New[*Container](),
 	}
 	const id = "test-memory-oom-111111"
-	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}))
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{RuntimeHandler: "runsc"}))
 	m.SetExitClassifier(func(Event) (commonv1.WorkloadDiagnosticCode, string) {
 		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED,
 			"sandbox memory limit exceeded"
@@ -228,7 +228,7 @@ func TestPersistMonitorExitNormalizesMissingRuntimeTimestamp(t *testing.T) {
 		containers:  cmap.New[*Container](),
 	}
 	const id = "test-zero-exit-time-111111"
-	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}))
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{RuntimeHandler: "runsc"}))
 
 	classified, err := m.persistMonitorExit(Event{Type: EventTypeExit, ContainerID: id, ExitCodeKnown: true})
 	require.NoError(t, err)
@@ -243,7 +243,8 @@ func TestSetExitPropagatesCheckpointFailure(t *testing.T) {
 	const id = "checkpoint-failure-111111"
 	m := &Manager{containers: cmap.New[*Container]()}
 	m.containers.Set(id, &Container{
-		Metadata: &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"},
+		ID:       id,
+		Metadata: &apipb.ContainerMetadata{RuntimeHandler: "runsc"},
 		Status:   &failingStatusStorage{err: wantErr},
 	})
 
@@ -256,7 +257,8 @@ func TestPersistMonitorExitRetriesTransientCheckpointFailure(t *testing.T) {
 	storage := &flakyStatusStorage{failures: 1, attempted: make(chan struct{}, 2)}
 	m := &Manager{containers: cmap.New[*Container]()}
 	m.containers.Set(id, &Container{
-		Metadata: &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"},
+		ID:       id,
+		Metadata: &apipb.ContainerMetadata{RuntimeHandler: "runsc"},
 		Status:   storage,
 	})
 
@@ -272,6 +274,7 @@ func TestPersistMonitorExitRetriesTransientCheckpointFailure(t *testing.T) {
 }
 
 func TestSetResources(t *testing.T) {
+	const id = "test-set-resources"
 	m := &Manager{
 		root:        t.TempDir(),
 		recyclePath: t.TempDir(),
@@ -279,18 +282,17 @@ func TestSetResources(t *testing.T) {
 	}
 
 	metadata := &apipb.ContainerMetadata{
-		ID:             "test-set-resources",
 		RuntimeHandler: "runsc",
 	}
-	m.StoreMetadata(metadata.ID, metadata)
+	m.StoreMetadata(id, metadata)
 
-	err := m.SetResources(metadata.ID, &runtimeapi.LinuxContainerResources{
+	err := m.SetResources(id, &runtimeapi.LinuxContainerResources{
 		CpuShares:          256,
 		MemoryLimitInBytes: 128 * 1024 * 1024,
 	}, &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 64 * 1024 * 1024}})
 	assert.NoError(t, err)
 
-	container, err := m.Get(metadata.ID)
+	container, err := m.Get(id)
 	assert.NoError(t, err)
 	assert.NotNil(t, container.Status.Get().LinuxResources)
 	assert.Equal(t, uint64(256), container.Status.Get().LinuxResources.CpuShares)
@@ -319,29 +321,19 @@ func TestLoadContainer(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestLoadContainersUsesMetadataIdentityWithoutGeneratedPrefix(t *testing.T) {
+func TestLoadContainersUsesDirectoryIdentityWithoutGeneratedPrefix(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "containers")
 	writer := &Manager{
 		root:        root,
 		recyclePath: filepath.Join(t.TempDir(), "recycle"),
 		containers:  cmap.New[*Container](),
 	}
-	writer.StoreMetadata("alloc-123", &apipb.ContainerMetadata{ID: "alloc-123", RuntimeHandler: "runsc"})
+	writer.StoreMetadata("alloc-123", &apipb.ContainerMetadata{RuntimeHandler: "runsc"})
 
 	reader := &Manager{root: root, containers: cmap.New[*Container]()}
 	require.NoError(t, reader.loadContainers())
 	assert.True(t, reader.containers.Has("alloc-123"))
-}
-
-func TestLoadContainerRejectsMetadataDirectoryMismatch(t *testing.T) {
-	root := filepath.Join(t.TempDir(), "containers")
-	writer := &Manager{
-		root:        root,
-		recyclePath: filepath.Join(t.TempDir(), "recycle"),
-		containers:  cmap.New[*Container](),
-	}
-	err := writer.StoreMetadata("directory-id", &apipb.ContainerMetadata{ID: "different-id", RuntimeHandler: "runsc"})
-	require.ErrorContains(t, err, "does not match storage id")
+	assert.Equal(t, "alloc-123", reader.containers.Items()["alloc-123"].ID)
 }
 
 func TestStartMonitorGoroutine(t *testing.T) {
@@ -350,7 +342,8 @@ func TestStartMonitorGoroutine(t *testing.T) {
 	id := "success-start-monitor-test1"
 
 	container := &Container{
-		Metadata: &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"},
+		ID:       id,
+		Metadata: &apipb.ContainerMetadata{RuntimeHandler: "runsc"},
 		Spec:     &specs.Spec{},
 		PATH:     t.TempDir(),
 	}
@@ -371,7 +364,7 @@ func TestStartMonitorGoroutine(t *testing.T) {
 		idGenerator:      truncindex.NewTruncGenerator("sandbox", []string{id}),
 	}
 
-	require.NoError(t, m.StartMonitor(container.Metadata))
+	require.NoError(t, m.StartMonitor(container.ID, container.Metadata))
 	assert.NoError(t, m.Delete(id))
 	assert.False(t, m.monitors.Has(id))
 
@@ -382,8 +375,8 @@ func TestStartMonitorRejectsIncompleteMetadataAndUnknownRuntime(t *testing.T) {
 		monitors:       cmap.New[*containerMonitor](),
 		serviceHandler: cmap.New[contract.RuntimeHandler](),
 	}
-	require.ErrorContains(t, m.StartMonitor(nil), "complete metadata")
-	require.ErrorContains(t, m.StartMonitor(&apipb.ContainerMetadata{ID: "missing-runtime", RuntimeHandler: "runsc"}), "not found")
+	require.ErrorContains(t, m.StartMonitor("", nil), "explicit id and runtime metadata")
+	require.ErrorContains(t, m.StartMonitor("missing-runtime", &apipb.ContainerMetadata{RuntimeHandler: "runsc"}), "not found")
 }
 
 func TestStartMonitorRejectsMissingDurableContainerRecord(t *testing.T) {
@@ -394,7 +387,7 @@ func TestStartMonitorRejectsMissingDurableContainerRecord(t *testing.T) {
 		monitors:       cmap.New[*containerMonitor](),
 		serviceHandler: handlers,
 	}
-	require.ErrorContains(t, m.StartMonitor(&apipb.ContainerMetadata{ID: "missing-record", RuntimeHandler: "runsc"}), "durable status record")
+	require.ErrorContains(t, m.StartMonitor("missing-record", &apipb.ContainerMetadata{RuntimeHandler: "runsc"}), "durable status record")
 }
 
 func TestStartMonitorRejectsDurableRuntimeOwnershipMismatch(t *testing.T) {
@@ -407,10 +400,11 @@ func TestStartMonitorRejectsDurableRuntimeOwnershipMismatch(t *testing.T) {
 		serviceHandler: handlers,
 	}
 	m.containers.Set(id, &Container{
-		Metadata: &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"},
+		ID:       id,
+		Metadata: &apipb.ContainerMetadata{RuntimeHandler: "runsc"},
 		Status:   &flakyStatusStorage{status: Status{StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)},
 	})
-	require.ErrorContains(t, m.StartMonitor(&apipb.ContainerMetadata{ID: id, RuntimeHandler: "other"}), "does not match")
+	require.ErrorContains(t, m.StartMonitor(id, &apipb.ContainerMetadata{RuntimeHandler: "other"}), "does not match")
 }
 
 func TestStartMonitorDoesNotRestartDurableTerminalContainer(t *testing.T) {
@@ -423,10 +417,11 @@ func TestStartMonitorDoesNotRestartDurableTerminalContainer(t *testing.T) {
 		serviceHandler: handlers,
 	}
 	m.containers.Set(id, &Container{
-		Metadata: &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"},
+		ID:       id,
+		Metadata: &apipb.ContainerMetadata{RuntimeHandler: "runsc"},
 		Status:   &statusStorage{status: Status{FinishedAt: time.Now().UTC().Format(time.RFC3339Nano)}},
 	})
-	require.NoError(t, m.StartMonitor(m.containers.Items()[id].Metadata))
+	require.NoError(t, m.StartMonitor(id, m.containers.Items()[id].Metadata))
 	assert.False(t, m.monitors.Has(id))
 }
 
@@ -437,7 +432,7 @@ func TestMonitorExitBarrierRequiresMonitorOrDurableTerminalCheckpoint(t *testing
 		containers: cmap.New[*Container](),
 		monitors:   cmap.New[*containerMonitor](),
 	}
-	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}))
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{RuntimeHandler: "runsc"}))
 	require.ErrorContains(t, m.waitMonitorExitBarrier(id, time.Second), "neither an active monitor nor a durable terminal exit checkpoint")
 	require.NoError(t, m.SetExit(id, 0, true, time.Now().UTC(), "", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED))
 	require.NoError(t, m.waitMonitorExitBarrier(id, time.Second))
@@ -445,8 +440,8 @@ func TestMonitorExitBarrierRequiresMonitorOrDurableTerminalCheckpoint(t *testing
 
 func TestStartRecoveredMonitorsAfterInventoryReconciliation(t *testing.T) {
 	containers := cmap.New[*Container]()
-	containers.Set("live", &Container{Metadata: &apipb.ContainerMetadata{ID: "live", RuntimeHandler: "runsc"}, Status: &flakyStatusStorage{status: Status{StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)}})
-	containers.Set("orphan", &Container{Metadata: &apipb.ContainerMetadata{ID: "orphan", RuntimeHandler: "runsc"}, Status: &flakyStatusStorage{status: Status{StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)}})
+	containers.Set("live", &Container{ID: "live", Metadata: &apipb.ContainerMetadata{RuntimeHandler: "runsc"}, Status: &flakyStatusStorage{status: Status{StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)}})
+	containers.Set("orphan", &Container{ID: "orphan", Metadata: &apipb.ContainerMetadata{RuntimeHandler: "runsc"}, Status: &flakyStatusStorage{status: Status{StartedAt: time.Now().UTC().Format(time.RFC3339Nano)}, attempted: make(chan struct{}, 1)}})
 
 	handlers := cmap.New[contract.RuntimeHandler]()
 	handlers.Set("runsc", runtimetest.NewFakeRuntimeHandler())
@@ -517,7 +512,7 @@ func TestManagerStopHonorsDeadlineAndCanResumeMonitorJoin(t *testing.T) {
 	require.NoError(t, err)
 
 	const id = "stop-monitor-join-111111"
-	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}))
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{RuntimeHandler: "runsc"}))
 	observerEntered := make(chan struct{})
 	releaseObserver := make(chan struct{})
 	m.SetExitObserver(func(Event) error {
@@ -525,7 +520,7 @@ func TestManagerStopHonorsDeadlineAndCanResumeMonitorJoin(t *testing.T) {
 		<-releaseObserver
 		return nil
 	})
-	require.NoError(t, m.StartMonitor(m.containers.Items()[id].Metadata))
+	require.NoError(t, m.StartMonitor(id, m.containers.Items()[id].Metadata))
 	select {
 	case <-observerEntered:
 	case <-time.After(time.Second):
@@ -539,5 +534,5 @@ func TestManagerStopHonorsDeadlineAndCanResumeMonitorJoin(t *testing.T) {
 	joinCtx, cancelJoin := context.WithTimeout(context.Background(), time.Second)
 	require.NoError(t, m.Stop(joinCtx))
 	cancelJoin()
-	require.ErrorContains(t, m.StartMonitor(&apipb.ContainerMetadata{ID: id, RuntimeHandler: "runsc"}), "stopped")
+	require.ErrorContains(t, m.StartMonitor(id, &apipb.ContainerMetadata{RuntimeHandler: "runsc"}), "stopped")
 }

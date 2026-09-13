@@ -35,8 +35,8 @@ type allocationConditionBatcher struct {
 func newAllocationConditionBatcher(send allocationConditionBatchSender) *allocationConditionBatcher {
 	return &allocationConditionBatcher{
 		send: send, now: func() time.Time { return time.Now().UTC() },
-		batchDelay: allocationStatusBatchDelay, retryInitialDelay: allocationStatusRetryInitialDelay,
-		retryMaxDelay: allocationStatusRetryMaxDelay, jitter: allocationStatusRetryJitter,
+		batchDelay: allocationLifecycleBatchDelay, retryInitialDelay: allocationLifecycleRetryInitialDelay,
+		retryMaxDelay: allocationLifecycleRetryMaxDelay, jitter: allocationLifecycleRetryJitter,
 		pending: make(map[string]*nodev1.AllocationCapabilityConditionReport),
 		wake:    make(chan struct{}, 1), stop: make(chan struct{}),
 	}
@@ -74,7 +74,7 @@ func (b *allocationConditionBatcher) Enqueue(report *nodev1.AllocationCapability
 		return
 	}
 	allocationID := strings.TrimSpace(report.GetAllocationID())
-	if allocationID == "" || report.GetAttempt() <= 0 || capabilitycontract.ValidateConditionSet(report.GetConditionSet(), b.now()) != nil {
+	if allocationID == "" || capabilitycontract.ValidateConditionSet(report.GetConditionSet(), b.now()) != nil {
 		return
 	}
 	next := proto.Clone(report).(*nodev1.AllocationCapabilityConditionReport)
@@ -107,13 +107,13 @@ func (b *allocationConditionBatcher) run() {
 			}
 			retry := time.Duration(0)
 			for {
-				batch := b.drain(allocationStatusBatchLimit)
+				batch := b.drain(allocationLifecycleBatchLimit)
 				if len(batch) == 0 {
 					break
 				}
 				if err := b.sendBatch(batch); err != nil {
 					b.requeue(batch)
-					retry = nextAllocationStatusRetryDelay(retry, b.retryInitialDelay, b.retryMaxDelay)
+					retry = nextAllocationLifecycleStateRetryDelay(retry, b.retryInitialDelay, b.retryMaxDelay)
 					delay := retry
 					if b.jitter != nil {
 						delay = b.jitter(retry)
@@ -170,7 +170,7 @@ func (b *allocationConditionBatcher) sendBatch(batch []*nodev1.AllocationCapabil
 }
 
 func (b *allocationConditionBatcher) flushOnce() {
-	batch := b.drain(allocationStatusBatchLimit)
+	batch := b.drain(allocationLifecycleBatchLimit)
 	if len(batch) == 0 {
 		return
 	}
@@ -194,8 +194,8 @@ func conditionReportSupersedes(next, current *nodev1.AllocationCapabilityConditi
 	if next == nil {
 		return false
 	}
-	if current == nil || next.GetAttempt() > current.GetAttempt() {
+	if current == nil {
 		return true
 	}
-	return next.GetAttempt() == current.GetAttempt() && next.GetConditionSet().GetRevision() > current.GetConditionSet().GetRevision()
+	return next.GetConditionSet().GetRevision() > current.GetConditionSet().GetRevision()
 }

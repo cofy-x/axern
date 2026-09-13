@@ -60,21 +60,21 @@ An Environment does not contain replicas, rollout, service discovery, readiness 
 
 ### Run
 
-A Run is the smallest complete unit of execution visible to a user or SDK. It owns one immutable execution request, one logical Allocation, cancellation, terminal result, failure classification, and any explicit output references.
+A Run is the smallest complete unit of execution visible to a user or SDK. It owns one immutable execution request, exactly one Allocation, cancellation, terminal result, failure classification, and any explicit output references.
 
 The stable state projection is:
 
 ```text
-QUEUED -> PLACED -> STARTING -> RUNNING
-   |         |           |          |
-   +---------+-----------+----------+-> CANCELLED
-                                    +-> SUCCEEDED
-                                    +-> FAILED
+PLACED -> STARTING -> RUNNING
+   |          |          |
+   +----------+----------+-> CANCELLED
+                           +-> SUCCEEDED
+                           +-> FAILED
 ```
 
 These are the public Run states. Allocation has its own concrete reservation, binding, execution, releasing, and released states; internal detail must project unambiguously to the owning Run. Run has no replica convergence, rolling update, readiness, degraded-service, or desired-state controller.
 
-One Run owns one logical Allocation. Allocation `attempt` fences retries of the same node lifecycle operation; it is not a promise of exactly-once external side effects. An infrastructure failure terminates the Run. A harness that wants another episode creates another Run instead of relying on hidden replay.
+One Run owns one immutable Allocation identity. Retries of an idempotent lifecycle operation address that same Allocation and must match the Run's frozen request. Axern does not reschedule a Run onto a replacement Allocation: an infrastructure failure terminates the Run, and another execution or episode is a new Run with a new Allocation ID.
 
 ### Secret
 
@@ -98,19 +98,21 @@ These records need durable identity and state, but users cannot create them inde
 
 | Object                 | Direct owner            | Purpose                                                              |
 | ---------------------- | ----------------------- | -------------------------------------------------------------------- |
-| `Allocation`           | Run                     | Concrete node placement and attempt-fenced execution identity        |
+| `Allocation`           | Run                     | Concrete node binding and infrastructure convergence identity        |
 | `Reservation`          | Allocation              | Committed namespace and node resource usage                          |
-| `ExecutionLease`       | Allocation attempt      | Short-lived internal gateway authority for the selected node         |
-| `TunnelSession`        | Allocation attempt      | Revocable reverse-TCP session and relay convergence state            |
+| `ExecutionLease`       | Allocation              | Short-lived internal gateway authority for the selected node         |
+| `TunnelSession`        | Allocation              | Revocable reverse-TCP session and relay convergence state            |
 | `CapabilityDependency` | Allocation              | Capability and loss-policy proof frozen at admission                 |
-| `CapabilityCondition`  | Allocation attempt      | Current attempt-fenced satisfaction or enforcement state             |
+| `CapabilityCondition`  | Allocation              | Current revisioned satisfaction or enforcement state                 |
 | `QuotaPolicy`          | Namespace               | Optional CPU, memory, and ephemeral-storage admission ceilings       |
 | `AuditEvent`           | Administrative mutation | Actor, reason, target, and result for security-sensitive writes      |
 | `OperationalEvent`     | Owning domain           | Bounded lifecycle or rejection history, distinct from operator audit |
 
 ### Allocation
 
-Allocation is the only concrete execution target. It binds a Run to a Node, attempt, resolved environment, resources, capability evidence, runtime status, and cleanup state. Terminal, SSH, Tunnel, process, file, and administrative lifecycle operations select an Allocation explicitly.
+Allocation is the only concrete execution target. Its globally unique, never-reused ID binds its owning Run to one Node and owns only infrastructure lifecycle: `BOUND -> STARTING -> ACTIVE -> RELEASING -> RELEASED`. The node may report `STOPPED`; controld commits the Run result and moves the Allocation directly to `RELEASING` in one transaction. `STOPPED` is therefore an observation, not a durable Allocation state.
+
+Allocation does not copy the Run request, public status, result, diagnostic, message, or optimistic version. Node creation resolves the immutable request through `Allocation -> Run`; terminal, SSH, Tunnel, process, file, and administrative lifecycle operations select the Allocation explicitly.
 
 Allocation cannot exist as a durable orphan or an independently created public workload. A Run is not fully released until runtime, network, mounts, leases, tunnels, reservations, and node recovery ownership have converged.
 
@@ -118,23 +120,23 @@ Allocation cannot exist as a durable orphan or an independently created public w
 
 Reservation is a transactional admission ledger, not a user-managed resource. It commits with Allocation admission and accounts for CPU, sandbox memory, ephemeral storage, and runtime slots at the Namespace and Node boundaries.
 
-A failed or timed-out RPC is not evidence that resources are free. Reservation release follows confirmed terminal execution and required node cleanup.
+A failed or timed-out RPC is not evidence that resources are free. Reservation release follows confirmed node cleanup, when the Allocation becomes `RELEASED`; committing a terminal Run result alone is insufficient.
 
 ### ExecutionLease
 
-ExecutionLease is short-lived internal authority bound to Allocation ID, Node ID, attempt, operation type, expiry, and revocation state. PostgreSQL stores a token hash; plaintext is returned only on the controlled issuance path.
+ExecutionLease is short-lived internal authority bound to Allocation ID, Node ID, operation type, expiry, and revocation state. PostgreSQL stores a token hash; plaintext is returned only on the controlled issuance path.
 
-Public SDKs do not persist or replay ExecutionLeases. Gateway retries may refresh authority only before the selected node accepts an operation. A stale attempt cannot submit input, output, status, or cleanup for a newer attempt.
+Public SDKs do not persist or replay ExecutionLeases. Gateway retries may refresh authority only before the selected node accepts an operation. Authority for one Allocation can never authorize input, output, status, or cleanup for another Allocation.
 
 ### TunnelSession
 
-TunnelSession is a durable, subordinate session because relay pairing, renewal, revocation, expiry, restart convergence, and traffic accounting outlive one connection. It is always bound to one Allocation and attempt.
+TunnelSession is a durable, subordinate session because relay pairing, renewal, revocation, expiry, restart convergence, and traffic accounting outlive one connection. It is always bound to one Allocation.
 
-TunnelSession does not accept Service identity, choose a replica, or recreate a `/svc` route. Allocation termination, attempt change, authorization revocation, or TTL expiry invalidates the session.
+TunnelSession does not accept Service identity, choose a replica, or recreate a `/svc` route. Allocation termination, authorization revocation, or TTL expiry invalidates the session.
 
 ### Capability Evidence
 
-Node capability observations are typed, time-bounded platform facts. Allocation dependencies freeze the exact requirement and loss policy admitted for one execution. Conditions are complete, revisioned, attempt-fenced projections of runtime satisfaction.
+Node capability observations are typed, time-bounded platform facts. Allocation dependencies freeze the exact requirement and loss policy admitted for one execution. Conditions are complete, monotonically revisioned projections scoped to the immutable Allocation ID.
 
 Capability data is security and placement evidence, not a free-form user label. Missing required evidence fails closed. Axern never silently falls back from runsc to a weaker runtime.
 
@@ -186,7 +188,15 @@ Large stdout, files, and object bytes do not belong in PostgreSQL. PostgreSQL st
 | Process streams, PTY, terminal, SSH connections                        | node and gateway transient state  | durable results or long-term authorization |
 | Delivered object bytes                                                 | explicit object-storage contract  | PostgreSQL and allocation-local files      |
 
-Each fact has one authority. Caches and projections must identify their source, revision, attempt, and invalidation condition; restart or partition must not promote them into a second source of truth.
+Each fact has one authority. Caches and projections must identify their source, revision, owning Allocation where applicable, and invalidation condition; restart or partition must not promote them into a second source of truth.
+
+Run and Allocation deliberately do not share facts:
+
+| Fact | Sole durable owner |
+| --- | --- |
+| immutable execution config, labels, public lifecycle, cancellation, exit code, diagnostic, message, version, user timestamps | Run |
+| Allocation ID, Run ownership, Node binding, infrastructure lifecycle, workspace preparation, node-active and cleanup timestamps | Allocation |
+| runtime/container existence, mount/network/cgroup cleanup progress | axnoded node-local state, converged into Allocation lifecycle |
 
 ## Objects Outside The Core
 
@@ -211,7 +221,7 @@ The package name `runtime/axnoded/internal/service` denotes an implementation se
 
 - Public creation is organized around Namespace, Environment, Run, Secret, and narrowly scoped subordinate operations.
 - Only controld admission creates an Allocation. A public caller may inspect or target it but cannot bypass Run ownership.
-- Every allocation data-plane operation names an Allocation ID. Operations that can race replacement or retry also validate attempt-bound authority.
+- Every allocation data-plane operation names an Allocation ID and validates authority bound to that exact, never-reused identity.
 - Protobuf messages, SDK types, CLI nouns, metrics, and database tables use the same domain meaning. Aliases must not create a second spelling for the same object.
 - During pre-stable development, protobuf numbers and the initial local schema may be rebuilt as one coordinated change. Do not retain obsolete tables, fields, numbering holes, tombstones, dual reads, or compatibility guards.
 - After an external contract becomes stable, compatibility is defined at the documented public object boundary. Internal tables, caches, metrics, or package names do not become public contracts by accident.
@@ -223,9 +233,9 @@ Every implementation must preserve these invariants:
 
 1. Environment input is immutable, verifiable, and rebuildable on another eligible Node.
 2. Run is the only owner of user execution intent and terminal result.
-3. Allocation has one valid attempt at a time; stale attempts cannot report, execute, or clean up newer state.
+3. Allocation IDs are globally unique and never reused; reports, operations, and cleanup for one ID cannot mutate another Allocation.
 4. Reservation is not released before execution and required cleanup are confirmed complete.
-5. ExecutionLease, SSH, and Tunnel authority ends with the Allocation attempt.
+5. ExecutionLease, SSH, and Tunnel authority ends with the owning Allocation.
 6. Missing isolation, capability, network, mount, or resource enforcement fails closed.
 7. Node-local files and stdout are not described as durable without explicit delivery.
 8. Control-plane restart, node restart, and network partition cannot create two authoritative owners.

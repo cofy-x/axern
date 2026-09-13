@@ -24,7 +24,7 @@ type fakeNodeControlServer struct {
 	mu            sync.Mutex
 	registerCalls []*nodev1.RegisterNodeRequest
 	reportCalls   []*nodev1.ReportNodeRequest
-	statusCalls   []*nodev1.BatchReportAllocationStatusRequest
+	statusCalls   []*nodev1.BatchReportAllocationLifecycleRequest
 	memoryCalls   []*nodev1.BatchReportAllocationMemoryObservationsRequest
 }
 
@@ -56,12 +56,12 @@ func (s *fakeNodeControlServer) ReportNode(ctx context.Context, req *nodev1.Repo
 	return &nodev1.ReportNodeResponse{}, nil
 }
 
-func (s *fakeNodeControlServer) BatchReportAllocationStatus(ctx context.Context, req *nodev1.BatchReportAllocationStatusRequest) (*nodev1.BatchReportAllocationStatusResponse, error) {
+func (s *fakeNodeControlServer) BatchReportAllocationLifecycle(ctx context.Context, req *nodev1.BatchReportAllocationLifecycleRequest) (*nodev1.BatchReportAllocationLifecycleResponse, error) {
 	_ = ctx
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.statusCalls = append(s.statusCalls, req)
-	return &nodev1.BatchReportAllocationStatusResponse{}, nil
+	return &nodev1.BatchReportAllocationLifecycleResponse{}, nil
 }
 
 func (s *fakeNodeControlServer) BatchReportAllocationMemoryObservations(_ context.Context, req *nodev1.BatchReportAllocationMemoryObservationsRequest) (*nodev1.BatchReportAllocationMemoryObservationsResponse, error) {
@@ -244,35 +244,33 @@ func TestReporterCanUseRealGRPCClient(t *testing.T) {
 	}
 }
 
-func TestReporterAllocationStatusPreservesObservedSemantics(t *testing.T) {
+func TestReporterAllocationLifecycleStatePreservesObservedSemantics(t *testing.T) {
 	client, fake, cleanup := newFakeNodeControlClient(t)
 	defer cleanup()
 
-	outbox := NewAllocationStatusOutbox(storetest.NewMockStore())
+	outbox := NewAllocationLifecycleOutbox(storetest.NewMockStore())
 	r := &Reporter{
-		target:       "unused",
-		nodeID:       "node-a",
-		control:      fakeNodeControlProvider{client: client},
-		statusOutbox: outbox,
+		target:          "unused",
+		nodeID:          "node-a",
+		control:         fakeNodeControlProvider{client: client},
+		lifecycleOutbox: outbox,
 	}
-	r.ensureStatusBatcher().Start()
-	defer r.ensureStatusBatcher().Stop()
+	r.ensureLifecycleBatcher().Start()
+	defer r.ensureLifecycleBatcher().Stop()
 
 	observedAt := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
-	r.ReportAllocationStatus(AllocationStatusReport{
+	r.ReportAllocationLifecycle(AllocationLifecycleReport{
 		AllocationID:     " alloc-1 ",
-		Attempt:          2,
-		Status:           commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING,
+		State:            commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
 		ExitCode:         0,
 		ExitCodeKnown:    false,
 		Ready:            false,
 		ReadinessMessage: "warming up",
 		ObservedAt:       observedAt,
 	})
-	r.ReportAllocationStatus(AllocationStatusReport{
+	r.ReportAllocationLifecycle(AllocationLifecycleReport{
 		AllocationID:   "alloc-2",
-		Attempt:        2,
-		Status:         commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED,
+		State:          commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,
 		ExitCode:       17,
 		ExitCodeKnown:  true,
 		Message:        "process exited",
@@ -307,8 +305,8 @@ func TestReporterAllocationStatusPreservesObservedSemantics(t *testing.T) {
 	if observations[0].GetAllocationID() != "alloc-1" {
 		t.Fatalf("allocation_id = %q, want alloc-1", observations[0].GetAllocationID())
 	}
-	if observations[0].GetStatus() != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING || observations[0].GetReady() {
-		t.Fatalf("first observation = status:%v ready:%t, want RUNNING/false", observations[0].GetStatus(), observations[0].GetReady())
+	if observations[0].GetState() != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE || observations[0].GetReady() {
+		t.Fatalf("first observation = state:%v ready:%t, want ACTIVE/false", observations[0].GetState(), observations[0].GetReady())
 	}
 	if observations[0].GetReadinessMessage() != "warming up" {
 		t.Fatalf("readiness_message = %q, want warming up", observations[0].GetReadinessMessage())
@@ -316,15 +314,15 @@ func TestReporterAllocationStatusPreservesObservedSemantics(t *testing.T) {
 	if observations[1].GetDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED {
 		t.Fatalf("diagnostic_code = %v, want MEMORY_LIMIT_EXCEEDED", observations[1].GetDiagnosticCode())
 	}
-	if observations[1].GetAllocationID() != "alloc-2" || observations[1].GetStatus() != commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED {
-		t.Fatalf("second observation = id:%q status:%v, want alloc-2/EXITED", observations[1].GetAllocationID(), observations[1].GetStatus())
+	if observations[1].GetAllocationID() != "alloc-2" || observations[1].GetState() != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED {
+		t.Fatalf("second observation = id:%q state:%v, want alloc-2/STOPPED", observations[1].GetAllocationID(), observations[1].GetState())
 	}
 	if observations[1].GetMessage() != "process exited" {
 		t.Fatalf("message = %q, want process exited", observations[1].GetMessage())
 	}
 }
 
-func TestReporterAllocationStatusSanitizesRuntimeMessages(t *testing.T) {
+func TestReporterAllocationLifecycleStateSanitizesRuntimeMessages(t *testing.T) {
 	client, fake, cleanup := newFakeNodeControlClient(t)
 	defer cleanup()
 
@@ -333,13 +331,12 @@ func TestReporterAllocationStatusSanitizesRuntimeMessages(t *testing.T) {
 		nodeID:  "node-a",
 		control: fakeNodeControlProvider{client: client},
 	}
-	r.ensureStatusBatcher().Start()
-	defer r.ensureStatusBatcher().Stop()
+	r.ensureLifecycleBatcher().Start()
+	defer r.ensureLifecycleBatcher().Stop()
 
-	r.ReportAllocationStatus(AllocationStatusReport{
+	r.ReportAllocationLifecycle(AllocationLifecycleReport{
 		AllocationID:     "alloc-invalid-utf8",
-		Attempt:          1,
-		Status:           commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING,
+		State:            commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
 		ReadinessMessage: "probe \xff failed",
 		Message:          "runtime \xfe output",
 		ObservedAt:       time.Now(),
@@ -360,15 +357,14 @@ func TestReporterAllocationStatusSanitizesRuntimeMessages(t *testing.T) {
 	}
 }
 
-func TestAllocationStatusObservationRejectsOutOfRangeTime(t *testing.T) {
-	_, err := AllocationStatusObservationFromReport(AllocationStatusReport{
+func TestAllocationLifecycleObservationRejectsOutOfRangeTime(t *testing.T) {
+	_, err := AllocationLifecycleObservationFromReport(AllocationLifecycleReport{
 		AllocationID: "alloc-invalid-time",
-		Attempt:      1,
-		Status:       commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING,
+		State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
 		ObservedAt:   time.Date(10000, time.January, 1, 0, 0, 0, 0, time.UTC),
 	})
 	if err == nil {
-		t.Fatal("AllocationStatusObservationFromReport() error = nil, want invalid timestamp")
+		t.Fatal("AllocationLifecycleObservationFromReport() error = nil, want invalid timestamp")
 	}
 }
 
@@ -384,7 +380,7 @@ func awaitStatusCalls(t *testing.T, fake *fakeNodeControlServer, count int) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Fatalf("timed out waiting for %d allocation status calls", count)
+	t.Fatalf("timed out waiting for %d allocation lifecycle calls", count)
 }
 
 func newFakeNodeControlClient(t *testing.T) (nodev1.NodeControlClient, *fakeNodeControlServer, func()) {

@@ -95,7 +95,7 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("metadata: %v", err)
 	}
-	if metadata.EnvironmentID != "env-1" || metadata.RunID != "run-1" || metadata.AllocationID != "alloc-1" || metadata.Attempt != 2 || metadata.NodeID != "node-1" {
+	if metadata.EnvironmentID != "env-1" || metadata.RunID != "run-1" || metadata.AllocationID != "alloc-1" || metadata.NodeID != "node-1" {
 		t.Fatalf("unexpected metadata: %+v", metadata)
 	}
 	if got := fake.createRunRequest.GetConfig().GetImageMounts(); len(got) != 1 || got[0].GetImage() != "example.com/axern/codex-tool:latest" || got[0].GetTarget() != "/opt/axern/tools/codex" || !got[0].GetReadonly() {
@@ -708,7 +708,7 @@ func (f *fakeAxernServer) DeleteEnvironment(context.Context, *environmentv1.Dele
 
 func (f *fakeAxernServer) CreateRun(_ context.Context, request *runv1.CreateRunRequest) (*runv1.CreateRunResponse, error) {
 	f.createRunRequest = request
-	return &runv1.CreateRunResponse{Run: &runv1.Run{ID: "run-1", AllocationID: "alloc-1", Attempt: 2}}, nil
+	return &runv1.CreateRunResponse{Run: &runv1.Run{ID: "run-1", AllocationID: "alloc-1"}}, nil
 }
 
 func (f *fakeAxernServer) WatchRun(_ *runv1.WatchRunRequest, stream runv1.RunControl_WatchRunServer) error {
@@ -716,7 +716,6 @@ func (f *fakeAxernServer) WatchRun(_ *runv1.WatchRunRequest, stream runv1.RunCon
 		ID:           "run-1",
 		AllocationID: "alloc-1",
 		NodeID:       "node-1",
-		Attempt:      2,
 		Status:       runv1.RunStatus_RUN_STATUS_RUNNING,
 		WorkspacePreparation: &commonv1.WorkspacePreparationFacts{
 			PayloadFormat: "nydus",
@@ -740,7 +739,6 @@ func (f *fakeAxernServer) ResolveAllocationTerminal(context.Context, *gatewayv1.
 		AllocationID: "alloc-1",
 		NodeID:       "node-1",
 		NodeTarget:   "bufnet",
-		Attempt:      2,
 		Lease: &commonv1.ExecutionLease{
 			PlaintextToken: "lease-token",
 		},

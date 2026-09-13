@@ -5,12 +5,12 @@
 `controld` owns:
 
 - node registration, heartbeat, summary, active inventory ingest, node-availability reconciliation, and audited irreversible node retirement
-- authenticated allocation status batch ingest with durable Run projection
+- authenticated allocation lifecycle batch ingest with durable Run projection
 - Environment and Run lifecycle control
 - allocation admission, node reservations, execution leases, and tunnel sessions
 - namespace lifecycle, resource quota policy, quota admission, and quota usage reporting
 - allocation terminal and tunnel relay target resolution
-- control-plane-managed secret metadata, encryption, and resolution
+- controld-managed secret metadata, encryption, and resolution
 - read-only runtime catalog and debug HTTP surfaces
 
 `controld` does not own realtime exec or terminal streaming. Realtime execution goes to selected nodes through the current SDK path, and `gatewayd` owns external control/data-plane forwarding after resolving routes here.

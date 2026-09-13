@@ -5,33 +5,30 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
 
-func ParseStatus(value string) commonv1.AllocationStatus {
-	if n, ok := commonv1.AllocationStatus_value[value]; ok {
-		return commonv1.AllocationStatus(n)
+func ParseLifecycleState(value string) commonv1.AllocationLifecycleState {
+	if n, ok := commonv1.AllocationLifecycleState_value[value]; ok {
+		return commonv1.AllocationLifecycleState(n)
 	}
-	return commonv1.AllocationStatus_ALLOCATION_STATUS_UNSPECIFIED
+	return commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_UNSPECIFIED
 }
 
-func IsEnded(status commonv1.AllocationStatus) bool {
-	return status == commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED ||
-		status == commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED ||
-		status == commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED
+func IsCleanupState(state commonv1.AllocationLifecycleState) bool {
+	return state == commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING ||
+		state == commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED
 }
 
-func RunStatusFromAllocation(status commonv1.AllocationStatus, exitCode int32) runv1.RunStatus {
-	switch status {
-	case commonv1.AllocationStatus_ALLOCATION_STATUS_RESERVED, commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND:
+func RunStatusFromObservation(state commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, diagnosticCode commonv1.WorkloadDiagnosticCode) runv1.RunStatus {
+	switch state {
+	case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND:
 		return runv1.RunStatus_RUN_STATUS_PLACED
-	case commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING:
+	case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING:
 		return runv1.RunStatus_RUN_STATUS_STARTING
-	case commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING:
+	case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE:
 		return runv1.RunStatus_RUN_STATUS_RUNNING
-	case commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED:
-		if exitCode == 0 {
+	case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED:
+		if diagnosticCode == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED && exitCodeKnown && exitCode == 0 {
 			return runv1.RunStatus_RUN_STATUS_SUCCEEDED
 		}
-		return runv1.RunStatus_RUN_STATUS_FAILED
-	case commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED:
 		return runv1.RunStatus_RUN_STATUS_FAILED
 	default:
 		return runv1.RunStatus_RUN_STATUS_UNSPECIFIED

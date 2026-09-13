@@ -24,6 +24,10 @@ import (
 )
 
 func (h *sandboxService) Start(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
+	return h.start(ctx, request, "")
+}
+
+func (h *sandboxService) start(ctx context.Context, request *runtime.StartRequest, controlPlaneNodeID string) (*runtime.StartResponse, error) {
 	spanAttrs := []attribute.KeyValue{
 		attribute.String(sdkobs.AttrAllocationID, request.GetContainerID()),
 		attribute.String(sdkobs.AttrRuntime, request.GetRuntimeTemplate().GetSandbox()),
@@ -44,9 +48,14 @@ func (h *sandboxService) Start(ctx context.Context, request *runtime.StartReques
 	controller := h.allocationController()
 	unlockLifecycle := controller.LockAllocationLifecycle(request.GetContainerID())
 	defer unlockLifecycle()
+	if controlPlaneNodeID != "" {
+		if err = controller.BindControlPlaneAllocation(request.GetContainerID(), controlPlaneNodeID, requestDigest); err != nil {
+			return nil, err
+		}
+	}
 	if controller.LaunchVerification(request.GetContainerID()) != nil {
 		if controller.AllocationRequestDigest(request.GetContainerID()) != requestDigest {
-			return nil, errord.ToGRPC(fmt.Errorf("allocation request differs from the durable contract for this attempt: %w", errord.ErrFailedPrecondition))
+			return nil, errord.ToGRPC(fmt.Errorf("allocation request differs from the durable contract: %w", errord.ErrFailedPrecondition))
 		}
 		resp, active, replayErr := controller.ExistingActiveStartResponseWithLifecycleHeld(ctx, request)
 		if replayErr != nil {
@@ -63,7 +72,7 @@ func (h *sandboxService) Start(ctx context.Context, request *runtime.StartReques
 		metrics.RecordCapabilityAllocationVerification(request.GetRuntimeTemplate().GetSandbox(), "replayed")
 		return resp, nil
 	}
-	// A live same-attempt replay is defined by the immutable request digest and
+	// A live replay is defined by the immutable request digest and
 	// sealed create proof above. Current node policy may legitimately differ
 	// after a config or runtime identity change; applying it retroactively would
 	// break idempotency. New creates still derive and verify the complete current
@@ -80,17 +89,10 @@ func (h *sandboxService) Start(ctx context.Context, request *runtime.StartReques
 		op.SetErrorStatus("allocation capability gate failed")
 		return nil, fmt.Errorf("verify allocation capabilities before create: %w", err)
 	}
-	nodeLocal := allocation.IsNodeLocalStart(ctx)
-	if request.GetAllocationAttempt() > 0 || nodeLocal {
-		if nodeLocal {
-			_, err = controller.ReplaceNodeLocalCapabilityAdmission(request.GetContainerID(), requestDigest, admitted, verification, preCreateObservedAt)
-		} else {
-			_, err = controller.ReplaceCapabilityAdmission(request.GetContainerID(), request.GetAllocationAttempt(), requestDigest, admitted, verification, preCreateObservedAt)
-		}
-		if err != nil {
-			op.SetErrorStatus("persist allocation capability admission failed")
-			return nil, err
-		}
+	_, err = controller.ReplaceCapabilityAdmission(request.GetContainerID(), requestDigest, admitted, verification, preCreateObservedAt)
+	if err != nil {
+		op.SetErrorStatus("persist allocation capability admission failed")
+		return nil, err
 	}
 	resp, err := controller.StartWithLifecycleHeld(ctx, request)
 	if err != nil || resp == nil || resp.GetCode() != 0 {
@@ -112,21 +114,13 @@ func (h *sandboxService) Start(ctx context.Context, request *runtime.StartReques
 		return nil, err
 	}
 	var conditionSet *capabilityv1.CapabilityConditionSet
-	if request.GetAllocationAttempt() > 0 || nodeLocal {
-		if nodeLocal {
-			conditionSet, err = h.allocationController().ReplaceNodeLocalCapabilityAdmission(request.GetContainerID(), requestDigest, admitted, verification, time.Now().UTC())
-		} else {
-			conditionSet, err = h.allocationController().ReplaceCapabilityAdmission(request.GetContainerID(), request.GetAllocationAttempt(), requestDigest, admitted, verification, time.Now().UTC())
-		}
-		if err != nil {
-			return nil, h.scheduleCapabilityTermination(request.GetContainerID(), fmt.Errorf("persist post-create capability admission: %w", err))
-		}
+	conditionSet, err = h.allocationController().ReplaceCapabilityAdmission(request.GetContainerID(), requestDigest, admitted, verification, time.Now().UTC())
+	if err != nil {
+		return nil, h.scheduleCapabilityTermination(request.GetContainerID(), fmt.Errorf("persist post-create capability admission: %w", err))
 	}
 	resp.CapabilityVerification = conditionSet
 	resp.AdmittedCapabilityDependencies = admitted
-	if !nodeLocal {
-		h.controlPlaneReports.ReportCapabilityConditions(request.GetContainerID(), request.GetAllocationAttempt(), conditionSet)
-	}
+	h.controlPlaneReports.ReportCapabilityConditions(request.GetContainerID(), conditionSet)
 	metrics.RecordCapabilityAllocationVerification(request.GetRuntimeTemplate().GetSandbox(), "verified")
 	return resp, nil
 }
@@ -142,15 +136,12 @@ func (h *sandboxService) StartNodeLocalSandbox(ctx context.Context, request *run
 	if err != nil {
 		return nil, fmt.Errorf("prepare node-local capability admission: %w", err)
 	}
-	return h.Start(allocation.WithNodeLocalStart(ctx), prepared)
+	return h.Start(ctx, prepared)
 }
 
 func (h *sandboxService) prepareNodeLocalStartRequest(request *runtime.StartRequest, now time.Time) (*runtime.StartRequest, error) {
 	if request == nil || request.GetRuntimeTemplate() == nil || request.GetRuntimeTemplate().GetRootfs() == nil {
 		return nil, fmt.Errorf("runtime template and rootfs are required")
-	}
-	if request.GetAllocationAttempt() != 0 {
-		return nil, fmt.Errorf("node-local sandbox cannot declare a control-plane allocation attempt")
 	}
 	if len(request.GetCapabilityDependencies()) != 0 {
 		return nil, fmt.Errorf("node-local sandbox cannot supply capability dependencies")
@@ -180,13 +171,9 @@ func (h *sandboxService) prepareNodeLocalStartRequest(request *runtime.StartRequ
 	return prepared, nil
 }
 
-func (h *sandboxService) ManagedAllocationAttempt(allocationID string) (int64, bool) {
-	return h.allocationController().ManagedAllocationAttempt(allocationID)
-}
-
-func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Context, request *runtime.StartRequest, handler contract.ManagedRuntimeHandler, containerID string) error {
+func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Context, request *runtime.StartRequest, handler contract.AllocationRuntimeHandler, containerID string) error {
 	if request == nil || handler == nil {
-		return fmt.Errorf("managed allocation request and runtime handler are required")
+		return fmt.Errorf("allocation request and runtime handler are required")
 	}
 	if request.GetContainerID() != "" && request.GetContainerID() != containerID {
 		return fmt.Errorf("prepared runtime identity %q differs from allocation identity %q", containerID, request.GetContainerID())
@@ -427,6 +414,10 @@ func (h *sandboxService) admitCapabilityDependencies(dependencies []*capabilityv
 }
 
 func (h *sandboxService) Delete(ctx context.Context, request *runtime.DeleteRequest) (response *runtime.DeleteResponse, err error) {
+	return h.delete(ctx, request, "")
+}
+
+func (h *sandboxService) delete(ctx context.Context, request *runtime.DeleteRequest, controlPlaneNodeID string) (response *runtime.DeleteResponse, err error) {
 	ctx, op := sdkobs.StartOperation(ctx, sdkobs.OperationConfig{
 		Name: sandboxobs.SpanAllocationDelete,
 		SpanAttrs: []attribute.KeyValue{
@@ -437,7 +428,16 @@ func (h *sandboxService) Delete(ctx context.Context, request *runtime.DeleteRequ
 		Duration:    sandboxobs.MetricAllocationDeleteDuration,
 	})
 	defer func() { op.End(err) }()
-	resp, err := h.allocationController().Delete(ctx, request)
+	controller := h.allocationController()
+	if controlPlaneNodeID != "" {
+		resp, err := controller.DeleteControlPlane(ctx, request, controlPlaneNodeID)
+		if err != nil {
+			op.SetErrorStatus("allocation delete failed")
+			return resp, errord.ToGRPC(err)
+		}
+		return resp, nil
+	}
+	resp, err := controller.Delete(ctx, request)
 	if err != nil {
 		op.SetErrorStatus("allocation delete failed")
 		return resp, errord.ToGRPC(err)

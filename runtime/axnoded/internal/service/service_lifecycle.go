@@ -24,13 +24,13 @@ func (h *sandboxService) Run(ctx context.Context) error {
 		h.capabilityReconcileCancel()
 	}
 	h.capabilityReconcileCtx, h.capabilityReconcileCancel = context.WithCancel(context.Background())
-	if err := h.controlPlaneReports.ReplayDurableAllocationStatuses(); err != nil {
-		return fmt.Errorf("replay durable allocation status outbox: %w", err)
+	if err := h.controlPlaneReports.ReplayDurableAllocationLifecycles(); err != nil {
+		return fmt.Errorf("replay durable allocation lifecycle outbox: %w", err)
 	}
 	h.inventoryCollector.Start()
 	h.controlPlaneReports.Start()
 	for allocationID, manifest := range h.allocationController().CapabilityConditionManifests() {
-		h.controlPlaneReports.ReportCapabilityConditions(allocationID, manifest.Attempt, manifest.Set)
+		h.controlPlaneReports.ReportCapabilityConditions(allocationID, manifest.Set)
 	}
 	h.startCapabilityRefresh(ctx)
 	h.startPeriodicCapabilityAudit()
@@ -119,10 +119,10 @@ func (h *sandboxService) deleteAllocationsForShutdown(ctx context.Context, conta
 	}
 
 	for _, item := range containers {
-		if item == nil || item.Metadata == nil || item.Metadata.ID == "" {
+		if item == nil || item.Metadata == nil || item.ID == "" {
 			continue
 		}
-		jobs <- item.Metadata.ID
+		jobs <- item.ID
 	}
 	close(jobs)
 	wg.Wait()

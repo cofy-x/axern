@@ -74,7 +74,6 @@ export interface SandboxState {
   runId: string;
   allocationId: string;
   nodeId: string;
-  attempt: number;
   startedAt: Date;
 }
 
@@ -163,7 +162,6 @@ export class Sandbox {
         runId: this.runId,
         allocationId: String(runningRun.allocation_id ?? ""),
         nodeId: String(runningRun.node_id ?? ""),
-        attempt: Number(runningRun.attempt ?? 0),
         startedAt: new Date(),
       };
       this.currentMetadata = sandboxMetadata(this.options, this.currentState);

@@ -1,7 +1,6 @@
 package startplan
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
@@ -9,7 +8,6 @@ import (
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	runtimecore "github.com/cofy-x/axern/runtime/axnoded/internal/runtime"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/sirupsen/logrus"
@@ -111,19 +109,6 @@ func ValidateStartRequest(request *runtime.StartRequest) error {
 	}
 }
 
-func BuildStaticStartLabels(request *runtime.StartRequest) map[string]string {
-	labels := map[string]string{
-		workloadidentity.LabelKeyRuntimeID: request.RuntimeTemplate.ID,
-	}
-	if allocationID := strings.TrimSpace(request.ContainerID); allocationID != "" {
-		labels[workloadidentity.LabelKeyAllocationID] = allocationID
-	}
-	if request.GetAllocationAttempt() > 0 {
-		labels[workloadidentity.LabelKeyAllocationAttempt] = strconv.FormatInt(request.GetAllocationAttempt(), 10)
-	}
-	return labels
-}
-
 func BuildDynamicStartLabels(request *runtime.StartRequest) map[string]string {
 	labels := map[string]string{}
 	extraConfig, ok := ParseExtraConfig(request.ExtraConfig)
@@ -157,11 +142,7 @@ func BuildDynamicStartLabels(request *runtime.StartRequest) map[string]string {
 }
 
 func BuildStartLabels(request *runtime.StartRequest) map[string]string {
-	labels := BuildStaticStartLabels(request)
-	for k, v := range BuildDynamicStartLabels(request) {
-		labels[k] = v
-	}
-	return labels
+	return BuildDynamicStartLabels(request)
 }
 
 func BuildStaticStartMounts(request *runtime.StartRequest) []*runtime.Mount {
@@ -210,7 +191,7 @@ func BuildBundleTemplateRequest(
 		Rootfs:  BuildContainerRootfs(lrt),
 		Mounts:  BuildStaticStartMounts(request),
 		Envs:    BuildStaticStartEnv(lrt, request),
-		Labels:  BuildStaticStartLabels(request),
+		Labels:  map[string]string{},
 		Cwd:     BuildStartCwd(lrt, request),
 	}
 }
@@ -222,7 +203,7 @@ func BuildBundleTemplateRequestFromLanguageRuntime(lrt *langrtmanager.LanguageRu
 		Rootfs:  BuildContainerRootfs(lrt),
 		Mounts:  CloneRuntimeMounts(lrt.Mounts),
 		Envs:    BuildStaticRuntimeEnv(lrt),
-		Labels:  map[string]string{workloadidentity.LabelKeyRuntimeID: lrt.ID},
+		Labels:  map[string]string{},
 		Cwd:     lrt.Cwd,
 	}
 }

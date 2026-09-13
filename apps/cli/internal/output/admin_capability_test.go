@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestRenderAllocationCapabilityDiagnosticsIncludesProofAndAttemptIdentity(t *testing.T) {
+func TestRenderAllocationCapabilityDiagnosticsIncludesProofIdentity(t *testing.T) {
 	now := time.Now().UTC()
 	key := capabilitycontract.ExtensionKey("example.com/accelerator", "model-a")
 	proof := &capabilityv1.CapabilityObservationProof{
@@ -30,7 +30,6 @@ func TestRenderAllocationCapabilityDiagnosticsIncludesProofAndAttemptIdentity(t 
 		SelectedObservation: proof,
 	}
 	diagnostics := &adminv1.GetAllocationCapabilityDiagnosticsResponse{
-		AllocationAttempt:         7,
 		CreateAdmissionRecorded:   true,
 		CreateDependencySetDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		CreateAdmittedAt:          timestamppb.New(now),
@@ -69,7 +68,7 @@ func TestRenderAllocationCapabilityDiagnosticsIncludesProofAndAttemptIdentity(t 
 	var buffer bytes.Buffer
 	RenderAllocationCapabilityDiagnostics(&buffer, diagnostics)
 	output := buffer.String()
-	for _, expected := range []string{"PROVIDER", "SNAPSHOT", "DEPENDENCIES", "config", "snapshot-1", "ATTEMPT", "7", "CREATE ADMISSION", "true", "REVISION", "3", "MEMORY REQUEST", "128.0 MiB", "PHYSICAL", "12.0 GiB", "SOURCE ALLOCATABLE", "10.0 GiB", "NODE COMMITTED", "512.0 MiB", "MEMORY CURRENT", "PEAK SOURCE", "kernel memory.peak", "OOM KILL", "assigned"} {
+	for _, expected := range []string{"PROVIDER", "SNAPSHOT", "DEPENDENCIES", "config", "snapshot-1", "CREATE ADMISSION", "true", "REVISION", "3", "MEMORY REQUEST", "128.0 MiB", "PHYSICAL", "12.0 GiB", "SOURCE ALLOCATABLE", "10.0 GiB", "NODE COMMITTED", "512.0 MiB", "MEMORY CURRENT", "PEAK SOURCE", "kernel memory.peak", "OOM KILL", "assigned"} {
 		if !strings.Contains(output, expected) {
 			t.Fatalf("output does not contain %q:\n%s", expected, output)
 		}

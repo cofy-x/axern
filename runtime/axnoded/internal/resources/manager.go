@@ -39,7 +39,6 @@ type AllocateOption struct {
 	// conformance includes trusted monitor/control overhead outside the workload
 	// hard limit and therefore reserves a larger aggregate envelope.
 	CapacityReservationBytes int64
-	AllocationAttempt        int64
 	RuntimeName              string
 	CgroupOwnerKind          apipb.CgroupLeaseOwnerKind
 }
@@ -49,16 +48,15 @@ type AllocateOption struct {
 // Kernel identity and usage are sampled from the live cgroup, never trusted
 // from this record.
 type RetiringMemoryLease struct {
-	CgroupID          string
-	AllocationID      string
-	AllocationAttempt int64
-	MemoryRequest     int64
-	MemoryLimit       int64
-	RuntimeName       string
-	BootID            string
-	MountIdentity     string
-	ParentInode       uint64
-	LeafInode         uint64
+	CgroupID      string
+	AllocationID  string
+	MemoryRequest int64
+	MemoryLimit   int64
+	RuntimeName   string
+	BootID        string
+	MountIdentity string
+	ParentInode   uint64
+	LeafInode     uint64
 }
 
 // resizable extends Manager with pool sizing methods used by the internal resize loop.

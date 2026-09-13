@@ -48,8 +48,8 @@ func (s *Store) Create(ctx context.Context, params tunnelkernel.CreateParams) (*
 	if err != nil {
 		return nil, err
 	}
-	if alloc.Status != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String() {
-		return nil, grpcstatus.Error(codes.FailedPrecondition, "allocation is not running")
+	if alloc.LifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String() {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "allocation is not active")
 	}
 	actor, ok := accesskernel.ActorFromContext(ctx)
 	if !ok || strings.TrimSpace(actor.Principal.ID) == "" {
@@ -95,7 +95,6 @@ func (s *Store) Create(ctx context.Context, params tunnelkernel.CreateParams) (*
 		CreatorPrincipalID: actor.Principal.ID,
 		NodeID:             alloc.NodeID,
 		NodeTarget:         alloc.NodeTarget,
-		Attempt:            alloc.Attempt,
 		RemotePort:         remotePort,
 		LocalTarget:        localTarget,
 		EdgeTarget:         relay.ClientTarget,
@@ -109,12 +108,12 @@ func (s *Store) Create(ctx context.Context, params tunnelkernel.CreateParams) (*
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO tunnel_sessions (
-			session_id, allocation_id, namespace, creator_principal_id, node_id, node_target, attempt, remote_port,
+			session_id, allocation_id, namespace, creator_principal_id, node_id, node_target, remote_port,
 			local_target, edge_target, node_edge_target, relay_id, client_edge_target, status, reason, bound_addr, revoked,
 			client_token_hash, node_token_encrypted, node_token_hash, revision, created_at, updated_at, expires_at
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'','',FALSE,$15,$16,$17,$18,$19,$20,$21)
-	`, session.GetSessionID(), session.GetAllocationID(), session.GetNamespace(), session.GetCreatorPrincipalID(), session.GetNodeID(), session.GetNodeTarget(), session.GetAttempt(), session.GetRemotePort(), session.GetLocalTarget(), session.GetEdgeTarget(), session.GetNodeEdgeTarget(), session.GetRelayID(), session.GetClientEdgeTarget(), session.GetStatus().String(), hashToken(clientToken), nodeTokenEncrypted, hashToken(nodeToken), revision, now, now, expiresAt); err != nil {
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'','',FALSE,$14,$15,$16,$17,$18,$19,$20)
+	`, session.GetSessionID(), session.GetAllocationID(), session.GetNamespace(), session.GetCreatorPrincipalID(), session.GetNodeID(), session.GetNodeTarget(), session.GetRemotePort(), session.GetLocalTarget(), session.GetEdgeTarget(), session.GetNodeEdgeTarget(), session.GetRelayID(), session.GetClientEdgeTarget(), session.GetStatus().String(), hashToken(clientToken), nodeTokenEncrypted, hashToken(nodeToken), revision, now, now, expiresAt); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return nil, grpcstatus.Error(codes.AlreadyExists, "active tunnel session already binds this allocation remote_port")

@@ -13,7 +13,6 @@ import (
 	capabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
@@ -84,7 +83,7 @@ func TestStart_AddsRuntimeIDLabelForTemporaryRuntime(t *testing.T) {
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0755))
 
 	fr := &runtime.RuntimeTemplate{
-		ID:      "test-runtime-id-label",
+		ID:      "test-explicit-allocation-id",
 		Sandbox: "runsc",
 		Rootfs: &runtime.RootfsConfig{
 			Readonly: true,
@@ -95,18 +94,18 @@ func TestStart_AddsRuntimeIDLabelForTemporaryRuntime(t *testing.T) {
 	}
 
 	resp, err := s.Start(context.Background(), &runtime.StartRequest{
-		ContainerID:     "test-runtime-id-label-allocation",
+		ContainerID:     "test-explicit-allocation-id",
 		RuntimeTemplate: fr,
 		Network:         "host",
-		Stdout:          "/tmp/runtime-id-label.stdout",
-		Stderr:          "/tmp/runtime-id-label.stderr",
+		Stdout:          "/tmp/explicit-allocation-id.stdout",
+		Stderr:          "/tmp/explicit-allocation-id.stderr",
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, int32(0), resp.GetCode())
 	if handler.lastRequest == nil {
 		t.Fatalf("expected create request to be captured")
 	}
-	assert.Equal(t, fr.ID, handler.lastRequest.GetLabels()[workloadidentity.LabelKeyRuntimeID])
+	assert.NotContains(t, handler.lastRequest.GetLabels(), "runtime-id")
 }
 
 func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
@@ -136,8 +135,7 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0o755))
 	request := &runtime.StartRequest{
-		ContainerID:       "allocation-retry-contract",
-		AllocationAttempt: 1,
+		ContainerID: "allocation-retry-contract",
 		RuntimeTemplate: &runtime.RuntimeTemplate{
 			ID: "retry-contract", Sandbox: "runsc",
 			Rootfs:  &runtime.RootfsConfig{Readonly: true, Type: runtime.RootfsSrcType_LOCAL, Source: &runtime.RootfsConfig_Path{Path: rootfsDir}},

@@ -72,7 +72,6 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 	stageStarted := time.Now()
 	req, err := b.buildCreateAllocationRequest(callCtx, createAllocationRequestParams{
 		AllocationID:           run.GetAllocationID(),
-		Attempt:                run.GetAttempt(),
 		Config:                 run.GetConfig(),
 		Environment:            env,
 		NodeID:                 nodeID,
@@ -91,23 +90,21 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 	}
 	recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateAllocation, nodeLifecycleStageNodeCreateRPC, stageStarted, nil)
 	return &allocationkernel.CapabilityAdmission{
-		Attempt:              run.GetAttempt(),
 		Dependencies:         cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
 		ConditionSet:         cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
 		WorkspacePreparation: resp.GetWorkspacePreparation(),
 	}, nil
 }
 
-func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID string, attempt int64, nodeID string) error {
-	return b.DeleteResolvedAllocation(ctx, target, allocationID, attempt, nodeID)
+func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string) error {
+	return b.DeleteResolvedAllocation(ctx, target, allocationID, nodeID)
 }
 
-func (b *Bridge) DeleteResolvedAllocation(ctx context.Context, target, allocationID string, attempt int64, nodeID string) error {
+func (b *Bridge) DeleteResolvedAllocation(ctx context.Context, target, allocationID string, nodeID string) error {
 	callCtx, cancel := context.WithTimeout(ctx, b.operationTimeout)
 	defer cancel()
 	_, err := b.client.DeleteAllocation(callCtx, target, &privatenodev1.DeleteAllocationRequest{
 		AllocationID:   allocationID,
-		Attempt:        attempt,
 		NodeID:         nodeID,
 		TimeoutSeconds: 10,
 	})
@@ -117,12 +114,11 @@ func (b *Bridge) DeleteResolvedAllocation(ctx context.Context, target, allocatio
 	return err
 }
 
-func (b *Bridge) AllocationDeleted(ctx context.Context, target, allocationID string, attempt int64, nodeID string) (bool, error) {
+func (b *Bridge) AllocationDeleted(ctx context.Context, target, allocationID string, nodeID string) (bool, error) {
 	callCtx, cancel := context.WithTimeout(ctx, b.operationTimeout)
 	defer cancel()
-	_, err := b.client.GetAllocationStatus(callCtx, target, &privatenodev1.GetAllocationStatusRequest{
+	_, err := b.client.GetAllocationLifecycle(callCtx, target, &privatenodev1.GetAllocationLifecycleRequest{
 		AllocationID: allocationID,
-		Attempt:      attempt,
 		NodeID:       nodeID,
 	})
 	if grpcstatus.Code(err) == codes.NotFound {

@@ -17,7 +17,7 @@ import (
 type LifecycleClient interface {
 	CreateAllocation(context.Context, string, *privatenodev1.CreateAllocationRequest) (*privatenodev1.CreateAllocationResponse, error)
 	DeleteAllocation(context.Context, string, *privatenodev1.DeleteAllocationRequest) (*privatenodev1.DeleteAllocationResponse, error)
-	GetAllocationStatus(context.Context, string, *privatenodev1.GetAllocationStatusRequest) (*privatenodev1.GetAllocationStatusResponse, error)
+	GetAllocationLifecycle(context.Context, string, *privatenodev1.GetAllocationLifecycleRequest) (*privatenodev1.GetAllocationLifecycleResponse, error)
 	Close() error
 }
 
@@ -42,8 +42,8 @@ func (c *GRPCClient) CreateAllocation(ctx context.Context, target string, req *p
 		c.discardRecoverableConn(target, conn, err)
 		return nil, err
 	}
-	if resp.GetAllocationID() != req.GetAllocationID() || resp.GetAttempt() != req.GetAttempt() {
-		return nil, fmt.Errorf("node returned mismatched allocation %q/%d", resp.GetAllocationID(), resp.GetAttempt())
+	if resp.GetAllocationID() != req.GetAllocationID() {
+		return nil, fmt.Errorf("node returned mismatched allocation %q", resp.GetAllocationID())
 	}
 	return resp, nil
 }
@@ -67,8 +67,8 @@ func (c *GRPCClient) DeleteAllocation(ctx context.Context, target string, req *p
 	return resp, err
 }
 
-func (c *GRPCClient) GetAllocationStatus(ctx context.Context, target string, req *privatenodev1.GetAllocationStatusRequest) (*privatenodev1.GetAllocationStatusResponse, error) {
-	var resp *privatenodev1.GetAllocationStatusResponse
+func (c *GRPCClient) GetAllocationLifecycle(ctx context.Context, target string, req *privatenodev1.GetAllocationLifecycleRequest) (*privatenodev1.GetAllocationLifecycleResponse, error) {
+	var resp *privatenodev1.GetAllocationLifecycleResponse
 	var err error
 	for range idempotentRPCAttempts {
 		var client privatenodev1.NodeLifecycleClient
@@ -77,7 +77,7 @@ func (c *GRPCClient) GetAllocationStatus(ctx context.Context, target string, req
 		if err != nil {
 			return nil, err
 		}
-		resp, err = client.GetAllocationStatus(ctx, req)
+		resp, err = client.GetAllocationLifecycle(ctx, req)
 		c.discardRecoverableConn(target, conn, err)
 		if !isRecoverableNodeRPCError(err) {
 			return resp, err

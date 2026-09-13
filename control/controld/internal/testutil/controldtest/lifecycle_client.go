@@ -20,7 +20,7 @@ type FakeNodeLifecycleClient struct {
 	CreateErr          error
 	DeleteErr          error
 	StatusErr          error
-	StatusByID         map[string]*privatenodev1.GetAllocationStatusResponse
+	StatusByID         map[string]*privatenodev1.GetAllocationLifecycleResponse
 	KeepDeletedVisible bool
 	deleted            map[string]bool
 }
@@ -38,7 +38,6 @@ func (f *FakeNodeLifecycleClient) CreateAllocation(ctx context.Context, target s
 	dependencies, conditions, observedAt := healthyCapabilityAdmission(req.GetConfig().GetCapabilityDependencies())
 	return &privatenodev1.CreateAllocationResponse{
 		AllocationID:                   req.GetAllocationID(),
-		Attempt:                        req.GetAttempt(),
 		AdmittedCapabilityDependencies: dependencies,
 		CapabilityVerification: &capabilityv1.CapabilityConditionSet{
 			Revision:   1,
@@ -92,7 +91,7 @@ func (f *FakeNodeLifecycleClient) DeleteAllocation(ctx context.Context, target s
 	return &privatenodev1.DeleteAllocationResponse{}, nil
 }
 
-func (f *FakeNodeLifecycleClient) GetAllocationStatus(ctx context.Context, target string, req *privatenodev1.GetAllocationStatusRequest) (*privatenodev1.GetAllocationStatusResponse, error) {
+func (f *FakeNodeLifecycleClient) GetAllocationLifecycle(ctx context.Context, target string, req *privatenodev1.GetAllocationLifecycleRequest) (*privatenodev1.GetAllocationLifecycleResponse, error) {
 	_ = ctx
 	_ = target
 	f.mu.Lock()
@@ -104,9 +103,9 @@ func (f *FakeNodeLifecycleClient) GetAllocationStatus(ctx context.Context, targe
 		return nil, grpcstatus.Error(codes.NotFound, "allocation not found")
 	}
 	if resp, ok := f.StatusByID[req.GetAllocationID()]; ok && resp != nil {
-		return proto.Clone(resp).(*privatenodev1.GetAllocationStatusResponse), nil
+		return proto.Clone(resp).(*privatenodev1.GetAllocationLifecycleResponse), nil
 	}
-	return &privatenodev1.GetAllocationStatusResponse{}, nil
+	return &privatenodev1.GetAllocationLifecycleResponse{}, nil
 }
 
 func (f *FakeNodeLifecycleClient) Close() error {

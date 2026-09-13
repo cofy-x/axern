@@ -21,7 +21,7 @@ func (s *nodeSandboxServer) ProxyHTTP(stream nodesandboxv1.NodeSandbox_ProxyHTTP
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "initial open payload is required")
 	}
-	target, err := s.validateDirectAuth(stream.Context(), open.GetAllocationID(), open.GetAttempt(), open.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(stream.Context(), open.GetAllocationID(), open.GetExecutionLeaseToken())
 	if err != nil {
 		return err
 	}

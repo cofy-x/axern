@@ -88,14 +88,14 @@ func loadCounts(ctx context.Context, q queryer, now time.Time) (consistencykerne
 
 func loadActiveReservationIssues(ctx context.Context, q queryer, _ time.Time, limit int) ([]consistencykernel.Issue, bool, error) {
 	rows, err := q.Query(ctx, `
-		SELECT a.allocation_id, a.run_id, a.node_id, a.status
+		SELECT a.allocation_id, a.run_id, a.node_id, a.lifecycle_state
 		FROM reservations res
 		JOIN allocations a ON a.allocation_id = res.allocation_id
 		WHERE res.released_at IS NULL
-		  AND a.status = ANY($1::text[])
+		  AND a.lifecycle_state = ANY($1::text[])
 		ORDER BY res.created_at ASC, res.allocation_id ASC
 		LIMIT $2
-	`, endedAllocationStatuses(), limit+1)
+	`, []string{commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()}, limit+1)
 	if err != nil {
 		return nil, false, fmt.Errorf("query active reservation consistency: %w", err)
 	}
@@ -106,18 +106,18 @@ func loadActiveReservationIssues(ctx context.Context, q queryer, _ time.Time, li
 		if len(out) == limit {
 			return out, true, nil
 		}
-		var allocationID, runID, nodeID, allocationStatus string
-		if err := rows.Scan(&allocationID, &runID, &nodeID, &allocationStatus); err != nil {
+		var allocationID, runID, nodeID, allocationLifecycle string
+		if err := rows.Scan(&allocationID, &runID, &nodeID, &allocationLifecycle); err != nil {
 			return nil, false, err
 		}
 		out = append(out, consistencykernel.Issue{
-			Code:         consistencykernel.IssueActiveReservationOnEndedAllocation,
+			Code:         consistencykernel.IssueActiveReservationOnReleasedAllocation,
 			Severity:     consistencykernel.SeverityError,
 			AllocationID: allocationID,
 			RunID:        runID,
 			NodeID:       nodeID,
-			Status:       allocationStatus,
-			Detail:       "active reservation remains after allocation ended",
+			Status:       allocationLifecycle,
+			Detail:       "active reservation remains after allocation release completed",
 		})
 	}
 	return out, false, rows.Err()
@@ -125,15 +125,15 @@ func loadActiveReservationIssues(ctx context.Context, q queryer, _ time.Time, li
 
 func loadActiveLeaseIssues(ctx context.Context, q queryer, now time.Time, limit int) ([]consistencykernel.Issue, bool, error) {
 	rows, err := q.Query(ctx, `
-		SELECT el.lease_id, a.allocation_id, a.node_id, a.status, a.run_id
+		SELECT el.lease_id, a.allocation_id, a.node_id, a.lifecycle_state, a.run_id
 		FROM execution_leases el
 		JOIN allocations a ON a.allocation_id = el.allocation_id
 		WHERE el.revoked = FALSE
 		  AND el.expires_at > $2
-		  AND a.status = ANY($1::text[])
+		  AND a.lifecycle_state = ANY($1::text[])
 		ORDER BY el.created_at ASC, el.allocation_id ASC
 		LIMIT $3
-	`, endedAllocationStatuses(), now.UTC(), limit+1)
+	`, terminalAllocationLifecycleStates(), now.UTC(), limit+1)
 	if err != nil {
 		return nil, false, fmt.Errorf("query active lease consistency: %w", err)
 	}
@@ -143,7 +143,7 @@ func loadActiveLeaseIssues(ctx context.Context, q queryer, now time.Time, limit 
 
 func loadActiveTunnelIssues(ctx context.Context, q queryer, _ time.Time, limit int) ([]consistencykernel.Issue, bool, error) {
 	rows, err := q.Query(ctx, `
-		SELECT ts.session_id, a.allocation_id, a.node_id, a.status, a.run_id
+		SELECT ts.session_id, a.allocation_id, a.node_id, a.lifecycle_state, a.run_id
 		FROM tunnel_sessions ts
 		JOIN allocations a ON a.allocation_id = ts.allocation_id
 		WHERE ts.revoked = FALSE
@@ -152,10 +152,10 @@ func loadActiveTunnelIssues(ctx context.Context, q queryer, _ time.Time, limit i
 			'TUNNEL_SESSION_STATUS_RUNNING',
 			'TUNNEL_SESSION_STATUS_DEGRADED'
 		  )
-		  AND a.status = ANY($1::text[])
+		  AND a.lifecycle_state = ANY($1::text[])
 		ORDER BY ts.created_at ASC, ts.allocation_id ASC
 		LIMIT $2
-	`, endedAllocationStatuses(), limit+1)
+	`, terminalAllocationLifecycleStates(), limit+1)
 	if err != nil {
 		return nil, false, fmt.Errorf("query active tunnel consistency: %w", err)
 	}
@@ -199,10 +199,9 @@ func dependentIssueCode(resource dependentResource) consistencykernel.IssueCode 
 	}
 }
 
-func endedAllocationStatuses() []string {
+func terminalAllocationLifecycleStates() []string {
 	return []string{
-		commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED.String(),
-		commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-		commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASED.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(),
 	}
 }

@@ -2,8 +2,6 @@ package policy
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -23,7 +21,6 @@ import (
 
 type Key struct {
 	AllocationID string
-	Attempt      int64
 }
 
 type ReconcileResult struct {
@@ -65,7 +62,6 @@ func NewManagerWithExecutor(store Store, executor Executor) (*Manager, error) {
 		return nil, err
 	}
 	ips := map[string]Key{}
-	allocations := map[string]Key{}
 	for _, item := range loaded {
 		normalized, err := validateStored(item)
 		if err != nil {
@@ -73,40 +69,24 @@ func NewManagerWithExecutor(store Store, executor Executor) (*Manager, error) {
 		}
 		key := keyOf(normalized)
 		if _, ok := m.records[key]; ok {
-			return nil, fmt.Errorf("duplicate persisted egress policy for allocation %q attempt %d", key.AllocationID, key.Attempt)
-		}
-		if existing, ok := allocations[key.AllocationID]; ok {
-			return nil, fmt.Errorf("persisted allocation %q has multiple attempts %d and %d", key.AllocationID, existing.Attempt, key.Attempt)
+			return nil, fmt.Errorf("duplicate persisted egress policy for allocation %q", key.AllocationID)
 		}
 		if existing, ok := ips[normalized.GetSandboxIp()]; ok {
-			return nil, fmt.Errorf("persisted sandbox IP %s is shared by %q/%d and %q/%d", normalized.GetSandboxIp(), existing.AllocationID, existing.Attempt, key.AllocationID, key.Attempt)
+			return nil, fmt.Errorf("persisted sandbox IP %s is shared by allocations %q and %q", normalized.GetSandboxIp(), existing.AllocationID, key.AllocationID)
 		}
-		normalized.RecoveryState = runtimeegressv1.EgressPolicyRecoveryState_EGRESS_POLICY_RECOVERY_STATE_RECOVERED
 		m.records[key] = normalized
 		ips[normalized.GetSandboxIp()] = key
-		allocations[key.AllocationID] = key
 	}
 	if err := m.executor.Reconcile(context.Background(), sortedRecords(m.records, "")); err != nil {
 		return nil, fmt.Errorf("restore egress enforcement: %w", err)
 	}
-	if len(loaded) > 0 {
-		if err := m.saveLocked(context.Background(), m.records); err != nil {
-			return nil, err
-		}
-	}
 	return m, nil
 }
 
-func (m *Manager) Prepare(ctx context.Context, allocationID string, attempt int64, sandboxIP string, input *commonv1.NetworkEgressPolicy, executionRevision int64, upstreamSets ...[]string) (*runtimeegressv1.PreparedEgressPolicy, bool, error) {
+func (m *Manager) Prepare(ctx context.Context, allocationID string, sandboxIP string, input *commonv1.NetworkEgressPolicy, upstreamSets ...[]string) (*runtimeegressv1.PreparedEgressPolicy, bool, error) {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" {
 		return nil, false, fmt.Errorf("allocation_id is required")
-	}
-	if attempt <= 0 {
-		return nil, false, fmt.Errorf("attempt must be positive")
-	}
-	if executionRevision <= 0 {
-		return nil, false, fmt.Errorf("execution_revision must be positive")
 	}
 	ip, err := netip.ParseAddr(strings.TrimSpace(sandboxIP))
 	if err != nil || !ip.IsValid() || !ip.IsGlobalUnicast() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
@@ -123,19 +103,10 @@ func (m *Manager) Prepare(ctx context.Context, allocationID string, attempt int6
 	if network.GetEgressPolicy() == nil {
 		return nil, false, fmt.Errorf("policy is required")
 	}
-	digest, err := policyDigest(network.GetEgressPolicy())
-	if err != nil {
-		return nil, false, err
-	}
 	record := &runtimeegressv1.PreparedEgressPolicy{
-		AllocationID:      allocationID,
-		Attempt:           attempt,
-		SandboxIp:         ip.String(),
-		Policy:            network.GetEgressPolicy(),
-		PolicyDigest:      digest,
-		ExecutionRevision: executionRevision,
-		RecoveryState:     runtimeegressv1.EgressPolicyRecoveryState_EGRESS_POLICY_RECOVERY_STATE_APPLIED,
-		UpdatedAt:         timestamppb.Now(),
+		AllocationID: allocationID,
+		SandboxIp:    ip.String(),
+		Policy:       network.GetEgressPolicy(),
 	}
 	if len(upstreamSets) > 0 {
 		record.UpstreamNameservers = append([]string(nil), upstreamSets[0]...)
@@ -155,25 +126,14 @@ func (m *Manager) Prepare(ctx context.Context, allocationID string, attempt int6
 		if equivalent(existing, record) {
 			return cloneRecord(existing), true, nil
 		}
-		return nil, false, fmt.Errorf("allocation %q attempt %d is already prepared with different content", allocationID, attempt)
+		return nil, false, fmt.Errorf("allocation %q is already prepared with different content", allocationID)
 	}
 	for existingKey, existing := range m.records {
-		if existingKey.AllocationID == allocationID {
-			if existingKey.Attempt > attempt {
-				return nil, false, fmt.Errorf("allocation %q attempt %d is stale; current attempt is %d", allocationID, attempt, existingKey.Attempt)
-			}
-			continue
-		}
 		if existing.GetSandboxIp() == record.GetSandboxIp() {
-			return nil, false, fmt.Errorf("sandbox_ip %s is already owned by allocation %q attempt %d", record.GetSandboxIp(), existingKey.AllocationID, existingKey.Attempt)
+			return nil, false, fmt.Errorf("sandbox_ip %s is already owned by allocation %q", record.GetSandboxIp(), existingKey.AllocationID)
 		}
 	}
 	next := cloneMap(m.records)
-	for existingKey := range next {
-		if existingKey.AllocationID == allocationID && existingKey.Attempt < attempt {
-			delete(next, existingKey)
-		}
-	}
 	next[key] = cloneRecord(record)
 	if err := m.executor.Reconcile(ctx, sortedRecords(next, "")); err != nil {
 		return nil, false, fmt.Errorf("apply egress enforcement: %w", err)
@@ -188,20 +148,15 @@ func (m *Manager) Prepare(ctx context.Context, allocationID string, attempt int6
 	return cloneRecord(record), false, nil
 }
 
-func (m *Manager) Delete(ctx context.Context, allocationID string, attempt int64) (bool, error) {
+func (m *Manager) Delete(ctx context.Context, allocationID string) (bool, error) {
 	allocationID = strings.TrimSpace(allocationID)
-	if allocationID == "" || attempt <= 0 {
-		return false, fmt.Errorf("allocation_id and a positive attempt are required")
+	if allocationID == "" {
+		return false, fmt.Errorf("allocation_id is required")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	key := Key{AllocationID: allocationID, Attempt: attempt}
+	key := Key{AllocationID: allocationID}
 	if _, ok := m.records[key]; !ok {
-		for existingKey := range m.records {
-			if existingKey.AllocationID == allocationID && existingKey.Attempt > attempt {
-				return false, fmt.Errorf("allocation %q attempt %d is stale; current attempt is %d", allocationID, attempt, existingKey.Attempt)
-			}
-		}
 		return false, nil
 	}
 	next := cloneMap(m.records)
@@ -219,10 +174,10 @@ func (m *Manager) Delete(ctx context.Context, allocationID string, attempt int64
 	return true, nil
 }
 
-func (m *Manager) Get(allocationID string, attempt int64) (*runtimeegressv1.PreparedEgressPolicy, bool) {
+func (m *Manager) Get(allocationID string) (*runtimeegressv1.PreparedEgressPolicy, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	record, ok := m.records[Key{AllocationID: strings.TrimSpace(allocationID), Attempt: attempt}]
+	record, ok := m.records[Key{AllocationID: strings.TrimSpace(allocationID)}]
 	return cloneRecord(record), ok
 }
 
@@ -233,7 +188,7 @@ func (m *Manager) List(allocationID string) []*runtimeegressv1.PreparedEgressPol
 	return sortedRecords(m.records, allocationID)
 }
 
-func (m *Manager) Reconcile(ctx context.Context, active []*runtimeegressv1.ActiveEgressPolicy) (result ReconcileResult, err error) {
+func (m *Manager) Reconcile(ctx context.Context, allocationIDs []string) (result ReconcileResult, err error) {
 	defer func() {
 		m.mu.Lock()
 		m.health.lastReconcileAt = time.Now().UTC()
@@ -245,27 +200,27 @@ func (m *Manager) Reconcile(ctx context.Context, active []*runtimeegressv1.Activ
 		}
 		m.mu.Unlock()
 	}()
-	proofs := map[Key]*runtimeegressv1.ActiveEgressPolicy{}
-	for _, proof := range active {
-		if err := validateProof(proof); err != nil {
+	active := map[Key]struct{}{}
+	for _, allocationID := range allocationIDs {
+		allocationID = strings.TrimSpace(allocationID)
+		if allocationID == "" {
 			result.InvalidActivePolicyCount++
 			continue
 		}
-		key := Key{AllocationID: strings.TrimSpace(proof.GetAllocationID()), Attempt: proof.GetAttempt()}
-		if _, duplicated := proofs[key]; duplicated {
+		key := Key{AllocationID: allocationID}
+		if _, duplicated := active[key]; duplicated {
 			result.InvalidActivePolicyCount++
 			continue
 		}
-		proofs[key] = proof
+		active[key] = struct{}{}
 	}
-	result.ActivePolicyCount = len(proofs)
+	result.ActivePolicyCount = len(active)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	next := cloneMap(m.records)
 	deletedCount := 0
-	for key, record := range m.records {
-		proof, ok := proofs[key]
-		if ok && proofMatches(record, proof) {
+	for key := range m.records {
+		if _, ok := active[key]; ok {
 			result.RetainedCount++
 			continue
 		}
@@ -306,11 +261,6 @@ func (m *Manager) Health() *runtimeegressv1.EgressManagerHealth {
 	health.DnsPolicySelfTestOk = enforcement.DNSPolicyReady
 	health.StrictEgressSelfTestOk = enforcement.StrictEgressReady
 	health.EnforcementRevision = enforcement.Revision
-	for _, record := range m.records {
-		if record.GetRecoveryState() == runtimeegressv1.EgressPolicyRecoveryState_EGRESS_POLICY_RECOVERY_STATE_RECOVERED {
-			health.RecoveredPolicyCount++
-		}
-	}
 	if !m.health.lastReconcileAt.IsZero() {
 		health.LastReconcileAt = timestamppb.New(m.health.lastReconcileAt)
 	}
@@ -338,47 +288,19 @@ func validateStored(record *runtimeegressv1.PreparedEgressPolicy) (*runtimeegres
 		return nil, fmt.Errorf("persisted egress policy is required")
 	}
 	manager := &Manager{executor: unavailableExecutor{}, records: map[Key]*runtimeegressv1.PreparedEgressPolicy{}}
-	prepared, _, err := manager.Prepare(context.Background(), record.GetAllocationID(), record.GetAttempt(), record.GetSandboxIp(), record.GetPolicy(), record.GetExecutionRevision(), record.GetUpstreamNameservers())
+	prepared, _, err := manager.Prepare(context.Background(), record.GetAllocationID(), record.GetSandboxIp(), record.GetPolicy(), record.GetUpstreamNameservers())
 	if err != nil {
 		return nil, fmt.Errorf("invalid persisted egress policy: %w", err)
 	}
-	if record.GetPolicyDigest() != prepared.GetPolicyDigest() {
-		return nil, fmt.Errorf("invalid persisted egress policy: policy digest mismatch")
-	}
-	prepared.UpdatedAt = record.GetUpdatedAt()
 	return prepared, nil
 }
 
-func validateProof(proof *runtimeegressv1.ActiveEgressPolicy) error {
-	if proof == nil || strings.TrimSpace(proof.GetAllocationID()) == "" || proof.GetAttempt() <= 0 || proof.GetExecutionRevision() <= 0 || strings.TrimSpace(proof.GetPolicyDigest()) == "" {
-		return fmt.Errorf("active policy proof is incomplete")
-	}
-	ip, err := netip.ParseAddr(strings.TrimSpace(proof.GetSandboxIp()))
-	if err != nil || !ip.IsValid() {
-		return fmt.Errorf("active policy proof sandbox IP is invalid")
-	}
-	return nil
-}
-
-func proofMatches(record *runtimeegressv1.PreparedEgressPolicy, proof *runtimeegressv1.ActiveEgressPolicy) bool {
-	return record.GetSandboxIp() == strings.TrimSpace(proof.GetSandboxIp()) && record.GetPolicyDigest() == strings.TrimSpace(proof.GetPolicyDigest()) && record.GetExecutionRevision() == proof.GetExecutionRevision()
-}
-
-func policyDigest(input *commonv1.NetworkEgressPolicy) (string, error) {
-	data, err := proto.MarshalOptions{Deterministic: true}.Marshal(input)
-	if err != nil {
-		return "", fmt.Errorf("marshal normalized policy: %w", err)
-	}
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
-}
-
 func equivalent(left, right *runtimeegressv1.PreparedEgressPolicy) bool {
-	return left.GetSandboxIp() == right.GetSandboxIp() && left.GetPolicyDigest() == right.GetPolicyDigest() && left.GetExecutionRevision() == right.GetExecutionRevision() && slices.Equal(left.GetUpstreamNameservers(), right.GetUpstreamNameservers())
+	return left.GetSandboxIp() == right.GetSandboxIp() && proto.Equal(left.GetPolicy(), right.GetPolicy()) && slices.Equal(left.GetUpstreamNameservers(), right.GetUpstreamNameservers())
 }
 
 func keyOf(record *runtimeegressv1.PreparedEgressPolicy) Key {
-	return Key{AllocationID: record.GetAllocationID(), Attempt: record.GetAttempt()}
+	return Key{AllocationID: record.GetAllocationID()}
 }
 
 func cloneRecord(record *runtimeegressv1.PreparedEgressPolicy) *runtimeegressv1.PreparedEgressPolicy {
@@ -403,11 +325,6 @@ func sortedRecords(records map[Key]*runtimeegressv1.PreparedEgressPolicy, alloca
 			out = append(out, cloneRecord(record))
 		}
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].GetAllocationID() == out[j].GetAllocationID() {
-			return out[i].GetAttempt() < out[j].GetAttempt()
-		}
-		return out[i].GetAllocationID() < out[j].GetAllocationID()
-	})
+	sort.Slice(out, func(i, j int) bool { return out[i].GetAllocationID() < out[j].GetAllocationID() })
 	return out
 }

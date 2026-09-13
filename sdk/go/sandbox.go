@@ -62,7 +62,6 @@ type SandboxState struct {
 	RunID                 string
 	AllocationID          string
 	NodeID                string
-	Attempt               int64
 	StartedAt             time.Time
 	TunnelSessionID       string
 	BoundAddr             string
@@ -135,7 +134,6 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		RunID:                run.GetID(),
 		AllocationID:         run.GetAllocationID(),
 		NodeID:               run.GetNodeID(),
-		Attempt:              run.GetAttempt(),
 		StartedAt:            time.Now(),
 		WorkspacePreparation: run.GetWorkspacePreparation(),
 	}

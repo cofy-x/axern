@@ -14,6 +14,7 @@ import (
 	"github.com/cofy-x/axern/runtime/egressd/internal/l7inspect"
 	obs "github.com/cofy-x/axern/runtime/egressd/internal/observability"
 	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -58,7 +59,7 @@ func (e *Engine) SetPolicies(records []*runtimeegressv1.PreparedEgressPolicy) {
 	for source := range e.auth {
 		current := e.policies[source]
 		desired := next[source]
-		if desired == nil || current == nil || current.GetAllocationID() != desired.GetAllocationID() || current.GetAttempt() != desired.GetAttempt() || current.GetPolicyDigest() != desired.GetPolicyDigest() {
+		if desired == nil || current == nil || current.GetAllocationID() != desired.GetAllocationID() || !proto.Equal(current.GetPolicy(), desired.GetPolicy()) {
 			delete(e.auth, source)
 		}
 	}

@@ -143,5 +143,5 @@ Sandboxd can run processes, read/write files, control PTYs, and optionally drive
 - Create the socket with owner-only permissions (`0600`).
 - Reject loose or oversized JSON before provider dispatch.
 - Keep SDKs and CLIs on Axern product APIs, never raw daemon endpoints.
-- Route product traffic through `axnoded` for allocation identity, attempt, leases, node-local authorization, and error mapping.
+- Route product traffic through `axnoded` for exact Allocation identity, leases, node-local authorization, and error mapping.
 - Broker browser, future VNC, and future noVNC through Axern authorization policy rather than raw daemon endpoints.

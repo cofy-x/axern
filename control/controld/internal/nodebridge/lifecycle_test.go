@@ -41,7 +41,6 @@ func TestBridgeUsesSeparateLifecycleTimeouts(t *testing.T) {
 func TestBuildCreateAllocationRequest(t *testing.T) {
 	run := &runv1.Run{
 		AllocationID: "alloc-a",
-		Attempt:      2,
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sh"},
 			Env:  map[string]string{"RUN": "true"},
@@ -63,13 +62,12 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 	}
 	req := buildCreateAllocationRequestFromParams(createAllocationRequestParams{
 		AllocationID:   run.GetAllocationID(),
-		Attempt:        run.GetAttempt(),
 		Config:         run.GetConfig(),
 		Environment:    env,
 		NodeID:         "node-a",
 		DefaultRuntime: DefaultRuntime,
 	})
-	if req.GetAllocationID() != "alloc-a" || req.GetAttempt() != 2 || req.GetNodeID() != "node-a" {
+	if req.GetAllocationID() != "alloc-a" || req.GetNodeID() != "node-a" {
 		t.Fatalf("unexpected allocation identity: %+v", req)
 	}
 	if req.GetConfig().GetEnvironmentID() != "env-a" {
@@ -304,7 +302,7 @@ func TestFormatCreateAllocationErrorExplainsReadonlyRootfsTarget(t *testing.T) {
 
 func TestDeleteAllocationTreatsNodeNotFoundAsReleased(t *testing.T) {
 	bridge := New(&captureLifecycleClient{deleteErr: grpcstatus.Error(codes.NotFound, "not found")}, Config{})
-	if err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-missing", 1, "node-a"); err != nil {
+	if err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-missing", "node-a"); err != nil {
 		t.Fatalf("DeleteAllocation() error = %v, want nil for node not found", err)
 	}
 }
@@ -312,7 +310,7 @@ func TestDeleteAllocationTreatsNodeNotFoundAsReleased(t *testing.T) {
 func TestDeleteAllocationUsesGraceTimeout(t *testing.T) {
 	client := &captureLifecycleClient{}
 	bridge := New(client, Config{})
-	if err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", 2, "node-a"); err != nil {
+	if err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", "node-a"); err != nil {
 		t.Fatalf("DeleteAllocation() error = %v", err)
 	}
 	if client.lastDelete.GetTimeoutSeconds() != 10 {
@@ -322,7 +320,7 @@ func TestDeleteAllocationUsesGraceTimeout(t *testing.T) {
 
 func TestAllocationDeletedUsesNodeStatus(t *testing.T) {
 	bridge := New(&captureLifecycleClient{statusErr: grpcstatus.Error(codes.NotFound, "not found")}, Config{})
-	deleted, err := bridge.AllocationDeleted(context.Background(), "node-a:24010", "alloc-a", 1, "node-a")
+	deleted, err := bridge.AllocationDeleted(context.Background(), "node-a:24010", "alloc-a", "node-a")
 	if err != nil {
 		t.Fatalf("AllocationDeleted() error = %v", err)
 	}
@@ -353,7 +351,6 @@ func (c *captureLifecycleClient) CreateAllocation(_ context.Context, _ string, r
 	c.lastCreate = protoCloneCreateAllocationRequest(req)
 	return &privatenodev1.CreateAllocationResponse{
 		AllocationID: req.GetAllocationID(),
-		Attempt:      req.GetAttempt(),
 		WorkspacePreparation: &commonv1.WorkspacePreparationFacts{
 			PayloadFormat: "nydus",
 		},
@@ -377,8 +374,8 @@ func (c *captureLifecycleClient) DeleteAllocation(_ context.Context, _ string, r
 	return &privatenodev1.DeleteAllocationResponse{}, nil
 }
 
-func (c *captureLifecycleClient) GetAllocationStatus(context.Context, string, *privatenodev1.GetAllocationStatusRequest) (*privatenodev1.GetAllocationStatusResponse, error) {
-	return &privatenodev1.GetAllocationStatusResponse{}, c.statusErr
+func (c *captureLifecycleClient) GetAllocationLifecycle(context.Context, string, *privatenodev1.GetAllocationLifecycleRequest) (*privatenodev1.GetAllocationLifecycleResponse, error) {
+	return &privatenodev1.GetAllocationLifecycleResponse{}, c.statusErr
 }
 
 func (c *captureLifecycleClient) Close() error {

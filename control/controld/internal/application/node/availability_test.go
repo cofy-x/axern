@@ -133,8 +133,8 @@ func (f *fakeAvailabilityAllocations) ReconcileNodeUnavailable(_ context.Context
 	return nil
 }
 
-func (f *fakeAvailabilityAllocations) BatchReportAllocationStatus(context.Context, string, []*nodev1.AllocationStatusObservation, time.Time) ([]string, error) {
-	panic("unexpected BatchReportAllocationStatus call")
+func (f *fakeAvailabilityAllocations) BatchReportAllocationLifecycle(context.Context, string, []*nodev1.AllocationLifecycleObservation, time.Time) ([]string, error) {
+	panic("unexpected BatchReportAllocationLifecycle call")
 }
 
 func (f *fakeAvailabilityAllocations) ReconcileNodeInventory(context.Context, allocationkernel.NodeInventorySnapshot, time.Time) error {

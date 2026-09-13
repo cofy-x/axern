@@ -23,15 +23,15 @@ func environmentSelectSQL() string {
 }
 
 func runSelectSQL() string {
-	return `SELECT r.run_id, r.namespace, r.environment_id, a.allocation_id, a.attempt, r.status,
+	return `SELECT r.run_id, r.namespace, r.environment_id, a.allocation_id, r.status,
 		r.config, r.labels, r.version, r.created_at, r.updated_at, r.exit_code, r.exit_code_known, r.diagnostic_code, r.message,
 		a.node_id,
 		a.workspace_preparation,
-		COALESCE((SELECT revision FROM allocation_capability_condition_sets s WHERE s.allocation_id = a.allocation_id AND s.allocation_attempt = a.attempt), 0),
-		(SELECT observed_at FROM allocation_capability_condition_sets s WHERE s.allocation_id = a.allocation_id AND s.allocation_attempt = a.attempt),
+		COALESCE((SELECT revision FROM allocation_capability_condition_sets s WHERE s.allocation_id = a.allocation_id), 0),
+		(SELECT observed_at FROM allocation_capability_condition_sets s WHERE s.allocation_id = a.allocation_id),
 		COALESCE((
 			SELECT jsonb_build_object('conditions', COALESCE(jsonb_agg(c.condition ORDER BY c.capability_key_id), '[]'::jsonb))
-			FROM allocation_capability_conditions c WHERE c.allocation_id = a.allocation_id AND c.allocation_attempt = a.attempt
+			FROM allocation_capability_conditions c WHERE c.allocation_id = a.allocation_id
 		), '{"conditions":[]}'::jsonb)
 		FROM runs r JOIN allocations a ON a.run_id = r.run_id`
 }
@@ -76,7 +76,7 @@ func scanRun(row scanner) (*runv1.Run, error) {
 		capabilityRevision                                                         int64
 		capabilityObservedAt                                                       pgtype.Timestamptz
 	)
-	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &run.Attempt, &statusText, &configJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &run.ExitCode, &run.ExitCodeKnown, &diagnosticCodeText, &run.Message, &run.NodeID, &workspacePreparationJSON, &capabilityRevision, &capabilityObservedAt, &capabilityConditionsJSON); err != nil {
+	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &run.ExitCode, &run.ExitCodeKnown, &diagnosticCodeText, &run.Message, &run.NodeID, &workspacePreparationJSON, &capabilityRevision, &capabilityObservedAt, &capabilityConditionsJSON); err != nil {
 		return nil, err
 	}
 	run.Status = parseRunStatus(statusText)
@@ -120,7 +120,7 @@ func scanLease(row scanner) (*commonv1.ExecutionLease, error) {
 		expiresAt time.Time
 		tokenHash string
 	)
-	if err := row.Scan(&lease.LeaseID, &lease.AllocationID, &lease.NodeID, &lease.NodeTarget, &lease.Attempt, &leaseType, &expiresAt, &lease.Revision, &lease.Revoked, &tokenHash); err != nil {
+	if err := row.Scan(&lease.LeaseID, &lease.AllocationID, &lease.NodeID, &lease.NodeTarget, &leaseType, &expiresAt, &lease.Revision, &lease.Revoked, &tokenHash); err != nil {
 		return nil, err
 	}
 	lease.LeaseType = leasekernel.ParseType(leaseType)

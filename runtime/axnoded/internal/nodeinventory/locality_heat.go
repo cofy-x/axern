@@ -6,7 +6,6 @@ import (
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
 )
 
 func (s *AxnodedSource) collectAxnodedLocality(snapshot *NodeInventorySnapshot, runningContainers []*container.Container) {
@@ -38,10 +37,10 @@ func (s *AxnodedSource) collectAxnodedLocality(snapshot *NodeInventorySnapshot, 
 	}
 
 	for _, c := range runningContainers {
-		if c == nil || c.Metadata == nil || c.Metadata.Labels == nil {
+		if c == nil || s.allocationRuntimeID == nil {
 			continue
 		}
-		runtimeID := c.Metadata.Labels[workloadidentity.LabelKeyRuntimeID]
+		runtimeID := s.allocationRuntimeID(c.ID)
 		if runtimeID == "" {
 			continue
 		}

@@ -54,11 +54,9 @@ func TestRecordAllocationCapabilityAdmissionIsAtomicAndLifecycleNeutral(t *testi
 	}
 	if _, err := db.Pool().Exec(ctx, `
 		INSERT INTO allocations (
-			allocation_id, run_id, node_id, attempt, status,
-			config, version, created_at, updated_at, message
-		) VALUES ($1, $2, $3, 1, $4,
-			'{}'::jsonb, 7, $5, $5, 'lifecycle-message-before-capability-report')
-	`, allocationID, "run-"+suffix, nodeID, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(), now); err != nil {
+			allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $5)
+	`, allocationID, "run-"+suffix, nodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String(), now); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -104,7 +102,6 @@ func TestRecordAllocationCapabilityAdmissionIsAtomicAndLifecycleNeutral(t *testi
 	malformed := proto.Clone(condition).(*capabilityv1.CapabilityCondition)
 	malformed.Message = strings.Repeat("x", capabilitycontract.MaxReasonBytes+1)
 	if err := store.RecordAllocationCapabilityAdmission(ctx, allocationID, &allocationkernel.CapabilityAdmission{
-		Attempt:      1,
 		Dependencies: dependencies,
 		ConditionSet: &capabilityv1.CapabilityConditionSet{
 			Revision: 1, ObservedAt: timestamppb.New(now), Conditions: []*capabilityv1.CapabilityCondition{malformed},
@@ -134,7 +131,6 @@ func TestRecordAllocationCapabilityAdmissionIsAtomicAndLifecycleNeutral(t *testi
 	}
 
 	admission := &allocationkernel.CapabilityAdmission{
-		Attempt:      1,
 		Dependencies: dependencies,
 		ConditionSet: &capabilityv1.CapabilityConditionSet{
 			Revision: 1, ObservedAt: timestamppb.New(now), Conditions: []*capabilityv1.CapabilityCondition{condition},
@@ -150,14 +146,14 @@ func TestRecordAllocationCapabilityAdmissionIsAtomicAndLifecycleNeutral(t *testi
 	degradedReplay.Conditions[0].State = capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_DEGRADED
 	degradedReplay.Conditions[0].ReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_ENFORCEMENT_LOST
 	if err := store.RecordAllocationCapabilityAdmission(ctx, allocationID, &allocationkernel.CapabilityAdmission{
-		Attempt: 1, Dependencies: dependencies, ConditionSet: degradedReplay,
+		Dependencies: dependencies, ConditionSet: degradedReplay,
 	}, now.Add(2*time.Second)); err == nil {
 		t.Fatal("create admission replay accepted a mutable degraded condition as historical create proof")
 	}
 	conflicting := proto.Clone(admission.ConditionSet).(*capabilityv1.CapabilityConditionSet)
 	conflicting.Conditions[0].Message = "conflicting same-revision payload"
 	if err := store.RecordAllocationCapabilityAdmission(ctx, allocationID, &allocationkernel.CapabilityAdmission{
-		Attempt: 1, Dependencies: dependencies, ConditionSet: conflicting,
+		Dependencies: dependencies, ConditionSet: conflicting,
 	}, now.Add(3*time.Second)); err != nil {
 		t.Fatalf("immutable admission replay should not rewrite the condition projection: %v", err)
 	}
@@ -167,33 +163,33 @@ func TestRecordAllocationCapabilityAdmissionIsAtomicAndLifecycleNeutral(t *testi
 	}
 	changedProofs[0].SelectedSnapshot.SnapshotID = "replacement-snapshot-" + suffix
 	if err := store.RecordAllocationCapabilityAdmission(ctx, allocationID, &allocationkernel.CapabilityAdmission{
-		Attempt: 1, Dependencies: changedProofs, ConditionSet: conflicting,
+		Dependencies: changedProofs, ConditionSet: conflicting,
 	}, now.Add(4*time.Second)); err == nil {
 		t.Fatal("create retry replaced the immutable admitted proof")
 	}
-	var status, lifecycleMessage string
-	var version int64
+	var lifecycleState string
+	var allocationUpdatedAt time.Time
 	if err := db.Pool().QueryRow(ctx, `
-		SELECT status, message, version
+		SELECT lifecycle_state, updated_at
 		FROM allocations WHERE allocation_id = $1
-	`, allocationID).Scan(&status, &lifecycleMessage, &version); err != nil {
+	`, allocationID).Scan(&lifecycleState, &allocationUpdatedAt); err != nil {
 		t.Fatal(err)
 	}
-	if status != commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String() || lifecycleMessage != "lifecycle-message-before-capability-report" || version != 7 {
-		t.Fatalf("capability report mutated lifecycle: status=%s message=%q version=%d", status, lifecycleMessage, version)
+	if lifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String() || !allocationUpdatedAt.Equal(now) {
+		t.Fatalf("capability report mutated allocation lifecycle: state=%s updated_at=%s", lifecycleState, allocationUpdatedAt)
 	}
-	var revision, attempt, conditionCount int64
+	var revision, conditionCount int64
 	if err := db.Pool().QueryRow(ctx, `
-		SELECT s.revision, s.allocation_attempt, count(c.capability_key_id)
+		SELECT s.revision, count(c.capability_key_id)
 		FROM allocation_capability_condition_sets s
 		LEFT JOIN allocation_capability_conditions c ON c.allocation_id = s.allocation_id
 		WHERE s.allocation_id = $1
-		GROUP BY s.revision, s.allocation_attempt
-	`, allocationID).Scan(&revision, &attempt, &conditionCount); err != nil {
+		GROUP BY s.revision
+	`, allocationID).Scan(&revision, &conditionCount); err != nil {
 		t.Fatal(err)
 	}
-	if revision != 3 || attempt != 1 || conditionCount != 1 {
-		t.Fatalf("condition projection = attempt %d revision %d count %d", attempt, revision, conditionCount)
+	if revision != 3 || conditionCount != 1 {
+		t.Fatalf("condition projection = revision %d count %d", revision, conditionCount)
 	}
 	var admissionCount int
 	if err := db.Pool().QueryRow(ctx, `

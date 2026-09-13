@@ -89,9 +89,6 @@ func RecordCapabilityAdmission(ctx context.Context, executor capabilityExecutor,
 	if admission == nil {
 		return fmt.Errorf("allocation capability admission is required")
 	}
-	if admission.Attempt <= 0 {
-		return fmt.Errorf("allocation capability admission requires a positive attempt")
-	}
 	if admission.ConditionSet == nil {
 		return fmt.Errorf("allocation capability admission requires a full condition set")
 	}
@@ -115,24 +112,20 @@ func RecordCapabilityAdmission(ctx context.Context, executor capabilityExecutor,
 	if err != nil {
 		return err
 	}
-	var currentAttempt int64
-	if err := executor.QueryRow(ctx, `SELECT attempt FROM allocations WHERE allocation_id = $1 FOR UPDATE`, strings.TrimSpace(allocationID)).Scan(&currentAttempt); err != nil {
+	var lockedAllocationID string
+	if err := executor.QueryRow(ctx, `SELECT allocation_id FROM allocations WHERE allocation_id = $1 FOR UPDATE`, strings.TrimSpace(allocationID)).Scan(&lockedAllocationID); err != nil {
 		return fmt.Errorf("lock allocation capability verification: %w", err)
 	}
-	if currentAttempt != admission.Attempt {
-		return fmt.Errorf("allocation capability admission attempt %d does not match current attempt %d", admission.Attempt, currentAttempt)
-	}
-	var admittedAttempt int64
 	var admittedDigest string
 	err = executor.QueryRow(ctx, `
-		SELECT allocation_attempt, dependency_set_digest
+		SELECT dependency_set_digest
 		FROM allocation_capability_admissions
 		WHERE allocation_id = $1
-	`, strings.TrimSpace(allocationID)).Scan(&admittedAttempt, &admittedDigest)
+	`, strings.TrimSpace(allocationID)).Scan(&admittedDigest)
 	switch {
 	case err == nil:
-		if admittedAttempt != admission.Attempt || admittedDigest != dependencyDigest {
-			return fmt.Errorf("create capability admission conflicts with immutable proof for attempt %d", admittedAttempt)
+		if admittedDigest != dependencyDigest {
+			return fmt.Errorf("create capability admission conflicts with immutable proof")
 		}
 		existing, loadErr := LoadCapabilityDependencies(ctx, executor, allocationID)
 		if loadErr != nil {
@@ -172,9 +165,9 @@ func RecordCapabilityAdmission(ctx context.Context, executor capabilityExecutor,
 	}
 	if _, err := executor.Exec(ctx, `
 		INSERT INTO allocation_capability_admissions (
-			allocation_id, allocation_attempt, dependency_set_digest, admitted_at
-		) VALUES ($1, $2, $3, $4)
-	`, strings.TrimSpace(allocationID), admission.Attempt, dependencyDigest, now.UTC()); err != nil {
+			allocation_id, dependency_set_digest, admitted_at
+		) VALUES ($1, $2, $3)
+	`, strings.TrimSpace(allocationID), dependencyDigest, now.UTC()); err != nil {
 		return fmt.Errorf("persist immutable capability admission: %w", err)
 	}
 	return nil
@@ -296,30 +289,29 @@ func ReplaceCapabilityConditions(ctx context.Context, executor capabilityExecuto
 	if err != nil {
 		return err
 	}
-	var allocationAttempt int64
-	if err := executor.QueryRow(ctx, `SELECT attempt FROM allocations WHERE allocation_id = $1 FOR UPDATE`, strings.TrimSpace(allocationID)).Scan(&allocationAttempt); err != nil {
+	var lockedAllocationID string
+	if err := executor.QueryRow(ctx, `SELECT allocation_id FROM allocations WHERE allocation_id = $1 FOR UPDATE`, strings.TrimSpace(allocationID)).Scan(&lockedAllocationID); err != nil {
 		return fmt.Errorf("lock allocation capability condition projection: %w", err)
 	}
 	if err := validateStoredDependencyConditionKeys(ctx, executor, allocationID, canonicalSet.GetConditions()); err != nil {
 		return err
 	}
-	var currentAttempt, currentRevision int64
+	var currentRevision int64
 	var currentDigest string
 	if err := executor.QueryRow(ctx, `
 		SELECT
-			COALESCE((SELECT allocation_attempt FROM allocation_capability_condition_sets WHERE allocation_id = $1), 0),
 			COALESCE((SELECT revision FROM allocation_capability_condition_sets WHERE allocation_id = $1), 0),
 			COALESCE((SELECT payload_digest FROM allocation_capability_condition_sets WHERE allocation_id = $1), '')
-	`, strings.TrimSpace(allocationID)).Scan(&currentAttempt, &currentRevision, &currentDigest); err != nil {
+	`, strings.TrimSpace(allocationID)).Scan(&currentRevision, &currentDigest); err != nil {
 		return fmt.Errorf("lock allocation capability conditions: %w", err)
 	}
-	replace, err := shouldReplaceCapabilityConditions(currentAttempt, currentRevision, allocationAttempt, canonicalSet.GetRevision())
+	replace, err := shouldReplaceCapabilityConditions(currentRevision, canonicalSet.GetRevision())
 	if err != nil {
 		return err
 	}
 	if !replace {
-		if currentAttempt == allocationAttempt && currentRevision == canonicalSet.GetRevision() && currentDigest != payloadDigest {
-			return fmt.Errorf("capability condition revision %d for allocation attempt %d conflicts with its durable payload", currentRevision, currentAttempt)
+		if currentRevision == canonicalSet.GetRevision() && currentDigest != payloadDigest {
+			return fmt.Errorf("capability condition revision %d conflicts with its durable payload", currentRevision)
 		}
 		return nil
 	}
@@ -330,12 +322,12 @@ func ReplaceCapabilityConditions(ctx context.Context, executor capabilityExecuto
 		return err
 	}
 	if _, err := executor.Exec(ctx, `
-		INSERT INTO allocation_capability_condition_sets (allocation_id, allocation_attempt, revision, payload_digest, observed_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO allocation_capability_condition_sets (allocation_id, revision, payload_digest, observed_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (allocation_id) DO UPDATE SET
-			allocation_attempt = EXCLUDED.allocation_attempt, revision = EXCLUDED.revision,
+			revision = EXCLUDED.revision,
 			payload_digest = EXCLUDED.payload_digest, observed_at = EXCLUDED.observed_at, updated_at = EXCLUDED.updated_at
-	`, strings.TrimSpace(allocationID), allocationAttempt, canonicalSet.GetRevision(), payloadDigest, canonicalSet.GetObservedAt().AsTime().UTC(), now.UTC()); err != nil {
+	`, strings.TrimSpace(allocationID), canonicalSet.GetRevision(), payloadDigest, canonicalSet.GetObservedAt().AsTime().UTC(), now.UTC()); err != nil {
 		return fmt.Errorf("persist allocation capability condition set: %w", err)
 	}
 	for _, condition := range canonicalSet.GetConditions() {
@@ -346,9 +338,9 @@ func ReplaceCapabilityConditions(ctx context.Context, executor capabilityExecuto
 		}
 		if _, err := executor.Exec(ctx, `
 			INSERT INTO allocation_capability_conditions (
-				allocation_id, capability_key_id, allocation_attempt, condition_revision, observed_at, condition, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
-		`, strings.TrimSpace(allocationID), keyID, allocationAttempt, canonicalSet.GetRevision(), canonicalSet.GetObservedAt().AsTime().UTC(), string(payload), now.UTC()); err != nil {
+				allocation_id, capability_key_id, condition_revision, observed_at, condition, updated_at
+			) VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+		`, strings.TrimSpace(allocationID), keyID, canonicalSet.GetRevision(), canonicalSet.GetObservedAt().AsTime().UTC(), string(payload), now.UTC()); err != nil {
 			return fmt.Errorf("insert allocation capability condition %q: %w", keyID, err)
 		}
 	}
@@ -421,15 +413,9 @@ func validateStoredDependencyConditionKeys(ctx context.Context, executor capabil
 	return nil
 }
 
-func shouldReplaceCapabilityConditions(storedAttempt, storedRevision, allocationAttempt, incomingRevision int64) (bool, error) {
-	if allocationAttempt <= 0 || incomingRevision <= 0 || storedAttempt < 0 || storedRevision < 0 {
-		return false, fmt.Errorf("capability condition attempt and revision must be positive")
-	}
-	if storedAttempt > allocationAttempt {
-		return false, fmt.Errorf("stored capability condition attempt %d is ahead of allocation attempt %d", storedAttempt, allocationAttempt)
-	}
-	if storedAttempt < allocationAttempt {
-		return true, nil
+func shouldReplaceCapabilityConditions(storedRevision, incomingRevision int64) (bool, error) {
+	if incomingRevision <= 0 || storedRevision < 0 {
+		return false, fmt.Errorf("capability condition revision must be positive")
 	}
 	return incomingRevision > storedRevision, nil
 }

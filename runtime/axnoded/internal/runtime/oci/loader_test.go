@@ -360,7 +360,7 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 				{Target: "/static", Type: "bind", Source: "/host/static", Options: []string{"ro"}},
 			},
 			Labels: map[string]string{
-				workloadidentity.LabelKeyRuntimeID: "template-test",
+				"template-label": "template-test",
 			},
 		},
 	})
@@ -383,9 +383,8 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 				{Target: "/dynamic-first", Type: "bind", Source: "/host/first", Options: []string{"rw"}},
 			},
 			Labels: map[string]string{
-				workloadidentity.LabelKeyRuntimeID:    "template-test",
-				workloadidentity.LabelKeyAllocationID: "alloc-FIRST-1234567890",
-				"netac-rules":                         "10.0.0.0/24",
+				"template-label": "template-test",
+				"netac-rules":    "10.0.0.0/24",
 			},
 		},
 		CgroupPath:            "/sandbox/test/first",
@@ -413,9 +412,8 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 				{Target: "/dynamic-second", Type: "bind", Source: "/host/second", Options: []string{"rw"}},
 			},
 			Labels: map[string]string{
-				workloadidentity.LabelKeyRuntimeID:    "template-test",
-				workloadidentity.LabelKeyAllocationID: "alloc-second-repeated-value",
-				"netac-rules":                         "0.0.0.0/0",
+				"template-label": "template-test",
+				"netac-rules":    "0.0.0.0/0",
 			},
 		},
 		CgroupPath:            "/sandbox/test/second",
@@ -450,11 +448,11 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 	if got := secondSpec.Annotations["extra-annotation"]; got != "second" {
 		t.Fatalf("second extra annotation = %q, want second", got)
 	}
-	if got := firstSpec.Hostname; got != "alloc-first-123456" {
-		t.Fatalf("first hostname = %q, want alloc-first-123456", got)
+	if got := firstSpec.Hostname; got != "alloc-bundle-first" {
+		t.Fatalf("first hostname = %q, want alloc-bundle-first", got)
 	}
-	if got := secondSpec.Hostname; got != "alloc-second-repea" {
-		t.Fatalf("second hostname = %q, want alloc-second-repea", got)
+	if got := secondSpec.Hostname; got != "alloc-bundle-secon" {
+		t.Fatalf("second hostname = %q, want alloc-bundle-secon", got)
 	}
 	if got := secondSpec.Annotations[workloadidentity.LabelKeyHostname]; got != secondSpec.Hostname {
 		t.Fatalf("second hostname annotation = %q, want %q", got, secondSpec.Hostname)

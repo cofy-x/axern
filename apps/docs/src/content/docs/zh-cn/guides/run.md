@@ -20,7 +20,7 @@ axern run logs <run-id> --follow
 axern run cancel <run-id>
 ```
 
-`run list` 支持按 `--namespace`、`--status`（`queued`、`placed`、`starting`、`running`、`succeeded`、`failed`、`cancelled`）和 `--label` 过滤。`run logs` 支持 `--follow` 和可续读的 `--cursor`；单次读取在 64 MiB 处截断。
+`run list` 支持按 `--namespace`、`--status`（`placed`、`starting`、`running`、`succeeded`、`failed`、`cancelled`）和 `--label` 过滤。`run logs` 支持 `--follow` 和可续读的 `--cursor`；单次读取在 64 MiB 处截断。
 
 ## 用 Spec 定义 Run
 

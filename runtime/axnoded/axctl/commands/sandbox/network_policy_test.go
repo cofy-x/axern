@@ -14,8 +14,8 @@ func TestRenderNetworkPolicyJSONUsesStableBoundedFields(t *testing.T) {
 		SandboxID: "sandbox-1", Mode: nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_STRICT,
 		Status:             nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_OK,
 		CapabilityState:    nodeoperatorv1.SandboxNetworkPolicyCapabilityState_SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_AVAILABLE,
-		EnforcementHealthy: true, ExactProof: true, AllocationAttempt: 2, ExecutionRevision: 7, EnforcementRevision: 11,
-		DomainRuleCount: 3, CidrRuleCount: 2, PortRangeCount: 4, TotalRuleCount: 5, RecoveredAfterRestart: true,
+		EnforcementHealthy: true, ExactBinding: true, EnforcementRevision: 11,
+		DomainRuleCount: 3, CidrRuleCount: 2, PortRangeCount: 4, TotalRuleCount: 5,
 	}
 	var output bytes.Buffer
 	if err := renderNetworkPolicyJSON(&output, response); err != nil {
@@ -28,8 +28,8 @@ func TestRenderNetworkPolicyJSONUsesStableBoundedFields(t *testing.T) {
 	if fields["mode"] != "strict" || fields["status"] != "ok" || fields["capability_state"] != "available" {
 		t.Fatalf("unexpected JSON: %s", output.String())
 	}
-	if len(fields) != 14 {
-		t.Fatalf("JSON field count = %d, want 14: %s", len(fields), output.String())
+	if len(fields) != 11 {
+		t.Fatalf("JSON field count = %d, want 11: %s", len(fields), output.String())
 	}
 	for name := range fields {
 		for _, forbidden := range []string{"domain_name", "host", "sni", "remote_ip", "cidr_value", "policy_digest", "raw"} {
@@ -49,8 +49,8 @@ func TestNetworkPolicyDoctorTreatsAbsentAsHealthyAndFailuresAsDegraded(t *testin
 			t.Fatalf("status %v should be healthy", status)
 		}
 	}
-	if networkPolicyDoctorHealthy(nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_PROOF_STALE) {
-		t.Fatal("stale proof passed doctor")
+	if networkPolicyDoctorHealthy(nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_BINDING_MISMATCH) {
+		t.Fatal("binding mismatch passed doctor")
 	}
 }
 

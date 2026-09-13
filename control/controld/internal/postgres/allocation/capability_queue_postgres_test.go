@@ -49,9 +49,9 @@ func TestCapabilityQueueCompletionPreservesNewerGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO allocations (allocation_id, run_id, node_id, attempt, status, config, created_at, updated_at)
-		VALUES ($1, $1, $2, 1, $3, '{}'::jsonb, $4, $4)
-	`, allocationID, nodeID, commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(), now); err != nil {
+		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
+		VALUES ($1, $1, $2, $3, $4, $4)
+	`, allocationID, nodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String(), now); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -107,7 +107,7 @@ func TestCapabilityQueueCompletionPreservesNewerGeneration(t *testing.T) {
 		}},
 	}
 	if err := queue.RecordConditions(ctx, claimed[0], "worker-1", &allocationkernel.CapabilityReconciliation{
-		Attempt: 1, Dependencies: dependencies, ConditionSet: conditionSet,
+		Dependencies: dependencies, ConditionSet: conditionSet,
 	}, now); err != nil {
 		t.Fatal(err)
 	}

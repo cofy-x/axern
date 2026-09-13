@@ -104,7 +104,6 @@ func injectLease(msg proto.Message, resolved *gatewayv1.ResolveAllocationTermina
 	}
 	fields := msg.ProtoReflect().Descriptor().Fields()
 	setString(msg, fields, "allocation_id", resolved.GetAllocationID())
-	setInt(msg, fields, "attempt", resolved.GetAttempt())
 	setString(msg, fields, "execution_lease_token", resolved.GetLease().GetPlaintextToken())
 	return nil
 }
@@ -113,13 +112,6 @@ func setString(msg proto.Message, fields protoreflect.FieldDescriptors, name pro
 	field := fields.ByName(name)
 	if field != nil {
 		msg.ProtoReflect().Set(field, protoreflect.ValueOfString(value))
-	}
-}
-
-func setInt(msg proto.Message, fields protoreflect.FieldDescriptors, name protoreflect.Name, value int64) {
-	field := fields.ByName(name)
-	if field != nil {
-		msg.ProtoReflect().Set(field, protoreflect.ValueOfInt64(value))
 	}
 }
 

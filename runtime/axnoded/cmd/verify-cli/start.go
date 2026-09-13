@@ -52,12 +52,11 @@ func runVerifyCLI(cfg verifyCLIConfig) error {
 	}
 	rootfsSpec.Apply(spec)
 
-	handle, err := verifyutil.CreateAllocationWithAttempt(ctx, clients, verifyutil.NewSandboxID(cfg.runtimeID), cfg.allocationAttempt, spec)
+	handle, err := verifyutil.CreateAllocation(ctx, clients, verifyutil.NewSandboxID(cfg.runtimeID), spec)
 	if err != nil {
 		return fmt.Errorf("create sandbox: %w", err)
 	}
 
 	fmt.Printf("container_id=%s\n", handle.SandboxID)
-	fmt.Printf("allocation_attempt=%d\n", handle.Attempt)
 	return nil
 }

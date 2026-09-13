@@ -22,7 +22,7 @@ flowchart LR
 ## 稳定的职责划分
 
 - **Gateway：** 认证公开客户端，转发控制、进程、文件、归档、终端、SSH 和 Tunnel 流量，但不拥有持久状态。
-- **控制面：** 持久化资源，协调调度、租约、健康、attempt-fenced 状态和清理。
+- **控制面：** 持久化资源，协调调度、租约、健康、Allocation 级状态和清理。
 - **节点运行时：** 掌管 Sandbox 进程、文件系统、镜像、网络（eBPF NAT 数据面，可显式回退 iptables，见[节点网络](/zh-cn/architecture/networking/)）、探针和节点本地的 reconcile。
 - **SDK：** 在持久的 `Environment -> Run -> Allocation` 链之上提供 Sandbox 易用接口，不创建另一套工作负载模型。
 - **Axrun 和更高层系统：** 在执行平台之上管理 agent 任务、验证、轨迹、reward、评测和数据合成工作流。

@@ -24,7 +24,7 @@ func (s *Server) PreparePolicy(ctx context.Context, req *runtimeegressv1.Prepare
 	if s == nil || s.manager == nil {
 		return nil, status.Error(codes.FailedPrecondition, "egress policy manager is not configured")
 	}
-	record, alreadyPrepared, err := s.manager.Prepare(ctx, req.GetAllocationID(), req.GetAttempt(), req.GetSandboxIp(), req.GetPolicy(), req.GetExecutionRevision(), req.GetUpstreamNameservers())
+	record, alreadyPrepared, err := s.manager.Prepare(ctx, req.GetAllocationID(), req.GetSandboxIp(), req.GetPolicy(), req.GetUpstreamNameservers())
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -35,7 +35,7 @@ func (s *Server) DeletePolicy(ctx context.Context, req *runtimeegressv1.DeletePo
 	if s == nil || s.manager == nil {
 		return nil, status.Error(codes.FailedPrecondition, "egress policy manager is not configured")
 	}
-	deleted, err := s.manager.Delete(ctx, req.GetAllocationID(), req.GetAttempt())
+	deleted, err := s.manager.Delete(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, toStatus(err)
 	}
@@ -46,7 +46,7 @@ func (s *Server) GetPolicy(_ context.Context, req *runtimeegressv1.GetPolicyRequ
 	if s == nil || s.manager == nil {
 		return nil, status.Error(codes.FailedPrecondition, "egress policy manager is not configured")
 	}
-	record, ok := s.manager.Get(req.GetAllocationID(), req.GetAttempt())
+	record, ok := s.manager.Get(req.GetAllocationID())
 	if !ok {
 		return nil, status.Error(codes.NotFound, "prepared egress policy not found")
 	}
@@ -64,7 +64,7 @@ func (s *Server) ReconcilePolicies(ctx context.Context, req *runtimeegressv1.Rec
 	if s == nil || s.manager == nil {
 		return nil, status.Error(codes.FailedPrecondition, "egress policy manager is not configured")
 	}
-	result, err := s.manager.Reconcile(ctx, req.GetActivePolicies())
+	result, err := s.manager.Reconcile(ctx, req.GetAllocationIds())
 	if err != nil {
 		return nil, toStatus(err)
 	}

@@ -148,8 +148,8 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 			}
 		}
 	}
-	if attempt, ok := h.ManagedAllocationAttempt(containerID); ok && h.allocationHasEgressPolicy(containerID) {
-		if err := h.deleteEgressPolicy(ctx, containerID, attempt); err != nil {
+	if h.allocationHasEgressPolicy(containerID) {
+		if err := h.deleteEgressPolicy(ctx, containerID); err != nil {
 			return fmt.Errorf("retire failed-start egress policy: %w", err)
 		}
 	}
@@ -189,7 +189,7 @@ func (h *Controller) existingActiveStartResponse(ctx context.Context, request *r
 	return resp, true, nil
 }
 
-func (h *Controller) startManagedContainer(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
+func (h *Controller) startAllocation(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
 	if err := startplan.ValidateStartRequest(request); err != nil {
 		return startErrorResponse(err.Error()), err
 	}
@@ -204,10 +204,10 @@ func (h *Controller) startManagedContainer(ctx context.Context, request *runtime
 	}
 	unlockLifecycle := h.allocationLifecycleLocks.Lock(request.GetContainerID())
 	defer unlockLifecycle()
-	return h.startManagedContainerWithLifecycleHeld(ctx, request, generatedAllocationID)
+	return h.startAllocationWithLifecycleHeld(ctx, request, generatedAllocationID)
 }
 
-func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context, request *runtime.StartRequest, generatedAllocationID bool) (response *runtime.StartResponse, returnErr error) {
+func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, request *runtime.StartRequest, generatedAllocationID bool) (response *runtime.StartResponse, returnErr error) {
 	if resp, ok, err := h.existingActiveStartResponse(ctx, request); ok {
 		return resp, err
 	}
@@ -235,7 +235,7 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 		if egressPrepared {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			if err := h.deleteEgressPolicy(cleanupCtx, request.GetContainerID(), request.GetAllocationAttempt()); err != nil {
+			if err := h.deleteEgressPolicy(cleanupCtx, request.GetContainerID()); err != nil {
 				returnErr = errors.Join(returnErr, errRuntimeCleanupPending, err)
 				return
 			}
@@ -257,7 +257,6 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 		traceID.String(),
 		request.GetRuntimeTemplate().GetSandbox(),
 		request.GetContainerID(),
-		request.GetAllocationAttempt(),
 		nil,
 		request.GetResources(),
 	)
@@ -345,9 +344,14 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 		startplan.BuildStartEnv(lrt, request),
 		startplan.EffectiveNetworkMode(h.config.NatBackend, request),
 	)
+	createRequest.RecoveryMode = runtime.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART
+	if h.HasControlPlaneBinding(request.GetContainerID()) {
+		createRequest.RecoveryMode = runtime.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DURABLE
+	}
 	templateRequest := startplan.BuildBundleTemplateRequest(lrt, request)
+	templateRequest.RecoveryMode = createRequest.GetRecoveryMode()
 
-	createResponse, containerIP, err := h.createManagedContainer(ctx, lrt, request, templateRequest, createRequest, handler, reservedResource, recorder)
+	createResponse, containerIP, err := h.createAllocation(ctx, lrt, request, templateRequest, createRequest, handler, reservedResource, recorder)
 	if err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed to start: %v", err)), err
 	}
@@ -364,7 +368,7 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 	}
 
 	succeeded = true
-	h.reportStartRunningStatus(createResponse.ID, request.GetAllocationAttempt(), time.Now().UTC())
+	h.reportStartRunningStatus(createResponse.ID, time.Now().UTC())
 	result = contract.StartupResultOK
 	resp := startSuccessResponse(createResponse.ID)
 	return resp, nil
@@ -383,10 +387,13 @@ func (h *Controller) configureStartPorts(_ context.Context, containerID, contain
 	return nil
 }
 
-func (h *Controller) deleteManagedContainer(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
+func (h *Controller) deleteAllocation(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
 	unlockLifecycle := h.allocationLifecycleLocks.Lock(request.GetID())
 	defer unlockLifecycle()
+	return h.deleteAllocationWithLifecycleHeld(ctx, request)
+}
 
+func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
 	h.sandboxNetworking().CleanupDnatRules(request.ID)
 	_, resource, err := h.deleteContainerRuntime(ctx, &apipb.DeleteContainerRequest{
 		ID:      request.ID,
@@ -396,8 +403,8 @@ func (h *Controller) deleteManagedContainer(ctx context.Context, request *runtim
 	if err != nil && !runtimeAbsent {
 		return new(runtime.DeleteResponse), err
 	}
-	if attempt, ok := h.ManagedAllocationAttempt(request.ID); ok && h.allocationHasEgressPolicy(request.ID) {
-		if err := h.deleteEgressPolicy(ctx, request.ID, attempt); err != nil {
+	if h.allocationHasEgressPolicy(request.ID) {
+		if err := h.deleteEgressPolicy(ctx, request.ID); err != nil {
 			return new(runtime.DeleteResponse), err
 		}
 	}

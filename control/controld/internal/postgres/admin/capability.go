@@ -115,7 +115,7 @@ func (s *Store) ListCapabilityReconcileQueue(ctx context.Context, nodeID string,
 func (s *Store) GetAllocationCapabilityDiagnostics(ctx context.Context, allocationID string) (*adminkernel.AllocationCapabilityDiagnostics, error) {
 	allocationID = strings.TrimSpace(allocationID)
 	result := &adminkernel.AllocationCapabilityDiagnostics{AllocationID: allocationID}
-	if err := s.db.Pool().QueryRow(ctx, `SELECT node_id, attempt FROM allocations WHERE allocation_id = $1`, allocationID).Scan(&result.NodeID, &result.Attempt); errors.Is(err, pgx.ErrNoRows) {
+	if err := s.db.Pool().QueryRow(ctx, `SELECT node_id FROM allocations WHERE allocation_id = $1`, allocationID).Scan(&result.NodeID); errors.Is(err, pgx.ErrNoRows) {
 		return nil, grpcstatus.Error(codes.NotFound, "allocation not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("load allocation capability diagnostics: %w", err)
@@ -124,8 +124,8 @@ func (s *Store) GetAllocationCapabilityDiagnostics(ctx context.Context, allocati
 	if err := s.db.Pool().QueryRow(ctx, `
 		SELECT dependency_set_digest, admitted_at
 		FROM allocation_capability_admissions
-		WHERE allocation_id = $1 AND allocation_attempt = $2
-	`, allocationID, result.Attempt).Scan(&result.CreateDependencySetDigest, &admittedAt); err == nil {
+		WHERE allocation_id = $1
+	`, allocationID).Scan(&result.CreateDependencySetDigest, &admittedAt); err == nil {
 		result.CreateAdmissionRecorded = true
 		result.CreateAdmittedAt = &admittedAt
 	} else if !errors.Is(err, pgx.ErrNoRows) {
@@ -163,10 +163,10 @@ func (s *Store) GetAllocationCapabilityDiagnostics(ctx context.Context, allocati
 		return nil, err
 	}
 	rows.Close()
-	if err := s.loadCapabilityConditionSet(ctx, allocationID, result.Attempt, result); err != nil {
+	if err := s.loadCapabilityConditionSet(ctx, allocationID, result); err != nil {
 		return nil, err
 	}
-	if err := s.loadAllocationMemoryDiagnostics(ctx, allocationID, result.Attempt, result); err != nil {
+	if err := s.loadAllocationMemoryDiagnostics(ctx, allocationID, result); err != nil {
 		return nil, err
 	}
 	row := s.db.Pool().QueryRow(ctx, capabilityQueueSelect+` WHERE q.allocation_id = $1`, allocationID)
@@ -180,7 +180,7 @@ func (s *Store) GetAllocationCapabilityDiagnostics(ctx context.Context, allocati
 	return result, nil
 }
 
-func (s *Store) loadAllocationMemoryDiagnostics(ctx context.Context, allocationID string, attempt int64, result *adminkernel.AllocationCapabilityDiagnostics) error {
+func (s *Store) loadAllocationMemoryDiagnostics(ctx context.Context, allocationID string, result *adminkernel.AllocationCapabilityDiagnostics) error {
 	var admission adminkernel.AllocationMemoryAdmission
 	var budgetJSON []byte
 	err := s.db.Pool().QueryRow(ctx, `
@@ -188,8 +188,8 @@ func (s *Store) loadAllocationMemoryDiagnostics(ctx context.Context, allocationI
 		       node_memory_budget, summary_collected_at,
 		       node_local_commitment_bytes, admitted_at
 		FROM allocation_memory_admission_evidence
-		WHERE allocation_id = $1 AND allocation_attempt = $2
-	`, allocationID, attempt).Scan(
+		WHERE allocation_id = $1
+	`, allocationID).Scan(
 		&admission.SandboxMemoryRequestBytes,
 		&admission.SandboxMemoryLimitBytes,
 		&budgetJSON,
@@ -212,8 +212,8 @@ func (s *Store) loadAllocationMemoryDiagnostics(ctx context.Context, allocationI
 	err = s.db.Pool().QueryRow(ctx, `
 		SELECT observation
 		FROM allocation_memory_observations
-		WHERE allocation_id = $1 AND allocation_attempt = $2
-	`, allocationID, attempt).Scan(&observationJSON)
+		WHERE allocation_id = $1
+	`, allocationID).Scan(&observationJSON)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
@@ -227,12 +227,12 @@ func (s *Store) loadAllocationMemoryDiagnostics(ctx context.Context, allocationI
 	return nil
 }
 
-func (s *Store) loadCapabilityConditionSet(ctx context.Context, allocationID string, attempt int64, result *adminkernel.AllocationCapabilityDiagnostics) error {
+func (s *Store) loadCapabilityConditionSet(ctx context.Context, allocationID string, result *adminkernel.AllocationCapabilityDiagnostics) error {
 	var revision int64
 	var observedAt time.Time
 	if err := s.db.Pool().QueryRow(ctx, `
-		SELECT revision, observed_at FROM allocation_capability_condition_sets WHERE allocation_id = $1 AND allocation_attempt = $2
-	`, allocationID, attempt).Scan(&revision, &observedAt); errors.Is(err, pgx.ErrNoRows) {
+		SELECT revision, observed_at FROM allocation_capability_condition_sets WHERE allocation_id = $1
+	`, allocationID).Scan(&revision, &observedAt); errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("load allocation capability condition set: %w", err)
@@ -240,8 +240,8 @@ func (s *Store) loadCapabilityConditionSet(ctx context.Context, allocationID str
 	set := &capabilityv1.CapabilityConditionSet{Revision: revision, ObservedAt: timestamppb.New(observedAt)}
 	rows, err := s.db.Pool().Query(ctx, `
 		SELECT condition FROM allocation_capability_conditions
-		WHERE allocation_id = $1 AND allocation_attempt = $2 ORDER BY capability_key_id
-	`, allocationID, attempt)
+		WHERE allocation_id = $1 ORDER BY capability_key_id
+	`, allocationID)
 	if err != nil {
 		return fmt.Errorf("load allocation capability conditions: %w", err)
 	}

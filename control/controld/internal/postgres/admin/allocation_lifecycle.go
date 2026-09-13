@@ -9,6 +9,7 @@ import (
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
@@ -84,7 +85,10 @@ func (s *Store) FailAllocationLifecycleRetry(ctx context.Context, req allocation
 		if err != nil {
 			return err
 		}
-		if allocationkernel.IsEnded(allocationkernel.ParseStatus(locked.AllocationStatus)) {
+		if req.Reason != allocationkernel.ReconcileReasonCreate {
+			return grpcstatus.Errorf(codes.FailedPrecondition, "allocation delete retries cannot be abandoned before cleanup succeeds")
+		}
+		if allocationkernel.IsCleanupState(allocationkernel.ParseLifecycleState(locked.AllocationState)) {
 			return grpcstatus.Errorf(codes.FailedPrecondition, "allocation lifecycle retry %q is already terminal; clear the retry instead", req.AllocationID)
 		}
 		if err := insertAdminAuditEvent(ctx, tx, adminAuditEvent{
@@ -100,10 +104,11 @@ func (s *Store) FailAllocationLifecycleRetry(ctx context.Context, req allocation
 		if err := failRunLifecycleRetry(ctx, tx, locked.Item, req.OperatorReason, now); err != nil {
 			return err
 		}
-		if err := deleteLifecycleRetry(ctx, tx, req.AllocationID, req.Reason); err != nil {
+		item, err := loadLifecycleRetry(ctx, tx, req.AllocationID, allocationkernel.ReconcileReasonDelete, now)
+		if err != nil {
 			return err
 		}
-		out = &locked.Item
+		out = item
 		return nil
 	})
 	if err != nil {
@@ -123,8 +128,8 @@ func (s *Store) ClearAllocationLifecycleRetry(ctx context.Context, req allocatio
 		if err != nil {
 			return err
 		}
-		if !allocationkernel.IsEnded(allocationkernel.ParseStatus(locked.AllocationStatus)) {
-			return grpcstatus.Errorf(codes.FailedPrecondition, "allocation lifecycle retry %q cannot be cleared while allocation status is %s", req.AllocationID, locked.AllocationStatus)
+		if allocationkernel.ParseLifecycleState(locked.AllocationState) != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED {
+			return grpcstatus.Errorf(codes.FailedPrecondition, "allocation lifecycle retry %q cannot be cleared while allocation lifecycle state is %s", req.AllocationID, locked.AllocationState)
 		}
 		if err := requireNoActiveAllocationCleanupState(ctx, tx, req.AllocationID, now); err != nil {
 			return err

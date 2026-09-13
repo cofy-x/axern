@@ -10,13 +10,12 @@ import "google/protobuf/timestamp.proto";
 
 enum RunStatus {
   RUN_STATUS_UNSPECIFIED = 0;
-  RUN_STATUS_QUEUED = 1;
-  RUN_STATUS_PLACED = 2;
-  RUN_STATUS_STARTING = 3;
-  RUN_STATUS_RUNNING = 4;
-  RUN_STATUS_SUCCEEDED = 5;
-  RUN_STATUS_FAILED = 6;
-  RUN_STATUS_CANCELLED = 7;
+  RUN_STATUS_PLACED = 1;
+  RUN_STATUS_STARTING = 2;
+  RUN_STATUS_RUNNING = 3;
+  RUN_STATUS_SUCCEEDED = 4;
+  RUN_STATUS_FAILED = 5;
+  RUN_STATUS_CANCELLED = 6;
 }
 
 message Run {
@@ -24,22 +23,21 @@ message Run {
   string namespace = 2;
   string environment_id = 3;
   string allocation_id = 4;
-  int64 attempt = 5;
-  RunStatus status = 6;
-  axern.control.common.v1.ExecutionConfig config = 7;
-  map<string, string> labels = 8;
-  int64 version = 9;
-  google.protobuf.Timestamp created_at = 10;
-  google.protobuf.Timestamp updated_at = 11;
-  int32 exit_code = 12;
-  bool exit_code_known = 13;
-  string message = 14;
-  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 15;
-	// Full, monotonically revised allocation capability condition projection.
-	// It is independent from run lifecycle status and message.
-  axern.control.capability.v1.CapabilityConditionSet capability_conditions = 16;
-  string node_id = 17;
-  axern.control.common.v1.WorkspacePreparationFacts workspace_preparation = 18;
+  RunStatus status = 5;
+  axern.control.common.v1.ExecutionConfig config = 6;
+  map<string, string> labels = 7;
+  int64 version = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  int32 exit_code = 11;
+  bool exit_code_known = 12;
+  string message = 13;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 14;
+  // Full, monotonically revised allocation capability condition projection.
+  // It is independent from Run lifecycle status and message.
+  axern.control.capability.v1.CapabilityConditionSet capability_conditions = 15;
+  string node_id = 16;
+  axern.control.common.v1.WorkspacePreparationFacts workspace_preparation = 17;
 }
 
 message RunListFilter {

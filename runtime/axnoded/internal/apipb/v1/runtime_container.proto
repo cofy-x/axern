@@ -23,6 +23,7 @@ message CreateContainerRequest {
   string ID = 13;
   int64 ephemeral_storage_request_bytes = 14;
   int64 ephemeral_storage_limit_bytes = 15;
+  ContainerRecoveryMode recovery_mode = 16;
 }
 
 message CreateContainerResponse {

@@ -8,7 +8,7 @@ const (
 	SpanAllocationDelete             = "axnoded.allocation.delete"
 	SpanControlPlaneRegister         = "axnoded.control_plane.register"
 	SpanControlPlaneReportNode       = "axnoded.control_plane.report_node"
-	SpanControlPlaneReportAllocation = "axnoded.control_plane.report_allocation_status"
+	SpanControlPlaneReportAllocation = "axnoded.control_plane.report_allocation_lifecycle"
 	SpanRootFSPrepare                = "axnoded.rootfs.prepare"
 	SpanExec                         = "axnoded.exec"
 	SpanExecStream                   = "axnoded.exec_stream"

@@ -43,8 +43,9 @@ func TestCreateRuntimeContainerPreservesFastExitStatus(t *testing.T) {
 	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
-		ID:      containerID,
-		Runtime: "runsc",
+		ID:           containerID,
+		Runtime:      "runsc",
+		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 	}, nil, nil)
 	if err != nil {
 		t.Fatalf("CreateRuntimeContainer() error = %v", err)
@@ -92,8 +93,9 @@ func TestCreateRuntimeContainerSyncsRuntimeStateIntoStatus(t *testing.T) {
 	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
-		ID:      "axctl-create-sync",
-		Runtime: "runsc",
+		ID:           "axctl-create-sync",
+		Runtime:      "runsc",
+		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 	}, nil, nil)
 	if err != nil {
 		t.Fatalf("CreateRuntimeContainer() error = %v", err)
@@ -122,8 +124,9 @@ func TestCreateRuntimeContainerIgnoresImageProcessResourceAnnotationOverride(t *
 	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
 
 	_, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
-		ID:      "axctl-create-resource-override",
-		Runtime: "runsc",
+		ID:           "axctl-create-resource-override",
+		Runtime:      "runsc",
+		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 		Labels: map[string]string{
 			"axern.image_process.kind": "image_process",
 			networkKey:                 parentNetworkResource,
@@ -145,9 +148,10 @@ func TestCreateRuntimeContainerIgnoresUserResourceAnnotationOverride(t *testing.
 	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
 
 	_, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
-		ID:      "axctl-create-resource-no-override",
-		Runtime: "runsc",
-		Labels:  map[string]string{networkKey: userNetworkResource},
+		ID:           "axctl-create-resource-no-override",
+		Runtime:      "runsc",
+		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
+		Labels:       map[string]string{networkKey: userNetworkResource},
 	}, nil, nil)
 	if err != nil {
 		t.Fatalf("CreateRuntimeContainer() error = %v", err)

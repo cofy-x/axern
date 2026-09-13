@@ -29,12 +29,12 @@ type PreparedContainer struct {
 	Metadata    *apipb.ContainerMetadata
 }
 
-// ManagedRuntimeHandler is the fail-closed lifecycle contract for workload
-// allocations. Managed starts must be split into OCI create and start so
+// AllocationRuntimeHandler is the fail-closed lifecycle contract for workload
+// allocations. Allocation starts must be split into OCI create and start so
 // allocation-specific enforcement can be verified before user code executes.
 // RuntimeHandler.CreateContainer remains available to node-owned auxiliary
 // containers whose lifecycle is not an allocation lifecycle.
-type ManagedRuntimeHandler interface {
+type AllocationRuntimeHandler interface {
 	RuntimeHandler
 	PrepareContainer(context.Context, *apipb.CreateContainerRequest, HandlerOptions) (*PreparedContainer, error)
 	StartPreparedContainer(context.Context, *PreparedContainer, HandlerOptions) (*apipb.ContainerMetadata, error)

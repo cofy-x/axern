@@ -47,7 +47,7 @@ If either path is wrong or not writable, startup, restart recovery, and containe
 | `[[node_extension_capabilities]]` | Exact-match extension facts using `name` and optional `value`. | Names must use `<dns-domain>/<name>`; Axern-owned domains are rejected. Platform capabilities cannot be configured. |
 | `[plugin.control_plane_node_labels]` | Explicit placement labels. | Empty keys are ignored and values are trimmed. Explicit labels override labels collected from the Kubernetes Node object. |
 
-Check the deployment Prometheus/LGTM metrics exported through OTEL, such as `axern_axnoded_control_plane_rpc_total` and `axern_axnoded_control_plane_report_total`, plus axnoded logs when registration or heartbeat behavior looks wrong. For allocation status delivery, inspect `/control-planez` and `axern_axnoded_allocation_status_oldest_pending_age_seconds`, `axern_axnoded_allocation_status_consecutive_failures`, and `axern_axnoded_allocation_status_retry_delay_seconds`.
+Check the deployment Prometheus/LGTM metrics exported through OTEL, such as `axern_axnoded_control_plane_rpc_total` and `axern_axnoded_control_plane_report_total`, plus axnoded logs when registration or heartbeat behavior looks wrong. For allocation lifecycle delivery, inspect `/control-planez` and `axern_axnoded_allocation_lifecycle_oldest_pending_age_seconds`, `axern_axnoded_allocation_lifecycle_consecutive_failures`, and `axern_axnoded_allocation_lifecycle_retry_delay_seconds`.
 
 Extension capability declarations are config-static facts. Platform facts are owned by probes and derived policy, and therefore have no configuration list or operator override.
 

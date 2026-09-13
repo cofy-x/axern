@@ -66,8 +66,7 @@ func TestStartRequestDigestRejectsCatalogPolicyMismatch(t *testing.T) {
 
 func testDigestStartRequest() *apipb.StartRequest {
 	return &apipb.StartRequest{
-		ContainerID:       "allocation-digest",
-		AllocationAttempt: 7,
+		ContainerID: "allocation-digest",
 		RuntimeTemplate: &apipb.RuntimeTemplate{
 			ID: "runtime-digest", Sandbox: "runsc",
 			Rootfs:  &apipb.RootfsConfig{Readonly: true, Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: "/rootfs"}},

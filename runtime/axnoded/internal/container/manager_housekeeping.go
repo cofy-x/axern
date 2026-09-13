@@ -91,7 +91,7 @@ func (m *Manager) housekeeping() {
 	}
 
 	for item := range m.containers.IterBuffered() {
-		if err := m.StartMonitor(item.Val.Metadata); err != nil {
+		if err := m.StartMonitor(item.Key, item.Val.Metadata); err != nil {
 			logrus.WithError(err).WithField("container_id", item.Key).Error("start container monitor during housekeeping")
 		}
 	}

@@ -16,7 +16,20 @@ import (
 
 // newTestService creates a sandboxService with a real container.Manager backed by a temp dir.
 func newTestService(t *testing.T, handlers map[string]contract.RuntimeHandler) *sandboxService {
+	lrtManager := langrtmanager.NewLanguageRuntimeManager()
+	retentionTTL, err := time.ParseDuration(config.DefaultIdleRuntimeRetentionTTL)
+	if !assert.NoError(t, err) {
+		t.FailNow()
+	}
+	lrtManager.ConfigureRetention(retentionTTL, config.DefaultIdleRuntimeRetentionMax)
+	return newTestServiceWithLanguageRuntimeManager(t, handlers, lrtManager)
+}
+
+func newTestServiceWithLanguageRuntimeManager(t *testing.T, handlers map[string]contract.RuntimeHandler, lrtManager *langrtmanager.LangRTManager) *sandboxService {
 	t.Helper()
+	if lrtManager == nil {
+		t.Fatal("language runtime manager is required")
+	}
 
 	tmpDir := t.TempDir()
 
@@ -59,7 +72,7 @@ func newTestService(t *testing.T, handlers map[string]contract.RuntimeHandler) *
 		runtimeHandlers:  registry,
 		containerManager: cm,
 		store:            storetest.NewMockStore(),
-		lrtManager:       langrtmanager.NewLanguageRuntimeManager(),
+		lrtManager:       lrtManager,
 	}
 	s.configureSandboxTargets()
 	s.configureSandboxAccess()
@@ -70,11 +83,6 @@ func newTestService(t *testing.T, handlers map[string]contract.RuntimeHandler) *
 	s.configureAllocationController()
 	cm.SetExitClassifier(s.classifyContainerExit)
 	cm.SetExitObserver(s.handleContainerExitControlPlaneReport)
-	retentionTTL, err := time.ParseDuration(config.DefaultIdleRuntimeRetentionTTL)
-	if !assert.NoError(t, err) {
-		t.FailNow()
-	}
-	s.lrtManager.ConfigureRetention(retentionTTL, config.DefaultIdleRuntimeRetentionMax)
 	go func() {
 		for ready := range healthChan {
 			s.ready.Store(ready)

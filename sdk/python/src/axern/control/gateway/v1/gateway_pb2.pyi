@@ -29,20 +29,18 @@ class ResolveAllocationTerminalRequest(_message.Message):
     def __init__(self, allocation_id: _Optional[str] = ..., ttl_seconds: _Optional[int] = ..., client_certificate_fingerprint: _Optional[str] = ..., purpose: _Optional[_Union[AllocationAccessPurpose, str]] = ...) -> None: ...
 
 class ResolveAllocationTerminalResponse(_message.Message):
-    __slots__ = ("allocation_id", "run_id", "node_id", "node_target", "attempt", "lease")
+    __slots__ = ("allocation_id", "run_id", "node_id", "node_target", "lease")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     RUN_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_TARGET_FIELD_NUMBER: _ClassVar[int]
-    ATTEMPT_FIELD_NUMBER: _ClassVar[int]
     LEASE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
     run_id: str
     node_id: str
     node_target: str
-    attempt: int
     lease: _common_pb2.ExecutionLease
-    def __init__(self, allocation_id: _Optional[str] = ..., run_id: _Optional[str] = ..., node_id: _Optional[str] = ..., node_target: _Optional[str] = ..., attempt: _Optional[int] = ..., lease: _Optional[_Union[_common_pb2.ExecutionLease, _Mapping]] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., run_id: _Optional[str] = ..., node_id: _Optional[str] = ..., node_target: _Optional[str] = ..., lease: _Optional[_Union[_common_pb2.ExecutionLease, _Mapping]] = ...) -> None: ...
 
 class ResolveTunnelRelayTargetRequest(_message.Message):
     __slots__ = ("session_id",)

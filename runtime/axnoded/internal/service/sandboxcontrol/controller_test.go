@@ -55,8 +55,8 @@ func TestListFiltersByIDAndLabels(t *testing.T) {
 
 func testContainer(id string, labels map[string]string) *container.Container {
 	return &container.Container{
+		ID: id,
 		Metadata: &runtime.ContainerMetadata{
-			ID:             id,
 			RuntimeHandler: "runsc",
 			Labels:         labels,
 		},

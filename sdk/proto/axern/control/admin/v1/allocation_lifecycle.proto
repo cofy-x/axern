@@ -19,16 +19,15 @@ message AllocationLifecycleRetry {
   AllocationLifecycleRetryReason reason = 4;
   string node_id = 5;
   string node_target = 6;
-  int64 attempt = 7;
-  int32 reconcile_attempts = 8;
-  string last_error = 9;
-  google.protobuf.Timestamp next_run_at = 10;
-  google.protobuf.Timestamp created_at = 11;
-  google.protobuf.Timestamp updated_at = 12;
-  int64 age_seconds = 13;
-  bool due = 14;
-  bool clearable = 15;
-  string clear_blocked_reason = 16;
+  int32 reconcile_attempts = 7;
+  string last_error = 8;
+  google.protobuf.Timestamp next_run_at = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  int64 age_seconds = 12;
+  bool due = 13;
+  bool clearable = 14;
+  string clear_blocked_reason = 15;
 }
 
 message AllocationLifecycleRetryFilter {

@@ -18,13 +18,11 @@ type NodeInventorySnapshot struct {
 
 type NodeInventoryExpectation struct {
 	AllocationID string
-	Attempt      int64
 	NodeActiveAt time.Time
 }
 
 type NodeAllocationRef struct {
 	AllocationID string
-	Attempt      int64
 }
 
 func ExpectedInNodeInventoryAt(nodeActiveAt, snapshotAt time.Time) bool {

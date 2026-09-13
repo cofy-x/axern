@@ -62,30 +62,10 @@ func TestFileServiceMapsSandboxdStatusErrors(t *testing.T) {
 	assert.True(t, errord.IsNotFound(err))
 }
 
-func TestArchiveOperationsRequireArchiveCapability(t *testing.T) {
-	service, _, _ := newTestFileService(t, &fakeFileClient{})
-	options := fileServiceTestOptions()
-	options.ContainerLabels = map[string]string{
-		LabelReady:        "true",
-		LabelSocket:       "/tmp/sandboxd.sock",
-		LabelCapabilities: "file,process",
-	}
-
-	_, err := service.UploadArchive(context.Background(), &apipb.UploadArchiveRequest{Path: "/tmp/tree"}, bytes.NewReader(nil), options)
-
-	assert.True(t, errord.IsFailedPrecondition(err))
-	assert.Contains(t, err.Error(), "archive capability unavailable")
-}
-
-func TestArchiveOperationsDoNotRequireFileCapability(t *testing.T) {
+func TestArchiveOperationsUseDerivedSandboxdEndpoint(t *testing.T) {
 	client := &fakeFileClient{}
 	service, _, _ := newTestFileService(t, client)
 	options := fileServiceTestOptions()
-	options.ContainerLabels = map[string]string{
-		LabelReady:        "true",
-		LabelSocket:       "/tmp/sandboxd.sock",
-		LabelCapabilities: "archive",
-	}
 
 	_, err := service.UploadArchive(context.Background(), &apipb.UploadArchiveRequest{Path: "/tmp/tree"}, bytes.NewReader([]byte("archive")), options)
 
@@ -106,14 +86,7 @@ func newTestFileService(t *testing.T, client fileClient) (contract.FileService, 
 }
 
 func fileServiceTestOptions() contract.HandlerOptions {
-	return contract.HandlerOptions{
-		ContainerID: "alloc-test",
-		ContainerLabels: map[string]string{
-			LabelReady:        "true",
-			LabelSocket:       "/tmp/sandboxd.sock",
-			LabelCapabilities: "archive,file,process,pty",
-		},
-	}
+	return contract.HandlerOptions{ContainerID: "alloc-test"}
 }
 
 type fakeFileClient struct {

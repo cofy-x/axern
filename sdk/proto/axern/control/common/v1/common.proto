@@ -157,16 +157,19 @@ message ExecutionConfig {
   WorkspaceImageSource workspace_image = 13;
 }
 
-enum AllocationStatus {
-  ALLOCATION_STATUS_UNSPECIFIED = 0;
-  ALLOCATION_STATUS_RESERVED = 1;
-  ALLOCATION_STATUS_BOUND = 2;
-  ALLOCATION_STATUS_STARTING = 3;
-  ALLOCATION_STATUS_RUNNING = 4;
-  ALLOCATION_STATUS_EXITED = 5;
-  ALLOCATION_STATUS_FAILED = 6;
-  ALLOCATION_STATUS_RELEASING = 7;
-  ALLOCATION_STATUS_RELEASED = 8;
+// AllocationLifecycleState tracks only placement and infrastructure cleanup.
+// Workload outcome, exit status, diagnostics, and user-visible status belong to
+// the owning Run.
+enum AllocationLifecycleState {
+  ALLOCATION_LIFECYCLE_STATE_UNSPECIFIED = 0;
+  ALLOCATION_LIFECYCLE_STATE_BOUND = 1;
+  ALLOCATION_LIFECYCLE_STATE_STARTING = 2;
+  ALLOCATION_LIFECYCLE_STATE_ACTIVE = 3;
+  // STOPPED is a node observation. Controld transitions it atomically to
+  // RELEASING when it commits the owning Run result and cleanup work.
+  ALLOCATION_LIFECYCLE_STATE_STOPPED = 4;
+  ALLOCATION_LIFECYCLE_STATE_RELEASING = 5;
+  ALLOCATION_LIFECYCLE_STATE_RELEASED = 6;
 }
 
 enum WorkloadDiagnosticCode {
@@ -191,12 +194,11 @@ message ExecutionLease {
   string lease_id = 1;
   string allocation_id = 2;
   string node_id = 3;
-  int64 attempt = 4;
-  LeaseType lease_type = 5;
-  string plaintext_token = 6;
-  int64 revision = 7;
-  google.protobuf.Timestamp expires_at = 8;
-  bool revoked = 9;
-  string node_target = 10;
-  string validation_token_hash = 11;
+  LeaseType lease_type = 4;
+  string plaintext_token = 5;
+  int64 revision = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  bool revoked = 8;
+  string node_target = 9;
+  string validation_token_hash = 10;
 }

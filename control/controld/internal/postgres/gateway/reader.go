@@ -25,21 +25,21 @@ func (r *Reader) LoadAllocation(ctx context.Context, allocationID string) (*appg
 		return nil, grpcstatus.Error(codes.Unavailable, "gateway route reader is not configured")
 	}
 	a := &appgateway.Allocation{}
-	var statusText string
+	var lifecycleStateText string
 	err := r.db.Pool().QueryRow(ctx, `
-		SELECT a.allocation_id, a.run_id, a.node_id, n.node_target, a.attempt, a.status
+		SELECT a.allocation_id, a.run_id, a.node_id, n.node_target, a.lifecycle_state
 		FROM allocations a
 		JOIN nodes n ON n.node_id = a.node_id
 		WHERE a.allocation_id = $1
-	`, allocationID).Scan(&a.AllocationID, &a.RunID, &a.NodeID, &a.NodeTarget, &a.Attempt, &statusText)
+	`, allocationID).Scan(&a.AllocationID, &a.RunID, &a.NodeID, &a.NodeTarget, &lifecycleStateText)
 	if err == pgx.ErrNoRows {
 		return nil, grpcstatus.Error(codes.NotFound, "allocation not found")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("load allocation: %w", err)
 	}
-	if n, ok := commonv1.AllocationStatus_value[statusText]; ok {
-		a.Status = commonv1.AllocationStatus(n)
+	if n, ok := commonv1.AllocationLifecycleState_value[lifecycleStateText]; ok {
+		a.LifecycleState = commonv1.AllocationLifecycleState(n)
 	}
 	return a, nil
 }

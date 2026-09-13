@@ -8,9 +8,10 @@ import (
 )
 
 type Target struct {
-	ID      string
-	Labels  map[string]string
-	Handler contract.RuntimeHandler
+	ID                 string
+	Labels             map[string]string
+	SandboxdSocketPath string
+	Handler            contract.RuntimeHandler
 }
 
 type Options struct {
