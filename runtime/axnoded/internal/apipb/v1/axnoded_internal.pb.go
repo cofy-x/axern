@@ -765,6 +765,10 @@ func (x *EnvironmentTemplate) GetExecutionProfile() *v1.OciExecutionProfile {
 	return nil
 }
 
+// AllocationState is the single recovery record for a control-plane-bound
+// Allocation. The request digest and requirements form a valid create intent
+// before launch verification exists. DISCARD_ON_RESTART executions never
+// persist this message.
 type AllocationState struct {
 	state                  protoimpl.MessageState              `protogen:"open.v1"`
 	AllocationID           string                              `protobuf:"bytes,1,opt,name=allocationID,proto3" json:"allocationID,omitempty"`

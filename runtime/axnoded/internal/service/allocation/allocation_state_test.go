@@ -109,6 +109,71 @@ func TestLoadAllocationStatesRejectsMissingAtomicLaunchProof(t *testing.T) {
 	}
 }
 
+func TestInspectRecoveryRecordsClassifiesInterruptedCreateIntent(t *testing.T) {
+	store := storetest.NewMockStore()
+	const allocationID = "interrupted-create"
+	record := &apipb.AllocationState{
+		AllocationID:            allocationID,
+		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	}
+	if err := store.PutRecord(config.AllocationStateBucket, allocationID, record); err != nil {
+		t.Fatal(err)
+	}
+	fixture := newTestAllocationControllerWithStore(t, runtimetest.NewFakeSandboxRuntime(), store)
+
+	recovery, err := fixture.controller.InspectRecoveryRecords()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := recovery.Intents[allocationID]; !ok {
+		t.Fatal("interrupted create intent was not returned for ordered cleanup")
+	}
+	if _, ok := recovery.LaunchVerified[allocationID]; ok {
+		t.Fatal("interrupted create intent was classified as launch verified")
+	}
+}
+
+func TestInspectRecoveryRecordsRejectsPartiallyPersistedLaunchVerification(t *testing.T) {
+	store := storetest.NewMockStore()
+	const allocationID = "partial-launch-verification"
+	record := &apipb.AllocationState{
+		AllocationID:            allocationID,
+		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		EnforcementManifest: &apipb.AllocationEnforcementManifest{
+			BundlePath:        "/var/lib/axnoded/root/containers/" + allocationID,
+			CreatedAtUnixNano: time.Now().UnixNano(),
+		},
+	}
+	if err := store.PutRecord(config.AllocationStateBucket, allocationID, record); err != nil {
+		t.Fatal(err)
+	}
+	fixture := newTestAllocationControllerWithStore(t, runtimetest.NewFakeSandboxRuntime(), store)
+
+	if _, err := fixture.controller.InspectRecoveryRecords(); err == nil {
+		t.Fatal("partially persisted launch verification was accepted")
+	}
+}
+
+func TestInspectRecoveryRecordsRejectsBindingRequestMismatch(t *testing.T) {
+	store := storetest.NewMockStore()
+	const allocationID = "mismatched-binding"
+	record := &apipb.AllocationState{
+		AllocationID:            allocationID,
+		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	}
+	if err := store.PutRecord(config.AllocationStateBucket, allocationID, record); err != nil {
+		t.Fatal(err)
+	}
+	fixture := newTestAllocationControllerWithStore(t, runtimetest.NewFakeSandboxRuntime(), store)
+	if err := fixture.controller.BindControlPlaneAllocation(allocationID, "node-a", "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := fixture.controller.InspectRecoveryRecords(); err == nil {
+		t.Fatal("allocation state with a mismatched control-plane binding was accepted")
+	}
+}
+
 func TestValidateRecoveredAllocationRebuildsCapabilityConditions(t *testing.T) {
 	now := time.Now().UTC()
 	manifest := &apipb.AllocationEnforcementManifest{
@@ -178,7 +243,7 @@ func TestLoadAllocationStatesRestoresLiveContainerMountOwnership(t *testing.T) {
 	if len(mounter.reconciled) != 1 || mounter.reconciled[0] != "test-lease:"+imageURL {
 		t.Fatalf("reconciled leases = %+v", mounter.reconciled)
 	}
-	if err := fixture.controller.releaseAllocationState(allocationID); err != nil {
+	if err := fixture.controller.releaseAllocationState(allocationID, false); err != nil {
 		t.Fatal(err)
 	}
 	imageUnmounts := 0
@@ -272,6 +337,9 @@ func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{imageURL: filepath.Join(t.TempDir(), "rootfs")}}
 	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
 	fixture.controller.environmentCache = fixture.environmentCache
+	if err := fixture.controller.BindControlPlaneAllocation(allocationIDForTest(t), "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); err != nil {
+		t.Fatal(err)
+	}
 	_, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
 		ContainerID: allocationIDForTest(t),
 		EnvironmentTemplate: &apipb.EnvironmentTemplate{
@@ -303,12 +371,15 @@ func TestReleaseAllocationStatePreservesRuntimeWhenDeletePersistenceFails(t *tes
 	fixture := newTestAllocationControllerWithStore(t,
 		runtimetest.NewFakeSandboxRuntime(),
 		store)
+	if err := fixture.controller.BindControlPlaneAllocation("delete-failure", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); err != nil {
+		t.Fatal(err)
+	}
 	runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testEnvironmentTemplate(t, "delete-failure-runtime"))
 	runtime.IncRef()
 	if err := fixture.controller.rememberContainerRuntime("delete-failure", runtime); err != nil {
 		t.Fatal(err)
 	}
-	if err := fixture.controller.releaseAllocationState("delete-failure"); err == nil {
+	if err := fixture.controller.releaseAllocationState("delete-failure", false); err == nil {
 		t.Fatal("releaseAllocationState() succeeded when durable delete failed")
 	}
 	if _, ok := fixture.controller.runtimeMapping("delete-failure"); !ok {
@@ -341,13 +412,16 @@ func TestAllocationRecordsDeleteIndependently(t *testing.T) {
 		runtimetest.NewFakeSandboxRuntime(),
 		store)
 	for _, allocationID := range []string{"allocation-a", "allocation-b"} {
+		if err := fixture.controller.BindControlPlaneAllocation(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); err != nil {
+			t.Fatal(err)
+		}
 		runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testEnvironmentTemplate(t, "runtime-"+allocationID))
 		runtime.IncRef()
 		if err := fixture.controller.rememberContainerRuntime(allocationID, runtime); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := fixture.controller.releaseAllocationState("allocation-a"); err != nil {
+	if err := fixture.controller.releaseAllocationState("allocation-a", false); err != nil {
 		t.Fatal(err)
 	}
 	var remaining apipb.AllocationState
@@ -365,6 +439,9 @@ func TestStartAndDeleteUseOneAllocationTransactionEach(t *testing.T) {
 	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
 	fixture.controller.environmentCache = fixture.environmentCache
 	allocationID := "atomic-allocation-state"
+	if err := fixture.controller.BindControlPlaneAllocation(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
 		ContainerID: allocationID,
 		EnvironmentTemplate: &apipb.EnvironmentTemplate{
@@ -391,6 +468,39 @@ func TestStartAndDeleteUseOneAllocationTransactionEach(t *testing.T) {
 	}
 	if got := store.deletes.Load(); got != 1 {
 		t.Fatalf("allocation deletes after teardown = %d, want 1", got)
+	}
+}
+
+func TestTransientAllocationStateIsMemoryOnly(t *testing.T) {
+	store := &countingAllocationStateStore{testStateStore: storetest.NewMockStore()}
+	handler := &runtimeSpyHandler{name: "runsc"}
+	fixture := newTestAllocationControllerWithStore(t, handler, store)
+	allocationID := "transient-allocation"
+	if _, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
+		ContainerID: allocationID,
+		EnvironmentTemplate: &apipb.EnvironmentTemplate{
+			ID:     "transient-environment",
+			Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
+			Argv:   []string{"/bin/sh"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !fixture.controller.HasAllocation(allocationID) {
+		t.Fatal("transient allocation state is unavailable in process")
+	}
+	if got := store.puts.Load(); got != 0 {
+		t.Fatalf("transient allocation durable writes = %d, want 0", got)
+	}
+	var record apipb.AllocationState
+	if err := store.GetRecord(config.AllocationStateBucket, allocationID, &record); err == nil {
+		t.Fatal("transient allocation wrote a durable recovery record")
+	}
+	if _, err := fixture.controller.Delete(context.Background(), &apipb.DeleteRequest{ID: allocationID}); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.deletes.Load(); got != 0 {
+		t.Fatalf("transient allocation durable deletes = %d, want 0", got)
 	}
 }
 

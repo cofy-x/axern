@@ -40,6 +40,7 @@ func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	template := testEnvironmentTemplate(t, "allocation-runtime")
 	runtime := addTestRuntimeMappingRuntime(t, first.environmentCache, template)
 	allocationID := "allocation-runtime-round-trip"
+	assert.NoError(t, first.controller.BindControlPlaneAllocation(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 	err := first.controller.StoreCapabilityRequirements(allocationID, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil)
 	assert.NoError(t, err)
 	runtime.IncRef()

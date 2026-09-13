@@ -279,10 +279,14 @@ func (h *sandboxService) restorePersistentState() error {
 	if err != nil {
 		return fmt.Errorf("validate persisted control-plane allocation bindings: %w", err)
 	}
-	persistedAllocations, err := h.allocationController().PersistedAllocationIDs()
+	recoveryRecords, err := h.allocationController().InspectRecoveryRecords()
 	if err != nil {
 		return fmt.Errorf("validate persisted allocation authority: %w", err)
 	}
+	if err := h.cleanupInterruptedAllocationStarts(context.Background(), inventory, recoveryRecords); err != nil {
+		return err
+	}
+	persistedAllocations := recoveryRecords.Intents
 	durableInventory, discardInventory, err := h.partitionRuntimeInventory(inventory, persistedAllocations, boundAllocations)
 	if err != nil {
 		return err
@@ -316,6 +320,54 @@ func (h *sandboxService) restorePersistentState() error {
 	}
 	h.sandboxNetworking().LoadDnatRules()
 	return nil
+}
+
+// cleanupInterruptedAllocationStarts closes both create crash windows:
+//
+//   - a durable intent with no runsc container never reached OCI create; and
+//   - a runsc container in created state never crossed OCI start.
+//
+// An unverified running or unknown container violates the create-before-start
+// ordering and is retained fail-closed for operator inspection. Terminal
+// containers are retained only when their launch verification makes their exit
+// evidence reportable to controld.
+func (h *sandboxService) cleanupInterruptedAllocationStarts(ctx context.Context, inventory runtimeInventory, records allocation.RecoveryRecords) error {
+	ids := make([]string, 0, len(records.Intents))
+	for id := range records.Intents {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		status, live := inventory[id]
+		_, launchVerified := records.LaunchVerified[id]
+		cleanup, err := interruptedStartRecoveryAction(live, status, launchVerified)
+		if err != nil {
+			return fmt.Errorf("recover allocation %s: %w", id, err)
+		}
+		if !cleanup {
+			continue
+		}
+		if err := h.allocationController().CleanupPersistedFailedStart(ctx, id); err != nil {
+			return fmt.Errorf("cleanup interrupted allocation start %s: %w", id, err)
+		}
+		delete(inventory, id)
+		delete(records.Intents, id)
+		delete(records.LaunchVerified, id)
+	}
+	return nil
+}
+
+func interruptedStartRecoveryAction(live bool, status contract.ContainerStatus, launchVerified bool) (bool, error) {
+	if !live || status == contract.ContainerStatusCreated {
+		return true, nil
+	}
+	if launchVerified {
+		return false, nil
+	}
+	if status == contract.ContainerStatusExited {
+		return true, nil
+	}
+	return false, fmt.Errorf("unverified runtime container has uncertain execution state %q", status)
 }
 
 // partitionRuntimeInventory applies the explicit checkpoint recovery contract

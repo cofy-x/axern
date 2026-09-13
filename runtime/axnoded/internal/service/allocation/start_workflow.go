@@ -107,10 +107,14 @@ func startupObservationDurationSince(started time.Time) time.Duration {
 }
 
 func (h *Controller) cleanupFailedStart(ctx context.Context, containerID string) error {
-	return h.cleanupFailedStartWithResource(ctx, containerID, container.OccupiedResource{})
+	return h.cleanupFailedStartWithResource(ctx, containerID, container.OccupiedResource{}, false)
 }
 
-func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, containerID string, reserved container.OccupiedResource) error {
+func (h *Controller) cleanupPersistedFailedStart(ctx context.Context, containerID string) error {
+	return h.cleanupFailedStartWithResource(ctx, containerID, container.OccupiedResource{}, true)
+}
+
+func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, containerID string, reserved container.OccupiedResource, persistedRecovery bool) error {
 	h.sandboxNetworking().CleanupDnatRules(containerID)
 	h.sandboxNetworking().CloseHTTPProxyTransports(containerID)
 	var resource container.OccupiedResource
@@ -154,7 +158,7 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 			return fmt.Errorf("retire failed-start egress policy: %w", err)
 		}
 	}
-	if err := h.releaseAllocationState(containerID); err != nil {
+	if err := h.releaseAllocationState(containerID, persistedRecovery); err != nil {
 		return fmt.Errorf("release failed-start allocation state: %w", err)
 	}
 	if resourceKnown {
@@ -228,7 +232,7 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 		if stateCommitted {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			if err := h.cleanupFailedStartWithResource(cleanupCtx, request.GetContainerID(), reservedResource); err != nil {
+			if err := h.cleanupFailedStartWithResource(cleanupCtx, request.GetContainerID(), reservedResource, false); err != nil {
 				returnErr = errors.Join(returnErr, errRuntimeCleanupPending, fmt.Errorf("ordered failed-start cleanup: %w", err))
 			}
 			return
@@ -395,7 +399,7 @@ func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, requ
 			return new(runtime.DeleteResponse), err
 		}
 	}
-	if err := h.releaseAllocationState(request.ID); err != nil {
+	if err := h.releaseAllocationState(request.ID, false); err != nil {
 		return new(runtime.DeleteResponse), err
 	}
 	finalize := h.finalizeContainerDelete

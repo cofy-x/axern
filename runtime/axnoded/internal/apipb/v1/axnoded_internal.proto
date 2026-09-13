@@ -89,6 +89,10 @@ message EnvironmentTemplate {
   axern.control.catalog.v1.OciExecutionProfile execution_profile = 7;
 }
 
+// AllocationState is the single recovery record for a control-plane-bound
+// Allocation. The request digest and requirements form a valid create intent
+// before launch verification exists. DISCARD_ON_RESTART executions never
+// persist this message.
 message AllocationState {
   string allocationID = 1;
   EnvironmentTemplate environment_template = 2;

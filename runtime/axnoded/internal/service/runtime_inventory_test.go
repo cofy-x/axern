@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -89,6 +90,78 @@ func TestCollectRuntimeInventoryRejectsInvalidStatus(t *testing.T) {
 
 	_, err := service.collectRuntimeInventory(context.Background())
 	require.ErrorContains(t, err, "invalid status")
+}
+
+func TestInterruptedStartRecoveryAction(t *testing.T) {
+	tests := []struct {
+		name           string
+		live           bool
+		status         contract.ContainerStatus
+		launchVerified bool
+		wantCleanup    bool
+		wantError      bool
+	}{
+		{name: "intent without runtime", wantCleanup: true},
+		{name: "prepared verified runtime", live: true, status: contract.ContainerStatusCreated, launchVerified: true, wantCleanup: true},
+		{name: "prepared unverified runtime", live: true, status: contract.ContainerStatusCreated, wantCleanup: true},
+		{name: "verified running runtime", live: true, status: contract.ContainerStatusRunning, launchVerified: true},
+		{name: "verified terminal runtime", live: true, status: contract.ContainerStatusExited, launchVerified: true},
+		{name: "unverified terminal runtime", live: true, status: contract.ContainerStatusExited, wantCleanup: true},
+		{name: "unverified running runtime", live: true, status: contract.ContainerStatusRunning, wantError: true},
+		{name: "unverified unknown runtime", live: true, status: contract.ContainerStatusUnknown, wantError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cleanup, err := interruptedStartRecoveryAction(tt.live, tt.status, tt.launchVerified)
+			assert.Equal(t, tt.wantCleanup, cleanup)
+			if tt.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCleanupInterruptedAllocationStartWithoutRuntime(t *testing.T) {
+	runsc := runtimetest.NewFakeSandboxRuntime()
+	service := newTestService(t, runsc)
+	controller := service.allocationController()
+	const allocationID = "interrupted-before-oci-create"
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	require.NoError(t, controller.BindControlPlaneAllocation(allocationID, "node-a", digest))
+	require.NoError(t, controller.StoreCapabilityRequirements(allocationID, digest, nil))
+	recovery, err := controller.InspectRecoveryRecords()
+	require.NoError(t, err)
+
+	inventory := runtimeInventory{}
+	require.NoError(t, service.cleanupInterruptedAllocationStarts(context.Background(), inventory, recovery))
+	assert.Empty(t, inventory)
+	assert.Empty(t, recovery.Intents)
+	assert.Empty(t, recovery.LaunchVerified)
+	assert.False(t, controller.HasAllocation(allocationID))
+	assert.True(t, controller.HasControlPlaneBinding(allocationID), "control-plane admission must survive a retryable node start interruption")
+	after, err := controller.InspectRecoveryRecords()
+	require.NoError(t, err)
+	assert.Empty(t, after.Intents)
+}
+
+func TestCleanupInterruptedAllocationStartDeletesOrphanedRecoveryRecord(t *testing.T) {
+	runsc := runtimetest.NewFakeSandboxRuntime()
+	service := newTestService(t, runsc)
+	controller := service.allocationController()
+	const allocationID = "orphaned-create-intent"
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	record := &runtimeapi.AllocationState{AllocationID: allocationID, AllocationRequestDigest: digest}
+	require.NoError(t, service.store.PutRecord(config.AllocationStateBucket, allocationID, record))
+	recovery, err := controller.InspectRecoveryRecords()
+	require.NoError(t, err)
+
+	require.NoError(t, service.cleanupInterruptedAllocationStarts(context.Background(), runtimeInventory{}, recovery))
+	after, err := controller.InspectRecoveryRecords()
+	require.NoError(t, err)
+	assert.Empty(t, after.Intents)
+	assert.False(t, controller.HasControlPlaneBinding(allocationID))
 }
 
 func TestPartitionRuntimeInventoryRequiresExplicitConsistentRecoveryAuthority(t *testing.T) {

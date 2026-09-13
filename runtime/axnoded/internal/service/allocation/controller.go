@@ -171,6 +171,10 @@ func (c *Controller) CleanupFailedStart(ctx context.Context, allocationID string
 	return c.cleanupFailedStart(ctx, allocationID)
 }
 
+func (c *Controller) CleanupPersistedFailedStart(ctx context.Context, allocationID string) error {
+	return c.cleanupPersistedFailedStart(ctx, allocationID)
+}
+
 func (c *Controller) RestoreAllocationState(runtimeInventory map[string]struct{}) error {
 	if err := c.loadAllocationStates(runtimeInventory); err != nil {
 		// Reconciliation is destructive: an incomplete recovery view must not

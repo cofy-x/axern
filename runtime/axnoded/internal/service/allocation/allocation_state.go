@@ -46,7 +46,7 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetEnvironmentTemplate() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
+	return record == nil || (record.GetAllocationRequestDigest() == "" && record.GetEnvironmentTemplate() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
 }
 
 func (h *Controller) HasAllocation(allocationID string) bool {
@@ -85,11 +85,24 @@ func (h *Controller) EnvironmentTemplateID(allocationID string) string {
 	return strings.TrimSpace(state.record.GetEnvironmentTemplate().GetID())
 }
 
-// PersistedAllocationIDs validates the durable admission records without
-// acquiring runtime/image ownership. Startup uses this read-only view to seed
-// terminal delivery before terminal runtime cleanup.
-func (h *Controller) PersistedAllocationIDs() (map[string]struct{}, error) {
-	result := make(map[string]struct{})
+// RecoveryRecords is the validated node-local recovery view. Intents contains
+// every durable create intent. LaunchVerified is the subset that crossed the
+// OCI create-before-start verification barrier and may therefore recover a
+// running or terminal runtime container.
+type RecoveryRecords struct {
+	Intents        map[string]struct{}
+	LaunchVerified map[string]struct{}
+}
+
+// InspectRecoveryRecords validates durable create intents without acquiring
+// runtime or image ownership. An intent without launch verification is not
+// corrupt: axnoded may have stopped after admission but before OCI activation.
+// Startup reconciles those records against the authoritative runsc inventory.
+func (h *Controller) InspectRecoveryRecords() (RecoveryRecords, error) {
+	result := RecoveryRecords{
+		Intents:        make(map[string]struct{}),
+		LaunchVerified: make(map[string]struct{}),
+	}
 	if h == nil || h.store == nil {
 		return result, nil
 	}
@@ -102,10 +115,20 @@ func (h *Controller) PersistedAllocationIDs() (map[string]struct{}, error) {
 		if record.GetAllocationID() == "" || record.GetAllocationID() != key {
 			return fmt.Errorf("allocation state key %s does not match record id %s", key, record.GetAllocationID())
 		}
-		if err := validateRecoveredCapabilityState(&record, now); err != nil {
+		launchVerified, err := classifyRecoveryRecord(&record, now)
+		if err != nil {
 			return fmt.Errorf("validate allocation state %s: %w", key, err)
 		}
-		result[key] = struct{}{}
+		h.stateMu.RLock()
+		binding := h.controlPlaneBindings[key]
+		h.stateMu.RUnlock()
+		if binding != nil && binding.GetRequestDigest() != record.GetAllocationRequestDigest() {
+			return fmt.Errorf("allocation state %s request digest differs from its control-plane binding", key)
+		}
+		result.Intents[key] = struct{}{}
+		if launchVerified {
+			result.LaunchVerified[key] = struct{}{}
+		}
 		return nil
 	})
 	return result, err
@@ -553,6 +576,12 @@ func (h *Controller) persistAllocationRecord(record *apipb.AllocationState) erro
 	if record == nil || strings.TrimSpace(record.GetAllocationID()) == "" {
 		return errors.New("allocation state requires an allocation id")
 	}
+	// Only a control-plane binding gives this record crash-recovery meaning.
+	// Node-local sessions and conformance probes are explicit
+	// DISCARD_ON_RESTART executions and keep this aggregate in memory only.
+	if !h.HasControlPlaneBinding(record.GetAllocationID()) {
+		return nil
+	}
 	if allocationRecordEmpty(record) {
 		return h.store.DeleteRecord(config.AllocationStateBucket, record.GetAllocationID())
 	}
@@ -654,15 +683,17 @@ func (h *Controller) forgetImageMountRoots(allocationID string) {
 	releaseImageMountRoots(roots)
 }
 
-func (h *Controller) releaseAllocationState(allocationID string) error {
+func (h *Controller) releaseAllocationState(allocationID string, persistedRecovery bool) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" {
 		return nil
 	}
 	unlock := h.recordMutationLocks.Lock(allocationID)
 	defer unlock()
-	if err := h.store.DeleteRecord(config.AllocationStateBucket, allocationID); err != nil {
-		return fmt.Errorf("delete allocation state: %w", err)
+	if persistedRecovery || h.HasControlPlaneBinding(allocationID) {
+		if err := h.store.DeleteRecord(config.AllocationStateBucket, allocationID); err != nil {
+			return fmt.Errorf("delete allocation state: %w", err)
+		}
 	}
 	h.stateMu.Lock()
 	state := h.allocationStates[allocationID]
@@ -757,36 +788,53 @@ func (h *Controller) restoreAllocationState(record *apipb.AllocationState) (*all
 }
 
 func validateRecoveredCapabilityState(record *apipb.AllocationState, now time.Time) error {
+	launchVerified, err := classifyRecoveryRecord(record, now)
+	if err != nil {
+		return err
+	}
+	if !launchVerified {
+		return errors.New("active allocation is missing its atomic launch verification")
+	}
+	return nil
+}
+
+func classifyRecoveryRecord(record *apipb.AllocationState, now time.Time) (bool, error) {
 	if record == nil {
-		return errors.New("allocation recovery record is required")
+		return false, errors.New("allocation recovery record is required")
 	}
 	dependencies := record.GetCapabilityRequirements()
 	if err := capabilitycontract.ValidateRequirements(dependencies); err != nil {
-		return fmt.Errorf("validate recovered capability dependencies: %w", err)
+		return false, fmt.Errorf("validate recovered capability dependencies: %w", err)
 	}
 	if !validStartRequestDigest(record.GetAllocationRequestDigest()) {
-		return errors.New("active allocation is missing its canonical request digest")
+		return false, errors.New("allocation create intent is missing its canonical request digest")
 	}
 	manifest := record.GetEnforcementManifest()
 	verification := record.GetLaunchVerification()
+	if manifest == nil && verification == nil {
+		if record.GetCapabilityReconcile() != nil {
+			return false, errors.New("unverified allocation create intent contains capability reconcile state")
+		}
+		return false, nil
+	}
 	if manifest == nil || verification == nil {
-		return errors.New("active allocation is missing its atomic launch verification")
+		return false, errors.New("allocation launch verification is only partially persisted")
 	}
 	if verification.GetVerifiedAtUnixNano() <= 0 {
-		return errors.New("recovered launch verification has no verified time")
+		return false, errors.New("recovered launch verification has no verified time")
 	}
 	verifiedAt := time.Unix(0, verification.GetVerifiedAtUnixNano()).UTC()
 	expected, err := newLaunchVerification(manifest, verification.GetVerifiedCapabilities(), record.GetCapabilityRequirements(), verifiedAt, now)
 	if err != nil {
-		return fmt.Errorf("validate recovered launch verification: %w", err)
+		return false, fmt.Errorf("validate recovered launch verification: %w", err)
 	}
 	if !proto.Equal(expected, verification) {
-		return errors.New("recovered launch verification is not canonical")
+		return false, errors.New("recovered launch verification is not canonical")
 	}
 	if err := validateCapabilityReconcileState(record.GetCapabilityReconcile(), dependencies, now); err != nil {
-		return fmt.Errorf("validate recovered capability reconcile state: %w", err)
+		return false, fmt.Errorf("validate recovered capability reconcile state: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
 func validateCapabilityReconcileState(state *apipb.AllocationCapabilityReconcileState, _ []*capabilityv1.CapabilityRequirement, _ time.Time) error {
