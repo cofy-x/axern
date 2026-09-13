@@ -20,20 +20,9 @@ type Instance interface {
 	Close(context.Context) error
 }
 
-type TaskAssetMaterializer interface {
-	MaterializeTaskAssets(context.Context, string, string, TaskAssetKind) error
-}
-
 type PathExister interface {
 	PathExists(context.Context, string) (bool, error)
 }
-
-type TaskAssetKind string
-
-const (
-	TaskAssetKindVerifier TaskAssetKind = "verifier"
-	TaskAssetKindOracle   TaskAssetKind = "oracle"
-)
 
 type ExecCommand struct {
 	shell string
@@ -69,18 +58,11 @@ func (c ExecCommand) Validate() error {
 }
 
 type State struct {
-	EnvironmentID         string
-	RunID                 string
-	AllocationID          string
-	NodeID                string
-	RuntimeClass          string
-	PayloadFormat         string
-	PayloadDigest         string
-	CacheHit              bool
-	ImageResolveMs        int64
-	ImagePullMs           int64
-	CowPrepareMs          int64
-	VerifierMaterializeMs int64
+	EnvironmentID string
+	RunID         string
+	AllocationID  string
+	NodeID        string
+	RuntimeClass  string
 }
 
 type ExecOptions struct {

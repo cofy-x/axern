@@ -172,55 +172,6 @@ func (CgroupLeaseOwnerKind) EnumDescriptor() ([]byte, []int) {
 	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{2}
 }
 
-type TaskAssetKind int32
-
-const (
-	TaskAssetKind_TASK_ASSET_KIND_UNSPECIFIED TaskAssetKind = 0
-	TaskAssetKind_TASK_ASSET_KIND_VERIFIER    TaskAssetKind = 1
-	TaskAssetKind_TASK_ASSET_KIND_ORACLE      TaskAssetKind = 2
-)
-
-// Enum value maps for TaskAssetKind.
-var (
-	TaskAssetKind_name = map[int32]string{
-		0: "TASK_ASSET_KIND_UNSPECIFIED",
-		1: "TASK_ASSET_KIND_VERIFIER",
-		2: "TASK_ASSET_KIND_ORACLE",
-	}
-	TaskAssetKind_value = map[string]int32{
-		"TASK_ASSET_KIND_UNSPECIFIED": 0,
-		"TASK_ASSET_KIND_VERIFIER":    1,
-		"TASK_ASSET_KIND_ORACLE":      2,
-	}
-)
-
-func (x TaskAssetKind) Enum() *TaskAssetKind {
-	p := new(TaskAssetKind)
-	*p = x
-	return p
-}
-
-func (x TaskAssetKind) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (TaskAssetKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_internal_apipb_v1_axnoded_internal_proto_enumTypes[3].Descriptor()
-}
-
-func (TaskAssetKind) Type() protoreflect.EnumType {
-	return &file_internal_apipb_v1_axnoded_internal_proto_enumTypes[3]
-}
-
-func (x TaskAssetKind) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use TaskAssetKind.Descriptor instead.
-func (TaskAssetKind) EnumDescriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{3}
-}
-
 type ContainerRecoveryMode int32
 
 const (
@@ -258,11 +209,11 @@ func (x ContainerRecoveryMode) String() string {
 }
 
 func (ContainerRecoveryMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_internal_apipb_v1_axnoded_internal_proto_enumTypes[4].Descriptor()
+	return file_internal_apipb_v1_axnoded_internal_proto_enumTypes[3].Descriptor()
 }
 
 func (ContainerRecoveryMode) Type() protoreflect.EnumType {
-	return &file_internal_apipb_v1_axnoded_internal_proto_enumTypes[4]
+	return &file_internal_apipb_v1_axnoded_internal_proto_enumTypes[3]
 }
 
 func (x ContainerRecoveryMode) Number() protoreflect.EnumNumber {
@@ -271,7 +222,7 @@ func (x ContainerRecoveryMode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ContainerRecoveryMode.Descriptor instead.
 func (ContainerRecoveryMode) EnumDescriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{4}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{3}
 }
 
 type CgroupLease struct {
@@ -774,230 +725,6 @@ func (x *ImageMount) GetReadonly() bool {
 	return false
 }
 
-type WorkspaceImageVariant struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Format        string                 `protobuf:"bytes,1,opt,name=format,proto3" json:"format,omitempty"`
-	Image         string                 `protobuf:"bytes,2,opt,name=image,proto3" json:"image,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *WorkspaceImageVariant) Reset() {
-	*x = WorkspaceImageVariant{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *WorkspaceImageVariant) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*WorkspaceImageVariant) ProtoMessage() {}
-
-func (x *WorkspaceImageVariant) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WorkspaceImageVariant.ProtoReflect.Descriptor instead.
-func (*WorkspaceImageVariant) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *WorkspaceImageVariant) GetFormat() string {
-	if x != nil {
-		return x.Format
-	}
-	return ""
-}
-
-func (x *WorkspaceImageVariant) GetImage() string {
-	if x != nil {
-		return x.Image
-	}
-	return ""
-}
-
-type WorkspaceImageSource struct {
-	state         protoimpl.MessageState   `protogen:"open.v1"`
-	Variants      []*WorkspaceImageVariant `protobuf:"bytes,1,rep,name=variants,proto3" json:"variants,omitempty"`
-	SourcePath    string                   `protobuf:"bytes,2,opt,name=source_path,json=sourcePath,proto3" json:"source_path,omitempty"`
-	Target        string                   `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *WorkspaceImageSource) Reset() {
-	*x = WorkspaceImageSource{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *WorkspaceImageSource) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*WorkspaceImageSource) ProtoMessage() {}
-
-func (x *WorkspaceImageSource) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WorkspaceImageSource.ProtoReflect.Descriptor instead.
-func (*WorkspaceImageSource) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *WorkspaceImageSource) GetVariants() []*WorkspaceImageVariant {
-	if x != nil {
-		return x.Variants
-	}
-	return nil
-}
-
-func (x *WorkspaceImageSource) GetSourcePath() string {
-	if x != nil {
-		return x.SourcePath
-	}
-	return ""
-}
-
-func (x *WorkspaceImageSource) GetTarget() string {
-	if x != nil {
-		return x.Target
-	}
-	return ""
-}
-
-type MaterializeTaskAssetsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ID            string                 `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	SourcePath    string                 `protobuf:"bytes,2,opt,name=source_path,json=sourcePath,proto3" json:"source_path,omitempty"`
-	Target        string                 `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
-	Kind          TaskAssetKind          `protobuf:"varint,4,opt,name=kind,proto3,enum=axnoded.internal.apipb.v1.TaskAssetKind" json:"kind,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MaterializeTaskAssetsRequest) Reset() {
-	*x = MaterializeTaskAssetsRequest{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MaterializeTaskAssetsRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MaterializeTaskAssetsRequest) ProtoMessage() {}
-
-func (x *MaterializeTaskAssetsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MaterializeTaskAssetsRequest.ProtoReflect.Descriptor instead.
-func (*MaterializeTaskAssetsRequest) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *MaterializeTaskAssetsRequest) GetID() string {
-	if x != nil {
-		return x.ID
-	}
-	return ""
-}
-
-func (x *MaterializeTaskAssetsRequest) GetSourcePath() string {
-	if x != nil {
-		return x.SourcePath
-	}
-	return ""
-}
-
-func (x *MaterializeTaskAssetsRequest) GetTarget() string {
-	if x != nil {
-		return x.Target
-	}
-	return ""
-}
-
-func (x *MaterializeTaskAssetsRequest) GetKind() TaskAssetKind {
-	if x != nil {
-		return x.Kind
-	}
-	return TaskAssetKind_TASK_ASSET_KIND_UNSPECIFIED
-}
-
-type MaterializeTaskAssetsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	DurationMs    int64                  `protobuf:"varint,1,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MaterializeTaskAssetsResponse) Reset() {
-	*x = MaterializeTaskAssetsResponse{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MaterializeTaskAssetsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MaterializeTaskAssetsResponse) ProtoMessage() {}
-
-func (x *MaterializeTaskAssetsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MaterializeTaskAssetsResponse.ProtoReflect.Descriptor instead.
-func (*MaterializeTaskAssetsResponse) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *MaterializeTaskAssetsResponse) GetDurationMs() int64 {
-	if x != nil {
-		return x.DurationMs
-	}
-	return 0
-}
-
 type RuntimeTemplate struct {
 	state            protoimpl.MessageState      `protogen:"open.v1"`
 	ID               string                      `protobuf:"bytes,1,opt,name=ID,proto3" json:"ID,omitempty"`
@@ -1014,7 +741,7 @@ type RuntimeTemplate struct {
 
 func (x *RuntimeTemplate) Reset() {
 	*x = RuntimeTemplate{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[10]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1026,7 +753,7 @@ func (x *RuntimeTemplate) String() string {
 func (*RuntimeTemplate) ProtoMessage() {}
 
 func (x *RuntimeTemplate) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[10]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1039,7 +766,7 @@ func (x *RuntimeTemplate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeTemplate.ProtoReflect.Descriptor instead.
 func (*RuntimeTemplate) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{10}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RuntimeTemplate) GetID() string {
@@ -1103,27 +830,24 @@ type AllocationState struct {
 	AllocationID           string                              `protobuf:"bytes,1,opt,name=allocationID,proto3" json:"allocationID,omitempty"`
 	RuntimeTemplate        *RuntimeTemplate                    `protobuf:"bytes,2,opt,name=runtime_template,json=runtimeTemplate,proto3" json:"runtime_template,omitempty"`
 	ImageMountUrls         []string                            `protobuf:"bytes,3,rep,name=image_mount_urls,json=imageMountUrls,proto3" json:"image_mount_urls,omitempty"`
-	WorkspaceImageUrl      string                              `protobuf:"bytes,4,opt,name=workspace_image_url,json=workspaceImageUrl,proto3" json:"workspace_image_url,omitempty"`
-	WorkspaceSourcePath    string                              `protobuf:"bytes,5,opt,name=workspace_source_path,json=workspaceSourcePath,proto3" json:"workspace_source_path,omitempty"`
-	WorkspaceTarget        string                              `protobuf:"bytes,6,opt,name=workspace_target,json=workspaceTarget,proto3" json:"workspace_target,omitempty"`
-	CapabilityDependencies []*v11.CapabilityDependency         `protobuf:"bytes,7,rep,name=capability_dependencies,json=capabilityDependencies,proto3" json:"capability_dependencies,omitempty"`
-	CapabilityConditions   *v11.CapabilityConditionSet         `protobuf:"bytes,8,opt,name=capability_conditions,json=capabilityConditions,proto3" json:"capability_conditions,omitempty"`
-	EnforcementManifest    *AllocationEnforcementManifest      `protobuf:"bytes,9,opt,name=enforcement_manifest,json=enforcementManifest,proto3" json:"enforcement_manifest,omitempty"`
-	CapabilityReconcile    *AllocationCapabilityReconcileState `protobuf:"bytes,10,opt,name=capability_reconcile,json=capabilityReconcile,proto3" json:"capability_reconcile,omitempty"`
-	LaunchVerification     *AllocationLaunchVerification       `protobuf:"bytes,11,opt,name=launch_verification,json=launchVerification,proto3" json:"launch_verification,omitempty"`
+	CapabilityDependencies []*v11.CapabilityDependency         `protobuf:"bytes,4,rep,name=capability_dependencies,json=capabilityDependencies,proto3" json:"capability_dependencies,omitempty"`
+	CapabilityConditions   *v11.CapabilityConditionSet         `protobuf:"bytes,5,opt,name=capability_conditions,json=capabilityConditions,proto3" json:"capability_conditions,omitempty"`
+	EnforcementManifest    *AllocationEnforcementManifest      `protobuf:"bytes,6,opt,name=enforcement_manifest,json=enforcementManifest,proto3" json:"enforcement_manifest,omitempty"`
+	CapabilityReconcile    *AllocationCapabilityReconcileState `protobuf:"bytes,7,opt,name=capability_reconcile,json=capabilityReconcile,proto3" json:"capability_reconcile,omitempty"`
+	LaunchVerification     *AllocationLaunchVerification       `protobuf:"bytes,8,opt,name=launch_verification,json=launchVerification,proto3" json:"launch_verification,omitempty"`
 	// Canonical digest of the behaviorally relevant StartRequest. It fences
 	// idempotent retries from mutating a running allocation's contract.
-	AllocationRequestDigest string `protobuf:"bytes,12,opt,name=allocation_request_digest,json=allocationRequestDigest,proto3" json:"allocation_request_digest,omitempty"`
+	AllocationRequestDigest string `protobuf:"bytes,9,opt,name=allocation_request_digest,json=allocationRequestDigest,proto3" json:"allocation_request_digest,omitempty"`
 	// Immutable post-create condition proof returned by idempotent Create
 	// replays. capability_conditions remains the current runtime projection.
-	CapabilityAdmissionConditions *v11.CapabilityConditionSet `protobuf:"bytes,13,opt,name=capability_admission_conditions,json=capabilityAdmissionConditions,proto3" json:"capability_admission_conditions,omitempty"`
+	CapabilityAdmissionConditions *v11.CapabilityConditionSet `protobuf:"bytes,10,opt,name=capability_admission_conditions,json=capabilityAdmissionConditions,proto3" json:"capability_admission_conditions,omitempty"`
 	unknownFields                 protoimpl.UnknownFields
 	sizeCache                     protoimpl.SizeCache
 }
 
 func (x *AllocationState) Reset() {
 	*x = AllocationState{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[11]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1135,7 +859,7 @@ func (x *AllocationState) String() string {
 func (*AllocationState) ProtoMessage() {}
 
 func (x *AllocationState) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[11]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1148,7 +872,7 @@ func (x *AllocationState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationState.ProtoReflect.Descriptor instead.
 func (*AllocationState) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{11}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AllocationState) GetAllocationID() string {
@@ -1170,27 +894,6 @@ func (x *AllocationState) GetImageMountUrls() []string {
 		return x.ImageMountUrls
 	}
 	return nil
-}
-
-func (x *AllocationState) GetWorkspaceImageUrl() string {
-	if x != nil {
-		return x.WorkspaceImageUrl
-	}
-	return ""
-}
-
-func (x *AllocationState) GetWorkspaceSourcePath() string {
-	if x != nil {
-		return x.WorkspaceSourcePath
-	}
-	return ""
-}
-
-func (x *AllocationState) GetWorkspaceTarget() string {
-	if x != nil {
-		return x.WorkspaceTarget
-	}
-	return ""
 }
 
 func (x *AllocationState) GetCapabilityDependencies() []*v11.CapabilityDependency {
@@ -1256,7 +959,7 @@ type ControlPlaneAllocationBinding struct {
 
 func (x *ControlPlaneAllocationBinding) Reset() {
 	*x = ControlPlaneAllocationBinding{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[12]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1268,7 +971,7 @@ func (x *ControlPlaneAllocationBinding) String() string {
 func (*ControlPlaneAllocationBinding) ProtoMessage() {}
 
 func (x *ControlPlaneAllocationBinding) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[12]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1281,7 +984,7 @@ func (x *ControlPlaneAllocationBinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlPlaneAllocationBinding.ProtoReflect.Descriptor instead.
 func (*ControlPlaneAllocationBinding) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{12}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ControlPlaneAllocationBinding) GetAllocationID() string {
@@ -1320,7 +1023,7 @@ type AllocationLaunchVerification struct {
 
 func (x *AllocationLaunchVerification) Reset() {
 	*x = AllocationLaunchVerification{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[13]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1332,7 +1035,7 @@ func (x *AllocationLaunchVerification) String() string {
 func (*AllocationLaunchVerification) ProtoMessage() {}
 
 func (x *AllocationLaunchVerification) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[13]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1345,7 +1048,7 @@ func (x *AllocationLaunchVerification) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationLaunchVerification.ProtoReflect.Descriptor instead.
 func (*AllocationLaunchVerification) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{13}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *AllocationLaunchVerification) GetVerifiedCapabilities() []*v11.CapabilityKey {
@@ -1372,7 +1075,7 @@ type PendingCapabilityReconcile struct {
 
 func (x *PendingCapabilityReconcile) Reset() {
 	*x = PendingCapabilityReconcile{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[14]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1384,7 +1087,7 @@ func (x *PendingCapabilityReconcile) String() string {
 func (*PendingCapabilityReconcile) ProtoMessage() {}
 
 func (x *PendingCapabilityReconcile) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[14]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1397,7 +1100,7 @@ func (x *PendingCapabilityReconcile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PendingCapabilityReconcile.ProtoReflect.Descriptor instead.
 func (*PendingCapabilityReconcile) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{14}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *PendingCapabilityReconcile) GetKey() *v11.CapabilityKey {
@@ -1429,7 +1132,7 @@ type AllocationCapabilityReconcileState struct {
 
 func (x *AllocationCapabilityReconcileState) Reset() {
 	*x = AllocationCapabilityReconcileState{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[15]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1441,7 +1144,7 @@ func (x *AllocationCapabilityReconcileState) String() string {
 func (*AllocationCapabilityReconcileState) ProtoMessage() {}
 
 func (x *AllocationCapabilityReconcileState) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[15]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1454,7 +1157,7 @@ func (x *AllocationCapabilityReconcileState) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use AllocationCapabilityReconcileState.ProtoReflect.Descriptor instead.
 func (*AllocationCapabilityReconcileState) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{15}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AllocationCapabilityReconcileState) GetPending() []*PendingCapabilityReconcile {
@@ -1518,7 +1221,7 @@ type AllocationEnforcementManifest struct {
 
 func (x *AllocationEnforcementManifest) Reset() {
 	*x = AllocationEnforcementManifest{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[16]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1530,7 +1233,7 @@ func (x *AllocationEnforcementManifest) String() string {
 func (*AllocationEnforcementManifest) ProtoMessage() {}
 
 func (x *AllocationEnforcementManifest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[16]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1543,7 +1246,7 @@ func (x *AllocationEnforcementManifest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocationEnforcementManifest.ProtoReflect.Descriptor instead.
 func (*AllocationEnforcementManifest) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{16}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *AllocationEnforcementManifest) GetRuntimeName() string {
@@ -1710,7 +1413,7 @@ type TerminalResize struct {
 
 func (x *TerminalResize) Reset() {
 	*x = TerminalResize{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[17]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1722,7 +1425,7 @@ func (x *TerminalResize) String() string {
 func (*TerminalResize) ProtoMessage() {}
 
 func (x *TerminalResize) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[17]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1735,7 +1438,7 @@ func (x *TerminalResize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalResize.ProtoReflect.Descriptor instead.
 func (*TerminalResize) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{17}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *TerminalResize) GetCols() uint32 {
@@ -1762,7 +1465,7 @@ type KeyValue struct {
 
 func (x *KeyValue) Reset() {
 	*x = KeyValue{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[18]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1774,7 +1477,7 @@ func (x *KeyValue) String() string {
 func (*KeyValue) ProtoMessage() {}
 
 func (x *KeyValue) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[18]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1787,7 +1490,7 @@ func (x *KeyValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyValue.ProtoReflect.Descriptor instead.
 func (*KeyValue) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{18}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *KeyValue) GetKey() string {
@@ -1822,7 +1525,7 @@ type LinuxContainerResources struct {
 
 func (x *LinuxContainerResources) Reset() {
 	*x = LinuxContainerResources{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[19]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1834,7 +1537,7 @@ func (x *LinuxContainerResources) String() string {
 func (*LinuxContainerResources) ProtoMessage() {}
 
 func (x *LinuxContainerResources) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[19]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1847,7 +1550,7 @@ func (x *LinuxContainerResources) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinuxContainerResources.ProtoReflect.Descriptor instead.
 func (*LinuxContainerResources) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{19}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *LinuxContainerResources) GetCpuPeriod() uint64 {
@@ -1930,7 +1633,7 @@ type HugepageLimit struct {
 
 func (x *HugepageLimit) Reset() {
 	*x = HugepageLimit{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[20]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1942,7 +1645,7 @@ func (x *HugepageLimit) String() string {
 func (*HugepageLimit) ProtoMessage() {}
 
 func (x *HugepageLimit) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[20]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1955,7 +1658,7 @@ func (x *HugepageLimit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HugepageLimit.ProtoReflect.Descriptor instead.
 func (*HugepageLimit) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{20}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *HugepageLimit) GetPageSize() string {
@@ -1985,7 +1688,7 @@ type Rootfs struct {
 
 func (x *Rootfs) Reset() {
 	*x = Rootfs{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[21]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1997,7 +1700,7 @@ func (x *Rootfs) String() string {
 func (*Rootfs) ProtoMessage() {}
 
 func (x *Rootfs) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[21]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2010,7 +1713,7 @@ func (x *Rootfs) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Rootfs.ProtoReflect.Descriptor instead.
 func (*Rootfs) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{21}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Rootfs) GetType() string {
@@ -2066,7 +1769,7 @@ type ImmutableRootfsMount struct {
 
 func (x *ImmutableRootfsMount) Reset() {
 	*x = ImmutableRootfsMount{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[22]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2078,7 +1781,7 @@ func (x *ImmutableRootfsMount) String() string {
 func (*ImmutableRootfsMount) ProtoMessage() {}
 
 func (x *ImmutableRootfsMount) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[22]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2091,7 +1794,7 @@ func (x *ImmutableRootfsMount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImmutableRootfsMount.ProtoReflect.Descriptor instead.
 func (*ImmutableRootfsMount) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{22}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ImmutableRootfsMount) GetIdentity() string {
@@ -2156,7 +1859,7 @@ type ContainerMetadata struct {
 
 func (x *ContainerMetadata) Reset() {
 	*x = ContainerMetadata{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[23]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2168,7 +1871,7 @@ func (x *ContainerMetadata) String() string {
 func (*ContainerMetadata) ProtoMessage() {}
 
 func (x *ContainerMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[23]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2181,7 +1884,7 @@ func (x *ContainerMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerMetadata.ProtoReflect.Descriptor instead.
 func (*ContainerMetadata) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{23}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ContainerMetadata) GetRuntimeHandler() string {
@@ -2228,7 +1931,7 @@ type Slice struct {
 
 func (x *Slice) Reset() {
 	*x = Slice{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[24]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2240,7 +1943,7 @@ func (x *Slice) String() string {
 func (*Slice) ProtoMessage() {}
 
 func (x *Slice) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[24]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2253,7 +1956,7 @@ func (x *Slice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Slice.ProtoReflect.Descriptor instead.
 func (*Slice) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{24}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Slice) GetItems() []string {
@@ -2272,7 +1975,7 @@ type Map struct {
 
 func (x *Map) Reset() {
 	*x = Map{}
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[25]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2284,7 +1987,7 @@ func (x *Map) String() string {
 func (*Map) ProtoMessage() {}
 
 func (x *Map) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[25]
+	mi := &file_internal_apipb_v1_axnoded_internal_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2297,7 +2000,7 @@ func (x *Map) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Map.ProtoReflect.Descriptor instead.
 func (*Map) Descriptor() ([]byte, []int) {
-	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{25}
+	return file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Map) GetItems() map[string]string {
@@ -2409,127 +2112,89 @@ var file_internal_apipb_v1_axnoded_internal_proto_rawDesc = []byte{
 	0x01, 0x28, 0x09, 0x52, 0x05, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x74, 0x61,
 	0x72, 0x67, 0x65, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x74, 0x61, 0x72, 0x67,
 	0x65, 0x74, 0x12, 0x1a, 0x0a, 0x08, 0x72, 0x65, 0x61, 0x64, 0x6f, 0x6e, 0x6c, 0x79, 0x18, 0x03,
-	0x20, 0x01, 0x28, 0x08, 0x52, 0x08, 0x72, 0x65, 0x61, 0x64, 0x6f, 0x6e, 0x6c, 0x79, 0x22, 0x45,
-	0x0a, 0x15, 0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x49, 0x6d, 0x61, 0x67, 0x65,
-	0x56, 0x61, 0x72, 0x69, 0x61, 0x6e, 0x74, 0x12, 0x16, 0x0a, 0x06, 0x66, 0x6f, 0x72, 0x6d, 0x61,
-	0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x66, 0x6f, 0x72, 0x6d, 0x61, 0x74, 0x12,
-	0x14, 0x0a, 0x05, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05,
-	0x69, 0x6d, 0x61, 0x67, 0x65, 0x22, 0x9d, 0x01, 0x0a, 0x14, 0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70,
-	0x61, 0x63, 0x65, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12, 0x4c,
-	0x0a, 0x08, 0x76, 0x61, 0x72, 0x69, 0x61, 0x6e, 0x74, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b,
-	0x32, 0x30, 0x2e, 0x61, 0x78, 0x6e, 0x6f, 0x64, 0x65, 0x64, 0x2e, 0x69, 0x6e, 0x74, 0x65, 0x72,
-	0x6e, 0x61, 0x6c, 0x2e, 0x61, 0x70, 0x69, 0x70, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x57, 0x6f, 0x72,
-	0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x56, 0x61, 0x72, 0x69, 0x61,
-	0x6e, 0x74, 0x52, 0x08, 0x76, 0x61, 0x72, 0x69, 0x61, 0x6e, 0x74, 0x73, 0x12, 0x1f, 0x0a, 0x0b,
-	0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x70, 0x61, 0x74, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28,
-	0x09, 0x52, 0x0a, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x50, 0x61, 0x74, 0x68, 0x12, 0x16, 0x0a,
-	0x06, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x74,
-	0x61, 0x72, 0x67, 0x65, 0x74, 0x22, 0xa5, 0x01, 0x0a, 0x1c, 0x4d, 0x61, 0x74, 0x65, 0x72, 0x69,
-	0x61, 0x6c, 0x69, 0x7a, 0x65, 0x54, 0x61, 0x73, 0x6b, 0x41, 0x73, 0x73, 0x65, 0x74, 0x73, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x0e, 0x0a, 0x02, 0x49, 0x44, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x02, 0x49, 0x44, 0x12, 0x1f, 0x0a, 0x0b, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65,
-	0x5f, 0x70, 0x61, 0x74, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x73, 0x6f, 0x75,
-	0x72, 0x63, 0x65, 0x50, 0x61, 0x74, 0x68, 0x12, 0x16, 0x0a, 0x06, 0x74, 0x61, 0x72, 0x67, 0x65,
-	0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x12,
-	0x3c, 0x0a, 0x04, 0x6b, 0x69, 0x6e, 0x64, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x28, 0x2e,
-	0x61, 0x78, 0x6e, 0x6f, 0x64, 0x65, 0x64, 0x2e, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c,
-	0x2e, 0x61, 0x70, 0x69, 0x70, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x54, 0x61, 0x73, 0x6b, 0x41, 0x73,
-	0x73, 0x65, 0x74, 0x4b, 0x69, 0x6e, 0x64, 0x52, 0x04, 0x6b, 0x69, 0x6e, 0x64, 0x22, 0x40, 0x0a,
-	0x1d, 0x4d, 0x61, 0x74, 0x65, 0x72, 0x69, 0x61, 0x6c, 0x69, 0x7a, 0x65, 0x54, 0x61, 0x73, 0x6b,
-	0x41, 0x73, 0x73, 0x65, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x1f,
-	0x0a, 0x0b, 0x64, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x6d, 0x73, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x03, 0x52, 0x0a, 0x64, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4d, 0x73, 0x22,
-	0xe1, 0x03, 0x0a, 0x0f, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c,
-	0x61, 0x74, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x49, 0x44, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x02, 0x49, 0x44, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x61, 0x6e, 0x64, 0x62, 0x6f, 0x78, 0x18, 0x02,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x73, 0x61, 0x6e, 0x64, 0x62, 0x6f, 0x78, 0x12, 0x3f, 0x0a,
-	0x06, 0x72, 0x6f, 0x6f, 0x74, 0x66, 0x73, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x27, 0x2e,
-	0x61, 0x78, 0x6e, 0x6f, 0x64, 0x65, 0x64, 0x2e, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c,
-	0x2e, 0x61, 0x70, 0x69, 0x70, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x6f, 0x6f, 0x74, 0x66, 0x73,
-	0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x06, 0x72, 0x6f, 0x6f, 0x74, 0x66, 0x73, 0x12, 0x18,
-	0x0a, 0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x18, 0x04, 0x20, 0x03, 0x28, 0x09, 0x52,
-	0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x12, 0x5d, 0x0a, 0x0b, 0x72, 0x75, 0x6e, 0x74,
-	0x69, 0x6d, 0x65, 0x45, 0x6e, 0x76, 0x73, 0x18, 0x05, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x3b, 0x2e,
-	0x61, 0x78, 0x6e, 0x6f, 0x64, 0x65, 0x64, 0x2e, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c,
-	0x2e, 0x61, 0x70, 0x69, 0x70, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d,
-	0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x2e, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d,
-	0x65, 0x45, 0x6e, 0x76, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x0b, 0x72, 0x75, 0x6e, 0x74,
-	0x69, 0x6d, 0x65, 0x45, 0x6e, 0x76, 0x73, 0x12, 0x10, 0x0a, 0x03, 0x63, 0x77, 0x64, 0x18, 0x06,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x63, 0x77, 0x64, 0x12, 0x38, 0x0a, 0x06, 0x6d, 0x6f, 0x75,
-	0x6e, 0x74, 0x73, 0x18, 0x07, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x20, 0x2e, 0x61, 0x78, 0x6e, 0x6f,
-	0x64, 0x65, 0x64, 0x2e, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x61, 0x70, 0x69,
-	0x70, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x4d, 0x6f, 0x75, 0x6e, 0x74, 0x52, 0x06, 0x6d, 0x6f, 0x75,
-	0x6e, 0x74, 0x73, 0x12, 0x5e, 0x0a, 0x11, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e,
-	0x5f, 0x70, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x18, 0x08, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x31,
-	0x2e, 0x61, 0x78, 0x65, 0x72, 0x6e, 0x2e, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x2e, 0x63,
-	0x61, 0x74, 0x61, 0x6c, 0x6f, 0x67, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d,
-	0x65, 0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c,
-	0x65, 0x52, 0x10, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x50, 0x72, 0x6f, 0x66,
-	0x69, 0x6c, 0x65, 0x1a, 0x3e, 0x0a, 0x10, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x45, 0x6e,
-	0x76, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c,
-	0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a,
-	0x02, 0x38, 0x01, 0x22, 0x9d, 0x08, 0x0a, 0x0f, 0x41, 0x6c, 0x6c, 0x6f, 0x63, 0x61, 0x74, 0x69,
-	0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x22, 0x0a, 0x0c, 0x61, 0x6c, 0x6c, 0x6f, 0x63,
-	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x44, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c, 0x61,
-	0x6c, 0x6c, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x44, 0x12, 0x55, 0x0a, 0x10, 0x72,
-	0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x18,
-	0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x61, 0x78, 0x6e, 0x6f, 0x64, 0x65, 0x64, 0x2e,
-	0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x61, 0x70, 0x69, 0x70, 0x62, 0x2e, 0x76,
-	0x31, 0x2e, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74,
-	0x65, 0x52, 0x0f, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61,
-	0x74, 0x65, 0x12, 0x28, 0x0a, 0x10, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x5f, 0x6d, 0x6f, 0x75, 0x6e,
-	0x74, 0x5f, 0x75, 0x72, 0x6c, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0e, 0x69, 0x6d,
-	0x61, 0x67, 0x65, 0x4d, 0x6f, 0x75, 0x6e, 0x74, 0x55, 0x72, 0x6c, 0x73, 0x12, 0x2e, 0x0a, 0x13,
-	0x77, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x5f, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x5f,
-	0x75, 0x72, 0x6c, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x11, 0x77, 0x6f, 0x72, 0x6b, 0x73,
-	0x70, 0x61, 0x63, 0x65, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x55, 0x72, 0x6c, 0x12, 0x32, 0x0a, 0x15,
-	0x77, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x5f, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65,
-	0x5f, 0x70, 0x61, 0x74, 0x68, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x13, 0x77, 0x6f, 0x72,
-	0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x50, 0x61, 0x74, 0x68,
-	0x12, 0x29, 0x0a, 0x10, 0x77, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x5f, 0x74, 0x61,
-	0x72, 0x67, 0x65, 0x74, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0f, 0x77, 0x6f, 0x72, 0x6b,
-	0x73, 0x70, 0x61, 0x63, 0x65, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x12, 0x6a, 0x0a, 0x17, 0x63,
+	0x20, 0x01, 0x28, 0x08, 0x52, 0x08, 0x72, 0x65, 0x61, 0x64, 0x6f, 0x6e, 0x6c, 0x79, 0x22, 0xe1,
+	0x03, 0x0a, 0x0f, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61,
+	0x74, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x49, 0x44, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02,
+	0x49, 0x44, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x61, 0x6e, 0x64, 0x62, 0x6f, 0x78, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x07, 0x73, 0x61, 0x6e, 0x64, 0x62, 0x6f, 0x78, 0x12, 0x3f, 0x0a, 0x06,
+	0x72, 0x6f, 0x6f, 0x74, 0x66, 0x73, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x27, 0x2e, 0x61,
+	0x78, 0x6e, 0x6f, 0x64, 0x65, 0x64, 0x2e, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e,
+	0x61, 0x70, 0x69, 0x70, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x6f, 0x6f, 0x74, 0x66, 0x73, 0x43,
+	0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x06, 0x72, 0x6f, 0x6f, 0x74, 0x66, 0x73, 0x12, 0x18, 0x0a,
+	0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x18, 0x04, 0x20, 0x03, 0x28, 0x09, 0x52, 0x07,
+	0x63, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x12, 0x5d, 0x0a, 0x0b, 0x72, 0x75, 0x6e, 0x74, 0x69,
+	0x6d, 0x65, 0x45, 0x6e, 0x76, 0x73, 0x18, 0x05, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x3b, 0x2e, 0x61,
+	0x78, 0x6e, 0x6f, 0x64, 0x65, 0x64, 0x2e, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e,
+	0x61, 0x70, 0x69, 0x70, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65,
+	0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x2e, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65,
+	0x45, 0x6e, 0x76, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x0b, 0x72, 0x75, 0x6e, 0x74, 0x69,
+	0x6d, 0x65, 0x45, 0x6e, 0x76, 0x73, 0x12, 0x10, 0x0a, 0x03, 0x63, 0x77, 0x64, 0x18, 0x06, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x03, 0x63, 0x77, 0x64, 0x12, 0x38, 0x0a, 0x06, 0x6d, 0x6f, 0x75, 0x6e,
+	0x74, 0x73, 0x18, 0x07, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x20, 0x2e, 0x61, 0x78, 0x6e, 0x6f, 0x64,
+	0x65, 0x64, 0x2e, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x61, 0x70, 0x69, 0x70,
+	0x62, 0x2e, 0x76, 0x31, 0x2e, 0x4d, 0x6f, 0x75, 0x6e, 0x74, 0x52, 0x06, 0x6d, 0x6f, 0x75, 0x6e,
+	0x74, 0x73, 0x12, 0x5e, 0x0a, 0x11, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x5f,
+	0x70, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x18, 0x08, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x31, 0x2e,
+	0x61, 0x78, 0x65, 0x72, 0x6e, 0x2e, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x2e, 0x63, 0x61,
+	0x74, 0x61, 0x6c, 0x6f, 0x67, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65,
+	0x45, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65,
+	0x52, 0x10, 0x65, 0x78, 0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x50, 0x72, 0x6f, 0x66, 0x69,
+	0x6c, 0x65, 0x1a, 0x3e, 0x0a, 0x10, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x45, 0x6e, 0x76,
+	0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75,
+	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02,
+	0x38, 0x01, 0x22, 0x8e, 0x07, 0x0a, 0x0f, 0x41, 0x6c, 0x6c, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f,
+	0x6e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x22, 0x0a, 0x0c, 0x61, 0x6c, 0x6c, 0x6f, 0x63, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x49, 0x44, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c, 0x61, 0x6c,
+	0x6c, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x44, 0x12, 0x55, 0x0a, 0x10, 0x72, 0x75,
+	0x6e, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x74, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x61, 0x78, 0x6e, 0x6f, 0x64, 0x65, 0x64, 0x2e, 0x69,
+	0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x61, 0x70, 0x69, 0x70, 0x62, 0x2e, 0x76, 0x31,
+	0x2e, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65,
+	0x52, 0x0f, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74,
+	0x65, 0x12, 0x28, 0x0a, 0x10, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x5f, 0x6d, 0x6f, 0x75, 0x6e, 0x74,
+	0x5f, 0x75, 0x72, 0x6c, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0e, 0x69, 0x6d, 0x61,
+	0x67, 0x65, 0x4d, 0x6f, 0x75, 0x6e, 0x74, 0x55, 0x72, 0x6c, 0x73, 0x12, 0x6a, 0x0a, 0x17, 0x63,
 	0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x5f, 0x64, 0x65, 0x70, 0x65, 0x6e, 0x64,
-	0x65, 0x6e, 0x63, 0x69, 0x65, 0x73, 0x18, 0x07, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x31, 0x2e, 0x61,
+	0x65, 0x6e, 0x63, 0x69, 0x65, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x31, 0x2e, 0x61,
 	0x78, 0x65, 0x72, 0x6e, 0x2e, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x2e, 0x63, 0x61, 0x70,
 	0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x61, 0x70, 0x61, 0x62,
 	0x69, 0x6c, 0x69, 0x74, 0x79, 0x44, 0x65, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x6e, 0x63, 0x79, 0x52,
 	0x16, 0x63, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x44, 0x65, 0x70, 0x65, 0x6e,
 	0x64, 0x65, 0x6e, 0x63, 0x69, 0x65, 0x73, 0x12, 0x68, 0x0a, 0x15, 0x63, 0x61, 0x70, 0x61, 0x62,
 	0x69, 0x6c, 0x69, 0x74, 0x79, 0x5f, 0x63, 0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x73,
-	0x18, 0x08, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x33, 0x2e, 0x61, 0x78, 0x65, 0x72, 0x6e, 0x2e, 0x63,
+	0x18, 0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x33, 0x2e, 0x61, 0x78, 0x65, 0x72, 0x6e, 0x2e, 0x63,
 	0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x2e, 0x63, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74,
 	0x79, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x43,
 	0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x65, 0x74, 0x52, 0x14, 0x63, 0x61, 0x70,
 	0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x43, 0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e,
 	0x73, 0x12, 0x6b, 0x0a, 0x14, 0x65, 0x6e, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x6d, 0x65, 0x6e, 0x74,
-	0x5f, 0x6d, 0x61, 0x6e, 0x69, 0x66, 0x65, 0x73, 0x74, 0x18, 0x09, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x5f, 0x6d, 0x61, 0x6e, 0x69, 0x66, 0x65, 0x73, 0x74, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0b, 0x32,
 	0x38, 0x2e, 0x61, 0x78, 0x6e, 0x6f, 0x64, 0x65, 0x64, 0x2e, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e,
 	0x61, 0x6c, 0x2e, 0x61, 0x70, 0x69, 0x70, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x6c, 0x6c, 0x6f,
 	0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x45, 0x6e, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x6d, 0x65, 0x6e,
 	0x74, 0x4d, 0x61, 0x6e, 0x69, 0x66, 0x65, 0x73, 0x74, 0x52, 0x13, 0x65, 0x6e, 0x66, 0x6f, 0x72,
 	0x63, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x4d, 0x61, 0x6e, 0x69, 0x66, 0x65, 0x73, 0x74, 0x12, 0x70,
 	0x0a, 0x14, 0x63, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x5f, 0x72, 0x65, 0x63,
-	0x6f, 0x6e, 0x63, 0x69, 0x6c, 0x65, 0x18, 0x0a, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x3d, 0x2e, 0x61,
+	0x6f, 0x6e, 0x63, 0x69, 0x6c, 0x65, 0x18, 0x07, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x3d, 0x2e, 0x61,
 	0x78, 0x6e, 0x6f, 0x64, 0x65, 0x64, 0x2e, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e,
 	0x61, 0x70, 0x69, 0x70, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x6c, 0x6c, 0x6f, 0x63, 0x61, 0x74,
 	0x69, 0x6f, 0x6e, 0x43, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x52, 0x65, 0x63,
 	0x6f, 0x6e, 0x63, 0x69, 0x6c, 0x65, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x13, 0x63, 0x61, 0x70,
 	0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x52, 0x65, 0x63, 0x6f, 0x6e, 0x63, 0x69, 0x6c, 0x65,
 	0x12, 0x68, 0x0a, 0x13, 0x6c, 0x61, 0x75, 0x6e, 0x63, 0x68, 0x5f, 0x76, 0x65, 0x72, 0x69, 0x66,
-	0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x37, 0x2e,
+	0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x08, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x37, 0x2e,
 	0x61, 0x78, 0x6e, 0x6f, 0x64, 0x65, 0x64, 0x2e, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c,
 	0x2e, 0x61, 0x70, 0x69, 0x70, 0x62, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x6c, 0x6c, 0x6f, 0x63, 0x61,
 	0x74, 0x69, 0x6f, 0x6e, 0x4c, 0x61, 0x75, 0x6e, 0x63, 0x68, 0x56, 0x65, 0x72, 0x69, 0x66, 0x69,
 	0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x12, 0x6c, 0x61, 0x75, 0x6e, 0x63, 0x68, 0x56, 0x65,
 	0x72, 0x69, 0x66, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x3a, 0x0a, 0x19, 0x61, 0x6c,
 	0x6c, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x5f, 0x64, 0x69, 0x67, 0x65, 0x73, 0x74, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x09, 0x52, 0x17, 0x61,
+	0x5f, 0x64, 0x69, 0x67, 0x65, 0x73, 0x74, 0x18, 0x09, 0x20, 0x01, 0x28, 0x09, 0x52, 0x17, 0x61,
 	0x6c, 0x6c, 0x6f, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
 	0x44, 0x69, 0x67, 0x65, 0x73, 0x74, 0x12, 0x7b, 0x0a, 0x1f, 0x63, 0x61, 0x70, 0x61, 0x62, 0x69,
 	0x6c, 0x69, 0x74, 0x79, 0x5f, 0x61, 0x64, 0x6d, 0x69, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x63,
-	0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x0a, 0x20, 0x01, 0x28, 0x0b, 0x32,
 	0x33, 0x2e, 0x61, 0x78, 0x65, 0x72, 0x6e, 0x2e, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x2e,
 	0x63, 0x61, 0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x61,
 	0x70, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x43, 0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f,
@@ -2780,28 +2445,22 @@ var file_internal_apipb_v1_axnoded_internal_proto_rawDesc = []byte{
 	0x4e, 0x44, 0x5f, 0x57, 0x4f, 0x52, 0x4b, 0x4c, 0x4f, 0x41, 0x44, 0x10, 0x01, 0x12, 0x2f, 0x0a,
 	0x2b, 0x43, 0x47, 0x52, 0x4f, 0x55, 0x50, 0x5f, 0x4c, 0x45, 0x41, 0x53, 0x45, 0x5f, 0x4f, 0x57,
 	0x4e, 0x45, 0x52, 0x5f, 0x4b, 0x49, 0x4e, 0x44, 0x5f, 0x52, 0x55, 0x4e, 0x54, 0x49, 0x4d, 0x45,
-	0x5f, 0x43, 0x4f, 0x4e, 0x46, 0x4f, 0x52, 0x4d, 0x41, 0x4e, 0x43, 0x45, 0x10, 0x02, 0x2a, 0x6a,
-	0x0a, 0x0d, 0x54, 0x61, 0x73, 0x6b, 0x41, 0x73, 0x73, 0x65, 0x74, 0x4b, 0x69, 0x6e, 0x64, 0x12,
-	0x1f, 0x0a, 0x1b, 0x54, 0x41, 0x53, 0x4b, 0x5f, 0x41, 0x53, 0x53, 0x45, 0x54, 0x5f, 0x4b, 0x49,
-	0x4e, 0x44, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x00,
-	0x12, 0x1c, 0x0a, 0x18, 0x54, 0x41, 0x53, 0x4b, 0x5f, 0x41, 0x53, 0x53, 0x45, 0x54, 0x5f, 0x4b,
-	0x49, 0x4e, 0x44, 0x5f, 0x56, 0x45, 0x52, 0x49, 0x46, 0x49, 0x45, 0x52, 0x10, 0x01, 0x12, 0x1a,
-	0x0a, 0x16, 0x54, 0x41, 0x53, 0x4b, 0x5f, 0x41, 0x53, 0x53, 0x45, 0x54, 0x5f, 0x4b, 0x49, 0x4e,
-	0x44, 0x5f, 0x4f, 0x52, 0x41, 0x43, 0x4c, 0x45, 0x10, 0x02, 0x2a, 0x95, 0x01, 0x0a, 0x15, 0x43,
-	0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x63, 0x6f, 0x76, 0x65, 0x72, 0x79,
-	0x4d, 0x6f, 0x64, 0x65, 0x12, 0x27, 0x0a, 0x23, 0x43, 0x4f, 0x4e, 0x54, 0x41, 0x49, 0x4e, 0x45,
-	0x52, 0x5f, 0x52, 0x45, 0x43, 0x4f, 0x56, 0x45, 0x52, 0x59, 0x5f, 0x4d, 0x4f, 0x44, 0x45, 0x5f,
-	0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x00, 0x12, 0x23, 0x0a,
-	0x1f, 0x43, 0x4f, 0x4e, 0x54, 0x41, 0x49, 0x4e, 0x45, 0x52, 0x5f, 0x52, 0x45, 0x43, 0x4f, 0x56,
-	0x45, 0x52, 0x59, 0x5f, 0x4d, 0x4f, 0x44, 0x45, 0x5f, 0x44, 0x55, 0x52, 0x41, 0x42, 0x4c, 0x45,
-	0x10, 0x01, 0x12, 0x2e, 0x0a, 0x2a, 0x43, 0x4f, 0x4e, 0x54, 0x41, 0x49, 0x4e, 0x45, 0x52, 0x5f,
-	0x52, 0x45, 0x43, 0x4f, 0x56, 0x45, 0x52, 0x59, 0x5f, 0x4d, 0x4f, 0x44, 0x45, 0x5f, 0x44, 0x49,
-	0x53, 0x43, 0x41, 0x52, 0x44, 0x5f, 0x4f, 0x4e, 0x5f, 0x52, 0x45, 0x53, 0x54, 0x41, 0x52, 0x54,
-	0x10, 0x02, 0x42, 0x41, 0x5a, 0x3f, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d,
-	0x2f, 0x63, 0x6f, 0x66, 0x79, 0x2d, 0x78, 0x2f, 0x61, 0x78, 0x65, 0x72, 0x6e, 0x2f, 0x72, 0x75,
-	0x6e, 0x74, 0x69, 0x6d, 0x65, 0x2f, 0x61, 0x78, 0x6e, 0x6f, 0x64, 0x65, 0x64, 0x2f, 0x69, 0x6e,
-	0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x61, 0x70, 0x69, 0x70, 0x62, 0x2f, 0x76, 0x31, 0x3b,
-	0x61, 0x70, 0x69, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x5f, 0x43, 0x4f, 0x4e, 0x46, 0x4f, 0x52, 0x4d, 0x41, 0x4e, 0x43, 0x45, 0x10, 0x02, 0x2a, 0x95,
+	0x01, 0x0a, 0x15, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x63, 0x6f,
+	0x76, 0x65, 0x72, 0x79, 0x4d, 0x6f, 0x64, 0x65, 0x12, 0x27, 0x0a, 0x23, 0x43, 0x4f, 0x4e, 0x54,
+	0x41, 0x49, 0x4e, 0x45, 0x52, 0x5f, 0x52, 0x45, 0x43, 0x4f, 0x56, 0x45, 0x52, 0x59, 0x5f, 0x4d,
+	0x4f, 0x44, 0x45, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10,
+	0x00, 0x12, 0x23, 0x0a, 0x1f, 0x43, 0x4f, 0x4e, 0x54, 0x41, 0x49, 0x4e, 0x45, 0x52, 0x5f, 0x52,
+	0x45, 0x43, 0x4f, 0x56, 0x45, 0x52, 0x59, 0x5f, 0x4d, 0x4f, 0x44, 0x45, 0x5f, 0x44, 0x55, 0x52,
+	0x41, 0x42, 0x4c, 0x45, 0x10, 0x01, 0x12, 0x2e, 0x0a, 0x2a, 0x43, 0x4f, 0x4e, 0x54, 0x41, 0x49,
+	0x4e, 0x45, 0x52, 0x5f, 0x52, 0x45, 0x43, 0x4f, 0x56, 0x45, 0x52, 0x59, 0x5f, 0x4d, 0x4f, 0x44,
+	0x45, 0x5f, 0x44, 0x49, 0x53, 0x43, 0x41, 0x52, 0x44, 0x5f, 0x4f, 0x4e, 0x5f, 0x52, 0x45, 0x53,
+	0x54, 0x41, 0x52, 0x54, 0x10, 0x02, 0x42, 0x41, 0x5a, 0x3f, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62,
+	0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x66, 0x79, 0x2d, 0x78, 0x2f, 0x61, 0x78, 0x65, 0x72,
+	0x6e, 0x2f, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x2f, 0x61, 0x78, 0x6e, 0x6f, 0x64, 0x65,
+	0x64, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x61, 0x70, 0x69, 0x70, 0x62,
+	0x2f, 0x76, 0x31, 0x3b, 0x61, 0x70, 0x69, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -2816,81 +2475,74 @@ func file_internal_apipb_v1_axnoded_internal_proto_rawDescGZIP() []byte {
 	return file_internal_apipb_v1_axnoded_internal_proto_rawDescData
 }
 
-var file_internal_apipb_v1_axnoded_internal_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_internal_apipb_v1_axnoded_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
+var file_internal_apipb_v1_axnoded_internal_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_internal_apipb_v1_axnoded_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_internal_apipb_v1_axnoded_internal_proto_goTypes = []any{
 	(RootfsSrcType)(0),                         // 0: axnoded.internal.apipb.v1.RootfsSrcType
 	(CgroupLifecycleState)(0),                  // 1: axnoded.internal.apipb.v1.CgroupLifecycleState
 	(CgroupLeaseOwnerKind)(0),                  // 2: axnoded.internal.apipb.v1.CgroupLeaseOwnerKind
-	(TaskAssetKind)(0),                         // 3: axnoded.internal.apipb.v1.TaskAssetKind
-	(ContainerRecoveryMode)(0),                 // 4: axnoded.internal.apipb.v1.ContainerRecoveryMode
-	(*CgroupLease)(nil),                        // 5: axnoded.internal.apipb.v1.CgroupLease
-	(*CgroupLedger)(nil),                       // 6: axnoded.internal.apipb.v1.CgroupLedger
-	(*DurableSequence)(nil),                    // 7: axnoded.internal.apipb.v1.DurableSequence
-	(*RootfsConfig)(nil),                       // 8: axnoded.internal.apipb.v1.RootfsConfig
-	(*Mount)(nil),                              // 9: axnoded.internal.apipb.v1.Mount
-	(*ImageMount)(nil),                         // 10: axnoded.internal.apipb.v1.ImageMount
-	(*WorkspaceImageVariant)(nil),              // 11: axnoded.internal.apipb.v1.WorkspaceImageVariant
-	(*WorkspaceImageSource)(nil),               // 12: axnoded.internal.apipb.v1.WorkspaceImageSource
-	(*MaterializeTaskAssetsRequest)(nil),       // 13: axnoded.internal.apipb.v1.MaterializeTaskAssetsRequest
-	(*MaterializeTaskAssetsResponse)(nil),      // 14: axnoded.internal.apipb.v1.MaterializeTaskAssetsResponse
-	(*RuntimeTemplate)(nil),                    // 15: axnoded.internal.apipb.v1.RuntimeTemplate
-	(*AllocationState)(nil),                    // 16: axnoded.internal.apipb.v1.AllocationState
-	(*ControlPlaneAllocationBinding)(nil),      // 17: axnoded.internal.apipb.v1.ControlPlaneAllocationBinding
-	(*AllocationLaunchVerification)(nil),       // 18: axnoded.internal.apipb.v1.AllocationLaunchVerification
-	(*PendingCapabilityReconcile)(nil),         // 19: axnoded.internal.apipb.v1.PendingCapabilityReconcile
-	(*AllocationCapabilityReconcileState)(nil), // 20: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
-	(*AllocationEnforcementManifest)(nil),      // 21: axnoded.internal.apipb.v1.AllocationEnforcementManifest
-	(*TerminalResize)(nil),                     // 22: axnoded.internal.apipb.v1.TerminalResize
-	(*KeyValue)(nil),                           // 23: axnoded.internal.apipb.v1.KeyValue
-	(*LinuxContainerResources)(nil),            // 24: axnoded.internal.apipb.v1.LinuxContainerResources
-	(*HugepageLimit)(nil),                      // 25: axnoded.internal.apipb.v1.HugepageLimit
-	(*Rootfs)(nil),                             // 26: axnoded.internal.apipb.v1.Rootfs
-	(*ImmutableRootfsMount)(nil),               // 27: axnoded.internal.apipb.v1.ImmutableRootfsMount
-	(*ContainerMetadata)(nil),                  // 28: axnoded.internal.apipb.v1.ContainerMetadata
-	(*Slice)(nil),                              // 29: axnoded.internal.apipb.v1.Slice
-	(*Map)(nil),                                // 30: axnoded.internal.apipb.v1.Map
-	nil,                                        // 31: axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
-	nil,                                        // 32: axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
-	nil,                                        // 33: axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
-	nil,                                        // 34: axnoded.internal.apipb.v1.Map.ItemsEntry
-	(*v1.RuntimeExecutionProfile)(nil),         // 35: axern.control.catalog.v1.RuntimeExecutionProfile
-	(*v11.CapabilityDependency)(nil),           // 36: axern.control.capability.v1.CapabilityDependency
-	(*v11.CapabilityConditionSet)(nil),         // 37: axern.control.capability.v1.CapabilityConditionSet
-	(*v11.CapabilityKey)(nil),                  // 38: axern.control.capability.v1.CapabilityKey
+	(ContainerRecoveryMode)(0),                 // 3: axnoded.internal.apipb.v1.ContainerRecoveryMode
+	(*CgroupLease)(nil),                        // 4: axnoded.internal.apipb.v1.CgroupLease
+	(*CgroupLedger)(nil),                       // 5: axnoded.internal.apipb.v1.CgroupLedger
+	(*DurableSequence)(nil),                    // 6: axnoded.internal.apipb.v1.DurableSequence
+	(*RootfsConfig)(nil),                       // 7: axnoded.internal.apipb.v1.RootfsConfig
+	(*Mount)(nil),                              // 8: axnoded.internal.apipb.v1.Mount
+	(*ImageMount)(nil),                         // 9: axnoded.internal.apipb.v1.ImageMount
+	(*RuntimeTemplate)(nil),                    // 10: axnoded.internal.apipb.v1.RuntimeTemplate
+	(*AllocationState)(nil),                    // 11: axnoded.internal.apipb.v1.AllocationState
+	(*ControlPlaneAllocationBinding)(nil),      // 12: axnoded.internal.apipb.v1.ControlPlaneAllocationBinding
+	(*AllocationLaunchVerification)(nil),       // 13: axnoded.internal.apipb.v1.AllocationLaunchVerification
+	(*PendingCapabilityReconcile)(nil),         // 14: axnoded.internal.apipb.v1.PendingCapabilityReconcile
+	(*AllocationCapabilityReconcileState)(nil), // 15: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
+	(*AllocationEnforcementManifest)(nil),      // 16: axnoded.internal.apipb.v1.AllocationEnforcementManifest
+	(*TerminalResize)(nil),                     // 17: axnoded.internal.apipb.v1.TerminalResize
+	(*KeyValue)(nil),                           // 18: axnoded.internal.apipb.v1.KeyValue
+	(*LinuxContainerResources)(nil),            // 19: axnoded.internal.apipb.v1.LinuxContainerResources
+	(*HugepageLimit)(nil),                      // 20: axnoded.internal.apipb.v1.HugepageLimit
+	(*Rootfs)(nil),                             // 21: axnoded.internal.apipb.v1.Rootfs
+	(*ImmutableRootfsMount)(nil),               // 22: axnoded.internal.apipb.v1.ImmutableRootfsMount
+	(*ContainerMetadata)(nil),                  // 23: axnoded.internal.apipb.v1.ContainerMetadata
+	(*Slice)(nil),                              // 24: axnoded.internal.apipb.v1.Slice
+	(*Map)(nil),                                // 25: axnoded.internal.apipb.v1.Map
+	nil,                                        // 26: axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
+	nil,                                        // 27: axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
+	nil,                                        // 28: axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
+	nil,                                        // 29: axnoded.internal.apipb.v1.Map.ItemsEntry
+	(*v1.RuntimeExecutionProfile)(nil),         // 30: axern.control.catalog.v1.RuntimeExecutionProfile
+	(*v11.CapabilityDependency)(nil),           // 31: axern.control.capability.v1.CapabilityDependency
+	(*v11.CapabilityConditionSet)(nil),         // 32: axern.control.capability.v1.CapabilityConditionSet
+	(*v11.CapabilityKey)(nil),                  // 33: axern.control.capability.v1.CapabilityKey
 }
 var file_internal_apipb_v1_axnoded_internal_proto_depIdxs = []int32{
 	1,  // 0: axnoded.internal.apipb.v1.CgroupLease.state:type_name -> axnoded.internal.apipb.v1.CgroupLifecycleState
 	2,  // 1: axnoded.internal.apipb.v1.CgroupLease.owner_kind:type_name -> axnoded.internal.apipb.v1.CgroupLeaseOwnerKind
-	5,  // 2: axnoded.internal.apipb.v1.CgroupLedger.leases:type_name -> axnoded.internal.apipb.v1.CgroupLease
+	4,  // 2: axnoded.internal.apipb.v1.CgroupLedger.leases:type_name -> axnoded.internal.apipb.v1.CgroupLease
 	0,  // 3: axnoded.internal.apipb.v1.RootfsConfig.type:type_name -> axnoded.internal.apipb.v1.RootfsSrcType
-	11, // 4: axnoded.internal.apipb.v1.WorkspaceImageSource.variants:type_name -> axnoded.internal.apipb.v1.WorkspaceImageVariant
-	3,  // 5: axnoded.internal.apipb.v1.MaterializeTaskAssetsRequest.kind:type_name -> axnoded.internal.apipb.v1.TaskAssetKind
-	8,  // 6: axnoded.internal.apipb.v1.RuntimeTemplate.rootfs:type_name -> axnoded.internal.apipb.v1.RootfsConfig
-	31, // 7: axnoded.internal.apipb.v1.RuntimeTemplate.runtimeEnvs:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
-	9,  // 8: axnoded.internal.apipb.v1.RuntimeTemplate.mounts:type_name -> axnoded.internal.apipb.v1.Mount
-	35, // 9: axnoded.internal.apipb.v1.RuntimeTemplate.execution_profile:type_name -> axern.control.catalog.v1.RuntimeExecutionProfile
-	15, // 10: axnoded.internal.apipb.v1.AllocationState.runtime_template:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate
-	36, // 11: axnoded.internal.apipb.v1.AllocationState.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
-	37, // 12: axnoded.internal.apipb.v1.AllocationState.capability_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
-	21, // 13: axnoded.internal.apipb.v1.AllocationState.enforcement_manifest:type_name -> axnoded.internal.apipb.v1.AllocationEnforcementManifest
-	20, // 14: axnoded.internal.apipb.v1.AllocationState.capability_reconcile:type_name -> axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
-	18, // 15: axnoded.internal.apipb.v1.AllocationState.launch_verification:type_name -> axnoded.internal.apipb.v1.AllocationLaunchVerification
-	37, // 16: axnoded.internal.apipb.v1.AllocationState.capability_admission_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
-	38, // 17: axnoded.internal.apipb.v1.AllocationLaunchVerification.verified_capabilities:type_name -> axern.control.capability.v1.CapabilityKey
-	38, // 18: axnoded.internal.apipb.v1.PendingCapabilityReconcile.key:type_name -> axern.control.capability.v1.CapabilityKey
-	19, // 19: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState.pending:type_name -> axnoded.internal.apipb.v1.PendingCapabilityReconcile
-	25, // 20: axnoded.internal.apipb.v1.LinuxContainerResources.hugepage_limits:type_name -> axnoded.internal.apipb.v1.HugepageLimit
-	32, // 21: axnoded.internal.apipb.v1.LinuxContainerResources.unified:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
-	27, // 22: axnoded.internal.apipb.v1.Rootfs.immutable_mount:type_name -> axnoded.internal.apipb.v1.ImmutableRootfsMount
-	33, // 23: axnoded.internal.apipb.v1.ContainerMetadata.labels:type_name -> axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
-	4,  // 24: axnoded.internal.apipb.v1.ContainerMetadata.recovery_mode:type_name -> axnoded.internal.apipb.v1.ContainerRecoveryMode
-	34, // 25: axnoded.internal.apipb.v1.Map.items:type_name -> axnoded.internal.apipb.v1.Map.ItemsEntry
-	26, // [26:26] is the sub-list for method output_type
-	26, // [26:26] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	7,  // 4: axnoded.internal.apipb.v1.RuntimeTemplate.rootfs:type_name -> axnoded.internal.apipb.v1.RootfsConfig
+	26, // 5: axnoded.internal.apipb.v1.RuntimeTemplate.runtimeEnvs:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate.RuntimeEnvsEntry
+	8,  // 6: axnoded.internal.apipb.v1.RuntimeTemplate.mounts:type_name -> axnoded.internal.apipb.v1.Mount
+	30, // 7: axnoded.internal.apipb.v1.RuntimeTemplate.execution_profile:type_name -> axern.control.catalog.v1.RuntimeExecutionProfile
+	10, // 8: axnoded.internal.apipb.v1.AllocationState.runtime_template:type_name -> axnoded.internal.apipb.v1.RuntimeTemplate
+	31, // 9: axnoded.internal.apipb.v1.AllocationState.capability_dependencies:type_name -> axern.control.capability.v1.CapabilityDependency
+	32, // 10: axnoded.internal.apipb.v1.AllocationState.capability_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
+	16, // 11: axnoded.internal.apipb.v1.AllocationState.enforcement_manifest:type_name -> axnoded.internal.apipb.v1.AllocationEnforcementManifest
+	15, // 12: axnoded.internal.apipb.v1.AllocationState.capability_reconcile:type_name -> axnoded.internal.apipb.v1.AllocationCapabilityReconcileState
+	13, // 13: axnoded.internal.apipb.v1.AllocationState.launch_verification:type_name -> axnoded.internal.apipb.v1.AllocationLaunchVerification
+	32, // 14: axnoded.internal.apipb.v1.AllocationState.capability_admission_conditions:type_name -> axern.control.capability.v1.CapabilityConditionSet
+	33, // 15: axnoded.internal.apipb.v1.AllocationLaunchVerification.verified_capabilities:type_name -> axern.control.capability.v1.CapabilityKey
+	33, // 16: axnoded.internal.apipb.v1.PendingCapabilityReconcile.key:type_name -> axern.control.capability.v1.CapabilityKey
+	14, // 17: axnoded.internal.apipb.v1.AllocationCapabilityReconcileState.pending:type_name -> axnoded.internal.apipb.v1.PendingCapabilityReconcile
+	20, // 18: axnoded.internal.apipb.v1.LinuxContainerResources.hugepage_limits:type_name -> axnoded.internal.apipb.v1.HugepageLimit
+	27, // 19: axnoded.internal.apipb.v1.LinuxContainerResources.unified:type_name -> axnoded.internal.apipb.v1.LinuxContainerResources.UnifiedEntry
+	22, // 20: axnoded.internal.apipb.v1.Rootfs.immutable_mount:type_name -> axnoded.internal.apipb.v1.ImmutableRootfsMount
+	28, // 21: axnoded.internal.apipb.v1.ContainerMetadata.labels:type_name -> axnoded.internal.apipb.v1.ContainerMetadata.LabelsEntry
+	3,  // 22: axnoded.internal.apipb.v1.ContainerMetadata.recovery_mode:type_name -> axnoded.internal.apipb.v1.ContainerRecoveryMode
+	29, // 23: axnoded.internal.apipb.v1.Map.items:type_name -> axnoded.internal.apipb.v1.Map.ItemsEntry
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_internal_apipb_v1_axnoded_internal_proto_init() }
@@ -2907,8 +2559,8 @@ func file_internal_apipb_v1_axnoded_internal_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_internal_apipb_v1_axnoded_internal_proto_rawDesc,
-			NumEnums:      5,
-			NumMessages:   30,
+			NumEnums:      4,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

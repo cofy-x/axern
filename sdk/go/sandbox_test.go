@@ -78,19 +78,6 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	if state.EnvironmentID != "env-1" || state.RunID != "run-1" || state.AllocationID != "alloc-1" {
 		t.Fatalf("unexpected state: %+v", state)
 	}
-	if state.WorkspacePreparation.GetPayloadFormat() != "nydus" || state.WorkspacePreparation.GetPayloadDigest() != "sha256:payload" || !state.WorkspacePreparation.GetCacheHit() {
-		t.Fatalf("unexpected workspace preparation: %+v", state.WorkspacePreparation)
-	}
-	if err := sandbox.MaterializeTaskAssets(ctx, "tasks/task-a/verifier/check.sh", "/workspace/check.sh", TaskAssetKindVerifier); err != nil {
-		t.Fatalf("materialize task assets: %v", err)
-	}
-	state, err = sandbox.State()
-	if err != nil {
-		t.Fatalf("state after materialization: %v", err)
-	}
-	if state.VerifierMaterializeMs != 7 {
-		t.Fatalf("verifier materialize ms = %d, want 7", state.VerifierMaterializeMs)
-	}
 	metadata, err := sandbox.Metadata()
 	if err != nil {
 		t.Fatalf("metadata: %v", err)
@@ -717,21 +704,12 @@ func (f *fakeAxernServer) WatchRun(_ *runv1.WatchRunRequest, stream runv1.RunCon
 		AllocationID: "alloc-1",
 		NodeID:       "node-1",
 		Status:       runv1.RunStatus_RUN_STATUS_RUNNING,
-		WorkspacePreparation: &commonv1.WorkspacePreparationFacts{
-			PayloadFormat: "nydus",
-			PayloadDigest: "sha256:payload",
-			CacheHit:      true,
-		},
 	}})
 }
 
 func (f *fakeAxernServer) CancelRun(context.Context, *runv1.CancelRunRequest) (*runv1.CancelRunResponse, error) {
 	f.cancelledRun = true
 	return &runv1.CancelRunResponse{Run: &runv1.Run{ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_CANCELLED}}, nil
-}
-
-func (f *fakeAxernServer) MaterializeTaskAssets(context.Context, *nodesandboxv1.MaterializeTaskAssetsRequest) (*nodesandboxv1.MaterializeTaskAssetsResponse, error) {
-	return &nodesandboxv1.MaterializeTaskAssetsResponse{DurationMs: 7}, nil
 }
 
 func (f *fakeAxernServer) ResolveAllocationTerminal(context.Context, *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error) {

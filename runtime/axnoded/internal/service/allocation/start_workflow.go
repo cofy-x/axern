@@ -296,19 +296,6 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 			imageMountCleanup()
 		}
 	}()
-	workspaceMount, workspaceCleanup, err := h.resolveWorkspaceImage(request, extraConfig)
-	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to resolve workspace image: %v", err)), err
-	}
-	if workspaceMount != nil {
-		request.Mounts = append(request.Mounts, workspaceMount)
-	}
-	defer func() {
-		if !succeeded && !stateCommitted {
-			workspaceCleanup()
-		}
-	}()
-
 	lrt, prepareSummary, err := h.ensureLangRuntimeFromRequest(ctx, request)
 	recorder.SetStartClass(prepareSummary.StartClass())
 	recorder.SetRootfsType(prepareSummary.RootfsType)

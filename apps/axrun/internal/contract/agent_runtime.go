@@ -5,7 +5,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/cofy-x/axern/apps/axrun/internal/agentbundle"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentimage"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 )
 
@@ -47,13 +47,13 @@ func ValidateAgentRuntimeSpec(runtime *domain.AgentRuntimeSpec) []AgentRuntimePr
 		problems = append(problems, AgentRuntimeProblem{Field: "image", Message: "is required"})
 	}
 	if runtime.Type == domain.AgentRuntimeTypeAgentImage {
-		if mountTarget := strings.TrimSpace(runtime.MountTarget); mountTarget != "" && !agentbundle.ValidMountTarget(mountTarget) {
+		if mountTarget := strings.TrimSpace(runtime.MountTarget); mountTarget != "" && !agentimage.ValidMountTarget(mountTarget) {
 			problems = append(problems, AgentRuntimeProblem{
 				Field:   "mount_target",
 				Message: "must be under /opt/axern/agents/<agent-name>",
 			})
 		}
-		if binDir := strings.TrimSpace(runtime.BinDir); binDir != "" && !agentbundle.ValidBinDir(runtime.MountTarget, binDir) {
+		if binDir := strings.TrimSpace(runtime.BinDir); binDir != "" && !agentimage.ValidBinDir(runtime.MountTarget, binDir) {
 			problems = append(problems, AgentRuntimeProblem{Field: "bin_dir", Message: "must be <mount_target>/bin"})
 		}
 	}

@@ -95,14 +95,12 @@ make local-truth-verify
 ```bash
 make local-compose-smoke
 make local-compose-run-smoke
-make local-compose-invoke-smoke
 make local-compose-server-base-smoke
 make local-compose-quota-smoke
 make local-compose-computer-use-e2e
 
 make kind-smoke
 make kind-run-smoke
-make kind-invoke-smoke
 make kind-server-base-smoke
 make kind-quota-smoke
 ```
@@ -214,14 +212,12 @@ NYDUS_TEST_IMAGE=<registry/ref:tag-or-digest> make local-compose-nydus-smoke
 NYDUS_TEST_IMAGE=<registry/ref:tag-or-digest> make kind-axern-nydus-smoke
 ```
 
-The local workflows use these repo-built runtime and bundle images:
+The local workflows use these repo-built runtime images:
 
 - `python311`: `axern/python311-runtime:dev`
 - `server-base`: `axern/server-base-runtime:dev`
 - `coding-base`: `axern/coding-base-runtime:dev`
 - `desktop-base`: `axern/desktop-base-runtime:dev`
-- `claude-code-bundle`: `axern/claude-code-bundle:dev`
-- `codex-bundle`: `axern/codex-bundle:dev`
 
 Bring-up and refresh flows rebuild these images and import them into the node-local `imagemgr` cache, relying on Docker cache to keep the common no-change path fast. Compose keeps that cache in a Docker-managed Linux volume so extracted OCI layer ownership stays faithful to the image metadata.
 

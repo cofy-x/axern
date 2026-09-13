@@ -42,7 +42,7 @@ A concept does not become a product object merely because it has a struct, a dat
 | `RoleBinding` | Platform- or namespace-scoped authorization assigned to a Principal | `controld` and PostgreSQL |
 | `Node` | Administrative identity for one unit of execution supply, with an audited active/retired lifecycle | `controld`; observations originate from `axnoded` |
 
-Catalog templates and Agent Bundles are platform-managed, read-only reference data. They have stable identifiers and versions but are not user-created workload lifecycles or a marketplace model.
+Catalog templates are platform-managed, read-only Environment inputs. Caller-supplied tool or agent images use ordinary read-only image mounts and do not become catalog product objects.
 
 ### Namespace
 
@@ -195,7 +195,7 @@ Run and Allocation deliberately do not share facts:
 | Fact | Sole durable owner |
 | --- | --- |
 | immutable execution config, labels, public lifecycle, cancellation, exit code, diagnostic, message, version, user timestamps | Run |
-| Allocation ID, Run ownership, Node binding, infrastructure lifecycle, workspace preparation, node-active and cleanup timestamps | Allocation |
+| Allocation ID, Run ownership, Node binding, infrastructure lifecycle, node-active and cleanup timestamps | Allocation |
 | runtime/container existence, mount/network/cgroup cleanup progress | axnoded node-local state, converged into Allocation lifecycle |
 
 ## Objects Outside The Core

@@ -3,7 +3,6 @@ package service
 import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
 func (h *sandboxService) configureAllocationController() {
@@ -40,8 +39,4 @@ func (h *sandboxService) allocationController() *allocation.Controller {
 	}
 	h.allocations = allocation.NewController(h.allocationOptions())
 	return h.allocations
-}
-
-func (h *sandboxService) WorkspacePreparation(containerID string) *commonv1.WorkspacePreparationFacts {
-	return h.allocationController().WorkspacePreparation(containerID)
 }

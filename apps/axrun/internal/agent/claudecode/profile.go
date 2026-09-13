@@ -5,7 +5,7 @@ import (
 	"net/url"
 
 	agentpkg "github.com/cofy-x/axern/apps/axrun/internal/agent"
-	"github.com/cofy-x/axern/lib/go/agentprofile"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
 )
 
 type Profile struct {

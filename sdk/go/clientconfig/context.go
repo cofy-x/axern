@@ -36,7 +36,6 @@ type Context struct {
 type File struct {
 	CurrentContext string              `json:"current_context,omitempty"`
 	Contexts       map[string]*Context `json:"contexts,omitempty"`
-	AgentProfiles  json.RawMessage     `json:"agent_profiles,omitempty"`
 }
 
 func DefaultPath() string {

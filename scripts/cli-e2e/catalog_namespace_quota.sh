@@ -17,16 +17,6 @@ verify_catalog_namespace_quota() {
   "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" catalog get desktop-base >"${cli_template_output}"
   grep -q "^ID: desktop-base$" "${cli_template_output}"
 
-  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" catalog bundle list >"${cli_catalog_output}"
-  grep -q "claude-code" "${cli_catalog_output}"
-  grep -q "codex" "${cli_catalog_output}"
-  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" catalog bundle get claude-code >"${cli_template_output}"
-  grep -q "^ID: claude-code$" "${cli_template_output}"
-  grep -q "^Binary Path: /bin/claude$" "${cli_template_output}"
-  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" catalog bundle get codex >"${cli_template_output}"
-  grep -q "^ID: codex$" "${cli_template_output}"
-  grep -q "^Binary Path: /bin/codex$" "${cli_template_output}"
-
   namespace_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" namespace create e2e-team -o json)"
   namespace_name="$(json_query "namespace create" 'json.load(sys.stdin)["namespace"]["namespace"]' "${namespace_output}")"
   [ "${namespace_name}" = "e2e-team" ] || {

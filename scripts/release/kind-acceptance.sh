@@ -68,8 +68,6 @@ if [ -n "${image_tag_suffix}" ]; then
     --set-string "runtimeCatalog.serverBaseImage=${AXERN_RELEASE_REGISTRY}/server-base-runtime:${candidate_tag}"
     --set-string "runtimeCatalog.codingBaseImage=${AXERN_RELEASE_REGISTRY}/coding-base-runtime:${candidate_tag}"
     --set-string "runtimeCatalog.desktopBaseImage=${AXERN_RELEASE_REGISTRY}/desktop-base-runtime:${candidate_tag}"
-    --set-string "runtimeCatalog.claudeCodeBundleImage=${AXERN_RELEASE_REGISTRY}/claude-code-bundle:${candidate_tag}"
-    --set-string "runtimeCatalog.codexBundleImage=${AXERN_RELEASE_REGISTRY}/codex-bundle:${candidate_tag}"
   )
 fi
 if [ -n "${release_http_proxy}" ] || [ -n "${release_https_proxy}" ]; then

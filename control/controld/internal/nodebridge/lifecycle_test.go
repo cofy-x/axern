@@ -351,9 +351,6 @@ func (c *captureLifecycleClient) CreateAllocation(_ context.Context, _ string, r
 	c.lastCreate = protoCloneCreateAllocationRequest(req)
 	return &privatenodev1.CreateAllocationResponse{
 		AllocationID: req.GetAllocationID(),
-		WorkspacePreparation: &commonv1.WorkspacePreparationFacts{
-			PayloadFormat: "nydus",
-		},
 		AdmittedCapabilityDependencies: []*capabilityv1.CapabilityDependency{{
 			Key: &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT}},
 			SelectedObservation: &capabilityv1.CapabilityObservationProof{

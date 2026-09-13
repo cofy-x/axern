@@ -45,7 +45,7 @@ func TestCapabilitySchemaEnforcesAllocationNodeAndDependencyOwnership(t *testing
 		allocationColumns = append(allocationColumns, column)
 	}
 	rows.Close()
-	wantColumns := []string{"allocation_id", "run_id", "node_id", "lifecycle_state", "workspace_preparation", "created_at", "updated_at", "node_active_at"}
+	wantColumns := []string{"allocation_id", "run_id", "node_id", "lifecycle_state", "created_at", "updated_at", "node_active_at"}
 	if !slices.Equal(allocationColumns, wantColumns) {
 		t.Fatalf("allocation columns = %v, want %v", allocationColumns, wantColumns)
 	}

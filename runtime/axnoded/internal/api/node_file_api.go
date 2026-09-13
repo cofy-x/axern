@@ -74,25 +74,6 @@ func (s *nodeSandboxServer) WriteFile(ctx context.Context, req *nodesandboxv1.Wr
 	return &nodesandboxv1.WriteFileResponse{}, nil
 }
 
-func (s *nodeSandboxServer) MaterializeTaskAssets(ctx context.Context, req *nodesandboxv1.MaterializeTaskAssetsRequest) (*nodesandboxv1.MaterializeTaskAssetsResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
-	if err != nil {
-		return nil, err
-	}
-	materializer, ok := s.svc.(interface {
-		MaterializeTaskAssets(context.Context, *runtimev1.MaterializeTaskAssetsRequest) (*runtimev1.MaterializeTaskAssetsResponse, error)
-	})
-	if !ok {
-		return nil, grpcstatus.Error(codes.Unimplemented, "task asset materialization is unavailable")
-	}
-	kind := runtimev1.TaskAssetKind(req.GetKind())
-	response, err := materializer.MaterializeTaskAssets(ctx, &runtimev1.MaterializeTaskAssetsRequest{ID: target.targetID, SourcePath: req.GetSourcePath(), Target: req.GetTarget(), Kind: kind})
-	if err != nil {
-		return nil, err
-	}
-	return &nodesandboxv1.MaterializeTaskAssetsResponse{DurationMs: response.GetDurationMs()}, nil
-}
-
 func (s *nodeSandboxServer) Mkdir(ctx context.Context, req *nodesandboxv1.MkdirRequest) (*nodesandboxv1.MkdirResponse, error) {
 	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
 	if err != nil {

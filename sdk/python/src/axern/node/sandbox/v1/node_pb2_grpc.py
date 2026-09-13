@@ -99,11 +99,6 @@ class NodeSandboxStub:
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WriteFileRequest.SerializeToString,
                 response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WriteFileResponse.FromString,
                 _registered_method=True)
-        self.MaterializeTaskAssets = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/MaterializeTaskAssets',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MaterializeTaskAssetsRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MaterializeTaskAssetsResponse.FromString,
-                _registered_method=True)
         self.Mkdir = channel.unary_unary(
                 '/axern.node.sandbox.v1.NodeSandbox/Mkdir',
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MkdirRequest.SerializeToString,
@@ -292,12 +287,6 @@ class NodeSandboxServicer:
         raise NotImplementedError('Method not implemented!')
 
     def WriteFile(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def MaterializeTaskAssets(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -502,11 +491,6 @@ def add_NodeSandboxServicer_to_server(servicer, server):
                     servicer.WriteFile,
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WriteFileRequest.FromString,
                     response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WriteFileResponse.SerializeToString,
-            ),
-            'MaterializeTaskAssets': grpc.unary_unary_rpc_method_handler(
-                    servicer.MaterializeTaskAssets,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MaterializeTaskAssetsRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MaterializeTaskAssetsResponse.SerializeToString,
             ),
             'Mkdir': grpc.unary_unary_rpc_method_handler(
                     servicer.Mkdir,
@@ -970,33 +954,6 @@ class NodeSandbox:
             '/axern.node.sandbox.v1.NodeSandbox/WriteFile',
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WriteFileRequest.SerializeToString,
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WriteFileResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def MaterializeTaskAssets(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/MaterializeTaskAssets',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MaterializeTaskAssetsRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MaterializeTaskAssetsResponse.FromString,
             options,
             channel_credentials,
             insecure,

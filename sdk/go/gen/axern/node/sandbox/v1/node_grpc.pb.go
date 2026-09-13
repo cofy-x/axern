@@ -32,7 +32,6 @@ const (
 	NodeSandbox_ListDir_FullMethodName               = "/axern.node.sandbox.v1.NodeSandbox/ListDir"
 	NodeSandbox_ReadFile_FullMethodName              = "/axern.node.sandbox.v1.NodeSandbox/ReadFile"
 	NodeSandbox_WriteFile_FullMethodName             = "/axern.node.sandbox.v1.NodeSandbox/WriteFile"
-	NodeSandbox_MaterializeTaskAssets_FullMethodName = "/axern.node.sandbox.v1.NodeSandbox/MaterializeTaskAssets"
 	NodeSandbox_Mkdir_FullMethodName                 = "/axern.node.sandbox.v1.NodeSandbox/Mkdir"
 	NodeSandbox_Remove_FullMethodName                = "/axern.node.sandbox.v1.NodeSandbox/Remove"
 	NodeSandbox_Exists_FullMethodName                = "/axern.node.sandbox.v1.NodeSandbox/Exists"
@@ -74,7 +73,6 @@ type NodeSandboxClient interface {
 	ListDir(ctx context.Context, in *ListDirRequest, opts ...grpc.CallOption) (*ListDirResponse, error)
 	ReadFile(ctx context.Context, in *ReadFileRequest, opts ...grpc.CallOption) (*ReadFileResponse, error)
 	WriteFile(ctx context.Context, in *WriteFileRequest, opts ...grpc.CallOption) (*WriteFileResponse, error)
-	MaterializeTaskAssets(ctx context.Context, in *MaterializeTaskAssetsRequest, opts ...grpc.CallOption) (*MaterializeTaskAssetsResponse, error)
 	Mkdir(ctx context.Context, in *MkdirRequest, opts ...grpc.CallOption) (*MkdirResponse, error)
 	Remove(ctx context.Context, in *RemoveRequest, opts ...grpc.CallOption) (*RemoveResponse, error)
 	Exists(ctx context.Context, in *ExistsRequest, opts ...grpc.CallOption) (*ExistsResponse, error)
@@ -329,15 +327,6 @@ func (c *nodeSandboxClient) ReadFile(ctx context.Context, in *ReadFileRequest, o
 func (c *nodeSandboxClient) WriteFile(ctx context.Context, in *WriteFileRequest, opts ...grpc.CallOption) (*WriteFileResponse, error) {
 	out := new(WriteFileResponse)
 	err := c.cc.Invoke(ctx, NodeSandbox_WriteFile_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeSandboxClient) MaterializeTaskAssets(ctx context.Context, in *MaterializeTaskAssetsRequest, opts ...grpc.CallOption) (*MaterializeTaskAssetsResponse, error) {
-	out := new(MaterializeTaskAssetsResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_MaterializeTaskAssets_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -607,7 +596,6 @@ type NodeSandboxServer interface {
 	ListDir(context.Context, *ListDirRequest) (*ListDirResponse, error)
 	ReadFile(context.Context, *ReadFileRequest) (*ReadFileResponse, error)
 	WriteFile(context.Context, *WriteFileRequest) (*WriteFileResponse, error)
-	MaterializeTaskAssets(context.Context, *MaterializeTaskAssetsRequest) (*MaterializeTaskAssetsResponse, error)
 	Mkdir(context.Context, *MkdirRequest) (*MkdirResponse, error)
 	Remove(context.Context, *RemoveRequest) (*RemoveResponse, error)
 	Exists(context.Context, *ExistsRequest) (*ExistsResponse, error)
@@ -675,9 +663,6 @@ func (UnimplementedNodeSandboxServer) ReadFile(context.Context, *ReadFileRequest
 }
 func (UnimplementedNodeSandboxServer) WriteFile(context.Context, *WriteFileRequest) (*WriteFileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WriteFile not implemented")
-}
-func (UnimplementedNodeSandboxServer) MaterializeTaskAssets(context.Context, *MaterializeTaskAssetsRequest) (*MaterializeTaskAssetsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method MaterializeTaskAssets not implemented")
 }
 func (UnimplementedNodeSandboxServer) Mkdir(context.Context, *MkdirRequest) (*MkdirResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Mkdir not implemented")
@@ -1023,24 +1008,6 @@ func _NodeSandbox_WriteFile_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeSandboxServer).WriteFile(ctx, req.(*WriteFileRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeSandbox_MaterializeTaskAssets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MaterializeTaskAssetsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).MaterializeTaskAssets(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_MaterializeTaskAssets_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).MaterializeTaskAssets(ctx, req.(*MaterializeTaskAssetsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1490,10 +1457,6 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "WriteFile",
 			Handler:    _NodeSandbox_WriteFile_Handler,
-		},
-		{
-			MethodName: "MaterializeTaskAssets",
-			Handler:    _NodeSandbox_MaterializeTaskAssets_Handler,
 		},
 		{
 			MethodName: "Mkdir",

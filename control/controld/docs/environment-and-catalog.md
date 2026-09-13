@@ -9,9 +9,7 @@ The runtime catalog is curated and read-only. It is initialized from embedded de
 
 Embedded template metadata uses release-facing image refs. Local compose and kind truth environments keep the same template ids but override image refs with `AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE`, `AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE`, `AXERN_RUNTIME_CATALOG_CODING_BASE_IMAGE`, and `AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE`, usually pointing to repo-built `:dev` images imported into the node-local image cache.
 
-The same public catalog service exposes read-only Agent Bundles separately from runtime templates. The embedded catalog contains `claude-code` and `codex` with their versioned image descriptor and absolute in-bundle binary path. Deployments may override only their image references with `AXERN_AGENT_BUNDLE_CLAUDE_CODE_IMAGE` and `AXERN_AGENT_BUNDLE_CODEX_IMAGE`.
-
-Agent bundles are mounted read-only into a workspace runtime at `/opt/axern/agents/<agent>`. They are not valid Environment templates or task root filesystems.
+The catalog does not own agent or tool images. Callers may attach an explicit immutable image through the generic read-only `image_mounts` execution input; no separate catalog identity or lifecycle is created.
 
 Catalog templates do not declare the OCI runtime implementation. The supported `runsc` runtime is carried on `ExecutionConfig.runtime_class`; when a workload omits that field, `controld` applies its default `runsc` placement and node lifecycle policy.
 

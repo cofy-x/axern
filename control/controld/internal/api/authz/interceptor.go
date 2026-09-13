@@ -285,7 +285,7 @@ func publicPolicy(method string) (methodPolicy, bool) {
 	case "axern.control.identity.v1.IdentityControl":
 		return exactPolicy(methodName, accesskernel.ActionIdentityRead, "", "WhoAmI")
 	case "axern.control.catalog.v1.RuntimeCatalog":
-		return exactPolicy(methodName, accesskernel.ActionCatalogRead, "", "ListRuntimeTemplates", "GetRuntimeTemplate", "ListAgentBundles", "GetAgentBundle")
+		return exactPolicy(methodName, accesskernel.ActionCatalogRead, "", "ListRuntimeTemplates", "GetRuntimeTemplate")
 	case "axern.control.admin.v1.AccessAdmin":
 		return exactPolicy(methodName, accesskernel.ActionIdentityRead, "",
 			"CreatePrincipal", "ListPrincipals", "DisablePrincipal", "AddPrincipalCredential", "ListPrincipalCredentials",

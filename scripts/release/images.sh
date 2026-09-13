@@ -25,8 +25,6 @@ axern_export_release_images() {
   export SERVER_BASE_RUNTIME_IMAGE="${AXERN_RELEASE_REGISTRY}/server-base-runtime:${tag}"
   export CODING_BASE_RUNTIME_IMAGE="${AXERN_RELEASE_REGISTRY}/coding-base-runtime:${tag}"
   export DESKTOP_BASE_RUNTIME_IMAGE="${AXERN_RELEASE_REGISTRY}/desktop-base-runtime:${tag}"
-  export CLAUDE_CODE_BUNDLE_IMAGE="${AXERN_RELEASE_REGISTRY}/claude-code-bundle:${tag}"
-  export CODEX_BUNDLE_IMAGE="${AXERN_RELEASE_REGISTRY}/codex-bundle:${tag}"
 }
 
 axern_release_images() {
@@ -38,7 +36,5 @@ axern_release_images() {
     "${PYTHON311_RUNTIME_IMAGE}" \
     "${SERVER_BASE_RUNTIME_IMAGE}" \
     "${CODING_BASE_RUNTIME_IMAGE}" \
-    "${DESKTOP_BASE_RUNTIME_IMAGE}" \
-    "${CLAUDE_CODE_BUNDLE_IMAGE}" \
-    "${CODEX_BUNDLE_IMAGE}"
+    "${DESKTOP_BASE_RUNTIME_IMAGE}"
 }

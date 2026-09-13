@@ -72,7 +72,6 @@ Example daemon invocation:
 - [Sandbox Daemon](docs/sandbox-daemon.md): Axern sandbox daemon architecture for PID 1 supervision and daemon-backed sandbox operations.
 - [Image-Backed Process](docs/image-backed-process.md): `ExecImage` / `ProcessImage` execution model, mount rules, and lifecycle contract.
 - [Image Mounts](docs/image-mounts.md): read-only image mount primitive for composing task sandboxes with reusable bundles.
-- [Workspace Images](docs/workspace-images.md): TaskSet payload variant, copy-on-write workspace, and protected asset phase contract.
 - [Sandboxd Capabilities](docs/sandboxd-capabilities.md): current sandboxd capability matrix, ownership rules, and provider semantics.
 - [Verification](docs/verification.md): validation matrix and recommended gates.
 - [Devbox Workflow](../../docs/operations/devbox.md): repository-root Linux workspace for daily development.

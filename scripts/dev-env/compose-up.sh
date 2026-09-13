@@ -30,10 +30,8 @@ if [ "${AXERN_SKIP_COMPOSE_RUNTIME_IMAGE_IMPORTS:-0}" = "1" ] || [ "${AXERN_SKIP
 else
   IMAGE="${PYTHON311_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
   IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
-  IMAGE="${CODING_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
-  IMAGE="${DESKTOP_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
-  IMAGE="${CLAUDE_CODE_BUNDLE_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
-  IMAGE="${CODEX_BUNDLE_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
+	IMAGE="${CODING_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
+	IMAGE="${DESKTOP_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
 fi
 
 echo "compose_up_ok=true"

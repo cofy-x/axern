@@ -22,7 +22,6 @@ type fakeNodeLifecycleService struct {
 	deleted              map[string]bool
 	keepDeletedVisible   bool
 	deleteErr            error
-	workspacePreparation *commonv1.WorkspacePreparationFacts
 	admittedDependencies []*capabilityv1.CapabilityDependency
 	startResponseID      string
 }
@@ -59,10 +58,6 @@ func TestNodeLifecycleCreateAllocationRejectsDifferentExecutionIdentity(t *testi
 	if grpcstatus.Code(err) != codes.Internal {
 		t.Fatalf("CreateAllocation() code = %v, want internal", grpcstatus.Code(err))
 	}
-}
-
-func (f *fakeNodeLifecycleService) WorkspacePreparation(string) *commonv1.WorkspacePreparationFacts {
-	return f.workspacePreparation
 }
 
 func (f *fakeNodeLifecycleService) DeleteControlPlaneAllocation(ctx context.Context, _ string, req *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error) {
@@ -108,11 +103,6 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 
 	const imageRef = "axern/python311-runtime:dev"
 	fakeService := &fakeNodeLifecycleService{
-		workspacePreparation: &commonv1.WorkspacePreparationFacts{
-			PayloadFormat: "nydus",
-			PayloadDigest: "sha256:payload",
-			CacheHit:      true,
-		},
 		admittedDependencies: []*capabilityv1.CapabilityDependency{{
 			Key: &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{
 				Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT,
@@ -159,9 +149,6 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	}
 	if resp.GetAllocationID() != "alloc-123" {
 		t.Fatalf("allocation response = %#v", resp)
-	}
-	if resp.GetWorkspacePreparation().GetPayloadFormat() != "nydus" || resp.GetWorkspacePreparation().GetPayloadDigest() != "sha256:payload" || !resp.GetWorkspacePreparation().GetCacheHit() {
-		t.Fatalf("workspace preparation = %#v", resp.GetWorkspacePreparation())
 	}
 	if len(resp.GetAdmittedCapabilityDependencies()) != 1 || resp.GetAdmittedCapabilityDependencies()[0].GetSelectedObservation().GetEvidence().GetEvidenceID() != "create-evidence" {
 		t.Fatalf("admitted capability dependencies = %#v", resp.GetAdmittedCapabilityDependencies())

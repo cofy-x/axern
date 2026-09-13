@@ -20,12 +20,6 @@ class OutputStream(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     OUTPUT_STREAM_UNSPECIFIED: _ClassVar[OutputStream]
     OUTPUT_STREAM_STDOUT: _ClassVar[OutputStream]
     OUTPUT_STREAM_STDERR: _ClassVar[OutputStream]
-
-class TaskAssetKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    TASK_ASSET_KIND_UNSPECIFIED: _ClassVar[TaskAssetKind]
-    TASK_ASSET_KIND_VERIFIER: _ClassVar[TaskAssetKind]
-    TASK_ASSET_KIND_ORACLE: _ClassVar[TaskAssetKind]
 SANDBOX_PROCESS_STATE_UNSPECIFIED: SandboxProcessState
 SANDBOX_PROCESS_STATE_RUNNING: SandboxProcessState
 SANDBOX_PROCESS_STATE_EXITED: SandboxProcessState
@@ -33,9 +27,6 @@ SANDBOX_PROCESS_STATE_UNKNOWN: SandboxProcessState
 OUTPUT_STREAM_UNSPECIFIED: OutputStream
 OUTPUT_STREAM_STDOUT: OutputStream
 OUTPUT_STREAM_STDERR: OutputStream
-TASK_ASSET_KIND_UNSPECIFIED: TaskAssetKind
-TASK_ASSET_KIND_VERIFIER: TaskAssetKind
-TASK_ASSET_KIND_ORACLE: TaskAssetKind
 
 class ExecSpec(_message.Message):
     __slots__ = ("argv", "env", "cwd", "timeout_seconds", "tty", "user", "managed_proxy")
@@ -552,26 +543,6 @@ class WriteFileRequest(_message.Message):
 class WriteFileResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
-
-class MaterializeTaskAssetsRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "source_path", "target", "kind")
-    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
-    SOURCE_PATH_FIELD_NUMBER: _ClassVar[int]
-    TARGET_FIELD_NUMBER: _ClassVar[int]
-    KIND_FIELD_NUMBER: _ClassVar[int]
-    allocation_id: str
-    execution_lease_token: str
-    source_path: str
-    target: str
-    kind: TaskAssetKind
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., source_path: _Optional[str] = ..., target: _Optional[str] = ..., kind: _Optional[_Union[TaskAssetKind, str]] = ...) -> None: ...
-
-class MaterializeTaskAssetsResponse(_message.Message):
-    __slots__ = ("duration_ms",)
-    DURATION_MS_FIELD_NUMBER: _ClassVar[int]
-    duration_ms: int
-    def __init__(self, duration_ms: _Optional[int] = ...) -> None: ...
 
 class MkdirRequest(_message.Message):
     __slots__ = ("allocation_id", "execution_lease_token", "path", "parents")

@@ -35,7 +35,6 @@ type CreateRunOptions struct {
 	NetworkPolicy           *NetworkPolicy
 	ExtensionCapabilities   []ExtensionCapability
 	ImageMounts             []ImageMount
-	WorkspaceImage          *WorkspaceImageSource
 	RequestCPU              ResourceQuantity
 	RequestMemory           ResourceQuantity
 	RequestEphemeralStorage ResourceQuantity
@@ -53,12 +52,6 @@ func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv
 	if err := validateImageMounts(options.ImageMounts); err != nil {
 		return nil, err
 	}
-	if err := validateWorkspaceImage(options.WorkspaceImage); err != nil {
-		return nil, err
-	}
-	if err := validateWorkspaceImageMounts(options.WorkspaceImage, options.ImageMounts); err != nil {
-		return nil, err
-	}
 	resources, err := buildResourceSpec(options.RequestCPU, options.RequestMemory, options.RequestEphemeralStorage, options.LimitCPU, options.LimitMemory, options.LimitEphemeralStorage)
 	if err != nil {
 		return nil, err
@@ -74,7 +67,6 @@ func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv
 			Network:                         networkSpec(options.NetworkPolicy),
 			ExtensionCapabilityRequirements: extensionCapabilityRequirements(options.ExtensionCapabilities),
 			ImageMounts:                     executionImageMounts(options.ImageMounts),
-			WorkspaceImage:                  executionWorkspaceImage(options.WorkspaceImage),
 			Resources:                       resources,
 		},
 		Labels: cloneMap(options.Labels),
@@ -154,92 +146,6 @@ type ImageMount struct {
 	Image    string
 	Target   string
 	Readonly bool
-}
-
-// WorkspaceImageSource describes an immutable TaskSet payload mounted through
-// an allocation-local copy-on-write view. Variants are ordered by preference.
-type WorkspaceImageSource struct {
-	Variants   []WorkspaceImageVariant
-	SourcePath string
-	Target     string
-}
-
-type WorkspaceImageVariant struct{ Format, Image string }
-
-func executionWorkspaceImage(source *WorkspaceImageSource) *commonv1.WorkspaceImageSource {
-	if source == nil {
-		return nil
-	}
-	out := &commonv1.WorkspaceImageSource{SourcePath: source.SourcePath, Target: defaultString(source.Target, "/workspace")}
-	for _, variant := range source.Variants {
-		out.Variants = append(out.Variants, &commonv1.WorkspaceImageVariant{Format: variant.Format, Image: variant.Image})
-	}
-	return out
-}
-
-func validateWorkspaceImage(source *WorkspaceImageSource) error {
-	if source == nil {
-		return nil
-	}
-	if len(source.Variants) == 0 {
-		return validationError("workspace_image.variants", "must not be empty")
-	}
-	seenFormats := map[string]bool{}
-	for _, variant := range source.Variants {
-		if variant.Format != "nydus" && variant.Format != "oci" {
-			return validationError("workspace_image.variants.format", "must be nydus or oci")
-		}
-		if strings.TrimSpace(variant.Image) == "" {
-			return validationError("workspace_image.variants.image", "is required")
-		}
-		if !isImmutableSHA256Reference(variant.Image) {
-			return validationError("workspace_image.variants.image", "must use an immutable sha256 digest reference")
-		}
-		if seenFormats[variant.Format] {
-			return validationError("workspace_image.variants.format", "must not be duplicated")
-		}
-		seenFormats[variant.Format] = true
-	}
-	sourcePath := path.Clean(strings.TrimSpace(source.SourcePath))
-	parts := strings.Split(sourcePath, "/")
-	if len(parts) != 3 || parts[0] != "tasks" || parts[1] == "" || parts[2] != "workspace" || pathHasParentReference(source.SourcePath) {
-		return validationError("workspace_image.source_path", "must select tasks/<id>/workspace")
-	}
-	target := path.Clean(defaultString(source.Target, "/workspace"))
-	if target == "/" || !strings.HasPrefix(target, "/") || pathHasParentReference(source.Target) {
-		return validationError("workspace_image.target", "must be an absolute path below /")
-	}
-	if protectedImageMountTarget(target) {
-		return validationError("workspace_image.target", "is a protected system path")
-	}
-	return nil
-}
-
-func isImmutableSHA256Reference(value string) bool {
-	_, digest, ok := strings.Cut(strings.TrimSpace(value), "@sha256:")
-	if !ok || len(digest) != 64 {
-		return false
-	}
-	for _, r := range digest {
-		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
-			return false
-		}
-	}
-	return true
-}
-
-func validateWorkspaceImageMounts(source *WorkspaceImageSource, imageMounts []ImageMount) error {
-	if source == nil {
-		return nil
-	}
-	target := path.Clean(defaultString(source.Target, "/workspace"))
-	for _, mount := range imageMounts {
-		mountTarget := path.Clean(strings.TrimSpace(mount.Target))
-		if target == mountTarget || strings.HasPrefix(target, mountTarget+"/") || strings.HasPrefix(mountTarget, target+"/") {
-			return validationError("workspace_image.target", "must not overlap image_mounts")
-		}
-	}
-	return nil
 }
 
 func executionImageMounts(mounts []ImageMount) []*commonv1.ImageMount {

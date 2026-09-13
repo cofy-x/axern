@@ -90,9 +90,8 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 	}
 	recordNodeLifecycleRPCStage(ctx, nodeLifecycleOperationCreateAllocation, nodeLifecycleStageNodeCreateRPC, stageStarted, nil)
 	return &allocationkernel.CapabilityAdmission{
-		Dependencies:         cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
-		ConditionSet:         cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
-		WorkspacePreparation: resp.GetWorkspacePreparation(),
+		Dependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
+		ConditionSet: cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
 	}, nil
 }
 

@@ -36,10 +36,6 @@ type serviceLike interface {
 	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error)
 }
 
-type workspacePreparationProvider interface {
-	WorkspacePreparation(containerID string) *commonv1.WorkspacePreparationFacts
-}
-
 const (
 	lifecycleOperationCreate = "create"
 	lifecycleOperationDelete = "delete"
@@ -103,13 +99,8 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 		resultErr = grpcstatus.Errorf(codes.Internal, "node start returned execution id %q for allocation %q", resp.GetID(), req.GetAllocationID())
 		return nil, resultErr
 	}
-	var workspacePreparation *commonv1.WorkspacePreparationFacts
-	if provider, ok := s.svc.(workspacePreparationProvider); ok {
-		workspacePreparation = provider.WorkspacePreparation(resp.GetID())
-	}
 	return &nodelifecyclev1.CreateAllocationResponse{
 		AllocationID:                   req.GetAllocationID(),
-		WorkspacePreparation:           workspacePreparation,
 		CapabilityVerification:         cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
 		AdmittedCapabilityDependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
 	}, nil
@@ -277,7 +268,6 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
-		WorkspaceImage:         cloneWorkspaceImage(spec.GetWorkspaceImage()),
 		CapabilityDependencies: cloneCapabilityDependencies(spec.GetCapabilityDependencies()),
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
 			spec.GetExtensionCapabilityRequirements(),
@@ -323,7 +313,6 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
-		WorkspaceImage:         cloneWorkspaceImage(spec.GetWorkspaceImage()),
 		CapabilityDependencies: cloneCapabilityDependencies(spec.GetCapabilityDependencies()),
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
 			spec.GetExtensionCapabilityRequirements(),
@@ -422,20 +411,6 @@ func cloneImageMounts(in []*nodelifecyclev1.ImageMount) []*runtimev1.ImageMount 
 			Target:   strings.TrimSpace(mount.GetTarget()),
 			Readonly: true,
 		})
-	}
-	return out
-}
-
-func cloneWorkspaceImage(in *nodelifecyclev1.WorkspaceImageSource) *runtimev1.WorkspaceImageSource {
-	if in == nil {
-		return nil
-	}
-	out := &runtimev1.WorkspaceImageSource{SourcePath: strings.TrimSpace(in.GetSourcePath()), Target: strings.TrimSpace(in.GetTarget())}
-	for _, variant := range in.GetVariants() {
-		if variant == nil {
-			continue
-		}
-		out.Variants = append(out.Variants, &runtimev1.WorkspaceImageVariant{Format: strings.TrimSpace(variant.GetFormat()), Image: strings.TrimSpace(variant.GetImage())})
 	}
 	return out
 }

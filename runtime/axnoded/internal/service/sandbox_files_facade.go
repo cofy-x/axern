@@ -28,11 +28,6 @@ func (h *sandboxService) WriteFile(ctx context.Context, request *runtime.WriteFi
 	return resp, errord.ToGRPC(err)
 }
 
-func (h *sandboxService) MaterializeTaskAssets(_ context.Context, request *runtime.MaterializeTaskAssetsRequest) (*runtime.MaterializeTaskAssetsResponse, error) {
-	durationMs, err := h.allocationController().MaterializeTaskAssets(request.GetID(), request.GetSourcePath(), request.GetTarget(), request.GetKind())
-	return &runtime.MaterializeTaskAssetsResponse{DurationMs: durationMs}, errord.ToGRPC(err)
-}
-
 func (h *sandboxService) Mkdir(ctx context.Context, request *runtime.MkdirRequest) (*runtime.MkdirResponse, error) {
 	resp, err := h.sandboxAccessor().Mkdir(ctx, request)
 	return resp, errord.ToGRPC(err)

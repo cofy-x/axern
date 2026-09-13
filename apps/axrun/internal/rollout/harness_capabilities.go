@@ -18,18 +18,11 @@ func sandboxRuntimeState(state sandbox.State) *domain.SandboxRuntimeState {
 		return nil
 	}
 	return &domain.SandboxRuntimeState{
-		EnvironmentID:         state.EnvironmentID,
-		RunID:                 state.RunID,
-		AllocationID:          state.AllocationID,
-		NodeID:                state.NodeID,
-		RuntimeClass:          state.RuntimeClass,
-		PayloadFormat:         state.PayloadFormat,
-		PayloadDigest:         state.PayloadDigest,
-		CacheHit:              state.CacheHit,
-		ImageResolveMs:        state.ImageResolveMs,
-		ImagePullMs:           state.ImagePullMs,
-		CowPrepareMs:          state.CowPrepareMs,
-		VerifierMaterializeMs: state.VerifierMaterializeMs,
+		EnvironmentID: state.EnvironmentID,
+		RunID:         state.RunID,
+		AllocationID:  state.AllocationID,
+		NodeID:        state.NodeID,
+		RuntimeClass:  state.RuntimeClass,
 	}
 }
 

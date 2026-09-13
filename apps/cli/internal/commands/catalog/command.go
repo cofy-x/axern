@@ -43,41 +43,5 @@ func Command(runtime command.Runtime) *cobra.Command {
 			return nil
 		}},
 	)
-	bundles := &cobra.Command{Use: "bundle", Short: "Inspect agent bundles"}
-	bundles.AddCommand(
-		&cobra.Command{Use: "list", Short: "List agent bundles", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-			s, err := runtime.Open(cmd.Context())
-			if err != nil {
-				return err
-			}
-			defer s.Close()
-			resp, err := appcatalog.New(s.Clients.Catalog).ListAgentBundles(s.Context)
-			if err != nil {
-				return err
-			}
-			if runtime.Options.Output == "json" {
-				return output.PrintAgentBundleListJSON(cmd.OutOrStdout(), resp)
-			}
-			output.RenderAgentBundleTable(cmd.OutOrStdout(), resp.GetAgentBundles())
-			return nil
-		}},
-		&cobra.Command{Use: "get <bundle-id>", Short: "Get an agent bundle", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-			s, err := runtime.Open(cmd.Context())
-			if err != nil {
-				return err
-			}
-			defer s.Close()
-			resp, err := appcatalog.New(s.Clients.Catalog).GetAgentBundle(s.Context, args[0])
-			if err != nil {
-				return err
-			}
-			if runtime.Options.Output == "json" {
-				return output.PrintAgentBundleResponseJSON(cmd.OutOrStdout(), resp)
-			}
-			output.RenderAgentBundle(cmd.OutOrStdout(), resp.GetAgentBundle())
-			return nil
-		}},
-	)
-	root.AddCommand(bundles)
 	return root
 }

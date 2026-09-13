@@ -44,16 +44,6 @@ class RuntimeCatalogStub:
                 request_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetRuntimeTemplateRequest.SerializeToString,
                 response_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetRuntimeTemplateResponse.FromString,
                 _registered_method=True)
-        self.ListAgentBundles = channel.unary_unary(
-                '/axern.control.catalog.v1.RuntimeCatalog/ListAgentBundles',
-                request_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListAgentBundlesRequest.SerializeToString,
-                response_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListAgentBundlesResponse.FromString,
-                _registered_method=True)
-        self.GetAgentBundle = channel.unary_unary(
-                '/axern.control.catalog.v1.RuntimeCatalog/GetAgentBundle',
-                request_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetAgentBundleRequest.SerializeToString,
-                response_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetAgentBundleResponse.FromString,
-                _registered_method=True)
 
 
 class RuntimeCatalogServicer:
@@ -71,18 +61,6 @@ class RuntimeCatalogServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ListAgentBundles(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GetAgentBundle(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
 
 def add_RuntimeCatalogServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -95,16 +73,6 @@ def add_RuntimeCatalogServicer_to_server(servicer, server):
                     servicer.GetRuntimeTemplate,
                     request_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetRuntimeTemplateRequest.FromString,
                     response_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetRuntimeTemplateResponse.SerializeToString,
-            ),
-            'ListAgentBundles': grpc.unary_unary_rpc_method_handler(
-                    servicer.ListAgentBundles,
-                    request_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListAgentBundlesRequest.FromString,
-                    response_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListAgentBundlesResponse.SerializeToString,
-            ),
-            'GetAgentBundle': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetAgentBundle,
-                    request_deserializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetAgentBundleRequest.FromString,
-                    response_serializer=axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetAgentBundleResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -161,60 +129,6 @@ class RuntimeCatalog:
             '/axern.control.catalog.v1.RuntimeCatalog/GetRuntimeTemplate',
             axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetRuntimeTemplateRequest.SerializeToString,
             axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetRuntimeTemplateResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ListAgentBundles(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.control.catalog.v1.RuntimeCatalog/ListAgentBundles',
-            axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListAgentBundlesRequest.SerializeToString,
-            axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.ListAgentBundlesResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GetAgentBundle(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.control.catalog.v1.RuntimeCatalog/GetAgentBundle',
-            axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetAgentBundleRequest.SerializeToString,
-            axern_dot_control_dot_catalog_dot_v1_dot_catalog__pb2.GetAgentBundleResponse.FromString,
             options,
             channel_credentials,
             insecure,

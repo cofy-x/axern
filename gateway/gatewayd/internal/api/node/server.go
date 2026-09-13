@@ -133,16 +133,6 @@ func (s *Server) WriteFile(ctx context.Context, req *nodesandboxv1.WriteFileRequ
 	return response, err
 }
 
-func (s *Server) MaterializeTaskAssets(ctx context.Context, req *nodesandboxv1.MaterializeTaskAssetsRequest) (*nodesandboxv1.MaterializeTaskAssetsResponse, error) {
-	var response *nodesandboxv1.MaterializeTaskAssetsResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
-		var err error
-		response, err = client.MaterializeTaskAssets(ctx, req)
-		return err
-	})
-	return response, err
-}
-
 func (s *Server) Mkdir(ctx context.Context, req *nodesandboxv1.MkdirRequest) (*nodesandboxv1.MkdirResponse, error) {
 	var response *nodesandboxv1.MkdirResponse
 	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {

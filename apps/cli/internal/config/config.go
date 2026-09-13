@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/cofy-x/axern/lib/go/agentprofile"
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
 )
 
@@ -22,7 +21,6 @@ const (
 type File struct {
 	CurrentContext string                           `json:"current_context,omitempty"`
 	Contexts       map[string]*clientconfig.Context `json:"contexts,omitempty"`
-	AgentProfiles  agentprofile.ProfilesConfig      `json:"agent_profiles,omitempty"`
 }
 
 func DefaultPath() string {
@@ -57,7 +55,6 @@ func Load(path string) (*File, error) {
 			return nil, fmt.Errorf("invalid axern context %q: %w", name, err)
 		}
 	}
-	ensureAgentProfiles(cfg)
 	return cfg, nil
 }
 
@@ -71,7 +68,6 @@ func Save(path string, cfg *File) error {
 	if cfg.Contexts == nil {
 		cfg.Contexts = map[string]*clientconfig.Context{}
 	}
-	ensureAgentProfiles(cfg)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -84,18 +80,6 @@ func Save(path string, cfg *File) error {
 		return err
 	}
 	return os.Chmod(path, 0o600)
-}
-
-func ResolveAgentProfile(path, profileName string) (string, agentprofile.Profile, bool, error) {
-	cfg, err := Load(path)
-	if err != nil {
-		return "", agentprofile.Profile{}, false, err
-	}
-	return agentprofile.ResolveFromConfig(&agentprofile.ConfigFile{AgentProfiles: cfg.AgentProfiles}, profileName)
-}
-
-func AgentProfileNames(cfg *File) []string {
-	return agentprofile.ProfileNames(&agentprofile.ConfigFile{AgentProfiles: cfg.AgentProfiles})
 }
 
 func Resolve(path, contextName string) (string, *clientconfig.Context, bool, error) {
@@ -134,13 +118,4 @@ func resolvedPath(path string) string {
 		return path
 	}
 	return DefaultPath()
-}
-
-func ensureAgentProfiles(cfg *File) {
-	if cfg == nil {
-		return
-	}
-	if cfg.AgentProfiles.Profiles == nil {
-		cfg.AgentProfiles.Profiles = map[string]*agentprofile.ProfileConfig{}
-	}
 }

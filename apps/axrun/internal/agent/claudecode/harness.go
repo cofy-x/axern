@@ -12,11 +12,11 @@ import (
 )
 
 const (
-	defaultCommand    = `claude -p --model "$AXRUN_MODEL_ID" "$AXRUN_TASK_INSTRUCTION"`
-	defaultCWD        = "/home/axern"
-	defaultBundleUser = "65532:65532"
-	defaultBundleHome = "/tmp/axrun-claude-code"
-	defaultTimeoutSec = 1800
+	defaultCommand        = `claude -p --model "$AXRUN_MODEL_ID" "$AXRUN_TASK_INSTRUCTION"`
+	defaultCWD            = "/home/axern"
+	defaultAgentImageUser = "65532:65532"
+	defaultAgentImageHome = "/tmp/axrun-claude-code"
+	defaultTimeoutSec     = 1800
 )
 
 type Harness struct {
@@ -91,8 +91,8 @@ func (h *Harness) Run(ctx context.Context, request agent.Request) (agent.Result,
 		LauncherKind:           plan.LauncherKind,
 		RuntimeType:            plan.RuntimeType,
 		RuntimeImage:           plan.Image,
-		RuntimeMountTarget:     plan.BundleMountTarget,
-		RuntimeBinDir:          agent.AgentBundleBinDir(plan.BundleMountTarget),
+		RuntimeMountTarget:     plan.ImageMountTarget,
+		RuntimeBinDir:          agent.AgentImageBinDir(plan.ImageMountTarget),
 		RuntimeProfile:         plan.Profile,
 		ExitCode:               &exitCode,
 		Stdout:                 execResult.Stdout,
@@ -127,7 +127,7 @@ func (h *Harness) launchPlan(request agent.Request) agent.LaunchPlan {
 		plan.RuntimeType = runtime.Type
 		plan.Image = runtime.Image
 		if runtime.Type == domain.AgentRuntimeTypeAgentImage {
-			plan.BundleMountTarget = agent.AgentBundleMountTargetForSpec(request.Agent)
+			plan.ImageMountTarget = agent.AgentImageMountTargetForSpec(request.Agent)
 		}
 		if runtime.Session != nil {
 			plan.SessionMode = runtime.Session.Mode
@@ -143,7 +143,7 @@ func (h *Harness) launcherForRuntime(runtimeType domain.AgentRuntimeType) agent.
 		return h.Launcher
 	}
 	if runtimeType == domain.AgentRuntimeTypeAgentImage {
-		return agent.MountedBundleLauncher{}
+		return agent.MountedAgentImageLauncher{}
 	}
 	return agent.SandboxCommandLauncher{}
 }
@@ -253,7 +253,7 @@ func (h *Harness) user(request agent.Request) string {
 		return runtime.User
 	}
 	if runtime := request.Agent.Runtime; runtime != nil && runtime.Type == domain.AgentRuntimeTypeAgentImage {
-		return defaultBundleUser
+		return defaultAgentImageUser
 	}
 	return ""
 }
@@ -292,9 +292,9 @@ func (h *Harness) env(request agent.Request, plan agent.LaunchPlan) map[string]s
 	for key, value := range h.Config.Env {
 		env[key] = value
 	}
-	if plan.User == defaultBundleUser {
+	if plan.User == defaultAgentImageUser {
 		if _, configured := env["HOME"]; !configured {
-			env["HOME"] = defaultBundleHome
+			env["HOME"] = defaultAgentImageHome
 		}
 	}
 	env["AXRUN_AGENT_NAME"] = request.Agent.Name
@@ -308,8 +308,8 @@ func (h *Harness) env(request agent.Request, plan agent.LaunchPlan) map[string]s
 	if plan.Image != "" {
 		env["AXRUN_AGENT_RUNTIME_IMAGE"] = plan.Image
 	}
-	if plan.BundleMountTarget != "" {
-		env["AXRUN_AGENT_BUNDLE_MOUNT_TARGET"] = plan.BundleMountTarget
+	if plan.ImageMountTarget != "" {
+		env["AXRUN_AGENT_IMAGE_MOUNT_TARGET"] = plan.ImageMountTarget
 	}
 	if plan.SessionMode != "" {
 		env["AXRUN_AGENT_SESSION_MODE"] = string(plan.SessionMode)

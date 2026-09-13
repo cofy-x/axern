@@ -1,12 +1,10 @@
 package config
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/cofy-x/axern/lib/go/agentprofile"
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
 )
 
@@ -60,68 +58,15 @@ func TestSaveAndResolveContext(t *testing.T) {
 	}
 }
 
-func TestAgentProfileStoresLocalToken(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.json")
-	cfg := &File{
-		AgentProfiles: agentprofile.ProfilesConfig{
-			CurrentProfile: "deepseek",
-			Profiles: map[string]*agentprofile.ProfileConfig{
-				"deepseek": {
-					Agent:    "codex",
-					Provider: "openai",
-					WireAPI:  "responses",
-					Upstream: "https://api.example.test/anthropic",
-					Token:    "sk-test-secret",
-				},
-			},
-		},
-	}
-	if err := Save(path, cfg); err != nil {
-		t.Fatalf("Save returned error: %v", err)
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("Stat returned error: %v", err)
-	}
-	if got := info.Mode().Perm(); got != 0o600 {
-		t.Fatalf("config file permissions = %o, want 600", got)
-	}
-	name, profile, ok, err := ResolveAgentProfile(path, "")
-	if err != nil {
-		t.Fatalf("ResolveAgentProfile returned error: %v", err)
-	}
-	if !ok || name != "deepseek" {
-		t.Fatalf("resolved name=%q ok=%t, want deepseek true", name, ok)
-	}
-	if profile.Token != "sk-test-secret" {
-		t.Fatalf("Token = %q, want configured token", profile.Token)
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile returned error: %v", err)
-	}
-	if !bytes.Contains(raw, []byte("sk-test-secret")) {
-		t.Fatal("config did not store token value")
-	}
-}
-
-func TestOldClaudeCodeProfileSchemaIsRejected(t *testing.T) {
+func TestUnknownTopLevelFieldsAreRejected(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	if err := os.WriteFile(path, []byte(`{
-  "claude_code": {
-    "current_profile": "deepseek",
-    "profiles": {
-      "deepseek": {
-        "upstream": "https://api.example.test/anthropic",
-        "token": "sk-test-secret"
-      }
-    }
-  }
+  "unknown_product_config": {"enabled": true}
 }`), 0o600); err != nil {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}
-	if _, _, _, err := ResolveAgentProfile(path, ""); err == nil {
-		t.Fatal("ResolveAgentProfile accepted an obsolete config schema")
+	if _, err := Load(path); err == nil {
+		t.Fatal("Load accepted an unknown top-level field")
 	}
 }
 

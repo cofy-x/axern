@@ -5,8 +5,7 @@ Image mounts are an Axern runtime composition primitive. A workload keeps its ta
 ```text
 task image rootfs
   + runtime-owned bind mounts
-  + optional COW TaskSet workspace image
-  + read-only image bundle mounts
+  + read-only image mounts
   -> one sandbox process environment
 ```
 
@@ -26,7 +25,6 @@ Validation rules:
 - image mount targets must not overlap each other or existing sandbox, template, sandboxd-managed, or secret-file mounts;
 - missing directory targets are materialized in the final task rootfs view;
 - paths that cross rootfs symlinks are rejected;
-- runtime-managed bundle aliases must be absent from the task rootfs and must not overlap any image, sandbox, template, or secret-file mount;
 - setup failure fails allocation start, and allocation cleanup releases mounted image rootfs references.
 
 Axern does not merge operating system roots. A mounted image contributes files only. Tool images should be relocatable bundles, for example:
@@ -37,9 +35,7 @@ Axern does not merge operating system roots. A mounted image contributes files o
   lib/
 ```
 
-Axern does not merge operating-system ABIs. A generic tool bundle that relies on task libraries must document that dependency. Official Axern Claude Code and Codex bundles instead carry a complete, pinned Ubuntu ABI and select their own loader, so they support both glibc- and musl-based Axrun-compatible task images. The task image remains responsible for `/bin/sh`, project commands, and its own language and test toolchains.
-
-Claude Code has a dual-path contract backed by one mount. Its image rootfs is bound once at the private ABI path `/__claude_code`; the allocation-private rootfs projection creates `/opt/axern/agents/claude-code` as a symlink to that mount. The public path remains stable for agent discovery and `PATH`, while the short ABI path keeps the Bun executable's in-place `PT_INTERP` fixed at `/__claude_code/l`. Both paths are reserved together for overlap validation; Axern never bind-mounts the Claude image a second time at the public path.
+Axern does not merge operating-system ABIs. A tool image that relies on task libraries must document that dependency. The task image remains responsible for `/bin/sh`, project commands, and its own language and test toolchains. Callers own tool-image construction and compatibility.
 
 ## Runtime Ownership
 
@@ -61,24 +57,19 @@ Stable runtime IDs include image, target, and read-only flag so different mount 
 
 ## Axrun Use
 
-Axrun uses image mounts for packaged agent tools:
+Axrun can use the generic image-mount primitive for caller-supplied agent tools:
 
 ```text
 native task sandbox image
-  + agent/tool image bundle mount
+  + agent/tool image mount
   + agent command inside the task sandbox
   -> patch, stdout, trajectory, raw evidence, exports
 ```
 
-Task images and agent bundle images remain separate. Credentials and provider endpoints stay in profile-backed managed proxy or local config, not in task images or bundle images.
-
-TaskSet workspaces are also separate from image mounts. They use the dedicated `ExecutionConfig.workspace_image` contract and are prepared as writable, allocation-local COW overlays. See [Workspace Images](workspace-images.md).
+Task images and agent images remain separate. Axrun owns agent profiles and TaskSet materialization; Axern receives only ordinary immutable image mounts and allocation-local file/archive operations. Credentials and provider endpoints are injected at runtime, not baked into images.
 
 ## Verification
 
 - `make local-compose-image-mount-smoke`
-- `make local-compose-agent-bundle-matrix-smoke`
-- `make local-compose-claude-code-image-mount-smoke`
-- `make local-compose-codex-image-mount-smoke`
 - `make axrun-local-smoke` for the local functional path
-- Linux Axern acceptance for workspace variant selection and COW isolation
+- Linux Axern acceptance for read-only mount isolation and restart recovery

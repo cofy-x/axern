@@ -5,8 +5,6 @@ use (
 	./apps/cli
 	./control/controld
 	./gateway/gatewayd
-	./lib/go/agentbundle
-	./lib/go/agentprofile
 	./lib/go/grpcclient
 	./lib/go/imageref
 	./lib/go/llmproxy

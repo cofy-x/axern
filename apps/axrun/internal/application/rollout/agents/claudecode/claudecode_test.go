@@ -13,7 +13,7 @@ func TestRegistrationValidatesAgentImageArtifactPolicy(t *testing.T) {
 		Name: Name,
 		Runtime: &domain.AgentRuntimeSpec{
 			Type:    domain.AgentRuntimeTypeAgentImage,
-			Image:   "axern/claude-code-bundle:dev",
+			Image:   "example.com/claude-code-agent:dev",
 			Profile: "deepseek",
 			Artifacts: &domain.ArtifactPolicySpec{
 				CaptureStdout: true,

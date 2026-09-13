@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/apps/axrun/internal/agent"
-	"github.com/cofy-x/axern/apps/axrun/internal/agentbundle"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentimage"
 	"github.com/cofy-x/axern/apps/axrun/internal/backend"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 	"github.com/cofy-x/axern/apps/axrun/internal/rollout"
@@ -196,7 +196,7 @@ func (a Adapter) runtimeForRequest(request backend.ExecuteRequest) (sandbox.Runt
 		return nil, err
 	}
 	if request.Episode.Agent.Runtime != nil && request.Episode.Agent.Runtime.Type == domain.AgentRuntimeTypeAgentImage {
-		config.ImageMounts = append(config.ImageMounts, agentBundleImageMount(request.Episode.Agent))
+		config.ImageMounts = append(config.ImageMounts, agentImageMount(request.Episode.Agent))
 	}
 	return sandboxaxern.NewRuntime(config), nil
 }
@@ -211,19 +211,6 @@ func (a Adapter) configForTask(task domain.TaskInstance) (Config, error) {
 		config.RequestMemory = strings.TrimSpace(resources.RequestMemory)
 		config.LimitCPU = strings.TrimSpace(resources.LimitCPU)
 		config.LimitMemory = strings.TrimSpace(resources.LimitMemory)
-	}
-	if task.InitialState != nil && task.InitialState.WorkspaceImage != nil {
-		workspace := task.InitialState.WorkspaceImage
-		config.WorkspaceImage = &axernsdk.WorkspaceImageSource{SourcePath: workspace.SourcePath, Target: workspace.Target}
-		for _, variant := range workspace.Variants {
-			config.WorkspaceImage.Variants = append(
-				config.WorkspaceImage.Variants,
-				axernsdk.WorkspaceImageVariant{
-					Format: variant.Format,
-					Image:  variant.Image,
-				},
-			)
-		}
 	}
 	if runtimeClass := strings.TrimSpace(task.Sandbox.RuntimeClass); runtimeClass != "" {
 		config.RuntimeClass = runtimeClass
@@ -261,7 +248,7 @@ func (a Adapter) agentHarness(spec domain.AgentSpec) (agent.Harness, error) {
 	}
 	if spec.Runtime != nil && spec.Runtime.Type == domain.AgentRuntimeTypeAgentImage {
 		if setter, ok := h.(agent.LauncherSetter); ok {
-			setter.SetLauncher(agent.MountedBundleLauncher{})
+			setter.SetLauncher(agent.MountedAgentImageLauncher{})
 		} else {
 			return nil, fmt.Errorf("agent %q runtime agent-image requires backend launcher support", spec.Name)
 		}
@@ -269,14 +256,14 @@ func (a Adapter) agentHarness(spec domain.AgentSpec) (agent.Harness, error) {
 	return h, nil
 }
 
-func agentBundleImageMount(spec domain.AgentSpec) axernsdk.ImageMount {
+func agentImageMount(spec domain.AgentSpec) axernsdk.ImageMount {
 	image := ""
 	if spec.Runtime != nil {
 		image = spec.Runtime.Image
 	}
 	return axernsdk.ImageMount{
 		Image:    image,
-		Target:   agentbundle.ImageMountTargetForSpec(spec),
+		Target:   agentimage.MountTargetForSpec(spec),
 		Readonly: true,
 	}
 }

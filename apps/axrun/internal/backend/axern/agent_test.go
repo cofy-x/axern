@@ -220,7 +220,7 @@ func TestAxernAdapterRunsManagedAgentImageCommand(t *testing.T) {
 		ApprovalPolicy: domain.AgentApprovalPolicyNever,
 		Runtime: &domain.AgentRuntimeSpec{
 			Type:    domain.AgentRuntimeTypeAgentImage,
-			Image:   "ghcr.io/cofy-x/claude-code-bundle:latest",
+			Image:   "example.com/claude-code-agent:latest",
 			Workdir: "/workspace",
 			User:    "axern",
 			Env:     map[string]string{"CUSTOM": "value"},
@@ -259,19 +259,19 @@ func TestAxernAdapterRunsManagedAgentImageCommand(t *testing.T) {
 	if !strings.Contains(agentCall.command.Shell(), "export PATH='/opt/axern/agents/claude-code/bin':\"${PATH:-") {
 		t.Fatalf("agent command does not prepend the bundle bin directory: %q", agentCall.command.Shell())
 	}
-	if got := agentCall.options.Env["AXRUN_AGENT_BUNDLE_MOUNT_TARGET"]; got != "/opt/axern/agents/claude-code" {
+	if got := agentCall.options.Env["AXRUN_AGENT_IMAGE_MOUNT_TARGET"]; got != "/opt/axern/agents/claude-code" {
 		t.Fatalf("mount target env = %q", got)
 	}
 	var agentResult domain.AgentResult
 	readJSON(t, layout.AgentJSONPath, &agentResult)
 	if agentResult.LauncherKind != domain.AgentLauncherKindAgentImage ||
 		agentResult.RuntimeType != domain.AgentRuntimeTypeAgentImage ||
-		agentResult.RuntimeImage != "ghcr.io/cofy-x/claude-code-bundle:latest" {
+		agentResult.RuntimeImage != "example.com/claude-code-agent:latest" {
 		t.Fatalf("agent result = %#v", agentResult)
 	}
 }
 
-func TestAxernAdapterRuntimeForRequestMountsAgentImageBundleIntoTaskSandbox(t *testing.T) {
+func TestAxernAdapterRuntimeForRequestMountsAgentImageIntoTaskSandbox(t *testing.T) {
 	adapter := Adapter{
 		Config: Config{Endpoint: "127.0.0.1:24000", TemplateID: "python311"},
 	}
@@ -290,7 +290,7 @@ func TestAxernAdapterRuntimeForRequestMountsAgentImageBundleIntoTaskSandbox(t *t
 				Name: "claude-code",
 				Runtime: &domain.AgentRuntimeSpec{
 					Type:  domain.AgentRuntimeTypeAgentImage,
-					Image: "ghcr.io/cofy-x/claude-code-bundle:latest",
+					Image: "example.com/claude-code-agent:latest",
 				},
 			},
 		},
@@ -313,8 +313,8 @@ func TestAxernAdapterRuntimeForRequestMountsAgentImageBundleIntoTaskSandbox(t *t
 		t.Fatalf("image mounts = %#v", axernRuntime.Config.ImageMounts)
 	}
 	mount := axernRuntime.Config.ImageMounts[0]
-	if mount.Image != "ghcr.io/cofy-x/claude-code-bundle:latest" ||
-		mount.Target != "/__claude_code" ||
+	if mount.Image != "example.com/claude-code-agent:latest" ||
+		mount.Target != "/opt/axern/agents/claude-code" ||
 		!mount.Readonly {
 		t.Fatalf("image mount = %#v", mount)
 	}
@@ -359,7 +359,7 @@ func TestAxernAdapterRuntimeForRequestUsesAgentRuntimeMountTarget(t *testing.T) 
 				Name: "custom-agent",
 				Runtime: &domain.AgentRuntimeSpec{
 					Type:        domain.AgentRuntimeTypeAgentImage,
-					Image:       "ghcr.io/cofy-x/custom-agent-bundle:latest",
+					Image:       "example.com/custom-agent:latest",
 					MountTarget: "/opt/axern/agents/custom-agent",
 				},
 			},

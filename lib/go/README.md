@@ -4,7 +4,6 @@
 
 Current packages:
 
-- [`agentbundle`](./agentbundle): shared agent image mount layout and binary-path validation.
 - [`grpcclient`](./grpcclient): small gRPC dialing and readiness helpers.
 - [`imageref`](./imageref): shared container image reference parsing and local insecure registry matching helpers.
 - [`networkpolicy`](./networkpolicy): canonical sandbox egress-policy validation, normalization, and enforcement-mode classification shared by the control plane and node runtime.

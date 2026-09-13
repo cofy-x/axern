@@ -110,25 +110,13 @@ type ArtifactPolicySpec struct {
 }
 
 type InitialStateSpec struct {
-	Type           string                    `json:"type,omitempty"`
-	Path           string                    `json:"path,omitempty"`
-	Image          string                    `json:"image,omitempty"`
-	Dockerfile     string                    `json:"dockerfile,omitempty"`
-	Workdir        string                    `json:"workdir,omitempty"`
-	Files          []string                  `json:"files,omitempty"`
-	ExcludePaths   []string                  `json:"exclude_paths,omitempty"`
-	WorkspaceImage *WorkspaceImageSourceSpec `json:"workspace_image,omitempty"`
-}
-
-type WorkspaceImageSourceSpec struct {
-	Variants   []WorkspaceImageVariantSpec `json:"variants"`
-	SourcePath string                      `json:"source_path"`
-	Target     string                      `json:"target"`
-}
-
-type WorkspaceImageVariantSpec struct {
-	Format string `json:"format"`
-	Image  string `json:"image"`
+	Type         string   `json:"type,omitempty"`
+	Path         string   `json:"path,omitempty"`
+	Image        string   `json:"image,omitempty"`
+	Dockerfile   string   `json:"dockerfile,omitempty"`
+	Workdir      string   `json:"workdir,omitempty"`
+	Files        []string `json:"files,omitempty"`
+	ExcludePaths []string `json:"exclude_paths,omitempty"`
 }
 
 type SandboxRuntimeSourceType string
@@ -169,16 +157,9 @@ type VerifierAssetSpec struct {
 }
 
 type SandboxRuntimeState struct {
-	EnvironmentID         string `json:"environment_id,omitempty"`
-	RunID                 string `json:"run_id,omitempty"`
-	AllocationID          string `json:"allocation_id,omitempty"`
-	NodeID                string `json:"node_id,omitempty"`
-	RuntimeClass          string `json:"runtime_class,omitempty"`
-	PayloadFormat         string `json:"payload_format,omitempty"`
-	PayloadDigest         string `json:"payload_digest,omitempty"`
-	CacheHit              bool   `json:"cache_hit,omitempty"`
-	ImageResolveMs        int64  `json:"image_resolve_ms,omitempty"`
-	ImagePullMs           int64  `json:"image_pull_ms,omitempty"`
-	CowPrepareMs          int64  `json:"cow_prepare_ms,omitempty"`
-	VerifierMaterializeMs int64  `json:"verifier_materialize_ms,omitempty"`
+	EnvironmentID string `json:"environment_id,omitempty"`
+	RunID         string `json:"run_id,omitempty"`
+	AllocationID  string `json:"allocation_id,omitempty"`
+	NodeID        string `json:"node_id,omitempty"`
+	RuntimeClass  string `json:"runtime_class,omitempty"`
 }

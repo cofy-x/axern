@@ -1,6 +1,6 @@
 .PHONY: quickstart quickstart-source axern-config-init \
 		local-images-build local-node-images-build nydus-builder-image registry-nydus-image-build \
-		local-compose-up local-compose-down local-compose-status local-compose-purge local-compose-reset local-compose-refresh local-compose-refresh-verify local-compose-image-import local-compose-registry-image-smoke local-compose-image-mount-smoke local-compose-agent-bundle-matrix-smoke local-compose-claude-code-image-mount-smoke local-compose-codex-image-mount-smoke local-compose-nydus-smoke \
+		local-compose-up local-compose-down local-compose-status local-compose-purge local-compose-reset local-compose-refresh local-compose-refresh-verify local-compose-image-import local-compose-registry-image-smoke local-compose-image-mount-smoke local-compose-nydus-smoke \
 		local-compose-smoke local-compose-doctor-smoke local-compose-dns-doctor-smoke local-compose-run-smoke local-compose-server-base-smoke local-compose-quota-smoke local-compose-python-sdk-e2e local-compose-computer-use-e2e local-compose-go-sdk-e2e \
 		kind-up kind-down kind-status kind-purge kind-reset kind-refresh kind-refresh-verify registry-up registry-status registry-down registry-image-push kind-image-import kind-axern-registry-image-smoke kind-axern-nydus-smoke kind-smoke kind-run-smoke kind-server-base-smoke kind-quota-smoke kube-env-kind \
 		local-refresh-verify local-truth-verify \
@@ -45,15 +45,6 @@ local-compose-registry-image-smoke: ## Verify Axern can start an image from the 
 
 local-compose-image-mount-smoke: ## Verify compose run image_mounts with a read-only reusable image bundle
 	bash $(ROOTDIR)/scripts/dev-env/compose-image-mount-smoke.sh
-
-local-compose-agent-bundle-matrix-smoke: ## Verify self-contained agent bundles in BusyBox and Ubuntu task images
-	bash $(ROOTDIR)/scripts/dev-env/compose-agent-bundle-matrix-smoke.sh
-
-local-compose-claude-code-image-mount-smoke: ## Verify Claude Code as a read-only image mount bundle in a task sandbox
-	bash $(ROOTDIR)/scripts/dev-env/compose-claude-code-image-mount-smoke.sh
-
-local-compose-codex-image-mount-smoke: ## Verify Codex as a read-only image mount bundle in a task sandbox
-	bash $(ROOTDIR)/scripts/dev-env/compose-codex-image-mount-smoke.sh
 
 local-compose-nydus-smoke: ## Verify Axern can start a compose sandbox from a Nydus image through imagemgr/imagefsd
 	bash $(ROOTDIR)/scripts/dev-env/compose-nydus-smoke.sh

@@ -34,8 +34,6 @@ AXNODED_DIR := runtime/axnoded
 	axnoded-build-python311-runtime-image \
 	axnoded-build-server-base-runtime-image \
 	axnoded-build-coding-base-runtime-image \
-	axnoded-build-claude-code-bundle-image \
-	axnoded-build-codex-bundle-image \
 	axnoded-verify-docker-runsc \
 	axnoded-verify-docker-runsc-debug \
 	axnoded-verify-docker-conformance \
@@ -143,12 +141,6 @@ axnoded-build-server-base-runtime-image: ## Build the official axnoded server-ba
 
 axnoded-build-coding-base-runtime-image: ## Build the official axnoded coding-base runtime image
 	@$(call run_subsystem_make,$(AXNODED_DIR),build-coding-base-runtime-image)
-
-axnoded-build-claude-code-bundle-image: ## Build the axnoded Claude Code image mount bundle
-	@$(call run_subsystem_make,$(AXNODED_DIR),build-claude-code-bundle-image)
-
-axnoded-build-codex-bundle-image: ## Build the axnoded Codex image mount bundle
-	@$(call run_subsystem_make,$(AXNODED_DIR),build-codex-bundle-image)
 
 axnoded-verify-docker-runsc: ## Run axnoded privileged Docker verification against runsc
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runsc)

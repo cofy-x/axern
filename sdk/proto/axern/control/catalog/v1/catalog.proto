@@ -92,36 +92,7 @@ message GetRuntimeTemplateResponse {
   RuntimeTemplate runtime_template = 1;
 }
 
-// AgentBundle describes a relocatable, read-only agent tool image. The image
-// is mounted into a workload rootfs; it is not itself a runtime template.
-message AgentBundle {
-  string id = 1;
-  string version = 2;
-  OciImageDescriptor image_descriptor = 3;
-  string binary_path = 4;
-  string description = 5;
-}
-
-message ListAgentBundlesRequest {
-  string version = 1;
-}
-
-message ListAgentBundlesResponse {
-  repeated AgentBundle agent_bundles = 1;
-}
-
-message GetAgentBundleRequest {
-  string id = 1;
-  string version = 2;
-}
-
-message GetAgentBundleResponse {
-  AgentBundle agent_bundle = 1;
-}
-
 service RuntimeCatalog {
   rpc ListRuntimeTemplates(ListRuntimeTemplatesRequest) returns (ListRuntimeTemplatesResponse) {}
   rpc GetRuntimeTemplate(GetRuntimeTemplateRequest) returns (GetRuntimeTemplateResponse) {}
-  rpc ListAgentBundles(ListAgentBundlesRequest) returns (ListAgentBundlesResponse) {}
-  rpc GetAgentBundle(GetAgentBundleRequest) returns (GetAgentBundleResponse) {}
 }

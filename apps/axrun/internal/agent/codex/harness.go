@@ -97,8 +97,8 @@ func (h *Harness) Run(ctx context.Context, request agent.Request) (agent.Result,
 		LauncherKind:           plan.LauncherKind,
 		RuntimeType:            plan.RuntimeType,
 		RuntimeImage:           plan.Image,
-		RuntimeMountTarget:     plan.BundleMountTarget,
-		RuntimeBinDir:          agent.AgentBundleBinDir(plan.BundleMountTarget),
+		RuntimeMountTarget:     plan.ImageMountTarget,
+		RuntimeBinDir:          agent.AgentImageBinDir(plan.ImageMountTarget),
 		RuntimeProfile:         plan.Profile,
 		ExitCode:               &exitCode,
 		Stdout:                 execResult.Stdout,
@@ -132,7 +132,7 @@ func (h *Harness) launchPlan(request agent.Request) agent.LaunchPlan {
 		plan.RuntimeType = runtime.Type
 		plan.Image = runtime.Image
 		if runtime.Type == domain.AgentRuntimeTypeAgentImage {
-			plan.BundleMountTarget = agent.AgentBundleMountTargetForSpec(request.Agent)
+			plan.ImageMountTarget = agent.AgentImageMountTargetForSpec(request.Agent)
 		}
 		if runtime.Session != nil {
 			plan.SessionMode = runtime.Session.Mode
@@ -148,7 +148,7 @@ func (h *Harness) launcherForRuntime(runtimeType domain.AgentRuntimeType) agent.
 		return h.Launcher
 	}
 	if runtimeType == domain.AgentRuntimeTypeAgentImage {
-		return agent.MountedBundleLauncher{}
+		return agent.MountedAgentImageLauncher{}
 	}
 	return agent.SandboxCommandLauncher{}
 }
@@ -247,8 +247,8 @@ func (h *Harness) env(request agent.Request, plan agent.LaunchPlan) map[string]s
 	if plan.Image != "" {
 		env["AXRUN_AGENT_RUNTIME_IMAGE"] = plan.Image
 	}
-	if plan.BundleMountTarget != "" {
-		env["AXRUN_AGENT_BUNDLE_MOUNT_TARGET"] = plan.BundleMountTarget
+	if plan.ImageMountTarget != "" {
+		env["AXRUN_AGENT_IMAGE_MOUNT_TARGET"] = plan.ImageMountTarget
 	}
 	if plan.SessionMode != "" {
 		env["AXRUN_AGENT_SESSION_MODE"] = string(plan.SessionMode)
@@ -308,8 +308,8 @@ func (r *commandRecorder) recordCommandStarted(plan agent.LaunchPlan) {
 		LauncherKind:       plan.LauncherKind,
 		RuntimeType:        plan.RuntimeType,
 		RuntimeImage:       plan.Image,
-		RuntimeMountTarget: plan.BundleMountTarget,
-		RuntimeBinDir:      agent.AgentBundleBinDir(plan.BundleMountTarget),
+		RuntimeMountTarget: plan.ImageMountTarget,
+		RuntimeBinDir:      agent.AgentImageBinDir(plan.ImageMountTarget),
 		RuntimeProfile:     plan.Profile,
 		Command:            commandVector,
 		CommandText:        commandText,
@@ -331,8 +331,8 @@ func (r *commandRecorder) recordCommandFinished(plan agent.LaunchPlan, startedAt
 		LauncherKind:       plan.LauncherKind,
 		RuntimeType:        plan.RuntimeType,
 		RuntimeImage:       plan.Image,
-		RuntimeMountTarget: plan.BundleMountTarget,
-		RuntimeBinDir:      agent.AgentBundleBinDir(plan.BundleMountTarget),
+		RuntimeMountTarget: plan.ImageMountTarget,
+		RuntimeBinDir:      agent.AgentImageBinDir(plan.ImageMountTarget),
 		RuntimeProfile:     plan.Profile,
 		Command:            commandVector,
 		CommandText:        commandText,

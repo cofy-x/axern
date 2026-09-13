@@ -14,22 +14,6 @@ type RuntimeTemplateResponseJSON struct {
 	RuntimeTemplate *RuntimeTemplateJSON `json:"runtime_template"`
 }
 
-type AgentBundleListJSON struct {
-	AgentBundles []*AgentBundleJSON `json:"agent_bundles"`
-}
-
-type AgentBundleResponseJSON struct {
-	AgentBundle *AgentBundleJSON `json:"agent_bundle"`
-}
-
-type AgentBundleJSON struct {
-	ID              string                  `json:"id"`
-	Version         string                  `json:"version"`
-	BinaryPath      string                  `json:"binary_path"`
-	Description     string                  `json:"description,omitempty"`
-	ImageDescriptor *OciImageDescriptorJSON `json:"image_descriptor,omitempty"`
-}
-
 type RuntimeTemplateJSON struct {
 	ID               string                           `json:"id"`
 	RootfsReadonly   bool                             `json:"rootfs_readonly,omitempty"`
@@ -85,34 +69,6 @@ func PrintRuntimeTemplateResponseJSON(w io.Writer, resp *catalogv1.GetRuntimeTem
 		template = resp.GetRuntimeTemplate()
 	}
 	return PrintJSON(w, RuntimeTemplateResponseJSON{RuntimeTemplate: NewRuntimeTemplateJSON(template)})
-}
-
-func PrintAgentBundleListJSON(w io.Writer, resp *catalogv1.ListAgentBundlesResponse) error {
-	out := AgentBundleListJSON{AgentBundles: []*AgentBundleJSON{}}
-	if resp != nil {
-		for _, bundle := range resp.GetAgentBundles() {
-			out.AgentBundles = append(out.AgentBundles, newAgentBundleJSON(bundle))
-		}
-	}
-	return PrintJSON(w, out)
-}
-
-func PrintAgentBundleResponseJSON(w io.Writer, resp *catalogv1.GetAgentBundleResponse) error {
-	var bundle *catalogv1.AgentBundle
-	if resp != nil {
-		bundle = resp.GetAgentBundle()
-	}
-	return PrintJSON(w, AgentBundleResponseJSON{AgentBundle: newAgentBundleJSON(bundle)})
-}
-
-func newAgentBundleJSON(bundle *catalogv1.AgentBundle) *AgentBundleJSON {
-	if bundle == nil {
-		return nil
-	}
-	return &AgentBundleJSON{
-		ID: bundle.GetID(), Version: bundle.GetVersion(), BinaryPath: bundle.GetBinaryPath(), Description: bundle.GetDescription(),
-		ImageDescriptor: newOciImageDescriptorJSON(bundle.GetImageDescriptor()),
-	}
 }
 
 func NewRuntimeTemplateJSON(template *catalogv1.RuntimeTemplate) *RuntimeTemplateJSON {

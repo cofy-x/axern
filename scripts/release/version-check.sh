@@ -86,7 +86,6 @@ values = (root / "deploy/helm/axern/values.yaml").read_text()
 for image in (
     "controld", "tunneld", "gatewayd", "node-all-in-one", "python311-runtime",
     "server-base-runtime", "coding-base-runtime", "desktop-base-runtime",
-    "claude-code-bundle", "codex-bundle",
 ):
     expected = re.escape(f"ghcr.io/cofy-x/axern/{image}:v{want}")
     if image in {"controld", "tunneld", "gatewayd", "node-all-in-one"}:

@@ -31,7 +31,7 @@ Use this page to identify the owner of a task and then switch to that module's l
 
 | Area | Responsibility | Context |
 | :-- | :-- | :-- |
-| `lib/go` | Internal Go libraries used by multiple modules, including the shared agent bundle mount contract | [README](../lib/go/README.md) |
+| `lib/go` | Internal Go libraries shared by Axern services and SDKs | [README](../lib/go/README.md) |
 | `deploy/` | Compose, kind, image, and cloud-neutral Helm deployment surfaces | [Local deployment](../deploy/local/README.md), [Helm chart](../deploy/helm/axern/README.md) |
 | `mk/`, `Makefile` | Root orchestration and thin subsystem wrappers | [Project Overview](project-overview.md), `make help` |
 | `docker/`, `scripts/devbox/`, `.dev/` | Repository Linux development environment and generated local state | [Devbox runbook](../docs/operations/devbox.md) |

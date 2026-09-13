@@ -28,8 +28,6 @@ IMAGE="${PYTHON311_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-imag
 IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
 IMAGE="${CODING_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
 IMAGE="${DESKTOP_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
-IMAGE="${CLAUDE_CODE_BUNDLE_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
-IMAGE="${CODEX_BUNDLE_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
 
 echo "kind_up_ok=true"
 echo "kubeconfig=$(k8s_kubeconfig_file)"

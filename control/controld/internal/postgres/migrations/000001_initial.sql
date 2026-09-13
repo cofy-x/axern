@@ -152,7 +152,6 @@ CREATE TABLE allocations (
 	run_id TEXT NOT NULL UNIQUE REFERENCES runs(run_id) ON DELETE CASCADE,
 	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE RESTRICT,
 	lifecycle_state TEXT NOT NULL,
-	workspace_preparation JSONB NOT NULL DEFAULT 'null'::jsonb,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
 	node_active_at TIMESTAMPTZ,

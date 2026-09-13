@@ -46,17 +46,16 @@ func (r Runtime) Create(ctx context.Context) (sandbox.Instance, error) {
 		return nil, err
 	}
 	sb, err := axernsdk.NewSandbox(axernsdk.SandboxOptions{
-		Client:         client,
-		TemplateID:     r.Config.TemplateID,
-		Image:          r.Config.Image,
-		Namespace:      r.Config.NamespaceOrDefault(),
-		RuntimeClass:   r.Config.RuntimeClass,
-		RequestCPU:     axernsdk.ResourceQuantity(r.Config.RequestCPU),
-		RequestMemory:  axernsdk.ResourceQuantity(r.Config.RequestMemory),
-		LimitCPU:       axernsdk.ResourceQuantity(r.Config.LimitCPU),
-		LimitMemory:    axernsdk.ResourceQuantity(r.Config.LimitMemory),
-		ImageMounts:    cloneImageMounts(r.Config.ImageMounts),
-		WorkspaceImage: r.Config.WorkspaceImage,
+		Client:        client,
+		TemplateID:    r.Config.TemplateID,
+		Image:         r.Config.Image,
+		Namespace:     r.Config.NamespaceOrDefault(),
+		RuntimeClass:  r.Config.RuntimeClass,
+		RequestCPU:    axernsdk.ResourceQuantity(r.Config.RequestCPU),
+		RequestMemory: axernsdk.ResourceQuantity(r.Config.RequestMemory),
+		LimitCPU:      axernsdk.ResourceQuantity(r.Config.LimitCPU),
+		LimitMemory:   axernsdk.ResourceQuantity(r.Config.LimitMemory),
+		ImageMounts:   cloneImageMounts(r.Config.ImageMounts),
 	})
 	if err != nil {
 		_ = client.Close()
@@ -172,14 +171,6 @@ func (i instance) UploadDir(ctx context.Context, localPath string, remotePath st
 	return nil
 }
 
-func (i instance) MaterializeTaskAssets(ctx context.Context, sourcePath, target string, kind sandbox.TaskAssetKind) error {
-	sdkKind := axernsdk.TaskAssetKindVerifier
-	if kind == sandbox.TaskAssetKindOracle {
-		sdkKind = axernsdk.TaskAssetKindOracle
-	}
-	return i.sandbox.MaterializeTaskAssets(ctx, sourcePath, target, sdkKind)
-}
-
 func (i instance) PathExists(ctx context.Context, path string) (bool, error) {
 	return i.sandbox.Exists(ctx, path)
 }
@@ -228,23 +219,13 @@ func (i instance) State() (sandbox.State, error) {
 	if err != nil {
 		return sandbox.State{}, err
 	}
-	out := sandbox.State{
-		EnvironmentID:         state.EnvironmentID,
-		RunID:                 state.RunID,
-		AllocationID:          state.AllocationID,
-		NodeID:                state.NodeID,
-		RuntimeClass:          i.runtimeClass,
-		VerifierMaterializeMs: state.VerifierMaterializeMs,
-	}
-	if preparation := state.WorkspacePreparation; preparation != nil {
-		out.PayloadFormat = preparation.GetPayloadFormat()
-		out.PayloadDigest = preparation.GetPayloadDigest()
-		out.CacheHit = preparation.GetCacheHit()
-		out.ImageResolveMs = preparation.GetImageResolveMs()
-		out.ImagePullMs = preparation.GetImagePullMs()
-		out.CowPrepareMs = preparation.GetCowPrepareMs()
-	}
-	return out, nil
+	return sandbox.State{
+		EnvironmentID: state.EnvironmentID,
+		RunID:         state.RunID,
+		AllocationID:  state.AllocationID,
+		NodeID:        state.NodeID,
+		RuntimeClass:  i.runtimeClass,
+	}, nil
 }
 
 func (i instance) Close(ctx context.Context) error {

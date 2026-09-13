@@ -120,7 +120,7 @@ func (s Service) create(params Params) (Result, error) {
 		return Result{}, err
 	}
 	rolloutRun = result.RolloutRun
-	captured, err := store.CaptureInputs(result, rolloutRun.Input, tasks, &prepared.TaskSet)
+	captured, err := store.CaptureInputs(runContext(params), result, rolloutRun.Input, tasks, &prepared.TaskSet)
 	if err != nil {
 		reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 		return Result{}, err

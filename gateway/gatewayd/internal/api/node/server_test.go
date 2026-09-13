@@ -68,31 +68,6 @@ func TestReadOutputUsesRunOutputAccessPurpose(t *testing.T) {
 	}
 }
 
-func TestMaterializeTaskAssetsResolvesInjectsLeaseAndForwards(t *testing.T) {
-	h := newHarness(t)
-	defer h.Close()
-
-	_, err := h.edge.MaterializeTaskAssets(context.Background(), &nodesandboxv1.MaterializeTaskAssetsRequest{
-		AllocationID: "alloc-public",
-		SourcePath:   "tasks/example/verifier/check.sh",
-		Target:       "/workspace/.axrun/verifier/check.sh",
-		Kind:         nodesandboxv1.TaskAssetKind_TASK_ASSET_KIND_VERIFIER,
-	})
-	if err != nil {
-		t.Fatalf("MaterializeTaskAssets returned error: %v", err)
-	}
-	req := h.backend.materializeTaskAssets
-	if req == nil {
-		t.Fatal("backend did not receive materialize request")
-	}
-	if req.GetAllocationID() != "alloc-public" || req.GetExecutionLeaseToken() != "lease-token" {
-		t.Fatalf("backend auth fields = allocation %q token %q", req.GetAllocationID(), req.GetExecutionLeaseToken())
-	}
-	if req.GetSourcePath() != "tasks/example/verifier/check.sh" || req.GetTarget() != "/workspace/.axrun/verifier/check.sh" {
-		t.Fatalf("backend materialize request = %#v", req)
-	}
-}
-
 func TestProcessBridgesFirstOpenWithInjectedLease(t *testing.T) {
 	h := newHarness(t)
 	defer h.Close()
@@ -567,7 +542,6 @@ type fakeBackend struct {
 	nodesandboxv1.UnimplementedNodeSandboxServer
 
 	exec                           *nodesandboxv1.ExecRequest
-	materializeTaskAssets          *nodesandboxv1.MaterializeTaskAssetsRequest
 	processOpen                    *nodesandboxv1.ProcessOpen
 	failProcessReadyOnce           bool
 	failExecStreamLeaseOnce        bool
@@ -599,11 +573,6 @@ func (b *fakeBackend) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream no
 		NextCursor: "cursor-1",
 		Terminal:   true,
 	})
-}
-
-func (b *fakeBackend) MaterializeTaskAssets(_ context.Context, req *nodesandboxv1.MaterializeTaskAssetsRequest) (*nodesandboxv1.MaterializeTaskAssetsResponse, error) {
-	b.materializeTaskAssets = req
-	return &nodesandboxv1.MaterializeTaskAssetsResponse{}, nil
 }
 
 func (b *fakeBackend) ExecStream(stream nodesandboxv1.NodeSandbox_ExecStreamServer) error {

@@ -118,7 +118,7 @@ func TestExecuteAddsLLMTelemetrySummarySteps(t *testing.T) {
 		Summary:          "agent done",
 		LauncherKind:     domain.AgentLauncherKindAgentImage,
 		RuntimeType:      domain.AgentRuntimeTypeAgentImage,
-		RuntimeImage:     "axern/claude-code-bundle:dev",
+		RuntimeImage:     "example.com/claude-code-agent:dev",
 		RuntimeProfile:   "deepseek",
 		RawLogRef:        "episodes/episode_test-run_smoke-task_1/artifacts/agent.raw.jsonl",
 		LLMRequestCount:  1,
@@ -154,7 +154,7 @@ func TestExecuteAddsLLMTelemetrySummarySteps(t *testing.T) {
 		if step.Type == domain.TrajectoryEventAgentFinished {
 			if step.Metadata["launcher_kind"] != string(domain.AgentLauncherKindAgentImage) ||
 				step.Metadata["runtime_type"] != string(domain.AgentRuntimeTypeAgentImage) ||
-				step.Metadata["runtime_image"] != "axern/claude-code-bundle:dev" ||
+				step.Metadata["runtime_image"] != "example.com/claude-code-agent:dev" ||
 				step.Metadata["runtime_profile"] != "deepseek" {
 				t.Fatalf("agent finished metadata = %#v", step.Metadata)
 			}

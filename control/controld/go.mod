@@ -4,8 +4,6 @@ go 1.25.12
 
 replace github.com/cofy-x/axern/sdk/go => ../../sdk/go
 
-replace github.com/cofy-x/axern/lib/go/agentbundle => ../../lib/go/agentbundle
-
 replace github.com/cofy-x/axern/lib/go/nodecapability => ../../lib/go/nodecapability
 
 replace github.com/cofy-x/axern/lib/go/memorybudget => ../../lib/go/memorybudget
@@ -13,7 +11,6 @@ replace github.com/cofy-x/axern/lib/go/memorybudget => ../../lib/go/memorybudget
 replace github.com/cofy-x/axern/lib/go/networkpolicy => ../../lib/go/networkpolicy
 
 require (
-	github.com/cofy-x/axern/lib/go/agentbundle v0.0.0
 	github.com/cofy-x/axern/lib/go/imageref v0.0.0
 	github.com/cofy-x/axern/lib/go/memorybudget v0.0.0
 	github.com/cofy-x/axern/lib/go/networkpolicy v0.0.0

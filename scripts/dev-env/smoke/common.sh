@@ -228,28 +228,6 @@ if missing:
 ' <<<"${catalog_json}"
 }
 
-local_smoke_assert_default_agent_bundles() {
-  local catalog_json="$1"
-  python3 -c '
-import json
-import sys
-
-payload = json.load(sys.stdin)
-required = {"claude-code", "codex"}
-ids = {item.get("id") for item in payload.get("agent_bundles", [])}
-missing = sorted(required - ids)
-if missing:
-    print(
-        "agent bundle catalog missing bundles: "
-        + ", ".join(missing)
-        + "; got: "
-        + ", ".join(sorted(item for item in ids if item)),
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
-' <<<"${catalog_json}"
-}
-
 local_smoke_wait_for_run_status() {
   local run_id="$1"
   local expected_status="$2"

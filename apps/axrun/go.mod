@@ -6,13 +6,7 @@ replace github.com/cofy-x/axern/sdk/go => ../../sdk/go
 
 replace github.com/cofy-x/axern/lib/go/llmproxy => ../../lib/go/llmproxy
 
-replace github.com/cofy-x/axern/lib/go/agentprofile => ../../lib/go/agentprofile
-
-replace github.com/cofy-x/axern/lib/go/agentbundle => ../../lib/go/agentbundle
-
 require (
-	github.com/cofy-x/axern/lib/go/agentbundle v0.0.0
-	github.com/cofy-x/axern/lib/go/agentprofile v0.0.0
 	github.com/cofy-x/axern/lib/go/llmproxy v0.0.0
 	github.com/cofy-x/axern/sdk/go v0.0.0
 	github.com/google/go-containerregistry v0.20.7

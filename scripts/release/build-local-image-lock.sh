@@ -35,8 +35,6 @@ declare -A internal=(
   [SERVER_BASE_RUNTIME_IMAGE]=server-base-runtime
   [CODING_BASE_RUNTIME_IMAGE]=coding-base-runtime
   [DESKTOP_BASE_RUNTIME_IMAGE]=desktop-base-runtime
-  [CLAUDE_CODE_BUNDLE_IMAGE]=claude-code-bundle
-  [CODEX_BUNDLE_IMAGE]=codex-bundle
 )
 for key in "${!internal[@]}"; do
   name="${internal[${key}]}"

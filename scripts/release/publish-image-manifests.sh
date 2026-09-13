@@ -13,8 +13,6 @@ declare -A lock_keys=(
   [server-base-runtime]=SERVER_BASE_RUNTIME_IMAGE
   [coding-base-runtime]=CODING_BASE_RUNTIME_IMAGE
   [desktop-base-runtime]=DESKTOP_BASE_RUNTIME_IMAGE
-  [claude-code-bundle]=CLAUDE_CODE_BUNDLE_IMAGE
-  [codex-bundle]=CODEX_BUNDLE_IMAGE
 )
 for image in "${!lock_keys[@]}"; do
   target="${AXERN_RELEASE_REGISTRY}/${image}:${tag}"

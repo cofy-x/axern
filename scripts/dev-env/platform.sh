@@ -93,8 +93,6 @@ PYTHON311_RUNTIME_IMAGE=${PYTHON311_RUNTIME_IMAGE}
 SERVER_BASE_RUNTIME_IMAGE=${SERVER_BASE_RUNTIME_IMAGE}
 CODING_BASE_RUNTIME_IMAGE=${CODING_BASE_RUNTIME_IMAGE}
 DESKTOP_BASE_RUNTIME_IMAGE=${DESKTOP_BASE_RUNTIME_IMAGE}
-CLAUDE_CODE_BUNDLE_IMAGE=${CLAUDE_CODE_BUNDLE_IMAGE}
-CODEX_BUNDLE_IMAGE=${CODEX_BUNDLE_IMAGE}
 OTEL_COLLECTOR_IMAGE=${OTEL_COLLECTOR_IMAGE}
 OTEL_LGTM_IMAGE=${OTEL_LGTM_IMAGE}
 AXERN_SECRETS_MASTER_KEY=${secrets_master_key}
@@ -370,10 +368,8 @@ ensure_k8s_images_loaded() {
   load_image_to_cluster "${NODE_ALL_IN_ONE_IMAGE}"
   load_image_to_cluster "${PYTHON311_RUNTIME_IMAGE}"
   load_image_to_cluster "${SERVER_BASE_RUNTIME_IMAGE}"
-  load_image_to_cluster "${CODING_BASE_RUNTIME_IMAGE}"
-  load_image_to_cluster "${DESKTOP_BASE_RUNTIME_IMAGE}"
-  load_image_to_cluster "${CLAUDE_CODE_BUNDLE_IMAGE}"
-  load_image_to_cluster "${CODEX_BUNDLE_IMAGE}"
+	load_image_to_cluster "${CODING_BASE_RUNTIME_IMAGE}"
+	load_image_to_cluster "${DESKTOP_BASE_RUNTIME_IMAGE}"
   if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
     ensure_host_image "${OTEL_COLLECTOR_IMAGE}"
     ensure_host_image "${OTEL_LGTM_IMAGE}"

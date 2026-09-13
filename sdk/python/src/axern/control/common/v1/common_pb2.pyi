@@ -214,42 +214,8 @@ class ImageMount(_message.Message):
     readonly: bool
     def __init__(self, image: _Optional[str] = ..., target: _Optional[str] = ..., readonly: _Optional[bool] = ...) -> None: ...
 
-class WorkspaceImageVariant(_message.Message):
-    __slots__ = ("format", "image")
-    FORMAT_FIELD_NUMBER: _ClassVar[int]
-    IMAGE_FIELD_NUMBER: _ClassVar[int]
-    format: str
-    image: str
-    def __init__(self, format: _Optional[str] = ..., image: _Optional[str] = ...) -> None: ...
-
-class WorkspaceImageSource(_message.Message):
-    __slots__ = ("variants", "source_path", "target")
-    VARIANTS_FIELD_NUMBER: _ClassVar[int]
-    SOURCE_PATH_FIELD_NUMBER: _ClassVar[int]
-    TARGET_FIELD_NUMBER: _ClassVar[int]
-    variants: _containers.RepeatedCompositeFieldContainer[WorkspaceImageVariant]
-    source_path: str
-    target: str
-    def __init__(self, variants: _Optional[_Iterable[_Union[WorkspaceImageVariant, _Mapping]]] = ..., source_path: _Optional[str] = ..., target: _Optional[str] = ...) -> None: ...
-
-class WorkspacePreparationFacts(_message.Message):
-    __slots__ = ("payload_format", "payload_digest", "cache_hit", "image_resolve_ms", "image_pull_ms", "cow_prepare_ms")
-    PAYLOAD_FORMAT_FIELD_NUMBER: _ClassVar[int]
-    PAYLOAD_DIGEST_FIELD_NUMBER: _ClassVar[int]
-    CACHE_HIT_FIELD_NUMBER: _ClassVar[int]
-    IMAGE_RESOLVE_MS_FIELD_NUMBER: _ClassVar[int]
-    IMAGE_PULL_MS_FIELD_NUMBER: _ClassVar[int]
-    COW_PREPARE_MS_FIELD_NUMBER: _ClassVar[int]
-    payload_format: str
-    payload_digest: str
-    cache_hit: bool
-    image_resolve_ms: int
-    image_pull_ms: int
-    cow_prepare_ms: int
-    def __init__(self, payload_format: _Optional[str] = ..., payload_digest: _Optional[str] = ..., cache_hit: _Optional[bool] = ..., image_resolve_ms: _Optional[int] = ..., image_pull_ms: _Optional[int] = ..., cow_prepare_ms: _Optional[int] = ...) -> None: ...
-
 class ExecutionConfig(_message.Message):
-    __slots__ = ("argv", "env", "cwd", "resources", "ports", "network", "extension_capability_requirements", "placement", "secret_env", "secret_files", "runtime_class", "image_mounts", "workspace_image")
+    __slots__ = ("argv", "env", "cwd", "resources", "ports", "network", "extension_capability_requirements", "placement", "secret_env", "secret_files", "runtime_class", "image_mounts")
     class EnvEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -269,7 +235,6 @@ class ExecutionConfig(_message.Message):
     SECRET_FILES_FIELD_NUMBER: _ClassVar[int]
     RUNTIME_CLASS_FIELD_NUMBER: _ClassVar[int]
     IMAGE_MOUNTS_FIELD_NUMBER: _ClassVar[int]
-    WORKSPACE_IMAGE_FIELD_NUMBER: _ClassVar[int]
     argv: _containers.RepeatedScalarFieldContainer[str]
     env: _containers.ScalarMap[str, str]
     cwd: str
@@ -282,8 +247,7 @@ class ExecutionConfig(_message.Message):
     secret_files: _containers.RepeatedCompositeFieldContainer[SecretFile]
     runtime_class: str
     image_mounts: _containers.RepeatedCompositeFieldContainer[ImageMount]
-    workspace_image: WorkspaceImageSource
-    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., ports: _Optional[_Iterable[_Union[PortSpec, _Mapping]]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., runtime_class: _Optional[str] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ..., workspace_image: _Optional[_Union[WorkspaceImageSource, _Mapping]] = ...) -> None: ...
+    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., ports: _Optional[_Iterable[_Union[PortSpec, _Mapping]]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., runtime_class: _Optional[str] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ...) -> None: ...
 
 class ExecutionLease(_message.Message):
     __slots__ = ("lease_id", "allocation_id", "node_id", "lease_type", "plaintext_token", "revision", "expires_at", "revoked", "node_target", "validation_token_hash")

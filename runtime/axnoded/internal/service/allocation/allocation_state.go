@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -25,7 +23,6 @@ type allocationState struct {
 	record          *apipb.AllocationState
 	runtime         *langruntime.LanguageRuntime
 	imageMountRoots []*langruntime.RootFS
-	workspace       workspaceImageRecord
 }
 
 type CapabilityConditionManifest struct {
@@ -53,7 +50,7 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && record.GetWorkspaceImageUrl() == "" && len(record.GetCapabilityDependencies()) == 0 && record.GetCapabilityConditions() == nil && record.GetCapabilityAdmissionConditions() == nil && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
+	return record == nil || (record.GetRuntimeTemplate() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityDependencies()) == 0 && record.GetCapabilityConditions() == nil && record.GetCapabilityAdmissionConditions() == nil && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
 }
 
 func (h *Controller) HasAllocation(allocationID string) bool {
@@ -811,80 +808,12 @@ func (h *Controller) forgetImageMountRoots(allocationID string) {
 	if state != nil {
 		state.record = desired
 		state.imageMountRoots = nil
-		if allocationRecordEmpty(state.record) && state.workspace.cleanup == nil && state.runtime == nil {
+		if allocationRecordEmpty(state.record) && state.runtime == nil {
 			delete(h.allocationStates, allocationID)
 		}
 	}
 	h.stateMu.Unlock()
 	releaseImageMountRoots(roots)
-}
-
-func (h *Controller) rememberWorkspaceImage(allocationID string, workspace workspaceImageRecord) {
-	h.stateMu.Lock()
-	state := h.stateLocked(allocationID)
-	previous := state.workspace
-	state.workspace = workspace
-	h.stateMu.Unlock()
-	if previous.cleanup != nil {
-		previous.cleanup()
-	}
-}
-
-func (h *Controller) rememberWorkspaceImageSpec(allocationID, imageURL, sourcePath, target string) error {
-	allocationID = strings.TrimSpace(allocationID)
-	if allocationID == "" {
-		return errors.New("allocation id is required")
-	}
-	unlock := h.recordMutationLocks.Lock(allocationID)
-	defer unlock()
-	h.stateMu.Lock()
-	state := h.stateLocked(allocationID)
-	state.record.WorkspaceImageUrl = strings.TrimSpace(imageURL)
-	state.record.WorkspaceSourcePath = strings.TrimSpace(sourcePath)
-	state.record.WorkspaceTarget = strings.TrimSpace(target)
-	h.stateMu.Unlock()
-	return nil
-}
-
-func (h *Controller) forgetWorkspaceImage(allocationID string) {
-	allocationID = strings.TrimSpace(allocationID)
-	if allocationID == "" {
-		return
-	}
-	unlock := h.recordMutationLocks.Lock(allocationID)
-	defer unlock()
-	h.stateMu.RLock()
-	state := h.allocationStates[allocationID]
-	if state == nil {
-		h.stateMu.RUnlock()
-		return
-	}
-	desired := cloneAllocationRecord(state.record)
-	workspace := state.workspace
-	committed := state.runtime != nil
-	h.stateMu.RUnlock()
-	desired.WorkspaceImageUrl = ""
-	desired.WorkspaceSourcePath = ""
-	desired.WorkspaceTarget = ""
-	if committed {
-		if err := h.persistAllocationRecord(desired); err != nil {
-			logrus.WithError(err).WithField("allocation_id", allocationID).Warn("persist released workspace image ownership")
-			return
-		}
-	}
-	h.stateMu.Lock()
-	state = h.allocationStates[allocationID]
-	if state != nil {
-		state.record = desired
-		state.workspace = workspaceImageRecord{}
-		if allocationRecordEmpty(state.record) && len(state.imageMountRoots) == 0 && state.runtime == nil {
-			delete(h.allocationStates, allocationID)
-		}
-	}
-	h.stateMu.Unlock()
-	if workspace.cleanup != nil {
-		workspace.cleanup()
-	}
 }
 
 func (h *Controller) releaseAllocationState(allocationID string) error {
@@ -908,9 +837,6 @@ func (h *Controller) releaseAllocationState(allocationID string) error {
 		state.runtime.DecRef()
 	}
 	releaseImageMountRoots(state.imageMountRoots)
-	if state.workspace.cleanup != nil {
-		state.workspace.cleanup()
-	}
 	return nil
 }
 
@@ -1117,43 +1043,6 @@ func (h *Controller) restoreAllocationImages(record *apipb.AllocationState, stat
 			return err
 		}
 		state.imageMountRoots = append(state.imageMountRoots, rootfs)
-	}
-	if record.GetWorkspaceImageUrl() == "" {
-		return nil
-	}
-	if err := validateWorkspaceImage(&apipb.WorkspaceImageSource{
-		Variants:   []*apipb.WorkspaceImageVariant{{Format: "oci", Image: record.GetWorkspaceImageUrl()}},
-		SourcePath: record.GetWorkspaceSourcePath(),
-		Target:     record.GetWorkspaceTarget(),
-	}); err != nil {
-		return err
-	}
-	rootfs, err := h.acquireRecoveredImageRoot(record.GetWorkspaceImageUrl())
-	if err != nil {
-		return err
-	}
-	workspaceRoot := filepath.Join(h.config.RuntimeConfig.FilestoreDir, workspaceViewsDir, record.GetAllocationID())
-	lower, err := workspaceLowerPath(rootfs.Path(), record.GetWorkspaceSourcePath())
-	if err != nil {
-		state.imageMountRoots = append(state.imageMountRoots, rootfs)
-		return err
-	}
-	merged, err := restoreWorkspaceCOW(workspaceRoot, lower)
-	if err != nil {
-		state.imageMountRoots = append(state.imageMountRoots, rootfs)
-		return err
-	}
-	state.workspace = workspaceImageRecord{
-		payloadRoot: rootfs.Path(),
-		taskRoot:    strings.TrimSuffix(path.Clean(record.GetWorkspaceSourcePath()), "/workspace"),
-		merged:      merged,
-		target:      record.GetWorkspaceTarget(),
-		cleanup: func() {
-			if err := cleanupWorkspaceCOW(workspaceRoot); err != nil {
-				logrus.WithError(err).Warn("cleanup recovered workspace view")
-			}
-			rootfs.ReleaseActiveRef()
-		},
 	}
 	return nil
 }

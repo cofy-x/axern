@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/cofy-x/axern/apps/axrun/internal/agent"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
-	"github.com/cofy-x/axern/lib/go/agentprofile"
 )
 
 func (h *Harness) ProbeProvider(ctx context.Context, agentSpec domain.AgentSpec, model domain.ModelSpec) (agentprofile.ProbeResult, error) {

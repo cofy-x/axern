@@ -28,7 +28,7 @@ export function loadAxernEnv(overrides: Partial<AxernConfig> = {}): AxernConfig 
 
 export function loadAxernContext(path: string, name = ""): AxernConfig {
   const file = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-  rejectUnknown(file, ["current_context", "contexts", "agent_profiles"], "config");
+  rejectUnknown(file, ["current_context", "contexts"], "config");
   const contextName = name || stringValue(file.current_context);
   if (!contextName) throw new Error("Axern context name is required");
   const contexts = objectValue(file.contexts, "contexts");

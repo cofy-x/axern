@@ -84,34 +84,6 @@ message ImageMount {
   bool readonly = 3;
 }
 
-message WorkspaceImageVariant {
-  string format = 1;
-  string image = 2;
-}
-
-message WorkspaceImageSource {
-  repeated WorkspaceImageVariant variants = 1;
-  string source_path = 2;
-  string target = 3;
-}
-
-enum TaskAssetKind {
-  TASK_ASSET_KIND_UNSPECIFIED = 0;
-  TASK_ASSET_KIND_VERIFIER = 1;
-  TASK_ASSET_KIND_ORACLE = 2;
-}
-
-message MaterializeTaskAssetsRequest {
-  string ID = 1;
-  string source_path = 2;
-  string target = 3;
-  TaskAssetKind kind = 4;
-}
-
-message MaterializeTaskAssetsResponse {
-  int64 duration_ms = 1;
-}
-
 message RuntimeTemplate {
   string ID = 1;
   string sandbox = 2;
@@ -127,20 +99,17 @@ message AllocationState {
   string allocationID = 1;
   RuntimeTemplate runtime_template = 2;
   repeated string image_mount_urls = 3;
-  string workspace_image_url = 4;
-  string workspace_source_path = 5;
-  string workspace_target = 6;
-  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 7;
-  axern.control.capability.v1.CapabilityConditionSet capability_conditions = 8;
-  AllocationEnforcementManifest enforcement_manifest = 9;
-  AllocationCapabilityReconcileState capability_reconcile = 10;
-  AllocationLaunchVerification launch_verification = 11;
+  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 4;
+  axern.control.capability.v1.CapabilityConditionSet capability_conditions = 5;
+  AllocationEnforcementManifest enforcement_manifest = 6;
+  AllocationCapabilityReconcileState capability_reconcile = 7;
+  AllocationLaunchVerification launch_verification = 8;
   // Canonical digest of the behaviorally relevant StartRequest. It fences
   // idempotent retries from mutating a running allocation's contract.
-  string allocation_request_digest = 12;
+  string allocation_request_digest = 9;
   // Immutable post-create condition proof returned by idempotent Create
   // replays. capability_conditions remains the current runtime projection.
-  axern.control.capability.v1.CapabilityConditionSet capability_admission_conditions = 13;
+  axern.control.capability.v1.CapabilityConditionSet capability_admission_conditions = 10;
 }
 
 // ControlPlaneAllocationBinding is the sole node-local proof that controld

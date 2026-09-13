@@ -29,9 +29,6 @@ func TestLoadMigrations(t *testing.T) {
 		if migration.Version != int64(index+1) {
 			t.Fatalf("migration[%d].Version = %d, want %d", index, migration.Version, index+1)
 		}
-		if strings.Contains(strings.ToLower(migration.SQL), "create table invokes") {
-			t.Fatalf("migration %d still creates removed invokes table", migration.Version)
-		}
 	}
 }
 

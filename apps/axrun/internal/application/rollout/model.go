@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cofy-x/axern/apps/axrun/internal/agentbundle"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentimage"
 	"github.com/cofy-x/axern/apps/axrun/internal/application/agentcatalog"
 	rolloutagents "github.com/cofy-x/axern/apps/axrun/internal/application/rollout/agents"
 	rolloutclaudecode "github.com/cofy-x/axern/apps/axrun/internal/application/rollout/agents/claudecode"
@@ -64,10 +64,10 @@ func finalizeAgentRuntimeMetadata(spec domain.AgentSpec) domain.AgentSpec {
 		return spec
 	}
 	if spec.Runtime.MountTarget == "" {
-		spec.Runtime.MountTarget = agentbundle.MountTarget(spec.Name)
+		spec.Runtime.MountTarget = agentimage.MountTarget(spec.Name)
 	}
 	if spec.Runtime.BinDir == "" {
-		spec.Runtime.BinDir = agentbundle.BinDir(spec.Runtime.MountTarget)
+		spec.Runtime.BinDir = agentimage.BinDir(spec.Runtime.MountTarget)
 	}
 	return spec
 }

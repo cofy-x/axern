@@ -6,10 +6,10 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 	"github.com/cofy-x/axern/apps/axrun/internal/proxy"
 	"github.com/cofy-x/axern/apps/axrun/internal/sandbox"
-	"github.com/cofy-x/axern/lib/go/agentprofile"
 )
 
 type Harness interface {

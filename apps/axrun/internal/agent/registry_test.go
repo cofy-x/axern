@@ -260,7 +260,7 @@ func TestRegistryValidateSelection(t *testing.T) {
 		Name:        "claude-code",
 		RuntimeType: domain.AgentRuntimeTypeAgentImage,
 		BackendName: "axern",
-		Image:       "axern/claude-code-bundle:dev",
+		Image:       "example.com/claude-code-agent:dev",
 		Profile:     "deepseek",
 	}); err != nil {
 		t.Fatalf("ValidateSelection agent-image failed: %v", err)
@@ -271,7 +271,7 @@ func TestRegistryValidateSelection(t *testing.T) {
 		BackendName: "axern",
 		Profile:     "deepseek",
 	}); err == nil {
-		t.Fatal("ValidateSelection should fail when agent bundle image is missing")
+		t.Fatal("ValidateSelection should fail when agent image is missing")
 	}
 	if err := r.ValidateSelection(Selection{
 		Name:        "claude-code",
@@ -284,7 +284,7 @@ func TestRegistryValidateSelection(t *testing.T) {
 		Name:        "claude-code",
 		RuntimeType: domain.AgentRuntimeTypeAgentImage,
 		BackendName: "axern",
-		Image:       "axern/claude-code-bundle:dev",
+		Image:       "example.com/claude-code-agent:dev",
 	}); err == nil {
 		t.Fatal("ValidateSelection should fail when profile is missing")
 	}

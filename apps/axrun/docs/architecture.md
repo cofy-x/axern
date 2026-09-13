@@ -7,18 +7,19 @@ TaskSetBuild
   -> Kova HTTP build (OCI + Nydus)
   -> immutable descriptor artifact
   -> frozen RolloutPlan
-  -> Axern WorkspaceImageSource
-  -> node-local COW workspace
-  -> phase-gated verifier/oracle materialization
+  -> Axrun OCI payload capture
+  -> allocation-local Archive upload
+  -> runsc sandbox
 ```
 
 ## Ownership
 
 - Axrun owns TaskSet semantics, compilation, descriptor publication, selection, rollout planning, evidence, resume, and export.
 - Kova owns distributed BuildKit execution, registry push, Nydus conversion, typed build results, and optional Dragonfly preheat.
-- Axern owns payload variant selection, imagefs/Nydus resolution, active cache references, allocation-local overlay COW, sandbox lifecycle, and protected asset materialization.
+- Axrun owns payload selection, immutable OCI download, safe extraction, and local run-input capture.
+- Axern owns sandbox lifecycle and allocation-local file/archive transfer without understanding TaskSet, verifier, or oracle semantics.
 
-The mounted agent image remains an independent read-only `ImageMount`. A task rootfs, agent bundle, and TaskSet workspace are three distinct resources.
+The caller-supplied agent image remains an independent read-only `ImageMount`. The task rootfs and captured input directory are separate execution inputs, not durable Axern product objects.
 
 ## Platform boundary
 
@@ -30,10 +31,8 @@ The compiler rejects unknown fields, empty globs, escaping paths, symlinks, hard
 
 The published descriptor is an image manifest with exactly one logical `application/vnd.axrun.taskset.v1+json` descriptor. Axrun accepts its native OCI envelope and the Docker schema 2 envelope produced by registries that normalize OCI artifacts. A normalized Docker layer must be a bounded tar containing only the regular file `descriptor.json`; indexes, manifest lists, additional files, and all other layer types are rejected before the strict descriptor contract check.
 
-Planning accepts a local bundle or an immutable OCI descriptor reference. Run inputs store the descriptor and digest references, not the original source tree. Remote episodes carry ordered Nydus/OCI variants and a task workspace subpath. No client workspace archive is uploaded for this path.
-
-The node returns typed `WorkspacePreparationFacts` from allocation creation. Controld stores them on the Allocation and projects them through the owning Run; the SDK carries them into sandbox state. Verifier materialization returns its node-observed duration directly. Axrun combines those values with allocation identity, runtime class, and the frozen agent bundle digest in terminal episode execution facts. Logs are observability, not the source of truth for this contract.
+Planning accepts a local bundle or an immutable OCI descriptor reference. Before execution, Axrun pulls the required OCI payload, rejects unsafe archive entries, resolves the selected task paths, and copies the workspace, verifier, and oracle inputs into the local run directory. Resume reads only that frozen local state. Axern receives generic archive uploads and returns allocation identity and runtime state; it does not persist TaskSet-specific preparation facts.
 
 ## Security phases
 
-The initial workspace exposes only `tasks/<id>/workspace`. The node retains the payload image reference but does not expose verifier or oracle prefixes. After the agent phase, Axrun calls the lease-authenticated materialization API for verifier assets. Oracle materialization requires the oracle harness and the task's explicit `oracle_assets` capability. Source and target paths are checked against the allocation's task prefix and COW workspace; links and overwrites are rejected.
+Axrun captures verifier and oracle inputs separately from the initial workspace. It uploads the workspace before the agent phase and uploads verifier or oracle files only when their owning phase needs them. TaskSet build and capture reject escaping paths and linked inputs; Axern's lease-authenticated generic file/archive APIs enforce the Allocation boundary.

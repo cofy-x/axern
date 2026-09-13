@@ -72,18 +72,18 @@ func DefaultPath() string {
 	if err != nil || home == "" {
 		return "config.json"
 	}
-	return filepath.Join(home, ".config", "axern", "config.json")
+	return filepath.Join(home, ".config", "axrun", "config.json")
 }
 
 func Load(path string) (*ConfigFile, string, error) {
 	path = ResolvePath(path)
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, path, fmt.Errorf("read axern config: %w", err)
+		return nil, path, fmt.Errorf("read axrun config: %w", err)
 	}
 	cfg := &ConfigFile{}
 	if err := json.Unmarshal(data, cfg); err != nil {
-		return nil, path, fmt.Errorf("parse axern config %q: %w", path, err)
+		return nil, path, fmt.Errorf("parse axrun config %q: %w", path, err)
 	}
 	Ensure(cfg)
 	return cfg, path, nil
@@ -282,7 +282,7 @@ func ResolvePath(path string) string {
 	if strings.TrimSpace(path) != "" {
 		return strings.TrimSpace(path)
 	}
-	if env := strings.TrimSpace(os.Getenv("AXERN_CONFIG")); env != "" {
+	if env := strings.TrimSpace(os.Getenv("AXRUN_CONFIG")); env != "" {
 		return env
 	}
 	return DefaultPath()

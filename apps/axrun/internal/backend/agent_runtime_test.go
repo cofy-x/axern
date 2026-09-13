@@ -11,7 +11,7 @@ func TestValidateAgentRuntimeSupportRejectsLocalAgentImage(t *testing.T) {
 	err := ValidateAgentRuntimeSupport(string(NameLocal), domain.AgentSpec{
 		Runtime: &domain.AgentRuntimeSpec{
 			Type:    domain.AgentRuntimeTypeAgentImage,
-			Image:   "axern/claude-code-bundle:dev",
+			Image:   "example.com/claude-code-agent:dev",
 			Profile: "deepseek",
 		},
 	})
@@ -46,7 +46,7 @@ func TestValidateAgentRuntimeSupportAcceptsAxernBackendAgentImage(t *testing.T) 
 	if err := ValidateAgentRuntimeSupport(string(NameAxern), domain.AgentSpec{
 		Runtime: &domain.AgentRuntimeSpec{
 			Type:    domain.AgentRuntimeTypeAgentImage,
-			Image:   "axern/claude-code-bundle:dev",
+			Image:   "example.com/claude-code-agent:dev",
 			Profile: "deepseek",
 		},
 	}); err != nil {
@@ -58,7 +58,7 @@ func TestValidateAgentRuntimeSupportRejectsAxernAgentImageWithoutImage(t *testin
 	err := ValidateAgentRuntimeSupport(string(NameAxern), domain.AgentSpec{
 		Runtime: &domain.AgentRuntimeSpec{Type: domain.AgentRuntimeTypeAgentImage},
 	})
-	if err == nil || !strings.Contains(err.Error(), "requires agent bundle image") {
-		t.Fatalf("ValidateAgentRuntimeSupport error = %v, want missing bundle image error", err)
+	if err == nil || !strings.Contains(err.Error(), "requires agent image") {
+		t.Fatalf("ValidateAgentRuntimeSupport error = %v, want missing agent image error", err)
 	}
 }

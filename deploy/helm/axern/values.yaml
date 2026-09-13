@@ -204,8 +204,6 @@ runtimeCatalog:
   serverBaseImage: ghcr.io/cofy-x/axern/server-base-runtime:v0.6.2
   codingBaseImage: ghcr.io/cofy-x/axern/coding-base-runtime:v0.6.2
   desktopBaseImage: ghcr.io/cofy-x/axern/desktop-base-runtime:v0.6.2
-  claudeCodeBundleImage: ghcr.io/cofy-x/axern/claude-code-bundle:v0.6.2
-  codexBundleImage: ghcr.io/cofy-x/axern/codex-bundle:v0.6.2
 
 controld:
   replicas: 1

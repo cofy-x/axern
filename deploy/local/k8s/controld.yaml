@@ -46,10 +46,6 @@ spec:
               value: axern/coding-base-runtime:dev
             - name: AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE
               value: axern/desktop-base-runtime:dev
-            - name: AXERN_AGENT_BUNDLE_CLAUDE_CODE_IMAGE
-              value: axern/claude-code-bundle:dev
-            - name: AXERN_AGENT_BUNDLE_CODEX_IMAGE
-              value: axern/codex-bundle:dev
             - name: CONTROLD_TUNNEL_RELAYS
               value: default,127.0.0.1:25001,tunneld.axern-local.svc.cluster.local:24100,1,false
             - name: AXERN_SECRETS_MASTER_KEY

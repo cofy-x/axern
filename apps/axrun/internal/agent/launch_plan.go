@@ -6,29 +6,29 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cofy-x/axern/apps/axrun/internal/agentbundle"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentimage"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 	"github.com/cofy-x/axern/apps/axrun/internal/sandbox"
 )
 
 type LaunchPlan struct {
-	LauncherKind      domain.AgentLauncherKind
-	RuntimeType       domain.AgentRuntimeType
-	Image             string
-	BundleMountTarget string
-	Command           sandbox.ExecCommand
-	CWD               string
-	User              string
-	Timeout           time.Duration
-	Env               map[string]string
-	ManagedProxy      *sandbox.ManagedProxyOptions
-	Profile           string
-	SessionMode       domain.AgentSessionMode
-	SessionID         string
-	MaxTurns          int
-	OutputFormat      string
-	AllowedTools      []string
-	IdleTimeoutSec    int
+	LauncherKind     domain.AgentLauncherKind
+	RuntimeType      domain.AgentRuntimeType
+	Image            string
+	ImageMountTarget string
+	Command          sandbox.ExecCommand
+	CWD              string
+	User             string
+	Timeout          time.Duration
+	Env              map[string]string
+	ManagedProxy     *sandbox.ManagedProxyOptions
+	Profile          string
+	SessionMode      domain.AgentSessionMode
+	SessionID        string
+	MaxTurns         int
+	OutputFormat     string
+	AllowedTools     []string
+	IdleTimeoutSec   int
 }
 
 func (p LaunchPlan) Validate() error {
@@ -39,10 +39,10 @@ func (p LaunchPlan) Validate() error {
 		}
 	case domain.AgentLauncherKindAgentImage:
 		if p.Image == "" {
-			return fmt.Errorf("agent-image launcher requires bundle image")
+			return fmt.Errorf("agent-image launcher requires an image")
 		}
-		if !agentbundle.ValidMountTarget(p.BundleMountTarget) {
-			return fmt.Errorf("agent-image launcher requires bundle mount target")
+		if !agentimage.ValidMountTarget(p.ImageMountTarget) {
+			return fmt.Errorf("agent-image launcher requires an image mount target")
 		}
 		if err := p.Command.Validate(); err != nil {
 			return fmt.Errorf("agent launch command: %w", err)
@@ -101,13 +101,13 @@ func cloneManagedProxyOptions(options *sandbox.ManagedProxyOptions) *sandbox.Man
 	}
 }
 
-type MountedBundleLauncher struct{}
+type MountedAgentImageLauncher struct{}
 
-func (MountedBundleLauncher) Kind() domain.AgentLauncherKind {
+func (MountedAgentImageLauncher) Kind() domain.AgentLauncherKind {
 	return domain.AgentLauncherKindAgentImage
 }
 
-func (l MountedBundleLauncher) Launch(ctx context.Context, instance sandbox.Instance, plan LaunchPlan) (sandbox.ExecResult, error) {
+func (l MountedAgentImageLauncher) Launch(ctx context.Context, instance sandbox.Instance, plan LaunchPlan) (sandbox.ExecResult, error) {
 	if instance == nil {
 		return sandbox.ExecResult{}, fmt.Errorf("agent-image launcher sandbox is required")
 	}
@@ -117,19 +117,19 @@ func (l MountedBundleLauncher) Launch(ctx context.Context, instance sandbox.Inst
 	if err := l.selfCheck(ctx, instance, plan); err != nil {
 		return sandbox.ExecResult{}, err
 	}
-	command := commandWithBundlePath(plan.Command, AgentBundleBinDir(plan.BundleMountTarget))
-	return instance.Exec(ctx, command, plan.execOptionsWithBundleMount())
+	command := commandWithAgentImagePath(plan.Command, AgentImageBinDir(plan.ImageMountTarget))
+	return instance.Exec(ctx, command, plan.execOptionsWithAgentImageMount())
 }
 
-func (l MountedBundleLauncher) selfCheck(ctx context.Context, instance sandbox.Instance, plan LaunchPlan) error {
-	target := shellQuote(plan.BundleMountTarget)
-	binDir := shellQuote(AgentBundleBinDir(plan.BundleMountTarget))
+func (l MountedAgentImageLauncher) selfCheck(ctx context.Context, instance sandbox.Instance, plan LaunchPlan) error {
+	target := shellQuote(plan.ImageMountTarget)
+	binDir := shellQuote(AgentImageBinDir(plan.ImageMountTarget))
 	result, err := instance.Exec(ctx, sandbox.ShellCommand("test -d "+target+" && test -d "+binDir), plan.ExecOptions())
 	if err != nil {
-		return fmt.Errorf("agent bundle self-check failed: %w", err)
+		return fmt.Errorf("agent image self-check failed: %w", err)
 	}
 	if result.ExitCode != 0 {
-		return fmt.Errorf("agent bundle self-check exited with status %d: expected %s and %s to exist", result.ExitCode, plan.BundleMountTarget, AgentBundleBinDir(plan.BundleMountTarget))
+		return fmt.Errorf("agent image self-check exited with status %d: expected %s and %s to exist", result.ExitCode, plan.ImageMountTarget, AgentImageBinDir(plan.ImageMountTarget))
 	}
 	return nil
 }
@@ -145,32 +145,32 @@ func cloneEnv(env map[string]string) map[string]string {
 	return cloned
 }
 
-func AgentBundleMountTarget(agentName string) string {
-	return agentbundle.MountTarget(agentName)
+func AgentImageMountTarget(agentName string) string {
+	return agentimage.MountTarget(agentName)
 }
 
-func AgentBundleMountTargetForSpec(spec domain.AgentSpec) string {
-	return agentbundle.MountTargetForSpec(spec)
+func AgentImageMountTargetForSpec(spec domain.AgentSpec) string {
+	return agentimage.MountTargetForSpec(spec)
 }
 
-func AgentBundleBinDir(mountTarget string) string {
-	return agentbundle.BinDir(mountTarget)
+func AgentImageBinDir(mountTarget string) string {
+	return agentimage.BinDir(mountTarget)
 }
 
-func (p LaunchPlan) execOptionsWithBundleMount() sandbox.ExecOptions {
+func (p LaunchPlan) execOptionsWithAgentImageMount() sandbox.ExecOptions {
 	options := p.ExecOptions()
 	env := cloneEnv(options.Env)
 	if env == nil {
 		env = map[string]string{}
 	}
-	if strings.TrimSpace(env["AXRUN_AGENT_BUNDLE_MOUNT_TARGET"]) == "" {
-		env["AXRUN_AGENT_BUNDLE_MOUNT_TARGET"] = p.BundleMountTarget
+	if strings.TrimSpace(env["AXRUN_AGENT_IMAGE_MOUNT_TARGET"]) == "" {
+		env["AXRUN_AGENT_IMAGE_MOUNT_TARGET"] = p.ImageMountTarget
 	}
 	options.Env = env
 	return options
 }
 
-func commandWithBundlePath(command sandbox.ExecCommand, binDir string) sandbox.ExecCommand {
+func commandWithAgentImagePath(command sandbox.ExecCommand, binDir string) sandbox.ExecCommand {
 	prelude := "export PATH=" + shellQuote(binDir) + `:"${PATH:-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin}"`
 	return WrapCommandWithShellPrelude(prelude, command)
 }

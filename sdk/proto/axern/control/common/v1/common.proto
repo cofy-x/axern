@@ -117,30 +117,6 @@ message ImageMount {
   bool readonly = 3;
 }
 
-message WorkspaceImageVariant {
-  string format = 1;
-  string image = 2;
-}
-
-message WorkspaceImageSource {
-  repeated WorkspaceImageVariant variants = 1;
-  string source_path = 2;
-  string target = 3;
-}
-
-// WorkspacePreparationFacts records the node-observed preparation result for
-// one allocation's immutable TaskSet workspace. These facts describe the
-// variant that was actually selected by the node, not the variant preference
-// declared by the client.
-message WorkspacePreparationFacts {
-  string payload_format = 1;
-  string payload_digest = 2;
-  bool cache_hit = 3;
-  int64 image_resolve_ms = 4;
-  int64 image_pull_ms = 5;
-  int64 cow_prepare_ms = 6;
-}
-
 message ExecutionConfig {
   repeated string argv = 1;
   map<string, string> env = 2;
@@ -154,7 +130,6 @@ message ExecutionConfig {
   repeated SecretFile secret_files = 10;
   string runtime_class = 11;
   repeated ImageMount image_mounts = 12;
-  WorkspaceImageSource workspace_image = 13;
 }
 
 // AllocationLifecycleState tracks only placement and infrastructure cleanup.

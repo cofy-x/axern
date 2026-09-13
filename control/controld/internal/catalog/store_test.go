@@ -92,70 +92,6 @@ func TestListIncludesCodingBase(t *testing.T) {
 	}
 }
 
-func TestDefaultAgentBundles(t *testing.T) {
-	store := NewStore(nil)
-	if got := store.ListAgentBundles(nil); len(got) != 2 {
-		t.Fatalf("agent bundle count = %d, want 2", len(got))
-	}
-	got, ok := store.GetAgentBundle("codex", "")
-	if !ok {
-		t.Fatal("GetAgentBundle(codex) ok = false, want true")
-	}
-	if got.GetVersion() != "0.144.6" || got.GetBinaryPath() != "/bin/codex" {
-		t.Fatalf("codex bundle = %#v", got)
-	}
-	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != "ghcr.io/cofy-x/axern/codex-bundle:0.144.6" {
-		t.Fatalf("codex bundle image ref = %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"])
-	}
-}
-
-func TestParseDefaultAgentBundlesRejectsInvalidEntries(t *testing.T) {
-	cases := []struct {
-		name    string
-		raw     string
-		wantErr string
-	}{
-		{
-			name: "missing descriptor digest",
-			raw: `[{
-				"id":"codex","version":"1.0.0","binaryPath":"/bin/codex",
-				"imageDescriptor":{"annotations":{"org.opencontainers.image.ref.name":"example/codex:1"}}
-			}]`,
-			wantErr: "image_descriptor.digest is required",
-		},
-		{
-			name: "relative binary path",
-			raw: `[{
-				"id":"codex","version":"1.0.0","binaryPath":"bin/codex",
-				"imageDescriptor":{"digest":"sha256:abc","annotations":{"org.opencontainers.image.ref.name":"example/codex:1"}}
-			}]`,
-			wantErr: "binary_path must be a clean absolute path",
-		},
-		{
-			name:    "nul in binary path",
-			raw:     `[{"id":"codex","version":"1.0.0","binaryPath":"/bin/codex\u0000suffix","imageDescriptor":{"digest":"sha256:abc","annotations":{"org.opencontainers.image.ref.name":"example/codex:1"}}}]`,
-			wantErr: "binary_path must be a clean absolute path",
-		},
-		{
-			name: "duplicate id and version",
-			raw: `[
-				{"id":"codex","version":"1.0.0","binaryPath":"/bin/codex","imageDescriptor":{"digest":"sha256:abc","annotations":{"org.opencontainers.image.ref.name":"example/codex:1"}}},
-				{"id":"codex","version":"1.0.0","binaryPath":"/bin/codex","imageDescriptor":{"digest":"sha256:def","annotations":{"org.opencontainers.image.ref.name":"example/codex:1"}}}
-			]`,
-			wantErr: "duplicate agent bundle codex@1.0.0",
-		},
-	}
-
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := parseDefaultAgentBundles([]byte(tt.raw))
-			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-				t.Fatalf("parseDefaultAgentBundles() error = %v, want containing %q", err, tt.wantErr)
-			}
-		})
-	}
-}
-
 func TestListIncludesDesktopBase(t *testing.T) {
 	store := NewStore(nil)
 
@@ -324,36 +260,6 @@ func TestDefaultRuntimeTemplateImageOverrideDigestUpdatesDescriptorDigest(t *tes
 	}
 	if got.GetImageDescriptor().GetDigest() != override {
 		t.Fatalf("runtime template digest = %q, want %q", got.GetImageDescriptor().GetDigest(), override)
-	}
-	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
-		t.Fatalf("runtime template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
-	}
-}
-
-func TestDefaultClaudeCodeAgentBundleImageCanBeOverriddenByEnv(t *testing.T) {
-	const override = "host.docker.internal:35000/axern/claude-code-bundle:dev"
-
-	t.Setenv("AXERN_AGENT_BUNDLE_CLAUDE_CODE_IMAGE", override)
-
-	store := NewStore(nil)
-	got, ok := store.GetAgentBundle("claude-code", "")
-	if !ok {
-		t.Fatal("GetAgentBundle() ok = false, want true")
-	}
-	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
-		t.Fatalf("runtime template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
-	}
-}
-
-func TestDefaultCodexAgentBundleImageCanBeOverriddenByEnv(t *testing.T) {
-	const override = "host.docker.internal:35000/axern/codex-bundle:dev"
-
-	t.Setenv("AXERN_AGENT_BUNDLE_CODEX_IMAGE", override)
-
-	store := NewStore(nil)
-	got, ok := store.GetAgentBundle("codex", "")
-	if !ok {
-		t.Fatal("GetAgentBundle() ok = false, want true")
 	}
 	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
 		t.Fatalf("runtime template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)

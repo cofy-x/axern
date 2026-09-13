@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cofy-x/axern/lib/go/agentprofile"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
 )
 
 func TestLoadProfileReadsGenericAgentProfile(t *testing.T) {

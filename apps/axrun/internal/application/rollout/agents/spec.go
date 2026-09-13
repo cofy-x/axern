@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cofy-x/axern/apps/axrun/internal/agentbundle"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentimage"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 )
 
@@ -12,7 +12,7 @@ func ValidateCanonicalAgentImageMount(spec domain.AgentSpec, agentName string) e
 	if spec.Runtime == nil || spec.Runtime.Type != domain.AgentRuntimeTypeAgentImage {
 		return nil
 	}
-	expected := agentbundle.MountTarget(agentName)
+	expected := agentimage.MountTarget(agentName)
 	if mountTarget := spec.Runtime.MountTarget; mountTarget != "" && mountTarget != expected {
 		return fmt.Errorf("%s self-contained bundle must be mounted at %s", agentName, expected)
 	}
@@ -73,8 +73,8 @@ func RuntimeSpec(params SpecParams) *domain.AgentRuntimeSpec {
 		Artifacts:      ArtifactPolicy(params),
 	}
 	if params.RuntimeType == domain.AgentRuntimeTypeAgentImage {
-		runtime.MountTarget = agentbundle.MountTarget(params.Name)
-		runtime.BinDir = agentbundle.BinDir(runtime.MountTarget)
+		runtime.MountTarget = agentimage.MountTarget(params.Name)
+		runtime.BinDir = agentimage.BinDir(runtime.MountTarget)
 	}
 	return runtime
 }

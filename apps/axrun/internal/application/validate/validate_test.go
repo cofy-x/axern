@@ -34,7 +34,7 @@ func TestRunRejectsClaudeCodeAgentImageWithoutProfile(t *testing.T) {
 		ApprovalPolicy: domain.AgentApprovalPolicyNever,
 		Runtime: &domain.AgentRuntimeSpec{
 			Type:      domain.AgentRuntimeTypeAgentImage,
-			Image:     "axern/claude-code-bundle:dev",
+			Image:     "example.com/claude-code-agent:dev",
 			Artifacts: validClaudeCodeArtifacts(),
 		},
 	})
@@ -56,7 +56,7 @@ func TestRunRejectsClaudeCodeAgentImageWithoutArtifactPolicy(t *testing.T) {
 		ApprovalPolicy: domain.AgentApprovalPolicyNever,
 		Runtime: &domain.AgentRuntimeSpec{
 			Type:  domain.AgentRuntimeTypeAgentImage,
-			Image: "axern/claude-code-bundle:dev",
+			Image: "example.com/claude-code-agent:dev",
 		},
 	})
 

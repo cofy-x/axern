@@ -21,8 +21,6 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	RuntimeCatalog_ListRuntimeTemplates_FullMethodName = "/axern.control.catalog.v1.RuntimeCatalog/ListRuntimeTemplates"
 	RuntimeCatalog_GetRuntimeTemplate_FullMethodName   = "/axern.control.catalog.v1.RuntimeCatalog/GetRuntimeTemplate"
-	RuntimeCatalog_ListAgentBundles_FullMethodName     = "/axern.control.catalog.v1.RuntimeCatalog/ListAgentBundles"
-	RuntimeCatalog_GetAgentBundle_FullMethodName       = "/axern.control.catalog.v1.RuntimeCatalog/GetAgentBundle"
 )
 
 // RuntimeCatalogClient is the client API for RuntimeCatalog service.
@@ -31,8 +29,6 @@ const (
 type RuntimeCatalogClient interface {
 	ListRuntimeTemplates(ctx context.Context, in *ListRuntimeTemplatesRequest, opts ...grpc.CallOption) (*ListRuntimeTemplatesResponse, error)
 	GetRuntimeTemplate(ctx context.Context, in *GetRuntimeTemplateRequest, opts ...grpc.CallOption) (*GetRuntimeTemplateResponse, error)
-	ListAgentBundles(ctx context.Context, in *ListAgentBundlesRequest, opts ...grpc.CallOption) (*ListAgentBundlesResponse, error)
-	GetAgentBundle(ctx context.Context, in *GetAgentBundleRequest, opts ...grpc.CallOption) (*GetAgentBundleResponse, error)
 }
 
 type runtimeCatalogClient struct {
@@ -61,32 +57,12 @@ func (c *runtimeCatalogClient) GetRuntimeTemplate(ctx context.Context, in *GetRu
 	return out, nil
 }
 
-func (c *runtimeCatalogClient) ListAgentBundles(ctx context.Context, in *ListAgentBundlesRequest, opts ...grpc.CallOption) (*ListAgentBundlesResponse, error) {
-	out := new(ListAgentBundlesResponse)
-	err := c.cc.Invoke(ctx, RuntimeCatalog_ListAgentBundles_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *runtimeCatalogClient) GetAgentBundle(ctx context.Context, in *GetAgentBundleRequest, opts ...grpc.CallOption) (*GetAgentBundleResponse, error) {
-	out := new(GetAgentBundleResponse)
-	err := c.cc.Invoke(ctx, RuntimeCatalog_GetAgentBundle_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // RuntimeCatalogServer is the server API for RuntimeCatalog service.
 // All implementations must embed UnimplementedRuntimeCatalogServer
 // for forward compatibility
 type RuntimeCatalogServer interface {
 	ListRuntimeTemplates(context.Context, *ListRuntimeTemplatesRequest) (*ListRuntimeTemplatesResponse, error)
 	GetRuntimeTemplate(context.Context, *GetRuntimeTemplateRequest) (*GetRuntimeTemplateResponse, error)
-	ListAgentBundles(context.Context, *ListAgentBundlesRequest) (*ListAgentBundlesResponse, error)
-	GetAgentBundle(context.Context, *GetAgentBundleRequest) (*GetAgentBundleResponse, error)
 	mustEmbedUnimplementedRuntimeCatalogServer()
 }
 
@@ -99,12 +75,6 @@ func (UnimplementedRuntimeCatalogServer) ListRuntimeTemplates(context.Context, *
 }
 func (UnimplementedRuntimeCatalogServer) GetRuntimeTemplate(context.Context, *GetRuntimeTemplateRequest) (*GetRuntimeTemplateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRuntimeTemplate not implemented")
-}
-func (UnimplementedRuntimeCatalogServer) ListAgentBundles(context.Context, *ListAgentBundlesRequest) (*ListAgentBundlesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListAgentBundles not implemented")
-}
-func (UnimplementedRuntimeCatalogServer) GetAgentBundle(context.Context, *GetAgentBundleRequest) (*GetAgentBundleResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAgentBundle not implemented")
 }
 func (UnimplementedRuntimeCatalogServer) mustEmbedUnimplementedRuntimeCatalogServer() {}
 
@@ -155,42 +125,6 @@ func _RuntimeCatalog_GetRuntimeTemplate_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _RuntimeCatalog_ListAgentBundles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListAgentBundlesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RuntimeCatalogServer).ListAgentBundles(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: RuntimeCatalog_ListAgentBundles_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RuntimeCatalogServer).ListAgentBundles(ctx, req.(*ListAgentBundlesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _RuntimeCatalog_GetAgentBundle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAgentBundleRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RuntimeCatalogServer).GetAgentBundle(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: RuntimeCatalog_GetAgentBundle_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RuntimeCatalogServer).GetAgentBundle(ctx, req.(*GetAgentBundleRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // RuntimeCatalog_ServiceDesc is the grpc.ServiceDesc for RuntimeCatalog service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -205,14 +139,6 @@ var RuntimeCatalog_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetRuntimeTemplate",
 			Handler:    _RuntimeCatalog_GetRuntimeTemplate_Handler,
-		},
-		{
-			MethodName: "ListAgentBundles",
-			Handler:    _RuntimeCatalog_ListAgentBundles_Handler,
-		},
-		{
-			MethodName: "GetAgentBundle",
-			Handler:    _RuntimeCatalog_GetAgentBundle_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -20,8 +20,8 @@ require (
 )
 
 require (
-	github.com/cofy-x/axern/lib/go/agentprofile v0.0.0
 	github.com/cofy-x/axern/lib/go/grpcclient v0.0.0
+	github.com/cofy-x/axern/lib/go/nodecapability v0.0.0
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
@@ -32,8 +32,6 @@ replace github.com/cofy-x/axern/sdk/go => ../../sdk/go
 
 replace github.com/cofy-x/axern/lib/go/grpcclient => ../../lib/go/grpcclient
 
-replace github.com/cofy-x/axern/lib/go/agentbundle => ../../lib/go/agentbundle
-
-replace github.com/cofy-x/axern/lib/go/agentprofile => ../../lib/go/agentprofile
+replace github.com/cofy-x/axern/lib/go/nodecapability => ../../lib/go/nodecapability
 
 replace github.com/cofy-x/axern/lib/go/llmproxy => ../../lib/go/llmproxy

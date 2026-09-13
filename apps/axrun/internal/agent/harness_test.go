@@ -132,22 +132,22 @@ func TestSandboxCommandLauncherExecutesLaunchPlan(t *testing.T) {
 	}
 }
 
-func TestMountedBundleLauncherExecutesMountedBundleInSandbox(t *testing.T) {
+func TestMountedAgentImageLauncherExecutesMountedImageInSandbox(t *testing.T) {
 	sb := &fakeSandbox{results: []sandbox.ExecResult{
 		{ExitCode: 0},
 		{ExitCode: 0, Stdout: "bundle-ok"},
 	}}
 	plan := LaunchPlan{
-		LauncherKind:      domain.AgentLauncherKindAgentImage,
-		Image:             "ghcr.io/cofy-x/claude-code-bundle:latest",
-		BundleMountTarget: "/opt/axern/agents/claude-code",
-		Command:           sandbox.ArgvCommand([]string{"claude", "-p", "hello"}),
-		CWD:               "/workspace",
-		User:              "axern",
-		Timeout:           5 * time.Second,
-		Env:               map[string]string{"MODEL": "test", "PATH": "/usr/bin"},
+		LauncherKind:     domain.AgentLauncherKindAgentImage,
+		Image:            "example.com/claude-code-agent:latest",
+		ImageMountTarget: "/opt/axern/agents/claude-code",
+		Command:          sandbox.ArgvCommand([]string{"claude", "-p", "hello"}),
+		CWD:              "/workspace",
+		User:             "axern",
+		Timeout:          5 * time.Second,
+		Env:              map[string]string{"MODEL": "test", "PATH": "/usr/bin"},
 	}
-	result, err := (MountedBundleLauncher{}).Launch(context.Background(), sb, plan)
+	result, err := (MountedAgentImageLauncher{}).Launch(context.Background(), sb, plan)
 	if err != nil {
 		t.Fatalf("Launch returned error: %v", err)
 	}
@@ -171,21 +171,21 @@ func TestMountedBundleLauncherExecutesMountedBundleInSandbox(t *testing.T) {
 	if got := sb.options.Env["PATH"]; got != "/usr/bin" {
 		t.Fatalf("PATH = %q", got)
 	}
-	if got := sb.options.Env["AXRUN_AGENT_BUNDLE_MOUNT_TARGET"]; got != "/opt/axern/agents/claude-code" {
+	if got := sb.options.Env["AXRUN_AGENT_IMAGE_MOUNT_TARGET"]; got != "/opt/axern/agents/claude-code" {
 		t.Fatalf("mount target env = %q", got)
 	}
 }
 
-func TestMountedBundleLauncherFailsSelfCheck(t *testing.T) {
+func TestMountedAgentImageLauncherFailsSelfCheck(t *testing.T) {
 	sb := &fakeSandbox{results: []sandbox.ExecResult{{ExitCode: 1}}}
 	plan := LaunchPlan{
-		LauncherKind:      domain.AgentLauncherKindAgentImage,
-		Image:             "test/image:latest",
-		BundleMountTarget: "/opt/axern/agents/test",
-		Command:           sandbox.ShellCommand("true"),
+		LauncherKind:     domain.AgentLauncherKindAgentImage,
+		Image:            "test/image:latest",
+		ImageMountTarget: "/opt/axern/agents/test",
+		Command:          sandbox.ShellCommand("true"),
 	}
-	_, err := (MountedBundleLauncher{}).Launch(context.Background(), sb, plan)
-	if err == nil || !strings.Contains(err.Error(), "agent bundle self-check") {
+	_, err := (MountedAgentImageLauncher{}).Launch(context.Background(), sb, plan)
+	if err == nil || !strings.Contains(err.Error(), "agent image self-check") {
 		t.Fatalf("Launch error = %v", err)
 	}
 	if len(sb.commands) != 1 {
@@ -193,24 +193,24 @@ func TestMountedBundleLauncherFailsSelfCheck(t *testing.T) {
 	}
 }
 
-func TestMountedBundleLauncherRejectsEmptyImage(t *testing.T) {
+func TestMountedAgentImageLauncherRejectsEmptyImage(t *testing.T) {
 	plan := LaunchPlan{
 		LauncherKind: domain.AgentLauncherKindAgentImage,
 		Command:      sandbox.ShellCommand("true"),
 	}
-	_, err := (MountedBundleLauncher{}).Launch(context.Background(), &fakeSandbox{}, plan)
+	_, err := (MountedAgentImageLauncher{}).Launch(context.Background(), &fakeSandbox{}, plan)
 	if err == nil {
 		t.Fatal("expected error for empty image")
 	}
 }
 
-func TestMountedBundleLauncherRejectsEmptyMountTarget(t *testing.T) {
+func TestMountedAgentImageLauncherRejectsEmptyMountTarget(t *testing.T) {
 	plan := LaunchPlan{
 		LauncherKind: domain.AgentLauncherKindAgentImage,
 		Image:        "test/image:latest",
 		Command:      sandbox.ShellCommand("true"),
 	}
-	_, err := (MountedBundleLauncher{}).Launch(context.Background(), &fakeSandbox{}, plan)
+	_, err := (MountedAgentImageLauncher{}).Launch(context.Background(), &fakeSandbox{}, plan)
 	if err == nil {
 		t.Fatal("expected error for empty mount target")
 	}
@@ -218,28 +218,28 @@ func TestMountedBundleLauncherRejectsEmptyMountTarget(t *testing.T) {
 
 func TestAgentImageValidateRejectsWithoutCommand(t *testing.T) {
 	plan := LaunchPlan{
-		LauncherKind:      domain.AgentLauncherKindAgentImage,
-		Image:             "test/image:latest",
-		BundleMountTarget: "/opt/axern/agents/test",
+		LauncherKind:     domain.AgentLauncherKindAgentImage,
+		Image:            "test/image:latest",
+		ImageMountTarget: "/opt/axern/agents/test",
 	}
 	if err := plan.Validate(); err == nil {
 		t.Fatal("expected error for missing command")
 	}
 }
 
-func TestAgentImageValidateRejectsMountTargetOutsideBundleRoot(t *testing.T) {
+func TestAgentImageValidateRejectsMountTargetOutsideImageRoot(t *testing.T) {
 	plan := LaunchPlan{
-		LauncherKind:      domain.AgentLauncherKindAgentImage,
-		Image:             "test/image:latest",
-		BundleMountTarget: "/opt/axern",
-		Command:           sandbox.ShellCommand("true"),
+		LauncherKind:     domain.AgentLauncherKindAgentImage,
+		Image:            "test/image:latest",
+		ImageMountTarget: "/opt/axern",
+		Command:          sandbox.ShellCommand("true"),
 	}
 	if err := plan.Validate(); err == nil {
-		t.Fatal("expected error for mount target outside bundle root")
+		t.Fatal("expected error for mount target outside agent image root")
 	}
 }
 
-func TestAgentBundleMountTargetSanitizesAgentName(t *testing.T) {
+func TestAgentImageMountTargetSanitizesAgentName(t *testing.T) {
 	tests := map[string]string{
 		"claude-code":      "/opt/axern/agents/claude-code",
 		"Claude Code":      "/opt/axern/agents/claude-code",
@@ -249,28 +249,28 @@ func TestAgentBundleMountTargetSanitizesAgentName(t *testing.T) {
 		"../../etc/passwd": "/opt/axern/agents/etc-passwd",
 	}
 	for name, want := range tests {
-		if got := AgentBundleMountTarget(name); got != want {
-			t.Fatalf("AgentBundleMountTarget(%q) = %q, want %q", name, got, want)
+		if got := AgentImageMountTarget(name); got != want {
+			t.Fatalf("AgentImageMountTarget(%q) = %q, want %q", name, got, want)
 		}
 	}
 }
 
-func TestMountedBundleLauncherRejectsNilSandbox(t *testing.T) {
+func TestMountedAgentImageLauncherRejectsNilSandbox(t *testing.T) {
 	plan := LaunchPlan{
-		LauncherKind:      domain.AgentLauncherKindAgentImage,
-		Image:             "test/image:latest",
-		BundleMountTarget: "/opt/axern/agents/test",
-		Command:           sandbox.ShellCommand("true"),
+		LauncherKind:     domain.AgentLauncherKindAgentImage,
+		Image:            "test/image:latest",
+		ImageMountTarget: "/opt/axern/agents/test",
+		Command:          sandbox.ShellCommand("true"),
 	}
-	_, err := (MountedBundleLauncher{}).Launch(context.Background(), nil, plan)
+	_, err := (MountedAgentImageLauncher{}).Launch(context.Background(), nil, plan)
 	if err == nil {
 		t.Fatal("expected error for nil sandbox")
 	}
 }
 
-func TestMountedBundleLauncherKind(t *testing.T) {
-	if (MountedBundleLauncher{}).Kind() != domain.AgentLauncherKindAgentImage {
-		t.Fatal("MountedBundleLauncher.Kind() mismatch")
+func TestMountedAgentImageLauncherKind(t *testing.T) {
+	if (MountedAgentImageLauncher{}).Kind() != domain.AgentLauncherKindAgentImage {
+		t.Fatal("MountedAgentImageLauncher.Kind() mismatch")
 	}
 }
 

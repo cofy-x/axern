@@ -102,10 +102,6 @@ spec:
               value: {{ .Values.runtimeCatalog.codingBaseImage | quote }}
             - name: AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE
               value: {{ .Values.runtimeCatalog.desktopBaseImage | quote }}
-            - name: AXERN_AGENT_BUNDLE_CLAUDE_CODE_IMAGE
-              value: {{ .Values.runtimeCatalog.claudeCodeBundleImage | quote }}
-            - name: AXERN_AGENT_BUNDLE_CODEX_IMAGE
-              value: {{ .Values.runtimeCatalog.codexBundleImage | quote }}
             - name: CONTROLD_TUNNEL_RELAYS
               value: {{ include "axern.tunnelRelays" . | quote }}
             - name: AXERN_SECRETS_MASTER_KEY

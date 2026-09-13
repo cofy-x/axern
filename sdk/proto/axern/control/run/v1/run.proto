@@ -37,7 +37,6 @@ message Run {
   // It is independent from Run lifecycle status and message.
   axern.control.capability.v1.CapabilityConditionSet capability_conditions = 15;
   string node_id = 16;
-  axern.control.common.v1.WorkspacePreparationFacts workspace_preparation = 17;
 }
 
 message RunListFilter {

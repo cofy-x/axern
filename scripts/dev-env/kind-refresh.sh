@@ -24,7 +24,7 @@ AXERN_K8S_RESET_POSTGRES="${AXERN_K8S_RESET_POSTGRES:-1}" \
   bash "${AXERN_ROOT}/scripts/dev-env/k8s-up.sh"
 
 if [ "${AXERN_KIND_REFRESH_IMPORT_RUNTIME_IMAGES:-1}" = "1" ] || [ "${AXERN_KIND_REFRESH_IMPORT_RUNTIME_IMAGES:-1}" = "true" ]; then
-  for image_ref in "${PYTHON311_RUNTIME_IMAGE}" "${SERVER_BASE_RUNTIME_IMAGE}" "${CODING_BASE_RUNTIME_IMAGE}" "${DESKTOP_BASE_RUNTIME_IMAGE}" "${CLAUDE_CODE_BUNDLE_IMAGE}" "${CODEX_BUNDLE_IMAGE}"; do
+  for image_ref in "${PYTHON311_RUNTIME_IMAGE}" "${SERVER_BASE_RUNTIME_IMAGE}" "${CODING_BASE_RUNTIME_IMAGE}" "${DESKTOP_BASE_RUNTIME_IMAGE}"; do
     if ! docker image inspect "${image_ref}" >/dev/null 2>&1; then
       echo "missing runtime image ${image_ref}; run make kind-up or make local-images-build once before kind-refresh" >&2
       exit 1

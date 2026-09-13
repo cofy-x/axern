@@ -1,4 +1,4 @@
-package agentbundle
+package agentimage
 
 import "testing"
 

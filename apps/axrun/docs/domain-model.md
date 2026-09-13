@@ -26,7 +26,7 @@ The TaskSet compiler resolves runtime intent into this field before publishing.
 
 Claude Code and Codex are managed adapters: they own their launch command and enforce the recorded approval policy. `command` is the explicit deterministic shell/custom-harness agent and has no managed provider or approval semantics. Oracle/noop baselines and mounted managed bundles produce the same episode evidence shape.
 
-`AgentSpec.runtime.image` is an agent/tool bundle image. It is separate from `TaskInstance.sandbox.runtime_source.image`, which defines the task environment rootfs. With the Axern backend, this bundle is mounted read-only into the task sandbox and the adapter-generated command runs through normal sandbox exec. `runtime.mount_target` and `runtime.bin_dir` record the resolved mount topology so runs, trajectories, and exports can be audited without inferring it from agent names.
+`AgentSpec.runtime.image` is a caller-owned agent/tool image. It is separate from `TaskInstance.sandbox.runtime_source.image`, which defines the task environment rootfs. With the Axern backend, this image is mounted read-only into the task sandbox and the adapter-generated command runs through normal sandbox exec. `runtime.mount_target` and `runtime.bin_dir` record the resolved mount topology so runs, trajectories, and exports can be audited without inferring it from agent names.
 
 Official Claude Code and Codex images are self-contained tool rootfs bundles with canonical mount targets under `/opt/axern/agents`. Their loader, system libraries, CA certificates, and agent runtime come from the bundle; the task rootfs continues to own its shell and project toolchain. Custom agent-image runtimes may select another single-name target under the same namespace.
 
@@ -65,7 +65,7 @@ Exports are derived views over native run records:
 - Trace export: trajectory rows and selected episode metadata.
 - Preference export: chosen/rejected episode pairs grouped by task.
 
-Exports must be reproducible from the run directory and should not become the source of truth. Export refs include `artifact_manifest_path` so consumers can find artifact status without scanning directories. Export records use an agent summary rather than the full `AgentSpec`: command argv, shell text, entrypoint, args, environment variables, local launcher paths, inline prompt bodies, and session ids stay out of derived training and evaluation views. The summary may include runtime type, bundle image, mount target, `bin` directory, workdir, user, timeout, profile, prompt/session shape, and artifact policy.
+Exports must be reproducible from the run directory and should not become the source of truth. Export refs include `artifact_manifest_path` so consumers can find artifact status without scanning directories. Export records use an agent summary rather than the full `AgentSpec`: command argv, shell text, entrypoint, args, environment variables, local launcher paths, inline prompt bodies, and session ids stay out of derived training and evaluation views. The summary may include runtime type, agent image, mount target, `bin` directory, workdir, user, timeout, profile, prompt/session shape, and artifact policy.
 
 ## Run Directory Contract
 
@@ -97,7 +97,7 @@ If execution needs a field, it must be expressed in a native task, verifier, san
 
 ## Execution Boundary
 
-Episode execution receives compiled records plus selected backend configuration. It may create sandboxes, mount a TaskSet workspace image, launch agents, run verifiers, capture artifacts, and write sidecars. It must not re-open external task sources to reinterpret task intent.
+Episode execution receives compiled records plus selected backend configuration. Axrun captures TaskSet inputs into immutable run-owned files before it creates sandboxes, uploads allocation-local inputs, launches agents, runs verifiers, captures outputs, and writes sidecars. Axern never receives TaskSet-specific storage objects. Episode execution must not re-open external task sources to reinterpret task intent.
 
 Each episode uses one task sandbox for the agent phase and verifier phase, so the verifier observes the workspace after the agent has acted. Separate attempts or tasks receive separate episode sandboxes.
 

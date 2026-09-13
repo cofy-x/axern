@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
 
@@ -27,7 +26,6 @@ type SandboxOptions struct {
 	NetworkPolicy           *NetworkPolicy
 	ExtensionCapabilities   []ExtensionCapability
 	ImageMounts             []ImageMount
-	WorkspaceImage          *WorkspaceImageSource
 	RequestCPU              ResourceQuantity
 	RequestMemory           ResourceQuantity
 	RequestEphemeralStorage ResourceQuantity
@@ -58,15 +56,13 @@ type Sandbox struct {
 
 // SandboxState is the lightweight runtime identity for a started sandbox.
 type SandboxState struct {
-	EnvironmentID         string
-	RunID                 string
-	AllocationID          string
-	NodeID                string
-	StartedAt             time.Time
-	TunnelSessionID       string
-	BoundAddr             string
-	WorkspacePreparation  *commonv1.WorkspacePreparationFacts
-	VerifierMaterializeMs int64
+	EnvironmentID   string
+	RunID           string
+	AllocationID    string
+	NodeID          string
+	StartedAt       time.Time
+	TunnelSessionID string
+	BoundAddr       string
 }
 
 // NewSandbox constructs a sandbox handle. Call Start before using runtime APIs.
@@ -110,7 +106,6 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		NetworkPolicy:           s.options.NetworkPolicy,
 		ExtensionCapabilities:   append([]ExtensionCapability(nil), s.options.ExtensionCapabilities...),
 		ImageMounts:             s.options.ImageMounts,
-		WorkspaceImage:          s.options.WorkspaceImage,
 		RequestCPU:              s.options.RequestCPU,
 		RequestMemory:           s.options.RequestMemory,
 		RequestEphemeralStorage: s.options.RequestEphemeralStorage,
@@ -130,12 +125,11 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		return err
 	}
 	s.state = SandboxState{
-		EnvironmentID:        environmentID,
-		RunID:                run.GetID(),
-		AllocationID:         run.GetAllocationID(),
-		NodeID:               run.GetNodeID(),
-		StartedAt:            time.Now(),
-		WorkspacePreparation: run.GetWorkspacePreparation(),
+		EnvironmentID: environmentID,
+		RunID:         run.GetID(),
+		AllocationID:  run.GetAllocationID(),
+		NodeID:        run.GetNodeID(),
+		StartedAt:     time.Now(),
 	}
 	s.started = true
 	return nil
@@ -347,12 +341,6 @@ func validateSandboxOptions(options SandboxOptions) error {
 		return err
 	}
 	if err := validateImageMounts(options.ImageMounts); err != nil {
-		return err
-	}
-	if err := validateWorkspaceImage(options.WorkspaceImage); err != nil {
-		return err
-	}
-	if err := validateWorkspaceImageMounts(options.WorkspaceImage, options.ImageMounts); err != nil {
 		return err
 	}
 	return nil

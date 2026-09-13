@@ -33,7 +33,7 @@ def load_context(path: str | Path, name: str = "") -> AxernContext:
     raw = json.loads(config_path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError("Axern config must be an object")
-    _reject_unknown(raw, {"current_context", "contexts", "agent_profiles"}, "config")
+    _reject_unknown(raw, {"current_context", "contexts"}, "config")
     context_name = name or _string(raw, "current_context")
     if not context_name:
         raise ValueError("Axern context name is required")

@@ -67,8 +67,6 @@ HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/demo/nginx ./
 	build-server-base-runtime-image \
 	build-coding-base-runtime-image \
 	build-desktop-base-runtime-image \
-	build-claude-code-bundle-image \
-	build-codex-bundle-image \
 	verify-bpfnetctl-e2e \
 	benchmark-docker-runsc-iptables benchmark-docker-runsc-ebpf benchmark-docker-runsc-compare benchmark-startup-matrix \
 	profile-docker-runsc-egress-udp-iptables profile-docker-runsc-egress-udp-ebpf \
@@ -267,12 +265,6 @@ build-coding-base-runtime-image: ## build the official multi-language coding wor
 
 build-desktop-base-runtime-image: ## build the optional desktop computer-use runtime image
 	@bash ./scripts/runtime/build-desktop-base-runtime-image.sh
-
-build-claude-code-bundle-image: ## build the Claude Code read-only image mount bundle
-	@bash ./scripts/runtime/build-claude-code-bundle-image.sh
-
-build-codex-bundle-image: ## build the Codex read-only image mount bundle
-	@bash ./scripts/runtime/build-codex-bundle-image.sh
 
 verify-docker-runsc: ## run privileged Docker verification against runsc
 	@RUNTIME_UNDER_TEST=runsc RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker.sh

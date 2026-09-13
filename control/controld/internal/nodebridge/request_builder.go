@@ -58,7 +58,6 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 		SecretFiles:                     cloneResolvedSecretFiles(params.ResolvedSecrets.FileSecrets),
 		ExecutionProfile:                cloneRuntimeExecutionProfile(template.GetExecutionProfile()),
 		ImageMounts:                     cloneImageMounts(cfg.GetImageMounts()),
-		WorkspaceImage:                  cloneWorkspaceImage(cfg.GetWorkspaceImage()),
 		CapabilityDependencies:          cloneCapabilityDependencies(params.CapabilityDependencies),
 	}
 	if strings.TrimSpace(params.ResolvedSecrets.DockerConfigJSON) != "" {
@@ -74,20 +73,6 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 			Target:  mount.GetTarget(),
 			Options: cloneStringSlice(mount.GetOptions()),
 		})
-	}
-	return out
-}
-
-func cloneWorkspaceImage(in *commonv1.WorkspaceImageSource) *privatenodev1.WorkspaceImageSource {
-	if in == nil {
-		return nil
-	}
-	out := &privatenodev1.WorkspaceImageSource{SourcePath: strings.TrimSpace(in.GetSourcePath()), Target: strings.TrimSpace(in.GetTarget())}
-	for _, variant := range in.GetVariants() {
-		if variant == nil {
-			continue
-		}
-		out.Variants = append(out.Variants, &privatenodev1.WorkspaceImageVariant{Format: strings.TrimSpace(variant.GetFormat()), Image: strings.TrimSpace(variant.GetImage())})
 	}
 	return out
 }

@@ -10,7 +10,7 @@ if gh release view "${tag}" >/dev/null 2>&1; then
   echo "GitHub release ${tag} already exists" >&2
   exit 1
 fi
-for image in controld tunneld gatewayd node-all-in-one python311-runtime server-base-runtime coding-base-runtime desktop-base-runtime claude-code-bundle codex-bundle; do
+for image in controld tunneld gatewayd node-all-in-one python311-runtime server-base-runtime coding-base-runtime desktop-base-runtime; do
   if docker buildx imagetools inspect "${AXERN_RELEASE_REGISTRY}/${image}:${tag}" >/dev/null 2>&1; then
     echo "final image tag already exists: ${AXERN_RELEASE_REGISTRY}/${image}:${tag}" >&2
     exit 1

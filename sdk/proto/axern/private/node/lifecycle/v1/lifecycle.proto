@@ -21,17 +21,6 @@ message ImageMount {
   bool readonly = 3;
 }
 
-message WorkspaceImageVariant {
-  string format = 1;
-  string image = 2;
-}
-
-message WorkspaceImageSource {
-  repeated WorkspaceImageVariant variants = 1;
-  string source_path = 2;
-  string target = 3;
-}
-
 message ResolvedSecretEnvVar {
   string name = 1;
   string value = 2;
@@ -77,8 +66,7 @@ message ResolvedExecutionConfig {
   RegistryCredential registry_credential = 21;
   axern.control.catalog.v1.RuntimeExecutionProfile execution_profile = 22;
   repeated ImageMount image_mounts = 23;
-  WorkspaceImageSource workspace_image = 24;
-  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 25;
+  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 24;
 }
 
 message CreateAllocationRequest {
@@ -89,12 +77,11 @@ message CreateAllocationRequest {
 
 message CreateAllocationResponse {
   string allocation_id = 1;
-  axern.control.common.v1.WorkspacePreparationFacts workspace_preparation = 2;
-  axern.control.capability.v1.CapabilityConditionSet capability_verification = 3;
+  axern.control.capability.v1.CapabilityConditionSet capability_verification = 2;
   // The concrete dependency/evidence set admitted by axnoded after the
   // runtime-specific post-create verification. This is authoritative; callers
   // must not reconstruct admitted evidence from conditions.
-  repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 4;
+  repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 3;
 }
 
 message DeleteAllocationRequest {

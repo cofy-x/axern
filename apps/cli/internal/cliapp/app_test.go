@@ -22,12 +22,6 @@ func TestCommandTreeUsesCanonicalProductCommands(t *testing.T) {
 			t.Fatalf("%s aliases=%v, want %v", name, cmd.Aliases, aliases)
 		}
 	}
-	for _, removed := range [][]string{{"invoke"}, {"run", "lease"}, {"service"}, {"agent"}, {"quota", "describe"}} {
-		cmd, args, _ := root.Find(removed)
-		if cmd != root && len(args) == 0 {
-			t.Fatalf("removed command is still registered: %v", removed)
-		}
-	}
 }
 
 func TestHelpIncludesCoreSandboxCommands(t *testing.T) {

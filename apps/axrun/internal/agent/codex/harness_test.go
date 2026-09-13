@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/apps/axrun/internal/agent"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 	"github.com/cofy-x/axern/apps/axrun/internal/sandbox"
-	"github.com/cofy-x/axern/lib/go/agentprofile"
 )
 
 func TestHarnessBuildsDefaultCodexCommandAndEnv(t *testing.T) {
@@ -96,7 +96,7 @@ func TestHarnessBuildsManagedCommandForAgentImageProfile(t *testing.T) {
 			ApprovalPolicy: domain.AgentApprovalPolicyNever,
 			Runtime: &domain.AgentRuntimeSpec{
 				Type:           domain.AgentRuntimeTypeAgentImage,
-				Image:          "axern/codex-bundle:dev",
+				Image:          "example.com/codex-agent:dev",
 				Profile:        "codex-smoke",
 				Workdir:        "/workspace",
 				User:           "axern",
@@ -119,12 +119,12 @@ func TestHarnessBuildsManagedCommandForAgentImageProfile(t *testing.T) {
 	}
 	if result.LauncherKind != domain.AgentLauncherKindAgentImage ||
 		result.RuntimeType != domain.AgentRuntimeTypeAgentImage ||
-		result.RuntimeImage != "axern/codex-bundle:dev" ||
+		result.RuntimeImage != "example.com/codex-agent:dev" ||
 		result.RuntimeProfile != "codex-smoke" {
 		t.Fatalf("result = %#v", result)
 	}
-	if launcher.plan.Image != "axern/codex-bundle:dev" ||
-		launcher.plan.BundleMountTarget != "/opt/axern/agents/codex" ||
+	if launcher.plan.Image != "example.com/codex-agent:dev" ||
+		launcher.plan.ImageMountTarget != "/opt/axern/agents/codex" ||
 		launcher.plan.Profile != "codex-smoke" ||
 		launcher.plan.CWD != "/workspace" ||
 		launcher.plan.User != "axern" ||
@@ -135,8 +135,8 @@ func TestHarnessBuildsManagedCommandForAgentImageProfile(t *testing.T) {
 	if !strings.Contains(command, "codex exec") || strings.Contains(command, "printf ok") {
 		t.Fatalf("command = %#v", launcher.plan.Command)
 	}
-	if launcher.plan.Env["AXRUN_AGENT_RUNTIME_IMAGE"] != "axern/codex-bundle:dev" ||
-		launcher.plan.Env["AXRUN_AGENT_BUNDLE_MOUNT_TARGET"] != "/opt/axern/agents/codex" ||
+	if launcher.plan.Env["AXRUN_AGENT_RUNTIME_IMAGE"] != "example.com/codex-agent:dev" ||
+		launcher.plan.Env["AXRUN_AGENT_IMAGE_MOUNT_TARGET"] != "/opt/axern/agents/codex" ||
 		launcher.plan.Env["AXRUN_AGENT_PROFILE"] != "codex-smoke" ||
 		launcher.plan.Env["AXRUN_AGENT_SESSION_ID"] != "session-1" ||
 		launcher.plan.Env["AXRUN_AGENT_MAX_TURNS"] != "42" ||
@@ -214,7 +214,7 @@ func TestHarnessRunWritesRemoteCodexConfigWithManagedProxyConfig(t *testing.T) {
 			Name: "codex",
 			Runtime: &domain.AgentRuntimeSpec{
 				Type:    domain.AgentRuntimeTypeAgentImage,
-				Image:   "axern/codex-bundle:dev",
+				Image:   "example.com/codex-agent:dev",
 				Profile: "codex-smoke",
 				Command: []string{"bash", "-lc", "printf ok"},
 				User:    "axern",

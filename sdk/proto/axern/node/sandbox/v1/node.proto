@@ -339,24 +339,6 @@ message WriteFileRequest {
 
 message WriteFileResponse {}
 
-enum TaskAssetKind {
-  TASK_ASSET_KIND_UNSPECIFIED = 0;
-  TASK_ASSET_KIND_VERIFIER = 1;
-  TASK_ASSET_KIND_ORACLE = 2;
-}
-
-message MaterializeTaskAssetsRequest {
-  string allocation_id = 1;
-  string execution_lease_token = 2;
-  string source_path = 3;
-  string target = 4;
-  TaskAssetKind kind = 5;
-}
-
-message MaterializeTaskAssetsResponse {
-  int64 duration_ms = 1;
-}
-
 message MkdirRequest {
   string allocation_id = 1;
   string execution_lease_token = 2;
@@ -614,7 +596,6 @@ service NodeSandbox {
   rpc ListDir(ListDirRequest) returns (ListDirResponse) {}
   rpc ReadFile(ReadFileRequest) returns (ReadFileResponse) {}
   rpc WriteFile(WriteFileRequest) returns (WriteFileResponse) {}
-  rpc MaterializeTaskAssets(MaterializeTaskAssetsRequest) returns (MaterializeTaskAssetsResponse) {}
   rpc Mkdir(MkdirRequest) returns (MkdirResponse) {}
   rpc Remove(RemoveRequest) returns (RemoveResponse) {}
   rpc Exists(ExistsRequest) returns (ExistsResponse) {}

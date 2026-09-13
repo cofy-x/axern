@@ -9,22 +9,21 @@ import (
 )
 
 type Config struct {
-	Endpoint       string
-	TemplateID     string
-	Image          string
-	Namespace      string
-	RuntimeClass   string
-	RequestCPU     string
-	RequestMemory  string
-	LimitCPU       string
-	LimitMemory    string
-	TLSCACert      string
-	TLSCert        string
-	TLSKey         string
-	TLSServerName  string
-	ProxyMode      string
-	ImageMounts    []axernsdk.ImageMount
-	WorkspaceImage *axernsdk.WorkspaceImageSource
+	Endpoint      string
+	TemplateID    string
+	Image         string
+	Namespace     string
+	RuntimeClass  string
+	RequestCPU    string
+	RequestMemory string
+	LimitCPU      string
+	LimitMemory   string
+	TLSCACert     string
+	TLSCert       string
+	TLSKey        string
+	TLSServerName string
+	ProxyMode     string
+	ImageMounts   []axernsdk.ImageMount
 }
 
 const validationTemplateID = "axrun-validation-source"
@@ -60,14 +59,13 @@ func (c Config) ValidateBase() error {
 		return fmt.Errorf("axern runner requires AXERN_ENDPOINT")
 	}
 	if _, err := axernsdk.NewSandbox(axernsdk.SandboxOptions{
-		Client:         &axernsdk.Client{},
-		TemplateID:     validationTemplateID,
-		ImageMounts:    c.ImageMounts,
-		WorkspaceImage: c.WorkspaceImage,
-		RequestCPU:     axernsdk.ResourceQuantity(c.RequestCPU),
-		RequestMemory:  axernsdk.ResourceQuantity(c.RequestMemory),
-		LimitCPU:       axernsdk.ResourceQuantity(c.LimitCPU),
-		LimitMemory:    axernsdk.ResourceQuantity(c.LimitMemory),
+		Client:        &axernsdk.Client{},
+		TemplateID:    validationTemplateID,
+		ImageMounts:   c.ImageMounts,
+		RequestCPU:    axernsdk.ResourceQuantity(c.RequestCPU),
+		RequestMemory: axernsdk.ResourceQuantity(c.RequestMemory),
+		LimitCPU:      axernsdk.ResourceQuantity(c.LimitCPU),
+		LimitMemory:   axernsdk.ResourceQuantity(c.LimitMemory),
 	}); err != nil {
 		return err
 	}
@@ -86,15 +84,14 @@ func (c Config) ValidateSource() error {
 		return fmt.Errorf("axern runner requires exactly one of AXERN_TEMPLATE_ID or AXERN_IMAGE")
 	}
 	if _, err := axernsdk.NewSandbox(axernsdk.SandboxOptions{
-		Client:         &axernsdk.Client{},
-		TemplateID:     c.TemplateID,
-		Image:          c.Image,
-		ImageMounts:    c.ImageMounts,
-		WorkspaceImage: c.WorkspaceImage,
-		RequestCPU:     axernsdk.ResourceQuantity(c.RequestCPU),
-		RequestMemory:  axernsdk.ResourceQuantity(c.RequestMemory),
-		LimitCPU:       axernsdk.ResourceQuantity(c.LimitCPU),
-		LimitMemory:    axernsdk.ResourceQuantity(c.LimitMemory),
+		Client:        &axernsdk.Client{},
+		TemplateID:    c.TemplateID,
+		Image:         c.Image,
+		ImageMounts:   c.ImageMounts,
+		RequestCPU:    axernsdk.ResourceQuantity(c.RequestCPU),
+		RequestMemory: axernsdk.ResourceQuantity(c.RequestMemory),
+		LimitCPU:      axernsdk.ResourceQuantity(c.LimitCPU),
+		LimitMemory:   axernsdk.ResourceQuantity(c.LimitMemory),
 	}); err != nil {
 		return err
 	}

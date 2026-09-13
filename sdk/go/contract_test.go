@@ -105,39 +105,6 @@ func TestSharedResourceContract(t *testing.T) {
 	}
 }
 
-func TestWorkspaceImageContractRejectsAmbiguousOrOverlappingSources(t *testing.T) {
-	valid := &WorkspaceImageSource{
-		Variants: []WorkspaceImageVariant{
-			{Format: "nydus", Image: "example.test/task@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
-			{Format: "oci", Image: "example.test/task@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
-		},
-		SourcePath: "tasks/task-a/workspace",
-		Target:     "/workspace",
-	}
-	if err := validateWorkspaceImage(valid); err != nil {
-		t.Fatalf("valid workspace image: %v", err)
-	}
-	duplicate := *valid
-	duplicate.Variants = []WorkspaceImageVariant{valid.Variants[1], valid.Variants[1]}
-	if err := validateWorkspaceImage(&duplicate); !IsValidation(err) {
-		t.Fatalf("duplicate formats error = %v", err)
-	}
-	nested := *valid
-	nested.SourcePath = "tasks/group/task-a/workspace"
-	if err := validateWorkspaceImage(&nested); !IsValidation(err) {
-		t.Fatalf("nested source error = %v", err)
-	}
-	uppercase := *valid
-	uppercase.Variants = append([]WorkspaceImageVariant(nil), valid.Variants...)
-	uppercase.Variants[0].Image = "example.test/task@sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-	if err := validateWorkspaceImage(&uppercase); !IsValidation(err) {
-		t.Fatalf("non-canonical digest error = %v", err)
-	}
-	if err := validateWorkspaceImageMounts(valid, []ImageMount{{Image: "tools:latest", Target: "/workspace/data"}}); !IsValidation(err) {
-		t.Fatalf("overlapping image mount error = %v", err)
-	}
-}
-
 func TestSharedErrorContract(t *testing.T) {
 	var contract errorContract
 	loadContract(t, "errors.json", &contract)

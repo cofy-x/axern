@@ -51,6 +51,6 @@ spec:
   output_dir: .axrun/runs
 ```
 
-Remote execution requires immutable task and image references. Planning freezes the resolved task selection, payload variants, agent bundle, and episode order into the local run directory. Execution then uses the selected local or Axern backend, and resume reads the frozen plan instead of re-resolving mutable input. Provider profiles remain local client configuration; controld does not own provider credentials, rollout queues, or evaluation results.
+Remote execution requires immutable task and image references. Planning freezes the resolved task selection, caller-supplied agent image, and episode order. Before execution, Axrun captures the immutable TaskSet payload into the local run directory; resume never re-resolves mutable input. Provider profiles remain Axrun-local configuration; controld does not own provider credentials, rollout queues, or evaluation results.
 
 See [usage](./docs/usage.md), [architecture](./docs/architecture.md), and [acceptance](./docs/acceptance.md).

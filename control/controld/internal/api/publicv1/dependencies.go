@@ -17,8 +17,6 @@ import (
 type CatalogReader interface {
 	Get(id, version string) (*catalogv1.RuntimeTemplate, bool)
 	List(req *catalogv1.ListRuntimeTemplatesRequest) []*catalogv1.RuntimeTemplate
-	GetAgentBundle(id, version string) (*catalogv1.AgentBundle, bool)
-	ListAgentBundles(req *catalogv1.ListAgentBundlesRequest) []*catalogv1.AgentBundle
 }
 
 type Environments interface {

@@ -46,33 +46,6 @@ func RenderRuntimeTemplate(w io.Writer, template *catalogv1.RuntimeTemplate) {
 	}
 }
 
-func RenderAgentBundleTable(w io.Writer, bundles []*catalogv1.AgentBundle) {
-	rows := make([][]string, 0, len(bundles))
-	for _, bundle := range bundles {
-		if bundle == nil {
-			continue
-		}
-		rows = append(rows, []string{bundle.GetID(), displayValue(bundle.GetVersion()), displayValue(bundle.GetBinaryPath()), displayValue(bundle.GetImageDescriptor().GetDigest())})
-	}
-	RenderTable(w, []string{"ID", "VERSION", "BINARY", "IMAGE"}, rows)
-}
-
-func RenderAgentBundle(w io.Writer, bundle *catalogv1.AgentBundle) {
-	if bundle == nil {
-		return
-	}
-	fmt.Fprintf(w, "ID: %s\n", bundle.GetID())
-	fmt.Fprintf(w, "Version: %s\n", displayValue(bundle.GetVersion()))
-	fmt.Fprintf(w, "Binary Path: %s\n", displayValue(bundle.GetBinaryPath()))
-	fmt.Fprintf(w, "Image Digest: %s\n", displayValue(bundle.GetImageDescriptor().GetDigest()))
-	if ref := bundle.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"]; ref != "" {
-		fmt.Fprintf(w, "Image Ref: %s\n", ref)
-	}
-	if bundle.GetDescription() != "" {
-		fmt.Fprintf(w, "Description: %s\n", bundle.GetDescription())
-	}
-}
-
 func displayValue(value string) string {
 	if value == "" {
 		return "-"

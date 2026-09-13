@@ -119,7 +119,7 @@ Control-plane coordination and internal calls:
 - `sdk/proto/axern/control/node/v1/node_control.proto`
 - `sdk/proto/axern/private/node/lifecycle/v1/lifecycle.proto`
 
-Persistent-volume product APIs are not supported. Sandbox-lifetime writable rootfs and workspace-image preparation stay on the allocation path.
+Persistent-volume product APIs are not supported. Allocation-local writable files remain on the execution path and must be exported before Allocation cleanup.
 
 The HTTP listener exposes diagnostics and internal runtime artifact downloads. Diagnostic endpoints are read-only:
 

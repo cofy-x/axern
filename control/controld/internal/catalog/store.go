@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path"
 	"sort"
 	"strings"
 
@@ -16,7 +15,6 @@ import (
 
 const (
 	defaultRuntimeTemplatesPath = "templates/runtime_templates.json"
-	defaultAgentBundlesPath     = "templates/agent_bundles.json"
 	imageRefAnnotationKey       = "org.opencontainers.image.ref.name"
 )
 
@@ -30,24 +28,15 @@ var runtimeImageOverrideEnv = map[string]string{
 	"desktop-base": "AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE",
 }
 
-var agentBundleImageOverrideEnv = map[string]string{
-	"claude-code": "AXERN_AGENT_BUNDLE_CLAUDE_CODE_IMAGE",
-	"codex":       "AXERN_AGENT_BUNDLE_CODEX_IMAGE",
-}
-
 type Store struct {
 	runtimeTemplates map[string]*catalogv1.RuntimeTemplate
-	agentBundles     map[string]*catalogv1.AgentBundle
 }
 
 func NewStore(in []*catalogv1.RuntimeTemplate) *Store {
 	if len(in) == 0 {
 		in = DefaultTemplates()
 	}
-	return &Store{
-		runtimeTemplates: cloneRuntimeTemplateMap(in),
-		agentBundles:     cloneAgentBundleMap(DefaultAgentBundles()),
-	}
+	return &Store{runtimeTemplates: cloneRuntimeTemplateMap(in)}
 }
 
 func (s *Store) List(filter *catalogv1.ListRuntimeTemplatesRequest) []*catalogv1.RuntimeTemplate {
@@ -95,48 +84,6 @@ func (s *Store) Get(id, version string) (*catalogv1.RuntimeTemplate, bool) {
 	return proto.Clone(candidates[0]).(*catalogv1.RuntimeTemplate), true
 }
 
-func (s *Store) ListAgentBundles(filter *catalogv1.ListAgentBundlesRequest) []*catalogv1.AgentBundle {
-	keys := make([]string, 0, len(s.agentBundles))
-	for key := range s.agentBundles {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	out := make([]*catalogv1.AgentBundle, 0, len(keys))
-	for _, key := range keys {
-		bundle := s.agentBundles[key]
-		if filter != nil && strings.TrimSpace(filter.GetVersion()) != "" && bundle.GetVersion() != strings.TrimSpace(filter.GetVersion()) {
-			continue
-		}
-		out = append(out, proto.Clone(bundle).(*catalogv1.AgentBundle))
-	}
-	return out
-}
-
-func (s *Store) GetAgentBundle(id, version string) (*catalogv1.AgentBundle, bool) {
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return nil, false
-	}
-	if version = strings.TrimSpace(version); version != "" {
-		bundle, ok := s.agentBundles[templateKey(id, version)]
-		if !ok {
-			return nil, false
-		}
-		return proto.Clone(bundle).(*catalogv1.AgentBundle), true
-	}
-	candidates := make([]*catalogv1.AgentBundle, 0)
-	for _, bundle := range s.agentBundles {
-		if bundle.GetID() == id {
-			candidates = append(candidates, bundle)
-		}
-	}
-	if len(candidates) == 0 {
-		return nil, false
-	}
-	sort.Slice(candidates, func(i, j int) bool { return candidates[i].GetVersion() > candidates[j].GetVersion() })
-	return proto.Clone(candidates[0]).(*catalogv1.AgentBundle), true
-}
-
 func DefaultTemplates() []*catalogv1.RuntimeTemplate {
 	templates, err := loadDefaultTemplates()
 	if err != nil {
@@ -145,74 +92,12 @@ func DefaultTemplates() []*catalogv1.RuntimeTemplate {
 	return templates
 }
 
-func DefaultAgentBundles() []*catalogv1.AgentBundle {
-	bundles, err := loadDefaultAgentBundles()
-	if err != nil {
-		panic(fmt.Sprintf("load default agent bundles: %v", err))
-	}
-	return bundles
-}
-
 func loadDefaultTemplates() ([]*catalogv1.RuntimeTemplate, error) {
 	data, err := defaultRuntimeTemplatesFS.ReadFile(defaultRuntimeTemplatesPath)
 	if err != nil {
 		return nil, err
 	}
 	return parseDefaultTemplates(data)
-}
-
-func loadDefaultAgentBundles() ([]*catalogv1.AgentBundle, error) {
-	data, err := defaultRuntimeTemplatesFS.ReadFile(defaultAgentBundlesPath)
-	if err != nil {
-		return nil, err
-	}
-	return parseDefaultAgentBundles(data)
-}
-
-func parseDefaultAgentBundles(data []byte) ([]*catalogv1.AgentBundle, error) {
-	var rawBundles []json.RawMessage
-	if err := json.Unmarshal(data, &rawBundles); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", defaultAgentBundlesPath, err)
-	}
-	bundles := make([]*catalogv1.AgentBundle, 0, len(rawBundles))
-	seen := make(map[string]struct{}, len(rawBundles))
-	for idx, raw := range rawBundles {
-		bundle := &catalogv1.AgentBundle{}
-		if err := protojson.Unmarshal(raw, bundle); err != nil {
-			return nil, fmt.Errorf("parse %s[%d]: %w", defaultAgentBundlesPath, idx, err)
-		}
-		if err := validateDefaultAgentBundle(idx, bundle, seen); err != nil {
-			return nil, err
-		}
-		applyAgentBundleOverride(bundle)
-		bundles = append(bundles, bundle)
-	}
-	return bundles, nil
-}
-
-func validateDefaultAgentBundle(idx int, bundle *catalogv1.AgentBundle, seen map[string]struct{}) error {
-	if strings.TrimSpace(bundle.GetID()) == "" {
-		return fmt.Errorf("%s[%d]: id is required", defaultAgentBundlesPath, idx)
-	}
-	if strings.TrimSpace(bundle.GetVersion()) == "" {
-		return fmt.Errorf("%s[%d]: version is required", defaultAgentBundlesPath, idx)
-	}
-	key := templateKey(bundle.GetID(), bundle.GetVersion())
-	if _, ok := seen[key]; ok {
-		return fmt.Errorf("%s[%d]: duplicate agent bundle %s@%s", defaultAgentBundlesPath, idx, bundle.GetID(), bundle.GetVersion())
-	}
-	seen[key] = struct{}{}
-	if bundle.GetImageDescriptor().GetDigest() == "" {
-		return fmt.Errorf("%s[%d]: image_descriptor.digest is required", defaultAgentBundlesPath, idx)
-	}
-	if bundle.GetImageDescriptor().GetAnnotations()[imageRefAnnotationKey] == "" {
-		return fmt.Errorf("%s[%d]: image descriptor %q annotation is required", defaultAgentBundlesPath, idx, imageRefAnnotationKey)
-	}
-	binaryPath := strings.TrimSpace(bundle.GetBinaryPath())
-	if strings.Contains(binaryPath, "\x00") || !strings.HasPrefix(binaryPath, "/") || path.Clean(binaryPath) != binaryPath || binaryPath == "/" {
-		return fmt.Errorf("%s[%d]: binary_path must be a clean absolute path", defaultAgentBundlesPath, idx)
-	}
-	return nil
 }
 
 func parseDefaultTemplates(data []byte) ([]*catalogv1.RuntimeTemplate, error) {
@@ -284,26 +169,6 @@ func applyRuntimeTemplateOverrides(template *catalogv1.RuntimeTemplate) {
 	}
 }
 
-func applyAgentBundleOverride(bundle *catalogv1.AgentBundle) {
-	if bundle == nil {
-		return
-	}
-	value := strings.TrimSpace(os.Getenv(agentBundleImageOverrideEnv[bundle.GetID()]))
-	if value == "" {
-		return
-	}
-	if bundle.ImageDescriptor == nil {
-		bundle.ImageDescriptor = &catalogv1.OciImageDescriptor{}
-	}
-	if bundle.ImageDescriptor.Annotations == nil {
-		bundle.ImageDescriptor.Annotations = map[string]string{}
-	}
-	bundle.ImageDescriptor.Annotations[imageRefAnnotationKey] = value
-	if strings.HasPrefix(value, "sha256:") {
-		bundle.ImageDescriptor.Digest = value
-	}
-}
-
 func cloneRuntimeTemplateMap(in []*catalogv1.RuntimeTemplate) map[string]*catalogv1.RuntimeTemplate {
 	out := make(map[string]*catalogv1.RuntimeTemplate, len(in))
 	for _, template := range in {
@@ -315,17 +180,6 @@ func cloneRuntimeTemplateMap(in []*catalogv1.RuntimeTemplate) map[string]*catalo
 			continue
 		}
 		out[templateKey(id, template.GetVersion())] = proto.Clone(template).(*catalogv1.RuntimeTemplate)
-	}
-	return out
-}
-
-func cloneAgentBundleMap(in []*catalogv1.AgentBundle) map[string]*catalogv1.AgentBundle {
-	out := make(map[string]*catalogv1.AgentBundle, len(in))
-	for _, bundle := range in {
-		if bundle == nil || strings.TrimSpace(bundle.GetID()) == "" {
-			continue
-		}
-		out[templateKey(bundle.GetID(), bundle.GetVersion())] = proto.Clone(bundle).(*catalogv1.AgentBundle)
 	}
 	return out
 }

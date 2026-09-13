@@ -35,7 +35,7 @@ func TestExportSFTWritesRunRecordsWithRefs(t *testing.T) {
 		record.Agent.Name != "claude-code" ||
 		record.Agent.Runtime == nil ||
 		record.Agent.Runtime.Type != domain.AgentRuntimeTypeAgentImage ||
-		record.Agent.Runtime.Image != "axern/claude-code-bundle:dev" ||
+		record.Agent.Runtime.Image != "example.com/claude-code-agent:dev" ||
 		record.Agent.Runtime.MountTarget != "/opt/axern/agents/claude-code" ||
 		record.Agent.Runtime.BinDir != "/opt/axern/agents/claude-code/bin" ||
 		record.Agent.Runtime.Prompt == nil ||
@@ -86,7 +86,7 @@ func TestExportAgentSummaryOmitsExecutionSecrets(t *testing.T) {
 	if agent.Name != "claude-code" || agent.Runtime == nil || agent.Runtime.Type != domain.AgentRuntimeTypeAgentImage {
 		t.Fatalf("agent summary = %#v", agent)
 	}
-	if agent.Runtime.Image != "axern/claude-code-bundle:dev" ||
+	if agent.Runtime.Image != "example.com/claude-code-agent:dev" ||
 		agent.Runtime.MountTarget != "/opt/axern/agents/claude-code" ||
 		agent.Runtime.BinDir != "/opt/axern/agents/claude-code/bin" {
 		t.Fatalf("agent runtime summary = %#v", agent.Runtime)
@@ -187,7 +187,7 @@ func TestExportTraceMergesTrajectoryAndRawEvents(t *testing.T) {
 		records[1].TimeoutSec != 1800 ||
 		records[1].LauncherKind != domain.AgentLauncherKindAgentImage ||
 		records[1].RuntimeType != domain.AgentRuntimeTypeAgentImage ||
-		records[1].RuntimeImage != "axern/claude-code-bundle:dev" ||
+		records[1].RuntimeImage != "example.com/claude-code-agent:dev" ||
 		records[1].RuntimeMountTarget != "/opt/axern/agents/claude-code" ||
 		records[1].RuntimeBinDir != "/opt/axern/agents/claude-code/bin" ||
 		records[1].RuntimeProfile != "profile-a" {
@@ -529,7 +529,7 @@ func createExportFixture(t *testing.T) string {
 			ApprovalPolicy: domain.AgentApprovalPolicyNever,
 			Runtime: &domain.AgentRuntimeSpec{
 				Type:           domain.AgentRuntimeTypeAgentImage,
-				Image:          "axern/claude-code-bundle:dev",
+				Image:          "example.com/claude-code-agent:dev",
 				MountTarget:    "/opt/axern/agents/claude-code",
 				BinDir:         "/opt/axern/agents/claude-code/bin",
 				Profile:        "profile-a",
@@ -650,7 +650,7 @@ func createExportFixture(t *testing.T) string {
 		Cost:      episode.Cost,
 		Metadata: domain.KeyValue{
 			"runtime_type":         string(domain.AgentRuntimeTypeAgentImage),
-			"runtime_image":        "axern/claude-code-bundle:dev",
+			"runtime_image":        "example.com/claude-code-agent:dev",
 			"runtime_mount_target": "/opt/axern/agents/claude-code",
 			"runtime_bin_dir":      "/opt/axern/agents/claude-code/bin",
 			"runtime_profile":      "profile-a",
@@ -668,7 +668,7 @@ func createExportFixture(t *testing.T) string {
 		t.Fatalf("write trajectory: %v", err)
 	}
 	rawPayload := []byte(
-		`{"event_id":"raw-000001","type":"agent.command_started","timestamp":"2026-05-19T12:00:00Z","launcher_kind":"agent-image","runtime_type":"agent-image","runtime_image":"axern/claude-code-bundle:dev","runtime_mount_target":"/opt/axern/agents/claude-code","runtime_bin_dir":"/opt/axern/agents/claude-code/bin","runtime_profile":"profile-a","command_text":"claude -p ok --api-key=sk-test-secret","cwd":"/workspace","user":"axern","timeout_sec":1800}` + "\n" +
+		`{"event_id":"raw-000001","type":"agent.command_started","timestamp":"2026-05-19T12:00:00Z","launcher_kind":"agent-image","runtime_type":"agent-image","runtime_image":"example.com/claude-code-agent:dev","runtime_mount_target":"/opt/axern/agents/claude-code","runtime_bin_dir":"/opt/axern/agents/claude-code/bin","runtime_profile":"profile-a","command_text":"claude -p ok --api-key=sk-test-secret","cwd":"/workspace","user":"axern","timeout_sec":1800}` + "\n" +
 			`{"event_id":"raw-000002","type":"llm.request","timestamp":"2026-05-19T12:00:00Z","method":"POST","path":"/v1/messages","model":"model","body_ref":"episodes/episode_test-run_smoke-task_1/artifacts/llm/request-000001.body","request_ref":"request-000001"}` + "\n",
 	)
 	if err := os.MkdirAll(filepath.Join(artifactDir, "llm"), 0o755); err != nil {
