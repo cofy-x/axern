@@ -1,183 +1,75 @@
 # Resource Management
 
-This document is the resource-management contract for `axnoded`. Use it before changing cgroup allocation, bridge/veth allocation, warm-pool sizing, delete cleanup, resource accounting, or network backend behavior.
+This document defines the node-local cgroup and network-resource contract. The public request, limit, quota, and placement model is defined by [Resource Model](../../../docs/architecture/resource-model.md); operator settings are defined by [Configuration](configuration.md); executable coverage is defined by [Verification](verification.md).
 
-For operator-facing config fields, use [Configuration](configuration.md). For cross-runtime network or bpfnet changes, also read [`network/bpfnet/AGENTS.md`](../../../network/bpfnet/AGENTS.md).
+## Fact Ownership
 
-## Contract
+Every resource binding belongs to one globally unique Allocation ID. Runtime metadata and OCI labels, annotations, paths, prefixes, and field presence are projections and never authorize lookup, recovery, or cleanup.
 
-This document covers allocation-owned cgroup domains and the reusable interface pool. Only never-assigned warm cgroups are reusable; every cgroup assigned to an allocation is destroyed after cleanup. Ephemeral-storage reservations and hard limits are a separate filestore lifecycle described in [Rootfs And Writable Storage](rootfs-storage.md).
+| Resource | Durable authority | Rebuildable projection |
+| --- | --- | --- |
+| cgroup | `CgroupLease(allocation_id, cgroup_id, lifecycle, commitment)` | OCI `linux.cgroupsPath`, kernel counters, workload leaf |
+| network | `NetworkLease(allocation_id, host_veth, IP, netns)` | link state, neighbor entries, runtime namespace |
+| writable storage | filestore reservation ledger and projection manifest | runsc writable root and host mount projection |
 
-The reusable pool manager owns these two claim types for each sandbox:
+`AllocationState` owns the admitted execution specification. Resource ledgers own node-local bindings and cleanup debt. Neither duplicates the other's facts.
 
-| Resource  | Owner                                                                  | Durable binding                                      |
-| --------- | ---------------------------------------------------------------------- | ---------------------------------------------------- |
-| cgroup    | `internal/resources.CgroupManager` plus `internal/cgroup` drivers      | `CgroupLease(allocation_id, cgroup_id, lifecycle)`   |
-| interface | `internal/resources.InterfaceManager` plus `internal/network` backends | `NetworkLease(allocation_id, host_veth, IP, netns)`  |
+## Allocation And Release
 
-Resource ledgers are the sole ownership source. Delete, housekeeping, and retry paths resolve them by the exact Allocation ID. OCI `linux.cgroupsPath`, namespaces, mounts, and runtime files are execution projections only; labels and annotations never authorize lookup or cleanup. Nodestate owns the admitted Allocation dependency and runtime/image record, while the filestore ledger and projection manifest own writable-storage reservation and mount cleanup state.
+Assignment is durably recorded before allocation succeeds. Release is durably recorded before an IP, interface slot, or other reusable capacity returns to a pool. A failed write leaves the resource owned and unavailable for retry.
 
-## Ownership
+Warm resources are optimization only. A cache miss may create a resource synchronously, but capacity reservation remains atomic and bounded by `max_instance_num`. Only never-assigned cgroups may be reused; an Allocation-owned cgroup moves from `assigned` to `retiring` and is destroyed after cleanup.
 
-Resource model changes usually move through `internal/resources`, `internal/container`, and `internal/service/allocation`. Config-facing changes also touch `config/`, [Configuration](configuration.md), and [`sample_conf.toml`](sample_conf.toml).
+Delete resolves bindings by Allocation ID, crosses the runtime and monitor exit barrier, cleans activation-specific network state, releases runtime storage and image ownership, then retires the cgroup. Every step is idempotent. Failure preserves the remaining authoritative records and returns an error to the durable control-plane retry path.
 
-## Startup And Recovery
+## Recovery
 
-At service startup, `internal/service` creates the resource manager from config. The manager enables cgroup and interface managers as configured, then starts a pool controller for each resizable pool.
+Startup loads the typed ledgers before advertising capacity and reconciles them against one complete runsc and kernel inventory.
 
-Recovery rules:
+- Duplicate or conflicting ownership fails closed.
+- A missing assigned host interface remains owned and its IP remains unavailable until complete runtime recovery proves the Allocation absent.
+- An unreadable or inconsistent assigned interface fails startup; it is never silently rebuilt as idle capacity.
+- Retiring cgroups retain their memory commitment until the exact fenced cgroup is empty and removal succeeds.
+- An assigned cgroup never becomes idle during recovery.
+- OCI metadata cannot create, transfer, or release resource ownership.
 
-- `CgroupManager` loads the durable `idle / assigned / retiring` lease ledger and rebuilds its Allocation index. Retiring leases keep their memory commitment and resume removal after restart.
-- `InterfaceManager` loads typed Allocation-to-interface leases from the `network_interfaces` store bucket, validates unique ownership, scans host veths, returns unassigned veths to the idle queue, and rebuilds the idle IP queue from `ip_range`. A missing assigned host veth remains owned and its IP stays unavailable until the complete runtime inventory proves the Allocation absent; an ambiguous or unreadable assigned interface fails recovery closed.
-- IPv4 veth names preserve the encoded-address format. IPv6 names encode the low 48 address bits so they remain within Linux `IFNAMSIZ`; recovery combines that suffix with the configured prefix and rejects an unreconstructable link.
-- Assignment is synchronously durable before allocation returns. Release is synchronously durable before an IP or slot becomes reusable. Persistence failure leaves the resource owned and quarantined for retry.
-- Before serving, the container manager reconciles every persisted assigned lease against the complete runtime inventory. Ownership ambiguity fails node startup instead of advertising inconsistent capacity. An assigned cgroup is never converted back to idle during recovery.
-- Startup recovery must be idempotent; a partially deleted sandbox should not permanently poison the pool.
+The complete crash-state ordering is defined by [Axnoded Architecture](architecture.md).
 
-## Allocation And Delete
+## Accounting
 
-Sandbox start allocates resources through `container.Manager.Occupy`.
+Node inventory reports `runtime_slots` as the admission capacity consumed by controld. Enabled resource managers can reduce effective capacity when their pool is smaller or has unavailable resources. Pool-specific counts are diagnostics, not independent control-plane facts.
 
-Allocation rules:
+`active_allocation_ids` contains admitted local Allocations whose lifecycle or terminal acknowledgement is still active. `running_allocation_ids` is a runtime projection. Node-local sessions and conformance probes appear in neither set.
 
-- Idle pool hits record `result=hit`.
-- Idle misses request an async refill with trigger `allocation_miss`.
-- Idle misses also attempt one synchronous create so the sandbox can continue without waiting for the next reconcile tick.
-- Interface creation atomically reserves a slot before slow veth/netns work, retains it after successful creation, and releases it only after destruction. Concurrent cache misses therefore cannot exceed `max_instance_num`.
-- A foreground allocation that reaches capacity while a warm-pool interface is still being built waits for that in-flight build and retries from the idle pool. The allocation request context bounds this wait; transient refill work must not be reported as real node exhaustion.
-- If interface creation succeeds but lookup and rollback both fail, the slot and IP are quarantined and reported as `PoolState.unavailable`; they are not returned to the allocator or hidden as free capacity.
-- If no slot or IP remains, allocation returns resource exhausted.
-- If allocation fails partway through, `container.Manager.Occupy` releases any resources already allocated for that start attempt.
+Axnoded reads the immutable `ResourceSpec` from `AllocationState` and applies only runtime-enforced values:
 
-Delete first collects resource claims, crosses the runtime/monitor exit-state barrier, releases rootfs, writable-storage and image leases, and only then moves the allocation cgroup to retiring.
+| Field | Node behavior |
+| --- | --- |
+| `requests.cpu_milli` | relative CPU weight |
+| `limits.cpu_milli` | CFS quota and period |
+| `requests.memory_bytes` | scheduling commitment for the entire sandbox cgroup |
+| `limits.memory_bytes` | parent `memory.max`, zero swap, and group OOM |
+| `requests.ephemeral_storage_bytes` | filestore reservation |
+| `limits.ephemeral_storage_bytes` | runsc writable-root hard limit |
 
-Delete rules:
+CPU and memory commitment use requests, falling back to the corresponding limit only when the request is absent. A running Allocation with neither value increments the matching unbounded diagnostic counter.
 
-- Resolve cgroup and interface bindings from their typed ledgers by Allocation ID before runtime delete.
-- Clean activation-specific network rules before final container cleanup.
-- Every cleanup operation is idempotent so a partially successful multi-resource cleanup can be retried safely. Interface claims may return to the warm pool; allocation-owned cgroups may not.
-- Interface recycle treats an already-absent host veth as successful cleanup. Runtime netns deletion can remove the peer before the explicit node cleanup runs; restoring ownership in that case would create a permanent ghost claim.
-- A late exit event after an explicit delete treats an already-removed container bundle as cleanup complete when the in-memory container is also absent.
-- A successful runtime delete does not immediately release memory capacity. The retiring cgroup remains committed at `max(original request, memory.current)` until it contains no process and removal succeeds. Cleanup relies on authoritative cgroup removal rather than synchronous proactive reclaim. Successful removal reparents all remaining charges to the sandbox ancestor memcg. The ancestor `memory.current` remains part of the node-local admission safety floor while residual clean, dirty, or writeback pages converge.
-- Successful final cleanup schedules a coalesced inventory refresh and node report. Create needs no matching refresh because its durable reservation accounts for the slot before node startup begins.
-- Preserve the authoritative leases and in-memory container when release fails. The node delete RPC returns the error so the control plane's durable delete worker retries it; the bundle is removed only after cleanup succeeds.
+## Cgroup Boundary
 
-## Resource Accounting
+The Allocation parent is the memory safety boundary; the runtime-created workload leaf is the OCI attribution boundary. Axnoded verifies controls, identity, and PID membership but does not install a second authoritative limit at the leaf.
 
-Node inventory reports `runtime_slots` as the admission contract consumed by controld. Its base capacity is `max_instance_num`; enabled cgroup and interface pools reduce its effective capacity when they report a smaller capacity or unavailable slots. Disabled pools do not block inventory and do not constrain the aggregate. Individual cgroup and interface summaries remain diagnostic details rather than a control-plane inference contract. Axnoded rejects startup when a loaded runtime requires a pool disabled by configuration.
+The memory request covers runtime processes, guest accounting, anonymous and shared memory, kernel memory, lower and writable page cache, dirty pages, and writeback. Node daemons and conformance workloads are charged to the separately bounded system reserve under the same delegated cgroup-v2 root.
 
-`active_allocation_ids` is an admission boundary, not an alias for running processes. It includes each durable local `AllocationState` with an exact node admission, including an exited allocation awaiting ordered Delete, plus any admitted Allocation whose queued or in-flight status observation has not yet received a successful controld RPC acknowledgement. Node-local sessions and runtime conformance containers have no admitted record, are discarded on restart, and never enter this set. `running_allocation_ids` remains the process-state projection. This causal acknowledgement barrier prevents a short-lived allocation from being classified as missing before its terminal exit evidence is committed. Before a monitor crosses its exit barrier, the terminal observation is written to a one-current-proof-per-allocation node-state outbox. Atomic compare-and-swap publishing and compare-delete acknowledgement ensure evidence for another Allocation cannot overwrite or erase the terminal proof. The first durable terminal proof for an Allocation is immutable, matching controld admission of terminal lifecycle state; exact replay is idempotent and later conflicting terminal projections are ignored. Startup seeds the outbox from a terminal container checkpoint only while the admitted Allocation record exists, then replays the outbox into the process-local queue. Runtime list/inventory output may enrich PID and creation identity but never creates `FinishedAt`, an exit code, or a diagnostic: only the runtime `Wait` observer is terminal evidence. Shutdown cancels and joins every observer only after any in-progress checkpoint and exit callback have completed, before node state or resource managers are closed.
+Cgroup GC never kills an unexplained process. It retains cleanup debt and retries removal after the runtime barrier. Optional `memory.peak` and PSI data are diagnostic only and never weaken enforcement.
 
-The aggregate `idle` count is the number of runtime slots whose enabled pool resources are already materialized. It is the minimum idle count across enabled pools, capped by effective available capacity. When no resource pool is enabled, all available runtime slots are immediately reusable.
+Capability evidence and loss policy are defined by [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md).
 
-Workload resources arrive from the control plane as `ResourceSpec`, with separate request and limit semantics. `axnoded` preserves that immutable specification in `AllocationState` and converts only the runtime-enforced parts into Linux cgroup settings. Runtime lifecycle checkpoints do not duplicate resource facts.
+## Network Boundary
 
-| Field                              | Local behavior                                                                  |
-| ---------------------------------- | ------------------------------------------------------------------------------- |
-| `requests.cpu_milli`               | cgroup CPU shares for relative fairness                                         |
-| `requests.memory_bytes`            | total sandbox cgroup scheduling reservation and node-local commitment           |
-| `limits.cpu_milli`                 | cgroup CFS quota/period hard CPU ceiling                                        |
-| `limits.memory_bytes`              | total sandbox host-cgroup hard limit; swap is disabled and group OOM is enabled |
-| `requests.ephemeral_storage_bytes` | control-plane and node-local filestore reservation                              |
-| `limits.ephemeral_storage_bytes`   | runsc `size=` hard limit                                                        |
+The interface manager owns the bridge, host veth pool, sandbox IP pool, and netns binding. Cached interfaces are validated before use. Recycle clears the bridge neighbor entry before returning capacity, and allocation clears it again before reuse; neighbor cleanup failure is observable but does not transfer ownership.
 
-`ephemeral_storage_bytes` is the public sandbox-lifetime resource. Axnoded currently charges only the runsc file-backed root overlay, including metadata, copy-up, and whiteouts. Immutable lower/image cache storage, artifacts, projection placeholders, tmpfs, and logs are outside this accounting scope. The runtime implementation may call the charged backing writable storage internally; that implementation term does not broaden the public resource contract.
+`nat_backend` selects either the iptables implementation or the bpfnet eBPF implementation. Axnoded never falls back between them implicitly. A required backend that cannot attach or reconcile keeps the node unavailable. Backend behavior is defined by [bpfnet Architecture](../../../network/bpfnet/docs/architecture.md).
 
-Node inventory joins admitted Allocation identity with its immutable `ResourceSpec`; it does not infer scheduling commitment from an OCI projection or runtime checkpoint. Inventory commitment uses running admitted Allocations only:
+## Diagnostics
 
-| Resource | Primary source                       | Fallback                               |
-| -------- | ------------------------------------ | -------------------------------------- |
-| CPU      | `ResourceSpec.requests.cpu_milli`    | `ResourceSpec.limits.cpu_milli`        |
-| Memory   | `ResourceSpec.requests.memory_bytes` | `ResourceSpec.limits.memory_bytes`     |
-
-A running container with neither request nor applicable runtime limit increments the matching unbounded counter.
-
-## Pool Reconciliation
-
-Each resizable manager owns an idle target and a max capacity:
-
-```text
-target = cgroup_cache_size or interface_cache_size
-max    = max_instance_num
-```
-
-`poolController` keeps idle resources near the target without exceeding max capacity.
-
-| Trigger           | Source                                        |
-| ----------------- | --------------------------------------------- |
-| `periodic`        | reconcile ticker, default `1s`                |
-| `low_watermark`   | allocation hit leaves idle count below target |
-| `allocation_miss` | allocation finds no idle resource             |
-
-| Allocate result    | Meaning                                              |
-| ------------------ | ---------------------------------------------------- |
-| `hit`              | resource came from the idle pool                     |
-| `miss_sync_create` | idle pool was empty and synchronous create succeeded |
-| `exhausted`        | pool reached `max_instance_num` or no IPs remain     |
-| `error`            | create, parse, validate, or rebuild failed           |
-
-## Cgroups
-
-`CgroupManager` owns cgroup creation, one-allocation ownership, destruction, persistence, reclaim, and cleanup debt.
-
-Key behavior:
-
-- Root defaults to `/sandbox`.
-- IDs are generated under the configured root.
-- Existing cgroups are scanned at startup.
-- The durable lease ledger records `idle`, `assigned`, or `retiring`, allocation ownership, memory request, cgroup identity, current charge, and cleanup error.
-- Warm creation may place a never-assigned empty cgroup in `idle`. Assignment is a one-way ownership boundary: delete moves it to `retiring`, never back to `idle`.
-- When the process receives a different delegated root after replacement, startup discards only never-assigned leases and leases owned by the internal runtime-conformance harness. It recreates the warm pool under the current root, while the deterministic conformance preflight removes interrupted probe artifacts. Any workload-owned old-root `assigned` or `retiring` lease remains a hard startup error until allocations are drained and cleanup debt is reconciled; its commitment is never silently released. Ownership is a durable typed field and is never inferred from an allocation ID prefix.
-- `cgroup_cache_size = 0` disables only warm creation. In required mode the manager remains active and creates one-use allocation cgroups on demand.
-- GC never kills an unexplained remaining process. It retains the retiring lease, retries after the runtime/monitor barrier, verifies the domain is empty when available, and removes the empty cgroup. Dirty/writeback counters remain diagnostic facts, not cgroup-v2 removal preconditions. Successful cgroup removal remains mandatory and fail-closed.
-- `cgroup_enforcement = "required"` is the production default. The allocation parent is the sole safety boundary: a declared limit writes parent `memory.max`, parent `memory.swap.max=0`, and parent `memory.oom.group=1` and reads them back. The workload leaf is the OCI/runtime contract and attribution boundary; axnoded verifies the runtime-created leaf limit/swap controls and host PID membership but does not install a second authoritative limit there. Failure force-deletes the sandbox.
-- Node startup creates a private probe cgroup under `cgroup_root_name`, writes and reads back a memory limit, and removes the probe before publishing the typed cgroup-controller fact. Runtime-specific runsc memory-hard-limit capability is derived only after a dedicated readonly-root conformance sandbox also verifies the runtime-specific host process boundary. Runsc checks Sentry and gofer roles, executable identity, and membership; guest workload memory is accounted through Sentry, not through a separate guest host PID. The conformance workload allocates and touches anonymous memory until a real group OOM, then verifies memory-event deltas, monitor exit-state persistence, swap prohibition, and cleanup. Storage conformance runs in a separate writable-root sandbox; disabling cgroup enforcement for development cannot manufacture memory evidence or suppress storage evidence. These destructive probes run at initial certification, runtime/config identity change, and deployment qualification—not on a timer. Every real allocation is verified again after create, and event-triggered plus sharded runtime audits use only cheap control/identity/PID reads.
-- `requests.memory_bytes` is the complete sandbox memcg reservation. Runsc Sentry/gofer and guest accounting, anon, shmem, kernel memory, EROFS lower page cache, writable-overlay page cache, dirty pages, and writeback all consume it. There is no runsc overhead reservation.
-- `memory_system_reserve_bytes` covers axnoded, lifecycle monitors, imagemgr, imagefsd, Nydus daemons/cache, and other node-local processes outside sandbox cgroups. It also contains the reserved runtime-certification budget: axnoded creates a sibling `conformance` domain with an aggregate 512 MiB hard limit, zero swap, and group OOM. The memory workload exercises a nested 256 MiB hard limit, including runtime processes attributed to that sandbox. The aggregate ceiling/reservation does not enlarge that allocation limit. Host lifecycle monitors inherit `internal`, not the certification sandbox; their memory is charged to the remaining system reserve. All runsc memory and storage self-tests share one serial lane and one resource lease in that domain. Certification current usage, commitment, and cleanup debt never reduce workload allocatable memory or `max_instance_num`, but insufficient system-reserve headroom fails the probe closed. Production requires at least 512 MiB and a larger qualification-derived value must cover the node daemons at the same time; exceeding it blocks new create without terminating existing sandboxes.
-- Every process charged to that reserve must run below the same delegated cgroup-v2 root. Node daemons inherit its `internal` child; certification workloads run only in the bounded `conformance` sibling. The packaged all-in-one node satisfies this by moving the supervisor and its existing children before enabling the sandbox subtree; separate service units must be deployed under an equivalent shared delegation. A daemon outside that domain is a deployment error because the combined `internal/memory.current` and `conformance/memory.current` budget cannot account for it.
-- The node memory budget reports physical capacity separately from the resource source's allocatable value. The sandbox scheduling base is `min(source_allocatable_bytes, delegated_root_limit_bytes)` when the delegated limit is finite, minus the system reserve. Physical capacity is a diagnostic consistency fact, not extra allocatable memory.
-- Per-allocation observations always report `memory.current`. When the host kernel exposes `memory.peak`, `peak_available=true` identifies the kernel high-water mark. Kernels may omit optional `memory.peak`/`memory.pressure` files or expose them while returning `EOPNOTSUPP`; in those cases the node reports `peak_available=false` and/or `psi_available=false`, with current as the sampled peak lower bound. Malformed, permission-denied, and other I/O failures remain provider errors. Optional observability unavailability is not a hard-limit fallback: enforcement continues to depend on control readback, OOM events, cgroup identity, and runtime PID attribution.
-- Capacity reporting and hard-limit enforcement are separate contracts. Production publishes `CGROUP_V2` with a positive reserve and cgroup-backed capacity identity. Explicit `disabled_dev` publishes `DISABLED_DEV` capacity with zero reserve, but memory limits remain ineligible because the runtime hard-limit capability is unavailable. Because this mode has no allocation-owned memcg, allocation CPU/memory usage observations are omitted rather than sampling the shared delegated root and fabricating attribution; request commitments remain authoritative for local admission.
-
-Capability definitions, evidence validity, placement dependency, and enforcement-loss policy for these probes are defined by [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md), not by this pool implementation document.
-
-## Interfaces And Network
-
-`InterfaceManager` owns the sandbox bridge, host veth pool, sandbox IP pool, and netns metadata.
-
-Key behavior:
-
-- The bridge name is `sandbox0`.
-- Default CIDR is `172.17.0.1/16`.
-- Host veth names are derived from the assigned IP.
-- `NetResource` is serialized as JSON in the interface resource annotation.
-- Cached interfaces are validated on allocation and rebuilt when stale.
-- Recycled interfaces return to the idle queue only after the bridge neighbor entry for their IP is cleared. Allocation clears it again before reuse so a stale ARP state cannot delay the first host-to-sandbox connection.
-- Neighbor cleanup is best effort so a transient netlink failure does not make the node unavailable. `axern.axnoded_network_neighbor_reset_total` records `cleared`, `absent`, and `error` results for startup load, allocation, and recycle boundaries.
-- On manager shutdown, idle interfaces are destroyed slowly to reduce host impact.
-
-The interface manager always uses the same bridge/veth/netns shape. `nat_backend` selects rule programming:
-
-| Backend    | Behavior                                                                                                        |
-| ---------- | --------------------------------------------------------------------------------------------------------------- |
-| `iptables` | bridge SNAT, hostPort DNAT, localhost compatibility, and cleanup through iptables                               |
-| `ebpf`     | `bpfnet` tc/cgroup dataplane; optional localhost TCP compatibility is explicit and narrowly scoped             |
-
-For `ebpf`, `axnoded` configures the bpfnet controller before resource manager startup and fails closed if the required dataplane cannot attach or reconcile. It never changes the configured NAT backend automatically. When explicitly enabled, localhost TCP compatibility delegates only that path to iptables while TC ingress and egress remain on eBPF.
-
-## Inspection
-
-Use `axctl node resources`, `/inventoryz`, and Prometheus metrics to inspect idle, using, target, allocation result, refill result, and GC queue state. Both JSON surfaces expose `node.node_id`/`node_id` as the exact control-plane node identity used by placement and allocation reports; tooling must not reconstruct it from a hostname or Kubernetes Pod name. For compose/kind command examples, use [Local Troubleshooting](../../../deploy/local/troubleshooting.md).
-
-## Sync Points
-
-When this area changes, keep these in sync as applicable:
-
-- `config/config.go`
-- `config/config_test.go`
-- `docs/sample_conf.toml`
-- `docs/configuration.md`
-- `README.md` only when endpoint summaries or document routing changes
-- `internal/resources`
-- `internal/container`
-- `internal/service/allocation`
+Use `axctl node resources`, `/inventoryz`, and Prometheus metrics to inspect capacity, ownership, unavailable resources, refill outcomes, and cgroup cleanup debt. Node identity always comes from the explicit control-plane `node_id`, never a hostname or Pod name.

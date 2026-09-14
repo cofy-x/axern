@@ -172,6 +172,6 @@ See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection, EROF
 | image-backed rootfs fails         | runtime image manager                                    | `image_manager_enabled`, `image_manager_socket`, imagemgr logs, imagefsd logs. |
 | sandbox has no egress or hostPort | network                                                  | `nat_backend`, `ip_range`, `sandbox0`, iptables/bpfnet logs.                   |
 | start is slow after burst         | resource pool                                            | idle gauges, `miss_sync_create`, reconcile interval, cache sizes.              |
-| delete leaves resources behind    | resource/runtime paths                                   | OCI annotations, storeDir, resource cleanup logs, GC queue metric.             |
+| delete leaves resources behind    | resource/runtime paths                                   | typed resource ledgers, storeDir, cleanup logs, GC queue metric.                |
 
 For local compose/kind command examples, use [Local Troubleshooting](../../../deploy/local/troubleshooting.md).

@@ -70,7 +70,7 @@ Example daemon invocation:
 - [Configuration](docs/configuration.md): sample config meanings and common local/production profiles.
 - [Architecture](docs/architecture.md): internal layers and primary request flows.
 - [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md): cross-system observation, policy, admission evidence, and enforcement loss.
-- [Resource Handling](docs/resource.md): resource claims, pools, accounting, and network backend invariants.
+- [Resource Handling](docs/resource.md): Allocation resource bindings, accounting, recovery, and network backend invariants.
 - [Sandbox Daemon](docs/sandbox-daemon.md): Axern sandbox daemon architecture for PID 1 supervision and daemon-backed sandbox operations.
 - [Image Mounts](docs/image-mounts.md): read-only image mount primitive for composing task sandboxes with reusable bundles.
 - [Sandboxd Capabilities](docs/sandboxd-capabilities.md): current sandboxd capability matrix, ownership rules, and provider semantics.

@@ -1,23 +1,13 @@
 # Firecracker Evaluation Boundary
 
-Status: research gate; not a supported runtime.
+## Decision
 
-Axern's production execution boundary remains gVisor `runsc`. Firecracker must not be added as a per-Run selector, a fallback, a generic backend registry, or an abstraction that weakens the single `Environment -> Run -> Allocation -> sandbox` lifecycle. A Firecracker experiment is justified only to measure a concrete isolation or density gap that runsc cannot satisfy.
+gVisor `runsc` remains Axern's only supported production sandbox backend. Firecracker is not a per-Run selector, fallback, public capability, or reason to introduce a generic runtime registry.
 
-## Experiment Contract
+## Rationale
 
-A prototype must run on a separately qualified node pool and reuse the existing public Run, Allocation, process, file, archive, terminal, SSH, Tunnel, resource, capability, and diagnostic contracts. It may introduce implementation-private adapters in an experiment branch, but no public runtime field or compatibility layer.
+The stable contract is `Environment -> Run -> Allocation -> sandbox`. A second backend is useful only if it satisfies that contract on a separately qualified node pool and demonstrates a material isolation or workload advantage that runsc cannot provide. Speculative backend abstractions would add public and operational complexity without current product value.
 
-The experiment must produce reproducible evidence for:
+## Revisit Condition
 
-- cold and warm start latency at representative concurrency;
-- steady-state memory and CPU overhead per Allocation;
-- image/rootfs preparation and allocation-local writable-storage behavior;
-- network-policy, egress, SSH, and Tunnel correctness;
-- hard memory and ephemeral-storage enforcement;
-- forced deletion, node restart, orphan recovery, and output delivery;
-- host-kernel and KVM prerequisites, operational failure modes, and patching burden.
-
-## Promotion Gate
-
-Production work starts only if the evidence shows a material workload requirement or isolation advantage, the complete Allocation contract remains fail-closed, and operating a separately qualified pool is acceptable. Promotion requires its own architecture decision and Linux qualification matrix. Until then, repository configuration, Proto, SDKs, scheduling, capability keys, and runtime factories remain runsc-only.
+Reconsider this decision only with reproducible evidence covering startup latency, density, image and writable-root behavior, resource and network enforcement, SSH and Tunnel correctness, forced deletion, restart recovery, and KVM operational cost. Any promoted implementation requires its own architecture decision and Linux qualification matrix.

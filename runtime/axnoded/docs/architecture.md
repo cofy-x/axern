@@ -76,8 +76,6 @@ The deterministic crash matrix is:
 | exact terminal checkpoint | `exited` or absent | seed/replay the terminal outbox, acknowledge controld, then clean up |
 | resource release persistence failed | runtime absent | retain/quarantine the durable lease and retry; do not return capacity to the pool |
 
-Tests inject failures at the admission/runtime persistence boundary, terminal checkpoint/outbox boundary, cgroup retirement store, network assignment/release store, writable reservation cleanup, and image/projection cleanup. A new persistent write in this sequence must extend this matrix and add both “before durable write” and “after durable write” recovery coverage.
-
 Inventory active IDs come from admitted `AllocationState` records plus their unacknowledged terminal outbox entries. Running IDs and locality are live joins against runtime state and the environment template already held by `AllocationState`; arbitrary internal containers and container labels cannot enter the control-plane Allocation inventory.
 
 Rootfs handling follows the three-boundary contract in [rootfs-storage.md](rootfs-storage.md): host target projection, runtime-specific guest writable storage, and cgroup memory enforcement are independent. The input lower rootfs is immutable across create, start, failure rollback, and delete.
