@@ -50,6 +50,9 @@ func (s *Store) MarkAllocationCreateFailed(ctx context.Context, allocationID, cl
 		`, allocationID, runv1.RunStatus_RUN_STATUS_FAILED.String(), commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR.String(), message, now.UTC(), runv1.RunStatus_RUN_STATUS_SUCCEEDED.String(), runv1.RunStatus_RUN_STATUS_FAILED.String(), runv1.RunStatus_RUN_STATUS_CANCELLED.String()); err != nil {
 			return fmt.Errorf("mark run failed: %w", err)
 		}
+		if err := deleteAllocationRunSecretReferences(ctx, tx, allocationID); err != nil {
+			return err
+		}
 		updated, err := pgallocation.ScheduleClaimedReconcile(ctx, tx, allocationkernel.ScheduleReconcileRequest{
 			AllocationID: allocationID,
 			Intent:       allocationkernel.ReconcileIntentEnsureAbsent,
@@ -97,6 +100,9 @@ func (s *Store) CancelRun(ctx context.Context, runID string, now time.Time) (*ru
 				return fmt.Errorf("mark allocation releasing: %w", err)
 			}
 			if err := s.revokeAllocationLeases(ctx, tx, run.GetAllocationID(), now); err != nil {
+				return err
+			}
+			if err := deleteRunSecretReferences(ctx, tx, run.GetID()); err != nil {
 				return err
 			}
 			if err := pgallocation.ScheduleReconcile(ctx, tx, allocationkernel.ScheduleDeleteRequest(run.GetAllocationID(), now), now); err != nil {

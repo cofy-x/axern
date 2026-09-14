@@ -389,8 +389,8 @@ func TestPostgresRunNamespaceResourceQuotaAdmission(t *testing.T) {
 		}
 	}
 	for _, event := range events {
-		if event.GetRunID() == "" {
-			t.Fatal("run quota event run_id is empty")
+		if event.GetEnvironmentID() != env.GetID() {
+			t.Fatalf("quota event environment_id = %q, want %q", event.GetEnvironmentID(), env.GetID())
 		}
 	}
 }

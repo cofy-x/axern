@@ -118,7 +118,7 @@ class EnvironmentSpec(_message.Message):
     def __init__(self, namespace: _Optional[str] = ..., template_id: _Optional[str] = ..., template_version: _Optional[str] = ..., image: _Optional[_Union[EnvironmentImageSource, _Mapping]] = ...) -> None: ...
 
 class Environment(_message.Message):
-    __slots__ = ("id", "namespace", "spec", "resolved_spec", "labels", "created_at", "deleted_at")
+    __slots__ = ("id", "namespace", "spec", "resolved_spec", "labels", "created_at")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -132,18 +132,16 @@ class Environment(_message.Message):
     RESOLVED_SPEC_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
-    DELETED_AT_FIELD_NUMBER: _ClassVar[int]
     id: str
     namespace: str
     spec: EnvironmentSpec
     resolved_spec: ResolvedEnvironmentSpec
     labels: _containers.ScalarMap[str, str]
     created_at: _timestamp_pb2.Timestamp
-    deleted_at: _timestamp_pb2.Timestamp
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., spec: _Optional[_Union[EnvironmentSpec, _Mapping]] = ..., resolved_spec: _Optional[_Union[ResolvedEnvironmentSpec, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., deleted_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., spec: _Optional[_Union[EnvironmentSpec, _Mapping]] = ..., resolved_spec: _Optional[_Union[ResolvedEnvironmentSpec, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class ListFilter(_message.Message):
-    __slots__ = ("namespace", "labels", "include_deleted", "cursor", "page_size")
+    __slots__ = ("namespace", "labels", "cursor", "page_size")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -153,15 +151,13 @@ class ListFilter(_message.Message):
         def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
-    INCLUDE_DELETED_FIELD_NUMBER: _ClassVar[int]
     CURSOR_FIELD_NUMBER: _ClassVar[int]
     PAGE_SIZE_FIELD_NUMBER: _ClassVar[int]
     namespace: str
     labels: _containers.ScalarMap[str, str]
-    include_deleted: bool
     cursor: str
     page_size: int
-    def __init__(self, namespace: _Optional[str] = ..., labels: _Optional[_Mapping[str, str]] = ..., include_deleted: _Optional[bool] = ..., cursor: _Optional[str] = ..., page_size: _Optional[int] = ...) -> None: ...
+    def __init__(self, namespace: _Optional[str] = ..., labels: _Optional[_Mapping[str, str]] = ..., cursor: _Optional[str] = ..., page_size: _Optional[int] = ...) -> None: ...
 
 class CreateEnvironmentRequest(_message.Message):
     __slots__ = ("spec", "labels")

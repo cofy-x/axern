@@ -14,9 +14,6 @@ func RenderEnvironment(w io.Writer, env *environmentv1.Environment) {
 	}
 	fmt.Fprintf(w, "ID: %s\n", env.GetID())
 	fmt.Fprintf(w, "Namespace: %s\n", env.GetNamespace())
-	if env.GetDeletedAt() != nil {
-		fmt.Fprintln(w, "Deleted: true")
-	}
 	if spec := env.GetSpec(); spec != nil {
 		switch {
 		case strings.TrimSpace(spec.GetTemplateID()) != "":
@@ -53,13 +50,12 @@ func RenderEnvironmentTable(w io.Writer, envs []*environmentv1.Environment) {
 		source, ref, digest := environmentSummary(env)
 		rows = append(rows, []string{
 			env.GetID(),
-			boolLabel(env.GetDeletedAt() != nil),
 			source,
 			ref,
 			digest,
 		})
 	}
-	RenderTable(w, []string{"ID", "DELETED", "SOURCE", "REF", "DIGEST"}, rows)
+	RenderTable(w, []string{"ID", "SOURCE", "REF", "DIGEST"}, rows)
 }
 
 func environmentSummary(env *environmentv1.Environment) (source, ref, digest string) {

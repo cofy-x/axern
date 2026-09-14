@@ -69,15 +69,13 @@ message Environment {
   ResolvedEnvironmentSpec resolved_spec = 4;
   map<string, string> labels = 5;
   google.protobuf.Timestamp created_at = 6;
-  google.protobuf.Timestamp deleted_at = 7;
 }
 
 message ListFilter {
   string namespace = 1;
   map<string, string> labels = 2;
-  bool include_deleted = 3;
-  string cursor = 4;
-  int32 page_size = 5;
+  string cursor = 3;
+  int32 page_size = 4;
 }
 
 message CreateEnvironmentRequest {

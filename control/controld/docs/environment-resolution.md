@@ -22,9 +22,9 @@ Environments support two execution-source modes:
 
 Image-backed environments can optionally reference a controld-managed registry credential secret via `image.registry_credential_id`. The referenced secret must be type `DOCKER_CONFIG_JSON`. `EnvironmentSpec.image` records normalized source intent only: the reference, read-only policy, and credential reference. Resolved OCI digest, media type, size, and canonical reference annotations belong exclusively to `resolved_spec.image_descriptor`; they are not copied back into the source.
 
-`resolved_spec` is the normalized immutable runtime input for both modes, so Run admission and node lifecycle paths consume one execution shape. Template ID and version remain private resolution inputs; image, mounts, defaults, and execution profile live in the Environment's resolved specification. An Environment is immutable except for its deletion tombstone; changing the source creates another Environment and a new Run.
+`resolved_spec` is the normalized immutable runtime input for both modes, so Run admission and node lifecycle paths consume one execution shape. Template ID and version remain private resolution inputs; image, mounts, defaults, and execution profile live in the Environment's resolved specification. An Environment is immutable; changing the source creates another Environment and a new Run.
 
-Deletion sets `deleted_at` once. Deleted Environments remain queryable for Run history, are excluded from lists by default, and cannot admit new Runs. Environment has no synthetic READY/DELETED status machine, hash identity, optimistic version, or mutable message.
+Run admission copies both normalized source intent and the resolved execution specification into the Run in the same transaction that creates its Allocation, reservation, capability requirements, and node lifecycle intent. Node creation and crash recovery consume that Run-owned snapshot rather than reading the Environment row again. Environment deletion is therefore a physical delete: later lookup returns not found, while every admitted Run remains independently interpretable and rebuildable. Environment has no deletion tombstone, synthetic status machine, hash identity, optimistic version, or mutable message.
 
 Environments contain immutable workload inputs and remain independent from node implementation details.
 
@@ -44,4 +44,4 @@ The resolved `image_default_argv` is informational metadata for built-in images,
 
 ## Secrets
 
-Execution configs can project immutable controld-managed secrets into workloads through `secret_env` and `secret_files`. Secret values are encrypted at rest in Postgres and are never returned in plaintext after create.
+Execution configs can project immutable controld-managed secrets into workloads through `secret_env` and `secret_files`. Secret values are encrypted at rest in Postgres and are never returned in plaintext after create. A typed relational reference protects every required Secret from deletion while an Environment or non-terminal Run depends on it; optional Run references deliberately do not acquire that deletion lock. Run terminalization removes its active Secret references in the same transaction as the terminal result.

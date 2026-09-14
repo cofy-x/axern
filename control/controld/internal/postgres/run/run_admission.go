@@ -37,15 +37,14 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 			}
 			return err
 		}
-		if currentEnvironment.GetDeletedAt() != nil {
-			return grpcstatus.Errorf(codes.FailedPrecondition, "environment %q is deleted", params.Environment.GetID())
-		}
 		namespace := environmentkernel.NormalizeNamespace(params.Namespace)
+		if currentEnvironment.GetNamespace() != namespace {
+			return grpcstatus.Errorf(codes.InvalidArgument, "run namespace %q does not own environment %q", namespace, currentEnvironment.GetID())
+		}
 		runID := "run-" + uuid.NewString()
 		allocationID := "alloc-" + uuid.NewString()
 		selected, err := s.reserveCandidate(ctx, tx, pgreservation.ReserveCandidateRequest{
 			Namespace:     namespace,
-			RunID:         runID,
 			EnvironmentID: params.Environment.GetID(),
 			Candidates:    params.Candidates,
 			Config:        params.Config,
@@ -59,21 +58,31 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		if err != nil {
 			return err
 		}
+		environmentSpecJSON, err := marshalProtoJSON(currentEnvironment.GetSpec())
+		if err != nil {
+			return err
+		}
+		resolvedEnvironmentSpecJSON, err := marshalProtoJSON(currentEnvironment.GetResolvedSpec())
+		if err != nil {
+			return err
+		}
 		labelsJSON, err := marshalJSONMap(params.Labels)
 		if err != nil {
 			return err
 		}
 		run = &runv1.Run{
-			ID:            runID,
-			Namespace:     namespace,
-			EnvironmentID: params.Environment.GetID(),
-			AllocationID:  allocationID,
-			Status:        runv1.RunStatus_RUN_STATUS_PLACED,
-			Config:        runkernel.CloneConfig(normalizedConfig),
-			Labels:        runkernel.CloneLabels(params.Labels),
-			Version:       1,
-			CreatedAt:     timestamppb.New(now),
-			UpdatedAt:     timestamppb.New(now),
+			ID:                      runID,
+			Namespace:               namespace,
+			EnvironmentID:           params.Environment.GetID(),
+			AllocationID:            allocationID,
+			Status:                  runv1.RunStatus_RUN_STATUS_PLACED,
+			Config:                  runkernel.CloneConfig(normalizedConfig),
+			EnvironmentSpec:         cloneEnvironmentSpec(currentEnvironment.GetSpec()),
+			ResolvedEnvironmentSpec: cloneResolvedEnvironmentSpec(currentEnvironment.GetResolvedSpec()),
+			Labels:                  runkernel.CloneLabels(params.Labels),
+			Version:                 1,
+			CreatedAt:               timestamppb.New(now),
+			UpdatedAt:               timestamppb.New(now),
 		}
 		alloc = &runkernel.AllocationRecord{
 			AllocationID:           run.GetAllocationID(),
@@ -84,10 +93,13 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO runs (
 				run_id, namespace, environment_id, status,
-				config, labels, version, created_at, updated_at, message
-			) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, '')
-		`, run.GetID(), run.GetNamespace(), run.GetEnvironmentID(), run.GetStatus().String(), cfgJSON, labelsJSON, run.GetVersion(), now.UTC(), now.UTC()); err != nil {
+				config, environment_spec, resolved_environment_spec, labels, version, created_at, updated_at, message
+			) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10, $11, '')
+		`, run.GetID(), run.GetNamespace(), run.GetEnvironmentID(), run.GetStatus().String(), cfgJSON, environmentSpecJSON, resolvedEnvironmentSpecJSON, labelsJSON, run.GetVersion(), now.UTC(), now.UTC()); err != nil {
 			return fmt.Errorf("insert run: %w", err)
+		}
+		if err := insertRunSecretReferences(ctx, tx, run); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO allocations (

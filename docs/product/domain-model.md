@@ -46,7 +46,7 @@ Built-in templates are deployment-managed, read-only inputs used while resolving
 
 ### Namespace
 
-A Namespace scopes Environments, Runs, Secrets, quota policy, and retained metadata. Namespace deletion must reject live operational state, including an active Run, Allocation, Reservation, TunnelSession, or Secret. Historical terminal Run records may retain the namespace string without keeping the Namespace alive.
+A Namespace scopes Environments, Runs, Secrets, quota policy, and retained metadata. Namespace deletion must reject live operational state, including an active Run, Allocation, Reservation, TunnelSession, or Secret. Deletion is an irreversible security tombstone: the Namespace row remains to preserve retained references and prevents the deleted name from acquiring a new authorization identity.
 
 Namespace is not an alias for a Kubernetes namespace, cluster, region, cloud account, project-management system, or billing account.
 
@@ -54,13 +54,13 @@ Namespace is not an alias for a Kubernetes namespace, cluster, region, cloud acc
 
 An Environment answers what reproducible input a Run starts from. Its source is a versioned template or an image resolved to immutable identity before execution. Read-only image mounts and normalized execution policy may be part of the resolved input; allocation-local writable files are not.
 
-Environment meaning is immutable. A source or policy change creates a new Environment. Run creation freezes the resolved input required to interpret and rebuild that Run; deleting an Environment must not silently change historical Run meaning.
+Environment meaning is immutable. A source or policy change creates a new Environment. Run creation atomically freezes both normalized source intent and the resolved input required to interpret and rebuild that Run; execution and recovery consume the Run-owned snapshot. Deleting an Environment physically removes that reusable source record without changing any admitted Run.
 
 An Environment does not contain replicas, rollout, service discovery, readiness policy, an Agent Profile, or a persistent Volume declaration.
 
 ### Run
 
-A Run is the smallest complete unit of execution visible to a user or SDK. It owns one immutable execution request, exactly one Allocation, cancellation, terminal result, failure classification, and any explicit output references.
+A Run is the smallest complete unit of execution visible to a user or SDK. It owns one immutable execution request, its admitted Environment snapshot, exactly one Allocation, cancellation, terminal result, failure classification, and any explicit output references.
 
 The stable state projection is:
 
@@ -78,7 +78,7 @@ One Run owns one immutable Allocation identity. Retries of an idempotent lifecyc
 
 ### Secret
 
-Secret plaintext is accepted only by authorized creation or use paths. Normal read APIs return metadata, never plaintext. Run and Environment state store a reference and necessary version identity, not secret content. Plaintext must not enter logs, events, metrics, diagnostics, or artifacts.
+Secret plaintext is accepted only by authorized creation or use paths. Normal read APIs return metadata, never plaintext. Run and Environment state store typed references, not secret content. A required reference prevents deletion while its Environment or non-terminal Run can still consume the Secret; optional Run references do not. Plaintext must not enter logs, events, metrics, diagnostics, or artifacts.
 
 Deletion, rotation, and missing-reference behavior must be explicit. Axern does not silently substitute a same-named newer value for an already frozen Run.
 

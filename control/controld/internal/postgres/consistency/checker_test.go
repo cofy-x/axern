@@ -118,15 +118,15 @@ func insertConsistencyAllocation(t *testing.T, db *postgres.DB, allocationID, ru
 		t.Fatalf("insert namespace: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO nodes (node_id, node_target, registered_at, last_heartbeat_at, lifecycle_status)
-		VALUES ('node-test', '127.0.0.1:24010', $1, $1, 'active')
+		INSERT INTO nodes (node_id, node_target, node_auth_token_hash, registered_at, last_heartbeat_at, lifecycle_status)
+		VALUES ('node-test', '127.0.0.1:24010', repeat('0', 64), $1, $1, 'active')
 		ON CONFLICT (node_id) DO NOTHING
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert node: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
-		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $2, $2)
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, created_at, updated_at)
+		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $2, $2)
 	`, runID, now.UTC()); err != nil {
 		t.Fatalf("insert run: %v", err)
 	}
@@ -194,7 +194,7 @@ func insertConsistencyTunnel(t *testing.T, db *postgres.DB, sessionID, allocatio
 			node_edge_target, status, reason, bound_addr,
 			client_token_hash, node_token_encrypted, node_token_hash, revision, created_at, updated_at, expires_at
 		) VALUES ($1, $2, 'prn-consistency-test', 30001,
-			'127.0.0.1:24210', $3, '', '', 'client-hash', $4, 'node-hash', 0, $5, $5, $6)
+			'127.0.0.1:24210', $3, '', '', 'client-hash', $4, 'node-hash', 1, $5, $5, $6)
 	`, sessionID, allocationID, status, []byte("node-token"), createdAt.UTC(), expiresAt.UTC()); err != nil {
 		t.Fatalf("insert tunnel session: %v", err)
 	}

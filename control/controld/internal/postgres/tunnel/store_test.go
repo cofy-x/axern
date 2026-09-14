@@ -530,13 +530,13 @@ func insertTunnelTestAllocation(t *testing.T, db *postgres.DB, allocationID stri
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO nodes (
 			node_id, node_target, registered_at, last_heartbeat_at, node_auth_token_hash, lifecycle_status
-		) VALUES ('node-test', '127.0.0.1:25000', $1, $1, 'hash', 'active')
+		) VALUES ('node-test', '127.0.0.1:25000', $1, $1, repeat('0', 64), 'active')
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert node: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
-		VALUES ('run-test', 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $1, $1)
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, created_at, updated_at)
+		VALUES ('run-test', 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $1, $1)
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert run: %v", err)
 	}

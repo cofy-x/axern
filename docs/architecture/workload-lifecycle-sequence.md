@@ -4,11 +4,11 @@ Public clients connect to gatewayd. Gatewayd exposes product APIs, resolves allo
 
 `Run` is the single public workload model: one execution owns one allocation and eventually records a terminal exit status. SDK Sandboxes use a detached Run while their client-managed session is active.
 
-Runs use `Environment` as the execution source. A resource spec selects exactly one existing Environment, deployment-provided template identifier, or OCI image. Template and image inputs are resolved into an immutable Environment before admission. Templates are private control-plane configuration, not public product objects. `runsc` is the platform execution boundary and is not a workload-selectable field.
+Runs use `Environment` as the execution source. A resource spec selects exactly one existing Environment, deployment-provided template identifier, or OCI image. Template and image inputs are resolved into an immutable Environment before admission. Admission freezes the normalized source and resolved runtime input on the Run; subsequent node creation and recovery do not read the reusable Environment row. Deleting that Environment is therefore a physical removal and cannot change an admitted Run. Templates are private control-plane configuration, not public product objects. `runsc` is the platform execution boundary and is not a workload-selectable field.
 
 ## Submit And Observe
 
-Creation is a durable submit operation. Controld records workload intent, allocation, reservation, and reconcile work transactionally. Node startup, image preparation, and status reporting continue asynchronously. `--wait` observes the durable lifecycle rather than holding the create RPC open.
+Creation is a durable submit operation. Controld records the Run and Environment snapshots, its unique Allocation, reservation, required Secret references, capability requirements, and reconcile work transactionally. Node startup, image preparation, and status reporting continue asynchronously. `--wait` observes the durable lifecycle rather than holding the create RPC open.
 
 ```mermaid
 sequenceDiagram

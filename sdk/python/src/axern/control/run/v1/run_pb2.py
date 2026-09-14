@@ -24,10 +24,11 @@ _sym_db = _symbol_database.Default()
 
 from axern.control.common.v1 import common_pb2 as axern_dot_control_dot_common_dot_v1_dot_common__pb2
 from axern.control.capability.v1 import capability_pb2 as axern_dot_control_dot_capability_dot_v1_dot_capability__pb2
+from axern.control.environment.v1 import environment_pb2 as axern_dot_control_dot_environment_dot_v1_dot_environment__pb2
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1e\x61xern/control/run/v1/run.proto\x12\x14\x61xern.control.run.v1\x1a$axern/control/common/v1/common.proto\x1a,axern/control/capability/v1/capability.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfb\x04\n\x03Run\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tnamespace\x18\x02 \x01(\t\x12\x16\n\x0e\x65nvironment_id\x18\x03 \x01(\t\x12\x15\n\rallocation_id\x18\x04 \x01(\t\x12/\n\x06status\x18\x05 \x01(\x0e\x32\x1f.axern.control.run.v1.RunStatus\x12\x38\n\x06\x63onfig\x18\x06 \x01(\x0b\x32(.axern.control.common.v1.ExecutionConfig\x12\x35\n\x06labels\x18\x07 \x03(\x0b\x32%.axern.control.run.v1.Run.LabelsEntry\x12\x0f\n\x07version\x18\x08 \x01(\x03\x12.\n\ncreated_at\x18\t \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\n \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x16\n\texit_code\x18\x0b \x01(\x05H\x00\x88\x01\x01\x12\x0f\n\x07message\x18\x0c \x01(\t\x12H\n\x0f\x64iagnostic_code\x18\r \x01(\x0e\x32/.axern.control.common.v1.WorkloadDiagnosticCode\x12R\n\x15\x63\x61pability_conditions\x18\x0e \x01(\x0b\x32\x33.axern.control.capability.v1.CapabilityConditionSet\x12\x0f\n\x07node_id\x18\x0f \x01(\t\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x42\x0c\n\n_exit_code\"\xe8\x01\n\rRunListFilter\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x31\n\x08statuses\x18\x02 \x03(\x0e\x32\x1f.axern.control.run.v1.RunStatus\x12?\n\x06labels\x18\x03 \x03(\x0b\x32/.axern.control.run.v1.RunListFilter.LabelsEntry\x12\x0e\n\x06\x63ursor\x18\x04 \x01(\t\x12\x11\n\tpage_size\x18\x05 \x01(\x05\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xea\x01\n\x10\x43reateRunRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x16\n\x0e\x65nvironment_id\x18\x02 \x01(\t\x12\x38\n\x06\x63onfig\x18\x03 \x01(\x0b\x32(.axern.control.common.v1.ExecutionConfig\x12\x42\n\x06labels\x18\x04 \x03(\x0b\x32\x32.axern.control.run.v1.CreateRunRequest.LabelsEntry\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\";\n\x11\x43reateRunResponse\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.axern.control.run.v1.Run\"\x1f\n\rGetRunRequest\x12\x0e\n\x06run_id\x18\x01 \x01(\t\"8\n\x0eGetRunResponse\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.axern.control.run.v1.Run\"8\n\x0fWatchRunRequest\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x15\n\rafter_version\x18\x02 \x01(\x03\":\n\x10WatchRunResponse\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.axern.control.run.v1.Run\"F\n\x0fListRunsRequest\x12\x33\n\x06\x66ilter\x18\x01 \x01(\x0b\x32#.axern.control.run.v1.RunListFilter\"P\n\x10ListRunsResponse\x12\'\n\x04runs\x18\x01 \x03(\x0b\x32\x19.axern.control.run.v1.Run\x12\x13\n\x0bnext_cursor\x18\x02 \x01(\t\"\"\n\x10\x43\x61ncelRunRequest\x12\x0e\n\x06run_id\x18\x01 \x01(\t\";\n\x11\x43\x61ncelRunResponse\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.axern.control.run.v1.Run*\xba\x01\n\tRunStatus\x12\x1a\n\x16RUN_STATUS_UNSPECIFIED\x10\x00\x12\x15\n\x11RUN_STATUS_PLACED\x10\x01\x12\x17\n\x13RUN_STATUS_STARTING\x10\x02\x12\x16\n\x12RUN_STATUS_RUNNING\x10\x03\x12\x18\n\x14RUN_STATUS_SUCCEEDED\x10\x04\x12\x15\n\x11RUN_STATUS_FAILED\x10\x05\x12\x18\n\x14RUN_STATUS_CANCELLED\x10\x06\x32\xdf\x03\n\nRunControl\x12^\n\tCreateRun\x12&.axern.control.run.v1.CreateRunRequest\x1a\'.axern.control.run.v1.CreateRunResponse\"\x00\x12U\n\x06GetRun\x12#.axern.control.run.v1.GetRunRequest\x1a$.axern.control.run.v1.GetRunResponse\"\x00\x12]\n\x08WatchRun\x12%.axern.control.run.v1.WatchRunRequest\x1a&.axern.control.run.v1.WatchRunResponse\"\x00\x30\x01\x12[\n\x08ListRuns\x12%.axern.control.run.v1.ListRunsRequest\x1a&.axern.control.run.v1.ListRunsResponse\"\x00\x12^\n\tCancelRun\x12&.axern.control.run.v1.CancelRunRequest\x1a\'.axern.control.run.v1.CancelRunResponse\"\x00\x42?Z=github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1;runv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1e\x61xern/control/run/v1/run.proto\x12\x14\x61xern.control.run.v1\x1a$axern/control/common/v1/common.proto\x1a,axern/control/capability/v1/capability.proto\x1a.axern/control/environment/v1/environment.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9e\x06\n\x03Run\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tnamespace\x18\x02 \x01(\t\x12\x16\n\x0e\x65nvironment_id\x18\x03 \x01(\t\x12\x15\n\rallocation_id\x18\x04 \x01(\t\x12/\n\x06status\x18\x05 \x01(\x0e\x32\x1f.axern.control.run.v1.RunStatus\x12\x38\n\x06\x63onfig\x18\x06 \x01(\x0b\x32(.axern.control.common.v1.ExecutionConfig\x12\x35\n\x06labels\x18\x07 \x03(\x0b\x32%.axern.control.run.v1.Run.LabelsEntry\x12\x0f\n\x07version\x18\x08 \x01(\x03\x12.\n\ncreated_at\x18\t \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\n \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x16\n\texit_code\x18\x0b \x01(\x05H\x00\x88\x01\x01\x12\x0f\n\x07message\x18\x0c \x01(\t\x12H\n\x0f\x64iagnostic_code\x18\r \x01(\x0e\x32/.axern.control.common.v1.WorkloadDiagnosticCode\x12R\n\x15\x63\x61pability_conditions\x18\x0e \x01(\x0b\x32\x33.axern.control.capability.v1.CapabilityConditionSet\x12\x0f\n\x07node_id\x18\x0f \x01(\t\x12G\n\x10\x65nvironment_spec\x18\x10 \x01(\x0b\x32-.axern.control.environment.v1.EnvironmentSpec\x12X\n\x19resolved_environment_spec\x18\x11 \x01(\x0b\x32\x35.axern.control.environment.v1.ResolvedEnvironmentSpec\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x42\x0c\n\n_exit_code\"\xe8\x01\n\rRunListFilter\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x31\n\x08statuses\x18\x02 \x03(\x0e\x32\x1f.axern.control.run.v1.RunStatus\x12?\n\x06labels\x18\x03 \x03(\x0b\x32/.axern.control.run.v1.RunListFilter.LabelsEntry\x12\x0e\n\x06\x63ursor\x18\x04 \x01(\t\x12\x11\n\tpage_size\x18\x05 \x01(\x05\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xea\x01\n\x10\x43reateRunRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x16\n\x0e\x65nvironment_id\x18\x02 \x01(\t\x12\x38\n\x06\x63onfig\x18\x03 \x01(\x0b\x32(.axern.control.common.v1.ExecutionConfig\x12\x42\n\x06labels\x18\x04 \x03(\x0b\x32\x32.axern.control.run.v1.CreateRunRequest.LabelsEntry\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\";\n\x11\x43reateRunResponse\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.axern.control.run.v1.Run\"\x1f\n\rGetRunRequest\x12\x0e\n\x06run_id\x18\x01 \x01(\t\"8\n\x0eGetRunResponse\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.axern.control.run.v1.Run\"8\n\x0fWatchRunRequest\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x15\n\rafter_version\x18\x02 \x01(\x03\":\n\x10WatchRunResponse\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.axern.control.run.v1.Run\"F\n\x0fListRunsRequest\x12\x33\n\x06\x66ilter\x18\x01 \x01(\x0b\x32#.axern.control.run.v1.RunListFilter\"P\n\x10ListRunsResponse\x12\'\n\x04runs\x18\x01 \x03(\x0b\x32\x19.axern.control.run.v1.Run\x12\x13\n\x0bnext_cursor\x18\x02 \x01(\t\"\"\n\x10\x43\x61ncelRunRequest\x12\x0e\n\x06run_id\x18\x01 \x01(\t\";\n\x11\x43\x61ncelRunResponse\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.axern.control.run.v1.Run*\xba\x01\n\tRunStatus\x12\x1a\n\x16RUN_STATUS_UNSPECIFIED\x10\x00\x12\x15\n\x11RUN_STATUS_PLACED\x10\x01\x12\x17\n\x13RUN_STATUS_STARTING\x10\x02\x12\x16\n\x12RUN_STATUS_RUNNING\x10\x03\x12\x18\n\x14RUN_STATUS_SUCCEEDED\x10\x04\x12\x15\n\x11RUN_STATUS_FAILED\x10\x05\x12\x18\n\x14RUN_STATUS_CANCELLED\x10\x06\x32\xdf\x03\n\nRunControl\x12^\n\tCreateRun\x12&.axern.control.run.v1.CreateRunRequest\x1a\'.axern.control.run.v1.CreateRunResponse\"\x00\x12U\n\x06GetRun\x12#.axern.control.run.v1.GetRunRequest\x1a$.axern.control.run.v1.GetRunResponse\"\x00\x12]\n\x08WatchRun\x12%.axern.control.run.v1.WatchRunRequest\x1a&.axern.control.run.v1.WatchRunResponse\"\x00\x30\x01\x12[\n\x08ListRuns\x12%.axern.control.run.v1.ListRunsRequest\x1a&.axern.control.run.v1.ListRunsResponse\"\x00\x12^\n\tCancelRun\x12&.axern.control.run.v1.CancelRunRequest\x1a\'.axern.control.run.v1.CancelRunResponse\"\x00\x42?Z=github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1;runv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -41,38 +42,38 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_RUNLISTFILTER_LABELSENTRY']._serialized_options = b'8\001'
   _globals['_CREATERUNREQUEST_LABELSENTRY']._loaded_options = None
   _globals['_CREATERUNREQUEST_LABELSENTRY']._serialized_options = b'8\001'
-  _globals['_RUNSTATUS']._serialized_start=1805
-  _globals['_RUNSTATUS']._serialized_end=1991
-  _globals['_RUN']._serialized_start=174
-  _globals['_RUN']._serialized_end=809
-  _globals['_RUN_LABELSENTRY']._serialized_start=750
-  _globals['_RUN_LABELSENTRY']._serialized_end=795
-  _globals['_RUNLISTFILTER']._serialized_start=812
-  _globals['_RUNLISTFILTER']._serialized_end=1044
-  _globals['_RUNLISTFILTER_LABELSENTRY']._serialized_start=750
-  _globals['_RUNLISTFILTER_LABELSENTRY']._serialized_end=795
-  _globals['_CREATERUNREQUEST']._serialized_start=1047
-  _globals['_CREATERUNREQUEST']._serialized_end=1281
-  _globals['_CREATERUNREQUEST_LABELSENTRY']._serialized_start=750
-  _globals['_CREATERUNREQUEST_LABELSENTRY']._serialized_end=795
-  _globals['_CREATERUNRESPONSE']._serialized_start=1283
-  _globals['_CREATERUNRESPONSE']._serialized_end=1342
-  _globals['_GETRUNREQUEST']._serialized_start=1344
-  _globals['_GETRUNREQUEST']._serialized_end=1375
-  _globals['_GETRUNRESPONSE']._serialized_start=1377
-  _globals['_GETRUNRESPONSE']._serialized_end=1433
-  _globals['_WATCHRUNREQUEST']._serialized_start=1435
-  _globals['_WATCHRUNREQUEST']._serialized_end=1491
-  _globals['_WATCHRUNRESPONSE']._serialized_start=1493
-  _globals['_WATCHRUNRESPONSE']._serialized_end=1551
-  _globals['_LISTRUNSREQUEST']._serialized_start=1553
-  _globals['_LISTRUNSREQUEST']._serialized_end=1623
-  _globals['_LISTRUNSRESPONSE']._serialized_start=1625
-  _globals['_LISTRUNSRESPONSE']._serialized_end=1705
-  _globals['_CANCELRUNREQUEST']._serialized_start=1707
-  _globals['_CANCELRUNREQUEST']._serialized_end=1741
-  _globals['_CANCELRUNRESPONSE']._serialized_start=1743
-  _globals['_CANCELRUNRESPONSE']._serialized_end=1802
-  _globals['_RUNCONTROL']._serialized_start=1994
-  _globals['_RUNCONTROL']._serialized_end=2473
+  _globals['_RUNSTATUS']._serialized_start=2016
+  _globals['_RUNSTATUS']._serialized_end=2202
+  _globals['_RUN']._serialized_start=222
+  _globals['_RUN']._serialized_end=1020
+  _globals['_RUN_LABELSENTRY']._serialized_start=961
+  _globals['_RUN_LABELSENTRY']._serialized_end=1006
+  _globals['_RUNLISTFILTER']._serialized_start=1023
+  _globals['_RUNLISTFILTER']._serialized_end=1255
+  _globals['_RUNLISTFILTER_LABELSENTRY']._serialized_start=961
+  _globals['_RUNLISTFILTER_LABELSENTRY']._serialized_end=1006
+  _globals['_CREATERUNREQUEST']._serialized_start=1258
+  _globals['_CREATERUNREQUEST']._serialized_end=1492
+  _globals['_CREATERUNREQUEST_LABELSENTRY']._serialized_start=961
+  _globals['_CREATERUNREQUEST_LABELSENTRY']._serialized_end=1006
+  _globals['_CREATERUNRESPONSE']._serialized_start=1494
+  _globals['_CREATERUNRESPONSE']._serialized_end=1553
+  _globals['_GETRUNREQUEST']._serialized_start=1555
+  _globals['_GETRUNREQUEST']._serialized_end=1586
+  _globals['_GETRUNRESPONSE']._serialized_start=1588
+  _globals['_GETRUNRESPONSE']._serialized_end=1644
+  _globals['_WATCHRUNREQUEST']._serialized_start=1646
+  _globals['_WATCHRUNREQUEST']._serialized_end=1702
+  _globals['_WATCHRUNRESPONSE']._serialized_start=1704
+  _globals['_WATCHRUNRESPONSE']._serialized_end=1762
+  _globals['_LISTRUNSREQUEST']._serialized_start=1764
+  _globals['_LISTRUNSREQUEST']._serialized_end=1834
+  _globals['_LISTRUNSRESPONSE']._serialized_start=1836
+  _globals['_LISTRUNSRESPONSE']._serialized_end=1916
+  _globals['_CANCELRUNREQUEST']._serialized_start=1918
+  _globals['_CANCELRUNREQUEST']._serialized_end=1952
+  _globals['_CANCELRUNRESPONSE']._serialized_start=1954
+  _globals['_CANCELRUNRESPONSE']._serialized_end=2013
+  _globals['_RUNCONTROL']._serialized_start=2205
+  _globals['_RUNCONTROL']._serialized_end=2684
 # @@protoc_insertion_point(module_scope)

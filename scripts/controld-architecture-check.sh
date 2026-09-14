@@ -46,7 +46,7 @@ check_empty \
 
 check_empty \
 	"controld must not re-export functions as alias bridges" \
-	"rg -n '^var[[:space:]]+[A-Z][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*[A-Za-z_][A-Za-z0-9_]*\\.' control/controld/internal -g '*.go' || true"
+	"rg -n '^var[[:space:]]+[A-Z][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*[A-Za-z_][A-Za-z0-9_]*\\.[A-Za-z_][A-Za-z0-9_]*[[:space:]]*$' control/controld/internal -g '*.go' || true"
 
 check_empty \
 	"controld must not contain transitional aliases.go files" \

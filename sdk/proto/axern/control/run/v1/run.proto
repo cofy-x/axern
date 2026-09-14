@@ -6,6 +6,7 @@ option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1;run
 
 import "axern/control/common/v1/common.proto";
 import "axern/control/capability/v1/capability.proto";
+import "axern/control/environment/v1/environment.proto";
 import "google/protobuf/timestamp.proto";
 
 enum RunStatus {
@@ -36,6 +37,10 @@ message Run {
   // from Run lifecycle status and message.
   axern.control.capability.v1.CapabilityConditionSet capability_conditions = 14;
   string node_id = 15;
+  // Immutable Environment input frozen atomically with Run admission. The
+  // source record may be deleted after this Run is created.
+  axern.control.environment.v1.EnvironmentSpec environment_spec = 16;
+  axern.control.environment.v1.ResolvedEnvironmentSpec resolved_environment_spec = 17;
 }
 
 message RunListFilter {

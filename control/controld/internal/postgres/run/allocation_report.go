@@ -72,6 +72,9 @@ func (s *Store) BatchReportAllocationLifecycle(ctx context.Context, nodeID strin
 				return fmt.Errorf("update run status: %w", err)
 			}
 			if runkernel.IsTerminal(runStatus) {
+				if err := deleteRunSecretReferences(ctx, tx, alloc.runID); err != nil {
+					return err
+				}
 				if err := pgtunnel.RevokeActiveForAllocationsTx(ctx, tx, pgtunnel.RevokeActiveForAllocationsRequest{
 					AllocationIDs: []string{alloc.allocationID},
 					Reason:        "run allocation terminated",

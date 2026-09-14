@@ -45,7 +45,7 @@ func TestCreateEnvironmentCreatesOwnedResourcesFromNormalizedSpec(t *testing.T) 
 	}
 }
 
-func TestCreateRunRejectsDeletedEnvironment(t *testing.T) {
+func TestCreateRunRejectsRemovedEnvironment(t *testing.T) {
 	service := newTestService(t)
 	defer service.Close()
 	public := service.PublicV1Handler()
@@ -57,8 +57,22 @@ func TestCreateRunRejectsDeletedEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = public.CreateRun(context.Background(), &runv1.CreateRunRequest{EnvironmentID: created.GetEnvironment().GetID(), Config: &commonv1.ExecutionConfig{Argv: []string{"true"}}})
-	if grpcstatus.Code(err) != codes.FailedPrecondition {
-		t.Fatalf("CreateRun() code = %v, want FailedPrecondition", grpcstatus.Code(err))
+	if grpcstatus.Code(err) != codes.NotFound {
+		t.Fatalf("CreateRun() code = %v, want NotFound", grpcstatus.Code(err))
+	}
+}
+
+func TestCreateRunRejectsEnvironmentFromAnotherNamespace(t *testing.T) {
+	service := newTestService(t)
+	defer service.Close()
+	public := service.PublicV1Handler()
+	created, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{Spec: &environmentv1.EnvironmentSpec{TemplateID: "python311", Namespace: "team-a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = public.CreateRun(context.Background(), &runv1.CreateRunRequest{Namespace: "team-b", EnvironmentID: created.GetEnvironment().GetID(), Config: &commonv1.ExecutionConfig{Argv: []string{"true"}}})
+	if grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("CreateRun() code = %v, want InvalidArgument", grpcstatus.Code(err))
 	}
 }
 
@@ -193,6 +207,10 @@ func TestRunLeaseAndAllocationLifecycleStateFlow(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
+	}
+	if !proto.Equal(runResp.GetRun().GetEnvironmentSpec(), envResp.GetEnvironment().GetSpec()) ||
+		!proto.Equal(runResp.GetRun().GetResolvedEnvironmentSpec(), envResp.GetEnvironment().GetResolvedSpec()) {
+		t.Fatal("CreateRun() did not return the Environment snapshots frozen at admission")
 	}
 	if _, err := node.BatchReportAllocationLifecycle(context.Background(), &nodev1.BatchReportAllocationLifecycleRequest{
 		NodeID:        "node-a",

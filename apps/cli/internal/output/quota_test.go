@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -73,5 +74,26 @@ func TestRenderNamespaceQuotaTableUsesCompactUnlimitedMarker(t *testing.T) {
 	}
 	if strings.Contains(out.String(), "unlimited") {
 		t.Fatalf("table output should use compact unlimited marker:\n%s", out.String())
+	}
+}
+
+func TestRenderNamespaceQuotaEventUsesExistingEnvironmentIdentity(t *testing.T) {
+	event := &quotav1.NamespaceQuotaEvent{
+		ID:            "quotaevt-1",
+		Namespace:     "team-a",
+		Type:          quotav1.NamespaceQuotaEventType_NAMESPACE_QUOTA_EVENT_TYPE_ADMISSION_REJECTED,
+		EnvironmentID: "env-real",
+		Reason:        quotav1.NamespaceQuotaEventReason_NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU,
+		CreatedAt:     timestamppb.Now(),
+	}
+	var out bytes.Buffer
+	RenderNamespaceQuotaEventTable(&out, []*quotav1.NamespaceQuotaEvent{event})
+	for _, want := range []string{"ENVIRONMENT", "env-real", "insufficient-cpu"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("event output missing %q:\n%s", want, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "RUN") {
+		t.Fatalf("event output contains removed pseudo-Run identity:\n%s", out.String())
 	}
 }

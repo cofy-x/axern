@@ -21,7 +21,7 @@ func (s *Store) ListEvents(ctx context.Context, namespace string, limit int) ([]
 	normalized := normalizeNamespace(namespace)
 	limit = normalizeQuotaEventLimit(limit)
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT event_id, namespace, event_type, run_id, environment_id, reason,
+		SELECT event_id, namespace, event_type, environment_id, reason,
 		       requested_cpu_milli, reserved_cpu_milli, cpu_milli_limit, available_cpu_milli,
 		       requested_memory_bytes, reserved_memory_bytes, memory_bytes_limit, available_memory_bytes,
 		       requested_ephemeral_storage_bytes, reserved_ephemeral_storage_bytes, ephemeral_storage_bytes_limit, available_ephemeral_storage_bytes,
@@ -72,7 +72,6 @@ func scanQuotaEvent(row quotaScanner) (*quotav1.NamespaceQuotaEvent, error) {
 		&event.ID,
 		&event.Namespace,
 		&eventType,
-		&event.RunID,
 		&event.EnvironmentID,
 		&reason,
 		&event.RequestedCpuMilli,

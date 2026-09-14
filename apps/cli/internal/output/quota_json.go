@@ -23,8 +23,7 @@ type NamespaceQuotaEventJSON struct {
 	ID                             string `json:"id"`
 	Namespace                      string `json:"namespace"`
 	Type                           string `json:"type"`
-	RunID                          string `json:"run_id,omitempty"`
-	EnvironmentID                  string `json:"environment_id,omitempty"`
+	EnvironmentID                  string `json:"environment_id"`
 	Reason                         string `json:"reason"`
 	RequestedCPUMilli              int64  `json:"requested_cpu_milli"`
 	ReservedCPUMilli               int64  `json:"reserved_cpu_milli"`
@@ -90,7 +89,6 @@ func NewNamespaceQuotaEventJSON(event *quotav1.NamespaceQuotaEvent) *NamespaceQu
 		ID:                             event.GetID(),
 		Namespace:                      event.GetNamespace(),
 		Type:                           quotaEventTypeJSON(event.GetType()),
-		RunID:                          event.GetRunID(),
 		EnvironmentID:                  event.GetEnvironmentID(),
 		Reason:                         quotaEventReason(event.GetReason()),
 		RequestedCPUMilli:              event.GetRequestedCpuMilli(),

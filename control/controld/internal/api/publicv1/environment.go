@@ -59,7 +59,7 @@ func (s *Server) DeleteEnvironment(ctx context.Context, req *environmentv1.Delet
 		opErr = grpcstatus.Error(codes.InvalidArgument, "environment_id is required")
 		return nil, opErr
 	}
-	env, err := s.deps.Environments.DeleteEnvironment(ctx, id, s.deps.Now())
+	env, err := s.deps.Environments.DeleteEnvironment(ctx, id)
 	if err != nil {
 		opErr = err
 		return nil, err

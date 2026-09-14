@@ -195,7 +195,6 @@ func ensureNamespaceDeletable(ctx context.Context, q queryer, namespace string) 
 			query: `SELECT EXISTS (
 				SELECT 1 FROM environments
 				WHERE namespace = $1
-				  AND deleted_at IS NULL
 			)`,
 		},
 		{

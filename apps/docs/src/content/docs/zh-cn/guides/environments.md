@@ -23,7 +23,7 @@ axern environment create \
   --registry-credential-id <secret-id>
 ```
 
-环境是不可变的——镜像或模板变更意味着创建新环境。
+环境是不可变的——镜像或模板变更意味着创建新环境。Run 准入时会把规范化 source 与已解析运行时输入冻结到 Run。删除可复用 Environment 会将其从后续查询和准入中物理移除，但不会改变或破坏已经准入的 Run。
 
 把环境 ID 传给任意工作负载，避免重复解析 source：
 

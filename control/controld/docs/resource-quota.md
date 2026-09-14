@@ -185,7 +185,6 @@ namespace_quota_events
   event_id
   namespace
   event_type
-  run_id
   environment_id
   reason
   requested_cpu_milli
@@ -199,7 +198,7 @@ namespace_quota_events
   created_at
 ```
 
-The event ledger is not operator audit. Admin audit records human repair actions, while quota events record system admission decisions. V1 records `admission_rejected` events only. A rejected admission is still a committed admission decision transaction: the workload/allocation/reservation writes are not created, but the event row is committed before the API returns `ResourceExhausted`. The public quota API owns this read model through `ListNamespaceQuotaEvents`; debug HTTP and logs must not become the durable event interface.
+The event ledger is not operator audit. Admin audit records human repair actions, while quota events record system admission decisions. V1 records `admission_rejected` events only. A rejected admission is still a committed admission decision transaction: the Run, Allocation, and Reservation are not created, but the event row is committed before the API returns `ResourceExhausted`. The event names the real Environment request and deliberately has no `run_id`; manufacturing an ID for a Run that never existed would create an unqueryable pseudo-identity. The public quota API owns this read model through `ListNamespaceQuotaEvents`; debug HTTP and logs must not become the durable event interface.
 
 Events are append-only operational history with retention. They do not affect quota usage, placement, or retry behavior. Their typed resource and reason fields explain recent namespace pressure without parsing gRPC error text. Event queries require an explicit active namespace; tombstoned namespace identity is retained so historical foreign keys are never rebound to a new owner.
 

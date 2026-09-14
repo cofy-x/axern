@@ -7,8 +7,11 @@ import (
 	"strings"
 
 	"github.com/cofy-x/axern/control/controld/internal/kernel/pagecursor"
+	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	"github.com/jackc/pgx/v5"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func (s *Store) Get(ctx context.Context, id string) (*secretv1.Secret, bool, error) {
@@ -98,6 +101,9 @@ func (s *Store) Delete(ctx context.Context, id string) (*secretv1.Secret, bool, 
 	if err != nil {
 		if errorsIsNoRows(err) {
 			return nil, false, nil
+		}
+		if postgres.IsForeignKeyViolation(err) {
+			return nil, false, grpcstatus.Errorf(codes.FailedPrecondition, "secret %q is still referenced by an Environment or active Run", id)
 		}
 		return nil, false, err
 	}

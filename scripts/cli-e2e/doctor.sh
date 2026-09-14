@@ -49,7 +49,6 @@ payload = json.load(sys.stdin)
 active = [
     item for item in payload.get("environments", [])
     if item.get("labels", {}).get("axern.doctor") == "probe"
-    and not item.get("deleted_at")
 ]
 if active:
     raise SystemExit(f"doctor left active probe environments: {active}")

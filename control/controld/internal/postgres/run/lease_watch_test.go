@@ -41,14 +41,14 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 		t.Fatalf("insert lease namespace: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO nodes (node_id, node_target, registered_at, last_heartbeat_at, lifecycle_status)
-		VALUES ('node-a', 'node-a:24010', $1, $1, 'active')
+		INSERT INTO nodes (node_id, node_target, node_auth_token_hash, registered_at, last_heartbeat_at, lifecycle_status)
+		VALUES ('node-a', 'node-a:24010', repeat('0', 64), $1, $1, 'active')
 	`, now); err != nil {
 		t.Fatalf("insert lease node: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
-		VALUES ('run-watch', 'default', 'env-watch', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $1, $1)
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, created_at, updated_at)
+		VALUES ('run-watch', 'default', 'env-watch', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $1, $1)
 	`, now); err != nil {
 		t.Fatalf("insert lease run: %v", err)
 	}
@@ -113,8 +113,8 @@ func TestWatchRunWakesAfterCommittedVersionChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, version, created_at, updated_at)
-		VALUES ('run-change-watch', 'default', 'env-watch', 'RUN_STATUS_PENDING', '{}'::jsonb, '{}'::jsonb, 1, $1, $1)
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, version, created_at, updated_at)
+		VALUES ('run-change-watch', 'default', 'env-watch', 'RUN_STATUS_PLACED', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, 1, $1, $1)
 	`, now); err != nil {
 		t.Fatal(err)
 	}
@@ -146,10 +146,10 @@ func TestListRunsFiltersAndPaginatesInDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, version, created_at, updated_at) VALUES
-		('run-page-a', 'team-a', 'env-a', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{"suite":"page"}'::jsonb, 1, $1, $1),
-		('run-page-b', 'team-a', 'env-b', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{"suite":"page"}'::jsonb, 1, $1, $1),
-		('run-page-c', 'team-b', 'env-c', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{"suite":"page"}'::jsonb, 1, $1, $1)
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, version, created_at, updated_at) VALUES
+		('run-page-a', 'team-a', 'env-a', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{"suite":"page"}'::jsonb, 1, $1, $1),
+		('run-page-b', 'team-a', 'env-b', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{"suite":"page"}'::jsonb, 1, $1, $1),
+		('run-page-c', 'team-b', 'env-c', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{"suite":"page"}'::jsonb, 1, $1, $1)
 	`, now); err != nil {
 		t.Fatal(err)
 	}
@@ -181,8 +181,8 @@ func TestListRunsFiltersAndPaginatesInDatabase(t *testing.T) {
 func insertRunQueryAllocationFixtures(t *testing.T, db *postgres.DB, now time.Time, allocations map[string]string) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO nodes (node_id, node_target, registered_at, last_heartbeat_at, lifecycle_status)
-		VALUES ('node-query-test', 'node-query-test:24010', $1, $1, 'active')
+		INSERT INTO nodes (node_id, node_target, node_auth_token_hash, registered_at, last_heartbeat_at, lifecycle_status)
+		VALUES ('node-query-test', 'node-query-test:24010', repeat('0', 64), $1, $1, 'active')
 		ON CONFLICT (node_id) DO NOTHING
 	`, now); err != nil {
 		t.Fatalf("insert query node: %v", err)

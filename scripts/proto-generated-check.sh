@@ -20,6 +20,28 @@ if awk '/message EnvironmentImageSource/{inside=1} inside{print} inside && /^}/{
 	exit 1
 fi
 
+if awk '/message Environment \{/{inside=1} inside{print} inside && /^}/{exit}' sdk/proto/axern/control/environment/v1/environment.proto | rg -n 'deleted_at'; then
+	echo "Environment must use physical deletion rather than a public tombstone" >&2
+	exit 1
+fi
+
+if awk '/message ListFilter \{/{inside=1} inside{print} inside && /^}/{exit}' sdk/proto/axern/control/environment/v1/environment.proto | rg -n 'include_deleted'; then
+	echo "Environment list must not expose the removed tombstone filter" >&2
+	exit 1
+fi
+
+run_message="$(awk '/message Run \{/{inside=1} inside{print} inside && /^}/{exit}' sdk/proto/axern/control/run/v1/run.proto)"
+if ! rg -q 'EnvironmentSpec environment_spec' <<<"${run_message}" ||
+	! rg -q 'ResolvedEnvironmentSpec resolved_environment_spec' <<<"${run_message}"; then
+	echo "Run must carry both immutable Environment admission snapshots" >&2
+	exit 1
+fi
+
+if awk '/message NamespaceQuotaEvent \{/{inside=1} inside{print} inside && /^}/{exit}' sdk/proto/axern/control/quota/v1/quota.proto | rg -n 'run_id'; then
+	echo "rejected quota admission must not manufacture an identity for a Run that was never created" >&2
+	exit 1
+fi
+
 before="$(mktemp)"
 after="$(mktemp)"
 trap 'rm -f "${before}" "${after}"' EXIT

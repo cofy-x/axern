@@ -66,14 +66,14 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO nodes (node_id, node_target, registered_at, last_heartbeat_at, lifecycle_status)
-		VALUES ($1, '127.0.0.1:1', $2, $2, 'active')
+		INSERT INTO nodes (node_id, node_target, node_auth_token_hash, registered_at, last_heartbeat_at, lifecycle_status)
+		VALUES ($1, '127.0.0.1:1', repeat('0', 64), $2, $2, 'active')
 	`, nodeID, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
-		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $2, $2)
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, created_at, updated_at)
+		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $2, $2)
 	`, allocationID, now); err != nil {
 		t.Fatal(err)
 	}
@@ -91,8 +91,8 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 	}
 	stoppedRunID := allocationID + "-stopped"
 	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
-		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_FAILED', '{}'::jsonb, '{}'::jsonb, $2, $2)
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, created_at, updated_at)
+		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_FAILED', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $2, $2)
 	`, stoppedRunID, now); err != nil {
 		t.Fatal(err)
 	}

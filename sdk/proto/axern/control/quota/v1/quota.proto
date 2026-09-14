@@ -39,22 +39,21 @@ message NamespaceQuotaEvent {
   string id = 1;
   string namespace = 2;
   NamespaceQuotaEventType type = 3;
-  string run_id = 4;
-  string environment_id = 5;
-  NamespaceQuotaEventReason reason = 6;
-  int64 requested_cpu_milli = 7;
-  int64 reserved_cpu_milli = 8;
-  google.protobuf.Int64Value cpu_milli_limit = 9;
-  google.protobuf.Int64Value available_cpu_milli = 10;
-  int64 requested_memory_bytes = 11;
-  int64 reserved_memory_bytes = 12;
-  google.protobuf.Int64Value memory_bytes_limit = 13;
-  google.protobuf.Int64Value available_memory_bytes = 14;
-  google.protobuf.Timestamp created_at = 15;
-  int64 requested_ephemeral_storage_bytes = 16;
-  int64 reserved_ephemeral_storage_bytes = 17;
-  google.protobuf.Int64Value ephemeral_storage_bytes_limit = 18;
-  google.protobuf.Int64Value available_ephemeral_storage_bytes = 19;
+  string environment_id = 4;
+  NamespaceQuotaEventReason reason = 5;
+  int64 requested_cpu_milli = 6;
+  int64 reserved_cpu_milli = 7;
+  google.protobuf.Int64Value cpu_milli_limit = 8;
+  google.protobuf.Int64Value available_cpu_milli = 9;
+  int64 requested_memory_bytes = 10;
+  int64 reserved_memory_bytes = 11;
+  google.protobuf.Int64Value memory_bytes_limit = 12;
+  google.protobuf.Int64Value available_memory_bytes = 13;
+  google.protobuf.Timestamp created_at = 14;
+  int64 requested_ephemeral_storage_bytes = 15;
+  int64 reserved_ephemeral_storage_bytes = 16;
+  google.protobuf.Int64Value ephemeral_storage_bytes_limit = 17;
+  google.protobuf.Int64Value available_ephemeral_storage_bytes = 18;
 }
 
 message GetNamespaceQuotaRequest {

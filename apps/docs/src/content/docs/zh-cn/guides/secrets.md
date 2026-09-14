@@ -36,7 +36,7 @@ axern secret get <secret-id>
 axern secret delete <secret-id>
 ```
 
-Secret 是不可变的。轮换采用替换式工作流：
+Secret 是不可变的。Environment 或未终止 Run 的必需引用存在时，PostgreSQL 会拒绝删除；Run 的 optional 投影不会阻止删除。轮换采用替换式工作流：
 
 1. 用新值创建一个新 Secret。
 2. 更新或替换所有引用旧 Secret ID 的资源。

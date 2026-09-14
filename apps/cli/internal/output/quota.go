@@ -51,14 +51,14 @@ func RenderNamespaceQuotaEventTable(w io.Writer, events []*quotav1.NamespaceQuot
 		rows = append(rows, []string{
 			FormatProtoTimestamp(event.GetCreatedAt()),
 			event.GetNamespace(),
-			quotaEventWorkload(event),
+			event.GetEnvironmentID(),
 			quotaEventReason(event.GetReason()),
 			formatQuotaCPU(event.GetRequestedCpuMilli()),
 			formatQuotaMemory(event.GetRequestedMemoryBytes()),
 			formatQuotaMemory(event.GetRequestedEphemeralStorageBytes()),
 		})
 	}
-	RenderTable(w, []string{"CREATED", "NAMESPACE", "RUN", "REASON", "CPU", "MEMORY", "EPHEMERAL STORAGE"}, rows)
+	RenderTable(w, []string{"CREATED", "NAMESPACE", "ENVIRONMENT", "REASON", "CPU", "MEMORY", "EPHEMERAL STORAGE"}, rows)
 }
 
 func formatOptionalQuotaCPU(value *wrapperspb.Int64Value) string {
@@ -66,13 +66,6 @@ func formatOptionalQuotaCPU(value *wrapperspb.Int64Value) string {
 		return "unlimited"
 	}
 	return formatQuotaCPU(value.GetValue())
-}
-
-func quotaEventWorkload(event *quotav1.NamespaceQuotaEvent) string {
-	if event.GetRunID() == "" {
-		return "-"
-	}
-	return event.GetRunID()
 }
 
 func quotaEventReason(reason quotav1.NamespaceQuotaEventReason) string {

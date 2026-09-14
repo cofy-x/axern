@@ -17,7 +17,7 @@ type Environments interface {
 	CreateEnvironment(ctx context.Context, spec *environmentv1.EnvironmentSpec, labels map[string]string, now time.Time) (*environmentv1.Environment, error)
 	GetEnvironment(ctx context.Context, id string) (*environmentv1.Environment, error)
 	ListEnvironments(ctx context.Context, filter *environmentv1.ListFilter) ([]*environmentv1.Environment, string, error)
-	DeleteEnvironment(ctx context.Context, id string, now time.Time) (*environmentv1.Environment, error)
+	DeleteEnvironment(ctx context.Context, id string) (*environmentv1.Environment, error)
 }
 
 type Runs interface {

@@ -56,6 +56,9 @@ func (s *Store) CreateEnvironment(ctx context.Context, params runkernel.CreateEn
 	`, env.GetID(), env.GetNamespace(), specJSON, resolvedSpecJSON, labelsJSON, now.UTC()); err != nil {
 		return nil, fmt.Errorf("insert environment: %w", err)
 	}
+	if err := insertEnvironmentSecretReference(ctx, tx, env); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit create environment tx: %w", err)
 	}
@@ -67,6 +70,17 @@ func cloneEnvironmentSpec(spec *environmentv1.EnvironmentSpec) *environmentv1.En
 		return nil
 	}
 	cloned, ok := proto.Clone(spec).(*environmentv1.EnvironmentSpec)
+	if !ok || cloned == nil {
+		return nil
+	}
+	return cloned
+}
+
+func cloneResolvedEnvironmentSpec(spec *environmentv1.ResolvedEnvironmentSpec) *environmentv1.ResolvedEnvironmentSpec {
+	if spec == nil {
+		return nil
+	}
+	cloned, ok := proto.Clone(spec).(*environmentv1.ResolvedEnvironmentSpec)
 	if !ok || cloned == nil {
 		return nil
 	}

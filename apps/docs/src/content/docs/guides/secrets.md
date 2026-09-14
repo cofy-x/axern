@@ -36,7 +36,7 @@ axern secret get <secret-id>
 axern secret delete <secret-id>
 ```
 
-Secrets are immutable. Rotate them as a replacement workflow:
+Secrets are immutable. PostgreSQL rejects deletion while an Environment or non-terminal Run has a required reference; optional Run projections do not block deletion. Rotate secrets as a replacement workflow:
 
 1. Create a new Secret with the replacement value.
 2. Update or replace every resource that references the old Secret ID.

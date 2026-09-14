@@ -23,7 +23,7 @@ axern environment create \
   --registry-credential-id <secret-id>
 ```
 
-Environments are immutable — a changed image or template means a new environment.
+Environments are immutable — a changed image or template means a new environment. Run admission freezes the normalized source and resolved runtime input on the Run. Deleting the reusable Environment physically removes it from future lookup and admission, but does not change or break an already admitted Run.
 
 Pass the environment ID to any workload instead of resolving the source again:
 

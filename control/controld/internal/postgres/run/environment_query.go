@@ -32,16 +32,13 @@ func (s *Store) ListEnvironments(ctx context.Context, filter *environmentv1.List
 		return nil, "", err
 	}
 	query := environmentSelectSQL() + ` WHERE TRUE`
-	args := make([]any, 0, 5)
+	args := make([]any, 0, 4)
 	add := func(value any) string {
 		args = append(args, value)
 		return fmt.Sprintf("$%d", len(args))
 	}
 	if namespace := strings.TrimSpace(filter.GetNamespace()); namespace != "" {
 		query += ` AND namespace = ` + add(namespace)
-	}
-	if !filter.GetIncludeDeleted() {
-		query += ` AND deleted_at IS NULL`
 	}
 	if len(filter.GetLabels()) > 0 {
 		labels, marshalErr := json.Marshal(filter.GetLabels())

@@ -13,6 +13,7 @@ import (
 	pgreservation "github.com/cofy-x/axern/control/controld/internal/postgres/reservation"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -65,6 +66,17 @@ func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID, cla
 
 func (s *Store) CompleteAllocationStart(ctx context.Context, allocationID, claimOwner string, conditions *capabilityv1.CapabilityConditionSet, now time.Time) error {
 	return s.withTx(ctx, func(tx pgx.Tx) error {
+		// All lifecycle transactions lock the Allocation before its durable
+		// queue intent. This matches report, cancellation, and release paths and
+		// prevents a worker completion racing a terminal report from deadlocking.
+		var exists bool
+		if err := tx.QueryRow(ctx, `
+			SELECT TRUE FROM allocations WHERE allocation_id = $1 FOR UPDATE
+		`, strings.TrimSpace(allocationID)).Scan(&exists); errors.Is(err, pgx.ErrNoRows) {
+			return grpcstatus.Errorf(codes.NotFound, "allocation %q not found", allocationID)
+		} else if err != nil {
+			return fmt.Errorf("lock allocation start completion: %w", err)
+		}
 		if err := pgallocation.RequireReconcileClaim(ctx, tx, allocationID, claimOwner, allocationkernel.ReconcileIntentEnsurePresent, now); err != nil {
 			return err
 		}
@@ -97,12 +109,11 @@ func (s *Store) LoadStartAllocation(ctx context.Context, allocationID string) (*
 		if err != nil {
 			return err
 		}
-		env, err := scanEnvironment(tx.QueryRow(ctx, environmentSelectSQL()+` WHERE environment_id = $1`, run.GetEnvironmentID()))
-		if errors.Is(err, pgx.ErrNoRows) {
-			return grpcstatus.Errorf(codes.NotFound, "environment %q not found", run.GetEnvironmentID())
-		}
-		if err != nil {
-			return err
+		env := &environmentv1.Environment{
+			ID:           run.GetEnvironmentID(),
+			Namespace:    run.GetNamespace(),
+			Spec:         cloneEnvironmentSpec(run.GetEnvironmentSpec()),
+			ResolvedSpec: cloneResolvedEnvironmentSpec(run.GetResolvedEnvironmentSpec()),
 		}
 		alloc, err := s.currentAllocation(ctx, tx, allocationID)
 		if errors.Is(err, pgx.ErrNoRows) {

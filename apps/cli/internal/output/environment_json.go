@@ -22,7 +22,6 @@ type EnvironmentJSON struct {
 	ResolvedSpec *ResolvedEnvironmentSpecJSON `json:"resolved_spec,omitempty"`
 	Labels       map[string]string            `json:"labels,omitempty"`
 	CreatedAt    string                       `json:"created_at,omitempty"`
-	DeletedAt    string                       `json:"deleted_at,omitempty"`
 }
 
 type EnvironmentSpecJSON struct {
@@ -64,7 +63,6 @@ func NewEnvironmentJSON(environment *environmentv1.Environment) *EnvironmentJSON
 		ResolvedSpec: newResolvedEnvironmentSpecJSON(environment.GetResolvedSpec()),
 		Labels:       cloneStringMap(environment.GetLabels()),
 		CreatedAt:    FormatProtoTimestamp(environment.GetCreatedAt()),
-		DeletedAt:    FormatProtoTimestamp(environment.GetDeletedAt()),
 	}
 }
 

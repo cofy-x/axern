@@ -23,7 +23,7 @@ func TestListFiltersAndPaginatesInDatabase(t *testing.T) {
 	if _, err := db.ApplyMigrations(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Pool().Exec(context.Background(), `TRUNCATE TABLE secrets`); err != nil {
+	if _, err := db.Pool().Exec(context.Background(), `TRUNCATE TABLE environment_secret_references, run_secret_references, secrets`); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()

@@ -60,11 +60,10 @@ class NamespaceQuota(_message.Message):
     def __init__(self, namespace: _Optional[str] = ..., cpu_milli_limit: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., memory_bytes_limit: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., reserved_cpu_milli: _Optional[int] = ..., reserved_memory_bytes: _Optional[int] = ..., available_cpu_milli: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., available_memory_bytes: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ephemeral_storage_bytes_limit: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., reserved_ephemeral_storage_bytes: _Optional[int] = ..., available_ephemeral_storage_bytes: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ...) -> None: ...
 
 class NamespaceQuotaEvent(_message.Message):
-    __slots__ = ("id", "namespace", "type", "run_id", "environment_id", "reason", "requested_cpu_milli", "reserved_cpu_milli", "cpu_milli_limit", "available_cpu_milli", "requested_memory_bytes", "reserved_memory_bytes", "memory_bytes_limit", "available_memory_bytes", "created_at", "requested_ephemeral_storage_bytes", "reserved_ephemeral_storage_bytes", "ephemeral_storage_bytes_limit", "available_ephemeral_storage_bytes")
+    __slots__ = ("id", "namespace", "type", "environment_id", "reason", "requested_cpu_milli", "reserved_cpu_milli", "cpu_milli_limit", "available_cpu_milli", "requested_memory_bytes", "reserved_memory_bytes", "memory_bytes_limit", "available_memory_bytes", "created_at", "requested_ephemeral_storage_bytes", "reserved_ephemeral_storage_bytes", "ephemeral_storage_bytes_limit", "available_ephemeral_storage_bytes")
     ID_FIELD_NUMBER: _ClassVar[int]
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
     TYPE_FIELD_NUMBER: _ClassVar[int]
-    RUN_ID_FIELD_NUMBER: _ClassVar[int]
     ENVIRONMENT_ID_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     REQUESTED_CPU_MILLI_FIELD_NUMBER: _ClassVar[int]
@@ -83,7 +82,6 @@ class NamespaceQuotaEvent(_message.Message):
     id: str
     namespace: str
     type: NamespaceQuotaEventType
-    run_id: str
     environment_id: str
     reason: NamespaceQuotaEventReason
     requested_cpu_milli: int
@@ -99,7 +97,7 @@ class NamespaceQuotaEvent(_message.Message):
     reserved_ephemeral_storage_bytes: int
     ephemeral_storage_bytes_limit: _wrappers_pb2.Int64Value
     available_ephemeral_storage_bytes: _wrappers_pb2.Int64Value
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., type: _Optional[_Union[NamespaceQuotaEventType, str]] = ..., run_id: _Optional[str] = ..., environment_id: _Optional[str] = ..., reason: _Optional[_Union[NamespaceQuotaEventReason, str]] = ..., requested_cpu_milli: _Optional[int] = ..., reserved_cpu_milli: _Optional[int] = ..., cpu_milli_limit: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., available_cpu_milli: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., requested_memory_bytes: _Optional[int] = ..., reserved_memory_bytes: _Optional[int] = ..., memory_bytes_limit: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., available_memory_bytes: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., requested_ephemeral_storage_bytes: _Optional[int] = ..., reserved_ephemeral_storage_bytes: _Optional[int] = ..., ephemeral_storage_bytes_limit: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., available_ephemeral_storage_bytes: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., type: _Optional[_Union[NamespaceQuotaEventType, str]] = ..., environment_id: _Optional[str] = ..., reason: _Optional[_Union[NamespaceQuotaEventReason, str]] = ..., requested_cpu_milli: _Optional[int] = ..., reserved_cpu_milli: _Optional[int] = ..., cpu_milli_limit: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., available_cpu_milli: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., requested_memory_bytes: _Optional[int] = ..., reserved_memory_bytes: _Optional[int] = ..., memory_bytes_limit: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., available_memory_bytes: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., requested_ephemeral_storage_bytes: _Optional[int] = ..., reserved_ephemeral_storage_bytes: _Optional[int] = ..., ephemeral_storage_bytes_limit: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ..., available_ephemeral_storage_bytes: _Optional[_Union[_wrappers_pb2.Int64Value, _Mapping]] = ...) -> None: ...
 
 class GetNamespaceQuotaRequest(_message.Message):
     __slots__ = ("namespace",)

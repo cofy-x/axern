@@ -61,7 +61,7 @@ func normalizeNamespace(namespace string) string {
 
 func cloneMap(in map[string]string) map[string]string {
 	if len(in) == 0 {
-		return nil
+		return map[string]string{}
 	}
 	out := make(map[string]string, len(in))
 	maps.Copy(out, in)

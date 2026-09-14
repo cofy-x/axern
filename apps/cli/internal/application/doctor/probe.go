@@ -100,11 +100,9 @@ func cleanupProbe(parent context.Context, session *Session, runID, environmentID
 		}
 	}
 	if environmentID != "" {
-		resp, err := session.Environment.DeleteEnvironment(ctx, &environmentv1.DeleteEnvironmentRequest{EnvironmentID: environmentID})
+		_, err := session.Environment.DeleteEnvironment(ctx, &environmentv1.DeleteEnvironmentRequest{EnvironmentID: environmentID})
 		if err != nil && grpcstatus.Code(err) != codes.NotFound {
 			result = errors.Join(result, err)
-		} else if err == nil && resp.GetEnvironment().GetDeletedAt() == nil {
-			result = errors.Join(result, fmt.Errorf("environment deletion did not reach deleted state"))
 		}
 	}
 	return result

@@ -88,8 +88,8 @@ func insertAdminNodeTestRun(t *testing.T, app *App, runID string, now time.Time)
 		t.Fatalf("insert namespace: %v", err)
 	}
 	if _, err := app.db.Pool().Exec(context.Background(), `
-		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
-		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $2, $2)
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, created_at, updated_at)
+		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $2, $2)
 	`, runID, now); err != nil {
 		t.Fatalf("insert run: %v", err)
 	}

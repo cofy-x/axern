@@ -54,9 +54,11 @@ func TestEnvironmentJSONUsesStableShape(t *testing.T) {
 func TestRunJSONUsesStableShape(t *testing.T) {
 	createdAt := timestamppb.New(time.Date(2026, time.April, 29, 12, 0, 0, 0, time.UTC))
 	run := &runv1.Run{
-		ID:            "run-1",
-		EnvironmentID: "env-1",
-		Status:        runv1.RunStatus_RUN_STATUS_RUNNING,
+		ID:                      "run-1",
+		EnvironmentID:           "env-1",
+		EnvironmentSpec:         &environmentv1.EnvironmentSpec{TemplateID: "python311"},
+		ResolvedEnvironmentSpec: &environmentv1.ResolvedEnvironmentSpec{ImageDescriptor: &environmentv1.OciImageDescriptor{Digest: "sha256:frozen"}},
+		Status:                  runv1.RunStatus_RUN_STATUS_RUNNING,
 		Config: &commonv1.ExecutionConfig{
 			Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT},
 		},
@@ -80,6 +82,9 @@ func TestRunJSONUsesStableShape(t *testing.T) {
 	}
 	if !strings.Contains(runJSON.String(), `"platform": "runsc_memory_hard_limit"`) || !strings.Contains(runJSON.String(), `"observed_at": "2026-04-29T12:00:00Z"`) {
 		t.Fatalf("run JSON omitted structured capability condition: %s", runJSON.String())
+	}
+	if !strings.Contains(runJSON.String(), `"template_id": "python311"`) || !strings.Contains(runJSON.String(), `"digest": "sha256:frozen"`) {
+		t.Fatalf("run JSON omitted frozen Environment input: %s", runJSON.String())
 	}
 
 	var failedRunJSON strings.Builder

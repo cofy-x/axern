@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
@@ -56,8 +57,9 @@ func (p authoritativeRunAccess) CreateRun(ctx context.Context, params runkernel.
 	if err != nil {
 		return nil, err
 	}
-	if env.GetDeletedAt() != nil {
-		return nil, grpcstatus.Errorf(codes.FailedPrecondition, "environment %q is deleted", environmentID)
+	namespace := environmentkernel.NormalizeNamespace(params.Namespace)
+	if namespace != env.GetNamespace() {
+		return nil, grpcstatus.Errorf(codes.InvalidArgument, "run namespace %q does not own environment %q", namespace, environmentID)
 	}
 	normalizedConfig, err := executionkernel.NormalizeConfigForRootfs(params.Config, env.GetResolvedSpec().GetRootfsReadonly())
 	if err != nil {
@@ -68,7 +70,7 @@ func (p authoritativeRunAccess) CreateRun(ctx context.Context, params runkernel.
 		return nil, err
 	}
 	run, err := p.store.AdmitRun(ctx, runkernel.AdmitRunParams{
-		Namespace:   params.Namespace,
+		Namespace:   namespace,
 		Environment: env,
 		Config:      normalizedConfig,
 		Labels:      params.Labels,

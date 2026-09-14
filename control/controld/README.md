@@ -15,7 +15,7 @@
 
 `controld` does not own realtime exec or terminal streaming. Realtime execution goes to selected nodes through the current SDK path, and `gatewayd` owns external control/data-plane forwarding after resolving routes here.
 
-Run creation persists desired execution state and returns before node startup. Periodic Run, node, tunnel, and capability maintenance executes in independent, non-overlapping component loops. Allocation creation uses a bounded timeout per lifecycle item so cold image preparation cannot consume unrelated work budgets. On shutdown, active calls are canceled before the application waits for workers.
+Run creation freezes the Environment source and resolved runtime input, then persists the Run, its single Allocation, reservation, required Secret references, capability requirements, and node-create intent in one transaction. It returns before node startup. The reusable Environment row may later be physically deleted without changing execution or recovery for admitted Runs. Periodic Run, node, tunnel, and capability maintenance executes in independent, non-overlapping component loops. Allocation creation uses a bounded timeout per lifecycle item so cold image preparation cannot consume unrelated work budgets. On shutdown, active calls are canceled before the application waits for workers.
 
 Runtime-slot admission consumes only axnoded's aggregate `runtime_slots` summary. Individual cgroup and interface pools are diagnostic details. `ReportNode` rejects summaries that omit `runtime_slots`; releases that add a required node-summary contract must rebuild controld and axnoded together.
 
@@ -137,7 +137,6 @@ The HTTP listener exposes diagnostics and internal runtime artifact downloads. D
 - [Node placement and leases](docs/node-placement-and-leases.md)
 - [Reconcile operations](docs/reconcile-operations.md)
 - [Observed capability providers](../../docs/architecture/observed-capability-providers.md)
-- [Reconcile operations](docs/reconcile-operations.md)
 - [Consistency repair boundaries](docs/consistency-repair-boundaries.md)
 - [Resource admission](docs/resource-admission.md)
 - [Resource quota](docs/resource-quota.md)

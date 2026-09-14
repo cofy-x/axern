@@ -37,7 +37,11 @@ erDiagram
   namespaces ||--o{ environments : scopes
   namespaces ||--o{ secrets : scopes
   environments ||--o{ runs : configures
+  environments ||--o| environment_secret_references : protects
+  secrets ||--o{ environment_secret_references : referenced
   runs ||--|| allocations : executes
+  runs ||--o{ run_secret_references : protects
+  secrets ||--o{ run_secret_references : referenced
   nodes ||--o{ allocations : hosts
   nodes ||--|| node_summaries : reports
   allocations ||--o| reservations : reserves
@@ -49,10 +53,10 @@ erDiagram
 
 ### Environment inputs and namespace state
 
-- `namespaces` is the durable scope and optimistic-lock row.
+- `namespaces` is the durable scope and admission lock row. Its `deleted_at` is a security tombstone that prevents a deleted namespace name from being reused and confused with retained Run history or revoked authorization records; this is the only generic-resource-style soft deletion in the workload schema.
 - `namespace_resource_quotas` stores optional CPU, memory, and ephemeral-storage admission limits.
 - Built-in Environment templates are deployment configuration used only during resolution. They have no public API, product identity, or database table.
-- `environments.spec` stores normalized user intent; `resolved_spec` stores the immutable runtime input used by execution paths. `deleted_at` is the only Environment lifecycle marker.
+- `environments.spec` stores normalized user intent and `resolved_spec` stores the immutable runtime input available for new admission. Environment deletion physically removes this row.
 - `namespace_quota_events` records durable admission decisions independently from operator audit events.
 
 Namespace names are stored on scoped resources for filtering and ownership. Only relationships whose deletion semantics are part of the domain contract use database foreign keys.
@@ -63,10 +67,11 @@ Namespace names are stored on scoped resources for filtering and ownership. Only
 
 - `data_keys` lists available keys without exposing values.
 - `encrypted_payload` is never returned after creation. Execution configuration stores secret references, not plaintext.
+- `environment_secret_references` protects one required registry credential for an Environment. `run_secret_references` protects the Run snapshot's registry credential together with deduplicated required execution inputs while the Run is non-terminal. Composite foreign keys enforce that owners and Secrets share one Namespace; terminalization drops Run references atomically, and Environment deletion removes only the reusable Environment's reference without weakening an admitted Run's independent lock.
 
 ### Runs and allocations
 
-`runs` models one user-visible execution lifecycle and is the only durable owner of immutable execution config, public status, result, diagnostics, message, optimistic version, and user-visible timestamps. Every Run owns exactly one Allocation through the unique, non-null `allocations.run_id` foreign key. The uniqueness constraint is intentional: the product does not reschedule one Run onto multiple or replacement Allocations. A retry of execution is a new Run.
+`runs` models one user-visible execution lifecycle and is the only durable owner of immutable execution config, the admitted Environment source and resolved snapshots, public status, result, diagnostics, message, optimistic version, and user-visible timestamps. Admission copies both Environment snapshots in the same transaction as the Run, Allocation, reservation, capability requirements, Secret references, and create intent. Node creation and recovery never depend on the continued existence of the Environment row. Every Run owns exactly one Allocation through the unique, non-null `allocations.run_id` foreign key. The uniqueness constraint is intentional: the product does not reschedule one Run onto multiple or replacement Allocations. A retry of execution is a new Run.
 
 `allocations` is the concrete execution unit and infrastructure-convergence record. Its globally unique, never-reused `allocation_id` is the data-plane and cleanup identity; `run_id` is its sole owner and `node_id` is its immutable execution binding. `lifecycle_state` contains only `BOUND`, `STARTING`, `ACTIVE`, `RELEASING`, or `RELEASED`. A node `STOPPED` observation atomically commits result fields to the Run and persists the Allocation as `RELEASING`; it is never stored as an Allocation state. Allocation has no config, public status, exit result, diagnostic, message, version, or TaskSet-specific preparation columns.
 
@@ -82,13 +87,15 @@ Allocation memory usage is live node-local diagnostic data rebuilt from the auth
 
 `allocation_reconcile_queue` is the sole durable dispatcher for node Create/Delete operations. `next_run_at`, `reconcile_attempts`, and `last_error` describe delivery state; `lease_owner` and `lease_expires_at` provide renewable multi-worker claims. Run admission, cancellation, terminal observation, and create exhaustion write or replace this intent in the same transaction as their authoritative lifecycle changes. Completion and rescheduling require the current claim owner, so an expired worker cannot acknowledge newer work.
 
+Lifecycle transactions lock the Allocation before its queue row. Node reports, cancellation, worker completion, and release therefore share one lock order; a terminal report racing successful node creation cannot deadlock or let the stale create completion erase the replacement delete intent.
+
 Capability loss has no controld queue or transition-history table. Axnoded owns the crash-safe Allocation-scoped verification/termination intent. Controld persists only the latest ordered Node summary and condition projection; its lifecycle queue remains limited to create/delete convergence.
 
 `admin_audit_events` records operator mutations before lifecycle coordination state changes. It is distinct from quota decisions and workload event history.
 
 ## Nodes and Execution Leases
 
-`nodes` stores identity, control target, authentication hash, the latest accepted heartbeat time, lifecycle status, and retirement facts. Active identities may report and participate in placement. Retirement is irreversible, retains historical references, and commits with an admin audit event after lifecycle and storage blockers are clear. `node_summaries.summary` stores the complete rich observation, including its own collection time; duplicate summary timestamps and node versions are not persisted. Runtime eligibility is not stored because Axern has one production execution boundary.
+`nodes` stores identity, non-empty control target, a 64-character authentication hash, the latest accepted heartbeat time, lifecycle status, and retirement facts. The schema does not permit a half-registered empty target or token hash. Active identities may report and participate in placement. Retirement is irreversible, retains historical references, and commits with an admin audit event after lifecycle and storage blockers are clear. `node_summaries.summary` stores the complete rich observation, including its own collection time; duplicate summary timestamps and node versions are not persisted. Runtime eligibility is not stored because Axern has one production execution boundary.
 
 ```mermaid
 sequenceDiagram
@@ -135,6 +142,6 @@ New indexes require a concrete query, reconciliation, retention, or uniqueness c
 
 ## Storage Rules
 
-Typed columns own identity, state-machine status, foreign keys, required concurrency versions, timestamps, budgets, usage totals, and fields used for ordering or selection. JSONB owns versioned intent and snapshots that are read and written as a whole.
+Typed columns own identity, state-machine status, foreign keys, required concurrency versions, timestamps, budgets, usage totals, and fields used for ordering or selection. JSONB owns typed protobuf intent and immutable snapshots that are read and written as a whole. Database checks reject unknown Run and TunnelSession states, unsupported Secret types, empty Node routing or authentication identity, empty quota-event Environment identity, non-object specifications and labels, invalid versions or revisions, negative counters, and impossible timestamp ordering before those values can become authoritative. Quota rejection events name the real Environment request but have no `run_id`, because rejection means no Run exists.
 
 Retention may delete completed history only after checking domain references. It must not delete current workloads or active leases.

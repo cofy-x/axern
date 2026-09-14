@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -157,11 +156,9 @@ func cleanupDNSProbe(parent context.Context, session *Session, namespace, secret
 		}
 	}
 	if environmentID != "" {
-		response, err := session.Environment.DeleteEnvironment(ctx, &environmentv1.DeleteEnvironmentRequest{EnvironmentID: environmentID})
+		_, err := session.Environment.DeleteEnvironment(ctx, &environmentv1.DeleteEnvironmentRequest{EnvironmentID: environmentID})
 		if err != nil && grpcstatus.Code(err) != codes.NotFound {
 			result = errors.Join(result, err)
-		} else if err == nil && (response == nil || response.GetEnvironment().GetDeletedAt() == nil) {
-			result = errors.Join(result, fmt.Errorf("environment deletion did not reach deleted state"))
 		}
 	}
 	if secretID != "" {

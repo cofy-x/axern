@@ -385,15 +385,15 @@ func insertReservation(t *testing.T, db *postgres.DB, reservationID, allocationI
 		releasedAt = now.Add(time.Minute)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO nodes (node_id, node_target, registered_at, last_heartbeat_at, lifecycle_status)
-		VALUES ('node-a', '127.0.0.1:24010', $1, $1, 'active')
+		INSERT INTO nodes (node_id, node_target, node_auth_token_hash, registered_at, last_heartbeat_at, lifecycle_status)
+		VALUES ('node-a', '127.0.0.1:24010', repeat('0', 64), $1, $1, 'active')
 		ON CONFLICT (node_id) DO NOTHING
 	`, now); err != nil {
 		t.Fatalf("insert reservation node: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
-		VALUES ($1, $2, 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $3, $3)
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, created_at, updated_at)
+		VALUES ($1, $2, 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $3, $3)
 	`, allocationID, namespace, now); err != nil {
 		t.Fatalf("insert reservation run: %v", err)
 	}
@@ -415,15 +415,14 @@ func insertReservation(t *testing.T, db *postgres.DB, reservationID, allocationI
 
 func insertEnvironment(t *testing.T, db *postgres.DB, environmentID, namespace string, deleted bool, now time.Time) {
 	t.Helper()
-	var deletedAt *time.Time
 	if deleted {
-		deletedAt = &now
+		return
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO environments (
-			environment_id, namespace, spec, resolved_spec, labels, created_at, deleted_at
-		) VALUES ($1, $2, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $3, $4)
-	`, environmentID, namespace, now, deletedAt); err != nil {
+			environment_id, namespace, spec, resolved_spec, labels, created_at
+		) VALUES ($1, $2, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $3)
+	`, environmentID, namespace, now); err != nil {
 		t.Fatalf("insert environment %s: %v", environmentID, err)
 	}
 }

@@ -28,7 +28,6 @@ const maxReservationRejectionDetails = 5
 
 type ReserveCandidateRequest struct {
 	Namespace     string
-	RunID         string
 	EnvironmentID string
 	Candidates    []*placementkernel.Candidate
 	Config        *commonv1.ExecutionConfig
@@ -73,10 +72,8 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 		rejection := quotaRejectionError(namespace, quotaEvaluation)
 		if err := insertQuotaAdmissionRejectedEvent(ctx, tx, quotaAdmissionRejectedEvent{
 			Namespace:     namespace,
-			RunID:         req.RunID,
 			EnvironmentID: req.EnvironmentID,
 			Evaluation:    quotaEvaluation,
-			Message:       quotaRejectionMessage(namespace, quotaEvaluation),
 			CreatedAt:     req.Now,
 		}); err != nil {
 			recordResourceAdmissionStage(ctx, resourceAdmissionStageEvaluateNamespace, stageStarted, err)

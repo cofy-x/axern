@@ -11,7 +11,9 @@
 - Keep RPC validation and mapping in `internal/api`, use-case orchestration in `internal/application`, domain contracts and pure rules in `internal/kernel`, SQL and transaction mechanics in `internal/postgres`, and construction/lifecycle in `internal/app`.
 - `internal/application` and `internal/kernel` must not depend on Postgres implementations. API and composition packages depend on narrow capabilities rather than concrete stores.
 - Keep placement separate from node execution. Gateway resolution returns an explicit Allocation target and lease bound to that exact Allocation ID.
+- Run admission must freeze the normalized and resolved Environment specifications and protect every required Secret reference in the same transaction as the Run, its single Allocation, reservation, capability requirements, and create intent. Recovery must not depend on the continued existence of the reusable Environment row.
 - Allocation lifecycle ingest authenticates and resolves owners in batches, locks deterministically, and persists each affected Allocation and Run once per batch.
+- Lifecycle transactions lock the Allocation before its reconcile-queue row. Preserve this order in request, report, worker-completion, cancellation, and release paths.
 - Node lifecycle uses a durable bounded queue; capability placement reads the current Node observation transactionally, while post-bind capability loss is owned by axnoded's Allocation-scoped fail-stop intent. Event paths must not trigger unbounded scans.
 - Shared platform capability keys and provider/loss policy belong to `lib/go/nodecapability`; controld owns durable observation, placement admission, dependency conditions, and reconciliation.
 - Keep debug HTTP read-only. Durable retry operations and audit/reliability models belong to the admin application and Postgres boundaries.

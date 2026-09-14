@@ -25,13 +25,16 @@ CREATE TABLE principal_credentials (
 
 CREATE TABLE nodes (
 	node_id TEXT PRIMARY KEY,
-	node_target TEXT NOT NULL DEFAULT '',
-	node_auth_token_hash TEXT NOT NULL DEFAULT '',
+	node_target TEXT NOT NULL,
+	node_auth_token_hash TEXT NOT NULL,
 	registered_at TIMESTAMPTZ NOT NULL,
 	last_heartbeat_at TIMESTAMPTZ NOT NULL,
 	lifecycle_status TEXT NOT NULL CHECK (lifecycle_status IN ('active', 'retired')),
 	retired_at TIMESTAMPTZ,
 	retired_reason TEXT NOT NULL DEFAULT '',
+	CHECK (length(btrim(node_target)) > 0),
+	CHECK (length(node_auth_token_hash) = 64),
+	CHECK (last_heartbeat_at >= registered_at),
 	CHECK (
 		(lifecycle_status = 'active' AND retired_at IS NULL AND retired_reason = '') OR
 		(lifecycle_status = 'retired' AND retired_at IS NOT NULL AND length(btrim(retired_reason)) > 0)
@@ -40,7 +43,7 @@ CREATE TABLE nodes (
 
 CREATE TABLE node_summaries (
 	node_id TEXT PRIMARY KEY REFERENCES nodes(node_id) ON DELETE CASCADE,
-	summary JSONB NOT NULL
+	summary JSONB NOT NULL CHECK (jsonb_typeof(summary) = 'object')
 );
 
 CREATE INDEX idx_nodes_last_heartbeat_at ON nodes(last_heartbeat_at);
@@ -88,8 +91,13 @@ CREATE TABLE environments (
 	resolved_spec JSONB NOT NULL,
 	labels JSONB NOT NULL,
 	created_at TIMESTAMPTZ NOT NULL,
-	deleted_at TIMESTAMPTZ
+	CHECK (jsonb_typeof(spec) = 'object'),
+	CHECK (jsonb_typeof(resolved_spec) = 'object'),
+	CHECK (jsonb_typeof(labels) = 'object')
 );
+
+CREATE UNIQUE INDEX idx_environments_id_namespace
+	ON environments(environment_id, namespace);
 
 CREATE TABLE secrets (
 	secret_id TEXT PRIMARY KEY,
@@ -98,7 +106,23 @@ CREATE TABLE secrets (
 	data_keys JSONB NOT NULL,
 	encrypted_payload BYTEA NOT NULL,
 	labels JSONB NOT NULL,
-	created_at TIMESTAMPTZ NOT NULL
+	created_at TIMESTAMPTZ NOT NULL,
+	CHECK (type IN ('SECRET_TYPE_OPAQUE', 'SECRET_TYPE_DOCKER_CONFIG_JSON')),
+	CHECK (jsonb_typeof(data_keys) = 'array'),
+	CHECK (jsonb_typeof(labels) = 'object')
+);
+
+CREATE UNIQUE INDEX idx_secrets_id_namespace
+	ON secrets(secret_id, namespace);
+
+CREATE TABLE environment_secret_references (
+	environment_id TEXT PRIMARY KEY,
+	namespace TEXT NOT NULL,
+	secret_id TEXT NOT NULL,
+	FOREIGN KEY (environment_id, namespace)
+		REFERENCES environments(environment_id, namespace) ON DELETE CASCADE,
+	FOREIGN KEY (secret_id, namespace)
+		REFERENCES secrets(secret_id, namespace) ON DELETE RESTRICT
 );
 
 CREATE TABLE runs (
@@ -107,13 +131,44 @@ CREATE TABLE runs (
 	environment_id TEXT NOT NULL,
 	status TEXT NOT NULL,
 	config JSONB NOT NULL,
+	environment_spec JSONB NOT NULL,
+	resolved_environment_spec JSONB NOT NULL,
 	labels JSONB NOT NULL,
 	version BIGINT NOT NULL DEFAULT 1,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
 	exit_code INTEGER,
 	diagnostic_code TEXT NOT NULL DEFAULT 'WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED',
-	message TEXT NOT NULL DEFAULT ''
+	message TEXT NOT NULL DEFAULT '',
+	CHECK (status IN (
+		'RUN_STATUS_PLACED',
+		'RUN_STATUS_STARTING',
+		'RUN_STATUS_RUNNING',
+		'RUN_STATUS_SUCCEEDED',
+		'RUN_STATUS_FAILED',
+		'RUN_STATUS_CANCELLED'
+	)),
+	CHECK (version > 0),
+	CHECK (jsonb_typeof(config) = 'object'),
+	CHECK (jsonb_typeof(environment_spec) = 'object'),
+	CHECK (jsonb_typeof(resolved_environment_spec) = 'object'),
+	CHECK (jsonb_typeof(labels) = 'object'),
+	CHECK (updated_at >= created_at),
+	CHECK (exit_code IS NULL OR status IN ('RUN_STATUS_SUCCEEDED', 'RUN_STATUS_FAILED'))
+);
+
+CREATE UNIQUE INDEX idx_runs_id_namespace
+	ON runs(run_id, namespace);
+
+CREATE TABLE run_secret_references (
+	run_id TEXT NOT NULL,
+	namespace TEXT NOT NULL,
+	secret_id TEXT NOT NULL,
+	PRIMARY KEY (run_id, secret_id),
+	FOREIGN KEY (run_id, namespace)
+		REFERENCES runs(run_id, namespace) ON DELETE CASCADE,
+	FOREIGN KEY (secret_id, namespace)
+		REFERENCES secrets(secret_id, namespace) ON DELETE RESTRICT
 );
 
 CREATE TABLE allocations (
@@ -131,6 +186,7 @@ CREATE TABLE allocations (
 		'ALLOCATION_LIFECYCLE_STATE_RELEASING',
 		'ALLOCATION_LIFECYCLE_STATE_RELEASED'
 	)),
+	CHECK (updated_at >= created_at),
 	UNIQUE (allocation_id, node_id)
 );
 
@@ -140,13 +196,15 @@ CREATE TABLE allocation_capability_requirements (
 	capability_key JSONB NOT NULL,
 	loss_policy TEXT NOT NULL,
 	created_at TIMESTAMPTZ NOT NULL,
-	PRIMARY KEY (allocation_id, capability_key_id)
+	PRIMARY KEY (allocation_id, capability_key_id),
+	CHECK (length(btrim(capability_key_id)) > 0),
+	CHECK (jsonb_typeof(capability_key) = 'object')
 );
 
 CREATE TABLE allocation_capability_conditions (
 	allocation_id TEXT PRIMARY KEY REFERENCES allocations(allocation_id) ON DELETE CASCADE,
 	observed_at TIMESTAMPTZ NOT NULL,
-	conditions JSONB NOT NULL
+	conditions JSONB NOT NULL CHECK (jsonb_typeof(conditions) = 'object')
 );
 
 -- Durable ordering fence for capability observations from a concrete node
@@ -172,6 +230,7 @@ CREATE TABLE reservations (
 	CHECK (cpu_milli >= 0),
 	CHECK (sandbox_memory_request_bytes >= 0),
 	CHECK (ephemeral_storage_bytes >= 0),
+	CHECK (released_at IS NULL OR released_at >= created_at),
 	FOREIGN KEY (allocation_id, node_id)
 		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE
 );
@@ -180,8 +239,7 @@ CREATE TABLE namespace_quota_events (
 	event_id TEXT PRIMARY KEY,
 	namespace TEXT NOT NULL REFERENCES namespaces(namespace),
 	event_type TEXT NOT NULL,
-	run_id TEXT NOT NULL DEFAULT '',
-	environment_id TEXT NOT NULL DEFAULT '',
+	environment_id TEXT NOT NULL,
 	reason TEXT NOT NULL,
 	requested_cpu_milli BIGINT NOT NULL DEFAULT 0,
 	reserved_cpu_milli BIGINT NOT NULL DEFAULT 0,
@@ -196,6 +254,9 @@ CREATE TABLE namespace_quota_events (
 	ephemeral_storage_bytes_limit BIGINT,
 	available_ephemeral_storage_bytes BIGINT,
 	created_at TIMESTAMPTZ NOT NULL,
+	CHECK (event_type = 'admission_rejected'),
+	CHECK (reason IN ('insufficient_cpu', 'insufficient_memory', 'insufficient_cpu_memory', 'insufficient_ephemeral_storage')),
+	CHECK (length(btrim(environment_id)) > 0),
 	CHECK (requested_cpu_milli >= 0),
 	CHECK (reserved_cpu_milli >= 0),
 	CHECK (cpu_milli_limit IS NULL OR cpu_milli_limit >= 0),
@@ -219,6 +280,9 @@ CREATE TABLE execution_leases (
 	revoked BOOLEAN NOT NULL DEFAULT FALSE,
 	token_hash TEXT NOT NULL,
 	created_at TIMESTAMPTZ NOT NULL,
+	CHECK (revision > 0),
+	CHECK (expires_at > created_at),
+	CHECK (length(btrim(token_hash)) > 0),
 	FOREIGN KEY (allocation_id, node_id)
 		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE
 );
@@ -232,6 +296,8 @@ CREATE TABLE allocation_reconcile_queue (
 	lease_expires_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
+	CHECK (reconcile_attempts >= 0),
+	CHECK (updated_at >= created_at),
 	CHECK (
 		(lease_owner = '' AND lease_expires_at IS NULL) OR
 		(length(btrim(lease_owner)) > 0 AND lease_expires_at IS NOT NULL)
@@ -250,7 +316,7 @@ CREATE TABLE admin_audit_events (
 
 CREATE TABLE control_revisions (
 	name TEXT PRIMARY KEY,
-	revision BIGINT NOT NULL
+	revision BIGINT NOT NULL CHECK (revision >= 0)
 );
 
 INSERT INTO control_revisions(name, revision)
@@ -278,7 +344,23 @@ CREATE TABLE tunnel_sessions (
 	last_peer_event_at TIMESTAMPTZ,
 	bytes_in BIGINT NOT NULL DEFAULT 0,
 	bytes_out BIGINT NOT NULL DEFAULT 0,
-	CHECK (remote_port > 0 AND remote_port <= 65535)
+	CHECK (remote_port > 0 AND remote_port <= 65535),
+	CHECK (status IN (
+		'TUNNEL_SESSION_STATUS_PENDING',
+		'TUNNEL_SESSION_STATUS_RUNNING',
+		'TUNNEL_SESSION_STATUS_DEGRADED',
+		'TUNNEL_SESSION_STATUS_REVOKED',
+		'TUNNEL_SESSION_STATUS_EXPIRED',
+		'TUNNEL_SESSION_STATUS_FAILED'
+	)),
+	CHECK (expires_at > created_at),
+	CHECK (updated_at >= created_at),
+	CHECK (ready_at IS NULL OR ready_at >= created_at),
+	CHECK (last_peer_event_at IS NULL OR last_peer_event_at >= created_at),
+	CHECK (bytes_in >= 0 AND bytes_out >= 0),
+	CHECK (revision > 0),
+	CHECK (length(btrim(client_token_hash)) > 0),
+	CHECK (length(btrim(node_token_hash)) > 0)
 );
 
 CREATE TABLE tunnel_session_events (
@@ -293,7 +375,8 @@ CREATE TABLE tunnel_session_events (
 	peer_kind TEXT NOT NULL DEFAULT '',
 	bytes_in BIGINT NOT NULL DEFAULT 0,
 	bytes_out BIGINT NOT NULL DEFAULT 0,
-	created_at TIMESTAMPTZ NOT NULL
+	created_at TIMESTAMPTZ NOT NULL,
+	CHECK (bytes_in >= 0 AND bytes_out >= 0)
 );
 
 CREATE INDEX idx_principal_credentials_principal ON principal_credentials(principal_id, created_at DESC);
@@ -308,6 +391,8 @@ CREATE INDEX idx_environments_namespace_created ON environments(namespace, creat
 CREATE INDEX idx_environments_labels ON environments USING GIN(labels jsonb_path_ops);
 CREATE INDEX idx_secrets_namespace_created ON secrets(namespace, created_at DESC, secret_id DESC);
 CREATE INDEX idx_secrets_labels ON secrets USING GIN(labels jsonb_path_ops);
+CREATE INDEX idx_environment_secret_references_secret ON environment_secret_references(secret_id, namespace);
+CREATE INDEX idx_run_secret_references_secret ON run_secret_references(secret_id, namespace);
 CREATE INDEX idx_runs_namespace_created ON runs(namespace, created_at DESC, run_id DESC);
 CREATE INDEX idx_runs_labels ON runs USING GIN(labels jsonb_path_ops);
 CREATE INDEX idx_runs_namespace_id ON runs(namespace, run_id);

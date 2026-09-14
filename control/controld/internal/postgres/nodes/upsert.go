@@ -64,7 +64,7 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 		) VALUES ($1, $2, $3, $3, $4, 'active')
 		ON CONFLICT (node_id) DO UPDATE SET
 			node_target = EXCLUDED.node_target,
-			last_heartbeat_at = EXCLUDED.last_heartbeat_at,
+			last_heartbeat_at = GREATEST(nodes.last_heartbeat_at, EXCLUDED.last_heartbeat_at),
 			node_auth_token_hash = EXCLUDED.node_auth_token_hash
 	`, nodeID, params.NodeTarget, params.Now.UTC(), tokenHash); err != nil {
 		return nil, fmt.Errorf("upsert node: %w", err)

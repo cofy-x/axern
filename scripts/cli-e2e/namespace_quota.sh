@@ -32,12 +32,17 @@ verify_namespace_quota() {
     exit 1
   fi
   environment_delete_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" environment delete "${environment_id}" -o json)"
-  environment_deleted_at="$(json_query "environment delete" 'json.load(sys.stdin)["environment"].get("deleted_at", "")' "${environment_delete_output}")"
-  [ -n "${environment_deleted_at}" ] || {
-    echo "axern environment delete returned no deleted_at tombstone" >&2
+  deleted_environment_id="$(json_query "environment delete" 'json.load(sys.stdin)["environment"]["id"]' "${environment_delete_output}")"
+  [ "${deleted_environment_id}" = "${environment_id}" ] || {
+    echo "axern environment delete returned id ${deleted_environment_id}, want ${environment_id}" >&2
     dump_logs
     exit 1
   }
+  if "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" environment get "${environment_id}" -o json >"${cli_object_output}" 2>"${cli_error_output}"; then
+    echo "axern environment get succeeded after physical deletion" >&2
+    dump_logs
+    exit 1
+  fi
 
   quota_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" quota set --namespace e2e-team --cpu 2 --memory 1GiB -o json)"
   quota_namespace="$(json_query "quota set" 'json.load(sys.stdin)["quota"]["namespace"]' "${quota_output}")"

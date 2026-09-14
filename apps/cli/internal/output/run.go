@@ -16,6 +16,9 @@ func RenderRun(w io.Writer, run *runv1.Run) {
 	fmt.Fprintf(w, "ID: %s\n", run.GetID())
 	fmt.Fprintf(w, "Namespace: %s\n", run.GetNamespace())
 	fmt.Fprintf(w, "Environment ID: %s\n", run.GetEnvironmentID())
+	if digest := run.GetResolvedEnvironmentSpec().GetImageDescriptor().GetDigest(); digest != "" {
+		fmt.Fprintf(w, "Environment Digest: %s\n", digest)
+	}
 	fmt.Fprintf(w, "Status: %s\n", RunStatusLabel(run.GetStatus()))
 	if run.GetAllocationID() != "" {
 		fmt.Fprintf(w, "Allocation ID: %s\n", run.GetAllocationID())

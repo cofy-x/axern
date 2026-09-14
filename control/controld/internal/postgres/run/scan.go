@@ -15,12 +15,12 @@ import (
 )
 
 func environmentSelectSQL() string {
-	return `SELECT environment_id, namespace, spec, resolved_spec, labels, created_at, deleted_at FROM environments`
+	return `SELECT environment_id, namespace, spec, resolved_spec, labels, created_at FROM environments`
 }
 
 func runSelectSQL() string {
 	return `SELECT r.run_id, r.namespace, r.environment_id, a.allocation_id, r.status,
-		r.config, r.labels, r.version, r.created_at, r.updated_at, r.exit_code, r.diagnostic_code, r.message,
+		r.config, r.environment_spec, r.resolved_environment_spec, r.labels, r.version, r.created_at, r.updated_at, r.exit_code, r.diagnostic_code, r.message,
 		a.node_id,
 		COALESCE((SELECT conditions FROM allocation_capability_conditions c WHERE c.allocation_id = a.allocation_id), '{}'::jsonb)
 		FROM runs r JOIN allocations a ON a.run_id = r.run_id`
@@ -36,9 +36,8 @@ func scanEnvironment(row scanner) (*environmentv1.Environment, error) {
 		specJSON, resolvedSpecJSON []byte
 		labelsJSON                 []byte
 		createdAt                  time.Time
-		deletedAt                  *time.Time
 	)
-	if err := row.Scan(&env.ID, &env.Namespace, &specJSON, &resolvedSpecJSON, &labelsJSON, &createdAt, &deletedAt); err != nil {
+	if err := row.Scan(&env.ID, &env.Namespace, &specJSON, &resolvedSpecJSON, &labelsJSON, &createdAt); err != nil {
 		return nil, err
 	}
 	env.Spec = &environmentv1.EnvironmentSpec{}
@@ -51,22 +50,23 @@ func scanEnvironment(row scanner) (*environmentv1.Environment, error) {
 	}
 	env.Labels = unmarshalJSONMap(labelsJSON)
 	env.CreatedAt = timestamppb.New(createdAt)
-	if deletedAt != nil {
-		env.DeletedAt = timestamppb.New(*deletedAt)
-	}
 	return &env, nil
 }
 
 func scanRun(row scanner) (*runv1.Run, error) {
 	var (
-		run                                              runv1.Run
-		statusText                                       string
-		diagnosticCodeText                               string
-		configJSON, labelsJSON, capabilityConditionsJSON []byte
-		createdAt, updatedAt                             time.Time
-		exitCode                                         sql.NullInt32
+		run                         runv1.Run
+		statusText                  string
+		diagnosticCodeText          string
+		configJSON                  []byte
+		environmentSpecJSON         []byte
+		resolvedEnvironmentSpecJSON []byte
+		labelsJSON                  []byte
+		capabilityConditionsJSON    []byte
+		createdAt, updatedAt        time.Time
+		exitCode                    sql.NullInt32
 	)
-	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &exitCode, &diagnosticCodeText, &run.Message, &run.NodeID, &capabilityConditionsJSON); err != nil {
+	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &environmentSpecJSON, &resolvedEnvironmentSpecJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &exitCode, &diagnosticCodeText, &run.Message, &run.NodeID, &capabilityConditionsJSON); err != nil {
 		return nil, err
 	}
 	run.Status = parseRunStatus(statusText)
@@ -78,6 +78,14 @@ func scanRun(row scanner) (*runv1.Run, error) {
 	run.Config = &commonv1.ExecutionConfig{}
 	if err := protojson.Unmarshal(configJSON, run.Config); err != nil {
 		return nil, fmt.Errorf("unmarshal run config: %w", err)
+	}
+	run.EnvironmentSpec = &environmentv1.EnvironmentSpec{}
+	if err := protojson.Unmarshal(environmentSpecJSON, run.EnvironmentSpec); err != nil {
+		return nil, fmt.Errorf("unmarshal run environment spec: %w", err)
+	}
+	run.ResolvedEnvironmentSpec = &environmentv1.ResolvedEnvironmentSpec{}
+	if err := protojson.Unmarshal(resolvedEnvironmentSpecJSON, run.ResolvedEnvironmentSpec); err != nil {
+		return nil, fmt.Errorf("unmarshal run resolved environment spec: %w", err)
 	}
 	run.Labels = unmarshalJSONMap(labelsJSON)
 	conditionSet := &capabilityv1.CapabilityConditionSet{}
