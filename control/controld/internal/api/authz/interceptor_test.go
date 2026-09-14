@@ -20,6 +20,7 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -122,7 +123,7 @@ func TestStreamRecheckCancelsAfterRoleRevocation(t *testing.T) {
 func TestEveryRegisteredPublicMethodHasExplicitPolicy(t *testing.T) {
 	services := []*grpc.ServiceDesc{
 		&adminv1.AccessAdmin_ServiceDesc, &adminv1.AdminAudit_ServiceDesc, &adminv1.AdminReliability_ServiceDesc,
-		&adminv1.NodeAdmin_ServiceDesc, &adminv1.AllocationLifecycleAdmin_ServiceDesc,
+		&adminv1.NodeAdmin_ServiceDesc, &privateadminv1.AllocationLifecycleAdmin_ServiceDesc,
 		&catalogv1.EnvironmentCatalog_ServiceDesc, &environmentv1.EnvironmentControl_ServiceDesc,
 		&identityv1.IdentityControl_ServiceDesc, &namespacev1.NamespaceControl_ServiceDesc,
 		&quotav1.QuotaControl_ServiceDesc, &runv1.RunControl_ServiceDesc,

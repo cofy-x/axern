@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
-	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -149,7 +148,7 @@ func TestStoreDeleteNamespaceRejectsLiveEnvironment(t *testing.T) {
 	if _, err := store.CreateNamespace(ctx, "team-a", now); err != nil {
 		t.Fatalf("CreateNamespace() error = %v", err)
 	}
-	insertEnvironment(t, db, "env-a", "team-a", environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_READY, now)
+	insertEnvironment(t, db, "env-a", "team-a", false, now)
 	if _, err := store.DeleteNamespace(ctx, "team-a", now); grpcstatus.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("DeleteNamespace() code = %v, want FailedPrecondition err=%v", grpcstatus.Code(err), err)
 	}
@@ -164,7 +163,7 @@ func TestStoreDeleteNamespaceAllowsDeletedEnvironment(t *testing.T) {
 	if _, err := store.CreateNamespace(ctx, "team-a", now); err != nil {
 		t.Fatalf("CreateNamespace() error = %v", err)
 	}
-	insertEnvironment(t, db, "env-a", "team-a", environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_DELETED, now)
+	insertEnvironment(t, db, "env-a", "team-a", true, now)
 	if _, err := store.DeleteNamespace(ctx, "team-a", now); err != nil {
 		t.Fatalf("DeleteNamespace() error = %v", err)
 	}
@@ -370,8 +369,8 @@ func insertReservation(t *testing.T, db *postgres.DB, reservationID, allocationI
 		releasedAt = now.Add(time.Minute)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO nodes (node_id, node_target, registered_at, updated_at, last_heartbeat_at, lifecycle_status)
-		VALUES ('node-a', '127.0.0.1:24010', $1, $1, $1, 'active')
+		INSERT INTO nodes (node_id, node_target, registered_at, last_heartbeat_at, lifecycle_status)
+		VALUES ('node-a', '127.0.0.1:24010', $1, $1, 'active')
 		ON CONFLICT (node_id) DO NOTHING
 	`, now); err != nil {
 		t.Fatalf("insert reservation node: %v", err)
@@ -398,14 +397,17 @@ func insertReservation(t *testing.T, db *postgres.DB, reservationID, allocationI
 	}
 }
 
-func insertEnvironment(t *testing.T, db *postgres.DB, environmentID, namespace string, status environmentv1.EnvironmentStatus, now time.Time) {
+func insertEnvironment(t *testing.T, db *postgres.DB, environmentID, namespace string, deleted bool, now time.Time) {
 	t.Helper()
+	var deletedAt *time.Time
+	if deleted {
+		deletedAt = &now
+	}
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO environments (
-			environment_id, namespace, status, spec_hash, spec, resolved_template,
-			labels, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $5, $5)
-	`, environmentID, namespace, status.String(), environmentID+"-hash", now); err != nil {
+			environment_id, namespace, spec, resolved_spec, labels, created_at, deleted_at
+		) VALUES ($1, $2, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $3, $4)
+	`, environmentID, namespace, now, deletedAt); err != nil {
 		t.Fatalf("insert environment %s: %v", environmentID, err)
 	}
 }

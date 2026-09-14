@@ -19,6 +19,7 @@ import (
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
+	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -31,7 +32,7 @@ func dial(ctx context.Context, config Config) (*grpc.ClientConn, Clients, error)
 		return nil, Clients{}, err
 	}
 	return conn, Clients{
-		Admin:            adminv1.NewAllocationLifecycleAdminClient(conn),
+		Admin:            privateadminv1.NewAllocationLifecycleAdminClient(conn),
 		AdminAudit:       adminv1.NewAdminAuditClient(conn),
 		AdminReliability: adminv1.NewAdminReliabilityClient(conn),
 		AdminNode:        adminv1.NewNodeAdminClient(conn),

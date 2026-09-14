@@ -31,7 +31,7 @@ type RegistryCredentialResolver interface {
 	ResolveDockerConfigJSON(ctx context.Context, id string) (string, bool, error)
 }
 
-func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, catalog CatalogReader, images ImageResolver, credentials RegistryCredentialResolver) (*environmentv1.EnvironmentSpec, *catalogv1.EnvironmentTemplate, error) {
+func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, catalog CatalogReader, images ImageResolver, credentials RegistryCredentialResolver) (*environmentv1.EnvironmentSpec, *catalogv1.ResolvedEnvironmentSpec, error) {
 	if spec == nil {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "spec is required")
 	}
@@ -49,7 +49,7 @@ func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, catal
 	return resolveImageSpec(ctx, images, credentials, spec)
 }
 
-func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *catalogv1.EnvironmentTemplate, error) {
+func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *catalogv1.ResolvedEnvironmentSpec, error) {
 	templateID := strings.TrimSpace(spec.GetTemplateID())
 	if strings.TrimSpace(spec.GetImage().GetRegistryCredentialID()) != "" {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "image.registry_credential_id is only valid with image.ref")
@@ -61,7 +61,7 @@ func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentS
 	if !ok {
 		return nil, nil, grpcstatus.Errorf(codes.NotFound, "environment template %q not found", templateID)
 	}
-	if strings.TrimSpace(template.GetImageDescriptor().GetDigest()) == "" {
+	if strings.TrimSpace(template.GetResolvedSpec().GetImageDescriptor().GetDigest()) == "" {
 		return nil, nil, grpcstatus.Errorf(codes.FailedPrecondition, "environment template %q is not digest pinned", templateID)
 	}
 	normalized := &environmentv1.EnvironmentSpec{
@@ -69,10 +69,10 @@ func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentS
 		TemplateID:      templateID,
 		TemplateVersion: template.GetVersion(),
 	}
-	return normalized, template, nil
+	return normalized, template.GetResolvedSpec(), nil
 }
 
-func resolveImageSpec(ctx context.Context, images ImageResolver, credentials RegistryCredentialResolver, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *catalogv1.EnvironmentTemplate, error) {
+func resolveImageSpec(ctx context.Context, images ImageResolver, credentials RegistryCredentialResolver, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *catalogv1.ResolvedEnvironmentSpec, error) {
 	if images == nil {
 		return nil, nil, grpcstatus.Error(codes.FailedPrecondition, "image resolution is not configured")
 	}
@@ -113,22 +113,13 @@ func resolveImageSpec(ctx context.Context, images ImageResolver, credentials Reg
 			RegistryCredentialID: registryCredentialID,
 		},
 	}
-	return normalized, synthesizeImageTemplate(normalized, resolved.Descriptor), nil
+	return normalized, synthesizeImageSpec(normalized, resolved.Descriptor), nil
 }
 
-func synthesizeImageTemplate(spec *environmentv1.EnvironmentSpec, descriptor *catalogv1.OciImageDescriptor) *catalogv1.EnvironmentTemplate {
+func synthesizeImageSpec(spec *environmentv1.EnvironmentSpec, descriptor *catalogv1.OciImageDescriptor) *catalogv1.ResolvedEnvironmentSpec {
 	image := spec.GetImage()
-	return &catalogv1.EnvironmentTemplate{
-		ID:              image.GetRef(),
-		Version:         image.GetDigest(),
+	return &catalogv1.ResolvedEnvironmentSpec{
 		ImageDescriptor: descriptor,
 		RootfsReadonly:  image.GetRootfsReadonly(),
-		Capabilities: &catalogv1.EnvironmentTemplateCapabilities{
-			SupportsExec:             true,
-			SupportsExecStream:       true,
-			SupportsLongLivedProcess: true,
-			SupportsPorts:            true,
-		},
-		Description: "Image-backed runtime environment.",
 	}
 }

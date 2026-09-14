@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 	ctrlobs "github.com/cofy-x/axern/control/controld/internal/observability"
@@ -79,10 +78,8 @@ func (s *Server) WatchRun(req *runv1.WatchRunRequest, stream runv1.RunControl_Wa
 	}
 
 	after := req.GetAfterVersion()
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
 	for {
-		run, err := s.deps.Runs.GetRun(stream.Context(), id)
+		run, err := s.deps.Runs.WatchRun(stream.Context(), id, after)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return nil
@@ -106,20 +103,15 @@ func (s *Server) WatchRun(req *runv1.WatchRunRequest, stream runv1.RunControl_Wa
 		} else if isTerminalRun(run.GetStatus()) {
 			return nil
 		}
-		select {
-		case <-stream.Context().Done():
-			return nil
-		case <-ticker.C:
-		}
 	}
 }
 
 func (s *Server) ListRuns(ctx context.Context, req *runv1.ListRunsRequest) (*runv1.ListRunsResponse, error) {
-	runs, err := s.deps.Runs.ListRuns(ctx, req.GetFilter())
+	runs, nextCursor, err := s.deps.Runs.ListRuns(ctx, req.GetFilter())
 	if err != nil {
 		return nil, err
 	}
-	return &runv1.ListRunsResponse{Runs: runs}, nil
+	return &runv1.ListRunsResponse{Runs: runs, NextCursor: nextCursor}, nil
 }
 
 func (s *Server) CancelRun(ctx context.Context, req *runv1.CancelRunRequest) (*runv1.CancelRunResponse, error) {

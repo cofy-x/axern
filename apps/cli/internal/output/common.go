@@ -8,7 +8,6 @@ import (
 	"time"
 
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -63,10 +62,6 @@ func FormatRelativeAge(from, to time.Time) string {
 
 func RunStatusLabel(status runv1.RunStatus) string {
 	return trimEnumPrefix(status.String(), "RUN_STATUS_")
-}
-
-func EnvironmentStatusLabel(status environmentv1.EnvironmentStatus) string {
-	return trimEnumPrefix(status.String(), "ENVIRONMENT_STATUS_")
 }
 
 func SecretTypeLabel(secretType secretv1.SecretType) string {

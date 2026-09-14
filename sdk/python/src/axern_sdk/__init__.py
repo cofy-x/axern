@@ -32,6 +32,7 @@ from axern_sdk.catalog.models import (
     OciNetworkNamespacePolicy,
     OciResourcePolicy,
     EnvironmentTemplate,
+    ResolvedEnvironmentSpec,
 )
 from axern_sdk.models import ImageMount, SecretEnvVar, SecretFile
 from axern_sdk.network_policy import CIDRRule, NetworkPolicy, PortRange
@@ -122,6 +123,7 @@ __all__ = [
     "OciNetworkNamespacePolicy",
     "OciResourcePolicy",
     "EnvironmentTemplate",
+    "ResolvedEnvironmentSpec",
     "SecretEnvVar",
     "SecretFile",
     "TLSContext",

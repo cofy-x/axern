@@ -21,7 +21,7 @@ import (
 
 func (s *Store) ListNodes(ctx context.Context, filter adminkernel.NodeListFilter) ([]*nodekernel.Record, error) {
 	query := `
-		SELECT n.node_id, n.node_target, n.lifecycle_status, n.registered_at, n.updated_at,
+		SELECT n.node_id, n.node_target, n.lifecycle_status, n.registered_at, n.last_heartbeat_at,
 		       n.retired_at, n.retired_reason, s.summary
 		FROM nodes n
 		LEFT JOIN node_summaries s ON s.node_id = n.node_id`
@@ -60,7 +60,7 @@ func (s *Store) RetireNode(ctx context.Context, req adminkernel.RetireNodeReques
 
 	var lifecycle string
 	var updatedAt time.Time
-	if err := tx.QueryRow(ctx, `SELECT lifecycle_status, updated_at FROM nodes WHERE node_id = $1 FOR UPDATE`, req.NodeID).Scan(&lifecycle, &updatedAt); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT lifecycle_status, last_heartbeat_at FROM nodes WHERE node_id = $1 FOR UPDATE`, req.NodeID).Scan(&lifecycle, &updatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, grpcstatus.Error(codes.NotFound, "node not found")
 		}
@@ -77,7 +77,7 @@ func (s *Store) RetireNode(ctx context.Context, req adminkernel.RetireNodeReques
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE nodes
-		SET lifecycle_status = 'retired', retired_at = $2, retired_reason = $3, version = version + 1
+		SET lifecycle_status = 'retired', retired_at = $2, retired_reason = $3
 		WHERE node_id = $1
 	`, req.NodeID, req.Now, req.OperatorReason); err != nil {
 		return nil, fmt.Errorf("retire node: %w", err)
@@ -132,7 +132,7 @@ type adminNodeScanner interface {
 
 func loadAdminNode(ctx context.Context, tx pgx.Tx, nodeID string) (*nodekernel.Record, error) {
 	return scanAdminNode(tx.QueryRow(ctx, `
-		SELECT n.node_id, n.node_target, n.lifecycle_status, n.registered_at, n.updated_at,
+		SELECT n.node_id, n.node_target, n.lifecycle_status, n.registered_at, n.last_heartbeat_at,
 		       n.retired_at, n.retired_reason, s.summary
 		FROM nodes n
 		LEFT JOIN node_summaries s ON s.node_id = n.node_id
@@ -144,7 +144,7 @@ func scanAdminNode(row adminNodeScanner) (*nodekernel.Record, error) {
 	var record nodekernel.Record
 	var summaryJSON []byte
 	var retiredAt *time.Time
-	if err := row.Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.RegisteredAt, &record.UpdatedAt, &retiredAt, &record.RetiredReason, &summaryJSON); err != nil {
+	if err := row.Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.RegisteredAt, &record.LastHeartbeatAt, &retiredAt, &record.RetiredReason, &summaryJSON); err != nil {
 		return nil, fmt.Errorf("scan admin node: %w", err)
 	}
 	if retiredAt != nil {

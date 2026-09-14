@@ -6,14 +6,16 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type LeaseIssuer interface {
-	IssueExecutionLease(ctx context.Context, allocationID string, leaseType commonv1.LeaseType, ttl time.Duration, now time.Time) (*commonv1.ExecutionLease, error)
+	IssueExecutionLease(ctx context.Context, allocationID string, ttl time.Duration, now time.Time) (*leasekernel.IssuedGrant, error)
 }
 
 type RouteReader interface {
@@ -61,7 +63,7 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 	if alloc.LifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE && !terminalRunOutput {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "allocation is not active")
 	}
-	lease, err := r.leases.IssueExecutionLease(ctx, alloc.AllocationID, commonv1.LeaseType_LEASE_TYPE_RUN, ttl, now)
+	lease, err := r.leases.IssueExecutionLease(ctx, alloc.AllocationID, ttl, now)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +72,12 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 		RunID:        alloc.RunID,
 		NodeID:       alloc.NodeID,
 		NodeTarget:   alloc.NodeTarget,
-		Lease:        lease,
+		AccessGrant: &gatewayv1.AllocationAccessGrant{
+			LeaseID:        lease.LeaseID,
+			AllocationID:   lease.AllocationID,
+			NodeID:         lease.NodeID,
+			PlaintextToken: lease.PlaintextToken,
+			ExpiresAt:      timestamppb.New(lease.ExpiresAt),
+		},
 	}, nil
 }

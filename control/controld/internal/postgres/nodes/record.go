@@ -18,12 +18,12 @@ func loadNodeRecord(ctx context.Context, tx pgx.Tx, nodeID string) (*nodekernel.
 		retiredAt   *time.Time
 	)
 	if err := tx.QueryRow(ctx, `
-		SELECT n.node_id, n.node_target, n.lifecycle_status, n.registered_at, n.updated_at,
+		SELECT n.node_id, n.node_target, n.lifecycle_status, n.registered_at, n.last_heartbeat_at,
 		       n.retired_at, n.retired_reason, s.summary
 		FROM nodes n
 		LEFT JOIN node_summaries s ON s.node_id = n.node_id
 		WHERE n.node_id = $1
-	`, nodeID).Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.RegisteredAt, &record.UpdatedAt, &retiredAt, &record.RetiredReason, &summaryJSON); err != nil {
+	`, nodeID).Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.RegisteredAt, &record.LastHeartbeatAt, &retiredAt, &record.RetiredReason, &summaryJSON); err != nil {
 		return nil, fmt.Errorf("load node record: %w", err)
 	}
 	if retiredAt != nil {
@@ -44,13 +44,13 @@ func cloneRecord(in *nodekernel.Record) *nodekernel.Record {
 		return nil
 	}
 	return &nodekernel.Record{
-		NodeID:        in.NodeID,
-		NodeTarget:    in.NodeTarget,
-		Summary:       nodekernel.CloneNodeSummary(in.Summary),
-		Lifecycle:     in.Lifecycle,
-		RegisteredAt:  in.RegisteredAt,
-		UpdatedAt:     in.UpdatedAt,
-		RetiredAt:     in.RetiredAt,
-		RetiredReason: in.RetiredReason,
+		NodeID:          in.NodeID,
+		NodeTarget:      in.NodeTarget,
+		Summary:         nodekernel.CloneNodeSummary(in.Summary),
+		Lifecycle:       in.Lifecycle,
+		RegisteredAt:    in.RegisteredAt,
+		LastHeartbeatAt: in.LastHeartbeatAt,
+		RetiredAt:       in.RetiredAt,
+		RetiredReason:   in.RetiredReason,
 	}
 }

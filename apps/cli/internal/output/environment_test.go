@@ -13,7 +13,6 @@ func TestRenderEnvironmentImageBacked(t *testing.T) {
 	RenderEnvironment(&b, &environmentv1.Environment{
 		ID:        "env-1",
 		Namespace: "default",
-		Status:    environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_READY,
 		Spec: &environmentv1.EnvironmentSpec{
 			Image: &environmentv1.EnvironmentImageSource{
 				Ref:                  "index.docker.io/library/nginx:1.27",
@@ -22,7 +21,7 @@ func TestRenderEnvironmentImageBacked(t *testing.T) {
 				RootfsReadonly:       true,
 			},
 		},
-		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
+		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest:      "sha256:abc",
 				Annotations: map[string]string{"org.opencontainers.image.ref.name": "index.docker.io/library/nginx:1.27"},
@@ -48,16 +47,14 @@ func TestRenderEnvironmentTable(t *testing.T) {
 	var b strings.Builder
 	RenderEnvironmentTable(&b, []*environmentv1.Environment{
 		{
-			ID:     "env-template",
-			Status: environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_READY,
+			ID: "env-template",
 			Spec: &environmentv1.EnvironmentSpec{
 				TemplateID:      "python311",
 				TemplateVersion: "sha256:template",
 			},
 		},
 		{
-			ID:     "env-image",
-			Status: environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_READY,
+			ID: "env-image",
 			Spec: &environmentv1.EnvironmentSpec{
 				Image: &environmentv1.EnvironmentImageSource{
 					Ref:    "index.docker.io/library/nginx:1.27",

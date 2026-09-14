@@ -14,7 +14,6 @@ import (
 	"time"
 
 	filev1 "github.com/cofy-x/axern/sdk/go/gen/axern/common/file/v1"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
@@ -672,7 +671,7 @@ func (f *fakeAxernServer) ResolveAllocationTerminal(context.Context, *gatewayv1.
 		AllocationID: "alloc-1",
 		NodeID:       "node-1",
 		NodeTarget:   "bufnet",
-		Lease: &commonv1.ExecutionLease{
+		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
 		},
 	}, nil

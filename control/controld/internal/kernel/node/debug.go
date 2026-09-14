@@ -17,7 +17,7 @@ type DebugNode struct {
 	HeartbeatAgeSecs int64               `json:"heartbeat_age_secs"`
 	SummaryAgeSecs   int64               `json:"summary_age_secs"`
 	RegisteredAt     time.Time           `json:"registered_at"`
-	UpdatedAt        time.Time           `json:"updated_at"`
+	LastHeartbeatAt  time.Time           `json:"last_heartbeat_at"`
 	CollectedAt      time.Time           `json:"collected_at"`
 	RetiredAt        time.Time           `json:"retired_at,omitempty"`
 	RetiredReason    string              `json:"retired_reason,omitempty"`

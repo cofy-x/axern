@@ -14,6 +14,7 @@ import (
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
+	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 )
 
 const (
@@ -45,7 +46,7 @@ func Opener(config Config) SessionOpener {
 }
 
 type Clients struct {
-	Admin            adminv1.AllocationLifecycleAdminClient
+	Admin            privateadminv1.AllocationLifecycleAdminClient
 	AdminAudit       adminv1.AdminAuditClient
 	AdminReliability adminv1.AdminReliabilityClient
 	AdminNode        adminv1.NodeAdminClient

@@ -22,7 +22,7 @@ message AdminNode {
   int64 heartbeat_age_seconds = 6;
   int64 summary_age_seconds = 7;
   google.protobuf.Timestamp registered_at = 8;
-  google.protobuf.Timestamp updated_at = 9;
+  google.protobuf.Timestamp last_heartbeat_at = 9;
   google.protobuf.Timestamp retired_at = 10;
   string retired_reason = 11;
 }

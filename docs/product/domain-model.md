@@ -124,7 +124,7 @@ A failed or timed-out RPC is not evidence that resources are free. Reservation r
 
 ### ExecutionLease
 
-ExecutionLease is short-lived internal authority bound to Allocation ID, Node ID, operation type, expiry, and revocation state. PostgreSQL stores a token hash; plaintext is returned only on the controlled issuance path.
+ExecutionLease is short-lived internal authority bound to Allocation ID, Node ID, expiry, and revocation state. The Allocation already determines the execution purpose and node route, so leases do not repeat a type or target. PostgreSQL stores a token hash; plaintext is returned only as a gateway-only `AllocationAccessGrant`. Nodes receive a separate `NodeExecutionGrant` containing validation hash material and no plaintext field.
 
 Public SDKs do not persist or replay ExecutionLeases. Gateway retries may refresh authority only before the selected node accepts an operation. Authority for one Allocation can never authorize input, output, status, or cleanup for another Allocation.
 

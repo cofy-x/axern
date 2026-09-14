@@ -16,17 +16,17 @@ func TestRenderEnvironmentTemplateTableShowsTemplateAndLanguageVersions(t *testi
 			Version:         "3.11.0",
 			Language:        "python",
 			LanguageVersion: "3.11",
-			ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:0311"},
+			ResolvedSpec:    &catalogv1.ResolvedEnvironmentSpec{ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:0311"}},
 		},
 		{
-			ID:              "server-base",
-			Version:         "24.04.0",
-			ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:2404"},
+			ID:           "server-base",
+			Version:      "24.04.0",
+			ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:2404"}},
 		},
 		{
-			ID:              "claude-code",
-			Version:         "24.04.0",
-			ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:c0d3"},
+			ID:           "claude-code",
+			Version:      "24.04.0",
+			ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:c0d3"}},
 		},
 	})
 
@@ -46,10 +46,12 @@ func TestRenderEnvironmentTemplateTableShowsTemplateAndLanguageVersions(t *testi
 func TestRenderEnvironmentTemplateUsesDashForEmptyOptionalFields(t *testing.T) {
 	var b bytes.Buffer
 	RenderEnvironmentTemplate(&b, &catalogv1.EnvironmentTemplate{
-		ID:               "server-base",
-		Version:          "24.04.0",
-		ImageDefaultArgv: []string{"/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"},
-		ImageDescriptor:  &catalogv1.OciImageDescriptor{Digest: "sha256:2404"},
+		ID:      "server-base",
+		Version: "24.04.0",
+		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
+			ImageDefaultArgv: []string{"/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"},
+			ImageDescriptor:  &catalogv1.OciImageDescriptor{Digest: "sha256:2404"},
+		},
 	})
 
 	got := b.String()

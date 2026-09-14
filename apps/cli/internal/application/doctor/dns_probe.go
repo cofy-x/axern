@@ -160,7 +160,7 @@ func cleanupDNSProbe(parent context.Context, session *Session, namespace, secret
 		response, err := session.Environment.DeleteEnvironment(ctx, &environmentv1.DeleteEnvironmentRequest{EnvironmentID: environmentID})
 		if err != nil && grpcstatus.Code(err) != codes.NotFound {
 			result = errors.Join(result, err)
-		} else if err == nil && (response == nil || response.GetEnvironment().GetStatus() != environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_DELETED) {
+		} else if err == nil && (response == nil || response.GetEnvironment().GetDeletedAt() == nil) {
 			result = errors.Join(result, fmt.Errorf("environment deletion did not reach deleted state"))
 		}
 	}

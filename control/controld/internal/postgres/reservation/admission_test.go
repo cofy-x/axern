@@ -19,8 +19,8 @@ import (
 func TestRefreshPlacementCandidateRanksOnlyUnreportedReservations(t *testing.T) {
 	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 	record := &nodekernel.Record{
-		NodeID:    "node-a",
-		UpdatedAt: now,
+		NodeID:          "node-a",
+		LastHeartbeatAt: now,
 		Summary: &nodev1.NodeSummary{Resources: &nodev1.ResourcesSummary{
 			AxnodedCommittedMilli: 500,
 			AxnodedUsedMilli:      125,
@@ -53,8 +53,8 @@ func TestRefreshPlacementCandidateRanksOnlyUnreportedReservations(t *testing.T) 
 
 func TestPlacementCandidateRankingBalancesInFlightReservationsWithinPreferenceTier(t *testing.T) {
 	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
-	recordA := &nodekernel.Record{NodeID: "node-a", UpdatedAt: now, Summary: &nodev1.NodeSummary{Resources: &nodev1.ResourcesSummary{}}}
-	recordB := &nodekernel.Record{NodeID: "node-b", UpdatedAt: now, Summary: &nodev1.NodeSummary{Resources: &nodev1.ResourcesSummary{}}}
+	recordA := &nodekernel.Record{NodeID: "node-a", LastHeartbeatAt: now, Summary: &nodev1.NodeSummary{Resources: &nodev1.ResourcesSummary{}}}
+	recordB := &nodekernel.Record{NodeID: "node-b", LastHeartbeatAt: now, Summary: &nodev1.NodeSummary{Resources: &nodev1.ResourcesSummary{}}}
 	candidate := func(record *nodekernel.Record) *placementkernel.Candidate {
 		return &placementkernel.Candidate{
 			Record: record,

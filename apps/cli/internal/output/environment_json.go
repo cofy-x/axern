@@ -16,17 +16,13 @@ type EnvironmentResponseJSON struct {
 }
 
 type EnvironmentJSON struct {
-	ID               string                   `json:"id"`
-	Namespace        string                   `json:"namespace"`
-	Status           string                   `json:"status"`
-	Spec             *EnvironmentSpecJSON     `json:"spec,omitempty"`
-	SpecHash         string                   `json:"spec_hash,omitempty"`
-	ResolvedTemplate *EnvironmentTemplateJSON `json:"resolved_template,omitempty"`
-	Labels           map[string]string        `json:"labels,omitempty"`
-	Version          int64                    `json:"version"`
-	CreatedAt        string                   `json:"created_at,omitempty"`
-	UpdatedAt        string                   `json:"updated_at,omitempty"`
-	Message          string                   `json:"message,omitempty"`
+	ID           string                       `json:"id"`
+	Namespace    string                       `json:"namespace"`
+	Spec         *EnvironmentSpecJSON         `json:"spec,omitempty"`
+	ResolvedSpec *ResolvedEnvironmentSpecJSON `json:"resolved_spec,omitempty"`
+	Labels       map[string]string            `json:"labels,omitempty"`
+	CreatedAt    string                       `json:"created_at,omitempty"`
+	DeletedAt    string                       `json:"deleted_at,omitempty"`
 }
 
 type EnvironmentSpecJSON struct {
@@ -64,17 +60,12 @@ func NewEnvironmentJSON(environment *environmentv1.Environment) *EnvironmentJSON
 		return nil
 	}
 	return &EnvironmentJSON{
-		ID:               environment.GetID(),
-		Namespace:        environment.GetNamespace(),
-		Status:           EnvironmentStatusLabel(environment.GetStatus()),
-		Spec:             newEnvironmentSpecJSON(environment.GetSpec()),
-		SpecHash:         environment.GetSpecHash(),
-		ResolvedTemplate: NewEnvironmentTemplateJSON(environment.GetResolvedTemplate()),
-		Labels:           cloneStringMap(environment.GetLabels()),
-		Version:          environment.GetVersion(),
-		CreatedAt:        FormatProtoTimestamp(environment.GetCreatedAt()),
-		UpdatedAt:        FormatProtoTimestamp(environment.GetUpdatedAt()),
-		Message:          environment.GetMessage(),
+		ID: environment.GetID(), Namespace: environment.GetNamespace(),
+		Spec:         newEnvironmentSpecJSON(environment.GetSpec()),
+		ResolvedSpec: newResolvedEnvironmentSpecJSON(environment.GetResolvedSpec()),
+		Labels:       cloneStringMap(environment.GetLabels()),
+		CreatedAt:    FormatProtoTimestamp(environment.GetCreatedAt()),
+		DeletedAt:    FormatProtoTimestamp(environment.GetDeletedAt()),
 	}
 }
 

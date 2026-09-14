@@ -22,14 +22,15 @@ type CatalogReader interface {
 type Environments interface {
 	CreateEnvironment(ctx context.Context, spec *environmentv1.EnvironmentSpec, labels map[string]string, now time.Time) (*environmentv1.Environment, error)
 	GetEnvironment(ctx context.Context, id string) (*environmentv1.Environment, error)
-	ListEnvironments(ctx context.Context, filter *environmentv1.ListFilter) ([]*environmentv1.Environment, error)
+	ListEnvironments(ctx context.Context, filter *environmentv1.ListFilter) ([]*environmentv1.Environment, string, error)
 	DeleteEnvironment(ctx context.Context, id string, now time.Time) (*environmentv1.Environment, error)
 }
 
 type Runs interface {
 	CreateRun(ctx context.Context, params runkernel.CreateParams, now time.Time) (*runv1.Run, error)
 	GetRun(ctx context.Context, id string) (*runv1.Run, error)
-	ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, error)
+	WatchRun(ctx context.Context, id string, afterVersion int64) (*runv1.Run, error)
+	ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, string, error)
 	CancelRun(ctx context.Context, runID string, now time.Time) (*runv1.Run, error)
 }
 

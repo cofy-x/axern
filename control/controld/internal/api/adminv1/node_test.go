@@ -16,7 +16,7 @@ func TestListAdminNodesMapsLifecycleAndHealth(t *testing.T) {
 	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 	nodes := &fakeNodeAdmin{records: []*nodekernel.Record{{
 		NodeID: "node-a", Lifecycle: nodekernel.LifecycleActive,
-		RegisteredAt: now.Add(-time.Hour), UpdatedAt: now.Add(-5 * time.Second),
+		RegisteredAt: now.Add(-time.Hour), LastHeartbeatAt: now.Add(-5 * time.Second),
 	}}}
 	srv := New(Dependencies{Now: func() time.Time { return now }, Nodes: nodes, NodeHeartbeatWindow: 15 * time.Second, NodeSummaryWindow: 15 * time.Second})
 

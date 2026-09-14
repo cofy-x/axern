@@ -1,6 +1,3 @@
-import datetime
-
-from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from axern.control.capability.v1 import capability_pb2 as _capability_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
@@ -52,11 +49,6 @@ class WorkloadDiagnosticCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED: _ClassVar[WorkloadDiagnosticCode]
-
-class LeaseType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    LEASE_TYPE_UNSPECIFIED: _ClassVar[LeaseType]
-    LEASE_TYPE_RUN: _ClassVar[LeaseType]
 PORT_PROTOCOL_UNSPECIFIED: PortProtocol
 PORT_PROTOCOL_TCP: PortProtocol
 PORT_PROTOCOL_UDP: PortProtocol
@@ -84,8 +76,6 @@ WORKLOAD_DIAGNOSTIC_CODE_PROCESS_EXITED: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED: WorkloadDiagnosticCode
-LEASE_TYPE_UNSPECIFIED: LeaseType
-LEASE_TYPE_RUN: LeaseType
 
 class ResourceQuantity(_message.Message):
     __slots__ = ("cpu_milli", "memory_bytes", "ephemeral_storage_bytes")
@@ -246,27 +236,3 @@ class ExecutionConfig(_message.Message):
     secret_files: _containers.RepeatedCompositeFieldContainer[SecretFile]
     image_mounts: _containers.RepeatedCompositeFieldContainer[ImageMount]
     def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., ports: _Optional[_Iterable[_Union[PortSpec, _Mapping]]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ...) -> None: ...
-
-class ExecutionLease(_message.Message):
-    __slots__ = ("lease_id", "allocation_id", "node_id", "lease_type", "plaintext_token", "revision", "expires_at", "revoked", "node_target", "validation_token_hash")
-    LEASE_ID_FIELD_NUMBER: _ClassVar[int]
-    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    NODE_ID_FIELD_NUMBER: _ClassVar[int]
-    LEASE_TYPE_FIELD_NUMBER: _ClassVar[int]
-    PLAINTEXT_TOKEN_FIELD_NUMBER: _ClassVar[int]
-    REVISION_FIELD_NUMBER: _ClassVar[int]
-    EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
-    REVOKED_FIELD_NUMBER: _ClassVar[int]
-    NODE_TARGET_FIELD_NUMBER: _ClassVar[int]
-    VALIDATION_TOKEN_HASH_FIELD_NUMBER: _ClassVar[int]
-    lease_id: str
-    allocation_id: str
-    node_id: str
-    lease_type: LeaseType
-    plaintext_token: str
-    revision: int
-    expires_at: _timestamp_pb2.Timestamp
-    revoked: bool
-    node_target: str
-    validation_token_hash: str
-    def __init__(self, lease_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., lease_type: _Optional[_Union[LeaseType, str]] = ..., plaintext_token: _Optional[str] = ..., revision: _Optional[int] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., revoked: _Optional[bool] = ..., node_target: _Optional[str] = ..., validation_token_hash: _Optional[str] = ...) -> None: ...

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
 
@@ -15,13 +15,13 @@ type AllocationControl interface {
 	BatchReportAllocationCapabilityConditions(ctx context.Context, nodeID string, reports []*controlnodev1.AllocationCapabilityConditionReport, now time.Time) error
 	ReconcileNodeInventory(ctx context.Context, snapshot allocationkernel.NodeInventorySnapshot, now time.Time) error
 	ReconcileNodeUnavailable(ctx context.Context, nodeID string, now time.Time) error
-	WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*commonv1.ExecutionLease, int64, error)
+	WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*leasekernel.Record, int64, error)
 }
 
 type RunAllocationStore interface {
 	runkernel.AllocationReporter
 	BatchReportAllocationCapabilityConditions(ctx context.Context, nodeID string, reports []*controlnodev1.AllocationCapabilityConditionReport, now time.Time) error
-	WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*commonv1.ExecutionLease, int64, error)
+	WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*leasekernel.Record, int64, error)
 }
 
 func (n authoritativeAllocationAccess) BatchReportAllocationCapabilityConditions(ctx context.Context, nodeID string, reports []*controlnodev1.AllocationCapabilityConditionReport, now time.Time) error {
@@ -43,7 +43,7 @@ func (n authoritativeAllocationAccess) BatchReportAllocationLifecycle(ctx contex
 	return nil, nil
 }
 
-func (n authoritativeAllocationAccess) WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*commonv1.ExecutionLease, int64, error) {
+func (n authoritativeAllocationAccess) WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*leasekernel.Record, int64, error) {
 	return n.runStore.WatchExecutionLeases(ctx, nodeID, afterRevision, now)
 }
 

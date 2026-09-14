@@ -14,7 +14,9 @@ func RenderEnvironment(w io.Writer, env *environmentv1.Environment) {
 	}
 	fmt.Fprintf(w, "ID: %s\n", env.GetID())
 	fmt.Fprintf(w, "Namespace: %s\n", env.GetNamespace())
-	fmt.Fprintf(w, "Status: %s\n", EnvironmentStatusLabel(env.GetStatus()))
+	if env.GetDeletedAt() != nil {
+		fmt.Fprintln(w, "Deleted: true")
+	}
 	if spec := env.GetSpec(); spec != nil {
 		switch {
 		case strings.TrimSpace(spec.GetTemplateID()) != "":
@@ -35,16 +37,13 @@ func RenderEnvironment(w io.Writer, env *environmentv1.Environment) {
 			fmt.Fprintf(w, "Rootfs Readonly: %t\n", spec.GetImage().GetRootfsReadonly())
 		}
 	}
-	if template := env.GetResolvedTemplate(); template != nil {
-		if digest := template.GetImageDescriptor().GetDigest(); digest != "" {
+	if resolved := env.GetResolvedSpec(); resolved != nil {
+		if digest := resolved.GetImageDescriptor().GetDigest(); digest != "" {
 			fmt.Fprintf(w, "Runtime Digest: %s\n", digest)
 		}
-		if ref := template.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"]; ref != "" {
+		if ref := resolved.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"]; ref != "" {
 			fmt.Fprintf(w, "Normalized Image Ref: %s\n", ref)
 		}
-	}
-	if message := env.GetMessage(); message != "" {
-		fmt.Fprintf(w, "Message: %s\n", message)
 	}
 }
 
@@ -57,13 +56,13 @@ func RenderEnvironmentTable(w io.Writer, envs []*environmentv1.Environment) {
 		source, ref, digest := environmentSummary(env)
 		rows = append(rows, []string{
 			env.GetID(),
-			EnvironmentStatusLabel(env.GetStatus()),
+			boolLabel(env.GetDeletedAt() != nil),
 			source,
 			ref,
 			digest,
 		})
 	}
-	RenderTable(w, []string{"ID", "STATUS", "SOURCE", "REF", "DIGEST"}, rows)
+	RenderTable(w, []string{"ID", "DELETED", "SOURCE", "REF", "DIGEST"}, rows)
 }
 
 func environmentSummary(env *environmentv1.Environment) (source, ref, digest string) {

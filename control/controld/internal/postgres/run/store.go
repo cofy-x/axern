@@ -13,7 +13,9 @@ import (
 )
 
 const (
-	leaseRevisionName = "execution_leases"
+	leaseRevisionName  = "execution_leases"
+	leaseChangeChannel = "axern_execution_lease_changes"
+	runChangeChannel   = "axern_run_changes"
 
 	defaultExecutionLeaseTTL = 5 * time.Minute
 )
@@ -21,7 +23,8 @@ const (
 type Store struct {
 	db            *postgres.DB
 	reservations  pgreservation.Admission
-	leaseWatches  *leaseWatchHub
+	leaseWatches  *changeWatchHub
+	runWatches    *changeWatchHub
 	reconcileWake chan struct{}
 }
 
@@ -41,7 +44,8 @@ func NewStore(db *postgres.DB, options ...Option) *Store {
 	store := &Store{
 		db:            db,
 		reservations:  pgreservation.NewAdmission(resourcekernel.AdmissionPolicy{}, nil),
-		leaseWatches:  newLeaseWatchHub(db.Pool()),
+		leaseWatches:  newChangeWatchHub(db.Pool(), leaseChangeChannel, "execution lease"),
+		runWatches:    newChangeWatchHub(db.Pool(), runChangeChannel, "run"),
 		reconcileWake: make(chan struct{}, 1),
 	}
 	for _, option := range options {
@@ -75,6 +79,9 @@ func (s *Store) WaitReconcileWork(ctx context.Context) error {
 func (s *Store) Close() {
 	if s != nil && s.leaseWatches != nil {
 		s.leaseWatches.close()
+	}
+	if s != nil && s.runWatches != nil {
+		s.runWatches.close()
 	}
 }
 

@@ -59,17 +59,14 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO nodes (
-			node_id, node_target, registered_at, updated_at, last_heartbeat_at, last_summary_at,
-			node_auth_token_hash, lifecycle_status, version
-		) VALUES ($1, $2, $3, $3, $3, $4, $5, 'active', 1)
+			node_id, node_target, registered_at, last_heartbeat_at,
+			node_auth_token_hash, lifecycle_status
+		) VALUES ($1, $2, $3, $3, $4, 'active')
 		ON CONFLICT (node_id) DO UPDATE SET
 			node_target = EXCLUDED.node_target,
-			updated_at = EXCLUDED.updated_at,
 			last_heartbeat_at = EXCLUDED.last_heartbeat_at,
-			last_summary_at = COALESCE(EXCLUDED.last_summary_at, nodes.last_summary_at),
-			node_auth_token_hash = EXCLUDED.node_auth_token_hash,
-			version = nodes.version + 1
-	`, nodeID, params.NodeTarget, params.Now.UTC(), collectedAt(params.Summary), tokenHash); err != nil {
+			node_auth_token_hash = EXCLUDED.node_auth_token_hash
+	`, nodeID, params.NodeTarget, params.Now.UTC(), tokenHash); err != nil {
 		return nil, fmt.Errorf("upsert node: %w", err)
 	}
 
@@ -105,15 +102,12 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 		if err != nil {
 			return nil, fmt.Errorf("marshal node summary: %w", err)
 		}
-		collected := params.Summary.GetCollectedAt().AsTime().UTC()
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO node_summaries(node_id, collected_at, summary, updated_at)
-			VALUES ($1, $2, $3::jsonb, $4)
+			INSERT INTO node_summaries(node_id, summary)
+			VALUES ($1, $2::jsonb)
 			ON CONFLICT (node_id) DO UPDATE SET
-				collected_at = EXCLUDED.collected_at,
-				summary = EXCLUDED.summary,
-				updated_at = EXCLUDED.updated_at
-		`, nodeID, collected, string(payload), params.Now.UTC()); err != nil {
+				summary = EXCLUDED.summary
+		`, nodeID, string(payload)); err != nil {
 			return nil, fmt.Errorf("upsert node summary: %w", err)
 		}
 	}
@@ -158,12 +152,4 @@ func capabilityKeyClone(key *capabilityv1.CapabilityKey) *capabilityv1.Capabilit
 		return nil
 	}
 	return proto.Clone(key).(*capabilityv1.CapabilityKey)
-}
-
-func collectedAt(summary *nodev1.NodeSummary) *time.Time {
-	if summary == nil || summary.GetCollectedAt() == nil {
-		return nil
-	}
-	t := summary.GetCollectedAt().AsTime().UTC()
-	return &t
 }

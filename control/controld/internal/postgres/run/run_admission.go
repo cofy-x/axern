@@ -30,11 +30,15 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		alloc *runkernel.AllocationRecord
 	)
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
-		if _, err := scanEnvironment(tx.QueryRow(ctx, environmentSelectSQL()+` WHERE environment_id = $1`, params.Environment.GetID())); err != nil {
+		currentEnvironment, err := scanEnvironment(tx.QueryRow(ctx, environmentSelectSQL()+` WHERE environment_id = $1 FOR SHARE`, params.Environment.GetID()))
+		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return grpcstatus.Errorf(codes.NotFound, "environment %q not found", params.Environment.GetID())
 			}
 			return err
+		}
+		if currentEnvironment.GetDeletedAt() != nil {
+			return grpcstatus.Errorf(codes.FailedPrecondition, "environment %q is deleted", params.Environment.GetID())
 		}
 		namespace := environmentkernel.NormalizeNamespace(params.Namespace)
 		runID := "run-" + uuid.NewString()

@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
@@ -19,20 +18,20 @@ const leaseWatchReconnectDelay = time.Second
 
 type LeaseCache struct {
 	mu      sync.RWMutex
-	byToken map[string]*commonv1.ExecutionLease
+	byToken map[string]*nodev1.NodeExecutionGrant
 	byLease map[string]string
 	changed chan struct{}
 }
 
 func NewLeaseCache() *LeaseCache {
 	return &LeaseCache{
-		byToken: make(map[string]*commonv1.ExecutionLease),
+		byToken: make(map[string]*nodev1.NodeExecutionGrant),
 		byLease: make(map[string]string),
 		changed: make(chan struct{}),
 	}
 }
 
-func (c *LeaseCache) Apply(leases []*commonv1.ExecutionLease) {
+func (c *LeaseCache) Apply(leases []*nodev1.NodeExecutionGrant) {
 	if c == nil {
 		return
 	}
@@ -258,7 +257,7 @@ func (w *LeaseWatcher) watchOnce(afterRevision int64) (int64, error) {
 			}
 			return afterRevision, err
 		}
-		w.cache.Apply(resp.GetLeases())
+		w.cache.Apply(resp.GetGrants())
 		if resp.GetCurrentRevision() > afterRevision {
 			afterRevision = resp.GetCurrentRevision()
 		}
@@ -270,11 +269,11 @@ func leaseTokenHash(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func cloneLease(in *commonv1.ExecutionLease) *commonv1.ExecutionLease {
+func cloneLease(in *nodev1.NodeExecutionGrant) *nodev1.NodeExecutionGrant {
 	if in == nil {
 		return nil
 	}
-	cloned, ok := proto.Clone(in).(*commonv1.ExecutionLease)
+	cloned, ok := proto.Clone(in).(*nodev1.NodeExecutionGrant)
 	if !ok {
 		return nil
 	}

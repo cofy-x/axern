@@ -99,7 +99,7 @@ Common optional environment variables:
 Admin product APIs:
 
 - `sdk/proto/axern/control/admin/v1/audit.proto`
-- `sdk/proto/axern/control/admin/v1/allocation_lifecycle.proto`
+- `sdk/proto/axern/private/control/admin/v1/allocation_lifecycle.proto` (operator-only retry repair)
 - `sdk/proto/axern/control/admin/v1/reliability.proto`
 - `sdk/proto/axern/control/admin/v1/node.proto`
 

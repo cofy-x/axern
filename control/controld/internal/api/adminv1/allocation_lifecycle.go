@@ -5,13 +5,13 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
-	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
+	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (s *Server) ListAllocationLifecycleRetries(ctx context.Context, req *adminv1.ListAllocationLifecycleRetriesRequest) (*adminv1.ListAllocationLifecycleRetriesResponse, error) {
+func (s *Server) ListAllocationLifecycleRetries(ctx context.Context, req *privateadminv1.ListAllocationLifecycleRetriesRequest) (*privateadminv1.ListAllocationLifecycleRetriesResponse, error) {
 	if s.deps.AllocationLifecycleRetries == nil {
 		return nil, grpcstatus.Error(codes.Unavailable, "allocation lifecycle admin is unavailable")
 	}
@@ -20,14 +20,14 @@ func (s *Server) ListAllocationLifecycleRetries(ctx context.Context, req *adminv
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*adminv1.AllocationLifecycleRetry, 0, len(items))
+	out := make([]*privateadminv1.AllocationLifecycleRetry, 0, len(items))
 	for _, item := range items {
 		out = append(out, lifecycleRetryToProto(item))
 	}
-	return &adminv1.ListAllocationLifecycleRetriesResponse{Retries: out}, nil
+	return &privateadminv1.ListAllocationLifecycleRetriesResponse{Retries: out}, nil
 }
 
-func (s *Server) ForceAllocationLifecycleRetry(ctx context.Context, req *adminv1.ForceAllocationLifecycleRetryRequest) (*adminv1.ForceAllocationLifecycleRetryResponse, error) {
+func (s *Server) ForceAllocationLifecycleRetry(ctx context.Context, req *privateadminv1.ForceAllocationLifecycleRetryRequest) (*privateadminv1.ForceAllocationLifecycleRetryResponse, error) {
 	if s.deps.AllocationLifecycleRetries == nil {
 		return nil, grpcstatus.Error(codes.Unavailable, "allocation lifecycle admin is unavailable")
 	}
@@ -41,10 +41,10 @@ func (s *Server) ForceAllocationLifecycleRetry(ctx context.Context, req *adminv1
 	if err != nil {
 		return nil, err
 	}
-	return &adminv1.ForceAllocationLifecycleRetryResponse{Retry: lifecycleRetryToProto(*item)}, nil
+	return &privateadminv1.ForceAllocationLifecycleRetryResponse{Retry: lifecycleRetryToProto(*item)}, nil
 }
 
-func (s *Server) FailAllocationLifecycleRetry(ctx context.Context, req *adminv1.FailAllocationLifecycleRetryRequest) (*adminv1.FailAllocationLifecycleRetryResponse, error) {
+func (s *Server) FailAllocationLifecycleRetry(ctx context.Context, req *privateadminv1.FailAllocationLifecycleRetryRequest) (*privateadminv1.FailAllocationLifecycleRetryResponse, error) {
 	if s.deps.AllocationLifecycleRetries == nil {
 		return nil, grpcstatus.Error(codes.Unavailable, "allocation lifecycle admin is unavailable")
 	}
@@ -57,10 +57,10 @@ func (s *Server) FailAllocationLifecycleRetry(ctx context.Context, req *adminv1.
 	if err != nil {
 		return nil, err
 	}
-	return &adminv1.FailAllocationLifecycleRetryResponse{FailedRetry: lifecycleRetryToProto(*item)}, nil
+	return &privateadminv1.FailAllocationLifecycleRetryResponse{FailedRetry: lifecycleRetryToProto(*item)}, nil
 }
 
-func (s *Server) ClearAllocationLifecycleRetry(ctx context.Context, req *adminv1.ClearAllocationLifecycleRetryRequest) (*adminv1.ClearAllocationLifecycleRetryResponse, error) {
+func (s *Server) ClearAllocationLifecycleRetry(ctx context.Context, req *privateadminv1.ClearAllocationLifecycleRetryRequest) (*privateadminv1.ClearAllocationLifecycleRetryResponse, error) {
 	if s.deps.AllocationLifecycleRetries == nil {
 		return nil, grpcstatus.Error(codes.Unavailable, "allocation lifecycle admin is unavailable")
 	}
@@ -73,7 +73,7 @@ func (s *Server) ClearAllocationLifecycleRetry(ctx context.Context, req *adminv1
 	if err != nil {
 		return nil, err
 	}
-	return &adminv1.ClearAllocationLifecycleRetryResponse{ClearedRetry: lifecycleRetryToProto(*item)}, nil
+	return &privateadminv1.ClearAllocationLifecycleRetryResponse{ClearedRetry: lifecycleRetryToProto(*item)}, nil
 }
 
 func (s *Server) now() time.Time {
@@ -83,7 +83,7 @@ func (s *Server) now() time.Time {
 	return time.Now().UTC()
 }
 
-func lifecycleRetryFilterFromProto(req *adminv1.ListAllocationLifecycleRetriesRequest) allocationkernel.LifecycleRetryFilter {
+func lifecycleRetryFilterFromProto(req *privateadminv1.ListAllocationLifecycleRetriesRequest) allocationkernel.LifecycleRetryFilter {
 	if req == nil {
 		return allocationkernel.LifecycleRetryFilter{}
 	}
@@ -95,8 +95,8 @@ func lifecycleRetryFilterFromProto(req *adminv1.ListAllocationLifecycleRetriesRe
 	}
 }
 
-func lifecycleRetryToProto(item allocationkernel.LifecycleRetryItem) *adminv1.AllocationLifecycleRetry {
-	return &adminv1.AllocationLifecycleRetry{
+func lifecycleRetryToProto(item allocationkernel.LifecycleRetryItem) *privateadminv1.AllocationLifecycleRetry {
+	return &privateadminv1.AllocationLifecycleRetry{
 		AllocationID:       item.AllocationID,
 		RunID:              item.RunID,
 		EnvironmentID:      item.EnvironmentID,
@@ -115,24 +115,24 @@ func lifecycleRetryToProto(item allocationkernel.LifecycleRetryItem) *adminv1.Al
 	}
 }
 
-func retryReasonFromProto(reason adminv1.AllocationLifecycleRetryReason) string {
+func retryReasonFromProto(reason privateadminv1.AllocationLifecycleRetryReason) string {
 	switch reason {
-	case adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE:
+	case privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE:
 		return allocationkernel.ReconcileReasonCreate
-	case adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE:
+	case privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE:
 		return allocationkernel.ReconcileReasonDelete
 	default:
 		return ""
 	}
 }
 
-func retryReasonToProto(reason string) adminv1.AllocationLifecycleRetryReason {
+func retryReasonToProto(reason string) privateadminv1.AllocationLifecycleRetryReason {
 	switch reason {
 	case allocationkernel.ReconcileReasonCreate:
-		return adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE
+		return privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE
 	case allocationkernel.ReconcileReasonDelete:
-		return adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE
+		return privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE
 	default:
-		return adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_UNSPECIFIED
+		return privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_UNSPECIFIED
 	}
 }

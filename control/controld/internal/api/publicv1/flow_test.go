@@ -14,6 +14,7 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestCreateEnvironmentCreatesOwnedResourcesFromNormalizedSpec(t *testing.T) {
@@ -38,8 +39,25 @@ func TestCreateEnvironmentCreatesOwnedResourcesFromNormalizedSpec(t *testing.T) 
 	if first.GetEnvironment().GetID() == second.GetEnvironment().GetID() {
 		t.Fatalf("independent creates shared environment ID %q", first.GetEnvironment().GetID())
 	}
-	if first.GetEnvironment().GetSpecHash() != second.GetEnvironment().GetSpecHash() {
-		t.Fatalf("normalized spec hashes differ: %q != %q", first.GetEnvironment().GetSpecHash(), second.GetEnvironment().GetSpecHash())
+	if !proto.Equal(first.GetEnvironment().GetResolvedSpec(), second.GetEnvironment().GetResolvedSpec()) {
+		t.Fatal("equivalent template sources produced different resolved specifications")
+	}
+}
+
+func TestCreateRunRejectsDeletedEnvironment(t *testing.T) {
+	service := newTestService(t)
+	defer service.Close()
+	public := service.PublicV1Handler()
+	created, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{Spec: &environmentv1.EnvironmentSpec{TemplateID: "python311", Namespace: "default"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := public.DeleteEnvironment(context.Background(), &environmentv1.DeleteEnvironmentRequest{EnvironmentID: created.GetEnvironment().GetID()}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = public.CreateRun(context.Background(), &runv1.CreateRunRequest{EnvironmentID: created.GetEnvironment().GetID(), Config: &commonv1.ExecutionConfig{Argv: []string{"true"}}})
+	if grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("CreateRun() code = %v, want FailedPrecondition", grpcstatus.Code(err))
 	}
 }
 
@@ -69,13 +87,13 @@ func TestCreateImageEnvironmentResolvesDigestForOwnedResources(t *testing.T) {
 	if first.GetEnvironment().GetID() == second.GetEnvironment().GetID() {
 		t.Fatalf("independent image-backed creates shared environment ID %q", first.GetEnvironment().GetID())
 	}
-	if first.GetEnvironment().GetSpecHash() != second.GetEnvironment().GetSpecHash() {
-		t.Fatalf("resolved image spec hashes differ: %q != %q", first.GetEnvironment().GetSpecHash(), second.GetEnvironment().GetSpecHash())
+	if !proto.Equal(first.GetEnvironment().GetResolvedSpec(), second.GetEnvironment().GetResolvedSpec()) {
+		t.Fatal("equivalent image sources produced different resolved specifications")
 	}
 	if got := first.GetEnvironment().GetSpec().GetImage().GetDigest(); got == "" {
 		t.Fatal("resolved image digest = empty, want resolved digest persisted")
 	}
-	if got := first.GetEnvironment().GetResolvedTemplate().GetImageDescriptor().GetDigest(); got != first.GetEnvironment().GetSpec().GetImage().GetDigest() {
+	if got := first.GetEnvironment().GetResolvedSpec().GetImageDescriptor().GetDigest(); got != first.GetEnvironment().GetSpec().GetImage().GetDigest() {
 		t.Fatalf("resolved template digest = %q, want %q", got, first.GetEnvironment().GetSpec().GetImage().GetDigest())
 	}
 }
@@ -159,8 +177,8 @@ func TestCreateImageEnvironmentMutableTagCreatesNewEnvironmentWhenDigestChanges(
 	if first.GetEnvironment().GetID() == second.GetEnvironment().GetID() {
 		t.Fatalf("mutable image returned same environment id %q after digest changed", first.GetEnvironment().GetID())
 	}
-	if first.GetEnvironment().GetSpecHash() == second.GetEnvironment().GetSpecHash() {
-		t.Fatalf("mutable image returned same spec hash %q after digest changed", first.GetEnvironment().GetSpecHash())
+	if first.GetEnvironment().GetResolvedSpec().GetImageDescriptor().GetDigest() == second.GetEnvironment().GetResolvedSpec().GetImageDescriptor().GetDigest() {
+		t.Fatal("mutable image retained the old resolved digest")
 	}
 }
 

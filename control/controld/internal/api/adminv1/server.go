@@ -1,9 +1,10 @@
 package adminv1
 
 import adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
+import privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 
 type Server struct {
-	adminv1.UnimplementedAllocationLifecycleAdminServer
+	privateadminv1.UnimplementedAllocationLifecycleAdminServer
 	adminv1.UnimplementedAdminAuditServer
 	adminv1.UnimplementedAdminReliabilityServer
 	adminv1.UnimplementedNodeAdminServer

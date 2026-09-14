@@ -81,26 +81,31 @@ class OciImageDescriptor:
 
 
 @dataclass(frozen=True, slots=True)
-class EnvironmentTemplate:
-    """Catalog metadata for an Axern environment."""
+class ResolvedEnvironmentSpec:
+    """Immutable runtime input resolved from a catalog template or image."""
 
-    id: str
     rootfs_readonly: bool = False
     image_default_argv: tuple[str, ...] = ()
     default_cwd: str = "/"
     default_env: Mapping[str, str] = field(default_factory=dict)
     mounts: tuple[MountSpec, ...] = ()
-    capabilities: EnvironmentTemplateCapabilities = field(default_factory=EnvironmentTemplateCapabilities)
-    language: str = ""
-    language_version: str = ""
-    description: str = ""
-    version: str = ""
     image_descriptor: OciImageDescriptor = field(default_factory=OciImageDescriptor)
-    warm_policy: str = ""
-    cache_policy: str = ""
     execution_profile: OciExecutionProfile = field(default_factory=OciExecutionProfile)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "image_default_argv", tuple(self.image_default_argv))
         object.__setattr__(self, "mounts", tuple(self.mounts))
         object.__setattr__(self, "default_env", dict(self.default_env))
+
+
+@dataclass(frozen=True, slots=True)
+class EnvironmentTemplate:
+    """Catalog identity and metadata plus its resolved runtime specification."""
+
+    id: str
+    version: str = ""
+    language: str = ""
+    language_version: str = ""
+    description: str = ""
+    capabilities: EnvironmentTemplateCapabilities = field(default_factory=EnvironmentTemplateCapabilities)
+    resolved_spec: ResolvedEnvironmentSpec = field(default_factory=ResolvedEnvironmentSpec)

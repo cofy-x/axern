@@ -7,16 +7,16 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
 
 func TestAvailabilityReconcilerFailsOnlyStaleHeartbeatNodes(t *testing.T) {
 	now := time.Date(2026, 5, 9, 12, 0, 0, 0, time.UTC)
 	nodes := &fakeAvailabilityNodeStore{records: []*nodekernel.Record{
-		{NodeID: "fresh", Lifecycle: nodekernel.LifecycleActive, UpdatedAt: now.Add(-5 * time.Second)},
-		{NodeID: "stale", Lifecycle: nodekernel.LifecycleActive, UpdatedAt: now.Add(-30 * time.Second)},
+		{NodeID: "fresh", Lifecycle: nodekernel.LifecycleActive, LastHeartbeatAt: now.Add(-5 * time.Second)},
+		{NodeID: "stale", Lifecycle: nodekernel.LifecycleActive, LastHeartbeatAt: now.Add(-30 * time.Second)},
 	}}
 	allocations := &fakeAvailabilityAllocations{}
 
@@ -36,8 +36,8 @@ func TestAvailabilityReconcilerFailsOnlyStaleHeartbeatNodes(t *testing.T) {
 func TestAvailabilityReconcilerContinuesAfterNodeFailure(t *testing.T) {
 	now := time.Date(2026, 5, 9, 12, 0, 0, 0, time.UTC)
 	nodes := &fakeAvailabilityNodeStore{records: []*nodekernel.Record{
-		{NodeID: "stale-a", Lifecycle: nodekernel.LifecycleActive, UpdatedAt: now.Add(-30 * time.Second)},
-		{NodeID: "stale-b", Lifecycle: nodekernel.LifecycleActive, UpdatedAt: now.Add(-45 * time.Second)},
+		{NodeID: "stale-a", Lifecycle: nodekernel.LifecycleActive, LastHeartbeatAt: now.Add(-30 * time.Second)},
+		{NodeID: "stale-b", Lifecycle: nodekernel.LifecycleActive, LastHeartbeatAt: now.Add(-45 * time.Second)},
 	}}
 	allocations := &fakeAvailabilityAllocations{errByNodeID: map[string]error{"stale-a": errors.New("database unavailable")}}
 
@@ -58,7 +58,7 @@ func TestAvailabilityReconcilerSynchronizesLifecycleWithoutReconcilingRetiredNod
 	now := time.Date(2026, 5, 9, 12, 0, 0, 0, time.UTC)
 	retiredAt := now.Add(-time.Minute)
 	nodes := &fakeAvailabilityNodeStore{records: []*nodekernel.Record{{
-		NodeID: "retired", Lifecycle: nodekernel.LifecycleRetired, UpdatedAt: now.Add(-time.Hour),
+		NodeID: "retired", Lifecycle: nodekernel.LifecycleRetired, LastHeartbeatAt: now.Add(-time.Hour),
 		RetiredAt: retiredAt, RetiredReason: "host removed",
 	}}}
 	lifecycle := &fakeLifecycleRegistry{}
@@ -137,6 +137,6 @@ func (f *fakeAvailabilityAllocations) ReconcileNodeInventory(context.Context, al
 	panic("unexpected ReconcileNodeInventory call")
 }
 
-func (f *fakeAvailabilityAllocations) WatchExecutionLeases(context.Context, string, int64, time.Time) ([]*commonv1.ExecutionLease, int64, error) {
+func (f *fakeAvailabilityAllocations) WatchExecutionLeases(context.Context, string, int64, time.Time) ([]*leasekernel.Record, int64, error) {
 	panic("unexpected WatchExecutionLeases call")
 }

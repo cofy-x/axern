@@ -6,6 +6,7 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
@@ -314,7 +315,7 @@ func (f *fakeAllocationControl) ReconcileNodeInventory(context.Context, allocati
 	return nil
 }
 
-func (f *fakeAllocationControl) WatchExecutionLeases(context.Context, string, int64, time.Time) ([]*commonv1.ExecutionLease, int64, error) {
+func (f *fakeAllocationControl) WatchExecutionLeases(context.Context, string, int64, time.Time) ([]*leasekernel.Record, int64, error) {
 	return nil, 0, nil
 }
 

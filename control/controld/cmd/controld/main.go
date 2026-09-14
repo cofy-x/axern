@@ -35,6 +35,7 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 	tunnelrelaycontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/tunnel/v1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -143,7 +144,7 @@ func run() error {
 		grpcOptions = append(grpcOptions, grpc.StatsHandler(handler))
 	}
 	grpcServer := grpc.NewServer(grpcOptions...)
-	adminv1.RegisterAllocationLifecycleAdminServer(grpcServer, svc.AdminV1Handler())
+	privateadminv1.RegisterAllocationLifecycleAdminServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterAdminAuditServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterAdminReliabilityServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterNodeAdminServer(grpcServer, svc.AdminV1Handler())

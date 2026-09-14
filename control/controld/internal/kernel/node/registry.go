@@ -17,14 +17,14 @@ type Registry struct {
 }
 
 type Record struct {
-	NodeID        string
-	NodeTarget    string
-	Summary       *nodev1.NodeSummary
-	Lifecycle     LifecycleStatus
-	RegisteredAt  time.Time
-	UpdatedAt     time.Time
-	RetiredAt     time.Time
-	RetiredReason string
+	NodeID          string
+	NodeTarget      string
+	Summary         *nodev1.NodeSummary
+	Lifecycle       LifecycleStatus
+	RegisteredAt    time.Time
+	LastHeartbeatAt time.Time
+	RetiredAt       time.Time
+	RetiredReason   string
 	// ReportedCapabilityChanges contains only changes committed by the
 	// report operation that returned this record. It is transient observability
 	// data and is never part of the registry's durable node state.
@@ -73,7 +73,7 @@ func (r *Registry) Report(nodeID string, nodeTarget string, summary *nodev1.Node
 	record := r.upsertLocked(nodeID, now)
 	record.NodeTarget = strings.TrimSpace(nodeTarget)
 	record.Summary = CloneNodeSummary(summary)
-	record.UpdatedAt = now
+	record.LastHeartbeatAt = now
 }
 
 func (r *Registry) MarkRetired(nodeID string, retiredAt time.Time, reason string) {
@@ -164,7 +164,7 @@ func (r *Registry) DebugNodes(now time.Time, heartbeatWindow, summaryWindow time
 		if record == nil {
 			continue
 		}
-		heartbeatFresh := HeartbeatFresh(record.UpdatedAt, now, heartbeatWindow)
+		heartbeatFresh := HeartbeatFresh(record.LastHeartbeatAt, now, heartbeatWindow)
 		summaryFresh := SummaryFresh(record.Summary, now, summaryWindow)
 		freshnessState := ClassifyFreshnessState(heartbeatFresh, summaryFresh)
 		if !record.Active() {
@@ -180,10 +180,10 @@ func (r *Registry) DebugNodes(now time.Time, heartbeatWindow, summaryWindow time
 			SummaryFresh:     summaryFresh,
 			Lifecycle:        record.Lifecycle,
 			FreshnessState:   freshnessState,
-			HeartbeatAgeSecs: HeartbeatAgeSecs(record.UpdatedAt, now),
+			HeartbeatAgeSecs: HeartbeatAgeSecs(record.LastHeartbeatAt, now),
 			SummaryAgeSecs:   SummaryAgeSecs(record.Summary, now),
 			RegisteredAt:     record.RegisteredAt,
-			UpdatedAt:        record.UpdatedAt,
+			LastHeartbeatAt:  record.LastHeartbeatAt,
 			CollectedAt:      SummaryCollectedAt(record.Summary),
 			RetiredAt:        record.RetiredAt,
 			RetiredReason:    record.RetiredReason,
@@ -200,10 +200,10 @@ func (r *Registry) upsertLocked(nodeID string, now time.Time) *Record {
 	record, ok := r.nodes[nodeID]
 	if !ok {
 		record = &Record{
-			NodeID:       nodeID,
-			Lifecycle:    LifecycleActive,
-			RegisteredAt: now,
-			UpdatedAt:    now,
+			NodeID:          nodeID,
+			Lifecycle:       LifecycleActive,
+			RegisteredAt:    now,
+			LastHeartbeatAt: now,
 		}
 		r.nodes[nodeID] = record
 		return record
@@ -219,14 +219,14 @@ func cloneRecord(in *Record) *Record {
 		return nil
 	}
 	return &Record{
-		NodeID:        in.NodeID,
-		NodeTarget:    in.NodeTarget,
-		Summary:       CloneNodeSummary(in.Summary),
-		Lifecycle:     in.Lifecycle,
-		RegisteredAt:  in.RegisteredAt,
-		UpdatedAt:     in.UpdatedAt,
-		RetiredAt:     in.RetiredAt,
-		RetiredReason: in.RetiredReason,
+		NodeID:          in.NodeID,
+		NodeTarget:      in.NodeTarget,
+		Summary:         CloneNodeSummary(in.Summary),
+		Lifecycle:       in.Lifecycle,
+		RegisteredAt:    in.RegisteredAt,
+		LastHeartbeatAt: in.LastHeartbeatAt,
+		RetiredAt:       in.RetiredAt,
+		RetiredReason:   in.RetiredReason,
 	}
 }
 

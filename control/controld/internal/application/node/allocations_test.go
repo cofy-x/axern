@@ -6,6 +6,7 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
@@ -52,7 +53,7 @@ func (f *fakeRunAllocationStore) ReconcileNodeUnavailable(context.Context, strin
 	return nil
 }
 
-func (f *fakeRunAllocationStore) WatchExecutionLeases(context.Context, string, int64, time.Time) ([]*commonv1.ExecutionLease, int64, error) {
+func (f *fakeRunAllocationStore) WatchExecutionLeases(context.Context, string, int64, time.Time) ([]*leasekernel.Record, int64, error) {
 	return nil, 0, nil
 }
 

@@ -313,8 +313,18 @@ message WatchExecutionLeasesRequest {
   string node_auth_token = 3;
 }
 
+// NodeExecutionGrant is the node-facing authorization projection. It never
+// carries client plaintext credentials, routing targets, or watch cursors.
+message NodeExecutionGrant {
+  string lease_id = 1;
+  string allocation_id = 2;
+  string validation_token_hash = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  bool revoked = 5;
+}
+
 message WatchExecutionLeasesResponse {
-  repeated axern.control.common.v1.ExecutionLease leases = 1;
+  repeated NodeExecutionGrant grants = 1;
   int64 current_revision = 2;
 }
 

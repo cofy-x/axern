@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.3.0
 // - protoc             (unknown)
-// source: axern/control/admin/v1/allocation_lifecycle.proto
+// source: axern/private/control/admin/v1/allocation_lifecycle.proto
 
-package adminv1
+package privateadminv1
 
 import (
 	context "context"
@@ -19,10 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	AllocationLifecycleAdmin_ListAllocationLifecycleRetries_FullMethodName = "/axern.control.admin.v1.AllocationLifecycleAdmin/ListAllocationLifecycleRetries"
-	AllocationLifecycleAdmin_ForceAllocationLifecycleRetry_FullMethodName  = "/axern.control.admin.v1.AllocationLifecycleAdmin/ForceAllocationLifecycleRetry"
-	AllocationLifecycleAdmin_FailAllocationLifecycleRetry_FullMethodName   = "/axern.control.admin.v1.AllocationLifecycleAdmin/FailAllocationLifecycleRetry"
-	AllocationLifecycleAdmin_ClearAllocationLifecycleRetry_FullMethodName  = "/axern.control.admin.v1.AllocationLifecycleAdmin/ClearAllocationLifecycleRetry"
+	AllocationLifecycleAdmin_ListAllocationLifecycleRetries_FullMethodName = "/axern.private.control.admin.v1.AllocationLifecycleAdmin/ListAllocationLifecycleRetries"
+	AllocationLifecycleAdmin_ForceAllocationLifecycleRetry_FullMethodName  = "/axern.private.control.admin.v1.AllocationLifecycleAdmin/ForceAllocationLifecycleRetry"
+	AllocationLifecycleAdmin_FailAllocationLifecycleRetry_FullMethodName   = "/axern.private.control.admin.v1.AllocationLifecycleAdmin/FailAllocationLifecycleRetry"
+	AllocationLifecycleAdmin_ClearAllocationLifecycleRetry_FullMethodName  = "/axern.private.control.admin.v1.AllocationLifecycleAdmin/ClearAllocationLifecycleRetry"
 )
 
 // AllocationLifecycleAdminClient is the client API for AllocationLifecycleAdmin service.
@@ -196,7 +196,7 @@ func _AllocationLifecycleAdmin_ClearAllocationLifecycleRetry_Handler(srv interfa
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var AllocationLifecycleAdmin_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "axern.control.admin.v1.AllocationLifecycleAdmin",
+	ServiceName: "axern.private.control.admin.v1.AllocationLifecycleAdmin",
 	HandlerType: (*AllocationLifecycleAdminServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -217,5 +217,5 @@ var AllocationLifecycleAdmin_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "axern/control/admin/v1/allocation_lifecycle.proto",
+	Metadata: "axern/private/control/admin/v1/allocation_lifecycle.proto",
 }

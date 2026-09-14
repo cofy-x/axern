@@ -15,6 +15,7 @@ from axern_sdk.catalog.models import (
     OciExecutionProfile,
     OciNetworkNamespacePolicy,
     OciResourcePolicy,
+    ResolvedEnvironmentSpec,
     EnvironmentTemplate,
 )
 
@@ -51,13 +52,11 @@ class EnvironmentCatalogClient:
     def list_environment_templates(
         self,
         *,
-        namespace: str = "",
         version: str = "",
         language: str = "",
     ) -> list[EnvironmentTemplate]:
         response = self._client.ListEnvironmentTemplates(
             catalog_pb2.ListEnvironmentTemplatesRequest(
-                namespace=namespace,
                 version=version,
                 language=language,
             )
@@ -77,6 +76,7 @@ def _environment_template_from_proto(template: catalog_pb2.EnvironmentTemplate) 
         supports_ports=template.capabilities.supports_ports,
         supports_computer_use=template.capabilities.supports_computer_use,
     )
+    resolved = template.resolved_spec
     mounts = tuple(
         MountSpec(
             type=mount.type,
@@ -84,29 +84,29 @@ def _environment_template_from_proto(template: catalog_pb2.EnvironmentTemplate) 
             target=mount.target,
             options=tuple(mount.options),
         )
-        for mount in template.mounts
+        for mount in resolved.mounts
     )
     return EnvironmentTemplate(
         id=template.id,
-        rootfs_readonly=template.rootfs_readonly,
-        image_default_argv=tuple(template.image_default_argv),
-        default_cwd=template.default_cwd,
-        default_env=dict(template.default_env),
-        mounts=mounts,
         capabilities=capabilities,
         language=template.language,
         language_version=template.language_version,
         description=template.description,
         version=template.version,
-        image_descriptor=OciImageDescriptor(
-            digest=template.image_descriptor.digest,
-            media_type=template.image_descriptor.media_type,
-            size_bytes=template.image_descriptor.size_bytes,
-            annotations=dict(template.image_descriptor.annotations),
+        resolved_spec=ResolvedEnvironmentSpec(
+            rootfs_readonly=resolved.rootfs_readonly,
+            image_default_argv=tuple(resolved.image_default_argv),
+            default_cwd=resolved.default_cwd,
+            default_env=dict(resolved.default_env),
+            mounts=mounts,
+            image_descriptor=OciImageDescriptor(
+                digest=resolved.image_descriptor.digest,
+                media_type=resolved.image_descriptor.media_type,
+                size_bytes=resolved.image_descriptor.size_bytes,
+                annotations=dict(resolved.image_descriptor.annotations),
+            ),
+            execution_profile=_oci_execution_profile_from_proto(resolved.execution_profile),
         ),
-        warm_policy=template.warm_policy,
-        cache_policy=template.cache_policy,
-        execution_profile=_oci_execution_profile_from_proto(template.execution_profile),
     )
 
 

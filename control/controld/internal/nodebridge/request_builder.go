@@ -35,33 +35,33 @@ type resolvedExecutionSecrets struct {
 }
 
 func buildResolvedExecutionConfig(params createAllocationRequestParams) *privatenodev1.ResolvedExecutionConfig {
-	template := params.Environment.GetResolvedTemplate()
+	resolvedSpec := params.Environment.GetResolvedSpec()
 	cfg := configOrEmpty(params.Config)
 	res := executionkernel.NormalizeResources(cfg.GetResources())
 
 	out := &privatenodev1.ResolvedExecutionConfig{
 		EnvironmentID:                   params.Environment.GetID(),
-		ImageDigest:                     template.GetImageDescriptor().GetDigest(),
-		ImageDescriptor:                 imageDescriptorRef(template.GetImageDescriptor()),
+		ImageDigest:                     resolvedSpec.GetImageDescriptor().GetDigest(),
+		ImageDescriptor:                 imageDescriptorRef(resolvedSpec.GetImageDescriptor()),
 		Argv:                            resolveExecutionArgv(cfg.GetArgv()),
 		Cwd:                             resolveExecutionCwd(cfg.GetCwd()),
-		Env:                             mergeStringMaps(template.GetDefaultEnv(), cfg.GetEnv()),
+		Env:                             mergeStringMaps(resolvedSpec.GetDefaultEnv(), cfg.GetEnv()),
 		Resources:                       res,
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(cfg.GetExtensionCapabilityRequirements()),
-		LocalityKey:                     firstNonEmpty(params.Environment.GetID(), template.GetImageDescriptor().GetDigest()),
-		RootfsReadonly:                  template.GetRootfsReadonly(),
+		LocalityKey:                     firstNonEmpty(params.Environment.GetID(), resolvedSpec.GetImageDescriptor().GetDigest()),
+		RootfsReadonly:                  resolvedSpec.GetRootfsReadonly(),
 		Ports:                           clonePortSpecs(cfg.GetPorts()),
 		Network:                         cloneNetworkSpec(cfg.GetNetwork()),
 		SecretEnv:                       cloneResolvedSecretEnvVars(params.ResolvedSecrets.EnvSecrets),
 		SecretFiles:                     cloneResolvedSecretFiles(params.ResolvedSecrets.FileSecrets),
-		ExecutionProfile:                cloneOciExecutionProfile(template.GetExecutionProfile()),
+		ExecutionProfile:                cloneOciExecutionProfile(resolvedSpec.GetExecutionProfile()),
 		ImageMounts:                     cloneImageMounts(cfg.GetImageMounts()),
 		CapabilityRequirements:          cloneCapabilityRequirements(params.CapabilityRequirements),
 	}
 	if strings.TrimSpace(params.ResolvedSecrets.DockerConfigJSON) != "" {
 		out.RegistryCredential = &privatenodev1.RegistryCredential{DockerConfigJson: params.ResolvedSecrets.DockerConfigJSON}
 	}
-	for _, mount := range template.GetMounts() {
+	for _, mount := range resolvedSpec.GetMounts() {
 		if mount == nil {
 			continue
 		}

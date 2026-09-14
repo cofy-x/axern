@@ -51,8 +51,8 @@ erDiagram
 
 - `namespaces` is the durable scope and optimistic-lock row.
 - `namespace_resource_quotas` stores optional CPU, memory, and ephemeral-storage admission limits.
-- `environment_templates` stores versioned catalog entries.
-- `environments.spec` stores user intent; `resolved_template` stores the normalized runtime snapshot used by execution paths.
+- The environment catalog is embedded, curated metadata and has no orphan database table.
+- `environments.spec` stores normalized user intent; `resolved_spec` stores the immutable runtime input used by execution paths. `deleted_at` is the only Environment lifecycle marker.
 - `namespace_quota_events` records durable admission decisions independently from operator audit events.
 
 Namespace names are stored on scoped resources for filtering and ownership. Only relationships whose deletion semantics are part of the domain contract use database foreign keys.
@@ -88,7 +88,7 @@ Capability loss has no controld queue or transition-history table. Axnoded owns 
 
 ## Nodes and Execution Leases
 
-`nodes` stores identity, control target, authentication hash, heartbeat freshness, lifecycle status, retirement reason, and version. Active identities may report and participate in placement. Retirement is irreversible, retains historical references, and commits with an admin audit event after lifecycle and storage blockers are clear. `node_summaries` stores rich reported capacity and inventory. Runtime eligibility is not stored because Axern has one production execution boundary.
+`nodes` stores identity, control target, authentication hash, the latest accepted heartbeat time, lifecycle status, and retirement facts. Active identities may report and participate in placement. Retirement is irreversible, retains historical references, and commits with an admin audit event after lifecycle and storage blockers are clear. `node_summaries.summary` stores the complete rich observation, including its own collection time; duplicate summary timestamps and node versions are not persisted. Runtime eligibility is not stored because Axern has one production execution boundary.
 
 ```mermaid
 sequenceDiagram
@@ -99,13 +99,15 @@ sequenceDiagram
 
   Gateway->>Control: acquire execution lease
   Control->>DB: persist token hash, allocation and node identity, expiry, revision
-  Control-->>Gateway: return plaintext token once
+  Control-->>Gateway: return allocation access grant with plaintext token once
   DB-->>Node: notify lease stream changed
   Node->>Control: watch from last revision
-  Control-->>Node: hashes, revocations, and expiries
+  Control-->>Node: node execution grants with hashes, revocations, and expiries
 ```
 
 `execution_leases` binds authorization to an exact Allocation ID and Node ID. Only token hashes are stored. `control_revisions` owns the monotonic revision stream, and the execution-lease trigger wakes watchers without making notifications authoritative state.
+
+Gateway and node protocols deliberately use different messages. `AllocationAccessGrant` exists only on the trusted gateway issuance path and carries plaintext. `NodeExecutionGrant` is the node validation projection and never has a plaintext field. Neither message carries a lease type or routing target; the Allocation binding owns both purpose and node routing.
 
 ## Tunnel Model
 
@@ -125,6 +127,7 @@ erDiagram
 Indexes follow server-side access paths:
 
 - namespace and creation cursors for list APIs;
+- composite `(created_at, id)` keyset indexes and JSONB label indexes for Run, Environment, and Secret list filters;
 - node/lifecycle and namespace/run-status indexes for placement and lifecycle projection;
 - partial active indexes for reservations, leases, tunnels, and live Allocations;
 - retention indexes on expiry and creation timestamps;

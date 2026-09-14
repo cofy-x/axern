@@ -18,9 +18,9 @@ func (s *Store) DeleteEnvironment(ctx context.Context, id string, now time.Time)
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `
 			UPDATE environments
-			SET status = $2, version = version + 1, updated_at = $3
+			SET deleted_at = COALESCE(deleted_at, $2)
 			WHERE environment_id = $1
-		`, strings.TrimSpace(id), environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_DELETED.String(), now.UTC()); err != nil {
+		`, strings.TrimSpace(id), now.UTC()); err != nil {
 			return fmt.Errorf("delete environment: %w", err)
 		}
 		var err error

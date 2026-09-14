@@ -19,7 +19,8 @@ import (
 type Control interface {
 	CreateRun(ctx context.Context, params runkernel.CreateParams, now time.Time) (*runv1.Run, error)
 	GetRun(ctx context.Context, id string) (*runv1.Run, error)
-	ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, error)
+	WatchRun(ctx context.Context, id string, afterVersion int64) (*runv1.Run, error)
+	ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, string, error)
 	CancelRun(ctx context.Context, runID string, now time.Time) (*runv1.Run, error)
 }
 
@@ -55,7 +56,10 @@ func (p authoritativeRunAccess) CreateRun(ctx context.Context, params runkernel.
 	if err != nil {
 		return nil, err
 	}
-	normalizedConfig, err := executionkernel.NormalizeConfigForRootfs(params.Config, env.GetResolvedTemplate().GetRootfsReadonly())
+	if env.GetDeletedAt() != nil {
+		return nil, grpcstatus.Errorf(codes.FailedPrecondition, "environment %q is deleted", environmentID)
+	}
+	normalizedConfig, err := executionkernel.NormalizeConfigForRootfs(params.Config, env.GetResolvedSpec().GetRootfsReadonly())
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +84,11 @@ func (p authoritativeRunAccess) GetRun(ctx context.Context, id string) (*runv1.R
 	return p.store.GetRun(ctx, id)
 }
 
-func (p authoritativeRunAccess) ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, error) {
+func (p authoritativeRunAccess) WatchRun(ctx context.Context, id string, afterVersion int64) (*runv1.Run, error) {
+	return p.store.WatchRun(ctx, id, afterVersion)
+}
+
+func (p authoritativeRunAccess) ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, string, error) {
 	return p.store.ListRuns(ctx, filter)
 }
 

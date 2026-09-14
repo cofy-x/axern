@@ -15,20 +15,22 @@ type EnvironmentTemplateResponseJSON struct {
 }
 
 type EnvironmentTemplateJSON struct {
-	ID               string                               `json:"id"`
-	RootfsReadonly   bool                                 `json:"rootfs_readonly,omitempty"`
-	ImageDefaultArgv []string                             `json:"image_default_argv,omitempty"`
-	DefaultCwd       string                               `json:"default_cwd,omitempty"`
-	DefaultEnv       map[string]string                    `json:"default_env,omitempty"`
-	Mounts           []*EnvironmentMountJSON              `json:"mounts,omitempty"`
-	Capabilities     *EnvironmentTemplateCapabilitiesJSON `json:"capabilities,omitempty"`
-	Language         string                               `json:"language,omitempty"`
-	LanguageVersion  string                               `json:"language_version,omitempty"`
-	Description      string                               `json:"description,omitempty"`
-	Version          string                               `json:"version,omitempty"`
-	ImageDescriptor  *OciImageDescriptorJSON              `json:"image_descriptor,omitempty"`
-	WarmPolicy       string                               `json:"warm_policy,omitempty"`
-	CachePolicy      string                               `json:"cache_policy,omitempty"`
+	ID              string                               `json:"id"`
+	ResolvedSpec    *ResolvedEnvironmentSpecJSON         `json:"resolved_spec,omitempty"`
+	Capabilities    *EnvironmentTemplateCapabilitiesJSON `json:"capabilities,omitempty"`
+	Language        string                               `json:"language,omitempty"`
+	LanguageVersion string                               `json:"language_version,omitempty"`
+	Description     string                               `json:"description,omitempty"`
+	Version         string                               `json:"version,omitempty"`
+}
+
+type ResolvedEnvironmentSpecJSON struct {
+	RootfsReadonly   bool                    `json:"rootfs_readonly,omitempty"`
+	ImageDefaultArgv []string                `json:"image_default_argv,omitempty"`
+	DefaultCwd       string                  `json:"default_cwd,omitempty"`
+	DefaultEnv       map[string]string       `json:"default_env,omitempty"`
+	Mounts           []*EnvironmentMountJSON `json:"mounts,omitempty"`
+	ImageDescriptor  *OciImageDescriptorJSON `json:"image_descriptor,omitempty"`
 }
 
 type EnvironmentMountJSON struct {
@@ -76,20 +78,24 @@ func NewEnvironmentTemplateJSON(template *catalogv1.EnvironmentTemplate) *Enviro
 		return nil
 	}
 	return &EnvironmentTemplateJSON{
-		ID:               template.GetID(),
-		RootfsReadonly:   template.GetRootfsReadonly(),
-		ImageDefaultArgv: append([]string(nil), template.GetImageDefaultArgv()...),
-		DefaultCwd:       template.GetDefaultCwd(),
-		DefaultEnv:       cloneStringMap(template.GetDefaultEnv()),
-		Mounts:           newEnvironmentMountJSONs(template.GetMounts()),
-		Capabilities:     newEnvironmentTemplateCapabilitiesJSON(template.GetCapabilities()),
-		Language:         template.GetLanguage(),
-		LanguageVersion:  template.GetLanguageVersion(),
-		Description:      template.GetDescription(),
-		Version:          template.GetVersion(),
-		ImageDescriptor:  newOciImageDescriptorJSON(template.GetImageDescriptor()),
-		WarmPolicy:       template.GetWarmPolicy(),
-		CachePolicy:      template.GetCachePolicy(),
+		ID:              template.GetID(),
+		ResolvedSpec:    newResolvedEnvironmentSpecJSON(template.GetResolvedSpec()),
+		Capabilities:    newEnvironmentTemplateCapabilitiesJSON(template.GetCapabilities()),
+		Language:        template.GetLanguage(),
+		LanguageVersion: template.GetLanguageVersion(),
+		Description:     template.GetDescription(),
+		Version:         template.GetVersion(),
+	}
+}
+
+func newResolvedEnvironmentSpecJSON(spec *catalogv1.ResolvedEnvironmentSpec) *ResolvedEnvironmentSpecJSON {
+	if spec == nil {
+		return nil
+	}
+	return &ResolvedEnvironmentSpecJSON{
+		RootfsReadonly: spec.GetRootfsReadonly(), ImageDefaultArgv: append([]string(nil), spec.GetImageDefaultArgv()...),
+		DefaultCwd: spec.GetDefaultCwd(), DefaultEnv: cloneStringMap(spec.GetDefaultEnv()),
+		Mounts: newEnvironmentMountJSONs(spec.GetMounts()), ImageDescriptor: newOciImageDescriptorJSON(spec.GetImageDescriptor()),
 	}
 }
 

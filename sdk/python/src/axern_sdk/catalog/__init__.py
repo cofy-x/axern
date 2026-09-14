@@ -10,6 +10,7 @@ from axern_sdk.catalog.models import (
     OciNetworkNamespacePolicy,
     OciResourcePolicy,
     EnvironmentTemplate,
+    ResolvedEnvironmentSpec,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "OciNetworkNamespacePolicy",
     "OciResourcePolicy",
     "EnvironmentTemplate",
+    "ResolvedEnvironmentSpec",
 ]

@@ -7,10 +7,9 @@ import (
 	"time"
 
 	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
-func (s *Store) WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*commonv1.ExecutionLease, int64, error) {
+func (s *Store) WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*leasekernel.Record, int64, error) {
 	nodeID = strings.TrimSpace(nodeID)
 	subscription, err := s.leaseWatches.subscribe(ctx, nodeID)
 	if err != nil {
@@ -31,7 +30,7 @@ func (s *Store) WatchExecutionLeases(ctx context.Context, nodeID string, afterRe
 	}
 }
 
-func (s *Store) loadExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*commonv1.ExecutionLease, int64, error) {
+func (s *Store) loadExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*leasekernel.Record, int64, error) {
 	// Fix the high-water mark before reading rows. A lease committed after this
 	// query is intentionally left for the next response instead of being skipped
 	// by an advanced cursor.
@@ -40,8 +39,7 @@ func (s *Store) loadExecutionLeases(ctx context.Context, nodeID string, afterRev
 		return nil, 0, fmt.Errorf("load lease revision: %w", err)
 	}
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT lease_id, allocation_id, node_id, node_target, lease_type,
-			expires_at, revision, revoked, token_hash
+		SELECT lease_id, allocation_id, node_id, expires_at, revision, revoked, token_hash
 		FROM execution_leases
 		WHERE node_id = $1 AND revision > $2 AND revision <= $3
 		ORDER BY revision ASC, lease_id ASC
@@ -50,10 +48,10 @@ func (s *Store) loadExecutionLeases(ctx context.Context, nodeID string, afterRev
 		return nil, 0, fmt.Errorf("query execution leases: %w", err)
 	}
 	defer rows.Close()
-	leases := make([]*commonv1.ExecutionLease, 0)
+	leases := make([]*leasekernel.Record, 0)
 	for rows.Next() {
-		lease, err := scanLease(rows)
-		if err != nil {
+		lease := &leasekernel.Record{}
+		if err := rows.Scan(&lease.LeaseID, &lease.AllocationID, &lease.NodeID, &lease.ExpiresAt, &lease.Revision, &lease.Revoked, &lease.ValidationTokenHash); err != nil {
 			return nil, 0, err
 		}
 		if leasekernel.IsExpired(lease, now) {

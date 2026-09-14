@@ -3,28 +3,12 @@ import datetime
 from axern.control.catalog.v1 import catalog_pb2 as _catalog_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
-from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from collections.abc import Iterable as _Iterable, Mapping as _Mapping
 from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
-
-class EnvironmentStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    ENVIRONMENT_STATUS_UNSPECIFIED: _ClassVar[EnvironmentStatus]
-    ENVIRONMENT_STATUS_PENDING: _ClassVar[EnvironmentStatus]
-    ENVIRONMENT_STATUS_READY: _ClassVar[EnvironmentStatus]
-    ENVIRONMENT_STATUS_FAILED: _ClassVar[EnvironmentStatus]
-    ENVIRONMENT_STATUS_DELETING: _ClassVar[EnvironmentStatus]
-    ENVIRONMENT_STATUS_DELETED: _ClassVar[EnvironmentStatus]
-ENVIRONMENT_STATUS_UNSPECIFIED: EnvironmentStatus
-ENVIRONMENT_STATUS_PENDING: EnvironmentStatus
-ENVIRONMENT_STATUS_READY: EnvironmentStatus
-ENVIRONMENT_STATUS_FAILED: EnvironmentStatus
-ENVIRONMENT_STATUS_DELETING: EnvironmentStatus
-ENVIRONMENT_STATUS_DELETED: EnvironmentStatus
 
 class EnvironmentImageSource(_message.Message):
     __slots__ = ("ref", "digest", "rootfs_readonly", "registry_credential_id")
@@ -51,7 +35,7 @@ class EnvironmentSpec(_message.Message):
     def __init__(self, namespace: _Optional[str] = ..., template_id: _Optional[str] = ..., template_version: _Optional[str] = ..., image: _Optional[_Union[EnvironmentImageSource, _Mapping]] = ...) -> None: ...
 
 class Environment(_message.Message):
-    __slots__ = ("id", "namespace", "status", "spec", "spec_hash", "resolved_template", "labels", "version", "created_at", "updated_at", "message")
+    __slots__ = ("id", "namespace", "spec", "resolved_spec", "labels", "created_at", "deleted_at")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -61,30 +45,22 @@ class Environment(_message.Message):
         def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     ID_FIELD_NUMBER: _ClassVar[int]
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
-    STATUS_FIELD_NUMBER: _ClassVar[int]
     SPEC_FIELD_NUMBER: _ClassVar[int]
-    SPEC_HASH_FIELD_NUMBER: _ClassVar[int]
-    RESOLVED_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
+    RESOLVED_SPEC_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
-    VERSION_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
-    UPDATED_AT_FIELD_NUMBER: _ClassVar[int]
-    MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    DELETED_AT_FIELD_NUMBER: _ClassVar[int]
     id: str
     namespace: str
-    status: EnvironmentStatus
     spec: EnvironmentSpec
-    spec_hash: str
-    resolved_template: _catalog_pb2.EnvironmentTemplate
+    resolved_spec: _catalog_pb2.ResolvedEnvironmentSpec
     labels: _containers.ScalarMap[str, str]
-    version: int
     created_at: _timestamp_pb2.Timestamp
-    updated_at: _timestamp_pb2.Timestamp
-    message: str
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., status: _Optional[_Union[EnvironmentStatus, str]] = ..., spec: _Optional[_Union[EnvironmentSpec, _Mapping]] = ..., spec_hash: _Optional[str] = ..., resolved_template: _Optional[_Union[_catalog_pb2.EnvironmentTemplate, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[str] = ...) -> None: ...
+    deleted_at: _timestamp_pb2.Timestamp
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., spec: _Optional[_Union[EnvironmentSpec, _Mapping]] = ..., resolved_spec: _Optional[_Union[_catalog_pb2.ResolvedEnvironmentSpec, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., deleted_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class ListFilter(_message.Message):
-    __slots__ = ("namespace", "statuses", "labels", "cursor", "page_size")
+    __slots__ = ("namespace", "labels", "include_deleted", "cursor", "page_size")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -93,16 +69,16 @@ class ListFilter(_message.Message):
         value: str
         def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
-    STATUSES_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
+    INCLUDE_DELETED_FIELD_NUMBER: _ClassVar[int]
     CURSOR_FIELD_NUMBER: _ClassVar[int]
     PAGE_SIZE_FIELD_NUMBER: _ClassVar[int]
     namespace: str
-    statuses: _containers.RepeatedScalarFieldContainer[EnvironmentStatus]
     labels: _containers.ScalarMap[str, str]
+    include_deleted: bool
     cursor: str
     page_size: int
-    def __init__(self, namespace: _Optional[str] = ..., statuses: _Optional[_Iterable[_Union[EnvironmentStatus, str]]] = ..., labels: _Optional[_Mapping[str, str]] = ..., cursor: _Optional[str] = ..., page_size: _Optional[int] = ...) -> None: ...
+    def __init__(self, namespace: _Optional[str] = ..., labels: _Optional[_Mapping[str, str]] = ..., include_deleted: _Optional[bool] = ..., cursor: _Optional[str] = ..., page_size: _Optional[int] = ...) -> None: ...
 
 class CreateEnvironmentRequest(_message.Message):
     __slots__ = ("spec", "labels")

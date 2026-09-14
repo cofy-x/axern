@@ -34,7 +34,7 @@ def main() -> int:
         template = catalog.get_environment_template(args.environment_id)
         if template.id != args.environment_id:
             raise SystemExit(f"catalog returned unexpected runtime id: {template.id}")
-        image_ref = template.image_descriptor.annotations.get("org.opencontainers.image.ref.name", "")
+        image_ref = template.resolved_spec.image_descriptor.annotations.get("org.opencontainers.image.ref.name", "")
         if image_ref != args.expected_image_ref:
             raise SystemExit(f"catalog returned image ref {image_ref!r}, want {args.expected_image_ref!r}")
 

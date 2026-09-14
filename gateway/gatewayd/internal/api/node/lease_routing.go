@@ -104,7 +104,7 @@ func injectLease(msg proto.Message, resolved *gatewayv1.ResolveAllocationTermina
 	}
 	fields := msg.ProtoReflect().Descriptor().Fields()
 	setString(msg, fields, "allocation_id", resolved.GetAllocationID())
-	setString(msg, fields, "execution_lease_token", resolved.GetLease().GetPlaintextToken())
+	setString(msg, fields, "execution_lease_token", resolved.GetAccessGrant().GetPlaintextToken())
 	return nil
 }
 

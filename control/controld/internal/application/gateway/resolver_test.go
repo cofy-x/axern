@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"google.golang.org/grpc/codes"
@@ -19,9 +20,9 @@ func (s routeReaderStub) LoadAllocation(context.Context, string) (*Allocation, e
 
 type leaseIssuerStub struct{ calls int }
 
-func (s *leaseIssuerStub) IssueExecutionLease(context.Context, string, commonv1.LeaseType, time.Duration, time.Time) (*commonv1.ExecutionLease, error) {
+func (s *leaseIssuerStub) IssueExecutionLease(context.Context, string, time.Duration, time.Time) (*leasekernel.IssuedGrant, error) {
 	s.calls++
-	return &commonv1.ExecutionLease{PlaintextToken: "lease-token"}, nil
+	return &leasekernel.IssuedGrant{PlaintextToken: "lease-token"}, nil
 }
 
 func TestResolveAllocationTerminalAccessPurpose(t *testing.T) {

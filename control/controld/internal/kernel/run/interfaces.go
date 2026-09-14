@@ -5,6 +5,7 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
@@ -24,21 +25,22 @@ type AllocationRecord struct {
 type EnvironmentStore interface {
 	CreateEnvironment(ctx context.Context, params CreateEnvironmentParams, now time.Time) (*environmentv1.Environment, error)
 	GetEnvironment(ctx context.Context, id string) (*environmentv1.Environment, error)
-	ListEnvironments(ctx context.Context, filter *environmentv1.ListFilter) ([]*environmentv1.Environment, error)
+	ListEnvironments(ctx context.Context, filter *environmentv1.ListFilter) ([]*environmentv1.Environment, string, error)
 	DeleteEnvironment(ctx context.Context, id string, now time.Time) (*environmentv1.Environment, error)
 }
 
 type RunStore interface {
 	AdmitRun(ctx context.Context, params AdmitRunParams, now time.Time) (*runv1.Run, error)
 	GetRun(ctx context.Context, id string) (*runv1.Run, error)
-	ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, error)
+	WatchRun(ctx context.Context, id string, afterVersion int64) (*runv1.Run, error)
+	ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, string, error)
 	CancelRun(ctx context.Context, runID string, now time.Time) (*runv1.Run, error)
 }
 
 type CreateEnvironmentParams struct {
-	Spec     *environmentv1.EnvironmentSpec
-	Template *catalogv1.EnvironmentTemplate
-	Labels   map[string]string
+	Spec         *environmentv1.EnvironmentSpec
+	ResolvedSpec *catalogv1.ResolvedEnvironmentSpec
+	Labels       map[string]string
 }
 
 type CreateParams struct {
@@ -60,8 +62,8 @@ type AdmitRunParams struct {
 }
 
 type LeaseStore interface {
-	IssueExecutionLease(ctx context.Context, allocationID string, leaseType commonv1.LeaseType, ttl time.Duration, now time.Time) (*commonv1.ExecutionLease, error)
-	WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*commonv1.ExecutionLease, int64, error)
+	IssueExecutionLease(ctx context.Context, allocationID string, ttl time.Duration, now time.Time) (*leasekernel.IssuedGrant, error)
+	WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*leasekernel.Record, int64, error)
 }
 
 type AllocationReporter interface {

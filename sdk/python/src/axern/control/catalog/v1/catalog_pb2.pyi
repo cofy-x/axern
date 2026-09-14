@@ -81,8 +81,8 @@ class OciExecutionProfile(_message.Message):
     resources: OciResourcePolicy
     def __init__(self, baseline: _Optional[_Union[OciBaselinePolicy, _Mapping]] = ..., network_namespace: _Optional[_Union[OciNetworkNamespacePolicy, _Mapping]] = ..., resources: _Optional[_Union[OciResourcePolicy, _Mapping]] = ...) -> None: ...
 
-class EnvironmentTemplate(_message.Message):
-    __slots__ = ("id", "rootfs_readonly", "image_default_argv", "default_cwd", "default_env", "mounts", "capabilities", "language", "language_version", "description", "version", "image_descriptor", "warm_policy", "cache_policy", "execution_profile")
+class ResolvedEnvironmentSpec(_message.Message):
+    __slots__ = ("rootfs_readonly", "image_default_argv", "default_cwd", "default_env", "mounts", "image_descriptor", "execution_profile")
     class DefaultEnvEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -90,47 +90,47 @@ class EnvironmentTemplate(_message.Message):
         key: str
         value: str
         def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
-    ID_FIELD_NUMBER: _ClassVar[int]
     ROOTFS_READONLY_FIELD_NUMBER: _ClassVar[int]
     IMAGE_DEFAULT_ARGV_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_CWD_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_ENV_FIELD_NUMBER: _ClassVar[int]
     MOUNTS_FIELD_NUMBER: _ClassVar[int]
-    CAPABILITIES_FIELD_NUMBER: _ClassVar[int]
-    LANGUAGE_FIELD_NUMBER: _ClassVar[int]
-    LANGUAGE_VERSION_FIELD_NUMBER: _ClassVar[int]
-    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
-    VERSION_FIELD_NUMBER: _ClassVar[int]
     IMAGE_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
-    WARM_POLICY_FIELD_NUMBER: _ClassVar[int]
-    CACHE_POLICY_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_PROFILE_FIELD_NUMBER: _ClassVar[int]
-    id: str
     rootfs_readonly: bool
     image_default_argv: _containers.RepeatedScalarFieldContainer[str]
     default_cwd: str
     default_env: _containers.ScalarMap[str, str]
     mounts: _containers.RepeatedCompositeFieldContainer[EnvironmentMount]
-    capabilities: EnvironmentTemplateCapabilities
+    image_descriptor: OciImageDescriptor
+    execution_profile: OciExecutionProfile
+    def __init__(self, rootfs_readonly: _Optional[bool] = ..., image_default_argv: _Optional[_Iterable[str]] = ..., default_cwd: _Optional[str] = ..., default_env: _Optional[_Mapping[str, str]] = ..., mounts: _Optional[_Iterable[_Union[EnvironmentMount, _Mapping]]] = ..., image_descriptor: _Optional[_Union[OciImageDescriptor, _Mapping]] = ..., execution_profile: _Optional[_Union[OciExecutionProfile, _Mapping]] = ...) -> None: ...
+
+class EnvironmentTemplate(_message.Message):
+    __slots__ = ("id", "version", "language", "language_version", "description", "capabilities", "resolved_spec")
+    ID_FIELD_NUMBER: _ClassVar[int]
+    VERSION_FIELD_NUMBER: _ClassVar[int]
+    LANGUAGE_FIELD_NUMBER: _ClassVar[int]
+    LANGUAGE_VERSION_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    CAPABILITIES_FIELD_NUMBER: _ClassVar[int]
+    RESOLVED_SPEC_FIELD_NUMBER: _ClassVar[int]
+    id: str
+    version: str
     language: str
     language_version: str
     description: str
-    version: str
-    image_descriptor: OciImageDescriptor
-    warm_policy: str
-    cache_policy: str
-    execution_profile: OciExecutionProfile
-    def __init__(self, id: _Optional[str] = ..., rootfs_readonly: _Optional[bool] = ..., image_default_argv: _Optional[_Iterable[str]] = ..., default_cwd: _Optional[str] = ..., default_env: _Optional[_Mapping[str, str]] = ..., mounts: _Optional[_Iterable[_Union[EnvironmentMount, _Mapping]]] = ..., capabilities: _Optional[_Union[EnvironmentTemplateCapabilities, _Mapping]] = ..., language: _Optional[str] = ..., language_version: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., image_descriptor: _Optional[_Union[OciImageDescriptor, _Mapping]] = ..., warm_policy: _Optional[str] = ..., cache_policy: _Optional[str] = ..., execution_profile: _Optional[_Union[OciExecutionProfile, _Mapping]] = ...) -> None: ...
+    capabilities: EnvironmentTemplateCapabilities
+    resolved_spec: ResolvedEnvironmentSpec
+    def __init__(self, id: _Optional[str] = ..., version: _Optional[str] = ..., language: _Optional[str] = ..., language_version: _Optional[str] = ..., description: _Optional[str] = ..., capabilities: _Optional[_Union[EnvironmentTemplateCapabilities, _Mapping]] = ..., resolved_spec: _Optional[_Union[ResolvedEnvironmentSpec, _Mapping]] = ...) -> None: ...
 
 class ListEnvironmentTemplatesRequest(_message.Message):
-    __slots__ = ("namespace", "version", "language")
-    NAMESPACE_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("version", "language")
     VERSION_FIELD_NUMBER: _ClassVar[int]
     LANGUAGE_FIELD_NUMBER: _ClassVar[int]
-    namespace: str
     version: str
     language: str
-    def __init__(self, namespace: _Optional[str] = ..., version: _Optional[str] = ..., language: _Optional[str] = ...) -> None: ...
+    def __init__(self, version: _Optional[str] = ..., language: _Optional[str] = ...) -> None: ...
 
 class ListEnvironmentTemplatesResponse(_message.Message):
     __slots__ = ("environment_templates",)

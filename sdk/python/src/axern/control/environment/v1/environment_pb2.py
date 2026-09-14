@@ -26,7 +26,7 @@ from axern.control.catalog.v1 import catalog_pb2 as axern_dot_control_dot_catalo
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n.axern/control/environment/v1/environment.proto\x12\x1c\x61xern.control.environment.v1\x1a&axern/control/catalog/v1/catalog.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"n\n\x16\x45nvironmentImageSource\x12\x0b\n\x03ref\x18\x01 \x01(\t\x12\x0e\n\x06\x64igest\x18\x02 \x01(\t\x12\x17\n\x0frootfs_readonly\x18\x03 \x01(\x08\x12\x1e\n\x16registry_credential_id\x18\x04 \x01(\t\"\x98\x01\n\x0f\x45nvironmentSpec\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x13\n\x0btemplate_id\x18\x02 \x01(\t\x12\x18\n\x10template_version\x18\x03 \x01(\t\x12\x43\n\x05image\x18\x04 \x01(\x0b\x32\x34.axern.control.environment.v1.EnvironmentImageSource\"\xff\x03\n\x0b\x45nvironment\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tnamespace\x18\x02 \x01(\t\x12?\n\x06status\x18\x03 \x01(\x0e\x32/.axern.control.environment.v1.EnvironmentStatus\x12;\n\x04spec\x18\x04 \x01(\x0b\x32-.axern.control.environment.v1.EnvironmentSpec\x12\x11\n\tspec_hash\x18\x05 \x01(\t\x12H\n\x11resolved_template\x18\x06 \x01(\x0b\x32-.axern.control.catalog.v1.EnvironmentTemplate\x12\x45\n\x06labels\x18\x07 \x03(\x0b\x32\x35.axern.control.environment.v1.Environment.LabelsEntry\x12\x0f\n\x07version\x18\x08 \x01(\x03\x12.\n\ncreated_at\x18\t \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\n \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07message\x18\x0b \x01(\t\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xfa\x01\n\nListFilter\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x41\n\x08statuses\x18\x02 \x03(\x0e\x32/.axern.control.environment.v1.EnvironmentStatus\x12\x44\n\x06labels\x18\x03 \x03(\x0b\x32\x34.axern.control.environment.v1.ListFilter.LabelsEntry\x12\x0e\n\x06\x63ursor\x18\x04 \x01(\t\x12\x11\n\tpage_size\x18\x05 \x01(\x05\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xda\x01\n\x18\x43reateEnvironmentRequest\x12;\n\x04spec\x18\x01 \x01(\x0b\x32-.axern.control.environment.v1.EnvironmentSpec\x12R\n\x06labels\x18\x02 \x03(\x0b\x32\x42.axern.control.environment.v1.CreateEnvironmentRequest.LabelsEntry\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"[\n\x19\x43reateEnvironmentResponse\x12>\n\x0b\x65nvironment\x18\x01 \x01(\x0b\x32).axern.control.environment.v1.Environment\"/\n\x15GetEnvironmentRequest\x12\x16\n\x0e\x65nvironment_id\x18\x01 \x01(\t\"X\n\x16GetEnvironmentResponse\x12>\n\x0b\x65nvironment\x18\x01 \x01(\x0b\x32).axern.control.environment.v1.Environment\"S\n\x17ListEnvironmentsRequest\x12\x38\n\x06\x66ilter\x18\x01 \x01(\x0b\x32(.axern.control.environment.v1.ListFilter\"p\n\x18ListEnvironmentsResponse\x12?\n\x0c\x65nvironments\x18\x01 \x03(\x0b\x32).axern.control.environment.v1.Environment\x12\x13\n\x0bnext_cursor\x18\x02 \x01(\t\"2\n\x18\x44\x65leteEnvironmentRequest\x12\x16\n\x0e\x65nvironment_id\x18\x01 \x01(\t\"[\n\x19\x44\x65leteEnvironmentResponse\x12>\n\x0b\x65nvironment\x18\x01 \x01(\x0b\x32).axern.control.environment.v1.Environment*\xd5\x01\n\x11\x45nvironmentStatus\x12\"\n\x1e\x45NVIRONMENT_STATUS_UNSPECIFIED\x10\x00\x12\x1e\n\x1a\x45NVIRONMENT_STATUS_PENDING\x10\x01\x12\x1c\n\x18\x45NVIRONMENT_STATUS_READY\x10\x02\x12\x1d\n\x19\x45NVIRONMENT_STATUS_FAILED\x10\x03\x12\x1f\n\x1b\x45NVIRONMENT_STATUS_DELETING\x10\x04\x12\x1e\n\x1a\x45NVIRONMENT_STATUS_DELETED\x10\x05\x32\xab\x04\n\x12\x45nvironmentControl\x12\x86\x01\n\x11\x43reateEnvironment\x12\x36.axern.control.environment.v1.CreateEnvironmentRequest\x1a\x37.axern.control.environment.v1.CreateEnvironmentResponse\"\x00\x12}\n\x0eGetEnvironment\x12\x33.axern.control.environment.v1.GetEnvironmentRequest\x1a\x34.axern.control.environment.v1.GetEnvironmentResponse\"\x00\x12\x83\x01\n\x10ListEnvironments\x12\x35.axern.control.environment.v1.ListEnvironmentsRequest\x1a\x36.axern.control.environment.v1.ListEnvironmentsResponse\"\x00\x12\x86\x01\n\x11\x44\x65leteEnvironment\x12\x36.axern.control.environment.v1.DeleteEnvironmentRequest\x1a\x37.axern.control.environment.v1.DeleteEnvironmentResponse\"\x00\x42OZMgithub.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1;environmentv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n.axern/control/environment/v1/environment.proto\x12\x1c\x61xern.control.environment.v1\x1a&axern/control/catalog/v1/catalog.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"n\n\x16\x45nvironmentImageSource\x12\x0b\n\x03ref\x18\x01 \x01(\t\x12\x0e\n\x06\x64igest\x18\x02 \x01(\t\x12\x17\n\x0frootfs_readonly\x18\x03 \x01(\x08\x12\x1e\n\x16registry_credential_id\x18\x04 \x01(\t\"\x98\x01\n\x0f\x45nvironmentSpec\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x13\n\x0btemplate_id\x18\x02 \x01(\t\x12\x18\n\x10template_version\x18\x03 \x01(\t\x12\x43\n\x05image\x18\x04 \x01(\x0b\x32\x34.axern.control.environment.v1.EnvironmentImageSource\"\x89\x03\n\x0b\x45nvironment\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tnamespace\x18\x02 \x01(\t\x12;\n\x04spec\x18\x03 \x01(\x0b\x32-.axern.control.environment.v1.EnvironmentSpec\x12H\n\rresolved_spec\x18\x04 \x01(\x0b\x32\x31.axern.control.catalog.v1.ResolvedEnvironmentSpec\x12\x45\n\x06labels\x18\x05 \x03(\x0b\x32\x35.axern.control.environment.v1.Environment.LabelsEntry\x12.\n\ncreated_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\ndeleted_at\x18\x07 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xd0\x01\n\nListFilter\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x44\n\x06labels\x18\x02 \x03(\x0b\x32\x34.axern.control.environment.v1.ListFilter.LabelsEntry\x12\x17\n\x0finclude_deleted\x18\x03 \x01(\x08\x12\x0e\n\x06\x63ursor\x18\x04 \x01(\t\x12\x11\n\tpage_size\x18\x05 \x01(\x05\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xda\x01\n\x18\x43reateEnvironmentRequest\x12;\n\x04spec\x18\x01 \x01(\x0b\x32-.axern.control.environment.v1.EnvironmentSpec\x12R\n\x06labels\x18\x02 \x03(\x0b\x32\x42.axern.control.environment.v1.CreateEnvironmentRequest.LabelsEntry\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"[\n\x19\x43reateEnvironmentResponse\x12>\n\x0b\x65nvironment\x18\x01 \x01(\x0b\x32).axern.control.environment.v1.Environment\"/\n\x15GetEnvironmentRequest\x12\x16\n\x0e\x65nvironment_id\x18\x01 \x01(\t\"X\n\x16GetEnvironmentResponse\x12>\n\x0b\x65nvironment\x18\x01 \x01(\x0b\x32).axern.control.environment.v1.Environment\"S\n\x17ListEnvironmentsRequest\x12\x38\n\x06\x66ilter\x18\x01 \x01(\x0b\x32(.axern.control.environment.v1.ListFilter\"p\n\x18ListEnvironmentsResponse\x12?\n\x0c\x65nvironments\x18\x01 \x03(\x0b\x32).axern.control.environment.v1.Environment\x12\x13\n\x0bnext_cursor\x18\x02 \x01(\t\"2\n\x18\x44\x65leteEnvironmentRequest\x12\x16\n\x0e\x65nvironment_id\x18\x01 \x01(\t\"[\n\x19\x44\x65leteEnvironmentResponse\x12>\n\x0b\x65nvironment\x18\x01 \x01(\x0b\x32).axern.control.environment.v1.Environment2\xab\x04\n\x12\x45nvironmentControl\x12\x86\x01\n\x11\x43reateEnvironment\x12\x36.axern.control.environment.v1.CreateEnvironmentRequest\x1a\x37.axern.control.environment.v1.CreateEnvironmentResponse\"\x00\x12}\n\x0eGetEnvironment\x12\x33.axern.control.environment.v1.GetEnvironmentRequest\x1a\x34.axern.control.environment.v1.GetEnvironmentResponse\"\x00\x12\x83\x01\n\x10ListEnvironments\x12\x35.axern.control.environment.v1.ListEnvironmentsRequest\x1a\x36.axern.control.environment.v1.ListEnvironmentsResponse\"\x00\x12\x86\x01\n\x11\x44\x65leteEnvironment\x12\x36.axern.control.environment.v1.DeleteEnvironmentRequest\x1a\x37.axern.control.environment.v1.DeleteEnvironmentResponse\"\x00\x42OZMgithub.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1;environmentv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -40,38 +40,36 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_LISTFILTER_LABELSENTRY']._serialized_options = b'8\001'
   _globals['_CREATEENVIRONMENTREQUEST_LABELSENTRY']._loaded_options = None
   _globals['_CREATEENVIRONMENTREQUEST_LABELSENTRY']._serialized_options = b'8\001'
-  _globals['_ENVIRONMENTSTATUS']._serialized_start=1985
-  _globals['_ENVIRONMENTSTATUS']._serialized_end=2198
   _globals['_ENVIRONMENTIMAGESOURCE']._serialized_start=153
   _globals['_ENVIRONMENTIMAGESOURCE']._serialized_end=263
   _globals['_ENVIRONMENTSPEC']._serialized_start=266
   _globals['_ENVIRONMENTSPEC']._serialized_end=418
   _globals['_ENVIRONMENT']._serialized_start=421
-  _globals['_ENVIRONMENT']._serialized_end=932
-  _globals['_ENVIRONMENT_LABELSENTRY']._serialized_start=887
-  _globals['_ENVIRONMENT_LABELSENTRY']._serialized_end=932
-  _globals['_LISTFILTER']._serialized_start=935
-  _globals['_LISTFILTER']._serialized_end=1185
-  _globals['_LISTFILTER_LABELSENTRY']._serialized_start=887
-  _globals['_LISTFILTER_LABELSENTRY']._serialized_end=932
-  _globals['_CREATEENVIRONMENTREQUEST']._serialized_start=1188
-  _globals['_CREATEENVIRONMENTREQUEST']._serialized_end=1406
-  _globals['_CREATEENVIRONMENTREQUEST_LABELSENTRY']._serialized_start=887
-  _globals['_CREATEENVIRONMENTREQUEST_LABELSENTRY']._serialized_end=932
-  _globals['_CREATEENVIRONMENTRESPONSE']._serialized_start=1408
-  _globals['_CREATEENVIRONMENTRESPONSE']._serialized_end=1499
-  _globals['_GETENVIRONMENTREQUEST']._serialized_start=1501
-  _globals['_GETENVIRONMENTREQUEST']._serialized_end=1548
-  _globals['_GETENVIRONMENTRESPONSE']._serialized_start=1550
-  _globals['_GETENVIRONMENTRESPONSE']._serialized_end=1638
-  _globals['_LISTENVIRONMENTSREQUEST']._serialized_start=1640
-  _globals['_LISTENVIRONMENTSREQUEST']._serialized_end=1723
-  _globals['_LISTENVIRONMENTSRESPONSE']._serialized_start=1725
-  _globals['_LISTENVIRONMENTSRESPONSE']._serialized_end=1837
-  _globals['_DELETEENVIRONMENTREQUEST']._serialized_start=1839
-  _globals['_DELETEENVIRONMENTREQUEST']._serialized_end=1889
-  _globals['_DELETEENVIRONMENTRESPONSE']._serialized_start=1891
-  _globals['_DELETEENVIRONMENTRESPONSE']._serialized_end=1982
-  _globals['_ENVIRONMENTCONTROL']._serialized_start=2201
-  _globals['_ENVIRONMENTCONTROL']._serialized_end=2756
+  _globals['_ENVIRONMENT']._serialized_end=814
+  _globals['_ENVIRONMENT_LABELSENTRY']._serialized_start=769
+  _globals['_ENVIRONMENT_LABELSENTRY']._serialized_end=814
+  _globals['_LISTFILTER']._serialized_start=817
+  _globals['_LISTFILTER']._serialized_end=1025
+  _globals['_LISTFILTER_LABELSENTRY']._serialized_start=769
+  _globals['_LISTFILTER_LABELSENTRY']._serialized_end=814
+  _globals['_CREATEENVIRONMENTREQUEST']._serialized_start=1028
+  _globals['_CREATEENVIRONMENTREQUEST']._serialized_end=1246
+  _globals['_CREATEENVIRONMENTREQUEST_LABELSENTRY']._serialized_start=769
+  _globals['_CREATEENVIRONMENTREQUEST_LABELSENTRY']._serialized_end=814
+  _globals['_CREATEENVIRONMENTRESPONSE']._serialized_start=1248
+  _globals['_CREATEENVIRONMENTRESPONSE']._serialized_end=1339
+  _globals['_GETENVIRONMENTREQUEST']._serialized_start=1341
+  _globals['_GETENVIRONMENTREQUEST']._serialized_end=1388
+  _globals['_GETENVIRONMENTRESPONSE']._serialized_start=1390
+  _globals['_GETENVIRONMENTRESPONSE']._serialized_end=1478
+  _globals['_LISTENVIRONMENTSREQUEST']._serialized_start=1480
+  _globals['_LISTENVIRONMENTSREQUEST']._serialized_end=1563
+  _globals['_LISTENVIRONMENTSRESPONSE']._serialized_start=1565
+  _globals['_LISTENVIRONMENTSRESPONSE']._serialized_end=1677
+  _globals['_DELETEENVIRONMENTREQUEST']._serialized_start=1679
+  _globals['_DELETEENVIRONMENTREQUEST']._serialized_end=1729
+  _globals['_DELETEENVIRONMENTRESPONSE']._serialized_start=1731
+  _globals['_DELETEENVIRONMENTRESPONSE']._serialized_end=1822
+  _globals['_ENVIRONMENTCONTROL']._serialized_start=1825
+  _globals['_ENVIRONMENTCONTROL']._serialized_end=2380
 # @@protoc_insertion_point(module_scope)

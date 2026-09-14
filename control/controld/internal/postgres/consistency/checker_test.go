@@ -111,8 +111,8 @@ func openConsistencyTestDB(t *testing.T) *postgres.DB {
 func insertConsistencyAllocation(t *testing.T, db *postgres.DB, allocationID, runID, status string, now time.Time) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO nodes (node_id, node_target, registered_at, updated_at, last_heartbeat_at, lifecycle_status)
-		VALUES ('node-test', '127.0.0.1:24010', $1, $1, $1, 'active')
+		INSERT INTO nodes (node_id, node_target, registered_at, last_heartbeat_at, lifecycle_status)
+		VALUES ('node-test', '127.0.0.1:24010', $1, $1, 'active')
 		ON CONFLICT (node_id) DO NOTHING
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert node: %v", err)
@@ -160,9 +160,8 @@ func insertConsistencyLease(t *testing.T, db *postgres.DB, leaseID, allocationID
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO execution_leases (
-			lease_id, allocation_id, node_id, node_target, lease_type,
-			expires_at, revision, revoked, token_hash, created_at
-		) VALUES ($1, $2, 'node-test', '127.0.0.1:24010', 'LEASE_TYPE_RUN', $3, 1, FALSE, 'hash', $4)
+			lease_id, allocation_id, node_id, expires_at, revision, revoked, token_hash, created_at
+		) VALUES ($1, $2, 'node-test', $3, 1, FALSE, 'hash', $4)
 	`, leaseID, allocationID, expiresAt.UTC(), createdAt.UTC()); err != nil {
 		t.Fatalf("insert lease: %v", err)
 	}
@@ -172,9 +171,8 @@ func insertConsistencyLeaseRevoked(t *testing.T, db *postgres.DB, leaseID, alloc
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO execution_leases (
-			lease_id, allocation_id, node_id, node_target, lease_type,
-			expires_at, revision, revoked, token_hash, created_at
-		) VALUES ($1, $2, 'node-test', '127.0.0.1:24010', 'LEASE_TYPE_RUN', $3, 1, TRUE, 'hash', $4)
+			lease_id, allocation_id, node_id, expires_at, revision, revoked, token_hash, created_at
+		) VALUES ($1, $2, 'node-test', $3, 1, TRUE, 'hash', $4)
 	`, leaseID, allocationID, expiresAt.UTC(), createdAt.UTC()); err != nil {
 		t.Fatalf("insert revoked lease: %v", err)
 	}

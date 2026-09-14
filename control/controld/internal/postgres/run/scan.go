@@ -5,8 +5,6 @@ import (
 	"strings"
 	"time"
 
-	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
-	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -17,8 +15,7 @@ import (
 )
 
 func environmentSelectSQL() string {
-	return `SELECT environment_id, namespace, status, spec_hash, spec, resolved_template,
-		labels, version, created_at, updated_at, message FROM environments`
+	return `SELECT environment_id, namespace, spec, resolved_spec, labels, created_at, deleted_at FROM environments`
 }
 
 func runSelectSQL() string {
@@ -35,27 +32,28 @@ type scanner interface {
 
 func scanEnvironment(row scanner) (*environmentv1.Environment, error) {
 	var (
-		env                    environmentv1.Environment
-		statusText             string
-		specJSON, templateJSON []byte
-		labelsJSON             []byte
-		createdAt, updatedAt   time.Time
+		env                        environmentv1.Environment
+		specJSON, resolvedSpecJSON []byte
+		labelsJSON                 []byte
+		createdAt                  time.Time
+		deletedAt                  *time.Time
 	)
-	if err := row.Scan(&env.ID, &env.Namespace, &statusText, &env.SpecHash, &specJSON, &templateJSON, &labelsJSON, &env.Version, &createdAt, &updatedAt, &env.Message); err != nil {
+	if err := row.Scan(&env.ID, &env.Namespace, &specJSON, &resolvedSpecJSON, &labelsJSON, &createdAt, &deletedAt); err != nil {
 		return nil, err
 	}
-	env.Status = environmentkernel.ParseStatus(statusText)
 	env.Spec = &environmentv1.EnvironmentSpec{}
 	if err := protojson.Unmarshal(specJSON, env.Spec); err != nil {
 		return nil, fmt.Errorf("unmarshal environment spec: %w", err)
 	}
-	env.ResolvedTemplate = &catalogv1.EnvironmentTemplate{}
-	if err := protojson.Unmarshal(templateJSON, env.ResolvedTemplate); err != nil {
-		return nil, fmt.Errorf("unmarshal resolved template: %w", err)
+	env.ResolvedSpec = &catalogv1.ResolvedEnvironmentSpec{}
+	if err := protojson.Unmarshal(resolvedSpecJSON, env.ResolvedSpec); err != nil {
+		return nil, fmt.Errorf("unmarshal resolved environment spec: %w", err)
 	}
 	env.Labels = unmarshalJSONMap(labelsJSON)
 	env.CreatedAt = timestamppb.New(createdAt)
-	env.UpdatedAt = timestamppb.New(updatedAt)
+	if deletedAt != nil {
+		env.DeletedAt = timestamppb.New(*deletedAt)
+	}
 	return &env, nil
 }
 
@@ -94,20 +92,4 @@ func parseWorkloadDiagnosticCode(value string) commonv1.WorkloadDiagnosticCode {
 		return commonv1.WorkloadDiagnosticCode(number)
 	}
 	return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED
-}
-
-func scanLease(row scanner) (*commonv1.ExecutionLease, error) {
-	var (
-		lease     commonv1.ExecutionLease
-		leaseType string
-		expiresAt time.Time
-		tokenHash string
-	)
-	if err := row.Scan(&lease.LeaseID, &lease.AllocationID, &lease.NodeID, &lease.NodeTarget, &leaseType, &expiresAt, &lease.Revision, &lease.Revoked, &tokenHash); err != nil {
-		return nil, err
-	}
-	lease.LeaseType = leasekernel.ParseType(leaseType)
-	lease.ExpiresAt = timestamppb.New(expiresAt)
-	lease.ValidationTokenHash = tokenHash
-	return &lease, nil
 }

@@ -45,32 +45,35 @@ message OciExecutionProfile {
   OciResourcePolicy resources = 3;
 }
 
-message EnvironmentTemplate {
-  string id = 1;
-  bool rootfs_readonly = 2;
+// ResolvedEnvironmentSpec is the immutable execution input frozen into an
+// Environment. Catalog metadata never participates in node execution.
+message ResolvedEnvironmentSpec {
+  bool rootfs_readonly = 1;
   // Informational image default command, usually OCI Entrypoint + Cmd for
   // built-in templates. Workloads with no explicit argv preserve the image
   // default at node runtime instead of using this field as a control-plane
   // bootstrap override.
-  repeated string image_default_argv = 3;
-  string default_cwd = 4;
-  map<string, string> default_env = 5;
-  repeated EnvironmentMount mounts = 6;
-  EnvironmentTemplateCapabilities capabilities = 7;
-  string language = 8;
-  string language_version = 9;
-  string description = 10;
-  string version = 11;
-  OciImageDescriptor image_descriptor = 12;
-  string warm_policy = 13;
-  string cache_policy = 14;
-  OciExecutionProfile execution_profile = 15;
+  repeated string image_default_argv = 2;
+  string default_cwd = 3;
+  map<string, string> default_env = 4;
+  repeated EnvironmentMount mounts = 5;
+  OciImageDescriptor image_descriptor = 6;
+  OciExecutionProfile execution_profile = 7;
+}
+
+message EnvironmentTemplate {
+  string id = 1;
+  string version = 2;
+  string language = 3;
+  string language_version = 4;
+  string description = 5;
+  EnvironmentTemplateCapabilities capabilities = 6;
+  ResolvedEnvironmentSpec resolved_spec = 7;
 }
 
 message ListEnvironmentTemplatesRequest {
-  string namespace = 1;
-  string version = 2;
-  string language = 3;
+  string version = 1;
+  string language = 2;
 }
 
 message ListEnvironmentTemplatesResponse {

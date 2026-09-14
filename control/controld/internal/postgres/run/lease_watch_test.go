@@ -2,11 +2,13 @@ package pgrun
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
+	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
 
 func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
@@ -32,8 +34,8 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 	}
 	now := time.Now().UTC()
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO nodes (node_id, node_target, registered_at, updated_at, last_heartbeat_at, lifecycle_status)
-		VALUES ('node-a', 'node-a:24010', $1, $1, $1, 'active')
+		INSERT INTO nodes (node_id, node_target, registered_at, last_heartbeat_at, lifecycle_status)
+		VALUES ('node-a', 'node-a:24010', $1, $1, 'active')
 	`, now); err != nil {
 		t.Fatalf("insert lease node: %v", err)
 	}
@@ -79,10 +81,8 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO execution_leases (
-			lease_id, allocation_id, node_id, node_target, lease_type,
-			expires_at, revision, revoked, token_hash, created_at
-		) VALUES ('lease-watch', 'alloc-watch', 'node-a', 'node-a:24010',
-			'LEASE_TYPE_RUN', $1, $2, false, 'token-hash', $3)
+			lease_id, allocation_id, node_id, expires_at, revision, revoked, token_hash, created_at
+		) VALUES ('lease-watch', 'alloc-watch', 'node-a', $1, $2, false, 'token-hash', $3)
 	`, time.Now().Add(time.Minute).UTC(), revision, time.Now().UTC()); err != nil {
 		t.Fatalf("insert lease: %v", err)
 	}
@@ -96,5 +96,71 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 	}
 	if got.count != 1 || got.revision != revision {
 		t.Fatalf("WatchExecutionLeases() = count %d revision %d, want 1/%d", got.count, got.revision, revision)
+	}
+}
+
+func TestWatchRunWakesAfterCommittedVersionChange(t *testing.T) {
+	db := newEnvironmentTestDB(t)
+	now := time.Now().UTC()
+	if _, err := db.Pool().Exec(context.Background(), `DELETE FROM runs WHERE run_id='run-change-watch'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, version, created_at, updated_at)
+		VALUES ('run-change-watch', 'default', 'env-watch', 'RUN_STATUS_PENDING', '{}'::jsonb, '{}'::jsonb, 1, $1, $1)
+	`, now); err != nil {
+		t.Fatal(err)
+	}
+	store := NewStore(db)
+	defer store.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	result := make(chan error, 1)
+	go func() {
+		run, err := store.WatchRun(ctx, "run-change-watch", 1)
+		if err == nil && run.GetVersion() != 2 {
+			err = fmt.Errorf("version = %d, want 2", run.GetVersion())
+		}
+		result <- err
+	}()
+	if _, err := db.Pool().Exec(ctx, `UPDATE runs SET version=2, updated_at=$1 WHERE run_id='run-change-watch'`, now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-result; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestListRunsFiltersAndPaginatesInDatabase(t *testing.T) {
+	db := newEnvironmentTestDB(t)
+	now := time.Now().UTC()
+	if _, err := db.Pool().Exec(context.Background(), `DELETE FROM runs WHERE run_id IN ('run-page-a','run-page-b','run-page-c')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, version, created_at, updated_at) VALUES
+		('run-page-a', 'team-a', 'env-a', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{"suite":"page"}'::jsonb, 1, $1, $1),
+		('run-page-b', 'team-a', 'env-b', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{"suite":"page"}'::jsonb, 1, $1, $1),
+		('run-page-c', 'team-b', 'env-c', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{"suite":"page"}'::jsonb, 1, $1, $1)
+	`, now); err != nil {
+		t.Fatal(err)
+	}
+	store := NewStore(db)
+	defer store.Close()
+	filter := &runv1.RunListFilter{Namespace: "team-a", Statuses: []runv1.RunStatus{runv1.RunStatus_RUN_STATUS_RUNNING}, Labels: map[string]string{"suite": "page"}, PageSize: 1}
+	first, cursor, err := store.ListRuns(context.Background(), filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 1 || cursor == "" {
+		t.Fatalf("first page = %#v cursor=%q", first, cursor)
+	}
+	filter.Cursor = cursor
+	second, final, err := store.ListRuns(context.Background(), filter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second) != 1 || final != "" || second[0].GetID() == first[0].GetID() {
+		t.Fatalf("second page = %#v cursor=%q", second, final)
 	}
 }

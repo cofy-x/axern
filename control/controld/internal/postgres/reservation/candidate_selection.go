@@ -23,7 +23,7 @@ func lockCandidateNodes(ctx context.Context, tx pgx.Tx, candidates []*placementk
 		return nil, nil
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT n.node_id, n.node_target, n.lifecycle_status, n.registered_at, n.updated_at,
+		SELECT n.node_id, n.node_target, n.lifecycle_status, n.registered_at, n.last_heartbeat_at,
 		       n.retired_at, n.retired_reason, s.summary
 		FROM nodes n
 		LEFT JOIN node_summaries s ON s.node_id = n.node_id
@@ -41,7 +41,7 @@ func lockCandidateNodes(ctx context.Context, tx pgx.Tx, candidates []*placementk
 		var record nodekernel.Record
 		var summaryJSON []byte
 		var retiredAt *time.Time
-		if err := rows.Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.RegisteredAt, &record.UpdatedAt, &retiredAt, &record.RetiredReason, &summaryJSON); err != nil {
+		if err := rows.Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.RegisteredAt, &record.LastHeartbeatAt, &retiredAt, &record.RetiredReason, &summaryJSON); err != nil {
 			return nil, fmt.Errorf("scan locked placement candidate: %w", err)
 		}
 		if retiredAt != nil {
@@ -141,7 +141,7 @@ func refreshPlacementCandidate(candidate *placementkernel.Candidate, record *nod
 		evaluation = proto.Clone(candidate.Evaluation).(*nodev1.PlacementCandidate)
 	}
 	evaluation.NodeID = record.NodeID
-	evaluation.HeartbeatAgeSecs = nodekernel.HeartbeatAgeSecs(record.UpdatedAt, now)
+	evaluation.HeartbeatAgeSecs = nodekernel.HeartbeatAgeSecs(record.LastHeartbeatAt, now)
 	if evaluation.Rank == nil {
 		evaluation.Rank = &nodev1.PlacementRank{}
 	}

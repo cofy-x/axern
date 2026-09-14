@@ -23,6 +23,7 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestDiagnoseReadOnlyIsHealthyWithoutMutatingResources(t *testing.T) {
@@ -374,7 +375,7 @@ func (f *fakeEnvironmentClient) CreateEnvironment(_ context.Context, request *en
 
 func (f *fakeEnvironmentClient) DeleteEnvironment(context.Context, *environmentv1.DeleteEnvironmentRequest, ...grpc.CallOption) (*environmentv1.DeleteEnvironmentResponse, error) {
 	f.deleteCalls++
-	return &environmentv1.DeleteEnvironmentResponse{Environment: &environmentv1.Environment{ID: "env-probe", Status: environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_DELETED}}, nil
+	return &environmentv1.DeleteEnvironmentResponse{Environment: &environmentv1.Environment{ID: "env-probe", DeletedAt: timestamppb.Now()}}, nil
 }
 
 type fakeRunClient struct {

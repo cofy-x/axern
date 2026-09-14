@@ -15,7 +15,7 @@ import (
 )
 
 func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1.ExecutionConfig) (*placementkernel.Request, error) {
-	template := env.GetResolvedTemplate()
+	template := env.GetResolvedSpec()
 	requests := config.GetResources().GetRequests()
 	limits := config.GetResources().GetLimits()
 	ports := portSpecsToPlacementPorts(config.GetPorts())

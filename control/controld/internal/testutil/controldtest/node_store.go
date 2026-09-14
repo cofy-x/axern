@@ -40,7 +40,7 @@ func (s *MemoryNodeStore) Register(ctx context.Context, params nodekernel.Regist
 		s.records[params.NodeID] = record
 	}
 	record.NodeTarget = params.NodeTarget
-	record.UpdatedAt = params.Now
+	record.LastHeartbeatAt = params.Now
 	return cloneNodeRecord(record), nil
 }
 
@@ -57,7 +57,7 @@ func (s *MemoryNodeStore) Report(ctx context.Context, params nodekernel.ReportPa
 		s.records[params.NodeID] = record
 	}
 	record.NodeTarget = params.NodeTarget
-	record.UpdatedAt = params.Now
+	record.LastHeartbeatAt = params.Now
 	record.Summary = cloneNodeSummary(params.Summary)
 	return cloneNodeRecord(record), nil
 }
@@ -183,14 +183,14 @@ func cloneNodeRecord(in *nodekernel.Record) *nodekernel.Record {
 		return nil
 	}
 	return &nodekernel.Record{
-		NodeID:        in.NodeID,
-		NodeTarget:    in.NodeTarget,
-		Summary:       cloneNodeSummary(in.Summary),
-		Lifecycle:     in.Lifecycle,
-		RegisteredAt:  in.RegisteredAt,
-		UpdatedAt:     in.UpdatedAt,
-		RetiredAt:     in.RetiredAt,
-		RetiredReason: in.RetiredReason,
+		NodeID:          in.NodeID,
+		NodeTarget:      in.NodeTarget,
+		Summary:         cloneNodeSummary(in.Summary),
+		Lifecycle:       in.Lifecycle,
+		RegisteredAt:    in.RegisteredAt,
+		LastHeartbeatAt: in.LastHeartbeatAt,
+		RetiredAt:       in.RetiredAt,
+		RetiredReason:   in.RetiredReason,
 	}
 }
 

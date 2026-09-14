@@ -27,17 +27,17 @@ func TestListIncludesPython311(t *testing.T) {
 	if got.GetID() != "python311" {
 		t.Fatalf("environment template id = %q, want python311", got.GetID())
 	}
-	if got.GetImageDescriptor().GetDigest() == "" {
+	if got.GetResolvedSpec().GetImageDescriptor().GetDigest() == "" {
 		t.Fatal("environment template image_descriptor is empty")
 	}
-	if len(got.GetImageDefaultArgv()) != 1 || got.GetImageDefaultArgv()[0] != "python3" {
-		t.Fatalf("python311 image_default_argv = %#v, want python3", got.GetImageDefaultArgv())
+	if len(got.GetResolvedSpec().GetImageDefaultArgv()) != 1 || got.GetResolvedSpec().GetImageDefaultArgv()[0] != "python3" {
+		t.Fatalf("python311 image_default_argv = %#v, want python3", got.GetResolvedSpec().GetImageDefaultArgv())
 	}
-	if got.GetDefaultCwd() != "/workspace" {
-		t.Fatalf("python311 default_cwd = %q, want /workspace", got.GetDefaultCwd())
+	if got.GetResolvedSpec().GetDefaultCwd() != "/workspace" {
+		t.Fatalf("python311 default_cwd = %q, want /workspace", got.GetResolvedSpec().GetDefaultCwd())
 	}
-	if got.GetExecutionProfile().GetBaseline().GetNoFileLimit() != 1048576 {
-		t.Fatalf("python311 execution profile nofile = %d, want 1048576", got.GetExecutionProfile().GetBaseline().GetNoFileLimit())
+	if got.GetResolvedSpec().GetExecutionProfile().GetBaseline().GetNoFileLimit() != 1048576 {
+		t.Fatalf("python311 execution profile nofile = %d, want 1048576", got.GetResolvedSpec().GetExecutionProfile().GetBaseline().GetNoFileLimit())
 	}
 }
 
@@ -51,14 +51,14 @@ func TestListIncludesServerBase(t *testing.T) {
 	if got.GetVersion() != "24.04.0" {
 		t.Fatalf("server-base version = %q, want 24.04.0", got.GetVersion())
 	}
-	if got.GetImageDescriptor().GetDigest() == "" {
+	if got.GetResolvedSpec().GetImageDescriptor().GetDigest() == "" {
 		t.Fatal("server-base image_descriptor is empty")
 	}
-	if len(got.GetImageDefaultArgv()) != 3 || got.GetImageDefaultArgv()[0] != "/usr/bin/supervisord" {
-		t.Fatalf("server-base image_default_argv = %#v, want supervisord command", got.GetImageDefaultArgv())
+	if len(got.GetResolvedSpec().GetImageDefaultArgv()) != 3 || got.GetResolvedSpec().GetImageDefaultArgv()[0] != "/usr/bin/supervisord" {
+		t.Fatalf("server-base image_default_argv = %#v, want supervisord command", got.GetResolvedSpec().GetImageDefaultArgv())
 	}
-	if got.GetDefaultCwd() != "/home/axern" {
-		t.Fatalf("server-base default_cwd = %q, want /home/axern", got.GetDefaultCwd())
+	if got.GetResolvedSpec().GetDefaultCwd() != "/home/axern" {
+		t.Fatalf("server-base default_cwd = %q, want /home/axern", got.GetResolvedSpec().GetDefaultCwd())
 	}
 	if got.GetLanguage() != "" || got.GetLanguageVersion() != "" {
 		t.Fatalf("server-base language = %q/%q, want empty", got.GetLanguage(), got.GetLanguageVersion())
@@ -78,14 +78,14 @@ func TestListIncludesCodingBase(t *testing.T) {
 	if got.GetVersion() != "24.04.0" {
 		t.Fatalf("coding-base version = %q, want 24.04.0", got.GetVersion())
 	}
-	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != "ghcr.io/cofy-x/axern/coding-base-runtime:24.04" {
-		t.Fatalf("coding-base image ref = %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"])
+	if got.GetResolvedSpec().GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != "ghcr.io/cofy-x/axern/coding-base-runtime:24.04" {
+		t.Fatalf("coding-base image ref = %q", got.GetResolvedSpec().GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"])
 	}
-	if len(got.GetImageDefaultArgv()) != 3 || got.GetImageDefaultArgv()[0] != "/usr/bin/supervisord" {
-		t.Fatalf("coding-base image_default_argv = %#v, want supervisord command", got.GetImageDefaultArgv())
+	if len(got.GetResolvedSpec().GetImageDefaultArgv()) != 3 || got.GetResolvedSpec().GetImageDefaultArgv()[0] != "/usr/bin/supervisord" {
+		t.Fatalf("coding-base image_default_argv = %#v, want supervisord command", got.GetResolvedSpec().GetImageDefaultArgv())
 	}
-	if got.GetDefaultCwd() != "/home/axern" {
-		t.Fatalf("coding-base default_cwd = %q, want /home/axern", got.GetDefaultCwd())
+	if got.GetResolvedSpec().GetDefaultCwd() != "/home/axern" {
+		t.Fatalf("coding-base default_cwd = %q, want /home/axern", got.GetResolvedSpec().GetDefaultCwd())
 	}
 }
 
@@ -99,11 +99,11 @@ func TestListIncludesDesktopBase(t *testing.T) {
 	if got.GetVersion() != "24.04.0" {
 		t.Fatalf("desktop-base version = %q, want 24.04.0", got.GetVersion())
 	}
-	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != "ghcr.io/cofy-x/axern/desktop-base-runtime:24.04" {
-		t.Fatalf("desktop-base image ref = %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"])
+	if got.GetResolvedSpec().GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != "ghcr.io/cofy-x/axern/desktop-base-runtime:24.04" {
+		t.Fatalf("desktop-base image ref = %q", got.GetResolvedSpec().GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"])
 	}
-	if got.GetDefaultEnv()["AXERN_SANDBOXD_COMPUTER_USE"] != "1" || got.GetDefaultEnv()["DISPLAY"] != ":99" {
-		t.Fatalf("desktop-base default env = %#v", got.GetDefaultEnv())
+	if got.GetResolvedSpec().GetDefaultEnv()["AXERN_SANDBOXD_COMPUTER_USE"] != "1" || got.GetResolvedSpec().GetDefaultEnv()["DISPLAY"] != ":99" {
+		t.Fatalf("desktop-base default env = %#v", got.GetResolvedSpec().GetDefaultEnv())
 	}
 	if !got.GetCapabilities().GetSupportsComputerUse() {
 		t.Fatal("desktop-base supports_computer_use = false, want true")
@@ -120,16 +120,16 @@ func TestGetReturnsNotFoundForUnknownID(t *testing.T) {
 
 func TestGetEnvironmentTemplateHonorsVersion(t *testing.T) {
 	store := NewStore([]*catalogv1.EnvironmentTemplate{
-		{ID: "python311", Version: "3.11.0", ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:old"}},
-		{ID: "python311", Version: "3.11.1", ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:new"}},
+		{ID: "python311", Version: "3.11.0", ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:old"}}},
+		{ID: "python311", Version: "3.11.1", ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{ImageDescriptor: &catalogv1.OciImageDescriptor{Digest: "sha256:new"}}},
 	})
 
 	got, ok := store.Get("python311", "3.11.0")
 	if !ok {
 		t.Fatal("Get() ok = false, want true")
 	}
-	if got.GetImageDescriptor().GetDigest() != "sha256:old" {
-		t.Fatalf("digest = %q, want sha256:old", got.GetImageDescriptor().GetDigest())
+	if got.GetResolvedSpec().GetImageDescriptor().GetDigest() != "sha256:old" {
+		t.Fatalf("digest = %q, want sha256:old", got.GetResolvedSpec().GetImageDescriptor().GetDigest())
 	}
 	if _, ok := store.Get("python311", "missing"); ok {
 		t.Fatal("Get(missing version) ok = true, want false")
@@ -146,8 +146,8 @@ func TestDefaultPythonEnvironmentTemplateImageCanBeOverriddenByEnv(t *testing.T)
 	if !ok {
 		t.Fatal("Get() ok = false, want true")
 	}
-	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
-		t.Fatalf("environment template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
+	if got.GetResolvedSpec().GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
+		t.Fatalf("environment template image ref = %q, want %q", got.GetResolvedSpec().GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
 	}
 }
 
@@ -161,8 +161,8 @@ func TestDefaultServerBaseEnvironmentTemplateImageCanBeOverriddenByEnv(t *testin
 	if !ok {
 		t.Fatal("Get() ok = false, want true")
 	}
-	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
-		t.Fatalf("environment template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
+	if got.GetResolvedSpec().GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
+		t.Fatalf("environment template image ref = %q, want %q", got.GetResolvedSpec().GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
 	}
 }
 
@@ -176,8 +176,8 @@ func TestDefaultDesktopBaseEnvironmentTemplateImageCanBeOverriddenByEnv(t *testi
 	if !ok {
 		t.Fatal("Get() ok = false, want true")
 	}
-	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
-		t.Fatalf("environment template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
+	if got.GetResolvedSpec().GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
+		t.Fatalf("environment template image ref = %q, want %q", got.GetResolvedSpec().GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
 	}
 }
 
@@ -196,9 +196,8 @@ func TestParseDefaultTemplatesRejectsInvalidFixture(t *testing.T) {
 			name: "missing-id",
 			raw: `[{
 				"version": "1.0.0",
-				"imageDescriptor": {"digest": "sha256:1", "annotations": {"org.opencontainers.image.ref.name": "example:1"}},
-				"capabilities": {},
-				"executionProfile": {}
+				"resolvedSpec": {"imageDescriptor": {"digest": "sha256:1", "annotations": {"org.opencontainers.image.ref.name": "example:1"}}, "executionProfile": {}},
+				"capabilities": {}
 			}]`,
 			wantErr: "id is required",
 		},
@@ -207,9 +206,8 @@ func TestParseDefaultTemplatesRejectsInvalidFixture(t *testing.T) {
 			raw: `[{
 				"id": "example",
 				"version": "1.0.0",
-				"imageDescriptor": {"digest": "sha256:1"},
-				"capabilities": {},
-				"executionProfile": {}
+				"resolvedSpec": {"imageDescriptor": {"digest": "sha256:1"}, "executionProfile": {}},
+				"capabilities": {}
 			}]`,
 			wantErr: "org.opencontainers.image.ref.name",
 		},
@@ -218,15 +216,13 @@ func TestParseDefaultTemplatesRejectsInvalidFixture(t *testing.T) {
 			raw: `[{
 				"id": "example",
 				"version": "1.0.0",
-				"imageDescriptor": {"digest": "sha256:1", "annotations": {"org.opencontainers.image.ref.name": "example:1"}},
-				"capabilities": {},
-				"executionProfile": {}
+				"resolvedSpec": {"imageDescriptor": {"digest": "sha256:1", "annotations": {"org.opencontainers.image.ref.name": "example:1"}}, "executionProfile": {}},
+				"capabilities": {}
 			}, {
 				"id": "example",
 				"version": "1.0.0",
-				"imageDescriptor": {"digest": "sha256:2", "annotations": {"org.opencontainers.image.ref.name": "example:2"}},
-				"capabilities": {},
-				"executionProfile": {}
+				"resolvedSpec": {"imageDescriptor": {"digest": "sha256:2", "annotations": {"org.opencontainers.image.ref.name": "example:2"}}, "executionProfile": {}},
+				"capabilities": {}
 			}]`,
 			wantErr: "duplicate template example@1.0.0",
 		},
@@ -255,10 +251,10 @@ func TestDefaultEnvironmentTemplateImageOverrideDigestUpdatesDescriptorDigest(t 
 	if !ok {
 		t.Fatal("Get() ok = false, want true")
 	}
-	if got.GetImageDescriptor().GetDigest() != override {
-		t.Fatalf("environment template digest = %q, want %q", got.GetImageDescriptor().GetDigest(), override)
+	if got.GetResolvedSpec().GetImageDescriptor().GetDigest() != override {
+		t.Fatalf("environment template digest = %q, want %q", got.GetResolvedSpec().GetImageDescriptor().GetDigest(), override)
 	}
-	if got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
-		t.Fatalf("environment template image ref = %q, want %q", got.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
+	if got.GetResolvedSpec().GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"] != override {
+		t.Fatalf("environment template image ref = %q, want %q", got.GetResolvedSpec().GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"], override)
 	}
 }

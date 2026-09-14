@@ -4,7 +4,6 @@ package axern.control.common.v1;
 
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1;commonv1";
 
-import "google/protobuf/timestamp.proto";
 import "axern/control/capability/v1/capability.proto";
 
 message ResourceQuantity {
@@ -157,22 +156,4 @@ enum WorkloadDiagnosticCode {
   WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED = 7;
   WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST = 8;
   WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED = 9;
-}
-
-enum LeaseType {
-  LEASE_TYPE_UNSPECIFIED = 0;
-  LEASE_TYPE_RUN = 1;
-}
-
-message ExecutionLease {
-  string lease_id = 1;
-  string allocation_id = 2;
-  string node_id = 3;
-  LeaseType lease_type = 4;
-  string plaintext_token = 5;
-  int64 revision = 6;
-  google.protobuf.Timestamp expires_at = 7;
-  bool revoked = 8;
-  string node_target = 9;
-  string validation_token_hash = 10;
 }

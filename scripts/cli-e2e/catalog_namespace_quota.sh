@@ -48,9 +48,9 @@ verify_catalog_namespace_quota() {
     exit 1
   fi
   environment_delete_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" environment delete "${environment_id}" -o json)"
-  environment_status="$(json_query "environment delete" 'json.load(sys.stdin)["environment"]["status"]' "${environment_delete_output}")"
-  [ "${environment_status}" = "deleted" ] || {
-    echo "axern environment delete returned status ${environment_status}, want deleted" >&2
+  environment_deleted_at="$(json_query "environment delete" 'json.load(sys.stdin)["environment"].get("deleted_at", "")' "${environment_delete_output}")"
+  [ -n "${environment_deleted_at}" ] || {
+    echo "axern environment delete returned no deleted_at tombstone" >&2
     dump_logs
     exit 1
   }

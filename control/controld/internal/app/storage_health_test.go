@@ -16,9 +16,9 @@ func TestNodeHealthUsesOnlyActiveFreshNodeSummaries(t *testing.T) {
 	stale := controldtest.ReadySummary(now.Add(-time.Minute))
 	retired := controldtest.ReadySummary(now.Add(-time.Minute))
 	store := &fakeNodeHealthStore{records: []*nodekernel.Record{
-		{NodeID: "ready", Lifecycle: nodekernel.LifecycleActive, UpdatedAt: now, Summary: ready},
-		{NodeID: "stale", Lifecycle: nodekernel.LifecycleActive, UpdatedAt: now.Add(-time.Minute), Summary: stale},
-		{NodeID: "retired", Lifecycle: nodekernel.LifecycleRetired, UpdatedAt: now.Add(-time.Minute), Summary: retired},
+		{NodeID: "ready", Lifecycle: nodekernel.LifecycleActive, LastHeartbeatAt: now, Summary: ready},
+		{NodeID: "stale", Lifecycle: nodekernel.LifecycleActive, LastHeartbeatAt: now.Add(-time.Minute), Summary: stale},
+		{NodeID: "retired", Lifecycle: nodekernel.LifecycleRetired, LastHeartbeatAt: now.Add(-time.Minute), Summary: retired},
 	}}
 	fleet, err := (nodeHealthSource{store: store, heartbeatWindow: 15 * time.Second, summaryWindow: 15 * time.Second}).NodeHealth(context.Background(), now)
 	if err != nil {

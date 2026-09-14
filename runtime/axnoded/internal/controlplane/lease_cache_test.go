@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -21,7 +21,7 @@ func TestLeaseCacheWaitValidateWakesForExactToken(t *testing.T) {
 		result <- valid
 	}()
 
-	cache.Apply([]*commonv1.ExecutionLease{{
+	cache.Apply([]*nodev1.NodeExecutionGrant{{
 		LeaseID:             "lease-1",
 		AllocationID:        "alloc-1",
 		ValidationTokenHash: leaseTokenHash("token-1"),
@@ -37,7 +37,7 @@ func TestLeaseCacheWaitValidateRejectsKnownRevokedToken(t *testing.T) {
 	t.Parallel()
 
 	cache := NewLeaseCache()
-	cache.Apply([]*commonv1.ExecutionLease{{
+	cache.Apply([]*nodev1.NodeExecutionGrant{{
 		LeaseID:             "lease-1",
 		AllocationID:        "alloc-1",
 		ValidationTokenHash: leaseTokenHash("token-1"),
@@ -65,12 +65,12 @@ func TestLeaseCacheApplyPrunesExpiredTokens(t *testing.T) {
 	t.Parallel()
 
 	cache := NewLeaseCache()
-	cache.Apply([]*commonv1.ExecutionLease{{
+	cache.Apply([]*nodev1.NodeExecutionGrant{{
 		AllocationID:        "alloc-expired",
 		ValidationTokenHash: leaseTokenHash("expired-token"),
 		ExpiresAt:           timestamppb.New(time.Now().Add(-time.Second)),
 	}})
-	cache.Apply([]*commonv1.ExecutionLease{{
+	cache.Apply([]*nodev1.NodeExecutionGrant{{
 		AllocationID:        "alloc-live",
 		ValidationTokenHash: leaseTokenHash("live-token"),
 		ExpiresAt:           timestamppb.New(time.Now().Add(time.Minute)),
@@ -87,15 +87,15 @@ func TestLeaseCacheApplyReplacesRotatedToken(t *testing.T) {
 	t.Parallel()
 
 	cache := NewLeaseCache()
-	lease := &commonv1.ExecutionLease{
+	lease := &nodev1.NodeExecutionGrant{
 		LeaseID:      "lease-1",
 		AllocationID: "alloc-1",
 		ExpiresAt:    timestamppb.New(time.Now().Add(time.Minute)),
 	}
 	lease.ValidationTokenHash = leaseTokenHash("old-token")
-	cache.Apply([]*commonv1.ExecutionLease{lease})
+	cache.Apply([]*nodev1.NodeExecutionGrant{lease})
 	lease.ValidationTokenHash = leaseTokenHash("new-token")
-	cache.Apply([]*commonv1.ExecutionLease{lease})
+	cache.Apply([]*nodev1.NodeExecutionGrant{lease})
 
 	if cache.Validate("alloc-1", "old-token", time.Now()) {
 		t.Fatal("Validate(old-token) = true after rotation")

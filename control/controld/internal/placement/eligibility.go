@@ -33,7 +33,7 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 	candidate := &nodev1.PlacementCandidate{
 		NodeID:           record.NodeID,
 		State:            nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_ELIGIBLE,
-		HeartbeatAgeSecs: nodekernel.HeartbeatAgeSecs(record.UpdatedAt, input.Now),
+		HeartbeatAgeSecs: nodekernel.HeartbeatAgeSecs(record.LastHeartbeatAt, input.Now),
 		SummaryAgeSecs:   nodekernel.SummaryAgeSecs(summary, input.Now),
 		Pools:            clonePools(summary.GetPools()),
 		Resources:        cloneResources(summary.GetResources()),
@@ -45,7 +45,7 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 	if !record.Active() {
 		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_RETIRED)
 	}
-	heartbeatFresh := nodekernel.HeartbeatFresh(record.UpdatedAt, input.Now, e.heartbeatFreshnessWindow)
+	heartbeatFresh := nodekernel.HeartbeatFresh(record.LastHeartbeatAt, input.Now, e.heartbeatFreshnessWindow)
 	summaryFresh := nodekernel.SummaryFresh(summary, input.Now, e.summaryFreshnessWindow)
 	if !heartbeatFresh {
 		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_HEARTBEAT)

@@ -47,7 +47,7 @@ func (r *Reporter) Report(ctx context.Context, params nodekernel.ReportParams) e
 		return err
 	}
 	recordCapabilityChanges(ctx, record.ReportedCapabilityChanges)
-	r.registry.Report(record.NodeID, record.NodeTarget, record.Summary, record.UpdatedAt)
+	r.registry.Report(record.NodeID, record.NodeTarget, record.Summary, record.LastHeartbeatAt)
 	if !reportedAxnodedReady(record.Summary) || r.allocations == nil {
 		return nil
 	}

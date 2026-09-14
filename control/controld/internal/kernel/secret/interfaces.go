@@ -32,7 +32,7 @@ func NormalizeMasterKey(raw string) ([]byte, error) {
 
 type MetadataReader interface {
 	Get(ctx context.Context, id string) (*secretv1.Secret, bool, error)
-	List(ctx context.Context, filter *secretv1.SecretListFilter) ([]*secretv1.Secret, error)
+	List(ctx context.Context, filter *secretv1.SecretListFilter) ([]*secretv1.Secret, string, error)
 }
 
 type Mutator interface {

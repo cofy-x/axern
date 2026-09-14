@@ -16,7 +16,7 @@ type AdminNodeJSON struct {
 	HeartbeatAgeSeconds int64  `json:"heartbeat_age_seconds"`
 	SummaryAgeSeconds   int64  `json:"summary_age_seconds"`
 	RegisteredAt        string `json:"registered_at,omitempty"`
-	UpdatedAt           string `json:"updated_at,omitempty"`
+	LastHeartbeatAt     string `json:"last_heartbeat_at,omitempty"`
 	RetiredAt           string `json:"retired_at,omitempty"`
 	RetiredReason       string `json:"retired_reason,omitempty"`
 }
@@ -26,7 +26,7 @@ func RenderAdminNodeTable(w io.Writer, nodes []*adminv1.AdminNode) {
 	for _, node := range nodes {
 		rows = append(rows, adminNodeRow(node))
 	}
-	RenderTable(w, []string{"NODE", "STATUS", "HEARTBEAT", "SUMMARY", "READY", "UPDATED", "RETIRED", "REASON"}, rows)
+	RenderTable(w, []string{"NODE", "STATUS", "HEARTBEAT", "SUMMARY", "READY", "LAST HEARTBEAT", "RETIRED", "REASON"}, rows)
 }
 
 func RenderAdminNode(w io.Writer, node *adminv1.AdminNode) {
@@ -37,7 +37,7 @@ func adminNodeRow(node *adminv1.AdminNode) []string {
 	if node == nil {
 		return make([]string, 8)
 	}
-	return []string{node.GetNodeID(), adminNodeLifecycleLabel(node.GetLifecycleStatus()), boolLabel(node.GetHeartbeatFresh()), boolLabel(node.GetSummaryFresh()), boolLabel(node.GetAxnodedReady()), FormatProtoTimestamp(node.GetUpdatedAt()), FormatProtoTimestamp(node.GetRetiredAt()), ShortMessage(node.GetRetiredReason(), 64)}
+	return []string{node.GetNodeID(), adminNodeLifecycleLabel(node.GetLifecycleStatus()), boolLabel(node.GetHeartbeatFresh()), boolLabel(node.GetSummaryFresh()), boolLabel(node.GetAxnodedReady()), FormatProtoTimestamp(node.GetLastHeartbeatAt()), FormatProtoTimestamp(node.GetRetiredAt()), ShortMessage(node.GetRetiredReason(), 64)}
 }
 
 func PrintAdminNodeListJSON(w io.Writer, nodes []*adminv1.AdminNode) error {
@@ -58,7 +58,7 @@ func NewAdminNodeJSON(node *adminv1.AdminNode) *AdminNodeJSON {
 	if node == nil {
 		return nil
 	}
-	return &AdminNodeJSON{NodeID: node.GetNodeID(), LifecycleStatus: adminNodeLifecycleLabel(node.GetLifecycleStatus()), HeartbeatFresh: node.GetHeartbeatFresh(), SummaryFresh: node.GetSummaryFresh(), AxnodedReady: node.GetAxnodedReady(), HeartbeatAgeSeconds: node.GetHeartbeatAgeSeconds(), SummaryAgeSeconds: node.GetSummaryAgeSeconds(), RegisteredAt: FormatProtoTimestamp(node.GetRegisteredAt()), UpdatedAt: FormatProtoTimestamp(node.GetUpdatedAt()), RetiredAt: FormatProtoTimestamp(node.GetRetiredAt()), RetiredReason: node.GetRetiredReason()}
+	return &AdminNodeJSON{NodeID: node.GetNodeID(), LifecycleStatus: adminNodeLifecycleLabel(node.GetLifecycleStatus()), HeartbeatFresh: node.GetHeartbeatFresh(), SummaryFresh: node.GetSummaryFresh(), AxnodedReady: node.GetAxnodedReady(), HeartbeatAgeSeconds: node.GetHeartbeatAgeSeconds(), SummaryAgeSeconds: node.GetSummaryAgeSeconds(), RegisteredAt: FormatProtoTimestamp(node.GetRegisteredAt()), LastHeartbeatAt: FormatProtoTimestamp(node.GetLastHeartbeatAt()), RetiredAt: FormatProtoTimestamp(node.GetRetiredAt()), RetiredReason: node.GetRetiredReason()}
 }
 
 func adminNodeLifecycleLabel(status adminv1.AdminNodeLifecycleStatus) string {

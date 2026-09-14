@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package axern.control.admin.v1;
+package axern.private.control.admin.v1;
 
-option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1;adminv1";
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1;privateadminv1";
 
 import "google/protobuf/timestamp.proto";
 

@@ -3,7 +3,7 @@ package output
 import (
 	"io"
 
-	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
+	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 )
 
 type AllocationLifecycleRetryResponseJSON struct {
@@ -32,11 +32,11 @@ type AllocationLifecycleRetryJSON struct {
 	ClearBlockedReason string `json:"clear_blocked_reason,omitempty"`
 }
 
-func PrintAllocationLifecycleRetryJSON(w io.Writer, retry *adminv1.AllocationLifecycleRetry) error {
+func PrintAllocationLifecycleRetryJSON(w io.Writer, retry *privateadminv1.AllocationLifecycleRetry) error {
 	return PrintJSON(w, AllocationLifecycleRetryResponseJSON{Retry: NewAllocationLifecycleRetryJSON(retry)})
 }
 
-func PrintAllocationLifecycleRetryListJSON(w io.Writer, retries []*adminv1.AllocationLifecycleRetry) error {
+func PrintAllocationLifecycleRetryListJSON(w io.Writer, retries []*privateadminv1.AllocationLifecycleRetry) error {
 	out := AllocationLifecycleRetryListJSON{Retries: make([]*AllocationLifecycleRetryJSON, 0, len(retries))}
 	for _, retry := range retries {
 		out.Retries = append(out.Retries, NewAllocationLifecycleRetryJSON(retry))
@@ -44,7 +44,7 @@ func PrintAllocationLifecycleRetryListJSON(w io.Writer, retries []*adminv1.Alloc
 	return PrintJSON(w, out)
 }
 
-func NewAllocationLifecycleRetryJSON(retry *adminv1.AllocationLifecycleRetry) *AllocationLifecycleRetryJSON {
+func NewAllocationLifecycleRetryJSON(retry *privateadminv1.AllocationLifecycleRetry) *AllocationLifecycleRetryJSON {
 	if retry == nil {
 		return nil
 	}

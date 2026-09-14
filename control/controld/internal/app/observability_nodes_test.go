@@ -17,9 +17,9 @@ func TestObserveNodeStorageReportsReadyNodeTargets(t *testing.T) {
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
 		{
-			NodeID:    "node-a",
-			Lifecycle: nodekernel.LifecycleActive,
-			UpdatedAt: now,
+			NodeID:          "node-a",
+			Lifecycle:       nodekernel.LifecycleActive,
+			LastHeartbeatAt: now,
 			Summary: readyNodeSummary(now, []*nodev1.NodeStorageSummary{
 				{
 					Target:          "axnoded_state",
@@ -39,9 +39,9 @@ func TestObserveNodeStorageReportsReadyNodeTargets(t *testing.T) {
 			}),
 		},
 		{
-			NodeID:    "node-stale",
-			Lifecycle: nodekernel.LifecycleActive,
-			UpdatedAt: now.Add(-time.Minute),
+			NodeID:          "node-stale",
+			Lifecycle:       nodekernel.LifecycleActive,
+			LastHeartbeatAt: now.Add(-time.Minute),
 			Summary: readyNodeSummary(now.Add(-time.Minute), []*nodev1.NodeStorageSummary{
 				{Target: "volume_data", CapacityBytes: 999, Collected: true},
 			}),
@@ -84,18 +84,18 @@ func TestObserveNodeBPFNetReportsReadyNodeState(t *testing.T) {
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
 		{
-			NodeID:    "node-a",
-			Lifecycle: nodekernel.LifecycleActive,
-			UpdatedAt: now,
+			NodeID:          "node-a",
+			Lifecycle:       nodekernel.LifecycleActive,
+			LastHeartbeatAt: now,
 			Summary: readyNodeSummaryWithBPFNet(now, &nodev1.BpfNetSummary{
 				Enabled: true,
 				Ready:   true,
 			}),
 		},
 		{
-			NodeID:    "node-stale",
-			Lifecycle: nodekernel.LifecycleActive,
-			UpdatedAt: now.Add(-time.Minute),
+			NodeID:          "node-stale",
+			Lifecycle:       nodekernel.LifecycleActive,
+			LastHeartbeatAt: now.Add(-time.Minute),
 			Summary: readyNodeSummaryWithBPFNet(now.Add(-time.Minute), &nodev1.BpfNetSummary{
 				Enabled: true,
 			}),

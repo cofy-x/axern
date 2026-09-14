@@ -9,7 +9,6 @@ import (
 	"time"
 
 	nodekernel "github.com/cofy-x/axern/gateway/gatewayd/internal/kernel/nodebridge"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc"
@@ -522,7 +521,7 @@ func (r *fakeResolver) ResolveAllocationTerminal(_ context.Context, req *gateway
 	return &gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: req.GetAllocationID(),
 		NodeTarget:   "node.internal:24010",
-		Lease: &commonv1.ExecutionLease{
+		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: token,
 		},
 	}, nil

@@ -133,16 +133,16 @@ func validateDefaultEnvironmentTemplate(idx int, template *catalogv1.Environment
 		return fmt.Errorf("%s[%d]: duplicate template %s@%s", defaultEnvironmentTemplatesPath, idx, template.GetID(), template.GetVersion())
 	}
 	seen[key] = struct{}{}
-	if template.GetImageDescriptor().GetDigest() == "" {
+	if template.GetResolvedSpec().GetImageDescriptor().GetDigest() == "" {
 		return fmt.Errorf("%s[%d]: image_descriptor.digest is required", defaultEnvironmentTemplatesPath, idx)
 	}
-	if template.GetImageDescriptor().GetAnnotations()[imageRefAnnotationKey] == "" {
+	if template.GetResolvedSpec().GetImageDescriptor().GetAnnotations()[imageRefAnnotationKey] == "" {
 		return fmt.Errorf("%s[%d]: image descriptor %q annotation is required", defaultEnvironmentTemplatesPath, idx, imageRefAnnotationKey)
 	}
 	if template.GetCapabilities() == nil {
 		return fmt.Errorf("%s[%d]: capabilities are required", defaultEnvironmentTemplatesPath, idx)
 	}
-	if template.GetExecutionProfile() == nil {
+	if template.GetResolvedSpec().GetExecutionProfile() == nil {
 		return fmt.Errorf("%s[%d]: execution_profile is required", defaultEnvironmentTemplatesPath, idx)
 	}
 	return nil
@@ -157,15 +157,18 @@ func applyEnvironmentTemplateOverrides(template *catalogv1.EnvironmentTemplate) 
 	if value == "" {
 		return
 	}
-	if template.ImageDescriptor == nil {
-		template.ImageDescriptor = &catalogv1.OciImageDescriptor{}
+	if template.ResolvedSpec == nil {
+		template.ResolvedSpec = &catalogv1.ResolvedEnvironmentSpec{}
 	}
-	if template.ImageDescriptor.Annotations == nil {
-		template.ImageDescriptor.Annotations = map[string]string{}
+	if template.ResolvedSpec.ImageDescriptor == nil {
+		template.ResolvedSpec.ImageDescriptor = &catalogv1.OciImageDescriptor{}
 	}
-	template.ImageDescriptor.Annotations[imageRefAnnotationKey] = value
+	if template.ResolvedSpec.ImageDescriptor.Annotations == nil {
+		template.ResolvedSpec.ImageDescriptor.Annotations = map[string]string{}
+	}
+	template.ResolvedSpec.ImageDescriptor.Annotations[imageRefAnnotationKey] = value
 	if strings.HasPrefix(value, "sha256:") {
-		template.ImageDescriptor.Digest = value
+		template.ResolvedSpec.ImageDescriptor.Digest = value
 	}
 }
 

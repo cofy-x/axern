@@ -33,7 +33,7 @@ func (s nodeHealthSource) NodeHealth(ctx context.Context, now time.Time) (admink
 			continue
 		}
 		fleet.ActiveNodes++
-		heartbeatFresh := nodekernel.HeartbeatFresh(record.UpdatedAt, now, s.heartbeatWindow)
+		heartbeatFresh := nodekernel.HeartbeatFresh(record.LastHeartbeatAt, now, s.heartbeatWindow)
 		summaryFresh := nodekernel.SummaryFresh(record.Summary, now, s.summaryWindow)
 		if !heartbeatFresh {
 			fleet.StaleHeartbeatNodes++

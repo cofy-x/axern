@@ -8,7 +8,6 @@ import (
 	"time"
 
 	nodekernel "github.com/cofy-x/axern/gateway/gatewayd/internal/kernel/nodebridge"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc/codes"
@@ -25,7 +24,7 @@ func TestOpenResolvedRefreshesRejectedLeaseBeforeReturningSession(t *testing.T) 
 		AllocationID: "alloc-1",
 		NodeID:       "node-new",
 		NodeTarget:   "node-new:24010",
-		Lease:        &commonv1.ExecutionLease{PlaintextToken: "fresh-token"},
+		AccessGrant:  &gatewayv1.AllocationAccessGrant{PlaintextToken: "fresh-token"},
 	}}}
 	manager := NewManager(resolver, nodes, Options{LeaseRetryAttempts: 2, LeaseRetryDelay: time.Nanosecond}, nil, nil)
 
@@ -33,7 +32,7 @@ func TestOpenResolvedRefreshesRejectedLeaseBeforeReturningSession(t *testing.T) 
 		AllocationID: "alloc-1",
 		NodeID:       "node-old",
 		NodeTarget:   "node-old:24010",
-		Lease:        &commonv1.ExecutionLease{PlaintextToken: "stale-token"},
+		AccessGrant:  &gatewayv1.AllocationAccessGrant{PlaintextToken: "stale-token"},
 	})
 	if err != nil {
 		t.Fatalf("OpenResolved() error = %v", err)
@@ -67,7 +66,7 @@ func TestOpenResolvedLeaseBackoffHonorsCancellation(t *testing.T) {
 	_, err := manager.OpenResolved(ctx, &gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
 		NodeTarget:   "node-old:24010",
-		Lease:        &commonv1.ExecutionLease{PlaintextToken: "stale-token"},
+		AccessGrant:  &gatewayv1.AllocationAccessGrant{PlaintextToken: "stale-token"},
 	})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("OpenResolved() error = %v, want context.Canceled", err)
@@ -81,7 +80,7 @@ func TestExecStreamOpenRequestUsesShellTTYAndLease(t *testing.T) {
 	t.Parallel()
 	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
-		Lease: &commonv1.ExecutionLease{
+		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
 		},
 	}, OpenOptions{})
@@ -98,7 +97,7 @@ func TestExecStreamOpenRequestUsesCustomArgv(t *testing.T) {
 	t.Parallel()
 	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
-		Lease: &commonv1.ExecutionLease{
+		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
 		},
 	}, OpenOptions{Argv: []string{"/bin/bash", "-l"}})
@@ -112,7 +111,7 @@ func TestExecStreamOpenRequestUsesCustomArgvTTY(t *testing.T) {
 	t.Parallel()
 	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
-		Lease: &commonv1.ExecutionLease{
+		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
 		},
 	}, OpenOptions{Argv: []string{"/bin/bash"}, TTY: true})
@@ -125,7 +124,7 @@ func TestExecStreamOpenRequestUsesEnv(t *testing.T) {
 	t.Parallel()
 	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
-		Lease: &commonv1.ExecutionLease{
+		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
 		},
 	}, OpenOptions{Env: map[string]string{"TERM": "xterm-256color"}})
@@ -139,7 +138,7 @@ func TestExecStreamOpenRequestUsesUser(t *testing.T) {
 	t.Parallel()
 	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
-		Lease: &commonv1.ExecutionLease{
+		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
 		},
 	}, OpenOptions{User: " axern "})

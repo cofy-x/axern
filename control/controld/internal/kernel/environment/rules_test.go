@@ -12,50 +12,6 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func TestSpecHashIgnoresLabelsOutsideSpec(t *testing.T) {
-	first := &environmentv1.EnvironmentSpec{Namespace: NormalizeNamespace(""), TemplateID: "python311", TemplateVersion: "v1"}
-	second := &environmentv1.EnvironmentSpec{Namespace: "default", TemplateID: "python311", TemplateVersion: "v1"}
-	template := &catalogv1.EnvironmentTemplate{ID: "python311", Version: "v1"}
-	if SpecHash(first, template) != SpecHash(second, template) {
-		t.Fatalf("spec hashes differ for equivalent normalized specs")
-	}
-}
-
-func TestSpecHashIncludesResolvedTemplateSnapshot(t *testing.T) {
-	spec := &environmentv1.EnvironmentSpec{Namespace: "default", TemplateID: "claude-code", TemplateVersion: "24.04.0"}
-	first := &catalogv1.EnvironmentTemplate{
-		ID:      "claude-code",
-		Version: "24.04.0",
-		ImageDescriptor: &catalogv1.OciImageDescriptor{Annotations: map[string]string{
-			"org.opencontainers.image.ref.name": "example.com/axern/coding-base-runtime:v0.0.1-alpha.1",
-		}},
-	}
-	second := &catalogv1.EnvironmentTemplate{
-		ID:      "claude-code",
-		Version: "24.04.0",
-		ImageDescriptor: &catalogv1.OciImageDescriptor{Annotations: map[string]string{
-			"org.opencontainers.image.ref.name": "example.com/axern/coding-base-runtime:v0.0.1-alpha.2",
-		}},
-	}
-	if SpecHash(spec, first) == SpecHash(spec, second) {
-		t.Fatal("spec hash did not change when the resolved environment template image changed")
-	}
-}
-
-func TestMatchFilter(t *testing.T) {
-	env := &environmentv1.Environment{
-		Namespace: "default",
-		Status:    environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_READY,
-		Labels:    map[string]string{"team": "infra"},
-	}
-	if !MatchFilter(env, &environmentv1.ListFilter{Namespace: "default", Labels: map[string]string{"team": "infra"}}) {
-		t.Fatal("expected filter to match")
-	}
-	if MatchFilter(env, &environmentv1.ListFilter{Namespace: "other"}) {
-		t.Fatal("expected namespace mismatch")
-	}
-}
-
 func TestResolveSpecTemplateSource(t *testing.T) {
 	catalogStore := catalog.NewStore(nil)
 	spec, template, err := ResolveSpec(context.Background(), &environmentv1.EnvironmentSpec{

@@ -14,6 +14,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service"
 	filev1 "github.com/cofy-x/axern/sdk/go/gen/axern/common/file/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -1145,7 +1146,7 @@ func TestNodeSandboxExecAcceptsLeaseCacheTokenHash(t *testing.T) {
 	token := "lease-token"
 	sum := sha256.Sum256([]byte(token))
 	cache := controlplane.NewLeaseCache()
-	cache.Apply([]*commonv1.ExecutionLease{{
+	cache.Apply([]*nodev1.NodeExecutionGrant{{
 		LeaseID:             "lease-123",
 		AllocationID:        "alloc-123",
 		ValidationTokenHash: hex.EncodeToString(sum[:]),
@@ -1170,7 +1171,7 @@ func TestNodeSandboxExecRejectsRevokedLeaseFromCache(t *testing.T) {
 	token := "lease-token"
 	sum := sha256.Sum256([]byte(token))
 	cache := controlplane.NewLeaseCache()
-	cache.Apply([]*commonv1.ExecutionLease{{
+	cache.Apply([]*nodev1.NodeExecutionGrant{{
 		AllocationID:        "alloc-123",
 		ValidationTokenHash: hex.EncodeToString(sum[:]),
 		ExpiresAt:           timestamppb.New(time.Now().Add(time.Minute)),

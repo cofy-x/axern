@@ -542,13 +542,27 @@ class WatchExecutionLeasesRequest(_message.Message):
     node_auth_token: str
     def __init__(self, node_id: _Optional[str] = ..., after_revision: _Optional[int] = ..., node_auth_token: _Optional[str] = ...) -> None: ...
 
+class NodeExecutionGrant(_message.Message):
+    __slots__ = ("lease_id", "allocation_id", "validation_token_hash", "expires_at", "revoked")
+    LEASE_ID_FIELD_NUMBER: _ClassVar[int]
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    VALIDATION_TOKEN_HASH_FIELD_NUMBER: _ClassVar[int]
+    EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
+    REVOKED_FIELD_NUMBER: _ClassVar[int]
+    lease_id: str
+    allocation_id: str
+    validation_token_hash: str
+    expires_at: _timestamp_pb2.Timestamp
+    revoked: bool
+    def __init__(self, lease_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., validation_token_hash: _Optional[str] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., revoked: _Optional[bool] = ...) -> None: ...
+
 class WatchExecutionLeasesResponse(_message.Message):
-    __slots__ = ("leases", "current_revision")
-    LEASES_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("grants", "current_revision")
+    GRANTS_FIELD_NUMBER: _ClassVar[int]
     CURRENT_REVISION_FIELD_NUMBER: _ClassVar[int]
-    leases: _containers.RepeatedCompositeFieldContainer[_common_pb2.ExecutionLease]
+    grants: _containers.RepeatedCompositeFieldContainer[NodeExecutionGrant]
     current_revision: int
-    def __init__(self, leases: _Optional[_Iterable[_Union[_common_pb2.ExecutionLease, _Mapping]]] = ..., current_revision: _Optional[int] = ...) -> None: ...
+    def __init__(self, grants: _Optional[_Iterable[_Union[NodeExecutionGrant, _Mapping]]] = ..., current_revision: _Optional[int] = ...) -> None: ...
 
 class WatchTunnelSessionsRequest(_message.Message):
     __slots__ = ("node_id", "after_revision", "node_auth_token")

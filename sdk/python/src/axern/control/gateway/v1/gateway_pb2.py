@@ -22,10 +22,10 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
-from axern.control.common.v1 import common_pb2 as axern_dot_control_dot_common_dot_v1_dot_common__pb2
+from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&axern/control/gateway/v1/gateway.proto\x12\x18\x61xern.control.gateway.v1\x1a$axern/control/common/v1/common.proto\"\xba\x01\n ResolveAllocationTerminalRequest\x12\x15\n\rallocation_id\x18\x01 \x01(\t\x12\x13\n\x0bttl_seconds\x18\x02 \x01(\x03\x12&\n\x1e\x63lient_certificate_fingerprint\x18\x03 \x01(\t\x12\x42\n\x07purpose\x18\x04 \x01(\x0e\x32\x31.axern.control.gateway.v1.AllocationAccessPurpose\"\xa8\x01\n!ResolveAllocationTerminalResponse\x12\x15\n\rallocation_id\x18\x01 \x01(\t\x12\x0e\n\x06run_id\x18\x02 \x01(\t\x12\x0f\n\x07node_id\x18\x03 \x01(\t\x12\x13\n\x0bnode_target\x18\x04 \x01(\t\x12\x36\n\x05lease\x18\x05 \x01(\x0b\x32\'.axern.control.common.v1.ExecutionLease\"5\n\x1fResolveTunnelRelayTargetRequest\x12\x12\n\nsession_id\x18\x01 \x01(\t\"<\n ResolveTunnelRelayTargetResponse\x12\x18\n\x10node_edge_target\x18\x01 \x01(\t*\x99\x01\n\x17\x41llocationAccessPurpose\x12)\n%ALLOCATION_ACCESS_PURPOSE_UNSPECIFIED\x10\x00\x12)\n%ALLOCATION_ACCESS_PURPOSE_INTERACTIVE\x10\x01\x12(\n$ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT\x10\x02\x32\xbf\x02\n\x0eGatewayControl\x12\x96\x01\n\x19ResolveAllocationTerminal\x12:.axern.control.gateway.v1.ResolveAllocationTerminalRequest\x1a;.axern.control.gateway.v1.ResolveAllocationTerminalResponse\"\x00\x12\x93\x01\n\x18ResolveTunnelRelayTarget\x12\x39.axern.control.gateway.v1.ResolveTunnelRelayTargetRequest\x1a:.axern.control.gateway.v1.ResolveTunnelRelayTargetResponse\"\x00\x42GZEgithub.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1;gatewayv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&axern/control/gateway/v1/gateway.proto\x12\x18\x61xern.control.gateway.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xba\x01\n ResolveAllocationTerminalRequest\x12\x15\n\rallocation_id\x18\x01 \x01(\t\x12\x13\n\x0bttl_seconds\x18\x02 \x01(\x03\x12&\n\x1e\x63lient_certificate_fingerprint\x18\x03 \x01(\t\x12\x42\n\x07purpose\x18\x04 \x01(\x0e\x32\x31.axern.control.gateway.v1.AllocationAccessPurpose\"\xb7\x01\n!ResolveAllocationTerminalResponse\x12\x15\n\rallocation_id\x18\x01 \x01(\t\x12\x0e\n\x06run_id\x18\x02 \x01(\t\x12\x0f\n\x07node_id\x18\x03 \x01(\t\x12\x13\n\x0bnode_target\x18\x04 \x01(\t\x12\x45\n\x0c\x61\x63\x63\x65ss_grant\x18\x05 \x01(\x0b\x32/.axern.control.gateway.v1.AllocationAccessGrant\"\x9a\x01\n\x15\x41llocationAccessGrant\x12\x10\n\x08lease_id\x18\x01 \x01(\t\x12\x15\n\rallocation_id\x18\x02 \x01(\t\x12\x0f\n\x07node_id\x18\x03 \x01(\t\x12\x17\n\x0fplaintext_token\x18\x04 \x01(\t\x12.\n\nexpires_at\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"5\n\x1fResolveTunnelRelayTargetRequest\x12\x12\n\nsession_id\x18\x01 \x01(\t\"<\n ResolveTunnelRelayTargetResponse\x12\x18\n\x10node_edge_target\x18\x01 \x01(\t*\x99\x01\n\x17\x41llocationAccessPurpose\x12)\n%ALLOCATION_ACCESS_PURPOSE_UNSPECIFIED\x10\x00\x12)\n%ALLOCATION_ACCESS_PURPOSE_INTERACTIVE\x10\x01\x12(\n$ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT\x10\x02\x32\xbf\x02\n\x0eGatewayControl\x12\x96\x01\n\x19ResolveAllocationTerminal\x12:.axern.control.gateway.v1.ResolveAllocationTerminalRequest\x1a;.axern.control.gateway.v1.ResolveAllocationTerminalResponse\"\x00\x12\x93\x01\n\x18ResolveTunnelRelayTarget\x12\x39.axern.control.gateway.v1.ResolveTunnelRelayTargetRequest\x1a:.axern.control.gateway.v1.ResolveTunnelRelayTargetResponse\"\x00\x42GZEgithub.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1;gatewayv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,16 +33,18 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'axern.control.gateway.v1.ga
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZEgithub.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1;gatewayv1'
-  _globals['_ALLOCATIONACCESSPURPOSE']._serialized_start=584
-  _globals['_ALLOCATIONACCESSPURPOSE']._serialized_end=737
-  _globals['_RESOLVEALLOCATIONTERMINALREQUEST']._serialized_start=107
-  _globals['_RESOLVEALLOCATIONTERMINALREQUEST']._serialized_end=293
-  _globals['_RESOLVEALLOCATIONTERMINALRESPONSE']._serialized_start=296
-  _globals['_RESOLVEALLOCATIONTERMINALRESPONSE']._serialized_end=464
-  _globals['_RESOLVETUNNELRELAYTARGETREQUEST']._serialized_start=466
-  _globals['_RESOLVETUNNELRELAYTARGETREQUEST']._serialized_end=519
-  _globals['_RESOLVETUNNELRELAYTARGETRESPONSE']._serialized_start=521
-  _globals['_RESOLVETUNNELRELAYTARGETRESPONSE']._serialized_end=581
-  _globals['_GATEWAYCONTROL']._serialized_start=740
-  _globals['_GATEWAYCONTROL']._serialized_end=1059
+  _globals['_ALLOCATIONACCESSPURPOSE']._serialized_start=751
+  _globals['_ALLOCATIONACCESSPURPOSE']._serialized_end=904
+  _globals['_RESOLVEALLOCATIONTERMINALREQUEST']._serialized_start=102
+  _globals['_RESOLVEALLOCATIONTERMINALREQUEST']._serialized_end=288
+  _globals['_RESOLVEALLOCATIONTERMINALRESPONSE']._serialized_start=291
+  _globals['_RESOLVEALLOCATIONTERMINALRESPONSE']._serialized_end=474
+  _globals['_ALLOCATIONACCESSGRANT']._serialized_start=477
+  _globals['_ALLOCATIONACCESSGRANT']._serialized_end=631
+  _globals['_RESOLVETUNNELRELAYTARGETREQUEST']._serialized_start=633
+  _globals['_RESOLVETUNNELRELAYTARGETREQUEST']._serialized_end=686
+  _globals['_RESOLVETUNNELRELAYTARGETRESPONSE']._serialized_start=688
+  _globals['_RESOLVETUNNELRELAYTARGETRESPONSE']._serialized_end=748
+  _globals['_GATEWAYCONTROL']._serialized_start=907
+  _globals['_GATEWAYCONTROL']._serialized_end=1226
 # @@protoc_insertion_point(module_scope)

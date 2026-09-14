@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	"github.com/jackc/pgx/v5"
@@ -188,9 +187,8 @@ func ensureNamespaceDeletable(ctx context.Context, q queryer, namespace string) 
 			query: `SELECT EXISTS (
 				SELECT 1 FROM environments
 				WHERE namespace = $1
-				  AND status != $2
+				  AND deleted_at IS NULL
 			)`,
-			args: []any{environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_DELETED.String()},
 		},
 		{
 			name: "secrets",

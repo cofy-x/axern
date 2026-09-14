@@ -12,6 +12,7 @@ import (
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestPostgresRunKernelEnvironmentLabelsDoNotChangeSpecIdentity(t *testing.T) {
@@ -36,8 +37,8 @@ func TestPostgresRunKernelEnvironmentLabelsDoNotChangeSpecIdentity(t *testing.T)
 	if first.GetEnvironment().GetID() == second.GetEnvironment().GetID() {
 		t.Fatalf("independent environment resources reused id %q", first.GetEnvironment().GetID())
 	}
-	if first.GetEnvironment().GetSpecHash() != second.GetEnvironment().GetSpecHash() {
-		t.Fatalf("spec hashes differ: %q != %q", first.GetEnvironment().GetSpecHash(), second.GetEnvironment().GetSpecHash())
+	if !proto.Equal(first.GetEnvironment().GetResolvedSpec(), second.GetEnvironment().GetResolvedSpec()) {
+		t.Fatal("equivalent environments produced different resolved specifications")
 	}
 	if first.GetEnvironment().GetLabels()["team"] != "infra" || second.GetEnvironment().GetLabels()["team"] != "runtime" {
 		t.Fatalf("environment labels were not independently preserved: first=%v second=%v", first.GetEnvironment().GetLabels(), second.GetEnvironment().GetLabels())
@@ -415,11 +416,11 @@ func TestPostgresRunKernelCancelRevokesLeaseAndReleasesReservation(t *testing.T)
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
 	}
-	leaseResp, err := app.runStore.IssueExecutionLease(context.Background(), runResp.GetRun().GetAllocationID(), commonv1.LeaseType_LEASE_TYPE_RUN, 30*time.Second, now)
+	leaseResp, err := app.runStore.IssueExecutionLease(context.Background(), runResp.GetRun().GetAllocationID(), 30*time.Second, now)
 	if err != nil {
 		t.Fatalf("AcquireRunLease() error = %v", err)
 	}
-	if leaseResp.GetPlaintextToken() == "" {
+	if leaseResp.PlaintextToken == "" {
 		t.Fatal("AcquireRunLease() returned empty plaintext token")
 	}
 
@@ -438,12 +439,9 @@ func TestPostgresRunKernelCancelRevokesLeaseAndReleasesReservation(t *testing.T)
 	}
 	var revoked bool
 	for _, lease := range leases {
-		if lease.GetLeaseID() == leaseResp.GetLeaseID() {
-			revoked = lease.GetRevoked()
-			if lease.GetPlaintextToken() != "" {
-				t.Fatal("watch path leaked plaintext token")
-			}
-			if lease.GetValidationTokenHash() == "" {
+		if lease.LeaseID == leaseResp.LeaseID {
+			revoked = lease.Revoked
+			if lease.ValidationTokenHash == "" {
 				t.Fatal("watch path did not return validation token hash")
 			}
 		}

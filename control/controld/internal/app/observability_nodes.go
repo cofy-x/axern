@@ -152,7 +152,7 @@ func (a *App) nodeState(record *nodekernel.Record, now time.Time) string {
 	if !record.Active() {
 		return "retired"
 	}
-	heartbeatFresh := nodekernel.HeartbeatFresh(record.UpdatedAt, now, a.heartbeatFreshnessWindow)
+	heartbeatFresh := nodekernel.HeartbeatFresh(record.LastHeartbeatAt, now, a.heartbeatFreshnessWindow)
 	summaryFresh := nodekernel.SummaryFresh(record.Summary, now, a.summaryFreshnessWindow)
 	if !heartbeatFresh || !summaryFresh {
 		return "stale"

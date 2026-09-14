@@ -7,6 +7,7 @@ import (
 	"github.com/cofy-x/axern/apps/cli/internal/command"
 	"github.com/cofy-x/axern/apps/cli/internal/output"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
+	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 	"github.com/spf13/cobra"
 )
 
@@ -248,7 +249,7 @@ func retryWrite(runtime command.Runtime, operation string) *cobra.Command {
 		}
 		defer s.Close()
 		control := appadmin.NewAllocationLifecycle(s.Clients.Admin)
-		var value *adminv1.AllocationLifecycleRetry
+		var value *privateadminv1.AllocationLifecycleRetry
 		switch operation {
 		case "force":
 			resp, err := control.ForceRetry(s.Context, args[0], reason, operatorReason)

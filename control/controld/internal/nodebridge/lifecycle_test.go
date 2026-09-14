@@ -51,7 +51,7 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 	}
 	env := &environmentv1.Environment{
 		ID: "env-a",
-		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
+		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest:      "sha256:abc",
 				Annotations: map[string]string{"org.opencontainers.image.ref.name": "docker.io/library/python@sha256:abc"},
@@ -82,7 +82,7 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-b",
-		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
+		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
 			ImageDefaultArgv: []string{"/bin/image-default"},
 			DefaultCwd:       "/workspace",
 			RootfsReadonly:   true,
@@ -126,7 +126,7 @@ func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 func TestBuildResolvedExecutionConfigLeavesImageArgvEmpty(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-service-entrypoint",
-		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
+		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
 			ImageDefaultArgv: []string{"/bin/image-default"},
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest: "sha256:entrypoint",
@@ -149,7 +149,7 @@ func TestBuildResolvedExecutionConfigLeavesImageArgvEmpty(t *testing.T) {
 func TestBuildResolvedExecutionConfigPreservesImageCwdWithExplicitArgv(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-image-cwd",
-		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
+		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
 			DefaultCwd: "/workspace",
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest: "sha256:cwd",
@@ -174,7 +174,7 @@ func TestBuildResolvedExecutionConfigPreservesImageCwdWithExplicitArgv(t *testin
 func TestBuildResolvedExecutionConfigUsesExplicitCwd(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-explicit-cwd",
-		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
+		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
 			DefaultCwd: "/workspace",
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest: "sha256:cwd-explicit",
@@ -197,7 +197,7 @@ func TestBuildResolvedExecutionConfigUsesExplicitCwd(t *testing.T) {
 func TestBuildResolvedExecutionConfigIncludesImageMounts(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-image-mount",
-		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
+		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest: "sha256:image-mount",
 			},
@@ -226,7 +226,7 @@ func TestBuildResolvedExecutionConfigIncludesImageMounts(t *testing.T) {
 func TestBuildResolvedExecutionConfigForImageBackedEnvironment(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-image",
-		ResolvedTemplate: &catalogv1.EnvironmentTemplate{
+		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
 			RootfsReadonly: true,
 			ImageDescriptor: &catalogv1.OciImageDescriptor{
 				Digest:      "sha256:image",

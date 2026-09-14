@@ -7,15 +7,16 @@ import (
 	"time"
 
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
+	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestRenderAllocationLifecycleRetryTableHandlesMissingNextRunAt(t *testing.T) {
 	var out bytes.Buffer
-	RenderAllocationLifecycleRetryTable(&out, []*adminv1.AllocationLifecycleRetry{{
+	RenderAllocationLifecycleRetryTable(&out, []*privateadminv1.AllocationLifecycleRetry{{
 		AllocationID:      "alloc-a",
 		RunID:             "run-a",
-		Reason:            adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE,
+		Reason:            privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE,
 		NodeID:            "node-a",
 		ReconcileAttempts: 2,
 		LastError:         "node unavailable",
@@ -30,10 +31,10 @@ func TestRenderAllocationLifecycleRetryTableHandlesMissingNextRunAt(t *testing.T
 
 func TestNewAllocationLifecycleRetryJSON(t *testing.T) {
 	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
-	got := NewAllocationLifecycleRetryJSON(&adminv1.AllocationLifecycleRetry{
+	got := NewAllocationLifecycleRetryJSON(&privateadminv1.AllocationLifecycleRetry{
 		AllocationID:      "alloc-a",
 		RunID:             "run-a",
-		Reason:            adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE,
+		Reason:            privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE,
 		NodeID:            "node-a",
 		ReconcileAttempts: 3,
 		NextRunAt:         timestamppb.New(now),

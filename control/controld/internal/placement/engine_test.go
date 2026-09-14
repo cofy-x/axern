@@ -405,11 +405,11 @@ func TestPlanRejectsRetiredNodeAsNonRetryable(t *testing.T) {
 
 func record(nodeID string, runtimes []string, summary *nodev1.NodeSummary, updatedAt time.Time) *nodekernel.Record {
 	return &nodekernel.Record{
-		NodeID:       nodeID,
-		Lifecycle:    nodekernel.LifecycleActive,
-		Summary:      summary,
-		RegisteredAt: updatedAt,
-		UpdatedAt:    updatedAt,
+		NodeID:          nodeID,
+		Lifecycle:       nodekernel.LifecycleActive,
+		Summary:         summary,
+		RegisteredAt:    updatedAt,
+		LastHeartbeatAt: updatedAt,
 	}
 }
 

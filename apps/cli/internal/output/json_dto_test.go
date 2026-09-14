@@ -20,35 +20,33 @@ func TestEnvironmentJSONUsesStableShape(t *testing.T) {
 	err := PrintEnvironmentResponseJSON(&b, &environmentv1.Environment{
 		ID:        "env-1",
 		Namespace: "default",
-		Status:    environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_READY,
 		Spec:      &environmentv1.EnvironmentSpec{TemplateID: "python311"},
 		CreatedAt: timestamppb.New(time.Date(
 			2026, time.April, 29, 12, 0, 0, 0, time.UTC,
 		)),
-		ResolvedTemplate: &catalogv1.EnvironmentTemplate{ID: "python311", ImageDefaultArgv: []string{"python3"}},
+		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{ImageDefaultArgv: []string{"python3"}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var got struct {
 		Environment struct {
-			Status    string `json:"status"`
 			CreatedAt string `json:"created_at"`
 			Spec      struct {
 				TemplateID string `json:"template_id"`
 			} `json:"spec"`
-			ResolvedTemplate struct {
+			ResolvedSpec struct {
 				ImageDefaultArgv []string `json:"image_default_argv"`
-			} `json:"resolved_template"`
+			} `json:"resolved_spec"`
 		} `json:"environment"`
 	}
 	if err := json.Unmarshal([]byte(b.String()), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Environment.Status != "ready" || got.Environment.CreatedAt != "2026-04-29T12:00:00Z" || got.Environment.Spec.TemplateID != "python311" {
+	if got.Environment.CreatedAt != "2026-04-29T12:00:00Z" || got.Environment.Spec.TemplateID != "python311" {
 		t.Fatalf("environment JSON = %#v, want stable labels and timestamps", got.Environment)
 	}
-	if len(got.Environment.ResolvedTemplate.ImageDefaultArgv) != 1 || got.Environment.ResolvedTemplate.ImageDefaultArgv[0] != "python3" || strings.Contains(b.String(), "bootstrap_argv") {
+	if len(got.Environment.ResolvedSpec.ImageDefaultArgv) != 1 || got.Environment.ResolvedSpec.ImageDefaultArgv[0] != "python3" || strings.Contains(b.String(), "bootstrap_argv") {
 		t.Fatalf("environment JSON should expose image_default_argv and not bootstrap_argv: %s", b.String())
 	}
 	assertNoProtoJSONLeak(t, b.String())
@@ -114,12 +112,14 @@ func TestCatalogJSONUsesStableShape(t *testing.T) {
 	var b strings.Builder
 	err := PrintEnvironmentTemplateListJSON(&b, &catalogv1.ListEnvironmentTemplatesResponse{
 		EnvironmentTemplates: []*catalogv1.EnvironmentTemplate{{
-			ID:               "python311",
-			ImageDefaultArgv: []string{"python3"},
+			ID: "python311",
+			ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
+				ImageDefaultArgv: []string{"python3"},
+				ImageDescriptor:  &catalogv1.OciImageDescriptor{MediaType: "application/vnd.oci.image.manifest.v1+json"},
+			},
 			Capabilities: &catalogv1.EnvironmentTemplateCapabilities{
 				SupportsExecStream: true,
 			},
-			ImageDescriptor: &catalogv1.OciImageDescriptor{MediaType: "application/vnd.oci.image.manifest.v1+json"},
 		}},
 	})
 	if err != nil {
@@ -127,9 +127,11 @@ func TestCatalogJSONUsesStableShape(t *testing.T) {
 	}
 	var got struct {
 		EnvironmentTemplates []struct {
-			ID               string   `json:"id"`
-			ImageDefaultArgv []string `json:"image_default_argv"`
-			Capabilities     struct {
+			ID           string `json:"id"`
+			ResolvedSpec struct {
+				ImageDefaultArgv []string `json:"image_default_argv"`
+			} `json:"resolved_spec"`
+			Capabilities struct {
 				SupportsExecStream bool `json:"supports_exec_stream"`
 			} `json:"capabilities"`
 		} `json:"environment_templates"`
@@ -137,7 +139,7 @@ func TestCatalogJSONUsesStableShape(t *testing.T) {
 	if err := json.Unmarshal([]byte(b.String()), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.EnvironmentTemplates[0].ID != "python311" || got.EnvironmentTemplates[0].ImageDefaultArgv[0] != "python3" || !got.EnvironmentTemplates[0].Capabilities.SupportsExecStream {
+	if got.EnvironmentTemplates[0].ID != "python311" || got.EnvironmentTemplates[0].ResolvedSpec.ImageDefaultArgv[0] != "python3" || !got.EnvironmentTemplates[0].Capabilities.SupportsExecStream {
 		t.Fatalf("catalog JSON = %#v, want stable DTO", got.EnvironmentTemplates[0])
 	}
 }

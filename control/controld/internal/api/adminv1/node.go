@@ -84,7 +84,7 @@ func (s *Server) adminNodeToProto(record *nodekernel.Record, now time.Time) *adm
 	if record == nil {
 		return &adminv1.AdminNode{}
 	}
-	heartbeatFresh := record.Active() && nodekernel.HeartbeatFresh(record.UpdatedAt, now, s.deps.NodeHeartbeatWindow)
+	heartbeatFresh := record.Active() && nodekernel.HeartbeatFresh(record.LastHeartbeatAt, now, s.deps.NodeHeartbeatWindow)
 	summaryFresh := record.Active() && nodekernel.SummaryFresh(record.Summary, now, s.deps.NodeSummaryWindow)
 	axnoded := record.Summary.GetComponents().GetAxnoded()
 	out := &adminv1.AdminNode{
@@ -93,10 +93,10 @@ func (s *Server) adminNodeToProto(record *nodekernel.Record, now time.Time) *adm
 		HeartbeatFresh:      heartbeatFresh,
 		SummaryFresh:        summaryFresh,
 		AxnodedReady:        heartbeatFresh && summaryFresh && axnoded.GetReady() && axnoded.GetState() == nodev1.ComponentState_COMPONENT_STATE_READY,
-		HeartbeatAgeSeconds: nodekernel.HeartbeatAgeSecs(record.UpdatedAt, now),
+		HeartbeatAgeSeconds: nodekernel.HeartbeatAgeSecs(record.LastHeartbeatAt, now),
 		SummaryAgeSeconds:   nodekernel.SummaryAgeSecs(record.Summary, now),
 		RegisteredAt:        timestamppb.New(record.RegisteredAt),
-		UpdatedAt:           timestamppb.New(record.UpdatedAt),
+		LastHeartbeatAt:     timestamppb.New(record.LastHeartbeatAt),
 		RetiredReason:       record.RetiredReason,
 	}
 	if !record.RetiredAt.IsZero() {

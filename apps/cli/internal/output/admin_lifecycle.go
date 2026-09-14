@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
+	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 )
 
-func RenderAllocationLifecycleRetry(w io.Writer, retry *adminv1.AllocationLifecycleRetry) {
+func RenderAllocationLifecycleRetry(w io.Writer, retry *privateadminv1.AllocationLifecycleRetry) {
 	if retry == nil {
 		return
 	}
@@ -30,7 +30,7 @@ func RenderAllocationLifecycleRetry(w io.Writer, retry *adminv1.AllocationLifecy
 	fmt.Fprintf(w, "Updated At: %s\n", FormatProtoTimestamp(retry.GetUpdatedAt()))
 }
 
-func RenderAllocationLifecycleRetryTable(w io.Writer, retries []*adminv1.AllocationLifecycleRetry) {
+func RenderAllocationLifecycleRetryTable(w io.Writer, retries []*privateadminv1.AllocationLifecycleRetry) {
 	rows := make([][]string, 0, len(retries))
 	now := time.Now().UTC()
 	for _, retry := range retries {
@@ -51,13 +51,13 @@ func RenderAllocationLifecycleRetryTable(w io.Writer, retries []*adminv1.Allocat
 	RenderTable(w, []string{"ALLOCATION", "RUN", "REASON", "NODE", "RETRIES", "NEXT", "DUE", "LAST_ERROR"}, rows)
 }
 
-func formatAllocationLifecycleRetryNextRun(retry *adminv1.AllocationLifecycleRetry, now time.Time) string {
+func formatAllocationLifecycleRetryNextRun(retry *privateadminv1.AllocationLifecycleRetry, now time.Time) string {
 	if retry == nil || retry.GetNextRunAt() == nil {
 		return "-"
 	}
 	return FormatRelativeAge(retry.GetNextRunAt().AsTime(), now)
 }
 
-func allocationLifecycleRetryReasonLabel(reason adminv1.AllocationLifecycleRetryReason) string {
+func allocationLifecycleRetryReasonLabel(reason privateadminv1.AllocationLifecycleRetryReason) string {
 	return strings.ToLower(trimEnumPrefix(reason.String(), "ALLOCATION_LIFECYCLE_RETRY_REASON_"))
 }

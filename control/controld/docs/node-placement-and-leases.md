@@ -63,7 +63,7 @@ The debug `/allocation-reconcilez` endpoint is intentionally read-only. It lists
 
 The debug `/consistencyz` endpoint is also read-only. It scans durable Postgres state for active reservations, execution leases, or tunnel sessions attached to terminal Allocations. It is a diagnostic guardrail for convergence bugs; it does not mutate state or replace the Run/Allocation or admin repair paths.
 
-The product-facing admin read model exposes the same consistency snapshot through `axern admin consistency check` and folds it with allocation lifecycle retry counts, active-node fleet health, and reconcile health in `axern admin reliability check`. Smoke tests use the typed admin gRPC path rather than debug HTTP.
+The admin read model exposes the same consistency snapshot through `axern admin consistency check` and folds it with allocation lifecycle retry counts, active-node fleet health, and reconcile health in `axern admin reliability check`. Lifecycle retry mutations live in the private operator Proto package; they are deliberately absent from the public product API and public Python/TypeScript SDK surfaces. Smoke tests use the typed operator gRPC path rather than debug HTTP.
 
 Lifecycle retry writes are admin operations, not debug HTTP operations. The queue coordinates node lifecycle convergence with allocation lifecycle, reservations, and lease cleanup, so every write must go through the owning Run controller or an audited admin operation and its state-transition rules.
 
@@ -132,6 +132,8 @@ The control-plane reconciler also sweeps nodes whose heartbeat is outside the co
 
 ## Execution Leases
 
-Execution lease plaintext tokens are returned only to internal gateway callers through the control-plane acquire RPC. Public CLI and SDK clients never receive them. The database stores token hashes, and `WatchExecutionLeases` replicates only `ExecutionLease.validation_token_hash` for node cache validation. The watch is a commit-driven stream. Each response fixes a global revision high-water mark before reading that node's `(after_revision, current_revision]` lease window; the client resumes from `current_revision`. This ordering prevents a concurrent commit from being omitted while its revision is already acknowledged.
+Execution lease plaintext tokens are returned only to internal gateway callers as `AllocationAccessGrant`. Public CLI and SDK clients never receive them. The database stores token hashes, and `WatchExecutionLeases` replicates only `NodeExecutionGrant` validation material to the selected node. The watch is a commit-driven stream. Each response fixes a global revision high-water mark before reading that node's `(after_revision, current_revision]` lease window; the client resumes from `current_revision`. This ordering prevents a concurrent commit from being omitted while its revision is already acknowledged.
+
+Run watches use the same principle without inventing a second event log: PostgreSQL notification is only a wake-up edge, while the versioned Run row remains authoritative. A watcher subscribes before reading and reloads the row after every wake, so commits cannot be lost and no fixed-interval database polling is required.
 
 The control plane is the authoritative registry for Environments, Runs, Allocations, reservations, tunnel sessions, and execution leases. Durable control-plane state is stored in Postgres; in-memory registries are reconstructed caches, not the source of truth.

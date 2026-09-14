@@ -46,7 +46,7 @@ func TestReporterDoesNotPublishUncommittedReport(t *testing.T) {
 func TestReporterPublishesCommittedReport(t *testing.T) {
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	summary := &nodev1.NodeSummary{}
-	record := &nodekernel.Record{NodeID: "node-a", NodeTarget: "node-a:25001", Summary: summary, UpdatedAt: now}
+	record := &nodekernel.Record{NodeID: "node-a", NodeTarget: "node-a:25001", Summary: summary, LastHeartbeatAt: now}
 	registry := &reportRegistrySpy{}
 	reporter := NewReporter(reportStoreStub{record: record}, registry, nil, func() time.Time { return now })
 

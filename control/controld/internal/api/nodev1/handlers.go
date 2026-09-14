@@ -16,6 +16,7 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -42,7 +43,7 @@ func (s *Server) RegisterNode(ctx context.Context, req *controlnodev1.RegisterNo
 		}
 		return nil, grpcstatus.Errorf(codes.Internal, "persist node registration: %v", err)
 	}
-	s.deps.Registry.Register(record.NodeID, record.NodeTarget, record.UpdatedAt)
+	s.deps.Registry.Register(record.NodeID, record.NodeTarget, record.LastHeartbeatAt)
 	return &controlnodev1.RegisterNodeResponse{}, nil
 }
 
@@ -275,14 +276,27 @@ func (s *Server) WatchExecutionLeases(req *controlnodev1.WatchExecutionLeasesReq
 	}
 	revision := req.GetAfterRevision()
 	for {
-		leases, current, err := s.deps.Allocations.WatchExecutionLeases(stream.Context(), nodeID, revision, s.deps.Now())
+		records, current, err := s.deps.Allocations.WatchExecutionLeases(stream.Context(), nodeID, revision, s.deps.Now())
 		if err != nil {
 			return err
 		}
 		if current <= revision {
 			return grpcstatus.Error(codes.Internal, "execution lease watch returned a non-advancing revision")
 		}
-		if err := stream.Send(&controlnodev1.WatchExecutionLeasesResponse{Leases: leases, CurrentRevision: current}); err != nil {
+		grants := make([]*controlnodev1.NodeExecutionGrant, 0, len(records))
+		for _, record := range records {
+			if record == nil {
+				continue
+			}
+			grants = append(grants, &controlnodev1.NodeExecutionGrant{
+				LeaseID:             record.LeaseID,
+				AllocationID:        record.AllocationID,
+				ValidationTokenHash: record.ValidationTokenHash,
+				ExpiresAt:           timestamppb.New(record.ExpiresAt),
+				Revoked:             record.Revoked,
+			})
+		}
+		if err := stream.Send(&controlnodev1.WatchExecutionLeasesResponse{Grants: grants, CurrentRevision: current}); err != nil {
 			return err
 		}
 		revision = current

@@ -159,7 +159,7 @@ secrets = json.loads(pathlib.Path(sys.argv[3]).read_text()).get("secrets", [])
 
 if any((item.get("namespace") or "").startswith("axern-doctor-dns-") for item in namespaces):
     raise SystemExit("sandbox DNS doctor left a temporary Namespace")
-if any(item.get("labels", {}).get("axern.doctor") == "local-dns" and item.get("status") != "deleted" for item in environments):
+if any(item.get("labels", {}).get("axern.doctor") == "local-dns" and not item.get("deleted_at") for item in environments):
     raise SystemExit("sandbox DNS doctor left an active Environment")
 if any(item.get("labels", {}).get("axern.doctor") == "local-dns" for item in secrets):
     raise SystemExit("sandbox DNS doctor left a temporary Secret")

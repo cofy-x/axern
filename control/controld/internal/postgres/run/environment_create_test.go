@@ -46,8 +46,71 @@ func TestCreateEnvironmentAlwaysCreatesOwnedResource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetEnvironment(deleted) error = %v", err)
 	}
-	if deleted.GetStatus() != environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_DELETED {
-		t.Fatalf("deleted environment status = %s", deleted.GetStatus())
+	if deleted.GetDeletedAt() == nil {
+		t.Fatal("deleted environment has no deletion timestamp")
+	}
+}
+
+func TestListEnvironmentsUsesStableKeysetAndExcludesDeletedByDefault(t *testing.T) {
+	db := newEnvironmentTestDB(t)
+	store := NewStore(db)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 16, 8, 0, 0, 0, time.UTC)
+	params := runkernel.CreateEnvironmentParams{Spec: &environmentv1.EnvironmentSpec{Namespace: "default", TemplateID: "python311"}, Labels: map[string]string{"suite": "pagination"}}
+	first, err := store.CreateEnvironment(ctx, params, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.CreateEnvironment(ctx, params, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DeleteEnvironment(ctx, second.GetID(), now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	page, cursor, err := store.ListEnvironments(ctx, &environmentv1.ListFilter{Namespace: "default", Labels: map[string]string{"suite": "pagination"}, PageSize: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page) != 1 || page[0].GetID() != first.GetID() || cursor != "" {
+		t.Fatalf("live page = %#v cursor=%q", page, cursor)
+	}
+	all, next, err := store.ListEnvironments(ctx, &environmentv1.ListFilter{Namespace: "default", Labels: map[string]string{"suite": "pagination"}, IncludeDeleted: true, PageSize: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 1 || next == "" {
+		t.Fatalf("first keyset page returned %d environments, cursor=%q", len(all), next)
+	}
+	tail, final, err := store.ListEnvironments(ctx, &environmentv1.ListFilter{Namespace: "default", Labels: map[string]string{"suite": "pagination"}, IncludeDeleted: true, PageSize: 1, Cursor: next})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tail) != 1 || final != "" || tail[0].GetID() == all[0].GetID() {
+		t.Fatalf("second keyset page = %#v cursor=%q", tail, final)
+	}
+}
+
+func TestDeleteEnvironmentPreservesFirstTombstoneTimestamp(t *testing.T) {
+	db := newEnvironmentTestDB(t)
+	store := NewStore(db)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 16, 8, 0, 0, 0, time.UTC)
+	env, err := store.CreateEnvironment(ctx, runkernel.CreateEnvironmentParams{Spec: &environmentv1.EnvironmentSpec{Namespace: "default", TemplateID: "python311"}}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := store.DeleteEnvironment(ctx, env.GetID(), now.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.DeleteEnvironment(ctx, env.GetID(), now.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.GetDeletedAt().AsTime().Equal(second.GetDeletedAt().AsTime()) {
+		t.Fatalf("delete timestamp changed from %v to %v", first.GetDeletedAt(), second.GetDeletedAt())
 	}
 }
 

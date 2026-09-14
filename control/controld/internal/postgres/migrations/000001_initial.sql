@@ -29,28 +29,22 @@ CREATE TABLE nodes (
 	node_target TEXT NOT NULL DEFAULT '',
 	node_auth_token_hash TEXT NOT NULL DEFAULT '',
 	registered_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL,
 	last_heartbeat_at TIMESTAMPTZ NOT NULL,
-	last_summary_at TIMESTAMPTZ,
 	lifecycle_status TEXT NOT NULL CHECK (lifecycle_status IN ('active', 'retired')),
 	retired_at TIMESTAMPTZ,
 	retired_reason TEXT NOT NULL DEFAULT '',
 	CHECK (
 		(lifecycle_status = 'active' AND retired_at IS NULL AND retired_reason = '') OR
 		(lifecycle_status = 'retired' AND retired_at IS NOT NULL AND length(btrim(retired_reason)) > 0)
-	),
-	version BIGINT NOT NULL DEFAULT 1
+	)
 );
 
 CREATE TABLE node_summaries (
 	node_id TEXT PRIMARY KEY REFERENCES nodes(node_id) ON DELETE CASCADE,
-	collected_at TIMESTAMPTZ NOT NULL,
-	summary JSONB NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL
+	summary JSONB NOT NULL
 );
 
 CREATE INDEX idx_nodes_last_heartbeat_at ON nodes(last_heartbeat_at);
-CREATE INDEX idx_nodes_last_summary_at ON nodes(last_summary_at);
 CREATE INDEX idx_nodes_lifecycle ON nodes(lifecycle_status, node_id);
 
 CREATE TABLE namespaces (
@@ -90,27 +84,14 @@ CREATE TABLE role_bindings (
 	CHECK ((revoked_at IS NULL AND revoked_by_principal_id IS NULL) OR (revoked_at IS NOT NULL AND revoked_by_principal_id IS NOT NULL))
 );
 
-CREATE TABLE environment_templates (
-	template_id TEXT NOT NULL,
-	version TEXT NOT NULL,
-	template JSONB NOT NULL,
-	created_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL,
-	PRIMARY KEY (template_id, version)
-);
-
 CREATE TABLE environments (
 	environment_id TEXT PRIMARY KEY,
 	namespace TEXT NOT NULL,
-	status TEXT NOT NULL,
-	spec_hash TEXT NOT NULL,
 	spec JSONB NOT NULL,
-	resolved_template JSONB NOT NULL,
+	resolved_spec JSONB NOT NULL,
 	labels JSONB NOT NULL,
-	version BIGINT NOT NULL DEFAULT 1,
 	created_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL,
-	message TEXT NOT NULL DEFAULT ''
+	deleted_at TIMESTAMPTZ
 );
 
 CREATE TABLE secrets (
@@ -243,8 +224,6 @@ CREATE TABLE execution_leases (
 	lease_id TEXT PRIMARY KEY,
 	allocation_id TEXT NOT NULL,
 	node_id TEXT NOT NULL,
-	node_target TEXT NOT NULL DEFAULT '',
-	lease_type TEXT NOT NULL,
 	expires_at TIMESTAMPTZ NOT NULL,
 	revision BIGINT NOT NULL,
 	revoked BOOLEAN NOT NULL DEFAULT FALSE,
@@ -340,9 +319,12 @@ CREATE UNIQUE INDEX idx_role_bindings_active_unique
 	ON role_bindings(principal_id, scope_type, COALESCE(namespace, ''), role)
 	WHERE revoked_at IS NULL;
 
-CREATE INDEX idx_environments_namespace_created ON environments(namespace, created_at DESC);
-CREATE INDEX idx_secrets_namespace_created ON secrets(namespace, created_at DESC);
-CREATE INDEX idx_runs_namespace_created ON runs(namespace, created_at DESC);
+CREATE INDEX idx_environments_namespace_created ON environments(namespace, created_at DESC, environment_id DESC);
+CREATE INDEX idx_environments_labels ON environments USING GIN(labels jsonb_path_ops);
+CREATE INDEX idx_secrets_namespace_created ON secrets(namespace, created_at DESC, secret_id DESC);
+CREATE INDEX idx_secrets_labels ON secrets USING GIN(labels jsonb_path_ops);
+CREATE INDEX idx_runs_namespace_created ON runs(namespace, created_at DESC, run_id DESC);
+CREATE INDEX idx_runs_labels ON runs USING GIN(labels jsonb_path_ops);
 CREATE INDEX idx_runs_namespace_id ON runs(namespace, run_id);
 CREATE INDEX idx_allocations_node_lifecycle ON allocations(node_id, lifecycle_state);
 CREATE INDEX idx_allocations_run_lifecycle_updated ON allocations(run_id, lifecycle_state, updated_at);
@@ -393,6 +375,18 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER execution_lease_change_notify
 AFTER INSERT OR UPDATE OR DELETE ON execution_leases
 FOR EACH ROW EXECUTE FUNCTION notify_execution_lease_change();
+
+CREATE FUNCTION notify_run_change()
+RETURNS TRIGGER AS $$
+BEGIN
+	PERFORM pg_notify('axern_run_changes', NEW.run_id);
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER run_change_notify
+AFTER INSERT OR UPDATE ON runs
+FOR EACH ROW EXECUTE FUNCTION notify_run_change();
 
 CREATE FUNCTION notify_tunnel_session_change()
 RETURNS TRIGGER AS $$
