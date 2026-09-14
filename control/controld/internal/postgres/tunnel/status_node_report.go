@@ -40,17 +40,26 @@ func (s *Store) reportNodeStatus(ctx context.Context, nodeID, sessionID string, 
 		return current, nil
 	}
 
-	revision, err := nextRevision(ctx, tx)
-	if err != nil {
-		return nil, err
+	if status == tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_FAILED {
+		revision, err := nextRevision(ctx, tx)
+		if err != nil {
+			return nil, err
+		}
+		row = tx.QueryRow(ctx, `
+			UPDATE tunnel_sessions
+			SET status = $2, reason = $3, bound_addr = COALESCE(NULLIF($4, ''), bound_addr),
+			    updated_at = $5, revision = $6
+			WHERE session_id = $1 AND node_id = $7
+			RETURNING `+sessionSelectColumns(), strings.TrimSpace(sessionID), status.String(), strings.TrimSpace(reason), strings.TrimSpace(boundAddr), now, revision, strings.TrimSpace(nodeID))
+	} else {
+		row = tx.QueryRow(ctx, `
+			UPDATE tunnel_sessions
+			SET status = $2, reason = $3, bound_addr = COALESCE(NULLIF($4, ''), bound_addr),
+			    ready_at = CASE WHEN $2 = 'TUNNEL_SESSION_STATUS_RUNNING' AND ready_at IS NULL THEN $5 ELSE ready_at END,
+			    updated_at = $5
+			WHERE session_id = $1 AND node_id = $6
+			RETURNING `+sessionSelectColumns(), strings.TrimSpace(sessionID), status.String(), strings.TrimSpace(reason), strings.TrimSpace(boundAddr), now, strings.TrimSpace(nodeID))
 	}
-	row = tx.QueryRow(ctx, `
-		UPDATE tunnel_sessions
-		SET status = $2, reason = $3, bound_addr = COALESCE(NULLIF($4, ''), bound_addr),
-		    ready_at = CASE WHEN $2 = 'TUNNEL_SESSION_STATUS_RUNNING' AND ready_at IS NULL THEN $5 ELSE ready_at END,
-		    updated_at = $5, revision = $6
-		WHERE session_id = $1 AND node_id = $7
-		RETURNING `+sessionSelectColumns(), strings.TrimSpace(sessionID), status.String(), strings.TrimSpace(reason), strings.TrimSpace(boundAddr), now, revision, strings.TrimSpace(nodeID))
 	session, _, _, _, err := scanSession(row)
 	if err != nil {
 		return nil, err

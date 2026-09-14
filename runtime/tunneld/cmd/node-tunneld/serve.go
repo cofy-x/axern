@@ -7,11 +7,17 @@ import (
 
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func (d *daemon) serveSession(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token string) error {
 	network, err := d.operator.ResolveSandboxNetwork(ctx, &nodeoperatorv1.ResolveSandboxNetworkRequest{SandboxID: session.GetAllocationID()})
 	if err != nil {
+		switch grpcstatus.Code(err) {
+		case codes.Unavailable, codes.DeadlineExceeded, codes.ResourceExhausted:
+			return degradedSessionError(err)
+		}
 		return err
 	}
 	return d.serveRunscSession(ctx, session, token, network)

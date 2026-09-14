@@ -397,3 +397,15 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER execution_lease_change_notify
 AFTER INSERT OR UPDATE OR DELETE ON execution_leases
 FOR EACH ROW EXECUTE FUNCTION notify_execution_lease_change();
+
+CREATE FUNCTION notify_tunnel_session_change()
+RETURNS TRIGGER AS $$
+BEGIN
+	PERFORM pg_notify('axern_tunnel_session_changes', NEW.node_id);
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tunnel_session_change_notify
+AFTER INSERT OR UPDATE OF revision, expires_at ON tunnel_sessions
+FOR EACH ROW EXECUTE FUNCTION notify_tunnel_session_change();

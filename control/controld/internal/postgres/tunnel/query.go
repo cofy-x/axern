@@ -23,7 +23,9 @@ func (s *Store) List(ctx context.Context, namespace, allocationID, nodeID string
 	if s == nil || s.db == nil || s.db.Pool() == nil {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "tunnel store is not configured")
 	}
-	_ = s.expireDue(ctx, now.UTC())
+	if err := s.expireDue(ctx, now.UTC()); err != nil {
+		return nil, fmt.Errorf("expire tunnel sessions before list: %w", err)
+	}
 	conds := []string{"TRUE"}
 	args := []any{}
 	if v := strings.TrimSpace(namespace); v != "" {
@@ -62,7 +64,71 @@ func (s *Store) WatchNode(ctx context.Context, nodeID string, afterRevision int6
 	if s == nil || s.db == nil || s.db.Pool() == nil {
 		return nil, 0, grpcstatus.Error(codes.FailedPrecondition, "tunnel store is not configured")
 	}
-	_ = s.expireDue(ctx, now.UTC())
+	if s.watches == nil {
+		return nil, 0, grpcstatus.Error(codes.FailedPrecondition, "tunnel session watch is not configured")
+	}
+	nodeID = strings.TrimSpace(nodeID)
+	subscription, err := s.watches.subscribe(ctx, nodeID)
+	if err != nil {
+		return nil, afterRevision, fmt.Errorf("subscribe tunnel session changes: %w", err)
+	}
+	defer subscription.close()
+	clockStartedAt := time.Now()
+	baseTime := now.UTC()
+	for {
+		currentTime := baseTime.Add(time.Since(clockStartedAt))
+		if err := s.expireDue(ctx, currentTime); err != nil {
+			return nil, afterRevision, err
+		}
+		sessions, revision, err := s.loadNodeSessions(ctx, nodeID, afterRevision)
+		if err != nil {
+			return nil, afterRevision, err
+		}
+		if revision > afterRevision {
+			return sessions, revision, nil
+		}
+		nextExpiry, hasExpiry, err := s.nextNodeExpiry(ctx, nodeID)
+		if err != nil {
+			return nil, afterRevision, err
+		}
+		if !hasExpiry {
+			err = subscription.wait(ctx)
+		} else {
+			_, err = subscription.waitFor(ctx, nextExpiry.Sub(currentTime))
+		}
+		if err != nil {
+			return nil, afterRevision, err
+		}
+	}
+}
+
+func (s *Store) nextNodeExpiry(ctx context.Context, nodeID string) (time.Time, bool, error) {
+	var expiresAt time.Time
+	err := s.db.Pool().QueryRow(ctx, `
+		SELECT expires_at
+		FROM tunnel_sessions
+		WHERE node_id = $1
+		  AND revoked = FALSE
+		  AND status IN (
+			'TUNNEL_SESSION_STATUS_PENDING',
+			'TUNNEL_SESSION_STATUS_RUNNING',
+			'TUNNEL_SESSION_STATUS_DEGRADED'
+		  )
+		ORDER BY expires_at ASC
+		LIMIT 1
+	`, nodeID).Scan(&expiresAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("query next node tunnel expiry: %w", err)
+	}
+	return expiresAt.UTC(), true, nil
+}
+
+func (s *Store) loadNodeSessions(ctx context.Context, nodeID string, afterRevision int64) ([]*nodev1.NodeTunnelSession, int64, error) {
+	// Fix the high-water mark before reading rows. A session committed after
+	// this query is intentionally delivered by the next response.
 	revision, err := currentRevision(ctx, s.db.Pool())
 	if err != nil {
 		return nil, 0, err
@@ -72,8 +138,9 @@ func (s *Store) WatchNode(ctx context.Context, nodeID string, afterRevision int6
 		FROM tunnel_sessions
 		WHERE node_id = $1
 		  AND revision > $2
+		  AND revision <= $3
 		ORDER BY revision ASC
-	`, strings.TrimSpace(nodeID), afterRevision)
+	`, nodeID, afterRevision, revision)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query node tunnel sessions: %w", err)
 	}
@@ -100,7 +167,9 @@ func (s *Store) getWithTokens(ctx context.Context, sessionID string, now time.Ti
 	if sessionID == "" {
 		return nil, "", "", grpcstatus.Error(codes.InvalidArgument, "session_id is required")
 	}
-	_ = s.expireDue(ctx, now.UTC())
+	if err := s.expireDue(ctx, now.UTC()); err != nil {
+		return nil, "", "", fmt.Errorf("expire tunnel sessions before get: %w", err)
+	}
 	session, clientHash, _, nodeHash, err := scanSession(s.db.Pool().QueryRow(ctx, `SELECT `+sessionSelectColumns()+` FROM tunnel_sessions WHERE session_id = $1`, sessionID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, "", "", grpcstatus.Error(codes.NotFound, "tunnel session not found")

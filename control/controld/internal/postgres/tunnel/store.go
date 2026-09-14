@@ -23,6 +23,7 @@ type Store struct {
 	nodeEdgeTarget string
 	relays         []Relay
 	aead           cipher.AEAD
+	watches        *watchHub
 }
 
 type Option func(*Store)
@@ -52,10 +53,19 @@ func WithMasterKey(masterKey []byte) Option {
 
 func NewStore(db *postgres.DB, edgeTarget, nodeEdgeTarget string, options ...Option) *Store {
 	s := &Store{db: db, edgeTarget: strings.TrimSpace(edgeTarget), nodeEdgeTarget: strings.TrimSpace(nodeEdgeTarget)}
+	if db != nil && db.Pool() != nil {
+		s.watches = newWatchHub(db.Pool())
+	}
 	for _, option := range options {
 		if option != nil {
 			option(s)
 		}
 	}
 	return s
+}
+
+func (s *Store) Close() {
+	if s != nil && s.watches != nil {
+		s.watches.close()
+	}
 }

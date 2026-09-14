@@ -60,7 +60,7 @@ The event stream is owned by `controld` and records durable lifecycle changes su
 
 Relay data-plane safeguards include protocol ping/pong, pair wait timeout, maximum stream frame size, bounded peer send queues, drain mode, and active session caps. Draining relays reject new peers but do not own control-plane session state.
 
-`node-all-in-one` runs `node-tunneld` under a local restart loop. A `node-tunneld` crash or manual kill should not bring down `axnoded` or `imagemgr`; the restarted daemon watches tunnel sessions again and rebinds active allocation-local listeners.
+`node-all-in-one` runs `node-tunneld` under a local restart loop. A `node-tunneld` crash or manual kill should not bring down `axnoded` or `imagemgr`; the restarted daemon resumes the ordered control-plane stream and rebinds active allocation-local listeners. The stream carries only node-relevant desired-state changes (create and terminal tombstones). Renewal, relay peer history, traffic accounting, and non-terminal status remain control-plane facts and do not churn node convergence.
 
 The relay exposes OpenTelemetry metrics when `AXERN_OTEL_ENABLED=true`. Current v1 metrics intentionally avoid high-cardinality session labels:
 

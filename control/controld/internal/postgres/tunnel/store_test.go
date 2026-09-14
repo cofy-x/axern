@@ -9,23 +9,27 @@ import (
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	tunnelkernel "github.com/cofy-x/axern/control/controld/internal/kernel/tunnel"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func newTestStore(db *postgres.DB) *Store {
-	return NewStore(db, "", "", WithRelays([]Relay{{
+func newTestStore(t *testing.T, db *postgres.DB) *Store {
+	t.Helper()
+	store := NewStore(db, "", "", WithRelays([]Relay{{
 		ID:           "test",
 		ClientTarget: "127.0.0.1:24210",
 		NodeTarget:   "tunneld:24210",
 		Weight:       1,
 	}}))
+	t.Cleanup(store.Close)
+	return store
 }
 
 func TestCreateAllocatesRemotePort(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-auto", now)
 
@@ -44,7 +48,7 @@ func TestCreateAllocatesRemotePort(t *testing.T) {
 
 func TestCreateUsesExplicitRemotePort(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-explicit", now)
 
@@ -64,7 +68,7 @@ func TestCreateUsesExplicitRemotePort(t *testing.T) {
 
 func TestCreateRejectsExplicitZeroRemotePort(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-zero", now)
 
@@ -81,7 +85,7 @@ func TestCreateRejectsExplicitZeroRemotePort(t *testing.T) {
 
 func TestRenewExtendsActiveSession(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-renew", now)
 
@@ -106,7 +110,7 @@ func TestRenewExtendsActiveSession(t *testing.T) {
 
 func TestRenewRejectsExpiredSession(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-renew-expired", now)
 
@@ -127,7 +131,7 @@ func TestRenewRejectsExpiredSession(t *testing.T) {
 
 func TestRenewRejectsRevokedSession(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-renew-revoked", now)
 
@@ -150,7 +154,7 @@ func TestRenewRejectsRevokedSession(t *testing.T) {
 
 func TestRenewRequiresClientToken(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-renew-token", now)
 
@@ -173,9 +177,173 @@ func TestRenewRequiresClientToken(t *testing.T) {
 	}
 }
 
+func TestNodeDesiredRevisionIgnoresOperationalUpdates(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-revision", now)
+
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
+		AllocationID: "alloc-revision",
+		LocalTarget:  "127.0.0.1:8080",
+		Now:          now,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	createdRevision, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision(create) error = %v", err)
+	}
+	if _, err := store.Renew(context.Background(), result.Session.GetSessionID(), result.ClientToken, 10*time.Minute, now.Add(time.Second)); err != nil {
+		t.Fatalf("Renew() error = %v", err)
+	}
+	if _, err := store.ReportStatus(context.Background(), "node-test", result.Session.GetSessionID(), tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING, "", "0.0.0.0:8080", now.Add(2*time.Second)); err != nil {
+		t.Fatalf("ReportStatus(running) error = %v", err)
+	}
+	if _, err := store.ReportPeerEvent(context.Background(), tunnelkernel.PeerEventParams{
+		SessionID: result.Session.GetSessionID(),
+		RelayID:   "test",
+		PeerKind:  tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_CLIENT,
+		EventType: tunnelv1.TunnelSessionEventType_TUNNEL_SESSION_EVENT_TYPE_CLIENT_CONNECTED,
+		PeerToken: result.ClientToken,
+		BytesIn:   12,
+		BytesOut:  34,
+	}, now.Add(3*time.Second)); err != nil {
+		t.Fatalf("ReportPeerEvent() error = %v", err)
+	}
+	afterOperationalUpdates, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision(operational updates) error = %v", err)
+	}
+	if afterOperationalUpdates != createdRevision {
+		t.Fatalf("operational updates advanced node desired revision from %d to %d", createdRevision, afterOperationalUpdates)
+	}
+
+	if _, err := store.ReportStatus(context.Background(), "node-test", result.Session.GetSessionID(), tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_FAILED, "agent exited", "", now.Add(4*time.Second)); err != nil {
+		t.Fatalf("ReportStatus(failed) error = %v", err)
+	}
+	afterTerminal, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision(terminal) error = %v", err)
+	}
+	if afterTerminal != createdRevision+1 {
+		t.Fatalf("terminal update revision = %d, want %d", afterTerminal, createdRevision+1)
+	}
+	if err := store.ReconcileExpired(context.Background(), now.Add(24*time.Hour)); err != nil {
+		t.Fatalf("ReconcileExpired() error = %v", err)
+	}
+	afterDeadline, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision(after deadline) error = %v", err)
+	}
+	if afterDeadline != afterTerminal {
+		t.Fatalf("expiry rewrote failed terminal revision from %d to %d", afterTerminal, afterDeadline)
+	}
+	failed, err := store.Get(context.Background(), result.Session.GetSessionID(), now.Add(24*time.Hour))
+	if err != nil {
+		t.Fatalf("Get(failed after deadline) error = %v", err)
+	}
+	if failed.GetStatus() != tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_FAILED {
+		t.Fatalf("failed session status after deadline = %s, want failed", failed.GetStatus())
+	}
+}
+
+func TestWatchNodeBlocksUntilDesiredStateChanges(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-watch", now)
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
+		AllocationID: "alloc-watch",
+		LocalTarget:  "127.0.0.1:8080",
+		Now:          now,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	revision, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision() error = %v", err)
+	}
+
+	type watchResult struct {
+		sessions []*nodev1.NodeTunnelSession
+		revision int64
+		err      error
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	watched := make(chan watchResult, 1)
+	go func() {
+		sessions, current, err := store.WatchNode(ctx, "node-test", revision, now)
+		watched <- watchResult{sessions: sessions, revision: current, err: err}
+	}()
+
+	select {
+	case got := <-watched:
+		t.Fatalf("WatchNode returned before a desired-state change: %+v", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if _, err := store.Revoke(context.Background(), result.Session.GetSessionID(), "test revoke", now.Add(time.Second)); err != nil {
+		t.Fatalf("Revoke() error = %v", err)
+	}
+	select {
+	case got := <-watched:
+		if got.err != nil {
+			t.Fatalf("WatchNode() error = %v", got.err)
+		}
+		if got.revision <= revision || len(got.sessions) != 1 {
+			t.Fatalf("WatchNode() = revision %d, sessions %d; want advancing revision and one tombstone", got.revision, len(got.sessions))
+		}
+		if got.sessions[0].GetSession().GetStatus() != tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_REVOKED {
+			t.Fatalf("WatchNode() status = %s, want revoked", got.sessions[0].GetSession().GetStatus())
+		}
+	case <-ctx.Done():
+		t.Fatal("WatchNode did not observe revoke notification")
+	}
+}
+
+func TestWatchNodeExpiresSessionAtDeadlineWithoutAnotherWrite(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-watch-expiry", now)
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
+		AllocationID: "alloc-watch-expiry",
+		LocalTarget:  "127.0.0.1:8080",
+		Now:          now,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	revision, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision() error = %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		UPDATE tunnel_sessions SET expires_at = $2 WHERE session_id = $1
+	`, result.Session.GetSessionID(), now.Add(200*time.Millisecond)); err != nil {
+		t.Fatalf("set near expiry: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	sessions, current, err := store.WatchNode(ctx, "node-test", revision, now)
+	if err != nil {
+		t.Fatalf("WatchNode() error = %v", err)
+	}
+	if current <= revision || len(sessions) != 1 {
+		t.Fatalf("WatchNode() = revision %d, sessions %d; want advancing revision and one tombstone", current, len(sessions))
+	}
+	if sessions[0].GetSession().GetStatus() != tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_EXPIRED {
+		t.Fatalf("WatchNode() status = %s, want expired", sessions[0].GetSession().GetStatus())
+	}
+}
+
 func TestListEventsTracksTunnelLifecycle(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-events", now)
 
@@ -227,7 +395,7 @@ func TestListEventsTracksTunnelLifecycle(t *testing.T) {
 
 func TestListEventsRecordsExpiry(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-events-expire", now)
 

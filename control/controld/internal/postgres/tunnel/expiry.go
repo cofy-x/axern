@@ -16,6 +16,11 @@ func (s *Store) expireDue(ctx context.Context, now time.Time) error {
 		WITH due AS MATERIALIZED (
 			SELECT session_id FROM tunnel_sessions
 			WHERE revoked = FALSE AND expires_at <= $2
+			  AND status IN (
+				'TUNNEL_SESSION_STATUS_PENDING',
+				'TUNNEL_SESSION_STATUS_RUNNING',
+				'TUNNEL_SESSION_STATUS_DEGRADED'
+			  )
 			ORDER BY session_id
 			FOR UPDATE
 		), rev AS (
@@ -44,6 +49,11 @@ func expireDueTx(ctx context.Context, tx pgx.Tx, now time.Time) error {
 		WITH due AS MATERIALIZED (
 			SELECT session_id FROM tunnel_sessions
 			WHERE revoked = FALSE AND expires_at <= $2
+			  AND status IN (
+				'TUNNEL_SESSION_STATUS_PENDING',
+				'TUNNEL_SESSION_STATUS_RUNNING',
+				'TUNNEL_SESSION_STATUS_DEGRADED'
+			  )
 			ORDER BY session_id
 			FOR UPDATE
 		), rev AS (

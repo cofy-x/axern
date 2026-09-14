@@ -56,19 +56,13 @@ func (s *Store) ReportPeerEvent(ctx context.Context, params tunnelkernel.PeerEve
 			return nil, grpcstatus.Error(codes.PermissionDenied, "invalid tunnel peer token")
 		}
 	}
-	revision, err := nextRevision(ctx, tx)
-	if err != nil {
-		return nil, err
-	}
 	row = tx.QueryRow(ctx, `
 		UPDATE tunnel_sessions
 		SET last_peer_event_at = $2,
 		    bytes_in = bytes_in + $3,
-		    bytes_out = bytes_out + $4,
-		    updated_at = $2,
-		    revision = $5
+		    bytes_out = bytes_out + $4
 		WHERE session_id = $1
-		RETURNING `+sessionSelectColumns(), sessionID, now, params.BytesIn, params.BytesOut, revision)
+		RETURNING `+sessionSelectColumns(), sessionID, now, params.BytesIn, params.BytesOut)
 	session, _, _, _, err := scanSession(row)
 	if err != nil {
 		return nil, err

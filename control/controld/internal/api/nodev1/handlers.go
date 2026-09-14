@@ -300,11 +300,20 @@ func (s *Server) WatchTunnelSessions(req *controlnodev1.WatchTunnelSessionsReque
 	if err := s.deps.NodeStore.Authenticate(stream.Context(), nodeID, req.GetNodeAuthToken()); err != nil {
 		return err
 	}
-	sessions, revision, err := s.deps.Tunnels.WatchNode(stream.Context(), nodeID, req.GetAfterRevision(), s.deps.Now())
-	if err != nil {
-		return err
+	revision := req.GetAfterRevision()
+	for {
+		sessions, current, err := s.deps.Tunnels.WatchNode(stream.Context(), nodeID, revision, s.deps.Now())
+		if err != nil {
+			return err
+		}
+		if current <= revision {
+			return grpcstatus.Error(codes.Internal, "tunnel session watch returned a non-advancing revision")
+		}
+		if err := stream.Send(&controlnodev1.WatchTunnelSessionsResponse{Sessions: sessions, CurrentRevision: current}); err != nil {
+			return err
+		}
+		revision = current
 	}
-	return stream.Send(&controlnodev1.WatchTunnelSessionsResponse{Sessions: sessions, CurrentRevision: revision})
 }
 
 func (s *Server) ReportTunnelSessionStatus(ctx context.Context, req *controlnodev1.ReportTunnelSessionStatusRequest) (*controlnodev1.ReportTunnelSessionStatusResponse, error) {

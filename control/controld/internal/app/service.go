@@ -265,6 +265,9 @@ func (a *App) Close() error {
 		if a.runStore != nil {
 			a.runStore.Close()
 		}
+		if a.tunnelPG != nil {
+			a.tunnelPG.Close()
+		}
 		if a.db != nil {
 			a.db.Close()
 		}

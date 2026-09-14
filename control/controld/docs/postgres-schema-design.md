@@ -116,9 +116,9 @@ erDiagram
   tunnel_sessions ||--o{ tunnel_session_events : records
 ```
 
-`tunnel_sessions` stores the selected Allocation ID, remote port, edge and relay targets, encrypted node token, token hashes, revision, traffic counters, expiry, and revocation state. A partial unique index prevents two active sessions from claiming the same allocation port.
+`tunnel_sessions` stores the selected Allocation ID, remote port, edge and relay targets, encrypted node token, token hashes, node-desired-state revision, traffic counters, expiry, and terminal state. A partial unique index prevents two active sessions from claiming the same allocation port.
 
-`tunnel_session_events` is append-only peer and lifecycle history. The `tunnel_sessions` control revision supports incremental node convergence.
+`tunnel_session_events` is append-only peer and lifecycle history. The `tunnel_sessions` revision is only the ordered node desired-state feed: create and terminalization advance it, while renewal, non-terminal node status, relay peer events, and traffic counters do not. PostgreSQL notifications wake node-specific watchers; fixed high-water reads make reconnects and concurrent commits lossless. Each watcher also sleeps until its node's nearest active TTL deadline, so expiry does not depend on unrelated writes or polling. Terminal session rows are retained as recovery tombstones, while event retention may prune older diagnostic history.
 
 ## Query and Index Intent
 
